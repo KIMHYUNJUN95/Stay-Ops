@@ -1,0 +1,280 @@
+"use client";
+
+import { useMemo, useState, useSyncExternalStore, useTransition } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { AlertCircle, CircleCheck, Megaphone, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AnnouncementImageGrid } from "@/components/announcements/announcement-image-grid";
+import type { Locale } from "@/lib/i18n";
+import { getAnnouncementDictionary } from "@/lib/announcement-i18n";
+import { dismissPopupForWeek } from "@/app/announcements/popup-actions";
+
+const POPUP_HIDE_STORAGE_KEY = "stayops:announcement-popup-hidden-until";
+const POPUP_HIDE_STORAGE_EVENT = "stayops:announcement-popup-storage";
+const HIDE_FOR_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+type HiddenPopupMap = Record<string, string>;
+type HidePreference = {
+  announcementId: string | null;
+  checked: boolean;
+};
+
+function readHiddenPopupSnapshot() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  try {
+    const raw = window.localStorage.getItem(POPUP_HIDE_STORAGE_KEY);
+
+    if (!raw) {
+      return "";
+    }
+
+    const parsed = JSON.parse(raw) as unknown;
+
+    if (!parsed || typeof parsed !== "object") {
+      return "";
+    }
+
+    const now = Date.now();
+    const nextMap = Object.fromEntries(
+      Object.entries(parsed).filter((entry) => {
+        const [, value] = entry;
+
+        return typeof value === "string" && new Date(value).getTime() > now;
+      }),
+    ) as HiddenPopupMap;
+    const nextSnapshot = JSON.stringify(nextMap);
+
+    if (raw !== nextSnapshot) {
+      window.localStorage.setItem(POPUP_HIDE_STORAGE_KEY, nextSnapshot);
+    }
+
+    return nextSnapshot;
+  } catch {
+    return "";
+  }
+}
+
+function subscribeHiddenPopupSnapshot(callback: () => void) {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
+
+  const onCustomEvent = () => callback();
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === POPUP_HIDE_STORAGE_KEY) {
+      callback();
+    }
+  };
+
+  window.addEventListener(POPUP_HIDE_STORAGE_EVENT, onCustomEvent);
+  window.addEventListener("storage", onStorage);
+
+  return () => {
+    window.removeEventListener(POPUP_HIDE_STORAGE_EVENT, onCustomEvent);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+function writeHiddenPopupMap(map: HiddenPopupMap) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(POPUP_HIDE_STORAGE_KEY, JSON.stringify(map));
+    window.dispatchEvent(new Event(POPUP_HIDE_STORAGE_EVENT));
+  } catch {}
+}
+
+function subscribeHydration(callback: () => void) {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
+
+  const id = window.requestAnimationFrame(() => callback());
+
+  return () => window.cancelAnimationFrame(id);
+}
+
+export type PopupAnnouncement = {
+  content: string;
+  id: string;
+  imageUrls: string[];
+  isImportant: boolean;
+  organizationId: string;
+  title: string;
+};
+
+type AnnouncementPopupProps = {
+  announcements: PopupAnnouncement[];
+  detailHrefBase: string;
+  locale: Locale;
+};
+
+export function AnnouncementPopup({
+  announcements,
+  detailHrefBase,
+  locale,
+}: AnnouncementPopupProps) {
+  const copy = getAnnouncementDictionary(locale);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set());
+  const [hidePreference, setHidePreference] = useState<HidePreference>({
+    announcementId: null,
+    checked: false,
+  });
+  const [, startTransition] = useTransition();
+  const isHydrated = useSyncExternalStore(
+    subscribeHydration,
+    () => true,
+    () => false,
+  );
+  const hiddenPopupSnapshot = useSyncExternalStore(
+    subscribeHiddenPopupSnapshot,
+    readHiddenPopupSnapshot,
+    () => "",
+  );
+  const hiddenPopupMap = useMemo<HiddenPopupMap>(() => {
+    if (!hiddenPopupSnapshot) {
+      return {};
+    }
+
+    try {
+      return JSON.parse(hiddenPopupSnapshot) as HiddenPopupMap;
+    } catch {
+      return {};
+    }
+  }, [hiddenPopupSnapshot]);
+
+  const announcement = useMemo(
+    () =>
+      announcements.find((item) => {
+        if (dismissedIds.has(item.id)) {
+          return false;
+        }
+
+        return !hiddenPopupMap?.[item.id];
+      }),
+    [announcements, dismissedIds, hiddenPopupMap],
+  );
+  const hideForWeek =
+    announcement?.id === hidePreference.announcementId && hidePreference.checked;
+
+  if (!isHydrated || !announcement) {
+    return null;
+  }
+
+  function dismissCurrentAnnouncement() {
+    if (!announcement) {
+      return;
+    }
+
+    if (hideForWeek) {
+      const nextMap: HiddenPopupMap = {
+        ...hiddenPopupMap,
+        [announcement.id]: new Date(Date.now() + HIDE_FOR_WEEK_MS).toISOString(),
+      };
+
+      writeHiddenPopupMap(nextMap);
+
+      // Persist to server — fire-and-forget inside transition so it does not
+      // block the immediate UI update.
+      startTransition(() => {
+        void dismissPopupForWeek(announcement.id, announcement.organizationId);
+      });
+    }
+
+    setDismissedIds((current) => new Set(current).add(announcement.id));
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 py-6 backdrop-blur-xl dark:bg-black/40">
+      <section className="max-h-[calc(100dvh-2rem)] w-full max-w-[27rem] overflow-y-auto overscroll-contain rounded-[28px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] p-5 text-slate-950 shadow-[0_32px_84px_-34px_rgba(15,23,42,0.46)] backdrop-blur-2xl dark:border-white/12 dark:bg-[linear-gradient(145deg,rgba(10,43,40,0.86),rgba(10,43,40,0.64))] dark:text-slate-50">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-2xl border border-red-200 bg-red-50 text-red-600 dark:border-red-200 dark:bg-red-50 dark:text-red-600">
+              <AlertCircle className="size-6" aria-hidden="true" />
+            </div>
+            <h2 className="text-[25px] font-black leading-tight">
+              {copy.important}
+            </h2>
+          </div>
+          <button
+            className="flex size-9 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.45)] transition-colors hover:bg-slate-50 hover:text-slate-950 dark:border-white/10 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15 dark:hover:text-slate-50"
+            onClick={dismissCurrentAnnouncement}
+            type="button"
+          >
+            <X className="size-4" aria-hidden="true" />
+            <span className="sr-only">{copy.close}</span>
+          </button>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200/80 bg-white/82 p-5 shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] dark:border-white/10 dark:bg-white/8">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="line-clamp-2 break-words text-base font-black leading-6 text-slate-950 dark:text-slate-50">
+                {announcement.title}
+              </p>
+              <p className="mt-3 line-clamp-6 whitespace-pre-line break-words text-base font-medium leading-7 text-slate-600 dark:text-slate-300">
+                {announcement.content}
+              </p>
+            </div>
+            {announcement.imageUrls[0] ? (
+              <Image
+                alt=""
+                className="h-[92px] w-[92px] shrink-0 rounded-2xl object-cover shadow-[0_12px_22px_-18px_rgba(31,58,95,0.45)]"
+                height={112}
+                src={announcement.imageUrls[0]}
+                width={112}
+              />
+            ) : (
+              <div className="flex h-[92px] w-[92px] shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-200/80 dark:bg-[#123f3b] dark:text-[#6ee7df]">
+                <Megaphone className="size-8" aria-hidden="true" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {announcement.imageUrls.length > 1 ? (
+          <AnnouncementImageGrid imageUrls={announcement.imageUrls.slice(1)} />
+        ) : null}
+
+        <label className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+          <input
+            checked={hideForWeek}
+            className="size-4 rounded border border-slate-300 bg-white"
+            onChange={(event) =>
+              setHidePreference({
+                announcementId: announcement.id,
+                checked: event.target.checked,
+              })
+            }
+            type="checkbox"
+          />
+          {copy.hideForWeek}
+        </label>
+
+        <div className="mt-5 space-y-3">
+          <Link
+            className="inline-flex h-[54px] w-full items-center justify-center rounded-2xl bg-[#315F91] px-4 text-base font-black text-white shadow-[0_18px_34px_-22px_rgba(49,95,145,0.68)] transition-colors hover:bg-[#274D76]"
+            href={`${detailHrefBase}/${announcement.id}`}
+          >
+            {copy.readAnnouncement}
+          </Link>
+          <Button
+            className="h-12 w-full rounded-2xl border-slate-200/80 bg-white text-slate-800 shadow-[0_12px_24px_-22px_rgba(31,58,95,0.45)] hover:bg-slate-50 dark:border-white/10 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/15"
+            onClick={dismissCurrentAnnouncement}
+            type="button"
+            variant="secondary"
+          >
+            <CircleCheck className="size-4" aria-hidden="true" />
+            {copy.close}
+          </Button>
+        </div>
+      </section>
+    </div>
+  );
+}

@@ -1,0 +1,36 @@
+{
+  "_comment": "Beds24 v2 booking webhook sample payload (realistic field names).",
+  "_notes": [
+    "propId / unitId are Beds24 v2 native integer IDs.",
+    "firstNight = check-in date (same date).",
+    "lastNight = LAST NIGHT of stay. Checkout morning = lastNight + 1 day.",
+    "referer = channel/source (e.g. Booking.com, Airbnb, Direct).",
+    "minimumStay is NOT present in booking webhook payloads.",
+    "  It is a room inventory setting from GET /v2/inventory/rooms.",
+    "  Rooms synced from webhooks are stored as inactive (null minimumStay)",
+    "  until a separate inventory sync populates external_minimum_stay.",
+    "propName and unitName may not be included in all webhook deliveries.",
+    "  When absent, propId and unitId are used as fallback identifiers.",
+    "To test locally: POST this file to /api/beds24/webhook with",
+    "  x-beds24-webhook-secret header matching BEDS24_WEBHOOK_SECRET env var."
+  ],
+  "data": [
+    {
+      "bookId": 99001,
+      "propId": 12345,
+      "propName": "Arakicho A",
+      "unitId": 67890,
+      "unitName": "Arakicho A",
+      "firstNight": "2026-06-01",
+      "lastNight": "2026-06-04",
+      "status": 1,
+      "referer": "Booking.com",
+      "guestFirstName": "Taro",
+      "guestLastName": "Yamada",
+      "guestPhone": "+81-90-1234-5678",
+      "numAdult": 2,
+      "numChild": 0,
+      "apiReference": "BDC-99001"
+    }
+  ]
+}

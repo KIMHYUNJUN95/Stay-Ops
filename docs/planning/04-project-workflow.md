@@ -1,0 +1,258 @@
+﻿# Project Workflow
+
+## Purpose
+
+This document defines how StayOps should be planned, designed, built, and updated.
+
+The project should be treated like a real team project, even when work is done with AI tools.
+
+## Working Principle
+
+Do not jump straight into coding.
+
+Use this flow:
+
+```txt
+Plan
+Design
+Document
+Implement
+Test
+Review
+Update documentation
+Repeat
+```
+
+## Practical Workflow
+
+## 1. Planning
+
+Define:
+
+- Problem
+- Users
+- Roles
+- Permissions
+- Workflows
+- MVP scope
+- Out-of-scope items
+
+Planning documents must be updated before implementation starts.
+
+## 2. Core Flow Definition
+
+Before building a feature, define:
+
+- Who uses it
+- Where they enter
+- Required fields
+- Statuses
+- Permissions
+- Notifications
+- Edge cases
+- Mobile/admin behavior
+
+## 3. Stitch Design
+
+Use Google Stitch for key screens.
+
+Design first for:
+
+- Login/signup
+- Mobile home
+- Cleaning timer
+- Requests
+- Reservation calendar
+- Announcements
+- Admin dashboard
+
+Do not wait for every screen to be designed before starting development.
+
+Recommended approach:
+
+```txt
+Design the first 5-7 core screens
+Build the foundation
+Iterate feature by feature
+```
+
+## 4. Technical Design
+
+Before implementation, define:
+
+- Data model
+- Supabase schema
+- RLS policy direction
+- API or server function behavior
+- File storage rules
+- Notification triggers
+
+## 5. Implementation
+
+Build in small vertical slices.
+
+Recommended first build order:
+
+```txt
+Project setup
+i18n foundation
+Theme/design tokens
+Auth
+Organization/invite flow
+User profile/directory
+Mobile shell
+Admin shell
+Cleaning timer
+Requests
+Announcements
+Reservation calendar
+Notifications
+Exports
+```
+
+## 6. Testing
+
+Each feature should be tested for:
+
+- Mobile PWA
+- Admin web
+- Light mode
+- Dark mode
+- Korean
+- Japanese
+- English
+- Permissions
+- Empty state
+- Error state
+
+## 7. Documentation Updates
+
+Every feature change must update documentation.
+
+If implementation changes:
+
+- Requirements
+- Fields
+- Statuses
+- Permissions
+- UI flow
+- Notifications
+- Data model
+- API behavior
+- Tech stack
+- Design rules
+
+Then the related Markdown files must be updated in the same work cycle.
+
+## Documentation Is Source of Truth
+
+Markdown docs are the shared project memory.
+
+If code and docs disagree:
+
+- Stop
+- Identify which is correct
+- Update the incorrect side
+- Record important decisions in `docs/planning/01-decision-log.md`
+
+## Change Rule
+
+When adding or changing a feature:
+
+```txt
+1. Update or create planning/product/design/engineering docs
+2. Implement code
+3. Test
+4. Update docs again if implementation changed from the plan
+```
+
+## AI Handoff Rule
+
+When work continues in a new AI chat, the handoff prompt should include:
+
+1. What has already been completed
+2. What is currently stable and verified
+3. The single next recommended slice to start
+4. Which Markdown documents must be treated as source of truth
+5. The required verification steps after changes
+6. Any communication rules that the assistant must keep following
+
+Current StayOps handoff expectations:
+
+- Reply in Korean
+- Check existing docs and code state first
+- Never revert user changes
+- Update related Markdown docs in the same work cycle
+- Run `npm run lint` and `npm run build` after feature/code changes
+- When the user asks for the next planned slice, answer with:
+  - `현재 이슈`
+  - `다음 작업`
+  - Then wait for the user to say start
+- When the user reports a bug, investigate and fix directly without stopping at planning only
+- Keep the workflow/status documents current as implementation moves
+
+## Important Rule
+
+No major feature should be implemented only in code without documentation.
+
+## 2026-05-22 Update: Global Mobile Shell Rule
+
+All mobile screens that use `MobileShell` must inherit the unified mobile shell contract.
+
+- Top chrome: custom 3x3 dot menu trigger, centered StayOps wordmark, profile avatar link.
+- Top chrome is scroll-aware: it hides on downward scroll and returns on upward scroll.
+- Side menu: dot menu opens a 78%-width left slide-out menu; the main screen shifts right and the remaining visible area is dimmed.
+- Bottom navigation: five-tab floating liquid-glass capsule overlay.
+- Base surface: pure-white shell/background. Liquid Glass is partial and must not be used as a blanket full-screen treatment.
+- Do not add page-specific controls, titles, or secondary icons to the header.
+- The `title` prop on `MobileShell` is for `aria-label` on `<main>` only; it is not rendered in the header.
+- New mobile pages must not reinstate the old stacked-title pattern.
+- See `docs/product/16-mobile-navigation.md` for the full spec.
+
+## 2026-05-21 Update
+
+- Added request-image slice to active workflow:
+  1. DB/storage migration
+  2. Mobile request form upload UX
+  3. Server validation + persistence
+  4. Detail-view rendering
+  5. `npm run lint` + `npm run build`
+- Scope: mobile lost-item request and maintenance request now require 0-5 image support path.
+
+## 2026-05-22 Enforcement Note
+
+- For mobile UI, shared `MobileShell` structure and behavior must stay globally consistent across pages.
+- Any change to shared shell behavior must be reflected in:
+  - `docs/planning/06-current-status.md`
+  - `docs/engineering/06-implementation-plan.md`
+  - `docs/product/16-mobile-navigation.md`
+
+## 2026-05-22 Baseline Documentation Rule
+
+When a feature reaches "baseline implemented" (not feature-complete), the workflow/status docs must separate:
+
+1. **Implemented now**: list exact behaviors, file paths, and data constraints (e.g., "staying: `check_in_date <= today AND check_out_date > today`").
+2. **Deferred / next slice**: list what is explicitly planned for the next iteration.
+3. **Deferred / later**: list what requires external dependencies (room master, admin parity, etc.).
+
+Do not conflate "baseline done" with "feature complete." The docs are the ground truth; stale "awaits X" statements must be removed as soon as baseline is shipped.
+
+## 2026-05-23 Phase 10 Workflow Update
+
+- `/mobile/calendar` now includes:
+  - system-adapted overview timeline (room column + horizontal date axis + reservation bars),
+  - lists mode (check-in/check-out/staying),
+  - reservation detail bottom-sheet modal,
+  - month navigation via `month=YYYY-MM` query (prev/next controls).
+- Keep the global mobile shell contract unchanged (`[3x3 dot menu] StayOps [Profile]`, scroll-aware top chrome, 78% side menu, floating capsule bottom tabs).
+## 2026-05-27 Workflow Rule Update
+
+- Documentation-first enforcement is now explicit for all contributors:
+  1. update relevant Markdown docs first,
+  2. implement code following updated docs,
+  3. run verification,
+  4. finalize by reconciling docs with the actual implementation.
+- "Code first, docs later" is not accepted as a completion state.
+- Project-flow compliance is required even for rapid bug-fix cycles; only investigation/patch order can be accelerated, not documentation closure.
+
+

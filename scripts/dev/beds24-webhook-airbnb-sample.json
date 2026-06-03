@@ -1,0 +1,27 @@
+{
+  "_comment": "Beds24 v2 booking webhook sample — Airbnb channel, propId/unitId only (no names).",
+  "_notes": [
+    "Some Beds24 webhook deliveries omit propName and unitName.",
+    "In that case propId and unitId are used as fallback identifiers.",
+    "Property upsert: name falls back to propId string value.",
+    "Room upsert: room_label falls back to unitId string value.",
+    "referer = Airbnb -> calendar bar color: soft pink family."
+  ],
+  "data": [
+    {
+      "bookId": 99002,
+      "propId": 12346,
+      "unitId": 67891,
+      "firstNight": "2026-06-10",
+      "lastNight": "2026-06-12",
+      "status": 1,
+      "referer": "Airbnb",
+      "guestFirstName": "Aoi",
+      "guestLastName": "Tanaka",
+      "guestPhone": "+81-80-9876-5432",
+      "numAdult": 1,
+      "numChild": 0,
+      "apiReference": "ABB-99002"
+    }
+  ]
+}

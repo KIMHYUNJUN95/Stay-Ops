@@ -1,0 +1,14 @@
+﻿{
+  "_comment": "Safe dev-only cancelled webhook sample. Replace identifiers only when you intentionally test an existing reservation cancellation.",
+  "bookId": "TEST-CANCELLED-402-001",
+  "organizationId": "f393a735-eb57-4f95-8b82-361ba46b81a5",
+  "propId": "176430",
+  "propName": "Arakicho A",
+  "referer": "Booking.com",
+  "roomId": "383974",
+  "status": "cancelled",
+  "firstNight": "2026-05-26",
+  "lastNight": "2026-05-29",
+  "guestFirstName": "Sample",
+  "guestLastName": "Cancelled Guest"
+}

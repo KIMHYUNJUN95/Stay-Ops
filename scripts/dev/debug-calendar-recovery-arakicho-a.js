@@ -1,0 +1,227 @@
+#!/usr/bin/env node
+/**
+ * Diagnoses why 아라키초A reservation bars may not appear on /mobile/calendar.
+ *
+ * Queries:
+ *   1. rooms table → active canonical room set for 아라키초A
+ *   2. reservations table → raw room_label values for 아라키초A in the current operational window
+ *
+ * Outputs a JSON report showing success/fail counts and sample failed rows.
+ *
+ * Usage:
+ *   node scripts/dev/debug-calendar-recovery-arakicho-a.js [YYYY-MM]
+ *
+ * Requires: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local
+ */
+
+const fs = require("fs");
+const path = require("path");
+
+// ---------------------------------------------------------------------------
+// Load .env.local
+// ---------------------------------------------------------------------------
+const envPath = path.join(__dirname, "../../.env.local");
+if (!fs.existsSync(envPath)) {
+  console.error("ERROR: .env.local not found at", envPath);
+  process.exit(1);
+}
+const envLines = fs.readFileSync(envPath, "utf8").split("\n");
+for (const line of envLines) {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("#")) continue;
+  const eq = trimmed.indexOf("=");
+  if (eq === -1) continue;
+  const key = trimmed.slice(0, eq).trim();
+  const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
+  if (key && !(key in process.env)) {
+    process.env[key] = val;
+  }
+}
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SUPABASE_URL || !SERVICE_KEY) {
+  console.error("ERROR: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing");
+  process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// Minimal fetch-based Supabase REST client (no npm import needed)
+// ---------------------------------------------------------------------------
+async function supabaseSelect(table, query) {
+  const url = `${SUPABASE_URL}/rest/v1/${table}?${query}`;
+  const res = await fetch(url, {
+    headers: {
+      apikey: SERVICE_KEY,
+      Authorization: `Bearer ${SERVICE_KEY}`,
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Supabase REST error ${res.status}: ${body}`);
+  }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Normalization (mirrors src/lib/room-label-normalization.ts)
+// ---------------------------------------------------------------------------
+function normalizeKey(value) {
+  return value.replace(/\s+/g, "").replace(/[_()\-]/g, "").toLowerCase();
+}
+
+function isArakichoA(name) {
+  const key = normalizeKey(name);
+  return ["아라키초a", "arakichoa", "荒木町a"].some((c) => key.includes(c));
+}
+
+function getCanonicalRoomLabel(propertyName, roomLabel) {
+  if (!isArakichoA(propertyName)) return roomLabel.trim();
+  const digits = roomLabel.trim().match(/\d{3,4}/);
+  return digits ? digits[0] : roomLabel.trim();
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+(async () => {
+  // Operational window (current month + next month, JST)
+  const now = new Date();
+  const jstOffset = 9 * 60 * 60 * 1000;
+  const jstNow = new Date(now.getTime() + jstOffset);
+  const targetMonthArg = process.argv[2];
+  const targetMonth =
+    targetMonthArg && /^\d{4}-(0[1-9]|1[0-2])$/.test(targetMonthArg)
+      ? targetMonthArg
+      : jstNow.toISOString().slice(0, 7);
+
+  const [y, m] = targetMonth.split("-").map(Number);
+  const windowStart = `${targetMonth}-01`;
+  const windowEnd = new Date(Date.UTC(y, m + 1, 1)).toISOString().slice(0, 10);
+
+  console.error(`[debug] Target month: ${targetMonth}, window: ${windowStart} → ${windowEnd}`);
+
+  // 1. Active rooms for 아라키초A
+  const roomsRaw = await supabaseSelect(
+    "rooms",
+    new URLSearchParams({
+      select: "room_label,external_room_id,external_minimum_stay,external_provider,status",
+      status: "eq.active",
+    }).toString(),
+  );
+
+  const arakichoRooms = roomsRaw.filter((r) => {
+    // Filter rooms that belong to 아라키초A property via external_room_id prefix or room_label pattern
+    // We check all rooms with status=active and external_minimum_stay < 50 (or non-beds24)
+    if (r.external_provider === "beds24") {
+      if (r.external_minimum_stay === null) return false;
+      if (r.external_minimum_stay >= 50) return false;
+    }
+    return true;
+  });
+
+  // Fetch with property join to filter by 아라키초A
+  const roomsWithProperty = await supabaseSelect(
+    "rooms",
+    new URLSearchParams({
+      select: "room_label,external_room_id,external_minimum_stay,external_provider,status,properties(name)",
+      status: "eq.active",
+    }).toString(),
+  );
+
+  const arakichoActiveRooms = roomsWithProperty.filter((r) => {
+    const propName = Array.isArray(r.properties) ? r.properties[0]?.name : r.properties?.name;
+    if (!propName || !isArakichoA(propName)) return false;
+    if (r.external_provider === "beds24") {
+      if (r.external_minimum_stay === null) return false;
+      if (r.external_minimum_stay >= 50) return false;
+    }
+    return true;
+  });
+
+  const activeCanonicalSet = new Set(
+    arakichoActiveRooms.map((r) => {
+      const propName = Array.isArray(r.properties) ? r.properties[0]?.name : r.properties?.name;
+      return getCanonicalRoomLabel(propName ?? "", r.room_label);
+    }),
+  );
+
+  const externalRoomToCanonical = new Map(
+    arakichoActiveRooms
+      .filter((r) => r.external_room_id)
+      .map((r) => {
+        const propName = Array.isArray(r.properties) ? r.properties[0]?.name : r.properties?.name;
+        return [r.external_room_id, getCanonicalRoomLabel(propName ?? "", r.room_label)];
+      }),
+  );
+
+  // 2. Reservations in window
+  const reservations = await supabaseSelect(
+    "reservations",
+    new URLSearchParams({
+      select: "id,room_label,property_name,raw_payload,check_in_date,check_out_date",
+      check_in_date: `lt.${windowEnd}`,
+      check_out_date: `gte.${windowStart}`,
+      status: "neq.cancelled",
+    }).toString(),
+  );
+
+  const arakichoReservations = reservations.filter((r) => isArakichoA(r.property_name ?? ""));
+
+  const results = arakichoReservations.map((r) => {
+    const canonical = getCanonicalRoomLabel("아라키초A", r.room_label ?? "");
+    const directMatch = activeCanonicalSet.has(canonical);
+
+    let externalId = null;
+    if (r.raw_payload && typeof r.raw_payload === "object" && !Array.isArray(r.raw_payload)) {
+      for (const key of ["unitId", "unit_id", "roomId", "room_id"]) {
+        const val = r.raw_payload[key];
+        if (val !== undefined && val !== null) {
+          externalId = String(val);
+          break;
+        }
+      }
+    }
+    const globalMatch = externalId ? externalRoomToCanonical.get(externalId) ?? null : null;
+
+    return {
+      id: r.id,
+      rawRoomLabel: r.room_label,
+      canonicalRoomLabel: canonical,
+      externalId,
+      directMatch,
+      globalMatch,
+      recovered: directMatch || !!globalMatch,
+    };
+  });
+
+  const succeeded = results.filter((r) => r.recovered);
+  const failed = results.filter((r) => !r.recovered);
+
+  console.log(
+    JSON.stringify(
+      {
+        targetMonth,
+        window: { start: windowStart, end: windowEnd },
+        activeCanonicalRoomSet: [...activeCanonicalSet],
+        externalRoomToCanonical: Object.fromEntries(externalRoomToCanonical),
+        totalReservations: arakichoReservations.length,
+        succeeded: succeeded.length,
+        failed: failed.length,
+        failedSamples: failed.slice(0, 10),
+        succeededSamples: succeeded.slice(0, 5).map((r) => ({
+          rawRoomLabel: r.rawRoomLabel,
+          canonicalRoomLabel: r.canonicalRoomLabel,
+          directMatch: r.directMatch,
+          globalMatch: r.globalMatch,
+        })),
+      },
+      null,
+      2,
+    ),
+  );
+})().catch((err) => {
+  console.error("FATAL:", err);
+  process.exit(1);
+});

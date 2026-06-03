@@ -1,0 +1,10 @@
+-- MIGRATION HISTORY PLACEHOLDER
+--
+-- This file exists only to satisfy Supabase CLI migration history reconciliation.
+-- Version 20260510135642 was applied to the remote database before local migration
+-- files were renamed to the simplified YYYYMMDDNNNN convention.
+--
+-- The schema originally applied under this version is now represented by:
+--   supabase/migrations/202605100003_announcement_images.sql
+--
+-- DO NOT add SQL statements to this file. The remote schema is already applied.

@@ -1,0 +1,166 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { getActiveRoomCatalogServer } from "@/lib/rooms";
+import { getCurrentAppSession } from "@/lib/session";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/database";
+
+const REQUEST_IMAGE_BUCKET = "request-images";
+
+function cleanText(value: FormDataEntryValue | null) {
+  return String(value ?? "").trim();
+}
+
+function getRequestImagePathFromUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const markers = [
+      `/storage/v1/object/public/${REQUEST_IMAGE_BUCKET}/`,
+      `/storage/v1/object/${REQUEST_IMAGE_BUCKET}/`,
+    ];
+    for (const marker of markers) {
+      const idx = parsed.pathname.indexOf(marker);
+      if (idx !== -1) {
+        return parsed.pathname.slice(idx + marker.length);
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function isValidUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+export async function createLostItem(formData: FormData) {
+  const rawCleaningSessionId = cleanText(formData.get("cleaningSessionId"));
+  const requestedId = cleanText(formData.get("id"));
+
+  const session = await getCurrentAppSession();
+  if (!session) {
+    const basePath = "/mobile/lost-found/new";
+    const targetPath = rawCleaningSessionId
+      ? `${basePath}?sessionId=${encodeURIComponent(rawCleaningSessionId)}`
+      : basePath;
+    redirect(`/auth/login?next=${encodeURIComponent(targetPath)}`);
+  }
+
+  const propertyName = cleanText(formData.get("propertyName"));
+  const roomLabel = cleanText(formData.get("roomLabel"));
+  const itemName = cleanText(formData.get("itemName"));
+  const memo = cleanText(formData.get("memo"));
+  const imageUrls = formData
+    .getAll("imageUrls")
+    .map((v) => cleanText(v))
+    .filter(Boolean);
+
+  const sessionParam = rawCleaningSessionId
+    ? `&sessionId=${encodeURIComponent(rawCleaningSessionId)}`
+    : "";
+
+  if (!propertyName) {
+    redirect(`/mobile/lost-found/new?error=missing_building${sessionParam}`);
+  }
+  if (roomLabel.length === 0 || roomLabel.length > 100) {
+    redirect(`/mobile/lost-found/new?error=invalid_room${sessionParam}`);
+  }
+
+  // Fetch active room catalog to double-check validation on server
+  const catalog = await getActiveRoomCatalogServer(session.organization.id);
+  if (!catalog) {
+    redirect(`/mobile/lost-found/new?error=save_failed${sessionParam}`);
+  }
+
+  const isValidCombination = catalog.some(
+    (item) => item.propertyName === propertyName && item.canonicalRoomLabel === roomLabel
+  );
+  if (!isValidCombination) {
+    redirect(`/mobile/lost-found/new?error=invalid_room${sessionParam}`);
+  }
+
+  if (!itemName) {
+    redirect(`/mobile/lost-found/new?error=missing_item_name${sessionParam}`);
+  }
+  if (requestedId && !isValidUuid(requestedId)) {
+    redirect(`/mobile/lost-found/new?error=save_failed${sessionParam}`);
+  }
+  if (imageUrls.length > 5) {
+    redirect(`/mobile/lost-found/new?error=save_failed${sessionParam}`);
+  }
+
+  const requestId = requestedId || crypto.randomUUID();
+  const imagePaths: string[] = [];
+  for (const imageUrl of imageUrls) {
+    const path = getRequestImagePathFromUrl(imageUrl);
+    if (!path) {
+      redirect(`/mobile/lost-found/new?error=save_failed${sessionParam}`);
+    }
+    const segments = path.split("/");
+    if (
+      segments.length !== 4 ||
+      segments[0] !== session.organization.id ||
+      segments[1] !== "lost-items" ||
+      segments[2] !== requestId
+    ) {
+      redirect(`/mobile/lost-found/new?error=save_failed${sessionParam}`);
+    }
+    imagePaths.push(path);
+  }
+
+  const supabase = await getSupabaseServerClient();
+
+  // Validate the cleaning session link: must belong to this user/org (any status).
+  let cleaningSessionId: string | null = null;
+  if (rawCleaningSessionId) {
+    const { data } = await supabase
+      .from("cleaning_sessions")
+      .select("id")
+      .eq("id", rawCleaningSessionId)
+      .eq("organization_id", session.organization.id)
+      .eq("staff_user_id", session.user.id)
+      .maybeSingle();
+    cleaningSessionId = (data as { id: string } | null)?.id ?? null;
+    if (!cleaningSessionId) {
+      redirect(
+        `/mobile/lost-found/new?error=invalid_session&sessionId=${encodeURIComponent(rawCleaningSessionId)}`,
+      );
+    }
+  }
+
+  // Store the room_label in combined format "{propertyName} {canonicalRoom}" so that
+  // resolveRequestLocation() can recover the building via its combinedMatch path.
+  // When propertyName === roomLabel (Okubo pattern) just use roomLabel as-is.
+  const combinedRoomLabel =
+    propertyName && propertyName !== roomLabel
+      ? `${propertyName} ${roomLabel}`
+      : roomLabel;
+
+  const insert: Database["public"]["Tables"]["lost_items"]["Insert"] = {
+    id: requestId,
+    organization_id: session.organization.id,
+    reported_by_user_id: session.user.id,
+    room_label: combinedRoomLabel,
+    item_name: itemName,
+    memo: memo || null,
+    image_urls: imageUrls,
+    cleaning_session_id: cleaningSessionId,
+  };
+
+  const { data: created, error } = await supabase
+    .from("lost_items")
+    .insert(insert as never)
+    .select("id")
+    .single();
+  const createdId = (created as { id: string } | null)?.id ?? null;
+
+  if (error || !createdId) {
+    if (imagePaths.length > 0) {
+      await supabase.storage.from(REQUEST_IMAGE_BUCKET).remove(imagePaths);
+    }
+    redirect(`/mobile/lost-found/new?error=save_failed${sessionParam}`);
+  }
+  redirect(`/mobile/requests/lost-found/${createdId}?created=1`);
+}

@@ -1,0 +1,20 @@
+{
+  "name": "StayOps",
+  "short_name": "StayOps",
+  "description": "Hotel operations app for field staff and office teams.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbfcfc",
+  "theme_color": "#00796f",
+  "orientation": "portrait",
+  "share_target": {
+    "action": "/mobile/orders/share-target",
+    "method": "POST",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}

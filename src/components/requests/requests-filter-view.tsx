@@ -1,0 +1,1295 @@
+﻿"use client";
+
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import type React from "react";
+import { createPortal } from "react-dom";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  AlertTriangle,
+  CalendarRange,
+  Check,
+  Clock,
+  MapPin,
+  Package,
+  ShoppingCart,
+  SlidersHorizontal,
+  Trash2,
+  User,
+  Wrench,
+  X,
+} from "lucide-react";
+import {
+  deleteLostItem,
+  deleteMaintenanceReport,
+  deleteOrderRequest,
+} from "@/app/mobile/requests/delete-actions";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import {
+  DateRangeCalendar,
+  type DateRangeValue,
+} from "@/components/requests/date-range-calendar";
+import type { Locale } from "@/lib/i18n";
+import type { LostItemWithReporter } from "@/lib/lost-found";
+import type { MaintenanceReportWithReporter } from "@/lib/maintenance-reports";
+import type {
+  OrderRequestStatus,
+  OrderRequestWithReporter,
+  OrderRequestItem,
+} from "@/lib/order-requests";
+import type { RequestDatePreset } from "@/lib/request-filters";
+import { localizePropertyName } from "@/lib/room-label-normalization";
+import { resolveRequestLocation, type RequestLocationDisplay } from "@/lib/request-location";
+import type { ActiveRoomCatalogItem } from "@/lib/rooms";
+import type { Role } from "@/config/roles";
+import type { Database } from "@/types/database";
+import { cn } from "@/lib/utils";
+
+type LostItemStatus = Database["public"]["Enums"]["lost_item_status"];
+type MaintenanceStatus = Database["public"]["Enums"]["maintenance_status"];
+
+type OrderStatus = OrderRequestStatus;
+
+type ScopeFilter = "all" | "mine";
+// "all" type removed: the list now shows exactly one request kind at a time
+// via the top tabs, which eliminates the long mixed scroll.
+type TypeFilter = "lost-found" | "maintenance" | "order";
+type StatusFilter = "all" | "active" | "closed";
+
+const DEFAULT_TYPE: TypeFilter = "lost-found";
+
+// Whitelist of keys that belong to the list filter state.
+const LIST_FILTER_KEYS = [
+  "scope", "type", "status", "building", "date", "startDate", "endDate",
+] as const;
+
+// These sets are module-level constants; stable references across renders.
+const activeLostStatuses = new Set<LostItemStatus>([
+  "registered",
+  "stored",
+  "disposal_scheduled",
+]);
+const activeMaintenanceStatuses = new Set<MaintenanceStatus>(["open", "in_progress"]);
+// active: requested/approved/ordered, closed: received/closed
+const activeOrderStatuses = new Set<OrderStatus>(["requested", "approved", "ordered"]);
+
+const lostStatusBadgeClass: Record<LostItemStatus, string> = {
+  registered:
+    "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300",
+  stored:
+    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+  disposal_scheduled:
+    "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-300",
+  disposed: "border-border bg-muted/50 text-muted-foreground",
+};
+
+const maintenanceStatusBadgeClass: Record<MaintenanceStatus, string> = {
+  open: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300",
+  in_progress:
+    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+  resolved:
+    "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/50 dark:text-green-300",
+  closed: "border-border bg-muted/50 text-muted-foreground",
+};
+
+const orderStatusBadgeClass: Record<OrderStatus, string> = {
+  requested:
+    "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300",
+  approved:
+    "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300",
+  ordered:
+    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+  received:
+    "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/50 dark:text-green-300",
+  closed: "border-border bg-muted/50 text-muted-foreground",
+};
+const REQUEST_PANEL =
+  "rounded-[28px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_22px_46px_-32px_rgba(31,58,95,0.48)] backdrop-blur-none dark:border-white/12 dark:bg-white/8";
+const REQUEST_CARD =
+  "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none dark:border-white/12 dark:bg-white/8";
+const requestTypeTone = {
+  "lost-found": {
+    bar: "bg-sky-300/80",
+    icon: "bg-sky-50 text-sky-700 ring-sky-200/80",
+  },
+  maintenance: {
+    bar: "bg-cyan-300/80",
+    icon: "bg-cyan-50 text-cyan-700 ring-cyan-200/80",
+  },
+  order: {
+    bar: "bg-rose-300/80",
+    icon: "bg-rose-50 text-rose-700 ring-rose-200/80",
+  },
+} as const;
+
+function formatDateTime(value: string, locale: Locale) {
+  return new Intl.DateTimeFormat(locale, {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(value));
+}
+
+// delivery_date is date-only; use 03:00 UTC (= noon JST) + explicit Asia/Tokyo
+// so the calendar day is always stable regardless of runner timezone.
+function formatDeliveryDate(value: string, locale: Locale) {
+  const [y, m, d] = value.split("-").map(Number);
+  const noonJst = new Date(Date.UTC(y, m - 1, d, 3, 0, 0));
+  return new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Asia/Tokyo",
+  }).format(noonJst);
+}
+
+function formatDeliveryDateWindow(
+  startDate: string | null,
+  endDate: string | null,
+  exactDate: string | null,
+  locale: Locale,
+) {
+  if (startDate && endDate) {
+    return `${formatDeliveryDate(startDate, locale)} - ${formatDeliveryDate(endDate, locale)}`;
+  }
+  if (exactDate) {
+    return formatDeliveryDate(exactDate, locale);
+  }
+  return null;
+}
+
+type FilterLabels = {
+  building: string;
+  calendarApply: string;
+  calendarClear: string;
+  calendarClose: string;
+  clearBuildingFilter: string;
+  calendarSelectEnd: string;
+  calendarSelectStart: string;
+  calendarTitle: string;
+  filterAll: string;
+  filterButton: string;
+  filterCustomRange: string;
+  filterLostFound: string;
+  filterMaintenance: string;
+  filterOrder: string;
+  filterActive: string;
+  filterClosed: string;
+  filterLast7Days: string;
+  filterLast30Days: string;
+  filterScopeMine: string;
+  filterToday: string;
+  groupDate: string;
+  groupScope: string;
+  groupStatus: string;
+  groupType: string;
+  noFilterResults: string;
+};
+
+type LostFoundCopy = {
+  fromCleaningTag: string;
+  mobileListTitle: string;
+  noRecords: string;
+  reporter: string;
+  room: string;
+  statusLabels: Record<LostItemStatus, string>;
+};
+
+type MaintenanceCopy = {
+  fromCleaningTag: string;
+  mobileListTitle: string;
+  noRecords: string;
+  reporter: string;
+  room: string;
+  statusLabels: Record<MaintenanceStatus, string>;
+};
+
+type OrderCopy = {
+  sectionTitle: string;
+  statusLabels: Record<OrderStatus, string>;
+  deliveryDateShort: string;
+};
+
+type EnrichedOrder = OrderRequestWithReporter & {
+  parsedItems: OrderRequestItem[];
+};
+
+type DeleteCopy = {
+  confirmTitle: string;
+  confirmBody: string;
+  deleteAction: string;
+  cancel: string;
+  deleteFailed: string;
+};
+
+type RequestsFilterViewProps = {
+  buildingLabels: Record<string, string>;
+  currentUserId: string;
+  currentUserRole: Role;
+  datePreset: RequestDatePreset;
+  deleteCopy: DeleteCopy;
+  endDate?: string;
+  filterLabels: FilterLabels;
+  locale: Locale;
+  lostFoundCopy: LostFoundCopy;
+  lostItems: LostItemWithReporter[];
+  maintenanceCopy: MaintenanceCopy;
+  maintenanceReports: MaintenanceReportWithReporter[];
+  orderRequests: OrderRequestWithReporter[];
+  orderCopy: OrderCopy;
+  roomCatalog: ActiveRoomCatalogItem[];
+  startDate?: string;
+};
+
+function SegTrack({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="inline-flex items-center gap-0.5 rounded-full border border-slate-200/80 bg-white/80 p-1 shadow-[0_10px_22px_-20px_rgba(31,58,95,0.42)]">
+      {children}
+    </div>
+  );
+}
+
+function SegButton({
+  active,
+  icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon?: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-pressed={active}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-bold transition-all",
+        active
+          ? "bg-sky-50 text-[#1F3A5F] shadow-sm ring-1 ring-sky-200/80 dark:bg-[#315F91]/25 dark:text-[#D9E8F7] dark:ring-[#315F91]/40"
+          : "text-slate-500 hover:text-slate-900",
+      )}
+      onClick={onClick}
+      type="button"
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function MetaItem({
+  icon,
+  children,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5 text-[11.5px] font-semibold text-slate-500">
+      <span className="text-slate-400">{icon}</span>
+      <span className="truncate text-foreground/75">{children}</span>
+    </span>
+  );
+}
+
+// memo: avoids re-rendering unchanged cards when parent re-renders due to filter state change.
+const RequestListCard = memo(function RequestListCard({
+  cleaningTag,
+  deliveryTag,
+  href,
+  imageUrl,
+  leadingIcon,
+  locationLabel,
+  memo: memoProp,
+  onDelete,
+  reporter,
+  requestType,
+  roomLabel,
+  statusClass,
+  statusLabel,
+  time,
+  title,
+}: {
+  cleaningTag?: string | null;
+  deliveryTag?: string | null;
+  href: string;
+  imageUrl?: string | null;
+  leadingIcon: React.ReactNode;
+  locationLabel: string;
+  memo?: string | null;
+  onDelete?: () => void;
+  reporter: string;
+  requestType: TypeFilter;
+  roomLabel: string;
+  statusClass: string;
+  statusLabel: string;
+  time: string;
+  title: string;
+}) {
+  const tone = requestTypeTone[requestType];
+
+  return (
+    <Link className="block" href={href}>
+      <Card className={`${REQUEST_CARD} relative overflow-hidden p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_42px_-30px_rgba(31,58,95,0.55)] active:scale-[0.99]`}>
+        <div
+          aria-hidden="true"
+          className={cn("pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full", tone.bar)}
+        />
+        <div className="flex items-start gap-3">
+          {imageUrl ? (
+            <div className="relative size-12 shrink-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-50 shadow-[0_12px_22px_-18px_rgba(31,58,95,0.45)]">
+              <Image
+                alt={title}
+                className="object-cover"
+                fill
+                sizes="44px"
+                src={imageUrl}
+              />
+            </div>
+          ) : (
+            <div className={cn("flex size-12 shrink-0 items-center justify-center rounded-2xl ring-1 shadow-[0_12px_22px_-18px_rgba(31,58,95,0.45)]", tone.icon)}>
+              {leadingIcon}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2.5">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <p className="truncate text-[15px] font-black leading-tight tracking-[-0.03em] text-slate-950">
+                    {title}
+                  </p>
+                  {cleaningTag ? (
+                    <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-black tracking-wide text-sky-700">
+                      {cleaningTag}
+                    </span>
+                  ) : null}
+                </div>
+                <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-slate-400">
+                  <Clock className="size-3" aria-hidden="true" />
+                  {time}
+                </span>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {onDelete ? (
+                  <button
+                    className="inline-flex size-8 items-center justify-center rounded-full border border-slate-200/70 bg-white text-slate-400 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.45)] transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
+                    type="button"
+                  >
+                    <Trash2 className="size-3.5" aria-hidden="true" />
+                  </button>
+                ) : null}
+                <Badge className={cn("shrink-0", statusClass)}>{statusLabel}</Badge>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {memoProp ? (
+          <p className="mt-3 line-clamp-2 rounded-2xl bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+            {memoProp}
+          </p>
+        ) : null}
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-200/70 pt-3">
+          <MetaItem icon={<MapPin className="size-3.5" aria-hidden="true" />}>
+            {locationLabel} {"\u00B7"} {roomLabel}
+          </MetaItem>
+          <MetaItem icon={<User className="size-3.5" aria-hidden="true" />}>
+            {reporter}
+          </MetaItem>
+          {deliveryTag ? (
+            <MetaItem icon={<Clock className="size-3.5" aria-hidden="true" />}>
+              {deliveryTag}
+            </MetaItem>
+          ) : null}
+        </div>
+      </Card>
+    </Link>
+  );
+});
+
+function sanitizeScope(val: string | null): ScopeFilter {
+  if (val === "mine") return "mine";
+  return "all";
+}
+
+function sanitizeType(val: string | null): TypeFilter {
+  if (val === "lost-found" || val === "maintenance" || val === "order") return val;
+  return DEFAULT_TYPE;
+}
+
+function sanitizeStatus(val: string | null): StatusFilter {
+  if (val === "active" || val === "closed") return val;
+  return "all";
+}
+
+// Enriched item types: location pre-attached, avoids repeated catalog lookups.
+type EnrichedLostItem = LostItemWithReporter & { location: RequestLocationDisplay };
+type EnrichedMaintenance = MaintenanceReportWithReporter & { location: RequestLocationDisplay };
+
+/** Roles that can delete ANY record (not just their own). Matches the DB RLS policy. */
+const DELETE_ANY_ROLES: ReadonlySet<Role> = new Set([
+  "developer_super_admin",
+  "owner",
+  "office_admin",
+  "cs_staff",
+  "field_manager",
+]);
+
+type DeleteTarget = {
+  type: "lost-found" | "maintenance" | "order";
+  id: string;
+  title: string;
+};
+
+export function RequestsFilterView({
+  buildingLabels,
+  currentUserId,
+  currentUserRole,
+  datePreset,
+  deleteCopy,
+  endDate,
+  filterLabels,
+  locale,
+  lostFoundCopy,
+  lostItems,
+  maintenanceCopy,
+  maintenanceReports,
+  orderRequests,
+  orderCopy,
+  roomCatalog,
+  startDate,
+}: RequestsFilterViewProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+
+  // ── Delete state ──────────────────────────────────────────────────────────
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, startDeleteTransition] = useTransition();
+
+  const canDeleteAny = DELETE_ANY_ROLES.has(currentUserRole);
+
+  const openDelete = useCallback((target: DeleteTarget) => {
+    setDeleteTarget(target);
+    setDeleteError(null);
+  }, []);
+
+  const closeDelete = useCallback(() => {
+    if (isDeleting) return;
+    setDeleteTarget(null);
+    setDeleteError(null);
+  }, [isDeleting]);
+
+  function handleConfirmDelete() {
+    if (!deleteTarget || isDeleting) return;
+    startDeleteTransition(async () => {
+      const action =
+        deleteTarget.type === "lost-found" ? deleteLostItem :
+        deleteTarget.type === "maintenance" ? deleteMaintenanceReport :
+        deleteOrderRequest;
+      const result = await action(deleteTarget.id);
+      if (!result.ok) {
+        setDeleteError(deleteCopy.deleteFailed);
+        return;
+      }
+      setDeleteTarget(null);
+      setDeleteError(null);
+      router.refresh();
+    });
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Refs for filter sheet focus management.
+  const sheetTriggerRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const sheetWasOpenRef = useRef(false);
+
+  // Move focus into the sheet on open; restore to trigger on close.
+  useEffect(() => {
+    if (filterSheetOpen) {
+      sheetWasOpenRef.current = true;
+      const first = sheetRef.current?.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      first?.focus();
+    } else if (sheetWasOpenRef.current) {
+      sheetWasOpenRef.current = false;
+      sheetTriggerRef.current?.focus();
+    }
+  }, [filterSheetOpen]);
+
+  // Close the sheet on Esc key.
+  useEffect(() => {
+    if (!filterSheetOpen) return;
+    function handleEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") setFilterSheetOpen(false);
+    }
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [filterSheetOpen]);
+
+  // Lock body scroll while the sheet is open.
+  useEffect(() => {
+    if (!filterSheetOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [filterSheetOpen]);
+
+  // Constrain Tab focus inside the sheet panel.
+  function handleSheetKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== "Tab") return;
+    const focusable = sheetRef.current?.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    if (!focusable || focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  // URL-derived filter state; no local useState for scope/type/status.
+  const scopeFilter = sanitizeScope(searchParams.get("scope"));
+  const typeFilter = sanitizeType(searchParams.get("type"));
+  const statusFilter = sanitizeStatus(searchParams.get("status"));
+  const selectedBuildingKey = searchParams.get("building");
+
+  // Build a whitelist-filtered query string to append to card hrefs.
+  // Keeps detail-page-specific params (e.g. created=1) out of list URLs.
+  const listQueryString = useMemo(() => {
+    const filtered = new URLSearchParams();
+    for (const key of LIST_FILTER_KEYS) {
+      const val = searchParams.get(key);
+      if (val) filtered.set(key, val);
+    }
+    return filtered.toString();
+  }, [searchParams]);
+
+  const hasCustomRange = Boolean(startDate || endDate);
+  const activePreset = hasCustomRange ? null : datePreset;
+
+  // Single URL update utility: null removes a key, string sets it.
+  function updateQuery(updates: Record<string, string | null>) {
+    const params = new URLSearchParams(searchParams);
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null) {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+  }
+
+  function setDatePreset(nextPreset: RequestDatePreset) {
+    updateQuery({
+      date: nextPreset === "all" ? null : nextPreset,
+      startDate: null,
+      endDate: null,
+    });
+  }
+
+  function applyRange(range: DateRangeValue) {
+    updateQuery({
+      date: null,
+      startDate: range.startDate || null,
+      endDate: range.endDate || null,
+    });
+    setCalendarOpen(false);
+  }
+
+  function clearRange() {
+    updateQuery({ startDate: null, endDate: null });
+    setCalendarOpen(false);
+  }
+
+  function formatRangeDate(value: string) {
+    return new Intl.DateTimeFormat(locale, {
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(`${value}T00:00:00`));
+  }
+
+  const rangeLabel = hasCustomRange
+    ? startDate && endDate && startDate !== endDate
+      ? `${formatRangeDate(startDate)} ~ ${formatRangeDate(endDate)}`
+      : formatRangeDate((startDate ?? endDate) as string)
+    : filterLabels.filterCustomRange;
+
+  // Memoized: stable as long as roomCatalog/buildingLabels/locale don't change.
+  const buildingOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          roomCatalog
+            .map((item) => item.propertyName)
+            .filter((propertyName) => Boolean(propertyName)),
+        ),
+      )
+        .map((propertyName) => ({
+          key: propertyName,
+          label: buildingLabels[propertyName] ?? propertyName,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label, locale)),
+    [roomCatalog, buildingLabels, locale],
+  );
+
+  const selectedBuildingLabel = useMemo(() => {
+    if (!selectedBuildingKey) return null;
+    return buildingOptions.find((option) => option.key === selectedBuildingKey)?.label ?? null;
+  }, [buildingOptions, selectedBuildingKey]);
+
+  function setBuildingFilter(nextBuildingKey: string | null) {
+    updateQuery({ building: nextBuildingKey });
+  }
+
+  // Pre-compute location for each item once.
+  // resolveRequestLocation does catalog find/filter (O(catalog)) per call;
+  // memoizing here prevents re-running on every scope/type/status filter change.
+  const enrichedLostItems = useMemo<EnrichedLostItem[]>(
+    () =>
+      lostItems.map((item) => ({
+        ...item,
+        location: resolveRequestLocation(item.room_label, roomCatalog, buildingLabels),
+      })),
+    [lostItems, roomCatalog, buildingLabels],
+  );
+
+  const enrichedMaintenance = useMemo<EnrichedMaintenance[]>(
+    () =>
+      maintenanceReports.map((report) => ({
+        ...report,
+        location: resolveRequestLocation(report.room_label, roomCatalog, buildingLabels, report.property_name),
+      })),
+    [maintenanceReports, roomCatalog, buildingLabels],
+  );
+
+  // Single-pass filter pipeline: scope + type + status + building applied together.
+  // Only re-runs when the enriched data or active filters actually change.
+  const visibleLostItems = useMemo<EnrichedLostItem[]>(() => {
+    if (typeFilter !== "lost-found") return [];
+    return enrichedLostItems.filter((item) => {
+      if (scopeFilter === "mine" && item.reported_by_user_id !== currentUserId) return false;
+      if (selectedBuildingLabel && item.location.buildingLabel !== selectedBuildingLabel)
+        return false;
+      if (statusFilter === "active") return activeLostStatuses.has(item.status);
+      if (statusFilter === "closed") return !activeLostStatuses.has(item.status);
+      return true;
+    });
+  }, [enrichedLostItems, scopeFilter, typeFilter, statusFilter, selectedBuildingLabel, currentUserId]);
+
+  const visibleMaintenance = useMemo<EnrichedMaintenance[]>(() => {
+    if (typeFilter !== "maintenance") return [];
+    return enrichedMaintenance.filter((report) => {
+      if (scopeFilter === "mine" && report.reported_by_user_id !== currentUserId) return false;
+      if (selectedBuildingLabel && report.location.buildingLabel !== selectedBuildingLabel)
+        return false;
+      if (statusFilter === "active") return activeMaintenanceStatuses.has(report.status);
+      if (statusFilter === "closed") return !activeMaintenanceStatuses.has(report.status);
+      return true;
+    });
+  }, [enrichedMaintenance, scopeFilter, typeFilter, statusFilter, selectedBuildingLabel, currentUserId]);
+
+  const enrichedOrders = useMemo<EnrichedOrder[]>(
+    () =>
+      orderRequests.map((order) => ({
+        ...order,
+        parsedItems: Array.isArray(order.items) ? (order.items as OrderRequestItem[]) : [],
+      })),
+    [orderRequests],
+  );
+
+  const visibleOrders = useMemo<EnrichedOrder[]>(() => {
+    if (typeFilter !== "order") return [];
+    return enrichedOrders.filter((order) => {
+      if (scopeFilter === "mine" && order.reported_by_user_id !== currentUserId) return false;
+      if (selectedBuildingLabel && order.building_name !== selectedBuildingLabel) return false;
+      if (statusFilter === "active") return activeOrderStatuses.has(order.status);
+      if (statusFilter === "closed") return !activeOrderStatuses.has(order.status);
+      return true;
+    });
+  }, [enrichedOrders, scopeFilter, typeFilter, statusFilter, selectedBuildingLabel, currentUserId]);
+
+  const hasAnyResults =
+    visibleLostItems.length > 0 || visibleMaintenance.length > 0 || visibleOrders.length > 0;
+
+  const hasDateFilter = hasCustomRange || datePreset !== "all";
+  const presetLabel =
+    datePreset === "today"
+      ? filterLabels.filterToday
+      : datePreset === "7d"
+        ? filterLabels.filterLast7Days
+        : datePreset === "30d"
+          ? filterLabels.filterLast30Days
+          : null;
+  const dateChipLabel = hasCustomRange ? rangeLabel : presetLabel;
+
+  // Active (non-default) filters surfaced as quick-clear chips below the tabs.
+  const activeChips: { id: string; label: string; onClear: () => void }[] = [];
+  if (scopeFilter === "mine") {
+    activeChips.push({
+      id: "scope",
+      label: filterLabels.filterScopeMine,
+      onClear: () => updateQuery({ scope: null }),
+    });
+  }
+  if (statusFilter === "active" || statusFilter === "closed") {
+    activeChips.push({
+      id: "status",
+      label: statusFilter === "active" ? filterLabels.filterActive : filterLabels.filterClosed,
+      onClear: () => updateQuery({ status: null }),
+    });
+  }
+  if (hasDateFilter && dateChipLabel) {
+    activeChips.push({
+      id: "date",
+      label: dateChipLabel,
+      onClear: () => updateQuery({ date: null, startDate: null, endDate: null }),
+    });
+  }
+  if (selectedBuildingLabel) {
+    activeChips.push({
+      id: "building",
+      label: selectedBuildingLabel,
+      onClear: () => setBuildingFilter(null),
+    });
+  }
+  const activeFilterCount = activeChips.length;
+
+  function resetFilters() {
+    updateQuery({
+      scope: null,
+      status: null,
+      date: null,
+      startDate: null,
+      endDate: null,
+      building: null,
+    });
+  }
+
+  const typeTabs: { id: TypeFilter; icon: React.ReactNode; label: string }[] = [
+    {
+      id: "lost-found",
+      icon: <Package className="size-3.5" aria-hidden="true" />,
+      label: filterLabels.filterLostFound,
+    },
+    {
+      id: "maintenance",
+      icon: <Wrench className="size-3.5" aria-hidden="true" />,
+      label: filterLabels.filterMaintenance,
+    },
+    {
+      id: "order",
+      icon: <ShoppingCart className="size-3.5" aria-hidden="true" />,
+      label: filterLabels.filterOrder,
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Type tabs (one request kind at a time) + filter trigger */}
+      <div className="space-y-3">
+        <div className={`${REQUEST_PANEL} grid grid-cols-3 gap-1 p-1.5`}>
+          {typeTabs.map((tab) => (
+            <button
+              key={tab.id}
+              aria-pressed={typeFilter === tab.id}
+              className={cn(
+                "inline-flex items-center justify-center gap-1.5 rounded-2xl px-2 py-2.5 text-[13px] font-black transition-all",
+                typeFilter === tab.id
+                  ? "bg-white text-[#1F3A5F] shadow-[0_12px_24px_-20px_rgba(31,58,95,0.45)] ring-1 ring-sky-200/80 dark:bg-[#315F91]/25 dark:text-[#D9E8F7] dark:ring-[#315F91]/40"
+                  : "text-slate-500 hover:bg-white/60 hover:text-slate-900",
+              )}
+              onClick={() => updateQuery({ type: tab.id === DEFAULT_TYPE ? null : tab.id })}
+              type="button"
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            ref={sheetTriggerRef}
+            aria-haspopup="dialog"
+            aria-expanded={filterSheetOpen}
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-black shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors",
+              activeFilterCount > 0
+                ? "border-sky-200 bg-sky-50 text-[#1F3A5F] dark:border-[#315F91]/40 dark:bg-[#315F91]/25 dark:text-[#D9E8F7]"
+                : "border-slate-200/80 bg-white/80 text-slate-500 hover:text-slate-900",
+            )}
+            onClick={() => setFilterSheetOpen(true)}
+            type="button"
+          >
+            <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+            {filterLabels.filterButton}
+            {activeFilterCount > 0 ? (
+              <span className="ml-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-[#315F91] px-1 text-[10px] font-black leading-4 text-white">
+                {activeFilterCount}
+              </span>
+            ) : null}
+          </button>
+
+          {activeChips.length > 0 ? (
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {activeChips.map((chip) => (
+                <button
+                  key={chip.id}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-2.5 py-1 text-[12px] font-bold text-slate-700 shadow-[0_8px_18px_-18px_rgba(31,58,95,0.4)] transition-colors hover:bg-slate-50"
+                  onClick={chip.onClear}
+                  type="button"
+                >
+                  {chip.label}
+                  <X className="size-3 text-muted-foreground" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <DateRangeCalendar
+        labels={{
+          apply: filterLabels.calendarApply,
+          clear: filterLabels.calendarClear,
+          close: filterLabels.calendarClose,
+          selectEnd: filterLabels.calendarSelectEnd,
+          selectStart: filterLabels.calendarSelectStart,
+          title: filterLabels.calendarTitle,
+        }}
+        locale={locale}
+        onApply={applyRange}
+        onClear={clearRange}
+        onClose={() => setCalendarOpen(false)}
+        open={calendarOpen}
+        value={{ endDate, startDate }}
+      />
+
+      {filterSheetOpen && typeof document !== "undefined"
+        ? createPortal(
+            <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
+              {/* Backdrop — click to dismiss */}
+              <button
+                aria-label={filterLabels.calendarClose}
+                className="absolute inset-0 bg-[#0F172A]/40 backdrop-blur-sm"
+                onClick={() => setFilterSheetOpen(false)}
+                style={{ animation: "modal-overlay-in 200ms ease both" }}
+                tabIndex={-1}
+                type="button"
+              />
+              {/* Centered modal panel */}
+              <div
+                ref={sheetRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="filter-sheet-title"
+                className="relative flex w-full max-w-[min(92vw,420px)] flex-col overflow-hidden rounded-[28px] border border-slate-200/70 bg-[linear-gradient(150deg,#ffffff_0%,#f9fbff_100%)] shadow-[0_28px_56px_-20px_rgba(31,58,95,0.50),0_0_0_1px_rgba(255,255,255,0.75)_inset] dark:bg-[#101828]"
+                onKeyDown={handleSheetKeyDown}
+                style={{
+                  animation: "modal-center-in 240ms cubic-bezier(0.32, 0.72, 0, 1) both",
+                  maxHeight: "min(85dvh, 640px)",
+                }}
+              >
+                {/* Modal header */}
+                <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 pb-3.5 pt-4">
+                  <p id="filter-sheet-title" className="text-[15px] font-black tracking-[-0.03em] text-slate-950">
+                    {filterLabels.filterButton}
+                  </p>
+                  <button
+                    aria-label={filterLabels.calendarClose}
+                    className="inline-flex size-8 items-center justify-center rounded-full border border-slate-200/80 bg-white/80 text-slate-500 shadow-[0_8px_16px_-14px_rgba(31,58,95,0.45)] transition-colors hover:bg-slate-50 hover:text-slate-900"
+                    onClick={() => setFilterSheetOpen(false)}
+                    type="button"
+                  >
+                    <X className="size-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+
+                {/* Scrollable options area */}
+                <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+                  {/* Scope */}
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground/70">
+                      {filterLabels.groupScope}
+                    </p>
+                    <SegTrack>
+                      <SegButton
+                        active={scopeFilter === "all"}
+                        label={filterLabels.filterAll}
+                        onClick={() => updateQuery({ scope: null })}
+                      />
+                      <SegButton
+                        active={scopeFilter === "mine"}
+                        label={filterLabels.filterScopeMine}
+                        onClick={() => updateQuery({ scope: "mine" })}
+                      />
+                    </SegTrack>
+                  </div>
+
+                  {/* Status */}
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground/70">
+                      {filterLabels.groupStatus}
+                    </p>
+                    <SegTrack>
+                      <SegButton
+                        active={statusFilter === "all"}
+                        label={filterLabels.filterAll}
+                        onClick={() => updateQuery({ status: null })}
+                      />
+                      <SegButton
+                        active={statusFilter === "active"}
+                        label={filterLabels.filterActive}
+                        onClick={() => updateQuery({ status: "active" })}
+                      />
+                      <SegButton
+                        active={statusFilter === "closed"}
+                        label={filterLabels.filterClosed}
+                        onClick={() => updateQuery({ status: "closed" })}
+                      />
+                    </SegTrack>
+                  </div>
+
+                  {/* Date */}
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground/70">
+                      {filterLabels.groupDate}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <SegTrack>
+                        <SegButton
+                          active={activePreset === "all"}
+                          label={filterLabels.filterAll}
+                          onClick={() => setDatePreset("all")}
+                        />
+                        <SegButton
+                          active={activePreset === "today"}
+                          label={filterLabels.filterToday}
+                          onClick={() => setDatePreset("today")}
+                        />
+                        <SegButton
+                          active={activePreset === "7d"}
+                          label={filterLabels.filterLast7Days}
+                          onClick={() => setDatePreset("7d")}
+                        />
+                        <SegButton
+                          active={activePreset === "30d"}
+                          label={filterLabels.filterLast30Days}
+                          onClick={() => setDatePreset("30d")}
+                        />
+                      </SegTrack>
+                      <button
+                        aria-haspopup="dialog"
+                        aria-expanded={calendarOpen}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-bold transition-colors",
+                          hasCustomRange
+                            ? "border-[#C9D8E8] bg-[#EAF1F8] text-[#1F3A5F] dark:border-[#315F91]/40 dark:bg-[#315F91]/25 dark:text-[#D9E8F7]"
+                            : "border-dashed border-border text-muted-foreground hover:border-[#C9D8E8] hover:text-foreground",
+                        )}
+                        onClick={() => setCalendarOpen(true)}
+                        type="button"
+                      >
+                        <CalendarRange className="size-3.5" aria-hidden="true" />
+                        {rangeLabel}
+                      </button>
+                      {hasCustomRange ? (
+                        <button
+                          aria-label={filterLabels.calendarClear}
+                          className="inline-flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                          onClick={clearRange}
+                          type="button"
+                        >
+                          <X className="size-3.5" aria-hidden="true" />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* Building */}
+                  {buildingOptions.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground/70">
+                        {filterLabels.building}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          aria-pressed={!selectedBuildingKey}
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-bold transition-colors",
+                            !selectedBuildingKey
+                              ? "bg-[#EAF1F8] text-[#1F3A5F] dark:bg-[#315F91]/25 dark:text-[#D9E8F7]"
+                              : "bg-muted/50 text-muted-foreground hover:text-foreground",
+                          )}
+                          onClick={() => setBuildingFilter(null)}
+                          type="button"
+                        >
+                          {filterLabels.filterAll}
+                          {!selectedBuildingKey ? <Check className="size-3.5" aria-hidden="true" /> : null}
+                        </button>
+                        {buildingOptions.map((option) => (
+                          <button
+                            aria-pressed={selectedBuildingKey === option.key}
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-bold transition-colors",
+                              selectedBuildingKey === option.key
+                                ? "bg-[#EAF1F8] text-[#1F3A5F] dark:bg-[#315F91]/25 dark:text-[#D9E8F7]"
+                                : "bg-muted/50 text-muted-foreground hover:text-foreground",
+                            )}
+                            key={option.key}
+                            onClick={() => setBuildingFilter(option.key)}
+                            type="button"
+                          >
+                            {option.label}
+                            {selectedBuildingKey === option.key ? (
+                              <Check className="size-3.5" aria-hidden="true" />
+                            ) : null}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Modal footer — action buttons */}
+                <div className="flex shrink-0 items-center gap-2 border-t border-slate-100 px-5 pb-5 pt-4">
+                  <button
+                    className="h-11 flex-1 rounded-2xl border border-slate-200/80 bg-white text-sm font-bold text-slate-700 shadow-[0_8px_16px_-14px_rgba(31,58,95,0.35)] transition-colors hover:bg-slate-50 disabled:opacity-40"
+                    disabled={activeFilterCount === 0}
+                    onClick={resetFilters}
+                    type="button"
+                  >
+                    {filterLabels.calendarClear}
+                  </button>
+                  <button
+                    className="h-11 flex-1 rounded-2xl bg-[#315F91] text-sm font-black text-white shadow-[0_12px_22px_-14px_rgba(49,95,145,0.60)] transition-colors hover:bg-[#274D76]"
+                    onClick={() => setFilterSheetOpen(false)}
+                    type="button"
+                  >
+                    {filterLabels.calendarApply}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {/* No results */}
+      {!hasAnyResults ? (
+        <Card className={`${REQUEST_CARD} p-5`}>
+          <div className="mx-auto mb-3 flex size-11 items-center justify-center rounded-2xl bg-slate-50 text-slate-500 ring-1 ring-slate-200/80">
+            <SlidersHorizontal className="size-5" aria-hidden="true" />
+          </div>
+          <p className="text-center text-sm font-bold text-slate-500">
+            {filterLabels.noFilterResults}
+          </p>
+        </Card>
+      ) : null}
+
+      {/* Lost items list (kind is conveyed by the active tab) */}
+      {visibleLostItems.length > 0 ? (
+        <div className="space-y-2.5">
+            {visibleLostItems.map((item) => (
+              <RequestListCard
+                cleaningTag={item.cleaning_session_id ? lostFoundCopy.fromCleaningTag : null}
+                href={`/mobile/requests/lost-found/${item.id}${listQueryString ? `?${listQueryString}` : ""}`}
+                imageUrl={item.image_urls?.[0] ?? null}
+                key={item.id}
+                leadingIcon={<Package className="size-5" aria-hidden="true" />}
+                locationLabel={item.location.buildingLabel ?? "-"}
+                memo={item.memo}
+                onDelete={
+                  canDeleteAny || item.reported_by_user_id === currentUserId
+                    ? () => openDelete({ type: "lost-found", id: item.id, title: item.item_name })
+                    : undefined
+                }
+                reporter={item.reporter_name || "-"}
+                requestType="lost-found"
+                roomLabel={item.location.roomLabel}
+                statusClass={lostStatusBadgeClass[item.status]}
+                statusLabel={lostFoundCopy.statusLabels[item.status]}
+                time={formatDateTime(item.found_at, locale)}
+                title={item.item_name}
+              />
+            ))}
+        </div>
+      ) : null}
+
+      {/* Maintenance list */}
+      {visibleMaintenance.length > 0 ? (
+        <div className="space-y-2.5">
+            {visibleMaintenance.map((report) => (
+              <RequestListCard
+                cleaningTag={
+                  report.cleaning_session_id ? maintenanceCopy.fromCleaningTag : null
+                }
+                href={`/mobile/requests/maintenance/${report.id}${listQueryString ? `?${listQueryString}` : ""}`}
+                imageUrl={report.image_urls?.[0] ?? null}
+                key={report.id}
+                leadingIcon={<Wrench className="size-5" aria-hidden="true" />}
+                locationLabel={report.location.buildingLabel ?? "-"}
+                memo={report.description}
+                onDelete={
+                  canDeleteAny || report.reported_by_user_id === currentUserId
+                    ? () => openDelete({ type: "maintenance", id: report.id, title: report.issue_title })
+                    : undefined
+                }
+                reporter={report.reporter_name || "-"}
+                requestType="maintenance"
+                roomLabel={report.location.roomLabel}
+                statusClass={maintenanceStatusBadgeClass[report.status]}
+                statusLabel={maintenanceCopy.statusLabels[report.status]}
+                time={formatDateTime(report.created_at, locale)}
+                title={report.issue_title}
+              />
+            ))}
+        </div>
+      ) : null}
+
+      {/* Order requests list */}
+      {visibleOrders.length > 0 ? (
+        <div className="space-y-2.5">
+            {visibleOrders.map((order) => (
+              <RequestListCard
+                deliveryTag={
+                  formatDeliveryDateWindow(
+                    order.delivery_start_date,
+                    order.delivery_end_date,
+                    order.delivery_date,
+                    locale,
+                  )
+                    ? `${orderCopy.deliveryDateShort} ${formatDeliveryDateWindow(
+                      order.delivery_start_date,
+                      order.delivery_end_date,
+                      order.delivery_date,
+                      locale,
+                    )}`
+                    : null
+                }
+                href={`/mobile/requests/orders/${order.id}${listQueryString ? `?${listQueryString}` : ""}`}
+                imageUrl={
+                  order.parsedItems.find((item) => item.imageUrls && item.imageUrls.length > 0)
+                    ?.imageUrls?.[0] ?? null
+                }
+                key={order.id}
+                leadingIcon={<ShoppingCart className="size-5" aria-hidden="true" />}
+                locationLabel={localizePropertyName(order.building_name, buildingLabels)}
+                memo={order.description}
+                onDelete={
+                  canDeleteAny || order.reported_by_user_id === currentUserId
+                    ? () => openDelete({ type: "order", id: order.id, title: order.title || order.parsedItems[0]?.name || order.id })
+                    : undefined
+                }
+                reporter={order.reporter_name || "-"}
+                requestType="order"
+                roomLabel={order.room_label}
+                statusClass={orderStatusBadgeClass[order.status]}
+                statusLabel={orderCopy.statusLabels[order.status]}
+                time={formatDateTime(order.created_at, locale)}
+                title={order.title || order.parsedItems[0]?.name || "-"}
+              />
+            ))}
+        </div>
+      ) : null}
+
+      {/* ── Delete confirmation modal ── */}
+      {deleteTarget && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              aria-labelledby="delete-confirm-title"
+              aria-modal="true"
+              className="fixed inset-0 z-[200] flex items-center justify-center px-6 py-8"
+              role="dialog"
+            >
+              <button
+                aria-hidden="true"
+                className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl"
+                onClick={closeDelete}
+                tabIndex={-1}
+                type="button"
+              />
+              <div
+                className="relative w-full max-w-[340px] overflow-hidden rounded-[28px] border border-white/55 bg-surface shadow-[0_28px_90px_-34px_rgba(15,23,42,0.7)] dark:border-white/12 dark:bg-[#101828]"
+                style={{ animation: "modal-card-in 280ms cubic-bezier(0.34,1.26,0.64,1) both" }}
+              >
+                <div className="px-6 pb-6 pt-6">
+                  <div className="mb-4 flex flex-col items-center gap-3 text-center">
+                    <div className="flex size-14 items-center justify-center rounded-full bg-red-50 text-red-500 ring-1 ring-red-200/70 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50">
+                      <AlertTriangle className="size-7" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h3
+                        className="text-lg font-black tracking-tight text-foreground"
+                        id="delete-confirm-title"
+                      >
+                        {deleteCopy.confirmTitle}
+                      </h3>
+                      <p className="mt-1 text-[13px] font-semibold text-muted-foreground">
+                        {deleteCopy.confirmBody}
+                      </p>
+                    </div>
+                    <div className="w-full rounded-2xl border border-border/60 bg-muted/40 px-3 py-2.5">
+                      <p className="truncate text-sm font-black text-foreground">
+                        {deleteTarget.title}
+                      </p>
+                    </div>
+                  </div>
+                  {deleteError ? (
+                    <p className="mb-3 text-center text-xs font-semibold text-destructive">
+                      {deleteError}
+                    </p>
+                  ) : null}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      className="inline-flex h-12 items-center justify-center rounded-xl border border-border bg-background/70 text-sm font-bold text-foreground transition-colors hover:bg-muted/70 disabled:opacity-40"
+                      disabled={isDeleting}
+                      onClick={closeDelete}
+                      type="button"
+                    >
+                      {deleteCopy.cancel}
+                    </button>
+                    <button
+                      className="inline-flex h-12 items-center justify-center gap-1.5 rounded-xl bg-red-500 text-sm font-black text-white transition-colors hover:bg-red-600 disabled:opacity-40"
+                      disabled={isDeleting}
+                      onClick={handleConfirmDelete}
+                      type="button"
+                    >
+                      {isDeleting ? (
+                        <span className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      ) : (
+                        <Trash2 className="size-4" aria-hidden="true" />
+                      )}
+                      {deleteCopy.deleteAction}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
