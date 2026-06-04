@@ -243,7 +243,7 @@ Current implementation notes:
 - Development entry page is available at `/`.
 - The session provider is now backed by server-loaded Supabase session data.
 - Temporary mock session data remains only as a development reference in `src/lib/session.ts`.
-- **Global mobile shell unified (updated 2026-05-28)**: `MobileShell` owns the shared mobile chrome: custom 3x3 dot menu trigger, centered `StayOps` wordmark, profile avatar (`UserCircle`) link, scroll-aware top chrome, 78%-width slide-out side menu, and floating liquid-glass capsule bottom navigation. The base mobile shell/background is pure white; Liquid Glass is applied selectively to surfaces such as the bottom nav, cards, chips, and bottom sheets. `title` prop drives `aria-label` on `<main>` only (no visual rendering from shell). Rule: future mobile pages must not override or extend the shell structure without an explicit architectural decision.
+- **Global mobile shell unified (updated 2026-05-28, icon updated 2026-06-04)**: `MobileShell` owns the shared mobile chrome: custom two-line hamburger menu trigger with a shorter bottom line, centered `StayOps` wordmark, profile avatar (`UserCircle`) link, scroll-aware top chrome, 78%-width slide-out side menu, and floating liquid-glass capsule bottom navigation. The base mobile shell/background is pure white; Liquid Glass is applied selectively to surfaces such as the bottom nav, cards, chips, and bottom sheets. `title` prop drives `aria-label` on `<main>` only (no visual rendering from shell). Rule: future mobile pages must not override or extend the shell structure without an explicit architectural decision.
 
 ## Phase 6: User Profile and Directory
 

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { updateMaintenanceStatus } from "@/app/admin/maintenance/actions";
+import { deleteMaintenanceReportById, updateMaintenanceStatus } from "@/app/admin/maintenance/actions";
+import { DeleteConfirmButton } from "@/components/requests/delete-confirm-button";
 import { AnnouncementImageGrid } from "@/components/announcements/announcement-image-grid";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +47,7 @@ export default async function AdminMaintenanceDetailPage({
   const locale = session.user.preferredLanguage;
   const dictionary = getDictionary(locale);
   const copy = dictionary.maintenance;
+  const common = dictionary.common;
 
   const report = await getMaintenanceReportById(session, id);
   if (!report) {
@@ -57,13 +59,26 @@ export default async function AdminMaintenanceDetailPage({
   return (
     <AdminShell activeItem="maintenance" title={copy.detailTitle}>
       <div className="mx-auto max-w-2xl space-y-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
           <Link href="/admin/maintenance">
             <Button type="button" variant="secondary">
               <ArrowLeft className="mr-1.5 size-4" aria-hidden="true" />
               {copy.backToList}
             </Button>
           </Link>
+          <DeleteConfirmButton
+            deleteAction={deleteMaintenanceReportById.bind(null, report.id)}
+            labels={{
+              cancel: common.cancel,
+              confirmBody: common.deleteRecordBody,
+              confirmTitle: common.deleteRecordTitle,
+              deleteFailed: common.deleteFailed,
+              deletePermanently: common.deletePermanently,
+              deleteRecord: common.deleteRecord,
+            }}
+            redirectTo="/admin/maintenance"
+            title={report.issue_title}
+          />
         </div>
 
         {query.statusUpdated ? (

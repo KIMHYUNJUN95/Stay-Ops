@@ -5,6 +5,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getDefaultRouteForRole, isValidPhone } from "@/lib/onboarding";
 import { isLocale } from "@/lib/i18n";
+import { resolveInviteRpcError } from "@/lib/invite-errors";
 import { sanitizeNextPath } from "@/lib/safe-redirect";
 import type { Database } from "@/types/database";
 
@@ -27,15 +28,6 @@ type RpcClient = {
     args: Record<string, unknown>,
   ): Promise<{ data: JoinRpcRow[] | null; error: { message: string } | null }>;
 };
-
-const INVITE_ERROR_KEYS = new Set([
-  "missing_invite",
-  "invalid_invite",
-  "invite_inactive",
-  "invite_expired",
-  "invite_maxed",
-  "membership_blocked",
-]);
 
 function cleanText(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
@@ -80,10 +72,7 @@ async function joinInviteCode(userId: string, code: string, next: string) {
   );
 
   if (error) {
-    onboardingError(
-      INVITE_ERROR_KEYS.has(error.message) ? error.message : "invite_join_failed",
-      next,
-    );
+    onboardingError(resolveInviteRpcError(error.message), next);
   }
 
   const row = data?.[0];

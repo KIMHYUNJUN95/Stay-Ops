@@ -14,6 +14,7 @@ StayOps is not a generic Next.js demo. It is an operations product for accommoda
 4. `docs/` is part of the source of truth. If docs and code disagree, identify which side is correct and update the other side.
 5. After code changes, run `npm run lint` and `npm run build` unless blocked.
 6. Do not silently change the tech stack, role model, deletion policy, multilingual strategy, or PWA-first direction.
+7. A task is not complete until both code and the matching Markdown docs are updated together in the same completion cycle.
 
 ## Read These First
 
@@ -76,6 +77,12 @@ Plan -> Design -> Document -> Implement -> Test -> Review -> Update documentatio
 
 For bug fixes, investigation and patching can be fast, but final completion still requires doc sync.
 
+Completion rule:
+
+- Every time a task finishes, update the relevant Markdown docs in the same cycle.
+- Treat code changes and doc changes as one unit of completion.
+- If implementation changed from the original plan while coding, update the docs again before closing the task.
+
 ### 2. Multilingual support is mandatory
 
 - Do not add visible UI text as one-off hardcoded strings.
@@ -88,7 +95,7 @@ For bug fixes, investigation and patching can be fast, but final completion stil
 For `/mobile/*`, treat `src/components/shell/mobile-shell.tsx` as a global contract.
 
 - Keep the scroll-aware top chrome behavior.
-- Keep the 3x3 dot menu pattern.
+- Keep the two-line hamburger menu trigger pattern (shorter bottom line).
 - Keep the left slide-out menu behavior.
 - Keep the floating capsule bottom navigation.
 - Keep the pure-white base with selective Liquid Glass accents.
@@ -259,4 +266,3 @@ If the change is user-facing, also verify when relevant:
 - State what changed and which docs were updated.
 - If verification was not run, say so explicitly.
 - If domain behavior is unclear, ground decisions in existing docs and implementation first.
-

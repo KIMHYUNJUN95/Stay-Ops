@@ -39,15 +39,11 @@ function computeContentOffset(raw: number): number {
   return MAX_DISPLAY_H * raw / (raw + MAX_PULL * 0.4);
 }
 
-function DotMenuIcon({ className }: { className?: string }) {
+function MenuTriggerIcon({ className }: { className?: string }) {
   return (
-    <span aria-hidden="true" className={cn("grid grid-cols-3 gap-[3px]", className)}>
-      {Array.from({ length: 9 }).map((_, index) => (
-        <span
-          className="size-[3px] rounded-full bg-current"
-          key={index}
-        />
-      ))}
+    <span aria-hidden="true" className={cn("inline-flex flex-col items-start gap-[4px]", className)}>
+      <span className="block h-[2px] w-4 rounded-full bg-current" />
+      <span className="block h-[2px] w-2.5 rounded-full bg-current" />
     </span>
   );
 }
@@ -373,7 +369,7 @@ export function MobileShell({
                   onClick={() => setSidebarOpen(true)}
                   type="button"
                 >
-                  <DotMenuIcon />
+                  <MenuTriggerIcon />
                 </button>
 
                 <span className="pointer-events-none absolute inset-x-0 flex justify-center">

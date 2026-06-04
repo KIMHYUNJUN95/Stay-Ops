@@ -52,3 +52,35 @@ export async function updateLostItemStatus(formData: FormData) {
 
   redirect(`/admin/lost-found/${itemId}?statusUpdated=1`);
 }
+
+export async function deleteLostItemById(
+  id: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireAdminSession();
+
+  if (!isValidUUID(id)) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const supabase = await getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("lost_items")
+    .delete()
+    .eq("id", id)
+    .eq("organization_id", session.organization.id)
+    .select("id");
+
+  if (error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("permission") || msg.includes("policy") || msg.includes("denied")) {
+      return { ok: false, error: "unauthorized" };
+    }
+    return { ok: false, error: "delete_failed" };
+  }
+
+  if (!data || data.length === 0) {
+    return { ok: false, error: "not_found" };
+  }
+
+  return { ok: true };
+}

@@ -191,8 +191,6 @@ Check the user's role at `/admin/users`. `staff` and `part_time_staff` roles do 
 
 These are intentional MVP limitations that do not block internal use:
 
-- Admin orders page links to the mobile order detail layout (no admin-specific order detail page yet).
-- No hard-delete confirmation for lost-found and maintenance records.
 - No Google OAuth; email magic-link only.
 - Calendar empty count requires manual backfill to be authoritative (not automatic from webhook).
 - Map tab shows building cards with address and access codes but no embedded map.

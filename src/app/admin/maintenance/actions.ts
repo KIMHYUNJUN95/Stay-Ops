@@ -51,3 +51,35 @@ export async function updateMaintenanceStatus(formData: FormData) {
 
   redirect(`/admin/maintenance/${reportId}?statusUpdated=1`);
 }
+
+export async function deleteMaintenanceReportById(
+  id: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireAdminSession();
+
+  if (!isValidUUID(id)) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const supabase = await getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("maintenance_reports")
+    .delete()
+    .eq("id", id)
+    .eq("organization_id", session.organization.id)
+    .select("id");
+
+  if (error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("permission") || msg.includes("policy") || msg.includes("denied")) {
+      return { ok: false, error: "unauthorized" };
+    }
+    return { ok: false, error: "delete_failed" };
+  }
+
+  if (!data || data.length === 0) {
+    return { ok: false, error: "not_found" };
+  }
+
+  return { ok: true };
+}

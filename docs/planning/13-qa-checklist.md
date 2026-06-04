@@ -1,7 +1,7 @@
 # Phase 13: Full-System QA Checklist
 
-Last updated: 2026-06-03  
-Verification method: code trace + TypeScript build + DB migration check (browser E2E pending)
+Last updated: 2026-06-04  
+Verification method: code trace + unit tests + TypeScript build + DB migration check (browser E2E pending)
 
 Use this document as the live gate for internal rollout decisions.  
 For the rollout execution steps, see `docs/planning/14-rollout-guide.md`.
@@ -11,6 +11,7 @@ For the rollout execution steps, see `docs/planning/14-rollout-guide.md`.
 ## How to Use This Checklist
 
 - **Code trace**: reviewed in source without a running browser session.
+- **Unit test**: covered by automated Vitest suite (`npm test`). Pass = all 45 tests green.
 - **Build verified**: confirmed by `npm run lint` + `npm run build`.
 - **DB verified**: confirmed by comparing local migrations against remote Supabase history.
 - **Browser E2E**: requires a logged-in session and real device. Mark as Pass only after manual confirmation.
@@ -32,6 +33,35 @@ For the rollout execution steps, see `docs/planning/14-rollout-guide.md`.
 | Unauthenticated access to `/admin/*` redirects to login | Code trace | Pass |
 | `next` param preserved from login through onboarding to the original destination | Code trace | Pass |
 | Language preference persists across sessions | Browser E2E | Not tested |
+
+### Auth/Onboarding Hardening — Automated Unit Tests (added 2026-06-04)
+
+Run with `npm test`. All cases below are covered by `src/lib/__tests__/`.
+
+| Test case | Method | Status |
+|---|---|---|
+| `sanitizeNextPath` rejects `https://evil.com`, `//evil.com`, `/\evil.com`, `/\\evil.com` | Unit test | Pass |
+| `sanitizeNextPath` rejects non-path strings, null, undefined, non-string values | Unit test | Pass |
+| `sanitizeNextPath` returns custom fallback for unsafe values | Unit test | Pass |
+| `sanitizeNextPath` accepts `/mobile`, `/onboarding?next=%2Fmobile`, `/admin/users?id=1#section` | Unit test | Pass |
+| `isLocale` accepts `ko`, `ja`, `en` | Unit test | Pass |
+| `isLocale` rejects `kr`, `JP`, `english`, empty string, null, undefined, values with whitespace | Unit test | Pass |
+| Invite RPC known error keys (`missing_invite`, `invalid_invite`, `invite_inactive`, `invite_expired`, `invite_maxed`, `membership_blocked`) pass through as-is | Unit test | Pass |
+| Unknown RPC errors (`forbidden`, `missing_user`, `internal_error`, empty string) map to `invite_join_failed` | Unit test | Pass |
+| `forbidden` is NOT a passthrough key (DB internals not exposed to UI) | Unit test | Pass |
+| `actions.ts` calls `join_organization_with_invite_code` RPC (no manual DB ops) | Unit test | Pass |
+| `actions.ts` does not manually increment `used_count` | Unit test | Pass |
+| `actions.ts` does not directly upsert `memberships` in invite join flow | Unit test | Pass |
+
+### Remaining Browser E2E gaps for auth/onboarding
+
+The automated tests above cover pure-function and static-structure behavior. The following still require a live browser session with a real Supabase connection:
+
+- Actual magic-link email delivery and click-through
+- Google OAuth flow (deferred; placeholder only)
+- Onboarding form submission reaching the DB (profile + invite join)
+- Auth callback `?next=` forwarding through to the final destination in a real browser
+- Middleware redirect behavior under different auth states
 
 ---
 
@@ -245,8 +275,8 @@ For the rollout execution steps, see `docs/planning/14-rollout-guide.md`.
 
 | ID | Description | Notes |
 |---|---|---|
-| R-04 | Admin orders page links to mobile order detail (mobile layout on desktop) | Post-MVP: add admin-specific order detail page |
-| R-05 | No hard-delete confirmation UX for lost-found / maintenance records | Deferred by design; add in post-MVP cycle |
+| ~~R-04~~ | ~~Admin orders page links to mobile order detail (mobile layout on desktop)~~ | Resolved 2026-06-04: `/admin/orders/[id]` added |
+| ~~R-05~~ | ~~No hard-delete confirmation UX for lost-found / maintenance records~~ | Resolved 2026-06-04: `DeleteConfirmButton` added to admin detail pages |
 | R-06 | Google OAuth not implemented; login screen has disabled placeholder | Magic-link is primary and works |
 | R-07 | Map tab shows building cards with Google Maps deeplink, no embedded map | Sufficient for operational use |
 | R-08 | `<img>` used for client-side blob URL previews in order items (not Next.js Image) | Intentional; Next.js Image does not support blob URLs |
@@ -276,6 +306,7 @@ Controlled internal rollout may begin once the two required steps below are comp
 - All remote DB migrations are applied and confirmed against local history.
 - Auth routing, access control, RLS scope, and permission guards verified by code trace.
 - Business logic for cleaning, requests, orders, announcements, notifications, and exports verified by code trace.
+- Auth/onboarding hardening slice verified by Vitest unit tests (45 tests, `npm test`): safe redirect sanitization, invite RPC error mapping, and `isLocale` language validation.
 - i18n coverage for ko/ja/en confirmed across all production-visible surfaces.
 
 ### What has not been verified
@@ -298,4 +329,4 @@ Controlled internal rollout may begin once the two required steps below are comp
 - Monitor Supabase logs for server action errors in the first week.
 - Confirm Beds24 webhook events are arriving by checking `/admin/calendar` after a real booking change.
 - Collect field staff feedback on cleaning workflow and mobile navigation.
-- Plan post-MVP cycle: admin order detail page, hard-delete confirmation, Google OAuth.
+- Plan post-MVP cycle: Google OAuth.

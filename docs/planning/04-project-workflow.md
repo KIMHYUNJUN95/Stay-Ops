@@ -144,6 +144,12 @@ If implementation changes:
 
 Then the related Markdown files must be updated in the same work cycle.
 
+Task completion rule:
+
+- Every time one task finishes, update the matching Markdown docs before considering the task complete.
+- Code-only completion is not accepted, even for small fixes.
+- If the implementation drifted while coding, reconcile the docs again in the same cycle.
+
 ## Documentation Is Source of Truth
 
 Markdown docs are the shared project memory.
@@ -190,6 +196,7 @@ Current StayOps handoff expectations:
   - Then wait for the user to say start
 - When the user reports a bug, investigate and fix directly without stopping at planning only
 - Keep the workflow/status documents current as implementation moves
+- Treat every completed task as requiring code sync and doc sync together
 
 ## Important Rule
 
@@ -199,9 +206,9 @@ No major feature should be implemented only in code without documentation.
 
 All mobile screens that use `MobileShell` must inherit the unified mobile shell contract.
 
-- Top chrome: custom 3x3 dot menu trigger, centered StayOps wordmark, profile avatar link.
+- Top chrome: custom two-line hamburger menu trigger (shorter bottom line), centered StayOps wordmark, profile avatar link.
 - Top chrome is scroll-aware: it hides on downward scroll and returns on upward scroll.
-- Side menu: dot menu opens a 78%-width left slide-out menu; the main screen shifts right and the remaining visible area is dimmed.
+- Side menu: the top-left menu trigger opens a 78%-width left slide-out menu; the main screen shifts right and the remaining visible area is dimmed.
 - Bottom navigation: five-tab floating liquid-glass capsule overlay.
 - Base surface: pure-white shell/background. Liquid Glass is partial and must not be used as a blanket full-screen treatment.
 - Do not add page-specific controls, titles, or secondary icons to the header.
@@ -244,7 +251,7 @@ Do not conflate "baseline done" with "feature complete." The docs are the ground
   - lists mode (check-in/check-out/staying),
   - reservation detail bottom-sheet modal,
   - month navigation via `month=YYYY-MM` query (prev/next controls).
-- Keep the global mobile shell contract unchanged (`[3x3 dot menu] StayOps [Profile]`, scroll-aware top chrome, 78% side menu, floating capsule bottom tabs).
+- Keep the global mobile shell contract unchanged (`[two-line hamburger] StayOps [Profile]`, scroll-aware top chrome, 78% side menu, floating capsule bottom tabs).
 ## 2026-05-27 Workflow Rule Update
 
 - Documentation-first enforcement is now explicit for all contributors:
@@ -254,5 +261,3 @@ Do not conflate "baseline done" with "feature complete." The docs are the ground
   4. finalize by reconciling docs with the actual implementation.
 - "Code first, docs later" is not accepted as a completion state.
 - Project-flow compliance is required even for rapid bug-fix cycles; only investigation/patch order can be accelerated, not documentation closure.
-
-

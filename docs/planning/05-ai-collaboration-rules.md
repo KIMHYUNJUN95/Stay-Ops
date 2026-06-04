@@ -34,6 +34,12 @@ Mandatory order for every change cycle:
 
 No feature work is considered complete until docs and code are aligned.
 
+Additional completion rule:
+
+- Every completed task must update the related Markdown docs in the same work cycle.
+- "The code is done, docs later" is not an acceptable completion state.
+- If coding changed the implementation details, the docs must be reconciled again before the task is closed.
+
 Examples:
 
 - New field added to maintenance request -> update maintenance workflow doc.
@@ -106,7 +112,7 @@ All assistants must treat the project workflow as an implementation contract, no
 - This rule is mandatory and non-optional.
 - Any change to `/mobile/*` must preserve one coherent mobile system: pure-white shell/background, strong readability, and selective Apple-style Liquid Glass accents.
 - Liquid Glass is not a full-screen treatment. Use it for floating navigation, bottom sheets, overlays, cards, chips, or other surfaces where translucency improves perceived quality without reducing clarity.
-- `MobileShell` is the shared behavior baseline: scroll-aware top chrome, 3x3 dot menu trigger, 78% slide-out side menu, and floating liquid-glass capsule bottom navigation.
+- `MobileShell` is the shared behavior baseline: scroll-aware top chrome, two-line hamburger menu trigger with a shorter bottom line, 78% slide-out side menu, and floating liquid-glass capsule bottom navigation.
 - Mixed visual quality between mobile tabs is not acceptable. If consistency is not achieved, the task is incomplete.
 
 ## Data and Permission Principles

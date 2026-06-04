@@ -200,7 +200,7 @@ Includes:
 All mobile screens share one shell rendered by `MobileShell`:
 
 ```txt
-[3x3 dot menu]  StayOps wordmark  [Profile]
+[two-line hamburger]  StayOps wordmark  [Profile]
 ```
 
 Implementation: `src/components/shell/mobile-shell.tsx`.
@@ -208,11 +208,11 @@ Implementation: `src/components/shell/mobile-shell.tsx`.
 Current rules:
 
 - **Base surface**: the mobile shell and page background use a pure-white `bg-background` base. The shell itself is not a full-screen glass surface.
-- **Left**: a custom 3x3 dot menu button opens the mobile side menu. `aria-label` uses `dictionary.common.menu`.
+- **Left**: a custom two-line hamburger menu button opens the mobile side menu. The bottom line is intentionally shorter than the top line. `aria-label` uses `dictionary.common.menu`.
 - **Center**: the `StayOps` script wordmark is visually centered in the top chrome.
 - **Right**: circular profile avatar (`UserCircle`) links to `/account?mode=mobile`. `aria-label` uses `dictionary.onboarding.profileTitle`.
 - **Scroll behavior**: the top chrome hides when users scroll down and returns when users scroll up. The content area fills the freed space so no blank header gap remains.
-- **Side menu**: tapping the dot menu opens a left slide-out menu at roughly 78% of the mobile viewport width. The main screen moves right with a dark overlay on the remaining visible area. Closing reverses the slide.
+- **Side menu**: tapping the menu button opens a left slide-out menu at roughly 78% of the mobile viewport width. The main screen moves right with a dark overlay on the remaining visible area. Closing reverses the slide.
 - **Bottom navigation**: the five bottom tabs render as a floating rounded capsule overlay with selective Liquid Glass treatment. It is intentionally partial glass; the surrounding page remains the normal white background.
 - **Accessibility**: the `title` prop on `MobileShell` is used as `aria-label` on `<main>`. It is not rendered visually in the header. Page content provides its own visual hierarchy.
 - **Appearance prop**: `appearance` remains accepted for compatibility but currently does not change shell visuals. Do not rely on it for page tinting.
@@ -234,7 +234,7 @@ Current rules:
 
 ## 2026-05-28 Mobile Shell Interaction Update
 
-- The top menu icon is now a custom 3x3 dot icon rather than a standard hamburger.
+- The top menu icon is now a custom two-line hamburger icon with a shorter bottom line.
 - The menu opens a 78%-width left side menu with slide animation, main-screen push, and right-side dim overlay.
 - The top header is scroll-aware: scroll down hides it, scroll up restores it.
 - The bottom tab bar is a floating liquid-glass capsule overlay, not a full-width rectangular footer.
@@ -262,4 +262,4 @@ Current rules:
 
 - `/mobile/calendar` Map tab is no longer placeholder behavior.
 - Property filter chips are hidden in Map mode and shown only in Calendar/Lists modes.
-- The global shell contract remains fixed: `[3x3 dot menu] StayOps [Profile]`, scroll-aware top chrome, slide-out side menu, and floating capsule bottom tabs.
+- The global shell contract remains fixed: `[two-line hamburger] StayOps [Profile]`, scroll-aware top chrome, slide-out side menu, and floating capsule bottom tabs.

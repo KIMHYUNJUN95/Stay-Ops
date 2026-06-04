@@ -13,7 +13,7 @@ Use this together with:
 ## Current Build Stage
 
 ```txt
-Phase 13: QA and Internal Rollout — in progress (2026-06-03)
+Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
 All core MVP implementation phases (6–12) are substantially complete. Phase 13 (QA and internal rollout) is now the active phase. Controlled internal rollout may begin once the required pre-rollout steps in `docs/planning/13-qa-checklist.md` section 12 are completed. Phase 13 remains open until browser E2E verification is finished and the first staff batch is successfully onboarded.
@@ -163,6 +163,10 @@ See `docs/planning/14-rollout-guide.md` for the internal rollout guide.
 - Current first admin account has been created.
 - Server-side session loading reads profile, membership, platform admin, and organization summary.
 - Admin/mobile routes redirect based on auth and onboarding state.
+- Auth/onboarding hardening completed (2026-06-04): open-redirect defense (`sanitizeNextPath` with `//`, `://`, backslash rejection), atomic invite-code join via Supabase RPC (`join_organization_with_invite_code` with `FOR UPDATE` locking and `auth.uid()` self-only enforcement), server-side `preferredLanguage` validation via `isLocale()`
+- Admin order detail page added (2026-06-04): dedicated route `/admin/orders/[id]` under `AdminShell` with full order info (title, status, building/room, requester, delivery date, items with images, memo, timeline progress). `OrderActionBar` and `updateOrderRequestStatus` reused from mobile surface. Admin orders list now links to the admin detail page instead of the mobile layout.
+- Hard-delete confirmation UX added (2026-06-04): `/admin/lost-found/[id]` and `/admin/maintenance/[id]` now have a "Delete" button that opens a confirmation modal before executing the permanent deletion. Shared `DeleteConfirmButton` component (`src/components/requests/delete-confirm-button.tsx`) reused across both. Admin-scoped server actions (`deleteLostItemById`, `deleteMaintenanceReportById`) use `requireAdminSession()` and organization scoping. i18n updated for `ko`/`ja`/`en` with exact copy from the UX spec.
+- Vitest unit test suite added (`npm test`): 45 tests covering safe-redirect sanitization, invite RPC error key mapping, and language locale validation. Test files: `src/lib/__tests__/safe-redirect.test.ts`, `src/lib/__tests__/invite-errors.test.ts`, `src/lib/__tests__/i18n-locale.test.ts`.
 - Cleaning Workflow Phase 7 first vertical slice started on 2026-05-21: `cleaning_sessions` schema/migration added with RLS, per-organization one-active-session-per-user protection, duration fields, and org/date/status indexes. `/mobile/cleaning` lets field roles select a room/task, start a real persisted cleaning session, view an active timer, complete through a confirmation step with an optional note, and review today's completed records. The active mobile state now separates timer/status, notes, and completion action so completion is deliberate rather than immediate. The current task dropdown is intentionally limited to Checkout Cleaning, Simple Cleaning, and Long-stay Cleaning. `/admin/cleaning` shows the organization's date-scoped cleaning status by room, task, staff, state, start time, and duration. Cleaning "today" now uses the defined UTC+9 local operating date (`Asia/Tokyo`, matching the app's operating-date helper) instead of raw UTC ISO slicing, and a corrective migration updates the DB default and active-session unique index. This slice intentionally uses a small static room/task selection surface until reservation/room master data is connected; invite/auth/session behavior, role model, RLS, persistence semantics, and other workflows were not changed.
 - `owner` is now treated as a hybrid role for field operations: owners can use the mobile cleaning workflow in addition to admin web, while `developer_super_admin` still bypasses for support/debugging. Matching corrective RLS migrations keep page access and mutations aligned.
 - Cleaning completion confirmation modal now displays the completion note as a read-only review block (line breaks preserved via `whitespace-pre-wrap`); the block is hidden when no note was entered, so the graceful empty case requires no additional i18n key.
@@ -185,6 +189,7 @@ See `docs/planning/14-rollout-guide.md` for the internal rollout guide.
 - Onboarding `ready` redirect honours `safeNext` (2026-06-04): `/onboarding` now redirects to `safeNext || state.redirectTo` for fully-onboarded users. Previously it always redirected to `state.redirectTo` (the default role route), losing the original destination.
 - Account page now shows organisation name and role (read-only) (2026-06-04).
 - Mobile sidebar user card is now a tappable link to `/account?mode=mobile` (2026-06-04).
+- Mobile shell menu trigger updated to a two-line hamburger icon with a shorter bottom line (2026-06-04). Sidebar behavior and layout remain unchanged.
 - `src/app/api/dev/seed-login/route.ts` hardened (2026-05-20): four-layer guard: (1) `NODE_ENV !== "development"`, (2) `ENABLE_DEV_SEED_LOGIN=true` opt-in gate, (3) localhost/127.0.0.1 hostname check, (4) `DEV_SEED_LOGIN_PASSWORD` must be non-empty after `trim()`. All return 404, no sensitive detail in response. Hardcoded `DEV_LOGIN_PASSWORD` constant removed; password now comes exclusively from `DEV_SEED_LOGIN_PASSWORD` env var and is threaded into `ensurePassword` and `signInWithPassword`. `findOrCreateUser` now paginates through all users instead of capping at one `listUsers(page:1, perPage:1000)` call. `?next=` validated against open-redirect. Catch block returns generic `seed_login_failed` with `console.error` server-side only.
 - `.env.example` updated with `ENABLE_DEV_SEED_LOGIN=` and `DEV_SEED_LOGIN_PASSWORD=` with a dev-only comment block.
 
@@ -300,8 +305,7 @@ Key remaining tasks before full internal rollout:
 
 ### Known deferred items (post-MVP backlog)
 
-- Admin-specific order detail page (currently links to mobile layout).
-- Hard-delete confirmation UX for lost-found and maintenance records.
+- ~~Hard-delete confirmation UX for lost-found and maintenance records.~~ Resolved 2026-06-04 — see completed items.
 - Beds24 inventory API sync for automatic room master classification without backfill.
 - In-app map integration (Google Maps deeplink present; embedded map not implemented).
 - i18n tooling enforcement (manual review currently; no lint-time hardcoded-string detection).
@@ -319,7 +323,7 @@ Completed phases (all done criteria met):
 
 Substantially complete (remaining items noted):
 
-- Lost item + maintenance requests (Phase 8 lost/maintenance slices); image upload done; hard delete confirmation deferred.
+- Lost item + maintenance requests (Phase 8 lost/maintenance slices); image upload done; hard-delete confirmation added to admin detail pages (2026-06-04).
 - Reservation calendar (Phase 10); mobile + admin view done; room master authoritative mode requires Beds24 inventory backfill (`scripts/dev/beds24-backfill-room-master.sh`).
 
 Next up:
@@ -369,8 +373,8 @@ Next up:
 |---|---|---|
 | Browser E2E not performed | Medium | Run manual golden-path check before first staff use |
 | Calendar empty count is provisional | Low | Run `scripts/dev/beds24-backfill-room-master.sh` to resolve |
-| Admin orders link to mobile layout | Low | Post-MVP: add admin-specific order detail page |
-| No hard-delete confirmation for requests | Low | Deferred by design; add in post-MVP cycle |
+| ~~Admin orders link to mobile layout~~ | Resolved 2026-06-04 | Admin order detail page added at `/admin/orders/[id]` |
+| ~~No hard-delete confirmation for requests~~ | Resolved 2026-06-04 | Admin lost-found and maintenance detail pages now require confirmation before permanent deletion |
 | ESLint warnings (2) | Low | Non-blocking: `middleware.ts` unused `options`; `order-item-row.tsx` `<img>` vs `next/image` |
 
 ### Items Not Tested (requires real browser session)
@@ -406,12 +410,12 @@ See `docs/planning/13-qa-checklist.md` section 12 for the full verification scop
 - Keep Korean, Japanese, and English support from the first implementation.
 - Run `npm run lint` and `npm run build` after changes.
 
-- Global mobile shell unified (updated 2026-05-28): `MobileShell` now owns the shared mobile chrome and navigation behavior: custom 3x3 dot menu trigger (left), centered StayOps wordmark, profile avatar link (right), scroll-aware top chrome, 78%-width slide-out side menu, and floating liquid-glass capsule bottom tabs. The base mobile surface is pure white; Liquid Glass is applied selectively rather than globally. `title` prop remains an `aria-label` on `<main>` (no visual rendering from shell). All mobile routes inherit the shell without page-file changes.
+- Global mobile shell unified (updated 2026-05-28, icon updated 2026-06-04): `MobileShell` now owns the shared mobile chrome and navigation behavior: custom two-line hamburger menu trigger with a shorter bottom line (left), centered StayOps wordmark, profile avatar link (right), scroll-aware top chrome, 78%-width slide-out side menu, and floating liquid-glass capsule bottom tabs. The base mobile surface is pure white; Liquid Glass is applied selectively rather than globally. `title` prop remains an `aria-label` on `<main>` (no visual rendering from shell). All mobile routes inherit the shell without page-file changes.
 
 ## 2026-05-22 Sync Update
 
 - Mobile shell is now fully unified across all `MobileShell` pages.
-  - Left: custom 3x3 dot menu trigger
+  - Left: custom two-line hamburger menu trigger (shorter bottom line)
   - Center: StayOps wordmark
   - Right: profile avatar link
   - Menu behavior: 78%-width left slide-out side menu with main-screen push and dim overlay

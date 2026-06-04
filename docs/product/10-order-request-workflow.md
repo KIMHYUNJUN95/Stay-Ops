@@ -230,6 +230,46 @@ Planned behavior:
 - When status changes to `ordered` and `delivery_date` is saved, StayOps will create an order-delivery schedule entry in the reservation calendar automatically.
 - Entry type: order-delivery (distinct from guest reservation bars).
 
+## Admin Surface
+
+### Admin List (`/admin/orders`)
+
+- Shows all order requests for the organization.
+- Columns: building / room, title, status badge, requester, requested at.
+- Filter controls: date range (startDate / endDate), status.
+- CSV export available.
+- Each row links to the admin order detail page (`/admin/orders/[id]`).
+
+### Admin Detail (`/admin/orders/[id]`)
+
+Added 2026-06-04. Admins now have a dedicated order detail page on the admin web surface.
+
+What the admin detail page shows:
+
+- Order title, status badge, and order ID.
+- Building and room.
+- Requester name.
+- Requested-at timestamp.
+- Expected delivery date or date range (if set).
+- Memo / reason (if provided).
+- Requested items: name, quantity, optional reference link, per-item images.
+- Status timeline progress bar (requested → approved → ordered).
+- Action bar: Approve, Process Order (with delivery date picker), Reject.
+
+Access control:
+
+- Page requires an admin session (`requireAdminSession()`).
+- Data is scoped to the admin's organization via `getOrderRequestById()`.
+- Returns `404` for unknown or out-of-organization IDs.
+- Status transitions use the same `updateOrderRequestStatus` server action as the mobile surface; role and transition validation is enforced server-side.
+
+Business logic reuse:
+
+- `getOrderRequestById` — shared with mobile detail.
+- `parseOrderItems` — shared with mobile detail.
+- `OrderActionBar` component — shared with mobile detail; `router.refresh()` updates the admin page after a status change.
+- `updateOrderRequestStatus` server action — shared with mobile detail; handles approve, ordered (with delivery date), and reject transitions.
+
 ## Visibility
 
 All users can create and view order requests.

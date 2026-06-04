@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { updateLostItemStatus } from "@/app/admin/lost-found/actions";
+import { deleteLostItemById, updateLostItemStatus } from "@/app/admin/lost-found/actions";
+import { DeleteConfirmButton } from "@/components/requests/delete-confirm-button";
 import { AnnouncementImageGrid } from "@/components/announcements/announcement-image-grid";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +44,9 @@ export default async function AdminLostFoundDetailPage({
     searchParams,
   ]);
   const locale = session.user.preferredLanguage;
-  const copy = getDictionary(locale).lostFound;
+  const dictionary = getDictionary(locale);
+  const copy = dictionary.lostFound;
+  const common = dictionary.common;
 
   const item = await getLostItemById(session, id);
   if (!item) {
@@ -55,13 +58,26 @@ export default async function AdminLostFoundDetailPage({
   return (
     <AdminShell activeItem="lost-found" title={copy.detailTitle}>
       <div className="mx-auto max-w-2xl space-y-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
           <Link href="/admin/lost-found">
             <Button type="button" variant="secondary">
               <ArrowLeft className="mr-1.5 size-4" aria-hidden="true" />
               {copy.backToList}
             </Button>
           </Link>
+          <DeleteConfirmButton
+            deleteAction={deleteLostItemById.bind(null, item.id)}
+            labels={{
+              cancel: common.cancel,
+              confirmBody: common.deleteRecordBody,
+              confirmTitle: common.deleteRecordTitle,
+              deleteFailed: common.deleteFailed,
+              deletePermanently: common.deletePermanently,
+              deleteRecord: common.deleteRecord,
+            }}
+            redirectTo="/admin/lost-found"
+            title={item.item_name}
+          />
         </div>
 
         {query.statusUpdated ? (

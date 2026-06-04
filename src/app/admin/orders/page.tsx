@@ -166,7 +166,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                 return (
                   <Link
                     className="grid grid-cols-[1.5fr_1.6fr_1fr_1fr_1.2fr] items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-muted/20"
-                    href={`/mobile/requests/orders/${order.id}`}
+                    href={`/admin/orders/${order.id}`}
                     key={order.id}
                   >
                     <span className="min-w-0">
