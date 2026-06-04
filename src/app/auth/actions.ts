@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { isDevSeedLoginEnabled } from "@/lib/dev-auth";
+import { sanitizeNextPath } from "@/lib/safe-redirect";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 function getAppUrl() {
@@ -31,7 +32,7 @@ function preserveOnboardingLang(next: string, lang: string) {
 
 export async function signInWithEmail(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
-  const next = String(formData.get("next") ?? "/").trim() || "/";
+  const next = sanitizeNextPath(formData.get("next"), "/mobile");
   const lang = String(formData.get("lang") ?? "").trim();
   const langParam = lang ? `&lang=${encodeURIComponent(lang)}` : "";
   const callbackNext = preserveOnboardingLang(next, lang);
@@ -68,7 +69,7 @@ export async function signInWithEmail(formData: FormData) {
 }
 
 export async function signInWithGoogle(formData: FormData) {
-  const next = String(formData.get("next") ?? "/").trim() || "/";
+  const next = sanitizeNextPath(formData.get("next"), "/mobile");
   const lang = String(formData.get("lang") ?? "").trim();
   const langParam = lang ? `&lang=${encodeURIComponent(lang)}` : "";
   const callbackNext = preserveOnboardingLang(next, lang);

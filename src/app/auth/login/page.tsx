@@ -9,6 +9,7 @@ import { resolveAuthErrorMessage } from "@/lib/auth-errors";
 import { buildDevSeedLoginHref, isDevSeedLoginEnabled } from "@/lib/dev-auth";
 import { getDictionary, isLocale, locales, type Locale } from "@/lib/i18n";
 import { getOnboardingState } from "@/lib/onboarding";
+import { sanitizeNextPath } from "@/lib/safe-redirect";
 
 type LoginPageProps = {
   searchParams: Promise<{
@@ -31,7 +32,7 @@ function getLanguageHref(locale: Locale, next: string) {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
   const state = await getOnboardingState();
-  const next = params.next || "/";
+  const next = sanitizeNextPath(params.next, "/mobile");
   const requestedLocale = params.lang ?? "";
   const locale: Locale = isLocale(requestedLocale) ? requestedLocale : "ko";
   const dictionary = getDictionary(locale);
@@ -191,6 +192,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <p className="mt-6 text-center text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">
             {dictionary.auth.productSubtitle}
           </p>
+
+          {!devSeedLogin && (
+            <p className="mt-3 text-center text-xs font-medium leading-5 text-slate-400 dark:text-slate-500">
+              {dictionary.auth.newUserHint}
+            </p>
+          )}
 
           <div className="mt-8 flex items-center justify-center gap-4 text-sm font-semibold text-slate-500 dark:text-slate-400 sm:hidden">
             <Globe2 className="size-4" aria-hidden="true" />

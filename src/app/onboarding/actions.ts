@@ -4,29 +4,45 @@ import { redirect } from "next/navigation";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getDefaultRouteForRole, isValidPhone } from "@/lib/onboarding";
+import { isLocale } from "@/lib/i18n";
+import { sanitizeNextPath } from "@/lib/safe-redirect";
 import type { Database } from "@/types/database";
 
-type InviteCodeRow = {
-  default_role: Database["public"]["Enums"]["organization_role"];
-  id: string;
-  max_uses: number;
-  organization_id: string;
-  used_count: number;
-};
-
-type MembershipInsert = Database["public"]["Tables"]["memberships"]["Insert"];
 type PlatformAdminInsert =
   Database["public"]["Tables"]["platform_admins"]["Insert"];
 type ProfileInsert = Database["public"]["Tables"]["profiles"]["Insert"];
+
+// The project's database.ts omits Relationships on all tables, which prevents
+// Database["public"] from satisfying GenericSchema. service.from() has an untyped
+// fallback overload so it works anyway, but service.rpc() does not. This interface
+// provides just enough typing for the one RPC call we make.
+type JoinRpcRow = {
+  organization_id: string;
+  role: Database["public"]["Enums"]["organization_role"];
+  status: string;
+};
+type RpcClient = {
+  rpc(
+    fn: string,
+    args: Record<string, unknown>,
+  ): Promise<{ data: JoinRpcRow[] | null; error: { message: string } | null }>;
+};
+
+const INVITE_ERROR_KEYS = new Set([
+  "missing_invite",
+  "invalid_invite",
+  "invite_inactive",
+  "invite_expired",
+  "invite_maxed",
+  "membership_blocked",
+]);
 
 function cleanText(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
 }
 
 function sanitizeNext(value: FormDataEntryValue | null): string {
-  const s = cleanText(value);
-  if (!s || !s.startsWith("/") || s.startsWith("//") || s.includes("://")) return "";
-  return s;
+  return sanitizeNextPath(cleanText(value));
 }
 
 function normalizeInviteCode(value: FormDataEntryValue | null) {
@@ -58,45 +74,22 @@ async function joinInviteCode(userId: string, code: string, next: string) {
   }
 
   const service = getSupabaseServiceClient();
-  const now = new Date().toISOString();
-
-  // Fetch without pre-filtering active/expiry so each failure gives a specific error message.
-  const { data, error } = await service
-    .from("invite_codes")
-    .select("id, organization_id, default_role, used_count, max_uses, is_active, expires_at")
-    .eq("code", code)
-    .maybeSingle();
-
-  const inviteCode = data as (InviteCodeRow & { is_active: boolean; expires_at: string }) | null;
-
-  if (error || !inviteCode) onboardingError("invalid_invite", next);
-  if (!inviteCode.is_active) onboardingError("invite_inactive", next);
-  if (inviteCode.expires_at && inviteCode.expires_at < now) onboardingError("invite_expired", next);
-  if (inviteCode.used_count >= inviteCode.max_uses) onboardingError("invite_maxed", next);
-
-  const membership: MembershipInsert = {
-    joined_at: new Date().toISOString(),
-    organization_id: inviteCode.organization_id,
-    role: inviteCode.default_role,
-    status: "active",
-    user_id: userId,
-  };
-
-  const { error: membershipError } = await service.from("memberships").upsert(
-    membership as never,
-    { onConflict: "organization_id,user_id" },
+  const { data, error } = await (service as unknown as RpcClient).rpc(
+    "join_organization_with_invite_code",
+    { p_user_id: userId, p_code: code },
   );
 
-  if (membershipError) onboardingError("membership_failed", next);
+  if (error) {
+    onboardingError(
+      INVITE_ERROR_KEYS.has(error.message) ? error.message : "invite_join_failed",
+      next,
+    );
+  }
 
-  const { error: updateError } = await service
-    .from("invite_codes")
-    .update({ used_count: inviteCode.used_count + 1 } as never)
-    .eq("id", inviteCode.id);
+  const row = data?.[0];
+  if (!row) onboardingError("invite_join_failed", next);
 
-  if (updateError) onboardingError("invite_update_failed", next);
-
-  return inviteCode.default_role;
+  return row.role;
 }
 
 export async function completeProfile(formData: FormData) {
@@ -104,7 +97,7 @@ export async function completeProfile(formData: FormData) {
   const next = sanitizeNext(formData.get("next"));
   const name = cleanText(formData.get("name"));
   const phoneNumber = cleanText(formData.get("phoneNumber"));
-  const preferredLanguage = cleanText(formData.get("preferredLanguage")) || "ko";
+  const preferredLanguage = cleanText(formData.get("preferredLanguage"));
   const inviteCode = normalizeInviteCode(formData.get("inviteCode"));
 
   if (!name || !phoneNumber) {
@@ -115,13 +108,16 @@ export async function completeProfile(formData: FormData) {
     onboardingError("phone_invalid", next);
   }
 
+  if (!isLocale(preferredLanguage)) {
+    onboardingError("invalid_language", next);
+  }
+
   const service = getSupabaseServiceClient();
   const profile: ProfileInsert = {
     id: user.id,
     name,
     phone_number: phoneNumber,
-    preferred_language:
-      preferredLanguage as Database["public"]["Enums"]["app_language"],
+    preferred_language: preferredLanguage,
   };
 
   const { error } = await service.from("profiles").upsert(profile as never);

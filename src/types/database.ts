@@ -727,6 +727,19 @@ export type Database = {
         };
       };
     };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      join_organization_with_invite_code: {
+        Args: { p_user_id: string; p_code: string };
+        Returns: Array<{
+          organization_id: string;
+          role: Database["public"]["Enums"]["organization_role"];
+          status: string;
+        }>;
+      };
+    };
     Enums: {
       announcement_status: "archived" | "draft" | "published";
       lost_item_status: "disposal_scheduled" | "disposed" | "registered" | "stored";

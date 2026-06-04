@@ -289,7 +289,11 @@ export function MobileShell({
             </button>
           </div>
 
-          <div className="relative mt-6 flex items-center gap-3 rounded-[22px] border border-slate-200/90 bg-white/92 px-3 py-3 shadow-[0_18px_38px_-32px_rgba(15,23,42,0.46)] backdrop-blur-xl">
+          <Link
+            className="relative mt-6 flex items-center gap-3 rounded-[22px] border border-slate-200/90 bg-white/92 px-3 py-3 shadow-[0_18px_38px_-32px_rgba(15,23,42,0.46)] backdrop-blur-xl transition-colors hover:bg-white"
+            href="/account?mode=mobile"
+            onClick={() => setSidebarOpen(false)}
+          >
             <div className="flex size-10 items-center justify-center rounded-xl bg-slate-50 text-slate-700 ring-1 ring-slate-200/85">
               <UserCircle className="size-6" aria-hidden="true" />
             </div>
@@ -297,7 +301,7 @@ export function MobileShell({
               <p className="truncate text-sm font-bold text-slate-950">{session.user.name}</p>
               <p className="truncate text-xs font-semibold text-slate-500">{dictionary.common.account}</p>
             </div>
-          </div>
+          </Link>
 
           <nav className="relative mt-6 flex-1 space-y-1.5">
             {mobileSidebarNavigation.map((item) => {

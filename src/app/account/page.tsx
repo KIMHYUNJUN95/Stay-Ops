@@ -119,6 +119,28 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
         </form>
       </Card>
 
+      <Card className="p-5">
+        <h2 className="text-base font-bold text-muted-foreground">
+          {dictionary.admin.settings.organization}
+        </h2>
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-sm font-semibold text-muted-foreground">
+              {dictionary.admin.settings.organizationName}
+            </span>
+            <span className="text-sm font-bold">{session.organization.name}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-sm font-semibold text-muted-foreground">
+              {dictionary.admin.users.role}
+            </span>
+            <span className="text-sm font-bold">
+              {dictionary.roles[session.user.role] ?? session.user.role}
+            </span>
+          </div>
+        </div>
+      </Card>
+
       <div className="flex items-center justify-between rounded-xl border border-border bg-muted/20 px-4 py-3">
         <div>
           <p className="text-sm font-bold">{dictionary.common.logout}</p>

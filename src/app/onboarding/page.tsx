@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
 import { getOnboardingState } from "@/lib/onboarding";
+import { sanitizeNextPath } from "@/lib/safe-redirect";
 
 type OnboardingPageProps = {
   searchParams: Promise<{
@@ -43,14 +44,13 @@ export default async function OnboardingPage({
 
   const requestedLocale = params.lang ?? "";
   const queryLocale: Locale = isLocale(requestedLocale) ? requestedLocale : "ko";
-  const rawNext = params.next ?? "";
-  const safeNext =
-    rawNext.length > 0 && rawNext.startsWith("/") && !rawNext.startsWith("//") && !rawNext.includes("://")
-      ? rawNext
-      : "";
+  const safeNext = sanitizeNextPath(params.next);
 
   if (state.status === "ready") {
-    redirect(state.redirectTo);
+    // Honour `safeNext` when present (e.g. user was mid-flow when session
+    // expired, or was redirected here after Google OAuth). Fall back to the
+    // role-appropriate default route.
+    redirect(safeNext || state.redirectTo);
   }
 
   if (state.status === "unauthenticated") {

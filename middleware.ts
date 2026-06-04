@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { sanitizeNextPath } from "@/lib/safe-redirect";
 import type { Database } from "@/types/database";
 
 const authRoutePrefixes = ["/admin", "/mobile", "/account"];
@@ -98,9 +99,16 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isAuthPage(pathname) && user) {
+    // Preserve `next` and `lang` so the onboarding page (or login page's own
+    // server-side check) can redirect to the correct destination once the user
+    // is confirmed to be fully onboarded.
+    const next = sanitizeNextPath(request.nextUrl.searchParams.get("next"));
+    const lang = request.nextUrl.searchParams.get("lang") || "";
     const onboardingUrl = request.nextUrl.clone();
     onboardingUrl.pathname = "/onboarding";
     onboardingUrl.search = "";
+    if (next) onboardingUrl.searchParams.set("next", next);
+    if (lang) onboardingUrl.searchParams.set("lang", lang);
     return NextResponse.redirect(onboardingUrl);
   }
 
