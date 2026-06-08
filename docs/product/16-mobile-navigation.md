@@ -189,13 +189,13 @@ Current rules:
 - **Base surface**: the mobile shell and page background use a pure-white `bg-background` base. The shell itself is not a full-screen glass surface.
 - **Left**: a hamburger menu button (3-line SVG with a shorter middle line) opens the mobile side menu. `aria-label` uses `dictionary.common.menu`.
 - **Layout**: the header is a 3-part `justify-between` row — left menu button / centered wordmark / right profile button.
-- **Center**: the `Stay Ops` wordmark (20px, color `#1c2b2a`, `white-space: nowrap`) uses the shared `.wordmark` class (serif italic — Noto Serif, defined in `src/app/globals.css` and loaded in `src/app/layout.tsx`).
+- **Center**: the `Stay Ops` wordmark (20px, `text-foreground`, `white-space: nowrap`) uses the shared `.wordmark` class (serif italic — Noto Serif, defined in `src/app/globals.css` and loaded in `src/app/layout.tsx`).
 - **Top chrome surface**: the header bar is flat/borderless — no capsule outline, ring, glass blur, or shadow. Only the two circular buttons (menu / profile) and the centered wordmark sit on the plain white background.
-- **Buttons**: both the left menu and right profile buttons are 38px circles with background `#eef1f2` and icon color `#3a4a49` (hover `#e3e8e9`). The menu icon is a 3-line SVG with a shorter middle line; the profile icon is a person SVG.
+- **Buttons**: both the left menu and right profile buttons are 38px circles with `bg-muted text-muted-foreground` (hover darkens via `color-mix`). The menu icon is a 3-line SVG with a shorter middle line; the profile icon is a person SVG.
 - **Right**: the profile button links to `/account?mode=mobile`. `aria-label` uses `dictionary.onboarding.profileTitle`.
 - **Scroll behavior**: the top chrome hides when users scroll down and returns when users scroll up. The content area fills the freed space so no blank header gap remains.
-- **Side menu**: tapping the menu button opens a left slide-out menu at roughly 78% of the mobile viewport width. The main screen moves right with a dark overlay on the remaining visible area. Closing reverses the slide. The side menu lists Cleaning (in addition to the bottom-bar tabs) since Cleaning is not a bottom tab.
-- **Bottom navigation**: a bottom-attached white bar (`.tabbar` in `src/app/globals.css`) with rounded top corners and a soft top shadow. Layout is four tabs (Home, Calendar / Requests, Announcements) split 2 / 2 around a raised central FAB. Active color teal `#0e7c72`, inactive grey `#aab2b6`. The bottom bar renders the user's customized tabs via `resolveBottomNavItems(session.user.bottomNavTabs)`, split left/right around the center FAB. The center FAB is a 50px teal circle raised above the bar (`margin-top: -34px`, 4px white border + shadow) labelled "편집" (pencil icon); tapping it opens the bottom-bar editor sheet (`createOpen` state) where the user toggles which features (max 4) appear. Edits persist to `profiles.bottom_nav_tabs` on close. `env(safe-area-inset-bottom)` padding handles the iOS home indicator.
+- **Side menu**: tapping the menu button opens a left slide-out menu at roughly 78% of the mobile viewport width. The main screen moves right with a dark overlay (`bg-slate-950/42`) on the remaining visible area. Closing reverses the slide. Side menu design uses the **teal-minimal** style: active items → `bg-primary/10 text-primary` + a right-side teal dot (`size-1.5 rounded-full bg-primary`); inactive items → `text-muted-foreground`, hover `bg-muted/60 text-foreground`. Icons are bare line icons (`size-5`, no badge box). Account card and footer link use `border-border bg-surface` tokens. The side menu lists Cleaning (in addition to the bottom-bar tabs) since Cleaning is not a bottom tab.
+- **Bottom navigation**: a bottom-attached `bg-surface` bar (`.tabbar` in `src/app/globals.css`) with rounded top corners (`border-radius: 22px 22px 0 0`) and a soft top shadow. Layout is four tabs split 2 / 2 around a raised central FAB. Active color `var(--primary)`, inactive `var(--muted-foreground)`. The bottom bar renders the user's customized tabs via `resolveBottomNavItems(session.user.bottomNavTabs)`, split left/right around the center FAB. The center FAB is a 50px `var(--primary)` circle raised above the bar (`margin-top: -34px`, 4px `var(--surface)` border + shadow) labelled `dictionary.common.editBottomBar` ("하단바 편집") with a pencil icon; tapping it opens the bottom-bar editor sheet (`createOpen` state) where the user toggles which features (max 4) appear. Edits persist to `profiles.bottom_nav_tabs` on close. `env(safe-area-inset-bottom)` padding handles the iOS home indicator.
 - **Accessibility**: the `title` prop on `MobileShell` is used as `aria-label` on `<main>`. It is not rendered visually in the header. Page content provides its own visual hierarchy.
 - **Appearance prop**: `appearance` remains accepted for compatibility but currently does not change shell visuals. Do not rely on it for page tinting.
 - `ModeSwitcher` and `Bell` icon are not part of the shell header. (There is no theme switcher: the app is light-mode-only; dark mode is deferred until post-launch.)
@@ -245,3 +245,15 @@ Current rules:
 - `/mobile/calendar` Map tab is no longer placeholder behavior.
 - Property filter chips are hidden in Map mode and shown only in Calendar/Lists modes.
 - The global shell contract remains fixed: `[two-line hamburger] StayOps [Profile]`, scroll-aware top chrome, slide-out side menu, and floating capsule bottom tabs.
+
+## 2026-06-08 Side Menu Design Update — Teal Minimal
+
+- Side menu nav items replaced from "dark slate pill + icon badge" to "teal tint + bare line icon + right teal dot":
+  - Active: `bg-primary/10 text-primary`, right-side `size-1.5 rounded-full bg-primary` dot.
+  - Inactive: `text-muted-foreground`, hover `bg-muted/60 text-foreground`.
+  - Icons: bare `size-5` line icons; icon badge box removed.
+  - Font: `font-semibold` (was `font-bold`).
+  - `aria-current="page"` added to active item for accessibility.
+- Account card, close button, footer link: border/background/text all converted to design tokens (`border-border`, `bg-surface`, `text-foreground`, `text-muted-foreground`).
+- All remaining `text-slate-*` in the shell converted to tokens; `bg-slate-950/42` scrim overlay retained (intentional dark overlay).
+- Wordmark color in all three locations (header, side-menu header, admin sidebar) unified to `text-foreground`.

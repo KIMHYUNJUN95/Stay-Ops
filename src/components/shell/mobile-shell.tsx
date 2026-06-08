@@ -411,7 +411,7 @@ export function MobileShell({
   return (
     <main
       aria-label={title}
-      className="h-dvh overflow-hidden bg-background text-slate-950"
+      className="h-dvh overflow-hidden bg-background text-foreground"
       onTouchEnd={handleSwipeEnd}
       onTouchStart={handleSwipeStart}
     >
@@ -419,7 +419,7 @@ export function MobileShell({
         <aside
           aria-label={dictionary.common.menu}
           className={cn(
-            "fixed inset-y-0 left-0 z-[60] flex w-[78%] max-w-[318px] flex-col overflow-hidden border-r border-slate-200/90 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 pb-6 pt-5 text-slate-950",
+            "fixed inset-y-0 left-0 z-[60] flex w-[78%] max-w-[318px] flex-col overflow-hidden border-r border-border bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 pb-6 pt-5 text-foreground",
             sidebarOpen
               ? "shadow-[30px_0_82px_-46px_rgba(15,23,42,0.68)]"
               : "shadow-none",
@@ -434,7 +434,7 @@ export function MobileShell({
             <span className="wordmark relative text-[21px] text-foreground">Stay Ops</span>
             <button
               aria-label={dictionary.common.menu}
-              className="relative flex size-9 items-center justify-center rounded-full border border-slate-200/90 bg-white text-slate-500 shadow-[0_12px_24px_-20px_rgba(15,23,42,0.38)] transition-colors hover:bg-slate-50 hover:text-slate-900"
+              className="relative flex size-9 items-center justify-center rounded-full border border-border bg-surface text-muted-foreground shadow-[0_12px_24px_-20px_rgba(15,23,42,0.38)] transition-colors hover:bg-muted hover:text-foreground"
               onClick={() => setSidebarOpen(false)}
               type="button"
             >
@@ -443,50 +443,57 @@ export function MobileShell({
           </div>
 
           <Link
-            className="relative mt-6 flex items-center gap-3 rounded-[22px] border border-slate-200/90 bg-white/92 px-3 py-3 shadow-[0_18px_38px_-32px_rgba(15,23,42,0.46)] backdrop-blur-xl transition-colors hover:bg-white"
+            className="relative mt-6 flex items-center gap-3 rounded-[22px] border border-border bg-surface/92 px-3 py-3 shadow-[0_18px_38px_-32px_rgba(15,23,42,0.46)] backdrop-blur-xl transition-colors hover:bg-surface"
             href="/account?mode=mobile"
             onClick={() => setSidebarOpen(false)}
           >
-            <div className="flex size-10 items-center justify-center rounded-xl bg-slate-50 text-slate-700 ring-1 ring-slate-200/85">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-muted text-muted-foreground ring-1 ring-border">
               <UserCircle className="size-6" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-slate-950">{session.user.name}</p>
-              <p className="truncate text-xs font-semibold text-slate-500">{dictionary.common.account}</p>
+              <p className="truncate text-sm font-bold text-foreground">{session.user.name}</p>
+              <p className="truncate text-xs font-semibold text-muted-foreground">{dictionary.common.account}</p>
             </div>
           </Link>
 
-          <nav className="relative mt-6 flex-1 space-y-1.5">
+          <nav className="relative mt-6 flex-1 space-y-1">
             {mobileSidebarNavigation.map((item) => {
               const Icon = item.icon;
               const isActive = item.id === activeItem;
 
               return (
                 <Link
+                  key={item.id}
+                  aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "group flex h-11 items-center gap-3 rounded-xl px-2.5 text-sm font-bold text-slate-600 transition-all duration-200 hover:bg-white hover:text-slate-950 hover:shadow-[0_12px_26px_-24px_rgba(15,23,42,0.34)]",
-                    isActive && "bg-slate-950 text-white shadow-[0_18px_34px_-28px_rgba(15,23,42,0.72)]",
+                    "group flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors",
+                    isActive
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                   )}
                   href={item.href}
-                  key={item.id}
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <span
+                  <Icon
+                    aria-hidden="true"
                     className={cn(
-                      "flex size-8 items-center justify-center rounded-xl bg-white text-slate-500 ring-1 ring-slate-200/75 transition-colors group-hover:text-slate-700",
-                      isActive && "bg-white/12 text-white ring-white/15",
+                      "size-5 shrink-0 transition-colors",
+                      isActive
+                        ? "text-primary"
+                        : "text-muted-foreground group-hover:text-foreground",
                     )}
-                  >
-                    <Icon className="size-4.5" aria-hidden="true" />
-                  </span>
+                  />
                   <span>{getNavigationLabel(item, locale)}</span>
+                  {isActive ? (
+                    <span aria-hidden="true" className="ml-auto size-1.5 rounded-full bg-primary" />
+                  ) : null}
                 </Link>
               );
             })}
           </nav>
 
           <Link
-            className="relative flex h-11 items-center gap-3 rounded-xl border border-slate-200/90 bg-white/92 px-3 text-sm font-bold text-slate-700 shadow-[0_12px_24px_-22px_rgba(15,23,42,0.34)] transition-colors hover:bg-white"
+            className="relative flex h-11 items-center gap-3 rounded-xl border border-border bg-surface/92 px-3 text-sm font-semibold text-foreground shadow-[0_12px_24px_-22px_rgba(15,23,42,0.34)] transition-colors hover:bg-surface"
             href="/account?mode=mobile"
             onClick={() => setSidebarOpen(false)}
           >
@@ -571,7 +578,7 @@ export function MobileShell({
             >
               <div className="flex flex-col items-center gap-1.5">
                 <div
-                  className="flex size-10 items-center justify-center rounded-full bg-white ring-1 ring-slate-200/80"
+                  className="flex size-10 items-center justify-center rounded-full bg-surface ring-1 ring-border"
                   style={{
                     boxShadow: `0 4px 20px -4px rgba(15,23,42,${0.10 + 0.12 * Math.min(contentOffset / REFRESH_DISPLAY_H, 1)}), 0 1px 4px rgba(15,23,42,0.06)`,
                     opacity: Math.min(1, contentOffset / 16),
@@ -584,7 +591,7 @@ export function MobileShell({
                   ) : (
                     <ArrowDown
                       aria-hidden="true"
-                      className="size-[18px] text-slate-500"
+                      className="size-[18px] text-muted-foreground"
                       style={{
                         transform: `rotate(${isReadyToRefresh ? 180 : 0}deg)`,
                         transition: "transform 280ms cubic-bezier(0.34,1.56,0.64,1)",
@@ -593,7 +600,7 @@ export function MobileShell({
                   )}
                 </div>
                 <p
-                  className="text-[10px] font-semibold text-slate-400"
+                  className="text-[10px] font-semibold text-muted-foreground"
                   style={{
                     opacity: Math.min(1, Math.max(0, (contentOffset - 12) / 16)),
                     transition: isPulling ? "none" : "opacity 200ms ease",
@@ -625,7 +632,7 @@ export function MobileShell({
             {/* Scrollable content — slides down on pull */}
             <div
               className={cn(
-                "h-full overflow-y-auto overscroll-y-contain bg-background px-5 pb-[124px] text-slate-950",
+                "h-full overflow-y-auto overscroll-y-contain bg-background px-5 pb-[124px] text-foreground",
                 headerVisible ? "pt-5" : "pt-0",
               )}
               onScroll={handleContentScroll}
