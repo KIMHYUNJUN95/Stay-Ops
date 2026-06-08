@@ -71,7 +71,7 @@ Key confirmed decisions:
 - Vercel deployment
 - Korean/Japanese/English from the first implementation
 - Pure-white operational UI with selective Apple-inspired Liquid Glass accents and strong readability
-- Light and dark mode
+- Light mode only (dark mode deferred until post-launch; removed 2026-06-08)
 - Beds24 webhook integration
 - Mobile and admin web in one product
 - Organization-based multi-tenant structure
@@ -82,7 +82,7 @@ When implementation begins:
 
 - Use TypeScript.
 - Avoid hardcoded UI strings.
-- Use i18n keys for all visible UI text.
+- Use i18n keys for all visible UI text. An automated guard (`npm run check:i18n`, part of `npm test`) fails on hardcoded Korean/Japanese/Kanji literals under `src/app` / `src/components`; legitimate domain data must use an `i18n-ignore` directive with justification.
 - Use shared types where possible.
 - Keep permissions enforced server-side/database-side, not only in UI.
 - Keep mobile PWA and admin web behavior role-aware.
@@ -103,7 +103,7 @@ All assistants must treat the project workflow as an implementation contract, no
 
 - Follow Stitch designs when provided.
 - Keep Liquid Glass readable and selective.
-- Support light/dark mode.
+- Support light mode only (dark mode deferred until post-launch).
 - Check Korean, Japanese, and English text lengths.
 - Do not prioritize decoration over operational clarity.
 

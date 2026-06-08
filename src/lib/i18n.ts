@@ -146,7 +146,7 @@ const FALLBACK_DICTIONARY = {
       viewProfile: "View profile",
     },
   },
-  app: { name: "StayOps", eyebrow: "MVP", title: "StayOps", subtitle: "StayOps" },
+  app: { name: "Stay Ops", eyebrow: "MVP", title: "Stay Ops", subtitle: "Stay Ops" },
   auth: {
     activeMethodNote: "Email login",
     divider: "or",
@@ -183,6 +183,11 @@ const FALLBACK_DICTIONARY = {
   },
   common: {
     account: "Account",
+    add: "Add",
+    edit: "Edit",
+    editBottomBar: "Edit bottom bar",
+    editBottomBarHint: "Tap to add or remove (up to 4)",
+    bottomBarFull: "You can pin up to 4. Remove one first.",
     active: "Active",
     all: "All",
     apply: "Apply",
@@ -209,7 +214,6 @@ const FALLBACK_DICTIONARY = {
     removed: "Removed",
     status: "Status",
     suspended: "Suspended",
-    theme: "Theme",
   },
   devEntry: {
     adminDescription: "Admin",
@@ -666,6 +670,8 @@ const FALLBACK_DICTIONARY = {
       roomPlaceholderSelectBuilding: "Select building first...",
       roomPlaceholderSelectRoom: "Select room...",
       noRoomsInBuilding: "No rooms available in this building",
+      noBuildingInfo: "No building info",
+      noRoomInfo: "No room info",
     },
   },
   maintenance: {
@@ -705,6 +711,8 @@ const FALLBACK_DICTIONARY = {
       roomPlaceholderSelectBuilding: "Select building first...",
       roomPlaceholderSelectRoom: "Select room...",
       noRoomsInBuilding: "No rooms available in this building",
+      noBuildingInfo: "No building info",
+      noRoomInfo: "No room info",
       roomPlaceholder: "e.g. Apt 4B, Lobby, Room 204",
       categoryLabel: "Category",
       categoryPlaceholder: "Select category...",
@@ -760,7 +768,6 @@ const FALLBACK_DICTIONARY = {
   },
   session: { platformOrganization: "Platform" },
   switcher: { admin: "Admin", field: "Field" },
-  themes: { dark: "Dark", light: "Light", system: "System" },
 };
 
 type DeepPartial<T> = {
@@ -953,6 +960,11 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     },
     common: {
       account: "계정",
+      add: "추가",
+      edit: "편집",
+      editBottomBar: "하단바 편집",
+      editBottomBarHint: "눌러서 추가하거나 빼세요 (최대 4개)",
+      bottomBarFull: "최대 4개까지 넣을 수 있어요. 먼저 하나를 빼주세요.",
       active: "활성",
       all: "전체",
       apply: "적용",
@@ -979,7 +991,6 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       removed: "삭제됨",
       status: "상태",
       suspended: "정지됨",
-      theme: "테마",
     },
     devEntry: {
       adminDescription: "관리자 웹 화면으로 이동합니다.",
@@ -1436,6 +1447,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         roomPlaceholderSelectBuilding: "건물을 먼저 선택하세요...",
         roomPlaceholderSelectRoom: "객실 선택...",
         noRoomsInBuilding: "이 건물에 사용할 수 있는 객실이 없습니다.",
+        noBuildingInfo: "건물 정보 없음",
+        noRoomInfo: "룸 정보 없음",
       },
     },
     maintenance: {
@@ -1475,6 +1488,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         roomPlaceholderSelectBuilding: "건물을 먼저 선택하세요...",
         roomPlaceholderSelectRoom: "객실 선택...",
         noRoomsInBuilding: "이 건물에 사용할 수 있는 객실이 없습니다.",
+        noBuildingInfo: "건물 정보 없음",
+        noRoomInfo: "룸 정보 없음",
         roomPlaceholder: "예: 402호, 로비, 4B",
         categoryLabel: "카테고리",
         categoryPlaceholder: "카테고리를 선택하세요...",
@@ -1521,7 +1536,6 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     },
     session: { platformOrganization: "플랫폼" },
     switcher: { admin: "관리자", field: "현장" },
-    themes: { dark: "다크", light: "라이트", system: "시스템" },
   },
   ja: {
     admin: {
@@ -1672,6 +1686,11 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     },
     common: {
       account: "アカウント",
+      add: "追加",
+      edit: "編集",
+      editBottomBar: "下部バーを編集",
+      editBottomBarHint: "タップして追加・削除（最大4つ）",
+      bottomBarFull: "最大4つまでです。先に1つ外してください。",
       active: "有効",
       all: "すべて",
       apply: "適用",
@@ -1698,7 +1717,6 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       removed: "削除済み",
       status: "状態",
       suspended: "停止中",
-      theme: "テーマ",
     },
     requestImages: {
       addPhotos: "写真を追加",
@@ -2131,6 +2149,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         roomPlaceholderSelectBuilding: "建物を先に選択してください...",
         roomPlaceholderSelectRoom: "客室を選択してください...",
         noRoomsInBuilding: "この建物で使用可能な客室がありません。",
+        noBuildingInfo: "建物情報なし",
+        noRoomInfo: "客室情報なし",
       },
     },
     maintenance: {
@@ -2170,6 +2190,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         roomPlaceholderSelectBuilding: "先に建物を選択してください...",
         roomPlaceholderSelectRoom: "客室を選択...",
         noRoomsInBuilding: "この建物に利用可能な客室がありません。",
+        noBuildingInfo: "建物情報なし",
+        noRoomInfo: "客室情報なし",
         roomPlaceholder: "例: 402号室、ロビー、4B",
         categoryLabel: "カテゴリ",
         categoryPlaceholder: "カテゴリを選択...",
@@ -2216,7 +2238,6 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     },
     session: { platformOrganization: "プラットフォーム" },
     switcher: { admin: "管理者", field: "現場" },
-    themes: { dark: "ダーク", light: "ライト", system: "システム" },
   },
   en: {},
 };

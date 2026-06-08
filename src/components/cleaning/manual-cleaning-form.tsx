@@ -228,7 +228,7 @@ function FancySelect({
               width: panelPos.width,
               zIndex: 9999,
             }}
-            className="rounded-2xl border border-white/65 bg-white/88 p-1 shadow-[0_20px_38px_-24px_rgba(15,23,42,0.6)] backdrop-blur-2xl dark:border-white/15 dark:bg-slate-900/88"
+            className="rounded-2xl border border-white/65 bg-white/88 p-1 shadow-[0_20px_38px_-24px_rgba(15,23,42,0.6)] backdrop-blur-2xl"
           >
             {/* P2: role="listbox" + aria-label for screen-reader context */}
             <ul
@@ -251,8 +251,8 @@ function FancySelect({
                       aria-selected={isActive}
                       className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[15px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-[#315F91]/25 ${
                         isActive
-                          ? "bg-[#EAF1F8] text-[#1F3A5F] dark:bg-[#315F91]/20 dark:text-[#D9E8F7]"
-                          : "text-foreground hover:bg-white/75 dark:hover:bg-white/10"
+                          ? "bg-[#EAF1F8] text-[#1F3A5F]"
+                          : "text-foreground hover:bg-white/75"
                       }`}
                       onClick={() => {
                         onChange(option.value);
@@ -287,7 +287,7 @@ function FancySelect({
         aria-controls={open ? listboxId : undefined}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className="flex h-12 w-full items-center justify-between rounded-2xl border border-white/55 bg-white/55 px-4 text-left text-sm font-semibold text-foreground shadow-[0_8px_24px_-18px_rgba(15,23,42,0.55),inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-xl transition-colors hover:bg-white/65 focus:outline-none focus:ring-2 focus:ring-[#315F91]/25 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/15 dark:bg-white/10 dark:hover:bg-white/15"
+        className="flex h-12 w-full items-center justify-between rounded-2xl border border-white/55 bg-white/55 px-4 text-left text-sm font-semibold text-foreground shadow-[0_8px_24px_-18px_rgba(15,23,42,0.55),inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-xl transition-colors hover:bg-white/65 focus:outline-none focus:ring-2 focus:ring-[#315F91]/25 disabled:cursor-not-allowed disabled:opacity-50"
         disabled={disabled}
         onClick={() => (open ? closePanel(false) : openPanel())}
         onKeyDown={handleTriggerKeyDown}

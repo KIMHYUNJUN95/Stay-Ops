@@ -18,11 +18,11 @@ import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 const statusBadgeClass: Record<MaintenanceStatus, string> = {
-  open: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300",
+  open: "border-blue-200 bg-blue-50 text-blue-700",
   in_progress:
-    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+    "border-amber-200 bg-amber-50 text-amber-700",
   resolved:
-    "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/50 dark:text-green-300",
+    "border-green-200 bg-green-50 text-green-700",
   closed: "border-border bg-muted/50 text-muted-foreground",
 };
 const DETAIL_CARD =

@@ -54,7 +54,7 @@ export default async function MobileOrderNewPage({ searchParams }: PageProps) {
       <div className="space-y-4 pb-8">
         <Card className="rounded-2xl p-4">
           <div className="flex items-start gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#EAF1F8] text-[#315F91] dark:bg-[#315F91]/20 dark:text-[#D9E8F7]">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#EAF1F8] text-[#315F91]">
               <ShoppingCart className="size-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">

@@ -12,9 +12,9 @@ import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 
 const ANNOUNCEMENT_PANEL =
-  "rounded-[28px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_22px_46px_-32px_rgba(31,58,95,0.48)] backdrop-blur-none dark:border-white/12 dark:bg-white/8";
+  "rounded-[28px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_22px_46px_-32px_rgba(31,58,95,0.48)] backdrop-blur-none";
 const ANNOUNCEMENT_CARD =
-  "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none dark:border-white/12 dark:bg-white/8";
+  "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none";
 
 function formatDate(value: string | null, locale: string) {
   if (!value) {
@@ -94,13 +94,13 @@ export default async function MobileAnnouncementsPage() {
               <Megaphone className="size-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400 dark:text-slate-400">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">
                 {copy.publishedForYou}
               </p>
-              <h2 className="mt-1 text-[22px] font-black leading-tight text-slate-950 dark:text-slate-50">
+              <h2 className="mt-1 text-[22px] font-black leading-tight text-slate-950">
                 {copy.latest}
               </h2>
-              <p className="mt-2 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+              <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
                 {copy.mobileDescription}
               </p>
             </div>
@@ -108,11 +108,11 @@ export default async function MobileAnnouncementsPage() {
         </div>
 
         {announcements.length === 0 ? (
-          <Card className={`${ANNOUNCEMENT_CARD} border-dashed p-6 text-center text-slate-950 dark:text-slate-50`}>
+          <Card className={`${ANNOUNCEMENT_CARD} border-dashed p-6 text-center text-slate-950`}>
             <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-200/80">
               <Megaphone className="size-5" aria-hidden="true" />
             </div>
-            <p className="mx-auto mt-4 max-w-xs text-sm font-bold leading-6 text-slate-500 dark:text-slate-400">
+            <p className="mx-auto mt-4 max-w-xs text-sm font-bold leading-6 text-slate-500">
               {copy.mobileEmpty}
             </p>
           </Card>
@@ -131,7 +131,7 @@ export default async function MobileAnnouncementsPage() {
               section.items.length === 0 ? null : (
                 <section className="space-y-3" key={section.label}>
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-black tracking-normal text-slate-950 dark:text-slate-50">
+                    <p className="text-sm font-black tracking-normal text-slate-950">
                       {section.label}
                     </p>
                     <span className="inline-flex h-8 min-w-9 items-center justify-center rounded-full border border-slate-200 bg-white px-2.5 text-xs font-black text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)]">
@@ -145,7 +145,7 @@ export default async function MobileAnnouncementsPage() {
                         href={`/mobile/announcements/${announcement.id}`}
                         key={announcement.id}
                       >
-                        <Card className={`${ANNOUNCEMENT_CARD} relative overflow-hidden p-4 text-slate-950 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_42px_-30px_rgba(31,58,95,0.55)] active:scale-[0.99] dark:text-slate-50`}>
+                        <Card className={`${ANNOUNCEMENT_CARD} relative overflow-hidden p-4 text-slate-950 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_42px_-30px_rgba(31,58,95,0.55)] active:scale-[0.99]`}>
                           {announcement.is_pinned ? (
                             <div
                               aria-hidden="true"
@@ -156,7 +156,7 @@ export default async function MobileAnnouncementsPage() {
                             <div className="min-w-0 space-y-2">
                               <div className="flex flex-wrap items-center gap-2">
                                 {announcement.is_important && (
-                                  <Badge className="rounded-full border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-black text-red-600 dark:border-red-200 dark:bg-red-50 dark:text-red-600">
+                                  <Badge className="rounded-full border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-black text-red-600">
                                     {copy.important}
                                   </Badge>
                                 )}
@@ -166,10 +166,10 @@ export default async function MobileAnnouncementsPage() {
                                   </Badge>
                                 )}
                               </div>
-                              <h3 className="line-clamp-2 break-words text-[17px] font-black leading-snug tracking-normal text-slate-950 dark:text-slate-50">
+                              <h3 className="line-clamp-2 break-words text-[17px] font-black leading-snug tracking-normal text-slate-950">
                                 {announcement.title}
                               </h3>
-                              <p className="line-clamp-3 whitespace-pre-line text-[13px] font-semibold leading-5 text-slate-600 dark:text-slate-300">
+                              <p className="line-clamp-3 whitespace-pre-line text-[13px] font-semibold leading-5 text-slate-600">
                                 {announcement.content}
                               </p>
                             </div>
@@ -184,15 +184,15 @@ export default async function MobileAnnouncementsPage() {
                             ) : null}
                           </div>
 
-                          <div className="mt-3 border-t border-slate-200/80 pt-2.5 dark:border-white/10">
-                            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
+                          <div className="mt-3 border-t border-slate-200/80 pt-2.5">
+                            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-xs text-slate-500">
                               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                                <span className="max-w-[9rem] truncate font-semibold text-slate-800 dark:text-slate-200">
+                                <span className="max-w-[9rem] truncate font-semibold text-slate-800">
                                   {announcement.author_name}
                                 </span>
                                 <span
                                   aria-hidden="true"
-                                  className="text-slate-300 dark:text-slate-600"
+                                  className="text-slate-300"
                                 >
                                   &middot;
                                 </span>
@@ -210,7 +210,7 @@ export default async function MobileAnnouncementsPage() {
                                 </span>
                                 <span
                                   aria-hidden="true"
-                                  className="text-slate-300 dark:text-slate-600"
+                                  className="text-slate-300"
                                 >
                                   &middot;
                                 </span>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Noto_Serif } from "next/font/google";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { getCurrentAppSession } from "@/lib/session";
 import "./globals.css";
@@ -12,6 +12,14 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Wordmark font — serif italic used for the "Stay Ops" brand mark across all shells.
+const notoSerif = Noto_Serif({
+  variable: "--font-wordmark",
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  style: ["italic", "normal"],
 });
 
 export const metadata: Metadata = {
@@ -31,13 +39,11 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await getCurrentAppSession();
-  const sessionTheme = session?.user.themePreference ?? "system";
 
   return (
     <html
-      data-theme={sessionTheme}
       lang={session?.user.preferredLanguage ?? "ko"}
-      className={`${geistSans.variable} ${geistMono.variable} ${sessionTheme === "dark" ? "dark" : ""} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${notoSerif.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">

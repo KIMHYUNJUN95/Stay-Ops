@@ -110,10 +110,13 @@ age integer
 phone_number text
 profile_photo_url text
 preferred_language text not null
-theme_preference text not null default 'system'
+theme_preference text not null default 'system'  -- schema only; NOT used by the app (light-mode-only since 2026-06-08)
+bottom_nav_tabs text[] not null default '{home,calendar,requests,announcements}'
 created_at timestamptz
 updated_at timestamptz
 ```
+
+`bottom_nav_tabs` stores the user's customized mobile bottom-bar tabs (ordered ids, max 4 enforced in app logic). Added in `supabase/migrations/202606080001_profile_bottom_nav.sql`. Selectable ids match the mobile side-menu nav items (`home`, `calendar`, `cleaning`, `requests`, `announcements`, `notifications`, `directory`).
 
 Language values:
 
@@ -123,7 +126,7 @@ ja
 en
 ```
 
-Theme values:
+Theme values (schema only — the app no longer reads or writes `theme_preference`; light-mode-only since 2026-06-08, dark mode deferred until post-launch):
 
 ```txt
 system

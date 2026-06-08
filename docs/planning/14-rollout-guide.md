@@ -191,7 +191,7 @@ Check the user's role at `/admin/users`. `staff` and `part_time_staff` roles do 
 
 These are intentional MVP limitations that do not block internal use:
 
-- No Google OAuth; email magic-link only.
+- Google OAuth is implemented; requires Supabase dashboard → Authentication → Providers → Google to be enabled with a client ID and client secret before staff can use the Google sign-in button.
 - Calendar empty count requires manual backfill to be authoritative (not automatic from webhook).
 - Map tab shows building cards with address and access codes but no embedded map.
 

@@ -41,6 +41,7 @@ type MobileCleaningPageProps = {
 
 // Canonical keys used for ordering and i18n lookup.
 // These are stable English slugs; display labels come from dictionary.cleaning.buildingLabels.
+// i18n-ignore-start: canonical building-name domain keys (room-label normalization), not UI copy.
 const CANONICAL_TO_BUILDING_KEY: Record<string, string> = {
   아라키초A: "arakicho_a",
   아라키초B: "arakicho_b",
@@ -50,6 +51,7 @@ const CANONICAL_TO_BUILDING_KEY: Record<string, string> = {
   오쿠보B: "okubo_b",
   오쿠보C: "okubo_c",
 };
+// i18n-ignore-end
 
 const BUILDING_KEY_ORDER = [
   "arakicho_a",
@@ -66,9 +68,9 @@ const BUILDING_KEY_RANK = new Map<string, number>(
 );
 const ROOM_LABEL_MAPPING_WARNING_THRESHOLD = 3;
 const CLEANING_PANEL =
-  "rounded-[28px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_22px_46px_-32px_rgba(31,58,95,0.48)] backdrop-blur-none dark:border-white/12 dark:bg-white/8";
+  "rounded-[28px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_22px_46px_-32px_rgba(31,58,95,0.48)] backdrop-blur-none";
 const CLEANING_CARD =
-  "overflow-hidden rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none dark:border-white/12 dark:bg-white/8";
+  "overflow-hidden rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none";
 const CLEANING_START_BUTTON =
   "h-10 shrink-0 rounded-2xl border border-slate-200/70 bg-white px-4 text-xs font-black text-slate-800 shadow-[0_14px_28px_-24px_rgba(31,58,95,0.48)] transition-all hover:bg-slate-50 active:scale-[0.98]";
 
@@ -687,7 +689,7 @@ export default async function MobileCleaningPage({
           </div>
         ) : null}
         {unknownRoomLabelCount >= ROOM_LABEL_MAPPING_WARNING_THRESHOLD ? (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-700 dark:text-amber-200">
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-700">
             room_label mapping warning: {unknownRoomLabelCount} unresolved session(s)
             {unknownRoomLabelSamples.length > 0 ? ` (${unknownRoomLabelSamples.join(", ")})` : ""}
           </div>
@@ -696,7 +698,7 @@ export default async function MobileCleaningPage({
         {activeSession ? (
           <Card className={`${CLEANING_PANEL} p-5`}>
             <div className="flex flex-col items-center text-center">
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-600 dark:border-white/12 dark:bg-white/10 dark:text-slate-200">
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-600">
                 <span className="size-2 rounded-full bg-[#315F91]" />
                 {copy.activeCleaning}
               </div>
@@ -739,19 +741,19 @@ export default async function MobileCleaningPage({
               </p>
               <div className="space-y-2">
                 <Link
-                  className="flex h-12 items-center gap-3 rounded-full border border-white/60 bg-white/28 px-4 text-sm font-bold text-foreground shadow-sm backdrop-blur-xl transition-colors hover:bg-white/40 dark:border-white/12 dark:bg-white/10 dark:hover:bg-white/14"
+                  className="flex h-12 items-center gap-3 rounded-full border border-white/60 bg-white/28 px-4 text-sm font-bold text-foreground shadow-sm backdrop-blur-xl transition-colors hover:bg-white/40"
                   href={`/mobile/lost-found/new?sessionId=${activeSession.id}`}
                 >
-                  <span className="flex size-8 items-center justify-center rounded-full border border-white/50 bg-white/35 text-[#1F3A5F] dark:border-white/10 dark:bg-white/12 dark:text-[#D9E8F7]">
+                  <span className="flex size-8 items-center justify-center rounded-full border border-white/50 bg-white/35 text-[#1F3A5F]">
                     <Package className="size-4" aria-hidden="true" />
                   </span>
                   <span className="truncate">{copy.reportLostItem}</span>
                 </Link>
                 <Link
-                  className="flex h-12 items-center gap-3 rounded-full border border-white/60 bg-white/28 px-4 text-sm font-bold text-foreground shadow-sm backdrop-blur-xl transition-colors hover:bg-white/40 dark:border-white/12 dark:bg-white/10 dark:hover:bg-white/14"
+                  className="flex h-12 items-center gap-3 rounded-full border border-white/60 bg-white/28 px-4 text-sm font-bold text-foreground shadow-sm backdrop-blur-xl transition-colors hover:bg-white/40"
                   href={`/mobile/maintenance/new?sessionId=${activeSession.id}`}
                 >
-                  <span className="flex size-8 items-center justify-center rounded-full border border-white/50 bg-white/35 text-[#1F3A5F] dark:border-white/10 dark:bg-white/12 dark:text-[#D9E8F7]">
+                  <span className="flex size-8 items-center justify-center rounded-full border border-white/50 bg-white/35 text-[#1F3A5F]">
                     <Wrench className="size-4" aria-hidden="true" />
                   </span>
                   <span className="truncate">{copy.reportMaintenance}</span>

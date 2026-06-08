@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { LanguageSegmented } from "@/components/account/language-segmented";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getOnboardingState } from "@/lib/onboarding";
@@ -50,7 +51,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
       <Badge>{dictionary.common.account}</Badge>
 
       {savedKey && (
-        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700 dark:border-green-400/30 dark:bg-green-950/30 dark:text-green-300">
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
           {dictionary.onboarding.profileSaved}
         </div>
       )}
@@ -89,30 +90,19 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
               {dictionary.onboarding.phoneHint}
             </span>
           </label>
-          <label className="grid gap-1.5 text-sm font-semibold">
+          <div className="grid gap-1.5 text-sm font-semibold">
             <span>{dictionary.common.language}</span>
-            <select
-              className="h-11 w-full rounded-xl border border-border bg-surface/80 px-3 text-sm font-semibold text-foreground shadow-sm outline-none"
-              defaultValue={session.user.preferredLanguage}
+            <LanguageSegmented
               name="preferredLanguage"
-            >
-              <option value="ko">{dictionary.languages.ko}</option>
-              <option value="ja">{dictionary.languages.ja}</option>
-              <option value="en">{dictionary.languages.en}</option>
-            </select>
-          </label>
-          <label className="grid gap-1.5 text-sm font-semibold">
-            <span>{dictionary.common.theme}</span>
-            <select
-              className="h-11 w-full rounded-xl border border-border bg-surface/80 px-3 text-sm font-semibold text-foreground shadow-sm outline-none"
-              defaultValue={session.user.themePreference}
-              name="themePreference"
-            >
-              <option value="system">{dictionary.themes.system}</option>
-              <option value="light">{dictionary.themes.light}</option>
-              <option value="dark">{dictionary.themes.dark}</option>
-            </select>
-          </label>
+              defaultValue={session.user.preferredLanguage}
+              ariaLabel={dictionary.common.language}
+              options={[
+                { code: "ko", label: dictionary.languages.ko },
+                { code: "ja", label: dictionary.languages.ja },
+                { code: "en", label: dictionary.languages.en },
+              ]}
+            />
+          </div>
           <Button className="w-full" type="submit">
             {dictionary.onboarding.saveProfile}
           </Button>

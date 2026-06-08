@@ -191,11 +191,11 @@ export function AnnouncementPopup({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 py-6 backdrop-blur-xl dark:bg-black/40">
-      <section className="max-h-[calc(100dvh-2rem)] w-full max-w-[27rem] overflow-y-auto overscroll-contain rounded-[28px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] p-5 text-slate-950 shadow-[0_32px_84px_-34px_rgba(15,23,42,0.46)] backdrop-blur-2xl dark:border-white/12 dark:bg-[linear-gradient(145deg,rgba(10,43,40,0.86),rgba(10,43,40,0.64))] dark:text-slate-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 py-6 backdrop-blur-xl">
+      <section className="max-h-[calc(100dvh-2rem)] w-full max-w-[27rem] overflow-y-auto overscroll-contain rounded-[28px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] p-5 text-slate-950 shadow-[0_32px_84px_-34px_rgba(15,23,42,0.46)] backdrop-blur-2xl">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-2xl border border-red-200 bg-red-50 text-red-600 dark:border-red-200 dark:bg-red-50 dark:text-red-600">
+            <div className="flex size-11 items-center justify-center rounded-2xl border border-red-200 bg-red-50 text-red-600">
               <AlertCircle className="size-6" aria-hidden="true" />
             </div>
             <h2 className="text-[25px] font-black leading-tight">
@@ -203,7 +203,7 @@ export function AnnouncementPopup({
             </h2>
           </div>
           <button
-            className="flex size-9 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.45)] transition-colors hover:bg-slate-50 hover:text-slate-950 dark:border-white/10 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15 dark:hover:text-slate-50"
+            className="flex size-9 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.45)] transition-colors hover:bg-slate-50 hover:text-slate-950"
             onClick={dismissCurrentAnnouncement}
             type="button"
           >
@@ -212,13 +212,13 @@ export function AnnouncementPopup({
           </button>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200/80 bg-white/82 p-5 shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] dark:border-white/10 dark:bg-white/8">
+        <div className="rounded-[24px] border border-slate-200/80 bg-white/82 p-5 shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="line-clamp-2 break-words text-base font-black leading-6 text-slate-950 dark:text-slate-50">
+              <p className="line-clamp-2 break-words text-base font-black leading-6 text-slate-950">
                 {announcement.title}
               </p>
-              <p className="mt-3 line-clamp-6 whitespace-pre-line break-words text-base font-medium leading-7 text-slate-600 dark:text-slate-300">
+              <p className="mt-3 line-clamp-6 whitespace-pre-line break-words text-base font-medium leading-7 text-slate-600">
                 {announcement.content}
               </p>
             </div>
@@ -231,7 +231,7 @@ export function AnnouncementPopup({
                 width={112}
               />
             ) : (
-              <div className="flex h-[92px] w-[92px] shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-200/80 dark:bg-[#123f3b] dark:text-[#6ee7df]">
+              <div className="flex h-[92px] w-[92px] shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-200/80">
                 <Megaphone className="size-8" aria-hidden="true" />
               </div>
             )}
@@ -242,7 +242,7 @@ export function AnnouncementPopup({
           <AnnouncementImageGrid imageUrls={announcement.imageUrls.slice(1)} />
         ) : null}
 
-        <label className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+        <label className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-slate-500">
           <input
             checked={hideForWeek}
             className="size-4 rounded border border-slate-300 bg-white"
@@ -265,7 +265,7 @@ export function AnnouncementPopup({
             {copy.readAnnouncement}
           </Link>
           <Button
-            className="h-12 w-full rounded-2xl border-slate-200/80 bg-white text-slate-800 shadow-[0_12px_24px_-22px_rgba(31,58,95,0.45)] hover:bg-slate-50 dark:border-white/10 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/15"
+            className="h-12 w-full rounded-2xl border-slate-200/80 bg-white text-slate-800 shadow-[0_12px_24px_-22px_rgba(31,58,95,0.45)] hover:bg-slate-50"
             onClick={dismissCurrentAnnouncement}
             type="button"
             variant="secondary"

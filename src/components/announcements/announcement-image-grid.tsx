@@ -18,7 +18,7 @@ export function AnnouncementImageGrid({
       <div className="mt-4 space-y-2">
         {imageUrls.map((url, index) => (
         <a
-            className="group block overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)] dark:border-white/10 dark:bg-white/5"
+            className="group block overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)]"
             href={url}
             key={url}
             rel="noreferrer"

@@ -123,7 +123,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
       ? service
           .from("profiles")
           .select(
-            "id, name, phone_number, preferred_language, age, profile_photo_url, theme_preference, created_at, updated_at",
+            "id, name, phone_number, preferred_language, age, profile_photo_url, created_at, updated_at",
           )
           .in("id", userIds)
       : Promise.resolve({ data: [] }),

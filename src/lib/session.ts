@@ -1,3 +1,4 @@
+import { defaultBottomNavTabIds } from "@/config/navigation";
 import type { AppMode } from "@/config/routes";
 import { canAccessAdminWeb } from "@/config/roles";
 import type { Role } from "@/config/roles";
@@ -15,9 +16,9 @@ export type SessionUser = {
   email: string;
   phoneNumber: string;
   preferredLanguage: Locale;
-  themePreference: "system" | "light" | "dark";
   role: Role;
   preferredMode: AppMode;
+  bottomNavTabs: string[];
 };
 
 export type AppSession = {
@@ -38,7 +39,6 @@ type CurrentProfile = {
   name: string;
   phone_number: string;
   preferred_language: Locale;
-  theme_preference: "system" | "light" | "dark";
 };
 
 type CurrentOrganization = {
@@ -61,9 +61,9 @@ export const mockSession: AppSession = {
     email: "sarah.jenkins@example.com",
     phoneNumber: "+81 90-0000-0000",
     preferredLanguage: "ko",
-    themePreference: "system",
     role: "office_admin",
     preferredMode: "admin",
+    bottomNavTabs: [...defaultBottomNavTabIds],
   },
 };
 
@@ -85,7 +85,7 @@ export async function getCurrentAppSession(): Promise<AppSession | null> {
 
     const { data: profileResult, error: profileError } = await supabase
       .from("profiles")
-      .select("id, name, phone_number, preferred_language, theme_preference")
+      .select("id, name, phone_number, preferred_language")
       .eq("id", user.id)
       .maybeSingle();
     const profile = profileResult as CurrentProfile | null;
@@ -129,6 +129,23 @@ export async function getCurrentAppSession(): Promise<AppSession | null> {
     const role = (platformAdmin?.role ?? membership?.role) as Role;
     const dictionary = getDictionary(profile.preferred_language);
 
+    // Read per-user bottom-bar customization defensively: the column may not
+    // exist yet on projects where the migration has not been applied, so any
+    // error falls back to the default tab set rather than breaking the session.
+    let bottomNavTabs: string[] = [...defaultBottomNavTabIds];
+    const { data: navResult, error: navError } = await supabase
+      .from("profiles")
+      .select("bottom_nav_tabs")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!navError && navResult) {
+      const raw = (navResult as { bottom_nav_tabs?: string[] | null })
+        .bottom_nav_tabs;
+      if (Array.isArray(raw) && raw.length > 0) {
+        bottomNavTabs = raw;
+      }
+    }
+
     return {
       organization: organization ?? {
         id: "platform",
@@ -140,9 +157,9 @@ export async function getCurrentAppSession(): Promise<AppSession | null> {
         email: user.email ?? "",
         phoneNumber: profile.phone_number,
         preferredLanguage: profile.preferred_language,
-        themePreference: profile.theme_preference,
         role,
         preferredMode: canAccessAdminWeb(role) ? "admin" : "mobile",
+        bottomNavTabs,
       },
     };
   } catch (error) {

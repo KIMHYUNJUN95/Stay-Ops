@@ -85,7 +85,7 @@ Style:
 
 - Apple-inspired Liquid Glass
 - Strong business-app readability
-- Light and dark mode friendly
+- Light mode only (dark mode deferred until post-launch)
 - Mobile PWA first
 - Admin web dense and clear
 
@@ -114,7 +114,7 @@ Required elements:
 - Language selection
 - Invite code / invite link entry
 - Phone number field during signup
-- Light/dark friendly glass surface
+- Light-mode glass surface (dark mode deferred until post-launch)
 
 Prompt draft:
 
@@ -318,7 +318,7 @@ Role:
 Required elements:
 
 - My profile card
-- Edit name, age, phone, language, theme
+- Edit name, age, phone, language (theme editing removed 2026-06-08 — app is light-mode-only)
 - User directory list
 - Role label
 - Phone call button
@@ -326,7 +326,7 @@ Required elements:
 Prompt draft:
 
 ```txt
-Create a mobile user profile and directory screen for StayOps. Include a My Profile card with editable name, age, phone number, language, and theme preference. Below, show a user directory with profile photo, name, role, phone number, and a call button. Use Apple-inspired Liquid Glass with strong readability.
+Create a mobile user profile and directory screen for StayOps. Include a My Profile card with editable name, age, phone number, and language. (Theme preference was removed 2026-06-08 — the app is light-mode-only; dark mode deferred post-launch.) Below, show a user directory with profile photo, name, role, phone number, and a call button. Use Apple-inspired Liquid Glass with strong readability.
 ```
 
 ## Screen 8: Admin Dashboard

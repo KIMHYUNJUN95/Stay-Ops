@@ -25,6 +25,7 @@ type AdminCleaningPageProps = {
   }>;
 };
 
+// i18n-ignore-start: canonical building-name domain keys (room-label normalization), not UI copy.
 const BUILDING_ORDER = [
   "아라키초A",
   "아라키초B",
@@ -34,6 +35,7 @@ const BUILDING_ORDER = [
   "오쿠보B",
   "오쿠보C",
 ] as const;
+// i18n-ignore-end
 
 function sortBuildings(arr: string[]) {
   return [...arr].sort((a, b) => {
@@ -68,6 +70,7 @@ function localizeProperty(
   name: string,
   buildingLabels: ReturnType<typeof getDictionary>["cleaning"]["buildingLabels"],
 ) {
+  // i18n-ignore-start: canonical building-name domain keys (room-label normalization), not UI copy.
   const keyMap: Record<string, keyof typeof buildingLabels> = {
     아라키초A: "arakicho_a",
     아라키초B: "arakicho_b",
@@ -77,6 +80,7 @@ function localizeProperty(
     오쿠보B: "okubo_b",
     오쿠보C: "okubo_c",
   };
+  // i18n-ignore-end
   const key = keyMap[name];
   return key ? (buildingLabels[key] ?? name) : name;
 }

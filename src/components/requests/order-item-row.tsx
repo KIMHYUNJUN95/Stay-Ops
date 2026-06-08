@@ -158,7 +158,7 @@ function OrderItemRowComponent({
     <article className="rounded-2xl border border-border bg-surface/78 p-3.5 shadow-glass backdrop-blur-xl">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#EAF1F8] text-xs font-black text-[#1F3A5F] dark:bg-[#315F91]/25 dark:text-[#D9E8F7]">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#EAF1F8] text-xs font-black text-[#1F3A5F]">
             {index + 1}
           </div>
           <h3 className="truncate text-sm font-black text-foreground">
@@ -168,7 +168,7 @@ function OrderItemRowComponent({
         {canRemove ? (
           <button
             aria-label={`${copy.removeItem} ${index + 1}`}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600"
             onClick={() => onRemove(item.id)}
             type="button"
           >
@@ -227,7 +227,7 @@ function OrderItemRowComponent({
         {/* 쇼핑몰 검색 + 사진 추가 버튼 행 */}
         <div className="flex gap-2">
           <button
-            className="inline-flex min-h-11 flex-1 items-center justify-between rounded-xl border border-dashed border-border bg-background/45 px-3 text-left text-sm font-bold text-[#1F3A5F] transition-colors hover:bg-[#EAF1F8]/70 dark:text-[#D9E8F7] dark:hover:bg-[#315F91]/20"
+            className="inline-flex min-h-11 flex-1 items-center justify-between rounded-xl border border-dashed border-border bg-background/45 px-3 text-left text-sm font-bold text-[#1F3A5F] transition-colors hover:bg-[#EAF1F8]/70"
             onClick={() => setAdvancedOpen((open) => !open)}
             type="button"
           >
@@ -244,7 +244,7 @@ function OrderItemRowComponent({
               "relative inline-flex min-h-11 min-w-[72px] items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-background/45 px-2.5 text-xs font-bold transition-colors",
               photos.length >= MAX_PHOTOS
                 ? "cursor-not-allowed text-muted-foreground/50"
-                : "text-[#1F3A5F] hover:bg-[#EAF1F8]/70 dark:text-[#D9E8F7] dark:hover:bg-[#315F91]/20",
+                : "text-[#1F3A5F] hover:bg-[#EAF1F8]/70",
             )}
             disabled={photos.length >= MAX_PHOTOS}
             onClick={() => fileInputRef.current?.click()}
@@ -305,8 +305,8 @@ function OrderItemRowComponent({
                 {domainLabel ? (
                   <span className={cn(
                     "rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide",
-                    domain === "amazon" && "bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300",
-                    domain === "ikea" && "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
+                    domain === "amazon" && "bg-orange-50 text-orange-700",
+                    domain === "ikea" && "bg-blue-50 text-blue-700",
                     domain === "other" && "bg-muted text-muted-foreground",
                   )}>
                     {domainLabel}
@@ -327,7 +327,7 @@ function OrderItemRowComponent({
                 </div>
                 <button
                   aria-label={copy.pasteLink}
-                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-border bg-background/70 text-[#315F91] transition-colors hover:bg-[#EAF1F8] dark:text-[#D9E8F7] dark:hover:bg-[#315F91]/20"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-border bg-background/70 text-[#315F91] transition-colors hover:bg-[#EAF1F8]"
                   onClick={() => onPasteLink(item.id)}
                   type="button"
                 >
@@ -335,7 +335,7 @@ function OrderItemRowComponent({
                 </button>
               </div>
               {hasLinkWarning ? (
-                <p className="text-xs font-semibold text-amber-600 dark:text-amber-300">
+                <p className="text-xs font-semibold text-amber-600">
                   {copy.linkWarning}
                 </p>
               ) : null}

@@ -18,8 +18,9 @@ age
 phone_number
 profile_photo
 preferred_language
-theme_preference
 ```
+
+(Theme preference was removed 2026-06-08 — the app is light-mode-only; dark mode deferred post-launch. The `profiles.theme_preference` DB column remains in schema only and is not used by the app.)
 
 Language selection:
 
@@ -49,20 +50,14 @@ Social login may prefill email, name, and profile photo, but the user can edit p
 
 Theme preference:
 
-- System
-- Light
-- Dark
+- Removed 2026-06-08. The app is light-mode-only for the MVP/internal rollout; dark mode (and the System/Light/Dark preference) is deferred until post-launch. The `profiles.theme_preference` column still exists in the DB but is no longer read or written by the app.
 
 Implementation note:
 
 - `/account` now provides the first editable My Profile screen.
-- The current version supports name, phone number, language, and theme preference.
+- The current version supports name, phone number, and language. (The theme preference control was removed with dark mode.)
 - The page is reachable from the account icon in both admin and mobile shells.
 - Age and profile photo are still deferred.
-
-Default theme preference:
-
-- System
 
 Possible future fields:
 

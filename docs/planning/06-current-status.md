@@ -38,6 +38,8 @@ See `docs/planning/14-rollout-guide.md` for the internal rollout guide.
 - v1 design direction is effectively complete.
 - Core Stitch screen list and handoff documents exist.
 - Liquid Glass readability direction is confirmed.
+- Brand wordmark renders as `Stay Ops` in a serif italic typeface (Noto Serif, weight 600) via the shared `.wordmark` class, applied consistently across the mobile shell header/side menu, admin shell, dev entry, and login/onboarding headers. The mobile top chrome is flat/borderless (no capsule outline, ring, glass, or shadow): a `justify-between` row with a 20px `#1c2b2a` wordmark centered between two 38px `#eef1f2` circular buttons (icon `#3a4a49`) — 3-line menu SVG (shorter middle line) left, person SVG right (2026-06-08).
+- Mobile bottom navigation switched to a **center-action ("추가") FAB** design (`.tabbar` in `src/app/globals.css`): four tabs (Home, Calendar / Requests, Announcements) split 2 / 2 around a raised teal `#0e7c72` 50px FAB. **Cleaning moved out of the bottom bar into the side menu (hamburger).** The four side tabs are **per-user customizable** (all 4 slots): the FAB ("편집", pencil icon) opens a bottom-bar editor sheet (`createOpen` state) — a 2-column colour-category tile grid of the selectable feature pool (`customizableBottomNavItems`) where the user toggles up to 4 tabs (counter `n/4`, "full" hint, ≥1 required, unified `oklch` palette, hidden-scrollbar scroll on overflow). Selection persists to `profiles.bottom_nav_tabs` via the `updateBottomNavTabs` server action when the sheet closes; the bar renders `resolveBottomNavItems(session.user.bottomNavTabs)`. Requires migration `supabase/migrations/202606080001_profile_bottom_nav.sql` (2026-06-08).
 
 ### App Foundation
 
@@ -109,7 +111,7 @@ See `docs/planning/14-rollout-guide.md` for the internal rollout guide.
 - Organization member role/status update actions exist at `/admin/users`.
 - Organization member search/filter controls exist at `/admin/users`.
 - Account profile editing exists at `/account`.
-- Users can now update their own name, phone number, preferred language, and theme preference.
+- Users can now update their own name, phone number, and preferred language. (Theme preference was removed on 2026-06-08 — see dark-mode removal below; the app is light-mode-only.)
 - Admin announcement management exists at `/admin/announcements`.
 - Announcements can be created as draft or published records.
 - Announcement status can be changed between draft, published, and archived.
@@ -139,7 +141,7 @@ See `docs/planning/14-rollout-guide.md` for the internal rollout guide.
 - Admin announcement list/detail UI was visually aligned to the same announcement design system on 2026-05-20: cleaner operational header, scannable create form, table/card hybrid announcement rows with status/target/author/date metadata, thumbnail preview, refined empty state, detail summary cards, content block, attachment section, read status panel, and comments polish.
 - Final announcement design polish completed on 2026-05-21 across mobile list/detail, admin list/detail, shared popup, comments, read-status panel, attachment presentation, and empty states. The Figma-alignment refinement tightened section rhythm, card proportions, metadata wrapping, modal hierarchy, attachment framing, and long-content behavior. Follow-up final polish reinforced long-title/body/comment wrapping, mobile card balance, read-status modal scrolling, and cross-surface visual cohesion with the redesigned login screen. A restrained Liquid Glass refinement was then applied mainly to mobile announcement cards, the shared popup, comments, attachments, and selected overlay/card surfaces using subtle translucency, modest blur, edge highlights, and softer shadows; admin announcement surfaces were intentionally kept more solid for operational readability. The centered popup modal now carries the strongest glass treatment in this pass, while mobile list cards received lighter translucency and the metadata separator bug was corrected. Mobile announcement list cards show the non-deleted comment count beside the target indicator. Empty states and long titles/body text/author names/role target lists were reviewed for graceful wrapping. This was visual/read-model polish only; announcement permissions, RLS assumptions, popup dismissal, upload/cleanup, read-tracking behavior, and server action semantics were not changed.
 - Browser local storage is kept as a same-session fast path alongside server persistence.
-- System theme now follows OS dark mode from the initial render path more reliably.
+- ~~System theme now follows OS dark mode from the initial render path more reliably.~~ (Obsolete: dark mode removed 2026-06-08; app is light-mode-only.)
 - Announcement comments migration has been applied remotely.
 - Admin and mobile announcement detail screens now show the shared comment thread and support comment creation for enabled published announcements.
 - Admin announcement detail now records the current user as read on open, matching mobile detail behavior.
@@ -167,6 +169,7 @@ See `docs/planning/14-rollout-guide.md` for the internal rollout guide.
 - Admin order detail page added (2026-06-04): dedicated route `/admin/orders/[id]` under `AdminShell` with full order info (title, status, building/room, requester, delivery date, items with images, memo, timeline progress). `OrderActionBar` and `updateOrderRequestStatus` reused from mobile surface. Admin orders list now links to the admin detail page instead of the mobile layout.
 - Hard-delete confirmation UX added (2026-06-04): `/admin/lost-found/[id]` and `/admin/maintenance/[id]` now have a "Delete" button that opens a confirmation modal before executing the permanent deletion. Shared `DeleteConfirmButton` component (`src/components/requests/delete-confirm-button.tsx`) reused across both. Admin-scoped server actions (`deleteLostItemById`, `deleteMaintenanceReportById`) use `requireAdminSession()` and organization scoping. i18n updated for `ko`/`ja`/`en` with exact copy from the UX spec.
 - Vitest unit test suite added (`npm test`): 45 tests covering safe-redirect sanitization, invite RPC error key mapping, and language locale validation. Test files: `src/lib/__tests__/safe-redirect.test.ts`, `src/lib/__tests__/invite-errors.test.ts`, `src/lib/__tests__/i18n-locale.test.ts`.
+- i18n hardcoded-string guard added (2026-06-08): a Vitest test (`src/lib/__tests__/no-hardcoded-i18n.test.ts`, also runnable via `npm run check:i18n`) scans `src/app` and `src/components` for hardcoded Korean/Japanese/Kanji (CJK) literals — the highest-signal indicator of UI copy that bypassed `src/lib/i18n.ts`. English is intentionally not scanned (too noisy). Comments and complete `LocalizedText` literals (`{ ko, ja, en }`) are ignored; escape hatches are `i18n-ignore` (line), `i18n-ignore-start`/`i18n-ignore-end` (block), and `i18n-ignore-file`. Canonical building-name domain constants in the calendar/cleaning pages were wrapped with block directives. Two real hardcoded Korean fallback strings in the cleaning linked forms (`"건물 정보 없음"`, `"룸 정보 없음"`) were moved into the dictionary (`lostFound.form.noBuildingInfo/noRoomInfo`, `maintenance.form.noBuildingInfo/noRoomInfo`) across `ko`/`ja`/`en`. The guard runs as part of `npm test`.
 - Cleaning Workflow Phase 7 first vertical slice started on 2026-05-21: `cleaning_sessions` schema/migration added with RLS, per-organization one-active-session-per-user protection, duration fields, and org/date/status indexes. `/mobile/cleaning` lets field roles select a room/task, start a real persisted cleaning session, view an active timer, complete through a confirmation step with an optional note, and review today's completed records. The active mobile state now separates timer/status, notes, and completion action so completion is deliberate rather than immediate. The current task dropdown is intentionally limited to Checkout Cleaning, Simple Cleaning, and Long-stay Cleaning. `/admin/cleaning` shows the organization's date-scoped cleaning status by room, task, staff, state, start time, and duration. Cleaning "today" now uses the defined UTC+9 local operating date (`Asia/Tokyo`, matching the app's operating-date helper) instead of raw UTC ISO slicing, and a corrective migration updates the DB default and active-session unique index. This slice intentionally uses a small static room/task selection surface until reservation/room master data is connected; invite/auth/session behavior, role model, RLS, persistence semantics, and other workflows were not changed.
 - `owner` is now treated as a hybrid role for field operations: owners can use the mobile cleaning workflow in addition to admin web, while `developer_super_admin` still bypasses for support/debugging. Matching corrective RLS migrations keep page access and mutations aligned.
 - Cleaning completion confirmation modal now displays the completion note as a read-only review block (line breaks preserved via `whitespace-pre-wrap`); the block is hidden when no note was entered, so the graceful empty case requires no additional i18n key.
@@ -308,7 +311,7 @@ Key remaining tasks before full internal rollout:
 - ~~Hard-delete confirmation UX for lost-found and maintenance records.~~ Resolved 2026-06-04 — see completed items.
 - Beds24 inventory API sync for automatic room master classification without backfill.
 - In-app map integration (Google Maps deeplink present; embedded map not implemented).
-- i18n tooling enforcement (manual review currently; no lint-time hardcoded-string detection).
+- ~~i18n tooling enforcement (manual review currently; no lint-time hardcoded-string detection).~~ Resolved 2026-06-08 — see completed items (CJK hardcoded-string guard).
 
 ## Remaining MVP Phases
 
@@ -352,7 +355,7 @@ Next up:
 | Announcements | create/publish/archive, images, popup, 7-day hide, comments, read tracking |
 | Notifications | list, unread badge, mark read, mark all read; graceful fallback if migration missing |
 | CSV export | 5 resources (reservations, cleaning, maintenance, lost-found, orders); UTF-8 BOM |
-| Profile / account | name, phone, language, theme editing |
+| Profile / account | name, phone, language editing (theme editing removed — light-mode-only) |
 | Staff directory | mobile `/mobile/directory` with phone call shortcut |
 | Admin user management | list, detail, role/status update, `/admin/users/[id]` |
 | i18n (ko/ja/en) | all production-visible surfaces covered |
@@ -367,6 +370,22 @@ Next up:
 | Home quick action "주문" linked to request list instead of order form | Now links to `/mobile/orders/new` |
 | `delivery_date` column missing from remote DB | Migration applied via Supabase MCP |
 | `delivery_start_date` / `delivery_end_date` missing from remote DB | Migration applied via Supabase MCP |
+| `next.config.ts` ESM error (`__dirname` not defined) | Removed unnecessary `turbopack: { root: __dirname }` block (2026-06-08) |
+| Hardcoded Korean strings in cleaning linked forms | `"건물 정보 없음"` / `"룸 정보 없음"` moved to `src/lib/i18n.ts` (ko/ja/en) (2026-06-08) |
+| i18n tooling enforcement missing | CJK hardcoded-string guard added (`src/lib/__tests__/no-hardcoded-i18n.test.ts`); `npm run check:i18n` alias added (2026-06-08) |
+| i18n guard directives blanked before detection (block/JSX comment forms silently not honored) | Directive matching moved to the raw source line; CJK detection still uses the comment-blanked view. Added `scanSource` unit tests for line/block/JSX directive forms (2026-06-08) |
+| i18n guard directives matched by simple substring (string literals and code tokens could accidentally suppress scanning) | Directives now recognized only inside actual comment content via `lineHasDirective` / `sourceHasFileDirective`; regression tests added for string-literal and code-token non-suppression; suite now 64 tests total (2026-06-08) |
+
+### Dark mode removed — app is light-mode-only (2026-06-08)
+
+Dark mode is deferred until after the official launch (decision log "Theme Modes" / "Theme Preference" superseded). For the MVP and internal rollout, StayOps is light-mode-only. Removal was end-to-end, not a disable:
+
+- **Styling**: all `dark:` Tailwind utilities removed across 34 files (≈577 tokens); the `:root.dark` / `:root[data-theme="dark"]` and `@media (prefers-color-scheme: dark)` blocks removed from `src/app/globals.css`. Light `:root` variables are unchanged, so the intended light appearance is preserved.
+- **State / persistence**: `themePreference` removed from `SessionUser`/profile selects in `src/lib/session.ts`; `data-theme` attribute and `dark` class removed from `src/app/layout.tsx`; theme write removed from `src/app/account/actions.ts` and `src/app/api/dev/seed-login/route.ts`; unused `theme_preference` column dropped from the `src/app/admin/users` select; `src/lib/theme.ts` deleted.
+- **UI controls**: theme `<select>` removed from `/account`; theme toggle + `localStorage` (`stayops.theme`) + `applyTheme`/`matchMedia` removed from `src/components/foundation-preview.tsx`.
+- **i18n**: `common.theme` and the `themes` (system/light/dark) blocks removed from all three locales in `src/lib/i18n.ts`.
+- **Database (out of scope, documented)**: `public.theme_preference` enum and `profiles.theme_preference` (`not null default 'system'`) remain in the already-applied migration `202605090001_initial_foundation.sql`. The app no longer reads or writes the column; new rows take the default. The column is harmless leftover state; schema removal is deferred to avoid a risky destructive migration on the live DB and because no corrective-migration is needed for the app to be light-mode-only. `src/types/database.ts` keeps the field so the generated types stay accurate to the real schema.
+
 ### Open Risks
 
 | Risk | Severity | Mitigation |
@@ -381,7 +400,6 @@ Next up:
 
 - Actual server action execution (create/update mutations)
 - PWA install on iOS/Android
-- Dark mode on real devices
 - Multi-language rendering in production environment
 - Push notification delivery (not yet implemented)
 - Real Beds24 webhook end-to-end with live reservation changes

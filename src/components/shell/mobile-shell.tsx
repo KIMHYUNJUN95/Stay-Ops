@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import type { UIEvent } from "react";
+import type { ReactNode, UIEvent } from "react";
 import { ArrowDown, Loader2, UserCircle, X } from "lucide-react";
 import { useSession } from "@/components/providers/session-provider";
+import { updateBottomNavTabs } from "@/app/account/actions";
 import {
+  MAX_BOTTOM_NAV_TABS,
+  customizableBottomNavItems,
   getNavigationLabel,
-  mobileBottomNavigation,
   mobileSidebarNavigation,
+  resolveBottomNavItems,
 } from "@/config/navigation";
 import { getDictionary } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -25,27 +28,103 @@ const PULL_THRESHOLD = 72;
 const MAX_PULL = 120;
 const MAX_DISPLAY_H = 60;
 const REFRESH_DISPLAY_H = 52;
-const navAccentClass = {
-  announcements: "from-sky-100 to-blue-50 text-sky-700 ring-sky-200/80",
-  calendar: "from-sky-100 to-cyan-50 text-sky-700 ring-sky-200/80",
-  cleaning: "from-slate-100 to-blue-50 text-[#315F91] ring-slate-200/80",
-  home: "from-slate-100 to-blue-50 text-slate-700 ring-slate-200/80",
-  requests: "from-rose-100 to-pink-50 text-rose-700 ring-rose-200/80",
-} as const;
+
+const EDIT_ICON = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M4 20l.8-3.6L15.4 5.8a2 2 0 0 1 2.8 2.8L7.6 19.2 4 20z" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+    <path d="M13.6 7.6l2.8 2.8" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+  </svg>
+);
+
+/**
+ * "추가" launcher metadata, keyed by sidebar-navigation item id.
+ * Each feature gets a distinct hue; the launcher grid is generated from
+ * `mobileSidebarNavigation`, so adding a nav item automatically adds a tile.
+ * Colours fix lightness/chroma and vary only hue → a unified palette.
+ */
+const LAUNCHER_META: Record<string, { hue: number; icon: ReactNode }> = {
+  home: {
+    hue: 185,
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 11.5L12 5l8 6.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M6 10.5V19h12v-8.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  calendar: {
+    hue: 250,
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="4" y="5.5" width="16" height="14" rx="3" stroke="currentColor" strokeWidth="1.9" />
+        <path d="M4 9.5h16M8 4v3M16 4v3" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  cleaning: {
+    hue: 155,
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 4l1.4 3.6L17 9l-3.6 1.4L12 14l-1.4-3.6L7 9l3.6-1.4L12 4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        <path d="M18 14l.7 1.8 1.8.7-1.8.7L18 19l-.7-1.8-1.8-.7 1.8-.7L18 14z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  requests: {
+    hue: 70,
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="5.5" y="4.5" width="13" height="16" rx="2.5" stroke="currentColor" strokeWidth="1.9" />
+        <path d="M9 3.5h6v3H9z" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+        <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  announcements: {
+    hue: 30,
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 10v4h3l6 4V6l-6 4H4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M17.5 9.2a3.6 3.6 0 010 5.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  notifications: {
+    hue: 305,
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M6 10a6 6 0 0112 0c0 5 2 6 2 6H4s2-1 2-6z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M10 19.5a2 2 0 004 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  directory: {
+    hue: 225,
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="9" cy="8.5" r="3.1" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M3.6 19c.9-2.6 3-4 5.4-4s4.5 1.4 5.4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M16.3 6.3a2.8 2.8 0 010 5M18.2 18.8c-.3-1.3-.8-2.4-1.6-3.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+};
+
+const FALLBACK_ICON = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="7.5" stroke="currentColor" strokeWidth="1.8" />
+  </svg>
+);
+
+/** Unified palette: fix L/C, vary only hue. */
+const launcherTileBg = (hue: number) => `oklch(0.96 0.025 ${hue})`;
+const launcherBadgeBg = (hue: number) => `oklch(0.92 0.055 ${hue})`;
+const launcherIconFg = (hue: number) => `oklch(0.52 0.12 ${hue})`;
 
 /** Rubber-band resistance: fast start, asymptotic ceiling at MAX_DISPLAY_H. */
 function computeContentOffset(raw: number): number {
   if (raw <= 0) return 0;
   return MAX_DISPLAY_H * raw / (raw + MAX_PULL * 0.4);
-}
-
-function MenuTriggerIcon({ className }: { className?: string }) {
-  return (
-    <span aria-hidden="true" className={cn("inline-flex flex-col items-start gap-[4px]", className)}>
-      <span className="block h-[2px] w-4 rounded-full bg-current" />
-      <span className="block h-[2px] w-2.5 rounded-full bg-current" />
-    </span>
-  );
 }
 
 export function MobileShell({
@@ -60,6 +139,7 @@ export function MobileShell({
   const tickingRef = useRef(false);
   const [headerVisible, setHeaderVisible] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [pullDistanceState, setPullDistanceState] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshPending, startRefreshTransition] = useTransition();
@@ -72,6 +152,26 @@ export function MobileShell({
   const swipeNavStartXRef = useRef(0);
   const swipeNavStartYRef = useRef(0);
   const { session } = useSession();
+
+  // Per-user bottom-bar tabs (customized via the center "추가" editor sheet).
+  const initialNavIds = resolveBottomNavItems(session?.user.bottomNavTabs).map(
+    (item) => item.id,
+  );
+  const [navTabIds, setNavTabIds] = useState<string[]>(initialNavIds);
+  const savedNavRef = useRef<string[]>(initialNavIds);
+  const sheetWasOpenRef = useRef(false);
+  const [, startNavSave] = useTransition();
+
+  function toggleNavTab(id: string) {
+    setNavTabIds((prev) => {
+      if (prev.includes(id)) {
+        const next = prev.filter((x) => x !== id);
+        return next.length > 0 ? next : prev; // keep at least one tab
+      }
+      if (prev.length >= MAX_BOTTOM_NAV_TABS) return prev; // bar is full
+      return [...prev, id];
+    });
+  }
 
   const updateVisibility = useCallback((currentY: number) => {
     const delta = currentY - lastScrollYRef.current;
@@ -244,6 +344,41 @@ export function MobileShell({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [sidebarOpen]);
 
+  useEffect(() => {
+    if (!createOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setCreateOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [createOpen]);
+
+  // Persist bottom-bar edits when the sheet closes (any close path), if changed.
+  useEffect(() => {
+    if (createOpen) {
+      sheetWasOpenRef.current = true;
+      return;
+    }
+    if (!sheetWasOpenRef.current) return;
+    sheetWasOpenRef.current = false;
+
+    if (JSON.stringify(navTabIds) === JSON.stringify(savedNavRef.current)) {
+      return;
+    }
+    const next = navTabIds;
+    savedNavRef.current = next;
+    startNavSave(async () => {
+      const result = await updateBottomNavTabs(next);
+      if (result.ok) {
+        router.refresh();
+      }
+    });
+  }, [createOpen, navTabIds, router, startNavSave]);
+
   if (!session) return null;
 
   void appearance;
@@ -251,10 +386,32 @@ export function MobileShell({
   const locale = session.user.preferredLanguage;
   const dictionary = getDictionary(locale);
 
+  // User-customized bottom tabs, split into left / right around the center FAB.
+  const bottomItems = resolveBottomNavItems(navTabIds);
+  const splitAt = Math.ceil(bottomItems.length / 2);
+  const leftTabs = bottomItems.slice(0, splitAt);
+  const rightTabs = bottomItems.slice(splitAt);
+  const isBarFull = navTabIds.length >= MAX_BOTTOM_NAV_TABS;
+
+  const renderTab = (item: (typeof bottomItems)[number]) => {
+    const isActive = item.id === activeItem;
+    return (
+      <Link
+        key={item.id}
+        aria-current={isActive ? "page" : undefined}
+        className={cn("tabbar__item", isActive && "is-active")}
+        href={item.href}
+      >
+        <span className="ico">{LAUNCHER_META[item.id]?.icon ?? FALLBACK_ICON}</span>
+        <span className="lbl">{getNavigationLabel(item, locale)}</span>
+      </Link>
+    );
+  };
+
   return (
     <main
       aria-label={title}
-      className="h-dvh overflow-hidden bg-background text-slate-950 dark:text-slate-50"
+      className="h-dvh overflow-hidden bg-background text-slate-950"
       onTouchEnd={handleSwipeEnd}
       onTouchStart={handleSwipeStart}
     >
@@ -274,7 +431,7 @@ export function MobileShell({
           }}
         >
           <div className="flex h-11 items-center justify-between">
-            <span className="relative text-[20px] font-normal tracking-[-0.04em] text-black">𝓢𝓽𝓪𝔂 𝓞𝓹𝓼</span>
+            <span className="wordmark relative text-[21px] text-slate-900">Stay Ops</span>
             <button
               aria-label={dictionary.common.menu}
               className="relative flex size-9 items-center justify-center rounded-full border border-slate-200/90 bg-white text-slate-500 shadow-[0_12px_24px_-20px_rgba(15,23,42,0.38)] transition-colors hover:bg-slate-50 hover:text-slate-900"
@@ -359,31 +516,44 @@ export function MobileShell({
               />
               <div
                 className={cn(
-                  "relative flex h-12 w-full items-center rounded-[28px] border border-white/72 bg-white/78 px-1.5 shadow-[0_18px_42px_-32px_rgba(31,58,95,0.55),inset_0_1px_1px_rgba(255,255,255,0.88)] ring-1 ring-slate-200/55 backdrop-blur-2xl transition-[transform,opacity] duration-300 ease-out",
+                  "relative flex h-12 w-full items-center justify-between px-2 transition-[transform,opacity] duration-300 ease-out",
                   headerVisible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
                 )}
               >
                 <button
                   aria-label={dictionary.common.menu}
-                  className="relative z-10 flex size-9 items-center justify-center rounded-full bg-slate-50/80 text-slate-800 shadow-[0_10px_22px_-18px_rgba(31,58,95,0.42)] ring-1 ring-slate-200/70 transition-colors hover:bg-white dark:text-slate-100 dark:hover:bg-white/10"
+                  className="relative z-10 flex size-[38px] items-center justify-center rounded-full bg-[#eef1f2] text-[#3a4a49] transition-colors hover:bg-[#e3e8e9]"
                   onClick={() => setSidebarOpen(true)}
                   type="button"
                 >
-                  <MenuTriggerIcon />
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M4 7h16M4 12h11M4 17h16"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
                 </button>
 
-                <span className="pointer-events-none absolute inset-x-0 flex justify-center">
-                  <span className="inline-flex items-center text-[21px] font-normal tracking-[-0.04em] text-black drop-shadow-[0_1px_0_rgba(255,255,255,0.9)] dark:text-black">
-                    𝓢𝓽𝓪𝔂 𝓞𝓹𝓼
-                  </span>
+                <span className="wordmark whitespace-nowrap text-[20px] text-[#1c2b2a]">
+                  Stay Ops
                 </span>
 
                 <Link
                   aria-label={dictionary.onboarding.profileTitle}
-                  className="relative z-10 ml-auto flex size-9 items-center justify-center rounded-full bg-[#EEF7FF] text-[#315F91] shadow-[0_10px_22px_-18px_rgba(31,58,95,0.45)] ring-1 ring-[#D9EAF8] transition-colors hover:bg-white dark:text-slate-100 dark:hover:bg-white/10"
+                  className="relative z-10 flex size-[38px] items-center justify-center rounded-full bg-[#eef1f2] text-[#3a4a49] transition-colors hover:bg-[#e3e8e9]"
                   href="/account?mode=mobile"
                 >
-                  <UserCircle className="size-6" aria-hidden="true" />
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="8.5" r="3.4" stroke="currentColor" strokeWidth="2" />
+                    <path
+                      d="M5.5 19c1.1-3 3.7-4.5 6.5-4.5S17.4 16 18.5 19"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
                 </Link>
               </div>
             </div>
@@ -455,7 +625,7 @@ export function MobileShell({
             {/* Scrollable content — slides down on pull */}
             <div
               className={cn(
-                "h-full overflow-y-auto overscroll-y-contain bg-background px-5 pb-[108px] text-slate-950 dark:text-slate-50",
+                "h-full overflow-y-auto overscroll-y-contain bg-background px-5 pb-[124px] text-slate-950",
                 headerVisible ? "pt-5" : "pt-0",
               )}
               onScroll={handleContentScroll}
@@ -474,48 +644,115 @@ export function MobileShell({
             </div>
           </div>
 
-          <nav className="absolute inset-x-4 bottom-3 z-20 overflow-hidden rounded-[30px] border border-white/75 bg-white/82 px-2 py-2.5 shadow-[0_26px_70px_-34px_rgba(31,58,95,0.62),0_12px_30px_-24px_rgba(31,58,95,0.42),inset_0_1px_1px_rgba(255,255,255,0.88)] ring-1 ring-slate-200/58 backdrop-blur-[34px] backdrop-saturate-[220%] dark:border-white/12 dark:bg-white/[0.07] dark:shadow-[0_24px_70px_-30px_rgba(0,0,0,0.82),inset_0_1px_1px_rgba(255,255,255,0.14),inset_0_-1px_1px_rgba(255,255,255,0.04)] dark:ring-white/6">
-            <div className="pointer-events-none absolute inset-x-8 -top-8 h-16 rounded-full bg-[radial-gradient(55%_70%_at_50%_0%,rgba(222,242,255,0.95),transparent_80%)] blur-md" />
-            <div className="pointer-events-none absolute inset-[1px] rounded-[29px] bg-[linear-gradient(125deg,rgba(255,255,255,0.86),rgba(255,255,255,0.18)_38%,rgba(238,247,255,0.32)_74%,rgba(255,255,255,0.68))] opacity-70" />
-            <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-white/85 blur-[0.5px] dark:bg-white/14" />
-            <ul className="relative grid grid-cols-5 gap-1">
-              {mobileBottomNavigation.map((item) => {
-                const Icon = item.icon;
-                const isActive = item.id === activeItem;
-                const accent = navAccentClass[item.id as keyof typeof navAccentClass];
+          <nav className="tabbar absolute inset-x-0 bottom-0 z-20" aria-label={title}>
+            {leftTabs.map(renderTab)}
+            <button
+              aria-label={dictionary.common.edit}
+              className="tabbar__fab"
+              onClick={() => setCreateOpen(true)}
+              type="button"
+            >
+              <span className="circle">{EDIT_ICON}</span>
+              <span className="lbl">{dictionary.common.edit}</span>
+            </button>
+            {rightTabs.map(renderTab)}
+          </nav>
 
-                return (
-                  <li key={item.id}>
-                    <Link
-                      className={cn(
-                        "group relative flex h-[54px] flex-col items-center justify-center rounded-3xl text-[10px] font-bold text-slate-500 transition-all duration-200 active:scale-[0.98] dark:text-slate-300",
-                        isActive &&
-                          "text-slate-950",
-                      )}
-                      href={item.href}
+          {/* Center action ("추가") sheet — bottom-bar editor (pick up to 4 tabs). */}
+          <button
+            aria-label={dictionary.common.editBottomBar}
+            className={cn(
+              "fixed inset-0 z-[64] bg-[rgba(16,28,27,0.46)]",
+              createOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
+            )}
+            onClick={() => setCreateOpen(false)}
+            style={{ transition: "opacity 320ms ease" }}
+            type="button"
+          />
+          <div
+            aria-hidden={!createOpen}
+            aria-label={dictionary.common.editBottomBar}
+            className="fixed inset-x-0 bottom-0 z-[65] mx-auto w-full max-w-[430px] rounded-t-[26px] bg-white px-[18px] pb-[max(24px,env(safe-area-inset-bottom))] pt-[10px] shadow-[0_-16px_44px_-12px_rgba(16,28,27,0.3)]"
+            role="dialog"
+            style={{
+              transform: createOpen ? "translateY(0)" : "translateY(110%)",
+              transition: "transform 420ms cubic-bezier(0.32, 0.72, 0, 1)",
+            }}
+          >
+            <div className="add-sheet__handle" />
+            <div className="add-sheet__head">
+              <div className="add-sheet__head-text">
+                <p className="add-sheet__title">
+                  {dictionary.common.editBottomBar}
+                  <span className="ml-2 text-[12px] font-bold text-[#0e7c72]">
+                    {navTabIds.length}/{MAX_BOTTOM_NAV_TABS}
+                  </span>
+                </p>
+                <p className="add-sheet__sub">
+                  {isBarFull ? dictionary.common.bottomBarFull : dictionary.common.editBottomBarHint}
+                </p>
+              </div>
+              <button
+                aria-label={dictionary.common.cancel}
+                className="add-sheet__x"
+                onClick={() => setCreateOpen(false)}
+                type="button"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+            <div className="add-sheet__scroll">
+              <div className="add-grid">
+                {customizableBottomNavItems.map((item) => {
+                  const meta = LAUNCHER_META[item.id];
+                  const hue = meta?.hue ?? 200;
+                  const selected = navTabIds.includes(item.id);
+                  const disabled = !selected && isBarFull;
+                  return (
+                    <button
+                      key={item.id}
+                      aria-pressed={selected}
+                      className="add-tile"
+                      disabled={disabled}
+                      onClick={() => toggleNavTab(item.id)}
+                      style={{
+                        background: launcherTileBg(hue),
+                        outline: selected ? `2px solid ${launcherIconFg(hue)}` : "none",
+                        outlineOffset: "-2px",
+                        opacity: disabled ? 0.45 : 1,
+                      }}
+                      type="button"
                     >
                       <span
-                        className={cn(
-                          "mb-1 flex size-8 items-center justify-center rounded-2xl bg-slate-50 text-slate-500 ring-1 ring-slate-200/70 transition-all duration-200 group-hover:bg-white group-hover:text-slate-700",
-                          isActive &&
-                            `bg-gradient-to-br shadow-[0_12px_24px_-18px_rgba(31,58,95,0.55)] ${accent}`,
-                        )}
+                        className="add-tile__badge"
+                        style={{ background: launcherBadgeBg(hue), color: launcherIconFg(hue) }}
                       >
-                        <Icon className="size-4.5" aria-hidden="true" />
+                        {meta?.icon ?? FALLBACK_ICON}
                       </span>
-                      <span className="tracking-[-0.03em]">{getNavigationLabel(item, locale)}</span>
-                      {isActive ? (
-                        <span
-                          aria-hidden="true"
-                          className="absolute bottom-1.5 h-1 w-4 rounded-full bg-slate-900/16"
-                        />
-                      ) : null}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
+                      <span className="add-tile__label">{getNavigationLabel(item, locale)}</span>
+                      <span
+                        aria-hidden="true"
+                        className="ml-auto flex size-5 items-center justify-center rounded-full"
+                        style={{
+                          background: selected ? launcherIconFg(hue) : "transparent",
+                          color: "#fff",
+                          border: selected ? "none" : "1.5px solid rgba(16,28,27,0.18)",
+                        }}
+                      >
+                        {selected ? (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                            <path d="M5 12l4 4 10-10" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        ) : null}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
 
           <button
             aria-label={dictionary.common.menu}

@@ -35,41 +35,56 @@ export type NavigationItem = {
   allowedRoles?: readonly Role[];
 };
 
+const mobileNavHome = {
+  id: "home",
+  label: localizedNavigationLabels.mobile.home,
+  href: "/mobile",
+  icon: House,
+} as const satisfies NavigationItem;
+
+const mobileNavCalendar = {
+  id: "calendar",
+  label: localizedNavigationLabels.mobile.calendar,
+  href: "/mobile/calendar",
+  icon: CalendarCheck2,
+} as const satisfies NavigationItem;
+
+const mobileNavCleaning = {
+  id: "cleaning",
+  label: localizedNavigationLabels.mobile.cleaning,
+  href: "/mobile/cleaning",
+  icon: Sparkles,
+} as const satisfies NavigationItem;
+
+const mobileNavRequests = {
+  id: "requests",
+  label: localizedNavigationLabels.mobile.requests,
+  href: "/mobile/requests",
+  icon: ClipboardCheck,
+} as const satisfies NavigationItem;
+
+const mobileNavAnnouncements = {
+  id: "announcements",
+  label: localizedNavigationLabels.mobile.announcements,
+  href: "/mobile/announcements",
+  icon: BellRing,
+} as const satisfies NavigationItem;
+
+// Bottom tab bar uses a center action ("추가") button, so it holds only 4 tabs.
+// "Cleaning" intentionally lives in the side menu (hamburger) instead of the bottom bar.
 export const mobileBottomNavigation = [
-  {
-    id: "home",
-    label: localizedNavigationLabels.mobile.home,
-    href: "/mobile",
-    icon: House,
-  },
-  {
-    id: "calendar",
-    label: localizedNavigationLabels.mobile.calendar,
-    href: "/mobile/calendar",
-    icon: CalendarCheck2,
-  },
-  {
-    id: "cleaning",
-    label: localizedNavigationLabels.mobile.cleaning,
-    href: "/mobile/cleaning",
-    icon: Sparkles,
-  },
-  {
-    id: "requests",
-    label: localizedNavigationLabels.mobile.requests,
-    href: "/mobile/requests",
-    icon: ClipboardCheck,
-  },
-  {
-    id: "announcements",
-    label: localizedNavigationLabels.mobile.announcements,
-    href: "/mobile/announcements",
-    icon: BellRing,
-  },
+  mobileNavHome,
+  mobileNavCalendar,
+  mobileNavRequests,
+  mobileNavAnnouncements,
 ] as const satisfies readonly NavigationItem[];
 
 export const mobileSidebarNavigation = [
-  ...mobileBottomNavigation,
+  mobileNavHome,
+  mobileNavCalendar,
+  mobileNavCleaning,
+  mobileNavRequests,
+  mobileNavAnnouncements,
   {
     id: "notifications",
     label: localizedNavigationLabels.utility.notifications,
@@ -83,6 +98,72 @@ export const mobileSidebarNavigation = [
     icon: Users,
   },
 ] as const satisfies readonly NavigationItem[];
+
+// ── Per-user bottom-bar customization ────────────────────────────────────────
+// The center FAB opens an editor where each user picks which features sit in
+// their mobile bottom tab bar. The selectable pool is the mobile side menu, and
+// the chosen ids are persisted per user (profiles.bottom_nav_tabs).
+
+/** Maximum number of user-pinned bottom tabs (the center FAB is always shown). */
+export const MAX_BOTTOM_NAV_TABS = 4;
+
+/** Default bottom-bar tab ids for a new/unset user. */
+export const defaultBottomNavTabIds = [
+  "home",
+  "calendar",
+  "requests",
+  "announcements",
+] as const satisfies readonly string[];
+
+/** Features a user may pin to the bottom bar (same pool as the side menu). */
+export const customizableBottomNavItems = mobileSidebarNavigation;
+
+/** Resolve stored bottom-nav ids into ordered navigation items (max enforced). */
+export function resolveBottomNavItems(
+  ids: readonly string[] | null | undefined,
+): NavigationItem[] {
+  const byId = new Map<string, NavigationItem>(
+    customizableBottomNavItems.map((item) => [item.id, item]),
+  );
+  const source = ids && ids.length > 0 ? ids : defaultBottomNavTabIds;
+  const seen = new Set<string>();
+  const resolved: NavigationItem[] = [];
+
+  for (const id of source) {
+    if (seen.has(id)) continue;
+    const item = byId.get(id);
+    if (!item) continue;
+    seen.add(id);
+    resolved.push(item);
+    if (resolved.length >= MAX_BOTTOM_NAV_TABS) break;
+  }
+
+  // Never render an empty bottom bar — fall back to defaults if nothing resolved.
+  if (resolved.length === 0) {
+    for (const id of defaultBottomNavTabIds) {
+      const item = byId.get(id);
+      if (item) resolved.push(item);
+    }
+  }
+
+  return resolved;
+}
+
+/** Sanitize an arbitrary id list before persisting (valid, unique, capped). */
+export function sanitizeBottomNavTabIds(ids: readonly string[]): string[] {
+  const valid = new Set<string>(customizableBottomNavItems.map((item) => item.id));
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  for (const id of ids) {
+    if (!valid.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+    if (out.length >= MAX_BOTTOM_NAV_TABS) break;
+  }
+
+  return out.length > 0 ? out : [...defaultBottomNavTabIds];
+}
 
 export const adminNavigation = [
   {

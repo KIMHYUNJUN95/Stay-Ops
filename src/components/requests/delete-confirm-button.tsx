@@ -58,7 +58,7 @@ export function DeleteConfirmButton({
     <>
       <button
         aria-label={labels.deleteRecord}
-        className="inline-flex items-center gap-1.5 rounded-xl border border-destructive/30 bg-destructive/8 px-3 py-2 text-sm font-bold text-destructive transition-colors hover:bg-destructive/15 dark:border-destructive/40 dark:bg-destructive/10"
+        className="inline-flex items-center gap-1.5 rounded-xl border border-destructive/30 bg-destructive/8 px-3 py-2 text-sm font-bold text-destructive transition-colors hover:bg-destructive/15"
         onClick={() => setOpen(true)}
         type="button"
       >
@@ -82,12 +82,12 @@ export function DeleteConfirmButton({
                 type="button"
               />
               <div
-                className="relative w-full max-w-[340px] overflow-hidden rounded-[28px] border border-white/55 bg-surface shadow-[0_28px_90px_-34px_rgba(15,23,42,0.7)] dark:border-white/12 dark:bg-[#101828]"
+                className="relative w-full max-w-[340px] overflow-hidden rounded-[28px] border border-white/55 bg-surface shadow-[0_28px_90px_-34px_rgba(15,23,42,0.7)]"
                 style={{ animation: "modal-card-in 280ms cubic-bezier(0.34,1.26,0.64,1) both" }}
               >
                 <div className="px-6 pb-6 pt-6">
                   <div className="mb-4 flex flex-col items-center gap-3 text-center">
-                    <div className="flex size-14 items-center justify-center rounded-full bg-red-50 text-red-500 ring-1 ring-red-200/70 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50">
+                    <div className="flex size-14 items-center justify-center rounded-full bg-red-50 text-red-500 ring-1 ring-red-200/70">
                       <AlertTriangle className="size-7" aria-hidden="true" />
                     </div>
                     <div>

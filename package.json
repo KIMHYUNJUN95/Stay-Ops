@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:i18n": "vitest run src/lib/__tests__/no-hardcoded-i18n.test.ts",
     "cleaning:normalize-room-labels": "node scripts/dev/normalize-cleaning-room-labels.js"
   },
   "dependencies": {

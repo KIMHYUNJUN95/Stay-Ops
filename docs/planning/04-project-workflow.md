@@ -116,14 +116,17 @@ Each feature should be tested for:
 
 - Mobile PWA
 - Admin web
-- Light mode
-- Dark mode
+- Light mode (dark mode deferred until post-launch — light-mode-only)
 - Korean
 - Japanese
 - English
 - Permissions
 - Empty state
 - Error state
+
+Automated i18n check:
+
+- An automated guard (`npm run check:i18n`, also part of `npm test`) fails when hardcoded Korean/Japanese/Kanji literals are added under `src/app` or `src/components`. New visible copy must go through `src/lib/i18n.ts` (ko/ja/en together). Legitimate domain data uses an `i18n-ignore` directive with a justifying comment. See the engineering implementation plan for details.
 
 ## 7. Documentation Updates
 
@@ -189,7 +192,7 @@ Current StayOps handoff expectations:
 - Check existing docs and code state first
 - Never revert user changes
 - Update related Markdown docs in the same work cycle
-- Run `npm run lint` and `npm run build` after feature/code changes
+- Run `npm run lint` and `npm run build` after feature/code changes; run `npm test` when touching i18n or shared logic (includes the hardcoded-string guard)
 - When the user asks for the next planned slice, answer with:
   - `현재 이슈`
   - `다음 작업`

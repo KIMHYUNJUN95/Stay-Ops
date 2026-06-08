@@ -125,6 +125,7 @@ Update:
 
 - User can update their own profile.
 - Admin-capable roles can update limited profile/admin fields if needed.
+- The "users can update own profile" policy also covers `bottom_nav_tabs` (per-user mobile bottom-bar customization); no separate policy is required.
 
 ## memberships
 

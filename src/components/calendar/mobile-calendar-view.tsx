@@ -248,12 +248,12 @@ function calendarRowHeightForBars(_bars: ReservationBarLayout[]) {
   return CALENDAR_SINGLE_ROW_HEIGHT;
 }
 const GLASS_PANEL =
-  "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] backdrop-blur-none dark:border-white/12 dark:bg-white/8";
+  "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] backdrop-blur-none";
 const GLASS_CARD =
-  "rounded-2xl border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_14px_28px_-24px_rgba(31,58,95,0.38)] backdrop-blur-none dark:border-white/12 dark:bg-white/8";
+  "rounded-2xl border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_14px_28px_-24px_rgba(31,58,95,0.38)] backdrop-blur-none";
 // 以묒븰 怨좎젙 modal card (?덉빟 ?곸꽭 / 鍮?媛앹떎 / 吏??怨듭슜)
 const GLASS_RESERVATION_MODAL =
-  "relative w-full max-w-lg rounded-3xl border border-white/70 bg-background/82 shadow-[0_32px_68px_-28px_rgba(2,6,23,0.68)] backdrop-blur-2xl dark:border-white/12";
+  "relative w-full max-w-lg rounded-3xl border border-white/70 bg-background/82 shadow-[0_32px_68px_-28px_rgba(2,6,23,0.68)] backdrop-blur-2xl";
 const RESERVATION_SHEET_TRANSITION_MS = 300;
 
 function parseDate(value: string) {
@@ -689,9 +689,9 @@ export function MobileCalendarView({
 
   return (
     <div className="relative space-y-4 pb-2">
-      <div className="pointer-events-none absolute inset-x-2 -top-8 h-32 rounded-[28px] bg-[radial-gradient(60%_72%_at_50%_0%,rgba(255,255,255,0.98),transparent_72%)] opacity-85 blur-[2px] dark:bg-[radial-gradient(60%_72%_at_50%_0%,rgba(255,255,255,0.06),transparent_72%)]" />
+      <div className="pointer-events-none absolute inset-x-2 -top-8 h-32 rounded-[28px] bg-[radial-gradient(60%_72%_at_50%_0%,rgba(255,255,255,0.98),transparent_72%)] opacity-85 blur-[2px]" />
       {roomSourceDebug ? (
-        <Card className="rounded-xl border-dashed border-cyan-300/70 bg-cyan-50/70 p-3 text-xs text-cyan-950 shadow-sm dark:border-cyan-500/40 dark:bg-cyan-500/10 dark:text-cyan-100">
+        <Card className="rounded-xl border-dashed border-cyan-300/70 bg-cyan-50/70 p-3 text-xs text-cyan-950 shadow-sm">
           <p className="font-semibold">Room source debug</p>
           <p className="mt-1">mode: {roomSourceDebug.mode}</p>
           <p>active rooms: {roomSourceDebug.activeRoomLabels.length}</p>
@@ -797,7 +797,7 @@ export function MobileCalendarView({
             </Link>
           </div>
           {isOutOfWindow ? (
-            <div className="flex flex-col items-center justify-center p-8 text-center bg-white/15 dark:bg-black/15">
+            <div className="flex flex-col items-center justify-center p-8 text-center bg-white/15">
               <div className="mx-auto mb-3 inline-flex size-10 items-center justify-center rounded-full bg-background/90 text-muted-foreground shadow-sm">
                 <CalendarDays className="size-5" />
               </div>
@@ -806,7 +806,7 @@ export function MobileCalendarView({
             </div>
           ) : (
             <div
-              className="min-h-0 overflow-auto overscroll-x-contain bg-white dark:bg-background"
+              className="min-h-0 overflow-auto overscroll-x-contain bg-white"
               onScroll={handleGridScroll}
               ref={scrollRef}
               style={{
@@ -838,7 +838,7 @@ export function MobileCalendarView({
                         roomBarLayouts.get(room)?.rowHeight ?? CALENDAR_SINGLE_ROW_HEIGHT;
                       return (
                         <div
-                          className="flex items-center justify-center border-b border-slate-200/50 bg-[color:var(--background)] text-[13px] font-black tabular-nums text-slate-700 dark:text-slate-100"
+                          className="flex items-center justify-center border-b border-slate-200/50 bg-[color:var(--background)] text-[13px] font-black tabular-nums text-slate-700"
                           key={room}
                           style={{ height: `${rowHeight}px` }}
                         >
@@ -859,7 +859,7 @@ export function MobileCalendarView({
                         <div
                           className={`flex shrink-0 items-center justify-center border-r border-slate-200/70 text-[12px] ${
                             isToday
-                              ? "bg-amber-50/95 font-black text-amber-800 dark:bg-orange-500/25 dark:text-orange-400"
+                              ? "bg-amber-50/95 font-black text-amber-800"
                               : "font-bold text-slate-500"
                           }`}
                           key={date}
@@ -892,7 +892,7 @@ export function MobileCalendarView({
                           <div
                             className={cn(
                               "h-full shrink-0 border-r border-[color:var(--calendar-grid-line)]",
-                              isToday && "bg-amber-100/60 dark:bg-orange-500/25",
+                              isToday && "bg-amber-100/60",
                             )}
                             key={`grid-${date}`}
                             style={{ width: `${DAY_WIDTH}px` }}
@@ -981,7 +981,7 @@ export function MobileCalendarView({
               <Card
                 className={
                   emptyToday.isProvisional
-                    ? "rounded-2xl border-dashed border-amber-300/70 bg-amber-50/80 p-4 text-xs text-amber-900 shadow-[0_14px_28px_-24px_rgba(146,64,14,0.38)] dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
+                    ? "rounded-2xl border-dashed border-amber-300/70 bg-amber-50/80 p-4 text-xs text-amber-900 shadow-[0_14px_28px_-24px_rgba(146,64,14,0.38)]"
                     : `${GLASS_CARD} p-4 text-xs`
                 }
               >
@@ -1120,15 +1120,15 @@ export function MobileCalendarView({
             return (
               <Card
                 key={meta.canonicalName}
-                className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] transition-transform duration-200 active:scale-[0.99] dark:bg-slate-950/35"
+                className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] transition-transform duration-200 active:scale-[0.99]"
               >
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white" aria-hidden="true" />
                 <div className="flex items-center gap-3 p-4">
                   <div
                     className={`shrink-0 inline-flex size-11 items-center justify-center rounded-2xl shadow-[0_12px_24px_-18px_rgba(31,58,95,0.5)] ring-1 ${
                       meta.kind === "house"
-                        ? "bg-[#F2F4FF] text-[#4E63B3] ring-[#E0E5FF] dark:bg-amber-500/25 dark:text-amber-300"
-                        : "bg-[#EEF7FF] text-[#315F91] ring-[#D9EAF8] dark:bg-blue-500/25 dark:text-blue-300"
+                        ? "bg-[#F2F4FF] text-[#4E63B3] ring-[#E0E5FF]"
+                        : "bg-[#EEF7FF] text-[#315F91] ring-[#D9EAF8]"
                     }`}
                   >
                     {meta.kind === "house" ? (
@@ -1147,18 +1147,18 @@ export function MobileCalendarView({
                       {address ?? copy.mapAddressMissing}
                     </p>
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
-                      <Badge className="rounded-full border border-slate-200 bg-white px-2.5 text-[10px] text-foreground/80 shadow-sm dark:bg-slate-900/70">
+                      <Badge className="rounded-full border border-slate-200 bg-white px-2.5 text-[10px] text-foreground/80 shadow-sm">
                         {copy.mapSharedAccessLabel} {sharedCount}
                       </Badge>
                       {roomCount > 0 ? (
-                        <Badge className="rounded-full border border-slate-200 bg-white px-2.5 text-[10px] text-foreground/80 shadow-sm dark:bg-slate-900/70">
+                        <Badge className="rounded-full border border-slate-200 bg-white px-2.5 text-[10px] text-foreground/80 shadow-sm">
                           {copy.mapRoomAccessLabel} {roomCount}
                         </Badge>
                       ) : null}
                     </div>
                   </div>
                   <button
-                    className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow-[0_10px_22px_-18px_rgba(31,58,95,0.35)] transition-colors hover:text-slate-950 dark:bg-slate-900/70 dark:hover:bg-slate-900"
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow-[0_10px_22px_-18px_rgba(31,58,95,0.35)] transition-colors hover:text-slate-950"
                     onClick={() => {
                       setMapCopyFeedback(null);
                       setSelectedMapProperty(meta);
@@ -1169,7 +1169,7 @@ export function MobileCalendarView({
                     {copy.mapOpenAccess}
                   </button>
                 </div>
-                <div className="relative border-t border-slate-200/70 bg-white/65 px-4 py-2.5 dark:bg-slate-900/35">
+                <div className="relative border-t border-slate-200/70 bg-white/65 px-4 py-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[11px] font-bold text-muted-foreground">
                       {copy.mapAddressLabel}
@@ -1407,7 +1407,7 @@ export function MobileCalendarView({
               </Button>
             </div>
             <div className="max-h-[65vh] space-y-3 overflow-y-auto px-5 py-5 text-sm">
-              <Card className="rounded-2xl border-white/70 bg-white/60 p-4 shadow-sm backdrop-blur-xl dark:bg-slate-950/40">
+              <Card className="rounded-2xl border-white/70 bg-white/60 p-4 shadow-sm backdrop-blur-xl">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{copy.mapAddressLabel}</p>
                 <p className="mt-1.5 break-words text-sm font-semibold leading-6">
                   {getPropertyAddress(selectedMapProperty, locale) || copy.mapAddressMissing}
@@ -1439,14 +1439,14 @@ export function MobileCalendarView({
                 </div>
               </Card>
 
-              <Card className="rounded-2xl border-white/70 bg-white/60 p-4 shadow-sm backdrop-blur-xl dark:bg-slate-950/40">
+              <Card className="rounded-2xl border-white/70 bg-white/60 p-4 shadow-sm backdrop-blur-xl">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{copy.mapSharedAccessLabel}</p>
                 <div className="mt-2.5 space-y-2">
                   {selectedMapProperty.sharedAccess.map((item) => (
-                    <div className="flex items-center justify-between gap-2 rounded-xl border border-white/55 bg-white/65 px-3 py-2.5 shadow-sm dark:bg-slate-900/65" key={item.label}>
+                    <div className="flex items-center justify-between gap-2 rounded-xl border border-white/55 bg-white/65 px-3 py-2.5 shadow-sm" key={item.label}>
                       <div>
                         <p className="text-xs text-muted-foreground/90">{item.label}</p>
-                        <p className="mt-0.5 rounded-md bg-black/[0.05] px-1.5 py-0.5 font-mono text-sm font-semibold text-foreground dark:bg-white/[0.08]">
+                        <p className="mt-0.5 rounded-md bg-black/[0.05] px-1.5 py-0.5 font-mono text-sm font-semibold text-foreground">
                           {item.code}
                         </p>
                       </div>
@@ -1467,15 +1467,15 @@ export function MobileCalendarView({
                 </div>
               </Card>
 
-              <Card className="rounded-2xl border-white/70 bg-white/60 p-4 shadow-sm backdrop-blur-xl dark:bg-slate-950/40">
+              <Card className="rounded-2xl border-white/70 bg-white/60 p-4 shadow-sm backdrop-blur-xl">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{copy.mapRoomAccessLabel}</p>
                 <div className="mt-2.5 space-y-2">
                   {selectedMapProperty.roomAccess && selectedMapProperty.roomAccess.length > 0 ? (
                     selectedMapProperty.roomAccess.map((item) => (
-                      <div className="flex items-center justify-between gap-2 rounded-xl border border-white/55 bg-white/65 px-3 py-2.5 shadow-sm dark:bg-slate-900/65" key={item.roomLabel}>
+                      <div className="flex items-center justify-between gap-2 rounded-xl border border-white/55 bg-white/65 px-3 py-2.5 shadow-sm" key={item.roomLabel}>
                         <div>
                           <p className="text-xs text-muted-foreground/90">{copy.roomLabel} {item.roomLabel}</p>
-                          <p className="mt-0.5 rounded-md bg-black/[0.05] px-1.5 py-0.5 font-mono text-sm font-semibold text-foreground dark:bg-white/[0.08]">
+                          <p className="mt-0.5 rounded-md bg-black/[0.05] px-1.5 py-0.5 font-mono text-sm font-semibold text-foreground">
                             {item.code}
                           </p>
                         </div>

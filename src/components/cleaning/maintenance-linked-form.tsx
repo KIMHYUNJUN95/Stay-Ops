@@ -88,8 +88,8 @@ export function MaintenanceLinkedForm({
   const resolvedLocation = resolveRequestCatalogLocation(defaultRoom, roomCatalog, buildingLabels);
   const defaultBuilding = resolvedLocation.buildingName ?? "";
   const canonicalRoom = resolvedLocation.canonicalRoomLabel;
-  const buildingDisplay = resolvedLocation.buildingLabel ?? "건물 정보 없음";
-  const roomDisplay = canonicalRoom || "룸 정보 없음";
+  const buildingDisplay = resolvedLocation.buildingLabel ?? copy.form.noBuildingInfo;
+  const roomDisplay = canonicalRoom || copy.form.noRoomInfo;
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

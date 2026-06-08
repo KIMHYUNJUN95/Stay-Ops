@@ -77,38 +77,38 @@ const activeOrderStatuses = new Set<OrderStatus>(["requested", "approved", "orde
 
 const lostStatusBadgeClass: Record<LostItemStatus, string> = {
   registered:
-    "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300",
+    "border-blue-200 bg-blue-50 text-blue-700",
   stored:
-    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+    "border-amber-200 bg-amber-50 text-amber-700",
   disposal_scheduled:
-    "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-300",
+    "border-orange-200 bg-orange-50 text-orange-700",
   disposed: "border-border bg-muted/50 text-muted-foreground",
 };
 
 const maintenanceStatusBadgeClass: Record<MaintenanceStatus, string> = {
-  open: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300",
+  open: "border-blue-200 bg-blue-50 text-blue-700",
   in_progress:
-    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+    "border-amber-200 bg-amber-50 text-amber-700",
   resolved:
-    "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/50 dark:text-green-300",
+    "border-green-200 bg-green-50 text-green-700",
   closed: "border-border bg-muted/50 text-muted-foreground",
 };
 
 const orderStatusBadgeClass: Record<OrderStatus, string> = {
   requested:
-    "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300",
+    "border-blue-200 bg-blue-50 text-blue-700",
   approved:
-    "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300",
+    "border-indigo-200 bg-indigo-50 text-indigo-700",
   ordered:
-    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+    "border-amber-200 bg-amber-50 text-amber-700",
   received:
-    "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/50 dark:text-green-300",
+    "border-green-200 bg-green-50 text-green-700",
   closed: "border-border bg-muted/50 text-muted-foreground",
 };
 const REQUEST_PANEL =
-  "rounded-[28px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_22px_46px_-32px_rgba(31,58,95,0.48)] backdrop-blur-none dark:border-white/12 dark:bg-white/8";
+  "rounded-[28px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_22px_46px_-32px_rgba(31,58,95,0.48)] backdrop-blur-none";
 const REQUEST_CARD =
-  "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none dark:border-white/12 dark:bg-white/8";
+  "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none";
 const requestTypeTone = {
   "lost-found": {
     bar: "bg-sky-300/80",
@@ -270,7 +270,7 @@ function SegButton({
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-bold transition-all",
         active
-          ? "bg-sky-50 text-[#1F3A5F] shadow-sm ring-1 ring-sky-200/80 dark:bg-[#315F91]/25 dark:text-[#D9E8F7] dark:ring-[#315F91]/40"
+          ? "bg-sky-50 text-[#1F3A5F] shadow-sm ring-1 ring-sky-200/80"
           : "text-slate-500 hover:text-slate-900",
       )}
       onClick={onClick}
@@ -377,7 +377,7 @@ const RequestListCard = memo(function RequestListCard({
               <div className="flex shrink-0 items-center gap-1.5">
                 {onDelete ? (
                   <button
-                    className="inline-flex size-8 items-center justify-center rounded-full border border-slate-200/70 bg-white text-slate-400 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.45)] transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                    className="inline-flex size-8 items-center justify-center rounded-full border border-slate-200/70 bg-white text-slate-400 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.45)] transition-colors hover:bg-red-50 hover:text-red-500"
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
                     type="button"
                   >
@@ -816,7 +816,7 @@ export function RequestsFilterView({
               className={cn(
                 "inline-flex items-center justify-center gap-1.5 rounded-2xl px-2 py-2.5 text-[13px] font-black transition-all",
                 typeFilter === tab.id
-                  ? "bg-white text-[#1F3A5F] shadow-[0_12px_24px_-20px_rgba(31,58,95,0.45)] ring-1 ring-sky-200/80 dark:bg-[#315F91]/25 dark:text-[#D9E8F7] dark:ring-[#315F91]/40"
+                  ? "bg-white text-[#1F3A5F] shadow-[0_12px_24px_-20px_rgba(31,58,95,0.45)] ring-1 ring-sky-200/80"
                   : "text-slate-500 hover:bg-white/60 hover:text-slate-900",
               )}
               onClick={() => updateQuery({ type: tab.id === DEFAULT_TYPE ? null : tab.id })}
@@ -836,7 +836,7 @@ export function RequestsFilterView({
             className={cn(
               "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-black shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors",
               activeFilterCount > 0
-                ? "border-sky-200 bg-sky-50 text-[#1F3A5F] dark:border-[#315F91]/40 dark:bg-[#315F91]/25 dark:text-[#D9E8F7]"
+                ? "border-sky-200 bg-sky-50 text-[#1F3A5F]"
                 : "border-slate-200/80 bg-white/80 text-slate-500 hover:text-slate-900",
             )}
             onClick={() => setFilterSheetOpen(true)}
@@ -904,7 +904,7 @@ export function RequestsFilterView({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="filter-sheet-title"
-                className="relative flex w-full max-w-[min(92vw,420px)] flex-col overflow-hidden rounded-[28px] border border-slate-200/70 bg-[linear-gradient(150deg,#ffffff_0%,#f9fbff_100%)] shadow-[0_28px_56px_-20px_rgba(31,58,95,0.50),0_0_0_1px_rgba(255,255,255,0.75)_inset] dark:bg-[#101828]"
+                className="relative flex w-full max-w-[min(92vw,420px)] flex-col overflow-hidden rounded-[28px] border border-slate-200/70 bg-[linear-gradient(150deg,#ffffff_0%,#f9fbff_100%)] shadow-[0_28px_56px_-20px_rgba(31,58,95,0.50),0_0_0_1px_rgba(255,255,255,0.75)_inset]"
                 onKeyDown={handleSheetKeyDown}
                 style={{
                   animation: "modal-center-in 240ms cubic-bezier(0.32, 0.72, 0, 1) both",
@@ -1005,7 +1005,7 @@ export function RequestsFilterView({
                         className={cn(
                           "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-bold transition-colors",
                           hasCustomRange
-                            ? "border-[#C9D8E8] bg-[#EAF1F8] text-[#1F3A5F] dark:border-[#315F91]/40 dark:bg-[#315F91]/25 dark:text-[#D9E8F7]"
+                            ? "border-[#C9D8E8] bg-[#EAF1F8] text-[#1F3A5F]"
                             : "border-dashed border-border text-muted-foreground hover:border-[#C9D8E8] hover:text-foreground",
                         )}
                         onClick={() => setCalendarOpen(true)}
@@ -1039,7 +1039,7 @@ export function RequestsFilterView({
                           className={cn(
                             "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-bold transition-colors",
                             !selectedBuildingKey
-                              ? "bg-[#EAF1F8] text-[#1F3A5F] dark:bg-[#315F91]/25 dark:text-[#D9E8F7]"
+                              ? "bg-[#EAF1F8] text-[#1F3A5F]"
                               : "bg-muted/50 text-muted-foreground hover:text-foreground",
                           )}
                           onClick={() => setBuildingFilter(null)}
@@ -1054,7 +1054,7 @@ export function RequestsFilterView({
                             className={cn(
                               "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-bold transition-colors",
                               selectedBuildingKey === option.key
-                                ? "bg-[#EAF1F8] text-[#1F3A5F] dark:bg-[#315F91]/25 dark:text-[#D9E8F7]"
+                                ? "bg-[#EAF1F8] text-[#1F3A5F]"
                                 : "bg-muted/50 text-muted-foreground hover:text-foreground",
                             )}
                             key={option.key}
@@ -1231,12 +1231,12 @@ export function RequestsFilterView({
                 type="button"
               />
               <div
-                className="relative w-full max-w-[340px] overflow-hidden rounded-[28px] border border-white/55 bg-surface shadow-[0_28px_90px_-34px_rgba(15,23,42,0.7)] dark:border-white/12 dark:bg-[#101828]"
+                className="relative w-full max-w-[340px] overflow-hidden rounded-[28px] border border-white/55 bg-surface shadow-[0_28px_90px_-34px_rgba(15,23,42,0.7)]"
                 style={{ animation: "modal-card-in 280ms cubic-bezier(0.34,1.26,0.64,1) both" }}
               >
                 <div className="px-6 pb-6 pt-6">
                   <div className="mb-4 flex flex-col items-center gap-3 text-center">
-                    <div className="flex size-14 items-center justify-center rounded-full bg-red-50 text-red-500 ring-1 ring-red-200/70 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50">
+                    <div className="flex size-14 items-center justify-center rounded-full bg-red-50 text-red-500 ring-1 ring-red-200/70">
                       <AlertTriangle className="size-7" aria-hidden="true" />
                     </div>
                     <div>

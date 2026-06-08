@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { sanitizeBottomNavTabIds } from "@/config/navigation";
 import { isLocale } from "@/lib/i18n";
-import { isTheme } from "@/lib/theme";
 import { isValidPhone } from "@/lib/onboarding";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -27,9 +27,8 @@ export async function updateAccountProfile(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const phoneNumber = String(formData.get("phoneNumber") ?? "").trim();
   const preferredLanguage = String(formData.get("preferredLanguage") ?? "");
-  const themePreference = String(formData.get("themePreference") ?? "");
 
-  if (!name || !isLocale(preferredLanguage) || !isTheme(themePreference)) {
+  if (!name || !isLocale(preferredLanguage)) {
     toAccountRedirect(mode, "error=missing_profile_fields");
   }
 
@@ -47,7 +46,6 @@ export async function updateAccountProfile(formData: FormData) {
       name,
       phone_number: phoneNumber,
       preferred_language: preferredLanguage,
-      theme_preference: themePreference,
     } as never)
     .eq("id", user.id);
 
@@ -57,4 +55,36 @@ export async function updateAccountProfile(formData: FormData) {
 
   revalidatePath("/", "layout");
   toAccountRedirect(mode, "saved=1");
+}
+
+/**
+ * Persist the user's customized mobile bottom-bar tabs.
+ * Called from the mobile shell's "edit bottom bar" sheet. Returns a small
+ * result object instead of redirecting, so the client can update optimistically.
+ */
+export async function updateBottomNavTabs(
+  tabIds: string[],
+): Promise<{ ok: boolean; tabs: string[] }> {
+  const sanitized = sanitizeBottomNavTabIds(tabIds ?? []);
+
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, tabs: sanitized };
+  }
+
+  const { error } = await getSupabaseServiceClient()
+    .from("profiles")
+    .update({ bottom_nav_tabs: sanitized } as never)
+    .eq("id", user.id);
+
+  if (error) {
+    return { ok: false, tabs: sanitized };
+  }
+
+  revalidatePath("/", "layout");
+  return { ok: true, tabs: sanitized };
 }

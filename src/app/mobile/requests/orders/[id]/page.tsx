@@ -46,13 +46,13 @@ const TIMELINE_STATUSES = ["requested", "approved", "ordered"] as const;
 
 const statusBadgeClass = {
   requested:
-    "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300",
+    "border-blue-200 bg-blue-50 text-blue-700",
   approved:
-    "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300",
+    "border-indigo-200 bg-indigo-50 text-indigo-700",
   ordered:
-    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+    "border-amber-200 bg-amber-50 text-amber-700",
   received:
-    "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/50 dark:text-green-300",
+    "border-green-200 bg-green-50 text-green-700",
   closed: "border-border bg-muted/50 text-muted-foreground",
 } as const;
 const DETAIL_CARD =
@@ -221,7 +221,7 @@ export default async function MobileOrderRequestDetailPage({
 
         <Card className={`${DETAIL_CARD} overflow-hidden`}>
           <div className="flex items-center gap-2 px-4 pt-4">
-            <Package className="size-4 text-[#315F91] dark:text-[#D9E8F7]" aria-hidden="true" />
+            <Package className="size-4 text-[#315F91]" aria-hidden="true" />
             <h2 className="text-sm font-black uppercase tracking-wide text-foreground">{copy.itemsTitle}</h2>
           </div>
           <div className="mt-3 divide-y divide-border/60">
@@ -231,7 +231,7 @@ export default async function MobileOrderRequestDetailPage({
               items.map((item) => (
                 <div className="px-4 py-3" key={item.id || `${item.name}-${item.quantity}`}>
                   <div className="flex items-center gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF1F8] text-[#315F91] dark:bg-[#315F91]/20 dark:text-[#D9E8F7]">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF1F8] text-[#315F91]">
                       <ShoppingCart className="size-5" aria-hidden="true" />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -246,7 +246,7 @@ export default async function MobileOrderRequestDetailPage({
                   {isValidAbsoluteUrl(item.link) ? (
                     <a
                       aria-label={copy.itemLinkLabel}
-                      className="mt-2 flex min-h-9 items-center gap-1.5 rounded-lg border border-border/60 bg-background/50 px-3 py-1.5 text-xs font-semibold text-[#315F91] transition-colors hover:bg-muted/50 dark:text-[#D9E8F7]"
+                      className="mt-2 flex min-h-9 items-center gap-1.5 rounded-lg border border-border/60 bg-background/50 px-3 py-1.5 text-xs font-semibold text-[#315F91] transition-colors hover:bg-muted/50"
                       href={item.link}
                       rel="noreferrer"
                       target="_blank"
@@ -285,7 +285,7 @@ export default async function MobileOrderRequestDetailPage({
 
         <Card className={`${DETAIL_CARD} divide-y divide-slate-200/70`}>
           <div className="flex items-start gap-3 p-4">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#EAF1F8] text-[#315F91] dark:bg-[#315F91]/20 dark:text-[#D9E8F7]">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#EAF1F8] text-[#315F91]">
               <MapPin className="size-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
@@ -308,7 +308,7 @@ export default async function MobileOrderRequestDetailPage({
         {order.delivery_date || (order.delivery_start_date && order.delivery_end_date) ? (
           <Card className={`${DETAIL_CARD} p-4`}>
             <div className="flex items-center gap-3">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#EAF1F8] text-[#315F91] dark:bg-[#315F91]/20 dark:text-[#D9E8F7]">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#EAF1F8] text-[#315F91]">
                 <CalendarDays className="size-5" aria-hidden="true" />
               </div>
               <div className="min-w-0">
@@ -329,7 +329,7 @@ export default async function MobileOrderRequestDetailPage({
         {order.reason || order.description ? (
           <Card className={`${DETAIL_CARD} p-4`}>
             <div className="mb-2 flex items-center gap-2">
-              <MessageSquareText className="size-4 text-[#315F91] dark:text-[#D9E8F7]" aria-hidden="true" />
+              <MessageSquareText className="size-4 text-[#315F91]" aria-hidden="true" />
               <h2 className="text-sm font-black uppercase tracking-wide text-foreground">{copy.memoTitle}</h2>
             </div>
             <p className="rounded-xl border border-border bg-background/60 p-3.5 text-sm leading-6 text-foreground/90">
@@ -340,7 +340,7 @@ export default async function MobileOrderRequestDetailPage({
 
         <Card className={`${DETAIL_CARD} p-4`}>
           <div className="mb-4 flex items-center gap-2">
-            <ShoppingCart className="size-4 text-[#315F91] dark:text-[#D9E8F7]" aria-hidden="true" />
+            <ShoppingCart className="size-4 text-[#315F91]" aria-hidden="true" />
             <h2 className="text-sm font-black uppercase tracking-wide text-foreground">{copy.timelineTitle}</h2>
           </div>
           <div className="flex gap-1.5">
@@ -356,7 +356,7 @@ export default async function MobileOrderRequestDetailPage({
               <p
                 className={cn(
                   "flex-1 text-center text-[10px] font-bold leading-tight",
-                  progressStatus !== null && s === progressStatus ? "text-[#1F3A5F] dark:text-[#D9E8F7]" : "text-muted-foreground/40",
+                  progressStatus !== null && s === progressStatus ? "text-[#1F3A5F]" : "text-muted-foreground/40",
                 )}
                 key={s}
               >

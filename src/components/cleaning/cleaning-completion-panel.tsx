@@ -120,7 +120,7 @@ export function CleaningCompletionPanel({
           <p className="mt-1 text-sm font-semibold text-muted-foreground">{elapsedLabel}</p>
         </div>
 
-        <div className="mt-4 space-y-3 rounded-2xl border border-white/65 bg-white/32 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl dark:border-white/10 dark:bg-white/6">
+        <div className="mt-4 space-y-3 rounded-2xl border border-white/65 bg-white/32 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur-xl">
           <Button
             className="h-12 w-full rounded-full border border-white/40 bg-cyan-600/90 font-black uppercase tracking-wide text-white shadow-[0_12px_30px_rgba(8,145,178,0.32)] hover:bg-cyan-600"
             onClick={() => setIsConfirming(true)}
@@ -158,12 +158,12 @@ export function CleaningCompletionPanel({
           <section
             aria-labelledby="modal-completion-title"
             aria-modal="true"
-            className="relative z-10 w-full max-w-sm rounded-[28px] border border-white/72 bg-white p-5 text-foreground shadow-[0_32px_80px_rgba(15,23,42,0.26),inset_0_1px_0_rgba(255,255,255,0.92)] dark:border-white/12 dark:bg-[#0f172a]"
+            className="relative z-10 w-full max-w-sm rounded-[28px] border border-white/72 bg-white p-5 text-foreground shadow-[0_32px_80px_rgba(15,23,42,0.26),inset_0_1px_0_rgba(255,255,255,0.92)]"
             role="dialog"
             style={{ animation: "modal-card-in 260ms cubic-bezier(0.34, 1.26, 0.64, 1) both" }}
           >
             <div className="flex justify-center">
-              <div className="flex size-12 items-center justify-center rounded-2xl border border-cyan-200/50 bg-cyan-100/55 text-cyan-700 dark:border-cyan-300/20 dark:bg-cyan-400/20 dark:text-cyan-200">
+              <div className="flex size-12 items-center justify-center rounded-2xl border border-cyan-200/50 bg-cyan-100/55 text-cyan-700">
                 <CheckCircle2 className="size-6" aria-hidden="true" />
               </div>
             </div>
@@ -175,7 +175,7 @@ export function CleaningCompletionPanel({
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{labels.reviewCompletion}</p>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-white/70 bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-white/10 dark:bg-[#111827]">
+            <div className="mt-4 rounded-2xl border border-white/70 bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <p className="text-lg font-black leading-tight">{labels.room} {roomLabel}</p>
@@ -183,7 +183,7 @@ export function CleaningCompletionPanel({
                 </div>
                 <button
                   aria-label={labels.cancelCompletion}
-                  className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/70 bg-white text-muted-foreground dark:border-white/10 dark:bg-[#1f2937]"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/70 bg-white text-muted-foreground"
                   onClick={() => setIsConfirming(false)}
                   type="button"
                 >
@@ -192,19 +192,19 @@ export function CleaningCompletionPanel({
               </div>
 
               <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-xl border border-white/60 bg-white p-3 dark:border-white/10 dark:bg-[#1f2937]">
+                <div className="rounded-xl border border-white/60 bg-white p-3">
                   <dt className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
                     <Clock3 className="size-3.5" aria-hidden="true" />
                     {labels.startedAt}
                   </dt>
                   <dd className="mt-1 font-black">{startedAtLabel}</dd>
                 </div>
-                <div className="rounded-xl border border-white/60 bg-white p-3 dark:border-white/10 dark:bg-[#1f2937]">
+                <div className="rounded-xl border border-white/60 bg-white p-3">
                   <dt className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
                     <Timer className="size-3.5" aria-hidden="true" />
                     {labels.elapsed}
                   </dt>
-                  <dd className="mt-1 font-mono font-black text-cyan-700 dark:text-cyan-200">{elapsedLabel}</dd>
+                  <dd className="mt-1 font-mono font-black text-cyan-700">{elapsedLabel}</dd>
                 </div>
               </dl>
             </div>
@@ -214,7 +214,7 @@ export function CleaningCompletionPanel({
               <div className="relative">
                 <Edit3 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                 <input
-                  className="h-11 w-full rounded-xl border border-white/70 bg-white pl-10 pr-3 text-sm font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 dark:border-white/12 dark:bg-[#111827]"
+                  className="h-11 w-full rounded-xl border border-white/70 bg-white pl-10 pr-3 text-sm font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   onChange={(event) => setNotes(event.target.value)}
                   placeholder={labels.notesPlaceholder}
                   type="text"
@@ -230,7 +230,7 @@ export function CleaningCompletionPanel({
                 {labels.confirmCompletion}
               </Button>
               <Button
-                className="h-12 w-full rounded-xl border border-white/70 bg-white font-bold dark:border-white/10 dark:bg-[#1f2937]"
+                className="h-12 w-full rounded-xl border border-white/70 bg-white font-bold"
                 onClick={() => setIsConfirming(false)}
                 type="button"
                 variant="secondary"
@@ -261,12 +261,12 @@ export function CleaningCompletionPanel({
           <section
             aria-labelledby="modal-cancel-title"
             aria-modal="true"
-            className="relative z-10 w-full max-w-sm rounded-[28px] border border-white/72 bg-white p-5 text-foreground shadow-[0_32px_80px_rgba(15,23,42,0.26),inset_0_1px_0_rgba(255,255,255,0.92)] dark:border-white/12 dark:bg-[#0f172a]"
+            className="relative z-10 w-full max-w-sm rounded-[28px] border border-white/72 bg-white p-5 text-foreground shadow-[0_32px_80px_rgba(15,23,42,0.26),inset_0_1px_0_rgba(255,255,255,0.92)]"
             role="dialog"
             style={{ animation: "modal-card-in 260ms cubic-bezier(0.34, 1.26, 0.64, 1) both" }}
           >
             <div className="flex justify-center">
-              <div className="flex size-12 items-center justify-center rounded-2xl border border-destructive/20 bg-destructive/10 text-destructive dark:border-destructive/30 dark:bg-destructive/15">
+              <div className="flex size-12 items-center justify-center rounded-2xl border border-destructive/20 bg-destructive/10 text-destructive">
                 <Ban className="size-6" aria-hidden="true" />
               </div>
             </div>
@@ -278,7 +278,7 @@ export function CleaningCompletionPanel({
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{labels.cancelCleaningMessage}</p>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-white/70 bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-white/10 dark:bg-[#111827]">
+            <div className="mt-4 rounded-2xl border border-white/70 bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <p className="text-lg font-black leading-tight">{labels.room} {roomLabel}</p>
@@ -286,14 +286,14 @@ export function CleaningCompletionPanel({
                 </div>
                 <button
                   aria-label={labels.cancelCompletion}
-                  className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/70 bg-white text-muted-foreground dark:border-white/10 dark:bg-[#1f2937]"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/70 bg-white text-muted-foreground"
                   onClick={() => setIsCancelConfirming(false)}
                   type="button"
                 >
                   <X className="size-4" aria-hidden="true" />
                 </button>
               </div>
-              <div className="mt-3 rounded-xl border border-white/60 bg-white p-3 dark:border-white/10 dark:bg-[#1f2937]">
+              <div className="mt-3 rounded-xl border border-white/60 bg-white p-3">
                 <dt className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
                   <Clock3 className="size-3.5" aria-hidden="true" />
                   {labels.startedAt}
@@ -312,7 +312,7 @@ export function CleaningCompletionPanel({
                 {labels.confirmCancelCleaning}
               </Button>
               <Button
-                className="h-12 w-full rounded-xl border border-white/70 bg-white font-bold dark:border-white/10 dark:bg-[#1f2937]"
+                className="h-12 w-full rounded-xl border border-white/70 bg-white font-bold"
                 onClick={() => setIsCancelConfirming(false)}
                 type="button"
                 variant="secondary"

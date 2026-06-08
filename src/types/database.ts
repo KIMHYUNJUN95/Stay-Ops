@@ -556,6 +556,7 @@ export type Database = {
       profiles: {
         Insert: {
           age?: number | null;
+          bottom_nav_tabs?: string[];
           created_at?: string;
           id: string;
           name: string;
@@ -567,6 +568,7 @@ export type Database = {
         };
         Row: {
           age: number | null;
+          bottom_nav_tabs: string[];
           created_at: string;
           id: string;
           name: string;
@@ -578,6 +580,7 @@ export type Database = {
         };
         Update: {
           age?: number | null;
+          bottom_nav_tabs?: string[];
           created_at?: string;
           id?: string;
           name?: string;

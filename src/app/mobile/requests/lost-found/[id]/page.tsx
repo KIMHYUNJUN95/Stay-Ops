@@ -15,11 +15,11 @@ import { cn } from "@/lib/utils";
 
 const statusBadgeClass: Record<LostItemStatus, string> = {
   registered:
-    "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300",
+    "border-blue-200 bg-blue-50 text-blue-700",
   stored:
-    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
+    "border-amber-200 bg-amber-50 text-amber-700",
   disposal_scheduled:
-    "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-300",
+    "border-orange-200 bg-orange-50 text-orange-700",
   disposed: "border-border bg-muted/50 text-muted-foreground",
 };
 const DETAIL_CARD =

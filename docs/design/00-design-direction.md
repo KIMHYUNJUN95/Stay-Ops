@@ -29,7 +29,9 @@ Current status:
 
 - Required for app polish.
 - Final logo is not designed yet.
-- Use a temporary StayOps wordmark or placeholder mark until the official logo is created.
+- Use a temporary `Stay Ops` wordmark or placeholder mark until the official logo is created.
+- The interim wordmark renders as `Stay Ops` (with a space) in a serif italic typeface (Noto Serif, weight 600). It is shared across all shells/entry screens via the `.wordmark` class in `src/app/globals.css` (font loaded in `src/app/layout.tsx` as `--font-wordmark`). Applied in the mobile shell header + side menu, admin shell, dev entry, and the login/onboarding headers (`dictionary.app.name`).
+- The mobile top chrome is flat and borderless: no capsule outline/ring/glass/shadow — just the centered wordmark (20px, `#1c2b2a`) between two 38px circular buttons (bg `#eef1f2`, icon `#3a4a49`) on a plain white background, laid out `justify-between`.
 
 ## Product Feeling
 
@@ -134,7 +136,7 @@ Possible design direction:
 Confirmed direction:
 
 - Pure-white operational base with selective Apple-inspired Liquid Glass surfaces
-- Light mode and dark mode support
+- Light mode only for the MVP/internal rollout (dark mode deferred until post-launch — see "Light and Dark Mode" below)
 
 Important interpretation for StayOps:
 
@@ -168,29 +170,16 @@ Required consistency checkpoints for every mobile page update:
 
 ## Light and Dark Mode
 
-StayOps must support:
+**Status (2026-06-08): Light mode only. Dark mode is deferred until after the official launch.**
 
-- Light mode
-- Dark mode
+For the MVP and internal rollout StayOps ships light-mode-only. All dark-mode code, styling, theme state, and the theme-toggle UI have been removed (see `docs/planning/06-current-status.md` → "Dark mode removed"). The previous System/Light/Dark theme preference no longer exists.
 
-Each user should be able to use the mode that fits their device/work environment.
+Implementation notes (current):
 
-Theme options:
+- Use design tokens for colors, glass surfaces, borders, shadows, and status colors. The light `:root` token set in `src/app/globals.css` is the single source of truth.
+- Important operational text must remain high contrast.
 
-- System
-- Light
-- Dark
-
-Default:
-
-- System
-
-Implementation notes:
-
-- Use design tokens for colors, glass surfaces, borders, shadows, and status colors.
-- Liquid Glass effects must be tuned separately for light and dark mode.
-- Important operational text must remain high contrast in both modes.
-- Mobile PWA screens and admin web screens must both support light/dark mode.
+Post-launch (deferred): dark mode may be reintroduced as a fresh slice. If it is, Liquid Glass effects must be tuned separately for dark mode and both mobile PWA and admin web must support it, with the decision log updated first.
 
 ## Design Source Workflow
 
@@ -209,5 +198,5 @@ Implementation should follow Stitch outputs, but the final product must still re
 - Should the app feel more like a mobile task manager or an operations control panel?
 - Should admins use a web dashboard later?
 - Which admin web features must be included in the first MVP?
-- Should the first MVP include dark mode?
+- ~~Should the first MVP include dark mode?~~ Resolved 2026-06-08: no — light mode only for MVP; dark mode deferred until post-launch.
 - Should each hotel be able to customize logo/color?

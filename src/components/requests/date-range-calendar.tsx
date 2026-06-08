@@ -181,7 +181,7 @@ function CalendarPanel({
         type="button"
       />
 
-      <div className="relative w-full max-w-sm overflow-hidden rounded-[28px] border border-white/50 border-b-border/40 border-r-border/40 bg-surface/85 shadow-[0_28px_90px_-34px_rgba(15,23,42,0.70),0_16px_42px_-28px_rgba(15,23,42,0.42),inset_0_1px_1px_rgba(255,255,255,0.78)] ring-1 ring-white/20 backdrop-blur-2xl dark:border-white/12 dark:bg-surface/80 dark:ring-white/8">
+      <div className="relative w-full max-w-sm overflow-hidden rounded-[28px] border border-white/50 border-b-border/40 border-r-border/40 bg-surface/85 shadow-[0_28px_90px_-34px_rgba(15,23,42,0.70),0_16px_42px_-28px_rgba(15,23,42,0.42),inset_0_1px_1px_rgba(255,255,255,0.78)] ring-1 ring-white/20 backdrop-blur-2xl">
         <div className="flex items-center justify-between gap-3 px-5 pt-5">
           <div className="min-w-0">
             <h3 className="text-base font-black tracking-tight text-foreground">
@@ -252,14 +252,14 @@ function CalendarPanel({
                 {inRange ? (
                   <span
                     aria-hidden="true"
-                    className="absolute inset-y-1 inset-x-0 bg-[#EAF1F8] dark:bg-[#315F91]/20"
+                    className="absolute inset-y-1 inset-x-0 bg-[#EAF1F8]"
                   />
                 ) : null}
                 {isEdge && rangeStart !== rangeEnd ? (
                   <span
                     aria-hidden="true"
                     className={cn(
-                      "absolute inset-y-1 w-1/2 bg-[#EAF1F8] dark:bg-[#315F91]/20",
+                      "absolute inset-y-1 w-1/2 bg-[#EAF1F8]",
                       isStart ? "right-0" : "left-0",
                     )}
                   />
@@ -272,7 +272,7 @@ function CalendarPanel({
                     isEdge
                       ? "bg-[#315F91] text-white shadow-sm"
                       : inRange
-                        ? "text-[#1F3A5F] dark:text-[#D9E8F7]"
+                        ? "text-[#1F3A5F]"
                         : "text-foreground hover:bg-muted/70",
                     !isEdge && iso === todayIso && "ring-1 ring-[#C9D8E8]",
                   )}

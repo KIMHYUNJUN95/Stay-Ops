@@ -211,7 +211,7 @@ function DeliveryCalendar({
               {inRange && (
                 <span
                   aria-hidden
-                  className="absolute inset-y-[3px] inset-x-0 bg-[#EAF1F8] dark:bg-[#315F91]/18"
+                  className="absolute inset-y-[3px] inset-x-0 bg-[#EAF1F8]"
                 />
               )}
               {/* Edge half-caps */}
@@ -219,7 +219,7 @@ function DeliveryCalendar({
                 <span
                   aria-hidden
                   className={cn(
-                    "absolute inset-y-[3px] w-[52%] bg-[#EAF1F8] dark:bg-[#315F91]/18",
+                    "absolute inset-y-[3px] w-[52%] bg-[#EAF1F8]",
                     isStart ? "right-0" : "left-0",
                   )}
                 />
@@ -232,7 +232,7 @@ function DeliveryCalendar({
                   isEdge
                     ? "bg-[#315F91] font-black text-white shadow-[0_4px_12px_-3px_rgba(49,95,145,0.55)]"
                     : inRange
-                      ? "font-semibold text-[#1F3A5F] dark:text-[#D9E8F7]"
+                      ? "font-semibold text-[#1F3A5F]"
                       : "text-foreground hover:bg-muted/60",
                   isToday && !isEdge
                     ? "ring-[1.5px] ring-[#315F91]/35 ring-offset-1 ring-offset-transparent"
@@ -387,7 +387,7 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
       <div className="space-y-1.5">
         <div className="flex items-center gap-2.5 rounded-2xl border border-border bg-surface/85 p-2.5 shadow-glass backdrop-blur-xl">
           <button
-            className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50/70 text-sm font-bold text-red-600 transition-colors hover:bg-red-100/80 active:scale-[0.98] dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
+            className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50/70 text-sm font-bold text-red-600 transition-colors hover:bg-red-100/80 active:scale-[0.98]"
             disabled={!canReject || isPending}
             onClick={() => { setErrorMessage(null); setActiveAction("reject"); }}
             type="button"
@@ -396,7 +396,7 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
             {labels.actionReject}
           </button>
           <button
-            className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#C9D8E8] bg-[#EAF1F8] text-sm font-bold text-[#1F3A5F] transition-colors hover:bg-[#DCE8F4] active:scale-[0.98] dark:border-[#315F91]/40 dark:bg-[#315F91]/20 dark:text-[#D9E8F7]"
+            className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#C9D8E8] bg-[#EAF1F8] text-sm font-bold text-[#1F3A5F] transition-colors hover:bg-[#DCE8F4] active:scale-[0.98]"
             disabled={!canOrdered || isPending}
             onClick={() => {
               setDeliveryMode("exact");
@@ -450,7 +450,7 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
 
               <div
                 className={cn(
-                  "relative flex w-full flex-col overflow-hidden border border-white/55 bg-surface shadow-[0_28px_90px_-34px_rgba(15,23,42,0.7)] dark:border-white/12 dark:bg-[#101828]",
+                  "relative flex w-full flex-col overflow-hidden border border-white/55 bg-surface shadow-[0_28px_90px_-34px_rgba(15,23,42,0.7)]",
                   isOrdered
                     ? "max-h-[92dvh] rounded-t-[28px] sm:max-h-none sm:max-w-[400px] sm:rounded-[28px]"
                     : "max-w-[360px] rounded-[28px] sm:mx-auto",
@@ -476,10 +476,10 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
                     className={cn(
                       "relative mb-4 flex size-16 items-center justify-center overflow-hidden rounded-full ring-1",
                       isOrdered
-                        ? "bg-[#EAF1F8] text-[#315F91] ring-[#C9D8E8] dark:bg-[#315F91]/20 dark:text-[#D9E8F7] dark:ring-[#315F91]/40"
+                        ? "bg-[#EAF1F8] text-[#315F91] ring-[#C9D8E8]"
                         : isReject
-                          ? "bg-red-50 text-red-500 ring-red-200/70 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50"
-                          : "bg-[#EAF1F8] text-[#315F91] ring-[#C9D8E8] dark:bg-[#315F91]/20 dark:text-[#D9E8F7] dark:ring-[#315F91]/40",
+                          ? "bg-red-50 text-red-500 ring-red-200/70"
+                          : "bg-[#EAF1F8] text-[#315F91] ring-[#C9D8E8]",
                     )}
                   >
                     <div
@@ -560,9 +560,9 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
 
                       {/* Selected date preview */}
                       {deliveryPreview ? (
-                        <div className="mt-2.5 flex items-center justify-center gap-2 rounded-xl border border-[#C9D8E8]/60 bg-[#EAF1F8] px-3 py-2.5 dark:border-[#315F91]/30 dark:bg-[#315F91]/15">
-                          <PackageCheck className="size-3.5 shrink-0 text-[#315F91] dark:text-[#D9E8F7]" aria-hidden="true" />
-                          <p className="text-[13px] font-black text-[#315F91] dark:text-[#D9E8F7]">
+                        <div className="mt-2.5 flex items-center justify-center gap-2 rounded-xl border border-[#C9D8E8]/60 bg-[#EAF1F8] px-3 py-2.5">
+                          <PackageCheck className="size-3.5 shrink-0 text-[#315F91]" aria-hidden="true" />
+                          <p className="text-[13px] font-black text-[#315F91]">
                             {deliveryPreview}
                           </p>
                         </div>

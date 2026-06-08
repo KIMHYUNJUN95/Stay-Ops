@@ -6,17 +6,16 @@ The mobile/PWA field interface should be optimized for fast daily work by on-sit
 
 ## Confirmed Bottom Tabs
 
-Use five bottom tabs:
+The bottom bar uses a **center-action ("추가") button** design: four tabs split 2 / 2 around a raised central FAB.
 
 ```txt
-Home
-Calendar
-Cleaning
-Requests
-Announcements
+Home   Calendar   [ ✎ 편집 (center FAB) ]   Requests   Announcements
 ```
 
-Profile and user directory should be accessible from Home or a top/right profile menu rather than as a main bottom tab.
+- **The four side tabs are per-user customizable.** Each user picks which features sit in their bottom bar (all four slots are free to change). The chosen ids are persisted per user in `profiles.bottom_nav_tabs` (Supabase) and synced across devices. Defaults: Home, Calendar, Requests, Announcements.
+- **The center FAB ("편집", pencil icon) opens the bottom-bar editor sheet**: a dark scrim + slide-up sheet with a 2-column colour-category tile grid listing every selectable feature (`customizableBottomNavItems` = the side-menu pool: Home, Calendar, Cleaning, Requests, Announcements, Notifications, Directory). Tapping a tile adds/removes it from the bottom bar (max 4; a counter `n/4` and a "full" hint are shown; at least one tab must remain). Each tile uses a unified palette (`oklch` with fixed lightness/chroma, hue-only variation per `LAUNCHER_META`) and shows a check when selected. The grid scrolls vertically when it overflows, with the scrollbar hidden (`.add-sheet__scroll`). Edits are saved (via the `updateBottomNavTabs` server action) when the sheet closes by any path (scrim tap / X / Escape).
+- **Cleaning** is not a default bottom tab but can be pinned via the editor; it is also always reachable from the side menu (`/mobile/cleaning`).
+- Profile and user directory remain accessible from the top-right profile button / side menu rather than the bottom bar (Directory may also be pinned).
 
 Implementation note:
 
@@ -25,35 +24,15 @@ Implementation note:
 - Any future mobile screen should reuse this navigation contract instead of redefining tabs locally.
 - Navigation labels are localized through `src/lib/i18n.ts` and `src/config/navigation.ts`.
 
-Korean labels:
+Bottom-bar labels (left 2 / center FAB / right 2):
 
 ```txt
-Home
-Calendar
-Cleaning
-Requests
-Announcements
+ko:  홈    캘린더    [ ✎ 편집 ]    요청    공지
+ja:  ホーム カレンダー [ ✎ 編集 ]   リクエスト お知らせ
+en:  Home  Calendar  [ ✎ Edit ]    Requests  Announcements
 ```
 
-Japanese labels:
-
-```txt
-Home
-Calendar
-Cleaning
-Requests
-Announcements
-```
-
-English labels:
-
-```txt
-Home
-Calendar
-Cleaning
-Requests
-Announcements
-```
+Cleaning (청소 / 清掃 / Cleaning) is reached from the side menu, not the bottom bar.
 ## Tab Responsibilities
 
 ## Home
@@ -200,7 +179,7 @@ Includes:
 All mobile screens share one shell rendered by `MobileShell`:
 
 ```txt
-[two-line hamburger]  StayOps wordmark  [Profile]
+[two-line hamburger]  Stay Ops wordmark  [Profile]
 ```
 
 Implementation: `src/components/shell/mobile-shell.tsx`.
@@ -208,15 +187,18 @@ Implementation: `src/components/shell/mobile-shell.tsx`.
 Current rules:
 
 - **Base surface**: the mobile shell and page background use a pure-white `bg-background` base. The shell itself is not a full-screen glass surface.
-- **Left**: a custom two-line hamburger menu button opens the mobile side menu. The bottom line is intentionally shorter than the top line. `aria-label` uses `dictionary.common.menu`.
-- **Center**: the `StayOps` script wordmark is visually centered in the top chrome.
-- **Right**: circular profile avatar (`UserCircle`) links to `/account?mode=mobile`. `aria-label` uses `dictionary.onboarding.profileTitle`.
+- **Left**: a hamburger menu button (3-line SVG with a shorter middle line) opens the mobile side menu. `aria-label` uses `dictionary.common.menu`.
+- **Layout**: the header is a 3-part `justify-between` row — left menu button / centered wordmark / right profile button.
+- **Center**: the `Stay Ops` wordmark (20px, color `#1c2b2a`, `white-space: nowrap`) uses the shared `.wordmark` class (serif italic — Noto Serif, defined in `src/app/globals.css` and loaded in `src/app/layout.tsx`).
+- **Top chrome surface**: the header bar is flat/borderless — no capsule outline, ring, glass blur, or shadow. Only the two circular buttons (menu / profile) and the centered wordmark sit on the plain white background.
+- **Buttons**: both the left menu and right profile buttons are 38px circles with background `#eef1f2` and icon color `#3a4a49` (hover `#e3e8e9`). The menu icon is a 3-line SVG with a shorter middle line; the profile icon is a person SVG.
+- **Right**: the profile button links to `/account?mode=mobile`. `aria-label` uses `dictionary.onboarding.profileTitle`.
 - **Scroll behavior**: the top chrome hides when users scroll down and returns when users scroll up. The content area fills the freed space so no blank header gap remains.
-- **Side menu**: tapping the menu button opens a left slide-out menu at roughly 78% of the mobile viewport width. The main screen moves right with a dark overlay on the remaining visible area. Closing reverses the slide.
-- **Bottom navigation**: the five bottom tabs render as a floating rounded capsule overlay with selective Liquid Glass treatment. It is intentionally partial glass; the surrounding page remains the normal white background.
+- **Side menu**: tapping the menu button opens a left slide-out menu at roughly 78% of the mobile viewport width. The main screen moves right with a dark overlay on the remaining visible area. Closing reverses the slide. The side menu lists Cleaning (in addition to the bottom-bar tabs) since Cleaning is not a bottom tab.
+- **Bottom navigation**: a bottom-attached white bar (`.tabbar` in `src/app/globals.css`) with rounded top corners and a soft top shadow. Layout is four tabs (Home, Calendar / Requests, Announcements) split 2 / 2 around a raised central FAB. Active color teal `#0e7c72`, inactive grey `#aab2b6`. The bottom bar renders the user's customized tabs via `resolveBottomNavItems(session.user.bottomNavTabs)`, split left/right around the center FAB. The center FAB is a 50px teal circle raised above the bar (`margin-top: -34px`, 4px white border + shadow) labelled "편집" (pencil icon); tapping it opens the bottom-bar editor sheet (`createOpen` state) where the user toggles which features (max 4) appear. Edits persist to `profiles.bottom_nav_tabs` on close. `env(safe-area-inset-bottom)` padding handles the iOS home indicator.
 - **Accessibility**: the `title` prop on `MobileShell` is used as `aria-label` on `<main>`. It is not rendered visually in the header. Page content provides its own visual hierarchy.
 - **Appearance prop**: `appearance` remains accepted for compatibility but currently does not change shell visuals. Do not rely on it for page tinting.
-- `ModeSwitcher` and `Bell` icon are not part of the shell header. Theme switching is accessible via the account page.
+- `ModeSwitcher` and `Bell` icon are not part of the shell header. (There is no theme switcher: the app is light-mode-only; dark mode is deferred until post-launch.)
 
 ## Design Notes
 

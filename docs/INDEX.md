@@ -92,7 +92,7 @@ Before coding begins:
 - [ ] Vercel account/deployment owner confirmed
 - [ ] Environment variable names drafted
 - [x] i18n key strategy confirmed
-- [ ] Theme token strategy confirmed
+- [x] Theme token strategy confirmed (light-mode-only; dark mode deferred until post-launch)
 
 ## Open Decisions To Resolve Soon
 

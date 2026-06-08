@@ -169,6 +169,7 @@ type MobileCalendarPageProps = {
   }>;
 };
 
+// i18n-ignore-start: canonical building-name domain keys (room-label normalization), not UI copy.
 const BUILDING_DISPLAY_ORDER = [
   "아라키초A",
   "아라키초B",
@@ -178,6 +179,7 @@ const BUILDING_DISPLAY_ORDER = [
   "오쿠보B",
   "오쿠보C",
 ];
+// i18n-ignore-end
 
 function normalizePropertyParam(value: string | undefined): string | null {
   if (!value) return null;

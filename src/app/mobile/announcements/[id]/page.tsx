@@ -16,7 +16,7 @@ import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 
 const ANNOUNCEMENT_CARD =
-  "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none dark:border-white/12 dark:bg-white/8";
+  "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none";
 
 type PageProps = {
   params: Promise<{
@@ -96,14 +96,14 @@ export default async function MobileAnnouncementDetailPage({
     >
       <div className="space-y-3">
         <Link
-          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/82 px-3 py-1.5 text-xs font-black text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors hover:text-slate-900 dark:bg-white/5 dark:text-slate-400 dark:hover:text-slate-50"
+          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/82 px-3 py-1.5 text-xs font-black text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors hover:text-slate-900"
           href="/mobile/announcements"
         >
           <ArrowLeft className="size-3.5" aria-hidden="true" />
           {copy.backToAnnouncements}
         </Link>
 
-        <Card className={`${ANNOUNCEMENT_CARD} relative overflow-hidden p-5 text-slate-950 dark:text-slate-50`}>
+        <Card className={`${ANNOUNCEMENT_CARD} relative overflow-hidden p-5 text-slate-950`}>
           <div
             aria-hidden="true"
             className="pointer-events-none absolute -right-12 -top-10 size-32 rounded-full bg-sky-100/55 blur-2xl"
@@ -111,30 +111,30 @@ export default async function MobileAnnouncementDetailPage({
           <div className="relative">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             {announcement.is_important && (
-              <Badge className="rounded-full border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-black text-red-600 dark:border-red-200 dark:bg-red-50 dark:text-red-600">
+              <Badge className="rounded-full border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-black text-red-600">
                 {copy.important}
               </Badge>
             )}
-            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+            <p className="text-xs font-bold text-slate-500">
               {copy.target}
             </p>
           </div>
           <h2 className="break-words text-[24px] font-black leading-tight tracking-normal">
             {announcement.title}
           </h2>
-          <div className="mt-4 flex items-center gap-3 border-t border-slate-200/80 pt-3 dark:border-white/10">
+          <div className="mt-4 flex items-center gap-3 border-t border-slate-200/80 pt-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-200/80">
               <Megaphone className="size-4" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">
+              <p className="truncate text-sm font-semibold text-slate-950">
                 {announcement.author_name}
               </p>
-              <p className="line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+              <p className="line-clamp-2 text-xs leading-5 text-slate-500">
                 {announcement.organization_name}{" "}
                 <span
                   aria-hidden="true"
-                  className="px-1 text-slate-300 dark:text-slate-600"
+                  className="px-1 text-slate-300"
                 >
                   ·
                 </span>
@@ -145,15 +145,15 @@ export default async function MobileAnnouncementDetailPage({
           </div>
         </Card>
 
-        <Card className={`${ANNOUNCEMENT_CARD} p-5 text-slate-950 dark:text-slate-50`}>
-          <p className="whitespace-pre-line break-words text-[15px] font-semibold leading-7 text-slate-700 dark:text-slate-300">
+        <Card className={`${ANNOUNCEMENT_CARD} p-5 text-slate-950`}>
+          <p className="whitespace-pre-line break-words text-[15px] font-semibold leading-7 text-slate-700">
             {announcement.content}
           </p>
         </Card>
 
         {announcement.image_urls.length > 0 ? (
-          <Card className={`${ANNOUNCEMENT_CARD} p-4 text-slate-950 dark:text-slate-50`}>
-            <p className="text-xs font-black uppercase tracking-[0.1em] text-slate-400 dark:text-slate-400">
+          <Card className={`${ANNOUNCEMENT_CARD} p-4 text-slate-950`}>
+            <p className="text-xs font-black uppercase tracking-[0.1em] text-slate-400">
               {copy.imageAttachments} ({announcement.image_urls.length})
             </p>
             <AnnouncementImageGrid
@@ -163,21 +163,21 @@ export default async function MobileAnnouncementDetailPage({
           </Card>
         ) : null}
 
-        <Card className={`${ANNOUNCEMENT_CARD} p-4 text-slate-950 dark:text-slate-50`}>
-          <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3 dark:border-[#1f5f59] dark:bg-[#0d3834]">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-[#123f3b] dark:text-[#6ee7df]">
+        <Card className={`${ANNOUNCEMENT_CARD} p-4 text-slate-950`}>
+          <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 ring-1 ring-emerald-200/80">
               <CircleCheck className="size-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-950 dark:text-slate-50">
+              <p className="text-sm font-semibold text-slate-950">
                 {copy.markAsRead}
               </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-slate-500">
                 {copy.markedAsRead}
               </p>
             </div>
           </div>
-          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-white/82 px-3 py-2 text-xs font-bold text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-white/82 px-3 py-2 text-xs font-bold text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)]">
             {copy.readAt}:{" "}
             {readAt
               ? formatDate(readAt, session.user.preferredLanguage)

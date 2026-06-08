@@ -140,7 +140,7 @@ Reservation bar source color rule:
 - Booking.com / Booking channel: blue or blue-teal family.
 - Airbnb channel: soft light pink family.
 - Direct/other channels: neutral gray family.
-- Color should support quick scanning while staying readable in light and dark mode.
+- Color should support quick scanning while staying readable in light mode (the app is light-mode-only; dark mode deferred post-launch).
 
 Reservation bar display priority:
 
@@ -679,9 +679,9 @@ On first entry into the overview panel for a given month/property:
 
 - Source of truth: `today` prop passed from server (computed `Asia/Tokyo` — never recomputed on client)
 - Header today cell: amber/orange background + bold orange text
-  - `bg-orange-200/50 font-bold text-orange-600` / dark: `bg-orange-500/25 text-orange-400`
+  - `bg-orange-200/50 font-bold text-orange-600` (light-mode-only; dark variants removed 2026-06-08)
 - Body today column: per-row `pointer-events-none` absolute stripe at `left: todayIndex * DAY_WIDTH`
-  - `bg-orange-200/30` / dark: `bg-orange-500/15`
+  - `bg-orange-200/30` (light-mode-only; dark variants removed 2026-06-08)
   - Inserted as first child of each room row so reservation bars (DOM order: later) render on top
 - When `today` is outside the selected month (`todayIndex === -1`), no highlight is rendered
 

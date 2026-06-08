@@ -782,15 +782,15 @@ Status: Confirmed
 
 ### Theme Modes
 
-Decision: StayOps must support both light mode and dark mode for mobile PWA and admin web screens.
+Original decision: StayOps must support both light mode and dark mode for mobile PWA and admin web screens.
 
-Status: Confirmed
+Status: **Superseded (2026-06-08)** — Dark mode is deferred until after the official launch. For the MVP and internal rollout, StayOps is **light-mode-only**. All dark-mode code, styling (`dark:` utilities, dark CSS variable blocks), theme state/persistence, and theme-toggle UI have been removed. The `profiles.theme_preference` column/enum remains in the database (already-applied migration, `not null default 'system'`) but is no longer read or written by the app; its removal is out of scope for now (see Current Status). Dark mode may be revisited post-launch as a fresh slice.
 
 ### Theme Preference
 
-Decision: Users can choose System, Light, or Dark theme. Default is System.
+Original decision: Users can choose System, Light, or Dark theme. Default is System.
 
-Status: Confirmed
+Status: **Superseded (2026-06-08)** — The theme preference control has been removed from account/profile flows along with the rest of dark mode. Deferred until post-launch.
 
 ### Project Workflow
 
@@ -1006,3 +1006,24 @@ Status: Confirmed
 Decision: Create an environment setup document that lists required environment variable names and service setup without storing real secret values.
 
 Status: Drafted
+
+## 2026-06-08
+
+### Mobile Bottom Navigation — Center Action Button
+
+Decision: Replace the five-tab floating capsule bottom bar with a center-action ("추가") FAB design — four tabs (Home, Calendar / Requests, Announcements) split 2 / 2 around a raised central teal `#0e7c72` button.
+
+Consequence:
+
+- "Cleaning" can no longer occupy a bottom tab. It moved to the side menu (hamburger) and remains reachable at `/mobile/cleaning`.
+- The four side tabs are **per-user customizable** (all four slots). The center FAB ("편집", pencil icon) opens a bottom-bar editor sheet: a 2-column colour-category tile grid of the selectable feature pool where the user toggles up to 4 tabs (≥1 required). Selection is persisted **per user in Supabase** (`profiles.bottom_nav_tabs`) and synced across devices.
+
+Implementation:
+
+- DB: migration `supabase/migrations/202606080001_profile_bottom_nav.sql` adds `profiles.bottom_nav_tabs text[]` (default `{home,calendar,requests,announcements}`). The existing "users can update own profile" RLS policy already covers it. `src/types/database.ts` updated.
+- `src/config/navigation.ts`: `mobileBottomNavigation` (defaults) plus `MAX_BOTTOM_NAV_TABS`, `defaultBottomNavTabIds`, `customizableBottomNavItems`, `resolveBottomNavItems`, `sanitizeBottomNavTabIds`.
+- `src/lib/session.ts` reads `bottom_nav_tabs` defensively (falls back to defaults if the column is absent) and exposes `session.user.bottomNavTabs`.
+- `src/app/account/actions.ts` `updateBottomNavTabs` server action persists the sanitized list.
+- `.tabbar` + `.add-sheet*` / `.add-grid` / `.add-tile*` styles in `src/app/globals.css`; bar + editor `createOpen` sheet in `src/components/shell/mobile-shell.tsx`. Tile colours use `oklch` with fixed lightness/chroma and hue-only variation (`LAUNCHER_META`).
+
+Status: Working decision (requires the migration to be applied on the linked Supabase project)

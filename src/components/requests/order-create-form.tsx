@@ -262,8 +262,8 @@ export function OrderCreateForm({
             className={cn(
               "flex items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-sm font-semibold",
               sharedBannerKind === "error"
-                ? "border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-800/60 dark:bg-orange-950/40 dark:text-orange-300"
-                : "border-[#C9D8E8] bg-[#EAF1F8] text-[#1F3A5F] dark:border-[#315F91]/40 dark:bg-[#315F91]/20 dark:text-[#D9E8F7]",
+                ? "border-orange-200 bg-orange-50 text-orange-800"
+                : "border-[#C9D8E8] bg-[#EAF1F8] text-[#1F3A5F]",
             )}
           >
             <span>{sharedBannerKind === "error" ? copy.shareInvalidUrl : copy.shareInjected}</span>
@@ -290,7 +290,7 @@ export function OrderCreateForm({
                   className={cn(
                     "min-h-9 rounded-full px-3 text-xs font-black transition-colors",
                     urgency === tone
-                      ? "bg-rose-50 text-rose-700 ring-1 ring-rose-200/80 dark:bg-[#315F91]/25 dark:text-[#D9E8F7]"
+                      ? "bg-rose-50 text-rose-700 ring-1 ring-rose-200/80"
                       : "text-slate-500",
                   )}
                   key={tone}
@@ -328,7 +328,7 @@ export function OrderCreateForm({
                         className={cn(
                           "flex h-10 w-full cursor-pointer items-center rounded-lg px-3 text-sm font-semibold transition-colors",
                           building === b
-                            ? "bg-rose-50 text-rose-700 dark:bg-[#315F91]/25 dark:text-[#D9E8F7]"
+                            ? "bg-rose-50 text-rose-700"
                             : "text-slate-700 hover:bg-slate-50",
                         )}
                         key={b}
@@ -348,7 +348,7 @@ export function OrderCreateForm({
             <div className="flex flex-col gap-2">
               <span className="text-xs font-semibold text-muted-foreground">{copy.reporter}</span>
               <div className="flex h-12 items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/82 px-3.5 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)]">
-                <User className="size-4 text-[#315F91] dark:text-[#D9E8F7]" aria-hidden="true" />
+                <User className="size-4 text-[#315F91]" aria-hidden="true" />
                 <span className="truncate text-sm font-semibold text-foreground">{reporterName}</span>
               </div>
             </div>
@@ -386,7 +386,7 @@ export function OrderCreateForm({
           </div>
 
           <button
-            className="inline-flex min-h-12 w-full items-center justify-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50 px-3 text-sm font-black text-rose-700 shadow-[0_12px_24px_-22px_rgba(31,58,95,0.45)] transition-colors hover:bg-rose-100/70 active:scale-[0.99] dark:border-[#315F91]/40 dark:bg-[#315F91]/20 dark:text-[#D9E8F7]"
+            className="inline-flex min-h-12 w-full items-center justify-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50 px-3 text-sm font-black text-rose-700 shadow-[0_12px_24px_-22px_rgba(31,58,95,0.45)] transition-colors hover:bg-rose-100/70 active:scale-[0.99]"
             onClick={addItem}
             type="button"
           >
@@ -450,13 +450,13 @@ export function OrderCreateForm({
                 type="button"
               />
               <div
-                className="relative w-full max-w-[380px] overflow-hidden rounded-[28px] border border-white/55 bg-surface shadow-[0_28px_90px_-34px_rgba(15,23,42,0.7)] dark:border-white/12 dark:bg-[#101828]"
+                className="relative w-full max-w-[380px] overflow-hidden rounded-[28px] border border-white/55 bg-surface shadow-[0_28px_90px_-34px_rgba(15,23,42,0.7)]"
                 style={{ animation: "modal-card-in 280ms cubic-bezier(0.34, 1.26, 0.64, 1) both" }}
               >
                 <div className="px-6 pb-6 pt-5">
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-black uppercase tracking-[0.12em] text-[#315F91] dark:text-[#D9E8F7]">
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-[#315F91]">
                         {copy.confirmReady}
                       </p>
                       <h3 className="mt-1 text-xl font-black tracking-tight text-foreground" id="order-confirm-title">
@@ -475,7 +475,7 @@ export function OrderCreateForm({
 
                   <div className="rounded-2xl border border-border bg-background/55 p-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#EAF1F8] text-[#315F91] dark:bg-[#315F91]/20 dark:text-[#D9E8F7]">
+                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#EAF1F8] text-[#315F91]">
                         <ClipboardList className="size-5" aria-hidden="true" />
                       </div>
                       <div>

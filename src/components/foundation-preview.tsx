@@ -14,22 +14,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { dictionaries, isLocale, locales, type Locale } from "@/lib/i18n";
-import { isTheme, themes, type Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 const languageStorageKey = "stayops.locale";
-const themeStorageKey = "stayops.theme";
 
 const navIcons = [Home, CalendarDays, SprayCan, ClipboardList, Megaphone];
-
-function applyTheme(theme: Theme) {
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  document.documentElement.dataset.theme = theme;
-  document.documentElement.classList.toggle(
-    "dark",
-    theme === "dark" || (theme === "system" && prefersDark),
-  );
-}
 
 export function FoundationPreview() {
   const [locale, setLocale] = useState<Locale>(() => {
@@ -40,24 +29,11 @@ export function FoundationPreview() {
     const storedLocale = window.localStorage.getItem(languageStorageKey);
     return storedLocale && isLocale(storedLocale) ? storedLocale : "ko";
   });
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === "undefined") {
-      return "system";
-    }
-
-    const storedTheme = window.localStorage.getItem(themeStorageKey);
-    return storedTheme && isTheme(storedTheme) ? storedTheme : "system";
-  });
 
   useEffect(() => {
     window.localStorage.setItem(languageStorageKey, locale);
     document.documentElement.lang = locale;
   }, [locale]);
-
-  useEffect(() => {
-    window.localStorage.setItem(themeStorageKey, theme);
-    applyTheme(theme);
-  }, [theme]);
 
   const dictionary = dictionaries[locale];
   const navigationItems = useMemo(
@@ -123,19 +99,6 @@ export function FoundationPreview() {
                   variant={locale === option ? "primary" : "secondary"}
                 >
                   {dictionary.languages[option]}
-                </Button>
-              ))}
-            </ControlGroup>
-
-            <ControlGroup label={dictionary.common.theme}>
-              {themes.map((option) => (
-                <Button
-                  className="flex-1"
-                  key={option}
-                  onClick={() => setTheme(option)}
-                  variant={theme === option ? "primary" : "secondary"}
-                >
-                  {dictionary.themes[option]}
                 </Button>
               ))}
             </ControlGroup>

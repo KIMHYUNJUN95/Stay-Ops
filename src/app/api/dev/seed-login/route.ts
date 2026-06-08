@@ -167,7 +167,6 @@ async function ensureProfile(userId: string, name: string) {
     name,
     phone_number: "000-0000-0000",
     preferred_language: "ko",
-    theme_preference: "system",
   } as never);
   if (error) {
     throw new Error(`upsert profile failed: ${error.message}`);

@@ -101,10 +101,12 @@ type DayCell = { guestName: string; status: ReservationStatus; id: string } | nu
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
+// i18n-ignore-start: canonical building-name domain keys (room-label normalization), not UI copy.
 const BUILDING_ORDER = [
   "아라키초A", "아라키초B", "가부키초", "다카다노바바",
   "오쿠보A", "오쿠보B", "오쿠보C",
 ] as const;
+// i18n-ignore-end
 
 const PROPERTY_LABELS: Record<string, { en: string; ja: string; ko: string }> = {
   "아라키초A": { en: "ArakichoA", ja: "荒木町A", ko: "아라키초A" },
@@ -496,7 +498,7 @@ export default async function AdminCalendarPage({ searchParams }: PageProps) {
                     <tbody>
                       {roomAxisRows.map((roomRow) => (
                         <tr className="border-b border-border last:border-0" key={roomRow.key}>
-                          <td className="sticky left-0 z-10 border-r border-border bg-white px-3 py-1.5 font-black dark:bg-background">
+                          <td className="sticky left-0 z-10 border-r border-border bg-white px-3 py-1.5 font-black">
                             {roomRow.label}
                           </td>
                           {dates.map((d) => {

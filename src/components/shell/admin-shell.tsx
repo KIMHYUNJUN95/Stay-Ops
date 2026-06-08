@@ -38,8 +38,8 @@ export function AdminShell({
               <span className="text-lg font-black">S</span>
             </div>
             <div>
-              <p className="text-2xl font-black tracking-normal text-primary">
-                StayOps
+              <p className="wordmark text-2xl text-primary">
+                Stay Ops
               </p>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 {session.organization.name}

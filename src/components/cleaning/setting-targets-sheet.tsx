@@ -97,14 +97,14 @@ export function SettingTargetsSheet({
               <section
                 aria-labelledby={titleId}
                 aria-modal="true"
-                className="relative w-full max-w-[28rem] max-h-[84dvh] overflow-hidden rounded-[30px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_32px_84px_-34px_rgba(15,23,42,0.46)] backdrop-blur-2xl dark:border-white/12 dark:bg-[linear-gradient(180deg,rgba(11,22,33,0.9),rgba(11,22,33,0.74))]"
+                className="relative w-full max-w-[28rem] max-h-[84dvh] overflow-hidden rounded-[30px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_32px_84px_-34px_rgba(15,23,42,0.46)] backdrop-blur-2xl"
                 id={dialogId}
                 role="dialog"
               >
                 <div className="flex items-center justify-center px-4 pt-3">
                   <div className="h-1.5 w-12 rounded-full bg-slate-200" />
                 </div>
-                <div className="flex items-center justify-between gap-3 border-b border-slate-200/70 px-5 pb-4 pt-4 dark:border-white/10">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-200/70 px-5 pb-4 pt-4">
                   <div className="min-w-0">
                     <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
                       {title}
@@ -114,7 +114,7 @@ export function SettingTargetsSheet({
                     </p>
                   </div>
                   <Button
-                    className="size-9 rounded-full border border-slate-200/80 bg-white p-0 shadow-[0_12px_24px_-20px_rgba(31,58,95,0.45)] hover:bg-slate-50 dark:border-white/12 dark:bg-white/10"
+                    className="size-9 rounded-full border border-slate-200/80 bg-white p-0 shadow-[0_12px_24px_-20px_rgba(31,58,95,0.45)] hover:bg-slate-50"
                     onClick={() => setOpen(false)}
                     type="button"
                     variant="ghost"
@@ -128,7 +128,7 @@ export function SettingTargetsSheet({
                     <div className="space-y-3">
                       {items.map((item) => (
                         <Card
-                          className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)] dark:border-white/10 dark:bg-white/8"
+                          className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)]"
                           key={item.roomLabel}
                         >
                           <div className="flex items-start justify-between gap-3 p-4">
@@ -156,7 +156,7 @@ export function SettingTargetsSheet({
                       ))}
                     </div>
                   ) : (
-                    <Card className="rounded-2xl border-dashed border-white/60 bg-white/40 p-4 text-sm font-semibold text-muted-foreground shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/8">
+                    <Card className="rounded-2xl border-dashed border-white/60 bg-white/40 p-4 text-sm font-semibold text-muted-foreground shadow-sm backdrop-blur-xl">
                       {emptyMessage}
                     </Card>
                   )}

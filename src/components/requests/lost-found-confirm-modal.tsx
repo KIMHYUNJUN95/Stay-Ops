@@ -72,10 +72,10 @@ export function LostFoundConfirmModal({
         type="button"
       />
 
-      <div className="relative w-full max-w-sm overflow-hidden rounded-[28px] border border-white/50 border-b-border/40 border-r-border/40 bg-surface/80 shadow-[0_28px_90px_-34px_rgba(15,23,42,0.70),0_16px_42px_-28px_rgba(15,23,42,0.42),inset_0_1px_1px_rgba(255,255,255,0.78),inset_0_-1px_1px_rgba(255,255,255,0.18)] ring-1 ring-white/20 backdrop-blur-2xl backdrop-saturate-150 dark:border-white/12 dark:bg-surface/75 dark:shadow-[0_30px_92px_-32px_rgba(0,0,0,0.82),inset_0_1px_1px_rgba(255,255,255,0.16)] dark:ring-white/8">
+      <div className="relative w-full max-w-sm overflow-hidden rounded-[28px] border border-white/50 border-b-border/40 border-r-border/40 bg-surface/80 shadow-[0_28px_90px_-34px_rgba(15,23,42,0.70),0_16px_42px_-28px_rgba(15,23,42,0.42),inset_0_1px_1px_rgba(255,255,255,0.78),inset_0_-1px_1px_rgba(255,255,255,0.18)] ring-1 ring-white/20 backdrop-blur-2xl backdrop-saturate-150">
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-[1px] rounded-[27px] bg-[radial-gradient(120%_85%_at_50%_-20%,rgba(255,255,255,0.72),rgba(255,255,255,0.14)_45%,transparent_72%),linear-gradient(135deg,rgba(255,255,255,0.32),transparent_42%,rgba(255,255,255,0.16))] opacity-70 mix-blend-screen dark:opacity-30"
+          className="pointer-events-none absolute inset-[1px] rounded-[27px] bg-[radial-gradient(120%_85%_at_50%_-20%,rgba(255,255,255,0.72),rgba(255,255,255,0.14)_45%,transparent_72%),linear-gradient(135deg,rgba(255,255,255,0.32),transparent_42%,rgba(255,255,255,0.16))] opacity-70 mix-blend-screen"
         />
         <div className="relative">
         <div className="flex flex-col items-center px-6 pb-2 pt-6 text-center">
@@ -94,7 +94,7 @@ export function LostFoundConfirmModal({
         </div>
 
         <div className="px-6 py-3">
-          <div className="divide-y divide-border/70 rounded-2xl border border-white/45 bg-background/55 shadow-[inset_0_1px_1px_rgba(255,255,255,0.62)] backdrop-blur-sm dark:border-white/10 dark:bg-background/30">
+          <div className="divide-y divide-border/70 rounded-2xl border border-white/45 bg-background/55 shadow-[inset_0_1px_1px_rgba(255,255,255,0.62)] backdrop-blur-sm">
             {rows.map((row) => (
               <div
                 className="flex items-center justify-between gap-3 px-3.5 py-2.5"

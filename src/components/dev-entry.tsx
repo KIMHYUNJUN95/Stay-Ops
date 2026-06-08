@@ -43,8 +43,8 @@ export function DevEntry() {
       <section className="mx-auto flex min-h-dvh w-full max-w-4xl flex-col justify-center px-6 py-10">
         <div className="mb-8">
           <Badge>{dictionary.devEntry.eyebrow}</Badge>
-          <h1 className="mt-4 text-5xl font-black tracking-normal text-primary">
-            StayOps
+          <h1 className="wordmark mt-4 text-5xl text-primary">
+            Stay Ops
           </h1>
           <p className="mt-4 max-w-2xl text-lg leading-8 text-muted-foreground">
             {dictionary.devEntry.subtitle}

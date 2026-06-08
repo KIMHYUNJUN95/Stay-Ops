@@ -85,14 +85,14 @@ Goals:
 
 - Add Korean/Japanese/English i18n structure
 - No hardcoded visible UI strings
-- Add theme preference: System/Light/Dark
+- ~~Add theme preference: System/Light/Dark~~ (Removed 2026-06-08: light mode only; dark mode deferred post-launch)
 - Add Liquid Glass readable design tokens
 - Add base layout components
 
 Deliverables:
 
 - Language switch/test
-- Light/dark mode working
+- Light mode working (dark mode removed 2026-06-08; deferred post-launch)
 - Base button/input/dialog/card patterns
 
 Current implementation notes:
@@ -102,12 +102,23 @@ Current implementation notes:
 - Korean is the default fallback locale.
 - Authenticated app screens use `profiles.preferred_language` from the Supabase profile when selecting copy.
 - Language selection is stored in local storage for the foundation preview.
-- System/Light/Dark theme selection is implemented with document-level theme state.
+- ~~System/Light/Dark theme selection is implemented with document-level theme state.~~ Removed 2026-06-08: the app is light-mode-only; theme state, toggle UI, and `dark:` styling were deleted. Dark mode deferred until post-launch.
 - Initial Liquid Glass design tokens are defined in global CSS.
 - Base `Button`, `Card`, `Badge`, `Input`, and `Separator` components are present.
 - Role, navigation, and route access configuration has started in `src/config`.
 - Input, dialog/sheet, form, and feature-specific layout components still need to be expanded.
-- A stricter no-hardcoded-visible-text check should be added later as tooling or review checklist because feature screens will add many labels.
+- A stricter no-hardcoded-visible-text check was added on 2026-06-08 (see "i18n Hardcoded-String Guard" below).
+
+### i18n Hardcoded-String Guard (2026-06-08)
+
+- Enforcement is a Vitest test: `src/lib/__tests__/no-hardcoded-i18n.test.ts`. It runs as part of `npm test` and can be run alone via `npm run check:i18n`.
+- It scans `src/app` and `src/components` (`.ts` / `.tsx`) for hardcoded Korean / Japanese / Kanji (CJK) literals. A raw CJK literal in JSX/TSX is almost always UI copy that bypassed `src/lib/i18n.ts`, so this gives a high-signal, near-zero-false-positive check.
+- English is intentionally not scanned: hardcoded English is indistinguishable from class names, `aria-*` values, route segments, DB field names, and technical defaults, so a CJK-only scan avoids the noise the Phase 2 note warned about. English copy continues to rely on code review plus the dictionary-first convention.
+- Ignored automatically: comments (line / block / JSX) and complete `LocalizedText` literals (a line carrying `ko:`, `ja:`, and `en:` together), which are fully localized data rather than single-language hardcoded copy.
+- Escape hatches (use with a justifying comment): `i18n-ignore` (single line), `i18n-ignore-start` / `i18n-ignore-end` (block), `i18n-ignore-file` (whole file). Each directive is recognized **only when written inside a comment** — line (`//`), block (`/* */`), or JSX (`{/* */}`). The same text in a string literal or ordinary code does not suppress scanning. Canonical building-name domain constants in the calendar/cleaning pages are wrapped with block directives because they are normalization keys, not translatable copy.
+- The directive parser is covered by its own unit tests in the same file (`scanSource`): line/block/JSX directive recognition, non-comment contexts not suppressing scanning, the `i18n-ignore` family, `LocalizedText` exemption, and accurate line-number reporting are all asserted, so the guard's own reliability is regression-protected.
+- Handling a true positive: move the string into `src/lib/i18n.ts` (ko/ja/en together) and read it from the dictionary. During this task two real fallbacks (`"건물 정보 없음"`, `"룸 정보 없음"`) in the cleaning linked forms were migrated to `lostFound.form` / `maintenance.form` (`noBuildingInfo` / `noRoomInfo`).
+- Scope/limits: this catches the most common regression (a hardcoded ko/ja label) but does not detect hardcoded English or strings built dynamically. It reduces — not fully eliminates — the manual-review burden.
 
 ## Phase 3: Supabase Foundation
 
@@ -252,7 +263,7 @@ Status: Completed (age and profile_photo deferred to post-MVP)
 Goals:
 
 - My Profile
-- Edit name, age, phone, photo, language, theme
+- Edit name, age, phone, photo, language (theme editing removed 2026-06-08 — app is light-mode-only)
 - User directory
 - Phone call button
 - User search/filter
@@ -266,7 +277,7 @@ Deliverables:
 Current implementation notes:
 
 - `/account` is implemented as the My Profile screen.
-- Users can update `name`, `phone_number`, `preferred_language`, and `theme_preference`.
+- Users can update `name`, `phone_number`, and `preferred_language`. (Theme editing was removed 2026-06-08; the app is light-mode-only. The `profiles.theme_preference` column remains in schema only and is not read or written by the app.)
 - The account icon in both admin/mobile shells routes to the profile screen.
 - `/mobile/directory` is implemented as the staff directory tab in the mobile shell.
 - Directory shows all active/invited org members sorted by role, then name.
@@ -471,7 +482,7 @@ Current implementation notes:
 - Popup "do not show for 7 days" now persists a record via `dismissPopupForWeek` server action (in `src/app/announcements/popup-actions.ts`) and syncs across all devices for the same user.
 - Pages pre-filter popup candidates using `getPopupDismissals` (in `src/lib/announcements.ts`) before passing the list to `AnnouncementPopup`, preventing flash of dismissed popups from any device.
 - Browser local storage is retained as a same-page fast path to hide the popup immediately after dismiss without waiting for a full page reload.
-- System theme now has a CSS-level dark fallback on first render when the OS prefers dark mode.
+- ~~System theme now has a CSS-level dark fallback on first render when the OS prefers dark mode.~~ Obsolete: dark mode removed 2026-06-08; the app is light-mode-only.
 - `AnnouncementImageUploader` client component replaces the raw file input in the admin announcement creation form.
 - Images are compressed client-side before upload: max 1600px long edge, quality 0.75 for JPEG/WebP/PNG; GIF is skipped to preserve animation.
 - Compressed images are uploaded directly to Supabase Storage in the client-side upload loop; no Server Action body size limit applies.
@@ -696,7 +707,7 @@ Goals:
 - Test mobile PWA on iPhone/Android
 - Test admin web on desktop
 - Test Korean/Japanese/English
-- Test light/dark mode
+- Test light mode (dark mode removed; deferred post-launch)
 - Test role permissions
 - Test invite flow
 - Test image upload limits
@@ -725,7 +736,7 @@ For every phase:
 - Update relevant docs when behavior changes.
 - Update decision log for confirmed decisions.
 - Keep i18n keys complete.
-- Test light/dark mode.
+- Test light mode (light-mode-only; dark mode deferred post-launch).
 - Test mobile layout.
 - Respect RLS/permission rules.
 

@@ -11,7 +11,7 @@ For the rollout execution steps, see `docs/planning/14-rollout-guide.md`.
 ## How to Use This Checklist
 
 - **Code trace**: reviewed in source without a running browser session.
-- **Unit test**: covered by automated Vitest suite (`npm test`). Pass = all 45 tests green.
+- **Unit test**: covered by automated Vitest suite (`npm test`). Pass = all 64 tests green.
 - **Build verified**: confirmed by `npm run lint` + `npm run build`.
 - **DB verified**: confirmed by comparing local migrations against remote Supabase history.
 - **Browser E2E**: requires a logged-in session and real device. Mark as Pass only after manual confirmation.
@@ -58,7 +58,7 @@ Run with `npm test`. All cases below are covered by `src/lib/__tests__/`.
 The automated tests above cover pure-function and static-structure behavior. The following still require a live browser session with a real Supabase connection:
 
 - Actual magic-link email delivery and click-through
-- Google OAuth flow (deferred; placeholder only)
+- Google OAuth flow (live; Supabase dashboard OAuth provider setup required for production)
 - Onboarding form submission reaching the DB (profile + invite join)
 - Auth callback `?next=` forwarding through to the final destination in a real browser
 - Middleware redirect behavior under different auth states
@@ -234,7 +234,7 @@ The automated tests above cover pure-function and static-structure behavior. The
 | Test case | Method | Status |
 |---|---|---|
 | `/account` loads with current profile data | Browser E2E | Not tested |
-| Name, phone, language, theme can be updated | Browser E2E | Not tested |
+| Name, phone, and language can be updated (no theme control — light-mode-only) | Browser E2E | Not tested |
 | `/mobile/directory` shows org members sorted by role | Code trace | Pass |
 | Phone call shortcut opens native dialer | Browser E2E | Not tested |
 | `/admin/users` list shows members with search/filter | Code trace | Pass |
@@ -253,7 +253,7 @@ The automated tests above cover pure-function and static-structure behavior. The
 | ko / ja / en language switching works | Code trace | Pass |
 | No hardcoded Korean strings visible to ja/en users | Code trace | Pass |
 | No raw DB enum values visible in UI | Code trace | Pass |
-| Dark mode renders without layout breaks | Browser E2E | Not tested |
+| Light-mode-only (no dark-mode styling/state); dark mode deferred post-launch | Code trace | Pass |
 | PWA installable on iOS Safari / Android Chrome | Browser E2E | Not tested |
 | Organization isolation: user cannot see another org's data | Code trace (RLS) | Pass |
 | Part-time staff cannot access admin web | Code trace | Pass |
@@ -277,7 +277,7 @@ The automated tests above cover pure-function and static-structure behavior. The
 |---|---|---|
 | ~~R-04~~ | ~~Admin orders page links to mobile order detail (mobile layout on desktop)~~ | Resolved 2026-06-04: `/admin/orders/[id]` added |
 | ~~R-05~~ | ~~No hard-delete confirmation UX for lost-found / maintenance records~~ | Resolved 2026-06-04: `DeleteConfirmButton` added to admin detail pages |
-| R-06 | Google OAuth not implemented; login screen has disabled placeholder | Magic-link is primary and works |
+| ~~R-06~~ | ~~Google OAuth not implemented; login screen has disabled placeholder~~ | Resolved 2026-06-04: `signInWithGoogle` server action live; Supabase dashboard provider setup required for production |
 | R-07 | Map tab shows building cards with Google Maps deeplink, no embedded map | Sufficient for operational use |
 | R-08 | `<img>` used for client-side blob URL previews in order items (not Next.js Image) | Intentional; Next.js Image does not support blob URLs |
 
@@ -285,7 +285,6 @@ The automated tests above cover pure-function and static-structure behavior. The
 
 - Actual server action execution (all create/update mutations)
 - PWA install flow on iOS Safari and Android Chrome
-- Dark mode rendering on real devices
 - Push notification delivery (not yet implemented; in-app only)
 - Multi-language rendering in production environment
 - Real Beds24 webhook delivery end-to-end with live reservation changes
@@ -306,7 +305,7 @@ Controlled internal rollout may begin once the two required steps below are comp
 - All remote DB migrations are applied and confirmed against local history.
 - Auth routing, access control, RLS scope, and permission guards verified by code trace.
 - Business logic for cleaning, requests, orders, announcements, notifications, and exports verified by code trace.
-- Auth/onboarding hardening slice verified by Vitest unit tests (45 tests, `npm test`): safe redirect sanitization, invite RPC error mapping, and `isLocale` language validation.
+- Auth/onboarding hardening slice verified by Vitest unit tests (64 tests total, `npm test`): safe redirect sanitization, invite RPC error mapping, `isLocale` language validation, and the CJK hardcoded-string guard (`no-hardcoded-i18n`, including unit tests for its own directive parser).
 - i18n coverage for ko/ja/en confirmed across all production-visible surfaces.
 
 ### What has not been verified
@@ -314,7 +313,6 @@ Controlled internal rollout may begin once the two required steps below are comp
 - Actual form submission and server action mutations (create, update, status change); requires a browser session.
 - Image upload end-to-end (client compression, Storage write, detail display).
 - PWA install flow on iOS Safari and Android Chrome.
-- Dark mode rendering on real devices.
 - Real Beds24 webhook delivery with a live booking change.
 - Multi-language rendering in the production Vercel environment.
 
@@ -329,4 +327,4 @@ Controlled internal rollout may begin once the two required steps below are comp
 - Monitor Supabase logs for server action errors in the first week.
 - Confirm Beds24 webhook events are arriving by checking `/admin/calendar` after a real booking change.
 - Collect field staff feedback on cleaning workflow and mobile navigation.
-- Plan post-MVP cycle: Google OAuth.
+- Verify Google OAuth provider is enabled in Supabase dashboard (Authentication → Providers → Google) before production use; client ID and client secret from Google Cloud Console required.

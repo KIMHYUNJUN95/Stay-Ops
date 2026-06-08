@@ -12,7 +12,7 @@ type MembershipRow = Database["public"]["Tables"]["memberships"]["Row"];
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 
 const GLASS_CARD =
-  "rounded-[20px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] dark:border-white/12 dark:bg-white/8";
+  "rounded-[20px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]";
 
 type StaffMember = {
   membershipId: string;

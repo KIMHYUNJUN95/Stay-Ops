@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Allow dev resource access (HMR + client chunks) when the app is opened via
+  // the WSL network IP instead of localhost. Dev-only; no effect on production.
+  allowedDevOrigins: ["172.20.50.244", "10.255.255.254"],
   images: {
     remotePatterns: [
       {
@@ -14,9 +17,6 @@ const nextConfig: NextConfig = {
         protocol: "https",
       },
     ],
-  },
-  turbopack: {
-    root: __dirname,
   },
 };
 
