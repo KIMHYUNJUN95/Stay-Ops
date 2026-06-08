@@ -431,7 +431,7 @@ export function MobileShell({
           }}
         >
           <div className="flex h-11 items-center justify-between">
-            <span className="wordmark relative text-[21px] text-slate-900">Stay Ops</span>
+            <span className="wordmark relative text-[21px] text-foreground">Stay Ops</span>
             <button
               aria-label={dictionary.common.menu}
               className="relative flex size-9 items-center justify-center rounded-full border border-slate-200/90 bg-white text-slate-500 shadow-[0_12px_24px_-20px_rgba(15,23,42,0.38)] transition-colors hover:bg-slate-50 hover:text-slate-900"
@@ -522,7 +522,7 @@ export function MobileShell({
               >
                 <button
                   aria-label={dictionary.common.menu}
-                  className="relative z-10 flex size-[38px] items-center justify-center rounded-full bg-[#eef1f2] text-[#3a4a49] transition-colors hover:bg-[#e3e8e9]"
+                  className="relative z-10 flex size-[38px] items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-[color-mix(in_oklab,var(--muted)_82%,var(--foreground))]"
                   onClick={() => setSidebarOpen(true)}
                   type="button"
                 >
@@ -536,13 +536,13 @@ export function MobileShell({
                   </svg>
                 </button>
 
-                <span className="wordmark whitespace-nowrap text-[20px] text-[#1c2b2a]">
+                <span className="wordmark whitespace-nowrap text-[20px] text-foreground">
                   Stay Ops
                 </span>
 
                 <Link
                   aria-label={dictionary.onboarding.profileTitle}
-                  className="relative z-10 flex size-[38px] items-center justify-center rounded-full bg-[#eef1f2] text-[#3a4a49] transition-colors hover:bg-[#e3e8e9]"
+                  className="relative z-10 flex size-[38px] items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-[color-mix(in_oklab,var(--muted)_82%,var(--foreground))]"
                   href="/account?mode=mobile"
                 >
                   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -647,13 +647,13 @@ export function MobileShell({
           <nav className="tabbar absolute inset-x-0 bottom-0 z-20" aria-label={title}>
             {leftTabs.map(renderTab)}
             <button
-              aria-label={dictionary.common.edit}
+              aria-label={dictionary.common.editBottomBar}
               className="tabbar__fab"
               onClick={() => setCreateOpen(true)}
               type="button"
             >
               <span className="circle">{EDIT_ICON}</span>
-              <span className="lbl">{dictionary.common.edit}</span>
+              <span className="lbl">{dictionary.common.editBottomBar}</span>
             </button>
             {rightTabs.map(renderTab)}
           </nav>
@@ -684,7 +684,7 @@ export function MobileShell({
               <div className="add-sheet__head-text">
                 <p className="add-sheet__title">
                   {dictionary.common.editBottomBar}
-                  <span className="ml-2 text-[12px] font-bold text-[#0e7c72]">
+                  <span className="ml-2 text-[12px] font-bold text-primary">
                     {navTabIds.length}/{MAX_BOTTOM_NAV_TABS}
                   </span>
                 </p>
