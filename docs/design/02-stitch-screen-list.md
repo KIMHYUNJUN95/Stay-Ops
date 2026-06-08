@@ -318,7 +318,7 @@ Role:
 Required elements:
 
 - My profile card
-- Edit name, age, phone, language (theme editing removed 2026-06-08 — app is light-mode-only)
+- Edit name, phone, language (`age` and theme editing removed/deferred — current app is light-mode-only)
 - User directory list
 - Role label
 - Phone call button
@@ -326,7 +326,7 @@ Required elements:
 Prompt draft:
 
 ```txt
-Create a mobile user profile and directory screen for StayOps. Include a My Profile card with editable name, age, phone number, and language. (Theme preference was removed 2026-06-08 — the app is light-mode-only; dark mode deferred post-launch.) Below, show a user directory with profile photo, name, role, phone number, and a call button. Use Apple-inspired Liquid Glass with strong readability.
+Create a mobile user profile and directory screen for StayOps. Include a My Profile card with editable name, phone number, and language. (`age` and theme preference are not part of the current editable surface; the app is light-mode-only and dark mode is deferred post-launch.) Below, show a user directory with profile photo, name, role, phone number, and a call button. Use Apple-inspired Liquid Glass with strong readability.
 ```
 
 ## Screen 8: Admin Dashboard

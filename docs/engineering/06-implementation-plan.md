@@ -263,7 +263,7 @@ Status: Completed (age and profile_photo deferred to post-MVP)
 Goals:
 
 - My Profile
-- Edit name, age, phone, photo, language (theme editing removed 2026-06-08 — app is light-mode-only)
+- Edit name, phone, language (`age`, `photo`, and theme editing deferred/removed in current MVP surface)
 - User directory
 - Phone call button
 - User search/filter
