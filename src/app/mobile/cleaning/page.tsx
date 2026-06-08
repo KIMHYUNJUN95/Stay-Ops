@@ -8,6 +8,7 @@ import type { ManualBuildingOption, ManualRoomEntry } from "@/components/cleanin
 import { ManualCleaningForm } from "@/components/cleaning/manual-cleaning-form";
 import { SettingTargetsSheet, type SettingTargetSheetItem } from "@/components/cleaning/setting-targets-sheet";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { getMobileNavBadges } from "@/lib/nav-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -596,8 +597,10 @@ export default async function MobileCleaningPage({
   // Org-wide in_progress count — same scope as the queue filter for KPI consistency
   const inProgressCount = orgTodaySessions.filter((s) => s.status === "in_progress").length;
 
+  const navBadges = await getMobileNavBadges();
+
   return (
-    <MobileShell activeItem="cleaning" appearance="cleaning" title={copy.mobileTitle}>
+    <MobileShell activeItem="cleaning" appearance="cleaning" badges={navBadges} title={copy.mobileTitle}>
       <div className="space-y-5">
         <Card className={`${CLEANING_PANEL} relative overflow-hidden p-4`}>
           <div

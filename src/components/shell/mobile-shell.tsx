@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { ReactNode, UIEvent } from "react";
-import { ArrowDown, Loader2, UserCircle, X } from "lucide-react";
+import { ArrowDown, ChevronRight, Loader2, LogOut, UserCircle, X } from "lucide-react";
 import { useSession } from "@/components/providers/session-provider";
+import { signOut } from "@/app/auth/actions";
 import { updateBottomNavTabs } from "@/app/account/actions";
 import {
   MAX_BOTTOM_NAV_TABS,
@@ -22,6 +23,8 @@ type MobileShellProps = {
   appearance?: "default" | "announcement" | "cleaning";
   children: React.ReactNode;
   title: string;
+  /** Operational unprocessed counts keyed by sidebar nav id (e.g. requests, notifications). */
+  badges?: Partial<Record<string, number>>;
 };
 
 const PULL_THRESHOLD = 72;
@@ -132,6 +135,7 @@ export function MobileShell({
   appearance = "default",
   children,
   title,
+  badges = {},
 }: MobileShellProps) {
   const lastScrollYRef = useRef(0);
   const hideAccumRef = useRef(0);
@@ -443,63 +447,112 @@ export function MobileShell({
           </div>
 
           <Link
-            className="relative mt-6 flex items-center gap-3 rounded-[22px] border border-border bg-surface/92 px-3 py-3 shadow-[0_18px_38px_-32px_rgba(15,23,42,0.46)] backdrop-blur-xl transition-colors hover:bg-surface"
             href="/account?mode=mobile"
             onClick={() => setSidebarOpen(false)}
+            className="mt-[18px] flex items-center gap-3 rounded-[20px] border border-border bg-surface p-3.5 shadow-[0_16px_34px_-28px_rgba(15,23,42,0.5)] transition-shadow hover:shadow-[0_20px_40px_-26px_rgba(15,23,42,0.55)]"
           >
-            <div className="flex size-10 items-center justify-center rounded-xl bg-muted text-muted-foreground ring-1 ring-border">
+            <span className="flex size-[46px] shrink-0 items-center justify-center rounded-[14px] bg-primary/10 text-primary">
               <UserCircle className="size-6" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[15px] font-bold tracking-[-0.01em] text-foreground">
+                {session.user.name}
+              </p>
+              <div className="mt-0.5 flex items-center gap-1.5 whitespace-nowrap">
+                <span className="text-[11.5px] font-semibold text-muted-foreground">
+                  {dictionary.common.account}
+                </span>
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10.5px] font-bold text-primary">
+                  {dictionary.roles[session.user.role]}
+                </span>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-foreground">{session.user.name}</p>
-              <p className="truncate text-xs font-semibold text-muted-foreground">{dictionary.common.account}</p>
-            </div>
+            <ChevronRight className="size-[18px] shrink-0 text-border" aria-hidden="true" />
           </Link>
 
-          <nav className="relative mt-6 flex-1 space-y-1">
-            {mobileSidebarNavigation.map((item) => {
-              const Icon = item.icon;
-              const isActive = item.id === activeItem;
+          <div className="relative mt-5 min-h-0 flex-1">
+            <p className="mb-2 ml-3.5 text-[10.5px] font-bold uppercase tracking-[0.09em] text-muted-foreground">
+              {dictionary.common.menu}
+            </p>
+            <nav className="flex flex-col gap-0.5">
+              {mobileSidebarNavigation.map((item) => {
+                const Icon = item.icon;
+                const isActive = item.id === activeItem;
+                const count = badges[item.id] ?? 0;
 
-              return (
-                <Link
-                  key={item.id}
-                  aria-current={isActive ? "page" : undefined}
-                  className={cn(
-                    "group flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors",
-                    isActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                  )}
-                  href={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <Icon
-                    aria-hidden="true"
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    onClick={() => setSidebarOpen(false)}
+                    aria-current={isActive ? "page" : undefined}
                     className={cn(
-                      "size-5 shrink-0 transition-colors",
-                      isActive
-                        ? "text-primary"
-                        : "text-muted-foreground group-hover:text-foreground",
+                      "group relative flex h-12 items-center gap-3 rounded-[14px] px-3 transition-colors",
+                      isActive ? "bg-primary/[0.09]" : "hover:bg-muted/55",
                     )}
-                  />
-                  <span>{getNavigationLabel(item, locale)}</span>
-                  {isActive ? (
-                    <span aria-hidden="true" className="ml-auto size-1.5 rounded-full bg-primary" />
-                  ) : null}
-                </Link>
-              );
-            })}
-          </nav>
+                  >
+                    {isActive && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-primary"
+                      />
+                    )}
+                    <Icon
+                      aria-hidden="true"
+                      className={cn(
+                        "size-[22px] shrink-0 transition-colors",
+                        isActive
+                          ? "text-primary"
+                          : "text-muted-foreground group-hover:text-foreground",
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "flex-1 text-[14.5px] transition-colors",
+                        isActive
+                          ? "font-bold text-primary"
+                          : "font-semibold text-foreground/80",
+                      )}
+                    >
+                      {getNavigationLabel(item, locale)}
+                    </span>
+                    {count > 0 && (
+                      <span
+                        className={cn(
+                          "flex h-[21px] min-w-[21px] items-center justify-center rounded-full px-1.5 font-mono text-[11px] font-semibold tabular-nums",
+                          isActive
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        {count > 99 ? "99+" : count}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
 
-          <Link
-            className="relative flex h-11 items-center gap-3 rounded-xl border border-border bg-surface/92 px-3 text-sm font-semibold text-foreground shadow-[0_12px_24px_-22px_rgba(15,23,42,0.34)] transition-colors hover:bg-surface"
-            href="/account?mode=mobile"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <UserCircle className="size-5" aria-hidden="true" />
-            <span>{dictionary.common.account}</span>
-          </Link>
+          <div className="mt-3 flex items-center gap-3 rounded-[16px] border border-border bg-surface px-3.5 py-3">
+            <Link
+              href="/account?mode=mobile"
+              onClick={() => setSidebarOpen(false)}
+              className="flex flex-1 items-center gap-2.5 text-[13.5px] font-bold text-foreground"
+            >
+              <UserCircle className="size-5 text-muted-foreground" aria-hidden="true" />
+              {dictionary.common.account}
+            </Link>
+            <form action={signOut}>
+              <button
+                type="submit"
+                className="flex items-center gap-1.5 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <LogOut className="size-4" aria-hidden="true" />
+                {dictionary.common.logout}
+              </button>
+            </form>
+          </div>
         </aside>
 
         <div

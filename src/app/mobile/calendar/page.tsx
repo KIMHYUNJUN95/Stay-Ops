@@ -4,6 +4,7 @@ import { MobileCalendarLiveView } from "@/components/calendar/mobile-calendar-li
 import { toOriginalReservationId } from "@/lib/beds24/reservation-id";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getDictionary } from "@/lib/i18n";
+import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import {
   getCanonicalPropertyName,
@@ -539,10 +540,13 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
       }
     : null;
 
+  const navBadges = await getMobileNavBadges();
+
   return (
     <MobileShell
       activeItem="calendar"
       appearance="cleaning"
+      badges={navBadges}
       title={dictionary.navigation.mobile.calendar}
     >
       <MobileCalendarLiveView

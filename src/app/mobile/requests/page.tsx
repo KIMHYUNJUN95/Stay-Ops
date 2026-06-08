@@ -4,6 +4,7 @@ import { Package, ShoppingCart, Wrench } from "lucide-react";
 import { RequestsFilterView } from "@/components/requests/requests-filter-view";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getDictionary } from "@/lib/i18n";
+import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOrgLostItems } from "@/lib/lost-found";
 import { getOrgMaintenanceReports } from "@/lib/maintenance-reports";
 import { getOnboardingState } from "@/lib/onboarding";
@@ -58,8 +59,10 @@ export default async function MobileRequestsPage({ searchParams }: PageProps) {
     getActiveRoomCatalogServer(session.organization.id).catch(() => undefined),
   ]);
 
+  const navBadges = await getMobileNavBadges();
+
   return (
-    <MobileShell activeItem="requests" title={dictionary.mobile.requestsTitle}>
+    <MobileShell activeItem="requests" badges={navBadges} title={dictionary.mobile.requestsTitle}>
       <div className="mb-5 grid grid-cols-3 gap-2.5">
         <Link
           className="group flex h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] px-1.5 text-[13px] font-black tracking-tight text-slate-800 shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)] transition-all hover:bg-slate-50 active:scale-[0.98]"

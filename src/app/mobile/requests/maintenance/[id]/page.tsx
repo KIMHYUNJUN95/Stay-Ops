@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Wrench } from "lucide-react";
 import { AnnouncementImageGrid } from "@/components/announcements/announcement-image-grid";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { getMobileNavBadges } from "@/lib/nav-badges";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { getDictionary, type Locale } from "@/lib/i18n";
@@ -111,8 +112,10 @@ export default async function MobileMaintenanceDetailPage({ params, searchParams
   const showCreatedBanner = query.created === "1";
   const backToListHref = buildBackToListHref(query);
 
+  const navBadges = await getMobileNavBadges();
+
   return (
-    <MobileShell activeItem="requests" title={copy.detailTitle}>
+    <MobileShell activeItem="requests" badges={navBadges} title={copy.detailTitle}>
       <div className="space-y-4">
         {showCreatedBanner ? (
           <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary">

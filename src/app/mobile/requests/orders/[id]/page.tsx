@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { OrderActionBar } from "@/components/requests/order-action-bar";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { getMobileNavBadges } from "@/lib/nav-badges";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { getDictionary, type Locale } from "@/lib/i18n";
@@ -194,8 +195,10 @@ export default async function MobileOrderRequestDetailPage({
   // -1 when closed so every i <= currentIdx check is false ??all bars muted.
   const currentIdx = progressStatus !== null ? TIMELINE_STATUSES.indexOf(progressStatus) : -1;
 
+  const navBadges = await getMobileNavBadges();
+
   return (
-    <MobileShell activeItem="requests" title={copy.title}>
+    <MobileShell activeItem="requests" badges={navBadges} title={copy.title}>
       <div className="space-y-4 pb-2">
         <Link
           className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/82 px-3 py-1.5 text-xs font-black text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors hover:text-slate-900"

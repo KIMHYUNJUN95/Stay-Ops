@@ -4,6 +4,7 @@ import { ArrowLeft, Package } from "lucide-react";
 import { LostFoundLinkedForm } from "@/components/cleaning/lost-found-linked-form";
 import { LostFoundCreateForm } from "@/components/requests/lost-found-create-form";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { getMobileNavBadges } from "@/lib/nav-badges";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getDictionary } from "@/lib/i18n";
@@ -82,8 +83,10 @@ export default async function LostFoundNewPage({ searchParams }: PageProps) {
         : null
       : null;
 
+  const navBadges = await getMobileNavBadges();
+
   return (
-    <MobileShell activeItem="requests" title={copy.mobileTitle}>
+    <MobileShell activeItem="requests" badges={navBadges} title={copy.mobileTitle}>
       <div className="space-y-4">
         <Card className="rounded-2xl p-4">
           <div className="flex items-start gap-3">

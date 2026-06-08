@@ -4,6 +4,7 @@ import { ArrowLeft, CircleCheck, Megaphone } from "lucide-react";
 import { AnnouncementCommentsSection } from "@/components/announcements/announcement-comments-section";
 import { AnnouncementImageGrid } from "@/components/announcements/announcement-image-grid";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { getMobileNavBadges } from "@/lib/nav-badges";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { getAnnouncementDictionary } from "@/lib/announcement-i18n";
@@ -88,10 +89,13 @@ export default async function MobileAnnouncementDetailPage({
           ? copy.commentDeleted
           : null;
 
+  const navBadges = await getMobileNavBadges();
+
   return (
     <MobileShell
       activeItem="announcements"
       appearance="announcement"
+      badges={navBadges}
       title={copy.readAnnouncement}
     >
       <div className="space-y-3">

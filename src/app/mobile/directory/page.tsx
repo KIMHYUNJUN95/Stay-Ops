@@ -3,6 +3,7 @@ import { Phone, Users } from "lucide-react";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { Card } from "@/components/ui/card";
 import { getDictionary } from "@/lib/i18n";
+import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -89,8 +90,10 @@ export default async function MobileDirectoryPage() {
     return a.name.localeCompare(b.name, locale);
   });
 
+  const navBadges = await getMobileNavBadges();
+
   return (
-    <MobileShell activeItem="directory" title={copy.title}>
+    <MobileShell activeItem="directory" badges={navBadges} title={copy.title}>
       <div className="space-y-3 pb-6">
         {sorted.length === 0 ? (
           <Card className={`${GLASS_CARD} flex flex-col items-center justify-center gap-3 p-10 text-center`}>

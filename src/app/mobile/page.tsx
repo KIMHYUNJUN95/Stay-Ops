@@ -16,6 +16,7 @@ import { HomeRefreshButton } from "@/components/mobile/home-refresh-button";
 import { Card } from "@/components/ui/card";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getDictionary } from "@/lib/i18n";
+import { getMobileNavBadges } from "@/lib/nav-badges";
 import {
   formatActivityTimeJst,
   getHomeActiveCleaningSession,
@@ -178,8 +179,10 @@ export default async function MobileHomePage() {
     ? latestAnnouncement.title
     : dictionary.mobile.homeAnnouncementTitle;
 
+  const navBadges = await getMobileNavBadges();
+
   return (
-    <MobileShell activeItem="home" title={dictionary.mobile.homeTitle}>
+    <MobileShell activeItem="home" badges={navBadges} title={dictionary.mobile.homeTitle}>
       <div className="space-y-5 pb-2">
         <HomeHeroAnimation />
 

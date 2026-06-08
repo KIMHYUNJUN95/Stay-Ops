@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Bell, Info } from "lucide-react";
 import { NotificationList } from "@/components/notifications/notification-list";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { getMobileNavBadges } from "@/lib/nav-badges";
 import { Card } from "@/components/ui/card";
 import { listNotificationsForUser } from "@/lib/notifications/queries";
 import type { NotificationRow } from "@/lib/notifications/types";
@@ -47,8 +48,10 @@ export default async function MobileNotificationsPage() {
   const dictionary = getDictionary(session.user.preferredLanguage);
   const copy = dictionary.mobile.notifications;
 
+  const navBadges = await getMobileNavBadges();
+
   return (
-    <MobileShell activeItem="notifications" title={copy.title}>
+    <MobileShell activeItem="notifications" badges={navBadges} title={copy.title}>
       <div className="space-y-4">
         <Card className="rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-sm">
           <div className="flex items-start gap-3">

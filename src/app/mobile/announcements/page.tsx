@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Megaphone, MessageCircle, Users } from "lucide-react";
 import { AnnouncementPopup } from "@/components/announcements/announcement-popup";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { getMobileNavBadges } from "@/lib/nav-badges";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { getAnnouncementDictionary } from "@/lib/announcement-i18n";
@@ -71,10 +72,13 @@ export default async function MobileAnnouncementsPage() {
       title: announcement.title,
     }));
 
+  const navBadges = await getMobileNavBadges();
+
   return (
     <MobileShell
       activeItem="announcements"
       appearance="announcement"
+      badges={navBadges}
       title={copy.title}
     >
       <AnnouncementPopup

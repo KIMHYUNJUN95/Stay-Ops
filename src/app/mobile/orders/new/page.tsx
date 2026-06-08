@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, ShoppingCart } from "lucide-react";
 import { OrderCreateForm } from "@/components/requests/order-create-form";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { getMobileNavBadges } from "@/lib/nav-badges";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getDictionary } from "@/lib/i18n";
@@ -49,8 +50,10 @@ export default async function MobileOrderNewPage({ searchParams }: PageProps) {
   const catalog = (await getActiveRoomCatalogServer(session.organization.id)) ?? [];
   const buildings = Array.from(new Set(catalog.map((item) => item.propertyName))).sort();
 
+  const navBadges = await getMobileNavBadges();
+
   return (
-    <MobileShell activeItem="requests" title={copy.title}>
+    <MobileShell activeItem="requests" badges={navBadges} title={copy.title}>
       <div className="space-y-4 pb-8">
         <Card className="rounded-2xl p-4">
           <div className="flex items-start gap-3">
