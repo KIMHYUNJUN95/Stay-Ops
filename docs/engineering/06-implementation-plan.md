@@ -729,6 +729,49 @@ Done criteria:
 - [ ] Room master backfill run in production
 - [ ] First staff batch onboarded successfully
 
+## Phase 14: Post-MVP Feature Batch (approved 2026-06-09)
+
+Status: Planned — not started. Five features approved as the next build scope after MVP. Source of truth: `docs/planning/15-feature-batch-plan.md` and `docs/planning/01-decision-log.md` (2026-06-09). Per-feature schema/RLS/actions: `docs/engineering/08`–`12`. Build sub-phases in order:
+
+### 14.1 Linen Defect Registration (first slice — Ready)
+
+- [ ] Migration: `linen_items`, `linen_defect_reports` (+ `defect_type` values, indexes) → update `src/types/database.ts`
+- [ ] RLS per `docs/engineering/05` linen sections
+- [ ] Server actions (create report, manage item master) per `docs/engineering/08`
+- [ ] Mobile capture + admin review UI; reuse 5-file image upload
+- [ ] i18n ko/ja/en for statuses-less log, `defect_type`, validation
+- [ ] Sync docs `19`, `08`, `04`, `05`
+
+### 14.2 Personal Todo / Shared Task Inbox (Partial — blocked on share-model decision)
+
+- [ ] CONFIRM share model (single shared record vs sender/recipient copy) before coding — see decision log 2026-06-09
+- [ ] Migration: `tasks`, `task_transfers`; private-by-default; task calendar kept distinct from reservation calendar
+- [ ] RLS, actions per `docs/engineering/09`; i18n; sync docs `18`, `09`, `04`, `05`
+
+### 14.3 Staff Suggestions / Feedback Box (Near-ready)
+
+- [ ] Migration: `staff_suggestions` (+ `visibility`, `status` values)
+- [ ] Visibility-aware RLS (`employee_only` excludes other part-time) per `docs/engineering/12`
+- [ ] Actions, admin response, filters; i18n; sync docs `22`, `12`, `04`, `05`
+
+### 14.4 Internal Board (Partial — tech-design skeleton needs fleshing)
+
+- [ ] Expand `docs/engineering/10` (indexes, action detail) before build
+- [ ] Migration: `board_posts`; part-time write allowed (2026-06-09)
+- [ ] RLS, actions, feed + moderation; i18n; sync docs `20`, `10`, `04`, `05`
+
+### 14.5 Attendance / Clock-In-Out + Payroll (attendance buildable; payroll deferred)
+
+- [ ] Migration: `attendance_sites`, `attendance_qr_tokens`, `attendance_events`, `employment_profiles`, `hourly_rate_history`
+- [ ] PWA QR + GPS clock-in/out; Asia/Tokyo operating-date boundaries
+- [ ] RLS per `docs/engineering/05`; i18n
+- [ ] **Payroll calculation/export BLOCKED** until wage rules (rounding, breaks, overtime, holiday, overnight, closing date, correction/approval) are defined — keep payroll code in design only
+- [ ] Sync docs `21`, `11`, `04`, `05`
+
+### Phase 14 nav/IA prerequisite
+
+- [ ] Add nav entries for the new features to `src/config/navigation.ts` and `docs/product/16-mobile-navigation.md` (currently none of the five have a mobile nav home)
+
 ## Always Required
 
 For every phase:

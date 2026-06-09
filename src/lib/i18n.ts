@@ -319,6 +319,10 @@ const FALLBACK_DICTIONARY = {
     calendarSelectEnd: "Select end date",
     homeTitle: "Home",
     noFilterResults: "No records",
+    groupToday: "Today",
+    groupYesterday: "Yesterday",
+    groupEarlier: "Earlier",
+    requestOpenCount: "Open {n}",
     notifications: {
       title: "Notifications",
       subtitle: "Operational updates that need your attention",
@@ -1095,6 +1099,10 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       calendarSelectEnd: "종료일을 선택하세요",
       homeTitle: "홈",
       noFilterResults: "조건에 맞는 항목이 없습니다.",
+      groupToday: "오늘",
+      groupYesterday: "어제",
+      groupEarlier: "이전",
+      requestOpenCount: "총 {n}건",
       notifications: {
         title: "알림",
         subtitle: "운영에서 확인이 필요한 업데이트",
@@ -1797,6 +1805,10 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       calendarSelectEnd: "終了日を選択",
       homeTitle: "ホーム",
       noFilterResults: "条件に合う項目はありません。",
+      groupToday: "今日",
+      groupYesterday: "昨日",
+      groupEarlier: "それ以前",
+      requestOpenCount: "合計 {n}件",
       notifications: {
         title: "通知",
         subtitle: "運営で確認が必要な更新",

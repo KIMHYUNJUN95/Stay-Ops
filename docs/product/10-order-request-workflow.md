@@ -159,7 +159,11 @@ Meaning:
 - Entered in the 주문 처리 confirmation modal at the time of status change.
 - Displayed in the order detail page as "배송예정일 / 配送予定日 / Expected Delivery".
 - Shown as a secondary metadata item in the requests list card when present.
-- Calendar auto-registration for this date is **planned** (not yet implemented); see `docs/product/15-reservation-calendar.md`.
+- Calendar auto-registration for this date is planned and must follow a strict trigger rule:
+  - only `delivery_date` creates the calendar entry
+  - no other order-request date field should create a calendar entry in the baseline design
+  - if `delivery_date` is not entered, no calendar entry is created
+- See `docs/product/15-reservation-calendar.md`.
 
 ## Statuses
 
@@ -229,6 +233,7 @@ Planned behavior:
 
 - When status changes to `ordered` and `delivery_date` is saved, StayOps will create an order-delivery schedule entry in the reservation calendar automatically.
 - Entry type: order-delivery (distinct from guest reservation bars).
+- The delivery calendar entry exists only for the delivery date use case. It is not a general-purpose calendar integration for other order-request timestamps or workflow dates.
 
 ## Admin Surface
 

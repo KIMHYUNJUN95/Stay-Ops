@@ -72,6 +72,8 @@ Examples:
 - Property notes
 - Team communication
 
+Permissions: **all active roles including Part-Time Staff can create posts** (confirmed 2026-06-09) — unlike Announcements, where part-time staff cannot create. See `docs/product/20-internal-board-workflow.md`.
+
 ### 5. Work Scheduler
 
 Purpose:
@@ -251,6 +253,56 @@ Search examples:
 - Status
 - Staff member
 - Category
+
+## Post-MVP Approved Batch (confirmed 2026-06-09)
+
+These five features are the approved next build scope after the Phase 6–13 MVP. Build order: Linen Defect → Personal Todo / Shared Task Inbox → Staff Suggestions → Internal Board → Attendance/Payroll. The Todo and Internal Board entries above (#2, #4) are part of this batch. See `docs/planning/15-feature-batch-plan.md` and `docs/planning/01-decision-log.md` (2026-06-09).
+
+### 13. Linen Defect Registration
+
+Purpose:
+
+- Log damaged/stained/unusable linen items per property/building during vendor visits, from a controlled linen item master.
+
+Key features:
+
+- Linen item master (per property/building, activate/deactivate)
+- Create defect report (item, quantity, defect type, memo, photos)
+- Mobile capture + admin review
+- Operational defect log only — no automatic stock deduction or vendor settlement in MVP
+
+See `docs/product/19-linen-defect-workflow.md`.
+
+### 14. Staff Suggestions / Feedback
+
+Purpose:
+
+- Structured channel for staff/part-time improvement ideas, pain points, and feedback.
+
+Key features:
+
+- Submit suggestion (title, body, category)
+- Visibility: `public_team` / `employee_only` (employee_only excludes other part-time staff)
+- Review lifecycle: submitted → reviewing → planned → resolved → closed
+- Admin response note
+- Separate from Internal Board (structured feedback vs. casual posting)
+
+See `docs/product/22-staff-suggestions-workflow.md`.
+
+### 15. Attendance / Clock-In-Out + Payroll
+
+Purpose:
+
+- PWA-first attendance replacing paper timecards, with a later path to hourly payroll.
+
+Key features:
+
+- On-site QR + device GPS clock-in/out
+- Attendance logs per worker/site
+- Employment type (hourly / salaried) + hourly rate history
+- Hourly payroll calculation + export (**deferred** until wage rules defined)
+
+Status: attendance capture approved (2026-06-09); payroll calculation blocked on wage-policy definition. See `docs/product/21-attendance-payroll-workflow.md`.
 
 ## External Integrations
 

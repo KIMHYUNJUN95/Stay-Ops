@@ -79,7 +79,9 @@ Important features:
 
 ### Attendance / Clock-In and Clock-Out
 
-This is not part of StayOps first scope because the company already uses another app for attendance.
+> **Updated 2026-06-09: no longer out of scope.** This exclusion was reversed — attendance/clock-in-out is now an approved post-MVP feature batch item. See `docs/planning/01-decision-log.md` → "2026-06-09 / Attendance / Clock-In-Out + Payroll — Scope Change (Approved)" and `docs/planning/15-feature-batch-plan.md`. Attendance capture (PWA QR + GPS) is buildable; payroll calculation stays deferred until wage rules are defined. The text below is kept only as historical context.
+
+~~This is not part of StayOps first scope because the company already uses another app for attendance.~~
 
 ### Cleaning Staff Assignment
 

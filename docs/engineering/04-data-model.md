@@ -20,6 +20,11 @@ The model must support:
 - User directory
 - Notifications
 - Recurring work scheduler
+- Linen defect registration (approved post-MVP batch, 2026-06-09)
+- Personal todo / shared task inbox (approved post-MVP batch)
+- Internal board (approved post-MVP batch)
+- Staff suggestions / feedback (approved post-MVP batch)
+- Attendance / clock-in-out + hourly payroll (attendance approved; payroll calc deferred)
 
 ## Core Principles
 
@@ -652,6 +657,200 @@ notes text
 created_at timestamptz
 updated_at timestamptz
 ```
+
+# Post-MVP Feature Batch Tables (approved 2026-06-09)
+
+The tables below back the approved post-MVP batch. Full column types, enums, indexes, and RLS detail live in the per-feature technical-design docs (`docs/engineering/08`–`12`); the definitions here are the canonical inventory. None are implemented yet — no migrations exist for them.
+
+## linen_items
+
+Per property/building linen item master. See `docs/engineering/08-linen-defect-technical-design.md`.
+
+```txt
+id uuid primary key
+organization_id uuid not null references organizations(id)
+property_id uuid references properties(id)
+property_name text
+code text
+display_name text not null
+category text
+display_order integer
+is_active boolean not null default true
+created_at timestamptz
+updated_at timestamptz
+```
+
+## linen_defect_reports
+
+Append-style defect log (no lifecycle status by design).
+
+```txt
+id uuid primary key
+organization_id uuid not null references organizations(id)
+property_id uuid references properties(id)
+property_name text
+room_id uuid references rooms(id)
+room_label text
+linen_item_id uuid not null references linen_items(id)
+quantity integer not null check (quantity > 0)
+defect_type text not null   -- torn | stained | unusable | missing_set | other
+memo text
+image_urls text[]
+reported_by_user_id uuid references profiles(id)
+reported_at timestamptz
+created_at timestamptz
+updated_at timestamptz
+```
+
+## tasks
+
+Personal todo / shared task inbox, private-by-default. See `docs/engineering/09-todo-task-technical-design.md`.
+
+```txt
+id uuid primary key
+organization_id uuid not null references organizations(id)
+owner_user_id uuid not null references profiles(id)
+title text not null
+description text
+property_id uuid references properties(id)
+room_id uuid references rooms(id)
+reservation_id uuid references reservations(id)
+guest_name text
+is_private boolean not null default true
+assigned_to_user_id uuid references profiles(id)
+source_task_id uuid references tasks(id)
+source_type text   -- personal | shared_copy | system_linked
+priority text not null default 'normal'   -- low | normal | high | urgent
+status text not null default 'open'        -- open | in_progress | completed | cancelled
+due_at timestamptz
+reminder_at timestamptz
+tags text[]
+completed_by_user_id uuid references profiles(id)
+completed_at timestamptz
+created_by_user_id uuid references profiles(id)
+created_at timestamptz
+updated_at timestamptz
+```
+
+## task_transfers
+
+Teammate send/share records. NOTE: the exact share model (single shared record vs. sender/recipient copy) is still TBD before build — see `docs/planning/01-decision-log.md` (2026-06-09 Personal Todo decision).
+
+```txt
+id uuid primary key
+organization_id uuid not null references organizations(id)
+source_task_id uuid not null references tasks(id)
+sender_user_id uuid not null references profiles(id)
+recipient_user_id uuid not null references profiles(id)
+recipient_task_id uuid references tasks(id)
+created_at timestamptz
+```
+
+## board_posts
+
+Internal board feed. See `docs/engineering/10-internal-board-technical-design.md`.
+
+```txt
+id uuid primary key
+organization_id uuid not null references organizations(id)
+created_by_user_id uuid not null references profiles(id)
+title text not null
+body text
+category text   -- general | property_note | handover | incident | other
+image_urls text[]
+is_pinned boolean not null default false
+archived_at timestamptz
+created_at timestamptz
+updated_at timestamptz
+```
+
+Permissions note: all active roles **including part_time_staff** can create posts (confirmed 2026-06-09).
+
+## staff_suggestions
+
+Structured feedback box with visibility + review lifecycle. See `docs/engineering/12-staff-suggestions-technical-design.md`.
+
+```txt
+id uuid primary key
+organization_id uuid not null references organizations(id)
+created_by_user_id uuid not null references profiles(id)
+title text not null
+body text
+category text   -- operations | workplace | tools_system | staffing | safety | property_specific | other
+visibility text not null   -- public_team | employee_only
+status text not null default 'submitted'   -- submitted | reviewing | planned | resolved | closed
+property_id uuid references properties(id)
+property_name text
+response_note text
+responded_by_user_id uuid references profiles(id)
+responded_at timestamptz
+resolved_at timestamptz
+created_at timestamptz
+updated_at timestamptz
+```
+
+Permissions note: `employee_only` rows are readable by the author plus owner/office_admin/cs_staff/field_manager/staff/developer_super_admin — **not** other part_time_staff.
+
+## Attendance / Payroll tables
+
+See `docs/engineering/11-attendance-payroll-technical-design.md`. Attendance capture tables are approved for build; payroll tables (`payroll_periods`, `payroll_calculations`, `attendance_corrections`, `attendance_exports`) remain design-only until wage rules are defined.
+
+```txt
+attendance_sites
+  id uuid primary key
+  organization_id uuid not null references organizations(id)
+  name text not null
+  property_id uuid references properties(id)
+  latitude double precision
+  longitude double precision
+  allowed_radius_meters integer
+  is_active boolean not null default true
+  created_at timestamptz
+  updated_at timestamptz
+
+attendance_qr_tokens
+  id uuid primary key
+  organization_id uuid not null references organizations(id)
+  site_id uuid not null references attendance_sites(id)
+  token text not null
+  is_active boolean not null default true
+  created_at timestamptz
+
+attendance_events
+  id uuid primary key
+  organization_id uuid not null references organizations(id)
+  user_id uuid not null references profiles(id)
+  site_id uuid references attendance_sites(id)
+  qr_token_id uuid references attendance_qr_tokens(id)
+  event_type text not null   -- clock_in | clock_out | manual_correction
+  captured_at timestamptz not null   -- Asia/Tokyo operating-date boundaries apply
+  latitude double precision
+  longitude double precision
+  gps_accuracy_meters double precision
+  device_info jsonb
+  created_at timestamptz
+
+employment_profiles
+  id uuid primary key
+  organization_id uuid not null references organizations(id)
+  user_id uuid not null references profiles(id)
+  employment_type text not null   -- hourly | salaried
+  created_at timestamptz
+  updated_at timestamptz
+
+hourly_rate_history
+  id uuid primary key
+  organization_id uuid not null references organizations(id)
+  user_id uuid not null references profiles(id)
+  hourly_rate numeric not null
+  effective_from date not null
+  effective_to date
+  created_at timestamptz
+```
+
+## Storage buckets — batch note
+
+Linen/board/todo image uploads reuse the existing 5-file client-compressed pattern. The linen tech-design proposes a dedicated `linen-images` bucket as an alternative to reusing `request-images`; pick one at implementation and keep org-id in the storage path (decision pending — see `docs/engineering/08`).
 
 ## Initial RLS Direction
 

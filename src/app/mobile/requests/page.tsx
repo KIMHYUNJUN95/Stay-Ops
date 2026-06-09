@@ -119,6 +119,10 @@ export default async function MobileRequestsPage({ searchParams }: PageProps) {
           groupScope: dictionary.mobile.filterGroupScope,
           groupStatus: dictionary.mobile.filterGroupStatus,
           groupType: dictionary.mobile.filterGroupType,
+          groupToday: dictionary.mobile.groupToday,
+          groupYesterday: dictionary.mobile.groupYesterday,
+          groupEarlier: dictionary.mobile.groupEarlier,
+          openCountTemplate: dictionary.mobile.requestOpenCount,
           noFilterResults: dictionary.mobile.noFilterResults,
         }}
         buildingLabels={dictionary.cleaning.buildingLabels}

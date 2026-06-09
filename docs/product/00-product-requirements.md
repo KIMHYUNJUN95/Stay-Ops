@@ -72,7 +72,7 @@ Staff can manage cleaning work with:
 - Linked lost item reporting
 - Linked maintenance issue reporting
 
-Attendance and clock-in/out are not included in StayOps because another app is already used for that workflow.
+Attendance and clock-in/out are an approved post-MVP feature batch item as of 2026-06-09 (the earlier "handled by another app" exclusion was reversed). Attendance capture (PWA QR + GPS clock-in/out) is buildable; hourly payroll calculation stays deferred until wage rules are defined. See `docs/planning/01-decision-log.md` (2026-06-09 scope change) and `docs/product/21-attendance-payroll-workflow.md`.
 
 Cleaning staff assignment is not included in the first scope because another system already handles cleaning personnel assignment.
 
@@ -106,7 +106,19 @@ All roles except Part-time Staff can create announcements. Part-time Staff can r
 
 ### Internal Board
 
-Teams can share operational posts, updates, and internal records.
+Teams can share operational posts, updates, and internal records. Lighter than announcements (no required read tracking or popup in MVP). **All active roles including Part-Time Staff can create posts** (confirmed 2026-06-09). See `docs/product/20-internal-board-workflow.md`.
+
+### Linen Defect Registration
+
+Field/office staff can log damaged, stained, or unusable linen items per property/building during vendor visits, selected from a controlled linen item master. This is an operational defect log, not full inventory management (no automatic stock deduction or vendor settlement in MVP). Approved post-MVP batch item (2026-06-09). See `docs/product/19-linen-defect-workflow.md`.
+
+### Staff Suggestions / Feedback
+
+Staff and part-time staff can submit structured improvement ideas, pain points, and feedback with visibility controls (`public_team` / `employee_only`) and a review lifecycle. Separate from the Internal Board (structured feedback vs. casual posting). Approved post-MVP batch item (2026-06-09). See `docs/product/22-staff-suggestions-workflow.md`.
+
+### Attendance / Clock-In-Out + Payroll
+
+PWA QR + device-GPS clock-in/out replacing paper timecards, with a later path to hourly payroll. **Attendance capture is approved (2026-06-09); payroll calculation is deferred until wage rules are defined.** See `docs/product/21-attendance-payroll-workflow.md`.
 
 ### Work Scheduler
 
@@ -262,7 +274,7 @@ The first usable version should include:
 
 These are useful but should not block the first version:
 
-- Payroll
+- Payroll calculation math (deferred — attendance capture is approved post-MVP, but hourly pay calculation is blocked until wage rules are defined; see `docs/product/21-attendance-payroll-workflow.md`)
 - Shift scheduling
 - Full PMS integration
 - Accounting

@@ -430,6 +430,53 @@ Important:
 - Storage path should include organization ID.
 - Storage policies must match database permissions.
 
+# Post-MVP Feature Batch RLS (approved 2026-06-09)
+
+All tables below follow the standard org-isolation base: a row is accessible only when the user has an active membership in `row.organization_id`, with platform-admin bypass. Not implemented yet. Full detail in `docs/engineering/08`–`12`.
+
+## linen_items
+
+- Read: all active org members.
+- Create / update / delete: admin-capable roles (owner, office_admin, cs_staff, field_manager, developer_super_admin) — manage the item master.
+
+## linen_defect_reports
+
+- Read: all active org members.
+- Create: all active org members.
+- Update / delete: author-only, plus admin-capable roles. (Final correction policy confirmed before build — see `08`.)
+
+## tasks
+
+- Read: `owner_user_id = auth.uid()` OR `assigned_to_user_id = auth.uid()` OR (non-private and shared). Part-time staff additionally see tasks linked to rooms/properties they can access.
+- Create: any active org member (owner defaults to self).
+- Update / delete: owner; assignee may update status + comment.
+- Office-level oversight (broad operational task visibility) requires an explicit additional policy if the product confirms it.
+
+## task_transfers
+
+- Read: sender or recipient only.
+- Create: sender (must own the source task).
+
+## board_posts
+
+- Read: all active org members.
+- Create: **all active roles including part_time_staff** (confirmed 2026-06-09).
+- Update / delete: author own posts; admin-capable roles moderate all (pin, archive, delete).
+
+## staff_suggestions
+
+- Read: author always; `public_team` rows readable by all active members; `employee_only` rows readable by author plus owner/office_admin/cs_staff/field_manager/staff/developer_super_admin (**not** other part_time_staff); platform-admin bypass.
+- Create: any active org member.
+- Update status + response_note: authorized management roles (owner, office_admin, cs_staff). Author may edit own row before review if that rule is accepted.
+- This needs stricter role-aware RLS than the Board — see `12`.
+
+## Attendance tables (attendance_sites / attendance_qr_tokens / attendance_events / employment_profiles / hourly_rate_history)
+
+- attendance_events read/insert: worker reads/inserts own events; admin roles (owner, office_admin, cs_staff; possibly field_manager for review) read org-wide.
+- attendance_sites / attendance_qr_tokens: admin roles manage; workers read active sites/tokens for clock-in.
+- employment_profiles / hourly_rate_history: admin roles manage; worker may read own. Wage figures must not leak to part-time staff beyond their own (price/revenue visibility rule).
+- Payroll tables remain design-only until wage rules are defined — no RLS finalized yet. See `11`.
+
 ## audit_logs
 
 Read:

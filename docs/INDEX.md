@@ -35,6 +35,10 @@ Living: Must be updated continuously.
 | [Project Workflow](./planning/04-project-workflow.md) | Confirmed | Work process |
 | [AI Collaboration Rules](./planning/05-ai-collaboration-rules.md) | Confirmed | Shared AI rules |
 | [Current Status](./planning/06-current-status.md) | Living | Completed/in-progress/remaining tracker |
+| [QA Checklist Announcement Images](./planning/07-qa-checklist-announcement-images.md) | Living | Historical QA checklist for announcement-image rollout |
+| [QA Checklist](./planning/13-qa-checklist.md) | Living | Full system QA and release-readiness checklist |
+| [Rollout Guide](./planning/14-rollout-guide.md) | Living | Internal rollout sequence and operational checks |
+| [Feature Batch Plan](./planning/15-feature-batch-plan.md) | Draft | Upcoming feature batch scoping and implementation order |
 
 ## Product Docs
 
@@ -59,6 +63,10 @@ Living: Must be updated continuously.
 | [Mobile Navigation](./product/16-mobile-navigation.md) | Confirmed | Mobile tabs and home layout |
 | [User Profile and Directory](./product/17-user-profile-directory.md) | Confirmed | Profile and user directory |
 | [Todo / Task Workflow](./product/18-todo-task-workflow.md) | Draft | CS follow-up and operational task memory |
+| [Linen Defect Workflow](./product/19-linen-defect-workflow.md) | Draft | Property-scoped linen defect registration workflow |
+| [Internal Board Workflow](./product/20-internal-board-workflow.md) | Draft | Shared all-user internal posting workflow |
+| [Attendance / Payroll Workflow](./product/21-attendance-payroll-workflow.md) | Draft | PWA attendance, QR/GPS proof, and later payroll rules |
+| [Staff Suggestions Workflow](./product/22-staff-suggestions-workflow.md) | Draft | Structured staff suggestion and feedback workflow |
 
 ## Design Docs
 
@@ -80,6 +88,11 @@ Living: Must be updated continuously.
 | [RLS Permissions](./engineering/05-rls-permissions.md) | Draft | Supabase RLS policy direction |
 | [Implementation Plan](./engineering/06-implementation-plan.md) | Draft | Development phases |
 | [Environment Setup](./engineering/07-environment-setup.md) | Draft | Environment variables and service setup |
+| [Linen Defect Technical Design](./engineering/08-linen-defect-technical-design.md) | Draft | Schema, RLS, and action design for linen defects |
+| [Todo / Task Technical Design](./engineering/09-todo-task-technical-design.md) | Draft | Private task, sharing, and calendar technical design |
+| [Internal Board Technical Design](./engineering/10-internal-board-technical-design.md) | Draft | Schema and moderation design for internal board posts |
+| [Attendance / Payroll Technical Design](./engineering/11-attendance-payroll-technical-design.md) | Draft | Phased attendance and payroll technical design |
+| [Staff Suggestions Technical Design](./engineering/12-staff-suggestions-technical-design.md) | Draft | Visibility-aware suggestion box technical design |
 
 ## Implementation Readiness Checklist
 

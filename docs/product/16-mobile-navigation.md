@@ -134,10 +134,16 @@ List visibility:
 - All users can create and view lost item records.
 - All users can create and view order requests.
 - Users should also have a "My registrations" view for records they created.
-- The Requests mobile list should provide an explicit scope toggle:
+- The Requests mobile list exposes a dedicated **"내 요청" (mine) toggle switch** in the filter row (`role="switch"`, `scope` query `mine`/`all`). This replaces the old scope option inside the filter sheet.
   - `All` (default): all visible records in the organization scope
-  - `My registrations`: records created by the current user only
-- Scope toggle should apply consistently across maintenance, lost and found, and order request list views.
+  - `My registrations` (toggle on): records created by the current user only
+- The mine toggle applies consistently across maintenance, lost and found, and order request list views.
+
+List layout (`src/components/requests/requests-filter-view.tsx`):
+
+- **Filter row**: `[필터 버튼] · [내 요청 토글] · [총 N건 카운트(ml-auto)]`.
+- **Open count ("총 N건")**: counts only records in **active/open status** for the current tab + mine scope (lost-found active, maintenance `open`/`in_progress`, order `requested`/`approved`/`ordered`). Completed/closed records are excluded, so the number drops as work is closed. Completed records still appear as cards (e.g. under earlier date groups).
+- **Date groups**: visible records are split into **Today / Yesterday / Earlier** (`오늘/어제/이전`) by the Tokyo operating date of each record (lost `found_at`, maintenance/order `created_at`). Empty groups are not rendered. Group labels: `dictionary.mobile.groupToday/groupYesterday/groupEarlier`.
 
 Status change permission:
 
@@ -288,3 +294,15 @@ Counts refresh on navigation and on pull-to-refresh (`router.refresh()`); these 
 - New server helper `getMobileNavBadges()` (`src/lib/nav-badges.ts`, `cache()`-wrapped) computes org-scoped counts: cleaning (`in_progress`), requests (maintenance open/in_progress + orders requested + lost registered), announcements (unread), notifications (unread). All counts fail closed to 0.
 - All 14 mobile pages that render `MobileShell` now fetch and pass `badges={navBadges}`.
 - Reuses existing i18n (`common.account`, `common.menu`, `common.logout`, `roles.*`) — no new strings.
+
+## Post-MVP Feature Batch — Navigation (planned, not implemented)
+
+The five approved batch features (2026-06-09) currently have **no mobile nav home**. Before each feature ships, its entry point must be added to `src/config/navigation.ts` and reflected here. Planned placement (to confirm per feature during build):
+
+- **Linen Defect:** likely surfaced under the existing **Requests** tab group (alongside maintenance / lost / order) or as a side-menu entry — not a new bottom tab by default.
+- **Personal Todo / Task Inbox:** new side-menu entry, and a candidate for the customizable bottom-tab pool (`customizableBottomNavItems`). Its task calendar must stay visually distinct from the reservation Calendar tab.
+- **Staff Suggestions:** side-menu entry.
+- **Internal Board:** side-menu entry; candidate for the customizable bottom-tab pool.
+- **Attendance:** dedicated clock-in/out surface (likely Home quick-action + side-menu entry); QR/GPS flow is PWA-specific.
+
+When any of these is added to the bottom-tab pool or side menu, also update the side-menu badge table and `getMobileNavBadges()` if the feature carries an unprocessed count. New nav labels require ko/ja/en i18n keys.

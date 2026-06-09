@@ -21,6 +21,20 @@ All core MVP implementation phases (6–12) are substantially complete. Phase 13
 See `docs/planning/13-qa-checklist.md` for the full system QA checklist and release-readiness summary.  
 See `docs/planning/14-rollout-guide.md` for the internal rollout guide.
 
+## Approved Post-MVP Feature Batch (confirmed 2026-06-09)
+
+A five-feature batch was approved on 2026-06-09 as the next build scope after the Phase 6–13 MVP. None of these are implemented yet — they are documented and queued. Source of truth: `docs/planning/15-feature-batch-plan.md` and `docs/planning/01-decision-log.md` (2026-06-09 entries).
+
+Build order and readiness:
+
+1. **Linen Defect Registration** — Ready to implement. Product `19`, tech-design `08`. First slice.
+2. **Personal Todo / Shared Task Inbox** — Partial. Product `18`, tech-design `09`. Blocked on confirming the teammate-share model (single shared record vs. sender/recipient copy) before build.
+3. **Staff Suggestions / Feedback Box** — Near-ready. Product `22`, tech-design `12`. Needs `employee_only` visibility reflected in RLS/user-roles.
+4. **Internal Board** — Partial. Product `20`, tech-design `10` (skeleton). Part-time write permission approved 2026-06-09; tech-design needs fleshing out before build.
+5. **Attendance / Clock-In-Out + Payroll** — Attendance capture approved; **payroll calculation deferred** until wage rules are defined. Product `21`, tech-design `11`.
+
+Doc reconciliation status (2026-06-09): planning + product IA docs updated (`01-decision-log`, `03-mvp-priority`, `00-product-requirements`, `02-feature-map`, this file). Still pending before coding: `04-data-model`, `05-rls-permissions`, `06-implementation-plan`, `16-mobile-navigation` must register the new tables/policies/phases/nav entries.
+
 ## Completed
 
 ### Planning and Documentation
@@ -40,6 +54,7 @@ See `docs/planning/14-rollout-guide.md` for the internal rollout guide.
 - Liquid Glass readability direction is confirmed.
 - Brand wordmark renders as `Stay Ops` in a serif italic typeface (Noto Serif, weight 600) via the shared `.wordmark` class, applied consistently across the mobile shell header/side menu, admin shell, dev entry, and login/onboarding headers. The mobile top chrome is flat/borderless (no capsule outline, ring, glass, or shadow): a `justify-between` row with a 20px `#1c2b2a` wordmark centered between two 38px `#eef1f2` circular buttons (icon `#3a4a49`) — 3-line menu SVG (shorter middle line) left, person SVG right (2026-06-08).
 - Mobile bottom navigation switched to a **center-action ("추가") FAB** design (`.tabbar` in `src/app/globals.css`): four tabs (Home, Calendar / Requests, Announcements) split 2 / 2 around a raised teal `#0e7c72` 50px FAB. **Cleaning moved out of the bottom bar into the side menu (hamburger).** The four side tabs are **per-user customizable** (all 4 slots): the FAB ("편집", pencil icon) opens a bottom-bar editor sheet (`createOpen` state) — a 2-column colour-category tile grid of the selectable feature pool (`customizableBottomNavItems`) where the user toggles up to 4 tabs (counter `n/4`, "full" hint, ≥1 required, unified `oklch` palette, hidden-scrollbar scroll on overflow). Selection persists to `profiles.bottom_nav_tabs` via the `updateBottomNavTabs` server action when the sheet closes; the bar renders `resolveBottomNavItems(session.user.bottomNavTabs)`. Requires migration `supabase/migrations/202606080001_profile_bottom_nav.sql` (2026-06-08).
+- Mobile Requests list (`requests-filter-view.tsx`) redesigned: filter row is now `[필터 버튼] · [내 요청 토글] · [총 N건 카운트]`. The "내 요청" scope is a dedicated `role="switch"` toggle (removed from the filter sheet); the top count ("총 N건") tallies only active/open-status records for the current tab + scope (drops as work is completed); and visible records are grouped into Today / Yesterday / Earlier by Tokyo operating date. New i18n: `mobile.groupToday/groupYesterday/groupEarlier/requestOpenCount` (2026-06-08).
 
 ### App Foundation
 

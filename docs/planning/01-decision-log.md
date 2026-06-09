@@ -129,7 +129,7 @@ Decision: The most important mobile workflows are maintenance issue registration
 
 Attendance and clock-in/out are excluded because another app already handles them.
 
-Status: Confirmed
+Status: Confirmed — **the attendance/clock-in-out exclusion was reversed on 2026-06-09. See "2026-06-09 / Feature Batch Scope Decision → Attendance / Clock-In-Out + Payroll" below. The rest of this priority list still stands.**
 
 ### Cleaning Assignment Scope
 
@@ -1047,3 +1047,62 @@ Status: Confirmed
 Decision: The center FAB button label and aria-label use `dictionary.common.editBottomBar` ("하단바 편집" / "下部バーを編集" / "Edit bottom bar") instead of the generic `dictionary.common.edit` ("편집") to unambiguously indicate its purpose (customize the bottom bar) and prevent confusion with content-editing actions.
 
 Status: Confirmed
+
+## 2026-06-09
+
+### Feature Batch Scope Decision
+
+Decision: The five new features captured in `docs/planning/15-feature-batch-plan.md` (Linen Defect Registration, Personal Todo / Shared Task Inbox, Staff Suggestions / Feedback Box, Internal Board, Attendance / Clock-In-Out + Payroll) are approved as a **post-MVP feature batch**. They are no longer "candidate only" — they are the confirmed next build scope after the Phase 6–13 MVP.
+
+Build order (confirmed): 1) Linen Defect → 2) Personal Todo / Shared Task Inbox → 3) Staff Suggestions / Feedback Box → 4) Internal Board → 5) Attendance / Clock-In-Out + Payroll.
+
+Reason:
+
+- The batch plan was drafted 2026-06-08 and reviewed 2026-06-09; the user confirmed the scope change.
+- The first four features do not conflict with any prior confirmed exclusion.
+- This decision is the governing source of truth. `15-feature-batch-plan.md` moves from "Draft / Candidate" to "Approved scope."
+
+Status: Confirmed (2026-06-09)
+
+### Attendance / Clock-In-Out + Payroll — Scope Change (Approved)
+
+Decision: Attendance / clock-in-out and hourly payroll are now **in scope** for StayOps. This explicitly reverses the earlier "First Mobile Workflow Priorities" exclusion (attendance excluded because another app handles it) and the "Out of Scope → Attendance / Clock-In and Clock-Out" entry in `docs/planning/03-mvp-priority.md`.
+
+Scope nuance (important):
+
+- **Attendance capture** (PWA QR + device GPS clock-in/out, attendance logs) is approved for implementation.
+- **Payroll calculation** stays **design-only / deferred** until the company defines the wage rules: rounding, break deduction, lateness, overtime, overnight shifts, holiday handling, payroll closing date, and the correction/approval flow. Payroll math must not be coded before those rules are confirmed (see `docs/product/21-attendance-payroll-workflow.md` "Important Policy Questions" and `docs/engineering/11-attendance-payroll-technical-design.md` "Current Blockers").
+- Operating-date boundaries for attendance/payroll periods must follow the project Asia/Tokyo convention (see CLAUDE.md §6); the exact period-boundary rule is part of the deferred wage policy.
+
+Reason: The user approved the scope change on 2026-06-09 when asked directly whether to approve or keep it blocked.
+
+Status: Confirmed (2026-06-09) — attendance capture buildable now; payroll calc blocked on wage-policy definition.
+
+### Internal Board — Part-Time Write Permission
+
+Decision: In the Internal Board feature, **all active organization roles including Part-Time Staff can create posts.** This is intentionally different from Announcements, where Part-Time Staff cannot create (see "Announcement Write Permission").
+
+Reason:
+
+- The Internal Board is a lighter, everyday team-communication space with no required read tracking or popup, so the stricter announcement authorship limit does not apply.
+- The user confirmed allowing part-time posting on 2026-06-09.
+
+Consequence: This is a role-permission expansion relative to the announcement model and must be reflected in `docs/product/01-user-roles.md`, `docs/product/20-internal-board-workflow.md`, and the Internal Board RLS in `docs/engineering/05-rls-permissions.md`.
+
+Status: Confirmed (2026-06-09)
+
+### Personal Todo — Private-by-Default and Sharing
+
+Decision: Personal todos/tasks are **private to the owner by default** and become visible to others only when explicitly assigned or shared. This refines (does not replace) the earlier "Todo / Task Purpose" decision, which defined purpose only and was silent on visibility.
+
+Open implementation point (still to confirm during build): the teammate-share mechanism — one shared task record with multi-user visibility vs. a sender/recipient copy model (`task_transfers`). This must be resolved before the Todo slice is implemented. See `docs/product/18-todo-task-workflow.md`.
+
+Status: Confirmed direction (2026-06-09); share mechanism TBD before build.
+
+### Staff Suggestions — Visibility Model
+
+Decision: Staff suggestions support two visibility modes in the first slice: `public_team` (readable by all active members) and `employee_only` (readable by the author plus Owner, Office Admin, CS Staff, Field Manager, Staff, and Developer/Super Admin — **not** other Part-Time Staff). A future `management_only` mode is deferred. Anonymous submission is deferred.
+
+Consequence: The `employee_only` restriction is a visibility/permission rule and must be reflected in `docs/product/01-user-roles.md` and the Staff Suggestions RLS in `docs/engineering/05-rls-permissions.md`.
+
+Status: Confirmed (2026-06-09)

@@ -124,6 +124,42 @@ const requestTypeTone = {
   },
 } as const;
 
+// ── Date grouping (Tokyo operating date) ─────────────────────────────────────
+// Requests are bucketed into Today / Yesterday / Earlier using the Asia/Tokyo
+// calendar date so grouping is stable regardless of the server/runner timezone.
+type DateGroupKey = "today" | "yesterday" | "earlier";
+
+function tokyoDateKey(value: string): string {
+  // en-CA → "YYYY-MM-DD"
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(value));
+}
+
+function shiftDateKey(key: string, deltaDays: number): string {
+  const [y, m, d] = key.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + deltaDays);
+  return dt.toISOString().slice(0, 10);
+}
+
+function GroupHeader({ label, count }: { label: string; count: number }) {
+  return (
+    <div className="mb-2.5 mt-[18px] flex items-center gap-2 first:mt-1">
+      <span className="text-[11.5px] font-extrabold uppercase tracking-[0.04em] text-slate-500">
+        {label}
+      </span>
+      <span className="rounded-full bg-slate-100 px-1.5 py-px text-[10.5px] font-extrabold text-slate-500 ring-1 ring-slate-200">
+        {count}
+      </span>
+      <span className="h-px flex-1 bg-slate-200" aria-hidden="true" />
+    </div>
+  );
+}
+
 function formatDateTime(value: string, locale: Locale) {
   return new Intl.DateTimeFormat(locale, {
     month: "2-digit",
@@ -187,6 +223,10 @@ type FilterLabels = {
   groupScope: string;
   groupStatus: string;
   groupType: string;
+  groupToday: string;
+  groupYesterday: string;
+  groupEarlier: string;
+  openCountTemplate: string;
   noFilterResults: string;
 };
 
@@ -732,6 +772,69 @@ export function RequestsFilterView({
   const hasAnyResults =
     visibleLostItems.length > 0 || visibleMaintenance.length > 0 || visibleOrders.length > 0;
 
+  // ── Top "open count": current tab + scope, counting only active (open) status.
+  // Completed/closed records are excluded, so the number drops as work is closed.
+  const openCount = useMemo(() => {
+    const inScope = (reporterId: string) =>
+      scopeFilter !== "mine" || reporterId === currentUserId;
+    if (typeFilter === "lost-found") {
+      return enrichedLostItems.filter(
+        (i) => inScope(i.reported_by_user_id) && activeLostStatuses.has(i.status),
+      ).length;
+    }
+    if (typeFilter === "maintenance") {
+      return enrichedMaintenance.filter(
+        (r) => inScope(r.reported_by_user_id) && activeMaintenanceStatuses.has(r.status),
+      ).length;
+    }
+    return enrichedOrders.filter(
+      (o) => inScope(o.reported_by_user_id) && activeOrderStatuses.has(o.status),
+    ).length;
+  }, [typeFilter, scopeFilter, currentUserId, enrichedLostItems, enrichedMaintenance, enrichedOrders]);
+
+  const [openCountPrefix, openCountSuffix] = useMemo(() => {
+    const parts = filterLabels.openCountTemplate.split("{n}");
+    return [parts[0] ?? "", parts[1] ?? ""];
+  }, [filterLabels.openCountTemplate]);
+
+  // ── Date grouping (Tokyo operating date): Today / Yesterday / Earlier.
+  const todayKey = useMemo(() => tokyoDateKey(new Date().toISOString()), []);
+  const yesterdayKey = useMemo(() => shiftDateKey(todayKey, -1), [todayKey]);
+
+  const groupByDate = useCallback(
+    <T,>(items: T[], getTime: (item: T) => string) => {
+      const labels: Record<DateGroupKey, string> = {
+        today: filterLabels.groupToday,
+        yesterday: filterLabels.groupYesterday,
+        earlier: filterLabels.groupEarlier,
+      };
+      const buckets: Record<DateGroupKey, T[]> = { today: [], yesterday: [], earlier: [] };
+      for (const item of items) {
+        const key = tokyoDateKey(getTime(item));
+        const bucket: DateGroupKey =
+          key === todayKey ? "today" : key === yesterdayKey ? "yesterday" : "earlier";
+        buckets[bucket].push(item);
+      }
+      return (["today", "yesterday", "earlier"] as DateGroupKey[])
+        .filter((key) => buckets[key].length > 0)
+        .map((key) => ({ key, label: labels[key], items: buckets[key] }));
+    },
+    [todayKey, yesterdayKey, filterLabels.groupToday, filterLabels.groupYesterday, filterLabels.groupEarlier],
+  );
+
+  const lostGroups = useMemo(
+    () => groupByDate(visibleLostItems, (item) => item.found_at),
+    [groupByDate, visibleLostItems],
+  );
+  const maintenanceGroups = useMemo(
+    () => groupByDate(visibleMaintenance, (report) => report.created_at),
+    [groupByDate, visibleMaintenance],
+  );
+  const orderGroups = useMemo(
+    () => groupByDate(visibleOrders, (order) => order.created_at),
+    [groupByDate, visibleOrders],
+  );
+
   const hasDateFilter = hasCustomRange || datePreset !== "all";
   const presetLabel =
     datePreset === "today"
@@ -744,14 +847,9 @@ export function RequestsFilterView({
   const dateChipLabel = hasCustomRange ? rangeLabel : presetLabel;
 
   // Active (non-default) filters surfaced as quick-clear chips below the tabs.
+  // Scope ("mine") is intentionally excluded here — it is now a dedicated toggle
+  // switch in the filter row, not a filter-sheet option.
   const activeChips: { id: string; label: string; onClear: () => void }[] = [];
-  if (scopeFilter === "mine") {
-    activeChips.push({
-      id: "scope",
-      label: filterLabels.filterScopeMine,
-      onClear: () => updateQuery({ scope: null }),
-    });
-  }
   if (statusFilter === "active" || statusFilter === "closed") {
     activeChips.push({
       id: "status",
@@ -828,6 +926,7 @@ export function RequestsFilterView({
           ))}
         </div>
 
+        {/* Filter row: [필터 버튼] · [내 요청 토글] · [총 N건 카운트] */}
         <div className="flex items-center gap-2">
           <button
             ref={sheetTriggerRef}
@@ -851,22 +950,61 @@ export function RequestsFilterView({
             ) : null}
           </button>
 
-          {activeChips.length > 0 ? (
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {activeChips.map((chip) => (
-                <button
-                  key={chip.id}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-2.5 py-1 text-[12px] font-bold text-slate-700 shadow-[0_8px_18px_-18px_rgba(31,58,95,0.4)] transition-colors hover:bg-slate-50"
-                  onClick={chip.onClear}
-                  type="button"
-                >
-                  {chip.label}
-                  <X className="size-3 text-muted-foreground" aria-hidden="true" />
-                </button>
-              ))}
-            </div>
-          ) : null}
+          {/* "내 요청" toggle switch — promotes scope=mine out of the filter sheet. */}
+          <button
+            aria-checked={scopeFilter === "mine"}
+            className="inline-flex shrink-0 items-center gap-1.5"
+            onClick={() => updateQuery({ scope: scopeFilter === "mine" ? null : "mine" })}
+            role="switch"
+            type="button"
+          >
+            <span
+              className={cn(
+                "text-[13px] font-extrabold transition-colors",
+                scopeFilter === "mine" ? "text-[#1F3A5F]" : "text-slate-500",
+              )}
+            >
+              {filterLabels.filterScopeMine}
+            </span>
+            <span
+              className={cn(
+                "relative h-[22px] w-[38px] rounded-full transition-colors",
+                scopeFilter === "mine" ? "bg-[#315F91]" : "bg-slate-300",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-0.5 size-[18px] rounded-full bg-white shadow-[0_2px_5px_rgba(15,23,42,0.28)] transition-[left] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]",
+                  scopeFilter === "mine" ? "left-[18px]" : "left-0.5",
+                )}
+              />
+            </span>
+          </button>
+
+          {/* Total open count — drops as records are completed/closed. */}
+          <span className="ml-auto whitespace-nowrap text-xs font-bold text-slate-500">
+            {openCountPrefix}
+            <b className="text-[#315F91] font-extrabold tabular-nums">{openCount}</b>
+            {openCountSuffix}
+          </span>
         </div>
+
+        {/* Active filter chips (scope excluded — handled by the toggle above). */}
+        {activeChips.length > 0 ? (
+          <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {activeChips.map((chip) => (
+              <button
+                key={chip.id}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200/80 bg-white/80 px-2.5 py-1 text-[12px] font-bold text-slate-700 shadow-[0_8px_18px_-18px_rgba(31,58,95,0.4)] transition-colors hover:bg-slate-50"
+                onClick={chip.onClear}
+                type="button"
+              >
+                {chip.label}
+                <X className="size-3 text-muted-foreground" aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <DateRangeCalendar
@@ -928,25 +1066,6 @@ export function RequestsFilterView({
 
                 {/* Scrollable options area */}
                 <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-                  {/* Scope */}
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground/70">
-                      {filterLabels.groupScope}
-                    </p>
-                    <SegTrack>
-                      <SegButton
-                        active={scopeFilter === "all"}
-                        label={filterLabels.filterAll}
-                        onClick={() => updateQuery({ scope: null })}
-                      />
-                      <SegButton
-                        active={scopeFilter === "mine"}
-                        label={filterLabels.filterScopeMine}
-                        onClick={() => updateQuery({ scope: "mine" })}
-                      />
-                    </SegTrack>
-                  </div>
-
                   {/* Status */}
                   <div className="space-y-2">
                     <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground/70">
@@ -1108,10 +1227,12 @@ export function RequestsFilterView({
         </Card>
       ) : null}
 
-      {/* Lost items list (kind is conveyed by the active tab) */}
-      {visibleLostItems.length > 0 ? (
-        <div className="space-y-2.5">
-            {visibleLostItems.map((item) => (
+      {/* Lost items list (kind is conveyed by the active tab), grouped by date */}
+      {lostGroups.map((group) => (
+        <div key={group.key}>
+          <GroupHeader label={group.label} count={group.items.length} />
+          <div className="space-y-2.5">
+            {group.items.map((item) => (
               <RequestListCard
                 cleaningTag={item.cleaning_session_id ? lostFoundCopy.fromCleaningTag : null}
                 href={`/mobile/requests/lost-found/${item.id}${listQueryString ? `?${listQueryString}` : ""}`}
@@ -1134,13 +1255,16 @@ export function RequestsFilterView({
                 title={item.item_name}
               />
             ))}
+          </div>
         </div>
-      ) : null}
+      ))}
 
-      {/* Maintenance list */}
-      {visibleMaintenance.length > 0 ? (
-        <div className="space-y-2.5">
-            {visibleMaintenance.map((report) => (
+      {/* Maintenance list, grouped by date */}
+      {maintenanceGroups.map((group) => (
+        <div key={group.key}>
+          <GroupHeader label={group.label} count={group.items.length} />
+          <div className="space-y-2.5">
+            {group.items.map((report) => (
               <RequestListCard
                 cleaningTag={
                   report.cleaning_session_id ? maintenanceCopy.fromCleaningTag : null
@@ -1165,13 +1289,16 @@ export function RequestsFilterView({
                 title={report.issue_title}
               />
             ))}
+          </div>
         </div>
-      ) : null}
+      ))}
 
-      {/* Order requests list */}
-      {visibleOrders.length > 0 ? (
-        <div className="space-y-2.5">
-            {visibleOrders.map((order) => (
+      {/* Order requests list, grouped by date */}
+      {orderGroups.map((group) => (
+        <div key={group.key}>
+          <GroupHeader label={group.label} count={group.items.length} />
+          <div className="space-y-2.5">
+            {group.items.map((order) => (
               <RequestListCard
                 deliveryTag={
                   formatDeliveryDateWindow(
@@ -1211,8 +1338,9 @@ export function RequestsFilterView({
                 title={order.title || order.parsedItems[0]?.name || "-"}
               />
             ))}
+          </div>
         </div>
-      ) : null}
+      ))}
 
       {/* ── Delete confirmation modal ── */}
       {deleteTarget && typeof document !== "undefined"

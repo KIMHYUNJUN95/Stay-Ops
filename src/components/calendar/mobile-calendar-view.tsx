@@ -144,8 +144,8 @@ const CALENDAR_SINGLE_ROW_HEIGHT = 48;
 /** Room grid pane height ??uses remaining viewport below shell chrome + bottom nav padding. */
 const CALENDAR_GRID_VIEWPORT_HEIGHT = "calc(100dvh - 20rem)";
 const CALENDAR_GRID_MIN_HEIGHT_PX = 220;
-const DEFAULT_CHECK_IN_TIME = "10:00";
-const DEFAULT_CHECK_OUT_TIME = "16:00";
+const DEFAULT_CHECK_IN_TIME = "16:00";
+const DEFAULT_CHECK_OUT_TIME = "10:00";
 
 type ReservationBarBounds = {
   leftPx: number;

@@ -524,6 +524,13 @@ Planned behavior:
 - Display: shows on the calendar as a scheduled delivery event on the delivery date (Tokyo calendar day).
 - This is deferred to a future slice after the core calendar grid is complete.
 
+Additional delivery-entry rules:
+
+- Only `delivery_date` can create this calendar entry.
+- No other order workflow date should create a calendar entry in the baseline design.
+- If `delivery_date` is missing, no calendar entry is created.
+- This integration exists only for delivery scheduling, not for generic purchasing, approval, or receiving timeline visualization.
+
 ## 2026-05-23 Mobile Calendar Policy Update
 
 - Calendar tab entry now starts with a building picker when no `property` query is selected.
@@ -813,6 +820,7 @@ Planned result:
 
 - Create a calendar schedule entry for the delivery date.
 - Show this schedule to both requester and office/admin in calendar surfaces.
+- Only the delivery date is used for this integration.
 
 Current interim behavior:
 

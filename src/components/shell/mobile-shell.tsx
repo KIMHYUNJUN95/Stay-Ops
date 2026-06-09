@@ -713,7 +713,7 @@ export function MobileShell({
               type="button"
             >
               <span className="circle">{EDIT_ICON}</span>
-              <span className="lbl">{dictionary.common.editBottomBar}</span>
+              <span className="lbl">{dictionary.common.edit}</span>
             </button>
             {rightTabs.map(renderTab)}
           </nav>
