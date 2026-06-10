@@ -262,14 +262,17 @@ These five features are the approved next build scope after the Phase 6–13 MVP
 
 Purpose:
 
-- Log damaged/stained/unusable linen items per property/building during vendor visits, from a controlled linen item master.
+- Keep a building-specific ledger proving that staff registered returned defective linen to the vendor, with later date/building/person lookup for delivery-slip comparison.
 
 Key features:
 
-- Linen item master (per property/building, activate/deactivate)
-- Create defect report (item, quantity, defect type, memo, photos)
-- Mobile capture + admin review
-- Operational defect log only — no automatic stock deduction or vendor settlement in MVP
+- Building-first mobile flow: building picker -> building return list -> create/detail/ledger
+- One return record = one building + multiple item lines
+- Auto-filled registered user + registered date/time
+- Optional note + optional photos
+- Latest-first building list + separate ledger/statistics screen
+- Linen item master per building (connected during implementation)
+- Operational return ledger only — no automatic stock deduction, status workflow, or vendor settlement in MVP
 
 See `docs/product/19-linen-defect-workflow.md`.
 

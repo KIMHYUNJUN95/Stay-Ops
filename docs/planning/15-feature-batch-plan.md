@@ -1,8 +1,8 @@
 # Feature Batch Plan
 
-Status: Draft  
+Status: Approved scope (confirmed 2026-06-09 — see `docs/planning/01-decision-log.md`)  
 Owner: Product / Engineering  
-Last updated: 2026-06-08
+Last updated: 2026-06-10
 
 ## Purpose
 
@@ -16,7 +16,7 @@ This file should be updated first, then implementation should begin only after t
 
 | Feature | Status | Priority | Primary Surface | Main Dependency | Recommended Next Action |
 |---|---|---:|---|---|---|
-| Linen Defect Registration | Candidate | High | Mobile + Admin | Property-specific linen item master | Define the first property/item catalog slice |
+| Linen Defect Registration | Approved (slice 1) | High | Mobile first | Building-specific linen item selector | Move to design based on the 2026-06-10 refined mobile product plan |
 | Personal Todo / Shared Task Inbox | Candidate | High | Mobile + Admin | Private-by-default task visibility rules | Tighten personal vs shared task rules |
 | Staff Suggestions / Feedback Box | Candidate | Medium-High | Mobile + Admin | Visibility model for public vs employee-only posts | Confirm privacy and response rules |
 | Internal Board | Candidate | Medium | Mobile + Admin | Clear separation from Announcements | Define posting rules and first create/read flow |
@@ -63,16 +63,15 @@ Required related docs:
 
 ## Scope Change Notes
 
-### Attendance Scope Conflict
+### Attendance Scope Conflict — RESOLVED 2026-06-09
 
-Current project docs still say attendance / clock-in-out is out of scope for the first MVP:
+The attendance / clock-in-out exclusion was **reversed and approved** on 2026-06-09. The following docs have been updated to reflect the scope change:
 
-- `docs/product/00-product-requirements.md`
-- `docs/planning/01-decision-log.md`
-- `docs/planning/03-mvp-priority.md`
+- `docs/product/00-product-requirements.md` (exclusion replaced with approved note)
+- `docs/planning/01-decision-log.md` (2026-06-09 "Attendance / Clock-In-Out + Payroll — Scope Change (Approved)")
+- `docs/planning/03-mvp-priority.md` (out-of-scope entry marked reversed)
 
-This batch plan records the new requested direction from 2026-06-08.  
-Until attendance is formally approved as an active build slice, treat it as a planned scope change, not yet a confirmed MVP baseline.
+Remaining constraint: **attendance capture is buildable now; payroll calculation stays design-only** until the wage rules (rounding, break deduction, lateness, overtime, overnight, holiday, closing date, correction/approval flow) and export template are defined.
 
 ### Board vs Announcement Separation
 
@@ -110,16 +109,17 @@ The implementation should treat this as a refinement of the Todo module, not as 
 
 ## Feature 1: Linen Defect Registration
 
-**Status:** Candidate  
+**Status:** Approved (mobile-first detailed planning refined 2026-06-10)  
 **Priority:** High  
 **Target iteration:** First implementation candidate
 
 ### 1. Problem
 
 - The linen vendor visits the sites about four times per week.
-- Each visit can reveal damaged or defective linen items that must be registered on-site.
-- The linen mix differs by building/property, so one fixed global item list will not be enough.
-- Without a system record, defect history, quantity tracking, and follow-up with the vendor become inconsistent.
+- Incoming linen may include defective items that the team must hand back.
+- The office later needs a reliable internal proof that a staff member registered the return on a specific date.
+- Vendor-side follow-up is not always reliable, so "we returned it" evidence matters more than a generic defect memo.
+- The office also needs historical lookup by building/date/person for delivery-slip comparison.
 
 ### 2. Users and Roles
 
@@ -127,32 +127,35 @@ The implementation should treat this as a refinement of the Todo module, not as 
 - Allowed roles: `owner`, `office_admin`, `cs_staff`, `field_manager`, `staff`, `part_time_staff`, `developer_super_admin`
 - Special admin responsibilities:
   - office/admin-capable roles manage the linen item master
-  - all users can create and read defect records
+  - all users can create and read return records
+  - admins can edit/delete all records
 - Blocked users: suspended or removed memberships
 
 ### 3. Entry Points
 
 - Mobile:
-  - dedicated create form from mobile side menu or Requests-adjacent operational entry
-  - property-scoped list/detail view
+  - dedicated side-menu entry
+  - building picker
+  - building-scoped list/detail/ledger view
 - Admin:
-  - operational list/detail page
-  - linen item master management screen
+  - deferred until the wider mobile feature set is complete
 - API / background:
   - none required for first slice
 
 ### 4. MVP Scope
 
 - In scope:
-  - register a linen defect record with property/building, linen item, quantity, defect reason/type, optional memo, optional photos, and reporter
+  - register one building-scoped linen return record with multiple item lines
 - In scope:
-  - property-specific linen item catalog so each building can have a different selectable item set
+  - building-specific linen item selection UI direction from day one
 - In scope:
   - all users can create and read records inside their organization
 - In scope:
-  - admin-capable roles can activate/deactivate linen items in the catalog
+  - latest-first building list
 - In scope:
-  - basic list/detail history for operational review
+  - building-specific ledger/statistics screen with current-month default and custom date range
+  - record view + item summary view
+  - author edit/delete + admin full edit/delete
 
 ### 5. Out of Scope
 
@@ -161,37 +164,46 @@ The implementation should treat this as a refinement of the Todo module, not as 
 - Deferred:
   - automatic inventory deduction or stock reconciliation
 - Deferred:
-  - recurring vendor visit scheduling
+  - replacement tracking / receipt confirmation
 - Deferred:
-  - analytics dashboard or loss-rate reporting
+  - admin web surface
 
 ### 6. Workflow
 
-1. User enters from a mobile or admin linen-defect entry point.
-2. User selects property/building.
-3. User selects a linen item from the property-specific active catalog.
-4. User enters quantity, defect type/reason, optional memo, and optional photos.
-5. System validates organization membership and item/property relationship.
-6. System stores the record with reporter and timestamps.
-7. All organization users can view the record history.
+1. User enters the dedicated mobile side-menu entry.
+2. User chooses a building from a searchable card-grid picker.
+3. User opens that building's latest-first return list.
+4. User taps the fixed FAB to create a return record.
+5. User adds one or more linen item lines for that building.
+6. Each line uses one item + one integer quantity; duplicate items inside the same record are blocked.
+7. User optionally adds note and photos.
+8. System auto-fills registered user and registered date/time.
+9. Save success shows a completion-focused motion, then returns the user to the same building list.
+10. All organization users can later view the building list, detail view, and ledger/statistics screen.
 
 ### 7. Data and Technical Impact
 
 - Tables affected:
+  - new linen return header table
+  - new linen return line-item table
   - new `linen_items`
-  - new `linen_defect_reports`
 - New schema needed:
-  - property-linked linen item master
-  - defect report table with organization, property, optional room, item, quantity, status, reason, memo, reporter, timestamps
+  - building-linked linen item master
+  - one header record per return event
+  - one or more child lines per return event
 - Server actions / routes:
-  - create report
-  - list/detail queries
-  - admin item master CRUD
+  - create record
+  - update record
+  - delete record
+  - building list/detail queries
+  - ledger/statistics queries
 - Shared components:
   - image upload pattern can likely reuse the existing request/announcement direct-upload flow
-  - property/room selectors can likely reuse current room/property helpers
+  - building picker pattern can reuse the existing mobile calendar building-entry direction
 - Permissions / RLS impact:
-  - all active org members can insert/select defect reports
+  - all active org members can insert/select all organization records
+  - authors can update/delete their own records
+  - admin-capable roles can update/delete all records
   - admin-capable roles manage the linen item master
 - Notification impact:
   - not required for the baseline slice
@@ -199,32 +211,38 @@ The implementation should treat this as a refinement of the Todo module, not as 
 ### 8. Risks and Open Questions
 
 - Risk:
-  - if the linen item master is skipped, the feature will drift into inconsistent free-text naming
+  - if the item master is skipped too long, the feature will drift into inconsistent naming
 - Risk:
-  - some defects may be property-level while others may need room/unit linkage; room linkage is not yet required
-- Open question:
-  - should one vendor visit create multiple defect rows under a shared visit batch ID?
-- Open question:
-  - do users need defect photos in the first slice, or is quantity + item enough operationally?
-- Open question:
-  - do defect reasons need a fixed enum (`tear`, `stain`, `unusable`, `missing_set`, `other`) or free text first?
+  - the final dropdown/master data is deferred, so design must not regress into free-text item input
+- Clarified:
+  - one record = one building + multiple item lines
+  - not a flat one-row-per-item model
+- Clarified:
+  - status workflow is intentionally absent in the first slice
+- Clarified:
+  - note/reason is one optional free-text field; no reason enum in v1
 
 ### 9. Recommended Implementation Slice
 
-1. Update product/engineering docs for a property-scoped linen item master and defect-report workflow.
-2. Add `linen_items` and `linen_defect_reports` schema + types + RLS.
-3. Build admin master management for property/item names and active flags.
-4. Build mobile create flow and shared list/detail read flow.
-5. Verify role access and property-scoped item selection.
-6. Reconcile docs after the real field shape is confirmed.
+1. Finalize product planning around the mobile-first return-ledger model.
+2. Design the first 5 screens:
+   - building picker
+   - building list
+   - create record
+   - detail
+   - ledger/statistics
+3. Confirm technical schema as header + line items + item master.
+4. Implement the mobile slice only.
+5. Add admin web later after the broader mobile set is complete.
 
 ### 10. Verification Checklist
 
 - [ ] Mobile create flow verified
 - [ ] Mobile list/detail verified
-- [ ] Admin master management verified
+- [ ] Mobile ledger/statistics verified
 - [ ] All-role read access verified
-- [ ] Property-specific item filtering verified
+- [ ] Author/admin edit-delete rules verified
+- [ ] Building-specific item filtering verified
 - [ ] Korean/Japanese/English copy verified
 - [ ] Empty/error states verified
 - [ ] `npm run lint`

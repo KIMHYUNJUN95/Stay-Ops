@@ -155,7 +155,7 @@ These supplement the role definitions above for the approved feature batch. See 
 
 - **Internal Board:** all active roles **including Part-Time Staff** can create and read posts. Authors edit/delete their own; admin-capable roles (owner, office_admin, cs_staff, field_manager, developer_super_admin) moderate all (pin/archive/delete). This is intentionally looser than Announcements, where Part-Time Staff cannot create.
 - **Staff Suggestions:** any active member can submit and read their own. `public_team` suggestions are readable by everyone; `employee_only` suggestions are readable by the author plus Owner, Office Admin, CS Staff, Field Manager, Staff, and Developer/Super Admin — **not** other Part-Time Staff. Status changes and responses are limited to Owner, Office Admin, CS Staff.
-- **Linen Defect:** all active members create/read defect reports; admin-capable roles manage the linen item master.
+- **Linen Defect:** all active members create/read all linen return records in the organization. Authors can edit/delete their own records; admin-capable roles can edit/delete all records and manage the linen item master.
 - **Personal Todo:** tasks are private to the owner by default; assignees and explicit share recipients gain visibility. Part-Time Staff see tasks assigned to them plus tasks linked to rooms/properties they can access.
 - **Attendance / Payroll:** workers clock in/out and read their own attendance; admin roles (Owner, Office Admin, CS Staff; possibly Field Manager for review) see org-wide. Wage figures follow the existing rule — Part-Time Staff must not see others' pay/rate data. Payroll-specific roles are deferred with payroll calculation.
 

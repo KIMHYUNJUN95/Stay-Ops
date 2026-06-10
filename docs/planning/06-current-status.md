@@ -27,13 +27,13 @@ A five-feature batch was approved on 2026-06-09 as the next build scope after th
 
 Build order and readiness:
 
-1. **Linen Defect Registration** — Ready to implement. Product `19`, tech-design `08`. First slice.
+1. **Linen Defect Registration** — Product planning refined on 2026-06-10. Mobile-first return-ledger direction confirmed. Next step: design the 5 core mobile screens from Product `19` + Tech-design `08`.
 2. **Personal Todo / Shared Task Inbox** — Partial. Product `18`, tech-design `09`. Blocked on confirming the teammate-share model (single shared record vs. sender/recipient copy) before build.
 3. **Staff Suggestions / Feedback Box** — Near-ready. Product `22`, tech-design `12`. Needs `employee_only` visibility reflected in RLS/user-roles.
 4. **Internal Board** — Partial. Product `20`, tech-design `10` (skeleton). Part-time write permission approved 2026-06-09; tech-design needs fleshing out before build.
 5. **Attendance / Clock-In-Out + Payroll** — Attendance capture approved; **payroll calculation deferred** until wage rules are defined. Product `21`, tech-design `11`.
 
-Doc reconciliation status (2026-06-09): planning + product IA docs updated (`01-decision-log`, `03-mvp-priority`, `00-product-requirements`, `02-feature-map`, this file). Still pending before coding: `04-data-model`, `05-rls-permissions`, `06-implementation-plan`, `16-mobile-navigation` must register the new tables/policies/phases/nav entries.
+Doc reconciliation status (2026-06-10): linen feature planning now reflects the refined mobile-first return-ledger direction across product/planning/engineering docs, including `02-feature-map`, `19-linen-defect-workflow`, `08-linen-defect-technical-design`, `04-data-model`, `05-rls-permissions`, `06-implementation-plan`, and `16-mobile-navigation`. Next recommended step is design, not coding.
 
 ## Completed
 

@@ -708,26 +708,33 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
-## linen_defect_reports
+## linen_return_records
 
-Append-style defect log (no lifecycle status by design).
+Building-scoped linen return header record. One row = one return registration event. See `docs/engineering/08-linen-defect-technical-design.md`.
 
 ```txt
 id uuid primary key
 organization_id uuid not null references organizations(id)
 property_id uuid references properties(id)
-property_name text
-room_id uuid references rooms(id)
-room_label text
-linen_item_id uuid not null references linen_items(id)
-quantity integer not null check (quantity > 0)
-defect_type text not null   -- torn | stained | unusable | missing_set | other
-memo text
+note text
 image_urls text[]
-reported_by_user_id uuid references profiles(id)
-reported_at timestamptz
+registered_by_user_id uuid references profiles(id)
+registered_at timestamptz
 created_at timestamptz
 updated_at timestamptz
+```
+
+## linen_return_record_items
+
+Child item lines under one `linen_return_records` row.
+
+```txt
+id uuid primary key
+return_record_id uuid not null references linen_return_records(id) on delete cascade
+linen_item_id uuid not null references linen_items(id)
+quantity integer not null check (quantity > 0)
+sort_order integer
+created_at timestamptz
 ```
 
 ## tasks

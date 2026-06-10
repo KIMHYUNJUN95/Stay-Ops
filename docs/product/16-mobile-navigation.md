@@ -299,7 +299,7 @@ Counts refresh on navigation and on pull-to-refresh (`router.refresh()`); these 
 
 The five approved batch features (2026-06-09) currently have **no mobile nav home**. Before each feature ships, its entry point must be added to `src/config/navigation.ts` and reflected here. Planned placement (to confirm per feature during build):
 
-- **Linen Defect:** likely surfaced under the existing **Requests** tab group (alongside maintenance / lost / order) or as a side-menu entry — not a new bottom tab by default.
+- **Linen Defect:** dedicated **side-menu entry**. Mobile IA direction is `building picker -> building-specific return list -> create/detail -> ledger/statistics`. It is **not** a default bottom tab, but should be eligible for the user-customizable bottom-bar pool when implemented.
 - **Personal Todo / Task Inbox:** new side-menu entry, and a candidate for the customizable bottom-tab pool (`customizableBottomNavItems`). Its task calendar must stay visually distinct from the reservation Calendar tab.
 - **Staff Suggestions:** side-menu entry.
 - **Internal Board:** side-menu entry; candidate for the customizable bottom-tab pool.

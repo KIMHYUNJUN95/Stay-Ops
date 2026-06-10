@@ -456,11 +456,16 @@ All tables below follow the standard org-isolation base: a row is accessible onl
 - Read: all active org members.
 - Create / update / delete: admin-capable roles (owner, office_admin, cs_staff, field_manager, developer_super_admin) — manage the item master.
 
-## linen_defect_reports
+## linen_return_records
 
 - Read: all active org members.
 - Create: all active org members.
-- Update / delete: author-only, plus admin-capable roles. (Final correction policy confirmed before build — see `08`.)
+- Update / delete: author-only, plus admin-capable roles.
+
+## linen_return_record_items
+
+- Read: follows parent `linen_return_records` visibility.
+- Create / update / delete: same mutation rule as the parent record (author or admin-capable roles).
 
 ## tasks
 

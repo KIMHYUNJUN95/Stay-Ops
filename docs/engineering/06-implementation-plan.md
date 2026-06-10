@@ -733,14 +733,16 @@ Done criteria:
 
 Status: Planned — not started. Five features approved as the next build scope after MVP. Source of truth: `docs/planning/15-feature-batch-plan.md` and `docs/planning/01-decision-log.md` (2026-06-09). Per-feature schema/RLS/actions: `docs/engineering/08`–`12`. Build sub-phases in order:
 
-### 14.1 Linen Defect Registration (first slice — Ready)
+### 14.1 Linen Defect Registration (first slice — product plan refined, design next)
 
-- [ ] Migration: `linen_items`, `linen_defect_reports` (+ `defect_type` values, indexes) → update `src/types/database.ts`
-- [ ] RLS per `docs/engineering/05` linen sections
-- [ ] Server actions (create report, manage item master) per `docs/engineering/08`
-- [ ] Mobile capture + admin review UI; reuse 5-file image upload
-- [ ] i18n ko/ja/en for statuses-less log, `defect_type`, validation
-- [ ] Sync docs `19`, `08`, `04`, `05`
+- [ ] Design 5 mobile screens from the refined 2026-06-10 product plan: building picker, building list, create, detail, ledger/statistics
+- [ ] Migration: `linen_items`, `linen_return_records`, `linen_return_record_items` → update `src/types/database.ts`
+- [ ] RLS per `docs/engineering/05` linen sections: org-wide read, author/admin mutation, item-master admin-only management
+- [ ] Server actions (create/update/delete record, manage item master) per `docs/engineering/08`
+- [ ] Mobile-only UI first; admin web deferred until the wider mobile set is complete
+- [ ] Reuse current optional image-upload pattern; no `defect_type` enum in v1, note/reason is one optional text field
+- [ ] i18n ko/ja/en for building-first flow, ledger/statistics, validation
+- [ ] Sync docs `19`, `08`, `04`, `05`, `16`
 
 ### 14.2 Personal Todo / Shared Task Inbox (Partial — blocked on share-model decision)
 

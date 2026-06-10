@@ -1,64 +1,98 @@
 # Linen Defect Workflow
 
-Status: Draft
+Status: Draft — refined product plan (2026-06-10)
 
 ## Purpose
 
-The Linen Defect workflow is used to record damaged, unusable, or vendor-returned linen items during normal field operations.
+This module is not just a generic defect log.
 
-Main goal:
+Its first operational purpose is to leave a clear internal record that:
 
-- Let staff register linen defects whenever the linen vendor visit reveals damaged items.
-- Keep records consistent even when each property/building uses a different linen set.
-- Make the workflow simple enough for repeated weekly use.
+- a staff member handed defective linen back to the vendor
+- it happened on a specific date
+- it belonged to a specific building
+- the returned items and quantities were recorded
 
-## Why This Module Exists
+The most important evidence point is:
 
-Operational reality:
+```txt
+Who registered the return, and when?
+```
 
-- The linen vendor visits about four times per week.
-- Defects may be discovered repeatedly and in batches.
-- A simple free-text memo is not enough because the company needs item-level tracking by property/building.
+This is needed because:
 
-This workflow is closer to an operational defect log than to normal inventory management.
+- the linen vendor visits around four times per week
+- defective items are sometimes mixed into incoming linen
+- replacement may fail or be delayed on the vendor side
+- the office later needs to compare StayOps records against delivery slips
+- the team also wants to review monthly return volume by building and by item
+
+## Working Definition
+
+For the first mobile-first slice, treat this feature as a:
+
+```txt
+building-scoped linen return ledger
+```
+
+More specifically:
+
+- the trigger is not simply "a defect exists"
+- the trigger is "we registered this linen as returned / handed back"
+- one saved record is one return event for one building
+
+This keeps the product aligned to the real operations need:
+
+- proof of return registration
+- historical lookup
+- date/building/person-based checking
+- later comparison against vendor paperwork
+
+## Scope Position
+
+This module is related to linen defects, but the workflow is operationally closer to:
+
+- a return record
+- a site ledger
+- a vendor comparison log
+
+It is **not** the first slice of full inventory management.
 
 ## Relationship To Other Modules
 
-### Property / Room Model
+### Property / Building Model
 
-Linen items differ by property/building.
+Each return record belongs to exactly one building.
 
-Required relationship:
+Rules:
 
-- Each linen item should belong to a property/building or item group usable by that property/building.
-- The create form should show only active linen items relevant to the selected property/building.
+- a return record cannot mix multiple buildings
+- the user must enter through a building-specific flow
+- the building drives the linen item selection list
 
-Room/unit linkage is optional in the first slice.
+### Linen Item Master
+
+Buildings may use different linen types.
+
+Confirmed direction:
+
+- the UI should be designed from the start as a building-specific item selector
+- the real dropdown/item-master connection can be completed later during implementation
+- do not design this as uncontrolled free-text item entry
 
 ### Inventory
 
-This is not the same as full inventory management.
+This module should not:
 
-First version should:
+- adjust stock automatically
+- settle vendor claims
+- calculate financial loss
 
-- record what was defective
-- record how many
-- record where
-
-First version should not:
-
-- adjust stock counts automatically
-- handle vendor settlement or billing
+Those are possible later extensions, not first-slice requirements.
 
 ### Notifications
 
-Notifications are not required for the baseline slice.
-
-They can be added later if the company wants alerts for:
-
-- high defect volume
-- repeated defects for the same item
-- unresolved vendor follow-up
+No notification requirement in the first slice.
 
 ## Users
 
@@ -71,203 +105,449 @@ Primary users:
 - Staff
 - Part-time Staff
 
-Rule:
+Rules:
 
-- All active organization users can create and read linen defect records.
-- Admin-capable roles manage the linen item master.
+- all active organization users can create and read linen return records
+- all active organization users can view all buildings in their organization
+- authors can edit/delete their own records
+- admin-capable roles can edit/delete all records
+- admin-capable roles manage the linen item master later
 
-## Core Concepts
+## Core Product Rules
 
-### Linen Item Master
+### 1. One Return Record = One Building
 
-The workflow should not rely on uncontrolled free-text names.
+One record can contain multiple linen items, but:
 
-Recommended baseline:
+- it belongs to one building only
+- items from different buildings cannot be mixed into one record
 
-- Define active linen items per property/building.
-- Allow admin-capable roles to activate/deactivate items.
-- Keep display names editable because real-world linen naming changes over time.
+Reason:
 
-### Defect Record
+- vendor paperwork checking is building-based
 
-A defect record captures:
+### 2. One Return Record = One Return Event
 
-- where the problem happened
-- which linen item was affected
-- how many were affected
-- what kind of defect it was
-- who reported it
+One saved record represents one registration event by one user at one time.
 
-### Visit Batch
+The system must automatically store:
 
-The first slice does not require a visit-batch model.
+- registered date/time
+- registered user
 
-However, the product should leave room for a later batch concept such as:
+These should not be manual input fields.
+
+### 3. Multiple Items Are Allowed In One Record
+
+Field staff often need to register several returned items at once.
+
+So one record should support:
+
+- item line 1
+- item line 2
+- item line 3
+- etc.
+
+### 4. Duplicate Items In The Same Record Are Not Allowed
+
+Inside one return record:
+
+- the same item can appear only once
+- quantity should be summed in that single line
+
+Example:
 
 ```txt
-Vendor visit on 2026-06-09
-  - Bath towel x3 damaged
-  - Pillow cover x2 stained
-  - Bed sheet x1 unusable
+Allowed:
+- Bath towel x3
+- Pillow cover x2
+
+Not allowed:
+- Bath towel x1
+- Bath towel x2
 ```
 
-## Required Fields
+### 5. Quantity Is Integer Only
 
-Recommended first version fields:
+The first slice should use:
+
+- integer quantity only
+
+No decimal or half-unit input is needed.
+
+### 6. No Status Workflow In MVP
+
+This is a simple record workflow.
+
+There is no first-slice status such as:
+
+- registered
+- reviewed
+- confirmed
+
+Once saved, the record exists as a ledger entry.
+
+## Record Structure
+
+### Record Header
+
+One return record contains:
 
 ```txt
 id
 organization_id
-property_id or property_name
-room_id or room_label (optional in MVP)
-linen_item_id
-quantity
-defect_type
-memo
+building_id or canonical building key
+registered_by_user_id
+registered_at
+note
 image_urls
-reported_by_user_id
-reported_at
 created_at
 updated_at
 ```
 
-## Field Meaning
+### Record Line Items
 
-### Property / Building
-
-Required.
-
-This is the main scope for item selection and reporting.
-
-### Room / Unit
-
-Optional in MVP.
-
-Useful when:
-
-- a defect is tied to one room
-- the team wants more precise follow-up later
-
-Do not require it unless the field workflow truly depends on it.
-
-### Linen Item
-
-Required.
-
-Must come from the active linen item master for the selected property/building.
-
-### Quantity
-
-Required.
-
-Simple integer input is enough for the first slice.
-
-### Defect Type
-
-Recommended initial values:
-
-- torn
-- stained
-- unusable
-- missing_set
-- other
-
-The company can switch to free-text detail later if needed.
-
-### Memo
-
-Optional.
-
-Use for:
-
-- vendor explanation
-- special handling notes
-- location details
-
-### Photos
-
-Optional in the first slice, but recommended if the field team actually needs evidence.
-
-If included:
-
-- reuse the existing image-upload pattern used in requests/announcements
-- keep the same compression and count rules unless the real workflow needs different limits
-
-## Workflow
-
-Baseline flow:
+Each return record also contains one or more line items:
 
 ```txt
-User opens Linen Defect
-Select property/building
-Select linen item
-Enter quantity
-Choose defect type
-Optional memo / photos
-Save
-Record appears in list/history
+id
+return_record_id
+linen_item_id
+quantity
+sort_order
+created_at
 ```
 
-## Mobile Views
+Important:
 
-Recommended mobile baseline:
+- this is a header + line-item model
+- not a flat one-row-per-item model
 
-- defect list
-- create form
-- detail page
+## Required Fields
 
-Important mobile UX rules:
+### System-Auto Fields
 
-- property first
-- short form
-- no spreadsheet-style item table in the first slice
+Auto-filled by system:
 
-## Admin Views
+- registered date/time
+- registered user
 
-Recommended admin baseline:
+### User Required Fields
 
-- linen defect list
-- detail page
-- linen item master management
+Required:
 
-Admin list should support:
+- building
+- at least one linen item line
+- quantity for each line
 
-- property filter
-- date filter
-- linen item filter
-- reporter filter
+### Optional Fields
 
-## Permissions
+Optional:
 
-Recommended rules:
+- note
+- photos
 
-- All active organization users can create defect records.
-- All active organization users can read defect records in their organization.
-- Authors can edit/delete their own records only if the company wants correction ability.
-- Admin-capable roles can manage the linen item master.
+## Note Field Policy
 
-Open implementation question:
+There is no separate structured "defect reason" field in the first slice.
 
-- Should non-admin users be allowed to edit/delete old defect records after save?
+Instead:
 
-## Suggested First MVP Slice
+- reason and memo are merged into one free-text note field
 
-Build in this order:
+Reason:
 
-1. Linen item master by property/building
-2. Mobile create form
-3. Shared list/detail history
-4. Admin master management
+- field staff should not be forced through too many inputs
+- the workflow should stay fast and lightweight
 
-Do not start with:
+Examples:
 
-- vendor settlement
-- analytics
-- stock automation
+```txt
+오염 심함
+찢어짐 있음
+세트가 안 맞음
+업체에 바로 전달함
+```
 
-## Open Questions
+## Photo Policy
 
-- Should one vendor visit group multiple defect rows under one visit record later?
-- Is room/unit linkage actually needed in the first live version?
-- Are photos required or only optional evidence?
-- Should quantity allow decimal or only integer?
+Photos are optional.
+
+They may be used for:
+
+- evidence
+- showing the problem clearly
+- preserving unusual details
+
+Rules:
+
+- some users may attach photos often
+- some may save without photos
+- the UI should support photos, but should not force them
+
+## Mobile Information Architecture
+
+This feature is mobile-first.
+
+Admin web is intentionally deferred until the broader mobile feature set is complete.
+
+### Entry Placement
+
+- dedicated side-menu entry
+- not a default bottom-tab item
+- can later be offered inside the user-customizable bottom-bar editor pool
+
+### Mobile Flow
+
+```txt
+Open Linen Return
+-> building picker
+-> building-specific return list
+-> create return record / open detail / open ledger
+```
+
+### Building Picker
+
+Required direction:
+
+- first entry screen should be a building card grid
+- search should be available
+- after entering a building, the screen should still offer a "change building" action
+
+## Mobile Screens
+
+### 1. Building Picker
+
+Purpose:
+
+- choose the building first
+
+UI direction:
+
+- card grid
+- search
+- fast building switching
+
+### 2. Building Return List
+
+Purpose:
+
+- show return history only for the selected building
+
+Rules:
+
+- do not show an all-buildings mixed feed here
+- sort by latest registered first
+- keep the screen operationally simple
+- search/filter is not the main responsibility of this screen
+
+Recommended card content:
+
+- registered date/time
+- registered user
+- item summary
+- total quantity
+- photo attachment indicator when applicable
+
+Not needed on the card:
+
+- building name
+- status badge
+- note preview
+
+Primary CTA:
+
+- fixed bottom FAB for new return registration
+
+### 3. Return Create Screen
+
+Purpose:
+
+- register one building-scoped return event quickly
+
+Form direction:
+
+- building already fixed by previous screen
+- item line 1 starts visible
+- user can add more lines with `+ add item`
+- each line = item selector + integer quantity
+- each line can be deleted directly
+- duplicate items inside the same record are not allowed
+- note is one optional free-text field
+- photos are optional
+
+### 4. Return Detail Screen
+
+Purpose:
+
+- show the exact saved record
+
+Recommended content:
+
+- registered date/time
+- registered user
+- building
+- all item lines with quantities
+- total quantity
+- full photo set when attached
+- edit button
+- delete button
+
+Not required:
+
+- note full text as a mandatory detail block in the first design
+
+Permission display rule:
+
+- show edit/delete only when the current user is allowed to use them
+
+### 5. Ledger / Statistics Screen
+
+Purpose:
+
+- let staff and office users inspect records like a ledger
+
+Why this is separate:
+
+- the normal building list should stay simple
+- heavier checking/search belongs in a dedicated ledger view
+
+Required behavior:
+
+- building-scoped
+- default period = current month
+- also support custom date range
+- support searching/filtering by:
+  - registered user
+  - linen item
+  - date / date range
+
+This screen should support two modes:
+
+#### Record View
+
+Recommended row content:
+
+- registered date/time
+- registered user
+- item summary
+- total quantity
+- detail entry
+- optional photo indicator
+
+#### Item Summary View
+
+Recommended aggregated values:
+
+- item name
+- total returned quantity
+- total return record count
+
+Example:
+
+```txt
+Bath towel 12 units / 5 records
+Pillow cover 8 units / 3 records
+```
+
+## Save And Completion UX
+
+After a successful save:
+
+- show a completion-focused success moment
+- a richer 3D completion motion is explicitly acceptable in this workflow
+- after the motion, return the user to the selected building's return list
+
+Reason:
+
+- the feature is repetitive field work
+- after saving, users usually need to continue working in the same building context
+
+Recommended post-save behavior:
+
+- return to the building list
+- place the new record at the top
+- optionally highlight the newly created row briefly
+
+## Search / Filter Policy
+
+### Building Return List
+
+Keep this screen simple.
+
+Baseline direction:
+
+- latest-first list
+- no heavy search/filter responsibility
+
+### Ledger / Statistics Screen
+
+This is the main search surface.
+
+Required searchable/filterable dimensions:
+
+- registered user
+- linen item
+- date / date range
+
+Not required in first slice:
+
+- free-text note search
+
+## Edit / Delete Policy
+
+### Edit
+
+- authors can edit their own records
+- non-authors cannot edit other users' records
+- admin-capable roles can edit all records
+
+### Delete
+
+- authors can delete their own records
+- non-authors cannot delete other users' records
+- admin-capable roles can delete all records
+- deletion is hard delete in MVP
+
+## Out Of Scope
+
+Deferred:
+
+- admin web surface
+- vendor settlement / reimbursement workflow
+- replacement tracking
+- stock deduction
+- approval/status workflow
+- per-item structured reason enums
+- all-buildings mixed operational feed
+- free-text item entry as the primary design pattern
+
+## Open Implementation Notes
+
+These are intentionally acknowledged now, but do not block the product/design phase:
+
+- the building-specific linen item dropdown/master will be implemented later
+- final table names and exact schema can be confirmed in technical design
+- the customizable bottom-tab pool update should happen when navigation implementation begins
+
+## Suggested Design-First Slice
+
+Design in this order:
+
+1. building picker
+2. building return list
+3. return create form
+4. return detail
+5. ledger / statistics (record view + item summary view)
+
+## Verification Focus For Future Implementation
+
+- building-first entry flow is preserved
+- one record cannot mix buildings
+- one record can include multiple item lines
+- duplicate item lines are blocked
+- quantity is integer-only
+- author/admin edit-delete rules hold
+- latest-first building list is correct
+- ledger filters work by user / item / date
+- ko/ja/en strings exist

@@ -504,6 +504,16 @@ export async function backfillBeds24Reservations(
     roomLabelByExternalRoom.set(`${row.organization_id}:${ext}`, row.room_label);
   }
 
+  // Resolve every booking to a final reservation row in memory first, then write in
+  // bulk. Per-row upserts (one network round-trip each) were the bottleneck: ~hundreds
+  // of sequential round-trips from a serverless function exceeded the 60s timeout. A
+  // chunked bulk upsert collapses that to a handful of round-trips.
+  type PreparedRow = {
+    row: Database["public"]["Tables"]["reservations"]["Insert"];
+    cancelled: boolean;
+  };
+  const preparedByKey = new Map<string, PreparedRow>();
+
   for (const booking of bookingRows) {
     const organizationId =
       (booking.propertyExternalId ? orgByExternalPropertyId.get(booking.propertyExternalId) : undefined) ??
@@ -553,53 +563,59 @@ export async function backfillBeds24Reservations(
       });
     }
 
-    if (dryRun) {
-      upsertedRows += 1;
-      if (booking.status === "cancelled") cancelledUpsertedRows += 1;
-      continue;
-    }
+    const storedReservationId = toStoredReservationId(booking.sourceReservationId, finalRoomLabel);
+    // Dedup on the table's unique key so one bulk statement never tries to affect the
+    // same row twice (Postgres ON CONFLICT rejects that). Last write wins.
+    preparedByKey.set(`${organizationId}:${booking.source}:${storedReservationId}`, {
+      cancelled: booking.status === "cancelled",
+      row: {
+        organization_id: organizationId,
+        source: booking.source,
+        source_reservation_id: storedReservationId,
+        property_name: booking.propertyName,
+        room_label: finalRoomLabel,
+        guest_name: booking.guestName,
+        check_in_date: booking.checkInDate,
+        check_out_date: booking.checkOutDate,
+        status: booking.status,
+        raw_payload: booking.rawPayload,
+      },
+    });
+  }
 
-    const upsertResult = await supabase
-      .from("reservations")
-      .upsert(
-        {
-          organization_id: organizationId,
-          source: booking.source,
-          source_reservation_id: toStoredReservationId(booking.sourceReservationId, finalRoomLabel),
-          property_name: booking.propertyName,
-          room_label: finalRoomLabel,
-          guest_name: booking.guestName,
-          check_in_date: booking.checkInDate,
-          check_out_date: booking.checkOutDate,
-          status: booking.status,
-          raw_payload: booking.rawPayload,
-        } as never,
-        { onConflict: "organization_id,source,source_reservation_id" },
-      )
-      .select("id")
-      .single();
+  const prepared = [...preparedByKey.values()];
 
-    if (upsertResult.error) {
-      skippedRows += 1;
-      console.error("[beds24/backfill] skip:upsert_failed", {
-        sourceReservationId: booking.sourceReservationId,
-        guestName: booking.guestName,
-        propertyName: booking.propertyName,
-        finalRoomLabel,
-        checkInDate: booking.checkInDate,
-        error: upsertResult.error.message,
-      });
-      skippedReasons.push({
-        sourceReservationId: booking.sourceReservationId,
-        guestName: booking.guestName,
-        propertyName: booking.propertyName,
-        checkInDate: booking.checkInDate,
-        reason: `upsert_failed:${upsertResult.error.message}`,
-      });
-      continue;
+  if (dryRun) {
+    upsertedRows = prepared.length;
+    cancelledUpsertedRows = prepared.filter((item) => item.cancelled).length;
+  } else {
+    const CHUNK_SIZE = 500;
+    for (let offset = 0; offset < prepared.length; offset += CHUNK_SIZE) {
+      const chunk = prepared.slice(offset, offset + CHUNK_SIZE);
+      const upsertResult = await supabase
+        .from("reservations")
+        .upsert(chunk.map((item) => item.row) as never, {
+          onConflict: "organization_id,source,source_reservation_id",
+        });
+
+      if (upsertResult.error) {
+        skippedRows += chunk.length;
+        console.error("[beds24/backfill] skip:bulk_upsert_failed", {
+          chunkSize: chunk.length,
+          error: upsertResult.error.message,
+        });
+        skippedReasons.push({
+          sourceReservationId: null,
+          guestName: null,
+          propertyName: null,
+          checkInDate: null,
+          reason: `bulk_upsert_failed:${upsertResult.error.message}`,
+        });
+        continue;
+      }
+      upsertedRows += chunk.length;
+      cancelledUpsertedRows += chunk.filter((item) => item.cancelled).length;
     }
-    upsertedRows += 1;
-    if (booking.status === "cancelled") cancelledUpsertedRows += 1;
   }
 
   if (process.env.NODE_ENV === "development") {
