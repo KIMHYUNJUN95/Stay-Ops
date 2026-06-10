@@ -503,8 +503,38 @@ The mobile calendar's **Map** tab is now an operational building-access hub.
 ## Open Questions
 
 - For multi-room buildings, should mobile month view group by room or by date?
-- How should webhook failures be retried and monitored?
+- ~~How should webhook failures be retried and monitored?~~ Resolved 2026-06-10 — see "Webhook Reliability" below (observability log + daily reconciliation).
 - Should cancelled reservations remain visible in an admin-only sync log?
+
+## Webhook Reliability (Implemented 2026-06-10)
+
+### Background
+
+Reservation ingestion is webhook-first (`docs/planning/01-decision-log.md` → "Beds24 Webhook Strategy"). Webhooks are not guaranteed delivery: a booking created/modified during downtime, a transient delivery failure, a secret mismatch, or a payload missing required fields can cause a booking to never reach the DB. Before this change a dropped webhook left **zero trace** — the only symptom was an operator noticing a gap in the calendar (this is exactly how reservation `5843903602` / Kabukicho 302, check-in 2026-06-08, was discovered missing).
+
+### Two-part fix
+
+1. **Observability — `beds24_webhook_events` table** (`supabase/migrations/202606100001_beds24_webhook_events.sql`):
+   - Every inbound webhook batch and every reconciliation run is logged with processing result: `trigger_source` (`webhook` | `reconciliation`), `http_status`, processed/succeeded/failed counts, per-result `modes`, and a compact `booking_summary`.
+   - Written by `src/lib/beds24/webhook-events.ts` from the webhook route and the reconcile route. Logging failures are swallowed and never block the ingestion response.
+   - Platform-admin read only; service-role write (see `docs/engineering/05-rls-permissions.md`).
+   - Makes a dropped/failed booking detectable instead of invisible.
+
+2. **Prevention — daily reconciliation safety net** (`src/app/api/beds24/reconcile/route.ts`):
+   - Production-safe, idempotent endpoint that re-pulls the operational window (current month + next month) from the Beds24 `/bookings` API and upserts anything missing — the production counterpart to the dev-only `backfill-reservations` route.
+   - Driven daily by **Vercel Cron** (`vercel.json`, `0 19 * * *` UTC = 04:00 Asia/Tokyo), within the free Hobby plan's once-per-day cron limit.
+   - Authorized by `CRON_SECRET` (Vercel Cron Bearer header) or `BEDS24_WEBHOOK_SECRET` (manual trigger).
+   - A webhook dropped today is healed by the next morning's reconciliation run.
+
+### Policy note
+
+This does **not** regress the webhook-first decision. Webhooks remain the primary, real-time update path. Reconciliation is a low-frequency (daily) catch-up safety net, not polling — consistent with Beds24's guidance to avoid high-frequency GET calls and with CLAUDE.md's "no frequent polling without approval" rule. The daily cadence was confirmed by the user on 2026-06-10.
+
+### Known limitations / future work
+
+- The reconciliation window is the same 2-month operational window as the calendar. A dropped webhook for a booking **outside** current month + next month (e.g. 8+ months out) is not healed by reconciliation. This matches the confirmed MVP calendar scope.
+- No active alerting yet (e.g. "0 webhook events received in 24h" → Slack/push). The data to detect this now exists in `beds24_webhook_events`; wiring an alert channel is deferred.
+- Reconciliation upserts the full window each run (~hundreds of rows). If row volume grows, batch the upserts; `maxDuration` is set to 60s on the route as a guard.
 
 ## Order Delivery Date + Calendar Integration (Planned)
 

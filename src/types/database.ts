@@ -9,6 +9,50 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      beds24_webhook_events: {
+        Insert: {
+          booking_summary?: Json;
+          created_at?: string;
+          error_message?: string | null;
+          failed_count?: number;
+          http_status?: number | null;
+          id?: string;
+          modes?: string[];
+          organization_id?: string | null;
+          processed_count?: number;
+          received_at?: string;
+          succeeded_count?: number;
+          trigger_source?: string;
+        };
+        Row: {
+          booking_summary: Json;
+          created_at: string;
+          error_message: string | null;
+          failed_count: number;
+          http_status: number | null;
+          id: string;
+          modes: string[];
+          organization_id: string | null;
+          processed_count: number;
+          received_at: string;
+          succeeded_count: number;
+          trigger_source: string;
+        };
+        Update: {
+          booking_summary?: Json;
+          created_at?: string;
+          error_message?: string | null;
+          failed_count?: number;
+          http_status?: number | null;
+          id?: string;
+          modes?: string[];
+          organization_id?: string | null;
+          processed_count?: number;
+          received_at?: string;
+          succeeded_count?: number;
+          trigger_source?: string;
+        };
+      };
       audit_logs: {
         Insert: {
           action: string;

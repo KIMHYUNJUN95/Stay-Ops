@@ -207,6 +207,23 @@ Important:
 
 - Price/revenue fields are not stored in MVP.
 
+## beds24_webhook_events
+
+Platform/operational observability log (not org business data).
+
+Read:
+
+- Platform admins only (`is_platform_admin()`).
+
+Create/update/delete:
+
+- Service role only (webhook + reconciliation cron paths). Platform admins also have full access via the `for all` policy.
+
+Important:
+
+- Not readable by regular organization members, including office-level roles. This is intentional: it is a Beds24 ingestion diagnostic surface, not an operational business table.
+- `authenticated` has a `select` grant but the only `select` policy is platform-admin-gated, so non-platform users see nothing.
+
 ## cleaning_records
 
 Read:

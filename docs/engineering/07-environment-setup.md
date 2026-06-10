@@ -132,6 +132,7 @@ BEDS24_WEBHOOK_SECRET=
 BEDS24_API_BASE_URL=
 BEDS24_API_TOKEN=
 BEDS24_API_REFRESH_TOKEN=
+CRON_SECRET=
 ```
 
 Usage:
@@ -140,11 +141,19 @@ Usage:
 - `BEDS24_API_BASE_URL`: Beds24 API base URL
 - `BEDS24_API_TOKEN`: short-lived Beds24 access token for direct inventory/property calls
 - `BEDS24_API_REFRESH_TOKEN`: long-lived Beds24 refresh token used to mint access tokens when `BEDS24_API_TOKEN` is unset or expired
+- `CRON_SECRET`: shared secret for the production reconciliation endpoint. Vercel Cron automatically sends it as `Authorization: Bearer <CRON_SECRET>` when this var is set on the project. Set it in Vercel project env so the daily reconcile cron is authorized. (`BEDS24_WEBHOOK_SECRET` is also accepted by the reconcile endpoint for manual triggers.)
 - Existing Beds24-linked properties can be backfilled locally through `POST /api/dev/beds24/backfill-inventory`
   - requires `ENABLE_DEV_SEED_LOGIN=true`
   - requires localhost access
   - requires the same `BEDS24_WEBHOOK_SECRET` value in `x-beds24-webhook-secret`
   - helper script: `scripts/dev/beds24-backfill-inventory.sh`
+
+Reconciliation safety net (production):
+
+- `GET/POST /api/beds24/reconcile` re-pulls the operational window (current month + next month) from Beds24 `/bookings` and upserts anything missing. It is the production-safe, idempotent counterpart to the dev-only `backfill-reservations` route.
+- Driven daily by Vercel Cron (`vercel.json`, `0 19 * * *` UTC = 04:00 Asia/Tokyo). Webhooks remain the primary update path; this only heals dropped/never-delivered webhook events.
+- Every run (and every inbound webhook) is logged to `beds24_webhook_events` for observability.
+- Manual trigger: `curl "$APP_URL/api/beds24/reconcile" -H "Authorization: Bearer $CRON_SECRET"` (or `-H "x-beds24-webhook-secret: $BEDS24_WEBHOOK_SECRET"`).
 
 Token scope checklist (must verify on token create/refresh):
 
@@ -260,6 +269,7 @@ BEDS24_WEBHOOK_SECRET=
 BEDS24_API_BASE_URL=
 BEDS24_API_TOKEN=
 BEDS24_API_REFRESH_TOKEN=
+CRON_SECRET=
 
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=

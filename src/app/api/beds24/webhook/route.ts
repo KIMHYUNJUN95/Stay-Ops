@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { extractBeds24WebhookBookingCandidates } from "@/lib/beds24/booking-payload";
 import { processBeds24WebhookBooking } from "@/lib/beds24/process-webhook-booking";
+import { recordBeds24WebhookEvent } from "@/lib/beds24/webhook-events";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
 function resolveWebhookSecret(request: NextRequest) {
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
   const succeeded = results.filter((result) => result.ok).length;
   const failed = results.length - succeeded;
   const allOk = failed === 0;
+  const httpStatus = allOk ? 200 : failed === results.length ? 400 : 207;
 
   if (process.env.NODE_ENV === "development") {
     console.log("[beds24/webhook] batch processed", {
@@ -58,6 +60,10 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // Observability: persist the batch result so a dropped/failed booking is traceable
+  // (see public.beds24_webhook_events). Never blocks the webhook response.
+  await recordBeds24WebhookEvent({ supabase, httpStatus, results });
+
   return NextResponse.json(
     {
       ok: allOk,
@@ -66,6 +72,6 @@ export async function POST(request: NextRequest) {
       failed,
       results,
     },
-    { status: allOk ? 200 : failed === results.length ? 400 : 207 },
+    { status: httpStatus },
   );
 }

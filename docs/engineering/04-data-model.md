@@ -360,6 +360,34 @@ Notes:
 - source_reservation_id may encode room assignment as "{originalId}::room::{label}" to support multi-room bookings under the same unique constraint.
 - Realtime is enabled on this table (migration `202605260002_enable_reservations_realtime.sql`).
 
+## beds24_webhook_events
+
+Observability log for Beds24 reservation ingestion. Records every inbound webhook batch and every reconciliation run with its processing result, so a dropped or never-delivered webhook is detectable instead of silently missing. See `docs/product/15-reservation-calendar.md` → "Webhook Reliability".
+
+Migration: `supabase/migrations/202606100001_beds24_webhook_events.sql`
+
+Fields:
+
+```txt
+id uuid primary key
+organization_id uuid references organizations(id) on delete set null  -- nullable: webhook may fail to resolve org
+trigger_source text not null            -- 'webhook' | 'reconciliation' (CHECK constrained)
+http_status integer
+processed_count integer not null        -- bookings in the batch / rows fetched by reconciliation
+succeeded_count integer not null
+failed_count integer not null
+modes text[] not null                   -- per-result processing modes (upserted, missing_required_fields, ...)
+booking_summary jsonb not null          -- compact [{bookId,status,mode}] (webhook) or window/skip summary (reconciliation)
+error_message text
+received_at timestamptz not null
+created_at timestamptz not null
+```
+
+Notes:
+- This is platform/operational data, not org business data: readable only by platform admins, writable only by the service role (webhook + cron paths).
+- `booking_summary` is intentionally a compact summary, NOT the full raw payload — enough to trace a specific reservation without storing bulk PII. The full payload still lives in `reservations.raw_payload` for recovered rows.
+- Written by `src/lib/beds24/webhook-events.ts` from the webhook route and the reconciliation route; logging failures are swallowed and never block the ingestion response.
+
 ## cleaning_sessions
 
 Cleaning timer and completion records.
@@ -867,7 +895,7 @@ Basic rules:
 - CS Staff is treated as office-level for order request processing (can approve/reject/process orders).
 - Shared `attachments` table is not used. Each feature table stores `image_urls text[]` directly.
 - Hard delete is the MVP policy. Cascades or blocks are handled per-table per FK.
-- Reservation raw events are stored in `reservations.raw_payload jsonb` for recovery, not a separate log table.
+- Reservation raw payloads are stored in `reservations.raw_payload jsonb` for recovery. A separate `beds24_webhook_events` table stores ingestion processing results (webhook + reconciliation) for observability — it is a result log, not raw-payload storage.
 
 ## Open Questions
 
