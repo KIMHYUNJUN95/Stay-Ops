@@ -77,7 +77,7 @@ const activeOrderStatuses = new Set<OrderStatus>(["requested", "approved", "orde
 
 const lostStatusBadgeClass: Record<LostItemStatus, string> = {
   registered:
-    "border-blue-200 bg-blue-50 text-blue-700",
+    "border-primary/20 bg-primary/10 text-primary",
   stored:
     "border-amber-200 bg-amber-50 text-amber-700",
   disposal_scheduled:
@@ -86,7 +86,7 @@ const lostStatusBadgeClass: Record<LostItemStatus, string> = {
 };
 
 const maintenanceStatusBadgeClass: Record<MaintenanceStatus, string> = {
-  open: "border-blue-200 bg-blue-50 text-blue-700",
+  open: "border-primary/20 bg-primary/10 text-primary",
   in_progress:
     "border-amber-200 bg-amber-50 text-amber-700",
   resolved:
@@ -96,7 +96,7 @@ const maintenanceStatusBadgeClass: Record<MaintenanceStatus, string> = {
 
 const orderStatusBadgeClass: Record<OrderStatus, string> = {
   requested:
-    "border-blue-200 bg-blue-50 text-blue-700",
+    "border-primary/20 bg-primary/10 text-primary",
   approved:
     "border-indigo-200 bg-indigo-50 text-indigo-700",
   ordered:
@@ -106,17 +106,17 @@ const orderStatusBadgeClass: Record<OrderStatus, string> = {
   closed: "border-border bg-muted/50 text-muted-foreground",
 };
 const REQUEST_PANEL =
-  "rounded-[28px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_22px_46px_-32px_rgba(31,58,95,0.48)] backdrop-blur-none";
+  "rounded-[28px] border border-slate-200/80 bg-surface shadow-[0_22px_46px_-32px_rgba(31,58,95,0.48)] backdrop-blur-none";
 const REQUEST_CARD =
-  "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none";
+  "rounded-[24px] border border-slate-200/80 bg-surface shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none";
 const requestTypeTone = {
   "lost-found": {
-    bar: "bg-sky-300/80",
-    icon: "bg-sky-50 text-sky-700 ring-sky-200/80",
+    bar: "bg-primary/70",
+    icon: "bg-primary/10 text-primary ring-primary/20",
   },
   maintenance: {
-    bar: "bg-cyan-300/80",
-    icon: "bg-cyan-50 text-cyan-700 ring-cyan-200/80",
+    bar: "bg-primary/70",
+    icon: "bg-primary/10 text-primary ring-primary/20",
   },
   order: {
     bar: "bg-rose-300/80",
@@ -310,7 +310,7 @@ function SegButton({
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-bold transition-all",
         active
-          ? "bg-sky-50 text-[#1F3A5F] shadow-sm ring-1 ring-sky-200/80"
+          ? "bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20"
           : "text-slate-500 hover:text-slate-900",
       )}
       onClick={onClick}
@@ -404,7 +404,7 @@ const RequestListCard = memo(function RequestListCard({
                     {title}
                   </p>
                   {cleaningTag ? (
-                    <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-black tracking-wide text-sky-700">
+                    <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-black tracking-wide text-primary">
                       {cleaningTag}
                     </span>
                   ) : null}
@@ -914,7 +914,7 @@ export function RequestsFilterView({
               className={cn(
                 "inline-flex items-center justify-center gap-1.5 rounded-2xl px-2 py-2.5 text-[13px] font-black transition-all",
                 typeFilter === tab.id
-                  ? "bg-white text-[#1F3A5F] shadow-[0_12px_24px_-20px_rgba(31,58,95,0.45)] ring-1 ring-sky-200/80"
+                  ? "bg-white text-primary shadow-[0_12px_24px_-20px_rgba(31,58,95,0.45)] ring-1 ring-primary/20"
                   : "text-slate-500 hover:bg-white/60 hover:text-slate-900",
               )}
               onClick={() => updateQuery({ type: tab.id === DEFAULT_TYPE ? null : tab.id })}
@@ -935,7 +935,7 @@ export function RequestsFilterView({
             className={cn(
               "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-black shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors",
               activeFilterCount > 0
-                ? "border-sky-200 bg-sky-50 text-[#1F3A5F]"
+                ? "border-primary/20 bg-primary/10 text-primary"
                 : "border-slate-200/80 bg-white/80 text-slate-500 hover:text-slate-900",
             )}
             onClick={() => setFilterSheetOpen(true)}
@@ -944,7 +944,7 @@ export function RequestsFilterView({
             <SlidersHorizontal className="size-3.5" aria-hidden="true" />
             {filterLabels.filterButton}
             {activeFilterCount > 0 ? (
-              <span className="ml-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-[#315F91] px-1 text-[10px] font-black leading-4 text-white">
+              <span className="ml-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-black leading-4 text-white">
                 {activeFilterCount}
               </span>
             ) : null}
@@ -961,7 +961,7 @@ export function RequestsFilterView({
             <span
               className={cn(
                 "text-[13px] font-extrabold transition-colors",
-                scopeFilter === "mine" ? "text-[#1F3A5F]" : "text-slate-500",
+                scopeFilter === "mine" ? "text-primary" : "text-slate-500",
               )}
             >
               {filterLabels.filterScopeMine}
@@ -969,7 +969,7 @@ export function RequestsFilterView({
             <span
               className={cn(
                 "relative h-[22px] w-[38px] rounded-full transition-colors",
-                scopeFilter === "mine" ? "bg-[#315F91]" : "bg-slate-300",
+                scopeFilter === "mine" ? "bg-primary" : "bg-slate-300",
               )}
             >
               <span
@@ -984,7 +984,7 @@ export function RequestsFilterView({
           {/* Total open count — drops as records are completed/closed. */}
           <span className="ml-auto whitespace-nowrap text-xs font-bold text-slate-500">
             {openCountPrefix}
-            <b className="text-[#315F91] font-extrabold tabular-nums">{openCount}</b>
+            <b className="text-primary font-extrabold tabular-nums">{openCount}</b>
             {openCountSuffix}
           </span>
         </div>
@@ -1042,7 +1042,7 @@ export function RequestsFilterView({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="filter-sheet-title"
-                className="relative flex w-full max-w-[min(92vw,420px)] flex-col overflow-hidden rounded-[28px] border border-slate-200/70 bg-[linear-gradient(150deg,#ffffff_0%,#f9fbff_100%)] shadow-[0_28px_56px_-20px_rgba(31,58,95,0.50),0_0_0_1px_rgba(255,255,255,0.75)_inset]"
+                className="relative flex w-full max-w-[min(92vw,420px)] flex-col overflow-hidden rounded-[28px] border border-border bg-surface shadow-[0_28px_56px_-20px_rgba(34,40,60,0.5)]"
                 onKeyDown={handleSheetKeyDown}
                 style={{
                   animation: "modal-center-in 240ms cubic-bezier(0.32, 0.72, 0, 1) both",
@@ -1124,8 +1124,8 @@ export function RequestsFilterView({
                         className={cn(
                           "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-bold transition-colors",
                           hasCustomRange
-                            ? "border-[#C9D8E8] bg-[#EAF1F8] text-[#1F3A5F]"
-                            : "border-dashed border-border text-muted-foreground hover:border-[#C9D8E8] hover:text-foreground",
+                            ? "border-primary/20 bg-primary/10 text-primary"
+                            : "border-dashed border-border text-muted-foreground hover:border-primary/20 hover:text-foreground",
                         )}
                         onClick={() => setCalendarOpen(true)}
                         type="button"
@@ -1158,7 +1158,7 @@ export function RequestsFilterView({
                           className={cn(
                             "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-bold transition-colors",
                             !selectedBuildingKey
-                              ? "bg-[#EAF1F8] text-[#1F3A5F]"
+                              ? "bg-primary/10 text-primary"
                               : "bg-muted/50 text-muted-foreground hover:text-foreground",
                           )}
                           onClick={() => setBuildingFilter(null)}
@@ -1173,7 +1173,7 @@ export function RequestsFilterView({
                             className={cn(
                               "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-bold transition-colors",
                               selectedBuildingKey === option.key
-                                ? "bg-[#EAF1F8] text-[#1F3A5F]"
+                                ? "bg-primary/10 text-primary"
                                 : "bg-muted/50 text-muted-foreground hover:text-foreground",
                             )}
                             key={option.key}
@@ -1194,7 +1194,7 @@ export function RequestsFilterView({
                 {/* Modal footer — action buttons */}
                 <div className="flex shrink-0 items-center gap-2 border-t border-slate-100 px-5 pb-5 pt-4">
                   <button
-                    className="h-11 flex-1 rounded-2xl border border-slate-200/80 bg-white text-sm font-bold text-slate-700 shadow-[0_8px_16px_-14px_rgba(31,58,95,0.35)] transition-colors hover:bg-slate-50 disabled:opacity-40"
+                    className="h-11 flex-1 rounded-2xl border border-border bg-surface text-sm font-bold text-slate-700 shadow-[0_8px_16px_-14px_rgba(34,40,60,0.3)] transition-colors hover:bg-muted/60 disabled:opacity-40"
                     disabled={activeFilterCount === 0}
                     onClick={resetFilters}
                     type="button"
@@ -1202,7 +1202,7 @@ export function RequestsFilterView({
                     {filterLabels.calendarClear}
                   </button>
                   <button
-                    className="h-11 flex-1 rounded-2xl bg-[#315F91] text-sm font-black text-white shadow-[0_12px_22px_-14px_rgba(49,95,145,0.60)] transition-colors hover:bg-[#274D76]"
+                    className="h-11 flex-1 rounded-2xl bg-primary text-sm font-black text-white shadow-[0_12px_22px_-14px_hsl(var(--primary-hsl)/0.6)] transition-colors hover:bg-primary/90"
                     onClick={() => setFilterSheetOpen(false)}
                     type="button"
                   >

@@ -97,7 +97,7 @@ export function SettingTargetsSheet({
               <section
                 aria-labelledby={titleId}
                 aria-modal="true"
-                className="relative w-full max-w-[28rem] max-h-[84dvh] overflow-hidden rounded-[30px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_32px_84px_-34px_rgba(15,23,42,0.46)] backdrop-blur-2xl"
+                className="relative w-full max-w-[28rem] max-h-[84dvh] overflow-hidden rounded-[30px] border border-slate-200/80 bg-surface shadow-[0_32px_84px_-34px_rgba(15,23,42,0.46)] backdrop-blur-2xl"
                 id={dialogId}
                 role="dialog"
               >

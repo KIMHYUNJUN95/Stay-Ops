@@ -1,6 +1,12 @@
 # Linen Defect Workflow
 
-Status: Draft — refined product plan (2026-06-10)
+Status: First slice implemented (2026-06-10). Mobile linen return ledger is live under
+`/mobile/linen-return/*` (side-menu entry `linen-return`). See
+`docs/engineering/08-linen-defect-technical-design.md` → "As-Built" for the implemented schema,
+routes, and permissions. All five screens below are implemented: building picker, building list,
+create, detail (with permission-gated edit/delete), and ledger (record + item-summary views with
+registrant/item filters and month navigation). Building-specific item master and admin web remain
+deferred as noted in "Out Of Scope".
 
 ## Purpose
 

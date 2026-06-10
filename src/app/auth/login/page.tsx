@@ -1,9 +1,9 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, ChevronDown, Globe2, ShieldCheck } from "lucide-react";
+import { ArrowRight, Globe2, ShieldCheck } from "lucide-react";
 import { signInWithEmail, signInWithGoogle } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { resolveAuthErrorMessage } from "@/lib/auth-errors";
 import { buildDevSeedLoginHref, isDevSeedLoginEnabled } from "@/lib/dev-auth";
@@ -21,13 +21,16 @@ type LoginPageProps = {
 };
 
 function getLanguageHref(locale: Locale, next: string) {
-  const params = new URLSearchParams({
-    lang: locale,
-    next,
-  });
-
+  const params = new URLSearchParams({ lang: locale, next });
   return `/auth/login?${params.toString()}`;
 }
+
+const PRIMARY_BUTTON =
+  "inline-flex h-[54px] w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[15px] font-extrabold text-primary-foreground shadow-[0_18px_36px_-16px_hsl(var(--primary-hsl)/0.55)] transition-all hover:bg-primary/90 active:scale-[0.99]";
+const SECONDARY_BUTTON =
+  "inline-flex h-[54px] w-full items-center justify-center gap-2 rounded-2xl border border-border bg-surface text-[15px] font-bold text-foreground transition-colors hover:bg-muted/50 active:scale-[0.99]";
+const NOTE_BOX =
+  "flex items-start gap-2 rounded-2xl border border-primary/15 bg-primary/[0.07] px-4 py-3 text-xs font-semibold leading-5 text-primary";
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
@@ -39,8 +42,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const devSeedLogin = isDevSeedLoginEnabled();
   const errorMessage = resolveAuthErrorMessage(params.error, dictionary);
 
+  // Mobile-first login: on a phone/tablet, always route into the mobile app after
+  // sign-in — overriding the role-based admin default and any ?next=/admin/... value.
+  const userAgent = (await headers()).get("user-agent") ?? "";
+  const isMobileDevice =
+    /Mobi|Android|iPhone|iPad|iPod|IEMobile|Windows Phone|webOS|BlackBerry/i.test(userAgent);
+  const effectiveNext = isMobileDevice ? "/mobile" : next;
+
   if (state.status === "ready") {
-    redirect(next);
+    redirect(effectiveNext);
   }
 
   if (state.status !== "unauthenticated") {
@@ -49,47 +59,61 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
 
   return (
-    <main className="min-h-dvh overflow-hidden bg-[radial-gradient(circle_at_50%_18%,rgba(0,132,135,0.09),transparent_28%),radial-gradient(circle_at_18%_100%,rgba(255,255,255,0.62),transparent_32%),linear-gradient(180deg,hsl(0_0%_100%),hsl(284_30%_98%)_52%,hsl(230_28%_96%))] text-slate-950">
-      <header className="mx-auto flex h-[74px] w-full max-w-[460px] items-center justify-between px-6 sm:max-w-6xl sm:px-8">
-        <Link className="inline-flex items-center gap-3" href="/">
-          <Globe2 className="size-7 text-slate-950" aria-hidden="true" />
-          <span className="wordmark text-2xl">
-            {dictionary.app.name}
+    <main className="relative min-h-dvh overflow-hidden bg-background text-foreground">
+      {/* Aurora — soft navy/indigo light blooms fading into the ivory canvas. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute -top-28 left-1/2 h-80 w-[130%] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(50%_60%_at_50%_0%,hsl(var(--primary-hsl)/0.20),transparent_72%)] blur-2xl" />
+        <div className="absolute left-[-12%] top-16 size-72 rounded-full bg-[radial-gradient(circle,hsl(var(--primary-hsl)/0.12),transparent_70%)] blur-3xl" />
+        <div className="absolute right-[-14%] top-40 size-72 rounded-full bg-[radial-gradient(circle,rgba(78,99,179,0.14),transparent_70%)] blur-3xl" />
+      </div>
+
+      <header className="mx-auto flex h-[68px] w-full max-w-[440px] items-center justify-between px-6">
+        <Link className="inline-flex items-center gap-2.5" href="/">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_10px_22px_-10px_hsl(var(--primary-hsl)/0.6)]">
+            <Globe2 className="size-[18px]" aria-hidden="true" />
           </span>
+          <span className="wordmark text-[22px]">{dictionary.app.name}</span>
         </Link>
 
         <nav
           aria-label={dictionary.auth.languageSelector}
-          className="inline-flex items-center gap-1 rounded-full border border-white/55 bg-white/44 px-1.5 py-1 text-sm font-black shadow-[0_8px_22px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-xl"
+          className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface/70 p-1 text-[12px] font-extrabold backdrop-blur-xl"
         >
           {locales.map((option) => (
             <Link
-              className={`rounded-full px-2 py-1 transition-colors ${
+              className={`rounded-full px-2.5 py-1 transition-colors ${
                 option === locale
-                  ? "text-slate-950 underline decoration-slate-950 underline-offset-8"
-                  : "hidden text-slate-400 hover:text-slate-700 sm:inline"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
-              href={getLanguageHref(option, next)}
+              href={getLanguageHref(option, effectiveNext)}
               key={option}
             >
               {option.toUpperCase()}
             </Link>
           ))}
-          <ChevronDown className="size-4 text-slate-950" aria-hidden="true" />
         </nav>
       </header>
 
-      <section className="mx-auto flex min-h-[calc(100dvh-74px)] w-full max-w-[460px] flex-col items-center px-5 pb-10 pt-[15vh] sm:max-w-6xl sm:px-8 sm:pt-[13vh]">
-        <Card className="w-full max-w-[414px] rounded-[18px] border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.84),rgba(255,255,255,0.68))] p-8 text-slate-950 shadow-[0_26px_80px_rgba(15,23,42,0.12),0_1px_0_rgba(255,255,255,0.78)_inset,0_-1px_0_rgba(15,23,42,0.04)_inset] ring-1 ring-white/55 backdrop-blur-[32px] sm:max-w-[430px] sm:p-10">
-          <div className="text-center">
-            <h1 className="text-[34px] font-black leading-tight tracking-[-0.05em] sm:text-[38px]">
-              {dictionary.auth.welcomeBack}
-            </h1>
-          </div>
+      <section className="mx-auto flex min-h-[calc(100dvh-68px)] w-full max-w-[440px] flex-col px-6 pb-10 pt-[7vh]">
+        {/* Brand / welcome */}
+        <div className="mb-7 px-0.5">
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-primary/70">
+            {dictionary.app.name}
+          </p>
+          <h1 className="mt-3 text-[34px] font-black leading-[1.12] tracking-[-0.045em]">
+            {dictionary.auth.welcomeBack}
+          </h1>
+          <p className="mt-3 text-[15px] font-medium leading-6 text-muted-foreground">
+            {dictionary.auth.productSubtitle}
+          </p>
+        </div>
 
+        {/* Auth card */}
+        <div className="rounded-[26px] border border-border bg-surface/85 p-6 shadow-[0_34px_80px_-34px_rgba(34,40,60,0.45)] backdrop-blur-2xl sm:p-7">
           {devSeedLogin ? (
-            <div className="mt-8 space-y-3">
-              <div className="flex items-start gap-2 rounded-lg border border-[#a7ded9]/65 bg-[#eefafa]/62 px-4 py-3 text-xs font-semibold leading-5 text-[#007376] shadow-[0_1px_0_rgba(255,255,255,0.58)_inset] backdrop-blur-xl">
+            <div className="space-y-3">
+              <div className={NOTE_BOX}>
                 <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                 <span>
                   {dictionary.auth.devLogin.note}
@@ -97,40 +121,41 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   {dictionary.auth.devLogin.emailDisabled}
                 </span>
               </div>
-              <Link
-                className="inline-flex h-[54px] w-full items-center justify-center rounded-lg bg-[#008487] text-base font-black text-white shadow-[0_14px_34px_rgba(0,132,135,0.18)] transition-colors hover:bg-[#007376]"
-                href={buildDevSeedLoginHref("admin", next)}
-              >
-                {dictionary.auth.devLogin.admin}
-                <ArrowRight className="ml-2 size-4" aria-hidden="true" />
-              </Link>
-              <Link
-                className="inline-flex h-[54px] w-full items-center justify-center rounded-lg border border-[#008487]/40 bg-white/70 text-base font-black text-[#008487] transition-colors hover:bg-[#eefafa]"
-                href={buildDevSeedLoginHref("staff", next)}
-              >
-                {dictionary.auth.devLogin.staff}
-              </Link>
-              <Link
-                className="inline-flex h-[54px] w-full items-center justify-center rounded-lg border border-slate-300/80 bg-white/50 text-base font-bold text-slate-700 transition-colors hover:bg-white"
-                href={buildDevSeedLoginHref(
-                  "admin",
-                  next === "/" ? "/mobile" : next,
-                )}
-              >
-                {dictionary.auth.devLogin.mobile}
-              </Link>
+              {isMobileDevice ? (
+                <Link className={PRIMARY_BUTTON} href={buildDevSeedLoginHref("admin", "/mobile")}>
+                  {dictionary.auth.devLogin.mobile}
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </Link>
+              ) : (
+                <>
+                  <Link className={PRIMARY_BUTTON} href={buildDevSeedLoginHref("admin", next)}>
+                    {dictionary.auth.devLogin.admin}
+                    <ArrowRight className="size-4" aria-hidden="true" />
+                  </Link>
+                  <Link
+                    className="inline-flex h-[54px] w-full items-center justify-center rounded-2xl border border-primary/35 bg-primary/[0.06] text-[15px] font-extrabold text-primary transition-colors hover:bg-primary/10 active:scale-[0.99]"
+                    href={buildDevSeedLoginHref("staff", next)}
+                  >
+                    {dictionary.auth.devLogin.staff}
+                  </Link>
+                  <Link
+                    className={SECONDARY_BUTTON}
+                    href={buildDevSeedLoginHref("admin", next === "/" ? "/mobile" : next)}
+                  >
+                    {dictionary.auth.devLogin.mobile}
+                  </Link>
+                </>
+              )}
             </div>
           ) : (
-            <form action={signInWithEmail} className="mt-8 space-y-5">
-              <input name="next" type="hidden" value={next} />
+            <form action={signInWithEmail} className="space-y-4">
+              <input name="next" type="hidden" value={effectiveNext} />
               <input name="lang" type="hidden" value={locale} />
               <label className="block space-y-2">
-                <span className="text-base font-semibold text-slate-950">
-                  {dictionary.auth.emailLabel}
-                </span>
+                <span className="text-sm font-bold text-foreground">{dictionary.auth.emailLabel}</span>
                 <Input
                   autoComplete="email"
-                  className="h-[58px] rounded-lg border-slate-300/70 bg-white/58 px-5 text-lg text-slate-950 shadow-[0_1px_0_rgba(255,255,255,0.72)_inset] backdrop-blur-xl placeholder:text-slate-400 focus:border-[#008487] focus:ring-[#008487]/15"
+                  className="h-[54px] rounded-2xl border-border bg-background/60 px-4 text-base text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:ring-primary/15"
                   name="email"
                   placeholder={dictionary.auth.emailPlaceholder}
                   required
@@ -138,84 +163,58 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 />
               </label>
 
-              <div className="flex items-start gap-2 rounded-lg border border-[#a7ded9]/65 bg-[#eefafa]/62 px-4 py-3 text-xs font-semibold leading-5 text-[#007376] shadow-[0_1px_0_rgba(255,255,255,0.58)_inset] backdrop-blur-xl">
+              <div className={NOTE_BOX}>
                 <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                 <span>{dictionary.auth.activeMethodNote}</span>
               </div>
 
-              <Button
-                className="h-[58px] w-full rounded-lg bg-[#008487] text-base font-black text-white shadow-[0_14px_34px_rgba(0,132,135,0.18)] hover:bg-[#007376]"
-                type="submit"
-              >
+              <Button className={PRIMARY_BUTTON} type="submit">
                 {dictionary.auth.sendMagicLink}
-                <ArrowRight className="ml-2 size-4" aria-hidden="true" />
+                <ArrowRight className="size-4" aria-hidden="true" />
               </Button>
             </form>
           )}
 
           {params.sent && (
-            <p className="mt-4 rounded-lg border border-[#a7ded9]/70 bg-[#e7f7f5]/70 px-4 py-3 text-sm font-bold leading-6 text-[#008487] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+            <p className="mt-4 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-bold leading-6 text-primary">
               {dictionary.auth.magicLinkSent}
             </p>
           )}
           {errorMessage && (
-            <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold leading-6 text-red-600">
+            <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold leading-6 text-red-600">
               {errorMessage}
             </p>
           )}
 
           {!devSeedLogin && (
             <>
-              <div className="my-8 flex items-center gap-4">
-                <div className="h-px flex-1 bg-slate-200" />
-                <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+              <div className="my-6 flex items-center gap-4">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                   {dictionary.auth.divider}
                 </span>
-                <div className="h-px flex-1 bg-slate-200" />
+                <div className="h-px flex-1 bg-border" />
               </div>
               <form action={signInWithGoogle}>
-                <input name="next" type="hidden" value={next} />
+                <input name="next" type="hidden" value={effectiveNext} />
                 <input name="lang" type="hidden" value={locale} />
-                <button
-                  className="flex h-[54px] w-full items-center justify-center gap-3 rounded-lg border border-slate-300/80 bg-white/60 px-4 text-base font-bold text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.68)] transition-colors hover:bg-white/80"
-                  type="submit"
-                >
-                  <span className="flex size-6 items-center justify-center rounded-sm bg-slate-950 text-sm font-black text-white">
+                <button className={`${SECONDARY_BUTTON} gap-3`} type="submit">
+                  <span className="flex size-6 items-center justify-center rounded-md bg-foreground text-sm font-black text-background">
                     G
                   </span>
                   {dictionary.auth.googleSignIn}
                 </button>
               </form>
+              <p className="mt-4 text-center text-xs font-medium leading-5 text-muted-foreground/80">
+                {dictionary.auth.newUserHint}
+              </p>
             </>
           )}
+        </div>
 
-          <p className="mt-6 text-center text-sm font-medium leading-6 text-slate-500">
-            {dictionary.auth.productSubtitle}
-          </p>
-
-          {!devSeedLogin && (
-            <p className="mt-3 text-center text-xs font-medium leading-5 text-slate-400">
-              {dictionary.auth.newUserHint}
-            </p>
-          )}
-
-          <div className="mt-8 flex items-center justify-center gap-4 text-sm font-semibold text-slate-500 sm:hidden">
-            <Globe2 className="size-4" aria-hidden="true" />
-            {locales.map((option) => (
-              <Link
-                className={
-                  option === locale
-                    ? "text-slate-950 underline underline-offset-4"
-                    : "hover:text-slate-950"
-                }
-                href={getLanguageHref(option, next)}
-                key={option}
-              >
-                {option.toUpperCase()}
-              </Link>
-            ))}
-          </div>
-        </Card>
+        <p className="mt-auto pt-8 text-center text-xs font-medium text-muted-foreground/70">
+          {dictionary.app.name}
+        </p>
       </section>
     </main>
   );

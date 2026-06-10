@@ -1,6 +1,70 @@
 # Linen Defect Technical Design
 
-Status: Draft — aligned to refined mobile-first product plan (2026-06-10)
+Status: First slice implemented (2026-06-10). Sections below the "As-Built" block are the
+original design direction kept for context; where they disagree with "As-Built", the
+"As-Built" section is authoritative.
+
+## As-Built (First Slice)
+
+The first slice ships as a building-scoped **linen return ledger** under
+`/mobile/linen-return/*`. Side-menu entry only (id `linen-return`); not a default bottom tab.
+
+### Building model
+
+Building is the **canonical property name (text)**, identical to `order_requests.building_name`
+and the app's operational building key (from `getActiveRoomCatalogServer` → `propertyName`).
+We did **not** introduce a `properties` FK for linen, to stay consistent with every other
+operational feature and the same building picker. The workflow doc explicitly permitted a
+"canonical building key".
+
+### Tables (migration `202606100002_linen_returns.sql`)
+
+- `linen_items` — selectable catalog. `organization_id` + nullable `building_name`
+  (`NULL` = available for all buildings). Seeded with a default 8-item set per org
+  (`towel, bath, hand, sheet, duvet, pillow, robe, mat`) as global (`building_name NULL`) rows.
+  Building-specific lists are added later. Fields: `code, name, category, is_active,
+  display_order, created_by_user_id, timestamps`. **Display names are localized by `code`** via
+  i18n (`linenReturn.items`, ko/ja/en) in the lib layer (`localizeItemName`); the DB `name` is the
+  fallback for custom items that have no `code`. The seed stores Korean in `name`, but the UI shows
+  the locale-correct label.
+- `linen_return_records` — header. `organization_id, building_name (text, required), note,
+  image_urls text[], registered_by_user_id, registered_at, timestamps`. No status column.
+- `linen_return_record_items` — lines. `return_record_id (cascade), linen_item_id, quantity
+  (>0), sort_order`, `unique (return_record_id, linen_item_id)` blocks duplicate items.
+
+### Routes / actions
+
+- `GET /mobile/linen-return` — building picker (card grid only; no search box — building lists are short)
+- `GET /mobile/linen-return/list?building=` — building-scoped latest-first list + FAB + ledger link
+- `GET /mobile/linen-return/new?building=` — create form (`createLinenReturnRecord`)
+- `GET /mobile/linen-return/record/[id]` — detail (edit/delete shown only when permitted)
+- `GET /mobile/linen-return/record/[id]/edit` — edit (`updateLinenReturnRecord`, `deleteLinenReturnRecord`)
+- `GET /mobile/linen-return/ledger?building=&year=&month=` (month mode) or `&startDate=&endDate=` (custom range) — ledger (records / item-summary, registrant + item filters, and a "my entries" toggle that
+shows only records registered by the current user — client-side filter on `registeredByUserId`).
+Period control: prev/next month arrows + a clickable period label that opens a date-range calendar card modal (`DateRangeCalendar`) for touch start/end selection; the chosen range drives the actual query (Tokyo-day boundaries).
+
+Building is passed as a query param (not a path segment) and validated server-side against
+the org room catalog (`isKnownBuilding`).
+
+### Images
+
+Reuses the existing `request-images` bucket with a new `linen-returns/<recordId>/...` subfolder;
+the upload/delete storage policies were extended to allow that segment. Direct client upload +
+compression via `AnnouncementImageUploader` + `uploadRequestImages`, ≤5 photos. Photo editing in
+the edit flow is deferred (existing photos preserved; create flow uploads them).
+
+### Save UX
+
+After create, redirect to the building list with `?created=<id>`, show a completion overlay,
+and highlight the new (top) row.
+
+### Permissions
+
+Read/insert: all active org members. Update/delete: the record author or admin-capable roles
+(`owner, office_admin, cs_staff, field_manager`) — enforced in RLS and re-checked in actions via
+`canManageLinenRecord`. Deletion is hard delete. Line-item RLS follows the parent record.
+
+---
 
 ## Purpose
 

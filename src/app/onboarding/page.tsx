@@ -29,10 +29,10 @@ const secondaryCardClass =
   "rounded-[18px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.74),rgba(255,255,255,0.58))] text-slate-950 shadow-[0_14px_38px_rgba(15,23,42,0.08),0_1px_0_rgba(255,255,255,0.64)_inset] ring-1 ring-white/35 backdrop-blur-2xl";
 
 const iconClass =
-  "flex size-12 items-center justify-center rounded-2xl border border-[#a7ded9]/60 bg-[#eefafa]/70 text-[#008487] shadow-[0_1px_0_rgba(255,255,255,0.62)_inset] backdrop-blur-xl";
+  "flex size-12 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary shadow-[0_1px_0_rgba(255,255,255,0.62)_inset] backdrop-blur-xl";
 
 const inputClass =
-  "h-[54px] rounded-lg border-slate-300/70 bg-white/58 px-4 text-base font-semibold text-slate-950 shadow-[0_1px_0_rgba(255,255,255,0.72)_inset] backdrop-blur-xl placeholder:text-slate-400 focus:border-[#008487] focus:ring-[#008487]/15";
+  "h-[54px] rounded-lg border-slate-300/70 bg-white/58 px-4 text-base font-semibold text-slate-950 shadow-[0_1px_0_rgba(255,255,255,0.72)_inset] backdrop-blur-xl placeholder:text-slate-400 focus:border-primary focus:ring-primary/15";
 
 export default async function OnboardingPage({
   searchParams,
@@ -118,7 +118,7 @@ export default async function OnboardingPage({
                 {dictionary.app.name}
               </span>
             </div>
-            <Badge className="mt-5 rounded-full border border-white/55 bg-white/48 px-3 py-1 text-[#008487] shadow-[0_8px_22px_rgba(15,23,42,0.06),0_1px_0_rgba(255,255,255,0.7)_inset] backdrop-blur-xl">
+            <Badge className="mt-5 rounded-full border border-white/55 bg-white/48 px-3 py-1 text-primary shadow-[0_8px_22px_rgba(15,23,42,0.06),0_1px_0_rgba(255,255,255,0.7)_inset] backdrop-blur-xl">
               {dictionary.onboarding.accountSetup}
             </Badge>
             <h1 className="mt-4 max-w-2xl text-[34px] font-black leading-tight tracking-[-0.05em] sm:text-[42px]">
@@ -203,7 +203,7 @@ export default async function OnboardingPage({
                   </label>
                 </div>
                 <Button
-                  className="h-[54px] w-full rounded-lg bg-[#008487] text-base font-black text-white shadow-[0_14px_34px_rgba(0,132,135,0.18)] hover:bg-[#007376]"
+                  className="h-[54px] w-full rounded-lg bg-primary text-base font-black text-white shadow-[0_14px_34px_hsl(var(--primary-hsl)/0.18)] hover:bg-primary/90"
                   type="submit"
                 >
                   {dictionary.onboarding.saveProfile}
@@ -242,7 +242,7 @@ export default async function OnboardingPage({
                   />
                 </label>
                 <Button
-                  className="h-[54px] w-full rounded-lg bg-[#008487] text-base font-black text-white shadow-[0_14px_34px_rgba(0,132,135,0.18)] hover:bg-[#007376]"
+                  className="h-[54px] w-full rounded-lg bg-primary text-base font-black text-white shadow-[0_14px_34px_hsl(var(--primary-hsl)/0.18)] hover:bg-primary/90"
                   type="submit"
                 >
                   {dictionary.onboarding.join}

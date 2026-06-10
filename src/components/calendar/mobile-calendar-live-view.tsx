@@ -15,6 +15,7 @@ type MobileCalendarLiveViewProps = {
     calendarBuildingPickerBody: string;
     calendarBuildingPickerQuestion: string;
     calendarTokyoNowLabel: string;
+    legendDirect: string;
     calendarBuildingPickerTitle: string;
     call: string;
     checkInLabel: string;

@@ -53,13 +53,13 @@ export default async function MobileNotificationsPage() {
   return (
     <MobileShell activeItem="notifications" badges={navBadges} title={copy.title}>
       <div className="space-y-4">
-        <Card className="rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-sm">
+        <Card className="rounded-[24px] border border-border bg-surface p-4 shadow-sm">
           <div className="flex items-start gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 ring-1 ring-slate-200/80">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
               <Bell className="size-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg font-black text-slate-950">{copy.title}</h1>
+              <h1 className="text-lg font-black text-foreground">{copy.title}</h1>
               <p className="mt-1 text-xs font-medium text-muted-foreground">{copy.subtitle}</p>
             </div>
           </div>

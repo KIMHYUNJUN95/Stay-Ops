@@ -325,6 +325,108 @@ export type Database = {
           updated_at?: string;
         };
       };
+      linen_items: {
+        Insert: {
+          building_name?: string | null;
+          category?: string | null;
+          code?: string | null;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          display_order?: number;
+          id?: string;
+          is_active?: boolean;
+          name: string;
+          organization_id: string;
+          updated_at?: string;
+        };
+        Row: {
+          building_name: string | null;
+          category: string | null;
+          code: string | null;
+          created_at: string;
+          created_by_user_id: string | null;
+          display_order: number;
+          id: string;
+          is_active: boolean;
+          name: string;
+          organization_id: string;
+          updated_at: string;
+        };
+        Update: {
+          building_name?: string | null;
+          category?: string | null;
+          code?: string | null;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          display_order?: number;
+          id?: string;
+          is_active?: boolean;
+          name?: string;
+          organization_id?: string;
+          updated_at?: string;
+        };
+      };
+      linen_return_record_items: {
+        Insert: {
+          created_at?: string;
+          id?: string;
+          linen_item_id: string;
+          quantity: number;
+          return_record_id: string;
+          sort_order?: number;
+        };
+        Row: {
+          created_at: string;
+          id: string;
+          linen_item_id: string;
+          quantity: number;
+          return_record_id: string;
+          sort_order: number;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          linen_item_id?: string;
+          quantity?: number;
+          return_record_id?: string;
+          sort_order?: number;
+        };
+      };
+      linen_return_records: {
+        Insert: {
+          building_name: string;
+          created_at?: string;
+          id?: string;
+          image_urls?: string[];
+          note?: string | null;
+          organization_id: string;
+          registered_at?: string;
+          registered_by_user_id: string;
+          updated_at?: string;
+        };
+        Row: {
+          building_name: string;
+          created_at: string;
+          id: string;
+          image_urls: string[];
+          note: string | null;
+          organization_id: string;
+          registered_at: string;
+          registered_by_user_id: string;
+          updated_at: string;
+        };
+        Update: {
+          building_name?: string;
+          created_at?: string;
+          id?: string;
+          image_urls?: string[];
+          note?: string | null;
+          organization_id?: string;
+          registered_at?: string;
+          registered_by_user_id?: string;
+          updated_at?: string;
+        };
+      };
       maintenance_reports: {
         Insert: {
           cleaning_session_id?: string | null;

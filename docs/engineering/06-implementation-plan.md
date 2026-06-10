@@ -744,11 +744,23 @@ Status: Planned — not started. Five features approved as the next build scope 
 - [ ] i18n ko/ja/en for building-first flow, ledger/statistics, validation
 - [ ] Sync docs `19`, `08`, `04`, `05`, `16`
 
-### 14.2 Personal Todo / Shared Task Inbox (Partial — blocked on share-model decision)
+### 14.2 Personal Todo / Shared Task Inbox (planning refined, design next)
 
-- [ ] CONFIRM share model (single shared record vs sender/recipient copy) before coding — see decision log 2026-06-09
-- [ ] Migration: `tasks`, `task_transfers`; private-by-default; task calendar kept distinct from reservation calendar
-- [ ] RLS, actions per `docs/engineering/09`; i18n; sync docs `18`, `09`, `04`, `05`
+- [ ] Design the core mobile task workspace from the refined 2026-06-10 product plan:
+  - Today
+  - Inbox
+  - My Tasks
+  - Sent By Me
+  - Completed
+  - Calendar
+  - quick add
+  - detailed create/edit
+  - task detail
+  - participant picker
+- [ ] Migration: `tasks`, `task_participants`, `task_updates` → update `src/types/database.ts`
+- [ ] RLS per `docs/engineering/05` task sections: participant-only visibility, author-only core edits, participant workflow-state mutation via actions
+- [ ] Actions per `docs/engineering/09`; i18n; sync docs `18`, `09`, `04`, `05`, `16`
+- [ ] Keep task calendar visually and conceptually distinct from the reservation calendar
 
 ### 14.3 Staff Suggestions / Feedback Box (Near-ready)
 

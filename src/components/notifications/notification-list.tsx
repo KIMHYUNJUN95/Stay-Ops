@@ -60,7 +60,7 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
             {copy.unread.replace("{count}", String(unreadCount))}
           </p>
           <button
-            className="text-xs font-bold text-[#315F91] disabled:opacity-50"
+            className="text-xs font-bold text-primary disabled:opacity-50"
             disabled={isPending}
             onClick={handleMarkAllRead}
             type="button"
@@ -81,8 +81,8 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
                 className={cn(
                   "flex w-full items-start gap-3 rounded-2xl border px-4 py-3.5 text-left transition-colors",
                   isUnread
-                    ? "border-[#D9EAF8] bg-[#F4FAFF] shadow-[0_10px_24px_-22px_rgba(49,95,145,0.45)]"
-                    : "border-border bg-white hover:bg-muted/30",
+                    ? "border-primary/20 bg-primary/[0.06] shadow-[0_10px_24px_-22px_hsl(var(--primary-hsl)/0.4)]"
+                    : "border-border bg-surface hover:bg-muted/30",
                 )}
                 disabled={isPending}
                 onClick={() => handleOpen(notification)}
@@ -104,10 +104,10 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
                       {display.statusLabel}
                     </span>
                     {isUnread ? (
-                      <span className="size-2 rounded-full bg-[#315F91]" aria-hidden="true" />
+                      <span className="size-2 rounded-full bg-primary" aria-hidden="true" />
                     ) : null}
                   </div>
-                  <p className="mt-1 text-sm font-black text-slate-950">{display.title}</p>
+                  <p className="mt-1 text-sm font-black text-foreground">{display.title}</p>
                   <p className="mt-0.5 line-clamp-2 text-xs font-medium text-slate-600">
                     {display.body}
                   </p>

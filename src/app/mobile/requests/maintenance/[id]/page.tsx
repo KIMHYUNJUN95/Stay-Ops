@@ -27,7 +27,7 @@ const statusBadgeClass: Record<MaintenanceStatus, string> = {
   closed: "border-border bg-muted/50 text-muted-foreground",
 };
 const DETAIL_CARD =
-  "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]";
+  "rounded-[24px] border border-slate-200/80 bg-surface shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]";
 
 type ListFilterQuery = {
   created?: string;
@@ -138,7 +138,7 @@ export default async function MobileMaintenanceDetailPage({ params, searchParams
           ) : null}
 
           <div className="flex items-start gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200/80">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-200/80">
               <Wrench className="size-5" aria-hidden="true" />
             </div>
             <h2 className="min-w-0 break-words pt-0.5 text-xl font-black leading-tight">

@@ -27,8 +27,8 @@ A five-feature batch was approved on 2026-06-09 as the next build scope after th
 
 Build order and readiness:
 
-1. **Linen Defect Registration** — Product planning refined on 2026-06-10. Mobile-first return-ledger direction confirmed. Next step: design the 5 core mobile screens from Product `19` + Tech-design `08`.
-2. **Personal Todo / Shared Task Inbox** — Partial. Product `18`, tech-design `09`. Blocked on confirming the teammate-share model (single shared record vs. sender/recipient copy) before build.
+1. **Linen Defect Registration** — **First slice implemented (2026-06-10).** Mobile linen return ledger is live under `/mobile/linen-return/*` (side-menu entry `linen-return`). All five screens shipped: building picker, building-scoped list, create, detail (permission-gated edit/delete), and ledger (record + item-summary, registrant/item filters, month navigation). Tables `linen_items`, `linen_return_records`, `linen_return_record_items` (migration `202606100002_linen_returns.sql`); photos reuse the `request-images` bucket (`linen-returns/` subfolder). Building = canonical property name (text). Deferred: building-specific item master UI, admin web. The migration must be applied to the linked Supabase project (Dashboard SQL editor or `supabase db push`). See Product `19` + Tech-design `08` "As-Built".
+2. **Personal Todo / Shared Task Inbox** — Product planning refined on 2026-06-10. Private-first but shared-capable task workspace confirmed. Next step: design the core mobile views from Product `18` + Tech-design `09`.
 3. **Staff Suggestions / Feedback Box** — Near-ready. Product `22`, tech-design `12`. Needs `employee_only` visibility reflected in RLS/user-roles.
 4. **Internal Board** — Partial. Product `20`, tech-design `10` (skeleton). Part-time write permission approved 2026-06-09; tech-design needs fleshing out before build.
 5. **Attendance / Clock-In-Out + Payroll** — Attendance capture approved; **payroll calculation deferred** until wage rules are defined. Product `21`, tech-design `11`.

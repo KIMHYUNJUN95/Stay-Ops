@@ -127,13 +127,13 @@ export default async function MobileHomePage() {
 
   const quickActionItems: QuickActionItem[] = [
     {
-      accentClass: "from-cyan-50 via-white to-sky-50",
+      accentClass: "from-sky-50 via-white to-sky-50",
       id: "cleaning",
       label: dictionary.mobile.quickActions.cleaning,
       href: "/mobile/cleaning",
       enabled: true,
-      iconClass: "bg-cyan-50 text-cyan-700 ring-cyan-100",
-      ringClass: "bg-cyan-500/12",
+      iconClass: "bg-[#315F91]/10 text-[#315F91] ring-[#315F91]/20",
+      ringClass: "bg-[#315F91]/12",
       Icon: Sparkles,
       subLabel: dictionary.mobile.homeQuickActionStart,
     },
@@ -195,22 +195,22 @@ export default async function MobileHomePage() {
         {/* Important announcement */}
         {latestAnnouncement ? (
           <Link aria-label={announcementAriaLabel} className="block" href={announcementHref}>
-            <Card className="relative overflow-hidden rounded-2xl border-slate-200 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] p-4 shadow-[0_16px_32px_-26px_rgba(31,58,95,0.38)] backdrop-blur-none transition-opacity active:opacity-80">
+            <Card className="relative overflow-hidden rounded-2xl border-border bg-surface p-4 shadow-[0_16px_32px_-26px_rgba(31,58,95,0.38)] backdrop-blur-none transition-opacity active:opacity-80">
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white" aria-hidden="true" />
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#EAF1F8] text-[#1F3A5F] ring-1 ring-[#C9D8E8]">
+                <div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
                   <Bell className="size-4" aria-hidden="true" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                    <span className="text-[11px] font-black uppercase tracking-[0.12em] text-[#1F3A5F]">
+                    <span className="text-[11px] font-black uppercase tracking-[0.12em] text-primary">
                       {dictionary.mobile.homeAnnouncementTitle}
                     </span>
-                    <span className="rounded-full border border-[#C9D8E8] bg-[#EAF1F8] px-2 py-0.5 text-[10px] font-black text-[#1F3A5F]">
+                    <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-black text-primary">
                       {dictionary.mobile.homeAnnouncementImportant}
                     </span>
                   </div>
-                  <h3 className="text-sm font-bold text-slate-900">
+                  <h3 className="text-sm font-bold text-foreground">
                     {latestAnnouncement.title}
                   </h3>
                   <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">
@@ -219,7 +219,7 @@ export default async function MobileHomePage() {
                 </div>
               </div>
               <div className="mt-3 flex justify-end">
-                <span className="text-xs font-semibold text-[#1F3A5F]" aria-hidden="true">
+                <span className="text-xs font-semibold text-primary" aria-hidden="true">
                   {dictionary.mobile.homeAnnouncementViewDetail}
                 </span>
               </div>
@@ -233,35 +233,35 @@ export default async function MobileHomePage() {
           className="grid grid-cols-2 gap-3.5"
         >
           {counts.status === "error" ? (
-            <Card className="col-span-2 rounded-2xl border-slate-200 bg-white p-4 text-center shadow-[0_10px_22px_-22px_rgba(15,23,42,0.25)] backdrop-blur-none">
+            <Card className="col-span-2 rounded-2xl border-border bg-white p-4 text-center shadow-[0_10px_22px_-22px_rgba(15,23,42,0.25)] backdrop-blur-none">
               <p className="text-sm font-semibold text-slate-500">
                 {dictionary.mobile.homeSectionLoadError}
               </p>
               <HomeRefreshButton
                 label={dictionary.mobile.homeRetry}
-                className="mt-2 text-xs font-semibold text-[#1F3A5F] disabled:opacity-40"
+                className="mt-2 text-xs font-semibold text-primary disabled:opacity-40"
               />
             </Card>
           ) : (
             <>
-              <Card className="relative overflow-hidden rounded-2xl border-slate-200 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] p-4 shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] backdrop-blur-none">
+              <Card className="relative overflow-hidden rounded-2xl border-border bg-surface p-4 shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] backdrop-blur-none">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white" aria-hidden="true" />
-                <div className="mb-3 flex size-10 items-center justify-center rounded-2xl bg-[#EEF7FF] text-[#315F91] ring-1 ring-[#D9EAF8]">
+                <div className="mb-3 flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
                   <CalendarCheck2 className="size-4" aria-hidden="true" />
                 </div>
-                <p className="text-3xl font-extrabold text-slate-900">
+                <p className="text-3xl font-extrabold text-foreground">
                   {counts.status === "ok" ? counts.data.checkIns : "—"}
                 </p>
                 <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
                   {dictionary.admin.stats.checkIns}
                 </p>
               </Card>
-              <Card className="relative overflow-hidden rounded-2xl border-slate-200 bg-[linear-gradient(145deg,#ffffff_0%,#fbfbff_100%)] p-4 shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] backdrop-blur-none">
+              <Card className="relative overflow-hidden rounded-2xl border-border bg-surface p-4 shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] backdrop-blur-none">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white" aria-hidden="true" />
-                <div className="mb-3 flex size-10 items-center justify-center rounded-2xl bg-[#F2F4FF] text-[#4E63B3] ring-1 ring-[#E0E5FF]">
+                <div className="mb-3 flex size-10 items-center justify-center rounded-2xl bg-[#4E63B3]/10 text-[#4E63B3] ring-1 ring-[#4E63B3]/20">
                   <Home className="size-4" aria-hidden="true" />
                 </div>
-                <p className="text-3xl font-extrabold text-slate-900">
+                <p className="text-3xl font-extrabold text-foreground">
                   {counts.status === "ok" ? counts.data.checkOuts : "—"}
                 </p>
                 <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
@@ -274,17 +274,17 @@ export default async function MobileHomePage() {
 
         {/* Active cleaning task */}
         <section aria-label={dictionary.mobile.homeActiveTaskTitle}>
-          <h3 className="px-1 text-base font-extrabold tracking-[-0.01em] text-slate-900">
+          <h3 className="px-1 text-base font-extrabold tracking-[-0.01em] text-foreground">
             {dictionary.mobile.homeActiveTaskTitle}
           </h3>
-          <Card className="mt-3 rounded-2xl border-slate-200 bg-[linear-gradient(145deg,#ffffff_0%,#f9fbff_100%)] p-4 shadow-[0_16px_30px_-26px_rgba(31,58,95,0.38)] backdrop-blur-none">
+          <Card className="mt-3 rounded-2xl border-border bg-surface p-4 shadow-[0_16px_30px_-26px_rgba(31,58,95,0.38)] backdrop-blur-none">
             {activeSession.status === "ok" ? (
               <div className="flex items-center gap-3">
-                <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#EAF1F8] text-[#1F3A5F] ring-1 ring-[#C9D8E8]">
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
                   <Timer className="size-4" aria-hidden="true" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-slate-900">
+                  <p className="truncate text-sm font-bold text-foreground">
                     {activeSession.data.room_label}
                   </p>
                   <p className="text-xs font-medium text-slate-500">
@@ -295,7 +295,7 @@ export default async function MobileHomePage() {
                   <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
                     {dictionary.mobile.homeActiveTaskElapsed}
                   </p>
-                  <p className="text-sm font-bold text-[#1F3A5F]">
+                  <p className="text-sm font-bold text-primary">
                     <HomeElapsedTimer startedAt={activeSession.data.started_at} />
                   </p>
                 </div>
@@ -307,7 +307,7 @@ export default async function MobileHomePage() {
                 </p>
                 <HomeRefreshButton
                   label={dictionary.mobile.homeRetry}
-                  className="mt-2 text-xs font-semibold text-[#1F3A5F] disabled:opacity-40"
+                  className="mt-2 text-xs font-semibold text-primary disabled:opacity-40"
                 />
               </div>
             ) : (
@@ -320,7 +320,7 @@ export default async function MobileHomePage() {
                 </p>
                 <Link
                   href="/mobile/cleaning"
-                  className="mt-3 inline-block text-xs font-semibold text-[#1F3A5F]"
+                  className="mt-3 inline-block text-xs font-semibold text-primary"
                 >
                   {dictionary.mobile.homeActiveTaskStartCta}
                 </Link>
@@ -331,7 +331,7 @@ export default async function MobileHomePage() {
 
         {/* Quick actions */}
         <section>
-          <h3 className="px-1 text-base font-extrabold tracking-[-0.01em] text-slate-900">
+          <h3 className="px-1 text-base font-extrabold tracking-[-0.01em] text-foreground">
             {dictionary.mobile.homeQuickActionsTitle}
           </h3>
           <div className="mt-3 grid grid-cols-2 gap-3.5">
@@ -354,7 +354,7 @@ export default async function MobileHomePage() {
                       <action.Icon className="size-5" aria-hidden="true" />
                     </div>
                   </div>
-                  <p className={`mt-2 text-center text-sm font-bold ${action.enabled ? "text-slate-900" : "text-slate-400"}`}>
+                  <p className={`mt-2 text-center text-sm font-bold ${action.enabled ? "text-foreground" : "text-slate-400"}`}>
                     {action.label}
                   </p>
                   <p className={`mt-1 text-center text-xs font-medium ${subLabelClass}`}>
@@ -371,7 +371,7 @@ export default async function MobileHomePage() {
                     className="cursor-not-allowed"
                     tabIndex={0}
                   >
-                    <Card className="rounded-2xl border-slate-200 bg-white p-4 opacity-50 shadow-[0_10px_24px_-22px_rgba(15,23,42,0.24)] backdrop-blur-none select-none">
+                    <Card className="rounded-2xl border-border bg-white p-4 opacity-50 shadow-[0_10px_24px_-22px_rgba(15,23,42,0.24)] backdrop-blur-none select-none">
                       {cardContent}
                     </Card>
                   </div>
@@ -380,7 +380,7 @@ export default async function MobileHomePage() {
 
               return (
                 <Link key={action.id} className="block" href={action.href}>
-                  <Card className={`relative overflow-hidden rounded-2xl border-slate-200 bg-gradient-to-br ${action.accentClass} p-4 shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] backdrop-blur-none transition-[transform,box-shadow] active:scale-[0.98]`}>
+                  <Card className="relative overflow-hidden rounded-2xl border-border bg-surface p-4 shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] backdrop-blur-none transition-[transform,box-shadow] active:scale-[0.98]">
                     <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white" aria-hidden="true" />
                     {cardContent}
                   </Card>
@@ -392,10 +392,10 @@ export default async function MobileHomePage() {
 
         {/* Today's activity timeline */}
         <section className="pb-2">
-          <h3 className="px-1 text-base font-extrabold tracking-[-0.01em] text-slate-900">
+          <h3 className="px-1 text-base font-extrabold tracking-[-0.01em] text-foreground">
             {dictionary.mobile.homeTodayActivityTitle}
           </h3>
-          <Card className="mt-3 rounded-2xl border-slate-200 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] p-5 shadow-[0_16px_30px_-26px_rgba(31,58,95,0.36)] backdrop-blur-none">
+          <Card className="mt-3 rounded-2xl border-border bg-surface p-5 shadow-[0_16px_30px_-26px_rgba(31,58,95,0.36)] backdrop-blur-none">
             {todayActivity.status === "error" ? (
               <div className="py-1 text-center">
                 <p className="text-sm text-slate-500">
@@ -403,7 +403,7 @@ export default async function MobileHomePage() {
                 </p>
                 <HomeRefreshButton
                   label={dictionary.mobile.homeRetry}
-                  className="mt-2 text-xs font-semibold text-[#1F3A5F] disabled:opacity-40"
+                  className="mt-2 text-xs font-semibold text-primary disabled:opacity-40"
                 />
               </div>
             ) : todayActivity.status === "empty" ? (
@@ -413,13 +413,13 @@ export default async function MobileHomePage() {
                 </p>
                 <Link
                   href="/mobile/cleaning"
-                  className="mt-3 inline-block text-xs font-semibold text-[#1F3A5F]"
+                  className="mt-3 inline-block text-xs font-semibold text-primary"
                 >
                   {dictionary.mobile.homeActivityStartCta}
                 </Link>
               </div>
             ) : (
-              <ol className="space-y-5 border-l-2 border-slate-200 pl-4">
+              <ol className="space-y-5 border-l-2 border-border pl-4">
                 {todayActivity.data.map((event) => {
                   const localizedRoom = localizeRoomLabel(
                     event.room,
@@ -434,7 +434,7 @@ export default async function MobileHomePage() {
                       <p className="text-[11px] font-semibold text-slate-500">
                         {formatActivityTimeJst(event.timestamp)}
                       </p>
-                      <p className="text-sm font-semibold text-slate-900">
+                      <p className="text-sm font-semibold text-foreground">
                         {getActivityLabel({ ...event, room: localizedRoom }, dictionary.mobile, dictionary.cleaning?.taskOptions)}
                       </p>
                     </li>

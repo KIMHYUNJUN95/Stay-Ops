@@ -9,11 +9,14 @@ const Lottie = dynamic(() => import("lottie-react"), { ssr: false });
 
 export function HomeHeroAnimation() {
   return (
-    <section className="overflow-hidden rounded-[30px] border border-slate-100 bg-white">
+    // No card chrome — the animation sits directly on the ivory canvas. A soft
+    // radial edge-fade dissolves the outer strands into the background so the 3D
+    // motion reads as part of the page rather than a boxed graphic.
+    <section className="-mt-1 bg-transparent">
       <Lottie
         aria-hidden="true"
         autoplay
-        className="mx-auto h-56 w-full"
+        className="mx-auto h-56 w-full [mask-image:radial-gradient(72%_72%_at_50%_46%,#000_52%,transparent_82%)] [-webkit-mask-image:radial-gradient(72%_72%_at_50%_46%,#000_52%,transparent_82%)]"
         animationData={homeHeroTopV2}
         loop
       />

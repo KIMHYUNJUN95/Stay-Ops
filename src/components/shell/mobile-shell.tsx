@@ -119,10 +119,6 @@ const FALLBACK_ICON = (
   </svg>
 );
 
-/** Unified palette: fix L/C, vary only hue. */
-const launcherTileBg = (hue: number) => `oklch(0.96 0.025 ${hue})`;
-const launcherBadgeBg = (hue: number) => `oklch(0.92 0.055 ${hue})`;
-const launcherIconFg = (hue: number) => `oklch(0.52 0.12 ${hue})`;
 
 /** Rubber-band resistance: fast start, asymptotic ceiling at MAX_DISPLAY_H. */
 function computeContentOffset(raw: number): number {
@@ -423,7 +419,7 @@ export function MobileShell({
         <aside
           aria-label={dictionary.common.menu}
           className={cn(
-            "fixed inset-y-0 left-0 z-[60] flex w-[78%] max-w-[318px] flex-col overflow-hidden border-r border-border bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-5 pb-6 pt-5 text-foreground",
+            "fixed inset-y-0 left-0 z-[60] flex w-[78%] max-w-[318px] flex-col overflow-hidden border-r border-border bg-[linear-gradient(180deg,#fbf8f1_0%,#f4efe4_100%)] px-5 pb-6 pt-5 text-foreground",
             sidebarOpen
               ? "shadow-[30px_0_82px_-46px_rgba(15,23,42,0.68)]"
               : "shadow-none",
@@ -572,7 +568,7 @@ export function MobileShell({
             >
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(255,255,255,0.82)_55%,rgba(255,255,255,0)_100%)]"
+                className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,var(--background)_0%,color-mix(in_oklab,var(--background)_82%,transparent)_55%,transparent_100%)]"
               />
               <div
                 className={cn(
@@ -640,7 +636,7 @@ export function MobileShell({
                   }}
                 >
                   {isRefreshPending ? (
-                    <Loader2 aria-hidden="true" className="size-[18px] animate-spin text-cyan-600" />
+                    <Loader2 aria-hidden="true" className="size-[18px] animate-spin text-sky-600" />
                   ) : (
                     <ArrowDown
                       aria-hidden="true"
@@ -767,7 +763,6 @@ export function MobileShell({
               <div className="add-grid">
                 {customizableBottomNavItems.map((item) => {
                   const meta = LAUNCHER_META[item.id];
-                  const hue = meta?.hue ?? 200;
                   const selected = navTabIds.includes(item.id);
                   const disabled = !selected && isBarFull;
                   return (
@@ -778,16 +773,23 @@ export function MobileShell({
                       disabled={disabled}
                       onClick={() => toggleNavTab(item.id)}
                       style={{
-                        background: launcherTileBg(hue),
-                        outline: selected ? `2px solid ${launcherIconFg(hue)}` : "none",
-                        outlineOffset: "-2px",
+                        background: selected
+                          ? "color-mix(in oklab, var(--primary) 7%, var(--surface))"
+                          : "var(--surface)",
+                        outline: selected
+                          ? "2px solid var(--primary)"
+                          : "1px solid var(--border)",
+                        outlineOffset: "-1px",
                         opacity: disabled ? 0.45 : 1,
                       }}
                       type="button"
                     >
                       <span
                         className="add-tile__badge"
-                        style={{ background: launcherBadgeBg(hue), color: launcherIconFg(hue) }}
+                        style={{
+                          background: selected ? "var(--primary)" : "var(--muted)",
+                          color: selected ? "var(--primary-foreground)" : "var(--muted-foreground)",
+                        }}
                       >
                         {meta?.icon ?? FALLBACK_ICON}
                       </span>
@@ -796,9 +798,9 @@ export function MobileShell({
                         aria-hidden="true"
                         className="ml-auto flex size-5 items-center justify-center rounded-full"
                         style={{
-                          background: selected ? launcherIconFg(hue) : "transparent",
+                          background: selected ? "var(--primary)" : "transparent",
                           color: "#fff",
-                          border: selected ? "none" : "1.5px solid rgba(16,28,27,0.18)",
+                          border: selected ? "none" : "1.5px solid var(--border)",
                         }}
                       >
                         {selected ? (

@@ -192,7 +192,7 @@ export function AnnouncementPopup({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 py-6 backdrop-blur-xl">
-      <section className="max-h-[calc(100dvh-2rem)] w-full max-w-[27rem] overflow-y-auto overscroll-contain rounded-[28px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] p-5 text-slate-950 shadow-[0_32px_84px_-34px_rgba(15,23,42,0.46)] backdrop-blur-2xl">
+      <section className="max-h-[calc(100dvh-2rem)] w-full max-w-[27rem] overflow-y-auto overscroll-contain rounded-[28px] border border-slate-200/80 bg-surface p-5 text-slate-950 shadow-[0_32px_84px_-34px_rgba(15,23,42,0.46)] backdrop-blur-2xl">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex size-11 items-center justify-center rounded-2xl border border-red-200 bg-red-50 text-red-600">

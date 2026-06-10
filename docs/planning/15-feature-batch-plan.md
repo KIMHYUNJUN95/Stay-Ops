@@ -17,7 +17,7 @@ This file should be updated first, then implementation should begin only after t
 | Feature | Status | Priority | Primary Surface | Main Dependency | Recommended Next Action |
 |---|---|---:|---|---|---|
 | Linen Defect Registration | Approved (slice 1) | High | Mobile first | Building-specific linen item selector | Move to design based on the 2026-06-10 refined mobile product plan |
-| Personal Todo / Shared Task Inbox | Candidate | High | Mobile + Admin | Private-by-default task visibility rules | Tighten personal vs shared task rules |
+| Personal Todo / Shared Task Inbox | Approved (slice 2 planning refined) | High | Mobile first | Shared-task participant model + calendar/task workspace design | Move to design based on the 2026-06-10 refined product plan |
 | Staff Suggestions / Feedback Box | Candidate | Medium-High | Mobile + Admin | Visibility model for public vs employee-only posts | Confirm privacy and response rules |
 | Internal Board | Candidate | Medium | Mobile + Admin | Clear separation from Announcements | Define posting rules and first create/read flow |
 | Attendance / Clock-In-Out + Payroll | Candidate | High but blocked | PWA + Admin | Scope change decision + wage policy rules + export template | Run discovery and spec phase before coding |
@@ -374,16 +374,17 @@ The implementation should treat this as a refinement of the Todo module, not as 
 
 ## Feature 3: Personal Todo / Shared Task Inbox
 
-**Status:** Candidate  
+**Status:** Approved (mobile-first detailed planning refined 2026-06-10)  
 **Priority:** High  
 **Target iteration:** Second implementation candidate
 
 ### 1. Problem
 
 - Each user needs a personal place to store tasks, reminders, and operational notes.
-- The default behavior should be private: personal tasks should be visible only to the owner unless explicitly shared.
+- The center of gravity is personal task management first, not team assignment first.
+- Users still need strong shared-task behavior once a task is shared.
 - CS-heavy operations need richer context than a generic todo list because guest requests, room changes, and exception handling change frequently.
-- Users also need a way to send a task to a teammate so it appears in that teammate's todo list.
+- The product needs a Todoist-like mobile workspace: Today, Inbox, My Tasks, Sent, Completed, and Calendar.
 
 ### 2. Users and Roles
 
@@ -397,114 +398,137 @@ The implementation should treat this as a refinement of the Todo module, not as 
 ### 3. Entry Points
 
 - Mobile:
-  - personal todo list
-  - quick-add task/memo
+  - dedicated side-menu entry
+  - Today / Inbox / My Tasks / Sent / Completed / Calendar views
+  - quick-add
+  - detailed create/edit
   - task detail
-  - send-to-teammate action
+  - participant picker / share flow
 - Admin:
-  - personal todo list
-  - task detail
-  - broader operational view for office roles later if approved
+  - deferred until the wider mobile feature set is complete
 - API / background:
-  - reminder or due-date notifications later
+  - notifications later in the implementation plan, but product-wise required
 
 ### 4. MVP Scope
 
 - In scope:
-  - private-by-default personal task storage per user
+  - private-by-default personal task storage
 - In scope:
-  - task title, optional details, due date, status, priority, and timestamps
+  - quick-add to Inbox with title-only capture
+- In scope:
+  - detailed create/edit with title, description, scheduled date, due date, share recipients
 - In scope:
   - task calendar view for due dates and scheduled follow-up work
 - In scope:
   - optional property/building, room, guest, or reservation context
 - In scope:
-  - send/share action that creates a linked copy in a teammate's task list
+  - private -> shared conversion and shared -> private return
 - In scope:
-  - owner can manage their own tasks; recipient manages tasks sent to them in their own list
-- In scope:
-  - fast capture UX for CS follow-up and personal reminders
+  - one shared task with common status/completion across participants
+  - original author owns core content; participants operate shared workflow state
+  - unified update-log with optional images
+  - optional task-level images (max 5) and update-log images (max 5)
+  - simple recurrence support
 
 ### 5. Out of Scope
 
 - Deferred:
   - complex subtasks
 - Deferred:
-  - recurring tasks
+  - advanced recurrence exceptions/end rules
 - Deferred:
-  - full team-wide board view by default
+  - admin web surface
 - Deferred:
   - advanced automation rules or natural-language date parsing
 - Deferred:
-  - rich chat/thread behavior inside tasks
+  - separate rich chat/thread model apart from unified update-log
 
 ### 6. Workflow
 
-1. User creates a private personal task or memo.
-2. System stores it under the owner's private task scope.
-3. User optionally links the task to property, room, guest, or reservation context.
-4. User can optionally send the task to a teammate.
-5. System creates a share/assignment record so the teammate receives the task in their own list.
-6. Owner and recipient each manage visibility and status according to the final sharing rule.
+1. User enters the Todo feature from the side menu or a bottom-bar custom slot.
+2. Default first view is Today; Inbox, My Tasks, Sent By Me, Completed, and Calendar are available as internal top-level views.
+3. Quick-add creates a title-only Inbox task.
+4. Detailed create/edit can fill title, description, scheduled date, due date, share recipients, and more fields.
+5. A task starts private by default.
+6. The author can later add one or more participants, turning it into a shared task.
+7. Once shared, all participants see the same shared status and completion state.
+8. Only the original author can edit core content; any participant can update workflow state and add update-log entries.
+9. If all participants are removed, the task becomes private again.
+10. If the original author leaves/deletes, the task is deleted for everyone.
 
 ### 7. Data and Technical Impact
 
 - Tables affected:
-  - likely new `tasks`
-  - likely new `task_assignments` or `task_shares`
+  - new `tasks`
+  - new `task_participants`
+  - new `task_updates`
 - New schema needed:
-  - private owner-scoped task record
-  - optional linked context fields for property/room/reservation/guest
-  - teammate share/assignment relation with sender, recipient, and status
+  - private/shared task record with Inbox + recurrence + date fields
+  - participant relation set
+  - unified update-log table
 - Server actions / routes:
-  - create personal task
-  - update/delete own task
-  - send task to teammate
-  - list personal tasks
-  - read received/shared tasks
-  - task calendar query by date range
+  - quick add
+  - create task
+  - update core task
+  - set status / complete / reopen
+  - move in/out of Inbox
+  - share with users
+  - remove participants
+  - delete task
+  - add update entry
+  - list Today / Inbox / My Tasks / Sent / Completed / Calendar
 - Shared components:
   - room/property selectors
   - optional reservation linking later
-  - existing request/list card patterns may be reusable
+  - existing bottom-sheet and list-card patterns may be reusable
 - Permissions / RLS impact:
   - private tasks must not leak across users by default
-  - shared/assigned tasks must become visible only to the sender/recipient set and approved admin roles if that rule is adopted
+  - shared tasks must be visible only to active participants
+  - original author retains core edit power
+  - participants can mutate common workflow state only
 - Notification impact:
-  - teammate task assignment notification is recommended later, not required for the first slice
+  - all major task notifications are product-required: shared with me, edited, update added, due soon, overdue, completed
 
 ### 8. Risks and Open Questions
 
 - Risk:
   - if privacy rules are vague, personal notes may leak to other team members
 - Risk:
-  - if send/share mutates one shared record instead of creating a controlled recipient copy, ownership/status semantics may become confusing
-- Open question:
-  - when a task is sent to a teammate, should it remain editable by the sender, the recipient, or both?
-- Open question:
-  - should shared tasks sync status both ways, or should sender and recipient each have separate completion states?
-- Open question:
-  - do personal tasks need attachments in the first slice?
-- Open question:
-  - should CS follow-up tasks support multiple guests/rooms, or only one linked context per task in MVP?
+  - if the implementation accidentally reverts to recipient-copy semantics, product behavior will diverge badly
+- Clarified:
+  - shared tasks use one common status and one common completion state
+- Clarified:
+  - quick-add goes to Inbox; detailed create can fully expand the task
+- Clarified:
+  - recurring work scheduler remains a separate module
 
 ### 9. Recommended Implementation Slice
 
-1. Refine `docs/product/18-todo-task-workflow.md` with private-by-default rules and teammate-send behavior.
-2. Add a simple private task schema + RLS.
-3. Build personal task create/list/detail/update flow.
-4. Add the task calendar view for due-date-based scheduling.
-5. Add teammate send/share as a second slice after the private baseline is stable.
-6. Add CS-specific room/guest context fields in the same cycle if the data links are already practical.
-7. Reconcile docs after real operational feedback.
+1. Finalize product planning around the private-first but shared-capable task workspace.
+2. Design the core mobile views:
+   - Today
+   - Inbox
+   - My Tasks
+   - Sent By Me
+   - Completed
+   - Calendar
+   - quick add
+   - detailed create/edit
+   - task detail
+   - share picker
+3. Confirm technical schema as `tasks + task_participants + task_updates`.
+4. Implement the mobile slice only.
+5. Add admin web later after the broader mobile set is complete.
 
 ### 10. Verification Checklist
 
 - [ ] Private task visibility verified
-- [ ] Own task create/update/delete verified
+- [ ] Shared task common-status behavior verified
+- [ ] Original-author core edit rules verified
+- [ ] Participant workflow-state update rules verified
+- [ ] Inbox behavior verified
 - [ ] Task calendar view verified
-- [ ] Teammate send/share verified
-- [ ] Sender/recipient visibility boundaries verified
+- [ ] Share / remove-participant / delete rules verified
 - [ ] Korean/Japanese/English copy verified
 - [ ] Empty/error states verified
 - [ ] `npm run lint`

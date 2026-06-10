@@ -1,5 +1,24 @@
 # Reservation Calendar
 
+## Overview grid UI (2026-06-10 readability redesign)
+
+Visual/UX-only refinement of the mobile **overview (timeline) grid** in
+`src/components/calendar/mobile-calendar-view.tsx`. Data, routing, lists/map modes, the
+reservation detail sheet, and the common shell are unchanged. Ivory/navy app theme applies.
+
+- **Date header** is two lines: localized weekday (Sat `text-blue-600`, Sun `text-rose-600`,
+  weekday `text-slate-500`) over the day number (`text-[15px] font-extrabold`). Weekend columns
+  get a faint tint; the today column keeps `bg-amber-100/60`, amber text, and a small "오늘"
+  (`copy.today`) chip.
+- **Reservation bars**: `rounded-[9px]`, 3px horizontal inset, soft shadow + `border-white/25`.
+  A check-in dot shows when the stay starts within the visible month; stays continuing past the
+  month edge flatten that corner (`rounded-l/r-[3px]`) and show a `›` overflow hint. Channel
+  colors (Booking/Airbnb/other) and bar position math are unchanged.
+- **Grid**: alternating room rows get a subtle stripe; vertical grid lines lightened; the today
+  column has an amber vertical marker. Sticky room-label column unchanged.
+- **Channel legend** above the grid: Airbnb / Booking / Direct (`copy.legendDirect`, new i18n key
+  `mobile.calendarLegendDirect`, ko/ja/en) with channel-colored swatches.
+
 ## Purpose
 
 The reservation calendar shows Beds24 reservation, occupancy, and availability information inside StayOps.

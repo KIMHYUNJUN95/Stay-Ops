@@ -449,12 +449,14 @@ Important:
 
 # Post-MVP Feature Batch RLS (approved 2026-06-09)
 
-All tables below follow the standard org-isolation base: a row is accessible only when the user has an active membership in `row.organization_id`, with platform-admin bypass. Not implemented yet. Full detail in `docs/engineering/08`–`12`.
+All tables below follow the standard org-isolation base: a row is accessible only when the user has an active membership in `row.organization_id`, with platform-admin bypass. The three `linen_*` tables are **implemented** (migration `202606100002_linen_returns.sql`); the rest are not implemented yet. Full detail in `docs/engineering/08`–`12`.
 
 ## linen_items
 
-- Read: all active org members.
-- Create / update / delete: admin-capable roles (owner, office_admin, cs_staff, field_manager, developer_super_admin) — manage the item master.
+Implemented.
+
+- Read: all active org members (platform-admin bypass).
+- Create / update / delete: admin-capable roles (owner, office_admin, cs_staff, field_manager) plus platform admin — manage the item master. (Admin UI deferred; RLS is ready.)
 
 ## linen_return_records
 
@@ -469,15 +471,22 @@ All tables below follow the standard org-isolation base: a row is accessible onl
 
 ## tasks
 
-- Read: `owner_user_id = auth.uid()` OR `assigned_to_user_id = auth.uid()` OR (non-private and shared). Part-time staff additionally see tasks linked to rooms/properties they can access.
-- Create: any active org member (owner defaults to self).
-- Update / delete: owner; assignee may update status + comment.
-- Office-level oversight (broad operational task visibility) requires an explicit additional policy if the product confirms it.
+- Read: active participants only.
+- Create: any active org member when creating a task where they are the original author.
+- Update: original author edits core task content; current participants can mutate only shared workflow-state fields through controlled actions.
+- Delete: original author only for the canonical task row. Participant self-removal is a separate controlled action.
 
-## task_transfers
+## task_participants
 
-- Read: sender or recipient only.
-- Create: sender (must own the source task).
+- Read: active participants on the parent task.
+- Create: controlled server action only.
+- Delete: original author may remove non-author participants; any participant may remove self.
+
+## task_updates
+
+- Read: active participants on the parent task.
+- Create: active participants on the parent task.
+- Update / delete: not required in the first slice unless product rules change later.
 
 ## board_posts
 

@@ -13,9 +13,10 @@ Home   Calendar   [ ✎ 편집 (center FAB) ]   Requests   Announcements
 ```
 
 - **The four side tabs are per-user customizable.** Each user picks which features sit in their bottom bar (all four slots are free to change). The chosen ids are persisted per user in `profiles.bottom_nav_tabs` (Supabase) and synced across devices. Defaults: Home, Calendar, Requests, Announcements.
-- **The center FAB ("편집", pencil icon) opens the bottom-bar editor sheet**: a dark scrim + slide-up sheet with a 2-column colour-category tile grid listing every selectable feature (`customizableBottomNavItems` = the side-menu pool: Home, Calendar, Cleaning, Requests, Announcements, Notifications, Directory). Tapping a tile adds/removes it from the bottom bar (max 4; a counter `n/4` and a "full" hint are shown; at least one tab must remain). Each tile uses a unified palette (`oklch` with fixed lightness/chroma, hue-only variation per `LAUNCHER_META`) and shows a check when selected. The grid scrolls vertically when it overflows, with the scrollbar hidden (`.add-sheet__scroll`). Edits are saved (via the `updateBottomNavTabs` server action) when the sheet closes by any path (scrim tap / X / Escape).
+- **The center FAB ("편집", pencil icon) opens the bottom-bar editor sheet**: a dark scrim + slide-up sheet with a 2-column colour-category tile grid listing every selectable feature (`customizableBottomNavItems` = the side-menu pool: Home, Calendar, Cleaning, Requests, Announcements, Linen Return, Notifications, Directory). Tapping a tile adds/removes it from the bottom bar (max 4; a counter `n/4` and a "full" hint are shown; at least one tab must remain). Each tile uses a unified palette (`oklch` with fixed lightness/chroma, hue-only variation per `LAUNCHER_META`) and shows a check when selected. The grid scrolls vertically when it overflows, with the scrollbar hidden (`.add-sheet__scroll`). Edits are saved (via the `updateBottomNavTabs` server action) when the sheet closes by any path (scrim tap / X / Escape).
 - **Cleaning** is not a default bottom tab but can be pinned via the editor; it is also always reachable from the side menu (`/mobile/cleaning`).
 - Profile and user directory remain accessible from the top-right profile button / side menu rather than the bottom bar (Directory may also be pinned).
+- **Linen Return** (`린넨 반품` / `リネン返却` / `Linen Return`, id `linen-return`, `/mobile/linen-return`) is a side-menu entry, not a default bottom tab. It can be pinned via the bottom-bar editor (it is part of the customizable pool). Building-first flow: building picker → building list → create / detail / ledger. See `docs/product/19-linen-defect-workflow.md`.
 
 Implementation note:
 
@@ -192,7 +193,7 @@ Implementation: `src/components/shell/mobile-shell.tsx`.
 
 Current rules:
 
-- **Base surface**: the mobile shell and page background use a pure-white `bg-background` base. The shell itself is not a full-screen glass surface.
+- **Base surface**: the mobile shell, sidebar, bottom bar, and page background use a warm **ivory** `bg-background` base; cards/sheets stay white (`bg-surface`). The brand accent (`--primary`) is deep ink **navy/indigo** (teal/green retired). The shell itself is not a full-screen glass surface.
 - **Left**: a hamburger menu button (3-line SVG with a shorter middle line) opens the mobile side menu. `aria-label` uses `dictionary.common.menu`.
 - **Layout**: the header is a 3-part `justify-between` row — left menu button / centered wordmark / right profile button.
 - **Center**: the `Stay Ops` wordmark (20px, `text-foreground`, `white-space: nowrap`) uses the shared `.wordmark` class (serif italic — Noto Serif, defined in `src/app/globals.css` and loaded in `src/app/layout.tsx`).
@@ -219,10 +220,13 @@ Current count definitions (org-scoped, RLS-enforced; each fails closed to 0 so a
 
 | Nav id | Counts |
 |---|---|
-| `cleaning` | `cleaning_sessions` with `status = in_progress` |
-| `requests` | `maintenance_reports` (`open`/`in_progress`) + `order_requests` (`requested`) + `lost_items` (`registered`) |
-| `announcements` | published announcements the user has not read (`announcement_reads`) |
-| `notifications` | unread notifications (`read_at is null`) — via `countUnreadNotifications` |
+| `cleaning` | today's (Tokyo operating date) `cleaning_sessions` with `status = in_progress` — the remaining-to-finish count; drops as each is completed |
+| `requests` | unapproved `order_requests` (`status = requested`) + unprocessed `maintenance_reports` (`open`/`in_progress`) + `lost_items` (`status = registered`) registered today (Tokyo) |
+| `linen-return` | today's (Tokyo) `linen_return_records` registered by anyone in the org (organization-wide shared count) |
+| `announcements` | published announcements the user has not read (`announcement_reads`); clears on read |
+| `notifications` | unread notifications (`read_at is null`) — via `countUnreadNotifications` (placeholder, to be revisited) |
+
+`home`, `calendar`, and `directory` intentionally show no badge.
 
 Counts refresh on navigation and on pull-to-refresh (`router.refresh()`); these are advisory UI hints only — access control stays in RLS + server queries. Real-time updates (Supabase Realtime) are out of scope for this slice.
 
@@ -300,7 +304,7 @@ Counts refresh on navigation and on pull-to-refresh (`router.refresh()`); these 
 The five approved batch features (2026-06-09) currently have **no mobile nav home**. Before each feature ships, its entry point must be added to `src/config/navigation.ts` and reflected here. Planned placement (to confirm per feature during build):
 
 - **Linen Defect:** dedicated **side-menu entry**. Mobile IA direction is `building picker -> building-specific return list -> create/detail -> ledger/statistics`. It is **not** a default bottom tab, but should be eligible for the user-customizable bottom-bar pool when implemented.
-- **Personal Todo / Task Inbox:** new side-menu entry, and a candidate for the customizable bottom-tab pool (`customizableBottomNavItems`). Its task calendar must stay visually distinct from the reservation Calendar tab.
+- **Personal Todo / Task Inbox:** dedicated side-menu entry and a candidate for the customizable bottom-tab pool (`customizableBottomNavItems`). Internal mobile IA direction is `Today -> Inbox -> My Tasks -> Sent By Me -> Completed -> Calendar`, with quick add available across all major views. Its task calendar must stay visually distinct from the reservation Calendar tab.
 - **Staff Suggestions:** side-menu entry.
 - **Internal Board:** side-menu entry; candidate for the customizable bottom-tab pool.
 - **Attendance:** dedicated clock-in/out surface (likely Home quick-action + side-menu entry); QR/GPS flow is PWA-specific.

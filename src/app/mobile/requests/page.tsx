@@ -65,25 +65,25 @@ export default async function MobileRequestsPage({ searchParams }: PageProps) {
     <MobileShell activeItem="requests" badges={navBadges} title={dictionary.mobile.requestsTitle}>
       <div className="mb-5 grid grid-cols-3 gap-2.5">
         <Link
-          className="group flex h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] px-1.5 text-[13px] font-black tracking-tight text-slate-800 shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)] transition-all hover:bg-slate-50 active:scale-[0.98]"
+          className="group flex h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-slate-200/80 bg-surface px-1.5 text-[13px] font-black tracking-tight text-slate-800 shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)] transition-all hover:bg-slate-50 active:scale-[0.98]"
           href="/mobile/lost-found/new"
         >
-          <span className="flex size-7 items-center justify-center rounded-xl bg-sky-50 text-sky-700 ring-1 ring-sky-200/80">
+          <span className="flex size-7 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
             <Package className="size-3.5 shrink-0" aria-hidden="true" />
           </span>
           {dictionary.lostFound.reportButton}
         </Link>
         <Link
-          className="group flex h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] px-1.5 text-[13px] font-black tracking-tight text-slate-800 shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)] transition-all hover:bg-slate-50 active:scale-[0.98]"
+          className="group flex h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-slate-200/80 bg-surface px-1.5 text-[13px] font-black tracking-tight text-slate-800 shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)] transition-all hover:bg-slate-50 active:scale-[0.98]"
           href="/mobile/maintenance/new"
         >
-          <span className="flex size-7 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200/80">
+          <span className="flex size-7 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
             <Wrench className="size-3.5 shrink-0" aria-hidden="true" />
           </span>
           {dictionary.maintenance.reportButton}
         </Link>
         <Link
-          className="group flex h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] px-1.5 text-[13px] font-black tracking-tight text-slate-800 shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)] transition-all hover:bg-slate-50 active:scale-[0.98]"
+          className="group flex h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-slate-200/80 bg-surface px-1.5 text-[13px] font-black tracking-tight text-slate-800 shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)] transition-all hover:bg-slate-50 active:scale-[0.98]"
           href="/mobile/requests/orders/new"
         >
           <span className="flex size-7 items-center justify-center rounded-xl bg-rose-50 text-rose-700 ring-1 ring-rose-200/80">

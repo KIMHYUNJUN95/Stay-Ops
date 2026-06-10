@@ -688,96 +688,120 @@ updated_at timestamptz
 
 # Post-MVP Feature Batch Tables (approved 2026-06-09)
 
-The tables below back the approved post-MVP batch. Full column types, enums, indexes, and RLS detail live in the per-feature technical-design docs (`docs/engineering/08`–`12`); the definitions here are the canonical inventory. None are implemented yet — no migrations exist for them.
+The tables below back the approved post-MVP batch. Full column types, enums, indexes, and RLS detail live in the per-feature technical-design docs (`docs/engineering/08`–`12`); the definitions here are the canonical inventory. The three `linen_*` tables are **implemented** (migration `202606100002_linen_returns.sql`); the rest are not implemented yet.
 
 ## linen_items
 
-Per property/building linen item master. See `docs/engineering/08-linen-defect-technical-design.md`.
+Implemented. Selectable linen item catalog. Org-scoped with nullable `building_name`
+(`NULL` = available for all buildings; a value scopes the item to one canonical building name).
+Building is the canonical property name (text), not a `properties` FK — consistent with the rest
+of the app. Seeded with a default 8-item global set per org. See
+`docs/engineering/08-linen-defect-technical-design.md` → "As-Built".
 
 ```txt
 id uuid primary key
-organization_id uuid not null references organizations(id)
-property_id uuid references properties(id)
-property_name text
+organization_id uuid not null references organizations(id) on delete cascade
+building_name text                 -- NULL = all buildings
 code text
-display_name text not null
+name text not null
 category text
-display_order integer
 is_active boolean not null default true
-created_at timestamptz
-updated_at timestamptz
+display_order integer not null default 0
+created_by_user_id uuid references profiles(id) on delete set null
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()
 ```
 
 ## linen_return_records
 
-Building-scoped linen return header record. One row = one return registration event. See `docs/engineering/08-linen-defect-technical-design.md`.
+Implemented. Building-scoped linen return header. One row = one return registration event.
+`building_name` is the canonical property name (text), matching `order_requests.building_name`.
+No status column in the first slice.
 
 ```txt
 id uuid primary key
-organization_id uuid not null references organizations(id)
-property_id uuid references properties(id)
+organization_id uuid not null references organizations(id) on delete cascade
+building_name text not null
 note text
-image_urls text[]
-registered_by_user_id uuid references profiles(id)
-registered_at timestamptz
-created_at timestamptz
-updated_at timestamptz
+image_urls text[] not null default '{}'
+registered_by_user_id uuid not null references profiles(id) on delete restrict
+registered_at timestamptz not null default now()
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()
 ```
 
 ## linen_return_record_items
 
-Child item lines under one `linen_return_records` row.
+Implemented. Child item lines under one `linen_return_records` row. `unique (return_record_id,
+linen_item_id)` blocks the same item appearing twice in one record (quantities are summed into a
+single line instead).
 
 ```txt
 id uuid primary key
 return_record_id uuid not null references linen_return_records(id) on delete cascade
-linen_item_id uuid not null references linen_items(id)
+linen_item_id uuid not null references linen_items(id) on delete restrict
 quantity integer not null check (quantity > 0)
-sort_order integer
-created_at timestamptz
+sort_order integer not null default 0
+created_at timestamptz not null default now()
+unique (return_record_id, linen_item_id)
 ```
 
 ## tasks
 
-Personal todo / shared task inbox, private-by-default. See `docs/engineering/09-todo-task-technical-design.md`.
+Personal todo / shared task inbox. Private by default, but expandable to one shared task with participant set and common status. See `docs/engineering/09-todo-task-technical-design.md`.
 
 ```txt
 id uuid primary key
 organization_id uuid not null references organizations(id)
-owner_user_id uuid not null references profiles(id)
+created_by_user_id uuid not null references profiles(id)
 title text not null
 description text
 property_id uuid references properties(id)
 room_id uuid references rooms(id)
 reservation_id uuid references reservations(id)
 guest_name text
-is_private boolean not null default true
-assigned_to_user_id uuid references profiles(id)
-source_task_id uuid references tasks(id)
-source_type text   -- personal | shared_copy | system_linked
-priority text not null default 'normal'   -- low | normal | high | urgent
-status text not null default 'open'        -- open | in_progress | completed | cancelled
+scheduled_date date
 due_at timestamptz
-reminder_at timestamptz
+all_day boolean not null default true
+time_label text
+priority text not null default 'normal'   -- normal | important | urgent
+status text not null default 'open'        -- open | in_progress | completed | cancelled
+is_inbox boolean not null default true
+is_shared boolean not null default false
+recurrence_rule text
 tags text[]
+image_urls text[]
 completed_by_user_id uuid references profiles(id)
 completed_at timestamptz
-created_by_user_id uuid references profiles(id)
 created_at timestamptz
 updated_at timestamptz
 ```
 
-## task_transfers
+## task_participants
 
-Teammate send/share records. NOTE: the exact share model (single shared record vs. sender/recipient copy) is still TBD before build — see `docs/planning/01-decision-log.md` (2026-06-09 Personal Todo decision).
+Current participant set for each task.
 
 ```txt
 id uuid primary key
-organization_id uuid not null references organizations(id)
-source_task_id uuid not null references tasks(id)
-sender_user_id uuid not null references profiles(id)
-recipient_user_id uuid not null references profiles(id)
-recipient_task_id uuid references tasks(id)
+task_id uuid not null references tasks(id)
+user_id uuid not null references profiles(id)
+role text not null            -- author | participant
+is_first_recipient boolean not null default false
+added_by_user_id uuid references profiles(id)
+created_at timestamptz
+```
+
+## task_updates
+
+Unified task update-log. Covers participant notes plus small system entries such as edited/shared/completed/reopened.
+
+```txt
+id uuid primary key
+task_id uuid not null references tasks(id)
+created_by_user_id uuid references profiles(id)
+update_type text not null     -- note | system_edited | system_shared | status_changed | completed | reopened
+body text
+image_urls text[]
 created_at timestamptz
 ```
 

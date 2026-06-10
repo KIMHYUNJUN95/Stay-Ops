@@ -32,13 +32,13 @@ type MaintenanceCreateFormProps = {
 const URGENCY_TONES: readonly UrgencyTone[] = ["low", "normal", "high", "urgent"];
 
 const FIELD_CLASS =
-  "flex h-12 w-full items-center justify-between rounded-2xl border border-slate-200/80 bg-white/82 px-3.5 text-sm font-bold text-slate-900 outline-none shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors placeholder:text-slate-400 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-200/60 disabled:opacity-50 cursor-pointer select-none text-left";
+  "flex h-12 w-full items-center justify-between rounded-2xl border border-slate-200/80 bg-white/82 px-3.5 text-sm font-bold text-slate-900 outline-none shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors placeholder:text-slate-400 focus:border-sky-300 focus:ring-2 focus:ring-sky-200/60 disabled:opacity-50 cursor-pointer select-none text-left";
 
 const INPUT_CLASS =
-  "h-12 w-full rounded-2xl border border-slate-200/80 bg-white/82 px-3.5 text-sm font-bold text-slate-900 outline-none shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors placeholder:text-slate-400 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-200/60";
+  "h-12 w-full rounded-2xl border border-slate-200/80 bg-white/82 px-3.5 text-sm font-bold text-slate-900 outline-none shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors placeholder:text-slate-400 focus:border-sky-300 focus:ring-2 focus:ring-sky-200/60";
 
 const PANEL_CLASS =
-  "flex flex-col gap-4 rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] p-4 shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none";
+  "flex flex-col gap-4 rounded-[24px] border border-slate-200/80 bg-surface p-4 shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none";
 
 function SectionLabel({ children, index }: { children: string; index: number }) {
   return (
@@ -51,7 +51,7 @@ function SectionLabel({ children, index }: { children: string; index: number }) 
 function urgencyChipClass(tone: UrgencyTone, active: boolean) {
   if (active) {
     if (tone === "urgent") return "border-red-200 bg-red-50 text-red-700";
-    return "border-cyan-200 bg-cyan-50 text-cyan-700";
+    return "border-sky-200 bg-sky-50 text-sky-700";
   }
   return "border-slate-200/80 bg-white/82 text-slate-700 hover:bg-slate-50";
 }
@@ -216,7 +216,7 @@ export function MaintenanceCreateForm({
               <span className="text-xs font-semibold text-muted-foreground">{copy.form.building}</span>
               <div className="relative">
                 <button
-                  className={cn(FIELD_CLASS, buildingOpen && "border-cyan-300 ring-2 ring-cyan-200/60")}
+                  className={cn(FIELD_CLASS, buildingOpen && "border-sky-300 ring-2 ring-sky-200/60")}
                   onClick={() => setBuildingOpen(!buildingOpen)}
                   type="button"
                 >
@@ -237,7 +237,7 @@ export function MaintenanceCreateForm({
                       <li
                         className={cn(
                           "flex items-center h-10 w-full px-3 text-sm font-semibold rounded-lg cursor-pointer transition-colors",
-                          selectedBuilding === b ? "bg-cyan-50 text-cyan-700" : "text-slate-700 hover:bg-slate-50"
+                          selectedBuilding === b ? "bg-sky-50 text-sky-700" : "text-slate-700 hover:bg-slate-50"
                         )}
                         key={b}
                         onClick={() => {
@@ -260,7 +260,7 @@ export function MaintenanceCreateForm({
               <span className="text-xs font-semibold text-muted-foreground">{copy.room}</span>
               <div className="relative">
                 <button
-                  className={cn(FIELD_CLASS, roomOpen && "border-cyan-300 ring-2 ring-cyan-200/60")}
+                  className={cn(FIELD_CLASS, roomOpen && "border-sky-300 ring-2 ring-sky-200/60")}
                   disabled={!selectedBuilding}
                   onClick={() => setRoomOpen(!roomOpen)}
                   type="button"
@@ -284,7 +284,7 @@ export function MaintenanceCreateForm({
                       <li
                         className={cn(
                           "flex items-center h-10 w-full px-3 text-sm font-semibold rounded-lg cursor-pointer transition-colors",
-                          selectedRoom === canonicalLabel ? "bg-cyan-50 text-cyan-700" : "text-slate-700 hover:bg-slate-50"
+                          selectedRoom === canonicalLabel ? "bg-sky-50 text-sky-700" : "text-slate-700 hover:bg-slate-50"
                         )}
                         key={canonicalLabel}
                         onClick={() => {
@@ -330,7 +330,7 @@ export function MaintenanceCreateForm({
               <input name="category" type="hidden" value={selectedCategory} />
               <div className="relative">
                 <button
-                  className={cn(FIELD_CLASS, categoryOpen && "border-cyan-300 ring-2 ring-cyan-200/60")}
+                  className={cn(FIELD_CLASS, categoryOpen && "border-sky-300 ring-2 ring-sky-200/60")}
                   onClick={() => setCategoryOpen(!categoryOpen)}
                   type="button"
                 >
@@ -351,7 +351,7 @@ export function MaintenanceCreateForm({
                       <li
                         className={cn(
                           "flex items-center h-10 w-full px-3 text-sm font-semibold rounded-lg cursor-pointer transition-colors",
-                          selectedCategory === key ? "bg-cyan-50 text-cyan-700" : "text-slate-700 hover:bg-slate-50"
+                          selectedCategory === key ? "bg-sky-50 text-sky-700" : "text-slate-700 hover:bg-slate-50"
                         )}
                         key={key}
                         onClick={() => { setSelectedCategory(key); setCategoryOpen(false); }}
@@ -384,7 +384,7 @@ export function MaintenanceCreateForm({
             <label className="flex flex-col gap-2">
               <span className="text-xs font-semibold text-muted-foreground">{copy.description}</span>
               <textarea
-                className="min-h-24 w-full resize-none rounded-2xl border border-slate-200/80 bg-white/82 px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors placeholder:text-slate-400 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-200/60"
+                className="min-h-24 w-full resize-none rounded-2xl border border-slate-200/80 bg-white/82 px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors placeholder:text-slate-400 focus:border-sky-300 focus:ring-2 focus:ring-sky-200/60"
                 name="description"
                 placeholder={copy.descriptionPlaceholder}
                 rows={4}

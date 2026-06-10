@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getCleaningOperatingDateKey } from "@/lib/cleaning";
 import { countUnreadNotifications } from "@/lib/notifications/queries";
 import { getCurrentAppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -11,11 +12,17 @@ import type { Database } from "@/types/database";
  * Operational "unprocessed" counts shown as badges on the mobile side menu,
  * keyed by `mobileSidebarNavigation` item id.
  *
- * Definitions (kept consistent with what each list screen surfaces):
- * - cleaning:      cleaning_sessions still in progress (active timers)
- * - requests:      maintenance (open|in_progress) + orders (requested) + lost items (registered)
- * - announcements: published announcements the user has not read yet
- * - notifications: unread notifications (read_at is null)
+ * Definitions:
+ * - cleaning:      today's (Tokyo operating date) cleanings still in progress — i.e. the
+ *                  remaining-to-finish count; drops as each is completed.
+ * - requests:      unapproved order requests (status 'requested') + unprocessed maintenance
+ *                  reports (open / in_progress) + lost items registered today (Tokyo).
+ * - linen-return:  today's (Tokyo) linen return records registered by ANY user in the org
+ *                  (organization-wide shared count).
+ * - announcements: published announcements the user has not read yet (clears on read).
+ * - notifications: unread notifications (read_at is null). [placeholder — to be revisited]
+ *
+ * Home, Calendar and Directory intentionally have no badge.
  *
  * These are advisory UI counts only. Access/org-isolation is enforced by RLS +
  * server queries; every count fails closed to 0 so a missing table/migration
@@ -93,22 +100,25 @@ export const getMobileNavBadges = cache(async (): Promise<NavBadgeCounts> => {
   const userId = session.user.id;
   const supabase = await getSupabaseServerClient();
 
-  const [cleaning, maintenance, orders, lost, announcements, notifications] =
+  // Today's Tokyo operating-day window (timestamptz columns: registered_at / created_at).
+  const today = getCleaningOperatingDateKey();
+  const dayStart = new Date(`${today}T00:00:00+09:00`);
+  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+  const dayStartIso = dayStart.toISOString();
+  const dayEndIso = dayEnd.toISOString();
+
+  const [cleaning, orders, maintenance, lostToday, linenReturn, announcements, notifications] =
     await Promise.all([
+      // Remaining cleanings for today (Tokyo): started but not yet completed.
       safeCount(() =>
         supabase
           .from("cleaning_sessions")
           .select("id", { count: "exact", head: true })
           .eq("organization_id", orgId)
+          .eq("cleaning_date", today)
           .eq("status", "in_progress"),
       ),
-      safeCount(() =>
-        supabase
-          .from("maintenance_reports")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId)
-          .in("status", ["open", "in_progress"]),
-      ),
+      // Unapproved (new) order requests.
       safeCount(() =>
         supabase
           .from("order_requests")
@@ -116,12 +126,32 @@ export const getMobileNavBadges = cache(async (): Promise<NavBadgeCounts> => {
           .eq("organization_id", orgId)
           .eq("status", "requested"),
       ),
+      // Unprocessed maintenance requests (open / in progress).
+      safeCount(() =>
+        supabase
+          .from("maintenance_reports")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", orgId)
+          .in("status", ["open", "in_progress"]),
+      ),
+      // Lost items registered today (Tokyo).
       safeCount(() =>
         supabase
           .from("lost_items")
           .select("id", { count: "exact", head: true })
           .eq("organization_id", orgId)
-          .eq("status", "registered"),
+          .eq("status", "registered")
+          .gte("created_at", dayStartIso)
+          .lt("created_at", dayEndIso),
+      ),
+      // Linen returns registered today by anyone in the org (shared count).
+      safeCount(() =>
+        supabase
+          .from("linen_return_records")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", orgId)
+          .gte("registered_at", dayStartIso)
+          .lt("registered_at", dayEndIso),
       ),
       countUnreadAnnouncements(supabase, orgId, userId),
       countUnreadNotifications(supabase, {
@@ -132,7 +162,8 @@ export const getMobileNavBadges = cache(async (): Promise<NavBadgeCounts> => {
 
   return {
     cleaning,
-    requests: maintenance + orders + lost,
+    requests: orders + maintenance + lostToday,
+    "linen-return": linenReturn,
     announcements,
     notifications,
   };

@@ -1,4 +1,5 @@
 import {
+  BedDouble,
   Bell,
   BellRing,
   Building2,
@@ -70,6 +71,15 @@ const mobileNavAnnouncements = {
   icon: BellRing,
 } as const satisfies NavigationItem;
 
+// Linen Return lives in the side menu (and the pinnable bottom-bar pool), not as a
+// default bottom tab. See docs/product/19-linen-defect-workflow.md.
+const mobileNavLinenReturn = {
+  id: "linen-return",
+  label: localizedNavigationLabels.mobile.linenReturn,
+  href: "/mobile/linen-return",
+  icon: BedDouble,
+} as const satisfies NavigationItem;
+
 // Bottom tab bar uses a center action ("추가") button, so it holds only 4 tabs.
 // "Cleaning" intentionally lives in the side menu (hamburger) instead of the bottom bar.
 export const mobileBottomNavigation = [
@@ -85,6 +95,7 @@ export const mobileSidebarNavigation = [
   mobileNavCleaning,
   mobileNavRequests,
   mobileNavAnnouncements,
+  mobileNavLinenReturn,
   {
     id: "notifications",
     label: localizedNavigationLabels.utility.notifications,

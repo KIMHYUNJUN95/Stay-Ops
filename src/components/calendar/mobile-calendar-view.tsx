@@ -66,6 +66,7 @@ type MobileCalendarViewProps = {
     calendarBuildingHouseLabel: string;
     calendarBuildingPickerBody: string;
     calendarTokyoNowLabel: string;
+    legendDirect: string;
     calendarBuildingPickerTitle: string;
     call: string;
     checkInLabel: string;
@@ -248,13 +249,13 @@ function calendarRowHeightForBars(_bars: ReservationBarLayout[]) {
   return CALENDAR_SINGLE_ROW_HEIGHT;
 }
 const GLASS_PANEL =
-  "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] backdrop-blur-none";
+  "rounded-[24px] border border-slate-200/80 bg-surface shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] backdrop-blur-none";
 const GLASS_CARD =
-  "rounded-2xl border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_14px_28px_-24px_rgba(31,58,95,0.38)] backdrop-blur-none";
+  "rounded-2xl border border-slate-200/80 bg-surface shadow-[0_14px_28px_-24px_rgba(31,58,95,0.38)] backdrop-blur-none";
 // 以묒븰 怨좎젙 modal card (?덉빟 ?곸꽭 / 鍮?媛앹떎 / 吏??怨듭슜)
 const GLASS_RESERVATION_MODAL =
   "relative w-full max-w-lg rounded-3xl border border-white/70 bg-background/82 shadow-[0_32px_68px_-28px_rgba(2,6,23,0.68)] backdrop-blur-2xl";
-const RESERVATION_SHEET_TRANSITION_MS = 300;
+const RESERVATION_SHEET_TRANSITION_MS = 440;
 
 function parseDate(value: string) {
   return new Date(`${value}T00:00:00.000Z`);
@@ -287,7 +288,7 @@ function normalizeSource(source: string) {
 function sourceClass(source: string) {
   const normalized = normalizeSource(source);
   if (normalized === "booking") {
-    return "bg-[linear-gradient(180deg,#19b7d2_0%,#1197b9_100%)] border-cyan-200/80 shadow-cyan-900/25";
+    return "bg-[linear-gradient(180deg,#5379b8_0%,#39588f_100%)] border-[#39588f]/40 shadow-slate-900/25";
   }
   if (normalized === "airbnb") {
     return "bg-[linear-gradient(180deg,#ff718c_0%,#f05273_100%)] border-rose-200/80 shadow-rose-900/25";
@@ -588,10 +589,19 @@ export function MobileCalendarView({
     if (!container) return;
     const scrollKey = `${selectedMonth}:${selectedProperty ?? ""}`;
     if (autoScrolledKeys.current.has(scrollKey)) return;
-    // Show today-1 so today isn't at the very left edge; clamp to 0
-    container.scrollLeft = Math.max(0, todayIndex - 1) * DAY_WIDTH;
-    updateVisibleDateRangeLabel(container.scrollLeft, container.clientWidth);
+    // Position so yesterday (today-1) sits at the left edge and today is the next column;
+    // the rest is reached by manual scroll. Defer with a double rAF so the scroll content has
+    // its full width before we set scrollLeft (otherwise the first-open scroll clamps to 0).
     autoScrolledKeys.current.add(scrollKey);
+    const target = Math.max(0, todayIndex - 1) * DAY_WIDTH;
+    const apply = () => {
+      const el = scrollRef.current;
+      if (!el) return;
+      el.scrollLeft = target;
+      updateVisibleDateRangeLabel(el.scrollLeft, el.clientWidth);
+    };
+    const raf = requestAnimationFrame(() => requestAnimationFrame(apply));
+    return () => cancelAnimationFrame(raf);
   }, [mode, isTodayInView, todayIndex, selectedMonth, selectedProperty, updateVisibleDateRangeLabel]);
 
   useEffect(() => {
@@ -604,23 +614,19 @@ export function MobileCalendarView({
   if (!selectedProperty) {
     return (
       <div className="relative space-y-4 pb-2">
-        <section className="relative min-h-[244px] overflow-hidden rounded-[32px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] p-4 shadow-[0_24px_48px_-34px_rgba(31,58,95,0.42)]">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white" aria-hidden="true" />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-8 top-10 h-24 rounded-full bg-[radial-gradient(55%_70%_at_50%_0%,rgba(234,241,248,0.92),transparent_78%)] blur-sm"
-          />
-
-          <div className="relative z-10 flex items-start justify-between gap-3">
-            <div className="ml-1 mt-2 text-left">
-              <p className="text-[15px] font-extrabold leading-none text-slate-900">
+        {/* Hero sits directly on the ivory canvas — no card chrome. The 3D building
+            illustration edge-fades into the background for a seamless blend. */}
+        <section className="relative min-h-[244px]">
+          <div className="relative z-10 flex items-start justify-between gap-3 px-1 pt-2">
+            <div className="ml-1 text-left">
+              <p className="text-[15px] font-extrabold leading-none text-foreground">
                 {tokyoNow}
               </p>
               <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">
                 Tokyo
               </p>
             </div>
-            <div className="flex size-10 items-center justify-center rounded-2xl bg-[#EEF7FF] text-[#315F91] ring-1 ring-[#D9EAF8]">
+            <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
               <CalendarDays className="size-4.5" aria-hidden="true" />
             </div>
           </div>
@@ -631,7 +637,7 @@ export function MobileCalendarView({
                 animationData={buildingLottie}
                 aria-hidden="true"
                 autoplay
-                className="relative z-10 h-full w-full"
+                className="relative z-10 h-full w-full [mask-image:radial-gradient(78%_78%_at_50%_42%,#000_56%,transparent_84%)] [-webkit-mask-image:radial-gradient(78%_78%_at_50%_42%,#000_56%,transparent_84%)]"
                 loop
               />
             </div>
@@ -650,25 +656,24 @@ export function MobileCalendarView({
                 href={getPropertyCalendarHref(property)}
                 key={property}
               >
-                <Card className="relative overflow-hidden rounded-[22px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] p-3 text-center shadow-[0_16px_30px_-26px_rgba(31,58,95,0.38)] transition-transform duration-200 group-active:scale-[0.98]">
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white" aria-hidden="true" />
+                <Card className="relative overflow-hidden rounded-[22px] border border-border bg-surface p-3 text-center shadow-[0_16px_30px_-26px_rgba(34,40,60,0.4)] transition-transform duration-200 group-active:scale-[0.98]">
                   <div className="relative flex flex-col items-center">
                     <div className="relative flex size-14 items-center justify-center">
                       <div
-                        className={`absolute inset-0 rounded-full ${isHouse ? "bg-indigo-500/10" : "bg-cyan-500/10"}`}
+                        className={`absolute inset-0 rounded-full ${isHouse ? "bg-[#4E63B3]/10" : "bg-primary/10"}`}
                         aria-hidden="true"
                       />
                       <div
-                        className={`relative flex size-11 items-center justify-center rounded-2xl ring-1 shadow-[0_12px_24px_-18px_rgba(31,58,95,0.5)] ${
+                        className={`relative flex size-11 items-center justify-center rounded-2xl ring-1 shadow-[0_12px_24px_-18px_rgba(34,40,60,0.5)] ${
                           isHouse
-                            ? "bg-[#F2F4FF] text-[#4E63B3] ring-[#E0E5FF]"
-                            : "bg-[#EEF7FF] text-[#315F91] ring-[#D9EAF8]"
+                            ? "bg-[#4E63B3]/10 text-[#4E63B3] ring-[#4E63B3]/20"
+                            : "bg-primary/10 text-primary ring-primary/15"
                         }`}
                       >
                         <Icon className="size-6" strokeWidth={1.8} aria-hidden="true" />
                       </div>
                     </div>
-                    <p className="mt-2 text-[13px] font-black text-slate-950">
+                    <p className="mt-2 text-[13px] font-black text-foreground">
                       {propertyLabelMap[property] ?? property}
                     </p>
                     <p className="mt-0.5 text-[11px] font-bold text-slate-400">
@@ -686,12 +691,13 @@ export function MobileCalendarView({
 
   const phoneLabel = selectedReservation?.phone?.trim() || null;
   const dialablePhone = toDialablePhone(phoneLabel);
+  const weekdayFmt = new Intl.DateTimeFormat(locale, { weekday: "short" });
 
   return (
     <div className="relative space-y-4 pb-2">
       <div className="pointer-events-none absolute inset-x-2 -top-8 h-32 rounded-[28px] bg-[radial-gradient(60%_72%_at_50%_0%,rgba(255,255,255,0.98),transparent_72%)] opacity-85 blur-[2px]" />
       {roomSourceDebug ? (
-        <Card className="rounded-xl border-dashed border-cyan-300/70 bg-cyan-50/70 p-3 text-xs text-cyan-950 shadow-sm">
+        <Card className="rounded-xl border-dashed border-sky-300/70 bg-sky-50/70 p-3 text-xs text-sky-950 shadow-sm">
           <p className="font-semibold">Room source debug</p>
           <p className="mt-1">mode: {roomSourceDebug.mode}</p>
           <p>active rooms: {roomSourceDebug.activeRoomLabels.length}</p>
@@ -712,7 +718,7 @@ export function MobileCalendarView({
       <Card className={`${GLASS_PANEL} p-2`}>
         <div className="grid grid-cols-3 gap-1">
           <button
-            className={`h-9 rounded-xl text-xs font-bold transition-colors ${mode === "overview" ? "bg-white text-[#315F91] shadow-[0_10px_22px_-18px_rgba(31,58,95,0.35)] ring-1 ring-slate-200/70" : "text-muted-foreground hover:text-foreground"}`}
+            className={`h-9 rounded-xl text-xs font-bold transition-colors ${mode === "overview" ? "bg-white text-primary shadow-[0_10px_22px_-18px_rgba(31,58,95,0.35)] ring-1 ring-slate-200/70" : "text-muted-foreground hover:text-foreground"}`}
             onClick={() => setMode("overview")}
             type="button"
           >
@@ -722,7 +728,7 @@ export function MobileCalendarView({
             </span>
           </button>
           <button
-            className={`h-9 rounded-xl text-xs font-bold transition-colors ${mode === "lists" ? "bg-white text-[#315F91] shadow-[0_10px_22px_-18px_rgba(31,58,95,0.35)] ring-1 ring-slate-200/70" : "text-muted-foreground hover:text-foreground"}`}
+            className={`h-9 rounded-xl text-xs font-bold transition-colors ${mode === "lists" ? "bg-white text-primary shadow-[0_10px_22px_-18px_rgba(31,58,95,0.35)] ring-1 ring-slate-200/70" : "text-muted-foreground hover:text-foreground"}`}
             onClick={() => setMode("lists")}
             type="button"
           >
@@ -732,7 +738,7 @@ export function MobileCalendarView({
             </span>
           </button>
           <button
-            className={`h-9 rounded-xl text-xs font-bold transition-colors ${mode === "map" ? "bg-white text-[#315F91] shadow-[0_10px_22px_-18px_rgba(31,58,95,0.35)] ring-1 ring-slate-200/70" : "text-muted-foreground hover:text-foreground"}`}
+            className={`h-9 rounded-xl text-xs font-bold transition-colors ${mode === "map" ? "bg-white text-primary shadow-[0_10px_22px_-18px_rgba(31,58,95,0.35)] ring-1 ring-slate-200/70" : "text-muted-foreground hover:text-foreground"}`}
             onClick={() => setMode("map")}
             type="button"
           >
@@ -748,7 +754,7 @@ export function MobileCalendarView({
         <Card className={`${GLASS_PANEL} p-3`}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#EEF7FF] text-[#315F91] shadow-[0_12px_24px_-18px_rgba(31,58,95,0.5)] ring-1 ring-[#D9EAF8]">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-[0_12px_24px_-18px_rgba(34,40,60,0.5)] ring-1 ring-primary/15">
                 {(propertyMetaByName.get(selectedProperty)?.kind === "house" || selectedProperty.toLowerCase().includes("okubo")) ? (
                   <Home className="size-5" aria-hidden="true" />
                 ) : (
@@ -776,7 +782,7 @@ export function MobileCalendarView({
 
       {mode === "overview" ? (
         <Card className={`overflow-hidden ${GLASS_PANEL}`}>
-          <div className="flex items-center justify-between border-b border-slate-200/70 bg-white/70 px-3 py-2.5">
+          <div className="flex items-center justify-between border-b border-slate-200/70 bg-surface/70 px-3 py-2.5">
             <Link
               className="inline-flex size-9 items-center justify-center rounded-full border border-slate-200 bg-white text-muted-foreground shadow-[0_10px_22px_-18px_rgba(31,58,95,0.35)] transition-colors hover:text-foreground"
               href={`/mobile/calendar?${previousHref.toString()}`}
@@ -797,7 +803,7 @@ export function MobileCalendarView({
             </Link>
           </div>
           {isOutOfWindow ? (
-            <div className="flex flex-col items-center justify-center p-8 text-center bg-white/15">
+            <div className="flex flex-col items-center justify-center p-8 text-center bg-surface/40">
               <div className="mx-auto mb-3 inline-flex size-10 items-center justify-center rounded-full bg-background/90 text-muted-foreground shadow-sm">
                 <CalendarDays className="size-5" />
               </div>
@@ -805,8 +811,23 @@ export function MobileCalendarView({
               <p className="mt-2 text-xs leading-5 text-muted-foreground max-w-xs">{copy.calendarOutOfWindowBody}</p>
             </div>
           ) : (
+            <>
+            <div className="mb-3 flex items-center gap-4 rounded-2xl bg-slate-50 px-3 py-2.5">
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11.5px] font-bold text-slate-700">
+                <span className="h-3 w-[18px] rounded bg-[linear-gradient(180deg,#ff718c_0%,#f05273_100%)]" aria-hidden="true" />
+                Airbnb
+              </span>
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11.5px] font-bold text-slate-700">
+                <span className="h-3 w-[18px] rounded bg-[linear-gradient(180deg,#5379b8_0%,#39588f_100%)]" aria-hidden="true" />
+                Booking
+              </span>
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11.5px] font-bold text-slate-700">
+                <span className="h-3 w-[18px] rounded bg-[linear-gradient(180deg,#aeb9c8_0%,#8795a8_100%)]" aria-hidden="true" />
+                {copy.legendDirect}
+              </span>
+            </div>
             <div
-              className="min-h-0 overflow-auto overscroll-x-contain bg-white"
+              className="min-h-0 overflow-auto overscroll-x-contain bg-surface"
               onScroll={handleGridScroll}
               ref={scrollRef}
               style={{
@@ -825,20 +846,23 @@ export function MobileCalendarView({
                   style={{ width: `${ROOM_LABEL_WIDTH}px` }}
                 >
                   <div
-                    className="overflow-hidden border-r border-slate-200/80 bg-[color:var(--background)] shadow-[10px_0_18px_-18px_rgba(31,58,95,0.45)]"
+                    className="overflow-hidden border-r border-slate-200/55 bg-surface shadow-[5px_0_10px_-8px_rgba(15,23,42,0.10)]"
                     style={{
                       width: `${ROOM_LABEL_WIDTH + 2}px`,
                       marginLeft: "-1px",
                       transform: "translateZ(0)",
                     }}
                   >
-                    <div className="h-11 shrink-0 border-b border-slate-200/70 bg-[color:var(--background)]" />
-                    {rooms.map((room) => {
+                    <div className="h-11 shrink-0 border-b border-slate-200/55 bg-surface" />
+                    {rooms.map((room, roomIndex) => {
                       const rowHeight =
                         roomBarLayouts.get(room)?.rowHeight ?? CALENDAR_SINGLE_ROW_HEIGHT;
                       return (
                         <div
-                          className="flex items-center justify-center border-b border-slate-200/50 bg-[color:var(--background)] text-[13px] font-black tabular-nums text-slate-700"
+                          className={cn(
+                            "flex items-center justify-center border-b border-slate-200/45 text-[13.5px] font-black tabular-nums text-slate-800",
+                            roomIndex % 2 === 1 && "bg-slate-900/[0.018]",
+                          )}
                           key={room}
                           style={{ height: `${rowHeight}px` }}
                         >
@@ -850,30 +874,50 @@ export function MobileCalendarView({
                 </div>
                 <div style={{ paddingLeft: `${ROOM_LABEL_WIDTH}px` }}>
                   <div
-                    className="sticky top-0 z-20 flex h-11 bg-white/95 backdrop-blur-xl"
+                    className="sticky top-0 z-20 flex h-11 bg-surface/95 backdrop-blur-xl"
                     style={{ minWidth: `${dates.length * DAY_WIDTH}px` }}
                   >
                     {dates.map((date) => {
                       const isToday = date === today;
+                      const dow = parseDate(date).getDay();
+                      const isSat = dow === 6;
+                      const isSun = dow === 0;
                       return (
                         <div
-                          className={`flex shrink-0 items-center justify-center border-r border-slate-200/70 text-[12px] ${
-                            isToday
-                              ? "bg-amber-50/95 font-black text-amber-800"
-                              : "font-bold text-slate-500"
-                          }`}
+                          className={cn(
+                            "relative flex shrink-0 flex-col items-center justify-center gap-0.5 border-r border-slate-200/60",
+                            isToday ? "bg-amber-100/60" : isSat || isSun ? "bg-slate-50/70" : "",
+                          )}
                           key={date}
                           style={{ width: `${DAY_WIDTH}px` }}
                         >
                           <span
-                            className={
+                            className={cn(
+                              "text-[10px] font-bold leading-none",
                               isToday
-                                ? "inline-flex size-7 items-center justify-center rounded-full bg-amber-200/80 shadow-[0_8px_16px_-12px_rgba(180,83,9,0.75)] ring-1 ring-amber-300/80"
-                                : undefined
-                            }
+                                ? "text-amber-700"
+                                : isSat
+                                  ? "text-blue-600"
+                                  : isSun
+                                    ? "text-rose-600"
+                                    : "text-slate-500",
+                            )}
+                          >
+                            {weekdayFmt.format(parseDate(date))}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-[15px] font-extrabold leading-none tabular-nums",
+                              isToday ? "text-amber-700" : "text-slate-700",
+                            )}
                           >
                             {date.slice(8, 10)}
                           </span>
+                          {isToday ? (
+                            <span className="absolute bottom-0 whitespace-nowrap rounded-full bg-amber-400 px-1.5 text-[8.5px] font-extrabold leading-[1.35] text-white">
+                              {copy.today}
+                            </span>
+                          ) : null}
                         </div>
                       );
                     })}
@@ -888,25 +932,37 @@ export function MobileCalendarView({
                     <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 flex">
                       {dates.map((date) => {
                         const isToday = date === today;
+                        const dow = parseDate(date).getDay();
+                        const isWeekend = dow === 0 || dow === 6;
                         return (
                           <div
                             className={cn(
-                              "h-full shrink-0 border-r border-[color:var(--calendar-grid-line)]",
-                              isToday && "bg-amber-100/60",
+                              "relative h-full shrink-0 border-r border-[color:var(--calendar-grid-line)]/60",
+                              isToday ? "bg-amber-100/60" : isWeekend ? "bg-slate-50/50" : "",
                             )}
                             key={`grid-${date}`}
                             style={{ width: `${DAY_WIDTH}px` }}
-                          />
+                          >
+                            {isToday ? (
+                              <span
+                                aria-hidden="true"
+                                className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-amber-400/55"
+                              />
+                            ) : null}
+                          </div>
                         );
                       })}
                     </div>
-                    {rooms.map((room) => {
+                    {rooms.map((room, roomIndex) => {
                       const layout = roomBarLayouts.get(room);
                       const rowHeight = layout?.rowHeight ?? CALENDAR_SINGLE_ROW_HEIGHT;
 
                       return (
                         <div
-                          className="relative z-10 overflow-hidden border-b border-slate-200/45"
+                          className={cn(
+                            "relative z-10 overflow-hidden border-b border-slate-200/45",
+                            roomIndex % 2 === 1 && "bg-slate-900/[0.018]",
+                          )}
                           key={room}
                           style={{ height: `${rowHeight}px` }}
                         >
@@ -915,36 +971,56 @@ export function MobileCalendarView({
                             .map((bar) => {
                               const isCompactBar = bar.widthPx < 58;
                               const label = reservationBarLabel(bar.item.guestName, bar.widthPx);
-                              const isCheckInReference = bar.item.checkInDate === listReferenceDate;
-                              const isCheckOutReference = bar.item.checkOutDate === listReferenceDate;
+                              const isOther = normalizeSource(bar.item.source) === "other";
+                              // A reservation that begins/ends outside the visible month gets a
+                              // flat edge (and a "›" overflow hint) on the off-screen side.
+                              const startsInView = bar.item.checkInDate >= rangeStart;
+                              const endsInView = bar.item.checkOutDate < rangeEndExclusive;
 
                               return (
                                 <button
                                   aria-label={`${bar.item.guestName}, ${bar.item.roomLabel}`}
                                   className={cn(
-                                    "absolute z-20 flex items-center rounded-full border text-[11px] font-black text-white shadow-[0_10px_18px_-10px_rgba(2,6,23,0.82)] ring-1 ring-white/30 backdrop-blur-[1px] transition-transform active:scale-[0.98]",
+                                    "absolute z-20 flex items-center overflow-hidden border border-white/25 text-[12px] font-bold shadow-[0_4px_10px_-3px_rgba(15,23,42,0.3)] transition-transform hover:-translate-y-px active:scale-[0.98]",
+                                    isOther ? "text-slate-800" : "text-white",
                                     isCompactBar ? "justify-center px-1 text-center" : "px-2 text-left",
+                                    startsInView ? "rounded-l-[9px]" : "rounded-l-[3px]",
+                                    endsInView ? "rounded-r-[9px]" : "rounded-r-[3px]",
                                     sourceClass(bar.item.source),
                                   )}
                                   key={bar.id}
                                   onClick={() => openReservationSheet(bar.id)}
                                   style={{
-                                    left: `${bar.leftPx}px`,
-                                    width: `${bar.widthPx}px`,
+                                    left: `${bar.leftPx + 3}px`,
+                                    width: `${Math.max(12, bar.widthPx - 6)}px`,
                                     top: `${CALENDAR_BAR_TOP + bar.laneIndex * CALENDAR_COMPACT_LANE_OFFSET}px`,
                                     height: `${CALENDAR_BAR_HEIGHT}px`,
                                   }}
                                   title={bar.item.guestName}
                                   type="button"
                                 >
-                                  {isCheckInReference && bar.widthPx >= 44 ? (
-                                    <span className="mr-1 size-1.5 shrink-0 rounded-full bg-white/95 shadow-sm" aria-hidden="true" />
+                                  {startsInView && bar.widthPx >= 30 ? (
+                                    <span
+                                      className={cn(
+                                        "mr-1 size-1.5 shrink-0 rounded-full",
+                                        isOther ? "bg-slate-600" : "bg-white/90",
+                                      )}
+                                      aria-hidden="true"
+                                    />
                                   ) : null}
-                                  <span className="block min-w-0 truncate tracking-[-0.03em] drop-shadow-[0_1px_1px_rgba(15,23,42,0.28)]">
+                                  <span className="block min-w-0 truncate tracking-[-0.02em]">
                                     {label}
                                   </span>
-                                  {isCheckOutReference && bar.widthPx >= 44 ? (
-                                    <span className="ml-1 size-1.5 shrink-0 rounded-full bg-white/95 shadow-sm" aria-hidden="true" />
+                                  {!endsInView ? (
+                                    <span
+                                      className={cn(
+                                        "ml-0.5 shrink-0 text-[13px] leading-none",
+                                        isOther ? "text-slate-600" : "text-white/80",
+                                      )}
+                                      aria-hidden="true"
+                                    >
+                                      &rsaquo;
+                                    </span>
                                   ) : null}
                                 </button>
                               );
@@ -956,6 +1032,7 @@ export function MobileCalendarView({
                 </div>
               </div>
             </div>
+            </>
           )}
         </Card>
       ) : null}
@@ -990,7 +1067,7 @@ export function MobileCalendarView({
                 </p>
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-black text-slate-900">{copy.emptyToday}</p>
-                  <Badge className="rounded-full border border-cyan-200 bg-cyan-50 px-3 text-cyan-700">
+                  <Badge className="rounded-full border border-sky-200 bg-sky-50 px-3 text-sky-700">
                     {emptyToday.count}
                   </Badge>
                 </div>
@@ -1002,11 +1079,11 @@ export function MobileCalendarView({
 
             <section className="space-y-2.5">
               <div className="flex items-center gap-2 px-1">
-                <span className="inline-flex size-7 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100">
+                <span className="inline-flex size-7 items-center justify-center rounded-xl bg-sky-50 text-sky-700 ring-1 ring-sky-100">
                   <PlaneLanding className="size-4" />
                 </span>
                 <p className="text-sm font-black text-slate-900">{copy.checkIns}</p>
-                <Badge className="rounded-full border border-cyan-200 bg-cyan-50 px-3 text-cyan-700">
+                <Badge className="rounded-full border border-sky-200 bg-sky-50 px-3 text-sky-700">
                   {checkInsToday.length}
                 </Badge>
               </div>
@@ -1027,7 +1104,7 @@ export function MobileCalendarView({
                   </button>
                 ))
               ) : (
-                <Card className="rounded-2xl border-dashed border-slate-200 bg-white/70 p-3 text-xs font-medium text-muted-foreground">
+                <Card className="rounded-2xl border-dashed border-slate-200 bg-surface/70 p-3 text-xs font-medium text-muted-foreground">
                   {copy.noFilterResults}
                 </Card>
               )}
@@ -1039,7 +1116,7 @@ export function MobileCalendarView({
                   <PlaneTakeoff className="size-4" />
                 </span>
                 <p className="text-sm font-black text-slate-900">{copy.checkOuts}</p>
-                <Badge className="rounded-full border border-cyan-200 bg-cyan-50 px-3 text-cyan-700">
+                <Badge className="rounded-full border border-sky-200 bg-sky-50 px-3 text-sky-700">
                   {checkOutsToday.length}
                 </Badge>
               </div>
@@ -1060,7 +1137,7 @@ export function MobileCalendarView({
                   </button>
                 ))
               ) : (
-                <Card className="rounded-2xl border-dashed border-slate-200 bg-white/70 p-3 text-xs font-medium text-muted-foreground">
+                <Card className="rounded-2xl border-dashed border-slate-200 bg-surface/70 p-3 text-xs font-medium text-muted-foreground">
                   {copy.noFilterResults}
                 </Card>
               )}
@@ -1068,11 +1145,11 @@ export function MobileCalendarView({
 
             <section className="space-y-2.5">
               <div className="flex items-center gap-2 px-1">
-                <span className="inline-flex size-7 items-center justify-center rounded-xl bg-[#EEF7FF] text-[#315F91] ring-1 ring-[#D9EAF8]">
+                <span className="inline-flex size-7 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15">
                   <BedDouble className="size-4" />
                 </span>
                 <p className="text-sm font-black text-slate-900">{copy.stayingToday}</p>
-                <Badge className="rounded-full border border-cyan-200 bg-cyan-50 px-3 text-cyan-700">
+                <Badge className="rounded-full border border-sky-200 bg-sky-50 px-3 text-sky-700">
                   {stayingToday.length}
                 </Badge>
               </div>
@@ -1093,7 +1170,7 @@ export function MobileCalendarView({
                   </button>
                 ))
               ) : (
-                <Card className="rounded-2xl border-dashed border-slate-200 bg-white/70 p-3 text-xs font-medium text-muted-foreground">
+                <Card className="rounded-2xl border-dashed border-slate-200 bg-surface/70 p-3 text-xs font-medium text-muted-foreground">
                   {copy.noFilterResults}
                 </Card>
               )}
@@ -1120,15 +1197,15 @@ export function MobileCalendarView({
             return (
               <Card
                 key={meta.canonicalName}
-                className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] transition-transform duration-200 active:scale-[0.99]"
+                className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-surface shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] transition-transform duration-200 active:scale-[0.99]"
               >
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white" aria-hidden="true" />
                 <div className="flex items-center gap-3 p-4">
                   <div
                     className={`shrink-0 inline-flex size-11 items-center justify-center rounded-2xl shadow-[0_12px_24px_-18px_rgba(31,58,95,0.5)] ring-1 ${
                       meta.kind === "house"
-                        ? "bg-[#F2F4FF] text-[#4E63B3] ring-[#E0E5FF]"
-                        : "bg-[#EEF7FF] text-[#315F91] ring-[#D9EAF8]"
+                        ? "bg-[#4E63B3]/10 text-[#4E63B3] ring-[#4E63B3]/20"
+                        : "bg-primary/10 text-primary ring-primary/15"
                     }`}
                   >
                     {meta.kind === "house" ? (
@@ -1169,13 +1246,13 @@ export function MobileCalendarView({
                     {copy.mapOpenAccess}
                   </button>
                 </div>
-                <div className="relative border-t border-slate-200/70 bg-white/65 px-4 py-2.5">
+                <div className="relative border-t border-slate-200/70 bg-surface/65 px-4 py-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[11px] font-bold text-muted-foreground">
                       {copy.mapAddressLabel}
                     </p>
                     <a
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-[#315F91] hover:text-[#1F3A5F]"
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:text-primary/80"
                       href={meta.googleMapsUrl}
                       rel="noopener noreferrer"
                       target="_blank"
@@ -1193,23 +1270,32 @@ export function MobileCalendarView({
 
       {typeof document !== "undefined" && selectedReservation
         ? createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 py-10">
+        <div className="fixed inset-0 z-[200] flex items-end justify-center">
+          {/* Semi-transparent scrim (~46%) — the calendar stays faintly visible behind. */}
           <button
             aria-label={copy.close}
             className={cn(
-              "absolute inset-0 bg-black/45 backdrop-blur-sm transition-opacity duration-300 ease-out",
-              isReservationSheetOpen ? "opacity-100" : "opacity-0",
+              "absolute inset-0 bg-[rgba(13,24,23,0.46)] transition-opacity duration-300 ease-out",
+              isReservationSheetOpen ? "opacity-100" : "pointer-events-none opacity-0",
             )}
             onClick={closeReservationSheet}
             type="button"
           />
+          {/* Bottom sheet — slides up from the bottom edge. */}
           <div
-            className={cn(
-              GLASS_RESERVATION_MODAL,
-              "flex max-h-[85dvh] flex-col transition-[transform,opacity] duration-300 ease-out will-change-transform",
-              isReservationSheetOpen ? "translate-y-0 scale-100 opacity-100" : "translate-y-3 scale-95 opacity-0",
-            )}
+            aria-label={selectedReservation.guestName}
+            aria-modal="true"
+            role="dialog"
+            className="relative flex max-h-[88dvh] w-full max-w-[460px] flex-col rounded-t-[24px] bg-surface pb-[max(20px,env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-16px_44px_-12px_rgba(16,28,27,0.3)] will-change-transform"
+            style={{
+              transform: isReservationSheetOpen ? "translateY(0)" : "translateY(110%)",
+              transition: "transform 420ms cubic-bezier(0.32,0.72,0,1)",
+            }}
           >
+            <div
+              aria-hidden="true"
+              className="mx-auto mb-1 h-1 w-[38px] shrink-0 rounded-full bg-slate-200"
+            />
             <div className="shrink-0 flex items-start justify-between gap-2 border-b border-border/40 px-5 pb-4 pt-5">
               <div>
                 <Badge>{statusLabels[selectedReservation.status] ?? selectedReservation.status}</Badge>
@@ -1219,7 +1305,7 @@ export function MobileCalendarView({
                 </p>
               </div>
               <Button
-                className="size-9 rounded-full bg-white/50 p-0 hover:bg-white/70"
+                className="size-9 rounded-full bg-white/50 p-0 hover:bg-surface/70"
                 onClick={closeReservationSheet}
                 variant="ghost"
               >
@@ -1258,7 +1344,7 @@ export function MobileCalendarView({
                 <div className="relative space-y-4">
                   <div className="absolute bottom-6 left-3 top-6 w-px bg-border/60" />
                   <div className="relative flex items-start gap-3">
-                    <div className="mt-0.5 inline-flex size-6 items-center justify-center rounded-full bg-cyan-500 text-white shadow-sm">
+                    <div className="mt-0.5 inline-flex size-6 items-center justify-center rounded-full bg-sky-500 text-white shadow-sm">
                       <PlaneLanding className="size-3.5" />
                     </div>
                     <div className="flex flex-1 items-start justify-between gap-2">
@@ -1350,7 +1436,7 @@ export function MobileCalendarView({
                 <p className="mt-1 text-lg font-black">{copy.emptyRoomsModalTitle}</p>
               </div>
               <Button
-                className="size-9 rounded-full bg-white/50 p-0 hover:bg-white/70"
+                className="size-9 rounded-full bg-white/50 p-0 hover:bg-surface/70"
                 onClick={() => setIsEmptyRoomsModalOpen(false)}
                 variant="ghost"
               >
@@ -1396,7 +1482,7 @@ export function MobileCalendarView({
                 </p>
               </div>
               <Button
-                className="size-9 rounded-full bg-white/50 p-0 hover:bg-white/70"
+                className="size-9 rounded-full bg-white/50 p-0 hover:bg-surface/70"
                 onClick={() => {
                   setSelectedMapProperty(null);
                   setMapCopyFeedback(null);
@@ -1443,7 +1529,7 @@ export function MobileCalendarView({
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{copy.mapSharedAccessLabel}</p>
                 <div className="mt-2.5 space-y-2">
                   {selectedMapProperty.sharedAccess.map((item) => (
-                    <div className="flex items-center justify-between gap-2 rounded-xl border border-white/55 bg-white/65 px-3 py-2.5 shadow-sm" key={item.label}>
+                    <div className="flex items-center justify-between gap-2 rounded-xl border border-white/55 bg-surface/65 px-3 py-2.5 shadow-sm" key={item.label}>
                       <div>
                         <p className="text-xs text-muted-foreground/90">{item.label}</p>
                         <p className="mt-0.5 rounded-md bg-black/[0.05] px-1.5 py-0.5 font-mono text-sm font-semibold text-foreground">
@@ -1472,7 +1558,7 @@ export function MobileCalendarView({
                 <div className="mt-2.5 space-y-2">
                   {selectedMapProperty.roomAccess && selectedMapProperty.roomAccess.length > 0 ? (
                     selectedMapProperty.roomAccess.map((item) => (
-                      <div className="flex items-center justify-between gap-2 rounded-xl border border-white/55 bg-white/65 px-3 py-2.5 shadow-sm" key={item.roomLabel}>
+                      <div className="flex items-center justify-between gap-2 rounded-xl border border-white/55 bg-surface/65 px-3 py-2.5 shadow-sm" key={item.roomLabel}>
                         <div>
                           <p className="text-xs text-muted-foreground/90">{copy.roomLabel} {item.roomLabel}</p>
                           <p className="mt-0.5 rounded-md bg-black/[0.05] px-1.5 py-0.5 font-mono text-sm font-semibold text-foreground">

@@ -1130,3 +1130,42 @@ Policy:
 Reason: The user explicitly asked to prevent this class of silent ingestion miss from recurring and to document it. Daily-cron cadence confirmed by the user on 2026-06-10.
 
 Status: Confirmed (2026-06-10). Requires `CRON_SECRET` set on the Vercel project for the cron to be authorized in production.
+
+### Brand Palette — Ivory chrome + Navy accent (teal retired)
+
+Decision: Replace the global brand color and shell chrome. The former teal primary
+(`hsl(177 100% 24%)`) is retired; the brand accent (`--primary`) is now **deep ink
+navy/indigo** (`hsl(223 46% 32%)`). The page/shell background, sidebar, and bottom tab bar
+use a warm **ivory** base (`--background hsl(42 38% 96%)`); cards/sheets stay white
+(`--surface`) to lift off the ivory canvas.
+
+Scope: App-wide (mobile + admin), via `src/app/globals.css` tokens that cascade to all
+`--primary`/`bg-background` usages, plus the few hardcoded teal classes in the sidebar
+gradient (`mobile-shell.tsx`), the `.tabbar` (`globals.css`), and the auth login / onboarding
+screens which were migrated to `--primary` tokens.
+
+Reason: The user found the teal-dominant sidebar/bottom bar too green and requested an ivory
+chrome with a harmonious non-green accent; navy was chosen for a premium, hospitality-ops feel
+that pairs with ivory and unifies with the existing blue order/maintenance accents.
+
+Notes: Semantic success greens (e.g. `emerald-*` confirmation states in announcements) were
+intentionally left as functional status colors, not brand color. Mobile-shell contract docs
+(`CLAUDE.md`, `docs/product/16-mobile-navigation.md`) updated to the ivory/navy base.
+
+Status: Confirmed (2026-06-10).
+
+### Mobile-first login routing
+
+Decision: On the login page (`src/app/auth/login/page.tsx`), detect the device via the
+`user-agent` request header; when it is a phone/tablet, force the post-login destination to
+`/mobile` (`effectiveNext`), overriding both the role-based admin default (`state.redirectTo`)
+and any `?next=/admin/...` value. The dev-seed login also collapses to a single "mobile" button
+on mobile devices (admin/field choices remain desktop-only).
+
+Reason: Mobile access should always land in the mobile app without a manual version choice.
+`effectiveNext` flows through `signInWithEmail`/`signInWithGoogle` → `/auth/callback`
+(`dest = safeNext || state.redirectTo`), so it is honored end-to-end; middleware only guards
+auth and does not re-route by role, so `/mobile` sticks. Admins on a phone accept landing in
+`/mobile` (admin web stays reachable from desktop).
+
+Status: Confirmed (2026-06-10).

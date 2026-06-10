@@ -29,17 +29,19 @@ Purpose:
 
 Key features:
 
-- Create task
-- Assign staff
-- Set due date
-- Set priority
-- Track status
-- Comment
-- Attach photos
+- Quick add to Inbox
+- Detailed task create/edit
+- Private-by-default task
+- Share with multiple participants
+- One common status/completion for shared tasks
+- Today / Inbox / My Tasks / Sent / Completed / Calendar views
+- Scheduled date + due date
+- Simple recurrence
+- Unified update-log
+- Attach up to 5 photos on task + up to 5 on updates
 - Link to property/room
 - Link to guest/reservation
-- Today / Upcoming / Overdue views
-- Reminder notifications
+- Reminder and task activity notifications
 
 ### 3. Announcements
 

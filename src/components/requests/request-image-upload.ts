@@ -7,7 +7,11 @@ const BUCKET = "request-images";
 const PUBLIC_MARKER = `/storage/v1/object/public/${BUCKET}/`;
 const FALLBACK_MARKER = `/storage/v1/object/${BUCKET}/`;
 
-export type RequestImageType = "lost-items" | "maintenance-reports" | "order-images";
+export type RequestImageType =
+  | "lost-items"
+  | "maintenance-reports"
+  | "order-images"
+  | "linen-returns";
 
 function getFileExtension(file: File): string {
   const ext = file.name.split(".").pop()?.toLowerCase();

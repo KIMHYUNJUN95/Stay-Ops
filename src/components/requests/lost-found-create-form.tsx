@@ -30,7 +30,7 @@ const FIELD_CLASS =
   "flex h-12 w-full items-center justify-between rounded-2xl border border-slate-200/80 bg-white/82 px-3.5 text-sm font-bold text-slate-900 outline-none shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors placeholder:text-slate-400 focus:border-sky-300 focus:ring-2 focus:ring-sky-200/60 disabled:opacity-50 cursor-pointer select-none text-left";
 
 const PANEL_CLASS =
-  "flex flex-col gap-4 rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] p-4 shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none";
+  "flex flex-col gap-4 rounded-[24px] border border-slate-200/80 bg-surface p-4 shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none";
 
 function SectionLabel({ children, index }: { children: string; index: number }) {
   return (

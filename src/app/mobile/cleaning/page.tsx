@@ -69,9 +69,9 @@ const BUILDING_KEY_RANK = new Map<string, number>(
 );
 const ROOM_LABEL_MAPPING_WARNING_THRESHOLD = 3;
 const CLEANING_PANEL =
-  "rounded-[28px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#f8fbff_100%)] shadow-[0_22px_46px_-32px_rgba(31,58,95,0.48)] backdrop-blur-none";
+  "rounded-[28px] border border-slate-200/80 bg-surface shadow-[0_22px_46px_-32px_rgba(31,58,95,0.48)] backdrop-blur-none";
 const CLEANING_CARD =
-  "overflow-hidden rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none";
+  "overflow-hidden rounded-[24px] border border-slate-200/80 bg-surface shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none";
 const CLEANING_START_BUTTON =
   "h-10 shrink-0 rounded-2xl border border-slate-200/70 bg-white px-4 text-xs font-black text-slate-800 shadow-[0_14px_28px_-24px_rgba(31,58,95,0.48)] transition-all hover:bg-slate-50 active:scale-[0.98]";
 
@@ -312,25 +312,25 @@ function CleaningKpiCard({
   value: ReactNode;
   tone: "primary" | "slate" | "muted";
 }) {
-  const toneClass = {
-    muted: "bg-slate-50 text-slate-600 ring-slate-200/80",
-    primary: "bg-[#F3F7FB] text-[#315F91] ring-[#D9EAF8]",
-    slate: "bg-white text-slate-600 ring-slate-200/80",
+  // Primary KPI (today's cleaning targets) gets a filled navy icon to draw focus;
+  // the others stay neutral. Tiles share a soft navy wash so they read as one group.
+  const iconTone = {
+    primary:
+      "bg-primary text-primary-foreground shadow-[0_8px_18px_-10px_hsl(var(--primary-hsl)/0.6)]",
+    muted: "bg-surface text-slate-500 ring-1 ring-border",
+    slate: "bg-surface text-slate-500 ring-1 ring-border",
   }[tone];
+  const valueClass = tone === "primary" ? "text-primary" : "text-foreground";
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200/75 bg-white/82 px-3 py-3 text-center shadow-[0_14px_28px_-26px_rgba(31,58,95,0.45)]">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-4 -top-8 h-14 rounded-full bg-[radial-gradient(55%_70%_at_50%_0%,rgba(222,242,255,0.8),transparent_78%)] blur-sm"
-      />
-      <div className={`relative mx-auto flex size-8 items-center justify-center rounded-2xl ring-1 ${toneClass}`}>
+    <div className="relative flex flex-col items-center rounded-2xl border border-primary/10 bg-primary/[0.05] px-3 py-3.5 text-center">
+      <div className={`flex size-9 items-center justify-center rounded-2xl ${iconTone}`}>
         {icon}
       </div>
-      <p className="relative mt-2 flex min-h-[2rem] items-center justify-center px-1 text-[11px] font-black leading-tight text-slate-500">
+      <p className="mt-2 flex min-h-[2rem] items-center justify-center px-1 text-[11px] font-black leading-tight text-muted-foreground">
         {label}
       </p>
-      <div className="relative mt-1 text-2xl font-black tracking-[-0.04em] text-slate-950">
+      <div className={`mt-0.5 text-2xl font-black tracking-[-0.04em] ${valueClass}`}>
         {value}
       </div>
     </div>
@@ -418,7 +418,7 @@ function CleaningTargetCard({
         />
         <div className="min-w-0 flex-1 pl-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-[#F3F7FB] text-[#315F91] ring-1 ring-[#D9EAF8]">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
               <BedDouble className="size-4.5" aria-hidden="true" />
             </span>
             <p className="text-[16px] font-black leading-tight tracking-[-0.03em] text-slate-950 md:text-base">{getLocalizedRoomTitle(target.canonicalPropertyName, target.canonicalRoomLabel, copy)}</p>
@@ -605,7 +605,7 @@ export default async function MobileCleaningPage({
         <Card className={`${CLEANING_PANEL} relative overflow-hidden p-4`}>
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute -right-12 -top-10 size-32 rounded-full bg-[#EAF1F8]/80 blur-2xl"
+            className="pointer-events-none absolute -right-12 -top-10 size-32 rounded-full bg-primary/10 blur-2xl"
           />
           <div
             aria-hidden="true"
@@ -613,14 +613,14 @@ export default async function MobileCleaningPage({
           />
           <div className="relative flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#1F3A5F]">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">
                 {copy.todayOpsTitle}
               </p>
               <p className="mt-1 text-[11px] font-bold text-slate-400">
                 {copy.operatingDateLabel}
               </p>
             </div>
-            <div className="flex size-10 items-center justify-center rounded-2xl bg-[#F3F7FB] text-[#315F91] ring-1 ring-[#D9EAF8]">
+            <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
               <Sparkles className="size-5" aria-hidden="true" />
             </div>
           </div>
@@ -672,22 +672,22 @@ export default async function MobileCleaningPage({
           </div>
         ) : null}
         {params.started ? (
-          <div className="rounded-xl border border-[#C9D8E8] bg-[#EAF1F8] px-4 py-3 text-sm font-semibold text-[#1F3A5F]">
+          <div className="rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary">
             {copy.startSuccess}
           </div>
         ) : null}
         {params.completed ? (
-          <div className="rounded-xl border border-[#C9D8E8] bg-[#EAF1F8] px-4 py-3 text-sm font-semibold text-[#1F3A5F]">
+          <div className="rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary">
             {copy.completeSuccess}
           </div>
         ) : null}
         {params.lostReported ? (
-          <div className="rounded-xl border border-[#C9D8E8] bg-[#EAF1F8] px-4 py-3 text-sm font-semibold text-[#1F3A5F]">
+          <div className="rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary">
             {copy.lostReported}
           </div>
         ) : null}
         {params.maintenanceReported ? (
-          <div className="rounded-xl border border-[#C9D8E8] bg-[#EAF1F8] px-4 py-3 text-sm font-semibold text-[#1F3A5F]">
+          <div className="rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary">
             {copy.maintenanceReported}
           </div>
         ) : null}
@@ -702,7 +702,7 @@ export default async function MobileCleaningPage({
           <Card className={`${CLEANING_PANEL} p-5`}>
             <div className="flex flex-col items-center text-center">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-600">
-                <span className="size-2 rounded-full bg-[#315F91]" />
+                <span className="size-2 rounded-full bg-primary" />
                 {copy.activeCleaning}
               </div>
               <h3 className="mt-3 text-[28px] font-black tracking-tight text-foreground">
@@ -747,7 +747,7 @@ export default async function MobileCleaningPage({
                   className="flex h-12 items-center gap-3 rounded-full border border-white/60 bg-white/28 px-4 text-sm font-bold text-foreground shadow-sm backdrop-blur-xl transition-colors hover:bg-white/40"
                   href={`/mobile/lost-found/new?sessionId=${activeSession.id}`}
                 >
-                  <span className="flex size-8 items-center justify-center rounded-full border border-white/50 bg-white/35 text-[#1F3A5F]">
+                  <span className="flex size-8 items-center justify-center rounded-full border border-white/50 bg-white/35 text-primary">
                     <Package className="size-4" aria-hidden="true" />
                   </span>
                   <span className="truncate">{copy.reportLostItem}</span>
@@ -756,7 +756,7 @@ export default async function MobileCleaningPage({
                   className="flex h-12 items-center gap-3 rounded-full border border-white/60 bg-white/28 px-4 text-sm font-bold text-foreground shadow-sm backdrop-blur-xl transition-colors hover:bg-white/40"
                   href={`/mobile/maintenance/new?sessionId=${activeSession.id}`}
                 >
-                  <span className="flex size-8 items-center justify-center rounded-full border border-white/50 bg-white/35 text-[#1F3A5F]">
+                  <span className="flex size-8 items-center justify-center rounded-full border border-white/50 bg-white/35 text-primary">
                     <Wrench className="size-4" aria-hidden="true" />
                   </span>
                   <span className="truncate">{copy.reportMaintenance}</span>
@@ -770,7 +770,7 @@ export default async function MobileCleaningPage({
             <section className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <span className="flex size-9 items-center justify-center rounded-2xl bg-[#F3F7FB] text-[#315F91] ring-1 ring-[#D9EAF8]">
+                  <span className="flex size-9 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
                     <SprayCan className="size-4.5" aria-hidden="true" />
                   </span>
                   <div>
@@ -783,7 +783,7 @@ export default async function MobileCleaningPage({
                   </div>
                 </div>
                 {cleaningTargets && (
-                  <span className="inline-flex h-9 min-w-11 items-center justify-center rounded-full border border-slate-200 bg-white px-3 text-[17px] font-black leading-none text-[#315F91] shadow-[0_10px_20px_-18px_rgba(31,58,95,0.5)]">
+                  <span className="inline-flex h-9 min-w-11 items-center justify-center rounded-full border border-slate-200 bg-white px-3 text-[17px] font-black leading-none text-primary shadow-[0_10px_20px_-18px_rgba(31,58,95,0.5)]">
                     {cleaningTargetCount}
                   </span>
                 )}

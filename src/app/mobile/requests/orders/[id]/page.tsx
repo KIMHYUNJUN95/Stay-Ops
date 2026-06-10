@@ -57,7 +57,7 @@ const statusBadgeClass = {
   closed: "border-border bg-muted/50 text-muted-foreground",
 } as const;
 const DETAIL_CARD =
-  "rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]";
+  "rounded-[24px] border border-slate-200/80 bg-surface shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]";
 
 function buildBackToListHref(query: ListFilterQuery): string {
   const params = new URLSearchParams();

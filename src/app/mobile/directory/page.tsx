@@ -13,7 +13,7 @@ type MembershipRow = Database["public"]["Tables"]["memberships"]["Row"];
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 
 const GLASS_CARD =
-  "rounded-[20px] border border-slate-200/80 bg-[linear-gradient(145deg,#ffffff_0%,#fbfcff_100%)] shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]";
+  "rounded-[20px] border border-slate-200/80 bg-surface shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]";
 
 type StaffMember = {
   membershipId: string;
@@ -126,7 +126,7 @@ export default async function MobileDirectoryPage() {
               {member.phone ? (
                 <a
                   aria-label={`${copy.call} ${member.name}`}
-                  className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#EEF7FF] text-[#315F91] shadow-[0_8px_16px_-12px_rgba(31,58,95,0.4)] ring-1 ring-[#D9EAF8] transition-colors active:bg-[#D9EAF8]"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary shadow-[0_8px_16px_-12px_hsl(var(--primary-hsl)/0.4)] ring-1 ring-primary/15 transition-colors active:bg-primary/20"
                   href={`tel:${member.phone}`}
                 >
                   <Phone className="size-4" aria-hidden="true" />
