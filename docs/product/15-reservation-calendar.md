@@ -534,7 +534,8 @@ This does **not** regress the webhook-first decision. Webhooks remain the primar
 
 - The reconciliation window is the same 2-month operational window as the calendar. A dropped webhook for a booking **outside** current month + next month (e.g. 8+ months out) is not healed by reconciliation. This matches the confirmed MVP calendar scope.
 - No active alerting yet (e.g. "0 webhook events received in 24h" → Slack/push). The data to detect this now exists in `beds24_webhook_events`; wiring an alert channel is deferred.
-- Reconciliation upserts the full window each run (~hundreds of rows). If row volume grows, batch the upserts; `maxDuration` is set to 60s on the route as a guard.
+- Reconciliation upserts the full window each run (~hundreds of rows). The upserts are **batched** (in-memory dedup → 500-row chunked bulk upsert in `reservations-backfill.ts`); `maxDuration` is set to 60s on the route as a guard. This fixed an initial production timeout — per-row upserts from a US-East (`iad1`) function to the Tokyo (`ap-northeast-1`) Supabase exceeded 60s.
+- Function region is pinned to **Tokyo (`hnd1`)** in `vercel.json` (`regions`), co-located with the Tokyo Supabase DB and the Tokyo-based operations users. This minimizes DB round-trip latency for the reconcile cron, the webhook handler, and all other DB-bound routes. (Default was `iad1` / US-East.)
 
 ## Order Delivery Date + Calendar Integration (Planned)
 
