@@ -107,10 +107,10 @@ export default async function MobileAnnouncementDetailPage({
           {copy.backToAnnouncements}
         </Link>
 
-        <Card className={`${ANNOUNCEMENT_CARD} relative overflow-hidden p-5 text-slate-950`}>
+        <Card className={`${ANNOUNCEMENT_CARD} relative overflow-hidden p-5 text-foreground`}>
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute -right-12 -top-10 size-32 rounded-full bg-sky-100/55 blur-2xl"
+            className="pointer-events-none absolute -right-12 -top-10 size-32 rounded-full bg-primary/10 blur-2xl"
           />
           <div className="relative">
           <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -127,11 +127,11 @@ export default async function MobileAnnouncementDetailPage({
             {announcement.title}
           </h2>
           <div className="mt-4 flex items-center gap-3 border-t border-slate-200/80 pt-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-200/80">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
               <Megaphone className="size-4" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-950">
+              <p className="truncate text-sm font-semibold text-foreground">
                 {announcement.author_name}
               </p>
               <p className="line-clamp-2 text-xs leading-5 text-slate-500">
@@ -149,14 +149,14 @@ export default async function MobileAnnouncementDetailPage({
           </div>
         </Card>
 
-        <Card className={`${ANNOUNCEMENT_CARD} p-5 text-slate-950`}>
+        <Card className={`${ANNOUNCEMENT_CARD} p-5 text-foreground`}>
           <p className="whitespace-pre-line break-words text-[15px] font-semibold leading-7 text-slate-700">
             {announcement.content}
           </p>
         </Card>
 
         {announcement.image_urls.length > 0 ? (
-          <Card className={`${ANNOUNCEMENT_CARD} p-4 text-slate-950`}>
+          <Card className={`${ANNOUNCEMENT_CARD} p-4 text-foreground`}>
             <p className="text-xs font-black uppercase tracking-[0.1em] text-slate-400">
               {copy.imageAttachments} ({announcement.image_urls.length})
             </p>
@@ -167,13 +167,13 @@ export default async function MobileAnnouncementDetailPage({
           </Card>
         ) : null}
 
-        <Card className={`${ANNOUNCEMENT_CARD} p-4 text-slate-950`}>
-          <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 ring-1 ring-emerald-200/80">
+        <Card className={`${ANNOUNCEMENT_CARD} p-4 text-foreground`}>
+          <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/[0.06] px-3 py-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-surface text-primary ring-1 ring-primary/15">
               <CircleCheck className="size-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-950">
+              <p className="text-sm font-semibold text-foreground">
                 {copy.markAsRead}
               </p>
               <p className="text-xs text-slate-500">

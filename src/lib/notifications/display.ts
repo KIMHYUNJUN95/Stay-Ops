@@ -2,6 +2,7 @@ import type { Locale } from "@/lib/i18n";
 import { getDictionary } from "@/lib/i18n";
 import {
   isOrderProcessedPayload,
+  isTaskNotificationPayload,
   type NotificationRow,
   type NotificationType,
 } from "@/lib/notifications/types";
@@ -87,6 +88,48 @@ export function getNotificationDisplay(
     };
   }
 
+  if (
+    (notification.type === "task_shared" ||
+      notification.type === "task_updated" ||
+      notification.type === "task_completed" ||
+      notification.type === "task_due_soon" ||
+      notification.type === "task_overdue") &&
+    isTaskNotificationPayload(notification.payload)
+  ) {
+    const payload = notification.payload;
+    const title =
+      notification.type === "task_shared"
+        ? copy.taskSharedTitle
+        : notification.type === "task_completed"
+          ? copy.taskCompletedTitle
+          : notification.type === "task_due_soon"
+            ? copy.taskDueSoonTitle
+            : notification.type === "task_overdue"
+              ? copy.taskOverdueTitle
+              : copy.taskUpdatedTitle;
+    const bodyTemplate =
+      payload.event === "note"
+        ? copy.taskNoteBody
+        : payload.event === "edited"
+          ? copy.taskEditedBody
+          : payload.event === "completed"
+            ? copy.taskCompletedBody
+            : payload.event === "reopened"
+              ? copy.taskReopenedBody
+              : payload.event === "due_soon"
+                ? copy.taskDueSoonBody
+                : payload.event === "overdue"
+                  ? copy.taskOverdueBody
+                  : copy.taskSharedBody;
+    return {
+      title,
+      body: bodyTemplate.replace("{title}", payload.taskTitle),
+      statusLabel: copy.taskKind,
+      kindLabel: copy.taskKind,
+      locationLabel: "",
+    };
+  }
+
   return {
     title: copy.fallbackTitle,
     body: copy.fallbackBody,
@@ -101,6 +144,12 @@ export function notificationTypeLabel(type: NotificationType, locale: Locale) {
   switch (type) {
     case "order_processed":
       return copy.kindOrder;
+    case "task_shared":
+    case "task_updated":
+    case "task_completed":
+    case "task_due_soon":
+    case "task_overdue":
+      return copy.taskKind;
     default:
       return copy.fallbackKind;
   }

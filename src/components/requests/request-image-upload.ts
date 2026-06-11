@@ -11,7 +11,9 @@ export type RequestImageType =
   | "lost-items"
   | "maintenance-reports"
   | "order-images"
-  | "linen-returns";
+  | "linen-returns"
+  | "task-images"
+  | "task-update-images";
 
 function getFileExtension(file: File): string {
   const ext = file.name.split(".").pop()?.toLowerCase();

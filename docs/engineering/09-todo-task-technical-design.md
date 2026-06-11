@@ -1,6 +1,32 @@
 # Todo / Task Technical Design
 
-Status: Draft — aligned to refined mobile-first product plan (2026-06-10)
+Status: First slice implemented (2026-06-10) — migration `202606100003_todo_tasks.sql`. As-built notes:
+`priority`/`status` are text columns with CHECK constraints (not enums); RLS uses a `security definer`
+`is_task_participant(task_id)` helper to avoid recursion; reads are RLS-scoped while **all writes go
+through service-role server actions** with explicit permission checks; notification_type gained
+`task_shared`/`task_updated`/`task_completed` and notifications fan out to participants; task photos
+reuse the `request-images` bucket (`task-images`/`task-update-images`). Recurrence is stored + shown
+only (no auto instance generation in this slice).
+
+Hardening pass (2026-06-11): `quickCreateTask`/`createTask` roll back the inserted `tasks` row when
+the `task_participants` insert fails (no DB transaction in this path, so the rollback is an explicit
+delete) — this prevents author-invisible orphan rows, since visibility depends on participant
+membership. `updateTaskCore` now also writes `image_urls`, so task-level photos are author-editable
+after creation. Update-log photo upload is wired end-to-end (client upload → `addTaskUpdate` →
+`task_updates.image_urls`). Detailed create always sets `is_inbox = false` (see Inbox Rules).
+
+Hardening pass 2 (2026-06-11): `shareTaskWithUsers` is now fail-safe — it checks the
+`task_participants` insert result and short-circuits on failure, so a failed share never marks
+`tasks.is_shared = true`, never writes a `system_shared` log row, and never emits notifications (no
+false shared state). Update-log photo-upload failures are no longer swallowed: the compose area shows
+an inline localized error (`tasks.errors.upload_failed`), keeps the typed text/selected photos, and
+submits nothing so the user can retry. Removed task-level photos are now hard-deleted from Storage
+(Option A): on core edit, `updateTaskCore` computes the detached set as `previous − new` from the
+**server-truth** `task.image_urls` (never arbitrary client URLs), validates each resolves to a path
+under `${organizationId}/task-images/` in the `request-images` bucket (host + bucket + org-prefix
+checks, mirroring the announcements `extractStoragePath` pattern), and removes only those objects
+after the DB row no longer references them. A failed Storage remove is non-fatal (logged) — the DB
+reference is already detached, so the worst case is a stray file, not a broken task.
 
 ## Purpose
 
@@ -172,10 +198,12 @@ Any current participant can update:
 
 Inbox is an explicit task state, not only an inferred lack of dates.
 
-Recommended behavior:
+As-built behavior (2026-06-11):
 
-- quick-add creates `is_inbox = true`
-- detailed create may create either Inbox or organized task
+- quick-add creates `is_inbox = true` (the staging entry point) via `quickCreateTask`
+- detailed create produces an organized task (`is_inbox = false`) via `createTask` — using the full create form is itself the deliberate "organize" act, so it does not land in Inbox
+- entry flow: the Quick Add sheet's **Save to Inbox** calls `quickCreateTask`; its **Full create** action links to `/mobile/tasks/new`, carrying any typed title via `?title=` (read into the form's `defaultTitle`, kept separate from `defaultDate` so Calendar's `?date=` prefill is unaffected). `/mobile/tasks/new` is the single full-create route, also used by the Calendar day sheet for date-prefilled creation.
+- a task enters/leaves Inbox only through deliberate actions afterward (swipe-to-Inbox, move in/out from detail), never implicitly from field edits
 - shared tasks may remain in Inbox
 - shared Inbox membership is common to all participants
 
@@ -250,6 +278,20 @@ Recommended sorting:
 - visible tasks where `scheduled_date` or `due_at` is present
 - support month view and agenda/list range view
 
+As-built (2026-06-11): fully client-side in `TasksWorkspace` over the already-loaded task set — no
+month-scoped server query. A `calMonth: { y, m }` state drives a navigable grid (`shiftMonth(±1)` with
+12-month rollover; `goToday()` resets to the current month and selects today). Day placement and the
+agenda both key off the shared `anchor(task)` (`dueDateOf ?? scheduledDate`, Tokyo) — the same value
+used for list grouping and the date filter, so there is one calendar interpretation. The agenda groups
+the shown month's dated tasks by `anchor` day (`anchor.slice(0,7) === monthPrefix`), sorted ascending.
+Selected-date emphasis is decoupled from the sheet: `calDay` holds the selection (persists for grid
+highlight) while `sheetOpen` controls the bottom sheet, so closing the sheet keeps the day highlighted
+and re-tapping re-opens it. When `calDay` is present, a compact selected-date summary strip renders
+above the agenda (date label, count, reopen CTA, clear-selection action) so the whole Calendar body
+keeps the same context, not only the sheet. The personal/shared legend stays on the current month only.
+Recurring-instance expansion is still out of scope — a recurring task appears only on its own stored
+`anchor` date.
+
 ## Search / Filter Rules
 
 Required first-slice search/filter:
@@ -258,7 +300,24 @@ Required first-slice search/filter:
 - author name
 - date / date range
 
-Not required as core first-slice search:
+As-built (2026-06-11): implemented **client-side** inside `TasksWorkspace` over the already-loaded,
+org-scoped task list — no new server query or backend full-text index. One shared filter state
+(`search`, `dateMode: single | range`, `dateFrom`, `dateTo`) is applied uniformly to the list views
+via a local `matchesFilter(task)` / `applyFilter(list)` pair:
+
+- text: case-insensitive `includes` over `` `${title} ${authorName}` ``.
+- date: uses the same `anchor(task)` as grouping (`dueDateOf(task) ?? scheduledDate`, Tokyo); single
+  mode is exact-equality, range mode is `from <= anchor <= to` with either bound optional; a `null`
+  anchor never matches an active date filter.
+- the bar renders on Today/Inbox/My/Sent/Completed only (not Calendar); Completed composes it on top
+  of its existing `doneFilter` chips.
+- empty vs no-result is distinguished per view by comparing the pre-filter base list against the
+  filtered list (genuine empty state vs a `noMatchState()` with a clear action).
+
+If the dataset ever grows past what is reasonable to load client-side, move this predicate to a
+server query — the `matchesFilter` semantics above are the contract to preserve.
+
+Not required as core first-slice search (still deferred):
 
 - description/body search
 - participant name search
@@ -342,6 +401,33 @@ Recommended actions:
 
 ## Dates / Recurrence Direction
 
+### Time handling (as-built 2026-06-11)
+
+`createTask` and `updateTaskCore` apply one shared rule via `normalizeTaskDateTime()` in
+`src/lib/tasks.ts`, so create and edit can never drift:
+
+- `time_label` is the authoritative optional time-of-day (`"HH:MM"`); `all_day = !time_label`.
+  Display everywhere keys off `time_label` (cards show a time chip only when set; the detail Time row
+  shows the time or "All day"). `due_at`'s clock component is **not** used as the time source — an
+  all-day task with a due date stores `due_at` at `00:00` Tokyo, so reading a time from it would be
+  wrong.
+- a time requires a date anchor (scheduled or due). A time entered with **no date at all** is
+  **rejected, not silently dropped**: `taskTimeWithoutDate()` (also in `src/lib/tasks.ts`) gates the
+  flow — the form blocks submission with `tasks.errors.time_needs_date`, and both server actions
+  re-check and redirect back with the same error (create → `/mobile/tasks/new`, edit →
+  `/mobile/tasks/[id]/edit`). `normalizeTaskDateTime` still drops a stray time defensively, but the
+  validation makes that path unreachable for a normal save, so no time is ever lost without feedback.
+- `due_at` is built from the due date + kept time at `+09:00` (Tokyo) when a due date exists, else
+  `null`. An all-day due date persists at `00:00` local — the existing intentional pattern, since
+  `anchor()` / `tokyoDateOf()` read only the Tokyo calendar date. **Detail rendering** honors
+  `all_day`: an all-day due date is shown date-only (`longDateOnlyIso`), never `00:00`, so it cannot
+  contradict the "All day" time row; only genuinely timed tasks render date + time.
+- inputs are validated: a date must match `YYYY-MM-DD` and a time `HH:MM`, otherwise it is treated as
+  unset (handles partial/invalid time states). Toggling all-day back on clears `time_label` and
+  normalizes `all_day`/`due_at` with no stale leftovers.
+
+This narrows the previously underspecified time behavior; no broader scheduling semantics changed.
+
 ### Quick Date Helpers
 
 Support later in UI/server handling:
@@ -363,10 +449,34 @@ Recommended first-slice recurrence values:
 - weekends
 - custom rule string
 
+As-built (2026-06-11):
+
+- Recurrence is **stored + displayed only — no instance generation.** `recurrence_rule` is a plain
+  label on the single task row; a recurring task appears only on its own anchor date. This keeps the
+  feature strictly inside the lightweight Todo boundary and out of the formal Recurring Work Scheduler.
+- `createTask` and `updateTaskCore` persist identically through one shared helper,
+  `resolveRecurrenceRule(submitted, previousRule)` in `src/lib/tasks.ts`. A standard rule
+  (`daily | weekly | monthly | weekdays | weekends`) passes through; empty/None or any unrecognized
+  value fails closed to `null`. No stale rule survives a clear in edit.
+- **`custom` is round-trip only, enforced server-side (not UI-only).** `resolveRecurrenceRule` keeps
+  `custom` solely when `previousRule === "custom"`:
+  - create passes `previousRule = null`, so a new task can **never** be created with `custom`
+    (submitted `custom` → `null`);
+  - edit passes `previousRule = task.recurrence_rule`, so a task that already has `custom` may keep it,
+    switch to a standard rule, or clear it — but a **non-custom task can never be turned into `custom`**
+    (submitted `custom` on a non-custom task → `null`).
+  This closes the gap where a crafted request could assign `custom` despite the UI omitting it. The
+  form still omits `custom` from new choices and only renders a read-only `custom` chip when the loaded
+  task already has that value; there is no custom rule builder (out of scope this slice).
+- Display helpers (`repeatLabel` in `task-card.tsx` and `task-detail-view.tsx`) map all six values to
+  the shared `tasks.repeat*` i18n keys, so labels stay consistent across cards, detail, list, and
+  calendar surfaces.
+
 Not required in first slice:
 
 - exception dates
 - advanced recurrence-end modeling
+- a custom rule builder / parser
 
 ## Images
 
@@ -394,6 +504,31 @@ The refined product plan expects all of these:
 - due soon
 - overdue
 - completed
+
+As-built (2026-06-11) — all six are implemented. `notification_type` gained `task_due_soon` and
+`task_overdue` (migration `202606110001_task_reminder_notifications.sql`) alongside the existing
+`task_shared` / `task_updated` / `task_completed`. All fan out through `notifyTaskParticipants`
+(service-role, org-scoped, recipient = current participants, deduped per recipient via
+`unique (recipient_user_id, dedupe_key)`); each carries the task id + title + event in its payload and
+deep-links to `/mobile/tasks/{id}`.
+
+Event-driven (emitted from server actions, actor excluded from recipients):
+
+- `task_shared` — `createTask` (with recipients) and `shareTaskWithUsers`.
+- `task_completed` — `completeTask`.
+- `task_updated` — one type, distinguished by `payload.event`: `edited` (author core edit via
+  `updateTaskCore`), `note` (**update-log activity** via `addTaskUpdate` — this is the update-log
+  notification, kept distinct by event rather than a new type), and `reopened` (`reopenTask`).
+
+Time-based (system reminders, no actor → every participant incl. the author is notified):
+
+- `task_due_soon` / `task_overdue` — produced only by `runTaskReminders` (`src/lib/notifications/
+  task-reminders.ts`), driven once daily by Vercel Cron `/api/tasks/reminders` (08:00 JST; CRON_SECRET
+  guarded). **Due soon** = active task whose `due_at` Tokyo date is today; **overdue** = active task
+  whose `due_at` Tokyo date is before today. One reminder per task per recipient ever (dedupe key
+  `task_due_soon|task_overdue:<taskId>`), so the daily run never re-spams an already-notified task and
+  overdue is a single first-cross notification, not an escalating series. No instance generation and no
+  general scheduler — this is a narrow once-daily evaluation only.
 
 Implementation timing may still phase these, but the product direction is confirmed.
 

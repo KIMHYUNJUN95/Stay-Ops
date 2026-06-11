@@ -471,6 +471,12 @@ Implemented.
 
 ## tasks
 
+Implemented (migration `202606100003_todo_tasks.sql`). RLS uses a `security definer` helper
+`is_task_participant(task_id)` to avoid tasks↔participants policy recursion. Reads (lib/tasks.ts)
+use the RLS-scoped client; **all writes go through service-role server actions** with explicit
+permission checks (author-only core edits, participant workflow, author-leave = full delete,
+non-author-all-removed → private). Direct authenticated writes to `task_participants` are denied.
+
 - Read: active participants only.
 - Create: any active org member when creating a task where they are the original author.
 - Update: original author edits core task content; current participants can mutate only shared workflow-state fields through controlled actions.

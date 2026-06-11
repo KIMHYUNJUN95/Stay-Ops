@@ -141,7 +141,7 @@ Usage:
 - `BEDS24_API_BASE_URL`: Beds24 API base URL
 - `BEDS24_API_TOKEN`: short-lived Beds24 access token for direct inventory/property calls
 - `BEDS24_API_REFRESH_TOKEN`: long-lived Beds24 refresh token used to mint access tokens when `BEDS24_API_TOKEN` is unset or expired
-- `CRON_SECRET`: shared secret for the production reconciliation endpoint. Vercel Cron automatically sends it as `Authorization: Bearer <CRON_SECRET>` when this var is set on the project. Set it in Vercel project env so the daily reconcile cron is authorized. (`BEDS24_WEBHOOK_SECRET` is also accepted by the reconcile endpoint for manual triggers.)
+- `CRON_SECRET`: shared secret authorizing **all production cron-backed endpoints**, currently two: the Beds24 reconciliation endpoint (`/api/beds24/reconcile`) and the Todo / Shared Task reminder endpoint (`/api/tasks/reminders`). Vercel Cron automatically sends it as `Authorization: Bearer <CRON_SECRET>` when this var is set on the project. Set it in Vercel project env so **both** daily crons are authorized — if it is unset, the reminder endpoint returns 404 and the reconcile endpoint falls back to `BEDS24_WEBHOOK_SECRET` only. (`BEDS24_WEBHOOK_SECRET` is also accepted by the reconcile endpoint for manual triggers; the reminders endpoint accepts `CRON_SECRET` only.)
 - Existing Beds24-linked properties can be backfilled locally through `POST /api/dev/beds24/backfill-inventory`
   - requires `ENABLE_DEV_SEED_LOGIN=true`
   - requires localhost access
@@ -154,6 +154,13 @@ Reconciliation safety net (production):
 - Driven daily by Vercel Cron (`vercel.json`, `0 19 * * *` UTC = 04:00 Asia/Tokyo). Webhooks remain the primary update path; this only heals dropped/never-delivered webhook events.
 - Every run (and every inbound webhook) is logged to `beds24_webhook_events` for observability.
 - Manual trigger: `curl "$APP_URL/api/beds24/reconcile" -H "Authorization: Bearer $CRON_SECRET"` (or `-H "x-beds24-webhook-secret: $BEDS24_WEBHOOK_SECRET"`).
+
+Task reminder cron (production):
+
+- `GET/POST /api/tasks/reminders` evaluates time-based Todo / Shared Task notifications and fans out one deduped reminder per task per recipient. Due-soon = active task due today (Asia/Tokyo); overdue = active task due before today. It is org-scoped, participant-only, and generates no recurring instances — just a once-daily evaluation. See `src/lib/notifications/task-reminders.ts` and `docs/product/14-notification-design.md`.
+- Driven daily by Vercel Cron (`vercel.json`, `0 23 * * *` UTC = 08:00 Asia/Tokyo). Authorized with `CRON_SECRET` only (returns 404 if `CRON_SECRET` is unset, 403 if the secret is missing/wrong).
+- Requires the `task_due_soon` / `task_overdue` enum values from `supabase/migrations/202606110001_task_reminder_notifications.sql` (**applied to the linked project on 2026-06-11**); if a fresh environment lacks them, reminder inserts fail soft (logged, no crash) until applied.
+- Manual trigger: `curl "$APP_URL/api/tasks/reminders" -H "Authorization: Bearer $CRON_SECRET"`.
 
 Token scope checklist (must verify on token create/refresh):
 

@@ -1,7 +1,51 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isNotificationsTableUnavailable } from "@/lib/notifications/schema";
-import type { OrderProcessedNotificationPayload } from "@/lib/notifications/types";
+import type {
+  OrderProcessedNotificationPayload,
+  TaskNotificationPayload,
+} from "@/lib/notifications/types";
 import type { Database } from "@/types/database";
+
+type TaskNotificationType =
+  | "task_shared"
+  | "task_updated"
+  | "task_completed"
+  | "task_due_soon"
+  | "task_overdue";
+
+/**
+ * Fan-out a task notification to each recipient (skipping the actor). `dedupeBase` must be
+ * unique per event so distinct events are not collapsed (e.g. include the update id);
+ * the recipient id is appended automatically.
+ */
+export async function notifyTaskParticipants(
+  supabase: SupabaseClient<Database>,
+  params: {
+    organizationId: string;
+    taskId: string;
+    recipientUserIds: string[];
+    actorUserId: string;
+    type: TaskNotificationType;
+    dedupeBase: string;
+    payload: TaskNotificationPayload;
+  },
+): Promise<void> {
+  const recipients = Array.from(new Set(params.recipientUserIds)).filter(
+    (id) => id && id !== params.actorUserId,
+  );
+  for (const recipientUserId of recipients) {
+    await createNotification(supabase, {
+      organizationId: params.organizationId,
+      recipientUserId,
+      type: params.type,
+      href: `/mobile/tasks/${params.taskId}`,
+      sourceType: "task",
+      sourceId: params.taskId,
+      dedupeKey: `${params.dedupeBase}:${recipientUserId}`,
+      payload: params.payload,
+    });
+  }
+}
 
 type CreateNotificationInput = {
   organizationId: string;

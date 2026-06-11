@@ -3,6 +3,7 @@ import {
   Bell,
   BellRing,
   Building2,
+  ListChecks,
   CalendarCheck2,
   CalendarDays,
   ClipboardCheck,
@@ -80,6 +81,15 @@ const mobileNavLinenReturn = {
   icon: BedDouble,
 } as const satisfies NavigationItem;
 
+// Todo / Shared Task — side-menu entry + pinnable bottom-bar candidate.
+// See docs/product/18-todo-task-workflow.md.
+const mobileNavTasks = {
+  id: "tasks",
+  label: localizedNavigationLabels.mobile.tasks,
+  href: "/mobile/tasks",
+  icon: ListChecks,
+} as const satisfies NavigationItem;
+
 // Bottom tab bar uses a center action ("추가") button, so it holds only 4 tabs.
 // "Cleaning" intentionally lives in the side menu (hamburger) instead of the bottom bar.
 export const mobileBottomNavigation = [
@@ -95,6 +105,7 @@ export const mobileSidebarNavigation = [
   mobileNavCleaning,
   mobileNavRequests,
   mobileNavAnnouncements,
+  mobileNavTasks,
   mobileNavLinenReturn,
   {
     id: "notifications",

@@ -613,7 +613,14 @@ updated_at timestamptz
 
 In-app notification center records.
 
-Migration: `supabase/migrations/202606030001_notifications.sql`
+Base migration: `supabase/migrations/202606030001_notifications.sql`. Enum values were later extended
+by `supabase/migrations/202606100003_todo_tasks.sql` (task activity) and
+`supabase/migrations/202606110001_task_reminder_notifications.sql` (task reminders).
+
+The notifications table now backs three dispatch surfaces:
+- order processing notifications
+- Todo / Shared Task activity (shared / update / completed)
+- Todo / Shared Task time-based reminders (due-soon / overdue)
 
 Fields:
 
@@ -621,27 +628,42 @@ Fields:
 id uuid primary key
 organization_id uuid not null references organizations(id)
 recipient_user_id uuid not null references profiles(id)
-type notification_type not null    -- enum, currently: order_processed
+type notification_type not null    -- enum (see values below)
 href text not null                 -- in-app navigation target on tap
-source_type text not null          -- e.g. "order_request"
+source_type text not null          -- e.g. "order_request", "task"
 source_id uuid not null            -- FK-equivalent to the source record
 dedupe_key text not null           -- unique per (recipient, event) to prevent duplicates
-payload jsonb not null default '{}' -- event-specific data (order title, delivery date, etc.)
+payload jsonb not null default '{}' -- event-specific data (order/task title, delivery date, event, etc.)
 read_at timestamptz                -- null = unread
 created_at timestamptz not null
 unique (recipient_user_id, dedupe_key)
 ```
 
-Notification type values (notification_type enum):
+Notification type values (notification_type enum, as implemented):
 
 ```txt
 order_processed
+task_shared
+task_updated
+task_completed
+task_due_soon
+task_overdue
 ```
 
 Implementation notes:
-- `order_processed` notification is dispatched when an order request status transitions to `ordered`.
-- Self-notifications are suppressed (processor = requester does not trigger a notification).
-- A `schemaUnavailable` graceful fallback is used if the migration has not yet been applied; the notifications UI shows an info card instead of crashing.
+- `order_processed` is dispatched when an order request status transitions to `ordered`.
+- `task_shared` / `task_updated` / `task_completed` are event-driven from the task server actions and
+  fan out only to a task's current participants (org-scoped). `task_updated` is one type distinguished
+  by `payload.event` — `edited` (author core edit), `note` (update-log activity), `reopened`.
+- `task_due_soon` / `task_overdue` are time-based system reminders produced only by the daily
+  `/api/tasks/reminders` cron (`src/lib/notifications/task-reminders.ts`): due-soon = active task due
+  today (Tokyo), overdue = active task due before today. The `unique (recipient_user_id, dedupe_key)`
+  constraint (key `task_due_soon|task_overdue:<taskId>`) limits each task to one reminder per recipient,
+  so the cron never re-spams. See `docs/product/14-notification-design.md` for the full matrix.
+- Self-notifications are suppressed for event-driven types (the actor is excluded from recipients).
+  Reminders have no actor, so a task's author is intentionally reminded about their own deadline.
+- A `schemaUnavailable` graceful fallback is used if the migration has not yet been applied; the
+  notifications UI shows an info card instead of crashing.
 - Push notifications are not yet implemented; in-app only.
 
 ## recurring_work_templates
@@ -688,7 +710,9 @@ updated_at timestamptz
 
 # Post-MVP Feature Batch Tables (approved 2026-06-09)
 
-The tables below back the approved post-MVP batch. Full column types, enums, indexes, and RLS detail live in the per-feature technical-design docs (`docs/engineering/08`–`12`); the definitions here are the canonical inventory. The three `linen_*` tables are **implemented** (migration `202606100002_linen_returns.sql`); the rest are not implemented yet.
+The tables below back the approved post-MVP batch. Full column types, enums, indexes, and RLS detail live in the per-feature technical-design docs (`docs/engineering/08`–`12`); the definitions here are the canonical inventory. The three `linen_*` tables (migration `202606100002_linen_returns.sql`) and the three task tables
+(`tasks` / `task_participants` / `task_updates`, migration `202606100003_todo_tasks.sql`) are
+**implemented**; the rest are not implemented yet.
 
 ## linen_items
 
@@ -747,6 +771,13 @@ unique (return_record_id, linen_item_id)
 ```
 
 ## tasks
+
+Implemented (migration `202606100003_todo_tasks.sql`). One canonical task + `task_participants`
+(one set, author + participants) + `task_updates` (unified log). Private by default; sharing adds
+participant rows. `priority`/`status` are text+check (not enums). Notification enum gained
+`task_shared` / `task_updated` / `task_completed`; task photos reuse the `request-images` bucket
+(`task-images` / `task-update-images` subfolders). All writes go through service-role server
+actions with explicit permission checks; reads are RLS-scoped via `is_task_participant()`.
 
 Personal todo / shared task inbox. Private by default, but expandable to one shared task with participant set and common status. See `docs/engineering/09-todo-task-technical-design.md`.
 

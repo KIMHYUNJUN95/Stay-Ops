@@ -1,6 +1,24 @@
 # Todo / Task Workflow
 
-Status: Draft — refined product plan (2026-06-10)
+Status: First slice implemented (2026-06-10). Mobile Todo/Shared Task is live under
+`/mobile/tasks/*` (side-menu entry `tasks`). All six views (Today/Inbox/My/Sent/Completed/Calendar),
+quick add + detailed create/edit, task detail with unified update log, multi-select sharing, common
+shared status, and author/participant rules are implemented. Recurrence stores a rule + indicator
+only (no auto instance generation yet); notifications cover the full first slice — shared, update-log
+activity, completed, plus time-based **due-soon** and **overdue** reminders (daily cron). See
+`docs/engineering/09-todo-task-technical-design.md` for the as-built schema/RLS and `docs/product/
+14-notification-design.md` for the notification matrix.
+
+Hardening pass (2026-06-11): task creation is now fail-safe (the task row is rolled back if the
+participant insert fails, so no invisible orphan rows); the original author can edit task-level photos
+in edit mode; update-log entries support optional photo upload (max 5, `task-update-images` path); the
+misleading Sent "new update" dot was removed (see Sent By Me); calendar weekday headers are localized
+via the shared `Intl` weekday pattern used elsewhere in the app; participant management (author removes
+any participant, anyone removes self) is exposed in task detail with destructive confirmations. Second
+hardening cut (same day): re-sharing (`shareTaskWithUsers`) is fail-safe (a failed participant insert
+no longer produces false shared state or notifications); update-log photo-upload failures show an
+inline localized error instead of failing silently; and removed task-level photos are hard-deleted
+from Storage, not just detached from the DB.
 
 ## Purpose
 
@@ -273,6 +291,7 @@ Meaning:
 Rules:
 
 - quick-add defaults to Inbox
+- detailed create produces an organized task, not an Inbox task — opening the full create form is the deliberate "organize" act
 - shared tasks may also remain in Inbox
 - a shared Inbox task appears in every participant's Inbox
 
@@ -309,7 +328,7 @@ Should show:
 - the task itself
 - whether it is shared
 - who it is currently shared with
-- whether the task was updated
+- whether the task was updated — **deferred (2026-06-11)**: there is no per-user read/seen state yet, so a truthful "new update" indicator is not possible in this slice. The earlier dot was derived only from share presence (not real activity) and has been removed rather than left as a misleading cue. Revisit when a read-state model exists.
 
 Recommended sort:
 
@@ -356,6 +375,40 @@ Date tap behavior:
 
 - open a bottom sheet / modal for that date's tasks
 
+As-built (2026-06-11):
+
+- **Month navigation** — a compact header with prev/next chevrons moves month-to-month; the month grid
+  and agenda both update. On any non-current month a small **Today** button resets to the current month
+  and re-selects today; the personal/shared legend shows only on the current month (keeps the header
+  light). Tasks load once for the whole workspace, so month navigation is instant and client-side.
+- **Month grid** — each day cell shows up to three dots (shared = brand accent, personal = grey).
+  `Today` is ringed; the selected day is filled with the brand accent (its dots invert for contrast).
+- **Month agenda** — below the grid, the shown month's dated tasks are grouped by day in date order,
+  each group with a localized weekday/day header, a count, and a `Today` chip on today's group. Tapping
+  a group header opens that day's sheet. This replaces the previous flat "next 8 upcoming" list so the
+  agenda reads as an intentional month surface, not leftover output.
+- **Selected date** — tapping a grid cell selects it (persistent emphasis) and opens the bottom sheet;
+  the screen also shows a small selected-date summary strip above the agenda with the localized date,
+  task count, a `Today` chip when relevant, a re-open action, and a clear-selection action. The sheet
+  shows the date, a task count, the day's tasks, and the unchanged "add a task on this date" action.
+  Closing the sheet keeps the day highlighted; tapping it again or using the summary strip re-opens it.
+- **Anchor date** — the calendar uses the same anchor as the rest of the feature (due date wins over
+  scheduled date, Tokyo). No second calendar interpretation is introduced.
+- **Separation** — the list-view search/filter bar still does not appear on Calendar; Calendar's date
+  controls are native to it. The task calendar remains entirely separate from the Beds24 reservation
+  calendar.
+- **Empty/sparse** — a month with no dated tasks shows a clear "no dated tasks this month" agenda
+  message; a selected date with no tasks shows the day-sheet empty message.
+
+Production-polish pass (2026-06-11): the month nav + weekday row + grid sit inside a single white
+`bg-surface` card lifted off the ivory canvas (matching the rest of the StayOps card system); the
+legend moved to a quiet divider row directly under the grid it explains. Grid cells share a
+fixed-height marker row for even vertical rhythm, with distinct calm states for today (soft tint +
+inset ring) vs the selected day (filled accent + lifted shadow). The day sheet's task list scrolls
+within a capped height for busy days, the empty states are intentional icon blocks rather than bare
+text, and the "add a task on this date" CTA is a soft accent-tinted button. No behavior, permission,
+or anchor-date change — visual/interaction polish only.
+
 ## Dates And Time
 
 The task system needs stronger scheduling than a simple due-date field.
@@ -390,6 +443,23 @@ So users should be able to choose:
 - all-day task
 - time-specific task
 
+As-built (2026-06-11): the detailed create/edit form's Time section offers an **All day** toggle, a
+direct **time picker** (`HH:MM`), three quick-time chips, and a clear control that returns the task to
+all-day. The saved time-of-day lives in `time_label` (with `all_day` = "no time-of-day"); the picker
+is pre-filled from `time_label` when editing, so a saved time round-trips correctly. Toggling back to
+all-day in edit clears the time cleanly (no stale `time_label`). See
+`docs/engineering/09-todo-task-technical-design.md` "Time handling" for the exact persistence rule.
+
+A specific time **requires at least one date anchor** (scheduled or due). Entering a time with no
+date is **not accepted** — the form blocks submission with a clear localized error (it no longer
+silently drops the time), and both server actions reject it as a guard (create returns to the form,
+edit returns to the edit form, both with the error). This applies identically to create and edit.
+
+An **all-day due task is shown as date-only** in task detail, never as a midnight time. Because an
+all-day due date is stored at `00:00` Tokyo internally, the detail view renders it as a plain date
+when `all_day` is true (and date + time only for genuinely timed tasks), so the screen never shows a
+contradictory "Due: … 00:00" alongside "Time: All day".
+
 ## Recurring Tasks
 
 Recurring tasks are needed here, but in a lighter form than the Work Scheduler.
@@ -408,6 +478,25 @@ Not required in first slice:
 - exception dates
 - recurrence count limits
 - complex recurrence-end rules
+
+As-built (2026-06-11):
+
+- Recurrence in Todo is a **lightweight display-only reminder label**. It does NOT generate repeated
+  instances — a recurring task still appears only on its own stored anchor date. The create/edit form
+  shows an inline hint stating this, keeping the boundary with the formal Recurring Work Scheduler
+  explicit.
+- User-selectable rules: **None, daily, weekly, monthly, weekdays, weekends** (six chips, None clears
+  it). Recurrence can be set in create, changed in edit, and cleared back to None at any time.
+- **`custom` is recognized but not user-configurable in this slice.** There is no rule builder, so the
+  form does not offer `custom` as a new choice. If a task already stores `custom` (legacy/external),
+  the edit form surfaces it as a read-only highlighted chip so the selection is unambiguous and the
+  value is not silently lost; the user can keep it, switch to a standard rule, or clear it — but cannot
+  newly assign `custom`. It renders with the "Custom" label wherever recurrence is shown.
+- This `custom` rule is **enforced on the server, not just in the UI.** Persistence is identical in
+  create and edit and runs through one shared resolver: a standard rule is stored, empty/None or any
+  unrecognized value fails closed to `null`, and `custom` is kept **only when the task already had
+  `custom`**. So a new task can never be created with `custom`, and a non-custom task can never be
+  turned into `custom`, even by a manipulated request — only an existing `custom` task round-trips.
 
 ## Priority
 
@@ -441,6 +530,12 @@ Photos may be attached to:
 
 - the main task itself
 - update-log entries
+
+Removal behavior (as-built 2026-06-11): when the original author removes a task-level photo during a
+core edit, the file is hard-deleted from Storage (not just detached from the DB) — only files under
+the task's own org/`task-images` path are eligible, and removal happens server-side after the DB
+reference is dropped. Update-log photos are immutable once posted (the update-log has no edit/delete in
+this slice), so they are not storage-cleaned.
 
 ## Update Log
 
@@ -614,6 +709,22 @@ Recommended collapsed / "more" fields:
 - photos
 - recurrence
 
+### As-built flow (2026-06-11)
+
+The Quick Add ↔ Detailed Create distinction is made explicit in the interaction:
+
+- The floating **Quick add** button (on every task view) opens a bottom sheet for **fast capture**:
+  a title-only field, a primary **Save to Inbox** action (creates `is_inbox = true`), and a secondary
+  **Full create** action. The sheet's helper copy states the two outcomes plainly.
+- **Full create** is the deliberate organize path. It routes to `/mobile/tasks/new` (an organized task,
+  `is_inbox = false`) where dates, share recipients, time, priority, tags, photos, and recurrence are
+  configured. A short subtitle on that screen restates this. Any title already typed in Quick Add is
+  **carried over** (`?title=`) so escalating from capture to full create never loses the input.
+- The same `/mobile/tasks/new` is reused for date-prefilled creation from the **Calendar** day sheet
+  (`?date=`); there is no separate full-create entry path.
+- Wording is unambiguous about destination: Quick Add → Inbox, Full create → organized task. Detailed
+  create never lands in Inbox (see Inbox Rules).
+
 ## Task Cards
 
 For readability, default list cards should prioritize:
@@ -663,7 +774,26 @@ First-slice required search/filter axes:
 - author name
 - date
 
-Not required in first slice:
+As-built (2026-06-11): a single lightweight search/filter bar sits below the view chips on the list
+views (Today / Inbox / My Tasks / Sent / Completed). One shared filter state is reused across those
+views and persists across tab switches.
+
+- **Text search** — one field matching task **title** and **author name** (case-insensitive partial).
+- **Date filter** — a toggle button opens a compact block with a **Single / Range** mode. Single
+  matches tasks whose anchor date equals the chosen date; Range matches anchor date within
+  start/end (either side may be left open). The anchor date is the existing one (due date wins over
+  scheduled date, Tokyo operating date) — the same value used for grouping, listing, and the
+  calendar. Dateless tasks never match an active date filter.
+- **Active state** — when any filter is active, a "Filters" row shows the search term and/or date
+  chip plus a one-tap **Clear**. The date button also carries a small dot when a date filter is set.
+- **Empty vs no-result** — a view that is genuinely empty keeps its own empty state; a view that has
+  tasks but matches none shows a distinct "no matching tasks" state with a Clear action.
+- **Scope** — the **Calendar** view does not show the bar (it already navigates by date). The
+  Completed view keeps its own Created-by-me / Shared-with-me chips and applies text/date on top.
+- Filtering is **client-side** over the already-loaded, org-scoped task set; it changes nothing about
+  permissions, visibility, ownership, or shared state.
+
+Not required in first slice (still deferred):
 
 - body search
 - status filter as a primary search surface

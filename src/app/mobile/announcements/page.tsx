@@ -91,17 +91,17 @@ export default async function MobileAnnouncementsPage() {
         <div className={`${ANNOUNCEMENT_PANEL} relative overflow-hidden p-4`}>
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute -right-12 -top-10 size-32 rounded-full bg-sky-100/55 blur-2xl"
+            className="pointer-events-none absolute -right-12 -top-10 size-32 rounded-full bg-primary/10 blur-2xl"
           />
           <div className="relative flex items-start gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-200/80">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
               <Megaphone className="size-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">
                 {copy.publishedForYou}
               </p>
-              <h2 className="mt-1 text-[22px] font-black leading-tight text-slate-950">
+              <h2 className="mt-1 text-[22px] font-black leading-tight text-foreground">
                 {copy.latest}
               </h2>
               <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
@@ -112,8 +112,8 @@ export default async function MobileAnnouncementsPage() {
         </div>
 
         {announcements.length === 0 ? (
-          <Card className={`${ANNOUNCEMENT_CARD} border-dashed p-6 text-center text-slate-950`}>
-            <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-200/80">
+          <Card className={`${ANNOUNCEMENT_CARD} border-dashed p-6 text-center text-foreground`}>
+            <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
               <Megaphone className="size-5" aria-hidden="true" />
             </div>
             <p className="mx-auto mt-4 max-w-xs text-sm font-bold leading-6 text-slate-500">
@@ -135,7 +135,7 @@ export default async function MobileAnnouncementsPage() {
               section.items.length === 0 ? null : (
                 <section className="space-y-3" key={section.label}>
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-black tracking-normal text-slate-950">
+                    <p className="text-sm font-black tracking-normal text-foreground">
                       {section.label}
                     </p>
                     <span className="inline-flex h-8 min-w-9 items-center justify-center rounded-full border border-slate-200 bg-white px-2.5 text-xs font-black text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)]">
@@ -149,11 +149,11 @@ export default async function MobileAnnouncementsPage() {
                         href={`/mobile/announcements/${announcement.id}`}
                         key={announcement.id}
                       >
-                        <Card className={`${ANNOUNCEMENT_CARD} relative overflow-hidden p-4 text-slate-950 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_42px_-30px_rgba(31,58,95,0.55)] active:scale-[0.99]`}>
+                        <Card className={`${ANNOUNCEMENT_CARD} relative overflow-hidden p-4 text-foreground transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_42px_-30px_rgba(31,58,95,0.55)] active:scale-[0.99]`}>
                           {announcement.is_pinned ? (
                             <div
                               aria-hidden="true"
-                              className="pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full bg-sky-300/80"
+                              className="pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full bg-primary/70"
                             />
                           ) : null}
                           <div className="flex items-start justify-between gap-3">
@@ -165,12 +165,12 @@ export default async function MobileAnnouncementsPage() {
                                   </Badge>
                                 )}
                                 {announcement.is_pinned && (
-                                  <Badge className="rounded-full border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-black text-sky-700">
+                                  <Badge className="rounded-full border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-black text-primary">
                                     {copy.pinned}
                                   </Badge>
                                 )}
                               </div>
-                              <h3 className="line-clamp-2 break-words text-[17px] font-black leading-snug tracking-normal text-slate-950">
+                              <h3 className="line-clamp-2 break-words text-[17px] font-black leading-snug tracking-normal text-foreground">
                                 {announcement.title}
                               </h3>
                               <p className="line-clamp-3 whitespace-pre-line text-[13px] font-semibold leading-5 text-slate-600">

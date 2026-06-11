@@ -9,6 +9,144 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      tasks: {
+        Insert: {
+          all_day?: boolean;
+          completed_at?: string | null;
+          completed_by_user_id?: string | null;
+          created_at?: string;
+          created_by_user_id: string;
+          description?: string | null;
+          due_at?: string | null;
+          guest_name?: string | null;
+          id?: string;
+          image_urls?: string[];
+          is_inbox?: boolean;
+          is_shared?: boolean;
+          organization_id: string;
+          priority?: string;
+          property_id?: string | null;
+          recurrence_rule?: string | null;
+          reservation_id?: string | null;
+          room_id?: string | null;
+          scheduled_date?: string | null;
+          status?: string;
+          tags?: string[];
+          time_label?: string | null;
+          title: string;
+          updated_at?: string;
+        };
+        Row: {
+          all_day: boolean;
+          completed_at: string | null;
+          completed_by_user_id: string | null;
+          created_at: string;
+          created_by_user_id: string;
+          description: string | null;
+          due_at: string | null;
+          guest_name: string | null;
+          id: string;
+          image_urls: string[];
+          is_inbox: boolean;
+          is_shared: boolean;
+          organization_id: string;
+          priority: string;
+          property_id: string | null;
+          recurrence_rule: string | null;
+          reservation_id: string | null;
+          room_id: string | null;
+          scheduled_date: string | null;
+          status: string;
+          tags: string[];
+          time_label: string | null;
+          title: string;
+          updated_at: string;
+        };
+        Update: {
+          all_day?: boolean;
+          completed_at?: string | null;
+          completed_by_user_id?: string | null;
+          created_at?: string;
+          created_by_user_id?: string;
+          description?: string | null;
+          due_at?: string | null;
+          guest_name?: string | null;
+          id?: string;
+          image_urls?: string[];
+          is_inbox?: boolean;
+          is_shared?: boolean;
+          organization_id?: string;
+          priority?: string;
+          property_id?: string | null;
+          recurrence_rule?: string | null;
+          reservation_id?: string | null;
+          room_id?: string | null;
+          scheduled_date?: string | null;
+          status?: string;
+          tags?: string[];
+          time_label?: string | null;
+          title?: string;
+          updated_at?: string;
+        };
+      };
+      task_participants: {
+        Insert: {
+          added_by_user_id?: string | null;
+          created_at?: string;
+          id?: string;
+          is_first_recipient?: boolean;
+          role: string;
+          task_id: string;
+          user_id: string;
+        };
+        Row: {
+          added_by_user_id: string | null;
+          created_at: string;
+          id: string;
+          is_first_recipient: boolean;
+          role: string;
+          task_id: string;
+          user_id: string;
+        };
+        Update: {
+          added_by_user_id?: string | null;
+          created_at?: string;
+          id?: string;
+          is_first_recipient?: boolean;
+          role?: string;
+          task_id?: string;
+          user_id?: string;
+        };
+      };
+      task_updates: {
+        Insert: {
+          body?: string | null;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          id?: string;
+          image_urls?: string[];
+          task_id: string;
+          update_type: string;
+        };
+        Row: {
+          body: string | null;
+          created_at: string;
+          created_by_user_id: string | null;
+          id: string;
+          image_urls: string[];
+          task_id: string;
+          update_type: string;
+        };
+        Update: {
+          body?: string | null;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          id?: string;
+          image_urls?: string[];
+          task_id?: string;
+          update_type?: string;
+        };
+      };
       beds24_webhook_events: {
         Insert: {
           booking_summary?: Json;
@@ -899,7 +1037,13 @@ export type Database = {
       app_language: "en" | "ja" | "ko";
       cleaning_status: "cancelled" | "completed" | "in_progress";
       membership_status: "active" | "invited" | "removed" | "suspended";
-      notification_type: "order_processed";
+      notification_type:
+        | "order_processed"
+        | "task_shared"
+        | "task_updated"
+        | "task_completed"
+        | "task_due_soon"
+        | "task_overdue";
       organization_role:
         | "cs_staff"
         | "field_manager"

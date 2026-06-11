@@ -192,7 +192,7 @@ export function AnnouncementPopup({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 py-6 backdrop-blur-xl">
-      <section className="max-h-[calc(100dvh-2rem)] w-full max-w-[27rem] overflow-y-auto overscroll-contain rounded-[28px] border border-slate-200/80 bg-surface p-5 text-slate-950 shadow-[0_32px_84px_-34px_rgba(15,23,42,0.46)] backdrop-blur-2xl">
+      <section className="max-h-[calc(100dvh-2rem)] w-full max-w-[27rem] overflow-y-auto overscroll-contain rounded-[28px] border border-slate-200/80 bg-surface p-5 text-foreground shadow-[0_32px_84px_-34px_rgba(15,23,42,0.46)] backdrop-blur-2xl">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex size-11 items-center justify-center rounded-2xl border border-red-200 bg-red-50 text-red-600">
@@ -203,7 +203,7 @@ export function AnnouncementPopup({
             </h2>
           </div>
           <button
-            className="flex size-9 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.45)] transition-colors hover:bg-slate-50 hover:text-slate-950"
+            className="flex size-9 items-center justify-center rounded-full border border-border bg-surface text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.45)] transition-colors hover:bg-slate-50 hover:text-foreground"
             onClick={dismissCurrentAnnouncement}
             type="button"
           >
@@ -212,10 +212,10 @@ export function AnnouncementPopup({
           </button>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200/80 bg-white/82 p-5 shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]">
+        <div className="rounded-[24px] border border-slate-200/80 bg-surface/82 p-5 shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="line-clamp-2 break-words text-base font-black leading-6 text-slate-950">
+              <p className="line-clamp-2 break-words text-base font-black leading-6 text-foreground">
                 {announcement.title}
               </p>
               <p className="mt-3 line-clamp-6 whitespace-pre-line break-words text-base font-medium leading-7 text-slate-600">
@@ -231,7 +231,7 @@ export function AnnouncementPopup({
                 width={112}
               />
             ) : (
-              <div className="flex h-[92px] w-[92px] shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-200/80">
+              <div className="flex h-[92px] w-[92px] shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
                 <Megaphone className="size-8" aria-hidden="true" />
               </div>
             )}
@@ -245,7 +245,7 @@ export function AnnouncementPopup({
         <label className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-slate-500">
           <input
             checked={hideForWeek}
-            className="size-4 rounded border border-slate-300 bg-white"
+            className="size-4 rounded border border-slate-300 bg-surface accent-primary"
             onChange={(event) =>
               setHidePreference({
                 announcementId: announcement.id,
@@ -259,13 +259,13 @@ export function AnnouncementPopup({
 
         <div className="mt-5 space-y-3">
           <Link
-            className="inline-flex h-[54px] w-full items-center justify-center rounded-2xl bg-[#315F91] px-4 text-base font-black text-white shadow-[0_18px_34px_-22px_rgba(49,95,145,0.68)] transition-colors hover:bg-[#274D76]"
+            className="inline-flex h-[54px] w-full items-center justify-center rounded-2xl bg-primary px-4 text-base font-black text-primary-foreground shadow-[0_18px_34px_-22px_hsl(var(--primary-hsl)/0.68)] transition-colors hover:bg-primary/90"
             href={`${detailHrefBase}/${announcement.id}`}
           >
             {copy.readAnnouncement}
           </Link>
           <Button
-            className="h-12 w-full rounded-2xl border-slate-200/80 bg-white text-slate-800 shadow-[0_12px_24px_-22px_rgba(31,58,95,0.45)] hover:bg-slate-50"
+            className="h-12 w-full rounded-2xl border-border bg-surface text-slate-700 shadow-[0_12px_24px_-22px_rgba(31,58,95,0.45)] hover:bg-slate-50"
             onClick={dismissCurrentAnnouncement}
             type="button"
             variant="secondary"
