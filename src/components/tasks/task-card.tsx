@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
@@ -8,16 +8,11 @@ import {
   Clock,
   Flag,
   ImageIcon,
-  Inbox,
   Repeat2,
   Share2,
   Sun,
 } from "lucide-react";
-import {
-  completeTask,
-  moveTaskToInbox,
-  moveTaskToToday,
-} from "@/app/mobile/tasks/[id]/actions";
+import { completeTask, moveTaskToToday } from "@/app/mobile/tasks/[id]/actions";
 import type { Dictionary } from "@/lib/i18n";
 import type { TaskRecord } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
@@ -66,6 +61,7 @@ const PRIO_RING: Record<string, string> = {
   normal: "border-slate-300 text-slate-300",
 };
 
+
 export function TaskCard({
   copy,
   currentUserId,
@@ -74,6 +70,12 @@ export function TaskCard({
   showDate = true,
   swipe = true,
   sentMode = false,
+  onQuickComplete,
+  selectMode = false,
+  selectedIds,
+  onToggleSelect,
+  onLongPress,
+  showMoveToday = true,
 }: {
   copy: Copy;
   currentUserId: string;
@@ -82,35 +84,143 @@ export function TaskCard({
   showDate?: boolean;
   swipe?: boolean;
   sentMode?: boolean;
+  // When provided, completing from the list is handled client-side (optimistic hide + undo
+  // snackbar) instead of the redirecting server-action form. Falls back to the form if absent.
+  onQuickComplete?: (task: TaskRecord) => void;
+  // Multi-select: in select mode tapping toggles selection (instead of navigating) and a
+  // checkbox replaces the complete circle. Long-press (outside select mode) opens the context menu.
+  selectMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (task: TaskRecord) => void;
+  onLongPress?: (task: TaskRecord) => void;
+  // "Move to today" swipe action. Hidden in the Today view (where it's redundant); shown elsewhere.
+  showMoveToday?: boolean;
 }) {
   const router = useRouter();
   const done = task.status === "completed";
+  const selected = selectMode && !!selectedIds?.has(task.id);
   const dueDate = tokyoDateOf(task.dueAt);
   const overdue = !done && !!dueDate && dueDate < today;
 
+  // Hide "Move to today" in the Today view; the swipe track shrinks to just the Complete action.
+  const showToday = showMoveToday;
+  const swipeOpen = showToday ? 138 : 74;
+  const swipeSnap = swipeOpen / 2;
+
   const [offset, setOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [pressed, setPressed] = useState(false); // "press-down" scale while held
   const startX = useRef(0);
+  const startY = useRef(0);
   const dragging = useRef(false);
+  const axis = useRef<null | "h" | "v">(null); // direction lock so taps/scrolls don't open swipe
+  const didSwipe = useRef(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
-  const canSwipe = swipe && !done;
+  // Tapping anywhere outside an opened card closes its swipe naturally.
+  useEffect(() => {
+    if (offset === 0) return;
+    const onDown = (e: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOffset(0);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [offset]);
+
+  const canSwipe = swipe && !done && !selectMode;
+
+  // Long-press → context menu. A 480ms hold with little movement fires; a drag/scroll cancels it.
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressStart = useRef({ x: 0, y: 0 });
+  const longFired = useRef(false);
+  function startPress(x: number, y: number) {
+    if (!onLongPress || selectMode) return;
+    longFired.current = false;
+    pressStart.current = { x, y };
+    pressTimer.current = setTimeout(() => {
+      longFired.current = true;
+      setOffset(0); // close any open swipe so the menu opens over a clean card
+      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
+      onLongPress(task);
+    }, 480);
+  }
+  function movePress(x: number, y: number) {
+    if (!pressTimer.current) return;
+    if (Math.abs(x - pressStart.current.x) > 8 || Math.abs(y - pressStart.current.y) > 8) {
+      cancelPress();
+    }
+  }
+  function cancelPress() {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  }
 
   function onTouchStart(e: React.TouchEvent) {
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+    pressStart.current = { x, y };
+    setPressed(true);
+    startPress(x, y);
     if (!canSwipe) return;
-    startX.current = e.touches[0].clientX;
+    startX.current = x;
+    startY.current = y;
+    axis.current = null;
+    didSwipe.current = false;
     dragging.current = true;
     setIsDragging(true);
   }
   function onTouchMove(e: React.TouchEvent) {
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+    const dx = x - pressStart.current.x;
+    const dy = y - pressStart.current.y;
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) setPressed(false);
+    movePress(x, y);
     if (!dragging.current) return;
-    const dx = e.touches[0].clientX - startX.current;
-    if (dx < 0) setOffset(Math.max(dx, -186));
+    // Lock to an axis only once the finger has clearly moved — a tap or a vertical scroll
+    // must never reveal the swipe actions.
+    if (axis.current === null && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+      axis.current = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+    }
+    if (axis.current !== "h") return;
+    didSwipe.current = true;
+    const sdx = x - startX.current;
+    // Track the finger 1:1 up to fully-open, then add elastic resistance past it for a premium pull.
+    const next =
+      sdx >= 0
+        ? 0
+        : sdx < -swipeOpen
+          ? -swipeOpen + (sdx + swipeOpen) * 0.18
+          : sdx;
+    setOffset(next);
   }
   function onTouchEnd() {
+    setPressed(false);
+    cancelPress();
     if (!dragging.current) return;
     dragging.current = false;
     setIsDragging(false);
-    setOffset((o) => (o < -60 ? -186 : 0));
+    setOffset((o) => (o < -swipeSnap ? -swipeOpen : 0));
+  }
+
+  // Card body tap: suppress the click that follows a long-press; toggle in select mode; else open.
+  function onBodyClick() {
+    const wasLong = longFired.current;
+    const wasSwipe = didSwipe.current;
+    longFired.current = false;
+    didSwipe.current = false;
+    if (selectMode) {
+      onToggleSelect?.(task);
+      return;
+    }
+    if (offset !== 0) {
+      setOffset(0); // tap an open card to close it
+      return;
+    }
+    if (wasLong || wasSwipe) return;
+    router.push(`/mobile/tasks/${task.id}`);
   }
 
   const fromLabel =
@@ -158,11 +268,39 @@ export function TaskCard({
   const chip = "inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600";
 
   const cardInner = (
-    <div className="flex items-start gap-3 rounded-[18px] border border-border bg-surface px-3.5 py-3 shadow-[0_1px_2px_rgba(20,32,43,0.03)]">
-      {done ? (
+    <div
+      className={cn(
+        "flex items-start gap-3 rounded-[18px] border bg-surface px-3.5 py-3 shadow-[0_1px_2px_rgba(20,32,43,0.03)] transition-[transform,border-color,background-color] duration-150 ease-out will-change-transform",
+        selectMode && selected ? "border-primary bg-primary/[0.04]" : "border-border",
+        pressed ? "scale-[0.97] bg-primary/[0.03]" : "active:scale-[0.98]",
+      )}
+    >
+      {selectMode ? (
+        <button
+          aria-label={copy.actionSelect}
+          className={cn(
+            "mt-0.5 flex size-[22px] shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+            selected ? "border-primary bg-primary text-primary-foreground" : "border-slate-300",
+          )}
+          onClick={() => onToggleSelect?.(task)}
+          type="button"
+        >
+          {selected ? <Check className="size-3.5" strokeWidth={3} aria-hidden="true" /> : null}
+        </button>
+      ) : done ? (
         <span className="mt-0.5 flex size-[22px] shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
           <Check className="size-3.5" strokeWidth={3} aria-hidden="true" />
         </span>
+      ) : onQuickComplete ? (
+        <button
+          aria-label={copy.complete}
+          className={cn(
+            "mt-0.5 flex size-[22px] shrink-0 items-center justify-center rounded-full border-2 transition-colors active:scale-90",
+            PRIO_RING[task.priority] ?? PRIO_RING.normal,
+          )}
+          onClick={() => onQuickComplete(task)}
+          type="button"
+        />
       ) : (
         <form action={completeTask}>
           <input name="taskId" type="hidden" value={task.id} />
@@ -179,7 +317,7 @@ export function TaskCard({
 
       <button
         className="min-w-0 flex-1 text-left"
-        onClick={() => router.push(`/mobile/tasks/${task.id}`)}
+        onClick={onBodyClick}
         type="button"
       >
         <p
@@ -247,40 +385,94 @@ export function TaskCard({
     </div>
   );
 
-  if (!canSwipe) {
-    return <div className={cn(done && "opacity-60")}>{cardInner}</div>;
-  }
+  const onContextMenu = (e: React.MouseEvent) => {
+    if (!onLongPress || selectMode) return;
+    e.preventDefault();
+    onLongPress(task);
+  };
 
-  return (
-    <div className="relative overflow-hidden rounded-[18px]">
-      <div className="absolute inset-y-0 right-0 flex items-stretch">
-        <form action={moveTaskToToday} className="flex">
-          <input name="taskId" type="hidden" value={task.id} />
-          <button className="flex w-[62px] flex-col items-center justify-center gap-0.5 bg-primary/15 text-[10px] font-bold text-primary" type="submit">
-            <Sun className="size-4" aria-hidden="true" />
-            {copy.swipeToday}
-          </button>
-        </form>
-        <form action={moveTaskToInbox} className="flex">
-          <input name="taskId" type="hidden" value={task.id} />
-          <button className="flex w-[62px] flex-col items-center justify-center gap-0.5 bg-slate-200 text-[10px] font-bold text-slate-700" type="submit">
-            <Inbox className="size-4" aria-hidden="true" />
-            {copy.swipeInbox}
-          </button>
-        </form>
-        <form action={completeTask} className="flex">
-          <input name="taskId" type="hidden" value={task.id} />
-          <button className="flex w-[62px] flex-col items-center justify-center gap-0.5 bg-primary text-[10px] font-bold text-primary-foreground" type="submit">
-            <Check className="size-4" aria-hidden="true" />
-            {copy.swipeComplete}
-          </button>
-        </form>
-      </div>
+  // 0 → 1 as the card slides open; drives the reveal buttons' scale-in.
+  const revealRatio = Math.min(1, Math.abs(offset) / swipeOpen);
+
+  if (!canSwipe) {
+    return (
       <div
+        className={cn(done && !selectMode && "opacity-60")}
+        onContextMenu={onContextMenu}
+        onTouchCancel={onTouchEnd}
         onTouchEnd={onTouchEnd}
         onTouchMove={onTouchMove}
         onTouchStart={onTouchStart}
-        style={{ transform: `translateX(${offset}px)`, transition: isDragging ? "none" : "transform 220ms ease" }}
+      >
+        {cardInner}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={rootRef} className="relative overflow-hidden rounded-[18px]">
+      {/* Reveal: floating rounded action buttons. Only visible while actually swiping — never
+          peeks on tap/long-press. Reveal scales/fades in as the card slides for a polished feel. */}
+      <div
+        className={cn(
+          "absolute inset-y-0 right-0 flex items-stretch gap-2 py-1 pl-2.5 pr-2",
+          offset === 0 ? "pointer-events-none opacity-0" : "opacity-100",
+        )}
+        style={{
+          transform: `scale(${0.9 + 0.1 * revealRatio})`,
+          transformOrigin: "right center",
+          transition: isDragging
+            ? "opacity 100ms ease"
+            : "transform 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease",
+        }}
+      >
+        {showToday ? (
+          <form action={moveTaskToToday} className="flex">
+            <input name="taskId" type="hidden" value={task.id} />
+            <button
+              className="flex w-[56px] flex-col items-center justify-center gap-1 rounded-[14px] bg-muted text-muted-foreground shadow-[0_2px_8px_-4px_rgba(20,16,10,0.22)] transition-transform active:scale-[0.93]"
+              type="submit"
+            >
+              <Sun className="size-4" strokeWidth={2.2} aria-hidden="true" />
+              <span className="text-[10px] font-bold tracking-tight">{copy.swipeToday}</span>
+            </button>
+          </form>
+        ) : null}
+        {onQuickComplete ? (
+          <button
+            className="flex w-[56px] flex-col items-center justify-center gap-1 rounded-[14px] bg-primary text-primary-foreground shadow-[0_3px_10px_-4px_hsl(var(--primary-hsl)/0.5)] transition-transform active:scale-[0.93]"
+            onClick={() => {
+              setOffset(0);
+              onQuickComplete(task);
+            }}
+            type="button"
+          >
+            <Check className="size-4" strokeWidth={2.4} aria-hidden="true" />
+            <span className="text-[10px] font-bold tracking-tight">{copy.swipeComplete}</span>
+          </button>
+        ) : (
+          <form action={completeTask} className="flex">
+            <input name="taskId" type="hidden" value={task.id} />
+            <button
+              className="flex w-[56px] flex-col items-center justify-center gap-1 rounded-[14px] bg-primary text-primary-foreground shadow-[0_3px_10px_-4px_hsl(var(--primary-hsl)/0.5)] transition-transform active:scale-[0.93]"
+              type="submit"
+            >
+              <Check className="size-4" strokeWidth={2.4} aria-hidden="true" />
+              <span className="text-[10px] font-bold tracking-tight">{copy.swipeComplete}</span>
+            </button>
+          </form>
+        )}
+      </div>
+      <div
+        onContextMenu={onContextMenu}
+        onTouchCancel={onTouchEnd}
+        onTouchEnd={onTouchEnd}
+        onTouchMove={onTouchMove}
+        onTouchStart={onTouchStart}
+        style={{
+          transform: `translateX(${offset}px)`,
+          transition: isDragging ? "none" : "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
+        }}
       >
         {cardInner}
       </div>

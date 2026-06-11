@@ -2,9 +2,10 @@
 
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, Share2, Users, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock, Share2, Users, X } from "lucide-react";
 import { createTask } from "@/app/mobile/tasks/new/actions";
 import { updateTaskCore } from "@/app/mobile/tasks/[id]/actions";
+import { MiniCalendar, TimeWheels } from "@/components/tasks/date-time-fields";
 import {
   AnnouncementImageUploader,
   type AnnouncementImageUploaderHandle,
@@ -58,22 +59,29 @@ type TaskInitial = {
 };
 
 export function TaskCreateForm({
+  backHref,
   copy,
   defaultDate,
   defaultTitle,
+  headerTitle,
   imgCopy,
   initial,
+  locale,
   mode = "create",
   organizationId,
   serverError,
   taskId,
   users,
 }: {
+  // Page header is owned by the form so the top-right Save can be a native submit (keeps `isPending`).
+  backHref: string;
   copy: Copy;
   defaultDate: string | null;
+  locale: string;
   // Prefilled title carried over from Quick Add (create mode only). Kept separate from
   // `initial` so the Calendar date-prefill (`defaultDate`) keeps working.
   defaultTitle?: string;
+  headerTitle: string;
   imgCopy: Dictionary["requestImages"];
   initial?: TaskInitial;
   mode?: "create" | "edit";
@@ -90,6 +98,8 @@ export function TaskCreateForm({
   const [scheduled, setScheduled] = useState<string>(initial?.scheduled ?? defaultDate ?? "");
   const [due, setDue] = useState<string>(initial?.due ?? "");
   const [time, setTime] = useState<string>(initial?.time ?? "");
+  const [dateField, setDateField] = useState<"scheduled" | "due" | null>(null);
+  const [timeOpen, setTimeOpen] = useState(false);
   const [priority, setPriority] = useState<string>(initial?.priority ?? "normal");
   const [repeat, setRepeat] = useState<string>(initial?.repeat ?? "");
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
@@ -195,8 +205,54 @@ export function TaskCreateForm({
   const chip =
     "rounded-full border px-3 py-1.5 text-[13px] font-bold transition-colors";
 
+  // "더 보기 — 시간 · 우선순위 …" → bold lead + muted hint (every locale uses an em-dash separator).
+  const dashIdx = copy.moreToggle.indexOf("—");
+  const moreLead = dashIdx === -1 ? copy.moreToggle : copy.moreToggle.slice(0, dashIdx).trim();
+  const moreHint = dashIdx === -1 ? "" : copy.moreToggle.slice(dashIdx + 1).trim();
+
+  const fmtDate = (ymd: string) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(ymd)
+      ? new Intl.DateTimeFormat(locale, {
+          month: "long",
+          day: "numeric",
+          weekday: "short",
+          timeZone: "UTC",
+        }).format(new Date(`${ymd}T00:00:00Z`))
+      : "";
+  const fmtTime = (hhmm: string) => {
+    if (!/^\d{1,2}:\d{2}$/.test(hhmm)) return "";
+    const [h, m] = hhmm.split(":").map(Number);
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h >= 12 ? copy.pmLabel : copy.amLabel} ${h12}:${String(m).padStart(2, "0")}`;
+  };
+
   return (
-    <form className="space-y-5 pb-28" onSubmit={handleSubmit} ref={formRef}>
+    <form className="space-y-5 pb-10" onSubmit={handleSubmit} ref={formRef}>
+      {/* Header — back + title + top-right Save (replaces the old fixed bottom action bar). */}
+      <div className="flex items-center gap-2.5">
+        <Link
+          aria-label={copy.backToList}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground transition-colors active:bg-muted/70"
+          href={backHref}
+        >
+          <ChevronLeft className="size-[19px]" aria-hidden="true" />
+        </Link>
+        <p className="min-w-0 flex-1 truncate text-[20px] font-black tracking-[-0.03em] text-foreground">
+          {headerTitle}
+        </p>
+        <button
+          className="shrink-0 rounded-xl bg-primary px-4 py-2 text-[14px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-50"
+          disabled={isPending}
+          type="submit"
+        >
+          {copy.save}
+        </button>
+      </div>
+
+      {error ? (
+        <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600">{error}</p>
+      ) : null}
+
       <input
         autoComplete="off"
         className="w-full rounded-2xl border border-border bg-surface px-4 py-3 text-[17px] font-extrabold text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-primary"
@@ -234,29 +290,53 @@ export function TaskCreateForm({
           ))}
         </div>
         <div className="grid grid-cols-2 gap-2.5">
-          <label className="flex flex-col gap-1 rounded-2xl border border-border bg-surface px-3 py-2">
-            <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-              {copy.scheduledDate}
-            </span>
-            <input
-              className="bg-transparent text-sm font-bold text-foreground outline-none"
-              onChange={(e) => setScheduled(e.target.value)}
-              type="date"
-              value={scheduled}
-            />
-          </label>
-          <label className="flex flex-col gap-1 rounded-2xl border border-border bg-surface px-3 py-2">
-            <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-              {copy.dueDate}
-            </span>
-            <input
-              className="bg-transparent text-sm font-bold text-foreground outline-none"
-              onChange={(e) => setDue(e.target.value)}
-              type="date"
-              value={due}
-            />
-          </label>
+          {([
+            { key: "scheduled" as const, label: copy.scheduledDate, val: scheduled },
+            { key: "due" as const, label: copy.dueDate, val: due },
+          ]).map((f) => (
+            <button
+              className={cn(
+                "flex flex-col gap-1 rounded-2xl border px-3 py-2 text-left transition-colors",
+                dateField === f.key ? "border-primary bg-primary/[0.05]" : "border-border bg-surface",
+              )}
+              key={f.key}
+              onClick={() => setDateField((cur) => (cur === f.key ? null : f.key))}
+              type="button"
+            >
+              <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                {f.label}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <CalendarDays className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span
+                  className={cn(
+                    "truncate text-sm font-bold",
+                    f.val ? "text-foreground" : "text-muted-foreground/60",
+                  )}
+                >
+                  {f.val ? fmtDate(f.val) : copy.pickDate}
+                </span>
+              </span>
+            </button>
+          ))}
         </div>
+        {dateField ? (
+          <MiniCalendar
+            copy={copy}
+            locale={locale}
+            onClear={() => {
+              if (dateField === "scheduled") setScheduled("");
+              else setDue("");
+              setDateField(null);
+            }}
+            onSelect={(ymd) => {
+              if (dateField === "scheduled") setScheduled(ymd);
+              else setDue(ymd);
+              setDateField(null);
+            }}
+            value={dateField === "scheduled" ? scheduled : due}
+          />
+        ) : null}
       </div>
 
       {/* Share — creation only; sharing on an existing task is managed from the detail view. */}
@@ -282,14 +362,26 @@ export function TaskCreateForm({
         </div>
       ) : null}
 
-      {/* More */}
+      {/* More — collapsible advanced section (time / priority / tags / photos / repeat). */}
       <button
-        className="flex w-full items-center gap-2 px-0.5 text-[13px] font-bold text-primary"
+        aria-expanded={more}
+        className="flex w-full items-center gap-2.5 border-t border-border/70 pt-4 text-left"
         onClick={() => setMore((v) => !v)}
         type="button"
       >
-        {more ? <ChevronDown className="size-4" aria-hidden="true" /> : <ChevronRight className="size-4" aria-hidden="true" />}
-        {copy.moreToggle}
+        <ChevronDown
+          aria-hidden="true"
+          className={cn(
+            "size-[18px] shrink-0 text-muted-foreground transition-transform duration-200",
+            more ? "" : "-rotate-90",
+          )}
+        />
+        <span className="flex-1 text-[14px] font-extrabold tracking-[-0.01em] text-foreground">
+          {moreLead}
+          {moreHint ? (
+            <span className="font-semibold text-muted-foreground"> — {moreHint}</span>
+          ) : null}
+        </span>
       </button>
 
       {more ? (
@@ -302,37 +394,52 @@ export function TaskCreateForm({
                   chip,
                   !time ? "border-primary bg-primary/10 text-primary" : "border-border bg-surface text-slate-600",
                 )}
-                onClick={() => setTime("")}
+                onClick={() => {
+                  setTime("");
+                  setTimeOpen(false);
+                }}
                 type="button"
               >
                 {copy.allDay}
               </button>
-              <input
+              <button
                 aria-label={copy.sectionTime}
                 className={cn(
-                  "h-10 rounded-xl border px-3 text-sm font-bold outline-none transition-colors focus:border-primary",
-                  time ? "border-primary bg-primary/[0.06] text-primary" : "border-border bg-surface text-slate-600",
+                  "flex h-10 items-center gap-1.5 rounded-xl border px-3 text-sm font-bold transition-colors",
+                  time || timeOpen
+                    ? "border-primary bg-primary/[0.06] text-primary"
+                    : "border-border bg-surface text-slate-600",
                 )}
-                onChange={(e) => setTime(e.target.value)}
-                type="time"
-                value={time}
-              />
+                onClick={() => setTimeOpen((v) => !v)}
+                type="button"
+              >
+                <Clock className="size-4" aria-hidden="true" />
+                {time ? fmtTime(time) : copy.sectionTime}
+                <ChevronDown
+                  className={cn("size-3.5 transition-transform", timeOpen && "rotate-180")}
+                  aria-hidden="true"
+                />
+              </button>
               {time ? (
                 <button
                   aria-label={copy.clearDate}
                   className="flex size-9 items-center justify-center rounded-xl border border-border bg-surface text-slate-400"
-                  onClick={() => setTime("")}
+                  onClick={() => {
+                    setTime("");
+                    setTimeOpen(false);
+                  }}
                   type="button"
                 >
                   <X className="size-4" aria-hidden="true" />
                 </button>
               ) : null}
             </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {["09:00", "12:00", "18:00"].map((tv) => (
+            {timeOpen ? <TimeWheels copy={copy} onChange={setTime} value={time} /> : null}
+            <div className="mt-2 grid grid-cols-5 gap-1.5">
+              {["09:00", "12:00", "15:00", "18:00", "21:00"].map((tv) => (
                 <button
                   className={cn(
-                    chip,
+                    "flex items-center justify-center rounded-full border py-1.5 text-[12.5px] font-bold transition-colors",
                     time === tv ? "border-primary bg-primary/10 text-primary" : "border-border bg-surface text-slate-600",
                   )}
                   key={tv}
@@ -504,24 +611,6 @@ export function TaskCreateForm({
           </div>
         </div>
       ) : null}
-
-      {error ? <p className="px-0.5 text-xs font-semibold text-rose-500">{error}</p> : null}
-
-      <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2.5 bg-[linear-gradient(180deg,transparent,var(--surface)_30%)] px-[18px] pb-[max(18px,env(safe-area-inset-bottom))] pt-4">
-        <Link
-          className="flex h-[52px] flex-1 items-center justify-center rounded-2xl border border-border bg-surface text-[15px] font-bold text-foreground"
-          href="/mobile/tasks"
-        >
-          {copy.backToList}
-        </Link>
-        <button
-          className="flex h-[52px] flex-[2] items-center justify-center rounded-2xl bg-primary text-[15px] font-extrabold text-primary-foreground disabled:opacity-60"
-          disabled={isPending}
-          type="submit"
-        >
-          {copy.save}
-        </button>
-      </div>
 
       {pickerOpen ? (
         <SharePicker

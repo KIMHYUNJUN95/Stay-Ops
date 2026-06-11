@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 import { TaskCreateForm } from "@/components/tasks/task-create-form";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getDictionary } from "@/lib/i18n";
@@ -53,21 +51,13 @@ export default async function MobileTaskEditPage({ params, searchParams }: PageP
 
   return (
     <MobileShell activeItem="tasks" badges={navBadges} title={copy.editTask}>
-      <div className="flex items-center gap-[11px] px-0.5 pb-3 pt-2">
-        <Link
-          aria-label={copy.backToList}
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-700"
-          href={detailHref}
-        >
-          <ChevronLeft className="size-[19px]" aria-hidden="true" />
-        </Link>
-        <p className="text-[19px] font-black tracking-[-0.03em] text-foreground">{copy.editTask}</p>
-      </div>
-
       <TaskCreateForm
+        backHref={detailHref}
         copy={copy}
         defaultDate={null}
+        headerTitle={copy.editTask}
         imgCopy={dict.requestImages}
+        locale={locale}
         initial={{
           title: task.title,
           description: task.description ?? "",

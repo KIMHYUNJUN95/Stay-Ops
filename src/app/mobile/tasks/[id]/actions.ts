@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { notifyTaskParticipants } from "@/lib/notifications/create";
 import type { TaskNotificationPayload } from "@/lib/notifications/types";
@@ -258,6 +259,39 @@ export async function completeTask(formData: FormData) {
   redirect(detailPath(id));
 }
 
+// List-context completion: same effect as completeTask but stays on the list (revalidates the
+// list path) instead of redirecting to the task detail. Used by the list quick-complete +
+// undo flow, which optimistically hides the card and commits here after the undo window.
+export async function completeTaskInList(taskId: string) {
+  const id = taskId.trim();
+  const { session, task } = await requireSessionAndTask(id);
+  const supabase = getSupabaseServiceClient();
+  await supabase
+    .from("tasks")
+    .update({
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      completed_by_user_id: session.user.id,
+    } as never)
+    .eq("id", id);
+  await supabase.from("task_updates").insert({
+    task_id: id,
+    created_by_user_id: session.user.id,
+    update_type: "completed",
+  } as never);
+  await notify(
+    id,
+    otherParticipantIds(task, session.user.id),
+    session.user.id,
+    session.organization.id,
+    "task_completed",
+    "completed",
+    task.title,
+    `task_completed:${id}:${Date.now()}`,
+  );
+  revalidatePath("/mobile/tasks");
+}
+
 export async function reopenTask(formData: FormData) {
   const id = cleanText(formData.get("taskId"));
   const { session, task } = await requireSessionAndTask(id);
@@ -417,6 +451,30 @@ export async function deleteTask(formData: FormData) {
     redirect(detailPath(id, "delete_failed"));
   }
   redirect("/mobile/tasks");
+}
+
+// Batch delete from the list (multi-select). Only deletes tasks the acting user authored —
+// the `created_by_user_id` filter is the authorization boundary, so selecting tasks shared to
+// you (that you don't own) simply leaves them untouched. Stays on the list (revalidates).
+export async function deleteTasksInList(taskIds: string[]) {
+  const ids = Array.from(
+    new Set((taskIds ?? []).map((s) => String(s).trim()).filter(Boolean)),
+  ).slice(0, 200);
+  if (ids.length === 0) return;
+  const session = await getCurrentAppSession();
+  if (!session) {
+    redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
+  }
+  if (!hasOrganizationContext(session)) {
+    redirect("/admin");
+  }
+  const supabase = getSupabaseServiceClient();
+  await supabase
+    .from("tasks")
+    .delete()
+    .in("id", ids)
+    .eq("created_by_user_id", session.user.id);
+  revalidatePath("/mobile/tasks");
 }
 
 export async function addTaskUpdate(formData: FormData) {

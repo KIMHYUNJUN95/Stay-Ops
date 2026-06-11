@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
+  Archive,
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
@@ -12,12 +15,15 @@ import {
   Plus,
   Search,
   SearchX,
+  Pencil,
   Send,
   SlidersHorizontal,
   Sun,
+  Trash2,
   X,
 } from "lucide-react";
 import { quickCreateTask } from "@/app/mobile/tasks/new/actions";
+import { completeTaskInList, deleteTasksInList } from "@/app/mobile/tasks/[id]/actions";
 import { TaskCard } from "@/components/tasks/task-card";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { TaskRecord } from "@/lib/tasks";
@@ -37,12 +43,18 @@ function tokyoDateOf(iso: string | null): string | null {
 }
 const PRIO_ORD: Record<string, number> = { urgent: 0, important: 1, normal: 2 };
 
+// Shift a YYYY-MM-DD (Tokyo) date string by `n` days, returning the same format.
+function ymdShift(ymd: string, n: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
 export function TasksWorkspace({
   copy,
   currentUserId,
   initialView,
   locale,
-  tasks,
+  tasks: allTasks,
   today,
 }: {
   copy: Copy;
@@ -54,14 +66,183 @@ export function TasksWorkspace({
 }) {
   const [view, setView] = useState<View>(initialView);
   const [doneFilter, setDoneFilter] = useState<"all" | "mine" | "recv">("all");
-  const [quickOpen, setQuickOpen] = useState(false);
+
+  // --- List quick-complete + undo (Gmail-style). Tapping a card's circle optimistically hides
+  // it and shows a short undo snackbar; the DB write is committed only after the undo window
+  // (or when flushed), so Undo simply restores the card with no server round-trip or notification.
+  const [pendingDone, setPendingDone] = useState<Set<string>>(() => new Set());
+  const [snack, setSnack] = useState<{ id: string; title: string } | null>(null);
+  const [snackShown, setSnackShown] = useState(false);
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingIdRef = useRef<string | null>(null);
+  const [, startCommit] = useTransition();
+
+  const commitDone = useCallback((id: string) => {
+    startCommit(async () => {
+      await completeTaskInList(id);
+      // Revalidated data now marks it completed → safe to stop hiding it optimistically.
+      setPendingDone((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    });
+  }, []);
+
+  const hideSnack = useCallback(() => {
+    setSnackShown(false);
+    setTimeout(() => setSnack(null), 300);
+  }, []);
+
+  const handleQuickComplete = useCallback(
+    (task: TaskRecord) => {
+      // Only one undo slot: if another completion is still pending, commit it now.
+      if (pendingIdRef.current && pendingIdRef.current !== task.id) {
+        if (commitTimer.current) clearTimeout(commitTimer.current);
+        commitDone(pendingIdRef.current);
+      }
+      setPendingDone((prev) => new Set(prev).add(task.id));
+      pendingIdRef.current = task.id;
+      setSnack({ id: task.id, title: task.title });
+      requestAnimationFrame(() => requestAnimationFrame(() => setSnackShown(true)));
+      if (commitTimer.current) clearTimeout(commitTimer.current);
+      commitTimer.current = setTimeout(() => {
+        commitTimer.current = null;
+        pendingIdRef.current = null;
+        commitDone(task.id);
+        hideSnack();
+      }, 4200);
+    },
+    [commitDone, hideSnack],
+  );
+
+  const handleUndo = useCallback(() => {
+    const id = pendingIdRef.current;
+    if (commitTimer.current) clearTimeout(commitTimer.current);
+    commitTimer.current = null;
+    pendingIdRef.current = null;
+    hideSnack();
+    if (id) {
+      setPendingDone((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }, [hideSnack]);
+
+  // Flush a still-pending completion on unmount (e.g. navigating away) so it isn't lost.
+  useEffect(
+    () => () => {
+      if (commitTimer.current) clearTimeout(commitTimer.current);
+      if (pendingIdRef.current) void completeTaskInList(pendingIdRef.current);
+    },
+    [],
+  );
+
+  // Active views never show a card that is mid-undo.
+  const tasks = pendingDone.size
+    ? allTasks.filter((t) => !pendingDone.has(t.id))
+    : allTasks;
+  // Split mount vs. visibility so the sheet can play a slide/fade-OUT before unmounting.
+  const [quickMounted, setQuickMounted] = useState(false); // present in the DOM
+  const [quickShown, setQuickShown] = useState(false); // drives the in/out transition
   const [quickTitle, setQuickTitle] = useState("");
+  const openQuick = useCallback(() => {
+    setQuickMounted(true);
+    // Double rAF: let the element mount at translate-y-full, then flip to 0 so it animates.
+    requestAnimationFrame(() => requestAnimationFrame(() => setQuickShown(true)));
+  }, []);
+  const closeQuick = useCallback(() => {
+    setQuickShown(false);
+    setTimeout(() => setQuickMounted(false), 380); // must match the sheet transition duration
+  }, []);
+  // Body portals (FAB + sheet) are client-only; gate on hydration so server and the
+  // first client render agree (avoids a hydration mismatch). false on server, true after mount.
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const [calDay, setCalDay] = useState<string | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false); // day sheet present in the DOM
+  const [sheetShown, setSheetShown] = useState(false); // drives its slide in/out
   const [calMonth, setCalMonth] = useState(() => {
     const [ty, tm] = today.split("-").map(Number);
     return { y: ty, m: tm };
   });
+  const closeDaySheet = useCallback(() => {
+    setSheetShown(false);
+    setTimeout(() => setSheetOpen(false), 320); // matches the day-sheet transition duration
+  }, []);
+
+  // Esc closes the quick-add sheet (scrim tap / X already cover pointer dismissal).
+  useEffect(() => {
+    if (!quickMounted) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeQuick();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [quickMounted, closeQuick]);
+
+  // --- Long-press context menu + multi-select (edit/delete convenience).
+  const router = useRouter();
+  const [pressTask, setPressTask] = useState<TaskRecord | null>(null);
+  const [pressShown, setPressShown] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [confirmIds, setConfirmIds] = useState<string[] | null>(null);
+  const [deleting, startDelete] = useTransition();
+
+  const openPressMenu = useCallback((task: TaskRecord) => {
+    setPressTask(task);
+    requestAnimationFrame(() => requestAnimationFrame(() => setPressShown(true)));
+  }, []);
+  const closePressMenu = useCallback(() => {
+    setPressShown(false);
+    setTimeout(() => setPressTask(null), 240);
+  }, []);
+  const toggleSelect = useCallback((task: TaskRecord) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(task.id)) next.delete(task.id);
+      else next.add(task.id);
+      return next;
+    });
+  }, []);
+  const enterSelect = useCallback((task?: TaskRecord) => {
+    setSelectMode(true);
+    setSelectedIds(new Set(task ? [task.id] : []));
+  }, []);
+  const exitSelect = useCallback(() => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }, []);
+  // Commit a delete (single from the menu, or the multi-select batch). Optimistically hide the
+  // rows, then run the server batch delete; only author-owned tasks are actually removed.
+  const performDelete = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      setPendingDone((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.add(id));
+        return next;
+      });
+      startDelete(async () => {
+        await deleteTasksInList(ids);
+        setPendingDone((prev) => {
+          const next = new Set(prev);
+          ids.forEach((id) => next.delete(id));
+          return next;
+        });
+      });
+      setConfirmIds(null);
+      setSelectMode(false);
+      setSelectedIds(new Set());
+    },
+    [],
+  );
 
   const isActive = (t: TaskRecord) => t.status !== "completed" && t.status !== "cancelled";
   const dueDateOf = (t: TaskRecord) => tokyoDateOf(t.dueAt);
@@ -126,14 +307,37 @@ export function TasksWorkspace({
 
   const tabs: { key: View; label: string; icon: typeof Sun }[] = [
     { key: "today", label: copy.viewToday, icon: Sun },
-    { key: "inbox", label: copy.viewInbox, icon: Inbox },
+    { key: "inbox", label: copy.viewInbox, icon: Archive },
     { key: "my", label: copy.viewMy, icon: ListChecks },
     { key: "sent", label: copy.viewSent, icon: Send },
     { key: "completed", label: copy.viewCompleted, icon: CheckCircle2 },
     { key: "calendar", label: copy.viewCalendar, icon: CalendarDays },
   ];
 
-  const cardProps = { copy, currentUserId, today };
+  const cardProps = {
+    copy,
+    currentUserId,
+    today,
+    onQuickComplete: handleQuickComplete,
+    selectMode,
+    selectedIds,
+    onToggleSelect: toggleSelect,
+    onLongPress: openPressMenu,
+    // "Move to today" swipe action is redundant in the Today view, useful everywhere else.
+    showMoveToday: view !== "today",
+  };
+
+  // Per-tab counts (same base filters as each view) for the small chip badges. Uses the
+  // visible `tasks` list, so an optimistically completed card drops out of its tab count too.
+  const tabCounts: Record<View, number> = {
+    today: tasks.filter((t) => isOverdue(t) || isToday(t)).length,
+    // Archive = every active todo; My = everything active except what's already in Today.
+    inbox: tasks.filter((t) => isActive(t)).length,
+    my: tasks.filter((t) => isActive(t) && !isToday(t)).length,
+    sent: tasks.filter((t) => t.createdByUserId === currentUserId && t.isShared).length,
+    completed: tasks.filter((t) => t.status === "completed").length,
+    calendar: 0,
+  };
 
   const sectionHead = (label: string, n: number, tone?: "over") => (
     <div className="mb-2.5 mt-1 flex items-center gap-2 px-0.5">
@@ -151,6 +355,42 @@ export function TasksWorkspace({
       <span className="h-px flex-1 bg-border" />
     </div>
   );
+
+  // Date divider used by the Archive/My/Completed lists: "6월 11일 · 오늘 · 목요일  N" — bold
+  // date, a relative label (yesterday/today/tomorrow) when it applies, weekday, and a count chip.
+  const yesterday = ymdShift(today, -1);
+  const tomorrow = ymdShift(today, 1);
+  const dateGroupHead = (ymd: string, n: number) => {
+    const dt = new Date(`${ymd}T00:00:00+09:00`);
+    const dateLabel = new Intl.DateTimeFormat(locale, {
+      month: "long",
+      day: "numeric",
+      timeZone: "Asia/Tokyo",
+    }).format(dt);
+    const weekday = new Intl.DateTimeFormat(locale, {
+      weekday: "long",
+      timeZone: "Asia/Tokyo",
+    }).format(dt);
+    const rel =
+      ymd === today
+        ? copy.todayLabel
+        : ymd === yesterday
+          ? copy.yesterdayLabel
+          : ymd === tomorrow
+            ? copy.quickTomorrow
+            : "";
+    return (
+      <div className="mb-2.5 mt-1 flex items-center gap-1.5 px-0.5">
+        <span className="text-[12.5px] font-black tracking-[-0.01em] text-foreground">{dateLabel}</span>
+        {rel ? <span className="text-[11.5px] font-bold text-primary">· {rel}</span> : null}
+        <span className="text-[11.5px] font-semibold text-muted-foreground">· {weekday}</span>
+        <span className="ml-0.5 rounded-full bg-slate-100 px-[7px] py-px font-mono text-[10.5px] font-semibold text-muted-foreground">
+          {n}
+        </span>
+        <span className="ml-1 h-px flex-1 bg-border" />
+      </div>
+    );
+  };
 
   const emptyState = (Icon: typeof Sun, title: string, sub?: string) => (
     <div className="flex flex-col items-center px-6 py-16 text-center">
@@ -216,20 +456,21 @@ export function TasksWorkspace({
       );
     }
 
+    // Archive (보관함): every active todo, managed in one place. Newest first.
     if (view === "inbox") {
-      const base = tasks.filter((t) => isActive(t) && t.isInbox);
+      const base = tasks.filter((t) => isActive(t));
       const list = applyFilter(base).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       return (
         <>
           <p className="mb-3 px-0.5 text-[12px] font-medium text-muted-foreground">{copy.inboxHint}</p>
           {base.length === 0 ? (
-            emptyState(Inbox, copy.inboxEmptyTitle, copy.inboxEmptySub)
+            emptyState(Archive, copy.inboxEmptyTitle, copy.inboxEmptySub)
           ) : list.length === 0 ? (
             noMatchState()
           ) : (
             <div className="flex flex-col gap-2">
               {list.map((t) => (
-                <TaskCard key={t.id} task={t} showDate={false} {...cardProps} />
+                <TaskCard key={t.id} task={t} {...cardProps} />
               ))}
             </div>
           )}
@@ -237,36 +478,47 @@ export function TasksWorkspace({
       );
     }
 
+    // My tasks (내 task): everything active except Today, grouped by date like the Completed view.
     if (view === "my") {
-      const base = tasks.filter((t) => isActive(t) && !t.isInbox);
+      const base = tasks.filter((t) => isActive(t) && !isToday(t));
       if (base.length === 0) return emptyState(ListChecks, copy.myEmptyTitle, copy.myEmptySub);
       const list = applyFilter(base);
       if (list.length === 0) return noMatchState();
-      const dated = list.filter((t) => anchor(t)).sort((a, b) => anchor(a)!.localeCompare(anchor(b)!));
       const undated = list.filter((t) => !anchor(t));
+      const groups = new Map<string, TaskRecord[]>();
+      for (const t of list) {
+        const a = anchor(t);
+        if (!a) continue;
+        const arr = groups.get(a);
+        if (arr) arr.push(t);
+        else groups.set(a, [t]);
+      }
+      // Earliest date first (overdue at the top), each day's cards by priority.
+      const dayKeys = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b));
+      for (const k of dayKeys) groups.get(k)!.sort(prioSort);
       return (
-        <>
-          {dated.length > 0 ? (
-            <>
-              {sectionHead(copy.secScheduled, dated.length)}
+        <div className="flex flex-col gap-5">
+          {dayKeys.map((k) => (
+            <div key={k}>
+              {dateGroupHead(k, groups.get(k)!.length)}
               <div className="flex flex-col gap-2">
-                {dated.map((t) => (
+                {groups.get(k)!.map((t) => (
                   <TaskCard key={t.id} task={t} {...cardProps} />
                 ))}
               </div>
-            </>
-          ) : null}
+            </div>
+          ))}
           {undated.length > 0 ? (
-            <div className={dated.length ? "mt-4" : ""}>
+            <div>
               {sectionHead(copy.secNoDate, undated.length)}
               <div className="flex flex-col gap-2">
-                {undated.map((t) => (
+                {undated.sort(prioSort).map((t) => (
                   <TaskCard key={t.id} task={t} {...cardProps} />
                 ))}
               </div>
             </div>
           ) : null}
-        </>
+        </div>
       );
     }
 
@@ -324,11 +576,38 @@ export function TasksWorkspace({
           ) : list.length === 0 ? (
             noMatchState()
           ) : (
-            <div className="flex flex-col gap-2">
-              {list.map((t) => (
-                <TaskCard key={t.id} task={t} showDate={false} swipe={false} {...cardProps} />
-              ))}
-            </div>
+            (() => {
+              // Group by completion date (Tokyo); newest day first, newest task first within a day.
+              const dateOf = (t: TaskRecord) =>
+                tokyoDateOf(t.completedAt) ?? tokyoDateOf(t.createdAt) ?? "";
+              const groups = new Map<string, TaskRecord[]>();
+              for (const t of list) {
+                const k = dateOf(t);
+                const arr = groups.get(k);
+                if (arr) arr.push(t);
+                else groups.set(k, [t]);
+              }
+              const dayKeys = Array.from(groups.keys()).sort((a, b) => b.localeCompare(a));
+              for (const k of dayKeys) {
+                groups
+                  .get(k)!
+                  .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
+              }
+              return (
+                <div className="flex flex-col gap-5">
+                  {dayKeys.map((k) => (
+                    <div key={k}>
+                      {dateGroupHead(k, groups.get(k)!.length)}
+                      <div className="flex flex-col gap-2">
+                        {groups.get(k)!.map((t) => (
+                          <TaskCard key={t.id} task={t} showDate={false} swipe={false} {...cardProps} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
           )}
         </>
       );
@@ -349,6 +628,7 @@ export function TasksWorkspace({
     const openDay = (iso: string) => {
       setCalDay(iso);
       setSheetOpen(true);
+      requestAnimationFrame(() => requestAnimationFrame(() => setSheetShown(true)));
     };
     const shiftMonth = (delta: number) =>
       setCalMonth(({ y: cy, m: cm }) => {
@@ -616,13 +896,21 @@ export function TasksWorkspace({
       weekday: "short",
       timeZone: "Asia/Tokyo",
     }).format(new Date(`${iso}T00:00:00+09:00`));
-    return (
+    if (!hydrated) return null;
+    return createPortal(
       <div
-        className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45"
-        onClick={() => setSheetOpen(false)}
+        className={cn(
+          "fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 transition-opacity duration-300 motion-reduce:transition-none",
+          sheetShown ? "opacity-100" : "opacity-0",
+        )}
+        onClick={closeDaySheet}
       >
         <div
-          className="w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3"
+          className={cn(
+            "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3",
+            "transition-transform duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
+            sheetShown ? "translate-y-0" : "translate-y-full",
+          )}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200" />
@@ -638,7 +926,7 @@ export function TasksWorkspace({
             <button
               aria-label={copy.cancel}
               className="flex size-8 items-center justify-center rounded-full bg-slate-50 text-slate-500"
-              onClick={() => setSheetOpen(false)}
+              onClick={closeDaySheet}
               type="button"
             >
               <X className="size-4" aria-hidden="true" />
@@ -666,13 +954,43 @@ export function TasksWorkspace({
             {copy.calAddOnDate}
           </Link>
         </div>
-      </div>
+      </div>,
+      document.body,
     );
   }
 
+  // Whole-list "select all" toggles every active task currently in the visible set.
+  const selectableIds = tasks.filter(isActive).map((t) => t.id);
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id));
+
   return (
     <div className="relative min-h-[60vh] pb-24">
-      {/* Chip tabs */}
+      {/* Selection bar replaces the tab chips while multi-selecting. */}
+      {selectMode ? (
+        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-border bg-surface px-2.5 py-2">
+          <button
+            aria-label={copy.cancel}
+            className="flex size-9 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-foreground"
+            onClick={exitSelect}
+            type="button"
+          >
+            <X className="size-[18px]" aria-hidden="true" />
+          </button>
+          <span className="flex-1 text-[14px] font-extrabold text-foreground">
+            {copy.selectedCountLabel.replace("{count}", String(selectedIds.size))}
+          </span>
+          <button
+            className="rounded-full bg-primary/[0.07] px-3 py-1.5 text-[12.5px] font-bold text-primary transition-colors hover:bg-primary/10"
+            onClick={() =>
+              setSelectedIds(allSelected ? new Set() : new Set(selectableIds))
+            }
+            type="button"
+          >
+            {allSelected ? copy.selectClear : copy.selectAllLabel}
+          </button>
+        </div>
+      ) : (
+      /* Chip tabs */
       <div className="-mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map((t) => (
           <button
@@ -688,12 +1006,23 @@ export function TasksWorkspace({
           >
             <t.icon className="size-[15px]" aria-hidden="true" />
             {t.label}
+            {tabCounts[t.key] > 0 ? (
+              <span
+                className={cn(
+                  "inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full px-1 text-[10.5px] font-extrabold leading-none tabular-nums",
+                  view === t.key ? "bg-white/20 text-primary-foreground" : "bg-primary/10 text-primary",
+                )}
+              >
+                {tabCounts[t.key]}
+              </span>
+            ) : null}
           </button>
         ))}
       </div>
+      )}
 
       {/* Search / filter — list views only; Calendar provides its own date navigation. */}
-      {view !== "calendar" ? (
+      {!selectMode && view !== "calendar" ? (
         <div className="mb-4">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
@@ -808,34 +1137,62 @@ export function TasksWorkspace({
 
       {viewBody}
 
-      {/* Quick-add FAB */}
-      <button
-        className="fixed bottom-24 right-4 z-30 inline-flex h-[52px] items-center gap-1.5 rounded-full bg-primary pl-[18px] pr-5 text-[14.5px] font-extrabold text-primary-foreground shadow-[0_16px_30px_-10px_hsl(var(--primary-hsl)/0.5)] transition-transform active:scale-95"
-        onClick={() => setQuickOpen(true)}
-        type="button"
-      >
-        <Plus className="size-5" aria-hidden="true" />
-        {copy.quickAddTitle}
-      </button>
+      {/* Quick-add FAB — portaled to body so it stays viewport-fixed (the scroll
+          container has a transform, which would otherwise trap `fixed` and let it
+          drift on scroll/pull). Hidden while multi-selecting (the delete bar owns the bottom). */}
+      {hydrated && !selectMode
+        ? createPortal(
+            <button
+              aria-label={copy.quickAddTitle}
+              className="fixed bottom-24 right-4 z-30 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_16px_30px_-10px_hsl(var(--primary-hsl)/0.5)] transition-transform active:scale-[0.93]"
+              onClick={openQuick}
+              type="button"
+            >
+              <Plus className="size-6" strokeWidth={2.2} aria-hidden="true" />
+            </button>,
+            document.body,
+          )
+        : null}
 
-      {quickOpen ? (
+      {quickMounted && hydrated
+        ? createPortal(
         <div
-          className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45"
-          onClick={() => setQuickOpen(false)}
+          className={cn(
+            "fixed inset-0 z-[60] flex items-end justify-center bg-[rgba(20,16,10,0.5)] transition-opacity duration-300 motion-reduce:transition-none",
+            quickShown ? "opacity-100" : "opacity-0",
+          )}
+          onClick={closeQuick}
         >
           <div
-            className="w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3"
+            className={cn(
+              "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[max(22px,env(safe-area-inset-bottom))] pt-3",
+              "transition-transform duration-[380ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
+              quickShown ? "translate-y-0" : "translate-y-full",
+            )}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200" />
-            <div className="mb-3">
-              <p className="text-[16px] font-black text-foreground">{copy.quickAddTitle}</p>
-              <p className="mt-0.5 text-[12px] text-muted-foreground">{copy.quickAddSub}</p>
+            <div className="mx-auto mb-3.5 h-1 w-[38px] rounded-full bg-slate-200" />
+
+            {/* 헤더 + 닫기 버튼 */}
+            <div className="mb-3.5 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[16px] font-black text-foreground">{copy.quickAddTitle}</p>
+                <p className="mt-0.5 text-[12px] text-muted-foreground">{copy.quickAddSub}</p>
+              </div>
+              <button
+                aria-label={copy.cancel}
+                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+                onClick={closeQuick}
+                type="button"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </button>
             </div>
+
             <form action={quickCreateTask} className="space-y-3">
               <input
                 autoFocus
-                className="h-12 w-full rounded-2xl border border-border bg-background/60 px-4 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary"
+                className="h-12 w-full rounded-2xl border border-border bg-muted px-4 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary"
                 name="title"
                 onChange={(e) => setQuickTitle(e.target.value)}
                 placeholder={copy.quickAddPlaceholder}
@@ -845,30 +1202,187 @@ export function TasksWorkspace({
               <div className="flex gap-2.5">
                 {/* Full organized create — carries any typed title across so the capture isn't lost. */}
                 <Link
-                  className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground"
+                  className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground"
                   href={
                     quickTitle.trim()
                       ? `/mobile/tasks/new?title=${encodeURIComponent(quickTitle.trim())}`
                       : "/mobile/tasks/new"
                   }
                 >
+                  <Pencil className="size-4" aria-hidden="true" />
                   {copy.quickAddDetailed}
                 </Link>
                 <button
-                  className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-primary text-[13.5px] font-extrabold text-primary-foreground"
+                  className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-primary text-[13.5px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-40"
+                  disabled={!quickTitle.trim()}
                   type="submit"
                 >
                   <Inbox className="size-4" aria-hidden="true" />
                   {copy.quickAddSave}
                 </button>
               </div>
-              <p className="px-0.5 text-[11.5px] font-medium text-muted-foreground">
-                {copy.detailedCreateHint}
-              </p>
             </form>
           </div>
-        </div>
-      ) : null}
+        </div>,
+            document.body,
+          )
+        : null}
+
+      {/* Quick-complete undo snackbar — small, slides up above the bottom tab bar. */}
+      {snack && hydrated
+        ? createPortal(
+            <div
+              className="pointer-events-none fixed inset-x-0 z-[80] flex justify-center px-4"
+              style={{ bottom: "max(96px, calc(env(safe-area-inset-bottom) + 88px))" }}
+            >
+              <div
+                className={cn(
+                  "pointer-events-auto flex items-center gap-3 rounded-full bg-foreground/95 py-2.5 pl-4 pr-2.5 text-[13px] font-bold text-background shadow-[0_12px_30px_-10px_rgba(20,16,10,0.5)] backdrop-blur transition-all duration-300 motion-reduce:transition-none",
+                  snackShown ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0",
+                )}
+              >
+                <span className="truncate">{copy.completedToast}</span>
+                <button
+                  className="shrink-0 rounded-full bg-background/15 px-3 py-1 text-[13px] font-extrabold text-background transition-colors active:bg-background/25"
+                  onClick={handleUndo}
+                  type="button"
+                >
+                  {copy.undo}
+                </button>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {/* Long-press context menu — quick Edit / Select / Delete for a single task. */}
+      {pressTask && hydrated
+        ? createPortal(
+            <div
+              className={cn(
+                "fixed inset-0 z-[70] flex items-end justify-center bg-[rgba(20,16,10,0.5)] transition-opacity duration-200 motion-reduce:transition-none",
+                pressShown ? "opacity-100" : "opacity-0",
+              )}
+              onClick={closePressMenu}
+            >
+              <div
+                className={cn(
+                  "w-full max-w-[460px] rounded-t-[24px] bg-surface px-3.5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3",
+                  "transition-transform duration-[240ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
+                  pressShown ? "translate-y-0" : "translate-y-full",
+                )}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="mx-auto mb-2.5 h-1 w-[38px] rounded-full bg-slate-200" />
+                <p className="mb-1.5 truncate px-2.5 text-[12.5px] font-bold text-muted-foreground">
+                  {pressTask.title}
+                </p>
+                <div className="flex flex-col">
+                  {pressTask.createdByUserId === currentUserId ? (
+                    <button
+                      className="flex w-full items-center gap-3 rounded-xl px-2.5 py-3 text-left text-[14.5px] font-bold text-foreground transition-colors active:bg-slate-50"
+                      onClick={() => {
+                        const id = pressTask.id;
+                        closePressMenu();
+                        router.push(`/mobile/tasks/${id}/edit`);
+                      }}
+                      type="button"
+                    >
+                      <Pencil className="size-[18px] text-muted-foreground" aria-hidden="true" />
+                      {copy.actionEdit}
+                    </button>
+                  ) : null}
+                  <button
+                    className="flex w-full items-center gap-3 rounded-xl px-2.5 py-3 text-left text-[14.5px] font-bold text-foreground transition-colors active:bg-slate-50"
+                    onClick={() => {
+                      const t = pressTask;
+                      closePressMenu();
+                      enterSelect(t);
+                    }}
+                    type="button"
+                  >
+                    <ListChecks className="size-[18px] text-muted-foreground" aria-hidden="true" />
+                    {copy.actionSelect}
+                  </button>
+                  {pressTask.createdByUserId === currentUserId ? (
+                    <button
+                      className="flex w-full items-center gap-3 rounded-xl px-2.5 py-3 text-left text-[14.5px] font-bold text-rose-600 transition-colors active:bg-rose-50"
+                      onClick={() => {
+                        const id = pressTask.id;
+                        closePressMenu();
+                        setConfirmIds([id]);
+                      }}
+                      type="button"
+                    >
+                      <Trash2 className="size-[18px]" aria-hidden="true" />
+                      {copy.deleteAction}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {/* Multi-select bottom action bar — batch delete (covers the tab bar). */}
+      {selectMode && hydrated
+        ? createPortal(
+            <div className="fixed inset-x-0 bottom-0 z-[75] mx-auto flex max-w-[480px] gap-2.5 rounded-t-[22px] border border-b-0 border-border bg-surface px-4 pb-[max(22px,env(safe-area-inset-bottom))] pt-6 shadow-[0_-14px_36px_-12px_rgba(20,16,10,0.32)]">
+              <button
+                className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl bg-rose-600 text-[14.5px] font-extrabold text-white transition-opacity disabled:opacity-40"
+                disabled={selectedIds.size === 0}
+                onClick={() => setConfirmIds(Array.from(selectedIds))}
+                type="button"
+              >
+                <Trash2 className="size-[18px]" aria-hidden="true" />
+                {copy.deleteAction}
+                {selectedIds.size > 0 ? ` ${selectedIds.size}` : ""}
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {/* Delete confirm (single from the menu, or the multi-select batch). */}
+      {confirmIds && hydrated
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[90] flex items-center justify-center px-6 bg-[rgba(20,16,10,0.5)]"
+              onClick={() => setConfirmIds(null)}
+              style={{ animation: "modal-overlay-in 180ms ease-out both" }}
+            >
+              <div
+                className="w-full max-w-[340px] rounded-3xl bg-surface p-5 shadow-[0_24px_70px_-24px_rgba(20,16,10,0.6)]"
+                onClick={(e) => e.stopPropagation()}
+                style={{ animation: "modal-card-in 240ms cubic-bezier(0.34,1.26,0.64,1) both" }}
+              >
+                <p className="text-[16px] font-black text-foreground">{copy.bulkDeleteConfirmTitle}</p>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+                  {copy.bulkDeleteConfirmBody.replace("{count}", String(confirmIds.length))}
+                </p>
+                <div className="mt-5 flex gap-2.5">
+                  <button
+                    className="h-11 flex-1 rounded-xl border border-border bg-surface text-[14px] font-bold text-foreground"
+                    onClick={() => setConfirmIds(null)}
+                    type="button"
+                  >
+                    {copy.cancel}
+                  </button>
+                  <button
+                    className="h-11 flex-[1.4] rounded-xl bg-rose-600 text-[14px] font-extrabold text-white transition-opacity disabled:opacity-60"
+                    disabled={deleting}
+                    onClick={() => performDelete(confirmIds)}
+                    type="button"
+                  >
+                    {copy.deleteAction}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

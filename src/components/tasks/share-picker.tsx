@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Search, X } from "lucide-react";
 import type { Dictionary } from "@/lib/i18n";
 import type { ShareableUser } from "@/lib/tasks";
@@ -23,20 +24,56 @@ export function SharePicker({
 }) {
   const [selected, setSelected] = useState<string[]>(initialSelected);
   const [query, setQuery] = useState("");
+  // Drives the slide/fade in & out; the sheet stays mounted (parent keeps it open) until the
+  // exit transition finishes, then we notify the parent so the down-slide is actually seen.
+  const [shown, setShown] = useState(false);
   const q = query.trim();
   const list = q ? users.filter((u) => u.name.includes(q)) : users;
+
+  // Mount at translate-y-full, then flip to 0 on the next frame so it animates up.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  // Slide down first, then run the parent callback once the transition (380ms) has played.
+  const dismiss = (after: () => void) => {
+    setShown(false);
+    setTimeout(after, 380);
+  };
+  const close = () => dismiss(onClose);
+  const apply = () => dismiss(() => onApply(selected));
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setShown(false);
+      setTimeout(onClose, 380);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   function toggle(id: string) {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45"
-      onClick={onClose}
+      className={cn(
+        "fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 transition-opacity duration-300 motion-reduce:transition-none",
+        shown ? "opacity-100" : "opacity-0",
+      )}
+      onClick={close}
     >
       <div
-        className="flex max-h-[82dvh] w-full max-w-[460px] flex-col rounded-t-[24px] bg-surface px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3"
+        className={cn(
+          "flex max-h-[82dvh] w-full max-w-[460px] flex-col rounded-t-[24px] bg-surface px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3",
+          "transition-transform duration-[380ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
+          shown ? "translate-y-0" : "translate-y-full",
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mx-auto mb-3 h-1 w-[38px] shrink-0 rounded-full bg-slate-200" />
@@ -48,7 +85,7 @@ export function SharePicker({
           <button
             aria-label={copy.cancel}
             className="flex size-8 items-center justify-center rounded-full bg-slate-50 text-slate-500"
-            onClick={onClose}
+            onClick={close}
             type="button"
           >
             <X className="size-4" aria-hidden="true" />
@@ -112,7 +149,7 @@ export function SharePicker({
               : "bg-slate-100 text-slate-400",
           )}
           disabled={selected.length === 0}
-          onClick={() => onApply(selected)}
+          onClick={apply}
           type="button"
         >
           {selected.length
@@ -120,6 +157,7 @@ export function SharePicker({
             : copy.sharePrompt}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
