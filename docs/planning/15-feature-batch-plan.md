@@ -384,7 +384,7 @@ The implementation should treat this as a refinement of the Todo module, not as 
 - The center of gravity is personal task management first, not team assignment first.
 - Users still need strong shared-task behavior once a task is shared.
 - CS-heavy operations need richer context than a generic todo list because guest requests, room changes, and exception handling change frequently.
-- The product needs a Todoist-like mobile workspace: Today, Inbox, My Tasks, Sent, Completed, and Calendar.
+- The product needs a Todoist-like mobile workspace. The current implemented IA is Today, Tomorrow, Inbox, Sent, and Calendar; older planning references to now-removed extra tabs are obsolete.
 
 ### 2. Users and Roles
 
@@ -399,7 +399,7 @@ The implementation should treat this as a refinement of the Todo module, not as 
 
 - Mobile:
   - dedicated side-menu entry
-  - Today / Inbox / My Tasks / Sent / Completed / Calendar views
+  - Today / Tomorrow / Inbox / Sent / Calendar views
   - quick-add
   - detailed create/edit
   - task detail
@@ -446,7 +446,7 @@ The implementation should treat this as a refinement of the Todo module, not as 
 ### 6. Workflow
 
 1. User enters the Todo feature from the side menu or a bottom-bar custom slot.
-2. Default first view is Today; Inbox, My Tasks, Sent By Me, Completed, and Calendar are available as internal top-level views.
+2. Default first view is Today; Tomorrow, Inbox, Sent By Me, and Calendar are available as internal top-level views.
 3. Quick-add creates a title-only Inbox task.
 4. Detailed create/edit can fill title, description, scheduled date, due date, share recipients, and more fields.
 5. A task starts private by default.
@@ -476,7 +476,7 @@ The implementation should treat this as a refinement of the Todo module, not as 
   - remove participants
   - delete task
   - add update entry
-  - list Today / Inbox / My Tasks / Sent / Completed / Calendar
+  - list Today / Tomorrow / Inbox / Sent / Calendar
 - Shared components:
   - room/property selectors
   - optional reservation linking later
@@ -507,10 +507,9 @@ The implementation should treat this as a refinement of the Todo module, not as 
 1. Finalize product planning around the private-first but shared-capable task workspace.
 2. Design the core mobile views:
    - Today
+   - Tomorrow
    - Inbox
-   - My Tasks
    - Sent By Me
-   - Completed
    - Calendar
    - quick add
    - detailed create/edit

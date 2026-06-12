@@ -115,6 +115,53 @@ export async function quickCreateTodayTask(formData: FormData) {
   redirect("/mobile/tasks?view=today&created=1");
 }
 
+// Quick-create with tomorrow's Tokyo date as scheduled_date — appears in the Tomorrow tab immediately.
+export async function quickCreateTomorrowTask(formData: FormData) {
+  const session = await getCurrentAppSession();
+  if (!session) {
+    redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
+  }
+  if (!hasOrganizationContext(session)) {
+    redirect("/admin");
+  }
+
+  const title = cleanText(formData.get("title"));
+  if (!title) {
+    redirect("/mobile/tasks?view=tomorrow&error=missing_title");
+  }
+
+  const todayYmd = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
+  const [ty, tm, td] = todayYmd.split("-").map(Number);
+  const tomorrowYmd = new Date(Date.UTC(ty, tm - 1, td + 1)).toISOString().slice(0, 10);
+  const id = crypto.randomUUID();
+  const supabase = getSupabaseServiceClient();
+
+  const insert: Database["public"]["Tables"]["tasks"]["Insert"] = {
+    id,
+    organization_id: session.organization.id,
+    created_by_user_id: session.user.id,
+    title,
+    scheduled_date: tomorrowYmd,
+    is_inbox: false,
+    is_shared: false,
+  };
+  const { error } = await supabase.from("tasks").insert(insert as never);
+  if (error) {
+    redirect("/mobile/tasks?view=tomorrow&error=save_failed");
+  }
+  const { error: pError } = await supabase.from("task_participants").insert({
+    task_id: id,
+    user_id: session.user.id,
+    role: "author",
+  } as never);
+  if (pError) {
+    await supabase.from("tasks").delete().eq("id", id);
+    redirect("/mobile/tasks?view=tomorrow&error=save_failed");
+  }
+
+  redirect("/mobile/tasks?view=tomorrow&created=1");
+}
+
 export async function createTask(formData: FormData) {
   const session = await getCurrentAppSession();
   if (!session) {
@@ -148,6 +195,10 @@ export async function createTask(formData: FormData) {
     .map((v) => String(v))
     .filter((u) => u.startsWith("https://") || u.startsWith("http://"))
     .slice(0, 5);
+  const ctxPropertyId = cleanText(formData.get("ctxPropertyId")) || null;
+  const ctxRoomId = cleanText(formData.get("ctxRoomId")) || null;
+  const ctxReservationId = cleanText(formData.get("ctxReservationId")) || null;
+  const ctxGuestName = cleanText(formData.get("ctxGuestName")) || null;
 
   // A specific time needs a date anchor — reject rather than silently drop it.
   if (taskTimeWithoutDate({ scheduledDate, dueDate, time })) {
@@ -189,14 +240,28 @@ export async function createTask(formData: FormData) {
     recurrence_rule: repeat,
     tags,
     image_urls: imageUrls,
+    property_id: ctxPropertyId,
+    room_id: ctxRoomId,
+    reservation_id: ctxReservationId,
+    guest_name: ctxGuestName,
   };
   const { error } = await supabase.from("tasks").insert(insert as never);
   if (error) {
     redirect("/mobile/tasks/new?error=save_failed");
   }
 
+  // The author row MUST carry the same keys as the participant rows below. PostgREST builds one
+  // multi-row INSERT from the union of keys across the array and fills any key a row omits with
+  // NULL — bypassing the column default — so an author row missing `is_first_recipient` would write
+  // NULL and violate its NOT NULL constraint whenever a share is included. Keep the shapes uniform.
   const participantRows: Database["public"]["Tables"]["task_participants"]["Insert"][] = [
-    { task_id: id, user_id: session.user.id, role: "author" },
+    {
+      task_id: id,
+      user_id: session.user.id,
+      role: "author",
+      is_first_recipient: false,
+      added_by_user_id: null,
+    },
     ...shareIds.map((uid, index) => ({
       task_id: id,
       user_id: uid,

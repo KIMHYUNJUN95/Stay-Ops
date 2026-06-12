@@ -748,10 +748,9 @@ Status: Planned — not started. Five features approved as the next build scope 
 
 - [ ] Design the core mobile task workspace from the refined 2026-06-10 product plan:
   - Today
+  - Tomorrow
   - Inbox
-  - My Tasks
   - Sent By Me
-  - Completed
   - Calendar
   - quick add
   - detailed create/edit

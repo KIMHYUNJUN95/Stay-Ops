@@ -112,7 +112,7 @@ async function notify(
   recipientUserIds: string[],
   actorUserId: string,
   organizationId: string,
-  type: "task_shared" | "task_updated" | "task_completed",
+  type: "task_shared" | "task_updated",
   event: TaskNotificationPayload["event"],
   taskTitle: string,
   dedupeBase: string,
@@ -155,6 +155,10 @@ export async function updateTaskCore(formData: FormData) {
     .map((v) => String(v))
     .filter((u) => u.startsWith("https://") || u.startsWith("http://"))
     .slice(0, 5);
+  const ctxPropertyId = cleanText(formData.get("ctxPropertyId")) || null;
+  const ctxRoomId = cleanText(formData.get("ctxRoomId")) || null;
+  const ctxReservationId = cleanText(formData.get("ctxReservationId")) || null;
+  const ctxGuestName = cleanText(formData.get("ctxGuestName")) || null;
   // A specific time needs a date anchor — reject rather than silently drop it (back to edit).
   if (taskTimeWithoutDate({ scheduledDate, dueDate, time })) {
     redirect(`/mobile/tasks/${id}/edit?error=time_needs_date`);
@@ -180,6 +184,10 @@ export async function updateTaskCore(formData: FormData) {
     recurrence_rule: resolveRecurrenceRule(repeatRaw, task.recurrenceRule),
     tags,
     image_urls: imageUrls,
+    property_id: ctxPropertyId,
+    room_id: ctxRoomId,
+    reservation_id: ctxReservationId,
+    guest_name: ctxGuestName,
   };
   // Files the author detached in this edit (server-truth previous set minus the new set).
   const removedImageUrls = task.imageUrls.filter((u) => !imageUrls.includes(u));
@@ -207,117 +215,6 @@ export async function updateTaskCore(formData: FormData) {
   redirect(detailPath(id));
 }
 
-export async function setTaskStatus(formData: FormData) {
-  const id = cleanText(formData.get("taskId"));
-  const status = cleanText(formData.get("status"));
-  const { session, task } = await requireSessionAndTask(id);
-  if (status !== "open" && status !== "in_progress") {
-    redirect(detailPath(id, "save_failed"));
-  }
-  const supabase = getSupabaseServiceClient();
-  await supabase
-    .from("tasks")
-    .update({ status, completed_at: null, completed_by_user_id: null } as never)
-    .eq("id", id);
-  await supabase.from("task_updates").insert({
-    task_id: id,
-    created_by_user_id: session.user.id,
-    update_type: "status_changed",
-    body: status,
-  } as never);
-  void task;
-  redirect(detailPath(id));
-}
-
-export async function completeTask(formData: FormData) {
-  const id = cleanText(formData.get("taskId"));
-  const { session, task } = await requireSessionAndTask(id);
-  const supabase = getSupabaseServiceClient();
-  await supabase
-    .from("tasks")
-    .update({
-      status: "completed",
-      completed_at: new Date().toISOString(),
-      completed_by_user_id: session.user.id,
-    } as never)
-    .eq("id", id);
-  await supabase.from("task_updates").insert({
-    task_id: id,
-    created_by_user_id: session.user.id,
-    update_type: "completed",
-  } as never);
-  await notify(
-    id,
-    otherParticipantIds(task, session.user.id),
-    session.user.id,
-    session.organization.id,
-    "task_completed",
-    "completed",
-    task.title,
-    `task_completed:${id}:${Date.now()}`,
-  );
-  redirect(detailPath(id));
-}
-
-// List-context completion: same effect as completeTask but stays on the list (revalidates the
-// list path) instead of redirecting to the task detail. Used by the list quick-complete +
-// undo flow, which optimistically hides the card and commits here after the undo window.
-export async function completeTaskInList(taskId: string) {
-  const id = taskId.trim();
-  const { session, task } = await requireSessionAndTask(id);
-  const supabase = getSupabaseServiceClient();
-  await supabase
-    .from("tasks")
-    .update({
-      status: "completed",
-      completed_at: new Date().toISOString(),
-      completed_by_user_id: session.user.id,
-    } as never)
-    .eq("id", id);
-  await supabase.from("task_updates").insert({
-    task_id: id,
-    created_by_user_id: session.user.id,
-    update_type: "completed",
-  } as never);
-  await notify(
-    id,
-    otherParticipantIds(task, session.user.id),
-    session.user.id,
-    session.organization.id,
-    "task_completed",
-    "completed",
-    task.title,
-    `task_completed:${id}:${Date.now()}`,
-  );
-  revalidatePath("/mobile/tasks");
-}
-
-export async function reopenTask(formData: FormData) {
-  const id = cleanText(formData.get("taskId"));
-  const { session, task } = await requireSessionAndTask(id);
-  const supabase = getSupabaseServiceClient();
-  await supabase
-    .from("tasks")
-    .update({ status: "open", completed_at: null, completed_by_user_id: null } as never)
-    .eq("id", id);
-  await supabase.from("task_updates").insert({
-    task_id: id,
-    created_by_user_id: session.user.id,
-    update_type: "reopened",
-  } as never);
-  await notify(
-    id,
-    otherParticipantIds(task, session.user.id),
-    session.user.id,
-    session.organization.id,
-    "task_updated",
-    "reopened",
-    task.title,
-    `task_reopened:${id}:${Date.now()}`,
-  );
-  redirect(detailPath(id));
-}
-
 async function setInbox(formData: FormData, isInbox: boolean) {
   const id = cleanText(formData.get("taskId"));
   await requireSessionAndTask(id);
@@ -332,8 +229,22 @@ export async function moveTaskOutOfInbox(formData: FormData) {
   await setInbox(formData, false);
 }
 
+// Allowed list views for the swipe-action return redirect (keeps the user on the tab they swiped
+// from). Mirrors the page's VIEWS allow-list.
+const LIST_VIEWS = new Set(["today", "tomorrow", "inbox", "sent", "calendar"]);
+function listPathForView(formData: FormData): string {
+  const view = cleanText(formData.get("view"));
+  return LIST_VIEWS.has(view) ? `/mobile/tasks?view=${view}` : "/mobile/tasks";
+}
+
+// Shift a Tokyo YYYY-MM-DD by n days, returning the same format.
+function ymdShift(ymd: string, n: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
 // "To today" swipe action: schedule the task for the Tokyo operating date and pull it
-// out of Inbox. Returns to the list so the card moves into Today.
+// out of Inbox. Returns to the originating tab so the card moves into Today.
 export async function moveTaskToToday(formData: FormData) {
   const id = cleanText(formData.get("taskId"));
   await requireSessionAndTask(id);
@@ -343,7 +254,22 @@ export async function moveTaskToToday(formData: FormData) {
     .from("tasks")
     .update({ scheduled_date: today, is_inbox: false } as never)
     .eq("id", id);
-  redirect("/mobile/tasks");
+  redirect(listPathForView(formData));
+}
+
+// "To tomorrow" swipe action (Today tab): defer the task to the Tokyo next operating date and pull
+// it out of Inbox. Returns to the originating tab so the card moves into Tomorrow.
+export async function moveTaskToTomorrow(formData: FormData) {
+  const id = cleanText(formData.get("taskId"));
+  await requireSessionAndTask(id);
+  const today = (await import("@/lib/tasks")).tokyoToday();
+  const tomorrow = ymdShift(today, 1);
+  const supabase = getSupabaseServiceClient();
+  await supabase
+    .from("tasks")
+    .update({ scheduled_date: tomorrow, is_inbox: false } as never)
+    .eq("id", id);
+  redirect(listPathForView(formData));
 }
 
 export async function shareTaskWithUsers(formData: FormData) {
@@ -474,6 +400,36 @@ export async function deleteTasksInList(taskIds: string[]) {
     .delete()
     .in("id", ids)
     .eq("created_by_user_id", session.user.id);
+  revalidatePath("/mobile/tasks");
+}
+
+// Persist a manual drag-reorder of the Today view. `orderedIds` is the section's task ids in their
+// new top-to-bottom order; each row's sort_order is set to its index (0..n). Org-scoped, so a user
+// can only reorder tasks inside their own organization. sort_order is global to the task (not
+// per-user) — see the migration note. Stays on the list (revalidates); the optimistic client order
+// already reflects the change.
+export async function reorderTasks(orderedIds: string[]) {
+  const ids = Array.from(
+    new Set((orderedIds ?? []).map((s) => String(s).trim()).filter(Boolean)),
+  ).slice(0, 500);
+  if (ids.length === 0) return;
+  const session = await getCurrentAppSession();
+  if (!session) {
+    redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
+  }
+  if (!hasOrganizationContext(session)) {
+    redirect("/admin");
+  }
+  const supabase = getSupabaseServiceClient();
+  await Promise.all(
+    ids.map((id, index) =>
+      supabase
+        .from("tasks")
+        .update({ sort_order: index } as never)
+        .eq("id", id)
+        .eq("organization_id", session.organization.id),
+    ),
+  );
   revalidatePath("/mobile/tasks");
 }
 

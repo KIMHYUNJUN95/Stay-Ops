@@ -79,6 +79,7 @@ type MobileCalendarLiveViewProps = {
   selectedProperty: string | null;
   statusLabels: Record<CalendarReservationItem["status"], string>;
   today: string;
+  initialReservationId?: string | null;
 };
 
 export function MobileCalendarLiveView(props: MobileCalendarLiveViewProps) {

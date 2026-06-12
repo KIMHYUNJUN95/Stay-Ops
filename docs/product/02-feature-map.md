@@ -33,8 +33,7 @@ Key features:
 - Detailed task create/edit
 - Private-by-default task
 - Share with multiple participants
-- One common status/completion for shared tasks
-- Today / Inbox / My Tasks / Sent / Completed / Calendar views
+- Today / Tomorrow / Inbox / Sent / Calendar views
 - Scheduled date + due date
 - Simple recurrence
 - Unified update-log

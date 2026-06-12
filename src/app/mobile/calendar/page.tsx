@@ -14,6 +14,7 @@ import {
   isExcludedOperationalRoom,
 } from "@/lib/room-label-normalization";
 import {
+  type ActiveRoomCatalogItem,
   buildPropertyRoomLookups,
   getActiveRoomCatalog,
   getActiveRoomLabels,
@@ -167,6 +168,7 @@ type MobileCalendarPageProps = {
     debug?: string;
     month?: string;
     property?: string;
+    reservationId?: string;
   }>;
 };
 
@@ -226,6 +228,7 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
 
   const rawMonth = params.month;
   const selectedProperty = normalizePropertyParam(params.property);
+  const initialReservationId = params.reservationId ?? null;
   const roomDebugEnabled =
     process.env.NODE_ENV === "development" && params.debug === "rooms";
   const nextPathParams = new URLSearchParams();
@@ -281,15 +284,7 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
 
   let reservations: CalendarReservationItem[] = [];
   let roomMasterRooms: string[] | undefined;
-  let roomCatalog:
-    | {
-        canonicalRoomLabel: string;
-        displayRoomLabel: string;
-        externalRoomId: string | null;
-        propertyName: string;
-        roomLabel: string;
-      }[]
-    | undefined;
+  let roomCatalog: ActiveRoomCatalogItem[] | undefined;
 
   if (isOutOfWindow) {
     const [rooms, catalog] = await Promise.all([
@@ -617,6 +612,7 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
         selectedProperty={effectiveSelectedProperty}
         statusLabels={dictionary.admin.reservationStatusLabels}
         today={today}
+        initialReservationId={initialReservationId}
       />
     </MobileShell>
   );

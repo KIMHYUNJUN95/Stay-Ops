@@ -7,13 +7,17 @@ import {
   Check,
   Clock,
   Flag,
+  GripVertical,
   ImageIcon,
+  MapPin,
   Repeat2,
   Share2,
   Sun,
+  Sunrise,
 } from "lucide-react";
-import { completeTask, moveTaskToToday } from "@/app/mobile/tasks/[id]/actions";
+import { moveTaskToToday, moveTaskToTomorrow } from "@/app/mobile/tasks/[id]/actions";
 import type { Dictionary } from "@/lib/i18n";
+import { localizePropertyName } from "@/lib/room-label-normalization";
 import type { TaskRecord } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +67,7 @@ const PRIO_RING: Record<string, string> = {
 
 
 export function TaskCard({
+  buildingLabels,
   copy,
   currentUserId,
   task,
@@ -70,13 +75,17 @@ export function TaskCard({
   showDate = true,
   swipe = true,
   sentMode = false,
-  onQuickComplete,
   selectMode = false,
   selectedIds,
   onToggleSelect,
   onLongPress,
-  showMoveToday = true,
+  swipeAction = "today",
+  swipeReturnView,
+  reorderable = false,
+  reordering = false,
+  onReorderHandleDown,
 }: {
+  buildingLabels: Record<string, string>;
   copy: Copy;
   currentUserId: string;
   task: TaskRecord;
@@ -84,17 +93,23 @@ export function TaskCard({
   showDate?: boolean;
   swipe?: boolean;
   sentMode?: boolean;
-  // When provided, completing from the list is handled client-side (optimistic hide + undo
-  // snackbar) instead of the redirecting server-action form. Falls back to the form if absent.
-  onQuickComplete?: (task: TaskRecord) => void;
   // Multi-select: in select mode tapping toggles selection (instead of navigating) and a
   // checkbox replaces the complete circle. Long-press (outside select mode) opens the context menu.
   selectMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (task: TaskRecord) => void;
   onLongPress?: (task: TaskRecord) => void;
-  // "Move to today" swipe action. Hidden in the Today view (where it's redundant); shown elsewhere.
-  showMoveToday?: boolean;
+  // Swipe reveal action: "today" pulls the task to today (Tomorrow/Inbox tabs), "tomorrow" defers
+  // it to tomorrow (Today tab). `swipeReturnView` is posted with the action so the server redirect
+  // keeps the user on the tab they swiped from.
+  swipeAction?: "today" | "tomorrow";
+  swipeReturnView?: string;
+  // Drag-reorder (Today view): shows a dedicated grip handle. The handle owns its own pointer
+  // gesture and stops propagation, so it never triggers tap / long-press / swipe on the card body.
+  // `reordering` is true on the card currently being dragged (suppresses tap navigation on drop).
+  reorderable?: boolean;
+  reordering?: boolean;
+  onReorderHandleDown?: (e: React.PointerEvent, task: TaskRecord) => void;
 }) {
   const router = useRouter();
   const done = task.status === "completed";
@@ -102,9 +117,8 @@ export function TaskCard({
   const dueDate = tokyoDateOf(task.dueAt);
   const overdue = !done && !!dueDate && dueDate < today;
 
-  // Hide "Move to today" in the Today view; the swipe track shrinks to just the Complete action.
-  const showToday = showMoveToday;
-  const swipeOpen = showToday ? 138 : 74;
+  // One swipe action (today / tomorrow), revealed at a fixed width sized to its single button.
+  const swipeOpen = 74;
   const swipeSnap = swipeOpen / 2;
 
   const [offset, setOffset] = useState(0);
@@ -211,6 +225,8 @@ export function TaskCard({
     const wasSwipe = didSwipe.current;
     longFired.current = false;
     didSwipe.current = false;
+    // Ignore the synthetic click that can land on the card right after a drag-reorder drop.
+    if (reordering) return;
     if (selectMode) {
       onToggleSelect?.(task);
       return;
@@ -267,6 +283,25 @@ export function TaskCard({
 
   const chip = "inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600";
 
+  const ctx = task.resolvedContext;
+  const ctxLabel = ctx
+    ? [
+        ctx.propertyName ? localizePropertyName(ctx.propertyName, buildingLabels) : null,
+        // For Okubo-style buildings, roomLabel === propertyName (canonical); suppress to avoid redundancy.
+        ctx.roomLabel && ctx.roomLabel !== ctx.propertyName
+          ? `${ctx.roomLabel}${copy.contextPickerRoomSuffix}`
+          : null,
+      ].filter(Boolean).join(" · ") ||
+      ctx.guestName ||
+      null
+    : null;
+  const ctxChip = ctxLabel ? (
+    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold text-primary" style={{ background: "hsl(223 46% 32% / 0.09)" }}>
+      <MapPin className="size-3" aria-hidden="true" />
+      {ctxLabel}
+    </span>
+  ) : null;
+
   const cardInner = (
     <div
       className={cn(
@@ -291,28 +326,13 @@ export function TaskCard({
         <span className="mt-0.5 flex size-[22px] shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
           <Check className="size-3.5" strokeWidth={3} aria-hidden="true" />
         </span>
-      ) : onQuickComplete ? (
-        <button
-          aria-label={copy.complete}
+      ) : (
+        <span
           className={cn(
-            "mt-0.5 flex size-[22px] shrink-0 items-center justify-center rounded-full border-2 transition-colors active:scale-90",
+            "mt-0.5 flex size-[22px] shrink-0 items-center justify-center rounded-full border-2",
             PRIO_RING[task.priority] ?? PRIO_RING.normal,
           )}
-          onClick={() => onQuickComplete(task)}
-          type="button"
         />
-      ) : (
-        <form action={completeTask}>
-          <input name="taskId" type="hidden" value={task.id} />
-          <button
-            aria-label={copy.complete}
-            className={cn(
-              "mt-0.5 flex size-[22px] shrink-0 items-center justify-center rounded-full border-2 transition-colors active:scale-90",
-              PRIO_RING[task.priority] ?? PRIO_RING.normal,
-            )}
-            type="submit"
-          />
-        </form>
       )}
 
       <button
@@ -330,6 +350,7 @@ export function TaskCard({
           {task.title}
         </p>
         {dateChip ||
+        ctxChip ||
         task.timeLabel ||
         task.recurrenceRule ||
         task.tags.length ||
@@ -337,6 +358,7 @@ export function TaskCard({
         summary ? (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {dateChip}
+            {ctxChip}
             {task.timeLabel ? (
               <span className={chip}>
                 <Clock className="size-3" aria-hidden="true" />
@@ -382,6 +404,28 @@ export function TaskCard({
           aria-hidden="true"
         />
       ) : null}
+
+      {/* Drag handle (Today view only). Owns its own pointer gesture; stops touch/pointer/click
+          propagation and sets touch-action:none so it never starts the card's tap, long-press,
+          or swipe. `-mr-1` pulls it to the card edge without widening the row. */}
+      {reorderable ? (
+        <button
+          aria-label={copy.reorderHandle}
+          className="-mr-1 -my-1 flex shrink-0 cursor-grab touch-none items-center self-stretch px-1 text-slate-300 transition-colors active:cursor-grabbing active:text-slate-400"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            onReorderHandleDown?.(e, task);
+          }}
+          onTouchStart={(e) => e.stopPropagation()}
+          type="button"
+        >
+          <GripVertical className="size-[18px]" aria-hidden="true" />
+        </button>
+      ) : null}
     </div>
   );
 
@@ -426,42 +470,26 @@ export function TaskCard({
             : "transform 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease",
         }}
       >
-        {showToday ? (
-          <form action={moveTaskToToday} className="flex">
-            <input name="taskId" type="hidden" value={task.id} />
-            <button
-              className="flex w-[56px] flex-col items-center justify-center gap-1 rounded-[14px] bg-muted text-muted-foreground shadow-[0_2px_8px_-4px_rgba(20,16,10,0.22)] transition-transform active:scale-[0.93]"
-              type="submit"
-            >
-              <Sun className="size-4" strokeWidth={2.2} aria-hidden="true" />
-              <span className="text-[10px] font-bold tracking-tight">{copy.swipeToday}</span>
-            </button>
-          </form>
-        ) : null}
-        {onQuickComplete ? (
+        <form
+          action={swipeAction === "tomorrow" ? moveTaskToTomorrow : moveTaskToToday}
+          className="flex"
+        >
+          <input name="taskId" type="hidden" value={task.id} />
+          {swipeReturnView ? <input name="view" type="hidden" value={swipeReturnView} /> : null}
           <button
-            className="flex w-[56px] flex-col items-center justify-center gap-1 rounded-[14px] bg-primary text-primary-foreground shadow-[0_3px_10px_-4px_hsl(var(--primary-hsl)/0.5)] transition-transform active:scale-[0.93]"
-            onClick={() => {
-              setOffset(0);
-              onQuickComplete(task);
-            }}
-            type="button"
+            className="flex w-[56px] flex-col items-center justify-center gap-1 rounded-[14px] bg-muted text-muted-foreground shadow-[0_2px_8px_-4px_rgba(20,16,10,0.22)] transition-transform active:scale-[0.93]"
+            type="submit"
           >
-            <Check className="size-4" strokeWidth={2.4} aria-hidden="true" />
-            <span className="text-[10px] font-bold tracking-tight">{copy.swipeComplete}</span>
+            {swipeAction === "tomorrow" ? (
+              <Sunrise className="size-4" strokeWidth={2.2} aria-hidden="true" />
+            ) : (
+              <Sun className="size-4" strokeWidth={2.2} aria-hidden="true" />
+            )}
+            <span className="text-[10px] font-bold tracking-tight">
+              {swipeAction === "tomorrow" ? copy.swipeTomorrow : copy.swipeToday}
+            </span>
           </button>
-        ) : (
-          <form action={completeTask} className="flex">
-            <input name="taskId" type="hidden" value={task.id} />
-            <button
-              className="flex w-[56px] flex-col items-center justify-center gap-1 rounded-[14px] bg-primary text-primary-foreground shadow-[0_3px_10px_-4px_hsl(var(--primary-hsl)/0.5)] transition-transform active:scale-[0.93]"
-              type="submit"
-            >
-              <Check className="size-4" strokeWidth={2.4} aria-hidden="true" />
-              <span className="text-[10px] font-bold tracking-tight">{copy.swipeComplete}</span>
-            </button>
-          </form>
-        )}
+        </form>
       </div>
       <div
         onContextMenu={onContextMenu}

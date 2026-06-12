@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   CalendarDays,
-  CheckCircle2,
   ChevronLeft,
   Clock,
   Crown,
@@ -20,11 +20,8 @@ import {
 } from "lucide-react";
 import {
   addTaskUpdate,
-  completeTask,
   deleteTask,
   removeTaskParticipant,
-  reopenTask,
-  setTaskStatus,
   shareTaskWithUsers,
 } from "@/app/mobile/tasks/[id]/actions";
 import {
@@ -32,6 +29,8 @@ import {
   type AnnouncementImageUploaderHandle,
 } from "@/components/announcements/announcement-image-uploader";
 import { uploadRequestImages } from "@/components/requests/request-image-upload";
+import { PhotoGallery } from "@/components/tasks/photo-gallery";
+import { LinkedContextBlock } from "@/components/tasks/linked-context-block";
 import { SharePicker } from "@/components/tasks/share-picker";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { ShareableUser, TaskDetail } from "@/lib/tasks";
@@ -80,17 +79,8 @@ function repeatLabel(rule: string, copy: Copy): string {
 function prioLabel(p: string, copy: Copy): string {
   return p === "urgent" ? copy.prioUrgent : p === "important" ? copy.prioImportant : copy.prioNormal;
 }
-function statusLabel(s: string, copy: Copy): string {
-  return s === "in_progress"
-    ? copy.statusInProgress
-    : s === "completed"
-      ? copy.statusCompleted
-      : s === "cancelled"
-        ? copy.statusCancelled
-        : copy.statusOpen;
-}
-
 export function TaskDetailView({
+  buildingLabels,
   canEditCore,
   copy,
   currentUserId,
@@ -99,6 +89,7 @@ export function TaskDetailView({
   task,
   users,
 }: {
+  buildingLabels: Record<string, string>;
   canEditCore: boolean;
   copy: Copy;
   currentUserId: string;
@@ -182,7 +173,7 @@ export function TaskDetailView({
   }
 
   return (
-    <div className="pb-28">
+    <div className="pb-10">
       {/* Context bar */}
       <div className="relative flex items-center gap-[11px] px-0.5 pb-3 pt-2">
         <Link
@@ -265,10 +256,12 @@ export function TaskDetailView({
           </div>
         ) : null}
         {task.imageUrls.length ? (
-          <p className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-muted-foreground">
-            <ImageIcon className="size-3.5" aria-hidden="true" />
-            {copy.photoCountLabel.replace("{count}", String(task.imageUrls.length))}
-          </p>
+          <PhotoGallery
+            closeLabel={copy.cancel}
+            size="md"
+            title={imgCopy.attachments}
+            urls={task.imageUrls}
+          />
         ) : null}
         <div className="mt-4 space-y-2 border-t border-slate-100 pt-3">
           {meta.map((m, i) => (
@@ -286,6 +279,20 @@ export function TaskDetailView({
           </p>
         ) : null}
       </div>
+
+      {/* Linked context */}
+      {task.resolvedContext ? (
+        <LinkedContextBlock
+          buildingLabels={buildingLabels}
+          copy={{
+            contextGoToReservation: copy.contextGoToReservation,
+            contextLinkedSection: copy.contextLinkedSection,
+            contextPickerNightsUnit: copy.contextPickerNightsUnit,
+            contextPickerRoomSuffix: copy.contextPickerRoomSuffix,
+          }}
+          context={task.resolvedContext}
+        />
+      ) : null}
 
       {/* Participants / share */}
       {task.isShared ? (
@@ -384,10 +391,12 @@ export function TaskDetailView({
                     </div>
                     {u.body ? <p className="mt-0.5 text-[13.5px] leading-5 text-slate-600">{u.body}</p> : null}
                     {u.imageUrls.length ? (
-                      <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
-                        <ImageIcon className="size-3" aria-hidden="true" />
-                        {copy.photoCountLabel.replace("{count}", String(u.imageUrls.length))}
-                      </span>
+                      <PhotoGallery
+                        closeLabel={copy.cancel}
+                        size="sm"
+                        title={imgCopy.attachments}
+                        urls={u.imageUrls}
+                      />
                     ) : null}
                   </div>
                 </div>
@@ -451,40 +460,6 @@ export function TaskDetailView({
         </div>
       </div>
 
-      {/* Bottom status bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-2.5 bg-[linear-gradient(180deg,transparent,var(--surface)_30%)] px-[18px] pb-[max(18px,env(safe-area-inset-bottom))] pt-4">
-        <div className="flex flex-1 items-center gap-1 rounded-2xl bg-slate-100 p-1">
-          {(["open", "in_progress"] as const).map((s) => (
-            <form action={setTaskStatus} className="flex-1" key={s}>
-              <input name="taskId" type="hidden" value={task.id} />
-              <input name="status" type="hidden" value={s} />
-              <button
-                className={cn(
-                  "h-9 w-full rounded-xl text-[13px] font-bold transition-colors",
-                  task.status === s ? "bg-surface text-foreground shadow-sm" : "text-muted-foreground",
-                )}
-                type="submit"
-              >
-                {statusLabel(s, copy)}
-              </button>
-            </form>
-          ))}
-        </div>
-        <form action={done ? reopenTask : completeTask}>
-          <input name="taskId" type="hidden" value={task.id} />
-          <button
-            className={cn(
-              "flex h-[50px] items-center justify-center gap-1.5 rounded-2xl px-6 text-[15px] font-extrabold",
-              done ? "border border-border bg-surface text-foreground" : "bg-primary text-primary-foreground",
-            )}
-            type="submit"
-          >
-            {done ? null : <CheckCircle2 className="size-5" aria-hidden="true" />}
-            {done ? copy.reopen : copy.complete}
-          </button>
-        </form>
-      </div>
-
       {/* Hidden share-more form (submitted by the picker) */}
       <form action={shareTaskWithUsers} className="hidden" ref={shareFormRef}>
         <input name="taskId" type="hidden" value={task.id} />
@@ -501,7 +476,7 @@ export function TaskDetailView({
         />
       ) : null}
 
-      {confirmDelete ? (
+      {confirmDelete && typeof document !== "undefined" ? createPortal(
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 px-7"
           onClick={() => setConfirmDelete(false)}
@@ -531,10 +506,11 @@ export function TaskDetailView({
               </form>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
 
-      {confirmLeave ? (
+      {confirmLeave && typeof document !== "undefined" ? createPortal(
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 px-7"
           onClick={() => setConfirmLeave(false)}
@@ -580,10 +556,11 @@ export function TaskDetailView({
               </form>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
 
-      {confirmRemove ? (
+      {confirmRemove && typeof document !== "undefined" ? createPortal(
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 px-7"
           onClick={() => setConfirmRemove(null)}
@@ -621,7 +598,8 @@ export function TaskDetailView({
               </form>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { UIEvent } from "react";
@@ -133,6 +134,7 @@ type MobileCalendarViewProps = {
   selectedProperty: string | null;
   statusLabels: Record<CalendarReservationItem["status"], string>;
   today: string;
+  initialReservationId?: string | null;
 };
 
 const DAY_WIDTH = 34;
@@ -337,12 +339,25 @@ export function MobileCalendarView({
   roomMasterRooms,
   propertyRoomsMap,
   roomSourceDebug,
-  selectedProperty,
+  selectedProperty: selectedPropertyProp,
   selectedMonth,
   selectedMonthLabel,
   statusLabels,
   today,
+  initialReservationId,
 }: MobileCalendarViewProps) {
+  const searchParams = useSearchParams();
+  // Resolve the active building from the live URL first, falling back to the server prop.
+  // A soft client navigation (router.push) to /mobile/calendar may serve a prefetched/cached RSC
+  // payload whose searchParams differ from the URL (e.g. the param-less building-picker payload),
+  // leaving the server prop stale. The page fetches reservations/propertyRoomsMap/propertyOptions
+  // independently of the selected property, so deriving it from the URL renders the grid correctly
+  // without a manual refresh. Falls back to the prop on full document loads.
+  const selectedProperty = useMemo(() => {
+    const fromUrl = searchParams.get("property");
+    if (fromUrl && propertyOptions.includes(fromUrl)) return fromUrl;
+    return selectedPropertyProp;
+  }, [searchParams, propertyOptions, selectedPropertyProp]);
   const [tokyoNow, setTokyoNow] = useState(() =>
     new Intl.DateTimeFormat(locale, {
       dateStyle: "medium",
@@ -573,6 +588,28 @@ export function MobileCalendarView({
       reservationCloseTimeoutRef.current = null;
     }, RESERVATION_SHEET_TRANSITION_MS);
   }, []);
+
+  // Auto-open the reservation sheet when arriving via deep-link from a task context.
+  // Read the reservationId from the live URL (useSearchParams) rather than the server prop, for the
+  // same stale-RSC-payload reason as selectedProperty above. The reservations list is fetched
+  // independently of this param, so the cached list still holds the target.
+  const deepLinkReservationId =
+    searchParams.get("reservationId") ?? initialReservationId ?? null;
+  // Guard set INSIDE the rAF callback (not before scheduling) so React StrictMode's mount→cleanup→
+  // mount double-invoke can't cancel the only scheduled open: the first cleanup cancels its frame
+  // without marking it done, and the second mount re-schedules. Deferring via rAF also keeps
+  // setState out of the effect body (lint: react-hooks/set-state-in-effect).
+  const autoOpenedIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!deepLinkReservationId) return;
+    if (autoOpenedIdRef.current === deepLinkReservationId) return;
+    if (!reservations.some((r) => r.id === deepLinkReservationId)) return;
+    const raf = requestAnimationFrame(() => {
+      autoOpenedIdRef.current = deepLinkReservationId;
+      openReservationSheet(deepLinkReservationId);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [deepLinkReservationId, reservations, openReservationSheet]);
 
   useEffect(() => {
     return () => {

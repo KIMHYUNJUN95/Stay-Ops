@@ -43,6 +43,7 @@ export default async function MobileTaskDetailPage({ params }: PageProps) {
   return (
     <MobileShell activeItem="tasks" badges={navBadges} title={dict.tasks.detailTitle}>
       <TaskDetailView
+        buildingLabels={dict.cleaning.buildingLabels}
         canEditCore={canEditTaskCore(session, task)}
         copy={dict.tasks}
         currentUserId={session.user.id}

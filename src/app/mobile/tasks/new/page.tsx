@@ -45,6 +45,7 @@ export default async function MobileTaskNewPage({ searchParams }: PageProps) {
     <MobileShell activeItem="tasks" badges={navBadges} title={copy.newTask}>
       <TaskCreateForm
         backHref="/mobile/tasks"
+        buildingLabels={dict.cleaning.buildingLabels}
         copy={copy}
         defaultDate={defaultDate}
         defaultTitle={defaultTitle}

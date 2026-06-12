@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Archive,
   CalendarDays,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Inbox,
@@ -19,18 +18,24 @@ import {
   Send,
   SlidersHorizontal,
   Sun,
+  Sunrise,
   Trash2,
   X,
 } from "lucide-react";
-import { quickCreateTask, quickCreateTodayTask } from "@/app/mobile/tasks/new/actions";
-import { completeTaskInList, deleteTasksInList } from "@/app/mobile/tasks/[id]/actions";
+import {
+  quickCreateTask,
+  quickCreateTodayTask,
+  quickCreateTomorrowTask,
+} from "@/app/mobile/tasks/new/actions";
+import { deleteTasksInList, reorderTasks } from "@/app/mobile/tasks/[id]/actions";
 import { TaskCard } from "@/components/tasks/task-card";
+import { ReorderableTaskList } from "@/components/tasks/reorderable-task-list";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { TaskRecord } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
 
 type Copy = Dictionary["tasks"];
-type View = "today" | "inbox" | "my" | "sent" | "completed" | "calendar";
+type View = "today" | "tomorrow" | "inbox" | "sent" | "calendar";
 
 function tokyoDateOf(iso: string | null): string | null {
   if (!iso) return null;
@@ -50,6 +55,7 @@ function ymdShift(ymd: string, n: number): string {
 }
 
 export function TasksWorkspace({
+  buildingLabels,
   copy,
   currentUserId,
   initialView,
@@ -57,6 +63,7 @@ export function TasksWorkspace({
   tasks: allTasks,
   today,
 }: {
+  buildingLabels: Record<string, string>;
   copy: Copy;
   currentUserId: string;
   initialView: View;
@@ -65,84 +72,9 @@ export function TasksWorkspace({
   today: string;
 }) {
   const [view, setView] = useState<View>(initialView);
-  const [doneFilter, setDoneFilter] = useState<"all" | "mine" | "recv">("all");
-
-  // --- List quick-complete + undo (Gmail-style). Tapping a card's circle optimistically hides
-  // it and shows a short undo snackbar; the DB write is committed only after the undo window
-  // (or when flushed), so Undo simply restores the card with no server round-trip or notification.
-  const [pendingDone, setPendingDone] = useState<Set<string>>(() => new Set());
-  const [snack, setSnack] = useState<{ id: string; title: string } | null>(null);
-  const [snackShown, setSnackShown] = useState(false);
-  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingIdRef = useRef<string | null>(null);
-  const [, startCommit] = useTransition();
-
-  const commitDone = useCallback((id: string) => {
-    startCommit(async () => {
-      await completeTaskInList(id);
-      // Revalidated data now marks it completed → safe to stop hiding it optimistically.
-      setPendingDone((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-    });
-  }, []);
-
-  const hideSnack = useCallback(() => {
-    setSnackShown(false);
-    setTimeout(() => setSnack(null), 300);
-  }, []);
-
-  const handleQuickComplete = useCallback(
-    (task: TaskRecord) => {
-      // Only one undo slot: if another completion is still pending, commit it now.
-      if (pendingIdRef.current && pendingIdRef.current !== task.id) {
-        if (commitTimer.current) clearTimeout(commitTimer.current);
-        commitDone(pendingIdRef.current);
-      }
-      setPendingDone((prev) => new Set(prev).add(task.id));
-      pendingIdRef.current = task.id;
-      setSnack({ id: task.id, title: task.title });
-      requestAnimationFrame(() => requestAnimationFrame(() => setSnackShown(true)));
-      if (commitTimer.current) clearTimeout(commitTimer.current);
-      commitTimer.current = setTimeout(() => {
-        commitTimer.current = null;
-        pendingIdRef.current = null;
-        commitDone(task.id);
-        hideSnack();
-      }, 4200);
-    },
-    [commitDone, hideSnack],
-  );
-
-  const handleUndo = useCallback(() => {
-    const id = pendingIdRef.current;
-    if (commitTimer.current) clearTimeout(commitTimer.current);
-    commitTimer.current = null;
-    pendingIdRef.current = null;
-    hideSnack();
-    if (id) {
-      setPendingDone((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-    }
-  }, [hideSnack]);
-
-  // Flush a still-pending completion on unmount (e.g. navigating away) so it isn't lost.
-  useEffect(
-    () => () => {
-      if (commitTimer.current) clearTimeout(commitTimer.current);
-      if (pendingIdRef.current) void completeTaskInList(pendingIdRef.current);
-    },
-    [],
-  );
-
-  // Active views never show a card that is mid-undo.
-  const tasks = pendingDone.size
-    ? allTasks.filter((t) => !pendingDone.has(t.id))
+  const [hiddenTaskIds, setHiddenTaskIds] = useState<Set<string>>(() => new Set());
+  const tasks = hiddenTaskIds.size
+    ? allTasks.filter((t) => !hiddenTaskIds.has(t.id))
     : allTasks;
   // Split mount vs. visibility so the sheet can play a slide/fade-OUT before unmounting.
   const [quickMounted, setQuickMounted] = useState(false); // present in the DOM
@@ -224,14 +156,14 @@ export function TasksWorkspace({
   const performDelete = useCallback(
     (ids: string[]) => {
       if (ids.length === 0) return;
-      setPendingDone((prev) => {
+      setHiddenTaskIds((prev) => {
         const next = new Set(prev);
         ids.forEach((id) => next.add(id));
         return next;
       });
       startDelete(async () => {
         await deleteTasksInList(ids);
-        setPendingDone((prev) => {
+        setHiddenTaskIds((prev) => {
           const next = new Set(prev);
           ids.forEach((id) => next.delete(id));
           return next;
@@ -244,14 +176,31 @@ export function TasksWorkspace({
     [],
   );
 
+  // Tokyo "tomorrow" (today + 1), used by the Tomorrow tab + its swipe defer action.
+  const tomorrowDate = ymdShift(today, 1);
   const isActive = (t: TaskRecord) => t.status !== "completed" && t.status !== "cancelled";
   const dueDateOf = (t: TaskRecord) => tokyoDateOf(t.dueAt);
   const isOverdue = (t: TaskRecord) => isActive(t) && !!dueDateOf(t) && dueDateOf(t)! < today;
   const isToday = (t: TaskRecord) =>
     isActive(t) && !isOverdue(t) && (t.scheduledDate === today || dueDateOf(t) === today);
+  // Tomorrow tab: active tasks anchored to tomorrow (scheduled or due). Future-dated, so never
+  // overdue. Mirrors isToday so a task can't fall through the IA between the two day tabs.
+  const isTomorrow = (t: TaskRecord) =>
+    isActive(t) && (t.scheduledDate === tomorrowDate || dueDateOf(t) === tomorrowDate);
   const anchor = (t: TaskRecord) => dueDateOf(t) ?? t.scheduledDate ?? null;
   const prioSort = (a: TaskRecord, b: TaskRecord) =>
     (PRIO_ORD[a.priority] ?? 2) - (PRIO_ORD[b.priority] ?? 2);
+  // Today-view ordering: a manual drag-reorder (sort_order) wins; unranked tasks (sort_order null)
+  // fall back to priority, preserving the original behaviour until the user drags. Ranked tasks
+  // always sort before unranked ones.
+  const orderSort = (a: TaskRecord, b: TaskRecord) => {
+    const ao = a.sortOrder;
+    const bo = b.sortOrder;
+    if (ao != null && bo != null) return ao !== bo ? ao - bo : prioSort(a, b);
+    if (ao != null) return -1;
+    if (bo != null) return 1;
+    return prioSort(a, b);
+  };
 
   // --- First-slice search / filter: title + author text, and anchor-date single/range.
   // One shared lightweight state across the list views; the date filter reuses the same
@@ -307,35 +256,37 @@ export function TasksWorkspace({
 
   const tabs: { key: View; label: string; icon: typeof Sun }[] = [
     { key: "today", label: copy.viewToday, icon: Sun },
+    { key: "tomorrow", label: copy.viewTomorrow, icon: Sunrise },
     { key: "inbox", label: copy.viewInbox, icon: Archive },
-    { key: "my", label: copy.viewMy, icon: ListChecks },
     { key: "sent", label: copy.viewSent, icon: Send },
-    { key: "completed", label: copy.viewCompleted, icon: CheckCircle2 },
     { key: "calendar", label: copy.viewCalendar, icon: CalendarDays },
   ];
 
+  // Swipe defer/pull action per view: Today → push to tomorrow; everywhere else → pull to today
+  // (in the Tomorrow tab this means "do it today"). Sent/Calendar render with swipe disabled.
+  const swipeActionForView: "today" | "tomorrow" = view === "today" ? "tomorrow" : "today";
+
   const cardProps = {
+    buildingLabels,
     copy,
     currentUserId,
     today,
-    onQuickComplete: handleQuickComplete,
     selectMode,
     selectedIds,
     onToggleSelect: toggleSelect,
     onLongPress: openPressMenu,
-    // "Move to today" swipe action is redundant in the Today view, useful everywhere else.
-    showMoveToday: view !== "today",
+    swipeAction: swipeActionForView,
+    // After the move the server action returns here; keep the user on the tab they swiped from.
+    swipeReturnView: view,
   };
 
-  // Per-tab counts (same base filters as each view) for the small chip badges. Uses the
-  // visible `tasks` list, so an optimistically completed card drops out of its tab count too.
+  // Per-tab counts (same base filters as each view).
   const tabCounts: Record<View, number> = {
     today: tasks.filter((t) => isOverdue(t) || isToday(t)).length,
-    // Archive = every active todo; My = everything active except what's already in Today.
+    tomorrow: tasks.filter(isTomorrow).length,
+    // Archive = every active todo in one management list.
     inbox: tasks.filter((t) => isActive(t)).length,
-    my: tasks.filter((t) => isActive(t) && !isToday(t)).length,
     sent: tasks.filter((t) => t.createdByUserId === currentUserId && t.isShared).length,
-    completed: tasks.filter((t) => t.status === "completed").length,
     calendar: 0,
   };
 
@@ -355,42 +306,6 @@ export function TasksWorkspace({
       <span className="h-px flex-1 bg-border" />
     </div>
   );
-
-  // Date divider used by the Archive/My/Completed lists: "6월 11일 · 오늘 · 목요일  N" — bold
-  // date, a relative label (yesterday/today/tomorrow) when it applies, weekday, and a count chip.
-  const yesterday = ymdShift(today, -1);
-  const tomorrow = ymdShift(today, 1);
-  const dateGroupHead = (ymd: string, n: number) => {
-    const dt = new Date(`${ymd}T00:00:00+09:00`);
-    const dateLabel = new Intl.DateTimeFormat(locale, {
-      month: "long",
-      day: "numeric",
-      timeZone: "Asia/Tokyo",
-    }).format(dt);
-    const weekday = new Intl.DateTimeFormat(locale, {
-      weekday: "long",
-      timeZone: "Asia/Tokyo",
-    }).format(dt);
-    const rel =
-      ymd === today
-        ? copy.todayLabel
-        : ymd === yesterday
-          ? copy.yesterdayLabel
-          : ymd === tomorrow
-            ? copy.quickTomorrow
-            : "";
-    return (
-      <div className="mb-2.5 mt-1 flex items-center gap-1.5 px-0.5">
-        <span className="text-[12.5px] font-black tracking-[-0.01em] text-foreground">{dateLabel}</span>
-        {rel ? <span className="text-[11.5px] font-bold text-primary">· {rel}</span> : null}
-        <span className="text-[11.5px] font-semibold text-muted-foreground">· {weekday}</span>
-        <span className="ml-0.5 rounded-full bg-slate-100 px-[7px] py-px font-mono text-[10.5px] font-semibold text-muted-foreground">
-          {n}
-        </span>
-        <span className="ml-1 h-px flex-1 bg-border" />
-      </div>
-    );
-  };
 
   const emptyState = (Icon: typeof Sun, title: string, sub?: string) => (
     <div className="flex flex-col items-center px-6 py-16 text-center">
@@ -427,31 +342,58 @@ export function TasksWorkspace({
       const baseToday = tasks.filter(isToday);
       if (!baseOver.length && !baseToday.length)
         return emptyState(Sun, copy.todayEmptyTitle, copy.todayEmptySub);
-      const over = applyFilter(baseOver).sort(prioSort);
-      const todays = applyFilter(baseToday).sort(prioSort);
+      const over = applyFilter(baseOver).sort(orderSort);
+      const todays = applyFilter(baseToday).sort(orderSort);
       if (!over.length && !todays.length) return noMatchState();
+      // Drag-reorder is offered only on the plain Today list — disabled while a search/date filter
+      // is active (the list is a subset) or in multi-select mode (the card body owns the tap).
+      const reorderDisabled = filterActive || selectMode;
       return (
         <>
           {over.length > 0 ? (
             <>
               {sectionHead(copy.secOverdue, over.length, "over")}
-              <div className="flex flex-col gap-2">
-                {over.map((t) => (
-                  <TaskCard key={t.id} task={t} {...cardProps} />
-                ))}
-              </div>
+              <ReorderableTaskList
+                cardProps={cardProps}
+                disabled={reorderDisabled}
+                items={over}
+                onPersist={reorderTasks}
+              />
             </>
           ) : null}
           {todays.length > 0 ? (
             <div className={over.length ? "mt-4" : ""}>
               {sectionHead(copy.secToday, todays.length)}
-              <div className="flex flex-col gap-2">
-                {todays.map((t) => (
-                  <TaskCard key={t.id} task={t} {...cardProps} />
-                ))}
-              </div>
+              <ReorderableTaskList
+                cardProps={cardProps}
+                disabled={reorderDisabled}
+                items={todays}
+                onPersist={reorderTasks}
+              />
             </div>
           ) : null}
+        </>
+      );
+    }
+
+    // Tomorrow (내일): same shape/features as Today (drag-reorder, chip layout), filtered to tasks
+    // anchored tomorrow. Swipe here pulls a task back to today (see swipeActionForView).
+    if (view === "tomorrow") {
+      const base = tasks.filter(isTomorrow);
+      if (base.length === 0)
+        return emptyState(Sunrise, copy.tomorrowEmptyTitle, copy.tomorrowEmptySub);
+      const list = applyFilter(base).sort(orderSort);
+      if (list.length === 0) return noMatchState();
+      const reorderDisabled = filterActive || selectMode;
+      return (
+        <>
+          {sectionHead(copy.secTomorrow, list.length)}
+          <ReorderableTaskList
+            cardProps={cardProps}
+            disabled={reorderDisabled}
+            items={list}
+            onPersist={reorderTasks}
+          />
         </>
       );
     }
@@ -478,50 +420,6 @@ export function TasksWorkspace({
       );
     }
 
-    // My tasks (내 task): everything active except Today, grouped by date like the Completed view.
-    if (view === "my") {
-      const base = tasks.filter((t) => isActive(t) && !isToday(t));
-      if (base.length === 0) return emptyState(ListChecks, copy.myEmptyTitle, copy.myEmptySub);
-      const list = applyFilter(base);
-      if (list.length === 0) return noMatchState();
-      const undated = list.filter((t) => !anchor(t));
-      const groups = new Map<string, TaskRecord[]>();
-      for (const t of list) {
-        const a = anchor(t);
-        if (!a) continue;
-        const arr = groups.get(a);
-        if (arr) arr.push(t);
-        else groups.set(a, [t]);
-      }
-      // Earliest date first (overdue at the top), each day's cards by priority.
-      const dayKeys = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b));
-      for (const k of dayKeys) groups.get(k)!.sort(prioSort);
-      return (
-        <div className="flex flex-col gap-5">
-          {dayKeys.map((k) => (
-            <div key={k}>
-              {dateGroupHead(k, groups.get(k)!.length)}
-              <div className="flex flex-col gap-2">
-                {groups.get(k)!.map((t) => (
-                  <TaskCard key={t.id} task={t} {...cardProps} />
-                ))}
-              </div>
-            </div>
-          ))}
-          {undated.length > 0 ? (
-            <div>
-              {sectionHead(copy.secNoDate, undated.length)}
-              <div className="flex flex-col gap-2">
-                {undated.sort(prioSort).map((t) => (
-                  <TaskCard key={t.id} task={t} {...cardProps} />
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      );
-    }
-
     if (view === "sent") {
       const base = tasks.filter((t) => t.createdByUserId === currentUserId && t.isShared);
       if (!base.length) return emptyState(Send, copy.sentEmptyTitle, copy.sentEmptySub);
@@ -537,77 +435,6 @@ export function TasksWorkspace({
                 <TaskCard key={t.id} task={t} sentMode swipe={false} {...cardProps} />
               ))}
             </div>
-          )}
-        </>
-      );
-    }
-
-    if (view === "completed") {
-      let base = tasks.filter((t) => t.status === "completed");
-      if (doneFilter === "mine") base = base.filter((t) => t.createdByUserId === currentUserId);
-      if (doneFilter === "recv") base = base.filter((t) => t.createdByUserId !== currentUserId);
-      const list = applyFilter(base);
-      const chips: { k: typeof doneFilter; l: string }[] = [
-        { k: "all", l: copy.filterAll },
-        { k: "mine", l: copy.filterMine },
-        { k: "recv", l: copy.filterReceived },
-      ];
-      return (
-        <>
-          <div className="mb-3 flex gap-2">
-            {chips.map((c) => (
-              <button
-                className={cn(
-                  "rounded-full border px-3 py-1.5 text-[12.5px] font-bold transition-colors",
-                  doneFilter === c.k
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-surface text-slate-600",
-                )}
-                key={c.k}
-                onClick={() => setDoneFilter(c.k)}
-                type="button"
-              >
-                {c.l}
-              </button>
-            ))}
-          </div>
-          {base.length === 0 ? (
-            emptyState(CheckCircle2, copy.completedEmptyTitle)
-          ) : list.length === 0 ? (
-            noMatchState()
-          ) : (
-            (() => {
-              // Group by completion date (Tokyo); newest day first, newest task first within a day.
-              const dateOf = (t: TaskRecord) =>
-                tokyoDateOf(t.completedAt) ?? tokyoDateOf(t.createdAt) ?? "";
-              const groups = new Map<string, TaskRecord[]>();
-              for (const t of list) {
-                const k = dateOf(t);
-                const arr = groups.get(k);
-                if (arr) arr.push(t);
-                else groups.set(k, [t]);
-              }
-              const dayKeys = Array.from(groups.keys()).sort((a, b) => b.localeCompare(a));
-              for (const k of dayKeys) {
-                groups
-                  .get(k)!
-                  .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
-              }
-              return (
-                <div className="flex flex-col gap-5">
-                  {dayKeys.map((k) => (
-                    <div key={k}>
-                      {dateGroupHead(k, groups.get(k)!.length)}
-                      <div className="flex flex-col gap-2">
-                        {groups.get(k)!.map((t) => (
-                          <TaskCard key={t.id} task={t} showDate={false} swipe={false} {...cardProps} />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()
           )}
         </>
       );
@@ -677,7 +504,7 @@ export function TasksWorkspace({
               <span
                 className={cn(
                   "size-1 rounded-full",
-                  isSel ? "bg-primary-foreground/80" : t.isShared ? "bg-primary" : "bg-slate-400",
+                  isSel ? "bg-primary-foreground/80" : t.isShared ? "bg-primary" : "bg-amber-500",
                 )}
                 key={i}
               />
@@ -769,7 +596,7 @@ export function TasksWorkspace({
           {isCurrentMonth ? (
             <div className="mt-3 flex items-center justify-center gap-4 border-t border-slate-100 pt-2.5 text-[10.5px] font-semibold text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
-                <span className="size-1.5 rounded-full bg-slate-400" />
+                <span className="size-1.5 rounded-full bg-amber-500" />
                 {copy.calLegendPersonal}
               </span>
               <span className="inline-flex items-center gap-1.5">
@@ -1221,46 +1048,30 @@ export function TasksWorkspace({
                   {copy.quickAddSave}
                 </button>
               </div>
-              {/* 오늘 탭에 바로 추가 — scheduled_date = today(Tokyo), 오늘 탭으로 이동 */}
-              <button
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 text-[13.5px] font-extrabold text-amber-700 transition-colors active:bg-amber-100 disabled:opacity-40"
-                disabled={!quickTitle.trim()}
-                formAction={quickCreateTodayTask}
-                type="submit"
-              >
-                <Sun className="size-4" aria-hidden="true" />
-                {copy.quickAddToday}
-              </button>
+              {/* 오늘/내일 탭에 바로 추가 — scheduled_date = today/tomorrow(Tokyo), 해당 탭으로 이동 */}
+              <div className="flex gap-2.5">
+                <button
+                  className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground transition-colors active:bg-slate-50 disabled:opacity-40"
+                  disabled={!quickTitle.trim()}
+                  formAction={quickCreateTodayTask}
+                  type="submit"
+                >
+                  <Sun className="size-4 text-amber-400" aria-hidden="true" />
+                  {copy.quickAddToday}
+                </button>
+                <button
+                  className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground transition-colors active:bg-slate-50 disabled:opacity-40"
+                  disabled={!quickTitle.trim()}
+                  formAction={quickCreateTomorrowTask}
+                  type="submit"
+                >
+                  <Sunrise className="size-4 text-sky-500" aria-hidden="true" />
+                  {copy.quickAddTomorrow}
+                </button>
+              </div>
             </form>
           </div>
         </div>,
-            document.body,
-          )
-        : null}
-
-      {/* Quick-complete undo snackbar — small, slides up above the bottom tab bar. */}
-      {snack && hydrated
-        ? createPortal(
-            <div
-              className="pointer-events-none fixed inset-x-0 z-[80] flex justify-center px-4"
-              style={{ bottom: "max(96px, calc(env(safe-area-inset-bottom) + 88px))" }}
-            >
-              <div
-                className={cn(
-                  "pointer-events-auto flex items-center gap-3 rounded-full bg-foreground/95 py-2.5 pl-4 pr-2.5 text-[13px] font-bold text-background shadow-[0_12px_30px_-10px_rgba(20,16,10,0.5)] backdrop-blur transition-all duration-300 motion-reduce:transition-none",
-                  snackShown ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0",
-                )}
-              >
-                <span className="truncate">{copy.completedToast}</span>
-                <button
-                  className="shrink-0 rounded-full bg-background/15 px-3 py-1 text-[13px] font-extrabold text-background transition-colors active:bg-background/25"
-                  onClick={handleUndo}
-                  type="button"
-                >
-                  {copy.undo}
-                </button>
-              </div>
-            </div>,
             document.body,
           )
         : null}

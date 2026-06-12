@@ -11,7 +11,7 @@ type PageProps = {
   searchParams: Promise<{ view?: string; created?: string }>;
 };
 
-const VIEWS = ["today", "inbox", "my", "sent", "completed", "calendar"] as const;
+const VIEWS = ["today", "tomorrow", "inbox", "sent", "calendar"] as const;
 
 export default async function MobileTasksPage({ searchParams }: PageProps) {
   const [state, session, params] = await Promise.all([
@@ -44,6 +44,7 @@ export default async function MobileTasksPage({ searchParams }: PageProps) {
   return (
     <MobileShell activeItem="tasks" badges={navBadges} title={dict.tasks.title}>
       <TasksWorkspace
+        buildingLabels={dict.cleaning.buildingLabels}
         copy={dict.tasks}
         currentUserId={session.user.id}
         initialView={initialView}

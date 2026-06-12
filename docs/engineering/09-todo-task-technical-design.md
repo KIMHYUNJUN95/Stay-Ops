@@ -6,7 +6,9 @@ Status: First slice implemented (2026-06-10) — migration `202606100003_todo_ta
 through service-role server actions** with explicit permission checks; notification_type gained
 `task_shared`/`task_updated`/`task_completed` and notifications fan out to participants; task photos
 reuse the `request-images` bucket (`task-images`/`task-update-images`). Recurrence is stored + shown
-only (no auto instance generation in this slice).
+only (no auto instance generation in this slice). As of 2026-06-12, the mobile UI no longer exposes
+manual task status / complete / reopen controls; the legacy `status` / `completed_*` columns remain
+in the schema for backward compatibility, but no current task surface mutates them.
 
 Hardening pass (2026-06-11): `quickCreateTask`/`createTask` roll back the inserted `tasks` row when
 the `task_participants` insert fails (no DB transaction in this path, so the rollback is an explicit
@@ -14,6 +16,28 @@ delete) — this prevents author-invisible orphan rows, since visibility depends
 membership. `updateTaskCore` now also writes `image_urls`, so task-level photos are author-editable
 after creation. Update-log photo upload is wired end-to-end (client upload → `addTaskUpdate` →
 `task_updates.image_urls`). Detailed create always sets `is_inbox = false` (see Inbox Rules).
+
+Bug fix (2026-06-12): sharing on detailed create failed with a NOT-NULL violation on
+`task_participants.is_first_recipient`. `createTask` bulk-inserts the author row + recipient rows in
+one array; PostgREST builds a single multi-row INSERT from the **union of keys** and fills any key a
+row omits with **NULL (not the column default)**. The author row omitted `is_first_recipient`, so it
+was written as NULL whenever recipients (which carry that key) were present. Fix: the author row now
+carries the same keys (`is_first_recipient: false`, `added_by_user_id: null`) so the shapes are
+uniform. Author-only inserts (private create, quick-add) were unaffected (single homogeneous row →
+column default applies).
+
+Bug fix (2026-06-12): the task-detail confirm modals (delete, author-leave / unshare-deletes-task,
+remove-participant) used `position: fixed inset-0` but were rendered **inline**, so the mobile
+shell's transformed scroll container trapped them (a transformed ancestor makes `fixed` relative to
+itself, not the viewport) and they appeared stuck near the top instead of centered. Fix: each is now
+`createPortal(…, document.body)` (guarded by `typeof document`), matching the existing body-portal
+pattern used by the quick-add sheet, `SharePicker`, and `ContextPickerSheet`.
+
+Context link (2026-06-12): tasks can optionally link a property · room · reservation · guest. The
+picker mirrors the reservation calendar's active-room catalog (active-only, sub-units like 201/201_2
+merged) via a shared resolver extracted into `src/lib/rooms.ts`; reservation-linked saves persist
+`reservation_id` + `guest_name`, and context display survives later room deactivation. See "Context
+Link (as-built 2026-06-12)" below.
 
 Hardening pass 2 (2026-06-11): `shareTaskWithUsers` is now fail-safe — it checks the
 `task_participants` insert result and short-circuits on failure, so a failed share never marks
@@ -40,7 +64,6 @@ Important clarification:
 ```txt
 one task
 + one participant set
-+ one common shared status
 + one unified update-log
 ```
 
@@ -50,8 +73,7 @@ Deliver:
 
 - private personal tasks by default
 - conversion from private to shared
-- common shared status/completion for participants
-- Today / Inbox / My Tasks / Sent By Me / Completed / Calendar views
+- Today / Tomorrow / Inbox / Sent By Me / Calendar views
 - quick add + detailed create
 - unified update-log with optional images
 
@@ -68,7 +90,6 @@ Do not include:
 The system should not use:
 
 - independent sender/recipient task copies
-- separate completion states per participant
 
 Use:
 
@@ -109,6 +130,7 @@ is_shared boolean not null default false
 recurrence_rule text
 tags text[] not null default '{}'
 image_urls text[] not null default '{}'
+sort_order integer                          -- manual Today/Tomorrow drag order; NULL = unranked (202606120001)
 completed_at timestamptz
 completed_by_user_id uuid references profiles(id)
 created_at timestamptz not null default now()
@@ -121,6 +143,8 @@ Notes:
 - original author remains the only core-content editor after sharing
 - `is_inbox` is an explicit workflow flag
 - `is_shared` is derived by participant count in logic, but a stored flag can simplify queries/UI
+- `sort_order` was added by migration `202606120001_task_sort_order.sql` (nullable; global to the
+  task, not per-user — see the drag-reorder section)
 
 ### `task_participants`
 
@@ -169,6 +193,8 @@ Notes:
 
 - use this for both participant notes and lightweight system log entries
 - `created_by_user_id` may be null only for system-generated events if implementation prefers that style
+- historical rows may still contain `status_changed` / `completed` / `reopened`, but the current UI
+  no longer writes those update types
 
 ## Core Editing Rules
 
@@ -186,12 +212,10 @@ Only the original author can edit:
 - recurrence_rule
 - task-level `image_urls`
 
-### Shared Workflow State
+### Shared Collaboration State
 
 Any current participant can update:
 
-- status
-- completed / reopened state
 - update-log entries
 
 ## Inbox Rules
@@ -202,8 +226,9 @@ As-built behavior (2026-06-11):
 
 - quick-add creates `is_inbox = true` (the staging entry point) via `quickCreateTask`
 - detailed create produces an organized task (`is_inbox = false`) via `createTask` — using the full create form is itself the deliberate "organize" act, so it does not land in Inbox
+- the Quick Add sheet's one-tap **Add to Today / Add to Tomorrow** shortcuts (`quickCreateTodayTask` / `quickCreateTomorrowTask`) also create organized tasks (`is_inbox = false`, `scheduled_date` set)
 - entry flow: the Quick Add sheet's **Save to Inbox** calls `quickCreateTask`; its **Full create** action links to `/mobile/tasks/new`, carrying any typed title via `?title=` (read into the form's `defaultTitle`, kept separate from `defaultDate` so Calendar's `?date=` prefill is unaffected). `/mobile/tasks/new` is the single full-create route, also used by the Calendar day sheet for date-prefilled creation.
-- a task enters/leaves Inbox only through deliberate actions afterward (swipe-to-Inbox, move in/out from detail), never implicitly from field edits
+- a task leaves Inbox through deliberate actions afterward — the swipe move actions (`moveTaskToToday` / `moveTaskToTomorrow` set `is_inbox = false`) — never implicitly from field edits. (`moveTaskToInbox` / `moveTaskOutOfInbox` exist as actions but no current UI surface calls them.)
 - shared tasks may remain in Inbox
 - shared Inbox membership is common to all participants
 
@@ -255,23 +280,20 @@ Recommended sorting:
 - visible tasks where `is_inbox = true`
 - newest first
 
-### My Tasks
+As-built note (2026-06-12): the current mobile `Inbox` tab label is operationally closer to
+`All active / 관리함` than a strict `is_inbox = true` slice. The UI shows every active visible task
+in one place and keeps `is_inbox` as a workflow flag manipulated by explicit actions.
 
-- tasks visible to the user through participant membership
+### Tomorrow
+
+- visible active tasks where `scheduled_date = tomorrow` or `due_at = tomorrow` in Tokyo
+- manual drag order wins when `sort_order` is set; otherwise fall back to priority
 
 ### Sent By Me
 
 - `created_by_user_id = current user`
 - especially useful when `is_shared = true`
 - sort by latest share/update signal
-
-### Completed
-
-- visible tasks where `status = completed`
-- support filtering by:
-  - created by me
-  - shared with me
-  - all related to me
 
 ### Calendar
 
@@ -309,8 +331,7 @@ via a local `matchesFilter(task)` / `applyFilter(list)` pair:
 - date: uses the same `anchor(task)` as grouping (`dueDateOf(task) ?? scheduledDate`, Tokyo); single
   mode is exact-equality, range mode is `from <= anchor <= to` with either bound optional; a `null`
   anchor never matches an active date filter.
-- the bar renders on Today/Inbox/My/Sent/Completed only (not Calendar); Completed composes it on top
-  of its existing `doneFilter` chips.
+- the bar renders on Today/Tomorrow/Inbox/Sent only (not Calendar).
 - empty vs no-result is distinguished per view by comparing the pre-filter base list against the
   filtered list (genuine empty state vs a `noMatchState()` with a clear action).
 
@@ -378,26 +399,31 @@ Update / delete:
 
 ## Server Actions / Routes
 
-Recommended actions:
+As-built actions (2026-06-12):
 
-- `quickCreateTask`
-- `createTask`
+Create (`src/app/mobile/tasks/new/actions.ts`):
+
+- `quickCreateTask` — quick-add → Inbox (`is_inbox = true`)
+- `quickCreateTodayTask` / `quickCreateTomorrowTask` — one-tap day shortcuts
+  (`scheduled_date` = today / tomorrow Tokyo, `is_inbox = false`, redirect to that day tab)
+- `createTask` — detailed create (dates, share, time, priority, tags, photos, context link)
+
+Mutate (`src/app/mobile/tasks/[id]/actions.ts`):
+
 - `updateTaskCore`
-- `setTaskStatus`
-- `completeTask`
-- `reopenTask`
-- `moveTaskToInbox`
-- `moveTaskOutOfInbox`
+- `moveTaskToToday` / `moveTaskToTomorrow` — swipe move actions; read a hidden `view` field and
+  redirect back to the originating tab
+- `moveTaskToInbox` / `moveTaskOutOfInbox` — exported but currently have **no UI call site**
+  (kept for a future explicit inbox toggle)
 - `shareTaskWithUsers`
 - `removeTaskParticipant`
-- `deleteTask`
+- `deleteTask` (detail) / `deleteTasksInList` (list multi-select batch; author-owned only)
+- `reorderTasks` — Today/Tomorrow drag-reorder persistence (`sort_order`)
 - `addTaskUpdate`
-- `listTodayTasks`
-- `listInboxTasks`
-- `listMyTasks`
-- `listSentTasks`
-- `listCompletedTasks`
-- `listTaskCalendarRange`
+
+Reads are not per-view actions: the page loads one org-scoped `getVisibleTasks(session)`
+(`src/lib/tasks.ts`, RLS-scoped) and every view (Today / Tomorrow / Inbox / Sent / Calendar)
+filters client-side in `tasks-workspace.tsx`.
 
 ## Dates / Recurrence Direction
 
@@ -478,6 +504,151 @@ Not required in first slice:
 - advanced recurrence-end modeling
 - a custom rule builder / parser
 
+## Context Link (as-built 2026-06-12)
+
+A task may optionally point at an operational context (property · room · reservation · guest). The
+columns already exist on `tasks` (`property_id`, `room_id`, `reservation_id`, `guest_name`); this
+slice wires the picker → save → display path. It deliberately stays separate from the reservation
+calendar and the cleaning room axis — it only *references* those records.
+
+### Picker server actions (`src/app/mobile/tasks/context-actions.ts`)
+
+All three mirror the **reservation calendar's active-room catalog** rather than querying
+`properties`/`rooms` raw, so the picker shows the same active inventory as the calendar:
+
+- `fetchPickerBuildings()` — active buildings derived from `getActiveRoomCatalog`, grouped by
+  canonical property name; returns `{ id (canonical name), name (localized), totalRooms, todayGuests }`.
+  Today's guest count resolves live reservations through the shared resolver.
+- `fetchPickerRooms(propertyId)` — active rooms for the building, **deduped by display label** so
+  sub-units collapse (`201` / `201_2` → one `201`); `occupied` flags come from today's live
+  reservations resolved to display labels.
+- `fetchRoomReservations(propertyId, displayRoomLabel)` — real bookings for that display room across
+  the current + next month window (Tokyo), filtered by resolving each reservation to its active-room
+  display label so sub-unit bookings surface under the merged room.
+
+Provisional fallback: when `getActiveRoomCatalog` returns `undefined` (org has no classified
+room-master rows), all three fall back to a legacy `properties`/`rooms` listing with exact
+`room_label` reservation matching — same provisional/authoritative split the calendar uses.
+
+### Shared resolver (single source of truth)
+
+The reservation → active-room resolution was extracted into `src/lib/rooms.ts` so the calendar and
+the context picker can never drift:
+
+- `getRawPayloadString(rawPayload, keys)`
+- `buildGlobalExternalRoomToCanonical(catalog)`
+- `resolveReservationCanonicalRoomLabel(item, { lookups, globalExternalRoomToCanonical, isAuthoritative })`
+  — priority: raw_payload room/unit id → unit name → reservation `room_label` (exact then normalized),
+  with the authoritative-vs-provisional drop rule.
+
+Use `getDisplayRoomLabel(canonicalProperty, <resolved key>)` to collapse sub-units for display. The
+calendar page still carries a behaviorally identical inline copy; unifying it onto the lib helper is a
+safe later cleanup.
+
+### Save path
+
+- The picker's `onSelect` populates the form's `linkedCtx`; `handleSubmit` appends `ctxPropertyId`,
+  `ctxRoomId`, `ctxReservationId`, and `ctxGuestName` to the form data.
+- `createTask` / `updateTaskCore` parse all four and write `property_id` / `room_id` /
+  `reservation_id` / `guest_name` (empty → `null`, which clears the link on edit). The edit page seeds
+  `initialCtx` from the task's `resolvedContext` (UUIDs included) so an existing link round-trips
+  without re-picking.
+- **UUID sourcing**: `getActiveRoomCatalog` / `ActiveRoomCatalogItem` carry `roomId` (`rooms.id`) and
+  `propertyId` (`rooms.property_id`); the picker surfaces them on `PickerBuilding.propertyId` and
+  `PickerRoom.{roomId,propertyId}`. A merged display room (201 = {201, 201_2}) uses the **base
+  sub-unit** (canonical key === display label) as its representative `room_id`. So a **room-only
+  link** (building · room, no reservation) now persists `property_id` + `room_id` and renders its
+  name in the chip/detail (previously these were unsaved and the room-only chip was blank).
+- `reservations` has no `room_id`/`property_id` (text `room_label`/`property_name` only); the picker's
+  room/property UUIDs come from the `rooms` catalog, not the reservation.
+
+### Hydrate / display
+
+- `buildLinkedContext()` in `src/lib/tasks.ts` resolves `TaskRecord.resolvedContext` during `hydrate`
+  via batch joins (reservation → property_name/room_label/source/dates; properties/rooms for room-only
+  links), and **normalizes** the reservation's raw labels to canonical property + merged display room
+  (`荒木町A` / `201_2` → `아라키초A` / `201`) for consistent chips/detail.
+- **Deactivation safety**: these context joins are **not status-filtered**. The picker offers only
+  active rooms for *new* links, but a task already linked to a room/reservation that later goes
+  inactive keeps resolving and displaying its context.
+
+### Deep-link to the reservation calendar (auto-open as-built 2026-06-12)
+
+`LinkedContextBlock` ("go to reservation") navigates to
+`/mobile/calendar?property={canonicalName}&month={check-in YYYY-MM}&reservationId={id}`. The calendar
+(`src/app/mobile/calendar/page.tsx`) accepts `property` (canonical name, matched via
+`getCanonicalPropertyName`), `month` (`YYYY-MM`), and `reservationId`.
+
+- **Auto-open**: when `reservationId` is present, `MobileCalendarView` opens that reservation's detail
+  sheet on arrival, so the guest info appears immediately (no extra tap).
+- **Read params from the live URL, not the server prop.** Both `reservationId` and `property` are read
+  client-side via `useSearchParams()` (with the server prop as a fallback). A soft `router.push` to
+  `/mobile/calendar` can serve a **prefetched/cached RSC payload** whose `searchParams` differ from the
+  URL (e.g. the param-less building-picker payload), leaving the server prop stale — which is why the
+  modal previously needed a manual refresh. The reservation list / room maps are fetched independently
+  of these params, so deriving them from the URL renders correctly without a refresh.
+- **StrictMode-safe auto-open**: the open is scheduled in a `requestAnimationFrame` and the
+  "already-opened" guard ref is set **inside** that callback (not before scheduling), so React's
+  dev mount→cleanup→mount double-invoke can't cancel the only scheduled open.
+- Room-only links omit `reservationId` (calendar opens, no sheet) and `month` (→ current month).
+  Guest-only links (no `propertyName`) render the card non-interactive (button `disabled`, affordance
+  hidden).
+- The in-create-form context card's **"예약 보기"** button (`ContextLinkSection`) does the same
+  `router.push` to the calendar. Because that unmounts the create form, `TaskCreateForm` persists an
+  **in-progress draft to `sessionStorage`** (key `taskDraft:${mode}:${taskId ?? "new"}`) on every
+  change and restores it on mount, so the round-trip keeps everything typed. Uncontrolled
+  title/description are restored by writing their DOM `value`; state fields are applied in a
+  `queueMicrotask` (avoids sync setState in the effect body). The draft is cleared on successful save
+  and on explicit back-to-list; unuploaded photo `File`s are the only non-restored field.
+
+### Tomorrow tab + day-tab swipe (as-built 2026-06-12)
+
+A second day tab, **Tomorrow** (`view=tomorrow`), sits next to Today and mirrors its full behaviour
+(card layout, chips, drag-reorder), filtered to `isTomorrow` = active && anchored to `ymdShift(today,
+1)` (Tokyo). Added to the page `VIEWS` allow-list, the workspace `View` union, and the chip tabs
+(`Sunrise` icon).
+
+Swipe action is parameterised per view via `TaskCard`'s `swipeAction: "today" | "tomorrow"` (replacing
+the old boolean `showMoveToday`): Today → `moveTaskToTomorrow` ("내일로"), every other swipe-enabled
+view → `moveTaskToToday` ("오늘로"). In the current IA that means Tomorrow + Inbox can pull a task to
+today, while Sent/Calendar keep swipe disabled. Both server actions read a hidden `view` field and
+redirect to `/mobile/tasks?view=<originating tab>` (allow-listed) so the user stays on the tab they
+swiped from.
+`moveTaskToTomorrow` sets `scheduled_date` = `ymdShift(tokyoToday(), 1)`, `is_inbox = false`. The
+swipe reveal is a single fixed-width (74px) button; Sent/Calendar still pass `swipe={false}`.
+
+### Drag-reorder, day tabs (as-built 2026-06-12)
+
+Manual drag-and-drop ordering for the **Today and Tomorrow** tabs.
+
+- **Schema**: `tasks.sort_order` (nullable `integer`, migration `202606120001_task_sort_order.sql`).
+  NULL = unranked → app falls back to priority order (pre-reorder behaviour preserved). Global to the
+  task, not per-user (MVP limitation, documented in the migration).
+- **Sorting**: `tasks-workspace.tsx` sorts the Today Overdue/Today sections and the Tomorrow list with
+  `orderSort` — `sort_order` ascending wins; ties and unranked tasks fall back to `prioSort`; ranked
+  tasks always precede unranked.
+- **Server action**: `reorderTasks(orderedIds)` in `src/app/mobile/tasks/[id]/actions.ts` sets each
+  id's `sort_order` to its index (0..n), **org-scoped** (service client, `eq(organization_id)`),
+  `revalidatePath("/mobile/tasks")`. Mirrors the `deleteTasksInList` session/permission pattern.
+- **Component**: `src/components/tasks/reorderable-task-list.tsx` owns the order state and the drag.
+  Pointer-based: drag starts from a **dedicated grip handle** rendered by `TaskCard` (`reorderable`
+  prop). The handle has `touch-action:none` and stops touch/pointer/click propagation, so it never
+  triggers the card's tap, long-press menu, or swipe. While dragging the order array is held fixed and
+  the move is previewed (dragged row follows the finger; crossed rows shift by one "slot" =
+  measured row height + 8px gap, handling variable card heights); the array is committed once on drop,
+  set optimistically, and persisted. Window `pointermove`/`up` listeners are attached **once** on
+  mount and gated on a `dragging` ref (stable add/remove); render-time values are mirrored into refs
+  via effects to satisfy `react-hooks/refs` (no ref read/write during render).
+- **Disabled** (handles hidden, plain list) when a search/date filter is active (list is a subset) or
+  in multi-select mode (card body owns the tap).
+
+### i18n
+
+`contextLink*` / `contextPicker*` keys plus `contextLinkedSection` / `contextGoToReservation`,
+`reorderHandle` (drag handle aria-label), the Tomorrow-tab set (`viewTomorrow` / `secTomorrow` /
+`tomorrowEmptyTitle` / `tomorrowEmptySub` / `swipeTomorrow`), and `quickAddTomorrow` — all in
+ko/ja/en.
+
 ## Images
 
 Task-level images:
@@ -494,6 +665,21 @@ Recommended MVP choice:
 
 - reuse current direct-upload pattern and file rules
 
+### Viewer (as-built 2026-06-12)
+
+Previously the task detail showed only a "사진 N장" count for both task-level and update-log photos —
+the attachments were never actually viewable. `src/components/tasks/photo-gallery.tsx` (`PhotoGallery`)
+now renders them, used in both spots in `task-detail-view.tsx` (task header `size="md"`, update-log
+notes `size="sm"`):
+
+- **Inline**: a few tiny rounded thumbnails (with a `+N` overlay past 4; no separate count/icon label).
+- **Bottom sheet**: tapping the thumbnails opens a body-portaled sheet (slide-up, ivory `bg-surface`)
+  with a 3-col grid of every attachment.
+- **Lightbox**: tapping a grid photo opens a body-portaled full-screen viewer — a CSS scroll-snap
+  carousel (native horizontal swipe) with a live `n / N` counter, glass close/nav chrome, and dots.
+  Both overlays portal to `<body>` (escaping the shell's transformed scroll container), lock body
+  scroll, and close on Esc. Title reuses `requestImages.attachments`; thumbnails use plain `<img>`.
+
 ## Notifications
 
 The refined product plan expects all of these:
@@ -503,11 +689,11 @@ The refined product plan expects all of these:
 - new update-log entry on a task I participate in
 - due soon
 - overdue
-- completed
 
-As-built (2026-06-11) — all six are implemented. `notification_type` gained `task_due_soon` and
-`task_overdue` (migration `202606110001_task_reminder_notifications.sql`) alongside the existing
-`task_shared` / `task_updated` / `task_completed`. All fan out through `notifyTaskParticipants`
+As-built (2026-06-12) — the active task notification set is shared / update-log / due-soon /
+overdue. `notification_type` gained `task_due_soon` and `task_overdue`
+(migration `202606110001_task_reminder_notifications.sql`) alongside the existing `task_shared` /
+`task_updated` / `task_completed`. All fan out through `notifyTaskParticipants`
 (service-role, org-scoped, recipient = current participants, deduped per recipient via
 `unique (recipient_user_id, dedupe_key)`); each carries the task id + title + event in its payload and
 deep-links to `/mobile/tasks/{id}`.
@@ -515,10 +701,9 @@ deep-links to `/mobile/tasks/{id}`.
 Event-driven (emitted from server actions, actor excluded from recipients):
 
 - `task_shared` — `createTask` (with recipients) and `shareTaskWithUsers`.
-- `task_completed` — `completeTask`.
 - `task_updated` — one type, distinguished by `payload.event`: `edited` (author core edit via
-  `updateTaskCore`), `note` (**update-log activity** via `addTaskUpdate` — this is the update-log
-  notification, kept distinct by event rather than a new type), and `reopened` (`reopenTask`).
+  `updateTaskCore`) and `note` (**update-log activity** via `addTaskUpdate` — this is the update-log
+  notification, kept distinct by event rather than a new type).
 
 Time-based (system reminders, no actor → every participant incl. the author is notified):
 
@@ -537,10 +722,9 @@ Implementation timing may still phase these, but the product direction is confir
 Recommended mobile routes/views:
 
 - Today
+- Tomorrow
 - Inbox
-- My Tasks
 - Sent By Me
-- Completed
 - Calendar
 - Quick add
 - Task detail

@@ -53,6 +53,7 @@ export default async function MobileTaskEditPage({ params, searchParams }: PageP
     <MobileShell activeItem="tasks" badges={navBadges} title={copy.editTask}>
       <TaskCreateForm
         backHref={detailHref}
+        buildingLabels={dict.cleaning.buildingLabels}
         copy={copy}
         defaultDate={null}
         headerTitle={copy.editTask}
@@ -69,6 +70,21 @@ export default async function MobileTaskEditPage({ params, searchParams }: PageP
           tags: task.tags,
           imageUrls: task.imageUrls,
         }}
+        initialCtx={
+          task.resolvedContext
+            ? {
+                propertyId: task.resolvedContext.propertyId,
+                roomId: task.resolvedContext.roomId,
+                propertyName: task.resolvedContext.propertyName,
+                roomLabel: task.resolvedContext.roomLabel,
+                reservationId: task.resolvedContext.reservationId,
+                guestName: task.resolvedContext.guestName,
+                channel: task.resolvedContext.channel,
+                checkinDate: task.resolvedContext.checkinDate,
+                checkoutDate: task.resolvedContext.checkoutDate,
+              }
+            : null
+        }
         mode="edit"
         organizationId={session.organization.id}
         serverError={serverError}

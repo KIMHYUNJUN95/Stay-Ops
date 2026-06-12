@@ -1,11 +1,13 @@
 # Todo / Task Workflow
 
 Status: First slice implemented (2026-06-10). Mobile Todo/Shared Task is live under
-`/mobile/tasks/*` (side-menu entry `tasks`). All six views (Today/Inbox/My/Sent/Completed/Calendar),
-quick add + detailed create/edit, task detail with unified update log, multi-select sharing, common
-shared status, and author/participant rules are implemented. Recurrence stores a rule + indicator
-only (no auto instance generation yet); notifications cover the full first slice — shared, update-log
-activity, completed, plus time-based **due-soon** and **overdue** reminders (daily cron). See
+`/mobile/tasks/*` (side-menu entry `tasks`). Five views (Today/Tomorrow/Inbox/Sent/Calendar),
+quick add + detailed create/edit, task detail with unified update log, multi-select sharing, and
+author/participant rules are implemented. Recurrence stores a rule + indicator only (no auto
+instance generation yet); notifications cover the current slice — shared, update-log activity, plus
+time-based **due-soon** and **overdue** reminders (daily cron). Manual task status / complete /
+reopen controls were removed on 2026-06-12, and the extra intermediate tab was removed in the same
+IA cleanup. See
 `docs/engineering/09-todo-task-technical-design.md` for the as-built schema/RLS and `docs/product/
 14-notification-design.md` for the notification matrix.
 
@@ -49,7 +51,7 @@ This module should cover:
 
 - personal task capture
 - operational follow-up
-- shared work with synchronized status
+- shared work with one common task record
 - task calendar
 - lightweight recurring task behavior
 
@@ -92,14 +94,13 @@ That means:
 - it is visible only to the creator at first
 - later, the creator can turn it into a shared task by adding people
 
-### 2. Shared Tasks Are Common Tasks
+### 2. Shared Tasks Use One Common Record
 
 Once a task is shared:
 
 - all participants see the same core task information
-- status is common
-- completion is common
-- reopen is common
+- all participants stay on the same canonical task
+- there are no per-user task copies
 
 This is important because the product should not show different truth to different participants.
 
@@ -120,13 +121,10 @@ Core content includes:
 
 Participants cannot edit the core content of a shared task.
 
-### 4. Participants Can Operate The Shared Workflow
+### 4. Participants Can Collaborate On The Shared Task
 
 Once shared, participants can still:
 
-- change the shared status
-- complete the task
-- reopen the task
 - add update-log entries
 - re-share to more people
 - remove themselves
@@ -180,6 +178,74 @@ But:
 - task items must not become reservation bars
 - reservation calendar and task calendar must remain distinct surfaces
 
+#### Context Link — as-built (2026-06-12)
+
+A task can optionally carry an operational **context link** so CS/field notes stay attached to the
+property · room · reservation · guest they are about. This is a convenience pointer, not a second
+reservation surface — it never creates calendar bars and stays separate from the Beds24 calendar.
+
+Picker flow (four screens, bottom sheet from the create/edit form):
+
+1. **Building** — choose a building. The list shows **only genuinely active buildings**, taken from
+   the same active-room catalog the reservation calendar uses (not a raw property list). Each row
+   shows its active room count and today's in-stay guest count.
+2. **Room + Reservation** — pick a room (occupancy shown), then optionally a reservation in that
+   room. Rooms shown are **only active rooms**, and physical sub-units are **merged into one cell**
+   (e.g. `201` and `201_2` are the same room → one `201` cell), exactly like the calendar room axis.
+   Reservations are the real bookings for that room across the current + next month window (Tokyo).
+3. **Room-only** — link just the building · room without a reservation (alt action).
+4. **Guest direct entry** — emergency fallback when Beds24 data is missing/not synced: link by typed
+   guest name with no date restriction. Clearly labeled as the missing-data path.
+
+Display:
+
+- A linked task shows a small **context chip** on its list card (building · room, or guest name) and
+  a full **linked-context block** in task detail (building · room, channel badge, guest, date range,
+  and a "go to reservation" affordance).
+- Property and room labels are shown in their **canonical/merged form** (e.g. a booking stored as
+  `荒木町A` / `201_2` displays as `아라키초A` / `201`), consistent with the calendar and the picker.
+- **Go to reservation** opens the reservation calendar filtered to that building and scrolled to the
+  reservation's check-in month, and — when the link points at a specific reservation — **auto-opens
+  that reservation's detail sheet** on arrival (via a `reservationId` deep-link param) so the guest
+  info is shown immediately, with no extra tap or manual refresh. A room-only link opens the calendar
+  without a sheet; a guest-only emergency link has no building to open, so its card is shown without
+  the navigation affordance.
+
+Both a **reservation link** and a **room-only link** are fully saved and displayed: the building name
+and room number resolve in the chip/detail even when no reservation is attached.
+
+Deactivation safety (confirmed rule): the picker only lets you **newly link active rooms**, but an
+**existing link is never dropped when its room/reservation later goes inactive** — the note keeps
+showing its context. Active-only filtering applies to *creating* a link, not to *displaying* one.
+
+#### Today / Tomorrow tabs, swipe + drag-reorder — as-built (2026-06-12)
+
+There are two day tabs side by side: **Today** (오늘) and **Tomorrow** (내일). The Tomorrow tab is a
+full copy of Today's behaviour (same card layout, chips, and drag-reorder), filtered to tasks
+anchored to tomorrow (Tokyo).
+
+**Swipe to move between the day tabs.** The card-body left-swipe reveals one action:
+
+- **Today tab → "내일로"** (defer to tomorrow): sets `scheduled_date` = tomorrow (Tokyo), un-inboxes.
+- **Tomorrow tab → "오늘로"** (pull to today): sets `scheduled_date` = today (Tokyo), un-inboxes.
+- Inbox also swipes **"오늘로"**; Sent / Calendar lists have swipe disabled.
+- After the move the server action returns the user to the **same tab** they swiped from (`?view=`),
+  so the card simply leaves the list.
+
+**Drag-reorder** (both day tabs):
+
+- **Today + Tomorrow only.** Today's Overdue/Today sections and the Tomorrow list are each
+  independently reorderable. Other views (Inbox/Sent/Calendar) keep their automatic ordering.
+- **Dedicated drag handle.** Each card shows a small grip handle (≡) on its right edge; dragging
+  starts only from the handle. It owns its own pointer gesture and stops propagation, so it never
+  triggers the card's **tap** (open), **long-press** (context menu), or **swipe** — no conflict.
+- **Persistence.** Order is stored in `tasks.sort_order` (nullable integer). NULL = unranked → falls
+  back to **priority order**, so behaviour is unchanged until the user first drags. Dropping assigns
+  every card in that section a sequential `sort_order` (0..n). The value is **global to the task, not
+  per-user** (MVP limitation): a shared task reordered by one member moves for everyone who sees it.
+- **Disabled when ambiguous.** Reorder is off (handles hidden, plain list) while a **search/date
+  filter** is active (the list is a subset) or in **multi-select mode** (the card body owns the tap).
+
 ### Maintenance / Lost and Found / Orders
 
 Todo can be used for follow-up around these modules.
@@ -213,7 +279,6 @@ So this should be modeled as:
 
 - one task record
 - one participant set
-- one common status if shared
 - one update-log stream
 
 Not as sender/recipient independent copies.
@@ -225,10 +290,9 @@ The feature should feel like a structured task workspace, not one flat list.
 Required major views:
 
 - Today
+- Tomorrow
 - Inbox
-- My Tasks
 - Sent By Me
-- Completed
 - Calendar
 
 ### Default First View
@@ -243,10 +307,9 @@ Recommended order:
 
 ```txt
 Today
+Tomorrow
 Inbox
-My Tasks
 Sent By Me
-Completed
 Calendar
 ```
 
@@ -272,21 +335,37 @@ Include:
 
 Recommended sort:
 
-1. overdue
-2. today's scheduled items
-3. then importance inside the group
+1. overdue section, then today's section
+2. inside each section: manual drag order if present
+3. then importance for unranked tasks
+
+### Tomorrow
+
+Purpose:
+
+- show what is already anchored to tomorrow
+
+Include:
+
+- tasks scheduled for tomorrow
+- tasks due tomorrow
+
+Recommended sort:
+
+1. manual drag order if present
+2. then importance
 
 ### Inbox
 
 Purpose:
 
-- temporary holding area for tasks captured quickly but not fully organized yet
+- active management list for the current user's visible tasks
 
 Meaning:
 
-- fast capture
-- staging area
-- later organization point
+- quick capture still lands here first
+- ongoing active tasks are also managed here
+- this is the broadest day-to-day task list in the mobile IA
 
 Rules:
 
@@ -294,6 +373,7 @@ Rules:
 - detailed create produces an organized task, not an Inbox task — opening the full create form is the deliberate "organize" act
 - shared tasks may also remain in Inbox
 - a shared Inbox task appears in every participant's Inbox
+- current mobile implementation also uses this tab as the general active-task list (`관리함`), so users can review all active tasks in one place without a separate intermediate list tab
 
 Recommended behavior:
 
@@ -304,17 +384,6 @@ Recommended behavior:
 Recommended sort:
 
 - newest first
-
-### My Tasks
-
-Purpose:
-
-- show tasks that the current user needs to care about
-
-Includes:
-
-- user's personal tasks
-- tasks shared with the user
 
 ### Sent By Me
 
@@ -333,25 +402,6 @@ Should show:
 Recommended sort:
 
 - latest shared / latest updated first
-
-### Completed
-
-Purpose:
-
-- review completed task history without cluttering active work views
-
-This should be a separate screen, not just a folded section at the bottom of Today/My Tasks.
-
-Required filtering scope:
-
-- completed tasks created by me
-- completed tasks shared with me
-- all completed tasks related to me
-
-Rules:
-
-- personal completed tasks remain visible only to the owner
-- shared completed tasks remain visible to participants
 
 ### Calendar
 
@@ -381,7 +431,7 @@ As-built (2026-06-11):
   and agenda both update. On any non-current month a small **Today** button resets to the current month
   and re-selects today; the personal/shared legend shows only on the current month (keeps the header
   light). Tasks load once for the whole workspace, so month navigation is instant and client-side.
-- **Month grid** — each day cell shows up to three dots (shared = brand accent, personal = grey).
+- **Month grid** — each day cell shows up to three dots (shared = brand accent navy, personal = amber, chosen for clear hue + value contrast; the legend below the grid labels them).
   `Today` is ringed; the selected day is filled with the brand accent (its dots invert for contrast).
 - **Month agenda** — below the grid, the shown month's dated tasks are grouped by day in date order,
   each group with a localized weekday/day header, a count, and a `Today` chip on today's group. Tapping
@@ -531,6 +581,12 @@ Photos may be attached to:
 - the main task itself
 - update-log entries
 
+Viewing (as-built 2026-06-12): attached photos are shown, not just counted. Task detail (both the task
+header and each update-log note) renders a few **tiny thumbnails**; tapping them raises a **bottom
+sheet** listing every attachment, and tapping one there opens a **full-screen swipeable viewer**
+(multi-photo carousel with a position counter and dots). Before this, photos showed only as a
+"사진 N장" count with no way to open them.
+
 Removal behavior (as-built 2026-06-11): when the original author removes a task-level photo during a
 core edit, the file is hard-deleted from Storage (not just detached from the DB) — only files under
 the task's own org/`task-images` path are eligible, and removal happens server-side after the DB
@@ -546,7 +602,6 @@ Use one unified update-log stream.
 This stream should support:
 
 - participant progress notes
-- completion notes
 - follow-up notes
 - optional update images
 
@@ -554,8 +609,6 @@ It should also support system-style small entries such as:
 
 - task edited
 - task shared
-- task completed
-- task reopened
 
 So the user can see small signals like:
 
@@ -629,13 +682,10 @@ Only the original author can edit:
 - recurrence
 - task-level photos
 
-### Shared Task — Common Workflow State
+### Shared Task — Collaboration Actions
 
 Any participant can:
 
-- change status
-- complete
-- reopen
 - add update-log entries
 
 ### Participant Management
@@ -654,23 +704,6 @@ If the original author removes themselves:
 ### Deletion
 
 Deletion is hard delete.
-
-## Status
-
-Shared tasks should use one common status visible to all participants.
-
-Recommended base statuses:
-
-- open
-- in_progress
-- completed
-- cancelled
-
-Rules:
-
-- once shared, participants all see the same status
-- one participant completing the task completes it for all
-- one participant reopening the task reopens it for all participants
 
 ## Quick Add
 
@@ -716,6 +749,9 @@ The Quick Add ↔ Detailed Create distinction is made explicit in the interactio
 - The floating **Quick add** button (on every task view) opens a bottom sheet for **fast capture**:
   a title-only field, a primary **Save to Inbox** action (creates `is_inbox = true`), and a secondary
   **Full create** action. The sheet's helper copy states the two outcomes plainly.
+- Below those, two one-tap day shortcuts sit side by side — **Add to Today** and **Add to Tomorrow** —
+  which create an organized task (`is_inbox = false`) with `scheduled_date` set to today / tomorrow
+  (Tokyo) and jump straight to that day tab (`quickCreateTodayTask` / `quickCreateTomorrowTask`).
 - **Full create** is the deliberate organize path. It routes to `/mobile/tasks/new` (an organized task,
   `is_inbox = false`) where dates, share recipients, time, priority, tags, photos, and recurrence are
   configured. A short subtitle on that screen restates this. Any title already typed in Quick Add is
@@ -724,6 +760,12 @@ The Quick Add ↔ Detailed Create distinction is made explicit in the interactio
   (`?date=`); there is no separate full-create entry path.
 - Wording is unambiguous about destination: Quick Add → Inbox, Full create → organized task. Detailed
   create never lands in Inbox (see Inbox Rules).
+- **Draft preservation (2026-06-12)**: the detailed create/edit form mirrors its in-progress values
+  (title, description, dates, time, priority, tags, share recipients, linked context, expanded state)
+  into `sessionStorage`, so leaving the form and coming back restores them. This matters most for the
+  context link's **"예약 보기"** action, which navigates to the reservation calendar — a back-navigation
+  no longer wipes what was typed. The draft is cleared on a successful save and on an explicit
+  back-to-list; newly attached (not-yet-uploaded) photos are the one field a round-trip does not keep.
 
 ## Task Cards
 
@@ -753,18 +795,21 @@ Avoid by default:
 
 ## Swipe Actions
 
-Recommended first-slice swipe actions:
+As-built (2026-06-12) — one move action per view, revealed by a card-body left-swipe:
 
-- complete
-- move to Today
-- move to Inbox
+- **Today** → "내일로" (defer to tomorrow)
+- **Tomorrow / Inbox** → "오늘로" (pull to today)
+- **Sent / Calendar lists** → swipe disabled
+
+The action returns the user to the tab they swiped from. Full semantics live in the
+"Today / Tomorrow tabs, swipe + drag-reorder" section above.
 
 Possible later additions:
 
 - date change
 - share
 
-Do not prioritize destructive swipe-delete in the first slice.
+Do not prioritize destructive swipe-delete.
 
 ## Search / Filters
 
@@ -775,7 +820,7 @@ First-slice required search/filter axes:
 - date
 
 As-built (2026-06-11): a single lightweight search/filter bar sits below the view chips on the list
-views (Today / Inbox / My Tasks / Sent / Completed). One shared filter state is reused across those
+views (Today / Tomorrow / Inbox / Sent). One shared filter state is reused across those
 views and persists across tab switches.
 
 - **Text search** — one field matching task **title** and **author name** (case-insensitive partial).
@@ -788,8 +833,7 @@ views and persists across tab switches.
   chip plus a one-tap **Clear**. The date button also carries a small dot when a date filter is set.
 - **Empty vs no-result** — a view that is genuinely empty keeps its own empty state; a view that has
   tasks but matches none shows a distinct "no matching tasks" state with a Clear action.
-- **Scope** — the **Calendar** view does not show the bar (it already navigates by date). The
-  Completed view keeps its own Created-by-me / Shared-with-me chips and applies text/date on top.
+- **Scope** — the **Calendar** view does not show the bar (it already navigates by date).
 - Filtering is **client-side** over the already-loaded, org-scoped task set; it changes nothing about
   permissions, visibility, ownership, or shared state.
 
@@ -813,10 +857,9 @@ Tasks can be created from:
 And new-task entry should be available from:
 
 - Today
+- Tomorrow
 - Inbox
-- My Tasks
 - Sent By Me
-- Completed
 - Calendar
 
 ## Empty-State Tone
@@ -842,22 +885,20 @@ Admin web is intentionally deferred until the wider mobile feature set is comple
 Design in this order:
 
 1. Today
-2. Inbox
-3. My Tasks
+2. Tomorrow
+3. Inbox
 4. Sent By Me
-5. Completed
-6. Calendar
-7. quick add
-8. detailed create / edit
-9. task detail
-10. participant picker / share flow
+5. Calendar
+6. quick add
+7. detailed create / edit
+8. task detail
+9. participant picker / share flow
 
 ## Verification Focus For Future Implementation
 
 - private task visibility is preserved
-- shared task status stays common
 - only original author edits core fields
-- participants can update workflow state and update-log
+- participants can update the shared update-log
 - original-author leave = full delete
 - participant self-remove = disappear only for self
 - shared Inbox behavior is consistent for all participants

@@ -178,8 +178,6 @@ constraint. Each deep-links to `/mobile/tasks/{id}`.
 | Shared with me | `task_shared` | `createTask` (with recipients), `shareTaskWithUsers` | No |
 | Update-log activity (progress note) | `task_updated` (`event: note`) | `addTaskUpdate` | No |
 | Shared task edited (core) | `task_updated` (`event: edited`) | `updateTaskCore` | No |
-| Reopened | `task_updated` (`event: reopened`) | `reopenTask` | No |
-| Completed | `task_completed` | `completeTask` | No |
 | Due today (due soon) | `task_due_soon` | daily cron `/api/tasks/reminders` | n/a (system) |
 | Overdue | `task_overdue` | daily cron `/api/tasks/reminders` | n/a (system) |
 
@@ -199,7 +197,7 @@ Notes:
 | Event | Status |
 |---|---|
 | Order processed (주문 처리) | Implemented -- in-app only |
-| Task shared / update / completed / due-soon / overdue | Implemented -- in-app only |
+| Task shared / update / due-soon / overdue | Implemented -- in-app only |
 | Order approved | Planned -- not implemented |
 | Order rejected | Planned -- not implemented |
 | Important announcement | Planned -- not implemented |

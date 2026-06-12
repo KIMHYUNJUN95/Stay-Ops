@@ -30,6 +30,7 @@ export type Database = {
           reservation_id?: string | null;
           room_id?: string | null;
           scheduled_date?: string | null;
+          sort_order?: number | null;
           status?: string;
           tags?: string[];
           time_label?: string | null;
@@ -56,6 +57,7 @@ export type Database = {
           reservation_id: string | null;
           room_id: string | null;
           scheduled_date: string | null;
+          sort_order: number | null;
           status: string;
           tags: string[];
           time_label: string | null;
@@ -82,6 +84,7 @@ export type Database = {
           reservation_id?: string | null;
           room_id?: string | null;
           scheduled_date?: string | null;
+          sort_order?: number | null;
           status?: string;
           tags?: string[];
           time_label?: string | null;

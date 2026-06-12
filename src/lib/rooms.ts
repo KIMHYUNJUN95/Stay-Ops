@@ -9,6 +9,132 @@ import {
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
+type RawPayload = Database["public"]["Tables"]["reservations"]["Row"]["raw_payload"];
+
+/** Reads the first non-empty string/number value from a reservation raw_payload under any of `keys`. */
+export function getRawPayloadString(rawPayload: RawPayload, keys: string[]): string | null {
+  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
+    return null;
+  }
+  const record = rawPayload as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+    if (typeof value === "number") {
+      return String(value);
+    }
+  }
+  return null;
+}
+
+/** Catalog row shape needed to resolve a reservation to its active-room canonical key. */
+export type ReservationRoomResolveInput = {
+  property_name: string;
+  room_label: string;
+  raw_payload: RawPayload;
+};
+
+/**
+ * Builds the cross-property externalRoomId → canonical map. Handles property-name mismatch
+ * (e.g. Beds24 "荒木町A" not normalizing to canonical "아라키초A"); externalRoomId is globally unique.
+ */
+export function buildGlobalExternalRoomToCanonical(
+  catalog: ActiveRoomCatalogItem[],
+): Map<string, string> {
+  return new Map(
+    catalog
+      .filter((item) => item.externalRoomId !== null)
+      .map((item) => [item.externalRoomId as string, item.canonicalRoomLabel]),
+  );
+}
+
+/**
+ * Resolves a reservation to its active-room **internal canonical key** (e.g. "402_2"), or null.
+ *
+ * Single source of truth shared by the reservation calendar and the task context picker so the
+ * two never drift. Mirrors the calendar's resolution priority:
+ *   raw_payload room/unit id → raw_payload unit name → reservation room_label (exact then normalized).
+ * In authoritative mode (room master classified) an unresolved id/label drops the reservation;
+ * in provisional mode it falls back to the normalized room_label.
+ *
+ * Use `getDisplayRoomLabel(canonicalProperty, <result>)` to collapse sub-units (402 / 402_2 → 402).
+ */
+export function resolveReservationCanonicalRoomLabel(
+  item: ReservationRoomResolveInput,
+  opts: {
+    lookups: PropertyRoomLookups;
+    globalExternalRoomToCanonical: Map<string, string>;
+    isAuthoritative: boolean;
+  },
+): string | null {
+  const { lookups, globalExternalRoomToCanonical, isAuthoritative } = opts;
+  const canonicalPropertyName = getCanonicalPropertyName(item.property_name);
+  const allowed = lookups.allowedCanonicalByProperty[canonicalPropertyName] ?? new Set<string>();
+  const rawLabelMap = lookups.canonicalByRawLabel[canonicalPropertyName] ?? {};
+  const externalIdMap = lookups.canonicalByExternalId[canonicalPropertyName] ?? {};
+
+  const acceptCanonical = (key: string | null | undefined): string | null => {
+    if (!key || !allowed.has(key)) return null;
+    return key;
+  };
+
+  const payloadUnitId = getRawPayloadString(item.raw_payload, [
+    "roomId",
+    "room_id",
+    "unitId",
+    "unit_id",
+  ]);
+  if (payloadUnitId) {
+    const fromExternal =
+      externalIdMap[payloadUnitId] ?? globalExternalRoomToCanonical.get(payloadUnitId) ?? null;
+    const resolved = acceptCanonical(fromExternal);
+    if (resolved) return resolved;
+    if (isAuthoritative) return null;
+  }
+
+  const payloadUnitName = getRawPayloadString(item.raw_payload, [
+    "unitName",
+    "unit_name",
+    "roomName",
+    "room_name",
+    "roomLabel",
+    "unitLabel",
+    "unit_label",
+    "room_label",
+  ]);
+  if (payloadUnitName) {
+    const exactPayload = acceptCanonical(rawLabelMap[payloadUnitName]);
+    if (exactPayload) return exactPayload;
+    const normalizedPayload = acceptCanonical(
+      getCanonicalRoomLabel(canonicalPropertyName, payloadUnitName),
+    );
+    if (normalizedPayload) return normalizedPayload;
+  }
+
+  const exactRoomLabel = acceptCanonical(rawLabelMap[item.room_label]);
+  if (exactRoomLabel) return exactRoomLabel;
+
+  const normalizedRoomLabel = acceptCanonical(
+    getCanonicalRoomLabel(canonicalPropertyName, item.room_label),
+  );
+  if (normalizedRoomLabel) return normalizedRoomLabel;
+
+  if (isAuthoritative) {
+    return null;
+  }
+
+  if (payloadUnitId) {
+    const fromExternal =
+      externalIdMap[payloadUnitId] ?? globalExternalRoomToCanonical.get(payloadUnitId) ?? null;
+    const resolved = acceptCanonical(fromExternal);
+    if (resolved) return resolved;
+  }
+
+  return normalizedRoomLabel;
+}
+
 // Company internal rule: Beds24 room IDs with minimum_stay >= this threshold are inactive
 // for that period and must be excluded from room axis, empty-today counts, and operational lists.
 // See docs/engineering/01-beds24-integration.md for full rule documentation.
@@ -26,6 +152,10 @@ export type ActiveRoomCatalogItem = {
   externalRoomId: string | null;
   propertyName: string;
   roomLabel: string;
+  /** rooms.id — the physical room row's UUID (for context linking). */
+  roomId: string;
+  /** rooms.property_id — the owning property's UUID (for context linking). */
+  propertyId: string;
 };
 
 export type PropertyRoomLookups = {
@@ -136,7 +266,7 @@ export async function getActiveRoomCatalog(
 ): Promise<ActiveRoomCatalogItem[] | undefined> {
   const result = await supabase
     .from("rooms")
-    .select("room_label, external_room_id, status, external_provider, external_minimum_stay, properties(name)")
+    .select("id, property_id, room_label, external_room_id, status, external_provider, external_minimum_stay, properties(name)")
     .eq("organization_id", organizationId);
 
   if (result.error) {
@@ -145,6 +275,8 @@ export async function getActiveRoomCatalog(
   }
 
   const rows = (result.data ?? []) as Array<{
+    id: string;
+    property_id: string;
     properties: { name: string } | { name: string }[] | null;
     external_room_id: string | null;
     room_label: string;
@@ -195,6 +327,8 @@ export async function getActiveRoomCatalog(
         externalRoomId: row.external_room_id,
         propertyName,
         roomLabel: row.room_label,
+        roomId: row.id,
+        propertyId: row.property_id,
       };
     });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock, Share2, Users, X } from "lucide-react";
 import { createTask } from "@/app/mobile/tasks/new/actions";
@@ -12,6 +12,8 @@ import {
 } from "@/components/announcements/announcement-image-uploader";
 import { uploadRequestImages } from "@/components/requests/request-image-upload";
 import { SharePicker } from "@/components/tasks/share-picker";
+import { ContextLinkSection, type LinkedContext } from "@/components/tasks/context-link-section";
+import { ContextPickerSheet } from "@/components/tasks/context-picker-sheet";
 import type { Dictionary } from "@/lib/i18n";
 import type { ShareableUser } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
@@ -58,14 +60,30 @@ type TaskInitial = {
   imageUrls: string[];
 };
 
+// Context link initial state for edit mode — constructed from the task's resolved context.
+type TaskInitialCtx = Pick<
+  LinkedContext,
+  | "propertyId"
+  | "roomId"
+  | "propertyName"
+  | "roomLabel"
+  | "reservationId"
+  | "guestName"
+  | "channel"
+  | "checkinDate"
+  | "checkoutDate"
+>;
+
 export function TaskCreateForm({
   backHref,
+  buildingLabels,
   copy,
   defaultDate,
   defaultTitle,
   headerTitle,
   imgCopy,
   initial,
+  initialCtx,
   locale,
   mode = "create",
   organizationId,
@@ -75,6 +93,7 @@ export function TaskCreateForm({
 }: {
   // Page header is owned by the form so the top-right Save can be a native submit (keeps `isPending`).
   backHref: string;
+  buildingLabels: Record<string, string>;
   copy: Copy;
   defaultDate: string | null;
   locale: string;
@@ -84,6 +103,8 @@ export function TaskCreateForm({
   headerTitle: string;
   imgCopy: Dictionary["requestImages"];
   initial?: TaskInitial;
+  /** Pre-populated context link for edit mode (from the task's resolved context). */
+  initialCtx?: TaskInitialCtx | null;
   mode?: "create" | "edit";
   organizationId: string;
   serverError: string | null;
@@ -106,10 +127,109 @@ export function TaskCreateForm({
   const [tagDraft, setTagDraft] = useState("");
   const [existingImgUrls, setExistingImgUrls] = useState<string[]>(initial?.imageUrls ?? []);
   const [shareIds, setShareIds] = useState<string[]>([]);
+  const [linkedCtx, setLinkedCtx] = useState<LinkedContext | null>(initialCtx ?? null);
+  const [ctxPickerOpen, setCtxPickerOpen] = useState(false);
   const [more, setMore] = useState(isEdit);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(serverError);
   const [isPending, startTransition] = useTransition();
+
+  // ── In-progress draft persistence ──────────────────────────────────────────
+  // Tapping "예약 보기" navigates to the calendar (router.push) and a back-navigation remounts this
+  // form fresh, wiping everything typed. We mirror the in-progress values into sessionStorage so a
+  // round-trip (or any accidental leave) restores them. Cleared on a successful save and on an
+  // explicit back-to-list. (New, not-yet-uploaded photos are File objects and can't be serialized,
+  // so they are the one field a round-trip does not restore.)
+  const draftKey = `taskDraft:${mode}:${taskId ?? "new"}`;
+  const hydratedRef = useRef(false);
+  const submittedRef = useRef(false);
+
+  const clearDraft = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.removeItem(draftKey);
+    } catch {
+      /* ignore storage errors (private mode / quota) */
+    }
+  }, [draftKey]);
+
+  const persistDraft = useCallback(() => {
+    if (typeof window === "undefined" || submittedRef.current) return;
+    const form = formRef.current;
+    const titleVal = (form?.elements.namedItem("title") as HTMLInputElement | null)?.value ?? "";
+    const descVal =
+      (form?.elements.namedItem("description") as HTMLTextAreaElement | null)?.value ?? "";
+    const draft = {
+      title: titleVal,
+      description: descVal,
+      scheduled,
+      due,
+      time,
+      priority,
+      repeat,
+      tags,
+      shareIds,
+      linkedCtx,
+      more,
+      existingImgUrls,
+    };
+    try {
+      window.sessionStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch {
+      /* ignore storage errors */
+    }
+  }, [draftKey, scheduled, due, time, priority, repeat, tags, shareIds, linkedCtx, more, existingImgUrls]);
+
+  // Restore once on mount (before the persist effect can overwrite with initial state).
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    if (typeof window === "undefined") return;
+    let raw: string | null = null;
+    try {
+      raw = window.sessionStorage.getItem(draftKey);
+    } catch {
+      return;
+    }
+    if (!raw) return;
+    let d: Record<string, unknown>;
+    try {
+      d = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      return; // malformed draft — ignore
+    }
+    // Uncontrolled inputs: restore their DOM value directly.
+    const form = formRef.current;
+    if (form) {
+      const t = form.elements.namedItem("title") as HTMLInputElement | null;
+      if (t && typeof d.title === "string") t.value = d.title;
+      const ds = form.elements.namedItem("description") as HTMLTextAreaElement | null;
+      if (ds && typeof d.description === "string") ds.value = d.description;
+    }
+    // State fields: applied in a microtask so setState is not called synchronously in the effect
+    // body (react-hooks/set-state-in-effect), and still before paint so there is no flicker.
+    queueMicrotask(() => {
+      if (typeof d.scheduled === "string") setScheduled(d.scheduled);
+      if (typeof d.due === "string") setDue(d.due);
+      if (typeof d.time === "string") setTime(d.time);
+      if (typeof d.priority === "string") setPriority(d.priority);
+      if (typeof d.repeat === "string") setRepeat(d.repeat);
+      if (Array.isArray(d.tags)) setTags(d.tags.filter((x): x is string => typeof x === "string"));
+      if (Array.isArray(d.shareIds))
+        setShareIds(d.shareIds.filter((x): x is string => typeof x === "string"));
+      if (d.linkedCtx === null || (d.linkedCtx && typeof d.linkedCtx === "object"))
+        setLinkedCtx(d.linkedCtx as LinkedContext | null);
+      if (typeof d.more === "boolean") setMore(d.more);
+      if (Array.isArray(d.existingImgUrls))
+        setExistingImgUrls(d.existingImgUrls.filter((x): x is string => typeof x === "string"));
+    });
+  }, [draftKey]);
+
+  // Persist whenever a tracked value changes (after the initial restore has run).
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    persistDraft();
+  }, [persistDraft]);
 
   // `custom` is a recognized stored recurrence bucket but is NOT user-creatable in this slice
   // (no rule builder). It is surfaced read-only only when the task being edited already uses it,
@@ -155,6 +275,10 @@ export function TaskCreateForm({
     formData.set("repeat", repeat);
     formData.set("tagsJson", JSON.stringify(tags));
     formData.set("shareJson", JSON.stringify(shareIds));
+    formData.set("ctxPropertyId", linkedCtx?.propertyId ?? "");
+    formData.set("ctxRoomId", linkedCtx?.roomId ?? "");
+    formData.set("ctxReservationId", linkedCtx?.reservationId ?? "");
+    formData.set("ctxGuestName", linkedCtx?.guestName ?? "");
 
     if (isEdit) {
       formData.set("taskId", taskId ?? "");
@@ -176,6 +300,8 @@ export function TaskCreateForm({
           return;
         }
       }
+      submittedRef.current = true;
+      clearDraft();
       startTransition(async () => {
         await updateTaskCore(formData);
       });
@@ -196,6 +322,8 @@ export function TaskCreateForm({
       setError(copy.errors.save_failed);
       return;
     }
+    submittedRef.current = true;
+    clearDraft();
     startTransition(async () => {
       await createTask(formData);
     });
@@ -234,6 +362,12 @@ export function TaskCreateForm({
           aria-label={copy.backToList}
           className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground transition-colors active:bg-muted/70"
           href={backHref}
+          onClick={() => {
+            // Explicit leave-to-list discards the draft; the calendar round-trip ("예약 보기")
+            // navigates elsewhere and keeps it.
+            submittedRef.current = true;
+            clearDraft();
+          }}
         >
           <ChevronLeft className="size-[19px]" aria-hidden="true" />
         </Link>
@@ -258,6 +392,7 @@ export function TaskCreateForm({
         className="w-full rounded-2xl border border-border bg-surface px-4 py-3 text-[17px] font-extrabold text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-primary"
         defaultValue={initial?.title ?? defaultTitle ?? ""}
         name="title"
+        onInput={persistDraft}
         placeholder={copy.titlePlaceholder}
         required
       />
@@ -265,6 +400,7 @@ export function TaskCreateForm({
         className="min-h-[64px] w-full resize-none rounded-2xl border border-border bg-surface px-4 py-3 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-primary"
         defaultValue={initial?.description ?? ""}
         name="description"
+        onInput={persistDraft}
         placeholder={copy.descPlaceholder}
         rows={2}
       />
@@ -361,6 +497,19 @@ export function TaskCreateForm({
           </button>
         </div>
       ) : null}
+
+      {/* Context link — optional; not available in quick-add, only detailed create/edit. */}
+      <div>
+        <p className={sectionTitle}>{copy.contextLink}</p>
+        <ContextLinkSection
+          buildingLabels={buildingLabels}
+          copy={copy}
+          locale={locale}
+          onClear={() => setLinkedCtx(null)}
+          onOpenPicker={() => setCtxPickerOpen(true)}
+          value={linkedCtx}
+        />
+      </div>
 
       {/* More — collapsible advanced section (time / priority / tags / photos / repeat). */}
       <button
@@ -622,6 +771,18 @@ export function TaskCreateForm({
           }}
           onClose={() => setPickerOpen(false)}
           users={users}
+        />
+      ) : null}
+
+      {ctxPickerOpen ? (
+        <ContextPickerSheet
+          buildingLabels={buildingLabels}
+          copy={copy}
+          onClose={() => setCtxPickerOpen(false)}
+          onSelect={(ctx) => {
+            setLinkedCtx(ctx);
+            setCtxPickerOpen(false);
+          }}
         />
       ) : null}
     </form>
