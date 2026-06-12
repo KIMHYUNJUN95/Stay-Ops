@@ -112,7 +112,7 @@ async function notify(
   recipientUserIds: string[],
   actorUserId: string,
   organizationId: string,
-  type: "task_shared" | "task_updated",
+  type: "task_shared" | "task_updated" | "task_completed",
   event: TaskNotificationPayload["event"],
   taskTitle: string,
   dedupeBase: string,
@@ -231,7 +231,7 @@ export async function moveTaskOutOfInbox(formData: FormData) {
 
 // Allowed list views for the swipe-action return redirect (keeps the user on the tab they swiped
 // from). Mirrors the page's VIEWS allow-list.
-const LIST_VIEWS = new Set(["today", "tomorrow", "inbox", "sent", "calendar"]);
+const LIST_VIEWS = new Set(["today", "tomorrow", "inbox", "sent", "completed", "calendar"]);
 function listPathForView(formData: FormData): string {
   const view = cleanText(formData.get("view"));
   return LIST_VIEWS.has(view) ? `/mobile/tasks?view=${view}` : "/mobile/tasks";
@@ -270,6 +270,67 @@ export async function moveTaskToTomorrow(formData: FormData) {
     .update({ scheduled_date: tomorrow, is_inbox: false } as never)
     .eq("id", id);
   redirect(listPathForView(formData));
+}
+
+// Mark a task complete: set status + completion stamps, log a `completed` update, and notify the
+// other participants. Programmatic (called from the list card and the detail view via a transition)
+// — revalidates the list + detail so the card moves into the 완료/기록 tab. Idempotent: re-completing
+// an already-completed task is a no-op write.
+export async function completeTask(taskId: string) {
+  const id = String(taskId ?? "").trim();
+  if (!id) return;
+  const { session, task } = await requireSessionAndTask(id);
+  const supabase = getSupabaseServiceClient();
+  await supabase
+    .from("tasks")
+    .update({
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      completed_by_user_id: session.user.id,
+    } as never)
+    .eq("id", id);
+  await supabase.from("task_updates").insert({
+    task_id: id,
+    created_by_user_id: session.user.id,
+    update_type: "completed",
+  } as never);
+  await notify(
+    id,
+    otherParticipantIds(task, session.user.id),
+    session.user.id,
+    session.organization.id,
+    "task_completed",
+    "completed",
+    task.title,
+    `task_completed:${id}:${Date.now()}`,
+  );
+  revalidatePath("/mobile/tasks");
+  revalidatePath(detailPath(id));
+}
+
+// Re-open a completed task: clear status + completion stamps and log a `reopened` update. No
+// notification (re-opening is a quiet correction, typically the same user undoing a tap). Used by
+// the undo toast and the detail view's "다시 열기" button.
+export async function reopenTask(taskId: string) {
+  const id = String(taskId ?? "").trim();
+  if (!id) return;
+  const { session } = await requireSessionAndTask(id);
+  const supabase = getSupabaseServiceClient();
+  await supabase
+    .from("tasks")
+    .update({
+      status: "open",
+      completed_at: null,
+      completed_by_user_id: null,
+    } as never)
+    .eq("id", id);
+  await supabase.from("task_updates").insert({
+    task_id: id,
+    created_by_user_id: session.user.id,
+    update_type: "reopened",
+  } as never);
+  revalidatePath("/mobile/tasks");
+  revalidatePath(detailPath(id));
 }
 
 export async function shareTaskWithUsers(formData: FormData) {

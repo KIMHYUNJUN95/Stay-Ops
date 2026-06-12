@@ -44,3 +44,15 @@ export function canSwitchToFieldMode(role: Role) {
 export function canAccessFieldOperations(role: Role) {
   return (fieldOperationRoles as readonly Role[]).includes(role);
 }
+
+/**
+ * Whether a user may generate the daily work-report (Todo 완료/기록 tab).
+ *
+ * Staff-only feature: every regular staff member qualifies (any role except `part_time_staff`),
+ * and individual part-timers can be granted access via the per-user `can_generate_report` flag
+ * (toggled by owner/office_admin in admin user management). This keeps the few part-timers who work
+ * in a management capacity covered without promoting their role.
+ */
+export function canGenerateDailyReport(role: Role, reportFlag: boolean): boolean {
+  return role !== "part_time_staff" || reportFlag;
+}

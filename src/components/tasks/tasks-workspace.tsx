@@ -1,17 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Archive,
   CalendarDays,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  FileText,
   Inbox,
   ListChecks,
   Plus,
+  RotateCcw,
   Search,
   SearchX,
   Pencil,
@@ -27,15 +30,21 @@ import {
   quickCreateTodayTask,
   quickCreateTomorrowTask,
 } from "@/app/mobile/tasks/new/actions";
-import { deleteTasksInList, reorderTasks } from "@/app/mobile/tasks/[id]/actions";
+import {
+  completeTask,
+  deleteTasksInList,
+  reopenTask,
+  reorderTasks,
+} from "@/app/mobile/tasks/[id]/actions";
 import { TaskCard } from "@/components/tasks/task-card";
 import { ReorderableTaskList } from "@/components/tasks/reorderable-task-list";
+import { ReportSheet } from "@/components/tasks/report-sheet";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { TaskRecord } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
 
 type Copy = Dictionary["tasks"];
-type View = "today" | "tomorrow" | "inbox" | "sent" | "calendar";
+type View = "today" | "tomorrow" | "inbox" | "sent" | "completed" | "calendar";
 
 function tokyoDateOf(iso: string | null): string | null {
   if (!iso) return null;
@@ -176,6 +185,50 @@ export function TasksWorkspace({
     [],
   );
 
+  // --- Quick complete (status circle tap on any card) + undo toast.
+  const [, startComplete] = useTransition();
+  const [undoTask, setUndoTask] = useState<TaskRecord | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Optimistically hide the row, then run the server action; revalidatePath refreshes the list with
+  // the new status and we clear the hidden id. Completing shows an undo toast; reopening (in the
+  // 완료/기록 tab, or via undo) is itself the correction, so it shows none.
+  const runStatus = useCallback((task: TaskRecord, complete: boolean) => {
+    setHiddenTaskIds((prev) => new Set(prev).add(task.id));
+    startComplete(async () => {
+      if (complete) await completeTask(task.id);
+      else await reopenTask(task.id);
+      setHiddenTaskIds((prev) => {
+        const next = new Set(prev);
+        next.delete(task.id);
+        return next;
+      });
+    });
+  }, []);
+  const handleCompleteToggle = useCallback(
+    (task: TaskRecord) => {
+      const complete = task.status !== "completed";
+      runStatus(task, complete);
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+      if (complete) {
+        setUndoTask(task);
+        undoTimer.current = setTimeout(() => setUndoTask(null), 4000);
+      } else {
+        setUndoTask(null);
+      }
+    },
+    [runStatus],
+  );
+  const handleUndo = useCallback(() => {
+    setUndoTask((t) => {
+      if (t) runStatus(t, false);
+      return null;
+    });
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+  }, [runStatus]);
+
+  // 완료/기록 tab: daily-report sheet target date (the day-group whose 보고서 button was tapped).
+  const [reportDate, setReportDate] = useState<string | null>(null);
+
   // Tokyo "tomorrow" (today + 1), used by the Tomorrow tab + its swipe defer action.
   const tomorrowDate = ymdShift(today, 1);
   const isActive = (t: TaskRecord) => t.status !== "completed" && t.status !== "cancelled";
@@ -259,6 +312,7 @@ export function TasksWorkspace({
     { key: "tomorrow", label: copy.viewTomorrow, icon: Sunrise },
     { key: "inbox", label: copy.viewInbox, icon: Archive },
     { key: "sent", label: copy.viewSent, icon: Send },
+    { key: "completed", label: copy.viewCompleted, icon: CheckCircle2 },
     { key: "calendar", label: copy.viewCalendar, icon: CalendarDays },
   ];
 
@@ -278,6 +332,8 @@ export function TasksWorkspace({
     swipeAction: swipeActionForView,
     // After the move the server action returns here; keep the user on the tab they swiped from.
     swipeReturnView: view,
+    // Status-circle tap completes (active) / reopens (completed) with an undo toast.
+    onCompleteToggle: handleCompleteToggle,
   };
 
   // Per-tab counts (same base filters as each view).
@@ -287,6 +343,10 @@ export function TasksWorkspace({
     // Archive = every active todo in one management list.
     inbox: tasks.filter((t) => isActive(t)).length,
     sent: tasks.filter((t) => t.createdByUserId === currentUserId && t.isShared).length,
+    // Completed badge = today's (Tokyo) completions, matching the report's default day.
+    completed: tasks.filter(
+      (t) => t.status === "completed" && tokyoDateOf(t.completedAt) === today,
+    ).length,
     calendar: 0,
   };
 
@@ -437,6 +497,76 @@ export function TasksWorkspace({
             </div>
           )}
         </>
+      );
+    }
+
+    // 완료/기록: every completed task, grouped by completion day (Tokyo), newest day first. Each
+    // day header carries a 보고서 button that opens the AI daily-report sheet for that date.
+    if (view === "completed") {
+      const base = tasks.filter((t) => t.status === "completed");
+      if (base.length === 0)
+        return emptyState(CheckCircle2, copy.completedEmptyTitle, copy.completedEmptySub);
+      const list = applyFilter(base);
+      if (list.length === 0) return noMatchState();
+      const byDay = new Map<string, TaskRecord[]>();
+      for (const t of list) {
+        const k = tokyoDateOf(t.completedAt) ?? "";
+        if (!k) continue;
+        byDay.set(k, [...(byDay.get(k) ?? []), t]);
+      }
+      const dayKeys = Array.from(byDay.keys()).sort((a, b) => b.localeCompare(a));
+      return (
+        <div className="flex flex-col gap-5">
+          {dayKeys.map((k) => {
+            const dayLabel = new Intl.DateTimeFormat(locale, {
+              month: "short",
+              day: "numeric",
+              weekday: "short",
+              timeZone: "Asia/Tokyo",
+            }).format(new Date(`${k}T00:00:00+09:00`));
+            const dayIsToday = k === today;
+            const items = byDay
+              .get(k)!
+              .slice()
+              .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
+            return (
+              <div key={k}>
+                <div className="mb-2.5 flex items-center gap-2 px-0.5">
+                  <span
+                    className={cn(
+                      "text-[12px] font-black tracking-[-0.01em]",
+                      dayIsToday ? "text-primary" : "text-foreground",
+                    )}
+                  >
+                    {dayLabel}
+                  </span>
+                  {dayIsToday ? (
+                    <span className="rounded-full bg-primary/10 px-1.5 py-px text-[10px] font-bold text-primary">
+                      {copy.todayLabel}
+                    </span>
+                  ) : null}
+                  <span className="rounded-full bg-slate-100 px-[7px] py-px font-mono text-[10.5px] font-semibold text-muted-foreground">
+                    {copy.completedDayCount.replace("{count}", String(items.length))}
+                  </span>
+                  <span className="h-px flex-1 bg-border" />
+                  <button
+                    className="inline-flex items-center gap-1 rounded-full bg-primary/[0.07] px-2.5 py-1 text-[11.5px] font-bold text-primary transition-colors hover:bg-primary/10"
+                    onClick={() => setReportDate(k)}
+                    type="button"
+                  >
+                    <FileText className="size-3.5" aria-hidden="true" />
+                    {copy.reportButton}
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {items.map((t) => (
+                    <TaskCard key={t.id} task={t} showDate={false} swipe={false} {...cardProps} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       );
     }
 
@@ -1204,6 +1334,37 @@ export function TasksWorkspace({
             document.body,
           )
         : null}
+
+      {/* Quick-complete undo toast — floats above the tab bar after a status-circle tap. */}
+      {undoTask && hydrated
+        ? createPortal(
+            <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-4">
+              <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-slate-900 py-2.5 pl-4 pr-2.5 text-white shadow-[0_14px_36px_-12px_rgba(20,16,10,0.5)]">
+                <span className="text-[13px] font-bold">{copy.completedToast}</span>
+                <button
+                  className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-[12.5px] font-extrabold text-white transition-colors active:bg-white/25"
+                  onClick={handleUndo}
+                  type="button"
+                >
+                  <RotateCcw className="size-3.5" aria-hidden="true" />
+                  {copy.undo}
+                </button>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {/* AI daily-report sheet (완료/기록 tab). Permission is enforced server-side; a non-staff tap
+          surfaces the "권한 없음" popup inside the sheet. */}
+      {reportDate && hydrated ? (
+        <ReportSheet
+          copy={copy}
+          date={reportDate}
+          locale={locale}
+          onClose={() => setReportDate(null)}
+        />
+      ) : null}
     </div>
   );
 }

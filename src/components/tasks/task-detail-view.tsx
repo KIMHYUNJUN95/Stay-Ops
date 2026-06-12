@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   CalendarDays,
+  CheckCircle2,
   ChevronLeft,
   Clock,
   Crown,
@@ -13,6 +14,7 @@ import {
   MoreHorizontal,
   Pencil,
   Repeat2,
+  RotateCcw,
   Send,
   Share2,
   Trash2,
@@ -20,8 +22,10 @@ import {
 } from "lucide-react";
 import {
   addTaskUpdate,
+  completeTask,
   deleteTask,
   removeTaskParticipant,
+  reopenTask,
   shareTaskWithUsers,
 } from "@/app/mobile/tasks/[id]/actions";
 import {
@@ -106,6 +110,7 @@ export function TaskDetailView({
   const [updatePhotosOpen, setUpdatePhotosOpen] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [isUpdating, startUpdateTransition] = useTransition();
+  const [isTogglingStatus, startStatusTransition] = useTransition();
   const updateBodyRef = useRef<HTMLInputElement>(null);
   const updateUploaderRef = useRef<AnnouncementImageUploaderHandle>(null);
   const shareFormRef = useRef<HTMLFormElement>(null);
@@ -278,6 +283,36 @@ export function TaskDetailView({
             {copy.coreEditHint.replace("{name}", task.authorName)}
           </p>
         ) : null}
+
+        {/* Complete / reopen — any participant may toggle their shared task's completion. */}
+        <button
+          className={cn(
+            "mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[14px] font-extrabold transition-colors disabled:opacity-60",
+            done
+              ? "border border-border bg-surface text-foreground active:bg-slate-50"
+              : "bg-primary text-primary-foreground active:opacity-90",
+          )}
+          disabled={isTogglingStatus}
+          onClick={() =>
+            startStatusTransition(async () => {
+              if (done) await reopenTask(task.id);
+              else await completeTask(task.id);
+            })
+          }
+          type="button"
+        >
+          {done ? (
+            <>
+              <RotateCcw className="size-4" aria-hidden="true" />
+              {copy.reopen}
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="size-4" aria-hidden="true" />
+              {copy.complete}
+            </>
+          )}
+        </button>
       </div>
 
       {/* Linked context */}

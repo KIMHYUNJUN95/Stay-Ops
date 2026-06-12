@@ -844,6 +844,7 @@ export type Database = {
         Insert: {
           age?: number | null;
           bottom_nav_tabs?: string[];
+          can_generate_report?: boolean;
           created_at?: string;
           id: string;
           name: string;
@@ -856,6 +857,7 @@ export type Database = {
         Row: {
           age: number | null;
           bottom_nav_tabs: string[];
+          can_generate_report: boolean;
           created_at: string;
           id: string;
           name: string;
@@ -868,6 +870,7 @@ export type Database = {
         Update: {
           age?: number | null;
           bottom_nav_tabs?: string[];
+          can_generate_report?: boolean;
           created_at?: string;
           id?: string;
           name?: string;

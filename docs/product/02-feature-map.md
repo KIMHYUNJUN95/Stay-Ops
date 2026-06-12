@@ -33,14 +33,18 @@ Key features:
 - Detailed task create/edit
 - Private-by-default task
 - Share with multiple participants
-- Today / Tomorrow / Inbox / Sent / Calendar views
+- Today / Tomorrow / Inbox / Sent / Completed(완료/기록) / Calendar views
+- Mark complete / reopen (status-circle tap with undo toast); Completed tab groups by completion day
+- Daily report (업무일지) from a day's completed tasks — auto-formatted (free, no AI), editable +
+  copyable, **staff-only** (role != part_time_staff, or individually granted via
+  `profiles.can_generate_report`)
 - Scheduled date + due date
 - Simple recurrence
 - Unified update-log
 - Attach up to 5 photos on task + up to 5 on updates
 - Link to property/room
 - Link to guest/reservation
-- Reminder and task activity notifications
+- Reminder and task activity notifications (shared / update / completed / due-soon / overdue)
 
 ### 3. Announcements
 

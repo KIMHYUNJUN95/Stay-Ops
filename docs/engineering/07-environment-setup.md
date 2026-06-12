@@ -204,6 +204,18 @@ Example subject:
 mailto:admin@example.com
 ```
 
+## Daily Report (Todo 완료/기록 tab)
+
+No environment variable required. The daily work-report generator
+(`generateDailyReport` in `src/app/mobile/tasks/report-actions.ts`) is **template-based and free** —
+it builds the report deterministically from the day's completed tasks with a local text tidy-up
+(whitespace, bullet glyphs, punctuation spacing). No external API or key, no per-use cost.
+
+> History: an LLM-backed version (`@anthropic-ai/sdk` + `ANTHROPIC_API_KEY`, `claude-haiku-4-5`) was
+> prototyped but replaced with the free template approach (2026-06-13). If richer 맞춤법 correction is
+> ever wanted, re-introducing the SDK + key behind the same `generateDailyReport` contract is the
+> upgrade path.
+
 ## Storage
 
 Active Supabase Storage buckets:

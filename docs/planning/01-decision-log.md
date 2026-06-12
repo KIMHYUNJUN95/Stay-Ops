@@ -1154,6 +1154,50 @@ intentionally left as functional status colors, not brand color. Mobile-shell co
 
 Status: Confirmed (2026-06-10).
 
+## 2026-06-13
+
+### Todo Completion Re-introduced + 완료/기록 Tab
+
+Decision: Re-introduce task completion in the mobile Todo workspace (it had been removed in the
+2026-06-12 IA cleanup) and add a **Completed (완료/기록)** top tab. Tapping a task card's status
+circle completes/reopens it (undo toast); `completeTask` / `reopenTask` stamp/clear `status` +
+`completed_at` + `completed_by_user_id`, write an update-log row, and (on complete) fan out a
+`task_completed` notification. The Completed tab groups completed tasks by their Tokyo completion day
+(`tokyoDateOf(completed_at)`), newest first.
+
+Reason: Operators need to mark work done and review a dated completion history; the prior removal left
+the existing `completed_*` columns dormant. The `task_completed` notification enum value is now active.
+
+Status: Confirmed (2026-06-13).
+
+### Daily Report Generator (staff-only) — free template, no LLM
+
+Decision: Add a Korean daily work report ("업무일지") to the Todo Completed tab. A **보고서** button on
+each day group calls `generateDailyReport(date)`, which gathers the caller's own completed tasks for
+that Tokyo date and returns a date-headed bullet list, shown in an editable, copyable bottom sheet.
+
+The generator is **free and template-based — no LLM, no API key, no per-use cost**. It builds the
+report deterministically and applies a local `tidy()` pass for light auto-correction (whitespace,
+leading bullet glyphs, punctuation spacing); the header suffix is localized (업무일지 / 業務日報 /
+Daily report).
+
+> Superseded sub-decision: an LLM-backed variant (`@anthropic-ai/sdk`, `claude-haiku-4-5`,
+> `ANTHROPIC_API_KEY`) was prototyped first, but the user opted for the free template because the
+> Claude consumer subscription cannot authenticate the API and pay-as-you-go billing was not wanted.
+> The SDK + key were removed. Re-introducing them behind the same `generateDailyReport` contract
+> remains the upgrade path if richer 맞춤법 correction is later desired. **No LLM dependency is
+> currently in the stack.**
+
+Permission — **staff-only**: `canGenerateDailyReport(role, can_generate_report)` =
+`role != 'part_time_staff' OR profiles.can_generate_report = true`, enforced in the server action (a
+forbidden caller gets a "권한 없음" popup). New column
+`profiles.can_generate_report boolean not null default false` (migration
+`202606130001_profile_report_access.sql`, applied to the linked Supabase project) is toggled per-user
+by owner/office_admin in admin user management (`updateMemberReportAccess`) for the few part-timers in
+a management capacity.
+
+Status: Confirmed (2026-06-13). No env var required.
+
 ### Mobile-first login routing
 
 Decision: On the login page (`src/app/auth/login/page.tsx`), detect the device via the

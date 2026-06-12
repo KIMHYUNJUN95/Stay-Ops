@@ -84,6 +84,7 @@ export function TaskCard({
   reorderable = false,
   reordering = false,
   onReorderHandleDown,
+  onCompleteToggle,
 }: {
   buildingLabels: Record<string, string>;
   copy: Copy;
@@ -110,6 +111,10 @@ export function TaskCard({
   reorderable?: boolean;
   reordering?: boolean;
   onReorderHandleDown?: (e: React.PointerEvent, task: TaskRecord) => void;
+  // Tapping the leading status circle toggles completion. The button owns its own pointer gesture
+  // (stops propagation) so it never starts the card's tap / long-press / swipe. Active → complete,
+  // completed → reopen. Omit to render the circle as a static indicator (e.g. calendar day sheet).
+  onCompleteToggle?: (task: TaskRecord) => void;
 }) {
   const router = useRouter();
   const done = task.status === "completed";
@@ -321,6 +326,26 @@ export function TaskCard({
           type="button"
         >
           {selected ? <Check className="size-3.5" strokeWidth={3} aria-hidden="true" /> : null}
+        </button>
+      ) : onCompleteToggle ? (
+        <button
+          aria-label={done ? copy.reopen : copy.complete}
+          className={cn(
+            "mt-0.5 flex size-[22px] shrink-0 items-center justify-center rounded-full transition-colors",
+            done
+              ? "bg-primary text-primary-foreground"
+              : cn("border-2", PRIO_RING[task.priority] ?? PRIO_RING.normal),
+          )}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onCompleteToggle(task);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          type="button"
+        >
+          {done ? <Check className="size-3.5" strokeWidth={3} aria-hidden="true" /> : null}
         </button>
       ) : done ? (
         <span className="mt-0.5 flex size-[22px] shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">

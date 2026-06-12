@@ -207,3 +207,41 @@ export async function updateMemberStatus(formData: FormData) {
 
   resolveRedirect(formData, membershipId, "statusUpdated=1");
 }
+
+// Grant/revoke the AI daily-report generator for a member (writes profiles.can_generate_report).
+// Same owner/office_admin authorization boundary as role/status edits. Regular staff don't need
+// this — the role check already covers them; the flag exists for the few part-timers who qualify.
+export async function updateMemberReportAccess(formData: FormData) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    redirect("/auth/login?next=/admin/users");
+  }
+
+  const actorRole = await getCurrentRole(userId);
+  const membershipId = String(formData.get("membershipId") ?? "");
+  const grant = String(formData.get("reportAccess") ?? "") === "on";
+
+  if (!actorRole || !membershipId) {
+    resolveRedirect(formData, membershipId, "error=invalid_member");
+  }
+
+  const membership = await getMembership(membershipId);
+  if (!membership) {
+    resolveRedirect(formData, membershipId, "error=invalid_member");
+  }
+
+  if (!(await canManageMembership(userId, actorRole, membership))) {
+    resolveRedirect(formData, membershipId, "error=forbidden");
+  }
+
+  const { error } = await getSupabaseServiceClient()
+    .from("profiles")
+    .update({ can_generate_report: grant } as never)
+    .eq("id", membership.user_id);
+
+  if (error) {
+    resolveRedirect(formData, membershipId, "error=save_failed");
+  }
+
+  resolveRedirect(formData, membershipId, "reportAccessUpdated=1");
+}

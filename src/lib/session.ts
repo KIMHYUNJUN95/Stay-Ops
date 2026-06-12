@@ -19,6 +19,9 @@ export type SessionUser = {
   role: Role;
   preferredMode: AppMode;
   bottomNavTabs: string[];
+  // Per-user override for the daily-report generator. Combined with the role check in
+  // `canGenerateDailyReport`; see profiles.can_generate_report.
+  canGenerateReport: boolean;
 };
 
 export type AppSession = {
@@ -64,6 +67,7 @@ export const mockSession: AppSession = {
     role: "office_admin",
     preferredMode: "admin",
     bottomNavTabs: [...defaultBottomNavTabIds],
+    canGenerateReport: true,
   },
 };
 
@@ -129,13 +133,14 @@ export async function getCurrentAppSession(): Promise<AppSession | null> {
     const role = (platformAdmin?.role ?? membership?.role) as Role;
     const dictionary = getDictionary(profile.preferred_language);
 
-    // Read per-user bottom-bar customization defensively: the column may not
-    // exist yet on projects where the migration has not been applied, so any
-    // error falls back to the default tab set rather than breaking the session.
+    // Read per-user bottom-bar customization + report-access flag defensively: these columns
+    // may not exist yet on projects where the migration has not been applied, so any error
+    // falls back to the defaults rather than breaking the session.
     let bottomNavTabs: string[] = [...defaultBottomNavTabIds];
+    let canGenerateReport = false;
     const { data: navResult, error: navError } = await supabase
       .from("profiles")
-      .select("bottom_nav_tabs")
+      .select("bottom_nav_tabs, can_generate_report")
       .eq("id", user.id)
       .maybeSingle();
     if (!navError && navResult) {
@@ -144,6 +149,9 @@ export async function getCurrentAppSession(): Promise<AppSession | null> {
       if (Array.isArray(raw) && raw.length > 0) {
         bottomNavTabs = raw;
       }
+      canGenerateReport = Boolean(
+        (navResult as { can_generate_report?: boolean | null }).can_generate_report,
+      );
     }
 
     return {
@@ -160,6 +168,7 @@ export async function getCurrentAppSession(): Promise<AppSession | null> {
         role,
         preferredMode: canAccessAdminWeb(role) ? "admin" : "mobile",
         bottomNavTabs,
+        canGenerateReport,
       },
     };
   } catch (error) {

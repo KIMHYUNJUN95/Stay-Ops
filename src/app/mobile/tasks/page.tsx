@@ -11,7 +11,7 @@ type PageProps = {
   searchParams: Promise<{ view?: string; created?: string }>;
 };
 
-const VIEWS = ["today", "tomorrow", "inbox", "sent", "calendar"] as const;
+const VIEWS = ["today", "tomorrow", "inbox", "sent", "completed", "calendar"] as const;
 
 export default async function MobileTasksPage({ searchParams }: PageProps) {
   const [state, session, params] = await Promise.all([

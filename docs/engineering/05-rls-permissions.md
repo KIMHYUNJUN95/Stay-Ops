@@ -481,6 +481,28 @@ non-author-all-removed → private). Direct authenticated writes to `task_partic
 - Create: any active org member when creating a task where they are the original author.
 - Update: original author edits core task content; current participants can mutate only shared workflow-state fields through controlled actions.
 - Delete: original author only for the canonical task row. Participant self-removal is a separate controlled action.
+- **Completion (re-introduced 2026-06-13):** complete/reopen are controlled service-role server
+  actions (`completeTask` / `reopenTask`) like every other task write — they stamp/clear
+  `status` + `completed_at` + `completed_by_user_id`, write an update-log row, and (on complete) fan
+  out a `task_completed` notification. No direct authenticated table write.
+
+### Daily report generation (staff-only) — as-built (2026-06-13)
+
+The Todo **daily report** (업무일지; free, template-based — no LLM) generator is permission-gated
+server-side in
+`generateDailyReport(date)` via `canGenerateDailyReport(role, can_generate_report)` in
+`src/config/roles.ts`:
+
+```txt
+role != 'part_time_staff'  OR  profiles.can_generate_report = true
+```
+
+- It gathers only the **caller's own** completed tasks for the given Tokyo date.
+- A forbidden caller (part-time staff without the flag) is rejected by the server action and shown a
+  "권한 없음" popup — UI gating alone is not relied on.
+- The per-user `profiles.can_generate_report` flag is toggled by **owner / office_admin** in admin
+  user management (`updateMemberReportAccess`). Regular staff are covered by the role check and never
+  need the flag.
 
 ## task_participants
 

@@ -117,9 +117,18 @@ profile_photo_url text
 preferred_language text not null
 theme_preference text not null default 'system'  -- schema only; NOT used by the app (light-mode-only since 2026-06-08)
 bottom_nav_tabs text[] not null default '{home,calendar,requests,announcements}'
+can_generate_report boolean not null default false
 created_at timestamptz
 updated_at timestamptz
 ```
+
+`can_generate_report` (migration `supabase/migrations/202606130001_profile_report_access.sql`) is a
+per-user override for the Todo **daily-report generator** (업무일지; free, template-based — no LLM).
+Default `false`. The report
+permission is `role != 'part_time_staff' OR can_generate_report = true`, so regular staff are covered
+by the role check and never need the flag; it is toggled per-user by owner/office_admin in admin user
+management for the few part-timers who work in a management capacity. See
+`docs/engineering/05-rls-permissions.md` and `docs/product/18-todo-task-workflow.md` (2026-06-13).
 
 `bottom_nav_tabs` stores the user's customized mobile bottom-bar tabs (ordered ids, max 4 enforced in app logic). Added in `supabase/migrations/202606080001_profile_bottom_nav.sql`. Selectable ids match the mobile side-menu nav items (`home`, `calendar`, `cleaning`, `requests`, `announcements`, `notifications`, `directory`).
 
@@ -807,6 +816,12 @@ completed_at timestamptz
 created_at timestamptz
 updated_at timestamptz
 ```
+
+Note (2026-06-13): `completed_at` / `completed_by_user_id` (and `status`) are **actively written
+again** by the re-introduced complete/reopen actions (`completeTask` / `reopenTask` in
+`src/app/mobile/tasks/[id]/actions.ts`). They are no longer dormant — completing a task stamps
+`completed_at` (its Tokyo date drives the Completed/기록 tab grouping) and the completing user, and
+reopening clears them.
 
 ## task_participants
 

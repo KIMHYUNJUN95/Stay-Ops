@@ -178,6 +178,7 @@ constraint. Each deep-links to `/mobile/tasks/{id}`.
 | Shared with me | `task_shared` | `createTask` (with recipients), `shareTaskWithUsers` | No |
 | Update-log activity (progress note) | `task_updated` (`event: note`) | `addTaskUpdate` | No |
 | Shared task edited (core) | `task_updated` (`event: edited`) | `updateTaskCore` | No |
+| Task completed | `task_completed` | `completeTask` (re-introduced 2026-06-13) | No |
 | Due today (due soon) | `task_due_soon` | daily cron `/api/tasks/reminders` | n/a (system) |
 | Overdue | `task_overdue` | daily cron `/api/tasks/reminders` | n/a (system) |
 
@@ -185,6 +186,9 @@ Notes:
 
 - **Update-log activity reuses `task_updated`** but stays distinct via `payload.event = note` (its own
   title/body), rather than adding another enum value — the smallest coherent path.
+- **`task_completed` is active (as-built 2026-06-13).** It is fired by `completeTask` to a task's other
+  participants when a shared task is marked complete (the actor is excluded). It is no longer a
+  deferred/unused enum value.
 - **Due-soon / overdue are time-based system reminders** evaluated once daily (08:00 JST) by the
   CRON_SECRET-guarded `/api/tasks/reminders` endpoint. Due soon = active task due today (Tokyo);
   overdue = active task due before today (Tokyo). Exactly one reminder per task per recipient (ever),
@@ -197,7 +201,7 @@ Notes:
 | Event | Status |
 |---|---|
 | Order processed (주문 처리) | Implemented -- in-app only |
-| Task shared / update / due-soon / overdue | Implemented -- in-app only |
+| Task shared / update / completed / due-soon / overdue | Implemented -- in-app only |
 | Order approved | Planned -- not implemented |
 | Order rejected | Planned -- not implemented |
 | Important announcement | Planned -- not implemented |

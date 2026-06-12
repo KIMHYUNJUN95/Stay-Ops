@@ -293,6 +293,7 @@ Required major views:
 - Tomorrow
 - Inbox
 - Sent By Me
+- Completed (완료/기록)
 - Calendar
 
 ### Default First View
@@ -310,6 +311,7 @@ Today
 Tomorrow
 Inbox
 Sent By Me
+Completed (완료/기록)
 Calendar
 ```
 
@@ -402,6 +404,26 @@ Should show:
 Recommended sort:
 
 - latest shared / latest updated first
+
+### Completed (완료/기록) — as-built (2026-06-13)
+
+Purpose:
+
+- review finished work as a dated history
+
+Include:
+
+- completed tasks grouped by **completion day** using the Tokyo date of `completed_at`
+  (`tokyoDateOf(completed_at)`), newest day first — so a task scheduled for tomorrow but finished
+  today appears under today's group, not its scheduled date.
+
+Tab order is `Today · Tomorrow · Inbox(관리함) · Sent(공유함) · Completed(완료) · Calendar`.
+
+Rules:
+
+- The tab's **count badge** = today's (Tokyo) completions only.
+- Each day-group header carries a **보고서 (Report)** button that opens the daily report for that
+  day (see Daily Report below).
 
 ### Calendar
 
@@ -792,6 +814,36 @@ Avoid by default:
 - long body previews
 - full participant lists
 - excessive metadata
+
+## Completion — as-built (2026-06-13)
+
+Task completion was re-introduced (it had been removed in the 2026-06-12 IA cleanup):
+
+- Tapping the leading **status circle** on any task card **completes** it (active task) or **reopens**
+  it (completed task). Completing shows a bottom **undo toast** ("완료했습니다 · 되돌리기").
+- The task **detail view** also has a **완료 / 다시 열기** button.
+- Completing sets `status` + `completed_at` + `completed_by_user_id`, writes a `completed` row to the
+  update log, and fans out a `task_completed` notification to other participants; reopening clears
+  those fields and writes a `reopened` log row. Both revalidate the list and detail.
+
+## Daily Report (업무일지) — as-built (2026-06-13)
+
+Each day-group header in the **Completed (완료/기록)** tab has a **보고서 (Report)** button that opens
+the **ReportSheet** bottom sheet:
+
+- It gathers the **caller's own** completed tasks for that Tokyo date and builds a Korean daily work
+  report ("업무일지") — a date header followed by one bullet per completed item.
+- **Free, no AI.** The report is template-based with a deterministic local tidy-up (whitespace,
+  leading bullet glyphs, punctuation spacing) for light auto-correction — no LLM, no API key, no
+  per-use cost. (An LLM-backed variant was prototyped then dropped; see the decision log.)
+- The result is shown in an **editable textarea** and **copied to the clipboard**.
+- **Permission — staff-only.** Generation is allowed when the role is anything except
+  `part_time_staff`, OR the user has an individually-granted `profiles.can_generate_report = true`
+  override (the flag exists for the few part-timers who work in a management capacity; regular staff
+  never need it). A non-permitted caller sees a **"권한 없음"** popup inside the sheet. The check is
+  enforced server-side, not just in the UI.
+
+See `docs/planning/01-decision-log.md` (2026-06-13) for the free-template decision.
 
 ## Swipe Actions
 

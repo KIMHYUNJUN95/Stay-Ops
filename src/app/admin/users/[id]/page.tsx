@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Mail, Phone, User } from "lucide-react";
-import { updateMemberRole, updateMemberStatus } from "@/app/admin/users/actions";
+import {
+  updateMemberReportAccess,
+  updateMemberRole,
+  updateMemberStatus,
+} from "@/app/admin/users/actions";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +22,12 @@ type MembershipStatus = Database["public"]["Enums"]["membership_status"];
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ roleUpdated?: string; statusUpdated?: string; error?: string }>;
+  searchParams: Promise<{
+    roleUpdated?: string;
+    statusUpdated?: string;
+    reportAccessUpdated?: string;
+    error?: string;
+  }>;
 };
 
 function formatDate(value: string | null, locale: string) {
@@ -101,6 +110,7 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
           <div className="rounded-xl border border-border bg-surface/70 px-4 py-3 text-sm font-semibold">
             {query.roleUpdated && copy.success.roleUpdated}
             {query.statusUpdated && copy.success.statusUpdated}
+            {query.reportAccessUpdated && copy.success.reportAccessUpdated}
             {query.error && (copy.errors[query.error] ?? copy.errors.save_failed)}
           </div>
         )}
@@ -212,6 +222,24 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
                 {copy.saveStatus}
               </Button>
             </form>
+            {/* AI daily-report access. Regular staff always have it; this toggle is for the few
+                part-timers who work in a management capacity. */}
+            <form action={updateMemberReportAccess} className="flex items-center gap-2">
+              <input name="membershipId" type="hidden" value={membership.id} />
+              <input name="redirectTo" type="hidden" value="detail" />
+              <select
+                className="h-10 flex-1 rounded-xl border border-border bg-surface/80 px-3 text-sm font-semibold text-foreground outline-none"
+                defaultValue={profile?.can_generate_report ? "on" : "off"}
+                name="reportAccess"
+              >
+                <option value="on">{copy.reportAccessGrant}</option>
+                <option value="off">{copy.reportAccessDeny}</option>
+              </select>
+              <Button className="h-10 shrink-0 rounded-xl font-black" type="submit">
+                {copy.saveReportAccess}
+              </Button>
+            </form>
+            <p className="text-xs font-medium text-muted-foreground">{copy.reportAccessHint}</p>
           </div>
         </Card>
       </div>
