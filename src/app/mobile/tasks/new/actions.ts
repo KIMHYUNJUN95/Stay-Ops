@@ -70,6 +70,51 @@ export async function quickCreateTask(formData: FormData) {
   redirect("/mobile/tasks?view=inbox&created=1");
 }
 
+// Quick-create with today's Tokyo date as scheduled_date — appears in the Today tab immediately.
+export async function quickCreateTodayTask(formData: FormData) {
+  const session = await getCurrentAppSession();
+  if (!session) {
+    redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
+  }
+  if (!hasOrganizationContext(session)) {
+    redirect("/admin");
+  }
+
+  const title = cleanText(formData.get("title"));
+  if (!title) {
+    redirect("/mobile/tasks?view=today&error=missing_title");
+  }
+
+  const todayYmd = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
+  const id = crypto.randomUUID();
+  const supabase = getSupabaseServiceClient();
+
+  const insert: Database["public"]["Tables"]["tasks"]["Insert"] = {
+    id,
+    organization_id: session.organization.id,
+    created_by_user_id: session.user.id,
+    title,
+    scheduled_date: todayYmd,
+    is_inbox: false,
+    is_shared: false,
+  };
+  const { error } = await supabase.from("tasks").insert(insert as never);
+  if (error) {
+    redirect("/mobile/tasks?view=today&error=save_failed");
+  }
+  const { error: pError } = await supabase.from("task_participants").insert({
+    task_id: id,
+    user_id: session.user.id,
+    role: "author",
+  } as never);
+  if (pError) {
+    await supabase.from("tasks").delete().eq("id", id);
+    redirect("/mobile/tasks?view=today&error=save_failed");
+  }
+
+  redirect("/mobile/tasks?view=today&created=1");
+}
+
 export async function createTask(formData: FormData) {
   const session = await getCurrentAppSession();
   if (!session) {

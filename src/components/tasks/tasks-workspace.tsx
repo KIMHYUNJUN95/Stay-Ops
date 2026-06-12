@@ -22,7 +22,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { quickCreateTask } from "@/app/mobile/tasks/new/actions";
+import { quickCreateTask, quickCreateTodayTask } from "@/app/mobile/tasks/new/actions";
 import { completeTaskInList, deleteTasksInList } from "@/app/mobile/tasks/[id]/actions";
 import { TaskCard } from "@/components/tasks/task-card";
 import type { Dictionary, Locale } from "@/lib/i18n";
@@ -1221,6 +1221,16 @@ export function TasksWorkspace({
                   {copy.quickAddSave}
                 </button>
               </div>
+              {/* 오늘 탭에 바로 추가 — scheduled_date = today(Tokyo), 오늘 탭으로 이동 */}
+              <button
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 text-[13.5px] font-extrabold text-amber-700 transition-colors active:bg-amber-100 disabled:opacity-40"
+                disabled={!quickTitle.trim()}
+                formAction={quickCreateTodayTask}
+                type="submit"
+              >
+                <Sun className="size-4" aria-hidden="true" />
+                {copy.quickAddToday}
+              </button>
             </form>
           </div>
         </div>,
