@@ -148,13 +148,17 @@ export function ReportSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200" />
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-[16px] font-black text-foreground">
-              <FileText className="size-4 text-primary" aria-hidden="true" />
-              {copy.reportTitle}
-            </p>
-            <p className="mt-0.5 text-[12px] text-muted-foreground">{dateLabel}</p>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-primary/[0.09] text-primary">
+                <FileText className="size-[17px]" aria-hidden="true" />
+              </span>
+              <p className="text-[16px] font-black tracking-[-0.01em] text-foreground">
+                {copy.reportTitle}
+              </p>
+            </div>
+            <p className="ml-10 mt-[3px] text-[12px] font-medium text-muted-foreground">{dateLabel}</p>
           </div>
           <button
             aria-label={copy.cancel}

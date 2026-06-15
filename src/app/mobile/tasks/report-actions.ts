@@ -9,11 +9,38 @@ export type DailyReportResult =
   | { ok: true; text: string }
   | { ok: false; reason: "forbidden" | "empty" | "error" };
 
-// Localized header suffix for the report's first line ("YYYY-MM-DD <suffix>").
-const REPORT_HEADER: Record<string, string> = {
-  ko: "업무일지 입니다",
-  ja: "業務日報です",
-  en: "Daily report",
+// ── Localized template parts ─────────────────────────────────────────────────
+const REPORT_TEMPLATE: Record<
+  string,
+  {
+    header: string;
+    labelDate: string;
+    labelName: string;
+    sectionDone: string;
+    summary: (n: number) => string;
+  }
+> = {
+  ko: {
+    header: "[업무일지]",
+    labelDate: "날짜",
+    labelName: "담당자",
+    sectionDone: "■ 완료 업무",
+    summary: (n) => `총 완료: ${n}건`,
+  },
+  ja: {
+    header: "[業務日報]",
+    labelDate: "日付",
+    labelName: "担当者",
+    sectionDone: "■ 完了業務",
+    summary: (n) => `計: ${n}件完了`,
+  },
+  en: {
+    header: "[Daily Work Report]",
+    labelDate: "Date",
+    labelName: "Name",
+    sectionDone: "■ Completed Tasks",
+    summary: (n) => `Total: ${n} task${n === 1 ? "" : "s"} completed`,
+  },
 };
 
 /**
@@ -51,10 +78,9 @@ function tidy(raw: string): string {
 
 /**
  * Build the daily work report ("업무일지") for the given Tokyo date from the current user's completed
- * tasks. Free / template-based — no LLM call, no per-use cost. Still **staff-only** (see
- * `canGenerateDailyReport`): a forbidden caller gets `reason: "forbidden"` so the client can show the
- * "권한 없음" popup. Returns the date header followed by one tidied bullet per completed item, with the
- * description / tags folded into a parenthetical.
+ * tasks. Free / template-based — no LLM call, no per-use cost. Staff-only (see `canGenerateDailyReport`).
+ * Outputs a formal business report: title, date, staff name, numbered task list, total count.
+ * Tags and descriptions are intentionally excluded — titles only.
  */
 export async function generateDailyReport(date: string): Promise<DailyReportResult> {
   const day = String(date ?? "").trim();
@@ -66,38 +92,57 @@ export async function generateDailyReport(date: string): Promise<DailyReportResu
     return { ok: false, reason: "forbidden" };
   }
 
+  const locale = session.user.preferredLanguage;
+  const tmpl = REPORT_TEMPLATE[locale] ?? REPORT_TEMPLATE.ko;
+
   // The user's own completions in this org. completed_at is a timestamptz, so the exact Tokyo-date
   // match is done in JS against tokyoDateOf (mirrors how the 완료/기록 tab groups).
   const supabase = await getSupabaseServerClient();
   const { data, error } = await supabase
     .from("tasks")
-    .select("title, description, tags, completed_at")
+    .select("title, completed_at")
     .eq("organization_id", session.organization.id)
     .eq("status", "completed")
     .eq("completed_by_user_id", session.user.id)
     .order("completed_at", { ascending: true });
   if (error) return { ok: false, reason: "error" };
 
-  type Row = { title: string; description: string | null; tags: string[] | null; completed_at: string | null };
+  type Row = { title: string; completed_at: string | null };
   const rows = ((data ?? []) as Row[]).filter((r) => tokyoDateOf(r.completed_at) === day);
   if (rows.length === 0) return { ok: false, reason: "empty" };
 
+  // Collect unique titles only (no tags, no descriptions).
   const seen = new Set<string>();
-  const lines: string[] = [];
+  const titles: string[] = [];
   for (const r of rows) {
     const title = tidy(r.title);
-    if (!title || seen.has(title)) continue; // skip blanks + exact duplicates
+    if (!title || seen.has(title)) continue;
     seen.add(title);
-    const tags = (r.tags ?? []).map((t) => t.trim()).filter(Boolean);
-    const desc = r.description ? tidy(r.description) : "";
-    const extra = [desc, tags.length ? tags.map((t) => `#${t}`).join(" ") : ""]
-      .filter(Boolean)
-      .join(" / ");
-    lines.push(`- ${title}${extra ? ` (${extra})` : ""}`);
+    titles.push(title);
   }
-  if (lines.length === 0) return { ok: false, reason: "empty" };
+  if (titles.length === 0) return { ok: false, reason: "empty" };
 
-  const suffix = REPORT_HEADER[session.user.preferredLanguage] ?? REPORT_HEADER.ko;
-  const text = `${day} ${suffix}\n\n${lines.join("\n")}`;
+  // Format the date in the user's locale.
+  const dateLabel = new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+    timeZone: "Asia/Tokyo",
+  }).format(new Date(`${day}T00:00:00+09:00`));
+
+  const numbered = titles.map((t, i) => `${i + 1}. ${t}`).join("\n");
+
+  const text = [
+    tmpl.header,
+    `${tmpl.labelDate}: ${dateLabel}`,
+    `${tmpl.labelName}: ${session.user.name}`,
+    "",
+    tmpl.sectionDone,
+    numbered,
+    "",
+    tmpl.summary(titles.length),
+  ].join("\n");
+
   return { ok: true, text };
 }

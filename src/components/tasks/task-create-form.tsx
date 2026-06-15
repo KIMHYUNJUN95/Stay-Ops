@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import Link from "next/link";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock, Share2, Users, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronRight, Clock, Share2, Users, X } from "lucide-react";
 import { createTask } from "@/app/mobile/tasks/new/actions";
 import { updateTaskCore } from "@/app/mobile/tasks/[id]/actions";
 import { MiniCalendar, TimeWheels } from "@/components/tasks/date-time-fields";
@@ -75,7 +74,6 @@ type TaskInitialCtx = Pick<
 >;
 
 export function TaskCreateForm({
-  backHref,
   buildingLabels,
   copy,
   defaultDate,
@@ -85,14 +83,16 @@ export function TaskCreateForm({
   initial,
   initialCtx,
   locale,
+  maxImages = 5,
   mode = "create",
   organizationId,
+  projectId,
+  sectionId,
   serverError,
   taskId,
   users,
 }: {
   // Page header is owned by the form so the top-right Save can be a native submit (keeps `isPending`).
-  backHref: string;
   buildingLabels: Record<string, string>;
   copy: Copy;
   defaultDate: string | null;
@@ -105,8 +105,14 @@ export function TaskCreateForm({
   initial?: TaskInitial;
   /** Pre-populated context link for edit mode (from the task's resolved context). */
   initialCtx?: TaskInitialCtx | null;
+  /** Max attachable photos. 5 by default; project tasks raise it to 20. */
+  maxImages?: number;
   mode?: "create" | "edit";
   organizationId: string;
+  /** When set, this is a project task — persisted with project_id (+ optional section_id) and the
+   *  per-task Share section is hidden (project membership governs sharing). */
+  projectId?: string;
+  sectionId?: string;
   serverError: string | null;
   taskId?: string;
   users: ShareableUser[];
@@ -284,7 +290,7 @@ export function TaskCreateForm({
       formData.set("taskId", taskId ?? "");
       for (const url of existingImgUrls) formData.append("imageUrls", url);
       const newPhotos = uploaderRef.current?.getItems() ?? [];
-      const newSlots = Math.max(0, 5 - existingImgUrls.length);
+      const newSlots = Math.max(0, maxImages - existingImgUrls.length);
       if (newPhotos.length > 0 && newSlots > 0) {
         const requestId = crypto.randomUUID();
         try {
@@ -356,21 +362,11 @@ export function TaskCreateForm({
 
   return (
     <form className="space-y-5 pb-10" onSubmit={handleSubmit} ref={formRef}>
-      {/* Header — back + title + top-right Save (replaces the old fixed bottom action bar). */}
+      {/* Project linkage — present only for project-task creation (hidden, read by createTask). */}
+      {projectId ? <input name="projectId" type="hidden" value={projectId} /> : null}
+      {sectionId ? <input name="sectionId" type="hidden" value={sectionId} /> : null}
+      {/* Header — title + top-right Save (back navigation is via the iOS-style edge swipe). */}
       <div className="flex items-center gap-2.5">
-        <Link
-          aria-label={copy.backToList}
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground transition-colors active:bg-muted/70"
-          href={backHref}
-          onClick={() => {
-            // Explicit leave-to-list discards the draft; the calendar round-trip ("예약 보기")
-            // navigates elsewhere and keeps it.
-            submittedRef.current = true;
-            clearDraft();
-          }}
-        >
-          <ChevronLeft className="size-[19px]" aria-hidden="true" />
-        </Link>
         <p className="min-w-0 flex-1 truncate text-[20px] font-black tracking-[-0.03em] text-foreground">
           {headerTitle}
         </p>
@@ -475,8 +471,8 @@ export function TaskCreateForm({
         ) : null}
       </div>
 
-      {/* Share — creation only; sharing on an existing task is managed from the detail view. */}
-      {!isEdit ? (
+      {/* Share — creation only; hidden for project tasks (sharing is governed by the project). */}
+      {!isEdit && !projectId ? (
         <div>
           <p className={sectionTitle}>{copy.sectionShare}</p>
           <button
@@ -669,7 +665,10 @@ export function TaskCreateForm({
           </div>
           <div>
             <p className={sectionTitle}>
-              {copy.sectionPhotos} <span className="text-[11px] font-semibold text-slate-400">{copy.photosMax}</span>
+              {copy.sectionPhotos}{" "}
+              <span className="text-[11px] font-semibold text-slate-400">
+                {maxImages === 20 ? copy.photosMax20 : copy.photosMax}
+              </span>
             </p>
             <div className="rounded-2xl border border-border bg-slate-50/60 p-3">
               {isEdit && existingImgUrls.length > 0 ? (
@@ -693,19 +692,22 @@ export function TaskCreateForm({
                   ))}
                 </div>
               ) : null}
-              {existingImgUrls.length < 5 ? (
+              {existingImgUrls.length < maxImages ? (
                 <AnnouncementImageUploader
                   addImagesLabel={imgCopy.addPhotos}
-                  errorCountExceeded={imgCopy.errorCount}
+                  errorCountExceeded={maxImages === 20 ? copy.photosCountError20 : imgCopy.errorCount}
                   errorSizeExceeded={imgCopy.errorSize}
                   errorTypeInvalid={imgCopy.errorType}
                   imageAttachmentsLabel={imgCopy.attachments}
-                  imageLimitLabel={imgCopy.limit}
+                  imageLimitLabel={maxImages === 20 ? copy.photosMax20 : imgCopy.limit}
                   imageRemoveLabel={imgCopy.remove}
+                  maxImages={maxImages}
                   ref={uploaderRef}
                 />
               ) : (
-                <p className="text-[12px] font-semibold text-muted-foreground">{copy.photosMax}</p>
+                <p className="text-[12px] font-semibold text-muted-foreground">
+                  {maxImages === 20 ? copy.photosMax20 : copy.photosMax}
+                </p>
               )}
             </div>
           </div>

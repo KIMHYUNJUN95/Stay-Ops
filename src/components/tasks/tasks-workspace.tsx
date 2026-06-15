@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  FolderOpen,
   Inbox,
   ListChecks,
   Plus,
@@ -39,12 +40,21 @@ import {
 import { TaskCard } from "@/components/tasks/task-card";
 import { ReorderableTaskList } from "@/components/tasks/reorderable-task-list";
 import { ReportSheet } from "@/components/tasks/report-sheet";
+import { ProjectsBoard } from "@/components/tasks/projects-board";
 import type { Dictionary, Locale } from "@/lib/i18n";
-import type { TaskRecord } from "@/lib/tasks";
+import type { ProjectSummary } from "@/lib/projects";
+import type { ShareableUser, TaskRecord } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
 
 type Copy = Dictionary["tasks"];
-type View = "today" | "tomorrow" | "inbox" | "sent" | "completed" | "calendar";
+type View =
+  | "today"
+  | "tomorrow"
+  | "inbox"
+  | "projects"
+  | "sent"
+  | "completed"
+  | "calendar";
 
 function tokyoDateOf(iso: string | null): string | null {
   if (!iso) return null;
@@ -69,6 +79,9 @@ export function TasksWorkspace({
   currentUserId,
   initialView,
   locale,
+  projectCompletedTasks,
+  projects,
+  shareableUsers,
   tasks: allTasks,
   today,
 }: {
@@ -77,6 +90,11 @@ export function TasksWorkspace({
   currentUserId: string;
   initialView: View;
   locale: Locale;
+  // Completed project tasks, supplied separately so the Completed tab's project filter can show
+  // them. `tasks` itself excludes project tasks (they live only in the Projects tab).
+  projectCompletedTasks: TaskRecord[];
+  projects: ProjectSummary[];
+  shareableUsers: ShareableUser[];
   tasks: TaskRecord[];
   today: string;
 }) {
@@ -228,6 +246,9 @@ export function TasksWorkspace({
 
   // 완료/기록 tab: daily-report sheet target date (the day-group whose 보고서 button was tapped).
   const [reportDate, setReportDate] = useState<string | null>(null);
+  // 완료/기록 tab: regular vs. project completions filter. Project tasks don't exist yet
+  // (data layer deferred), so "project" currently resolves to an empty set.
+  const [completedFilter, setCompletedFilter] = useState<"all" | "regular" | "project">("all");
 
   // Tokyo "tomorrow" (today + 1), used by the Tomorrow tab + its swipe defer action.
   const tomorrowDate = ymdShift(today, 1);
@@ -311,6 +332,7 @@ export function TasksWorkspace({
     { key: "today", label: copy.viewToday, icon: Sun },
     { key: "tomorrow", label: copy.viewTomorrow, icon: Sunrise },
     { key: "inbox", label: copy.viewInbox, icon: Archive },
+    { key: "projects", label: copy.viewProjects, icon: FolderOpen },
     { key: "sent", label: copy.viewSent, icon: Send },
     { key: "completed", label: copy.viewCompleted, icon: CheckCircle2 },
     { key: "calendar", label: copy.viewCalendar, icon: CalendarDays },
@@ -342,6 +364,8 @@ export function TasksWorkspace({
     tomorrow: tasks.filter(isTomorrow).length,
     // Archive = every active todo in one management list.
     inbox: tasks.filter((t) => isActive(t)).length,
+    // Projects badge stays 0 until the Projects data layer lands (deferred).
+    projects: 0,
     sent: tasks.filter((t) => t.createdByUserId === currentUserId && t.isShared).length,
     // Completed badge = today's (Tokyo) completions, matching the report's default day.
     completed: tasks.filter(
@@ -397,6 +421,11 @@ export function TasksWorkspace({
   );
 
   const viewBody = (() => {
+    // Projects tab — separate workspace (own list / create sheet / FAB).
+    if (view === "projects") {
+      return <ProjectsBoard copy={copy} projects={projects} shareableUsers={shareableUsers} />;
+    }
+
     if (view === "today") {
       const baseOver = tasks.filter(isOverdue);
       const baseToday = tasks.filter(isToday);
@@ -503,11 +532,18 @@ export function TasksWorkspace({
     // 완료/기록: every completed task, grouped by completion day (Tokyo), newest day first. Each
     // day header carries a 보고서 button that opens the AI daily-report sheet for that date.
     if (view === "completed") {
-      const base = tasks.filter((t) => t.status === "completed");
-      if (base.length === 0)
+      // Regular completed tasks come from `tasks` (project tasks already excluded); project
+      // completions are supplied separately. The filter pills pick which set(s) to show.
+      const regularCompleted = tasks.filter((t) => t.status === "completed");
+      const projectScoped =
+        completedFilter === "project"
+          ? projectCompletedTasks
+          : completedFilter === "regular"
+            ? regularCompleted
+            : [...regularCompleted, ...projectCompletedTasks];
+      if (regularCompleted.length === 0 && projectCompletedTasks.length === 0)
         return emptyState(CheckCircle2, copy.completedEmptyTitle, copy.completedEmptySub);
-      const list = applyFilter(base);
-      if (list.length === 0) return noMatchState();
+      const list = applyFilter(projectScoped);
       const byDay = new Map<string, TaskRecord[]>();
       for (const t of list) {
         const k = tokyoDateOf(t.completedAt) ?? "";
@@ -515,9 +551,37 @@ export function TasksWorkspace({
         byDay.set(k, [...(byDay.get(k) ?? []), t]);
       }
       const dayKeys = Array.from(byDay.keys()).sort((a, b) => b.localeCompare(a));
+      const filterPills = (
+        <div className="mb-4 flex gap-2">
+          {(["all", "regular", "project"] as const).map((f) => (
+            <button
+              className={cn(
+                "inline-flex h-[34px] items-center whitespace-nowrap rounded-full border px-[15px] text-[12.5px] font-bold transition-colors",
+                completedFilter === f
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-surface text-muted-foreground",
+              )}
+              key={f}
+              onClick={() => setCompletedFilter(f)}
+              type="button"
+            >
+              {f === "all" ? copy.projects.filterAll : f === "regular" ? copy.projects.filterRegular : copy.projects.filterProject}
+            </button>
+          ))}
+        </div>
+      );
+      if (list.length === 0)
+        return (
+          <>
+            {filterPills}
+            {noMatchState()}
+          </>
+        );
       return (
-        <div className="flex flex-col gap-5">
-          {dayKeys.map((k) => {
+        <>
+          {filterPills}
+          <div className="flex flex-col gap-5">
+            {dayKeys.map((k) => {
             const dayLabel = new Intl.DateTimeFormat(locale, {
               month: "short",
               day: "numeric",
@@ -566,7 +630,8 @@ export function TasksWorkspace({
               </div>
             );
           })}
-        </div>
+          </div>
+        </>
       );
     }
 
@@ -978,8 +1043,8 @@ export function TasksWorkspace({
       </div>
       )}
 
-      {/* Search / filter — list views only; Calendar provides its own date navigation. */}
-      {!selectMode && view !== "calendar" ? (
+      {/* Search / filter — list views only; Calendar + Projects provide their own controls. */}
+      {!selectMode && view !== "calendar" && view !== "projects" ? (
         <div className="mb-4">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
@@ -1096,8 +1161,9 @@ export function TasksWorkspace({
 
       {/* Quick-add FAB — portaled to body so it stays viewport-fixed (the scroll
           container has a transform, which would otherwise trap `fixed` and let it
-          drift on scroll/pull). Hidden while multi-selecting (the delete bar owns the bottom). */}
-      {hydrated && !selectMode
+          drift on scroll/pull). Hidden while multi-selecting (the delete bar owns the bottom)
+          and on the Projects tab (ProjectsBoard renders its own "프로젝트 만들기" FAB). */}
+      {hydrated && !selectMode && view !== "projects"
         ? createPortal(
             <button
               aria-label={copy.quickAddTitle}

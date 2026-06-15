@@ -6,7 +6,6 @@ import Link from "next/link";
 import {
   CalendarDays,
   CheckCircle2,
-  ChevronLeft,
   Clock,
   Crown,
   Flag,
@@ -181,13 +180,6 @@ export function TaskDetailView({
     <div className="pb-10">
       {/* Context bar */}
       <div className="relative flex items-center gap-[11px] px-0.5 pb-3 pt-2">
-        <Link
-          aria-label={copy.backToList}
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-700"
-          href="/mobile/tasks"
-        >
-          <ChevronLeft className="size-[19px]" aria-hidden="true" />
-        </Link>
         <p className="flex-1 text-[19px] font-black tracking-[-0.03em] text-foreground">
           {copy.detailTitle}
         </p>

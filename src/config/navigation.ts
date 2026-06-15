@@ -103,22 +103,16 @@ export const mobileSidebarNavigation = [
   mobileNavHome,
   mobileNavCalendar,
   mobileNavCleaning,
+  mobileNavTasks,
   mobileNavRequests,
   mobileNavAnnouncements,
-  mobileNavTasks,
-  mobileNavLinenReturn,
-  {
-    id: "notifications",
-    label: localizedNavigationLabels.utility.notifications,
-    href: "/mobile/notifications",
-    icon: Bell,
-  },
   {
     id: "directory",
     label: localizedNavigationLabels.mobile.directory,
     href: "/mobile/directory",
     icon: Users,
   },
+  mobileNavLinenReturn,
 ] as const satisfies readonly NavigationItem[];
 
 // ── Per-user bottom-bar customization ────────────────────────────────────────

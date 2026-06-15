@@ -51,7 +51,7 @@ export default async function MobileNotificationsPage() {
   const navBadges = await getMobileNavBadges();
 
   return (
-    <MobileShell activeItem="notifications" badges={navBadges} title={copy.title}>
+    <MobileShell badges={navBadges} title={copy.title}>
       <div className="space-y-4">
         <Card className="rounded-[24px] border border-border bg-surface p-4 shadow-sm">
           <div className="flex items-start gap-3">

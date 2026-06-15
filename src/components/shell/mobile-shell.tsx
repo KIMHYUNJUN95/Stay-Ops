@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { ReactNode, UIEvent } from "react";
-import { ArrowDown, ChevronRight, Loader2, LogOut, UserCircle, X } from "lucide-react";
+import { ArrowDown, Bell, ChevronRight, Loader2, LogOut, UserCircle, X } from "lucide-react";
 import { useSession } from "@/components/providers/session-provider";
 import { signOut } from "@/app/auth/actions";
 import { updateBottomNavTabs } from "@/app/account/actions";
@@ -25,6 +25,12 @@ type MobileShellProps = {
   title: string;
   /** Operational unprocessed counts keyed by sidebar nav id (e.g. requests, notifications). */
   badges?: Partial<Record<string, number>>;
+  /**
+   * Hide the bottom tab bar for focused full-screen flows (e.g. a create form with its own sticky
+   * submit bar, which would otherwise overlap the tab bar). Defaults to false — the side menu still
+   * reaches every feature. When true the content's bottom padding shrinks (no tab bar to clear).
+   */
+  hideBottomNav?: boolean;
 };
 
 const PULL_THRESHOLD = 72;
@@ -132,6 +138,7 @@ export function MobileShell({
   children,
   title,
   badges = {},
+  hideBottomNav = false,
 }: MobileShellProps) {
   const lastScrollYRef = useRef(0);
   const hideAccumRef = useRef(0);
@@ -592,25 +599,43 @@ export function MobileShell({
                   </svg>
                 </button>
 
-                <span className="wordmark whitespace-nowrap text-[20px] text-foreground">
+                <span className="wordmark pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-[20px] text-foreground">
                   Stay Ops
                 </span>
 
-                <Link
-                  aria-label={dictionary.onboarding.profileTitle}
-                  className="relative z-10 flex size-[38px] items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-[color-mix(in_oklab,var(--muted)_82%,var(--foreground))]"
-                  href="/account?mode=mobile"
-                >
-                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle cx="12" cy="8.5" r="3.4" stroke="currentColor" strokeWidth="2" />
-                    <path
-                      d="M5.5 19c1.1-3 3.7-4.5 6.5-4.5S17.4 16 18.5 19"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </Link>
+                {/* Notification bell — top-bar shortcut, left of profile */}
+                <div className="relative z-10 flex items-center gap-1.5">
+                  <Link
+                    aria-label={dictionary.navigation.utility.notifications}
+                    className="relative flex size-[38px] items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                    href="/mobile/notifications"
+                  >
+                    <Bell className="size-[18px]" aria-hidden="true" />
+                    {(badges.notifications ?? 0) > 0 ? (
+                      <span
+                        aria-label={String(badges.notifications)}
+                        className="absolute right-[6px] top-[6px] flex min-w-[14px] items-center justify-center rounded-full bg-rose-500 px-[3px] text-[9px] font-extrabold leading-[14px] text-white"
+                      >
+                        {(badges.notifications ?? 0) > 99 ? "99+" : badges.notifications}
+                      </span>
+                    ) : null}
+                  </Link>
+                  <Link
+                    aria-label={dictionary.onboarding.profileTitle}
+                    className="flex size-[38px] items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                    href="/account?mode=mobile"
+                  >
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="8.5" r="3.4" stroke="currentColor" strokeWidth="2" />
+                      <path
+                        d="M5.5 19c1.1-3 3.7-4.5 6.5-4.5S17.4 16 18.5 19"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
@@ -681,7 +706,9 @@ export function MobileShell({
             {/* Scrollable content — slides down on pull */}
             <div
               className={cn(
-                "h-full overflow-y-auto overscroll-y-contain bg-background px-5 pb-[124px] text-foreground",
+                "h-full overflow-y-auto overscroll-y-contain bg-background px-5 text-foreground",
+                // No tab bar to clear when it's hidden — the focused flow owns its own bottom spacing.
+                hideBottomNav ? "pb-8" : "pb-[124px]",
                 headerVisible ? "pt-5" : "pt-0",
               )}
               onScroll={handleContentScroll}
@@ -700,19 +727,21 @@ export function MobileShell({
             </div>
           </div>
 
-          <nav className="tabbar absolute inset-x-0 bottom-0 z-20" aria-label={title}>
-            {leftTabs.map(renderTab)}
-            <button
-              aria-label={dictionary.common.editBottomBar}
-              className="tabbar__fab"
-              onClick={() => setCreateOpen(true)}
-              type="button"
-            >
-              <span className="circle">{EDIT_ICON}</span>
-              <span className="lbl">{dictionary.common.edit}</span>
-            </button>
-            {rightTabs.map(renderTab)}
-          </nav>
+          {hideBottomNav ? null : (
+            <nav className="tabbar absolute inset-x-0 bottom-0 z-20" aria-label={title}>
+              {leftTabs.map(renderTab)}
+              <button
+                aria-label={dictionary.common.editBottomBar}
+                className="tabbar__fab"
+                onClick={() => setCreateOpen(true)}
+                type="button"
+              >
+                <span className="circle">{EDIT_ICON}</span>
+                <span className="lbl">{dictionary.common.edit}</span>
+              </button>
+              {rightTabs.map(renderTab)}
+            </nav>
+          )}
 
           {/* Center action ("추가") sheet — bottom-bar editor (pick up to 4 tabs). */}
           <button
