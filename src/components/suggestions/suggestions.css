@@ -1,0 +1,1914 @@
+/*
+ * Staff Suggestions / Feedback Box — visual design ported 1:1 from the
+ * "Feedback Box.html" handoff mockup. All selectors are scoped under `.sg`
+ * so the generic class names (.fcard, .field, .route …) never leak globally.
+ *
+ * The palette matches the app theme (ivory + deep-ink navy). Status hues and
+ * a few aliases (--card / --ink / --line …) are redeclared on `.sg` so the
+ * port renders identically regardless of future theme-variable drift.
+ *
+ * NOTE: UI/UX only — no backend wiring. See docs/product/22-staff-suggestions-workflow.md.
+ */
+
+.sg {
+  --bg: hsl(42 36% 95%);
+  --card: hsl(44 52% 98.5%);
+  --ink: hsl(222 28% 14%);
+  --ink-soft: hsl(222 20% 28%);
+  --muted: hsl(222 10% 44%);
+  --faint: hsl(222 10% 62%);
+  --line: hsl(40 20% 84%);
+  --line-soft: hsl(40 24% 89%);
+  --surface: hsl(40 22% 90%);
+  --primary: hsl(223 46% 32%);
+  --primary-soft: color-mix(in oklab, hsl(223 46% 32%) 9%, hsl(44 52% 98.5%));
+  /* status hues */
+  --sub: hsl(223 38% 40%);
+  --sub-bg: hsl(223 40% 94%);
+  --rev: hsl(35 78% 38%);
+  --rev-bg: hsl(38 78% 92%);
+  --hold: hsl(18 52% 44%);
+  --hold-bg: hsl(20 60% 93%);
+  --done: hsl(146 50% 34%);
+  --done-bg: hsl(146 44% 92%);
+  --red: #c0362c;
+  --red-bg: #fbeae8;
+  --sg-font: "Geist", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
+
+  position: relative;
+  font-family: var(--sg-font);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+.sg *,
+.sg *::before,
+.sg *::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+.sg .ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sg .ic svg {
+  width: 1em;
+  height: 1em;
+}
+
+/* the scroll body inside the shell content area */
+.sg .scroll {
+  padding: 2px 16px 26px;
+}
+
+.sg .ptitle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 6px 2px 14px;
+}
+.sg .ptitle {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* segmented (sent/received/referenced) */
+.sg .seg {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border-radius: 13px;
+  padding: 4px;
+  margin-bottom: 14px;
+}
+.sg .seg__b {
+  flex: 1;
+  height: 38px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.sg .seg__b .n {
+  font-size: 10.5px;
+  font-weight: 800;
+  background: var(--line);
+  color: var(--ink-soft);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.sg .seg__b.on {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgba(20, 32, 43, 0.12);
+}
+.sg .seg__b.on .n {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* status filter pills */
+.sg .fbar {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  margin: 0 -16px 16px;
+  padding: 0 16px 4px;
+  scrollbar-width: none;
+}
+.sg .fbar::-webkit-scrollbar {
+  display: none;
+}
+.sg .fpill {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.sg .fpill .d {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+.sg .fpill.on {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+/* feedback list card */
+.sg .flist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sg .fcard {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  padding: 14px;
+  box-shadow: 0 1px 2px rgba(20, 32, 43, 0.03);
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  display: block;
+}
+.sg .fcard__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+.sg .stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.sg .stat .d {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+.sg .s-sub {
+  background: var(--sub-bg);
+  color: var(--sub);
+}
+.sg .s-sub .d {
+  background: var(--sub);
+}
+.sg .s-rev {
+  background: var(--rev-bg);
+  color: var(--rev);
+}
+.sg .s-rev .d {
+  background: var(--rev);
+}
+.sg .s-hold {
+  background: var(--hold-bg);
+  color: var(--hold);
+}
+.sg .s-hold .d {
+  background: var(--hold);
+}
+.sg .s-done {
+  background: var(--done-bg);
+  color: var(--done);
+}
+.sg .s-done .d {
+  background: var(--done);
+}
+.sg .fcard__time {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.sg .fcard__title {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+  margin-bottom: 5px;
+}
+.sg .fcard__excerpt {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 11px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sg .fcard__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sg .dirline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.sg .dirline .lbl {
+  color: var(--faint);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sg .av {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.sg .av--p {
+  background: var(--primary);
+  color: #fff;
+}
+.sg .av--sm {
+  width: 21px;
+  height: 21px;
+  font-size: 9.5px;
+}
+.sg .fcard__meta {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.sg .fcard__meta .mi {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.sg .fcard__meta .mi .ic {
+  font-size: 13px;
+}
+.sg .ref-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
+  background: var(--surface);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.sg .ref-badge .ic {
+  font-size: 11px;
+}
+
+/* The "+" create FAB is rendered with Tailwind classes and portaled to <body>
+   (see suggestions-list.tsx), matching the Tasks quick-add button, so it has no
+   scoped `.fab` rule here. */
+
+/* ── compose ── */
+.sg .ctxbar {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 0 16px;
+}
+.sg .ctxbar__back {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.sg .ctxbar__back svg {
+  width: 18px;
+  height: 18px;
+}
+.sg .ctxbar__name {
+  flex: 1;
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+.sg .ctxbar__save {
+  height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+}
+.sg .ctxbar__save.off {
+  background: var(--surface);
+  color: var(--faint);
+}
+
+.sg .field {
+  margin-bottom: 16px;
+}
+.sg .field__l {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 2px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.sg .field__l .req {
+  color: var(--red);
+}
+.sg .field__l .opt {
+  color: var(--faint);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+/* recipient selector (filled) */
+.sg .recip {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 13px;
+  border: 1.4px solid color-mix(in oklab, var(--primary) 30%, var(--line));
+  border-radius: 14px;
+  background: var(--primary-soft);
+}
+.sg .recip__av {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.sg .recip__b {
+  flex: 1;
+  min-width: 0;
+}
+.sg .recip__n {
+  font-size: 14.5px;
+  font-weight: 800;
+}
+.sg .recip__r {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-top: 1px;
+}
+.sg .recip__chg {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--primary);
+  background: var(--card);
+  border: 1px solid var(--line);
+  padding: 6px 11px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.sg .picker-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  border: 1.4px dashed var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  font-weight: 700;
+  width: 100%;
+}
+.sg .picker-empty .ic {
+  font-size: 18px;
+  color: var(--primary);
+}
+.sg .picker-empty .chev {
+  margin-left: auto;
+  color: var(--faint);
+}
+.sg .ref-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.sg .ref-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px 5px 5px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.sg .ref-chip .av {
+  width: 20px;
+  height: 20px;
+  font-size: 9px;
+}
+.sg .ref-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px dashed var(--line);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.sg .ref-add .ic {
+  font-size: 13px;
+}
+.sg .inp {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--card);
+  padding: 0 14px;
+  font: inherit;
+  color: var(--ink);
+  outline: none;
+}
+.sg .inp--title {
+  height: 50px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.sg textarea.inp {
+  padding: 13px 14px;
+  resize: none;
+  line-height: 1.55;
+  font-size: 14px;
+  font-weight: 500;
+}
+.sg .inp::placeholder {
+  color: var(--faint);
+  font-weight: 500;
+}
+.sg .tags-row {
+  display: flex;
+  gap: 9px;
+}
+.sg .tagbtn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  /* keep the fixed label (e.g. "건물") on one line — without this it can break
+     character-by-character into a vertical stack when the row gets narrow. */
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sg .tagbtn .ic {
+  font-size: 16px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+.sg .tagbtn .v {
+  margin-left: auto;
+  color: var(--faint);
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg .photos {
+  display: flex;
+  gap: 8px;
+}
+.sg .photo-add {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  border: 1.4px dashed var(--line);
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.sg .photo-add .ic {
+  font-size: 18px;
+}
+.sg .photo-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #cdd5dd, #aeb9c5);
+  position: relative;
+}
+.sg .photo-thumb .x {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 19px;
+  height: 19px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sg .photo-thumb .x svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* ── detail ── */
+.sg .who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  margin-bottom: 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sg .who span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sg .who .ic {
+  font-size: 14px;
+  color: var(--muted);
+}
+.sg .who .sep {
+  color: var(--faint);
+}
+.sg .dhero {
+  margin-bottom: 16px;
+}
+.sg .dstatus-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 11px;
+}
+.sg .dtitle {
+  font-size: 21px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  margin: 0 0 12px;
+}
+/* status chip as a tappable button (recipient) — opens the status sheet; chevron points UP because
+   the sheet slides up from the bottom. Colors come from the companion `s-{cls}` class. */
+.sg .statbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 5px 10px 5px 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, currentColor 26%, transparent);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.12s, box-shadow 0.15s;
+}
+.sg .statbtn:active {
+  transform: scale(0.97);
+}
+.sg .statbtn .chev {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.75;
+}
+.sg .statbtn .chev svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ===== Instagram-style detail: actions row + bottom status control + two sheets ===== */
+/* like + comment icon actions (replaces the inline comment thread in the body) */
+.sg .actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 4px 2px 2px;
+}
+.sg .actbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  color: var(--ink);
+}
+.sg .actbtn .ic {
+  font-size: 26px;
+}
+.sg .actbtn .cnt {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.sg .actbtn:active {
+  opacity: 0.55;
+}
+.sg .actbtn.liked {
+  color: #e0245e;
+}
+.sg .actbtn.liked .ic svg path {
+  fill: #e0245e;
+  stroke: #e0245e;
+}
+/* heart "pop" bounce on like (Twitter/Instagram style) */
+.sg .actbtn .ic.pop {
+  animation: sg-heart-pop 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes sg-heart-pop {
+  0% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(0.85);
+  }
+  45% {
+    transform: scale(1.3);
+  }
+  70% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sg .actbtn .ic.pop {
+    animation: none;
+  }
+}
+/* always-visible like summary — facepile + "○○님이 좋아합니다" (taps open the who-liked sheet) */
+.sg .likesum {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 7px 2px 0;
+  margin: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.sg .likesum__faces {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.sg .likesum__av {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg);
+  margin-left: -7px;
+}
+.sg .likesum__av:first-child {
+  margin-left: 0;
+}
+.sg .likesum__txt {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-align: left;
+}
+
+/* bottom = STATUS control (recipient): compact right-aligned pill → opens the STATUS sheet */
+.sg .statusbar-bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, transparent, var(--bg) 40%);
+}
+.sg .sbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  cursor: pointer;
+  font: inherit;
+  box-shadow: 0 8px 20px -10px rgba(16, 22, 30, 0.34);
+  white-space: nowrap;
+}
+.sg .sbtn__l {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.sg .sbtn__cur {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 800;
+}
+.sg .sbtn__cur .d {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+.sg .sbtn__chev {
+  color: var(--muted);
+  display: inline-flex;
+}
+.sg .sbtn__chev svg {
+  width: 16px;
+  height: 16px;
+}
+/* author/referenced see a small note instead of the status control */
+.sg .permnote-bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 16px max(18px, env(safe-area-inset-bottom));
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  background: linear-gradient(180deg, transparent, var(--bg) 30%);
+}
+.sg .permnote-bottom .ic {
+  font-size: 14px;
+}
+
+/* ===== COMMENT sheet (distinct from the status sheet): tall, header + close, thread + composer ===== */
+.sg .csheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  height: 76%;
+  background: var(--card);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -16px 44px -12px rgba(16, 22, 30, 0.34);
+  display: flex;
+  flex-direction: column;
+  transform: translateY(101%);
+  transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.sg .csheet.show {
+  transform: translateY(0);
+}
+.sg .csheet__handle {
+  width: 38px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  margin: 9px auto 5px;
+  flex: 0 0 auto;
+}
+/* Enlarged drag-to-dismiss grab zone (handle + header) so the comment sheet pulls down reliably. */
+.sg .csheet__grab {
+  flex: 0 0 auto;
+  cursor: grab;
+}
+.sg .csheet__grab:active {
+  cursor: grabbing;
+}
+.sg .csheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 8px 16px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  flex: 0 0 auto;
+}
+.sg .csheet__title {
+  font-size: 14.5px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+.sg .csheet__x {
+  position: absolute;
+  right: 14px;
+  top: 4px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: none;
+  background: var(--surface);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.sg .csheet__x svg {
+  width: 14px;
+  height: 14px;
+}
+.sg .csheet__scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px 8px;
+  scrollbar-width: none;
+}
+.sg .csheet__scroll::-webkit-scrollbar {
+  display: none;
+}
+.sg .csheet__empty {
+  padding: 28px 2px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 13px;
+  font-weight: 600;
+}
+/* composer docked at the bottom of the comment sheet (in-flow within the sheet) */
+.sg .csheet__footer {
+  flex: 0 0 auto;
+  background: var(--card);
+}
+.sg .csheet__composer {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 16px max(15px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line-soft);
+  background: var(--card);
+}
+.sg .csheet__att {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+.sg .csheet__att svg {
+  width: 18px;
+  height: 18px;
+}
+.sg .csheet__in {
+  flex: 1;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  padding: 0 14px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+}
+.sg .csheet__send {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  cursor: pointer;
+  border: none;
+}
+.sg .csheet__send svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ===== "좋아요" (who liked) sheet — opened by long-pressing the heart ===== */
+.sg .lsheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  background: var(--card);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -16px 44px -12px rgba(16, 22, 30, 0.32);
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateY(110%);
+  transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.sg .lsheet.show {
+  transform: translateY(0);
+}
+.sg .lsheet__grab {
+  cursor: grab;
+  padding-bottom: 4px;
+}
+.sg .lsheet__grab .sheet__handle {
+  margin: 9px auto 10px;
+}
+.sg .lsheet__title {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  text-align: center;
+  margin: 0 0 8px;
+}
+.sg .lsheet__list {
+  padding: 4px 12px 6px;
+  max-height: 50vh;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.sg .lsheet__list::-webkit-scrollbar {
+  display: none;
+}
+.sg .lrow {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 8px;
+}
+.sg .lrow__av {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.sg .lrow__n {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg .lrow__heart {
+  display: inline-flex;
+  color: #e0245e;
+  flex: 0 0 auto;
+}
+.sg .lrow__heart svg {
+  width: 18px;
+  height: 18px;
+}
+.sg .lrow__heart svg path {
+  fill: #e0245e;
+  stroke: #e0245e;
+}
+.sg .lsheet__empty {
+  text-align: center;
+  color: var(--faint);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 22px 0 18px;
+}
+.sg .route {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+}
+.sg .route__av {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.sg .route__l {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.sg .route__col {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.sg .route__col > div {
+  min-width: 0;
+}
+.sg .route__n {
+  font-size: 13px;
+  font-weight: 800;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sg .route__arrow {
+  color: var(--faint);
+  flex: 0 0 auto;
+}
+.sg .route__arrow svg {
+  width: 18px;
+  height: 18px;
+}
+.sg .dtags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+.sg .dtag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: var(--surface);
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.sg .dtag .ic {
+  font-size: 12px;
+  color: var(--muted);
+}
+.sg .dbody {
+  font-size: 14px;
+  color: var(--ink-soft);
+  line-height: 1.65;
+  margin-bottom: 14px;
+}
+.sg .dphotos {
+  display: flex;
+  gap: 7px;
+  margin-bottom: 16px;
+}
+.sg .dphoto {
+  width: 78px;
+  height: 78px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #cdd5dd, #aeb9c5);
+  flex: 0 0 auto;
+}
+/* hold reason banner */
+.sg .holdbanner {
+  display: flex;
+  gap: 10px;
+  padding: 12px 13px;
+  border-radius: 13px;
+  background: var(--hold-bg);
+  border: 1px solid color-mix(in oklab, var(--hold) 26%, transparent);
+  margin-bottom: 16px;
+}
+.sg .holdbanner .ic {
+  font-size: 17px;
+  color: var(--hold);
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.sg .holdbanner b {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--hold);
+}
+.sg .holdbanner p {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin: 3px 0 0;
+  line-height: 1.5;
+}
+
+.sg .divider {
+  height: 1px;
+  background: var(--line-soft);
+  margin: 4px 0 16px;
+}
+.sg .clabel {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 800;
+  margin: 0 2px 13px;
+}
+.sg .clabel .n {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface);
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+
+/* comments — work-record style */
+.sg .cthread {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sg .cmt {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.sg .cmt__av {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: var(--surface);
+  color: var(--ink-soft);
+}
+.sg .cmt__b {
+  flex: 1;
+  min-width: 0;
+}
+.sg .cmt__h {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+}
+.sg .cmt__n {
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.sg .role-pill {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.sg .role-recip {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.sg .role-ref {
+  background: var(--surface);
+  color: var(--muted);
+}
+.sg .role-author {
+  background: var(--sub-bg);
+  color: var(--sub);
+}
+.sg .cmt__t {
+  font-size: 10.5px;
+  color: var(--faint);
+  font-weight: 600;
+  margin-left: auto;
+}
+/* Instagram-style: plain comment body (no card bubble) inside the comment sheet. */
+.sg .cmt__body {
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+.sg .cmt__photo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface);
+  padding: 4px 9px;
+  border-radius: 999px;
+}
+.sg .cmt__photo .ic {
+  font-size: 12px;
+}
+/* system log entry */
+.sg .clog {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+.sg .clog .line {
+  flex: 1;
+  height: 1px;
+  background: var(--line-soft);
+  max-width: 36px;
+}
+.sg .clog .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface);
+  padding: 4px 11px;
+  border-radius: 999px;
+}
+.sg .clog .badge .d {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--rev);
+}
+
+/* comment composer (sticky) — fixed to viewport bottom in the full-screen detail flow */
+.sg .ccomposer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, transparent, var(--bg) 26%);
+}
+.sg .ccomposer__att {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.sg .ccomposer__att svg {
+  width: 19px;
+  height: 19px;
+}
+.sg .ccomposer__in {
+  flex: 1;
+  height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--card);
+  padding: 0 14px;
+  font: inherit;
+  font-size: 13.5px;
+  display: flex;
+  align-items: center;
+  color: var(--faint);
+}
+.sg .ccomposer__send {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: var(--primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.sg .ccomposer__send svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* status action bar (recipient only) — fixed to viewport bottom (hideBottomNav flow) */
+.sg .dbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 12;
+  padding: 13px 16px max(16px, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, transparent, var(--bg) 24%);
+}
+.sg .dbar__inner {
+  display: flex;
+  gap: 9px;
+}
+.sg .dbar__status {
+  flex: 1;
+  height: 50px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.sg .dbar__status .cur {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sg .dbar__status .cur .d {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--rev);
+}
+.sg .dbar__status .chev {
+  color: var(--muted);
+}
+.sg .dbar__status .chev svg {
+  width: 16px;
+  height: 16px;
+}
+.sg .dbar__note {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 9px;
+}
+.sg .perm-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 11px;
+}
+.sg .perm-note .ic {
+  font-size: 14px;
+}
+
+/* ── status change sheet ── (fixed to viewport; slides up over the shell) */
+.sg .dim {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 16, 10, 0.5);
+  z-index: 60;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s ease;
+}
+.sg .dim.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.sg .sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  background: var(--card);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -16px 44px -12px rgba(16, 22, 30, 0.32);
+  padding: 9px 20px max(20px, env(safe-area-inset-bottom));
+  transform: translateY(100%);
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sg .sheet.show {
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sg .dim,
+  .sg .sheet {
+    transition: none;
+  }
+}
+.sg .sheet__handle {
+  width: 38px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  margin: 4px auto 16px;
+}
+/* Enlarged grab zone — the bare 38×4 handle is too small to drag; this spans the
+   full sheet width and is tall enough to grab reliably (drag-to-dismiss target). */
+.sg .sheet__grab {
+  margin: 0 -20px;
+  padding: 2px 0 4px;
+  display: flex;
+  justify-content: center;
+  cursor: grab;
+}
+.sg .sheet__grab:active {
+  cursor: grabbing;
+}
+.sg .sheet__grab .sheet__handle {
+  margin: 4px auto 8px;
+}
+.sg .sheet__title {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px;
+}
+.sg .sheet__sub {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 0 0 18px;
+  font-weight: 500;
+}
+.sg .statopts {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.sg .statopt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1.4px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+}
+.sg .statopt.on {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.sg .statopt__d {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.sg .statopt__b {
+  flex: 1;
+}
+.sg .statopt__n {
+  font-size: 14.5px;
+  font-weight: 800;
+}
+.sg .statopt__s {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-top: 2px;
+}
+.sg .statopt__chk {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 2px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex: 0 0 auto;
+}
+.sg .statopt.on .statopt__chk {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.sg .statopt__chk svg {
+  width: 12px;
+  height: 12px;
+}
+.sg .req-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--hold);
+  background: var(--hold-bg);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.sg .req-note.done {
+  color: var(--done);
+  background: var(--done-bg);
+}
+
+/* reason / completion input sheet */
+.sg .rsheet-h {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 16px;
+}
+.sg .rsheet-ic {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.sg .rsheet-ic.hold {
+  background: var(--hold-bg);
+  color: var(--hold);
+}
+.sg .rsheet-ic.done {
+  background: var(--done-bg);
+  color: var(--done);
+}
+.sg .rsheet-ic svg {
+  width: 20px;
+  height: 20px;
+}
+.sg .rsheet-h b {
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+.sg .rsheet-h p {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 2px 0 0;
+  font-weight: 500;
+}
+.sg .rsheet-from {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 13px;
+}
+.sg .rsheet-from .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.sg .rsheet-from .from {
+  background: var(--rev-bg);
+  color: var(--rev);
+}
+.sg .rsheet-from .to-hold {
+  background: var(--hold-bg);
+  color: var(--hold);
+}
+.sg .rsheet-from .to-done {
+  background: var(--done-bg);
+  color: var(--done);
+}
+.sg .rsheet-from .ar {
+  color: var(--faint);
+}
+.sg .sheet__btns {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* user picker */
+.sg .search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.sg .search__ic {
+  position: absolute;
+  left: 14px;
+  font-size: 17px;
+  color: var(--faint);
+}
+.sg .search input {
+  width: 100%;
+  height: 48px;
+  border: 1.5px solid var(--primary);
+  border-radius: 14px;
+  background: var(--bg);
+  padding: 0 14px 0 42px;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink);
+  outline: none;
+}
+.sg .glabel {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 14px 2px 8px;
+}
+.sg .urow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 8px;
+  border-radius: 13px;
+  cursor: pointer;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: none;
+}
+.sg .urow:hover {
+  background: var(--bg);
+}
+.sg .urow.on {
+  background: var(--primary-soft);
+}
+.sg .urow__av {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 15px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.sg .urow.on .urow__av {
+  background: var(--primary);
+  color: #fff;
+}
+.sg .urow__b {
+  flex: 1;
+  min-width: 0;
+}
+.sg .urow__n {
+  font-size: 14.5px;
+  font-weight: 800;
+}
+.sg .urow__r {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-top: 1px;
+}
+.sg .urow__radio {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 2px solid var(--line);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.sg .urow.on .urow__radio {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.sg .urow__radio svg {
+  width: 12px;
+  height: 12px;
+}
+.sg .usep {
+  height: 1px;
+  background: var(--line-soft);
+  margin: 0 8px;
+}
+
+/* standalone notifications screen (frame 9) — minimal centered "알림" header,
+   no app wordmark bar / no bottom tab bar, matching the design mockup. */
+.sg--screen {
+  min-height: 100dvh;
+  background: var(--bg);
+}
+.sg .sgnotif-h {
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  margin-top: env(safe-area-inset-top);
+}
+.sg .sgnotif-h .title {
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+/* notification → detail */
+.sg .notif {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--card);
+  margin-bottom: 9px;
+  /* also used as a <button> on the notifications screen */
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.sg .notif:disabled {
+  cursor: default;
+}
+.sg .notif.unread {
+  background: var(--primary-soft);
+  border-color: color-mix(in oklab, var(--primary) 20%, var(--line));
+}
+.sg .notif__ic {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.sg .notif__ic svg {
+  width: 20px;
+  height: 20px;
+}
+.sg .notif__b {
+  flex: 1;
+  min-width: 0;
+}
+.sg .notif__t {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+.sg .notif__t b {
+  font-weight: 800;
+}
+.sg .notif__time {
+  font-size: 11px;
+  color: var(--faint);
+  font-weight: 600;
+  margin-top: 4px;
+}
+.sg .notif__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--primary);
+  flex: 0 0 auto;
+  margin-top: 6px;
+}
+.sg .flowhint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface);
+  padding: 10px;
+  border-radius: 11px;
+}
+.sg .flowhint .ic {
+  font-size: 14px;
+}

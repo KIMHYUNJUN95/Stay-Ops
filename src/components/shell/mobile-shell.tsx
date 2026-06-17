@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { ReactNode, UIEvent } from "react";
-import { ArrowDown, Bell, ChevronRight, Loader2, LogOut, UserCircle, X } from "lucide-react";
+import { ArrowDown, Bell, ChevronLeft, ChevronRight, Loader2, LogOut, UserCircle, X } from "lucide-react";
 import { useSession } from "@/components/providers/session-provider";
+import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import { signOut } from "@/app/auth/actions";
 import { updateBottomNavTabs } from "@/app/account/actions";
 import {
@@ -117,6 +118,15 @@ const LAUNCHER_META: Record<string, { hue: number; icon: ReactNode }> = {
       </svg>
     ),
   },
+  suggestions: {
+    hue: 345,
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 13l2.2-7.2A2 2 0 018.1 4.4h7.8a2 2 0 011.9 1.4L20 13v4.5a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 17.5V13z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M4 13h4l1.2 2.2h5.6L16 13h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
 };
 
 const FALLBACK_ICON = (
@@ -147,6 +157,9 @@ export function MobileShell({
   const [headerVisible, setHeaderVisible] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const closeCreate = useCallback(() => setCreateOpen(false), []);
+  // iOS-style drag-to-dismiss on the bottom-bar editor sheet's grab handle / header.
+  const createDrag = useSheetDragDismiss({ shown: createOpen, onDismiss: closeCreate });
   const [pullDistanceState, setPullDistanceState] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshPending, startRefreshTransition] = useTransition();
@@ -158,6 +171,12 @@ export function MobileShell({
   // Swipe-to-navigate refs (separate from pull-to-refresh)
   const swipeNavStartXRef = useRef(0);
   const swipeNavStartYRef = useRef(0);
+  // Live left-edge "back" drag: the screen follows the finger (damped) with a side reveal + chevron.
+  const [edgeDx, setEdgeDx] = useState(0);
+  const [edgeDragging, setEdgeDragging] = useState(false);
+  const edgeCandidateRef = useRef(false); // gesture started within the left edge band
+  const edgeLockedRef = useRef(false); // locked into a horizontal edge-back drag
+  const edgeRawDxRef = useRef(0); // raw (un-damped) horizontal distance, for the commit threshold
   const { session } = useSession();
 
   // Per-user bottom-bar tabs (customized via the center "추가" editor sheet).
@@ -282,17 +301,60 @@ export function MobileShell({
   }
 
   // ── Swipe-to-navigate (on <main>) ────────────────────────────────────────
-  // Left-edge swipe → browser back.  Right-edge swipe → browser forward.
-  // Handled on the outermost <main> so it covers every mobile page without
-  // needing to touch individual screens.
+  // iOS-style **interactive** left-edge back: the screen follows the finger (damped) with a side
+  // reveal + a chevron hint, and commits to `router.back()` when pulled far enough (otherwise springs
+  // back). Right-edge swipe → forward (fling only). Handled once on the outermost <main> so it covers
+  // every mobile page without touching individual screens.
+  const EDGE_BAND = 30; // px from the left edge the gesture must start within
+
   function handleSwipeStart(e: React.TouchEvent<HTMLElement>) {
     if (sidebarOpen) return;
     const t = e.touches[0];
     swipeNavStartXRef.current = t.clientX;
     swipeNavStartYRef.current = t.clientY;
+    edgeCandidateRef.current = t.clientX <= EDGE_BAND;
+    edgeLockedRef.current = false;
+    edgeRawDxRef.current = 0;
+  }
+
+  function handleSwipeMove(e: React.TouchEvent<HTMLElement>) {
+    if (sidebarOpen || isRefreshPending || !edgeCandidateRef.current) return;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const dx = t.clientX - swipeNavStartXRef.current;
+    const dy = Math.abs(t.clientY - swipeNavStartYRef.current);
+    if (!edgeLockedRef.current) {
+      // Decide intent: clearly rightward → start the edge drag; clearly vertical → hand off to scroll.
+      if (dx > 10 && dx > dy * 1.2) {
+        edgeLockedRef.current = true;
+        setEdgeDragging(true);
+      } else if (dy > 12 && dy >= dx) {
+        edgeCandidateRef.current = false;
+        return;
+      } else {
+        return;
+      }
+    }
+    edgeRawDxRef.current = dx;
+    // Drives the gradient/chevron intensity (the screen does not move).
+    setEdgeDx(dx > 0 ? dx : 0);
+  }
+
+  function endEdgeDrag(commit: boolean) {
+    edgeLockedRef.current = false;
+    edgeCandidateRef.current = false;
+    setEdgeDragging(false); // re-enable the spring transition
+    setEdgeDx(0); // settle back to rest (the spring animates it)
+    if (commit) router.back();
   }
 
   function handleSwipeEnd(e: React.TouchEvent<HTMLElement>) {
+    if (edgeLockedRef.current) {
+      // Live edge-back drag: commit past ~64px of real travel, else spring back.
+      endEdgeDrag(edgeRawDxRef.current > 64);
+      return;
+    }
+    edgeCandidateRef.current = false;
     if (sidebarOpen) return;
     const t = e.changedTouches[0];
     const startX = swipeNavStartXRef.current;
@@ -300,22 +362,25 @@ export function MobileShell({
     const deltaY = Math.abs(t.clientY - swipeNavStartYRef.current);
     const absX = Math.abs(deltaX);
 
-    // Must be a clearly horizontal gesture — more horizontal than vertical
+    // Fallback fling (quick flicks not caught by the live drag) + right-edge forward.
     if (absX < 55 || deltaY > absX * 0.75) return;
-
     const viewportWidth = window.innerWidth || 390;
-
-    // Swipe right (←→) starting from left 28 px → go BACK
-    if (deltaX > 0 && startX <= 28) {
+    if (deltaX > 0 && startX <= EDGE_BAND) {
       router.back();
       return;
     }
-
-    // Swipe left (→←) starting from right 28 px → go FORWARD
     if (deltaX < 0 && startX >= viewportWidth - 28) {
       router.forward();
     }
   }
+
+  function handleSwipeCancel() {
+    if (edgeLockedRef.current) endEdgeDrag(false);
+    else edgeCandidateRef.current = false;
+  }
+
+  // Gradient reaches near-full opacity around the ~64px commit threshold.
+  const edgeProgress = Math.min(edgeDx / 90, 1);
   // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -419,9 +484,33 @@ export function MobileShell({
     <main
       aria-label={title}
       className="h-dvh overflow-hidden bg-background text-foreground"
+      onTouchCancel={handleSwipeCancel}
       onTouchEnd={handleSwipeEnd}
+      onTouchMove={handleSwipeMove}
       onTouchStart={handleSwipeStart}
     >
+      {/* Left-edge back hint — a soft gradient shadow + chevron that fade in as you drag from the
+          edge. The screen itself stays put (simple, not a slide). */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-y-0 left-0 z-[55] flex w-24 items-center"
+        style={{
+          opacity: edgeProgress,
+          background:
+            "linear-gradient(90deg, rgba(15,23,42,0.16) 0%, rgba(15,23,42,0.06) 45%, rgba(15,23,42,0) 100%)",
+          transition: edgeDragging ? "none" : "opacity 380ms ease",
+        }}
+      >
+        <span
+          className="ml-2 flex size-9 items-center justify-center rounded-full bg-white/90 text-foreground shadow-[0_10px_28px_-8px_rgba(15,23,42,0.5)] backdrop-blur"
+          style={{
+            transform: `translateX(${(edgeProgress - 1) * 12}px)`,
+            transition: edgeDragging ? "none" : "transform 380ms cubic-bezier(0.22,1,0.36,1)",
+          }}
+        >
+          <ChevronLeft className="size-5" aria-hidden="true" />
+        </span>
+      </div>
       <div className="relative mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden">
         <aside
           aria-label={dictionary.common.menu}
@@ -610,7 +699,7 @@ export function MobileShell({
                     className="relative flex size-[38px] items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                     href="/mobile/notifications"
                   >
-                    <Bell className="size-[18px]" aria-hidden="true" />
+                    <Bell className="size-[21px]" aria-hidden="true" />
                     {(badges.notifications ?? 0) > 0 ? (
                       <span
                         aria-label={String(badges.notifications)}
@@ -625,7 +714,7 @@ export function MobileShell({
                     className="flex size-[38px] items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                     href="/account?mode=mobile"
                   >
-                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <circle cx="12" cy="8.5" r="3.4" stroke="currentColor" strokeWidth="2" />
                       <path
                         d="M5.5 19c1.1-3 3.7-4.5 6.5-4.5S17.4 16 18.5 19"
@@ -728,7 +817,15 @@ export function MobileShell({
           </div>
 
           {hideBottomNav ? null : (
-            <nav className="tabbar absolute inset-x-0 bottom-0 z-20" aria-label={title}>
+            <nav
+              aria-label={title}
+              className={cn(
+                "tabbar absolute inset-x-0 bottom-0 z-20 transition-transform duration-300 ease-out motion-reduce:transition-none",
+                // Mirror the top chrome: slide the bar down on scroll-down, back up on scroll-up.
+                // Extra 40px past 100% clears the center FAB that overshoots above the bar.
+                headerVisible ? "translate-y-0" : "translate-y-[calc(100%+40px)]",
+              )}
+            >
               {leftTabs.map(renderTab)}
               <button
                 aria-label={dictionary.common.editBottomBar}
@@ -751,21 +848,26 @@ export function MobileShell({
               createOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
             )}
             onClick={() => setCreateOpen(false)}
-            style={{ transition: "opacity 320ms ease" }}
+            style={createDrag.dragging ? createDrag.scrimStyle : { transition: "opacity 320ms ease" }}
             type="button"
           />
           <div
             aria-hidden={!createOpen}
             aria-label={dictionary.common.editBottomBar}
             className="fixed inset-x-0 bottom-0 z-[65] mx-auto w-full max-w-[430px] rounded-t-[26px] bg-white px-[18px] pb-[max(24px,env(safe-area-inset-bottom))] pt-[10px] shadow-[0_-16px_44px_-12px_rgba(16,28,27,0.3)]"
+            data-sheet
             role="dialog"
-            style={{
-              transform: createOpen ? "translateY(0)" : "translateY(110%)",
-              transition: "transform 420ms cubic-bezier(0.32, 0.72, 0, 1)",
-            }}
+            style={
+              createDrag.dragging
+                ? createDrag.sheetStyle
+                : {
+                    transform: createOpen ? "translateY(0)" : "translateY(110%)",
+                    transition: "transform 420ms cubic-bezier(0.32, 0.72, 0, 1)",
+                  }
+            }
           >
-            <div className="add-sheet__handle" />
-            <div className="add-sheet__head">
+            <div className="add-sheet__handle" {...createDrag.handleProps} />
+            <div className="add-sheet__head" {...createDrag.handleProps}>
               <div className="add-sheet__head-text">
                 <p className="add-sheet__title">
                   {dictionary.common.editBottomBar}
@@ -777,16 +879,6 @@ export function MobileShell({
                   {isBarFull ? dictionary.common.bottomBarFull : dictionary.common.editBottomBarHint}
                 </p>
               </div>
-              <button
-                aria-label={dictionary.common.cancel}
-                className="add-sheet__x"
-                onClick={() => setCreateOpen(false)}
-                type="button"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </button>
             </div>
             <div className="add-sheet__scroll">
               <div className="add-grid">
@@ -805,10 +897,9 @@ export function MobileShell({
                         background: selected
                           ? "color-mix(in oklab, var(--primary) 7%, var(--surface))"
                           : "var(--surface)",
-                        outline: selected
-                          ? "2px solid var(--primary)"
-                          : "1px solid var(--border)",
-                        outlineOffset: "-1px",
+                        boxShadow: selected
+                          ? "inset 0 0 0 2px var(--primary)"
+                          : "inset 0 0 0 1px var(--border)",
                         opacity: disabled ? 0.45 : 1,
                       }}
                       type="button"

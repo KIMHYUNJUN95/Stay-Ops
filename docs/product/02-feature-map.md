@@ -289,10 +289,11 @@ Purpose:
 
 Key features:
 
-- Submit suggestion (title, body, category)
-- Visibility: `public_team` / `employee_only` (employee_only excludes other part-time staff)
-- Review lifecycle: submitted → reviewing → planned → resolved → closed
-- Admin response note
+- Send suggestion to one required recipient
+- Optional referenced users share visibility on the same thread
+- Status lifecycle: submitted → reviewing → on_hold → completed
+- Participant comments with photos
+- Recipient-only status ownership
 - Separate from Internal Board (structured feedback vs. casual posting)
 
 See `docs/product/22-staff-suggestions-workflow.md`.

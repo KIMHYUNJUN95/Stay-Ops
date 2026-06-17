@@ -1,7 +1,7 @@
 ﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { BedDouble, CheckCircle2, DoorOpen, Package, Sparkles, SprayCan, Timer, UsersRound, Wrench } from "lucide-react";
+import { BedDouble, CheckCircle2, ChevronRight, ClipboardList, DoorOpen, Package, Sparkles, SprayCan, Timer, UsersRound, Wrench } from "lucide-react";
 import { startCleaningSession } from "@/app/mobile/cleaning/actions";
 import { CleaningCompletionPanel } from "@/components/cleaning/cleaning-completion-panel";
 import type { ManualBuildingOption, ManualRoomEntry } from "@/components/cleaning/manual-cleaning-form";
@@ -660,6 +660,23 @@ export default async function MobileCleaningPage({
             />
           </div>
         </Card>
+
+        {/* Cleaning log entry — date-grouped record sheet (own; managers can view others). */}
+        <Link
+          className="flex items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3 shadow-[0_10px_30px_-26px_rgba(15,23,42,0.4)] transition-colors active:bg-slate-50"
+          href="/mobile/cleaning/records"
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <ClipboardList className="size-5" aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14px] font-extrabold tracking-[-0.01em] text-foreground">
+              {copy.records.entry}
+            </span>
+            <span className="block text-[12px] text-muted-foreground">{copy.records.entrySub}</span>
+          </span>
+          <ChevronRight className="size-5 shrink-0 text-slate-400" aria-hidden="true" />
+        </Link>
 
         {errorMessage ? (
           <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">

@@ -6,6 +6,7 @@ import {
 } from "@/lib/room-label-normalization";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
 
 type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
@@ -58,9 +59,13 @@ export type TaskRecord = {
   priority: string;
   sortOrder: number | null;
   status: string;
+  projectId: string | null;
+  sectionId: string | null;
   isInbox: boolean;
   isShared: boolean;
   recurrenceRule: string | null;
+  recurrenceSeriesId: string | null;
+  recurrenceInstanceDate: string | null;
   tags: string[];
   imageUrls: string[];
   completedAt: string | null;
@@ -132,6 +137,255 @@ export const STANDARD_RECURRENCE_RULES = [
   "weekdays",
   "weekends",
 ] as const;
+type StandardRecurrenceRule = (typeof STANDARD_RECURRENCE_RULES)[number];
+
+function formatYmd(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function ymdShift(ymd: string, days: number): string {
+  const [year, month, day] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+function ymdDiffDays(from: string, to: string): number {
+  const [fy, fm, fd] = from.split("-").map(Number);
+  const [ty, tm, td] = to.split("-").map(Number);
+  const fromUtc = Date.UTC(fy, fm - 1, fd);
+  const toUtc = Date.UTC(ty, tm - 1, td);
+  return Math.round((toUtc - fromUtc) / (1000 * 60 * 60 * 24));
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function shiftMonthlyYmd(ymd: string, months: number): string {
+  const [year, month, day] = ymd.split("-").map(Number);
+  const targetMonthIndex = month - 1 + months;
+  const targetYear = year + Math.floor(targetMonthIndex / 12);
+  const targetMonth = ((targetMonthIndex % 12) + 12) % 12 + 1;
+  return formatYmd(targetYear, targetMonth, Math.min(day, daysInMonth(targetYear, targetMonth)));
+}
+
+function getRecurrenceWindow() {
+  const today = tokyoToday();
+  const [year, month] = today.split("-").map(Number);
+  const start = formatYmd(year, month, 1);
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextMonthYear = month === 12 ? year + 1 : year;
+  const end = formatYmd(
+    nextMonthYear,
+    nextMonth,
+    daysInMonth(nextMonthYear, nextMonth),
+  );
+  return { start, end };
+}
+
+export function taskAnchorDateInput(input: {
+  scheduledDate: string | null;
+  dueAt: string | null;
+}): string | null {
+  return tokyoDateOf(input.dueAt) ?? input.scheduledDate ?? null;
+}
+
+export function taskNeedsRecurrenceDate(
+  recurrenceRule: string | null,
+  anchorDate: string | null,
+): boolean {
+  return !!recurrenceRule && !anchorDate;
+}
+
+function isStandardRecurrenceRule(value: string | null): value is StandardRecurrenceRule {
+  return !!value && (STANDARD_RECURRENCE_RULES as readonly string[]).includes(value);
+}
+
+function nextOccurrenceDate(rule: StandardRecurrenceRule, fromDate: string): string {
+  if (rule === "daily") return ymdShift(fromDate, 1);
+  if (rule === "weekly") return ymdShift(fromDate, 7);
+  if (rule === "monthly") return shiftMonthlyYmd(fromDate, 1);
+
+  let cursor = ymdShift(fromDate, 1);
+  while (true) {
+    const [year, month, day] = cursor.split("-").map(Number);
+    const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    const matches =
+      rule === "weekdays"
+        ? weekday >= 1 && weekday <= 5
+        : weekday === 0 || weekday === 6;
+    if (matches) return cursor;
+    cursor = ymdShift(cursor, 1);
+  }
+}
+
+function previousOccurrenceDate(rule: StandardRecurrenceRule, fromDate: string): string {
+  if (rule === "daily") return ymdShift(fromDate, -1);
+  if (rule === "weekly") return ymdShift(fromDate, -7);
+  if (rule === "monthly") return shiftMonthlyYmd(fromDate, -1);
+
+  let cursor = ymdShift(fromDate, -1);
+  while (true) {
+    const [year, month, day] = cursor.split("-").map(Number);
+    const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    const matches =
+      rule === "weekdays" ? weekday >= 1 && weekday <= 5 : weekday === 0 || weekday === 6;
+    if (matches) return cursor;
+    cursor = ymdShift(cursor, -1);
+  }
+}
+
+// ── Todoist-style recurrence (single live task, no pre-materialized instances) ────────────────
+// A recurring task is ONE row carrying a `recurrence_rule` + its current occurrence date.
+// Completing it rolls the same row forward to the next occurrence; the calendar expands future
+// occurrences virtually (display-only). The pure, client-safe date math (isStandardRecurrence /
+// recurringOccurrencesInRange) lives in `@/lib/tasks-recurrence`; the TaskRecord-bound helpers
+// below are used by the server actions.
+
+/** The task's current occurrence date (recurrence anchor), or null if not dated. */
+function currentInstanceOf(task: TaskRecord): string | null {
+  return task.recurrenceInstanceDate ?? taskAnchorDate(task);
+}
+
+/**
+ * Next occurrence date for a recurring task, or null if it is not a standard recurring task.
+ *
+ * If the task was completed late (its current occurrence is already in the past), the next
+ * occurrence is advanced past today so it lands in the future — Todoist's "don't pile up overdue"
+ * behavior, rather than grinding through every missed day one completion at a time. The rule's
+ * weekday / day-of-month anchor is preserved (we iterate the rule, never jump to a raw `today`).
+ */
+export function nextRecurringInstance(task: TaskRecord): string | null {
+  if (!isStandardRecurrenceRule(task.recurrenceRule)) return null;
+  const current = currentInstanceOf(task);
+  if (!current) return null;
+  const today = tokyoToday();
+  let next = nextOccurrenceDate(task.recurrenceRule, current);
+  let guard = 0;
+  while (next <= today && guard++ < 1000) next = nextOccurrenceDate(task.recurrenceRule, next);
+  return next;
+}
+
+/** Previous occurrence date (used to undo a roll-forward), or null if not standard recurring. */
+export function previousRecurringInstance(task: TaskRecord): string | null {
+  if (!isStandardRecurrenceRule(task.recurrenceRule)) return null;
+  const current = currentInstanceOf(task);
+  return current ? previousOccurrenceDate(task.recurrenceRule, current) : null;
+}
+
+/**
+ * Date fields for moving a recurring task to `targetInstance`, preserving the scheduled/due offsets
+ * and time-of-day. Returns null if the task has no current occurrence date.
+ */
+export function shiftRecurringTaskDates(
+  task: TaskRecord,
+  targetInstance: string,
+): { scheduledDate: string | null; dueAt: string | null; recurrenceInstanceDate: string } | null {
+  const current = currentInstanceOf(task);
+  if (!current) return null;
+  const delta = ymdDiffDays(current, targetInstance);
+  const scheduledDate = task.scheduledDate ? ymdShift(task.scheduledDate, delta) : null;
+  const dueDate = tokyoDateOf(task.dueAt);
+  const dueAt = dueDate
+    ? new Date(`${ymdShift(dueDate, delta)}T${task.timeLabel || "00:00"}:00+09:00`).toISOString()
+    : null;
+  return { scheduledDate, dueAt, recurrenceInstanceDate: targetInstance };
+}
+
+function fastForwardRecurrenceCursor(
+  rule: StandardRecurrenceRule,
+  fromDate: string,
+  windowStart: string,
+): string {
+  if (fromDate >= windowStart) return fromDate;
+  if (rule === "daily" || rule === "weekdays" || rule === "weekends") {
+    return ymdShift(windowStart, -1);
+  }
+  if (rule === "weekly") {
+    const diff = ymdDiffDays(fromDate, windowStart);
+    const jumps = Math.max(0, Math.floor((diff - 1) / 7));
+    return ymdShift(fromDate, jumps * 7);
+  }
+  const monthDiff =
+    (Number(windowStart.slice(0, 4)) - Number(fromDate.slice(0, 4))) * 12 +
+    (Number(windowStart.slice(5, 7)) - Number(fromDate.slice(5, 7)));
+  return shiftMonthlyYmd(fromDate, Math.max(0, monthDiff - 1));
+}
+
+type RecurrenceTaskRow = Pick<
+  TaskRow,
+  | "all_day"
+  | "created_by_user_id"
+  | "description"
+  | "due_at"
+  | "guest_name"
+  | "id"
+  | "image_urls"
+  | "is_inbox"
+  | "is_shared"
+  | "organization_id"
+  | "priority"
+  | "project_id"
+  | "property_id"
+  | "recurrence_instance_date"
+  | "recurrence_rule"
+  | "recurrence_series_id"
+  | "reservation_id"
+  | "room_id"
+  | "scheduled_date"
+  | "section_id"
+  | "tags"
+  | "time_label"
+  | "title"
+>;
+
+type RecurrenceParticipantRow = Pick<
+  ParticipantRow,
+  "added_by_user_id" | "is_first_recipient" | "role" | "user_id"
+>;
+
+function buildRecurringTaskInsert(source: RecurrenceTaskRow, targetDate: string) {
+  const sourceInstance = source.recurrence_instance_date;
+  if (!sourceInstance || !source.recurrence_series_id) return null;
+
+  const scheduledOffset = source.scheduled_date
+    ? ymdDiffDays(sourceInstance, source.scheduled_date)
+    : null;
+  const sourceDueDate = tokyoDateOf(source.due_at);
+  const dueOffset = sourceDueDate ? ymdDiffDays(sourceInstance, sourceDueDate) : null;
+  const nextScheduledDate =
+    scheduledOffset == null ? null : ymdShift(targetDate, scheduledOffset);
+  const nextDueDate = dueOffset == null ? null : ymdShift(targetDate, dueOffset);
+  const nextDueAt = nextDueDate
+    ? new Date(`${nextDueDate}T${source.time_label || "00:00"}:00+09:00`).toISOString()
+    : null;
+
+  const insert: Database["public"]["Tables"]["tasks"]["Insert"] = {
+    organization_id: source.organization_id,
+    created_by_user_id: source.created_by_user_id,
+    title: source.title,
+    description: source.description,
+    scheduled_date: nextScheduledDate,
+    due_at: nextDueAt,
+    all_day: source.all_day,
+    time_label: source.time_label,
+    priority: source.priority,
+    status: "open",
+    is_inbox: source.is_inbox,
+    is_shared: source.is_shared,
+    recurrence_rule: source.recurrence_rule,
+    recurrence_series_id: source.recurrence_series_id,
+    recurrence_instance_date: targetDate,
+    tags: source.tags ?? [],
+    image_urls: source.image_urls ?? [],
+    property_id: source.property_id,
+    room_id: source.room_id,
+    reservation_id: source.reservation_id,
+    guest_name: source.guest_name,
+    project_id: source.project_id,
+    section_id: source.section_id,
+  };
+  return insert;
+}
 
 /**
  * Resolve a submitted recurrence rule to its stored value — the server-side contract that
@@ -290,6 +544,141 @@ function buildLinkedContext(
   };
 }
 
+/**
+ * Materialize recurring task instances as real task rows for the active operating window.
+ *
+ * Current window: first day of the current Tokyo month through the last day of next month.
+ * This keeps Today/Tomorrow and the built-in calendar populated without backfilling an
+ * unbounded historical backlog for older daily recurrences.
+ */
+/**
+ * @deprecated Todoist-style recurrence (2026-06-16): recurring tasks are no longer pre-materialized
+ * into one row per date. A recurring task is a single live row that rolls forward on completion
+ * (see `completeTask`), and the calendar expands future occurrences virtually
+ * (`recurringOccurrencesInRange`). This window-generator is retained only for reference and is no
+ * longer called from any read path. Do not re-introduce calls — it causes the inbox/sent tabs to
+ * fill with duplicate-looking instances.
+ */
+export async function materializeRecurringTasks(options: {
+  organizationId?: string;
+} = {}): Promise<void> {
+  const supabase = getSupabaseServiceClient();
+  const { start, end } = getRecurrenceWindow();
+
+  let query = supabase
+    .from("tasks")
+    .select(
+      "id, organization_id, created_by_user_id, title, description, scheduled_date, due_at, all_day, time_label, priority, is_inbox, is_shared, recurrence_rule, recurrence_series_id, recurrence_instance_date, tags, image_urls, property_id, room_id, reservation_id, guest_name, project_id, section_id",
+    )
+    .not("recurrence_series_id", "is", null)
+    .not("recurrence_instance_date", "is", null)
+    .order("recurrence_instance_date", { ascending: true });
+  if (options.organizationId) {
+    query = query.eq("organization_id", options.organizationId);
+  }
+
+  const { data, error } = await query;
+  // supabase-js v2 collapses the chained-filter row type to `never`; cast before use (same
+  // workaround as the reservation queries elsewhere in this file).
+  const rows = (data ?? []) as RecurrenceTaskRow[];
+  if (error || rows.length === 0) return;
+
+  const taskIds = rows.map((row) => row.id);
+  const { data: participantData } = await supabase
+    .from("task_participants")
+    .select("task_id, user_id, role, is_first_recipient, added_by_user_id")
+    .in("task_id", taskIds);
+
+  const participantsByTask = new Map<string, RecurrenceParticipantRow[]>();
+  for (const participant of (participantData ?? []) as Array<
+    RecurrenceParticipantRow & { task_id: string }
+  >) {
+    const list = participantsByTask.get(participant.task_id) ?? [];
+    list.push({
+      user_id: participant.user_id,
+      role: participant.role,
+      is_first_recipient: participant.is_first_recipient,
+      added_by_user_id: participant.added_by_user_id,
+    });
+    participantsByTask.set(participant.task_id, list);
+  }
+
+  const seriesMap = new Map<string, RecurrenceTaskRow[]>();
+  for (const row of rows) {
+    if (!row.recurrence_series_id) continue;
+    const list = seriesMap.get(row.recurrence_series_id) ?? [];
+    list.push(row);
+    seriesMap.set(row.recurrence_series_id, list);
+  }
+
+  for (const [seriesId, seriesRows] of seriesMap) {
+    const chain = [...seriesRows].sort((a, b) =>
+      (a.recurrence_instance_date ?? "").localeCompare(b.recurrence_instance_date ?? ""),
+    );
+    const latest = chain[chain.length - 1];
+    const latestDate = latest?.recurrence_instance_date;
+    if (!latestDate || !isStandardRecurrenceRule(latest.recurrence_rule)) continue;
+
+    let source = latest;
+    let cursor = fastForwardRecurrenceCursor(latest.recurrence_rule, latestDate, start);
+    while (true) {
+      const candidate = nextOccurrenceDate(latest.recurrence_rule, cursor);
+      if (candidate > end) break;
+      cursor = candidate;
+      if (candidate < start) continue;
+
+      const insert = buildRecurringTaskInsert(source, candidate);
+      if (!insert) continue;
+
+      const { data: insertedTask, error: insertError } = await supabase
+        .from("tasks")
+        .insert(insert as never)
+        .select(
+          "id, organization_id, created_by_user_id, title, description, scheduled_date, due_at, all_day, time_label, priority, is_inbox, is_shared, recurrence_rule, recurrence_series_id, recurrence_instance_date, tags, image_urls, property_id, room_id, reservation_id, guest_name, project_id, section_id",
+        )
+        .single();
+
+      let taskRow = insertedTask as RecurrenceTaskRow | null;
+      if (insertError) {
+        if (insertError.code !== "23505") continue;
+        const { data: existingTask } = await supabase
+          .from("tasks")
+          .select(
+            "id, organization_id, created_by_user_id, title, description, scheduled_date, due_at, all_day, time_label, priority, is_inbox, is_shared, recurrence_rule, recurrence_series_id, recurrence_instance_date, tags, image_urls, property_id, room_id, reservation_id, guest_name, project_id, section_id",
+          )
+          .eq("organization_id", latest.organization_id)
+          .eq("recurrence_series_id", seriesId)
+          .eq("recurrence_instance_date", candidate)
+          .maybeSingle();
+        taskRow = (existingTask as RecurrenceTaskRow | null) ?? null;
+      }
+      if (!taskRow) continue;
+
+      const participantRows = participantsByTask.get(source.id) ?? [];
+      if (participantRows.length > 0) {
+        const inserts: Database["public"]["Tables"]["task_participants"]["Insert"][] =
+          participantRows.map((participant) => ({
+            task_id: taskRow.id,
+            user_id: participant.user_id,
+            role: participant.role,
+            is_first_recipient: participant.is_first_recipient,
+            added_by_user_id: participant.added_by_user_id,
+          }));
+        await supabase
+          .from("task_participants")
+          .upsert(inserts as never, { onConflict: "task_id,user_id", ignoreDuplicates: true });
+        participantsByTask.set(taskRow.id, participantRows);
+      }
+
+      chain.push(taskRow);
+      chain.sort((a, b) =>
+        (a.recurrence_instance_date ?? "").localeCompare(b.recurrence_instance_date ?? ""),
+      );
+      source = taskRow;
+    }
+  }
+}
+
 async function hydrate(rows: TaskRow[]): Promise<TaskRecord[]> {
   if (rows.length === 0) return [];
   const supabase = await getSupabaseServerClient();
@@ -384,9 +773,13 @@ async function hydrate(rows: TaskRow[]): Promise<TaskRecord[]> {
       priority: r.priority,
       sortOrder: r.sort_order ?? null,
       status: r.status,
+      projectId: r.project_id ?? null,
+      sectionId: r.section_id ?? null,
       isInbox: r.is_inbox,
       isShared: sharedCount > 0,
       recurrenceRule: r.recurrence_rule,
+      recurrenceSeriesId: r.recurrence_series_id ?? null,
+      recurrenceInstanceDate: r.recurrence_instance_date ?? null,
       tags: r.tags ?? [],
       imageUrls: r.image_urls ?? [],
       completedAt: r.completed_at,
@@ -407,6 +800,25 @@ export async function getVisibleTasks(session: AppSession): Promise<TaskRecord[]
     .from("tasks")
     .select("*")
     .eq("organization_id", session.organization.id)
+    .order("created_at", { ascending: false });
+  if (error) {
+    if (isMissingTable(error.message ?? "")) return [];
+    throw new Error(error.message);
+  }
+  return hydrate((data ?? []) as TaskRow[]);
+}
+
+/** All tasks belonging to a project (RLS-scoped: viewer must be a project participant). */
+export async function getProjectTasks(
+  session: AppSession,
+  projectId: string,
+): Promise<TaskRecord[]> {
+  const supabase = await getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("organization_id", session.organization.id)
+    .eq("project_id", projectId)
     .order("created_at", { ascending: false });
   if (error) {
     if (isMissingTable(error.message ?? "")) return [];

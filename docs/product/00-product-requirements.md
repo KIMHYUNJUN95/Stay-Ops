@@ -114,7 +114,7 @@ Field/office staff can log damaged, stained, or unusable linen items per propert
 
 ### Staff Suggestions / Feedback
 
-Staff and part-time staff can submit structured improvement ideas, pain points, and feedback with visibility controls (`public_team` / `employee_only`) and a review lifecycle. Separate from the Internal Board (structured feedback vs. casual posting). Approved post-MVP batch item (2026-06-09). See `docs/product/22-staff-suggestions-workflow.md`.
+Staff and part-time staff can send structured feedback to one required recipient, optionally sharing visibility with referenced users in the same organization. The feature includes a recipient-owned status lifecycle and participant comment thread, and remains separate from the Internal Board (structured feedback vs. broad internal posting). Approved post-MVP batch item (2026-06-09; refined 2026-06-16). See `docs/product/22-staff-suggestions-workflow.md`.
 
 ### Attendance / Clock-In-Out + Payroll
 

@@ -79,6 +79,24 @@ Implementation status (implemented 2026-06-03):
 - The `schemaUnavailable` fallback is in place: if the `notifications` table does not yet exist, the action silently skips notification creation with a server-side warning log.
 - i18n key for future notification message with date: `mobile.orderDetail.orderProcessedWithDeliveryDate` (ko/ja/en).
 
+### Order Request — Delivery Date Updated (배송일 변경)
+
+Trigger:
+
+- An office role edits the delivery date of an already-`ordered` request (delivery calendar / order
+  detail "배송일 수정"), implemented 2026-06-15.
+
+Recipient: Requester (self-notification suppressed when editor = requester).
+
+Implementation:
+
+- `createOrderDeliveryUpdatedNotification()` (`src/lib/notifications/create.ts`) **reuses the
+  `order_processed` notification type** (no enum migration) with a `kind: "delivery_updated"` payload
+  flag. `getNotificationDisplay` branches on that flag to render the "배송예정일 변경" title/body
+  (`mobile.notifications.orderDeliveryUpdatedTitle` / `orderDeliveryUpdatedBody`, ko/ja/en).
+- Dedupe key `order_delivery_updated:{orderId}:{deliveryValue}` — each distinct new delivery value
+  produces a fresh notification (re-saving the same date dedupes).
+
 ## Announcements
 
 ### New Announcement
@@ -192,16 +210,18 @@ Notes:
 - **Due-soon / overdue are time-based system reminders** evaluated once daily (08:00 JST) by the
   CRON_SECRET-guarded `/api/tasks/reminders` endpoint. Due soon = active task due today (Tokyo);
   overdue = active task due before today (Tokyo). Exactly one reminder per task per recipient (ever),
-  so there is no escalating-repeat spam and no recurring-instance/scheduler engine — just a narrow
-  daily evaluation. Because there is no actor, the task's author is intentionally reminded about their
-  own deadline.
+  so there is no escalating-repeat spam. The reminder run first materializes recurring task
+  instances for the active task window, then evaluates deadlines. Because there is no actor, the
+  task's author is intentionally reminded about their own deadline.
 
 ## Implementation Status Summary (as of 2026-06-11)
 
 | Event | Status |
 |---|---|
 | Order processed (주문 처리) | Implemented -- in-app only |
+| Order delivery date updated (배송일 변경) | Implemented (2026-06-15) -- in-app; reuses `order_processed` type with `kind: "delivery_updated"` |
 | Task shared / update / completed / due-soon / overdue | Implemented -- in-app only |
+| Staff suggestion: created / referenced / status / comment | Implemented (2026-06-16) -- in-app; one `suggestion_activity` type discriminated by `payload.event` |
 | Order approved | Planned -- not implemented |
 | Order rejected | Planned -- not implemented |
 | Important announcement | Planned -- not implemented |
@@ -210,7 +230,20 @@ Notes:
 | Cleaning overdue | Planned -- not implemented |
 | Web Push (push channel) | Post-MVP -- not implemented |
 
-The in-app notification center (`/mobile/notifications`) and the `notifications` table are live. Active dispatch paths: `order_processed` and the Todo / Shared Task types above.
+The in-app notification center (`/mobile/notifications`) and the `notifications` table are live. Active dispatch paths: `order_processed`, the Todo / Shared Task types, `project_shared`, and `suggestion_activity`.
+
+## Staff Suggestions — notifications (implemented 2026-06-16)
+
+One discriminated notification type `suggestion_activity` (migration `202606160003_suggestion_notifications.sql`) carries every Staff Suggestions event via `payload.event`, mirroring the `task_updated` pattern (no enum value per event). Payload: `{ suggestionId, suggestionTitle, actorUserId, event, status? }`; deep-links to `/mobile/suggestions/{id}`; fan-out via `notifySuggestionParticipants` (skips the actor, dedupes per recipient). Self-notifications suppressed; targets are always restricted to valid participants at creation time, so existence never leaks to non-participants.
+
+| Event (`payload.event`) | Trigger | Recipients (actor skipped) |
+|---|---|---|
+| `created` | suggestion created, **or** the author changes the recipient on an edit (while `submitted`) | recipient (on edit: the **new** recipient only) |
+| `referenced` | suggestion created with references, **or** the author adds new references on an edit | referenced users (on edit: only the **newly-added** ones) |
+| `status` | recipient changes status (`payload.status` = new status; `on_hold` / `completed` get specific copy) | author + referenced users |
+| `comment` | a participant adds a comment | the other participants (author + recipient + referenced) |
+
+Display: `getNotificationDisplay` branches on `payload.event` for the title/body (`mobile.notifications.suggestion*`, ko/ja/en); kind label `suggestionKind`. The author edit flow (only while `submitted`) reuses the `created` / `referenced` events: it compares the recipient against the pre-edit value and the reference set against the previous set (returned by the atomic `update_staff_suggestion` function), so an unchanged recipient sends nothing and already-referenced users are not re-notified. Self-notifications are always suppressed.
 
 ## Open Questions
 

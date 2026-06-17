@@ -1,6 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
 import { LinenReturnCreateForm } from "@/components/linen-return/linen-return-create-form";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getDictionary } from "@/lib/i18n";
@@ -59,15 +57,13 @@ export default async function LinenReturnEditPage({ params, searchParams }: Page
   const serverError = query.error ? copy.errors[query.error] ?? copy.errors.save_failed : null;
 
   return (
-    <MobileShell activeItem="linen-return" badges={navBadges} title={copy.editAction}>
+    <MobileShell
+      activeItem="linen-return"
+      badges={navBadges}
+      hideBottomNav
+      title={copy.editAction}
+    >
       <div className="flex items-center gap-[11px] px-0.5 pb-3 pt-2">
-        <Link
-          aria-label={copy.backToList}
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-700"
-          href={detailHref}
-        >
-          <ChevronLeft className="size-[19px]" aria-hidden="true" />
-        </Link>
         <p className="text-[19px] font-black leading-tight tracking-[-0.03em] text-foreground">
           {copy.editAction}
         </p>

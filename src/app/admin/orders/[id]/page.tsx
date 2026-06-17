@@ -318,11 +318,18 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             deliveryEndDateLabel: mobileCopy.deliveryEndDateLabel,
             actionProcessOrderWithDateTitle: mobileCopy.actionProcessOrderWithDateTitle,
             actionProcessOrderWithDateBody: mobileCopy.actionProcessOrderWithDateBody,
+            actionEditDelivery: mobileCopy.actionEditDelivery,
+            editDeliveryTitle: mobileCopy.editDeliveryTitle,
+            editDeliveryBody: mobileCopy.editDeliveryBody,
+            successEditDelivery: mobileCopy.successEditDelivery,
             hintStatusRequested: mobileCopy.hintStatusRequested,
             hintStatusApproved: mobileCopy.hintStatusApproved,
             hintStatusOrdered: mobileCopy.hintStatusOrdered,
             hintStatusClosed: mobileCopy.hintStatusClosed,
           }}
+          currentDeliveryDate={order.delivery_date}
+          currentDeliveryStartDate={order.delivery_start_date}
+          currentDeliveryEndDate={order.delivery_end_date}
           locale={locale}
           orderId={order.id}
           status={order.status}

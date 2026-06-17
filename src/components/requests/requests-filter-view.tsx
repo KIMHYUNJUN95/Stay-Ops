@@ -8,6 +8,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
+  CalendarDays,
   CalendarRange,
   Check,
   Clock,
@@ -40,6 +41,10 @@ import type {
   OrderRequestItem,
 } from "@/lib/order-requests";
 import type { RequestDatePreset } from "@/lib/request-filters";
+import {
+  OrderDeliveryCalendar,
+  type DeliveryCalendarOrder,
+} from "@/components/requests/order-delivery-calendar";
 import { localizePropertyName } from "@/lib/room-label-normalization";
 import { resolveRequestLocation, type RequestLocationDisplay } from "@/lib/request-location";
 import type { ActiveRoomCatalogItem } from "@/lib/rooms";
@@ -218,6 +223,7 @@ type FilterLabels = {
   filterLast7Days: string;
   filterLast30Days: string;
   filterScopeMine: string;
+  filterScopeMineRequest: string;
   filterToday: string;
   groupDate: string;
   groupScope: string;
@@ -254,6 +260,17 @@ type OrderCopy = {
   deliveryDateShort: string;
 };
 
+type DeliveryCalendarCopy = {
+  title: string;
+  openLabel: string;
+  empty: string;
+  dayEmpty: string;
+  today: string;
+  close: string;
+  countTemplate: string;
+  rangeLabel: string;
+};
+
 type EnrichedOrder = OrderRequestWithReporter & {
   parsedItems: OrderRequestItem[];
 };
@@ -281,6 +298,7 @@ type RequestsFilterViewProps = {
   maintenanceReports: MaintenanceReportWithReporter[];
   orderRequests: OrderRequestWithReporter[];
   orderCopy: OrderCopy;
+  deliveryCalendarCopy: DeliveryCalendarCopy;
   roomCatalog: ActiveRoomCatalogItem[];
   startDate?: string;
 };
@@ -503,6 +521,7 @@ export function RequestsFilterView({
   maintenanceReports,
   orderRequests,
   orderCopy,
+  deliveryCalendarCopy,
   roomCatalog,
   startDate,
 }: RequestsFilterViewProps) {
@@ -510,6 +529,7 @@ export function RequestsFilterView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [deliveryCalOpen, setDeliveryCalOpen] = useState(false);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   // ── Delete state ──────────────────────────────────────────────────────────
@@ -772,6 +792,26 @@ export function RequestsFilterView({
   const hasAnyResults =
     visibleLostItems.length > 0 || visibleMaintenance.length > 0 || visibleOrders.length > 0;
 
+  // Delivery calendar dataset — all org orders (or mine), independent of the list's status/building
+  // filters. The calendar component itself keeps only those with a delivery date/window.
+  const deliveryCalendarOrders = useMemo<DeliveryCalendarOrder[]>(
+    () =>
+      enrichedOrders
+        .filter((o) => scopeFilter !== "mine" || o.reported_by_user_id === currentUserId)
+        .map((o) => ({
+          id: o.id,
+          buildingName: o.building_name,
+          roomLabel: o.room_label,
+          title: o.title,
+          reporterName: o.reporter_name,
+          status: o.status,
+          deliveryDate: o.delivery_date,
+          deliveryStartDate: o.delivery_start_date,
+          deliveryEndDate: o.delivery_end_date,
+        })),
+    [enrichedOrders, scopeFilter, currentUserId],
+  );
+
   // ── Top "open count": current tab + scope, counting only active (open) status.
   // Completed/closed records are excluded, so the number drops as work is closed.
   const openCount = useMemo(() => {
@@ -964,7 +1004,9 @@ export function RequestsFilterView({
                 scopeFilter === "mine" ? "text-primary" : "text-slate-500",
               )}
             >
-              {filterLabels.filterScopeMine}
+              {typeFilter === "lost-found"
+                ? filterLabels.filterScopeMine
+                : filterLabels.filterScopeMineRequest}
             </span>
             <span
               className={cn(
@@ -980,6 +1022,18 @@ export function RequestsFilterView({
               />
             </span>
           </button>
+
+          {/* Delivery calendar — order tab only (only order requests carry a delivery date). */}
+          {typeFilter === "order" ? (
+            <button
+              aria-label={deliveryCalendarCopy.openLabel}
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/[0.08] text-primary shadow-[0_10px_22px_-16px_rgba(31,58,95,0.5)] transition-colors hover:bg-primary/15 active:scale-[0.96]"
+              onClick={() => setDeliveryCalOpen(true)}
+              type="button"
+            >
+              <CalendarDays className="size-[18px]" aria-hidden="true" />
+            </button>
+          ) : null}
 
           {/* Total open count — drops as records are completed/closed. */}
           <span className="ml-auto whitespace-nowrap text-xs font-bold text-slate-500">
@@ -1418,6 +1472,29 @@ export function RequestsFilterView({
             document.body,
           )
         : null}
+
+      {deliveryCalOpen ? (
+        <OrderDeliveryCalendar
+          buildingLabels={buildingLabels}
+          copy={{
+            title: deliveryCalendarCopy.title,
+            empty: deliveryCalendarCopy.empty,
+            dayEmpty: deliveryCalendarCopy.dayEmpty,
+            today: deliveryCalendarCopy.today,
+            close: deliveryCalendarCopy.close,
+            countTemplate: deliveryCalendarCopy.countTemplate,
+            rangeLabel: deliveryCalendarCopy.rangeLabel,
+          }}
+          locale={locale}
+          onClose={() => setDeliveryCalOpen(false)}
+          onOpenOrder={(id) => {
+            setDeliveryCalOpen(false);
+            router.push(`/mobile/requests/orders/${id}`);
+          }}
+          orders={deliveryCalendarOrders}
+          statusLabels={orderCopy.statusLabels}
+        />
+      ) : null}
     </div>
   );
 }

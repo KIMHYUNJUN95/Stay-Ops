@@ -52,7 +52,6 @@ export default async function MobileTaskEditPage({ params, searchParams }: PageP
   return (
     <MobileShell activeItem="tasks" badges={navBadges} title={copy.editTask}>
       <TaskCreateForm
-        backHref={detailHref}
         buildingLabels={dict.cleaning.buildingLabels}
         copy={copy}
         defaultDate={null}
@@ -85,6 +84,7 @@ export default async function MobileTaskEditPage({ params, searchParams }: PageP
               }
             : null
         }
+        maxImages={task.projectId ? 20 : 5}
         mode="edit"
         organizationId={session.organization.id}
         serverError={serverError}

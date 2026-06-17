@@ -2,8 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { notifyTaskParticipants } from "@/lib/notifications/create";
+import { getProjectDetail } from "@/lib/projects";
 import {
   getShareableUsers,
+  taskAnchorDateInput,
+  taskNeedsRecurrenceDate,
   normalizeTaskDateTime,
   resolveRecurrenceRule,
   taskTimeWithoutDate,
@@ -190,11 +193,12 @@ export async function createTask(formData: FormData) {
     .filter(Boolean)
     .slice(0, 10);
   const requestedShare = parseStringArray(cleanText(formData.get("shareJson")));
+  // Upper safety bound (20); the real per-task cap (5 regular / 20 project) is applied at insert.
   const imageUrls = formData
     .getAll("imageUrls")
     .map((v) => String(v))
     .filter((u) => u.startsWith("https://") || u.startsWith("http://"))
-    .slice(0, 5);
+    .slice(0, 20);
   const ctxPropertyId = cleanText(formData.get("ctxPropertyId")) || null;
   const ctxRoomId = cleanText(formData.get("ctxRoomId")) || null;
   const ctxReservationId = cleanText(formData.get("ctxReservationId")) || null;
@@ -210,10 +214,31 @@ export async function createTask(formData: FormData) {
     dueDate,
     time,
   });
+  const anchorDate = taskAnchorDateInput({ scheduledDate: sched, dueAt });
+  if (taskNeedsRecurrenceDate(repeat, anchorDate)) {
+    redirect("/mobile/tasks/new?error=repeat_needs_date");
+  }
 
-  // Validate share recipients against the org's active members (fail closed).
+  // Project-task linkage (optional). When present the task belongs to a project: validate the
+  // viewer is a participant (RLS-scoped read proves it) and that the section belongs to the project.
+  // Project tasks are never per-task shared — sharing is governed by project membership.
+  const projectIdRaw = cleanText(formData.get("projectId")) || null;
+  const sectionIdRaw = cleanText(formData.get("sectionId")) || null;
+  let linkedProjectId: string | null = null;
+  let linkedSectionId: string | null = null;
+  if (projectIdRaw) {
+    const project = await getProjectDetail(session, projectIdRaw);
+    if (!project) {
+      redirect("/mobile/tasks?view=projects");
+    }
+    linkedProjectId = projectIdRaw;
+    linkedSectionId =
+      sectionIdRaw && project.sections.some((s) => s.id === sectionIdRaw) ? sectionIdRaw : null;
+  }
+
+  // Validate share recipients against the org's active members (fail closed); never for project tasks.
   let shareIds: string[] = [];
-  if (requestedShare.length > 0) {
+  if (!linkedProjectId && requestedShare.length > 0) {
     const allowed = new Set((await getShareableUsers(session)).map((u) => u.id));
     shareIds = Array.from(new Set(requestedShare)).filter(
       (uid) => uid !== session.user.id && allowed.has(uid),
@@ -221,6 +246,7 @@ export async function createTask(formData: FormData) {
   }
 
   const id = crypto.randomUUID();
+  const recurrenceSeriesId = repeat ? id : null;
   const supabase = getSupabaseServiceClient();
 
   const insert: Database["public"]["Tables"]["tasks"]["Insert"] = {
@@ -238,12 +264,17 @@ export async function createTask(formData: FormData) {
     is_inbox: false,
     is_shared: shareIds.length > 0,
     recurrence_rule: repeat,
+    recurrence_series_id: recurrenceSeriesId,
+    recurrence_instance_date: recurrenceSeriesId ? anchorDate : null,
     tags,
-    image_urls: imageUrls,
+    // Project tasks allow up to 20 photos; regular tasks keep the standard 5.
+    image_urls: imageUrls.slice(0, linkedProjectId ? 20 : 5),
     property_id: ctxPropertyId,
     room_id: ctxRoomId,
     reservation_id: ctxReservationId,
     guest_name: ctxGuestName,
+    project_id: linkedProjectId,
+    section_id: linkedSectionId,
   };
   const { error } = await supabase.from("tasks").insert(insert as never);
   if (error) {
@@ -294,5 +325,9 @@ export async function createTask(formData: FormData) {
     });
   }
 
+  // Project tasks return to the project detail; regular tasks open the new task.
+  if (linkedProjectId) {
+    redirect(`/mobile/tasks/projects/${linkedProjectId}`);
+  }
   redirect(`/mobile/tasks/${id}?created=1`);
 }

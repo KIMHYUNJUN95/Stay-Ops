@@ -1,0 +1,197 @@
+"use client";
+
+/**
+ * Staff Suggestions — one comment row (Step 5).
+ * Renders a thread comment in the finalized `.cmt` style and adds the smallest edit/delete
+ * affordances for the CURRENT user's own comments (author-only, independent of suggestion status).
+ * Editing is inline text (existing photos are preserved); delete is a two-step inline confirm.
+ */
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  deleteStaffSuggestionComment,
+  updateStaffSuggestionComment,
+} from "@/app/mobile/suggestions/actions";
+import type { Dictionary, Locale } from "@/lib/i18n";
+import type { SuggestionComment, SuggestionViewerRole } from "@/lib/suggestions-queries";
+import { Ic, SgIcon } from "./sg-icons";
+
+const ROLE_CLS: Record<SuggestionViewerRole, string> = {
+  author: "role-author",
+  recipient: "role-recip",
+  referenced: "role-ref",
+};
+
+function relativeTime(iso: string, locale: Locale): string {
+  const diffSec = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
+    ["second", 60],
+    ["minute", 60],
+    ["hour", 24],
+    ["day", 7],
+    ["week", 4.34524],
+    ["month", 12],
+    ["year", Infinity],
+  ];
+  let value = diffSec;
+  for (const [unit, span] of units) {
+    if (Math.abs(value) < span) return rtf.format(-Math.round(value), unit);
+    value = value / span;
+  }
+  return rtf.format(-Math.round(value), "year");
+}
+
+const linkBtn: React.CSSProperties = {
+  fontSize: "11px",
+  fontWeight: 700,
+  color: "var(--faint)",
+  padding: "0 2px",
+};
+
+export function SuggestionCommentItem({
+  comment,
+  isOwn,
+  locale,
+  hydrated,
+  copy,
+}: {
+  comment: SuggestionComment;
+  isOwn: boolean;
+  locale: Locale;
+  hydrated: boolean;
+  copy: Dictionary["mobile"]["suggestions"];
+}) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(comment.body ?? "");
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const roleLabel = {
+    author: copy.roleAuthor,
+    recipient: copy.roleRecipient,
+    referenced: copy.roleReference,
+  }[comment.authorRole];
+  const canSaveEdit = (editText.trim().length > 0 || comment.imageUrls.length > 0) && !isPending;
+
+  function saveEdit() {
+    if (!canSaveEdit) return;
+    setError(null);
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set("commentId", comment.id);
+      fd.set("body", editText.trim());
+      // Preserve the comment's existing photos on a text edit.
+      for (const url of comment.imageUrls) fd.append("imageUrls", url);
+      const result = await updateStaffSuggestionComment(fd);
+      if (!result.ok) {
+        setError(copy.errors.save_failed);
+        return;
+      }
+      setEditing(false);
+      router.refresh();
+    });
+  }
+
+  function remove() {
+    setError(null);
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set("commentId", comment.id);
+      const result = await deleteStaffSuggestionComment(fd);
+      if (!result.ok) {
+        setError(copy.errors.save_failed);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="cmt">
+      <span
+        className="cmt__av"
+        style={
+          comment.authorRole === "recipient"
+            ? { background: "var(--primary)", color: "#fff" }
+            : undefined
+        }
+      >
+        {(comment.authorName || "—").slice(0, 1)}
+      </span>
+      <div className="cmt__b">
+        <div className="cmt__h">
+          <span className="cmt__n">{comment.authorName || "—"}</span>
+          <span className={`role-pill ${ROLE_CLS[comment.authorRole]}`}>{roleLabel}</span>
+          <span className="cmt__t">{hydrated ? relativeTime(comment.createdAt, locale) : ""}</span>
+        </div>
+
+        {editing ? (
+          <div>
+            <textarea
+              className="inp"
+              rows={2}
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              placeholder={copy.commentEditPlaceholder}
+            />
+            <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
+              <button
+                type="button"
+                style={{ ...linkBtn, color: "var(--muted)" }}
+                onClick={() => {
+                  setEditing(false);
+                  setEditText(comment.body ?? "");
+                }}
+              >{copy.cancel}</button>
+              <button
+                type="button"
+                style={{ ...linkBtn, color: "var(--primary)", opacity: canSaveEdit ? 1 : 0.5 }}
+                onClick={saveEdit}
+                disabled={!canSaveEdit}
+              >{copy.save}</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {comment.body ? <div className="cmt__body">{comment.body}</div> : null}
+            {comment.imageCount ? (
+              <span className="cmt__photo">
+                <Ic>{SgIcon.image}</Ic>
+                {copy.photoCount.replace("{n}", String(comment.imageCount))}
+              </span>
+            ) : null}
+            {isOwn ? (
+              confirming ? (
+                <div style={{ display: "flex", gap: "8px", marginTop: "4px", alignItems: "center" }}>
+                  <span style={{ fontSize: "11px", color: "var(--faint)" }}>{copy.deletePrompt}</span>
+                  <button
+                    type="button"
+                    style={{ ...linkBtn, color: "#c0392b" }}
+                    onClick={remove}
+                    disabled={isPending}
+                  >{copy.delete}</button>
+                  <button type="button" style={linkBtn} onClick={() => setConfirming(false)}>{copy.cancel}</button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
+                  <button type="button" style={linkBtn} onClick={() => setEditing(true)}>{copy.edit}</button>
+                  <button type="button" style={linkBtn} onClick={() => setConfirming(true)}>{copy.delete}</button>
+                </div>
+              )
+            ) : null}
+          </>
+        )}
+
+        {error ? (
+          <p role="alert" style={{ fontSize: "11px", color: "#c0392b", marginTop: "4px" }}>
+            {error}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}

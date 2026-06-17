@@ -1,226 +1,535 @@
 # Attendance / Clock-In-Out / Payroll Workflow
 
-Status: Draft
+Status: Refined planning draft (policy baseline confirmed 2026-06-17)
 
 ## Purpose
 
-This workflow replaces the current paper timecard process with a PWA-first attendance system and, later, hourly payroll calculation for eligible workers.
+This module replaces paper-based attendance tracking and becomes the source of truth for:
 
-Main goals:
+- real attendance records for salaried staff
+- real attendance records for hourly workers
+- monthly gross wage calculation for hourly workers only
 
-- Let workers clock in and clock out from real work sites.
-- Use stable on-site QR codes and device location to improve proof quality.
-- Support hourly wage calculation for part-time workers and other hourly roles.
-- Let salaried employees record attendance without using hourly payroll calculation.
+This module does **not** handle:
 
-## Scope Caution
+- staff scheduling
+- tax, insurance, or deductions
+- salaried payroll calculation
 
-Current StayOps docs still describe attendance as out of scope for the first MVP.
+Scheduling is handled in another app. StayOps only handles actual attendance records and hourly gross-pay calculation.
 
-This document captures a newly requested direction and should be treated as a planned scope change until explicitly confirmed.
+## Scope Summary
 
-## Why This Module Exists
+### Included
 
-Current pain points:
+- site-based clock-in / clock-out
+- QR-based attendance for the first PWA release
+- GPS proof for every successful attendance event
+- break tracking
+- own attendance history
+- own monthly wage view for hourly workers
+- correction / exception request flow
+- admin review
+- monthly per-person finalization
+- monthly gross labor dashboard for limited admins
+- Excel export
 
-- paper timecard workflow
-- changing work locations
-- different hourly rates by person
-- need for admin-controlled role and wage changes
-- need for export later
+### Deferred / Limited
 
-This module is not only attendance logging.
+- `GPS + Wi-Fi` attendance is part of the long-term design, but **PWA cannot use it yet**
+- in the PWA UI, Wi-Fi attendance should appear as `준비중`
+- taxes, insurance, deductions, and company-side payroll processing remain outside this module
 
-It also needs a path to:
+## User Model
 
-- employment type control
-- wage-rate control
-- monthly payroll calculation
-- export
+### Salaried Staff
 
-## User Groups
+- use this module for attendance / work record only
+- do not receive wage calculation here
 
-### Attendance Users
+### Hourly Workers
 
-- Staff
-- Part-time Staff
-- Field Manager
-- other active members if attendance is enabled for them
+- use this module for attendance
+- monthly gross pay is calculated from approved attendance data
+- hourly users are typically `part_time_staff` or equivalent hourly contracts
 
-### Payroll Users
+### Privileged Admins
 
-- hourly workers only
+- `owner`
+- explicitly designated `attendance_payroll_admin`
 
-### Salaried Users
+These privileged admins can:
 
-- can use attendance logging
-- excluded from hourly pay calculation
+- review all attendance
+- approve / reject correction requests
+- manually create attendance sessions
+- manage hourly rates and employment type history
+- finalize / reopen monthly payroll snapshots
+- export payroll data
+- view total labor dashboards
 
-### Admin Users
+### Owner-only Authority
 
-Recommended baseline:
+Only the `owner` can manage:
 
-- Owner
-- Office Admin
-- CS Staff
-- possibly Field Manager for limited operational review
+- site master
+- site coordinates / radius
+- site Wi-Fi SSID configuration
+- site QR issuance / replacement
 
-## Core Concepts
+## Core Operating Rules
 
-### Site Master
+### Session Model
 
-Attendance must be tied to a workplace/site.
+- attendance is recorded as a **work session**
+- one session starts at `clock in`
+- one session ends at `clock out`
+- a user may have only **one open session at a time**
+- a user may have multiple sessions in one day, but only after closing the prior session
 
-Each site should have:
+### Site Model
 
-- stable site identity
-- stable QR code
-- location data
+- every attendance action is tied to a registered site
+- free-text locations are not allowed
+- clock-in site and clock-out site may differ
+- both must be registered sites
+- both must be stored in the session record
 
-### Stable QR Code
+### Date Boundary
 
-QR code rule:
+- all attendance dates use `Asia/Tokyo`
+- overnight work is not considered a normal operating case
+- if a session crosses midnight, it becomes a review-required abnormal session
+- the next day can still start a new session
 
-- printed and physically attached on site
-- should not change casually
-- must remain usable over time
+## Authentication Rules
 
-### GPS Proof
+### PWA First Release
 
-Baseline direction:
+Active method:
 
-- QR scan alone is not enough
-- clock-in/out should also capture device location
+- `GPS + QR`
 
-Future direction:
+Designed but not active in PWA:
 
-- Wi-Fi + GPS can be added later when native app or stronger device capabilities are available
+- `GPS + Wi-Fi`
+
+PWA reason:
+
+- browser/PWA delivery should expose Wi-Fi attendance as `준비중`
+- the data model should still reserve Wi-Fi method support for a later non-web or extended release
+
+### GPS Rule
+
+- GPS is mandatory
+- every successful attendance action requires GPS
+- each site has:
+  - reference latitude / longitude
+  - allowed radius in meters
+- default allowed radius: `100m`
+- per-site override allowed
+
+If GPS is missing or denied:
+
+- normal attendance fails
+- user must use correction / exception request
+
+### QR Rule
+
+- each site has one active QR token at a time
+- QR is printed and fixed on-site
+- replacement is allowed
+- reissuing a QR deactivates the previous token
+
+### Wi-Fi Rule
+
+- Wi-Fi is a long-term supported method in the design
+- one site may hold multiple allowed SSIDs
+- site SSIDs are distinct per building in the current operating assumption
+- PWA release keeps Wi-Fi disabled and marked `준비중`
+
+## Attendance UX
+
+### Successful Clock-In / Clock-Out
+
+On success, show immediately:
+
+- clock-in complete / clock-out complete
+- recognized site
+- timestamp
+- authentication method
+- current open-session state
+- today cumulative work time
+
+### Failure Handling
+
+On failure, show a specific reason such as:
+
+- GPS permission denied
+- outside allowed radius
+- QR scan failed
+- Wi-Fi unavailable or unsupported in current PWA release
+- open break prevents clock-out
+- midnight-crossing abnormal state
+
+Then offer:
+
+- retry
+- correction / exception request
+
+## Break Policy
+
+### Shared Rules
+
+- the same attendance UI is used by salaried staff and hourly workers
+- break start / break end actions are available in the shared UI
+
+### Hourly Workers
+
+- breaks are free-form and may occur multiple times in one session
+- only recorded break time is excluded from paid time
+- no automatic break deduction
+- if an hourly worker does not take a break, all worked time remains paid
+- if a break is forgotten or overstated, correction request is used
+
+### Strict Break Closure
+
+- clock-out is blocked while a break is still open
+- user must close the break before clocking out
+- if the user closes the break late and overstates unpaid time, they can submit a correction request
+
+### Salaried Staff
+
+- salaried users may still record breaks for attendance history
+- this module does not calculate salaried pay from those breaks
+
+## Open Session / Missing Clock-Out Rules
+
+- if a user forgets to clock out, the session remains abnormal
+- the system does **not** auto-close the session
+- the user may still start a new session the next day
+- the old session becomes `review required`
+- abnormal or incomplete sessions do not enter hourly pay until resolved
+
+### 6:30 PM Reminder
+
+- if a user still has an open work session after `18:30` Tokyo time, show one reminder that day
+- choices:
+  - `still working`
+  - `already left work`
+- `still working` keeps the session open and does not ask again that day
+- `already left work` does **not** auto clock-out; it sends the user to correction / incomplete-session handling
+
+## Correction / Exception Requests
+
+### Who Can Request
+
+- users may request correction for their own records only
+- requestable period: current month + previous month
+- older records require admin handling only
+
+### Request Reasons
+
+- missing clock-in
+- missing clock-out
+- wrong time
+- wrong site
+- GPS / QR / Wi-Fi authentication failure
+- other
+
+### Request Payload
+
+Users may submit:
+
+- desired clock-in time
+- desired clock-out time
+- desired clock-in site
+- desired clock-out site
+- memo
+- optional photos, up to 5
+
+Users cannot directly change the original record.
+
+### Admin Resolution
+
+- correction state:
+  - `requested`
+  - `in_review`
+  - `approved`
+  - `rejected`
+- reject comment is required
+- approve comment is optional
+- final corrected value is always admin-confirmed, not user-self-applied
+
+## Admin Review
+
+### Review Priority
+
+Admin review should surface items in this order:
+
+1. review-required sessions
+2. sessions with correction requests
+3. incomplete sessions
+4. normal completed sessions
+
+### Review Filters
+
+- all
+- review required
+- correction requested
+- incomplete
+- manually created
+- not finalized this month
+
+Additional filters:
+
+- user name
+- date range
+- site
+
+### Review Fields
+
+Minimum row data:
+
+- user
+- date
+- clock-in time / site
+- clock-out time / site
+- auth method
+- break total
+- paid duration
+- status
+- correction request presence
+
+## Audit and Deletion Policy
+
+- attendance records are never hard-deleted
+- original records remain preserved
+- corrections, invalidations, and superseding actions must leave an audit trail
+- manager-side actions require a mandatory reason
+
+Minimum audit history must include:
+
+- actor
+- timestamp
+- before values
+- after values
+- reason
+
+### Manual Admin Creation
+
+- `owner` and `attendance_payroll_admin` may manually create a session
+- manual records must store:
+  - `manual_created = true`
+  - creator
+  - creation time
+  - creation reason
+
+Manual records follow the same correction, review, payroll, snapshot, and export rules as normal records.
+
+## Employment Type and Rate Rules
 
 ### Employment Type
 
-The system must distinguish:
+- employment type is not inferred only from role
+- it is stored per person and managed by privileged admins
+- recommended values:
+  - `hourly`
+  - `salaried`
 
-- hourly
-- salaried
+### Employment Type History
 
-This must be admin-controlled, not hardcoded.
+- employment type changes are historical
+- change applies from the effective date
+- past records never get reinterpreted
+- the effective date applies to the whole day
 
-### Hourly Rate Management
+### Hourly Rate
 
-Hourly rate differs by worker.
+- hourly rate differs per person
+- rate changes are historical
+- past records never change
+- a rate change applies from the effective date
+- the effective date applies to the whole day
 
-Recommended data rule:
+## Hourly Pay Calculation Rules
 
-- rates should support effective dates
-- historical calculations should not change when a future rate changes
+This module calculates **gross principal only**.
 
-## Attendance Flow
+### Included
 
-Recommended baseline:
+- paid work minutes
+- approved corrected records
+- manually created records once approved/valid
 
-```txt
-Worker opens attendance screen
-Scan site QR
-Grant GPS permission
-Clock in
-Later repeat for clock out
-Own attendance history updates
-Admin review screen updates
-```
+### Excluded
 
-## Payroll Flow
+- taxes
+- insurance
+- deductions
+- holiday premiums
+- overtime premiums
+- night premiums
 
-Recommended phase order:
+### Calculation Rules
 
-1. attendance capture
-2. employment type and wage management
-3. hourly payroll calculation
-4. export
+- work time is tracked in 1-minute units
+- hourly workers accumulate paid minutes continuously
+- paid time excludes recorded break time
+- only closed / resolved sessions count
+- review-required, incomplete, or pending-correction records are excluded until resolved
+- final gross amount is rounded to the nearest `10 yen`
 
-Do not start with export before the pay rules are fixed.
+## Monthly View for Hourly Workers
 
-## Required Functional Areas
+Hourly workers can see:
 
-### Worker Side
+- current month expected pay before finalization
+- finalized pay after monthly close
+- cumulative paid time
+- rate segments if rates changed within the month
+- excluded record count
+- daily breakdown:
+  - sessions
+  - clock-in / clock-out times
+  - break total
+  - paid time
+  - daily gross amount
 
-- scan QR
-- capture GPS
-- clock in
-- clock out
-- view own records
+They cannot see:
 
-### Admin Side
+- other users' pay
+- total labor cost
 
-- site management
-- QR management
-- employment-type management
-- hourly-rate management
-- attendance review
-- correction flow
+## Monthly Finalization
+
+### Finalization Unit
+
+- finalization is done per person per month
+- one problematic worker must not block all other workers
+
+### Month Boundary
+
+- month = `1st` through `last day`
+- Tokyo operating date
+
+### Finalization Rule
+
+- finalization is manual only
+- only `owner` and `attendance_payroll_admin` can finalize
+- finalization is blocked if any of these remain:
+  - review-required sessions
+  - pending correction requests
+  - incomplete sessions
+  - reopened state
+
+### Snapshot Rule
+
+When finalizing a user-month, store a snapshot that includes:
+
+- target month
+- user
+- total paid time
+- pay by rate segment
+- final gross amount
+- finalizer
+- finalized timestamp
+
+If reopened later:
+
+- prior snapshot remains as superseded history
+- a new snapshot is generated on re-finalization
+
+## Dashboard and Visibility
+
+### Default User Visibility
+
+- users can see only their own attendance records
+- hourly users can see only their own pay
+
+### Privileged Visibility
+
+Only `owner` and `attendance_payroll_admin` can see:
+
+- organization-wide attendance
+- other users' hourly pay
+- monthly payroll finalization queue
+- monthly total labor dashboards
 - export
 
-## Suggested Fields
+### Dashboard Metrics
 
-High-level required areas:
+Show both:
 
-```txt
-site
-qr token
-timestamp
-gps coordinates
-user
-clock event type
-employment type
-hourly rate history
-pay period
-pay calculation result
-```
+- finalized labor total
+- expected labor total
 
-## Important Policy Questions
+Also show:
 
-These must be defined before payroll implementation:
+- number of unfinalized workers
+- site-based labor totals
 
-- break deduction
-- rounding rules
-- lateness handling
-- overtime handling
-- overnight shifts
-- holiday rules
-- payroll closing date
-- correction approval flow
+For first slice, site cost rollup is based on the **clock-in site**.
 
-## PWA Constraints
+## Export
 
-Real-device testing is mandatory because:
+- monthly bulk export supported
+- per-person export supported
+- export includes finalized data only
+- draft / reopened / unresolved records are excluded
+- template is required but still pending from the operator
+- Google Sheets compatibility may be added later, but template definition is still pending
 
-- camera behavior differs by browser
-- geolocation permissions differ by device
-- background behavior is weaker than native apps
+Export history must be stored:
 
-## Suggested First MVP Slice
+- who exported
+- when
+- which month
+- which finalized version set
 
-Recommended first live slice:
+## Notifications
 
-1. site master
-2. stable QR issuance
-3. QR + GPS clock in/out
-4. own history
-5. admin attendance log review
+### Worker-facing
 
-Recommended second slice:
+- one daily 18:30 open-session reminder
+- correction request status updates
 
-6. employment type management
-7. hourly rate history
+### Admin-facing
 
-Recommended third slice:
+Notify `owner` and `attendance_payroll_admin` immediately for:
 
-8. payroll calculation
-9. export
+- correction / exception request created
+- incomplete session created
+- midnight-crossing abnormal session
 
-## Open Questions
+## Phase Plan
 
-- Should Field Manager be allowed to review only or also correct records?
-- What exact roles are considered hourly workers?
-- Should users be able to clock into multiple sites on the same day?
-- What should happen if QR is valid but GPS permission is denied?
-- Is an anonymous correction request needed?
+### Phase A
+
+- site master
+- QR issuance / replacement
+- GPS + QR attendance in PWA
+- Wi-Fi method shown as `준비중`
+- shared attendance UI
+- own attendance history
+- correction / exception requests
+- admin review
+
+### Phase B
+
+- employment type history
+- hourly rate history
+- hourly expected pay
+- monthly finalization snapshots
+- dashboard
+
+### Phase C
+
+- Excel export
+- Google Sheets follow-up if required
+- future Wi-Fi activation in a non-PWA or expanded delivery path
+
+## Remaining Open Items
+
+- final Excel export template is still pending from the operator
+- future Wi-Fi activation method depends on the final app delivery form beyond the current PWA

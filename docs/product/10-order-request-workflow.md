@@ -159,11 +159,12 @@ Meaning:
 - Entered in the 주문 처리 confirmation modal at the time of status change.
 - Displayed in the order detail page as "배송예정일 / 配送予定日 / Expected Delivery".
 - Shown as a secondary metadata item in the requests list card when present.
-- Calendar auto-registration for this date is planned and must follow a strict trigger rule:
-  - only `delivery_date` creates the calendar entry
+- The delivery calendar is derived from this field and must follow a strict trigger rule:
+  - only `delivery_date` (point) / `delivery_start_date`..`delivery_end_date` (range) drives the entry
   - no other order-request date field should create a calendar entry in the baseline design
   - if `delivery_date` is not entered, no calendar entry is created
-- See `docs/product/15-reservation-calendar.md`.
+- The calendar lives in the **mobile Requests area, order tab only** (not the reservation calendar).
+  See "Delivery Calendar (Planned / Design — 2026-06-15)" below.
 
 ## Statuses
 
@@ -221,19 +222,72 @@ When Office Admin marks the request as ordered (주문 처리):
 - Content: order processing completed, delivery date included in payload
 - Self-notification suppressed: no notification if processor = requester
 
-## Calendar Integration (Planned, Not Implemented)
+### Delivery Date Updated (배송일 변경)
+
+When an office role edits the delivery date of an already-`ordered` request (implemented 2026-06-15):
+
+- Requester receives an in-app notification with the new delivery date.
+- Implementation reuses the existing `order_processed` notification type (no enum migration) with a
+  `kind: "delivery_updated"` payload flag; the display renders a "배송예정일 변경" title/body
+  (`createOrderDeliveryUpdatedNotification`). The dedupe key includes the new delivery value so each
+  distinct change produces a fresh notification.
+- Self-notification suppressed: no notification if the editor = requester.
+
+## Delivery Calendar (Implemented — 2026-06-15)
 
 Current status:
 
 - `delivery_date` is captured and stored when status transitions to `ordered` (implemented 2026-06-01).
 - The detail page and requests list display `delivery_date` formatted in Asia/Tokyo timezone.
-- Calendar auto-registration for order delivery is **not yet implemented**.
+- The delivery **calendar view** is **implemented (2026-06-15)** — component
+  `src/components/requests/order-delivery-calendar.tsx`, opened from the Requests order tab
+  (`src/components/requests/requests-filter-view.tsx`).
 
-Planned behavior:
+Placement & entry point (as built):
 
-- When status changes to `ordered` and `delivery_date` is saved, StayOps will create an order-delivery schedule entry in the reservation calendar automatically.
-- Entry type: order-delivery (distinct from guest reservation bars).
-- The delivery calendar entry exists only for the delivery date use case. It is not a general-purpose calendar integration for other order-request timestamps or workflow dates.
+- The delivery calendar lives **inside the mobile Requests area**, **not** in the reservation calendar
+  (`/mobile/calendar`). The reservation calendar is a room-axis timeline keyed to guest reservations;
+  building-scoped order deliveries do not fit that axis. (Supersedes the earlier "add to reservation
+  calendar" plan; see also `docs/product/15-reservation-calendar.md`.)
+- Entry point is a **calendar icon button next to the "내 요청" scope toggle**, shown **only on the
+  비품주문 (order) tab**. **It must NOT appear on the 수리요청 (maintenance) or 분실물 (lost-found)
+  tabs** — only order requests carry a delivery date. The icon is a high-quality, design-token-styled
+  button (rounded, primary tint/ring/soft shadow, `CalendarDays`-style glyph).
+- Tapping the icon opens a **popup (centered modal) with a large month calendar**. (This is a centered
+  popup/dialog, so the bottom-sheet "drag-to-dismiss / no-X" rule does not apply; it closes via
+  backdrop tap / Esc.) The popup shows: month navigation, a large month grid with a marker (●) on
+  days that have deliveries, and — on tapping a marked day — that day's deliveries (building/room,
+  title, requester, status; range deliveries show `~end`), each linking to the order detail.
+
+Data / auto-registration rule:
+
+- The calendar is **derived from `order_requests`** — no separate calendar/events table and no schema
+  change. It queries the visible month for orders whose `delivery_date` (point) or
+  `delivery_start_date`..`delivery_end_date` (range) falls in range.
+- This satisfies the strict trigger: **only `delivery_date` creates a calendar entry**; if it is not
+  set, nothing appears. Because the calendar reads the order row directly, the entry **auto-appears**
+  when an admin saves the delivery date and **auto-updates** when it is edited — no extra write.
+- Scope follows the existing requests toggle: **전체 (org)** by default with a **"내 요청"** filter
+  (`reported_by_user_id`).
+
+Editing (as built):
+
+- The delivery date is editable after `ordered` from the **order detail page by office-level roles**
+  (same permission as 주문 처리). The order action bar shows a **"배송일 수정"** action when
+  `status === "ordered"`, reusing the existing delivery-date picker (exact / range) and persisting via
+  a dedicated `updateOrderDeliveryDate` server action (`src/app/mobile/requests/orders/actions.ts`) —
+  status stays `ordered`, only the delivery columns change. The calendar reflects edits automatically
+  (it reads the order rows). Editing **notifies the requester** (delivery-date-changed notification —
+  see Notifications below); self-suppressed when the editor is the requester.
+- i18n: `mobile.filterScopeMineRequest`, `mobile.deliveryCalendar.*`, and order-detail
+  `actionEditDelivery / editDeliveryTitle / editDeliveryBody / successEditDelivery` (ko/ja/en).
+
+Admin web (deferred):
+
+- The delivery calendar is currently **mobile only** (the requester-facing surface). An equivalent
+  view on the **admin web** (`/admin/orders` or `/admin/calendar`) is **intentionally deferred until
+  the mobile app development is complete**, then revisited. The delivery-date edit already works on the
+  admin order detail (shared `OrderActionBar`); only the calendar visualization is deferred for web.
 
 ## Admin Surface
 

@@ -524,10 +524,26 @@ role != 'part_time_staff'  OR  profiles.can_generate_report = true
 
 ## staff_suggestions
 
-- Read: author always; `public_team` rows readable by all active members; `employee_only` rows readable by author plus owner/office_admin/cs_staff/field_manager/staff/developer_super_admin (**not** other part_time_staff); platform-admin bypass.
-- Create: any active org member.
-- Update status + response_note: authorized management roles (owner, office_admin, cs_staff). Author may edit own row before review if that rule is accepted.
-- This needs stricter role-aware RLS than the Board — see `12`.
+**As-built (Step 1 — schema, migration `202606160001_staff_suggestions.sql`, 2026-06-16):**
+
+- RLS enabled on `staff_suggestions`, `staff_suggestion_references`, `staff_suggestion_comments`.
+- **Read** (SELECT policy on all three): `is_platform_admin()` OR `can_view_staff_suggestion(id)` —
+  a `SECURITY DEFINER` helper that returns true for the author, the recipient, or a referenced user
+  (references checked via the join table; definer-rights so it never recurses through these policies).
+- **Writes**: no INSERT / UPDATE / DELETE policies exist, so direct authenticated writes are denied.
+  All mutations are routed through **service-role server actions** (added in later steps), which carry
+  the business rules below. `grant select, insert, update, delete ... to authenticated` is present but
+  inert for writes without a policy; `grant all ... to service_role` lets the service role bypass RLS.
+
+Business rules to enforce in those server actions (not yet implemented):
+
+- Create: any active org member; recipient required, same org, `<> author` (DB also checks this).
+- Update / delete main suggestion by author: own row only while `status = 'submitted'`.
+- Update status fields (`status`, `hold_reason`, `completion_note`): recipient only (DB CHECKs already
+  require a hold reason for `on_hold` and a completion note for `completed`).
+- Referenced-user rows: managed by the author only while parent suggestion is `submitted`; referenced
+  user must be same-org and not the author/recipient.
+- Comments: visible participants can insert; only the comment author can update/delete.
 
 ## Attendance tables (attendance_sites / attendance_qr_tokens / attendance_events / employment_profiles / hourly_rate_history)
 

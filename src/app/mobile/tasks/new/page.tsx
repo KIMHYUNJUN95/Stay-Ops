@@ -8,7 +8,13 @@ import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getShareableUsers } from "@/lib/tasks";
 
 type PageProps = {
-  searchParams: Promise<{ date?: string; error?: string; title?: string }>;
+  searchParams: Promise<{
+    date?: string;
+    error?: string;
+    title?: string;
+    project?: string;
+    section?: string;
+  }>;
 };
 
 export default async function MobileTaskNewPage({ searchParams }: PageProps) {
@@ -35,6 +41,10 @@ export default async function MobileTaskNewPage({ searchParams }: PageProps) {
   // Title carried over from Quick Add (capped, trimmed) so escalating to full create keeps it.
   const defaultTitle = (params.title ?? "").trim().slice(0, 200) || undefined;
   const serverError = params.error ? copy.errors[params.error] ?? copy.errors.save_failed : null;
+  // Project-task creation: carries the project (and optional section) so createTask persists the
+  // linkage and returns to the project on save. Back goes to the project detail.
+  const projectId = (params.project ?? "").trim() || undefined;
+  const sectionId = (params.section ?? "").trim() || undefined;
 
   const [users, navBadges] = await Promise.all([
     getShareableUsers(session),
@@ -44,7 +54,6 @@ export default async function MobileTaskNewPage({ searchParams }: PageProps) {
   return (
     <MobileShell activeItem="tasks" badges={navBadges} title={copy.newTask}>
       <TaskCreateForm
-        backHref="/mobile/tasks"
         buildingLabels={dict.cleaning.buildingLabels}
         copy={copy}
         defaultDate={defaultDate}
@@ -52,7 +61,10 @@ export default async function MobileTaskNewPage({ searchParams }: PageProps) {
         headerTitle={copy.newTask}
         imgCopy={dict.requestImages}
         locale={locale}
+        maxImages={projectId ? 20 : 5}
         organizationId={session.organization.id}
+        projectId={projectId}
+        sectionId={sectionId}
         serverError={serverError}
         users={users}
       />

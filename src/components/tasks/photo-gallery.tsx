@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import { cn } from "@/lib/utils";
 
 /**
@@ -40,6 +41,9 @@ export function PhotoGallery({
     setSheetShown(false);
     setTimeout(() => setSheetMounted(false), 320);
   }, []);
+
+  // iOS-style drag-to-dismiss on the grab handle / header (lightbox carousel excluded).
+  const drag = useSheetDragDismiss({ shown: sheetShown, onDismiss: closeSheet });
 
   const openLightbox = useCallback((index: number) => {
     setActiveIndex(index);
@@ -135,6 +139,7 @@ export function PhotoGallery({
                 sheetShown ? "opacity-100" : "opacity-0",
               )}
               onClick={closeSheet}
+              style={drag.scrimStyle}
             >
               <div
                 className={cn(
@@ -142,24 +147,19 @@ export function PhotoGallery({
                   "transition-transform duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
                   sheetShown ? "translate-y-0" : "translate-y-full",
                 )}
+                data-sheet
                 onClick={(e) => e.stopPropagation()}
+                style={drag.sheetStyle}
               >
-                <div className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200" />
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <p className="text-[16px] font-black text-foreground">{title}</p>
-                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
-                      {urls.length}
-                    </span>
-                  </div>
-                  <button
-                    aria-label={closeLabel}
-                    className="flex size-8 items-center justify-center rounded-full bg-slate-50 text-slate-500 transition-colors active:bg-slate-100"
-                    onClick={closeSheet}
-                    type="button"
-                  >
-                    <X className="size-4" aria-hidden="true" />
-                  </button>
+                <div
+                  className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200"
+                  {...drag.handleProps}
+                />
+                <div className="mb-3 flex items-center gap-2" {...drag.handleProps}>
+                  <p className="text-[16px] font-black text-foreground">{title}</p>
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                    {urls.length}
+                  </span>
                 </div>
                 <div className="-mx-1 grid max-h-[60vh] grid-cols-3 gap-2 overflow-y-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {urls.map((url, i) => (

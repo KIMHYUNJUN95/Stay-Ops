@@ -582,8 +582,10 @@ announcement images: max 5
 Storage buckets:
 
 ```txt
-request-images   -- lost_items and maintenance_reports images
-                 -- path: {org_id}/{request_type}/{request_id}/{filename}
+request-images   -- shared image bucket; path: {org_id}/{request_type}/{request_id}/{filename}
+                 -- request_type whitelist (storage RLS): lost-items, maintenance-reports,
+                 -- order-images, linen-returns, task-images, task-update-images, suggestion-images
+                 -- (suggestion-images added 202606160004; part_time_staff may upload only there)
 announcement-images -- announcement images
                  -- path: {org_id}/{announcement_id}/{filename}
 ```
@@ -657,10 +659,16 @@ task_updated
 task_completed
 task_due_soon
 task_overdue
+project_shared
+suggestion_activity
 ```
 
 Implementation notes:
-- `order_processed` is dispatched when an order request status transitions to `ordered`.
+- `order_processed` is dispatched when an order request status transitions to `ordered` (and reused,
+  with a `kind: "delivery_updated"` payload flag, for a later delivery-date edit).
+- `suggestion_activity` (migration `202606160003_suggestion_notifications.sql`) is one type for all
+  Staff Suggestions events, distinguished by `payload.event` (`created` / `referenced` / `status` /
+  `comment`); fan-out only to valid participants, deep-linking to `/mobile/suggestions/{id}`.
 - `task_shared` / `task_updated` / `task_completed` are event-driven from the task server actions and
   fan out only to a task's current participants (org-scoped). `task_updated` is one type distinguished
   by `payload.event` — `edited` (author core edit), `note` (update-log activity), `reopened`.
@@ -728,7 +736,9 @@ The tables below back the approved post-MVP batch. Full column types, enums, ind
 Implemented. Selectable linen item catalog. Org-scoped with nullable `building_name`
 (`NULL` = available for all buildings; a value scopes the item to one canonical building name).
 Building is the canonical property name (text), not a `properties` FK — consistent with the rest
-of the app. Seeded with a default 8-item global set per org. See
+of the app. Current default global set per org is 7 items
+(`duvet_single, duvet_double, mattress_single, mattress_double, pillow, towel, mat`); older
+generic defaults are retired from the active picker but kept for historical rows. See
 `docs/engineering/08-linen-defect-technical-design.md` → "As-Built".
 
 ```txt
@@ -873,28 +883,67 @@ Permissions note: all active roles **including part_time_staff** can create post
 
 ## staff_suggestions
 
-Structured feedback box with visibility + review lifecycle. See `docs/engineering/12-staff-suggestions-technical-design.md`.
+Structured feedback thread with one required recipient, optional referenced users, recipient-owned status, and participant comments. **Schema implemented (Step 1, 2026-06-16) — migration `supabase/migrations/202606160001_staff_suggestions.sql`.** Server actions / queries / notifications are NOT wired yet (later steps). See `docs/engineering/12-staff-suggestions-technical-design.md`.
 
 ```txt
-id uuid primary key
-organization_id uuid not null references organizations(id)
-created_by_user_id uuid not null references profiles(id)
+id uuid primary key default gen_random_uuid()
+organization_id uuid not null references organizations(id) on delete cascade
+created_by_user_id uuid not null references profiles(id) on delete restrict
+recipient_user_id uuid not null references profiles(id) on delete restrict
 title text not null
-body text
-category text   -- operations | workplace | tools_system | staffing | safety | property_specific | other
-visibility text not null   -- public_team | employee_only
-status text not null default 'submitted'   -- submitted | reviewing | planned | resolved | closed
-property_id uuid references properties(id)
+body text not null
+category text
+status text not null default 'submitted'   -- submitted | reviewing | on_hold | completed
+hold_reason text
+completion_note text
+property_id uuid references properties(id) on delete set null
 property_name text
-response_note text
-responded_by_user_id uuid references profiles(id)
-responded_at timestamptz
-resolved_at timestamptz
-created_at timestamptz
-updated_at timestamptz
+room_id uuid references rooms(id) on delete set null
+room_label text
+image_urls text[] not null default '{}'
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()  -- maintained by set_updated_at() trigger
 ```
 
-Permissions note: `employee_only` rows are readable by the author plus owner/office_admin/cs_staff/field_manager/staff/developer_super_admin — **not** other part_time_staff.
+CHECK constraints (as built):
+- `status in ('submitted','reviewing','on_hold','completed')`
+- `char_length(trim(title)) > 0`, `char_length(trim(body)) > 0`
+- `recipient_user_id <> created_by_user_id` (cannot address own author)
+- `coalesce(array_length(image_urls,1),0) <= 5` (max 5 photos; re-applied server-side)
+- `status <> 'on_hold' or trim(hold_reason) <> ''` (hold needs a reason)
+- `status <> 'completed' or trim(completion_note) <> ''` (completion needs a note)
+
+Indexes: `(organization_id, created_by_user_id, created_at desc)` Sent · `(organization_id, recipient_user_id, created_at desc)` Received · `(organization_id, status, created_at desc)` status · `(organization_id, property_id, created_at desc)` context.
+
+```txt
+staff_suggestion_references
+  id uuid primary key default gen_random_uuid()
+  organization_id uuid not null references organizations(id) on delete cascade
+  suggestion_id uuid not null references staff_suggestions(id) on delete cascade
+  user_id uuid not null references profiles(id) on delete cascade
+  created_at timestamptz not null default now()
+  unique (suggestion_id, user_id)
+```
+
+Indexes: `(suggestion_id)` join lookups · `(organization_id, user_id, created_at desc)` Referenced list. (Author/recipient duplication of a referenced user is excluded server-side at write time, not by a DB constraint.)
+
+```txt
+staff_suggestion_comments
+  id uuid primary key default gen_random_uuid()
+  organization_id uuid not null references organizations(id) on delete cascade
+  suggestion_id uuid not null references staff_suggestions(id) on delete cascade
+  created_by_user_id uuid not null references profiles(id) on delete restrict
+  body text
+  image_urls text[] not null default '{}'
+  created_at timestamptz not null default now()
+  updated_at timestamptz not null default now()  -- set_updated_at() trigger
+```
+
+CHECK constraints: `coalesce(array_length(image_urls,1),0) <= 5` (max 5 photos) · not fully empty (`trim(body) <> '' or array_length(image_urls,1) > 0`). Index: `(suggestion_id, created_at asc)` thread loading.
+
+Visibility helper: `public.can_view_staff_suggestion(target_suggestion_id uuid)` — `SECURITY DEFINER`, returns true if `auth.uid()` is the author, the recipient, or a referenced user (used by the three SELECT policies; bypasses RLS to avoid recursion).
+
+Permissions note: read access is limited to author + recipient + referenced users (+ platform admin). Only the recipient changes status. Referenced users can comment but cannot change status or edit the main suggestion. The author edits/deletes the main suggestion only while `submitted`; comment edit/delete is always comment-author only. These mutation rules are enforced in server actions (later steps); RLS currently grants read-only to participants and routes all writes through the service role.
 
 ## Attendance / Payroll tables
 

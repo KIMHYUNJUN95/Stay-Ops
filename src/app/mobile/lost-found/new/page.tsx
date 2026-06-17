@@ -86,7 +86,7 @@ export default async function LostFoundNewPage({ searchParams }: PageProps) {
   const navBadges = await getMobileNavBadges();
 
   return (
-    <MobileShell activeItem="requests" badges={navBadges} title={copy.mobileTitle}>
+    <MobileShell activeItem="requests" badges={navBadges} hideBottomNav title={copy.mobileTitle}>
       <div className="space-y-4">
         <Card className="rounded-2xl p-4">
           <div className="flex items-start gap-3">

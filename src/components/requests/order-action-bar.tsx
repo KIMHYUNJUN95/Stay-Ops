@@ -12,12 +12,16 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { updateOrderRequestStatus } from "@/app/mobile/requests/orders/actions";
+import {
+  updateOrderDeliveryDate,
+  updateOrderRequestStatus,
+} from "@/app/mobile/requests/orders/actions";
+import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/types/database";
 import type { Locale } from "@/lib/i18n";
 
-type OrderAction = "approve" | "ordered" | "reject";
+type OrderAction = "approve" | "ordered" | "reject" | "edit-delivery";
 type OrderStatus = Database["public"]["Enums"]["order_request_status"];
 
 type OrderActionBarLabels = {
@@ -43,6 +47,10 @@ type OrderActionBarLabels = {
   deliveryEndDateLabel: string;
   actionProcessOrderWithDateTitle: string;
   actionProcessOrderWithDateBody: string;
+  actionEditDelivery: string;
+  editDeliveryTitle: string;
+  editDeliveryBody: string;
+  successEditDelivery: string;
   hintStatusRequested: string;
   hintStatusApproved: string;
   hintStatusOrdered: string;
@@ -54,12 +62,16 @@ type OrderActionBarProps = {
   locale: Locale;
   orderId: string;
   status: OrderStatus;
+  currentDeliveryDate?: string | null;
+  currentDeliveryStartDate?: string | null;
+  currentDeliveryEndDate?: string | null;
 };
 
 const ACTION_ICON = {
   approve: CheckCircle2,
   ordered: PackageCheck,
   reject: XCircle,
+  "edit-delivery": PackageCheck,
 } as const;
 
 // ─── Calendar utilities ───────────────────────────────────────────────────────
@@ -253,7 +265,15 @@ function DeliveryCalendar({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function OrderActionBar({ labels, locale, orderId, status }: OrderActionBarProps) {
+export function OrderActionBar({
+  labels,
+  locale,
+  orderId,
+  status,
+  currentDeliveryDate,
+  currentDeliveryStartDate,
+  currentDeliveryEndDate,
+}: OrderActionBarProps) {
   const router = useRouter();
   const [activeAction, setActiveAction]         = useState<OrderAction | null>(null);
   const [isPending, setIsPending]               = useState(false);
@@ -288,22 +308,35 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
 
   const isOrdered = activeAction === "ordered";
   const isReject  = activeAction === "reject";
+  const isDeliveryEdit = activeAction === "edit-delivery";
+  // Both "process order" and "edit delivery" show the delivery-date picker as a bottom sheet.
+  const showsDelivery = isOrdered || isDeliveryEdit;
+
+  // iOS-style drag-to-dismiss — only the mobile bottom-sheet variants (delivery picker) get a grab
+  // handle; the centered confirm/reject dialog is excluded.
+  const sheetDrag = useSheetDragDismiss({ shown: showsDelivery, onDismiss: close });
   const Icon      = activeAction ? ACTION_ICON[activeAction] : Check;
 
-  const modalTitle = isOrdered
-    ? labels.actionProcessOrderWithDateTitle
-    : activeAction === "approve"
-      ? labels.successApprove
-      : labels.successReject;
+  const modalTitle = isDeliveryEdit
+    ? labels.editDeliveryTitle
+    : isOrdered
+      ? labels.actionProcessOrderWithDateTitle
+      : activeAction === "approve"
+        ? labels.successApprove
+        : labels.successReject;
 
-  const modalBody = isOrdered ? labels.actionProcessOrderWithDateBody : labels.successBody;
+  const modalBody = isDeliveryEdit
+    ? labels.editDeliveryBody
+    : isOrdered
+      ? labels.actionProcessOrderWithDateBody
+      : labels.successBody;
 
   const hasValidDelivery =
     deliveryMode === "exact"
       ? Boolean(deliveryDate)
       : Boolean(deliveryStartDate && deliveryEndDate);
 
-  const isConfirmDisabled = isPending || (isOrdered && !hasValidDelivery);
+  const isConfirmDisabled = isPending || (showsDelivery && !hasValidDelivery);
 
   function handleCalendarDayClick(iso: string) {
     if (deliveryMode === "exact") {
@@ -340,19 +373,25 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
     setIsPending(true);
     setErrorMessage(null);
 
-    const targetStatus: OrderStatus =
-      activeAction === "approve" ? "approved" :
-      activeAction === "ordered" ? "ordered"  : "closed";
-
-    const result = await updateOrderRequestStatus({
-      orderId,
-      targetStatus,
-      ...(activeAction === "ordered"
-        ? deliveryMode === "exact"
-          ? { deliveryMode, deliveryDate }
-          : { deliveryMode, deliveryStartDate, deliveryEndDate }
-        : {}),
-    });
+    // Editing an already-ordered request's delivery date — status stays "ordered".
+    const result = isDeliveryEdit
+      ? await updateOrderDeliveryDate({
+          orderId,
+          ...(deliveryMode === "exact"
+            ? { deliveryMode, deliveryDate }
+            : { deliveryMode, deliveryStartDate, deliveryEndDate }),
+        })
+      : await updateOrderRequestStatus({
+          orderId,
+          targetStatus:
+            activeAction === "approve" ? "approved" :
+            activeAction === "ordered" ? "ordered"  : "closed",
+          ...(activeAction === "ordered"
+            ? deliveryMode === "exact"
+              ? { deliveryMode, deliveryDate }
+              : { deliveryMode, deliveryStartDate, deliveryEndDate }
+            : {}),
+        });
     setIsPending(false);
 
     if (!result.ok) {
@@ -386,6 +425,34 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
     <>
       <div className="space-y-1.5">
         <div className="flex items-center gap-2.5 rounded-2xl border border-border bg-surface/85 p-2.5 shadow-glass backdrop-blur-xl">
+          {status === "ordered" ? (
+            <button
+              className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#C9D8E8] bg-[#EAF1F8] text-sm font-bold text-[#1F3A5F] transition-colors hover:bg-[#DCE8F4] active:scale-[0.98]"
+              disabled={isPending}
+              onClick={() => {
+                if (currentDeliveryStartDate && currentDeliveryEndDate) {
+                  setDeliveryMode("range");
+                  setDeliveryStartDate(currentDeliveryStartDate);
+                  setDeliveryEndDate(currentDeliveryEndDate);
+                  setDeliveryDate("");
+                } else {
+                  setDeliveryMode("exact");
+                  setDeliveryDate(currentDeliveryDate ?? "");
+                  setDeliveryStartDate("");
+                  setDeliveryEndDate("");
+                }
+                setCalViewMonth(
+                  currentDeliveryDate ? new Date(`${currentDeliveryDate}T00:00:00`) : new Date(),
+                );
+                setErrorMessage(null);
+                setActiveAction("edit-delivery");
+              }}
+              type="button"
+            >
+              <PackageCheck className="size-4" aria-hidden="true" />
+              {labels.actionEditDelivery}
+            </button>
+          ) : null}
           <button
             className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50/70 text-sm font-bold text-red-600 transition-colors hover:bg-red-100/80 active:scale-[0.98]"
             disabled={!canReject || isPending}
@@ -395,32 +462,36 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
             <X className="size-4" aria-hidden="true" />
             {labels.actionReject}
           </button>
-          <button
-            className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#C9D8E8] bg-[#EAF1F8] text-sm font-bold text-[#1F3A5F] transition-colors hover:bg-[#DCE8F4] active:scale-[0.98]"
-            disabled={!canOrdered || isPending}
-            onClick={() => {
-              setDeliveryMode("exact");
-              setDeliveryDate("");
-              setDeliveryStartDate("");
-              setDeliveryEndDate("");
-              setCalViewMonth(new Date());
-              setErrorMessage(null);
-              setActiveAction("ordered");
-            }}
-            type="button"
-          >
-            <PackageCheck className="size-4" aria-hidden="true" />
-            {labels.actionMarkOrdered}
-          </button>
-          <button
-            className="inline-flex h-12 flex-[1.4] items-center justify-center gap-1.5 rounded-xl bg-[#315F91] text-sm font-black text-white shadow-sm transition-colors hover:bg-[#274D76] active:scale-[0.98]"
-            disabled={!canApprove || isPending}
-            onClick={() => { setErrorMessage(null); setActiveAction("approve"); }}
-            type="button"
-          >
-            <Check className="size-4" aria-hidden="true" />
-            {labels.actionApprove}
-          </button>
+          {status !== "ordered" ? (
+            <>
+              <button
+                className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#C9D8E8] bg-[#EAF1F8] text-sm font-bold text-[#1F3A5F] transition-colors hover:bg-[#DCE8F4] active:scale-[0.98]"
+                disabled={!canOrdered || isPending}
+                onClick={() => {
+                  setDeliveryMode("exact");
+                  setDeliveryDate("");
+                  setDeliveryStartDate("");
+                  setDeliveryEndDate("");
+                  setCalViewMonth(new Date());
+                  setErrorMessage(null);
+                  setActiveAction("ordered");
+                }}
+                type="button"
+              >
+                <PackageCheck className="size-4" aria-hidden="true" />
+                {labels.actionMarkOrdered}
+              </button>
+              <button
+                className="inline-flex h-12 flex-[1.4] items-center justify-center gap-1.5 rounded-xl bg-[#315F91] text-sm font-black text-white shadow-sm transition-colors hover:bg-[#274D76] active:scale-[0.98]"
+                disabled={!canApprove || isPending}
+                onClick={() => { setErrorMessage(null); setActiveAction("approve"); }}
+                type="button"
+              >
+                <Check className="size-4" aria-hidden="true" />
+                {labels.actionApprove}
+              </button>
+            </>
+          ) : null}
         </div>
         {statusHint ? (
           <p className="px-1 text-center text-[11px] font-medium text-muted-foreground/70">
@@ -436,7 +507,7 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
               aria-modal="true"
               className={cn(
                 "fixed inset-0 z-[100] flex min-h-dvh justify-center px-6 py-8",
-                isOrdered ? "items-end sm:items-center" : "items-center",
+                showsDelivery ? "items-end sm:items-center" : "items-center",
               )}
               role="dialog"
             >
@@ -444,6 +515,7 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
                 aria-hidden="true"
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl"
                 onClick={close}
+                style={showsDelivery ? sheetDrag.scrimStyle : undefined}
                 tabIndex={-1}
                 type="button"
               />
@@ -451,15 +523,23 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
               <div
                 className={cn(
                   "relative flex w-full flex-col overflow-hidden border border-white/55 bg-surface shadow-[0_28px_90px_-34px_rgba(15,23,42,0.7)]",
-                  isOrdered
+                  showsDelivery
                     ? "max-h-[92dvh] rounded-t-[28px] sm:max-h-none sm:max-w-[400px] sm:rounded-[28px]"
                     : "max-w-[360px] rounded-[28px] sm:mx-auto",
                 )}
-                style={{ animation: "modal-card-in 280ms cubic-bezier(0.34,1.26,0.64,1) both" }}
+                data-sheet
+                style={
+                  showsDelivery && sheetDrag.dragging
+                    ? sheetDrag.sheetStyle
+                    : { animation: "modal-card-in 280ms cubic-bezier(0.34,1.26,0.64,1) both" }
+                }
               >
-                {/* Drag handle (mobile) */}
-                {isOrdered ? (
-                  <div className="flex shrink-0 justify-center pb-1 pt-2.5 sm:hidden">
+                {/* Drag handle (mobile) — doubles as the drag-to-dismiss grip. */}
+                {showsDelivery ? (
+                  <div
+                    className="flex shrink-0 justify-center pb-1 pt-2.5 sm:hidden"
+                    {...sheetDrag.handleProps}
+                  >
                     <div className="h-1 w-10 rounded-full bg-border/60" />
                   </div>
                 ) : null}
@@ -468,14 +548,14 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
                 <div
                   className={cn(
                     "flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-6 pb-3 text-center",
-                    isOrdered ? "pt-4" : "pt-8",
+                    showsDelivery ? "pt-4" : "pt-8",
                   )}
                 >
                   {/* Icon */}
                   <div
                     className={cn(
                       "relative mb-4 flex size-16 items-center justify-center overflow-hidden rounded-full ring-1",
-                      isOrdered
+                      showsDelivery
                         ? "bg-[#EAF1F8] text-[#315F91] ring-[#C9D8E8]"
                         : isReject
                           ? "bg-red-50 text-red-500 ring-red-200/70"
@@ -500,7 +580,7 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
                   </p>
 
                   {/* ── Delivery date picker ── */}
-                  {isOrdered ? (
+                  {showsDelivery ? (
                     <div className="mt-5 w-full text-left">
                       {/* Mode toggle */}
                       <div className="mb-3 inline-flex w-full items-center gap-1 rounded-xl border border-border/60 bg-background/55 p-1">
@@ -581,7 +661,7 @@ export function OrderActionBar({ labels, locale, orderId, status }: OrderActionB
                 <div
                   className={cn(
                     "shrink-0 px-6 pb-6 pt-3",
-                    isOrdered && "border-t border-border/20",
+                    showsDelivery && "border-t border-border/20",
                   )}
                 >
                   <button

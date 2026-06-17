@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import type { Dictionary } from "@/lib/i18n";
@@ -16,8 +17,15 @@ type LinenReturnSuccessProps = {
 export function LinenReturnSuccess({ building, copy, show }: LinenReturnSuccessProps) {
   const router = useRouter();
   const [open, setOpen] = useState(show);
+  // Portal to <body> so the overlay escapes the shell's transformed scroll container and covers the
+  // full viewport (top chrome + bottom tab bar included); gate on hydration to match SSR.
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
-  if (!open) return null;
+  if (!open || !hydrated) return null;
 
   function dismiss() {
     setOpen(false);
@@ -26,9 +34,9 @@ export function LinenReturnSuccess({ building, copy, show }: LinenReturnSuccessP
     });
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 px-7 backdrop-blur-sm"
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/50 px-7 backdrop-blur-sm"
       onClick={dismiss}
     >
       <div
@@ -51,6 +59,7 @@ export function LinenReturnSuccess({ building, copy, show }: LinenReturnSuccessP
           {copy.successToListButton}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

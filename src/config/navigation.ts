@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   Gauge,
   House,
+  Inbox,
   Megaphone,
   Package,
   Recycle,
@@ -90,6 +91,15 @@ const mobileNavTasks = {
   icon: ListChecks,
 } as const satisfies NavigationItem;
 
+// Staff Suggestions / Feedback Box — side-menu entry + pinnable bottom-bar candidate.
+// See docs/product/22-staff-suggestions-workflow.md.
+const mobileNavSuggestions = {
+  id: "suggestions",
+  label: localizedNavigationLabels.mobile.suggestions,
+  href: "/mobile/suggestions",
+  icon: Inbox,
+} as const satisfies NavigationItem;
+
 // Bottom tab bar uses a center action ("추가") button, so it holds only 4 tabs.
 // "Cleaning" intentionally lives in the side menu (hamburger) instead of the bottom bar.
 export const mobileBottomNavigation = [
@@ -104,6 +114,7 @@ export const mobileSidebarNavigation = [
   mobileNavCalendar,
   mobileNavCleaning,
   mobileNavTasks,
+  mobileNavSuggestions,
   mobileNavRequests,
   mobileNavAnnouncements,
   {

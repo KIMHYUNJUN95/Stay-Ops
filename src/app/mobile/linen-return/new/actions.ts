@@ -7,6 +7,8 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
 type RawLine = { itemId?: string; quantity?: unknown };
+type RecordRow = Database["public"]["Tables"]["linen_return_records"]["Row"];
+type LineRow = Database["public"]["Tables"]["linen_return_record_items"]["Row"];
 
 function cleanText(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
@@ -29,6 +31,32 @@ function parseLines(value: string): RawLine[] {
 function newPath(building: string, error?: string) {
   const base = `/mobile/linen-return/new?building=${encodeURIComponent(building)}`;
   return error ? `${base}&error=${error}` : base;
+}
+
+function getCurrentTokyoDayRange() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  const day = Number(parts.find((part) => part.type === "day")?.value);
+  const from = new Date(Date.UTC(year, month - 1, day, -9, 0, 0)).toISOString();
+  const to = new Date(Date.UTC(year, month - 1, day + 1, -9, 0, 0)).toISOString();
+  return { from, to };
+}
+
+function mergeNote(existing: string | null, incoming: string) {
+  if (!incoming) return existing ?? null;
+  if (!existing) return incoming;
+  if (existing === incoming) return existing;
+  return `${existing}\n\n${incoming}`;
+}
+
+function mergeImageUrls(existing: string[] | null, incoming: string[]) {
+  return Array.from(new Set([...(existing ?? []), ...incoming]));
 }
 
 export async function createLinenReturnRecord(formData: FormData) {
@@ -83,10 +111,100 @@ export async function createLinenReturnRecord(formData: FormData) {
     .filter((u) => u.startsWith("https://") || u.startsWith("http://"));
 
   // Reuse the client-generated id (also used as the image folder) when valid so
-  // photo storage paths and the record id stay aligned; otherwise generate one.
+  // photo storage paths and the record id stay aligned on brand-new records;
+  // same-day merge saves may append new photos from a follow-up upload folder.
   const requestedId = cleanText(formData.get("id"));
   const recordId = requestedId && isValidUuid(requestedId) ? requestedId : crypto.randomUUID();
   const supabase = await getSupabaseServerClient();
+  const { from, to } = getCurrentTokyoDayRange();
+
+  const { data: sameDayRecord, error: sameDayRecordError } = await supabase
+    .from("linen_return_records")
+    .select("id, note, image_urls")
+    .eq("organization_id", session.organization.id)
+    .eq("building_name", building)
+    .eq("registered_by_user_id", session.user.id)
+    .gte("registered_at", from)
+    .lt("registered_at", to)
+    .order("registered_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (sameDayRecordError) {
+    redirect(newPath(building, "save_failed"));
+  }
+
+  if (sameDayRecord) {
+    const targetRecord = sameDayRecord as Pick<RecordRow, "id" | "note" | "image_urls">;
+    const { data: existingLineData, error: existingLinesError } = await supabase
+      .from("linen_return_record_items")
+      .select("id, linen_item_id, quantity, sort_order")
+      .eq("return_record_id", targetRecord.id)
+      .order("sort_order", { ascending: true });
+    if (existingLinesError) {
+      redirect(newPath(building, "save_failed"));
+    }
+
+    const existingLines = (existingLineData ?? []) as Array<
+      Pick<LineRow, "id" | "linen_item_id" | "quantity" | "sort_order">
+    >;
+    const existingByItemId = new Map(existingLines.map((line) => [line.linen_item_id, line]));
+
+    for (const line of lines) {
+      const existing = existingByItemId.get(line.itemId);
+      if (!existing) continue;
+      const lineUpdate: Database["public"]["Tables"]["linen_return_record_items"]["Update"] = {
+        quantity: existing.quantity + line.quantity,
+      };
+      const { error: updateLineError } = await supabase
+        .from("linen_return_record_items")
+        .update(lineUpdate as never)
+        .eq("id", existing.id);
+      if (updateLineError) {
+        redirect(newPath(building, "save_failed"));
+      }
+    }
+
+    let nextSortOrder =
+      existingLines.reduce((max, line) => Math.max(max, line.sort_order), -1) + 1;
+    const newLineInserts: Database["public"]["Tables"]["linen_return_record_items"]["Insert"][] =
+      [];
+    for (const line of lines) {
+      if (existingByItemId.has(line.itemId)) continue;
+      newLineInserts.push({
+        return_record_id: targetRecord.id,
+        linen_item_id: line.itemId,
+        quantity: line.quantity,
+        sort_order: nextSortOrder,
+      });
+      nextSortOrder += 1;
+    }
+
+    if (newLineInserts.length > 0) {
+      const { error: insertNewLinesError } = await supabase
+        .from("linen_return_record_items")
+        .insert(newLineInserts as never);
+      if (insertNewLinesError) {
+        redirect(newPath(building, "save_failed"));
+      }
+    }
+
+    const headerUpdate: Database["public"]["Tables"]["linen_return_records"]["Update"] = {
+      note: mergeNote(targetRecord.note, note),
+      image_urls: mergeImageUrls(targetRecord.image_urls, imageUrls),
+    };
+    const { error: updateRecordError } = await supabase
+      .from("linen_return_records")
+      .update(headerUpdate as never)
+      .eq("id", targetRecord.id)
+      .eq("organization_id", session.organization.id);
+    if (updateRecordError) {
+      redirect(newPath(building, "save_failed"));
+    }
+
+    redirect(
+      `/mobile/linen-return/list?building=${encodeURIComponent(building)}&created=${targetRecord.id}`,
+    );
+  }
 
   const recordInsert: Database["public"]["Tables"]["linen_return_records"]["Insert"] = {
     id: recordId,
@@ -121,8 +239,8 @@ export async function createLinenReturnRecord(formData: FormData) {
     redirect(newPath(building, "save_failed"));
   }
 
-  // Per the workflow spec: return to the building list with the new record on top
-  // and surface a completion moment there (created=<id> drives the success overlay).
+  // Return to the building list and surface a completion moment there
+  // (created=<id> highlights the affected row, whether newly created or merged).
   redirect(
     `/mobile/linen-return/list?building=${encodeURIComponent(building)}&created=${recordId}`,
   );

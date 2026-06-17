@@ -19,6 +19,7 @@ import {
   CANONICAL_TO_BUILDING_KEY,
   localizePropertyName,
 } from "@/lib/room-label-normalization";
+import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import type { LinkedContext } from "@/components/tasks/context-link-section";
 import {
   fetchPickerBuildings,
@@ -417,6 +418,9 @@ export function ContextPickerSheet({
     setTimeout(onClose, 380);
   }, [onClose]);
 
+  // iOS-style drag-to-dismiss on the grab handle.
+  const drag = useSheetDragDismiss({ shown, onDismiss: dismiss });
+
   useEffect(() => {
     requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
   }, []);
@@ -615,6 +619,7 @@ export function ContextPickerSheet({
         shown ? "opacity-100" : "opacity-0",
       )}
       onClick={dismiss}
+      style={drag.scrimStyle}
     >
       <div
         className={cn(
@@ -622,12 +627,16 @@ export function ContextPickerSheet({
           "transition-transform duration-[380ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
           shown ? "translate-y-0" : "translate-y-full",
         )}
-        style={{ maxHeight: "92%" }}
+        data-sheet
+        style={{ maxHeight: "92%", ...drag.sheetStyle }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Fixed header ── */}
         <div className="shrink-0 px-[18px] pb-0 pt-3">
-          <div className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200" />
+          <div
+            className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200"
+            {...drag.handleProps}
+          />
 
           <div className="mb-3.5 flex items-start gap-3">
             {step !== "building" ? (
@@ -652,14 +661,6 @@ export function ContextPickerSheet({
               </p>
               <p className="mt-[3px] text-[12px] font-medium text-muted-foreground">{sheetSub}</p>
             </div>
-            <button
-              aria-label={copy.cancel}
-              className="flex size-[30px] shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500"
-              onClick={dismiss}
-              type="button"
-            >
-              <X className="size-[14px]" aria-hidden="true" />
-            </button>
           </div>
 
           {/* Stepper — building step only */}

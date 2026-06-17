@@ -761,11 +761,14 @@ Status: Planned — not started. Five features approved as the next build scope 
 - [ ] Actions per `docs/engineering/09`; i18n; sync docs `18`, `09`, `04`, `05`, `16`
 - [ ] Keep task calendar visually and conceptually distinct from the reservation calendar
 
-### 14.3 Staff Suggestions / Feedback Box (Near-ready)
+### 14.3 Staff Suggestions / Feedback Box (Scope refined 2026-06-16)
 
-- [ ] Migration: `staff_suggestions` (+ `visibility`, `status` values)
-- [ ] Visibility-aware RLS (`employee_only` excludes other part-time) per `docs/engineering/12`
-- [ ] Actions, admin response, filters; i18n; sync docs `22`, `12`, `04`, `05`
+- [ ] Migration: `staff_suggestions`, `staff_suggestion_references`, `staff_suggestion_comments`
+- [ ] Participant-aware RLS: author / recipient / referenced users only
+- [ ] Mobile create/list/detail with `Sent`, `Received`, `Referenced` tabs
+- [ ] Recipient-only status actions with required `hold_reason` / `completion_note`
+- [ ] Comment thread with photo attachments (max 5) and comment-author-only edit/delete
+- [ ] Notifications for create / reference / status / comment; i18n; sync docs `22`, `12`, `04`, `05`, `01`
 
 ### 14.4 Internal Board (Partial — tech-design skeleton needs fleshing)
 

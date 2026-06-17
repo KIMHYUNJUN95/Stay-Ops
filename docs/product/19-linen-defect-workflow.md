@@ -132,9 +132,19 @@ Reason:
 
 - vendor paperwork checking is building-based
 
-### 2. One Return Record = One Return Event
+### 2. Same User / Same Building / Same Tokyo Day Auto-Merges
 
-One saved record represents one registration event by one user at one time.
+For the implemented mobile slice, repeated registrations by the same user for the same building on
+the same Tokyo operating day do not create a second header row.
+
+Instead, the system merges the new submission into that day's existing record:
+
+- matching item lines have their quantity summed
+- newly added item types are appended as new lines
+- note and photos are appended to the same record
+
+This keeps the building ledger compact during repetitive field work while preserving day-based
+history.
 
 The system must automatically store:
 
@@ -160,17 +170,19 @@ Inside one return record:
 
 - the same item can appear only once
 - quantity should be summed in that single line
+- if the same item is submitted again later that day by the same user in the same building, the
+  system adds that quantity into the existing line automatically
 
 Example:
 
 ```txt
 Allowed:
-- Bath towel x3
+- Single duvet cover x3
 - Pillow cover x2
 
 Not allowed:
-- Bath towel x1
-- Bath towel x2
+- Single duvet cover x1
+- Single duvet cover x2
 ```
 
 ### 5. Quantity Is Integer Only
@@ -452,9 +464,26 @@ Recommended aggregated values:
 Example:
 
 ```txt
-Bath towel 12 units / 5 records
+Single duvet cover 12 units / 5 records
 Pillow cover 8 units / 3 records
 ```
+
+## Current Default Item List (2026-06-15)
+
+The current global default linen-return catalog is:
+
+- Single duvet cover
+- Double duvet cover
+- Single mattress cover
+- Double mattress cover
+- Pillow cover
+- Towel
+- Bath mat
+
+Implementation note:
+
+- Older seeded generic items (`bath`, `hand`, `sheet`, `duvet`, `robe`) are retired from the active picker.
+- They may still appear in historical records; new registrations should use the 7-item list above.
 
 ## Save And Completion UX
 
@@ -472,8 +501,10 @@ Reason:
 Recommended post-save behavior:
 
 - return to the building list
-- place the new record at the top
-- optionally highlight the newly created row briefly
+- highlight the affected row briefly
+- if it was the first save for that user/building/day, that row is newly created
+- if a same-day same-user same-building record already existed, the save should reopen that existing
+  row with merged quantities
 
 ## Search / Filter Policy
 

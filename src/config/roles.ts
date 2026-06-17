@@ -46,6 +46,23 @@ export function canAccessFieldOperations(role: Role) {
 }
 
 /**
+ * Manager/office roles that may view OTHER people's cleaning records in the app (and the admin web).
+ * Mirrors the `cleaning_sessions` RLS read policy (own OR these roles). Regular `staff` and
+ * `part_time_staff` see only their own records.
+ */
+export const cleaningRecordViewerRoles = [
+  "developer_super_admin",
+  "owner",
+  "office_admin",
+  "cs_staff",
+  "field_manager",
+] as const satisfies readonly Role[];
+
+export function canViewOthersCleaning(role: Role) {
+  return (cleaningRecordViewerRoles as readonly Role[]).includes(role);
+}
+
+/**
  * Whether a user may generate the daily work-report (Todo 완료/기록 tab).
  *
  * Staff-only feature: every regular staff member qualifies (any role except `part_time_staff`),

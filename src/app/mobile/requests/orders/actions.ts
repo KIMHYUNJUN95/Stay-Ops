@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { adminWebRoles } from "@/config/roles";
 import type { Role } from "@/config/roles";
-import { createOrderProcessedNotification } from "@/lib/notifications/create";
+import {
+  createOrderDeliveryUpdatedNotification,
+  createOrderProcessedNotification,
+} from "@/lib/notifications/create";
 import type { Database } from "@/types/database";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -185,4 +188,110 @@ export async function updateOrderRequestStatus(
   }
 
   return { ok: true, status: input.targetStatus };
+}
+
+type UpdateDeliveryInput = {
+  orderId: string;
+  deliveryMode?: "exact" | "range";
+  deliveryDate?: string;
+  deliveryStartDate?: string;
+  deliveryEndDate?: string;
+};
+
+// Edit the delivery date of an already-ordered request (office-level roles). Status is unchanged —
+// only the delivery_date / range columns are updated. The Requests delivery calendar reads these
+// columns directly, so it reflects the edit automatically (no separate calendar entry).
+export async function updateOrderDeliveryDate(
+  input: UpdateDeliveryInput,
+): Promise<UpdateOrderStatusResult> {
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) {
+    return { ok: false, error: "unauthorized" };
+  }
+
+  const role = session.user.role as Role | undefined;
+  if (!role || !(ORDER_PROCESSOR_ROLES as readonly Role[]).includes(role)) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const mode = input.deliveryMode ?? "exact";
+  if (mode === "range") {
+    if (!input.deliveryStartDate || !input.deliveryEndDate) {
+      return { ok: false, error: "missing_delivery_range" };
+    }
+    if (!isValidDateString(input.deliveryStartDate) || !isValidDateString(input.deliveryEndDate)) {
+      return { ok: false, error: "invalid_delivery_range" };
+    }
+    if (input.deliveryStartDate > input.deliveryEndDate) {
+      return { ok: false, error: "invalid_delivery_range" };
+    }
+  } else {
+    if (!input.deliveryDate) return { ok: false, error: "missing_delivery_date" };
+    if (!isValidDateString(input.deliveryDate)) return { ok: false, error: "invalid_delivery_date" };
+  }
+
+  const supabase = await getSupabaseServerClient();
+  const { data: rawCurrent, error: fetchError } = await supabase
+    .from("order_requests")
+    .select("id, status, reported_by_user_id, title, building_name, room_label")
+    .eq("id", input.orderId)
+    .eq("organization_id", session.organization.id)
+    .maybeSingle();
+  const current = rawCurrent as {
+    id: string;
+    status: OrderStatus;
+    reported_by_user_id: string;
+    title: string;
+    building_name: string;
+    room_label: string;
+  } | null;
+
+  if (fetchError) return { ok: false, error: "save_failed" };
+  if (!current) return { ok: false, error: "not_found" };
+  // Delivery date is only meaningful once the order has been processed.
+  if (current.status !== "ordered") return { ok: false, error: "invalid_transition" };
+
+  const updatePayload: Record<string, unknown> =
+    mode === "range" && input.deliveryStartDate && input.deliveryEndDate
+      ? {
+          delivery_date: input.deliveryStartDate,
+          delivery_start_date: input.deliveryStartDate,
+          delivery_end_date: input.deliveryEndDate,
+        }
+      : { delivery_date: input.deliveryDate, delivery_start_date: null, delivery_end_date: null };
+
+  const { error: updateError } = await supabase
+    .from("order_requests")
+    .update(updatePayload as never)
+    .eq("id", input.orderId)
+    .eq("organization_id", session.organization.id);
+
+  if (updateError) {
+    const msg = updateError.message.toLowerCase();
+    if (msg.includes("permission") || msg.includes("policy") || msg.includes("denied")) {
+      return { ok: false, error: "forbidden" };
+    }
+    return { ok: false, error: "save_failed" };
+  }
+
+  // Notify the requester that the delivery date changed (self-suppressed for the editor).
+  await createOrderDeliveryUpdatedNotification({
+    supabase,
+    organizationId: session.organization.id,
+    recipientUserId: current.reported_by_user_id,
+    editedByUserId: session.user.id,
+    order: {
+      id: current.id,
+      title: current.title,
+      building_name: current.building_name,
+      room_label: current.room_label,
+      delivery_date: (updatePayload.delivery_date as string | null) ?? null,
+      delivery_start_date: (updatePayload.delivery_start_date as string | null) ?? null,
+      delivery_end_date: (updatePayload.delivery_end_date as string | null) ?? null,
+    },
+  });
+
+  revalidatePath("/mobile/requests");
+  revalidatePath("/mobile/notifications");
+  return { ok: true, status: "ordered" };
 }

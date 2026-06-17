@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft, ChevronRight, Image as ImageIcon, Inbox, Plus, ScrollText } from "lucide-react";
+import { ChevronRight, Image as ImageIcon, Inbox, Plus, ScrollText } from "lucide-react";
 import { LinenReturnSuccess } from "@/components/linen-return/linen-return-success";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getDictionary, type Locale } from "@/lib/i18n";
@@ -78,13 +78,6 @@ export default async function LinenReturnListPage({ searchParams }: PageProps) {
       <div className="relative min-h-[60vh] pb-24">
         {/* Context bar */}
         <div className="flex items-center gap-[11px] px-0.5 pb-4 pt-2">
-          <Link
-            aria-label={copy.backToList}
-            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-700"
-            href="/mobile/linen-return"
-          >
-            <ChevronLeft className="size-[19px]" aria-hidden="true" />
-          </Link>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[19px] font-black leading-tight tracking-[-0.03em] text-foreground">
               {buildingLabel}

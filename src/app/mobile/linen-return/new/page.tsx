@@ -49,7 +49,12 @@ export default async function LinenReturnNewPage({ searchParams }: PageProps) {
   const serverError = params.error ? copy.errors[params.error] ?? copy.errors.save_failed : null;
 
   return (
-    <MobileShell activeItem="linen-return" badges={navBadges} title={copy.createTitle}>
+    <MobileShell
+      activeItem="linen-return"
+      badges={navBadges}
+      hideBottomNav
+      title={copy.createTitle}
+    >
       <LinenReturnCreateForm
         building={building}
         buildingLabel={buildingLabel}

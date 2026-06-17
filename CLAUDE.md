@@ -15,6 +15,8 @@ StayOps is not a generic Next.js demo. It is an operations product for accommoda
 5. After code changes, run `npm run lint` and `npm run build` unless blocked.
 6. Do not silently change the tech stack, role model, deletion policy, multilingual strategy, or PWA-first direction.
 7. A task is not complete until both code and the matching Markdown docs are updated together in the same completion cycle.
+8. Before any code modification, implementation, or feature addition, explicitly ask the user whether work should start. Do not begin coding or editing implementation files until the user clearly says to start.
+9. For any feature addition, modification, or behavior change, always update the matching Markdown documentation in the same work cycle to keep docs and implementation aligned. This is mandatory and must never be skipped.
 
 ## Read These First
 
@@ -131,7 +133,10 @@ This project uses Tokyo operating dates in several important flows.
 
 ### 7. Upload and storage rules are not arbitrary
 
-- Image upload limit is generally 5 files per feature.
+- Image upload limit is generally 5 files per feature. **Exception (2026-06-15):** project tasks
+  (`tasks.project_id` set) allow up to 20 task-level photos; regular tasks and update-log photos stay
+  at 5. Implemented via a `maxImages` prop (uploader + create/edit form) with the cap re-applied
+  server-side. See `docs/engineering/09-todo-task-technical-design.md` → Images.
 - Client-side compression is part of the current policy.
 - Storage path validation and RLS expectations already exist. Do not bypass them casually.
 

@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 import { LinenLedgerPeriod } from "@/components/linen-return/linen-ledger-period";
 import { LinenLedgerView } from "@/components/linen-return/linen-ledger-view";
 import { MobileShell } from "@/components/shell/mobile-shell";
@@ -110,20 +108,12 @@ export default async function LinenReturnLedgerPage({ searchParams }: PageProps)
   const canGoNext =
     baseMonth.year < current.year ||
     (baseMonth.year === current.year && baseMonth.month < current.month);
-  const buildingParam = encodeURIComponent(building);
 
   return (
     <MobileShell activeItem="linen-return" badges={navBadges} title={copy.ledgerTitle}>
       <div className="pb-6">
         <div className="mb-3.5 flex items-end justify-between px-0.5 pt-1">
           <div className="flex items-center gap-2.5">
-            <Link
-              aria-label={copy.backToList}
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-700"
-              href={`/mobile/linen-return/list?building=${buildingParam}`}
-            >
-              <ChevronLeft className="size-[19px]" aria-hidden="true" />
-            </Link>
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">
                 {buildingLabel}

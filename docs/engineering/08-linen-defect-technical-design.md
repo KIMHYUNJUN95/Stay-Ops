@@ -20,9 +20,10 @@ operational feature and the same building picker. The workflow doc explicitly pe
 ### Tables (migration `202606100002_linen_returns.sql`)
 
 - `linen_items` — selectable catalog. `organization_id` + nullable `building_name`
-  (`NULL` = available for all buildings). Seeded with a default 8-item set per org
-  (`towel, bath, hand, sheet, duvet, pillow, robe, mat`) as global (`building_name NULL`) rows.
-  Building-specific lists are added later. Fields: `code, name, category, is_active,
+  (`NULL` = available for all buildings). Current global default set per org is 7 items:
+  `duvet_single, duvet_double, mattress_single, mattress_double, pillow, towel, mat`.
+  Earlier generic defaults (`bath, hand, sheet, duvet, robe`) are retired via a follow-up migration
+  and remain only for historical records. Building-specific lists are added later. Fields: `code, name, category, is_active,
   display_order, created_by_user_id, timestamps`. **Display names are localized by `code`** via
   i18n (`linenReturn.items`, ko/ja/en) in the lib layer (`localizeItemName`); the DB `name` is the
   fallback for custom items that have no `code`. The seed stores Korean in `name`, but the UI shows
@@ -36,7 +37,8 @@ operational feature and the same building picker. The workflow doc explicitly pe
 
 - `GET /mobile/linen-return` — building picker (card grid only; no search box — building lists are short)
 - `GET /mobile/linen-return/list?building=` — building-scoped latest-first list + FAB + ledger link
-- `GET /mobile/linen-return/new?building=` — create form (`createLinenReturnRecord`)
+- `GET /mobile/linen-return/new?building=` — create form (`createLinenReturnRecord`); save path first checks for an existing
+  record by the same user for the same building inside the current Tokyo day and merges into it when found
 - `GET /mobile/linen-return/record/[id]` — detail (edit/delete shown only when permitted)
 - `GET /mobile/linen-return/record/[id]/edit` — edit (`updateLinenReturnRecord`, `deleteLinenReturnRecord`)
 - `GET /mobile/linen-return/ledger?building=&year=&month=` (month mode) or `&startDate=&endDate=` (custom range) — ledger (records / item-summary, registrant + item filters, and a "my entries" toggle that
@@ -51,12 +53,27 @@ the org room catalog (`isKnownBuilding`).
 Reuses the existing `request-images` bucket with a new `linen-returns/<recordId>/...` subfolder;
 the upload/delete storage policies were extended to allow that segment. Direct client upload +
 compression via `AnnouncementImageUploader` + `uploadRequestImages`, ≤5 photos. Photo editing in
-the edit flow is deferred (existing photos preserved; create flow uploads them).
+the edit flow is deferred (existing photos preserved; create flow uploads them). When a same-day
+follow-up save merges into an existing record, newly uploaded photos are appended to that target
+record's `image_urls`.
 
 ### Save UX
 
-After create, redirect to the building list with `?created=<id>`, show a completion overlay,
-and highlight the new (top) row.
+After save, redirect to the building list with `?created=<id>`, show a completion overlay,
+and highlight the affected row. If no same-day record existed, the id is the new header row; if
+the save merged into an existing same-user same-building Tokyo-day record, the id is that existing
+record.
+
+**Overlay/submit stacking (fixed 2026-06-15).** The mobile shell's scroll container is `transform`ed,
+so a plain `position: fixed` child is trapped inside it (not the viewport) and is hidden behind the
+`z-20` bottom tab bar. Two changes:
+- The **create/edit pages** render `MobileShell` with `hideBottomNav` (focused full-screen flow), so
+  the global tab bar is not shown and cannot overlap the sticky submit bar.
+- The create-form **submit bar** (`linen-return-create-form.tsx`) and the **success overlay**
+  (`linen-return-success.tsx`) `createPortal` to `document.body` (hydration-gated) so they cover the
+  real viewport. The submit bar is fixed at `bottom-0` (`z-40`, `max-w-[460px]` centered; its button
+  stays wired to the form via the `form="linen-return-form"` attribute) and the success modal dims the
+  whole screen (`z-90`). Mirrors the tasks-workspace portal pattern.
 
 ### Permissions
 

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, Search, X } from "lucide-react";
+import { Check, Search } from "lucide-react";
+import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import type { Dictionary } from "@/lib/i18n";
 import type { ShareableUser } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,9 @@ export function SharePicker({
   const close = () => dismiss(onClose);
   const apply = () => dismiss(() => onApply(selected));
 
+  // iOS-style drag-to-dismiss on the grab handle / header.
+  const drag = useSheetDragDismiss({ shown, onDismiss: close });
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
@@ -67,6 +71,7 @@ export function SharePicker({
         shown ? "opacity-100" : "opacity-0",
       )}
       onClick={close}
+      style={drag.scrimStyle}
     >
       <div
         className={cn(
@@ -74,22 +79,17 @@ export function SharePicker({
           "transition-transform duration-[380ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
           shown ? "translate-y-0" : "translate-y-full",
         )}
+        data-sheet
         onClick={(e) => e.stopPropagation()}
+        style={drag.sheetStyle}
       >
-        <div className="mx-auto mb-3 h-1 w-[38px] shrink-0 rounded-full bg-slate-200" />
-        <div className="mb-3 flex items-start justify-between">
-          <div>
-            <p className="text-[16px] font-black text-foreground">{copy.shareTitle}</p>
-            <p className="mt-0.5 text-[12px] text-muted-foreground">{copy.shareSub}</p>
-          </div>
-          <button
-            aria-label={copy.cancel}
-            className="flex size-8 items-center justify-center rounded-full bg-slate-50 text-slate-500"
-            onClick={close}
-            type="button"
-          >
-            <X className="size-4" aria-hidden="true" />
-          </button>
+        <div
+          className="mx-auto mb-3 h-1 w-[38px] shrink-0 rounded-full bg-slate-200"
+          {...drag.handleProps}
+        />
+        <div className="mb-3" {...drag.handleProps}>
+          <p className="text-[16px] font-black text-foreground">{copy.shareTitle}</p>
+          <p className="mt-0.5 text-[12px] text-muted-foreground">{copy.shareSub}</p>
         </div>
 
         <div className="relative mb-2 flex items-center">

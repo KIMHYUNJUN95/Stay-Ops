@@ -96,6 +96,8 @@ The automated tests above cover pure-function and static-structure behavior. The
 | Out-of-window month shows warning banner (no partial data) | Code trace | Pass |
 | Lists mode shows check-in / check-out / staying today lists | Code trace | Pass |
 | Reservation detail bottom sheet opens on tap | Browser E2E | Not tested |
+| Bottom sheets dismiss by dragging the grab handle/header down; partial drag snaps back; background stays put | Browser E2E (touch) | Not tested |
+| Bottom sheets have no top-right X close button (drag / scrim tap / Esc dismiss) | Code trace | Pass |
 | Map tab shows building cards with address and access codes | Code trace | Pass |
 | Cancelled reservations are excluded | Code trace | Pass |
 | Realtime update refreshes calendar after webhook event | Code trace | Pass |

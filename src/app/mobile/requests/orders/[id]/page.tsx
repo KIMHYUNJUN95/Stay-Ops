@@ -1,8 +1,6 @@
 import Image from "next/image";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
-  ArrowLeft,
   CalendarClock,
   CalendarDays,
   ExternalLink,
@@ -200,14 +198,6 @@ export default async function MobileOrderRequestDetailPage({
   return (
     <MobileShell activeItem="requests" badges={navBadges} title={copy.title}>
       <div className="space-y-4 pb-2">
-        <Link
-          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/82 px-3 py-1.5 text-xs font-black text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors hover:text-slate-900"
-          href={backHref}
-        >
-          <ArrowLeft className="size-3.5" aria-hidden="true" />
-          {copy.backToList}
-        </Link>
-
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Badge className={statusBadgeClass[order.status]}>
@@ -393,11 +383,18 @@ export default async function MobileOrderRequestDetailPage({
             deliveryEndDateLabel: copy.deliveryEndDateLabel,
             actionProcessOrderWithDateTitle: copy.actionProcessOrderWithDateTitle,
             actionProcessOrderWithDateBody: copy.actionProcessOrderWithDateBody,
+            actionEditDelivery: copy.actionEditDelivery,
+            editDeliveryTitle: copy.editDeliveryTitle,
+            editDeliveryBody: copy.editDeliveryBody,
+            successEditDelivery: copy.successEditDelivery,
             hintStatusRequested: copy.hintStatusRequested,
             hintStatusApproved: copy.hintStatusApproved,
             hintStatusOrdered: copy.hintStatusOrdered,
             hintStatusClosed: copy.hintStatusClosed,
           }}
+          currentDeliveryDate={order.delivery_date}
+          currentDeliveryStartDate={order.delivery_start_date}
+          currentDeliveryEndDate={order.delivery_end_date}
           locale={locale}
           orderId={order.id}
           status={order.status}

@@ -1,10 +1,8 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ShoppingCart } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import { OrderCreateForm } from "@/components/requests/order-create-form";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getMobileNavBadges } from "@/lib/nav-badges";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getDictionary } from "@/lib/i18n";
 import { getOnboardingState } from "@/lib/onboarding";
@@ -53,7 +51,7 @@ export default async function MobileOrderNewPage({ searchParams }: PageProps) {
   const navBadges = await getMobileNavBadges();
 
   return (
-    <MobileShell activeItem="requests" badges={navBadges} title={copy.title}>
+    <MobileShell activeItem="requests" badges={navBadges} hideBottomNav title={copy.title}>
       <div className="space-y-4 pb-8">
         <Card className="rounded-2xl p-4">
           <div className="flex items-start gap-3">
@@ -77,13 +75,6 @@ export default async function MobileOrderNewPage({ searchParams }: PageProps) {
           shareError={shareError}
           sharedUrl={sharedUrl}
         />
-
-        <Link href="/mobile/requests?type=order">
-          <Button className="h-12 w-full rounded-xl" type="button" variant="secondary">
-            <ArrowLeft className="mr-2 size-4" aria-hidden="true" />
-            {copy.back}
-          </Button>
-        </Link>
       </div>
     </MobileShell>
   );

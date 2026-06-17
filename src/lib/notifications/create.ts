@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isNotificationsTableUnavailable } from "@/lib/notifications/schema";
 import type {
   OrderProcessedNotificationPayload,
+  ProjectNotificationPayload,
+  SuggestionNotificationPayload,
   TaskNotificationPayload,
 } from "@/lib/notifications/types";
 import type { Database } from "@/types/database";
@@ -41,6 +43,72 @@ export async function notifyTaskParticipants(
       href: `/mobile/tasks/${params.taskId}`,
       sourceType: "task",
       sourceId: params.taskId,
+      dedupeKey: `${params.dedupeBase}:${recipientUserId}`,
+      payload: params.payload,
+    });
+  }
+}
+
+/**
+ * Fan-out a project notification (currently only `project_shared`) to each invited member,
+ * skipping the actor. `dedupeBase` should be unique per event; the recipient id is appended.
+ */
+export async function notifyProjectMembers(
+  supabase: SupabaseClient<Database>,
+  params: {
+    organizationId: string;
+    projectId: string;
+    recipientUserIds: string[];
+    actorUserId: string;
+    dedupeBase: string;
+    payload: ProjectNotificationPayload;
+  },
+): Promise<void> {
+  const recipients = Array.from(new Set(params.recipientUserIds)).filter(
+    (id) => id && id !== params.actorUserId,
+  );
+  for (const recipientUserId of recipients) {
+    await createNotification(supabase, {
+      organizationId: params.organizationId,
+      recipientUserId,
+      type: "project_shared",
+      href: `/mobile/tasks/projects/${params.projectId}`,
+      sourceType: "project",
+      sourceId: params.projectId,
+      dedupeKey: `${params.dedupeBase}:${recipientUserId}`,
+      payload: params.payload,
+    });
+  }
+}
+
+/**
+ * Fan-out a Staff Suggestions notification to each recipient, skipping the actor and de-duplicating.
+ * Targets must already be limited to valid participants (author / recipient / referenced) by the
+ * caller — this never broadens visibility. `dedupeBase` must be unique per event (e.g. include the
+ * comment id or new status); the recipient id is appended automatically.
+ */
+export async function notifySuggestionParticipants(
+  supabase: SupabaseClient<Database>,
+  params: {
+    organizationId: string;
+    suggestionId: string;
+    recipientUserIds: string[];
+    actorUserId: string;
+    dedupeBase: string;
+    payload: SuggestionNotificationPayload;
+  },
+): Promise<void> {
+  const recipients = Array.from(new Set(params.recipientUserIds)).filter(
+    (id) => id && id !== params.actorUserId,
+  );
+  for (const recipientUserId of recipients) {
+    await createNotification(supabase, {
+      organizationId: params.organizationId,
+      recipientUserId,
+      type: "suggestion_activity",
+      href: `/mobile/suggestions/${params.suggestionId}`,
+      sourceType: "staff_suggestion",
+      sourceId: params.suggestionId,
       dedupeKey: `${params.dedupeBase}:${recipientUserId}`,
       payload: params.payload,
     });
@@ -135,6 +203,59 @@ export async function createOrderProcessedNotification(params: {
     sourceType: "order_request",
     sourceId: params.order.id,
     dedupeKey: `order_processed:${params.order.id}`,
+    payload,
+  });
+}
+
+// Notify the requester when the delivery date of an already-ordered request is edited. Reuses the
+// `order_processed` notification type (no enum migration) but flags `kind: "delivery_updated"` so the
+// display renders a "delivery date changed" message. The dedupeKey includes the new delivery value so
+// each distinct change produces a fresh notification.
+export async function createOrderDeliveryUpdatedNotification(params: {
+  supabase: SupabaseClient<Database>;
+  organizationId: string;
+  recipientUserId: string;
+  editedByUserId: string;
+  order: {
+    id: string;
+    title: string;
+    building_name: string;
+    room_label: string;
+    delivery_date: string | null;
+    delivery_start_date: string | null;
+    delivery_end_date: string | null;
+  };
+}) {
+  if (params.recipientUserId === params.editedByUserId) {
+    return { created: false, id: null };
+  }
+
+  const payload: OrderProcessedNotificationPayload = {
+    orderId: params.order.id,
+    orderTitle: params.order.title,
+    buildingName: params.order.building_name,
+    roomLabel: params.order.room_label,
+    status: "ordered",
+    deliveryDate: params.order.delivery_date,
+    deliveryStartDate: params.order.delivery_start_date,
+    deliveryEndDate: params.order.delivery_end_date,
+    processedByUserId: params.editedByUserId,
+    kind: "delivery_updated",
+  };
+
+  const deliveryKey =
+    params.order.delivery_start_date && params.order.delivery_end_date
+      ? `${params.order.delivery_start_date}_${params.order.delivery_end_date}`
+      : params.order.delivery_date ?? "none";
+
+  return createNotification(params.supabase, {
+    organizationId: params.organizationId,
+    recipientUserId: params.recipientUserId,
+    type: "order_processed",
+    href: `/mobile/requests/orders/${params.order.id}`,
+    sourceType: "order_request",
+    sourceId: params.order.id,
+    dedupeKey: `order_delivery_updated:${params.order.id}:${deliveryKey}`,
     payload,
   });
 }

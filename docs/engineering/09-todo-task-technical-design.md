@@ -1,12 +1,13 @@
 # Todo / Task Technical Design
 
-Status: First slice implemented (2026-06-10) — migration `202606100003_todo_tasks.sql`. As-built notes:
+Status: First slice implemented (2026-06-10) — migrations `202606100003_todo_tasks.sql`,
+`202606150003_task_recurrence_instances.sql`. As-built notes:
 `priority`/`status` are text columns with CHECK constraints (not enums); RLS uses a `security definer`
 `is_task_participant(task_id)` helper to avoid recursion; reads are RLS-scoped while **all writes go
 through service-role server actions** with explicit permission checks; notification_type gained
 `task_shared`/`task_updated`/`task_completed` and notifications fan out to participants; task photos
-reuse the `request-images` bucket (`task-images`/`task-update-images`). Recurrence is stored + shown
-only (no auto instance generation in this slice).
+reuse the `request-images` bucket (`task-images`/`task-update-images`). Recurrence now materializes
+real task-instance rows inside the active operating window.
 
 Completion + report (2026-06-13): manual complete / reopen is **re-introduced** and now drives a
 **완료/기록 (Completed)** tab plus a **daily-report generator** (free, template-based — no LLM).
@@ -51,6 +52,20 @@ itself, not the viewport) and they appeared stuck near the top instead of center
 `createPortal(…, document.body)` (guarded by `typeof document`), matching the existing body-portal
 pattern used by the quick-add sheet, `SharePicker`, and `ContextPickerSheet`.
 
+Bottom-sheet interaction (2026-06-15): every body-portaled bottom sheet here — quick-add, the
+Calendar day sheet, the long-press context menu, `SharePicker`, `ContextPickerSheet`, `ReportSheet`,
+the photo-attachment sheet (`PhotoGallery`), and the project create / members sheets — now shares one
+iOS-style **drag-to-dismiss** primitive, `useSheetDragDismiss` (`src/components/shell/use-sheet-drag-dismiss.ts`).
+Each sheet keeps its own open/close lifecycle and just spreads `handleProps` on the grab handle /
+header, tags the container `data-sheet`, and applies `sheetStyle` / `scrimStyle`. Dragging the handle
+follows the finger; release past `max(80px, 25% of sheet height)` or a ≥0.5 px/ms downward flick
+dismisses (reusing the existing slide-out + `onClose`), otherwise it snaps back. The hook stops touch
+propagation on the handle so the shell's pull-to-refresh / swipe-nav can't drag the background with
+the sheet. Because the slide now dismisses, the **top-right close (X) buttons were removed** from
+these sheets (scrim tap + Esc remain). X icons with other roles stay (remove-participant, chip clear,
+search clear, select-mode cancel, the photo lightbox close). Full contract: Product `16` →
+"2026-06-15 Bottom Sheets — iOS-style Drag-to-Dismiss".
+
 Context link (2026-06-12): tasks can optionally link a property · room · reservation · guest. The
 picker mirrors the reservation calendar's active-room catalog (active-only, sub-units like 201/201_2
 merged) via a shared resolver extracted into `src/lib/rooms.ts`; reservation-linked saves persist
@@ -91,7 +106,7 @@ Deliver:
 
 - private personal tasks by default
 - conversion from private to shared
-- Today / Tomorrow / Inbox / Sent By Me / Calendar views
+- Today / Tomorrow / Inbox / Sent By Me / Completed (완료/기록) / Calendar views
 - quick add + detailed create
 - unified update-log with optional images
 
@@ -146,6 +161,8 @@ status text not null default 'open'        -- open | in_progress | completed | c
 is_inbox boolean not null default true
 is_shared boolean not null default false
 recurrence_rule text
+recurrence_series_id uuid                    -- shared series id across real recurring instances (202606150003)
+recurrence_instance_date date                -- this row's occurrence date inside the series (202606150003)
 tags text[] not null default '{}'
 image_urls text[] not null default '{}'
 sort_order integer                          -- manual Today/Tomorrow drag order; NULL = unranked (202606120001)
@@ -329,8 +346,8 @@ highlight) while `sheetOpen` controls the bottom sheet, so closing the sheet kee
 and re-tapping re-opens it. When `calDay` is present, a compact selected-date summary strip renders
 above the agenda (date label, count, reopen CTA, clear-selection action) so the whole Calendar body
 keeps the same context, not only the sheet. The personal/shared legend stays on the current month only.
-Recurring-instance expansion is still out of scope — a recurring task appears only on its own stored
-`anchor` date.
+Recurring tasks are now expanded into real rows inside the active operating window, so the Calendar
+surface can show those generated occurrences rather than a single label-only master row.
 
 ## Search / Filter Rules
 
@@ -444,7 +461,7 @@ Mutate (`src/app/mobile/tasks/[id]/actions.ts`):
 Report (`src/app/mobile/tasks/report-actions.ts`):
 
 - `generateDailyReport(date)` — staff-only (`canGenerateDailyReport`); gathers the caller's own
-  completions for the Tokyo `date` and returns a Claude-polished 업무일지, or
+  completions for the Tokyo `date` and returns a free, template-based 업무일지 (no LLM / no API key), or
   `{ ok: false, reason: "forbidden" | "empty" | "error" }`.
 
 Admin (`src/app/admin/users/actions.ts`):
@@ -505,11 +522,18 @@ Recommended first-slice recurrence values:
 - weekends
 - custom rule string
 
-As-built (2026-06-11):
+As-built (2026-06-15):
 
-- Recurrence is **stored + displayed only — no instance generation.** `recurrence_rule` is a plain
-  label on the single task row; a recurring task appears only on its own anchor date. This keeps the
-  feature strictly inside the lightweight Todo boundary and out of the formal Recurring Work Scheduler.
+- Recurrence now creates **real task-instance rows**. Each series shares a
+  `recurrence_series_id`; each occurrence row stores its own `recurrence_instance_date`,
+  completion state, and update log. The originally saved task is the first occurrence.
+- A repeat rule **requires a date anchor** (`scheduled_date` or `due_at`). The form blocks repeat
+  with no date (`tasks.errors.repeat_needs_date`), and both server actions re-check it.
+- `materializeRecurringTasks()` (`src/lib/tasks.ts`) expands future occurrences inside the active
+  task window (current Tokyo month through the end of next month). `getVisibleTasks`,
+  `getProjectTasks`, `getTaskDetail`, and the reminder cron all call this helper before reading.
+- Series continuation uses the **latest occurrence row's** repeat rule. So changing repeat on the
+  latest row changes future generation from that point, and clearing repeat there stops the series.
 - `createTask` and `updateTaskCore` persist identically through one shared helper,
   `resolveRecurrenceRule(submitted, previousRule)` in `src/lib/tasks.ts`. A standard rule
   (`daily | weekly | monthly | weekdays | weekends`) passes through; empty/None or any unrecognized
@@ -684,12 +708,17 @@ ko/ja/en.
 Task-level images:
 
 - optional
-- max 5
+- max 5 for regular tasks; **max 20 for project tasks** (`project_id` set) — 2026-06-15. The cap is a
+  single `maxImages` value threaded through: `TaskCreateForm` (`maxImages` prop) →
+  `AnnouncementImageUploader` (`maxImages` prop, default 5), and re-applied server-side in
+  `createTask` (`linkedProjectId ? 20 : 5`) and `updateTaskCore` (`task.projectId ? 20 : 5`). No
+  storage/RLS change — the `request-images` policy validates per-file path only, not row count.
+  i18n: `tasks.photosMax20` / `tasks.photosCountError20` (ko/ja/en).
 
 Update-log images:
 
 - optional
-- max 5 per update entry
+- max 5 per update entry (unchanged — the 20 cap applies only to task-level photos on project tasks)
 
 Recommended MVP choice:
 
@@ -739,11 +768,11 @@ Time-based (system reminders, no actor → every participant incl. the author is
 
 - `task_due_soon` / `task_overdue` — produced only by `runTaskReminders` (`src/lib/notifications/
   task-reminders.ts`), driven once daily by Vercel Cron `/api/tasks/reminders` (08:00 JST; CRON_SECRET
-  guarded). **Due soon** = active task whose `due_at` Tokyo date is today; **overdue** = active task
-  whose `due_at` Tokyo date is before today. One reminder per task per recipient ever (dedupe key
-  `task_due_soon|task_overdue:<taskId>`), so the daily run never re-spams an already-notified task and
-  overdue is a single first-cross notification, not an escalating series. No instance generation and no
-  general scheduler — this is a narrow once-daily evaluation only.
+  guarded). The reminder run first materializes recurring task instances for the same active window,
+  then evaluates due dates. **Due soon** = active task whose `due_at` Tokyo date is today; **overdue**
+  = active task whose `due_at` Tokyo date is before today. One reminder per task per recipient ever
+  (dedupe key `task_due_soon|task_overdue:<taskId>`), so the daily run never re-spams an
+  already-notified task and overdue is a single first-cross notification, not an escalating series.
 
 Implementation timing may still phase these, but the product direction is confirmed.
 
@@ -755,6 +784,7 @@ Recommended mobile routes/views:
 - Tomorrow
 - Inbox
 - Sent By Me
+- Completed (완료/기록)
 - Calendar
 - Quick add
 - Task detail
@@ -763,8 +793,75 @@ Recommended mobile routes/views:
 
 Admin web routes are intentionally deferred.
 
+## Projects (as-built 2026-06-15)
+
+Projects group tasks under optional sections inside the Tasks workspace (the **프로젝트** tab, between
+관리함 and 공유함). A project task is the same canonical `tasks` row with `project_id` set (and an
+optional `section_id`). See `docs/product/23-project-workflow.md` for the product spec. Migration:
+`supabase/migrations/202606150002_projects.sql`.
+
+### Tables
+
+- **`projects`**: `id`, `organization_id`, `created_by_user_id`, `title`, `description`, `is_shared`,
+  `sort_order`, timestamps. `updated_at` trigger; org/creator indexes.
+- **`project_participants`**: `id`, `project_id` (cascade), `user_id` (cascade), `role`
+  (`owner | member`), `is_first_recipient`, `added_by_user_id`, `created_at`,
+  `unique (project_id, user_id)`.
+- **`project_sections`**: `id`, `project_id` (cascade), `title`, `sort_order`, timestamps.
+- **`tasks` additions**: `project_id uuid → projects(id) on delete cascade` (NULL = regular task,
+  shown in Today/Tomorrow/Inbox/Sent/Calendar; NOT NULL = project task, shown only in the Projects
+  tab) and `section_id uuid → project_sections(id) on delete set null` (NULL + project = Unsectioned).
+  Partial indexes on each.
+
+### RLS
+
+- Helper `is_project_participant(project_id)` (SECURITY DEFINER) mirrors `is_task_participant`.
+- The `tasks` SELECT policy is recreated to add `or (project_id is not null and
+  is_project_participant(project_id))`, so a project participant reads every task in the project even
+  when not a per-task participant.
+- `projects` / `project_participants` / `project_sections` each get a SELECT policy gated on
+  `is_platform_admin() or is_project_participant(...)`. All writes go through service-role server
+  actions (no authenticated write policies), matching the tasks model.
+
+### Server actions (`src/app/mobile/tasks/projects/actions.ts`)
+
+`createProject` (owner row + validated invited members + `project_shared` notify), `deleteProject`
+(owner; cascade), `addProjectSection` / `renameProjectSection` / `deleteProjectSection` (owner;
+**section delete also deletes its tasks** explicitly, since the section FK is `on delete set null`),
+`reorderProjectSections(projectId, orderedIds)` (owner; sets each `project_sections.sort_order` to its
+index, revalidates), `inviteProjectMembers` (owner; notify), `removeProjectMember` (owner; never the
+creator), `leaveProject` (member only; owner deletes instead). Permission boundary =
+`getProjectDetail(session, id)` (RLS-scoped read proves participation) plus a `viewerIsOwner` check for
+owner-only actions. Task complete/reopen reuse the existing `completeTask` / `reopenTask`.
+
+**Project-task creation (room/context link, 2026-06-15).** Project tasks are created through the **full
+create form**, not a title-only quick-add: the project detail's `작업 추가` links to
+`/mobile/tasks/new?project=…&section=…`. `TaskCreateForm` takes `projectId`/`sectionId` (hidden inputs,
+Share section hidden), and `createTask` validates the viewer is a project participant
+(`getProjectDetail`) + the section belongs to the project, writes `project_id`/`section_id`, forces
+`is_shared=false`, and redirects back to the project. This reuses the existing `ContextPickerSheet`, so
+a project task can link building · room · reservation · guest exactly like a regular task — no schema
+change (the `tasks` context columns already exist). Section drag-reorder UI:
+`src/components/tasks/reorderable-section-list.tsx` (owner-only grip handle; mirrors
+`reorderable-task-list` mechanics).
+
+### Queries (`src/lib/projects.ts`)
+
+`getVisibleProjects` (list cards with members + task counts) and `getProjectDetail` (members, ordered
+sections, project tasks via `getProjectTasks`). The Tasks page splits `getVisibleTasks` into non-project
+`tasks` and `projectCompletedTasks` (passed separately so the Completed tab's 전체/일반/프로젝트 filter can
+show project completions while the other views never see project tasks).
+
+### Notifications
+
+`project_shared` (`notification_type` enum value) fans out via `notifyProjectMembers`
+(`src/lib/notifications/create.ts`), deep-links to `/mobile/tasks/projects/{id}`, rendered by
+`getNotificationDisplay` with `mobile.notifications.project*` copy (ko/ja/en).
+
 ## Future Extensions
 
+- per-task drag-reorder inside a project section (section-level reorder shipped 2026-06-15)
+- project task ↔ regular task move, project stats/progress, archive, admin web project view
 - richer notification controls
 - tag management helpers
 - drag/drop calendar rescheduling

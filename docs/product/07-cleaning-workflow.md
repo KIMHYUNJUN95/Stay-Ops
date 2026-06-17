@@ -457,3 +457,32 @@ Frequency:
 - Data source: same-day `getCleaningTargets()` result (Asia/Tokyo operating date basis).
 - Purpose: operators can see daily workload immediately on page entry.
 
+## 2026-06-15 Cleaning Log (청소 기록표)
+
+A date-grouped **cleaning record sheet** so staff can review their cleaning history like a log.
+
+- **Entry / location:** a "내 청소 기록" link on the cleaning home (`/mobile/cleaning`, below the
+  summary card) → dedicated sub-page `**/mobile/cleaning/records**`. No new bottom tab.
+- **Layout:** horizontal **text rows** grouped by **date** (newest first), fitting the screen width
+  (no horizontal scroll). Each row, single line: status dot · 시작–종료 시각 · 건물·객실(truncate) ·
+  청소 유형 칩 · 소요시간. The top is a polished dashboard: a month-nav header card with a two-stat
+  summary (기록 count · 총 소요 total duration, compact `Xh Ym` format), **building** + (managers) staff
+  pill selects, and a **status segmented control** (전체/완료/진행중/취소). **Building filter** is
+  server-side via `getOrgCleaningSessionsFiltered({ propertyName })` + the active-room catalog;
+  building options are the catalog's property names (excluded ops filtered out), localized.
+- **Row tap → detail sheet:** building names are truncated in the row, so tapping a record opens a
+  **bottom sheet** (drag-to-dismiss, `useSheetDragDismiss`) showing the **full** info — untruncated
+  building·room, cleaning type, status, 담당자(staff), 날짜, 시작/종료 시각, 소요시간, and 메모(notes)
+  when present.
+- **Data:** reuses `getOrgCleaningSessionsFiltered(session, {startDate,endDate,status,staffUserId})`
+  over the selected month (Tokyo), with building·room resolved via the active-room catalog
+  (`resolveRequestCatalogLocation`). **No schema/RLS/migration change** — `cleaning_sessions` and its
+  RLS already carry who/when/where/duration and own-vs-manager read scoping.
+- **Permissions (matches the existing `cleaning_sessions` RLS):**
+  - `staff` / `part_time_staff` → **own records only** (no staff filter; RLS scopes automatically).
+  - `field_manager` / `cs_staff` / `office_admin` / `owner` (`canViewOthersCleaning`) → can also view
+    **other staff's** records in the app via a **직원(staff) filter**; the row then shows the staff name.
+  - Admin web (`/admin/cleaning`) already lists **all** records with filters + CSV/Excel export.
+- New i18n: `cleaning.records.*` (ko/ja/en). Files: `src/app/mobile/cleaning/records/page.tsx`,
+  `src/components/cleaning/cleaning-records-view.tsx`, `canViewOthersCleaning` in `src/config/roles.ts`.
+

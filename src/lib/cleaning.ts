@@ -6,7 +6,6 @@ import type { CleaningExportFilters } from "@/lib/export/cleaning-filters";
 import { resolveRequestCatalogLocation } from "@/lib/request-location";
 import type { ActiveRoomCatalogItem } from "@/lib/rooms";
 import type { AppSession } from "@/lib/session";
-import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
 export type CleaningSessionRow =
@@ -66,8 +65,13 @@ export function formatDuration(totalSeconds: number | null) {
   return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
 }
 
+async function getSupabase() {
+  const { getSupabaseServerClient } = await import("@/lib/supabase/server");
+  return getSupabaseServerClient();
+}
+
 export async function getMyTodayCleaningSessions(session: AppSession) {
-  const supabase = await getSupabaseServerClient();
+  const supabase = await getSupabase();
   const { data, error } = await supabase
     .from("cleaning_sessions")
     .select("*")
@@ -88,7 +92,7 @@ export async function getMyTodayCleaningSessions(session: AppSession) {
 export async function getOrgTodayCleaningRoomLabels(
   organizationId: string,
 ): Promise<{ room_label: string; status: string }[]> {
-  const supabase = await getSupabaseServerClient();
+  const supabase = await getSupabase();
   const { data, error } = await supabase
     .from("cleaning_sessions")
     .select("room_label, status")
@@ -133,7 +137,7 @@ async function attachStaffNames(
     return [];
   }
 
-  const supabase = await getSupabaseServerClient();
+  const supabase = await getSupabase();
   const staffIds = Array.from(new Set(sessions.map((item) => item.staff_user_id)));
   const { data: profiles, error: profileError } = await supabase
     .from("profiles")
@@ -175,7 +179,7 @@ export async function getOrgCleaningSessionsFiltered(
   filters: CleaningExportFilters,
   roomCatalog?: readonly ActiveRoomCatalogItem[],
 ): Promise<CleaningSessionWithStaff[]> {
-  const supabase = await getSupabaseServerClient();
+  const supabase = await getSupabase();
   let query = supabase
     .from("cleaning_sessions")
     .select("*")

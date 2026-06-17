@@ -114,6 +114,7 @@ export default async function MobileRequestsPage({ searchParams }: PageProps) {
           filterMaintenance: dictionary.mobile.filterMaintenance,
           filterOrder: dictionary.mobile.quickActions.order,
           filterScopeMine: dictionary.mobile.filterScopeMine,
+          filterScopeMineRequest: dictionary.mobile.filterScopeMineRequest,
           filterToday: dictionary.mobile.filterToday,
           groupDate: dictionary.mobile.filterGroupDate,
           groupScope: dictionary.mobile.filterGroupScope,
@@ -161,6 +162,16 @@ export default async function MobileRequestsPage({ searchParams }: PageProps) {
           sectionTitle: dictionary.mobile.quickActions.order,
           statusLabels: dictionary.mobile.orderStatusLabels,
           deliveryDateShort: dictionary.mobile.orderDetail.deliveryDateShort,
+        }}
+        deliveryCalendarCopy={{
+          title: dictionary.mobile.deliveryCalendar.title,
+          openLabel: dictionary.mobile.deliveryCalendar.openLabel,
+          empty: dictionary.mobile.deliveryCalendar.empty,
+          dayEmpty: dictionary.mobile.deliveryCalendar.dayEmpty,
+          today: dictionary.mobile.deliveryCalendar.today,
+          close: dictionary.mobile.deliveryCalendar.close,
+          countTemplate: dictionary.mobile.deliveryCalendar.countTemplate,
+          rangeLabel: dictionary.mobile.deliveryCalendar.rangeLabel,
         }}
         roomCatalog={roomCatalog ?? []}
         startDate={dateRange.startDate}

@@ -27,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { PROPERTY_MAP_META, type PropertyMapMeta, getPropertyAddress } from "@/lib/property-map-links";
+import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -588,6 +589,12 @@ export function MobileCalendarView({
       reservationCloseTimeoutRef.current = null;
     }, RESERVATION_SHEET_TRANSITION_MS);
   }, []);
+
+  // iOS-style drag-to-dismiss on the grab handle / header of the reservation detail sheet.
+  const reservationDrag = useSheetDragDismiss({
+    shown: isReservationSheetOpen,
+    onDismiss: closeReservationSheet,
+  });
 
   // Auto-open the reservation sheet when arriving via deep-link from a task context.
   // Read the reservationId from the live URL (useSearchParams) rather than the server prop, for the
@@ -1316,6 +1323,7 @@ export function MobileCalendarView({
               isReservationSheetOpen ? "opacity-100" : "pointer-events-none opacity-0",
             )}
             onClick={closeReservationSheet}
+            style={reservationDrag.scrimStyle}
             type="button"
           />
           {/* Bottom sheet — slides up from the bottom edge. */}
@@ -1324,30 +1332,30 @@ export function MobileCalendarView({
             aria-modal="true"
             role="dialog"
             className="relative flex max-h-[88dvh] w-full max-w-[460px] flex-col rounded-t-[24px] bg-surface pb-[max(20px,env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-16px_44px_-12px_rgba(16,28,27,0.3)] will-change-transform"
-            style={{
-              transform: isReservationSheetOpen ? "translateY(0)" : "translateY(110%)",
-              transition: "transform 420ms cubic-bezier(0.32,0.72,0,1)",
-            }}
+            data-sheet
+            style={
+              reservationDrag.dragging
+                ? reservationDrag.sheetStyle
+                : {
+                    transform: isReservationSheetOpen ? "translateY(0)" : "translateY(110%)",
+                    transition: "transform 420ms cubic-bezier(0.32,0.72,0,1)",
+                  }
+            }
           >
             <div
               aria-hidden="true"
               className="mx-auto mb-1 h-1 w-[38px] shrink-0 rounded-full bg-slate-200"
+              {...reservationDrag.handleProps}
             />
-            <div className="shrink-0 flex items-start justify-between gap-2 border-b border-border/40 px-5 pb-4 pt-5">
-              <div>
-                <Badge>{statusLabels[selectedReservation.status] ?? selectedReservation.status}</Badge>
-                <p className="mt-2 text-xl font-black">{selectedReservation.guestName}</p>
-                <p className="text-xs text-muted-foreground">
-                  {copy.reservationId} #{selectedReservation.sourceReservationId}
-                </p>
-              </div>
-              <Button
-                className="size-9 rounded-full bg-white/50 p-0 hover:bg-surface/70"
-                onClick={closeReservationSheet}
-                variant="ghost"
-              >
-                <X className="size-4" />
-              </Button>
+            <div
+              className="shrink-0 border-b border-border/40 px-5 pb-4 pt-5"
+              {...reservationDrag.handleProps}
+            >
+              <Badge>{statusLabels[selectedReservation.status] ?? selectedReservation.status}</Badge>
+              <p className="mt-2 text-xl font-black">{selectedReservation.guestName}</p>
+              <p className="text-xs text-muted-foreground">
+                {copy.reservationId} #{selectedReservation.sourceReservationId}
+              </p>
             </div>
             <div className="min-h-0 overflow-y-auto space-y-4 px-5 py-5 text-sm">
               <div className="grid grid-cols-2 gap-2">

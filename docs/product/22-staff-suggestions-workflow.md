@@ -1,220 +1,362 @@
-# Staff Suggestions Workflow
+# Staff Suggestions / Feedback Box Workflow
 
-Status: Draft
+Status: Planned (scope refined 2026-06-16) · **UI/UX slice implemented 2026-06-16 (frontend only)** · **DB schema (Step 1) implemented 2026-06-16** (migration `202606160001_staff_suggestions.sql`) · **Create flow (Step 2) wired 2026-06-16** · **List queries (Step 3) wired 2026-06-16** · **Detail queries (Step 4) wired 2026-06-16** · **Comments (Step 5) wired 2026-06-16** · **Status workflow (Step 6) wired 2026-06-16** · **Notifications (Step 7) wired 2026-06-16** — participants get in-app alerts for created / referenced / status / comment events (one `suggestion_activity` type, deep-linking to the suggestion; self-suppressed, participant-scoped). **First slice complete & internally shippable (Step 8, 2026-06-16)** — full ko/ja/en i18n, empty/error states, QA hardening, dead-code cleanup, doc sync. **Debug pass (2026-06-16): fixed a blocking storage-RLS bug** — the `request-images` upload/delete policies did not whitelist the `suggestion-images/` folder, so every suggestion photo upload (compose + comments) was rejected; migration `202606160004_suggestion_image_storage.sql` adds it (and allows part-time members to attach photos under that folder, since suggestions are open to all members). See `docs/engineering/12-staff-suggestions-technical-design.md` → "As-built — Step 1 … Step 8" and `docs/product/14-notification-design.md`. **Debug pass 2 (2026-06-16):** (a) implemented **author edit/delete** of the main suggestion while `submitted` (`updateStaffSuggestion` / `deleteStaffSuggestion` actions + `/mobile/suggestions/[id]/edit` reusing the compose form + author edit/delete affordances on the detail) — closes the previously-missing core rule; (b) the list card now shows the **author** on Received/Referenced (and recipient on Sent) instead of always the recipient; (c) the author edit now re-syncs all fields + references **atomically** via the `update_staff_suggestion` Postgres function (migration `202606160005`) — fixes a data-integrity bug where a failed reference re-insert could wipe all references while still reporting success; (d) changing the recipient while `submitted` now **notifies the new recipient** (the edit returns the previous reference set, so only newly-added references and a genuinely-changed recipient are notified; unchanged recipient and self are suppressed). Remaining known limitation: the `/mobile/notifications` screen still renders the deferred mockup (separate decision), so suggestion notifications dispatch + display logic are correct but only surface once that screen is re-wired. **Pending migrations to apply:** `202606160001` + `202606160003` + `202606160004` + `202606160005`.
+
+## Implementation Status (2026-06-16)
+
+A frontend UI slice was built from the `Feedback Box.html` design handoff (9 frames) and then **fully
+wired end-to-end (Steps 2–7) and hardened (Step 8)**: create, list (sent/received/referenced + status
+filter), participant-only detail, comments (create/edit/delete + photos), recipient-only status
+workflow (with hold/completion notes), and notifications. All visible strings are localized (ko/ja/en)
+via `dict.mobile.suggestions`. The only screen still on sample data is `/mobile/notifications` (a
+separately-deferred mockup, see Notifications below).
+
+Routes / components:
+
+- `/mobile/suggestions` — main list (`보낸/받은/참조` segments + status filter pills + cards + portaled `+` FAB) → `src/components/suggestions/suggestions-list.tsx`. **Wired (Step 3, 2026-06-16):** the page loads real data via `getSuggestionListData` (`src/lib/suggestions-queries.ts`) — Sent (author) / Received (recipient) / Referenced (via `staff_suggestion_references`), org+user scoped (RLS-backed). The status filter works (`active` = submitted + reviewing, `all`, or a single status); segment counts reflect the current filter; cards show real status / title / excerpt / counterparty / reference & comment counts / relative time (`Intl.RelativeTimeFormat`); empty segments show `mobile.suggestions.empty`. The card's counterparty line shows the **recipient on Sent** ("받는 사람") and the **author on Received / Referenced** ("보낸 사람"), so the other party is always meaningful.
+- `/mobile/suggestions/new` — compose (recipient / references / title / body / category / building·room tags / 5 photos) + member picker sheet → `suggestions-compose.tsx`, `suggestions-user-picker.tsx`. **Wired (Step 2, 2026-06-16):** controlled fields; data-driven member picker (recipient single-select, references multi-select, fed by `getShareableUsers`); building·room reuses the shared `ContextPickerSheet` (property/room only); photos reuse `uploadRequestImages` + `compressImageFile` (`request-images` bucket, `suggestion-images/` path); submit → `createStaffSuggestion` → redirect to `/mobile/suggestions`.
+- `/mobile/suggestions/[id]` — detail thread (`suggestions-detail.tsx`). **Wired (Step 4, 2026-06-16):** loads real data via `getSuggestionDetail` (participant-only — author/recipient/referenced, RLS-backed; redirects to the list if not found/allowed). One **role-aware** component renders all three viewer treatments. **Comments are live (Step 5):** the comment composer is shown to **every visible participant** (author / recipient / referenced) — `suggestion-comment-composer.tsx` submits text and/or up to 5 photos (reusing `compressImageFile` + `uploadRequestImages`) via `createStaffSuggestionComment`. Each thread comment renders via `suggestion-comment-item.tsx`, which shows inline **edit (text) / delete (two-step confirm)** affordances only on the current user's own comments (`updateStaffSuggestionComment` / `deleteStaffSuggestionComment`). Comments work at every status. For the recipient, the status bar is stacked **above** the composer. **Status workflow is live (Step 6):** the recipient's status bar + status sheet, hold-reason sheet, and completion-note sheet now submit real changes via `updateStaffSuggestionStatus` — direct moves (submitted / reviewing) apply immediately; `on_hold` / `completed` require their note (controlled textareas, submit disabled until filled, also enforced server-side + by DB CHECK). Transitions are freely reversible. The status bar reflects the real current status and the `on_hold` / `completed` banners show the saved note. Author and referenced users never see these controls. Renders real status (with hold-reason banner when `on_hold`, completion-note banner when `completed`), author→recipient route, referenced-count, category/building/room tags, body, photos, and the live comment thread (author name + role pill + relative time + photo count). Viewer role drives "(나)" markers and which bottom affordance shows. **Author edit/delete is live (Debug pass 2):** while `status='submitted'` the author sees an edit affordance (→ `/mobile/suggestions/[id]/edit`, reuses the compose screen via `updateStaffSuggestion`) and a two-step delete confirm (`deleteStaffSuggestion`); once the status leaves `submitted` the body is read-only for everyone. The author edit re-syncs title/body/category/recipient/context/photos/references **atomically** via the `update_staff_suggestion` Postgres function (single transaction — a failed reference re-insert rolls the whole edit back, so there is no partial-success state). Changing the recipient while `submitted` notifies the new recipient (see Notifications). **Detail redesigned to "Instagram style" (2026-06-16, `Feedback Detail (Instagram style).html`):** the body no longer shows the inline comment thread; instead it ends with an **action row** (a visual-only like + a comment button showing the count). There are now **two clearly distinct bottom sheets**: (1) the **comment sheet** — opened by the comment action, a tall (76%) sheet with a header + close (X), the scrollable thread, and the composer docked at its bottom (`csheet*` styles); (2) the **status sheet** — opened by the recipient's bottom-right **status pill** (`상태 ● <status> ▲`), carrying the four status options + hold/completion sub-sheets. Author/referenced users see a permission note at the bottom instead of the status pill. The like is client-only (no backend) pending a future like feature; new i18n `statusPill` / `likeAction` (ko/ja/en). **Like surfacing + comment sheet refinements (2026-06-16):** the action row shows an always-visible **facepile + "○○ liked this"** summary (tap → the who-liked sheet; the heart also opens it on long-press); the comment sheet's X button was removed (drag-the-handle / tap-scrim to close, with an enlarged grab zone), and comment bodies render **plain** (no card bubble). **Status changes now appear inline in the comment thread** as a log entry ("○○ changed status to <status>") — backed by a new `staff_suggestion_events` table (migration `202606160005_suggestion_status_events.sql`, applied; participant-read RLS via `can_view_staff_suggestion`); `updateStaffSuggestionStatus` records an event on every change, `getSuggestionDetail` returns `events`, and the comment sheet interleaves comments + events by time. Comment counts (list/detail) are unaffected (events live in their own table). New i18n `likeEmpty` / `likeSummaryOne` / `likeSummaryMany` / `statusLog`.
+- `/mobile/suggestions/referenced` — **superseded (Step 4)**: the referenced detail is now rendered role-aware by `[id]`; this design-preview route (no id) redirects to `/mobile/suggestions`. The old `suggestions-detail-referenced.tsx` component was **deleted in Step 8** (dead code).
+- Notifications: `/mobile/notifications` currently renders the design's "frame 9" as a **static mockup** (`src/components/suggestions/suggestions-notif.tsx`, no MobileShell chrome, sample data). The live data-driven UI (`src/components/notifications/notification-list.tsx`) is preserved for re-wiring. **Per decision 2026-06-16, the entire notifications area (this screen + the shared notifications feature) will be re-specified in the MD docs and re-designed near the end of development** — treat the current notifications screen as throwaway scaffolding until then.
+
+Implementation notes:
+
+- Visual design ported 1:1 into `src/components/suggestions/suggestions.css` (scoped under `.sg`); icons in `sg-icons.tsx`. Palette reuses the app theme (ivory + deep-ink navy).
+- Nav entry `suggestions` added to `mobileSidebarNavigation` (side menu + bottom-bar editor pool) and `routeAccess`; `LAUNCHER_META.suggestions` icon added to the shell.
+- Bottom bars, sheets, and the FAB are portaled to `document.body` (the shell scroll container's `transform` traps `position: fixed`). Sheets use the shared `useSheetDragDismiss` drag-to-close.
+- **i18n complete (Step 8):** every visible suggestions string (list tabs, filter pills, form labels,
+  buttons, validation/error messages, empty states, status labels, hold/completion prompts, comment
+  UI, picker labels, page titles) is localized via the `dict.mobile.suggestions` group (ko/ja/en),
+  threaded as a `copy` prop through every suggestions component. Suggestion **notification** display
+  strings live under `dict.mobile.notifications.suggestion*`. No remaining one-off hardcoded UI copy in
+  the active components. Relative time uses `Intl.RelativeTimeFormat` (no manual strings).
+
+The product spec below is the target behavior; the UI slice is a visual scaffold for it.
 
 ## Purpose
 
-The Staff Suggestions workflow provides a structured place for employees and part-time workers to submit improvement ideas, operational complaints, and workplace feedback.
+The Staff Suggestions / Feedback Box is a structured way to send feedback to one specific person inside the organization.
 
-Main goal:
+This module covers:
 
-- Give staff a safer and more structured channel than a free-form board post.
+- 업무 개선 제안
+- 불편사항
+- 운영 문제
+- 건의사항
+- 불만 접수
 
-## Recommended Product Direction
+This is not a public board.
 
-This module should be treated as a suggestion box or feedback box, not as a normal discussion board.
-
-Recommended distinction:
-
-- Internal Board = casual team posting
-- Staff Suggestions = structured feedback and improvement submission
-
-## Why This Module Exists
-
-The company needs a place for:
-
-- process improvement suggestions
-- operational pain points
-- workplace feedback
-- complaints or requests that should be reviewed
-
-Some of these should be public to the team.
-Some should not.
-
-## Visibility Modes
-
-Recommended first version:
-
-### Public Team
-
-Visible to:
-
-- all active organization members
-
-Use when:
-
-- the suggestion is safe to share broadly
-- the team can openly discuss it
-
-### Employee Only
-
-Visible to:
+It is a shared feedback thread between:
 
 - author
-- Owner
-- Office Admin
-- CS Staff
-- Field Manager
-- Staff
-- Developer / Super Admin
+- one required recipient
+- optional referenced users
 
-Not visible to:
+## Core Product Direction
 
-- other Part-time Staff
+The author is sending an opinion or issue to one specific person.
 
-Use when:
+The first slice should behave more like a private shared thread than a broadcast feed.
 
-- the post should not be broadly visible among all workers
-- the author wants restricted internal visibility
+Main distinction:
 
-## Future Visibility Option
+- Internal Board = broad team posting
+- Staff Suggestions = person-directed feedback thread with controlled visibility and status ownership
 
-Recommended later addition if needed:
+## First-Slice Goal
 
-### Management Only
+Deliver a first version where:
 
-Visible only to:
+- any active member can send feedback to one specific recipient
+- optional referenced users can be added for shared visibility
+- the recipient alone manages status
+- all visible participants can discuss through comments
+- the author can track progress without the post becoming organization-wide
+
+## Participants
+
+### Author
+
+- any active organization member
+- `part_time_staff` included
+
+### Recipient
+
+- exactly one required recipient
+- must be an active member in the same organization
+- should be someone other than the author
+
+### Referenced Users
+
+- optional
+- zero or more active members in the same organization
+- visible participants only
+- cannot manage status
+
+## Visibility Model
+
+Readable by:
 
 - author
-- Owner
-- Office Admin
-- Developer / Super Admin
+- recipient
+- referenced users
 
-This is useful if the company later wants a narrower confidential route.
+Not readable by:
 
-## Users
+- everyone else in the organization
 
-All active users should be allowed to submit suggestions.
+Important rule:
 
-This includes:
+- this feature has no `public_team` or organization-wide visibility mode
 
-- Staff
-- Part-time Staff
-- Field Manager
-- CS Staff
-- Office Admin
-- Owner
+All visible participants can see:
 
-## Core Fields
+- who the author is
+- who the recipient is
+- which users were referenced
+
+## Main Roles Inside One Thread
+
+### Author
+
+Can:
+
+- create the suggestion
+- edit the suggestion only while status is `submitted`
+- delete the suggestion only while status is `submitted`
+- change recipient / references / property / room / photos only while status is `submitted`
+- comment at any status
+
+Cannot:
+
+- change status
+
+### Recipient
+
+Can:
+
+- read
+- comment
+- change status
+
+Cannot:
+
+- edit or delete the main suggestion body
+- change recipient or references
+
+### Referenced Users
+
+Can:
+
+- read
+- comment
+
+Cannot:
+
+- change status
+- edit or delete the main suggestion body
+- change recipient or references
+
+## Statuses
+
+First-slice statuses:
+
+- `submitted`
+- `reviewing`
+- `on_hold`
+- `completed`
+
+Meaning:
+
+- `submitted`: newly sent to the recipient
+- `reviewing`: recipient is actively checking it
+- `on_hold`: paused or blocked for a stated reason
+- `completed`: recipient considers the matter completed
+
+Status rules:
+
+- new suggestion always starts as `submitted`
+- status never changes automatically
+- only the recipient can change status
+- recipient can move status back again later if needed
+
+### Required Notes By Status
+
+- moving to `on_hold` requires a hold reason
+- moving to `completed` requires a completion note
+- moving to `reviewing` does not require a note
+
+## Main Fields
+
+```txt
+author
+recipient
+referenced users (optional)
+title
+body
+category (optional, free text)
+status
+hold reason
+completion note
+property
+room
+photos
+created_at
+updated_at
+```
+
+Field rules:
+
+- category is optional free text
+- property tag is optional
+- room tag is optional
+- photos are allowed up to 5 on the main suggestion
+
+## Comments
+
+Comments are part of the first slice.
+
+Who can comment:
+
+- author
+- recipient
+- referenced users
+
+Comment rules:
+
+- comments are allowed at every status, including `on_hold` and `completed`
+- comment edit/delete is allowed only for the comment author
+- comment edit/delete is not blocked by suggestion status
+- comments may include photos
+- comment photos are allowed up to 5 per comment
+
+This feature should support multi-turn discussion, not a single reply note only.
+
+## Notifications
+
+Send notifications when the target user has notifications enabled.
+
+Trigger points:
+
+- recipient is notified immediately when a new suggestion is created
+- referenced users are notified when they are added
+- when the author changes the recipient on an edit (only possible while `submitted`), the **new** recipient is notified (reuses the "created" event); if the recipient is unchanged, no notification is sent
+- visible participants are notified when status changes
+- visible participants are notified when a new comment is added
 
 Recommended baseline:
 
-```txt
-id
-organization_id
-created_by_user_id
-title
-body
-category
-visibility
-status
-property_id or property_name
-response_note
-created_at
-updated_at
-resolved_at
-```
+- suppress self-notifications for the acting user
 
-## Suggested Categories
+## List Structure
 
-Recommended first categories:
+Recommended first-slice top tabs:
 
-- operations
-- workplace
-- tools_system
-- staffing
-- safety
-- property_specific
-- other
+- `Sent`
+- `Received`
+- `Referenced`
 
-## Suggested Statuses
+Meaning:
 
-Recommended first statuses:
+- `Sent`: suggestions created by me
+- `Received`: suggestions where I am the recipient
+- `Referenced`: suggestions where I was added as a referenced user
 
-- submitted
-- reviewing
-- planned
-- resolved
-- closed
+Default list behavior:
+
+- default view emphasizes active items
+- users can filter by:
+  - `all`
+  - `submitted`
+  - `reviewing`
+  - `on_hold`
+  - `completed`
+
+Recommended default filter:
+
+- show active work first (`submitted` + `reviewing`)
+
+## Entry Points
+
+### Mobile
+
+First-slice mobile surfaces:
+
+- sent / received / referenced list
+- create form
+- detail thread
+
+### Admin Web
+
+Admin web is not a different permission model in this feature.
+
+If added in the first slice, it should mirror the same participant-based rules rather than introduce admin-only review powers.
 
 ## Workflow
 
-Baseline flow:
-
 ```txt
-User opens suggestion box
-Writes suggestion
-Chooses visibility
-Optional category / property tag
-Save
-Authorized viewers can read it
-Management updates status / response
-Author tracks the result
+Author opens suggestion box
+Author chooses one recipient
+Author optionally adds referenced users
+Author writes title/body
+Author optionally adds category, property, room, photos
+Author saves
+Recipient and referenced users get notified
+Visible participants read and discuss in comments
+Recipient manually changes status when needed
+Author tracks progress from Sent
 ```
 
-## Mobile Views
+## Edit / Delete Rules
 
-Recommended mobile baseline:
+Main suggestion edit/delete:
 
-- suggestion list
-- create form
-- detail page
+- author only
+- only while status is `submitted`
 
-Important mobile rule:
+Editable while `submitted`:
 
-- visibility choice must be very clear before save
-
-## Admin Views
-
-Recommended admin baseline:
-
-- review queue
-- detail page
-- response/status update controls
-
-Useful admin filters:
-
-- status
-- visibility
+- recipient
+- referenced users
+- title
+- body
 - category
 - property
-- author
+- room
+- main photos
 
-## Permissions
+Locked after status leaves `submitted`:
 
-Recommended rules:
+- all main-body fields above
 
-- All active users can create suggestions.
-- Users can always read their own suggestions.
-- `public_team` suggestions are readable by all active members in the organization.
-- `employee_only` suggestions are readable only by the allowed employee audience and the author.
-- Authorized management roles can update status and response.
+Comments:
 
-## Important Product Recommendation
+- comment author only
+- independent from suggestion status
 
-Do not start with anonymous posting in the first slice.
+## Out of Scope For First Slice
 
-Reason:
+- organization-wide visibility
+- anonymous posting
+- separate admin-only workflow
+- reactions / likes / votes
+- assignment to multiple status owners
+- attachment types beyond photos
+- escalation / whistleblower route
 
-- it makes follow-up harder
-- it complicates abuse handling
-- it complicates permissions and trust
+## Risks
 
-If stronger confidentiality becomes necessary later, add:
+- If read access is implemented loosely, private feedback can leak.
+- If recipient-only status ownership is not enforced server-side, the workflow loses accountability.
+- If comments are not first-class data, the feature will regress into a weak one-reply box.
 
-- management-only visibility
-- anonymous-to-peers but visible-to-management mode
+## Build Summary
 
-## Suggested First MVP Slice
+Build in this order:
 
-1. create suggestion
-2. visibility-aware list
-3. detail page
-4. status update / response note
-
-## Open Questions
-
-- Should employee-only also include all Staff roles, or only management-capable roles?
-- Should the author be allowed to edit/delete after review begins?
-- Should public suggestions allow comments later?
-- Is a separate harassment/escalation route needed outside this module?
+1. suggestion create flow with one required recipient
+2. sent / received / referenced lists
+3. detail thread with comments
+4. recipient-only status change
+5. notifications for create / reference / status / comments

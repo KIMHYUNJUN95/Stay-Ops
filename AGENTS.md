@@ -15,6 +15,7 @@ StayOps is not a generic Next.js demo. It is an operations product for accommoda
 5. After code changes, run `npm run lint` and `npm run build` unless blocked.
 6. Do not silently change the tech stack, role model, deletion policy, multilingual strategy, or PWA-first direction.
 7. A task is not complete until both code and the matching Markdown docs are updated together in the same completion cycle.
+8. For any feature addition, modification, or behavior change, always update the matching Markdown documentation in the same work cycle to keep docs and implementation aligned. This is mandatory and must never be skipped.
 
 ## Read These First
 

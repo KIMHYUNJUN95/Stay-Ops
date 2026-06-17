@@ -2,6 +2,8 @@ import type { Locale } from "@/lib/i18n";
 import { getDictionary } from "@/lib/i18n";
 import {
   isOrderProcessedPayload,
+  isProjectNotificationPayload,
+  isSuggestionNotificationPayload,
   isTaskNotificationPayload,
   type NotificationRow,
   type NotificationType,
@@ -73,14 +75,19 @@ export function getNotificationDisplay(
         ? `${payload.buildingName} · ${payload.roomLabel}`
         : payload.buildingName;
     const delivery = formatDeliverySummary(payload, locale, copy);
-    const body = delivery
-      ? copy.orderProcessedBodyWithDelivery
+    const isDeliveryUpdate = payload.kind === "delivery_updated";
+    const body = isDeliveryUpdate
+      ? (delivery ? copy.orderDeliveryUpdatedBody : copy.orderProcessedBody)
           .replace("{title}", payload.orderTitle)
-          .replace("{delivery}", delivery)
-      : copy.orderProcessedBody.replace("{title}", payload.orderTitle);
+          .replace("{delivery}", delivery ?? "")
+      : delivery
+        ? copy.orderProcessedBodyWithDelivery
+            .replace("{title}", payload.orderTitle)
+            .replace("{delivery}", delivery)
+        : copy.orderProcessedBody.replace("{title}", payload.orderTitle);
 
     return {
-      title: copy.orderProcessedTitle,
+      title: isDeliveryUpdate ? copy.orderDeliveryUpdatedTitle : copy.orderProcessedTitle,
       body,
       statusLabel: statusLabels.ordered,
       kindLabel: copy.kindOrder,
@@ -130,6 +137,54 @@ export function getNotificationDisplay(
     };
   }
 
+  if (
+    notification.type === "project_shared" &&
+    isProjectNotificationPayload(notification.payload)
+  ) {
+    const payload = notification.payload;
+    return {
+      title: copy.projectSharedTitle,
+      body: copy.projectSharedBody.replace("{title}", payload.projectTitle),
+      statusLabel: copy.projectKind,
+      kindLabel: copy.projectKind,
+      locationLabel: "",
+    };
+  }
+
+  if (
+    notification.type === "suggestion_activity" &&
+    isSuggestionNotificationPayload(notification.payload)
+  ) {
+    const payload = notification.payload;
+    const title =
+      payload.event === "created"
+        ? copy.suggestionCreatedTitle
+        : payload.event === "referenced"
+          ? copy.suggestionReferencedTitle
+          : payload.event === "status"
+            ? copy.suggestionStatusTitle
+            : copy.suggestionCommentTitle;
+    const bodyTemplate =
+      payload.event === "created"
+        ? copy.suggestionCreatedBody
+        : payload.event === "referenced"
+          ? copy.suggestionReferencedBody
+          : payload.event === "comment"
+            ? copy.suggestionCommentBody
+            : payload.status === "on_hold"
+              ? copy.suggestionStatusBodyHold
+              : payload.status === "completed"
+                ? copy.suggestionStatusBodyDone
+                : copy.suggestionStatusBody;
+    return {
+      title,
+      body: bodyTemplate.replace("{title}", payload.suggestionTitle),
+      statusLabel: copy.suggestionKind,
+      kindLabel: copy.suggestionKind,
+      locationLabel: "",
+    };
+  }
+
   return {
     title: copy.fallbackTitle,
     body: copy.fallbackBody,
@@ -150,6 +205,10 @@ export function notificationTypeLabel(type: NotificationType, locale: Locale) {
     case "task_due_soon":
     case "task_overdue":
       return copy.taskKind;
+    case "project_shared":
+      return copy.projectKind;
+    case "suggestion_activity":
+      return copy.suggestionKind;
     default:
       return copy.fallbackKind;
   }

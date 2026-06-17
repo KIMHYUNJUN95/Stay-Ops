@@ -7,11 +7,21 @@ import type { TaskNotificationPayload } from "@/lib/notifications/types";
 import {
   getShareableUsers,
   getTaskDetail,
+  getVisibleTasks,
+  nextRecurringInstance,
   normalizeTaskDateTime,
+  previousRecurringInstance,
   resolveRecurrenceRule,
+  shiftRecurringTaskDates,
+  taskAnchorDateInput,
+  taskNeedsRecurrenceDate,
   taskTimeWithoutDate,
+  tokyoDateOf,
+  tokyoToday,
   type TaskDetail,
+  type TaskRecord,
 } from "@/lib/tasks";
+import { isStandardRecurrence } from "@/lib/tasks-recurrence";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
@@ -103,6 +113,100 @@ async function requireSessionAndTask(taskId: string): Promise<{
   return { session, task };
 }
 
+async function requireSession(): Promise<Session> {
+  const session = await getCurrentAppSession();
+  if (!session) {
+    redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
+  }
+  if (!hasOrganizationContext(session)) {
+    redirect("/admin");
+  }
+  return session;
+}
+
+// "Overdue" for the Today-tab prompt: the caller's own (authored), active, non-project task whose
+// due Tokyo date is before today — mirrors the Today view's overdue section. Scoped to authored
+// tasks so the bulk actions never reschedule/delete someone else's shared task.
+function isOverdueOwned(t: TaskRecord, today: string, userId: string): boolean {
+  if (t.projectId || t.createdByUserId !== userId) return false;
+  if (t.status === "completed" || t.status === "cancelled") return false;
+  const due = tokyoDateOf(t.dueAt);
+  return !!due && due < today;
+}
+
+/**
+ * "오늘로 가져오기" — move the caller's overdue tasks to today. A recurring task keeps its series
+ * (its single row's occurrence is set to today); a one-off task's due date is moved to today.
+ */
+export async function rescheduleOverdueToToday() {
+  const session = await requireSession();
+  const today = tokyoToday();
+  const overdue = (await getVisibleTasks(session)).filter((t) =>
+    isOverdueOwned(t, today, session.user.id),
+  );
+  if (overdue.length === 0) return;
+  const supabase = getSupabaseServiceClient();
+  const orgId = session.organization.id;
+  for (const t of overdue) {
+    if (isStandardRecurrence(t.recurrenceRule)) {
+      const d = shiftRecurringTaskDates(t, today);
+      if (!d) continue;
+      await supabase
+        .from("tasks")
+        .update({
+          scheduled_date: d.scheduledDate,
+          due_at: d.dueAt,
+          recurrence_instance_date: d.recurrenceInstanceDate,
+        } as never)
+        .eq("id", t.id)
+        .eq("organization_id", orgId);
+    } else {
+      const dueAt = new Date(`${today}T${t.timeLabel || "00:00"}:00+09:00`).toISOString();
+      await supabase
+        .from("tasks")
+        .update({ due_at: dueAt } as never)
+        .eq("id", t.id)
+        .eq("organization_id", orgId);
+    }
+  }
+  revalidatePath("/mobile/tasks");
+}
+
+/**
+ * "지난 미완료 삭제" — clear the caller's overdue tasks. A one-off overdue task is deleted; a
+ * recurring task is **not** deleted (that would kill the series) — it advances to its next future
+ * occurrence, so the missed run is dropped while the daily/weekly schedule continues.
+ */
+export async function dismissOverdueTasks() {
+  const session = await requireSession();
+  const today = tokyoToday();
+  const overdue = (await getVisibleTasks(session)).filter((t) =>
+    isOverdueOwned(t, today, session.user.id),
+  );
+  if (overdue.length === 0) return;
+  const supabase = getSupabaseServiceClient();
+  const orgId = session.organization.id;
+  for (const t of overdue) {
+    if (isStandardRecurrence(t.recurrenceRule)) {
+      const next = nextRecurringInstance(t);
+      const d = next ? shiftRecurringTaskDates(t, next) : null;
+      if (!d) continue;
+      await supabase
+        .from("tasks")
+        .update({
+          scheduled_date: d.scheduledDate,
+          due_at: d.dueAt,
+          recurrence_instance_date: d.recurrenceInstanceDate,
+        } as never)
+        .eq("id", t.id)
+        .eq("organization_id", orgId);
+    } else {
+      await supabase.from("tasks").delete().eq("id", t.id).eq("organization_id", orgId);
+    }
+  }
+  revalidatePath("/mobile/tasks");
+}
+
 function otherParticipantIds(task: TaskDetail, actorUserId: string): string[] {
   return task.participants.map((p) => p.userId).filter((uid) => uid !== actorUserId);
 }
@@ -154,7 +258,8 @@ export async function updateTaskCore(formData: FormData) {
     .getAll("imageUrls")
     .map((v) => String(v))
     .filter((u) => u.startsWith("https://") || u.startsWith("http://"))
-    .slice(0, 5);
+    // Project tasks allow up to 20 photos; regular tasks keep the standard 5.
+    .slice(0, task.projectId ? 20 : 5);
   const ctxPropertyId = cleanText(formData.get("ctxPropertyId")) || null;
   const ctxRoomId = cleanText(formData.get("ctxRoomId")) || null;
   const ctxReservationId = cleanText(formData.get("ctxReservationId")) || null;
@@ -170,6 +275,11 @@ export async function updateTaskCore(formData: FormData) {
     dueDate,
     time,
   });
+  const nextRecurrenceRule = resolveRecurrenceRule(repeatRaw, task.recurrenceRule);
+  const anchorDate = taskAnchorDateInput({ scheduledDate: sched, dueAt });
+  if (taskNeedsRecurrenceDate(nextRecurrenceRule, anchorDate)) {
+    redirect(`/mobile/tasks/${id}/edit?error=repeat_needs_date`);
+  }
 
   const supabase = getSupabaseServiceClient();
   const update: Database["public"]["Tables"]["tasks"]["Update"] = {
@@ -181,7 +291,13 @@ export async function updateTaskCore(formData: FormData) {
     time_label: timeLabel,
     priority: PRIORITIES.has(priorityRaw) ? priorityRaw : "normal",
     // `custom` is kept only if this task already had it; non-custom tasks can't become custom.
-    recurrence_rule: resolveRecurrenceRule(repeatRaw, task.recurrenceRule),
+    recurrence_rule: nextRecurrenceRule,
+    recurrence_series_id:
+      task.recurrenceSeriesId ?? (nextRecurrenceRule ? task.id : null),
+    recurrence_instance_date:
+      task.recurrenceSeriesId || nextRecurrenceRule
+        ? anchorDate ?? task.recurrenceInstanceDate ?? null
+        : null,
     tags,
     image_urls: imageUrls,
     property_id: ctxPropertyId,
@@ -281,6 +397,43 @@ export async function completeTask(taskId: string) {
   if (!id) return;
   const { session, task } = await requireSessionAndTask(id);
   const supabase = getSupabaseServiceClient();
+
+  // Todoist-style recurrence: completing a recurring task does not close it — it rolls the same
+  // row forward to the next occurrence and stays open. The completion is still logged + notified.
+  const nextInstance = nextRecurringInstance(task);
+  const rolled = nextInstance ? shiftRecurringTaskDates(task, nextInstance) : null;
+  if (rolled) {
+    await supabase
+      .from("tasks")
+      .update({
+        scheduled_date: rolled.scheduledDate,
+        due_at: rolled.dueAt,
+        recurrence_instance_date: rolled.recurrenceInstanceDate,
+        status: "open",
+        completed_at: null,
+        completed_by_user_id: null,
+      } as never)
+      .eq("id", id);
+    await supabase.from("task_updates").insert({
+      task_id: id,
+      created_by_user_id: session.user.id,
+      update_type: "completed",
+    } as never);
+    await notify(
+      id,
+      otherParticipantIds(task, session.user.id),
+      session.user.id,
+      session.organization.id,
+      "task_completed",
+      "completed",
+      task.title,
+      `task_completed:${id}:${Date.now()}`,
+    );
+    revalidatePath("/mobile/tasks");
+    revalidatePath(detailPath(id));
+    return;
+  }
+
   await supabase
     .from("tasks")
     .update({
@@ -314,8 +467,35 @@ export async function completeTask(taskId: string) {
 export async function reopenTask(taskId: string) {
   const id = String(taskId ?? "").trim();
   if (!id) return;
-  const { session } = await requireSessionAndTask(id);
+  const { session, task } = await requireSessionAndTask(id);
   const supabase = getSupabaseServiceClient();
+
+  // Undo for a recurring task: completing rolled it forward, so reopening rolls it back to the
+  // previous occurrence (the task is already open — there is no completed state to clear).
+  const prevInstance = previousRecurringInstance(task);
+  const rewound = prevInstance ? shiftRecurringTaskDates(task, prevInstance) : null;
+  if (rewound) {
+    await supabase
+      .from("tasks")
+      .update({
+        scheduled_date: rewound.scheduledDate,
+        due_at: rewound.dueAt,
+        recurrence_instance_date: rewound.recurrenceInstanceDate,
+        status: "open",
+        completed_at: null,
+        completed_by_user_id: null,
+      } as never)
+      .eq("id", id);
+    await supabase.from("task_updates").insert({
+      task_id: id,
+      created_by_user_id: session.user.id,
+      update_type: "reopened",
+    } as never);
+    revalidatePath("/mobile/tasks");
+    revalidatePath(detailPath(id));
+    return;
+  }
+
   await supabase
     .from("tasks")
     .update({

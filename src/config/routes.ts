@@ -52,6 +52,12 @@ export const routeAccess = [
     roles: allRoles,
   },
   {
+    path: "/mobile/suggestions",
+    mode: "mobile",
+    label: "제안함",
+    roles: allRoles,
+  },
+  {
     path: "/mobile/announcements",
     mode: "mobile",
     label: "공지",

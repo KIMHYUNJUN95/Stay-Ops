@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Wrench } from "lucide-react";
+import { Wrench } from "lucide-react";
 import { AnnouncementImageGrid } from "@/components/announcements/announcement-image-grid";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getMobileNavBadges } from "@/lib/nav-badges";
@@ -44,20 +43,6 @@ type PageProps = {
   params: Promise<{ id: string }>;
   searchParams: Promise<ListFilterQuery>;
 };
-
-const LIST_FILTER_KEYS = [
-  "scope", "type", "status", "building", "date", "startDate", "endDate",
-] as const;
-
-function buildBackToListHref(query: ListFilterQuery): string {
-  const params = new URLSearchParams();
-  for (const key of LIST_FILTER_KEYS) {
-    const val = query[key];
-    if (val) params.set(key, val);
-  }
-  const qs = params.toString();
-  return qs ? `/mobile/requests?${qs}` : "/mobile/requests";
-}
 
 function formatDateTime(value: string, locale: Locale) {
   return new Intl.DateTimeFormat(locale, {
@@ -110,7 +95,6 @@ export default async function MobileMaintenanceDetailPage({ params, searchParams
   );
   const currentStatusIdx = maintenanceStatuses.indexOf(report.status);
   const showCreatedBanner = query.created === "1";
-  const backToListHref = buildBackToListHref(query);
 
   const navBadges = await getMobileNavBadges();
 
@@ -122,13 +106,6 @@ export default async function MobileMaintenanceDetailPage({ params, searchParams
             {copy.createdSuccess}
           </div>
         ) : null}
-        <Link
-          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/82 px-3 py-1.5 text-xs font-black text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors hover:text-slate-900"
-          href={backToListHref}
-        >
-          <ArrowLeft className="size-3.5" aria-hidden="true" />
-          {copy.backToList}
-        </Link>
 
         <Card className={`${DETAIL_CARD} p-5`}>
           {report.cleaning_session_id ? (

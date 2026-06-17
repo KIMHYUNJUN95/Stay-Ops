@@ -1,13 +1,12 @@
 # Todo / Task Workflow
 
-Status: First slice implemented (2026-06-10). Mobile Todo/Shared Task is live under
-`/mobile/tasks/*` (side-menu entry `tasks`). Five views (Today/Tomorrow/Inbox/Sent/Calendar),
+Status: First slice implemented (2026-06-10), hardened through 2026-06-15. Mobile Todo/Shared Task is live under
+`/mobile/tasks/*` (side-menu entry `tasks`). Seven tabs now present: Today / Tomorrow / Inbox(관리함) / **프로젝트** / Sent(공유함) / Completed(완료/기록) / Calendar. The 프로젝트 tab is **functional (first slice, 2026-06-15)**: project create/delete, sections (add/rename/delete with their tasks), an Unsectioned area, project-task create + complete/reopen, member invite/remove/leave, a Completed-tab filter (전체/일반/프로젝트), and a `project_shared` notification. Project tasks appear only in the Projects tab (never in Today/Tomorrow/Inbox/Sent/Calendar). Requires migration `202606150002_projects.sql`. See `docs/product/23-project-workflow.md` and `docs/engineering/09-todo-task-technical-design.md`.
 quick add + detailed create/edit, task detail with unified update log, multi-select sharing, and
-author/participant rules are implemented. Recurrence stores a rule + indicator only (no auto
-instance generation yet); notifications cover the current slice — shared, update-log activity, plus
-time-based **due-soon** and **overdue** reminders (daily cron). Manual task status / complete /
-reopen controls were removed on 2026-06-12, and the extra intermediate tab was removed in the same
-IA cleanup. See
+author/participant rules are implemented. Recurrence is **Todoist-style (2026-06-16)** — a recurring
+task is **one live row** that rolls forward to its next occurrence on completion (no pre-materialized
+per-date rows); the calendar shows future occurrences as **virtual previews**. notifications cover the current slice — shared, update-log activity, **task_completed**, plus
+time-based **due-soon** and **overdue** reminders (daily cron). An extra intermediate tab was removed in the 2026-06-12 IA cleanup; manual complete / reopen was re-introduced on 2026-06-13 and now drives the Completed (완료/기록) tab and the free template-based daily report (업무일지, no LLM). See
 `docs/engineering/09-todo-task-technical-design.md` for the as-built schema/RLS and `docs/product/
 14-notification-design.md` for the notification matrix.
 
@@ -447,7 +446,7 @@ Date tap behavior:
 
 - open a bottom sheet / modal for that date's tasks
 
-As-built (2026-06-11):
+As-built (2026-06-15):
 
 - **Month navigation** — a compact header with prev/next chevrons moves month-to-month; the month grid
   and agenda both update. On any non-current month a small **Today** button resets to the current month
@@ -551,12 +550,46 @@ Not required in first slice:
 - recurrence count limits
 - complex recurrence-end rules
 
-As-built (2026-06-11):
+As-built (2026-06-16, Todoist-style — supersedes the 2026-06-11 pre-materialization model):
 
-- Recurrence in Todo is a **lightweight display-only reminder label**. It does NOT generate repeated
-  instances — a recurring task still appears only on its own stored anchor date. The create/edit form
-  shows an inline hint stating this, keeping the boundary with the formal Recurring Work Scheduler
-  explicit.
+- A recurring task is a **single live `tasks` row** carrying the `recurrence_rule`, its
+  `recurrence_series_id`, and the current occurrence date (`recurrence_instance_date`). Future dates
+  are **not** pre-created — so the date-agnostic tabs (관리함/공유함) show exactly **one entry** per
+  recurring task (this fixed the duplicate-flood bug where a daily task created ~50 rows).
+- **Completion rolls forward.** Completing a recurring task does not close it — `completeTask` moves
+  the same row to the **next occurrence** (advancing `scheduled_date` / `due_at` /
+  `recurrence_instance_date`, preserving time-of-day) and keeps it `open`, logging a `completed`
+  update + firing the `task_completed` notification. The quick-complete **undo** (`reopenTask`) rolls
+  the row **back** to the previous occurrence.
+- **Not completed → becomes overdue (one row, not a pile).** Recurrence advances **only on
+  completion**, never automatically when the day passes. So an uncompleted daily task stays on its
+  date and simply shows as **overdue** (a single task in the Today tab's overdue section) until
+  acted on — it does not multiply into one row per missed day.
+- **Late completion skips to the future.** When a *late* (overdue) recurring task is completed,
+  `nextRecurringInstance` advances past today (iterating the rule, so the weekday / day-of-month
+  anchor is kept) so the next occurrence lands in the future — matching Todoist's "every day"
+  behaviour, instead of forcing the user to complete once per missed day to catch up.
+- **Overdue prompt on the Today tab (2026-06-16).** When the caller has **their own** overdue tasks,
+  a banner appears at the top of the Today tab with two bulk actions:
+  - **오늘로 가져오기** (`rescheduleOverdueToToday`) — moves each overdue task to today. A recurring
+    task's single row is re-anchored to today (series preserved); a one-off task's due date moves to
+    today (time-of-day kept).
+  - **지난 미완료 삭제** (`dismissOverdueTasks`, two-step confirm) — a **one-off** overdue task is
+    deleted, but a **recurring** task is **not** deleted (that would kill the series): it advances to
+    its **next future occurrence**, so the missed run is dropped while the daily/weekly schedule
+    continues. (e.g. a daily task overdue from a few days ago → the missed days clear, the next
+    occurrence remains.)
+  Both actions are **author-scoped** server-side (`createdByUserId === viewer`) so they never
+  reschedule or delete another member's shared task. The banner hides while a search/date filter or
+  multi-select is active. i18n: `tasks.overduePrompt*` (ko/ja/en).
+- **Calendar previews are virtual.** The calendar/agenda expands each recurring task across the
+  visible month from its rule (`recurringOccurrencesInRange`) for display only — no DB rows are
+  added, and tapping/editing a virtual occurrence acts on the one real series task.
+- The old window-materializer (`materializeRecurringTasks`) is **deprecated and no longer called**
+  from any read path. Pre-existing materialized instances were collapsed to one row per series by
+  migration `202606160002_collapse_recurring_instances.sql`.
+- A repeat rule **requires a date anchor** (`scheduled_date` or `due_at`). Saving repeat with no date
+  is rejected both in the form and in the server actions.
 - User-selectable rules: **None, daily, weekly, monthly, weekdays, weekends** (six chips, None clears
   it). Recurrence can be set in create, changed in edit, and cleared back to None at any time.
 - **`custom` is recognized but not user-configurable in this slice.** There is no rule builder, so the
@@ -569,6 +602,11 @@ As-built (2026-06-11):
   unrecognized value fails closed to `null`, and `custom` is kept **only when the task already had
   `custom`**. So a new task can never be created with `custom`, and a non-custom task can never be
   turned into `custom`, even by a manipulated request — only an existing `custom` task round-trips.
+- Generation model (Todoist-style, 2026-06-16):
+  - the task the user saves is the single live occurrence; **no future rows are generated**
+  - completing it rolls the same row forward to the next occurrence (and stays open)
+  - the calendar projects future occurrences virtually from the rule (display only)
+  - clearing repeat (set None) turns it back into a one-off task; completing then closes it normally
 
 ## Priority
 
@@ -782,6 +820,11 @@ The Quick Add ↔ Detailed Create distinction is made explicit in the interactio
   (`?date=`); there is no separate full-create entry path.
 - Wording is unambiguous about destination: Quick Add → Inbox, Full create → organized task. Detailed
   create never lands in Inbox (see Inbox Rules).
+- **Sheet dismissal (2026-06-15)**: the Quick Add sheet — like every bottom sheet in this feature
+  (Calendar day sheet, long-press menu, share picker, context picker, report sheet, photo-attachment
+  sheet) — is dismissed by **dragging it down** (iOS-style), tapping the scrim, or Esc. The old
+  top-right **X close button was removed** since the slide replaces it. Shared behavior + thresholds:
+  Mobile Navigation doc → "2026-06-15 Bottom Sheets — iOS-style Drag-to-Dismiss".
 - **Draft preservation (2026-06-12)**: the detailed create/edit form mirrors its in-progress values
   (title, description, dates, time, priority, tags, share recipients, linked context, expanded state)
   into `sessionStorage`, so leaving the form and coming back restores them. This matters most for the

@@ -274,6 +274,10 @@ export function TaskCreateForm({
       setError(copy.errors.time_needs_date);
       return;
     }
+    if (repeat && !scheduled && !due) {
+      setError(copy.errors.repeat_needs_date);
+      return;
+    }
     formData.set("scheduledDate", scheduled);
     formData.set("dueDate", due);
     formData.set("time", time);

@@ -25,11 +25,15 @@ export type Database = {
           is_shared?: boolean;
           organization_id: string;
           priority?: string;
+          project_id?: string | null;
           property_id?: string | null;
           recurrence_rule?: string | null;
+          recurrence_series_id?: string | null;
+          recurrence_instance_date?: string | null;
           reservation_id?: string | null;
           room_id?: string | null;
           scheduled_date?: string | null;
+          section_id?: string | null;
           sort_order?: number | null;
           status?: string;
           tags?: string[];
@@ -52,11 +56,15 @@ export type Database = {
           is_shared: boolean;
           organization_id: string;
           priority: string;
+          project_id: string | null;
           property_id: string | null;
           recurrence_rule: string | null;
+          recurrence_series_id: string | null;
+          recurrence_instance_date: string | null;
           reservation_id: string | null;
           room_id: string | null;
           scheduled_date: string | null;
+          section_id: string | null;
           sort_order: number | null;
           status: string;
           tags: string[];
@@ -79,16 +87,250 @@ export type Database = {
           is_shared?: boolean;
           organization_id?: string;
           priority?: string;
+          project_id?: string | null;
           property_id?: string | null;
           recurrence_rule?: string | null;
+          recurrence_series_id?: string | null;
+          recurrence_instance_date?: string | null;
           reservation_id?: string | null;
           room_id?: string | null;
           scheduled_date?: string | null;
+          section_id?: string | null;
           sort_order?: number | null;
           status?: string;
           tags?: string[];
           time_label?: string | null;
           title?: string;
+          updated_at?: string;
+        };
+      };
+      projects: {
+        Insert: {
+          created_at?: string;
+          created_by_user_id: string;
+          description?: string | null;
+          id?: string;
+          is_shared?: boolean;
+          organization_id: string;
+          sort_order?: number | null;
+          title: string;
+          updated_at?: string;
+        };
+        Row: {
+          created_at: string;
+          created_by_user_id: string;
+          description: string | null;
+          id: string;
+          is_shared: boolean;
+          organization_id: string;
+          sort_order: number | null;
+          title: string;
+          updated_at: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_id?: string;
+          description?: string | null;
+          id?: string;
+          is_shared?: boolean;
+          organization_id?: string;
+          sort_order?: number | null;
+          title?: string;
+          updated_at?: string;
+        };
+      };
+      project_participants: {
+        Insert: {
+          added_by_user_id?: string | null;
+          created_at?: string;
+          id?: string;
+          is_first_recipient?: boolean;
+          project_id: string;
+          role: string;
+          user_id: string;
+        };
+        Row: {
+          added_by_user_id: string | null;
+          created_at: string;
+          id: string;
+          is_first_recipient: boolean;
+          project_id: string;
+          role: string;
+          user_id: string;
+        };
+        Update: {
+          added_by_user_id?: string | null;
+          created_at?: string;
+          id?: string;
+          is_first_recipient?: boolean;
+          project_id?: string;
+          role?: string;
+          user_id?: string;
+        };
+      };
+      project_sections: {
+        Insert: {
+          created_at?: string;
+          id?: string;
+          project_id: string;
+          sort_order?: number | null;
+          title: string;
+          updated_at?: string;
+        };
+        Row: {
+          created_at: string;
+          id: string;
+          project_id: string;
+          sort_order: number | null;
+          title: string;
+          updated_at: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          project_id?: string;
+          sort_order?: number | null;
+          title?: string;
+          updated_at?: string;
+        };
+      };
+      staff_suggestions: {
+        Insert: {
+          body: string;
+          category?: string | null;
+          completion_note?: string | null;
+          created_at?: string;
+          created_by_user_id: string;
+          hold_reason?: string | null;
+          id?: string;
+          image_urls?: string[];
+          organization_id: string;
+          property_id?: string | null;
+          property_name?: string | null;
+          recipient_user_id: string;
+          room_id?: string | null;
+          room_label?: string | null;
+          status?: string;
+          title: string;
+          updated_at?: string;
+        };
+        Row: {
+          body: string;
+          category: string | null;
+          completion_note: string | null;
+          created_at: string;
+          created_by_user_id: string;
+          hold_reason: string | null;
+          id: string;
+          image_urls: string[];
+          organization_id: string;
+          property_id: string | null;
+          property_name: string | null;
+          recipient_user_id: string;
+          room_id: string | null;
+          room_label: string | null;
+          status: string;
+          title: string;
+          updated_at: string;
+        };
+        Update: {
+          body?: string;
+          category?: string | null;
+          completion_note?: string | null;
+          created_at?: string;
+          created_by_user_id?: string;
+          hold_reason?: string | null;
+          id?: string;
+          image_urls?: string[];
+          organization_id?: string;
+          property_id?: string | null;
+          property_name?: string | null;
+          recipient_user_id?: string;
+          room_id?: string | null;
+          room_label?: string | null;
+          status?: string;
+          title?: string;
+          updated_at?: string;
+        };
+      };
+      staff_suggestion_references: {
+        Insert: {
+          created_at?: string;
+          id?: string;
+          organization_id: string;
+          suggestion_id: string;
+          user_id: string;
+        };
+        Row: {
+          created_at: string;
+          id: string;
+          organization_id: string;
+          suggestion_id: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          organization_id?: string;
+          suggestion_id?: string;
+          user_id?: string;
+        };
+      };
+      staff_suggestion_events: {
+        Insert: {
+          actor_user_id?: string | null;
+          created_at?: string;
+          id?: string;
+          organization_id: string;
+          status: string;
+          suggestion_id: string;
+        };
+        Row: {
+          actor_user_id: string | null;
+          created_at: string;
+          id: string;
+          organization_id: string;
+          status: string;
+          suggestion_id: string;
+        };
+        Update: {
+          actor_user_id?: string | null;
+          created_at?: string;
+          id?: string;
+          organization_id?: string;
+          status?: string;
+          suggestion_id?: string;
+        };
+      };
+      staff_suggestion_comments: {
+        Insert: {
+          body?: string | null;
+          created_at?: string;
+          created_by_user_id: string;
+          id?: string;
+          image_urls?: string[];
+          organization_id: string;
+          suggestion_id: string;
+          updated_at?: string;
+        };
+        Row: {
+          body: string | null;
+          created_at: string;
+          created_by_user_id: string;
+          id: string;
+          image_urls: string[];
+          organization_id: string;
+          suggestion_id: string;
+          updated_at: string;
+        };
+        Update: {
+          body?: string | null;
+          created_at?: string;
+          created_by_user_id?: string;
+          id?: string;
+          image_urls?: string[];
+          organization_id?: string;
+          suggestion_id?: string;
           updated_at?: string;
         };
       };
@@ -1049,7 +1291,9 @@ export type Database = {
         | "task_updated"
         | "task_completed"
         | "task_due_soon"
-        | "task_overdue";
+        | "task_overdue"
+        | "project_shared"
+        | "suggestion_activity";
       organization_role:
         | "cs_staff"
         | "field_manager"

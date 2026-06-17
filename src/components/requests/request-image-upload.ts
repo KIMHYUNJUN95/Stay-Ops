@@ -13,7 +13,8 @@ export type RequestImageType =
   | "order-images"
   | "linen-returns"
   | "task-images"
-  | "task-update-images";
+  | "task-update-images"
+  | "suggestion-images";
 
 function getFileExtension(file: File): string {
   const ext = file.name.split(".").pop()?.toLowerCase();

@@ -189,7 +189,7 @@ Phone number actions:
 
 ### Reservation Detail Modal Policy (updated 2026-06-02)
 
-- Mobile reservation detail uses an information-first centered modal with selective Liquid Glass surface styling.
+- Mobile reservation detail uses an information-first bottom sheet (slides up from the bottom edge) with selective Liquid Glass surface styling.
 - The modal opens above a dimmed backdrop and stays visually detached from the underlying page scroll.
 - Bottom actions `Message Guest` and `Manage Booking` are removed from the modal.
 - The detail sheet keeps operational contact actions only:
@@ -199,6 +199,10 @@ Phone number actions:
 - Check-in/check-out time display uses operating defaults for this phase:
   - Check-in: `10:00`
   - Check-out: `16:00`
+- **Dismissal (2026-06-15)**: the mobile reservation detail bottom sheet is dismissed by **dragging
+  it down** (iOS-style — grab handle / header), tapping the scrim, or Esc; its top-right **X close
+  button was removed** now that the slide replaces it. This uses the shared `useSheetDragDismiss`
+  primitive — see Mobile Navigation doc → "2026-06-15 Bottom Sheets — iOS-style Drag-to-Dismiss".
 
 ### Current Row-Label Policy (updated 2026-06-02)
 
@@ -556,30 +560,28 @@ This does **not** regress the webhook-first decision. Webhooks remain the primar
 - Reconciliation upserts the full window each run (~hundreds of rows). The upserts are **batched** (in-memory dedup → 500-row chunked bulk upsert in `reservations-backfill.ts`); `maxDuration` is set to 60s on the route as a guard. This fixed an initial production timeout — per-row upserts from a US-East (`iad1`) function to the Tokyo (`ap-northeast-1`) Supabase exceeded 60s.
 - Function region is pinned to **Tokyo (`hnd1`)** in `vercel.json` (`regions`), co-located with the Tokyo Supabase DB and the Tokyo-based operations users. This minimizes DB round-trip latency for the reconcile cron, the webhook handler, and all other DB-bound routes. (Default was `iad1` / US-East.)
 
-## Order Delivery Date + Calendar Integration (Planned)
+## Order Delivery Calendar — moved out of the reservation calendar (2026-06-15)
 
-When an order request status changes to `ordered` and `delivery_date` is set, StayOps plans to automatically create a delivery schedule entry in the reservation calendar.
+**Decision update (2026-06-15):** the order **delivery calendar will NOT live in this reservation
+calendar.** This room-axis timeline is keyed to guest reservations per room; building-scoped order
+deliveries do not fit that axis and would clutter the primary reservation use case. The delivery
+calendar instead lives in the **mobile Requests area, on the 비품주문 (order) tab only** — opened from
+a calendar icon next to the "내 요청" toggle as a large popup, derived directly from
+`order_requests.delivery_date` (no separate calendar entry / no schema change). Full spec:
+`docs/product/10-order-request-workflow.md` → "Delivery Calendar (Planned / Design — 2026-06-15)".
 
-Current status (as of 2026-06-01):
+Retained rules (still apply, just on the Requests-side calendar):
 
-- `delivery_date date` column exists on `order_requests` (migration `202606010002`).
-- `delivery_date` is now **required** when processing an order (주문 처리). It is captured in the action modal UI and saved at the time of the `approved → ordered` transition.
-- The order detail page and request list cards display `delivery_date` formatted in Asia/Tokyo timezone.
-- Calendar auto-registration for order delivery is **not implemented**.
+- Only `delivery_date` (point) / `delivery_start_date`..`delivery_end_date` (range) drives an entry.
+- No other order workflow date creates a calendar entry.
+- If `delivery_date` is missing, no entry is created.
+- For delivery scheduling only — not generic purchasing / approval / receiving timeline visualization.
 
-Planned behavior:
-
-- `ordered` status transition + `delivery_date` set → calendar entry created automatically.
-- Entry type: order-delivery (distinct from guest reservation bars).
-- Display: shows on the calendar as a scheduled delivery event on the delivery date (Tokyo calendar day).
-- This is deferred to a future slice after the core calendar grid is complete.
-
-Additional delivery-entry rules:
-
-- Only `delivery_date` can create this calendar entry.
-- No other order workflow date should create a calendar entry in the baseline design.
-- If `delivery_date` is missing, no calendar entry is created.
-- This integration exists only for delivery scheduling, not for generic purchasing, approval, or receiving timeline visualization.
+Current data status (as of 2026-06-01): `delivery_date` (+ range columns) exists on `order_requests`
+(migrations `202606010002` / `202606020001`), is **required** at the `approved → ordered` transition,
+and is displayed on the order detail page + request list cards in Asia/Tokyo. The Requests-side
+delivery calendar view is **implemented (2026-06-15)** — `OrderDeliveryCalendar`, opened from the
+order tab; the delivery date is editable from the order detail by office roles.
 
 ## 2026-05-23 Mobile Calendar Policy Update
 

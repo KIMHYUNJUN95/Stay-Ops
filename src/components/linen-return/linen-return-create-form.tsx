@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { createPortal } from "react-dom";
 import {
   Building2,
   ChevronDown,
@@ -69,6 +70,13 @@ export function LinenReturnCreateForm({
   const [openLine, setOpenLine] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(serverError);
   const [isPending, startTransition] = useTransition();
+  // Portal the submit bar to <body> so it escapes the shell's transformed scroll container and is
+  // not hidden behind the fixed bottom tab bar; the button links back via the `form` attribute.
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const itemName = (id: string) => items.find((it) => it.id === id)?.name ?? "";
   const usedIds = lines.map((l) => l.itemId);
@@ -164,7 +172,8 @@ export function LinenReturnCreateForm({
   }
 
   return (
-    <form className="relative pb-28" onSubmit={handleSubmit} ref={formRef}>
+    <>
+    <form className="relative pb-28" id="linen-return-form" onSubmit={handleSubmit} ref={formRef}>
       {/* Locked building */}
       <div className="mb-2.5 flex items-center gap-3 rounded-[20px] border border-primary/20 bg-primary/10 p-3.5">
         <span className="flex size-[38px] shrink-0 items-center justify-center rounded-[11px] bg-surface text-primary">
@@ -349,22 +358,31 @@ export function LinenReturnCreateForm({
         </p>
       ) : null}
 
-      {/* Submit bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 bg-[linear-gradient(180deg,rgba(255,255,255,0),var(--surface)_26%)] px-[18px] pb-[max(18px,env(safe-area-inset-bottom))] pt-3.5">
-        <div className="whitespace-nowrap text-[12.5px] font-semibold text-muted-foreground">
-          {copy.totalPrefix}{" "}
-          <b className="font-mono text-base font-bold text-foreground">{totalQuantity}</b>
-          {copy.quantityUnit} · {lines.length}
-          {copy.kindsUnit}
-        </div>
-        <button
-          className="flex h-[50px] flex-1 items-center justify-center rounded-2xl bg-primary text-[15px] font-extrabold text-primary-foreground transition-transform active:scale-[0.98] disabled:opacity-60"
-          disabled={isPending || !hasItems || lines.length === 0}
-          type="submit"
-        >
-          {submitLabel ?? copy.submitButton}
-        </button>
-      </div>
     </form>
+
+    {/* Submit bar — portaled to <body> (sits above the bottom tab bar); the button submits the
+        form via its `form` attribute even though it lives outside the <form> in the DOM. */}
+    {hydrated
+      ? createPortal(
+          <div className="fixed inset-x-0 bottom-0 z-40 mx-auto flex max-w-[460px] items-center gap-3 border-t border-border bg-surface px-[18px] pb-[max(18px,env(safe-area-inset-bottom))] pt-3.5 shadow-[0_-14px_36px_-14px_rgba(20,16,10,0.28)]">
+            <div className="whitespace-nowrap text-[12.5px] font-semibold text-muted-foreground">
+              {copy.totalPrefix}{" "}
+              <b className="font-mono text-base font-bold text-foreground">{totalQuantity}</b>
+              {copy.quantityUnit} · {lines.length}
+              {copy.kindsUnit}
+            </div>
+            <button
+              className="flex h-[50px] flex-1 items-center justify-center rounded-2xl bg-primary text-[15px] font-extrabold text-primary-foreground transition-transform active:scale-[0.98] disabled:opacity-60"
+              disabled={isPending || !hasItems || lines.length === 0}
+              form="linen-return-form"
+              type="submit"
+            >
+              {submitLabel ?? copy.submitButton}
+            </button>
+          </div>,
+          document.body,
+        )
+      : null}
+    </>
   );
 }

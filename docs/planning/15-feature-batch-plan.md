@@ -18,9 +18,9 @@ This file should be updated first, then implementation should begin only after t
 |---|---|---:|---|---|---|
 | Linen Defect Registration | Approved (slice 1) | High | Mobile first | Building-specific linen item selector | Move to design based on the 2026-06-10 refined mobile product plan |
 | Personal Todo / Shared Task Inbox | Approved (slice 2 planning refined) | High | Mobile first | Shared-task participant model + calendar/task workspace design | Move to design based on the 2026-06-10 refined product plan |
-| Staff Suggestions / Feedback Box | Candidate | Medium-High | Mobile + Admin | Visibility model for public vs employee-only posts | Confirm privacy and response rules |
-| Internal Board | Candidate | Medium | Mobile + Admin | Clear separation from Announcements | Define posting rules and first create/read flow |
-| Attendance / Clock-In-Out + Payroll | Candidate | High but blocked | PWA + Admin | Scope change decision + wage policy rules + export template | Run discovery and spec phase before coding |
+| Staff Suggestions / Feedback Box | Approved (scope refined 2026-06-16) | Medium-High | Mobile first | Recipient + reference participant model | Build from Product `22` + Tech `12` first-slice scope |
+| Internal Board | Approved | Medium | Mobile + Admin | Clear separation from Announcements | Flesh out tech-design before build |
+| Attendance / Clock-In-Out + Payroll | Approved (capture only; payroll deferred) | High | PWA + Admin | Wage policy rules + export template for payroll | Build attendance capture; defer payroll calc |
 
 ## Planning Rules
 
@@ -251,7 +251,7 @@ The implementation should treat this as a refinement of the Todo module, not as 
 
 ## Feature 2: Internal Board
 
-**Status:** Candidate  
+**Status:** Approved (confirmed 2026-06-09; part-time write permission approved)  
 **Priority:** Medium  
 **Target iteration:** Second implementation candidate
 
@@ -384,7 +384,7 @@ The implementation should treat this as a refinement of the Todo module, not as 
 - The center of gravity is personal task management first, not team assignment first.
 - Users still need strong shared-task behavior once a task is shared.
 - CS-heavy operations need richer context than a generic todo list because guest requests, room changes, and exception handling change frequently.
-- The product needs a Todoist-like mobile workspace. The current implemented IA is Today, Tomorrow, Inbox, Sent, and Calendar; older planning references to now-removed extra tabs are obsolete.
+- The product needs a Todoist-like mobile workspace. The current implemented IA is Today / Tomorrow / Inbox(관리함) / Sent(공유함) / Completed(완료/기록) / Calendar (six tabs); Completed tab was added on 2026-06-13 with complete/reopen and daily report. Older planning references to now-removed extra tabs are obsolete.
 
 ### 2. Users and Roles
 
@@ -399,7 +399,7 @@ The implementation should treat this as a refinement of the Todo module, not as 
 
 - Mobile:
   - dedicated side-menu entry
-  - Today / Tomorrow / Inbox / Sent / Calendar views
+  - Today / Tomorrow / Inbox / Sent / Completed / Calendar views
   - quick-add
   - detailed create/edit
   - task detail
@@ -446,7 +446,7 @@ The implementation should treat this as a refinement of the Todo module, not as 
 ### 6. Workflow
 
 1. User enters the Todo feature from the side menu or a bottom-bar custom slot.
-2. Default first view is Today; Tomorrow, Inbox, Sent By Me, and Calendar are available as internal top-level views.
+2. Default first view is Today; Tomorrow, Inbox, Sent, Completed, and Calendar are available as internal top-level views.
 3. Quick-add creates a title-only Inbox task.
 4. Detailed create/edit can fill title, description, scheduled date, due date, share recipients, and more fields.
 5. A task starts private by default.
@@ -476,7 +476,7 @@ The implementation should treat this as a refinement of the Todo module, not as 
   - remove participants
   - delete task
   - add update entry
-  - list Today / Tomorrow / Inbox / Sent / Calendar
+  - list Today / Tomorrow / Inbox / Sent / Completed / Calendar
 - Shared components:
   - room/property selectors
   - optional reservation linking later
@@ -510,6 +510,7 @@ The implementation should treat this as a refinement of the Todo module, not as 
    - Tomorrow
    - Inbox
    - Sent By Me
+   - Completed (완료/기록)
    - Calendar
    - quick add
    - detailed create/edit
@@ -536,58 +537,55 @@ The implementation should treat this as a refinement of the Todo module, not as 
 
 ## Feature 4: Staff Suggestions / Feedback Box
 
-**Status:** Candidate  
+**Status:** Approved (confirmed 2026-06-09; scope refined 2026-06-16)  
 **Priority:** Medium-High  
 **Target iteration:** Third implementation candidate
 
 ### 1. Problem
 
-- Staff and part-time workers need a safe place to submit improvement ideas, workplace complaints, and operational suggestions.
-- Some suggestions should be visible to the whole team, while others should not be openly visible.
-- A free-form board is not enough because suggestion items often need privacy, categorization, and response tracking.
+- Staff and part-time workers need a safe place to send improvement ideas, complaints, and operational feedback to one specific person.
+- The company needs shared visibility only for explicitly included participants, not for the whole organization.
+- A free-form board is not enough because these items need ownership, privacy, status tracking, and discussion history.
 
 ### 2. Users and Roles
 
 - Primary users: all active organization members, including `part_time_staff`
 - Allowed submitters: all active roles
-- Recommended private-visibility audience:
-  - author
-  - `owner`
-  - `office_admin`
-  - `cs_staff`
-  - `field_manager`
-  - `staff`
-  - `developer_super_admin`
-- Excluded from other users' employee-only suggestions:
-  - other `part_time_staff`
+- Required recipient:
+  - one active member in the same organization
+- Optional referenced users:
+  - zero or more active members in the same organization
 - Blocked users: suspended or removed memberships
 
 ### 3. Entry Points
 
 - Mobile:
-  - suggestion list
+  - sent / received / referenced lists
   - create suggestion
-  - detail / response view
+  - detail thread
 - Admin:
-  - review queue
-  - detail / response / status update
+  - optional mirror of the same thread views later
 - API / background:
-  - optional notification or digest later
+  - participant notifications
 
 ### 4. MVP Scope
 
 - In scope:
-  - create suggestion with title, body, category, visibility, optional property/building tag, and optional memo
+  - create suggestion with one required recipient, optional referenced users, title, body, optional free-text category, optional property/building tag, optional room tag, and photos
 - In scope:
-  - visibility modes:
-    - `public_team`: visible to all active organization members
-    - `employee_only`: visible to the author plus employee roles, but not to other part-time staff
+  - read visibility limited to author + recipient + referenced users
 - In scope:
-  - status tracking such as `submitted`, `reviewing`, `planned`, `resolved`, `closed`
+  - status tracking: `submitted`, `reviewing`, `on_hold`, `completed`
 - In scope:
-  - admin/management response note on the suggestion detail
+  - participant comment thread
 - In scope:
-  - author can see the status/result of their own suggestion even when it is employee-only
+  - recipient-only status change
+- In scope:
+  - author edit/delete only while `submitted`
+- In scope:
+  - hold reason required for `on_hold`, completion note required for `completed`
+- In scope:
+  - notifications for create / reference / status / comment
 
 ### 5. Out of Scope
 
@@ -596,76 +594,85 @@ The implementation should treat this as a refinement of the Todo module, not as 
 - Deferred:
   - voting / upvote ranking
 - Deferred:
-  - threaded discussion or reactions
+  - reactions
+- Deferred:
+  - non-photo attachments
+- Deferred:
+  - broad organization-wide visibility
 - Deferred:
   - automatic escalation workflow
 
 ### 6. Workflow
 
-1. User opens the suggestion box.
-2. User writes a suggestion, complaint, or improvement request.
-3. User chooses visibility:
-   - `public_team`
-   - `employee_only`
-4. System validates visibility and membership rules.
-5. System stores the suggestion and makes it visible only to the allowed audience.
-6. Management or authorized employee roles review the item and update status or response.
-7. The author can track the outcome in the detail view.
+1. Author opens the suggestion box.
+2. Author chooses one required recipient.
+3. Author optionally adds referenced users.
+4. Author writes the suggestion and optional context tags/photos.
+5. System stores the suggestion with status `submitted`.
+6. Recipient and referenced users are notified.
+7. Visible participants discuss in comments.
+8. Recipient updates status when needed.
+9. Author tracks progress from the Sent list.
 
 ### 7. Data and Technical Impact
 
 - Tables affected:
-  - likely new `staff_suggestions`
-  - optional `staff_suggestion_responses`
+  - new `staff_suggestions`
+  - new `staff_suggestion_references`
+  - new `staff_suggestion_comments`
 - New schema needed:
-  - organization, author, title, body, category, visibility, status, property tag, created_at, updated_at, resolved_at
+  - organization, author, recipient, references, title/body, free-text category, status, required hold/completion notes, property/room context, main photos, comment photos
 - Server actions / routes:
   - create suggestion
-  - list by visibility
-  - update status
-  - add response
-  - edit/delete own suggestion within allowed rules
+  - sent / received / referenced list queries
+  - update suggestion before status leaves `submitted`
+  - recipient status update
+  - comment create / update / delete
+  - delete own suggestion within allowed rules
 - Shared components:
   - card/list/detail patterns from announcements or board can be reused
-  - category chips and status badges can share existing UI patterns
+  - photo upload pattern can reuse existing request/task image policy
 - Permissions / RLS impact:
-  - `public_team` suggestions visible to all active org members
-  - `employee_only` suggestions visible only to the author and allowed employee roles
-  - other part-time staff must not see employee-only suggestions
+  - only author / recipient / referenced users can read
+  - only recipient can change status
+  - referenced users can read/comment only
+  - author can edit/delete main suggestion only while `submitted`
+  - comment edit/delete is comment-author only
 - Notification impact:
-  - optional later notification to the author when a response or status update is added
+  - notify participant targets for create / reference / status / comment when user notification settings allow
 
 ### 8. Risks and Open Questions
 
 - Risk:
   - if "private" is defined too loosely, sensitive feedback may leak to the wrong audience
 - Risk:
-  - if employee-only posts are visible to every employee, some users may still feel unsafe sharing sensitive issues
-- Open question:
-  - should `employee_only` mean all employee roles, or only management-level roles?
-- Open question:
-  - should the author be allowed to edit/delete the suggestion after review begins?
-- Open question:
-  - should part-time workers be allowed to comment on public-team suggestions?
+  - if recipient-only status ownership is not enforced server-side, accountability becomes ambiguous
+- Clarified:
+  - one recipient is mandatory
+- Clarified:
+  - referenced users are visibility-sharing participants only
+- Clarified:
+  - comments stay available even after `on_hold` or `completed`
 - Open question:
   - should there be a separate category for harassment / workplace conflict that bypasses normal visibility?
 
 ### 9. Recommended Implementation Slice
 
-1. Confirm the exact meaning of `employee_only`.
-2. Add a structured suggestion schema + RLS.
-3. Build mobile-first create/list/detail flow.
-4. Add admin review queue with status update and response.
-5. Verify public-team vs employee-only visibility boundaries.
+1. Add a structured `staff_suggestions` schema + RLS.
+2. Build mobile sent / received / referenced list flow.
+3. Add detail thread with comments and photo attachments.
+4. Enforce recipient-only status controls + required hold/completion notes.
+5. Verify participant-only visibility boundaries.
 6. Reconcile docs after first internal usage feedback.
 
 ### 10. Verification Checklist
 
-- [ ] Public-team visibility verified
-- [ ] Employee-only visibility verified
-- [ ] Author visibility for own suggestion verified
-- [ ] Part-time exclusion from others' employee-only suggestions verified
-- [ ] Admin review/status update verified
+- [ ] Author / recipient / referenced visibility verified
+- [ ] Non-participant access blocked
+- [ ] Recipient-only status control verified
+- [ ] Author main-body edit/delete lock after `submitted` verified
+- [ ] Comment author-only edit/delete verified
+- [ ] Required hold/completion note validation verified
 - [ ] Korean/Japanese/English copy verified
 - [ ] Empty/error states verified
 - [ ] `npm run lint`
@@ -674,8 +681,8 @@ The implementation should treat this as a refinement of the Todo module, not as 
 
 ## Feature 5: Attendance / Clock-In-Out + Payroll
 
-**Status:** Candidate  
-**Priority:** High but blocked by specification depth  
+**Status:** Approved (attendance capture only; payroll calculation deferred until wage rules are defined — confirmed 2026-06-09)  
+**Priority:** High  
 **Target iteration:** Discovery first, implementation later
 
 ### 1. Problem

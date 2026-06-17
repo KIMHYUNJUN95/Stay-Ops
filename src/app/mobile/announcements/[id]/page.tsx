@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CircleCheck, Megaphone } from "lucide-react";
+import { CircleCheck, Megaphone } from "lucide-react";
 import { AnnouncementCommentsSection } from "@/components/announcements/announcement-comments-section";
 import { AnnouncementImageGrid } from "@/components/announcements/announcement-image-grid";
 import { MobileShell } from "@/components/shell/mobile-shell";
@@ -99,13 +98,6 @@ export default async function MobileAnnouncementDetailPage({
       title={copy.readAnnouncement}
     >
       <div className="space-y-3">
-        <Link
-          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/82 px-3 py-1.5 text-xs font-black text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)] transition-colors hover:text-slate-900"
-          href="/mobile/announcements"
-        >
-          <ArrowLeft className="size-3.5" aria-hidden="true" />
-          {copy.backToAnnouncements}
-        </Link>
 
         <Card className={`${ANNOUNCEMENT_CARD} relative overflow-hidden p-5 text-foreground`}>
           <div

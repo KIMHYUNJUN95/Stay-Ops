@@ -10,7 +10,7 @@ import {
 } from "react";
 import { Camera, X } from "lucide-react";
 
-const MAX_IMAGES = 5;
+const DEFAULT_MAX_IMAGES = 5;
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/gif", "image/jpeg", "image/png", "image/webp"];
 const MAX_DIM = 1600;
@@ -34,9 +34,11 @@ type Props = {
   imageAttachmentsLabel: string;
   imageLimitLabel: string;
   imageRemoveLabel: string;
+  /** Max selectable images. Defaults to 5 (the standard per-feature limit). */
+  maxImages?: number;
 };
 
-async function compressImageFile(file: File): Promise<File> {
+export async function compressImageFile(file: File): Promise<File> {
   // GIF: skip compression to preserve animation
   if (file.type === "image/gif") return file;
 
@@ -98,6 +100,7 @@ export const AnnouncementImageUploader = forwardRef<
     imageAttachmentsLabel,
     imageLimitLabel,
     imageRemoveLabel,
+    maxImages = DEFAULT_MAX_IMAGES,
   },
   ref,
 ) {
@@ -144,7 +147,7 @@ export const AnnouncementImageUploader = forwardRef<
       }
 
       // Validate: count (against current items)
-      if (itemsRef.current.length + selected.length > MAX_IMAGES) {
+      if (itemsRef.current.length + selected.length > maxImages) {
         setError(errorCountExceeded);
         return;
       }
@@ -172,7 +175,7 @@ export const AnnouncementImageUploader = forwardRef<
 
       setItems((prev) => [...prev, ...newItems]);
     },
-    [errorTypeInvalid, errorCountExceeded, errorSizeExceeded],
+    [errorTypeInvalid, errorCountExceeded, errorSizeExceeded, maxImages],
   );
 
   const removeItem = useCallback((id: string) => {
@@ -191,7 +194,7 @@ export const AnnouncementImageUploader = forwardRef<
       {/* Previews & Add button in a horizontal scrollable row */}
       <div className="flex items-center gap-3 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
         {/* Add button — hidden when limit reached */}
-        {items.length < MAX_IMAGES && (
+        {items.length < maxImages && (
           <button
             className="flex size-20 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-border bg-background/40 text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/40 hover:text-foreground active:scale-95"
             onClick={() => pickInputRef.current?.click()}

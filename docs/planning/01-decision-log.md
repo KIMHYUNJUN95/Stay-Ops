@@ -2,6 +2,65 @@
 
 This file records important project decisions.
 
+## 2026-06-16
+
+### Todo Recurrence — switch to Todoist-style single live task (no pre-materialization)
+
+Decision: Recurring Todo tasks are no longer pre-materialized into one `tasks` row per date across a
+window. A recurring task is a **single live row** that **rolls forward to its next occurrence on
+completion** (and rolls back on undo); the **calendar shows future occurrences as virtual previews**
+computed from the rule (display only, no DB rows).
+
+Why: the previous window-materializer flooded the date-agnostic tabs (관리함/공유함) with
+duplicate-looking entries (a daily task generated ~50 rows). This is the standard Todoist model and
+is storage-efficient (one row per series; previews computed only for the visible month).
+
+Impact:
+- `materializeRecurringTasks` deprecated and removed from all read paths; `completeTask` /
+  `reopenTask` now roll the series date forward/back.
+- One-time cleanup migration `202606160002_collapse_recurring_instances.sql` collapsed existing
+  instances to one row per series (applied; 98 rows removed in the dev project).
+- See `docs/product/18-todo-task-workflow.md` → Recurring Tasks (As-built 2026-06-16).
+
+### Staff Suggestions / Feedback Box — First-Slice Planning Refinement
+
+Decision: The first Staff Suggestions slice will remain a structured person-directed feedback workflow, not a discussion board and not a public visibility feed. Scope is:
+
+- one required recipient
+- optional referenced users
+- `Sent / Received / Referenced` lists
+- status lifecycle: `submitted` -> `reviewing` -> `on_hold` -> `completed`
+- recipient-only status ownership
+- participant comments with photo attachments
+- notifications for create / reference / status / comment
+
+Additional rules:
+
+- the author may edit/delete the main suggestion only while status is `submitted`
+- the recipient is the only user who can change status
+- referenced users can read and comment only
+- `on_hold` requires a hold reason
+- `completed` requires a completion note
+- comments stay available at every status and comment edit/delete is comment-author only
+
+Deferred:
+
+- anonymous posting
+- broad organization-wide visibility
+- votes / reactions
+- non-photo attachments
+- admin-only moderation flow
+
+Reason:
+
+- keeps the feature distinct from the Internal Board
+- keeps confidentiality tied to explicit participants
+- makes ownership clear by assigning status to the recipient only
+
+Consequence: Product `22`, tech-design `12`, user-role notes, data-model notes, and RLS guidance must stay aligned with this first-slice rule set.
+
+Status: Planned direction confirmed for design (2026-06-16)
+
 ## 2026-05-04
 
 ### Project Name
@@ -1078,6 +1137,40 @@ Reason: The user approved the scope change on 2026-06-09 when asked directly whe
 
 Status: Confirmed (2026-06-09) — attendance capture buildable now; payroll calc blocked on wage-policy definition.
 
+### Attendance / Payroll Policy Baseline — Refined
+
+Decision: On **2026-06-17**, the attendance / payroll feature policy was refined enough to support an implementation-ready product spec and technical design for:
+
+- session-based attendance capture
+- GPS + QR attendance in the first PWA release
+- future `GPS + Wi-Fi` design kept in the model but **disabled in current PWA UI as 준비중**
+- hourly-worker gross-pay calculation only
+- per-person monthly finalization / reopen / snapshot / export
+
+Confirmed policy baseline:
+
+- One open session per user at a time; multiple sessions per day allowed after clock-out.
+- Sites are required; free-text attendance locations are not allowed.
+- Clock-in site and clock-out site may differ, but both must be registered sites.
+- GPS is mandatory for successful attendance.
+- PWA first release uses **GPS + QR** only; Wi-Fi remains planned but inactive in PWA.
+- Breaks are recorded explicitly; hourly workers are paid only for worked minutes excluding recorded breaks.
+- No automatic break deduction.
+- No overtime, holiday, public-holiday, or night premiums in the first payroll slice.
+- Hourly pay uses 1-minute units and rounds the final monthly gross to the nearest 10 yen.
+- Taxes, insurance, deductions, and salaried payroll remain outside StayOps.
+- Users can see only their own attendance / pay; only `owner` and explicit `attendance_payroll_admin` users can see org-wide payroll data, finalize months, reopen, and export.
+- Site master remains owner-only.
+
+Reason: The user confirmed these operating rules directly while refining the attendance / payroll MD documents on 2026-06-17.
+
+Consequence:
+
+- `docs/product/21-attendance-payroll-workflow.md` and `docs/engineering/11-attendance-payroll-technical-design.md` move from generic draft placeholders to implementation-ready refined drafts.
+- `docs/planning/06-current-status.md` should no longer describe hourly payroll as completely undefined; the remaining blocker is the export template and the deferred Wi-Fi activation path, not the core hourly gross-pay policy itself.
+
+Status: Confirmed policy baseline (2026-06-17)
+
 ### Internal Board — Part-Time Write Permission
 
 Decision: In the Internal Board feature, **all active organization roles including Part-Time Staff can create posts.** This is intentionally different from Announcements, where Part-Time Staff cannot create (see "Announcement Write Permission").
@@ -1101,11 +1194,11 @@ Status: Confirmed direction (2026-06-09); share mechanism TBD before build.
 
 ### Staff Suggestions — Visibility Model
 
-Decision: Staff suggestions support two visibility modes in the first slice: `public_team` (readable by all active members) and `employee_only` (readable by the author plus Owner, Office Admin, CS Staff, Field Manager, Staff, and Developer/Super Admin — **not** other Part-Time Staff). A future `management_only` mode is deferred. Anonymous submission is deferred.
+Decision: The earlier `public_team` / `employee_only` visibility direction was later replaced on **2026-06-16** by a participant-scoped model: author + one required recipient + optional referenced users. There is no broad visibility mode in the current first-slice plan.
 
-Consequence: The `employee_only` restriction is a visibility/permission rule and must be reflected in `docs/product/01-user-roles.md` and the Staff Suggestions RLS in `docs/engineering/05-rls-permissions.md`.
+Consequence: Product, RLS, and data-model docs must follow the newer participant-scoped rule instead of the older two-visibility-mode draft.
 
-Status: Confirmed (2026-06-09)
+Status: Superseded on 2026-06-16
 
 ## 2026-06-10
 
@@ -1213,3 +1306,58 @@ auth and does not re-route by role, so `/mobile` sticks. Admins on a phone accep
 `/mobile` (admin web stays reachable from desktop).
 
 Status: Confirmed (2026-06-10).
+
+### Bottom sheets — iOS drag-to-dismiss; header close (X) removed
+
+Decision: All mobile **bottom sheets** share one iOS-style drag-to-dismiss interaction via a single
+primitive, `useSheetDragDismiss` (`src/components/shell/use-sheet-drag-dismiss.ts`). Drag the grab
+handle / header down to dismiss — release past `max(80px, 25% of sheet height)` or a downward flick
+≥ 0.5 px/ms dismisses (reusing each sheet's existing slide-out + `onClose`), otherwise it snaps back;
+the scrim dims in proportion to the drag. Each sheet keeps its own open/close lifecycle and only
+spreads `handleProps` on the handle/header, tags the container `data-sheet`, and applies
+`sheetStyle` / `scrimStyle`. Now that the slide dismisses, the **top-right close (X) buttons were
+removed** from these sheets; scrim tap and Esc remain as alternate exits.
+
+Approach chosen: a shared hook (Option A), not a `BottomSheet` wrapper component (Option B), because
+each sheet has a slightly different layout / duration / close path and wrapping all of them carried a
+higher regression risk than leaving each sheet's markup intact and wiring the hook in.
+
+Scope: covered — bottom-bar editor (`mobile-shell`), Tasks quick-add / Calendar day sheet /
+long-press menu (`tasks-workspace`), share picker, context picker, report sheet, project create
+(`projects-board`), project members (`project-detail-view`), photo gallery (`photo-gallery`),
+calendar reservation detail (`mobile-calendar-view`), and the order action sheet's draggable
+(`isOrdered`) variant. Excluded (not bottom sheets) — center-aligned confirm/delete/rename dialogs,
+the cleaning confirmation card, fixed action bars, the side menu, and the photo lightbox carousel.
+Kept X icons that serve other roles (remove-participant, chip clear, search clear, select-mode
+cancel, lightbox close, centered dialogs).
+
+Note: sheets portal to `<body>` but React synthetic touch events bubble through the React tree into
+the shell's pull-to-refresh / swipe-nav handlers, which dragged the background screen down with the
+sheet; the hook stops touch propagation on the handle so only the sheet moves.
+
+Status: Confirmed (2026-06-15). Canonical contract: Product `16` → "2026-06-15 Bottom Sheets —
+iOS-style Drag-to-Dismiss".
+
+### Todo recurrence uses real task instances
+
+Decision: Todo recurrence is no longer label-only. Repeating tasks now generate **real `tasks` rows**
+per occurrence date, tied together by `recurrence_series_id` and stamped with
+`recurrence_instance_date`.
+
+Rules:
+
+- a repeat rule requires a date anchor (`scheduled_date` or `due_at`)
+- the task the user saves is the **first real occurrence**
+- future occurrences are materialized as actual rows inside the active task window
+- the **latest occurrence row's** repeat rule is what continues the series forward
+- clearing repeat on the latest occurrence stops future auto-generation from that point
+- `custom` remains round-trip only; auto-generation runs only for the standard rules
+  (`daily`, `weekly`, `monthly`, `weekdays`, `weekends`)
+
+Reason:
+
+- the user explicitly required repeating tasks to actually appear on their repeated dates in
+  Today/Tomorrow rather than stay as a label-only reminder
+- real rows preserve completion history, update-log history, and per-day visibility consistently
+
+Status: Confirmed (2026-06-15).

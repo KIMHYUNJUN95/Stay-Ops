@@ -12,6 +12,7 @@ import {
   ChevronRight,
   FileText,
   FolderOpen,
+  History,
   Inbox,
   ListChecks,
   Plus,
@@ -34,9 +35,12 @@ import {
 import {
   completeTask,
   deleteTasksInList,
+  dismissOverdueTasks,
   reopenTask,
   reorderTasks,
+  rescheduleOverdueToToday,
 } from "@/app/mobile/tasks/[id]/actions";
+import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import { TaskCard } from "@/components/tasks/task-card";
 import { ReorderableTaskList } from "@/components/tasks/reorderable-task-list";
 import { ReportSheet } from "@/components/tasks/report-sheet";
@@ -44,6 +48,7 @@ import { ProjectsBoard } from "@/components/tasks/projects-board";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { ProjectSummary } from "@/lib/projects";
 import type { ShareableUser, TaskRecord } from "@/lib/tasks";
+import { isStandardRecurrence, recurringOccurrencesInRange } from "@/lib/tasks-recurrence";
 import { cn } from "@/lib/utils";
 
 type Copy = Dictionary["tasks"];
@@ -162,6 +167,11 @@ export function TasksWorkspace({
     setPressShown(false);
     setTimeout(() => setPressTask(null), 240);
   }, []);
+
+  // iOS-style drag-to-dismiss for the three bottom sheets (grab handle / header drives the drag).
+  const daySheetDrag = useSheetDragDismiss({ shown: sheetShown, onDismiss: closeDaySheet });
+  const quickDrag = useSheetDragDismiss({ shown: quickShown, onDismiss: closeQuick });
+  const pressDrag = useSheetDragDismiss({ shown: pressShown, onDismiss: closePressMenu });
   const toggleSelect = useCallback((task: TaskRecord) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -202,6 +212,10 @@ export function TasksWorkspace({
     },
     [],
   );
+
+  // --- Overdue prompt (Today tab): reschedule to today / clear past unfinished.
+  const [overduePending, startOverdue] = useTransition();
+  const [overdueConfirm, setOverdueConfirm] = useState(false);
 
   // --- Quick complete (status circle tap on any card) + undo toast.
   const [, startComplete] = useTransition();
@@ -437,8 +451,82 @@ export function TasksWorkspace({
       // Drag-reorder is offered only on the plain Today list — disabled while a search/date filter
       // is active (the list is a subset) or in multi-select mode (the card body owns the tap).
       const reorderDisabled = filterActive || selectMode;
+      // Overdue prompt: only the caller's own overdue tasks are actionable (the bulk actions are
+      // author-scoped server-side). Recurring tasks keep their next occurrence; one-offs move/delete.
+      const ownedOverdue = baseOver.filter((t) => t.createdByUserId === currentUserId).length;
+      const moveOverdue = () =>
+        startOverdue(async () => {
+          await rescheduleOverdueToToday();
+          setOverdueConfirm(false);
+        });
+      const clearOverdue = () =>
+        startOverdue(async () => {
+          await dismissOverdueTasks();
+          setOverdueConfirm(false);
+        });
       return (
         <>
+          {ownedOverdue > 0 && !filterActive && !selectMode ? (
+            <div className="mb-3 rounded-[20px] border border-border bg-surface p-4 shadow-[0_18px_44px_-32px_rgba(15,23,42,0.55)]">
+              <div className="flex items-center gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-[12px] bg-amber-50 text-amber-500">
+                  <History className="size-[18px]" strokeWidth={2.1} aria-hidden="true" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[14px] font-extrabold leading-tight tracking-[-0.01em] text-foreground">
+                    {copy.overduePromptTitle.replace("{count}", String(ownedOverdue))}
+                  </p>
+                  <p className="mt-1 text-[11.5px] font-medium leading-[1.45] text-muted-foreground">
+                    {overdueConfirm ? copy.overduePromptConfirm : copy.overduePromptBody}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3.5 flex flex-col gap-2">
+                {overdueConfirm ? (
+                  <>
+                    <button
+                      className="inline-flex h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl bg-rose-600 px-3 text-[13px] font-bold text-white transition-transform active:scale-[0.98] disabled:opacity-50"
+                      disabled={overduePending}
+                      onClick={clearOverdue}
+                      type="button"
+                    >
+                      <Trash2 className="size-4 shrink-0" strokeWidth={2.1} aria-hidden="true" />
+                      {copy.overduePromptConfirmYes}
+                    </button>
+                    <button
+                      className="inline-flex h-10 w-full items-center justify-center whitespace-nowrap rounded-2xl border border-border bg-background px-3 text-[13px] font-bold text-muted-foreground transition-colors hover:bg-muted/40 disabled:opacity-50"
+                      disabled={overduePending}
+                      onClick={() => setOverdueConfirm(false)}
+                      type="button"
+                    >
+                      {copy.overduePromptCancel}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className="inline-flex h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl bg-primary px-3 text-[13px] font-bold text-primary-foreground shadow-[0_10px_22px_-12px_hsl(var(--primary-hsl)/0.65)] transition-transform active:scale-[0.98] disabled:opacity-50"
+                      disabled={overduePending}
+                      onClick={moveOverdue}
+                      type="button"
+                    >
+                      <Sun className="size-4 shrink-0" strokeWidth={2.2} aria-hidden="true" />
+                      {copy.overduePromptToday}
+                    </button>
+                    <button
+                      className="inline-flex h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-border bg-background px-3 text-[13px] font-bold text-muted-foreground transition-colors hover:bg-muted/40 disabled:opacity-50"
+                      disabled={overduePending}
+                      onClick={() => setOverdueConfirm(true)}
+                      type="button"
+                    >
+                      <Trash2 className="size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
+                      {copy.overduePromptDismiss}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : null}
           {over.length > 0 ? (
             <>
               {sectionHead(copy.secOverdue, over.length, "over")}
@@ -644,8 +732,24 @@ export function TasksWorkspace({
     const monthPrefix = `${y}-${String(m).padStart(2, "0")}`;
     const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
     const daysIn = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const monthStart = `${monthPrefix}-01`;
+    const monthEnd = `${monthPrefix}-${String(daysIn).padStart(2, "0")}`;
     const dated = tasks.filter((t) => isActive(t) && anchor(t));
-    const onDay = (iso: string) => dated.filter((t) => anchor(t) === iso);
+    // Todoist-style virtual previews: a recurring task is a single row, but the calendar shows it
+    // on every occurrence within the visible month (computed from its rule — no extra rows). Each
+    // virtual occurrence points back to the same real task (tap/edit affects the series).
+    const occurrences: { iso: string; task: TaskRecord }[] = [];
+    for (const t of dated) {
+      const a = anchor(t) as string;
+      if (isStandardRecurrence(t.recurrenceRule)) {
+        for (const iso of recurringOccurrencesInRange(t.recurrenceRule, a, monthStart, monthEnd)) {
+          occurrences.push({ iso, task: t });
+        }
+      } else if (a >= monthStart && a <= monthEnd) {
+        occurrences.push({ iso: a, task: t });
+      }
+    }
+    const onDay = (iso: string) => occurrences.filter((o) => o.iso === iso).map((o) => o.task);
 
     const openDay = (iso: string) => {
       setCalDay(iso);
@@ -725,12 +829,11 @@ export function TasksWorkspace({
         }).format(new Date(`${calDay}T00:00:00+09:00`))
       : null;
 
-    // Agenda for the shown month: dated tasks grouped by their anchor day, in date order.
-    const monthTasks = dated.filter((t) => (anchor(t) as string).slice(0, 7) === monthPrefix);
+    // Agenda for the shown month: occurrences grouped by day (recurring tasks expand virtually).
+    const monthTasks = occurrences;
     const byDay = new Map<string, TaskRecord[]>();
-    for (const t of monthTasks) {
-      const k = anchor(t) as string;
-      byDay.set(k, [...(byDay.get(k) ?? []), t]);
+    for (const o of occurrences) {
+      byDay.set(o.iso, [...(byDay.get(o.iso) ?? []), o.task]);
     }
     const dayKeys = Array.from(byDay.keys()).sort();
 
@@ -926,6 +1029,7 @@ export function TasksWorkspace({
           sheetShown ? "opacity-100" : "opacity-0",
         )}
         onClick={closeDaySheet}
+        style={daySheetDrag.scrimStyle}
       >
         <div
           className={cn(
@@ -933,26 +1037,21 @@ export function TasksWorkspace({
             "transition-transform duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
             sheetShown ? "translate-y-0" : "translate-y-full",
           )}
+          data-sheet
           onClick={(e) => e.stopPropagation()}
+          style={daySheetDrag.sheetStyle}
         >
-          <div className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200" />
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <p className="text-[16px] font-black text-foreground">{label}</p>
-              {list.length > 0 ? (
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
-                  {copy.calMonthTask.replace("{count}", String(list.length))}
-                </span>
-              ) : null}
-            </div>
-            <button
-              aria-label={copy.cancel}
-              className="flex size-8 items-center justify-center rounded-full bg-slate-50 text-slate-500"
-              onClick={closeDaySheet}
-              type="button"
-            >
-              <X className="size-4" aria-hidden="true" />
-            </button>
+          <div
+            className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200"
+            {...daySheetDrag.handleProps}
+          />
+          <div className="mb-3 flex items-center gap-2" {...daySheetDrag.handleProps}>
+            <p className="text-[16px] font-black text-foreground">{label}</p>
+            {list.length > 0 ? (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                {copy.calMonthTask.replace("{count}", String(list.length))}
+              </span>
+            ) : null}
           </div>
           {list.length === 0 ? (
             <div className="flex flex-col items-center px-6 py-8 text-center">
@@ -1185,6 +1284,7 @@ export function TasksWorkspace({
             quickShown ? "opacity-100" : "opacity-0",
           )}
           onClick={closeQuick}
+          style={quickDrag.scrimStyle}
         >
           <div
             className={cn(
@@ -1192,24 +1292,19 @@ export function TasksWorkspace({
               "transition-transform duration-[380ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
               quickShown ? "translate-y-0" : "translate-y-full",
             )}
+            data-sheet
             onClick={(e) => e.stopPropagation()}
+            style={quickDrag.sheetStyle}
           >
-            <div className="mx-auto mb-3.5 h-1 w-[38px] rounded-full bg-slate-200" />
+            <div
+              className="mx-auto mb-3.5 h-1 w-[38px] rounded-full bg-slate-200"
+              {...quickDrag.handleProps}
+            />
 
-            {/* 헤더 + 닫기 버튼 */}
-            <div className="mb-3.5 flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[16px] font-black text-foreground">{copy.quickAddTitle}</p>
-                <p className="mt-0.5 text-[12px] text-muted-foreground">{copy.quickAddSub}</p>
-              </div>
-              <button
-                aria-label={copy.cancel}
-                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
-                onClick={closeQuick}
-                type="button"
-              >
-                <X className="size-4" aria-hidden="true" />
-              </button>
+            {/* 헤더 (닫기는 슬라이드/스크림으로 대체) */}
+            <div className="mb-3.5" {...quickDrag.handleProps}>
+              <p className="text-[16px] font-black text-foreground">{copy.quickAddTitle}</p>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">{copy.quickAddSub}</p>
             </div>
 
             <form action={quickCreateTask} className="space-y-3">
@@ -1281,6 +1376,7 @@ export function TasksWorkspace({
                 pressShown ? "opacity-100" : "opacity-0",
               )}
               onClick={closePressMenu}
+              style={pressDrag.scrimStyle}
             >
               <div
                 className={cn(
@@ -1288,10 +1384,18 @@ export function TasksWorkspace({
                   "transition-transform duration-[240ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
                   pressShown ? "translate-y-0" : "translate-y-full",
                 )}
+                data-sheet
                 onClick={(e) => e.stopPropagation()}
+                style={pressDrag.sheetStyle}
               >
-                <div className="mx-auto mb-2.5 h-1 w-[38px] rounded-full bg-slate-200" />
-                <p className="mb-1.5 truncate px-2.5 text-[12.5px] font-bold text-muted-foreground">
+                <div
+                  className="mx-auto mb-2.5 h-1 w-[38px] rounded-full bg-slate-200"
+                  {...pressDrag.handleProps}
+                />
+                <p
+                  className="mb-1.5 truncate px-2.5 text-[12.5px] font-bold text-muted-foreground"
+                  {...pressDrag.handleProps}
+                >
                   {pressTask.title}
                 </p>
                 <div className="flex flex-col">

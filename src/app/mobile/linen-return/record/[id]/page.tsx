@@ -1,7 +1,6 @@
 import Image from "next/image";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Building2, ChevronLeft } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { LinenReturnDetailActions } from "@/components/linen-return/linen-return-detail-actions";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getDictionary, type Locale } from "@/lib/i18n";
@@ -55,7 +54,6 @@ export default async function LinenReturnDetailPage({ params, searchParams }: Pa
   const copy = dict.linenReturn;
   const buildingLabel = localizePropertyName(record.buildingName, dict.cleaning.buildingLabels);
   const canManage = canManageLinenRecord(session, record);
-  const backHref = `/mobile/linen-return/list?building=${encodeURIComponent(record.buildingName)}`;
   const errorMessage = query.error ? copy.errors[query.error] ?? null : null;
 
   const navBadges = await getMobileNavBadges();
@@ -65,13 +63,6 @@ export default async function LinenReturnDetailPage({ params, searchParams }: Pa
       <div className="pb-6">
         {/* Context bar */}
         <div className="flex items-center gap-[11px] px-0.5 pb-4 pt-2">
-          <Link
-            aria-label={copy.backToList}
-            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-700"
-            href={backHref}
-          >
-            <ChevronLeft className="size-[19px]" aria-hidden="true" />
-          </Link>
           <div className="min-w-0 flex-1">
             <p className="text-[19px] font-black leading-tight tracking-[-0.03em] text-foreground">
               {copy.detailTitle}

@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Copy, FileText, Lock, RefreshCw, X } from "lucide-react";
+import { Copy, FileText, Lock, RefreshCw } from "lucide-react";
 import { generateDailyReport } from "@/app/mobile/tasks/report-actions";
+import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +57,9 @@ export function ReportSheet({
     setShown(false);
     setTimeout(onClose, 320); // matches the sheet transition duration
   }, [onClose]);
+
+  // iOS-style drag-to-dismiss on the grab handle / header.
+  const drag = useSheetDragDismiss({ shown, onDismiss: close });
 
   const run = useCallback(() => {
     setStatus("loading");
@@ -138,6 +142,7 @@ export function ReportSheet({
         shown ? "opacity-100" : "opacity-0",
       )}
       onClick={close}
+      style={drag.scrimStyle}
     >
       <div
         className={cn(
@@ -145,10 +150,15 @@ export function ReportSheet({
           "transition-transform duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
           shown ? "translate-y-0" : "translate-y-full",
         )}
+        data-sheet
         onClick={(e) => e.stopPropagation()}
+        style={drag.sheetStyle}
       >
-        <div className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200" />
-        <div className="mb-4 flex items-start justify-between gap-3">
+        <div
+          className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200"
+          {...drag.handleProps}
+        />
+        <div className="mb-4 gap-3" {...drag.handleProps}>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-primary/[0.09] text-primary">
@@ -160,14 +170,6 @@ export function ReportSheet({
             </div>
             <p className="ml-10 mt-[3px] text-[12px] font-medium text-muted-foreground">{dateLabel}</p>
           </div>
-          <button
-            aria-label={copy.cancel}
-            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500 transition-colors active:bg-slate-100"
-            onClick={close}
-            type="button"
-          >
-            <X className="size-4" aria-hidden="true" />
-          </button>
         </div>
 
         {status === "loading"
