@@ -115,9 +115,9 @@ design (no redesign). Breaks, corrections, payroll, and notifications remain out
   no open session → 출근 전. `?state=` is retained only as a static design-preview override. The 휴게
   시작 button is unchanged (breaks are a later step).
 - **Token format**: the on-site QR encodes the raw token string (as the dev temp-QR tool emits); the
-  client decodes it and the server resolves the site. **i18n note:** the attendance slice remains
-  hardcoded Korean (a 1:1 design port, consistent with its existing strings); a slice-wide ko/ja/en
-  i18n pass is tracked separately and was not introduced mid-wiring.
+  client decodes it and the server resolves the site. **i18n:** the attendance slice was wired first
+  with Korean strings consistent with the design port; a dedicated ko/ja/en i18n pass was completed
+  after Step 14 (see "As-built — i18n pass" below).
 
 Still pending (Step 4+): break start/end (with clock-out-blocked-while-break-open), correction request
 submit/review, own history + admin review queries, payroll (employment/rate history, expected pay,
@@ -169,8 +169,10 @@ redesign of an existing screen.
 - **Self-view query layer** `src/lib/attendance-history.ts` (server-only, service-role, **strictly
   self-scoped** — every query filters `user_id = <authenticated user>` + org; no client-supplied target
   user, so params/query-string tampering cannot reach another user's data):
-  - `getAttendanceHistory(org, userId, limit=60)` → `AttendanceSessionView[]` (newest first by Tokyo
-    `operating_date` then clock-in). Resolves each session's **break rows** (one batched query) and
+  - `getAttendanceHistory(org, userId, ym?, limit=60)` → `AttendanceSessionView[]` (newest first by
+    Tokyo `operating_date` then clock-in). When `ym` (YYYY-MM, Tokyo) is supplied, results are bounded
+    to that operating month (`operating_date >= ym-01` and `< nextMonth-01`); omitted = all (capped by
+    `limit`). Resolves each session's **break rows** (one batched query) and
     **site names** (one batched query); computes Tokyo time labels, closed-break total, and worked
     seconds for completed sessions (in→out minus closed breaks). Exposes `status`, `reviewState`,
     `manualCreated`, and `isAbnormal` — leaving room for a later `correctionStatus` / expected-pay /
@@ -492,6 +494,78 @@ This is the **final attendance/payroll app-scope step.** Intentionally deferred 
 owner/admin **web-dashboard UI** (site/QR · review queue · manual mgmt · employment/rate mgmt [Step 9] ·
 finalize/reopen · totals dashboard · export), the operator Excel **export template**, the full
 **midnight sweep**, and **Web Push** delivery (notifications are in-app only).
+
+## As-built — Bug fixes + i18n pass (2026-06-18)
+
+Three correctness fixes shipped as migration `202606180003_attendance_session_fixes.sql`:
+
+1. **Finalization order fix (Bug 1):** `finalizeAttendanceMonth` now inserts the new snapshot row
+   **before** superseding the previous one. The old order (supersede → insert) left a window where a
+   failed insert would permanently destroy the last finalized copy. The safety margin is reinforced by
+   also excluding the newly inserted row from the supersede UPDATE via `.neq("id", ins.data.id)`.
+
+2. **Session-less correction blocking (Bug 2):** `attendance_correction_requests` gained a
+   `target_month date` column (nullable; existing rows default null). Session-less exception correction
+   requests now store `target_month` on insert so `getFinalizationEligibility` can find them with a
+   separate `IS NULL session_id` + `target_month = firstDay` query alongside the session-linked check.
+   Without this, a pending exception request would not block monthly finalization.
+   A partial index (`WHERE session_id IS NULL`) covers the new query path. `src/types/database.ts`
+   updated (Row/Insert/Update types for `attendance_correction_requests`).
+
+3. **Org-isolated reminder uniqueness (Bug 3):** The `attendance_open_session_reminders` unique
+   constraint was `(user_id, operating_date)` — a user shared across organizations would collide.
+   The migration drops the old constraint and adds `(organization_id, user_id, operating_date)`.
+   All open-session queries in `src/app/mobile/attendance/actions.ts` (`submitAttendanceScan`,
+   `startBreak`/`endBreak`, reminder response) now include an explicit
+   `.eq("organization_id", organizationId)` filter; the `getOpenSessionId` helper was updated to
+   accept and apply `organizationId`. The reminder upsert `onConflict` clause updated to match.
+
+**Attendance i18n pass (2026-06-18):** all attendance UI strings are now fully localized (ko/ja/en).
+Each screen receives a `copy: Dictionary["attendance"]` prop threaded from the page via `getDictionary`.
+
+- `attendance-home.tsx` — ring states, clock-in/out buttons, break labels, reminder body, name
+  suffix (`userNameDisplay`), preview fallback site (`previewSite`), static break preview ordinal.
+  `GPS + QR`, `GPS+Wi-Fi`, and `Wi-Fi` method labels are **intentionally retained as literal labels**
+  across the attendance UI (method chips + history/detail surfaces) because they are treated as
+  universal technical standards, not locale-specific copy.
+- `attendance-capture.tsx` — GPS status, scan hints, all 8 ResultSheet cases
+- `attendance-history.tsx` — today summary, session list, status chips, detail sheet, abnormal note
+- `attendance-correction-form.tsx` — reason chips, all form fields, error messages, picker
+- `attendance-correction-status.tsx` — META labels, step bar, recap fields, review block
+- `attendance-pay.tsx` — duration formatting, amount formatting, exclusion reasons, day breakdown
+- Pages: `correction/page.tsx`, `correction/status/page.tsx`, `pay/page.tsx`, `history/page.tsx`
+  all call `getDictionary(session.user.preferredLanguage)` and forward `copy={dict.attendance}`.
+- `src/lib/i18n.ts`: ~112 new keys added to the `attendance` section (en/ko/ja), grouped as:
+  Home · Session status chips · History · Correction form · Correction status · Pay.
+
+## As-built — History/Pay redesign + month switcher (2026-06-18)
+
+UI-only pass over the self history + pay screens (no policy/schema change beyond the `ym` filter param):
+
+- **`historyTitle` renamed** ko `근태 이력` / ja `勤怠履歴` / en `Attendance History` (was `출퇴근 이력` /
+  `出退勤履歴` / `Clock History`). Single source in `i18n.ts`; used by the page `<h1>` and shell title.
+- **Shared `MonthSwitcher`** (`src/components/attendance/month-switcher.tsx`, client): `‹ prev · [month ▾]
+  · next ›` pill. Arrows navigate `?ym=YYYY-MM` (prev/next disabled at the 12-month window edge / current
+  month). Clicking the label opens a **custom (non-native) dropdown** listing the last 12 months
+  (selected row highlighted + check); options/arrows `router.push` the new `ym`. Month labels are
+  `Intl.DateTimeFormat(locale)` (year-prefixed only when it differs from the current year). Both the
+  history and pay title rows use it; CSS `.msw*` appended to `attendance.css` (scoped, token-based).
+  `caret` (chevron-down) icon added to `att-icons.tsx`.
+- **History month scoping:** `history/page.tsx` now reads `?ym` (defaults to current Tokyo month) and
+  passes it to `getAttendanceHistory(org, userId, ym)`. The today-summary card renders **only for the
+  current month** (`ym === currentYm`); past months show just the month's session list (empty state when
+  none).
+- **Pay month nav:** `pay/page.tsx` drops the old `prevYm/nextYm/isCurrentMonth` props (and the local
+  `shiftYm`) — `AttendancePay` now takes `currentYm` and derives `isCurrentMonth` internally; the old
+  two-button `seg-month` toggle is replaced by `MonthSwitcher`.
+- **Detail sheets migrated to the canonical `BottomSheet`** (`src/components/shell/bottom-sheet.tsx`) on
+  both screens, replacing the hand-rolled `.dim`/`.rsheet` + `useSheetDragDismiss` markup — restoring the
+  app-standard slate scrim + drag-to-dismiss contract. The pay **미반영 기록 N건** banner is now a button
+  that opens a sheet listing each excluded session (date · in–out · reason chip); tapping a row jumps to
+  that day's detail sheet.
+- **Pay table fixes:** ko `payAmount` corrected to `¥{amount}` (was `{amount}원`); daily `ptbl` grid
+  widened/rebalanced (`36px 1fr 44px 76px 70px`) with `text-overflow: ellipsis` on the break/paid cells
+  so 휴게·인정·일급 no longer collide.
 
 ## Purpose
 
@@ -994,11 +1068,11 @@ These are intentionally out of scope for now.
 
 ### Worker-side
 
-- `clockInWithQr`
-- `clockOutWithQr`
+- `submitAttendanceScan` (unified clock-in + clock-out via GPS+QR)
 - `startBreak`
 - `endBreak`
 - `createAttendanceCorrectionRequest`
+- `respondOpenSessionReminder`
 
 ### Admin-side
 

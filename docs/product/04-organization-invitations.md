@@ -81,7 +81,7 @@ Each user should have a personal profile connected to their account.
 Profile fields may include:
 
 - Name
-- Age
+- Date of birth
 - Phone number
 - Profile photo
 - Preferred language
@@ -92,20 +92,22 @@ All organization members should be able to see the user directory and call other
 
 Required during signup:
 
+- Authentication method (`Google` or `email + password`)
 - Name
-- Email or social login
-- Language selection
-- Invitation link or invite code
+- Date of birth
 - Phone number
+- Preferred language
+- Team invite code
 
 Optional after signup:
 
-- Age
 - Profile photo
 
 ## Social Login Profile Completion
 
-Google login is supported alongside email magic-link. Both methods share the same onboarding and session flow.
+Google login is supported alongside standard email signup/login (`email + password`).
+
+Email magic-link is no longer part of the planned authentication model.
 
 **Important product rule: Google login is only an authentication method.**
 
@@ -118,12 +120,20 @@ After any Google login:
 - No Google profile data (name, phone, profile image) is auto-applied.
 - The user cannot enter the app until onboarding is complete.
 
-Required fields before app access (applies equally to email and Google login):
+Required onboarding fields before app access (applies equally to email and Google login):
 
 - Name (entered manually)
-- Phone number (entered manually; validated for reasonable format)
+- Date of birth (entered manually)
+- Phone number (entered manually; stored in international format)
 - Preferred language (selected manually)
-- Valid invite code / team code (to join an organization)
+- Valid team invite code (to join an organization)
+
+Important onboarding rules:
+
+- Authentication success alone does not grant product access.
+- Users without a valid team invite code can authenticate, but they cannot use any StayOps feature.
+- Incomplete accounts must always return to `continue onboarding`, not to the normal app.
+- The same onboarding rules apply to both Google and email signup.
 
 Implementation note (2026-06-03):
 
@@ -134,6 +144,73 @@ Implementation note (2026-06-03):
 - If membership is suspended → blocked with a clear message and a logout option.
 - If membership is removed → blocked with a clear message and a logout option.
 - Google login button is live on `/auth/login`; `prompt: "select_account"` forces account selection on each login attempt.
+
+## Email Signup / Login
+
+Standard email signup/login is also required.
+
+Rules:
+
+- Email signup uses `email + password`
+- Email verification is required before onboarding is considered complete
+- Password reset uses reset-email flow
+- Password policy:
+  - minimum 8 characters
+  - letter + number required
+  - special character optional
+- Login attempts for email/password should be rate-limited
+
+## Account Identity Rules
+
+- Same email address should map to one StayOps account
+- Google login and email/password login should attach to the same account when the email matches
+- Phone number is an account-level unique value
+- If an account exists but onboarding is incomplete, re-signup should resume the same account instead of creating a duplicate
+
+## Team Invite Codes
+
+Invite codes are the gate that turns an authenticated account into an active organization member.
+
+Current business rules:
+
+- Team invite code determines:
+  - target organization
+  - onboarding role category
+- Invite codes are multi-use by default
+- Normal staff codes:
+  - valid for 3 months
+  - maximum 100 joins
+- Owner invite code:
+  - one-time use only
+- Invite code validation succeeds first, then the app shows the resolved organization + role before final membership activation
+
+Current onboarding role categories:
+
+- Part-time Staff
+- Office Staff
+- Field Staff
+- Part-time Staff (Manager)
+- Owner
+
+Important:
+
+- These are the **signup/invite categories** that users see during onboarding.
+- Final internal role/permission mapping may still be normalized during implementation, but the invite-code UX must expose these five business-facing categories.
+
+## Organization Creation
+
+Organization creation is not open to every public signup.
+
+Rules:
+
+- A new organization can be created only through an allowed organization-creation path
+- The user who creates the first organization becomes that organization's first owner
+- General public signups cannot create arbitrary organizations
+
+Current temporary operating rule:
+
+- Until invite-code management UI is built in the future admin dashboard, the initial organization / first owner / initial invite codes are bootstrapped manually in the database
+- This is operational bootstrap data, not a normal self-service workflow
 
 ## Staff Onboarding Options
 
@@ -158,7 +235,7 @@ User signs up/logs in
 User joins organization with assigned role
 ```
 
-### Option 2: Invite Code
+### Option 2: Team Invite Code
 
 Admin creates an invite code for a role, property, or team.
 
@@ -171,11 +248,13 @@ Good for:
 Flow:
 
 ```txt
-Admin creates invite code
-Staff signs up
+Admin creates team invite code
+Staff authenticates
+Staff completes required onboarding
 Staff enters code
-User joins organization
-Admin can review or approve if required
+System resolves organization + role
+User confirms the result
+User joins organization immediately
 ```
 
 ## Invite Code Fields
@@ -200,7 +279,7 @@ updated_at
 Required settings when creating an invite code:
 
 - Code name
-- Default role
+- Default role category
 - Expiration date
 - Maximum number of uses
 - Active/inactive status
@@ -215,12 +294,18 @@ Max uses: 50
 Status: Active
 ```
 
-Recommended first default:
+Recommended defaults:
 
-- Default role: Part-time Staff
+- Default role category should be explicit
 - Invite codes should be revocable
 - Expired codes cannot be used
 - Codes that reach max uses cannot be used
+- Organization + role should be previewed to the user before final join
+
+Recommended first operating defaults:
+
+- `Owner` code: one-time use
+- other role codes: 3 months + 100 uses
 
 ### Option 3: Signup Approval
 
@@ -235,33 +320,30 @@ Good for:
 
 Use a hybrid approach:
 
-- Email invitation for employees/admins
-- Invite code for part-time staff
-- Admin can deactivate or remove users
-- Role is required for every member
+- Google login and email/password login as auth entry methods
+- Team invite code as the membership gate
+- Manual DB bootstrap for the first organization / first owner / first codes until dashboard tooling exists
+- Role is required for every membership
 
-MVP organization creation rule:
-
-- Only Developer/Super Admin can create organizations.
-- General users cannot create organizations during MVP.
-- Staff can only join through invitation or invite code.
-
-Initial setup flow:
+Current recommended setup flow:
 
 ```txt
-Developer/Super Admin logs in
-Developer/Super Admin creates company organization
-Developer/Super Admin or Owner registers properties/buildings
-Owner/Office Admin invites employees by email
-Owner/Office Admin creates invite codes for part-time staff
-Staff/part-time staff sign up
-Users join the organization through invitation/code
-Owner/Office Admin manages roles and deactivation
+Allowed user enters organization-creation path
+User authenticates
+User completes onboarding
+User creates the first organization
+User becomes that organization's first owner
+Initial invite codes are prepared manually in DB for now
+Employees / field staff / part-time staff authenticate
+Users complete onboarding and enter team invite code
+Users join the organization immediately
+Owner later manages members / roles / code lifecycle from dashboard (when built)
 ```
 
 Implementation notes (current as of 2026-06-03):
 
-- Email magic-link login and Google OAuth are both live on `/auth/login`.
+- Legacy implementation still has email magic-link login + Google OAuth live on `/auth/login`, but
+  this is now **outdated relative to the 2026-06-18 target policy**.
 - `/onboarding` handles profile completion, invite-code organization joining, and first-user Developer / Super Admin setup.
 - Onboarding is required for all new users regardless of login method. Google users are not exempt.
 - The first-user admin claim is allowed only while `platform_admins` is empty.

@@ -27,6 +27,9 @@ import {
   type AttendanceScanMode,
   type AttendanceScanResult,
 } from "@/app/mobile/attendance/actions";
+import { getDictionary, type Dictionary } from "@/lib/i18n";
+
+type AttendanceCopy = Dictionary["attendance"];
 
 type Gps = { lat: number; lng: number; acc: number | null } | { error: "denied" | "unavailable" };
 type Phase = "scanning" | "submitting" | "result";
@@ -47,7 +50,8 @@ function getGpsOnce(): Promise<Gps> {
   });
 }
 
-export function AttendanceCapture({ mode = "in" }: { mode?: AttendanceScanMode }) {
+export function AttendanceCapture({ mode = "in", locale }: { mode?: AttendanceScanMode; locale: string }) {
+  const copy = getDictionary(locale).attendance;
   const router = useRouter();
   const hydrated = useSyncExternalStore(
     () => () => {},
@@ -190,24 +194,24 @@ export function AttendanceCapture({ mode = "in" }: { mode?: AttendanceScanMode }
 
   const gpsText =
     gpsStatus === "ok"
-      ? "위치 확인됨"
+      ? copy.gpsOk
       : gpsStatus === "denied"
-        ? "위치 권한 꺼짐"
+        ? copy.gpsDenied
         : gpsStatus === "unavailable"
-          ? "위치 확인 불가"
-          : "위치 확인 중…";
+          ? copy.gpsUnavailable
+          : copy.gpsPending;
 
   const scanHint = cameraError
-    ? "카메라를 사용할 수 없어요"
+    ? copy.captureHintCamera
     : phase === "submitting"
-      ? "인증 중…"
-      : "현장 QR 코드를 사각형 안에 맞춰주세요";
+      ? copy.captureHintSubmitting
+      : copy.captureHintScan;
 
   return (
     <div className="att">
       <div className="caphead">
-        <span className="capttl">{isOut ? "퇴근 인증" : "출근 인증"}</span>
-        <span className="capstep">1 / 2 · QR 스캔</span>
+        <span className="capttl">{isOut ? copy.captureOutTitle : copy.captureInTitle}</span>
+        <span className="capstep">{copy.captureStep}</span>
       </div>
 
       <div className="scanview">
@@ -242,7 +246,7 @@ export function AttendanceCapture({ mode = "in" }: { mode?: AttendanceScanMode }
 
       {cameraError ? (
         <button type="button" className="breakbtn" style={{ marginTop: "12px" }} onClick={retryCamera}>
-          <AIc>{AttIcon.refresh}</AIc>카메라 다시 시도
+          <AIc>{AttIcon.refresh}</AIc>{copy.captureRetryCamera}
         </button>
       ) : null}
 
@@ -253,7 +257,7 @@ export function AttendanceCapture({ mode = "in" }: { mode?: AttendanceScanMode }
           </span>
           <div className="methodchip__t">
             <b>GPS + QR</b>
-            <span>사용 가능</span>
+            <span>{copy.methodQrAvailable}</span>
           </div>
         </div>
         <div className="methodchip ghost">
@@ -262,12 +266,12 @@ export function AttendanceCapture({ mode = "in" }: { mode?: AttendanceScanMode }
           </span>
           <div className="methodchip__t">
             <b>Wi-Fi</b>
-            <span>준비중</span>
+            <span>{copy.methodWifiSoon}</span>
           </div>
         </div>
       </div>
       <Link href="/mobile/attendance/correction" className="breakbtn" style={{ marginTop: "14px" }}>
-        <AIc>{AttIcon.edit}</AIc>QR이 없나요? 정정 요청
+        <AIc>{AttIcon.edit}</AIc>{copy.captureNoQr}
       </Link>
 
       {hydrated && phase === "result" && result
@@ -278,7 +282,7 @@ export function AttendanceCapture({ mode = "in" }: { mode?: AttendanceScanMode }
                 <div {...drag.handleProps}>
                   <div className="rsheet__handle" />
                 </div>
-                <ResultSheet result={result} isOut={isOut} onHome={goHome} onRetry={retry} />
+                <ResultSheet result={result} isOut={isOut} onHome={goHome} onRetry={retry} copy={copy} />
               </div>
             </div>,
             document.body,
@@ -293,37 +297,39 @@ function ResultSheet({
   isOut,
   onHome,
   onRetry,
+  copy,
 }: {
   result: AttendanceScanResult;
   isOut: boolean;
   onHome: () => void;
   onRetry: () => void;
+  copy: AttendanceCopy;
 }) {
   if (result.ok) {
     return (
       <>
         <div className="rsheet__ic ic-ok">{AttIcon.checkc}</div>
-        <h3 className="rsheet__t">{isOut ? "퇴근 완료" : "출근 완료"}</h3>
+        <h3 className="rsheet__t">{isOut ? copy.resultOutTitle : copy.resultInTitle}</h3>
         <p className="rsheet__s">
-          {isOut ? "정상적으로 퇴근 처리되었어요" : "정상적으로 출근 처리되었어요"}
+          {isOut ? copy.resultOutMessage : copy.resultInMessage}
         </p>
         <div className="recap">
           <div className="recap__r">
             <span className="recap__k">
-              <AIc>{AttIcon.pin}</AIc>장소
+              <AIc>{AttIcon.pin}</AIc>{copy.resultSiteLabel}
             </span>
             <span className="recap__v">{result.siteName}</span>
           </div>
           <div className="recap__r">
             <span className="recap__k">
               <AIc>{AttIcon.clock}</AIc>
-              {isOut ? "퇴근 시각" : "출근 시각"}
+              {isOut ? copy.resultOutTimeLabel : copy.resultInTimeLabel}
             </span>
             <span className="recap__v mono">{result.timeLabel}</span>
           </div>
           <div className="recap__r">
             <span className="recap__k">
-              <AIc>{AttIcon.qr}</AIc>인증
+              <AIc>{AttIcon.qr}</AIc>{copy.resultAuthLabel}
             </span>
             <span className="recap__v">
               <span className="chip c-method" style={{ padding: "3px 9px" }}>
@@ -332,16 +338,16 @@ function ResultSheet({
             </span>
           </div>
           <div className="recap__r">
-            <span className="recap__k">세션</span>
+            <span className="recap__k">{copy.resultSessionLabel}</span>
             <span className="recap__v">
               {isOut ? (
                 <span className="chip" style={{ padding: "3px 9px" }}>
-                  완료
+                  {copy.resultSessionDone}
                 </span>
               ) : (
                 <span className="chip c-open" style={{ padding: "3px 9px" }}>
                   <span className="d" />
-                  진행 중
+                  {copy.resultSessionOpen}
                 </span>
               )}
             </span>
@@ -349,7 +355,7 @@ function ResultSheet({
         </div>
         <div className="rbtns">
           <button type="button" className="rbtn rbtn--primary" onClick={onHome}>
-            확인
+            {copy.resultConfirm}
           </button>
         </div>
       </>
@@ -360,25 +366,21 @@ function ResultSheet({
     return (
       <>
         <div className="rsheet__ic ic-warn">{AttIcon.pin}</div>
-        <h3 className="rsheet__t">허용 범위 밖이에요</h3>
-        <p className="rsheet__s">현장 반경 안에서 다시 시도해 주세요</p>
+        <h3 className="rsheet__t">{copy.resultRadiusTitle}</h3>
+        <p className="rsheet__s">{copy.resultRadiusSub}</p>
         <div className="failnote warn">
           <AIc>{AttIcon.warn}</AIc>
           <div style={{ flex: 1 }}>
-            <b>
-              {result.siteName ?? "현장"} 반경 {result.radiusMeters ?? "—"}m를 벗어났습니다
-            </b>
-            <p>
-              현재 위치가 현장에서 <b>약 {result.distanceMeters ?? "—"}m</b> 떨어져 있어요.
-            </p>
+            <b>{copy.resultRadiusDetail(result.siteName ?? copy.resultSiteFallback, result.radiusMeters ?? "—")}</b>
+            <p>{copy.resultRadiusDistance(result.distanceMeters ?? "—")}</p>
           </div>
         </div>
         <div className="rbtns">
           <button type="button" className="rbtn rbtn--retry" onClick={onRetry}>
-            <AIc>{AttIcon.refresh}</AIc>다시 시도
+            <AIc>{AttIcon.refresh}</AIc>{copy.resultRetry}
           </button>
           <Link href="/mobile/attendance/correction" className="rbtn rbtn--ghost">
-            <AIc>{AttIcon.edit}</AIc>정정 요청
+            <AIc>{AttIcon.edit}</AIc>{copy.resultCorrection}
           </Link>
         </div>
       </>
@@ -389,23 +391,21 @@ function ResultSheet({
     return (
       <>
         <div className="rsheet__ic ic-fail">{AttIcon.gpsoff}</div>
-        <h3 className="rsheet__t">위치 권한이 필요해요</h3>
-        <p className="rsheet__s">GPS 권한이 꺼져 있어 인증할 수 없어요</p>
+        <h3 className="rsheet__t">{copy.resultGpsTitle}</h3>
+        <p className="rsheet__s">{copy.resultGpsSub}</p>
         <div className="failnote">
           <AIc>{AttIcon.warn}</AIc>
           <div>
-            <b>위치 접근 권한 거부됨</b>
-            <p>
-              브라우저/기기 설정에서 위치 권한을 <b>허용</b>으로 변경한 뒤 다시 시도해 주세요.
-            </p>
+            <b>{copy.resultGpsDetail}</b>
+            <p>{copy.resultGpsHint}</p>
           </div>
         </div>
         <div className="rbtns">
           <button type="button" className="rbtn rbtn--primary" onClick={onRetry}>
-            <AIc>{AttIcon.refresh}</AIc>다시 시도
+            <AIc>{AttIcon.refresh}</AIc>{copy.resultRetry}
           </button>
           <Link href="/mobile/attendance/correction" className="rbtn rbtn--ghost">
-            <AIc>{AttIcon.edit}</AIc>정정 요청
+            <AIc>{AttIcon.edit}</AIc>{copy.resultCorrection}
           </Link>
         </div>
       </>
@@ -416,21 +416,20 @@ function ResultSheet({
     return (
       <>
         <div className="rsheet__ic ic-fail">{AttIcon.qr}</div>
-        <h3 className="rsheet__t">QR을 인식할 수 없어요</h3>
-        <p className="rsheet__s">유효하지 않거나 비활성화된 QR이에요</p>
+        <h3 className="rsheet__t">{copy.resultQrTitle}</h3>
+        <p className="rsheet__s">{copy.resultQrSub}</p>
         <div className="failnote">
           <AIc>{AttIcon.warn}</AIc>
           <div>
-            <b>현장 QR을 다시 확인해 주세요</b>
-            <p>현장에 부착된 QR이 맞는지 확인한 뒤 다시 스캔해 주세요.</p>
+            <b>{copy.resultQrDetail}</b>
           </div>
         </div>
         <div className="rbtns">
           <button type="button" className="rbtn rbtn--primary" onClick={onRetry}>
-            <AIc>{AttIcon.refresh}</AIc>다시 시도
+            <AIc>{AttIcon.refresh}</AIc>{copy.resultRetry}
           </button>
           <Link href="/mobile/attendance/correction" className="rbtn rbtn--ghost">
-            <AIc>{AttIcon.edit}</AIc>정정 요청
+            <AIc>{AttIcon.edit}</AIc>{copy.resultCorrection}
           </Link>
         </div>
       </>
@@ -441,18 +440,18 @@ function ResultSheet({
     return (
       <>
         <div className="rsheet__ic ic-warn">{AttIcon.warn}</div>
-        <h3 className="rsheet__t">이미 근무 중이에요</h3>
-        <p className="rsheet__s">진행 중인 근무가 있어 새로 출근할 수 없어요</p>
+        <h3 className="rsheet__t">{copy.resultOpenSessionTitle}</h3>
+        <p className="rsheet__s">{copy.resultOpenSessionSub}</p>
         <div className="failnote warn">
           <AIc>{AttIcon.info}</AIc>
           <div>
-            <b>먼저 퇴근해 주세요</b>
-            <p>진행 중인 근무를 종료한 뒤 다시 출근할 수 있어요.</p>
+            <b>{copy.resultOpenSessionHint}</b>
+            <p>{copy.resultOpenSessionCanRetry}</p>
           </div>
         </div>
         <div className="rbtns">
           <button type="button" className="rbtn rbtn--primary" onClick={onHome}>
-            홈으로
+            {copy.resultHomeButton}
           </button>
         </div>
       </>
@@ -463,21 +462,21 @@ function ResultSheet({
     return (
       <>
         <div className="rsheet__ic ic-warn">{AttIcon.warn}</div>
-        <h3 className="rsheet__t">진행 중인 근무가 없어요</h3>
-        <p className="rsheet__s">출근 기록이 없어 퇴근할 수 없어요</p>
+        <h3 className="rsheet__t">{copy.resultNoSessionTitle}</h3>
+        <p className="rsheet__s">{copy.resultNoSessionSub}</p>
         <div className="failnote warn">
           <AIc>{AttIcon.info}</AIc>
           <div>
-            <b>출근 기록을 찾을 수 없어요</b>
-            <p>출근 처리가 누락된 경우 정정 요청으로 등록해 주세요.</p>
+            <b>{copy.resultNoSessionCheck}</b>
+            <p>{copy.resultNoSessionHint}</p>
           </div>
         </div>
         <div className="rbtns">
           <button type="button" className="rbtn rbtn--primary" onClick={onHome}>
-            홈으로
+            {copy.resultHomeButton}
           </button>
           <Link href="/mobile/attendance/correction" className="rbtn rbtn--ghost">
-            <AIc>{AttIcon.edit}</AIc>정정 요청
+            <AIc>{AttIcon.edit}</AIc>{copy.resultCorrection}
           </Link>
         </div>
       </>
@@ -488,18 +487,18 @@ function ResultSheet({
     return (
       <>
         <div className="rsheet__ic ic-warn">{AttIcon.warn}</div>
-        <h3 className="rsheet__t">휴게 종료 후 퇴근할 수 있어요</h3>
-        <p className="rsheet__s">진행 중인 휴게가 있어 퇴근할 수 없어요</p>
+        <h3 className="rsheet__t">{copy.resultOpenBreakTitle}</h3>
+        <p className="rsheet__s">{copy.resultOpenBreakSub}</p>
         <div className="failnote warn">
           <AIc>{AttIcon.info}</AIc>
           <div>
-            <b>휴게를 먼저 종료해 주세요</b>
-            <p>홈 화면에서 휴게 종료 후 다시 퇴근을 진행해 주세요.</p>
+            <b>{copy.resultOpenBreakEndFirst}</b>
+            <p>{copy.resultOpenBreakHint}</p>
           </div>
         </div>
         <div className="rbtns">
           <button type="button" className="rbtn rbtn--primary" onClick={onHome}>
-            홈으로
+            {copy.resultHomeButton}
           </button>
         </div>
       </>
@@ -510,11 +509,11 @@ function ResultSheet({
   return (
     <>
       <div className="rsheet__ic ic-fail">{AttIcon.warn}</div>
-      <h3 className="rsheet__t">처리 중 문제가 발생했어요</h3>
-      <p className="rsheet__s">잠시 후 다시 시도해 주세요</p>
+      <h3 className="rsheet__t">{copy.resultGenericTitle}</h3>
+      <p className="rsheet__s">{copy.resultGenericSub}</p>
       <div className="rbtns">
         <button type="button" className="rbtn rbtn--primary" onClick={onRetry}>
-          <AIc>{AttIcon.refresh}</AIc>다시 시도
+          <AIc>{AttIcon.refresh}</AIc>{copy.resultRetry}
         </button>
       </div>
     </>

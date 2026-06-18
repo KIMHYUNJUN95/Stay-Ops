@@ -11,6 +11,9 @@ import Link from "next/link";
 import "./attendance.css";
 import { AIc, AttIcon } from "./att-icons";
 import type { AttendanceCorrectionStatus } from "@/lib/attendance";
+import { getDictionary, type Dictionary } from "@/lib/i18n";
+
+type AttendanceCopy = Dictionary["attendance"];
 
 export type CorrectionRequestView = {
   id: string;
@@ -29,17 +32,22 @@ export type CorrectionRequestView = {
   createdAtLabel: string;
 };
 
-const META: Record<
-  AttendanceCorrectionStatus,
-  { chip: string; chipIcon: "none" | "check" | "x"; label: string; stage: number; rejected: boolean }
-> = {
-  requested: { chip: "c-info", chipIcon: "none", label: "요청됨", stage: 0, rejected: false },
-  in_review: { chip: "c-warn", chipIcon: "none", label: "검토 중", stage: 1, rejected: false },
-  approved: { chip: "c-done", chipIcon: "check", label: "승인", stage: 2, rejected: false },
-  rejected: { chip: "c-danger", chipIcon: "x", label: "반려", stage: 2, rejected: true },
+type MetaEntry = {
+  chip: string;
+  chipIcon: "none" | "check" | "x";
+  stage: number;
+  rejected: boolean;
 };
 
-function Steps({ stage, rejected }: { stage: number; rejected: boolean }) {
+function Steps({
+  stage,
+  rejected,
+  copy,
+}: {
+  stage: number;
+  rejected: boolean;
+  copy: AttendanceCopy;
+}) {
   const node = (i: number, label: string) => {
     let cls = "";
     if (rejected) {
@@ -63,16 +71,30 @@ function Steps({ stage, rejected }: { stage: number; rejected: boolean }) {
   const line = (on: boolean) => <span className={`stpline${on ? " done" : ""}`} />;
   return (
     <div className="steps">
-      {node(0, "요청됨")}
+      {node(0, copy.stepRequested)}
       {line(stage >= 1 || rejected)}
-      {node(1, "검토 중")}
+      {node(1, copy.stepInReview)}
       {line(rejected || stage >= 2)}
-      {node(2, rejected ? "반려" : "승인")}
+      {node(2, rejected ? copy.stepRejected : copy.stepApproved)}
     </div>
   );
 }
 
-export function AttendanceCorrectionStatus({ request }: { request: CorrectionRequestView }) {
+export function AttendanceCorrectionStatus({
+  request,
+  locale,
+}: {
+  request: CorrectionRequestView;
+  locale: string;
+}) {
+  const copy = getDictionary(locale).attendance;
+  const META: Record<AttendanceCorrectionStatus, MetaEntry & { label: string }> = {
+    requested: { chip: "c-info", chipIcon: "none", label: copy.stepRequested, stage: 0, rejected: false },
+    in_review: { chip: "c-warn", chipIcon: "none", label: copy.stepInReview, stage: 1, rejected: false },
+    approved: { chip: "c-done", chipIcon: "check", label: copy.stepApproved, stage: 2, rejected: false },
+    rejected: { chip: "c-danger", chipIcon: "x", label: copy.stepRejected, stage: 2, rejected: true },
+  };
+
   const m = META[request.status];
   const editHref = request.sessionId
     ? `/mobile/attendance/correction?sessionId=${request.sessionId}`
@@ -82,16 +104,18 @@ export function AttendanceCorrectionStatus({ request }: { request: CorrectionReq
     <div className="att">
       <div className="caphead">
         <div>
-          <div className="capttl">요청 상태</div>
+          <div className="capttl">{copy.corrStatusTitle}</div>
           <div className="capsub">
-            {request.targetDateLabel ? `${request.targetDateLabel} 세션 정정` : "예외 정정 요청"}
+            {request.targetDateLabel
+              ? copy.corrStatusSubSession(request.targetDateLabel)
+              : copy.corrStatusSubException}
           </div>
         </div>
       </div>
 
       <div className="statushero">
         <div className="statushero__top">
-          <span className="statushero__ttl">정정 요청</span>
+          <span className="statushero__ttl">{copy.corrStatusHeading}</span>
           <span className={`chip ${m.chip}`}>
             {m.chipIcon === "check" ? (
               <AIc>{AttIcon.check}</AIc>
@@ -104,38 +128,40 @@ export function AttendanceCorrectionStatus({ request }: { request: CorrectionReq
           </span>
           <span className="statushero__time">{request.createdAtLabel}</span>
         </div>
-        <Steps stage={m.stage} rejected={m.rejected} />
+        <Steps stage={m.stage} rejected={m.rejected} copy={copy} />
       </div>
 
-      <div className="sectt">요청 내용</div>
+      <div className="sectt">{copy.corrDetailSectionTitle}</div>
       <div className="recap">
         <div className="recap__r">
-          <span className="recap__k">대상</span>
-          <span className="recap__v">{request.targetDateLabel ?? "예외 요청 (세션 없음)"}</span>
+          <span className="recap__k">{copy.corrDetailTarget}</span>
+          <span className="recap__v">{request.targetDateLabel ?? copy.corrDetailNoSession}</span>
         </div>
         <div className="recap__r">
-          <span className="recap__k">사유</span>
+          <span className="recap__k">{copy.corrDetailReason}</span>
           <span className="recap__v">{request.reasonLabel}</span>
         </div>
         <div className="recap__r">
-          <span className="recap__k">희망 출근</span>
+          <span className="recap__k">{copy.corrDetailDesiredIn}</span>
           <span className="recap__v mono">{request.desiredClockInLabel ?? "—"}</span>
         </div>
         <div className="recap__r">
-          <span className="recap__k">희망 퇴근</span>
+          <span className="recap__k">{copy.corrDetailDesiredOut}</span>
           <span className="recap__v mono">{request.desiredClockOutLabel ?? "—"}</span>
         </div>
         <div className="recap__r">
-          <span className="recap__k">장소</span>
-          <span className="recap__v">{request.desiredSiteName ?? "선택 안 함"}</span>
+          <span className="recap__k">{copy.corrDetailSite}</span>
+          <span className="recap__v">{request.desiredSiteName ?? copy.corrSiteNone}</span>
         </div>
         <div className="recap__r">
-          <span className="recap__k">첨부</span>
-          <span className="recap__v">{request.photoCount > 0 ? `사진 ${request.photoCount}장` : "없음"}</span>
+          <span className="recap__k">{copy.corrDetailAttachment}</span>
+          <span className="recap__v">
+            {request.photoCount > 0 ? copy.corrDetailPhotos(request.photoCount) : copy.corrDetailNone}
+          </span>
         </div>
         {request.memo ? (
           <div className="recap__r">
-            <span className="recap__k">메모</span>
+            <span className="recap__k">{copy.corrDetailMemo}</span>
             <span className="recap__v">{request.memo}</span>
           </div>
         ) : null}
@@ -152,12 +178,12 @@ export function AttendanceCorrectionStatus({ request }: { request: CorrectionReq
           >
             <AIc>{AttIcon.info}</AIc>
             <div className="review__b">
-              <b style={{ color: "var(--info)" }}>검토 대기 중</b>
-              <p>관리자가 확인 후 최종 값을 확정합니다. 검토 전까지는 다시 요청할 수 있어요.</p>
+              <b style={{ color: "var(--info)" }}>{copy.corrWaitingTitle}</b>
+              <p>{copy.corrWaitingBody}</p>
             </div>
           </div>
           <Link href={editHref} className="ghostbtn">
-            <AIc>{AttIcon.edit}</AIc>다시 요청
+            <AIc>{AttIcon.edit}</AIc>{copy.corrResend}
           </Link>
         </>
       ) : request.status === "in_review" ? (
@@ -168,33 +194,53 @@ export function AttendanceCorrectionStatus({ request }: { request: CorrectionReq
             border: "1px solid color-mix(in oklab, var(--warn) 22%, transparent)",
           }}
         >
-          <span className="review__av">{(request.reviewerName ?? "관")[0]}</span>
+          <span className="review__av">
+            {(request.reviewerName ?? copy.corrInReviewAdmin)[0]}
+          </span>
           <div className="review__b">
-            <b style={{ color: "var(--warn)" }}>{request.reviewerName ?? "관리자"} 님이 검토 중</b>
-            <p>관리자가 요청을 살펴보고 있어요.</p>
+            <b style={{ color: "var(--warn)" }}>
+              {copy.corrInReviewTitle(request.reviewerName ?? copy.corrInReviewAdmin)}
+            </b>
+            <p>{copy.corrInReviewBody}</p>
           </div>
         </div>
       ) : request.status === "approved" ? (
         <div className="review ok">
-          <span className="review__av">{(request.reviewerName ?? "관")[0]}</span>
+          <span className="review__av">
+            {(request.reviewerName ?? copy.corrInReviewAdmin)[0]}
+          </span>
           <div className="review__b">
-            <b>승인됨{request.reviewerName ? ` — ${request.reviewerName}` : ""}</b>
-            <p>{request.reviewComment ?? "요청이 승인되었습니다."}</p>
-            {request.reviewedAtLabel ? <div className="review__t">승인 {request.reviewedAtLabel}</div> : null}
+            <b>
+              {request.reviewerName
+                ? copy.corrApprovedTitle(request.reviewerName)
+                : copy.stepApproved}
+            </b>
+            <p>{request.reviewComment ?? copy.corrApprovedDefault}</p>
+            {request.reviewedAtLabel ? (
+              <div className="review__t">{copy.corrApprovedAt(request.reviewedAtLabel)}</div>
+            ) : null}
           </div>
         </div>
       ) : (
         <>
           <div className="review rej">
-            <span className="review__av">{(request.reviewerName ?? "관")[0]}</span>
+            <span className="review__av">
+              {(request.reviewerName ?? copy.corrInReviewAdmin)[0]}
+            </span>
             <div className="review__b">
-              <b>반려됨{request.reviewerName ? ` — ${request.reviewerName}` : ""}</b>
-              <p>{request.reviewComment ?? "요청이 반려되었습니다."}</p>
-              {request.reviewedAtLabel ? <div className="review__t">반려 {request.reviewedAtLabel}</div> : null}
+              <b>
+                {request.reviewerName
+                  ? copy.corrRejectedTitle(request.reviewerName)
+                  : copy.stepRejected}
+              </b>
+              <p>{request.reviewComment ?? copy.corrRejectedDefault}</p>
+              {request.reviewedAtLabel ? (
+                <div className="review__t">{copy.corrRejectedAt(request.reviewedAtLabel)}</div>
+              ) : null}
             </div>
           </div>
           <Link href={editHref} className="ghostbtn">
-            <AIc>{AttIcon.edit}</AIc>다시 요청
+            <AIc>{AttIcon.edit}</AIc>{copy.corrResend}
           </Link>
         </>
       )}

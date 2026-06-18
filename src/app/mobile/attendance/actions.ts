@@ -183,10 +183,11 @@ export async function submitAttendanceScan(
   const nowIso = new Date().toISOString();
 
   if (input.mode === "in") {
-    // 5a) One open session per user.
+    // 5a) One open session per user within this org.
     const openRes = await service
       .from("attendance_sessions")
       .select("id")
+      .eq("organization_id", organizationId)
       .eq("user_id", userId)
       .eq("status", "open")
       .maybeSingle();
@@ -230,10 +231,11 @@ export async function submitAttendanceScan(
     };
   }
 
-  // 5b) Clock-out requires an existing open session for this user.
+  // 5b) Clock-out requires an existing open session for this user within this org.
   const openRes = await service
     .from("attendance_sessions")
     .select("*")
+    .eq("organization_id", organizationId)
     .eq("user_id", userId)
     .eq("status", "open")
     .maybeSingle();
@@ -323,14 +325,16 @@ export type BreakActionResult =
   | { ok: true }
   | { ok: false; reason: "no_session" | "already_on_break" | "no_open_break" | "error" };
 
-/** Resolve the caller's single open session id (status = 'open'), or null. */
+/** Resolve the caller's single open session id (status = 'open') within an org, or null. */
 async function getOpenSessionId(
   service: ReturnType<typeof getSupabaseServiceClient>,
   userId: string,
+  organizationId: string,
 ): Promise<string | null> {
   const res = await service
     .from("attendance_sessions")
     .select("id")
+    .eq("organization_id", organizationId)
     .eq("user_id", userId)
     .eq("status", "open")
     .maybeSingle();
@@ -344,7 +348,7 @@ export async function startBreak(): Promise<BreakActionResult> {
   if (!session || !hasOrganizationContext(session)) return { ok: false, reason: "error" };
   const service = getSupabaseServiceClient();
 
-  const sessionId = await getOpenSessionId(service, session.user.id);
+  const sessionId = await getOpenSessionId(service, session.user.id, session.organization.id);
   if (!sessionId) return { ok: false, reason: "no_session" };
 
   const openBreakRes = await service
@@ -372,7 +376,7 @@ export async function endBreak(): Promise<BreakActionResult> {
   if (!session || !hasOrganizationContext(session)) return { ok: false, reason: "error" };
   const service = getSupabaseServiceClient();
 
-  const sessionId = await getOpenSessionId(service, session.user.id);
+  const sessionId = await getOpenSessionId(service, session.user.id, session.organization.id);
   if (!sessionId) return { ok: false, reason: "no_session" };
 
   const openBreakRes = await service
@@ -504,6 +508,7 @@ export async function createAttendanceCorrectionRequest(
       desired_clock_in_site_id: desiredSiteId,
       desired_clock_out_site_id: desiredSiteId,
       image_urls: imageUrls,
+      target_month: `${ym}-01`,
     } as never)
     .select("id")
     .single()) as { data: { id: string } | null; error: { message: string } | null };
@@ -554,6 +559,7 @@ export async function respondOpenSessionReminder(
   const openRes = await service
     .from("attendance_sessions")
     .select("id")
+    .eq("organization_id", organizationId)
     .eq("user_id", userId)
     .eq("status", "open")
     .maybeSingle();
@@ -571,7 +577,7 @@ export async function respondOpenSessionReminder(
         response,
         responded_at: new Date().toISOString(),
       } as never,
-      { onConflict: "user_id,operating_date" },
+      { onConflict: "organization_id,user_id,operating_date" },
     );
   if (up.error) return { ok: false, reason: "error" };
 

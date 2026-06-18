@@ -436,7 +436,7 @@ export function SuggestionsDetail({
               <div
                 className={`sheet${sheetOpen ? " show" : ""}`}
                 data-sheet
-                style={statusDrag.sheetStyle}
+                style={{ ...statusDrag.sheetStyle, opacity: statusDrag.scrimStyle.opacity }}
                 role="dialog"
                 aria-modal="true"
               >
@@ -513,7 +513,7 @@ export function SuggestionsDetail({
               <div
                 className={`sheet${reasonOpen ? " show" : ""}`}
                 data-sheet
-                style={reasonDrag.sheetStyle}
+                style={{ ...reasonDrag.sheetStyle, opacity: reasonDrag.scrimStyle.opacity }}
                 role="dialog"
                 aria-modal="true"
               >
@@ -590,7 +590,7 @@ export function SuggestionsDetail({
               <div
                 className={`sheet${completeOpen ? " show" : ""}`}
                 data-sheet
-                style={completeDrag.sheetStyle}
+                style={{ ...completeDrag.sheetStyle, opacity: completeDrag.scrimStyle.opacity }}
                 role="dialog"
                 aria-modal="true"
               >
@@ -704,7 +704,7 @@ export function SuggestionsDetail({
               <div
                 className={`csheet${commentOpen ? " show" : ""}`}
                 data-sheet
-                style={commentDrag.sheetStyle}
+                style={{ ...commentDrag.sheetStyle, opacity: commentDrag.scrimStyle.opacity }}
                 role="dialog"
                 aria-modal="true"
               >
@@ -766,7 +766,7 @@ export function SuggestionsDetail({
               <div
                 className={`lsheet${likeSheetOpen ? " show" : ""}`}
                 data-sheet
-                style={likeDrag.sheetStyle}
+                style={{ ...likeDrag.sheetStyle, opacity: likeDrag.scrimStyle.opacity }}
                 role="dialog"
                 aria-modal="true"
               >

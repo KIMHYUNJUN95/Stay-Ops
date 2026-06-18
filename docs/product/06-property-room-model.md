@@ -139,7 +139,8 @@ Model implication:
 - Active room filter is implemented in `src/lib/rooms.ts`:
   - Constant: `BEDS24_INACTIVE_MIN_STAY_THRESHOLD = 50`
   - Helper: `getActiveRoomLabels(organizationId, supabase)` excludes Beds24 rooms with `external_minimum_stay >= 50`
-  - Beds24 rows with `external_minimum_stay = null` are also excluded until sync data is complete enough to classify them
+  - Beds24 rows with `external_minimum_stay = null` are **included as active** (2026-06-18, was excluded).
+    Unknown min-stay must not hide a real room or drop its reservations; only an explicit `>= 50` excludes.
 - Property sync key policy:
   - prefer `(organization_id, external_provider, external_property_id)` when the Beds24 property ID exists
   - fall back to `(organization_id, name)` only when the webhook payload omits `external_property_id`
@@ -151,7 +152,7 @@ Model implication:
   - recomputes `rooms.status` via `classifyBeds24Room(minimumStay)`
 - First valid webhook arrival will populate the tables.
 - Once classified room-master rows exist, the calendar treats the organization as room-master-connected.
-- Booking-webhook-only Beds24 rows with `external_minimum_stay = null` do not count as classified room-master rows yet.
+- Booking-webhook-only Beds24 rows with `external_minimum_stay = null` **do** count as classified, active room-master rows as of 2026-06-18 (so their reservations render immediately).
 - If the active room list is empty after classification data exists, the calendar uses authoritative zero-room state instead of reverting to reservation-observed fallback.
 - `src/lib/beds24/room-sync.ts` encapsulates the sync logic: extraction, classification, property upsert, room upsert.
 

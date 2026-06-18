@@ -91,6 +91,7 @@ export async function getFinalizationEligibility(
 
   const sessionIds = sessions.map((s) => s.id);
   let pendingCorrections = 0;
+  // Session-linked corrections: any pending request tied to a session in this month.
   if (sessionIds.length > 0) {
     const cr = await service
       .from("attendance_correction_requests")
@@ -99,8 +100,18 @@ export async function getFinalizationEligibility(
       .eq("requested_by_user_id", userId)
       .in("status", ["requested", "in_review"])
       .in("session_id", sessionIds);
-    pendingCorrections = (cr.data ?? []).length;
+    pendingCorrections += (cr.data ?? []).length;
   }
+  // Session-less corrections: exception requests not tied to any session, targeting this month.
+  const crNull = await service
+    .from("attendance_correction_requests")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("requested_by_user_id", userId)
+    .in("status", ["requested", "in_review"])
+    .is("session_id", null)
+    .eq("target_month", firstDay);
+  pendingCorrections += (crNull.data ?? []).length;
 
   const alreadyFinalized =
     (await getCurrentFinalizedSnapshot(service, organizationId, userId, ym)) != null;

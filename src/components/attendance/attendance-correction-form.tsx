@@ -14,7 +14,11 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import "./attendance.css";
 import { AIc, AttIcon } from "./att-icons";
-import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
+import {
+  TimePickerSheet,
+  formatTimeDisplay,
+} from "./time-picker-sheet";
 import {
   compressImageFile,
   type PreviewItem,
@@ -25,6 +29,9 @@ import {
   type CreateCorrectionInput,
 } from "@/app/mobile/attendance/actions";
 import type { AttendanceCorrectionReason } from "@/lib/attendance";
+import { getDictionary, type Dictionary } from "@/lib/i18n";
+
+type AttendanceCopy = Dictionary["attendance"];
 
 type SessionContext = {
   dateLabel: string;
@@ -33,30 +40,33 @@ type SessionContext = {
   siteName: string | null;
 };
 
-const REASONS: { value: AttendanceCorrectionReason; label: string }[] = [
-  { value: "missing_clock_in", label: "출근 누락" },
-  { value: "missing_clock_out", label: "퇴근 누락" },
-  { value: "wrong_time", label: "시각 오류" },
-  { value: "wrong_site", label: "장소 오류" },
-  { value: "auth_failed", label: "인증 실패" },
-  { value: "other", label: "기타" },
-];
-
 const MAX_PHOTOS = 5;
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+
+const REASON_VALUES: AttendanceCorrectionReason[] = [
+  "missing_clock_in",
+  "missing_clock_out",
+  "wrong_time",
+  "wrong_site",
+  "auth_failed",
+  "other",
+];
 
 export function AttendanceCorrectionForm({
   organizationId,
   sessionId,
   sessionContext,
   sites,
+  locale,
 }: {
   organizationId: string;
   sessionId: string | null;
   sessionContext: SessionContext | null;
   sites: { id: string; name: string }[];
+  locale: string;
 }) {
+  const copy = getDictionary(locale).attendance;
   const router = useRouter();
   const hydrated = useSyncExternalStore(
     () => () => {},
@@ -72,6 +82,8 @@ export function AttendanceCorrectionForm({
   const [memo, setMemo] = useState<string>("");
   const [photos, setPhotos] = useState<PreviewItem[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [inPickerOpen, setInPickerOpen] = useState(false);
+  const [outPickerOpen, setOutPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -80,7 +92,14 @@ export function AttendanceCorrectionForm({
     [siteId, sites],
   );
 
-  const drag = useSheetDragDismiss({ shown: pickerOpen, onDismiss: () => setPickerOpen(false) });
+  const reasonLabels: Record<AttendanceCorrectionReason, string> = {
+    missing_clock_in: copy.reasonMissingIn,
+    missing_clock_out: copy.reasonMissingOut,
+    wrong_time: copy.reasonWrongTime,
+    wrong_site: copy.reasonWrongSite,
+    auth_failed: copy.reasonAuthFailed,
+    other: copy.reasonOther,
+  };
 
   async function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(e.target.files ?? []);
@@ -89,7 +108,7 @@ export function AttendanceCorrectionForm({
     if (selected.some((f) => !ALLOWED_TYPES.includes(f.type))) return;
     if (selected.some((f) => f.size > MAX_BYTES)) return;
     if (photos.length + selected.length > MAX_PHOTOS) {
-      setError("사진은 최대 5장까지 첨부할 수 있어요");
+      setError(copy.corrErrPhotoLimit(MAX_PHOTOS));
       return;
     }
     setError(null);
@@ -129,7 +148,7 @@ export function AttendanceCorrectionForm({
           });
           imageUrls = uploaded.imageUrls;
         } catch {
-          setError("사진 업로드에 실패했어요. 다시 시도해 주세요.");
+          setError(copy.corrErrPhotoUpload);
           return;
         }
       }
@@ -150,12 +169,12 @@ export function AttendanceCorrectionForm({
       }
       setError(
         res.reason === "out_of_range"
-          ? "당월·전월 기록만 정정 요청할 수 있어요"
+          ? copy.corrErrOutOfRange
           : res.reason === "forbidden"
-            ? "본인 기록에 대해서만 요청할 수 있어요"
+            ? copy.corrErrForbidden
             : res.reason === "invalid"
-              ? "입력 내용을 확인해 주세요"
-              : "잠시 후 다시 시도해 주세요",
+              ? copy.corrErrInvalid
+              : resultGenericSub(copy),
       );
     });
   }
@@ -165,9 +184,11 @@ export function AttendanceCorrectionForm({
       <div className="scroll-pad" style={{ paddingBottom: "96px" }}>
         <div className="caphead">
           <div>
-            <div className="capttl">정정 요청</div>
+            <div className="capttl">{copy.corrFormTitle}</div>
             <div className="capsub">
-              {sessionContext ? `${sessionContext.dateLabel} 세션 · ` : "예외 요청 · "}당월·전월만 가능
+              {sessionContext
+                ? copy.corrSubWithSession(sessionContext.dateLabel)
+                : copy.corrSubException}
             </div>
           </div>
         </div>
@@ -176,30 +197,34 @@ export function AttendanceCorrectionForm({
           <span className="srcsess__ic">{AttIcon.clock}</span>
           <div className="srcsess__b">
             <div className="srcsess__d">
-              {sessionContext ? `${sessionContext.dateLabel} 근무` : "세션 없는 예외 요청"}
+              {sessionContext ? copy.corrSessLabel(sessionContext.dateLabel) : copy.corrSessNoSession}
             </div>
             <div className="srcsess__m">
               <AIc>{AttIcon.pin}</AIc>
               {sessionContext
-                ? `${sessionContext.siteName ?? "장소 미확인"} · 출근 ${sessionContext.clockInTime ?? "기록 없음"} · 퇴근 ${sessionContext.clockOutTime ?? "기록 없음"}`
-                : "오늘 날짜 기준으로 접수돼요"}
+                ? copy.corrSessMeta(
+                    sessionContext.siteName ?? copy.corrSessNoSite,
+                    sessionContext.clockInTime ?? copy.corrSessNoRecord,
+                    sessionContext.clockOutTime ?? copy.corrSessNoRecord,
+                  )
+                : copy.corrSessExceptionNote}
             </div>
           </div>
         </div>
 
         <div className="field">
           <div className="field__l">
-            사유 유형 <span className="req">*</span>
+            {copy.corrFieldReason} <span className="req">*</span>
           </div>
           <div className="rchips">
-            {REASONS.map((r) => (
+            {REASON_VALUES.map((v) => (
               <button
-                key={r.value}
+                key={v}
                 type="button"
-                className={`rchip${reason === r.value ? " on" : ""}`}
-                onClick={() => setReason(r.value)}
+                className={`rchip${reason === v ? " on" : ""}`}
+                onClick={() => setReason(v)}
               >
-                {r.label}
+                {reasonLabels[v]}
               </button>
             ))}
           </div>
@@ -207,45 +232,47 @@ export function AttendanceCorrectionForm({
 
         <div className="field">
           <div className="field__l">
-            희망 출 · 퇴근 시각 <span className="opt">선택</span>
+            {copy.corrFieldTime} <span className="opt">{copy.corrFieldTimeOpt}</span>
           </div>
           <div className="duo">
-            <div className="ibox">
-              <div className="ibox__k">출근</div>
+            <button
+              type="button"
+              className="ibox"
+              onClick={() => setInPickerOpen(true)}
+            >
+              <div className="ibox__k">{copy.corrFieldClockIn}</div>
               <div className="ibox__v mono">
                 <AIc>{AttIcon.clock}</AIc>
-                <input
-                  type="time"
-                  className="timein"
-                  value={inTime}
-                  onChange={(e) => setInTime(e.target.value)}
-                />
+                <span className={inTime ? "" : "ibox__ph"}>
+                  {formatTimeDisplay(inTime, locale)}
+                </span>
               </div>
-            </div>
-            <div className="ibox">
-              <div className="ibox__k">퇴근</div>
+            </button>
+            <button
+              type="button"
+              className="ibox"
+              onClick={() => setOutPickerOpen(true)}
+            >
+              <div className="ibox__k">{copy.corrFieldClockOut}</div>
               <div className="ibox__v mono">
                 <AIc>{AttIcon.clock}</AIc>
-                <input
-                  type="time"
-                  className="timein"
-                  value={outTime}
-                  onChange={(e) => setOutTime(e.target.value)}
-                />
+                <span className={outTime ? "" : "ibox__ph"}>
+                  {formatTimeDisplay(outTime, locale)}
+                </span>
               </div>
-            </div>
+            </button>
           </div>
         </div>
 
         <div className="field">
           <div className="field__l">
-            희망 장소 <span className="opt">출/퇴근 동일</span>
+            {copy.corrFieldSite} <span className="opt">{copy.corrFieldSiteOpt}</span>
           </div>
           <button type="button" className="sitebox" onClick={() => setPickerOpen(true)}>
             <AIc>{AttIcon.pin}</AIc>
             <div className="sitebox__b">
-              <b>{siteName ?? "선택 안 함"}</b>
-              <span>{siteName ? "탭하여 변경" : "탭하여 현장 선택"}</span>
+              <b>{siteName ?? copy.corrSiteNone}</b>
+              <span>{siteName ? copy.corrFieldSiteChange : copy.corrFieldSiteSelect}</span>
             </div>
             <span className="chev">{AttIcon.chevR}</span>
           </button>
@@ -253,20 +280,20 @@ export function AttendanceCorrectionForm({
 
         <div className="field">
           <div className="field__l">
-            메모 <span className="opt">선택</span>
+            {copy.corrFieldMemo} <span className="opt">{copy.corrFieldMemoOpt}</span>
           </div>
           <textarea
             className="memo"
             rows={3}
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
-            placeholder="상황을 간단히 적어 주세요 (예: QR 인식이 안 돼 퇴근을 못 찍었어요)"
+            placeholder={copy.corrFieldMemoPlaceholder}
           />
         </div>
 
         <div className="field">
           <div className="field__l">
-            사진 <span className="opt">선택 · 최대 5장</span>
+            {copy.corrFieldPhoto} <span className="opt">{copy.corrFieldPhotoOpt}</span>
           </div>
           <div className="photos">
             {photos.map((p) => (
@@ -275,7 +302,12 @@ export function AttendanceCorrectionForm({
                 className="photo-thumb"
                 style={{ backgroundImage: `url(${p.previewUrl})`, backgroundSize: "cover", backgroundPosition: "center" }}
               >
-                <button type="button" className="x" onClick={() => removePhoto(p.id)} aria-label="삭제">
+                <button
+                  type="button"
+                  className="x"
+                  onClick={() => removePhoto(p.id)}
+                  aria-label={copy.corrFieldPhotoDelete}
+                >
                   {AttIcon.x}
                 </button>
               </div>
@@ -283,7 +315,7 @@ export function AttendanceCorrectionForm({
             {photos.length < MAX_PHOTOS ? (
               <button type="button" className="photo-add" onClick={() => fileRef.current?.click()}>
                 <AIc>{AttIcon.image}</AIc>
-                <span>추가</span>
+                <span>{copy.corrFieldPhotoAdd}</span>
               </button>
             ) : null}
           </div>
@@ -297,7 +329,7 @@ export function AttendanceCorrectionForm({
           />
           <div className="helper">
             <AIc>{AttIcon.info}</AIc>
-            <span>관리자가 검토 후 최종 값을 확정합니다. 자동 반영되지 않아요.</span>
+            <span>{copy.corrFieldHelper}</span>
           </div>
           {error ? (
             <div className="helper" style={{ color: "var(--danger)" }}>
@@ -308,55 +340,69 @@ export function AttendanceCorrectionForm({
         </div>
       </div>
 
-      {/* desired-site picker — shared drag-dismiss sheet */}
-      {hydrated && pickerOpen
-        ? createPortal(
+      {/* clock-in time picker */}
+      {inPickerOpen && (
+        <TimePickerSheet
+          value={inTime}
+          label={copy.corrFieldClockIn}
+          confirmLabel={copy.corrTimeConfirm}
+          locale={locale}
+          onConfirm={(v) => setInTime(v)}
+          onClose={() => setInPickerOpen(false)}
+        />
+      )}
+
+      {/* clock-out time picker */}
+      {outPickerOpen && (
+        <TimePickerSheet
+          value={outTime}
+          label={copy.corrFieldClockOut}
+          confirmLabel={copy.corrTimeConfirm}
+          locale={locale}
+          onConfirm={(v) => setOutTime(v)}
+          onClose={() => setOutPickerOpen(false)}
+        />
+      )}
+
+      {/* desired-site picker — canonical BottomSheet */}
+      {pickerOpen && (
+        <BottomSheet onClose={() => setPickerOpen(false)} ariaLabel={copy.corrPickerAriaLabel}>
+          {({ close }) => (
             <div className="att">
-              <div
-                className="dim show"
-                style={drag.scrimStyle}
-                onClick={() => setPickerOpen(false)}
-                aria-hidden="true"
-              />
-              <div className="rsheet" data-sheet role="dialog" aria-modal="true" style={drag.sheetStyle}>
-                <div {...drag.handleProps}>
-                  <div className="rsheet__handle" />
-                </div>
-                <h3 className="rsheet__t">희망 장소</h3>
-                <div className="cpick">
+              <h3 className="rsheet__t">{copy.corrPickerTitle}</h3>
+              <div className="cpick">
+                <button
+                  type="button"
+                  className={`cpick__item${siteId === null ? " on" : ""}`}
+                  onClick={() => {
+                    setSiteId(null);
+                    close();
+                  }}
+                >
+                  {copy.corrSiteNone}
+                </button>
+                {sites.map((s) => (
                   <button
+                    key={s.id}
                     type="button"
-                    className={`cpick__item${siteId === null ? " on" : ""}`}
+                    className={`cpick__item${siteId === s.id ? " on" : ""}`}
                     onClick={() => {
-                      setSiteId(null);
-                      setPickerOpen(false);
+                      setSiteId(s.id);
+                      close();
                     }}
                   >
-                    선택 안 함
+                    <AIc>{AttIcon.pin}</AIc>
+                    {s.name}
                   </button>
-                  {sites.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      className={`cpick__item${siteId === s.id ? " on" : ""}`}
-                      onClick={() => {
-                        setSiteId(s.id);
-                        setPickerOpen(false);
-                      }}
-                    >
-                      <AIc>{AttIcon.pin}</AIc>
-                      {s.name}
-                    </button>
-                  ))}
-                  {sites.length === 0 ? (
-                    <div className="cpick__empty">등록된 현장이 없어요</div>
-                  ) : null}
-                </div>
+                ))}
+                {sites.length === 0 ? (
+                  <div className="cpick__empty">{copy.corrPickerEmpty}</div>
+                ) : null}
               </div>
-            </div>,
-            document.body,
-          )
-        : null}
+            </div>
+          )}
+        </BottomSheet>
+      )}
 
       {/* fixed submit bar — portaled to <body> (shell scroll transform traps `position: fixed`). */}
       {hydrated
@@ -365,7 +411,7 @@ export function AttendanceCorrectionForm({
               <div className="submitbar">
                 <button type="button" className="submitbtn" onClick={submit} disabled={isPending}>
                   <AIc>{AttIcon.send}</AIc>
-                  {isPending ? "보내는 중…" : "정정 요청 보내기"}
+                  {isPending ? copy.corrSubmitting : copy.corrSubmit}
                 </button>
               </div>
             </div>,
@@ -374,4 +420,8 @@ export function AttendanceCorrectionForm({
         : null}
     </div>
   );
+}
+
+function resultGenericSub(copy: AttendanceCopy): string {
+  return copy.resultGenericSub;
 }

@@ -61,6 +61,86 @@ Consequence: Product `22`, tech-design `12`, user-role notes, data-model notes, 
 
 Status: Planned direction confirmed for design (2026-06-16)
 
+## 2026-06-18
+
+### Auth / Signup / Organization Join Policy Reset
+
+Decision: the login/onboarding policy was redefined before implementation changes. The product now
+targets the following auth model:
+
+- Support **Google login/signup** and **standard email + password signup/login**
+- Remove **email magic-link** from the product plan
+- Treat Google as an **authentication method only**
+- Do **not** import Google profile name/phone into StayOps operational profile fields
+
+Required onboarding fields after authentication:
+
+- name
+- date of birth
+- phone number
+- preferred language
+- team invite code
+
+Rules:
+
+- Authentication alone does not grant app access
+- Users without a valid team invite code cannot use any StayOps features
+- Incomplete users must always return to onboarding
+- Email signup requires email verification
+- Password reset uses reset-email flow
+- Password policy: minimum 8 chars, letter + number required, special char optional
+- Email login attempts should be temporarily rate-limited after repeated failures
+
+Identity rules:
+
+- The same email address maps to a single StayOps account
+- Google and email/password should attach to the same account when the email matches
+- Phone number is account-level unique
+- If signup is retried on an incomplete account, resume onboarding instead of creating a duplicate account
+
+Invite-code rules:
+
+- Team invite code determines **organization + signup role category**
+- Signup categories:
+  - Part-time Staff
+  - Office Staff
+  - Field Staff
+  - Part-time Staff (Manager)
+  - Owner
+- `Owner` invite code is one-time only
+- All other invite codes are multi-use with:
+  - 3-month validity
+  - max 100 joins
+- Invite-code success should show the resolved organization and role before final join
+
+Organization rules:
+
+- A user can belong to multiple organizations
+- Login should auto-enter the last-used organization
+- Organization switching is in-app, not on every login
+- Joining an additional organization uses a new team invite code only (no need to re-enter full profile)
+
+Organization-creation rules:
+
+- The first person who creates an organization becomes that organization's first owner
+- Not everyone can freely create organizations
+- New organization creation requires an allowed organization-creation path/code
+- Until dashboard management exists, the initial organization / first owner / initial invite codes are
+  bootstrapped manually in the database
+
+Data / account rules:
+
+- Name is organization-visible by default
+- Phone number is private by default
+- Date of birth is private by default and viewable only by the user plus tightly limited admin access
+- Users may edit name / date of birth / phone number later
+- Team invite code is not editable after join
+- Organization leave and full account deletion are separate actions
+- Account deletion requires re-authentication and should preserve operational records while removing
+  account access
+
+Status: Confirmed planning baseline (2026-06-18). Implementation and schema cleanup still pending.
+
 ## 2026-05-04
 
 ### Project Name
@@ -102,13 +182,15 @@ Status: Confirmed
 
 Decision: Signup requires name, email or social login, language selection, invitation link or invite code, and phone number. Age and profile photo are optional after signup.
 
-Status: Confirmed
+Status: **Superseded by 2026-06-18 auth reset** — current target fields are name, date of birth,
+phone number, preferred language, and team invite code.
 
 ### Social Login Profile Completion
 
 Decision: Social login may prefill email, name, and profile photo when available, but users must confirm or enter missing required fields. Prefilled profile information should be editable.
 
-Status: Confirmed
+Status: **Superseded by 2026-06-18 auth reset** — Google profile data should not auto-fill StayOps
+operational profile fields.
 
 ### Product Type
 
@@ -647,7 +729,8 @@ Rules:
 - Part-time staff join by invite code.
 - Owner/Office Admin can manage invitations, invite codes, roles, and deactivation.
 
-Status: Confirmed
+Status: **Superseded by 2026-06-18 auth reset** — target rule is organization creation through an
+allowed organization-creation path/code, with the first creator becoming the first owner.
 
 ### Invite Code Policy
 
@@ -1293,19 +1376,38 @@ Status: Confirmed (2026-06-13). No env var required.
 
 ### Mobile-first login routing
 
-Decision: On the login page (`src/app/auth/login/page.tsx`), detect the device via the
-`user-agent` request header; when it is a phone/tablet, force the post-login destination to
-`/mobile` (`effectiveNext`), overriding both the role-based admin default (`state.redirectTo`)
-and any `?next=/admin/...` value. The dev-seed login also collapses to a single "mobile" button
-on mobile devices (admin/field choices remain desktop-only).
+Decision: the product must no longer show a manual "choose dashboard vs mobile" landing screen.
+Entry routing should be automatic by device.
 
-Reason: Mobile access should always land in the mobile app without a manual version choice.
-`effectiveNext` flows through `signInWithEmail`/`signInWithGoogle` → `/auth/callback`
+Rules:
+
+- **Desktop / PC access** should go directly to the **admin dashboard/web surface**
+- **Mobile / tablet access** should go directly to the **mobile app surface** (`/mobile`)
+- The old root-level manual chooser / dev-style entry screen must be removed from the real product flow
+- Any future "open mobile version from dashboard" behavior should live **inside the dashboard**, not on
+  the public root entry screen
+
+Implementation direction:
+
+- On `/`, phones/tablets are redirected straight to `/mobile` instead of showing the desktop/dev
+  entry chooser.
+- On `/`, desktop users should be routed straight into the admin/dashboard side rather than seeing a
+  version-choice landing page.
+- On `/auth/login`, phones/tablets force the post-login destination to `/mobile`
+  (`effectiveNext`), overriding both the role-based admin default (`state.redirectTo`) and any
+  `?next=/admin/...` value.
+- On mobile devices, the dev-seed login collapses to a single test-admin button labeled
+  **Stay Ops E2E Admin** for local QA only.
+
+Reason: users should never have to decide between "dashboard version" and "mobile version" on the
+first screen. The correct surface should be selected automatically by device. `effectiveNext`
+still flows through `signInWithEmail`/`signInWithGoogle` → `/auth/callback`
 (`dest = safeNext || state.redirectTo`), so it is honored end-to-end; middleware only guards
-auth and does not re-route by role, so `/mobile` sticks. Admins on a phone accept landing in
-`/mobile` (admin web stays reachable from desktop).
+auth and does not re-route by role, so `/mobile` sticks on phones. The desktop side should
+eventually stop rendering `DevEntry` entirely and go straight to dashboard routing.
 
-Status: Confirmed (2026-06-10).
+Status: Confirmed (2026-06-10), expanded on 2026-06-18. **Follow-up implementation still required
+for the desktop root route to replace `DevEntry` with direct dashboard routing.**
 
 ### Bottom sheets — iOS drag-to-dismiss; header close (X) removed
 

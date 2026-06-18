@@ -212,8 +212,11 @@ All mobile screens that use `MobileShell` must inherit the unified mobile shell 
 - Top chrome: custom two-line hamburger menu trigger (shorter bottom line), centered StayOps wordmark, profile avatar link.
 - Top chrome is scroll-aware: it hides on downward scroll and returns on upward scroll.
 - Side menu: the top-left menu trigger opens a 78%-width left slide-out menu; the main screen shifts right and the remaining visible area is dimmed.
-- Bottom navigation: five-tab floating liquid-glass capsule overlay.
+- Bottom navigation: the current shared contract is the flat white bottom-attached tab bar with a center FAB, not a floating capsule.
 - Base surface: pure-white shell/background. Liquid Glass is partial and must not be used as a blanket full-screen treatment.
+- Top bar and bottom tab bar must stay globally consistent across features unless an explicit documented design decision changes them.
+- Bottom sheets must stay globally consistent too: iPhone-style drag-down-to-dismiss from the upper touch area/handle, plus empty-scrim tap dismissal.
+- Do not create feature-specific bottom-sheet closing patterns or overly narrow drag areas.
 - Do not add page-specific controls, titles, or secondary icons to the header.
 - The `title` prop on `MobileShell` is for `aria-label` on `<main>` only; it is not rendered in the header.
 - New mobile pages must not reinstate the old stacked-title pattern.
@@ -254,7 +257,7 @@ Do not conflate "baseline done" with "feature complete." The docs are the ground
   - lists mode (check-in/check-out/staying),
   - reservation detail bottom-sheet modal,
   - month navigation via `month=YYYY-MM` query (prev/next controls).
-- Keep the global mobile shell contract unchanged (`[two-line hamburger] StayOps [Profile]`, scroll-aware top chrome, 78% side menu, floating capsule bottom tabs).
+- Keep the global mobile shell contract unchanged (`[two-line hamburger] StayOps [Profile]`, scroll-aware top chrome, 78% side menu, flat white bottom tab bar with center FAB, shared drag-down bottom sheets).
 ## 2026-05-27 Workflow Rule Update
 
 - Documentation-first enforcement is now explicit for all contributors:

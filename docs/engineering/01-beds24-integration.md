@@ -78,13 +78,17 @@ Implementation (2026-05-24):
 - `BEDS24_INACTIVE_MIN_STAY_THRESHOLD = 50` constant in `src/lib/rooms.ts`.
 - `isInactiveBeds24Room(minimumStay)` and `getActiveRoomLabels(organizationId, supabase)` in the same file.
 - `rooms.external_minimum_stay int` column stores the Beds24 minimum stay for each room row.
-- Safety rule in the query layer (`getActiveRoomLabels`):
+- Safety rule in the query layer (`getActiveRoomLabels` / `getActiveRoomCatalog`):
   - Non-Beds24 rooms: always included if `status = 'active'`
-  - Beds24 rooms: included only when `external_minimum_stay` is explicitly present AND `< 50`
-  - Beds24 rooms with `external_minimum_stay >= 50`: excluded
-  - Beds24 rooms with `external_minimum_stay = NULL`: excluded (unclassifiable — not admitted to active inventory)
+  - Beds24 rooms with `external_minimum_stay >= 50`: **excluded** (long-stay/inactive listing)
+  - Beds24 rooms with `external_minimum_stay < 50`: included
+  - Beds24 rooms with `external_minimum_stay = NULL`: **included (active)** as of 2026-06-18.
+    Rationale: webhook payloads do not carry minimumStay, so a freshly-synced room would
+    otherwise be hidden — and its reservations dropped from the calendar — until a separate
+    inventory sync runs. Unknown min-stay must never hide a real room; only an explicit
+    `>= 50` marks a room inactive.
 - Room sync is now live in `src/lib/beds24/room-sync.ts`:
-  - `classifyBeds24Room(null | number)` — null → inactive, >= 50 → inactive, < 50 → active
+  - `classifyBeds24Room(null | number)` — **null → active** (2026-06-18), >= 50 → inactive, 1..49 → active
   - `extractBeds24RoomSyncFields(payload)` — multi-key alias extraction for minimumStay and room fields
   - `syncBeds24PropertyAndRoom(organizationId, fields, supabase)` — property + room upsert
 - The Beds24 webhook (`src/app/api/beds24/webhook/route.ts`) now calls `syncBeds24PropertyAndRoom` on every booking event before the reservation upsert.
@@ -259,9 +263,11 @@ Failure semantics now exposed in sync result:
 Impact:
 
 - Rooms synced via booking webhooks always have `external_minimum_stay = NULL`
-- `classifyBeds24Room(null) = "inactive"` (conservative policy)
-- `getActiveRoomLabels()` excludes these rows and still returns `undefined` until at least one classified room row exists
-- Calendar stays in provisional mode even if webhook-created rooms table rows already exist
+- `classifyBeds24Room(null) = "active"` as of 2026-06-18 (was "inactive"). Webhook-created
+  rooms are now immediately active so their reservations render; a later inventory sync can
+  still flip them to inactive only if `minimumStay >= 50`.
+- `getActiveRoomCatalog()` now counts any existing room row as classified (authoritative mode),
+  and includes null-minStay beds24 rooms as active.
 
 Required follow-up to activate authoritative mode:
 

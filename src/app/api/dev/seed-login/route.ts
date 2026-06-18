@@ -13,12 +13,12 @@ const ACTOR_CONFIG: Record<
 > = {
   admin: {
     email: "stayops.e2e.admin+local@example.com",
-    name: "StayOps E2E Admin",
+    name: "Stay Ops E2E Admin",
     role: "developer_super_admin",
   },
   staff: {
     email: "stayops.e2e.staff+local@example.com",
-    name: "StayOps E2E Staff",
+    name: "Stay Ops E2E Staff",
     role: "staff",
   },
 };

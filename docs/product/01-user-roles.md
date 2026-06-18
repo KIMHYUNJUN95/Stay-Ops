@@ -38,6 +38,22 @@ Important:
 
 ## Organization-Level Roles
 
+## Signup / Invite Categories (2026-06-18 planning baseline)
+
+Login/onboarding must expose the following business-facing role categories through team invite codes:
+
+- Part-time Staff
+- Office Staff
+- Field Staff
+- Part-time Staff (Manager)
+- Owner
+
+Important:
+
+- These are the **invite/onboarding categories** visible to end users.
+- Final internal role slugs and permission mapping still need to be reconciled with the existing role model during auth implementation.
+- The signup flow should not ask the user to choose a role manually; the invite code determines it.
+
 ### Owner
 
 The company representative or business owner.
@@ -171,3 +187,10 @@ TBD:
 - Should part-time staff create order requests directly?
 - Should Staff and Part-Time Staff have different access by property?
 - Which roles can see price/revenue information?
+
+## Auth / Onboarding Rules (2026-06-18 planning baseline)
+
+- A user can belong to more than one organization.
+- One account can hold multiple memberships; one active organization is selected at a time.
+- Login should return the user to the last-used organization by default.
+- Joining an additional organization should require only a new team invite code once the account profile is already complete.

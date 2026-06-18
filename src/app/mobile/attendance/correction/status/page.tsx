@@ -5,6 +5,7 @@ import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getCorrectionRequestView } from "@/lib/attendance-corrections";
+import { getDictionary } from "@/lib/i18n";
 
 type PageProps = {
   searchParams: Promise<{ id?: string }>;
@@ -30,6 +31,7 @@ export default async function MobileAttendanceCorrectionStatusPage({ searchParam
     redirect("/admin");
   }
 
+  const dict = getDictionary(session.user.preferredLanguage);
   const requestId = params.id?.trim() || null;
   const request = await getCorrectionRequestView(
     session.organization.id,
@@ -45,8 +47,8 @@ export default async function MobileAttendanceCorrectionStatusPage({ searchParam
   const navBadges = await getMobileNavBadges();
 
   return (
-    <MobileShell activeItem="attendance" badges={navBadges} title="요청 상태" hideBottomNav>
-      <AttendanceCorrectionStatus request={request} />
+    <MobileShell activeItem="attendance" badges={navBadges} title={dict.attendance.corrStatusPageTitle} hideBottomNav>
+      <AttendanceCorrectionStatus request={request} locale={session.user.preferredLanguage} />
     </MobileShell>
   );
 }

@@ -8,6 +8,7 @@ import {
   getSessionCorrectionContext,
   listActiveAttendanceSites,
 } from "@/lib/attendance-corrections";
+import { getDictionary } from "@/lib/i18n";
 
 type PageProps = {
   searchParams: Promise<{ sessionId?: string }>;
@@ -33,6 +34,7 @@ export default async function MobileAttendanceCorrectionPage({ searchParams }: P
     redirect("/admin");
   }
 
+  const dict = getDictionary(session.user.preferredLanguage);
   const sessionId = params.sessionId?.trim() || null;
   const [navBadges, sites, context] = await Promise.all([
     getMobileNavBadges(),
@@ -47,7 +49,7 @@ export default async function MobileAttendanceCorrectionPage({ searchParams }: P
   const effectiveSessionId = context ? sessionId : null;
 
   return (
-    <MobileShell activeItem="attendance" badges={navBadges} title="정정 요청" hideBottomNav>
+    <MobileShell activeItem="attendance" badges={navBadges} title={dict.attendance.corrPageTitle} hideBottomNav>
       <AttendanceCorrectionForm
         organizationId={session.organization.id}
         sessionId={effectiveSessionId}
@@ -62,6 +64,7 @@ export default async function MobileAttendanceCorrectionPage({ searchParams }: P
             : null
         }
         sites={sites}
+        locale={session.user.preferredLanguage}
       />
     </MobileShell>
   );

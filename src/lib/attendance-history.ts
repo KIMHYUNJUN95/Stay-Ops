@@ -190,21 +190,40 @@ async function loadBreaks(
   return map;
 }
 
+/** [firstDay, firstDayOfNextMonth) for a YYYY-MM, as Tokyo operating-date strings. */
+function monthRange(ym: string): { start: string; nextStart: string } {
+  const [y, m] = ym.split("-").map(Number);
+  const nextIdx = y * 12 + m; // m is 1-based → this already points at the next month
+  const ny = Math.floor(nextIdx / 12);
+  const nm = (nextIdx % 12) + 1;
+  return {
+    start: `${ym}-01`,
+    nextStart: `${ny}-${String(nm).padStart(2, "0")}-01`,
+  };
+}
+
 /**
  * The current user's own attendance sessions (newest first), each with its break rows resolved.
  * Self-scoped: `userId` is the authenticated user, never a client-supplied target.
+ * When `ym` (YYYY-MM, Tokyo) is given, results are limited to that operating month.
  */
 export async function getAttendanceHistory(
   organizationId: string,
   userId: string,
+  ym?: string,
   limit = 60,
 ): Promise<AttendanceSessionView[]> {
   const service = getSupabaseServiceClient();
-  const res = await service
+  let query = service
     .from("attendance_sessions")
     .select("*")
     .eq("organization_id", organizationId)
-    .eq("user_id", userId)
+    .eq("user_id", userId);
+  if (ym && /^\d{4}-\d{2}$/.test(ym)) {
+    const { start, nextStart } = monthRange(ym);
+    query = query.gte("operating_date", start).lt("operating_date", nextStart);
+  }
+  const res = await query
     .order("operating_date", { ascending: false })
     .order("clock_in_at", { ascending: false, nullsFirst: false })
     .limit(limit);

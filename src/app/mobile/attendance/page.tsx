@@ -9,6 +9,8 @@ import {
   hasOpenReminderResponseToday,
   isPastReminderTimeTokyo,
 } from "@/lib/attendance-sessions";
+import { getMonthlyPayView } from "@/lib/attendance-pay";
+import { getDictionary } from "@/lib/i18n";
 
 type PageProps = {
   searchParams: Promise<{ state?: string }>;
@@ -44,10 +46,19 @@ export default async function MobileAttendancePage({ searchParams }: PageProps) 
     ? (params.state as (typeof PREVIEW_STATES)[number])
     : null;
 
+  // Tokyo YM for monthly pay preview
+  const tokyoYM = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" })
+    .format(new Date())
+    .slice(0, 7);
+
   // Real state: open session with an open break → 휴게 중; open session → 근무 중; otherwise → 출근 전.
-  const openSession = previewState
-    ? null
-    : await getCurrentOpenSession(session.organization.id, session.user.id);
+  // Fetch monthly pay view in parallel (skip in preview mode; catch errors gracefully).
+  const [openSession, monthlyPayView] = previewState
+    ? [null, null]
+    : await Promise.all([
+        getCurrentOpenSession(session.organization.id, session.user.id),
+        getMonthlyPayView(session.organization.id, session.user.id, tokyoYM).catch(() => null),
+      ]);
   const homeState =
     previewState ??
     (openSession ? (openSession.openBreakStartedAt ? "break" : "open") : "idle");
@@ -60,8 +71,27 @@ export default async function MobileAttendancePage({ searchParams }: PageProps) 
     if (!answered) reminderOpenSessionId = openSession.id;
   }
 
-  const name = session.user.name?.trim() || "사용자";
-  const todayLabel = new Intl.DateTimeFormat("ko-KR", {
+  // Format monthly hours / pay for the home shortcut cards.
+  // Skip when salaried (no hourly data) or values are zero.
+  let monthHours: string | null = null;
+  let monthPay: string | null = null;
+  if (monthlyPayView && !monthlyPayView.salariedOnly) {
+    if (monthlyPayView.totalPaidMinutes > 0) {
+      const h = Math.floor(monthlyPayView.totalPaidMinutes / 60);
+      const m = monthlyPayView.totalPaidMinutes % 60;
+      monthHours = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+    const gross = monthlyPayView.finalization?.gross ?? monthlyPayView.expectedGross;
+    if (gross > 0) {
+      monthPay = `¥${gross.toLocaleString("ja-JP")}`;
+    }
+  }
+
+  const locale = session.user.preferredLanguage;
+  const dict = getDictionary(locale);
+  const name = session.user.name?.trim() || dict.attendance.userFallback;
+  const localeTag = locale === "ko" ? "ko-KR" : locale === "ja" ? "ja-JP" : "en-US";
+  const todayLabel = new Intl.DateTimeFormat(localeTag, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -70,12 +100,13 @@ export default async function MobileAttendancePage({ searchParams }: PageProps) 
   }).format(new Date());
 
   return (
-    <MobileShell activeItem="attendance" badges={navBadges} title="근태">
+    <MobileShell activeItem="attendance" badges={navBadges} title={dict.attendance.pageTitle}>
       <AttendanceHome
         state={homeState}
         todayLabel={todayLabel}
         userInitial={name.slice(0, 1)}
         userName={name}
+        locale={locale}
         openSession={
           openSession
             ? {
@@ -89,6 +120,8 @@ export default async function MobileAttendancePage({ searchParams }: PageProps) 
             : null
         }
         reminderOpenSessionId={reminderOpenSessionId}
+        monthHours={monthHours}
+        monthPay={monthPay}
       />
     </MobileShell>
   );

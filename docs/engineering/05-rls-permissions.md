@@ -102,7 +102,9 @@ Read:
 
 Create:
 
-- Platform admins only during MVP.
+- The final product rule is no longer "platform admins only during MVP".
+- Future organization creation should be allowed only through a validated organization-creation path/code.
+- Until that flow is implemented, initial organization bootstrap remains manual / privileged.
 
 Update:
 
@@ -168,6 +170,12 @@ Create/update:
 Use:
 
 - Unauthenticated/signup flow can validate active code through a safe server function.
+
+Planning note (2026-06-18):
+
+- Invite-code validation must be the membership gate after authentication.
+- A successful validation resolves `organization + signup role category` before final join.
+- Initial invite-code creation/rotation is still manual bootstrap until the later dashboard tooling exists.
 
 ## properties / rooms
 
@@ -671,7 +679,9 @@ export UI in the app (deferred web dashboard).
 server-side and `notifyAttendanceAdmins` never broadens visibility; regular workers never receive org-wide
 attendance/payroll alerts. The 18:30 reminder targets the worker themselves. `attendance_open_session_reminders`
 RLS is **own read** (owner of the row or platform admin); writes go through the self-only
-`respondOpenSessionReminder` action (service-role). The scheduled scan `/api/attendance/reminders` is
+`respondOpenSessionReminder` action (service-role). Unique constraint is
+`(organization_id, user_id, operating_date)` — org-scoped (migration `202606180003`; prior constraint
+was missing `organization_id`). The scheduled scan `/api/attendance/reminders` is
 CRON_SECRET-gated (no anonymous trigger). In-app delivery only.
 
 Business rules already enforced (Step 3) / to enforce later in server actions: one open session per user

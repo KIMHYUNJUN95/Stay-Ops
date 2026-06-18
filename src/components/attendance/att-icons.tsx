@@ -104,6 +104,11 @@ export const AttIcon = {
       <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  caret: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   send: (
     <svg viewBox="0 0 24 24" fill="none">
       <path d="M21 3.5L10 14.5M21 3.5l-7 17-3-7.5-7.5-3 17.5-6.5z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -114,6 +119,41 @@ export const AttIcon = {
       <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.7" />
       <path d="M12 11v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <circle cx="12" cy="8" r="1.1" fill="currentColor" />
+    </svg>
+  ),
+  arrowR: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  lock: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <rect x="5" y="10.5" width="14" height="9.5" rx="2" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M8 10.5V8a4 4 0 018 0v2.5" stroke="currentColor" strokeWidth="1.7" />
+    </svg>
+  ),
+  wallet: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <rect x="3.5" y="6" width="17" height="13" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M3.5 10h17M16 14.5h1.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  ),
+  eye: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="2.6" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  ),
+  eyeOff: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M9.6 5.8A10 10 0 0112 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 01-3 3.7M6.3 7.8A17 17 0 002.5 12S6 18.5 12 18.5a9.6 9.6 0 003.7-.7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 3l18 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  ),
+  doc: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M7 3h7.5L19 7.5V20a1.5 1.5 0 01-1.5 1.5h-10A1.5 1.5 0 016 20V4.5A1.5 1.5 0 017 3z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M14.5 3v5h4.5" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
     </svg>
   ),
 } satisfies Record<string, ReactNode>;

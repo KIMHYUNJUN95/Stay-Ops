@@ -100,6 +100,10 @@ For `/mobile/*`, treat `src/components/shell/mobile-shell.tsx` as a global contr
 - Keep the left slide-out menu behavior.
 - Keep the flat white bottom tab bar with center FAB (rounded top corners, `border-radius: 22px 22px 0 0`). The FAB opens the bottom-bar editor sheet where the user can pick up to 4 tabs. Tabs persist to `profiles.bottom_nav_tabs`.
 - Keep the pure-white (`bg-surface`) base. Liquid Glass accents are selective: floating sheets, cards, chips, and overlays may use them; the global background and tab bar remain solid.
+- Keep top bar, bottom tab bar, and bottom-sheet behavior visually and interaction-wise unified across the app. Do not create feature-specific variants unless there is an explicit product/design decision.
+- Top bar and bottom tab bar must stay on the current shared design contract as-is unless explicitly changed by a documented decision.
+- All bottom sheets must use the shared iPhone-like dismissal behavior: drag down from the sheet's upper touch area / handle to close, or tap the empty scrim area to dismiss.
+- Do not make the drag-dismiss touch target too narrow or too hard to catch. The upper touch area should stay broad and easy to pull down.
 - Do not reintroduce page-specific stacked mobile headers.
 - Do not revert to a floating capsule or full-glass tab bar without an explicit design decision.
 

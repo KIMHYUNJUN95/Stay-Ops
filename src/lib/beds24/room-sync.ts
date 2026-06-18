@@ -13,9 +13,14 @@
 //
 // Company internal active/inactive classification rule (not a Beds24 standard):
 //   minimum_stay >= 50 nights -> inactive room ID for that period.
-//   minimum_stay in 1/2/3 etc -> active room ID for that period.
-//   minimum_stay = NULL       -> inactive (conservative; unknown minimum_stay must not
-//                                be admitted to active operational inventory).
+//   minimum_stay in 1..49     -> active room ID for that period.
+//   minimum_stay = NULL       -> active (unknown). Webhook booking payloads do NOT carry
+//                                minimumStay, so a freshly-synced room would otherwise be
+//                                hidden (and its reservations dropped from the calendar)
+//                                until a separate inventory sync populates minStay. We must
+//                                never hide a real room just because minStay is not yet
+//                                known — only an explicit >= 50 signal marks it inactive.
+//                                See docs/engineering/01-beds24-integration.md.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
@@ -24,10 +29,10 @@ import { BEDS24_INACTIVE_MIN_STAY_THRESHOLD } from "@/lib/rooms";
 type RawPayload = Record<string, unknown>;
 
 // Classify a Beds24 room based on its minimum stay value.
-// NULL -> inactive: the company rule requires minimum_stay to determine active vs inactive.
-// "Unknown minimum stay" must not default to active to avoid inventory pollution.
+// Only an explicit minimum_stay >= 50 marks a room inactive. NULL (unknown, e.g. not yet
+// inventory-synced) stays active so the room — and its reservations — are never hidden.
 export function classifyBeds24Room(minimumStay: number | null): "active" | "inactive" {
-  if (minimumStay === null || minimumStay >= BEDS24_INACTIVE_MIN_STAY_THRESHOLD) {
+  if (minimumStay !== null && minimumStay >= BEDS24_INACTIVE_MIN_STAY_THRESHOLD) {
     return "inactive";
   }
   return "active";

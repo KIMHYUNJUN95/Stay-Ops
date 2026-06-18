@@ -4,6 +4,7 @@ import { AttendanceCapture } from "@/components/attendance/attendance-capture";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
+import { getDictionary } from "@/lib/i18n";
 
 type PageProps = {
   searchParams: Promise<{ mode?: string }>;
@@ -28,6 +29,7 @@ export default async function MobileAttendanceCapturePage({ searchParams }: Page
     redirect("/admin");
   }
 
+  const dict = getDictionary(session.user.preferredLanguage);
   const navBadges = await getMobileNavBadges();
   const mode = params.mode === "out" ? "out" : "in";
 
@@ -35,10 +37,10 @@ export default async function MobileAttendanceCapturePage({ searchParams }: Page
     <MobileShell
       activeItem="attendance"
       badges={navBadges}
-      title={mode === "out" ? "퇴근 인증" : "출근 인증"}
+      title={mode === "out" ? dict.attendance.captureOutTitle : dict.attendance.captureInTitle}
       hideBottomNav
     >
-      <AttendanceCapture mode={mode} />
+      <AttendanceCapture mode={mode} locale={session.user.preferredLanguage} />
     </MobileShell>
   );
 }

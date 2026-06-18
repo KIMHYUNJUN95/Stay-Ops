@@ -312,6 +312,7 @@ export type Database = {
           reviewed_by_user_id?: string | null;
           session_id?: string | null;
           status?: string;
+          target_month?: string | null;
           updated_at?: string;
         };
         Row: {
@@ -331,6 +332,7 @@ export type Database = {
           reviewed_by_user_id: string | null;
           session_id: string | null;
           status: string;
+          target_month: string | null;
           updated_at: string;
         };
         Update: {
@@ -350,6 +352,7 @@ export type Database = {
           reviewed_by_user_id?: string | null;
           session_id?: string | null;
           status?: string;
+          target_month?: string | null;
           updated_at?: string;
         };
       };

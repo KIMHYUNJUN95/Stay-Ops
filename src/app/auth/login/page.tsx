@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { resolveAuthErrorMessage } from "@/lib/auth-errors";
 import { buildDevSeedLoginHref, isDevSeedLoginEnabled } from "@/lib/dev-auth";
 import { getDictionary, isLocale, locales, type Locale } from "@/lib/i18n";
+import { isMobileUserAgent } from "@/lib/mobile-device";
 import { getOnboardingState } from "@/lib/onboarding";
 import { sanitizeNextPath } from "@/lib/safe-redirect";
 
@@ -44,9 +45,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   // Mobile-first login: on a phone/tablet, always route into the mobile app after
   // sign-in — overriding the role-based admin default and any ?next=/admin/... value.
-  const userAgent = (await headers()).get("user-agent") ?? "";
-  const isMobileDevice =
-    /Mobi|Android|iPhone|iPad|iPod|IEMobile|Windows Phone|webOS|BlackBerry/i.test(userAgent);
+  const userAgent = (await headers()).get("user-agent");
+  const isMobileDevice = isMobileUserAgent(userAgent);
   const effectiveNext = isMobileDevice ? "/mobile" : next;
 
   if (state.status === "ready") {
@@ -123,7 +123,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               </div>
               {isMobileDevice ? (
                 <Link className={PRIMARY_BUTTON} href={buildDevSeedLoginHref("admin", "/mobile")}>
-                  {dictionary.auth.devLogin.mobile}
+                  {dictionary.auth.devLogin.mobileAdmin}
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </Link>
               ) : (

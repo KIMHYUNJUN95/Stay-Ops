@@ -1314,16 +1314,18 @@ export function MobileCalendarView({
 
       {typeof document !== "undefined" && selectedReservation
         ? createPortal(
-        <div className="fixed inset-0 z-[200] flex items-end justify-center">
-          {/* Semi-transparent scrim (~46%) — the calendar stays faintly visible behind. */}
+        <div
+          className={cn(
+            "fixed inset-0 z-[200] flex items-end justify-center bg-slate-950/45 transition-opacity duration-300 ease-out",
+            isReservationSheetOpen ? "opacity-100" : "pointer-events-none opacity-0",
+          )}
+          style={reservationDrag.scrimStyle}
+        >
+          {/* Transparent click-to-close overlay — background color lives on the wrapper above. */}
           <button
             aria-label={copy.close}
-            className={cn(
-              "absolute inset-0 bg-slate-950/45 transition-opacity duration-300 ease-out",
-              isReservationSheetOpen ? "opacity-100" : "pointer-events-none opacity-0",
-            )}
+            className="absolute inset-0"
             onClick={closeReservationSheet}
-            style={reservationDrag.scrimStyle}
             type="button"
           />
           {/* Bottom sheet — slides up from the bottom edge. */}

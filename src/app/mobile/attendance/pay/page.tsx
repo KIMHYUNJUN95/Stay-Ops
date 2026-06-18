@@ -5,6 +5,7 @@ import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getMonthlyPayView } from "@/lib/attendance-pay";
+import { getDictionary } from "@/lib/i18n";
 
 type PageProps = {
   searchParams: Promise<{ ym?: string }>;
@@ -18,14 +19,6 @@ function currentTokyoYm(): string {
   })
     .format(new Date())
     .slice(0, 7);
-}
-
-function shiftYm(ym: string, delta: number): string {
-  const [y, m] = ym.split("-").map(Number);
-  const idx = (y * 12 + (m - 1)) + delta;
-  const ny = Math.floor(idx / 12);
-  const nm = (idx % 12) + 1;
-  return `${ny}-${String(nm).padStart(2, "0")}`;
 }
 
 // Attendance / 근태 — own monthly hourly pay (Step 10, EXPECTED pay). Self-view only: scoped to the
@@ -48,15 +41,17 @@ export default async function MobileAttendancePayPage({ searchParams }: PageProp
     redirect("/admin");
   }
 
-  const ym = /^\d{4}-\d{2}$/.test(params.ym ?? "") ? (params.ym as string) : currentTokyoYm();
+  const dict = getDictionary(session.user.preferredLanguage);
+  const currentYm = currentTokyoYm();
+  const ym = /^\d{4}-\d{2}$/.test(params.ym ?? "") ? (params.ym as string) : currentYm;
   const [navBadges, view] = await Promise.all([
     getMobileNavBadges(),
     getMonthlyPayView(session.organization.id, session.user.id, ym),
   ]);
 
   return (
-    <MobileShell activeItem="attendance" badges={navBadges} title="급여">
-      <AttendancePay view={view} prevYm={shiftYm(ym, -1)} nextYm={shiftYm(ym, 1)} />
+    <MobileShell activeItem="attendance" badges={navBadges} title={dict.attendance.payPageTitle}>
+      <AttendancePay view={view} currentYm={currentYm} locale={session.user.preferredLanguage} />
     </MobileShell>
   );
 }

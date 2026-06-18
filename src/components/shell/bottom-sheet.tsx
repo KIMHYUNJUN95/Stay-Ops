@@ -122,7 +122,7 @@ export function BottomSheet({
             aria-labelledby={ariaLabelledBy}
             aria-modal="true"
             className={cn(
-              "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3",
+              "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-0",
               "transition-transform duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
               shown ? "translate-y-0" : "translate-y-full",
               className,
@@ -133,9 +133,11 @@ export function BottomSheet({
             style={drag.sheetStyle}
           >
             <div
-              className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200"
+              className="-mx-5 flex min-h-[44px] cursor-grab items-start justify-center px-5 pt-[10px] active:cursor-grabbing"
               {...drag.handleProps}
-            />
+            >
+              <div className="h-1 w-[38px] rounded-full bg-slate-200" />
+            </div>
             {header != null ? <div {...drag.handleProps}>{header}</div> : null}
             {typeof children === "function"
               ? children({ close, dragHandleProps: drag.handleProps })

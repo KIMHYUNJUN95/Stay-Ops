@@ -2,6 +2,7 @@ import type { AppSession } from "@/lib/session";
 import { getCleaningOperatingDateKey } from "@/lib/cleaning";
 import {
   getCanonicalPropertyName,
+  getCanonicalRoomLabel,
   getDisplayRoomLabel,
   isExcludedOperationalProperty,
   isExcludedOperationalRoom,
@@ -166,22 +167,23 @@ export async function getHomeCheckInOutReservations(
     );
 
     // Resolve to the same canonical property + display room label the calendar renders.
-    // Returns null for reservations whose room is not an active room-master row in
-    // authoritative mode (dropped, matching the calendar).
-    const toItem = (r: ReservationListRow): HomeReservationRow | null => {
+    // Never drop: if a reservation does not map to an active room-master row, fall back to
+    // the normalized room label so the guest still appears (mirrors the calendar + the
+    // in-house reference system, which never discards a booking).
+    const toItem = (r: ReservationListRow): HomeReservationRow => {
       const canonicalProperty = getCanonicalPropertyName((r.property_name ?? "").trim());
-      const internalKey = resolveReservationCanonicalRoomLabel(
-        {
-          property_name: r.property_name ?? "",
-          room_label: r.room_label ?? "",
-          raw_payload: r.raw_payload,
-        },
-        { lookups, globalExternalRoomToCanonical, isAuthoritative },
-      );
-      if (internalKey === null) return null;
-      // Okubo: the canonical room key is the property itself → show the building only.
+      const internalKey =
+        resolveReservationCanonicalRoomLabel(
+          {
+            property_name: r.property_name ?? "",
+            room_label: r.room_label ?? "",
+            raw_payload: r.raw_payload,
+          },
+          { lookups, globalExternalRoomToCanonical, isAuthoritative },
+        ) || getCanonicalRoomLabel(canonicalProperty, (r.room_label ?? "").trim());
+      // Okubo (room key == property) or an empty fallback → show the building only.
       const roomLabel =
-        internalKey === canonicalProperty
+        !internalKey || internalKey === canonicalProperty
           ? ""
           : getDisplayRoomLabel(canonicalProperty, internalKey);
       return {
@@ -193,7 +195,6 @@ export async function getHomeCheckInOutReservations(
       };
     };
 
-    const isRow = (row: HomeReservationRow | null): row is HomeReservationRow => row !== null;
     const byPlace = (a: HomeReservationRow, b: HomeReservationRow) =>
       a.propertyName.localeCompare(b.propertyName) ||
       a.roomLabel.localeCompare(b.roomLabel, undefined, { numeric: true });
@@ -204,12 +205,10 @@ export async function getHomeCheckInOutReservations(
         checkIns: rows
           .filter((r) => r.check_in_date === today)
           .map(toItem)
-          .filter(isRow)
           .sort(byPlace),
         checkOuts: rows
           .filter((r) => r.check_out_date === today)
           .map(toItem)
-          .filter(isRow)
           .sort(byPlace),
       },
     };

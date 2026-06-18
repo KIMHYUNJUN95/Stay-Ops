@@ -285,12 +285,10 @@ export async function getActiveRoomCatalog(
     external_minimum_stay: number | null;
   }>;
 
-  const classifiedRows = rows.filter((row) => {
-    if (row.external_provider !== "beds24") {
-      return true;
-    }
-    return row.external_minimum_stay !== null;
-  });
+  // A room row counts as "classified" (org has a usable room master) as soon as it exists.
+  // minStay = null no longer disqualifies a beds24 room — unknown min-stay must not hide a
+  // real room. Only an explicit >= 50 marks it inactive (applied in the active filter below).
+  const classifiedRows = rows;
 
   if (classifiedRows.length === 0) {
     return undefined;
@@ -312,8 +310,10 @@ export async function getActiveRoomCatalog(
       if (row.external_provider !== "beds24") {
         return true;
       }
+      // null minStay → active (unknown, not yet inventory-synced). Only an explicit
+      // >= 50 marks the room inactive, matching classifyBeds24Room in room-sync.ts.
       return (
-        row.external_minimum_stay !== null &&
+        row.external_minimum_stay === null ||
         !isInactiveBeds24Room(row.external_minimum_stay)
       );
     })

@@ -587,8 +587,11 @@ export async function finalizeAttendanceMonth(input: {
 
   const firstDay = monthFirstDay(input.ym);
 
-  // History preservation: supersede any prior non-superseded, non-finalized rows for this user-month
-  // (e.g. a previous `reopened` row), capturing the latest to link the new snapshot to.
+  // History preservation: read prior rows first to capture the supersedes link,
+  // then INSERT the new snapshot before marking old rows superseded.
+  // This order ensures the "current finalized copy" is never lost: if the insert
+  // fails, the old snapshot stays intact; the supersede only runs after a
+  // successful insert.
   const priorRes = await service
     .from("attendance_month_snapshots")
     .select("id, status")
@@ -599,15 +602,6 @@ export async function finalizeAttendanceMonth(input: {
     .order("created_at", { ascending: false });
   const priorRows = (priorRes.data ?? []) as { id: string; status: string }[];
   const supersedesId = priorRows[0]?.id ?? null;
-  if (priorRows.length > 0) {
-    await service
-      .from("attendance_month_snapshots")
-      .update({ status: "superseded" } as never)
-      .eq("organization_id", organizationId)
-      .eq("user_id", input.userId)
-      .eq("target_month", firstDay)
-      .neq("status", "superseded");
-  }
 
   const nowIso = new Date().toISOString();
   const ins = (await service
@@ -627,6 +621,18 @@ export async function finalizeAttendanceMonth(input: {
     .select("id")
     .single()) as { data: { id: string } | null; error: { message: string } | null };
   if (ins.error || !ins.data) return { ok: false, reason: "error" };
+
+  // Supersede old rows only after a confirmed successful insert.
+  if (priorRows.length > 0) {
+    await service
+      .from("attendance_month_snapshots")
+      .update({ status: "superseded" } as never)
+      .eq("organization_id", organizationId)
+      .eq("user_id", input.userId)
+      .eq("target_month", firstDay)
+      .neq("status", "superseded")
+      .neq("id", ins.data.id);
+  }
 
   await service.from("audit_logs").insert({
     organization_id: organizationId,

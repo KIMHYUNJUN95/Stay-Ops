@@ -632,11 +632,13 @@ export function ContextPickerSheet({
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Fixed header ── */}
-        <div className="shrink-0 px-[18px] pb-0 pt-3">
+        <div className="shrink-0 px-[18px] pb-0 pt-2">
           <div
-            className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200"
+            className="-mx-[18px] flex min-h-[44px] cursor-grab items-center justify-center px-[18px] active:cursor-grabbing"
             {...drag.handleProps}
-          />
+          >
+            <div className="h-1 w-[38px] rounded-full bg-slate-200" />
+          </div>
 
           <div className="mb-3.5 flex items-start gap-3">
             {step !== "building" ? (

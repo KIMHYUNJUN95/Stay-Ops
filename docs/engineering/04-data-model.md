@@ -24,7 +24,7 @@ The model must support:
 - Personal todo / shared task inbox (approved post-MVP batch)
 - Internal board (approved post-MVP batch)
 - Staff suggestions / feedback (approved post-MVP batch)
-- Attendance / clock-in-out + hourly payroll (attendance approved; payroll calc deferred)
+- Attendance / clock-in-out + hourly payroll (Steps 1–14 implemented; admin web dashboard deferred)
 
 ## Core Principles
 
@@ -111,7 +111,7 @@ Fields:
 ```txt
 id uuid primary key references auth.users(id)
 name text not null
-age integer
+birth_date date
 phone_number text
 profile_photo_url text
 preferred_language text not null
@@ -121,6 +121,14 @@ can_generate_report boolean not null default false
 created_at timestamptz
 updated_at timestamptz
 ```
+
+Auth/onboarding planning update (2026-06-18):
+
+- `birth_date` is the target operational field; `age` should be treated as legacy planning and should
+  not remain the long-term schema shape.
+- `phone_number` is intended to be stored in international format and treated as account-level unique.
+- Users may edit `name`, `birth_date`, and `phone_number` later.
+- `preferred_language` is chosen during onboarding and becomes the user's top-priority locale after join.
 
 `can_generate_report` (migration `supabase/migrations/202606130001_profile_report_access.sql`) is a
 per-user override for the Todo **daily-report generator** (업무일지; free, template-based — no LLM).
@@ -207,6 +215,14 @@ created_by_user_id uuid references profiles(id)
 created_at timestamptz
 updated_at timestamptz
 ```
+
+Business rules (2026-06-18 planning baseline):
+
+- Invite code resolves both `organization_id` and the signup-facing role category
+- `owner` invite code: one-time use
+- all other role categories: `expires_at = within 3 months`, `max_uses = 100` by default
+- Invite-code management UI is deferred; initial org/owner/code bootstrap is manual DB/admin-script work
+- Additional organizations can be joined by reusing the same account and entering another valid invite code
 
 ## platform_admins
 
@@ -972,7 +988,7 @@ Tables (11):
 | `attendance_sessions` | the core work session; `status` (open/completed/reopened/invalid), `review_state` (normal/review_required/pending_correction/approved_correction/rejected_correction), separate clock-in/out `*_at/_site_id/_method/_qr_token_id/_lat/_long/_accuracy/_device_info`, `operating_date` (Tokyo), `manual_created*`, `invalidated*`. **One `open` session per user** (partial unique on `user_id where status='open'`). Methods: `gps_qr`/`gps_wifi`/`manual`. |
 | `attendance_breaks` | multiple breaks per session; `started_at`/`ended_at` (open while null). Clock-out-blocked-by-open-break is server-enforced. |
 | `attendance_attempt_logs` | every attempt (success/failure) for admin diagnostics; `action_type`, `method`, `failure_reason` (gps_denied/outside_radius/qr_*/wifi_*/open_break_blocks_clock_out/midnight_crossing/open_session_exists). Admin-visible only; no payroll effect. |
-| `attendance_correction_requests` | user-submitted corrections; `status` (requested/in_review/approved/rejected), `reason_type`, `desired_clock_in/out_at/_site_id`, `memo`, `image_urls` (**max 5**), `review_comment`/`reviewed_*`. |
+| `attendance_correction_requests` | user-submitted corrections; `status` (requested/in_review/approved/rejected), `reason_type`, `target_month` (YYYY-MM-01, migration `202606180003`), `desired_clock_in/out_at/_site_id`, `memo`, `image_urls` (**max 5**), `review_comment`/`reviewed_*`. |
 | `attendance_session_audits` | append-only manager-action trail; `action_type` (manual_create/manual_update/invalidate/correction_apply/reopen/finalize), mandatory `reason`, `before_json`/`after_json`. |
 | `employment_type_history` | per-person `employment_type` (hourly/salaried) with `effective_from`/`effective_to`. Past never reinterpreted. |
 | `hourly_rate_history` | per-person `hourly_rate` with `effective_from`/`effective_to`. Past never changes. |
@@ -1064,14 +1080,22 @@ user_id, snapshot_ids[], exported_by_user_id, meta). owner/`attendance_payroll_a
 
 **Step 14 (2026-06-18):** **notifications** use the shared `notifications` table + new `attendance_activity`
 enum value (migration `202606180001`). New table `attendance_open_session_reminders` (migration
-`202606180002`, unique per user+operating_date) holds the once-per-Tokyo-day 18:30 reminder response
-(`still_working` / `left_work`). Admin alerts (correction_created, abnormal_session) target owner /
-`attendance_payroll_admin`; the worker reminder targets the worker. Scheduled scan
-`GET /api/attendance/reminders` (CRON_SECRET). In-app only.
+`202606180002`, unique per `(organization_id, user_id, operating_date)` — org-scoped per migration
+`202606180003`) holds the once-per-Tokyo-day 18:30 reminder response (`still_working` / `left_work`).
+Admin alerts (correction_created, abnormal_session) target owner / `attendance_payroll_admin`; the worker
+reminder targets the worker. Scheduled scan `GET /api/attendance/reminders` (CRON_SECRET). In-app only.
 
-Not yet built (later steps): clock-in/out / break / correction / finalization / export / dashboard /
-notification server actions and queries. Wi-Fi attendance (`gps_wifi`) is modeled but **not active** in
-the PWA. Shared row types + status/method/reason unions + constants live in `src/lib/attendance.ts`.
+**Bug-fix pass (2026-06-18)** — migration `202606180003_attendance_session_fixes.sql`:
+- Added `target_month date` column to `attendance_correction_requests` (enables per-month export and
+  session-less corrections outside the current month).
+- Changed `attendance_open_session_reminders` unique constraint from `(user_id, operating_date)` to
+  `(organization_id, user_id, operating_date)` — organization isolation was missing.
+- Added partial index on `attendance_correction_requests` for session-less corrections
+  (`session_id IS NULL`).
+- Fixed finalization order bug in `finalizeAttendanceMonth` (insert new row before superseding prior).
+
+Wi-Fi attendance (`gps_wifi`) is modeled but **not active** in the PWA. Shared row types +
+status/method/reason unions + constants live in `src/lib/attendance.ts`.
 
 ## Storage buckets — batch note
 

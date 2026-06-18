@@ -4,6 +4,23 @@
 
 The mobile/PWA field interface should be optimized for fast daily work by on-site staff, field managers, regular staff, and part-time staff.
 
+## Entry Routing Contract
+
+The product must not show a public root-level version chooser such as:
+
+- "Go to dashboard"
+- "Go to mobile version"
+
+Confirmed routing direction:
+
+- **Desktop / PC** access should go directly to the dashboard/web side
+- **Mobile / tablet** access should go directly to the mobile side (`/mobile`)
+- If the dashboard later offers a way to open the mobile version, that belongs **inside the dashboard**
+  after login, not on the root landing page
+
+This means any temporary/manual entry chooser screen is a development artifact and must not remain in
+the real product flow.
+
 ## Confirmed Bottom Tabs
 
 The bottom bar uses a **center-action ("추가") button** design: four tabs split 2 / 2 around a raised central FAB.
@@ -307,6 +324,8 @@ Counts refresh on navigation and on pull-to-refresh (`router.refresh()`); these 
 - Labels must fit Korean, Japanese, and English.
 - Home quick actions should be large enough for field use.
 - Avoid hiding maintenance/lost item/order request too deeply because these are high-frequency actions.
+- Top bar, bottom tab bar, and bottom sheets are a single shared design contract. They must stay unified across features unless there is an explicit product/design decision to change them.
+- The current top bar and bottom tab bar design are fixed shared surfaces and should be preserved as-is.
 - Do not add per-page controls, titles, breadcrumbs, or secondary icons to the shared top chrome unless explicitly decided.
 - Liquid Glass is selective: floating bottom navigation, bottom sheets, cards, chips, and overlays may use it; the global mobile background should remain solid and readable.
 
@@ -315,9 +334,11 @@ Counts refresh on navigation and on pull-to-refresh (`router.refresh()`); these 
 All mobile **bottom sheets** (sheets that slide up from the bottom edge) share one drag-to-dismiss
 contract so they behave like native iOS sheets.
 
+- **Unified dismissal rule**: every bottom sheet closes either by dragging down from the sheet's upper touch area / grab-handle zone, or by tapping the empty scrim outside the sheet. Do not invent feature-specific close gestures for bottom sheets.
 - **Drag zone**: the center grab handle (`mx-auto h-1 w-[38px] rounded-full`) and the sheet's top
   header area start the drag. A gesture that begins inside the sheet's scrollable body does **not**
   trigger drag-dismiss (so inner scrolling is never hijacked).
+- **Touch target size**: the upper drag area must stay broad and easy to catch. Do not shrink it into a tiny, hard-to-grab strip.
 - **Follow + dim**: while dragging, the sheet follows the finger downward (`translateY`, clamped at 0
   — no upward drag), and the scrim dims in proportion to the drag distance.
 - **Release**: dismiss when pulled past **max(80px, 25% of sheet height)** OR flicked down fast

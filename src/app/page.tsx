@@ -1,5 +1,7 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { DevEntry } from "@/components/dev-entry";
+import { isMobileUserAgent } from "@/lib/mobile-device";
 
 type HomePageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -35,6 +37,11 @@ export default async function Home({ searchParams }: HomePageProps) {
 
   if (getFirstParam(params.code) || getFirstParam(params.error)) {
     redirect(buildAuthCallbackPath(params));
+  }
+
+  const userAgent = (await headers()).get("user-agent");
+  if (isMobileUserAgent(userAgent)) {
+    redirect("/mobile");
   }
 
   return <DevEntry />;

@@ -894,13 +894,12 @@ Fix — both surfaces now match the calendar's display label:
   active room catalog and reuses the same resolution the calendar uses
   (`buildPropertyRoomLookups` + `buildGlobalExternalRoomToCanonical` +
   `resolveReservationCanonicalRoomLabel`), then `getDisplayRoomLabel` for the visible label.
-  This is **authoritative** when the org has a classified room catalog: reservations whose
-  room is not an active room-master row are dropped (matching the calendar), so the home
-  count cards reflect the same active-room axis. The 2-account case (e.g. `501`/`501_2`,
-  `803#`/`K803`) is disambiguated via `raw_payload.roomId → external_room_id → canonical`
-  and collapsed to one display label. Okubo rooms (canonical room == property) render the
-  building name only. Property name is returned canonical so the caller's `buildPlaceLabel`
-  localizes it unchanged.
+  The 2-account case (e.g. `501`/`501_2`, `803#`/`K803`) is disambiguated via
+  `raw_payload.roomId → external_room_id → canonical` and collapsed to one display label.
+  Okubo rooms (canonical room == property) render the building name only. Property name is
+  returned canonical so the caller's `buildPlaceLabel` localizes it unchanged.
+  (Drop behavior superseded — see the 2026-06-18 "No-drop" section below: unmapped
+  reservations now fall back to the normalized label instead of being hidden.)
 - **Cleaning targets** (`getLocalizedRoomTitle` in `src/app/mobile/cleaning/page.tsx`): now
   applies `getDisplayRoomLabel` so Arakicho sub-units collapse (`501_2` → `501`). Kabukicho
   `#`/`K` stripping and Okubo property-only labels were already correct via
@@ -910,3 +909,40 @@ Fix — both surfaces now match the calendar's display label:
 Reference resolver remains the single source of truth in `src/lib/rooms.ts`
 (`resolveReservationCanonicalRoomLabel`), shared by calendar, task context picker, and now
 the home check-in/out sheet.
+
+## 2026-06-18 No-drop policy + null-minStay rooms stay visible (data-loss fixes)
+
+Diagnosis (vs the in-house reference system, which never loses data): our system resolved
+reservations at **read time** against the live `rooms` catalog and **dropped** any reservation
+whose room did not map to an *active* catalog row. Combined with two write-side traps this
+caused intermittent missing reservation bars / cleaning targets:
+
+- Webhook booking payloads carry **no minimumStay**, so a freshly-synced room was created with
+  `external_minimum_stay = NULL` → classified **inactive** → excluded from the catalog → its
+  reservations dropped, until a separate inventory sync ran.
+- Any catalog gap (missing/rotated `external_room_id`, not-yet-synced room) silently removed a
+  reservation, and the read-time design made visibility fluctuate as the catalog changed.
+
+Fixes (the in-house system never drops a booking and uses a complete, static room axis):
+
+1. **null minStay → active** (`classifyBeds24Room` in `room-sync.ts`; `getActiveRoomCatalog` in
+   `rooms.ts`). Only an explicit `>= 50` marks a room inactive. New webhook-synced rooms are
+   active immediately; any existing room row now counts as "classified" (authoritative).
+2. **No-drop + fallback rows** (calendar `src/app/mobile/calendar/page.tsx`, home `src/lib/home.ts`):
+   reservations are never discarded. If a reservation does not resolve to a catalog room, it
+   falls back to the normalized room label (`getCanonicalRoomLabel` → `getDisplayRoomLabel`).
+   On the calendar, orphan rooms (room not in the active catalog) are **added to the room axis**
+   (`canonicalRoomMasterRooms` + `propertyRoomsMap`) so the bar has a row to render on. The
+   home check-in/out sheet keeps all guests (count = full list).
+   - Note: orphan rooms added to the axis also participate in the "empty today" count, since
+     they are real rooms with reservations in the window.
+
+Fetch completeness (verified, no change needed): the reconcile/backfill and all surface queries
+filter by **stay dates** (`arrivalTo`/`departureFrom`, `check_in_date`/`check_out_date`
+overlap), not booking date. A booking made 12 months ago that checks in this/next month is
+captured. The operational display/fetch window stays current month + next month; only the
+**booking date is unconstrained**.
+
+Still pending (infra, not code): live Beds24 webhook delivery — `beds24_webhook_events` shows
+**0 webhook events** and reconcile last ran 2026-06-10. Until webhook + reconcile run, data is
+frozen regardless of the above logic fixes.

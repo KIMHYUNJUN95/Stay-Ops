@@ -1,244 +1,588 @@
 "use client";
 
 /**
- * Attendance self-view history (Step 5). NEW screen built in the existing `.att` design language
- * (the v2 handoff had no 이력 frame). Renders today's summary + the user's own session list; tapping a
- * card opens a detail bottom sheet (reusing the app's shared `useSheetDragDismiss`) with clock-in/out
- * details, break rows, methods, and review/abnormal markers. All data is already self-scoped on the
- * server (`getAttendanceHistory` / `getAttendanceTodaySummary`).
+ * Attendance self-view history — redesigned to match screenshot handoff.
+ * Structure: ptitle-row → summary card (live ticker when open) → attn banners → date-grouped srow cards.
+ * Session detail bottom sheet (drag-dismiss) preserved from previous version.
  */
 
-import { useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import "./attendance.css";
 import { AIc, AttIcon } from "./att-icons";
-import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
+import { MonthSwitcher } from "./month-switcher";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import type {
   AttendanceSessionView,
   AttendanceTodaySummary,
 } from "@/lib/attendance-history";
+import { getDictionary, type Dictionary } from "@/lib/i18n";
 
-function fmtDur(sec: number): string {
+type AttendanceCopy = Dictionary["attendance"];
+
+function fmtDur(sec: number, hourLabel: string, minLabel: string): string {
   const safe = Math.max(0, Math.floor(sec));
   const h = Math.floor(safe / 3600);
   const m = Math.floor((safe % 3600) / 60);
-  if (h > 0) return `${h}시간 ${m}분`;
-  if (m > 0) return `${m}분`;
-  return "0분";
+  if (h > 0) return `${h}${hourLabel} ${m}${minLabel}`;
+  if (m > 0) return `${m}${minLabel}`;
+  return `0${minLabel}`;
 }
 
-function methodLabel(m: string | null): string {
+function fmtHM(sec: number): string {
+  const safe = Math.max(0, Math.floor(sec));
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(h)}:${pad(m)}`;
+}
+
+function fmtHMS(sec: number): { hm: string; ss: string } {
+  const safe = Math.max(0, Math.floor(sec));
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = safe % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return { hm: `${pad(h)}:${pad(m)}`, ss: `:${pad(s)}` };
+}
+
+function methodLabel(m: string | null, manual: string): string {
   if (m === "gps_qr") return "GPS+QR";
   if (m === "gps_wifi") return "GPS+Wi-Fi";
-  if (m === "manual") return "수동";
+  if (m === "manual") return manual;
   return "—";
 }
 
-function StatusChips({ s }: { s: AttendanceSessionView }) {
+/** Returns "AM" or "PM" from a "HH:MM" time label. */
+function amPm(label: string | null): "AM" | "PM" | null {
+  if (!label) return null;
+  const h = parseInt(label.split(":")[0], 10);
+  return h < 12 ? "AM" : "PM";
+}
+
+/** Groups sessions by operatingDate (preserves existing order = descending). */
+function groupByDate(sessions: AttendanceSessionView[]) {
+  const groups: { date: string; sessions: AttendanceSessionView[] }[] = [];
+  for (const s of sessions) {
+    const last = groups[groups.length - 1];
+    if (last && last.date === s.operatingDate) {
+      last.sessions.push(s);
+    } else {
+      groups.push({ date: s.operatingDate, sessions: [s] });
+    }
+  }
+  return groups;
+}
+
+/** Compact date group label: "Today 6/18" / "6/17" + locale weekday. */
+function dateGroupLabel(
+  date: string,
+  todayDate: string,
+  locale: string,
+  todayLabel: string,
+): { d: string; wd: string } {
+  const dt = new Date(`${date}T00:00:00+09:00`);
+  const mm = dt.getMonth() + 1;
+  const dd = dt.getDate();
+  const wd = new Intl.DateTimeFormat(locale, {
+    timeZone: "Asia/Tokyo",
+    weekday: "short",
+  }).format(dt);
+  const isToday = date === todayDate;
+  return { d: isToday ? `${todayLabel} ${mm}/${dd}` : `${mm}/${dd}`, wd };
+}
+
+/** Weekly worked seconds: past days (Mon–yesterday) + today's summary. */
+function computeWeekSec(sessions: AttendanceSessionView[], summary: AttendanceTodaySummary): number {
+  const todayDate = summary.date;
+  const dt = new Date(`${todayDate}T00:00:00+09:00`);
+  const dow = dt.getDay(); // 0=Sun
+  const monday = new Date(dt);
+  monday.setDate(dt.getDate() - (dow === 0 ? 6 : dow - 1));
+  const mondayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(monday);
+
+  const pastWeekSec = sessions
+    .filter((s) => s.operatingDate >= mondayStr && s.operatingDate < todayDate)
+    .reduce((acc, s) => acc + (s.workedSec ?? 0), 0);
+
+  return pastWeekSec + summary.workedSec;
+}
+
+function StatusChips({ s, copy }: { s: AttendanceSessionView; copy: AttendanceCopy }) {
   return (
-    <span className="histchips">
+    <>
       {s.status === "open" ? (
-        <span className="chip c-open">
-          <span className="d" />
-          진행 중
-        </span>
+        <span className="chip c-open"><span className="d" />{copy.sessOpen}</span>
       ) : s.status === "invalid" ? (
-        <span className="chip c-invalid">무효</span>
+        <span className="chip c-invalid">{copy.statusInvalid}</span>
       ) : s.status === "reopened" ? (
-        <span className="chip c-info">재개</span>
+        <span className="chip c-info">{copy.sessReopened}</span>
       ) : (
-        <span className="chip c-done">완료</span>
+        <span className="chip c-done"><AIc>{AttIcon.check}</AIc>{copy.sessDone}</span>
       )}
-      {s.reviewState === "review_required" ? <span className="chip c-warn">검토 필요</span> : null}
-      {s.manualCreated ? <span className="chip c-info">수동</span> : null}
-      {s.correctionStatus === "requested" ? <span className="chip c-info">정정 요청됨</span> : null}
-      {s.correctionStatus === "in_review" ? <span className="chip c-warn">정정 검토중</span> : null}
-      {s.correctionStatus === "approved" ? <span className="chip c-done">정정 승인</span> : null}
-      {s.correctionStatus === "rejected" ? <span className="chip c-danger">정정 반려</span> : null}
-    </span>
+      {s.reviewState === "review_required" ? (
+        <span className="chip c-warn">{copy.statusReviewRequired}</span>
+      ) : null}
+      {s.manualCreated ? <span className="chip c-info">{copy.methodManual}</span> : null}
+      {s.correctionStatus === "requested" ? (
+        <span className="chip c-info">{copy.sessCorrRequested}</span>
+      ) : s.correctionStatus === "in_review" ? (
+        <span className="chip c-warn">{copy.sessCorrInReview}</span>
+      ) : s.correctionStatus === "approved" ? (
+        <span className="chip c-done">{copy.sessCorrApproved}</span>
+      ) : s.correctionStatus === "rejected" ? (
+        <span className="chip c-danger">{copy.sessCorrRejected}</span>
+      ) : null}
+    </>
+  );
+}
+
+function SummaryCard({
+  summary,
+  todaySession,
+  weekSec,
+  copy,
+}: {
+  summary: AttendanceTodaySummary;
+  todaySession: AttendanceSessionView | null;
+  weekSec: number;
+  copy: AttendanceCopy;
+}) {
+  const [elapsed, setElapsed] = useState<number>(summary.workedSec);
+
+  useEffect(() => {
+    if (!summary.hasOpenSession || !todaySession?.clockInAt) return;
+    const clockInMs = new Date(todaySession.clockInAt).getTime();
+    const tick = () => {
+      const gross = (Date.now() - clockInMs) / 1000;
+      setElapsed(Math.max(0, Math.floor(gross) - summary.breakTotalSec));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [summary.hasOpenSession, summary.breakTotalSec, todaySession?.clockInAt]);
+
+  if (summary.hasOpenSession && todaySession) {
+    const { hm, ss } = fmtHMS(elapsed);
+    return (
+      <div className="summary summary--open">
+        <div className="sm__deco" />
+        <div className="sm__top">
+          <span className="sm__pulse" />
+          <span className="sm__state-label">{copy.ringWorking}</span>
+          <span className="sm__tag">{copy.sessOpen}</span>
+        </div>
+        <div className="sm__mid">
+          <div>
+            <div className="sm__biglbl">{copy.histTodayAccum}</div>
+            <div className="sm__big">{hm}<span className="sec">{ss}</span></div>
+          </div>
+        </div>
+        <div className="sm__divider" />
+        <div className="sm__rows">
+          <div className="sm__cell">
+            <div className="sm__k"><AIc>{AttIcon.pin}</AIc>{copy.clockInSite}</div>
+            <div className="sm__v">{todaySession.clockInSiteName ?? "—"}</div>
+          </div>
+          <div className="sm__cell">
+            <div className="sm__k"><AIc>{AttIcon.clock}</AIc>{copy.histClockIn}</div>
+            <div className="sm__v" style={{ fontFamily: "var(--mono)" }}>{todaySession.clockInLabel ?? "--:--"}</div>
+          </div>
+          <div className="sm__cell">
+            <div className="sm__k"><AIc>{AttIcon.coffee}</AIc>{copy.histBreakTime}</div>
+            <div className="sm__v" style={{ fontFamily: "var(--mono)" }}>{fmtHM(summary.breakTotalSec)}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="summary summary--idle">
+      <div className="sm__deco" />
+      <div className="sm__top">
+        <span className="sm__state-label">{copy.ringIdleLabel}</span>
+        <span className="sm__tag">{copy.sumWaiting}</span>
+      </div>
+      <div className="sm__mid">
+        <div className="sm__big">
+          {summary.workedSec > 0 ? fmtHM(summary.workedSec) : copy.histIdleMsg}
+        </div>
+      </div>
+      <div className="sm__divider" />
+      <div className="sm__rows">
+        <div className="sm__cell">
+          <div className="sm__k">{copy.histTodayAccum}</div>
+          <div className="sm__v" style={{ fontFamily: "var(--mono)" }}>{fmtHM(summary.workedSec)}</div>
+        </div>
+        <div className="sm__cell">
+          <div className="sm__k">{copy.histThisWeek}</div>
+          <div className="sm__v" style={{ fontFamily: "var(--mono)" }}>{fmtHM(weekSec)}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TimeCol({
+  label,
+  siteName,
+  lbl,
+  isOpen,
+  isMissing,
+  missingLabel,
+  missingOutLabel,
+  openLabel,
+}: {
+  label: string | null;
+  siteName: string | null;
+  lbl: string;
+  isOpen: boolean;
+  isMissing: boolean;
+  missingLabel: string;
+  missingOutLabel?: string;
+  openLabel: string;
+}) {
+  const period = amPm(label);
+  return (
+    <div className="io__col">
+      <div className="io__lbl">{lbl}</div>
+      {isOpen ? (
+        <div className="io__time">{openLabel}</div>
+      ) : label ? (
+        <>
+          <div className="io__time">
+            {label}
+            {period ? <span className="io__period">{period}</span> : null}
+          </div>
+          <div className="io__site">
+            <AIc>{AttIcon.pin}</AIc>
+            {siteName ?? "—"}
+          </div>
+        </>
+      ) : isMissing ? (
+        <>
+          <div className="io__time missing">{missingLabel}</div>
+          {missingOutLabel ? (
+            <div className="io__site" style={{ color: "var(--warn)" }}>
+              {missingOutLabel}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <div className="io__time">--:--</div>
+      )}
+    </div>
+  );
+}
+
+function SessionRow({
+  s,
+  copy,
+  onClick,
+}: {
+  s: AttendanceSessionView;
+  copy: AttendanceCopy;
+  onClick: () => void;
+}) {
+  const isFlagged = s.reviewState === "review_required" || s.isAbnormal;
+  const isInfo = !!s.correctionStatus;
+  const flagCls = s.status === "invalid"
+    ? "srow--invalid"
+    : isFlagged
+      ? "srow--flag"
+      : isInfo
+        ? "srow--flag info"
+        : "";
+
+  const paidLabel = s.workedSec != null ? fmtHM(s.workedSec) : "—";
+  const missingClockOut = !s.clockOutLabel && s.status !== "open";
+  const inMethod = methodLabel(s.clockInMethod, copy.methodManual);
+
+  return (
+    <button type="button" className={`srow ${flagCls}`} onClick={onClick}>
+      <div className="srow__top">
+        <div className="srow__chips">
+          <StatusChips s={s} copy={copy} />
+        </div>
+        <div className="srow__paid">
+          <div className="v">{paidLabel}</div>
+          <div className="k">{copy.histWorkApproved}</div>
+        </div>
+      </div>
+      <div className="inout">
+        <TimeCol
+          label={s.clockInLabel}
+          siteName={s.clockInSiteName}
+          lbl={copy.histClockIn}
+          isOpen={false}
+          isMissing={false}
+          missingLabel={copy.histNoRecord}
+          openLabel={copy.sessOpen}
+        />
+        <div className="io__arrow"><AIc>{AttIcon.arrowR}</AIc></div>
+        <TimeCol
+          label={s.clockOutLabel}
+          siteName={s.clockOutSiteName}
+          lbl={copy.histClockOut}
+          isOpen={s.status === "open"}
+          isMissing={missingClockOut}
+          missingLabel={copy.histNoRecord}
+          missingOutLabel={copy.reasonMissingOut}
+          openLabel={copy.sessOpen}
+        />
+      </div>
+      <div className="srow__foot">
+        <span className="sfi">
+          <AIc>{AttIcon.qr}</AIc>{inMethod}
+        </span>
+        {s.breakCount > 0 ? (
+          <span className="sfi">
+            <AIc>{AttIcon.coffee}</AIc>
+            {copy.histBreakCountSuffix(s.breakCount).replace(" · ", "")}
+          </span>
+        ) : null}
+        {missingClockOut ? (
+          <span className="sfi note" style={{ color: "var(--warn)" }}>
+            <AIc>{AttIcon.warn}</AIc>{copy.reasonMissingOut}
+          </span>
+        ) : s.isAbnormal ? (
+          <span className="sfi note" style={{ color: "var(--warn)" }}>
+            <AIc>{AttIcon.warn}</AIc>{copy.histAbnormalTitle}
+          </span>
+        ) : null}
+      </div>
+    </button>
   );
 }
 
 export function AttendanceHistory({
   summary,
   sessions,
+  ym,
+  currentYm,
+  locale,
 }: {
   summary: AttendanceTodaySummary;
   sessions: AttendanceSessionView[];
+  ym: string;
+  currentYm: string;
+  locale: string;
 }) {
-  const hydrated = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  );
+  const copy = getDictionary(locale).attendance;
+  const isCurrentMonth = ym === currentYm;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
   const close = () => setSelectedId(null);
-  const drag = useSheetDragDismiss({ shown: selected != null, onDismiss: close });
+
+  function dur(sec: number) {
+    return fmtDur(sec, copy.durationHour, copy.durationMin);
+  }
+
+  const todayDate = summary.date;
+  const todayOpen =
+    sessions.find((s) => s.operatingDate === todayDate && s.status === "open") ??
+    sessions.find((s) => s.operatingDate === todayDate) ??
+    null;
+
+  const weekSec = computeWeekSec(sessions, summary);
+
+  const flagged = sessions.filter(
+    (s) => s.reviewState === "review_required" || s.isAbnormal,
+  );
+
+  const groups = groupByDate(sessions);
 
   return (
     <div className="att">
-      <div className="histsum">
-        <div className="histsum__cell">
-          <span className="histsum__k">오늘 세션</span>
-          <span className="histsum__v">{summary.sessionCount}건</span>
+      <div className="ptitle-row">
+        <div>
+          <h1 className="ptitle">{copy.historyTitle}</h1>
+          <div className="ptitle__sub">{copy.histSubtitle}</div>
         </div>
-        <div className="histsum__cell">
-          <span className="histsum__k">오늘 근무</span>
-          <span className="histsum__v">{fmtDur(summary.workedSec)}</span>
-        </div>
-        <div className="histsum__cell">
-          <span className="histsum__k">오늘 휴게</span>
-          <span className="histsum__v">{fmtDur(summary.breakTotalSec)}</span>
-        </div>
+        <MonthSwitcher
+          ym={ym}
+          currentYm={currentYm}
+          basePath="/mobile/attendance/history"
+          locale={locale}
+          labels={{ prev: copy.monthPrev, next: copy.monthNext, select: copy.monthSelect }}
+        />
       </div>
 
+      {isCurrentMonth ? (
+        <SummaryCard summary={summary} todaySession={todayOpen} weekSec={weekSec} copy={copy} />
+      ) : null}
+
+      {flagged.length > 0 ? (
+        <button
+          type="button"
+          className="attn attn--warn"
+          onClick={() => setSelectedId(flagged[0].id)}
+        >
+          <span className="attn__ic"><AIc>{AttIcon.warn}</AIc></span>
+          <div className="attn__b">
+            <div className="attn__t">
+              {copy.statusReviewRequired} {copy.histFlaggedCount(flagged.length)}
+            </div>
+            <div className="attn__s">
+              {(() => {
+                const f = flagged[0];
+                const [, mm, dd] = f.operatingDate.split("-");
+                const shortDate = `${parseInt(mm, 10)}/${parseInt(dd, 10)}`;
+                const missOut = !f.clockOutLabel && f.status !== "open";
+                return `${shortDate} ${missOut ? copy.reasonMissingOut : f.dateLabel}`;
+              })()}
+            </div>
+          </div>
+          <span className="attn__chev"><AIc>{AttIcon.chevR}</AIc></span>
+        </button>
+      ) : null}
+
       {sessions.length === 0 ? (
-        <div className="histempty">
-          <AIc>{AttIcon.clock}</AIc>
-          <p>출퇴근 기록이 아직 없어요</p>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "56px 28px", gap: "14px" }}>
+          <span style={{ width: 60, height: 60, borderRadius: 19, background: "var(--surface)", color: "var(--faint)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
+            <AIc>{AttIcon.clock}</AIc>
+          </span>
+          <p style={{ fontSize: 15, fontWeight: 800, margin: 0, color: "var(--ink)" }}>{copy.histEmpty}</p>
+          <p style={{ fontSize: 13, color: "var(--muted)", margin: 0 }}>{copy.histSubtitle}</p>
         </div>
-      ) : (
-        <div className="histlist">
-          {sessions.map((s) => (
-            <button key={s.id} type="button" className="histcard" onClick={() => setSelectedId(s.id)}>
-              <div className="histcard__top">
-                <span className="histcard__date">{s.dateLabel}</span>
-                <StatusChips s={s} />
-              </div>
-              <div className="histcard__io">
-                <div className="histcard__col">
-                  <span className="histcard__k">
-                    <AIc>{AttIcon.clock}</AIc>출근
-                  </span>
-                  <span className="histcard__v mono">{s.clockInLabel ?? "--:--"}</span>
-                  <span className="histcard__sub">{s.clockInSiteName ?? "—"}</span>
-                </div>
-                <div className="histcard__col">
-                  <span className="histcard__k">
-                    <AIc>{AttIcon.logout}</AIc>퇴근
-                  </span>
-                  <span className="histcard__v mono">{s.clockOutLabel ?? "--:--"}</span>
-                  <span className="histcard__sub">
-                    {s.clockOutSiteName ?? (s.status === "open" ? "진행 중" : "기록 없음")}
-                  </span>
-                </div>
-              </div>
-              <div className="histcard__meta">
-                <span>근무 {s.workedSec != null ? fmtDur(s.workedSec) : "—"}</span>
-                <span>
-                  휴게 {fmtDur(s.breakTotalSec)}
-                  {s.breakCount ? ` · ${s.breakCount}회` : ""}
+      ) : null}
+
+      {groups.map((g) => {
+        const { d, wd } = dateGroupLabel(g.date, todayDate, locale, copy.histToday);
+        const groupWorked = g.sessions.reduce((acc, s) => acc + (s.workedSec ?? 0), 0);
+        const hasRunning = g.sessions.some((s) => s.status === "open");
+        const hasFlagged = g.sessions.some(
+          (s) => s.reviewState === "review_required" || s.isAbnormal,
+        );
+        const sumLabel = hasRunning
+          ? copy.sessOpen
+          : hasFlagged
+            ? copy.statusReviewRequired
+            : groupWorked > 0
+              ? fmtHM(groupWorked)
+              : "—";
+        return (
+          <div key={g.date}>
+            <div className="dgroup">
+              <span className="dgroup__d">{d}</span>
+              <span className="dgroup__wd">{wd}</span>
+              <span
+                className="dgroup__sum"
+                style={hasFlagged ? { color: "var(--warn)" } : undefined}
+              >
+                {sumLabel}
+              </span>
+            </div>
+            {g.sessions.map((s) => (
+              <SessionRow
+                key={s.id}
+                s={s}
+                copy={copy}
+                onClick={() => setSelectedId(s.id)}
+              />
+            ))}
+          </div>
+        );
+      })}
+
+      {selected && (
+        <BottomSheet onClose={close}>
+          <div className="att">
+            <h3 className="rsheet__t">{selected.dateLabel}</h3>
+            <div className="histsheet__chips">
+              <StatusChips s={selected} copy={copy} />
+            </div>
+            <div className="recap">
+              <div className="recap__r">
+                <span className="recap__k">
+                  <AIc>{AttIcon.pin}</AIc>{copy.histClockIn}
+                </span>
+                <span className="recap__v">
+                  <span className="mono">{selected.clockInLabel ?? "--:--"}</span> ·{" "}
+                  {selected.clockInSiteName ?? "—"} ·{" "}
+                  {methodLabel(selected.clockInMethod, copy.methodManual)}
                 </span>
               </div>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {hydrated && selected
-        ? createPortal(
-            <div className="att">
-              <div className="dim show" style={drag.scrimStyle} onClick={close} aria-hidden="true" />
-              <div className="rsheet" data-sheet role="dialog" aria-modal="true" style={drag.sheetStyle}>
-                <div {...drag.handleProps}>
-                  <div className="rsheet__handle" />
-                </div>
-                <h3 className="rsheet__t">{selected.dateLabel}</h3>
-                <div className="histsheet__chips">
-                  <StatusChips s={selected} />
-                </div>
-                <div className="recap">
-                  <div className="recap__r">
-                    <span className="recap__k">
-                      <AIc>{AttIcon.pin}</AIc>출근
-                    </span>
-                    <span className="recap__v">
-                      <span className="mono">{selected.clockInLabel ?? "--:--"}</span> ·{" "}
-                      {selected.clockInSiteName ?? "—"} · {methodLabel(selected.clockInMethod)}
-                    </span>
-                  </div>
-                  <div className="recap__r">
-                    <span className="recap__k">
-                      <AIc>{AttIcon.logout}</AIc>퇴근
-                    </span>
-                    <span className="recap__v">
-                      {selected.clockOutLabel ? (
-                        <>
-                          <span className="mono">{selected.clockOutLabel}</span> ·{" "}
-                          {selected.clockOutSiteName ?? "—"} · {methodLabel(selected.clockOutMethod)}
-                        </>
-                      ) : selected.status === "open" ? (
-                        "진행 중"
-                      ) : (
-                        "기록 없음"
-                      )}
-                    </span>
-                  </div>
-                  <div className="recap__r">
-                    <span className="recap__k">근무</span>
-                    <span className="recap__v">
-                      {selected.workedSec != null ? fmtDur(selected.workedSec) : "—"}
-                    </span>
-                  </div>
-                  <div className="recap__r">
-                    <span className="recap__k">휴게 합계</span>
-                    <span className="recap__v">
-                      {fmtDur(selected.breakTotalSec)}
-                      {selected.breakCount ? ` · ${selected.breakCount}회` : ""}
-                    </span>
-                  </div>
-                </div>
-
-                {selected.breaks.length > 0 ? (
-                  <div className="histbreaks">
-                    {selected.breaks.map((b, i) => (
-                      <div className="histbreaks__r" key={`${b.startedAt}-${i}`}>
-                        <span className="histbreaks__k">휴게 {i + 1}</span>
-                        <span className="mono">
-                          {b.startedLabel} – {b.endedLabel ?? "진행 중"}
-                        </span>
-                        <span className="histbreaks__d">
-                          {b.durationSec != null ? fmtDur(b.durationSec) : "진행 중"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {selected.isAbnormal ? (
-                  <div className="failnote warn">
-                    <AIc>{AttIcon.warn}</AIc>
-                    <div>
-                      <b>검토가 필요한 기록이에요</b>
-                      <p>관리자 확인 또는 정정 요청이 필요할 수 있어요.</p>
-                    </div>
-                  </div>
-                ) : null}
-
-                {selected.correctionStatus ? (
-                  <Link
-                    href={`/mobile/attendance/correction/status`}
-                    className="ghostbtn"
-                    style={{ marginTop: "12px" }}
-                  >
-                    <AIc>{AttIcon.info}</AIc>정정 요청 상태 보기
-                  </Link>
-                ) : (
-                  <Link
-                    href={`/mobile/attendance/correction?sessionId=${selected.id}`}
-                    className="ghostbtn"
-                    style={{ marginTop: "12px" }}
-                  >
-                    <AIc>{AttIcon.edit}</AIc>이 세션 정정 요청
-                  </Link>
-                )}
+              <div className="recap__r">
+                <span className="recap__k">
+                  <AIc>{AttIcon.logout}</AIc>{copy.histClockOut}
+                </span>
+                <span className="recap__v">
+                  {selected.clockOutLabel ? (
+                    <>
+                      <span className="mono">{selected.clockOutLabel}</span> ·{" "}
+                      {selected.clockOutSiteName ?? "—"} ·{" "}
+                      {methodLabel(selected.clockOutMethod, copy.methodManual)}
+                    </>
+                  ) : selected.status === "open" ? (
+                    copy.sessOpen
+                  ) : (
+                    copy.histNoRecord
+                  )}
+                </span>
               </div>
-            </div>,
-            document.body,
-          )
-        : null}
+              <div className="recap__r">
+                <span className="recap__k">{copy.histWorkTime}</span>
+                <span className="recap__v">
+                  {selected.workedSec != null ? dur(selected.workedSec) : "—"}
+                </span>
+              </div>
+              <div className="recap__r">
+                <span className="recap__k">{copy.histBreakTotal}</span>
+                <span className="recap__v">
+                  {dur(selected.breakTotalSec)}
+                  {selected.breakCount ? copy.histBreakCountSuffix(selected.breakCount) : ""}
+                </span>
+              </div>
+            </div>
+
+            {selected.breaks.length > 0 ? (
+              <div className="histbreaks">
+                {selected.breaks.map((b, i) => (
+                  <div className="histbreaks__r" key={`${b.startedAt}-${i}`}>
+                    <span className="histbreaks__k">{copy.histBreakRowLabel(i + 1)}</span>
+                    <span className="mono">
+                      {b.startedLabel} – {b.endedLabel ?? copy.sessOpen}
+                    </span>
+                    <span className="histbreaks__d">
+                      {b.durationSec != null ? dur(b.durationSec) : copy.sessOpen}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {selected.isAbnormal ? (
+              <div className="failnote warn">
+                <AIc>{AttIcon.warn}</AIc>
+                <div>
+                  <b>{copy.histAbnormalTitle}</b>
+                  <p>{copy.histAbnormalBody}</p>
+                </div>
+              </div>
+            ) : null}
+
+            {selected.correctionStatus ? (
+              <Link
+                href="/mobile/attendance/correction/status"
+                className="ghostbtn"
+                style={{ marginTop: "12px" }}
+              >
+                <AIc>{AttIcon.info}</AIc>{copy.histViewCorrStatus}
+              </Link>
+            ) : (
+              <Link
+                href={`/mobile/attendance/correction?sessionId=${selected.id}`}
+                className="ghostbtn"
+                style={{ marginTop: "12px" }}
+              >
+                <AIc>{AttIcon.edit}</AIc>{copy.histRequestCorr}
+              </Link>
+            )}
+          </div>
+        </BottomSheet>
+      )}
     </div>
   );
 }

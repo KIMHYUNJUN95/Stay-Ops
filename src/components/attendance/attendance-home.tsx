@@ -1,11 +1,9 @@
 "use client";
 
 /**
- * Attendance home — ring-hero clock screen (Section A of "Attendance Module v2.html").
- * Renders ONE designed state (출근 전 / 근무 중 / 휴게 중 / 로딩). Steps 3–4 wired it to real data:
- * the open-session ring ticks live, and break start/end + the on-break state are real (`openSession`).
- * `?state=` is retained only as a static design preview. 1:1 with the handoff — every icon is wrapped
- * in `.ic` so it is sized by `.ic svg { width:1em }`.
+ * Attendance home — redesigned to match "Attendance Home (entry buttons).html" handoff.
+ * Idle state: greeting header · ring hero · clock-in button · methods · shortcut entry list.
+ * Open/break states: same greeting header + live ring data (unchanged).
  */
 
 import Link from "next/link";
@@ -16,6 +14,9 @@ import "./attendance.css";
 import { AIc, AttIcon, AttRingDefs } from "./att-icons";
 import { startBreak, endBreak, respondOpenSessionReminder } from "@/app/mobile/attendance/actions";
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
+import { getDictionary, type Dictionary } from "@/lib/i18n";
+
+type AttendanceCopy = Dictionary["attendance"];
 
 export type HomeState = "idle" | "open" | "break" | "loading";
 
@@ -60,8 +61,8 @@ function Ring({
           {variant === "idle" ? (
             <>
               <span className="ring__idleicon">{AttIcon.qr}</span>
-              <span className="ring__state idle">대기</span>
-              <span className="ring__idletxt">출근 전</span>
+              <span className="ring__state idle">{state}</span>
+              <span className="ring__idletxt">{lbl}</span>
             </>
           ) : (
             <>
@@ -91,7 +92,6 @@ function fmtElapsed(elapsedSec: number) {
   return { big: `${pad(h)}:${pad(m)}`, sec: pad(s) };
 }
 
-/** "HH:mm" from seconds (no seconds component). */
 function fmtHM(totalSec: number): string {
   const safe = Math.max(0, totalSec);
   const h = Math.floor(safe / 3600);
@@ -100,7 +100,6 @@ function fmtHM(totalSec: number): string {
   return `${pad(h)}:${pad(m)}`;
 }
 
-/** "mm:ss" from seconds (for the current-break ticker). */
 function fmtMS(totalSec: number): string {
   const safe = Math.max(0, totalSec);
   const m = Math.floor(safe / 60);
@@ -109,8 +108,7 @@ function fmtMS(totalSec: number): string {
   return `${pad(m)}:${pad(s)}`;
 }
 
-/** Live "오늘 누적 근무" ring for a real open session (ticks once per second, client-only). */
-function LiveOpenRing({ clockInAt }: { clockInAt: string | null }) {
+function LiveOpenRing({ clockInAt, copy }: { clockInAt: string | null; copy: AttendanceCopy }) {
   const startMs = clockInAt ? new Date(clockInAt).getTime() : null;
   const [elapsed, setElapsed] = useState(() =>
     startMs == null ? 0 : Math.floor((Date.now() - startMs) / 1000),
@@ -121,16 +119,10 @@ function LiveOpenRing({ clockInAt }: { clockInAt: string | null }) {
     return () => clearInterval(t);
   }, [startMs]);
   const { big, sec } = fmtElapsed(elapsed);
-  // Ring fill references an 8-hour shift; purely decorative.
   const pct = Math.min(Math.max(elapsed, 0) / (8 * 3600), 1);
-  return <Ring variant="open" cls="open" state="근무 중" big={big} sec={sec} lbl="오늘 누적 근무" pct={pct} />;
+  return <Ring variant="open" cls="open" state={copy.ringWorking} big={big} sec={sec} lbl={copy.ringAccumLabel} pct={pct} />;
 }
 
-/**
- * Live 휴게 중 body for a real open session that has an open break. Ticks once per second (client-only):
- * the banner shows the CURRENT break (mm:ss), the ring shows worked time = elapsed − total break, and
- * the strip shows the running break total + count. 퇴근하기 stays disabled (must end break first).
- */
 function LiveBreakBody({
   clockInAt,
   openBreakStartedAt,
@@ -138,6 +130,7 @@ function LiveBreakBody({
   breakCount,
   onEndBreak,
   busy,
+  copy,
 }: {
   clockInAt: string | null;
   openBreakStartedAt: string | null;
@@ -145,6 +138,7 @@ function LiveBreakBody({
   breakCount: number;
   onEndBreak: () => void;
   busy: boolean;
+  copy: AttendanceCopy;
 }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -165,44 +159,33 @@ function LiveBreakBody({
       <div className="breakbanner">
         <AIc>{AttIcon.coffee}</AIc>
         <div>
-          <b>휴게 중</b>
-          <p>휴게를 종료해야 퇴근할 수 있어요</p>
+          <b>{copy.ringOnBreak}</b>
+          <p>{copy.breakWarning}</p>
         </div>
         <span className="t mono">{fmtMS(currentBreakSec)}</span>
       </div>
-      <Ring variant="break" cls="break" state="휴게 중" big={fmtHM(workedSec)} lbl="근무 시간 (휴게 제외)" pct={pct} />
+      <Ring variant="break" cls="break" state={copy.ringOnBreak} big={fmtHM(workedSec)} lbl={copy.ringWorkLabel} pct={pct} />
       <div className="infostrip">
         <div className="infocell">
-          <div className="infocell__k">휴게 합계</div>
+          <div className="infocell__k">{copy.breakTotal}</div>
           <div className="infocell__v mono">{fmtHM(totalBreakSec)}</div>
         </div>
         <div className="infocell">
-          <div className="infocell__k">휴게 횟수</div>
-          <div className="infocell__v">{breakCount}번째</div>
+          <div className="infocell__k">{copy.breakCount}</div>
+          <div className="infocell__v">{copy.breakCountOrdinal(breakCount)}</div>
         </div>
       </div>
       <button type="button" className="clockbtn clockbtn--disabled">
-        <AIc>{AttIcon.logout}</AIc>퇴근하기 (휴게 종료 필요)
+        <AIc>{AttIcon.logout}</AIc>{copy.clockOutDisabled}
       </button>
-      <button
-        type="button"
-        className="breakbtn breakbtn--active"
-        onClick={onEndBreak}
-        disabled={busy}
-      >
-        <AIc>{AttIcon.play}</AIc>휴게 종료
+      <button type="button" className="breakbtn breakbtn--active" onClick={onEndBreak} disabled={busy}>
+        <AIc>{AttIcon.play}</AIc>{copy.endBreak}
       </button>
     </>
   );
 }
 
-/**
- * 18:30 open-session reminder prompt (Step 14). Shown once per Tokyo day while a session is still open.
- * "근무 중이에요" records `still_working` (suppresses the prompt for the rest of the day); "이미 퇴근했어요"
- * records `left_work` and routes to the correction flow — it does NOT auto clock-out. Reuses the shared
- * drag-dismiss bottom sheet.
- */
-function ReminderPrompt({ sessionId }: { sessionId: string }) {
+function ReminderPrompt({ sessionId, copy }: { sessionId: string; copy: AttendanceCopy }) {
   const router = useRouter();
   const hydrated = useSyncExternalStore(
     () => () => {},
@@ -239,14 +222,14 @@ function ReminderPrompt({ sessionId }: { sessionId: string }) {
           <div className="rsheet__handle" />
         </div>
         <div className="rsheet__ic ic-warn">{AttIcon.warn}</div>
-        <h3 className="rsheet__t">아직 근무 중인가요?</h3>
-        <p className="rsheet__s">18:30이 지났어요. 진행 중인 근무가 있어요.</p>
+        <h3 className="rsheet__t">{copy.reminderTitle}</h3>
+        <p className="rsheet__s">{copy.reminderBody}</p>
         <div className="rbtns">
           <button type="button" className="rbtn rbtn--primary" onClick={onStillWorking} disabled={busy}>
-            근무 중이에요
+            {copy.ringWorking}
           </button>
           <button type="button" className="rbtn rbtn--ghost" onClick={onLeftWork} disabled={busy}>
-            <AIc>{AttIcon.edit}</AIc>이미 퇴근했어요
+            <AIc>{AttIcon.edit}</AIc>{copy.reminderLeft}
           </button>
         </div>
       </div>
@@ -255,25 +238,21 @@ function ReminderPrompt({ sessionId }: { sessionId: string }) {
   );
 }
 
-function Methods() {
+function Methods({ copy }: { copy: AttendanceCopy }) {
   return (
     <div className="methods">
       <div className="methodchip on">
-        <span className="methodchip__ic">
-          <AIc>{AttIcon.qr}</AIc>
-        </span>
+        <span className="methodchip__ic"><AIc>{AttIcon.qr}</AIc></span>
         <div className="methodchip__t">
           <b>GPS + QR</b>
-          <span>사용 가능</span>
+          <span>{copy.methodQrAvailable}</span>
         </div>
       </div>
       <div className="methodchip ghost">
-        <span className="methodchip__ic">
-          <AIc>{AttIcon.wifi}</AIc>
-        </span>
+        <span className="methodchip__ic"><AIc>{AttIcon.wifi}</AIc></span>
         <div className="methodchip__t">
           <b>Wi-Fi</b>
-          <span>준비중</span>
+          <span>{copy.methodWifiSoon}</span>
         </div>
       </div>
     </div>
@@ -284,7 +263,6 @@ export type OpenSessionView = {
   clockInAt: string | null;
   clockInTimeLabel: string;
   siteName: string;
-  /** Non-null when a break is currently open (Step 4). */
   openBreakStartedAt: string | null;
   closedBreakSeconds: number;
   breakCount: number;
@@ -292,23 +270,30 @@ export type OpenSessionView = {
 
 export function AttendanceHome({
   userName,
-  userInitial,
   todayLabel,
   state = "idle",
   openSession = null,
   reminderOpenSessionId = null,
+  monthHours = null,
+  monthPay = null,
+  locale,
 }: {
   userName: string;
   userInitial: string;
   todayLabel: string;
   state?: HomeState;
-  /** Real open session (Steps 3–4). When present the open/break states render live data; null = preview. */
   openSession?: OpenSessionView | null;
-  /** Non-null → show the 18:30 open-session reminder prompt for this session (Step 14). */
   reminderOpenSessionId?: string | null;
+  /** Formatted monthly worked hours (e.g. "32:10"). null = no data to show. */
+  monthHours?: string | null;
+  /** Formatted monthly pay string (e.g. "¥184,260"). null = salaried or no data. */
+  monthPay?: string | null;
+  locale: string;
 }) {
+  const copy = getDictionary(locale).attendance;
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [payMasked, setPayMasked] = useState(false);
 
   const onStartBreak = useCallback(async () => {
     if (busy) return;
@@ -326,8 +311,6 @@ export function AttendanceHome({
     if (res.ok) router.refresh();
   }, [busy, router]);
 
-  // Brief "loading" skeleton on entry, like a real app fetching attendance state. Opening
-  // `?state=loading` keeps it static (for design review) by skipping the auto-reveal.
   const [booting, setBooting] = useState(true);
   useEffect(() => {
     if (state === "loading") return;
@@ -336,86 +319,108 @@ export function AttendanceHome({
   }, [state]);
   const showLoading = state === "loading" || booting;
 
-  const topline = (
-    <div className="topline">
-      <div>
-        <div className="topline__d">{todayLabel}</div>
-        <div className="topline__n">{userName} 님</div>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <Link href="/mobile/attendance/history" className="histlink">
-          <AIc>{AttIcon.clock}</AIc>이력
-        </Link>
-        <Link href="/mobile/attendance/pay" className="histlink">
-          급여
-        </Link>
-        <span className="topline__av">{userInitial}</span>
-      </div>
+  // Greeting header — replaces old topline with avatar/links
+  const greet = (
+    <div className="greet">
+      <div className="greet__d">{todayLabel}</div>
+      <div className="greet__n">{copy.homeGreetFull(userName)}</div>
     </div>
+  );
+
+  // Shortcut entry list (idle only)
+  const entryList = (
+    <>
+      <div className="seclbl">{copy.homeShortcutLabel}</div>
+      <div className="entrylist">
+        <Link href="/mobile/attendance/history" className="entryrow hist">
+          <span className="entryrow__ic"><AIc>{AttIcon.clock}</AIc></span>
+          <div className="entryrow__b">
+            <div className="entryrow__t">{copy.homeHistTitle}</div>
+            <div className="entryrow__s">{copy.homeHistSub}</div>
+          </div>
+          <div className="entryrow__r">
+            <span className="entryrow__val">{monthHours ?? "00:00"}</span>
+          </div>
+        </Link>
+        <Link href="/mobile/attendance/pay" className="entryrow pay">
+          <span className="entryrow__ic"><AIc>{AttIcon.wallet}</AIc></span>
+          <div className="entryrow__b">
+            <div className="entryrow__t">{copy.homePayTitle}</div>
+            <div className="entryrow__s">{copy.homePaySub}</div>
+          </div>
+          <div className="entryrow__r">
+            <span className={`entryrow__val${payMasked ? " masked" : ""}`}>
+              {monthPay ?? "---"}
+            </span>
+            <button
+              type="button"
+              className="eyemini"
+              onClick={(e) => {
+                e.preventDefault();
+                setPayMasked((prev) => !prev);
+              }}
+              aria-label={copy.homePayHide}
+            >
+              <AIc>{payMasked ? AttIcon.eyeOff : AttIcon.eye}</AIc>
+            </button>
+          </div>
+        </Link>
+      </div>
+    </>
   );
 
   if (showLoading) {
     return (
       <div className="att">
-        <div className="topline">
-          <div>
-            <div className="skel" style={{ width: "130px", height: "13px" }} />
-            <div className="skel" style={{ width: "120px", height: "22px", marginTop: "8px" }} />
-          </div>
-          <div className="skel" style={{ width: "42px", height: "42px", borderRadius: "14px" }} />
+        <div className="greet">
+          <div className="skel" style={{ width: "160px", height: "13px" }} />
+          <div className="skel" style={{ width: "140px", height: "22px", marginTop: "8px" }} />
         </div>
         <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 18px" }}>
           <div className="skel" style={{ width: "252px", height: "252px", borderRadius: "999px" }} />
         </div>
-        <div className="skel" style={{ height: "64px", borderRadius: "18px", marginBottom: "14px" }} />
-        <div className="skel" style={{ height: "62px", borderRadius: "18px", marginBottom: "11px" }} />
-        <div className="skel" style={{ height: "52px", borderRadius: "15px" }} />
+        <div className="skel" style={{ height: "60px", borderRadius: "18px", marginBottom: "11px" }} />
+        <div className="skel" style={{ height: "52px", borderRadius: "14px" }} />
       </div>
     );
   }
 
   if (state === "open") {
-    // Real open session (Step 3) → live data; otherwise the static design preview.
-    const siteName = openSession ? openSession.siteName : "아라키초 A";
+    const siteName = openSession ? openSession.siteName : copy.previewSite;
     const clockInLabel = openSession ? openSession.clockInTimeLabel : "09:02";
     return (
       <div className="att">
         <AttRingDefs />
-        {topline}
+        {greet}
         <div style={{ height: "5vh" }} />
         {openSession ? (
-          <LiveOpenRing clockInAt={openSession.clockInAt} />
+          <LiveOpenRing clockInAt={openSession.clockInAt} copy={copy} />
         ) : (
-          <Ring variant="open" cls="open" state="근무 중" big="04:38" sec="12" lbl="오늘 누적 근무" pct={0.58} />
+          <Ring variant="open" cls="open" state={copy.ringWorking} big="04:38" sec="12" lbl={copy.ringAccumLabel} pct={0.58} />
         )}
         <div className="infostrip">
           <div className="infocell">
-            <div className="infocell__k">
-              <AIc>{AttIcon.pin}</AIc>출근 장소
-            </div>
+            <div className="infocell__k"><AIc>{AttIcon.pin}</AIc>{copy.clockInSite}</div>
             <div className="infocell__v">{siteName}</div>
           </div>
           <div className="infocell">
-            <div className="infocell__k">
-              <AIc>{AttIcon.clock}</AIc>출근 시각
-            </div>
+            <div className="infocell__k"><AIc>{AttIcon.clock}</AIc>{copy.clockInTime}</div>
             <div className="infocell__v mono">{clockInLabel}</div>
           </div>
         </div>
-        {/* Clock-out requires GPS + QR again → launch the capture flow in clock-out mode. */}
         <Link href="/mobile/attendance/capture?mode=out" className="clockbtn clockbtn--out">
-          <AIc>{AttIcon.logout}</AIc>퇴근하기
+          <AIc>{AttIcon.logout}</AIc>{copy.clockOut}
         </Link>
         {openSession ? (
           <button type="button" className="breakbtn" onClick={onStartBreak} disabled={busy}>
-            <AIc>{AttIcon.coffee}</AIc>휴게 시작
+            <AIc>{AttIcon.coffee}</AIc>{copy.startBreak}
           </button>
         ) : (
           <Link href="/mobile/attendance?state=break" className="breakbtn">
-            <AIc>{AttIcon.coffee}</AIc>휴게 시작
+            <AIc>{AttIcon.coffee}</AIc>{copy.startBreak}
           </Link>
         )}
-        {reminderOpenSessionId ? <ReminderPrompt sessionId={reminderOpenSessionId} /> : null}
+        {reminderOpenSessionId ? <ReminderPrompt sessionId={reminderOpenSessionId} copy={copy} /> : null}
       </div>
     );
   }
@@ -424,7 +429,7 @@ export function AttendanceHome({
     return (
       <div className="att">
         <AttRingDefs />
-        {topline}
+        {greet}
         <div style={{ height: "5vh" }} />
         {openSession ? (
           <LiveBreakBody
@@ -434,52 +439,54 @@ export function AttendanceHome({
             breakCount={openSession.breakCount}
             onEndBreak={onEndBreak}
             busy={busy}
+            copy={copy}
           />
         ) : (
           <>
             <div className="breakbanner">
               <AIc>{AttIcon.coffee}</AIc>
               <div>
-                <b>휴게 중</b>
-                <p>휴게를 종료해야 퇴근할 수 있어요</p>
+                <b>{copy.ringOnBreak}</b>
+                <p>{copy.breakWarning}</p>
               </div>
               <span className="t mono">00:23</span>
             </div>
-            <Ring variant="break" cls="break" state="휴게 중" big="04:15" lbl="근무 시간 (휴게 제외)" pct={0.52} />
+            <Ring variant="break" cls="break" state={copy.ringOnBreak} big="04:15" lbl={copy.ringWorkLabel} pct={0.52} />
             <div className="infostrip">
               <div className="infocell">
-                <div className="infocell__k">휴게 합계</div>
+                <div className="infocell__k">{copy.breakTotal}</div>
                 <div className="infocell__v mono">00:48</div>
               </div>
               <div className="infocell">
-                <div className="infocell__k">휴게 횟수</div>
-                <div className="infocell__v">2번째</div>
+                <div className="infocell__k">{copy.breakCount}</div>
+                <div className="infocell__v">{copy.breakCountOrdinal(2)}</div>
               </div>
             </div>
             <button type="button" className="clockbtn clockbtn--disabled">
-              <AIc>{AttIcon.logout}</AIc>퇴근하기 (휴게 종료 필요)
+              <AIc>{AttIcon.logout}</AIc>{copy.clockOutDisabled}
             </button>
             <Link href="/mobile/attendance?state=open" className="breakbtn breakbtn--active">
-              <AIc>{AttIcon.play}</AIc>휴게 종료
+              <AIc>{AttIcon.play}</AIc>{copy.endBreak}
             </Link>
           </>
         )}
-        {reminderOpenSessionId ? <ReminderPrompt sessionId={reminderOpenSessionId} /> : null}
+        {reminderOpenSessionId ? <ReminderPrompt sessionId={reminderOpenSessionId} copy={copy} /> : null}
       </div>
     );
   }
 
-  // idle (출근 전) — original compact layout, nudged down slightly.
+  // idle — 출근 전
   return (
     <div className="att">
       <AttRingDefs />
-      {topline}
-      <div style={{ height: "5vh" }} />
-      <Ring variant="idle" />
+      {greet}
+      <div style={{ height: "4vh" }} />
+      <Ring variant="idle" state={copy.ringIdle} lbl={copy.ringIdleLabel} />
       <Link href="/mobile/attendance/capture" className="clockbtn clockbtn--in" style={{ marginTop: "4px" }}>
-        <AIc>{AttIcon.qr}</AIc>출근하기
+        <AIc>{AttIcon.qr}</AIc>{copy.clockIn}
       </Link>
-      <Methods />
+      <Methods copy={copy} />
+      {entryList}
     </div>
   );
 }

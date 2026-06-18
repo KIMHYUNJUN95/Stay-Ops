@@ -405,12 +405,19 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
         !isExcludedOperationalRoom(item.property_name, item.room_label),
     );
 
-    const mapToCalendarItem = (item: ReservationRow): CalendarReservationItem | null => {
-      const internalRoomKey = resolveReservationCanonicalRoomLabel(item);
-      if (!internalRoomKey) return null;
+    const mapToCalendarItem = (item: ReservationRow): CalendarReservationItem => {
       const canonicalProperty = getCanonicalPropertyName(item.property_name);
+      // Never drop a reservation. Resolve to the active-catalog room when possible; if it
+      // does not map (unknown/inactive room), fall back to the normalized room label so the
+      // booking still renders on a (fallback) row — mirrors the in-house reference system,
+      // which always assigns a room and never discards a booking. Orphan rooms are added to
+      // the room axis below so the bar has a row to sit on.
+      const internalRoomKey =
+        resolveReservationCanonicalRoomLabel(item) ||
+        getCanonicalRoomLabel(canonicalProperty, item.room_label) ||
+        item.room_label.trim();
       // Convert internal key → display label so 402 and 402_2 share one calendar row.
-      const roomLabel = getDisplayRoomLabel(canonicalProperty, internalRoomKey);
+      const roomLabel = getDisplayRoomLabel(canonicalProperty, internalRoomKey) || internalRoomKey;
       return {
         checkInDate: item.check_in_date,
         checkOutDate: item.check_out_date,
@@ -429,57 +436,10 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
     // Authoritative mode: render only reservations that belong to active room-master rows.
     // Company rule is already reflected in room master classification:
     // external_minimum_stay >= 50 => inactive room (excluded).
-    if (roomMasterRooms === undefined) {
-      reservations = filteredRows.flatMap((item) => {
-        const mapped = mapToCalendarItem(item);
-        return mapped ? [mapped] : [];
-      });
-    } else {
-      // Display labels (not internal keys) because mapToCalendarItem sets roomLabel = displayRoomLabel.
-      const activeCanonicalRoomSet = new Set((roomCatalog ?? []).map((item) => item.displayRoomLabel));
-      const resolved = filteredRows.flatMap((item) => {
-        const mapped = mapToCalendarItem(item);
-        return mapped ? [mapped] : [];
-      });
-
-      if (process.env.NODE_ENV === "development") {
-        const droppedRows = filteredRows.filter((row) => mapToCalendarItem(row) === null);
-        console.log(
-          "[calendar:server:authoritative]",
-          JSON.stringify({
-            selectedMonth,
-            selectedProperty,
-            rawDbCount: ((data ?? []) as ReservationRow[]).length,
-            afterExclusionFilter: filteredRows.length,
-            afterMapping: resolved.length,
-            droppedUnmapped: droppedRows.length,
-            activeCanonicalRoomSet: [...activeCanonicalRoomSet].sort(),
-            droppedSamples: droppedRows.slice(0, 8).map((row) => ({
-              id: row.id,
-              source: row.source,
-              sourceReservationId: row.source_reservation_id,
-              guestName: row.guest_name,
-              propertyName: getCanonicalPropertyName(row.property_name),
-              reservationRoomLabel: row.room_label,
-              payloadUnitId: getRawPayloadString(row.raw_payload, [
-                "roomId",
-                "room_id",
-                "unitId",
-                "unit_id",
-              ]),
-              payloadUnitName: getRawPayloadString(row.raw_payload, [
-                "unitName",
-                "unit_name",
-                "roomName",
-                "room_name",
-              ]),
-            })),
-          }),
-        );
-      }
-
-      reservations = resolved.filter((r) => activeCanonicalRoomSet.has(r.roomLabel));
-    }
+    // Never drop: map every reservation. Orphan rooms (room not in the active catalog) are
+    // added to the room axis (canonicalRoomMasterRooms / propertyRoomsMap) below so their
+    // bars still render instead of silently disappearing.
+    reservations = filteredRows.map(mapToCalendarItem);
   }
 
   const propertyOptionsFromCatalog = roomCatalog
@@ -501,7 +461,7 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
     selectedProperty && propertyOptions.includes(selectedProperty)
       ? selectedProperty
       : null;
-  const propertyRoomsMap =
+  let propertyRoomsMap =
     roomCatalog === undefined
       ? undefined
       : Object.fromEntries(
@@ -516,10 +476,35 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
             }, {}),
           ).map(([property, labels]) => [property, [...new Set(labels)].sort()]),
         );
-  const canonicalRoomMasterRooms =
+  let canonicalRoomMasterRooms =
     roomCatalog === undefined
       ? roomMasterRooms
       : [...new Set(roomCatalog.map((item) => item.displayRoomLabel))];
+
+  // Fallback axis rows: add any reservation room that is not already in the catalog axis so
+  // no booking is hidden for lack of a row (we no longer drop unmapped reservations). Orphan
+  // rooms are rare — mostly brand-new or fully long-stay (>=50) physical rooms.
+  if (canonicalRoomMasterRooms !== undefined) {
+    const masterSet = new Set(canonicalRoomMasterRooms);
+    for (const r of reservations) {
+      if (r.roomLabel && getCanonicalPropertyName(r.roomLabel) !== r.propertyName)
+        masterSet.add(r.roomLabel);
+    }
+    canonicalRoomMasterRooms = [...masterSet];
+  }
+  if (propertyRoomsMap !== undefined) {
+    const augmented: Record<string, string[]> = { ...propertyRoomsMap };
+    for (const r of reservations) {
+      if (!r.roomLabel || getCanonicalPropertyName(r.roomLabel) === r.propertyName) continue;
+      const list = augmented[r.propertyName] ? [...augmented[r.propertyName]] : [];
+      if (!list.includes(r.roomLabel)) {
+        list.push(r.roomLabel);
+        list.sort();
+      }
+      augmented[r.propertyName] = list;
+    }
+    propertyRoomsMap = augmented;
+  }
 
   const roomSourceDebug = roomDebugEnabled
     ? {
