@@ -1,0 +1,78 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import { runPayrollExport, type ExportScope } from "@/lib/attendance-export";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEV-ONLY: trigger a finalized-only payroll export DOWNLOAD for testing (the real owner/payroll_admin
+// export UI is in the deferred web dashboard). Gated like /api/dev/seed-login (development + opt-in +
+// local host) AND still privilege-gated server-side by `runPayrollExport` (owner / attendance_payroll_admin)
+// — payroll data is never exportable by regular users even in dev.
+//
+// Usage (while logged in as an owner/payroll admin):
+//   GET /api/dev/attendance/export?scope=monthly_bulk&ym=2026-06
+//   GET /api/dev/attendance/export?scope=single_user&ym=2026-06&userId=<uuid>
+// ─────────────────────────────────────────────────────────────────────────────
+
+function isLocalDevHost(host: string) {
+  if (host === "localhost" || host === "127.0.0.1") return true;
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  return /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(host);
+}
+
+function getRequestHostname(request: NextRequest) {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = forwardedHost
+    ? (forwardedHost.split(",")[0]?.trim() ?? request.nextUrl.host)
+    : (request.headers.get("host") ?? request.nextUrl.host);
+  return host.split(":")[0] ?? request.nextUrl.hostname;
+}
+
+function ensureDevOnly(request: NextRequest) {
+  if (process.env.NODE_ENV !== "development") {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  if (process.env.ENABLE_DEV_SEED_LOGIN !== "true") {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  if (!isLocalDevHost(getRequestHostname(request))) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  return null;
+}
+
+export async function GET(request: NextRequest) {
+  const blocked = ensureDevOnly(request);
+  if (blocked) return blocked;
+
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) {
+    return NextResponse.json({ error: "no_org_context" }, { status: 400 });
+  }
+
+  const params = request.nextUrl.searchParams;
+  const scope: ExportScope = params.get("scope") === "single_user" ? "single_user" : "monthly_bulk";
+  const ym = params.get("ym") ?? "";
+  const userId = params.get("userId") ?? undefined;
+
+  const service = getSupabaseServiceClient();
+  const result = await runPayrollExport(service, session.organization.id, session.user.id, {
+    scope,
+    ym,
+    userId,
+  });
+
+  if (!result.ok) {
+    const status = result.reason === "forbidden" ? 403 : 400;
+    return NextResponse.json({ error: result.reason }, { status });
+  }
+
+  return new NextResponse(result.csv, {
+    status: 200,
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="${result.filename}"`,
+    },
+  });
+}

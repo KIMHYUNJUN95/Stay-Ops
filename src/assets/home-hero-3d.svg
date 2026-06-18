@@ -1,0 +1,44 @@
+<!--
+  StayOps 홈 디자인(Haru Ops v2)의 최상단 3D 히어로 이미지(구체/orb).
+  현재 홈 화면에서는 사용하지 않음. 향후 3D 히어로를 다시 활성화할 때를 위해 보관.
+  원본: Home Screen v2.html 의 inline ORB SVG (회전 타원 26개 + 중심 원, 방사형 보라 그라데이션).
+  보관 위치만 옮긴 것이며 삭제 금지.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="42%" r="60%">
+      <stop offset="0" stop-color="#ffffff" />
+      <stop offset="0.5" stop-color="#a9b6ff" />
+      <stop offset="1" stop-color="#5b6fd6" />
+    </radialGradient>
+  </defs>
+  <g fill="none" stroke="url(#g)" stroke-width="1" opacity="0.7">
+    <ellipse cx="120" cy="120" rx="36" ry="84" transform="rotate(0 120 120)" />
+    <ellipse cx="120" cy="120" rx="38.6" ry="84" transform="rotate(7 120 120)" />
+    <ellipse cx="120" cy="120" rx="41.2" ry="84" transform="rotate(14 120 120)" />
+    <ellipse cx="120" cy="120" rx="43.8" ry="84" transform="rotate(21 120 120)" />
+    <ellipse cx="120" cy="120" rx="46.4" ry="84" transform="rotate(28 120 120)" />
+    <ellipse cx="120" cy="120" rx="49" ry="84" transform="rotate(35 120 120)" />
+    <ellipse cx="120" cy="120" rx="51.6" ry="84" transform="rotate(42 120 120)" />
+    <ellipse cx="120" cy="120" rx="54.2" ry="84" transform="rotate(49 120 120)" />
+    <ellipse cx="120" cy="120" rx="56.8" ry="84" transform="rotate(56 120 120)" />
+    <ellipse cx="120" cy="120" rx="59.4" ry="84" transform="rotate(63 120 120)" />
+    <ellipse cx="120" cy="120" rx="62" ry="84" transform="rotate(70 120 120)" />
+    <ellipse cx="120" cy="120" rx="64.6" ry="84" transform="rotate(77 120 120)" />
+    <ellipse cx="120" cy="120" rx="67.2" ry="84" transform="rotate(84 120 120)" />
+    <ellipse cx="120" cy="120" rx="69.8" ry="84" transform="rotate(91 120 120)" />
+    <ellipse cx="120" cy="120" rx="72.4" ry="84" transform="rotate(98 120 120)" />
+    <ellipse cx="120" cy="120" rx="75" ry="84" transform="rotate(105 120 120)" />
+    <ellipse cx="120" cy="120" rx="77.6" ry="84" transform="rotate(112 120 120)" />
+    <ellipse cx="120" cy="120" rx="80.2" ry="84" transform="rotate(119 120 120)" />
+    <ellipse cx="120" cy="120" rx="82.8" ry="84" transform="rotate(126 120 120)" />
+    <ellipse cx="120" cy="120" rx="85.4" ry="84" transform="rotate(133 120 120)" />
+    <ellipse cx="120" cy="120" rx="88" ry="84" transform="rotate(140 120 120)" />
+    <ellipse cx="120" cy="120" rx="90.6" ry="84" transform="rotate(147 120 120)" />
+    <ellipse cx="120" cy="120" rx="93.2" ry="84" transform="rotate(154 120 120)" />
+    <ellipse cx="120" cy="120" rx="95.8" ry="84" transform="rotate(161 120 120)" />
+    <ellipse cx="120" cy="120" rx="98.4" ry="84" transform="rotate(168 120 120)" />
+    <ellipse cx="120" cy="120" rx="101" ry="84" transform="rotate(175 120 120)" />
+  </g>
+  <circle cx="120" cy="100" r="30" fill="url(#g)" opacity="0.55" />
+</svg>

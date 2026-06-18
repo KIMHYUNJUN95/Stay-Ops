@@ -486,3 +486,13 @@ A date-grouped **cleaning record sheet** so staff can review their cleaning hist
 - New i18n: `cleaning.records.*` (ko/ja/en). Files: `src/app/mobile/cleaning/records/page.tsx`,
   `src/components/cleaning/cleaning-records-view.tsx`, `canViewOthersCleaning` in `src/config/roles.ts`.
 
+## 2026-06-18 청소 대상 룸 라벨 — 캘린더 표시 라벨과 일치
+
+- "청소 대상" 카드의 룸 제목(`getLocalizedRoomTitle` in `src/app/mobile/cleaning/page.tsx`)이
+  이제 `getDisplayRoomLabel`을 적용해 아라키초 서브유닛을 접습니다(`501_2` → `501`). 캘린더가
+  보여주는 표시 라벨과 동일해집니다.
+- 가부키초 `#`/`K` 제거와 오쿠보 건물명-단독 표기는 기존 `getCanonicalRoomLabel`로 이미
+  정상이었고, 이번 변경은 표시 전용입니다(저장되는 `sessionRoomLabel`·중복 제거 키는 불변).
+- 동일 맥락의 홈 "오늘 체크인/체크아웃" 시트 룸 매핑 일치 작업은
+  `docs/product/15-reservation-calendar.md`(2026-06-18 섹션) 참고.
+

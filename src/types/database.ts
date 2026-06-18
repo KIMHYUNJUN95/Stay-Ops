@@ -9,6 +9,531 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      attendance_sites: {
+        Insert: {
+          allowed_radius_meters?: number;
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          latitude: number;
+          longitude: number;
+          name: string;
+          organization_id: string;
+          property_id?: string | null;
+          updated_at?: string;
+          wifi_ssids?: string[];
+        };
+        Row: {
+          allowed_radius_meters: number;
+          created_at: string;
+          id: string;
+          is_active: boolean;
+          latitude: number;
+          longitude: number;
+          name: string;
+          organization_id: string;
+          property_id: string | null;
+          updated_at: string;
+          wifi_ssids: string[];
+        };
+        Update: {
+          allowed_radius_meters?: number;
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          latitude?: number;
+          longitude?: number;
+          name?: string;
+          organization_id?: string;
+          property_id?: string | null;
+          updated_at?: string;
+          wifi_ssids?: string[];
+        };
+      };
+      attendance_open_session_reminders: {
+        Insert: {
+          created_at?: string;
+          id?: string;
+          operating_date: string;
+          organization_id: string;
+          responded_at?: string | null;
+          response?: string | null;
+          user_id: string;
+        };
+        Row: {
+          created_at: string;
+          id: string;
+          operating_date: string;
+          organization_id: string;
+          responded_at: string | null;
+          response: string | null;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          operating_date?: string;
+          organization_id?: string;
+          responded_at?: string | null;
+          response?: string | null;
+          user_id?: string;
+        };
+      };
+      attendance_qr_tokens: {
+        Insert: {
+          created_at?: string;
+          created_by_user_id: string;
+          id?: string;
+          is_active?: boolean;
+          issued_at?: string;
+          organization_id: string;
+          replaced_by_token_id?: string | null;
+          revoked_at?: string | null;
+          site_id: string;
+          token: string;
+        };
+        Row: {
+          created_at: string;
+          created_by_user_id: string;
+          id: string;
+          is_active: boolean;
+          issued_at: string;
+          organization_id: string;
+          replaced_by_token_id: string | null;
+          revoked_at: string | null;
+          site_id: string;
+          token: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_id?: string;
+          id?: string;
+          is_active?: boolean;
+          issued_at?: string;
+          organization_id?: string;
+          replaced_by_token_id?: string | null;
+          revoked_at?: string | null;
+          site_id?: string;
+          token?: string;
+        };
+      };
+      attendance_sessions: {
+        Insert: {
+          clock_in_accuracy_meters?: number | null;
+          clock_in_at?: string | null;
+          clock_in_device_info?: Json;
+          clock_in_latitude?: number | null;
+          clock_in_longitude?: number | null;
+          clock_in_method?: string | null;
+          clock_in_qr_token_id?: string | null;
+          clock_in_site_id?: string | null;
+          clock_out_accuracy_meters?: number | null;
+          clock_out_at?: string | null;
+          clock_out_device_info?: Json;
+          clock_out_latitude?: number | null;
+          clock_out_longitude?: number | null;
+          clock_out_method?: string | null;
+          clock_out_qr_token_id?: string | null;
+          clock_out_site_id?: string | null;
+          created_at?: string;
+          id?: string;
+          invalidated_at?: string | null;
+          invalidated_by_user_id?: string | null;
+          invalidated_reason?: string | null;
+          manual_created?: boolean;
+          manual_created_by_user_id?: string | null;
+          manual_created_reason?: string | null;
+          operating_date: string;
+          organization_id: string;
+          review_state?: string;
+          status?: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Row: {
+          clock_in_accuracy_meters: number | null;
+          clock_in_at: string | null;
+          clock_in_device_info: Json;
+          clock_in_latitude: number | null;
+          clock_in_longitude: number | null;
+          clock_in_method: string | null;
+          clock_in_qr_token_id: string | null;
+          clock_in_site_id: string | null;
+          clock_out_accuracy_meters: number | null;
+          clock_out_at: string | null;
+          clock_out_device_info: Json;
+          clock_out_latitude: number | null;
+          clock_out_longitude: number | null;
+          clock_out_method: string | null;
+          clock_out_qr_token_id: string | null;
+          clock_out_site_id: string | null;
+          created_at: string;
+          id: string;
+          invalidated_at: string | null;
+          invalidated_by_user_id: string | null;
+          invalidated_reason: string | null;
+          manual_created: boolean;
+          manual_created_by_user_id: string | null;
+          manual_created_reason: string | null;
+          operating_date: string;
+          organization_id: string;
+          review_state: string;
+          status: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Update: {
+          clock_in_accuracy_meters?: number | null;
+          clock_in_at?: string | null;
+          clock_in_device_info?: Json;
+          clock_in_latitude?: number | null;
+          clock_in_longitude?: number | null;
+          clock_in_method?: string | null;
+          clock_in_qr_token_id?: string | null;
+          clock_in_site_id?: string | null;
+          clock_out_accuracy_meters?: number | null;
+          clock_out_at?: string | null;
+          clock_out_device_info?: Json;
+          clock_out_latitude?: number | null;
+          clock_out_longitude?: number | null;
+          clock_out_method?: string | null;
+          clock_out_qr_token_id?: string | null;
+          clock_out_site_id?: string | null;
+          created_at?: string;
+          id?: string;
+          invalidated_at?: string | null;
+          invalidated_by_user_id?: string | null;
+          invalidated_reason?: string | null;
+          manual_created?: boolean;
+          manual_created_by_user_id?: string | null;
+          manual_created_reason?: string | null;
+          operating_date?: string;
+          organization_id?: string;
+          review_state?: string;
+          status?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+      };
+      attendance_breaks: {
+        Insert: {
+          created_at?: string;
+          ended_at?: string | null;
+          id?: string;
+          organization_id: string;
+          session_id: string;
+          started_at: string;
+          updated_at?: string;
+        };
+        Row: {
+          created_at: string;
+          ended_at: string | null;
+          id: string;
+          organization_id: string;
+          session_id: string;
+          started_at: string;
+          updated_at: string;
+        };
+        Update: {
+          created_at?: string;
+          ended_at?: string | null;
+          id?: string;
+          organization_id?: string;
+          session_id?: string;
+          started_at?: string;
+          updated_at?: string;
+        };
+      };
+      attendance_attempt_logs: {
+        Insert: {
+          accuracy_meters?: number | null;
+          action_type: string;
+          attempted_at?: string;
+          created_at?: string;
+          device_info?: Json;
+          failure_reason?: string | null;
+          id?: string;
+          latitude?: number | null;
+          longitude?: number | null;
+          method: string;
+          organization_id: string;
+          resolved_site_id?: string | null;
+          success: boolean;
+          user_id: string;
+        };
+        Row: {
+          accuracy_meters: number | null;
+          action_type: string;
+          attempted_at: string;
+          created_at: string;
+          device_info: Json;
+          failure_reason: string | null;
+          id: string;
+          latitude: number | null;
+          longitude: number | null;
+          method: string;
+          organization_id: string;
+          resolved_site_id: string | null;
+          success: boolean;
+          user_id: string;
+        };
+        Update: {
+          accuracy_meters?: number | null;
+          action_type?: string;
+          attempted_at?: string;
+          created_at?: string;
+          device_info?: Json;
+          failure_reason?: string | null;
+          id?: string;
+          latitude?: number | null;
+          longitude?: number | null;
+          method?: string;
+          organization_id?: string;
+          resolved_site_id?: string | null;
+          success?: boolean;
+          user_id?: string;
+        };
+      };
+      attendance_correction_requests: {
+        Insert: {
+          created_at?: string;
+          desired_clock_in_at?: string | null;
+          desired_clock_in_site_id?: string | null;
+          desired_clock_out_at?: string | null;
+          desired_clock_out_site_id?: string | null;
+          id?: string;
+          image_urls?: string[];
+          memo?: string | null;
+          organization_id: string;
+          reason_type: string;
+          requested_by_user_id: string;
+          review_comment?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by_user_id?: string | null;
+          session_id?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Row: {
+          created_at: string;
+          desired_clock_in_at: string | null;
+          desired_clock_in_site_id: string | null;
+          desired_clock_out_at: string | null;
+          desired_clock_out_site_id: string | null;
+          id: string;
+          image_urls: string[];
+          memo: string | null;
+          organization_id: string;
+          reason_type: string;
+          requested_by_user_id: string;
+          review_comment: string | null;
+          reviewed_at: string | null;
+          reviewed_by_user_id: string | null;
+          session_id: string | null;
+          status: string;
+          updated_at: string;
+        };
+        Update: {
+          created_at?: string;
+          desired_clock_in_at?: string | null;
+          desired_clock_in_site_id?: string | null;
+          desired_clock_out_at?: string | null;
+          desired_clock_out_site_id?: string | null;
+          id?: string;
+          image_urls?: string[];
+          memo?: string | null;
+          organization_id?: string;
+          reason_type?: string;
+          requested_by_user_id?: string;
+          review_comment?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by_user_id?: string | null;
+          session_id?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+      };
+      attendance_session_audits: {
+        Insert: {
+          action_type: string;
+          actor_user_id: string;
+          after_json?: Json;
+          before_json?: Json;
+          created_at?: string;
+          id?: string;
+          organization_id: string;
+          reason: string;
+          session_id: string;
+        };
+        Row: {
+          action_type: string;
+          actor_user_id: string;
+          after_json: Json;
+          before_json: Json;
+          created_at: string;
+          id: string;
+          organization_id: string;
+          reason: string;
+          session_id: string;
+        };
+        Update: {
+          action_type?: string;
+          actor_user_id?: string;
+          after_json?: Json;
+          before_json?: Json;
+          created_at?: string;
+          id?: string;
+          organization_id?: string;
+          reason?: string;
+          session_id?: string;
+        };
+      };
+      employment_type_history: {
+        Insert: {
+          created_at?: string;
+          created_by_user_id: string;
+          effective_from: string;
+          effective_to?: string | null;
+          employment_type: string;
+          id?: string;
+          organization_id: string;
+          user_id: string;
+        };
+        Row: {
+          created_at: string;
+          created_by_user_id: string;
+          effective_from: string;
+          effective_to: string | null;
+          employment_type: string;
+          id: string;
+          organization_id: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_id?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          employment_type?: string;
+          id?: string;
+          organization_id?: string;
+          user_id?: string;
+        };
+      };
+      hourly_rate_history: {
+        Insert: {
+          created_at?: string;
+          created_by_user_id: string;
+          effective_from: string;
+          effective_to?: string | null;
+          hourly_rate: number;
+          id?: string;
+          organization_id: string;
+          user_id: string;
+        };
+        Row: {
+          created_at: string;
+          created_by_user_id: string;
+          effective_from: string;
+          effective_to: string | null;
+          hourly_rate: number;
+          id: string;
+          organization_id: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_id?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          hourly_rate?: number;
+          id?: string;
+          organization_id?: string;
+          user_id?: string;
+        };
+      };
+      attendance_month_snapshots: {
+        Insert: {
+          created_at?: string;
+          finalized_at?: string | null;
+          finalized_by_user_id?: string | null;
+          gross_amount?: number;
+          id?: string;
+          organization_id: string;
+          rate_breakdown?: Json;
+          status?: string;
+          supersedes_snapshot_id?: string | null;
+          target_month: string;
+          total_paid_minutes?: number;
+          updated_at?: string;
+          user_id: string;
+        };
+        Row: {
+          created_at: string;
+          finalized_at: string | null;
+          finalized_by_user_id: string | null;
+          gross_amount: number;
+          id: string;
+          organization_id: string;
+          rate_breakdown: Json;
+          status: string;
+          supersedes_snapshot_id: string | null;
+          target_month: string;
+          total_paid_minutes: number;
+          updated_at: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          finalized_at?: string | null;
+          finalized_by_user_id?: string | null;
+          gross_amount?: number;
+          id?: string;
+          organization_id?: string;
+          rate_breakdown?: Json;
+          status?: string;
+          supersedes_snapshot_id?: string | null;
+          target_month?: string;
+          total_paid_minutes?: number;
+          updated_at?: string;
+          user_id?: string;
+        };
+      };
+      attendance_export_logs: {
+        Insert: {
+          created_at?: string;
+          export_scope: string;
+          exported_by_user_id: string;
+          id?: string;
+          meta?: Json;
+          organization_id: string;
+          snapshot_ids?: string[];
+          target_month: string;
+          user_id?: string | null;
+        };
+        Row: {
+          created_at: string;
+          export_scope: string;
+          exported_by_user_id: string;
+          id: string;
+          meta: Json;
+          organization_id: string;
+          snapshot_ids: string[];
+          target_month: string;
+          user_id: string | null;
+        };
+        Update: {
+          created_at?: string;
+          export_scope?: string;
+          exported_by_user_id?: string;
+          id?: string;
+          meta?: Json;
+          organization_id?: string;
+          snapshot_ids?: string[];
+          target_month?: string;
+          user_id?: string | null;
+        };
+      };
       tasks: {
         Insert: {
           all_day?: boolean;
@@ -1000,6 +1525,7 @@ export type Database = {
       };
       memberships: {
         Insert: {
+          attendance_payroll_admin?: boolean;
           created_at?: string;
           id?: string;
           joined_at?: string | null;
@@ -1010,6 +1536,7 @@ export type Database = {
           user_id: string;
         };
         Row: {
+          attendance_payroll_admin: boolean;
           created_at: string;
           id: string;
           joined_at: string | null;
@@ -1020,6 +1547,7 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          attendance_payroll_admin?: boolean;
           created_at?: string;
           id?: string;
           joined_at?: string | null;
@@ -1293,7 +1821,8 @@ export type Database = {
         | "task_due_soon"
         | "task_overdue"
         | "project_shared"
-        | "suggestion_activity";
+        | "suggestion_activity"
+        | "attendance_activity";
       organization_role:
         | "cs_staff"
         | "field_manager"

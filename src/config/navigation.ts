@@ -7,6 +7,7 @@ import {
   CalendarCheck2,
   CalendarDays,
   ClipboardCheck,
+  Clock,
   Gauge,
   House,
   Inbox,
@@ -100,6 +101,15 @@ const mobileNavSuggestions = {
   icon: Inbox,
 } as const satisfies NavigationItem;
 
+// Attendance / 근태 (clock-in/out, live timer, capture) — side-menu entry + pinnable bottom-bar
+// candidate. UI/UX-first (design only); backend deferred. See docs/product/24-attendance-workflow.md.
+const mobileNavAttendance = {
+  id: "attendance",
+  label: localizedNavigationLabels.mobile.attendance,
+  href: "/mobile/attendance",
+  icon: Clock,
+} as const satisfies NavigationItem;
+
 // Bottom tab bar uses a center action ("추가") button, so it holds only 4 tabs.
 // "Cleaning" intentionally lives in the side menu (hamburger) instead of the bottom bar.
 export const mobileBottomNavigation = [
@@ -115,6 +125,7 @@ export const mobileSidebarNavigation = [
   mobileNavCleaning,
   mobileNavTasks,
   mobileNavSuggestions,
+  mobileNavAttendance,
   mobileNavRequests,
   mobileNavAnnouncements,
   {

@@ -25,6 +25,7 @@ import type { CleaningTarget, SettingTarget } from "@/lib/cleaning-targets";
 import { getCleaningTargets } from "@/lib/cleaning-targets";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { getOnboardingState } from "@/lib/onboarding";
+import { getDisplayRoomLabel } from "@/lib/room-label-normalization";
 import type { ActiveRoomCatalogItem } from "@/lib/rooms";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
@@ -274,9 +275,11 @@ function getLocalizedRoomTitle(
 ) {
   const buildingKey = getBuildingKey(canonicalPropertyName);
   const buildingLabel = copy.buildingLabels[buildingKey] ?? canonicalPropertyName;
-  return canonicalRoomLabel === canonicalPropertyName
-    ? buildingLabel
-    : `${buildingLabel} ${canonicalRoomLabel}`;
+  if (canonicalRoomLabel === canonicalPropertyName) return buildingLabel;
+  // Collapse Arakicho sub-unit keys (e.g. 501_2 → 501) so the card matches the
+  // calendar's display label. Other properties are returned unchanged.
+  const displayRoomLabel = getDisplayRoomLabel(canonicalPropertyName, canonicalRoomLabel);
+  return `${buildingLabel} ${displayRoomLabel}`;
 }
 function formatTime(value: string | null, locale: Locale) {
   if (!value) return "-";

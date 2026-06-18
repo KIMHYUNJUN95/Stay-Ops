@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { CalendarDays, ChevronLeft, ChevronRight, ChevronRight as RowChevron, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight, ChevronRight as RowChevron } from "lucide-react";
 import type { Locale } from "@/lib/i18n";
 import type { OrderRequestStatus as OrderStatus } from "@/lib/order-requests";
 import { cn } from "@/lib/utils";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 
 /**
- * Order delivery calendar — a centered popup with a large month grid of supply-order deliveries.
+ * Order delivery calendar — a bottom sheet with a large month grid of supply-order deliveries.
  *
  * Opened from the calendar icon on the Requests "비품주문 (order)" tab. Entries are derived directly
  * from each order's `delivery_date` (point) or `delivery_start_date`..`delivery_end_date` (range), so
  * an admin saving / editing a delivery date is reflected automatically — there is no separate store.
- * This is a center-aligned dialog (not a bottom sheet), so it keeps a close button + backdrop/Esc and
- * does NOT use the bottom-sheet drag-to-dismiss.
+ * Uses the shared canonical BottomSheet, so it slides up from the bottom with drag-to-dismiss, scrim
+ * fade, body-lock and Esc — no close button.
  */
 
 export type DeliveryCalendarOrder = {
@@ -86,7 +86,6 @@ export function OrderDeliveryCalendar({
   onOpenOrder: (id: string) => void;
 }) {
   const today = useMemo(() => tokyoToday(), []);
-  const [shown, setShown] = useState(false);
   const [month, setMonth] = useState(() => {
     const [y, m] = today.split("-").map(Number);
     return { y, m };
@@ -98,30 +97,6 @@ export function OrderDeliveryCalendar({
     () => orders.filter((o) => o.deliveryDate || (o.deliveryStartDate && o.deliveryEndDate)),
     [orders],
   );
-
-  useEffect(() => {
-    const id = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
-    return () => cancelAnimationFrame(id);
-  }, []);
-
-  const close = () => {
-    setShown(false);
-    setTimeout(onClose, 220);
-  };
-
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const monthPrefix = `${month.y}-${pad(month.m)}`;
   const isCurrentMonth = monthPrefix === today.slice(0, 7);
@@ -216,43 +191,23 @@ export function OrderDeliveryCalendar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthPrefix, daysIn, deliverable]);
 
-  if (typeof document === "undefined") return null;
-
-  return createPortal(
-    <div
-      className={cn(
-        "fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/45 p-5 transition-opacity duration-200 motion-reduce:transition-none",
-        shown ? "opacity-100" : "opacity-0",
-      )}
-      onClick={close}
-    >
-      <div
-        className={cn(
-          "flex max-h-[88dvh] w-full max-w-[460px] flex-col overflow-hidden rounded-[24px] bg-surface shadow-[0_30px_80px_-30px_rgba(15,23,42,0.6)]",
-          "transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none",
-          shown ? "scale-100 opacity-100" : "scale-95 opacity-0",
-        )}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3 px-5 pb-3 pt-4">
-          <div className="flex items-center gap-2">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-primary/[0.09] text-primary">
-              <CalendarDays className="size-[17px]" aria-hidden="true" />
-            </span>
-            <p className="text-[16px] font-black tracking-[-0.01em] text-foreground">{copy.title}</p>
-          </div>
-          <button
-            aria-label={copy.close}
-            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500 transition-colors active:bg-slate-100"
-            onClick={close}
-            type="button"
-          >
-            <X className="size-4" aria-hidden="true" />
-          </button>
+  return (
+    <BottomSheet
+      ariaLabel={copy.title}
+      className="max-h-[88dvh] flex flex-col"
+      header={
+        <div className="flex items-center gap-2 pb-3">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-primary/[0.09] text-primary">
+            <CalendarDays className="size-[17px]" aria-hidden="true" />
+          </span>
+          <p className="text-[16px] font-black tracking-[-0.01em] text-foreground">{copy.title}</p>
         </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-[max(20px,env(safe-area-inset-bottom))]">
+      }
+      onClose={onClose}
+      zIndexClassName="z-[120]"
+    >
+      {() => (
+        <div className="-mx-5 min-h-0 flex-1 overflow-y-auto px-5">
           {/* Month nav */}
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-1">
@@ -379,8 +334,7 @@ export function OrderDeliveryCalendar({
             </div>
           ) : null}
         </div>
-      </div>
-    </div>,
-    document.body,
+      )}
+    </BottomSheet>
   );
 }

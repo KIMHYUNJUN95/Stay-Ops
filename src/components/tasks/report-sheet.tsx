@@ -1,12 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { Copy, FileText, Lock, RefreshCw } from "lucide-react";
 import { generateDailyReport } from "@/app/mobile/tasks/report-actions";
-import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import type { Dictionary, Locale } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
 
 type Copy = Dictionary["tasks"];
 type Status = "loading" | "done" | "forbidden" | "empty" | "error";
@@ -48,18 +46,9 @@ export function ReportSheet({
   locale: Locale;
   onClose: () => void;
 }) {
-  const [shown, setShown] = useState(false);
   const [status, setStatus] = useState<Status>("loading");
   const [text, setText] = useState("");
   const [copied, setCopied] = useState(false);
-
-  const close = useCallback(() => {
-    setShown(false);
-    setTimeout(onClose, 320); // matches the sheet transition duration
-  }, [onClose]);
-
-  // iOS-style drag-to-dismiss on the grab handle / header.
-  const drag = useSheetDragDismiss({ shown, onDismiss: close });
 
   const run = useCallback(() => {
     setStatus("loading");
@@ -74,30 +63,12 @@ export function ReportSheet({
     });
   }, [date]);
 
-  // Play the slide-in on mount; kick off generation (rAF-scheduled so the loading setState is not
-  // called synchronously inside the effect body).
+  // Kick off generation on mount (rAF-scheduled so the loading setState is not called
+  // synchronously inside the effect body).
   useEffect(() => {
-    const a = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
-    const b = requestAnimationFrame(run);
-    return () => {
-      cancelAnimationFrame(a);
-      cancelAnimationFrame(b);
-    };
+    const id = requestAnimationFrame(run);
+    return () => cancelAnimationFrame(id);
   }, [run]);
-
-  // Lock body scroll + Esc to close while open.
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [close]);
 
   const onCopy = async () => {
     await copyText(text);
@@ -112,8 +83,6 @@ export function ReportSheet({
     weekday: "short",
     timeZone: "Asia/Tokyo",
   }).format(new Date(`${date}T00:00:00+09:00`));
-
-  if (typeof document === "undefined") return null;
 
   const centered = (icon: React.ReactNode, title: string, body: string, retry?: boolean) => (
     <div className="flex flex-col items-center px-6 py-12 text-center">
@@ -135,30 +104,11 @@ export function ReportSheet({
     </div>
   );
 
-  return createPortal(
-    <div
-      className={cn(
-        "fixed inset-0 z-[85] flex items-end justify-center bg-slate-950/45 transition-opacity duration-300 motion-reduce:transition-none",
-        shown ? "opacity-100" : "opacity-0",
-      )}
-      onClick={close}
-      style={drag.scrimStyle}
-    >
-      <div
-        className={cn(
-          "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3",
-          "transition-transform duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
-          shown ? "translate-y-0" : "translate-y-full",
-        )}
-        data-sheet
-        onClick={(e) => e.stopPropagation()}
-        style={drag.sheetStyle}
-      >
-        <div
-          className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200"
-          {...drag.handleProps}
-        />
-        <div className="mb-4 gap-3" {...drag.handleProps}>
+  return (
+    <BottomSheet
+      ariaLabel={copy.reportTitle}
+      header={
+        <div className="mb-4 gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-primary/[0.09] text-primary">
@@ -171,8 +121,10 @@ export function ReportSheet({
             <p className="ml-10 mt-[3px] text-[12px] font-medium text-muted-foreground">{dateLabel}</p>
           </div>
         </div>
-
-        {status === "loading"
+      }
+      onClose={onClose}
+    >
+      {status === "loading"
           ? centered(
               <RefreshCw className="size-6 animate-spin" aria-hidden="true" />,
               copy.reportGenerating,
@@ -227,8 +179,6 @@ export function ReportSheet({
                     </div>
                   </div>
                 )}
-      </div>
-    </div>,
-    document.body,
+    </BottomSheet>
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import type { Dictionary } from "@/lib/i18n";
 
 type LinenReturnSuccessProps = {
@@ -17,15 +17,6 @@ type LinenReturnSuccessProps = {
 export function LinenReturnSuccess({ building, copy, show }: LinenReturnSuccessProps) {
   const router = useRouter();
   const [open, setOpen] = useState(show);
-  // Portal to <body> so the overlay escapes the shell's transformed scroll container and covers the
-  // full viewport (top chrome + bottom tab bar included); gate on hydration to match SSR.
-  const hydrated = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  );
-
-  if (!open || !hydrated) return null;
 
   function dismiss() {
     setOpen(false);
@@ -34,32 +25,32 @@ export function LinenReturnSuccess({ building, copy, show }: LinenReturnSuccessP
     });
   }
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/50 px-7 backdrop-blur-sm"
-      onClick={dismiss}
-    >
-      <div
-        className="w-full max-w-sm rounded-[26px] bg-surface px-6 pb-6 pt-8 text-center shadow-[0_30px_70px_-20px_rgba(0,0,0,0.4)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <span className="mx-auto mb-[18px] flex size-[78px] items-center justify-center rounded-full bg-primary/10">
-          <span className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <Check className="size-7" aria-hidden="true" strokeWidth={2.5} />
+  return open ? (
+    <BottomSheet
+      ariaLabel={copy.successTitle}
+      header={
+        <div className="text-center">
+          <span className="mx-auto mb-[18px] flex size-[78px] items-center justify-center rounded-full bg-primary/10">
+            <span className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <Check className="size-7" aria-hidden="true" strokeWidth={2.5} />
+            </span>
           </span>
-        </span>
-        <p className="text-[19px] font-black tracking-[-0.02em] text-foreground">
-          {copy.successTitle}
-        </p>
+          <p className="text-[19px] font-black tracking-[-0.02em] text-foreground">
+            {copy.successTitle}
+          </p>
+        </div>
+      }
+      onClose={dismiss}
+    >
+      {({ close }) => (
         <button
           className="mt-6 h-[50px] w-full rounded-2xl bg-primary text-[15px] font-extrabold text-primary-foreground transition-transform active:scale-[0.98]"
-          onClick={dismiss}
+          onClick={close}
           type="button"
         >
           {copy.successToListButton}
         </button>
-      </div>
-    </div>,
-    document.body,
-  );
+      )}
+    </BottomSheet>
+  ) : null;
 }

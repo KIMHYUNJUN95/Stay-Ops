@@ -44,6 +44,17 @@ export type SuggestionNotificationPayload = {
   status?: "submitted" | "reviewing" | "on_hold" | "completed" | null;
 };
 
+export type AttendanceNotificationPayload = {
+  // One discriminated `attendance_activity` type carries every event (no enum value per event).
+  // `open_session_reminder` is worker-facing (the 18:30 reminder); the other two are admin alerts.
+  event: "correction_created" | "abnormal_session" | "open_session_reminder";
+  /** The worker the alert is about (admin alerts); the recipient themselves for the reminder. */
+  subjectUserId?: string | null;
+  subjectName?: string | null;
+  sessionId?: string | null;
+  correctionId?: string | null;
+};
+
 export type NotificationPayloadByType = {
   order_processed: OrderProcessedNotificationPayload;
   task_shared: TaskNotificationPayload;
@@ -53,6 +64,7 @@ export type NotificationPayloadByType = {
   task_overdue: TaskNotificationPayload;
   project_shared: ProjectNotificationPayload;
   suggestion_activity: SuggestionNotificationPayload;
+  attendance_activity: AttendanceNotificationPayload;
 };
 
 export function isTaskNotificationPayload(
@@ -86,5 +98,17 @@ export function isSuggestionNotificationPayload(
   const record = payload as Record<string, unknown>;
   return (
     typeof record.suggestionId === "string" && typeof record.suggestionTitle === "string"
+  );
+}
+
+export function isAttendanceNotificationPayload(
+  payload: unknown,
+): payload is AttendanceNotificationPayload {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
+  const record = payload as Record<string, unknown>;
+  return (
+    record.event === "correction_created" ||
+    record.event === "abnormal_session" ||
+    record.event === "open_session_reminder"
   );
 }

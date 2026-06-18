@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { ReactNode, UIEvent } from "react";
 import { ArrowDown, Bell, ChevronLeft, ChevronRight, Loader2, LogOut, UserCircle, X } from "lucide-react";
 import { useSession } from "@/components/providers/session-provider";
-import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { signOut } from "@/app/auth/actions";
 import { updateBottomNavTabs } from "@/app/account/actions";
 import {
@@ -39,10 +39,13 @@ const MAX_PULL = 120;
 const MAX_DISPLAY_H = 60;
 const REFRESH_DISPLAY_H = 52;
 
+// Center FAB icon — app-grid squircle ("Bottom Bar (Squircle Edit)" design); opens the editor sheet.
 const EDIT_ICON = (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <path d="M4 20l.8-3.6L15.4 5.8a2 2 0 0 1 2.8 2.8L7.6 19.2 4 20z" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
-    <path d="M13.6 7.6l2.8 2.8" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+  <svg width="23" height="23" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="4" y="4" width="6.5" height="6.5" rx="1.6" stroke="currentColor" strokeWidth="1.9" />
+    <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6" stroke="currentColor" strokeWidth="1.9" />
+    <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6" stroke="currentColor" strokeWidth="1.9" />
+    <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6" stroke="currentColor" strokeWidth="1.9" />
   </svg>
 );
 
@@ -127,6 +130,15 @@ const LAUNCHER_META: Record<string, { hue: number; icon: ReactNode }> = {
       </svg>
     ),
   },
+  attendance: {
+    hue: 200,
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.9" />
+        <path d="M12 7.5v5l3.2 2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
 };
 
 const FALLBACK_ICON = (
@@ -158,8 +170,6 @@ export function MobileShell({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const closeCreate = useCallback(() => setCreateOpen(false), []);
-  // iOS-style drag-to-dismiss on the bottom-bar editor sheet's grab handle / header.
-  const createDrag = useSheetDragDismiss({ shown: createOpen, onDismiss: closeCreate });
   const [pullDistanceState, setPullDistanceState] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshPending, startRefreshTransition] = useTransition();
@@ -416,19 +426,6 @@ export function MobileShell({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [sidebarOpen]);
 
-  useEffect(() => {
-    if (!createOpen) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setCreateOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [createOpen]);
-
   // Persist bottom-bar edits when the sheet closes (any close path), if changed.
   useEffect(() => {
     if (createOpen) {
@@ -527,7 +524,13 @@ export function MobileShell({
           }}
         >
           <div className="flex h-11 items-center justify-between">
-            <span className="wordmark relative text-[21px] text-foreground">Stay Ops</span>
+            <Link
+              href="/mobile"
+              onClick={() => setSidebarOpen(false)}
+              className="wordmark relative text-[21px] text-foreground"
+            >
+              Stay Ops
+            </Link>
             <button
               aria-label={dictionary.common.menu}
               className="relative flex size-9 items-center justify-center rounded-full border border-border bg-surface text-muted-foreground shadow-[0_12px_24px_-20px_rgba(15,23,42,0.38)] transition-colors hover:bg-muted hover:text-foreground"
@@ -688,9 +691,12 @@ export function MobileShell({
                   </svg>
                 </button>
 
-                <span className="wordmark pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-[20px] text-foreground">
+                <Link
+                  href="/mobile"
+                  className="wordmark absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-[20px] text-foreground"
+                >
                   Stay Ops
-                </span>
+                </Link>
 
                 {/* Notification bell — top-bar shortcut, left of profile */}
                 <div className="relative z-10 flex items-center gap-1.5">
@@ -841,100 +847,82 @@ export function MobileShell({
           )}
 
           {/* Center action ("추가") sheet — bottom-bar editor (pick up to 4 tabs). */}
-          <button
-            aria-label={dictionary.common.editBottomBar}
-            className={cn(
-              "fixed inset-0 z-[64] bg-[rgba(16,28,27,0.46)]",
-              createOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
-            )}
-            onClick={() => setCreateOpen(false)}
-            style={createDrag.dragging ? createDrag.scrimStyle : { transition: "opacity 320ms ease" }}
-            type="button"
-          />
-          <div
-            aria-hidden={!createOpen}
-            aria-label={dictionary.common.editBottomBar}
-            className="fixed inset-x-0 bottom-0 z-[65] mx-auto w-full max-w-[430px] rounded-t-[26px] bg-white px-[18px] pb-[max(24px,env(safe-area-inset-bottom))] pt-[10px] shadow-[0_-16px_44px_-12px_rgba(16,28,27,0.3)]"
-            data-sheet
-            role="dialog"
-            style={
-              createDrag.dragging
-                ? createDrag.sheetStyle
-                : {
-                    transform: createOpen ? "translateY(0)" : "translateY(110%)",
-                    transition: "transform 420ms cubic-bezier(0.32, 0.72, 0, 1)",
-                  }
-            }
-          >
-            <div className="add-sheet__handle" {...createDrag.handleProps} />
-            <div className="add-sheet__head" {...createDrag.handleProps}>
-              <div className="add-sheet__head-text">
-                <p className="add-sheet__title">
-                  {dictionary.common.editBottomBar}
-                  <span className="ml-2 text-[12px] font-bold text-primary">
-                    {navTabIds.length}/{MAX_BOTTOM_NAV_TABS}
-                  </span>
-                </p>
-                <p className="add-sheet__sub">
-                  {isBarFull ? dictionary.common.bottomBarFull : dictionary.common.editBottomBarHint}
-                </p>
-              </div>
-            </div>
-            <div className="add-sheet__scroll">
-              <div className="add-grid">
-                {customizableBottomNavItems.map((item) => {
-                  const meta = LAUNCHER_META[item.id];
-                  const selected = navTabIds.includes(item.id);
-                  const disabled = !selected && isBarFull;
-                  return (
-                    <button
-                      key={item.id}
-                      aria-pressed={selected}
-                      className="add-tile"
-                      disabled={disabled}
-                      onClick={() => toggleNavTab(item.id)}
-                      style={{
-                        background: selected
-                          ? "color-mix(in oklab, var(--primary) 7%, var(--surface))"
-                          : "var(--surface)",
-                        boxShadow: selected
-                          ? "inset 0 0 0 2px var(--primary)"
-                          : "inset 0 0 0 1px var(--border)",
-                        opacity: disabled ? 0.45 : 1,
-                      }}
-                      type="button"
-                    >
-                      <span
-                        className="add-tile__badge"
-                        style={{
-                          background: selected ? "var(--primary)" : "var(--muted)",
-                          color: selected ? "var(--primary-foreground)" : "var(--muted-foreground)",
-                        }}
-                      >
-                        {meta?.icon ?? FALLBACK_ICON}
+          {createOpen ? (
+            <BottomSheet
+              ariaLabel={dictionary.common.editBottomBar}
+              header={
+                <div className="add-sheet__head">
+                  <div className="add-sheet__head-text">
+                    <p className="add-sheet__title">
+                      {dictionary.common.editBottomBar}
+                      <span className="ml-2 text-[12px] font-bold text-primary">
+                        {navTabIds.length}/{MAX_BOTTOM_NAV_TABS}
                       </span>
-                      <span className="add-tile__label">{getNavigationLabel(item, locale)}</span>
-                      <span
-                        aria-hidden="true"
-                        className="ml-auto flex size-5 items-center justify-center rounded-full"
+                    </p>
+                    <p className="add-sheet__sub">
+                      {isBarFull ? dictionary.common.bottomBarFull : dictionary.common.editBottomBarHint}
+                    </p>
+                  </div>
+                </div>
+              }
+              onClose={closeCreate}
+            >
+              <div className="add-sheet__scroll">
+                <div className="add-grid">
+                  {customizableBottomNavItems.map((item) => {
+                    const meta = LAUNCHER_META[item.id];
+                    const selected = navTabIds.includes(item.id);
+                    const disabled = !selected && isBarFull;
+                    return (
+                      <button
+                        key={item.id}
+                        aria-pressed={selected}
+                        className="add-tile"
+                        disabled={disabled}
+                        onClick={() => toggleNavTab(item.id)}
                         style={{
-                          background: selected ? "var(--primary)" : "transparent",
-                          color: "#fff",
-                          border: selected ? "none" : "1.5px solid var(--border)",
+                          background: selected
+                            ? "color-mix(in oklab, var(--primary) 7%, var(--surface))"
+                            : "var(--surface)",
+                          boxShadow: selected
+                            ? "inset 0 0 0 2px var(--primary)"
+                            : "inset 0 0 0 1px var(--border)",
+                          opacity: disabled ? 0.45 : 1,
                         }}
+                        type="button"
                       >
-                        {selected ? (
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                            <path d="M5 12l4 4 10-10" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        ) : null}
-                      </span>
-                    </button>
-                  );
-                })}
+                        <span
+                          className="add-tile__badge"
+                          style={{
+                            background: selected ? "var(--primary)" : "var(--muted)",
+                            color: selected ? "var(--primary-foreground)" : "var(--muted-foreground)",
+                          }}
+                        >
+                          {meta?.icon ?? FALLBACK_ICON}
+                        </span>
+                        <span className="add-tile__label">{getNavigationLabel(item, locale)}</span>
+                        <span
+                          aria-hidden="true"
+                          className="ml-auto flex size-5 items-center justify-center rounded-full"
+                          style={{
+                            background: selected ? "var(--primary)" : "transparent",
+                            color: "#fff",
+                            border: selected ? "none" : "1.5px solid var(--border)",
+                          }}
+                        >
+                          {selected ? (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                              <path d="M5 12l4 4 10-10" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          ) : null}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          </div>
+            </BottomSheet>
+          ) : null}
 
           <button
             aria-label={dictionary.common.menu}

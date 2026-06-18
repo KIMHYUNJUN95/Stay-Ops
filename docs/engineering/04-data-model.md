@@ -947,60 +947,131 @@ Permissions note: read access is limited to author + recipient + referenced user
 
 ## Attendance / Payroll tables
 
-See `docs/engineering/11-attendance-payroll-technical-design.md`. Attendance capture tables are approved for build; payroll tables (`payroll_periods`, `payroll_calculations`, `attendance_corrections`, `attendance_exports`) remain design-only until wage rules are defined.
+**As-built — Step 1 schema (2026-06-17), migration `202606170001_attendance_payroll.sql`.** The refined
+attendance/payroll policy (decision-log 2026-06-17) is a **session-first** model, not loose event rows.
+This supersedes the earlier `attendance_events` / `employment_profiles` draft. Full column-by-column
+spec lives in `docs/engineering/11-attendance-payroll-technical-design.md`; this is the data-model
+summary. All tables are organization-scoped, carry timestamps, and have **read-only RLS** (no write
+policies — all writes go through service-role server actions in later steps; see
+`docs/engineering/05-rls-permissions.md`).
 
-```txt
-attendance_sites
-  id uuid primary key
-  organization_id uuid not null references organizations(id)
-  name text not null
-  property_id uuid references properties(id)
-  latitude double precision
-  longitude double precision
-  allowed_radius_meters integer
-  is_active boolean not null default true
-  created_at timestamptz
-  updated_at timestamptz
+Permission foundation:
 
-attendance_qr_tokens
-  id uuid primary key
-  organization_id uuid not null references organizations(id)
-  site_id uuid not null references attendance_sites(id)
-  token text not null
-  is_active boolean not null default true
-  created_at timestamptz
+- `memberships.attendance_payroll_admin boolean not null default false` — explicit per-membership
+  attendance/payroll privilege (separate from the broad role names).
+- `can_manage_attendance_payroll(org)` SECURITY DEFINER helper = platform admin, OR an active member
+  who is the org `owner` or carries the `attendance_payroll_admin` flag. Site master / QR issuance stays
+  **owner-only** (enforced in app logic via `has_org_role(org, ['owner'])`).
 
-attendance_events
-  id uuid primary key
-  organization_id uuid not null references organizations(id)
-  user_id uuid not null references profiles(id)
-  site_id uuid references attendance_sites(id)
-  qr_token_id uuid references attendance_qr_tokens(id)
-  event_type text not null   -- clock_in | clock_out | manual_correction
-  captured_at timestamptz not null   -- Asia/Tokyo operating-date boundaries apply
-  latitude double precision
-  longitude double precision
-  gps_accuracy_meters double precision
-  device_info jsonb
-  created_at timestamptz
+Tables (11):
 
-employment_profiles
-  id uuid primary key
-  organization_id uuid not null references organizations(id)
-  user_id uuid not null references profiles(id)
-  employment_type text not null   -- hourly | salaried
-  created_at timestamptz
-  updated_at timestamptz
+| Table | Purpose / key columns |
+|---|---|
+| `attendance_sites` | registered sites; `latitude`/`longitude`/`allowed_radius_meters` (default **100**), `wifi_ssids text[]` (modeled, PWA-inactive), `is_active`. Owner-managed. |
+| `attendance_qr_tokens` | one **active token per site** (partial unique on `site_id where is_active`); reissue revokes + links `replaced_by_token_id`. |
+| `attendance_sessions` | the core work session; `status` (open/completed/reopened/invalid), `review_state` (normal/review_required/pending_correction/approved_correction/rejected_correction), separate clock-in/out `*_at/_site_id/_method/_qr_token_id/_lat/_long/_accuracy/_device_info`, `operating_date` (Tokyo), `manual_created*`, `invalidated*`. **One `open` session per user** (partial unique on `user_id where status='open'`). Methods: `gps_qr`/`gps_wifi`/`manual`. |
+| `attendance_breaks` | multiple breaks per session; `started_at`/`ended_at` (open while null). Clock-out-blocked-by-open-break is server-enforced. |
+| `attendance_attempt_logs` | every attempt (success/failure) for admin diagnostics; `action_type`, `method`, `failure_reason` (gps_denied/outside_radius/qr_*/wifi_*/open_break_blocks_clock_out/midnight_crossing/open_session_exists). Admin-visible only; no payroll effect. |
+| `attendance_correction_requests` | user-submitted corrections; `status` (requested/in_review/approved/rejected), `reason_type`, `desired_clock_in/out_at/_site_id`, `memo`, `image_urls` (**max 5**), `review_comment`/`reviewed_*`. |
+| `attendance_session_audits` | append-only manager-action trail; `action_type` (manual_create/manual_update/invalidate/correction_apply/reopen/finalize), mandatory `reason`, `before_json`/`after_json`. |
+| `employment_type_history` | per-person `employment_type` (hourly/salaried) with `effective_from`/`effective_to`. Past never reinterpreted. |
+| `hourly_rate_history` | per-person `hourly_rate` with `effective_from`/`effective_to`. Past never changes. |
+| `attendance_month_snapshots` | per-person per-month payroll snapshot; `status` (draft/finalized/superseded/reopened), `total_paid_minutes`, `gross_amount`, `rate_breakdown jsonb`, `supersedes_snapshot_id`. One current row per user-month is server-enforced (historical rows intentional). |
+| `attendance_export_logs` | export audit trail; `export_scope` (monthly_bulk/single_user), `target_month`, `snapshot_ids uuid[]`, `exported_by_user_id`. |
 
-hourly_rate_history
-  id uuid primary key
-  organization_id uuid not null references organizations(id)
-  user_id uuid not null references profiles(id)
-  hourly_rate numeric not null
-  effective_from date not null
-  effective_to date
-  created_at timestamptz
-```
+**Step 2 (2026-06-17):** site/QR **backend** — migration `202606170002_issue_attendance_qr_fn.sql` adds
+the atomic `issue_attendance_qr(org, site, created_by, token)` function (deactivate old → insert new →
+link `replaced_by_token_id`, preserving one-active-per-site). Helpers in `src/lib/attendance-sites.ts`
+(create/update/activate site, issue/reissue/revoke QR, list/get/active-QR/history reads). The owner-only
+**admin UI is deferred to the web dashboard**; a dev-only `GET /api/dev/attendance/temp-qr` provisions a
+temp site + scannable QR for app testing.
+
+**Step 3 (2026-06-17):** worker **GPS + QR clock-in/out** writes `attendance_sessions` (one `open` per
+user; Tokyo `operating_date`; clock-in/out site, method `gps_qr`, QR token ref, lat/long/accuracy,
+device info; clock-out flags `review_required` when it crosses midnight) and logs every attempt to
+`attendance_attempt_logs`. Via `submitAttendanceScan` (`src/app/mobile/attendance/actions.ts`,
+service-role); the open session is read by `getCurrentOpenSession` (`src/lib/attendance-sessions.ts`).
+In-app QR decode uses the `jsqr` dependency. `attendance_session_audits` are still untouched (manager
+edits are a later step).
+
+**Step 4 (2026-06-17):** **break tracking** writes `attendance_breaks` (`startBreak`/`endBreak` in
+`src/app/mobile/attendance/actions.ts`): one open break at a time, multiple breaks per session, each row
+kept individually (open break has `ended_at` null). Clock-out is blocked while a break is open
+(`open_break_blocks_clock_out`). Break rows are not logged to `attendance_attempt_logs` (that table is
+GPS/QR-oriented). `getCurrentOpenSession` derives the on-break flag + closed-break total + count for the
+home.
+
+**Step 5 (2026-06-17):** worker **self-view history** reads `attendance_sessions` + `attendance_breaks`
+(+ `attendance_sites` for names) via `src/lib/attendance-history.ts` (`getAttendanceHistory`,
+`getAttendanceTodaySummary`) — **strictly self-scoped** (`user_id` = authenticated user + org; no
+client-supplied target). No writes, no pay calc; shapes leave room for later correction/pay indicators.
+New screen `/mobile/attendance/history`.
+
+**Step 6 (2026-06-17):** **correction / exception requests** write `attendance_correction_requests`
+(`createAttendanceCorrectionRequest` in `src/app/mobile/attendance/actions.ts`) — self-only, current or
+previous Tokyo month only, reason + desired in/out times + desired site + memo + image_urls (≤5). The
+request **never mutates the session** (admin confirms later). Session-linked or session-less (exception).
+Photos use the `request-images` bucket's new `attendance-corrections/` folder (storage migration
+`202606170003_attendance_correction_storage.sql`). Reads via `src/lib/attendance-corrections.ts`
+(self-scoped); the latest per-session status is surfaced on the history screen.
+
+**Step 7 (2026-06-17):** **admin correction review** — `src/lib/attendance-review.ts` (org-wide review
+queue + `isAttendancePayrollAdmin` gate) and `src/app/admin/attendance/actions.ts` (approve / reject /
+in-review, owner+`attendance_payroll_admin` only). **Approve** updates the linked `attendance_sessions`
+row with admin-confirmed final values (review_state → `approved_correction`, open→completed when both
+ends present) and writes an `attendance_session_audits` row (`correction_apply`, before/after). **Reject**
+(comment required) updates only the request row (no session change). The review-queue **UI is in the web
+dashboard (deferred)**; this is the backend.
+
+**Step 8 (2026-06-17):** **manual admin management** (`src/app/admin/attendance/actions.ts`:
+`createManualAttendanceSession` / `updateAttendanceSessionAdmin` / `invalidateAttendanceSession`,
+owner+`attendance_payroll_admin` only). Create sets `manual_created` + `manual_created_by_user_id` +
+`manual_created_reason` (methods `manual`); update edits clock-in/out times+sites+review_state; invalidate
+sets `status='invalid'` + `invalidated_at/_by_user_id/_reason` (**never hard-deletes**). Every action
+requires a reason and writes an `attendance_session_audits` row (`manual_create` / `manual_update` /
+`invalidate`, before/after). No admin web UI (deferred).
+
+**Step 10 (2026-06-18):** **hourly expected-pay** reads `attendance_sessions` + `attendance_breaks` +
+`hourly_rate_history` + `employment_type_history` (effective-date resolution) via `src/lib/attendance-pay.ts`
+(`getMonthlyPayView`, self-scoped) — usable sessions only, 1-min paid units, breaks excluded, monthly gross
+rounded to 10 yen; no writes, no finalization. New self screen `/mobile/attendance/pay`. The employment/rate
+**management** writes (Step 9) are still pending (deferred web dashboard); a dev route
+`/api/dev/attendance/seed-pay` seeds `employment_type_history` / `hourly_rate_history` for testing.
+
+**Step 11 (2026-06-18):** **monthly finalization** writes `attendance_month_snapshots`
+(`finalizeAttendanceMonth` / `reopenAttendanceMonth`, owner+`attendance_payroll_admin`). Eligibility
+(`src/lib/attendance-finalization.ts`) blocks finalize while review-required / pending-correction / open
+sessions or an existing finalized snapshot remain. Finalize inserts `status='finalized'`
+(target_month=`YYYY-MM-01`, total_paid_minutes, gross_amount [10-yen rounded], rate_breakdown jsonb,
+finalized_by/at, supersedes_snapshot_id); prior non-superseded rows → `superseded` (history preserved).
+Reopen flips `finalized` → `reopened` (expected pay resumes). Finalize/reopen are audited in the generic
+`audit_logs` table (`attendance_month_finalize` / `attendance_month_reopen`, reason in metadata) — no
+schema change. The worker self pay view reflects the finalized snapshot; admin finalize/reopen UI is
+deferred (web dashboard).
+
+**Step 12 (2026-06-18):** **payroll-totals data layer** (`src/lib/attendance-payroll-totals.ts`,
+`getPayrollTotals(org, ym)`) reads `attendance_month_snapshots` (finalized total) + recomputed expected
+pay per hourly worker + `attendance_sessions`/`attendance_sites` (site rollup by clock-in site). Returns
+finalized vs expected labor totals, unfinalized worker count, and per-site totals. **No writes, no UI**
+(dashboard deferred); owner/`attendance_payroll_admin` gate enforced by the caller.
+
+**Step 13 (2026-06-18):** **finalized-only export** (`src/lib/attendance-export.ts` `runPayrollExport` +
+`exportMonthlyPayroll` / `exportUserPayroll`) reads `attendance_month_snapshots` (status='finalized'
+only) + `profiles` (names), serializes a structured CSV (interim, until the operator Excel template), and
+writes an `attendance_export_logs` row (organization_id, target_month, export_scope monthly_bulk/single_user,
+user_id, snapshot_ids[], exported_by_user_id, meta). owner/`attendance_payroll_admin` only. No export UI
+(deferred); a dev route `/api/dev/attendance/export` streams the CSV for testing.
+
+**Step 14 (2026-06-18):** **notifications** use the shared `notifications` table + new `attendance_activity`
+enum value (migration `202606180001`). New table `attendance_open_session_reminders` (migration
+`202606180002`, unique per user+operating_date) holds the once-per-Tokyo-day 18:30 reminder response
+(`still_working` / `left_work`). Admin alerts (correction_created, abnormal_session) target owner /
+`attendance_payroll_admin`; the worker reminder targets the worker. Scheduled scan
+`GET /api/attendance/reminders` (CRON_SECRET). In-app only.
+
+Not yet built (later steps): clock-in/out / break / correction / finalization / export / dashboard /
+notification server actions and queries. Wi-Fi attendance (`gps_wifi`) is modeled but **not active** in
+the PWA. Shared row types + status/method/reason unions + constants live in `src/lib/attendance.ts`.
 
 ## Storage buckets — batch note
 

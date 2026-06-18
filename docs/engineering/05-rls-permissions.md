@@ -545,12 +545,143 @@ Business rules to enforce in those server actions (not yet implemented):
   user must be same-org and not the author/recipient.
 - Comments: visible participants can insert; only the comment author can update/delete.
 
-## Attendance tables (attendance_sites / attendance_qr_tokens / attendance_events / employment_profiles / hourly_rate_history)
+## Attendance / Payroll tables
 
-- attendance_events read/insert: worker reads/inserts own events; admin roles (owner, office_admin, cs_staff; possibly field_manager for review) read org-wide.
-- attendance_sites / attendance_qr_tokens: admin roles manage; workers read active sites/tokens for clock-in.
-- employment_profiles / hourly_rate_history: admin roles manage; worker may read own. Wage figures must not leak to part-time staff beyond their own (price/revenue visibility rule).
-- Payroll tables remain design-only until wage rules are defined — no RLS finalized yet. See `11`.
+**As-built (Step 1 — schema, migration `202606170001_attendance_payroll.sql`, 2026-06-17).** This is the
+session-first model (supersedes the earlier `attendance_events` / `employment_profiles` draft). 11
+tables, all with **read-only RLS** (no write policies → direct authenticated writes are denied; all
+authoritative writes go through **service-role server actions** in later steps). `grant select, insert,
+update, delete ... to authenticated` is present but inert for writes without a policy; `grant all ... to
+service_role` lets the service role bypass RLS.
+
+Permission foundation:
+
+- `memberships.attendance_payroll_admin boolean not null default false` — explicit per-membership
+  attendance/payroll privilege.
+- `can_manage_attendance_payroll(org)` SECURITY DEFINER helper = `is_platform_admin()` OR an active
+  member who is the org `owner` or carries `attendance_payroll_admin`. **Site master / QR issuance stays
+  owner-only** (app-enforced via `has_org_role(org, ['owner'])`); not broadened by this helper.
+
+Read (SELECT) policies — "own rows, or org-wide for privileged admins" unless noted:
+
+- `attendance_sites`: any **active member** may read (the clock UI needs site name/coords/radius;
+  coordinates aren't secret).
+- `attendance_qr_tokens`: **privileged admins only** (tokens authorize attendance; clock-in resolves the
+  token server-side via service role).
+- `attendance_sessions`: own (`user_id = auth.uid()`) or privileged admin (review queue / dashboard).
+- `attendance_breaks`: session owner (resolved via the parent session) or privileged admin.
+- `attendance_attempt_logs`: **privileged admins only** (diagnostics; no payroll effect).
+- `attendance_correction_requests`: requester (`requested_by_user_id`) or privileged admin.
+- `attendance_session_audits`: **privileged admins only** (manager-side trail).
+- `employment_type_history` / `hourly_rate_history`: own rows (the monthly pay view shows the user their
+  own type/rate segments) or privileged admin. Other users' wage figures never leak to non-admins.
+- `attendance_month_snapshots`: own pay rows or privileged admin (finalization queue / dashboard).
+- `attendance_export_logs`: **privileged admins only**.
+
+**Step 2 (2026-06-17) — site/QR write path.** Site master + QR lifecycle writes go through the
+service-role helpers in `src/lib/attendance-sites.ts` (create/update/activate site, issue/reissue/revoke
+QR; QR issuance is atomic via `issue_attendance_qr`, migration `202606170002`). These helpers are
+**caller-agnostic and do not check the caller** — **owner-only enforcement is deferred to the future
+web-dashboard server actions** (which must verify `role === 'owner'` server-side before calling them;
+site master is owner-only per decision-log 2026-06-17). Until that dashboard exists, the only caller is
+the **dev-only** `GET /api/dev/attendance/temp-qr` tool, gated to local development (NODE_ENV
+development + `ENABLE_DEV_SEED_LOGIN` + local/LAN host), used to provision a test site + QR.
+
+**Step 3 (2026-06-17) — worker clock-in/out write path.** `submitAttendanceScan`
+(`src/app/mobile/attendance/actions.ts`, service-role) is the first authoritative session writer: it
+authenticates the user + org, validates the QR token / site / GPS-radius server-side, enforces
+one-open-session-per-user, and writes `attendance_sessions` + `attendance_attempt_logs`. RLS stays
+read-only (no write policies); the action holds the rules. Workers read their own sessions via the
+read policy; `getCurrentOpenSession` uses the service client but is org+user scoped.
+
+**Step 4 (2026-06-17) — break write path.** `startBreak` / `endBreak`
+(`src/app/mobile/attendance/actions.ts`, service-role) write `attendance_breaks` after re-checking the
+caller owns an open session server-side (auth + org). One open break at a time; clock-out is blocked
+while a break is open. RLS for `attendance_breaks` stays read-only (session owner or admin); workers
+read their own break rows through the parent-session policy.
+
+**Step 5 (2026-06-17) — self-view reads.** `src/lib/attendance-history.ts`
+(`getAttendanceHistory` / `getAttendanceTodaySummary`) reads sessions + breaks + site names for the
+**history screen**. It uses the service client but is **strictly self-scoped**: every query pins
+`user_id` to the authenticated session user (+ org) and never accepts a target user id from the client,
+so a user cannot reach another user's attendance by tampering with params/query strings. (The
+participant RLS read policies are the backstop; the self-scoping is enforced in the query layer.) No
+org-wide reads here — the admin review queue is a later step.
+
+**Step 6 (2026-06-17) — correction request write/read path.** `createAttendanceCorrectionRequest`
+(`src/app/mobile/attendance/actions.ts`, service-role) writes `attendance_correction_requests` after
+**self-only** checks (a linked session must be the caller's own → else `forbidden`) and a **current/
+previous Tokyo month** range check (→ else `out_of_range`). It only suggests values; it never mutates the
+session (no auto-apply). Reads (`src/lib/attendance-corrections.ts`) pin `requested_by_user_id` to the
+authenticated user. Correction photos upload to `request-images/<org>/attendance-corrections/...`;
+storage RLS migration `202606170003` whitelists that folder (part-time members included, since
+attendance is open to all active members). The participant RLS read policy on
+`attendance_correction_requests` (requester or admin) is the backstop; admin approve/reject is Step 7.
+
+**Step 7 (2026-06-17) — admin review (org-wide).** First org-wide attendance surface. The privilege gate
+`isAttendancePayrollAdmin(service, org, userId)` (`src/lib/attendance-review.ts`) = platform admin OR
+active `owner` / `attendance_payroll_admin` member; **site-master management stays owner-only** (not
+broadened). The review-queue read (`getAttendanceReviewQueue`) is caller-agnostic (the web-dashboard
+caller must gate it; the `can_manage_attendance_payroll` SELECT RLS policies from Step 1 are the
+backstop). The write actions (`src/app/admin/attendance/actions.ts`: approve / reject / in-review)
+**enforce the gate themselves** before any write. Approve mutates the linked session (service-role) +
+writes `attendance_session_audits`; reject never touches the session. Workers still only read their own
+rows; admins read org-wide via the privileged SELECT policies. No org-wide UI yet (web dashboard).
+
+**Step 8 (2026-06-17) — manual admin management.** `createManualAttendanceSession` /
+`updateAttendanceSessionAdmin` / `invalidateAttendanceSession` (`src/app/admin/attendance/actions.ts`,
+service-role) all **enforce `isAttendancePayrollAdmin` server-side** before any write, require a
+mandatory reason, and write `attendance_session_audits`. Create validates the target is an active org
+member + sites belong to the org. Invalidate sets `status='invalid'` (no hard delete) — preserving the
+"invalidate / supersede, never erase" rule. Site-master management stays owner-only (not broadened). No
+admin web UI in the app (deferred to the web dashboard).
+
+**Step 10 (2026-06-18) — hourly pay self-view.** `src/lib/attendance-pay.ts` (`getMonthlyPayView`) reads
+sessions + breaks + the user's own `hourly_rate_history` / `employment_type_history` and is **strictly
+self-scoped** (pins `user_id` to the authenticated user + org; no client target). It produces EXPECTED
+pay only (no writes, no finalization). Org-wide compensation visibility remains restricted (not part of
+this step); other users' rate/history/pay never load. Employment/rate **management** writes (Step 9) are
+deferred (web dashboard); a dev-only seed route (`/api/dev/attendance/seed-pay`, gated like seed-login)
+exists for local testing.
+
+**Step 11 (2026-06-18) — monthly finalization.** `finalizeAttendanceMonth` / `reopenAttendanceMonth`
+(`src/app/admin/attendance/actions.ts`, service-role) **enforce `isAttendancePayrollAdmin` server-side**;
+reopen requires a reason. They write `attendance_month_snapshots` and an `audit_logs` row each. The
+worker pay self-view reads the current `finalized` snapshot via `getMonthlyPayView` (still self-scoped to
+the authenticated user). `attendance_month_snapshots` RLS stays read-only (own pay rows or privileged
+admin, from Step 1); writes go through the privileged actions only. No admin UI in the app (deferred).
+
+**Step 12 (2026-06-18) — org-wide payroll totals.** `getPayrollTotals(org, ym)`
+(`src/lib/attendance-payroll-totals.ts`) reads ORG-WIDE compensation (finalized snapshots + every hourly
+worker's expected pay + site rollup). It is **caller-agnostic and the caller MUST gate it with
+`isAttendancePayrollAdmin`** (owner / `attendance_payroll_admin`) — same pattern as the review queue; the
+`can_manage_attendance_payroll` SELECT RLS on `attendance_month_snapshots` is the backstop. Regular users
+and hourly workers never reach org-wide totals (they only see their own pay). Read-only; no writes, no
+UI (the totals dashboard is in the deferred web dashboard).
+
+**Step 13 (2026-06-18) — finalized-only export.** `runPayrollExport` (`src/lib/attendance-export.ts`,
+service-role) **enforces `isAttendancePayrollAdmin` itself** before reading any finalized snapshot, then
+writes an `attendance_export_logs` audit row. Export is **finalized data only**; regular users / hourly
+workers can never export. The server actions (`exportMonthlyPayroll` / `exportUserPayroll`) and the
+dev-only route (`/api/dev/attendance/export`, dev-gated AND privilege-gated) both go through it. No
+export UI in the app (deferred web dashboard).
+
+**Step 14 (2026-06-18) — notifications + reminder.** Admin attendance alerts (`attendance_activity`) target
+**owner / `attendance_payroll_admin` only** — `getAttendancePayrollAdminUserIds` resolves the recipients
+server-side and `notifyAttendanceAdmins` never broadens visibility; regular workers never receive org-wide
+attendance/payroll alerts. The 18:30 reminder targets the worker themselves. `attendance_open_session_reminders`
+RLS is **own read** (owner of the row or platform admin); writes go through the self-only
+`respondOpenSessionReminder` action (service-role). The scheduled scan `/api/attendance/reminders` is
+CRON_SECRET-gated (no anonymous trigger). In-app delivery only.
+
+Business rules already enforced (Step 3) / to enforce later in server actions: one open session per user
+(done); sites required (done); GPS mandatory + within radius (done); PWA active method `gps_qr` (done;
+`gps_wifi` modeled but inactive); midnight-crossing flagged `review_required` (baseline done);
+sites required (no free-text locations); GPS mandatory; PWA active method `gps_qr` (`gps_wifi` modeled
+but inactive); clock-out blocked while a break is open; correction window = current + previous month;
+reject comment required on correction reject; finalization (owner / `attendance_payroll_admin`) blocked
+while review-required / pending-correction / open / reopened items remain; export covers finalized data
+only. See `docs/engineering/11-attendance-payroll-technical-design.md`.
 
 ## audit_logs
 

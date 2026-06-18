@@ -1,11 +1,10 @@
 "use client";
 
-import { createPortal } from "react-dom";
-import { useEffect, useId, useState, useSyncExternalStore } from "react";
-import { X } from "lucide-react";
+import { useId, useState, useSyncExternalStore } from "react";
 import { startCleaningSession } from "@/app/mobile/cleaning/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 
 export type SettingTargetSheetItem = {
   arrivingPax: number | null;
@@ -50,26 +49,6 @@ export function SettingTargetsSheet({
   const titleId = useId();
   const isHydrated = useSyncExternalStore(subscribeHydration, () => true, () => false);
 
-  useEffect(() => {
-    if (!open) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
   return (
     <>
       <button
@@ -85,87 +64,64 @@ export function SettingTargetsSheet({
         </span>
       </button>
 
-      {isHydrated && open
-        ? createPortal(
-            <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-6">
-              <button
-                aria-label={closeLabel}
-                className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm"
-                onClick={() => setOpen(false)}
-                type="button"
-              />
-              <section
-                aria-labelledby={titleId}
-                aria-modal="true"
-                className="relative w-full max-w-[28rem] max-h-[84dvh] overflow-hidden rounded-[30px] border border-slate-200/80 bg-surface shadow-[0_32px_84px_-34px_rgba(15,23,42,0.46)] backdrop-blur-2xl"
-                id={dialogId}
-                role="dialog"
-              >
-                <div className="flex items-center justify-center px-4 pt-3">
-                  <div className="h-1.5 w-12 rounded-full bg-slate-200" />
-                </div>
-                <div className="flex items-center justify-between gap-3 border-b border-slate-200/70 px-5 pb-4 pt-4">
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                      {title}
-                    </p>
-                    <p id={titleId} className="mt-1 text-lg font-black">
-                      {description}
-                    </p>
-                  </div>
-                  <Button
-                    className="size-9 rounded-full border border-slate-200/80 bg-white p-0 shadow-[0_12px_24px_-20px_rgba(31,58,95,0.45)] hover:bg-slate-50"
-                    onClick={() => setOpen(false)}
-                    type="button"
-                    variant="ghost"
-                  >
-                    <X className="size-4" />
-                  </Button>
-                </div>
-
-                <div className="max-h-[calc(84dvh-6rem)] space-y-3 overflow-y-auto px-5 py-5">
-                  {items.length > 0 ? (
-                    <div className="space-y-3">
-                      {items.map((item) => (
-                        <Card
-                          className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)]"
-                          key={item.roomLabel}
-                        >
-                          <div className="flex items-start justify-between gap-3 p-4">
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[15px] font-bold leading-tight text-foreground">
-                                {item.roomTitle}
-                              </p>
-                              <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                                {item.arrivingGuestName}
-                                {item.arrivingPax !== null ? ` · ${item.arrivingPax}${paxUnit}` : ""}
-                              </p>
-                            </div>
-                            <form action={startCleaningSession}>
-                              <input name="roomLabel" type="hidden" value={item.roomLabel} />
-                              <input name="taskKey" type="hidden" value="simple" />
-                              <Button
-                                className="h-9 rounded-2xl border border-slate-200/70 bg-white px-3 text-xs font-black text-slate-800 shadow-[0_12px_24px_-22px_rgba(31,58,95,0.45)]"
-                                type="submit"
-                              >
-                                {startLabel}
-                              </Button>
-                            </form>
-                          </div>
-                        </Card>
-                      ))}
-                    </div>
-                  ) : (
-                    <Card className="rounded-2xl border-dashed border-white/60 bg-white/40 p-4 text-sm font-semibold text-muted-foreground shadow-sm backdrop-blur-xl">
-                      {emptyMessage}
+      {isHydrated && open ? (
+        <BottomSheet
+          ariaLabel={closeLabel}
+          className="max-h-[84dvh] flex flex-col"
+          header={
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                {title}
+              </p>
+              <p id={titleId} className="mt-1 text-lg font-black">
+                {description}
+              </p>
+            </div>
+          }
+          onClose={() => setOpen(false)}
+        >
+          {() => (
+            <div className="space-y-3 overflow-y-auto pt-4">
+              {items.length > 0 ? (
+                <div className="space-y-3">
+                  {items.map((item) => (
+                    <Card
+                      className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)]"
+                      key={item.roomLabel}
+                    >
+                      <div className="flex items-start justify-between gap-3 p-4">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[15px] font-bold leading-tight text-foreground">
+                            {item.roomTitle}
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                            {item.arrivingGuestName}
+                            {item.arrivingPax !== null ? ` · ${item.arrivingPax}${paxUnit}` : ""}
+                          </p>
+                        </div>
+                        <form action={startCleaningSession}>
+                          <input name="roomLabel" type="hidden" value={item.roomLabel} />
+                          <input name="taskKey" type="hidden" value="simple" />
+                          <Button
+                            className="h-9 rounded-2xl border border-slate-200/70 bg-white px-3 text-xs font-black text-slate-800 shadow-[0_12px_24px_-22px_rgba(31,58,95,0.45)]"
+                            type="submit"
+                          >
+                            {startLabel}
+                          </Button>
+                        </form>
+                      </div>
                     </Card>
-                  )}
+                  ))}
                 </div>
-              </section>
-            </div>,
-            document.body,
-          )
-        : null}
+              ) : (
+                <Card className="rounded-2xl border-dashed border-white/60 bg-white/40 p-4 text-sm font-semibold text-muted-foreground shadow-sm backdrop-blur-xl">
+                  {emptyMessage}
+                </Card>
+              )}
+            </div>
+          )}
+        </BottomSheet>
+      ) : null}
     </>
   );
 }

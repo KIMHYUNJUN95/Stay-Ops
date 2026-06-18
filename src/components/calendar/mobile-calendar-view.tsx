@@ -1319,7 +1319,7 @@ export function MobileCalendarView({
           <button
             aria-label={copy.close}
             className={cn(
-              "absolute inset-0 bg-[rgba(13,24,23,0.46)] transition-opacity duration-300 ease-out",
+              "absolute inset-0 bg-slate-950/45 transition-opacity duration-300 ease-out",
               isReservationSheetOpen ? "opacity-100" : "pointer-events-none opacity-0",
             )}
             onClick={closeReservationSheet}

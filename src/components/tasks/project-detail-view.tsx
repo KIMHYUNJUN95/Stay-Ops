@@ -27,7 +27,7 @@ import {
   reorderProjectSections,
 } from "@/app/mobile/tasks/projects/actions";
 import { ReorderableSectionList } from "@/components/tasks/reorderable-section-list";
-import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { SharePicker } from "@/components/tasks/share-picker";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { ProjectDetailData, ProjectSectionInfo } from "@/lib/projects";
@@ -155,18 +155,9 @@ export function ProjectDetailView({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
-  // Members sheet — mount/shown split so it slides in/out (and supports drag-to-dismiss).
-  const [membersOpen, setMembersOpen] = useState(false); // present in the DOM
-  const [membersShown, setMembersShown] = useState(false); // drives the slide in/out
-  const openMembers = useCallback(() => {
-    setMembersOpen(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => setMembersShown(true)));
-  }, []);
-  const closeMembers = useCallback(() => {
-    setMembersShown(false);
-    setTimeout(() => setMembersOpen(false), 320);
-  }, []);
-  const membersDrag = useSheetDragDismiss({ shown: membersShown, onDismiss: closeMembers });
+  // Members sheet — the shared BottomSheet owns the slide + drag-to-dismiss + Esc lifecycle.
+  const [membersOpen, setMembersOpen] = useState(false);
+  const openMembers = useCallback(() => setMembersOpen(true), []);
 
   const unsectioned = project.tasks.filter((t) => !t.sectionId);
   const tasksOf = (sectionId: string) => project.tasks.filter((t) => t.sectionId === sectionId);
@@ -483,82 +474,61 @@ export function ProjectDetailView({
 
       {/* Members management (owner) */}
       {membersOpen ? (
-        createPortal(
-        <div
-          className={cn(
-            "fixed inset-0 z-[90] flex items-end justify-center bg-[rgba(20,16,10,0.5)] transition-opacity duration-300 motion-reduce:transition-none",
-            membersShown ? "opacity-100" : "opacity-0",
-          )}
-          onClick={closeMembers}
-          style={membersDrag.scrimStyle}
-        >
-          <div
-            className={cn(
-              "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3",
-              "transition-transform duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
-              membersShown ? "translate-y-0" : "translate-y-full",
-            )}
-            data-sheet
-            onClick={(e) => e.stopPropagation()}
-            style={membersDrag.sheetStyle}
-          >
-            <div
-              className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200"
-              {...membersDrag.handleProps}
-            />
-            <div className="mb-3 flex items-center justify-between" {...membersDrag.handleProps}>
-              <p className="text-[16px] font-black text-foreground">
-                {p.memberManage}
-                <span className="ml-1.5 text-[13px] font-bold text-muted-foreground">
-                  {project.members.length}
-                </span>
-              </p>
-              {isOwner ? (
-                <button
-                  className="inline-flex items-center gap-1.5 rounded-full bg-primary/[0.08] px-3 py-1.5 text-[12.5px] font-bold text-primary"
-                  onClick={() => {
-                    closeMembers();
-                    setPickerOpen(true);
-                  }}
-                  type="button"
-                >
-                  <UserPlus className="size-3.5" aria-hidden="true" />
-                  {p.inviteLabel}
-                </button>
-              ) : null}
-            </div>
-            <div className="flex min-h-[28vh] max-h-[60vh] flex-col gap-1 overflow-y-auto pb-2">
-              {project.members.map((m) => (
-                <div className="flex items-center gap-3 rounded-2xl px-2 py-2" key={m.userId}>
-                  <span className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-sm font-extrabold text-primary">
-                    {m.name.slice(0, 1)}
+        <BottomSheet ariaLabel={p.memberManage} onClose={() => setMembersOpen(false)}>
+          {({ close, dragHandleProps }) => (
+            <>
+              <div className="mb-3 flex items-center justify-between" {...dragHandleProps}>
+                <p className="text-[16px] font-black text-foreground">
+                  {p.memberManage}
+                  <span className="ml-1.5 text-[13px] font-bold text-muted-foreground">
+                    {project.members.length}
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-bold text-foreground">{m.name}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {m.role === "owner" ? p.roleOwner : p.roleMember}
+                </p>
+                {isOwner ? (
+                  <button
+                    className="inline-flex items-center gap-1.5 rounded-full bg-primary/[0.08] px-3 py-1.5 text-[12.5px] font-bold text-primary"
+                    onClick={() => {
+                      close();
+                      setPickerOpen(true);
+                    }}
+                    type="button"
+                  >
+                    <UserPlus className="size-3.5" aria-hidden="true" />
+                    {p.inviteLabel}
+                  </button>
+                ) : null}
+              </div>
+              <div className="flex min-h-[28vh] max-h-[60vh] flex-col gap-1 overflow-y-auto pb-2">
+                {project.members.map((m) => (
+                  <div className="flex items-center gap-3 rounded-2xl px-2 py-2" key={m.userId}>
+                    <span className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-sm font-extrabold text-primary">
+                      {m.name.slice(0, 1)}
                     </span>
-                  </span>
-                  {isOwner && m.role !== "owner" && m.userId !== project.createdByUserId ? (
-                    <form action={removeProjectMember}>
-                      <input name="projectId" type="hidden" value={project.id} />
-                      <input name="userId" type="hidden" value={m.userId} />
-                      <button
-                        aria-label={copy.deleteAction}
-                        className="flex size-8 items-center justify-center rounded-full bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                        type="submit"
-                      >
-                        <X className="size-4" aria-hidden="true" />
-                      </button>
-                    </form>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>,
-          document.body,
-        )
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-foreground">{m.name}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {m.role === "owner" ? p.roleOwner : p.roleMember}
+                      </span>
+                    </span>
+                    {isOwner && m.role !== "owner" && m.userId !== project.createdByUserId ? (
+                      <form action={removeProjectMember}>
+                        <input name="projectId" type="hidden" value={project.id} />
+                        <input name="userId" type="hidden" value={m.userId} />
+                        <button
+                          aria-label={copy.deleteAction}
+                          className="flex size-8 items-center justify-center rounded-full bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                          type="submit"
+                        >
+                          <X className="size-4" aria-hidden="true" />
+                        </button>
+                      </form>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </BottomSheet>
       ) : null}
 
       {pickerOpen ? (
@@ -593,37 +563,32 @@ function ConfirmModal({
   onClose: () => void;
   title: string;
 }) {
-  // Portal to <body> so the modal escapes the shell's transformed scroll container and dims the full
-  // viewport (top chrome + bottom tab bar included). Only rendered on interaction, so no SSR mismatch.
-  if (typeof document === "undefined") return null;
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(20,16,10,0.55)] px-7"
-      onClick={onClose}
-      style={{ animation: "modal-overlay-in 180ms ease-out both" }}
+  return (
+    <BottomSheet
+      ariaLabel={title}
+      header={
+        <div className="text-center">
+          <span className="mx-auto mb-4 flex size-[52px] items-center justify-center rounded-[15px] bg-rose-50 text-rose-600">
+            {icon}
+          </span>
+          <h3 className="mb-2 text-[18px] font-black tracking-[-0.02em] text-foreground">{title}</h3>
+          <p className="mb-[22px] text-[13.5px] leading-relaxed text-muted-foreground">{body}</p>
+        </div>
+      }
+      onClose={onClose}
     >
-      <div
-        className="w-full max-w-[340px] rounded-[22px] bg-surface p-6 text-center shadow-[0_30px_60px_-20px_rgba(16,22,30,0.5)]"
-        onClick={(e) => e.stopPropagation()}
-        style={{ animation: "modal-card-in 240ms cubic-bezier(0.34,1.26,0.64,1) both" }}
-      >
-        <span className="mx-auto mb-4 flex size-[52px] items-center justify-center rounded-[15px] bg-rose-50 text-rose-600">
-          {icon}
-        </span>
-        <h3 className="mb-2 text-[18px] font-black tracking-[-0.02em] text-foreground">{title}</h3>
-        <p className="mb-[22px] text-[13.5px] leading-relaxed text-muted-foreground">{body}</p>
+      {({ close }) => (
         <div className="flex gap-2.5">
           <button
             className="h-11 flex-1 rounded-xl bg-slate-100 text-[14px] font-extrabold text-slate-700"
-            onClick={onClose}
+            onClick={close}
             type="button"
           >
             {cancelLabel}
           </button>
           {children}
         </div>
-      </div>
-    </div>,
-    document.body,
+      )}
+    </BottomSheet>
   );
 }

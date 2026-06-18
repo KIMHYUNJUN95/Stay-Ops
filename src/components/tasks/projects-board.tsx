@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { FolderOpen, Plus, Search, Share2, X } from "lucide-react";
-import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import type { Dictionary } from "@/lib/i18n";
 import type { ProjectSummary } from "@/lib/projects";
 import type { ShareableUser } from "@/lib/tasks";
@@ -60,20 +60,9 @@ export function ProjectsBoard({
     () => false,
   );
 
-  // Create sheet — mount/shown split so it can animate out before unmounting.
-  const [mounted, setMounted] = useState(false);
-  const [shown, setShown] = useState(false);
-  const open = useCallback(() => {
-    setMounted(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
-  }, []);
-  const close = useCallback(() => {
-    setShown(false);
-    setTimeout(() => setMounted(false), 320);
-  }, []);
-
-  // iOS-style drag-to-dismiss on the grab handle / title.
-  const drag = useSheetDragDismiss({ shown, onDismiss: close });
+  // Create sheet — the shared BottomSheet owns the slide + drag-to-dismiss + Esc lifecycle.
+  const [createOpen, setCreateOpen] = useState(false);
+  const open = useCallback(() => setCreateOpen(true), []);
 
   // Create-sheet form state. Share defaults ON so the invite search is visible (matches the design).
   const [shareOn, setShareOn] = useState(true);
@@ -87,15 +76,6 @@ export function ProjectsBoard({
       .filter((u) => !inviteIds.includes(u.id) && u.name.includes(q))
       .slice(0, 6);
   })();
-
-  useEffect(() => {
-    if (!mounted) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [mounted, close]);
 
   return (
     <div className="relative">
@@ -163,38 +143,18 @@ export function ProjectsBoard({
         : null}
 
       {/* Create sheet */}
-      {mounted && hydrated
-        ? createPortal(
-            <div
-              className={cn(
-                "fixed inset-0 z-[60] flex items-end justify-center bg-[rgba(20,16,10,0.5)] transition-opacity duration-300 motion-reduce:transition-none",
-                shown ? "opacity-100" : "opacity-0",
-              )}
-              onClick={close}
-              style={drag.scrimStyle}
-            >
-              <div
-                className={cn(
-                  "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3",
-                  "transition-transform duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
-                  shown ? "translate-y-0" : "translate-y-full",
-                )}
-                data-sheet
-                onClick={(e) => e.stopPropagation()}
-                style={drag.sheetStyle}
-              >
-                <div
-                  className="mx-auto mb-4 h-1 w-[38px] rounded-full bg-slate-200"
-                  {...drag.handleProps}
-                />
-                <p
-                  className="mb-[18px] text-[19px] font-black tracking-[-0.02em] text-foreground"
-                  {...drag.handleProps}
-                >
-                  {p.createTitle}
-                </p>
-
-                <form action={createProject}>
+      {createOpen && hydrated ? (
+        <BottomSheet
+          ariaLabel={p.createTitle}
+          header={
+            <p className="mb-[18px] text-[19px] font-black tracking-[-0.02em] text-foreground">
+              {p.createTitle}
+            </p>
+          }
+          onClose={() => setCreateOpen(false)}
+        >
+          {({ close }) => (
+            <form action={createProject}>
                   <input name="share" type="hidden" value={shareOn ? "on" : "off"} />
                   <input name="shareJson" type="hidden" value={JSON.stringify(inviteIds)} />
 
@@ -332,11 +292,9 @@ export function ProjectsBoard({
                     </button>
                   </div>
                 </form>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+          )}
+        </BottomSheet>
+      ) : null}
     </div>
   );
 }

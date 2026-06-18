@@ -14,7 +14,8 @@ export type RequestImageType =
   | "linen-returns"
   | "task-images"
   | "task-update-images"
-  | "suggestion-images";
+  | "suggestion-images"
+  | "attendance-corrections";
 
 function getFileExtension(file: File): string {
   const ext = file.name.split(".").pop()?.toLowerCase();

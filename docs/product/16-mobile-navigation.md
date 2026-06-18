@@ -13,11 +13,12 @@ Home   Calendar   [ ✎ 편집 (center FAB) ]   Requests   Announcements
 ```
 
 - **The four side tabs are per-user customizable.** Each user picks which features sit in their bottom bar (all four slots are free to change). The chosen ids are persisted per user in `profiles.bottom_nav_tabs` (Supabase) and synced across devices. Defaults: Home, Calendar, Requests, Announcements.
-- **The center FAB ("편집", pencil icon) opens the bottom-bar editor sheet**: a dark scrim + slide-up sheet with a 2-column colour-category tile grid listing every selectable feature (`customizableBottomNavItems` = the side-menu pool: Home, Calendar, Cleaning, Tasks, Suggestions, Requests, Announcements, Directory, Linen Return). Tapping a tile adds/removes it from the bottom bar (max 4; a counter `n/4` and a "full" hint are shown; at least one tab must remain). Each tile uses a unified palette (`oklch` with fixed lightness/chroma, hue-only variation per `LAUNCHER_META`) and shows a check when selected. The grid scrolls vertically when it overflows, with the scrollbar hidden (`.add-sheet__scroll`). Edits are saved (via the `updateBottomNavTabs` server action) when the sheet closes by any path (drag-down / scrim tap / Escape).
+- **The center FAB ("편집", squircle button with an app-grid icon) opens the bottom-bar editor sheet**: a dark scrim + slide-up sheet with a 2-column colour-category tile grid listing every selectable feature (`customizableBottomNavItems` = the side-menu pool: Home, Calendar, Cleaning, Tasks, Suggestions, Attendance, Requests, Announcements, Directory, Linen Return). Tapping a tile adds/removes it from the bottom bar (max 4; a counter `n/4` and a "full" hint are shown; at least one tab must remain). Each tile uses a unified palette (`oklch` with fixed lightness/chroma, hue-only variation per `LAUNCHER_META`) and shows a check when selected. The grid scrolls vertically when it overflows, with the scrollbar hidden (`.add-sheet__scroll`). Edits are saved (via the `updateBottomNavTabs` server action) when the sheet closes by any path (drag-down / scrim tap / Escape).
 - **Cleaning** is not a default bottom tab but can be pinned via the editor; it is also always reachable from the side menu (`/mobile/cleaning`).
 - Profile and user directory remain accessible from the top-right profile button / side menu rather than the bottom bar (Directory may also be pinned).
 - **Tasks** (`할 일` / `タスク` / `Tasks`, id `tasks`, `/mobile/tasks`) is a side-menu entry + pinnable bottom-bar candidate. Internal chip-tab views (Today default · Tomorrow · Inbox(관리함) · **프로젝트** · Sent(공유함) · Completed(완료/기록) · Calendar); quick add + detailed create (`/new`), task detail (`/[id]`), core edit (`/[id]/edit`). Personal-by-default with shared participant tasks; task calendar is separate from the reservation calendar. 프로젝트 탭은 기능 구현 완료(2026-06-15, 첫 슬라이스); 마이그레이션 `202606150002_projects.sql` 적용 필요. See `docs/product/18-todo-task-workflow.md` and `docs/product/23-project-workflow.md`.
 - **Suggestions / Feedback Box** (`제안함` / `提案箱` / `Suggestions`, id `suggestions`, `/mobile/suggestions`, `Inbox` icon) is a side-menu entry + pinnable bottom-bar candidate. Screens: list (`보낸/받은/참조` segments + status filter pills), compose (`/new`), and a **role-aware** detail (`/[id]`) — recipient gets the bottom status-change sheet → hold-reason / completion-note sheets, every participant gets the comment composer; the old `/referenced` route now redirects to the list. **Fully wired and shippable as of 2026-06-16 (Steps 1–8):** schema + create + list + participant-only detail + comments + recipient-only status workflow + notifications, all localized ko/ja/en. Two migrations need applying (`202606160001` + `202606160003`). Suggestion notifications use the `suggestion_activity` type and deep-link to the suggestion; they surface once the (separately-deferred) `/mobile/notifications` mockup screen is re-wired. See `docs/product/22-staff-suggestions-workflow.md`.
+- **Attendance / 근태** (`근태` / `勤怠` / `Attendance`, id `attendance`, `/mobile/attendance`, `Clock` icon) is a side-menu entry + pinnable bottom-bar candidate. Screens: home ring-hero clock (`/mobile/attendance`, states 출근 전/근무 중/휴게 중), GPS+QR capture (`/mobile/attendance/capture?mode=in|out`), correction request + status (`/mobile/attendance/correction`), **own history (`/mobile/attendance/history`, Step 5)**, and **own monthly pay (`/mobile/attendance/pay`, Step 10)**. **Now functional (Steps 3–10, 2026-06-17/18):** real GPS+QR clock-in/out, break start/end (clock-out blocked while on break), self-scoped history, correction/exception requests, and a self hourly **expected-pay** screen. Admin review + correction approval + manual session management are server-backed (their UI is in the deferred web dashboard). The home topline has small 이력 + 급여 links. Wi-Fi stays `준비중`. The design's own 5-tab bottom bar is intentionally dropped in favor of the app's global bottom nav. Owner-only site/QR admin + admin review/manage UI are deferred to the web dashboard; finalization/dashboard/export/notifications are later steps. See `docs/product/24-attendance-workflow.md` and `docs/product/21-attendance-payroll-workflow.md`.
 - **Linen Return** (`린넨 반품` / `リネン返却` / `Linen Return`, id `linen-return`, `/mobile/linen-return`) is a side-menu entry, not a default bottom tab. It can be pinned via the bottom-bar editor (it is part of the customizable pool). Building-first flow: building picker → building list → create / detail / ledger. See `docs/product/19-linen-defect-workflow.md`.
 
 Implementation note:
@@ -65,40 +66,76 @@ Purpose:
 
 - Show today's most important operational information and quick actions.
 
-Home should include:
+### Design (Haru Ops home redesign, 2026-06-17)
 
-- Active cleaning timer if running
-- Important announcements
-- Today check-in/check-out summary
-- Quick action buttons
-- Today's my activity records
-- Access to My Profile
-- Access to User Directory
+The home screen was fully re-skinned to the "Haru Ops · 홈 (빠른 출근)" / v2 design.
+All previous functionality is preserved; only the layout/visual style changed.
 
-Quick actions:
+- Scoped styles live in `src/components/mobile/home-screen.css` (every selector is
+  prefixed with `.hm` so it never leaks into other screens). The page markup is in
+  `src/app/mobile/page.tsx` and still does all server-side data fetching.
+- The warm ivory chrome contract is unchanged: cards/sheets stay cream/white, the
+  brand accent stays deep ink navy.
 
-- Start cleaning
-- Register maintenance issue
-- Register lost item
-- Create order request
+3D hero image:
 
-Recommended display order:
+- The design's top **3D hero image** (a wireframe orb/sphere) is **intentionally not
+  used** on the live home for now. The asset is preserved at
+  `src/assets/home-hero-3d.svg` (do not delete) so the 3D hero can be re-enabled later.
+- The previous Lottie top hero (`HomeHeroAnimation` + `src/assets/home-hero-top-v2.json`)
+  is no longer rendered on the home but remains in the repo for possible reuse.
 
-```txt
-1. Active cleaning timer
-2. Important/popup announcements
-3. Today check-in/check-out summary
-4. Quick action buttons
-5. Today's my activity records
-```
+Home includes (top → bottom):
 
-Today's my activity records:
+1. **Greeting** — Tokyo-dated line + "{name} 님, 안녕하세요" + avatar initial.
+2. **Last updated** — auto-refreshing JST `HH:MM` clock.
+3. **Quick clock-in hero** — static "출근 전 / 대기" card with a 출근 button and
+   `GPS+QR` / `Wi-Fi 준비중` method chips. Tapping the card opens `/mobile/attendance`.
+   (Clock-in/out backend is deferred; this is a navigation entry only for now.)
+4. **Important announcement** — only the latest important announcement, links to its detail.
+5. **오늘 현황** — today check-in / check-out counts. **Each count card is tappable**:
+   it opens a bottom sheet listing that day's reservations (guest name · localized
+   building·room · channel/source), drag-to-dismiss like the app's other sheets.
+   Data: `getHomeCheckInOutReservations` (`src/lib/home.ts`) — today's reservations
+   (Tokyo operating day, cancelled/no-show excluded); the sheet UI is
+   `src/components/mobile/home-checkinout.tsx`. Empty state per direction.
+   **Room-label mapping (2026-06-18):** the building·room label is resolved through the
+   **same canonical + display path as the reservation calendar** (room catalog +
+   `resolveReservationCanonicalRoomLabel` + `getDisplayRoomLabel`), so 2-account rooms
+   (e.g. `501`/`501_2`, `803#`/`K803`) collapse to one display label and unmapped/inactive
+   rooms drop (authoritative). The count = the resolved list length, so it tracks the
+   calendar's active-room axis. See `docs/product/15-reservation-calendar.md` → 2026-06-18.
+6. **진행 중 작업** — active cleaning task card (room/label + live elapsed timer), or a plain
+   "진행 중인 작업 없음" empty card. (The empty-state "청소 시작하기" CTA was removed 2026-06-17 —
+   the cleaning shortcut already lives in 빠른 실행, so the CTA was redundant.)
+7. **빠른 실행** — quick-action grid. Four existing actions only: 청소, 정비, 분실물, 주문.
+   (Clock-in is intentionally **not** duplicated here — it already lives in the hero above.)
+8. **오늘 기록** — today's activity records, rendered as a log-style card. The empty state is a
+   plain "오늘 기록이 없습니다" message (the cleaning-specific "첫 청소 시작하기" CTA was removed
+   2026-06-17 — this feed is meant to log ANY user action, not just cleaning).
+   **Currently recorded** (`getHomeTodayActivity`): cleaning completion (`cleaning_sessions`),
+   maintenance report (`maintenance_reports`), lost-item report (`lost_items`), **비품 주문 / order
+   request (`order_requests`)** and **린넨 반품 / linen return (`linen_return_records`)** — the last two
+   added 2026-06-17.
+   **Still not recorded** (by product choice for now): 제안함 (staff suggestions), 할일 (tasks),
+   cleaning *start* (only completion logs today), attendance.
+
+Quick actions (unchanged set):
+
+- Start cleaning (`/mobile/cleaning`)
+- Register maintenance issue (`/mobile/maintenance/new`)
+- Register lost item (`/mobile/lost-found/new`)
+- Create order request (`/mobile/orders/new`)
+
+Today's activity records:
 
 - Automatically created from user actions.
 - Cleaning start records are added automatically.
 - Cleaning completion records are added automatically.
 - Other user-created records, such as maintenance/lost item/order request, can also appear if useful.
 - This is not a separate manual todo list in the MVP.
+
+Access to My Profile and the User Directory remains via the side menu (unchanged).
 
 ## Calendar
 
@@ -241,7 +278,7 @@ Current rules:
   - **Count badge**: shown when `badges[item.id] > 0`. Pill (`h-[21px] min-w-[21px]`, `font-mono tabular-nums`), `bg-primary text-primary-foreground` on the active row, `bg-muted text-muted-foreground` otherwise; values over 99 render as `99+`.
   - **Footer**: a `border-border bg-surface` row with an account-settings link (left) and a **logout** button (right, `dictionary.common.logout`, posts to the `signOut` server action via `<form action={signOut}>`).
   - The side menu lists Cleaning (in addition to the bottom-bar tabs) since Cleaning is not a bottom tab.
-- **Bottom navigation**: a bottom-attached `bg-surface` bar (`.tabbar` in `src/app/globals.css`) with rounded top corners (`border-radius: 22px 22px 0 0`) and a soft top shadow. Layout is four tabs split 2 / 2 around a raised central FAB. Active color `var(--primary)`, inactive `var(--muted-foreground)`. The bottom bar renders the user's customized tabs via `resolveBottomNavItems(session.user.bottomNavTabs)`, split left/right around the center FAB. The center FAB is a 50px `var(--primary)` circle raised above the bar (`margin-top: -34px`, 4px `var(--surface)` border + shadow) labelled `dictionary.common.editBottomBar` ("하단바 편집") with a pencil icon; tapping it opens the bottom-bar editor sheet (`createOpen` state) where the user toggles which features (max 4) appear. Each toggle tile (`.add-tile`, `border-radius: 16px`) draws its border with an **inset `box-shadow`** (selected → `inset 0 0 0 2px var(--primary)`, unselected → `inset 0 0 0 1px var(--border)`), not `outline` — `outline` does not follow the tile's rounded corners on mobile WebKit and left the borders looking broken. Edits persist to `profiles.bottom_nav_tabs` on close. `env(safe-area-inset-bottom)` padding handles the iOS home indicator.
+- **Bottom navigation**: a bottom-attached `bg-surface` bar (`.tabbar` in `src/app/globals.css`) with rounded top corners (`border-radius: 22px 22px 0 0`) and a soft top shadow. Layout is four tabs split 2 / 2 around a raised central FAB. Active color `var(--primary)`, inactive `var(--muted-foreground)`. The bottom bar renders the user's customized tabs via `resolveBottomNavItems(session.user.bottomNavTabs)`, split left/right around the center FAB. The center FAB is a 52px **squircle** (rounded square, `border-radius: 17px`) with a navy gradient (`linear-gradient(160deg, hsl(223 50% 42%), hsl(223 54% 22%))`), raised above the bar (`margin-top: -26px`, 4px ivory border + shadow) per the "Bottom Bar (Squircle Edit)" design, labelled `dictionary.common.editBottomBar` ("하단바 편집") with an **app-grid icon** (2×2 squares); tapping it opens the bottom-bar editor sheet (`createOpen` state) where the user toggles which features (max 4) appear. Each toggle tile (`.add-tile`, `border-radius: 16px`) draws its border with an **inset `box-shadow`** (selected → `inset 0 0 0 2px var(--primary)`, unselected → `inset 0 0 0 1px var(--border)`), not `outline` — `outline` does not follow the tile's rounded corners on mobile WebKit and left the borders looking broken. Edits persist to `profiles.bottom_nav_tabs` on close. `env(safe-area-inset-bottom)` padding handles the iOS home indicator.
 - **Accessibility**: the `title` prop on `MobileShell` is used as `aria-label` on `<main>`. It is not rendered visually in the header. Page content provides its own visual hierarchy.
 - **Appearance prop**: `appearance` remains accepted for compatibility but currently does not change shell visuals. Do not rely on it for page tinting.
 - `ModeSwitcher` and `Bell` icon are not part of the shell header. (There is no theme switcher: the app is light-mode-only; dark mode is deferred until post-launch.)
@@ -307,9 +344,61 @@ Sheets covered: bottom-bar editor (`mobile-shell`), Tasks quick-add / calendar d
 long-press menu (`tasks-workspace`), share picker, context picker, report sheet, project create
 (`projects-board`), project members (`project-detail-view`), photo gallery (`photo-gallery`),
 calendar reservation detail (`mobile-calendar-view`), and the order "처리" bottom sheet variant
-(`order-action-bar`). **Excluded** (not bottom sheets): center-aligned confirm/delete/rename
-dialogs, the cleaning confirmation card, fixed action bars, the left side menu, and the photo
-lightbox carousel.
+(`order-action-bar`). **Excluded** (not bottom sheets): fixed action bars, the left side menu, the
+photo lightbox carousel, and small anchored dropdown/popover menus. (As of 2026-06-17 the former
+center-aligned confirm / delete / action / picker dialogs are NO LONGER excluded — they were all
+converted to bottom sheets; see the canonical-standard section below.)
+
+## 2026-06-17 Bottom Sheet — Canonical Visual Standard + Shared `BottomSheet`
+
+The drag-to-dismiss behavior above is now paired with **one canonical visual spec**, so every
+bottom sheet looks identical. The reference design is the home check-in/out sheet; the spec is:
+
+- **Scrim**: `bg-slate-950/45` (cool slate). It **fades toward transparent as you drag the sheet
+  down** (the dim is proportional to drag distance — this is the look the team standardized on). No
+  warm/tinted scrims.
+- **Surface**: `bg-surface` (cream), `rounded-t-[24px]`, `max-w-[460px]`, centered, bottom-anchored.
+- **Padding**: `px-5 pt-3 pb-[max(20px,env(safe-area-inset-bottom))]`.
+- **Grab handle**: `mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200` (slate-200, 38×4).
+- **Animation**: slide-in/out `translate-y-full → translate-y-0`, 320ms `cubic-bezier(0.32,0.72,0,1)`.
+- **Dismiss**: drag past threshold, scrim tap, or Esc. **No top-right X button.**
+- **Lifecycle**: portals to `<body>`, locks body scroll, closes on Esc.
+
+**Mandatory going forward:** build any NEW bottom sheet with the shared
+**`BottomSheet`** component (`src/components/shell/bottom-sheet.tsx`) — do not hand-roll a sheet
+shell. It encapsulates the entire spec above (portal + slate scrim + drag-to-dismiss via
+`useSheetDragDismiss` + handle + body-lock + Esc). It is mount-driven (the parent conditionally
+renders it and unmounts in `onClose`); close programmatically with the render-prop
+`children={({ close }) => …}` or `useBottomSheetClose()`, and make extra drag zones with
+`useBottomSheetDragHandle()`.
+
+**Every popup that anchors to / slides up from the bottom now uses `BottomSheet` or the same drag
+contract** — including what used to be center-aligned confirm/delete/action/picker dialogs. They were
+all converted so they slide up from the bottom and dim-on-drag exactly like the home sheet (a final
+sweep confirmed zero bottom overlays lack the effect).
+
+On the shared `BottomSheet` component: home check-in/out, report sheet, share picker, cleaning record
+detail + filter picker, project create (`projects-board`), project members + delete/leave confirm
+(`project-detail-view`), cleaning linked-confirmation, Tasks bulk-delete (`tasks-workspace`), task
+delete/leave/remove confirms (`task-detail-view`), maintenance/lost-found/order confirms, generic
+delete confirm, announcement popup + delete + read-status, linen-return success + detail delete,
+cleaning completion + cancel confirms, cleaning targets sheet, the date-range and order-delivery
+calendars, the requests filter + delete sheets, and the **bottom-bar editor** (`mobile-shell` — the
+center-FAB "편집" sheet; converted 2026-06-17 so it drag-dims like the rest).
+
+Kept on their own markup but **normalized to the canonical values** (slate scrim, 24px radius,
+slate-200 handle, drag-dim — visually/behaviorally identical, migrate to `BottomSheet`
+opportunistically): the suggestions status/hold/complete/comment/like sheets + member picker
+(`suggestions.css`), context picker, Tasks day/long-press/quick-add sheets, the calendar reservation
+sheet, and the photo-gallery sheet. These were left on their own
+shells because they use an always-mounted `.show`/transform toggle or a multi-step body with
+body-level dismiss calls; a structural rewrite carries more regression risk than visual gain.
+
+**Intentional exceptions** (NOT flattened): the order "처리" sheet (`order-action-bar`) keeps its
+dual-mode **Liquid Glass** treatment (backdrop-blur, 28px, glass border) per the selective-glass
+policy; center-aligned confirm/delete dialogs are modals, not bottom sheets; the photo lightbox is a
+full-screen carousel. The attendance capture/correction sheets are owned by the in-progress
+attendance track and will be normalized when that track settles.
 
 ## 2026-05-22 Header Consistency Note
 

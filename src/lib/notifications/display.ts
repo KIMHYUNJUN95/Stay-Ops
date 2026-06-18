@@ -1,6 +1,7 @@
 import type { Locale } from "@/lib/i18n";
 import { getDictionary } from "@/lib/i18n";
 import {
+  isAttendanceNotificationPayload,
   isOrderProcessedPayload,
   isProjectNotificationPayload,
   isSuggestionNotificationPayload,
@@ -185,6 +186,33 @@ export function getNotificationDisplay(
     };
   }
 
+  if (
+    notification.type === "attendance_activity" &&
+    isAttendanceNotificationPayload(notification.payload)
+  ) {
+    const payload = notification.payload;
+    const title =
+      payload.event === "correction_created"
+        ? copy.attendanceCorrectionTitle
+        : payload.event === "abnormal_session"
+          ? copy.attendanceAbnormalTitle
+          : copy.attendanceReminderTitle;
+    const body = (
+      payload.event === "correction_created"
+        ? copy.attendanceCorrectionBody
+        : payload.event === "abnormal_session"
+          ? copy.attendanceAbnormalBody
+          : copy.attendanceReminderBody
+    ).replace("{name}", payload.subjectName ?? "");
+    return {
+      title,
+      body,
+      statusLabel: copy.attendanceKind,
+      kindLabel: copy.attendanceKind,
+      locationLabel: "",
+    };
+  }
+
   return {
     title: copy.fallbackTitle,
     body: copy.fallbackBody,
@@ -209,6 +237,8 @@ export function notificationTypeLabel(type: NotificationType, locale: Locale) {
       return copy.projectKind;
     case "suggestion_activity":
       return copy.suggestionKind;
+    case "attendance_activity":
+      return copy.attendanceKind;
     default:
       return copy.fallbackKind;
   }

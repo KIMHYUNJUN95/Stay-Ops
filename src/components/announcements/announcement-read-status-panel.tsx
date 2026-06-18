@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Users, X } from "lucide-react";
+import { Users } from "lucide-react";
 import type { AnnouncementReadSummary, AnnouncementReadUser } from "@/lib/announcements";
 import type { Locale } from "@/lib/i18n";
 import { getAnnouncementDictionary } from "@/lib/announcement-i18n";
 import { Button } from "@/components/ui/button";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 
 type AnnouncementReadStatusPanelProps = {
   locale: Locale;
@@ -124,48 +125,44 @@ export function AnnouncementReadStatusPanel({
         </button>
       </div>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-5 py-8 backdrop-blur-sm">
-          <section className="max-h-[calc(100dvh-4rem)] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-background p-5 text-foreground shadow-glass">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Users className="size-5" aria-hidden="true" />
-                </div>
-                <div>
-                  <p className="text-xs font-black uppercase text-muted-foreground">
-                    {copy.readSummary}
-                  </p>
-                  <h2 className="mt-1 text-xl font-black">{modalTitle}</h2>
-                </div>
+      {open ? (
+        <BottomSheet
+          ariaLabel={modalTitle}
+          header={
+            <div className="flex items-center gap-3">
+              <div className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Users className="size-5" aria-hidden="true" />
               </div>
-              <button
-                className="flex size-10 items-center justify-center rounded-lg border border-border bg-surface/80 text-muted-foreground transition-colors hover:text-foreground"
-                onClick={() => setOpen(null)}
-                type="button"
-              >
-                <X className="size-5" aria-hidden="true" />
-                <span className="sr-only">{copy.close}</span>
-              </button>
+              <div>
+                <p className="text-xs font-black uppercase text-muted-foreground">
+                  {copy.readSummary}
+                </p>
+                <h2 className="mt-1 text-xl font-black">{modalTitle}</h2>
+              </div>
             </div>
+          }
+          onClose={() => setOpen(null)}
+        >
+          {({ close }) => (
+            <>
+              <div className="mt-6 max-h-[60vh] overflow-y-auto pr-1">
+                <UserList
+                  copy={copy}
+                  locale={locale}
+                  showReadAt={open === "read"}
+                  users={users}
+                />
+              </div>
 
-            <div className="mt-6 max-h-[60vh] overflow-y-auto pr-1">
-              <UserList
-                copy={copy}
-                locale={locale}
-                showReadAt={open === "read"}
-                users={users}
-              />
-            </div>
-
-            <div className="mt-6 flex justify-end">
-              <Button onClick={() => setOpen(null)} type="button" variant="ghost">
-                {copy.close}
-              </Button>
-            </div>
-          </section>
-        </div>
-      )}
+              <div className="mt-6 flex justify-end">
+                <Button onClick={close} type="button" variant="ghost">
+                  {copy.close}
+                </Button>
+              </div>
+            </>
+          )}
+        </BottomSheet>
+      ) : null}
     </>
   );
 }

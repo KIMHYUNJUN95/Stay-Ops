@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { deleteLinenReturnRecord } from "@/app/mobile/linen-return/record/[id]/actions";
 import type { Dictionary } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 
 type LinenReturnDetailActionsProps = {
   building: string;
@@ -83,37 +83,44 @@ export function LinenReturnDetailActions({
       ) : null}
 
       {confirmOpen ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 px-7 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-[24px] bg-surface p-6 text-center shadow-[0_30px_70px_-20px_rgba(0,0,0,0.4)]">
-            <span className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-red-50 text-red-500">
-              <Trash2 className="size-6" aria-hidden="true" />
-            </span>
-            <p className="text-[17px] font-black tracking-[-0.02em] text-foreground">
-              {copy.deleteConfirmTitle}
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">{copy.deleteConfirmBody}</p>
-            <div className="mt-6 flex gap-2.5">
-              <button
-                className="h-12 flex-1 rounded-2xl border border-border bg-surface text-sm font-bold text-slate-700 disabled:opacity-50"
-                disabled={isPending}
-                onClick={() => setConfirmOpen(false)}
-                type="button"
-              >
-                {copy.deleteConfirmCancel}
-              </button>
-              <button
-                className={cn(
-                  "h-12 flex-1 rounded-2xl bg-red-500 text-sm font-extrabold text-white transition-colors hover:bg-red-600 disabled:opacity-60",
-                )}
-                disabled={isPending}
-                onClick={handleDelete}
-                type="button"
-              >
-                {copy.deleteConfirmConfirm}
-              </button>
+        <BottomSheet
+          ariaLabel={copy.deleteConfirmTitle}
+          header={
+            <div className="flex items-center gap-3">
+              <span className="flex size-12 items-center justify-center rounded-full bg-red-50 text-red-500">
+                <Trash2 className="size-6" aria-hidden="true" />
+              </span>
+              <p className="text-[17px] font-black tracking-[-0.02em] text-foreground">
+                {copy.deleteConfirmTitle}
+              </p>
             </div>
-          </div>
-        </div>
+          }
+          onClose={() => setConfirmOpen(false)}
+        >
+          {({ close }) => (
+            <>
+              <p className="mt-3 text-sm text-muted-foreground">{copy.deleteConfirmBody}</p>
+              <div className="mt-6 flex gap-2.5">
+                <button
+                  className="h-12 flex-1 rounded-2xl border border-border bg-surface text-sm font-bold text-slate-700 disabled:opacity-50"
+                  disabled={isPending}
+                  onClick={close}
+                  type="button"
+                >
+                  {copy.deleteConfirmCancel}
+                </button>
+                <button
+                  className="h-12 flex-1 rounded-2xl bg-red-500 text-sm font-extrabold text-white transition-colors hover:bg-red-600 disabled:opacity-60"
+                  disabled={isPending}
+                  onClick={handleDelete}
+                  type="button"
+                >
+                  {copy.deleteConfirmConfirm}
+                </button>
+              </div>
+            </>
+          )}
+        </BottomSheet>
       ) : null}
     </div>
   );

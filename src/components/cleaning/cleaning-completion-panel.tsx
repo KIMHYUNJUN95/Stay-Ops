@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
-import { Ban, CheckCircle2, Clock3, Edit3, Timer, X } from "lucide-react";
+import { Ban, CheckCircle2, Clock3, Edit3, Timer } from "lucide-react";
 import { cancelCleaningSession, completeCleaningSession } from "@/app/mobile/cleaning/actions";
 import { Button } from "@/components/ui/button";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 
 type CleaningCompletionPanelProps = {
   labels: {
@@ -70,26 +70,6 @@ export function CleaningCompletionPanel({
     return () => window.clearInterval(timer);
   }, [startedAt]);
 
-  // Body scroll lock while any modal is open
-  useEffect(() => {
-    if (!isConfirming && !isCancelConfirming) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
-  }, [isConfirming, isCancelConfirming]);
-
-  // Esc key dismisses the active modal
-  useEffect(() => {
-    if (!isConfirming && !isCancelConfirming) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== "Escape") return;
-      setIsConfirming(false);
-      setIsCancelConfirming(false);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isConfirming, isCancelConfirming]);
-
   const elapsedLabel = formatElapsed(elapsed);
 
   return (
@@ -141,190 +121,146 @@ export function CleaningCompletionPanel({
         </div>
       </div>
 
-      {isConfirming
-        ? createPortal(
-        <div
-          className="fixed inset-0 z-[100] flex min-h-dvh items-center justify-center px-4 py-6"
-          style={{ animation: "modal-overlay-in 180ms ease-out both" }}
-        >
-          {/* Backdrop */}
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 bg-slate-900/32 backdrop-blur-[7px]"
-            onClick={() => setIsConfirming(false)}
-          />
-
-          {/* Dialog */}
-          <section
-            aria-labelledby="modal-completion-title"
-            aria-modal="true"
-            className="relative z-10 w-full max-w-sm rounded-[28px] border border-border bg-surface p-5 text-foreground shadow-[0_32px_80px_rgba(15,23,42,0.26),inset_0_1px_0_rgba(255,255,255,0.92)]"
-            role="dialog"
-            style={{ animation: "modal-card-in 260ms cubic-bezier(0.34, 1.26, 0.64, 1) both" }}
-          >
-            <div className="flex justify-center">
-              <div className="flex size-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
-                <CheckCircle2 className="size-6" aria-hidden="true" />
+      {isConfirming ? (
+        <BottomSheet
+          ariaLabel={labels.completionConfirmation}
+          header={
+            <>
+              <div className="flex justify-center">
+                <div className="flex size-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+                  <CheckCircle2 className="size-6" aria-hidden="true" />
+                </div>
               </div>
-            </div>
 
-            <div className="mt-3 text-center">
-              <h2 className="text-2xl font-black" id="modal-completion-title">
-                {labels.completionConfirmation}
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{labels.reviewCompletion}</p>
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-border bg-surface p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-              <div className="flex items-start justify-between gap-4">
+              <div className="mt-3 text-center">
+                <h2 className="text-2xl font-black">
+                  {labels.completionConfirmation}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{labels.reviewCompletion}</p>
+              </div>
+            </>
+          }
+          onClose={() => setIsConfirming(false)}
+        >
+          {({ close }) => (
+            <>
+              <div className="mt-4 rounded-2xl border border-border bg-surface p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
                 <div className="min-w-0">
                   <p className="text-lg font-black leading-tight">{labels.room} {roomLabel}</p>
                   <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{taskLabel}</p>
                 </div>
-                <button
-                  aria-label={labels.cancelCompletion}
-                  className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-muted-foreground"
-                  onClick={() => setIsConfirming(false)}
-                  type="button"
-                >
-                  <X className="size-4" aria-hidden="true" />
-                </button>
+
+                <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-xl border border-border bg-surface p-3">
+                    <dt className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                      <Clock3 className="size-3.5" aria-hidden="true" />
+                      {labels.startedAt}
+                    </dt>
+                    <dd className="mt-1 font-black">{startedAtLabel}</dd>
+                  </div>
+                  <div className="rounded-xl border border-border bg-surface p-3">
+                    <dt className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                      <Timer className="size-3.5" aria-hidden="true" />
+                      {labels.elapsed}
+                    </dt>
+                    <dd className="mt-1 font-mono font-black text-primary">{elapsedLabel}</dd>
+                  </div>
+                </dl>
               </div>
 
-              <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-xl border border-border bg-surface p-3">
-                  <dt className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+              <label className="mt-4 block space-y-2">
+                <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{labels.notesLabel}</span>
+                <div className="relative">
+                  <Edit3 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                  <input
+                    className="h-11 w-full rounded-xl border border-border bg-surface pl-10 pr-3 text-sm font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    onChange={(event) => setNotes(event.target.value)}
+                    placeholder={labels.notesPlaceholder}
+                    type="text"
+                    value={notes}
+                  />
+                </div>
+              </label>
+
+              <form action={completeCleaningSession} className="mt-4 space-y-2">
+                <input name="sessionId" type="hidden" value={sessionId} />
+                <input name="notes" type="hidden" value={notes} />
+                <Button autoFocus className="h-12 w-full rounded-xl bg-primary font-black text-white shadow-[0_10px_28px_hsl(var(--primary-hsl)/0.28)] hover:bg-primary/90" type="submit">
+                  {labels.confirmCompletion}
+                </Button>
+                <Button
+                  className="h-12 w-full rounded-xl border border-border bg-surface font-bold"
+                  onClick={close}
+                  type="button"
+                  variant="secondary"
+                >
+                  {labels.cancelCompletion}
+                </Button>
+              </form>
+            </>
+          )}
+        </BottomSheet>
+      ) : null}
+
+      {isCancelConfirming ? (
+        <BottomSheet
+          ariaLabel={labels.cancelCleaningTitle}
+          header={
+            <>
+              <div className="flex justify-center">
+                <div className="flex size-12 items-center justify-center rounded-2xl border border-destructive/20 bg-destructive/10 text-destructive">
+                  <Ban className="size-6" aria-hidden="true" />
+                </div>
+              </div>
+
+              <div className="mt-3 text-center">
+                <h2 className="text-2xl font-black">
+                  {labels.cancelCleaningTitle}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{labels.cancelCleaningMessage}</p>
+              </div>
+            </>
+          }
+          onClose={() => setIsCancelConfirming(false)}
+        >
+          {({ close }) => (
+            <>
+              <div className="mt-4 rounded-2xl border border-border bg-surface p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+                <div className="min-w-0">
+                  <p className="text-lg font-black leading-tight">{labels.room} {roomLabel}</p>
+                  <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{taskLabel}</p>
+                </div>
+                <div className="mt-3 rounded-xl border border-border bg-surface p-3">
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
                     <Clock3 className="size-3.5" aria-hidden="true" />
                     {labels.startedAt}
                   </dt>
                   <dd className="mt-1 font-black">{startedAtLabel}</dd>
                 </div>
-                <div className="rounded-xl border border-border bg-surface p-3">
-                  <dt className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                    <Timer className="size-3.5" aria-hidden="true" />
-                    {labels.elapsed}
-                  </dt>
-                  <dd className="mt-1 font-mono font-black text-primary">{elapsedLabel}</dd>
-                </div>
-              </dl>
-            </div>
-
-            <label className="mt-4 block space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{labels.notesLabel}</span>
-              <div className="relative">
-                <Edit3 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-                <input
-                  className="h-11 w-full rounded-xl border border-border bg-surface pl-10 pr-3 text-sm font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  onChange={(event) => setNotes(event.target.value)}
-                  placeholder={labels.notesPlaceholder}
-                  type="text"
-                  value={notes}
-                />
               </div>
-            </label>
 
-            <form action={completeCleaningSession} className="mt-4 space-y-2">
-              <input name="sessionId" type="hidden" value={sessionId} />
-              <input name="notes" type="hidden" value={notes} />
-              <Button autoFocus className="h-12 w-full rounded-xl bg-primary font-black text-white shadow-[0_10px_28px_hsl(var(--primary-hsl)/0.28)] hover:bg-primary/90" type="submit">
-                {labels.confirmCompletion}
-              </Button>
-              <Button
-                className="h-12 w-full rounded-xl border border-border bg-surface font-bold"
-                onClick={() => setIsConfirming(false)}
-                type="button"
-                variant="secondary"
-              >
-                {labels.cancelCompletion}
-              </Button>
-            </form>
-          </section>
-        </div>,
-            document.body,
-          )
-        : null}
-
-      {isCancelConfirming
-        ? createPortal(
-        <div
-          className="fixed inset-0 z-[100] flex min-h-dvh items-center justify-center px-4 py-6"
-          style={{ animation: "modal-overlay-in 180ms ease-out both" }}
-        >
-          {/* Backdrop */}
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 bg-slate-900/32 backdrop-blur-[7px]"
-            onClick={() => setIsCancelConfirming(false)}
-          />
-
-          {/* Dialog */}
-          <section
-            aria-labelledby="modal-cancel-title"
-            aria-modal="true"
-            className="relative z-10 w-full max-w-sm rounded-[28px] border border-border bg-surface p-5 text-foreground shadow-[0_32px_80px_rgba(15,23,42,0.26),inset_0_1px_0_rgba(255,255,255,0.92)]"
-            role="dialog"
-            style={{ animation: "modal-card-in 260ms cubic-bezier(0.34, 1.26, 0.64, 1) both" }}
-          >
-            <div className="flex justify-center">
-              <div className="flex size-12 items-center justify-center rounded-2xl border border-destructive/20 bg-destructive/10 text-destructive">
-                <Ban className="size-6" aria-hidden="true" />
-              </div>
-            </div>
-
-            <div className="mt-3 text-center">
-              <h2 className="text-2xl font-black" id="modal-cancel-title">
-                {labels.cancelCleaningTitle}
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{labels.cancelCleaningMessage}</p>
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-border bg-surface p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-lg font-black leading-tight">{labels.room} {roomLabel}</p>
-                  <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{taskLabel}</p>
-                </div>
-                <button
-                  aria-label={labels.cancelCompletion}
-                  className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-muted-foreground"
-                  onClick={() => setIsCancelConfirming(false)}
-                  type="button"
+              <form action={cancelCleaningSession} className="mt-4 space-y-2">
+                <input name="sessionId" type="hidden" value={sessionId} />
+                <Button
+                  autoFocus
+                  className="h-12 w-full rounded-xl bg-destructive font-black text-white hover:bg-destructive/90"
+                  type="submit"
                 >
-                  <X className="size-4" aria-hidden="true" />
-                </button>
-              </div>
-              <div className="mt-3 rounded-xl border border-border bg-surface p-3">
-                <dt className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-                  <Clock3 className="size-3.5" aria-hidden="true" />
-                  {labels.startedAt}
-                </dt>
-                <dd className="mt-1 font-black">{startedAtLabel}</dd>
-              </div>
-            </div>
-
-            <form action={cancelCleaningSession} className="mt-4 space-y-2">
-              <input name="sessionId" type="hidden" value={sessionId} />
-              <Button
-                autoFocus
-                className="h-12 w-full rounded-xl bg-destructive font-black text-white hover:bg-destructive/90"
-                type="submit"
-              >
-                {labels.confirmCancelCleaning}
-              </Button>
-              <Button
-                className="h-12 w-full rounded-xl border border-border bg-surface font-bold"
-                onClick={() => setIsCancelConfirming(false)}
-                type="button"
-                variant="secondary"
-              >
-                {labels.cancelCompletion}
-              </Button>
-            </form>
-          </section>
-        </div>,
-            document.body,
-          )
-        : null}
+                  {labels.confirmCancelCleaning}
+                </Button>
+                <Button
+                  className="h-12 w-full rounded-xl border border-border bg-surface font-bold"
+                  onClick={close}
+                  type="button"
+                  variant="secondary"
+                >
+                  {labels.cancelCompletion}
+                </Button>
+              </form>
+            </>
+          )}
+        </BottomSheet>
+      ) : null}
     </>
   );
 }

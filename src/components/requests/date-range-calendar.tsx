@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 
 export type DateRangeValue = {
   endDate?: string;
@@ -81,24 +81,6 @@ function CalendarPanel({
   );
   const [draftStart, setDraftStart] = useState<string | undefined>(value.startDate);
   const [draftEnd, setDraftEnd] = useState<string | undefined>(value.endDate);
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    closeRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, []);
 
   const weekdayNames = useMemo(() => getWeekdayNames(locale), [locale]);
   const monthLabel = useMemo(
@@ -166,79 +148,60 @@ function CalendarPanel({
   const rangeEnd = draftEnd ?? draftStart;
   const hintLabel = !draftStart || draftEnd ? labels.selectStart : labels.selectEnd;
 
-  return createPortal(
-    <div
-      aria-label={labels.title}
-      aria-modal="true"
-      className="fixed inset-0 z-[100] flex min-h-dvh items-center justify-center px-5 py-8"
-      role="dialog"
+  return (
+    <BottomSheet
+      ariaLabel={labels.title}
+      header={
+        <div className="min-w-0">
+          <h3 className="text-base font-black tracking-tight text-foreground">
+            {labels.title}
+          </h3>
+          <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+            {hintLabel}
+          </p>
+        </div>
+      }
+      onClose={onClose}
     >
-      <button
-        aria-hidden="true"
-        className="absolute inset-0 bg-slate-900/30 backdrop-blur-xl backdrop-saturate-150"
-        onClick={onClose}
-        tabIndex={-1}
-        type="button"
-      />
-
-      <div className="relative w-full max-w-sm overflow-hidden rounded-[28px] border border-white/50 border-b-border/40 border-r-border/40 bg-surface/85 shadow-[0_28px_90px_-34px_rgba(15,23,42,0.70),0_16px_42px_-28px_rgba(15,23,42,0.42),inset_0_1px_1px_rgba(255,255,255,0.78)] ring-1 ring-white/20 backdrop-blur-2xl">
-        <div className="flex items-center justify-between gap-3 px-5 pt-5">
-          <div className="min-w-0">
-            <h3 className="text-base font-black tracking-tight text-foreground">
-              {labels.title}
-            </h3>
-            <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
-              {hintLabel}
-            </p>
-          </div>
-          <button
-            aria-label={labels.close}
-            className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-background/70 text-muted-foreground transition-colors hover:text-foreground"
-            onClick={onClose}
-            ref={closeRef}
-            type="button"
-          >
-            <X className="size-4" aria-hidden="true" />
-          </button>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between px-5">
-          <button
-            aria-label="prev-month"
-            className="flex size-9 items-center justify-center rounded-full border border-border bg-background/70 text-foreground transition-colors hover:bg-muted/60"
-            onClick={() => setViewMonth((prev) => addMonths(prev, -1))}
-            type="button"
-          >
-            <ChevronLeft className="size-4" aria-hidden="true" />
-          </button>
-          <span className="text-sm font-black text-foreground">{monthLabel}</span>
-          <button
-            aria-label="next-month"
-            className="flex size-9 items-center justify-center rounded-full border border-border bg-background/70 text-foreground transition-colors hover:bg-muted/60"
-            onClick={() => setViewMonth((prev) => addMonths(prev, 1))}
-            type="button"
-          >
-            <ChevronRight className="size-4" aria-hidden="true" />
-          </button>
-        </div>
-
-        <div className="mt-3 grid grid-cols-7 gap-1 px-4">
-          {weekdayNames.map((name, index) => (
-            <div
-              className={cn(
-                "py-1.5 text-center text-[11px] font-bold uppercase tracking-wide text-muted-foreground",
-                index === 0 && "text-rose-500/80",
-                index === 6 && "text-[#315F91]",
-              )}
-              key={name}
+      {() => (
+        <>
+          <div className="mt-4 flex items-center justify-between">
+            <button
+              aria-label="prev-month"
+              className="flex size-9 items-center justify-center rounded-full border border-border bg-background/70 text-foreground transition-colors hover:bg-muted/60"
+              onClick={() => setViewMonth((prev) => addMonths(prev, -1))}
+              type="button"
             >
-              {name}
-            </div>
-          ))}
-        </div>
+              <ChevronLeft className="size-4" aria-hidden="true" />
+            </button>
+            <span className="text-sm font-black text-foreground">{monthLabel}</span>
+            <button
+              aria-label="next-month"
+              className="flex size-9 items-center justify-center rounded-full border border-border bg-background/70 text-foreground transition-colors hover:bg-muted/60"
+              onClick={() => setViewMonth((prev) => addMonths(prev, 1))}
+              type="button"
+            >
+              <ChevronRight className="size-4" aria-hidden="true" />
+            </button>
+          </div>
 
-        <div className="grid grid-cols-7 gap-y-1 px-4 pb-2">
-          {cells.map((iso, index) => {
+          <div className="mt-3 grid grid-cols-7 gap-1">
+            {weekdayNames.map((name, index) => (
+              <div
+                className={cn(
+                  "py-1.5 text-center text-[11px] font-bold uppercase tracking-wide text-muted-foreground",
+                  index === 0 && "text-rose-500/80",
+                  index === 6 && "text-[#315F91]",
+                )}
+                key={name}
+              >
+                {name}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-y-1 pb-2">
+            {cells.map((iso, index) => {
             if (!iso) return <div key={`empty-${index}`} />;
             const isStart = iso === rangeStart;
             const isEnd = iso === rangeEnd;
@@ -281,30 +244,30 @@ function CalendarPanel({
                 >
                   {dayNumber}
                 </button>
-              </div>
-            );
-          })}
-        </div>
+                </div>
+              );
+            })}
+          </div>
 
-        <div className="flex items-center gap-2 border-t border-border/70 px-5 py-4">
-          <button
-            className="h-11 flex-1 rounded-xl border border-border bg-background/70 text-sm font-bold text-foreground transition-colors hover:bg-muted/60"
-            onClick={handleClear}
-            type="button"
-          >
-            {labels.clear}
-          </button>
-          <button
-            className="h-11 flex-1 rounded-xl bg-[#315F91] text-sm font-black text-white transition-colors hover:bg-[#274D76] disabled:opacity-50"
-            disabled={!draftStart}
-            onClick={handleApply}
-            type="button"
-          >
-            {labels.apply}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+          <div className="mt-2 flex items-center gap-2 border-t border-border/70 pt-4">
+            <button
+              className="h-11 flex-1 rounded-xl border border-border bg-background/70 text-sm font-bold text-foreground transition-colors hover:bg-muted/60"
+              onClick={handleClear}
+              type="button"
+            >
+              {labels.clear}
+            </button>
+            <button
+              className="h-11 flex-1 rounded-xl bg-[#315F91] text-sm font-black text-white transition-colors hover:bg-[#274D76] disabled:opacity-50"
+              disabled={!draftStart}
+              onClick={handleApply}
+              type="button"
+            >
+              {labels.apply}
+            </button>
+          </div>
+        </>
+      )}
+    </BottomSheet>
   );
 }

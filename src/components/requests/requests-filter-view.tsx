@@ -2,7 +2,6 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type React from "react";
-import { createPortal } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -28,6 +27,7 @@ import {
 } from "@/app/mobile/requests/delete-actions";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import {
   DateRangeCalendar,
   type DateRangeValue,
@@ -1078,48 +1078,30 @@ export function RequestsFilterView({
         value={{ endDate, startDate }}
       />
 
-      {filterSheetOpen && typeof document !== "undefined"
-        ? createPortal(
-            <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
-              {/* Backdrop — click to dismiss */}
-              <button
-                aria-label={filterLabels.calendarClose}
-                className="absolute inset-0 bg-[#0F172A]/40 backdrop-blur-sm"
-                onClick={() => setFilterSheetOpen(false)}
-                style={{ animation: "modal-overlay-in 200ms ease both" }}
-                tabIndex={-1}
-                type="button"
-              />
-              {/* Centered modal panel */}
-              <div
-                ref={sheetRef}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="filter-sheet-title"
-                className="relative flex w-full max-w-[min(92vw,420px)] flex-col overflow-hidden rounded-[28px] border border-border bg-surface shadow-[0_28px_56px_-20px_rgba(34,40,60,0.5)]"
-                onKeyDown={handleSheetKeyDown}
-                style={{
-                  animation: "modal-center-in 240ms cubic-bezier(0.32, 0.72, 0, 1) both",
-                  maxHeight: "min(85dvh, 640px)",
-                }}
-              >
-                {/* Modal header */}
-                <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 pb-3.5 pt-4">
-                  <p id="filter-sheet-title" className="text-[15px] font-black tracking-[-0.03em] text-slate-950">
-                    {filterLabels.filterButton}
-                  </p>
-                  <button
-                    aria-label={filterLabels.calendarClose}
-                    className="inline-flex size-8 items-center justify-center rounded-full border border-slate-200/80 bg-white/80 text-slate-500 shadow-[0_8px_16px_-14px_rgba(31,58,95,0.45)] transition-colors hover:bg-slate-50 hover:text-slate-900"
-                    onClick={() => setFilterSheetOpen(false)}
-                    type="button"
-                  >
-                    <X className="size-3.5" aria-hidden="true" />
-                  </button>
-                </div>
-
+      {filterSheetOpen ? (
+        <BottomSheet
+          ariaLabel={filterLabels.filterButton}
+          ariaLabelledBy="filter-sheet-title"
+          className="flex max-h-[85dvh] flex-col"
+          header={
+            <p
+              id="filter-sheet-title"
+              className="px-1 text-[15px] font-black tracking-[-0.03em] text-slate-950"
+            >
+              {filterLabels.filterButton}
+            </p>
+          }
+          onClose={() => setFilterSheetOpen(false)}
+          zIndexClassName="z-[95]"
+        >
+          {({ close }) => (
+            <div
+              ref={sheetRef}
+              className="flex min-h-0 flex-1 flex-col"
+              onKeyDown={handleSheetKeyDown}
+            >
                 {/* Scrollable options area */}
-                <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+                <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-1 py-4">
                   {/* Status */}
                   <div className="space-y-2">
                     <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground/70">
@@ -1245,8 +1227,8 @@ export function RequestsFilterView({
                   ) : null}
                 </div>
 
-                {/* Modal footer — action buttons */}
-                <div className="flex shrink-0 items-center gap-2 border-t border-slate-100 px-5 pb-5 pt-4">
+                {/* Footer — action buttons */}
+                <div className="flex shrink-0 items-center gap-2 border-t border-slate-100 px-1 pt-4">
                   <button
                     className="h-11 flex-1 rounded-2xl border border-border bg-surface text-sm font-bold text-slate-700 shadow-[0_8px_16px_-14px_rgba(34,40,60,0.3)] transition-colors hover:bg-muted/60 disabled:opacity-40"
                     disabled={activeFilterCount === 0}
@@ -1257,17 +1239,16 @@ export function RequestsFilterView({
                   </button>
                   <button
                     className="h-11 flex-1 rounded-2xl bg-primary text-sm font-black text-white shadow-[0_12px_22px_-14px_hsl(var(--primary-hsl)/0.6)] transition-colors hover:bg-primary/90"
-                    onClick={() => setFilterSheetOpen(false)}
+                    onClick={close}
                     type="button"
                   >
                     {filterLabels.calendarApply}
                   </button>
                 </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+            </div>
+          )}
+        </BottomSheet>
+      ) : null}
 
       {/* No results */}
       {!hasAnyResults ? (
@@ -1396,82 +1377,71 @@ export function RequestsFilterView({
         </div>
       ))}
 
-      {/* ── Delete confirmation modal ── */}
-      {deleteTarget && typeof document !== "undefined"
-        ? createPortal(
-            <div
-              aria-labelledby="delete-confirm-title"
-              aria-modal="true"
-              className="fixed inset-0 z-[200] flex items-center justify-center px-6 py-8"
-              role="dialog"
-            >
-              <button
-                aria-hidden="true"
-                className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl"
-                onClick={closeDelete}
-                tabIndex={-1}
-                type="button"
-              />
-              <div
-                className="relative w-full max-w-[340px] overflow-hidden rounded-[28px] border border-white/55 bg-surface shadow-[0_28px_90px_-34px_rgba(15,23,42,0.7)]"
-                style={{ animation: "modal-card-in 280ms cubic-bezier(0.34,1.26,0.64,1) both" }}
-              >
-                <div className="px-6 pb-6 pt-6">
-                  <div className="mb-4 flex flex-col items-center gap-3 text-center">
-                    <div className="flex size-14 items-center justify-center rounded-full bg-red-50 text-red-500 ring-1 ring-red-200/70">
-                      <AlertTriangle className="size-7" aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h3
-                        className="text-lg font-black tracking-tight text-foreground"
-                        id="delete-confirm-title"
-                      >
-                        {deleteCopy.confirmTitle}
-                      </h3>
-                      <p className="mt-1 text-[13px] font-semibold text-muted-foreground">
-                        {deleteCopy.confirmBody}
-                      </p>
-                    </div>
-                    <div className="w-full rounded-2xl border border-border/60 bg-muted/40 px-3 py-2.5">
-                      <p className="truncate text-sm font-black text-foreground">
-                        {deleteTarget.title}
-                      </p>
-                    </div>
-                  </div>
-                  {deleteError ? (
-                    <p className="mb-3 text-center text-xs font-semibold text-destructive">
-                      {deleteError}
-                    </p>
-                  ) : null}
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      className="inline-flex h-12 items-center justify-center rounded-xl border border-border bg-background/70 text-sm font-bold text-foreground transition-colors hover:bg-muted/70 disabled:opacity-40"
-                      disabled={isDeleting}
-                      onClick={closeDelete}
-                      type="button"
-                    >
-                      {deleteCopy.cancel}
-                    </button>
-                    <button
-                      className="inline-flex h-12 items-center justify-center gap-1.5 rounded-xl bg-red-500 text-sm font-black text-white transition-colors hover:bg-red-600 disabled:opacity-40"
-                      disabled={isDeleting}
-                      onClick={handleConfirmDelete}
-                      type="button"
-                    >
-                      {isDeleting ? (
-                        <span className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                      ) : (
-                        <Trash2 className="size-4" aria-hidden="true" />
-                      )}
-                      {deleteCopy.deleteAction}
-                    </button>
-                  </div>
-                </div>
+      {/* ── Delete confirmation sheet ── */}
+      {deleteTarget ? (
+        <BottomSheet
+          ariaLabel={deleteCopy.confirmTitle}
+          ariaLabelledBy="delete-confirm-title"
+          onClose={closeDelete}
+          zIndexClassName="z-[200]"
+          header={
+            <div className="flex flex-col items-center gap-3 px-1 text-center">
+              <div className="flex size-14 items-center justify-center rounded-full bg-red-50 text-red-500 ring-1 ring-red-200/70">
+                <AlertTriangle className="size-7" aria-hidden="true" />
               </div>
-            </div>,
-            document.body,
-          )
-        : null}
+              <div>
+                <h3
+                  className="text-lg font-black tracking-tight text-foreground"
+                  id="delete-confirm-title"
+                >
+                  {deleteCopy.confirmTitle}
+                </h3>
+                <p className="mt-1 text-[13px] font-semibold text-muted-foreground">
+                  {deleteCopy.confirmBody}
+                </p>
+              </div>
+              <div className="w-full rounded-2xl border border-border/60 bg-muted/40 px-3 py-2.5">
+                <p className="truncate text-sm font-black text-foreground">
+                  {deleteTarget.title}
+                </p>
+              </div>
+            </div>
+          }
+        >
+          {({ close }) => (
+            <div className="px-1 pt-4">
+              {deleteError ? (
+                <p className="mb-3 text-center text-xs font-semibold text-destructive">
+                  {deleteError}
+                </p>
+              ) : null}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  className="inline-flex h-12 items-center justify-center rounded-xl border border-border bg-background/70 text-sm font-bold text-foreground transition-colors hover:bg-muted/70 disabled:opacity-40"
+                  disabled={isDeleting}
+                  onClick={close}
+                  type="button"
+                >
+                  {deleteCopy.cancel}
+                </button>
+                <button
+                  className="inline-flex h-12 items-center justify-center gap-1.5 rounded-xl bg-red-500 text-sm font-black text-white transition-colors hover:bg-red-600 disabled:opacity-40"
+                  disabled={isDeleting}
+                  onClick={handleConfirmDelete}
+                  type="button"
+                >
+                  {isDeleting ? (
+                    <span className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  ) : (
+                    <Trash2 className="size-4" aria-hidden="true" />
+                  )}
+                  {deleteCopy.deleteAction}
+                </button>
+              </div>
+            </div>
+          )}
+        </BottomSheet>
+      ) : null}
 
       {deliveryCalOpen ? (
         <OrderDeliveryCalendar

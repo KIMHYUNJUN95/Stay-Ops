@@ -103,6 +103,14 @@ For `/mobile/*`, treat `src/components/shell/mobile-shell.tsx` as a global contr
 - Keep the warm **ivory** chrome base: page/shell background (`bg-background`), sidebar, and bottom tab bar are ivory; **cards/sheets stay white** (`bg-surface`) so they lift off the canvas. The brand accent is **deep ink navy/indigo** (`--primary`), not teal/green — do not reintroduce teal/green as the brand color. Liquid Glass accents stay selective (floating sheets, cards, chips, overlays); the global background and tab bar remain solid.
 - Do not reintroduce page-specific stacked mobile headers.
 - Do not revert to a floating capsule or full-glass tab bar without an explicit design decision.
+- **Bottom sheets are a shared contract.** Every slide-up bottom sheet must use the canonical
+  **`BottomSheet`** component (`src/components/shell/bottom-sheet.tsx`): slate scrim (`bg-slate-950/45`)
+  that fades transparent on drag-down, `bg-surface` `rounded-t-[24px]` `max-w-[460px]` surface, 38px
+  `bg-slate-200` grab handle, drag-to-dismiss + scrim-tap + Esc (NO top-right X button), portal to
+  `<body>`, body-scroll lock. Do not hand-roll a new sheet shell or introduce warm/tinted scrims,
+  other radii, or an X-close. The Liquid Glass order "처리" sheet and center-aligned confirm/delete
+  modals are intentional exceptions. See `docs/product/16-mobile-navigation.md` → "Bottom Sheet —
+  Canonical Visual Standard".
 
 If shared mobile shell behavior changes, also review and update:
 

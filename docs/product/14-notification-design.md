@@ -222,6 +222,7 @@ Notes:
 | Order delivery date updated (배송일 변경) | Implemented (2026-06-15) -- in-app; reuses `order_processed` type with `kind: "delivery_updated"` |
 | Task shared / update / completed / due-soon / overdue | Implemented -- in-app only |
 | Staff suggestion: created / referenced / status / comment | Implemented (2026-06-16) -- in-app; one `suggestion_activity` type discriminated by `payload.event` |
+| Attendance: correction created / abnormal session (admin) + 18:30 open-session reminder (worker) | Implemented (2026-06-18) -- in-app; one `attendance_activity` type discriminated by `payload.event` |
 | Order approved | Planned -- not implemented |
 | Order rejected | Planned -- not implemented |
 | Important announcement | Planned -- not implemented |
@@ -230,7 +231,19 @@ Notes:
 | Cleaning overdue | Planned -- not implemented |
 | Web Push (push channel) | Post-MVP -- not implemented |
 
-The in-app notification center (`/mobile/notifications`) and the `notifications` table are live. Active dispatch paths: `order_processed`, the Todo / Shared Task types, `project_shared`, and `suggestion_activity`.
+The in-app notification center (`/mobile/notifications`) and the `notifications` table are live. Active dispatch paths: `order_processed`, the Todo / Shared Task types, `project_shared`, `suggestion_activity`, and `attendance_activity`.
+
+## Attendance — notifications (implemented 2026-06-18, Step 14)
+
+One discriminated type `attendance_activity` (migration `202606180001`) via `payload.event`:
+
+| Event | Trigger | Recipients |
+|---|---|---|
+| `correction_created` | a worker submits a correction/exception request | owner + `attendance_payroll_admin` (never the requester) |
+| `abnormal_session` | a session crosses midnight (clock-out) or stays open from a prior Tokyo day (cron) | owner + `attendance_payroll_admin` |
+| `open_session_reminder` | worker still has an open session after 18:30 Tokyo (cron, once/day) | the worker themselves |
+
+`notifyAttendanceAdmins` / `createAttendanceOpenSessionReminder` (`src/lib/notifications/create.ts`); admin ids via `getAttendancePayrollAdminUserIds`. The interactive **18:30 prompt** (still working / already left — the latter routes to the correction flow, never auto clock-out) is a once-per-Tokyo-day **home prompt** backed by `attendance_open_session_reminders` (migration `202606180002`). Scheduled scan: `GET /api/attendance/reminders` (CRON_SECRET). In-app only; **Web Push deferred**. Admin alerts deep-link to `/mobile/attendance` (the privileged review UI is the deferred web dashboard).
 
 ## Staff Suggestions — notifications (implemented 2026-06-16)
 

@@ -1,0 +1,348 @@
+// Attendance — admin REVIEW query layer + privilege guard (Step 7).
+//
+// Org-wide read layer for the attendance review queue + the server-side privilege gate. Only `owner`
+// and explicit `attendance_payroll_admin` members (or platform admins) may review org-wide attendance
+// and act on correction requests. Site-master management stays owner-only elsewhere (unchanged here).
+//
+// The review-queue UI is built later in the WEB DASHBOARD (user-confirmed 2026-06-17); this layer is
+// caller-agnostic so that dashboard can consume it. The privilege guard MUST be checked by any caller
+// before exposing org-wide data; the write actions (admin-actions) enforce it themselves.
+
+import "server-only";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import type {
+  AttendanceSessionRow,
+  AttendanceSessionStatus,
+  AttendanceReviewState,
+  AttendanceMethod,
+  AttendanceCorrectionStatus,
+} from "@/lib/attendance";
+
+const TZ = "Asia/Tokyo";
+
+type Service = ReturnType<typeof getSupabaseServiceClient>;
+
+/**
+ * Server-side privilege gate for org-wide attendance/payroll review. True for platform admins and for
+ * active members who are the org `owner` or carry the `attendance_payroll_admin` flag.
+ */
+export async function isAttendancePayrollAdmin(
+  service: Service,
+  organizationId: string,
+  userId: string,
+): Promise<boolean> {
+  const pa = await service
+    .from("platform_admins")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (pa.data) return true;
+
+  const m = await service
+    .from("memberships")
+    .select("role, attendance_payroll_admin, status")
+    .eq("organization_id", organizationId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const row = m.data as { role: string; attendance_payroll_admin: boolean; status: string } | null;
+  return !!row && row.status === "active" && (row.role === "owner" || row.attendance_payroll_admin === true);
+}
+
+/**
+ * The user ids of org members who should receive privileged attendance admin alerts: active `owner` or
+ * `attendance_payroll_admin` members. Used to TARGET notifications (never broadens visibility).
+ */
+export async function getAttendancePayrollAdminUserIds(
+  service: Service,
+  organizationId: string,
+): Promise<string[]> {
+  const res = await service
+    .from("memberships")
+    .select("user_id, role, attendance_payroll_admin, status")
+    .eq("organization_id", organizationId)
+    .eq("status", "active");
+  const rows = (res.data ?? []) as {
+    user_id: string;
+    role: string;
+    attendance_payroll_admin: boolean;
+  }[];
+  return rows
+    .filter((m) => m.role === "owner" || m.attendance_payroll_admin === true)
+    .map((m) => m.user_id);
+}
+
+export type ReviewQueueFilter =
+  | "all"
+  | "review_required"
+  | "correction_requested"
+  | "incomplete"
+  | "manual"
+  | "not_finalized";
+
+export type ReviewQueueParams = {
+  filter?: ReviewQueueFilter;
+  nameQuery?: string;
+  from?: string; // YYYY-MM-DD (Tokyo operating date, inclusive)
+  to?: string; // YYYY-MM-DD inclusive
+  siteId?: string;
+  limit?: number;
+};
+
+export type ReviewQueueItem = {
+  sessionId: string;
+  userId: string;
+  userName: string;
+  operatingDate: string;
+  dateLabel: string;
+  status: AttendanceSessionStatus;
+  reviewState: AttendanceReviewState;
+  manualCreated: boolean;
+  isAbnormal: boolean;
+  clockInLabel: string | null;
+  clockInSiteName: string | null;
+  clockInMethod: AttendanceMethod | null;
+  clockOutLabel: string | null;
+  clockOutSiteName: string | null;
+  clockOutMethod: AttendanceMethod | null;
+  breakTotalSec: number;
+  /** Paid duration for a completed session (worked minus closed breaks); null while open. */
+  paidDurationSec: number | null;
+  correctionStatus: AttendanceCorrectionStatus | null;
+};
+
+function tokyoDateKey(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+function tokyoTimeLabel(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(iso));
+}
+
+function dateLabelOf(operatingDate: string): string {
+  const d = new Date(`${operatingDate}T00:00:00+09:00`);
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: TZ,
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  }).format(d);
+}
+
+/** Priority rank for the documented review ordering (lower = surfaces first). */
+function priorityRank(item: ReviewQueueItem): number {
+  if (item.reviewState === "review_required") return 0;
+  if (item.correctionStatus === "requested" || item.correctionStatus === "in_review") return 1;
+  if (item.status === "open" || !item.clockOutLabel) return 2;
+  return 3;
+}
+
+/**
+ * The org-wide attendance review queue. Caller MUST have verified `isAttendancePayrollAdmin` first.
+ * Resolves worker names, site names, break totals, and correction status; applies the documented
+ * filters + name/date/site; orders by review priority then most-recent operating date.
+ */
+export async function getAttendanceReviewQueue(
+  organizationId: string,
+  params: ReviewQueueParams = {},
+): Promise<ReviewQueueItem[]> {
+  const service = getSupabaseServiceClient();
+  const limit = params.limit ?? 100;
+
+  // For the correction-requested filter, pre-resolve the session ids with an open request.
+  let correctionSessionIds: string[] | null = null;
+  if (params.filter === "correction_requested") {
+    const cr = await service
+      .from("attendance_correction_requests")
+      .select("session_id")
+      .eq("organization_id", organizationId)
+      .in("status", ["requested", "in_review"]);
+    correctionSessionIds = Array.from(
+      new Set(
+        ((cr.data ?? []) as { session_id: string | null }[])
+          .map((r) => r.session_id)
+          .filter(Boolean) as string[],
+      ),
+    );
+    if (correctionSessionIds.length === 0) return [];
+  }
+
+  // Name search → matching user ids (sessions are org-scoped, so filtering by user id is sufficient).
+  let nameUserIds: string[] | null = null;
+  const q = params.nameQuery?.trim();
+  if (q) {
+    const pr = await service.from("profiles").select("id").ilike("name", `%${q}%`).limit(200);
+    nameUserIds = ((pr.data ?? []) as { id: string }[]).map((r) => r.id);
+    if (nameUserIds.length === 0) return [];
+  }
+
+  let query = service
+    .from("attendance_sessions")
+    .select("*")
+    .eq("organization_id", organizationId);
+
+  if (params.from) query = query.gte("operating_date", params.from);
+  if (params.to) query = query.lte("operating_date", params.to);
+  if (params.siteId) query = query.eq("clock_in_site_id", params.siteId);
+  if (nameUserIds) query = query.in("user_id", nameUserIds);
+  if (correctionSessionIds) query = query.in("id", correctionSessionIds);
+
+  switch (params.filter) {
+    case "review_required":
+      query = query.eq("review_state", "review_required");
+      break;
+    case "incomplete":
+      query = query.is("clock_out_at", null).neq("status", "invalid");
+      break;
+    case "manual":
+      query = query.eq("manual_created", true);
+      break;
+    case "not_finalized":
+      // No finalized snapshots exist until Step 8; current-Tokyo-month sessions are the not-finalized
+      // set for now (the finalized-snapshot exclusion plugs in when finalization lands).
+      query = query.gte("operating_date", `${tokyoDateKey(new Date()).slice(0, 7)}-01`);
+      break;
+    default:
+      break;
+  }
+
+  const res = await query
+    .order("operating_date", { ascending: false })
+    .order("clock_in_at", { ascending: false, nullsFirst: false })
+    .limit(limit);
+  if (res.error) return [];
+  const sessions = (res.data ?? []) as AttendanceSessionRow[];
+  if (sessions.length === 0) return [];
+
+  const sessionIds = sessions.map((s) => s.id);
+  const userIds = Array.from(new Set(sessions.map((s) => s.user_id)));
+  const siteIds = Array.from(
+    new Set(
+      sessions.flatMap((s) => [s.clock_in_site_id, s.clock_out_site_id].filter(Boolean) as string[]),
+    ),
+  );
+
+  const [names, siteNames, breakTotals, correctionStatuses] = await Promise.all([
+    loadUserNames(service, userIds),
+    loadSiteNames(service, organizationId, siteIds),
+    loadBreakTotals(service, sessionIds),
+    loadCorrectionStatuses(service, organizationId, sessionIds),
+  ]);
+
+  const items: ReviewQueueItem[] = sessions.map((s) => {
+    const breakTotalSec = breakTotals.get(s.id) ?? 0;
+    let paidDurationSec: number | null = null;
+    if (s.status === "completed" && s.clock_in_at && s.clock_out_at) {
+      const gross = (new Date(s.clock_out_at).getTime() - new Date(s.clock_in_at).getTime()) / 1000;
+      paidDurationSec = Math.max(0, Math.floor(gross) - breakTotalSec);
+    }
+    const status = s.status as AttendanceSessionStatus;
+    const reviewState = s.review_state as AttendanceReviewState;
+    return {
+      sessionId: s.id,
+      userId: s.user_id,
+      userName: names.get(s.user_id) ?? "—",
+      operatingDate: s.operating_date,
+      dateLabel: dateLabelOf(s.operating_date),
+      status,
+      reviewState,
+      manualCreated: s.manual_created,
+      isAbnormal: reviewState !== "normal" || status === "invalid",
+      clockInLabel: tokyoTimeLabel(s.clock_in_at),
+      clockInSiteName: s.clock_in_site_id ? (siteNames.get(s.clock_in_site_id) ?? null) : null,
+      clockInMethod: (s.clock_in_method as AttendanceMethod | null) ?? null,
+      clockOutLabel: tokyoTimeLabel(s.clock_out_at),
+      clockOutSiteName: s.clock_out_site_id ? (siteNames.get(s.clock_out_site_id) ?? null) : null,
+      clockOutMethod: (s.clock_out_method as AttendanceMethod | null) ?? null,
+      breakTotalSec,
+      paidDurationSec,
+      correctionStatus: correctionStatuses.get(s.id) ?? null,
+    };
+  });
+
+  // Documented ordering: review-required → correction-requested → incomplete → normal; then recency.
+  return items.sort((a, b) => {
+    const pr = priorityRank(a) - priorityRank(b);
+    if (pr !== 0) return pr;
+    return b.operatingDate.localeCompare(a.operatingDate);
+  });
+}
+
+async function loadUserNames(service: Service, userIds: string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (userIds.length === 0) return map;
+  const res = await service.from("profiles").select("id, name").in("id", userIds);
+  for (const r of (res.data ?? []) as { id: string; name: string }[]) map.set(r.id, r.name);
+  return map;
+}
+
+async function loadSiteNames(
+  service: Service,
+  organizationId: string,
+  siteIds: string[],
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (siteIds.length === 0) return map;
+  const res = await service
+    .from("attendance_sites")
+    .select("id, name")
+    .eq("organization_id", organizationId)
+    .in("id", siteIds);
+  for (const r of (res.data ?? []) as { id: string; name: string }[]) map.set(r.id, r.name);
+  return map;
+}
+
+async function loadBreakTotals(service: Service, sessionIds: string[]): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (sessionIds.length === 0) return map;
+  const res = await service
+    .from("attendance_breaks")
+    .select("session_id, started_at, ended_at")
+    .in("session_id", sessionIds);
+  for (const r of (res.data ?? []) as {
+    session_id: string;
+    started_at: string;
+    ended_at: string | null;
+  }[]) {
+    if (!r.ended_at) continue;
+    const secs = (new Date(r.ended_at).getTime() - new Date(r.started_at).getTime()) / 1000;
+    if (secs > 0) map.set(r.session_id, (map.get(r.session_id) ?? 0) + Math.floor(secs));
+  }
+  return map;
+}
+
+async function loadCorrectionStatuses(
+  service: Service,
+  organizationId: string,
+  sessionIds: string[],
+): Promise<Map<string, AttendanceCorrectionStatus>> {
+  const map = new Map<string, AttendanceCorrectionStatus>();
+  if (sessionIds.length === 0) return map;
+  const res = await service
+    .from("attendance_correction_requests")
+    .select("session_id, status, created_at")
+    .eq("organization_id", organizationId)
+    .in("session_id", sessionIds)
+    .order("created_at", { ascending: false });
+  for (const r of (res.data ?? []) as {
+    session_id: string | null;
+    status: string;
+    created_at: string;
+  }[]) {
+    if (r.session_id && !map.has(r.session_id)) {
+      map.set(r.session_id, r.status as AttendanceCorrectionStatus);
+    }
+  }
+  return map;
+}

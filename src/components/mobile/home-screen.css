@@ -1,0 +1,690 @@
+/*
+  Mobile home screen — design port of "Haru Ops · 홈 (빠른 출근)" / v2.
+  Every selector is scoped under `.hm` so it never leaks into other screens.
+  The top 3D hero image from the design is intentionally NOT used here; the
+  asset is preserved at src/assets/home-hero-3d.svg for future reuse.
+*/
+.hm {
+  --hm-card: hsl(44 52% 98.5%);
+  --hm-ink: hsl(222 28% 14%);
+  --hm-ink-soft: hsl(222 20% 28%);
+  --hm-muted: hsl(222 10% 44%);
+  --hm-faint: hsl(222 10% 62%);
+  --hm-line: hsl(40 20% 84%);
+  --hm-line-soft: hsl(40 24% 89%);
+  --hm-surface: hsl(40 22% 90%);
+  --hm-primary: hsl(223 46% 32%);
+  --hm-primary-ink: hsl(223 54% 22%);
+  --hm-primary-lift: hsl(223 50% 42%);
+  --hm-primary-soft: color-mix(in oklab, hsl(223 46% 32%) 8%, hsl(44 52% 98.5%));
+  --hm-warn: hsl(35 80% 38%);
+  --hm-warn-bg: hsl(38 82% 92%);
+  --hm-mono: "Geist Mono", ui-monospace, monospace;
+  color: var(--hm-ink);
+}
+.hm .ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.hm .ic svg {
+  width: 1em;
+  height: 1em;
+}
+.hm .mono {
+  font-family: var(--hm-mono);
+  font-variant-numeric: tabular-nums;
+}
+.hm a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* greeting */
+.hm__greet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 2px 14px;
+}
+.hm__greet-d {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--hm-muted);
+}
+.hm__greet-n {
+  font-size: 21px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  margin-top: 3px;
+}
+.hm__greet-av {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: var(--hm-primary);
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.hm__updated {
+  margin: -8px 2px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hm-faint);
+}
+.hm__updated .mono {
+  color: var(--hm-ink-soft);
+}
+
+/* quick clock hero — idle (static; links to /mobile/attendance) */
+.hm__clockhero {
+  display: block;
+  border-radius: 24px;
+  padding: 20px;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+  background: var(--hm-card);
+  border: 1px solid var(--hm-line);
+  box-shadow: 0 18px 44px -32px rgba(20, 32, 43, 0.5);
+  transition: transform 0.12s ease;
+}
+.hm__clockhero:active {
+  transform: scale(0.99);
+}
+.hm__ch-deco {
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 170px;
+  height: 170px;
+  border-radius: 999px;
+  border: 30px solid var(--hm-primary-soft);
+}
+.hm__ch-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  position: relative;
+}
+.hm__ch-state {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--hm-muted);
+}
+.hm__ch-tag {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--hm-surface);
+  color: var(--hm-muted);
+}
+.hm__ch-mid {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  position: relative;
+}
+.hm__ch-big {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+.hm__ch-sub {
+  font-size: 12.5px;
+  color: var(--hm-muted);
+  margin-top: 5px;
+  font-weight: 600;
+}
+.hm__ch-btn {
+  flex: 0 0 auto;
+  height: 52px;
+  padding: 0 20px;
+  border-radius: 15px;
+  border: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  background: var(--hm-primary);
+  color: #fff;
+  box-shadow: 0 14px 26px -12px hsl(223 46% 32% / 0.6);
+}
+.hm__ch-btn .ic {
+  font-size: 19px;
+}
+.hm__ch-methods {
+  display: flex;
+  gap: 7px;
+  margin-top: 14px;
+  position: relative;
+}
+.hm__mchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 6px 11px;
+  border-radius: 999px;
+}
+.hm__mchip--on {
+  background: var(--hm-primary-soft);
+  color: var(--hm-primary);
+}
+.hm__mchip--ghost {
+  background: var(--hm-surface);
+  color: var(--hm-muted);
+}
+.hm__mchip .ic {
+  font-size: 13px;
+}
+
+/* section titles */
+.hm__sectt {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin: 22px 2px 11px;
+}
+.hm__sectt-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 22px 2px 11px;
+}
+.hm__sectt-row .hm__sectt {
+  margin: 0;
+}
+.hm__more {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--hm-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.hm__more svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* stats */
+.hm__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 11px;
+}
+.hm__stat {
+  background: var(--hm-card);
+  border: 1px solid var(--hm-line);
+  border-radius: 18px;
+  padding: 15px;
+  box-shadow: 0 14px 36px -30px rgba(20, 32, 43, 0.5);
+}
+.hm__stat-ic {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--hm-surface);
+  color: var(--hm-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.hm__stat-ic svg {
+  width: 20px;
+  height: 20px;
+}
+.hm__stat-ic--alt {
+  color: hsl(230 40% 48%);
+}
+.hm__stat-v {
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.hm__stat-k {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--hm-muted);
+  margin-top: 7px;
+}
+.hm__stat--full {
+  grid-column: 1 / -1;
+  text-align: center;
+}
+/* The count cards double as buttons that open the check-in/out detail sheet. */
+.hm button.hm__stat {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: transform 0.12s ease;
+}
+.hm button.hm__stat:active {
+  transform: scale(0.98);
+}
+
+/* check-in / check-out detail bottom sheet */
+.hm__cio-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+.hm__cio-ic {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--hm-surface);
+  color: var(--hm-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.hm__cio-ic svg {
+  width: 19px;
+  height: 19px;
+}
+.hm__cio-title {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+.hm__cio-count {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--hm-primary-soft);
+  color: var(--hm-primary);
+}
+.hm__cio-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 60vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hm__cio-list::-webkit-scrollbar {
+  display: none;
+}
+.hm__cio-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 2px;
+}
+.hm__cio-row + .hm__cio-row {
+  border-top: 1px solid var(--hm-line-soft);
+}
+.hm__cio-b {
+  flex: 1;
+  min-width: 0;
+}
+.hm__cio-g {
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hm__cio-p {
+  font-size: 12px;
+  color: var(--hm-muted);
+  font-weight: 600;
+  margin-top: 2px;
+}
+.hm__cio-src {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--hm-faint);
+  background: var(--hm-surface);
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.hm__cio-empty {
+  padding: 34px 4px;
+  text-align: center;
+  color: var(--hm-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* notice */
+.hm__notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: var(--hm-card);
+  border: 1px solid var(--hm-line);
+  border-radius: 18px;
+  padding: 15px;
+  box-shadow: 0 14px 36px -30px rgba(20, 32, 43, 0.5);
+}
+.hm__notice-ic {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--hm-warn-bg);
+  color: var(--hm-warn);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.hm__notice-ic svg {
+  width: 19px;
+  height: 19px;
+}
+.hm__notice-b {
+  flex: 1;
+  min-width: 0;
+}
+.hm__notice-h {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 4px;
+}
+.hm__notice-cat {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--hm-ink-soft);
+}
+.hm__notice-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: var(--hm-warn);
+  background: var(--hm-warn-bg);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.hm__notice-t {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.hm__notice-s {
+  font-size: 12px;
+  color: var(--hm-muted);
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.hm__notice-more {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--hm-primary);
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.hm__notice-more svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* active task / empty */
+.hm__task {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--hm-card);
+  border: 1px solid var(--hm-line);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 14px 36px -32px rgba(20, 32, 43, 0.5);
+}
+.hm__task-ic {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  background: var(--hm-primary-soft);
+  color: var(--hm-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.hm__task-ic svg {
+  width: 22px;
+  height: 22px;
+}
+.hm__task-b {
+  flex: 1;
+  min-width: 0;
+}
+.hm__task-t {
+  font-size: 13.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hm__task-s {
+  font-size: 12px;
+  color: var(--hm-muted);
+  font-weight: 600;
+  margin-top: 2px;
+}
+.hm__task-right {
+  flex: 0 0 auto;
+  text-align: right;
+}
+.hm__task-rk {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hm-faint);
+}
+.hm__task-rv {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--hm-primary);
+  margin-top: 2px;
+}
+.hm__taskempty {
+  background: var(--hm-card);
+  border: 1px dashed var(--hm-line);
+  border-radius: 18px;
+  padding: 22px;
+  text-align: center;
+}
+.hm__taskempty-t {
+  font-size: 13.5px;
+  font-weight: 800;
+}
+.hm__taskempty-s {
+  font-size: 12px;
+  color: var(--hm-muted);
+  margin: 5px 0 13px;
+}
+/* Anchor-as-button: `.hm a { color: inherit }` would otherwise win over a plain
+   `.hm__taskempty-btn` rule, so this is scoped under `.hm` to keep the white label. */
+.hm .hm__taskempty-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 12px;
+  background: var(--hm-primary);
+  color: #fff;
+  border: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* quick actions grid */
+.hm__qa {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.hm__qa-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: var(--hm-card);
+  border: 1px solid var(--hm-line);
+  border-radius: 16px;
+  padding: 14px 6px;
+  box-shadow: 0 14px 36px -32px rgba(20, 32, 43, 0.5);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.hm__qa-item:active {
+  transform: scale(0.97);
+}
+.hm__qa-ic {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hm__qa-ic svg {
+  width: 22px;
+  height: 22px;
+}
+.hm__qa-ic.a {
+  background: var(--hm-primary-soft);
+  color: var(--hm-primary);
+}
+.hm__qa-ic.b {
+  background: hsl(146 44% 92%);
+  color: hsl(146 50% 32%);
+}
+.hm__qa-ic.c {
+  background: hsl(206 66% 93%);
+  color: hsl(206 70% 40%);
+}
+.hm__qa-ic.d {
+  background: var(--hm-warn-bg);
+  color: var(--hm-warn);
+}
+.hm__qa-lbl {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--hm-ink-soft);
+  text-align: center;
+}
+
+/* today's activity timeline (log card) */
+.hm__log {
+  background: var(--hm-card);
+  border: 1px solid var(--hm-line);
+  border-radius: 18px;
+  padding: 4px 15px;
+  box-shadow: 0 14px 36px -32px rgba(20, 32, 43, 0.5);
+}
+.hm__log-r {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 0;
+}
+.hm__log-r + .hm__log-r {
+  border-top: 1px solid var(--hm-line-soft);
+}
+.hm__log-ic {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.hm__log-ic svg {
+  width: 18px;
+  height: 18px;
+}
+.hm__log-ic.cleaning {
+  background: var(--hm-primary-soft);
+  color: var(--hm-primary);
+}
+.hm__log-ic.lost {
+  background: var(--hm-warn-bg);
+  color: var(--hm-warn);
+}
+.hm__log-ic.maint {
+  background: hsl(2 70% 94%);
+  color: hsl(2 64% 46%);
+}
+.hm__log-ic.order {
+  background: hsl(206 66% 93%);
+  color: hsl(206 70% 40%);
+}
+.hm__log-ic.linen {
+  background: hsl(265 50% 94%);
+  color: hsl(265 42% 50%);
+}
+.hm__log-b {
+  flex: 1;
+  min-width: 0;
+}
+.hm__log-t {
+  font-size: 13.5px;
+  font-weight: 800;
+}
+.hm__log-s {
+  font-size: 11.5px;
+  color: var(--hm-muted);
+  font-weight: 600;
+  margin-top: 2px;
+}
+.hm__log-time {
+  font-family: var(--hm-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  flex: 0 0 auto;
+  color: var(--hm-ink-soft);
+}
+.hm__log-empty,
+.hm__state-msg {
+  padding: 18px 4px;
+  text-align: center;
+}
+.hm__state-msg p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--hm-muted);
+  font-weight: 600;
+}
+.hm__state-cta {
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--hm-primary);
+}

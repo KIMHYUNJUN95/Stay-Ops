@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   CalendarDays,
@@ -31,6 +30,7 @@ import {
   AnnouncementImageUploader,
   type AnnouncementImageUploaderHandle,
 } from "@/components/announcements/announcement-image-uploader";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { uploadRequestImages } from "@/components/requests/request-image-upload";
 import { PhotoGallery } from "@/components/tasks/photo-gallery";
 import { LinkedContextBlock } from "@/components/tasks/linked-context-block";
@@ -503,24 +503,25 @@ export function TaskDetailView({
         />
       ) : null}
 
-      {confirmDelete && typeof document !== "undefined" ? createPortal(
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 px-7"
-          onClick={() => setConfirmDelete(false)}
+      {confirmDelete ? (
+        <BottomSheet
+          ariaLabel={copy.deleteConfirmTitle}
+          header={
+            <div className="text-center">
+              <span className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-red-50 text-red-500">
+                <Trash2 className="size-6" aria-hidden="true" />
+              </span>
+              <p className="text-[17px] font-black text-foreground">{copy.deleteConfirmTitle}</p>
+              <p className="mt-2 text-sm text-muted-foreground">{copy.deleteConfirmBody}</p>
+            </div>
+          }
+          onClose={() => setConfirmDelete(false)}
         >
-          <div
-            className="w-full max-w-sm rounded-[24px] bg-surface p-6 text-center shadow-[0_30px_70px_-20px_rgba(0,0,0,0.4)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-red-50 text-red-500">
-              <Trash2 className="size-6" aria-hidden="true" />
-            </span>
-            <p className="text-[17px] font-black text-foreground">{copy.deleteConfirmTitle}</p>
-            <p className="mt-2 text-sm text-muted-foreground">{copy.deleteConfirmBody}</p>
+          {({ close }) => (
             <div className="mt-6 flex gap-2.5">
               <button
                 className="h-12 flex-1 rounded-2xl border border-border bg-surface text-sm font-bold text-slate-700"
-                onClick={() => setConfirmDelete(false)}
+                onClick={close}
                 type="button"
               >
                 {copy.cancel}
@@ -532,38 +533,38 @@ export function TaskDetailView({
                 </button>
               </form>
             </div>
-          </div>
-        </div>,
-        document.body,
+          )}
+        </BottomSheet>
       ) : null}
 
-      {confirmLeave && typeof document !== "undefined" ? createPortal(
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 px-7"
-          onClick={() => setConfirmLeave(false)}
+      {confirmLeave ? (
+        <BottomSheet
+          ariaLabel={canEditCore ? copy.leaveAuthorConfirmTitle : copy.leaveConfirmTitle}
+          header={
+            <div className="text-center">
+              <span
+                className={cn(
+                  "mx-auto mb-4 flex size-14 items-center justify-center rounded-full",
+                  canEditCore ? "bg-red-50 text-red-500" : "bg-amber-50 text-amber-500",
+                )}
+              >
+                <UserMinus className="size-6" aria-hidden="true" />
+              </span>
+              <p className="text-[17px] font-black text-foreground">
+                {canEditCore ? copy.leaveAuthorConfirmTitle : copy.leaveConfirmTitle}
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {canEditCore ? copy.leaveAuthorConfirmBody : copy.leaveConfirmBody}
+              </p>
+            </div>
+          }
+          onClose={() => setConfirmLeave(false)}
         >
-          <div
-            className="w-full max-w-sm rounded-[24px] bg-surface p-6 text-center shadow-[0_30px_70px_-20px_rgba(0,0,0,0.4)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span
-              className={cn(
-                "mx-auto mb-4 flex size-14 items-center justify-center rounded-full",
-                canEditCore ? "bg-red-50 text-red-500" : "bg-amber-50 text-amber-500",
-              )}
-            >
-              <UserMinus className="size-6" aria-hidden="true" />
-            </span>
-            <p className="text-[17px] font-black text-foreground">
-              {canEditCore ? copy.leaveAuthorConfirmTitle : copy.leaveConfirmTitle}
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {canEditCore ? copy.leaveAuthorConfirmBody : copy.leaveConfirmBody}
-            </p>
+          {({ close }) => (
             <div className="mt-6 flex gap-2.5">
               <button
                 className="h-12 flex-1 rounded-2xl border border-border bg-surface text-sm font-bold text-slate-700"
-                onClick={() => setConfirmLeave(false)}
+                onClick={close}
                 type="button"
               >
                 {copy.cancel}
@@ -582,33 +583,33 @@ export function TaskDetailView({
                 </button>
               </form>
             </div>
-          </div>
-        </div>,
-        document.body,
+          )}
+        </BottomSheet>
       ) : null}
 
-      {confirmRemove && typeof document !== "undefined" ? createPortal(
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 px-7"
-          onClick={() => setConfirmRemove(null)}
+      {confirmRemove ? (
+        <BottomSheet
+          ariaLabel={copy.removeParticipantConfirmTitle.replace("{name}", confirmRemove.name)}
+          header={
+            <div className="text-center">
+              <span className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                <UserMinus className="size-6" aria-hidden="true" />
+              </span>
+              <p className="text-[17px] font-black text-foreground">
+                {copy.removeParticipantConfirmTitle.replace("{name}", confirmRemove.name)}
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {copy.removeParticipantConfirmBody.replace("{name}", confirmRemove.name)}
+              </p>
+            </div>
+          }
+          onClose={() => setConfirmRemove(null)}
         >
-          <div
-            className="w-full max-w-sm rounded-[24px] bg-surface p-6 text-center shadow-[0_30px_70px_-20px_rgba(0,0,0,0.4)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-              <UserMinus className="size-6" aria-hidden="true" />
-            </span>
-            <p className="text-[17px] font-black text-foreground">
-              {copy.removeParticipantConfirmTitle.replace("{name}", confirmRemove.name)}
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {copy.removeParticipantConfirmBody.replace("{name}", confirmRemove.name)}
-            </p>
+          {({ close }) => (
             <div className="mt-6 flex gap-2.5">
               <button
                 className="h-12 flex-1 rounded-2xl border border-border bg-surface text-sm font-bold text-slate-700"
-                onClick={() => setConfirmRemove(null)}
+                onClick={close}
                 type="button"
               >
                 {copy.cancel}
@@ -624,9 +625,8 @@ export function TaskDetailView({
                 </button>
               </form>
             </div>
-          </div>
-        </div>,
-        document.body,
+          )}
+        </BottomSheet>
       ) : null}
     </div>
   );

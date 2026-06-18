@@ -767,13 +767,13 @@ The implementation should treat this as a refinement of the Todo module, not as 
 
 ### 7. Data and Technical Impact
 
-- Tables affected:
+- Tables affected (implemented Step 1, 2026-06-17 — session-first model, migration `202606170001`; see `docs/engineering/11`):
   - new `attendance_sites`
   - new `attendance_qr_tokens`
-  - new `attendance_logs`
-  - new `employment_profiles`
-  - new `hourly_rate_history`
-  - new monthly summary/export tables if needed
+  - new `attendance_sessions` (+ `attendance_breaks`, `attendance_attempt_logs`) — session-first, replaces the earlier loose `attendance_logs`/`employment_profiles` sketch
+  - new `attendance_correction_requests` + `attendance_session_audits`
+  - new `employment_type_history` + `hourly_rate_history`
+  - new `attendance_month_snapshots` + `attendance_export_logs`
 - New schema needed:
   - site/location master
   - immutable attendance event records

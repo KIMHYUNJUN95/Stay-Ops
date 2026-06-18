@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { createPortal } from "react-dom";
 import {
   ChevronDown,
   ClipboardList,
@@ -11,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { createOrderRequest } from "@/app/mobile/orders/new/actions";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import type { PreviewItem } from "@/components/announcements/announcement-image-uploader";
 import {
   OrderItemRow,
@@ -434,84 +434,60 @@ export function OrderCreateForm({
         </div>
       </form>
 
-      {confirmOpen && typeof document !== "undefined"
-        ? createPortal(
-            <div
-              aria-labelledby="order-confirm-title"
-              aria-modal="true"
-              className="fixed inset-0 z-[100] flex min-h-dvh items-center justify-center px-6 py-8"
-              role="dialog"
-            >
-              <button
-                aria-hidden="true"
-                className="absolute inset-0 bg-slate-900/35 backdrop-blur-xl"
-                onClick={() => setConfirmOpen(false)}
-                tabIndex={-1}
-                type="button"
-              />
-              <div
-                className="relative w-full max-w-[380px] overflow-hidden rounded-[28px] border border-white/55 bg-surface shadow-[0_28px_90px_-34px_rgba(15,23,42,0.7)]"
-                style={{ animation: "modal-card-in 280ms cubic-bezier(0.34, 1.26, 0.64, 1) both" }}
-              >
-                <div className="px-6 pb-6 pt-5">
-                  <div className="mb-4 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.12em] text-[#315F91]">
-                        {copy.confirmReady}
-                      </p>
-                      <h3 className="mt-1 text-xl font-black tracking-tight text-foreground" id="order-confirm-title">
-                        {copy.confirmTitle}
-                      </h3>
-                    </div>
-                    <button
-                      aria-label={copy.cancel}
-                      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      onClick={() => setConfirmOpen(false)}
-                      type="button"
-                    >
-                      <X className="size-4" aria-hidden="true" />
-                    </button>
+      {confirmOpen ? (
+        <BottomSheet
+          ariaLabel={copy.confirmTitle}
+          header={
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-[#315F91]">
+                {copy.confirmReady}
+              </p>
+              <h3 className="mt-1 text-xl font-black tracking-tight text-foreground">
+                {copy.confirmTitle}
+              </h3>
+            </div>
+          }
+          onClose={() => setConfirmOpen(false)}
+        >
+          {({ close }) => (
+            <>
+              <div className="mt-3 rounded-2xl border border-border bg-background/55 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#EAF1F8] text-[#315F91]">
+                    <ClipboardList className="size-5" aria-hidden="true" />
                   </div>
-
-                  <div className="rounded-2xl border border-border bg-background/55 p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#EAF1F8] text-[#315F91]">
-                        <ClipboardList className="size-5" aria-hidden="true" />
-                      </div>
-                      <div>
-                        <p className="text-base font-black text-foreground">
-                          {renderConfirmSummary(items.length, totalQuantity)}
-                        </p>
-                        <p className="text-xs font-semibold text-muted-foreground">
-                          {building ? localizePropertyName(building, buildingLabels) : copy.buildingPlaceholder}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-2 gap-2">
-                    <button
-                      className="inline-flex min-h-12 items-center justify-center rounded-xl border border-border bg-background/70 text-sm font-bold text-foreground transition-colors hover:bg-muted/70"
-                      onClick={() => setConfirmOpen(false)}
-                      type="button"
-                    >
-                      {copy.cancel}
-                    </button>
-                    <button
-                      className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#315F91] text-sm font-black text-white transition-colors hover:bg-[#274D76] disabled:opacity-50"
-                      disabled={isPending}
-                      onClick={handleConfirmSubmit}
-                      type="button"
-                    >
-                      {copy.confirmSubmit}
-                    </button>
+                  <div>
+                    <p className="text-base font-black text-foreground">
+                      {renderConfirmSummary(items.length, totalQuantity)}
+                    </p>
+                    <p className="text-xs font-semibold text-muted-foreground">
+                      {building ? localizePropertyName(building, buildingLabels) : copy.buildingPlaceholder}
+                    </p>
                   </div>
                 </div>
               </div>
-            </div>,
-            document.body,
-          )
-        : null}
+
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-border bg-background/70 text-sm font-bold text-foreground transition-colors hover:bg-muted/70"
+                  onClick={close}
+                  type="button"
+                >
+                  {copy.cancel}
+                </button>
+                <button
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#315F91] text-sm font-black text-white transition-colors hover:bg-[#274D76] disabled:opacity-50"
+                  disabled={isPending}
+                  onClick={handleConfirmSubmit}
+                  type="button"
+                >
+                  {copy.confirmSubmit}
+                </button>
+              </div>
+            </>
+          )}
+        </BottomSheet>
+      ) : null}
     </>
   );
 }

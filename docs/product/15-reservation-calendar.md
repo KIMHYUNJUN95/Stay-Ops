@@ -877,3 +877,36 @@ Planned result:
 Current interim behavior:
 
 - Keep `delivery_date` on the order request detail/list and notifications until calendar wiring is implemented.
+
+## 2026-06-18 Room-label mapping parity — home check-in/out sheet + cleaning targets
+
+Background: the calendar resolved reservations to canonical rooms correctly, but two
+other surfaces showed raw, unnormalized room labels:
+
+- Home "오늘 체크인 / 체크아웃" detail sheet showed raw `room_label` (e.g. `가부키초 303#`,
+  `가부키초 K803`, `아라키초A 501_2`, `오쿠보C 오쿠보 2-1`).
+- Cleaning "청소 대상" cards showed the canonical key without the display collapse
+  (e.g. `아라키초A 501_2` instead of `501`).
+
+Fix — both surfaces now match the calendar's display label:
+
+- **Home sheet** (`getHomeCheckInOutReservations` in `src/lib/home.ts`): now fetches the
+  active room catalog and reuses the same resolution the calendar uses
+  (`buildPropertyRoomLookups` + `buildGlobalExternalRoomToCanonical` +
+  `resolveReservationCanonicalRoomLabel`), then `getDisplayRoomLabel` for the visible label.
+  This is **authoritative** when the org has a classified room catalog: reservations whose
+  room is not an active room-master row are dropped (matching the calendar), so the home
+  count cards reflect the same active-room axis. The 2-account case (e.g. `501`/`501_2`,
+  `803#`/`K803`) is disambiguated via `raw_payload.roomId → external_room_id → canonical`
+  and collapsed to one display label. Okubo rooms (canonical room == property) render the
+  building name only. Property name is returned canonical so the caller's `buildPlaceLabel`
+  localizes it unchanged.
+- **Cleaning targets** (`getLocalizedRoomTitle` in `src/app/mobile/cleaning/page.tsx`): now
+  applies `getDisplayRoomLabel` so Arakicho sub-units collapse (`501_2` → `501`). Kabukicho
+  `#`/`K` stripping and Okubo property-only labels were already correct via
+  `getCanonicalRoomLabel`. Display-only change; stored `sessionRoomLabel` and dedup keys are
+  unchanged.
+
+Reference resolver remains the single source of truth in `src/lib/rooms.ts`
+(`resolveReservationCanonicalRoomLabel`), shared by calendar, task context picker, and now
+the home check-in/out sheet.

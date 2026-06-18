@@ -776,13 +776,13 @@ Status: Planned — not started. Five features approved as the next build scope 
 - [ ] Migration: `board_posts`; part-time write allowed (2026-06-09)
 - [ ] RLS, actions, feed + moderation; i18n; sync docs `20`, `10`, `04`, `05`
 
-### 14.5 Attendance / Clock-In-Out + Payroll (attendance buildable; payroll deferred)
+### 14.5 Attendance / Clock-In-Out + Payroll (session-first; policy baseline confirmed 2026-06-17)
 
-- [ ] Migration: `attendance_sites`, `attendance_qr_tokens`, `attendance_events`, `employment_profiles`, `hourly_rate_history`
-- [ ] PWA QR + GPS clock-in/out; Asia/Tokyo operating-date boundaries
-- [ ] RLS per `docs/engineering/05`; i18n
-- [ ] **Payroll calculation/export BLOCKED** until wage rules (rounding, breaks, overtime, holiday, overnight, closing date, correction/approval) are defined — keep payroll code in design only
-- [ ] Sync docs `21`, `11`, `04`, `05`
+- [x] **Step 1 — schema + permission foundation (2026-06-17):** migration `202606170001_attendance_payroll.sql` — 11 session-first tables (`attendance_sites`, `attendance_qr_tokens`, `attendance_sessions`, `attendance_breaks`, `attendance_attempt_logs`, `attendance_correction_requests`, `attendance_session_audits`, `employment_type_history`, `hourly_rate_history`, `attendance_month_snapshots`, `attendance_export_logs`) + `memberships.attendance_payroll_admin` + `can_manage_attendance_payroll(org)`; read-only RLS; TS types + `src/lib/attendance.ts`. (Supersedes the earlier `attendance_events`/`employment_profiles` draft.)
+- [ ] Step 2+ — PWA QR + GPS clock-in/out + breaks + corrections (service-role actions); Asia/Tokyo operating-date boundaries; one-open-session + open-break-blocks-clock-out enforcement; own history + admin review queries
+- [ ] Payroll: employment/rate-history management, expected pay, monthly per-person finalization snapshots, dashboard (owner + `attendance_payroll_admin` only) — hourly gross principal only (no OT/holiday/night premiums); export (finalized only) once the operator template is provided
+- [ ] Wi-Fi (`gps_wifi`) stays modeled but inactive in the PWA (UI `준비중`)
+- [ ] Sync docs `21`, `11`, `04`, `05` each step
 
 ### Phase 14 nav/IA prerequisite
 

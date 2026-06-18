@@ -40,6 +40,7 @@ import {
   reorderTasks,
   rescheduleOverdueToToday,
 } from "@/app/mobile/tasks/[id]/actions";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import { TaskCard } from "@/components/tasks/task-card";
 import { ReorderableTaskList } from "@/components/tasks/reorderable-task-list";
@@ -1280,7 +1281,7 @@ export function TasksWorkspace({
         ? createPortal(
         <div
           className={cn(
-            "fixed inset-0 z-[60] flex items-end justify-center bg-[rgba(20,16,10,0.5)] transition-opacity duration-300 motion-reduce:transition-none",
+            "fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 transition-opacity duration-300 motion-reduce:transition-none",
             quickShown ? "opacity-100" : "opacity-0",
           )}
           onClick={closeQuick}
@@ -1372,7 +1373,7 @@ export function TasksWorkspace({
         ? createPortal(
             <div
               className={cn(
-                "fixed inset-0 z-[70] flex items-end justify-center bg-[rgba(20,16,10,0.5)] transition-opacity duration-200 motion-reduce:transition-none",
+                "fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 transition-opacity duration-200 motion-reduce:transition-none",
                 pressShown ? "opacity-100" : "opacity-0",
               )}
               onClick={closePressMenu}
@@ -1466,44 +1467,40 @@ export function TasksWorkspace({
         : null}
 
       {/* Delete confirm (single from the menu, or the multi-select batch). */}
-      {confirmIds && hydrated
-        ? createPortal(
-            <div
-              className="fixed inset-0 z-[90] flex items-center justify-center px-6 bg-[rgba(20,16,10,0.5)]"
-              onClick={() => setConfirmIds(null)}
-              style={{ animation: "modal-overlay-in 180ms ease-out both" }}
-            >
-              <div
-                className="w-full max-w-[340px] rounded-3xl bg-surface p-5 shadow-[0_24px_70px_-24px_rgba(20,16,10,0.6)]"
-                onClick={(e) => e.stopPropagation()}
-                style={{ animation: "modal-card-in 240ms cubic-bezier(0.34,1.26,0.64,1) both" }}
+      {confirmIds && hydrated ? (
+        <BottomSheet
+          ariaLabel={copy.bulkDeleteConfirmTitle}
+          header={
+            <>
+              <p className="text-[16px] font-black text-foreground">{copy.bulkDeleteConfirmTitle}</p>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+                {copy.bulkDeleteConfirmBody.replace("{count}", String(confirmIds.length))}
+              </p>
+            </>
+          }
+          onClose={() => setConfirmIds(null)}
+        >
+          {({ close }) => (
+            <div className="mt-5 flex gap-2.5">
+              <button
+                className="h-11 flex-1 rounded-xl border border-border bg-surface text-[14px] font-bold text-foreground"
+                onClick={close}
+                type="button"
               >
-                <p className="text-[16px] font-black text-foreground">{copy.bulkDeleteConfirmTitle}</p>
-                <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
-                  {copy.bulkDeleteConfirmBody.replace("{count}", String(confirmIds.length))}
-                </p>
-                <div className="mt-5 flex gap-2.5">
-                  <button
-                    className="h-11 flex-1 rounded-xl border border-border bg-surface text-[14px] font-bold text-foreground"
-                    onClick={() => setConfirmIds(null)}
-                    type="button"
-                  >
-                    {copy.cancel}
-                  </button>
-                  <button
-                    className="h-11 flex-[1.4] rounded-xl bg-rose-600 text-[14px] font-extrabold text-white transition-opacity disabled:opacity-60"
-                    disabled={deleting}
-                    onClick={() => performDelete(confirmIds)}
-                    type="button"
-                  >
-                    {copy.deleteAction}
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+                {copy.cancel}
+              </button>
+              <button
+                className="h-11 flex-[1.4] rounded-xl bg-rose-600 text-[14px] font-extrabold text-white transition-opacity disabled:opacity-60"
+                disabled={deleting}
+                onClick={() => performDelete(confirmIds)}
+                type="button"
+              >
+                {copy.deleteAction}
+              </button>
+            </div>
+          )}
+        </BottomSheet>
+      ) : null}
 
       {/* Quick-complete undo toast — floats above the tab bar after a status-circle tap. */}
       {undoTask && hydrated

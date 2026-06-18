@@ -84,17 +84,18 @@ body {
   font: inherit;
 }
 .tabbar__fab .circle {
-  width: 50px;
-  height: 50px;
-  border-radius: 999px;
-  background: var(--primary);
+  width: 52px;
+  height: 52px;
+  /* Squircle (rounded square) center button — "Bottom Bar (Squircle Edit)" design. */
+  border-radius: 17px;
+  background: linear-gradient(160deg, hsl(223 50% 42%), hsl(223 54% 22%));
   color: var(--primary-foreground);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: -34px;
+  margin-top: -26px;
   border: 4px solid color-mix(in oklab, var(--background) 70%, white);
-  box-shadow: 0 10px 20px -6px hsl(var(--primary-hsl) / 0.55);
+  box-shadow: 0 12px 24px -8px hsl(var(--primary-hsl) / 0.55);
   transition: transform 0.15s ease;
 }
 .tabbar__fab:active .circle {
@@ -111,7 +112,8 @@ body {
   width: 38px;
   height: 4px;
   border-radius: 999px;
-  background: var(--border);
+  /* Canonical bottom-sheet grab-handle colour (slate-200). */
+  background: #e2e8f0;
   margin: 5px auto 14px;
 }
 .add-sheet__head {

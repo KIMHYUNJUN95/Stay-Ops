@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isNotificationsTableUnavailable } from "@/lib/notifications/schema";
 import type {
+  AttendanceNotificationPayload,
   OrderProcessedNotificationPayload,
   ProjectNotificationPayload,
   SuggestionNotificationPayload,
@@ -113,6 +114,61 @@ export async function notifySuggestionParticipants(
       payload: params.payload,
     });
   }
+}
+
+/**
+ * Fan-out a privileged attendance admin alert (correction created / abnormal session) to the supplied
+ * recipients (owner + attendance_payroll_admin ids — the CALLER resolves them; this never broadens
+ * visibility), skipping the actor. `dedupeBase` must be unique per event; the recipient id is appended.
+ */
+export async function notifyAttendanceAdmins(
+  supabase: SupabaseClient<Database>,
+  params: {
+    organizationId: string;
+    recipientUserIds: string[];
+    actorUserId: string | null;
+    dedupeBase: string;
+    href: string;
+    sourceId: string;
+    payload: AttendanceNotificationPayload;
+  },
+): Promise<void> {
+  const recipients = Array.from(new Set(params.recipientUserIds)).filter(
+    (id) => id && id !== params.actorUserId,
+  );
+  for (const recipientUserId of recipients) {
+    await createNotification(supabase, {
+      organizationId: params.organizationId,
+      recipientUserId,
+      type: "attendance_activity",
+      href: params.href,
+      sourceType: "attendance",
+      sourceId: params.sourceId,
+      dedupeKey: `${params.dedupeBase}:${recipientUserId}`,
+      payload: params.payload,
+    });
+  }
+}
+
+/**
+ * The worker-facing 18:30 open-session reminder notification. Deduped once per Tokyo day per user, so
+ * the scheduled job can't spam. Deep-links to the attendance home where the interactive prompt lives.
+ */
+export async function createAttendanceOpenSessionReminder(
+  supabase: SupabaseClient<Database>,
+  params: { organizationId: string; userId: string; tokyoDate: string; sessionId: string },
+): Promise<{ created: boolean }> {
+  const result = await createNotification(supabase, {
+    organizationId: params.organizationId,
+    recipientUserId: params.userId,
+    type: "attendance_activity",
+    href: "/mobile/attendance",
+    sourceType: "attendance",
+    sourceId: params.sessionId,
+    dedupeKey: `attendance_open_reminder:${params.userId}:${params.tokyoDate}`,
+    payload: { event: "open_session_reminder", subjectUserId: params.userId, sessionId: params.sessionId },
+  });
+  return { created: result.created };
 }
 
 type CreateNotificationInput = {

@@ -3,8 +3,9 @@
 import { useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { AlertCircle, CircleCheck, Megaphone, X } from "lucide-react";
+import { AlertCircle, CircleCheck, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { AnnouncementImageGrid } from "@/components/announcements/announcement-image-grid";
 import type { Locale } from "@/lib/i18n";
 import { getAnnouncementDictionary } from "@/lib/announcement-i18n";
@@ -191,90 +192,87 @@ export function AnnouncementPopup({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 py-6 backdrop-blur-xl">
-      <section className="max-h-[calc(100dvh-2rem)] w-full max-w-[27rem] overflow-y-auto overscroll-contain rounded-[28px] border border-slate-200/80 bg-surface p-5 text-foreground shadow-[0_32px_84px_-34px_rgba(15,23,42,0.46)] backdrop-blur-2xl">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-2xl border border-red-200 bg-red-50 text-red-600">
-              <AlertCircle className="size-6" aria-hidden="true" />
-            </div>
-            <h2 className="text-[25px] font-black leading-tight">
-              {copy.important}
-            </h2>
+    <BottomSheet
+      ariaLabel={copy.important}
+      className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain"
+      header={
+        <div className="flex items-center gap-3">
+          <div className="flex size-11 items-center justify-center rounded-2xl border border-red-200 bg-red-50 text-red-600">
+            <AlertCircle className="size-6" aria-hidden="true" />
           </div>
-          <button
-            className="flex size-9 items-center justify-center rounded-full border border-border bg-surface text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.45)] transition-colors hover:bg-slate-50 hover:text-foreground"
-            onClick={dismissCurrentAnnouncement}
-            type="button"
-          >
-            <X className="size-4" aria-hidden="true" />
-            <span className="sr-only">{copy.close}</span>
-          </button>
+          <h2 className="text-[25px] font-black leading-tight">
+            {copy.important}
+          </h2>
         </div>
-
-        <div className="rounded-[24px] border border-slate-200/80 bg-surface/82 p-5 shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="line-clamp-2 break-words text-base font-black leading-6 text-foreground">
-                {announcement.title}
-              </p>
-              <p className="mt-3 line-clamp-6 whitespace-pre-line break-words text-base font-medium leading-7 text-slate-600">
-                {announcement.content}
-              </p>
-            </div>
-            {announcement.imageUrls[0] ? (
-              <Image
-                alt=""
-                className="h-[92px] w-[92px] shrink-0 rounded-2xl object-cover shadow-[0_12px_22px_-18px_rgba(31,58,95,0.45)]"
-                height={112}
-                src={announcement.imageUrls[0]}
-                width={112}
-              />
-            ) : (
-              <div className="flex h-[92px] w-[92px] shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
-                <Megaphone className="size-8" aria-hidden="true" />
+      }
+      onClose={dismissCurrentAnnouncement}
+    >
+      {({ close }) => (
+        <>
+          <div className="mt-4 rounded-[24px] border border-slate-200/80 bg-surface/82 p-5 shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="line-clamp-2 break-words text-base font-black leading-6 text-foreground">
+                  {announcement.title}
+                </p>
+                <p className="mt-3 line-clamp-6 whitespace-pre-line break-words text-base font-medium leading-7 text-slate-600">
+                  {announcement.content}
+                </p>
               </div>
-            )}
+              {announcement.imageUrls[0] ? (
+                <Image
+                  alt=""
+                  className="h-[92px] w-[92px] shrink-0 rounded-2xl object-cover shadow-[0_12px_22px_-18px_rgba(31,58,95,0.45)]"
+                  height={112}
+                  src={announcement.imageUrls[0]}
+                  width={112}
+                />
+              ) : (
+                <div className="flex h-[92px] w-[92px] shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
+                  <Megaphone className="size-8" aria-hidden="true" />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
-        {announcement.imageUrls.length > 1 ? (
-          <AnnouncementImageGrid imageUrls={announcement.imageUrls.slice(1)} />
-        ) : null}
+          {announcement.imageUrls.length > 1 ? (
+            <AnnouncementImageGrid imageUrls={announcement.imageUrls.slice(1)} />
+          ) : null}
 
-        <label className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-slate-500">
-          <input
-            checked={hideForWeek}
-            className="size-4 rounded border border-slate-300 bg-surface accent-primary"
-            onChange={(event) =>
-              setHidePreference({
-                announcementId: announcement.id,
-                checked: event.target.checked,
-              })
-            }
-            type="checkbox"
-          />
-          {copy.hideForWeek}
-        </label>
+          <label className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-slate-500">
+            <input
+              checked={hideForWeek}
+              className="size-4 rounded border border-slate-300 bg-surface accent-primary"
+              onChange={(event) =>
+                setHidePreference({
+                  announcementId: announcement.id,
+                  checked: event.target.checked,
+                })
+              }
+              type="checkbox"
+            />
+            {copy.hideForWeek}
+          </label>
 
-        <div className="mt-5 space-y-3">
-          <Link
-            className="inline-flex h-[54px] w-full items-center justify-center rounded-2xl bg-primary px-4 text-base font-black text-primary-foreground shadow-[0_18px_34px_-22px_hsl(var(--primary-hsl)/0.68)] transition-colors hover:bg-primary/90"
-            href={`${detailHrefBase}/${announcement.id}`}
-          >
-            {copy.readAnnouncement}
-          </Link>
-          <Button
-            className="h-12 w-full rounded-2xl border-border bg-surface text-slate-700 shadow-[0_12px_24px_-22px_rgba(31,58,95,0.45)] hover:bg-slate-50"
-            onClick={dismissCurrentAnnouncement}
-            type="button"
-            variant="secondary"
-          >
-            <CircleCheck className="size-4" aria-hidden="true" />
-            {copy.close}
-          </Button>
-        </div>
-      </section>
-    </div>
+          <div className="mt-5 space-y-3">
+            <Link
+              className="inline-flex h-[54px] w-full items-center justify-center rounded-2xl bg-primary px-4 text-base font-black text-primary-foreground shadow-[0_18px_34px_-22px_hsl(var(--primary-hsl)/0.68)] transition-colors hover:bg-primary/90"
+              href={`${detailHrefBase}/${announcement.id}`}
+            >
+              {copy.readAnnouncement}
+            </Link>
+            <Button
+              className="h-12 w-full rounded-2xl border-border bg-surface text-slate-700 shadow-[0_12px_24px_-22px_rgba(31,58,95,0.45)] hover:bg-slate-50"
+              onClick={close}
+              type="button"
+              variant="secondary"
+            >
+              <CircleCheck className="size-4" aria-hidden="true" />
+              {copy.close}
+            </Button>
+          </div>
+        </>
+      )}
+    </BottomSheet>
   );
 }

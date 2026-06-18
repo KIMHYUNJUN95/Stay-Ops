@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -14,7 +13,7 @@ import {
   ListChecks,
   UserRound,
 } from "lucide-react";
-import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -86,31 +85,13 @@ export function CleaningRecordsView({
   const r = copy.records;
   const router = useRouter();
 
-  // Tap a record → detail bottom sheet (mount/shown split so it can slide + drag-to-dismiss).
+  // Tap a record → detail bottom sheet (shared BottomSheet handles slide + drag-to-dismiss).
   const [selected, setSelected] = useState<CleaningRecordItem | null>(null);
-  const [detailShown, setDetailShown] = useState(false);
-  const openDetail = useCallback((rec: CleaningRecordItem) => {
-    setSelected(rec);
-    requestAnimationFrame(() => requestAnimationFrame(() => setDetailShown(true)));
-  }, []);
-  const closeDetail = useCallback(() => {
-    setDetailShown(false);
-    setTimeout(() => setSelected(null), 320);
-  }, []);
-  const detailDrag = useSheetDragDismiss({ shown: detailShown, onDismiss: closeDetail });
+  const openDetail = useCallback((rec: CleaningRecordItem) => setSelected(rec), []);
 
   // Filter picker bottom sheet (building / staff) — replaces the native <select> dropdowns.
   const [picker, setPicker] = useState<"building" | "staff" | null>(null);
-  const [pickerShown, setPickerShown] = useState(false);
-  const openPicker = useCallback((kind: "building" | "staff") => {
-    setPicker(kind);
-    requestAnimationFrame(() => requestAnimationFrame(() => setPickerShown(true)));
-  }, []);
-  const closePicker = useCallback(() => {
-    setPickerShown(false);
-    setTimeout(() => setPicker(null), 320);
-  }, []);
-  const pickerDrag = useSheetDragDismiss({ shown: pickerShown, onDismiss: closePicker });
+  const openPicker = useCallback((kind: "building" | "staff") => setPicker(kind), []);
 
   // Build a URL for /mobile/cleaning/records preserving the other filters.
   const hrefWith = (next: { month?: string; staff?: string; status?: string; building?: string }) => {
@@ -168,7 +149,7 @@ export function CleaningRecordsView({
   const pickerCurrent = picker === "building" ? selectedBuilding : selectedStaff;
   const onPick = (value: string) => {
     const kind = picker;
-    closePicker();
+    setPicker(null);
     router.push(hrefWith(kind === "building" ? { building: value } : { staff: value }));
   };
 
@@ -360,137 +341,93 @@ export function CleaningRecordsView({
         </div>
       )}
 
-      {/* Record detail — bottom sheet (drag-to-dismiss); shows the full info for the tapped record. */}
-      {selected && typeof document !== "undefined"
-        ? createPortal(
-            <div
-              className={cn(
-                "fixed inset-0 z-[90] flex items-end justify-center bg-[rgba(20,16,10,0.5)] transition-opacity duration-300 motion-reduce:transition-none",
-                detailShown ? "opacity-100" : "opacity-0",
-              )}
-              onClick={closeDetail}
-              style={detailDrag.scrimStyle}
-            >
-              <div
-                className={cn(
-                  "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3",
-                  "transition-transform duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
-                  detailShown ? "translate-y-0" : "translate-y-full",
-                )}
-                data-sheet
-                onClick={(e) => e.stopPropagation()}
-                style={detailDrag.sheetStyle}
-              >
-                <div
-                  className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200"
-                  {...detailDrag.handleProps}
-                />
-                <div {...detailDrag.handleProps}>
-                  <p className="text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">
-                    {r.detailTitle}
-                  </p>
-                  <p className="mt-1 text-[19px] font-black leading-snug tracking-[-0.02em] text-foreground">
-                    {selected.title}
-                  </p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
-                      {selected.taskLabel}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-0.5 text-[11px] font-bold text-foreground">
-                      <span className={cn("size-1.5 rounded-full", statusTone(selected.status))} />
-                      {statusLabel(selected.status)}
-                    </span>
-                  </div>
-                </div>
-
-                <dl className="mt-4 flex flex-col gap-2.5 border-t border-border pt-4">
-                  {field(r.staffLabel, selected.staffName || "-")}
-                  {field(r.dateLabel, dayLabel(selected.dateKey))}
-                  {field(r.startLabel, fmtTime(selected.startedAt) || "-")}
-                  {field(
-                    r.endLabel,
-                    selected.completedAt ? fmtTime(selected.completedAt) : r.ongoing,
-                  )}
-                  {field(
-                    r.durationLabel,
-                    <span className="font-mono">
-                      {selected.durationSeconds != null
-                        ? formatDuration(selected.durationSeconds)
-                        : r.ongoing}
-                    </span>,
-                  )}
-                  {selected.notes ? field(r.notesLabel, selected.notes, true) : null}
-                </dl>
+      {/* Record detail — bottom sheet; shows the full info for the tapped record. */}
+      {selected ? (
+        <BottomSheet
+          ariaLabel={r.detailTitle}
+          header={
+            <>
+              <p className="text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+                {r.detailTitle}
+              </p>
+              <p className="mt-1 text-[19px] font-black leading-snug tracking-[-0.02em] text-foreground">
+                {selected.title}
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
+                  {selected.taskLabel}
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-0.5 text-[11px] font-bold text-foreground">
+                  <span className={cn("size-1.5 rounded-full", statusTone(selected.status))} />
+                  {statusLabel(selected.status)}
+                </span>
               </div>
-            </div>,
-            document.body,
-          )
-        : null}
+            </>
+          }
+          onClose={() => setSelected(null)}
+        >
+          <dl className="mt-4 flex flex-col gap-2.5 border-t border-border pt-4">
+            {field(r.staffLabel, selected.staffName || "-")}
+            {field(r.dateLabel, dayLabel(selected.dateKey))}
+            {field(r.startLabel, fmtTime(selected.startedAt) || "-")}
+            {field(
+              r.endLabel,
+              selected.completedAt ? fmtTime(selected.completedAt) : r.ongoing,
+            )}
+            {field(
+              r.durationLabel,
+              <span className="font-mono">
+                {selected.durationSeconds != null
+                  ? formatDuration(selected.durationSeconds)
+                  : r.ongoing}
+              </span>,
+            )}
+            {selected.notes ? field(r.notesLabel, selected.notes, true) : null}
+          </dl>
+        </BottomSheet>
+      ) : null}
 
-      {/* Filter picker — building / staff bottom sheet (drag-to-dismiss) */}
-      {picker && typeof document !== "undefined"
-        ? createPortal(
-            <div
-              className={cn(
-                "fixed inset-0 z-[90] flex items-end justify-center bg-[rgba(20,16,10,0.5)] transition-opacity duration-300 motion-reduce:transition-none",
-                pickerShown ? "opacity-100" : "opacity-0",
-              )}
-              onClick={closePicker}
-              style={pickerDrag.scrimStyle}
-            >
-              <div
-                className={cn(
-                  "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3",
-                  "transition-transform duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
-                  pickerShown ? "translate-y-0" : "translate-y-full",
-                )}
-                data-sheet
-                onClick={(e) => e.stopPropagation()}
-                style={pickerDrag.sheetStyle}
-              >
-                <div
-                  className="mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200"
-                  {...pickerDrag.handleProps}
-                />
-                <p
-                  className="mb-3 text-[16px] font-black tracking-[-0.01em] text-foreground"
-                  {...pickerDrag.handleProps}
+      {/* Filter picker — building / staff bottom sheet */}
+      {picker ? (
+        <BottomSheet
+          ariaLabel={picker === "building" ? r.buildingTitle : r.staffTitle}
+          header={
+            <p className="mb-3 text-[16px] font-black tracking-[-0.01em] text-foreground">
+              {picker === "building" ? r.buildingTitle : r.staffTitle}
+            </p>
+          }
+          onClose={() => setPicker(null)}
+        >
+          <div className="-mx-1 flex max-h-[56vh] flex-col gap-1 overflow-y-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {pickerOptions.map((opt) => {
+              const on = opt.value === pickerCurrent;
+              return (
+                <button
+                  className={cn(
+                    "flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-colors",
+                    on ? "border-primary bg-primary/[0.06]" : "border-transparent active:bg-slate-50",
+                  )}
+                  key={opt.value || "__all"}
+                  onClick={() => onPick(opt.value)}
+                  type="button"
                 >
-                  {picker === "building" ? r.buildingTitle : r.staffTitle}
-                </p>
-                <div className="-mx-1 flex max-h-[56vh] flex-col gap-1 overflow-y-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {pickerOptions.map((opt) => {
-                    const on = opt.value === pickerCurrent;
-                    return (
-                      <button
-                        className={cn(
-                          "flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-colors",
-                          on ? "border-primary bg-primary/[0.06]" : "border-transparent active:bg-slate-50",
-                        )}
-                        key={opt.value || "__all"}
-                        onClick={() => onPick(opt.value)}
-                        type="button"
-                      >
-                        <span
-                          className={cn(
-                            "min-w-0 flex-1 truncate text-[14px] font-bold",
-                            on ? "text-primary" : "text-foreground",
-                          )}
-                        >
-                          {opt.label}
-                        </span>
-                        {on ? (
-                          <Check className="size-[18px] shrink-0 text-primary" strokeWidth={2.6} aria-hidden="true" />
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+                  <span
+                    className={cn(
+                      "min-w-0 flex-1 truncate text-[14px] font-bold",
+                      on ? "text-primary" : "text-foreground",
+                    )}
+                  >
+                    {opt.label}
+                  </span>
+                  {on ? (
+                    <Check className="size-[18px] shrink-0 text-primary" strokeWidth={2.6} aria-hidden="true" />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </BottomSheet>
+      ) : null}
     </div>
   );
 }

@@ -615,7 +615,7 @@ export function ContextPickerSheet({
   return createPortal(
     <div
       className={cn(
-        "fixed inset-0 z-[70] flex items-end justify-center bg-[rgba(20,16,10,0.5)] transition-opacity duration-300 motion-reduce:transition-none",
+        "fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 transition-opacity duration-300 motion-reduce:transition-none",
         shown ? "opacity-100" : "opacity-0",
       )}
       onClick={dismiss}
