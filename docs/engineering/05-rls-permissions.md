@@ -177,6 +177,11 @@ Planning note (2026-06-18):
 - A successful validation resolves `organization + signup role category` before final join.
 - Initial invite-code creation/rotation is still manual bootstrap until the later dashboard tooling exists.
 
+As-built note (2026-06-18):
+
+- `validateInviteCode` (`src/lib/auth-invite.ts`) and the onboarding `previewInviteCode` server action read `invite_codes` (and the target `organizations.name`) via the **service role, server-side only**, and require an authenticated user — so the preview is not an open invite-probing endpoint. Preview is read-only; it does **not** consume the code.
+- Final join still goes through the atomic `join_organization_with_invite_code` RPC (increments `used_count` + creates the membership) — the preview never grants access on its own.
+
 ## properties / rooms
 
 Read:
@@ -707,6 +712,17 @@ Create:
 Update/delete:
 
 - No normal user updates/deletes.
+
+## Auth / Identity Linking Contract
+
+"**Same email = same account**" is a confirmed product policy. Its enforcement currently depends on **Supabase Auth configuration**, not application code:
+
+- **Automatic identity linking must be enabled**, and **email confirmations must be required**. Under these settings, when a Google sign-in's email matches an existing user's *confirmed* email, Supabase links the Google identity to that user instead of creating a duplicate (verified in this project: the owner account carries both `email` and `google` identities).
+- The **email-signup** path additionally handles the reverse collision in app code: `supabase.auth.signUp` returning a user with `identities.length === 0` means the email already exists, and the user is redirected to log in (`resume_existing_account`) — `src/app/auth/actions.ts`.
+- **Google sign-in** (`signInWithGoogle`) does **not** add explicit linking/collision handling; it relies on the Supabase behavior above. A manual `linkIdentity` flow (the designed "계정 연결" screen) is intentionally **not** wired yet, because Supabase enforces email uniqueness today.
+- **Risk if the config drifts:** if email confirmation or automatic linking is turned off, a same-email Google sign-in could diverge into a separate account. If that policy is ever needed independent of the Supabase setting, wire the manual link-identity flow.
+
+> **Action item:** confirm in the Supabase dashboard (Auth settings) that automatic account linking is on and email confirmations are required.
 
 ## Open Questions
 

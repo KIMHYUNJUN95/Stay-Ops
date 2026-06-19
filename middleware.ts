@@ -21,6 +21,20 @@ function isAuthPage(pathname: string) {
   return pathname === "/auth/login" || pathname.startsWith("/auth/login/");
 }
 
+function isBlockedAuthState(request: NextRequest) {
+  return request.nextUrl.searchParams.get("view") === "blocked";
+}
+
+/**
+ * Password-reset links land on /auth/login with a recovery SESSION (authenticated),
+ * so the user must NOT be bounced to /onboarding before they can set a new password.
+ * The login page renders this state; the middleware must let it through too.
+ */
+function isPasswordRecoveryState(request: NextRequest) {
+  const params = request.nextUrl.searchParams;
+  return params.get("view") === "email" && params.get("mode") === "new_password";
+}
+
 function buildLoginRedirect(request: NextRequest) {
   const redirectUrl = request.nextUrl.clone();
   redirectUrl.pathname = "/auth/login";
@@ -99,6 +113,9 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isAuthPage(pathname) && user) {
+    if (isBlockedAuthState(request) || isPasswordRecoveryState(request)) {
+      return response;
+    }
     // Preserve `next` and `lang` so the onboarding page (or login page's own
     // server-side check) can redirect to the correct destination once the user
     // is confirmed to be fully onboarded.

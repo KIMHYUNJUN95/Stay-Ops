@@ -73,3 +73,34 @@ export function canViewOthersCleaning(role: Role) {
 export function canGenerateDailyReport(role: Role, reportFlag: boolean): boolean {
   return role !== "part_time_staff" || reportFlag;
 }
+
+/**
+ * The 5 user-facing invite categories shown during onboarding.
+ * Each maps to a single DB organization_role slug.
+ * cs_staff is not exposed as a direct invite category (admin-assigned only).
+ */
+export const INVITE_CATEGORIES = [
+  "part_time_staff",
+  "office_staff",
+  "field_staff",
+  "part_time_manager",
+  "owner",
+] as const;
+
+export type InviteCategory = (typeof INVITE_CATEGORIES)[number];
+
+export const inviteCategoryToRole: Record<InviteCategory, OrganizationRole> = {
+  part_time_staff: "part_time_staff",
+  office_staff: "office_admin",
+  field_staff: "staff",
+  part_time_manager: "field_manager",
+  owner: "owner",
+};
+
+export const roleToInviteCategory: Partial<Record<OrganizationRole, InviteCategory>> = {
+  part_time_staff: "part_time_staff",
+  office_admin: "office_staff",
+  staff: "field_staff",
+  field_manager: "part_time_manager",
+  owner: "owner",
+};

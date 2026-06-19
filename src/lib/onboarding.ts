@@ -8,6 +8,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 export type ProfileSnapshot = {
   id: string;
   name: string;
+  birthDate: string | null;
   phoneNumber: string;
   preferredLanguage: Locale;
 };
@@ -44,6 +45,11 @@ export type OnboardingState =
       profile: ProfileSnapshot;
     }
   | {
+      status: "disabled";
+      user: User;
+      email: string;
+    }
+  | {
       status: "ready";
       redirectTo: string;
       user: User;
@@ -62,11 +68,24 @@ export function isValidPhone(phone: string): boolean {
   return digits.length >= 7 && digits.length <= 15;
 }
 
+/**
+ * Validates a birth date in YYYY-MM-DD form and requires it to be in the past.
+ * Shared by onboarding, account editing, and onboarding-state gating.
+ */
+export function isValidBirthDate(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return false;
+  const birthDate = new Date(trimmed);
+  return !Number.isNaN(birthDate.getTime()) && birthDate < new Date();
+}
+
 type ProfileRow = {
   id: string;
   name: string;
+  birth_date: string | null;
   phone_number: string;
   preferred_language: Locale;
+  last_used_organization_id: string | null;
 };
 
 type MembershipRow = {
@@ -97,12 +116,24 @@ export async function getOnboardingState(): Promise<OnboardingState> {
   }
 
   const service = getSupabaseServiceClient();
+  const disabledUntil = (user as User & { banned_until?: string | null })
+    .banned_until;
+  if (disabledUntil) {
+    const bannedUntilDate = new Date(disabledUntil);
+    if (!Number.isNaN(bannedUntilDate.getTime()) && bannedUntilDate > new Date()) {
+      return {
+        status: "disabled",
+        user,
+        email: user.email ?? "",
+      };
+    }
+  }
 
   const [{ data: profileResult }, { count: platformAdminCount }] =
     await Promise.all([
       service
         .from("profiles")
-        .select("id, name, phone_number, preferred_language")
+        .select("id, name, birth_date, phone_number, preferred_language, last_used_organization_id")
         .eq("id", user.id)
         .maybeSingle(),
       service
@@ -115,10 +146,12 @@ export async function getOnboardingState(): Promise<OnboardingState> {
 
   // Profile row missing → needs profile.
   // Profile row exists but required fields are incomplete/invalid → also needs profile.
-  // This enforces that Google login (auth only) cannot skip the manual onboarding step.
+  // birth_date is required for identity verification; Google login cannot skip this.
   const isProfileComplete =
     !!profile &&
     !!profile.name?.trim() &&
+    !!profile.birth_date &&
+    isValidBirthDate(profile.birth_date) &&
     !!profile.phone_number?.trim() &&
     isValidPhone(profile.phone_number) &&
     isLocale(profile.preferred_language);
@@ -134,11 +167,12 @@ export async function getOnboardingState(): Promise<OnboardingState> {
   const profileSnapshot: ProfileSnapshot = {
     id: profile.id,
     name: profile.name,
+    birthDate: profile.birth_date,
     phoneNumber: profile.phone_number,
     preferredLanguage: profile.preferred_language,
   };
 
-  const [{ data: platformAdminResult }, { data: membershipResult }] =
+  const [{ data: platformAdminResult }, { data: membershipResults }] =
     await Promise.all([
       service
         .from("platform_admins")
@@ -146,19 +180,17 @@ export async function getOnboardingState(): Promise<OnboardingState> {
         .eq("user_id", user.id)
         .eq("is_active", true)
         .maybeSingle(),
-      // Query ANY non-invited membership to detect suspended/removed states.
+      // Query ALL non-invited memberships to support multi-org.
       service
         .from("memberships")
         .select("organization_id, role, status")
         .eq("user_id", user.id)
         .neq("status", "invited")
-        .order("joined_at", { ascending: false, nullsFirst: false })
-        .limit(1)
-        .maybeSingle(),
+        .order("joined_at", { ascending: false, nullsFirst: false }),
     ]);
 
   const platformAdmin = platformAdminResult as PlatformAdminRow | null;
-  const membership = membershipResult as MembershipRow | null;
+  const memberships = (membershipResults ?? []) as MembershipRow[];
 
   // Platform admin bypasses org membership requirements.
   if (platformAdmin?.role) {
@@ -169,31 +201,33 @@ export async function getOnboardingState(): Promise<OnboardingState> {
     };
   }
 
-  // Active membership — user is fully onboarded.
-  if (membership?.status === "active") {
+  // Among all memberships, prefer the one matching last_used_organization_id,
+  // then fall back to the most recent active one.
+  const activeMemberships = memberships.filter((m) => m.status === "active");
+
+  if (activeMemberships.length > 0) {
+    const lastUsedOrgId = profile.last_used_organization_id;
+    const preferred =
+      (lastUsedOrgId
+        ? activeMemberships.find((m) => m.organization_id === lastUsedOrgId)
+        : null) ?? activeMemberships[0];
+
     return {
       status: "ready",
-      redirectTo: getDefaultRouteForRole(membership.role),
+      redirectTo: getDefaultRouteForRole(preferred.role),
       user,
     };
   }
 
-  // Suspended membership — block with a clear message.
-  if (membership?.status === "suspended") {
-    return {
-      status: "suspended",
-      user,
-      profile: profileSnapshot,
-    };
+  // Check for suspended/removed states across any membership.
+  const suspended = memberships.find((m) => m.status === "suspended");
+  if (suspended) {
+    return { status: "suspended", user, profile: profileSnapshot };
   }
 
-  // Removed membership — block with a clear message.
-  if (membership?.status === "removed") {
-    return {
-      status: "removed",
-      user,
-      profile: profileSnapshot,
-    };
+  const removed = memberships.find((m) => m.status === "removed");
+  if (removed) {
+    return { status: "removed", user, profile: profileSnapshot };
   }
 
   // No qualifying membership — user needs to join via invite code.
@@ -203,4 +237,19 @@ export async function getOnboardingState(): Promise<OnboardingState> {
     profile: profileSnapshot,
     user,
   };
+}
+
+/**
+ * Persists the last-used organization for multi-org routing.
+ * Called after a successful sign-in when the user has multiple active memberships.
+ */
+export async function setLastUsedOrganization(
+  userId: string,
+  organizationId: string,
+): Promise<void> {
+  const service = getSupabaseServiceClient();
+  await service
+    .from("profiles")
+    .update({ last_used_organization_id: organizationId } as never)
+    .eq("id", userId);
 }

@@ -37,8 +37,16 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), "Geist", ui-sans-serif, system-ui,
-    sans-serif;
+  /* Geist for Latin; Noto Sans KR/JP supply CJK glyphs (incl. true 900/black). */
+  font-family: var(--font-geist-sans), "Geist", var(--font-noto-kr),
+    var(--font-noto-jp), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Japanese pages prefer Noto Sans JP so kanji use JP (not KR) glyph variants. */
+:lang(ja) body,
+body:lang(ja) {
+  font-family: var(--font-geist-sans), "Geist", var(--font-noto-jp),
+    var(--font-noto-kr), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Bottom tab bar — center action ("추가") button design (shared by all mobile pages). */

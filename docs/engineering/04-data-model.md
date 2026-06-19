@@ -111,8 +111,9 @@ Fields:
 ```txt
 id uuid primary key references auth.users(id)
 name text not null
-birth_date date
-phone_number text
+birth_date date                                   -- added migration 202606180004; replaces age
+phone_number text                                 -- unique (partial index, excludes NULL/empty)
+last_used_organization_id uuid references organizations(id) on delete set null  -- added 202606180004
 profile_photo_url text
 preferred_language text not null
 theme_preference text not null default 'system'  -- schema only; NOT used by the app (light-mode-only since 2026-06-08)
@@ -122,11 +123,11 @@ created_at timestamptz
 updated_at timestamptz
 ```
 
-Auth/onboarding planning update (2026-06-18):
+Auth/onboarding notes (updated 2026-06-18):
 
-- `birth_date` is the target operational field; `age` should be treated as legacy planning and should
-  not remain the long-term schema shape.
-- `phone_number` is intended to be stored in international format and treated as account-level unique.
+- `birth_date` is the active operational field. `age` is the legacy column from initial DB gen; kept for backward compat but not used in onboarding logic. Do not add new code that reads `age`.
+- `phone_number` is stored in international format and enforced as account-level unique via the partial unique index `profiles_phone_number_unique` (excludes NULL and empty). Migration `202606180004`.
+- `last_used_organization_id` tracks the last organization the user actively signed into — used for multi-org routing so login returns to the right org. Nullable (NULL = first login or single-org user).
 - Users may edit `name`, `birth_date`, and `phone_number` later.
 - `preferred_language` is chosen during onboarding and becomes the user's top-priority locale after join.
 

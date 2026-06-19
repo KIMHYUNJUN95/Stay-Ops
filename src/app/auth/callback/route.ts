@@ -3,6 +3,20 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getOnboardingState } from "@/lib/onboarding";
 import { sanitizeNextPath } from "@/lib/safe-redirect";
 
+function buildBlockedUrl(
+  origin: string,
+  mode: "suspended" | "removed" | "disabled",
+  next: string,
+  email: string,
+) {
+  const blockedUrl = new URL("/auth/login", origin);
+  blockedUrl.searchParams.set("view", "blocked");
+  blockedUrl.searchParams.set("mode", mode);
+  if (next) blockedUrl.searchParams.set("next", next);
+  if (email) blockedUrl.searchParams.set("email", email);
+  return blockedUrl;
+}
+
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
@@ -49,15 +63,25 @@ export async function GET(request: NextRequest) {
 
   if (
     state.status === "needs_profile" ||
-    state.status === "needs_membership" ||
-    state.status === "suspended" ||
-    state.status === "removed"
+    state.status === "needs_membership"
   ) {
     // Redirect to onboarding, preserving the original destination so the user
     // lands in the right place after completing their profile and joining a team.
     const onboardingUrl = new URL("/onboarding", url.origin);
     if (safeNext) onboardingUrl.searchParams.set("next", safeNext);
     return NextResponse.redirect(onboardingUrl);
+  }
+
+  if (
+    state.status === "suspended" ||
+    state.status === "removed" ||
+    state.status === "disabled"
+  ) {
+    const email =
+      state.status === "disabled" ? state.email : state.user.email ?? "";
+    return NextResponse.redirect(
+      buildBlockedUrl(url.origin, state.status, safeNext, email),
+    );
   }
 
   // state.status === "ready" — profile and membership are complete.

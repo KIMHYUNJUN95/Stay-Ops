@@ -183,6 +183,7 @@ Current business rules:
 - Owner invite code:
   - one-time use only
 - Invite code validation succeeds first, then the app shows the resolved organization + role before final membership activation
+- If a signup is retried for an email that already has an incomplete StayOps account, the app sends the user to sign in and continue that existing onboarding flow instead of creating a duplicate account
 
 Current onboarding role categories:
 
@@ -340,20 +341,21 @@ Users join the organization immediately
 Owner later manages members / roles / code lifecycle from dashboard (when built)
 ```
 
-Implementation notes (current as of 2026-06-03):
+Implementation notes (current as of 2026-06-18):
 
-- Legacy implementation still has email magic-link login + Google OAuth live on `/auth/login`, but
-  this is now **outdated relative to the 2026-06-18 target policy**.
-- `/onboarding` handles profile completion, invite-code organization joining, and first-user Developer / Super Admin setup.
+- Email magic-link has been **removed**. Auth methods are email+password and Google OAuth only.
+- `/onboarding` profile completion now collects all five required fields — **name, date of birth (`birthDate`), phone number, preferred language, and (optionally at this step) invite code**. `birth_date` is required by `getOnboardingState()`; an incomplete/invalid value keeps the user in `needs_profile`.
+- Invite-code join uses a **verify → preview → confirm** flow: `previewInviteCode` validates the code without consuming it and shows the resolved **organization name + user-facing role category** (the five business-facing categories, mapped from the DB role via `roleToInviteCategory`) before the user commits. Final join is still the atomic `join_organization_with_invite_code` RPC. This matches the rule "validation succeeds first, then the app shows the resolved organization + role before final membership activation."
+- The pre-auth language selection persists via the `stayops_locale` cookie and is honored on `/onboarding`, so the chosen locale survives the login → callback → onboarding chain; the completed profile stores `preferred_language`.
+- `/onboarding` handles profile completion and invite-code organization joining.
 - Onboarding is required for all new users regardless of login method. Google users are not exempt.
-- The first-user admin claim is allowed only while `platform_admins` is empty.
 - `/admin/settings/organization` lets Developer / Super Admin create organizations.
 - Organization creation can attach the current Developer / Super Admin user as organization `owner`.
 - `/admin/settings/invite-codes` lets Developer / Super Admin, Owner, and Office Admin create invite codes.
 - The first invite-code implementation supports `staff` and `part_time_staff` as default roles.
 - Invite codes can be listed and deactivated from the admin settings UI.
 - Invite code error handling distinguishes: expired, inactive, max-uses exceeded, and invalid/not-found.
-- Membership state access control: `active` allows access; `suspended` and `removed` show a blocked screen with logout option; `invited` prompts for invite code.
+- Membership state access control: `active` allows access; `suspended` shows a blocked screen with logout; `removed` shows a blocked screen by default but can move into a re-join flow with another valid invite code; `invited` prompts for invite code.
 - Logout is accessible from `/account` and clears the session fully, redirecting to `/auth/login`.
 - Phone number is required and validated at both onboarding and account editing (7-15 digits, allows +, spaces, hyphens, parentheses).
 

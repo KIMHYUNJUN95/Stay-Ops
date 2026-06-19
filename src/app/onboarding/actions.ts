@@ -1,9 +1,17 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { roleToInviteCategory } from "@/config/roles";
+import { validateInviteCode } from "@/lib/auth-invite";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
-import { getDefaultRouteForRole, isValidPhone } from "@/lib/onboarding";
+import {
+  getDefaultRouteForRole,
+  getOnboardingState,
+  isValidBirthDate,
+  isValidPhone,
+  setLastUsedOrganization,
+} from "@/lib/onboarding";
 import { isLocale } from "@/lib/i18n";
 import { resolveInviteRpcError } from "@/lib/invite-errors";
 import { sanitizeNextPath } from "@/lib/safe-redirect";
@@ -60,6 +68,63 @@ async function requireUser() {
   return user;
 }
 
+/**
+ * Validates an invite code WITHOUT consuming it and resolves the target
+ * organization name + user-facing role category, so onboarding can show the
+ * "조직·역할 미리보기" confirmation before the user commits to joining.
+ *
+ * Returns serializable data (callable directly from a client component).
+ * Error keys map onto `onboarding.errors.*` i18n keys.
+ */
+type InvitePreviewResult =
+  | { ok: true; organizationName: string; roleCategory: string }
+  | { ok: false; errorKey: string };
+
+const INVITE_PREVIEW_ERROR_MAP: Record<string, string> = {
+  invalid: "invalid_invite",
+  expired: "invite_expired",
+  inactive: "invite_inactive",
+  maxed_out: "invite_maxed",
+};
+
+export async function previewInviteCode(
+  code: string,
+): Promise<InvitePreviewResult> {
+  // Require an authenticated onboarding user so this is not an open
+  // invite-probing endpoint.
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, errorKey: "profile_required" };
+
+  const trimmed = code.trim();
+  if (!trimmed) return { ok: false, errorKey: "missing_invite" };
+
+  const validation = await validateInviteCode(trimmed);
+  if (!validation.ok) {
+    return {
+      ok: false,
+      errorKey: INVITE_PREVIEW_ERROR_MAP[validation.error] ?? "invalid_invite",
+    };
+  }
+
+  const service = getSupabaseServiceClient();
+  const { data: org } = await service
+    .from("organizations")
+    .select("name")
+    .eq("id", validation.organizationId)
+    .maybeSingle();
+
+  const organizationName = (org as { name: string } | null)?.name ?? "";
+  // Expose the user-facing invite category (e.g. "office_staff"), not the raw
+  // DB role slug. cs_staff (not an invite category) falls back to its slug.
+  const roleCategory =
+    roleToInviteCategory[validation.defaultRole] ?? validation.defaultRole;
+
+  return { ok: true, organizationName, roleCategory };
+}
+
 async function joinInviteCode(userId: string, code: string, next: string) {
   if (!code) {
     return null;
@@ -78,19 +143,24 @@ async function joinInviteCode(userId: string, code: string, next: string) {
   const row = data?.[0];
   if (!row) onboardingError("invite_join_failed", next);
 
-  return row.role;
+  return row;
 }
 
 export async function completeProfile(formData: FormData) {
   const user = await requireUser();
   const next = sanitizeNext(formData.get("next"));
   const name = cleanText(formData.get("name"));
+  const birthDate = cleanText(formData.get("birthDate"));
   const phoneNumber = cleanText(formData.get("phoneNumber"));
   const preferredLanguage = cleanText(formData.get("preferredLanguage"));
   const inviteCode = normalizeInviteCode(formData.get("inviteCode"));
 
   if (!name || !phoneNumber) {
     onboardingError("missing_profile_fields", next);
+  }
+
+  if (!birthDate || !isValidBirthDate(birthDate)) {
+    onboardingError("missing_birth_date", next);
   }
 
   if (!isValidPhone(phoneNumber)) {
@@ -105,6 +175,7 @@ export async function completeProfile(formData: FormData) {
   const profile: ProfileInsert = {
     id: user.id,
     name,
+    birth_date: birthDate,
     phone_number: phoneNumber,
     preferred_language: preferredLanguage,
   };
@@ -112,13 +183,20 @@ export async function completeProfile(formData: FormData) {
   const { error } = await service.from("profiles").upsert(profile as never);
 
   if (error) {
+    if (
+      error.code === "23505" ||
+      error.message.toLowerCase().includes("profiles_phone_number_unique")
+    ) {
+      onboardingError("phone_duplicate", next);
+    }
     onboardingError("profile_failed", next);
   }
 
-  const role = await joinInviteCode(user.id, inviteCode, next);
+  const membership = await joinInviteCode(user.id, inviteCode, next);
 
-  if (role) {
-    redirect(next || getDefaultRouteForRole(role));
+  if (membership) {
+    await setLastUsedOrganization(user.id, membership.organization_id);
+    redirect(next || getDefaultRouteForRole(membership.role));
   }
 
   // No invite code submitted — needs membership step. Preserve next for the join form.
@@ -134,8 +212,11 @@ export async function joinOrganizationWithInviteCode(formData: FormData) {
     onboardingError("missing_invite", next);
   }
 
-  const role = await joinInviteCode(user.id, inviteCode, next);
-  redirect(next || getDefaultRouteForRole(role ?? "staff"));
+  const membership = await joinInviteCode(user.id, inviteCode, next);
+  if (membership) {
+    await setLastUsedOrganization(user.id, membership.organization_id);
+  }
+  redirect(next || getDefaultRouteForRole(membership?.role ?? "staff"));
 }
 
 export async function claimFirstPlatformAdmin() {
@@ -172,4 +253,77 @@ export async function claimFirstPlatformAdmin() {
   }
 
   redirect("/admin");
+}
+
+export type SubmitOnboardingResult =
+  | { ok: true; redirectTo: string }
+  | { ok: false; errorKey: string };
+
+/**
+ * Wizard submit — upserts the profile and (optionally) joins via invite code,
+ * then RETURNS the destination instead of redirecting. This lets the onboarding
+ * wizard show its own "welcome / success" screen before entering the app.
+ */
+export async function submitOnboardingProfile(input: {
+  name: string;
+  birthDate: string;
+  phoneNumber: string;
+  preferredLanguage: string;
+  inviteCode: string;
+  next: string;
+}): Promise<SubmitOnboardingResult> {
+  const user = await requireUser();
+  const name = input.name.trim();
+  const birthDate = input.birthDate.trim();
+  const phoneNumber = input.phoneNumber.trim();
+  const lang = input.preferredLanguage.trim();
+  const code = input.inviteCode.trim().toUpperCase();
+  const next = sanitizeNextPath(input.next);
+
+  if (!name || !phoneNumber) return { ok: false, errorKey: "missing_profile_fields" };
+  if (!birthDate || !isValidBirthDate(birthDate)) {
+    return { ok: false, errorKey: "missing_birth_date" };
+  }
+  if (!isValidPhone(phoneNumber)) return { ok: false, errorKey: "phone_invalid" };
+  if (!isLocale(lang)) return { ok: false, errorKey: "invalid_language" };
+
+  const service = getSupabaseServiceClient();
+  const profile: ProfileInsert = {
+    id: user.id,
+    name,
+    birth_date: birthDate,
+    phone_number: phoneNumber,
+    preferred_language: lang,
+  };
+
+  const { error } = await service.from("profiles").upsert(profile as never);
+  if (error) {
+    if (
+      error.code === "23505" ||
+      error.message.toLowerCase().includes("profiles_phone_number_unique")
+    ) {
+      return { ok: false, errorKey: "phone_duplicate" };
+    }
+    return { ok: false, errorKey: "profile_failed" };
+  }
+
+  if (code) {
+    const { data, error: rpcError } = await (service as unknown as RpcClient).rpc(
+      "join_organization_with_invite_code",
+      { p_user_id: user.id, p_code: code },
+    );
+    if (rpcError) return { ok: false, errorKey: resolveInviteRpcError(rpcError.message) };
+    const row = data?.[0];
+    if (!row) return { ok: false, errorKey: "invite_join_failed" };
+    await setLastUsedOrganization(user.id, row.organization_id);
+    return { ok: true, redirectTo: next || getDefaultRouteForRole(row.role) };
+  }
+
+  // No invite code — re-evaluate so platform admins / existing members route in,
+  // and users who still need a team land back on onboarding's join step.
+  const state = await getOnboardingState();
+  if (state.status === "ready") {
+    return { ok: true, redirectTo: next || state.redirectTo };
+  }
+  return { ok: true, redirectTo: "/onboarding" };
 }

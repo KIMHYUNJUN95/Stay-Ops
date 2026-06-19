@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { DevEntry } from "@/components/dev-entry";
 import { isMobileUserAgent } from "@/lib/mobile-device";
 
 type HomePageProps = {
@@ -44,5 +43,5 @@ export default async function Home({ searchParams }: HomePageProps) {
     redirect("/mobile");
   }
 
-  return <DevEntry />;
+  redirect("/auth/login");
 }

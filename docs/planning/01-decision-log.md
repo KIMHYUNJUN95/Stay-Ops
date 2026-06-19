@@ -2,6 +2,46 @@
 
 This file records important project decisions.
 
+## 2026-06-18
+
+### Onboarding — wire to backend with minimal-wiring scope (keep current page)
+
+Decision: When connecting the finished auth/onboarding design to the real backend, the onboarding step is wired **in place** on the existing `/onboarding` page rather than rebuilt into the new mobile design previews. The profile form gains the required `birthDate` field, and the invite step gets a real **verify → preview → confirm** flow.
+
+Why: The new mobile design only contains onboarding *preview/intro* screens (`view=onboarding`, `view=invite`) inside `/auth/login`; the actual profile-entry form was never designed. Rebuilding `/onboarding` into the new language would require designing an undelivered screen and is out of scope. Minimal wiring unblocks the flow now (onboarding was broken: `completeProfile` required `birth_date`, which the form never collected, so users looped on `needs_profile`).
+
+Impact:
+- `birthDate` (`<input type="date">`) added to the `needs_profile` form.
+- New read-only `previewInviteCode` server action resolves target org name + user-facing role category (`roleToInviteCategory`, never raw DB slug) so org + role are shown before final join — honoring the documented "validate first, then preview, then activate" rule.
+- Profile/join forms extracted to client components (`onboarding-forms.tsx`) + shared `invite-code-field.tsx`.
+- Pre-auth `stayops_locale` cookie is read on `/onboarding` so the chosen language survives login → callback → onboarding.
+- The dead `view=onboarding` / `view=invite` preview branches were removed from `/auth/login`; the `auth.gating.*` i18n keys remain (harmless, unreferenced).
+- Deferred: rebuilding `/onboarding` into the mobile design, a multi-org switcher UI, and invite validity/usage figures in the preview.
+
+### Auth backend — remove `isDevSeedLoginEnabled()` gate from email auth actions
+
+Decision: `isDevSeedLoginEnabled()` checks that blocked `signInWithEmailPassword`, `signUpWithEmail`, and `requestPasswordReset` in `src/app/auth/actions.ts` have been removed. Dev seed login is display-only (login page shows the dev buttons when the env flag is set); it must not prevent real email auth in development.
+
+Why: the guards blocked all real email sign-in/signup/reset while `ENABLE_DEV_SEED_LOGIN=true`, making it impossible to test the real email auth flow locally without toggling the env var.
+
+Impact: `isDevSeedLoginEnabled` import removed from `actions.ts`; dev seed login buttons remain in `page.tsx` UI for development convenience.
+
+### Auth backend — single consistent route-state model for password reset
+
+Decision: all reset redirects use `?view=email&mode=reset` (reset form) and `?view=email&mode=new_password` (set-new-password form). The previous `?view=reset` and `?view=new_password` routes (which didn't match any case in `page.tsx`) are replaced.
+
+Why: the `requestPasswordReset` and `updatePassword` actions were redirecting to query-string states that the login page did not handle, resulting in the main auth entry screen appearing instead of the expected form after a reset link click.
+
+Impact: `requestPasswordReset` errorBase changed; Supabase callback target updated; `updatePassword` errorBase changed; `page.tsx` gained `view=email&mode=new_password` (set new password), `view=email&mode=signup&sent=verify` (verification sent), and `sent=password_updated` success banner.
+
+### Desktop root routing — `DevEntry` removed
+
+Decision: `src/app/page.tsx` now redirects desktop requests to `/auth/login` instead of rendering `DevEntry`. The `DevEntry` component import is removed.
+
+Why: `DevEntry` was a temporary development entry point. The product contract is mobile → `/mobile`, desktop → admin dashboard. Redirecting to `/auth/login` is the correct first step since the login page already handles onboarding state routing.
+
+Impact: `DevEntry` import and render removed from `page.tsx`; OAuth callback passthrough preserved.
+
 ## 2026-06-16
 
 ### Todo Recurrence — switch to Todoist-style single live task (no pre-materialization)
@@ -119,6 +159,8 @@ Organization rules:
 - Login should auto-enter the last-used organization
 - Organization switching is in-app, not on every login
 - Joining an additional organization uses a new team invite code only (no need to re-enter full profile)
+- If signup is retried on an incomplete account, the app should route the user to sign in and continue that same onboarding flow instead of creating a duplicate account
+- `removed` membership is blocked by default, but the user may explicitly enter a re-join flow with another valid team invite code; `suspended` remains hard-blocked
 
 Organization-creation rules:
 
@@ -127,6 +169,7 @@ Organization-creation rules:
 - New organization creation requires an allowed organization-creation path/code
 - Until dashboard management exists, the initial organization / first owner / initial invite codes are
   bootstrapped manually in the database
+- The mobile onboarding flow must not expose a self-claim path for `developer_super_admin`; platform admin bootstrap remains an operational path, not a public onboarding action
 
 Data / account rules:
 

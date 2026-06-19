@@ -1,50 +1,57 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { Globe2, ShieldAlert, ShieldCheck, Ticket, UserRound } from "lucide-react";
-import { signOut } from "@/app/auth/actions";
-import {
-  claimFirstPlatformAdmin,
-  completeProfile,
-  joinOrganizationWithInviteCode,
-} from "@/app/onboarding/actions";
+import { Globe2, Ticket } from "lucide-react";
+import type { InviteCodeFieldCopy } from "@/app/onboarding/invite-code-field";
+import { JoinForm } from "@/app/onboarding/onboarding-forms";
+import { OnboardingWizard } from "@/app/onboarding/onboarding-wizard";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
 import { getOnboardingState } from "@/lib/onboarding";
 import { sanitizeNextPath } from "@/lib/safe-redirect";
+
+const LOCALE_COOKIE = "stayops_locale";
 
 type OnboardingPageProps = {
   searchParams: Promise<{
     error?: string;
     lang?: string;
     next?: string;
+    rejoin?: string;
   }>;
 };
 
 const glassCardClass =
   "rounded-[18px] border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.84),rgba(255,255,255,0.68))] text-slate-950 shadow-[0_26px_80px_rgba(15,23,42,0.12),0_1px_0_rgba(255,255,255,0.78)_inset,0_-1px_0_rgba(15,23,42,0.04)_inset] ring-1 ring-white/55 backdrop-blur-[32px]";
 
-const secondaryCardClass =
-  "rounded-[18px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.74),rgba(255,255,255,0.58))] text-slate-950 shadow-[0_14px_38px_rgba(15,23,42,0.08),0_1px_0_rgba(255,255,255,0.64)_inset] ring-1 ring-white/35 backdrop-blur-2xl";
-
 const iconClass =
   "flex size-12 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary shadow-[0_1px_0_rgba(255,255,255,0.62)_inset] backdrop-blur-xl";
-
-const inputClass =
-  "h-[54px] rounded-lg border-slate-300/70 bg-white/58 px-4 text-base font-semibold text-slate-950 shadow-[0_1px_0_rgba(255,255,255,0.72)_inset] backdrop-blur-xl placeholder:text-slate-400 focus:border-primary focus:ring-primary/15";
 
 export default async function OnboardingPage({
   searchParams,
 }: OnboardingPageProps) {
-  const [state, params] = await Promise.all([
+  const [state, params, cookieStore] = await Promise.all([
     getOnboardingState(),
     searchParams,
+    cookies(),
   ]);
 
-  const requestedLocale = params.lang ?? "";
+  // ?lang= takes priority; the pre-auth locale cookie set during language
+  // selection is the fallback so the choice survives the redirect chain
+  // (login → callback → onboarding) even when no ?lang= param is carried.
+  const cookieLocale = cookieStore.get(LOCALE_COOKIE)?.value ?? "";
+  const requestedLocale = params.lang ?? cookieLocale;
   const queryLocale: Locale = isLocale(requestedLocale) ? requestedLocale : "ko";
   const safeNext = sanitizeNextPath(params.next);
+  const allowRejoin = state.status === "removed" && params.rejoin === "1";
+  const joinProfile =
+    state.status === "needs_membership" || state.status === "removed"
+      ? state.profile
+      : null;
+  const blockedLocale: Locale =
+    state.status === "suspended" || state.status === "removed"
+      ? state.profile.preferredLanguage
+      : queryLocale;
 
   if (state.status === "ready") {
     // Honour `safeNext` when present (e.g. user was mid-flow when session
@@ -60,50 +67,154 @@ export default async function OnboardingPage({
     );
   }
 
-  const locale: Locale =
-    state.status === "needs_membership" ||
+  if (
     state.status === "suspended" ||
-    state.status === "removed"
-      ? state.profile.preferredLanguage
+    (state.status === "removed" && !allowRejoin) ||
+    state.status === "disabled"
+  ) {
+    const blockedParams = new URLSearchParams({
+      view: "blocked",
+      mode: state.status,
+      lang: blockedLocale,
+    });
+    if (safeNext) blockedParams.set("next", safeNext);
+    const blockedEmail =
+      state.status === "disabled" ? state.email : state.user.email ?? "";
+    if (blockedEmail) blockedParams.set("email", blockedEmail);
+    redirect(`/auth/login?${blockedParams.toString()}`);
+  }
+
+  const locale: Locale =
+    joinProfile && (state.status === "needs_membership" || allowRejoin)
+      ? joinProfile.preferredLanguage
       : queryLocale;
   const dictionary = getDictionary(locale);
   const errorMessage = params.error
     ? (dictionary.onboarding.errors[params.error] ?? params.error)
     : null;
   const currentStepTitle =
-    state.status === "needs_membership"
+    state.status === "needs_membership" || allowRejoin
       ? dictionary.onboarding.joinTitle
-      : state.status === "suspended"
-        ? dictionary.onboarding.suspendedTitle
-        : state.status === "removed"
-          ? dictionary.onboarding.removedTitle
-          : dictionary.onboarding.profileTitle;
+      : dictionary.onboarding.profileTitle;
 
-  // Render a blocked screen for suspended/removed users.
-  if (state.status === "suspended" || state.status === "removed") {
-    const isRemoved = state.status === "removed";
+  const o = dictionary.onboarding;
+  const inviteCopy: InviteCodeFieldCopy = {
+    label: o.inviteCodePlaceholder,
+    placeholder: o.inviteCodePlaceholder,
+    hint: o.inviteCodeHint,
+    verifyCta: o.verifyInviteCta,
+    verifiedBadge: o.inviteVerifiedBadge,
+    orgLabel: o.previewOrgLabel,
+    roleLabel: o.previewRoleLabel,
+    changeCode: o.changeInviteCode,
+    errors: o.errors,
+    roleCategories: o.roleCategories,
+  };
+
+  // ── needs_profile → multi-step wizard (Profile Setup redesign) ──────────────
+  if (state.status === "needs_profile") {
     return (
-      <main className="flex min-h-dvh items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_18%,rgba(0,132,135,0.09),transparent_28%),linear-gradient(180deg,hsl(0_0%_100%),hsl(230_28%_96%))] px-5 py-10 text-slate-950">
-        <div className="w-full max-w-md text-center">
-          <div className="mx-auto mb-6 flex size-16 items-center justify-center rounded-full bg-red-100 text-red-600">
-            <ShieldAlert className="size-8" aria-hidden="true" />
-          </div>
-          <h1 className="text-2xl font-black tracking-tight">
-            {currentStepTitle}
-          </h1>
-          <p className="mt-3 text-sm font-medium leading-6 text-slate-600">
-            {isRemoved ? dictionary.onboarding.removedBody : dictionary.onboarding.suspendedBody}
-          </p>
-          <form action={signOut} className="mt-8">
-            <button
-              className="h-[54px] w-full rounded-lg border border-slate-300/80 bg-white/60 text-base font-bold text-slate-700 transition-colors hover:bg-white"
-              type="submit"
-            >
-              {dictionary.common.logout}
-            </button>
-          </form>
-        </div>
-      </main>
+      <OnboardingWizard
+        intro={{
+          title: o.intro.title,
+          subtitle: o.intro.subtitle,
+          itemBasicsTitle: o.intro.itemBasicsTitle,
+          itemBasicsSub: o.intro.itemBasicsSub,
+          itemLangTitle: o.intro.itemLangTitle,
+          itemLangSub: o.intro.itemLangSub,
+          itemInviteTitle: o.intro.itemInviteTitle,
+          itemInviteSub: o.intro.itemInviteSub,
+          startCta: o.intro.startCta,
+        }}
+        steps={{
+          basicsEyebrow: o.steps.basicsEyebrow,
+          continueCta: o.steps.continueCta,
+          nameTitle: o.steps.nameTitle,
+          nameSubtitle: o.steps.nameSubtitle,
+          nameLabel: o.steps.nameLabel,
+          nameHint: o.steps.nameHint,
+          dobTitle: o.steps.dobTitle,
+          dobSubtitle: o.steps.dobSubtitle,
+          dobYearLabel: o.steps.dobYearLabel,
+          dobMonthLabel: o.steps.dobMonthLabel,
+          dobDayLabel: o.steps.dobDayLabel,
+          dobYearPlaceholder: o.steps.dobYearPlaceholder,
+          dobMonthPlaceholder: o.steps.dobMonthPlaceholder,
+          dobDayPlaceholder: o.steps.dobDayPlaceholder,
+          dobHint: o.steps.dobHint,
+          dobSheetTitle: o.steps.dobSheetTitle,
+          dobConfirm: o.steps.dobConfirm,
+          phoneTitle: o.steps.phoneTitle,
+          phoneSubtitle: o.steps.phoneSubtitle,
+          phoneNumLabel: o.steps.phoneNumLabel,
+          phoneInputPlaceholder: o.steps.phoneInputPlaceholder,
+          phoneHint: o.steps.phoneHint,
+          phoneCountrySheetTitle: o.steps.phoneCountrySheetTitle,
+        }}
+        countries={o.countries}
+        join={{
+          inviteEyebrow: o.joinFlow.inviteEyebrow,
+          inviteTitle: o.joinFlow.inviteTitle,
+          inviteSubtitle: o.joinFlow.inviteSubtitle,
+          caseHint: o.joinFlow.caseHint,
+          verifyCta: o.joinFlow.verifyCta,
+          checking: o.joinFlow.checking,
+          skip: o.joinFlow.skip,
+          invalidTitle: o.joinFlow.invalidTitle,
+          confirmEyebrow: o.joinFlow.confirmEyebrow,
+          confirmTitle: o.joinFlow.confirmTitle,
+          confirmSubtitle: o.joinFlow.confirmSubtitle,
+          roleLabel: o.joinFlow.roleLabel,
+          verified: o.joinFlow.verified,
+          joinCta: o.joinFlow.joinCta,
+          codePlaceholder: o.inviteCodePlaceholder,
+          orgLabel: o.previewOrgLabel,
+          errors: o.errors,
+          roleCategories: o.roleCategories,
+        }}
+        review={{
+          title: o.review.title,
+          subtitle: o.review.subtitle,
+          rowName: o.review.rowName,
+          rowDob: o.review.rowDob,
+          rowPhone: o.review.rowPhone,
+          rowLang: o.review.rowLang,
+          rowOrg: o.review.rowOrg,
+          rowRole: o.review.rowRole,
+          edit: o.review.edit,
+          infoTitle: o.review.infoTitle,
+          infoBody: o.review.infoBody,
+          submit: o.review.submit,
+        }}
+        success={{
+          eyebrow: o.success.eyebrow,
+          welcomePrefix: o.success.welcomePrefix,
+          welcomeSuffix: o.success.welcomeSuffix,
+          bodyJoined: o.success.bodyJoined,
+          bodyNoTeam: o.success.bodyNoTeam,
+          startCta: o.success.startCta,
+        }}
+        languageName={dictionary.languages[locale]}
+        profile={{
+          copy: {
+            nameLabel: o.fullNamePlaceholder,
+            namePlaceholder: o.fullNamePlaceholder,
+            birthDateLabel: o.birthDateLabel,
+            birthDatePlaceholder: o.birthDatePlaceholder,
+            birthDateHint: o.birthDateHint,
+            phoneLabel: o.phonePlaceholder,
+            phonePlaceholder: o.phonePlaceholder,
+            phoneHint: o.phoneHint,
+            languageLabel: dictionary.auth.languageSelector,
+            languages: dictionary.languages,
+            continueCta: o.saveProfile,
+            joinTeamCta: o.joinTeamCta,
+            invite: inviteCopy,
+          },
+          locale,
+          safeNext,
+        }}
+      />
     );
   }
 
@@ -137,82 +248,7 @@ export default async function OnboardingPage({
         )}
 
         <div className="grid gap-4 md:grid-cols-2">
-          {state.status === "needs_profile" && (
-            <Card className={`${glassCardClass} p-6 md:col-span-2 md:p-8`}>
-              <div className={iconClass}>
-                <UserRound className="size-6" aria-hidden="true" />
-              </div>
-              <h2 className="mt-5 text-2xl font-black tracking-[-0.03em]">
-                {dictionary.onboarding.profileTitle}
-              </h2>
-              <form action={completeProfile} className="mt-6 grid gap-4">
-                {safeNext && <input name="next" type="hidden" value={safeNext} />}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block space-y-2">
-                    <span className="text-sm font-bold text-slate-950">
-                      {dictionary.onboarding.fullNamePlaceholder}
-                    </span>
-                    <Input
-                      className={inputClass}
-                      name="name"
-                      placeholder={dictionary.onboarding.fullNamePlaceholder}
-                      required
-                      type="text"
-                    />
-                  </label>
-                  <label className="block space-y-2">
-                    <span className="text-sm font-bold text-slate-950">
-                      {dictionary.onboarding.phonePlaceholder}
-                    </span>
-                    <Input
-                      className={inputClass}
-                      name="phoneNumber"
-                      placeholder={dictionary.onboarding.phonePlaceholder}
-                      required
-                      type="tel"
-                    />
-                  </label>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block space-y-2">
-                    <span className="text-sm font-bold text-slate-950">
-                      {dictionary.auth.languageSelector}
-                    </span>
-                    <select
-                      className={`${inputClass} w-full outline-none`}
-                      defaultValue={locale}
-                      name="preferredLanguage"
-                    >
-                      <option value="ko">{dictionary.languages.ko}</option>
-                      <option value="ja">{dictionary.languages.ja}</option>
-                      <option value="en">{dictionary.languages.en}</option>
-                    </select>
-                  </label>
-                  <label className="block space-y-2">
-                    <span className="text-sm font-bold text-slate-950">
-                      {dictionary.onboarding.inviteCodeOptionalPlaceholder}
-                    </span>
-                    <Input
-                      className={inputClass}
-                      name="inviteCode"
-                      placeholder={
-                        dictionary.onboarding.inviteCodeOptionalPlaceholder
-                      }
-                      type="text"
-                    />
-                  </label>
-                </div>
-                <Button
-                  className="h-[54px] w-full rounded-lg bg-primary text-base font-black text-white shadow-[0_14px_34px_hsl(var(--primary-hsl)/0.18)] hover:bg-primary/90"
-                  type="submit"
-                >
-                  {dictionary.onboarding.saveProfile}
-                </Button>
-              </form>
-            </Card>
-          )}
-
-          {state.status === "needs_membership" && (
+          {joinProfile && (state.status === "needs_membership" || allowRejoin) && (
             <Card className={`${glassCardClass} p-6 md:p-8`}>
               <div className={iconClass}>
                 <Ticket className="size-6" aria-hidden="true" />
@@ -221,61 +257,14 @@ export default async function OnboardingPage({
                 {dictionary.onboarding.joinTitle}
               </h2>
               <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
-                {dictionary.onboarding.joinBody(state.profile.name)}
+                {dictionary.onboarding.joinBody(joinProfile.name)}
               </p>
-              <form
-                action={joinOrganizationWithInviteCode}
-                className="mt-6 space-y-4"
-              >
-                {safeNext && <input name="next" type="hidden" value={safeNext} />}
-                <label className="block space-y-2">
-                  <span className="text-sm font-bold text-slate-950">
-                    {dictionary.onboarding.inviteCodePlaceholder}
-                  </span>
-                  <Input
-                    autoCapitalize="characters"
-                    className={inputClass}
-                    name="inviteCode"
-                    placeholder={dictionary.onboarding.inviteCodePlaceholder}
-                    required
-                    type="text"
-                  />
-                </label>
-                <Button
-                  className="h-[54px] w-full rounded-lg bg-primary text-base font-black text-white shadow-[0_14px_34px_hsl(var(--primary-hsl)/0.18)] hover:bg-primary/90"
-                  type="submit"
-                >
-                  {dictionary.onboarding.join}
-                </Button>
-              </form>
+              <JoinForm
+                copy={{ joinTeamCta: o.joinTeamCta, invite: inviteCopy }}
+                safeNext={safeNext}
+              />
             </Card>
           )}
-
-          {(state.status === "needs_profile" ||
-            state.status === "needs_membership") &&
-            state.canClaimPlatformAdmin && (
-              <Card className={`${secondaryCardClass} p-6 md:p-8`}>
-                <div className={iconClass}>
-                  <ShieldCheck className="size-6" aria-hidden="true" />
-                </div>
-                <h2 className="mt-5 text-2xl font-black tracking-[-0.03em]">
-                  {dictionary.onboarding.firstAdminTitle}
-                </h2>
-                <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
-                  {dictionary.onboarding.firstAdminBody}
-                </p>
-                <form action={claimFirstPlatformAdmin} className="mt-5">
-                  <Button
-                    className="h-12 w-full rounded-lg border-white/70 bg-white/58 text-slate-800 shadow-[0_1px_0_rgba(255,255,255,0.62)_inset] backdrop-blur-xl hover:bg-white/72"
-                    disabled={state.status === "needs_profile"}
-                    type="submit"
-                    variant="secondary"
-                  >
-                    {dictionary.onboarding.claimAdmin}
-                  </Button>
-                </form>
-              </Card>
-            )}
         </div>
       </section>
     </main>

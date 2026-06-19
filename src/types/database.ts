@@ -1616,10 +1616,12 @@ export type Database = {
       profiles: {
         Insert: {
           age?: number | null;
+          birth_date?: string | null;
           bottom_nav_tabs?: string[];
           can_generate_report?: boolean;
           created_at?: string;
           id: string;
+          last_used_organization_id?: string | null;
           name: string;
           phone_number: string;
           preferred_language?: Database["public"]["Enums"]["app_language"];
@@ -1629,10 +1631,12 @@ export type Database = {
         };
         Row: {
           age: number | null;
+          birth_date: string | null;
           bottom_nav_tabs: string[];
           can_generate_report: boolean;
           created_at: string;
           id: string;
+          last_used_organization_id: string | null;
           name: string;
           phone_number: string;
           preferred_language: Database["public"]["Enums"]["app_language"];
@@ -1642,10 +1646,12 @@ export type Database = {
         };
         Update: {
           age?: number | null;
+          birth_date?: string | null;
           bottom_nav_tabs?: string[];
           can_generate_report?: boolean;
           created_at?: string;
           id?: string;
+          last_used_organization_id?: string | null;
           name?: string;
           phone_number?: string;
           preferred_language?: Database["public"]["Enums"]["app_language"];

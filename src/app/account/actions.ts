@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sanitizeBottomNavTabIds } from "@/config/navigation";
 import { isLocale } from "@/lib/i18n";
-import { isValidPhone } from "@/lib/onboarding";
+import { isValidBirthDate, isValidPhone } from "@/lib/onboarding";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
@@ -25,6 +25,7 @@ export async function updateAccountProfile(formData: FormData) {
 
   const mode = String(formData.get("mode") ?? "admin");
   const name = String(formData.get("name") ?? "").trim();
+  const birthDate = String(formData.get("birthDate") ?? "").trim();
   const phoneNumber = String(formData.get("phoneNumber") ?? "").trim();
   const preferredLanguage = String(formData.get("preferredLanguage") ?? "");
 
@@ -40,16 +41,27 @@ export async function updateAccountProfile(formData: FormData) {
     toAccountRedirect(mode, "error=phone_invalid");
   }
 
+  if (birthDate && !isValidBirthDate(birthDate)) {
+    toAccountRedirect(mode, "error=missing_birth_date");
+  }
+
   const { error } = await getSupabaseServiceClient()
     .from("profiles")
     .update({
       name,
+      ...(birthDate ? { birth_date: birthDate } : {}),
       phone_number: phoneNumber,
       preferred_language: preferredLanguage,
     } as never)
     .eq("id", user.id);
 
   if (error) {
+    if (
+      error.code === "23505" ||
+      error.message.toLowerCase().includes("profiles_phone_number_unique")
+    ) {
+      toAccountRedirect(mode, "error=phone_duplicate");
+    }
     toAccountRedirect(mode, "error=profile_failed");
   }
 

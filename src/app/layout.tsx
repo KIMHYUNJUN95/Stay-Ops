@@ -1,5 +1,11 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Noto_Serif } from "next/font/google";
+import {
+  Geist,
+  Geist_Mono,
+  Noto_Sans_JP,
+  Noto_Sans_KR,
+  Noto_Serif,
+} from "next/font/google";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { getCurrentAppSession } from "@/lib/session";
 import "./globals.css";
@@ -12,6 +18,21 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// CJK body fonts — match the design handoff's Korean/Japanese weight (incl. 900/black).
+// Geist has no CJK glyphs, so Hangul/Kana previously fell back to a system font with
+// no true black weight. preload:false keeps these large fonts off the critical path.
+const notoSansKr = Noto_Sans_KR({
+  variable: "--font-noto-kr",
+  weight: ["400", "500", "700", "800", "900"],
+  preload: false,
+});
+
+const notoSansJp = Noto_Sans_JP({
+  variable: "--font-noto-jp",
+  weight: ["400", "500", "700", "800", "900"],
+  preload: false,
 });
 
 // Wordmark font — serif italic used for the "Stay Ops" brand mark across all shells.
@@ -43,7 +64,7 @@ export default async function RootLayout({
   return (
     <html
       lang={session?.user.preferredLanguage ?? "ko"}
-      className={`${geistSans.variable} ${geistMono.variable} ${notoSerif.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${notoSansKr.variable} ${notoSansJp.variable} ${notoSerif.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
