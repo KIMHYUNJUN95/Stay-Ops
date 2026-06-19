@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isLocale, type Locale } from "@/lib/i18n";
 import { getOnboardingState } from "@/lib/onboarding";
@@ -9,7 +9,22 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 const LOCALE_COOKIE = "stayops_locale";
 
-function getAppUrl() {
+/**
+ * Origin used to build OAuth / email callback URLs. Derived from the actual
+ * request host (so it matches whatever domain the user is on — production,
+ * preview, or local LAN IP) instead of a static env var. Falls back to
+ * NEXT_PUBLIC_APP_URL, then localhost. Supabase's redirect allow-list remains the
+ * security boundary — a spoofed host can't redirect anywhere not on the list.
+ */
+async function getAppUrl() {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  if (host) {
+    const proto =
+      h.get("x-forwarded-proto") ??
+      (/^(localhost|127\.|192\.168\.|10\.|172\.)/.test(host) ? "http" : "https");
+    return `${proto}://${host}`;
+  }
   return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 }
 
@@ -162,7 +177,7 @@ export async function signUpWithEmail(formData: FormData) {
     email,
     password,
     options: {
-      emailRedirectTo: `${getAppUrl()}/auth/callback?next=${encodeURIComponent(callbackNext)}`,
+      emailRedirectTo: `${await getAppUrl()}/auth/callback?next=${encodeURIComponent(callbackNext)}`,
     },
   });
 
@@ -200,7 +215,7 @@ export async function requestPasswordReset(formData: FormData) {
 
   const supabase = await getSupabaseServerClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${getAppUrl()}/auth/callback?next=${encodeURIComponent(
+    redirectTo: `${await getAppUrl()}/auth/callback?next=${encodeURIComponent(
       `/auth/login?view=email&mode=new_password&next=${encodeURIComponent(next)}${langParam}`,
     )}`,
   });
@@ -278,7 +293,7 @@ export async function signInWithGoogle(formData: FormData) {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${getAppUrl()}/auth/callback?next=${encodeURIComponent(callbackNext)}`,
+      redirectTo: `${await getAppUrl()}/auth/callback?next=${encodeURIComponent(callbackNext)}`,
       queryParams: { prompt: "select_account" },
     },
   });
