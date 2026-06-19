@@ -724,7 +724,7 @@ export function OnboardingWizard({
   if (step >= 8) {
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
         <ProgressHeader step={4} />
@@ -754,7 +754,7 @@ export function OnboardingWizard({
       : success.bodyNoTeam;
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
         <header className="h-[48px] flex-none" />
@@ -797,7 +797,7 @@ export function OnboardingWizard({
     const phoneDisplay = `${selectedCountry.dial} ${nationalDigits}`;
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
         <ProgressHeader step={4} />
@@ -904,7 +904,7 @@ export function OnboardingWizard({
     const roleLabel = join.roleCategories[preview.roleCategory] ?? preview.roleCategory;
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
         <ProgressHeader step={4} />
@@ -960,7 +960,7 @@ export function OnboardingWizard({
     const verifying = inviteStatus === "verifying";
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
         <ProgressHeader step={4} />
@@ -1054,7 +1054,7 @@ export function OnboardingWizard({
   if (step === 3) {
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
         <ProgressHeader step={3} />
@@ -1128,7 +1128,7 @@ export function OnboardingWizard({
   if (step === 2) {
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
         <ProgressHeader step={2} />
@@ -1196,7 +1196,7 @@ export function OnboardingWizard({
     const isGood = name.trim().length > 0;
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
         <ProgressHeader step={1} />
@@ -1251,7 +1251,7 @@ export function OnboardingWizard({
   // ── Step 0 · Intro ───────────────────────────────────────────────────────────
   return (
     <main
-      className="flex min-h-dvh flex-col text-foreground"
+      className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
       style={{ background: IVORY_BG }}
     >
       <header className="h-[48px] flex-none" />

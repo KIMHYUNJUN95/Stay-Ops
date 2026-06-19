@@ -512,7 +512,7 @@ export function MobileShell({
         <aside
           aria-label={dictionary.common.menu}
           className={cn(
-            "fixed inset-y-0 left-0 z-[60] flex w-[78%] max-w-[318px] flex-col overflow-hidden border-r border-border bg-[linear-gradient(180deg,#fbf8f1_0%,#f4efe4_100%)] px-5 pb-6 pt-5 text-foreground",
+            "fixed inset-y-0 left-0 z-[60] flex w-[78%] max-w-[318px] flex-col overflow-hidden border-r border-border bg-[linear-gradient(180deg,#fbf8f1_0%,#f4efe4_100%)] px-5 pb-6 pt-[max(20px,env(safe-area-inset-top))] text-foreground",
             sidebarOpen
               ? "shadow-[30px_0_82px_-46px_rgba(15,23,42,0.68)]"
               : "shadow-none",
@@ -651,7 +651,7 @@ export function MobileShell({
         </aside>
 
         <div
-          className="relative flex h-dvh w-full flex-col overflow-hidden bg-background"
+          className="relative flex h-dvh w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)]"
         >
           <div
             className={cn(

@@ -285,7 +285,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     const resendHref = forgotHref;
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{
           background:
             "radial-gradient(120% 50% at 50% -6%, hsl(42 36% 95%) 42%, hsl(42 30% 93%) 100%)",
@@ -356,7 +356,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   if (params.view === "email" && params.mode === "new_password") {
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{
           background:
             "radial-gradient(120% 50% at 50% -6%, hsl(42 36% 95%) 42%, hsl(42 30% 93%) 100%)",
@@ -407,7 +407,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   if (params.view === "email" && params.mode === "reset") {
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{
           background:
             "radial-gradient(120% 50% at 50% -6%, hsl(42 36% 95%) 42%, hsl(42 30% 93%) 100%)",
@@ -457,7 +457,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   if (params.view === "email" && params.mode === "signup" && params.sent === "verify") {
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{
           background:
             "radial-gradient(120% 50% at 50% -6%, hsl(42 36% 95%) 42%, hsl(42 30% 93%) 100%)",
@@ -529,7 +529,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
     const shell = (inner: React.ReactNode) => (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{
           background:
             "radial-gradient(120% 50% at 50% -6%, hsl(42 36% 95%) 42%, hsl(42 30% 93%) 100%)",
@@ -900,7 +900,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     const cfg = configs[params.mode ?? ""] ?? configs.suspended;
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{
           background:
             "radial-gradient(120% 50% at 50% -6%, hsl(42 36% 95%) 42%, hsl(42 30% 93%) 100%)",
@@ -969,7 +969,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   if (params.view === "email" && params.mode === "signup") {
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{
           background:
             "radial-gradient(120% 50% at 50% -6%, hsl(42 36% 95%) 42%, hsl(42 30% 93%) 100%)",
@@ -1031,7 +1031,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   if (params.view === "email") {
     return (
       <main
-        className="flex min-h-dvh flex-col text-foreground"
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{
           background:
             "radial-gradient(120% 50% at 50% -6%, hsl(42 36% 95%) 42%, hsl(42 30% 93%) 100%)",
@@ -1115,7 +1115,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   return (
     <main
-      className="flex min-h-dvh flex-col text-foreground"
+      className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
       style={{
         background:
           "radial-gradient(120% 50% at 50% -6%, hsl(42 36% 95%) 42%, hsl(42 30% 93%) 100%)",

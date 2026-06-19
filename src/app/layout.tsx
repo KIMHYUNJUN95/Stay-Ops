@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import {
   Geist,
   Geist_Mono,
@@ -52,6 +52,17 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "StayOps",
   },
+};
+
+// viewportFit: "cover" makes the app go edge-to-edge so safe-area-inset-* env()
+// values are non-zero on notched devices (the mobile shell pads the top notch and
+// bottom home-indicator with them). themeColor tints the browser top chrome /
+// address bar the warm ivory so it blends with the app instead of a grey band.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#f7f4ee",
 };
 
 export default async function RootLayout({
