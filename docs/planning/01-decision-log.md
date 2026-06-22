@@ -1596,18 +1596,24 @@ Decision: the mobile sidebar scrim uses **different paint rules by display mode*
 
 - **browser mode**: keep the 1px transparent edge-row trick so Safari samples the ivory page edge
   and does not darken its own top/bottom browser chrome
-- **standalone / Add to Home Screen mode**: use a full-bleed scrim with no transparent safe-area
-  band so no horizontal seam appears below the status bar or above the home indicator
+- **standalone / Add to Home Screen mode**: do **not** dim the shared status/header zone or the
+  bottom-tab zone; only the middle content span is darkened
 
 Reason: one universal scrim could not satisfy both iOS modes. Browser-mode Safari needs a visible
 page-edge sample to keep its chrome light, but in installed standalone mode there is no Safari URL
-toolbar to protect, so keeping the whole `env(safe-area-inset-*)` band transparent just exposed a
-hard horizontal transition line. The real fix is mode-aware behavior, not a compromise value.
+toolbar to protect, and a full-bleed dark overlay painted the system status bar area black. Keeping
+the whole `env(safe-area-inset-*)` band transparent also exposed hard horizontal transition lines.
+The real fix is mode-aware behavior, not a compromise value.
 
 Impact:
 - `src/components/shell/mobile-shell.tsx` detects standalone using
   `matchMedia("(display-mode: standalone)")` plus legacy `navigator.standalone`.
-- Sidebar scrim is full-bleed in standalone, gradient edge-sampled only in browser mode.
+- Sidebar scrim is edge-sampled in browser mode, but in standalone it skips the top
+  `safe-area + 64px header` band and the bottom tab-bar band so the drawer reads more like a native
+  overlay and never paints the system top area dark.
+- The sidebar panel and scrim are shell-local `absolute` layers instead of viewport-fixed layers,
+  and the scrim mounts only while the drawer is open. This removes the hidden closed-state
+  full-screen scrim layer that iOS standalone could keep sampling for the top status-bar paint.
 
 Status: Confirmed (2026-06-22).
 

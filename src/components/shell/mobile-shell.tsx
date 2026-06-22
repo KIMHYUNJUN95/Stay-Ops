@@ -570,6 +570,13 @@ export function MobileShell({
   const leftTabs = bottomItems.slice(0, splitAt);
   const rightTabs = bottomItems.slice(splitAt);
   const isBarFull = navTabIds.length >= MAX_BOTTOM_NAV_TABS;
+  const standaloneScrimHeaderClear = "calc(env(safe-area-inset-top) + 64px)";
+  const standaloneScrimFooterClear = hideBottomNav
+    ? "env(safe-area-inset-bottom)"
+    : "calc(env(safe-area-inset-bottom) + 88px)";
+  const sidebarScrimBackground = isStandaloneDisplayMode
+    ? `linear-gradient(to bottom, transparent 0, transparent ${standaloneScrimHeaderClear}, rgba(2,6,23,0.42) ${standaloneScrimHeaderClear}, rgba(2,6,23,0.42) calc(100% - ${standaloneScrimFooterClear}), transparent calc(100% - ${standaloneScrimFooterClear}), transparent 100%)`
+    : "linear-gradient(to bottom, transparent 0, transparent max(1px, env(safe-area-inset-top)), rgba(2,6,23,0.42) max(1px, env(safe-area-inset-top)), rgba(2,6,23,0.42) calc(100% - max(1px, env(safe-area-inset-bottom))), transparent calc(100% - max(1px, env(safe-area-inset-bottom))), transparent 100%)";
 
   const renderTab = (item: (typeof bottomItems)[number]) => {
     const isActive = item.id === activeItem;
@@ -631,7 +638,7 @@ export function MobileShell({
         <aside
           aria-label={dictionary.common.menu}
           className={cn(
-            "fixed inset-y-0 left-0 z-[60] flex w-[78%] max-w-[318px] flex-col overflow-hidden bg-[linear-gradient(180deg,#fbf8f1_0%,#f4efe4_100%)] px-5 pb-6 pt-[max(20px,env(safe-area-inset-top))] text-foreground",
+            "absolute inset-y-0 left-0 z-[60] flex w-[78%] max-w-[318px] flex-col overflow-hidden bg-[linear-gradient(180deg,#fbf8f1_0%,#f4efe4_100%)] px-5 pb-6 pt-[max(20px,env(safe-area-inset-top))] text-foreground",
             sidebarOpen
               ? "shadow-[30px_0_82px_-46px_rgba(15,23,42,0.68)]"
               : "shadow-none",
@@ -1044,28 +1051,24 @@ export function MobileShell({
             </BottomSheet>
           ) : null}
 
-          <button
-            aria-label={dictionary.common.menu}
-          className={cn(
-              // Keep the dismiss target full-screen, but leave transparent top/bottom bands in the
-              // *painted* scrim so Safari samples the ivory page edge instead of a dark overlay.
-              // `safe-area-inset-*` alone only protects standalone/PWA bands; regular Safari's own
-              // browser chrome is outside those insets, so a full-bleed dark scrim can still tint
-              // the status bar / URL toolbar dark when the sidebar opens. Use only the literal edge
-              // rows in browser mode (`max(1px, env(...))`) so the chrome-sampling fix stays
-              // invisible instead of showing horizontal bright seams at the top/bottom.
-              "fixed inset-0 z-[50]",
-              sidebarOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
-            )}
-            onClick={() => setSidebarOpen(false)}
-            style={{
-              background: isStandaloneDisplayMode
-                ? "rgba(2,6,23,0.42)"
-                : "linear-gradient(to bottom, transparent 0, transparent max(1px, env(safe-area-inset-top)), rgba(2,6,23,0.42) max(1px, env(safe-area-inset-top)), rgba(2,6,23,0.42) calc(100% - max(1px, env(safe-area-inset-bottom))), transparent calc(100% - max(1px, env(safe-area-inset-bottom))), transparent 100%)",
-              transition: "opacity 540ms ease",
-            }}
-            type="button"
-          />
+          {sidebarOpen ? (
+            <button
+              aria-label={dictionary.common.menu}
+              className={cn(
+                // Keep the dismiss target confined to the shared mobile shell rather than a
+                // viewport-fixed layer. On iOS Safari / standalone, an invisible full-screen fixed
+                // scrim can keep influencing the status-bar paint even after close; mounting this
+                // only while open avoids that lingering chrome tint.
+                "absolute inset-0 z-[50] opacity-100",
+              )}
+              onClick={() => setSidebarOpen(false)}
+              style={{
+                background: sidebarScrimBackground,
+                transition: "opacity 240ms ease",
+              }}
+              type="button"
+            />
+          ) : null}
         </div>
       </div>
     </main>
