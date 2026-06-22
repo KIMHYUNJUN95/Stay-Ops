@@ -641,7 +641,7 @@ export function MobileShell({
         <aside
           aria-label={dictionary.common.menu}
           className={cn(
-            "absolute inset-y-0 left-0 z-[60] flex w-full flex-col overflow-hidden bg-[linear-gradient(180deg,#fbf8f1_0%,#f4efe4_100%)] px-5 pb-6 pt-[max(20px,env(safe-area-inset-top))] text-foreground",
+            "absolute inset-y-0 left-0 z-[60] flex w-full flex-col overflow-hidden bg-[linear-gradient(180deg,var(--background)_0%,var(--background)_96px,#f4efe4_100%)] px-5 pb-6 pt-[max(20px,env(safe-area-inset-top))] text-foreground",
           )}
           style={{
             transform: sidebarOpen ? "translate3d(0, 0, 0)" : "translate3d(-100%, 0, 0)",

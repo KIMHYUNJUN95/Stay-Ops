@@ -1640,6 +1640,8 @@ Impact:
   right-edge panel shadow used by the old partial drawer.
 - The existing close button and slide-in/out transition remain.
 - The shared top bar and bottom tab bar still hide while the menu is open.
+- The sheet top starts with `var(--background)` for the first 96px before fading into the warmer
+  sidebar gradient, matching the iOS status-bar / root canvas color so the top reads as one surface.
 
 Status: Confirmed (2026-06-22).
 
