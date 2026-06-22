@@ -123,6 +123,8 @@ export async function getOrderRequestById(
       console.warn("[order-requests] detail unavailable, returning null:", msg);
       return null;
     }
+    // A malformed (non-UUID) id in the URL → treat as not-found, not a 500 crash.
+    if (error.code === "22P02") return null;
     throw new Error(msg);
   }
   if (!data) return null;

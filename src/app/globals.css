@@ -60,6 +60,22 @@ summary,
   touch-action: manipulation;
 }
 
+/* Keyboard focus ring: the global tap-highlight removal + per-component `outline-none` left keyboard
+   users with no visible focus. This baseline restores it (only for keyboard/:focus-visible, so it
+   never shows on touch/mouse). Components that draw their own ring still win. */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Respect reduced-motion for Tailwind's animate-spin (Tailwind does not disable it by default) —
+   covers every spinner (PTR, submit buttons, sheets). */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin {
+    animation: none;
+  }
+}
+
 /* iOS-style route transitions for /mobile/* (driven by src/app/mobile/template.tsx).
    Forward = push in from the right; back = pop in from the left. A subtle slide + fade (not a full
    100% slide) so nothing reveals blank canvas behind the incoming screen. Honors reduced-motion. */

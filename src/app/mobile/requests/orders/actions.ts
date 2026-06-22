@@ -148,11 +148,15 @@ export async function updateOrderRequestStatus(
     }
   }
 
-  const { error: updateError } = await supabase
+  const { data: updatedRows, error: updateError } = await supabase
     .from("order_requests")
     .update(updatePayload as never)
     .eq("id", input.orderId)
-    .eq("organization_id", session.organization.id);
+    .eq("organization_id", session.organization.id)
+    // Guard against a lost update: only transition from the status we validated against. If another
+    // user already moved it, 0 rows match and we report invalid_transition instead of overwriting.
+    .eq("status", current.status)
+    .select("id");
 
   if (updateError) {
     const msg = updateError.message.toLowerCase();
@@ -160,6 +164,9 @@ export async function updateOrderRequestStatus(
       return { ok: false, error: "forbidden" };
     }
     return { ok: false, error: "save_failed" };
+  }
+  if (!updatedRows || updatedRows.length === 0) {
+    return { ok: false, error: "invalid_transition" };
   }
 
   if (input.targetStatus === "ordered") {
@@ -260,11 +267,14 @@ export async function updateOrderDeliveryDate(
         }
       : { delivery_date: input.deliveryDate, delivery_start_date: null, delivery_end_date: null };
 
-  const { error: updateError } = await supabase
+  const { data: updatedRows, error: updateError } = await supabase
     .from("order_requests")
     .update(updatePayload as never)
     .eq("id", input.orderId)
-    .eq("organization_id", session.organization.id);
+    .eq("organization_id", session.organization.id)
+    // Only edit while still in the status we validated (ordered); 0 rows → it changed under us.
+    .eq("status", current.status)
+    .select("id");
 
   if (updateError) {
     const msg = updateError.message.toLowerCase();
@@ -272,6 +282,9 @@ export async function updateOrderDeliveryDate(
       return { ok: false, error: "forbidden" };
     }
     return { ok: false, error: "save_failed" };
+  }
+  if (!updatedRows || updatedRows.length === 0) {
+    return { ok: false, error: "invalid_transition" };
   }
 
   // Notify the requester that the delivery date changed (self-suppressed for the editor).

@@ -367,7 +367,7 @@ export function TaskCard({
       >
         <p
           className={cn(
-            "text-sm font-extrabold leading-snug tracking-[-0.01em]",
+            "line-clamp-2 break-words text-sm font-extrabold leading-snug tracking-[-0.01em]",
             done ? "text-slate-400 line-through" : "text-foreground",
           )}
         >

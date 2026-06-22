@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { OfflineAutoReload } from "@/app/offline/offline-auto-reload";
 
 export const metadata: Metadata = {
   title: "오프라인 · StayOps",
@@ -23,6 +24,7 @@ export default function OfflinePage() {
         <br />
         You’re offline. We’ll reload automatically once you’re back online.
       </p>
+      <OfflineAutoReload />
     </main>
   );
 }

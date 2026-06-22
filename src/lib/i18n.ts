@@ -4718,7 +4718,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       contextPickerSearch: "ゲスト名または予約番号で検索…",
       contextPickerGuestOnly: "ゲスト名を直接入力",
       contextPickerGuestLabel: "ゲスト名",
-      contextPickerGuestSub: "Beds24に予約データがない場合や누락がある場合に使用",
+      contextPickerGuestSub: "Beds24に予約データがない場合や漏れがある場合に使用",
       contextPickerGuestHint: "期間の制限なく名前で連携できます。Beds24データがなくてもタスクにゲストを紐づけられます。",
       contextPickerGuestConfirm: "名前で連携",
       contextPickerTodayGuests: "今日の投宿",

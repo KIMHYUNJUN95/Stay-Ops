@@ -841,6 +841,8 @@ export async function getTaskDetail(
     .maybeSingle();
   if (error) {
     if (isMissingTable(error.message ?? "")) return null;
+    // A malformed (non-UUID) id in the URL → treat as not-found, not a 500 crash.
+    if (error.code === "22P02") return null;
     throw new Error(error.message);
   }
   if (!data) return null;

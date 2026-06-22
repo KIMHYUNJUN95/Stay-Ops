@@ -7,14 +7,24 @@
 export type NavDirection = "forward" | "back";
 
 let pending: NavDirection = "forward";
+let stampedAt = 0;
 
 export function setNavDirection(direction: NavDirection): void {
   pending = direction;
+  stampedAt = typeof performance !== "undefined" ? performance.now() : 0;
 }
 
-/** Read and reset the pending direction (defaults back to "forward"). */
+/**
+ * Read and reset the pending direction (defaults back to "forward"). A "back" flag is only honored
+ * if it was set very recently — otherwise a `goBack()` that navigated to a screen which doesn't
+ * mount the mobile template (e.g. /account, /admin) would leave "back" stuck and mis-animate the
+ * NEXT forward navigation as a pop.
+ */
 export function consumeNavDirection(): NavDirection {
-  const direction = pending;
+  const now = typeof performance !== "undefined" ? performance.now() : 0;
+  const fresh = stampedAt > 0 && now - stampedAt < 1200;
+  const direction = fresh ? pending : "forward";
   pending = "forward";
+  stampedAt = 0;
   return direction;
 }

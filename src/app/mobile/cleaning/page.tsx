@@ -466,11 +466,11 @@ function SettingTargetCard({
           className="pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full bg-slate-300/80"
         />
         <div className="min-w-0 flex-1 pl-1">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-slate-50 text-slate-600 ring-1 ring-slate-200/80">
               <DoorOpen className="size-4.5" aria-hidden="true" />
             </span>
-            <p className="text-[16px] font-black leading-tight tracking-[-0.03em] text-slate-950 md:text-base">{getLocalizedRoomTitle(target.canonicalPropertyName, target.canonicalRoomLabel, copy)}</p>
+            <p className="truncate text-[16px] font-black leading-tight tracking-[-0.03em] text-slate-950 md:text-base">{getLocalizedRoomTitle(target.canonicalPropertyName, target.canonicalRoomLabel, copy)}</p>
           </div>
           <p className="mt-2 flex items-center gap-1.5 truncate text-xs font-semibold text-slate-500">
             <UsersRound className="size-3.5 shrink-0 text-slate-400" aria-hidden="true" />

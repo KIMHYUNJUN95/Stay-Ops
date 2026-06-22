@@ -267,29 +267,41 @@ export function MobileShell({
     [updateVisibility],
   );
 
+  // Key restore by the FULL url (path + query), not just pathname — list screens vary their content
+  // by query (?view=, ?month=, ?date=) on a single pathname, so a path-only key restored a position
+  // saved from a different (taller/shorter) variant.
+  const routeKey = useCallback(
+    () =>
+      typeof window !== "undefined"
+        ? window.location.pathname + window.location.search
+        : pathname,
+    [pathname],
+  );
+
   const handleContentScroll = (event: UIEvent<HTMLDivElement>) => {
     const top = event.currentTarget.scrollTop;
-    // Remember where we are for back-nav restore. Re-set after delete to keep this path the most
+    const key = routeKey();
+    // Remember where we are for back-nav restore. Re-set after delete to keep this key the most
     // recent (Map preserves insertion order) and cap the Map so it can't grow unbounded.
-    SCROLL_POSITIONS.delete(pathname);
-    SCROLL_POSITIONS.set(pathname, top);
+    SCROLL_POSITIONS.delete(key);
+    SCROLL_POSITIONS.set(key, top);
     if (SCROLL_POSITIONS.size > 30) {
       SCROLL_POSITIONS.delete(SCROLL_POSITIONS.keys().next().value as string);
     }
     requestVisibilityUpdate(top);
   };
 
-  // Restore the saved scroll position for this route on mount (native back-nav behavior). Runs
-  // once per shell mount (the shell remounts per route, so `pathname` is stable for this instance).
+  // Restore the saved scroll position for this route on mount (native back-nav behavior). Runs once
+  // per shell mount (the shell remounts per route navigation).
   useEffect(() => {
     const el = scrollElRef.current;
     if (!el) return;
-    const saved = SCROLL_POSITIONS.get(pathname);
+    const saved = SCROLL_POSITIONS.get(routeKey());
     if (saved && saved > 0) {
       el.scrollTop = saved;
       lastScrollYRef.current = saved; // avoid a spurious large delta on the first scroll event
     }
-  }, [pathname]);
+  }, [pathname, routeKey]);
 
   function syncPullDistance(v: number) {
     pullDistanceRef.current = v;
@@ -550,6 +562,14 @@ export function MobileShell({
         aria-current={isActive ? "page" : undefined}
         className={cn("tabbar__item", isActive && "is-active")}
         href={item.href}
+        onClick={(e) => {
+          // Native behavior: tapping the already-active tab scrolls its list back to top
+          // (instead of a no-op re-navigation).
+          if (isActive) {
+            e.preventDefault();
+            scrollElRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+          }
+        }}
       >
         <span className="ico">{LAUNCHER_META[item.id]?.icon ?? FALLBACK_ICON}</span>
         <span className="lbl">{getNavigationLabel(item, locale)}</span>
@@ -594,7 +614,7 @@ export function MobileShell({
         <aside
           aria-label={dictionary.common.menu}
           className={cn(
-            "fixed inset-y-0 left-0 z-[60] flex w-[78%] max-w-[318px] flex-col overflow-hidden border-r border-border bg-[linear-gradient(180deg,#fbf8f1_0%,#f4efe4_100%)] px-5 pb-6 pt-[max(20px,env(safe-area-inset-top))] text-foreground",
+            "fixed inset-y-0 left-0 z-[60] flex w-[78%] max-w-[318px] flex-col overflow-hidden bg-[linear-gradient(180deg,#fbf8f1_0%,#f4efe4_100%)] px-5 pb-6 pt-[max(20px,env(safe-area-inset-top))] text-foreground",
             sidebarOpen
               ? "shadow-[30px_0_82px_-46px_rgba(15,23,42,0.68)]"
               : "shadow-none",
@@ -1014,14 +1034,16 @@ export function MobileShell({
               // *painted* scrim so Safari samples the ivory page edge instead of a dark overlay.
               // `safe-area-inset-*` alone only protects standalone/PWA bands; regular Safari's own
               // browser chrome is outside those insets, so a full-bleed dark scrim can still tint
-              // the status bar / URL toolbar dark when the sidebar opens.
+              // the status bar / URL toolbar dark when the sidebar opens. Use only the literal edge
+              // rows in browser mode (`max(1px, env(...))`) so the chrome-sampling fix stays
+              // invisible instead of showing horizontal bright seams at the top/bottom.
               "fixed inset-0 z-[50]",
               sidebarOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
             )}
             onClick={() => setSidebarOpen(false)}
             style={{
               background:
-                "linear-gradient(to bottom, transparent 0, transparent max(16px, env(safe-area-inset-top)), rgba(2,6,23,0.42) max(16px, env(safe-area-inset-top)), rgba(2,6,23,0.42) calc(100% - max(16px, env(safe-area-inset-bottom))), transparent calc(100% - max(16px, env(safe-area-inset-bottom))), transparent 100%)",
+                "linear-gradient(to bottom, transparent 0, transparent max(1px, env(safe-area-inset-top)), rgba(2,6,23,0.42) max(1px, env(safe-area-inset-top)), rgba(2,6,23,0.42) calc(100% - max(1px, env(safe-area-inset-bottom))), transparent calc(100% - max(1px, env(safe-area-inset-bottom))), transparent 100%)",
               transition: "opacity 540ms ease",
             }}
             type="button"

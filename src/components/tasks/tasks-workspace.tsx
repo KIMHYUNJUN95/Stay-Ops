@@ -228,13 +228,18 @@ export function TasksWorkspace({
   const runStatus = useCallback((task: TaskRecord, complete: boolean) => {
     setHiddenTaskIds((prev) => new Set(prev).add(task.id));
     startComplete(async () => {
-      if (complete) await completeTask(task.id);
-      else await reopenTask(task.id);
-      setHiddenTaskIds((prev) => {
-        const next = new Set(prev);
-        next.delete(task.id);
-        return next;
-      });
+      try {
+        if (complete) await completeTask(task.id);
+        else await reopenTask(task.id);
+      } finally {
+        // Always un-hide: on success revalidatePath re-renders with the new status; on failure the
+        // row reappears in its original place instead of silently vanishing until a refresh.
+        setHiddenTaskIds((prev) => {
+          const next = new Set(prev);
+          next.delete(task.id);
+          return next;
+        });
+      }
     });
   }, []);
   const handleCompleteToggle = useCallback(

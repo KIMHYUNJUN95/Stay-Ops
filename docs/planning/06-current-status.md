@@ -2106,6 +2106,8 @@ for follow-up turns.
 
 `src/components/shell/mobile-shell.tsx`: the sidebar dismiss scrim was `fixed inset-0 bg-slate-950/42`, so under `viewport-fit: cover` its dark layer reached the viewport's literal top/bottom edge pixels (the aside only covers ~78% width, leaving the right edge fully dark top-to-bottom). iOS Safari samples those edges to pick its chrome tint, so it painted the top status bar and bottom URL toolbar black. The earlier fix insetting the scrim by `env(safe-area-inset-top/bottom)` helped **standalone/PWA** safe-area bands, but **regular Safari browser mode** still reproduced the issue because its browser chrome is outside the safe-area model. Final fix: keep the dismiss target `fixed inset-0`, but paint the scrim with a vertical gradient that leaves transparent top/bottom edge bands (`max(16px, env(safe-area-inset-*))`) and only dims the center span. Safari now keeps sampling the ivory page edge in both browser mode and standalone while the visible dim across the main content stays effectively the same. Scrim click area, opacity transition, z-index, aside geometry/gradient/shadow, and all other shell surfaces are untouched.
 
+Follow-up seam fixes: after the black bands were removed, two Safari artifacts remained. First, a thin bright vertical line could still appear on the sidebar's right edge; root cause was the sidebar's `border-r border-border`, which read like a white seam against the dimmed scrim and could be exaggerated by Safari's compositing at the transformed layer edge. The right border was removed; depth now comes from the existing sidebar shadow only. Second, the first pass's transparent chrome-safe bands used `max(16px, env(safe-area-inset-*))`, which kept Safari's chrome light but made visible horizontal bright seams near the top and bottom in regular browser mode. The fallback band size was reduced to **literal edge rows only** (`max(1px, env(safe-area-inset-*))`): standalone still clears the real safe-area bands, while browser mode keeps just enough transparent edge for Safari chrome sampling without showing visible lines.
+
 ## 2026-06-22 Mobile sidebar black-band follow-up: page color-scheme locked to light
 
 `src/app/layout.tsx`: after the `themeColor` light/dark variants and the sidebar scrim safe-area fix both landed, real iOS Safari in OS dark mode still painted black status-bar / URL-toolbar bands while the sidebar was open. Root cause was a missing `color-scheme` declaration — without it, dark-mode iOS Safari treats the page as dark-capable and applies its dark canvas/chrome defaults, which the dim scrim then reinforced through chrome color sampling. Added `viewport.colorScheme = "light"` to the existing Next.js `Viewport` export, which emits the `color-scheme: light` meta and locks the page to light-mode rendering on both light and dark devices. No surface, color token, or component is altered — the app's ivory design is unchanged.
@@ -2226,3 +2228,31 @@ findings; verified false positives were dropped.
 **Deferred (noted, higher risk / larger):** long-list virtualization or `content-visibility` (cleaning/requests/tasks/suggestions render all rows); `tasks-workspace` filter/sort/group memoization + `React.memo(TaskCard)`; module-level `Intl` formatter singletons; `getMobileNavBadges` cross-request `unstable_cache` (would make advisory counts stale); hand-rolled sheets (context-picker, user-picker, project rename modal) → canonical `BottomSheet` for full scroll-lock; the persistent-shell layout refactor (from pass 2b).
 
 Verification: `npm run lint` + `npm run build` pass. Interaction/perf changes need on-device confirmation.
+
+## 2026-06-22 Native standalone PWA — pass 4 (bug fixes + remaining native gaps)
+
+Final pass from a 4-agent audit (bug hunt, a11y/i18n, native-gaps, edge-cases). Fixed the confirmed
+real bugs and filled the highest-value native gaps; verified false positives were dropped.
+
+**Bugs fixed:**
+- Malformed (non-UUID) deep-link → **500 crash** → now not-found: `getTaskDetail`/`getOrderRequestById`/`getLinenReturnRecordById` treat Postgres `22P02` as null instead of rethrowing.
+- Order status change **lost-update / TOCTOU**: both `order_requests` UPDATEs now add `.eq("status", current.status)` + `.select("id")` and report `invalid_transition` on 0 rows (was overwriting + double-notifying when two users acted at once).
+- Linen create line list keyed by array index → **wrong-row rebind on mid-list delete**: keyed by per-line-unique `itemId`.
+- Task complete/reopen optimistic hide had **no rollback** → row vanished until refresh on error: wrapped in try/finally so it always un-hides.
+- Route-transition direction (`nav-direction.ts`) could get **stuck on "back"** and mis-animate the next forward nav (when goBack landed on a non-template route): now expires after 1200ms.
+- Scroll restoration keyed by pathname only → **restored a stale position across query variants** (`?view=`/`?month=`): now keyed by full path+query (`window.location`).
+
+**Native gaps filled:**
+- `src/app/mobile/error.tsx` + `not-found.tsx` — branded ivory, trilingual, retry/home (was a bare white English root error page = "crash" feel).
+- Service-worker **update flow**: `ServiceWorkerRegister` reloads once on `controllerchange` (only if an old SW was controlling) so a deploy doesn't strand users on the old shell / cause chunk-load errors.
+- **Scroll-to-top on active bottom-tab re-tap** (native behavior) via the shell's `scrollElRef`.
+- `/offline` page now **actually auto-reloads** when back online (`OfflineAutoReload`) — it previously only promised to.
+
+**A11y / i18n / overflow:**
+- Global `:focus-visible` outline (keyboard focus was invisible after the tap-highlight removal) + `prefers-reduced-motion` disables `animate-spin`.
+- Fixed a Hangul word ("누락") embedded in a Japanese i18n string (`tasks.contextPickerGuestSub`).
+- Task card title `line-clamp-2 break-words`; cleaning room title `truncate` + `min-w-0` (long labels overflowed).
+
+**Deferred (documented, larger/lower-severity):** global toast/snackbar system (the one big missing native feedback primitive — its own task); notifications screen still renders outside `MobileShell` with hardcoded-Korean mock (documented deferred); per-form free-text length clamps + order quantity/items/image server clamps (incl. the 5-image rule for order items); icon-button `aria-label`s + custom-dropdown keyboard semantics + form label associations (need new ko/ja/en keys); order processor-role button gating UX; client delivery-calendar "today" → Tokyo seed; iOS splash screens; long-list virtualization; persistent-shell layout refactor.
+
+Verification: `npm run lint` + `npm run build` pass. Behavior needs on-device confirmation.

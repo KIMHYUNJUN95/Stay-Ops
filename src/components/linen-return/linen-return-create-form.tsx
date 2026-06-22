@@ -220,7 +220,9 @@ export function LinenReturnCreateForm({
                 );
                 const isOpen = openLine === index;
                 return (
-                  <div className="flex items-center gap-2.5" key={index}>
+                  // Key by the (per-line unique) itemId, not the array index — index keys made a
+                  // mid-list delete rebind the dropdown-open state / quantity onto the wrong row.
+                  <div className="flex items-center gap-2.5" key={line.itemId}>
                     <div className="relative min-w-0 flex-1">
                       <button
                         className={cn(
