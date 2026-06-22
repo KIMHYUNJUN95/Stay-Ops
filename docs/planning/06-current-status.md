@@ -2084,9 +2084,20 @@ for follow-up turns.
 
 `src/components/shell/mobile-shell.tsx` (`updateVisibility`): raised the header hide/show accumulated-delta thresholds (hide 28→64px, show 12→36px) and applied the existing `< -4px` small-delta filter to the hide branch too (`delta > 0` → `delta > 4`), so iOS Safari momentum micro-oscillation no longer flickers the header in/out during normal scrolling. The `scrollTop ≤ 8` snap-to-visible, accumulator resets, rAF throttle, and `lastScrollYRef`/`tickingRef` bookkeeping are unchanged; header animation timing untouched. `npm run lint` + `npm run build` pass. Fix **#2 of 7** in the mobile scroll-stability pass; #3–#7 remain.
 
-## 2026-06-22 Mobile Scroll-Stability Pass — Fix #3/7: shell height uses small viewport (svh) to survive iOS URL-bar collapse
+## 2026-06-22 Mobile Scroll-Stability Pass — Fix #3/7 was partially reverted after real-device Safari gaps
 
-`src/components/shell/mobile-shell.tsx`: switched the three nested shell containers (`<main>` line 483, centered wrapper line 511, safe-area column line 654) from the dynamic viewport `h-dvh` to the **small viewport** `h-svh` (comment on line 397 updated to match). `dvh` re-evaluated the moment iOS Safari's URL bar collapsed/expanded, resizing all three containers and lurching the scrolled content ~50–60px; `svh` is stable, so the app frame stays constant size. Intended trade-off: a thin sliver of ivory page background shows below the tab bar when the URL bar retracts (reads as the app, not a gap, since `--background` already sits behind the layout). Notch `pt-[env(safe-area-inset-top)]`, the `inset-y-0` sidebar, and the `h-full` inner scroll div are unchanged. No JS resize listeners or `--vh` hacks. `npm run lint` + `npm run build` pass. Fix **#3 of 7** in the mobile scroll-stability pass; #4–#7 remain.
+`src/components/shell/mobile-shell.tsx`: the earlier fix changed **all three nested shell
+containers** (`<main>`, centered wrapper, inner safe-area column) from `h-dvh` to `h-svh` to keep
+the frame stable during iOS URL-bar collapse. That removed one jump class, but real-device Safari
+showed the cost was too high: the shell could become visibly shorter than the actual viewport,
+creating large ivory gaps below the bottom tab bar and making the sidebar/footer/scrim appear to stop
+above the real screen bottom.
+
+Final as-built correction: the **outer** shell uses `h-dvh` again, while the two nested descendants
+now use `h-full` rather than their own viewport units. That keeps only one live viewport-bound box in
+the stack, so the shell once again fills the visible screen without the "three nested containers all
+resize independently" amplification. Notch padding, inner scrolling, pull-to-refresh, and the
+overlay/tab-bar structure are unchanged. `npm run lint` + `npm run build` pass.
 
 ## 2026-06-22 Mobile Scroll-Stability Pass — Fix #4/7: touchmove setState coalesced to one per frame
 

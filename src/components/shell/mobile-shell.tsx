@@ -486,8 +486,8 @@ export function MobileShell({
   // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    // This app uses h-svh overflow-hidden layout: only the inner div scrolls,
-    // not the window. Listening to window "scroll" or "resize" would pass
+    // This app uses an overflow-hidden shell with an INNER scroll container,
+    // not window scrolling. Listening to window "scroll" or "resize" would pass
     // scrollY=0 every time, resetting headerVisible→true and undoing any
     // scroll-based hiding. Only the custom mobile-shell-scroll event (dispatched
     // by calendar view) and the onScroll handler on the content div are used.
@@ -580,7 +580,7 @@ export function MobileShell({
   return (
     <main
       aria-label={title}
-      className="h-svh overflow-hidden bg-background text-foreground"
+      className="h-dvh overflow-hidden bg-background text-foreground"
       onTouchCancel={handleSwipeCancel}
       onTouchEnd={handleSwipeEnd}
       onTouchMove={handleSwipeMove}
@@ -610,7 +610,7 @@ export function MobileShell({
           <ChevronLeft className="size-5" aria-hidden="true" />
         </span>
       </div>
-      <div className="relative mx-auto flex h-svh w-full max-w-[430px] flex-col overflow-hidden">
+      <div className="relative mx-auto flex h-full w-full max-w-[430px] flex-col overflow-hidden">
         <aside
           aria-label={dictionary.common.menu}
           className={cn(
@@ -753,7 +753,7 @@ export function MobileShell({
         </aside>
 
         <div
-          className="relative flex h-svh w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)]"
+          className="relative flex h-full w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)]"
         >
           {/* Top bar — OVERLAY (mirrors the bottom tab bar). It used to be an in-flow h-16
               block whose inner content merely faded on scroll, leaving the 64px slot occupied.

@@ -1569,6 +1569,27 @@ chrome should follow this "transparent edge bands" rule. The bottom-sheet scrim
 
 Status: Confirmed (2026-06-22).
 
+### Mobile shell height rebalanced — outer shell back to `dvh`, nested wrappers `h-full`
+
+Decision: the mobile shell no longer uses `h-svh` on all three nested containers. The **outermost**
+shell returns to `h-dvh`, while the centered wrapper and inner safe-area column use `h-full` so they
+inherit that single measured height instead of each binding independently to a viewport unit.
+
+Reason: the earlier all-`svh` change avoided URL-bar-collapse jump, but on real iPhone Safari it
+made the shell frame shorter than the actual visible viewport in multiple states, which exposed large
+ivory gaps below the bottom tab bar and left the sidebar/footer/scrim visually floating above the
+screen bottom. The underlying mistake was treating the "small viewport" as the permanent app frame.
+Using `dvh` only once at the outer shell restores full-height rendering while avoiding the prior
+"three nested dynamic viewports all reflow at once" amplification.
+
+Impact:
+- `src/components/shell/mobile-shell.tsx` outer `<main>` uses `h-dvh` again.
+- The centered wrapper and inner column now use `h-full` instead of their own viewport units.
+- This removes the bottom white-gap / floating-sidebar-floor issue seen on the home/calendar/sidebar
+  screenshots in iPhone Safari.
+
+Status: Confirmed (2026-06-22).
+
 ## 2026-06-22
 
 ### Service worker introduced (installability + offline), navigations stay network-first
