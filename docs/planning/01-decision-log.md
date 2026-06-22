@@ -1617,6 +1617,10 @@ Impact:
 - While the drawer is open, the shared top bar and bottom tab bar also slide/fade out instead of
   remaining visible under the dimmed right-edge sliver. The open state now reads as one focused
   drawer surface rather than "app chrome still visible behind a menu".
+- Follow-up polish: once that shared chrome hides, standalone mode no longer preserves the old
+  header/tab-bar clear bands either; it leaves only the literal top/bottom safe-area rows undimmed.
+  This removes the bright top-right / bottom-right blocks that otherwise made the open drawer look
+  vertically chopped.
 
 Status: Confirmed (2026-06-22).
 

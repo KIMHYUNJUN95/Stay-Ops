@@ -571,8 +571,10 @@ export function MobileShell({
   const rightTabs = bottomItems.slice(splitAt);
   const isBarFull = navTabIds.length >= MAX_BOTTOM_NAV_TABS;
   const topChromeVisible = headerVisible && !sidebarOpen;
-  const standaloneScrimHeaderClear = "calc(env(safe-area-inset-top) + 64px)";
-  const standaloneScrimFooterClear = hideBottomNav
+  const standaloneScrimHeaderClear = sidebarOpen
+    ? "env(safe-area-inset-top)"
+    : "calc(env(safe-area-inset-top) + 64px)";
+  const standaloneScrimFooterClear = sidebarOpen || hideBottomNav
     ? "env(safe-area-inset-bottom)"
     : "calc(env(safe-area-inset-bottom) + 88px)";
   const sidebarScrimBackground = isStandaloneDisplayMode
