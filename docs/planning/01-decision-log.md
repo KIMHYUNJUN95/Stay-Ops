@@ -1590,6 +1590,27 @@ Impact:
 
 Status: Confirmed (2026-06-22).
 
+### Sidebar scrim now splits browser vs standalone behavior
+
+Decision: the mobile sidebar scrim uses **different paint rules by display mode**:
+
+- **browser mode**: keep the 1px transparent edge-row trick so Safari samples the ivory page edge
+  and does not darken its own top/bottom browser chrome
+- **standalone / Add to Home Screen mode**: use a full-bleed scrim with no transparent safe-area
+  band so no horizontal seam appears below the status bar or above the home indicator
+
+Reason: one universal scrim could not satisfy both iOS modes. Browser-mode Safari needs a visible
+page-edge sample to keep its chrome light, but in installed standalone mode there is no Safari URL
+toolbar to protect, so keeping the whole `env(safe-area-inset-*)` band transparent just exposed a
+hard horizontal transition line. The real fix is mode-aware behavior, not a compromise value.
+
+Impact:
+- `src/components/shell/mobile-shell.tsx` detects standalone using
+  `matchMedia("(display-mode: standalone)")` plus legacy `navigator.standalone`.
+- Sidebar scrim is full-bleed in standalone, gradient edge-sampled only in browser mode.
+
+Status: Confirmed (2026-06-22).
+
 ## 2026-06-22
 
 ### Service worker introduced (installability + offline), navigations stay network-first

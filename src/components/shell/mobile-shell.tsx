@@ -176,6 +176,7 @@ export function MobileShell({
   const [headerVisible, setHeaderVisible] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [isStandaloneDisplayMode, setIsStandaloneDisplayMode] = useState(false);
   const closeCreate = useCallback(() => setCreateOpen(false), []);
   const [pullDistanceState, setPullDistanceState] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
@@ -517,6 +518,22 @@ export function MobileShell({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [sidebarOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(display-mode: standalone)");
+    const sync = () => {
+      const legacyStandalone =
+        "standalone" in window.navigator &&
+        (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+      setIsStandaloneDisplayMode(media.matches || legacyStandalone);
+    };
+    sync();
+    media.addEventListener?.("change", sync);
+    return () => {
+      media.removeEventListener?.("change", sync);
+    };
+  }, []);
 
   // Persist bottom-bar edits when the sheet closes (any close path), if changed.
   useEffect(() => {
@@ -1042,8 +1059,9 @@ export function MobileShell({
             )}
             onClick={() => setSidebarOpen(false)}
             style={{
-              background:
-                "linear-gradient(to bottom, transparent 0, transparent max(1px, env(safe-area-inset-top)), rgba(2,6,23,0.42) max(1px, env(safe-area-inset-top)), rgba(2,6,23,0.42) calc(100% - max(1px, env(safe-area-inset-bottom))), transparent calc(100% - max(1px, env(safe-area-inset-bottom))), transparent 100%)",
+              background: isStandaloneDisplayMode
+                ? "rgba(2,6,23,0.42)"
+                : "linear-gradient(to bottom, transparent 0, transparent max(1px, env(safe-area-inset-top)), rgba(2,6,23,0.42) max(1px, env(safe-area-inset-top)), rgba(2,6,23,0.42) calc(100% - max(1px, env(safe-area-inset-bottom))), transparent calc(100% - max(1px, env(safe-area-inset-bottom))), transparent 100%)",
               transition: "opacity 540ms ease",
             }}
             type="button"
