@@ -61,6 +61,7 @@ export function EmailResetForm({
           type="email"
           name="email"
           autoComplete="email"
+          enterKeyHint="go"
           placeholder={copy.emailPlaceholder}
           className={INPUT_BASE}
           required

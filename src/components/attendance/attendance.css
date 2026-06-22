@@ -1168,7 +1168,8 @@
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  /* Sit above the on-screen keyboard (var set by KeyboardInsetSync); 0 when closed. */
+  bottom: var(--keyboard-inset, 0px);
   z-index: 10;
   padding: 13px 18px max(18px, env(safe-area-inset-bottom));
   background: linear-gradient(180deg, transparent, var(--bg) 26%);

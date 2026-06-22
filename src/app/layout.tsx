@@ -7,6 +7,7 @@ import {
   Noto_Serif,
 } from "next/font/google";
 import { SessionProvider } from "@/components/providers/session-provider";
+import { KeyboardInsetSync } from "@/components/pwa/keyboard-inset-sync";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { getCurrentAppSession } from "@/lib/session";
 import "./globals.css";
@@ -101,6 +102,7 @@ export default async function RootLayout({
     >
       <body className="flex min-h-full flex-col">
         <ServiceWorkerRegister />
+        <KeyboardInsetSync />
         <SessionProvider initialSession={session}>{children}</SessionProvider>
       </body>
     </html>

@@ -131,6 +131,9 @@ export function InviteCodeField({
       <div className="flex gap-2">
         <input
           autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+          autoComplete="off"
           className={inputClass}
           name="inviteCodeRaw"
           placeholder={copy.placeholder}

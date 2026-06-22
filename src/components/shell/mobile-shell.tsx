@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { ReactNode, UIEvent } from "react";
 import { ArrowDown, Bell, ChevronLeft, ChevronRight, Loader2, LogOut, UserCircle, X } from "lucide-react";
@@ -17,6 +17,7 @@ import {
   resolveBottomNavItems,
 } from "@/config/navigation";
 import { getDictionary } from "@/lib/i18n";
+import { setNavDirection } from "@/lib/nav-direction";
 import { cn } from "@/lib/utils";
 
 type MobileShellProps = {
@@ -154,6 +155,12 @@ function computeContentOffset(raw: number): number {
   return MAX_DISPLAY_H * raw / (raw + MAX_PULL * 0.4);
 }
 
+// Per-route scroll restoration. The app scrolls an INNER div (not the window), which Next's
+// built-in scroll restoration can't track, so navigating back always lost your place in long
+// lists. Keyed by pathname, module-scoped so it survives the shell's per-route remount within a
+// session (the shell is rendered per page, so this Map is the only thing that persists).
+const SCROLL_POSITIONS = new Map<string, number>();
+
 export function MobileShell({
   activeItem,
   appearance = "default",
@@ -174,6 +181,8 @@ export function MobileShell({
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshPending, startRefreshTransition] = useTransition();
   const router = useRouter();
+  const pathname = usePathname();
+  const scrollElRef = useRef<HTMLDivElement | null>(null);
   const touchStartYRef = useRef(0);
   const touchStartXRef = useRef(0);
   const isPullingRef = useRef(false);
@@ -259,8 +268,22 @@ export function MobileShell({
   );
 
   const handleContentScroll = (event: UIEvent<HTMLDivElement>) => {
-    requestVisibilityUpdate(event.currentTarget.scrollTop);
+    const top = event.currentTarget.scrollTop;
+    SCROLL_POSITIONS.set(pathname, top); // remember where we are for back-nav restore
+    requestVisibilityUpdate(top);
   };
+
+  // Restore the saved scroll position for this route on mount (native back-nav behavior). Runs
+  // once per shell mount (the shell remounts per route, so `pathname` is stable for this instance).
+  useEffect(() => {
+    const el = scrollElRef.current;
+    if (!el) return;
+    const saved = SCROLL_POSITIONS.get(pathname);
+    if (saved && saved > 0) {
+      el.scrollTop = saved;
+      lastScrollYRef.current = saved; // avoid a spurious large delta on the first scroll event
+    }
+  }, [pathname]);
 
   function syncPullDistance(v: number) {
     pullDistanceRef.current = v;
@@ -395,6 +418,7 @@ export function MobileShell({
   // deep screen via a notification / share / deep link) would be a dead gesture with no escape.
   // When there's nothing to go back to, fall back to the mobile home instead.
   const goBack = useCallback(() => {
+    setNavDirection("back"); // play the pop (left-slide) transition for this navigation
     if (typeof window !== "undefined" && window.history.length <= 1) {
       router.push("/mobile");
     } else {
@@ -862,6 +886,7 @@ export function MobileShell({
               onTouchEnd={handleTouchEnd}
               onTouchMove={handleTouchMove}
               onTouchStart={handleTouchStart}
+              ref={scrollElRef}
               style={{
                 transform: `translateY(${contentOffset}px)`,
                 transition: isPulling

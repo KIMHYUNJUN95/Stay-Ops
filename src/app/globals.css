@@ -18,6 +18,12 @@
 html,
 body {
   overscroll-behavior: none;
+  /* Ivory on BOTH html and body. In an installed/standalone iOS PWA the area behind the
+     status bar / notch (and any safe-area or overscroll region) shows the ROOT element's
+     background; with no background on <html> iOS paints those bands black — most visible
+     when the sidebar opens and the layout repaints. Painting <html> ivory removes the
+     black bands. Not a design change (the visible canvas is already this ivory). */
+  background: var(--background);
 }
 button,
 a,
@@ -37,6 +43,58 @@ summary,
   textarea:not([data-keep-font-size]),
   select:not([data-keep-font-size]) {
     font-size: 16px;
+  }
+}
+/* Don't let iOS auto-inflate text (e.g. in landscape) — keep the designed sizes. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+/* Tappable controls: remove the legacy 300ms double-tap delay + double-tap-to-zoom so taps
+   register instantly (native feel). Scoped to controls only — never to scroll containers. */
+button,
+a,
+summary,
+[role="button"],
+[role="tab"] {
+  touch-action: manipulation;
+}
+
+/* iOS-style route transitions for /mobile/* (driven by src/app/mobile/template.tsx).
+   Forward = push in from the right; back = pop in from the left. A subtle slide + fade (not a full
+   100% slide) so nothing reveals blank canvas behind the incoming screen. Honors reduced-motion. */
+@keyframes screen-push-in {
+  from {
+    opacity: 0.5;
+    transform: translate3d(14%, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes screen-pop-in {
+  from {
+    opacity: 0.5;
+    transform: translate3d(-14%, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+.screen-push {
+  animation: screen-push-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  will-change: transform, opacity;
+}
+.screen-pop {
+  animation: screen-pop-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  will-change: transform, opacity;
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen-push,
+  .screen-pop {
+    animation: none;
   }
 }
 

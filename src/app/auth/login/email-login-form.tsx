@@ -103,6 +103,7 @@ export function EmailLoginForm({
           type="email"
           name="email"
           autoComplete="email"
+          enterKeyHint="next"
           defaultValue={initialEmail}
           placeholder={copy.emailPlaceholder}
           className={INPUT_BASE}
@@ -122,6 +123,7 @@ export function EmailLoginForm({
             type={showPassword ? "text" : "password"}
             name="password"
             autoComplete="current-password"
+            enterKeyHint="go"
             placeholder={copy.passwordPlaceholder}
             className={`${INPUT_BASE} pr-[46px]`}
             required

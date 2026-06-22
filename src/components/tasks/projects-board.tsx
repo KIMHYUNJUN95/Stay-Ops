@@ -221,6 +221,8 @@ export function ProjectsBoard({
                           aria-hidden="true"
                         />
                         <input
+                          type="search"
+                          enterKeyHint="search"
                           className="h-[42px] w-full rounded-[11px] border border-border bg-surface pl-9 pr-3.5 text-[13.5px] font-medium text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-primary"
                           onChange={(e) => setInviteQuery(e.target.value)}
                           placeholder={p.inviteSearch}

@@ -364,7 +364,10 @@ export function LinenReturnCreateForm({
         form via its `form` attribute even though it lives outside the <form> in the DOM. */}
     {hydrated
       ? createPortal(
-          <div className="fixed inset-x-0 bottom-0 z-40 mx-auto flex max-w-[460px] items-center gap-3 border-t border-border bg-surface px-[18px] pb-[max(18px,env(safe-area-inset-bottom))] pt-3.5 shadow-[0_-14px_36px_-14px_rgba(20,16,10,0.28)]">
+          <div
+            className="fixed inset-x-0 z-40 mx-auto flex max-w-[460px] items-center gap-3 border-t border-border bg-surface px-[18px] pb-[max(18px,env(safe-area-inset-bottom))] pt-3.5 shadow-[0_-14px_36px_-14px_rgba(20,16,10,0.28)]"
+            style={{ bottom: "var(--keyboard-inset, 0px)" }}
+          >
             <div className="whitespace-nowrap text-[12.5px] font-semibold text-muted-foreground">
               {copy.totalPrefix}{" "}
               <b className="font-mono text-base font-bold text-foreground">{totalQuantity}</b>

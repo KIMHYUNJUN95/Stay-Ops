@@ -146,6 +146,7 @@ export function EmailSignupForm({
             type="email"
             name="email"
             autoComplete="email"
+            enterKeyHint="next"
             placeholder={copy.emailPlaceholder}
             className={emailInputClass}
             onChange={handleEmailChange}
@@ -172,6 +173,7 @@ export function EmailSignupForm({
             type={showPassword ? "text" : "password"}
             name="password"
             autoComplete="new-password"
+            enterKeyHint="go"
             placeholder="••••••••"
             className={`${INPUT_BASE} pr-[46px]`}
             value={password}

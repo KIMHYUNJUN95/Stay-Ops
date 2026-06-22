@@ -122,6 +122,9 @@ export function SuggestionsUserPicker({
         <div className="search">
           <span className="ic search__ic">{SgIcon.search}</span>
           <input
+            type="search"
+            enterKeyHint="search"
+            autoFocus
             placeholder={searchPlaceholder}
             value={query}
             onChange={(e) => setQuery(e.target.value)}

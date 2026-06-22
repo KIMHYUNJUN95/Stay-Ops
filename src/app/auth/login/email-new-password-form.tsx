@@ -95,6 +95,7 @@ export function EmailNewPasswordForm({
             type={showPassword ? "text" : "password"}
             name="password"
             autoComplete="new-password"
+            enterKeyHint="next"
             className={`${INPUT_BASE} pr-[46px]`}
             required
           />
@@ -118,6 +119,7 @@ export function EmailNewPasswordForm({
             type={showConfirm ? "text" : "password"}
             name="confirm"
             autoComplete="new-password"
+            enterKeyHint="done"
             className={`${INPUT_BASE} pr-[46px]`}
             required
           />

@@ -467,6 +467,7 @@ export function TaskDetailView({
             </button>
             <input
               ref={updateBodyRef}
+              enterKeyHint="send"
               className="h-11 flex-1 rounded-2xl border border-border bg-background/60 px-3.5 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary"
               placeholder={copy.updatePlaceholder}
             />

@@ -989,6 +989,10 @@ export function OnboardingWizard({
                 }}
                 placeholder={join.codePlaceholder}
                 autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="off"
+                enterKeyHint="done"
                 // Oversized segmented code field (19px) — opt out of the touch ≥16px rule so it
                 // keeps its intended large size (still ≥16px, so it never triggers iOS focus zoom).
                 data-keep-font-size
@@ -1093,7 +1097,9 @@ export function OnboardingWizard({
                 </button>
                 <input
                   autoFocus
+                  type="tel"
                   inputMode="tel"
+                  autoComplete="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder={steps.phoneInputPlaceholder}
@@ -1222,6 +1228,7 @@ export function OnboardingWizard({
               <div className="relative">
                 <input
                   autoFocus
+                  autoComplete="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className={`h-[54px] w-full rounded-[14px] border bg-surface px-[15px] pr-[46px] text-[16px] font-semibold text-foreground outline-none transition-colors placeholder:font-medium placeholder:text-[hsl(222_10%_62%)] focus:ring-[3.5px] focus:ring-primary/15 ${

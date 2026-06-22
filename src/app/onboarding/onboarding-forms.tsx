@@ -86,6 +86,7 @@ export function ProfileForm({
             defaultValue={defaultName}
             required
             type="text"
+            autoComplete="name"
           />
         </label>
         <label className="block space-y-2">
@@ -113,6 +114,7 @@ export function ProfileForm({
             defaultValue={defaultPhone}
             required
             type="tel"
+            autoComplete="tel"
           />
           <span className="block text-[13px] font-medium leading-5 text-slate-500">
             {copy.phoneHint}

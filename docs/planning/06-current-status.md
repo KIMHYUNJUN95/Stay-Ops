@@ -2152,3 +2152,47 @@ A four-part pass to make the installed (home-screen / standalone) PWA feel nativ
 - Deferred (need device testing / larger refactor, noted for follow-up): visualViewport keyboard-inset for hand-rolled fixed bars (the rendered comment composer is a flex footer, not fixed, so iOS auto-scrolls it — lower risk than first thought); `.csheet` → canonical `BottomSheet` migration; calendar horizontal-scroll vs left-edge-back gesture conflict; notifications screen is still the documented deferred mock (i18n/real-data pending re-wire); header icon buttons stay the documented 38px.
 
 Verification: `npm run lint` + `npm run build` pass. Generated `icon-512.png` visually confirmed (navy squircle + ivory "S"). On-device standalone behavior (install prompt, offline page, home-screen icon, no tap-flash, no input zoom) not yet verified on a real device.
+
+## 2026-06-22 Standalone PWA black status-bar bands fixed (html background)
+
+`src/app/globals.css`: ivory `--background` is now painted on **both `html` and `body`** (was body-only). In an installed/standalone iOS PWA the area behind the status bar / notch and any safe-area / overscroll band exposes the **root `<html>`** background; with none set, iOS painted those bands black — reported when opening the sidebar and on the standalone attendance screens (Safari browser mode hid it because `themeColor` tinted the chrome). Painting `<html>` ivory removes the black bands. `apple-mobile-web-app-status-bar-style` stays `default` (dark text on light) — correct for the light app; `black-translucent` intentionally avoided (would force invisible white status-bar text on ivory). Not a design change. Standalone-only behavior + WSL/UNC preview limitation means this was not browser-preview verified — re-test on the installed app / tunnel: sidebar open should show no black band at the top.
+
+## 2026-06-22 Native standalone PWA — pass 2 (keyboard + touch responsiveness)
+
+Second native-feel pass (after the 2026-06-22 pass 1). Two low-risk batches landed; the large
+navigation-architecture work is scoped but pending decision (see below).
+
+**Global touch (`src/app/globals.css`):**
+- `touch-action: manipulation` on tappable controls (button/a/summary/[role=button]/[role=tab]) — removes the legacy ~300ms tap delay + double-tap-to-zoom so taps register instantly. Scoped to controls only, never scroll containers.
+- `html { -webkit-text-size-adjust: 100% }` so iOS doesn't inflate text (e.g. landscape).
+
+**Keyboard / input native correctness (attribute-only edits, no layout/logic change):**
+- `enterKeyHint` added across single-line inputs (was 0 in the codebase): login email→`next`, password→`go`, reset→`go`, new-password→`next`/`done`; comment composers (suggestions, task update-log)→`send`; search bars→`search`; invite code→`done`.
+- Search bars (`suggestions-user-picker`, `projects-board` invite) → `type="search"` (+ `autoFocus` on the in-sheet picker so it focuses on open).
+- Onboarding name→`autoComplete="name"`, phone→`type="tel"` + `autoComplete="tel"` (wizard + fallback form).
+- Invite-code fields → `autoCorrect="off"` + `spellCheck={false}` + `autoComplete="off"` (no autocorrect/underline on codes).
+- Already-correct (kept): auth `type="email"`/`type="password"` + autoComplete, order quantity `inputMode="numeric"`, custom wheel date pickers in the live flows.
+
+**Scoped but NOT yet done — navigation architecture (the biggest remaining native gap), pending user decision:**
+- `MobileShell` is rendered per-page (no `src/app/mobile/layout.tsx`), so it **remounts on every navigation** — header/tab bar re-animate + flash, scroll/header state resets, bottom-tab active state lags one nav behind. Fix = move the shell into a shared `mobile/layout.tsx` (persist across routes), derive `activeItem` from `usePathname`, and resolve the per-page `title`/`hideBottomNav`/`badges` props in the layout (blocker: `hideBottomNav` varies per route → needs a pathname allowlist or a client setter). Touches ~36 pages + the documented shell contract.
+- No route transition animations (web-swap feel); Next 16 `experimental.viewTransition` / a `mobile/template.tsx` slide are the options, coordinated push/pop with the edge-back `goBack()`.
+- Scroll restoration is broken on back-nav because the app scrolls an inner div (Next restores window scroll only) — needs manual per-pathname scrollTop save/restore in the shell.
+- visualViewport keyboard handling for the two genuinely `position:fixed` submit bars (linen-return create, attendance correction) — deferred with the above.
+
+Verification: `npm run lint` + `npm run build` pass.
+
+## 2026-06-22 Native standalone PWA — pass 2b (route transitions, scroll restoration, keyboard inset)
+
+Landed the user-approved "navigation feel" work. Delivered the visible native outcomes via a
+**lower-risk implementation** than the full persistent-shell folder restructure (which would have
+forced the shell onto shell-exempt screens like `/mobile/notifications` and the full-screen capture
+flow — too risky to restructure blind):
+
+- **iOS-style route transitions**: `src/app/mobile/template.tsx` plays a slide+fade per navigation — forward pushes in from the right (`.screen-push`), back pops in from the left (`.screen-pop`). Direction is tracked by `src/lib/nav-direction.ts`: the shell's `goBack()` flags "back" before navigating; everything else defaults to forward. CSS keyframes in `globals.css`, honoring `prefers-reduced-motion`. (Subtle 14% slide, not a full 100% slide, so nothing reveals blank canvas.)
+- **Scroll restoration** (inner scroll container): the app scrolls an inner div, which Next's built-in restoration can't track, so back-nav always lost your place in long lists. `MobileShell` now saves `scrollTop` per pathname (module-scoped `SCROLL_POSITIONS` Map, survives the per-route remount) and restores it on mount.
+- **Removed `src/app/mobile/loading.tsx`** (added in pass 1): a chrome-less skeleton that flashed and fought the slide. Without a loading boundary, Next keeps the previous screen mounted until the new RSC is ready, then the template slides it in — more native than a skeleton flash.
+- **Keyboard occlusion**: new `KeyboardInsetSync` (`src/components/pwa/keyboard-inset-sync.tsx`, mounted in `layout.tsx`) publishes the keyboard height as `--keyboard-inset` via VisualViewport. The two genuinely `position:fixed` submit bars now sit at `bottom: var(--keyboard-inset)` so the keyboard never covers them: linen-return create (`linen-return-create-form.tsx`) and attendance correction (`.att .submitbar` in `attendance.css`). Flex-flow composers (suggestions/task/announcement comments) are auto-scrolled by the browser and need no change.
+
+**Not done (deeper optimization, deferred):** the shell still remounts per route (no shared `mobile/layout.tsx`), so header `headerVisible` state resets on navigation and the bottom-tab active highlight still updates on arrival rather than instantly on tap. A true persistent shell needs a route-group restructure to exempt the no-shell screens; deferred as a follow-up. The slide transition + scroll restoration deliver most of the perceived native nav feel without that risk.
+
+Verification: `npm run lint` + `npm run build` pass. Route transitions + keyboard-inset behavior need on-device verification (transitions are isolated to `template.tsx` + `globals.css` and trivially revertible).

@@ -1604,3 +1604,24 @@ via the app switcher. Future image surfaces should reuse `ImageLightbox` / `Ligh
 `target="_blank"`.
 
 Status: Confirmed (2026-06-22).
+
+### Mobile route transitions via template.tsx (not a persistent-shell refactor)
+
+Decision: iOS-style route transitions (forward = slide/fade in from the right, back = from the left)
+are implemented with `src/app/mobile/template.tsx` + a tiny `src/lib/nav-direction.ts` direction
+signal (the shell's `goBack()` flags "back"). We deliberately did NOT do the larger refactor of moving
+`MobileShell` into a shared `src/app/mobile/layout.tsx` to persist it across routes.
+
+Reason: several mobile routes intentionally render WITHOUT the shell (`/mobile/notifications`, the
+full-screen attendance capture flow). A shared-layout shell would force the chrome onto them, so a
+true persistent shell needs a route-group restructure — high risk to do without device testing. The
+template approach delivers the visible native slide + (separately) inner-container scroll restoration
+without that risk. The per-route shell remount (header state reset, tab highlight on-arrival rather
+than instant) is a known remaining optimization, deferred. Also removed the pass-1
+`mobile/loading.tsx` skeleton: with no loading boundary Next keeps the previous screen until the new
+RSC is ready, which the slide then animates in — more native than a chrome-less skeleton flash.
+
+Keyboard occlusion of fixed submit bars is handled globally via `KeyboardInsetSync` →
+`--keyboard-inset` (VisualViewport), consumed by the linen-return and attendance-correction fixed bars.
+
+Status: Confirmed (2026-06-22). Part of the native standalone hardening pass.

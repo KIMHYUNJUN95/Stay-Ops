@@ -179,6 +179,8 @@ export function SuggestionCommentComposer({
           {SgIcon.paperclip}
         </button>
         <input
+          type="text"
+          enterKeyHint="send"
           className="csheet__in"
           value={text}
           onChange={(e) => setText(e.target.value)}
