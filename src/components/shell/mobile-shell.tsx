@@ -641,14 +641,11 @@ export function MobileShell({
         <aside
           aria-label={dictionary.common.menu}
           className={cn(
-            "absolute inset-y-0 left-0 z-[60] flex w-[78%] max-w-[318px] flex-col overflow-hidden bg-[linear-gradient(180deg,#fbf8f1_0%,#f4efe4_100%)] px-5 pb-6 pt-[max(20px,env(safe-area-inset-top))] text-foreground",
-            sidebarOpen
-              ? "shadow-[30px_0_82px_-46px_rgba(15,23,42,0.68)]"
-              : "shadow-none",
+            "absolute inset-y-0 left-0 z-[60] flex w-full flex-col overflow-hidden bg-[linear-gradient(180deg,#fbf8f1_0%,#f4efe4_100%)] px-5 pb-6 pt-[max(20px,env(safe-area-inset-top))] text-foreground",
           )}
           style={{
             transform: sidebarOpen ? "translate3d(0, 0, 0)" : "translate3d(-100%, 0, 0)",
-            transition: "transform 540ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 540ms ease",
+            transition: "transform 540ms cubic-bezier(0.22, 1, 0.36, 1)",
             willChange: "transform",
           }}
         >

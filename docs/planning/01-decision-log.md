@@ -1624,6 +1624,25 @@ Impact:
 
 Status: Confirmed (2026-06-22).
 
+### Mobile side menu is now a full-screen navigation sheet
+
+Decision: mobile sidebar navigation now opens as a **full-width slide-in sheet** instead of a
+partial-width drawer with a visible dimmed right-side sliver.
+
+Reason: the old 78% drawer kept exposing a narrow slice of the current page. In iOS standalone/PWA
+mode that slice made the system status-bar area, top edge, and sidebar overlay feel visually
+disconnected even after the scrim-safe-area fixes. A full-screen navigation sheet better matches the
+native-feeling pattern the product wants: the menu becomes the current screen, while the status bar
+remains a normal iOS system area above it.
+
+Impact:
+- `src/components/shell/mobile-shell.tsx` sidebar panel is now `w-full` and no longer carries the
+  right-edge panel shadow used by the old partial drawer.
+- The existing close button and slide-in/out transition remain.
+- The shared top bar and bottom tab bar still hide while the menu is open.
+
+Status: Confirmed (2026-06-22).
+
 ## 2026-06-22
 
 ### Service worker introduced (installability + offline), navigations stay network-first
