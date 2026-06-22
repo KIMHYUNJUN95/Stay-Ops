@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { deleteAnnouncement } from "@/app/admin/announcements/actions";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 
 type DeleteAnnouncementButtonProps = {
@@ -48,7 +49,7 @@ export function DeleteAnnouncementButton({
                 </Button>
                 <form action={action}>
                   <input name="announcementId" type="hidden" value={announcementId} />
-                  <Button type="submit">{deleteLabel}</Button>
+                  <SubmitButton>{deleteLabel}</SubmitButton>
                 </form>
               </div>
             </>

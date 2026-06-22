@@ -269,7 +269,13 @@ export function MobileShell({
 
   const handleContentScroll = (event: UIEvent<HTMLDivElement>) => {
     const top = event.currentTarget.scrollTop;
-    SCROLL_POSITIONS.set(pathname, top); // remember where we are for back-nav restore
+    // Remember where we are for back-nav restore. Re-set after delete to keep this path the most
+    // recent (Map preserves insertion order) and cap the Map so it can't grow unbounded.
+    SCROLL_POSITIONS.delete(pathname);
+    SCROLL_POSITIONS.set(pathname, top);
+    if (SCROLL_POSITIONS.size > 30) {
+      SCROLL_POSITIONS.delete(SCROLL_POSITIONS.keys().next().value as string);
+    }
     requestVisibilityUpdate(top);
   };
 
@@ -1004,16 +1010,18 @@ export function MobileShell({
           <button
             aria-label={dictionary.common.menu}
           className={cn(
-              // Inset by the safe areas (top/bottom below) so the scrim never reaches the notch /
-              // home-indicator bands; iOS Safari samples the ivory body bg there and keeps its chrome
-              // light instead of tinting the status bar / URL toolbar black. Dim over content is unchanged.
-              "fixed left-0 right-0 z-[50] bg-slate-950/42",
+              // Keep the dismiss target full-screen, but leave transparent top/bottom bands in the
+              // *painted* scrim so Safari samples the ivory page edge instead of a dark overlay.
+              // `safe-area-inset-*` alone only protects standalone/PWA bands; regular Safari's own
+              // browser chrome is outside those insets, so a full-bleed dark scrim can still tint
+              // the status bar / URL toolbar dark when the sidebar opens.
+              "fixed inset-0 z-[50]",
               sidebarOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
             )}
             onClick={() => setSidebarOpen(false)}
             style={{
-              top: "env(safe-area-inset-top)",
-              bottom: "env(safe-area-inset-bottom)",
+              background:
+                "linear-gradient(to bottom, transparent 0, transparent max(16px, env(safe-area-inset-top)), rgba(2,6,23,0.42) max(16px, env(safe-area-inset-top)), rgba(2,6,23,0.42) calc(100% - max(16px, env(safe-area-inset-bottom))), transparent calc(100% - max(16px, env(safe-area-inset-bottom))), transparent 100%)",
               transition: "opacity 540ms ease",
             }}
             type="button"

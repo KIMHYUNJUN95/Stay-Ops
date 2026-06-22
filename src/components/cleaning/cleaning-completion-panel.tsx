@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Ban, CheckCircle2, Clock3, Edit3, Timer } from "lucide-react";
 import { cancelCleaningSession, completeCleaningSession } from "@/app/mobile/cleaning/actions";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 
 type CleaningCompletionPanelProps = {
@@ -185,9 +186,9 @@ export function CleaningCompletionPanel({
               <form action={completeCleaningSession} className="mt-4 space-y-2">
                 <input name="sessionId" type="hidden" value={sessionId} />
                 <input name="notes" type="hidden" value={notes} />
-                <Button autoFocus className="h-12 w-full rounded-xl bg-primary font-black text-white shadow-[0_10px_28px_hsl(var(--primary-hsl)/0.28)] hover:bg-primary/90" type="submit">
+                <SubmitButton autoFocus className="h-12 w-full rounded-xl bg-primary font-black text-white shadow-[0_10px_28px_hsl(var(--primary-hsl)/0.28)] hover:bg-primary/90">
                   {labels.confirmCompletion}
-                </Button>
+                </SubmitButton>
                 <Button
                   className="h-12 w-full rounded-xl border border-border bg-surface font-bold"
                   onClick={close}

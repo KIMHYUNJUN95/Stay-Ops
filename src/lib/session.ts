@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { defaultBottomNavTabIds } from "@/config/navigation";
 import type { AppMode } from "@/config/routes";
 import { canAccessAdminWeb } from "@/config/roles";
@@ -75,7 +76,11 @@ function isMissingEnvError(error: unknown) {
   return error instanceof Error && error.message.startsWith("Missing required");
 }
 
-export async function getCurrentAppSession(): Promise<AppSession | null> {
+// Request-scoped memoization: the session is read on the layout AND the page AND inside
+// getMobileNavBadges on every mobile render, and it's a multi-query waterfall. `cache()` collapses
+// all calls within one server render pass into a single execution (it does NOT cache across requests).
+export const getCurrentAppSession = cache(
+  async (): Promise<AppSession | null> => {
   try {
     const supabase = await getSupabaseServerClient();
     const {
@@ -178,4 +183,5 @@ export async function getCurrentAppSession(): Promise<AppSession | null> {
 
     throw error;
   }
-}
+  },
+);

@@ -2104,11 +2104,11 @@ for follow-up turns.
 
 ## 2026-06-22 Mobile sidebar scrim no longer tints iOS Safari chrome black
 
-`src/components/shell/mobile-shell.tsx`: the sidebar dismiss scrim was `fixed inset-0 bg-slate-950/42`, so under `viewport-fit: cover` its dark layer reached the notch / home-indicator safe-area bands (the aside only covers ~78% width, leaving the right edge fully dark top-to-bottom). iOS Safari samples those edges to pick its chrome tint, so it painted the top status bar and bottom URL toolbar black. Fix (purely positional): split `inset-0` into `left-0 right-0` + inline `top: env(safe-area-inset-top)` / `bottom: env(safe-area-inset-bottom)`, so the scrim covers the full visible content area (dim effect identical) but exposes the ivory body background in the safe-area bands — Safari now samples ivory and keeps the chrome light in both light and dark mode. Complements the earlier `themeColor` light/dark variant fix. Scrim color/opacity/transition/z-index, the aside geometry/gradient/shadow, and all other shell surfaces are untouched. `npm run lint` + `npm run build` pass.
+`src/components/shell/mobile-shell.tsx`: the sidebar dismiss scrim was `fixed inset-0 bg-slate-950/42`, so under `viewport-fit: cover` its dark layer reached the viewport's literal top/bottom edge pixels (the aside only covers ~78% width, leaving the right edge fully dark top-to-bottom). iOS Safari samples those edges to pick its chrome tint, so it painted the top status bar and bottom URL toolbar black. The earlier fix insetting the scrim by `env(safe-area-inset-top/bottom)` helped **standalone/PWA** safe-area bands, but **regular Safari browser mode** still reproduced the issue because its browser chrome is outside the safe-area model. Final fix: keep the dismiss target `fixed inset-0`, but paint the scrim with a vertical gradient that leaves transparent top/bottom edge bands (`max(16px, env(safe-area-inset-*))`) and only dims the center span. Safari now keeps sampling the ivory page edge in both browser mode and standalone while the visible dim across the main content stays effectively the same. Scrim click area, opacity transition, z-index, aside geometry/gradient/shadow, and all other shell surfaces are untouched.
 
 ## 2026-06-22 Mobile sidebar black-band follow-up: page color-scheme locked to light
 
-`src/app/layout.tsx`: after the `themeColor` light/dark variants and the sidebar scrim safe-area inset both landed, real iOS Safari in OS dark mode still painted black status-bar / URL-toolbar bands while the sidebar was open. Root cause was a missing `color-scheme` declaration — without it, dark-mode iOS Safari treats the page as dark-capable and applies its dark canvas/chrome defaults, which the dim scrim then reinforced through chrome color sampling. Added `viewport.colorScheme = "light"` to the existing Next.js `Viewport` export, which emits the `color-scheme: light` meta and locks the page to light-mode rendering on both light and dark devices. No surface, color token, or component is altered — the app's ivory design is unchanged. `npm run lint` + `npm run build` pass.
+`src/app/layout.tsx`: after the `themeColor` light/dark variants and the sidebar scrim safe-area fix both landed, real iOS Safari in OS dark mode still painted black status-bar / URL-toolbar bands while the sidebar was open. Root cause was a missing `color-scheme` declaration — without it, dark-mode iOS Safari treats the page as dark-capable and applies its dark canvas/chrome defaults, which the dim scrim then reinforced through chrome color sampling. Added `viewport.colorScheme = "light"` to the existing Next.js `Viewport` export, which emits the `color-scheme: light` meta and locks the page to light-mode rendering on both light and dark devices. No surface, color token, or component is altered — the app's ivory design is unchanged.
 
 ## 2026-06-22 Attendance result sheet scope fix + PWA manifest ivory chrome
 
@@ -2200,3 +2200,29 @@ Verification: `npm run lint` + `npm run build` pass. Route transitions + keyboar
 ## 2026-06-22 Pay-amount hide toggle: drop filter:blur (iOS rectangle/white-edge artifact)
 
 `src/components/attendance/attendance.css`: the pay-screen eye toggle hid amounts with `filter: blur()` on the text (`.entryrow__val.masked`, `.paycard.hide .pc__amt`, `.paycard.hide .pc__v`). On real iOS Safari, `filter: blur()` on text inside the `.paycard { overflow: hidden }` card clips the blur halo into a hard rectangle / white hairline — the reported "네모·흰 테두리" artifact. Replaced with **transparent text + `text-shadow` blur** (no element-box filter region → no edge artifact), with shadow color per card variant (`var(--ink)` on the light `--expected` card, white on the dark `--final` card). `transition` switched from `filter` to `color, text-shadow`. CSS-only; obscuring strength preserved. `npm run lint` passes; dev server hot-reloads CSS so it's re-testable on the tunnel. Not browser-preview verified here (iOS-specific artifact + WSL/UNC preview limitation). Doc: `docs/product/24-attendance-workflow.md` pay section.
+
+## 2026-06-22 Native standalone PWA — pass 3 (interaction polish + performance)
+
+Third pass from a fresh audit (performance + interaction), implementing the high-value low-risk
+findings; verified false positives were dropped.
+
+**Press feedback (native tactile, app-wide):**
+- Shared `Button` (`ui/button.tsx`) gains `active:` states per variant + `active:scale-[0.98]` (Tailwind v4 gates `hover:` to hover-capable devices, so touch had zero feedback) — fixes dozens of buttons at once; honors reduced-motion.
+- Bottom tab items (`.tabbar__item:active`, the most-tapped control) and notification rows (`.sg .notif:active`) now depress on tap.
+- Cleaning active-session quick-action links get `active:` (were hover-only).
+
+**Double-submit guards:** new shared `SubmitButton` (`ui/submit-button.tsx`, `useFormStatus`) disables + spins while a `<form action>` server action is in flight. Wired into the plain-form submits that lacked a pending guard: cleaning completion, cleaning-linked confirmation, announcement delete. (Most other forms already had `disabled={isPending}` — confirmed, left as-is.)
+
+**Performance:**
+- Calendar clock interval 1s → 30s (it only shows HH:MM; the 1s tick re-rendered the whole large calendar component every second).
+- Calendar sticky date header `bg-surface/95 backdrop-blur-xl` → solid `bg-surface` (backdrop-blur is the most expensive scroll-time paint; this one repainted across the whole grid during 2-axis scroll).
+- `getCurrentAppSession` wrapped in React `cache()` — it's a multi-query waterfall called on the layout + page + `getMobileNavBadges` every render; now one execution per request.
+- Task photo thumbnails (raw `<img>`) get `loading="lazy"` + `decoding="async"` (were eager-loading full-size originals into tiny boxes).
+- Announcement `next/image` thumbnails get `sizes` (no more oversized srcset on mobile).
+- `SCROLL_POSITIONS` restoration Map capped at 30 entries (LRU) so it can't grow unbounded.
+
+**Gesture:** the calendar horizontal grid `stopPropagation`s its touch events so a left-edge horizontal scroll no longer fires the shell's edge-back `router.back()`.
+
+**Deferred (noted, higher risk / larger):** long-list virtualization or `content-visibility` (cleaning/requests/tasks/suggestions render all rows); `tasks-workspace` filter/sort/group memoization + `React.memo(TaskCard)`; module-level `Intl` formatter singletons; `getMobileNavBadges` cross-request `unstable_cache` (would make advisory counts stale); hand-rolled sheets (context-picker, user-picker, project rename modal) → canonical `BottomSheet` for full scroll-lock; the persistent-shell layout refactor (from pass 2b).
+
+Verification: `npm run lint` + `npm run build` pass. Interaction/perf changes need on-device confirmation.

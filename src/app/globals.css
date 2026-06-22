@@ -170,6 +170,17 @@ body:lang(ja) {
   color: var(--muted-foreground);
   font: inherit;
   text-decoration: none;
+  transition: transform 0.12s ease;
+}
+/* Native press feedback — the bottom tabs are the most-tapped controls. */
+.tabbar__item:active {
+  transform: scale(0.9);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tabbar__item:active {
+    transform: none;
+    opacity: 0.6;
+  }
 }
 .tabbar__item .lbl {
   font-size: 10.5px;

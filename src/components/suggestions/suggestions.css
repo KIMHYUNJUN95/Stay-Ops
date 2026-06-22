@@ -1853,9 +1853,17 @@
   font: inherit;
   color: inherit;
   cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.12s ease;
+}
+.sg .notif:active {
+  transform: scale(0.99);
+  background: color-mix(in oklab, var(--card) 88%, var(--ink));
 }
 .sg .notif:disabled {
   cursor: default;
+}
+.sg .notif:disabled:active {
+  transform: none;
 }
 .sg .notif.unread {
   background: var(--primary-soft);

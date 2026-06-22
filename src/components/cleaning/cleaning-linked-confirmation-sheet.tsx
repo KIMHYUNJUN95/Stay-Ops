@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 
 type ConfirmationLabels = {
@@ -142,9 +143,9 @@ export function CleaningLinkedConfirmationSheet({
                     value={field.value}
                   />
                 ))}
-                <Button className="h-12 w-full rounded-xl font-black" type="submit">
+                <SubmitButton className="h-12 w-full rounded-xl font-black">
                   {labels.confirmSubmit}
-                </Button>
+                </SubmitButton>
                 <Button
                   className="h-12 w-full rounded-xl"
                   onClick={close}

@@ -764,7 +764,7 @@ export default async function MobileCleaningPage({
               </p>
               <div className="space-y-2">
                 <Link
-                  className="flex h-12 items-center gap-3 rounded-full border border-white/60 bg-white/28 px-4 text-sm font-bold text-foreground shadow-sm backdrop-blur-xl transition-colors hover:bg-white/40"
+                  className="flex h-12 items-center gap-3 rounded-full border border-white/60 bg-white/28 px-4 text-sm font-bold text-foreground shadow-sm backdrop-blur-xl transition-[background-color,transform] hover:bg-white/40 active:scale-[0.99] active:bg-white/55"
                   href={`/mobile/lost-found/new?sessionId=${activeSession.id}`}
                 >
                   <span className="flex size-8 items-center justify-center rounded-full border border-white/50 bg-white/35 text-primary">
@@ -773,7 +773,7 @@ export default async function MobileCleaningPage({
                   <span className="truncate">{copy.reportLostItem}</span>
                 </Link>
                 <Link
-                  className="flex h-12 items-center gap-3 rounded-full border border-white/60 bg-white/28 px-4 text-sm font-bold text-foreground shadow-sm backdrop-blur-xl transition-colors hover:bg-white/40"
+                  className="flex h-12 items-center gap-3 rounded-full border border-white/60 bg-white/28 px-4 text-sm font-bold text-foreground shadow-sm backdrop-blur-xl transition-[background-color,transform] hover:bg-white/40 active:scale-[0.99] active:bg-white/55"
                   href={`/mobile/maintenance/new?sessionId=${activeSession.id}`}
                 >
                   <span className="flex size-8 items-center justify-center rounded-full border border-white/50 bg-white/35 text-primary">

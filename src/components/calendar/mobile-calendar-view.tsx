@@ -375,7 +375,9 @@ export function MobileCalendarView({
     });
     const update = () => setTokyoNow(formatter.format(new Date()));
     update();
-    const timer = window.setInterval(update, 1000);
+    // The clock only shows HH:MM, so tick every 30s instead of every second — a 1s interval
+    // re-rendered this whole (large) calendar component once per second for no visible gain.
+    const timer = window.setInterval(update, 30000);
     return () => window.clearInterval(timer);
   }, [locale]);
 
@@ -873,6 +875,10 @@ export function MobileCalendarView({
             <div
               className="min-h-0 overflow-auto overscroll-x-contain bg-surface"
               onScroll={handleGridScroll}
+              // Stop touches here from bubbling to the shell's left-edge-back / pull-to-refresh
+              // handlers — a horizontal scroll started near the left edge used to fire router.back().
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               ref={scrollRef}
               style={{
                 height: CALENDAR_GRID_VIEWPORT_HEIGHT,
@@ -918,7 +924,7 @@ export function MobileCalendarView({
                 </div>
                 <div style={{ paddingLeft: `${ROOM_LABEL_WIDTH}px` }}>
                   <div
-                    className="sticky top-0 z-20 flex h-11 bg-surface/95 backdrop-blur-xl"
+                    className="sticky top-0 z-20 flex h-11 bg-surface"
                     style={{ minWidth: `${dates.length * DAY_WIDTH}px` }}
                   >
                     {dates.map((date) => {

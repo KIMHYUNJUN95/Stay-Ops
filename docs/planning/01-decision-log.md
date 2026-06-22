@@ -1550,20 +1550,22 @@ Impact:
 - This does **not** ship the broader attendance admin dashboard (review queue, payroll totals,
   finalization UI, export UI). Those remain separate/deferred surfaces.
 
-### Mobile overlay scrims must clear the iOS safe-area bands
+### Mobile sidebar scrim must leave chrome-safe transparent edge bands
 
-Decision: Full-viewport dim scrims (e.g. the mobile sidebar dismiss scrim) are inset by
-`env(safe-area-inset-top)` / `env(safe-area-inset-bottom)` rather than spanning `inset-0`, so they
-never cover the notch / home-indicator bands.
+Decision: the mobile sidebar dismiss scrim remains a **full-screen click target**, but its painted
+overlay leaves **transparent top/bottom edge bands** instead of tinting the viewport all the way to
+the first/last pixel row.
 
-Reason: under `viewport-fit: cover`, iOS Safari samples the page's top/bottom edge pixels to choose
-its status-bar / URL-toolbar chrome color. A dark scrim reaching those bands made Safari paint the
-chrome black (the sidebar's aside only covers ~78% width, so the dark scrim dominated the right edge
-top-to-bottom). Insetting the scrim keeps the visible dim over content identical while exposing the
-ivory body background in the sampled bands, so the chrome stays ivory in both light and dark mode.
-This complements the `viewport.themeColor` light/dark ivory fix. Future overlay/scrim work should
-follow the same inset pattern. The bottom-sheet scrim (`bottom-sheet.tsx`) is a separate concern and
-out of scope.
+Reason: the earlier safe-area-only inset fix solved standalone/PWA notch and home-indicator bands,
+but regular **Safari browser mode** still reproduced the black top/bottom chrome when the sidebar
+opened. Safari chooses the status-bar / URL-toolbar tint by sampling the page's top/bottom edge
+pixels, and its own browser chrome is **not** represented by `env(safe-area-inset-*)`. So a dark
+scrim that still painted the literal viewport edges could make Safari darken its chrome even though
+the safe-area bands were clear. Leaving transparent edge bands lets Safari keep sampling the ivory
+page background in both browser mode and standalone, while preserving a full-screen dismiss target
+and the same dim over the main content area. Future full-screen scrims that can coexist with Safari
+chrome should follow this "transparent edge bands" rule. The bottom-sheet scrim
+(`bottom-sheet.tsx`) is a separate concern and out of scope.
 
 Status: Confirmed (2026-06-22).
 

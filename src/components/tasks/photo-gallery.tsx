@@ -120,7 +120,7 @@ export function PhotoGallery({
             key={i}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img alt="" aria-hidden="true" className="size-full object-cover" src={url} />
+            <img alt="" aria-hidden="true" className="size-full object-cover" loading="lazy" decoding="async" src={url} />
             {overflow > 0 && i === MAX_THUMBS - 1 ? (
               <span className="absolute inset-0 flex items-center justify-center bg-slate-950/55 text-[13px] font-extrabold text-white backdrop-blur-[1px]">
                 +{overflow}
@@ -174,6 +174,8 @@ export function PhotoGallery({
                         alt=""
                         aria-hidden="true"
                         className="size-full object-cover transition-transform duration-300 group-active:scale-105"
+                        decoding="async"
+                        loading="lazy"
                         src={url}
                       />
                       <span className="absolute bottom-1.5 right-1.5 flex size-5 items-center justify-center rounded-full bg-slate-950/55 text-[10px] font-bold text-white backdrop-blur-[2px]">

@@ -43,6 +43,7 @@ export function AnnouncementImageGrid({
               alt={`Announcement attachment ${index + 1}`}
               className="aspect-[16/10] w-full object-cover transition-transform group-hover:scale-[1.02]"
               height={800}
+              sizes="(max-width: 640px) 100vw, 460px"
               src={url}
               width={1280}
             />
@@ -66,6 +67,7 @@ export function AnnouncementImageGrid({
             alt={`Announcement attachment ${index + 1}`}
             className="aspect-square w-full object-cover transition-transform group-hover:scale-[1.02] sm:aspect-[4/3]"
             height={900}
+            sizes="(max-width: 640px) 50vw, 220px"
             src={url}
             width={1200}
           />
