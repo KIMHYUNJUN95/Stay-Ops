@@ -571,14 +571,14 @@ export function MobileShell({
   const rightTabs = bottomItems.slice(splitAt);
   const isBarFull = navTabIds.length >= MAX_BOTTOM_NAV_TABS;
   const topChromeVisible = headerVisible && !sidebarOpen;
-  const standaloneScrimHeaderClear = sidebarOpen
-    ? "env(safe-area-inset-top)"
-    : "calc(env(safe-area-inset-top) + 64px)";
-  const standaloneScrimFooterClear = sidebarOpen || hideBottomNav
+  const standaloneScrimHeaderClear = "calc(env(safe-area-inset-top) + 64px)";
+  const standaloneScrimFooterClear = hideBottomNav
     ? "env(safe-area-inset-bottom)"
     : "calc(env(safe-area-inset-bottom) + 88px)";
   const sidebarScrimBackground = isStandaloneDisplayMode
-    ? `linear-gradient(to bottom, transparent 0, transparent ${standaloneScrimHeaderClear}, rgba(2,6,23,0.42) ${standaloneScrimHeaderClear}, rgba(2,6,23,0.42) calc(100% - ${standaloneScrimFooterClear}), transparent calc(100% - ${standaloneScrimFooterClear}), transparent 100%)`
+    ? sidebarOpen
+      ? "rgba(2,6,23,0.42)"
+      : `linear-gradient(to bottom, transparent 0, transparent ${standaloneScrimHeaderClear}, rgba(2,6,23,0.42) ${standaloneScrimHeaderClear}, rgba(2,6,23,0.42) calc(100% - ${standaloneScrimFooterClear}), transparent calc(100% - ${standaloneScrimFooterClear}), transparent 100%)`
     : "linear-gradient(to bottom, transparent 0, transparent max(1px, env(safe-area-inset-top)), rgba(2,6,23,0.42) max(1px, env(safe-area-inset-top)), rgba(2,6,23,0.42) calc(100% - max(1px, env(safe-area-inset-bottom))), transparent calc(100% - max(1px, env(safe-area-inset-bottom))), transparent 100%)";
 
   const renderTab = (item: (typeof bottomItems)[number]) => {
