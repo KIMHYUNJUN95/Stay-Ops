@@ -570,6 +570,7 @@ export function MobileShell({
   const leftTabs = bottomItems.slice(0, splitAt);
   const rightTabs = bottomItems.slice(splitAt);
   const isBarFull = navTabIds.length >= MAX_BOTTOM_NAV_TABS;
+  const topChromeVisible = headerVisible && !sidebarOpen;
   const standaloneScrimHeaderClear = "calc(env(safe-area-inset-top) + 64px)";
   const standaloneScrimFooterClear = hideBottomNav
     ? "env(safe-area-inset-bottom)"
@@ -787,8 +788,10 @@ export function MobileShell({
               jump (the height never changes; only the overlay translates). */}
           <div
             className={cn(
-              "absolute inset-x-0 top-[env(safe-area-inset-top)] z-30 h-16 overflow-hidden border-0 transition-transform duration-300 ease-out motion-reduce:transition-none",
-              headerVisible ? "translate-y-0" : "-translate-y-[calc(100%+env(safe-area-inset-top))]",
+              "absolute inset-x-0 top-[env(safe-area-inset-top)] z-30 h-16 overflow-hidden border-0 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none",
+              topChromeVisible
+                ? "translate-y-0 opacity-100"
+                : "-translate-y-[calc(100%+env(safe-area-inset-top))] opacity-0 pointer-events-none",
             )}
           >
             <div className="relative h-16 bg-background px-4 pt-2">
@@ -953,10 +956,12 @@ export function MobileShell({
             <nav
               aria-label={title}
               className={cn(
-                "tabbar absolute inset-x-0 bottom-0 z-20 transition-transform duration-300 ease-out motion-reduce:transition-none",
+                "tabbar absolute inset-x-0 bottom-0 z-20 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none",
                 // Mirror the top chrome: slide the bar down on scroll-down, back up on scroll-up.
                 // Extra 40px past 100% clears the center FAB that overshoots above the bar.
-                headerVisible ? "translate-y-0" : "translate-y-[calc(100%+40px)]",
+                topChromeVisible
+                  ? "translate-y-0 opacity-100"
+                  : "translate-y-[calc(100%+40px)] opacity-0 pointer-events-none",
               )}
             >
               {leftTabs.map(renderTab)}

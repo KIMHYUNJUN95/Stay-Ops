@@ -1614,6 +1614,9 @@ Impact:
 - The sidebar panel and scrim are shell-local `absolute` layers instead of viewport-fixed layers,
   and the scrim mounts only while the drawer is open. This removes the hidden closed-state
   full-screen scrim layer that iOS standalone could keep sampling for the top status-bar paint.
+- While the drawer is open, the shared top bar and bottom tab bar also slide/fade out instead of
+  remaining visible under the dimmed right-edge sliver. The open state now reads as one focused
+  drawer surface rather than "app chrome still visible behind a menu".
 
 Status: Confirmed (2026-06-22).
 
