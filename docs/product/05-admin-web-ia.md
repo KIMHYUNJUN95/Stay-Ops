@@ -197,6 +197,7 @@ Implementation note:
 - `/admin/settings` is the first implemented settings hub.
 - `/admin/settings/organization` supports Developer / Super Admin organization creation.
 - `/admin/settings/invite-codes` supports invite-code creation, listing, and deactivation.
+- `/admin/settings/attendance` supports **owner-only** attendance site setup and QR issue/reissue.
 - Future admin screens should use the shared admin navigation contract instead of creating local sidebar definitions.
 
 ## Design Note

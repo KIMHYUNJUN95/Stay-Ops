@@ -38,7 +38,11 @@ function isLocalDevHost(host: string) {
   if (host === "localhost" || host === "127.0.0.1") return true;
   if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
   if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
-  return /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(host);
+  if (/^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  // Cloudflare quick tunnel (dev-only): lets this temp-QR page open on a phone over
+  // any network. Still gated by NODE_ENV=development + ENABLE_DEV_SEED_LOGIN, so it is
+  // never reachable in production regardless of host.
+  return host.endsWith(".trycloudflare.com");
 }
 
 function getRequestHostname(request: NextRequest) {

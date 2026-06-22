@@ -989,6 +989,9 @@ export function OnboardingWizard({
                 }}
                 placeholder={join.codePlaceholder}
                 autoCapitalize="characters"
+                // Oversized segmented code field (19px) — opt out of the touch ≥16px rule so it
+                // keeps its intended large size (still ≥16px, so it never triggers iOS focus zoom).
+                data-keep-font-size
                 className={`h-[56px] w-full rounded-[14px] border bg-surface px-[15px] text-center font-mono text-[19px] font-bold tracking-[0.12em] text-foreground outline-none transition-colors placeholder:font-sans placeholder:text-[15px] placeholder:font-medium placeholder:tracking-normal placeholder:text-[hsl(222_10%_62%)] ${
                   inviteStatus === "error"
                     ? "border-[hsl(4_62%_46%)]"

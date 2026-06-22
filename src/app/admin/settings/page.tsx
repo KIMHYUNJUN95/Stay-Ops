@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Building2, Ticket } from "lucide-react";
+import { Building2, QrCode, Ticket } from "lucide-react";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { Card } from "@/components/ui/card";
 import { getDictionary } from "@/lib/i18n";
+import { hasOrganizationContext } from "@/lib/session";
 import { requireAdminSession } from "@/lib/admin-session";
 
 export default async function AdminSettingsPage() {
@@ -24,6 +25,15 @@ export default async function AdminSettingsPage() {
       title: settings.inviteCodesTitle,
     },
   ];
+
+  if (session.user.role === "owner" && hasOrganizationContext(session)) {
+    cards.push({
+      description: settings.attendanceDescription,
+      href: "/admin/settings/attendance",
+      icon: QrCode,
+      title: settings.attendanceTitle,
+    });
+  }
 
   return (
     <AdminShell activeItem="settings" title={settings.settingsTitle}>

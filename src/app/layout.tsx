@@ -7,6 +7,7 @@ import {
   Noto_Serif,
 } from "next/font/google";
 import { SessionProvider } from "@/components/providers/session-provider";
+import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { getCurrentAppSession } from "@/lib/session";
 import "./globals.css";
 
@@ -47,6 +48,15 @@ export const metadata: Metadata = {
   title: "StayOps",
   description: "Hotel operations app for field staff and office teams.",
   manifest: "/manifest.webmanifest",
+  // iOS ignores the manifest icons for the home-screen icon — it needs apple-touch-icon.
+  // Without these the installed app showed a blank/screenshot glyph.
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -90,6 +100,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
+        <ServiceWorkerRegister />
         <SessionProvider initialSession={session}>{children}</SessionProvider>
       </body>
     </html>

@@ -270,7 +270,7 @@ export function AttendanceCapture({ mode = "in", locale }: { mode?: AttendanceSc
       {phase === "result" && result ? (
         <BottomSheet
           ariaLabel={isOut ? copy.resultOutTitle : copy.resultInTitle}
-          className="att__result-sheet"
+          className="att att__result-sheet"
           onClose={onDismiss}
         >
           <ResultSheet result={result} isOut={isOut} onHome={goHome} onRetry={retry} copy={copy} />

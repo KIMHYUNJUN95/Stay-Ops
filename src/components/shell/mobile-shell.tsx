@@ -390,12 +390,24 @@ export function MobileShell({
     writeEdgeProgress(dx);
   }
 
+  // Back that never strands the user. In an installed standalone PWA there is no browser back
+  // button, so a `router.back()` at the first history entry (e.g. cold-launched straight onto a
+  // deep screen via a notification / share / deep link) would be a dead gesture with no escape.
+  // When there's nothing to go back to, fall back to the mobile home instead.
+  const goBack = useCallback(() => {
+    if (typeof window !== "undefined" && window.history.length <= 1) {
+      router.push("/mobile");
+    } else {
+      router.back();
+    }
+  }, [router]);
+
   function endEdgeDrag(commit: boolean) {
     edgeLockedRef.current = false;
     edgeCandidateRef.current = false;
     setEdgeDragging(false); // re-enable the spring transition (CSS animates --edge-progress back to 0)
     writeEdgeProgress(0); // settle to rest
-    if (commit) router.back();
+    if (commit) goBack();
   }
 
   function handleSwipeEnd(e: React.TouchEvent<HTMLElement>) {
@@ -416,7 +428,7 @@ export function MobileShell({
     if (absX < 55 || deltaY > absX * 0.75) return;
     const viewportWidth = window.innerWidth || 390;
     if (deltaX > 0 && startX <= EDGE_BAND) {
-      router.back();
+      goBack();
       return;
     }
     if (deltaX < 0 && startX >= viewportWidth - 28) {
@@ -693,21 +705,24 @@ export function MobileShell({
         <div
           className="relative flex h-svh w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)]"
         >
-          {/* Persistent top bar. It used to collapse h-16↔h-0 on scroll, but that
-              reflowed the scroll content and made scrolling jump. Now it stays put
-              (no reflow); only the bottom tab bar hides on scroll (overlay slide). */}
-          <div className="h-16 overflow-hidden border-0">
+          {/* Top bar — OVERLAY (mirrors the bottom tab bar). It used to be an in-flow h-16
+              block whose inner content merely faded on scroll, leaving the 64px slot occupied.
+              Now it is absolutely positioned and slides fully up on scroll-down (and back on
+              scroll-up), so the content reclaims that space — exactly like the bottom bar. The
+              scroll container carries a CONSTANT top padding to clear it, so there is no reflow
+              jump (the height never changes; only the overlay translates). */}
+          <div
+            className={cn(
+              "absolute inset-x-0 top-[env(safe-area-inset-top)] z-30 h-16 overflow-hidden border-0 transition-transform duration-300 ease-out motion-reduce:transition-none",
+              headerVisible ? "translate-y-0" : "-translate-y-[calc(100%+env(safe-area-inset-top))]",
+            )}
+          >
             <div className="relative h-16 bg-background px-4 pt-2">
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,var(--background)_0%,color-mix(in_oklab,var(--background)_82%,transparent)_55%,transparent_100%)]"
               />
-              <div
-                className={cn(
-                  "relative flex h-12 w-full items-center justify-between px-2 transition-[transform,opacity] duration-300 ease-out",
-                  headerVisible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
-                )}
-              >
+              <div className="relative flex h-12 w-full items-center justify-between px-2">
                 <button
                   aria-label={dictionary.common.menu}
                   className="relative z-10 flex size-[38px] items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-[color-mix(in_oklab,var(--muted)_82%,var(--foreground))]"
@@ -775,7 +790,7 @@ export function MobileShell({
             <div
               aria-atomic="true"
               aria-live="polite"
-              className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-center"
+              className="pointer-events-none absolute inset-x-0 top-16 flex items-center justify-center"
               style={{ height: `${REFRESH_DISPLAY_H}px` }}
             >
               <div className="flex flex-col items-center gap-1.5">
@@ -820,7 +835,7 @@ export function MobileShell({
             {/* Gradient curtain — dissolves in as content pulls away */}
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 top-0 z-10"
+              className="pointer-events-none absolute inset-x-0 top-16 z-10"
               style={{
                 height: `${Math.min(contentOffset * 2.4, 96)}px`,
                 background: "linear-gradient(to bottom, rgba(255,255,255,0.94) 0%, rgba(255,255,255,0.60) 55%, transparent 100%)",
@@ -834,12 +849,14 @@ export function MobileShell({
             {/* Scrollable content — slides down on pull */}
             <div
               className={cn(
-                "h-full overflow-y-auto overscroll-y-contain bg-background px-5 pt-5 text-foreground",
+                // Constant pt-[84px] clears the 64px overlay header (which sits over the top of this
+                // wrapper) plus ~20px breathing room — identical resting spacing to the old in-flow
+                // header. It MUST stay constant: the header hides by sliding up as an overlay, so the
+                // content keeps its padding and simply scrolls under where the header was. Toggling
+                // this padding would shift rendered content while scrollTop stayed put → snap jump.
+                "h-full overflow-y-auto overscroll-y-contain bg-background px-5 pt-[84px] text-foreground",
                 // No tab bar to clear when it's hidden — the focused flow owns its own bottom spacing.
                 hideBottomNav ? "pb-8" : "pb-[124px]",
-                // Constant top padding: the header hides/shows via its own fade+translate above this
-                // scroll container, so we must NOT toggle this padding — doing so shifted rendered
-                // content by 20px while scrollTop stayed put, producing a visible snap up/down jump.
               )}
               onScroll={handleContentScroll}
               onTouchEnd={handleTouchEnd}

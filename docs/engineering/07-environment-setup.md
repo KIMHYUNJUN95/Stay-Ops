@@ -93,6 +93,26 @@ Usage:
 - Invite links
 - PWA metadata if needed
 
+### Testing the dev server on a phone over any network (Cloudflare quick tunnel)
+
+To open the local dev server on a phone **without** needing the same WiFi (works on cellular too):
+
+1. Start the dev server in WSL: `npm run dev` (binds `*:3000`).
+2. Install cloudflared once: download `cloudflared-linux-amd64` to `~/.local/bin/cloudflared`, `chmod +x`.
+3. Run a quick tunnel: `~/.local/bin/cloudflared tunnel --url http://localhost:3000 --no-autoupdate`.
+   It prints a random `https://<random>.trycloudflare.com` URL — open that on the phone.
+
+Two dev-only allowances make this work (no production effect):
+
+- `next.config.ts` → `allowedDevOrigins` includes `"*.trycloudflare.com"` so Next dev serves HMR/client chunks to the tunnel origin.
+- The dev temp-QR route (`src/app/api/dev/attendance/temp-qr/route.ts`) `isLocalDevHost()` also accepts `*.trycloudflare.com` hosts, so the temp clock-in QR page opens through the tunnel. It stays gated by `NODE_ENV=development` + `ENABLE_DEV_SEED_LOGIN=true`, so it is never reachable in production regardless of host.
+
+Notes / cautions:
+
+- The quick-tunnel URL is **random per run** and changes whenever cloudflared restarts; the config uses a wildcard so no edit is needed each time.
+- A quick tunnel exposes the dev server **publicly** to anyone with the URL — use it only for short testing sessions and stop cloudflared when done.
+- Log into the app **through the tunnel URL** on the phone first; the temp-QR page needs an org-scoped session on that origin (otherwise it returns `no_org_context`). Auth callback origin is derived from the request host, so login over the tunnel domain works.
+
 ## Google OAuth
 
 Required later for Google login:

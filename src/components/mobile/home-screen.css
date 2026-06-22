@@ -139,11 +139,42 @@
   font-weight: 900;
   letter-spacing: -0.02em;
 }
+.hm__ch-big--timer {
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
 .hm__ch-sub {
   font-size: 12.5px;
   color: var(--hm-muted);
   margin-top: 5px;
   font-weight: 600;
+}
+.hm__ch-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+  position: relative;
+}
+.hm__ch-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--hm-surface) 78%, white 22%);
+  border: 1px solid var(--hm-line-soft);
+}
+.hm__ch-meta-k {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--hm-muted);
+}
+.hm__ch-meta-v {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--hm-ink);
 }
 .hm__ch-btn {
   flex: 0 0 auto;
@@ -190,6 +221,22 @@
 }
 .hm__mchip .ic {
   font-size: 13px;
+}
+
+@media (max-width: 380px) {
+  .hm__ch-mid {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hm__ch-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .hm__ch-meta {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* section titles */

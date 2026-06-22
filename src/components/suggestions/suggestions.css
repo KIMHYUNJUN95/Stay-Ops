@@ -58,7 +58,8 @@
 
 /* the scroll body inside the shell content area */
 .sg .scroll {
-  padding: 2px 16px 26px;
+  /* Bottom clears the iOS home indicator (was a flat 26px, which let the last row sit under it). */
+  padding: 2px 16px max(26px, env(safe-area-inset-bottom));
 }
 
 .sg .ptitle-row {
@@ -520,7 +521,8 @@
   padding: 13px 14px;
   resize: none;
   line-height: 1.55;
-  font-size: 14px;
+  /* 16px so iOS doesn't zoom-snap on focus (was 14px). */
+  font-size: 16px;
   font-weight: 500;
 }
 .sg .inp::placeholder {
@@ -982,7 +984,8 @@
   background: var(--bg);
   padding: 0 14px;
   font: inherit;
-  font-size: 13px;
+  /* 16px so iOS doesn't zoom-snap on focus (was 13px). */
+  font-size: 16px;
   color: var(--ink);
   outline: none;
 }

@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { redirect } from "next/navigation";
 import {
   CalendarClock,
@@ -11,6 +10,7 @@ import {
   User,
 } from "lucide-react";
 import { OrderActionBar } from "@/components/requests/order-action-bar";
+import { LightboxThumbs } from "@/components/shell/lightbox-thumbs";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { Badge } from "@/components/ui/badge";
@@ -249,26 +249,12 @@ export default async function MobileOrderRequestDetailPage({
                     </a>
                   ) : null}
                   {item.imageUrls && item.imageUrls.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {item.imageUrls.map((url, idx) => (
-                        <a
-                          href={url}
-                          key={`${item.id}-img-${idx}`}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          <div className="relative size-16 overflow-hidden rounded-xl border border-border/60 bg-muted">
-                            <Image
-                              alt=""
-                              className="object-cover"
-                              fill
-                              sizes="64px"
-                              src={url}
-                            />
-                          </div>
-                        </a>
-                      ))}
-                    </div>
+                    <LightboxThumbs
+                      sizes="64px"
+                      thumbClassName="relative size-16 overflow-hidden rounded-xl border border-border/60 bg-muted"
+                      urls={item.imageUrls}
+                      wrapClassName="mt-2 flex flex-wrap gap-2"
+                    />
                   ) : null}
                 </div>
               ))

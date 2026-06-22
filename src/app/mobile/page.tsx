@@ -20,6 +20,7 @@ import { HomeElapsedTimer } from "@/components/mobile/home-elapsed-timer";
 import { HomeLastUpdatedClock } from "@/components/mobile/home-last-updated-clock";
 import { HomeRefreshButton } from "@/components/mobile/home-refresh-button";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { getCurrentOpenSession } from "@/lib/attendance-sessions";
 import { getDictionary } from "@/lib/i18n";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import {
@@ -165,13 +166,15 @@ export default async function MobileHomePage() {
   const locale = session.user.preferredLanguage;
   const dictionary = getDictionary(locale);
   const m = dictionary.mobile;
+  const a = dictionary.attendance;
 
-  const [checkInOut, todayActivity, activeSession, announcements] =
+  const [checkInOut, todayActivity, activeSession, announcements, openAttendanceSession] =
     await Promise.all([
       getHomeCheckInOutReservations(session),
       getHomeTodayActivity(session, 10),
       getHomeActiveCleaningSession(session),
       getVisibleAnnouncements(session),
+      getCurrentOpenSession(session.organization.id, session.user.id),
     ]);
 
   const buildingLabels = dictionary.cleaning.buildingLabels;
@@ -239,29 +242,61 @@ export default async function MobileHomePage() {
           <HomeLastUpdatedClock initialTime={lastUpdatedTime} locale={locale} />
         </div>
 
-        {/* Quick clock-in hero (static — opens the attendance screen) */}
+        {/* Quick attendance hero — now reflects the real open attendance session state. */}
         <Link
-          aria-label={m.homeClockIdleTitle}
+          aria-label={openAttendanceSession ? m.homeClockOpenTitle : m.homeClockIdleTitle}
           className="hm__clockhero"
           href="/mobile/attendance"
         >
           <span className="hm__ch-deco" aria-hidden="true" />
           <div className="hm__ch-top">
-            <span className="hm__ch-state">{m.homeClockBefore}</span>
-            <span className="hm__ch-tag">{m.homeClockWaiting}</span>
+            <span className="hm__ch-state">
+              {openAttendanceSession
+                ? (openAttendanceSession.openBreakStartedAt ? a.ringOnBreak : a.ringWorking)
+                : m.homeClockBefore}
+            </span>
+            <span className="hm__ch-tag">
+              {openAttendanceSession
+                ? (openAttendanceSession.openBreakStartedAt ? a.ringOnBreak : a.ringWorking)
+                : m.homeClockWaiting}
+            </span>
           </div>
           <div className="hm__ch-mid">
             <div>
-              <div className="hm__ch-big">{m.homeClockIdleTitle}</div>
-              <div className="hm__ch-sub">{m.homeClockIdleSub}</div>
+              {openAttendanceSession?.clockInAt ? (
+                <div className="hm__ch-big hm__ch-big--timer mono">
+                  <HomeElapsedTimer startedAt={openAttendanceSession.clockInAt} />
+                </div>
+              ) : (
+                <div className="hm__ch-big">{m.homeClockIdleTitle}</div>
+              )}
+              <div className="hm__ch-sub">
+                {openAttendanceSession
+                  ? (openAttendanceSession.openBreakStartedAt
+                      ? m.homeClockBreakSub
+                      : m.homeClockOpenSub)
+                  : m.homeClockIdleSub}
+              </div>
             </div>
             <span className="hm__ch-btn">
               <span className="ic">
                 <QrCode aria-hidden="true" />
               </span>
-              {m.homeClockIn}
+              {openAttendanceSession ? m.homeClockOpenCta : m.homeClockIn}
             </span>
           </div>
+          {openAttendanceSession ? (
+            <div className="hm__ch-meta">
+              <div className="hm__ch-meta-item">
+                <span className="hm__ch-meta-k">{a.clockInSite}</span>
+                <span className="hm__ch-meta-v">{openAttendanceSession.siteName}</span>
+              </div>
+              <div className="hm__ch-meta-item">
+                <span className="hm__ch-meta-k">{a.clockInTime}</span>
+                <span className="hm__ch-meta-v mono">{openAttendanceSession.clockInTimeLabel}</span>
+              </div>
+            </div>
+          ) : null}
           <div className="hm__ch-methods">
             <span className="hm__mchip hm__mchip--on">
               <span className="ic">

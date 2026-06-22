@@ -1524,6 +1524,32 @@ In-app browsers (KakaoTalk/Instagram) ignore theme-color and are out of scope.
 
 Status: Confirmed (2026-06-22).
 
+### Attendance / Temporary QR ??owner-only settings bridge
+
+Decision: add a minimal **owner-only** admin-web settings page at `/admin/settings/attendance` for
+attendance **site setup + QR issue/reissue**. This is a narrow bridge for real operations and QA, not
+the full attendance dashboard.
+
+Why:
+
+- The attendance backend and worker QR flow are already live, but the only QR issuance surface was the
+  local-dev-only `/api/dev/attendance/temp-qr` route.
+- Operations needed a browser UI to register a real site radius/coordinates and issue a scannable QR
+  without relying on a dev-only route or URL query parameters.
+- Keeping it under **Settings** and restricting it to **`owner` only** preserves the documented
+  authority boundary: site master and QR lifecycle are not broad admin capabilities.
+
+Impact:
+
+- `/admin/settings` gains an owner-visible attendance QR entry card.
+- `/admin/settings/attendance` becomes the first owner-facing site/QR surface: select an existing site
+  or create one, edit `name / latitude / longitude / allowed radius`, and issue or reissue the active
+  QR.
+- QR issuance still uses the existing atomic `issue_attendance_qr` RPC through
+  `src/lib/attendance-sites.ts`; no schema or permission model changed.
+- This does **not** ship the broader attendance admin dashboard (review queue, payroll totals,
+  finalization UI, export UI). Those remain separate/deferred surfaces.
+
 ### Mobile overlay scrims must clear the iOS safe-area bands
 
 Decision: Full-viewport dim scrims (e.g. the mobile sidebar dismiss scrim) are inset by
@@ -1538,5 +1564,43 @@ ivory body background in the sampled bands, so the chrome stays ivory in both li
 This complements the `viewport.themeColor` light/dark ivory fix. Future overlay/scrim work should
 follow the same inset pattern. The bottom-sheet scrim (`bottom-sheet.tsx`) is a separate concern and
 out of scope.
+
+Status: Confirmed (2026-06-22).
+
+## 2026-06-22
+
+### Service worker introduced (installability + offline), navigations stay network-first
+
+Decision: StayOps now ships a minimal service worker (`public/sw.js`, registered prod-only) plus a
+real icon set and an `/offline` fallback, to make the installed PWA installable on Android (Chrome's
+install prompt requires a SW with a fetch handler + a maskable icon) and to show a friendly offline
+page instead of a blank error.
+
+Constraint kept: the SW is **network-first for navigations** and only cache-first for content-hashed
+static assets (`/_next/static`, `/icons`). The previous no-SW state had zero stale-content risk; we
+preserve that for dynamic HTML/RSC so the installed app is never stuck on an old version. Static cache
+is versioned (`CACHE = stayops-static-v1`) — bump to invalidate on deploy.
+
+Also: `manifest.webmanifest` gained `id`/`scope` and `start_url` moved `/` → `/mobile` (the real
+installed-app entry, dropping a launch-time redirect hop). Icons are generated from an inline SVG
+brand mark (navy squircle + ivory serif "S") via `scripts/dev/generate-pwa-icons.mjs`; replace with a
+real logo and re-run when one exists.
+
+Reason: the app was previously a manifest-only "PWA" with no icons and no SW — it installed as a
+manual home-screen bookmark with a blank icon, no Android install prompt, and a blank offline state.
+This is part of the 2026-06-22 native standalone hardening pass (see Current Status). PWA-first
+direction is unchanged; this strengthens it.
+
+Status: Confirmed (2026-06-22).
+
+### In-app photo lightbox instead of new-tab image links (standalone)
+
+Decision: Mobile photo attachments (announcements, order items, linen-return records) open in an
+in-app `ImageLightbox` (full-screen swipeable viewer, portaled to `<body>`) instead of
+`<a target="_blank">`. In an installed standalone PWA a new-tab link ejects the user into a separate
+Safari tab (or, same-window, strands them on a raw image with no back button). Genuine external
+destinations (maps, shopping links, mailto/tel) intentionally still leave the app and are recoverable
+via the app switcher. Future image surfaces should reuse `ImageLightbox` / `LightboxThumbs`, not
+`target="_blank"`.
 
 Status: Confirmed (2026-06-22).

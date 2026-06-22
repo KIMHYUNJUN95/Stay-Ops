@@ -3,7 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Allow dev resource access (HMR + client chunks) when the app is opened via
   // the WSL network IP instead of localhost. Dev-only; no effect on production.
-  allowedDevOrigins: ["172.20.50.244", "10.255.255.254"],
+  // `*.trycloudflare.com` covers Cloudflare quick tunnels (random subdomain each
+  // run) so the app can be opened on a phone over any network, not just same-WiFi.
+  allowedDevOrigins: ["172.20.50.244", "10.255.255.254", "192.168.1.112", "*.trycloudflare.com"],
   images: {
     remotePatterns: [
       {

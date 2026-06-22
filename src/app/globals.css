@@ -1,5 +1,45 @@
 @import "tailwindcss";
 
+/* ── Native standalone touch behavior ──────────────────────────────────────
+   Make the installed PWA feel like a native app on iOS Safari / Android:
+   - kill the grey tap-highlight flash on every tappable element,
+   - stop the iOS long-press callout + accidental text-selection on UI chrome
+     (buttons, links, labels, the tab bar, the wordmark) — body text, inputs,
+     and message/announcement/suggestion content stay selectable,
+   - stop the whole document rubber-band/bounce (the inner scroll area already
+     uses overscroll-contain; this guards the body so no white gap shows above
+     the header / below the tab bar),
+   - on touch devices, fields render at ≥16px so iOS never zoom-snaps the
+     viewport on focus (desktop keeps its design sizes; inputs that intentionally
+     want a larger size opt out with data-keep-font-size). */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+html,
+body {
+  overscroll-behavior: none;
+}
+button,
+a,
+label,
+summary,
+[role="button"],
+[role="tab"],
+.tabbar,
+.tabbar__item,
+.wordmark {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([data-keep-font-size]),
+  textarea:not([data-keep-font-size]),
+  select:not([data-keep-font-size]) {
+    font-size: 16px;
+  }
+}
+
 :root {
   /* Warm ivory canvas + chrome (sidebar, bottom bar, page background). */
   --background: hsl(42 36% 95%);

@@ -47,8 +47,11 @@ Screens:
 - `/mobile/attendance/capture` — **clock-in capture** → `attendance-capture.tsx`. QR scan view (corner
   frame, scan line, GPS chip) + the three **result sheets**: **성공 (출근 완료 + recap)**, **반경 밖
   (거리 게이지 138m)**, **위치 권한 거부** (`?result=`). Result sheets are portaled to `<body>` (the
-  shell scroll container's `transform` traps `position: fixed`). Tapping the scanner simulates a
-  successful scan (prototype).
+  shell scroll container's `transform` traps `position: fixed`). **Scope (2026-06-22 fix):** because the
+  sheet is portaled out of the page tree, its `BottomSheet` carries the `att` class (`className="att
+  att__result-sheet"`) — all attendance result-sheet CSS is scoped under `.att`, so without it the
+  portaled content rendered unstyled (giant intrinsic-size SVG icons, no recap layout). Tapping the
+  scanner simulates a successful scan (prototype).
 - `/mobile/attendance/correction` — **correction request form** → `attendance-correction-form.tsx`
   (reason chips · desired in/out time · site · memo · photos, fixed submit bar). From `Attendance
   Correction Request.html`. **Wired (Step 6, 2026-06-17):** controlled form → `createAttendanceCorrectionRequest`

@@ -1,7 +1,7 @@
-import Image from "next/image";
 import { redirect } from "next/navigation";
 import { Building2 } from "lucide-react";
 import { LinenReturnDetailActions } from "@/components/linen-return/linen-return-detail-actions";
+import { LightboxThumbs } from "@/components/shell/lightbox-thumbs";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { canManageLinenRecord, getLinenReturnRecordById } from "@/lib/linen-returns";
@@ -142,15 +142,12 @@ export default async function LinenReturnDetailPage({ params, searchParams }: Pa
             <div className="mb-2.5 px-0.5 text-[11px] font-bold uppercase tracking-[0.05em] text-muted-foreground">
               {copy.photoSectionTitle}
             </div>
-            <div className="flex flex-wrap gap-2.5">
-              {record.imageUrls.map((url, idx) => (
-                <a href={url} key={`${record.id}-img-${idx}`} rel="noreferrer" target="_blank">
-                  <div className="relative size-[72px] overflow-hidden rounded-[14px] border border-border bg-slate-50">
-                    <Image alt="" className="object-cover" fill sizes="72px" src={url} />
-                  </div>
-                </a>
-              ))}
-            </div>
+            <LightboxThumbs
+              sizes="72px"
+              thumbClassName="relative size-[72px] overflow-hidden rounded-[14px] border border-border bg-slate-50"
+              urls={record.imageUrls}
+              wrapClassName="flex flex-wrap gap-2.5"
+            />
           </div>
         ) : null}
 
