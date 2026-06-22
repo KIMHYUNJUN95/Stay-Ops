@@ -141,8 +141,9 @@ Implementation note (2026-06-03):
 - After Google callback, `getOnboardingState()` determines if profile is complete.
 - If profile is missing → routed to `/onboarding` profile step.
 - If profile complete but no membership → routed to `/onboarding` invite-code step.
-- If membership is suspended → blocked with a clear message and a logout option.
-- If membership is removed → blocked with a clear message and a logout option.
+- If membership is suspended → routed to the blocked state on `/auth/login` with a logout action.
+- If membership is removed → routed to the blocked state on `/auth/login` by default; the user may explicitly enter a re-join flow with another valid invite code.
+- If the authenticated account is disabled at the Auth level → routed to the blocked state on `/auth/login`.
 - Google login button is live on `/auth/login`; `prompt: "select_account"` forces account selection on each login attempt.
 
 ## Email Signup / Login
@@ -166,6 +167,10 @@ Rules:
 - Google login and email/password login should attach to the same account when the email matches
 - Phone number is an account-level unique value
 - If an account exists but onboarding is incomplete, re-signup should resume the same account instead of creating a duplicate
+
+Implementation note:
+
+- Same-email Google/email account attachment currently depends on **Supabase Auth automatic identity linking + confirmed email settings**. StayOps app code explicitly handles duplicate/incomplete-account resume on the email-signup path, but Google sign-in itself relies on the Supabase-side linking policy.
 
 ## Team Invite Codes
 

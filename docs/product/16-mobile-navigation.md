@@ -13,7 +13,7 @@ The product must not show a public root-level version chooser such as:
 
 Confirmed routing direction:
 
-- **Desktop / PC** access should go directly to the dashboard/web side
+- **Desktop / PC** root access should enter the desktop auth flow first (`/auth/login`), then proceed to the dashboard/web side after authentication/onboarding resolution
 - **Mobile / tablet** access should go directly to the mobile side (`/mobile`)
 - If the dashboard later offers a way to open the mobile version, that belongs **inside the dashboard**
   after login, not on the root landing page
@@ -57,6 +57,25 @@ Implementation note:
   specific origin and double as the only escape in an error state (e.g. maintenance / lost & found
   "청소로 돌아가기" → `/mobile/cleaning`), and non-back chevrons (calendar month nav, photo carousel,
   date pickers). Admin web keeps its back buttons (no touch swipe on desktop).
+  **Touch-gesture render throttle (2026-06-22):** the visual state updates from `touchmove` — the
+  pull-to-refresh pull distance and the live edge-back `edgeDx` — are **coalesced to one `setState`
+  per animation frame** (rAF), while the underlying refs (`pullDistanceRef`, `edgeRawDxRef`) still
+  update synchronously on every sample. This stops a full subtree re-render firing at the device's
+  ~120Hz touch rate, keeping scroll / pull / edge-drag smooth on high-refresh-rate devices; thresholds
+  and spring-back behavior are unchanged.
+  **PTR start-at-top gate (2026-06-22):** pull-to-refresh only arms when the gesture **started at the
+  top** of the scroll area (`scrollTop ≤ 0` on `touchstart`, tracked by `ptrEligibleRef`). A gesture
+  that reaches the top via momentum decay or rubber-band rebound — or any touch that began while
+  `scrollTop > 0` — does **not** activate PTR; the touch anchor is re-captured on those frames so a
+  later coast back to 0 can't compute a huge stale `deltaY` and snap the content down. PTR becomes
+  eligible again only after the user lifts and re-touches at the top. Clean top-of-page pulls behave
+  exactly as before.
+  **Edge-back zero-render hint (2026-06-22):** the left-edge back gradient + chevron intensity is no
+  longer React state — `handleSwipeMove` writes a `--edge-progress` (0..1) CSS custom property straight
+  to the hint DOM node (`edgeHintRef`), and the inline styles derive opacity + chevron translate from it
+  via `calc()`. The drag therefore re-renders **nothing** mid-gesture (only the start/end `edgeDragging`
+  flip, which toggles the spring transition, renders). Opacity ramp, ~64px commit threshold, spring-back,
+  and right-edge forward fling are visually identical to before.
 - **`hideBottomNav` (2026-06-15):** `MobileShell` accepts an opt-in `hideBottomNav` prop (default
   `false`) that hides the bottom tab bar for focused **registration / create-edit** flows, so the
   screen reads as a dedicated form (and a sticky submit bar can't overlap the tab bar). Applied to the
@@ -288,8 +307,9 @@ Current rules:
 - **Top chrome surface**: the header bar is flat/borderless — no capsule outline, ring, glass blur, or shadow. Only the two circular buttons (menu / profile) and the centered wordmark sit on the plain white background.
 - **Buttons**: both the left menu and right profile buttons are 38px circles with `bg-muted text-muted-foreground` (hover darkens via `color-mix`). The menu icon is a 3-line SVG with a shorter middle line; the profile icon is a person SVG.
 - **Right**: the profile button links to `/account?mode=mobile`. `aria-label` uses `dictionary.onboarding.profileTitle`.
-- **Scroll behavior**: the top chrome hides when users scroll down and returns when users scroll up. The content area fills the freed space so no blank header gap remains.
-- **Side menu**: tapping the menu button opens a left slide-out menu at roughly 78% of the mobile viewport width. The main screen moves right with a dark overlay (`bg-slate-950/42`) on the remaining visible area. Closing reverses the slide. Layout top→bottom:
+- **Scroll behavior**: the top chrome hides when users scroll down and returns when users scroll up. The content area fills the freed space so no blank header gap remains. The header hides/shows purely via its own fade + translate-y above the scroll container; the scroll container keeps a **constant top padding** (`pt-5`) and no longer toggles `pt-5`/`pt-0` — toggling it shifted rendered content by 20px while `scrollTop` stayed put, producing a visible snap up/down jump on iOS Safari (fixed 2026-06-22). The toggle is **debounced via accumulated-delta thresholds** (`updateVisibility`): the header only hides after ≥**64px** of intentional downward scroll and only returns after ≥**36px** of upward scroll (raised from 28/12 on 2026-06-22 to stop touch-jitter flicker), with per-tick deltas of ≤4px filtered on **both** directions so iOS momentum micro-oscillation never feeds the accumulators. Scrolling to the very top (`scrollTop ≤ 8px`) always snaps the header visible.
+- **Layout height (small viewport)**: the three nested shell containers (`<main>`, the centered max-width wrapper, and the safe-area column) are sized with the **small viewport** unit `h-svh`, **not** the dynamic `h-dvh`. `svh` is stable across iOS Safari's URL-bar collapse/expand, so the app frame stays a constant size and the content no longer "settles" down / "rises" up by ~50–60px mid-scroll when the bottom toolbar retracts or returns. Deliberate trade-off: when the URL bar retracts, the page does **not** grow into the freed pixels — a thin sliver of the ivory page background (`--background`, already behind the layout) shows below the bottom tab bar in that region; this reads as part of the app, not a black gap. The sidebar `<aside>` stays `inset-y-0` (full dynamic viewport) and the inner scroll div stays `h-full` (inherits the stable svh height). No JS resize listeners or `--vh` hacks. (Fixed 2026-06-22.)
+- **Side menu**: tapping the menu button opens a left slide-out menu at roughly 78% of the mobile viewport width. The main screen moves right with a dark overlay (`bg-slate-950/42`) on the remaining visible area. Closing reverses the slide. **Scrim safe-area inset (2026-06-22):** the dismiss scrim is `fixed left-0 right-0` with inline `top: env(safe-area-inset-top)` / `bottom: env(safe-area-inset-bottom)` (not `inset-0`), so it stops short of the notch and home-indicator bands. Under `viewport-fit: cover` a full-bleed dark scrim there made iOS Safari sample the dark layer and tint the status bar + URL toolbar black; insetting it exposes the ivory body background (`--background`) in those bands so the chrome stays ivory while the sidebar is open. The dim over the visible content area is unchanged. Layout top→bottom:
   - **Account card** (links to `/account?mode=mobile`): rounded `border-border bg-surface` card with a `bg-primary/10 text-primary` avatar tile, the user's name, an `dictionary.common.account` label + a role chip (`bg-primary/10 text-primary` showing `dictionary.roles[role]`), and a trailing `ChevronRight`.
   - **Nav list** ("high-quality list" style) under a `dictionary.common.menu` section heading. Each item is a 48px row: a left **teal active bar** (`absolute left-0 h-5 w-[3px] bg-primary`) on the active row, a bare line icon (`size-[22px]`), the label, and an optional **count badge** on the right. Active → `bg-primary/[0.09]`, icon/label `text-primary` (label bold); inactive → `hover:bg-muted/55`, icon `text-muted-foreground`, label `text-foreground/80`. Active item also gets `aria-current="page"`.
   - **Count badge**: shown when `badges[item.id] > 0`. Pill (`h-[21px] min-w-[21px]`, `font-mono tabular-nums`), `bg-primary text-primary-foreground` on the active row, `bg-muted text-muted-foreground` otherwise; values over 99 render as `99+`.
@@ -299,6 +319,8 @@ Current rules:
 - **Accessibility**: the `title` prop on `MobileShell` is used as `aria-label` on `<main>`. It is not rendered visually in the header. Page content provides its own visual hierarchy.
 - **Appearance prop**: `appearance` remains accepted for compatibility but currently does not change shell visuals. Do not rely on it for page tinting.
 - `ModeSwitcher` and `Bell` icon are not part of the shell header. (There is no theme switcher: the app is light-mode-only; dark mode is deferred until post-launch.)
+- **Browser chrome tint (theme-color)**: iOS Safari status bar / URL toolbar are tinted via `viewport.themeColor` in `src/app/layout.tsx`. It is declared for **both** `light` and `dark` schemes with the **same ivory `#f7f4ee`**, so that the top status bar and bottom URL toolbar stay unified with the app's ivory chrome even when iOS is in dark mode (a single themeColor is ignored in dark mode, falling back to black system chrome). This forces the light design in both schemes and is not a design change. safe-area handling in `mobile-shell.tsx` is unaffected. (In-app browsers like KakaoTalk/Instagram ignore theme-color and are out of scope.)
+- **Color scheme lock (2026-06-22)**: `viewport.colorScheme = "light"` in `src/app/layout.tsx` (renders as `<meta name="color-scheme" content="light">`). Without this, iOS Safari in OS dark mode treats the page as dark-mode-capable and paints the canvas + system chrome dark — even when `themeColor` is set to ivory — which became most visible after the sidebar opened (the dim scrim made Safari's chrome sampling commit to black for the status bar + URL toolbar). Locking the page to the light scheme suppresses the dark-mode fallback so the ivory chrome holds in both light and dark device modes, with or without the sidebar scrim. Not a design change — the app's surfaces remain identical.
 
 ### Side-menu operational badge counts
 
@@ -418,8 +440,8 @@ body-level dismiss calls; a structural rewrite carries more regression risk than
 **Intentional exceptions** (NOT flattened): the order "처리" sheet (`order-action-bar`) keeps its
 dual-mode **Liquid Glass** treatment (backdrop-blur, 28px, glass border) per the selective-glass
 policy; center-aligned confirm/delete dialogs are modals, not bottom sheets; the photo lightbox is a
-full-screen carousel. The attendance capture/correction sheets are owned by the in-progress
-attendance track and will be normalized when that track settles.
+full-screen carousel. The attendance correction sheets follow the same shared contract, and the
+attendance capture result sheet also uses the shared bottom-sheet / drag-dismiss path.
 
 ## 2026-05-22 Header Consistency Note
 

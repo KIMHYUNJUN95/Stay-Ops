@@ -14,14 +14,13 @@
  * `mode` = "in" (출근 인증) or "out" (퇴근 인증). Wi-Fi stays inactive (`준비중`).
  */
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import jsQR from "jsqr";
 import "./attendance.css";
 import { AIc, AttIcon } from "./att-icons";
-import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import {
   submitAttendanceScan,
   type AttendanceScanMode,
@@ -53,11 +52,6 @@ function getGpsOnce(): Promise<Gps> {
 export function AttendanceCapture({ mode = "in", locale }: { mode?: AttendanceScanMode; locale: string }) {
   const copy = getDictionary(locale).attendance;
   const router = useRouter();
-  const hydrated = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  );
 
   const [phase, setPhase] = useState<Phase>("scanning");
   const [result, setResult] = useState<AttendanceScanResult | null>(null);
@@ -190,7 +184,6 @@ export function AttendanceCapture({ mode = "in", locale }: { mode?: AttendanceSc
   }, [startScanning]);
 
   const onDismiss = result?.ok ? goHome : retry;
-  const drag = useSheetDragDismiss({ shown: phase === "result", onDismiss });
 
   const gpsText =
     gpsStatus === "ok"
@@ -274,20 +267,15 @@ export function AttendanceCapture({ mode = "in", locale }: { mode?: AttendanceSc
         <AIc>{AttIcon.edit}</AIc>{copy.captureNoQr}
       </Link>
 
-      {hydrated && phase === "result" && result
-        ? createPortal(
-            <div className="att">
-              <div className="dim show" style={drag.scrimStyle} onClick={onDismiss} aria-hidden="true" />
-              <div className="rsheet" data-sheet role="dialog" aria-modal="true" style={drag.sheetStyle}>
-                <div {...drag.handleProps}>
-                  <div className="rsheet__handle" />
-                </div>
-                <ResultSheet result={result} isOut={isOut} onHome={goHome} onRetry={retry} copy={copy} />
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+      {phase === "result" && result ? (
+        <BottomSheet
+          ariaLabel={isOut ? copy.resultOutTitle : copy.resultInTitle}
+          className="att__result-sheet"
+          onClose={onDismiss}
+        >
+          <ResultSheet result={result} isOut={isOut} onHome={goHome} onRetry={retry} copy={copy} />
+        </BottomSheet>
+      ) : null}
     </div>
   );
 }

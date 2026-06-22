@@ -58,11 +58,22 @@ export const metadata: Metadata = {
 // values are non-zero on notched devices (the mobile shell pads the top notch and
 // bottom home-indicator with them). themeColor tints the browser top chrome /
 // address bar the warm ivory so it blends with the app instead of a grey band.
+// Both light/dark map to the SAME ivory: iOS Safari ignores a single themeColor in
+// dark mode and falls back to black system chrome, so declaring an explicit dark
+// variant (identical ivory) forces the light design's chrome in both schemes.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#f7f4ee",
+  // color-scheme: "light" tells iOS Safari to render the page canvas with light-mode
+  // defaults even when the device is in OS dark mode. Without it, Safari falls back to
+  // dark chrome/canvas (status bar + URL toolbar turn black) regardless of themeColor —
+  // most visible when the sidebar scrim is up and Safari samples the dimmed content.
+  colorScheme: "light",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f4ee" },
+    { media: "(prefers-color-scheme: dark)", color: "#f7f4ee" },
+  ],
 };
 
 export default async function RootLayout({

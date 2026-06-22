@@ -49,6 +49,10 @@ Task Context Link — design + partial data layer (2026-06-12): four-screen cont
 
 **Mobile home redesign (Haru Ops home) — implemented 2026-06-17.** The `/mobile` home screen was fully re-skinned to the "Haru Ops · 홈 (빠른 출근)" / v2 design while preserving **all** existing functionality (greeting, last-updated clock, important announcement, today check-in/out counts, active cleaning task, quick actions, today's activity timeline). New top-of-home elements: a **greeting header** (Tokyo date + name + avatar initial) and a **static quick clock-in hero** ("출근 전 / 대기" + GPS+QR / Wi-Fi 준비중 chips) that taps through to `/mobile/attendance` (clock-in/out backend still deferred — navigation entry only). The quick-action grid keeps the existing four actions (청소 / 정비 / 분실물 / 주문) — **clock-in is intentionally not duplicated there** since it lives in the hero. **2026-06-17 follow-up:** the 오늘 현황 check-in / check-out count cards are now **tappable** and open a drag-to-dismiss bottom sheet listing that day's reservations (guest · localized building·room · channel) — `getHomeCheckInOutReservations` (`src/lib/home.ts`) + `src/components/mobile/home-checkinout.tsx`; new i18n `mobile.homeCheckInEmpty` / `homeCheckOutEmpty` / `homeGuestUnknown` (ko/ja/en). No schema change (reservations read only). The design's top **3D hero image** (wireframe orb) is **not used** for now but the asset is preserved at `src/assets/home-hero-3d.svg` (not deleted) for future reuse; the previous Lottie hero (`HomeHeroAnimation`) is no longer rendered but kept in the repo. Files: `src/app/mobile/page.tsx` (re-skinned, same server data fetching), scoped styles `src/components/mobile/home-screen.css` (`.hm`-prefixed), new i18n `mobile.homeGreeting` + `mobile.homeClock*` (ko/ja/en). No schema/RLS/migration change. `npm run lint` + `npm run build` pass. See Product `16` → Home (Haru Ops home redesign, 2026-06-17).
 
+**Attendance capture bottom-sheet drag fix — implemented 2026-06-22.** The clock-in/out result sheet in `src/components/attendance/attendance-capture.tsx` now uses the shared `BottomSheet` instead of a hand-rolled drag layer. This aligns it with the canonical mobile sheet contract (body scroll lock + isolated handle drag), fixing the real-device bug where dragging down from the sheet header could scroll the underlying screen instead of moving only the result sheet. No change to attendance business logic or result states; dismissal behavior only. `npm run lint` + `npm run build` pass.
+
+**BottomSheet mobile scroll-lock hardening — implemented 2026-06-22.** The shared `BottomSheet` now applies a stronger real-device scroll lock while open: `body` is fixed in place (preserving the previous scroll position), `html/body` overflow is hidden, document overscroll is disabled, and the drag handle touch events call `preventDefault()` in addition to `stopPropagation()`. This fixes the remaining iPhone/real-device issue where dragging a sheet handle could still move the background page even though the sheet itself was draggable. Shared component only; no product-flow change. `npm run lint` + `npm run build` pass.
+
 **Bottom sheet unification — implemented 2026-06-17.** Introduced one canonical **`BottomSheet`** component (`src/components/shell/bottom-sheet.tsx`) encapsulating the whole sheet shell (portal to `<body>`, slate `bg-slate-950/45` scrim that fades transparent on drag, `bg-surface` `rounded-t-[24px]` `max-w-[460px]` surface, 38px `bg-slate-200` handle, drag-to-dismiss via `useSheetDragDismiss` + scrim-tap + Esc, body-scroll lock, no X). Mount-driven with a render-prop (`{ close, dragHandleProps }`) / `useBottomSheetClose` for programmatic close and `useBottomSheetDragHandle` for extra drag zones. Migrated onto it: home check-in/out, report sheet, share picker, cleaning record detail + filter picker, project create, project members. The remaining bottom sheets were **normalized to the canonical values** (slate scrim + 24px radius + slate-200 handle): the 6 suggestions sheets (via `suggestions.css`), context picker, bottom-bar editor (`mobile-shell`), Tasks day/long-press sheets, projects-board create, project members, cleaning record detail, and the calendar reservation sheet — several previously used a warm `rgba(20,16,10,0.5)` / `rgba(13,24,23,0.46)` scrim. Intentional exceptions: the Liquid-Glass order "처리" sheet (`order-action-bar`), the photo lightbox, fixed action bars, and small dropdown menus. Standard is now mandated in CLAUDE.md (mobile shell contract) + Product `16` ("Bottom Sheet — Canonical Visual Standard"). **Full sweep (2026-06-17):** the former center-aligned confirm / delete / action / picker dialogs were ALL converted to bottom sheets too (so every bottom-anchored popup slides up + dims-on-drag like the home sheet) — maintenance/lost-found/order confirms, generic + task + project + filter delete confirms, announcement popup/delete/read-status, linen success + detail-delete, cleaning completion/cancel/targets/linked-confirm, the date-range + order-delivery calendars, and the requests filter sheet. A final grep verified zero bottom overlays lack the drag effect. `npm run lint` + `npm run build` pass.
 
 **Reservation data-loss logic fixes — implemented 2026-06-18.** Compared our reservation→room mapping against the in-house reference system (which never loses data) and fixed the code paths that could silently drop bookings from the calendar / home check-in-out sheet. (1) **null minStay rooms stay visible**: `classifyBeds24Room(null)` now → **active** (was inactive) and `getActiveRoomCatalog` includes null-minStay beds24 rooms + counts any room row as classified — webhook-synced rooms (which never carry minimumStay) are no longer hidden until a separate inventory sync runs; only an explicit `>= 50` excludes. (2) **No-drop + fallback**: the calendar (`src/app/mobile/calendar/page.tsx`) and home sheet (`src/lib/home.ts`) no longer discard reservations whose room is not in the active catalog — they fall back to the normalized room label, and the calendar **adds orphan rooms to the room axis** so the bar renders. (3) **Fetch completeness verified (no change)**: reconcile/backfill + all surface queries filter by **stay dates** (`arrivalTo`/`departureFrom`, check-in/out overlap), so a booking made any time ago that checks in this/next month is captured; only the 2-month display window constrains stay dates, never the booking date. Files: `room-sync.ts`, `rooms.ts`, `home.ts`, `calendar/page.tsx`; docs `15-reservation-calendar` (2026-06-18 sections), `01-beds24-integration`, `06-property-room-model`. `npm run lint` (0 errors) + `npm run build` pass. **Infra still pending (separate task): live Beds24 webhook delivery — `beds24_webhook_events` shows 0 webhook events; reconcile last ran 2026-06-10, so data is currently frozen regardless of these logic fixes.**
@@ -453,6 +457,7 @@ Dark mode is deferred until after the official launch (decision log "Theme Modes
 - **UI controls**: theme `<select>` removed from `/account`; theme toggle + `localStorage` (`stayops.theme`) + `applyTheme`/`matchMedia` removed from `src/components/foundation-preview.tsx`.
 - **i18n**: `common.theme` and the `themes` (system/light/dark) blocks removed from all three locales in `src/lib/i18n.ts`.
 - **Database (out of scope, documented)**: `public.theme_preference` enum and `profiles.theme_preference` (`not null default 'system'`) remain in the already-applied migration `202605090001_initial_foundation.sql`. The app no longer reads or writes the column; new rows take the default. The column is harmless leftover state; schema removal is deferred to avoid a risky destructive migration on the live DB and because no corrective-migration is needed for the app to be light-mode-only. `src/types/database.ts` keeps the field so the generated types stay accurate to the real schema.
+- **iOS browser chrome tint (2026-06-22)**: because the app is light-mode-only, `viewport.themeColor` in `src/app/layout.tsx` is declared for **both** `light` and `dark` schemes with the **same ivory `#f7f4ee`**, so iOS Safari's status bar / URL toolbar stay unified with the app's ivory chrome even when the system is in dark mode. iOS ignores a single themeColor in dark mode and falls back to black system chrome, leaving the top status bar and bottom URL toolbar black; an explicit (identical) dark variant forces the light design's chrome in both schemes. Not a design change; `mobile-shell.tsx` safe-area handling is untouched. (In-app browsers like KakaoTalk/Instagram ignore theme-color and are out of scope.)
 
 ### Open Risks
 
@@ -1946,6 +1951,8 @@ No schema, RLS, or server action logic changes in this pass.
 
 ## 2026-06-03 Auth and Onboarding Slice
 
+Historical slice note: the bullets below describe the initial auth rollout state on 2026-06-03. The current consolidated login/onboarding behavior is defined by the newer 2026-06-18 auth foundation section further below.
+
 Google OAuth, logout, membership-state access control, phone validation, and invite-code error handling were implemented.
 
 ### Changes
@@ -1953,7 +1960,7 @@ Google OAuth, logout, membership-state access control, phone validation, and inv
 - **Google login**: `signInWithGoogle` server action added to `src/app/auth/actions.ts`. Uses `supabase.auth.signInWithOAuth({ provider: "google", options: { prompt: "select_account" } })`. Google button on `/auth/login` is now active.
 - **No auto-prefill from Google**: Google profile data is authentication only. All required onboarding fields (name, phone, language, invite code) must still be entered manually. This is intentional for operational data quality.
 - **Logout**: `signOut` action was already present but not exposed in the UI. Logout button added to `/account` page. Clears session and redirects to `/auth/login`.
-- **Membership state access control**: `getOnboardingState()` in `src/lib/onboarding.ts` now detects `suspended` and `removed` membership states. Users in these states are shown a blocked screen with a clear message and a logout button. They cannot enter the app.
+- **Membership state access control**: the early slice added `suspended` / `removed` blocking. The current flow has since expanded to `suspended`, `removed`, and `disabled`, all routed into the dedicated blocked state on `/auth/login`; `removed` can explicitly branch into a re-join flow with a new invite code.
 - **Phone number validation**: `isValidPhone()` helper added to `src/lib/onboarding.ts`. Validates 7-15 digits, allows +, spaces, hyphens, parentheses. Applied in both onboarding profile completion and account editing.
 - **Invite code error specificity**: `joinInviteCode` now returns distinct error codes: `invite_expired`, `invite_inactive`, `invite_maxed`, `invalid_invite`. Previously all errors returned `invalid_invite`.
 - **Account page improvements**: `/account` now shows a success banner after save, phone hint text, and a dedicated logout section.
@@ -1999,7 +2006,7 @@ The full auth/signup backend foundation was implemented to match the confirmed t
 - Magic-link (OTP) fully removed
 
 **Login UI (`src/app/auth/login/`):**
-- `page.tsx` — handles 3 views: root (Google + email entry), email login (`view=email`), email signup (`view=email&mode=signup`); locale from `?lang=` param or cookie; device-based routing (`isMobileUserAgent`)
+- `page.tsx` — handles the full auth state set: root entry, email login (`view=email`), email signup (`view=email&mode=signup`), password-reset request (`view=email&mode=reset`), reset-sent confirmation, new-password entry (`view=email&mode=new_password`), and blocked-account states (`view=blocked`); locale from `?lang=` param or cookie; device-based routing (`isMobileUserAgent`)
 - `email-login-form.tsx` — wired to `signInWithEmailPassword`, show/hide password toggle, loading spinner
 - `email-signup-form.tsx` — wired to `signUpWithEmail`, password strength meter (4 segments), email validation state, terms consent block
 - `language-sheet.tsx` — calls `setLocaleCookie` before navigation so locale persists across redirects
@@ -2009,6 +2016,7 @@ The full auth/signup backend foundation was implemented to match the confirmed t
 - Multi-org support: queries ALL non-invited memberships; prefers `last_used_organization_id` when user has multiple active memberships
 - `ProfileSnapshot` now includes `birthDate: string | null`
 - `setLastUsedOrganization(userId, orgId)` — updates `profiles.last_used_organization_id`
+- `disabled` Auth-level account state is also surfaced by `getOnboardingState()` using `user.banned_until`, separate from membership-level `suspended` / `removed`
 
 **Invite code backend (`src/lib/auth-invite.ts`):**
 - `validateInviteCode(code)` — checks `invite_codes` table; returns `ok: true` with `organizationId` + `defaultRole`, or `ok: false` with error `"invalid" | "expired" | "inactive" | "maxed_out"`
@@ -2037,15 +2045,66 @@ The full auth/signup backend foundation was implemented to match the confirmed t
 
 - Auth methods: `Google` + `email/password`; magic-link removed
 - Google profile data is auth-only; StayOps must not auto-fill name/phone from Google
+- Same-email Google/email attachment currently relies on Supabase automatic identity linking + confirmed-email settings; the email-signup path separately resumes duplicate/incomplete accounts in app code
 - Required onboarding before app access: name, date of birth, phone number, preferred language, team invite code
 - Team invite code determines `organization + role category` (5 categories: Part-time Staff, Office Staff, Field Staff, Part-time Staff (Manager), Owner)
 - `Owner` invite codes are one-time use; others: 3 months / max 100 joins
 - Multi-org: one account can belong to multiple organizations; login returns to last-used org
 - Phone number is unique at account level (enforced via partial unique index)
-- Desktop/PC → `/admin`; mobile/tablet → `/mobile` (device-based routing via `isMobileUserAgent`)
+- Root routing: desktop/PC requests enter `/auth/login` first and default to `/admin` after auth/onboarding resolution; mobile/tablet requests enter `/mobile` (device-based routing via `isMobileUserAgent`)
 
 ### Remaining (not yet implemented)
 
 - Onboarding `birth_date` field — **DONE 2026-06-18** (see "Onboarding flow wired to backend" above): `<input type="date">` in the `needs_profile` form, validated + saved.
 - Invite-code input + role-category preview in onboarding — **DONE 2026-06-18** (see above): verify → preview (org + role category) → confirm join, via `previewInviteCode`.
 - Optional follow-ups (deferred, not blocking): rebuilding `/onboarding` into the new mobile design language (currently kept in its existing layout); a dedicated multi-org switcher UI (last-used-org backend is live, switcher UI not built); invite-code validity/usage figures in the preview card (currently org + role category only).
+
+## 2026-06-22 Mobile Scroll-Stability Pass — Fix #1/7: header toggle no longer shifts scroll content
+
+`src/components/shell/mobile-shell.tsx`: removed the `headerVisible`-driven top-padding toggle on the
+scroll container. The container previously switched between `pt-5` (header visible) and `pt-0` (header
+hidden); because that div is what actually scrolls, changing its `padding-top` shifted rendered content
+by 20px while `scrollTop` stayed put, so users saw the page "snap up / snap down" whenever the header
+hid/showed — and the inline `padding 300ms ease-out` transition made the jump glide visibly. Fix:
+
+- Scroll container now keeps a **single constant `pt-5`** (resting design unchanged).
+- Removed `padding 300ms ease-out` from the inline `transition` in both branches; the
+  `transform 420ms cubic-bezier(0.34,1.56,0.64,1)` pull-to-refresh animation is kept exactly as-is
+  (the `isPulling` branch becomes `none`, i.e. transform tracks the finger with no transition, same as
+  before once padding is dropped).
+
+The header element itself still hides/shows via its own opacity + translate-y transition (non-reflowing,
+unchanged). Bottom tab-bar slide, pull-to-refresh logic/thresholds/indicator/curtain, edge-back drag,
+and all color/spacing tokens are untouched. `npm run lint` + `npm run build` pass. This is **fix #1 of 7**
+in the mobile scroll-stability pass; items #2–#7 (threshold/`headerVisible` semantics, etc.) are tracked
+for follow-up turns.
+
+## 2026-06-22 Mobile Scroll-Stability Pass — Fix #2/7: header toggle debounced against scroll jitter
+
+`src/components/shell/mobile-shell.tsx` (`updateVisibility`): raised the header hide/show accumulated-delta thresholds (hide 28→64px, show 12→36px) and applied the existing `< -4px` small-delta filter to the hide branch too (`delta > 0` → `delta > 4`), so iOS Safari momentum micro-oscillation no longer flickers the header in/out during normal scrolling. The `scrollTop ≤ 8` snap-to-visible, accumulator resets, rAF throttle, and `lastScrollYRef`/`tickingRef` bookkeeping are unchanged; header animation timing untouched. `npm run lint` + `npm run build` pass. Fix **#2 of 7** in the mobile scroll-stability pass; #3–#7 remain.
+
+## 2026-06-22 Mobile Scroll-Stability Pass — Fix #3/7: shell height uses small viewport (svh) to survive iOS URL-bar collapse
+
+`src/components/shell/mobile-shell.tsx`: switched the three nested shell containers (`<main>` line 483, centered wrapper line 511, safe-area column line 654) from the dynamic viewport `h-dvh` to the **small viewport** `h-svh` (comment on line 397 updated to match). `dvh` re-evaluated the moment iOS Safari's URL bar collapsed/expanded, resizing all three containers and lurching the scrolled content ~50–60px; `svh` is stable, so the app frame stays constant size. Intended trade-off: a thin sliver of ivory page background shows below the tab bar when the URL bar retracts (reads as the app, not a gap, since `--background` already sits behind the layout). Notch `pt-[env(safe-area-inset-top)]`, the `inset-y-0` sidebar, and the `h-full` inner scroll div are unchanged. No JS resize listeners or `--vh` hacks. `npm run lint` + `npm run build` pass. Fix **#3 of 7** in the mobile scroll-stability pass; #4–#7 remain.
+
+## 2026-06-22 Mobile Scroll-Stability Pass — Fix #4/7: touchmove setState coalesced to one per frame
+
+`src/components/shell/mobile-shell.tsx`: added two rAF refs (`pullRafRef`, `edgeRafRef`) and rewrote `syncPullDistance` + the `setEdgeDx` line in `handleSwipeMove` so per-`touchmove` React state updates (PTR pull distance + edge-back `edgeDx`) are coalesced to **one setState per animation frame** instead of firing 1–2 full-subtree re-renders at the ~120Hz touch rate. The underlying refs (`pullDistanceRef`, `edgeRawDxRef`) still update synchronously every sample so the commit thresholds (PTR ≥72, edge >64) read live values. Terminal paths cancel any pending frame and commit the resting 0 immediately (`handleTouchEnd` cancels + `setPullDistanceState(0)`; `endEdgeDrag` cancels before `setEdgeDx(0)`) so spring-back is instant and no stale frame reintroduces a non-zero value. `setIsPulling`, `requestVisibilityUpdate`/`handleContentScroll`, thresholds, and all animation timing unchanged. `npm run lint` + `npm run build` pass. Fix **#4 of 7** in the mobile scroll-stability pass; #5–#7 remain.
+
+## 2026-06-22 Mobile Scroll-Stability Pass — Fix #5/7: PTR gated to gestures that started at the top
+
+`src/components/shell/mobile-shell.tsx`: added `ptrEligibleRef` so pull-to-refresh only arms when the finger gesture **started at `scrollTop ≤ 0`**. `handleTouchStart` sets the flag from the initial scroll position (and early-returns otherwise); `handleTouchMove` clears it + re-anchors `touchStartY/X` the moment `scrollTop > 0`, and when at the top but ineligible it keeps the anchor fresh and bails before the `deltaY` math; `handleTouchEnd` resets the flag unconditionally. This stops the spurious "page snaps down and back" that happened when a momentum/rubber-band coast reached `scrollTop === 0` under a held finger and computed a huge `deltaY` against a stale anchor (instantly exceeding `PULL_THRESHOLD`). Clean top-of-page pulls are byte-for-byte unchanged; thresholds, indicator, gradient, rAF batching (fix #4), and edge-back logic untouched. `npm run lint` + `npm run build` pass. Fix **#5 of 7** in the mobile scroll-stability pass; #6–#7 remain.
+
+## 2026-06-22 Mobile Scroll-Stability Pass — Fix #7/7 + pass COMPLETE: edge-back hint is now zero-render
+
+`src/components/shell/mobile-shell.tsx`: removed the `edgeDx` React state (and the fix-#4 `edgeRafRef` rAF machinery for it) and drive the left-edge back gradient/chevron hint entirely from a `--edge-progress` (0..1) CSS custom property written straight to the hint DOM node via a new `edgeHintRef` + `writeEdgeProgress` helper. `handleSwipeMove` and `endEdgeDrag` now call `writeEdgeProgress(dx)` / `writeEdgeProgress(0)` instead of `setEdgeDx`, the inline styles read `var(--edge-progress)` through `calc()` (opacity = progress, chevron translate = `(progress - 1) * 12px`), and the derived `edgeProgress` const is deleted. The edge drag now re-renders the shell **zero** times mid-gesture — only the start/end `edgeDragging` flip (which toggles the spring transition) renders. Visual behavior (opacity ramp, ~64px commit, spring-back, right-edge forward fling) is byte-for-byte identical. PTR rAF batching (`pullRafRef`/`syncPullDistance`) and all other logic untouched. `npm run lint` + `npm run build` pass.
+
+**Mobile scroll-stability pass COMPLETE (#1–#7 all landed):** #1 padding-toggle jump removed · #2 header toggle debounced (64/36 thresholds + both-direction jitter filter) · #3 shell height on `svh` (URL-bar-collapse stable) · #4 touchmove setState coalesced to 1/frame · #5 PTR gated to gestures that started at the top · #6 (prior) · #7 edge-back hint moved to a DOM-written CSS custom property (zero mid-drag re-renders).
+
+## 2026-06-22 Mobile sidebar scrim no longer tints iOS Safari chrome black
+
+`src/components/shell/mobile-shell.tsx`: the sidebar dismiss scrim was `fixed inset-0 bg-slate-950/42`, so under `viewport-fit: cover` its dark layer reached the notch / home-indicator safe-area bands (the aside only covers ~78% width, leaving the right edge fully dark top-to-bottom). iOS Safari samples those edges to pick its chrome tint, so it painted the top status bar and bottom URL toolbar black. Fix (purely positional): split `inset-0` into `left-0 right-0` + inline `top: env(safe-area-inset-top)` / `bottom: env(safe-area-inset-bottom)`, so the scrim covers the full visible content area (dim effect identical) but exposes the ivory body background in the safe-area bands — Safari now samples ivory and keeps the chrome light in both light and dark mode. Complements the earlier `themeColor` light/dark variant fix. Scrim color/opacity/transition/z-index, the aside geometry/gradient/shadow, and all other shell surfaces are untouched. `npm run lint` + `npm run build` pass.
+
+## 2026-06-22 Mobile sidebar black-band follow-up: page color-scheme locked to light
+
+`src/app/layout.tsx`: after the `themeColor` light/dark variants and the sidebar scrim safe-area inset both landed, real iOS Safari in OS dark mode still painted black status-bar / URL-toolbar bands while the sidebar was open. Root cause was a missing `color-scheme` declaration — without it, dark-mode iOS Safari treats the page as dark-capable and applies its dark canvas/chrome defaults, which the dim scrim then reinforced through chrome color sampling. Added `viewport.colorScheme = "light"` to the existing Next.js `Viewport` export, which emits the `color-scheme: light` meta and locks the page to light-mode rendering on both light and dark devices. No surface, color token, or component is altered — the app's ivory design is unchanged. `npm run lint` + `npm run build` pass.

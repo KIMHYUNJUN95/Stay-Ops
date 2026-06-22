@@ -178,15 +178,23 @@ export function MobileShell({
   const touchStartXRef = useRef(0);
   const isPullingRef = useRef(false);
   const pullDistanceRef = useRef(0);
+  // PTR may only arm on a gesture that STARTED at the top. Cleared the moment scrollTop goes >0 so a
+  // momentum/rubber-band coast back to 0 under a held finger can't activate PTR against a stale anchor.
+  const ptrEligibleRef = useRef(false);
   // Swipe-to-navigate refs (separate from pull-to-refresh)
   const swipeNavStartXRef = useRef(0);
   const swipeNavStartYRef = useRef(0);
-  // Live left-edge "back" drag: the screen follows the finger (damped) with a side reveal + chevron.
-  const [edgeDx, setEdgeDx] = useState(0);
+  // Live left-edge "back" drag: a side reveal + chevron hint fades in as you drag (the screen stays put).
+  // The hint's intensity is written straight to the DOM via a `--edge-progress` CSS custom property, so
+  // the drag never re-renders the shell mid-gesture (only the start/end `edgeDragging` flip does).
   const [edgeDragging, setEdgeDragging] = useState(false);
+  const edgeHintRef = useRef<HTMLDivElement | null>(null);
   const edgeCandidateRef = useRef(false); // gesture started within the left edge band
   const edgeLockedRef = useRef(false); // locked into a horizontal edge-back drag
   const edgeRawDxRef = useRef(0); // raw (un-damped) horizontal distance, for the commit threshold
+  // rAF-coalesce touchmove → setState: refs update synchronously every sample, but the visible React
+  // state setter fires at most once per animation frame (avoids a full subtree re-render at ~120Hz).
+  const pullRafRef = useRef(0);
   const { session } = useSession();
 
   // Per-user bottom-bar tabs (customized via the center "추가" editor sheet).
@@ -216,16 +224,16 @@ export function MobileShell({
       setHeaderVisible(true);
       hideAccumRef.current = 0;
       showAccumRef.current = 0;
-    } else if (delta > 0) {
+    } else if (delta > 4) {
       hideAccumRef.current += delta;
       showAccumRef.current = 0;
-      if (hideAccumRef.current > 28) {
+      if (hideAccumRef.current > 64) {
         setHeaderVisible(false);
       }
     } else if (delta < -4) {
       showAccumRef.current += Math.abs(delta);
       hideAccumRef.current = 0;
-      if (showAccumRef.current > 12) {
+      if (showAccumRef.current > 36) {
         setHeaderVisible(true);
       }
     } else {
@@ -256,7 +264,11 @@ export function MobileShell({
 
   function syncPullDistance(v: number) {
     pullDistanceRef.current = v;
-    setPullDistanceState(v);
+    if (pullRafRef.current) return;
+    pullRafRef.current = window.requestAnimationFrame(() => {
+      pullRafRef.current = 0;
+      setPullDistanceState(pullDistanceRef.current);
+    });
   }
 
   const contentOffset = isRefreshPending
@@ -266,7 +278,8 @@ export function MobileShell({
 
   function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
     if (sidebarOpen || isRefreshPending) return;
-    if (e.currentTarget.scrollTop > 0) return;
+    ptrEligibleRef.current = e.currentTarget.scrollTop <= 0;
+    if (!ptrEligibleRef.current) return;
     touchStartYRef.current = e.touches[0].clientY;
     touchStartXRef.current = e.touches[0].clientX;
     isPullingRef.current = false;
@@ -275,11 +288,21 @@ export function MobileShell({
   function handleTouchMove(e: React.TouchEvent<HTMLDivElement>) {
     if (isRefreshPending || e.touches.length !== 1) return;
     if (e.currentTarget.scrollTop > 0) {
+      // Mark ineligible and re-anchor, so a later coast back to 0 doesn't compare against ancient Y.
+      ptrEligibleRef.current = false;
+      touchStartYRef.current = e.touches[0].clientY;
+      touchStartXRef.current = e.touches[0].clientX;
       if (isPullingRef.current) {
         isPullingRef.current = false;
         setIsPulling(false);
         syncPullDistance(0);
       }
+      return;
+    }
+    if (!ptrEligibleRef.current) {
+      // At the top, but this gesture started/passed through scrollTop>0 — don't arm PTR. Keep anchor fresh.
+      touchStartYRef.current = e.touches[0].clientY;
+      touchStartXRef.current = e.touches[0].clientX;
       return;
     }
     const deltaY = e.touches[0].clientY - touchStartYRef.current;
@@ -300,11 +323,19 @@ export function MobileShell({
   }
 
   function handleTouchEnd() {
-    if (!isPullingRef.current) return;
+    const wasPulling = isPullingRef.current;
+    ptrEligibleRef.current = false;
+    if (!wasPulling) return;
     const dist = pullDistanceRef.current;
     isPullingRef.current = false;
     setIsPulling(false);
     syncPullDistance(0);
+    // Cancel any pending frame and commit the resting 0 now, so spring-back animates without delay.
+    if (pullRafRef.current) {
+      cancelAnimationFrame(pullRafRef.current);
+      pullRafRef.current = 0;
+    }
+    setPullDistanceState(0);
     if (dist >= PULL_THRESHOLD) {
       startRefreshTransition(() => { router.refresh(); });
     }
@@ -316,6 +347,15 @@ export function MobileShell({
   // back). Right-edge swipe → forward (fling only). Handled once on the outermost <main> so it covers
   // every mobile page without touching individual screens.
   const EDGE_BAND = 30; // px from the left edge the gesture must start within
+
+  // Write the hint intensity (0..1 ratio) straight to the DOM. `90` matches the old
+  // `edgeProgress = Math.min(edgeDx / 90, 1)` math; the browser coalesces these to the next paint.
+  const writeEdgeProgress = useCallback((dx: number) => {
+    const node = edgeHintRef.current;
+    if (!node) return;
+    const progress = dx <= 0 ? 0 : Math.min(dx / 90, 1);
+    node.style.setProperty("--edge-progress", progress.toFixed(3));
+  }, []);
 
   function handleSwipeStart(e: React.TouchEvent<HTMLElement>) {
     if (sidebarOpen) return;
@@ -345,16 +385,16 @@ export function MobileShell({
         return;
       }
     }
-    edgeRawDxRef.current = dx;
-    // Drives the gradient/chevron intensity (the screen does not move).
-    setEdgeDx(dx > 0 ? dx : 0);
+    edgeRawDxRef.current = dx; // keep synchronous — endEdgeDrag reads edgeRawDxRef.current > 64
+    // Drives the gradient/chevron intensity (the screen does not move) — direct DOM write, no re-render.
+    writeEdgeProgress(dx);
   }
 
   function endEdgeDrag(commit: boolean) {
     edgeLockedRef.current = false;
     edgeCandidateRef.current = false;
-    setEdgeDragging(false); // re-enable the spring transition
-    setEdgeDx(0); // settle back to rest (the spring animates it)
+    setEdgeDragging(false); // re-enable the spring transition (CSS animates --edge-progress back to 0)
+    writeEdgeProgress(0); // settle to rest
     if (commit) router.back();
   }
 
@@ -389,12 +429,10 @@ export function MobileShell({
     else edgeCandidateRef.current = false;
   }
 
-  // Gradient reaches near-full opacity around the ~64px commit threshold.
-  const edgeProgress = Math.min(edgeDx / 90, 1);
   // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    // This app uses h-dvh overflow-hidden layout: only the inner div scrolls,
+    // This app uses h-svh overflow-hidden layout: only the inner div scrolls,
     // not the window. Listening to window "scroll" or "resize" would pass
     // scrollY=0 every time, resetting headerVisible→true and undoing any
     // scroll-based hiding. Only the custom mobile-shell-scroll event (dispatched
@@ -480,7 +518,7 @@ export function MobileShell({
   return (
     <main
       aria-label={title}
-      className="h-dvh overflow-hidden bg-background text-foreground"
+      className="h-svh overflow-hidden bg-background text-foreground"
       onTouchCancel={handleSwipeCancel}
       onTouchEnd={handleSwipeEnd}
       onTouchMove={handleSwipeMove}
@@ -489,10 +527,12 @@ export function MobileShell({
       {/* Left-edge back hint — a soft gradient shadow + chevron that fade in as you drag from the
           edge. The screen itself stays put (simple, not a slide). */}
       <div
+        ref={edgeHintRef}
         aria-hidden="true"
         className="pointer-events-none fixed inset-y-0 left-0 z-[55] flex w-24 items-center"
         style={{
-          opacity: edgeProgress,
+          ["--edge-progress" as string]: "0",
+          opacity: "var(--edge-progress)",
           background:
             "linear-gradient(90deg, rgba(15,23,42,0.16) 0%, rgba(15,23,42,0.06) 45%, rgba(15,23,42,0) 100%)",
           transition: edgeDragging ? "none" : "opacity 380ms ease",
@@ -501,14 +541,14 @@ export function MobileShell({
         <span
           className="ml-2 flex size-9 items-center justify-center rounded-full bg-white/90 text-foreground shadow-[0_10px_28px_-8px_rgba(15,23,42,0.5)] backdrop-blur"
           style={{
-            transform: `translateX(${(edgeProgress - 1) * 12}px)`,
+            transform: "translateX(calc((var(--edge-progress) - 1) * 12px))",
             transition: edgeDragging ? "none" : "transform 380ms cubic-bezier(0.22,1,0.36,1)",
           }}
         >
           <ChevronLeft className="size-5" aria-hidden="true" />
         </span>
       </div>
-      <div className="relative mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden">
+      <div className="relative mx-auto flex h-svh w-full max-w-[430px] flex-col overflow-hidden">
         <aside
           aria-label={dictionary.common.menu}
           className={cn(
@@ -651,20 +691,13 @@ export function MobileShell({
         </aside>
 
         <div
-          className="relative flex h-dvh w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)]"
+          className="relative flex h-svh w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)]"
         >
-          <div
-            className={cn(
-              "overflow-hidden border-0 transition-[height,opacity] duration-300 ease-out",
-              headerVisible ? "h-16 opacity-100" : "h-0 opacity-0",
-            )}
-          >
-            <div
-              className={cn(
-                "relative h-16 bg-background px-4 pt-2 transition-transform duration-300 ease-out",
-                headerVisible ? "translate-y-0" : "-translate-y-3",
-              )}
-            >
+          {/* Persistent top bar. It used to collapse h-16↔h-0 on scroll, but that
+              reflowed the scroll content and made scrolling jump. Now it stays put
+              (no reflow); only the bottom tab bar hides on scroll (overlay slide). */}
+          <div className="h-16 overflow-hidden border-0">
+            <div className="relative h-16 bg-background px-4 pt-2">
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,var(--background)_0%,color-mix(in_oklab,var(--background)_82%,transparent)_55%,transparent_100%)]"
@@ -801,10 +834,12 @@ export function MobileShell({
             {/* Scrollable content — slides down on pull */}
             <div
               className={cn(
-                "h-full overflow-y-auto overscroll-y-contain bg-background px-5 text-foreground",
+                "h-full overflow-y-auto overscroll-y-contain bg-background px-5 pt-5 text-foreground",
                 // No tab bar to clear when it's hidden — the focused flow owns its own bottom spacing.
                 hideBottomNav ? "pb-8" : "pb-[124px]",
-                headerVisible ? "pt-5" : "pt-0",
+                // Constant top padding: the header hides/shows via its own fade+translate above this
+                // scroll container, so we must NOT toggle this padding — doing so shifted rendered
+                // content by 20px while scrollTop stayed put, producing a visible snap up/down jump.
               )}
               onScroll={handleContentScroll}
               onTouchEnd={handleTouchEnd}
@@ -813,8 +848,8 @@ export function MobileShell({
               style={{
                 transform: `translateY(${contentOffset}px)`,
                 transition: isPulling
-                  ? "padding 300ms ease-out"
-                  : "transform 420ms cubic-bezier(0.34,1.56,0.64,1), padding 300ms ease-out",
+                  ? "none"
+                  : "transform 420ms cubic-bezier(0.34,1.56,0.64,1)",
                 willChange: isPulling || isRefreshPending || contentOffset > 0 ? "transform" : "auto",
               }}
             >
@@ -927,11 +962,16 @@ export function MobileShell({
           <button
             aria-label={dictionary.common.menu}
           className={cn(
-              "fixed inset-0 z-[50] bg-slate-950/42",
+              // Inset by the safe areas (top/bottom below) so the scrim never reaches the notch /
+              // home-indicator bands; iOS Safari samples the ivory body bg there and keeps its chrome
+              // light instead of tinting the status bar / URL toolbar black. Dim over content is unchanged.
+              "fixed left-0 right-0 z-[50] bg-slate-950/42",
               sidebarOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
             )}
             onClick={() => setSidebarOpen(false)}
             style={{
+              top: "env(safe-area-inset-top)",
+              bottom: "env(safe-area-inset-bottom)",
               transition: "opacity 540ms ease",
             }}
             type="button"

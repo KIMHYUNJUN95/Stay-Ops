@@ -1506,3 +1506,37 @@ Reason:
 - real rows preserve completion history, update-log history, and per-day visibility consistently
 
 Status: Confirmed (2026-06-15).
+
+## 2026-06-22
+
+### iOS dark-mode browser chrome — themeColor pinned to ivory in both schemes
+
+Decision: `viewport.themeColor` in `src/app/layout.tsx` is declared for **both**
+`(prefers-color-scheme: light)` and `(prefers-color-scheme: dark)` with the **same ivory
+`#f7f4ee`**, so iOS Safari's status bar and bottom URL toolbar stay unified with the app's ivory
+chrome even when the system is in dark mode.
+
+Reason: iOS Safari ignores a single (scheme-less) `theme-color` in dark mode and falls back to black
+system chrome, which rendered the top status bar and bottom URL toolbar black. Since the app is
+light-mode-only, declaring an identical dark variant forces the light design's chrome in both
+schemes. This is not a design change and does not touch `mobile-shell.tsx` safe-area handling.
+In-app browsers (KakaoTalk/Instagram) ignore theme-color and are out of scope.
+
+Status: Confirmed (2026-06-22).
+
+### Mobile overlay scrims must clear the iOS safe-area bands
+
+Decision: Full-viewport dim scrims (e.g. the mobile sidebar dismiss scrim) are inset by
+`env(safe-area-inset-top)` / `env(safe-area-inset-bottom)` rather than spanning `inset-0`, so they
+never cover the notch / home-indicator bands.
+
+Reason: under `viewport-fit: cover`, iOS Safari samples the page's top/bottom edge pixels to choose
+its status-bar / URL-toolbar chrome color. A dark scrim reaching those bands made Safari paint the
+chrome black (the sidebar's aside only covers ~78% width, so the dark scrim dominated the right edge
+top-to-bottom). Insetting the scrim keeps the visible dim over content identical while exposing the
+ivory body background in the sampled bands, so the chrome stays ivory in both light and dark mode.
+This complements the `viewport.themeColor` light/dark ivory fix. Future overlay/scrim work should
+follow the same inset pattern. The bottom-sheet scrim (`bottom-sheet.tsx`) is a separate concern and
+out of scope.
+
+Status: Confirmed (2026-06-22).
