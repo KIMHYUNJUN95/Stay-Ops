@@ -31,6 +31,14 @@ like every mobile route (auth + org context).
   as new UI in the existing `.att` token language (the v2 handoff had no 이력 frame). **급여 is now built
   (Step 10, 2026-06-18)** as new UI too (self monthly hourly expected-pay, `/mobile/attendance/pay`); 내정보
   remains unbuilt. The home topline has small **이력** + **급여** links.
+  - **Amount privacy toggle (eye icon):** the pay card amounts (예상 총 급여, 근무 인정 시간 / 근무일, and
+    the daily 일급 column) can be hidden via the eye button. The hide effect uses **transparent text +
+    `text-shadow` blur**, NOT `filter: blur()` — on iOS Safari a `filter: blur()` on text inside the
+    `overflow: hidden` pay card clips its blur halo into a hard rectangle / white hairline (reported
+    artifact). The text-shadow approach obscures cleanly with no edge box. Shadow color follows the card
+    variant (ink on the light `--expected` card, white on the dark `--final` card). See
+    `src/components/attendance/attendance.css` (`.entryrow__val.masked`, `.paycard.hide .pc__amt`,
+    `.paycard.hide .pc__v`). (2026-06-22)
 
 Screens:
 
