@@ -63,8 +63,9 @@ export function SplashScreen() {
         style={{
           position: "absolute",
           bottom: "calc(env(safe-area-inset-bottom) + 48px)",
-          left: "50%",
-          transform: "translateX(-50%)",
+          left: 0,
+          right: 0,
+          textAlign: "center",
           fontSize: 22,
           color: "var(--foreground)",
           animation: "splash-pop 520ms cubic-bezier(0.22, 1, 0.36, 1) both",
