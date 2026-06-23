@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Globe2, Ticket } from "lucide-react";
 import type { InviteCodeFieldCopy } from "@/app/onboarding/invite-code-field";
@@ -7,8 +7,9 @@ import { OnboardingWizard } from "@/app/onboarding/onboarding-wizard";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
+import { getDeviceSurfaceFromHeaders } from "@/lib/mobile-device";
 import { getOnboardingState } from "@/lib/onboarding";
-import { sanitizeNextPath } from "@/lib/safe-redirect";
+import { normalizeNextPathForSurface, normalizePathForSurface } from "@/lib/surface-routing";
 
 const LOCALE_COOKIE = "stayops_locale";
 
@@ -30,11 +31,13 @@ const iconClass =
 export default async function OnboardingPage({
   searchParams,
 }: OnboardingPageProps) {
-  const [state, params, cookieStore] = await Promise.all([
+  const [state, params, cookieStore, headerStore] = await Promise.all([
     getOnboardingState(),
     searchParams,
     cookies(),
+    headers(),
   ]);
+  const surface = getDeviceSurfaceFromHeaders(headerStore);
 
   // ?lang= takes priority; the pre-auth locale cookie set during language
   // selection is the fallback so the choice survives the redirect chain
@@ -42,7 +45,7 @@ export default async function OnboardingPage({
   const cookieLocale = cookieStore.get(LOCALE_COOKIE)?.value ?? "";
   const requestedLocale = params.lang ?? cookieLocale;
   const queryLocale: Locale = isLocale(requestedLocale) ? requestedLocale : "ko";
-  const safeNext = sanitizeNextPath(params.next);
+  const safeNext = normalizeNextPathForSurface(params.next, surface);
   const allowRejoin = state.status === "removed" && params.rejoin === "1";
   const joinProfile =
     state.status === "needs_membership" || state.status === "removed"
@@ -57,7 +60,7 @@ export default async function OnboardingPage({
     // Honour `safeNext` when present (e.g. user was mid-flow when session
     // expired, or was redirected here after Google OAuth). Fall back to the
     // role-appropriate default route.
-    redirect(safeNext || state.redirectTo);
+    redirect(safeNext || normalizePathForSurface(state.redirectTo, surface));
   }
 
   if (state.status === "unauthenticated") {

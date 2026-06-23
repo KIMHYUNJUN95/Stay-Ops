@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getOnboardingState } from "@/lib/onboarding";
 import { sanitizeNextPath } from "@/lib/safe-redirect";
+import { getDeviceSurfaceFromHeaders } from "@/lib/mobile-device";
+import { normalizePathForSurface } from "@/lib/surface-routing";
 
 function buildBlockedUrl(
   origin: string,
@@ -19,10 +21,12 @@ function buildBlockedUrl(
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
+  const surface = getDeviceSurfaceFromHeaders(request.headers);
   const code = url.searchParams.get("code");
   const errorDesc = url.searchParams.get("error_description");
   const rawNext = url.searchParams.get("next") || "";
-  const safeNext = rawNext === "/" ? "" : sanitizeNextPath(rawNext);
+  const safeNext =
+    rawNext === "/" ? "" : normalizePathForSurface(sanitizeNextPath(rawNext), surface);
 
   // ── OAuth provider returned an error ──────────────────────────────────────
   if (errorDesc) {
@@ -87,6 +91,6 @@ export async function GET(request: NextRequest) {
   // state.status === "ready" — profile and membership are complete.
   // Honour the original `next` destination if present, otherwise use the
   // role-appropriate default route provided by `getOnboardingState`.
-  const dest = safeNext || state.redirectTo;
+  const dest = safeNext || normalizePathForSurface(state.redirectTo, surface);
   return NextResponse.redirect(new URL(dest, url.origin));
 }

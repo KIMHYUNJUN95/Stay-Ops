@@ -6,6 +6,15 @@ The admin web app is the daily operations console for office/admin users.
 
 It should not be treated as a secondary or optional tool. The mobile app serves field execution, while the admin web app serves oversight, management, and coordination.
 
+## Surface Boundary
+
+The admin dashboard is a desktop/web surface, not the mobile app rendered responsively. Mobile/tablet
+requests to `/admin*` are redirected to `/mobile` before the dashboard page renders. This includes
+direct shared links and auth/onboarding/OAuth flows that carry a stale `next=/admin*` value.
+
+The inverse responsibility also holds at the product level: app work should live under `/mobile`, and
+dashboard management/oversight should live under `/admin`.
+
 ## High-Priority Admin Screens
 
 All of the following screens are frequently used and should be considered core admin web areas.

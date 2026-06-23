@@ -188,6 +188,10 @@ Doc reconciliation status (2026-06-10): linen feature planning now reflects the 
   - mobile/tablet → `/mobile` (unchanged)
   - desktop/PC → `/auth/login` (then `/admin` once logged in with an admin-capable role)
   The OAuth callback passthrough (`?code=…` / `?error=…`) is preserved.
+- **App/dashboard surface boundary hardened (2026-06-23):** mobile/tablet requests no longer render
+  `/admin*` dashboard pages. Middleware redirects mobile `/admin*` to `/mobile`, and auth/OAuth
+  callback/password-reset/onboarding completion normalize mobile `next=/admin*` to `/mobile`. This
+  covers KakaoTalk/LINE/in-app-browser links and stale dashboard `next` values.
 - Admin announcement management exists at `/admin/announcements`.
 - Announcements can be created as draft or published records.
 - Announcement status can be changed between draft, published, and archived.

@@ -3,8 +3,13 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isLocale, type Locale } from "@/lib/i18n";
+import { getDeviceSurfaceFromHeaders, type DeviceSurface } from "@/lib/mobile-device";
 import { getOnboardingState } from "@/lib/onboarding";
-import { sanitizeNextPath } from "@/lib/safe-redirect";
+import {
+  defaultPathForSurface,
+  normalizeNextPathForSurface,
+  normalizePathForSurface,
+} from "@/lib/surface-routing";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 const LOCALE_COOKIE = "stayops_locale";
@@ -26,6 +31,18 @@ async function getAppUrl() {
     return `${proto}://${host}`;
   }
   return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+}
+
+async function getCurrentSurface() {
+  return getDeviceSurfaceFromHeaders(await headers());
+}
+
+function sanitizeNextForSurface(
+  value: unknown,
+  surface: DeviceSurface,
+  fallback = defaultPathForSurface(surface),
+) {
+  return normalizeNextPathForSurface(value, surface, fallback);
 }
 
 function preserveOnboardingLang(next: string, lang: string) {
@@ -108,7 +125,8 @@ export async function setLocaleCookie(locale: Locale) {
 export async function signInWithEmailPassword(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
-  const next = sanitizeNextPath(formData.get("next"), "/mobile");
+  const surface = await getCurrentSurface();
+  const next = sanitizeNextForSurface(formData.get("next"), surface);
   const lang = String(formData.get("lang") ?? "").trim();
   const langParam = lang ? `&lang=${encodeURIComponent(lang)}` : "";
   const errorBase = `/auth/login?view=email&next=${encodeURIComponent(next)}${langParam}`;
@@ -149,7 +167,7 @@ export async function signInWithEmailPassword(formData: FormData) {
   }
 
   // state.status === "ready"
-  redirect(next || state.redirectTo);
+  redirect(next || normalizePathForSurface(state.redirectTo, surface));
 }
 
 /**
@@ -161,7 +179,8 @@ export async function signInWithEmailPassword(formData: FormData) {
 export async function signUpWithEmail(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
-  const next = sanitizeNextPath(formData.get("next"), "/mobile");
+  const surface = await getCurrentSurface();
+  const next = sanitizeNextForSurface(formData.get("next"), surface);
   const lang = String(formData.get("lang") ?? "").trim();
   const langParam = lang ? `&lang=${encodeURIComponent(lang)}` : "";
   const errorBase = `/auth/login?view=email&mode=signup&next=${encodeURIComponent(next)}${langParam}`;
@@ -206,7 +225,8 @@ export async function signUpWithEmail(formData: FormData) {
  */
 export async function requestPasswordReset(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const next = sanitizeNextPath(formData.get("next"), "/mobile");
+  const surface = await getCurrentSurface();
+  const next = sanitizeNextForSurface(formData.get("next"), surface);
   const lang = String(formData.get("lang") ?? "").trim();
   const langParam = lang ? `&lang=${encodeURIComponent(lang)}` : "";
   const errorBase = `/auth/login?view=email&mode=reset&next=${encodeURIComponent(next)}${langParam}`;
@@ -242,7 +262,8 @@ export async function requestPasswordReset(formData: FormData) {
 export async function updatePassword(formData: FormData) {
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
-  const next = sanitizeNextPath(formData.get("next"), "/mobile");
+  const surface = await getCurrentSurface();
+  const next = sanitizeNextForSurface(formData.get("next"), surface);
   const lang = String(formData.get("lang") ?? "").trim();
   const langParam = lang ? `&lang=${encodeURIComponent(lang)}` : "";
   const errorBase = `/auth/login?view=email&mode=new_password&next=${encodeURIComponent(next)}${langParam}`;
@@ -284,7 +305,8 @@ export async function updatePassword(formData: FormData) {
  * docs/engineering/05-rls-permissions.md (auth/identity policy).
  */
 export async function signInWithGoogle(formData: FormData) {
-  const next = sanitizeNextPath(formData.get("next"), "/mobile");
+  const surface = await getCurrentSurface();
+  const next = sanitizeNextForSurface(formData.get("next"), surface);
   const lang = String(formData.get("lang") ?? "").trim();
   const langParam = lang ? `&lang=${encodeURIComponent(lang)}` : "";
   const callbackNext = preserveOnboardingLang(next, lang);
@@ -310,6 +332,7 @@ export async function signInWithGoogle(formData: FormData) {
 export async function signOut(formData?: FormData) {
   const supabase = await getSupabaseServerClient();
   await supabase.auth.signOut();
-  const next = sanitizeNextPath(formData?.get("next"), "/auth/login");
+  const surface = await getCurrentSurface();
+  const next = normalizeNextPathForSurface(formData?.get("next"), surface, "/auth/login");
   redirect(next);
 }

@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { sanitizeNextPath } from "@/lib/safe-redirect";
+import { getDeviceSurfaceFromHeaders } from "@/lib/mobile-device";
+import {
+  defaultPathForSurface,
+  isAdminSurfacePath,
+  normalizeNextPathForSurface,
+} from "@/lib/surface-routing";
 import type { Database } from "@/types/database";
 
 const authRoutePrefixes = ["/admin", "/mobile", "/account"];
@@ -70,9 +75,17 @@ function buildAuthCallbackRedirect(request: NextRequest) {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const surface = getDeviceSurfaceFromHeaders(request.headers);
 
   if (pathname !== "/auth/callback" && hasSupabaseCallbackParams(request)) {
     return NextResponse.redirect(buildAuthCallbackRedirect(request));
+  }
+
+  if (surface === "mobile" && isAdminSurfacePath(pathname)) {
+    const mobileUrl = request.nextUrl.clone();
+    mobileUrl.pathname = "/mobile";
+    mobileUrl.search = "";
+    return NextResponse.redirect(mobileUrl);
   }
 
   let response = NextResponse.next({
@@ -119,7 +132,11 @@ export async function middleware(request: NextRequest) {
     // Preserve `next` and `lang` so the onboarding page (or login page's own
     // server-side check) can redirect to the correct destination once the user
     // is confirmed to be fully onboarded.
-    const next = sanitizeNextPath(request.nextUrl.searchParams.get("next"));
+    const next = normalizeNextPathForSurface(
+      request.nextUrl.searchParams.get("next"),
+      surface,
+      surface === "mobile" ? defaultPathForSurface(surface) : "",
+    );
     const lang = request.nextUrl.searchParams.get("lang") || "";
     const onboardingUrl = request.nextUrl.clone();
     onboardingUrl.pathname = "/onboarding";

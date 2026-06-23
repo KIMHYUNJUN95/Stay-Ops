@@ -1,8 +1,10 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { roleToInviteCategory } from "@/config/roles";
 import { validateInviteCode } from "@/lib/auth-invite";
+import { getDeviceSurfaceFromHeaders, type DeviceSurface } from "@/lib/mobile-device";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import {
@@ -14,7 +16,7 @@ import {
 } from "@/lib/onboarding";
 import { isLocale } from "@/lib/i18n";
 import { resolveInviteRpcError } from "@/lib/invite-errors";
-import { sanitizeNextPath } from "@/lib/safe-redirect";
+import { normalizeNextPathForSurface, normalizePathForSurface } from "@/lib/surface-routing";
 import type { Database } from "@/types/database";
 
 type PlatformAdminInsert =
@@ -41,8 +43,8 @@ function cleanText(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
 }
 
-function sanitizeNext(value: FormDataEntryValue | null): string {
-  return sanitizeNextPath(cleanText(value));
+function sanitizeNext(value: FormDataEntryValue | null, surface: DeviceSurface): string {
+  return normalizeNextPathForSurface(cleanText(value), surface);
 }
 
 function normalizeInviteCode(value: FormDataEntryValue | null) {
@@ -66,6 +68,10 @@ async function requireUser() {
   }
 
   return user;
+}
+
+async function getCurrentSurface() {
+  return getDeviceSurfaceFromHeaders(await headers());
 }
 
 /**
@@ -148,7 +154,8 @@ async function joinInviteCode(userId: string, code: string, next: string) {
 
 export async function completeProfile(formData: FormData) {
   const user = await requireUser();
-  const next = sanitizeNext(formData.get("next"));
+  const surface = await getCurrentSurface();
+  const next = sanitizeNext(formData.get("next"), surface);
   const name = cleanText(formData.get("name"));
   const birthDate = cleanText(formData.get("birthDate"));
   const phoneNumber = cleanText(formData.get("phoneNumber"));
@@ -196,7 +203,7 @@ export async function completeProfile(formData: FormData) {
 
   if (membership) {
     await setLastUsedOrganization(user.id, membership.organization_id);
-    redirect(next || getDefaultRouteForRole(membership.role));
+    redirect(next || normalizePathForSurface(getDefaultRouteForRole(membership.role), surface));
   }
 
   // No invite code submitted — needs membership step. Preserve next for the join form.
@@ -205,7 +212,8 @@ export async function completeProfile(formData: FormData) {
 
 export async function joinOrganizationWithInviteCode(formData: FormData) {
   const user = await requireUser();
-  const next = sanitizeNext(formData.get("next"));
+  const surface = await getCurrentSurface();
+  const next = sanitizeNext(formData.get("next"), surface);
   const inviteCode = normalizeInviteCode(formData.get("inviteCode"));
 
   if (!inviteCode) {
@@ -216,7 +224,9 @@ export async function joinOrganizationWithInviteCode(formData: FormData) {
   if (membership) {
     await setLastUsedOrganization(user.id, membership.organization_id);
   }
-  redirect(next || getDefaultRouteForRole(membership?.role ?? "staff"));
+  redirect(
+    next || normalizePathForSurface(getDefaultRouteForRole(membership?.role ?? "staff"), surface),
+  );
 }
 
 export async function claimFirstPlatformAdmin() {
@@ -273,12 +283,13 @@ export async function submitOnboardingProfile(input: {
   next: string;
 }): Promise<SubmitOnboardingResult> {
   const user = await requireUser();
+  const surface = await getCurrentSurface();
   const name = input.name.trim();
   const birthDate = input.birthDate.trim();
   const phoneNumber = input.phoneNumber.trim();
   const lang = input.preferredLanguage.trim();
   const code = input.inviteCode.trim().toUpperCase();
-  const next = sanitizeNextPath(input.next);
+  const next = normalizeNextPathForSurface(input.next, surface);
 
   if (!name || !phoneNumber) return { ok: false, errorKey: "missing_profile_fields" };
   if (!birthDate || !isValidBirthDate(birthDate)) {
@@ -316,14 +327,17 @@ export async function submitOnboardingProfile(input: {
     const row = data?.[0];
     if (!row) return { ok: false, errorKey: "invite_join_failed" };
     await setLastUsedOrganization(user.id, row.organization_id);
-    return { ok: true, redirectTo: next || getDefaultRouteForRole(row.role) };
+    return {
+      ok: true,
+      redirectTo: next || normalizePathForSurface(getDefaultRouteForRole(row.role), surface),
+    };
   }
 
   // No invite code — re-evaluate so platform admins / existing members route in,
   // and users who still need a team land back on onboarding's join step.
   const state = await getOnboardingState();
   if (state.status === "ready") {
-    return { ok: true, redirectTo: next || state.redirectTo };
+    return { ok: true, redirectTo: next || normalizePathForSurface(state.redirectTo, surface) };
   }
   return { ok: true, redirectTo: "/onboarding" };
 }

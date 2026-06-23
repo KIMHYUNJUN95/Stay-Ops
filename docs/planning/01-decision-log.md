@@ -4,6 +4,24 @@ This file records important project decisions.
 
 ## 2026-06-23
 
+### Routing — separate mobile app and admin dashboard surfaces
+
+Decision: the mobile app (`/mobile`) and admin dashboard (`/admin`) are treated as separate product
+surfaces, not responsive variants of the same screen. Mobile/tablet requests must not render admin
+dashboard pages. When a mobile request reaches `/admin*` directly (including in-app browsers such as
+KakaoTalk) or carries `next=/admin*` through auth/onboarding/OAuth, the destination is normalized to
+`/mobile` before the admin page renders.
+
+Why: field app access from shared links, KakaoTalk, or OAuth callbacks could preserve `/admin` as the
+destination and display the desktop dashboard in a narrow mobile viewport. That breaks the product
+model: the app is for field execution, while the dashboard is for desktop oversight.
+
+Impact:
+- Middleware redirects mobile `/admin*` requests to `/mobile`.
+- Auth login, Google callback, password reset, and onboarding completion normalize mobile
+  `next=/admin*` to `/mobile`.
+- The route boundary is based on user agent plus `Sec-CH-UA-Mobile` where available.
+
 ### Auth QA — remove local test-login shortcut
 
 Decision: the local dev seed-login shortcut has been removed from the product and development login

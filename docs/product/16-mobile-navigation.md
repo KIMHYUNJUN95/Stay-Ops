@@ -15,6 +15,11 @@ Confirmed routing direction:
 
 - **Desktop / PC** root access should enter the desktop auth flow first (`/auth/login`), then proceed to the dashboard/web side after authentication/onboarding resolution
 - **Mobile / tablet** access should go directly to the mobile side (`/mobile`)
+- **Mobile / tablet must never render `/admin*` dashboard pages.** If a mobile request arrives at
+  `/admin*` directly (shared link, KakaoTalk/LINE in-app browser, stale `next=/admin`, or OAuth
+  callback), the route is normalized to `/mobile` before the dashboard page renders.
+- Auth, OAuth callback, password-reset, and onboarding completion must also normalize mobile
+  `next=/admin*` to `/mobile`.
 - If the dashboard later offers a way to open the mobile version, that belongs **inside the dashboard**
   after login, not on the root landing page
 
