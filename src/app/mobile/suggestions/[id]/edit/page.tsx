@@ -30,7 +30,7 @@ export default async function MobileSuggestionEditPage({ params, searchParams }:
     redirect("/onboarding");
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const detail = await getSuggestionDetail(session, id);

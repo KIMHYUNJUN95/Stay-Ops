@@ -39,7 +39,7 @@ export default async function MaintenanceNewPage({ searchParams }: PageProps) {
   }
 
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const locale = session.user.preferredLanguage;

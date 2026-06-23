@@ -251,7 +251,7 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
   }
 
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const dictionary = getDictionary(session.user.preferredLanguage);
@@ -602,6 +602,5 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
     </MobileShell>
   );
 }
-
 
 

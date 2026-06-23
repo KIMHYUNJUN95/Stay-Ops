@@ -47,7 +47,7 @@ export default async function CleaningRecordsPage({ searchParams }: PageProps) {
     redirect("/onboarding");
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
   if (!canAccessMobileCleaning(session.user.role)) {
     redirect("/mobile");

@@ -20,6 +20,9 @@ Confirmed routing direction:
   callback), the route is normalized to `/mobile` before the dashboard page renders.
 - Auth, OAuth callback, password-reset, and onboarding completion must also normalize mobile
   `next=/admin*` to `/mobile`.
+- If an authenticated mobile session has no organization/workspace context, `/mobile/*` routes must
+  redirect to `/mobile/unavailable` instead of `/admin`. This keeps the field app and dashboard
+  surfaces separated even for platform/admin-only accounts or stale sessions.
 - If the dashboard later offers a way to open the mobile version, that belongs **inside the dashboard**
   after login, not on the root landing page
 

@@ -37,7 +37,7 @@ export async function quickCreateTask(formData: FormData) {
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const title = cleanText(formData.get("title"));
@@ -80,7 +80,7 @@ export async function quickCreateTodayTask(formData: FormData) {
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const title = cleanText(formData.get("title"));
@@ -125,7 +125,7 @@ export async function quickCreateTomorrowTask(formData: FormData) {
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const title = cleanText(formData.get("title"));
@@ -171,7 +171,7 @@ export async function createTask(formData: FormData) {
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const title = cleanText(formData.get("title"));

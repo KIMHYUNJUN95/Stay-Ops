@@ -20,6 +20,9 @@ Impact:
 - Middleware redirects mobile `/admin*` requests to `/mobile`.
 - Auth login, Google callback, password reset, and onboarding completion normalize mobile
   `next=/admin*` to `/mobile`.
+- Mobile app routes that cannot resolve an organization context redirect to
+  `/mobile/unavailable`, not `/admin`, so mobile exceptions never escape into the dashboard
+  surface or create `/mobile` <-> `/admin` loops.
 - The route boundary is based on user agent plus `Sec-CH-UA-Mobile` where available.
 
 ### Auth QA — remove local test-login shortcut

@@ -160,7 +160,7 @@ export default async function MobileHomePage() {
   }
 
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const locale = session.user.preferredLanguage;

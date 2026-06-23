@@ -36,7 +36,7 @@ export default async function MobileAttendancePage({ searchParams }: PageProps) 
     redirect("/onboarding");
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const navBadges = await getMobileNavBadges();

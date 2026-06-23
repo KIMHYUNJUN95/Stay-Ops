@@ -22,7 +22,7 @@ export default async function MobileSuggestionsPage() {
     redirect("/onboarding");
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const locale = session.user.preferredLanguage;

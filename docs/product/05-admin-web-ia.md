@@ -11,6 +11,8 @@ It should not be treated as a secondary or optional tool. The mobile app serves 
 The admin dashboard is a desktop/web surface, not the mobile app rendered responsively. Mobile/tablet
 requests to `/admin*` are redirected to `/mobile` before the dashboard page renders. This includes
 direct shared links and auth/onboarding/OAuth flows that carry a stale `next=/admin*` value.
+Mobile routes also do not fall back to `/admin` when organization context is missing; they route to
+`/mobile/unavailable` so the app surface stays isolated.
 
 The inverse responsibility also holds at the product level: app work should live under `/mobile`, and
 dashboard management/oversight should live under `/admin`.

@@ -35,7 +35,7 @@ async function requireSession(): Promise<Session> {
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
   return session;
 }

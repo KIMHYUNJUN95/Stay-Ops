@@ -165,7 +165,7 @@ export default async function MobileOrderRequestDetailPage({
     redirect("/onboarding");
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const locale = session.user.preferredLanguage;

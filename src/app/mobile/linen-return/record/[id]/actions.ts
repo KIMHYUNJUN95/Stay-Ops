@@ -41,7 +41,7 @@ export async function deleteLinenReturnRecord(formData: FormData) {
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/linen-return")}`);
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const recordId = cleanText(formData.get("recordId"));
@@ -77,7 +77,7 @@ export async function updateLinenReturnRecord(formData: FormData) {
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/linen-return")}`);
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const recordId = cleanText(formData.get("recordId"));

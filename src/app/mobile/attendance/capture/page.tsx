@@ -26,7 +26,7 @@ export default async function MobileAttendanceCapturePage({ searchParams }: Page
     redirect("/onboarding");
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const dict = getDictionary(session.user.preferredLanguage);

@@ -69,7 +69,7 @@ export default async function MobileLostItemDetailPage({ params, searchParams }:
   }
 
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const locale = session.user.preferredLanguage;

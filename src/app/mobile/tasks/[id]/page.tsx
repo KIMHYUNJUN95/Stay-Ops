@@ -25,7 +25,7 @@ export default async function MobileTaskDetailPage({ params }: PageProps) {
     redirect("/onboarding");
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const task = await getTaskDetail(session, id);

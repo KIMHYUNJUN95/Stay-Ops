@@ -72,7 +72,7 @@ export default async function MobileMaintenanceDetailPage({ params, searchParams
   }
 
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const locale = session.user.preferredLanguage;

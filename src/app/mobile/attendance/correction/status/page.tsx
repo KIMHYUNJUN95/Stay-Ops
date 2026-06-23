@@ -28,7 +28,7 @@ export default async function MobileAttendanceCorrectionStatusPage({ searchParam
     redirect("/onboarding");
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const dict = getDictionary(session.user.preferredLanguage);

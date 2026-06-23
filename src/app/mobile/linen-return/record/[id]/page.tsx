@@ -41,7 +41,7 @@ export default async function LinenReturnDetailPage({ params, searchParams }: Pa
     redirect("/onboarding");
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const record = await getLinenReturnRecordById(session, id);

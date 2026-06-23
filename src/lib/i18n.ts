@@ -788,6 +788,8 @@ const FALLBACK_DICTIONARY = {
     overdueRescheduleNextMonday: "Next Monday",
     overdueRescheduleCustom: "Pick a date",
     overdueRescheduleApply: "Apply",
+    overdueSelectAll: "Select all",
+    overdueDeselectAll: "Deselect all",
     inboxHint: "Manage all your todos here",
     sentHint: "Tasks you shared",
     todayEmptyTitle: "Nothing due today",
@@ -1136,6 +1138,12 @@ const FALLBACK_DICTIONARY = {
     } as Record<string, string>,
   },
   mobile: {
+    unavailableEyebrow: "Mobile app",
+    unavailableTitle: "This account cannot use the mobile app",
+    unavailableBody:
+      "The mobile app is for workspace members. Open the dashboard on a desktop, or sign in with an account that belongs to a workspace.",
+    unavailableHelp:
+      "If this looks wrong, ask an owner or manager to invite this account to the workspace.",
     calendarCall: "Call",
     calendarBuildingChange: "Change building",
     calendarBuildingHotelLabel: "Hotel",
@@ -2747,6 +2755,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       overdueRescheduleNextMonday: "다음주 월요일",
       overdueRescheduleCustom: "직접선택",
       overdueRescheduleApply: "적용",
+      overdueSelectAll: "전체선택",
+      overdueDeselectAll: "전체해제",
       inboxHint: "모든 할 일을 여기서 관리합니다",
       sentHint: "내가 공유한 task",
       todayEmptyTitle: "오늘 처리할 일이 없습니다",
@@ -3085,6 +3095,12 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       },
     },
     mobile: {
+      unavailableEyebrow: "모바일 앱",
+      unavailableTitle: "이 계정은 모바일 앱을 사용할 수 없어요",
+      unavailableBody:
+        "모바일 앱은 워크스페이스에 참여한 계정만 사용할 수 있어요. PC에서 대시보드를 열거나, 워크스페이스에 참여한 계정으로 로그인해 주세요.",
+      unavailableHelp:
+        "잘못 표시된다면 소유자 또는 관리자에게 이 계정을 워크스페이스에 초대해 달라고 요청하세요.",
       calendarCall: "전화",
       calendarBuildingChange: "건물 변경",
       calendarBuildingHotelLabel: "호텔",
@@ -4620,6 +4636,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       overdueRescheduleNextMonday: "来週月曜日",
       overdueRescheduleCustom: "日付を選択",
       overdueRescheduleApply: "適用",
+      overdueSelectAll: "全て選択",
+      overdueDeselectAll: "全て解除",
       inboxHint: "すべてのタスクをここで管理します",
       sentHint: "共有したタスク",
       todayEmptyTitle: "今日対応する用事はありません",
@@ -4958,6 +4976,12 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       },
     },
     mobile: {
+      unavailableEyebrow: "モバイルアプリ",
+      unavailableTitle: "このアカウントではモバイルアプリを利用できません",
+      unavailableBody:
+        "モバイルアプリはワークスペースに参加しているアカウント向けです。PCでダッシュボードを開くか、ワークスペースに参加済みのアカウントでログインしてください。",
+      unavailableHelp:
+        "誤って表示されている場合は、オーナーまたは管理者にこのアカウントをワークスペースへ招待してもらってください。",
       calendarCall: "電話",
       calendarBuildingChange: "施設を変更",
       calendarBuildingHotelLabel: "ホテル",

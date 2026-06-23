@@ -104,7 +104,7 @@ async function requireSessionAndTask(taskId: string): Promise<{
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
   const task = await getTaskDetail(session, taskId);
   if (!task) {
@@ -119,7 +119,7 @@ async function requireSession(): Promise<Session> {
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
   return session;
 }
@@ -135,15 +135,15 @@ function isOverdueOwned(t: TaskRecord, today: string, userId: string): boolean {
 }
 
 /**
- * "일정변경" — move the caller's overdue tasks to `targetDate` (YYYY-MM-DD, Tokyo).
- * A recurring task keeps its series (its single row's occurrence is set to targetDate);
- * a one-off task's due date is moved to targetDate.
+ * "일정변경" — move the selected overdue tasks to `targetDate` (YYYY-MM-DD, Tokyo).
+ * `taskIds` are the IDs the user chose; server re-validates each is truly overdue + owned.
  */
-export async function rescheduleOverdueTo(targetDate: string) {
+export async function rescheduleOverdueTo(targetDate: string, taskIds: string[]) {
   const session = await requireSession();
   const today = tokyoToday();
-  const overdue = (await getVisibleTasks(session)).filter((t) =>
-    isOverdueOwned(t, today, session.user.id),
+  const allowed = new Set(taskIds);
+  const overdue = (await getVisibleTasks(session)).filter(
+    (t) => isOverdueOwned(t, today, session.user.id) && allowed.has(t.id),
   );
   if (overdue.length === 0) return;
   const supabase = getSupabaseServiceClient();
@@ -174,15 +174,15 @@ export async function rescheduleOverdueTo(targetDate: string) {
 }
 
 /**
- * "지난 미완료 삭제" — clear the caller's overdue tasks. A one-off overdue task is deleted; a
- * recurring task is **not** deleted (that would kill the series) — it advances to its next future
- * occurrence, so the missed run is dropped while the daily/weekly schedule continues.
+ * "지난 미완료 삭제" — clear the selected overdue tasks. One-offs are deleted; recurring tasks
+ * advance to their next future occurrence so the series continues.
  */
-export async function dismissOverdueTasks() {
+export async function dismissOverdueTasks(taskIds: string[]) {
   const session = await requireSession();
   const today = tokyoToday();
-  const overdue = (await getVisibleTasks(session)).filter((t) =>
-    isOverdueOwned(t, today, session.user.id),
+  const allowed = new Set(taskIds);
+  const overdue = (await getVisibleTasks(session)).filter(
+    (t) => isOverdueOwned(t, today, session.user.id) && allowed.has(t.id),
   );
   if (overdue.length === 0) return;
   const supabase = getSupabaseServiceClient();
@@ -634,7 +634,7 @@ export async function deleteTasksInList(taskIds: string[]) {
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
   const supabase = getSupabaseServiceClient();
   await supabase
@@ -660,7 +660,7 @@ export async function reorderTasks(orderedIds: string[]) {
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
   const supabase = getSupabaseServiceClient();
   await Promise.all(

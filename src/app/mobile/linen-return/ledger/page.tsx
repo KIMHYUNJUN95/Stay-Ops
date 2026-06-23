@@ -63,7 +63,7 @@ export default async function LinenReturnLedgerPage({ searchParams }: PageProps)
     redirect("/onboarding");
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
   if (!building || !(await isKnownBuilding(session, building))) {
     redirect("/mobile/linen-return");

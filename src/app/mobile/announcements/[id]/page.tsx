@@ -61,7 +61,7 @@ export default async function MobileAnnouncementDetailPage({
   }
 
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const copy = getAnnouncementDictionary(session.user.preferredLanguage);

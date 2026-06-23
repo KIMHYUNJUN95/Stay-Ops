@@ -65,7 +65,7 @@ export async function createLinenReturnRecord(formData: FormData) {
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/linen-return")}`);
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const building = cleanText(formData.get("building"));

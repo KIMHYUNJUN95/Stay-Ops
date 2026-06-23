@@ -67,7 +67,7 @@ export async function createStaffSuggestion(formData: FormData) {
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/suggestions/new")}`);
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const title = cleanText(formData.get("title"));
@@ -179,7 +179,7 @@ export async function updateStaffSuggestion(formData: FormData) {
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/suggestions")}`);
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   const suggestionId = cleanText(formData.get("suggestionId"));

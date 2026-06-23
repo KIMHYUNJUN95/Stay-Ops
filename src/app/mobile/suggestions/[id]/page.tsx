@@ -26,7 +26,7 @@ export default async function MobileSuggestionDetailPage({ params }: PageProps) 
     redirect("/onboarding");
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
 
   // Participant-only: returns null when not found or the viewer isn't author/recipient/referenced.

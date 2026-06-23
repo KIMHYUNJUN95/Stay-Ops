@@ -30,7 +30,7 @@ export default async function LinenReturnNewPage({ searchParams }: PageProps) {
     redirect("/onboarding");
   }
   if (!hasOrganizationContext(session)) {
-    redirect("/admin");
+    redirect("/mobile/unavailable");
   }
   if (!building || !(await isKnownBuilding(session, building))) {
     redirect("/mobile/linen-return");
