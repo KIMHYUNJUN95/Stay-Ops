@@ -92,13 +92,6 @@ function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
-// Short month labels for the custom date picker (Jan, 1월, 1月, …).
-function monthLabels(locale: string): string[] {
-  const fmt = new Intl.DateTimeFormat(locale, { month: "short" });
-  return Array.from({ length: 12 }, (_, i) =>
-    fmt.format(new Date(Date.UTC(2024, i, 1))),
-  );
-}
 
 export function TasksWorkspace({
   buildingLabels,
@@ -255,8 +248,6 @@ export function TasksWorkspace({
   const overdueClampedD = Math.min(overdueSelD, overdueMaxDay);
   const overdueCustomYmd = `${String(overdueSelY)}-${String(overdueSelM).padStart(2, "0")}-${String(overdueClampedD).padStart(2, "0")}`;
   const overdueCustomValid = overdueCustomYmd >= today;
-  const overdueMonths = monthLabels(locale);
-  const overdueYearRange = Array.from({ length: 3 }, (_, i) => overdueY + i);
   const rescheduleOverdue = (targetDate: string) =>
     startOverdue(async () => {
       await rescheduleOverdueTo(targetDate, [...overdueSelection]);
@@ -1357,38 +1348,109 @@ export function TasksWorkspace({
             </p>
             {overdueCustomMode ? (
               <div className="flex flex-col gap-3">
-                <div className="flex gap-2">
-                  <select
-                    className="h-11 flex-1 rounded-2xl border border-border bg-background px-3 text-[14px] font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    onChange={(e) => setOverdueCustomYear(Number(e.target.value))}
-                    value={overdueSelY}
+                {/* 미니 캘린더 — 월 헤더 */}
+                <div className="flex items-center justify-between px-1">
+                  <button
+                    aria-label="이전 달"
+                    className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-30"
+                    disabled={overdueSelY === overdueY && overdueSelM === overdueM}
+                    onClick={() => {
+                      if (overdueSelM === 1) {
+                        setOverdueCustomYear(overdueSelY - 1);
+                        setOverdueCustomMonth(12);
+                      } else {
+                        setOverdueCustomMonth(overdueSelM - 1);
+                      }
+                      // 날짜는 그대로 유지 (범위 초과 시 overdueClampedD 가 자동 보정)
+                    }}
+                    type="button"
                   >
-                    {overdueYearRange.map((y) => (
-                      <option key={y} value={y}>{y}</option>
-                    ))}
-                  </select>
-                  <select
-                    className="h-11 flex-1 rounded-2xl border border-border bg-background px-3 text-[14px] font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    onChange={(e) => setOverdueCustomMonth(Number(e.target.value))}
-                    value={overdueSelM}
+                    <ChevronLeft className="size-4 text-foreground" strokeWidth={2.5} aria-hidden="true" />
+                  </button>
+                  <span className="text-[14px] font-extrabold text-foreground">
+                    {new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" }).format(
+                      new Date(overdueSelY, overdueSelM - 1, 1)
+                    )}
+                  </span>
+                  <button
+                    aria-label="다음 달"
+                    className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-muted/50"
+                    onClick={() => {
+                      if (overdueSelM === 12) {
+                        setOverdueCustomYear(overdueSelY + 1);
+                        setOverdueCustomMonth(1);
+                      } else {
+                        setOverdueCustomMonth(overdueSelM + 1);
+                      }
+                    }}
+                    type="button"
                   >
-                    {overdueMonths.map((name, i) => (
-                      <option key={i + 1} value={i + 1}>{name}</option>
-                    ))}
-                  </select>
-                  <select
-                    className="h-11 flex-1 rounded-2xl border border-border bg-background px-3 text-[14px] font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    onChange={(e) => setOverdueCustomDay(Number(e.target.value))}
-                    value={overdueClampedD}
-                  >
-                    {Array.from({ length: overdueMaxDay }, (_, i) => i + 1).map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
+                    <ChevronRight className="size-4 text-foreground" strokeWidth={2.5} aria-hidden="true" />
+                  </button>
                 </div>
+                {/* 요일 헤더 — 일요일 시작, Intl 로 로케일 자동 처리 */}
+                <div className="grid grid-cols-7 text-center">
+                  {Array.from({ length: 7 }, (_, i) =>
+                    new Intl.DateTimeFormat(locale, { weekday: "short" }).format(
+                      // 2000-01-02 is a Sunday; offset i gives Sun..Sat
+                      new Date(2000, 0, 2 + i)
+                    )
+                  ).map((label, i) => (
+                    <span key={i} className="text-[11px] font-semibold text-muted-foreground py-1">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+                {/* 날짜 그리드 — 6주 × 7일 */}
+                {(() => {
+                  // 해당 월 1일의 요일(0=일,1=월,...6=토)
+                  const firstDow = new Date(overdueSelY, overdueSelM - 1, 1).getDay();
+                  const totalDays = daysInMonth(overdueSelY, overdueSelM);
+                  // 42칸: 앞쪽 빈 칸 + 날짜 + 뒤쪽 빈 칸
+                  const cells: (number | null)[] = [
+                    ...Array(firstDow).fill(null),
+                    ...Array.from({ length: totalDays }, (_, i) => i + 1),
+                  ];
+                  while (cells.length < 42) cells.push(null);
+                  const todayYmd = today;
+                  return (
+                    <div className="grid grid-cols-7 gap-y-0.5">
+                      {cells.map((day, idx) => {
+                        if (day === null) return <div key={idx} />;
+                        const cellYmd = `${overdueSelY}-${String(overdueSelM).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                        const isPast = cellYmd < todayYmd;
+                        const isToday = cellYmd === todayYmd;
+                        const isSelected = day === overdueCustomDay && overdueSelY === overdueSelY && overdueSelM === overdueSelM;
+                        return (
+                          <button
+                            key={idx}
+                            aria-label={cellYmd}
+                            aria-pressed={isSelected}
+                            className={[
+                              "mx-auto flex size-9 items-center justify-center rounded-full text-[13px] transition-colors",
+                              isPast
+                                ? "pointer-events-none text-slate-300"
+                                : isSelected
+                                  ? "bg-primary text-primary-foreground font-bold"
+                                  : isToday
+                                    ? "ring-2 ring-primary font-bold text-foreground hover:bg-muted/50"
+                                    : "text-foreground hover:bg-muted/50",
+                            ].join(" ")}
+                            disabled={isPast}
+                            onClick={() => setOverdueCustomDay(day)}
+                            type="button"
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+                {/* 적용 / 취소 */}
                 <button
                   className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-primary text-[14px] font-bold text-primary-foreground shadow-[0_10px_22px_-12px_hsl(var(--primary-hsl)/0.65)] transition-transform active:scale-[0.98] disabled:opacity-40"
-                  disabled={!overdueCustomValid || overduePending}
+                  disabled={!overdueCustomValid || overduePending || overdueCustomDay === 0}
                   onClick={() => overdueCustomValid && rescheduleOverdue(overdueCustomYmd)}
                   type="button"
                 >
