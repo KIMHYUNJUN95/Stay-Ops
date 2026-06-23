@@ -18,7 +18,10 @@ type AttendanceCopy = Dictionary["attendance"];
 export type CorrectionRequestView = {
   id: string;
   status: AttendanceCorrectionStatus;
+  /** Localised reason label (deprecated — prefer reasonKey). */
   reasonLabel: string;
+  /** i18n key for reason, e.g. "reasonMissingIn". Looked up via dictionary at render time. */
+  reasonKey?: string;
   sessionId: string | null;
   targetDateLabel: string | null;
   desiredClockInLabel: string | null;
@@ -139,7 +142,12 @@ export function AttendanceCorrectionStatus({
         </div>
         <div className="recap__r">
           <span className="recap__k">{copy.corrDetailReason}</span>
-          <span className="recap__v">{request.reasonLabel}</span>
+          <span className="recap__v">
+            {request.reasonKey
+              ? (copy[request.reasonKey as keyof typeof copy] as string | undefined) ??
+                request.reasonLabel
+              : request.reasonLabel}
+          </span>
         </div>
         <div className="recap__r">
           <span className="recap__k">{copy.corrDetailDesiredIn}</span>

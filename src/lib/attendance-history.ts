@@ -50,6 +50,8 @@ export type AttendanceSessionView = {
   workedSec: number | null;
   /** Latest correction request status for this session, if any (Step 6). */
   correctionStatus: AttendanceCorrectionStatus | null;
+  /** Latest correction request id for this session — used to deep-link to the specific request. */
+  correctionRequestId: string | null;
 };
 
 export type AttendanceTodaySummary = {
@@ -71,9 +73,9 @@ function tokyoDateKey(d: Date): string {
   }).format(d);
 }
 
-function tokyoTimeLabel(iso: string | null): string | null {
+function tokyoTimeLabel(iso: string | null, locale = "ko-KR"): string | null {
   if (!iso) return null;
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: TZ,
     hour: "2-digit",
     minute: "2-digit",
@@ -81,10 +83,10 @@ function tokyoTimeLabel(iso: string | null): string | null {
   }).format(new Date(iso));
 }
 
-/** "6월 17일 (화)" from a Tokyo YYYY-MM-DD operating date. */
-function dateLabelOf(operatingDate: string): string {
+/** "6월 17일 (화)" / "6月17日(火)" / "Jun 17 (Tue)" from a Tokyo YYYY-MM-DD operating date. */
+function dateLabelOf(operatingDate: string, locale = "ko-KR"): string {
   const d = new Date(`${operatingDate}T00:00:00+09:00`);
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: TZ,
     month: "long",
     day: "numeric",
@@ -104,6 +106,7 @@ function buildSessionView(
   s: AttendanceSessionRow,
   breakRows: BreakRow[],
   siteNames: Map<string, string>,
+  locale = "ko-KR",
 ): AttendanceSessionView {
   const breaks: AttendanceBreakView[] = breakRows
     .slice()
@@ -112,8 +115,8 @@ function buildSessionView(
       startedAt: b.started_at,
       endedAt: b.ended_at,
       durationSec: closedBreakSeconds(b.started_at, b.ended_at),
-      startedLabel: tokyoTimeLabel(b.started_at) ?? "--:--",
-      endedLabel: tokyoTimeLabel(b.ended_at),
+      startedLabel: tokyoTimeLabel(b.started_at, locale) ?? "--:--",
+      endedLabel: tokyoTimeLabel(b.ended_at, locale),
     }));
 
   const breakTotalSec = breaks.reduce((sum, b) => sum + (b.durationSec ?? 0), 0);
@@ -130,17 +133,17 @@ function buildSessionView(
   return {
     id: s.id,
     operatingDate: s.operating_date,
-    dateLabel: dateLabelOf(s.operating_date),
+    dateLabel: dateLabelOf(s.operating_date, locale),
     status,
     reviewState,
     manualCreated: s.manual_created,
     isAbnormal: reviewState !== "normal" || status === "invalid",
     clockInAt: s.clock_in_at,
-    clockInLabel: tokyoTimeLabel(s.clock_in_at),
+    clockInLabel: tokyoTimeLabel(s.clock_in_at, locale),
     clockInSiteName: s.clock_in_site_id ? (siteNames.get(s.clock_in_site_id) ?? null) : null,
     clockInMethod: (s.clock_in_method as AttendanceMethod | null) ?? null,
     clockOutAt: s.clock_out_at,
-    clockOutLabel: tokyoTimeLabel(s.clock_out_at),
+    clockOutLabel: tokyoTimeLabel(s.clock_out_at, locale),
     clockOutSiteName: s.clock_out_site_id ? (siteNames.get(s.clock_out_site_id) ?? null) : null,
     clockOutMethod: (s.clock_out_method as AttendanceMethod | null) ?? null,
     breaks,
@@ -148,6 +151,7 @@ function buildSessionView(
     breakTotalSec,
     workedSec,
     correctionStatus: null,
+    correctionRequestId: null,
   };
 }
 
@@ -212,6 +216,7 @@ export async function getAttendanceHistory(
   userId: string,
   ym?: string,
   limit = 60,
+  locale = "ko-KR",
 ): Promise<AttendanceSessionView[]> {
   const service = getSupabaseServiceClient();
   let query = service
@@ -246,8 +251,10 @@ export async function getAttendanceHistory(
   ]);
 
   return sessions.map((s) => {
-    const view = buildSessionView(s, breaksBySession.get(s.id) ?? [], siteNames);
-    view.correctionStatus = correctionBySession.get(s.id) ?? null;
+    const view = buildSessionView(s, breaksBySession.get(s.id) ?? [], siteNames, locale);
+    const correction = correctionBySession.get(s.id) ?? null;
+    view.correctionStatus = correction?.status ?? null;
+    view.correctionRequestId = correction?.id ?? null;
     return view;
   });
 }

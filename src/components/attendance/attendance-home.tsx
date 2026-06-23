@@ -7,14 +7,14 @@
  */
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./attendance.css";
 import { AIc, AttIcon, AttRingDefs } from "./att-icons";
 import { startBreak, endBreak, respondOpenSessionReminder } from "@/app/mobile/attendance/actions";
-import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { getDictionary, type Dictionary } from "@/lib/i18n";
+import { usePersistentToggle } from "@/lib/use-persistent-toggle";
 
 type AttendanceCopy = Dictionary["attendance"];
 
@@ -187,14 +187,8 @@ function LiveBreakBody({
 
 function ReminderPrompt({ sessionId, copy }: { sessionId: string; copy: AttendanceCopy }) {
   const router = useRouter();
-  const hydrated = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  );
   const [open, setOpen] = useState(true);
   const [busy, setBusy] = useState(false);
-  const drag = useSheetDragDismiss({ shown: open, onDismiss: () => setOpen(false) });
 
   const onStillWorking = useCallback(async () => {
     if (busy) return;
@@ -208,33 +202,30 @@ function ReminderPrompt({ sessionId, copy }: { sessionId: string; copy: Attendan
   const onLeftWork = useCallback(async () => {
     if (busy) return;
     setBusy(true);
-    await respondOpenSessionReminder("left_work");
-    router.push(`/mobile/attendance/correction?sessionId=${sessionId}`);
+    try {
+      await respondOpenSessionReminder("left_work");
+      router.push(`/mobile/attendance/correction?sessionId=${sessionId}`);
+    } finally {
+      setBusy(false);
+    }
   }, [busy, router, sessionId]);
 
-  if (!hydrated || !open) return null;
+  if (!open) return null;
 
-  return createPortal(
-    <div className="att">
-      <div className="dim show" style={drag.scrimStyle} onClick={() => setOpen(false)} aria-hidden="true" />
-      <div className="rsheet" data-sheet role="dialog" aria-modal="true" style={drag.sheetStyle}>
-        <div {...drag.handleProps}>
-          <div className="rsheet__handle" />
-        </div>
-        <div className="rsheet__ic ic-warn">{AttIcon.warn}</div>
-        <h3 className="rsheet__t">{copy.reminderTitle}</h3>
-        <p className="rsheet__s">{copy.reminderBody}</p>
-        <div className="rbtns">
-          <button type="button" className="rbtn rbtn--primary" onClick={onStillWorking} disabled={busy}>
-            {copy.ringWorking}
-          </button>
-          <button type="button" className="rbtn rbtn--ghost" onClick={onLeftWork} disabled={busy}>
-            <AIc>{AttIcon.edit}</AIc>{copy.reminderLeft}
-          </button>
-        </div>
+  return (
+    <BottomSheet onClose={() => setOpen(false)}>
+      <div className="rsheet__ic ic-warn">{AttIcon.warn}</div>
+      <h3 className="rsheet__t">{copy.reminderTitle}</h3>
+      <p className="rsheet__s">{copy.reminderBody}</p>
+      <div className="rbtns">
+        <button type="button" className="rbtn rbtn--primary" onClick={onStillWorking} disabled={busy}>
+          {copy.ringWorking}
+        </button>
+        <button type="button" className="rbtn rbtn--ghost" onClick={onLeftWork} disabled={busy}>
+          <AIc>{AttIcon.edit}</AIc>{copy.reminderLeft}
+        </button>
       </div>
-    </div>,
-    document.body,
+    </BottomSheet>
   );
 }
 
@@ -293,22 +284,50 @@ export function AttendanceHome({
   const copy = getDictionary(locale).attendance;
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [payMasked, setPayMasked] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Default hidden (true). Persisted across sessions; shared key with attendance-pay.
+  const [payMasked, togglePayMasked] = usePersistentToggle(
+    "stayops:attendance:pay-amount-visible",
+    true,
+  );
+
+  function resolveBreakErrorMsg(reason: string): string {
+    switch (reason) {
+      case "no_session":
+        return "진행 중인 근무 세션이 없습니다.";
+      case "already_on_break":
+        return "이미 휴게 중입니다.";
+      case "no_open_break":
+        return "종료할 휴게 기록이 없습니다.";
+      default:
+        return "오류가 발생했습니다. 다시 시도해 주세요.";
+    }
+  }
 
   const onStartBreak = useCallback(async () => {
     if (busy) return;
     setBusy(true);
+    setErrorMsg(null);
     const res = await startBreak();
     setBusy(false);
-    if (res.ok) router.refresh();
+    if (res.ok) {
+      router.refresh();
+    } else {
+      setErrorMsg(resolveBreakErrorMsg(res.reason ?? "error"));
+    }
   }, [busy, router]);
 
   const onEndBreak = useCallback(async () => {
     if (busy) return;
     setBusy(true);
+    setErrorMsg(null);
     const res = await endBreak();
     setBusy(false);
-    if (res.ok) router.refresh();
+    if (res.ok) {
+      router.refresh();
+    } else {
+      setErrorMsg(resolveBreakErrorMsg(res.reason ?? "error"));
+    }
   }, [busy, router]);
 
   const [booting, setBooting] = useState(true);
@@ -357,7 +376,7 @@ export function AttendanceHome({
               className="eyemini"
               onClick={(e) => {
                 e.preventDefault();
-                setPayMasked((prev) => !prev);
+                togglePayMasked();
               }}
               aria-label={copy.homePayHide}
             >
@@ -420,6 +439,11 @@ export function AttendanceHome({
             <AIc>{AttIcon.coffee}</AIc>{copy.startBreak}
           </Link>
         )}
+        {errorMsg ? (
+          <p role="alert" style={{ color: "var(--color-error, #c0392b)", fontSize: "0.875rem", textAlign: "center", margin: "8px 0 0" }}>{errorMsg}</p>
+        ) : null}
+        {/* 근무 중 상태에서도 이력·급여로 바로 이동할 수 있도록 주요 액션 아래에 배치 */}
+        {entryList}
         {reminderOpenSessionId ? <ReminderPrompt sessionId={reminderOpenSessionId} copy={copy} /> : null}
       </div>
     );
@@ -470,6 +494,11 @@ export function AttendanceHome({
             </Link>
           </>
         )}
+        {errorMsg ? (
+          <p role="alert" style={{ color: "var(--color-error, #c0392b)", fontSize: "0.875rem", textAlign: "center", margin: "8px 0 0" }}>{errorMsg}</p>
+        ) : null}
+        {/* 휴게 중 상태에서도 이력·급여 바로가기 유지 */}
+        {entryList}
         {reminderOpenSessionId ? <ReminderPrompt sessionId={reminderOpenSessionId} copy={copy} /> : null}
       </div>
     );

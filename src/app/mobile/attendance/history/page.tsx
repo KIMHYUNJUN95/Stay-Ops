@@ -44,12 +44,17 @@ export default async function MobileAttendanceHistoryPage({ searchParams }: Page
 
   const dict = getDictionary(session.user.preferredLanguage);
   const currentYm = currentTokyoYm();
-  const ym = /^\d{4}-\d{2}$/.test(params.ym ?? "") ? (params.ym as string) : currentYm;
+  const rawYm = /^\d{4}-\d{2}$/.test(params.ym ?? "") ? (params.ym as string) : currentYm;
+  // 미래 월 직접 입력 차단: 현재 Tokyo 월보다 큰 경우 현재 월로 clamp
+  const ym = rawYm > currentYm ? currentYm : rawYm;
+
+  const localeMap: Record<string, string> = { ko: "ko-KR", ja: "ja-JP", en: "en-US" };
+  const bcp47Locale = localeMap[session.user.preferredLanguage] ?? "ko-KR";
 
   const [navBadges, summary, sessions] = await Promise.all([
     getMobileNavBadges(),
     getAttendanceTodaySummary(session.organization.id, session.user.id),
-    getAttendanceHistory(session.organization.id, session.user.id, ym),
+    getAttendanceHistory(session.organization.id, session.user.id, ym, 60, bcp47Locale),
   ]);
 
   return (

@@ -14,6 +14,7 @@ import { MonthSwitcher } from "./month-switcher";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import type { MonthlyPayView, PayExcludeReason } from "@/lib/attendance-pay";
 import { getDictionary } from "@/lib/i18n";
+import { usePersistentToggle } from "@/lib/use-persistent-toggle";
 
 function fmtDur(totalMinutes: number, hourLabel: string, minLabel: string): string {
   const h = Math.floor(totalMinutes / 60);
@@ -135,7 +136,11 @@ export function AttendancePay({
   const selected = view.days.find((d) => d.date === selectedDate) ?? null;
   const close = () => setSelectedDate(null);
   const [excludedOpen, setExcludedOpen] = useState(false);
-  const [payHidden, setPayHidden] = useState(false);
+  // Default hidden (true). Persisted across sessions; shared key with attendance-home.
+  const [payHidden, togglePayHidden] = usePersistentToggle(
+    "stayops:attendance:pay-amount-visible",
+    true,
+  );
 
   function dur(mins: number) {
     return fmtDur(mins, copy.durationHour, copy.durationMin);
@@ -239,7 +244,7 @@ export function AttendancePay({
           <button
             type="button"
             className="pc__eye"
-            onClick={() => setPayHidden((v) => !v)}
+            onClick={togglePayHidden}
             aria-label={copy.homePayHide}
           >
             <AIc>{payHidden ? AttIcon.eyeOff : AttIcon.eye}</AIc>

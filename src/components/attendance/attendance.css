@@ -460,10 +460,18 @@
   color: #fff;
   box-shadow: 0 18px 34px -14px hsl(223 46% 32% / 0.6);
 }
+.att .clockbtn--in:active {
+  transform: scale(0.96);
+  filter: brightness(0.92);
+}
 .att .clockbtn--out {
   background: var(--card);
   color: var(--primary);
   border: 1.5px solid var(--primary);
+}
+.att .clockbtn--out:active {
+  transform: scale(0.96);
+  opacity: 0.85;
 }
 .att .clockbtn--disabled {
   background: var(--surface);
@@ -497,6 +505,10 @@
 }
 .att .breakbtn--active .ic {
   color: var(--warn);
+}
+.att .breakbtn:not([disabled]):active {
+  transform: scale(0.96);
+  opacity: 0.85;
 }
 
 .att .methods {
@@ -608,6 +620,15 @@
   .att .ring__state .pulse,
   .att .gpschip .dot {
     animation: none;
+  }
+  .att .clockbtn--in:active,
+  .att .clockbtn--out:active,
+  .att .breakbtn:not([disabled]):active,
+  .att .rbtn--primary:active,
+  .att .rbtn--ghost:active,
+  .att .rbtn--retry:active,
+  .att .submitbtn:not([disabled]):active {
+    transform: none;
   }
 }
 
@@ -860,14 +881,26 @@
   background: linear-gradient(160deg, var(--primary-lift), var(--primary-ink));
   color: #fff;
 }
+.att .rbtn--primary:active {
+  transform: scale(0.96);
+  filter: brightness(0.92);
+}
 .att .rbtn--ghost {
   background: var(--surface);
   color: var(--ink-soft);
+}
+.att .rbtn--ghost:active {
+  transform: scale(0.96);
+  opacity: 0.85;
 }
 .att .rbtn--retry {
   background: var(--card);
   color: var(--primary);
   border: 1.5px solid var(--primary);
+}
+.att .rbtn--retry:active {
+  transform: scale(0.96);
+  opacity: 0.85;
 }
 .att .failnote {
   display: flex;
@@ -1202,6 +1235,10 @@
 }
 .att .submitbtn .ic {
   font-size: 19px;
+}
+.att .submitbtn:not([disabled]):active {
+  transform: scale(0.96);
+  filter: brightness(0.92);
 }
 
 /* ===== CORRECTION status read-back ===== */

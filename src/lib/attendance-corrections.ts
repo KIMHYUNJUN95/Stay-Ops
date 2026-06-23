@@ -119,12 +119,34 @@ export async function getSessionCorrectionContext(
   };
 }
 
+/** i18n key for each correction reason — maps to `copy.reasonMissingIn` etc. */
+export const CORRECTION_REASON_I18N_KEYS: Record<AttendanceCorrectionReason, string> = {
+  missing_clock_in: "reasonMissingIn",
+  missing_clock_out: "reasonMissingOut",
+  wrong_time: "reasonWrongTime",
+  wrong_site: "reasonWrongSite",
+  auth_failed: "reasonAuthFailed",
+  other: "reasonOther",
+};
+
+/** i18n key for each correction status — maps to `copy.stepRequested` etc. */
+export const CORRECTION_STATUS_I18N_KEYS: Record<AttendanceCorrectionStatus, string> = {
+  requested: "stepRequested",
+  in_review: "stepInReview",
+  approved: "stepApproved",
+  rejected: "stepRejected",
+};
+
 export type CorrectionRequestView = {
   id: string;
   status: AttendanceCorrectionStatus;
+  /** @deprecated Use `statusKey` + dictionary lookup for localised label. */
   statusLabel: string;
+  statusKey: string; // e.g. "stepRequested"
   reasonType: AttendanceCorrectionReason;
+  /** @deprecated Use `reasonKey` + dictionary lookup for localised label. */
   reasonLabel: string;
+  reasonKey: string; // e.g. "reasonMissingIn"
   sessionId: string | null;
   targetDateLabel: string | null; // null = exception (session-less) request
   desiredClockInLabel: string | null;
@@ -144,39 +166,52 @@ async function toRequestView(
   organizationId: string,
   row: AttendanceCorrectionRequestRow,
 ): Promise<CorrectionRequestView> {
-  let targetDateLabel: string | null = null;
-  if (row.session_id) {
-    const sRes = await service
-      .from("attendance_sessions")
-      .select("operating_date")
-      .eq("organization_id", organizationId)
-      .eq("id", row.session_id)
-      .maybeSingle();
-    const od = (sRes.data as { operating_date: string } | null)?.operating_date ?? null;
-    if (od) targetDateLabel = dateLabelOf(od);
-  }
-
-  let desiredSiteName: string | null = null;
+  // Step 1: session operating_date fetch (others may depend on nothing from here, but siteId is from `row`)
   const siteId = row.desired_clock_in_site_id ?? row.desired_clock_out_site_id;
-  if (siteId) {
-    const siteRes = await service
-      .from("attendance_sites")
-      .select("name")
-      .eq("organization_id", organizationId)
-      .eq("id", siteId)
-      .maybeSingle();
-    desiredSiteName = (siteRes.data as { name: string } | null)?.name ?? null;
-  }
 
-  let reviewerName: string | null = null;
-  if (row.reviewed_by_user_id) {
-    const pRes = await service
-      .from("profiles")
-      .select("name")
-      .eq("id", row.reviewed_by_user_id)
-      .maybeSingle();
-    reviewerName = (pRes.data as { name: string } | null)?.name ?? null;
-  }
+  // Step 2: session + site + reviewer를 가능한 범위에서 병렬 실행
+  // session 조회는 row.session_id가 있을 때만, site/reviewer는 row에서 직접 id를 얻으므로 모두 병렬 가능
+  const [sessionRes, siteRes, reviewerRes] = await Promise.all([
+    row.session_id
+      ? service
+          .from("attendance_sessions")
+          .select("operating_date")
+          .eq("organization_id", organizationId)
+          .eq("id", row.session_id)
+          .maybeSingle()
+      : Promise.resolve(null),
+    siteId
+      ? service
+          .from("attendance_sites")
+          .select("name")
+          .eq("organization_id", organizationId)
+          .eq("id", siteId)
+          .maybeSingle()
+      : Promise.resolve(null),
+    row.reviewed_by_user_id
+      ? service
+          .from("profiles")
+          .select("name")
+          .eq("id", row.reviewed_by_user_id)
+          .maybeSingle()
+      : Promise.resolve(null),
+  ]);
+
+  const od =
+    sessionRes && "data" in sessionRes
+      ? ((sessionRes.data as { operating_date: string } | null)?.operating_date ?? null)
+      : null;
+  const targetDateLabel = od ? dateLabelOf(od) : null;
+
+  const desiredSiteName =
+    siteRes && "data" in siteRes
+      ? ((siteRes.data as { name: string } | null)?.name ?? null)
+      : null;
+
+  const reviewerName =
+    reviewerRes && "data" in reviewerRes
+      ? ((reviewerRes.data as { name: string } | null)?.name ?? null)
+      : null;
 
   const status = row.status as AttendanceCorrectionStatus;
   const reasonType = row.reason_type as AttendanceCorrectionReason;
@@ -185,8 +220,10 @@ async function toRequestView(
     id: row.id,
     status,
     statusLabel: CORRECTION_STATUS_LABELS[status] ?? status,
+    statusKey: CORRECTION_STATUS_I18N_KEYS[status] ?? status,
     reasonType,
     reasonLabel: CORRECTION_REASON_LABELS[reasonType] ?? reasonType,
+    reasonKey: CORRECTION_REASON_I18N_KEYS[reasonType] ?? reasonType,
     sessionId: row.session_id,
     targetDateLabel,
     desiredClockInLabel: tokyoTimeLabel(row.desired_clock_in_at),
@@ -235,23 +272,24 @@ export async function getCorrectionStatusBySession(
   organizationId: string,
   userId: string,
   sessionIds: string[],
-): Promise<Map<string, AttendanceCorrectionStatus>> {
-  const map = new Map<string, AttendanceCorrectionStatus>();
+): Promise<Map<string, { status: AttendanceCorrectionStatus; id: string }>> {
+  const map = new Map<string, { status: AttendanceCorrectionStatus; id: string }>();
   if (sessionIds.length === 0) return map;
   const res = await getSupabaseServiceClient()
     .from("attendance_correction_requests")
-    .select("session_id, status, created_at")
+    .select("id, session_id, status, created_at")
     .eq("organization_id", organizationId)
     .eq("requested_by_user_id", userId)
     .in("session_id", sessionIds)
     .order("created_at", { ascending: false });
   for (const row of (res.data ?? []) as {
+    id: string;
     session_id: string | null;
     status: string;
     created_at: string;
   }[]) {
     if (row.session_id && !map.has(row.session_id)) {
-      map.set(row.session_id, row.status as AttendanceCorrectionStatus);
+      map.set(row.session_id, { status: row.status as AttendanceCorrectionStatus, id: row.id });
     }
   }
   return map;

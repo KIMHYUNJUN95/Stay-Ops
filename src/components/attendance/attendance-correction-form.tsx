@@ -105,8 +105,14 @@ export function AttendanceCorrectionForm({
     const selected = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (selected.length === 0) return;
-    if (selected.some((f) => !ALLOWED_TYPES.includes(f.type))) return;
-    if (selected.some((f) => f.size > MAX_BYTES)) return;
+    if (selected.some((f) => !ALLOWED_TYPES.includes(f.type))) {
+      setError("JPEG, PNG, WebP, HEIC 형식의 이미지만 첨부할 수 있어요.");
+      return;
+    }
+    if (selected.some((f) => f.size > MAX_BYTES)) {
+      setError("파일 크기는 10 MB 이하여야 해요.");
+      return;
+    }
     if (photos.length + selected.length > MAX_PHOTOS) {
       setError(copy.corrErrPhotoLimit(MAX_PHOTOS));
       return;
@@ -181,7 +187,7 @@ export function AttendanceCorrectionForm({
 
   return (
     <div className="att">
-      <div className="scroll-pad" style={{ paddingBottom: "96px" }}>
+      <div className="scroll-pad" style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}>
         <div className="caphead">
           <div>
             <div className="capttl">{copy.corrFormTitle}</div>

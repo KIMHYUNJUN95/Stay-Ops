@@ -231,7 +231,7 @@ export async function getMonthlyPayView(
   const firstDay = `${ym}-01`;
   const lastDay = lastDayOfMonth(ym);
 
-  const [sessRes, rateRes, empRes] = await Promise.all([
+  const [sessRes, rateRes, empRes, finalizedRow] = await Promise.all([
     service
       .from("attendance_sessions")
       .select("*")
@@ -250,6 +250,14 @@ export async function getMonthlyPayView(
       .select("employment_type, effective_from, effective_to")
       .eq("organization_id", organizationId)
       .eq("user_id", userId),
+    service
+      .from("attendance_month_snapshots")
+      .select("gross_amount, total_paid_minutes, finalized_at")
+      .eq("organization_id", organizationId)
+      .eq("user_id", userId)
+      .eq("target_month", `${ym}-01`)
+      .eq("status", "finalized")
+      .maybeSingle(),
   ]);
 
   const sessions = (sessRes.data ?? []) as AttendanceSessionRow[];
@@ -347,14 +355,6 @@ export async function getMonthlyPayView(
     .sort((a, b) => a.rate - b.rate);
 
   // Reflect a finalized snapshot (Step 11): when present, the screen shows the locked finalized pay.
-  const finalizedRow = await service
-    .from("attendance_month_snapshots")
-    .select("gross_amount, total_paid_minutes, finalized_at")
-    .eq("organization_id", organizationId)
-    .eq("user_id", userId)
-    .eq("target_month", `${ym}-01`)
-    .eq("status", "finalized")
-    .maybeSingle();
   const snap = finalizedRow.data as {
     gross_amount: number;
     total_paid_minutes: number;
@@ -365,7 +365,18 @@ export async function getMonthlyPayView(
     ym,
     monthLabel: monthLabelOf(ym),
     hourlyEligible,
-    salariedOnly: !hourlyEligible && sessions.length > 0,
+    // salariedOnly: 세션 유무와 관계없이 고용 유형 이력으로만 판단.
+    // 해당 월과 겹치는 employment_type_history 레코드 중 salaried가 하나라도 있고
+    // hourly 날이 없는(hourlyEligible === false) 경우에 true.
+    // 세션이 0개인 신입 월급제 직원 첫 달도 올바르게 true가 됨.
+    salariedOnly:
+      !hourlyEligible &&
+      empRows.some(
+        (r) =>
+          r.employment_type === "salaried" &&
+          r.effective_from <= lastDay &&
+          (r.effective_to == null || r.effective_to >= firstDay),
+      ),
     totalPaidMinutes,
     expectedGross: roundToNearest10(totalGrossExact),
     excludedCount,

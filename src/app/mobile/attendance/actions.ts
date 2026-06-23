@@ -359,12 +359,23 @@ export async function startBreak(): Promise<BreakActionResult> {
     .maybeSingle();
   if (openBreakRes.data) return { ok: false, reason: "already_on_break" };
 
-  const ins = await service.from("attendance_breaks").insert({
-    organization_id: session.organization.id,
-    session_id: sessionId,
-    started_at: new Date().toISOString(),
-  } as never);
-  if (ins.error) return { ok: false, reason: "error" };
+  const ins = await (async () => {
+    try {
+      return await service.from("attendance_breaks").insert({
+        organization_id: session.organization.id,
+        session_id: sessionId,
+        started_at: new Date().toISOString(),
+      } as never);
+    } catch {
+      return null;
+    }
+  })();
+  if (!ins) return { ok: false, reason: "error" };
+  if (ins.error) {
+    if ((ins.error as { code?: string }).code === "23505")
+      return { ok: false, reason: "already_on_break" };
+    return { ok: false, reason: "error" };
+  }
 
   revalidatePath("/mobile/attendance");
   return { ok: true };
@@ -531,6 +542,7 @@ export async function createAttendanceCorrectionRequest(
     },
   });
 
+  revalidatePath("/mobile/attendance");
   revalidatePath("/mobile/attendance/correction/status");
   revalidatePath("/mobile/attendance/history");
   return { ok: true, id: ins.data.id };

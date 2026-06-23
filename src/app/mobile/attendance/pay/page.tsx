@@ -43,7 +43,9 @@ export default async function MobileAttendancePayPage({ searchParams }: PageProp
 
   const dict = getDictionary(session.user.preferredLanguage);
   const currentYm = currentTokyoYm();
-  const ym = /^\d{4}-\d{2}$/.test(params.ym ?? "") ? (params.ym as string) : currentYm;
+  const rawYm = /^\d{4}-\d{2}$/.test(params.ym ?? "") ? (params.ym as string) : currentYm;
+  // 미래 월 직접 입력 차단: 현재 Tokyo 월보다 큰 경우 현재 월로 clamp
+  const ym = rawYm > currentYm ? currentYm : rawYm;
   const [navBadges, view] = await Promise.all([
     getMobileNavBadges(),
     getMonthlyPayView(session.organization.id, session.user.id, ym),

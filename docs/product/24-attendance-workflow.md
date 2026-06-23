@@ -30,7 +30,9 @@ like every mobile route (auth + org context).
   the primary action instead, so no designed element is lost. **이력 is now built (Step 5, 2026-06-17)**
   as new UI in the existing `.att` token language (the v2 handoff had no 이력 frame). **급여 is now built
   (Step 10, 2026-06-18)** as new UI too (self monthly hourly expected-pay, `/mobile/attendance/pay`); 내정보
-  remains unbuilt. The home topline has small **이력** + **급여** links.
+  remains unbuilt. The home shows **이력** + **급여** shortcut entry rows (`entryList`) in **all three
+  states (idle / open / break)** — placed below the primary clock-in/out + break action buttons so the
+  main action is always visually dominant. (2026-06-23)
   - **Amount privacy toggle (eye icon):** the pay card amounts (예상 총 급여, 근무 인정 시간 / 근무일, and
     the daily 일급 column) can be hidden via the eye button. The hide effect uses **transparent text +
     `text-shadow` blur**, NOT `filter: blur()` — on iOS Safari a `filter: blur()` on text inside the
@@ -38,7 +40,13 @@ like every mobile route (auth + org context).
     artifact). The text-shadow approach obscures cleanly with no edge box. Shadow color follows the card
     variant (ink on the light `--expected` card, white on the dark `--final` card). See
     `src/components/attendance/attendance.css` (`.entryrow__val.masked`, `.paycard.hide .pc__amt`,
-    `.paycard.hide .pc__v`). (2026-06-22)
+    `.paycard.hide .pc__v`). (2026-06-22) **기본값은 가려진 상태(hidden)이며 사용자의 마지막 선택을
+    `localStorage` (`stayops:attendance:pay-amount-visible`, `"1"` = shown / `"0"` = hidden) 에
+    영속화한다 — 탭을 닫았다 다시 열어도 마지막 상태가 복원된다. `attendance-home`의 시급 급여 행과
+    `/mobile/attendance/pay` 페이지가 같은 localStorage 키를 공유하므로, 한쪽에서 풀면 다른 쪽도 풀린
+    채로 진입한다. SSR 안전: 첫 렌더는 항상 hidden으로 고정되고, `useEffect` 이후에 클라이언트에서
+    저장된 값을 읽어 갱신한다 (hydration mismatch 없음). 구현 훅: `src/lib/use-persistent-toggle.ts`.
+    (2026-06-23)
 
 Screens:
 
@@ -46,7 +54,10 @@ Screens:
   states: **출근 전 (idle)** · **근무 중 (open)** · **휴게 중 (break)** · **로딩 (skeleton)**. The live
   ring (navy = working, amber = break), info strip (장소/시각, 휴게 합계/횟수), clock-in/out + break
   buttons, and method chips (GPS+QR / Wi-Fi 준비중). User name + today's date are real (from the
-  session); clock data is static placeholder. The clock button links to the capture flow.
+  session); clock data is static placeholder. The clock button links to the capture flow. The **이력
+  (history)** and **급여 (pay)** shortcut entry rows appear below the primary action buttons in **all
+  three active states** (idle, open, break) so users can navigate to those screens without clocking
+  out. (2026-06-23)
 - `/mobile/attendance/history` — **own attendance history (Step 5, 2026-06-17)** → `attendance-history.tsx`.
   New self-view screen: today summary (세션/근무/휴게) + the user's own session list (date, 출근/퇴근
   time + site, status/검토/수동 chips, 근무·휴게 totals); a card opens a **detail bottom sheet** (shared

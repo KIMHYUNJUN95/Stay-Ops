@@ -86,25 +86,29 @@ export async function getCurrentOpenSession(
 
   const session = data as AttendanceSessionRow;
 
-  let siteName = "—";
-  if (session.clock_in_site_id) {
-    const siteRes = await service
-      .from("attendance_sites")
-      .select("name")
-      .eq("organization_id", organizationId)
-      .eq("id", session.clock_in_site_id)
-      .maybeSingle();
-    const site = siteRes.data as { name: string } | null;
-    if (site?.name) siteName = site.name;
-  }
+  // 쿼리 2(site name)와 쿼리 3(break rows)는 sessionId/siteId만 있으면 독립적으로 실행 가능하므로
+  // Promise.all로 병렬 실행하여 직렬 대기 시간을 제거한다.
+  const sitePromise = session.clock_in_site_id
+    ? service
+        .from("attendance_sites")
+        .select("name")
+        .eq("organization_id", organizationId)
+        .eq("id", session.clock_in_site_id)
+        .maybeSingle()
+    : Promise.resolve({ data: null });
 
   // Break aggregation: keep individual rows in the DB; here we only derive the live summary the home
   // needs (on-break? + closed-break total + count). Open-break duration is computed live on the client.
-  const breaksRes = await service
+  const breaksPromise = service
     .from("attendance_breaks")
     .select("started_at, ended_at")
     .eq("session_id", session.id)
     .order("started_at", { ascending: true });
+
+  const [siteRes, breaksRes] = await Promise.all([sitePromise, breaksPromise]);
+
+  const site = siteRes.data as { name: string } | null;
+  const siteName = site?.name ?? "—";
   const breaks = (breaksRes.data ?? []) as { started_at: string; ended_at: string | null }[];
 
   let closedBreakSeconds = 0;

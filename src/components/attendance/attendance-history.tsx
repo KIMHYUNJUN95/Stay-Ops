@@ -153,14 +153,19 @@ function SummaryCard({
   useEffect(() => {
     if (!summary.hasOpenSession || !todaySession?.clockInAt) return;
     const clockInMs = new Date(todaySession.clockInAt).getTime();
+    // Find the open (in-progress) break, if any — endedAt === null means still running.
+    const openBreak = todaySession.breaks.find((b) => b.endedAt === null) ?? null;
     const tick = () => {
       const gross = (Date.now() - clockInMs) / 1000;
-      setElapsed(Math.max(0, Math.floor(gross) - summary.breakTotalSec));
+      const openBreakSec = openBreak
+        ? Math.floor((Date.now() - new Date(openBreak.startedAt).getTime()) / 1000)
+        : 0;
+      setElapsed(Math.max(0, Math.floor(gross) - summary.breakTotalSec - openBreakSec));
     };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [summary.hasOpenSession, summary.breakTotalSec, todaySession?.clockInAt]);
+  }, [summary.hasOpenSession, summary.breakTotalSec, todaySession?.clockInAt, todaySession?.breaks]);
 
   if (summary.hasOpenSession && todaySession) {
     const { hm, ss } = fmtHMS(elapsed);
@@ -565,7 +570,7 @@ export function AttendanceHistory({
 
             {selected.correctionStatus ? (
               <Link
-                href="/mobile/attendance/correction/status"
+                href={selected.correctionRequestId ? `/mobile/attendance/correction/status?id=${selected.correctionRequestId}` : "/mobile/attendance/correction/status"}
                 className="ghostbtn"
                 style={{ marginTop: "12px" }}
               >
