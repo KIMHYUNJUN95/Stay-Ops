@@ -85,6 +85,26 @@ Implementation note:
   via `calc()`. The drag therefore re-renders **nothing** mid-gesture (only the start/end `edgeDragging`
   flip, which toggles the spring transition, renders). Opacity ramp, ~64px commit threshold, spring-back,
   and right-edge forward fling are visually identical to before.
+  **PTR / edge-swipe mutual exclusion (2026-06-23):** the two gesture systems now gate each other.
+  If PTR (`isPullingRef.current`) is active when `handleSwipeStart` fires, `edgeCandidateRef` stays
+  false — the edge-back gesture is not armed. Conversely, if `edgeLockedRef.current` is true,
+  `handleTouchMove` (PTR) returns early — the horizontal edge drag owns the gesture. `handleSwipeMove`
+  also bails when `isPullingRef.current` is true. This prevents a diagonal top-left touch from
+  simultaneously activating both subsystems.
+  **navigatingRef — post-goBack() stale event guard (2026-06-23):** `goBack()` sets
+  `navigatingRef.current = true`; the next `handleSwipeStart` resets it to false. Any `handleSwipeMove`
+  arriving after `goBack()` fires (but before the new page mounts) is dropped, preventing a stale
+  `edgeLockedRef` state from processing phantom events after a fast fling.
+  **Springback animation fix (2026-06-23):** `endEdgeDrag(false)` defers `writeEdgeProgress(0)`
+  by one `requestAnimationFrame` when not committing, so React can paint the CSS transition change
+  (`transition:none → opacity 380ms ease`) before the hint intensity is zeroed — the gradient fades
+  out smoothly instead of snapping away.
+  **nav-direction TTL 1200ms→400ms (2026-06-23):** the "back" flag in `nav-direction.ts` now expires
+  after 400ms (was 1200ms). The mobile template mounts within ~100ms; the longer window allowed a
+  stale "back" to mis-animate the next forward navigation as a pop when `goBack()` routed outside
+  `/mobile/` (e.g. to `/account`).
+  **Notifications page wrapped (2026-06-23):** `/mobile/notifications` now uses `MobileShell` so
+  the left-edge swipe-back gesture is available on the notifications screen.
 - **`hideBottomNav` (2026-06-15):** `MobileShell` accepts an opt-in `hideBottomNav` prop (default
   `false`) that hides the bottom tab bar for focused **registration / create-edit** flows, so the
   screen reads as a dedicated form (and a sticky submit bar can't overlap the tab bar). Applied to the
