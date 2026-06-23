@@ -7,7 +7,7 @@ function ensureDevOnly(request: NextRequest) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  if (process.env.ENABLE_DEV_SEED_LOGIN !== "true") {
+  if (process.env.ENABLE_LOCAL_DEV_TOOLS !== "true") {
     console.warn("[dev/beds24-reservations] gate not enabled");
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }

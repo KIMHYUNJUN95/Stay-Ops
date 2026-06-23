@@ -2,6 +2,23 @@
 
 This file records important project decisions.
 
+## 2026-06-23
+
+### Auth QA — remove local test-login shortcut
+
+Decision: the local dev seed-login shortcut has been removed from the product and development login
+flow. `/auth/login` now exposes only real Google and email/password authentication, and
+`/api/dev/seed-login`, `src/lib/dev-auth.ts`, and the unused `DevEntry` component have been deleted.
+
+Why: internal rollout testing now uses real user accounts and invite-code onboarding. Keeping a
+one-click test login on the public login surface created confusion and could hide real-auth defects.
+
+Impact:
+- The bottom "테스트 로그인 (Stay Ops E2E Admin)" block no longer renders.
+- Seed test accounts are no longer auto-created or signed in by an app route.
+- Local maintenance-only dev endpoints keep a separate `ENABLE_LOCAL_DEV_TOOLS` gate; that gate is
+  not an authentication shortcut.
+
 ## 2026-06-18
 
 ### Onboarding — wire to backend with minimal-wiring scope (keep current page)
@@ -24,7 +41,7 @@ Decision: `isDevSeedLoginEnabled()` checks that blocked `signInWithEmailPassword
 
 Why: the guards blocked all real email sign-in/signup/reset while `ENABLE_DEV_SEED_LOGIN=true`, making it impossible to test the real email auth flow locally without toggling the env var.
 
-Impact: `isDevSeedLoginEnabled` import removed from `actions.ts`; dev seed login buttons remain in `page.tsx` UI for development convenience.
+Impact: `isDevSeedLoginEnabled` import removed from `actions.ts`. Superseded on 2026-06-23: dev seed login buttons and the `/api/dev/seed-login` route were removed entirely.
 
 ### Auth backend — single consistent route-state model for password reset
 

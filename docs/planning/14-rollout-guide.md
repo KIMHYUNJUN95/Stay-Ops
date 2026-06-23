@@ -27,7 +27,7 @@ curl -X POST https://<your-domain>/api/dev/beds24/backfill-room-master \
   -H "x-beds24-webhook-secret: <BEDS24_WEBHOOK_SECRET>"
 ```
 
-Note: this endpoint is gated by `ENABLE_DEV_SEED_LOGIN=true` and localhost/seed-login guards. Adjust access policy if needed for a production trigger.
+Note: this endpoint is gated by `ENABLE_LOCAL_DEV_TOOLS=true` and localhost guards. Adjust access policy if needed for a production trigger.
 
 ### 2. Verify remote DB migrations are current
 

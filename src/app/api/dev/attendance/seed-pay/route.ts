@@ -6,7 +6,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 // DEV-ONLY: seed the logged-in user's employment type + hourly rate so the self monthly pay screen
 // (/mobile/attendance/pay) shows real numbers during app testing. The proper owner/payroll_admin
 // employment-type + rate MANAGEMENT (Step 9) and the admin UI live in the deferred web dashboard; this
-// is only a local testing convenience, gated exactly like /api/dev/seed-login.
+// is only a local testing convenience, gated by ENABLE_LOCAL_DEV_TOOLS.
 //
 // Usage (while logged into the app):
 //   GET /api/dev/attendance/seed-pay                 → hourly, ¥1200/h, effective 2020-01-01
@@ -36,7 +36,7 @@ function ensureDevOnly(request: NextRequest) {
   if (process.env.NODE_ENV !== "development") {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  if (process.env.ENABLE_DEV_SEED_LOGIN !== "true") {
+  if (process.env.ENABLE_LOCAL_DEV_TOOLS !== "true") {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
   if (!isLocalDevHost(getRequestHostname(request))) {

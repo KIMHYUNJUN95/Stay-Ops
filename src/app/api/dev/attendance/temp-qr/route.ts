@@ -17,8 +17,8 @@ import type { AttendanceSiteRow } from "@/lib/attendance";
 // ensures a temporary attendance site exists and issues an ACTIVE QR token for it, then renders a
 // scannable QR (so the app's clock-in capture flow can be tested once it is wired in Step 3+).
 //
-// Gated identically to /api/dev/seed-login: development NODE_ENV + the ENABLE_DEV_SEED_LOGIN opt-in +
-// a local/LAN host. It is never reachable in production. It is NOT owner-gated (it's a local testing
+// Gated by development NODE_ENV + the ENABLE_LOCAL_DEV_TOOLS opt-in + a local/LAN host. It is never
+// reachable in production. It is NOT owner-gated (it's a local testing
 // tool); the real web-dashboard server actions WILL enforce owner-only.
 //
 // Usage (while logged into the app in the same browser):
@@ -40,7 +40,7 @@ function isLocalDevHost(host: string) {
   if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
   if (/^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
   // Cloudflare quick tunnel (dev-only): lets this temp-QR page open on a phone over
-  // any network. Still gated by NODE_ENV=development + ENABLE_DEV_SEED_LOGIN, so it is
+  // any network. Still gated by NODE_ENV=development + ENABLE_LOCAL_DEV_TOOLS, so it is
   // never reachable in production regardless of host.
   return host.endsWith(".trycloudflare.com");
 }
@@ -57,8 +57,8 @@ function ensureDevOnly(request: NextRequest) {
   if (process.env.NODE_ENV !== "development") {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  if (process.env.ENABLE_DEV_SEED_LOGIN !== "true") {
-    console.warn("[dev/attendance/temp-qr] gate not enabled (ENABLE_DEV_SEED_LOGIN)");
+  if (process.env.ENABLE_LOCAL_DEV_TOOLS !== "true") {
+    console.warn("[dev/attendance/temp-qr] gate not enabled (ENABLE_LOCAL_DEV_TOOLS)");
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
   if (!isLocalDevHost(getRequestHostname(request))) {

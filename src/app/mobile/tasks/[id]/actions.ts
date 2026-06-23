@@ -135,10 +135,11 @@ function isOverdueOwned(t: TaskRecord, today: string, userId: string): boolean {
 }
 
 /**
- * "오늘로 가져오기" — move the caller's overdue tasks to today. A recurring task keeps its series
- * (its single row's occurrence is set to today); a one-off task's due date is moved to today.
+ * "일정변경" — move the caller's overdue tasks to `targetDate` (YYYY-MM-DD, Tokyo).
+ * A recurring task keeps its series (its single row's occurrence is set to targetDate);
+ * a one-off task's due date is moved to targetDate.
  */
-export async function rescheduleOverdueToToday() {
+export async function rescheduleOverdueTo(targetDate: string) {
   const session = await requireSession();
   const today = tokyoToday();
   const overdue = (await getVisibleTasks(session)).filter((t) =>
@@ -149,7 +150,7 @@ export async function rescheduleOverdueToToday() {
   const orgId = session.organization.id;
   for (const t of overdue) {
     if (isStandardRecurrence(t.recurrenceRule)) {
-      const d = shiftRecurringTaskDates(t, today);
+      const d = shiftRecurringTaskDates(t, targetDate);
       if (!d) continue;
       await supabase
         .from("tasks")
@@ -161,7 +162,7 @@ export async function rescheduleOverdueToToday() {
         .eq("id", t.id)
         .eq("organization_id", orgId);
     } else {
-      const dueAt = new Date(`${today}T${t.timeLabel || "00:00"}:00+09:00`).toISOString();
+      const dueAt = new Date(`${targetDate}T${t.timeLabel || "00:00"}:00+09:00`).toISOString();
       await supabase
         .from("tasks")
         .update({ due_at: dueAt } as never)

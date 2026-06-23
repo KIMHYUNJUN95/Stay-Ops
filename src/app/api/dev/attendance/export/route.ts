@@ -5,8 +5,8 @@ import { runPayrollExport, type ExportScope } from "@/lib/attendance-export";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DEV-ONLY: trigger a finalized-only payroll export DOWNLOAD for testing (the real owner/payroll_admin
-// export UI is in the deferred web dashboard). Gated like /api/dev/seed-login (development + opt-in +
-// local host) AND still privilege-gated server-side by `runPayrollExport` (owner / attendance_payroll_admin)
+// export UI is in the deferred web dashboard). Gated by development + ENABLE_LOCAL_DEV_TOOLS +
+// local host AND still privilege-gated server-side by `runPayrollExport` (owner / attendance_payroll_admin)
 // — payroll data is never exportable by regular users even in dev.
 //
 // Usage (while logged in as an owner/payroll admin):
@@ -33,7 +33,7 @@ function ensureDevOnly(request: NextRequest) {
   if (process.env.NODE_ENV !== "development") {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  if (process.env.ENABLE_DEV_SEED_LOGIN !== "true") {
+  if (process.env.ENABLE_LOCAL_DEV_TOOLS !== "true") {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
   if (!isLocalDevHost(getRequestHostname(request))) {

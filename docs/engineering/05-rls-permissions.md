@@ -598,7 +598,7 @@ QR; QR issuance is atomic via `issue_attendance_qr`, migration `202606170002`). 
 web-dashboard server actions** (which must verify `role === 'owner'` server-side before calling them;
 site master is owner-only per decision-log 2026-06-17). Until that dashboard exists, the only caller is
 the **dev-only** `GET /api/dev/attendance/temp-qr` tool, gated to local development (NODE_ENV
-development + `ENABLE_DEV_SEED_LOGIN` + local/LAN host), used to provision a test site + QR.
+development + `ENABLE_LOCAL_DEV_TOOLS` + local/LAN host), used to provision a test site + QR.
 
 **Step 3 (2026-06-17) — worker clock-in/out write path.** `submitAttendanceScan`
 (`src/app/mobile/attendance/actions.ts`, service-role) is the first authoritative session writer: it

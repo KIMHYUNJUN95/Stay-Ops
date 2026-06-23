@@ -23,8 +23,8 @@ flow could be tested before a dashboard existed.
   **owner-only enforcement is the caller's responsibility** and is deferred to the web-dashboard server
   actions (ole === 'owner', server-side). Wi-Fi SSIDs are stored on the site; Wi-Fi attendance stays
   inactive.
-- **Dev temp-QR tool** — GET /api/dev/attendance/temp-qr (gated exactly like /api/dev/seed-login:
-  NODE_ENV=development + ENABLE_DEV_SEED_LOGIN=true + local/LAN host; 404 otherwise). Resolves the
+- **Dev temp-QR tool** — GET /api/dev/attendance/temp-qr (gated by
+  NODE_ENV=development + ENABLE_LOCAL_DEV_TOOLS=true + local/LAN host; 404 otherwise). Resolves the
   logged-in session's org, ensures a temp site, ensures an active QR (or ?reissue=1 to force a fresh
   one), and renders a **scannable QR** (SVG via the qrcode dependency) plus the token; ?format=json
   returns the raw data. Not owner-gated — it's a local testing tool.
@@ -308,7 +308,7 @@ data. **No admin PC/web dashboard** (explicit scope rule). The 湲됱뿬 screen 
 - **Rate-data note (Step 9 still pending):** the proper owner/`attendance_payroll_admin` employment-type
   + hourly-rate **management** (writing `employment_type_history` / `hourly_rate_history`) is NOT built
   yet ??it belongs to the deferred web dashboard. Until then those tables are empty, so for **app
-  testing** a dev-only `GET /api/dev/attendance/seed-pay` (gated like `/api/dev/seed-login`) seeds the
+  testing** a dev-only `GET /api/dev/attendance/seed-pay` (gated by `ENABLE_LOCAL_DEV_TOOLS`) seeds the
   caller's employment type + rate. Pay shows 짜0 / empty until a rate exists.
 
 Still pending (Step 11+): monthly finalization snapshots + reopen, dashboard totals, export,
@@ -407,8 +407,8 @@ export, so this is backend + a dev test route.
 - **Server actions** `src/app/admin/attendance/actions.ts`: `exportMonthlyPayroll(ym)` /
   `exportUserPayroll(userId, ym)` ??thin session wrappers around `runPayrollExport`, returning the CSV
   for the (deferred) web-dashboard caller to download.
-- **Dev test route** `GET /api/dev/attendance/export?scope=??ym=??&userId=??` ??gated like
-  `/api/dev/seed-login` **and** still privilege-gated by `runPayrollExport`; streams the CSV as a
+- **Dev test route** `GET /api/dev/attendance/export?scope=??ym=??&userId=??` ??gated by
+  `ENABLE_LOCAL_DEV_TOOLS` **and** still privilege-gated by `runPayrollExport`; streams the CSV as a
   download so the export is testable before the dashboard exists.
 - **Future compatibility:** the structured rows + `attendance_export_logs` (with `snapshot_ids`) support
   the later operator Excel template, dashboard/reporting, and historical snapshot auditing without a

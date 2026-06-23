@@ -240,7 +240,7 @@ StayOps preference:
 - refreshed access tokens are cached in-memory until near expiry
 - existing Beds24-linked properties can be reclassified without waiting for a fresh booking webhook:
   - dev-only route: `POST /api/dev/beds24/backfill-inventory`
-  - guardrails: local development only, `ENABLE_DEV_SEED_LOGIN=true`, localhost-only, `x-beds24-webhook-secret` required
+  - guardrails: local development only, `ENABLE_LOCAL_DEV_TOOLS=true`, localhost-only, `x-beds24-webhook-secret` required
   - optional filter: `?organizationId=<uuid>`
   - helper: `backfillBeds24InventoryMinimumStay()` iterates existing Beds24 property rows and reuses the same minimum-stay sync logic
 - full room-master bootstrap for **all buildings and all rooms** is also available:
@@ -467,7 +467,7 @@ Cancelled reservations should be removed from the visible calendar and should no
 - Added dev-only route: `POST /api/dev/beds24/backfill-reservations`
 - Purpose: fetch real Beds24 bookings immediately (without waiting for webhook arrivals) and upsert into `reservations` for mobile calendar bars.
 - Window policy: fixed to operational window (`current month start` -> `month after next start` exclusive).
-- Guardrails: local development only, `ENABLE_DEV_SEED_LOGIN=true`, localhost-only, `x-beds24-webhook-secret` required.
+- Guardrails: local development only, `ENABLE_LOCAL_DEV_TOOLS=true`, localhost-only, `x-beds24-webhook-secret` required.
 - Script: `scripts/dev/beds24-backfill-reservations.sh`
 
 ## 2026-05-26 Reservation source canonicalization

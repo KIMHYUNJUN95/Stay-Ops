@@ -9,7 +9,6 @@ import { EmailSignupForm } from "@/app/auth/login/email-signup-form";
 import { GoogleSubmitButton } from "@/app/auth/login/google-button";
 import { LanguageSheet } from "@/app/auth/login/language-sheet";
 import { resolveAuthErrorMessage } from "@/lib/auth-errors";
-import { buildDevSeedLoginHref, isDevSeedLoginEnabled } from "@/lib/dev-auth";
 import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
 import { isMobileUserAgent } from "@/lib/mobile-device";
 import { getOnboardingState } from "@/lib/onboarding";
@@ -243,7 +242,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const locale: Locale = isLocale(requestedLocale) ? requestedLocale : "ko";
   const dictionary = getDictionary(locale);
   const t = dictionary.auth;
-  const devSeedLogin = isDevSeedLoginEnabled();
   const errorMessage = resolveAuthErrorMessage(params.error, dictionary);
 
   // Mobile-first login: on a phone/tablet, always route into the mobile app after
@@ -1212,38 +1210,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </Link>
         </div>
 
-        {/* Dev-only seed login (kept so local sign-in still works; not part of the design). */}
-        {devSeedLogin && (
-          <div className="mt-6 rounded-[13px] border border-dashed border-border bg-surface/60 p-3">
-            <p className="mb-2 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">
-              {t.devLogin.note}
-            </p>
-            <div className="flex flex-col gap-2">
-              <Link
-                href={buildDevSeedLoginHref("admin", isMobileDevice ? "/mobile" : next)}
-                className="flex h-11 w-full items-center justify-center rounded-xl bg-primary text-[13px] font-extrabold text-primary-foreground"
-              >
-                {isMobileDevice ? t.devLogin.mobileAdmin : t.devLogin.admin}
-              </Link>
-              {!isMobileDevice && (
-                <>
-                  <Link
-                    href={buildDevSeedLoginHref("staff", next)}
-                    className="flex h-11 w-full items-center justify-center rounded-xl border border-primary/35 bg-primary/[0.06] text-[13px] font-extrabold text-primary"
-                  >
-                    {t.devLogin.staff}
-                  </Link>
-                  <Link
-                    href={buildDevSeedLoginHref("admin", next === "/" ? "/mobile" : next)}
-                    className="flex h-11 w-full items-center justify-center rounded-xl border border-border bg-surface text-[13px] font-bold text-foreground"
-                  >
-                    {t.devLogin.mobile}
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-        )}
       </section>
     </main>
   );

@@ -38,7 +38,7 @@ import {
   dismissOverdueTasks,
   reopenTask,
   reorderTasks,
-  rescheduleOverdueToToday,
+  rescheduleOverdueTo,
 } from "@/app/mobile/tasks/[id]/actions";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
@@ -77,6 +77,14 @@ const PRIO_ORD: Record<string, number> = { urgent: 0, important: 1, normal: 2 };
 function ymdShift(ymd: string, n: number): string {
   const [y, m, d] = ymd.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+// Returns the next Monday (always ≥ 1 day ahead) from a YYYY-MM-DD string.
+function nextMonday(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun … 6=Sat
+  const days = dow === 1 ? 7 : ((8 - dow) % 7 || 7);
+  return ymdShift(ymd, days);
 }
 
 export function TasksWorkspace({
@@ -214,9 +222,12 @@ export function TasksWorkspace({
     [],
   );
 
-  // --- Overdue prompt (Today tab): reschedule to today / clear past unfinished.
+  // --- Overdue prompt (Today tab): reschedule / clear past unfinished.
   const [overduePending, startOverdue] = useTransition();
   const [overdueConfirm, setOverdueConfirm] = useState(false);
+  const [overdueRescheduleOpen, setOverdueRescheduleOpen] = useState(false);
+  const [overdueCustomMode, setOverdueCustomMode] = useState(false);
+  const [overdueCustomDate, setOverdueCustomDate] = useState("");
 
   // --- Quick complete (status circle tap on any card) + undo toast.
   const [, startComplete] = useTransition();
@@ -460,10 +471,12 @@ export function TasksWorkspace({
       // Overdue prompt: only the caller's own overdue tasks are actionable (the bulk actions are
       // author-scoped server-side). Recurring tasks keep their next occurrence; one-offs move/delete.
       const ownedOverdue = baseOver.filter((t) => t.createdByUserId === currentUserId).length;
-      const moveOverdue = () =>
+      const reschedule = (targetDate: string) =>
         startOverdue(async () => {
-          await rescheduleOverdueToToday();
-          setOverdueConfirm(false);
+          await rescheduleOverdueTo(targetDate);
+          setOverdueRescheduleOpen(false);
+          setOverdueCustomMode(false);
+          setOverdueCustomDate("");
         });
       const clearOverdue = () =>
         startOverdue(async () => {
@@ -513,11 +526,11 @@ export function TasksWorkspace({
                     <button
                       className="inline-flex h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl bg-primary px-3 text-[13px] font-bold text-primary-foreground shadow-[0_10px_22px_-12px_hsl(var(--primary-hsl)/0.65)] transition-transform active:scale-[0.98] disabled:opacity-50"
                       disabled={overduePending}
-                      onClick={moveOverdue}
+                      onClick={() => { setOverdueRescheduleOpen(true); setOverdueCustomMode(false); setOverdueCustomDate(""); }}
                       type="button"
                     >
-                      <Sun className="size-4 shrink-0" strokeWidth={2.2} aria-hidden="true" />
-                      {copy.overduePromptToday}
+                      <CalendarDays className="size-4 shrink-0" strokeWidth={2.1} aria-hidden="true" />
+                      {copy.overduePromptReschedule}
                     </button>
                     <button
                       className="inline-flex h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-border bg-background px-3 text-[13px] font-bold text-muted-foreground transition-colors hover:bg-muted/40 disabled:opacity-50"
@@ -533,6 +546,74 @@ export function TasksWorkspace({
               </div>
             </div>
           ) : null}
+
+          {/* Reschedule date-picker sheet */}
+          {overdueRescheduleOpen && (
+            <BottomSheet
+              onClose={() => { setOverdueRescheduleOpen(false); setOverdueCustomMode(false); setOverdueCustomDate(""); }}
+            >
+              <div className="pb-2">
+                <p className="mb-4 text-[16px] font-extrabold tracking-[-0.01em] text-foreground">
+                  {copy.overdueRescheduleTitle}
+                </p>
+                {overdueCustomMode ? (
+                  <div className="flex flex-col gap-3">
+                    <input
+                      className="h-11 w-full rounded-2xl border border-border bg-background px-4 text-[14px] font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      data-keep-font-size
+                      min={today}
+                      onChange={(e) => setOverdueCustomDate(e.target.value)}
+                      type="date"
+                      value={overdueCustomDate}
+                    />
+                    <button
+                      className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-primary text-[14px] font-bold text-primary-foreground shadow-[0_10px_22px_-12px_hsl(var(--primary-hsl)/0.65)] transition-transform active:scale-[0.98] disabled:opacity-40"
+                      disabled={!overdueCustomDate || overduePending}
+                      onClick={() => overdueCustomDate && reschedule(overdueCustomDate)}
+                      type="button"
+                    >
+                      {copy.overdueRescheduleApply}
+                    </button>
+                    <button
+                      className="inline-flex h-10 w-full items-center justify-center rounded-2xl border border-border bg-background text-[13px] font-bold text-muted-foreground transition-colors hover:bg-muted/40"
+                      onClick={() => setOverdueCustomMode(false)}
+                      type="button"
+                    >
+                      {copy.overduePromptCancel}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-background">
+                    {([
+                      { label: copy.overdueRescheduleToday, icon: Sun, date: today },
+                      { label: copy.overdueRescheduleTomorrow, icon: Sunrise, date: ymdShift(today, 1) },
+                      { label: copy.overdueRescheduleNextMonday, icon: CalendarDays, date: nextMonday(today) },
+                    ] as const).map(({ label, icon: Icon, date }) => (
+                      <button
+                        key={date}
+                        className="flex h-[52px] items-center gap-3 px-4 text-left transition-colors hover:bg-muted/40 active:bg-muted/60 disabled:opacity-50"
+                        disabled={overduePending}
+                        onClick={() => reschedule(date)}
+                        type="button"
+                      >
+                        <Icon className="size-[18px] shrink-0 text-primary" strokeWidth={2} aria-hidden="true" />
+                        <span className="text-[14px] font-semibold text-foreground">{label}</span>
+                        <span className="ml-auto text-[12px] text-muted-foreground">{date}</span>
+                      </button>
+                    ))}
+                    <button
+                      className="flex h-[52px] items-center gap-3 px-4 text-left transition-colors hover:bg-muted/40 active:bg-muted/60"
+                      onClick={() => { setOverdueCustomMode(true); setOverdueCustomDate(""); }}
+                      type="button"
+                    >
+                      <CalendarDays className="size-[18px] shrink-0 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
+                      <span className="text-[14px] font-semibold text-foreground">{copy.overdueRescheduleCustom}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </BottomSheet>
+          )}
           {over.length > 0 ? (
             <>
               {sectionHead(copy.secOverdue, over.length, "over")}
