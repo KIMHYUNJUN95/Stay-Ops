@@ -55,6 +55,8 @@ export function useSheetDragDismiss({ shown, onDismiss }: Options) {
   const heightRef = useRef(0);
   const shownRef = useRef(shown);
   const onDismissRef = useRef(onDismiss);
+  const dragRafRef = useRef(0);
+  const pendingDragYRef = useRef(0);
 
   useEffect(() => {
     shownRef.current = shown;
@@ -69,6 +71,11 @@ export function useSheetDragDismiss({ shown, onDismiss }: Options) {
     if (dragYRef.current === 0 && !draggingRef.current) return;
     draggingRef.current = false;
     dragYRef.current = 0;
+    pendingDragYRef.current = 0;
+    if (dragRafRef.current) {
+      cancelAnimationFrame(dragRafRef.current);
+      dragRafRef.current = 0;
+    }
     setDragging(false);
     setDragY(0);
   }, [shown]);
@@ -84,7 +91,13 @@ export function useSheetDragDismiss({ shown, onDismiss }: Options) {
       lastYRef.current = e.clientY;
       lastTRef.current = e.timeStamp;
       dragYRef.current = clamped;
-      setDragY(clamped);
+      pendingDragYRef.current = clamped;
+      if (!dragRafRef.current) {
+        dragRafRef.current = requestAnimationFrame(() => {
+          dragRafRef.current = 0;
+          setDragY(pendingDragYRef.current);
+        });
+      }
     }
     function onUp() {
       if (!draggingRef.current) return;
@@ -93,6 +106,11 @@ export function useSheetDragDismiss({ shown, onDismiss }: Options) {
       const dy = dragYRef.current;
       const threshold = Math.max(DISTANCE_FLOOR, heightRef.current * DISTANCE_RATIO);
       dragYRef.current = 0;
+      pendingDragYRef.current = 0;
+      if (dragRafRef.current) {
+        cancelAnimationFrame(dragRafRef.current);
+        dragRafRef.current = 0;
+      }
       setDragY(0);
       if (dy >= threshold || velRef.current >= VELOCITY_CLOSE) {
         onDismissRef.current();
@@ -105,6 +123,10 @@ export function useSheetDragDismiss({ shown, onDismiss }: Options) {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
+      if (dragRafRef.current) {
+        cancelAnimationFrame(dragRafRef.current);
+        dragRafRef.current = 0;
+      }
     };
   }, []);
 
@@ -120,6 +142,7 @@ export function useSheetDragDismiss({ shown, onDismiss }: Options) {
     lastTRef.current = e.timeStamp;
     velRef.current = 0;
     dragYRef.current = 0;
+    pendingDragYRef.current = 0;
     draggingRef.current = true;
     setDragging(true);
     setDragY(0);

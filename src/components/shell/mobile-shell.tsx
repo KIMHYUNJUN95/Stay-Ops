@@ -39,6 +39,7 @@ const PULL_THRESHOLD = 72;
 const MAX_PULL = 120;
 const MAX_DISPLAY_H = 60;
 const REFRESH_DISPLAY_H = 52;
+const SIDEBAR_TRANSITION_MS = 360;
 
 // Center FAB icon — app-grid squircle ("Bottom Bar (Squircle Edit)" design); opens the editor sheet.
 const EDIT_ICON = (
@@ -175,8 +176,8 @@ export function MobileShell({
   const tickingRef = useRef(false);
   const [headerVisible, setHeaderVisible] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarChromeLocked, setSidebarChromeLocked] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [isStandaloneDisplayMode, setIsStandaloneDisplayMode] = useState(false);
   const closeCreate = useCallback(() => setCreateOpen(false), []);
   const [pullDistanceState, setPullDistanceState] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
@@ -202,6 +203,7 @@ export function MobileShell({
   const edgeCandidateRef = useRef(false); // gesture started within the left edge band
   const edgeLockedRef = useRef(false); // locked into a horizontal edge-back drag
   const edgeRawDxRef = useRef(0); // raw (un-damped) horizontal distance, for the commit threshold
+  const sidebarChromeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // rAF-coalesce touchmove → setState: refs update synchronously every sample, but the visible React
   // state setter fires at most once per animation frame (avoids a full subtree re-render at ~120Hz).
   const pullRafRef = useRef(0);
@@ -215,6 +217,28 @@ export function MobileShell({
   const savedNavRef = useRef<string[]>(initialNavIds);
   const sheetWasOpenRef = useRef(false);
   const [, startNavSave] = useTransition();
+
+  const clearSidebarChromeTimer = useCallback(() => {
+    if (sidebarChromeTimerRef.current) {
+      clearTimeout(sidebarChromeTimerRef.current);
+      sidebarChromeTimerRef.current = null;
+    }
+  }, []);
+
+  const openSidebar = useCallback(() => {
+    clearSidebarChromeTimer();
+    setSidebarChromeLocked(true);
+    setSidebarOpen(true);
+  }, [clearSidebarChromeTimer]);
+
+  const closeSidebar = useCallback(() => {
+    clearSidebarChromeTimer();
+    setSidebarOpen(false);
+    sidebarChromeTimerRef.current = setTimeout(() => {
+      setSidebarChromeLocked(false);
+      sidebarChromeTimerRef.current = null;
+    }, SIDEBAR_TRANSITION_MS);
+  }, [clearSidebarChromeTimer]);
 
   function toggleNavTab(id: string) {
     setNavTabIds((prev) => {
@@ -400,7 +424,7 @@ export function MobileShell({
   }, []);
 
   function handleSwipeStart(e: React.TouchEvent<HTMLElement>) {
-    if (sidebarOpen) return;
+    if (sidebarChromeLocked) return;
     const t = e.touches[0];
     swipeNavStartXRef.current = t.clientX;
     swipeNavStartYRef.current = t.clientY;
@@ -410,7 +434,7 @@ export function MobileShell({
   }
 
   function handleSwipeMove(e: React.TouchEvent<HTMLElement>) {
-    if (sidebarOpen || isRefreshPending || !edgeCandidateRef.current) return;
+    if (sidebarChromeLocked || isRefreshPending || !edgeCandidateRef.current) return;
     if (e.touches.length !== 1) return;
     const t = e.touches[0];
     const dx = t.clientX - swipeNavStartXRef.current;
@@ -460,7 +484,7 @@ export function MobileShell({
       return;
     }
     edgeCandidateRef.current = false;
-    if (sidebarOpen) return;
+    if (sidebarChromeLocked) return;
     const t = e.changedTouches[0];
     const startX = swipeNavStartXRef.current;
     const deltaX = t.clientX - startX;
@@ -511,29 +535,15 @@ export function MobileShell({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setSidebarOpen(false);
+        closeSidebar();
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [sidebarOpen]);
+  }, [closeSidebar, sidebarOpen]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const media = window.matchMedia("(display-mode: standalone)");
-    const sync = () => {
-      const legacyStandalone =
-        "standalone" in window.navigator &&
-        (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-      setIsStandaloneDisplayMode(media.matches || legacyStandalone);
-    };
-    sync();
-    media.addEventListener?.("change", sync);
-    return () => {
-      media.removeEventListener?.("change", sync);
-    };
-  }, []);
+  useEffect(() => () => clearSidebarChromeTimer(), [clearSidebarChromeTimer]);
 
   // Persist bottom-bar edits when the sheet closes (any close path), if changed.
   useEffect(() => {
@@ -570,16 +580,7 @@ export function MobileShell({
   const leftTabs = bottomItems.slice(0, splitAt);
   const rightTabs = bottomItems.slice(splitAt);
   const isBarFull = navTabIds.length >= MAX_BOTTOM_NAV_TABS;
-  const topChromeVisible = headerVisible && !sidebarOpen;
-  const standaloneScrimHeaderClear = "calc(env(safe-area-inset-top) + 64px)";
-  const standaloneScrimFooterClear = hideBottomNav
-    ? "env(safe-area-inset-bottom)"
-    : "calc(env(safe-area-inset-bottom) + 88px)";
-  const sidebarScrimBackground = isStandaloneDisplayMode
-    ? sidebarOpen
-      ? "rgba(2,6,23,0.42)"
-      : `linear-gradient(to bottom, transparent 0, transparent ${standaloneScrimHeaderClear}, rgba(2,6,23,0.42) ${standaloneScrimHeaderClear}, rgba(2,6,23,0.42) calc(100% - ${standaloneScrimFooterClear}), transparent calc(100% - ${standaloneScrimFooterClear}), transparent 100%)`
-    : "linear-gradient(to bottom, transparent 0, transparent max(1px, env(safe-area-inset-top)), rgba(2,6,23,0.42) max(1px, env(safe-area-inset-top)), rgba(2,6,23,0.42) calc(100% - max(1px, env(safe-area-inset-bottom))), transparent calc(100% - max(1px, env(safe-area-inset-bottom))), transparent 100%)";
+  const topChromeVisible = headerVisible && !sidebarChromeLocked;
 
   const renderTab = (item: (typeof bottomItems)[number]) => {
     const isActive = item.id === activeItem;
@@ -641,18 +642,20 @@ export function MobileShell({
         <aside
           aria-label={dictionary.common.menu}
           className={cn(
-            "absolute inset-y-0 left-0 z-[60] flex w-full flex-col overflow-hidden bg-[linear-gradient(180deg,var(--background)_0%,var(--background)_96px,#f4efe4_100%)] px-5 pb-6 pt-[max(20px,env(safe-area-inset-top))] text-foreground",
+            "absolute inset-y-0 left-0 z-[60] flex w-full flex-col overflow-hidden px-5 pb-6 pt-[max(20px,env(safe-area-inset-top))] text-foreground",
           )}
           style={{
+            background:
+              "linear-gradient(180deg, var(--background) 0%, var(--background) calc(env(safe-area-inset-top) + 64px), #f4efe4 100%)",
             transform: sidebarOpen ? "translate3d(0, 0, 0)" : "translate3d(-100%, 0, 0)",
-            transition: "transform 540ms cubic-bezier(0.22, 1, 0.36, 1)",
+            transition: `transform ${SIDEBAR_TRANSITION_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`,
             willChange: "transform",
           }}
         >
           <div className="flex h-11 items-center justify-between">
             <Link
               href="/mobile"
-              onClick={() => setSidebarOpen(false)}
+              onClick={closeSidebar}
               className="wordmark relative text-[21px] text-foreground"
             >
               Stay Ops
@@ -660,7 +663,7 @@ export function MobileShell({
             <button
               aria-label={dictionary.common.menu}
               className="relative flex size-9 items-center justify-center rounded-full border border-border bg-surface text-muted-foreground shadow-[0_12px_24px_-20px_rgba(15,23,42,0.38)] transition-colors hover:bg-muted hover:text-foreground"
-              onClick={() => setSidebarOpen(false)}
+              onClick={closeSidebar}
               type="button"
             >
               <X className="size-4" aria-hidden="true" />
@@ -669,7 +672,7 @@ export function MobileShell({
 
           <Link
             href="/account?mode=mobile"
-            onClick={() => setSidebarOpen(false)}
+            onClick={closeSidebar}
             className="mt-[18px] flex items-center gap-3 rounded-[20px] border border-border bg-surface p-3.5 shadow-[0_16px_34px_-28px_rgba(15,23,42,0.5)] transition-shadow hover:shadow-[0_20px_40px_-26px_rgba(15,23,42,0.55)]"
           >
             <span className="flex size-[46px] shrink-0 items-center justify-center rounded-[14px] bg-primary/10 text-primary">
@@ -705,7 +708,7 @@ export function MobileShell({
                   <Link
                     key={item.id}
                     href={item.href}
-                    onClick={() => setSidebarOpen(false)}
+                    onClick={closeSidebar}
                     aria-current={isActive ? "page" : undefined}
                     className={cn(
                       "group relative flex h-12 items-center gap-3 rounded-[14px] px-3 transition-colors",
@@ -758,7 +761,7 @@ export function MobileShell({
           <div className="mt-3 flex items-center gap-3 rounded-[16px] border border-border bg-surface px-3.5 py-3">
             <Link
               href="/account?mode=mobile"
-              onClick={() => setSidebarOpen(false)}
+              onClick={closeSidebar}
               className="flex flex-1 items-center gap-2.5 text-[13.5px] font-bold text-foreground"
             >
               <UserCircle className="size-5 text-muted-foreground" aria-hidden="true" />
@@ -802,7 +805,7 @@ export function MobileShell({
                 <button
                   aria-label={dictionary.common.menu}
                   className="relative z-10 flex size-[38px] items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-[color-mix(in_oklab,var(--muted)_82%,var(--foreground))]"
-                  onClick={() => setSidebarOpen(true)}
+                  onClick={openSidebar}
                   type="button"
                 >
                   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -1055,24 +1058,6 @@ export function MobileShell({
             </BottomSheet>
           ) : null}
 
-          {sidebarOpen ? (
-            <button
-              aria-label={dictionary.common.menu}
-              className={cn(
-                // Keep the dismiss target confined to the shared mobile shell rather than a
-                // viewport-fixed layer. On iOS Safari / standalone, an invisible full-screen fixed
-                // scrim can keep influencing the status-bar paint even after close; mounting this
-                // only while open avoids that lingering chrome tint.
-                "absolute inset-0 z-[50] opacity-100",
-              )}
-              onClick={() => setSidebarOpen(false)}
-              style={{
-                background: sidebarScrimBackground,
-                transition: "opacity 240ms ease",
-              }}
-              type="button"
-            />
-          ) : null}
         </div>
       </div>
     </main>

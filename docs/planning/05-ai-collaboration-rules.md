@@ -146,3 +146,54 @@ Stop and ask before:
 - Adding Apple Developer / Google Play dependency
 - Changing multilingual strategy
 - Changing PWA-first direction
+
+## Project Guardrail Subagents (2026-06-22)
+
+The repo ships **eight read-only Claude Code subagents** under `.claude/agents/` that automate the most common policy checks on every diff. They never write files; they only surface what's stale or unsafe.
+
+| Agent | Triggers on | What it checks |
+|---|---|---|
+| `docs-sync-auditor.md` | Any code change | Which `docs/*.md` entries are now stale vs. the diff |
+| `i18n-triple-locale-auditor.md` | New text / dictionary keys in `.tsx` | ko / ja / en presence in `src/lib/i18n.ts`; hardcoded strings |
+| `mobile-shell-and-ios-pwa-reviewer.md` | `shell/*`, `layout.tsx`, `globals.css`, manifest | iOS Safari / standalone PWA regression checklist |
+| `rls-and-org-isolation-auditor.md` | Server actions, queries, migrations | Org scope, service-role guards, RLS policies, role gates |
+| `tokyo-timezone-scanner.md` | Any date/time logic change | UTC slicing that bypasses Tokyo helpers |
+| `beds24-integration-safety-auditor.md` | `lib/beds24/*`, `api/beds24/*` | Polling regressions, secret leakage, webhook signature checks |
+| `migration-impact-mapper.md` | New file under `supabase/migrations/` | Downstream impact on types / queries / docs |
+| `image-upload-policy-checker.md` | New / modified image uploader | 5-vs-20 cap, `maxImages`, compression, storage paths |
+
+Invoke explicitly (e.g. "run docs-sync-auditor on this diff") or let Claude Code auto-delegate based on the agent's `description` frontmatter. All agents are read-only (Read / Grep / Glob / `git diff` only). Anything they flag still requires a human to fix; they never edit code.
+
+## Project Persona Expert Agents (실제 작업자, 2026-06-22)
+
+가드 8개와 별개로, `.claude/agents/` 에는 **실제 코드 작업을 수행하는 6명의 전문가 페르소나**가 있습니다. 각 페르소나는 자기 도메인의 CLAUDE.md 룰을 강하게 알고 있고, 작업이 끝나면 자기 영역의 가드 에이전트를 스스로 호출합니다.
+
+| 직원 | 책임 영역 | 도구 | 모델 |
+|---|---|---|---|
+| `backend-engineer.md` | Server actions (`src/app/**/actions.ts`), `src/lib/*`, API routes, Supabase 통합, 권한 게이트, 알림, Beds24 핸들러 | Read · Edit · Write · Bash · Grep · Glob | opus |
+| `frontend-engineer.md` | React/TSX 페이지·컴포넌트, 모바일 셸 사용, 클라이언트 상태, i18n 연결, 폼 UX, App Router | Read · Edit · Write · Bash · Grep · Glob | sonnet |
+| `design-engineer.md` | `globals.css`, 도메인 BEM 스타일시트, Tailwind 토큰, 모바일 셸 **시각 계약**(ivory+navy), BottomSheet 표준 | Read · Edit · Write · Grep · Glob | sonnet |
+| `debugging-specialist.md` | 버그 재현·원인 격리·로그 분석·회귀 추적·lint/build 디버깅·최소 픽스 | Read · Edit · Bash · Grep · Glob | opus |
+| `database-engineer.md` | `supabase/migrations/*`, RLS 정책, `src/types/database.ts`, Beds24 캐시 스키마, RPC/SECURITY DEFINER | Read · Edit · Write · Bash · Grep · Glob | opus |
+| `product-docs-architect.md` | `docs/*` 전체 (planning / product / engineering), 결정 로그, current-status, 신규 기능 기획·요구사항 | Read · Edit · Write · Grep · Glob | sonnet |
+
+### 가드와 페르소나의 협업
+
+페르소나는 **일을 한다**. 가드는 **그 결과를 점검한다**. 페르소나의 시스템 프롬프트에는 자기 작업이 끝나면 어떤 가드를 자기가 호출해야 하는지 명시되어 있다 (예: `backend-engineer` → `rls-and-org-isolation-auditor` + `docs-sync-auditor`, `database-engineer` → `migration-impact-mapper` + `rls-and-org-isolation-auditor`).
+
+### 자연어 호출 (한국어 OK)
+
+자동 위임 트리거가 한국어 표현도 포함하도록 작성되었습니다. 예:
+
+- "이 server action 만들어줘" → `backend-engineer`
+- "이 화면 만들어줘" → `frontend-engineer`
+- "디자인 좀 다듬어줘 / ivory 안 맞아" → `design-engineer`
+- "이거 왜 안 돼? / 버그 잡아줘" → `debugging-specialist`
+- "마이그레이션 만들어줘 / RLS 정책 추가" → `database-engineer`
+- "기획해줘 / 결정 사항 기록 / docs 정리" → `product-docs-architect`
+
+명시적 호출은 그냥 이름을 부르면 됩니다: "frontend-engineer 한테 시켜줘", "database-engineer 가 이 마이그 작성해".
+
+### 거절 패턴
+
+각 페르소나는 자기 영역 밖 요청을 거절하고 적절한 동료에게 위임을 제안합니다 (예: `frontend-engineer` 가 마이그레이션 요청 받으면 "이건 database-engineer 영역입니다").
