@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { isMobileUserAgent } from "@/lib/mobile-device";
+import { isDesktopUserAgent, isMobileUserAgent } from "@/lib/mobile-device";
 
 type HomePageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -42,6 +42,9 @@ export default async function Home({ searchParams }: HomePageProps) {
   if (isMobileUserAgent(userAgent)) {
     redirect("/mobile");
   }
+  if (isDesktopUserAgent(userAgent)) {
+    redirect("/auth/login");
+  }
 
-  redirect("/auth/login");
+  redirect("/mobile");
 }
