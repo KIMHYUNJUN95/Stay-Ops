@@ -58,21 +58,27 @@ export function SplashScreen() {
           animation: "splash-pop 520ms cubic-bezier(0.22, 1, 0.36, 1) both",
         }}
       />
-      <span
-        className="wordmark"
+      <div
         style={{
           position: "absolute",
           bottom: "calc(env(safe-area-inset-bottom) + 48px)",
           left: 0,
           right: 0,
-          textAlign: "center",
-          fontSize: 22,
-          color: "var(--foreground)",
-          animation: "splash-pop 520ms cubic-bezier(0.22, 1, 0.36, 1) both",
+          display: "flex",
+          justifyContent: "center",
         }}
       >
-        Stay Ops
-      </span>
+        <span
+          className="wordmark"
+          style={{
+            fontSize: 22,
+            color: "var(--foreground)",
+            animation: "splash-pop 520ms cubic-bezier(0.22, 1, 0.36, 1) both",
+          }}
+        >
+          Stay Ops
+        </span>
+      </div>
     </div>
   );
 }
