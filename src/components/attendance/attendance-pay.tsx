@@ -48,22 +48,23 @@ function ptblDate(date: string, locale: string): { day: string; wd: string } {
   return { day, wd };
 }
 
-/** "09:00–18:00" / "09:02–진행" / "10:05–미기록" from first session */
+/** "09:00–18:00" / "09:02–진행" / "10:05–미기록" — uses first in / last out across all sessions */
 function ioLabel(
   sessions: MonthlyPayView["days"][number]["sessions"],
   openLabel: string,
   missingLabel: string,
 ): { label: string; cls: "" | "run" | "miss" } {
   if (!sessions.length) return { label: "—", cls: "" };
-  const s = sessions[0];
-  const inT = s.clockInLabel ?? "--:--";
-  if (!s.clockOutLabel && s.excludeReason === "open") {
+  const first = sessions[0];
+  const last = sessions[sessions.length - 1];
+  const inT = first.clockInLabel ?? "--:--";
+  if (!last.clockOutLabel && last.excludeReason === "open") {
     return { label: `${inT}–${openLabel}`, cls: "run" };
   }
-  if (!s.clockOutLabel) {
+  if (!last.clockOutLabel) {
     return { label: `${inT}–${missingLabel}`, cls: "miss" };
   }
-  return { label: `${inT}–${s.clockOutLabel}`, cls: "" };
+  return { label: `${inT}–${last.clockOutLabel}`, cls: "" };
 }
 
 /** Break minutes from sessions (sum all) */
@@ -168,14 +169,13 @@ export function AttendancePay({
       ? copy.payThisMonth
       : `${segCurLabel} ${copy.payPageTitle}`;
 
-  // Period label
-  const [, mm] = view.ym.split("-");
+  // Period label — always show the full calendar month end, not just the last worked day
+  const [yyyy, mm] = view.ym.split("-");
   const mNum = parseInt(mm, 10);
-  const dayCount = view.days.length;
-  const lastDay = dayCount > 0 ? view.days[dayCount - 1].date.slice(8) : "—";
+  const monthEndDay = new Date(parseInt(yyyy, 10), mNum, 0).getDate();
   const periodLabel = isFinal
-    ? `${mNum}/1 – ${mNum}/${lastDay} · ${copy.payFinalizedDone}`
-    : `${mNum}/1 – ${mNum}/${lastDay} · ${copy.payNotFinalized}`;
+    ? `${mNum}/1 – ${mNum}/${monthEndDay} · ${copy.payFinalizedDone}`
+    : `${mNum}/1 – ${mNum}/${monthEndDay} · ${copy.payNotFinalized}`;
 
   const titleRow = (
     <div className="ptitle-row">

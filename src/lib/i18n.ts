@@ -337,15 +337,6 @@ const FALLBACK_DICTIONARY = {
       googleBody:
         "Sign-in was cancelled or didn't complete. Try again or continue with email.",
     },
-    devLogin: {
-      admin: "Dev login (admin)",
-      emailDisabled:
-        "Email magic links are disabled in local dev to avoid Supabase rate limits.",
-      mobile: "Dev login (mobile)",
-      mobileAdmin: "Test login (Stay Ops E2E Admin)",
-      note: "Local development — no email limit",
-      staff: "Dev login (staff)",
-    },
     errors: {
       generic: "Could not start sign-in.",
       google_signin_failed: "Google sign-in failed. Please try again.",
@@ -619,7 +610,7 @@ const FALLBACK_DICTIONARY = {
     histThisWeek: "This week",
     sumWaiting: "Waiting",
     paySubtitle: "Hourly pay · self-view",
-    payGrossNote: "Pre-tax gross · no deductions · rounded to ¥10",
+    payGrossNote: "Pre-tax gross · no deductions · rounded up to ¥10",
     payNotFinalized: "Not finalized",
     payFinalizedDone: "Closed",
     histBreakCountSuffix: (n: number) => ` · ${n} break${n === 1 ? "" : "s"}`,
@@ -2321,15 +2312,6 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         googleBody:
           "로그인이 취소되었거나 완료되지 않았습니다. 다시 시도하거나 이메일로 계속하세요.",
       },
-      devLogin: {
-        admin: "개발 로그인 (관리자)",
-        emailDisabled:
-          "로컬 개발에서는 Supabase 이메일 한도를 피하기 위해 매직 링크를 끄 두었습니다.",
-        mobile: "개발 로그인 (모바일)",
-        mobileAdmin: "테스트 로그인 (Stay Ops E2E Admin)",
-        note: "로컬 개발 전용 — 이메일 한도 없음",
-        staff: "개발 로그인 (현장)",
-      },
       errors: {
         generic: "로그인을 시작하지 못했습니다.",
         google_signin_failed: "Google 로그인에 실패했습니다. 다시 시도해주세요.",
@@ -2557,7 +2539,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       statusPendingCorrection: "정정 검토중",
       empSalaried: "정규직 (급여 비대상)",
       empUnset: "고용형태 미설정",
-      empHourlyRate: (rate: string) => `시급 ${rate}원`,
+      empHourlyRate: (rate: string) => `시급 ¥${rate}`,
       payTab: "급여",
       reminderBody: "18:30이 지났어요. 진행 중인 근무가 있어요.",
       breakCountOrdinal: (n: number) => `${n}번째`,
@@ -2586,7 +2568,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       histThisWeek: "이번 주",
       sumWaiting: "대기",
       paySubtitle: "시급 · 자기조회",
-      payGrossNote: "세전 총액(공제 없음) · 10엔 단위 반올림",
+      payGrossNote: "세전 총액(공제 없음) · 10엔 단위 올림",
       payNotFinalized: "확정 전",
       payFinalizedDone: "마감 완료",
       histBreakCountSuffix: (n: number) => ` · ${n}회`,
@@ -4223,15 +4205,6 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         googleBody:
           "ログインがキャンセルされたか、完了しませんでした。もう一度お試しいただくか、メールで続けてください。",
       },
-      devLogin: {
-        admin: "開発ログイン（管理者）",
-        emailDisabled:
-          "ローカル開発では Supabase のメール制限を避けるため、マジックリンクを無効にしています。",
-        mobile: "開発ログイン（モバイル）",
-        mobileAdmin: "テストログイン（Stay Ops E2E Admin）",
-        note: "ローカル開発専用 — メール制限なし",
-        staff: "開発ログイン（現場）",
-      },
       errors: {
         generic: "ログインを開始できませんでした。",
         google_signin_failed: "Googleログインに失敗しました。もう一度お試しください。",
@@ -4462,7 +4435,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       histThisWeek: "今週",
       sumWaiting: "待機",
       paySubtitle: "時給・自己確認",
-      payGrossNote: "税引前合計(控除なし)·10円単位四捨五入",
+      payGrossNote: "税引前合計(控除なし)·10円単位切り上げ",
       payNotFinalized: "確定前",
       payFinalizedDone: "締切済",
       histBreakCountSuffix: (n: number) => ` · ${n}回`,

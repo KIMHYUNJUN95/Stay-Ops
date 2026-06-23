@@ -9,7 +9,7 @@
 //   - NO overtime/holiday/night premiums
 //   - effective-date rate: the rate active on a Tokyo operating date applies to that whole day; the
 //     past is never recalculated with a newer rate
-//   - final monthly gross rounds to the nearest 10 yen (at the monthly layer only)
+//   - final monthly gross rounds UP to the nearest 10 yen (ceiling; at the monthly layer only)
 //
 // Self-only: callers pass the authenticated user's id; no client-supplied target. The pure helpers are
 // reusable by the later finalization/snapshot/export steps. No finalization/locking here.
@@ -50,9 +50,9 @@ export function paidSecondsForSession(
   return Math.max(0, Math.floor(gross) - closedBreakSec);
 }
 
-/** Round a yen amount to the nearest 10 yen (monthly final layer). */
+/** Round a yen amount UP to the nearest 10 yen ceiling (monthly final layer). e.g. 93→100, 100→100. */
 export function roundToNearest10(yen: number): number {
-  return Math.round(yen / 10) * 10;
+  return Math.ceil(yen / 10) * 10;
 }
 
 /** Daily gross (exact yen, unrounded) for paid minutes at a rate. 1-minute units. */
@@ -239,7 +239,8 @@ export async function getMonthlyPayView(
       .eq("user_id", userId)
       .gte("operating_date", firstDay)
       .lte("operating_date", lastDay)
-      .order("operating_date", { ascending: true }),
+      .order("operating_date", { ascending: true })
+      .order("clock_in_at", { ascending: true }),
     service
       .from("hourly_rate_history")
       .select("hourly_rate, effective_from, effective_to")

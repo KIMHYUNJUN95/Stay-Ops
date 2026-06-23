@@ -42,9 +42,10 @@ self pay view 쨌 monthly finalization/reopen/snapshot 쨌 payroll-totals data l
 > (`/mobile/attendance/pay`). Effective-date rate resolution (a rate change applies to the whole Tokyo
 > day, never retroactive); usable sessions only (completed + resolved; open / review-required / pending
 > correction / invalid excluded); paid minutes in 1-min units, breaks excluded, no premiums; monthly
-> gross rounded to the nearest 10 yen. Salaried days never pay. **Self-only.** No finalization yet, and
-> **no admin dashboard** (deferred). Employment/rate **management** is still pending (Step 9); a dev seed
-> route exists for testing. See `docs/engineering/11-attendance-payroll-technical-design.md` ??> "As-built ??Step 10".
+> gross rounded **up** to the nearest 10 yen (ceiling; e.g. 93→100, 95→100). Salaried days never pay.
+> **Self-only.** No finalization yet, and **no admin dashboard** (deferred). Employment/rate
+> **management** (시급 설정·변경) is deferred to the **admin dashboard** (Step 9); a dev seed route
+> exists for testing. See `docs/engineering/11-attendance-payroll-technical-design.md` ??> "As-built ??Step 10".
 
 > **Step 8 (2026-06-17):** privileged **manual attendance** backend is live ??> `createManualAttendanceSession` / `updateAttendanceSessionAdmin` / `invalidateAttendanceSession`
 > (owner / `attendance_payroll_admin` only, server-enforced; **mandatory reason + audit**). Bad records
@@ -471,7 +472,7 @@ This module calculates **gross principal only**.
 - paid time excludes recorded break time
 - only closed / resolved sessions count
 - review-required, incomplete, or pending-correction records are excluded until resolved
-- final gross amount is rounded to the nearest `10 yen`
+- final gross amount is rounded **up** to the nearest `10 yen` (ceiling — e.g. 93→100, 95→100; not round-half)
 
 ## Monthly View for Hourly Workers
 
