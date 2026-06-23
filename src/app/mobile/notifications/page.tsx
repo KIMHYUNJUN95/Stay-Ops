@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { SuggestionsNotif } from "@/components/suggestions/suggestions-notif";
+import { MobileShell } from "@/components/shell/mobile-shell";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
+import { getMobileNavBadges } from "@/lib/nav-badges";
 
 // Notifications screen — rendered as the Feedback Box "frame 9" mockup (UI/UX
 // only, static sample data, no app chrome). The live data-driven UI lives in
@@ -23,5 +25,11 @@ export default async function MobileNotificationsPage() {
     redirect("/admin");
   }
 
-  return <SuggestionsNotif />;
+  const navBadges = await getMobileNavBadges();
+
+  return (
+    <MobileShell badges={navBadges} title="알림">
+      <SuggestionsNotif />
+    </MobileShell>
+  );
 }

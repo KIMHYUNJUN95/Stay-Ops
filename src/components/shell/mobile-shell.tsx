@@ -203,6 +203,9 @@ export function MobileShell({
   const edgeCandidateRef = useRef(false); // gesture started within the left edge band
   const edgeLockedRef = useRef(false); // locked into a horizontal edge-back drag
   const edgeRawDxRef = useRef(0); // raw (un-damped) horizontal distance, for the commit threshold
+  // Set to true the moment goBack() fires; cleared on the next touchstart. Prevents a stale
+  // edgeLocked state from processing touchmove events after a fast-fling navigation.
+  const navigatingRef = useRef(false);
   const sidebarChromeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // rAF-coalesce touchmove → setState: refs update synchronously every sample, but the visible React
   // state setter fires at most once per animation frame (avoids a full subtree re-render at ~120Hz).
@@ -353,6 +356,8 @@ export function MobileShell({
 
   function handleTouchMove(e: React.TouchEvent<HTMLDivElement>) {
     if (isRefreshPending || e.touches.length !== 1) return;
+    // If the edge-back drag is locked, the outer <main> handler owns this gesture — don't let PTR fire.
+    if (edgeLockedRef.current) return;
     if (e.currentTarget.scrollTop > 0) {
       // Mark ineligible and re-anchor, so a later coast back to 0 doesn't compare against ancient Y.
       ptrEligibleRef.current = false;
@@ -424,16 +429,20 @@ export function MobileShell({
   }, []);
 
   function handleSwipeStart(e: React.TouchEvent<HTMLElement>) {
+    navigatingRef.current = false; // new gesture — clear any stale post-navigation lock
     if (sidebarChromeLocked) return;
     const t = e.touches[0];
     swipeNavStartXRef.current = t.clientX;
     swipeNavStartYRef.current = t.clientY;
-    edgeCandidateRef.current = t.clientX <= EDGE_BAND;
+    // Don't arm edge candidate if PTR is already pulling — PTR wins.
+    edgeCandidateRef.current = !isPullingRef.current && t.clientX <= EDGE_BAND;
     edgeLockedRef.current = false;
     edgeRawDxRef.current = 0;
   }
 
   function handleSwipeMove(e: React.TouchEvent<HTMLElement>) {
+    // PTR is active or navigation already fired — this gesture is no longer ours.
+    if (isPullingRef.current || navigatingRef.current) return;
     if (sidebarChromeLocked || isRefreshPending || !edgeCandidateRef.current) return;
     if (e.touches.length !== 1) return;
     const t = e.touches[0];
@@ -461,6 +470,7 @@ export function MobileShell({
   // deep screen via a notification / share / deep link) would be a dead gesture with no escape.
   // When there's nothing to go back to, fall back to the mobile home instead.
   const goBack = useCallback(() => {
+    navigatingRef.current = true; // block any stale touchmove after this fires
     setNavDirection("back"); // play the pop (left-slide) transition for this navigation
     if (typeof window !== "undefined" && window.history.length <= 1) {
       router.push("/mobile");
@@ -472,9 +482,16 @@ export function MobileShell({
   function endEdgeDrag(commit: boolean) {
     edgeLockedRef.current = false;
     edgeCandidateRef.current = false;
-    setEdgeDragging(false); // re-enable the spring transition (CSS animates --edge-progress back to 0)
-    writeEdgeProgress(0); // settle to rest
-    if (commit) goBack();
+    setEdgeDragging(false); // re-enable the CSS transition (transition: none → opacity 380ms ease)
+    if (commit) {
+      writeEdgeProgress(0);
+      goBack();
+    } else {
+      // Defer the DOM write by one frame so React can first paint the transition:none→380ms change.
+      // Without this, writeEdgeProgress(0) fires before the new transition is applied and the hint
+      // disappears instantly instead of fading out.
+      requestAnimationFrame(() => writeEdgeProgress(0));
+    }
   }
 
   function handleSwipeEnd(e: React.TouchEvent<HTMLElement>) {

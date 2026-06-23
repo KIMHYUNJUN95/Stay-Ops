@@ -22,7 +22,7 @@ export function setNavDirection(direction: NavDirection): void {
  */
 export function consumeNavDirection(): NavDirection {
   const now = typeof performance !== "undefined" ? performance.now() : 0;
-  const fresh = stampedAt > 0 && now - stampedAt < 1200;
+  const fresh = stampedAt > 0 && now - stampedAt < 400;
   const direction = fresh ? pending : "forward";
   pending = "forward";
   stampedAt = 0;
