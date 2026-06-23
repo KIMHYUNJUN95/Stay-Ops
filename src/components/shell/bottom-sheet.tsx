@@ -132,7 +132,7 @@ export function BottomSheet({
       <BottomSheetDragContext.Provider value={drag.handleProps}>
         <div
           className={cn(
-            "fixed inset-0 flex items-end justify-center bg-slate-950/45 pb-[var(--keyboard-inset,0px)] transition-opacity duration-300 motion-reduce:transition-none",
+            "fixed inset-0 flex items-end justify-center bg-slate-950/45 pb-[var(--keyboard-inset,0px)] transition-opacity duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
             zIndexClassName,
             shown ? "opacity-100" : "opacity-0",
           )}
