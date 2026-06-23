@@ -642,27 +642,27 @@ export function MobileShell({
         <aside
           aria-label={dictionary.common.menu}
           className={cn(
-            "absolute inset-y-0 left-0 z-[60] flex w-full flex-col overflow-hidden px-5 pb-6 pt-[max(20px,env(safe-area-inset-top))] text-foreground",
+            "absolute inset-y-0 left-0 z-[60] flex w-full flex-col overflow-hidden px-[22px] pb-[18px] pt-[max(24px,env(safe-area-inset-top))] text-foreground",
           )}
           style={{
-            background:
-              "linear-gradient(180deg, var(--background) 0%, var(--background) calc(env(safe-area-inset-top) + 64px), #f4efe4 100%)",
+            background: "var(--background)",
             transform: sidebarOpen ? "translate3d(0, 0, 0)" : "translate3d(-100%, 0, 0)",
             transition: `transform ${SIDEBAR_TRANSITION_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`,
             willChange: "transform",
           }}
         >
-          <div className="flex h-11 items-center justify-between">
+          {/* Header */}
+          <div className="flex h-10 items-center justify-between px-0.5">
             <Link
               href="/mobile"
               onClick={closeSidebar}
-              className="wordmark relative text-[21px] text-foreground"
+              className="wordmark text-[24px] text-foreground"
             >
               Stay Ops
             </Link>
             <button
               aria-label={dictionary.common.menu}
-              className="relative flex size-9 items-center justify-center rounded-full border border-border bg-surface text-muted-foreground shadow-[0_12px_24px_-20px_rgba(15,23,42,0.38)] transition-colors hover:bg-muted hover:text-foreground"
+              className="flex size-[38px] items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-border hover:text-foreground"
               onClick={closeSidebar}
               type="button"
             >
@@ -670,35 +670,32 @@ export function MobileShell({
             </button>
           </div>
 
+          {/* User row — flat, hairline bottom */}
           <Link
             href="/account?mode=mobile"
             onClick={closeSidebar}
-            className="mt-[18px] flex items-center gap-3 rounded-[20px] border border-border bg-surface p-3.5 shadow-[0_16px_34px_-28px_rgba(15,23,42,0.5)] transition-shadow hover:shadow-[0_20px_40px_-26px_rgba(15,23,42,0.55)]"
+            className="mt-5 flex items-center gap-[13px] border-b border-border px-1 pb-4"
           >
-            <span className="flex size-[46px] shrink-0 items-center justify-center rounded-[14px] bg-primary/10 text-primary">
-              <UserCircle className="size-6" aria-hidden="true" />
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
+              <UserCircle className="size-5" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[15px] font-bold tracking-[-0.01em] text-foreground">
+              <p className="truncate text-[15px] font-bold tracking-[-0.01em]">
                 {session.user.name}
               </p>
-              <div className="mt-0.5 flex items-center gap-1.5 whitespace-nowrap">
-                <span className="text-[11.5px] font-semibold text-muted-foreground">
-                  {dictionary.common.account}
-                </span>
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10.5px] font-bold text-primary">
-                  {dictionary.roles[session.user.role]}
-                </span>
-              </div>
+              <p className="mt-0.5 text-[12px] font-medium text-muted-foreground">
+                {dictionary.roles[session.user.role]}
+              </p>
             </div>
-            <ChevronRight className="size-[18px] shrink-0 text-border" aria-hidden="true" />
+            <ChevronRight className="size-[17px] shrink-0 text-muted-foreground opacity-55" aria-hidden="true" />
           </Link>
 
-          <div className="relative mt-5 min-h-0 flex-1">
-            <p className="mb-2 ml-3.5 text-[10.5px] font-bold uppercase tracking-[0.09em] text-muted-foreground">
+          {/* Nav */}
+          <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <p className="mb-1.5 ml-1 mt-[22px] text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
               {dictionary.common.menu}
             </p>
-            <nav className="flex flex-col gap-0.5">
+            <nav className="flex flex-col">
               {mobileSidebarNavigation.map((item) => {
                 const Icon = item.icon;
                 const isActive = item.id === activeItem;
@@ -710,15 +707,12 @@ export function MobileShell({
                     href={item.href}
                     onClick={closeSidebar}
                     aria-current={isActive ? "page" : undefined}
-                    className={cn(
-                      "group relative flex h-12 items-center gap-3 rounded-[14px] px-3 transition-colors",
-                      isActive ? "bg-primary/[0.09]" : "hover:bg-muted/55",
-                    )}
+                    className="group relative flex h-[50px] items-center gap-[14px] px-2"
                   >
                     {isActive && (
                       <span
                         aria-hidden="true"
-                        className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-primary"
+                        className="absolute -left-[22px] bottom-[13px] top-[13px] w-[3px] rounded-r-[3px] bg-primary"
                       />
                     )}
                     <Icon
@@ -732,10 +726,8 @@ export function MobileShell({
                     />
                     <span
                       className={cn(
-                        "flex-1 text-[14.5px] transition-colors",
-                        isActive
-                          ? "font-bold text-primary"
-                          : "font-semibold text-foreground/80",
+                        "flex-1 text-[15px] transition-colors",
+                        isActive ? "font-bold text-primary" : "font-medium text-foreground",
                       )}
                     >
                       {getNavigationLabel(item, locale)}
@@ -743,10 +735,8 @@ export function MobileShell({
                     {count > 0 && (
                       <span
                         className={cn(
-                          "flex h-[21px] min-w-[21px] items-center justify-center rounded-full px-1.5 font-mono text-[11px] font-semibold tabular-nums",
-                          isActive
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground",
+                          "font-mono text-[12.5px] font-semibold tabular-nums",
+                          isActive ? "text-primary" : "text-muted-foreground",
                         )}
                       >
                         {count > 99 ? "99+" : count}
@@ -758,19 +748,20 @@ export function MobileShell({
             </nav>
           </div>
 
-          <div className="mt-3 flex items-center gap-3 rounded-[16px] border border-border bg-surface px-3.5 py-3">
+          {/* Footer — hairline top, transparent buttons */}
+          <div className="mt-[14px] flex items-center gap-2 border-t border-border pt-[14px]">
             <Link
               href="/account?mode=mobile"
               onClick={closeSidebar}
-              className="flex flex-1 items-center gap-2.5 text-[13.5px] font-bold text-foreground"
+              className="flex flex-1 items-center gap-[10px] rounded-[12px] px-2 py-[10px] text-foreground transition-colors hover:bg-muted"
             >
-              <UserCircle className="size-5 text-muted-foreground" aria-hidden="true" />
-              {dictionary.common.account}
+              <UserCircle className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span className="text-[13.5px] font-semibold">{dictionary.common.account}</span>
             </Link>
             <form action={signOut}>
               <button
                 type="submit"
-                className="flex items-center gap-1.5 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                className="flex items-center gap-[7px] rounded-[12px] px-[14px] py-[10px] text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <LogOut className="size-4" aria-hidden="true" />
                 {dictionary.common.logout}
