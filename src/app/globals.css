@@ -1,5 +1,26 @@
 @import "tailwindcss";
 
+/* Launch splash — icon pops in (see src/components/pwa/splash-screen.tsx). */
+@keyframes splash-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes splash-pop {
+    0%,
+    100% {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
 /* ── Native standalone touch behavior ──────────────────────────────────────
    Make the installed PWA feel like a native app on iOS Safari / Android:
    - kill the grey tap-highlight flash on every tappable element,

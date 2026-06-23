@@ -9,6 +9,7 @@ import {
 import { SessionProvider } from "@/components/providers/session-provider";
 import { KeyboardInsetSync } from "@/components/pwa/keyboard-inset-sync";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
+import { SplashScreen } from "@/components/pwa/splash-screen";
 import { getCurrentAppSession } from "@/lib/session";
 import "./globals.css";
 
@@ -103,6 +104,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
+        <SplashScreen />
         <ServiceWorkerRegister />
         <KeyboardInsetSync />
         <SessionProvider initialSession={session}>{children}</SessionProvider>
