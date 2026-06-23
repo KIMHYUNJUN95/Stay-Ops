@@ -551,6 +551,26 @@ Only `owner` and `attendance_payroll_admin` can see:
 - monthly total labor dashboards
 - export
 
+### 출근자 명단 (Attendance Roster) — 관리자 대시보드 기능
+
+**목적:** 당일 또는 날짜별로 실제 출근한 직원을 한눈에 파악한다.
+사무실이 실제 근무 예정자를 이미 알고 있기 때문에, 예상 명단과 대조해 부정출근 여부를 즉시 감지하는 것이 핵심 목적이다.
+
+**접근 권한:** `owner`, `attendance_payroll_admin`, `office`
+
+**당일 실시간 명단 (Today's Live Roster):**
+- 해당 Tokyo date에 clock-in 기록이 있는 직원만 표시 (출근 전 직원은 목록에 없음)
+- 각 항목: 이름, 출근 시각, 사이트, 현재 상태
+- 상태: **근무 중** (open) / **휴게 중** (open + open break) / **퇴근 완료** (completed, 퇴근 시각 표시) / **검토 필요** (review_required) / **무효** (invalid)
+- 출근 시각 순 정렬
+
+**날짜별 조회:**
+- 날짜 피커로 과거 날을 선택해 해당 날의 출근자 명단 조회
+- 미래 날짜 선택 불가
+
+**구현 위치:** `/admin/attendance/roster` (관리자 웹 대시보드, 미구현 — 대시보드 1차 빌드 시 포함)
+See `docs/product/05-admin-web-ia.md` → "Attendance Roster / 출근자 명단".
+
 ### Dashboard Metrics
 
 Show both:

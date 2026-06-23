@@ -173,7 +173,53 @@ Important features:
 - Deactivate user
 - View active users
 
-## 10. Inventory
+## 10. Attendance Roster / 출근자 명단
+
+Purpose:
+
+- 사무실에서 당일 및 과거 날짜의 실제 출근자를 한눈에 파악한다.
+- 예상 명단(사무실이 알고 있는 실제 근무 예정자)과 대조해 부정출근을 즉시 감지하는 것이 핵심 목적이다.
+  시스템이 부정출근을 "막는" 것이 아니라, 누가 찍었는지를 투명하게 보여줌으로써 사무실이 직접 이상 여부를 판단한다.
+
+### 당일 실시간 명단 (Today's Live Roster)
+
+- 해당 날(Tokyo date) 출근 기록이 있는 직원만 표시 — 아직 출근 전인 직원은 포함하지 않는다.
+- 항목별 표시 정보:
+  - 이름 / 직책(역할)
+  - 출근 시각 및 사이트
+  - 현재 상태: **근무 중** / **휴게 중** / **퇴근 완료** (퇴근 시각 포함)
+- 출근 시각 순 정렬 (가장 일찍 출근한 사람이 상단).
+- 실시간 갱신 또는 페이지 새로고침 시 반영.
+
+### 날짜별 조회 (Date-based Roster)
+
+- 날짜 피커로 과거 임의의 날을 선택해 해당 날의 출근자 명단을 조회한다.
+- 표시 항목은 당일 명단과 동일; 당일은 열린 세션도 포함, 과거는 완료/무효 세션도 포함.
+- 미래 날짜는 선택 불가.
+
+### 세션 상태 범례
+
+| 상태 | 의미 |
+|------|------|
+| 근무 중 | 출근 후 퇴근 미기록 (open) |
+| 휴게 중 | 현재 휴게 세션 진행 중 |
+| 퇴근 완료 | 정상 퇴근 완료 (completed) |
+| 검토 필요 | 자정 초과 또는 이상 감지 (review_required) |
+| 무효 | 관리자 무효 처리 (invalid) |
+
+### 권한
+
+- `owner`, `attendance_payroll_admin`, `office` 역할에게 읽기 허용.
+- 자신의 세션만 볼 수 있는 일반 직원(`part_time`, `field_staff`)은 접근 불가.
+
+### 구현 위치 (예정)
+
+- **관리자 웹** `/admin/attendance/roster` — 데스크탑 콘솔 전용.
+- 데이터 레이어: `attendance_sessions` + `attendance_breaks` 조회 (org 범위, 날짜 필터).
+  `getCurrentOpenSession` / `getAttendanceHistory` 패턴을 admin-scoped 버전으로 재사용.
+- **미구현** — 관리자 대시보드 1차 구현 시 함께 작업 예정.
+
+## 11. Inventory
 
 Purpose:
 
@@ -195,11 +241,13 @@ Lost & Found
 Orders
 Announcements
 Recurring Work
+Attendance (출근자 명단 · 보정 검토 · 급여 확정)
 Users
 Settings
 ```
 
 Inventory is intentionally excluded from the first MVP navigation because it is a future module.
+Attendance roster, correction review, and payroll finalization are deferred to the admin dashboard build phase.
 
 Implementation note:
 
