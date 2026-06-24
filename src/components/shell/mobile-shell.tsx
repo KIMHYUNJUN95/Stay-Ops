@@ -847,11 +847,19 @@ export function MobileShell({
               jump (the height never changes; only the overlay translates). */}
           <div
             className={cn(
-              "absolute inset-x-0 top-[env(safe-area-inset-top)] z-30 h-16 overflow-hidden border-0 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none",
-              topChromeVisible
-                ? "translate-y-0 opacity-100"
-                : "-translate-y-[calc(100%+env(safe-area-inset-top))] opacity-0 pointer-events-none",
+              "absolute inset-x-0 top-[env(safe-area-inset-top)] z-30 h-16 overflow-hidden border-0 motion-reduce:transition-none",
+              !topChromeVisible && "pointer-events-none",
             )}
+            style={{
+              transform: topChromeVisible
+                ? "translateY(0)"
+                : "translateY(calc(-100% - env(safe-area-inset-top)))",
+              // Hide (scroll-down): fast ease-in — bar follows the finger quickly.
+              // Show (scroll-up):  spring ease — bar settles into place naturally.
+              transition: topChromeVisible
+                ? "transform 400ms cubic-bezier(0.22, 1, 0.36, 1)"
+                : "transform 200ms cubic-bezier(0.4, 0, 1, 1)",
+            }}
           >
             <div className="relative h-16 bg-background px-4 pt-2">
               <div
@@ -943,13 +951,17 @@ export function MobileShell({
             <nav
               aria-label={title}
               className={cn(
-                "tabbar absolute inset-x-0 bottom-0 z-20 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none",
-                // Mirror the top chrome: slide the bar down on scroll-down, back up on scroll-up.
-                // Extra 40px past 100% clears the center FAB that overshoots above the bar.
-                topChromeVisible
-                  ? "translate-y-0 opacity-100"
-                  : "translate-y-[calc(100%+40px)] opacity-0 pointer-events-none",
+                "tabbar absolute inset-x-0 bottom-0 z-20 motion-reduce:transition-none",
+                !topChromeVisible && "pointer-events-none",
               )}
+              style={{
+                transform: topChromeVisible
+                  ? "translateY(0)"
+                  : "translateY(calc(100% + 40px))",
+                transition: topChromeVisible
+                  ? "transform 400ms cubic-bezier(0.22, 1, 0.36, 1)"
+                  : "transform 200ms cubic-bezier(0.4, 0, 1, 1)",
+              }}
             >
               {leftTabs.map(renderTab)}
               <button
