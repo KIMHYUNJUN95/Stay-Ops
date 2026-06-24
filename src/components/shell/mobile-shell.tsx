@@ -618,14 +618,6 @@ export function MobileShell({
         aria-current={isActive ? "page" : undefined}
         className={cn("tabbar__item", isActive && "is-active")}
         href={item.href}
-        onClick={(e) => {
-          // Native behavior: tapping the already-active tab scrolls its list back to top
-          // (instead of a no-op re-navigation).
-          if (isActive) {
-            e.preventDefault();
-            scrollElRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-          }
-        }}
       >
         <span className="ico">{LAUNCHER_META[item.id]?.icon ?? FALLBACK_ICON}</span>
         <span className="lbl">{getNavigationLabel(item, locale)}</span>

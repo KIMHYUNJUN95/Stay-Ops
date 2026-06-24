@@ -79,6 +79,7 @@ export type OnboardingJoinCopy = {
   roleLabel: string;
   verified: string;
   reviewCta: string;
+  submitCta: string;
   // reused copy
   codePlaceholder: string;
   orgLabel: string;
@@ -311,7 +312,7 @@ function StickyCta({
   withArrow?: boolean;
 }) {
   return (
-    <div className="flex-none px-[26px] py-[14px] pb-[max(14px,env(safe-area-inset-bottom))]">
+    <div className="flex-none px-[26px] py-[14px] pb-[calc(max(14px,env(safe-area-inset-bottom))+var(--keyboard-inset,0px))]">
       <button
         type="button"
         onClick={onClick}
@@ -696,19 +697,25 @@ export function OnboardingWizard({
   async function submit() {
     setSubmitting(true);
     setSubmitErrorKey(null);
-    const result = await submitOnboardingProfile({
-      name: name.trim(),
-      birthDate,
-      phoneNumber: phoneE164,
-      preferredLanguage: profile.locale,
-      inviteCode: preview ? inviteCode.trim() : "",
-      next: profile.safeNext,
-    });
-    if (result.ok) {
-      setDest(result.redirectTo);
-      goTo(7);
-    } else {
-      setSubmitErrorKey(result.errorKey);
+    try {
+      const result = await submitOnboardingProfile({
+        name: name.trim(),
+        birthDate,
+        phoneNumber: phoneE164,
+        preferredLanguage: profile.locale,
+        inviteCode: preview ? inviteCode.trim() : "",
+        next: profile.safeNext,
+      });
+      if (result.ok) {
+        setDest(result.redirectTo);
+        setSubmitting(false);
+        goTo(7);
+      } else {
+        setSubmitErrorKey(result.errorKey);
+        setSubmitting(false);
+      }
+    } catch {
+      setSubmitErrorKey("network_error");
       setSubmitting(false);
     }
   }
@@ -718,17 +725,23 @@ export function OnboardingWizard({
     if (!trimmed) return;
     setInviteStatus("verifying");
     setInviteErrorKey(null);
-    const result = await previewInviteCode(trimmed);
-    if (result.ok) {
-      setPreview({
-        organizationName: result.organizationName,
-        roleCategory: result.roleCategory,
-      });
-      setInviteStatus("idle");
-      goTo(5);
-    } else {
+    try {
+      const result = await previewInviteCode(trimmed);
+      if (result.ok) {
+        setPreview({
+          organizationName: result.organizationName,
+          roleCategory: result.roleCategory,
+        });
+        setInviteStatus("idle");
+        goTo(5);
+      } else {
+        setPreview(null);
+        setInviteErrorKey(result.errorKey);
+        setInviteStatus("error");
+      }
+    } catch {
       setPreview(null);
-      setInviteErrorKey(result.errorKey);
+      setInviteErrorKey("network_error");
       setInviteStatus("error");
     }
   }
@@ -1000,9 +1013,13 @@ export function OnboardingWizard({
             </div>
           </div>
 
-          <StickyCta label={join.reviewCta} onClick={() => goTo(6)} withArrow />
+          {allowInviteSkip ? (
+            <StickyCta label={join.reviewCta} onClick={() => goTo(6)} withArrow />
+          ) : (
+            <StickyCta label={join.submitCta} onClick={submit} disabled={submitting} />
+          )}
           {showExitLink && (
-            <form action={signOut} className="px-[26px] pb-[max(14px,env(safe-area-inset-bottom))] text-center">
+            <form action={signOut} className="px-[26px] pb-[calc(max(14px,env(safe-area-inset-bottom))+var(--keyboard-inset,0px))] text-center">
               <button
                 type="submit"
                 className="text-[13px] font-extrabold text-muted-foreground underline-offset-2 hover:underline"
@@ -1085,7 +1102,7 @@ export function OnboardingWizard({
             </div>
           </div>
 
-          <div className="flex-none py-[14px] pb-[max(14px,env(safe-area-inset-bottom))]">
+          <div className="flex-none py-[14px] pb-[calc(max(14px,env(safe-area-inset-bottom))+var(--keyboard-inset,0px))]">
             <button
               type="button"
               onClick={verifyInvite}
@@ -1114,16 +1131,14 @@ export function OnboardingWizard({
                 </button>
               </div>
             )}
-            {showExitLink && (
-              <form action={signOut} className="mt-3 text-center">
-                <button
-                  type="submit"
-                  className="text-[13px] font-extrabold text-muted-foreground underline-offset-2 hover:underline"
-                >
-                  {exit.backToLogin}
-                </button>
-              </form>
-            )}
+            <form action={signOut} className="mt-3 text-center">
+              <button
+                type="submit"
+                className="text-[13px] font-extrabold text-muted-foreground underline-offset-2 hover:underline"
+              >
+                {exit.backToLogin}
+              </button>
+            </form>
           </div>
         </section>
       </main>

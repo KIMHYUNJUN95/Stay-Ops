@@ -1753,6 +1753,7 @@ const FALLBACK_DICTIONARY = {
       profile_required: "Please complete your profile first.",
       platform_admin_exists: "An admin account already exists.",
       platform_admin_failed: "Could not claim admin. Please try again.",
+      network_error: "Something went wrong. Please check your connection and try again.",
     } as Record<string, string>,
   },
   cleaning: {
@@ -3732,6 +3733,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         profile_failed: "프로필을 저장하지 못했습니다. 다시 시도해 주세요.",
         profile_required: "먼저 프로필을 완성해주세요.",
         platform_admin_failed: "관리자 등록에 실패했습니다. 다시 시도해 주세요.",
+        network_error: "오류가 발생했습니다. 연결 상태를 확인하고 다시 시도해 주세요.",
       },
     },
     cleaning: {
@@ -5637,6 +5639,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         profile_failed: "プロフィールを保存できませんでした。もう一度お試しください。",
         profile_required: "まずプロフィールを完成させてください。",
         platform_admin_failed: "管理者登録に失敗しました。もう一度お試しください。",
+        network_error: "エラーが発生しました。接続状態を確認して、もう一度お試しください。",
       },
     },
     cleaning: {
