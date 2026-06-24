@@ -2,6 +2,28 @@
 
 This file records important project decisions.
 
+## 2026-06-25
+
+### Board (자유 게시판) — 기능 기획 확정
+
+Decision: 기존 "Internal Board" 스켈레톤(product `20`)을 폐기하고 자유 게시판으로 전면 재기획.
+
+확정 사항:
+- **성격**: 전 직원(아르바이트 포함)이 글을 쓰는 수평적 자유 게시판. 공지사항(Announcements, 관리자 전용)과 완전히 분리.
+- **작성 권한**: 모든 조직 멤버 (part_time_staff 포함).
+- **기능 범위**: 글 작성(제목 선택, 본문 필수, 이미지 최대 5장, 자유 태그), 이모지 반응(👍❤️😂😮😢 — 토글, 이모지별 1회), 댓글(이미지 최대 3장, 소프트 삭제), 관리자 고정(pin), 읽음 추적.
+- **태그**: 작성자가 자유 입력(해시태그식). 별도 카테고리 관리 테이블 없음.
+- **수정/삭제**: 작성자 본인 + office_admin/owner.
+- **UI/UX 디자인**: 사용자가 직접 진행 후 핸드오프.
+
+Why: 기존 스켈레톤은 방향이 불명확한 상태였으나, 공지사항과의 역할 분리 + 전 직원 소통 공간에 대한 명확한 요구가 확인되어 신규 기획으로 대체.
+
+Impact:
+- DB 테이블 4개 신규 설계: `board_posts`, `board_post_reads`, `board_comments`, `board_reactions`.
+- 알림 타입 추가: `board_post_commented`, `board_comment_replied`.
+- 네비게이션: 사이드 메뉴 추가, 하단 탭 커스터마이징 목록 포함.
+- 전체 기획 문서: `docs/product/23-board-workflow.md`.
+
 ## 2026-06-24
 
 ### Notifications — first bell-alert scope is eight action-focused event groups
