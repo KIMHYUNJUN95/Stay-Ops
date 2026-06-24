@@ -366,72 +366,68 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
 
   return (
     <div className="sg">
-      {/* 헤더 — 타이틀(좌) + 액션 버튼(우) 같은 행 */}
-      <div className="mb-3 flex items-start justify-between gap-3 px-1">
-        {isSelectMode ? (
-          <>
-            <div className="space-y-1">
-              <h1 className="text-[24px] font-extrabold tracking-[-0.02em] text-foreground">{copy.title}</h1>
-              <p className="text-sm text-muted-foreground">{copy.subtitle}</p>
-            </div>
-            <div className="flex items-center gap-3 pt-1">
+      {/* 헤더 */}
+      {isSelectMode ? (
+        /* 선택모드: 타이틀 숨기고 버튼만 가로 나열 */
+        <div className="mb-3 flex items-center justify-between gap-2 px-1">
+          <button
+            className="text-xs font-bold text-primary disabled:opacity-50"
+            disabled={anyPending}
+            onClick={toggleSelectAll}
+            type="button"
+          >
+            {allSelected ? copy.deselectAll : copy.selectAll}
+          </button>
+          <div className="flex items-center gap-3">
+            <button
+              className="text-xs font-bold disabled:opacity-40"
+              disabled={anyPending || !selectedIds.size}
+              onClick={handleDeleteSelected}
+              style={{ color: selectedIds.size ? "#ef4444" : undefined }}
+              type="button"
+            >
+              {copy.deleteSelected.replace("{count}", String(selectedIds.size))}
+            </button>
+            <button
+              className="text-xs font-semibold text-foreground disabled:opacity-50"
+              disabled={anyPending}
+              onClick={exitSelectMode}
+              type="button"
+            >
+              {copy.cancelSelect}
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* 일반모드: 타이틀(좌) + 액션 버튼(우) */
+        <div className="mb-3 flex items-start justify-between gap-3 px-1">
+          <div className="space-y-1">
+            <h1 className="text-[24px] font-extrabold tracking-[-0.02em] text-foreground">{copy.title}</h1>
+            <p className="text-sm text-muted-foreground">{copy.subtitle}</p>
+          </div>
+          <div className="flex items-center gap-3 pt-1">
+            {unreadCount > 0 && (
               <button
                 className="text-xs font-bold text-primary disabled:opacity-50"
                 disabled={anyPending}
-                onClick={toggleSelectAll}
+                onClick={handleMarkAllRead}
                 type="button"
               >
-                {allSelected ? copy.deselectAll : copy.selectAll}
+                {copy.markAllRead}
               </button>
-              <button
-                className="text-xs font-bold disabled:opacity-40"
-                disabled={anyPending || !selectedIds.size}
-                onClick={handleDeleteSelected}
-                style={{ color: selectedIds.size ? "#ef4444" : undefined }}
-                type="button"
-              >
-                {copy.deleteSelected.replace("{count}", String(selectedIds.size))}
-              </button>
-              <button
-                className="text-xs font-semibold text-foreground disabled:opacity-50"
-                disabled={anyPending}
-                onClick={exitSelectMode}
-                type="button"
-              >
-                {copy.cancelSelect}
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="space-y-1">
-              <h1 className="text-[24px] font-extrabold tracking-[-0.02em] text-foreground">{copy.title}</h1>
-              <p className="text-sm text-muted-foreground">{copy.subtitle}</p>
-            </div>
-            <div className="flex items-center gap-3 pt-1">
-              {unreadCount > 0 && (
-                <button
-                  className="text-xs font-bold text-primary disabled:opacity-50"
-                  disabled={anyPending}
-                  onClick={handleMarkAllRead}
-                  type="button"
-                >
-                  {copy.markAllRead}
-                </button>
-              )}
-              <button
-                className="text-xs font-bold disabled:opacity-50"
-                disabled={anyPending}
-                onClick={enterSelectMode}
-                style={{ color: "#ef4444" }}
-                type="button"
-              >
-                {copy.deleteMode}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+            )}
+            <button
+              className="text-xs font-bold disabled:opacity-50"
+              disabled={anyPending}
+              onClick={enterSelectMode}
+              style={{ color: "#ef4444" }}
+              type="button"
+            >
+              {copy.deleteMode}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Notification rows */}
       {items.map((notification) => (
