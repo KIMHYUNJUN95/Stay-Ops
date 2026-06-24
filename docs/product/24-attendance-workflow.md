@@ -7,7 +7,8 @@ still deferred. The session/site/QR backend is the refined session-first model; 
 `docs/product/21-attendance-payroll-workflow.md` and
 `docs/engineering/11-attendance-payroll-technical-design.md` (As-built Steps 1–3) for the authoritative
 spec. Note: this slice's UI strings are hardcoded Korean (1:1 design port); a ko/ja/en i18n pass is a
-separate task.
+separate task. **출근자 명단(`/mobile/attendance/roster`) 구현 완료 (2026-06-24):** 관리자 역할이
+당일(혹은 과거 날짜)의 실제 출근자를 실시간으로 조회할 수 있으며, 전화 연결 기능 포함.
 
 ## Design source
 
@@ -82,6 +83,42 @@ Screens:
   comment, and 다시 요청. **Wired (Step 6):** data-driven from `?id=` (or latest), self-scoped; admin
   approve/reject is Step 7, so requests are `requested` for now (all four states render so Step 7 lights
   up without redesign).
+- `/mobile/attendance/roster` — **출근자 명단 (Wired, 2026-06-24)** → `attendance-roster.tsx`. 관리자
+  전용 실시간 출근자 현황 화면. 접근 권한: `cleaningRecordViewerRoles` (owner, office_admin, cs_staff,
+  field_manager) — 일반 staff / part_time_staff는 접근 불가이며, 권한 없으면 `/mobile/attendance`로
+  리다이렉트. 진입 경로: `attendance-home.tsx` 홈 바로가기 목록 하단(시급 급여 아래)에 `출근자 명단`
+  버튼이 표시되며 권한 없는 역할에게는 미표시.
+  - **화면 구성** ①주간 스트립(가로 스와이프, 출근 기록 있는 날 하단 점 표시, 미래 날짜 비활성)
+    ②선택 날짜 + "오늘" 태그 + 출근/퇴근 카운트 메타 ③캘린더 BottomSheet 날짜 선택 버튼
+    ④요약 카운트(근무 중 / 퇴근 완료 / 검토 필요 / 무효) ⑤직원 카드 리스트(출근 시각 순)
+    ⑥빈 상태(해당 날짜 기록 없음).
+  - **직원 카드**: 아바타 + 이름 + 역할, 상태 chip, 사이트명, 출근/퇴근/휴게 타임 스트립, 전화 버튼.
+  - **URL**: `/mobile/attendance/roster?date=YYYY-MM-DD`. `date` 없으면 Tokyo 오늘 날짜.
+    미래 및 90일 이전은 오늘로 clamp.
+  - **데이터 소스**: `attendance_sessions` JOIN `profiles` JOIN `memberships` JOIN `attendance_sites`
+    JOIN `attendance_breaks`. 서버 컴포넌트가 렌더 시 실시간 로드.
+  - **세션 상태 정의**:
+    | statusKey | 조건 | 표시 색상 |
+    |---|---|---|
+    | `working` | clock_in ✓, clock_out ✗, 오픈 브레이크 없음 | green |
+    | `on_break` | clock_in ✓, clock_out ✗, 오픈 브레이크 ✓ | amber |
+    | `done` | clock_in ✓, clock_out ✓ | slate |
+    | `needs_review` | review_state = `needs_review` | orange |
+    | `void` | invalidated_at not null | red |
+
+### 전화 기능 (출근자 명단)
+
+출근자 명단의 직원 카드에는 전화 연결 버튼이 포함된다.
+
+- **데이터 소스**: `profiles.phone_number` (가입 시 등록한 번호).
+- **링크 방식**: `<a href="tel:{phone_number}">` — 네이티브 전화 앱 연결 (PWA 포함).
+- **표시 조건**: 세션 상태가 `working` 또는 `on_break` **이며** `profiles.phone_number` 가 존재하는
+  경우에만 카드에 전화 버튼을 렌더링.
+- **숨김 조건**: `done` / `needs_review` / `void` 상태이거나 phone_number 가 null / 빈 문자열인
+  경우에는 전화 버튼을 표시하지 않음. 퇴근 후 직원에게 업무 목적으로 전화하는 혼선을 방지하기 위한
+  의도적 설계.
+- **권한**: 전화 버튼은 출근자 명단 접근 권한(`cleaningRecordViewerRoles`)을 가진 관리자만 볼 수 있음
+  (화면 자체가 권한 게이트됨).
 
 **Prototype flow (no backend):** the screens are click-navigable — 출근하기 → capture → (tap scanner)
 성공 → 근무 중 → 휴게 시작 → 휴게 중 → 휴게 종료 → 근무 중 → 퇴근하기 → 출근 전; the home shows a

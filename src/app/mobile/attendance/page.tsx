@@ -11,6 +11,7 @@ import {
 } from "@/lib/attendance-sessions";
 import { getMonthlyPayView } from "@/lib/attendance-pay";
 import { getDictionary } from "@/lib/i18n";
+import { cleaningRecordViewerRoles } from "@/config/roles";
 
 type PageProps = {
   searchParams: Promise<{ state?: string }>;
@@ -87,6 +88,7 @@ export default async function MobileAttendancePage({ searchParams }: PageProps) 
     }
   }
 
+  const canSeeRoster = (cleaningRecordViewerRoles as readonly string[]).includes(session.user.role);
   const locale = session.user.preferredLanguage;
   const dict = getDictionary(locale);
   const name = session.user.name?.trim() || dict.attendance.userFallback;
@@ -122,6 +124,7 @@ export default async function MobileAttendancePage({ searchParams }: PageProps) 
         reminderOpenSessionId={reminderOpenSessionId}
         monthHours={monthHours}
         monthPay={monthPay}
+        canSeeRoster={canSeeRoster}
       />
     </MobileShell>
   );

@@ -311,11 +311,16 @@ export async function signInWithGoogle(formData: FormData) {
   const langParam = lang ? `&lang=${encodeURIComponent(lang)}` : "";
   const callbackNext = preserveOnboardingLang(next, lang);
 
+  const appUrl = await getAppUrl();
+  const oauthRedirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(callbackNext)}`;
+  console.log("[signInWithGoogle] appUrl =", appUrl);
+  console.log("[signInWithGoogle] redirectTo =", oauthRedirectTo);
+
   const supabase = await getSupabaseServerClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${await getAppUrl()}/auth/callback?next=${encodeURIComponent(callbackNext)}`,
+      redirectTo: oauthRedirectTo,
       queryParams: { prompt: "select_account" },
     },
   });

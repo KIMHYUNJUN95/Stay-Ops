@@ -156,6 +156,24 @@ export const AttIcon = {
       <path d="M14.5 3v5h4.5" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
     </svg>
   ),
+  users: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <circle cx="9" cy="9" r="3.2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M3.5 19c.9-2.7 3-4.2 5.5-4.2S13.6 16.3 14.5 19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M16 6.2a3 3 0 010 5.6M18 18.6c-.5-1.7-1.6-2.9-3-3.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  ),
+  calendar: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <rect x="4" y="5.5" width="16" height="15" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M4 10h16M8 3.5v4M16 3.5v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  ),
+  phone: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M6.62 10.79a15.5 15.5 0 006.59 6.59l2.2-2.2a1.02 1.02 0 011.05-.24c1.12.37 2.33.57 3.54.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.4 21 3 13.6 3 4.5c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.22.2 2.42.57 3.54.11.36.03.76-.25 1.04l-2.2 2.17z" fill="currentColor" />
+    </svg>
+  ),
 } satisfies Record<string, ReactNode>;
 
 /** SVG gradient defs used by the progress ring (navy = working, amber = break). Render once. */

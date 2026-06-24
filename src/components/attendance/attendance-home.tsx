@@ -267,6 +267,7 @@ export function AttendanceHome({
   reminderOpenSessionId = null,
   monthHours = null,
   monthPay = null,
+  canSeeRoster = false,
   locale,
 }: {
   userName: string;
@@ -279,6 +280,8 @@ export function AttendanceHome({
   monthHours?: string | null;
   /** Formatted monthly pay string (e.g. "¥184,260"). null = salaried or no data. */
   monthPay?: string | null;
+  /** Whether the current user may view the attendance roster (manager roles only). */
+  canSeeRoster?: boolean;
   locale: string;
 }) {
   const copy = getDictionary(locale).attendance;
@@ -384,6 +387,18 @@ export function AttendanceHome({
             </button>
           </div>
         </Link>
+        {canSeeRoster && (
+          <Link href="/mobile/attendance/roster" className="entryrow roster">
+            <span className="entryrow__ic"><AIc>{AttIcon.users}</AIc></span>
+            <div className="entryrow__b">
+              <div className="entryrow__t">{copy.homeRosterTitle}</div>
+              <div className="entryrow__s">{copy.homeRosterSub}</div>
+            </div>
+            <div className="entryrow__r">
+              <span className="entryrow__chev">›</span>
+            </div>
+          </Link>
+        )}
       </div>
     </>
   );

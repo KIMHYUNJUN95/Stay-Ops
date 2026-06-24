@@ -2667,3 +2667,555 @@
   line-height: 1.55;
   font-weight: 600;
 }
+
+/* ── 출근자 명단 (Roster) ───────────────────────────────────────────── */
+
+/* roster-specific status/work colors not already in the scope */
+.att {
+  --work: hsl(150 56% 27%);
+  --work-bg: hsl(146 44% 92%);
+  --work-dot: hsl(150 56% 38%);
+  --err: hsl(4 62% 46%);
+  --err-bg: hsl(6 70% 95%);
+  --on-break: hsl(35 80% 38%);
+  --on-break-bg: hsl(38 82% 92%);
+  --out-col: hsl(222 14% 40%);
+}
+
+/* 주간 스크롤 스트립 */
+.att .week-scroller {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  margin: 0 -2px;
+}
+.att .week-scroller::-webkit-scrollbar { display: none; }
+.att .week-page {
+  flex: 0 0 100%;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  scroll-snap-align: start;
+}
+.att .week-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 0 8px;
+  border-radius: 13px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  position: relative;
+  background: none;
+  font: inherit;
+  color: inherit;
+}
+.att .week-day__dow {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--faint);
+}
+.att .week-day__num {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink-soft);
+}
+.att .week-day.sun .week-day__dow,
+.att .week-day.sun .week-day__num {
+  color: color-mix(in oklab, hsl(4 62% 50%) 60%, var(--ink-soft));
+}
+.att .week-day.has::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--work-dot);
+}
+.att .week-day:not(.sel):not(.future):hover {
+  background: var(--surface);
+}
+.att .week-day.future {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.att .week-day.sel {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.att .week-day.sel .week-day__dow,
+.att .week-day.sel .week-day__num {
+  color: #fff;
+}
+.att .week-day.sel.has::after {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* 날짜 메타 행 */
+.att .roster-datemeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 13px;
+}
+.att .roster-datemeta__d {
+  font-size: 14px;
+  font-weight: 800;
+}
+.att .roster-datemeta__d .todaytag {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border: 1px solid color-mix(in oklab, var(--primary) 18%, transparent);
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-left: 7px;
+}
+.att .roster-datemeta__c {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.att .roster-datemeta__c .cin { color: var(--work); }
+.att .roster-datemeta__c .cout { color: var(--out-col); }
+.att .roster-datemeta__c .cdot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+/* 캘린더 버튼 */
+.att .roster-calbtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.att .roster-calbtn svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* 페이지 타이틀 행 */
+.att .roster-ttl {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 13px;
+}
+.att .roster-ttl h1 {
+  font-size: 23px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+.att .roster-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--work);
+  background: var(--work-bg);
+  padding: 4px 9px;
+  border-radius: 999px;
+  margin-left: 8px;
+}
+.att .roster-live .pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--work-dot);
+  animation: att-pulse 2s infinite;
+}
+
+/* 로스터 카드 */
+.att .rcard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 13px 13px 11px;
+  margin-bottom: 9px;
+  box-shadow: 0 12px 30px -30px rgba(20, 32, 43, 0.5);
+}
+.att .rcard.void {
+  border-color: color-mix(in oklab, var(--err) 30%, var(--line));
+  background: color-mix(in oklab, var(--err-bg) 50%, var(--card));
+}
+
+/* 카드 상단: 아바타 + 이름/역할 + 상태 chip */
+.att .rcard__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.att .rcard__av {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex: 0 0 auto;
+  background: var(--primary-soft);
+  border: 1px solid color-mix(in oklab, var(--primary) 16%, transparent);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 14px;
+}
+.att .rcard.void .rcard__av {
+  background: var(--err-bg);
+  border-color: color-mix(in oklab, var(--err) 20%, transparent);
+  color: var(--err);
+}
+.att .rcard__id {
+  flex: 1;
+  min-width: 0;
+}
+.att .rcard__name {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.att .rcard__role {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+/* 사이트 행 */
+.att .rcard__site {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 9px;
+}
+.att .rcard__site .ic {
+  font-size: 13px;
+  color: var(--faint);
+}
+
+/* 출근/퇴근/휴게 타임 스트립 */
+.att .rcard__strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line-soft);
+}
+.att .rcell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.att .rcell__k {
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--faint);
+}
+.att .rcell__v {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 14.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.att .rcell__v.dash { color: var(--faint); font-size: 16px; }
+.att .rcell__v.running {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--work);
+  background: var(--work-bg);
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-variant-numeric: normal;
+}
+.att .rcell__v.running .d {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--work-dot);
+  animation: att-pulse 2s infinite;
+}
+.att .rcell__v.break-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--warn);
+  background: var(--warn-bg);
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-variant-numeric: normal;
+}
+.att .rcell__v.break-running .d {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--warn);
+  animation: att-pulse 2s infinite;
+}
+
+/* 전화 버튼 (카드 우하단) */
+.att .rcard__call-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.att .rcard__call {
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 12px;
+  background: var(--work-dot);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 8px 16px -8px color-mix(in oklab, var(--work-dot) 75%, transparent);
+  transition: transform 0.12s;
+  text-decoration: none;
+}
+.att .rcard__call:active { transform: scale(0.9); }
+.att .rcard__call svg { width: 18px; height: 18px; }
+
+/* 상태 chip */
+.att .rstatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.att .rstatus.working {
+  background: var(--work-bg);
+  color: var(--work);
+}
+.att .rstatus.on_break {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.att .rstatus.done {
+  background: var(--surface);
+  color: var(--out-col);
+}
+.att .rstatus.needs_review {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.att .rstatus.void {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+/* 빈 상태 */
+.att .roster-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 60px 26px;
+  text-align: center;
+}
+.att .roster-empty__ic {
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.att .roster-empty__ic svg { width: 28px; height: 28px; }
+.att .roster-empty__t {
+  font-size: 14.5px;
+  font-weight: 800;
+}
+.att .roster-empty__s {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  line-height: 1.6;
+  max-width: 230px;
+}
+
+/* 달력 시트 내부 */
+.att .roster-cal-dow {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 6px;
+}
+.att .roster-cal-dow span {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--faint);
+  padding: 4px 0;
+}
+.att .roster-cal-dow span:first-child {
+  color: color-mix(in oklab, hsl(4 62% 50%) 60%, var(--faint));
+}
+.att .roster-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: 42px;
+  gap: 4px;
+}
+.att .cal-btn {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  border: none;
+  background: transparent;
+  border-radius: 11px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  position: relative;
+  min-width: 0;
+}
+.att .cal-btn.future {
+  color: var(--faint);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.att .cal-btn.has::after {
+  content: "";
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--work-dot);
+}
+.att .cal-btn.sel {
+  background: var(--primary);
+  color: #fff;
+}
+.att .cal-btn.sel.has::after { background: rgba(255, 255, 255, 0.85); }
+.att .cal-btn.today:not(.sel) {
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--primary) 45%, transparent);
+}
+.att .roster-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 2px 14px;
+}
+.att .roster-cal-m {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+.att .roster-cal-nav {
+  display: flex;
+  gap: 6px;
+}
+.att .roster-cal-nav button {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+.att .roster-cal-nav button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.att .roster-cal-nav button svg { width: 16px; height: 16px; }
+.att .roster-cal-foot {
+  display: flex;
+  gap: 9px;
+  margin-top: 16px;
+}
+.att .roster-cal-foot button {
+  flex: 1;
+  height: 50px;
+  border-radius: 15px;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+}
+.att .roster-cal-foot .ghost {
+  background: var(--surface);
+  color: var(--ink-soft);
+  flex: 0 0 auto;
+  padding: 0 20px;
+}
+.att .roster-cal-foot .primary {
+  background: linear-gradient(160deg, var(--primary-lift), var(--primary-ink));
+  color: #fff;
+}
+
+/* Home entry — 출근자 명단 바로가기 */
+.att a.entryrow.roster .entryrow__ic {
+  background: color-mix(in oklab, var(--work-dot) 12%, var(--surface));
+  color: var(--work);
+}
+.att .entryrow__chev {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .att .roster-live .pulse,
+  .att .rcell__v.running .d,
+  .att .rcell__v.break-running .d {
+    animation: none;
+  }
+}
