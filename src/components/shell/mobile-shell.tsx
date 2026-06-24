@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { ReactNode, UIEvent } from "react";
-import { Bell, ChevronLeft, ChevronRight, LogOut, UserCircle, X } from "lucide-react";
+import { Bell, ChevronRight, LogOut, UserCircle, X } from "lucide-react";
 import { useSession } from "@/components/providers/session-provider";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { signOut } from "@/app/auth/actions";
@@ -17,7 +17,6 @@ import {
   resolveBottomNavItems,
 } from "@/config/navigation";
 import { getDictionary } from "@/lib/i18n";
-import { setNavDirection } from "@/lib/nav-direction";
 import { cn } from "@/lib/utils";
 
 type MobileShellProps = {
@@ -192,20 +191,6 @@ export function MobileShell({
   // PTR may only arm on a gesture that STARTED at the top. Cleared the moment scrollTop goes >0 so a
   // momentum/rubber-band coast back to 0 under a held finger can't activate PTR against a stale anchor.
   const ptrEligibleRef = useRef(false);
-  // Swipe-to-navigate refs (separate from pull-to-refresh)
-  const swipeNavStartXRef = useRef(0);
-  const swipeNavStartYRef = useRef(0);
-  // Live left-edge "back" drag: a side reveal + chevron hint fades in as you drag (the screen stays put).
-  // The hint's intensity is written straight to the DOM via a `--edge-progress` CSS custom property, so
-  // the drag never re-renders the shell mid-gesture (only the start/end `edgeDragging` flip does).
-  const [edgeDragging, setEdgeDragging] = useState(false);
-  const edgeHintRef = useRef<HTMLDivElement | null>(null);
-  const edgeCandidateRef = useRef(false); // gesture started within the left edge band
-  const edgeLockedRef = useRef(false); // locked into a horizontal edge-back drag
-  const edgeRawDxRef = useRef(0); // raw (un-damped) horizontal distance, for the commit threshold
-  // Set to true the moment goBack() fires; cleared on the next touchstart. Prevents a stale
-  // edgeLocked state from processing touchmove events after a fast-fling navigation.
-  const navigatingRef = useRef(false);
   const sidebarChromeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // rAF-coalesce touchmove → setState: refs update synchronously every sample, but the visible React
   // state setter fires at most once per animation frame (avoids a full subtree re-render at ~120Hz).
@@ -362,8 +347,6 @@ export function MobileShell({
 
   function handleTouchMove(e: React.TouchEvent<HTMLDivElement>) {
     if (isRefreshPending || e.touches.length !== 1) return;
-    // If the edge-back drag is locked, the outer <main> handler owns this gesture — don't let PTR fire.
-    if (edgeLockedRef.current) return;
     if (e.currentTarget.scrollTop > 0) {
       // Mark ineligible and re-anchor, so a later coast back to 0 doesn't compare against ancient Y.
       ptrEligibleRef.current = false;
@@ -423,158 +406,7 @@ export function MobileShell({
     }
   }
 
-  // ── Swipe-to-navigate (on <main>) ────────────────────────────────────────
-  // iOS-style **interactive** left-edge back: the screen follows the finger (damped) with a side
-  // reveal + a chevron hint, and commits to `router.back()` when pulled far enough (otherwise springs
-  // back). Right-edge swipe → forward (fling only). Handled once on the outermost <main> so it covers
-  // every mobile page without touching individual screens.
-  const EDGE_BAND = 30; // px from the left edge the gesture must start within
-
-  // Write the hint intensity (0..1 ratio) straight to the DOM. `90` matches the old
-  // `edgeProgress = Math.min(edgeDx / 90, 1)` math; the browser coalesces these to the next paint.
-  const writeEdgeProgress = useCallback((dx: number) => {
-    const node = edgeHintRef.current;
-    if (!node) return;
-    const progress = dx <= 0 ? 0 : Math.min(dx / 90, 1);
-    node.style.setProperty("--edge-progress", progress.toFixed(3));
-  }, []);
-
-  function handleSwipeStart(e: React.TouchEvent<HTMLElement>) {
-    navigatingRef.current = false; // new gesture — clear any stale post-navigation lock
-    if (sidebarChromeLocked) return;
-    const t = e.touches[0];
-    swipeNavStartXRef.current = t.clientX;
-    swipeNavStartYRef.current = t.clientY;
-    // Don't arm edge candidate if PTR is already pulling — PTR wins.
-    edgeCandidateRef.current = !isPullingRef.current && t.clientX <= EDGE_BAND;
-    edgeLockedRef.current = false;
-    edgeRawDxRef.current = 0;
-  }
-
-  function handleSwipeMove(e: React.TouchEvent<HTMLElement>) {
-    // PTR is active or navigation already fired — this gesture is no longer ours.
-    if (isPullingRef.current || navigatingRef.current) return;
-    if (sidebarChromeLocked || isRefreshPending || !edgeCandidateRef.current) return;
-    if (e.touches.length !== 1) return;
-    const t = e.touches[0];
-    const dx = t.clientX - swipeNavStartXRef.current;
-    const dy = Math.abs(t.clientY - swipeNavStartYRef.current);
-    if (!edgeLockedRef.current) {
-      // Decide intent: clearly rightward → start the edge drag; clearly vertical → hand off to scroll.
-      if (dx > 10 && dx > dy * 1.2) {
-        edgeLockedRef.current = true;
-        setEdgeDragging(true);
-      } else if (dy > 12 && dy >= dx) {
-        edgeCandidateRef.current = false;
-        return;
-      } else {
-        return;
-      }
-    }
-    edgeRawDxRef.current = dx; // keep synchronous — endEdgeDrag reads edgeRawDxRef.current > 64
-    // Drives the gradient/chevron intensity (the screen does not move) — direct DOM write, no re-render.
-    writeEdgeProgress(dx);
-  }
-
-  // Back that never strands the user. In an installed standalone PWA there is no browser back
-  // button, so a `router.back()` at the first history entry (e.g. cold-launched straight onto a
-  // deep screen via a notification / share / deep link) would be a dead gesture with no escape.
-  // When there's nothing to go back to, fall back to the mobile home instead.
-  const goBack = useCallback(() => {
-    if (navigatingRef.current) return; // already navigating — block double-fire
-    navigatingRef.current = true;
-    setNavDirection("back");
-    if (typeof window !== "undefined" && window.history.length <= 1) {
-      router.push("/mobile");
-    } else {
-      router.back();
-    }
-  }, [router]);
-
-  function endEdgeDrag(commit: boolean) {
-    edgeLockedRef.current = false;
-    edgeCandidateRef.current = false;
-    setEdgeDragging(false); // re-enable the CSS transition (transition: none → opacity 380ms ease)
-    if (commit) {
-      writeEdgeProgress(0);
-      goBack();
-    } else {
-      // Defer the DOM write by one frame so React can first paint the transition:none→380ms change.
-      // Without this, writeEdgeProgress(0) fires before the new transition is applied and the hint
-      // disappears instantly instead of fading out.
-      requestAnimationFrame(() => writeEdgeProgress(0));
-    }
-  }
-
-  function handleSwipeEnd(e: React.TouchEvent<HTMLElement>) {
-    if (edgeLockedRef.current) {
-      // Live edge-back drag: commit past ~64px of real travel, else spring back.
-      endEdgeDrag(edgeRawDxRef.current > 64);
-      return;
-    }
-    edgeCandidateRef.current = false;
-    if (sidebarChromeLocked) return;
-    const t = e.changedTouches[0];
-    const startX = swipeNavStartXRef.current;
-    const deltaX = t.clientX - startX;
-    const deltaY = Math.abs(t.clientY - swipeNavStartYRef.current);
-    const absX = Math.abs(deltaX);
-
-    // Fallback fling (quick flicks not caught by the live drag) + right-edge forward.
-    if (absX < 55 || deltaY > absX * 0.75) return;
-    const viewportWidth = window.innerWidth || 390;
-    if (deltaX > 0 && startX <= EDGE_BAND) {
-      goBack();
-      return;
-    }
-    if (deltaX < 0 && startX >= viewportWidth - 28) {
-      router.forward();
-    }
-  }
-
-  function handleSwipeCancel() {
-    if (edgeLockedRef.current) endEdgeDrag(false);
-    else edgeCandidateRef.current = false;
-  }
-
   // ─────────────────────────────────────────────────────────────────────────
-
-  // When iOS standalone PWA fires its native swipe-back it dispatches `popstate` before
-  // (or instead of) our touchend handler. Set navigatingRef so goBack() is a no-op if our
-  // touchend fires afterwards for the same gesture.
-  useEffect(() => {
-    const onPopState = () => { navigatingRef.current = true; };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
-
-  // Suppress the iOS standalone-PWA native swipe-back gesture so it doesn't fire alongside
-  // our own handler. iOS fires its system gesture in response to a left-edge rightward drag,
-  // then shows the PWA launch screen (splash) before our router.back() even runs. Calling
-  // e.preventDefault() in a non-passive touchmove listener — once we confirm rightward
-  // horizontal intent from the edge band — tells UIKit we are handling the gesture ourselves.
-  useEffect(() => {
-    let startX = 0;
-    const onStart = (e: TouchEvent) => {
-      if (e.touches.length === 1) startX = e.touches[0].clientX;
-    };
-    const onMove = (e: TouchEvent) => {
-      if (
-        e.cancelable &&
-        e.touches.length === 1 &&
-        startX <= EDGE_BAND &&
-        e.touches[0].clientX - startX > 5
-      ) {
-        e.preventDefault();
-      }
-    };
-    document.addEventListener("touchstart", onStart, { passive: true });
-    document.addEventListener("touchmove", onMove, { passive: false });
-    return () => {
-      document.removeEventListener("touchstart", onStart);
-      document.removeEventListener("touchmove", onMove);
-    };
-  }, []);
 
   useEffect(() => {
     // This app uses an overflow-hidden shell with an INNER scroll container,
@@ -667,35 +499,7 @@ export function MobileShell({
     <main
       aria-label={title}
       className="h-dvh overflow-hidden bg-background text-foreground"
-      onTouchCancel={handleSwipeCancel}
-      onTouchEnd={handleSwipeEnd}
-      onTouchMove={handleSwipeMove}
-      onTouchStart={handleSwipeStart}
     >
-      {/* Left-edge back hint — a soft gradient shadow + chevron that fade in as you drag from the
-          edge. The screen itself stays put (simple, not a slide). */}
-      <div
-        ref={edgeHintRef}
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-y-0 left-0 z-[55] flex w-24 items-center"
-        style={{
-          ["--edge-progress" as string]: "0",
-          opacity: "var(--edge-progress)",
-          background:
-            "linear-gradient(90deg, rgba(15,23,42,0.16) 0%, rgba(15,23,42,0.06) 45%, rgba(15,23,42,0) 100%)",
-          transition: edgeDragging ? "none" : "opacity 380ms ease",
-        }}
-      >
-        <span
-          className="ml-2 flex size-9 items-center justify-center rounded-full bg-white/90 text-foreground shadow-[0_10px_28px_-8px_rgba(15,23,42,0.5)] backdrop-blur"
-          style={{
-            transform: "translateX(calc((var(--edge-progress) - 1) * 12px))",
-            transition: edgeDragging ? "none" : "transform 380ms cubic-bezier(0.22,1,0.36,1)",
-          }}
-        >
-          <ChevronLeft className="size-5" aria-hidden="true" />
-        </span>
-      </div>
 
       {/* ── Option-B PTR indicator — fixed at the top, revealed as the whole shell slides down ── */}
       {/* The shell (header + content + bottom nav) all translate together; this fixed layer fills
