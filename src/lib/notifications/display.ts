@@ -52,12 +52,16 @@ function formatDateOnly(value: string, locale: Locale) {
 }
 
 export function formatNotificationTimestamp(value: string, locale: Locale) {
+  // hour12 must be false: Node.js ICU renders "PM 03:51" for ko locale while
+  // the browser renders "오후 03:51", causing a React hydration mismatch.
+  // 24-hour format is consistent across both environments.
   return new Intl.DateTimeFormat(locale, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
     timeZone: "Asia/Tokyo",
   }).format(new Date(value));
 }
