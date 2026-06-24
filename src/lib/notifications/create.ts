@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { OrganizationRole } from "@/config/roles";
 import { isNotificationsTableUnavailable } from "@/lib/notifications/schema";
 import type {
+  AnnouncementNotificationPayload,
   AttendanceNotificationPayload,
   OrderProcessedNotificationPayload,
   ProjectNotificationPayload,
@@ -169,6 +171,69 @@ export async function createAttendanceOpenSessionReminder(
     payload: { event: "open_session_reminder", subjectUserId: params.userId, sessionId: params.sessionId },
   });
   return { created: result.created };
+}
+
+/**
+ * Fan-out an important-announcement publish alert to the targeted active org members, skipping the
+ * actor and honoring role-targeting at membership-read time. Dedupe is per announcement + recipient,
+ * so re-publishing the same announcement does not spam duplicates.
+ */
+export async function createImportantAnnouncementNotifications(
+  supabase: SupabaseClient<Database>,
+  params: {
+    organizationId: string;
+    announcementId: string;
+    announcementTitle: string;
+    actorUserId: string;
+    targetScope: "everyone" | "roles";
+    targetRoles: OrganizationRole[];
+  },
+): Promise<void> {
+  let membershipQuery = supabase
+    .from("memberships")
+    .select("user_id")
+    .eq("organization_id", params.organizationId)
+    .eq("status", "active");
+  if (params.targetScope === "roles" && params.targetRoles.length > 0) {
+    membershipQuery = membershipQuery.in("role", params.targetRoles);
+  }
+
+  const { data, error } = await membershipQuery;
+  if (error) {
+    console.error("[notifications] important announcement recipients failed", {
+      announcementId: params.announcementId,
+      error: error.message,
+    });
+    return;
+  }
+
+  const payload: AnnouncementNotificationPayload = {
+    announcementId: params.announcementId,
+    announcementTitle: params.announcementTitle,
+    actorUserId: params.actorUserId,
+    event: "important_published",
+  };
+
+  const recipientUserIds = Array.from(
+    new Set(
+      ((data ?? []) as { user_id: string | null }[])
+        .map((row) => row.user_id)
+        .filter((value): value is string => Boolean(value && value !== params.actorUserId)),
+    ),
+  );
+
+  for (const recipientUserId of recipientUserIds) {
+    await createNotification(supabase, {
+      organizationId: params.organizationId,
+      recipientUserId,
+      type: "announcement_activity",
+      href: `/mobile/announcements/${params.announcementId}`,
+      sourceType: "announcement",
+      sourceId: params.announcementId,
+      dedupeKey: `announcement_important:${params.announcementId}:${recipientUserId}`,
+      payload,
+    });
+  }
 }
 
 type CreateNotificationInput = {

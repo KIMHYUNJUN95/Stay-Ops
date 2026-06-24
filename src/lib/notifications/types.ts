@@ -1,4 +1,5 @@
 import type { Database } from "@/types/database";
+import type { OrganizationRole } from "@/config/roles";
 
 export type NotificationType = Database["public"]["Enums"]["notification_type"];
 
@@ -44,10 +45,22 @@ export type SuggestionNotificationPayload = {
   status?: "submitted" | "reviewing" | "on_hold" | "completed" | null;
 };
 
+export type AnnouncementNotificationPayload = {
+  announcementId: string;
+  announcementTitle: string;
+  actorUserId: string | null;
+  event: "important_published";
+};
+
 export type AttendanceNotificationPayload = {
   // One discriminated `attendance_activity` type carries every event (no enum value per event).
-  // `open_session_reminder` is worker-facing (the 18:30 reminder); the other two are admin alerts.
-  event: "correction_created" | "abnormal_session" | "open_session_reminder";
+  // `open_session_reminder` is worker-facing (the 18:30 reminder); the others are admin/user alerts.
+  event:
+    | "correction_created"
+    | "correction_approved"
+    | "correction_rejected"
+    | "abnormal_session"
+    | "open_session_reminder";
   /** The worker the alert is about (admin alerts); the recipient themselves for the reminder. */
   subjectUserId?: string | null;
   subjectName?: string | null;
@@ -64,6 +77,7 @@ export type NotificationPayloadByType = {
   task_overdue: TaskNotificationPayload;
   project_shared: ProjectNotificationPayload;
   suggestion_activity: SuggestionNotificationPayload;
+  announcement_activity: AnnouncementNotificationPayload;
   attendance_activity: AttendanceNotificationPayload;
 };
 
@@ -101,6 +115,18 @@ export function isSuggestionNotificationPayload(
   );
 }
 
+export function isAnnouncementNotificationPayload(
+  payload: unknown,
+): payload is AnnouncementNotificationPayload {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
+  const record = payload as Record<string, unknown>;
+  return (
+    typeof record.announcementId === "string" &&
+    typeof record.announcementTitle === "string" &&
+    record.event === "important_published"
+  );
+}
+
 export function isAttendanceNotificationPayload(
   payload: unknown,
 ): payload is AttendanceNotificationPayload {
@@ -108,6 +134,8 @@ export function isAttendanceNotificationPayload(
   const record = payload as Record<string, unknown>;
   return (
     record.event === "correction_created" ||
+    record.event === "correction_approved" ||
+    record.event === "correction_rejected" ||
     record.event === "abnormal_session" ||
     record.event === "open_session_reminder"
   );

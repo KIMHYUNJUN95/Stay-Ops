@@ -2,6 +2,32 @@
 
 This file records important project decisions.
 
+## 2026-06-24
+
+### Notifications — first bell-alert scope is eight action-focused event groups
+
+Decision: the first real in-app bell-notification scope is limited to eight operational event groups:
+
+- important announcement published
+- task shared with me
+- task comment / update
+- task due today
+- task overdue
+- order processed / delivery date updated
+- attendance correction approved / rejected
+- attendance abnormal session / 18:30 open-session reminder
+
+Why: the notification center should surface events that require user action or immediate awareness,
+not a noisy activity feed. This keeps the first rollout useful for field staff and admins without
+teaching users to ignore the bell.
+
+Impact:
+- `/mobile/notifications` is wired to the live `notifications` table instead of the old mock screen.
+- `announcement_activity` is added for important announcement publish alerts only.
+- `attendance_activity` expands to include worker-facing correction approval / rejection results.
+- Lower-value or high-frequency events (normal announcement publish, every attendance success,
+  cleaning timer chatter, etc.) remain deferred.
+
 ## 2026-06-23
 
 ### Routing — separate mobile app and admin dashboard surfaces

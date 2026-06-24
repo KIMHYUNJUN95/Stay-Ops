@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import type { OrganizationRole, Role } from "@/config/roles";
 import { organizationRoles } from "@/config/roles";
 import { getPublicSupabaseEnv } from "@/lib/env";
+import { createImportantAnnouncementNotifications } from "@/lib/notifications/create";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
@@ -379,13 +380,25 @@ export async function createAnnouncement(formData: FormData) {
     title,
   };
 
-  const { error } = await getSupabaseServiceClient()
+  const service = getSupabaseServiceClient();
+  const { error } = await service
     .from("announcements")
     .insert(announcement as never);
 
   if (error) {
     await cleanupSubmittedAnnouncementImages(imageUrls, organizationId, announcementId);
     announcementsRedirect("error=save_failed");
+  }
+
+  if (announcement.status === "published" && announcement.is_important) {
+    await createImportantAnnouncementNotifications(service, {
+      organizationId,
+      announcementId,
+      announcementTitle: title,
+      actorUserId: userId,
+      targetScope,
+      targetRoles,
+    });
   }
 
   announcementsRedirect("created=1");
@@ -418,7 +431,8 @@ export async function updateAnnouncementStatus(formData: FormData) {
   }
 
   const now = new Date().toISOString();
-  const { error } = await getSupabaseServiceClient()
+  const service = getSupabaseServiceClient();
+  const { error } = await service
     .from("announcements")
     .update({
       archived_at: nextStatus === "archived" ? now : null,
@@ -429,6 +443,21 @@ export async function updateAnnouncementStatus(formData: FormData) {
 
   if (error) {
     announcementsRedirect("error=save_failed");
+  }
+
+  if (
+    nextStatus === "published" &&
+    announcement.status !== "published" &&
+    announcement.is_important
+  ) {
+    await createImportantAnnouncementNotifications(service, {
+      organizationId: announcement.organization_id,
+      announcementId: announcement.id,
+      announcementTitle: announcement.title,
+      actorUserId: userId,
+      targetScope: announcement.target_scope,
+      targetRoles: announcement.target_roles,
+    });
   }
 
   announcementsRedirect("statusUpdated=1");

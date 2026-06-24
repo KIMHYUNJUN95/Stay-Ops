@@ -10,9 +10,12 @@
 // (deferred); these actions are the backend it will call. Self-view (worker history / request status)
 // reflects the new state on next load (dynamic routes; revalidated here too).
 //
-// Not in this step: manual session creation, payroll, finalization, dashboard, export, notifications.
+// Not in this step: manual session creation, payroll, finalization, dashboard, export.
 
 import { revalidatePath } from "next/cache";
+import {
+  createNotification,
+} from "@/lib/notifications/create";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { isAttendancePayrollAdmin } from "@/lib/attendance-review";
@@ -50,6 +53,14 @@ function revalidateSelfView() {
   revalidatePath("/mobile/attendance/history");
   revalidatePath("/mobile/attendance/correction/status");
   revalidatePath("/mobile/attendance");
+}
+
+async function getProfileName(
+  service: ReturnType<typeof getSupabaseServiceClient>,
+  userId: string,
+): Promise<string | null> {
+  const res = await service.from("profiles").select("name").eq("id", userId).maybeSingle();
+  return ((res.data as { name: string } | null)?.name ?? null);
 }
 
 async function loadRequest(
@@ -180,6 +191,23 @@ export async function approveCorrectionRequest(
     .eq("id", request.id);
   if (upd.error) return { ok: false, reason: "error" };
 
+  await createNotification(service, {
+    organizationId,
+    recipientUserId: request.requested_by_user_id,
+    type: "attendance_activity",
+    href: `/mobile/attendance/correction/status?id=${request.id}`,
+    sourceType: "attendance",
+    sourceId: request.id,
+    dedupeKey: `attendance_correction_approved:${request.id}:${request.requested_by_user_id}`,
+    payload: {
+      event: "correction_approved",
+      subjectUserId: request.requested_by_user_id,
+      subjectName: await getProfileName(service, request.requested_by_user_id),
+      correctionId: request.id,
+      sessionId: request.session_id,
+    },
+  });
+
   revalidateSelfView();
   return { ok: true };
 }
@@ -218,6 +246,23 @@ export async function rejectCorrectionRequest(
     } as never)
     .eq("id", requestId);
   if (upd.error) return { ok: false, reason: "error" };
+
+  await createNotification(service, {
+    organizationId,
+    recipientUserId: request.requested_by_user_id,
+    type: "attendance_activity",
+    href: `/mobile/attendance/correction/status?id=${request.id}`,
+    sourceType: "attendance",
+    sourceId: request.id,
+    dedupeKey: `attendance_correction_rejected:${request.id}:${request.requested_by_user_id}`,
+    payload: {
+      event: "correction_rejected",
+      subjectUserId: request.requested_by_user_id,
+      subjectName: await getProfileName(service, request.requested_by_user_id),
+      correctionId: request.id,
+      sessionId: request.session_id,
+    },
+  });
 
   revalidateSelfView();
   return { ok: true };

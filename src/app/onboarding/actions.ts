@@ -270,6 +270,36 @@ export type SubmitOnboardingResult =
   | { ok: false; errorKey: string };
 
 /**
+ * needs_membership wizard submit — joins via invite code only (profile already exists).
+ * Returns a destination instead of redirecting so the wizard can show its success screen.
+ */
+export async function joinWithInviteCode(input: {
+  inviteCode: string;
+  next: string;
+}): Promise<SubmitOnboardingResult> {
+  const user = await requireUser();
+  const surface = await getCurrentSurface();
+  const code = input.inviteCode.trim().toUpperCase();
+  const next = normalizeNextPathForSurface(input.next, surface);
+
+  if (!code) return { ok: false, errorKey: "missing_invite" };
+
+  const service = getSupabaseServiceClient();
+  const { data, error } = await (service as unknown as RpcClient).rpc(
+    "join_organization_with_invite_code",
+    { p_user_id: user.id, p_code: code },
+  );
+  if (error) return { ok: false, errorKey: resolveInviteRpcError(error.message) };
+  const row = data?.[0];
+  if (!row) return { ok: false, errorKey: "invite_join_failed" };
+  await setLastUsedOrganization(user.id, row.organization_id);
+  return {
+    ok: true,
+    redirectTo: next || normalizePathForSurface(getDefaultRouteForRole(row.role), surface),
+  };
+}
+
+/**
  * Wizard submit — upserts the profile and (optionally) joins via invite code,
  * then RETURNS the destination instead of redirecting. This lets the onboarding
  * wizard show its own "welcome / success" screen before entering the app.

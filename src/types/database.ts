@@ -1831,6 +1831,7 @@ export type Database = {
         | "task_overdue"
         | "project_shared"
         | "suggestion_activity"
+        | "announcement_activity"
         | "attendance_activity";
       organization_role:
         | "cs_staff"

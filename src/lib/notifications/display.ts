@@ -1,6 +1,7 @@
 import type { Locale } from "@/lib/i18n";
 import { getDictionary } from "@/lib/i18n";
 import {
+  isAnnouncementNotificationPayload,
   isAttendanceNotificationPayload,
   isOrderProcessedPayload,
   isProjectNotificationPayload,
@@ -187,6 +188,20 @@ export function getNotificationDisplay(
   }
 
   if (
+    notification.type === "announcement_activity" &&
+    isAnnouncementNotificationPayload(notification.payload)
+  ) {
+    const payload = notification.payload;
+    return {
+      title: copy.announcementImportantTitle,
+      body: copy.announcementImportantBody.replace("{title}", payload.announcementTitle),
+      statusLabel: copy.announcementKind,
+      kindLabel: copy.announcementKind,
+      locationLabel: "",
+    };
+  }
+
+  if (
     notification.type === "attendance_activity" &&
     isAttendanceNotificationPayload(notification.payload)
   ) {
@@ -194,12 +209,20 @@ export function getNotificationDisplay(
     const title =
       payload.event === "correction_created"
         ? copy.attendanceCorrectionTitle
+        : payload.event === "correction_approved"
+          ? copy.attendanceCorrectionApprovedTitle
+          : payload.event === "correction_rejected"
+            ? copy.attendanceCorrectionRejectedTitle
         : payload.event === "abnormal_session"
           ? copy.attendanceAbnormalTitle
           : copy.attendanceReminderTitle;
     const body = (
       payload.event === "correction_created"
         ? copy.attendanceCorrectionBody
+        : payload.event === "correction_approved"
+          ? copy.attendanceCorrectionApprovedBody
+          : payload.event === "correction_rejected"
+            ? copy.attendanceCorrectionRejectedBody
         : payload.event === "abnormal_session"
           ? copy.attendanceAbnormalBody
           : copy.attendanceReminderBody
@@ -235,6 +258,8 @@ export function notificationTypeLabel(type: NotificationType, locale: Locale) {
       return copy.taskKind;
     case "project_shared":
       return copy.projectKind;
+    case "announcement_activity":
+      return copy.announcementKind;
     case "suggestion_activity":
       return copy.suggestionKind;
     case "attendance_activity":

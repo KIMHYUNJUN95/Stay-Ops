@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "@/app/auth/actions";
 import {
+  joinWithInviteCode,
   previewInviteCode,
   submitOnboardingProfile,
 } from "@/app/onboarding/actions";
@@ -720,6 +721,28 @@ export function OnboardingWizard({
     }
   }
 
+  async function submitMembership() {
+    setSubmitting(true);
+    setSubmitErrorKey(null);
+    try {
+      const result = await joinWithInviteCode({
+        inviteCode: inviteCode.trim(),
+        next: profile.safeNext,
+      });
+      if (result.ok) {
+        setDest(result.redirectTo);
+        setSubmitting(false);
+        goTo(7);
+      } else {
+        setSubmitErrorKey(result.errorKey);
+        setSubmitting(false);
+      }
+    } catch {
+      setSubmitErrorKey("network_error");
+      setSubmitting(false);
+    }
+  }
+
   async function verifyInvite() {
     const trimmed = inviteCode.trim();
     if (!trimmed) return;
@@ -1016,7 +1039,14 @@ export function OnboardingWizard({
           {allowInviteSkip ? (
             <StickyCta label={join.reviewCta} onClick={() => goTo(6)} withArrow />
           ) : (
-            <StickyCta label={join.submitCta} onClick={submit} disabled={submitting} />
+            <>
+              {submitErrorKey && (
+                <p className="px-[26px] pb-2 text-center text-[13px] font-bold text-red-600">
+                  {join.errors[submitErrorKey] ?? submitErrorKey}
+                </p>
+              )}
+              <StickyCta label={join.submitCta} onClick={submitMembership} disabled={submitting} />
+            </>
           )}
           {showExitLink && (
             <form action={signOut} className="px-[26px] pb-[calc(max(14px,env(safe-area-inset-bottom))+var(--keyboard-inset,0px))] text-center">

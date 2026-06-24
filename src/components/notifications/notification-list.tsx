@@ -42,6 +42,8 @@ function notifIcon(type: NotificationType): ReactNode {
     case "task_due_soon":
     case "task_overdue":
       return SgIcon.flag;
+    case "announcement_activity":
+      return SgIcon.info;
     default:
       return SgIcon.bell;
   }
