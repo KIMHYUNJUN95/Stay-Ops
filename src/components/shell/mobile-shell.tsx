@@ -481,8 +481,9 @@ export function MobileShell({
   // deep screen via a notification / share / deep link) would be a dead gesture with no escape.
   // When there's nothing to go back to, fall back to the mobile home instead.
   const goBack = useCallback(() => {
-    navigatingRef.current = true; // block any stale touchmove after this fires
-    setNavDirection("back"); // play the pop (left-slide) transition for this navigation
+    if (navigatingRef.current) return; // already navigating — block double-fire
+    navigatingRef.current = true;
+    setNavDirection("back");
     if (typeof window !== "undefined" && window.history.length <= 1) {
       router.push("/mobile");
     } else {
@@ -537,6 +538,15 @@ export function MobileShell({
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+
+  // When iOS standalone PWA fires its native swipe-back it dispatches `popstate` before
+  // (or instead of) our touchend handler. Set navigatingRef so goBack() is a no-op if our
+  // touchend fires afterwards for the same gesture.
+  useEffect(() => {
+    const onPopState = () => { navigatingRef.current = true; };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // Suppress the iOS standalone-PWA native swipe-back gesture so it doesn't fire alongside
   // our own handler. iOS fires its system gesture in response to a left-edge rightward drag,
