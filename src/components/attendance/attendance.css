@@ -909,6 +909,7 @@
   border-radius: 16px;
   background: var(--danger-bg);
   border: 1px solid color-mix(in oklab, var(--danger) 22%, transparent);
+  margin-top: 14px;
   margin-bottom: 18px;
 }
 .att .failnote.warn {
