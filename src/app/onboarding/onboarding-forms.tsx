@@ -12,23 +12,27 @@ import {
 } from "@/app/onboarding/invite-code-field";
 import type { Locale } from "@/lib/i18n";
 
-const inputClass =
-  "h-[54px] w-full rounded-lg border border-slate-300/70 bg-white/58 px-4 text-base font-semibold text-slate-950 shadow-[0_1px_0_rgba(255,255,255,0.72)_inset] backdrop-blur-xl outline-none placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/15";
+const GRADIENT = "linear-gradient(165deg, hsl(223 50% 42%), hsl(223 54% 22%))";
+const SHADOW = "0 18px 36px -20px hsl(223 46% 32% / 0.7)";
 
-const primaryButtonClass =
-  "h-[54px] w-full rounded-lg bg-primary text-base font-black text-white shadow-[0_14px_34px_hsl(var(--primary-hsl)/0.18)] transition-colors hover:bg-primary/90 disabled:opacity-60";
+const inputClass =
+  "h-[54px] w-full rounded-[14px] border border-border bg-surface px-[15px] text-base font-semibold text-foreground outline-none transition-colors placeholder:font-medium placeholder:text-[hsl(222_10%_62%)] focus:border-primary focus:ring-[3.5px] focus:ring-primary/15";
 
 function SubmitButton({ label, disabled }: { label: string; disabled?: boolean }) {
   const { pending } = useFormStatus();
+  const off = pending || disabled;
   return (
-    <button type="submit" className={primaryButtonClass} disabled={pending || disabled}>
+    <button
+      type="submit"
+      disabled={off}
+      className={`relative flex h-[54px] w-full items-center justify-center rounded-[15px] text-[15.5px] font-extrabold tracking-[-0.01em] text-white ${off ? "pointer-events-none opacity-80" : ""}`}
+      style={{ background: GRADIENT, boxShadow: off ? "none" : SHADOW }}
+    >
       {pending ? (
-        <span className="inline-flex items-center justify-center gap-2">
+        <span className="absolute inset-0 flex items-center justify-center">
           <span className="size-4 animate-spin rounded-full border-[2.4px] border-white/60 border-t-white" />
         </span>
-      ) : (
-        label
-      )}
+      ) : label}
     </button>
   );
 }
@@ -78,7 +82,7 @@ export function ProfileForm({
       {safeNext && <input name="next" type="hidden" value={safeNext} />}
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block space-y-2">
-          <span className="text-sm font-bold text-slate-950">{copy.nameLabel}</span>
+          <span className="text-sm font-bold text-foreground">{copy.nameLabel}</span>
           <input
             className={inputClass}
             name="name"
@@ -90,7 +94,7 @@ export function ProfileForm({
           />
         </label>
         <label className="block space-y-2">
-          <span className="text-sm font-bold text-slate-950">{copy.birthDateLabel}</span>
+          <span className="text-sm font-bold text-foreground">{copy.birthDateLabel}</span>
           <input
             className={inputClass}
             name="birthDate"
@@ -99,14 +103,14 @@ export function ProfileForm({
             required
             type="date"
           />
-          <span className="block text-[13px] font-medium leading-5 text-slate-500">
+          <span className="block text-[13px] font-medium leading-5 text-muted-foreground">
             {copy.birthDateHint}
           </span>
         </label>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block space-y-2">
-          <span className="text-sm font-bold text-slate-950">{copy.phoneLabel}</span>
+          <span className="text-sm font-bold text-foreground">{copy.phoneLabel}</span>
           <input
             className={inputClass}
             name="phoneNumber"
@@ -116,12 +120,12 @@ export function ProfileForm({
             type="tel"
             autoComplete="tel"
           />
-          <span className="block text-[13px] font-medium leading-5 text-slate-500">
+          <span className="block text-[13px] font-medium leading-5 text-muted-foreground">
             {copy.phoneHint}
           </span>
         </label>
         <label className="block space-y-2">
-          <span className="text-sm font-bold text-slate-950">{copy.languageLabel}</span>
+          <span className="text-sm font-bold text-foreground">{copy.languageLabel}</span>
           <select
             className={`${inputClass} w-full`}
             defaultValue={locale}

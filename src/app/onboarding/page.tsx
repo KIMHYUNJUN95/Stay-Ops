@@ -1,11 +1,8 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { Globe2, Ticket } from "lucide-react";
 import type { InviteCodeFieldCopy } from "@/app/onboarding/invite-code-field";
 import { JoinForm } from "@/app/onboarding/onboarding-forms";
 import { OnboardingWizard } from "@/app/onboarding/onboarding-wizard";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
 import { getDeviceSurfaceFromHeaders } from "@/lib/mobile-device";
 import { getOnboardingState } from "@/lib/onboarding";
@@ -22,11 +19,6 @@ type OnboardingPageProps = {
   }>;
 };
 
-const glassCardClass =
-  "rounded-[18px] border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.84),rgba(255,255,255,0.68))] text-slate-950 shadow-[0_26px_80px_rgba(15,23,42,0.12),0_1px_0_rgba(255,255,255,0.78)_inset,0_-1px_0_rgba(15,23,42,0.04)_inset] ring-1 ring-white/55 backdrop-blur-[32px]";
-
-const iconClass =
-  "flex size-12 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary shadow-[0_1px_0_rgba(255,255,255,0.62)_inset] backdrop-blur-xl";
 
 export default async function OnboardingPage({
   searchParams,
@@ -169,7 +161,7 @@ export default async function OnboardingPage({
           confirmSubtitle: o.joinFlow.confirmSubtitle,
           roleLabel: o.joinFlow.roleLabel,
           verified: o.joinFlow.verified,
-          joinCta: o.joinFlow.joinCta,
+          reviewCta: o.joinFlow.reviewCta,
           codePlaceholder: o.inviteCodePlaceholder,
           orgLabel: o.previewOrgLabel,
           errors: o.errors,
@@ -222,51 +214,37 @@ export default async function OnboardingPage({
   }
 
   return (
-    <main className="min-h-dvh overflow-hidden bg-[radial-gradient(circle_at_50%_18%,rgba(0,132,135,0.09),transparent_28%),radial-gradient(circle_at_18%_100%,rgba(255,255,255,0.62),transparent_32%),linear-gradient(180deg,hsl(0_0%_100%),hsl(284_30%_98%)_52%,hsl(230_28%_96%))] px-5 py-8 text-slate-950 sm:py-10">
-      <section className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-5xl flex-col justify-center">
-        <header className="mb-7 flex flex-col gap-5 sm:mb-9 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="inline-flex items-center gap-3">
-              <Globe2 className="size-7 text-slate-950" aria-hidden="true" />
-              <span className="wordmark text-2xl">
-                {dictionary.app.name}
-              </span>
-            </div>
-            <Badge className="mt-5 rounded-full border border-white/55 bg-white/48 px-3 py-1 text-primary shadow-[0_8px_22px_rgba(15,23,42,0.06),0_1px_0_rgba(255,255,255,0.7)_inset] backdrop-blur-xl">
-              {dictionary.onboarding.accountSetup}
-            </Badge>
-            <h1 className="mt-4 max-w-2xl text-[34px] font-black leading-tight tracking-[-0.05em] sm:text-[42px]">
-              {currentStepTitle}
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-slate-600">
-              {dictionary.onboarding.subtitle}
+    <main
+      className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
+      style={{
+        background:
+          "radial-gradient(120% 50% at 50% -6%, hsl(42 36% 95%) 42%, hsl(42 30% 93%) 100%)",
+      }}
+    >
+      <header className="h-[48px] flex-none" />
+      <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
+        <div className="flex-1 overflow-y-auto px-1 pt-2 -mx-1">
+          <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
+            {dictionary.onboarding.accountSetup}
+          </p>
+          <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em]">
+            {currentStepTitle}
+          </h1>
+          {joinProfile && (
+            <p className="mt-[10px] text-[13.5px] font-semibold leading-[1.55] text-muted-foreground">
+              {dictionary.onboarding.joinBody(joinProfile.name)}
             </p>
-          </div>
-        </header>
-
-        {errorMessage && (
-          <div className="mb-5 rounded-xl border border-red-200/80 bg-red-50/80 px-4 py-3 text-sm font-bold leading-6 text-red-600 shadow-[0_1px_0_rgba(255,255,255,0.62)_inset] backdrop-blur-xl">
-            {errorMessage}
-          </div>
-        )}
-
-        <div className="grid gap-4 md:grid-cols-2">
+          )}
+          {errorMessage && (
+            <div className="mt-[14px] rounded-[14px] border border-[hsl(4_62%_46%/0.24)] bg-[hsl(6_70%_95.5%)] px-[14px] py-[13px] text-[13px] font-semibold leading-[1.5] text-[hsl(4_62%_46%)]">
+              {errorMessage}
+            </div>
+          )}
           {joinProfile && (state.status === "needs_membership" || allowRejoin) && (
-            <Card className={`${glassCardClass} p-6 md:p-8`}>
-              <div className={iconClass}>
-                <Ticket className="size-6" aria-hidden="true" />
-              </div>
-              <h2 className="mt-5 text-2xl font-black tracking-[-0.03em]">
-                {dictionary.onboarding.joinTitle}
-              </h2>
-              <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
-                {dictionary.onboarding.joinBody(joinProfile.name)}
-              </p>
-              <JoinForm
-                copy={{ joinTeamCta: o.joinTeamCta, invite: inviteCopy }}
-                safeNext={safeNext}
-              />
-            </Card>
+            <JoinForm
+              copy={{ joinTeamCta: o.joinTeamCta, invite: inviteCopy }}
+              safeNext={safeNext}
+            />
           )}
         </div>
       </section>

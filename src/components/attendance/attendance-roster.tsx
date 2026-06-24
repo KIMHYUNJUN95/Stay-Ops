@@ -12,7 +12,7 @@ import "./attendance.css";
 import { AIc, AttIcon } from "./att-icons";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { getDictionary } from "@/lib/i18n";
-import type { RosterDay, RosterEntry, RosterStatusKey } from "@/lib/attendance-roster";
+import type { RosterDay, RosterEntry } from "@/lib/attendance-roster";
 
 export type { RosterDay, RosterEntry };
 
@@ -74,99 +74,46 @@ function fmtDateMeta(d: Date, locale: string): string {
   }).format(new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())));
 }
 
-// ─── 상태 chip ─────────────────────────────────────────────────────────────────
-
-function StatusChip({ statusKey, copy }: { statusKey: RosterStatusKey; copy: ReturnType<typeof getDictionary>["attendance"] }) {
-  const labels: Record<RosterStatusKey, string> = {
-    working:      copy.rosterStatusWorking,
-    on_break:     copy.rosterStatusOnBreak,
-    done:         copy.rosterStatusDone,
-    needs_review: copy.rosterStatusNeedsReview,
-    void:         copy.rosterStatusVoid,
-  };
-  return (
-    <span className={`rstatus ${statusKey}`}>
-      {statusKey === "working" && <span className="d" style={{ width: 6, height: 6, borderRadius: 999, background: "var(--work-dot)", display: "inline-block" }} />}
-      {labels[statusKey]}
-    </span>
-  );
-}
-
-// ─── 직원 카드 ─────────────────────────────────────────────────────────────────
+// ─── 직원 행 ──────────────────────────────────────────────────────────────────
 
 function RosterCard({ entry, copy }: { entry: RosterEntry; copy: ReturnType<typeof getDictionary>["attendance"] }) {
-  const canCall = (entry.statusKey === "working" || entry.statusKey === "on_break") && !!entry.phoneNumber;
-
-  const breakCell = () => {
-    if (entry.breakCount === 0) {
-      return <span className="rcell__v dash">—</span>;
-    }
-    if (entry.hasOpenBreak) {
-      return (
-        <span className="rcell__v break-running">
-          <span className="d" />
-          {copy.rosterBreakOpen}
-        </span>
-      );
-    }
-    return <span className="rcell__v">{String(entry.breakCount)}</span>;
-  };
+  const isActive = entry.statusKey === "working" || entry.statusKey === "on_break";
+  const canCall = isActive && !!entry.phoneNumber;
 
   const outCell = () => {
-    if (entry.isVoid || entry.statusKey === "void") {
-      return <span className="rcell__v dash">—</span>;
+    if (entry.clockOutTimeLabel) {
+      return <span className="tv">{entry.clockOutTimeLabel}</span>;
     }
-    if (!entry.clockOutTimeLabel) {
-      return (
-        <span className="rcell__v running">
-          <span className="d" />
-          {copy.rosterStatusWorking}
-        </span>
-      );
+    if (entry.isVoid) {
+      return <span className="dash">—</span>;
     }
-    return <span className="rcell__v">{entry.clockOutTimeLabel}</span>;
+    return (
+      <span className="working">
+        <span className="d" />
+        {copy.rosterStatusWorking}
+      </span>
+    );
   };
 
   return (
     <div className={`rcard${entry.isVoid ? " void" : ""}`}>
-      <div className="rcard__top">
-        <div className="rcard__av">{entry.avatarInitial}</div>
-        <div className="rcard__id">
-          <div className="rcard__name">{entry.name}</div>
-          <div className="rcard__role">{entry.role}</div>
-        </div>
-        <StatusChip statusKey={entry.statusKey} copy={copy} />
+      <div className="rcard__av">{entry.avatarInitial}</div>
+      <div className="rcard__id">
+        <div className="rcard__name">{entry.name}</div>
+        <div className="rcard__role">{entry.role}</div>
       </div>
-      {entry.siteName ? (
-        <div className="rcard__site">
-          <AIc>{AttIcon.pin}</AIc>
-          {entry.siteName}
-        </div>
-      ) : null}
-      <div className="rcard__strip">
-        <div className="rcell">
-          <div className="rcell__k">{copy.rosterColIn}</div>
-          <div className="rcell__v">{entry.clockInTimeLabel}</div>
-        </div>
-        <div className="rcell">
-          <div className="rcell__k">{copy.rosterColOut}</div>
-          {outCell()}
-        </div>
-        <div className="rcell">
-          <div className="rcell__k">{copy.rosterColBreak}</div>
-          {breakCell()}
-        </div>
-      </div>
-      {canCall && (
-        <div className="rcard__call-row">
-          <a
-            href={`tel:${entry.phoneNumber}`}
-            className="rcard__call"
-            aria-label={`${entry.name} ${copy.rosterCallLabel}`}
-          >
-            <AIc>{AttIcon.phone}</AIc>
-          </a>
-        </div>
+      <div className="rcard__t inn">{entry.clockInTimeLabel}</div>
+      <div className="rcard__t outt">{outCell()}</div>
+      {canCall ? (
+        <a
+          href={`tel:${entry.phoneNumber}`}
+          className="rcard__call"
+          aria-label={`${entry.name} ${copy.rosterCallLabel}`}
+        >
+          <AIc>{AttIcon.phone}</AIc>
+        </a>
+      ) : (
+        <div className="rcard__call-ph" />
       )}
     </div>
   );
@@ -416,8 +363,8 @@ export function AttendanceRoster({ rosterDay, operatingDate, todayDate, locale }
         </div>
       </div>
 
-      {/* 직원 카드 리스트 */}
-      <div style={{ marginTop: 16 }}>
+      {/* 직원 행 리스트 */}
+      <div style={{ marginTop: 8 }}>
         {rosterDay.entries.length === 0 ? (
           <div className="roster-empty">
             <div className="roster-empty__ic">
@@ -427,9 +374,17 @@ export function AttendanceRoster({ rosterDay, operatingDate, todayDate, locale }
             <div className="roster-empty__s">{copy.rosterNoEntriesSub}</div>
           </div>
         ) : (
-          rosterDay.entries.map((entry) => (
-            <RosterCard key={entry.sessionId} entry={entry} copy={copy} />
-          ))
+          <>
+            <div className="roster-colhead">
+              <span className="rch-who">{copy.rosterColWho}</span>
+              <span className="rch-ci">{copy.rosterColIn}</span>
+              <span className="rch-co">{copy.rosterColOut}</span>
+              <span className="rch-sp" />
+            </div>
+            {rosterDay.entries.map((entry) => (
+              <RosterCard key={entry.sessionId} entry={entry} copy={copy} />
+            ))}
+          </>
         )}
       </div>
 

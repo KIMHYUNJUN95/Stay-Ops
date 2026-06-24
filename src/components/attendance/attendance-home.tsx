@@ -394,9 +394,6 @@ export function AttendanceHome({
               <div className="entryrow__t">{copy.homeRosterTitle}</div>
               <div className="entryrow__s">{copy.homeRosterSub}</div>
             </div>
-            <div className="entryrow__r">
-              <span className="entryrow__chev">›</span>
-            </div>
           </Link>
         )}
       </div>

@@ -77,7 +77,7 @@ export type OnboardingJoinCopy = {
   confirmSubtitle: string;
   roleLabel: string;
   verified: string;
-  joinCta: string;
+  reviewCta: string;
   // reused copy
   codePlaceholder: string;
   orgLabel: string;
@@ -802,7 +802,7 @@ export function OnboardingWizard({
       >
         <ProgressHeader step={4} />
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-          <div className="flex-1 overflow-y-auto pt-2">
+          <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em]">
               {review.title}
             </h1>
@@ -909,7 +909,7 @@ export function OnboardingWizard({
       >
         <ProgressHeader step={4} />
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-          <div className="flex-1 overflow-y-auto pt-2">
+          <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
               {join.confirmEyebrow}
             </p>
@@ -949,7 +949,7 @@ export function OnboardingWizard({
             </div>
           </div>
 
-          <StickyCta label={join.joinCta} onClick={() => goTo(6)} />
+          <StickyCta label={join.reviewCta} onClick={() => goTo(6)} withArrow />
         </section>
       </main>
     );
@@ -965,7 +965,7 @@ export function OnboardingWizard({
       >
         <ProgressHeader step={4} />
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-          <div className="flex-1 overflow-y-auto pt-2">
+          <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
               {join.inviteEyebrow}
             </p>
@@ -1066,7 +1066,7 @@ export function OnboardingWizard({
       >
         <ProgressHeader step={3} />
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-          <div className="flex-1 overflow-y-auto pt-2">
+          <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
               {steps.basicsEyebrow}
             </p>
@@ -1142,7 +1142,7 @@ export function OnboardingWizard({
       >
         <ProgressHeader step={2} />
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-          <div className="flex-1 overflow-y-auto pt-2">
+          <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
               {steps.basicsEyebrow}
             </p>
@@ -1210,7 +1210,7 @@ export function OnboardingWizard({
       >
         <ProgressHeader step={1} />
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-          <div className="flex-1 overflow-y-auto pt-2">
+          <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
               {steps.basicsEyebrow}
             </p>
@@ -1266,7 +1266,7 @@ export function OnboardingWizard({
     >
       <header className="h-[48px] flex-none" />
       <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-        <div className="flex-1 overflow-y-auto pt-2">
+        <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
           {/* Logo slot intentionally empty (a brand logo is added later). */}
           <div className="size-14" aria-hidden="true" />
 

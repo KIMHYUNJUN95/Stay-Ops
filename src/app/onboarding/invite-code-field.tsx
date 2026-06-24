@@ -18,8 +18,10 @@ export type InviteCodeFieldCopy = {
   roleCategories: Record<string, string>;
 };
 
+const GRADIENT = "linear-gradient(165deg, hsl(223 50% 42%), hsl(223 54% 22%))";
+
 const inputClass =
-  "h-[54px] w-full rounded-lg border border-slate-300/70 bg-white/58 px-4 text-base font-semibold text-slate-950 shadow-[0_1px_0_rgba(255,255,255,0.72)_inset] backdrop-blur-xl outline-none placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/15";
+  "h-[54px] w-full rounded-[14px] border border-border bg-surface px-[15px] text-base font-semibold text-foreground outline-none transition-colors placeholder:font-medium placeholder:text-[hsl(222_10%_62%)] focus:border-primary focus:ring-[3.5px] focus:ring-primary/15";
 
 type Status = "idle" | "verifying" | "ok" | "error";
 
@@ -84,10 +86,10 @@ export function InviteCodeField({
     const roleLabel = copy.roleCategories[preview.roleCategory] ?? preview.roleCategory;
     return (
       <div className="space-y-2">
-        <span className="text-sm font-bold text-slate-950">{copy.label}</span>
+        <span className="text-sm font-bold text-foreground">{copy.label}</span>
         <div className="overflow-hidden rounded-xl border border-primary/30 bg-primary/[0.05] shadow-[0_1px_0_rgba(255,255,255,0.62)_inset]">
           <div className="flex items-center justify-between border-b border-primary/15 px-4 py-3">
-            <span className="font-mono text-sm font-bold tracking-[0.04em] text-slate-950">
+            <span className="font-mono text-sm font-bold tracking-[0.04em] text-foreground">
               {code.trim().toUpperCase()}
             </span>
             <span className="rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-extrabold text-primary">
@@ -96,18 +98,18 @@ export function InviteCodeField({
           </div>
           <dl className="grid grid-cols-2 gap-3 px-4 py-3">
             <div>
-              <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <dt className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
                 {copy.orgLabel}
               </dt>
-              <dd className="mt-0.5 truncate text-sm font-extrabold text-slate-950">
+              <dd className="mt-0.5 truncate text-sm font-extrabold text-foreground">
                 {preview.organizationName}
               </dd>
             </div>
             <div>
-              <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <dt className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
                 {copy.roleLabel}
               </dt>
-              <dd className="mt-0.5 truncate text-sm font-extrabold text-slate-950">
+              <dd className="mt-0.5 truncate text-sm font-extrabold text-foreground">
                 {roleLabel}
               </dd>
             </div>
@@ -127,7 +129,7 @@ export function InviteCodeField({
   // ── Input / verify state ──────────────────────────────────────────────────
   return (
     <div className="space-y-2">
-      <span className="text-sm font-bold text-slate-950">{copy.label}</span>
+      <span className="text-sm font-bold text-foreground">{copy.label}</span>
       <div className="flex gap-2">
         <input
           autoCapitalize="characters"
@@ -149,7 +151,8 @@ export function InviteCodeField({
           type="button"
           onClick={verify}
           disabled={status === "verifying"}
-          className="h-[54px] flex-none rounded-lg bg-primary px-5 text-sm font-black text-white shadow-[0_14px_34px_hsl(var(--primary-hsl)/0.18)] transition-colors hover:bg-primary/90 disabled:opacity-60"
+          className="h-[54px] flex-none rounded-[14px] px-5 text-sm font-black text-white disabled:opacity-60"
+          style={{ background: GRADIENT }}
         >
           {copy.verifyCta}
         </button>
@@ -159,7 +162,7 @@ export function InviteCodeField({
           {copy.errors[errorKey] ?? errorKey}
         </p>
       )}
-      {!errorKey && <p className="text-[13px] font-medium leading-5 text-slate-500">{copy.hint}</p>}
+      {!errorKey && <p className="text-[13px] font-medium leading-5 text-muted-foreground">{copy.hint}</p>}
     </div>
   );
 }

@@ -2849,26 +2849,59 @@
   animation: att-pulse 2s infinite;
 }
 
-/* 로스터 카드 */
+/* 로스터 컬럼 헤더 */
+.att .roster-colhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 8px;
+}
+.att .roster-colhead .rch-who {
+  flex: 1;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.att .roster-colhead .rch-ci {
+  width: 56px;
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.att .roster-colhead .rch-co {
+  width: 72px;
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.att .roster-colhead .rch-sp {
+  width: 38px;
+  flex: 0 0 auto;
+}
+
+/* 로스터 행 */
 .att .rcard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 16px;
-  padding: 13px 13px 11px;
+  padding: 11px 12px;
   margin-bottom: 9px;
   box-shadow: 0 12px 30px -30px rgba(20, 32, 43, 0.5);
 }
 .att .rcard.void {
   border-color: color-mix(in oklab, var(--err) 30%, var(--line));
-  background: color-mix(in oklab, var(--err-bg) 50%, var(--card));
-}
-
-/* 카드 상단: 아바타 + 이름/역할 + 상태 chip */
-.att .rcard__top {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  background: color-mix(in oklab, var(--err-bg) 30%, var(--card));
 }
 .att .rcard__av {
   width: 40px;
@@ -2903,53 +2936,40 @@
   font-weight: 600;
   color: var(--muted);
   margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* 사이트 행 */
-.att .rcard__site {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--muted);
-  margin-bottom: 9px;
+/* 출근/퇴근 시간 셀 */
+.att .rcard__t {
+  flex: 0 0 auto;
+  text-align: center;
 }
-.att .rcard__site .ic {
-  font-size: 13px;
-  color: var(--faint);
-}
-
-/* 출근/퇴근/휴게 타임 스트립 */
-.att .rcard__strip {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 6px;
-  padding-top: 9px;
-  border-top: 1px solid var(--line-soft);
-}
-.att .rcell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.att .rcell__k {
-  font-size: 9.5px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--faint);
-}
-.att .rcell__v {
-  font-family: var(--mono);
+.att .rcard__t.inn {
+  width: 56px;
+  font-family: var(--att-mono, "Geist Mono", ui-monospace, monospace);
   font-variant-numeric: tabular-nums;
   font-size: 14.5px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: var(--ink);
 }
-.att .rcell__v.dash { color: var(--faint); font-size: 16px; }
-.att .rcell__v.running {
+.att .rcard__t.outt {
+  width: 72px;
+}
+.att .rcard__t .tv {
+  font-family: var(--att-mono, "Geist Mono", ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 14.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--muted);
+}
+.att .rcard__t .dash {
+  color: var(--faint);
+  font-size: 16px;
+}
+.att .rcard__t .working {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -2957,48 +2977,23 @@
   font-weight: 800;
   color: var(--work);
   background: var(--work-bg);
-  padding: 3px 8px;
+  padding: 4px 8px;
   border-radius: 999px;
-  font-family: inherit;
-  font-variant-numeric: normal;
+  white-space: nowrap;
 }
-.att .rcell__v.running .d {
-  width: 5px;
-  height: 5px;
+.att .rcard__t .working .d {
+  width: 6px;
+  height: 6px;
   border-radius: 999px;
   background: var(--work-dot);
   animation: att-pulse 2s infinite;
 }
-.att .rcell__v.break-running {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--warn);
-  background: var(--warn-bg);
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-family: inherit;
-  font-variant-numeric: normal;
-}
-.att .rcell__v.break-running .d {
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: var(--warn);
-  animation: att-pulse 2s infinite;
-}
 
-/* 전화 버튼 (카드 우하단) */
-.att .rcard__call-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
-}
+/* 전화 버튼 (인라인, 우측) */
 .att .rcard__call {
   width: 38px;
   height: 38px;
+  flex: 0 0 auto;
   border: none;
   border-radius: 12px;
   background: var(--work-dot);
@@ -3014,6 +3009,11 @@
 }
 .att .rcard__call:active { transform: scale(0.9); }
 .att .rcard__call svg { width: 18px; height: 18px; }
+.att .rcard__call-ph {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+}
 
 /* 상태 chip */
 .att .rstatus {
