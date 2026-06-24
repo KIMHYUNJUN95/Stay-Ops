@@ -481,7 +481,6 @@ export function MobileShell({
   // deep screen via a notification / share / deep link) would be a dead gesture with no escape.
   // When there's nothing to go back to, fall back to the mobile home instead.
   const goBack = useCallback(() => {
-    if (navigatingRef.current) return; // iOS popstate already fired — don't navigate twice
     navigatingRef.current = true; // block any stale touchmove after this fires
     setNavDirection("back"); // play the pop (left-slide) transition for this navigation
     if (typeof window !== "undefined" && window.history.length <= 1) {
@@ -539,13 +538,32 @@ export function MobileShell({
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  // When iOS standalone PWA fires its native swipe-back it dispatches `popstate` before
-  // (or instead of) `touchend`. Mark navigatingRef so goBack() is a no-op if our
-  // touchend handler also fires for the same gesture.
+  // Suppress the iOS standalone-PWA native swipe-back gesture so it doesn't fire alongside
+  // our own handler. iOS fires its system gesture in response to a left-edge rightward drag,
+  // then shows the PWA launch screen (splash) before our router.back() even runs. Calling
+  // e.preventDefault() in a non-passive touchmove listener — once we confirm rightward
+  // horizontal intent from the edge band — tells UIKit we are handling the gesture ourselves.
   useEffect(() => {
-    const onPopState = () => { navigatingRef.current = true; };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
+    let startX = 0;
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) startX = e.touches[0].clientX;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (
+        e.cancelable &&
+        e.touches.length === 1 &&
+        startX <= EDGE_BAND &&
+        e.touches[0].clientX - startX > 5
+      ) {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchmove", onMove, { passive: false });
+    return () => {
+      document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchmove", onMove);
+    };
   }, []);
 
   useEffect(() => {
