@@ -2,7 +2,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { InviteCodeFieldCopy } from "@/app/onboarding/invite-code-field";
 import { OnboardingWizard } from "@/app/onboarding/onboarding-wizard";
-import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
+import { getDictionary, inferLocaleFromAcceptLanguage, isLocale, type Locale } from "@/lib/i18n";
 import { getDeviceSurfaceFromHeaders } from "@/lib/mobile-device";
 import { getOnboardingState } from "@/lib/onboarding";
 import { normalizeNextPathForSurface, normalizePathForSurface } from "@/lib/surface-routing";
@@ -30,12 +30,13 @@ export default async function OnboardingPage({
   ]);
   const surface = getDeviceSurfaceFromHeaders(headerStore);
 
-  // ?lang= takes priority; the pre-auth locale cookie set during language
-  // selection is the fallback so the choice survives the redirect chain
-  // (login → callback → onboarding) even when no ?lang= param is carried.
+  // Priority: ?lang= param → stayops_locale cookie → Accept-Language header → "ko"
   const cookieLocale = cookieStore.get(LOCALE_COOKIE)?.value ?? "";
   const requestedLocale = params.lang ?? cookieLocale;
-  const queryLocale: Locale = isLocale(requestedLocale) ? requestedLocale : "ko";
+  const acceptLanguage = headerStore.get("accept-language") ?? "";
+  const queryLocale: Locale = isLocale(requestedLocale)
+    ? requestedLocale
+    : inferLocaleFromAcceptLanguage(acceptLanguage);
   const safeNext = normalizeNextPathForSurface(params.next, surface);
   const allowRejoin = state.status === "removed" && params.rejoin === "1";
   const joinProfile =

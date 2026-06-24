@@ -9,7 +9,7 @@ import { EmailSignupForm } from "@/app/auth/login/email-signup-form";
 import { GoogleSubmitButton } from "@/app/auth/login/google-button";
 import { LanguageSheet } from "@/app/auth/login/language-sheet";
 import { resolveAuthErrorMessage } from "@/lib/auth-errors";
-import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
+import { getDictionary, inferLocaleFromAcceptLanguage, isLocale, type Locale } from "@/lib/i18n";
 import { isMobileUserAgent } from "@/lib/mobile-device";
 import { getOnboardingState } from "@/lib/onboarding";
 import { sanitizeNextPath } from "@/lib/safe-redirect";
@@ -235,11 +235,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
   const state = await getOnboardingState();
 
-  // ?lang= param takes priority; cookie fallback keeps the selection across redirects.
+  // Priority: ?lang= param → stayops_locale cookie → Accept-Language header → "ko"
   const cookieStore = await cookies();
   const cookieLocale = cookieStore.get(LOCALE_COOKIE)?.value ?? "";
   const requestedLocale = params.lang ?? cookieLocale;
-  const locale: Locale = isLocale(requestedLocale) ? requestedLocale : "ko";
+  const headerStore = await headers();
+  const acceptLanguage = headerStore.get("accept-language") ?? "";
+  const locale: Locale = isLocale(requestedLocale)
+    ? requestedLocale
+    : inferLocaleFromAcceptLanguage(acceptLanguage);
   const dictionary = getDictionary(locale);
   const t = dictionary.auth;
   const errorMessage = resolveAuthErrorMessage(params.error, dictionary);

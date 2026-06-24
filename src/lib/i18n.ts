@@ -5946,6 +5946,35 @@ export function isLocale(value: string | null | undefined): value is Locale {
   return value === "ko" || value === "ja" || value === "en";
 }
 
+/**
+ * Infers the best supported locale from an HTTP Accept-Language header.
+ * Parses quality values (q=), sorts by preference, and maps to ko/ja/en.
+ * Falls back to "ko" when no supported language is found.
+ *
+ * Examples:
+ *   "ja-JP,ja;q=0.9,en-US;q=0.8"  → "ja"
+ *   "ko-KR,ko;q=0.9"               → "ko"
+ *   "en-US,en;q=0.9"               → "en"
+ *   "zh-CN,zh;q=0.9"               → "ko"  (unsupported → default)
+ */
+export function inferLocaleFromAcceptLanguage(header: string): Locale {
+  if (!header) return "ko";
+  const entries = header
+    .split(",")
+    .map((s) => {
+      const [tag, qPart] = s.trim().split(";");
+      const q = qPart ? parseFloat(qPart.replace("q=", "")) : 1.0;
+      return { tag: (tag ?? "").trim().toLowerCase(), q: isNaN(q) ? 1.0 : q };
+    })
+    .sort((a, b) => b.q - a.q);
+  for (const { tag } of entries) {
+    if (tag.startsWith("ko")) return "ko";
+    if (tag.startsWith("ja")) return "ja";
+    if (tag.startsWith("en")) return "en";
+  }
+  return "ko";
+}
+
 export function getDictionary(locale: Locale | string | null | undefined): Dictionary {
   if (isLocale(locale)) {
     return dictionaries[locale];
