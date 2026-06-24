@@ -390,7 +390,12 @@ export function MobileShell({
       isPullingRef.current = true;
       setIsPulling(true);
     }
+    // Haptic pulse at the commit threshold — fires once per gesture as the user crosses 72px.
+    const wasBelowThreshold = pullDistanceRef.current < PULL_THRESHOLD;
     syncPullDistance(deltaY);
+    if (wasBelowThreshold && deltaY >= PULL_THRESHOLD) {
+      if (typeof navigator !== "undefined") navigator.vibrate?.(10);
+    }
   }
 
   function handleTouchEnd() {
@@ -655,6 +660,58 @@ export function MobileShell({
           <ChevronLeft className="size-5" aria-hidden="true" />
         </span>
       </div>
+
+      {/* ── Option-B PTR indicator — fixed at the top, revealed as the whole shell slides down ── */}
+      {/* The shell (header + content + bottom nav) all translate together; this fixed layer fills
+          the gap that opens above them. Background matches the canvas so the reveal looks seamless. */}
+      <div
+        aria-atomic="true"
+        aria-live="polite"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[58] flex flex-col items-center justify-end bg-background"
+        style={{
+          height: `calc(env(safe-area-inset-top, 0px) + ${REFRESH_DISPLAY_H}px)`,
+          paddingBottom: 10,
+        }}
+      >
+        <div className="flex flex-col items-center gap-1">
+          <div
+            className="flex size-11 items-center justify-center rounded-full bg-surface ring-1 ring-border"
+            style={{
+              boxShadow: `0 4px 24px -4px rgba(15,23,42,${0.08 + 0.14 * Math.min(contentOffset / REFRESH_DISPLAY_H, 1)}), 0 1px 4px rgba(15,23,42,0.05)`,
+              opacity: Math.min(1, contentOffset / 14),
+              transform: `scale(${0.55 + 0.45 * Math.min(contentOffset / 32, 1)})`,
+              transition: isPulling ? "none" : "opacity 220ms ease, transform 400ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 220ms ease",
+            }}
+          >
+            {isRefreshPending ? (
+              <Loader2 aria-hidden="true" className="size-5 animate-spin text-primary" />
+            ) : (
+              <ArrowDown
+                aria-hidden="true"
+                className="size-5 text-muted-foreground"
+                style={{
+                  transform: `rotate(${isReadyToRefresh ? 180 : 0}deg)`,
+                  transition: "transform 260ms cubic-bezier(0.34,1.56,0.64,1)",
+                }}
+              />
+            )}
+          </div>
+          <p
+            className="text-[10px] font-semibold tracking-wide text-muted-foreground"
+            style={{
+              opacity: Math.min(1, Math.max(0, (contentOffset - 18) / 14)),
+              transition: isPulling ? "none" : "opacity 200ms ease",
+            }}
+          >
+            {isRefreshPending
+              ? dictionary.mobile.homeRefreshing
+              : isReadyToRefresh
+                ? dictionary.mobile.homeReleaseToRefresh
+                : dictionary.mobile.homePullToRefresh}
+          </p>
+        </div>
+      </div>
+
       <div className="relative mx-auto flex h-full w-full max-w-[430px] flex-col overflow-hidden">
         <aside
           aria-label={dictionary.common.menu}
@@ -789,6 +846,13 @@ export function MobileShell({
 
         <div
           className="relative flex h-full w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)]"
+          style={{
+            transform: `translateY(${contentOffset}px)`,
+            transition: isPulling
+              ? "none"
+              : "transform 420ms cubic-bezier(0.34,1.56,0.64,1)",
+            willChange: isPulling || isRefreshPending || contentOffset > 0 ? "transform" : "auto",
+          }}
         >
           {/* Top bar — OVERLAY (mirrors the bottom tab bar). It used to be an in-flow h-16
               block whose inner content merely faded on scroll, leaving the 64px slot occupied.
@@ -870,79 +934,14 @@ export function MobileShell({
             </div>
           </div>
 
-          {/* Pull-to-refresh wrapper */}
+          {/* Pull-to-refresh wrapper — content scrolls normally; the outer shell div above
+              carries the translateY so the entire chrome (header + content + bottom nav) slides
+              together (Option-B full-screen pull). The fixed indicator at the top is revealed as
+              the shell moves down. No translateY here; no gradient curtain needed. */}
           <div className="relative flex-1 overflow-hidden">
-
-            {/* Floating indicator — revealed as content slides down */}
-            <div
-              aria-atomic="true"
-              aria-live="polite"
-              className="pointer-events-none absolute inset-x-0 top-16 flex items-center justify-center"
-              style={{ height: `${REFRESH_DISPLAY_H}px` }}
-            >
-              <div className="flex flex-col items-center gap-1.5">
-                <div
-                  className="flex size-10 items-center justify-center rounded-full bg-surface ring-1 ring-border"
-                  style={{
-                    boxShadow: `0 4px 20px -4px rgba(15,23,42,${0.10 + 0.12 * Math.min(contentOffset / REFRESH_DISPLAY_H, 1)}), 0 1px 4px rgba(15,23,42,0.06)`,
-                    opacity: Math.min(1, contentOffset / 16),
-                    transform: `scale(${0.7 + 0.3 * Math.min(contentOffset / 28, 1)})`,
-                    transition: isPulling ? "none" : "opacity 200ms ease, transform 400ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 200ms ease",
-                  }}
-                >
-                  {isRefreshPending ? (
-                    <Loader2 aria-hidden="true" className="size-[18px] animate-spin text-sky-600" />
-                  ) : (
-                    <ArrowDown
-                      aria-hidden="true"
-                      className="size-[18px] text-muted-foreground"
-                      style={{
-                        transform: `rotate(${isReadyToRefresh ? 180 : 0}deg)`,
-                        transition: "transform 280ms cubic-bezier(0.34,1.56,0.64,1)",
-                      }}
-                    />
-                  )}
-                </div>
-                <p
-                  className="text-[10px] font-semibold text-muted-foreground"
-                  style={{
-                    opacity: Math.min(1, Math.max(0, (contentOffset - 12) / 16)),
-                    transition: isPulling ? "none" : "opacity 200ms ease",
-                  }}
-                >
-                  {isRefreshPending
-                    ? dictionary.mobile.homeRefreshing
-                    : isReadyToRefresh
-                      ? dictionary.mobile.homeReleaseToRefresh
-                      : dictionary.mobile.homePullToRefresh}
-                </p>
-              </div>
-            </div>
-
-            {/* Gradient curtain — dissolves in as content pulls away */}
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 top-16 z-10"
-              style={{
-                height: `${Math.min(contentOffset * 2.4, 96)}px`,
-                background: "linear-gradient(to bottom, rgba(255,255,255,0.94) 0%, rgba(255,255,255,0.60) 55%, transparent 100%)",
-                opacity: contentOffset > 4 ? 1 : 0,
-                transition: isPulling
-                  ? "none"
-                  : "opacity 200ms ease-out, height 420ms cubic-bezier(0.34,1.56,0.64,1)",
-              }}
-            />
-
-            {/* Scrollable content — slides down on pull */}
             <div
               className={cn(
-                // Constant pt-[84px] clears the 64px overlay header (which sits over the top of this
-                // wrapper) plus ~20px breathing room — identical resting spacing to the old in-flow
-                // header. It MUST stay constant: the header hides by sliding up as an overlay, so the
-                // content keeps its padding and simply scrolls under where the header was. Toggling
-                // this padding would shift rendered content while scrollTop stayed put → snap jump.
                 "h-full overflow-y-auto overscroll-y-contain bg-background px-5 pt-[84px] text-foreground",
-                // No tab bar to clear when it's hidden — the focused flow owns its own bottom spacing.
                 hideBottomNav ? "pb-8" : "pb-[124px]",
               )}
               onScroll={handleContentScroll}
@@ -950,13 +949,6 @@ export function MobileShell({
               onTouchMove={handleTouchMove}
               onTouchStart={handleTouchStart}
               ref={scrollElRef}
-              style={{
-                transform: `translateY(${contentOffset}px)`,
-                transition: isPulling
-                  ? "none"
-                  : "transform 420ms cubic-bezier(0.34,1.56,0.64,1)",
-                willChange: isPulling || isRefreshPending || contentOffset > 0 ? "transform" : "auto",
-              }}
             >
               {children}
             </div>
