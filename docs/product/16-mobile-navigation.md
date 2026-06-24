@@ -108,6 +108,14 @@ Implementation note:
   `/mobile/` (e.g. to `/account`).
   **Notifications page wrapped (2026-06-23):** `/mobile/notifications` now uses `MobileShell` so
   the left-edge swipe-back gesture is available on the notifications screen.
+  **Option B — full-screen pull-to-refresh (2026-06-24):** The PTR indicator is now a `position:fixed`
+  panel at the very top of the viewport (`z-[58]`, `bg-background`, height = `safe-area-inset-top +
+  52px`). The outer shell wrapper div (header + content + bottom nav combined) carries a
+  `translateY(${contentOffset}px)` so the entire chrome slides down together as the user pulls,
+  gradually revealing the fixed indicator behind. The inner scroll div no longer holds a `translateY`
+  or any inline PTR indicator/gradient curtain. Haptic feedback (`navigator.vibrate(10)`) fires once
+  at the pull threshold crossing. On release, the outer shell springs back with
+  `cubic-bezier(0.34,1.56,0.64,1)` while the indicator fades/scales out.
 - **`hideBottomNav` (2026-06-15):** `MobileShell` accepts an opt-in `hideBottomNav` prop (default
   `false`) that hides the bottom tab bar for focused **registration / create-edit** flows, so the
   screen reads as a dedicated form (and a sticky submit bar can't overlap the tab bar). Applied to the
