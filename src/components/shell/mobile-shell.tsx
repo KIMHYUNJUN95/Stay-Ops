@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { ReactNode, UIEvent } from "react";
-import { ArrowDown, Bell, ChevronLeft, ChevronRight, Loader2, LogOut, UserCircle, X } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, LogOut, UserCircle, X } from "lucide-react";
 import { useSession } from "@/components/providers/session-provider";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { signOut } from "@/app/auth/actions";
@@ -680,43 +680,17 @@ export function MobileShell({
           paddingTop: "env(safe-area-inset-top, 0px)",
         }}
       >
-        <div className="flex flex-col items-center gap-1">
-          <div
-            className="flex size-11 items-center justify-center rounded-full bg-surface ring-1 ring-border"
-            style={{
-              boxShadow: `0 4px 24px -4px rgba(15,23,42,${0.08 + 0.14 * Math.min(contentOffset / REFRESH_DISPLAY_H, 1)}), 0 1px 4px rgba(15,23,42,0.05)`,
-              opacity: Math.min(1, contentOffset / 14),
-              transform: `scale(${0.55 + 0.45 * Math.min(contentOffset / 32, 1)})`,
-              transition: isPulling ? "none" : "opacity 220ms ease, transform 400ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 220ms ease",
-            }}
-          >
-            {isRefreshPending ? (
-              <Loader2 aria-hidden="true" className="size-5 animate-spin text-primary" />
-            ) : (
-              <ArrowDown
-                aria-hidden="true"
-                className="size-5 text-muted-foreground"
-                style={{
-                  transform: `rotate(${isReadyToRefresh ? 180 : 0}deg)`,
-                  transition: "transform 260ms cubic-bezier(0.34,1.56,0.64,1)",
-                }}
-              />
-            )}
-          </div>
-          <p
-            className="text-[10px] font-semibold tracking-wide text-muted-foreground"
-            style={{
-              opacity: Math.min(1, Math.max(0, (contentOffset - 18) / 14)),
-              transition: isPulling ? "none" : "opacity 200ms ease",
-            }}
-          >
-            {isRefreshPending
-              ? dictionary.mobile.homeRefreshing
-              : isReadyToRefresh
-                ? dictionary.mobile.homeReleaseToRefresh
-                : dictionary.mobile.homePullToRefresh}
-          </p>
-        </div>
+        <p
+          className="text-[11px] font-semibold tracking-wide text-muted-foreground"
+          style={{
+            opacity: (isReadyToRefresh || isRefreshPending) ? 1 : 0,
+            transition: isPulling ? "none" : "opacity 180ms ease",
+          }}
+        >
+          {isRefreshPending
+            ? dictionary.mobile.homeRefreshing
+            : dictionary.mobile.homeReleaseToRefresh}
+        </p>
       </div>
 
       <div className="relative mx-auto flex h-full w-full max-w-[430px] flex-col overflow-hidden">
