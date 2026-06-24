@@ -171,7 +171,7 @@ function CalendarSheet({ selectedDate, todayDate, hasDataDates, onSelect, onClos
             <button
               type="button"
               onClick={() => { if (calM === 0) { setCalM(11); setCalY(y => y - 1); } else setCalM(m => m - 1); }}
-              aria-label="이전 달"
+              aria-label={copy.monthPrev}
             >
               <AIc>{AttIcon.back}</AIc>
             </button>
@@ -179,7 +179,7 @@ function CalendarSheet({ selectedDate, todayDate, hasDataDates, onSelect, onClos
               type="button"
               disabled={!canNext}
               onClick={() => { if (!canNext) return; if (calM === 11) { setCalM(0); setCalY(y => y + 1); } else setCalM(m => m + 1); }}
-              aria-label="다음 달"
+              aria-label={copy.monthNext}
             >
               <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
                 <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
@@ -223,7 +223,7 @@ function CalendarSheet({ selectedDate, todayDate, hasDataDates, onSelect, onClos
             className="primary"
             onClick={() => { onSelect(pendingDate); onClose(); }}
           >
-            {locale === "ko" ? "이 날짜 보기" : locale === "ja" ? "この日を表示" : "View this date"}
+            {copy.rosterViewThisDate}
           </button>
         </div>
       </div>
@@ -328,7 +328,7 @@ export function AttendanceRoster({ rosterDay, operatingDate, todayDate, locale }
         <button
           type="button"
           className="roster-calbtn"
-          aria-label="날짜 선택"
+          aria-label={copy.rosterDateSelectLabel}
           onClick={() => setCalOpen(true)}
         >
           <AIc>{AttIcon.calendar}</AIc>
@@ -349,7 +349,7 @@ export function AttendanceRoster({ rosterDay, operatingDate, todayDate, locale }
       <div className="roster-datemeta">
         <div className="roster-datemeta__d">
           {dateLabel}
-          {isToday && <span className="todaytag">{locale === "ko" ? "오늘" : locale === "ja" ? "今日" : "Today"}</span>}
+          {isToday && <span className="todaytag">{copy.rosterTodayTag}</span>}
         </div>
         <div className="roster-datemeta__c">
           <span className="cin">

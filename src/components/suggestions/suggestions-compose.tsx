@@ -76,6 +76,7 @@ export function SuggestionsCompose({
   const isEdit = Boolean(editId);
   const [pickerMode, setPickerMode] = useState<"recipient" | "references" | null>(null);
   const [ctxOpen, setCtxOpen] = useState(false);
+  const [ctxInitialProperty, setCtxInitialProperty] = useState<string | undefined>(undefined);
 
   const [recipient, setRecipient] = useState<ShareableUser | null>(initial?.recipient ?? null);
   const [references, setReferences] = useState<ShareableUser[]>(initial?.references ?? []);
@@ -329,11 +330,11 @@ export function SuggestionsCompose({
             {copy.fieldTags} <span className="opt">{copy.fieldTagsHint}</span>
           </div>
           <div className="tags-row">
-            <button type="button" className="tagbtn" onClick={() => setCtxOpen(true)}>
+            <button type="button" className="tagbtn" onClick={() => { setCtxInitialProperty(undefined); setCtxOpen(true); }}>
               <Ic>{SgIcon.building}</Ic>{copy.tagBuilding}
               <span className="v">{ctx?.propertyName ?? copy.tagSelect}</span>
             </button>
-            <button type="button" className="tagbtn" onClick={() => setCtxOpen(true)}>
+            <button type="button" className="tagbtn" onClick={() => { setCtxInitialProperty(ctx?.propertyName ?? undefined); setCtxOpen(true); }}>
               <Ic>{SgIcon.door}</Ic>{copy.tagRoom}
               <span className="v">{ctx?.roomLabel ?? copy.tagSelect}</span>
             </button>
@@ -452,6 +453,7 @@ export function SuggestionsCompose({
         <ContextPickerSheet
           buildingLabels={buildingLabels}
           copy={pickerCopy}
+          initialPropertyName={ctxInitialProperty}
           onClose={() => setCtxOpen(false)}
           onSelect={applyContext}
         />

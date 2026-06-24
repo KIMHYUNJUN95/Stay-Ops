@@ -55,6 +55,7 @@ function longDateTime(iso: string, locale: Locale): string {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
     timeZone: "Asia/Tokyo",
   }).format(new Date(iso));
 }
@@ -312,10 +313,12 @@ export function TaskDetailView({
         <LinkedContextBlock
           buildingLabels={buildingLabels}
           copy={{
+            contextBuildingOnlyLinked: copy.contextBuildingOnlyLinked,
             contextGoToReservation: copy.contextGoToReservation,
             contextLinkedSection: copy.contextLinkedSection,
             contextPickerNightsUnit: copy.contextPickerNightsUnit,
             contextPickerRoomSuffix: copy.contextPickerRoomSuffix,
+            contextRoomOnlyLinked: copy.contextRoomOnlyLinked,
           }}
           context={task.resolvedContext}
         />

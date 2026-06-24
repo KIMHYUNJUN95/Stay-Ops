@@ -249,7 +249,7 @@ export function AttendanceCapture({ mode = "in", locale }: { mode?: AttendanceSc
             <AIc>{AttIcon.qr}</AIc>
           </span>
           <div className="methodchip__t">
-            <b>GPS + QR</b>
+            <b>{copy.methodGpsQr}</b>
             <span>{copy.methodQrAvailable}</span>
           </div>
         </div>
@@ -258,7 +258,7 @@ export function AttendanceCapture({ mode = "in", locale }: { mode?: AttendanceSc
             <AIc>{AttIcon.wifi}</AIc>
           </span>
           <div className="methodchip__t">
-            <b>Wi-Fi</b>
+            <b>{copy.methodWifi}</b>
             <span>{copy.methodWifiSoon}</span>
           </div>
         </div>
@@ -321,7 +321,7 @@ function ResultSheet({
             </span>
             <span className="recap__v">
               <span className="chip c-method" style={{ padding: "3px 9px" }}>
-                GPS+QR
+                {copy.methodGpsQr}
               </span>
             </span>
           </div>

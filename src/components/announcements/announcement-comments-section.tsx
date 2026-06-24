@@ -32,6 +32,7 @@ function formatDate(value: string, locale: string) {
     minute: "2-digit",
     month: "short",
     year: "numeric",
+    hour12: false,
   }).format(new Date(value));
 }
 

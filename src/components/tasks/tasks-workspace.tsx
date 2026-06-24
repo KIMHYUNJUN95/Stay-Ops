@@ -1351,7 +1351,7 @@ export function TasksWorkspace({
                 {/* 미니 캘린더 — 월 헤더 */}
                 <div className="flex items-center justify-between px-1">
                   <button
-                    aria-label="이전 달"
+                    aria-label={copy.calPrevMonth}
                     className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-30"
                     disabled={overdueSelY === overdueY && overdueSelM === overdueM}
                     onClick={() => {
@@ -1373,7 +1373,7 @@ export function TasksWorkspace({
                     )}
                   </span>
                   <button
-                    aria-label="다음 달"
+                    aria-label={copy.calNextMonth}
                     className="flex size-8 items-center justify-center rounded-full transition-colors hover:bg-muted/50"
                     onClick={() => {
                       if (overdueSelM === 12) {

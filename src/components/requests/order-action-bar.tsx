@@ -55,6 +55,8 @@ type OrderActionBarLabels = {
   hintStatusApproved: string;
   hintStatusOrdered: string;
   hintStatusClosed: string;
+  calPrevMonth: string;
+  calNextMonth: string;
 };
 
 type OrderActionBarProps = {
@@ -126,6 +128,8 @@ function formatDeliveryPreview(
 // ─── Inline Delivery Calendar ─────────────────────────────────────────────────
 
 type DeliveryCalendarProps = {
+  calNextMonth: string;
+  calPrevMonth: string;
   endDate: string;
   locale: Locale;
   mode: "exact" | "range";
@@ -138,6 +142,8 @@ type DeliveryCalendarProps = {
 };
 
 function DeliveryCalendar({
+  calNextMonth,
+  calPrevMonth,
   endDate,
   locale,
   mode,
@@ -167,7 +173,7 @@ function DeliveryCalendar({
       {/* Month header */}
       <div className="flex items-center justify-between px-3 pb-2 pt-3">
         <button
-          aria-label="prev month"
+          aria-label={calPrevMonth}
           className="flex size-8 items-center justify-center rounded-xl border border-border/50 bg-background/60 text-muted-foreground transition-all active:scale-90 hover:border-border hover:text-foreground"
           onClick={onPrevMonth}
           type="button"
@@ -178,7 +184,7 @@ function DeliveryCalendar({
           {monthLabel}
         </span>
         <button
-          aria-label="next month"
+          aria-label={calNextMonth}
           className="flex size-8 items-center justify-center rounded-xl border border-border/50 bg-background/60 text-muted-foreground transition-all active:scale-90 hover:border-border hover:text-foreground"
           onClick={onNextMonth}
           type="button"
@@ -627,6 +633,8 @@ export function OrderActionBar({
 
                       {/* Inline calendar */}
                       <DeliveryCalendar
+                        calNextMonth={labels.calNextMonth}
+                        calPrevMonth={labels.calPrevMonth}
                         endDate={deliveryEndDate}
                         locale={locale}
                         mode={deliveryMode}

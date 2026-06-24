@@ -26,6 +26,7 @@ function formatDate(value: string | null, locale: Locale) {
     minute: "2-digit",
     month: "short",
     year: "numeric",
+    hour12: false,
   }).format(new Date(value));
 }
 

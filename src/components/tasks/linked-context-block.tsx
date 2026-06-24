@@ -8,7 +8,12 @@ import type { LinkedTaskContext } from "@/lib/tasks";
 
 type Copy = Pick<
   Dictionary["tasks"],
-  "contextGoToReservation" | "contextLinkedSection" | "contextPickerNightsUnit" | "contextPickerRoomSuffix"
+  | "contextBuildingOnlyLinked"
+  | "contextGoToReservation"
+  | "contextLinkedSection"
+  | "contextPickerNightsUnit"
+  | "contextPickerRoomSuffix"
+  | "contextRoomOnlyLinked"
 >;
 
 /**
@@ -79,6 +84,9 @@ export function LinkedContextBlock({
     context.checkinDate && context.checkoutDate
       ? `${ymdToMD(context.checkinDate)} – ${ymdToMD(context.checkoutDate)}${context.nightsCount ? ` · ${context.nightsCount}${copy.contextPickerNightsUnit}` : ""}`
       : null;
+  const contextSummary = context.roomLabel
+    ? copy.contextRoomOnlyLinked
+    : copy.contextBuildingOnlyLinked;
 
   const displayName = nameStr || localizedPropertyName || context.guestName || "—";
 
@@ -141,6 +149,10 @@ export function LinkedContextBlock({
               <ChannelBadge channel={context.channel} />
               {context.guestName ? <span>{context.guestName}</span> : null}
               {dateStr ? <span>{dateStr}</span> : null}
+            </div>
+          ) : context.propertyName ? (
+            <div className="mt-[5px] text-[11.5px] font-semibold text-muted-foreground">
+              {contextSummary}
             </div>
           ) : null}
 

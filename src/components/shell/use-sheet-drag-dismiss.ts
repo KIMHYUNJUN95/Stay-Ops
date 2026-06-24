@@ -182,6 +182,5 @@ export function useSheetDragDismiss({ shown, onDismiss }: Options) {
 }
 
 function stopTouch(e: React.TouchEvent) {
-  e.preventDefault();
   e.stopPropagation();
 }

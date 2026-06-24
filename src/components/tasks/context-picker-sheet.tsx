@@ -359,14 +359,21 @@ function AltButton({
   icon,
   label,
   onClick,
+  emphasized = false,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
+  emphasized?: boolean;
 }) {
   return (
     <button
-      className="inline-flex h-[42px] flex-1 items-center justify-center gap-1.5 rounded-[12px] border border-border bg-surface text-[12.5px] font-bold text-muted-foreground transition-colors active:bg-slate-50"
+      className={cn(
+        "inline-flex h-[42px] flex-1 items-center justify-center gap-1.5 rounded-[12px] border text-[12.5px] font-bold transition-colors active:bg-slate-50",
+        emphasized
+          ? "border-primary/20 bg-primary/[0.045] text-primary/85"
+          : "border-border bg-surface text-muted-foreground",
+      )}
       onClick={onClick}
       type="button"
     >
@@ -380,11 +387,13 @@ function AltButton({
 export function ContextPickerSheet({
   buildingLabels,
   copy,
+  initialPropertyName,
   onClose,
   onSelect,
 }: {
   buildingLabels: Record<string, string>;
   copy: Copy;
+  initialPropertyName?: string;
   onClose: () => void;
   onSelect?: (ctx: LinkedContext) => void;
 }) {
@@ -427,10 +436,24 @@ export function ContextPickerSheet({
 
   useEffect(() => {
     fetchPickerBuildings()
-      .then(setBuildings)
+      .then((b) => {
+        setBuildings(b);
+        if (initialPropertyName) {
+          const found = b.find((x) => x.id === initialPropertyName);
+          if (found) {
+            setSelectedBuilding(found);
+            setStep("room");
+            setRoomsLoading(true);
+            fetchPickerRooms(found.id)
+              .then(setBuildingRooms)
+              .catch(() => setBuildingRooms([]))
+              .finally(() => setRoomsLoading(false));
+          }
+        }
+      })
       .catch(() => setBuildings([]))
       .finally(() => setBuildingsLoading(false));
-  }, []);
+  }, [initialPropertyName]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -562,8 +585,20 @@ export function ContextPickerSheet({
     dismiss();
   };
 
-  const handleGuestDirectFromRoom = () => {
-    setStep("guest-only");
+  const handleBuildingOnlyLink = () => {
+    if (!selectedBuilding) return;
+    onSelect?.({
+      propertyId: selectedBuilding.propertyId ?? null,
+      roomId: null,
+      propertyName: selectedBuilding.id,
+      roomLabel: null,
+      reservationId: null,
+      guestName: null,
+      channel: null,
+      checkinDate: null,
+      checkoutDate: null,
+    });
+    dismiss();
   };
 
   const handleConfirmLink = () => {
@@ -883,14 +918,16 @@ export function ContextPickerSheet({
               {/* Alt buttons */}
               <div className="mt-3 flex gap-2">
                 <AltButton
-                  icon={<DoorOpen className="size-[15px] text-muted-foreground" aria-hidden="true" />}
-                  label={copy.contextPickerRoomOnly}
-                  onClick={handleRoomOnlyLink}
+                  icon={<Building2 className="size-[15px]" aria-hidden="true" />}
+                  label={copy.contextPickerBuildingOnly}
+                  onClick={handleBuildingOnlyLink}
+                  emphasized
                 />
                 <AltButton
-                  icon={<UserRound className="size-[15px] text-muted-foreground" aria-hidden="true" />}
-                  label={copy.contextPickerGuestOnly}
-                  onClick={handleGuestDirectFromRoom}
+                  icon={<DoorOpen className="size-[15px]" aria-hidden="true" />}
+                  label={copy.contextPickerRoomOnly}
+                  onClick={handleRoomOnlyLink}
+                  emphasized={selectedRoom !== null}
                 />
               </div>
             </>

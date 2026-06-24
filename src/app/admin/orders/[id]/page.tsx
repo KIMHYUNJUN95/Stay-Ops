@@ -326,6 +326,8 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             hintStatusApproved: mobileCopy.hintStatusApproved,
             hintStatusOrdered: mobileCopy.hintStatusOrdered,
             hintStatusClosed: mobileCopy.hintStatusClosed,
+            calPrevMonth: mobileCopy.calPrevMonth,
+            calNextMonth: mobileCopy.calNextMonth,
           }}
           currentDeliveryDate={order.delivery_date}
           currentDeliveryStartDate={order.delivery_start_date}

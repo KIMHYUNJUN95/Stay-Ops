@@ -46,18 +46,17 @@ function fmtHMS(sec: number): { hm: string; ss: string } {
   return { hm: `${pad(h)}:${pad(m)}`, ss: `:${pad(s)}` };
 }
 
-function methodLabel(m: string | null, manual: string): string {
-  if (m === "gps_qr") return "GPS+QR";
-  if (m === "gps_wifi") return "GPS+Wi-Fi";
-  if (m === "manual") return manual;
+function methodLabel(m: string | null, copy: AttendanceCopy): string {
+  if (m === "gps_qr") return copy.methodGpsQr;
+  if (m === "gps_wifi") return copy.methodGpsWifi;
+  if (m === "manual") return copy.methodManual;
   return "—";
 }
 
-/** Returns "AM" or "PM" from a "HH:MM" time label. */
-function amPm(label: string | null): "AM" | "PM" | null {
+function amPm(label: string | null, amLabel: string, pmLabel: string): string | null {
   if (!label) return null;
   const h = parseInt(label.split(":")[0], 10);
-  return h < 12 ? "AM" : "PM";
+  return h < 12 ? amLabel : pmLabel;
 }
 
 /** Groups sessions by operatingDate (preserves existing order = descending). */
@@ -238,6 +237,8 @@ function TimeCol({
   missingLabel,
   missingOutLabel,
   openLabel,
+  amLabel,
+  pmLabel,
 }: {
   label: string | null;
   siteName: string | null;
@@ -247,8 +248,10 @@ function TimeCol({
   missingLabel: string;
   missingOutLabel?: string;
   openLabel: string;
+  amLabel: string;
+  pmLabel: string;
 }) {
-  const period = amPm(label);
+  const period = amPm(label, amLabel, pmLabel);
   return (
     <div className="io__col">
       <div className="io__lbl">{lbl}</div>
@@ -329,6 +332,8 @@ function FlaggedSessionPicker({
                     isMissing={false}
                     missingLabel={copy.histNoRecord}
                     openLabel={copy.sessOpen}
+                    amLabel={copy.amLabel}
+                    pmLabel={copy.pmLabel}
                   />
                   <div className="io__arrow"><AIc>{AttIcon.arrowR}</AIc></div>
                   <TimeCol
@@ -340,6 +345,8 @@ function FlaggedSessionPicker({
                     missingLabel={copy.histNoRecord}
                     missingOutLabel={copy.reasonMissingOut}
                     openLabel={copy.sessOpen}
+                    amLabel={copy.amLabel}
+                    pmLabel={copy.pmLabel}
                   />
                 </div>
               </button>
@@ -372,7 +379,7 @@ function SessionRow({
 
   const paidLabel = s.workedSec != null ? fmtHM(s.workedSec) : "—";
   const missingClockOut = !s.clockOutLabel && s.status !== "open";
-  const inMethod = methodLabel(s.clockInMethod, copy.methodManual);
+  const inMethod = methodLabel(s.clockInMethod, copy);
 
   return (
     <button type="button" className={`srow ${flagCls}`} onClick={onClick}>
@@ -394,6 +401,8 @@ function SessionRow({
           isMissing={false}
           missingLabel={copy.histNoRecord}
           openLabel={copy.sessOpen}
+          amLabel={copy.amLabel}
+          pmLabel={copy.pmLabel}
         />
         <div className="io__arrow"><AIc>{AttIcon.arrowR}</AIc></div>
         <TimeCol
@@ -405,6 +414,8 @@ function SessionRow({
           missingLabel={copy.histNoRecord}
           missingOutLabel={copy.reasonMissingOut}
           openLabel={copy.sessOpen}
+          amLabel={copy.amLabel}
+          pmLabel={copy.pmLabel}
         />
       </div>
       <div className="srow__foot">
@@ -594,7 +605,7 @@ export function AttendanceHistory({
                 <span className="recap__v">
                   <span className="mono">{selected.clockInLabel ?? "--:--"}</span> ·{" "}
                   {selected.clockInSiteName ?? "—"} ·{" "}
-                  {methodLabel(selected.clockInMethod, copy.methodManual)}
+                  {methodLabel(selected.clockInMethod, copy)}
                 </span>
               </div>
               <div className="recap__r">
@@ -606,7 +617,7 @@ export function AttendanceHistory({
                     <>
                       <span className="mono">{selected.clockOutLabel}</span> ·{" "}
                       {selected.clockOutSiteName ?? "—"} ·{" "}
-                      {methodLabel(selected.clockOutMethod, copy.methodManual)}
+                      {methodLabel(selected.clockOutMethod, copy)}
                     </>
                   ) : selected.status === "open" ? (
                     copy.sessOpen

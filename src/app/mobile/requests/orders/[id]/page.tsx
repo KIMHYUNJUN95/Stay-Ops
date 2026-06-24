@@ -377,6 +377,8 @@ export default async function MobileOrderRequestDetailPage({
             hintStatusApproved: copy.hintStatusApproved,
             hintStatusOrdered: copy.hintStatusOrdered,
             hintStatusClosed: copy.hintStatusClosed,
+            calPrevMonth: copy.calPrevMonth,
+            calNextMonth: copy.calNextMonth,
           }}
           currentDeliveryDate={order.delivery_date}
           currentDeliveryStartDate={order.delivery_start_date}

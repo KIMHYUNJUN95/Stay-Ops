@@ -14,7 +14,7 @@ export type LinkedContext = {
   roomId: string | null;
   propertyName: string | null;
   roomLabel: string | null;
-  reservationId: string | null; // null = room-only link
+  reservationId: string | null; // null = building-only / room-only / guest-direct link
   guestName: string | null;
   channel: "airbnb" | "booking" | "direct" | null;
   checkinDate: string | null; // YYYY-MM-DD Tokyo
@@ -112,6 +112,9 @@ export function ContextLinkSection({
       ? `${fmtShortDate(value.checkinDate, locale)} – ${fmtShortDate(value.checkoutDate, locale)}`
       : null;
   const hasReservation = !!(value.reservationId || value.guestName);
+  const contextSummary = value.roomLabel
+    ? copy.contextRoomOnlyLinked
+    : copy.contextBuildingOnlyLinked;
 
   return (
     <div
@@ -144,7 +147,7 @@ export function ContextLinkSection({
             </div>
           ) : (
             <p className="mt-0.5 text-[11.5px] font-semibold text-muted-foreground">
-              {copy.contextRoomOnlyLinked}
+              {contextSummary}
             </p>
           )}
         </div>

@@ -18,6 +18,15 @@ import { usePersistentToggle } from "@/lib/use-persistent-toggle";
 
 type AttendanceCopy = Dictionary["attendance"];
 
+function resolveBreakErrorMsg(reason: string, copy: AttendanceCopy): string {
+  switch (reason) {
+    case "no_session": return copy.breakErrorNoSession;
+    case "already_on_break": return copy.breakErrorAlreadyOnBreak;
+    case "no_open_break": return copy.breakErrorNoOpenBreak;
+    default: return copy.breakErrorGeneric;
+  }
+}
+
 export type HomeState = "idle" | "open" | "break" | "loading";
 
 const RADIUS = 105;
@@ -235,14 +244,14 @@ function Methods({ copy }: { copy: AttendanceCopy }) {
       <div className="methodchip on">
         <span className="methodchip__ic"><AIc>{AttIcon.qr}</AIc></span>
         <div className="methodchip__t">
-          <b>GPS + QR</b>
+          <b>{copy.methodGpsQr}</b>
           <span>{copy.methodQrAvailable}</span>
         </div>
       </div>
       <div className="methodchip ghost">
         <span className="methodchip__ic"><AIc>{AttIcon.wifi}</AIc></span>
         <div className="methodchip__t">
-          <b>Wi-Fi</b>
+          <b>{copy.methodWifi}</b>
           <span>{copy.methodWifiSoon}</span>
         </div>
       </div>
@@ -294,19 +303,6 @@ export function AttendanceHome({
     true,
   );
 
-  function resolveBreakErrorMsg(reason: string): string {
-    switch (reason) {
-      case "no_session":
-        return "진행 중인 근무 세션이 없습니다.";
-      case "already_on_break":
-        return "이미 휴게 중입니다.";
-      case "no_open_break":
-        return "종료할 휴게 기록이 없습니다.";
-      default:
-        return "오류가 발생했습니다. 다시 시도해 주세요.";
-    }
-  }
-
   const onStartBreak = useCallback(async () => {
     if (busy) return;
     setBusy(true);
@@ -316,9 +312,9 @@ export function AttendanceHome({
     if (res.ok) {
       router.refresh();
     } else {
-      setErrorMsg(resolveBreakErrorMsg(res.reason ?? "error"));
+      setErrorMsg(resolveBreakErrorMsg(res.reason ?? "error", copy));
     }
-  }, [busy, router]);
+  }, [busy, copy, router]);
 
   const onEndBreak = useCallback(async () => {
     if (busy) return;
@@ -329,9 +325,9 @@ export function AttendanceHome({
     if (res.ok) {
       router.refresh();
     } else {
-      setErrorMsg(resolveBreakErrorMsg(res.reason ?? "error"));
+      setErrorMsg(resolveBreakErrorMsg(res.reason ?? "error", copy));
     }
-  }, [busy, router]);
+  }, [busy, copy, router]);
 
   const [booting, setBooting] = useState(true);
   useEffect(() => {

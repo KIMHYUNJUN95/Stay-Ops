@@ -113,6 +113,7 @@ export function CleaningRecordsView({
       ? new Intl.DateTimeFormat(locale, {
           hour: "2-digit",
           minute: "2-digit",
+          hour12: false,
           timeZone: "Asia/Tokyo",
         }).format(new Date(iso))
       : "";

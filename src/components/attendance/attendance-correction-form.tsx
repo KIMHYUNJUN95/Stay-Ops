@@ -106,11 +106,11 @@ export function AttendanceCorrectionForm({
     e.target.value = "";
     if (selected.length === 0) return;
     if (selected.some((f) => !ALLOWED_TYPES.includes(f.type))) {
-      setError("JPEG, PNG, WebP, HEIC 형식의 이미지만 첨부할 수 있어요.");
+      setError(copy.corrErrImageType);
       return;
     }
     if (selected.some((f) => f.size > MAX_BYTES)) {
-      setError("파일 크기는 10 MB 이하여야 해요.");
+      setError(copy.corrErrImageSize);
       return;
     }
     if (photos.length + selected.length > MAX_PHOTOS) {

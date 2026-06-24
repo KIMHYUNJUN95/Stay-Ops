@@ -784,6 +784,7 @@ export function TaskCreateForm({
         <ContextPickerSheet
           buildingLabels={buildingLabels}
           copy={copy}
+          initialPropertyName={linkedCtx?.propertyName ?? undefined}
           onClose={() => setCtxPickerOpen(false)}
           onSelect={(ctx) => {
             setLinkedCtx(ctx);
