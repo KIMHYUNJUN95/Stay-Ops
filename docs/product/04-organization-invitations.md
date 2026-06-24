@@ -353,6 +353,7 @@ Implementation notes (current as of 2026-06-18):
 - Invite-code join uses a **verify → preview → confirm** flow: `previewInviteCode` validates the code without consuming it and shows the resolved **organization name + user-facing role category** (the five business-facing categories, mapped from the DB role via `roleToInviteCategory`) before the user commits. Final join is still the atomic `join_organization_with_invite_code` RPC. This matches the rule "validation succeeds first, then the app shows the resolved organization + role before final membership activation."
 - The pre-auth language selection persists via the `stayops_locale` cookie and is honored on `/onboarding`, so the chosen locale survives the login → callback → onboarding chain; the completed profile stores `preferred_language`.
 - `/onboarding` handles profile completion and invite-code organization joining.
+- If the profile is already complete but there is still no membership, `/onboarding` stays in the same redesigned wizard and jumps directly to the invite-code step instead of falling back to a legacy join-only form. That membership-only invite step also exposes an explicit return-to-login action so a stuck test account is not trapped on the page.
 - Onboarding is required for all new users regardless of login method. Google users are not exempt.
 - `/admin/settings/organization` lets Developer / Super Admin create organizations.
 - Organization creation can attach the current Developer / Super Admin user as organization `owner`.

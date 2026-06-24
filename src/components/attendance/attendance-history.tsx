@@ -281,6 +281,76 @@ function TimeCol({
   );
 }
 
+function FlaggedSessionPicker({
+  sessions,
+  copy,
+  locale,
+  todayDate,
+  onSelect,
+  onClose,
+}: {
+  sessions: AttendanceSessionView[];
+  copy: AttendanceCopy;
+  locale: string;
+  todayDate: string;
+  onSelect: (id: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <BottomSheet onClose={onClose}>
+      <div className="att">
+        <h3 className="rsheet__t">{copy.histSelectFlaggedSession}</h3>
+        <div style={{ marginTop: 10 }}>
+          {sessions.map((s) => {
+            const { d, wd } = dateGroupLabel(s.operatingDate, todayDate, locale, copy.histToday);
+            const missOut = !s.clockOutLabel && s.status !== "open";
+            return (
+              <button
+                key={s.id}
+                type="button"
+                className="srow srow--flag"
+                style={{ width: "100%", textAlign: "left", marginBottom: 8 }}
+                onClick={() => onSelect(s.id)}
+              >
+                <div className="srow__top">
+                  <div className="srow__chips">
+                    <StatusChips s={s} copy={copy} />
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", flexShrink: 0 }}>
+                    {d} ({wd})
+                  </span>
+                </div>
+                <div className="inout">
+                  <TimeCol
+                    label={s.clockInLabel}
+                    siteName={s.clockInSiteName}
+                    lbl={copy.histClockIn}
+                    isOpen={false}
+                    isMissing={false}
+                    missingLabel={copy.histNoRecord}
+                    openLabel={copy.sessOpen}
+                  />
+                  <div className="io__arrow"><AIc>{AttIcon.arrowR}</AIc></div>
+                  <TimeCol
+                    label={s.clockOutLabel}
+                    siteName={s.clockOutSiteName}
+                    lbl={copy.histClockOut}
+                    isOpen={s.status === "open"}
+                    isMissing={missOut}
+                    missingLabel={copy.histNoRecord}
+                    missingOutLabel={copy.reasonMissingOut}
+                    openLabel={copy.sessOpen}
+                  />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </BottomSheet>
+  );
+}
+
 function SessionRow({
   s,
   copy,
@@ -377,6 +447,7 @@ export function AttendanceHistory({
   const copy = getDictionary(locale).attendance;
   const isCurrentMonth = ym === currentYm;
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
   const close = () => setSelectedId(null);
 
@@ -422,7 +493,10 @@ export function AttendanceHistory({
         <button
           type="button"
           className="attn attn--warn"
-          onClick={() => setSelectedId(flagged[0].id)}
+          onClick={() => {
+              if (flagged.length === 1) setSelectedId(flagged[0].id);
+              else setPickerOpen(true);
+            }}
         >
           <span className="attn__ic"><AIc>{AttIcon.warn}</AIc></span>
           <div className="attn__b">
@@ -490,6 +564,20 @@ export function AttendanceHistory({
           </div>
         );
       })}
+
+      {pickerOpen && (
+        <FlaggedSessionPicker
+          sessions={flagged}
+          copy={copy}
+          locale={locale}
+          todayDate={todayDate}
+          onSelect={(id) => {
+            setPickerOpen(false);
+            setSelectedId(id);
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
 
       {selected && (
         <BottomSheet onClose={close}>

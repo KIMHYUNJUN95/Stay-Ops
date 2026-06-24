@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { signOut } from "@/app/auth/actions";
 import {
   previewInviteCode,
   submitOnboardingProfile,
@@ -77,7 +78,8 @@ export type OnboardingJoinCopy = {
   confirmSubtitle: string;
   roleLabel: string;
   verified: string;
-  joinCta: string;
+  reviewCta: string;
+  submitCta: string;
   // reused copy
   codePlaceholder: string;
   orgLabel: string;
@@ -107,6 +109,10 @@ export type OnboardingSuccessCopy = {
   bodyJoined: string;
   bodyNoTeam: string;
   startCta: string;
+};
+
+export type OnboardingExitCopy = {
+  backToLogin: string;
 };
 
 type Country = { iso: string; flag: string; dial: string };
@@ -306,7 +312,7 @@ function StickyCta({
   withArrow?: boolean;
 }) {
   return (
-    <div className="flex-none px-[26px] py-[14px] pb-[max(14px,env(safe-area-inset-bottom))]">
+    <div className="flex-none px-[26px] py-[14px] pb-[calc(max(14px,env(safe-area-inset-bottom))+var(--keyboard-inset,0px))]">
       <button
         type="button"
         onClick={onClick}
@@ -620,8 +626,12 @@ export function OnboardingWizard({
   join,
   review,
   success,
+  exit,
   languageName,
   profile,
+  initialStep = 0,
+  allowInviteSkip = true,
+  showExitToLogin = false,
 }: {
   intro: OnboardingIntroCopy;
   steps: OnboardingStepsCopy;
@@ -629,16 +639,47 @@ export function OnboardingWizard({
   join: OnboardingJoinCopy;
   review: OnboardingReviewCopy;
   success: OnboardingSuccessCopy;
+  exit: OnboardingExitCopy;
   languageName: string;
-  profile: { copy: ProfileFormCopy; locale: Locale; safeNext: string };
+  profile: {
+    copy: ProfileFormCopy;
+    locale: Locale;
+    safeNext: string;
+    initialName?: string;
+    initialBirthDate?: string;
+    initialPhone?: string;
+  };
+  initialStep?: number;
+  allowInviteSkip?: boolean;
+  showExitToLogin?: boolean;
 }) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
-  const [name, setName] = useState("");
-  const [dob, setDob] = useState<DateParts | null>(null);
+  const initialPhoneDigits = profile.initialPhone
+    ? profile.initialPhone.replace(/\D/g, "")
+    : "";
+  const inferredCountry =
+    COUNTRIES.find((c) => {
+      const dialDigits = c.dial.replace(/\D/g, "");
+      return (
+        initialPhoneDigits.startsWith(dialDigits) &&
+        initialPhoneDigits.length > dialDigits.length
+      );
+    }) ?? COUNTRIES[0];
+  const initialNationalDigits = profile.initialPhone
+    ? initialPhoneDigits.slice(inferredCountry.dial.replace(/\D/g, "").length)
+    : "";
+  const [step, setStep] = useState(initialStep);
+  const [name, setName] = useState(profile.initialName ?? "");
+  const [dob, setDob] = useState<DateParts | null>(() => {
+    const birth = profile.initialBirthDate?.trim();
+    if (!birth || !/^\d{4}-\d{2}-\d{2}$/.test(birth)) return null;
+    const [y, m, d] = birth.split("-").map(Number);
+    if (!y || !m || !d) return null;
+    return { year: y, month: m, day: d };
+  });
   const [dobSheet, setDobSheet] = useState(false);
-  const [countryIso, setCountryIso] = useState("jp");
-  const [phone, setPhone] = useState("");
+  const [countryIso, setCountryIso] = useState(inferredCountry.iso);
+  const [phone, setPhone] = useState(initialNationalDigits);
   const [countrySheet, setCountrySheet] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
   const [inviteStatus, setInviteStatus] = useState<
@@ -656,19 +697,25 @@ export function OnboardingWizard({
   async function submit() {
     setSubmitting(true);
     setSubmitErrorKey(null);
-    const result = await submitOnboardingProfile({
-      name: name.trim(),
-      birthDate,
-      phoneNumber: phoneE164,
-      preferredLanguage: profile.locale,
-      inviteCode: preview ? inviteCode.trim() : "",
-      next: profile.safeNext,
-    });
-    if (result.ok) {
-      setDest(result.redirectTo);
-      goTo(7);
-    } else {
-      setSubmitErrorKey(result.errorKey);
+    try {
+      const result = await submitOnboardingProfile({
+        name: name.trim(),
+        birthDate,
+        phoneNumber: phoneE164,
+        preferredLanguage: profile.locale,
+        inviteCode: preview ? inviteCode.trim() : "",
+        next: profile.safeNext,
+      });
+      if (result.ok) {
+        setDest(result.redirectTo);
+        setSubmitting(false);
+        goTo(7);
+      } else {
+        setSubmitErrorKey(result.errorKey);
+        setSubmitting(false);
+      }
+    } catch {
+      setSubmitErrorKey("network_error");
       setSubmitting(false);
     }
   }
@@ -678,31 +725,37 @@ export function OnboardingWizard({
     if (!trimmed) return;
     setInviteStatus("verifying");
     setInviteErrorKey(null);
-    const result = await previewInviteCode(trimmed);
-    if (result.ok) {
-      setPreview({
-        organizationName: result.organizationName,
-        roleCategory: result.roleCategory,
-      });
-      setInviteStatus("idle");
-      goTo(5);
-    } else {
+    try {
+      const result = await previewInviteCode(trimmed);
+      if (result.ok) {
+        setPreview({
+          organizationName: result.organizationName,
+          roleCategory: result.roleCategory,
+        });
+        setInviteStatus("idle");
+        goTo(5);
+      } else {
+        setPreview(null);
+        setInviteErrorKey(result.errorKey);
+        setInviteStatus("error");
+      }
+    } catch {
       setPreview(null);
-      setInviteErrorKey(result.errorKey);
+      setInviteErrorKey("network_error");
       setInviteStatus("error");
     }
   }
 
   useEffect(() => {
-    window.history.replaceState({ obStep: 0 }, "");
+    window.history.replaceState({ obStep: initialStep }, "");
     const onPop = (e: PopStateEvent) => {
       const s =
-        e.state && typeof e.state.obStep === "number" ? e.state.obStep : 0;
+        e.state && typeof e.state.obStep === "number" ? e.state.obStep : initialStep;
       setStep(s);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, []);
+  }, [initialStep]);
 
   function goTo(next: number) {
     window.history.pushState({ obStep: next }, "");
@@ -719,6 +772,7 @@ export function OnboardingWizard({
     ? `${selectedCountry.dial}${nationalDigits}`
     : "";
   const phoneValid = nationalDigits.length >= 6;
+  const showExitLink = showExitToLogin && step >= 4 && step <= 6;
 
   // ── Fallback · existing all-in-one profile form (unreachable in the normal flow) ─
   if (step >= 8) {
@@ -802,7 +856,7 @@ export function OnboardingWizard({
       >
         <ProgressHeader step={4} />
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-          <div className="flex-1 overflow-y-auto pt-2">
+          <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em]">
               {review.title}
             </h1>
@@ -893,6 +947,16 @@ export function OnboardingWizard({
 
           <div className="flex-none py-[14px] pb-[max(14px,env(safe-area-inset-bottom))]">
             <SpinnerButton label={review.submit} onClick={submit} busy={submitting} />
+            {showExitLink && (
+              <form action={signOut} className="mt-3 text-center">
+                <button
+                  type="submit"
+                  className="text-[13px] font-extrabold text-muted-foreground underline-offset-2 hover:underline"
+                >
+                  {exit.backToLogin}
+                </button>
+              </form>
+            )}
           </div>
         </section>
       </main>
@@ -909,7 +973,7 @@ export function OnboardingWizard({
       >
         <ProgressHeader step={4} />
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-          <div className="flex-1 overflow-y-auto pt-2">
+          <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
               {join.confirmEyebrow}
             </p>
@@ -949,7 +1013,21 @@ export function OnboardingWizard({
             </div>
           </div>
 
-          <StickyCta label={join.joinCta} onClick={() => goTo(6)} />
+          {allowInviteSkip ? (
+            <StickyCta label={join.reviewCta} onClick={() => goTo(6)} withArrow />
+          ) : (
+            <StickyCta label={join.submitCta} onClick={submit} disabled={submitting} />
+          )}
+          {showExitLink && (
+            <form action={signOut} className="px-[26px] pb-[calc(max(14px,env(safe-area-inset-bottom))+var(--keyboard-inset,0px))] text-center">
+              <button
+                type="submit"
+                className="text-[13px] font-extrabold text-muted-foreground underline-offset-2 hover:underline"
+              >
+                {exit.backToLogin}
+              </button>
+            </form>
+          )}
         </section>
       </main>
     );
@@ -965,7 +1043,7 @@ export function OnboardingWizard({
       >
         <ProgressHeader step={4} />
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-          <div className="flex-1 overflow-y-auto pt-2">
+          <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
               {join.inviteEyebrow}
             </p>
@@ -1024,7 +1102,7 @@ export function OnboardingWizard({
             </div>
           </div>
 
-          <div className="flex-none py-[14px] pb-[max(14px,env(safe-area-inset-bottom))]">
+          <div className="flex-none py-[14px] pb-[calc(max(14px,env(safe-area-inset-bottom))+var(--keyboard-inset,0px))]">
             <button
               type="button"
               onClick={verifyInvite}
@@ -1039,18 +1117,28 @@ export function OnboardingWizard({
             >
               {verifying ? join.checking : join.verifyCta}
             </button>
-            <div className="mt-3 text-center">
+            {allowInviteSkip && (
+              <div className="mt-3 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreview(null);
+                    goTo(6);
+                  }}
+                  className="text-[13px] font-extrabold text-muted-foreground"
+                >
+                  {join.skip}
+                </button>
+              </div>
+            )}
+            <form action={signOut} className="mt-3 text-center">
               <button
-                type="button"
-                onClick={() => {
-                  setPreview(null);
-                  goTo(6);
-                }}
-                className="text-[13px] font-extrabold text-muted-foreground"
+                type="submit"
+                className="text-[13px] font-extrabold text-muted-foreground underline-offset-2 hover:underline"
               >
-                {join.skip}
+                {exit.backToLogin}
               </button>
-            </div>
+            </form>
           </div>
         </section>
       </main>
@@ -1066,7 +1154,7 @@ export function OnboardingWizard({
       >
         <ProgressHeader step={3} />
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-          <div className="flex-1 overflow-y-auto pt-2">
+          <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
               {steps.basicsEyebrow}
             </p>
@@ -1142,7 +1230,7 @@ export function OnboardingWizard({
       >
         <ProgressHeader step={2} />
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-          <div className="flex-1 overflow-y-auto pt-2">
+          <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
               {steps.basicsEyebrow}
             </p>
@@ -1210,7 +1298,7 @@ export function OnboardingWizard({
       >
         <ProgressHeader step={1} />
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-          <div className="flex-1 overflow-y-auto pt-2">
+          <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
               {steps.basicsEyebrow}
             </p>
@@ -1266,7 +1354,7 @@ export function OnboardingWizard({
     >
       <header className="h-[48px] flex-none" />
       <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-        <div className="flex-1 overflow-y-auto pt-2">
+        <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
           {/* Logo slot intentionally empty (a brand logo is added later). */}
           <div className="size-14" aria-hidden="true" />
 
