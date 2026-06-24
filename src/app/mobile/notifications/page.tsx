@@ -63,6 +63,12 @@ export default async function MobileNotificationsPage() {
               empty: copy.empty,
               unread: copy.unread,
               openDetail: copy.openDetail,
+              deleteMode: copy.deleteMode,
+              cancelSelect: copy.cancelSelect,
+              selectAll: copy.selectAll,
+              deselectAll: copy.deselectAll,
+              deleteSelected: copy.deleteSelected,
+              swipeDeleteBtn: copy.swipeDeleteBtn,
             }}
           />
         )}

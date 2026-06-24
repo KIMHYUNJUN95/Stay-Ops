@@ -94,6 +94,31 @@ export async function markNotificationRead(
   return Boolean(data);
 }
 
+export async function deleteNotifications(
+  supabase: SupabaseClient<Database>,
+  notificationIds: string[],
+  scope: NotificationScope,
+): Promise<boolean> {
+  if (notificationIds.length === 0) return true;
+  const { error } = await supabase
+    .from("notifications")
+    .delete()
+    .in("id", notificationIds)
+    .eq("recipient_user_id", scope.userId)
+    .eq("organization_id", scope.organizationId);
+
+  if (error) {
+    if (isNotificationsTableUnavailable(error.message)) {
+      logNotificationsSchemaUnavailable("delete", error.message);
+      return false;
+    }
+    console.error("[notifications] delete failed", error.message);
+    return false;
+  }
+
+  return true;
+}
+
 export async function markAllNotificationsRead(
   supabase: SupabaseClient<Database>,
   scope: NotificationScope,

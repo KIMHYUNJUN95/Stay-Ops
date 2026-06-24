@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  deleteNotifications as deleteNotificationsInDb,
   markAllNotificationsRead as markAllNotificationsReadInOrg,
   markNotificationRead,
 } from "@/lib/notifications/queries";
@@ -32,6 +33,19 @@ export async function markNotificationAsRead(notificationId: string) {
   revalidatePath("/mobile/notifications");
 
   return { ok: updated as boolean };
+}
+
+export async function deleteNotifications(ids: string[]) {
+  const scope = await getNotificationScope();
+  if (!scope) return { ok: false as const, error: "unauthorized" };
+  if (!ids.length) return { ok: true as const };
+
+  const supabase = await getSupabaseServerClient();
+  const ok = await deleteNotificationsInDb(supabase, ids, scope);
+  if (!ok) return { ok: false as const, error: "delete_failed" };
+
+  revalidatePath("/mobile/notifications");
+  return { ok: true as const };
 }
 
 export async function markAllNotificationsRead() {
