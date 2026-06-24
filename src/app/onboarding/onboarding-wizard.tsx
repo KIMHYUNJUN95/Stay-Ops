@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { signOut } from "@/app/auth/actions";
 import {
   joinWithInviteCode,
@@ -654,7 +653,6 @@ export function OnboardingWizard({
   allowInviteSkip?: boolean;
   showExitToLogin?: boolean;
 }) {
-  const router = useRouter();
   const initialPhoneDigits = profile.initialPhone
     ? profile.initialPhone.replace(/\D/g, "")
     : "";
@@ -855,7 +853,7 @@ export function OnboardingWizard({
 
           <StickyCta
             label={success.startCta}
-            onClick={() => router.push(dest)}
+            onClick={() => { window.location.href = dest; }}
             withArrow
           />
         </section>
