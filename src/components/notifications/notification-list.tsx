@@ -19,6 +19,8 @@ type NotificationListProps = {
   items: NotificationRow[];
   locale: Locale;
   copy: {
+    title: string;
+    subtitle: string;
     markAllRead: string;
     empty: string;
     unread: string;
@@ -351,6 +353,10 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
   if (items.length === 0) {
     return (
       <div className="sg">
+        <div className="mb-4 space-y-1">
+          <h1 className="text-[24px] font-extrabold tracking-[-0.02em] text-foreground">{copy.title}</h1>
+          <p className="text-sm text-muted-foreground">{copy.subtitle}</p>
+        </div>
         <p className="rounded-2xl border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-sm font-semibold text-muted-foreground">
           {copy.empty}
         </p>
@@ -360,14 +366,15 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
 
   return (
     <div className="sg">
-      {/* Top bar */}
-      <div className="mb-2.5 flex min-h-[28px] items-center justify-between gap-3 px-1">
+      {/* 헤더 — 타이틀(좌) + 액션 버튼(우) 같은 행 */}
+      <div className="mb-3 flex items-start justify-between gap-3 px-1">
         {isSelectMode ? (
           <>
-            <p className="text-xs font-bold text-muted-foreground">
-              {allSelected ? copy.deselectAll : copy.selectAll}
-            </p>
-            <div className="flex items-center gap-3">
+            <div className="space-y-1">
+              <h1 className="text-[24px] font-extrabold tracking-[-0.02em] text-foreground">{copy.title}</h1>
+              <p className="text-sm text-muted-foreground">{copy.subtitle}</p>
+            </div>
+            <div className="flex items-center gap-3 pt-1">
               <button
                 className="text-xs font-bold text-primary disabled:opacity-50"
                 disabled={anyPending}
@@ -397,14 +404,11 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
           </>
         ) : (
           <>
-            {unreadCount > 0 ? (
-              <p className="text-xs font-bold text-muted-foreground">
-                {copy.unread.replace("{count}", String(unreadCount))}
-              </p>
-            ) : (
-              <span />
-            )}
-            <div className="flex items-center gap-3">
+            <div className="space-y-1">
+              <h1 className="text-[24px] font-extrabold tracking-[-0.02em] text-foreground">{copy.title}</h1>
+              <p className="text-sm text-muted-foreground">{copy.subtitle}</p>
+            </div>
+            <div className="flex items-center gap-3 pt-1">
               {unreadCount > 0 && (
                 <button
                   className="text-xs font-bold text-primary disabled:opacity-50"

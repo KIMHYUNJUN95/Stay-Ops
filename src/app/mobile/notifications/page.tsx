@@ -39,26 +39,29 @@ export default async function MobileNotificationsPage() {
 
   return (
     <MobileShell badges={navBadges} title={copy.title}>
-      <div className="space-y-4 px-1 pb-6">
-        <div className="space-y-1">
-          <h1 className="text-[24px] font-extrabold tracking-[-0.02em] text-foreground">
-            {copy.title}
-          </h1>
-          <p className="text-sm text-muted-foreground">{copy.subtitle}</p>
-        </div>
-
+      <div className="px-1 pb-6">
         {schemaUnavailable ? (
-          <section className="rounded-[28px] border border-dashed border-border bg-muted/30 px-5 py-6">
-            <h2 className="text-sm font-bold text-foreground">{copy.unavailableTitle}</h2>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              {copy.unavailableBody}
-            </p>
-          </section>
+          <>
+            <div className="space-y-1 mb-4">
+              <h1 className="text-[24px] font-extrabold tracking-[-0.02em] text-foreground">
+                {copy.title}
+              </h1>
+              <p className="text-sm text-muted-foreground">{copy.subtitle}</p>
+            </div>
+            <section className="rounded-[28px] border border-dashed border-border bg-muted/30 px-5 py-6">
+              <h2 className="text-sm font-bold text-foreground">{copy.unavailableTitle}</h2>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                {copy.unavailableBody}
+              </p>
+            </section>
+          </>
         ) : (
           <NotificationList
             items={items}
             locale={locale}
             copy={{
+              title: copy.title,
+              subtitle: copy.subtitle,
               markAllRead: copy.markAllRead,
               empty: copy.empty,
               unread: copy.unread,
