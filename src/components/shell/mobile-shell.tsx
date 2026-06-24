@@ -340,9 +340,15 @@ export function MobileShell({
     });
   }
 
+  // Numeric offset — used for indicator opacity/scale animations (0..REFRESH_DISPLAY_H range).
   const contentOffset = isRefreshPending
     ? REFRESH_DISPLAY_H
     : computeContentOffset(pullDistanceState);
+  // CSS value for the shell translateY. When refreshing we add env(safe-area-inset-top) so the
+  // indicator content is positioned fully BELOW the notch/status-bar, not hidden behind it.
+  const shellY = isRefreshPending
+    ? `calc(env(safe-area-inset-top, 0px) + ${REFRESH_DISPLAY_H}px)`
+    : `${computeContentOffset(pullDistanceState)}px`;
   const isReadyToRefresh = pullDistanceState >= PULL_THRESHOLD;
 
   function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
@@ -667,10 +673,11 @@ export function MobileShell({
       <div
         aria-atomic="true"
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 top-0 z-[1] flex flex-col items-center justify-end bg-background"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[1] flex flex-col items-center justify-center bg-background"
         style={{
           height: `calc(env(safe-area-inset-top, 0px) + ${REFRESH_DISPLAY_H}px)`,
-          paddingBottom: 10,
+          // Push content below the notch/status-bar so it's visible when the shell slides down.
+          paddingTop: "env(safe-area-inset-top, 0px)",
         }}
       >
         <div className="flex flex-col items-center gap-1">
@@ -851,7 +858,7 @@ export function MobileShell({
             // so the header is not covered when contentOffset = 0. When pulling, the shell slides
             // down revealing the indicator through the gap at the top.
             zIndex: 2,
-            transform: `translateY(${contentOffset}px)`,
+            transform: `translateY(${shellY})`,
             transition: isPulling
               ? "none"
               : "transform 420ms cubic-bezier(0.34,1.56,0.64,1)",
