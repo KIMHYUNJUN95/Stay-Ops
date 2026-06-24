@@ -87,8 +87,8 @@ function SwipeItem({
   const isDraggingRef = useRef(false);
   const isOpen = openSwipeId === notification.id;
 
-  const SWIPE_WIDTH = 80;
-  const COMMIT_THRESHOLD = 44;
+  const SWIPE_WIDTH = 76;
+  const COMMIT_THRESHOLD = 40;
 
   const applyTransform = useCallback((x: number, animated: boolean) => {
     const el = contentRef.current;
@@ -97,7 +97,6 @@ function SwipeItem({
     el.style.transform = `translateX(${x}px)`;
   }, []);
 
-  // Sync open/closed state when openSwipeId changes (another row opened → close this one)
   useEffect(() => {
     if (!isOpen && currentOffsetRef.current !== 0) {
       currentOffsetRef.current = 0;
@@ -105,7 +104,6 @@ function SwipeItem({
     }
   }, [isOpen, applyTransform]);
 
-  // Close swipe when entering select mode
   useEffect(() => {
     if (isSelectMode && currentOffsetRef.current !== 0) {
       currentOffsetRef.current = 0;
@@ -124,8 +122,7 @@ function SwipeItem({
     if (!isDraggingRef.current || isSelectMode) return;
     const dx = e.touches[0].clientX - startXRef.current;
     const base = isOpen ? -SWIPE_WIDTH : 0;
-    const raw = base + dx;
-    const clamped = Math.max(-SWIPE_WIDTH, Math.min(8, raw));
+    const clamped = Math.max(-SWIPE_WIDTH, Math.min(6, base + dx));
     applyTransform(clamped, false);
   }
 
@@ -134,9 +131,8 @@ function SwipeItem({
     isDraggingRef.current = false;
     const dx = e.changedTouches[0].clientX - startXRef.current;
     const base = isOpen ? -SWIPE_WIDTH : 0;
-    const finalOffset = base + dx;
 
-    if (finalOffset < -COMMIT_THRESHOLD) {
+    if (base + dx < -COMMIT_THRESHOLD) {
       currentOffsetRef.current = -SWIPE_WIDTH;
       applyTransform(-SWIPE_WIDTH, true);
       setOpenSwipeId(notification.id);
@@ -149,13 +145,9 @@ function SwipeItem({
 
   function handleTouchCancel() {
     isDraggingRef.current = false;
-    if (isOpen) {
-      currentOffsetRef.current = -SWIPE_WIDTH;
-      applyTransform(-SWIPE_WIDTH, true);
-    } else {
-      currentOffsetRef.current = 0;
-      applyTransform(0, true);
-    }
+    const target = isOpen ? -SWIPE_WIDTH : 0;
+    currentOffsetRef.current = target;
+    applyTransform(target, true);
   }
 
   function handleClick() {
@@ -176,104 +168,95 @@ function SwipeItem({
   const isUnread = !notification.read_at;
 
   return (
-    <div
-      className="notif-swipe-row"
-      style={{ position: "relative", overflow: "hidden", borderRadius: "16px", marginBottom: "6px" }}
-    >
-      {/* Delete button behind the row */}
+    <div style={{ position: "relative", overflow: "hidden", borderRadius: 15, marginBottom: 9 }}>
+      {/* Delete button — solid, no gradient */}
       <div
         aria-hidden="true"
         style={{
           position: "absolute",
           inset: 0,
-          right: 0,
           display: "flex",
           alignItems: "center",
           justifyContent: "flex-end",
-          background: "linear-gradient(90deg, transparent 0%, #ef4444 40%)",
-          borderRadius: "16px",
-          paddingRight: "12px",
+          background: "#ef4444",
+          borderRadius: 15,
         }}
       >
         <button
           aria-label={swipeDeleteLabel}
-          className="flex flex-col items-center gap-0.5"
           disabled={isPending}
           onClick={(e) => { e.stopPropagation(); onDelete(notification.id); }}
           style={{
+            width: SWIPE_WIDTH,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 3,
             color: "#fff",
-            width: 56,
-            padding: "6px 0",
             background: "none",
             border: "none",
             cursor: "pointer",
+            padding: "8px 0",
           }}
           type="button"
         >
-          <Trash2 size={18} strokeWidth={2} />
-          <span style={{ fontSize: 11, fontWeight: 700 }}>{swipeDeleteLabel}</span>
+          <Trash2 size={17} strokeWidth={2.1} />
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "-0.01em" }}>
+            {swipeDeleteLabel}
+          </span>
         </button>
       </div>
 
-      {/* Swipeable content */}
+      {/* Swipeable content — touch handlers here, not on the .notif button */}
       <div
         ref={contentRef}
         onTouchCancel={handleTouchCancel}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
         onTouchStart={handleTouchStart}
-        style={{ position: "relative", zIndex: 1, touchAction: "pan-y", willChange: "transform" }}
+        style={{ position: "relative", zIndex: 1, touchAction: "pan-y" }}
       >
         <button
-          className={`notif${isUnread ? " unread" : ""}${isSelected ? " notif--selected" : ""}`}
+          className={`notif${isUnread ? " unread" : ""}`}
           disabled={isPending}
           onClick={handleClick}
-          style={{
-            width: "100%",
-            textAlign: "left",
-            borderRadius: "16px",
-            background: isSelected
-              ? "color-mix(in srgb, var(--primary) 10%, var(--surface))"
-              : undefined,
-            transition: "background 160ms ease",
-          }}
+          style={{ marginBottom: 0, borderRadius: 15 }}
           type="button"
         >
-          {/* Checkbox area */}
+          {/* Animated checkbox in select mode */}
           <span
             aria-hidden="true"
             style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              width: isSelectMode ? 24 : 0,
+              width: isSelectMode ? 22 : 0,
               overflow: "hidden",
               flexShrink: 0,
-              transition: "width 200ms cubic-bezier(0.32,0.72,0,1)",
-              marginRight: isSelectMode ? 10 : 0,
+              transition: "width 200ms cubic-bezier(0.32,0.72,0,1), margin-right 200ms cubic-bezier(0.32,0.72,0,1)",
+              marginRight: isSelectMode ? 2 : 0,
             }}
           >
             <span
               style={{
-                width: 22,
-                height: 22,
+                width: 20,
+                height: 20,
                 borderRadius: "50%",
-                border: isSelected
-                  ? "2px solid var(--primary)"
-                  : "2px solid var(--border)",
-                background: isSelected ? "var(--primary)" : "var(--surface)",
+                border: isSelected ? "2px solid var(--primary)" : "2px solid var(--line)",
+                background: isSelected ? "var(--primary)" : "var(--card)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
-                transition: "border-color 160ms, background 160ms",
+                transition: "border-color 150ms, background 150ms",
               }}
             >
-              {isSelected ? (
-                <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
-                  <path d="M1.5 4.5L4 7L9.5 1.5" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+              {isSelected && (
+                <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                  <path d="M1 4L3.5 6.5L9 1" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-              ) : null}
+              )}
             </span>
           </span>
 
@@ -297,7 +280,7 @@ function SwipeItem({
   );
 }
 
-// ── Main list component ──────────────────────────────────────────────────────
+// ── Main component ───────────────────────────────────────────────────────────
 export function NotificationList({ items, locale, copy }: NotificationListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -308,6 +291,7 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
 
   const unreadCount = items.filter((n) => !n.read_at).length;
   const allSelected = items.length > 0 && selectedIds.size === items.length;
+  const anyPending = isPending || isDeleting;
 
   function enterSelectMode() {
     setOpenSwipeId(null);
@@ -330,18 +314,12 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
   }
 
   function toggleSelectAll() {
-    if (allSelected) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(items.map((n) => n.id)));
-    }
+    setSelectedIds(allSelected ? new Set() : new Set(items.map((n) => n.id)));
   }
 
   function handleOpen(notification: NotificationRow) {
     startTransition(async () => {
-      if (!notification.read_at) {
-        await markNotificationAsRead(notification.id);
-      }
+      if (!notification.read_at) await markNotificationAsRead(notification.id);
       router.push(notification.href);
     });
   }
@@ -361,7 +339,7 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
   }
 
   function handleDeleteSelected() {
-    if (selectedIds.size === 0) return;
+    if (!selectedIds.size) return;
     const ids = Array.from(selectedIds);
     startDeleteTransition(async () => {
       await deleteNotifications(ids);
@@ -369,8 +347,6 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
       router.refresh();
     });
   }
-
-  const anyPending = isPending || isDeleting;
 
   if (items.length === 0) {
     return (
@@ -384,74 +360,35 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
 
   return (
     <div className="sg">
-      {/* ── Top action bar ── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-          marginBottom: 12,
-          minHeight: 32,
-        }}
-      >
+      {/* Top bar */}
+      <div className="mb-2.5 flex min-h-[28px] items-center justify-between gap-3 px-1">
         {isSelectMode ? (
           <>
-            {/* Select mode left: count */}
-            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--muted-foreground)" }}>
-              {selectedIds.size > 0
-                ? copy.deleteSelected.replace("{count}", String(selectedIds.size))
-                : copy.selectAll}
+            <p className="text-xs font-bold text-muted-foreground">
+              {allSelected ? copy.deselectAll : copy.selectAll}
             </p>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              {/* Select all toggle */}
+            <div className="flex items-center gap-3">
               <button
+                className="text-xs font-bold text-primary disabled:opacity-50"
                 disabled={anyPending}
                 onClick={toggleSelectAll}
-                style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "var(--primary)",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: "4px 0",
-                }}
                 type="button"
               >
                 {allSelected ? copy.deselectAll : copy.selectAll}
               </button>
-              {/* Delete selected */}
               <button
-                disabled={anyPending || selectedIds.size === 0}
+                className="text-xs font-bold disabled:opacity-40"
+                disabled={anyPending || !selectedIds.size}
                 onClick={handleDeleteSelected}
-                style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: selectedIds.size > 0 ? "#ef4444" : "var(--muted-foreground)",
-                  background: "none",
-                  border: "none",
-                  cursor: selectedIds.size > 0 ? "pointer" : "default",
-                  padding: "4px 0",
-                  transition: "color 160ms",
-                }}
+                style={{ color: selectedIds.size ? "#ef4444" : undefined }}
                 type="button"
               >
                 {copy.deleteSelected.replace("{count}", String(selectedIds.size))}
               </button>
-              {/* Cancel */}
               <button
+                className="text-xs font-semibold text-foreground disabled:opacity-50"
                 disabled={anyPending}
                 onClick={exitSelectMode}
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "var(--foreground)",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: "4px 0",
-                }}
                 type="button"
               >
                 {copy.cancelSelect}
@@ -460,16 +397,15 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
           </>
         ) : (
           <>
-            {/* Normal mode left: unread count */}
             {unreadCount > 0 ? (
-              <p style={{ fontSize: 12, fontWeight: 700, color: "var(--muted-foreground)" }}>
+              <p className="text-xs font-bold text-muted-foreground">
                 {copy.unread.replace("{count}", String(unreadCount))}
               </p>
             ) : (
               <span />
             )}
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              {unreadCount > 0 ? (
+            <div className="flex items-center gap-3">
+              {unreadCount > 0 && (
                 <button
                   className="text-xs font-bold text-primary disabled:opacity-50"
                   disabled={anyPending}
@@ -478,19 +414,12 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
                 >
                   {copy.markAllRead}
                 </button>
-              ) : null}
+              )}
               <button
+                className="text-xs font-bold disabled:opacity-50"
                 disabled={anyPending}
                 onClick={enterSelectMode}
-                style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#ef4444",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: "4px 0",
-                }}
+                style={{ color: "#ef4444" }}
                 type="button"
               >
                 {copy.deleteMode}
@@ -500,7 +429,7 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
         )}
       </div>
 
-      {/* ── Notification rows ── */}
+      {/* Notification rows */}
       {items.map((notification) => (
         <SwipeItem
           key={notification.id}
