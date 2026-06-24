@@ -44,6 +44,10 @@ body {
      background; with no background on <html> iOS paints those bands black — most visible
      when the sidebar opens and the layout repaints. Painting <html> ivory removes the
      black bands. Not a design change (the visible canvas is already this ivory). */
+  /* Hardcoded fallback so the ivory canvas is painted before CSS custom properties
+     resolve (e.g. before the stylesheet is parsed on cold launch). Prevents a white
+     flash on iOS PWA startup. Value matches --background exactly. */
+  background: #f7f4ee;
   background: var(--background);
 }
 button,

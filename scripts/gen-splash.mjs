@@ -1,0 +1,67 @@
+/**
+ * Generates iOS apple-touch-startup-image PNGs for all modern iPhone sizes.
+ * Requires `sharp` (already a Next.js transitive dependency).
+ *
+ * Output: public/splash/apple-splash-{W}-{H}.png
+ * Run:    node scripts/gen-splash.mjs
+ */
+
+import sharp from "sharp";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, "..");
+const ICON_PATH = path.join(ROOT, "public/icons/icon-192.png");
+const OUT_DIR = path.join(ROOT, "public/splash");
+
+// Ivory canvas color (#f7f4ee = hsl(42 36% 95%))
+const BG = { r: 247, g: 244, b: 238, alpha: 1 };
+
+// Icon size in the splash image (px). Kept at 192 to match the 60pt @3x guideline.
+const ICON_PX = 192;
+
+// All unique physical-pixel dimensions for modern iPhones (portrait).
+// media query → (device-width: Wpt) and (device-height: Hpt) and (-webkit-device-pixel-ratio: R)
+const SIZES = [
+  { w: 1320, h: 2868, dw: 440, dh: 956, dpr: 3 }, // iPhone 16 Pro Max
+  { w: 1290, h: 2796, dw: 430, dh: 932, dpr: 3 }, // iPhone 16 Plus / 15 Pro Max / 14 Pro Max
+  { w: 1206, h: 2622, dw: 402, dh: 874, dpr: 3 }, // iPhone 16 Pro
+  { w: 1179, h: 2556, dw: 393, dh: 852, dpr: 3 }, // iPhone 16 / 15 Pro / 15 / 14 Pro
+  { w: 1284, h: 2778, dw: 428, dh: 926, dpr: 3 }, // iPhone 15 Plus / 14 Plus / 13 Pro Max / 12 Pro Max
+  { w: 1170, h: 2532, dw: 390, dh: 844, dpr: 3 }, // iPhone 14 / 13 Pro / 13 / 12 Pro / 12
+  { w: 1080, h: 2340, dw: 360, dh: 780, dpr: 3 }, // iPhone 13 mini / 12 mini
+  { w: 750,  h: 1334, dw: 375, dh: 667, dpr: 2 }, // iPhone SE (2nd / 3rd gen)
+];
+
+if (!fs.existsSync(ICON_PATH)) {
+  console.error(`Icon not found: ${ICON_PATH}`);
+  process.exit(1);
+}
+
+const iconBuf = await sharp(ICON_PATH)
+  .resize(ICON_PX, ICON_PX, { fit: "cover" })
+  .toBuffer();
+
+for (const { w, h, dw, dh, dpr } of SIZES) {
+  const left = Math.round((w - ICON_PX) / 2);
+  const top  = Math.round((h - ICON_PX) / 2);
+  const file = path.join(OUT_DIR, `apple-splash-${w}-${h}.png`);
+
+  await sharp({ create: { width: w, height: h, channels: 4, background: BG } })
+    .composite([{ input: iconBuf, left, top }])
+    .png({ compressionLevel: 9 })
+    .toFile(file);
+
+  console.log(`✓  ${w}×${h}  (${dw}×${dh} @${dpr}x)  →  public/splash/apple-splash-${w}-${h}.png`);
+}
+
+console.log(`\nDone — ${SIZES.length} splash images written to public/splash/`);
+
+// Print the <link> tags to paste into layout.tsx
+console.log("\n--- <link> tags for layout.tsx ---");
+for (const { w, h, dw, dh, dpr } of SIZES) {
+  const media = `(device-width: ${dw}px) and (device-height: ${dh}px) and (-webkit-device-pixel-ratio: ${dpr}) and (orientation: portrait)`;
+  console.log(`  <link rel="apple-touch-startup-image" media="${media}" href="/splash/apple-splash-${w}-${h}.png" />`);
+}
