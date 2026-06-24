@@ -335,8 +335,8 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
 
   function handleDeleteOne(id: string) {
     startDeleteTransition(async () => {
-      await deleteNotifications([id]);
-      router.refresh();
+      const result = await deleteNotifications([id]);
+      if (result.ok) router.refresh();
     });
   }
 
@@ -344,9 +344,11 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
     if (!selectedIds.size) return;
     const ids = Array.from(selectedIds);
     startDeleteTransition(async () => {
-      await deleteNotifications(ids);
-      exitSelectMode();
-      router.refresh();
+      const result = await deleteNotifications(ids);
+      if (result.ok) {
+        exitSelectMode();
+        router.refresh();
+      }
     });
   }
 
