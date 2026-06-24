@@ -667,7 +667,7 @@ export function MobileShell({
       <div
         aria-atomic="true"
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 top-0 z-[58] flex flex-col items-center justify-end bg-background"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[1] flex flex-col items-center justify-end bg-background"
         style={{
           height: `calc(env(safe-area-inset-top, 0px) + ${REFRESH_DISPLAY_H}px)`,
           paddingBottom: 10,
@@ -847,6 +847,10 @@ export function MobileShell({
         <div
           className="relative flex h-full w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)]"
           style={{
+            // z-index: 2 makes this stacking context sit ABOVE the fixed PTR indicator (z-1),
+            // so the header is not covered when contentOffset = 0. When pulling, the shell slides
+            // down revealing the indicator through the gap at the top.
+            zIndex: 2,
             transform: `translateY(${contentOffset}px)`,
             transition: isPulling
               ? "none"
