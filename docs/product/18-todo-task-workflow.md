@@ -180,7 +180,7 @@ But:
 #### Context Link — as-built (2026-06-12)
 
 A task can optionally carry an operational **context link** so CS/field notes stay attached to the
-property · room · reservation · guest they are about. This is a convenience pointer, not a second
+building-only, building · room, reservation, or guest context they are about. This is a convenience pointer, not a second
 reservation surface — it never creates calendar bars and stays separate from the Beds24 calendar.
 
 Picker flow (four screens, bottom sheet from the create/edit form):
@@ -192,26 +192,31 @@ Picker flow (four screens, bottom sheet from the create/edit form):
    room. Rooms shown are **only active rooms**, and physical sub-units are **merged into one cell**
    (e.g. `201` and `201_2` are the same room → one `201` cell), exactly like the calendar room axis.
    Reservations are the real bookings for that room across the current + next month window (Tokyo).
-3. **Room-only** — link just the building · room without a reservation (alt action).
+3. **Building-only / Room-only** — on the room step, the alt actions can link either just the
+   building or the building · room without a reservation. This covers building-level notes where a
+   room is irrelevant. Because the user already entered this step from a chosen building, the
+   building-only action is shown with a slightly more active visual treatment than the neutral
+   alternatives.
 4. **Guest direct entry** — emergency fallback when Beds24 data is missing/not synced: link by typed
    guest name with no date restriction. Clearly labeled as the missing-data path.
 
 Display:
 
-- A linked task shows a small **context chip** on its list card (building · room, or guest name) and
-  a full **linked-context block** in task detail (building · room, channel badge, guest, date range,
+- A linked task shows a small **context chip** on its list card (building, building · room, or guest
+  name) and a full **linked-context block** in task detail (building / room when present, channel
+  badge, guest, date range,
   and a "go to reservation" affordance).
 - Property and room labels are shown in their **canonical/merged form** (e.g. a booking stored as
   `荒木町A` / `201_2` displays as `아라키초A` / `201`), consistent with the calendar and the picker.
 - **Go to reservation** opens the reservation calendar filtered to that building and scrolled to the
   reservation's check-in month, and — when the link points at a specific reservation — **auto-opens
   that reservation's detail sheet** on arrival (via a `reservationId` deep-link param) so the guest
-  info is shown immediately, with no extra tap or manual refresh. A room-only link opens the calendar
-  without a sheet; a guest-only emergency link has no building to open, so its card is shown without
-  the navigation affordance.
+  info is shown immediately, with no extra tap or manual refresh. A building-only or room-only link
+  opens the calendar without a sheet; a guest-only emergency link has no building to open, so its
+  card is shown without the navigation affordance.
 
-Both a **reservation link** and a **room-only link** are fully saved and displayed: the building name
-and room number resolve in the chip/detail even when no reservation is attached.
+Reservation, building-only, and room-only links are all fully saved and displayed: the building name
+always resolves, and the room number appears when a room was linked even with no reservation attached.
 
 Deactivation safety (confirmed rule): the picker only lets you **newly link active rooms**, but an
 **existing link is never dropped when its room/reservation later goes inactive** — the note keeps

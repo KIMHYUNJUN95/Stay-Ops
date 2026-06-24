@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "glass";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "glass" | "destructive";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
@@ -15,6 +15,8 @@ const variantClasses: Record<ButtonVariant, string> = {
   ghost: "text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted active:text-foreground",
   glass:
     "border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.64)_0%,rgba(255,255,255,0.40)_100%)] text-neutral-900 shadow-[0_16px_24px_-14px_rgba(15,23,42,0.34),inset_0_1px_0_rgba(255,255,255,0.98),inset_0_-1px_0_rgba(255,255,255,0.34)] backdrop-blur-xl backdrop-saturate-200 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.74)_0%,rgba(255,255,255,0.50)_100%)] active:bg-[linear-gradient(180deg,rgba(255,255,255,0.56)_0%,rgba(255,255,255,0.34)_100%)]",
+  destructive:
+    "bg-destructive text-destructive-foreground shadow-glass hover:bg-destructive/90 active:bg-destructive/80",
 };
 
 export function Button({

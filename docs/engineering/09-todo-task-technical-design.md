@@ -66,7 +66,8 @@ these sheets (scrim tap + Esc remain). X icons with other roles stay (remove-par
 search clear, select-mode cancel, the photo lightbox close). Full contract: Product `16` →
 "2026-06-15 Bottom Sheets — iOS-style Drag-to-Dismiss".
 
-Context link (2026-06-12): tasks can optionally link a property · room · reservation · guest. The
+Context link (2026-06-12): tasks can optionally link a building-only, building · room, reservation,
+or guest context. The
 picker mirrors the reservation calendar's active-room catalog (active-only, sub-units like 201/201_2
 merged) via a shared resolver extracted into `src/lib/rooms.ts`; reservation-linked saves persist
 `reservation_id` + `guest_name`, and context display survives later room deactivation. See "Context
@@ -560,7 +561,8 @@ Not required in first slice:
 
 ## Context Link (as-built 2026-06-12)
 
-A task may optionally point at an operational context (property · room · reservation · guest). The
+A task may optionally point at an operational context (building-only, building · room, reservation,
+or guest). The
 columns already exist on `tasks` (`property_id`, `room_id`, `reservation_id`, `guest_name`); this
 slice wires the picker → save → display path. It deliberately stays separate from the reservation
 calendar and the cleaning room axis — it only *references* those records.
@@ -607,6 +609,9 @@ safe later cleanup.
   `reservation_id` / `guest_name` (empty → `null`, which clears the link on edit). The edit page seeds
   `initialCtx` from the task's `resolvedContext` (UUIDs included) so an existing link round-trips
   without re-picking.
+- **Building-only links are first-class.** The shared `ContextPickerSheet` now exposes a building-only
+  alt action on the room step; it persists `property_id` with `room_id = null` and no reservation
+  fields, which is valid for building-level operational notes.
 - **UUID sourcing**: `getActiveRoomCatalog` / `ActiveRoomCatalogItem` carry `roomId` (`rooms.id`) and
   `propertyId` (`rooms.property_id`); the picker surfaces them on `PickerBuilding.propertyId` and
   `PickerRoom.{roomId,propertyId}`. A merged display room (201 = {201, 201_2}) uses the **base
@@ -619,9 +624,12 @@ safe later cleanup.
 ### Hydrate / display
 
 - `buildLinkedContext()` in `src/lib/tasks.ts` resolves `TaskRecord.resolvedContext` during `hydrate`
-  via batch joins (reservation → property_name/room_label/source/dates; properties/rooms for room-only
-  links), and **normalizes** the reservation's raw labels to canonical property + merged display room
+  via batch joins (reservation → property_name/room_label/source/dates; properties/rooms for
+  building-only and room-only links), and **normalizes** the reservation's raw labels to canonical
+  property + merged display room
   (`荒木町A` / `201_2` → `아라키초A` / `201`) for consistent chips/detail.
+- When only `property_id` is present, the linked-context chip/detail still resolves and displays the
+  building name; if `room_id` is also present, the room number is shown too.
 - **Deactivation safety**: these context joins are **not status-filtered**. The picker offers only
   active rooms for *new* links, but a task already linked to a room/reservation that later goes
   inactive keeps resolving and displaying its context.
@@ -635,6 +643,8 @@ safe later cleanup.
 
 - **Auto-open**: when `reservationId` is present, `MobileCalendarView` opens that reservation's detail
   sheet on arrival, so the guest info appears immediately (no extra tap).
+- **Building-only / room-only deep links**: when there is a building but no `reservationId`, the
+  calendar opens on that building without auto-opening a reservation sheet.
 - **Read params from the live URL, not the server prop.** Both `reservationId` and `property` are read
   client-side via `useSearchParams()` (with the server prop as a fallback). A soft `router.push` to
   `/mobile/calendar` can serve a **prefetched/cached RSC payload** whose `searchParams` differ from the

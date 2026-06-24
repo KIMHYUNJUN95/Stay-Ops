@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DeleteAccountSheet } from "@/components/account/delete-account-sheet";
 import { LanguageSegmented } from "@/components/account/language-segmented";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { MobileShell } from "@/components/shell/mobile-shell";
@@ -143,6 +144,27 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
             {dictionary.common.logout}
           </Button>
         </form>
+      </div>
+
+      <div className="flex items-center justify-between rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3">
+        <div>
+          <p className="text-sm font-bold text-destructive">
+            {dictionary.common.deleteAccount}
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {dictionary.common.deleteAccountWarning}
+          </p>
+        </div>
+        <DeleteAccountSheet
+          copy={{
+            cancel: dictionary.common.cancel,
+            deleteAccount: dictionary.common.deleteAccount,
+            deleteAccountTitle: dictionary.common.deleteAccountTitle,
+            deleteAccountDesc: dictionary.common.deleteAccountDesc,
+            deleteAccountWarning: dictionary.common.deleteAccountWarning,
+            deleteAccountConfirm: dictionary.common.deleteAccountConfirm,
+          }}
+        />
       </div>
     </div>
   );

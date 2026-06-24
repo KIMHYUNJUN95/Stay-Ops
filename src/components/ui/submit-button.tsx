@@ -10,7 +10,7 @@ type SubmitButtonProps = {
   /** Shown while the enclosing form's action is pending. Defaults to a spinner + the label. */
   pendingChildren?: ReactNode;
   className?: string;
-  variant?: "primary" | "secondary" | "ghost" | "glass";
+  variant?: "primary" | "secondary" | "ghost" | "glass" | "destructive";
   autoFocus?: boolean;
   disabled?: boolean;
 };

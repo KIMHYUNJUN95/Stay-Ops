@@ -9,9 +9,9 @@ sections below. **Debug pass 2 (2026-06-16):** author edit/delete (submitted-onl
 and the list card shows the correct counterparty per segment (see "As-built — Debug pass 2"). **Debug
 pass 3 (2026-06-16):** the author edit is now **atomic** (single-transaction Postgres function — fixes a
 reference-loss data-integrity bug) and changing the recipient notifies the new recipient (see "As-built —
-Debug pass 3"). Remaining known limitation: the `/mobile/notifications` screen is still the
-separately-deferred mockup (suggestion notifications are created + have correct display logic, but only
-surface once that screen is re-wired).
+Debug pass 3"). **2026-06-24 follow-up:** the shared context picker now allows **building-only**
+links for suggestions, and suggestion notifications surface in the live `/mobile/notifications` bell
+feed.
 
 ## As-built — Step 1 (schema only, 2026-06-16)
 
@@ -50,7 +50,8 @@ Wired the suggestion creation flow onto the finalized compose UI (no redesign).
   (`suggestions-user-picker.tsx`) was made data-driven with a `mode` prop — **single-select for the
   recipient, multi-select for references** — fed by `getShareableUsers`.
 - Building·room reuses the shared **`ContextPickerSheet`** (only `propertyId / propertyName / roomId /
-  roomLabel` from the returned `LinkedContext` are persisted; reservation/guest are ignored).
+  roomLabel` from the returned `LinkedContext` are persisted; reservation/guest are ignored). `roomId`
+  / `roomLabel` may be `null`, so a **building-only** suggestion context is valid.
 - Photos reuse the shared **`uploadRequestImages`** (new `suggestion-images` path in the
   `request-images` bucket) + the now-exported **`compressImageFile`** — no new upload architecture.
 - i18n: only the new feedback strings were added (`mobile.suggestionErrors.*`, ko/ja/en); the slice's
@@ -190,9 +191,9 @@ Final hardening pass — the feature is internally shippable.
   existing exclusion). Reads are unaffected (bucket is public). Note: suggestion/comment image deletes
   currently leave storage orphans (the row is removed but the object is not), matching the create-time
   orphan behavior — acceptable for the first slice.
-- **Known limitations.** `/mobile/notifications` still renders the deferred static mockup, so
-  suggestion notifications (created with correct payload/display/deep-link) only show once that screen
-  is re-wired — a separate, already-documented decision.
+- **Known limitations.** Suggestion/comment image deletes still leave storage orphans (the row is
+  removed but the object is not), matching the create-time orphan behavior — acceptable for the first
+  slice. The notification center itself is live.
 
 ## As-built — Debug pass 2 (author edit/delete + list card, 2026-06-16)
 

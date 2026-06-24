@@ -1620,6 +1620,7 @@ export type Database = {
           bottom_nav_tabs?: string[];
           can_generate_report?: boolean;
           created_at?: string;
+          deleted_at?: string | null;
           id: string;
           last_used_organization_id?: string | null;
           name: string;
@@ -1635,6 +1636,7 @@ export type Database = {
           bottom_nav_tabs: string[];
           can_generate_report: boolean;
           created_at: string;
+          deleted_at: string | null;
           id: string;
           last_used_organization_id: string | null;
           name: string;
@@ -1650,6 +1652,7 @@ export type Database = {
           bottom_nav_tabs?: string[];
           can_generate_report?: boolean;
           created_at?: string;
+          deleted_at?: string | null;
           id?: string;
           last_used_organization_id?: string | null;
           name?: string;
