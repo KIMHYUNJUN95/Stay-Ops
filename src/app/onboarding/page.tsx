@@ -1,7 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { InviteCodeFieldCopy } from "@/app/onboarding/invite-code-field";
-import { JoinForm } from "@/app/onboarding/onboarding-forms";
 import { OnboardingWizard } from "@/app/onboarding/onboarding-wizard";
 import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
 import { getDeviceSurfaceFromHeaders } from "@/lib/mobile-device";
@@ -87,10 +86,6 @@ export default async function OnboardingPage({
   const errorMessage = params.error
     ? (dictionary.onboarding.errors[params.error] ?? params.error)
     : null;
-  const currentStepTitle =
-    state.status === "needs_membership" || allowRejoin
-      ? dictionary.onboarding.joinTitle
-      : dictionary.onboarding.profileTitle;
 
   const o = dictionary.onboarding;
   const inviteCopy: InviteCodeFieldCopy = {
@@ -189,6 +184,9 @@ export default async function OnboardingPage({
           bodyNoTeam: o.success.bodyNoTeam,
           startCta: o.success.startCta,
         }}
+        exit={{
+          backToLogin: dictionary.auth.email.resetSentBackToLogin,
+        }}
         languageName={dictionary.languages[locale]}
         profile={{
           copy: {
@@ -208,46 +206,128 @@ export default async function OnboardingPage({
           },
           locale,
           safeNext,
+          initialName: "",
+          initialBirthDate: "",
+          initialPhone: "",
         }}
       />
     );
   }
 
-  return (
-    <main
-      className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
-      style={{
-        background:
-          "radial-gradient(120% 50% at 50% -6%, hsl(42 36% 95%) 42%, hsl(42 30% 93%) 100%)",
-      }}
-    >
-      <header className="h-[48px] flex-none" />
-      <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
-        <div className="flex-1 overflow-y-auto px-1 pt-2 -mx-1">
-          <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
-            {dictionary.onboarding.accountSetup}
-          </p>
-          <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em]">
-            {currentStepTitle}
-          </h1>
-          {joinProfile && (
-            <p className="mt-[10px] text-[13.5px] font-semibold leading-[1.55] text-muted-foreground">
-              {dictionary.onboarding.joinBody(joinProfile.name)}
-            </p>
-          )}
-          {errorMessage && (
-            <div className="mt-[14px] rounded-[14px] border border-[hsl(4_62%_46%/0.24)] bg-[hsl(6_70%_95.5%)] px-[14px] py-[13px] text-[13px] font-semibold leading-[1.5] text-[hsl(4_62%_46%)]">
-              {errorMessage}
-            </div>
-          )}
-          {joinProfile && (state.status === "needs_membership" || allowRejoin) && (
-            <JoinForm
-              copy={{ joinTeamCta: o.joinTeamCta, invite: inviteCopy }}
-              safeNext={safeNext}
-            />
-          )}
-        </div>
-      </section>
-    </main>
-  );
+  if (joinProfile && (state.status === "needs_membership" || allowRejoin)) {
+    return (
+      <OnboardingWizard
+        intro={{
+          title: o.intro.title,
+          subtitle: o.intro.subtitle,
+          itemBasicsTitle: o.intro.itemBasicsTitle,
+          itemBasicsSub: o.intro.itemBasicsSub,
+          itemLangTitle: o.intro.itemLangTitle,
+          itemLangSub: o.intro.itemLangSub,
+          itemInviteTitle: o.intro.itemInviteTitle,
+          itemInviteSub: o.intro.itemInviteSub,
+          startCta: o.intro.startCta,
+        }}
+        steps={{
+          basicsEyebrow: o.steps.basicsEyebrow,
+          continueCta: o.steps.continueCta,
+          nameTitle: o.steps.nameTitle,
+          nameSubtitle: o.steps.nameSubtitle,
+          nameLabel: o.steps.nameLabel,
+          nameHint: o.steps.nameHint,
+          dobTitle: o.steps.dobTitle,
+          dobSubtitle: o.steps.dobSubtitle,
+          dobYearLabel: o.steps.dobYearLabel,
+          dobMonthLabel: o.steps.dobMonthLabel,
+          dobDayLabel: o.steps.dobDayLabel,
+          dobYearPlaceholder: o.steps.dobYearPlaceholder,
+          dobMonthPlaceholder: o.steps.dobMonthPlaceholder,
+          dobDayPlaceholder: o.steps.dobDayPlaceholder,
+          dobHint: o.steps.dobHint,
+          dobSheetTitle: o.steps.dobSheetTitle,
+          dobConfirm: o.steps.dobConfirm,
+          phoneTitle: o.steps.phoneTitle,
+          phoneSubtitle: o.steps.phoneSubtitle,
+          phoneNumLabel: o.steps.phoneNumLabel,
+          phoneInputPlaceholder: o.steps.phoneInputPlaceholder,
+          phoneHint: o.steps.phoneHint,
+          phoneCountrySheetTitle: o.steps.phoneCountrySheetTitle,
+        }}
+        countries={o.countries}
+        join={{
+          inviteEyebrow: o.joinFlow.inviteEyebrow,
+          inviteTitle: o.joinFlow.inviteTitle,
+          inviteSubtitle: errorMessage ?? o.joinBody(joinProfile.name),
+          caseHint: o.joinFlow.caseHint,
+          verifyCta: o.joinFlow.verifyCta,
+          checking: o.joinFlow.checking,
+          skip: o.joinFlow.skip,
+          invalidTitle: o.joinFlow.invalidTitle,
+          confirmEyebrow: o.joinFlow.confirmEyebrow,
+          confirmTitle: o.joinFlow.confirmTitle,
+          confirmSubtitle: o.joinFlow.confirmSubtitle,
+          roleLabel: o.joinFlow.roleLabel,
+          verified: o.joinFlow.verified,
+          reviewCta: o.joinFlow.reviewCta,
+          codePlaceholder: o.inviteCodePlaceholder,
+          orgLabel: o.previewOrgLabel,
+          errors: o.errors,
+          roleCategories: o.roleCategories,
+        }}
+        review={{
+          title: o.review.title,
+          subtitle: o.review.subtitle,
+          rowName: o.review.rowName,
+          rowDob: o.review.rowDob,
+          rowPhone: o.review.rowPhone,
+          rowLang: o.review.rowLang,
+          rowOrg: o.review.rowOrg,
+          rowRole: o.review.rowRole,
+          edit: o.review.edit,
+          infoTitle: o.review.infoTitle,
+          infoBody: o.review.infoBody,
+          submit: o.review.submit,
+        }}
+        success={{
+          eyebrow: o.success.eyebrow,
+          welcomePrefix: o.success.welcomePrefix,
+          welcomeSuffix: o.success.welcomeSuffix,
+          bodyJoined: o.success.bodyJoined,
+          bodyNoTeam: o.success.bodyNoTeam,
+          startCta: o.success.startCta,
+        }}
+        exit={{
+          backToLogin: dictionary.auth.email.resetSentBackToLogin,
+        }}
+        languageName={dictionary.languages[locale]}
+        profile={{
+          copy: {
+            nameLabel: o.fullNamePlaceholder,
+            namePlaceholder: o.fullNamePlaceholder,
+            birthDateLabel: o.birthDateLabel,
+            birthDatePlaceholder: o.birthDatePlaceholder,
+            birthDateHint: o.birthDateHint,
+            phoneLabel: o.phonePlaceholder,
+            phonePlaceholder: o.phonePlaceholder,
+            phoneHint: o.phoneHint,
+            languageLabel: dictionary.auth.languageSelector,
+            languages: dictionary.languages,
+            continueCta: o.saveProfile,
+            joinTeamCta: o.joinTeamCta,
+            invite: inviteCopy,
+          },
+          locale,
+          safeNext,
+          initialName: joinProfile.name,
+          initialBirthDate: joinProfile.birthDate ?? "",
+          initialPhone: joinProfile.phoneNumber,
+        }}
+        initialStep={4}
+        allowInviteSkip={false}
+        showExitToLogin
+      />
+    );
+  }
+
+  return null;
 }

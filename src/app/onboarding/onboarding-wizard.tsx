@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { signOut } from "@/app/auth/actions";
 import {
   previewInviteCode,
   submitOnboardingProfile,
@@ -107,6 +108,10 @@ export type OnboardingSuccessCopy = {
   bodyJoined: string;
   bodyNoTeam: string;
   startCta: string;
+};
+
+export type OnboardingExitCopy = {
+  backToLogin: string;
 };
 
 type Country = { iso: string; flag: string; dial: string };
@@ -620,8 +625,12 @@ export function OnboardingWizard({
   join,
   review,
   success,
+  exit,
   languageName,
   profile,
+  initialStep = 0,
+  allowInviteSkip = true,
+  showExitToLogin = false,
 }: {
   intro: OnboardingIntroCopy;
   steps: OnboardingStepsCopy;
@@ -629,16 +638,47 @@ export function OnboardingWizard({
   join: OnboardingJoinCopy;
   review: OnboardingReviewCopy;
   success: OnboardingSuccessCopy;
+  exit: OnboardingExitCopy;
   languageName: string;
-  profile: { copy: ProfileFormCopy; locale: Locale; safeNext: string };
+  profile: {
+    copy: ProfileFormCopy;
+    locale: Locale;
+    safeNext: string;
+    initialName?: string;
+    initialBirthDate?: string;
+    initialPhone?: string;
+  };
+  initialStep?: number;
+  allowInviteSkip?: boolean;
+  showExitToLogin?: boolean;
 }) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
-  const [name, setName] = useState("");
-  const [dob, setDob] = useState<DateParts | null>(null);
+  const initialPhoneDigits = profile.initialPhone
+    ? profile.initialPhone.replace(/\D/g, "")
+    : "";
+  const inferredCountry =
+    COUNTRIES.find((c) => {
+      const dialDigits = c.dial.replace(/\D/g, "");
+      return (
+        initialPhoneDigits.startsWith(dialDigits) &&
+        initialPhoneDigits.length > dialDigits.length
+      );
+    }) ?? COUNTRIES[0];
+  const initialNationalDigits = profile.initialPhone
+    ? initialPhoneDigits.slice(inferredCountry.dial.replace(/\D/g, "").length)
+    : "";
+  const [step, setStep] = useState(initialStep);
+  const [name, setName] = useState(profile.initialName ?? "");
+  const [dob, setDob] = useState<DateParts | null>(() => {
+    const birth = profile.initialBirthDate?.trim();
+    if (!birth || !/^\d{4}-\d{2}-\d{2}$/.test(birth)) return null;
+    const [y, m, d] = birth.split("-").map(Number);
+    if (!y || !m || !d) return null;
+    return { year: y, month: m, day: d };
+  });
   const [dobSheet, setDobSheet] = useState(false);
-  const [countryIso, setCountryIso] = useState("jp");
-  const [phone, setPhone] = useState("");
+  const [countryIso, setCountryIso] = useState(inferredCountry.iso);
+  const [phone, setPhone] = useState(initialNationalDigits);
   const [countrySheet, setCountrySheet] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
   const [inviteStatus, setInviteStatus] = useState<
@@ -694,15 +734,15 @@ export function OnboardingWizard({
   }
 
   useEffect(() => {
-    window.history.replaceState({ obStep: 0 }, "");
+    window.history.replaceState({ obStep: initialStep }, "");
     const onPop = (e: PopStateEvent) => {
       const s =
-        e.state && typeof e.state.obStep === "number" ? e.state.obStep : 0;
+        e.state && typeof e.state.obStep === "number" ? e.state.obStep : initialStep;
       setStep(s);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, []);
+  }, [initialStep]);
 
   function goTo(next: number) {
     window.history.pushState({ obStep: next }, "");
@@ -719,6 +759,7 @@ export function OnboardingWizard({
     ? `${selectedCountry.dial}${nationalDigits}`
     : "";
   const phoneValid = nationalDigits.length >= 6;
+  const showExitLink = showExitToLogin && step >= 4 && step <= 6;
 
   // ── Fallback · existing all-in-one profile form (unreachable in the normal flow) ─
   if (step >= 8) {
@@ -893,6 +934,16 @@ export function OnboardingWizard({
 
           <div className="flex-none py-[14px] pb-[max(14px,env(safe-area-inset-bottom))]">
             <SpinnerButton label={review.submit} onClick={submit} busy={submitting} />
+            {showExitLink && (
+              <form action={signOut} className="mt-3 text-center">
+                <button
+                  type="submit"
+                  className="text-[13px] font-extrabold text-muted-foreground underline-offset-2 hover:underline"
+                >
+                  {exit.backToLogin}
+                </button>
+              </form>
+            )}
           </div>
         </section>
       </main>
@@ -950,6 +1001,16 @@ export function OnboardingWizard({
           </div>
 
           <StickyCta label={join.reviewCta} onClick={() => goTo(6)} withArrow />
+          {showExitLink && (
+            <form action={signOut} className="px-[26px] pb-[max(14px,env(safe-area-inset-bottom))] text-center">
+              <button
+                type="submit"
+                className="text-[13px] font-extrabold text-muted-foreground underline-offset-2 hover:underline"
+              >
+                {exit.backToLogin}
+              </button>
+            </form>
+          )}
         </section>
       </main>
     );
@@ -1039,18 +1100,30 @@ export function OnboardingWizard({
             >
               {verifying ? join.checking : join.verifyCta}
             </button>
-            <div className="mt-3 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setPreview(null);
-                  goTo(6);
-                }}
-                className="text-[13px] font-extrabold text-muted-foreground"
-              >
-                {join.skip}
-              </button>
-            </div>
+            {allowInviteSkip && (
+              <div className="mt-3 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreview(null);
+                    goTo(6);
+                  }}
+                  className="text-[13px] font-extrabold text-muted-foreground"
+                >
+                  {join.skip}
+                </button>
+              </div>
+            )}
+            {showExitLink && (
+              <form action={signOut} className="mt-3 text-center">
+                <button
+                  type="submit"
+                  className="text-[13px] font-extrabold text-muted-foreground underline-offset-2 hover:underline"
+                >
+                  {exit.backToLogin}
+                </button>
+              </form>
+            )}
           </div>
         </section>
       </main>
