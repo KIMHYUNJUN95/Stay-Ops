@@ -135,7 +135,7 @@ export async function getAttendanceRoster(
   }
 
   // 3. 엔트리 조합
-  const entries: RosterEntry[] = sessions.map((session) => {
+  const allEntries: RosterEntry[] = sessions.map((session) => {
     const profile = profileMap.get(session.user_id);
     const roleCode = membershipMap.get(session.user_id) ?? "";
     const breaks = breaksBySession.get(session.id) ?? [];
@@ -175,7 +175,27 @@ export async function getAttendanceRoster(
     };
   });
 
-  // 4. counts 집계
+  // 4. 사용자별 중복 제거 — 같은 날 여러 세션이 있으면 1명으로 표시.
+  //    우선순위: working/on_break(현재 출근 중) > 가장 최근 세션 (sessions는 clock_in_at 오름차순).
+  const activeStatuses: RosterStatusKey[] = ["working", "on_break"];
+  const deduped = new Map<string, RosterEntry>();
+  for (const e of allEntries) {
+    const existing = deduped.get(e.userId);
+    if (!existing) {
+      deduped.set(e.userId, e);
+      continue;
+    }
+    const curActive = activeStatuses.includes(e.statusKey);
+    const prevActive = activeStatuses.includes(existing.statusKey);
+    if (curActive && !prevActive) {
+      deduped.set(e.userId, e); // 활성 세션 우선
+    } else if (!prevActive && !curActive) {
+      deduped.set(e.userId, e); // 둘 다 완료면 최신 세션 유지
+    }
+  }
+  const entries = [...deduped.values()];
+
+  // 5. counts 집계
   const counts = {
     total: entries.length,
     working: 0,

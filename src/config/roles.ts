@@ -63,6 +63,16 @@ export function canViewOthersCleaning(role: Role) {
 }
 
 /**
+ * All org members may view the attendance roster (who is at work today).
+ * Separate from cleaningRecordViewerRoles — roster is not a privileged view.
+ */
+export const rosterViewerRoles = roles as readonly Role[];
+
+export function canViewRoster(): boolean {
+  return true;
+}
+
+/**
  * Whether a user may generate the daily work-report (Todo 완료/기록 tab).
  *
  * Staff-only feature: every regular staff member qualifies (any role except `part_time_staff`),

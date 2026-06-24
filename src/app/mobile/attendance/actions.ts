@@ -27,6 +27,24 @@ import {
   type AttendanceSessionRow,
 } from "@/lib/attendance";
 
+type AttendanceSiteWithProperty = AttendanceSiteRow & {
+  properties: {
+    display_name_ko: string | null;
+    display_name_ja: string | null;
+    display_name_en: string | null;
+  } | null;
+};
+
+function localizedSiteName(site: AttendanceSiteWithProperty, locale: string): string {
+  const p = site.properties;
+  if (p) {
+    if (locale === "ja" && p.display_name_ja) return p.display_name_ja;
+    if (locale === "en" && p.display_name_en) return p.display_name_en;
+    if (p.display_name_ko) return p.display_name_ko;
+  }
+  return site.name;
+}
+
 export type AttendanceScanMode = "in" | "out";
 
 export type AttendanceScanInput = {
@@ -102,6 +120,7 @@ export async function submitAttendanceScan(
   }
   const organizationId = session.organization.id;
   const userId = session.user.id;
+  const locale = session.user.preferredLanguage ?? "ko";
   const service = getSupabaseServiceClient();
   const actionType: AttendanceActionType = input.mode === "in" ? "clock_in" : "clock_out";
   const deviceInfo = { userAgent: input.userAgent ?? null };
@@ -147,11 +166,11 @@ export async function submitAttendanceScan(
   // 2) Resolve the site behind the token; it must exist in-org and be active.
   const siteRes = await service
     .from("attendance_sites")
-    .select("*")
+    .select("*, properties(display_name_ko, display_name_ja, display_name_en)")
     .eq("organization_id", organizationId)
     .eq("id", tokenRow.site_id)
     .maybeSingle();
-  const site = siteRes.data as AttendanceSiteRow | null;
+  const site = siteRes.data as AttendanceSiteWithProperty | null;
   if (siteRes.error || !site || !site.is_active) {
     await logAttempt({ success: false, failureReason: "qr_invalid", resolvedSiteId: tokenRow.site_id });
     return { ok: false, reason: "qr" };
@@ -164,7 +183,7 @@ export async function submitAttendanceScan(
       failureReason: input.gpsError === "denied" ? "gps_denied" : "gps_unavailable",
       resolvedSiteId: site.id,
     });
-    return { ok: false, reason: "gps", siteName: site.name };
+    return { ok: false, reason: "gps", siteName: localizedSiteName(site, locale) };
   }
 
   // 4) GPS must be within the site's allowed radius.
@@ -174,7 +193,7 @@ export async function submitAttendanceScan(
     return {
       ok: false,
       reason: "radius",
-      siteName: site.name,
+      siteName: localizedSiteName(site, locale),
       distanceMeters: Math.round(dist),
       radiusMeters: site.allowed_radius_meters,
     };
@@ -193,7 +212,7 @@ export async function submitAttendanceScan(
       .maybeSingle();
     if (openRes.data) {
       await logAttempt({ success: false, failureReason: "open_session_exists", resolvedSiteId: site.id });
-      return { ok: false, reason: "open_session", siteName: site.name };
+      return { ok: false, reason: "open_session", siteName: localizedSiteName(site, locale) };
     }
 
     const insertRes = await service
@@ -217,14 +236,14 @@ export async function submitAttendanceScan(
       .single();
     if (insertRes.error) {
       await logAttempt({ success: false, failureReason: null, resolvedSiteId: site.id });
-      return { ok: false, reason: "error", siteName: site.name };
+      return { ok: false, reason: "error", siteName: localizedSiteName(site, locale) };
     }
 
     await logAttempt({ success: true, failureReason: null, resolvedSiteId: site.id });
     return {
       ok: true,
       kind: "in",
-      siteName: site.name,
+      siteName: localizedSiteName(site, locale),
       atIso: nowIso,
       timeLabel: tokyoTimeLabel(nowIso),
       method: "gps_qr",
@@ -244,7 +263,7 @@ export async function submitAttendanceScan(
     // No matching failure_reason enum value for "no open session"; record success=false with null
     // reason (the UI surfaces the specific message).
     await logAttempt({ success: false, failureReason: null, resolvedSiteId: site.id });
-    return { ok: false, reason: "no_session", siteName: site.name };
+    return { ok: false, reason: "no_session", siteName: localizedSiteName(site, locale) };
   }
 
   // Strict rule: clock-out is blocked while a break is still open. Do NOT auto-close the break.
@@ -256,7 +275,7 @@ export async function submitAttendanceScan(
     .maybeSingle();
   if (openBreakRes.data) {
     await logAttempt({ success: false, failureReason: "open_break_blocks_clock_out", resolvedSiteId: site.id });
-    return { ok: false, reason: "open_break", siteName: site.name };
+    return { ok: false, reason: "open_break", siteName: localizedSiteName(site, locale) };
   }
 
   // Midnight-crossing is abnormal — do not silently normalize. Flag for later review (full midnight
@@ -282,7 +301,7 @@ export async function submitAttendanceScan(
     .eq("status", "open");
   if (updateRes.error) {
     await logAttempt({ success: false, failureReason: null, resolvedSiteId: site.id });
-    return { ok: false, reason: "error", siteName: site.name };
+    return { ok: false, reason: "error", siteName: localizedSiteName(site, locale) };
   }
 
   await logAttempt({ success: true, failureReason: null, resolvedSiteId: site.id });
@@ -309,7 +328,7 @@ export async function submitAttendanceScan(
   return {
     ok: true,
     kind: "out",
-    siteName: site.name,
+    siteName: localizedSiteName(site, locale),
     atIso: nowIso,
     timeLabel: tokyoTimeLabel(nowIso),
     method: "gps_qr",

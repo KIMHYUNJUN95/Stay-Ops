@@ -8,7 +8,7 @@ import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getAttendanceRoster } from "@/lib/attendance-roster";
-import { cleaningRecordViewerRoles } from "@/config/roles";
+import { canViewRoster } from "@/config/roles";
 import { getDictionary } from "@/lib/i18n";
 
 type PageProps = {
@@ -32,8 +32,8 @@ export default async function AttendanceRosterPage({ searchParams }: PageProps) 
     redirect("/mobile/unavailable");
   }
 
-  // 역할 게이트 — 매니저/오피스급이 아니면 출근자 명단 접근 불가
-  if (!(cleaningRecordViewerRoles as readonly string[]).includes(session.user.role)) {
+  // 역할 게이트 — 모든 조직 멤버 접근 가능
+  if (!canViewRoster()) {
     redirect("/mobile/attendance");
   }
 

@@ -1,5 +1,4 @@
 import type { Database } from "@/types/database";
-import type { OrganizationRole } from "@/config/roles";
 
 export type NotificationType = Database["public"]["Enums"]["notification_type"];
 
