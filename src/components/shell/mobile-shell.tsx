@@ -481,6 +481,7 @@ export function MobileShell({
   // deep screen via a notification / share / deep link) would be a dead gesture with no escape.
   // When there's nothing to go back to, fall back to the mobile home instead.
   const goBack = useCallback(() => {
+    if (navigatingRef.current) return; // iOS popstate already fired — don't navigate twice
     navigatingRef.current = true; // block any stale touchmove after this fires
     setNavDirection("back"); // play the pop (left-slide) transition for this navigation
     if (typeof window !== "undefined" && window.history.length <= 1) {
@@ -538,11 +539,20 @@ export function MobileShell({
 
   // ─────────────────────────────────────────────────────────────────────────
 
+  // When iOS standalone PWA fires its native swipe-back it dispatches `popstate` before
+  // (or instead of) `touchend`. Mark navigatingRef so goBack() is a no-op if our
+  // touchend handler also fires for the same gesture.
+  useEffect(() => {
+    const onPopState = () => { navigatingRef.current = true; };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
   useEffect(() => {
     // This app uses an overflow-hidden shell with an INNER scroll container,
     // not window scrolling. Listening to window "scroll" or "resize" would pass
     // scrollY=0 every time, resetting headerVisible→true and undoing any
-    // scroll-based hiding. Only the custom mobile-shell-scroll event (dispatched
+    // scroll-back hiding. Only the custom mobile-shell-scroll event (dispatched
     // by calendar view) and the onScroll handler on the content div are used.
     const onShellScroll = (event: Event) => {
       const detail = event as CustomEvent<{ scrollTop?: number }>;

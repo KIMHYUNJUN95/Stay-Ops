@@ -853,7 +853,7 @@ export function OnboardingWizard({
 
           <StickyCta
             label={success.startCta}
-            onClick={() => { window.location.href = dest; }}
+            onClick={() => { window.location.replace(dest); }}
             withArrow
           />
         </section>
