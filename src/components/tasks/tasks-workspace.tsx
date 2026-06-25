@@ -46,6 +46,7 @@ import { TaskCard } from "@/components/tasks/task-card";
 import { ReorderableTaskList } from "@/components/tasks/reorderable-task-list";
 import { ReportSheet } from "@/components/tasks/report-sheet";
 import { ProjectsBoard } from "@/components/tasks/projects-board";
+import { MiniCalendar } from "@/components/tasks/date-time-fields";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { ProjectSummary } from "@/lib/projects";
 import type { ShareableUser, TaskRecord } from "@/lib/tasks";
@@ -344,6 +345,7 @@ export function TasksWorkspace({
   const [search, setSearch] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [dateMode, setDateMode] = useState<"single" | "range">("single");
+  const [activeDatePicker, setActiveDatePicker] = useState<"single" | "from" | "to">("single");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -374,6 +376,7 @@ export function TasksWorkspace({
   const clearFilters = () => {
     setSearch("");
     setDateMode("single");
+    setActiveDatePicker("single");
     setDateFrom("");
     setDateTo("");
     setFilterOpen(false);
@@ -389,6 +392,15 @@ export function TasksWorkspace({
     : dateMode === "single"
       ? chipDate(dateFrom)
       : `${dateFrom ? chipDate(dateFrom) : "…"} – ${dateTo ? chipDate(dateTo) : "…"}`;
+  const activeDateValue =
+    dateMode === "range" && activeDatePicker === "to" ? dateTo : dateFrom;
+  const setActiveDateValue = (nextValue: string) => {
+    if (dateMode === "range" && activeDatePicker === "to") {
+      setDateTo(nextValue);
+    } else {
+      setDateFrom(nextValue);
+    }
+  };
 
   const tabs: { key: View; label: string; icon: typeof Sun }[] = [
     { key: "today", label: copy.viewToday, icon: Sun },
@@ -1268,46 +1280,68 @@ export function TasksWorkspace({
             </button>
           </div>
 
-          {filterOpen ? (
-            <div className="mt-2 rounded-2xl border border-border bg-surface p-3">
-              <div className="mb-2.5 flex gap-1.5 rounded-full bg-slate-100 p-1">
-                {(["single", "range"] as const).map((m) => (
-                  <button
-                    className={cn(
-                      "h-8 flex-1 rounded-full text-[12.5px] font-bold transition-colors",
-                      dateMode === m ? "bg-surface text-foreground shadow-sm" : "text-muted-foreground",
-                    )}
-                    key={m}
-                    onClick={() => setDateMode(m)}
-                    type="button"
-                  >
-                    {m === "single" ? copy.filterDateSingle : copy.filterDateRange}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  aria-label={dateMode === "range" ? copy.filterDateFrom : copy.filterDateSingle}
-                  className="h-10 flex-1 rounded-xl border border-border bg-background/60 px-3 text-sm font-bold text-foreground outline-none focus:border-primary"
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  type="date"
-                  value={dateFrom}
-                />
-                {dateMode === "range" ? (
-                  <>
-                    <span className="text-sm font-bold text-muted-foreground">–</span>
-                    <input
-                      aria-label={copy.filterDateTo}
-                      className="h-10 flex-1 rounded-xl border border-border bg-background/60 px-3 text-sm font-bold text-foreground outline-none focus:border-primary"
-                      onChange={(e) => setDateTo(e.target.value)}
-                      type="date"
-                      value={dateTo}
-                    />
-                  </>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
+	          {filterOpen ? (
+	            <div className="mt-2 rounded-2xl border border-border bg-surface p-3">
+	              <div className="mb-2.5 flex gap-1.5 rounded-full bg-slate-100 p-1">
+	                {(["single", "range"] as const).map((m) => (
+	                  <button
+	                    className={cn(
+	                      "h-8 flex-1 rounded-full text-[12.5px] font-bold transition-colors",
+	                      dateMode === m ? "bg-surface text-foreground shadow-sm" : "text-muted-foreground",
+	                    )}
+	                    key={m}
+	                    onClick={() => {
+	                      setDateMode(m);
+	                      setActiveDatePicker(m === "single" ? "single" : "from");
+	                    }}
+	                    type="button"
+	                  >
+	                    {m === "single" ? copy.filterDateSingle : copy.filterDateRange}
+	                  </button>
+	                ))}
+	              </div>
+	              <div className="flex items-center gap-2">
+	                <button
+	                  aria-label={dateMode === "range" ? copy.filterDateFrom : copy.filterDateSingle}
+	                  className={cn(
+	                    "h-10 flex-1 rounded-xl border bg-background/60 px-3 text-left text-sm font-bold outline-none transition-colors focus:border-primary",
+	                    activeDatePicker === (dateMode === "single" ? "single" : "from")
+	                      ? "border-primary text-foreground"
+	                      : "border-border text-foreground",
+	                    !dateFrom && "text-muted-foreground",
+	                  )}
+	                  onClick={() => setActiveDatePicker(dateMode === "single" ? "single" : "from")}
+	                  type="button"
+	                >
+	                  {dateFrom ? chipDate(dateFrom) : dateMode === "range" ? copy.filterDateFrom : copy.filterDateSingle}
+	                </button>
+	                {dateMode === "range" ? (
+	                  <>
+	                    <span className="text-sm font-bold text-muted-foreground">–</span>
+	                    <button
+	                      aria-label={copy.filterDateTo}
+	                      className={cn(
+	                        "h-10 flex-1 rounded-xl border bg-background/60 px-3 text-left text-sm font-bold outline-none transition-colors focus:border-primary",
+	                        activeDatePicker === "to" ? "border-primary text-foreground" : "border-border text-foreground",
+	                        !dateTo && "text-muted-foreground",
+	                      )}
+	                      onClick={() => setActiveDatePicker("to")}
+	                      type="button"
+	                    >
+	                      {dateTo ? chipDate(dateTo) : copy.filterDateTo}
+	                    </button>
+	                  </>
+	                ) : null}
+	              </div>
+	              <MiniCalendar
+	                copy={copy}
+	                locale={locale}
+	                onClear={() => setActiveDateValue("")}
+	                onSelect={setActiveDateValue}
+	                value={activeDateValue}
+	              />
+	            </div>
+	          ) : null}
 
           {filterActive ? (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
