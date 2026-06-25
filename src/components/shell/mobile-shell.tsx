@@ -13,14 +13,20 @@ import {
   MAX_BOTTOM_NAV_TABS,
   customizableBottomNavItems,
   getNavigationLabel,
+  mobileNavBugs,
   mobileSidebarNavigation,
   resolveBottomNavItems,
 } from "@/config/navigation";
 import { getDictionary } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
+// Capitalized alias so the icon can be used as a JSX tag in the sidebar footer.
+const BugIcon = mobileNavBugs.icon;
+
 type MobileShellProps = {
-  activeItem?: (typeof mobileSidebarNavigation)[number]["id"];
+  // Bug Report is not in the sidebar nav list (it lives in the footer next to Logout), but its
+  // pages still mark themselves active — so allow its id alongside the sidebar ids.
+  activeItem?: (typeof mobileSidebarNavigation)[number]["id"] | typeof mobileNavBugs.id;
   appearance?: "default" | "announcement" | "cleaning";
   children: React.ReactNode;
   title: string;
@@ -637,20 +643,32 @@ export function MobileShell({
             </nav>
           </div>
 
-          {/* Footer — hairline top, transparent buttons */}
-          <div className="mt-[14px] flex items-center gap-2 border-t border-border pt-[14px]">
+          {/* Footer — hairline top, transparent buttons. Account (flex) + Bug Report + Logout. */}
+          <div className="mt-[14px] flex items-center gap-1 border-t border-border pt-[14px]">
             <Link
               href="/account?mode=mobile"
               onClick={closeSidebar}
-              className="flex flex-1 items-center gap-[10px] rounded-[12px] px-2 py-[10px] text-foreground transition-colors hover:bg-muted"
+              className="flex min-w-0 flex-1 items-center gap-[10px] rounded-[12px] px-2 py-[10px] text-foreground transition-colors hover:bg-muted"
             >
               <UserCircle className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <span className="text-[13.5px] font-semibold">{dictionary.common.account}</span>
+              <span className="truncate text-[13.5px] font-semibold">{dictionary.common.account}</span>
             </Link>
-            <form action={signOut}>
+            <Link
+              href={mobileNavBugs.href}
+              onClick={closeSidebar}
+              aria-current={activeItem === mobileNavBugs.id ? "page" : undefined}
+              className={cn(
+                "flex shrink-0 items-center gap-[7px] rounded-[12px] px-[12px] py-[10px] text-[13px] font-semibold transition-colors hover:bg-muted hover:text-foreground",
+                activeItem === mobileNavBugs.id ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              <BugIcon className="size-4 shrink-0" aria-hidden="true" />
+              {getNavigationLabel(mobileNavBugs, locale)}
+            </Link>
+            <form action={signOut} className="shrink-0">
               <button
                 type="submit"
-                className="flex items-center gap-[7px] rounded-[12px] px-[14px] py-[10px] text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="flex items-center gap-[7px] rounded-[12px] px-[12px] py-[10px] text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <LogOut className="size-4" aria-hidden="true" />
                 {dictionary.common.logout}

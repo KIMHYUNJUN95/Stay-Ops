@@ -227,10 +227,11 @@ Deep link: `/mobile/bugs/{reportId}`
 
 ## i18n Keys (페이지/폼)
 
-All page, form, and error strings live under the `bugs` key in `src/lib/i18n.ts`:
+All page, form, and error strings live under the `bugs` key in `src/lib/i18n.ts`, with full
+`ko` / `ja` / `en` entries (FALLBACK = en, `localeOverrides.ko` / `.ja`):
 
 ```txt
-bugs.title
+bugs.title                     -- also the MobileShell title for list + detail
 bugs.listHeadingMine
 bugs.listHeadingAll
 bugs.listColumnId
@@ -243,6 +244,12 @@ bugs.composeDescriptionLabel
 bugs.composeDescriptionPlaceholder
 bugs.composeScreenshotsLabel
 bugs.composeSubmit
+bugs.composeSubmitting
+bugs.composeMenuAria            -- compose top-chrome menu button aria-label
+bugs.composeProfileAria        -- compose top-chrome profile button aria-label
+bugs.screenshotAddAria         -- compose "add screenshot" button aria-label
+bugs.screenshotRemoveAria      -- compose "remove screenshot" button aria-label
+bugs.screenshotAlt             -- detail image alt, rendered as `{screenshotAlt} {n}`
 bugs.detailSectionDescription
 bugs.detailSectionScreenshots
 bugs.detailKvStatus
@@ -250,21 +257,40 @@ bugs.detailKvReportedAt
 bugs.detailKvReporter
 bugs.detailActionEdit          -- hidden in 1차 (edit page deferred)
 bugs.detailActionDelete
-bugs.detailDeleteConfirm
+bugs.detailDeleteConfirmTitle
+bugs.detailDeleteConfirmBody
+bugs.detailDeleteConfirmCancel
+bugs.detailDeleteConfirmCta
+bugs.detailDeleteError         -- delete-action failure alert
 bugs.statusSubmitted
 bugs.statusReviewing
 bugs.statusFixed
 bugs.statusClosed
-bugs.statusChangeSheetTitle
-bugs.emptyTitle
-bugs.emptySubtitle
-bugs.errorTitleRequired        -- key: errorBugReportTitleRequired
-bugs.errorDescriptionRequired  -- key: errorBugReportDescriptionRequired
-bugs.errorImageLimit           -- key: errorBugReportImageLimit
-bugs.errorNotEditable          -- key: errorBugReportNotEditable
+bugs.statusChangeSheetTitle    -- status sheet header + reviewer status-chip aria-label
+bugs.emptyState
+bugs.submitError               -- create-action failure inline error
+bugs.errorBugReportTitleRequired
+bugs.errorBugReportDescriptionRequired
+bugs.errorBugReportImageLimit
+bugs.errorBugReportNotEditable
 ```
 
 Note on error key naming: Backend agents use `errorBugReportTitleRequired`, `errorBugReportDescriptionRequired`, `errorBugReportImageLimit`, `errorBugReportNotEditable` as top-level keys in the `bugs` section (not nested under a sub-key). These are confirmed naming contracts.
+
+### Wiring (2026-06-25)
+
+The dictionary keys existed from the first cut, but the UI shipped with hardcoded Korean strings.
+This was fixed so the surfaces consume the dictionary, following the board/tasks pattern:
+
+- **Server pages** (`bugs/page.tsx`, `bugs/[id]/page.tsx`, `bugs/new/page.tsx`) resolve the locale
+  from `session.user.preferredLanguage` and pass `copy = getDictionary(locale).bugs` to their client
+  components. The list/detail `MobileShell` title uses `copy.title`.
+- **`bug-types.ts`** exports `BugCopy = Dictionary["bugs"]` and `bugStatusLabel(copy, status)` — the
+  single source of truth for status → localized label.
+- **`BugStatusBadge`** now takes a required `label` prop (callers pass `bugStatusLabel(copy, status)`);
+  the old in-component Korean status map was removed.
+- No user-visible string is hardcoded in `src/app/mobile/bugs/*` or `src/components/bugs/*`
+  (verified: no Korean string literals remain — comments only).
 
 ## Implementation Order
 

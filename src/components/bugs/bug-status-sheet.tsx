@@ -2,30 +2,22 @@
 
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { BugStatusBadge } from "@/components/bugs/bug-status-badge";
-import type { BugStatus } from "@/components/bugs/bug-types";
+import { bugStatusLabel, type BugCopy, type BugStatus } from "@/components/bugs/bug-types";
 
 const ALL_STATUSES: BugStatus[] = ["submitted", "reviewing", "fixed", "closed"];
 
-// TODO i18n: 상태 라벨은 bug-status-badge와 동일하게 유지
-const STATUS_LABEL: Record<BugStatus, string> = {
-  submitted: "접수",
-  reviewing: "검토 중",
-  fixed: "수정 완료",
-  closed: "종료",
-};
-
 type Props = {
+  copy: BugCopy;
   currentStatus: BugStatus;
   onSelect: (status: BugStatus) => void;
   onClose: () => void;
 };
 
-export function BugStatusSheet({ currentStatus, onSelect, onClose }: Props) {
+export function BugStatusSheet({ copy, currentStatus, onSelect, onClose }: Props) {
   return (
-    <BottomSheet onClose={onClose} ariaLabel="상태 변경">
-      {/* TODO i18n: 시트 헤더 */}
+    <BottomSheet onClose={onClose} ariaLabel={copy.statusChangeSheetTitle}>
       <div className="mb-[6px] text-[12px] font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
-        상태 변경
+        {copy.statusChangeSheetTitle}
       </div>
       <div className="flex flex-col gap-[2px] pb-[8px]">
         {ALL_STATUSES.map((status) => {
@@ -47,9 +39,9 @@ export function BugStatusSheet({ currentStatus, onSelect, onClose }: Props) {
                     : "text-[15px] font-semibold text-foreground"
                 }
               >
-                {STATUS_LABEL[status]}
+                {bugStatusLabel(copy, status)}
               </span>
-              <BugStatusBadge status={status} size="md" />
+              <BugStatusBadge status={status} size="md" label={bugStatusLabel(copy, status)} />
             </button>
           );
         })}

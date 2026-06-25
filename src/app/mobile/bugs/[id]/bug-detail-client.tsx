@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { BugStatusBadge } from "@/components/bugs/bug-status-badge";
 import { BugStatusSheet } from "@/components/bugs/bug-status-sheet";
-import type { BugReport, BugStatus } from "@/components/bugs/bug-types";
+import {
+  bugStatusLabel,
+  type BugCopy,
+  type BugReport,
+  type BugStatus,
+} from "@/components/bugs/bug-types";
 import { deleteBugReportAction, setBugReportStatus } from "../actions";
 
 // ISO → "MM.dd HH:mm" 형태로 클라이언트에서 포맷
@@ -19,12 +24,13 @@ function formatReportedAt(iso: string): string {
 }
 
 type Props = {
+  copy: BugCopy;
   bug: BugReport;
   viewerIsAuthor: boolean;
   isReviewer: boolean;
 };
 
-export function BugDetailClient({ bug, viewerIsAuthor, isReviewer }: Props) {
+export function BugDetailClient({ copy, bug, viewerIsAuthor, isReviewer }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [showStatusSheet, setShowStatusSheet] = useState(false);
@@ -42,8 +48,7 @@ export function BugDetailClient({ bug, viewerIsAuthor, isReviewer }: Props) {
     startTransition(async () => {
       const result = await deleteBugReportAction(bug.id);
       if ("error" in result) {
-        // TODO i18n
-        window.alert("삭제에 실패했습니다. 다시 시도해 주세요.");
+        window.alert(copy.detailDeleteError);
         return;
       }
       router.replace("/mobile/bugs");
@@ -77,26 +82,34 @@ export function BugDetailClient({ bug, viewerIsAuthor, isReviewer }: Props) {
 
           {/* 키-값 표 */}
           <div className="border-y border-border">
-            <KvRow label="상태">
+            <KvRow label={copy.detailKvStatus}>
               {isReviewer ? (
                 // 리뷰어: 상태 칩 자체를 탭하면 상태 변경 시트 오픈
                 <button
                   type="button"
                   onClick={() => setShowStatusSheet(true)}
-                  aria-label="상태 변경"
+                  aria-label={copy.statusChangeSheetTitle}
                 >
-                  <BugStatusBadge status={bug.status} size="md" />
+                  <BugStatusBadge
+                    status={bug.status}
+                    size="md"
+                    label={bugStatusLabel(copy, bug.status)}
+                  />
                 </button>
               ) : (
-                <BugStatusBadge status={bug.status} size="md" />
+                <BugStatusBadge
+                  status={bug.status}
+                  size="md"
+                  label={bugStatusLabel(copy, bug.status)}
+                />
               )}
             </KvRow>
-            <KvRow label="신고일">
+            <KvRow label={copy.detailKvReportedAt}>
               <span className="font-mono text-[13.5px] font-semibold text-foreground">
                 {formatReportedAt(bug.createdAt)}
               </span>
             </KvRow>
-            <KvRow label="신고자" isLast>
+            <KvRow label={copy.detailKvReporter} isLast>
               <span className="text-[13.5px] font-semibold text-foreground">
                 {bug.reporterName}
                 {bug.reporterRole ? ` · ${bug.reporterRole}` : ""}
@@ -106,7 +119,7 @@ export function BugDetailClient({ bug, viewerIsAuthor, isReviewer }: Props) {
 
           {/* 설명 */}
           <div className="mb-2 mt-[18px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
-            설명
+            {copy.detailSectionDescription}
           </div>
           <p className="text-[14px] font-medium leading-[1.74] text-[hsl(222_18%_26%)]">
             {bug.description}
@@ -116,7 +129,7 @@ export function BugDetailClient({ bug, viewerIsAuthor, isReviewer }: Props) {
           {bug.imageUrls.length > 0 && (
             <>
               <div className="mb-2 mt-[18px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
-                스크린샷
+                {copy.detailSectionScreenshots}
               </div>
               <div className="mt-[10px] grid grid-cols-2 gap-2">
                 {bug.imageUrls.map((url, idx) => (
@@ -127,7 +140,7 @@ export function BugDetailClient({ bug, viewerIsAuthor, isReviewer }: Props) {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={url}
-                      alt={`스크린샷 ${idx + 1}`}
+                      alt={`${copy.screenshotAlt} ${idx + 1}`}
                       className="h-[116px] w-full object-cover"
                     />
                   </div>
@@ -146,8 +159,7 @@ export function BugDetailClient({ bug, viewerIsAuthor, isReviewer }: Props) {
                 className="ml-auto inline-flex items-center gap-[6px] text-[13px] font-extrabold text-[hsl(222_9%_46%)]"
               >
                 <Trash2 className="size-[15px]" aria-hidden="true" />
-                {/* TODO i18n */}
-                삭제
+                {copy.detailActionDelete}
               </button>
             </div>
           )}
@@ -157,6 +169,7 @@ export function BugDetailClient({ bug, viewerIsAuthor, isReviewer }: Props) {
       {/* 리뷰어 상태 변경 BottomSheet */}
       {showStatusSheet && (
         <BugStatusSheet
+          copy={copy}
           currentStatus={bug.status}
           onSelect={onStatusSelect}
           onClose={() => setShowStatusSheet(false)}
@@ -168,12 +181,10 @@ export function BugDetailClient({ bug, viewerIsAuthor, isReviewer }: Props) {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-8">
           <div className="w-full max-w-[320px] rounded-[22px] bg-surface p-[22px] text-center shadow-[0_24px_60px_-20px_rgba(15,23,42,0.5)]">
             <p className="text-[15.5px] font-black tracking-[-0.01em] text-foreground">
-              {/* TODO i18n */}
-              신고를 삭제할까요?
+              {copy.detailDeleteConfirmTitle}
             </p>
             <p className="mt-[7px] text-[12.5px] font-semibold leading-[1.5] text-muted-foreground">
-              {/* TODO i18n */}
-              삭제하면 복구할 수 없습니다.
+              {copy.detailDeleteConfirmBody}
             </p>
             <div className="mt-[18px] flex gap-[9px]">
               <button
@@ -181,16 +192,14 @@ export function BugDetailClient({ bug, viewerIsAuthor, isReviewer }: Props) {
                 onClick={() => setShowDeleteConfirm(false)}
                 className="h-11 flex-1 rounded-[13px] border border-border bg-background text-[13.5px] font-extrabold text-[hsl(222_20%_28%)]"
               >
-                {/* TODO i18n */}
-                취소
+                {copy.detailDeleteConfirmCancel}
               </button>
               <button
                 type="button"
                 onClick={onConfirmDelete}
                 className="h-11 flex-1 rounded-[13px] bg-[hsl(4_72%_52%)] text-[13.5px] font-extrabold text-white"
               >
-                {/* TODO i18n */}
-                삭제
+                {copy.detailDeleteConfirmCta}
               </button>
             </div>
           </div>

@@ -152,7 +152,7 @@ Member finds a StayOps problem
 
 ## Entry Points
 
-- mobile side menu → "버그 신고" (`/mobile/bugs`)
+- mobile side-menu **footer**, next to Logout → "버그 신고" (`/mobile/bugs`). It is intentionally not in the side-menu nav list nor the pinnable bottom-bar pool — it is a low-frequency utility. See `docs/product/16-mobile-navigation.md` → Side menu → Footer.
 - optional: account/help entry (deferred)
 
 ## Main Fields

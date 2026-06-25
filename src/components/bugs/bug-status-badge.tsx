@@ -8,13 +8,6 @@ const STATUS_STYLE: Record<BugStatus, string> = {
   closed: "text-[hsl(222_9%_46%)] bg-[hsl(220_16%_94%)]",
 };
 
-const STATUS_LABEL_KO: Record<BugStatus, string> = {
-  submitted: "접수",
-  reviewing: "검토 중",
-  fixed: "수정 완료",
-  closed: "종료",
-};
-
 export function BugStatusBadge({
   status,
   size = "sm",
@@ -22,7 +15,8 @@ export function BugStatusBadge({
 }: {
   status: BugStatus;
   size?: "sm" | "md";
-  label?: string;
+  /** Localized status label — callers resolve it via `bugStatusLabel(copy, status)`. */
+  label: string;
 }) {
   return (
     <span
@@ -33,7 +27,7 @@ export function BugStatusBadge({
         STATUS_STYLE[status],
       )}
     >
-      {label ?? STATUS_LABEL_KO[status]}
+      {label}
     </span>
   );
 }

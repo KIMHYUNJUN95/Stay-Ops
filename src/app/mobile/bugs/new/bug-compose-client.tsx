@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Menu, User, X } from "lucide-react";
 import { compressImageFile } from "@/components/announcements/announcement-image-uploader";
+import type { BugCopy } from "@/components/bugs/bug-types";
 import { uploadBugReportImageAction, createBugReportAction } from "../actions";
 
 const ALLOWED_TYPES = ["image/gif", "image/jpeg", "image/png", "image/webp"];
@@ -15,7 +16,7 @@ const FIELD_ROW = "flex gap-[13px] border-b border-border/60 px-[18px] py-[16px]
 const FIELD_NO = "w-[22px] shrink-0 pt-[2px] font-mono text-[12px] font-extrabold text-[hsl(222_10%_60%)]";
 const FIELD_LABEL = "text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-muted-foreground";
 
-export function BugComposeClient() {
+export function BugComposeClient({ copy }: { copy: BugCopy }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
@@ -72,8 +73,7 @@ export function BugComposeClient() {
 
       const createResult = await createBugReportAction(baseFormData);
       if ("error" in createResult) {
-        // TODO i18n
-        setError("제출에 실패했습니다. 다시 시도해 주세요.");
+        setError(copy.submitError);
         return;
       }
 
@@ -104,7 +104,7 @@ export function BugComposeClient() {
         <button
           type="button"
           className="inline-flex size-[38px] items-center justify-center rounded-full text-[hsl(222_18%_26%)]"
-          aria-label="메뉴"
+          aria-label={copy.composeMenuAria}
         >
           <Menu className="size-5" aria-hidden="true" />
         </button>
@@ -121,7 +121,7 @@ export function BugComposeClient() {
         <button
           type="button"
           className="inline-flex size-[38px] items-center justify-center rounded-full text-[hsl(222_18%_26%)]"
-          aria-label="프로필"
+          aria-label={copy.composeProfileAria}
         >
           <User className="size-5" aria-hidden="true" />
         </button>
@@ -133,12 +133,12 @@ export function BugComposeClient() {
         <div className={FIELD_ROW}>
           <span className={FIELD_NO}>01</span>
           <div className="flex-1">
-            <div className={FIELD_LABEL}>제목</div>
+            <div className={FIELD_LABEL}>{copy.composeTitleLabel}</div>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="문제를 한 줄로 적어주세요"
+              placeholder={copy.composeTitlePlaceholder}
               className="mt-[7px] w-full bg-transparent text-[16px] font-bold tracking-[-0.01em] text-foreground outline-none focus:outline-none focus-visible:outline-none placeholder:font-bold placeholder:text-[hsl(222_10%_60%)]"
               style={{
                 WebkitAppearance: "none",
@@ -158,11 +158,11 @@ export function BugComposeClient() {
         <div className={FIELD_ROW}>
           <span className={FIELD_NO}>02</span>
           <div className="flex-1">
-            <div className={FIELD_LABEL}>설명</div>
+            <div className={FIELD_LABEL}>{copy.composeDescriptionLabel}</div>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="언제, 어떤 화면에서, 어떻게 발생했는지 적어주세요"
+              placeholder={copy.composeDescriptionPlaceholder}
               rows={4}
               className="mt-[7px] block w-full resize-none bg-transparent text-[14.5px] font-medium leading-[1.6] text-[hsl(222_18%_26%)] outline-none focus:outline-none focus-visible:outline-none placeholder:text-[hsl(222_10%_60%)]"
               style={{
@@ -183,7 +183,7 @@ export function BugComposeClient() {
         <div className={FIELD_ROW}>
           <span className={FIELD_NO}>03</span>
           <div className="flex-1">
-            <div className={FIELD_LABEL}>스크린샷 · 선택</div>
+            <div className={FIELD_LABEL}>{copy.composeScreenshotsLabel}</div>
             <div className="mt-[9px] flex flex-wrap gap-[9px]">
               {previews.map((preview) => (
                 <div
@@ -200,7 +200,7 @@ export function BugComposeClient() {
                     type="button"
                     onClick={() => removePreview(preview.id)}
                     className="absolute -right-[5px] -top-[5px] inline-flex size-[18px] items-center justify-center rounded-full border-2 border-background bg-foreground text-white"
-                    aria-label="스크린샷 삭제"
+                    aria-label={copy.screenshotRemoveAria}
                   >
                     <X className="size-[10px]" aria-hidden="true" />
                   </button>
@@ -211,7 +211,7 @@ export function BugComposeClient() {
                   type="button"
                   onClick={() => fileRef.current?.click()}
                   className="inline-flex size-[62px] items-center justify-center rounded-[9px] border border-dashed border-border text-muted-foreground"
-                  aria-label="스크린샷 추가"
+                  aria-label={copy.screenshotAddAria}
                 >
                   <Camera className="size-[17px]" aria-hidden="true" />
                 </button>
@@ -244,7 +244,7 @@ export function BugComposeClient() {
           disabled={!canSubmit}
           className="inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-[14px] bg-gradient-to-br from-[hsl(223_50%_42%)] to-[hsl(223_54%_22%)] text-[15px] font-extrabold text-white shadow-[0_14px_26px_-12px_hsl(223_46%_32%/0.5)] disabled:bg-none disabled:bg-[hsl(40_22%_90%)] disabled:text-[hsl(222_10%_60%)] disabled:shadow-none"
         >
-          {isPending ? "제출 중…" : "제출하기"}
+          {isPending ? copy.composeSubmitting : copy.composeSubmit}
         </button>
       </div>
     </div>

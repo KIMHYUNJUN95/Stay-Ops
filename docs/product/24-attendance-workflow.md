@@ -34,6 +34,10 @@ like every mobile route (auth + org context).
   remains unbuilt. The home shows **이력** + **급여** shortcut entry rows (`entryList`) in **all three
   states (idle / open / break)** — placed below the primary clock-in/out + break action buttons so the
   main action is always visually dominant. (2026-06-23)
+  - **Transportation reimbursement entry (planned 2026-06-25):** a new **교통비 제출** shortcut should be
+    added in the same attendance-home quick-entry list, positioned **directly below `시급 급여`**. It is
+    the worker entry point into the monthly transportation reimbursement ledger and should stay in this
+    attendance surface rather than becoming a separate global navigation item.
   - **Amount privacy toggle (eye icon):** the pay card amounts (예상 총 급여, 근무 인정 시간 / 근무일, and
     the daily 일급 column) can be hidden via the eye button. The hide effect uses **transparent text +
     `text-shadow` blur**, NOT `filter: blur()` — on iOS Safari a `filter: blur()` on text inside the
@@ -58,7 +62,8 @@ Screens:
   session); clock data is static placeholder. The clock button links to the capture flow. The **이력
   (history)** and **급여 (pay)** shortcut entry rows appear below the primary action buttons in **all
   three active states** (idle, open, break) so users can navigate to those screens without clocking
-  out. (2026-06-23)
+  out. **Planned follow-up:** add **교통비 제출** as the next row immediately under `시급 급여`, opening
+  the monthly transport ledger. (2026-06-25)
 - `/mobile/attendance/history` — **own attendance history (Step 5, 2026-06-17)** → `attendance-history.tsx`.
   New self-view screen: today summary (세션/근무/휴게) + the user's own session list (date, 출근/퇴근
   time + site, status/검토/수동 chips, 근무·휴게 totals); a card opens a **detail bottom sheet** (shared

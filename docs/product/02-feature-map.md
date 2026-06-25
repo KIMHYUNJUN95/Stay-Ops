@@ -100,6 +100,29 @@ Default stay time rules:
 - Check-out: 10:00 default
 - Early check-out: manually entered by CS staff when guest communication changes the expected check-out time
 
+### 5A. Attendance / Payroll / Transportation Reimbursement
+
+Purpose:
+
+- Record real attendance with site-bound proof
+- Calculate hourly gross pay
+- Collect monthly transportation reimbursement evidence in a reviewable office format
+
+Key features:
+
+- GPS + QR clock-in / clock-out
+- Break tracking
+- Own attendance history
+- Own monthly pay view
+- Correction / exception requests
+- Monthly finalization
+- Transportation reimbursement **monthly ledger**
+- Per-item receipt / screenshot photo evidence (required)
+- Linked or manual transport-entry creation
+- Monthly total amount by user
+- Privileged user-level review and org-level monthly totals
+- Clean Excel export (summary + detailed sheets)
+
 ### Cleaning Workflow
 
 Purpose:

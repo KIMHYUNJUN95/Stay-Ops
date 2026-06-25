@@ -4,6 +4,30 @@ This file records important project decisions.
 
 ## 2026-06-25
 
+### Attendance / Payroll — transportation reimbursement planning direction confirmed
+
+- Transportation reimbursement is planned as an **attendance/payroll-adjacent reimbursement module**, not as a generic request form.
+- Scope is **all users** (staff and part-time staff alike). There is **no role-based evidence exception**:
+  every reimbursable transport entry requires **at least one receipt/screenshot photo**.
+- Storage principle follows the app-wide rule: **raw records are per-user**, while privileged admins can
+  view both **per-user detail** and **organization-level monthly aggregates**.
+- Submission model is a **per-user monthly ledger** (`one report per user per month`) with many line
+  items, not one one-off form per receipt. Users may add items **daily or later in bulk**.
+- UI direction: **list ledger**, not cards. The month screen must show **all entries at once** and a
+  clear **monthly total amount**.
+- Entry modes: both **linked** (derive context from attendance / cleaning history) and **manual**
+  (user picks date and enters the item later) are required.
+- Context: building / room information should reuse the existing app context-linking patterns where
+  possible, but those are **review-assistance context only**. The actual proof for reimbursement remains
+  the attached receipt/screenshot images.
+- Payroll principle: transportation reimbursement is **related to payroll operations** but must remain
+  **separate from hourly gross wage calculation**. Dashboard and export should show `wages` and
+  `transport reimbursement` as separate totals.
+- Export target is a **clean Excel workbook** fit for office review: summary + detailed monthly sheets.
+
+Why: the real workflow is monthly office submission with many evidence images, later review, and later
+dashboard aggregation. A generic "request with up to 5 images" model does not fit this operating reality.
+
 ### 게시판 @멘션 기능 — 기획 확정
 
 - 디자인: 옵션 E (바텀시트 + 검색, canonical `BottomSheet` 컴포넌트, scrim `z-[80]`)

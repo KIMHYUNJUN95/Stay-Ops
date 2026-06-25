@@ -4,6 +4,7 @@ import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getBugReportDetail, isBugReportReviewer } from "@/lib/bug-reports";
+import { getDictionary } from "@/lib/i18n";
 import { BugDetailClient } from "./bug-detail-client";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -33,12 +34,14 @@ export default async function MobileBugDetailPage({ params }: PageProps) {
 
   const isReviewer = isBugReportReviewer(session);
   const viewerIsAuthor = bug.reportedByUserId === session.user.id;
+  const copy = getDictionary(session.user.preferredLanguage).bugs;
 
   const navBadges = await getMobileNavBadges();
 
   return (
-    <MobileShell activeItem="bugs" badges={navBadges} title="버그 신고">
+    <MobileShell activeItem="bugs" badges={navBadges} title={copy.title}>
       <BugDetailClient
+        copy={copy}
         bug={bug}
         viewerIsAuthor={viewerIsAuthor}
         isReviewer={isReviewer}

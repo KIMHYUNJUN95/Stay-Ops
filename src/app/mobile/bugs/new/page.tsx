@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getOnboardingState } from "@/lib/onboarding";
+import { getDictionary } from "@/lib/i18n";
 import { BugComposeClient } from "./bug-compose-client";
 
 export default async function MobileBugComposePage() {
@@ -19,5 +20,7 @@ export default async function MobileBugComposePage() {
     redirect("/mobile/unavailable");
   }
 
-  return <BugComposeClient />;
+  const copy = getDictionary(session.user.preferredLanguage).bugs;
+
+  return <BugComposeClient copy={copy} />;
 }

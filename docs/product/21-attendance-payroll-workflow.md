@@ -495,6 +495,157 @@ They cannot see:
 - other users' pay
 - total labor cost
 
+## Transportation Reimbursement
+
+Transportation reimbursement belongs to the same **attendance/payroll operating domain**, but it is
+**not part of gross wage calculation**.
+
+Core principle:
+
+- wage calculation and transportation reimbursement must remain **separate totals**
+- transport reimbursement is a **receipt-backed reimbursement workflow**, not a pay-rate formula
+- every original record is stored **per user**, and privileged admins later review or aggregate it
+
+### Who Uses It
+
+- all users may submit transportation reimbursement items
+- there is **no employee vs part-time evidence exemption**
+- privileged admins (`owner`, `attendance_payroll_admin`) may review both specific-user detail and
+  monthly organization totals
+
+### Submission Unit
+
+- one user has **one monthly transport report** per Tokyo month
+- that monthly report contains **many transport items**
+- users may add items gradually during the month or enter them later in bulk before submission
+- the monthly report is the office-review unit, not the individual image
+
+### Item Unit
+
+- one line item represents **one reimbursable transport entry**
+- multiple items may exist on the same date
+- an item may be created from:
+  - linked attendance / cleaning history
+  - fully manual input
+
+### Required Item Data
+
+Every transport item must store at least:
+
+- usage date
+- amount in yen
+- receipt / screenshot photo evidence
+- user
+- monthly report
+
+Recommended contextual fields:
+
+- linked attendance session when available
+- building context
+- room / cleaning context summary when available
+- memo
+- entry mode (`linked` or `manual`)
+
+### Evidence Rule
+
+- every transport item requires **at least 1 image**
+- accepted evidence:
+  - receipt photo
+  - transit/payment app screenshot
+- an item without image evidence may be drafted temporarily but **cannot be submitted**
+- final monthly submission is blocked if any included item lacks evidence
+
+### Linked and Manual Entry
+
+The product must support both:
+
+- **linked entry**
+  - derive date / building / work context from attendance and cleaning history
+  - reuse existing building / room context-linking patterns where useful
+- **manual entry**
+  - user directly selects the date and enters the amount later
+  - required because some users record everything in bulk at month end
+
+### Monthly Ledger UI
+
+- the month screen must be a **list ledger**, not card-based
+- users should be able to see **all entries for the month in one screen**
+- the screen must show the **monthly total amount**
+- worker entry point: from **Attendance Home → 바로가기 → `시급 급여` 아래 `교통비 제출` 행**
+- each row should show at minimum:
+  - date
+  - building
+  - room / cleaning summary when available
+  - amount
+  - evidence count
+  - linked/manual indicator
+
+### User Visibility
+
+- each user sees only their own monthly report and items
+- users do not see other users' reimbursement data
+
+### Privileged Visibility
+
+Only `owner` and `attendance_payroll_admin` can see:
+
+- a specific user's monthly reimbursement detail
+- a specific user's monthly total
+- organization-level monthly reimbursement total
+- organization-level user-by-user monthly summary
+
+### Review Status
+
+Recommended monthly-report states:
+
+- `draft`
+- `submitted`
+- `reviewing`
+- `approved`
+- `rejected`
+
+Suggested edit rule:
+
+- user may edit own report/items while `draft`
+- rejected report returns to editable state for resubmission
+
+### Dashboard Direction (Deferred)
+
+The later admin dashboard should support:
+
+- total transportation reimbursement for the selected month
+- user-by-user monthly totals
+- submission count / non-submission count
+- review-state breakdown
+- drill-down into a single user's monthly detail
+
+### Export
+
+Transportation reimbursement requires Excel export.
+
+Recommended export shape:
+
+- **summary sheet**
+  - one row per user-month
+  - total amount
+  - item count
+  - evidence completion state
+  - report status
+- **detail sheet**
+  - one row per transport item
+  - date
+  - building / room summary
+  - amount
+  - evidence count
+  - memo
+
+Important:
+
+- export should stay **clean and office-friendly**
+- receipt images should not be embedded into every sheet cell by default
+- the workbook is a reimbursement ledger; the images remain the evidence source in the app/storage
+- if later needed, evidence download should be handled separately from the main workbook
+
 ## Monthly Finalization
 
 ### Finalization Unit
@@ -547,6 +698,8 @@ Only `owner` and `attendance_payroll_admin` can see:
 
 - organization-wide attendance
 - other users' hourly pay
+- other users' transportation reimbursement detail
+- transportation reimbursement monthly totals
 - monthly payroll finalization queue
 - monthly total labor dashboards
 - export
@@ -601,6 +754,9 @@ Export history must be stored:
 - which month
 - which finalized version set
 
+Transportation reimbursement export should be tracked separately from wage finalization export, because
+it is a reimbursement ledger rather than a payroll snapshot.
+
 ## Notifications
 
 ### Worker-facing
@@ -615,6 +771,9 @@ Notify `owner` and `attendance_payroll_admin` immediately for:
 - correction / exception request created
 - incomplete session created
 - midnight-crossing abnormal session
+
+Transportation reimbursement notifications are not part of the current attendance-notification slice and
+should be defined separately when the reimbursement module is implemented.
 
 ## Phase Plan
 
@@ -647,4 +806,3 @@ Notify `owner` and `attendance_payroll_admin` immediately for:
 
 - final Excel export template is still pending from the operator
 - future Wi-Fi activation method depends on the final app delivery form beyond the current PWA
-

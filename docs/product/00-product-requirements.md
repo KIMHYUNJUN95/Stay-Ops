@@ -126,7 +126,12 @@ screenshots, and status tracking only. See `docs/product/25-bug-report-workflow.
 
 ### Attendance / Clock-In-Out + Payroll
 
-PWA QR + device-GPS clock-in/out replacing paper timecards, with a later path to hourly payroll. **Attendance capture is approved (2026-06-09); payroll calculation is deferred until wage rules are defined.** See `docs/product/21-attendance-payroll-workflow.md`.
+PWA QR + device-GPS clock-in/out replacing paper timecards, with a later path to hourly payroll and
+**transportation reimbursement submission**. Transportation reimbursement is a payroll-adjacent
+evidence workflow for **all users**, not only part-time staff: monthly per-user ledger, receipt/screenshot
+photos required on every reimbursement item, later admin review, later monthly dashboard totals, and
+clean Excel export. It must remain **separate from hourly gross wage calculation**. See
+`docs/product/21-attendance-payroll-workflow.md`.
 
 ### Work Scheduler
 

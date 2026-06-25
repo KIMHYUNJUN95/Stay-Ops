@@ -27,7 +27,14 @@ A five-feature batch was approved on 2026-06-09 as the next build scope after th
 
 Additional planning draft outside that batch:
 
-- **Bug Report / Problem Report** — **1차 구현 중 (2026-06-25): DB·서버 액션·UI wire-up·알림.** StayOps 앱/시스템 버그 신고 모듈. 라우트 `/mobile/bugs` (목록·작성·상세 3개 화면). 리뷰어: `owner`, `office_admin`. 알림 타입 `bug_report_activity` (`created` → 리뷰어, `status_changed` → 작성자). 스토리지: `request-images` 버킷 재사용. 1차 deferred: admin web, 수정 페이지, `cs_staff` 리뷰어 확장. 관련 문서: Product `25` + Tech-design `13` + data-model `04` + RLS `05` (갱신 완료 2026-06-25).
+- **Transportation Reimbursement (attendance/payroll-adjacent)** — planning draft added on
+  **2026-06-25** inside Product `21` + Tech-design `11`. Direction confirmed: **per-user monthly
+  ledger**, list UI (not cards), **mandatory receipt/screenshot photo evidence on every item**, linked
+  + manual entry both required, monthly total shown, later admin user-detail + org-total dashboard, and
+  clean Excel export. Worker entry point is planned under **Attendance Home → 바로가기**, as a new
+  row placed **directly below `시급 급여`**. Important accounting rule: reimbursement remains
+  **separate from hourly gross wages** even though it sits in the same operating/payroll domain.
+- **Bug Report / Problem Report** — **1차 구현 중 (2026-06-25): DB·서버 액션·UI wire-up·알림.** StayOps 앱/시스템 버그 신고 모듈. 라우트 `/mobile/bugs` (목록·작성·상세 3개 화면). 리뷰어: `owner`, `office_admin`. 알림 타입 `bug_report_activity` (`created` → 리뷰어, `status_changed` → 작성자). 스토리지: `request-images` 버킷 재사용. **i18n 배선 완료 (2026-06-25):** 1차 UI가 하드코딩 한국어로 나가던 것을 전부 `getDictionary(locale).bugs` 소비로 교체(서버 페이지 → `copy` prop → 클라이언트, board/tasks 패턴 동일). 상태 라벨은 `bugStatusLabel(copy, status)` 단일 출처, `BugStatusBadge`는 `label` 필수. aria/alt 키 5개 보강(ko/ja/en). 1차 deferred: admin web, 수정 페이지, `cs_staff` 리뷰어 확장. 관련 문서: Product `25` + Tech-design `13` + data-model `04` + RLS `05` (갱신 완료 2026-06-25).
 
 Build order and readiness:
 

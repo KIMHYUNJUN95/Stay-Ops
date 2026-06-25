@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { BugStatusBadge } from "@/components/bugs/bug-status-badge";
-import type { BugReport } from "@/components/bugs/bug-types";
+import { bugStatusLabel, type BugCopy, type BugReport } from "@/components/bugs/bug-types";
 
 // ISO 날짜를 "MM.dd" 형태로 클라이언트에서 포맷
 function formatDateLabel(iso: string): string {
@@ -20,13 +20,13 @@ function formatBugCode(id: string): string {
 }
 
 type Props = {
+  copy: BugCopy;
   reports: BugReport[];
   isReviewer: boolean;
 };
 
-export function BugsListClient({ reports, isReviewer }: Props) {
-  // TODO i18n: "내 신고 내역" / "전체 신고" / "신고" 버튼 / 빈 상태 문구
-  const sectionLabel = isReviewer ? "전체 신고" : "내 신고 내역";
+export function BugsListClient({ copy, reports, isReviewer }: Props) {
+  const sectionLabel = isReviewer ? copy.listHeadingAll : copy.listHeadingMine;
 
   return (
     <div className="-mx-5 -mb-8 -mt-[84px] flex h-[100dvh] flex-col bg-background">
@@ -43,23 +43,22 @@ export function BugsListClient({ reports, isReviewer }: Props) {
           className="inline-flex h-[30px] items-center gap-[5px] rounded-[8px] border border-primary bg-primary px-[13px] text-[12px] font-extrabold text-white"
         >
           <Plus className="size-[14px]" aria-hidden="true" />
-          신고
+          {copy.composeCta}
         </Link>
       </div>
 
       {/* 컬럼 헤더 */}
       <div className="flex items-center gap-3 border-b border-border px-[18px] py-[7px] text-[10px] font-extrabold uppercase tracking-[0.06em] text-[hsl(222_10%_60%)]">
-        <span className="w-[70px]">ID</span>
-        <span className="flex-1">제목</span>
-        <span className="w-[64px] text-right">상태</span>
+        <span className="w-[70px]">{copy.listColumnId}</span>
+        <span className="flex-1">{copy.listColumnTitle}</span>
+        <span className="w-[64px] text-right">{copy.listColumnStatus}</span>
       </div>
 
       {/* 목록 (스크롤) */}
       <div className="flex-1 overflow-y-auto pb-[40px]">
         {reports.length === 0 ? (
           <p className="px-[18px] pt-[32px] text-center text-[13px] font-semibold text-muted-foreground">
-            {/* TODO i18n */}
-            신고 내역이 없습니다
+            {copy.emptyState}
           </p>
         ) : (
           reports.map((bug) => (
@@ -80,7 +79,7 @@ export function BugsListClient({ reports, isReviewer }: Props) {
                 </span>
               </span>
               <span className="w-[64px] shrink-0 text-right">
-                <BugStatusBadge status={bug.status} />
+                <BugStatusBadge status={bug.status} label={bugStatusLabel(copy, bug.status)} />
               </span>
             </Link>
           ))

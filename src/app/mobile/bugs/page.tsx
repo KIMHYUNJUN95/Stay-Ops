@@ -8,6 +8,7 @@ import {
   getOrgBugReports,
   isBugReportReviewer,
 } from "@/lib/bug-reports";
+import { getDictionary } from "@/lib/i18n";
 import { BugsListClient } from "./bugs-list-client";
 
 export default async function MobileBugsPage() {
@@ -27,6 +28,7 @@ export default async function MobileBugsPage() {
   }
 
   const isReviewer = isBugReportReviewer(session);
+  const copy = getDictionary(session.user.preferredLanguage).bugs;
 
   const [reports, navBadges] = await Promise.all([
     isReviewer ? getOrgBugReports(session) : getMyBugReports(session),
@@ -34,8 +36,8 @@ export default async function MobileBugsPage() {
   ]);
 
   return (
-    <MobileShell activeItem="bugs" badges={navBadges} title="버그 신고">
-      <BugsListClient reports={reports} isReviewer={isReviewer} />
+    <MobileShell activeItem="bugs" badges={navBadges} title={copy.title}>
+      <BugsListClient copy={copy} reports={reports} isReviewer={isReviewer} />
     </MobileShell>
   );
 }

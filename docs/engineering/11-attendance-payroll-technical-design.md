@@ -941,6 +941,107 @@ monthly_bulk
 single_user
 ```
 
+### `transport_reimbursement_reports`
+
+One row per **user-month** reimbursement ledger.
+
+```txt
+id uuid primary key
+organization_id uuid not null references organizations(id)
+user_id uuid not null references profiles(id)
+target_month date not null        -- first day of month in Tokyo basis
+status text not null default 'draft'
+submitted_at timestamptz
+reviewed_at timestamptz
+reviewed_by_user_id uuid references profiles(id)
+review_note text
+total_amount_cached integer not null default 0
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()
+```
+
+Recommended constraints:
+
+- unique `(organization_id, user_id, target_month)`
+- `status` in:
+
+```txt
+draft
+submitted
+reviewing
+approved
+rejected
+```
+
+Notes:
+
+- raw ownership is **always per-user**
+- `total_amount_cached` is a convenience field for list/dashboard/export performance; source of truth
+  remains the items
+- this table is **payroll-adjacent** but must remain separate from `attendance_month_snapshots`
+
+### `transport_reimbursement_items`
+
+One row per reimbursable transport entry.
+
+```txt
+id uuid primary key
+organization_id uuid not null references organizations(id)
+report_id uuid not null references transport_reimbursement_reports(id) on delete cascade
+user_id uuid not null references profiles(id)
+usage_date date not null
+amount_yen integer not null
+entry_mode text not null
+attendance_session_id uuid references attendance_sessions(id)
+property_id uuid references properties(id)
+room_id uuid references rooms(id)
+work_context jsonb not null default '{}'   -- building label, room labels, cleaning summary, etc.
+memo text
+sort_order integer not null default 0
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()
+```
+
+Recommended `entry_mode` values:
+
+```txt
+linked
+manual
+```
+
+Notes:
+
+- multiple items may exist on the same date
+- `attendance_session_id` is optional because monthly bulk/manual entry is required
+- `work_context` is intentional: a single transport entry may need to preserve multiple cleaned rooms or
+  a display-ready building/room summary, which does not fit a strict single-room FK alone
+- `property_id` / `room_id` allow reuse of the existing building/room context-linking direction where a
+  single canonical context exists
+
+### `transport_reimbursement_item_images`
+
+```txt
+id uuid primary key
+organization_id uuid not null references organizations(id)
+report_id uuid not null references transport_reimbursement_reports(id) on delete cascade
+item_id uuid not null references transport_reimbursement_items(id) on delete cascade
+user_id uuid not null references profiles(id)
+storage_path text not null
+sort_order integer not null default 0
+created_at timestamptz not null default now()
+```
+
+Notes:
+
+- image count is enforced at the application layer
+- recommended storage path:
+
+```txt
+{org_id}/transport-reimbursements/{report_id}/{item_id}/{file}
+```
+
+- bucket reuse is acceptable (`request-images`) if path/RLS policy stays explicit
+
 ### Authorization Flag
 
 Recommended membership-level flag:
@@ -1059,6 +1160,9 @@ These are intentionally out of scope for now.
 - `getAttendanceReviewQueue`
 - `getAttendanceDashboard`
 - `getAttendanceSiteCostSummary`
+- `getMyTransportReimbursementMonth`
+- `getTransportReimbursementUserMonth`
+- `getTransportReimbursementMonthSummary`
 
 ## RLS Direction
 
@@ -1068,11 +1172,13 @@ These are intentionally out of scope for now.
 - read own breaks
 - read own correction requests
 - read own month summaries
+- read own transport reimbursement reports/items/images
 - no direct client-side writes to authoritative payroll data
 
 ### Privileged admin access
 
 - `owner` and `attendance_payroll_admin` read org-wide attendance and payroll data
+- `owner` and `attendance_payroll_admin` read org-wide transport reimbursement data
 - site master writes should still remain owner-only in application logic
 
 ### Service-role writes
@@ -1116,6 +1222,9 @@ Admin-facing:
 - incomplete session detected
 - midnight-crossing abnormal session
 
+Transportation reimbursement notifications should be a later, separate slice. Do not force them into the
+existing `attendance_activity` design until the reimbursement review lifecycle is implemented.
+
 ## Export Rules
 
 - export only finalized data
@@ -1124,10 +1233,41 @@ Admin-facing:
 - template content remains pending from operator
 - store export audit trail
 
+Transportation reimbursement export should be modeled separately from finalized wage export.
+
+Recommended workbook target:
+
+- sheet 1: monthly summary (one row per user)
+- sheet 2: detailed transport items (one row per item)
+
+Recommended reimbursement export columns:
+
+- user
+- target month
+- usage date
+- linked attendance date
+- building
+- room/cleaning summary
+- entry mode
+- amount_yen
+- evidence_count
+- memo
+- report_status
+
+Important:
+
+- keep workbook visually clean for office review
+- do not rely on embedding all receipt images into the workbook cells
+- wage totals and transport reimbursement totals must remain separate in both workbook logic and
+  dashboard logic
+
 ## Current Build Notes
 
 - Phase A can be built now with `GPS + QR`
 - Wi-Fi attendance is designed but must remain disabled in the PWA release
 - hourly gross-pay logic is now sufficiently defined for implementation
 - tax/deduction integration should not be added here
+- transportation reimbursement is now planned as a later attendance/payroll-adjacent module: per-user
+  monthly ledger, mandatory photo evidence per item, linked + manual entry, clean Excel export, and
+  separate totals from wages
 

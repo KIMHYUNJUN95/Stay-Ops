@@ -111,8 +111,10 @@ const mobileNavBoard = {
   icon: Newspaper,
 } as const satisfies NavigationItem;
 
-// Bug Report — internal product/system issue reporting. See docs/product/25-bug-report-workflow.md.
-const mobileNavBugs = {
+// Bug Report — internal product/system issue reporting. Intentionally NOT in the side-menu nav
+// list (nor the pinnable bottom-bar pool): it is a utility surfaced in the sidebar footer next to
+// Logout. See docs/product/25-bug-report-workflow.md + docs/product/16-mobile-navigation.md.
+export const mobileNavBugs = {
   id: "bugs",
   label: localizedNavigationLabels.mobile.bugs,
   href: "/mobile/bugs",
@@ -137,24 +139,25 @@ export const mobileBottomNavigation = [
   mobileNavAnnouncements,
 ] as const satisfies readonly NavigationItem[];
 
+// Operational ordering: 진입점 → 일일 코어(예약·청소·할일·요청·근태) → 커뮤니케이션(공지·게시판·제안함)
+// → 참조(린넨 반품·직원 목록). Bug Report is intentionally excluded (sidebar footer, next to Logout).
 export const mobileSidebarNavigation = [
   mobileNavHome,
   mobileNavCalendar,
   mobileNavCleaning,
   mobileNavTasks,
-  mobileNavSuggestions,
-  mobileNavBoard,
-  mobileNavBugs,
-  mobileNavAttendance,
   mobileNavRequests,
+  mobileNavAttendance,
   mobileNavAnnouncements,
+  mobileNavBoard,
+  mobileNavSuggestions,
+  mobileNavLinenReturn,
   {
     id: "directory",
     label: localizedNavigationLabels.mobile.directory,
     href: "/mobile/directory",
     icon: Users,
   },
-  mobileNavLinenReturn,
 ] as const satisfies readonly NavigationItem[];
 
 // ── Per-user bottom-bar customization ────────────────────────────────────────
