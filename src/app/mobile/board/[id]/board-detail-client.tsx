@@ -23,6 +23,7 @@ import {
   deleteBoardPost,
   addBoardComment,
   searchMentions,
+  getBoardAttachmentDownloadUrl,
 } from "./actions";
 
 function relativeTime(iso: string, locale: Locale): string {
@@ -67,6 +68,7 @@ export function BoardDetailClient({
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [downloadingPath, setDownloadingPath] = useState<string | null>(null);
   const toastTimer = useRef<number | null>(null);
 
   // 멘션 상태 (composer → 시트 → 여기서 통합 관리)
@@ -119,6 +121,30 @@ export function BoardDetailClient({
       await deleteBoardComment(commentId);
       router.refresh();
     });
+  }
+
+  async function onDownloadFile(path: string) {
+    if (downloadingPath) return;
+    setDownloadingPath(path);
+    try {
+      const result = await getBoardAttachmentDownloadUrl(post.id, path);
+      if ("url" in result) {
+        // The signed URL carries Content-Disposition: attachment, so this downloads (not navigates)
+        // on both mobile and desktop without ejecting the PWA.
+        const a = document.createElement("a");
+        a.href = result.url;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        flashToast(copy.downloadFailed);
+      }
+    } catch {
+      flashToast(copy.downloadFailed);
+    } finally {
+      setDownloadingPath(null);
+    }
   }
 
   function onMentionConfirm(selection: { users: MentionableMember[]; mentionAll: boolean }) {
@@ -275,7 +301,7 @@ export function BoardDetailClient({
             />
           )}
 
-          {/* 첨부 파일 */}
+          {/* 첨부 파일 — 탭하면 서명 URL로 다운로드 (모바일·PC) */}
           {post.fileAttachments.length > 0 && (
             <div className="mt-[14px] flex flex-col gap-2">
               {post.fileAttachments.map((f) => (
@@ -284,6 +310,9 @@ export function BoardDetailClient({
                   name={f.name}
                   sizeBytes={f.sizeBytes}
                   mimeType={f.mimeType}
+                  downloadLabel={copy.downloadFile}
+                  downloading={downloadingPath === f.url}
+                  onDownload={() => onDownloadFile(f.url)}
                 />
               ))}
             </div>

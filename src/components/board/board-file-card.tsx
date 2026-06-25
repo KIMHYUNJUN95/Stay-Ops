@@ -1,5 +1,5 @@
 "use client";
-import { X, Paperclip } from "lucide-react";
+import { X, Paperclip, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type FileType = "xls" | "pdf" | "doc" | "generic";
@@ -29,23 +29,59 @@ export function BoardFileCard({
   sizeBytes,
   mimeType,
   onRemove,
+  onDownload,
+  downloading = false,
+  downloadLabel = "다운로드",
 }: {
   name: string;
   sizeBytes: number;
   mimeType: string;
   onRemove?: () => void;
+  // When provided (and no onRemove), the whole card becomes a download button.
+  onDownload?: () => void;
+  downloading?: boolean;
+  downloadLabel?: string;
 }) {
   const type = detectFileType(mimeType, name);
   const style = typeStyles[type];
-  return (
-    <div className="flex w-full items-center gap-[11px] rounded-[12px] border border-border bg-surface px-3 py-[10px]">
+
+  const inner = (
+    <>
       <span className={cn("inline-flex size-[38px] shrink-0 items-center justify-center rounded-[10px] font-mono text-[10px] font-extrabold tracking-[0.02em]", style.bg, style.text)}>
         {style.label}
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 text-left">
         <div className="truncate text-[13px] font-bold text-foreground">{name}</div>
         <div className="mt-0.5 text-[11px] font-semibold text-muted-foreground">{formatSize(sizeBytes)}</div>
       </div>
+    </>
+  );
+
+  // Download variant: the entire row is a button (mobile + PC friendly tap target).
+  if (onDownload && !onRemove) {
+    return (
+      <button
+        type="button"
+        onClick={onDownload}
+        disabled={downloading}
+        aria-label={`${downloadLabel} · ${name}`}
+        className="flex w-full items-center gap-[11px] rounded-[12px] border border-border bg-surface px-3 py-[10px] text-left transition-colors active:bg-[hsl(40_22%_94%)] disabled:opacity-60"
+      >
+        {inner}
+        <span className="inline-flex size-[26px] shrink-0 items-center justify-center rounded-full bg-primary/[0.10] text-primary">
+          {downloading ? (
+            <Loader2 className="size-[14px] animate-spin" aria-hidden="true" />
+          ) : (
+            <Download className="size-[14px]" aria-hidden="true" />
+          )}
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex w-full items-center gap-[11px] rounded-[12px] border border-border bg-surface px-3 py-[10px]">
+      {inner}
       {onRemove && (
         <button
           type="button"

@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { PROPERTY_MAP_META, type PropertyMapMeta, getPropertyAddress } from "@/lib/property-map-links";
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -1471,48 +1472,34 @@ export function MobileCalendarView({
         document.body,
       ) : null}
 
-      {typeof document !== "undefined" && isEmptyRoomsModalOpen
-        ? createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 py-10">
-          <button
-            aria-label={copy.close}
-            className="absolute inset-0 bg-black/45 backdrop-blur-sm"
-            onClick={() => setIsEmptyRoomsModalOpen(false)}
-            type="button"
-          />
-          <div className={GLASS_RESERVATION_MODAL}>
-            <div className="flex items-center justify-between gap-2 border-b border-border/40 px-5 pb-4 pt-5">
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {copy.listReferenceDate}: {formatDateLabel(listReferenceDate, locale)}
-                </p>
-                <p className="mt-1 text-lg font-black">{copy.emptyRoomsModalTitle}</p>
-              </div>
-              <Button
-                className="size-9 rounded-full bg-white/50 p-0 hover:bg-surface/70"
-                onClick={() => setIsEmptyRoomsModalOpen(false)}
-                variant="ghost"
-              >
-                <X className="size-4" />
-              </Button>
+      {isEmptyRoomsModalOpen && (
+        <BottomSheet
+          onClose={() => setIsEmptyRoomsModalOpen(false)}
+          className="max-h-[82dvh] flex flex-col"
+          header={
+            <div className="px-1 pb-3 pt-1">
+              <p className="text-xs text-muted-foreground">
+                {copy.listReferenceDate}: {formatDateLabel(listReferenceDate, locale)}
+              </p>
+              <p className="mt-1 text-lg font-black">{copy.emptyRoomsModalTitle}</p>
             </div>
-            <div className="max-h-[60vh] space-y-2 overflow-y-auto px-5 py-5 text-sm">
-              {emptyRoomLabels.length > 0 ? (
-                emptyRoomLabels.map((roomLabel) => (
-                  <Card className={`${GLASS_CARD} p-3`} key={roomLabel}>
-                    <p className="font-semibold">{roomLabel}</p>
-                  </Card>
-                ))
-              ) : (
-                <Card className="rounded-xl border-dashed p-3 text-xs text-muted-foreground">
-                  {copy.noEmptyRooms}
+          }
+        >
+          <div className="-mx-1 max-h-[60vh] space-y-2 overflow-y-auto px-1 pb-2 pt-1 text-sm">
+            {emptyRoomLabels.length > 0 ? (
+              emptyRoomLabels.map((roomLabel) => (
+                <Card className={`${GLASS_CARD} p-3`} key={roomLabel}>
+                  <p className="font-semibold">{roomLabel}</p>
                 </Card>
-              )}
-            </div>
+              ))
+            ) : (
+              <Card className="rounded-xl border-dashed p-3 text-xs text-muted-foreground">
+                {copy.noEmptyRooms}
+              </Card>
+            )}
           </div>
-        </div>,
-        document.body,
-      ) : null}
+        </BottomSheet>
+      )}
 
       {typeof document !== "undefined" && selectedMapProperty
         ? createPortal(

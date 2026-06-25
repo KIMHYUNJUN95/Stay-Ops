@@ -324,9 +324,9 @@ getUnreadBoardPostCount(session)
 - 파일당 최대 크기: 20MB (`file_size_limit: 20971520`)
 - 허용 MIME 타입: `application/pdf`, `application/vnd.ms-excel`, `application/vnd.openxmlformats-*`, `text/csv`
 - Storage RLS: 같은 org 활성 멤버 SELECT, 글 작성자 INSERT/DELETE
-- 파일 URL: Supabase Storage의 signed URL (만료 없는 public URL 또는 1시간 signed URL — 결정 필요)
-
-> **미결**: `board-attachments` 버킷의 공개 여부 (public vs signed URL). 업무 문서 특성상 **signed URL** 권장.
+- 파일 URL: **signed URL로 확정 (2026-06-25)** — `board-attachments`는 private 유지, 다운로드 시
+  서버 액션 `getBoardAttachmentDownloadUrl`이 120초 서명 URL을 `download`(원본 파일명) 옵션과 함께 발급.
+  저장되는 `FileAttachment.url`은 full URL이 아니라 스토리지 **경로**.
 
 ---
 
@@ -596,6 +596,14 @@ UI 디자인 핸드오프 후 아래 순서로 진행:
 
 `/mobile/board/[id]` 상세 페이지를 백엔드에 연결 완료.
 
+- **첨부 파일 다운로드 (2026-06-25 추가, 모바일·PC)**: `board-attachments`는 **private 버킷**이고
+  `FileAttachment.url`은 스토리지 **경로**다. 상세에서 첨부 카드(`BoardFileCard`)를 탭하면 서버 액션
+  `getBoardAttachmentDownloadUrl(postId, path)`가 (1) 같은 org·비삭제 글의 첨부 목록에 그 path가 실제로
+  있는지 검증한 뒤 (2) 서비스롤로 **120초 서명 URL**을 `{ download: 원본파일명 }` 옵션으로 발급한다.
+  이 옵션이 `Content-Disposition: attachment`를 달아줘서 모바일·데스크톱 모두 **미리보기가 아니라
+  다운로드**된다. 클라이언트는 임시 `<a>`를 만들어 클릭 → 다운로드(설치형 PWA 이탈 없음). i18n
+  `downloadFile`/`downloadFailed`(ko·ja·en) 추가. **첨부 URL 정책은 signed URL로 확정**(아래 §13 미결
+  해소).
 - **사진 뷰어 (2026-06-25 추가)**: 게시글 사진과 댓글 사진을 탭하면 공유 `ImageLightbox`
   (`src/components/shell/image-lightbox.tsx` — 풀스크린·스와이프·원본 표시·`<body>` 포털)가 열린다.
   `target="_blank"`는 쓰지 않는다(설치형 PWA 이탈 방지 — decision-log 2026-06-22 이미지 계약).
@@ -657,7 +665,7 @@ UI 디자인 핸드오프 후 아래 순서로 진행:
 | 글 수정 폼 UI | Page 4로 분리 (서버 액션 `updateBoardPost`는 구현 완료, 폼만 대기) |
 | `board_comment_replied` 알림 구현 여부 | 선택 구현 (Phase 3에서 결정) — Page 3은 `board_activity`(댓글) 1종만 구현 |
 | 글 신고 기능 | 미기획 (추후 검토) |
-| `board-attachments` 버킷 URL 정책 (public vs signed URL) | 미정 — public은 구현 단순하나 파일 노출 위험 있음; signed URL은 보안 강하나 만료 처리 필요. 결정 전까지 signed URL 방향 권장 |
+| `board-attachments` 버킷 URL 정책 (public vs signed URL) | **확정: signed URL** (2026-06-25) — `getBoardAttachmentDownloadUrl` 서버 액션이 120초 서명 URL을 `download` 옵션과 함께 발급(첨부가 글에 속하는지 검증 후). 버킷은 private 유지 |
 | 파일 첨부 최대 개수 | 미정 — 현재 문서상 5개; 이미지 5장과 합산 vs 별도 제한인지 구현 시 결정 |
 | @멘션 검색 결과 정렬 | **디폴트: 가나다순**. 추후 최근 활동 기반(마지막 댓글 시각 순)으로 전환 검토 — 현재는 단순 정렬이 충분 |
 | @멘션 UI·DB·알림 구현 | **구현 중 (2026-06-25)** — DB 에이전트: `mentioned_user_ids` / `mention_all` 컬럼 + GIN 인덱스 마이그레이션. 백엔드 에이전트: `addBoardComment` 확장 + `notifyBoardMentions`. 프론트엔드 에이전트: 멘션 피커 바텀시트 컴포넌트. |

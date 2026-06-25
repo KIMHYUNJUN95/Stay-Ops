@@ -205,6 +205,51 @@ export async function searchMentions(query: string): Promise<MentionableMember[]
   return searchMentionableMembers(session, query, 20);
 }
 
+/**
+ * Issue a short-lived signed download URL for a board post file attachment. The `board-attachments`
+ * bucket is private, so a signed URL is required. We verify the requested storage `path` is actually
+ * one of the (same-org, non-deleted) post's attachments before signing — a viewer can never sign an
+ * arbitrary path. The `download` option sets Content-Disposition: attachment with the original
+ * filename, so it downloads (not previews) on both mobile and desktop browsers.
+ */
+export async function getBoardAttachmentDownloadUrl(
+  postId: string,
+  path: string,
+): Promise<{ url: string } | { error: string }> {
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return { error: "no_org" };
+
+  const service = getSupabaseServiceClient();
+  const { data, error } = await service
+    .from("board_posts")
+    .select("organization_id, file_attachments, deleted_at")
+    .eq("id", postId)
+    .maybeSingle();
+  if (error || !data) return { error: "not_found" };
+
+  const post = data as unknown as {
+    organization_id: string;
+    file_attachments: unknown;
+    deleted_at: string | null;
+  };
+  if (post.deleted_at || post.organization_id !== session.organization.id) {
+    return { error: "not_found" };
+  }
+
+  const attachments = Array.isArray(post.file_attachments)
+    ? (post.file_attachments as Array<{ name: string; url: string }>)
+    : [];
+  const match = attachments.find((a) => a.url === path);
+  if (!match) return { error: "not_found" };
+
+  const { data: signed, error: signErr } = await service.storage
+    .from("board-attachments")
+    .createSignedUrl(path, 120, { download: match.name });
+  if (signErr || !signed?.signedUrl) return { error: "sign_failed" };
+
+  return { url: signed.signedUrl };
+}
+
 /** Soft-delete a comment. Comment author OR owner/office_admin. */
 export async function deleteBoardComment(commentId: string): Promise<ActionResult> {
   const session = await getCurrentAppSession();
