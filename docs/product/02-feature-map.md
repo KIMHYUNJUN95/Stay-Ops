@@ -261,6 +261,8 @@ Search examples:
 
 ### 13. Bug Reports / Problem Reports
 
+Status: 1차 구현 중 (2026-06-25)
+
 Purpose:
 
 - Let staff report problems found while using StayOps itself.
@@ -279,7 +281,13 @@ Key features:
 - private visibility between reporter and reviewers
 - title + description + optional screenshots
 - own history
-- reviewer status update
+- reviewer status update (via BottomSheet on detail screen)
+
+Routes: `/mobile/bugs`, `/mobile/bugs/new`, `/mobile/bugs/[id]`
+
+Reviewers (1차): `owner`, `office_admin`
+
+See `docs/product/25-bug-report-workflow.md` + `docs/engineering/13-bug-report-technical-design.md`.
 
 ## Post-MVP Approved Batch (confirmed 2026-06-09)
 

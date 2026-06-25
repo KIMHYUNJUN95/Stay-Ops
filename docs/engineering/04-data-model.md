@@ -997,6 +997,40 @@ Visibility helper: `public.can_view_staff_suggestion(target_suggestion_id uuid)`
 
 Permissions note: read access is limited to author + recipient + referenced users (+ platform admin). Only the recipient changes status. Referenced users can comment but cannot change status or edit the main suggestion. The author edits/deletes the main suggestion only while `submitted`; comment edit/delete is always comment-author only. These mutation rules are enforced in server actions (later steps); RLS currently grants read-only to participants and routes all writes through the service role.
 
+## bug_reports
+
+StayOps 앱/시스템 버그 및 제품 문제 신고. **1차 구현 (2026-06-25).** Migration: `supabase/migrations/<timestamp>_bug_reports.sql` (DB engineer 결과 확인 후 파일명 갱신 필요).
+
+```txt
+id                    uuid primary key default gen_random_uuid()
+organization_id       uuid not null references organizations(id) on delete cascade
+reported_by_user_id   uuid not null references profiles(id) on delete restrict
+title                 text not null
+description           text not null
+image_urls            text[] not null default '{}'
+status                text not null default 'submitted'
+reviewed_by_user_id   uuid references profiles(id) on delete set null
+closed_by_user_id     uuid references profiles(id) on delete set null
+closed_at             timestamptz
+created_at            timestamptz not null default now()
+updated_at            timestamptz not null default now()
+```
+
+CHECK constraints:
+- `char_length(trim(title)) > 0`
+- `char_length(trim(description)) > 0`
+- `coalesce(array_length(image_urls, 1), 0) <= 5`
+- `status in ('submitted', 'reviewing', 'fixed', 'closed')`
+
+Indexes:
+- `bug_reports_org_created_idx (organization_id, created_at desc)`
+- `bug_reports_reporter_idx (organization_id, reported_by_user_id, created_at desc)`
+- `bug_reports_status_idx (organization_id, status, created_at desc)`
+
+Storage: 이미지 → `request-images` 버킷, path: `{organization_id}/bug-reports/{report_id}/{filename}`, 최대 5장.
+
+Permissions: 작성자 본인 SELECT/DELETE(submitted만) · 리뷰어(`owner`, `office_admin`) SELECT · 모든 활성 멤버 INSERT · 리뷰어 status UPDATE. 모든 쓰기는 서비스롤 서버 액션 경유. 자세한 RLS 명세: `docs/engineering/05-rls-permissions.md` → `bug_reports`.
+
 ## Attendance / Payroll tables
 
 **As-built — Step 1 schema (2026-06-17), migration `202606170001_attendance_payroll.sql`.** The refined

@@ -3,6 +3,8 @@ import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getBoardPost, ensureBoardPostRead } from "@/lib/board-queries";
 import { getDictionary } from "@/lib/i18n";
+import { getMobileNavBadges } from "@/lib/nav-badges";
+import { MobileShell } from "@/components/shell/mobile-shell";
 import { BoardDetailClient } from "./board-detail-client";
 
 type PageProps = {
@@ -40,15 +42,23 @@ export default async function BoardPostPage({ params }: PageProps) {
   // recomputes on the next request.
   await ensureBoardPostRead(session, id);
 
+  const navBadges = await getMobileNavBadges();
+  const copy = getDictionary(session.user.preferredLanguage).board;
+
+  // MobileShell + hideBottomNav — same pattern as the Suggestions detail page so the top chrome
+  // (hamburger + wordmark + notification bell) is consistent across detail surfaces. The bottom
+  // tab bar is hidden so the comment composer can sit at the viewport bottom without overlap.
   return (
-    <BoardDetailClient
-      post={post}
-      viewerId={session.user.id}
-      viewerInitial={session.user.name?.charAt(0) || "·"}
-      canManage={MANAGER_ROLES.has(session.user.role)}
-      organizationId={session.organization.id}
-      locale={session.user.preferredLanguage}
-      copy={getDictionary(session.user.preferredLanguage).board}
-    />
+    <MobileShell activeItem="board" badges={navBadges} title={copy.title} hideBottomNav>
+      <BoardDetailClient
+        post={post}
+        viewerId={session.user.id}
+        viewerInitial={session.user.name?.charAt(0) || "·"}
+        canManage={MANAGER_ROLES.has(session.user.role)}
+        organizationId={session.organization.id}
+        locale={session.user.preferredLanguage}
+        copy={copy}
+      />
+    </MobileShell>
   );
 }

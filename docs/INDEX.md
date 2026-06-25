@@ -70,7 +70,7 @@ Living: Must be updated continuously.
 | [Board Workflow](./product/23-board-workflow.md) | Draft | Free internal board for all active members |
 | [Project Workflow](./product/23-project-workflow.md) | Draft | Project boards and section-based task coordination |
 | [Attendance Workflow](./product/24-attendance-workflow.md) | Draft | Attendance mobile UX and screen-level behavior |
-| [Bug Report Workflow](./product/25-bug-report-workflow.md) | Draft | StayOps product/system issue reporting workflow |
+| [Bug Report Workflow](./product/25-bug-report-workflow.md) | Living | StayOps product/system issue reporting workflow (1차 구현 2026-06-25) |
 
 ## Design Docs
 

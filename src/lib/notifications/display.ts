@@ -4,6 +4,7 @@ import {
   isAnnouncementNotificationPayload,
   isAttendanceNotificationPayload,
   isBoardNotificationPayload,
+  isBugReportNotificationPayload,
   isOrderProcessedPayload,
   isProjectNotificationPayload,
   isSuggestionNotificationPayload,
@@ -236,6 +237,38 @@ export function getNotificationDisplay(
   }
 
   if (
+    notification.type === "bug_report_activity" &&
+    isBugReportNotificationPayload(notification.payload)
+  ) {
+    const payload = notification.payload;
+    // The i18n keys below are intentionally read off the `notifications` copy bag with a typed-cast
+    // optional lookup so an in-flight i18n.ts update (Docs Agent) does not break the build. The
+    // fallback uses the report title verbatim until the localized strings land.
+    // TODO(i18n): notificationBugReportCreatedTitle / notificationBugReportCreatedBody /
+    // notificationBugReportStatusChangedTitle / notificationBugReportStatusChangedBody — needs ko/ja/en.
+    const bag = copy as unknown as Record<string, string | undefined>;
+    const isCreated = payload.event === "created";
+    const titleTemplate = isCreated
+      ? bag.notificationBugReportCreatedTitle ?? "새 버그 신고"
+      : bag.notificationBugReportStatusChangedTitle ?? "버그 신고 상태 변경";
+    const bodyTemplate = isCreated
+      ? bag.notificationBugReportCreatedBody ?? "{title}"
+      : bag.notificationBugReportStatusChangedBody ?? "{title} · {status}";
+    const body = bodyTemplate
+      .replace("{title}", payload.reportTitle)
+      .replace("{actor}", payload.actorName ?? "")
+      .replace("{status}", payload.status ?? "");
+    const kindLabel = bag.bugReportKind ?? "버그 신고";
+    return {
+      title: titleTemplate,
+      body,
+      statusLabel: kindLabel,
+      kindLabel,
+      locationLabel: "",
+    };
+  }
+
+  if (
     notification.type === "attendance_activity" &&
     isAttendanceNotificationPayload(notification.payload)
   ) {
@@ -300,6 +333,9 @@ export function notificationTypeLabel(type: NotificationType, locale: Locale) {
       return copy.attendanceKind;
     case "board_activity":
       return copy.boardKind;
+    case "bug_report_activity":
+      // TODO(i18n): add `bugReportKind` to ko/ja/en notifications copy.
+      return (copy as unknown as Record<string, string | undefined>).bugReportKind ?? "버그 신고";
     default:
       return copy.fallbackKind;
   }

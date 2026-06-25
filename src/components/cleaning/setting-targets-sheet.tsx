@@ -3,7 +3,6 @@
 import { useId, useState, useSyncExternalStore } from "react";
 import { startCleaningSession } from "@/app/mobile/cleaning/actions";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 
 export type SettingTargetSheetItem = {
@@ -81,42 +80,38 @@ export function SettingTargetsSheet({
           onClose={() => setOpen(false)}
         >
           {() => (
-            <div className="space-y-3 overflow-y-auto pt-4">
+            <div className="overflow-y-auto pt-2">
               {items.length > 0 ? (
-                <div className="space-y-3">
-                  {items.map((item) => (
-                    <Card
-                      className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)]"
-                      key={item.roomLabel}
-                    >
-                      <div className="flex items-start justify-between gap-3 p-4">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[15px] font-bold leading-tight text-foreground">
-                            {item.roomTitle}
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                            {item.arrivingGuestName}
-                            {item.arrivingPax !== null ? ` · ${item.arrivingPax}${paxUnit}` : ""}
-                          </p>
-                        </div>
-                        <form action={startCleaningSession}>
-                          <input name="roomLabel" type="hidden" value={item.roomLabel} />
-                          <input name="taskKey" type="hidden" value="simple" />
-                          <Button
-                            className="h-9 rounded-2xl border border-slate-200/70 bg-white px-3 text-xs font-black text-slate-800 shadow-[0_12px_24px_-22px_rgba(31,58,95,0.45)]"
-                            type="submit"
-                          >
-                            {startLabel}
-                          </Button>
-                        </form>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
+                items.map((item, idx) => (
+                  <div
+                    className={`flex items-start justify-between gap-3 py-3.5 ${idx < items.length - 1 ? "border-b border-border/50" : ""}`}
+                    key={item.roomLabel}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[15px] font-bold leading-tight text-foreground">
+                        {item.roomTitle}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                        {item.arrivingGuestName}
+                        {item.arrivingPax !== null ? ` · ${item.arrivingPax}${paxUnit}` : ""}
+                      </p>
+                    </div>
+                    <form action={startCleaningSession}>
+                      <input name="roomLabel" type="hidden" value={item.roomLabel} />
+                      <input name="taskKey" type="hidden" value="simple" />
+                      <Button
+                        className="h-9 rounded-full border border-border bg-background px-3.5 text-xs font-black text-slate-800 shadow-none"
+                        type="submit"
+                      >
+                        {startLabel}
+                      </Button>
+                    </form>
+                  </div>
+                ))
               ) : (
-                <Card className="rounded-2xl border-dashed border-white/60 bg-white/40 p-4 text-sm font-semibold text-muted-foreground shadow-sm backdrop-blur-xl">
+                <div className="rounded-2xl border border-dashed border-border bg-background p-4 text-sm font-semibold text-muted-foreground">
                   {emptyMessage}
-                </Card>
+                </div>
               )}
             </div>
           )}

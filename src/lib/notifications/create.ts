@@ -1,16 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OrganizationRole } from "@/config/roles";
 import { isNotificationsTableUnavailable } from "@/lib/notifications/schema";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type {
   AnnouncementNotificationPayload,
   AttendanceNotificationPayload,
   BoardNotificationPayload,
+  BugReportNotificationPayload,
   OrderProcessedNotificationPayload,
   ProjectNotificationPayload,
   SuggestionNotificationPayload,
   TaskNotificationPayload,
 } from "@/lib/notifications/types";
 import type { Database } from "@/types/database";
+
+const BUG_REPORT_REVIEWER_ROLES = ["owner", "office_admin"] as const;
 
 type TaskNotificationType =
   | "task_shared"
@@ -313,6 +317,118 @@ export async function createImportantAnnouncementNotifications(
       payload,
     });
   }
+}
+
+/**
+ * Fan-out a `bug_report_activity:created` notification to every reviewer (owner/office_admin) in
+ * the organization, skipping the actor. Reviewer membership is resolved here via the service client
+ * so the caller does not have to supply it; this never broadens visibility because the role filter
+ * is enforced server-side. Dedupe is per report + recipient so resubmitting the same id is a no-op.
+ */
+export async function notifyBugReportCreated(params: {
+  reportId: string;
+  reportTitle: string;
+  organizationId: string;
+  actorUserId: string;
+  actorName?: string | null;
+}): Promise<void> {
+  const service = getSupabaseServiceClient();
+  const { data, error } = await service
+    .from("memberships")
+    .select("user_id")
+    .eq("organization_id", params.organizationId)
+    .eq("status", "active")
+    .in("role", BUG_REPORT_REVIEWER_ROLES as unknown as string[]);
+  if (error) {
+    console.error("[notifications] bug report reviewers failed", {
+      reportId: params.reportId,
+      error: error.message,
+    });
+    return;
+  }
+
+  const recipients = Array.from(
+    new Set(
+      ((data ?? []) as { user_id: string | null }[])
+        .map((row) => row.user_id)
+        .filter((value): value is string => Boolean(value && value !== params.actorUserId)),
+    ),
+  );
+
+  const payload: BugReportNotificationPayload = {
+    reportId: params.reportId,
+    reportTitle: params.reportTitle,
+    event: "created",
+    actorUserId: params.actorUserId,
+    actorName: params.actorName ?? null,
+  };
+
+  for (const recipientUserId of recipients) {
+    await createNotification(service, {
+      organizationId: params.organizationId,
+      recipientUserId,
+      // `bug_report_activity` is added by the bug-reports migration (database-engineer); the
+      // generated Database enum here will catch up after that migration is applied + types regen.
+      type: "bug_report_activity" as Database["public"]["Enums"]["notification_type"],
+      href: `/mobile/bugs/${params.reportId}`,
+      sourceType: "bug_report",
+      sourceId: params.reportId,
+      dedupeKey: `bug_report_created:${params.reportId}:${recipientUserId}`,
+      payload,
+    });
+  }
+}
+
+/**
+ * Notify the original reporter when a reviewer changes the report's status. Self-suppressed when
+ * the reviewer IS the reporter (rare edge case but handled). Dedupe includes the new status so each
+ * distinct transition produces a fresh notification (submitted → reviewing → fixed → closed).
+ */
+export async function notifyBugReportStatusChanged(params: {
+  reportId: string;
+  reportTitle: string;
+  reporterUserId: string;
+  status: BugReportNotificationPayload["status"];
+  actorUserId: string;
+  actorName?: string | null;
+  organizationId?: string;
+}): Promise<void> {
+  if (!params.reporterUserId || params.reporterUserId === params.actorUserId) return;
+
+  const service = getSupabaseServiceClient();
+
+  // organizationId may be omitted by callers that already validated the report; look it up to keep
+  // the notification row's organization_id correct (required column).
+  let organizationId = params.organizationId ?? null;
+  if (!organizationId) {
+    const { data, error } = await service
+      .from("bug_reports")
+      .select("organization_id")
+      .eq("id", params.reportId)
+      .maybeSingle();
+    if (error || !data) return;
+    organizationId = (data as { organization_id: string }).organization_id;
+  }
+
+  const payload: BugReportNotificationPayload = {
+    reportId: params.reportId,
+    reportTitle: params.reportTitle,
+    event: "status_changed",
+    status: params.status,
+    actorUserId: params.actorUserId,
+    actorName: params.actorName ?? null,
+  };
+
+  await createNotification(service, {
+    organizationId,
+    recipientUserId: params.reporterUserId,
+    type: "bug_report_activity",
+    href: `/mobile/bugs/${params.reportId}`,
+    sourceType: "bug_report",
+    sourceId: params.reportId,
+    dedupeKey: `bug_report_status:${params.reportId}:${params.status ?? "unknown"}`,
+    payload,
+  });
 }
 
 type CreateNotificationInput = {

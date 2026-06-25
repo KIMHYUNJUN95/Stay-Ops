@@ -56,6 +56,7 @@ function formatTime(value: string | null, locale: Locale) {
   return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Tokyo",
   }).format(new Date(value));
 }
 

@@ -51,6 +51,18 @@ export type AnnouncementNotificationPayload = {
   event: "important_published";
 };
 
+export type BugReportNotificationPayload = {
+  reportId: string;
+  reportTitle: string;
+  // One discriminated `bug_report_activity` type carries both events (no enum value per event):
+  // `created` fans out to org reviewers; `status_changed` notifies the original reporter and the
+  // display branches on `status` to pick the right body string.
+  event: "created" | "status_changed";
+  status?: "submitted" | "reviewing" | "fixed" | "closed";
+  actorUserId?: string | null;
+  actorName?: string | null;
+};
+
 export type BoardNotificationPayload = {
   postId: string;
   postTitle: string;
@@ -91,6 +103,7 @@ export type NotificationPayloadByType = {
   announcement_activity: AnnouncementNotificationPayload;
   attendance_activity: AttendanceNotificationPayload;
   board_activity: BoardNotificationPayload;
+  bug_report_activity: BugReportNotificationPayload;
 };
 
 export function isTaskNotificationPayload(
@@ -145,6 +158,18 @@ export function isBoardNotificationPayload(
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
   const record = payload as Record<string, unknown>;
   return typeof record.postId === "string" && typeof record.postTitle === "string";
+}
+
+export function isBugReportNotificationPayload(
+  payload: unknown,
+): payload is BugReportNotificationPayload {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
+  const record = payload as Record<string, unknown>;
+  return (
+    typeof record.reportId === "string" &&
+    typeof record.reportTitle === "string" &&
+    (record.event === "created" || record.event === "status_changed")
+  );
 }
 
 export function isAttendanceNotificationPayload(

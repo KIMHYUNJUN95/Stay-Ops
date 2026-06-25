@@ -1,0 +1,222 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
+import { BugStatusBadge } from "@/components/bugs/bug-status-badge";
+import { BugStatusSheet } from "@/components/bugs/bug-status-sheet";
+import type { BugReport, BugStatus } from "@/components/bugs/bug-types";
+import { deleteBugReportAction, setBugReportStatus } from "../actions";
+
+// ISO → "MM.dd HH:mm" 형태로 클라이언트에서 포맷
+function formatReportedAt(iso: string): string {
+  const d = new Date(iso);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${mm}.${dd} ${hh}:${min}`;
+}
+
+type Props = {
+  bug: BugReport;
+  viewerIsAuthor: boolean;
+  isReviewer: boolean;
+};
+
+export function BugDetailClient({ bug, viewerIsAuthor, isReviewer }: Props) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [showStatusSheet, setShowStatusSheet] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // 삭제 조건: 작성자 본인 + status === "submitted"
+  const canDelete = viewerIsAuthor && bug.status === "submitted";
+
+  function onDeleteClick() {
+    setShowDeleteConfirm(true);
+  }
+
+  function onConfirmDelete() {
+    setShowDeleteConfirm(false);
+    startTransition(async () => {
+      const result = await deleteBugReportAction(bug.id);
+      if ("error" in result) {
+        // TODO i18n
+        window.alert("삭제에 실패했습니다. 다시 시도해 주세요.");
+        return;
+      }
+      router.replace("/mobile/bugs");
+    });
+  }
+
+  function onStatusSelect(status: BugStatus) {
+    setShowStatusSheet(false);
+    startTransition(async () => {
+      await setBugReportStatus(bug.id, status);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="-mx-5 -mb-8 -mt-[84px] flex h-[100dvh] flex-col bg-background">
+      {/* MobileShell chrome 84px 영역 확보 */}
+      <div className="h-[84px] shrink-0" aria-hidden="true" />
+
+      <div className="flex-1 overflow-y-auto">
+        <div className="px-[18px] py-[20px]">
+          {/* 신고 ID — uuid 앞 8자리 기반 fallback code */}
+          <div className="font-mono text-[12px] font-bold text-primary">
+            {`BR-${bug.id.replace(/-/g, "").slice(0, 4).toUpperCase()}`}
+          </div>
+
+          {/* 제목 */}
+          <h2 className="mb-4 mt-2 text-[19px] font-extrabold leading-[1.3] tracking-[-0.02em]">
+            {bug.title}
+          </h2>
+
+          {/* 키-값 표 */}
+          <div className="border-y border-border">
+            <KvRow label="상태">
+              {isReviewer ? (
+                // 리뷰어: 상태 칩 자체를 탭하면 상태 변경 시트 오픈
+                <button
+                  type="button"
+                  onClick={() => setShowStatusSheet(true)}
+                  aria-label="상태 변경"
+                >
+                  <BugStatusBadge status={bug.status} size="md" />
+                </button>
+              ) : (
+                <BugStatusBadge status={bug.status} size="md" />
+              )}
+            </KvRow>
+            <KvRow label="신고일">
+              <span className="font-mono text-[13.5px] font-semibold text-foreground">
+                {formatReportedAt(bug.createdAt)}
+              </span>
+            </KvRow>
+            <KvRow label="신고자" isLast>
+              <span className="text-[13.5px] font-semibold text-foreground">
+                {bug.reporterName}
+                {bug.reporterRole ? ` · ${bug.reporterRole}` : ""}
+              </span>
+            </KvRow>
+          </div>
+
+          {/* 설명 */}
+          <div className="mb-2 mt-[18px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
+            설명
+          </div>
+          <p className="text-[14px] font-medium leading-[1.74] text-[hsl(222_18%_26%)]">
+            {bug.description}
+          </p>
+
+          {/* 스크린샷 — imageUrls가 있을 때만 표시 */}
+          {bug.imageUrls.length > 0 && (
+            <>
+              <div className="mb-2 mt-[18px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
+                스크린샷
+              </div>
+              <div className="mt-[10px] grid grid-cols-2 gap-2">
+                {bug.imageUrls.map((url, idx) => (
+                  <div
+                    key={url}
+                    className="overflow-hidden rounded-[10px] border border-[hsl(40_18%_85%)]"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={url}
+                      alt={`스크린샷 ${idx + 1}`}
+                      className="h-[116px] w-full object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* 수정 버튼: 1차 deferred — 표시하지 않음 */}
+          {/* 삭제 버튼: 작성자 본인 + submitted 상태일 때만 */}
+          {canDelete && (
+            <div className="mt-[20px] flex items-center gap-[14px]">
+              <button
+                type="button"
+                onClick={onDeleteClick}
+                className="ml-auto inline-flex items-center gap-[6px] text-[13px] font-extrabold text-[hsl(222_9%_46%)]"
+              >
+                <Trash2 className="size-[15px]" aria-hidden="true" />
+                {/* TODO i18n */}
+                삭제
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 리뷰어 상태 변경 BottomSheet */}
+      {showStatusSheet && (
+        <BugStatusSheet
+          currentStatus={bug.status}
+          onSelect={onStatusSelect}
+          onClose={() => setShowStatusSheet(false)}
+        />
+      )}
+
+      {/* 삭제 확인 모달 (center-aligned — board 패턴과 동일한 의도된 예외) */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-8">
+          <div className="w-full max-w-[320px] rounded-[22px] bg-surface p-[22px] text-center shadow-[0_24px_60px_-20px_rgba(15,23,42,0.5)]">
+            <p className="text-[15.5px] font-black tracking-[-0.01em] text-foreground">
+              {/* TODO i18n */}
+              신고를 삭제할까요?
+            </p>
+            <p className="mt-[7px] text-[12.5px] font-semibold leading-[1.5] text-muted-foreground">
+              {/* TODO i18n */}
+              삭제하면 복구할 수 없습니다.
+            </p>
+            <div className="mt-[18px] flex gap-[9px]">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="h-11 flex-1 rounded-[13px] border border-border bg-background text-[13.5px] font-extrabold text-[hsl(222_20%_28%)]"
+              >
+                {/* TODO i18n */}
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={onConfirmDelete}
+                className="h-11 flex-1 rounded-[13px] bg-[hsl(4_72%_52%)] text-[13.5px] font-extrabold text-white"
+              >
+                {/* TODO i18n */}
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KvRow({
+  label,
+  children,
+  isLast,
+}: {
+  label: string;
+  children: React.ReactNode;
+  isLast?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-center py-[11px] ${isLast ? "" : "border-b border-border/60"}`}
+    >
+      <span className="w-[84px] shrink-0 text-[10.5px] font-extrabold uppercase tracking-[0.05em] text-muted-foreground">
+        {label}
+      </span>
+      <span className="flex-1">{children}</span>
+    </div>
+  );
+}

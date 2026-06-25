@@ -11,6 +11,7 @@ import {
   Gauge,
   House,
   Inbox,
+  Bug,
   Megaphone,
   Newspaper,
   Package,
@@ -110,6 +111,14 @@ const mobileNavBoard = {
   icon: Newspaper,
 } as const satisfies NavigationItem;
 
+// Bug Report — internal product/system issue reporting. See docs/product/25-bug-report-workflow.md.
+const mobileNavBugs = {
+  id: "bugs",
+  label: localizedNavigationLabels.mobile.bugs,
+  href: "/mobile/bugs",
+  icon: Bug,
+} as const satisfies NavigationItem;
+
 // Attendance / 근태 (clock-in/out, live timer, capture) — side-menu entry + pinnable bottom-bar
 // candidate. UI/UX-first (design only); backend deferred. See docs/product/24-attendance-workflow.md.
 const mobileNavAttendance = {
@@ -135,6 +144,7 @@ export const mobileSidebarNavigation = [
   mobileNavTasks,
   mobileNavSuggestions,
   mobileNavBoard,
+  mobileNavBugs,
   mobileNavAttendance,
   mobileNavRequests,
   mobileNavAnnouncements,

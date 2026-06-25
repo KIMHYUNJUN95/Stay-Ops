@@ -24,7 +24,6 @@ import {
   KeyRound,
   PlaneLanding,
   PlaneTakeoff,
-  X,
 } from "lucide-react";
 import { PROPERTY_MAP_META, type PropertyMapMeta, getPropertyAddress } from "@/lib/property-map-links";
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
@@ -257,8 +256,6 @@ const GLASS_PANEL =
 const GLASS_CARD =
   "rounded-2xl border border-slate-200/80 bg-surface shadow-[0_14px_28px_-24px_rgba(31,58,95,0.38)] backdrop-blur-none";
 // 以묒븰 怨좎젙 modal card (?덉빟 ?곸꽭 / 鍮?媛앹떎 / 吏??怨듭슜)
-const GLASS_RESERVATION_MODAL =
-  "relative w-full max-w-lg rounded-3xl border border-white/70 bg-background/82 shadow-[0_32px_68px_-28px_rgba(2,6,23,0.68)] backdrop-blur-2xl";
 const RESERVATION_SHEET_TRANSITION_MS = 440;
 
 function parseDate(value: string) {
@@ -1485,54 +1482,39 @@ export function MobileCalendarView({
             </div>
           }
         >
-          <div className="-mx-1 max-h-[60vh] space-y-2 overflow-y-auto px-1 pb-2 pt-1 text-sm">
+          <div className="-mx-1 max-h-[60vh] space-y-1 overflow-y-auto px-1 pb-2 pt-1 text-sm">
             {emptyRoomLabels.length > 0 ? (
               emptyRoomLabels.map((roomLabel) => (
-                <Card className={`${GLASS_CARD} p-3`} key={roomLabel}>
+                <div className="rounded-xl bg-background px-3 py-3" key={roomLabel}>
                   <p className="font-semibold">{roomLabel}</p>
-                </Card>
+                </div>
               ))
             ) : (
-              <Card className="rounded-xl border-dashed p-3 text-xs text-muted-foreground">
+              <div className="rounded-xl border border-dashed border-border bg-background px-3 py-3 text-xs text-muted-foreground">
                 {copy.noEmptyRooms}
-              </Card>
+              </div>
             )}
           </div>
         </BottomSheet>
       )}
 
-      {typeof document !== "undefined" && selectedMapProperty
-        ? createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 py-10">
-          <button
-            aria-label={copy.close}
-            className="absolute inset-0 bg-black/45 backdrop-blur-sm"
-            onClick={() => {
-              setSelectedMapProperty(null);
-              setMapCopyFeedback(null);
-            }}
-            type="button"
-          />
-          <div className={GLASS_RESERVATION_MODAL}>
-            <div className="flex items-center justify-between gap-2 border-b border-border/40 px-5 pb-4 pt-5">
-              <div>
-                <p className="text-xs text-muted-foreground">{copy.mapAccessSheetTitle}</p>
-                <p className="mt-1 text-lg font-black">
-                  {propertyLabelMap[selectedMapProperty.canonicalName] ?? selectedMapProperty.canonicalName}
-                </p>
-              </div>
-              <Button
-                className="size-9 rounded-full bg-white/50 p-0 hover:bg-surface/70"
-                onClick={() => {
-                  setSelectedMapProperty(null);
-                  setMapCopyFeedback(null);
-                }}
-                variant="ghost"
-              >
-                <X className="size-4" />
-              </Button>
+      {selectedMapProperty && (
+        <BottomSheet
+          onClose={() => {
+            setSelectedMapProperty(null);
+            setMapCopyFeedback(null);
+          }}
+          className="max-h-[82dvh] flex flex-col"
+          header={
+            <div className="px-1 pb-3 pt-1">
+              <p className="text-xs text-muted-foreground">{copy.mapAccessSheetTitle}</p>
+              <p className="mt-1 text-lg font-black">
+                {propertyLabelMap[selectedMapProperty.canonicalName] ?? selectedMapProperty.canonicalName}
+              </p>
             </div>
-            <div className="max-h-[65vh] space-y-3 overflow-y-auto px-5 py-5 text-sm">
+          }
+        >
+          <div className="-mx-1 max-h-[65vh] space-y-3 overflow-y-auto px-1 pb-2 pt-1 text-sm">
               <Card className="rounded-2xl border-white/70 bg-white/60 p-4 shadow-sm backdrop-blur-xl">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{copy.mapAddressLabel}</p>
                 <p className="mt-1.5 break-words text-sm font-semibold leading-6">
@@ -1631,10 +1613,8 @@ export function MobileCalendarView({
                 <p className="text-[11px] text-muted-foreground">{mapCopyFeedback}</p>
               ) : null}
             </div>
-          </div>
-        </div>,
-        document.body,
-      ) : null}
+        </BottomSheet>
+      )}
     </div>
   );
 }

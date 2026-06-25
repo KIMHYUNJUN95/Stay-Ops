@@ -14,6 +14,15 @@ This file records important project decisions.
 - 보안: `mentioned_user_ids` 각 UUID의 같은 org 활성 멤버 여부는 서버 액션 레벨 검증 (RLS 미적용)
 - 댓글 백엔드(`addBoardComment`)와 한 사이클에 묶어 구현
 
+### Bug Report / Problem Report — 1차 구현 확정 (2026-06-25)
+
+- 라우트 `/mobile/bugs` (디자인 결정에 맞춰 `/mobile/bug-reports` 권장 변경)
+- 리뷰어: `owner`, `office_admin` (1차 확정); `cs_staff`는 open question deferred 유지
+- admin web 페이지 (`/admin/bug-reports`) 1차 deferred — 리뷰어는 모바일에서 통합 처리
+- 수정 페이지 (`/mobile/bugs/[id]/edit`) 1차 deferred — 작성자는 `status='submitted'`일 때만 삭제 가능, 수정 버튼 1차 숨김
+- 알림 타입: `bug_report_activity`; `created` → 리뷰어 전원, `status_changed` → 작성자 (actor 제외)
+- 스토리지: `request-images` 버킷 재사용, path `{org_id}/bug-reports/{report_id}/{file}`
+
 ### Bug Report / Problem Report — 기획 방향 확정
 
 Decision: 버그신고 기능은 **StayOps 앱 자체의 문제/버그 신고** 용도로 정의한다. 현장 운영 문제나 건물/객실 이슈를 다루는 요청 기능이 아니다.

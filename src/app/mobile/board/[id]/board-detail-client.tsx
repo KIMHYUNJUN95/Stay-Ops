@@ -243,8 +243,12 @@ export function BoardDetailClient({
   // a sheet (most visible with the mention sheet's scrollable list + keyboard).
   const overlayOpen = showMentionSheet || showActionSheet || showDeleteConfirm;
 
+  // outer wrapper: MobileShell body has its own padding (`px-5 pt-[84px] pb-8`) and is the
+  // scroll container, so we cancel that padding with negative margins and stretch to its full
+  // height with absolute insets. h-dvh would punch through the top chrome — using `inset-0`
+  // inside the parent's `relative` keeps the detail flush with the MobileShell body.
   return (
-    <div className="flex h-dvh flex-col bg-background">
+    <div className="-mx-5 -mb-8 -mt-[84px] flex h-[100dvh] flex-col bg-background">
       <div
         className={overlayOpen ? "flex-1 overflow-hidden" : "flex-1 overflow-y-auto"}
         style={overlayOpen ? { touchAction: "none", overscrollBehavior: "none" } : undefined}

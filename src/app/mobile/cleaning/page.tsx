@@ -287,6 +287,7 @@ function formatTime(value: string | null, locale: Locale) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: "Asia/Tokyo",
   }).format(new Date(value));
 }
 

@@ -751,6 +751,58 @@ Update/delete:
 - `request-images`: `board-posts` / `board-comments` 폴더 추가 (part_time_staff 허용). `202606250001_board.sql`에서 "org members can upload/delete request images" 정책 재생성.
 - `board-attachments` (새 버킷, private): org 멤버 SELECT·INSERT; 업로드한 본인만 DELETE (owner = auth.uid()).
 
+## bug_reports
+
+**1차 구현 (2026-06-25).** StayOps 앱/시스템 버그 신고 테이블. Migration: `supabase/migrations/<timestamp>_bug_reports.sql` (DB engineer 결과 확인 후 파일명 갱신 필요). 모든 쓰기는 **서비스롤 서버 액션** 경유; RLS 는 코드 게이트와 이중으로 적용.
+
+### 리뷰어 정의 (1차 확정)
+
+```txt
+owner, office_admin
+```
+
+`cs_staff` / `developer_super_admin` 리뷰어 확장: open question, deferred.
+
+### SELECT
+
+```txt
+reported_by_user_id = auth.uid()                              -- 작성자 본인
+OR has_org_role(organization_id, ['owner', 'office_admin'])   -- 리뷰어
+```
+
+### INSERT
+
+```txt
+has_active_membership(organization_id)
+AND reported_by_user_id = auth.uid()
+```
+
+모든 활성 org 멤버 (part_time_staff 포함) 신고 가능.
+
+### UPDATE
+
+두 가지 별도 정책:
+
+```txt
+-- 작성자 본인 수정 (submitted 상태만)
+reported_by_user_id = auth.uid()
+AND status = 'submitted'
+
+-- 리뷰어 상태 변경
+has_org_role(organization_id, ['owner', 'office_admin'])
+```
+
+1차에서 수정 페이지는 UI 숨김 (deferred). `updateBugReportStatus` 서버 액션이 리뷰어 상태 변경을 처리.
+
+### DELETE
+
+```txt
+reported_by_user_id = auth.uid()
+AND status = 'submitted'
+```
+
+작성자만 `submitted` 상태일 때 hard delete 가능. **리뷰어 hard delete는 1차 불허** — 별도 관리 정책 승인 시 추가.
+
 ## Open Questions
 
 - Should Staff be allowed to status-change lost items and maintenance forever, or only certain statuses?

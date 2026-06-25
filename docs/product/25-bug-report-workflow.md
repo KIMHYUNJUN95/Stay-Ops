@@ -1,11 +1,11 @@
 # Bug Report / Problem Report Workflow
 
-Status: Draft planning started (2026-06-25)
+Status: 1차 구현 (2026-06-25)
 
 Design note:
 
-- UI/UX design will be prepared by the user and handed off later.
-- This document defines product behavior and scope only.
+- 디자인 1차 구현 완료, 모바일 3개 화면 (목록/작성/상세).
+- 수정 페이지 (`/mobile/bugs/[id]/edit`) 는 1차 deferred — 상세 페이지의 "수정" 버튼 1차 숨김.
 
 ## Purpose
 
@@ -40,36 +40,54 @@ Confirmed scope note:
 
 ## Core Product Direction
 
-The first slice should be intentionally simple:
+The first slice is intentionally simple:
 
 - any active member can report a product problem quickly
 - the reporter can track the current status of their own report
 - office/admin reviewers can triage and close the report
 - the workflow should behave like a lightweight internal ticket, not a full helpdesk
-- the create form should ask only for the minimum information needed
+- the create form asks only for the minimum information needed
 
 ## First-Slice Goal
 
-Deliver a first version where:
+Delivered in 1차 구현:
 
 - all active members including `part_time_staff` can submit a bug report
 - the report is private to the reporter and designated reviewers
-- reviewers can change status
+- reviewers can change status from the detail screen via a status BottomSheet
 - the reporter receives status-change visibility without needing a comment thread
 - the create form contains only `title`, `description`, and optional `photos`
+- empty state shown when the list is empty
+- after creating a report the user is redirected to `/mobile/bugs`
 
-Not included in the first slice:
+### 1차 deferred
 
-- public discussion
+- edit page `/mobile/bugs/[id]/edit` — design not finalized; "수정" button hidden on detail screen in first slice
+- admin web reviewer page (`/admin/bug-reports`) — reviewers handle all triage via mobile
+- `cs_staff` / `developer_super_admin` as reviewers — open question, deferred
 - threaded comments
-- crash-log ingestion
-- external customer support
-- browser-console dump upload
-- SLA / assignee workflow
-- duplicate merge tools
-- category
+- categories
 - severity
-- separate reproduction / expected / actual fields
+- SLA / assignee workflow
+
+## Routes
+
+### Mobile (1차 구현)
+
+```txt
+/mobile/bugs          -- list (mine / all-org for reviewers)
+/mobile/bugs/new      -- create form
+/mobile/bugs/[id]     -- detail + reviewer status change BottomSheet
+```
+
+Note: the route is `/mobile/bugs`, **not** `/mobile/bug-reports` (changed per design decision 2026-06-25).
+
+### 1차 deferred routes
+
+```txt
+/mobile/bugs/[id]/edit   -- edit page (design not finalized; 1차 deferred)
+/admin/bug-reports        -- admin web reviewer page (1차 deferred)
+```
 
 ## Users
 
@@ -82,37 +100,36 @@ Can:
 
 - create a report
 - read their own reports
-- edit or delete their own report only while status is `submitted`
+- delete their own report only while status is `submitted`
 
 Cannot:
 
 - read other users' reports
 - change status after submit
+- edit their report (edit button hidden in 1차; available only while `submitted` when the edit page ships)
 
-### Reviewers
+### Reviewers (1차 확정)
 
-Recommended first-slice reviewers:
+First-slice reviewers:
 
 - `owner`
 - `office_admin`
-- `developer_super_admin` (cross-org support/debug)
 
 Can:
 
 - read all reports in the organization
-- change status
+- change status (via BottomSheet on the detail screen)
 
-Open question:
+Open question (deferred):
 
-- should `cs_staff` or `field_manager` also be included as org-level reviewers?
+- should `cs_staff` or `developer_super_admin` also be included as org-level reviewers?
 
 ## Visibility Model
 
 Readable by:
 
 - report author
-- organization reviewers
-- active `developer_super_admin`
+- organization reviewers (`owner`, `office_admin`)
 
 Not readable by:
 
@@ -126,41 +143,33 @@ Important rule:
 
 ```txt
 Member finds a StayOps problem
--> submits a bug report
--> reviewer checks and triages it
--> reviewer changes status
--> reporter checks the result
+-> submits a bug report (/mobile/bugs/new)
+-> redirected to /mobile/bugs list
+-> reviewer checks and triages via detail screen
+-> reviewer taps status row → status BottomSheet → selects new status
+-> reporter checks the result (status visible on detail)
 ```
 
 ## Entry Points
 
-Recommended first-slice entry points:
-
-- mobile app dedicated bug-report menu entry
-- optional account/help entry
-- admin web review list for reviewers
-
-Open question:
-
-- should the first entry live under side menu only, or also under `/account` help/support?
+- mobile side menu → "버그 신고" (`/mobile/bugs`)
+- optional: account/help entry (deferred)
 
 ## Main Fields
 
-Recommended first-slice fields:
-
 ```txt
-id
-organization_id
-reported_by_user_id
-title
-description
-image_urls
-status
-reviewed_by_user_id
-closed_by_user_id
-created_at
-updated_at
-closed_at
+id                    uuid primary key
+organization_id       uuid not null references organizations(id)
+reported_by_user_id   uuid not null references profiles(id)
+title                 text not null
+description           text not null
+image_urls            text[] not null default '{}'  -- max 5
+status                text not null default 'submitted'
+reviewed_by_user_id   uuid references profiles(id)
+closed_by_user_id     uuid references profiles(id)
+closed_at             timestamptz
+created_at            timestamptz not null
+updated_at            timestamptz not null
 ```
 
 ## Creation Fields
@@ -190,18 +199,17 @@ Limit:
 
 - maximum 5 images
 
-Implementation direction:
+Implementation:
 
-- reuse the shared request-image upload/compression policy
+- reuses the shared `request-images` bucket upload/compression policy
+- path: `{organization_id}/bug-reports/{report_id}/{filename}`
 
 ## Reviewer Actions
 
-Reviewer-side first slice should also stay simple.
+Reviewer-side (1차 구현):
 
-Allowed:
-
-- read all reports in the organization
-- change status
+- read all reports in the organization (list shows all when viewer is reviewer)
+- change status via BottomSheet on the detail screen (status row tap)
 
 Deferred:
 
@@ -211,45 +219,38 @@ Deferred:
 
 ## Statuses
 
-Recommended first-slice statuses:
-
-- `submitted`
-- `reviewing`
-- `fixed`
-- `closed`
-
-Meaning:
-
-- `submitted`: newly reported and not yet triaged
-- `reviewing`: reviewer is checking or reproducing it
-- `fixed`: issue is considered resolved
-- `closed`: duplicate / invalid / cannot reproduce / obsolete
+```txt
+submitted   -- newly reported and not yet triaged
+reviewing   -- reviewer is checking or reproducing it
+fixed       -- issue is considered resolved
+closed      -- duplicate / invalid / cannot reproduce / obsolete
+```
 
 Status rules:
 
 - new report always starts as `submitted`
 - only reviewers can change status
 - reporter cannot reopen or reassign in the first slice
+- author can hard-delete only while `submitted`
 
 ## Notifications
-
-Recommended first-slice notifications:
 
 ### New Report
 
 When a new bug report is created:
 
-- designated reviewers receive an in-app notification
+- type: `bug_report_activity`
+- event: `created`
+- recipients: designated reviewers (`owner`, `office_admin`) in the same org
+- suppresses self-notification
 
 ### Status Changed
 
 When a reviewer changes status:
 
-- the reporter receives an in-app notification
-
-Recommended baseline:
-
-- suppress self-notifications for the acting user
+- type: `bug_report_activity`
+- event: `status_changed`
+- recipient: original reporter (actor suppressed)
 
 Deferred:
 
@@ -257,42 +258,27 @@ Deferred:
 - comment/reply notifications
 - assignee notifications
 
-## Mobile / Admin Surface Direction
+## Mobile Surface
 
-### Mobile
+1차 구현 screens:
 
-First-slice mobile surface should prioritize:
+- `/mobile/bugs` — list (my reports; all-org list for reviewers)
+- `/mobile/bugs/new` — create form (title + description + screenshots)
+- `/mobile/bugs/[id]` — detail (status KV row → BottomSheet for reviewer status change; delete for author while submitted; edit button hidden in 1차)
 
-- fast create
-- my reports list
-- my report detail/status view
+Empty state:
 
-### Admin Web
+- shown when list is empty
+- title: "아직 신고가 없어요"
+- subtitle: "버그를 발견하면 알려주세요"
 
-First-slice reviewer surface should prioritize:
+## Admin Web Surface
 
-- org-wide list
-- filter by status
-- detail view
-- status change
+1차 deferred.
 
-## Recommended Minimal UI
+Reviewers handle all triage via the mobile list/detail screens.
 
-### Reporter-side
-
-- `내 신고` list
-- `신고하기` create form
-- detail screen with current status
-
-### Reviewer-side
-
-- all reports list
-- detail screen
-- status change action
-
-## Out Of Scope
-
-Do not include in the first slice:
+## Out Of Scope (1차)
 
 - multi-assignee workflow
 - threaded internal discussion
@@ -301,9 +287,10 @@ Do not include in the first slice:
 - automatic error log ingestion
 - app-version/device auto-capture as a hard requirement
 - category/severity-based triage UI
+- admin web page for reviewers
 
 ## Open Questions
 
-- Should reviewer scope be only `owner` + `office_admin`, or include `cs_staff` too?
-- Should device/browser/app-version or current route be auto-captured silently in the first slice, or added later?
+- Should reviewer scope be expanded to include `cs_staff` or `developer_super_admin`? (open, deferred)
+- Should device/browser/app-version or current route be auto-captured silently in a later slice?
 - Should `fixed` and `closed` both stay visible to the reporter forever, or should older closed items auto-archive later?

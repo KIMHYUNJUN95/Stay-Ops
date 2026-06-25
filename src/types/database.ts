@@ -137,6 +137,50 @@ export type Database = {
           user_id?: string;
         };
       };
+      bug_reports: {
+        Insert: {
+          closed_at?: string | null;
+          closed_by_user_id?: string | null;
+          created_at?: string;
+          description: string;
+          id?: string;
+          image_urls?: string[];
+          organization_id: string;
+          reported_by_user_id: string;
+          reviewed_by_user_id?: string | null;
+          status?: "submitted" | "reviewing" | "fixed" | "closed";
+          title: string;
+          updated_at?: string;
+        };
+        Row: {
+          closed_at: string | null;
+          closed_by_user_id: string | null;
+          created_at: string;
+          description: string;
+          id: string;
+          image_urls: string[];
+          organization_id: string;
+          reported_by_user_id: string;
+          reviewed_by_user_id: string | null;
+          status: "submitted" | "reviewing" | "fixed" | "closed";
+          title: string;
+          updated_at: string;
+        };
+        Update: {
+          closed_at?: string | null;
+          closed_by_user_id?: string | null;
+          created_at?: string;
+          description?: string;
+          id?: string;
+          image_urls?: string[];
+          organization_id?: string;
+          reported_by_user_id?: string;
+          reviewed_by_user_id?: string | null;
+          status?: "submitted" | "reviewing" | "fixed" | "closed";
+          title?: string;
+          updated_at?: string;
+        };
+      };
       attendance_sites: {
         Insert: {
           allowed_radius_meters?: number;
@@ -1964,7 +2008,9 @@ export type Database = {
         | "suggestion_activity"
         | "announcement_activity"
         | "attendance_activity"
-        | "board_activity";
+        | "board_activity"
+        // Added by bug-reports migration (database-engineer); kept in sync here until types regen.
+        | "bug_report_activity";
       organization_role:
         | "cs_staff"
         | "field_manager"

@@ -187,6 +187,7 @@ The app should therefore show:
 - Previous cleaning time history
 
 Cleaning start and completion should automatically appear in the user's "today's activity records" on the mobile home screen.
+Displayed cleaning times (start/completion/history) should be formatted in `Asia/Tokyo`.
 
 ## Cleaning Record Export
 
@@ -495,4 +496,3 @@ A date-grouped **cleaning record sheet** so staff can review their cleaning hist
   정상이었고, 이번 변경은 표시 전용입니다(저장되는 `sessionRoomLabel`·중복 제거 키는 불변).
 - 동일 맥락의 홈 "오늘 체크인/체크아웃" 시트 룸 매핑 일치 작업은
   `docs/product/15-reservation-calendar.md`(2026-06-18 섹션) 참고.
-

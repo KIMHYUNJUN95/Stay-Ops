@@ -145,7 +145,7 @@ export function BottomSheet({
             aria-modal="true"
             className={cn(
               "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[calc(max(20px,env(safe-area-inset-bottom))+var(--keyboard-inset,0px))] pt-0",
-              "transition-transform duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
+              "transition-transform duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
               shown ? "translate-y-0" : "translate-y-full",
               className,
             )}
