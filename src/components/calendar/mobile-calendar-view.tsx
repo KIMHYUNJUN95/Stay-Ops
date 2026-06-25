@@ -89,6 +89,15 @@ type MobileCalendarViewProps = {
     mapAddressLabel: string;
     mapAddressCopy: string;
     mapAddressMissing: string;
+    mapAccessFloor1: string;
+    mapAccessKindDoorPassword: string;
+    mapAccessKindKeyBox: string;
+    mapAccessKindKeyBoxPassword: string;
+    mapAccessKindLinenStorageEntrancePassword: string;
+    mapAccessKindRoomPassword: string;
+    mapAccessKindStorage: string;
+    mapAccessKindStoragePassword: string;
+    mapAccessNoteAllRoomsSame: string;
     mapCopiedAddress: string;
     mapCopiedCode: string;
     mapOpenAccess: string;
@@ -326,6 +335,32 @@ async function copyText(value: string) {
   textarea.select();
   document.execCommand("copy");
   document.body.removeChild(textarea);
+}
+
+function sharedAccessLabel(
+  item: PropertyMapMeta["sharedAccess"][number],
+  copy: MobileCalendarViewProps["copy"],
+) {
+  const labelByKey: Record<PropertyMapMeta["sharedAccess"][number]["labelKey"], string> = {
+    doorPassword: copy.mapAccessKindDoorPassword,
+    keyBox: copy.mapAccessKindKeyBox,
+    keyBoxPassword: copy.mapAccessKindKeyBoxPassword,
+    linenStorageEntrancePassword: copy.mapAccessKindLinenStorageEntrancePassword,
+    roomPassword: copy.mapAccessKindRoomPassword,
+    storage: copy.mapAccessKindStorage,
+    storagePassword: copy.mapAccessKindStoragePassword,
+  };
+  const label = labelByKey[item.labelKey];
+  return item.prefixKey === "floor1" ? `${copy.mapAccessFloor1} ${label}` : label;
+}
+
+function sharedAccessCodeLabel(
+  item: PropertyMapMeta["sharedAccess"][number],
+  copy: MobileCalendarViewProps["copy"],
+) {
+  return item.noteKey === "allRoomsSame"
+    ? `${item.code} (${copy.mapAccessNoteAllRoomsSame})`
+    : item.code;
 }
 
 export function MobileCalendarView({
@@ -1551,11 +1586,14 @@ export function MobileCalendarView({
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{copy.mapSharedAccessLabel}</p>
                 <div className="mt-2.5 space-y-2">
                   {selectedMapProperty.sharedAccess.map((item) => (
-                    <div className="flex items-center justify-between gap-2 rounded-xl border border-white/55 bg-surface/65 px-3 py-2.5 shadow-sm" key={item.label}>
+                    <div
+                      className="flex items-center justify-between gap-2 rounded-xl border border-white/55 bg-surface/65 px-3 py-2.5 shadow-sm"
+                      key={`${item.prefixKey ?? "none"}-${item.labelKey}-${item.code}`}
+                    >
                       <div>
-                        <p className="text-xs text-muted-foreground/90">{item.label}</p>
+                        <p className="text-xs text-muted-foreground/90">{sharedAccessLabel(item, copy)}</p>
                         <p className="mt-0.5 rounded-md bg-black/[0.05] px-1.5 py-0.5 font-mono text-sm font-semibold text-foreground">
-                          {item.code}
+                          {sharedAccessCodeLabel(item, copy)}
                         </p>
                       </div>
                       <Button

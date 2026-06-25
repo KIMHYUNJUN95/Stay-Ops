@@ -559,6 +559,15 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
           mapAddressLabel: dictionary.mobile.calendarMapAddressLabel,
           mapAddressCopy: dictionary.mobile.calendarMapAddressCopy,
           mapAddressMissing: dictionary.mobile.calendarMapAddressMissing,
+          mapAccessFloor1: dictionary.mobile.calendarMapAccessFloor1,
+          mapAccessKindDoorPassword: dictionary.mobile.calendarMapAccessKindDoorPassword,
+          mapAccessKindKeyBox: dictionary.mobile.calendarMapAccessKindKeyBox,
+          mapAccessKindKeyBoxPassword: dictionary.mobile.calendarMapAccessKindKeyBoxPassword,
+          mapAccessKindLinenStorageEntrancePassword: dictionary.mobile.calendarMapAccessKindLinenStorageEntrancePassword,
+          mapAccessKindRoomPassword: dictionary.mobile.calendarMapAccessKindRoomPassword,
+          mapAccessKindStorage: dictionary.mobile.calendarMapAccessKindStorage,
+          mapAccessKindStoragePassword: dictionary.mobile.calendarMapAccessKindStoragePassword,
+          mapAccessNoteAllRoomsSame: dictionary.mobile.calendarMapAccessNoteAllRoomsSame,
           mapCopiedAddress: dictionary.mobile.calendarMapCopiedAddress,
           mapCopiedCode: dictionary.mobile.calendarMapCopiedCode,
           mapOpenAccess: dictionary.mobile.calendarMapOpenAccess,
@@ -602,5 +611,4 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
     </MobileShell>
   );
 }
-
 

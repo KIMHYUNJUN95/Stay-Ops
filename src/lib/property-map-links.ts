@@ -1,8 +1,17 @@
 import type { Locale } from "@/lib/i18n";
 
 export type PropertyAccessInfo = {
-  label: string;
+  labelKey:
+    | "doorPassword"
+    | "keyBox"
+    | "keyBoxPassword"
+    | "linenStorageEntrancePassword"
+    | "roomPassword"
+    | "storage"
+    | "storagePassword";
   code: string;
+  prefixKey?: "floor1";
+  noteKey?: "allRoomsSame";
 };
 
 export type PropertyRoomCode = {
@@ -34,7 +43,7 @@ export const PROPERTY_MAP_META: PropertyMapMeta[] = [
     },
     googleMapsUrl:
       "https://www.google.com/maps/place/JJ+HOUSE+Arakicho/@35.6941824,139.7194752,14z/data=!3m1!5s0x60188cf2267f3533:0xa732e333ba61cefb!4m9!3m8!1s0x60188dfd04c8fbf5:0x245eac1d16d4743a!5m2!4m1!1i2!8m2!3d35.691589!4d139.7235419!16s%2Fg%2F11j6k7s5f9?entry=tts",
-    sharedAccess: [{ label: "창고", code: "519" }],
+    sharedAccess: [{ labelKey: "storage", code: "519" }],
     roomAccess: [
       { roomLabel: "201", code: "2010045*" },
       { roomLabel: "202", code: "2566*" },
@@ -60,9 +69,9 @@ export const PROPERTY_MAP_META: PropertyMapMeta[] = [
     googleMapsUrl:
       "https://www.google.com/maps/place/%E3%80%92160-0007+Tokyo,+Shinjuku+City,+Arakich%C5%8D,+15%E2%88%928+%E6%9D%89%E6%A3%AE%E3%83%93%E3%83%AB/@35.6908858,139.7242438,19z/data=!4m6!3m5!1s0x60188cf233594aff:0x179d356351dc97be!8m2!3d35.6913069!4d139.7242565!16s%2Fg%2F12hm7hkzm?entry=tts&g_ep=EgoyMDI1MDMyNS4xIPu8ASoASAFQAw%3D%3D&skid=5e9601a3-6ea4-4d2a-a0e2-223b2972e774",
     sharedAccess: [
-      { label: "각 방 비밀번호", code: "000000 (전객실 동일)" },
-      { label: "1층 창고 비밀번호", code: "519" },
-      { label: "1층 키박스", code: "8511" },
+      { labelKey: "roomPassword", code: "000000", noteKey: "allRoomsSame" },
+      { labelKey: "storagePassword", prefixKey: "floor1", code: "519" },
+      { labelKey: "keyBox", prefixKey: "floor1", code: "8511" },
     ],
   },
   {
@@ -75,7 +84,7 @@ export const PROPERTY_MAP_META: PropertyMapMeta[] = [
     },
     googleMapsUrl:
       "https://www.google.com/maps/place/JJ+HOUSE+KABUKICHO/@35.6941824,139.7194752,14z/data=!4m9!3m8!1s0x60188dcf23952c4b:0x1b670277b2224462!5m2!4m1!1i2!8m2!3d35.6979227!4d139.7025887!16s%2Fg%2F11svxlt6_p?entry=tts",
-    sharedAccess: [{ label: "1층 키박스", code: "0021" }],
+    sharedAccess: [{ labelKey: "keyBox", prefixKey: "floor1", code: "0021" }],
     roomAccess: [
       { roomLabel: "202", code: "2020117*" },
       { roomLabel: "203", code: "CB245" },
@@ -100,9 +109,9 @@ export const PROPERTY_MAP_META: PropertyMapMeta[] = [
     googleMapsUrl:
       "https://www.google.com/maps/place/Light+House/@35.7086048,139.7016972,16.5z/data=!4m6!3m5!1s0x60188dc4ad0a46ab:0x8df54927b465b695!8m2!3d35.7113447!4d139.6966335!16s%2Fg%2F11l4kslr29?entry=tts&g_ep=EgoyMDI0MDYwOS4wKgBIAVAD",
     sharedAccess: [
-      { label: "1층창고 비밀번호", code: "1537" },
-      { label: "1층 린넨 창고 입구 비밀번호", code: "5963" },
-      { label: "1층 키박스 비밀번호", code: "912" },
+      { labelKey: "storagePassword", prefixKey: "floor1", code: "1537" },
+      { labelKey: "linenStorageEntrancePassword", prefixKey: "floor1", code: "5963" },
+      { labelKey: "keyBoxPassword", prefixKey: "floor1", code: "912" },
     ],
     roomAccess: [
       { roomLabel: "2f", code: "4827" },
@@ -126,8 +135,8 @@ export const PROPERTY_MAP_META: PropertyMapMeta[] = [
     googleMapsUrl:
       "https://www.google.com/maps/place/Hotel+STAY+ARI+Highashi+Shinjuku/@35.6993611,139.7035311,16.64z/data=!4m9!3m8!1s0x60188d4a4ba67c23:0xe32142309aa2de59!5m2!4m1!1i2!8m2!3d35.7002401!4d139.706157!16s%2Fg%2F11vkft6rpq?entry=tts&g_ep=EgoyMDI2MDMyNC4wIPu8ASoASAFQAw%3D%3D&skid=e50d31ca-42e2-4891-b634-6737921a0629",
     sharedAccess: [
-      { label: "키박스 비밀번호", code: "0072" },
-      { label: "창고 비밀번호", code: "519" },
+      { labelKey: "keyBoxPassword", code: "0072" },
+      { labelKey: "storagePassword", code: "519" },
     ],
   },
   {
@@ -141,8 +150,8 @@ export const PROPERTY_MAP_META: PropertyMapMeta[] = [
     googleMapsUrl:
       "https://www.google.com/maps/place/Hotel+STAY+ARI+Highashi+Shinjuku/@35.6993611,139.7035311,16.64z/data=!4m9!3m8!1s0x60188d4a4ba67c23:0xe32142309aa2de59!5m2!4m1!1i2!8m2!3d35.7002401!4d139.706157!16s%2Fg%2F11vkft6rpq?entry=tts&g_ep=EgoyMDI2MDMyNC4wIPu8ASoASAFQAw%3D%3D&skid=e50d31ca-42e2-4891-b634-6737921a0629",
     sharedAccess: [
-      { label: "키박스 비밀번호", code: "5757" },
-      { label: "창고 비밀번호", code: "519" },
+      { labelKey: "keyBoxPassword", code: "5757" },
+      { labelKey: "storagePassword", code: "519" },
     ],
   },
   {
@@ -156,8 +165,8 @@ export const PROPERTY_MAP_META: PropertyMapMeta[] = [
     googleMapsUrl:
       "https://www.google.com/maps/place/%E9%9F%93%E5%9B%BD%E3%82%A2%E3%82%AF%E3%82%BB%E3%82%B5%E3%83%AA%E3%83%BC1%2F2/@35.699421,139.7022241,18z/data=!4m6!3m5!1s0x60188dd0e32d190f:0xed6ee9edd00c64cd!8m2!3d35.699386!4d139.7038418!16s%2Fg%2F11vbqj0_0w?entry=ttu&g_ep=EgoyMDI2MDUyMC4wIKXMDSoASAFQAw%3D%3D",
     sharedAccess: [
-      { label: "도어 비밀번호", code: "1205115" },
-      { label: "키박스 비밀번호", code: "6174" },
+      { labelKey: "doorPassword", code: "1205115" },
+      { labelKey: "keyBoxPassword", code: "6174" },
     ],
   },
 ];

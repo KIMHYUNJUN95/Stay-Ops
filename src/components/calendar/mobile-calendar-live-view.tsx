@@ -36,6 +36,15 @@ type MobileCalendarLiveViewProps = {
     mapAddressLabel: string;
     mapAddressCopy: string;
     mapAddressMissing: string;
+    mapAccessFloor1: string;
+    mapAccessKindDoorPassword: string;
+    mapAccessKindKeyBox: string;
+    mapAccessKindKeyBoxPassword: string;
+    mapAccessKindLinenStorageEntrancePassword: string;
+    mapAccessKindRoomPassword: string;
+    mapAccessKindStorage: string;
+    mapAccessKindStoragePassword: string;
+    mapAccessNoteAllRoomsSame: string;
     mapCopiedAddress: string;
     mapCopiedCode: string;
     mapOpenAccess: string;
