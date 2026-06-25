@@ -3,6 +3,7 @@ import { getDictionary } from "@/lib/i18n";
 import {
   isAnnouncementNotificationPayload,
   isAttendanceNotificationPayload,
+  isBoardNotificationPayload,
   isOrderProcessedPayload,
   isProjectNotificationPayload,
   isSuggestionNotificationPayload,
@@ -206,6 +207,35 @@ export function getNotificationDisplay(
   }
 
   if (
+    notification.type === "board_activity" &&
+    isBoardNotificationPayload(notification.payload)
+  ) {
+    const payload = notification.payload;
+    const title =
+      payload.event === "mentioned"
+        ? copy.boardMentionTitle
+        : payload.event === "mention_all"
+          ? copy.boardMentionAllTitle
+          : copy.boardCommentTitle;
+    const bodyTemplate =
+      payload.event === "mentioned"
+        ? copy.boardMentionBody
+        : payload.event === "mention_all"
+          ? copy.boardMentionAllBody
+          : copy.boardCommentBody;
+    const body = bodyTemplate
+      .replace("{title}", payload.postTitle)
+      .replace("{actor}", payload.actorName ?? "");
+    return {
+      title,
+      body,
+      statusLabel: copy.boardKind,
+      kindLabel: copy.boardKind,
+      locationLabel: "",
+    };
+  }
+
+  if (
     notification.type === "attendance_activity" &&
     isAttendanceNotificationPayload(notification.payload)
   ) {
@@ -268,6 +298,8 @@ export function notificationTypeLabel(type: NotificationType, locale: Locale) {
       return copy.suggestionKind;
     case "attendance_activity":
       return copy.attendanceKind;
+    case "board_activity":
+      return copy.boardKind;
     default:
       return copy.fallbackKind;
   }

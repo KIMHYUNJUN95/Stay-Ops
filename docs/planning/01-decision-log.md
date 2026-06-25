@@ -4,6 +4,39 @@ This file records important project decisions.
 
 ## 2026-06-25
 
+### 게시판 @멘션 기능 — 기획 확정
+
+- 디자인: 옵션 E (바텀시트 + 검색, canonical `BottomSheet` 컴포넌트, scrim `z-[80]`)
+- 다중 멘션 + @ALL 전체 멘션 지원 (@ALL은 최상단 고정행, 로케일별 라벨)
+- 저장: `board_comments.mentioned_user_ids UUID[] NOT NULL DEFAULT '{}'` + `mention_all BOOLEAN NOT NULL DEFAULT false`, GIN 인덱스; 별도 테이블 미사용
+- 알림: `mention_all=true`이면 `board_mention_all`만 발송 (개별 `board_comment_mentioned` 생략 — 중복 방지), 본인 제외
+- 검색: 빈 쿼리 시 가나다순 상위 20명 (추후 최근 활동 기반 전환 검토), prefix 매칭, 디바운스 200ms
+- 보안: `mentioned_user_ids` 각 UUID의 같은 org 활성 멤버 여부는 서버 액션 레벨 검증 (RLS 미적용)
+- 댓글 백엔드(`addBoardComment`)와 한 사이클에 묶어 구현
+
+### Bug Report / Problem Report — 기획 방향 확정
+
+Decision: 버그신고 기능은 **StayOps 앱 자체의 문제/버그 신고** 용도로 정의한다. 현장 운영 문제나 건물/객실 이슈를 다루는 요청 기능이 아니다.
+
+확정 사항:
+- **성격**: StayOps 사용 중 발견한 앱/시스템 문제 신고
+- **대상 예시**: 화면 오작동, 버튼 무반응, 잘못된 데이터 표시, 권한 오류, 알림 오류, 심한 성능 문제
+- **비대상**: 건물/객실 문제, 청소 품질 이슈, 비품 요청, 일반 건의/의견
+- **1차 신고 폼**: `제목` + `설명` + `사진 첨부(선택)`만 받는 최소형
+- **제외**: 댓글, 카테고리, 심각도, 재현절차, 기대결과/실제결과 입력
+- **분리 기준**:
+  - `Maintenance` = 현실 시설/현장 문제
+  - `Staff Suggestions` = 사람 대상 피드백/의견
+  - `Bug Report` = StayOps 제품 문제
+- **디자인 작업**: 사용자가 직접 진행 후 핸드오프
+
+Why: 사용자가 명확히 "앱에 대한 문제나 버그를 신고하는 곳"이라고 범위를 확정했다. 이 구분이 없으면 Maintenance/제안함과 기능 목적이 섞인다. 또한 1차는 최대한 심플해야 하므로 신고 입력 항목을 최소화한다.
+
+Impact:
+- 신규 기획 문서 `docs/product/25-bug-report-workflow.md` 는 앱 버그 신고 기준으로 유지
+- 신규 기술 문서 `docs/engineering/13-bug-report-technical-design.md` 는 같은 기준으로 설계
+- UI/UX 시안은 본 프로젝트 문서에서 구조만 정의하고, 실제 디자인은 사용자 핸드오프를 기다림
+
 ### Board (자유 게시판) — 기능 기획 확정
 
 Decision: 기존 "Internal Board" 스켈레톤(product `20`)을 폐기하고 자유 게시판으로 전면 재기획.
@@ -23,6 +56,10 @@ Impact:
 - 알림 타입 추가: `board_post_commented`, `board_comment_replied`.
 - 네비게이션: 사이드 메뉴 추가, 하단 탭 커스터마이징 목록 포함.
 - 전체 기획 문서: `docs/product/23-board-workflow.md`.
+
+### Board (자유 게시판) — 기능 출시 (Page 1–3 구현 완료)
+
+2026-06-25: Board feature shipped — Composer(글쓰기) + Feed(피드, 커서 페이지네이션·태그 필터·안읽음 뱃지) + Detail(상세·반응·댓글·고정·삭제·읽음·공유) 구현 완료. 마이그레이션 `202606250001_board.sql`(테이블 4 + RLS + `board-attachments` 버킷) · `202606250002_board_notification_type.sql`(`board_activity` 알림) 적용 완료. 임시 `board-i18n.ts` 폐기 후 `i18n.ts`로 통합. 댓글 정렬 등록순·피드 커서 페이지네이션 확정, 댓글 본문 필수(이미지 전용 불가, `board_comments.content` CHECK). 글 수정 폼은 Page 4로 분리(서버 액션 `updateBoardPost`는 구현). 계획된 `board_comment_replied` 알림은 미구현(후속). 상세: `docs/product/23-board-workflow.md`.
 
 ## 2026-06-24
 
@@ -1767,7 +1804,14 @@ destinations (maps, shopping links, mailto/tel) intentionally still leave the ap
 via the app switcher. Future image surfaces should reuse `ImageLightbox` / `LightboxThumbs`, not
 `target="_blank"`.
 
-Status: Confirmed (2026-06-22).
+**2026-06-25 — pinch-zoom added.** `ImageLightbox` now supports **pinch-to-zoom (1–4×), double-tap
+zoom toggle, and drag-to-pan while zoomed**, implemented directly (no library) via non-passive touch
+listeners. While zoomed the carousel's native horizontal scroll is disabled (`touch-action: none` +
+`overflow: hidden`) so a one-finger drag pans instead of switching photos; releasing back to 1× (or
+changing slide) re-enables swiping and resets zoom. Desktop has double-click parity. Because it's the
+shared viewer, all surfaces (board, announcements, orders, linen-return) gain zoom.
+
+Status: Confirmed (2026-06-22; pinch-zoom 2026-06-25).
 
 ### Mobile route transitions via template.tsx (not a persistent-shell refactor)
 

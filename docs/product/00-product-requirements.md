@@ -116,6 +116,14 @@ Field/office staff can log damaged, stained, or unusable linen items per propert
 
 Staff and part-time staff can send structured feedback to one required recipient, optionally sharing visibility with referenced users in the same organization. The feature includes a recipient-owned status lifecycle and participant comment thread, and remains separate from the Internal Board (structured feedback vs. broad internal posting). Approved post-MVP batch item (2026-06-09; refined 2026-06-16). See `docs/product/22-staff-suggestions-workflow.md`.
 
+### Bug Reports / Problem Reports
+
+Staff can report problems found while using StayOps itself, such as broken flows, incorrect data,
+permission errors, or notification issues. This module is separate from Maintenance (real-world
+property issues) and separate from Staff Suggestions (person-directed feedback). The first planned
+slice is a **very simple** private reporter-to-reviewer workflow: title, description, optional
+screenshots, and status tracking only. See `docs/product/25-bug-report-workflow.md`.
+
 ### Attendance / Clock-In-Out + Payroll
 
 PWA QR + device-GPS clock-in/out replacing paper timecards, with a later path to hourly payroll. **Attendance capture is approved (2026-06-09); payroll calculation is deferred until wage rules are defined.** See `docs/product/21-attendance-payroll-workflow.md`.

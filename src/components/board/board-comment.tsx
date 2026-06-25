@@ -1,7 +1,12 @@
 "use client";
+import Image from "next/image";
+import { useState } from "react";
 import { BoardAvatar } from "@/components/board/board-avatar";
+import { ImageLightbox } from "@/components/shell/image-lightbox";
+import { renderMentionContent } from "@/lib/board-mention-utils";
+import type { MentionUser } from "@/lib/board-mention-utils";
 import type { AvatarColor } from "@/components/board/board-types";
-import type { BoardDictionary } from "@/lib/board-i18n";
+import type { Dictionary } from "@/lib/i18n";
 
 export type CommentData = {
   id: string;
@@ -11,9 +16,15 @@ export type CommentData = {
   role?: string;
   timeLabel: string;
   content: string;
-  imageLabel?: string;
+  imageUrls?: string[];
   reaction?: { emoji: string; count: number };
   isOwn?: boolean;
+  // Whether the viewer may delete this comment (own comment OR a manager). Kept separate from `isOwn`
+  // so `isOwn` stays a true "this is my comment" flag for future own-comment UI.
+  canDelete?: boolean;
+  // Mention metadata (optional — comments written before mention feature have none)
+  mentionedUsers?: MentionUser[];
+  mentionAll?: boolean;
 };
 
 export function BoardComment({
@@ -21,12 +32,27 @@ export function BoardComment({
   isLast = false,
   onDelete,
   copy,
+  // TODO i18n: mentionAll (allLabel)
+  allLabel = "전체",
 }: {
   comment: CommentData;
   isLast?: boolean;
   onDelete?: (id: string) => void;
-  copy: Pick<BoardDictionary, "commentDelete">;
+  copy: Pick<Dictionary["board"], "commentDelete" | "viewPhoto" | "close">;
+  allLabel?: string;
 }) {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const images = comment.imageUrls ?? [];
+
+  const mentionSegments =
+    comment.mentionedUsers || comment.mentionAll
+      ? renderMentionContent(
+          comment.content,
+          comment.mentionedUsers ?? [],
+          comment.mentionAll ?? false,
+          allLabel,
+        )
+      : null;
   return (
     <div
       className={`flex gap-[10px] py-[13px] ${!isLast ? "border-b border-border/60" : ""}`}
@@ -49,7 +75,7 @@ export function BoardComment({
           <span className="text-[11px] font-semibold text-[hsl(222_10%_62%)]">
             {comment.timeLabel}
           </span>
-          {comment.isOwn && onDelete && (
+          {comment.canDelete && onDelete && (
             <button
               type="button"
               onClick={() => onDelete(comment.id)}
@@ -60,15 +86,52 @@ export function BoardComment({
           )}
         </div>
         <div className="mt-[3px] text-[13px] font-medium leading-[1.6] text-[hsl(222_20%_28%)]">
-          {comment.content}
+          {mentionSegments
+            ? mentionSegments.map((seg, idx) =>
+                seg.type === "text" ? (
+                  <span key={idx}>{seg.text}</span>
+                ) : seg.userId === "ALL" ? (
+                  // @ALL — 더 강조된 배지 스타일
+                  <span
+                    key={idx}
+                    className="inline-flex items-center rounded-[6px] bg-primary/[0.09] px-[6px] py-[1px] font-extrabold text-primary"
+                  >
+                    {seg.label}
+                  </span>
+                ) : (
+                  // 일반 멘션 — 인라인 네이비 볼드
+                  <span key={idx} className="font-bold text-primary">
+                    {seg.label}
+                  </span>
+                ),
+              )
+            : comment.content}
         </div>
-        {comment.imageLabel && (
-          <div className="mt-[9px]">
-            <div className="w-[132px] h-[96px] rounded-[10px] border border-border bg-[repeating-linear-gradient(135deg,hsl(40_22%_90%)_0_11px,hsl(40_26%_87%)_11px_22px)] flex items-center justify-center">
-              <span className="font-mono text-[10px] font-bold text-[hsl(222_10%_62%)]">
-                {comment.imageLabel}
-              </span>
-            </div>
+        {images.length > 0 && (
+          <div className="mt-[9px] flex flex-wrap gap-[6px]">
+            {images.map((url, index) => (
+              <button
+                key={url}
+                type="button"
+                onClick={() => setOpenIndex(index)}
+                aria-label={`${copy.viewPhoto} ${index + 1}`}
+                className="group relative size-[64px] overflow-hidden rounded-[9px] border border-border bg-[hsl(40_22%_92%)]"
+              >
+                <Image
+                  src={url}
+                  alt=""
+                  fill
+                  sizes="64px"
+                  className="object-cover transition-transform duration-300 group-active:scale-[1.05]"
+                />
+              </button>
+            ))}
+            <ImageLightbox
+              urls={images}
+              openIndex={openIndex}
+              onClose={() => setOpenIndex(null)}
+              closeLabel={copy.close}
+            />
           </div>
         )}
         {comment.reaction && (

@@ -259,6 +259,28 @@ Search examples:
 - Staff member
 - Category
 
+### 13. Bug Reports / Problem Reports
+
+Purpose:
+
+- Let staff report problems found while using StayOps itself.
+
+Examples:
+
+- screen does not load
+- button does nothing
+- wrong data shown
+- permission denied unexpectedly
+- unread badge does not clear
+
+Key features:
+
+- all active members can submit
+- private visibility between reporter and reviewers
+- title + description + optional screenshots
+- own history
+- reviewer status update
+
 ## Post-MVP Approved Batch (confirmed 2026-06-09)
 
 These five features are the approved next build scope after the Phase 6–13 MVP. Build order: Linen Defect → Personal Todo / Shared Task Inbox → Staff Suggestions → Internal Board → Attendance/Payroll. The Todo and Internal Board entries above (#2, #4) are part of this batch. See `docs/planning/15-feature-batch-plan.md` and `docs/planning/01-decision-log.md` (2026-06-09).

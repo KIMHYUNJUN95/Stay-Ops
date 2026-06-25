@@ -1,8 +1,8 @@
 # 23. 게시판(Board) 워크플로우
 
-> **상태**: Page 1 (Composer) 구현 완료 — Page 2 (Feed) 승인 대기 중  
+> **상태**: Page 1 (Composer) + Page 2 (Feed) + Page 3 (상세) 구현 완료 — Page 4 (글 수정) 승인 대기 중 | @멘션 기능 DB·백엔드·UI 구현 중 (2026-06-25)
 > **최초 작성**: 2026-06-25  
-> **업데이트**: 2026-06-25 — 파일 첨부 기능, 다중 최상단 고정(작성자 직접 고정) 추가 | 2026-06-25 — Page 1 구현 완료 (마이그레이션 적용, 글쓰기 페이지 연결)  
+> **업데이트**: 2026-06-25 — 파일 첨부 기능, 다중 최상단 고정(작성자 직접 고정) 추가 | 2026-06-25 — Page 1 구현 완료 (마이그레이션 적용, 글쓰기 페이지 연결) | 2026-06-25 — Page 2 구현 완료 (피드 목록 서버 연결, 태그 필터, 커서 페이지네이션, 안읽음 뱃지) | 2026-06-25 — Page 3 구현 완료 (상세 조회·반응·댓글·고정·삭제·읽음·공유, `board_activity` 알림, board-i18n 통합) | 2026-06-25 — @멘션 기능 기획 확정 및 문서화 (디자인 옵션 E, 바텀시트+검색, 다중 선택, @ALL)  
 > **관련 기능**: Announcements(공지), Suggestions(제안함)와 완전히 분리된 별도 기능
 
 ---
@@ -136,12 +136,20 @@ CREATE TABLE board_comments (
   post_id              UUID NOT NULL REFERENCES board_posts(id) ON DELETE CASCADE,
   organization_id      UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   created_by_user_id   UUID NOT NULL REFERENCES auth.users(id),
-  content              TEXT NOT NULL,
+  content              TEXT NOT NULL,               -- 평문; @이름 / @ALL 토큰을 그대로 저장
   image_urls           TEXT[] NOT NULL DEFAULT '{}',  -- 최대 3장
+  mentioned_user_ids   UUID[] NOT NULL DEFAULT '{}',  -- 멘션된 멤버 UUID 배열 (GIN 인덱스)
+  mention_all          BOOLEAN NOT NULL DEFAULT false, -- true이면 @ALL 전체 멘션
   created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
   deleted_at           TIMESTAMPTZ                    -- 소프트 삭제
 );
+
+-- @멘션 조회용 GIN 인덱스 (UUID[] 포함 여부 검색)
+CREATE INDEX board_comments_mentions_idx ON board_comments USING gin (mentioned_user_ids)
+  WHERE deleted_at IS NULL;
 ```
+
+> **별도 mention 테이블 미사용 이유**: UUID 배열 컬럼 + GIN 인덱스로 충분, 알림은 시점에 발송하므로 영속 관계 불필요.
 
 ### 3.4 `board_reactions` — 이모지 반응
 
@@ -228,10 +236,25 @@ pinBoardPost(id: string, pin: boolean): Promise<void>
 
 ### 댓글 관련
 ```typescript
-addBoardComment(postId: string, content: string, imageUrls: string[]): Promise<{ id: string } | { error: string }>
-// allow_comments 확인
-// image_urls 최대 3개
-// 작성 후 글 작성자에게 알림 발송
+addBoardComment(
+  postId: string,
+  content: string,
+  imageUrls: string[],
+  options?: { mentionedUserIds?: string[]; mentionAll?: boolean },
+): Promise<{ ok: true } | { error: string }>
+// allow_comments 확인 · image_urls 최대 3개 · content 필수
+// 멘션 검증(서버):
+//   - mentionedUserIds의 각 id가 같은 org 활성 멤버인지 확인 → 통과한 id만 저장
+//   - 작성자 본인 id는 자동 제외 (자기 자신 멘션 의미 없음)
+//   - mention_all = true 이면 mentionedUserIds는 무시하고 같은 org 활성 멤버 전체로 fan-out
+// 알림 발송:
+//   - 멘션 우선: mention_all이면 활성 멤버 전원에게 board_activity(event=mention_all) 1건
+//   - 그 외 mentionedUserIds → board_activity(event=mentioned) 각 1건
+//   - 글 작성자 알림(event=commented)은 작성자가 위 멘션 수신자에 이미 포함된 경우 생략 (중복 방지)
+//   - 작성자 본인 행위는 항상 자기 자신에게 알림 안 보냄
+
+searchMentions(query: string): Promise<MentionableMember[]>
+// 멘션 자동완성 server action — 같은 org 활성 멤버 중 이름 prefix 일치 (caller 제외, 최대 20명)
 
 deleteBoardComment(commentId: string): Promise<void | { error: string }>
 // 작성자 본인 OR office_admin/owner 확인
@@ -328,21 +351,97 @@ getUnreadBoardPostCount(session)
 
 ---
 
-## 9. 알림 연동
+## 9. @멘션 기능
 
-### 새 notification_type
-| 타입 | 발생 시점 | 수신자 |
-|------|-----------|--------|
-| `board_post_commented` | 내 글에 댓글 | 글 작성자 |
-| `board_comment_replied` | 내가 댓글 단 글에 새 댓글 | 해당 글의 다른 댓글 작성자들 (선택 구현) |
+> **추가**: 2026-06-25
 
-### 알림 생성 위치
-`addBoardComment()` server action 내에서 `notifyBoardComment()` 호출.  
-기존 패턴: `src/lib/notifications/create.ts`의 `notifySuggestionParticipants()` 참고.
+### 개요
+
+댓글 입력 중 `@`를 입력하면 멘션 피커가 열린다. 동료 한 명 이상을 멘션하거나, `@ALL`로 조직 전체를 멘션할 수 있다. 멘션된 멤버는 bell 알림을 받는다.
+
+### 디자인: 옵션 E (바텀시트 + 검색)
+
+- canonical `BottomSheet` 컴포넌트 사용 (`src/components/shell/bottom-sheet.tsx`)
+- scrim(`fixed inset-0 z-[80]`)이 상단 헤더까지 어둡게 덮음
+- 상단에 검색 input (이름 prefix 매칭, 디바운스 200ms)
+- `@ALL` 옵션: 항상 최상단 고정행 ("전체 / 全員 / Everyone" — 로케일별 라벨)
+- 다중 선택 가능 (체크 표시)
+- 하단 "완료 (N)" 확정 버튼 (N = 현재 선택 인원 수)
+- drag-to-dismiss + scrim-tap + Esc 로 닫기 (상단 X 버튼 없음 — BottomSheet 기본 계약)
+
+### 진입
+
+댓글 composer 입력칸에 `@` 문자를 입력하면 멘션 피커 바텀시트가 자동으로 열린다.
+
+### 검색 동작
+
+| 조건 | 결과 |
+|------|------|
+| 빈 쿼리 | 가나다순 상위 20명 (추후 최근 활동 기반으로 전환 검토) |
+| 쿼리 입력 | 이름 prefix 매칭, 최대 20명 반환 |
+| 제외 조건 | 본인, 비활성 멤버, 탈퇴 멤버 |
+
+검색 디바운스: 200ms.
+
+### 선택 및 확정
+
+1. 멤버 행 탭 → 체크 토글 (다중 선택 가능)
+2. `@ALL` 행 탭 → 전체 멘션 선택 (`mention_all = true`)
+3. "완료 (N)" 버튼 탭 → 시트 닫힘
+4. 본문에 토큰 삽입: 개별 선택 시 `@이름 `, @ALL 선택 시 `@전체 ` (locale별 표시 — 저장은 `@ALL` 고정 마커)
+
+### 저장 형식
+
+| 컬럼 | 저장값 |
+|------|--------|
+| `content` | 평문 (`@이름`, `@ALL` 토큰을 그대로 포함) |
+| `mentioned_user_ids` | `UUID[]` — 선택된 멤버 UUID 배열 |
+| `mention_all` | `BOOLEAN` — @ALL 선택 여부 |
+
+> **렌더링**: 본문 내 `@ALL` 마커는 표시 시 로케일별 라벨(ko: `전체`, ja: `全員`, en: `Everyone`)으로 변환.
+
+### 알림 정책
+
+| 조건 | 발송 알림 |
+|------|-----------|
+| `mention_all = true` | `board_mention_all` 1종만 발송 (조직 전체 활성 멤버) |
+| `mention_all = false` | `board_comment_mentioned` (선택된 UUID별 개별 발송) |
+| `mention_all = true` 인 경우 | 개별 `board_comment_mentioned`는 생략 (중복 방지) |
+| 공통 | 작성자 본인은 수신 제외 |
+
+### 권한 및 보안
+
+- 멘션 가능 대상: 같은 org 활성 멤버만 (본인 제외, 비활성/탈퇴 제외)
+- 서버 액션에서 `mentioned_user_ids`의 각 UUID가 같은 org 활성 멤버인지 검증 (RLS만으로 차단 불가 — 서버 액션 레벨 보안)
+- 알림은 서버 액션 내에서 댓글 저장 직후 발송
 
 ---
 
-## 10. i18n 키 구조
+## 10. 알림 연동
+
+### notification_type — `board_activity` (단일 enum, payload.event로 분기)
+| event | 발생 시점 | 수신자 | i18n 키 |
+|-------|-----------|--------|---------|
+| `commented` | 내 글에 새 댓글 | 글 작성자 (작성자가 멘션 대상에 이미 포함되면 생략) | `boardCommentTitle/Body` |
+| `mentioned` | 댓글에서 개별 `@사용자` 멘션 | 멘션된 사용자 (서버 검증된 같은 org 활성 멤버만) | `boardMentionTitle/Body` |
+| `mention_all` | 댓글에서 `@ALL` 멘션 | 같은 org 활성 멤버 전원 (작성자 본인 제외) | `boardMentionAllTitle/Body` |
+
+- `mention_all` 발생 시 같은 댓글의 개별 `mentioned` 알림은 **발송하지 않음** (수신자별 중복 방지).
+- 댓글 작성자 본인은 모든 분기에서 수신자에서 제외.
+- 멘션 알림 본문(`{actor}`)에는 댓글 작성자 표시명이 들어가므로, `payload.actorName`을 함께 저장.
+
+### 알림 생성 위치
+`addBoardComment()` server action 내에서 호출:
+- `notifyBoardCommentMentions()` — 멘션(`mentioned`/`mention_all`) 우선 처리
+- `notifyBoardPostAuthor()` — 작성자가 멘션 수신자에 포함되지 않은 경우에만 `commented` 발송
+
+`searchMentions()` server action은 자동완성 전용 (실제 알림 발송과 무관).
+
+---
+
+## 11. i18n 키 구조
+
+> **실제 구현**: `src/lib/i18n.ts` `board` 섹션 (FALLBACK_DICTIONARY + ko/ja 오버라이드). 아래는 기획 초안이며, 실제 키 목록과 상이할 수 있다. @멘션 UI 키(§ 9)는 `board` 섹션에 추가되어 있음.
 
 파일: `src/lib/i18n.ts` → `board` 섹션 추가
 
@@ -410,6 +509,15 @@ board: {
   errorFileLimit: { ko: "파일은 최대 5개입니다", ja: "ファイルは最大5件です", en: "Max 5 files allowed" },
   errorFileSizeLimit: { ko: "파일 크기는 20MB 이하여야 합니다", ja: "ファイルサイズは20MB以下にしてください", en: "File size must be 20MB or less" },
   errorFileType: { ko: "지원하지 않는 파일 형식입니다", ja: "対応していないファイル形式です", en: "Unsupported file type" },
+
+  // @멘션 피커 (바텀시트 + 검색, 2026-06-25 추가)
+  mentionSearchPlaceholder: { ko: "이름 검색", ja: "名前を検索", en: "Search by name" },
+  mentionAll: { ko: "전체", ja: "全員", en: "Everyone" },
+  mentionAllSubtitle: { ko: "조직 모든 멤버에게 알림", ja: "組織の全員に通知", en: "Notify everyone in the organization" },
+  mentionDone: { ko: "완료 ({n})", ja: "完了 ({n})", en: "Done ({n})" },   // {n} = 선택 인원 수
+  mentionEmpty: { ko: "검색 결과가 없어요", ja: "検索結果がありません", en: "No results" },
+  mentionSelectedCount: { ko: "{n}명 선택됨", ja: "{n}名選択中", en: "{n} selected" },
+  errorMentionInvalidMember: { ko: "유효하지 않은 멤버가 포함되어 있어요", ja: "無効なメンバーが含まれています", en: "Invalid member in selection" },
 }
 ```
 
@@ -417,15 +525,20 @@ board: {
 
 ## 11. 라우트 구조
 
+> 아래는 **실제 구현 기준** 라우트 구조다(초기 기획안의 `new/`는 `compose/`로 구현됨).
+
 ```
 /mobile/board/
-├── page.tsx                — 목록 (고정 글 상단 + 최신순 피드)
-├── new/
-│   └── page.tsx            — 글 작성
+├── page.tsx                — 목록 (고정 글 상단 + 커서 페이지네이션 피드)
+├── actions.ts              — loadMoreBoardPosts (더 보기)
+├── compose/
+│   ├── page.tsx            — 글 작성
+│   └── actions.ts          — createBoardPost
 └── [id]/
     ├── page.tsx            — 글 상세 (반응 · 댓글)
+    ├── actions.ts          — 읽음·댓글·반응·고정·삭제·수정 서버 액션
     └── edit/
-        └── page.tsx        — 글 수정 (작성자만 접근)
+        └── page.tsx        — 글 수정 (Page 4 자리표시; updateBoardPost 액션은 구현됨)
 ```
 
 ---
@@ -447,14 +560,104 @@ UI 디자인 핸드오프 후 아래 순서로 진행:
 
 ---
 
+## 12-A. As-built — Page 2 (피드 목록, 2026-06-25)
+
+`/mobile/board` 피드 목록을 백엔드에 연결 완료.
+
+- **서버 쿼리 모듈**: `src/lib/board-queries.ts` (서버 전용 — **`src/lib/board.ts`와 분리**). `board.ts`는
+  브라우저 Supabase 클라이언트를 쓰고 클라이언트 컴포넌트(composer)가 import하므로, 서버 쿼리를 같은
+  파일에 넣으면 `next/headers`가 클라이언트 번들로 끌려와 빌드가 깨진다. `suggestions.ts` ↔
+  `suggestions-queries.ts` 분리 패턴을 따름.
+  - `getBoardFeed({ session, category?, limit, before? })` → `{ posts: BoardPost[]; nextCursor }`.
+    고정 글(`pinned_at` DESC, 첫 페이지에서만 전체) 먼저, 그 다음 일반 글(`created_at` DESC).
+    `deleted_at IS NOT NULL` 제외. 각 글에 작성자명·역할(로케일라이즈)·댓글 수·반응 배열·안읽음 여부
+    하이드레이션.
+  - `getBoardTags(session)` → 조직 내 비삭제 글의 태그 distinct (빈도순, 최대 12개) — 필터 칩 목록.
+  - `getBoardUnreadCount(session)` → 본인이 작성하지 않았고 읽음 레코드가 없는 글 수 (실패 시 0).
+- **페이지네이션 방식**: **커서 기반** (offset 아님). 커서 = 마지막으로 로드된 일반 글의 `created_at`.
+  고정 글은 첫 페이지에서만 반환(중복 방지). "더 보기" 버튼 → 서버 액션 `loadMoreBoardPosts`
+  (`src/app/mobile/board/actions.ts`)가 다음 일반 글 페이지를 반환(페이지 크기 15). 무한스크롤 대신
+  명시적 "더 보기" 버튼(공지/제안함이 페이지네이션을 안 해 기존 패턴이 없어, 명시 버튼 채택).
+- **카테고리 필터**: 스키마에 `category` 컬럼이 없고 `tags text[]`만 존재. `category` 파라미터는
+  `tags @> [값]`로 필터링하며, 행의 카테고리 뱃지는 첫 번째 태그를 사용. 필터 전환은
+  `router.replace('/mobile/board?category=...')`로 서버 리페치(공지/제안함의 router 패턴과 일치),
+  필터 변경 시 `key`로 클라이언트 컴포넌트 remount → 누적 페이지/커서 리셋.
+- **안읽음**: `board_post_reads`에 읽음 레코드 없고 본인 글이 아니면 안읽음(점 표시). 하단 탭/사이드
+  메뉴 뱃지(`board`)는 `getBoardUnreadCount`를 `getMobileNavBadges`에 연결.
+- **상대 시간**: `Intl.RelativeTimeFormat` (로케일별, 하드코딩 없음). SSR 불일치 방지를 위해
+  `useSyncExternalStore`로 하이드레이션 후에만 렌더.
+- **빈 상태**: 글 0건이면 빈 상태; 필터 적용 시 0건이면 필터 전용 문구(`emptyFilteredTitle/Subtitle`).
+- 라우트는 현행 구조(`/mobile/board`, `/mobile/board/compose`, `/mobile/board/[id]`)를 따름 — 위
+  §11의 `new/`·`[id]/edit/` 표기는 초기 기획안이며 실제 구현과 다름(글쓰기는 `compose/`).
+
+---
+
+## 12-B. As-built — Page 3 (상세, 2026-06-25)
+
+`/mobile/board/[id]` 상세 페이지를 백엔드에 연결 완료.
+
+- **사진 뷰어 (2026-06-25 추가)**: 게시글 사진과 댓글 사진을 탭하면 공유 `ImageLightbox`
+  (`src/components/shell/image-lightbox.tsx` — 풀스크린·스와이프·원본 표시·`<body>` 포털)가 열린다.
+  `target="_blank"`는 쓰지 않는다(설치형 PWA 이탈 방지 — decision-log 2026-06-22 이미지 계약).
+  게시글 그리드는 신규 `src/components/board/board-image-grid.tsx`(홀수 장수면 첫 사진을 풀폭 히어로,
+  나머지는 정사각 2열; `next/image` 최적화 — `request-images` 버킷은 `next.config` 화이트리스트). 댓글
+  사진은 `board-comment.tsx`에서 동일 라이트박스로 연결. i18n `viewPhoto`(ko·ja·en) 추가, 닫기 라벨은
+  `copy.close` 사용.
+
+- **서버 쿼리**: `getBoardPost({ session, id })` (`src/lib/board-queries.ts`) → `BoardPostDetail`. 전체 글
+  필드 + 작성자(이름·로케일 역할) + 댓글(비삭제, 등록순) + 반응 5종 집계(이모지별 count·본인 isMine) +
+  가장 많이 쓰인 이모지의 반응자 얼굴 최대 3명 + 반응 총원/첫 반응자 이름 + `allowComments`. 글이
+  없거나 소프트삭제·타 조직이면 `null` → 페이지에서 `notFound()`. `getBoardPost`/`ensureBoardPostRead`는
+  서버 전용 `board-queries.ts`에 둠(브라우저 클라이언트를 쓰는 `board.ts`와 분리 — Page 2와 동일 이유).
+- **읽음 처리**: `ensureBoardPostRead`(서비스롤 upsert, revalidate 없음)를 상세 페이지 렌더 중 호출 —
+  `ensureAnnouncementRead`와 동일 패턴. 하단/사이드 안읽음 뱃지는 다음 요청에서 자동 감소.
+- **서버 액션** (`src/app/mobile/board/[id]/actions.ts`, 모두 게시글 row로 org-scope·권한 확인 후
+  서비스롤 쓰기, `revalidatePath` 상세+피드):
+  - `markBoardPostRead` (멱등 upsert), `addBoardComment`(본문 필수·사진 ≤3·작성자 알림),
+    `deleteBoardComment`(소프트삭제 — 본인 또는 owner/office_admin), `toggleBoardReaction`(있으면 삭제/
+    없으면 추가, 허용 이모지 👍❤️😂😮😢 외 서버 거부), `pinBoardPost`/`unpinBoardPost`(작성자 또는
+    owner/office_admin), `updateBoardPost`(작성자 전용, 고정 플래그 갱신), `deleteBoardPost`(소프트삭제 —
+    본인 또는 owner/office_admin).
+- **댓글 본문 필수 결정**: `board_comments.content`에 `char_length(trim(content)) > 0` CHECK가 있어
+  **이미지 전용(빈 본문) 댓글은 DB가 거부**. 새 마이그레이션 없이 정합성을 지키기 위해 댓글은 본문
+  텍스트를 필수로 하고 사진은 보조 첨부(최대 3장)로 처리. 향후 이미지 전용 댓글이 필요하면 Page 4에서
+  CHECK 완화 마이그레이션으로 결정.
+- **반응 UI**: 5종 이모지 항상 표시(0 포함), 토글은 낙관적 업데이트 후 `router.refresh()`로 서버 정합.
+  반응자 얼굴(상위 이모지 최대 3명) + 요약(`reactionSummaryOne`/`Many`).
+- **더보기 액션 시트**: 글 수정/고정·해제/공유/삭제. 공유는 `navigator.share()` → 실패 시 클립보드 복사
+  + 토스트. 삭제는 중앙정렬 확인 모달(CLAUDE.md의 BottomSheet 예외) → `deleteBoardPost` →
+  `/mobile/board`로 이동. 권한에 따라 행 노출(작성자=수정/삭제, owner·office_admin=고정/삭제).
+- **알림**: 새 `board_activity` 알림 타입(마이그레이션 `202606250002_board_notification_type.sql`,
+  **적용 완료**). 댓글 작성 시 글 작성자에게 1건(작성자=본인이면 생략). `notifyBoardPostAuthor`
+  (`src/lib/notifications/create.ts`) + 타입/가드(`types.ts`) + 표시 분기·`board_activity` 라벨
+  (`display.ts`) + i18n(`boardKind`/`boardCommentTitle`/`boardCommentBody` ko·ja·en).
+- **i18n 통합**: 임시 `src/lib/board-i18n.ts`를 **삭제**하고 모든 board 문자열을 `src/lib/i18n.ts`
+  `FALLBACK_DICTIONARY`(en) + ko·ja 오버라이드의 `board` 섹션으로 이동. 함수형(`filterResultSuffix`,
+  `commentCountSuffix`)은 `{count}` 플레이스홀더 문자열로 변환(서버→클라이언트 직렬화 가능). 컴포넌트는
+  `copy: Dictionary["board"]`를 prop으로 받음.
+- **클라이언트 검증(라이브 DB)**: 고정 우선 정렬, 댓글 등록순, 반응 집계(👍=2/❤️=1, 총 3명), 안읽음
+  계산(작성자 본인 글 제외 → staff 0건 / owner 2건) 모두 SQL로 확인 후 시드 데이터 정리. RLS SELECT
+  (`has_active_membership`) + `getBoardPost`의 명시적 org 일치 검사로 교차 조직 격리.
+
+### 글 수정(edit) 페이지 — Page 4로 분리 결정
+서버 액션 `updateBoardPost`는 이번에 구현(작성자 전용)했으나, **편집 폼 UI는 Page 4로 미룸**. 액션 시트의
+"글 수정"이 404가 나지 않도록 `/mobile/board/[id]/edit`에 자리표시 페이지를 두어 안내 문구(`editTodo`)와
+뒤로가기만 노출. Page 4에서 compose 폼을 재사용해 실제 편집 화면 구현 예정.
+
+---
+
 ## 13. 미결 사항
 
 | 항목 | 상태 |
 |------|------|
-| UI/UX 디자인 | 사용자 진행 예정 |
-| 피드 방식 (최신순 무한스크롤 vs 페이지네이션) | 디자인 확정 후 결정 |
-| 댓글 정렬 (등록순 vs 최신순) | 미정 |
-| `board_comment_replied` 알림 구현 여부 | 선택 구현 (Phase 3에서 결정) |
+| UI/UX 디자인 | Page 1·2·3 구현 완료, Page 4(글 수정 폼) 대기 |
+| 피드 방식 (최신순 무한스크롤 vs 페이지네이션) | **확정: 커서 기반 + "더 보기" 버튼** (Page 2, 2026-06-25) |
+| 댓글 정렬 (등록순 vs 최신순) | **확정: 등록순(오래된 것 먼저)** (Page 3, 2026-06-25) |
+| 댓글 이미지 전용(빈 본문) 허용 | **현재 불가** — `board_comments.content` CHECK로 본문 필수; 필요 시 Page 4에서 CHECK 완화 |
+| 글 수정 폼 UI | Page 4로 분리 (서버 액션 `updateBoardPost`는 구현 완료, 폼만 대기) |
+| `board_comment_replied` 알림 구현 여부 | 선택 구현 (Phase 3에서 결정) — Page 3은 `board_activity`(댓글) 1종만 구현 |
 | 글 신고 기능 | 미기획 (추후 검토) |
 | `board-attachments` 버킷 URL 정책 (public vs signed URL) | 미정 — public은 구현 단순하나 파일 노출 위험 있음; signed URL은 보안 강하나 만료 처리 필요. 결정 전까지 signed URL 방향 권장 |
 | 파일 첨부 최대 개수 | 미정 — 현재 문서상 5개; 이미지 5장과 합산 vs 별도 제한인지 구현 시 결정 |
+| @멘션 검색 결과 정렬 | **디폴트: 가나다순**. 추후 최근 활동 기반(마지막 댓글 시각 순)으로 전환 검토 — 현재는 단순 정렬이 충분 |
+| @멘션 UI·DB·알림 구현 | **구현 중 (2026-06-25)** — DB 에이전트: `mentioned_user_ids` / `mention_all` 컬럼 + GIN 인덱스 마이그레이션. 백엔드 에이전트: `addBoardComment` 확장 + `notifyBoardMentions`. 프론트엔드 에이전트: 멘션 피커 바텀시트 컴포넌트. |

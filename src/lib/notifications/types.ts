@@ -51,6 +51,18 @@ export type AnnouncementNotificationPayload = {
   event: "important_published";
 };
 
+export type BoardNotificationPayload = {
+  postId: string;
+  postTitle: string;
+  actorUserId: string | null;
+  // One discriminated `board_activity` type. `commented` notifies the post author of any new
+  // comment; `mentioned` is a direct @mention in a comment body; `mention_all` is the @ALL fan-out.
+  // When mention_all goes out, individual `mentioned` notifications for the same comment are
+  // suppressed to avoid double-notifying everyone (see notifyBoardCommentMentions).
+  event: "commented" | "mentioned" | "mention_all";
+  actorName?: string | null;
+};
+
 export type AttendanceNotificationPayload = {
   // One discriminated `attendance_activity` type carries every event (no enum value per event).
   // `open_session_reminder` is worker-facing (the 18:30 reminder); the others are admin/user alerts.
@@ -78,6 +90,7 @@ export type NotificationPayloadByType = {
   suggestion_activity: SuggestionNotificationPayload;
   announcement_activity: AnnouncementNotificationPayload;
   attendance_activity: AttendanceNotificationPayload;
+  board_activity: BoardNotificationPayload;
 };
 
 export function isTaskNotificationPayload(
@@ -124,6 +137,14 @@ export function isAnnouncementNotificationPayload(
     typeof record.announcementTitle === "string" &&
     record.event === "important_published"
   );
+}
+
+export function isBoardNotificationPayload(
+  payload: unknown,
+): payload is BoardNotificationPayload {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
+  const record = payload as Record<string, unknown>;
+  return typeof record.postId === "string" && typeof record.postTitle === "string";
 }
 
 export function isAttendanceNotificationPayload(

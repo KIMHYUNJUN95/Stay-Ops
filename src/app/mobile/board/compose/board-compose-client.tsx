@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Image as ImageIcon } from "lucide-react";
 import { BoardFileCard, BoardFileAddButton } from "@/components/board/board-file-card";
@@ -36,6 +36,19 @@ export function BoardComposeClient({
 
   const canPost = content.trim().length > 0 && !isSubmitting;
   const maxImages = 5;
+
+  // Revoke any outstanding preview object URLs on unmount (e.g. back/cancel or after publish navigates
+  // away) so the blob previews aren't leaked.
+  const imagesRef = useRef(images);
+  useEffect(() => {
+    imagesRef.current = images;
+  }, [images]);
+  useEffect(
+    () => () => {
+      imagesRef.current.forEach((i) => URL.revokeObjectURL(i.preview));
+    },
+    [],
+  );
 
   function removeImage(id: string) {
     setImages((prev) => {
@@ -319,7 +332,13 @@ export function BoardComposeClient({
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if ((e.key === "Enter" || e.key === " ") && tagInput.trim()) {
+                  // Skip while an IME composition is active (KO/JA) so confirming a candidate with
+                  // Enter/Space doesn't prematurely commit a half-composed tag.
+                  if (
+                    (e.key === "Enter" || e.key === " ") &&
+                    !e.nativeEvent.isComposing &&
+                    tagInput.trim()
+                  ) {
                     addTag();
                     e.preventDefault();
                   }

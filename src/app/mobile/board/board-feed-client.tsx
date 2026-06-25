@@ -1,121 +1,127 @@
 "use client";
-import { useState } from "react";
+import { useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { BoardTagFilter } from "@/components/board/board-tag-filter";
 import { BoardListRow } from "@/components/board/board-list-row";
 import { BoardEmptyState } from "@/components/board/board-empty-state";
-import { getBoardDictionary } from "@/lib/board-i18n";
-import type { Locale } from "@/lib/i18n";
+import { loadMoreBoardPosts } from "./actions";
+import type { BoardPost } from "@/components/board/board-types";
+import type { Dictionary, Locale } from "@/lib/i18n";
 
-// stub 데이터 — 백엔드 작업 후 서버 쿼리로 교체 예정
-const MOCK_POSTS = [
-  {
-    id: "1",
-    isPinned: true,
-    category: "업무공유",
-    title: "이번 주 객실 점검 순번 공유",
-    authorName: "박지훈",
-    timeLabel: "오늘 오전 8:40",
-    commentCount: 5,
-    isUnread: false,
-  },
-  {
-    id: "2",
-    isPinned: false,
-    category: "업무공유",
-    title: "아라키초 A동 린넨 교체 완료",
-    authorName: "김지수",
-    timeLabel: "오늘 오전 9:23",
-    commentCount: 2,
-    isUnread: true,
-  },
-  {
-    id: "3",
-    isPinned: false,
-    category: "건의",
-    title: "오후 택배 수령 가능하신 분 계실까요?",
-    authorName: "이소연",
-    timeLabel: "오늘 오전 7:55",
-    commentCount: 4,
-    isUnread: false,
-  },
-  {
-    id: "4",
-    isPinned: false,
-    category: "일상",
-    title: "점심 같이 드실 분 🍱",
-    authorName: "최도윤",
-    timeLabel: "어제 오후 12:10",
-    commentCount: 3,
-    isUnread: false,
-  },
-  {
-    id: "5",
-    isPinned: false,
-    category: "정보공유",
-    title: "비품 재고 정리 팁 공유합니다",
-    authorName: "정우진",
-    timeLabel: "어제 오후 4:11",
-    commentCount: 1,
-    isUnread: false,
-  },
-  {
-    id: "6",
-    isPinned: false,
-    category: "정보공유",
-    title: "신규 입사자 안내 자료 공유",
-    authorName: "박지훈",
-    timeLabel: "어제 오전 10:30",
-    commentCount: 0,
-    isUnread: false,
-  },
-  {
-    id: "7",
-    isPinned: false,
-    category: "일상",
-    title: "창고 정리 도와주신 분들 감사합니다",
-    authorName: "정우진",
-    timeLabel: "2일 전",
-    commentCount: 2,
-    isUnread: false,
-  },
-  {
-    id: "8",
-    isPinned: false,
-    category: "건의",
-    title: "휴게실 정수기 필터 교체 요청",
-    authorName: "한예린",
-    timeLabel: "2일 전",
-    commentCount: 6,
-    isUnread: false,
-  },
-];
+// Locale-correct relative time via Intl (no manual strings); rendered only after hydration to avoid
+// a server/client mismatch (the server has no stable "now").
+function relativeTime(iso: string, locale: Locale): string {
+  const diffSec = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
+    ["second", 60],
+    ["minute", 60],
+    ["hour", 24],
+    ["day", 7],
+    ["week", 4.34524],
+    ["month", 12],
+    ["year", Infinity],
+  ];
+  let value = diffSec;
+  for (const [unit, span] of units) {
+    if (Math.abs(value) < span) return rtf.format(-Math.round(value), unit);
+    value = value / span;
+  }
+  return rtf.format(-Math.round(value), "year");
+}
 
-// 태그 목록은 카테고리와 동일한 언어로 구성 (stub 단계에서는 ko 카테고리 그대로 사용)
-const ALL_TAGS_KO = ["전체", "업무공유", "일상", "건의", "정보공유"];
+export function BoardFeedClient({
+  locale,
+  copy,
+  initialPosts,
+  initialCursor,
+  tags,
+  selectedCategory,
+}: {
+  locale: Locale;
+  copy: Dictionary["board"];
+  initialPosts: BoardPost[];
+  initialCursor: string | null;
+  tags: string[];
+  selectedCategory: string | null;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
-export function BoardFeedClient({ locale }: { locale: Locale }) {
-  const copy = getBoardDictionary(locale);
+  // Accumulated non-pinned posts loaded via "더 보기". Pinned posts always come from the server page.
+  // This component is remounted (via `key` in page.tsx) on filter change, so these reset naturally.
+  const [extraPosts, setExtraPosts] = useState<BoardPost[]>([]);
+  const [cursor, setCursor] = useState<string | null>(initialCursor);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [selectedTag, setSelectedTag] = useState<string>(copy.allTag);
+  // false on the server, true after client hydration — avoids a relative-time SSR mismatch without
+  // a setState-in-effect.
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
-  const pinnedPosts = MOCK_POSTS.filter((p) => p.isPinned);
-  const normalPosts = MOCK_POSTS.filter((p) => !p.isPinned);
+  // De-dup by id: a created_at tie at the page boundary, or a post whose pin state changed between
+  // loads, could otherwise surface the same id twice and crash React with duplicate keys.
+  const seen = new Set<string>();
+  const allPosts = [...initialPosts, ...extraPosts].filter((p) => {
+    if (seen.has(p.id)) return false;
+    seen.add(p.id);
+    return true;
+  });
+  const pinned = allPosts.filter((p) => p.isPinned);
+  const normal = allPosts.filter((p) => !p.isPinned);
+  const isEmpty = allPosts.length === 0;
 
-  const isAll = selectedTag === copy.allTag;
-  const filteredPinned = isAll
-    ? pinnedPosts
-    : pinnedPosts.filter((p) => p.category === selectedTag);
-  const filteredNormal = isAll
-    ? normalPosts
-    : normalPosts.filter((p) => p.category === selectedTag);
+  const selectedTag = selectedCategory ?? copy.allTag;
+  const displayTags = [copy.allTag, ...tags];
 
-  const filteredTotal = filteredPinned.length + filteredNormal.length;
-  const isEmpty = filteredTotal === 0;
+  function onSelectTag(tag: string) {
+    const next = tag === copy.allTag ? "/mobile/board" : `/mobile/board?category=${encodeURIComponent(tag)}`;
+    startTransition(() => router.replace(next));
+  }
 
-  // 태그 목록: "전체" 자리는 로케일 allTag, 나머지는 ko 카테고리 (stub 단계)
-  const displayTags = [copy.allTag, ...ALL_TAGS_KO.slice(1)];
+  async function onLoadMore() {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    setLoadError(null);
+    try {
+      const result = await loadMoreBoardPosts({ category: selectedCategory, before: cursor });
+      if ("posts" in result) {
+        setExtraPosts((prev) => [...prev, ...result.posts]);
+        setCursor(result.nextCursor);
+      } else {
+        setLoadError(copy.errSaveFailed);
+      }
+    } catch {
+      setLoadError(copy.errSaveFailed);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  function renderRow(post: BoardPost) {
+    return (
+      <Link key={post.id} href={`/mobile/board/${post.id}`} className="block">
+        <BoardListRow
+          id={post.id}
+          title={post.title ?? post.content.slice(0, 60)}
+          category={post.category}
+          authorName={post.authorName}
+          timeLabel={hydrated ? relativeTime(post.createdAt, locale) : ""}
+          commentCount={post.commentCount}
+          isPinned={post.isPinned}
+          isUnread={post.isUnread}
+          pinnedBadge={copy.pinnedBadge}
+          unreadAria={copy.unreadAria}
+        />
+      </Link>
+    );
+  }
 
   return (
     <div className="flex min-h-full flex-col">
@@ -126,7 +132,7 @@ export function BoardFeedClient({ locale }: { locale: Locale }) {
             {copy.title}
           </h1>
           <span className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full border border-border bg-surface px-[7px] text-[11px] font-black text-muted-foreground shadow-[0_4px_10px_-6px_hsl(223_46%_32%/0.25)]">
-            {MOCK_POSTS.length}
+            {allPosts.length}
           </span>
           <Link
             href="/mobile/board/compose"
@@ -139,65 +145,46 @@ export function BoardFeedClient({ locale }: { locale: Locale }) {
       </div>
 
       {/* 태그 필터 */}
-      <div className="shrink-0 pb-[10px]">
-        <BoardTagFilter
-          tags={displayTags}
-          selected={selectedTag}
-          onSelect={setSelectedTag}
-        />
-      </div>
+      {displayTags.length > 1 && (
+        <div className="shrink-0 pb-[10px]">
+          <BoardTagFilter tags={displayTags} selected={selectedTag} onSelect={onSelectTag} />
+        </div>
+      )}
 
       {/* 필터 결과 레이블 */}
-      {!isAll && (
+      {selectedCategory && !isEmpty && (
         <div className="shrink-0 px-[18px] pb-[2px] pt-[11px] text-[11.5px] font-bold text-muted-foreground">
-          <b className="text-primary">{selectedTag}</b>{" "}
-          {copy.filterResultSuffix(filteredTotal)}
+          <b className="text-primary">{selectedCategory}</b>{" "}
+          {copy.filterResultSuffix.replace("{count}", String(allPosts.length))}
         </div>
       )}
 
       {/* 목록 or 빈 상태 */}
       {isEmpty ? (
-        <BoardEmptyState title={copy.emptyTitle} subtitle={copy.emptySubtitle} />
+        <BoardEmptyState
+          title={selectedCategory ? copy.emptyFilteredTitle : copy.emptyTitle}
+          subtitle={selectedCategory ? copy.emptyFilteredSubtitle : copy.emptySubtitle}
+        />
       ) : (
-        <div className="px-[18px] pb-[120px]">
-          {filteredPinned.map((post) => (
-            <Link
-              key={post.id}
-              href={`/mobile/board/${post.id}`}
-              className="block"
+        <div className={`px-[18px] pb-[120px] ${isPending ? "opacity-60 transition-opacity" : ""}`}>
+          {pinned.map(renderRow)}
+          {normal.map(renderRow)}
+
+          {cursor && (
+            <button
+              type="button"
+              onClick={onLoadMore}
+              disabled={loadingMore}
+              className="mt-[18px] flex h-11 w-full items-center justify-center rounded-[12px] border border-border bg-surface text-[13.5px] font-extrabold text-[hsl(222_20%_28%)] disabled:opacity-60"
             >
-              <BoardListRow
-                id={post.id}
-                title={post.title}
-                category={post.category}
-                authorName={post.authorName}
-                timeLabel={post.timeLabel}
-                commentCount={post.commentCount}
-                isPinned={post.isPinned}
-                isUnread={post.isUnread}
-                pinnedBadge={copy.pinnedBadge}
-              />
-            </Link>
-          ))}
-          {filteredNormal.map((post) => (
-            <Link
-              key={post.id}
-              href={`/mobile/board/${post.id}`}
-              className="block"
-            >
-              <BoardListRow
-                id={post.id}
-                title={post.title}
-                category={post.category}
-                authorName={post.authorName}
-                timeLabel={post.timeLabel}
-                commentCount={post.commentCount}
-                isPinned={post.isPinned}
-                isUnread={post.isUnread}
-                pinnedBadge={copy.pinnedBadge}
-              />
-            </Link>
-          ))}
+              {loadingMore ? copy.loadingMore : copy.loadMore}
+            </button>
+          )}
+          {loadError && (
+            <p className="mt-[10px] text-center text-[12px] font-semibold text-[hsl(4_62%_46%)]">
+              {loadError}
+            </p>
+          )}
         </div>
       )}
     </div>

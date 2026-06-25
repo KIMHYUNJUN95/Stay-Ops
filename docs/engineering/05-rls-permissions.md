@@ -738,8 +738,10 @@ Update/delete:
 
 **board_comments**
 - SELECT: `deleted_at is null AND has_active_membership(organization_id)`
-- INSERT: `created_by_user_id = auth.uid() AND has_active_membership(organization_id)`
+- INSERT: `created_by_user_id = auth.uid() AND has_active_membership(organization_id)` — `allow_comments` 체크는 서버 액션 레벨에서 수행 (RLS 정책에 포함되지 않음)
 - DELETE: `created_by_user_id = auth.uid() OR has_org_role(org_id, [owner, office_admin])`
+
+> **@멘션 보안**: `mentioned_user_ids`의 각 UUID가 같은 org 활성 멤버인지는 **서버 액션 레벨**에서 검증 (RLS만으로 배열 원소 단위 검증 불가). 클라이언트가 임의 UUID를 삽입해도 서버에서 거부.
 
 **board_reactions**
 - SELECT/INSERT: `has_active_membership(게시글의 organization_id 서브쿼리)` + user_id = auth.uid()

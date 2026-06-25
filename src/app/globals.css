@@ -156,6 +156,11 @@ summary,
   --primary-hsl: 223 46% 32%;
   --glass-shadow: 0 18px 70px hsl(222 30% 14% / 0.1);
   --calendar-grid-line: rgb(203, 213, 225);
+  /* Board feature: amber pin color + destructive */
+  --board-pin: hsl(38 72% 42%);
+  --board-pin-bg: hsl(40 78% 92%);
+  --destructive: hsl(4 62% 46%);
+  --destructive-bg: hsl(6 70% 95.5%);
 }
 
 @theme inline {
@@ -169,6 +174,10 @@ summary,
   --color-primary-foreground: var(--primary-foreground);
   --color-ring: var(--ring);
   --shadow-glass: var(--glass-shadow);
+  --color-board-pin: var(--board-pin);
+  --color-board-pin-bg: var(--board-pin-bg);
+  --color-destructive: var(--destructive);
+  --color-destructive-bg: var(--destructive-bg);
   --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
 }

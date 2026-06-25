@@ -4,6 +4,12 @@ import type { ReactNode } from "react";
 import { Pencil, Pin, PinOff, Share2, Trash2 } from "lucide-react";
 import { BottomSheet, useBottomSheetClose } from "@/components/shell/bottom-sheet";
 import { cn } from "@/lib/utils";
+import type { Dictionary } from "@/lib/i18n";
+
+export type BoardActionSheetCopy = Pick<
+  Dictionary["board"],
+  "actionEdit" | "actionPin" | "actionUnpin" | "actionShare" | "actionDelete" | "actionCancel"
+>;
 
 type ActionVariant = "default" | "primary" | "danger";
 
@@ -52,20 +58,26 @@ function ActionRow({
 
 function ActionSheetContent({
   isOwn,
+  canManage,
   isPinned,
+  copy,
   onEdit,
   onPin,
   onShare,
   onDelete,
 }: {
   isOwn: boolean;
+  canManage: boolean;
   isPinned: boolean;
+  copy: BoardActionSheetCopy;
   onEdit?: () => void;
   onPin?: () => void;
   onShare?: () => void;
   onDelete?: () => void;
 }) {
   const close = useBottomSheetClose();
+  const canPin = isOwn || canManage;
+  const canDelete = isOwn || canManage;
 
   return (
     <div className="pt-1">
@@ -73,31 +85,33 @@ function ActionSheetContent({
         {isOwn && (
           <ActionRow
             icon={<Pencil className="size-[19px]" />}
-            label="글 수정"
+            label={copy.actionEdit}
             onClick={onEdit ?? close}
           />
         )}
-        <ActionRow
-          icon={
-            isPinned ? (
-              <PinOff className="size-[19px]" />
-            ) : (
-              <Pin className="size-[19px]" />
-            )
-          }
-          label={isPinned ? "고정 해제" : "상단 고정"}
-          variant="primary"
-          onClick={onPin ?? close}
-        />
+        {canPin && (
+          <ActionRow
+            icon={
+              isPinned ? (
+                <PinOff className="size-[19px]" />
+              ) : (
+                <Pin className="size-[19px]" />
+              )
+            }
+            label={isPinned ? copy.actionUnpin : copy.actionPin}
+            variant="primary"
+            onClick={onPin ?? close}
+          />
+        )}
         <ActionRow
           icon={<Share2 className="size-[19px]" />}
-          label="공유"
+          label={copy.actionShare}
           onClick={onShare ?? close}
         />
-        {isOwn && (
+        {canDelete && (
           <ActionRow
             icon={<Trash2 className="size-[19px]" />}
-            label="글 삭제"
+            label={copy.actionDelete}
             variant="danger"
             onClick={onDelete ?? close}
           />
@@ -108,7 +122,7 @@ function ActionSheetContent({
         onClick={close}
         className="mt-[10px] h-[52px] w-full rounded-[14px] border border-border bg-background text-[14.5px] font-extrabold text-[hsl(222_20%_28%)]"
       >
-        취소
+        {copy.actionCancel}
       </button>
     </div>
   );
@@ -116,7 +130,9 @@ function ActionSheetContent({
 
 export function BoardActionSheet({
   isOwn,
+  canManage,
   isPinned,
+  copy,
   onClose,
   onEdit,
   onPin,
@@ -124,7 +140,9 @@ export function BoardActionSheet({
   onDelete,
 }: {
   isOwn: boolean;
+  canManage: boolean;
   isPinned: boolean;
+  copy: BoardActionSheetCopy;
   onClose: () => void;
   onEdit?: () => void;
   onPin?: () => void;
@@ -135,7 +153,9 @@ export function BoardActionSheet({
     <BottomSheet onClose={onClose}>
       <ActionSheetContent
         isOwn={isOwn}
+        canManage={canManage}
         isPinned={isPinned}
+        copy={copy}
         onEdit={onEdit}
         onPin={onPin}
         onShare={onShare}

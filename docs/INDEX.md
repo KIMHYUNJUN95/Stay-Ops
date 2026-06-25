@@ -67,6 +67,10 @@ Living: Must be updated continuously.
 | [Internal Board Workflow](./product/20-internal-board-workflow.md) | Draft | Shared all-user internal posting workflow |
 | [Attendance / Payroll Workflow](./product/21-attendance-payroll-workflow.md) | Draft | PWA attendance, QR/GPS proof, and later payroll rules |
 | [Staff Suggestions Workflow](./product/22-staff-suggestions-workflow.md) | Draft | Structured staff suggestion and feedback workflow |
+| [Board Workflow](./product/23-board-workflow.md) | Draft | Free internal board for all active members |
+| [Project Workflow](./product/23-project-workflow.md) | Draft | Project boards and section-based task coordination |
+| [Attendance Workflow](./product/24-attendance-workflow.md) | Draft | Attendance mobile UX and screen-level behavior |
+| [Bug Report Workflow](./product/25-bug-report-workflow.md) | Draft | StayOps product/system issue reporting workflow |
 
 ## Design Docs
 
@@ -93,6 +97,7 @@ Living: Must be updated continuously.
 | [Internal Board Technical Design](./engineering/10-internal-board-technical-design.md) | Draft | Schema and moderation design for internal board posts |
 | [Attendance / Payroll Technical Design](./engineering/11-attendance-payroll-technical-design.md) | Draft | Phased attendance and payroll technical design |
 | [Staff Suggestions Technical Design](./engineering/12-staff-suggestions-technical-design.md) | Draft | Visibility-aware suggestion box technical design |
+| [Bug Report Technical Design](./engineering/13-bug-report-technical-design.md) | Draft | Schema, RLS, actions, and notification design for bug reports |
 
 ## Implementation Readiness Checklist
 

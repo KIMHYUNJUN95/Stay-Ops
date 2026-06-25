@@ -12,6 +12,7 @@ import {
   House,
   Inbox,
   Megaphone,
+  Newspaper,
   Package,
   Recycle,
   Settings,
@@ -101,6 +102,14 @@ const mobileNavSuggestions = {
   icon: Inbox,
 } as const satisfies NavigationItem;
 
+// Board / 게시판 — free bulletin board for all staff. See docs/product/23-board-workflow.md.
+const mobileNavBoard = {
+  id: "board",
+  label: localizedNavigationLabels.mobile.board,
+  href: "/mobile/board",
+  icon: Newspaper,
+} as const satisfies NavigationItem;
+
 // Attendance / 근태 (clock-in/out, live timer, capture) — side-menu entry + pinnable bottom-bar
 // candidate. UI/UX-first (design only); backend deferred. See docs/product/24-attendance-workflow.md.
 const mobileNavAttendance = {
@@ -125,6 +134,7 @@ export const mobileSidebarNavigation = [
   mobileNavCleaning,
   mobileNavTasks,
   mobileNavSuggestions,
+  mobileNavBoard,
   mobileNavAttendance,
   mobileNavRequests,
   mobileNavAnnouncements,

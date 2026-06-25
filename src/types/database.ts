@@ -17,6 +17,8 @@ export type Database = {
           deleted_at?: string | null;
           id?: string;
           image_urls?: string[];
+          mention_all?: boolean;
+          mentioned_user_ids?: string[];
           organization_id: string;
           post_id: string;
         };
@@ -27,6 +29,8 @@ export type Database = {
           deleted_at: string | null;
           id: string;
           image_urls: string[];
+          mention_all: boolean;
+          mentioned_user_ids: string[];
           organization_id: string;
           post_id: string;
         };
@@ -37,6 +41,8 @@ export type Database = {
           deleted_at?: string | null;
           id?: string;
           image_urls?: string[];
+          mention_all?: boolean;
+          mentioned_user_ids?: string[];
           organization_id?: string;
           post_id?: string;
         };
@@ -1957,7 +1963,8 @@ export type Database = {
         | "project_shared"
         | "suggestion_activity"
         | "announcement_activity"
-        | "attendance_activity";
+        | "attendance_activity"
+        | "board_activity";
       organization_role:
         | "cs_staff"
         | "field_manager"

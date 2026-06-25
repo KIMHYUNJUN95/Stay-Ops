@@ -43,11 +43,14 @@ export async function uploadBoardImage(params: {
   file: File;
   organizationId: string;
   postId: string;
+  // `board-posts` for the post composer, `board-comments` for comment photos (both whitelisted in
+  // the request-images storage policy). Defaults to board-posts.
+  folder?: "board-posts" | "board-comments";
 }): Promise<string> {
-  const { file, organizationId, postId } = params;
+  const { file, organizationId, postId, folder = "board-posts" } = params;
   const supabase = getSupabaseBrowserClient();
   const ext = fileExt(file);
-  const path = `${organizationId}/board-posts/${postId}/${crypto.randomUUID()}.${ext}`;
+  const path = `${organizationId}/${folder}/${postId}/${crypto.randomUUID()}.${ext}`;
 
   const { error } = await supabase.storage
     .from(IMAGES_BUCKET)

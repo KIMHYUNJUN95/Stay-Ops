@@ -132,7 +132,7 @@ export function BottomSheet({
       <BottomSheetDragContext.Provider value={drag.handleProps}>
         <div
           className={cn(
-            "fixed inset-0 flex items-end justify-center bg-slate-950/45 pb-[var(--keyboard-inset,0px)] transition-opacity duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+            "fixed inset-0 flex items-end justify-center bg-slate-950/45 transition-opacity duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
             zIndexClassName,
             shown ? "opacity-100" : "opacity-0",
           )}
@@ -144,7 +144,7 @@ export function BottomSheet({
             aria-labelledby={ariaLabelledBy}
             aria-modal="true"
             className={cn(
-              "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-0",
+              "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[calc(max(20px,env(safe-area-inset-bottom))+var(--keyboard-inset,0px))] pt-0",
               "transition-transform duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
               shown ? "translate-y-0" : "translate-y-full",
               className,

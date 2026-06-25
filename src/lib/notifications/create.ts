@@ -4,6 +4,7 @@ import { isNotificationsTableUnavailable } from "@/lib/notifications/schema";
 import type {
   AnnouncementNotificationPayload,
   AttendanceNotificationPayload,
+  BoardNotificationPayload,
   OrderProcessedNotificationPayload,
   ProjectNotificationPayload,
   SuggestionNotificationPayload,
@@ -116,6 +117,84 @@ export async function notifySuggestionParticipants(
       payload: params.payload,
     });
   }
+}
+
+/**
+ * Fan-out @mentions raised in a board comment. The CALLER must have already validated that every id
+ * in `recipientUserIds` is an active member of the same org (and is NOT the actor) — this helper
+ * never broadens visibility. When `mentionAll` is true a single `mention_all` notification is sent
+ * to each recipient INSTEAD OF individual `mentioned` notifications, so the same comment cannot
+ * trigger two notifications for one user. `commentId` makes the dedupe key unique per comment.
+ */
+export async function notifyBoardCommentMentions(
+  supabase: SupabaseClient<Database>,
+  params: {
+    organizationId: string;
+    postId: string;
+    commentId: string;
+    recipientUserIds: string[];
+    actorUserId: string;
+    mentionAll: boolean;
+    postTitle: string;
+    actorName: string | null;
+  },
+): Promise<void> {
+  const recipients = Array.from(new Set(params.recipientUserIds)).filter(
+    (id) => id && id !== params.actorUserId,
+  );
+  if (recipients.length === 0) return;
+
+  const event: BoardNotificationPayload["event"] = params.mentionAll ? "mention_all" : "mentioned";
+  const dedupeBase = params.mentionAll
+    ? `board_mention_all:${params.commentId}`
+    : `board_mention:${params.commentId}`;
+
+  for (const recipientUserId of recipients) {
+    await createNotification(supabase, {
+      organizationId: params.organizationId,
+      recipientUserId,
+      type: "board_activity",
+      href: `/mobile/board/${params.postId}`,
+      sourceType: "board_post",
+      sourceId: params.postId,
+      dedupeKey: `${dedupeBase}:${recipientUserId}`,
+      payload: {
+        postId: params.postId,
+        postTitle: params.postTitle,
+        actorUserId: params.actorUserId,
+        actorName: params.actorName,
+        event,
+      },
+    });
+  }
+}
+
+/**
+ * Notify the board post author of a new comment (single recipient). No-op when the commenter IS the
+ * author. `dedupeBase` must be unique per comment (include the comment id) so each comment notifies.
+ */
+export async function notifyBoardPostAuthor(
+  supabase: SupabaseClient<Database>,
+  params: {
+    organizationId: string;
+    postId: string;
+    authorUserId: string;
+    actorUserId: string;
+    dedupeBase: string;
+    payload: BoardNotificationPayload;
+  },
+): Promise<void> {
+  if (!params.authorUserId || params.authorUserId === params.actorUserId) return;
+  await createNotification(supabase, {
+    organizationId: params.organizationId,
+    recipientUserId: params.authorUserId,
+    type: "board_activity",
+    href: `/mobile/board/${params.postId}`,
+    sourceType: "board_post",
+    sourceId: params.postId,
+    dedupeKey: `${params.dedupeBase}:${params.authorUserId}`,
+    payload: params.payload,
+  });
 }
 
 /**

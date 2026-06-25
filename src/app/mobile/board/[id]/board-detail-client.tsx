@@ -1,123 +1,241 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useOptimistic, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 import { BoardAvatar } from "@/components/board/board-avatar";
 import { BoardReactionBar } from "@/components/board/board-reaction-bar";
 import { BoardComment } from "@/components/board/board-comment";
 import { BoardComposer } from "@/components/board/board-composer";
 import { BoardActionSheet } from "@/components/board/board-action-sheet";
-import { getBoardDictionary } from "@/lib/board-i18n";
-import type { AvatarColor } from "@/components/board/board-types";
-import type { Locale } from "@/lib/i18n";
+import { BoardFileCard } from "@/components/board/board-file-card";
+import { BoardImageGrid } from "@/components/board/board-image-grid";
+import { BoardMentionSheet } from "@/components/board/board-mention-sheet";
+import type { ComposerSubmitPayload } from "@/components/board/board-composer";
+import type { MentionableMember } from "@/app/mobile/board/[id]/actions";
+import { ALL_TOKEN } from "@/lib/board-mention-utils";
+import type { BoardPostDetail } from "@/components/board/board-types";
+import type { Dictionary, Locale } from "@/lib/i18n";
+import {
+  toggleBoardReaction,
+  deleteBoardComment,
+  pinBoardPost,
+  unpinBoardPost,
+  deleteBoardPost,
+  addBoardComment,
+  searchMentions,
+} from "./actions";
 
-type ReactionItem = { emoji: string; count: number; isMine: boolean };
-
-const STUB_POST = {
-  id: "1",
-  authorName: "김지수",
-  authorInitial: "김",
-  avatarColor: "default" as AvatarColor,
-  authorRole: "청소팀",
-  timeLabel: "오늘 오전 9:23",
-  isPinned: false,
-  title: "아라키초 A동 린넨 교체 완료",
-  content:
-    "오전 객실 린넨 전부 교체했습니다. 침구 상태 사진 같이 올려요. 3호실 베개 커버가 한 장 부족해서 프론트 여분으로 채웠고, 재고는 내일 보충 요청 넣어두겠습니다. 추가로 봐야 할 곳 있으면 댓글 남겨주세요 🙏",
-  images: ["IMG · 객실 1", "IMG · 침구"],
-  tags: ["업무공유", "청소팀"],
-  reactions: [
-    { emoji: "👍", count: 5, isMine: true },
-    { emoji: "❤️", count: 2, isMine: false },
-    { emoji: "😂", count: 0, isMine: false },
-    { emoji: "😮", count: 0, isMine: false },
-    { emoji: "😢", count: 0, isMine: false },
-  ] satisfies ReactionItem[],
-  reactionFaces: [
-    { initial: "나", color: "default" as AvatarColor },
-    { initial: "박", color: "green" as AvatarColor },
-    { initial: "한", color: "default" as AvatarColor },
-  ],
-  reactionSummary: "나 · 박지훈 외 3명이 반응했어요",
-  commentCount: 4,
-};
-
-const STUB_COMMENTS = [
-  {
-    id: "1",
-    authorName: "박지훈",
-    authorInitial: "박",
-    avatarColor: "green" as AvatarColor,
-    role: "필드 매니저",
-    timeLabel: "8분 전",
-    content: "고생하셨어요! 3호실 베개 커버는 내일 같이 채워둘게요.",
-    isOwn: false,
-  },
-  {
-    id: "2",
-    authorName: "한예린",
-    authorInitial: "한",
-    avatarColor: "default" as AvatarColor,
-    timeLabel: "5분 전",
-    content: "B동도 곧 끝납니다. 사진 보니 깔끔하네요 👍",
-    isOwn: false,
-  },
-  {
-    id: "3",
-    authorName: "최도윤",
-    authorInitial: "최",
-    avatarColor: "blue" as AvatarColor,
-    timeLabel: "3분 전",
-    content: "재고 보충 요청은 제가 오늘 넣어둘게요.",
-    isOwn: false,
-  },
-];
+function relativeTime(iso: string, locale: Locale): string {
+  const diffSec = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
+    ["second", 60],
+    ["minute", 60],
+    ["hour", 24],
+    ["day", 7],
+    ["week", 4.34524],
+    ["month", 12],
+    ["year", Infinity],
+  ];
+  let value = diffSec;
+  for (const [unit, span] of units) {
+    if (Math.abs(value) < span) return rtf.format(-Math.round(value), unit);
+    value = value / span;
+  }
+  return rtf.format(-Math.round(value), "year");
+}
 
 export function BoardDetailClient({
-  postId,
+  post,
+  viewerId,
+  viewerInitial,
+  canManage,
+  organizationId,
   locale,
+  copy,
 }: {
-  postId: string;
-  locale?: Locale;
+  post: BoardPostDetail;
+  viewerId: string;
+  viewerInitial: string;
+  canManage: boolean;
+  organizationId: string;
+  locale: Locale;
+  copy: Dictionary["board"];
 }) {
-  void postId; // stub — will be used for server data fetching after backend work
-  const copy = getBoardDictionary(locale);
-  const [reactions, setReactions] = useState<ReactionItem[]>(STUB_POST.reactions);
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [showActionSheet, setShowActionSheet] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<number | null>(null);
 
-  function toggleReaction(emoji: string) {
-    setReactions((prev) =>
-      prev.map((r) =>
+  // 멘션 상태 (composer → 시트 → 여기서 통합 관리)
+  const [showMentionSheet, setShowMentionSheet] = useState(false);
+  const [mentionedUsers, setMentionedUsers] = useState<MentionableMember[]>([]);
+  const [mentionAll, setMentionAll] = useState(false);
+
+  // useOptimistic re-bases on `post.reactions` after each router.refresh(), so the optimistic toggle
+  // is reconciled with the server instead of going permanently stale (the old useState mirror bug).
+  const [reactions, applyOptimisticToggle] = useOptimistic(
+    post.reactions,
+    (state, emoji: string) =>
+      state.map((r) =>
         r.emoji === emoji
           ? { ...r, isMine: !r.isMine, count: r.isMine ? r.count - 1 : r.count + 1 }
           : r,
       ),
-    );
+  );
+
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+
+  useEffect(() => () => {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+  }, []);
+
+  const isOwn = viewerId === post.authorId;
+  const reactionTotal = post.reactionTotal;
+  const commentCount = post.comments.length;
+
+  function flashToast(message: string) {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    setToast(message);
+    toastTimer.current = window.setTimeout(() => setToast(null), 1800);
   }
+
+  function onToggleReaction(emoji: string) {
+    startTransition(async () => {
+      applyOptimisticToggle(emoji);
+      await toggleBoardReaction(post.id, emoji);
+      router.refresh();
+    });
+  }
+
+  function onDeleteComment(commentId: string) {
+    startTransition(async () => {
+      await deleteBoardComment(commentId);
+      router.refresh();
+    });
+  }
+
+  function onMentionConfirm(selection: { users: MentionableMember[]; mentionAll: boolean }) {
+    setMentionedUsers(selection.users);
+    setMentionAll(selection.mentionAll);
+    setShowMentionSheet(false);
+  }
+
+  function onComposerSubmit(payload: ComposerSubmitPayload) {
+    startTransition(async () => {
+      // 본문에 멘션 토큰 삽입: @이름 형식으로 content 앞에 붙여 DB에 저장.
+      // 렌더 시 mentionedUsers와 매칭해 강조 표시함.
+      let content = payload.content;
+
+      // @ALL은 고정 토큰(@ALL)으로 본문에 삽입 — 렌더에서 locale별 변환
+      if (payload.mentionAll) {
+        content = `${ALL_TOKEN} ${content}`;
+      } else if (payload.mentionedUsers.length > 0) {
+        const names = payload.mentionedUsers.map((u) => `@${u.name}`).join(" ");
+        content = `${names} ${content}`;
+      }
+
+      const mentionedUserIds = payload.mentionedUsers.map((u) => u.id);
+
+      const result = await addBoardComment(post.id, content, payload.imageUrls, {
+        mentionedUserIds,
+        mentionAll: payload.mentionAll,
+      });
+
+      if ("error" in result) {
+        // TODO: composer 에러 표시 경로 — 현재는 console에 기록하고 refresh는 생략
+        console.error("[BoardDetailClient] addBoardComment error:", result.error);
+        return;
+      }
+
+      // 멘션 상태 초기화
+      setMentionedUsers([]);
+      setMentionAll(false);
+      router.refresh();
+    });
+  }
+
+  function onPinToggle() {
+    setShowActionSheet(false);
+    startTransition(async () => {
+      if (post.isPinned) await unpinBoardPost(post.id);
+      else await pinBoardPost(post.id);
+      router.refresh();
+    });
+  }
+
+  async function onShare() {
+    setShowActionSheet(false);
+    const url = `${window.location.origin}/mobile/board/${post.id}`;
+    const title = post.title ?? post.content.slice(0, 40);
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      flashToast(copy.shareCopied);
+    } catch {
+      try {
+        await navigator.clipboard.writeText(url);
+        flashToast(copy.shareCopied);
+      } catch {
+        flashToast(copy.shareFailed);
+      }
+    }
+  }
+
+  function onConfirmDelete() {
+    setShowDeleteConfirm(false);
+    startTransition(async () => {
+      const result = await deleteBoardPost(post.id);
+      if ("error" in result) {
+        flashToast(copy.errSaveFailed);
+        return;
+      }
+      router.replace("/mobile/board");
+    });
+  }
+
+  const reactionSummary =
+    reactionTotal <= 0 || !post.firstReactorName
+      ? null
+      : reactionTotal === 1
+        ? copy.reactionSummaryOne.replace("{name}", post.firstReactorName)
+        : copy.reactionSummaryMany
+            .replace("{name}", post.firstReactorName)
+            .replace("{count}", String(reactionTotal - 1));
 
   return (
     <div className="flex h-dvh flex-col bg-background">
-      {/* 스크롤 영역 */}
       <div className="flex-1 overflow-y-auto">
         <div className="px-[18px] py-[6px] pb-[18px] flex flex-col">
-
           {/* 작성자 헤더 */}
           <div className="flex items-center gap-[11px] py-[6px]">
             <BoardAvatar
-              initial={STUB_POST.authorInitial}
-              color={STUB_POST.avatarColor}
+              initial={post.authorName.charAt(0) || "·"}
+              color={post.avatarColor}
               size={40}
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-[6px]">
                 <span className="text-[15px] font-extrabold tracking-[-0.01em]">
-                  {STUB_POST.authorName}
+                  {post.authorName}
                 </span>
-                <span className="rounded-full bg-primary/[0.09] px-[7px] py-[1.5px] text-[11px] font-bold text-primary">
-                  {STUB_POST.authorRole}
-                </span>
+                {post.authorRole && (
+                  <span className="rounded-full bg-primary/[0.09] px-[7px] py-[1.5px] text-[11px] font-bold text-primary">
+                    {post.authorRole}
+                  </span>
+                )}
               </div>
               <div className="mt-0.5 text-[11.5px] font-semibold text-muted-foreground">
-                {STUB_POST.timeLabel}
+                {hydrated ? relativeTime(post.createdAt, locale) : ""}
               </div>
             </div>
             <button
@@ -131,35 +249,42 @@ export function BoardDetailClient({
           </div>
 
           {/* 제목 */}
-          <h1 className="mt-4 text-[18px] font-black tracking-[-0.02em]">
-            {STUB_POST.title}
-          </h1>
+          {post.title && (
+            <h1 className="mt-4 text-[18px] font-black tracking-[-0.02em]">{post.title}</h1>
+          )}
 
           {/* 본문 */}
-          <p className="mt-[11px] text-[14px] font-medium leading-[1.72] text-[hsl(222_20%_28%)]">
-            {STUB_POST.content}
+          <p className="mt-[11px] whitespace-pre-line text-[14px] font-medium leading-[1.72] text-[hsl(222_20%_28%)]">
+            {post.content}
           </p>
 
-          {/* 이미지 그리드 */}
-          {STUB_POST.images.length > 0 && (
-            <div className="mt-[14px] grid grid-cols-2 gap-[6px]">
-              {STUB_POST.images.map((label) => (
-                <div
-                  key={label}
-                  className="relative h-[116px] rounded-[10px] overflow-hidden border border-border bg-[repeating-linear-gradient(135deg,hsl(40_22%_90%)_0_11px,hsl(40_26%_87%)_11px_22px)] flex items-center justify-center"
-                >
-                  <span className="font-mono text-[10px] font-bold text-[hsl(222_10%_62%)]">
-                    {label}
-                  </span>
-                </div>
+          {/* 이미지 그리드 — 탭하면 풀스크린 라이트박스 */}
+          {post.imageUrls.length > 0 && (
+            <BoardImageGrid
+              urls={post.imageUrls}
+              viewPhotoLabel={copy.viewPhoto}
+              closeLabel={copy.close}
+            />
+          )}
+
+          {/* 첨부 파일 */}
+          {post.fileAttachments.length > 0 && (
+            <div className="mt-[14px] flex flex-col gap-2">
+              {post.fileAttachments.map((f) => (
+                <BoardFileCard
+                  key={f.url}
+                  name={f.name}
+                  sizeBytes={f.sizeBytes}
+                  mimeType={f.mimeType}
+                />
               ))}
             </div>
           )}
 
           {/* 태그 */}
-          {STUB_POST.tags.length > 0 && (
+          {post.tags.length > 0 && (
             <div className="mt-[14px] flex flex-wrap gap-[7px]">
-              {STUB_POST.tags.map((t) => (
+              {post.tags.map((t) => (
                 <span
                   key={t}
                   className="rounded-full bg-primary/[0.09] px-3 py-[5px] text-[12.5px] font-bold text-primary"
@@ -171,25 +296,27 @@ export function BoardDetailClient({
           )}
 
           {/* 반응 바 */}
-          <BoardReactionBar reactions={reactions} onToggle={toggleReaction} />
+          <BoardReactionBar reactions={reactions} onToggle={onToggleReaction} />
 
           {/* 반응자 얼굴 */}
-          <div className="mt-[13px] flex items-center">
-            <div className="flex">
-              {STUB_POST.reactionFaces.map((face, i) => (
-                <BoardAvatar
-                  key={i}
-                  initial={face.initial}
-                  color={face.color}
-                  size={28}
-                  className={i > 0 ? "-ml-2 ring-2 ring-surface" : undefined}
-                />
-              ))}
+          {reactionSummary && (
+            <div className="mt-[13px] flex items-center">
+              <div className="flex">
+                {post.reactionFaces.map((face, i) => (
+                  <BoardAvatar
+                    key={i}
+                    initial={face.initial}
+                    color={face.color}
+                    size={28}
+                    className={i > 0 ? "-ml-2 ring-2 ring-surface" : undefined}
+                  />
+                ))}
+              </div>
+              <span className="ml-[9px] text-[11.5px] font-bold text-muted-foreground">
+                {reactionSummary}
+              </span>
             </div>
-            <span className="ml-[9px] text-[11.5px] font-bold text-muted-foreground">
-              {STUB_POST.reactionSummary}
-            </span>
-          </div>
+          )}
 
           {/* 구분선 */}
           <div className="my-[18px] h-px bg-border" />
@@ -197,33 +324,143 @@ export function BoardDetailClient({
           {/* 댓글 헤더 */}
           <div className="mb-1 flex items-center gap-[5px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
             {copy.commentLabel}{" "}
-            <span className="text-primary">{copy.commentCountSuffix(STUB_POST.commentCount)}</span>
+            <span className="text-primary">
+              {copy.commentCountSuffix.replace("{count}", String(commentCount))}
+            </span>
           </div>
 
           {/* 댓글 목록 */}
-          <div>
-            {STUB_COMMENTS.map((c, i) => (
-              <BoardComment
-                key={c.id}
-                comment={c}
-                isLast={i === STUB_COMMENTS.length - 1}
-                copy={copy}
-              />
-            ))}
-          </div>
+          {commentCount === 0 ? (
+            <div className="py-[18px] text-center text-[12.5px] font-semibold text-muted-foreground">
+              {copy.commentEmpty}
+            </div>
+          ) : (
+            <div>
+              {post.comments.map((c, i) => (
+                <BoardComment
+                  key={c.id}
+                  comment={{
+                    id: c.id,
+                    authorName: c.authorName,
+                    authorInitial: c.authorName.charAt(0) || "·",
+                    avatarColor: c.avatarColor,
+                    role: c.authorRole || undefined,
+                    timeLabel: hydrated ? relativeTime(c.createdAt, locale) : "",
+                    content: c.content,
+                    imageUrls: c.imageUrls,
+                    isOwn: c.isOwn,
+                    canDelete: c.isOwn || canManage,
+                    // 멘션 메타 — BoardCommentDetail 타입 확장 전까지는 빈 배열로 fallback
+                    mentionedUsers: (c as { mentionedUsers?: { id: string; name: string }[] }).mentionedUsers ?? [],
+                    mentionAll: (c as { mentionAll?: boolean }).mentionAll ?? false,
+                  }}
+                  isLast={i === post.comments.length - 1}
+                  onDelete={onDeleteComment}
+                  copy={copy}
+                  allLabel={copy.mentionAll}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {/* 댓글 입력바 */}
-      <BoardComposer copy={copy} />
+      <BoardComposer
+        postId={post.id}
+        organizationId={organizationId}
+        myInitial={viewerInitial}
+        disabled={!post.allowComments}
+        copy={copy}
+        mentionedUsers={mentionedUsers}
+        mentionAll={mentionAll}
+        onOpenMentionSheet={() => setShowMentionSheet(true)}
+        onClearMentions={() => {
+          setMentionedUsers([]);
+          setMentionAll(false);
+        }}
+        onSubmit={onComposerSubmit}
+      />
+
+      {/* 멘션 선택 시트 — full-screen scrim은 BottomSheet의 fixed inset-0이 상단 헤더까지 자동으로 덮음 */}
+      {showMentionSheet && (
+        <BoardMentionSheet
+          onClose={() => setShowMentionSheet(false)}
+          onConfirm={onMentionConfirm}
+          initialSelection={{
+            userIds: mentionedUsers.map((u) => u.id),
+            mentionAll,
+          }}
+          copy={{
+            mentionSearchPlaceholder: copy.mentionSearchPlaceholder,
+            mentionAll: copy.mentionAll,
+            mentionAllSubtitle: copy.mentionAllSubtitle,
+            // {n} 플레이스홀더를 런타임 값으로 치환해 함수로 래핑
+            mentionDone: (n: number) => copy.mentionDone.replace("{n}", String(n)),
+            mentionEmpty: copy.mentionEmpty,
+          }}
+          searchFn={searchMentions}
+        />
+      )}
 
       {/* 더보기 액션 시트 */}
       {showActionSheet && (
         <BoardActionSheet
           onClose={() => setShowActionSheet(false)}
-          isOwn={true}
-          isPinned={STUB_POST.isPinned}
+          isOwn={isOwn}
+          canManage={canManage}
+          isPinned={post.isPinned}
+          copy={copy}
+          onEdit={() => {
+            setShowActionSheet(false);
+            router.push(`/mobile/board/${post.id}/edit`);
+          }}
+          onPin={onPinToggle}
+          onShare={onShare}
+          onDelete={() => {
+            setShowActionSheet(false);
+            setShowDeleteConfirm(true);
+          }}
         />
+      )}
+
+      {/* 삭제 확인 모달 (center-aligned — 의도된 BottomSheet 예외) */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-8">
+          <div className="w-full max-w-[320px] rounded-[22px] bg-surface p-[22px] text-center shadow-[0_24px_60px_-20px_rgba(15,23,42,0.5)]">
+            <p className="text-[15.5px] font-black tracking-[-0.01em] text-foreground">
+              {copy.deleteConfirmTitle}
+            </p>
+            <p className="mt-[7px] text-[12.5px] font-semibold leading-[1.5] text-muted-foreground">
+              {copy.deleteConfirmBody}
+            </p>
+            <div className="mt-[18px] flex gap-[9px]">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="h-11 flex-1 rounded-[13px] border border-border bg-background text-[13.5px] font-extrabold text-[hsl(222_20%_28%)]"
+              >
+                {copy.actionCancel}
+              </button>
+              <button
+                type="button"
+                onClick={onConfirmDelete}
+                className="h-11 flex-1 rounded-[13px] bg-[hsl(4_72%_52%)] text-[13.5px] font-extrabold text-white"
+              >
+                {copy.deleteConfirmCta}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 토스트 */}
+      {toast && (
+        <div className="fixed inset-x-0 bottom-[88px] z-[70] flex justify-center px-6">
+          <div className="rounded-full bg-foreground/92 px-[18px] py-[9px] text-[12.5px] font-bold text-white shadow-lg">
+            {toast}
+          </div>
+        </div>
       )}
     </div>
   );

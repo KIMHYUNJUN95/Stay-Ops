@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getBoardUnreadCount } from "@/lib/board-queries";
 import { getCleaningOperatingDateKey } from "@/lib/cleaning";
 import { countUnreadNotifications } from "@/lib/notifications/queries";
 import { getCurrentAppSession } from "@/lib/session";
@@ -20,6 +21,7 @@ import type { Database } from "@/types/database";
  * - linen-return:  today's (Tokyo) linen return records registered by ANY user in the org
  *                  (organization-wide shared count).
  * - announcements: published announcements the user has not read yet (clears on read).
+ * - board:         org board posts (not authored by the user) without a read row (clears on open).
  * - notifications: unread notifications (read_at is null). [placeholder — to be revisited]
  *
  * Home, Calendar and Directory intentionally have no badge.
@@ -107,7 +109,7 @@ export const getMobileNavBadges = cache(async (): Promise<NavBadgeCounts> => {
   const dayStartIso = dayStart.toISOString();
   const dayEndIso = dayEnd.toISOString();
 
-  const [cleaning, orders, maintenance, lostToday, linenReturn, announcements, notifications] =
+  const [cleaning, orders, maintenance, lostToday, linenReturn, announcements, board, notifications] =
     await Promise.all([
       // Remaining cleanings for today (Tokyo): started but not yet completed.
       safeCount(() =>
@@ -154,6 +156,7 @@ export const getMobileNavBadges = cache(async (): Promise<NavBadgeCounts> => {
           .lt("registered_at", dayEndIso),
       ),
       countUnreadAnnouncements(supabase, orgId, userId),
+      getBoardUnreadCount(session).catch(() => 0),
       countUnreadNotifications(supabase, {
         userId,
         organizationId: orgId,
@@ -165,6 +168,7 @@ export const getMobileNavBadges = cache(async (): Promise<NavBadgeCounts> => {
     requests: orders + maintenance + lostToday,
     "linen-return": linenReturn,
     announcements,
+    board,
     notifications,
   };
 });

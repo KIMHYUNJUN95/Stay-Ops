@@ -1,0 +1,391 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import {
+  notifyBoardCommentMentions,
+  notifyBoardPostAuthor,
+} from "@/lib/notifications/create";
+import {
+  getActiveOrgMemberIds,
+  searchMentionableMembers,
+  validateMentionTargets,
+} from "@/lib/board-queries";
+import type { AvatarColor } from "@/components/board/board-types";
+import type { Database } from "@/types/database";
+
+// The mention-sheet client component imports this type from the same module it calls
+// (`searchMentions`). A `export type { ... }` re-export is stripped by Turbopack's "use server"
+// bundler (treated as a runtime export and pruned), so the type is declared locally and kept in
+// shape with `MentionableMember` in src/lib/board-queries.ts.
+export type MentionableMember = {
+  id: string;
+  name: string;
+  role: string | null;
+  avatarColor: AvatarColor;
+};
+
+const ALLOWED_EMOJIS = new Set(["👍", "❤️", "😂", "😮", "😢"]);
+const MANAGER_ROLES = new Set(["owner", "office_admin"]);
+
+type ActionResult = { ok: true } | { error: string };
+
+type PostMeta = {
+  organization_id: string;
+  created_by_user_id: string;
+  title: string | null;
+  is_pinned: boolean;
+  allow_comments: boolean;
+};
+
+/** Resolve the post row (service-role) and verify it belongs to the viewer's org. Null on mismatch. */
+async function loadPostMeta(postId: string, orgId: string): Promise<PostMeta | null> {
+  const service = getSupabaseServiceClient();
+  const { data, error } = await service
+    .from("board_posts")
+    .select("organization_id, created_by_user_id, title, is_pinned, allow_comments")
+    .eq("id", postId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error || !data) return null;
+  const post = data as unknown as PostMeta;
+  if (post.organization_id !== orgId) return null;
+  return post;
+}
+
+function revalidateBoard(postId: string) {
+  revalidatePath(`/mobile/board/${postId}`);
+  revalidatePath("/mobile/board");
+}
+
+/** Idempotent read receipt. Safe to call repeatedly. */
+export async function markBoardPostRead(postId: string): Promise<ActionResult> {
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return { error: "no_org" };
+
+  const post = await loadPostMeta(postId, session.organization.id);
+  if (!post) return { error: "not_found" };
+
+  const service = getSupabaseServiceClient();
+  await service.from("board_post_reads").upsert(
+    { post_id: postId, user_id: session.user.id, read_at: new Date().toISOString() } as never,
+    { ignoreDuplicates: true, onConflict: "post_id,user_id" },
+  );
+  revalidatePath("/mobile/board");
+  return { ok: true };
+}
+
+export type AddBoardCommentOptions = {
+  /** Validated server-side: each id must be an active same-org member, caller excluded. */
+  mentionedUserIds?: string[];
+  /** @ALL mention — fans out to every active org member instead of individuals. */
+  mentionAll?: boolean;
+};
+
+/**
+ * Add a comment (≤3 images, pre-uploaded by the client). Notifies the post author, and any
+ * @mentioned users / @ALL fan-out. The mention author is always excluded from notifications.
+ * When `mentionAll` is true, individual `mentioned` notifications are suppressed for the same
+ * comment to avoid double-notifying recipients (single `mention_all` per user instead).
+ */
+export async function addBoardComment(
+  postId: string,
+  content: string,
+  imageUrls: string[] = [],
+  options: AddBoardCommentOptions = {},
+): Promise<ActionResult> {
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return { error: "no_org" };
+
+  // The board_comments.content CHECK requires non-empty text, so a comment must carry text (photos
+  // are an optional supplement). Image-only comments would violate the DB constraint.
+  const trimmed = content.trim();
+  if (!trimmed) return { error: "empty_comment" };
+  if (imageUrls.length > 3) return { error: "too_many_photos" };
+
+  const post = await loadPostMeta(postId, session.organization.id);
+  if (!post) return { error: "not_found" };
+  if (!post.allow_comments) return { error: "comments_disabled" };
+
+  // Server-side mention validation: drop any id that is not an active same-org member or that is
+  // the author themselves. We do NOT reject the comment when an id is bogus — we just don't persist
+  // or notify it. This keeps a stale client (e.g. a member who was deactivated after the autocomplete
+  // returned them) from blocking a legitimate comment.
+  const mentionAll = Boolean(options.mentionAll);
+  const requestedMentions = Array.isArray(options.mentionedUserIds) ? options.mentionedUserIds : [];
+  const validatedMentions = mentionAll
+    ? []
+    : await validateMentionTargets(session, requestedMentions);
+
+  const service = getSupabaseServiceClient();
+  const { data, error } = await service
+    .from("board_comments")
+    .insert({
+      post_id: postId,
+      organization_id: session.organization.id,
+      created_by_user_id: session.user.id,
+      content: trimmed,
+      image_urls: imageUrls,
+      mentioned_user_ids: validatedMentions,
+      mention_all: mentionAll,
+    } as never)
+    .select("id")
+    .single();
+  if (error) return { error: "save_failed" };
+
+  const commentId = (data as { id: string } | null)?.id ?? crypto.randomUUID();
+
+  // Resolve commenter display name once for mention notification payloads ({actor} body slot).
+  let actorName: string | null = null;
+  if (mentionAll || validatedMentions.length > 0) {
+    const { data: profile } = await service
+      .from("profiles")
+      .select("name")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+    actorName = (profile as { name: string | null } | null)?.name ?? null;
+  }
+
+  // Resolve mention recipients first so we can skip the post-author notification when the author is
+  // already covered by a mention (avoids two notifications for the same comment on one user).
+  let mentionRecipients: string[] = [];
+  if (mentionAll) {
+    mentionRecipients = await getActiveOrgMemberIds(session);
+  } else if (validatedMentions.length > 0) {
+    mentionRecipients = validatedMentions;
+  }
+  const mentionRecipientSet = new Set(mentionRecipients);
+
+  if (mentionRecipients.length > 0) {
+    await notifyBoardCommentMentions(service, {
+      organizationId: session.organization.id,
+      postId,
+      commentId,
+      recipientUserIds: mentionRecipients,
+      actorUserId: session.user.id,
+      mentionAll,
+      postTitle: post.title ?? "",
+      actorName,
+    });
+  }
+
+  // Author notification: skip when the author was already notified via @mention/@ALL above.
+  const authorAlreadyMentioned =
+    post.created_by_user_id === session.user.id || mentionRecipientSet.has(post.created_by_user_id);
+  if (!authorAlreadyMentioned) {
+    await notifyBoardPostAuthor(service, {
+      organizationId: session.organization.id,
+      postId,
+      authorUserId: post.created_by_user_id,
+      actorUserId: session.user.id,
+      dedupeBase: `board_comment:${commentId}`,
+      payload: {
+        postId,
+        postTitle: post.title ?? "",
+        actorUserId: session.user.id,
+        event: "commented",
+      },
+    });
+  }
+
+  revalidateBoard(postId);
+  return { ok: true };
+}
+
+/**
+ * Mention autocomplete for the comment composer. Returns up to 20 active same-org members whose
+ * name starts with `query` (caller excluded). Returns [] when there is no org context — client
+ * treats it as "no matches".
+ */
+export async function searchMentions(query: string): Promise<MentionableMember[]> {
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return [];
+  return searchMentionableMembers(session, query, 20);
+}
+
+/** Soft-delete a comment. Comment author OR owner/office_admin. */
+export async function deleteBoardComment(commentId: string): Promise<ActionResult> {
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return { error: "no_org" };
+
+  const service = getSupabaseServiceClient();
+  const { data, error } = await service
+    .from("board_comments")
+    .select("post_id, organization_id, created_by_user_id")
+    .eq("id", commentId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error || !data) return { error: "not_found" };
+  const comment = data as unknown as {
+    post_id: string;
+    organization_id: string;
+    created_by_user_id: string;
+  };
+  if (comment.organization_id !== session.organization.id) return { error: "forbidden" };
+
+  const isAuthor = comment.created_by_user_id === session.user.id;
+  const canManage = MANAGER_ROLES.has(session.user.role);
+  if (!isAuthor && !canManage) return { error: "forbidden" };
+
+  const { error: delError } = await service
+    .from("board_comments")
+    .update({ deleted_at: new Date().toISOString() } as never)
+    .eq("id", commentId);
+  if (delError) return { error: "save_failed" };
+
+  revalidateBoard(comment.post_id);
+  return { ok: true };
+}
+
+/** Toggle a reaction: insert if absent, delete if present. Rejects emojis outside the allowed set. */
+export async function toggleBoardReaction(postId: string, emoji: string): Promise<ActionResult> {
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return { error: "no_org" };
+  if (!ALLOWED_EMOJIS.has(emoji)) return { error: "invalid_emoji" };
+
+  const post = await loadPostMeta(postId, session.organization.id);
+  if (!post) return { error: "not_found" };
+
+  const service = getSupabaseServiceClient();
+  const { data: existing } = await service
+    .from("board_reactions")
+    .select("emoji")
+    .eq("post_id", postId)
+    .eq("user_id", session.user.id)
+    .eq("emoji", emoji)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await service
+      .from("board_reactions")
+      .delete()
+      .eq("post_id", postId)
+      .eq("user_id", session.user.id)
+      .eq("emoji", emoji);
+    if (error) return { error: "save_failed" };
+  } else {
+    // upsert + ignoreDuplicates makes a concurrent double-tap idempotent instead of a PK violation.
+    const { error } = await service
+      .from("board_reactions")
+      .upsert({ post_id: postId, user_id: session.user.id, emoji } as never, {
+        ignoreDuplicates: true,
+        onConflict: "post_id,user_id,emoji",
+      });
+    if (error) return { error: "save_failed" };
+  }
+
+  // Reaction counts are shown on feed rows too, so revalidate both surfaces.
+  revalidateBoard(postId);
+  return { ok: true };
+}
+
+async function setPinned(postId: string, pinned: boolean): Promise<ActionResult> {
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return { error: "no_org" };
+
+  const post = await loadPostMeta(postId, session.organization.id);
+  if (!post) return { error: "not_found" };
+
+  const isAuthor = post.created_by_user_id === session.user.id;
+  const canManage = MANAGER_ROLES.has(session.user.role);
+  if (!isAuthor && !canManage) return { error: "forbidden" };
+
+  const service = getSupabaseServiceClient();
+  const patch = pinned
+    ? {
+        is_pinned: true,
+        pinned_at: new Date().toISOString(),
+        pinned_by_user_id: session.user.id,
+      }
+    : { is_pinned: false, pinned_at: null, pinned_by_user_id: null };
+  const { error } = await service
+    .from("board_posts")
+    .update(patch as never)
+    .eq("id", postId);
+  if (error) return { error: "save_failed" };
+
+  revalidateBoard(postId);
+  return { ok: true };
+}
+
+export async function pinBoardPost(postId: string): Promise<ActionResult> {
+  return setPinned(postId, true);
+}
+
+export async function unpinBoardPost(postId: string): Promise<ActionResult> {
+  return setPinned(postId, false);
+}
+
+type UpdateBoardPostInput = {
+  title?: string | null;
+  content?: string;
+  tags?: string[];
+  isPinned?: boolean;
+};
+
+/** Edit a post. Author only. Pin flag updatable (kept consistent with pinned_at/by). */
+export async function updateBoardPost(
+  postId: string,
+  input: UpdateBoardPostInput,
+): Promise<ActionResult> {
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return { error: "no_org" };
+
+  const post = await loadPostMeta(postId, session.organization.id);
+  if (!post) return { error: "not_found" };
+  if (post.created_by_user_id !== session.user.id) return { error: "forbidden" };
+
+  const patch: Database["public"]["Tables"]["board_posts"]["Update"] = {};
+  if (input.title !== undefined) patch.title = input.title?.trim() || null;
+  if (input.content !== undefined) {
+    const c = input.content.trim();
+    if (!c) return { error: "content_required" };
+    patch.content = c;
+  }
+  if (input.tags !== undefined) patch.tags = input.tags;
+  if (input.isPinned !== undefined) {
+    if (input.isPinned) {
+      patch.is_pinned = true;
+      patch.pinned_at = new Date().toISOString();
+      patch.pinned_by_user_id = session.user.id;
+    } else {
+      patch.is_pinned = false;
+      patch.pinned_at = null;
+      patch.pinned_by_user_id = null;
+    }
+  }
+
+  const service = getSupabaseServiceClient();
+  const { error } = await service
+    .from("board_posts")
+    .update(patch as never)
+    .eq("id", postId);
+  if (error) return { error: "save_failed" };
+
+  revalidateBoard(postId);
+  return { ok: true };
+}
+
+/** Soft-delete a post. Author OR owner/office_admin. */
+export async function deleteBoardPost(postId: string): Promise<ActionResult> {
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return { error: "no_org" };
+
+  const post = await loadPostMeta(postId, session.organization.id);
+  if (!post) return { error: "not_found" };
+
+  const isAuthor = post.created_by_user_id === session.user.id;
+  const canManage = MANAGER_ROLES.has(session.user.role);
+  if (!isAuthor && !canManage) return { error: "forbidden" };
+
+  const service = getSupabaseServiceClient();
+  const { error } = await service
+    .from("board_posts")
+    .update({ deleted_at: new Date().toISOString() } as never)
+    .eq("id", postId);
+  if (error) return { error: "save_failed" };
+
+  revalidateBoard(postId);
+  return { ok: true };
+}

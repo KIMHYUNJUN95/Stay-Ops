@@ -911,8 +911,10 @@ id uuid primary key default gen_random_uuid()
 post_id uuid not null references board_posts(id) on delete cascade
 organization_id uuid not null references organizations(id) on delete cascade
 created_by_user_id uuid not null references profiles(id) on delete restrict
-content text not null
+content text not null                      -- 평문; @이름 / @ALL 토큰을 그대로 저장
 image_urls text[] not null default '{}'    -- 최대 3개 (check constraint)
+mentioned_user_ids uuid[] not null default '{}'  -- 멘션된 멤버 UUID 배열 (GIN 인덱스)
+mention_all boolean not null default false       -- true = @ALL 전체 멘션
 created_at timestamptz not null default now()
 deleted_at timestamptz
 
@@ -923,7 +925,9 @@ emoji text not null
 created_at timestamptz not null default now()
 ```
 
-Indexes: `board_posts_feed_idx (organization_id, created_at desc) where deleted_at is null` · `board_posts_pinned_idx (organization_id, is_pinned, pinned_at desc) where deleted_at is null` · `board_comments_post_idx (post_id, created_at asc) where deleted_at is null`
+Indexes: `board_posts_feed_idx (organization_id, created_at desc) where deleted_at is null` · `board_posts_pinned_idx (organization_id, is_pinned, pinned_at desc) where deleted_at is null` · `board_comments_post_idx (post_id, created_at asc) where deleted_at is null` · `board_comments_mentions_idx USING gin (mentioned_user_ids) where deleted_at is null` (2026-06-25, @멘션 UUID 배열 포함 여부 검색용)
+
+> 별도 mention 테이블 미사용: UUID 배열 컬럼 + GIN 인덱스로 충분, 알림은 시점에 발송하므로 영속 관계 불필요.
 
 Storage: 이미지 → `request-images` 버킷 (`board-posts/` / `board-comments/` 서브폴더, part_time_staff 허용). 첨부 파일 → `board-attachments` 버킷 (private, 서명 URL 방향). 경로: `{org_id}/{post_id}/{filename}`.
 

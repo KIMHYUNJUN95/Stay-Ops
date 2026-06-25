@@ -10,6 +10,7 @@ export function BoardListRow({
   isPinned = false,
   isUnread = false,
   pinnedBadge = "고정",
+  unreadAria = "안읽음",
   onClick,
 }: {
   id: string;
@@ -21,6 +22,7 @@ export function BoardListRow({
   isPinned?: boolean;
   isUnread?: boolean;
   pinnedBadge?: string;
+  unreadAria?: string;
   onClick?: () => void;
 }) {
   return (
@@ -60,7 +62,7 @@ export function BoardListRow({
             {isUnread && (
               <span
                 className="size-[7px] shrink-0 rounded-full bg-primary"
-                aria-label="안읽음"
+                aria-label={unreadAria}
               />
             )}
             <span
