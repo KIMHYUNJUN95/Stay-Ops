@@ -707,7 +707,7 @@ export function RequestsFilterView({
       )
         .map((propertyName) => ({
           key: propertyName,
-          label: buildingLabels[propertyName] ?? propertyName,
+          label: localizePropertyName(propertyName, buildingLabels),
         }))
         .sort((a, b) => a.label.localeCompare(b.label, locale)),
     [roomCatalog, buildingLabels, locale],
