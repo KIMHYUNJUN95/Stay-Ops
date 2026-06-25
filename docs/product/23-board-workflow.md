@@ -2,6 +2,7 @@
 
 > **상태**: 기획 확정 / UI 디자인 대기 중  
 > **최초 작성**: 2026-06-25  
+> **업데이트**: 2026-06-25 — 파일 첨부 기능, 다중 최상단 고정(작성자 직접 고정) 추가  
 > **관련 기능**: Announcements(공지), Suggestions(제안함)와 완전히 분리된 별도 기능
 
 ---
@@ -22,10 +23,11 @@
 | 이모지 반응 | 없음 | 있음 |
 
 ### 핵심 기능
-- **글 작성**: 제목(선택), 본문(필수), 이미지(최대 5장), 자유 태그
+- **글 작성**: 제목(선택), 본문(필수), 이미지(최대 5장), 파일 첨부(최대 5개), 자유 태그
+- **파일 첨부**: PDF · Excel(.xlsx/.xls) · Word(.docx) · CSV · PowerPoint(.pptx) — 파일당 최대 20MB, 글당 최대 5개
 - **이모지 반응**: 👍 ❤️ 😂 😮 😢 — 사용자당 이모지별 1회 (토글)
 - **댓글**: 텍스트 + 이미지(최대 3장), 소프트 삭제
-- **고정(Pin)**: 관리자가 글을 상단 고정
+- **최상단 고정(Pin)**: 글 작성 시 또는 작성 후 작성자가 직접 고정 가능. 관리자도 고정 가능. 고정 글은 여러 개 동시 허용 — 피드 최상단에 `pinned_at` 내림차순으로 표시
 - **읽음 추적**: 읽지 않은 글 배지 표시
 - **소프트 삭제**: 글·댓글 모두 `deleted_at` 논리 삭제
 
@@ -34,17 +36,19 @@
 ## 2. 사용자 흐름
 
 ### 목록 화면
-1. 고정 글(is_pinned = true)이 상단에 노출
-2. 나머지 글은 최신순
-3. 읽지 않은 글에 배지 표시 (board_post_reads 기반)
+1. 고정 글(`is_pinned = true`)이 `pinned_at` 내림차순으로 최상단 노출 (고정 글 여러 개 허용)
+2. 나머지 글은 `created_at` 내림차순 (최신순)
+3. 읽지 않은 글에 배지 표시 (`board_post_reads` 기반)
 4. 태그 필터링 (선택 시 해당 태그 글만 표시)
 
 ### 글 작성
 1. 작성 버튼 탭
 2. 제목(선택) · 본문(필수) 입력
-3. 이미지 첨부 (최대 5장, 클라이언트 측 압축)
-4. 태그 입력 (자유 입력, 엔터/쉼표로 구분)
-5. 제출 → 목록으로 복귀
+3. **최상단 고정 토글**: 작성 화면에 "최상단에 고정" 스위치 — ON 시 제출 즉시 고정 글로 등록
+4. 이미지 첨부 (최대 5장, 클라이언트 측 압축)
+5. **파일 첨부** (최대 5개 — PDF, Excel, Word, CSV, PPT)
+6. 태그 입력 (자유 입력, 엔터/쉼표로 구분)
+7. 제출 → 목록으로 복귀
 
 ### 글 상세
 1. 글 내용 · 이미지 표시
@@ -72,13 +76,46 @@ CREATE TABLE board_posts (
   content              TEXT NOT NULL,
   tags                 TEXT[] NOT NULL DEFAULT '{}',  -- 자유 태그
   image_urls           TEXT[] NOT NULL DEFAULT '{}',  -- 최대 5장
+  -- 파일 첨부: [{name, url, size_bytes, mime_type}] 형태의 JSON 배열
+  file_attachments     JSONB NOT NULL DEFAULT '[]',   -- 최대 5개, 파일당 20MB
   is_pinned            BOOLEAN NOT NULL DEFAULT false,
+  pinned_at            TIMESTAMPTZ,                   -- 고정된 시각 (NULL = 비고정)
+  pinned_by_user_id    UUID REFERENCES auth.users(id),-- 고정한 사용자
   allow_comments       BOOLEAN NOT NULL DEFAULT true,
   created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
   deleted_at           TIMESTAMPTZ                    -- 소프트 삭제
 );
+
+-- 고정 글 정렬용 인덱스
+CREATE INDEX board_posts_pinned_idx ON board_posts (organization_id, is_pinned, pinned_at DESC)
+  WHERE deleted_at IS NULL;
+-- 일반 피드 정렬용 인덱스
+CREATE INDEX board_posts_feed_idx ON board_posts (organization_id, created_at DESC)
+  WHERE deleted_at IS NULL;
 ```
+
+#### `file_attachments` JSONB 스키마
+```jsonc
+[
+  {
+    "name": "월간업무보고.xlsx",       // 원본 파일명
+    "url": "https://...supabase.co/storage/...", // 스토리지 퍼블릭 URL
+    "size_bytes": 204800,             // 파일 크기 (최대 20 * 1024 * 1024)
+    "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  }
+]
+```
+
+**허용 MIME 타입:**
+| 확장자 | MIME type |
+|--------|-----------|
+| .pdf | `application/pdf` |
+| .xlsx | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` |
+| .xls | `application/vnd.ms-excel` |
+| .docx | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` |
+| .csv | `text/csv` |
+| .pptx | `application/vnd.openxmlformats-officedocument.presentationml.presentation` |
 
 ### 3.2 `board_post_reads` — 읽음 추적
 
@@ -131,9 +168,11 @@ CREATE TABLE board_reactions (
 | 조작 | 허용 조건 |
 |------|-----------|
 | SELECT | 같은 org 활성 멤버 + `deleted_at IS NULL` |
-| INSERT | 같은 org 활성 멤버 (전 직원) |
-| UPDATE | `created_by_user_id = auth.uid()` (작성자 본인) |
+| INSERT | 같은 org 활성 멤버 (전 직원, 작성 시 `is_pinned` 설정 포함) |
+| UPDATE | 작성자 본인 (내용·고정 수정) OR office_admin/owner (고정만) |
 | DELETE | 작성자 본인 OR org 내 office_admin/owner |
+
+> **고정 권한**: 작성자는 자신의 글만 고정/해제. 관리자(office_admin/owner)는 모든 글 고정/해제 가능.
 
 ### `board_comments`
 | 조작 | 허용 조건 |
@@ -166,19 +205,25 @@ CREATE TABLE board_reactions (
 ### 글 관련
 ```typescript
 createBoardPost(formData: FormData): Promise<{ id: string } | { error: string }>
-// 필드: title?, content, tags[], image_urls[]
-// 검증: content 필수, image_urls 최대 5개, tags 최대 10개
+// 필드: title?, content, tags[], image_urls[], file_attachments[], is_pinned?
+// 검증: content 필수, image_urls 최대 5개, file_attachments 최대 5개
+//       파일 크기 파일당 20MB 이하, MIME 타입 허용 목록 내
+//       tags 최대 10개
+// is_pinned=true 시: pinned_at = now(), pinned_by_user_id = 작성자
 
 updateBoardPost(id: string, formData: FormData): Promise<void | { error: string }>
-// 작성자 본인 확인 후 수정
+// 작성자 본인 확인 후 수정 (내용 + 파일 + 이미지 + 태그 + 고정 상태 모두 수정 가능)
 // 수정 시 updated_at 갱신
 
 deleteBoardPost(id: string): Promise<void | { error: string }>
 // 작성자 본인 OR office_admin/owner 확인
 // deleted_at = now() 소프트 삭제
+// 첨부 파일 스토리지 삭제는 별도 배치 or 즉시 처리
 
 pinBoardPost(id: string, pin: boolean): Promise<void>
-// office_admin/owner 전용
+// 작성자 본인 OR office_admin/owner 가능
+// pin=true:  is_pinned=true, pinned_at=now(), pinned_by_user_id=현재 사용자
+// pin=false: is_pinned=false, pinned_at=NULL, pinned_by_user_id=NULL
 ```
 
 ### 댓글 관련
@@ -237,17 +282,28 @@ getUnreadBoardPostCount(session)
 
 ---
 
-## 7. 이미지 스토리지
+## 7. 스토리지
 
-기존 `request-images` 버킷 사용. 새 경로 타입 추가:
-
+### 이미지 (`request-images` 버킷 — 기존)
 ```
 {organization_id}/board-posts/{post_id}/{filename}
 {organization_id}/board-comments/{comment_id}/{filename}
 ```
+- 이미지 압축: 기존 `compressImageFile()` 유틸 재사용 (`src/components/announcements/announcement-image-uploader.tsx`)
+- Storage RLS에 `board-posts`, `board-comments` 경로 패턴 추가 필요
 
-Storage RLS에 `board-posts`, `board-comments` 경로 패턴 추가 필요.  
-이미지 압축: 기존 `compressImageFile()` 유틸 재사용 (`src/components/announcements/announcement-image-uploader.tsx`).
+### 파일 첨부 (`board-attachments` 버킷 — 신규)
+```
+{organization_id}/{post_id}/{original_filename}
+```
+- **별도 버킷 신규 생성**: 이미지와 구분하여 관리 (MIME 타입·사이즈 정책 상이)
+- 버킷 설정: `public = false` (인증된 조직 멤버만 접근)
+- 파일당 최대 크기: 20MB (`file_size_limit: 20971520`)
+- 허용 MIME 타입: `application/pdf`, `application/vnd.ms-excel`, `application/vnd.openxmlformats-*`, `text/csv`
+- Storage RLS: 같은 org 활성 멤버 SELECT, 글 작성자 INSERT/DELETE
+- 파일 URL: Supabase Storage의 signed URL (만료 없는 public URL 또는 1시간 signed URL — 결정 필요)
+
+> **미결**: `board-attachments` 버킷의 공개 여부 (public vs signed URL). 업무 문서 특성상 **signed URL** 권장.
 
 ---
 
@@ -334,10 +390,26 @@ board: {
   reactions: { ko: "반응", ja: "リアクション", en: "Reactions" },
   addReaction: { ko: "반응 추가", ja: "リアクションを追加", en: "Add reaction" },
 
+  // 파일 첨부
+  fieldFiles: { ko: "파일", ja: "ファイル", en: "Files" },
+  fileAttach: { ko: "파일 첨부", ja: "ファイルを添付", en: "Attach File" },
+  fileCount: { ko: "파일 {n}개", ja: "ファイル{n}件", en: "{n} file(s)" },
+  fileDownload: { ko: "다운로드", ja: "ダウンロード", en: "Download" },
+  fileRemove: { ko: "파일 삭제", ja: "ファイルを削除", en: "Remove file" },
+
+  // 고정
+  pinToggleLabel: { ko: "최상단에 고정", ja: "最上位に固定", en: "Pin to top" },
+  pinnedBadge: { ko: "고정됨", ja: "固定中", en: "Pinned" },
+  pinPost: { ko: "글 고정", ja: "投稿を固定", en: "Pin Post" },
+  unpinPost: { ko: "고정 해제", ja: "固定を解除", en: "Unpin Post" },
+
   // 오류
   errorContentRequired: { ko: "내용을 입력해주세요", ja: "内容を入力してください", en: "Content is required" },
   errorImageLimit: { ko: "이미지는 최대 5장입니다", ja: "画像は最大5枚です", en: "Max 5 images allowed" },
   errorCommentImageLimit: { ko: "댓글 이미지는 최대 3장입니다", ja: "コメント画像は最大3枚です", en: "Max 3 images per comment" },
+  errorFileLimit: { ko: "파일은 최대 5개입니다", ja: "ファイルは最大5件です", en: "Max 5 files allowed" },
+  errorFileSizeLimit: { ko: "파일 크기는 20MB 이하여야 합니다", ja: "ファイルサイズは20MB以下にしてください", en: "File size must be 20MB or less" },
+  errorFileType: { ko: "지원하지 않는 파일 형식입니다", ja: "対応していないファイル形式です", en: "Unsupported file type" },
 }
 ```
 
@@ -366,7 +438,7 @@ UI 디자인 핸드오프 후 아래 순서로 진행:
 2. **DB 타입 업데이트** — `src/types/database.ts` 동기화
 3. **쿼리 모듈** — `src/lib/board.ts`
 4. **서버 액션** — `src/app/mobile/board/actions.ts`
-5. **스토리지 RLS 업데이트** — board-posts, board-comments 경로 추가
+5. **스토리지 설정** — `board-posts`, `board-comments` 경로 추가; `board-attachments` 버킷 생성 및 RLS 정책 적용
 6. **페이지 & 컴포넌트** — UI 디자인 기반으로 구현
 7. **네비게이션 등록** — `src/config/navigation.ts`
 8. **알림 연동** — `src/lib/notifications/create.ts`
@@ -384,3 +456,5 @@ UI 디자인 핸드오프 후 아래 순서로 진행:
 | 댓글 정렬 (등록순 vs 최신순) | 미정 |
 | `board_comment_replied` 알림 구현 여부 | 선택 구현 (Phase 3에서 결정) |
 | 글 신고 기능 | 미기획 (추후 검토) |
+| `board-attachments` 버킷 URL 정책 (public vs signed URL) | 미정 — public은 구현 단순하나 파일 노출 위험 있음; signed URL은 보안 강하나 만료 처리 필요. 결정 전까지 signed URL 방향 권장 |
+| 파일 첨부 최대 개수 | 미정 — 현재 문서상 5개; 이미지 5장과 합산 vs 별도 제한인지 구현 시 결정 |
