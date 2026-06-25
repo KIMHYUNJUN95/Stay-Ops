@@ -9,6 +9,128 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      board_comments: {
+        Insert: {
+          content: string;
+          created_at?: string;
+          created_by_user_id: string;
+          deleted_at?: string | null;
+          id?: string;
+          image_urls?: string[];
+          organization_id: string;
+          post_id: string;
+        };
+        Row: {
+          content: string;
+          created_at: string;
+          created_by_user_id: string;
+          deleted_at: string | null;
+          id: string;
+          image_urls: string[];
+          organization_id: string;
+          post_id: string;
+        };
+        Update: {
+          content?: string;
+          created_at?: string;
+          created_by_user_id?: string;
+          deleted_at?: string | null;
+          id?: string;
+          image_urls?: string[];
+          organization_id?: string;
+          post_id?: string;
+        };
+      };
+      board_post_reads: {
+        Insert: {
+          post_id: string;
+          read_at?: string;
+          user_id: string;
+        };
+        Row: {
+          post_id: string;
+          read_at: string;
+          user_id: string;
+        };
+        Update: {
+          post_id?: string;
+          read_at?: string;
+          user_id?: string;
+        };
+      };
+      board_posts: {
+        Insert: {
+          allow_comments?: boolean;
+          content: string;
+          created_at?: string;
+          created_by_user_id: string;
+          deleted_at?: string | null;
+          file_attachments?: Json;
+          id?: string;
+          image_urls?: string[];
+          is_pinned?: boolean;
+          organization_id: string;
+          pinned_at?: string | null;
+          pinned_by_user_id?: string | null;
+          tags?: string[];
+          title?: string | null;
+          updated_at?: string;
+        };
+        Row: {
+          allow_comments: boolean;
+          content: string;
+          created_at: string;
+          created_by_user_id: string;
+          deleted_at: string | null;
+          file_attachments: Json;
+          id: string;
+          image_urls: string[];
+          is_pinned: boolean;
+          organization_id: string;
+          pinned_at: string | null;
+          pinned_by_user_id: string | null;
+          tags: string[];
+          title: string | null;
+          updated_at: string;
+        };
+        Update: {
+          allow_comments?: boolean;
+          content?: string;
+          created_at?: string;
+          created_by_user_id?: string;
+          deleted_at?: string | null;
+          file_attachments?: Json;
+          id?: string;
+          image_urls?: string[];
+          is_pinned?: boolean;
+          organization_id?: string;
+          pinned_at?: string | null;
+          pinned_by_user_id?: string | null;
+          tags?: string[];
+          title?: string | null;
+          updated_at?: string;
+        };
+      };
+      board_reactions: {
+        Insert: {
+          created_at?: string;
+          emoji: string;
+          post_id: string;
+          user_id: string;
+        };
+        Row: {
+          created_at: string;
+          emoji: string;
+          post_id: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          emoji?: string;
+          post_id?: string;
+          user_id?: string;
+        };
+      };
       attendance_sites: {
         Insert: {
           allowed_radius_meters?: number;

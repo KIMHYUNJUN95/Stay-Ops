@@ -15,7 +15,9 @@ export type RequestImageType =
   | "task-images"
   | "task-update-images"
   | "suggestion-images"
-  | "attendance-corrections";
+  | "attendance-corrections"
+  | "board-posts"
+  | "board-comments";
 
 function getFileExtension(file: File): string {
   const ext = file.name.split(".").pop()?.toLowerCase();

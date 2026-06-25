@@ -878,25 +878,56 @@ image_urls text[]
 created_at timestamptz
 ```
 
-## board_posts
+## board_posts / board_post_reads / board_comments / board_reactions
 
-Internal board feed. See `docs/engineering/10-internal-board-technical-design.md`.
+자유 게시판 피드. **마이그레이션 `supabase/migrations/202606250001_board.sql` 적용 완료 (2026-06-25).**  
+전체 기능 명세: `docs/product/23-board-workflow.md`.
 
 ```txt
-id uuid primary key
-organization_id uuid not null references organizations(id)
-created_by_user_id uuid not null references profiles(id)
-title text not null
-body text
-category text   -- general | property_note | handover | incident | other
-image_urls text[]
+-- board_posts
+id uuid primary key default gen_random_uuid()
+organization_id uuid not null references organizations(id) on delete cascade
+created_by_user_id uuid not null references profiles(id) on delete restrict
+title text                                 -- 선택 (nullable)
+content text not null                      -- check: trim 길이 > 0
+tags text[] not null default '{}'
+image_urls text[] not null default '{}'    -- 최대 5개 (check constraint)
+file_attachments jsonb not null default '[]'  -- FileAttachment[] (최대 5개)
 is_pinned boolean not null default false
-archived_at timestamptz
-created_at timestamptz
-updated_at timestamptz
+pinned_at timestamptz
+pinned_by_user_id uuid references profiles(id) on delete set null
+allow_comments boolean not null default true
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()  -- set_updated_at() trigger
+deleted_at timestamptz                     -- soft delete
+
+-- board_post_reads  (복합 PK: post_id + user_id)
+post_id uuid not null references board_posts(id) on delete cascade
+user_id uuid not null references profiles(id) on delete cascade
+read_at timestamptz not null default now()
+
+-- board_comments
+id uuid primary key default gen_random_uuid()
+post_id uuid not null references board_posts(id) on delete cascade
+organization_id uuid not null references organizations(id) on delete cascade
+created_by_user_id uuid not null references profiles(id) on delete restrict
+content text not null
+image_urls text[] not null default '{}'    -- 최대 3개 (check constraint)
+created_at timestamptz not null default now()
+deleted_at timestamptz
+
+-- board_reactions  (복합 PK: post_id + user_id + emoji)
+post_id uuid not null references board_posts(id) on delete cascade
+user_id uuid not null references profiles(id) on delete cascade
+emoji text not null
+created_at timestamptz not null default now()
 ```
 
-Permissions note: all active roles **including part_time_staff** can create posts (confirmed 2026-06-09).
+Indexes: `board_posts_feed_idx (organization_id, created_at desc) where deleted_at is null` · `board_posts_pinned_idx (organization_id, is_pinned, pinned_at desc) where deleted_at is null` · `board_comments_post_idx (post_id, created_at asc) where deleted_at is null`
+
+Storage: 이미지 → `request-images` 버킷 (`board-posts/` / `board-comments/` 서브폴더, part_time_staff 허용). 첨부 파일 → `board-attachments` 버킷 (private, 서명 URL 방향). 경로: `{org_id}/{post_id}/{filename}`.
+
+Permissions: 전체 활성 멤버 (part_time_staff 포함) → SELECT·INSERT. 작성자 또는 owner/office_admin → UPDATE·DELETE.
 
 ## staff_suggestions
 

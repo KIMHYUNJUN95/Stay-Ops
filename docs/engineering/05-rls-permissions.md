@@ -724,6 +724,31 @@ Update/delete:
 
 > **Action item:** confirm in the Supabase dashboard (Auth settings) that automatic account linking is on and email confirmations are required.
 
+## 게시판 (board_posts / board_post_reads / board_comments / board_reactions)
+
+마이그레이션 `202606250001_board.sql` (2026-06-25 적용).
+
+**board_posts**
+- SELECT: `deleted_at is null AND has_active_membership(organization_id)`
+- INSERT: `created_by_user_id = auth.uid() AND has_active_membership(organization_id)` — part_time_staff 포함 전체 활성 멤버
+- UPDATE: `created_by_user_id = auth.uid() OR has_org_role(org_id, [owner, office_admin])`
+- DELETE: `created_by_user_id = auth.uid() OR has_org_role(org_id, [owner, office_admin])`
+
+**board_post_reads** — 자기 row 만 read/insert/update (user_id = auth.uid())
+
+**board_comments**
+- SELECT: `deleted_at is null AND has_active_membership(organization_id)`
+- INSERT: `created_by_user_id = auth.uid() AND has_active_membership(organization_id)`
+- DELETE: `created_by_user_id = auth.uid() OR has_org_role(org_id, [owner, office_admin])`
+
+**board_reactions**
+- SELECT/INSERT: `has_active_membership(게시글의 organization_id 서브쿼리)` + user_id = auth.uid()
+- DELETE: user_id = auth.uid()
+
+**스토리지 RLS**
+- `request-images`: `board-posts` / `board-comments` 폴더 추가 (part_time_staff 허용). `202606250001_board.sql`에서 "org members can upload/delete request images" 정책 재생성.
+- `board-attachments` (새 버킷, private): org 멤버 SELECT·INSERT; 업로드한 본인만 DELETE (owner = auth.uid()).
+
 ## Open Questions
 
 - Should Staff be allowed to status-change lost items and maintenance forever, or only certain statuses?
