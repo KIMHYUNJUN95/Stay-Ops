@@ -35,12 +35,14 @@ export default async function MobileAttendanceCorrectionPage({ searchParams }: P
   }
 
   const dict = getDictionary(session.user.preferredLanguage);
+  const localeMap: Record<string, string> = { ko: "ko-KR", ja: "ja-JP", en: "en-US" };
+  const bcp47Locale = localeMap[session.user.preferredLanguage] ?? "ko-KR";
   const sessionId = params.sessionId?.trim() || null;
   const [navBadges, sites, context] = await Promise.all([
     getMobileNavBadges(),
-    listActiveAttendanceSites(session.organization.id),
+    listActiveAttendanceSites(session.organization.id, bcp47Locale),
     sessionId
-      ? getSessionCorrectionContext(session.organization.id, session.user.id, sessionId)
+      ? getSessionCorrectionContext(session.organization.id, session.user.id, sessionId, bcp47Locale)
       : Promise.resolve(null),
   ]);
 

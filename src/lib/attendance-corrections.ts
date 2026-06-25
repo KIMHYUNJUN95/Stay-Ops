@@ -7,6 +7,11 @@
 
 import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import {
+  localizeAttendanceSiteName,
+  type AttendanceSiteDisplayRow,
+} from "@/lib/attendance-site-display";
+import { getDictionary } from "@/lib/i18n";
 import type {
   AttendanceCorrectionRequestRow,
   AttendanceCorrectionReason,
@@ -15,25 +20,9 @@ import type {
 
 const TZ = "Asia/Tokyo";
 
-export const CORRECTION_REASON_LABELS: Record<AttendanceCorrectionReason, string> = {
-  missing_clock_in: "출근 누락",
-  missing_clock_out: "퇴근 누락",
-  wrong_time: "시각 오류",
-  wrong_site: "장소 오류",
-  auth_failed: "인증 실패",
-  other: "기타",
-};
-
-export const CORRECTION_STATUS_LABELS: Record<AttendanceCorrectionStatus, string> = {
-  requested: "요청됨",
-  in_review: "검토 중",
-  approved: "승인",
-  rejected: "반려",
-};
-
-function tokyoTimeLabel(iso: string | null): string | null {
+function tokyoTimeLabel(iso: string | null, locale = "ko-KR"): string | null {
   if (!iso) return null;
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: TZ,
     hour: "2-digit",
     minute: "2-digit",
@@ -41,9 +30,9 @@ function tokyoTimeLabel(iso: string | null): string | null {
   }).format(new Date(iso));
 }
 
-function dateLabelOf(operatingDate: string): string {
+function dateLabelOf(operatingDate: string, locale = "ko-KR"): string {
   const d = new Date(`${operatingDate}T00:00:00+09:00`);
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: TZ,
     month: "long",
     day: "numeric",
@@ -56,14 +45,18 @@ export type CorrectionSiteOption = { id: string; name: string };
 /** Active attendance sites in the org (for the desired-site picker). Read-only, member-readable. */
 export async function listActiveAttendanceSites(
   organizationId: string,
+  locale = "ko-KR",
 ): Promise<CorrectionSiteOption[]> {
   const res = await getSupabaseServiceClient()
     .from("attendance_sites")
-    .select("id, name")
+    .select("id, name, properties(display_name_ko, display_name_ja, display_name_en)")
     .eq("organization_id", organizationId)
     .eq("is_active", true)
     .order("created_at", { ascending: false });
-  return (res.data ?? []) as CorrectionSiteOption[];
+  return ((res.data ?? []) as (AttendanceSiteDisplayRow & { id: string })[]).map((site) => ({
+    id: site.id,
+    name: localizeAttendanceSiteName(site, locale),
+  }));
 }
 
 export type CorrectionSessionContext = {
@@ -80,6 +73,7 @@ export async function getSessionCorrectionContext(
   organizationId: string,
   userId: string,
   sessionId: string,
+  locale = "ko-KR",
 ): Promise<CorrectionSessionContext | null> {
   const service = getSupabaseServiceClient();
   const res = await service
@@ -102,19 +96,20 @@ export async function getSessionCorrectionContext(
   if (s.clock_in_site_id) {
     const siteRes = await service
       .from("attendance_sites")
-      .select("name")
+      .select("name, properties(display_name_ko, display_name_ja, display_name_en)")
       .eq("organization_id", organizationId)
       .eq("id", s.clock_in_site_id)
       .maybeSingle();
-    siteName = (siteRes.data as { name: string } | null)?.name ?? null;
+    const site = siteRes.data as AttendanceSiteDisplayRow | null;
+    siteName = site ? localizeAttendanceSiteName(site, locale) : null;
   }
 
   return {
     sessionId: s.id,
     operatingDate: s.operating_date,
-    dateLabel: dateLabelOf(s.operating_date),
-    clockInTime: tokyoTimeLabel(s.clock_in_at),
-    clockOutTime: tokyoTimeLabel(s.clock_out_at),
+    dateLabel: dateLabelOf(s.operating_date, locale),
+    clockInTime: tokyoTimeLabel(s.clock_in_at, locale),
+    clockOutTime: tokyoTimeLabel(s.clock_out_at, locale),
     siteName,
   };
 }
@@ -136,6 +131,13 @@ export const CORRECTION_STATUS_I18N_KEYS: Record<AttendanceCorrectionStatus, str
   approved: "stepApproved",
   rejected: "stepRejected",
 };
+
+function attendanceLabel(locale: string, key: string, fallback: string): string {
+  const value = getDictionary(locale).attendance[
+    key as keyof ReturnType<typeof getDictionary>["attendance"]
+  ];
+  return typeof value === "string" ? value : fallback;
+}
 
 export type CorrectionRequestView = {
   id: string;
@@ -165,6 +167,7 @@ async function toRequestView(
   service: ReturnType<typeof getSupabaseServiceClient>,
   organizationId: string,
   row: AttendanceCorrectionRequestRow,
+  locale = "ko-KR",
 ): Promise<CorrectionRequestView> {
   // Step 1: session operating_date fetch (others may depend on nothing from here, but siteId is from `row`)
   const siteId = row.desired_clock_in_site_id ?? row.desired_clock_out_site_id;
@@ -183,7 +186,7 @@ async function toRequestView(
     siteId
       ? service
           .from("attendance_sites")
-          .select("name")
+          .select("name, properties(display_name_ko, display_name_ja, display_name_en)")
           .eq("organization_id", organizationId)
           .eq("id", siteId)
           .maybeSingle()
@@ -201,11 +204,13 @@ async function toRequestView(
     sessionRes && "data" in sessionRes
       ? ((sessionRes.data as { operating_date: string } | null)?.operating_date ?? null)
       : null;
-  const targetDateLabel = od ? dateLabelOf(od) : null;
+  const targetDateLabel = od ? dateLabelOf(od, locale) : null;
 
   const desiredSiteName =
     siteRes && "data" in siteRes
-      ? ((siteRes.data as { name: string } | null)?.name ?? null)
+      ? siteRes.data
+        ? localizeAttendanceSiteName(siteRes.data as AttendanceSiteDisplayRow, locale)
+        : null
       : null;
 
   const reviewerName =
@@ -215,27 +220,29 @@ async function toRequestView(
 
   const status = row.status as AttendanceCorrectionStatus;
   const reasonType = row.reason_type as AttendanceCorrectionReason;
+  const statusKey = CORRECTION_STATUS_I18N_KEYS[status] ?? status;
+  const reasonKey = CORRECTION_REASON_I18N_KEYS[reasonType] ?? reasonType;
 
   return {
     id: row.id,
     status,
-    statusLabel: CORRECTION_STATUS_LABELS[status] ?? status,
-    statusKey: CORRECTION_STATUS_I18N_KEYS[status] ?? status,
+    statusLabel: attendanceLabel(locale, statusKey, status),
+    statusKey,
     reasonType,
-    reasonLabel: CORRECTION_REASON_LABELS[reasonType] ?? reasonType,
-    reasonKey: CORRECTION_REASON_I18N_KEYS[reasonType] ?? reasonType,
+    reasonLabel: attendanceLabel(locale, reasonKey, reasonType),
+    reasonKey,
     sessionId: row.session_id,
     targetDateLabel,
-    desiredClockInLabel: tokyoTimeLabel(row.desired_clock_in_at),
-    desiredClockOutLabel: tokyoTimeLabel(row.desired_clock_out_at),
+    desiredClockInLabel: tokyoTimeLabel(row.desired_clock_in_at, locale),
+    desiredClockOutLabel: tokyoTimeLabel(row.desired_clock_out_at, locale),
     desiredSiteName,
     memo: row.memo,
     imageUrls: row.image_urls ?? [],
     photoCount: (row.image_urls ?? []).length,
     reviewComment: row.review_comment,
     reviewerName,
-    reviewedAtLabel: tokyoTimeLabel(row.reviewed_at),
-    createdAtLabel: tokyoTimeLabel(row.created_at) ?? "",
+    reviewedAtLabel: tokyoTimeLabel(row.reviewed_at, locale),
+    createdAtLabel: tokyoTimeLabel(row.created_at, locale) ?? "",
   };
 }
 
@@ -247,6 +254,7 @@ export async function getCorrectionRequestView(
   organizationId: string,
   userId: string,
   requestId: string | null,
+  locale = "ko-KR",
 ): Promise<CorrectionRequestView | null> {
   const service = getSupabaseServiceClient();
   let query = service
@@ -261,7 +269,7 @@ export async function getCorrectionRequestView(
   const res = await query.maybeSingle();
   const row = res.data as AttendanceCorrectionRequestRow | null;
   if (res.error || !row) return null;
-  return toRequestView(service, organizationId, row);
+  return toRequestView(service, organizationId, row, locale);
 }
 
 /**

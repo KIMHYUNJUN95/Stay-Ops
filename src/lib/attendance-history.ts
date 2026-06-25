@@ -9,6 +9,10 @@
 
 import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import {
+  localizeAttendanceSiteName,
+  type AttendanceSiteDisplayRow,
+} from "@/lib/attendance-site-display";
 import type {
   AttendanceSessionRow,
   AttendanceSessionStatus,
@@ -160,16 +164,17 @@ async function loadSiteNames(
   service: ReturnType<typeof getSupabaseServiceClient>,
   organizationId: string,
   siteIds: string[],
+  locale: string,
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   if (siteIds.length === 0) return map;
   const res = await service
     .from("attendance_sites")
-    .select("id, name")
+    .select("id, name, properties(display_name_ko, display_name_ja, display_name_en)")
     .eq("organization_id", organizationId)
     .in("id", siteIds);
-  for (const row of (res.data ?? []) as { id: string; name: string }[]) {
-    map.set(row.id, row.name);
+  for (const row of (res.data ?? []) as (AttendanceSiteDisplayRow & { id: string })[]) {
+    map.set(row.id, localizeAttendanceSiteName(row, locale));
   }
   return map;
 }
@@ -246,7 +251,7 @@ export async function getAttendanceHistory(
 
   const [breaksBySession, siteNames, correctionBySession] = await Promise.all([
     loadBreaks(service, sessionIds),
-    loadSiteNames(service, organizationId, siteIds),
+    loadSiteNames(service, organizationId, siteIds, locale),
     getCorrectionStatusBySession(organizationId, userId, sessionIds),
   ]);
 

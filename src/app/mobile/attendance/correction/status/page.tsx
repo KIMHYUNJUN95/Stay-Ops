@@ -32,11 +32,14 @@ export default async function MobileAttendanceCorrectionStatusPage({ searchParam
   }
 
   const dict = getDictionary(session.user.preferredLanguage);
+  const localeMap: Record<string, string> = { ko: "ko-KR", ja: "ja-JP", en: "en-US" };
+  const bcp47Locale = localeMap[session.user.preferredLanguage] ?? "ko-KR";
   const requestId = params.id?.trim() || null;
   const request = await getCorrectionRequestView(
     session.organization.id,
     session.user.id,
     requestId,
+    bcp47Locale,
   );
 
   // No request found (new user, or an id that isn't theirs) → send to the form rather than leak/empty.
