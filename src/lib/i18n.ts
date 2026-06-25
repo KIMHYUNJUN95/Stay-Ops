@@ -608,6 +608,7 @@ const FALLBACK_DICTIONARY = {
     userNameDisplay: (name: string) => name,
     previewSite: "Example Site",
     siteOffice: "Office",
+    siteSky: "Sky",
     siteLegacyTest: "Legacy test site",
     // Session status chips (history)
     sessOpen: "In progress",
@@ -2789,6 +2790,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       userNameDisplay: (name: string) => `${name} 님`,
       previewSite: "예시 사이트",
       siteOffice: "사무실",
+      siteSky: "스카이",
       siteLegacyTest: "레거시 테스트 현장",
       sessOpen: "진행 중",
       sessDone: "완료",
@@ -4877,6 +4879,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       userNameDisplay: (name: string) => `${name}様`,
       previewSite: "サイト例",
       siteOffice: "事務所",
+      siteSky: "スカイ",
       siteLegacyTest: "レガシーテスト拠点",
       sessOpen: "進行中",
       sessDone: "完了",

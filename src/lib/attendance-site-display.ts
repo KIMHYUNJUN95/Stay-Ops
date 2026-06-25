@@ -1,4 +1,5 @@
 import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
+import { CANONICAL_TO_BUILDING_KEY, getCanonicalPropertyName } from "@/lib/room-label-normalization";
 
 export type AttendanceSiteDisplayRow = {
   name: string;
@@ -19,9 +20,17 @@ export function resolveAttendanceLocale(locale: string): Locale {
 
 function localizeKnownSiteName(name: string, locale: Locale): string {
   const key = name.replace(/\s+/g, "").toLowerCase();
-  const copy = getDictionary(locale).attendance;
+  const dictionary = getDictionary(locale);
+  const buildingKey = CANONICAL_TO_BUILDING_KEY[getCanonicalPropertyName(name)];
+  if (buildingKey) {
+    return dictionary.cleaning.buildingLabels[buildingKey] ?? name;
+  }
+  const copy = dictionary.attendance;
   if (key === "사무실" || key === "office" || key === "事務所") {
     return copy.siteOffice;
+  }
+  if (key === "스카이" || key === "sky" || key === "スカイ") {
+    return copy.siteSky;
   }
   if (
     key === "레거시테스트현장" ||
