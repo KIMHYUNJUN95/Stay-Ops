@@ -109,8 +109,8 @@ export function BoardMentionSheet({
         />
       </div>
 
-      {/* 멤버 리스트 */}
-      <div className="flex-1 overflow-y-auto pt-1">
+      {/* 멤버 리스트 — overscroll-contain: 리스트 끝에서 배경/시트로 스크롤 체이닝 방지 */}
+      <div className="flex-1 overflow-y-auto overscroll-contain pt-1">
         {/* @ALL 옵션 (항상 최상단) */}
         {showAllOption && (
           <button
