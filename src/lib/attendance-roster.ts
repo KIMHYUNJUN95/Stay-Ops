@@ -2,7 +2,7 @@
 // 매니저/오피스 권한 사용자의 일일 출근자 현황을 반환한다.
 
 import "server-only";
-import { getDictionary } from "@/lib/i18n";
+import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { AttendanceSessionRow } from "@/lib/attendance";
 
@@ -49,8 +49,16 @@ function tokyoHHmm(iso: string | null, locale = "ko-KR"): string | null {
   }).format(new Date(iso));
 }
 
+function resolveRosterLocale(locale: string): Locale {
+  if (isLocale(locale)) return locale;
+  const normalized = locale.toLowerCase();
+  if (normalized.startsWith("ja")) return "ja";
+  if (normalized.startsWith("en")) return "en";
+  return "ko";
+}
+
 function roleDisplayLabel(roleCode: string, locale: string): string {
-  const roles = getDictionary(locale).roles as Record<string, string>;
+  const roles = getDictionary(resolveRosterLocale(locale)).roles as Record<string, string>;
   return roles[roleCode] ?? roleCode;
 }
 
