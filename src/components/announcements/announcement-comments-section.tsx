@@ -143,7 +143,7 @@ export function AnnouncementCommentsSection({
         >
           <textarea
             className={cn(
-              "max-h-40 min-h-8 flex-1 resize-y appearance-none border-0 bg-transparent px-1 py-1 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-60",
+              "announcement-comment-input max-h-40 min-h-8 flex-1 resize-y appearance-none border-0 bg-transparent px-1 py-1 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-60",
               isAnnouncement &&
                 "font-semibold text-slate-950 placeholder:text-slate-400",
             )}
@@ -151,7 +151,14 @@ export function AnnouncementCommentsSection({
             name="content"
             placeholder={copy.commentPlaceholder}
             required
-            style={{ outline: "none", WebkitTapHighlightColor: "transparent" }}
+            style={{
+              outline: "none",
+              WebkitAppearance: "none",
+              MozAppearance: "none",
+              appearance: "none",
+              boxShadow: "none",
+              WebkitTapHighlightColor: "transparent",
+            }}
           />
           <Button
             className={cn(

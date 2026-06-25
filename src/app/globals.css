@@ -93,6 +93,15 @@ summary,
   outline-offset: 2px;
 }
 
+.announcement-comment-input,
+.announcement-comment-input:focus,
+.announcement-comment-input:focus-visible {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  outline-offset: 0 !important;
+}
+
 /* Respect reduced-motion for Tailwind's animate-spin (Tailwind does not disable it by default) —
    covers every spinner (PTR, submit buttons, sheets). */
 @media (prefers-reduced-motion: reduce) {
