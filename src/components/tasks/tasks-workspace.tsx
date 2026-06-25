@@ -73,6 +73,10 @@ function tokyoDateOf(iso: string | null): string | null {
 }
 const PRIO_ORD: Record<string, number> = { urgent: 0, important: 1, normal: 2 };
 
+function stopSheetTouch(e: React.TouchEvent) {
+  e.stopPropagation();
+}
+
 // Shift a YYYY-MM-DD (Tokyo) date string by `n` days, returning the same format.
 function ymdShift(ymd: string, n: number): string {
   const [y, m, d] = ymd.split("-").map(Number);
@@ -1522,91 +1526,94 @@ export function TasksWorkspace({
 
       {quickMounted && hydrated
         ? createPortal(
-        <div
-          className={cn(
-            "fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 pb-[var(--keyboard-inset,0px)] transition-opacity duration-300 motion-reduce:transition-none",
-            quickShown ? "opacity-100" : "opacity-0",
-          )}
-          onClick={closeQuick}
-          style={quickDrag.scrimStyle}
-        >
-          <div
-            className={cn(
-              "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[max(22px,env(safe-area-inset-bottom))] pt-3",
-              "transition-transform duration-[380ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
-              quickShown ? "translate-y-0" : "translate-y-full",
-            )}
-            data-sheet
-            onClick={(e) => e.stopPropagation()}
-            style={quickDrag.sheetStyle}
-          >
             <div
-              className="mx-auto mb-3.5 h-1 w-[38px] rounded-full bg-slate-200"
-              {...quickDrag.handleProps}
-            />
+              className={cn(
+                "fixed inset-0 z-[60] flex items-end justify-center overscroll-contain bg-slate-950/45 transition-opacity duration-300 motion-reduce:transition-none",
+                quickShown ? "opacity-100" : "opacity-0",
+              )}
+              onClick={closeQuick}
+              onTouchEnd={stopSheetTouch}
+              onTouchMove={stopSheetTouch}
+              onTouchStart={stopSheetTouch}
+              style={quickDrag.scrimStyle}
+            >
+              <div
+                className={cn(
+                  "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[calc(max(22px,env(safe-area-inset-bottom))+var(--keyboard-inset,0px))] pt-3",
+                  "transition-transform duration-[380ms] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform motion-reduce:transition-none",
+                  quickShown ? "translate-y-0" : "translate-y-full",
+                )}
+                data-sheet
+                onClick={(e) => e.stopPropagation()}
+                style={quickDrag.sheetStyle}
+              >
+                <div
+                  className="mx-auto mb-3.5 h-1 w-[38px] rounded-full bg-slate-200"
+                  {...quickDrag.handleProps}
+                />
 
-            {/* 헤더 (닫기는 슬라이드/스크림으로 대체) */}
-            <div className="mb-3.5" {...quickDrag.handleProps}>
-              <p className="text-[16px] font-black text-foreground">{copy.quickAddTitle}</p>
-              <p className="mt-0.5 text-[12px] text-muted-foreground">{copy.quickAddSub}</p>
-            </div>
+                {/* 헤더 (닫기는 슬라이드/스크림으로 대체) */}
+                <div className="mb-3.5" {...quickDrag.handleProps}>
+                  <p className="text-[16px] font-black text-foreground">{copy.quickAddTitle}</p>
+                  <p className="mt-0.5 text-[12px] text-muted-foreground">{copy.quickAddSub}</p>
+                </div>
 
-            <form action={quickCreateTask} className="space-y-3">
-              <input
-                autoFocus
-                className="h-12 w-full rounded-2xl border border-border bg-muted px-4 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary"
-                name="title"
-                onChange={(e) => setQuickTitle(e.target.value)}
-                placeholder={copy.quickAddPlaceholder}
-                required
-                value={quickTitle}
-              />
-              <div className="flex gap-2.5">
-                {/* Full organized create — carries any typed title across so the capture isn't lost. */}
-                <Link
-                  className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground"
-                  href={
-                    quickTitle.trim()
-                      ? `/mobile/tasks/new?title=${encodeURIComponent(quickTitle.trim())}`
-                      : "/mobile/tasks/new"
-                  }
-                >
-                  <Pencil className="size-4" aria-hidden="true" />
-                  {copy.quickAddDetailed}
-                </Link>
-                <button
-                  className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-primary text-[13.5px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-40"
-                  disabled={!quickTitle.trim()}
-                  type="submit"
-                >
-                  <Inbox className="size-4" aria-hidden="true" />
-                  {copy.quickAddSave}
-                </button>
+                <form action={quickCreateTask} className="space-y-3">
+                  <input
+                    autoFocus
+                    className="h-12 w-full rounded-2xl border border-border bg-muted px-4 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary"
+                    name="title"
+                    onChange={(e) => setQuickTitle(e.target.value)}
+                    placeholder={copy.quickAddPlaceholder}
+                    required
+                    value={quickTitle}
+                  />
+                  <div className="flex gap-2.5">
+                    {/* Full organized create — carries any typed title across so the capture isn't lost. */}
+                    <Link
+                      className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground"
+                      href={
+                        quickTitle.trim()
+                          ? `/mobile/tasks/new?title=${encodeURIComponent(quickTitle.trim())}`
+                          : "/mobile/tasks/new"
+                      }
+                    >
+                      <Pencil className="size-4" aria-hidden="true" />
+                      {copy.quickAddDetailed}
+                    </Link>
+                    <button
+                      className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-primary text-[13.5px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-40"
+                      disabled={!quickTitle.trim()}
+                      type="submit"
+                    >
+                      <Inbox className="size-4" aria-hidden="true" />
+                      {copy.quickAddSave}
+                    </button>
+                  </div>
+                  {/* 오늘/내일 탭에 바로 추가 — scheduled_date = today/tomorrow(Tokyo), 해당 탭으로 이동 */}
+                  <div className="flex gap-2.5">
+                    <button
+                      className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground transition-colors active:bg-slate-50 disabled:opacity-40"
+                      disabled={!quickTitle.trim()}
+                      formAction={quickCreateTodayTask}
+                      type="submit"
+                    >
+                      <Sun className="size-4 text-amber-400" aria-hidden="true" />
+                      {copy.quickAddToday}
+                    </button>
+                    <button
+                      className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground transition-colors active:bg-slate-50 disabled:opacity-40"
+                      disabled={!quickTitle.trim()}
+                      formAction={quickCreateTomorrowTask}
+                      type="submit"
+                    >
+                      <Sunrise className="size-4 text-sky-500" aria-hidden="true" />
+                      {copy.quickAddTomorrow}
+                    </button>
+                  </div>
+                </form>
               </div>
-              {/* 오늘/내일 탭에 바로 추가 — scheduled_date = today/tomorrow(Tokyo), 해당 탭으로 이동 */}
-              <div className="flex gap-2.5">
-                <button
-                  className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground transition-colors active:bg-slate-50 disabled:opacity-40"
-                  disabled={!quickTitle.trim()}
-                  formAction={quickCreateTodayTask}
-                  type="submit"
-                >
-                  <Sun className="size-4 text-amber-400" aria-hidden="true" />
-                  {copy.quickAddToday}
-                </button>
-                <button
-                  className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground transition-colors active:bg-slate-50 disabled:opacity-40"
-                  disabled={!quickTitle.trim()}
-                  formAction={quickCreateTomorrowTask}
-                  type="submit"
-                >
-                  <Sunrise className="size-4 text-sky-500" aria-hidden="true" />
-                  {copy.quickAddTomorrow}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>,
+            </div>,
             document.body,
           )
         : null}
