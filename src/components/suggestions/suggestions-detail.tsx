@@ -23,6 +23,10 @@ import {
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { StaffSuggestionStatus } from "@/lib/suggestions";
+import {
+  localizeSuggestionCategory,
+  localizeSuggestionPropertyName,
+} from "@/lib/suggestion-display";
 import type { SuggestionDetail } from "@/lib/suggestions-queries";
 import "./suggestions.css";
 import { Ic, SgIcon } from "./sg-icons";
@@ -160,6 +164,8 @@ export function SuggestionsDetail({
   const time = hydrated ? relativeTime(data.createdAt, locale) : "";
   const initial = (name: string) => (name || "—").slice(0, 1);
   const meTag = (role: SuggestionDetail["viewerRole"]) => (data.viewerRole === role ? ` ${copy.me}` : "");
+  const categoryLabel = localizeSuggestionCategory(data.category, locale);
+  const propertyLabel = localizeSuggestionPropertyName(data.propertyName, locale);
 
   // Current viewer's display name (for the "who liked" sheet — likes are client-only for now).
   const viewerName =
@@ -307,13 +313,13 @@ export function SuggestionsDetail({
           </div>
         ) : null}
 
-        {data.category || data.propertyName || data.roomLabel ? (
+        {categoryLabel || propertyLabel || data.roomLabel ? (
           <div className="dtags">
-            {data.category ? <span className="dtag">{data.category}</span> : null}
-            {data.propertyName ? (
+            {categoryLabel ? <span className="dtag">{categoryLabel}</span> : null}
+            {propertyLabel ? (
               <span className="dtag">
                 <Ic>{SgIcon.building}</Ic>
-                {data.propertyName}
+                {propertyLabel}
               </span>
             ) : null}
             {data.roomLabel ? (
@@ -694,66 +700,72 @@ export function SuggestionsDetail({
                 </div>
               )}
 
-              {/* COMMENT sheet (≠ status sheet): tall, header + close, thread + docked composer. */}
-              <div
-                className={`dim${commentOpen ? " show" : ""}`}
-                onClick={() => setCommentOpen(false)}
-                style={commentDrag.scrimStyle}
-                aria-hidden="true"
-              />
-              <div
-                className={`csheet${commentOpen ? " show" : ""}`}
-                data-sheet
-                style={{ ...commentDrag.sheetStyle, opacity: commentDrag.scrimStyle.opacity }}
-                role="dialog"
-                aria-modal="true"
-              >
-                <div className="csheet__grab" {...commentDrag.handleProps}>
-                  <div className="csheet__handle" />
-                  <div className="csheet__head">
-                    <span className="csheet__title">
-                      {copy.thread} {data.comments.length}
-                    </span>
-                  </div>
-                </div>
-                <div className="csheet__scroll">
-                  {timeline.length === 0 ? (
-                    <p className="csheet__empty">{copy.noComments}</p>
-                  ) : (
-                    timeline.map((item) =>
-                      item.kind === "comment" ? (
-                        <SuggestionCommentItem
-                          comment={item.comment}
-                          copy={copy}
-                          hydrated={hydrated}
-                          isOwn={item.comment.authorId === viewerUserId}
-                          key={`c-${item.comment.id}`}
-                          locale={locale}
-                        />
+              {/* COMMENT sheet (≠ status sheet): tall, header + close, thread + docked composer.
+                  Keep it unmounted while closed so iOS/PWA chrome does not keep sampling the scrim
+                  colour into the top safe-area after the sheet is dismissed. */}
+              {commentOpen ? (
+                <>
+                  <div
+                    className="dim show"
+                    onClick={() => setCommentOpen(false)}
+                    style={commentDrag.scrimStyle}
+                    aria-hidden="true"
+                  />
+                  <div
+                    className="csheet show"
+                    data-sheet
+                    style={{ ...commentDrag.sheetStyle, opacity: commentDrag.scrimStyle.opacity }}
+                    role="dialog"
+                    aria-modal="true"
+                  >
+                    <div className="csheet__grab" {...commentDrag.handleProps}>
+                      <div className="csheet__handle" />
+                      <div className="csheet__head">
+                        <span className="csheet__title">
+                          {copy.thread} {data.comments.length}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="csheet__scroll">
+                      {timeline.length === 0 ? (
+                        <p className="csheet__empty">{copy.noComments}</p>
                       ) : (
-                        <div className="clog" key={`e-${item.event.id}`}>
-                          <span className="line" />
-                          <span className="badge">
-                            <span
-                              className="d"
-                              style={{ background: `var(--${STAT_CLS[item.event.status]})` }}
+                        timeline.map((item) =>
+                          item.kind === "comment" ? (
+                            <SuggestionCommentItem
+                              comment={item.comment}
+                              copy={copy}
+                              hydrated={hydrated}
+                              isOwn={item.comment.authorId === viewerUserId}
+                              key={`c-${item.comment.id}`}
+                              locale={locale}
                             />
-                            {copy.statusLog
-                              .replace("{name}", item.event.actorName || "—")
-                              .replace("{status}", copy.status[item.event.status])}
-                          </span>
-                          <span className="line" />
-                        </div>
-                      ),
-                    )
-                  )}
-                </div>
-                <SuggestionCommentComposer
-                  copy={copy}
-                  organizationId={organizationId}
-                  suggestionId={data.id}
-                />
-              </div>
+                          ) : (
+                            <div className="clog" key={`e-${item.event.id}`}>
+                              <span className="line" />
+                              <span className="badge">
+                                <span
+                                  className="d"
+                                  style={{ background: `var(--${STAT_CLS[item.event.status]})` }}
+                                />
+                                {copy.statusLog
+                                  .replace("{name}", item.event.actorName || "—")
+                                  .replace("{status}", copy.status[item.event.status])}
+                              </span>
+                              <span className="line" />
+                            </div>
+                          ),
+                        )
+                      )}
+                    </div>
+                    <SuggestionCommentComposer
+                      copy={copy}
+                      organizationId={organizationId}
+                      suggestionId={data.id}
+                    />
+                  </div>
+                </>
+              ) : null}
 
               {/* "좋아요" (who liked) sheet — long-press the heart to open. UI only for now: likes are
                   client-side, so the list shows the current viewer when they've liked. */}
