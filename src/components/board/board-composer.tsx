@@ -239,6 +239,15 @@ export function BoardComposer({
               }
             }}
             placeholder={copy.commentPlaceholder}
+            // appearance-none kills the iOS/Android Chrome rounded form-field chrome that otherwise
+            // paints a faint rectangle behind the capsule wrapper on focus.
+            style={{
+              WebkitAppearance: "none",
+              MozAppearance: "none",
+              appearance: "none",
+              borderRadius: 0,
+              WebkitTapHighlightColor: "transparent",
+            }}
             className="flex-1 bg-transparent text-[13px] font-medium text-foreground outline-none focus:outline-none focus-visible:outline-none placeholder:text-[hsl(222_10%_62%)]"
           />
           {/* @ 멘션 트리거 버튼 */}

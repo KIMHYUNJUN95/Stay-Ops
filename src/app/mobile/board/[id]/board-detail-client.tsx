@@ -212,9 +212,17 @@ export function BoardDetailClient({
             .replace("{name}", post.firstReactorName)
             .replace("{count}", String(reactionTotal - 1));
 
+  // This page is its own scroll container (not the body), so a sheet's body-lock can't freeze it.
+  // Freeze the inner scroller directly while any overlay is open so the background can't scroll behind
+  // a sheet (most visible with the mention sheet's scrollable list + keyboard).
+  const overlayOpen = showMentionSheet || showActionSheet || showDeleteConfirm;
+
   return (
     <div className="flex h-dvh flex-col bg-background">
-      <div className="flex-1 overflow-y-auto">
+      <div
+        className={overlayOpen ? "flex-1 overflow-hidden" : "flex-1 overflow-y-auto"}
+        style={overlayOpen ? { touchAction: "none", overscrollBehavior: "none" } : undefined}
+      >
         <div className="px-[18px] py-[6px] pb-[18px] flex flex-col">
           {/* 작성자 헤더 */}
           <div className="flex items-center gap-[11px] py-[6px]">
