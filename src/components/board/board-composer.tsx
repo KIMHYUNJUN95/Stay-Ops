@@ -239,9 +239,13 @@ export function BoardComposer({
               }
             }}
             placeholder={copy.commentPlaceholder}
-            // appearance-none kills the iOS/Android Chrome rounded form-field chrome that otherwise
-            // paints a faint rectangle behind the capsule wrapper on focus.
+            // The square outline came from globals.css `:focus-visible { outline: 2px solid ... }`,
+            // which is UNLAYERED and therefore beats Tailwind's layered `focus-visible:outline-none`
+            // utility (text inputs match :focus-visible even on touch). An inline `outline: none`
+            // beats any stylesheet rule (no !important on the global), so it reliably kills it.
+            // appearance-none also removes the native mobile form-field chrome.
             style={{
+              outline: "none",
               WebkitAppearance: "none",
               MozAppearance: "none",
               appearance: "none",

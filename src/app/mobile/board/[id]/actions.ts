@@ -139,10 +139,11 @@ export async function addBoardComment(
   // Resolve commenter display name once for mention notification payloads ({actor} body slot).
   let actorName: string | null = null;
   if (mentionAll || validatedMentions.length > 0) {
+    // profiles is keyed by `id` (= auth user id); there is no `user_id` column.
     const { data: profile } = await service
       .from("profiles")
       .select("name")
-      .eq("user_id", session.user.id)
+      .eq("id", session.user.id)
       .maybeSingle();
     actorName = (profile as { name: string | null } | null)?.name ?? null;
   }
