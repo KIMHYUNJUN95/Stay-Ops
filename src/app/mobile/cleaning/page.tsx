@@ -610,7 +610,7 @@ export default async function MobileCleaningPage({
         <Card className={`${CLEANING_PANEL} relative overflow-hidden p-4`}>
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute -right-12 -top-10 size-32 rounded-full bg-primary/10 blur-2xl"
+            className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(70%_100%_at_100%_0%,hsl(var(--primary-hsl)/0.08),transparent_72%)]"
           />
           <div
             aria-hidden="true"
