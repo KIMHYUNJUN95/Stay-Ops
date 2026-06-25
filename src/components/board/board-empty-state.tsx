@@ -1,11 +1,11 @@
 import { LayoutList } from "lucide-react";
 
 export function BoardEmptyState({
-  title = "아직 게시글이 없어요",
-  subtitle = "첫 글을 남겨보세요 👋",
+  title,
+  subtitle,
 }: {
-  title?: string;
-  subtitle?: string;
+  title: string;
+  subtitle: string;
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-[5px] px-10 pb-[124px] text-center">

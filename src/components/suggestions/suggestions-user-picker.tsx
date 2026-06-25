@@ -67,7 +67,7 @@ export function SuggestionsUserPicker({
       .filter((u) => !q || u.name.includes(q) || roleLabel(u.role).includes(q));
   }, [users, excluded, query, roleLabel]);
 
-  if (!hydrated) return null;
+  if (!hydrated || !open) return null;
 
   const toggle = (id: string) => {
     if (mode === "single") {
@@ -91,14 +91,9 @@ export function SuggestionsUserPicker({
 
   return createPortal(
     <div className="sg">
+      <div className="dim show" onClick={onClose} style={drag.scrimStyle} aria-hidden="true" />
       <div
-        className={`dim${open ? " show" : ""}`}
-        onClick={onClose}
-        style={drag.scrimStyle}
-        aria-hidden="true"
-      />
-      <div
-        className={`sheet${open ? " show" : ""}`}
+        className="sheet show"
         data-sheet
         style={{
           height: "88%",

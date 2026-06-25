@@ -48,7 +48,7 @@ export default async function MobileAttendancePayPage({ searchParams }: PageProp
   const ym = rawYm > currentYm ? currentYm : rawYm;
   const [navBadges, view] = await Promise.all([
     getMobileNavBadges(),
-    getMonthlyPayView(session.organization.id, session.user.id, ym),
+    getMonthlyPayView(session.organization.id, session.user.id, ym, session.user.preferredLanguage),
   ]);
 
   return (

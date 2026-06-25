@@ -16,6 +16,7 @@
 
 import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import { resolveLocale, type Locale } from "@/lib/i18n";
 import type {
   AttendanceSessionRow,
   AttendanceCorrectionStatus,
@@ -23,6 +24,14 @@ import type {
 } from "@/lib/attendance";
 
 const TZ = "Asia/Tokyo";
+const PAY_SESSION_SELECT = [
+  "id",
+  "operating_date",
+  "clock_in_at",
+  "clock_out_at",
+  "status",
+  "review_state",
+].join(", ");
 
 // ── Pure calculation helpers (reusable for finalization) ─────────────────────────
 
@@ -120,9 +129,16 @@ export type MonthlyPayView = {
 
 // ── Tokyo helpers ────────────────────────────────────────────────────────────
 
-function tokyoTimeLabel(iso: string | null): string | null {
+function localeTag(locale: Locale | string): string {
+  const resolved = resolveLocale(locale);
+  if (resolved === "ko") return "ko-KR";
+  if (resolved === "ja") return "ja-JP";
+  return "en-US";
+}
+
+function tokyoTimeLabel(iso: string | null, locale: Locale | string): string | null {
   if (!iso) return null;
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat(localeTag(locale), {
     timeZone: TZ,
     hour: "2-digit",
     minute: "2-digit",
@@ -130,9 +146,9 @@ function tokyoTimeLabel(iso: string | null): string | null {
   }).format(new Date(iso));
 }
 
-function dayLabelOf(date: string): string {
+function dayLabelOf(date: string, locale: Locale | string): string {
   const d = new Date(`${date}T00:00:00+09:00`);
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat(localeTag(locale), {
     timeZone: TZ,
     month: "long",
     day: "numeric",
@@ -140,9 +156,9 @@ function dayLabelOf(date: string): string {
   }).format(d);
 }
 
-function monthLabelOf(ym: string): string {
+function monthLabelOf(ym: string, locale: Locale | string): string {
   const d = new Date(`${ym}-01T00:00:00+09:00`);
-  return new Intl.DateTimeFormat("ko-KR", { timeZone: TZ, year: "numeric", month: "long" }).format(d);
+  return new Intl.DateTimeFormat(localeTag(locale), { timeZone: TZ, year: "numeric", month: "long" }).format(d);
 }
 
 /** Inclusive last day (YYYY-MM-DD) of a Tokyo YYYY-MM. */
@@ -226,6 +242,7 @@ export async function getMonthlyPayView(
   organizationId: string,
   userId: string,
   ym: string,
+  locale: Locale | string = "ko",
 ): Promise<MonthlyPayView> {
   const service = getSupabaseServiceClient();
   const firstDay = `${ym}-01`;
@@ -234,7 +251,7 @@ export async function getMonthlyPayView(
   const [sessRes, rateRes, empRes, finalizedRow] = await Promise.all([
     service
       .from("attendance_sessions")
-      .select("*")
+      .select(PAY_SESSION_SELECT)
       .eq("organization_id", organizationId)
       .eq("user_id", userId)
       .gte("operating_date", firstDay)
@@ -328,8 +345,8 @@ export async function getMonthlyPayView(
 
       sessionViews.push({
         sessionId: s.id,
-        clockInLabel: tokyoTimeLabel(s.clock_in_at),
-        clockOutLabel: tokyoTimeLabel(s.clock_out_at),
+        clockInLabel: tokyoTimeLabel(s.clock_in_at, locale),
+        clockOutLabel: tokyoTimeLabel(s.clock_out_at, locale),
         breakTotalSec,
         paidMinutes,
         dailyGrossExact: grossExact,
@@ -342,7 +359,7 @@ export async function getMonthlyPayView(
     totalGrossExact += dayGrossExact;
     days.push({
       date,
-      dateLabel: dayLabelOf(date),
+      dateLabel: dayLabelOf(date, locale),
       employmentType: empType,
       hourlyRate: dayRate,
       paidMinutes: dayPaidMinutes,
@@ -364,7 +381,7 @@ export async function getMonthlyPayView(
 
   return {
     ym,
-    monthLabel: monthLabelOf(ym),
+    monthLabel: monthLabelOf(ym, locale),
     hourlyEligible,
     // salariedOnly: 세션 유무와 관계없이 고용 유형 이력으로만 판단.
     // 해당 월과 겹치는 employment_type_history 레코드 중 salaried가 하나라도 있고
@@ -389,7 +406,7 @@ export async function getMonthlyPayView(
           gross: snap.gross_amount,
           paidMinutes: snap.total_paid_minutes,
           finalizedAtLabel: snap.finalized_at
-            ? new Intl.DateTimeFormat("ko-KR", {
+            ? new Intl.DateTimeFormat(localeTag(locale), {
                 timeZone: TZ,
                 month: "long",
                 day: "numeric",

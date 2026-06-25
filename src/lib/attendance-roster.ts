@@ -6,6 +6,16 @@ import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { AttendanceSessionRow } from "@/lib/attendance";
 
+const ROSTER_SESSION_SELECT = [
+  "id",
+  "user_id",
+  "clock_in_at",
+  "clock_out_at",
+  "clock_in_site_id",
+  "review_state",
+  "invalidated_at",
+].join(", ");
+
 export type RosterStatusKey = "working" | "on_break" | "done" | "needs_review" | "void";
 
 export type RosterEntry = {
@@ -82,10 +92,9 @@ export async function getAttendanceRoster(
 ): Promise<RosterDay> {
   const supabase = getSupabaseServiceClient();
 
-  // 1. 세션 조회 — select("*") 후 Row 타입으로 캐스팅하는 기존 패턴을 따른다
   const { data: rawSessions, error: sessErr } = await supabase
     .from("attendance_sessions")
-    .select("*")
+    .select(ROSTER_SESSION_SELECT)
     .eq("organization_id", organizationId)
     .eq("operating_date", operatingDate)
     .order("clock_in_at", { ascending: true });

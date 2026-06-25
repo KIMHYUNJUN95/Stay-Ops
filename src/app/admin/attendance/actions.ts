@@ -174,7 +174,7 @@ export async function approveCorrectionRequest(
       session_id: s.id,
       actor_user_id: actorId,
       action_type: "correction_apply",
-      reason: input.comment?.trim() ? input.comment.trim() : "정정 요청 승인",
+      reason: input.comment?.trim() ? input.comment.trim() : "Correction request approved",
       before_json: before,
       after_json: update,
     } as never);

@@ -54,19 +54,24 @@ function buildWeeks(todayDate: Date): Date[] {
   return weeks;
 }
 
-const DOW_KO = ["일", "월", "화", "수", "목", "금", "토"];
-const DOW_JA = ["日", "月", "火", "水", "木", "金", "土"];
-const DOW_EN = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+function localeTag(locale: string): string {
+  if (locale === "ko") return "ko-KR";
+  if (locale === "ja") return "ja-JP";
+  return "en-US";
+}
 
 function dowLabels(locale: string) {
-  if (locale === "ko") return DOW_KO;
-  if (locale === "ja") return DOW_JA;
-  return DOW_EN;
+  const formatter = new Intl.DateTimeFormat(localeTag(locale), {
+    weekday: "short",
+    timeZone: "UTC",
+  });
+  return Array.from({ length: 7 }, (_, i) =>
+    formatter.format(new Date(Date.UTC(2026, 5, 7 + i))).replace(/\.$/, ""),
+  );
 }
 
 function fmtDateMeta(d: Date, locale: string): string {
-  const tag = locale === "ko" ? "ko-KR" : locale === "ja" ? "ja-JP" : "en-US";
-  return new Intl.DateTimeFormat(tag, {
+  return new Intl.DateTimeFormat(localeTag(locale), {
     month: "long",
     day: "numeric",
     weekday: "short",

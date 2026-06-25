@@ -28,6 +28,7 @@ import {
 import { PROPERTY_MAP_META, type PropertyMapMeta, getPropertyAddress } from "@/lib/property-map-links";
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
+import { useBodyScrollLock } from "@/components/shell/use-body-scroll-lock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -423,15 +424,9 @@ export function MobileCalendarView({
   const [mapCopyFeedback, setMapCopyFeedback] = useState<string | null>(null);
   const reservationCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // body scroll lock ???대뼡 紐⑤떖?대뱺 ?대젮 ?덉쑝硫?諛곌꼍 ?ㅽ겕濡?李⑤떒
   const isAnyModalOpen =
     Boolean(selectedReservationId) || isEmptyRoomsModalOpen || Boolean(selectedMapProperty);
-  useEffect(() => {
-    if (!isAnyModalOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
-  }, [isAnyModalOpen]);
+  useBodyScrollLock(isAnyModalOpen);
 
   // isOutOfWindow is computed server-side and passed as a prop to keep a single source of truth.
   // Server already passes reservations=[] when out-of-window; this guard is a defensive layer.

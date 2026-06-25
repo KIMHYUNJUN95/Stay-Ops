@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 
+// i18n-ignore-file: trilingual not-found fallback renders without session locale context.
+
 /**
  * Mobile 404 — branded, trilingual. Hit when a `/mobile/.../[id]` deep-links to a deleted/unknown
  * record (the detail loaders return null → notFound()), instead of a bare framework 404.

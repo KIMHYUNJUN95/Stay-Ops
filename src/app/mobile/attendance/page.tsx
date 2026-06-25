@@ -58,7 +58,12 @@ export default async function MobileAttendancePage({ searchParams }: PageProps) 
     ? [null, null]
     : await Promise.all([
         getCurrentOpenSession(session.organization.id, session.user.id),
-        getMonthlyPayView(session.organization.id, session.user.id, tokyoYM).catch(() => null),
+        getMonthlyPayView(
+          session.organization.id,
+          session.user.id,
+          tokyoYM,
+          session.user.preferredLanguage,
+        ).catch(() => null),
       ]);
   const homeState =
     previewState ??

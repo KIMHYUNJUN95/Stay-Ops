@@ -32,14 +32,13 @@ export function BoardComment({
   isLast = false,
   onDelete,
   copy,
-  // TODO i18n: mentionAll (allLabel)
-  allLabel = "전체",
+  allLabel,
 }: {
   comment: CommentData;
   isLast?: boolean;
   onDelete?: (id: string) => void;
   copy: Pick<Dictionary["board"], "commentDelete" | "viewPhoto" | "close">;
-  allLabel?: string;
+  allLabel: string;
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const images = comment.imageUrls ?? [];

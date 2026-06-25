@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import Link from "next/link";
 
+// i18n-ignore-file: trilingual error fallback renders without session locale context.
+
 /**
  * Mobile error boundary — replaces the bare white root error page with a branded, trilingual screen
  * so a thrown error on any /mobile/* screen reads as a recoverable in-app state, not a crash.

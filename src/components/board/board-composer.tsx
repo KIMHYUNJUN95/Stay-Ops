@@ -23,7 +23,7 @@ export type ComposerSubmitPayload = {
 export function BoardComposer({
   postId,
   organizationId,
-  myInitial = "나",
+  myInitial,
   disabled = false,
   copy,
   // 멘션 상태 (부모 board-detail-client가 관리)
@@ -35,7 +35,7 @@ export function BoardComposer({
 }: {
   postId: string;
   organizationId: string;
-  myInitial?: string;
+  myInitial: string;
   disabled?: boolean;
   copy: Pick<
     Dictionary["board"],
@@ -48,6 +48,7 @@ export function BoardComposer({
     | "errSaveFailed"
     | "mentionAll"
     | "mentionButtonAriaLabel"
+    | "mentionClearAriaLabel"
   >;
   mentionedUsers?: MentionableMember[];
   mentionAll?: boolean;
@@ -187,7 +188,7 @@ export function BoardComposer({
               e.stopPropagation();
               onClearMentions?.();
             }}
-            aria-label="멘션 삭제"
+            aria-label={copy.mentionClearAriaLabel}
             className="inline-flex size-[18px] items-center justify-center rounded-full bg-primary/[0.16] text-primary"
           >
             <X className="size-[11px]" aria-hidden="true" />

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useBodyScrollLock } from "@/components/shell/use-body-scroll-lock";
 import { cn } from "@/lib/utils";
 
 /**
@@ -31,7 +32,7 @@ export function ImageLightbox({
   urls,
   openIndex,
   onClose,
-  closeLabel = "닫기",
+  closeLabel = "Close",
 }: {
   urls: string[];
   openIndex: number | null;
@@ -59,15 +60,7 @@ export function ImageLightbox({
 
   const zoomed = transform.scale > 1.01;
 
-  // Lock body scroll while open.
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  useBodyScrollLock(open);
 
   // Esc closes.
   useEffect(() => {

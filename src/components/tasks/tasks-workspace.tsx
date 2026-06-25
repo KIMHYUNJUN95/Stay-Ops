@@ -582,7 +582,8 @@ export function TasksWorkspace({
                       type="button"
                     >
                       <CalendarDays className="size-4 shrink-0" strokeWidth={2.1} aria-hidden="true" />
-                      {copy.overduePromptReschedule}{selectedCount > 0 ? ` ${selectedCount}건` : ""}
+                      {copy.overduePromptReschedule}
+                      {selectedCount > 0 ? ` ${copy.selectedCountLabel.replace("{count}", String(selectedCount))}` : ""}
                     </button>
                     <button
                       className="inline-flex h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-border bg-background px-3 text-[13px] font-bold text-muted-foreground transition-colors hover:bg-muted/40 disabled:opacity-50"
@@ -591,7 +592,8 @@ export function TasksWorkspace({
                       type="button"
                     >
                       <Trash2 className="size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
-                      {copy.overduePromptDismiss}{selectedCount > 0 ? ` ${selectedCount}건` : ""}
+                      {copy.overduePromptDismiss}
+                      {selectedCount > 0 ? ` ${copy.selectedCountLabel.replace("{count}", String(selectedCount))}` : ""}
                     </button>
                   </>
                 )}

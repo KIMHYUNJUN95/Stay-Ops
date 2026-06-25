@@ -9,8 +9,8 @@ export function BoardListRow({
   commentCount,
   isPinned = false,
   isUnread = false,
-  pinnedBadge = "고정",
-  unreadAria = "안읽음",
+  pinnedBadge,
+  unreadAria,
   onClick,
 }: {
   id: string;
@@ -21,8 +21,8 @@ export function BoardListRow({
   commentCount: number;
   isPinned?: boolean;
   isUnread?: boolean;
-  pinnedBadge?: string;
-  unreadAria?: string;
+  pinnedBadge: string;
+  unreadAria: string;
   onClick?: () => void;
 }) {
   return (

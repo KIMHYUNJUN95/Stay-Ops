@@ -10,6 +10,7 @@ export type DailyReportResult =
   | { ok: false; reason: "forbidden" | "empty" | "error" };
 
 // ── Localized template parts ─────────────────────────────────────────────────
+// i18n-ignore-start: localized server-action report templates live together here.
 const REPORT_TEMPLATE: Record<
   string,
   {
@@ -42,6 +43,7 @@ const REPORT_TEMPLATE: Record<
     summary: (n) => `Total: ${n} task${n === 1 ? "" : "s"} completed`,
   },
 };
+// i18n-ignore-end
 
 /**
  * Deterministic, no-cost text tidy-up for a single rough item line. We can't do dictionary-grade

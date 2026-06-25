@@ -8,6 +8,12 @@ import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { AttendanceSessionRow } from "@/lib/attendance";
 
+const OPEN_SESSION_SELECT = [
+  "id",
+  "clock_in_at",
+  "clock_in_site_id",
+].join(", ");
+
 export type OpenAttendanceSession = {
   id: string;
   clockInAt: string | null;
@@ -77,7 +83,7 @@ export async function getCurrentOpenSession(
   const service = getSupabaseServiceClient();
   const { data, error } = await service
     .from("attendance_sessions")
-    .select("*")
+    .select(OPEN_SESSION_SELECT)
     .eq("organization_id", organizationId)
     .eq("user_id", userId)
     .eq("status", "open")

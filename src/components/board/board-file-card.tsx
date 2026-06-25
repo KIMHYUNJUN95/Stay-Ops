@@ -31,7 +31,7 @@ export function BoardFileCard({
   onRemove,
   onDownload,
   downloading = false,
-  downloadLabel = "다운로드",
+  downloadLabel,
 }: {
   name: string;
   sizeBytes: number;
@@ -64,7 +64,7 @@ export function BoardFileCard({
         type="button"
         onClick={onDownload}
         disabled={downloading}
-        aria-label={`${downloadLabel} · ${name}`}
+        aria-label={`${downloadLabel ?? "Download"} · ${name}`}
         className="flex w-full items-center gap-[11px] rounded-[12px] border border-border bg-surface px-3 py-[10px] text-left transition-colors active:bg-[hsl(40_22%_94%)] disabled:opacity-60"
       >
         {inner}
@@ -102,7 +102,7 @@ export function BoardFileAddButton({
 }: {
   onClick?: () => void;
   disabled?: boolean;
-  label?: string;
+  label: string;
 }) {
   return (
     <button
@@ -112,7 +112,7 @@ export function BoardFileAddButton({
       className="inline-flex h-10 items-center gap-[7px] rounded-[12px] border-[1.5px] border-dashed border-border px-[14px] text-[13px] font-bold text-[hsl(222_20%_28%)] disabled:opacity-50"
     >
       <Paperclip className="size-[17px]" aria-hidden="true" />
-      {label ?? "파일 첨부 (Excel · PDF)"}
+      {label}
     </button>
   );
 }

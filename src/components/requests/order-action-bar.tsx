@@ -16,6 +16,7 @@ import {
   updateOrderDeliveryDate,
   updateOrderRequestStatus,
 } from "@/app/mobile/requests/orders/actions";
+import { useBodyScrollLock } from "@/components/shell/use-body-scroll-lock";
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/types/database";
@@ -300,14 +301,13 @@ export function OrderActionBar({
     setCalViewMonth(new Date());
   }, []);
 
+  useBodyScrollLock(Boolean(activeAction));
+
   useEffect(() => {
     if (!activeAction) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     window.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
   }, [activeAction, close]);

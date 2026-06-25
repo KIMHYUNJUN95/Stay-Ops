@@ -67,6 +67,19 @@ export type AttendanceTodaySummary = {
 };
 
 const TZ = "Asia/Tokyo";
+const HISTORY_SESSION_SELECT = [
+  "id",
+  "operating_date",
+  "status",
+  "review_state",
+  "manual_created",
+  "clock_in_at",
+  "clock_in_site_id",
+  "clock_in_method",
+  "clock_out_at",
+  "clock_out_site_id",
+  "clock_out_method",
+].join(", ");
 
 function tokyoDateKey(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -226,7 +239,7 @@ export async function getAttendanceHistory(
   const service = getSupabaseServiceClient();
   let query = service
     .from("attendance_sessions")
-    .select("*")
+    .select(HISTORY_SESSION_SELECT)
     .eq("organization_id", organizationId)
     .eq("user_id", userId);
   if (ym && /^\d{4}-\d{2}$/.test(ym)) {
@@ -277,7 +290,7 @@ export async function getAttendanceTodaySummary(
 
   const res = await service
     .from("attendance_sessions")
-    .select("*")
+    .select(HISTORY_SESSION_SELECT)
     .eq("organization_id", organizationId)
     .eq("user_id", userId)
     .eq("operating_date", today);

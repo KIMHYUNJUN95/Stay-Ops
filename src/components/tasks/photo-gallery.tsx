@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useBodyScrollLock } from "@/components/shell/use-body-scroll-lock";
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import { cn } from "@/lib/utils";
 
@@ -51,15 +52,7 @@ export function PhotoGallery({
   }, []);
   const closeLightbox = useCallback(() => setLightbox(null), []);
 
-  // Lock body scroll while any overlay is open.
-  useEffect(() => {
-    if (!sheetMounted && lightbox === null) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [sheetMounted, lightbox]);
+  useBodyScrollLock(sheetMounted || lightbox !== null);
 
   // Esc closes the topmost overlay (lightbox first, then sheet).
   useEffect(() => {

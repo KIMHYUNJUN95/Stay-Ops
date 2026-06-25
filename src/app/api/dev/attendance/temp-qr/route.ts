@@ -10,6 +10,8 @@ import {
 import { ATTENDANCE_DEFAULT_RADIUS_METERS } from "@/lib/attendance";
 import type { AttendanceSiteRow } from "@/lib/attendance";
 
+// i18n-ignore-file: development-only local QR helper, unreachable in production.
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DEV-ONLY temporary QR provisioning for app attendance testing.
 //

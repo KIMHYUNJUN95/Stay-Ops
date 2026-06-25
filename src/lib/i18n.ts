@@ -2158,6 +2158,7 @@ const FALLBACK_DICTIONARY = {
     mentionEmpty: "No results",
     mentionSelectedCount: "{n} selected",
     mentionButtonAriaLabel: "Mention",
+    mentionClearAriaLabel: "Clear mentions",
     errorMentionInvalidMember: "Invalid member in selection",
   },
   // Bug Report — StayOps product/system issue reporting (2026-06-25)
@@ -4319,6 +4320,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       mentionEmpty: "검색 결과가 없어요",
       mentionSelectedCount: "{n}명 선택됨",
       mentionButtonAriaLabel: "멘션",
+      mentionClearAriaLabel: "멘션 삭제",
       errorMentionInvalidMember: "유효하지 않은 멤버가 포함되어 있어요",
     },
     // 버그 신고 페이지/폼 (2026-06-25)
@@ -6414,6 +6416,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       mentionEmpty: "検索結果がありません",
       mentionSelectedCount: "{n}名選択中",
       mentionButtonAriaLabel: "メンション",
+      mentionClearAriaLabel: "メンションを削除",
       errorMentionInvalidMember: "無効なメンバーが含まれています",
     },
     // バグ報告ページ/フォーム (2026-06-25)
@@ -6494,6 +6497,14 @@ export function isLocale(value: string | null | undefined): value is Locale {
   return value === "ko" || value === "ja" || value === "en";
 }
 
+export function resolveLocale(value: Locale | string | null | undefined): Locale {
+  if (isLocale(value)) return value;
+  const normalized = (value ?? "").toLowerCase();
+  if (normalized.startsWith("ja")) return "ja";
+  if (normalized.startsWith("en")) return "en";
+  return "ko";
+}
+
 /**
  * Infers the best supported locale from an HTTP Accept-Language header.
  * Parses quality values (q=), sorts by preference, and maps to ko/ja/en.
@@ -6524,10 +6535,7 @@ export function inferLocaleFromAcceptLanguage(header: string): Locale {
 }
 
 export function getDictionary(locale: Locale | string | null | undefined): Dictionary {
-  if (isLocale(locale)) {
-    return dictionaries[locale];
-  }
-  return dictionaries.ko;
+  return dictionaries[resolveLocale(locale)];
 }
 
 export function getLocalizedText(

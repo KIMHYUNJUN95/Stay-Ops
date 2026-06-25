@@ -7,6 +7,7 @@ import { BottomSheet } from "@/components/shell/bottom-sheet";
 import type { Locale } from "@/lib/i18n";
 
 // Native language names + romanization + flag glyph (shown identically in every locale).
+// i18n-ignore-start: language picker intentionally shows native language names.
 const OPTIONS: { code: Locale; name: string; roman: string; flag: string }[] = [
   { code: "ko", name: "한국어", roman: "Korean", flag: "한" },
   { code: "ja", name: "日本語", roman: "Japanese", flag: "あ" },
@@ -15,6 +16,7 @@ const OPTIONS: { code: Locale; name: string; roman: string; flag: string }[] = [
 
 // Deliberately bilingual, language-agnostic header (matches the design handoff).
 const SHEET_TITLE = "언어 선택 · Language";
+// i18n-ignore-end
 
 const PRIMARY_SOFT =
   "color-mix(in oklab, hsl(223 46% 32%) 8%, hsl(44 52% 98.5%))";

@@ -20,6 +20,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
+import { useBodyScrollLock } from "@/components/shell/use-body-scroll-lock";
 import {
   deleteLostItem,
   deleteMaintenanceReport,
@@ -598,15 +599,7 @@ export function RequestsFilterView({
     return () => document.removeEventListener("keydown", handleEsc);
   }, [filterSheetOpen]);
 
-  // Lock body scroll while the sheet is open.
-  useEffect(() => {
-    if (!filterSheetOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [filterSheetOpen]);
+  useBodyScrollLock(filterSheetOpen);
 
   // Constrain Tab focus inside the sheet panel.
   function handleSheetKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {

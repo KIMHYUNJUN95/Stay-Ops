@@ -20,12 +20,23 @@ const MIN_ITEMS = Array.from({ length: 60 }, (_, i) =>
   String(i).padStart(2, "0"),
 ); // "00" … "59"
 
-const AMPM_BY_LOCALE: Record<string, [string, string]> = {
-  ko: ["오전", "오후"],
-  ja: ["午前", "午後"],
-};
+function localeTag(locale: string): string {
+  if (locale === "ko") return "ko-KR";
+  if (locale === "ja") return "ja-JP";
+  return "en-US";
+}
+
 function ampmLabels(locale: string): [string, string] {
-  return AMPM_BY_LOCALE[locale] ?? ["AM", "PM"];
+  const formatter = new Intl.DateTimeFormat(localeTag(locale), {
+    hour: "numeric",
+    hour12: true,
+    timeZone: "UTC",
+  });
+  const label = (hour: number, fallback: string) =>
+    formatter
+      .formatToParts(new Date(Date.UTC(2026, 0, 1, hour, 0, 0)))
+      .find((part) => part.type === "dayPeriod")?.value ?? fallback;
+  return [label(0, "AM"), label(12, "PM")];
 }
 
 function parseValue(value: string): {

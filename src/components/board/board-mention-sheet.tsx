@@ -88,7 +88,7 @@ export function BoardMentionSheet({
   const totalSelected = (allSelected ? 1 : 0) + selectedUserIds.size;
 
   // @ALL 행을 보여줄 조건: 쿼리가 없거나 "전체/all/every" prefix 일 때
-  const showAllOption = !query || /^(전체|全員|all|every)/i.test(query.trim());
+  const showAllOption = !query || /^(전체|全員|all|every)/i.test(query.trim()); // i18n-ignore: multilingual search aliases for @ALL.
 
   return (
     <BottomSheet

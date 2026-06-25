@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { OfflineAutoReload } from "@/app/offline/offline-auto-reload";
 
+// i18n-ignore-file: offline fallback is static and trilingual because session locale may be unavailable.
+
 export const metadata: Metadata = {
   title: "오프라인 · StayOps",
 };

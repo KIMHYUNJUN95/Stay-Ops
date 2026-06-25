@@ -10,8 +10,8 @@ export function BoardPinToggle({
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
-  title?: string;
-  subtitle?: string;
+  title: string;
+  subtitle: string;
 }) {
   return (
     <div className="mt-[18px] flex items-center gap-3 rounded-[14px] border border-border bg-surface px-[14px] py-[13px]">
@@ -20,8 +20,8 @@ export function BoardPinToggle({
           <Pin className="size-[18px]" aria-hidden="true" />
         </span>
         <div>
-          <div className="text-[13.5px] font-extrabold tracking-[-0.01em]">{title ?? "상단에 고정"}</div>
-          <div className="mt-0.5 text-[11px] font-semibold text-muted-foreground">{subtitle ?? "피드 맨 위에 등록해 노출해요 · 관리자"}</div>
+          <div className="text-[13.5px] font-extrabold tracking-[-0.01em]">{title}</div>
+          <div className="mt-0.5 text-[11px] font-semibold text-muted-foreground">{subtitle}</div>
         </div>
       </div>
       <button

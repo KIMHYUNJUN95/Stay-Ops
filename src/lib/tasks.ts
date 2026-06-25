@@ -13,6 +13,37 @@ type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
 type ParticipantRow = Database["public"]["Tables"]["task_participants"]["Row"];
 type UpdateRow = Database["public"]["Tables"]["task_updates"]["Row"];
 
+const TASK_SELECT = [
+  "id",
+  "organization_id",
+  "created_by_user_id",
+  "title",
+  "description",
+  "scheduled_date",
+  "due_at",
+  "all_day",
+  "time_label",
+  "priority",
+  "sort_order",
+  "status",
+  "project_id",
+  "section_id",
+  "is_inbox",
+  "recurrence_rule",
+  "recurrence_series_id",
+  "recurrence_instance_date",
+  "tags",
+  "image_urls",
+  "completed_at",
+  "completed_by_user_id",
+  "created_at",
+  "updated_at",
+  "property_id",
+  "room_id",
+  "reservation_id",
+  "guest_name",
+].join(", ");
+
 export type TaskParticipant = {
   userId: string;
   name: string;
@@ -798,7 +829,7 @@ export async function getVisibleTasks(session: AppSession): Promise<TaskRecord[]
   const supabase = await getSupabaseServerClient();
   const { data, error } = await supabase
     .from("tasks")
-    .select("*")
+    .select(TASK_SELECT)
     .eq("organization_id", session.organization.id)
     .order("created_at", { ascending: false });
   if (error) {
@@ -816,7 +847,7 @@ export async function getProjectTasks(
   const supabase = await getSupabaseServerClient();
   const { data, error } = await supabase
     .from("tasks")
-    .select("*")
+    .select(TASK_SELECT)
     .eq("organization_id", session.organization.id)
     .eq("project_id", projectId)
     .order("created_at", { ascending: false });
@@ -835,7 +866,7 @@ export async function getTaskDetail(
   const supabase = await getSupabaseServerClient();
   const { data, error } = await supabase
     .from("tasks")
-    .select("*")
+    .select(TASK_SELECT)
     .eq("id", id)
     .eq("organization_id", session.organization.id)
     .maybeSingle();
