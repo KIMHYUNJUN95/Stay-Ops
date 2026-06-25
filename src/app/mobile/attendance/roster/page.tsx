@@ -50,12 +50,15 @@ export default async function AttendanceRosterPage({ searchParams }: PageProps) 
     }
   }
 
+  const locale = session.user.preferredLanguage;
+  const localeMap: Record<string, string> = { ko: "ko-KR", ja: "ja-JP", en: "en-US" };
+  const bcp47Locale = localeMap[locale] ?? "ko-KR";
+
   const [navBadges, rosterDay] = await Promise.all([
     getMobileNavBadges(),
-    getAttendanceRoster(session.organization.id, operatingDate),
+    getAttendanceRoster(session.organization.id, operatingDate, bcp47Locale),
   ]);
 
-  const locale = session.user.preferredLanguage;
   const dict = getDictionary(locale);
 
   return (

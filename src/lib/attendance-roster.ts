@@ -2,6 +2,7 @@
 // 매니저/오피스 권한 사용자의 일일 출근자 현황을 반환한다.
 
 import "server-only";
+import { getDictionary } from "@/lib/i18n";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { AttendanceSessionRow } from "@/lib/attendance";
 
@@ -38,9 +39,9 @@ export type RosterDay = {
   };
 };
 
-function tokyoHHmm(iso: string | null): string | null {
+function tokyoHHmm(iso: string | null, locale = "ko-KR"): string | null {
   if (!iso) return null;
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: "Asia/Tokyo",
     hour: "2-digit",
     minute: "2-digit",
@@ -48,17 +49,9 @@ function tokyoHHmm(iso: string | null): string | null {
   }).format(new Date(iso));
 }
 
-function roleDisplayLabel(roleCode: string): string {
-  switch (roleCode) {
-    case "owner":               return "대표";
-    case "office_admin":        return "오피스";
-    case "cs_staff":            return "CS";
-    case "field_manager":       return "필드 매니저";
-    case "staff":               return "필드 직원";
-    case "part_time_staff":     return "알바생";
-    case "developer_super_admin": return "개발자";
-    default:                    return roleCode;
-  }
+function roleDisplayLabel(roleCode: string, locale: string): string {
+  const roles = getDictionary(locale).roles as Record<string, string>;
+  return roles[roleCode] ?? roleCode;
 }
 
 function deriveStatus(
@@ -77,6 +70,7 @@ function deriveStatus(
 export async function getAttendanceRoster(
   organizationId: string,
   operatingDate: string,
+  locale = "ko-KR",
 ): Promise<RosterDay> {
   const supabase = getSupabaseServiceClient();
 
@@ -161,12 +155,12 @@ export async function getAttendanceRoster(
       userId: session.user_id,
       name: rawName || "?",
       avatarInitial: rawName ? rawName.slice(0, 1) : "?",
-      role: roleDisplayLabel(roleCode),
+      role: roleDisplayLabel(roleCode, locale),
       roleCode,
       phoneNumber: profile?.phone_number ?? null,
       siteName: siteMap.get(session.clock_in_site_id ?? "") ?? "",
-      clockInTimeLabel: tokyoHHmm(session.clock_in_at) ?? "--:--",
-      clockOutTimeLabel: tokyoHHmm(session.clock_out_at),
+      clockInTimeLabel: tokyoHHmm(session.clock_in_at, locale) ?? "--:--",
+      clockOutTimeLabel: tokyoHHmm(session.clock_out_at, locale),
       breakCount: breaks.length,
       closedBreakSeconds,
       hasOpenBreak,
