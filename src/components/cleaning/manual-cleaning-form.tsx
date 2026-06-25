@@ -249,7 +249,7 @@ function FancySelect({
                         optionRefs.current[index] = el;
                       }}
                       aria-selected={isActive}
-                      className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[15px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-[#315F91]/25 ${
+                      className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[15px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#315F91]/25 ${
                         isActive
                           ? "bg-[#EAF1F8] text-[#1F3A5F]"
                           : "text-foreground hover:bg-white/75"
