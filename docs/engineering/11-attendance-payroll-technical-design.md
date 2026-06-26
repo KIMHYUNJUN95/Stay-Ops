@@ -1013,6 +1013,8 @@ Notes:
 
 - multiple items may exist on the same date
 - `attendance_session_id` is optional because monthly bulk/manual entry is required
+- `linked` item generation should come from **reading the selected month's attendance/cleaning history**
+  and building candidate rows later; it is not restricted to same-day creation
 - `work_context` is intentional: a single transport entry may need to preserve multiple cleaned rooms or
   a display-ready building/room summary, which does not fit a strict single-room FK alone
 - `property_id` / `room_id` allow reuse of the existing building/room context-linking direction where a

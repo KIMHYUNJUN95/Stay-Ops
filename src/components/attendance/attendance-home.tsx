@@ -293,7 +293,9 @@ export function AttendanceHome({
   canSeeRoster?: boolean;
   locale: string;
 }) {
-  const copy = getDictionary(locale).attendance;
+  const fullDict = getDictionary(locale);
+  const copy = fullDict.attendance;
+  const dict = fullDict;
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -381,6 +383,17 @@ export function AttendanceHome({
             >
               <AIc>{payMasked ? AttIcon.eyeOff : AttIcon.eye}</AIc>
             </button>
+          </div>
+        </Link>
+        <Link href="/mobile/attendance/transport" className="entryrow transport">
+          <span className="entryrow__ic"><AIc>{AttIcon.bus}</AIc></span>
+          <div className="entryrow__b">
+            <div className="entryrow__t">{dict.transport.homeTransportTitle}</div>
+            <div className="entryrow__s">{dict.transport.homeTransportSub}</div>
+          </div>
+          <div className="entryrow__r">
+            <span className="entryrow__val">¥13,160</span>
+            <span className="entryrow__chip">{dict.transport.statusDraft}</span>
           </div>
         </Link>
         {canSeeRoster && (

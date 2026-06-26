@@ -169,6 +169,15 @@ export const AttIcon = {
       <path d="M4 10h16M8 3.5v4M16 3.5v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   ),
+  bus: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <rect x="4" y="4" width="16" height="13" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M4 9h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M8 17v2M16 17v2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="8.5" cy="14.5" r="1.3" fill="currentColor" />
+      <circle cx="15.5" cy="14.5" r="1.3" fill="currentColor" />
+    </svg>
+  ),
   phone: (
     <svg viewBox="0 0 24 24" fill="none">
       <path d="M6.62 10.79a15.5 15.5 0 006.59 6.59l2.2-2.2a1.02 1.02 0 011.05-.24c1.12.37 2.33.57 3.54.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.4 21 3 13.6 3 4.5c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.22.2 2.42.57 3.54.11.36.03.76-.25 1.04l-2.2 2.17z" fill="currentColor" />

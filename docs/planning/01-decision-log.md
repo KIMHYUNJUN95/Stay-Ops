@@ -17,6 +17,8 @@ This file records important project decisions.
   clear **monthly total amount**.
 - Entry modes: both **linked** (derive context from attendance / cleaning history) and **manual**
   (user picks date and enters the item later) are required.
+- `linked` does **not** mean "must be entered on the same day." It means the selected month's existing
+  attendance/cleaning records are read later to generate candidate rows automatically.
 - Context: building / room information should reuse the existing app context-linking patterns where
   possible, but those are **review-assistance context only**. The actual proof for reimbursement remains
   the attached receipt/screenshot images.

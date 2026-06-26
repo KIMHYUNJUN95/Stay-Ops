@@ -561,6 +561,8 @@ The product must support both:
 
 - **linked entry**
   - derive date / building / work context from attendance and cleaning history
+  - works from the **selected month's existing records**, not only from same-day input
+  - should auto-generate candidate rows when the user opens the monthly ledger later
   - reuse existing building / room context-linking patterns where useful
 - **manual entry**
   - user directly selects the date and enters the amount later

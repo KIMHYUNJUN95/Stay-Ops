@@ -151,6 +151,13 @@ export function BottomSheet({
             )}
             data-sheet
             onClick={(e) => e.stopPropagation()}
+            // Sheets portal to <body>, but React synthetic touch events still bubble through the
+            // React tree into the mobile shell's content div, whose pull-to-refresh / swipe-nav
+            // handlers would otherwise scroll/drag the background when the user touches a
+            // non-handle area of the sheet (gutter, padding, the gap above the scroll region).
+            // Isolating touchmove here keeps the background frozen while a sheet is open; the
+            // sheet's own scroll regions still scroll natively (stopPropagation ≠ preventDefault).
+            onTouchMove={(e) => e.stopPropagation()}
             role="dialog"
             style={drag.sheetStyle}
           >
