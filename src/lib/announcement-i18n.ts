@@ -11,6 +11,7 @@ type AnnouncementDictionary = {
   archive: string;
   archivedAt: string;
   author: string;
+  authorCredit: string;
   backToDraft: string;
   backToAnnouncements: string;
   close: string;
@@ -29,6 +30,7 @@ type AnnouncementDictionary = {
   confirmDeleteBody: string;
   confirmDeleteTitle: string;
   cancel: string;
+  confirm: string;
   delete: string;
   description: string;
   edit: string;
@@ -65,10 +67,12 @@ type AnnouncementDictionary = {
   showPopup: string;
   status: string;
   save: string;
+  tapToZoom: string;
   target: string;
   title: string;
   titleField: string;
   unreadCount: string;
+  viewDetail: string;
   unreadMembers: string;
   success: {
     created: string;
@@ -99,6 +103,7 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
     archive: "\uBCF4\uAD00",
     archivedAt: "\uBCF4\uAD00\uC77C",
     author: "\uC791\uC131\uC790",
+    authorCredit: "\uC791\uC131",
     backToDraft: "\uC784\uC2DC\uC800\uC7A5",
     backToAnnouncements: "\uACF5\uC9C0 \uBAA9\uB85D\uC73C\uB85C",
     close: "\uB2EB\uAE30",
@@ -113,6 +118,7 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
     comments: "\uB313\uAE00",
     commentsEmpty: "\uC544\uC9C1 \uB4F1\uB85D\uB41C \uB313\uAE00\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
     cancel: "\uCDE8\uC18C",
+    confirm: "\uD655\uC778",
     confirmCommentDeleteTitle:
       "\uC815\uB9D0 \uC774 \uB313\uAE00\uC744 \uC0AD\uC81C\uD560\uAE4C\uC694?",
     confirmDeleteBody:
@@ -166,6 +172,8 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
     titleField: "\uC81C\uBAA9",
     unreadCount: "\uBBF8\uD655\uC778",
     unreadMembers: "\uBBF8\uD655\uC778 \uC0AC\uC6A9\uC790",
+    tapToZoom: "\uD0ED\uD558\uC5EC \uD06C\uAC8C \uBCF4\uAE30",
+    viewDetail: "\uC790\uC138\uD788 \uBCF4\uAE30",
     success: {
       created: "\uACF5\uC9C0\uAC00 \uC0DD\uC131\uB418\uC5C8\uC2B5\uB2C8\uB2E4.",
       deleted: "\uACF5\uC9C0\uAC00 \uC0AD\uC81C\uB418\uC5C8\uC2B5\uB2C8\uB2E4.",
@@ -238,6 +246,7 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
     archive: "\u30A2\u30FC\u30AB\u30A4\u30D6",
     archivedAt: "\u30A2\u30FC\u30AB\u30A4\u30D6\u65E5",
     author: "\u4F5C\u6210\u8005",
+    authorCredit: "\u4F5C\u6210\u8005",
     backToDraft: "\u4E0B\u66F8\u304D",
     backToAnnouncements: "\u304A\u77E5\u3089\u305B\u4E00\u89A7\u3078",
     close: "\u9589\u3058\u308B",
@@ -255,6 +264,7 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
     commentsEmpty:
       "\u307E\u3060\u767B\u9332\u3055\u308C\u305F\u30B3\u30E1\u30F3\u30C8\u306F\u3042\u308A\u307E\u305B\u3093\u3002",
     cancel: "\u30AD\u30E3\u30F3\u30BB\u30EB",
+    confirm: "\u78BA\u8A8D",
     confirmCommentDeleteTitle:
       "\u3053\u306E\u30B3\u30E1\u30F3\u30C8\u3092\u672C\u5F53\u306B\u524A\u9664\u3057\u307E\u3059\u304B\u3002",
     confirmDeleteBody:
@@ -312,6 +322,8 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
     titleField: "\u30BF\u30A4\u30C8\u30EB",
     unreadCount: "\u672A\u8AAD",
     unreadMembers: "\u672A\u8AAD\u30E6\u30FC\u30B6\u30FC",
+    tapToZoom: "\u30BF\u30C3\u30D7\u3057\u3066\u62E1\u5927",
+    viewDetail: "\u8A73\u3057\u304F\u898B\u308B",
     success: {
       created: "\u304A\u77E5\u3089\u305B\u3092\u4F5C\u6210\u3057\u307E\u3057\u305F\u3002",
       deleted: "\u304A\u77E5\u3089\u305B\u3092\u524A\u9664\u3057\u307E\u3057\u305F\u3002",
@@ -387,6 +399,7 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
     archive: "Archive",
     archivedAt: "Archived",
     author: "Author",
+    authorCredit: "Author",
     backToDraft: "Draft",
     backToAnnouncements: "Back to announcements",
     close: "Close",
@@ -400,6 +413,7 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
     comments: "Comments",
     commentsEmpty: "There are no comments yet.",
     cancel: "Cancel",
+    confirm: "Confirm",
     confirmCommentDeleteTitle: "Delete this comment?",
     confirmDeleteBody:
       "Delete this announcement? Once deleted, it disappears from the list immediately.",
@@ -449,6 +463,8 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
     titleField: "Title",
     unreadCount: "Unread",
     unreadMembers: "Unread users",
+    tapToZoom: "Tap to zoom",
+    viewDetail: "View detail",
     success: {
       created: "Announcement created.",
       deleted: "Announcement deleted.",

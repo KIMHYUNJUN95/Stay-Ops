@@ -76,6 +76,16 @@ function isMissingEnvError(error: unknown) {
   return error instanceof Error && error.message.startsWith("Missing required");
 }
 
+function isAuthError(error: unknown) {
+  return (
+    error instanceof Error &&
+    (error.name === "AuthApiError" ||
+      error.name === "AuthSessionMissingError" ||
+      error.name === "AuthRetryableFetchError" ||
+      ("status" in error && typeof (error as { status: unknown }).status === "number"))
+  );
+}
+
 // Request-scoped memoization: the session is read on the layout AND the page AND inside
 // getMobileNavBadges on every mobile render, and it's a multi-query waterfall. `cache()` collapses
 // all calls within one server render pass into a single execution (it does NOT cache across requests).
@@ -177,7 +187,7 @@ export const getCurrentAppSession = cache(
       },
     };
   } catch (error) {
-    if (isMissingEnvError(error)) {
+    if (isMissingEnvError(error) || isAuthError(error)) {
       return null;
     }
 

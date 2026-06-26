@@ -220,7 +220,6 @@
   font-size: 14px;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 14px 26px -12px hsl(223 46% 32% / 0.5);
   transition: opacity 0.12s ease;
 }
 .trn-acts .trn-submit:active {
@@ -294,12 +293,41 @@
 .trn-tf-in .trn-ph {
   color: var(--faint);
 }
+/* 날짜 필드: 탭하면 커스텀 캘린더 오픈 (네이티브 input 대체) */
+.trn-tf-btn {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.trn-tf-btn .trn-date-val {
+  flex: 1;
+  min-width: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trn-tf-btn svg {
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  color: var(--faint);
+  flex-shrink: 0;
+}
+.trn-tf-btn:active {
+  border-color: var(--primary-lift);
+}
 .trn-row2 {
   display: flex;
   gap: 9px;
 }
 .trn-row2 .trn-tf {
-  flex: 1;
+  flex: 1 1 0;
+  /* date input 등의 고유 너비로 칼럼이 넘쳐 금액 칸이 잘리는 것 방지 */
+  min-width: 0;
 }
 
 /* Segmented control */
@@ -788,4 +816,254 @@
   .trn-spin {
     animation: none;
   }
+}
+
+/* ── Custom date picker (replaces native input[type=date]) ── */
+.trn-cal-root {
+  /* 시트 안에서는 통계서용 음수 마진을 상쇄 */
+  margin: 0;
+}
+.trn-cal {
+  padding: 6px 2px 4px;
+}
+.trn-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 2px 12px;
+}
+.trn-cal-navgrp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.trn-cal-spacer {
+  width: 38px;
+  flex: 0 0 auto;
+}
+.trn-cal-title {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  min-width: 116px;
+  text-align: center;
+}
+.trn-cal-nav {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: none;
+  background: var(--soft);
+  color: var(--ink-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.1s ease;
+}
+.trn-cal-nav:active {
+  transform: scale(0.92);
+}
+.trn-cal-nav svg {
+  width: 19px;
+  height: 19px;
+}
+.trn-cal-wk {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+.trn-cal-wk-c {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  padding: 4px 0;
+}
+.trn-cal-wk-c.sun {
+  color: hsl(4 64% 52%);
+}
+.trn-cal-wk-c.sat {
+  color: hsl(214 62% 48%);
+}
+.trn-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.trn-cal-day {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: 11px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, transform 0.1s ease;
+}
+.trn-cal-day:active {
+  transform: scale(0.9);
+}
+.trn-cal-day.sun {
+  color: hsl(4 64% 52%);
+}
+.trn-cal-day.sat {
+  color: hsl(214 62% 48%);
+}
+.trn-cal-day.out {
+  color: var(--faint);
+  opacity: 0.55;
+}
+.trn-cal-day.today {
+  box-shadow: inset 0 0 0 1.5px var(--primary-lift);
+  color: var(--primary);
+}
+.trn-cal-day.sel,
+.trn-cal-day.sel.sun,
+.trn-cal-day.sel.sat {
+  background: linear-gradient(160deg, var(--primary-lift), var(--primary-ink));
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 8px 18px -10px hsl(223 46% 32% / 0.7);
+}
+.trn-cal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  margin-top: 14px;
+}
+.trn-cal-today {
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.trn-cal-confirm {
+  flex: 1;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(160deg, var(--primary-lift), var(--primary-ink));
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity 0.12s ease;
+}
+.trn-cal-confirm:active {
+  opacity: 0.88;
+}
+
+/* ── Building dropdown ── */
+.trn-bld-wrap {
+  position: relative;
+}
+.trn-bld-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 13px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.trn-bld-trigger:focus {
+  outline: none;
+  border-color: var(--primary-lift);
+  box-shadow: 0 0 0 3px var(--primary-09);
+}
+.trn-bld-trigger[data-open="true"] {
+  border-color: var(--primary-lift);
+  box-shadow: 0 0 0 3px var(--primary-09);
+}
+.trn-bld-trigger .trn-bld-val {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trn-bld-trigger .trn-bld-ph {
+  flex: 1;
+  color: var(--faint);
+  font-weight: 600;
+}
+.trn-bld-trigger svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--faint);
+  transition: transform 0.15s ease;
+}
+.trn-bld-trigger[data-open="true"] svg {
+  transform: rotate(180deg);
+}
+.trn-bld-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(20, 28, 40, 0.10);
+  overflow: hidden;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.trn-bld-opt {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  height: 44px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+.trn-bld-opt:not(:last-child) {
+  border-bottom: 1px solid var(--line);
+}
+.trn-bld-opt:active {
+  background: var(--soft);
+}
+.trn-bld-opt.trn-bld-manual {
+  color: var(--primary);
+  font-size: 13px;
+}
+.trn-bld-manual-input {
+  margin-top: 6px;
 }

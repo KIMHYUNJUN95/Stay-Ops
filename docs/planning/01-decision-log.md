@@ -4,6 +4,21 @@ This file records important project decisions.
 
 ## 2026-06-25
 
+### Announcements — redesign direction reset to notice-only flow
+
+- Announcements are re-confirmed as a **simple official notice channel**, not a discussion surface.
+- The feature should focus on **notice delivery only**. Free conversation, questions, and feedback belong
+  in other modules (board / suggestions), not in announcements.
+- **Comments are no longer part of the target product direction.** Existing comment support in the
+  current implementation becomes legacy / cleanup scope for the later announcement refactor.
+- Important announcements should open as a **mobile bottom sheet popup**, following the shared
+  `BottomSheet` contract, rather than as a separate feature-specific modal pattern.
+- Announcement images must support **mobile pinch-to-zoom** (two-finger zoom in/out and pan). The
+  recommended structure is: bottom-sheet notice -> tap image -> dedicated zoomable image viewer.
+
+Why: the user explicitly wants announcements to stay simple and announcement-centered. Mixing them with
+discussion behavior weakens the channel and overlaps the board feature.
+
 ### Attendance / Payroll — transportation reimbursement planning direction confirmed
 
 - Transportation reimbursement is planned as an **attendance/payroll-adjacent reimbursement module**, not as a generic request form.

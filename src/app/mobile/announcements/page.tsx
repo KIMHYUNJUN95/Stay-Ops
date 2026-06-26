@@ -1,32 +1,57 @@
 import Link from "next/link";
-import Image from "next/image";
 import { redirect } from "next/navigation";
-import { Megaphone, MessageCircle, Users } from "lucide-react";
 import { AnnouncementPopup } from "@/components/announcements/announcement-popup";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getMobileNavBadges } from "@/lib/nav-badges";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { getAnnouncementDictionary } from "@/lib/announcement-i18n";
 import { getPopupDismissals, getVisibleAnnouncements } from "@/lib/announcements";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
+import type { OrganizationRole } from "@/config/roles";
 
-const ANNOUNCEMENT_PANEL =
-  "rounded-[28px] border border-slate-200/80 bg-surface shadow-[0_22px_46px_-32px_rgba(31,58,95,0.48)] backdrop-blur-none";
-const ANNOUNCEMENT_CARD =
-  "rounded-[24px] border border-slate-200/80 bg-surface shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none";
+function AlertIcon() {
+  return (
+    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 3.5l9 16H3l9-16z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/>
+      <path d="M12 10v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+      <circle cx="12" cy="16.7" r="1.05" fill="currentColor"/>
+    </svg>
+  );
+}
 
-function formatDate(value: string | null, locale: string) {
-  if (!value) {
-    return "";
-  }
+function ImageIcon() {
+  return (
+    <svg className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="4" y="5" width="16" height="14" rx="2.5" stroke="currentColor" strokeWidth="1.6"/>
+      <circle cx="9" cy="10" r="1.4" fill="currentColor"/>
+      <path d="M5 17l4.5-4.5 3 3L16 11l3 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
 
-  return new Intl.DateTimeFormat(locale, {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
+function toTokyoDate(dateStr: string | null): string {
+  if (!dateStr) return "";
+  return new Date(dateStr).toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
+}
+
+function formatDateLabel(dateStr: string | null, locale: string): string {
+  if (!dateStr) return "";
+  const tag = locale === "ko" ? "ko-KR" : locale === "ja" ? "ja-JP" : "en-US";
+  return new Intl.DateTimeFormat(tag, {
+    year: "numeric", month: "long", day: "numeric", timeZone: "Asia/Tokyo",
+  }).format(new Date(dateStr));
+}
+
+function targetLabel(
+  scope: string,
+  roles: string[],
+  copy: ReturnType<typeof getAnnouncementDictionary>
+): string {
+  if (scope === "everyone") return copy.targetScopes.everyone;
+  if (roles.length === 0) return copy.targetScopes.roles;
+  const names = roles.map((r) => copy.targetRoles[r as OrganizationRole] ?? r);
+  if (names.length <= 2) return names.join(", ");
+  return `${names[0]} +${names.length - 1}`;
 }
 
 export default async function MobileAnnouncementsPage() {
@@ -69,15 +94,29 @@ export default async function MobileAnnouncementsPage() {
       imageUrls: announcement.image_urls,
       isImportant: announcement.is_important,
       organizationId: announcement.organization_id,
+      publishedAt: announcement.published_at,
       title: announcement.title,
     }));
 
   const navBadges = await getMobileNavBadges();
 
+  // pinned 먼저, 그 다음 published_at 내림차순으로 이미 DB에서 정렬되어 옴
+  // Tokyo 기준 날짜로 그룹핑
+  const dateGroupMap = new Map<string, typeof announcements>();
+  for (const ann of announcements) {
+    const dateKey = toTokyoDate(ann.published_at);
+    const key = dateKey || "unknown";
+    if (!dateGroupMap.has(key)) {
+      dateGroupMap.set(key, []);
+    }
+    dateGroupMap.get(key)!.push(ann);
+  }
+
+  const dateGroups = Array.from(dateGroupMap.entries());
+
   return (
     <MobileShell
       activeItem="announcements"
-      appearance="announcement"
       badges={navBadges}
       title={copy.title}
     >
@@ -87,157 +126,70 @@ export default async function MobileAnnouncementsPage() {
         locale={session.user.preferredLanguage}
       />
 
-      <div className="space-y-5">
-        <div className={`${ANNOUNCEMENT_PANEL} relative overflow-hidden p-4`}>
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-12 -top-10 size-32 rounded-full bg-primary/10 blur-2xl"
-          />
-          <div className="relative flex items-start gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
-              <Megaphone className="size-5" aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">
-                {copy.publishedForYou}
-              </p>
-              <h2 className="mt-1 text-[22px] font-black leading-tight text-foreground">
-                {copy.latest}
-              </h2>
-              <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-                {copy.mobileDescription}
-              </p>
-            </div>
-          </div>
+      <h1 className="px-2 pt-2 pb-1 text-[22px] font-black tracking-tight">
+        {copy.title}
+      </h1>
+
+      {announcements.length === 0 ? (
+        <div className="px-4 py-12 text-center">
+          <p className="text-sm font-bold text-slate-500">{copy.mobileEmpty}</p>
         </div>
+      ) : (
+        <div>
+          {dateGroups.map(([dateKey, items]) => (
+            <div key={dateKey}>
+              <p className="ml-7 px-4 py-2 pb-3 text-[11.5px] font-extrabold text-slate-700">
+                {formatDateLabel(items[0]?.published_at ?? null, session.user.preferredLanguage)}
+              </p>
+              {items.map((ann, idx) => {
+                const isLast = idx === items.length - 1;
+                return (
+                  <Link
+                    key={ann.id}
+                    href={`/mobile/announcements/${ann.id}`}
+                    className="flex gap-[13px] items-start px-[18px] pb-[18px]"
+                  >
+                    {/* 도트 + 라인 */}
+                    <div className="w-[14px] shrink-0 flex flex-col items-center">
+                      <div
+                        className={`w-[9px] h-[9px] rounded-full mt-1 shrink-0 ${ann.is_important ? "bg-red-600" : "bg-primary"}`}
+                      />
+                      {!isLast && (
+                        <div className="flex-1 w-0.5 bg-border mt-1.5 min-h-[16px]" />
+                      )}
+                    </div>
 
-        {announcements.length === 0 ? (
-          <Card className={`${ANNOUNCEMENT_CARD} border-dashed p-6 text-center text-foreground`}>
-            <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
-              <Megaphone className="size-5" aria-hidden="true" />
+                    {/* 콘텐츠 */}
+                    <div className="flex-1 min-w-0 pb-1">
+                      {ann.is_important ? (
+                        <span className="inline-flex items-center gap-[3px] text-[10.5px] font-extrabold text-red-600 bg-red-50 px-2 py-[3px] rounded-full border border-red-200">
+                          <AlertIcon />
+                          {copy.important}
+                        </span>
+                      ) : (
+                        <span className="text-[10.5px] font-extrabold uppercase text-slate-500 tracking-wide">
+                          {targetLabel(ann.target_scope, ann.target_roles as string[], copy)}
+                        </span>
+                      )}
+                      <h3 className="mt-0.5 text-[14.5px] font-extrabold leading-snug line-clamp-2 text-foreground">
+                        {ann.title}
+                      </h3>
+                      <p className="mt-1.5 text-[11.5px] font-semibold text-slate-500">
+                        {targetLabel(ann.target_scope, ann.target_roles as string[], copy)}
+                        {" · "}
+                        {ann.author_name}
+                      </p>
+                    </div>
+
+                    {/* 이미지 아이콘 */}
+                    {ann.image_urls.length > 0 && <ImageIcon />}
+                  </Link>
+                );
+              })}
             </div>
-            <p className="mx-auto mt-4 max-w-xs text-sm font-bold leading-6 text-slate-500">
-              {copy.mobileEmpty}
-            </p>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {[
-              {
-                items: announcements.filter((announcement) => announcement.is_pinned),
-                label: copy.pinned,
-              },
-              {
-                items: announcements.filter((announcement) => !announcement.is_pinned),
-                label: copy.latest,
-              },
-            ].map((section) =>
-              section.items.length === 0 ? null : (
-                <section className="space-y-3" key={section.label}>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-black tracking-normal text-foreground">
-                      {section.label}
-                    </p>
-                    <span className="inline-flex h-8 min-w-9 items-center justify-center rounded-full border border-slate-200 bg-white px-2.5 text-xs font-black text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)]">
-                      {section.items.length}
-                    </span>
-                  </div>
-                  <div className="space-y-2.5">
-                    {section.items.map((announcement) => (
-                      <Link
-                        className="block"
-                        href={`/mobile/announcements/${announcement.id}`}
-                        key={announcement.id}
-                      >
-                        <Card className={`${ANNOUNCEMENT_CARD} relative overflow-hidden p-4 text-foreground transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_42px_-30px_rgba(31,58,95,0.55)] active:scale-[0.99]`}>
-                          {announcement.is_pinned ? (
-                            <div
-                              aria-hidden="true"
-                              className="pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full bg-primary/70"
-                            />
-                          ) : null}
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                {announcement.is_important && (
-                                  <Badge className="rounded-full border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-black text-red-600">
-                                    {copy.important}
-                                  </Badge>
-                                )}
-                                {announcement.is_pinned && (
-                                  <Badge className="rounded-full border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-black text-primary">
-                                    {copy.pinned}
-                                  </Badge>
-                                )}
-                              </div>
-                              <h3 className="line-clamp-2 break-words text-[17px] font-black leading-snug tracking-normal text-foreground">
-                                {announcement.title}
-                              </h3>
-                              <p className="line-clamp-3 whitespace-pre-line text-[13px] font-semibold leading-5 text-slate-600">
-                                {announcement.content}
-                              </p>
-                            </div>
-                            {announcement.image_urls[0] ? (
-                              <Image
-                                alt=""
-                                className="mt-1 h-[72px] w-[72px] shrink-0 rounded-xl object-cover shadow-sm"
-                                height={72}
-                                src={announcement.image_urls[0]}
-                                width={72}
-                              />
-                            ) : null}
-                          </div>
-
-                          <div className="mt-3 border-t border-slate-200/80 pt-2.5">
-                            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-xs text-slate-500">
-                              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                                <span className="max-w-[9rem] truncate font-semibold text-slate-800">
-                                  {announcement.author_name}
-                                </span>
-                                <span
-                                  aria-hidden="true"
-                                  className="text-slate-300"
-                                >
-                                  &middot;
-                                </span>
-                                <span className="font-medium">
-                                  {formatDate(
-                                    announcement.published_at,
-                                    session.user.preferredLanguage,
-                                  )}
-                                </span>
-                              </div>
-                              <span className="inline-flex shrink-0 items-center gap-2 font-medium">
-                                <span className="inline-flex items-center gap-1">
-                                  <Users className="size-3.5" aria-hidden="true" />
-                                  {copy.target}
-                                </span>
-                                <span
-                                  aria-hidden="true"
-                                  className="text-slate-300"
-                                >
-                                  &middot;
-                                </span>
-                                <span className="inline-flex items-center gap-1">
-                                  <MessageCircle
-                                    className="size-3.5"
-                                    aria-hidden="true"
-                                  />
-                                  {announcement.comment_count}
-                                </span>
-                              </span>
-                            </div>
-                          </div>
-                        </Card>
-                      </Link>
-                    ))}
-                  </div>
-                </section>
-              ),
-            )}
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </MobileShell>
   );
 }

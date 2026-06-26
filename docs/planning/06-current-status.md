@@ -27,6 +27,12 @@ A five-feature batch was approved on 2026-06-09 as the next build scope after th
 
 Additional planning draft outside that batch:
 
+- **Announcements redesign reset (2026-06-26)** — product direction is being simplified back to a
+  **notice-only channel**. Important announcements should surface as a **shared BottomSheet popup** on
+  mobile, not a feature-specific centered modal pattern. Announcement images must support **mobile
+  pinch-to-zoom** via a dedicated zoomable viewer. Existing announcement comments are now considered
+  **legacy implementation** and should be removed from the target flow in a later refactor. Source of
+  truth: Product `11`, decision log `2026-06-26`.
 - **Transportation Reimbursement (attendance/payroll-adjacent)** — planning draft added on
   **2026-06-25** inside Product `21` + Tech-design `11`. Direction confirmed: **per-user monthly
   ledger**, list UI (not cards), **mandatory receipt/screenshot photo evidence on every item**, linked
@@ -36,6 +42,20 @@ Additional planning draft outside that batch:
   **Attendance Home → 바로가기**, as a new row placed **directly below `시급 급여`**. Important accounting
   rule: reimbursement remains **separate from hourly gross wages** even though it sits in the same
   operating/payroll domain.
+  - **DB 1차 구현 (2026-06-26): 스키마·RLS·타입.** 마이그레이션 `202606260001_transport_reimbursement.sql`
+    추가 — 3개 테이블 `transport_reimbursement_reports`(user-month 원장, `status`
+    draft/submitted/reviewing/approved/rejected, `total_amount_cached`, 유니크
+    `(org,user,target_month)`) / `transport_reimbursement_items`(`usage_date`·`amount_yen`>0·
+    `entry_mode` linked/manual·optional `attendance_session_id`/`property_id`/`room_id`·
+    `work_context jsonb`) / `transport_reimbursement_item_images`(증빙 이미지, `storage_path`).
+    **급여(`attendance_month_snapshots`)와 완전 별개.** RLS: 쓰기 정책 없음(서비스롤 전용), SELECT는
+    본인 또는 `can_manage_attendance_payroll`(owner/`attendance_payroll_admin`/platform admin) —
+    attendance와 동일 헬퍼 재사용, `set_updated_at()` 트리거 공유. 스토리지: `request-images` 버킷에
+    교통비용 **5단계 경로** 정책(`{org}/transport-reimbursements/{report_id}/{item_id}/{file}`) 추가
+    (기존 4단계 정책과 OR 공존). `src/types/database.ts`에 3개 테이블 타입 추가. 관련 문서: data-model `04` + RLS `05` + Tech-design `11`(스키마 정의). 🚨
+    **이 마이그레이션은 아직 Supabase에 적용되지 않았습니다** — Dashboard SQL editor 또는
+    `supabase db push`로 적용 필요.
+  - **교통비 제출 백엔드 구현 완료 (2026-06-26).** DB schema (3개 테이블), query layer, server actions, storage policy 전부 완료. 급여(`attendance_month_snapshots`)와 완전 별개로 분리된 모듈. **Query layer** `src/lib/transport-reimbursement.ts`: `getOrCreateTransportReport`(UPSERT) · `getTransportItems`(items + images) · `getLinkedTransportCandidates`(선택 월 attendance/cleaning 기반 후보 생성, DB 미저장) · `syncReportTotalAmount` · admin 전용 2개 함수. **Server actions** `src/app/mobile/attendance/transport/actions.ts`: `createTransportItemAction`(report 자동 생성, draft/rejected 상태에서만 허용) · `updateTransportItemAction` · `deleteTransportItemAction`(storage 파일 정리 후 cascade) · `addTransportItemImageAction` · `deleteTransportItemImageAction` · `submitTransportReportAction`(증빙 누락 항목 있으면 `missing_evidence` 오류로 제출 차단). **프론트엔드 연결 pending:** transport/page.tsx + transport-statement.tsx mock 제거 및 실데이터 주입은 같은 작업 사이클에서 완료 예정. 상세: Tech-design `11` "As-built — Transport Reimbursement Backend (2026-06-26)".
 - **Bug Report / Problem Report** — **1차 구현 중 (2026-06-25): DB·서버 액션·UI wire-up·알림.** StayOps 앱/시스템 버그 신고 모듈. 라우트 `/mobile/bugs` (목록·작성·상세 3개 화면). 리뷰어: `owner`, `office_admin`. 알림 타입 `bug_report_activity` (`created` → 리뷰어, `status_changed` → 작성자). 스토리지: `request-images` 버킷 재사용. **i18n 배선 완료 (2026-06-25):** 1차 UI가 하드코딩 한국어로 나가던 것을 전부 `getDictionary(locale).bugs` 소비로 교체(서버 페이지 → `copy` prop → 클라이언트, board/tasks 패턴 동일). 상태 라벨은 `bugStatusLabel(copy, status)` 단일 출처, `BugStatusBadge`는 `label` 필수. aria/alt 키 5개 보강(ko/ja/en). 1차 deferred: admin web, 수정 페이지, `cs_staff` 리뷰어 확장. 관련 문서: Product `25` + Tech-design `13` + data-model `04` + RLS `05` (갱신 완료 2026-06-25).
 
 Build order and readiness:
@@ -2372,3 +2392,51 @@ Files: `src/app/mobile/board/[id]/actions.ts`, `src/lib/board-queries.ts`,
 
 Verification: `npm run lint` + `npm run build` pass. End-to-end behavior pending the matching DB
 migration (`mentioned_user_ids` / `mention_all` columns) from database-engineer.
+
+### 2026-06-26 — 교통비 정산 백엔드 (query layer + server actions)
+
+급여(payroll)와 완전 분리된 증빙 기반 교통비 정산 모듈의 서버 사이드 구현. 마이그레이션
+(`202606260001_transport_reimbursement.sql`, 3개 테이블 + 5단계 storage 경로 정책)은 이미 작성됨.
+
+Query layer `src/lib/transport-reimbursement.ts` (server-only, caller-agnostic):
+`getOrCreateTransportReport`, `getTransportReport`, `getTransportItems` (items+images),
+`getLinkedTransportCandidates` (선택 월의 attendance_sessions + cleaning_sessions에서 후보 생성 —
+DB 미저장, 쿼리 계산), `syncReportTotalAmount`, `getTransportReportSummaryForAdmin`,
+`getTransportReportUserDetailForAdmin`. 모든 함수 organization-scoped. cleaning_sessions는
+property_id가 없어 room_label → rooms → properties 매칭으로 건물명 해석.
+
+Server actions `src/app/mobile/attendance/transport/actions.ts` (self-only, service-role write):
+`createTransportItemAction` (report 자동 생성, draft/rejected에서만 편집 가능),
+`updateTransportItemAction`, `deleteTransportItemAction` (storage 파일 선삭제 후 cascade),
+`addTransportItemImageAction` / `deleteTransportItemImageAction` (5단계 경로 검증),
+`submitTransportReportAction` (항목 0개 → `no_items`, 증빙 누락 → `missing_evidence`로 제출 차단).
+오류는 코드만 반환(i18n 미포함), UI 문자열 없음. 교통비 total은 wage/payroll과 절대 섞지 않음.
+
+타입 주의: `transport_reimbursement_*` 테이블이 아직 `src/types/database.ts`에 생성되지 않아
+service-client 접근을 로컬 `untyped()` 캐스트로 우회 중. database.ts 재생성 시 제거 예정
+(database-engineer).
+
+Files: `src/lib/transport-reimbursement.ts`,
+`src/app/mobile/attendance/transport/actions.ts`,
+`docs/engineering/11-attendance-payroll-technical-design.md` (As-built 섹션).
+
+Verification: `npm run lint` + `npm run build` pass.
+
+### 2026-06-26 — 모바일 공지 댓글 UI 제거 (레거시 정리)
+
+모바일 공지 상세(`src/app/mobile/announcements/[id]/page.tsx`)에서 댓글 섹션을 제거.
+`AnnouncementCommentsSection` 렌더링, `getAnnouncementComments` 호출, 댓글 관련
+`searchParams`(error/commentSaved/commentUpdated/commentDeleted) 처리, 관련 import를 삭제.
+읽음 추적(`ensureAnnouncementRead`)은 그대로 유지 — 서버 로직은 살아 있고 모바일 UI 블록만 제거.
+
+보존 대상(어드민 공용이라 미변경): `src/lib/announcements.ts`의
+`getAnnouncementComments`/`ensureAnnouncementRead`, 댓글 server actions
+(`createAnnouncementComment`/`updateAnnouncementComment`/`deleteAnnouncementComment` —
+`src/app/announcements/actions.ts`), `AnnouncementCommentsSection` 컴포넌트,
+어드민 상세(`src/app/admin/announcements/[id]/page.tsx`)는 계속 댓글을 렌더. DB 스키마
+(`announcement_comments` 테이블, `allow_comments` 컬럼)는 미변경.
+
+Files: `src/app/mobile/announcements/[id]/page.tsx`,
+`docs/product/11-announcement-workflow.md`.
+
+Verification: `npm run lint` + `npm run build` pass.

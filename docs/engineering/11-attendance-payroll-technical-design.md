@@ -528,6 +528,34 @@ UI-only pass over the self history + pay screens (no policy/schema change beyond
   widened/rebalanced (`36px 1fr 44px 76px 70px`) with `text-overflow: ellipsis` on the break/paid cells
   so ?닿쾶쨌?몄젙쨌?쇨툒 no longer collide.
 
+## As-built — Transport Reimbursement Backend (2026-06-26)
+
+교통비 정산 백엔드 구현 완료. 급여(payroll)와 완전 분리된 증빙 기반 비용 정산 모듈.
+
+- **마이그레이션** `202606260001_transport_reimbursement.sql`:
+  - `transport_reimbursement_reports` — 사용자별 월 1개; status `draft/submitted/reviewing/approved/rejected`; `total_amount_cached` (소스 of truth는 items, 캐시 전용)
+  - `transport_reimbursement_items` — 항목 (usage_date, amount_yen, entry_mode, attendance_session_id nullable, property_id/room_id nullable, work_context jsonb)
+  - `transport_reimbursement_item_images` — 항목당 증빙 이미지
+  - RLS: 사용자는 자기 데이터 SELECT만; owner/attendance_payroll_admin은 조직 전체 SELECT; 모든 write는 service-role
+  - 스토리지 정책: `request-images` 버킷에 5단계 경로 정책 추가 (`{org_id}/transport-reimbursements/{report_id}/{item_id}/{file}`)
+
+- **Query layer** `src/lib/transport-reimbursement.ts`:
+  - `getOrCreateTransportReport` — UPSERT (draft 생성 또는 기존 반환)
+  - `getTransportReport` — nullable 반환
+  - `getTransportItems` — report_id로 items + images 조회
+  - `getLinkedTransportCandidates` — 선택 월의 attendance_sessions + cleaning_sessions 읽어 후보 생성 (DB 미저장, 쿼리에서 계산)
+  - `syncReportTotalAmount` — items 합계를 total_amount_cached에 반영
+  - `getTransportReportSummaryForAdmin` / `getTransportReportUserDetailForAdmin` — 관리자 전용
+
+- **Server actions** `src/app/mobile/attendance/transport/actions.ts`:
+  - `createTransportItemAction` — report 자동 생성, draft/rejected 상태에서만 허용
+  - `updateTransportItemAction` — 소유권 + 상태 검증 후 수정
+  - `deleteTransportItemAction` — storage 파일 정리 후 cascade 삭제
+  - `addTransportItemImageAction` / `deleteTransportItemImageAction`
+  - `submitTransportReportAction` — 증빙 누락 항목 있으면 `missing_evidence` 오류로 제출 차단
+
+- **프론트엔드 연결 상태**: UI (transport/page.tsx + transport-statement.tsx) mock 제거 및 실데이터 주입은 같은 작업 사이클에서 완료 예정. 현재 transport-statement.tsx는 MOCK_ITEMS 사용 중 → 실데이터 props로 전환 필요.
+
 ## Purpose
 
 This document turns the confirmed attendance / hourly-pay policy into an implementation-ready technical direction.

@@ -30,8 +30,9 @@ export function AnnouncementImageGrid({
   );
 
   if (variant === "feature") {
+    const isSingle = imageUrls.length === 1;
     return (
-      <div className="mt-4 space-y-2">
+      <div className={isSingle ? "mt-4" : "mt-4 grid grid-cols-2 gap-2"}>
         {imageUrls.map((url, index) => (
           <button
             className="group block w-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white text-left shadow-[0_14px_28px_-24px_rgba(31,58,95,0.42)]"
@@ -41,11 +42,11 @@ export function AnnouncementImageGrid({
           >
             <Image
               alt={`Announcement attachment ${index + 1}`}
-              className="aspect-[16/10] w-full object-cover transition-transform group-hover:scale-[1.02]"
-              height={800}
-              sizes="(max-width: 640px) 100vw, 460px"
+              className="h-[160px] w-full object-cover transition-transform group-hover:scale-[1.02]"
+              height={480}
+              sizes={isSingle ? "(max-width: 640px) 100vw, 460px" : "(max-width: 640px) 50vw, 230px"}
               src={url}
-              width={1280}
+              width={960}
             />
           </button>
         ))}

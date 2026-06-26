@@ -709,6 +709,135 @@ export type Database = {
           user_id?: string | null;
         };
       };
+      transport_reimbursement_reports: {
+        Insert: {
+          created_at?: string;
+          id?: string;
+          organization_id: string;
+          review_note?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by_user_id?: string | null;
+          status?: string;
+          submitted_at?: string | null;
+          target_month: string;
+          total_amount_cached?: number;
+          updated_at?: string;
+          user_id: string;
+        };
+        Row: {
+          created_at: string;
+          id: string;
+          organization_id: string;
+          review_note: string | null;
+          reviewed_at: string | null;
+          reviewed_by_user_id: string | null;
+          status: string;
+          submitted_at: string | null;
+          target_month: string;
+          total_amount_cached: number;
+          updated_at: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          organization_id?: string;
+          review_note?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by_user_id?: string | null;
+          status?: string;
+          submitted_at?: string | null;
+          target_month?: string;
+          total_amount_cached?: number;
+          updated_at?: string;
+          user_id?: string;
+        };
+      };
+      transport_reimbursement_items: {
+        Insert: {
+          amount_yen: number;
+          attendance_session_id?: string | null;
+          created_at?: string;
+          entry_mode?: string;
+          id?: string;
+          memo?: string | null;
+          organization_id: string;
+          property_id?: string | null;
+          report_id: string;
+          room_id?: string | null;
+          sort_order?: number;
+          updated_at?: string;
+          usage_date: string;
+          user_id: string;
+          work_context?: Json;
+        };
+        Row: {
+          amount_yen: number;
+          attendance_session_id: string | null;
+          created_at: string;
+          entry_mode: string;
+          id: string;
+          memo: string | null;
+          organization_id: string;
+          property_id: string | null;
+          report_id: string;
+          room_id: string | null;
+          sort_order: number;
+          updated_at: string;
+          usage_date: string;
+          user_id: string;
+          work_context: Json;
+        };
+        Update: {
+          amount_yen?: number;
+          attendance_session_id?: string | null;
+          created_at?: string;
+          entry_mode?: string;
+          id?: string;
+          memo?: string | null;
+          organization_id?: string;
+          property_id?: string | null;
+          report_id?: string;
+          room_id?: string | null;
+          sort_order?: number;
+          updated_at?: string;
+          usage_date?: string;
+          user_id?: string;
+          work_context?: Json;
+        };
+      };
+      transport_reimbursement_item_images: {
+        Insert: {
+          created_at?: string;
+          id?: string;
+          item_id: string;
+          organization_id: string;
+          report_id: string;
+          sort_order?: number;
+          storage_path: string;
+          user_id: string;
+        };
+        Row: {
+          created_at: string;
+          id: string;
+          item_id: string;
+          organization_id: string;
+          report_id: string;
+          sort_order: number;
+          storage_path: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          item_id?: string;
+          organization_id?: string;
+          report_id?: string;
+          sort_order?: number;
+          storage_path?: string;
+          user_id?: string;
+        };
+      };
       tasks: {
         Insert: {
           all_day?: boolean;

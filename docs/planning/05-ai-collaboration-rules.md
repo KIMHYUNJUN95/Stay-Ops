@@ -83,6 +83,11 @@ When implementation begins:
 - Use TypeScript.
 - Avoid hardcoded UI strings.
 - Use i18n keys for all visible UI text. An automated guard (`npm run check:i18n`, part of `npm test`) fails on hardcoded Korean/Japanese/Kanji literals under `src/app` / `src/components`; legitimate domain data must use an `i18n-ignore` directive with justification.
+- This applies to **all feature additions and all feature modifications without exception**.
+- Do not ship or stage a feature with Korean-only hardcoded UI copy on the assumption that translation
+  can be added later.
+- New UX must be **multilingual by design from the first implementation pass**: `ko`, `ja`, and `en`
+  must be added together for visible copy.
 - Use shared types where possible.
 - Keep permissions enforced server-side/database-side, not only in UI.
 - Keep mobile PWA and admin web behavior role-aware.

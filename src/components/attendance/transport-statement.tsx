@@ -2,61 +2,86 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import "./transport.css";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
+import { CalendarPanel } from "./transport-date-sheet";
 import { getDictionary, type Dictionary } from "@/lib/i18n";
+import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { compressImageFile } from "@/components/announcements/announcement-image-uploader";
+import {
+  createTransportItemAction,
+  updateTransportItemAction,
+  deleteTransportItemAction,
+  addTransportItemImageAction,
+  submitTransportReportAction,
+} from "@/app/mobile/attendance/transport/actions";
+import type {
+  TransportItemRow,
+  TransportReportRow,
+  LinkedTransportCandidate,
+} from "@/lib/transport-reimbursement";
 
 type TransportItem = {
-  id: number;
-  date: string;
+  id: string;
+  date: string;         // 'YYYY-MM-DD'
   building: string;
   context: string;
   amount: number;
   receiptCount: number;
   mode: "linked" | "manual";
   missingReceipt?: boolean;
-  /** 객실 번호 (상세 시트용). 없으면 context로 폴백. */
   rooms?: string;
-  /** 메모 (상세 시트용). 없으면 폴백 문구. */
   memo?: string;
 };
 
 type Props = {
   locale: string;
   userName: string;
-  teamName: string;
+  organizationId: string;
+  report: TransportReportRow;
+  initialItems: TransportItemRow[];
+  linkedCandidates: LinkedTransportCandidate[];
+  monthKey: string;   // 'YYYY-MM'
   monthLabel: string;
 };
 
-// Mock data — 6월 1일부터 26일까지 임의 교통비 항목
-const MOCK_ITEMS: TransportItem[] = [
-  { id: 1,  date: "6/1",  building: "아라키초B", context: "201, 202, 301", amount: 860, receiptCount: 2, mode: "linked" },
-  { id: 2,  date: "6/2",  building: "오쿠보C",   context: "302 청소",       amount: 420, receiptCount: 1, mode: "manual" },
-  { id: 3,  date: "6/3",  building: "신주쿠A",   context: "청소 3건",       amount: 640, receiptCount: 1, mode: "linked" },
-  { id: 4,  date: "6/4",  building: "아라키초B", context: "",              amount: 300, receiptCount: 1, mode: "manual" },
-  { id: 5,  date: "6/5",  building: "오쿠보C",   context: "점검 동행",      amount: 520, receiptCount: 0, mode: "manual", missingReceipt: true },
-  { id: 6,  date: "6/6",  building: "신주쿠A",   context: "201, 205",      amount: 580, receiptCount: 2, mode: "linked" },
-  { id: 7,  date: "6/7",  building: "아라키초B", context: "301",           amount: 300, receiptCount: 1, mode: "linked" },
-  { id: 8,  date: "6/8",  building: "오쿠보C",   context: "",              amount: 420, receiptCount: 1, mode: "manual" },
-  { id: 9,  date: "6/9",  building: "신주쿠A",   context: "청소 2건",       amount: 480, receiptCount: 1, mode: "linked" },
-  { id: 10, date: "6/10", building: "아라키초B", context: "201, 202",      amount: 700, receiptCount: 2, mode: "linked" },
-  { id: 11, date: "6/11", building: "오쿠보C",   context: "303 점검",       amount: 420, receiptCount: 1, mode: "manual" },
-  { id: 12, date: "6/12", building: "아라키초B", context: "201, 202, 301", amount: 860, receiptCount: 2, mode: "linked" },
-  { id: 13, date: "6/13", building: "신주쿠A",   context: "",              amount: 300, receiptCount: 0, mode: "manual", missingReceipt: true },
-  { id: 14, date: "6/14", building: "오쿠보C",   context: "302 청소",       amount: 420, receiptCount: 1, mode: "linked" },
-  { id: 15, date: "6/15", building: "오쿠보C",   context: "점검 동행",      amount: 520, receiptCount: 1, mode: "manual" },
-  { id: 16, date: "6/16", building: "아라키초B", context: "301, 302",      amount: 700, receiptCount: 2, mode: "linked" },
-  { id: 17, date: "6/17", building: "신주쿠A",   context: "201 청소",       amount: 300, receiptCount: 1, mode: "linked" },
-  { id: 18, date: "6/18", building: "오쿠보C",   context: "",              amount: 420, receiptCount: 1, mode: "manual" },
-  { id: 19, date: "6/19", building: "아라키초B", context: "201, 202, 301", amount: 860, receiptCount: 2, mode: "linked" },
-  { id: 20, date: "6/20", building: "신주쿠A",   context: "청소 3건",       amount: 640, receiptCount: 1, mode: "linked" },
-  { id: 21, date: "6/21", building: "오쿠보C",   context: "303 점검",       amount: 420, receiptCount: 0, mode: "manual", missingReceipt: true },
-  { id: 22, date: "6/22", building: "신주쿠A",   context: "202 청소",       amount: 300, receiptCount: 1, mode: "linked" },
-  { id: 23, date: "6/23", building: "아라키초B", context: "201",           amount: 300, receiptCount: 1, mode: "manual" },
-  { id: 24, date: "6/24", building: "오쿠보C",   context: "302, 303",      amount: 580, receiptCount: 2, mode: "linked" },
-  { id: 25, date: "6/25", building: "아라키초B", context: "301",           amount: 300, receiptCount: 1, mode: "manual" },
-  { id: 26, date: "6/26", building: "신주쿠A",   context: "205 청소",       amount: 480, receiptCount: 1, mode: "linked" },
-];
+function mapItemRow(row: TransportItemRow): TransportItem {
+  const ctx = row.workContext ?? {};
+  return {
+    id: row.id,
+    date: row.usageDate,
+    building: ctx.buildingLabel ?? "",
+    context: ctx.contextSummary ?? "",
+    amount: row.amountYen,
+    receiptCount: row.images.length,
+    mode: row.entryMode,
+    missingReceipt: row.images.length === 0,
+    rooms: ctx.roomLabel ?? undefined,
+    memo: row.memo ?? undefined,
+  };
+}
+
+// 이미지 파일을 압축 후 Storage에 업로드하고 storagePath 반환.
+async function uploadTransportImage(
+  file: File,
+  organizationId: string,
+  reportId: string,
+  itemId: string,
+): Promise<string> {
+  const compressed = await compressImageFile(file);
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+  const filename = `${crypto.randomUUID()}.${ext}`;
+  const storagePath = `${organizationId}/transport-reimbursements/${reportId}/${itemId}/${filename}`;
+
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.storage
+    .from("request-images")
+    .upload(storagePath, compressed, { contentType: compressed.type, upsert: false });
+
+  if (error) throw new Error("upload_failed");
+  return storagePath;
+}
 
 function PlusIcon() {
   return (
@@ -188,11 +213,9 @@ function fmtYen(n: number): string {
   return `¥${n.toLocaleString("ja-JP")}`;
 }
 
-/** "6/2" → { full: "6월 2일", weekday: "월" } (Tokyo, 2026년 기준) */
-function fmtDateParts(date: string, localeTag: string): { full: string; weekday: string } {
-  const [m, d] = date.split("/").map((x) => parseInt(x, 10));
-  const iso = `2026-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}T00:00:00+09:00`;
-  const dt = new Date(iso);
+/** 'YYYY-MM-DD' → { full: "6월 2일", weekday: "월" } (Tokyo 기준) */
+function fmtDateParts(isoDate: string, localeTag: string): { full: string; weekday: string } {
+  const dt = new Date(`${isoDate}T00:00:00+09:00`);
   const full = new Intl.DateTimeFormat(localeTag, {
     month: "long",
     day: "numeric",
@@ -205,11 +228,30 @@ function fmtDateParts(date: string, localeTag: string): { full: string; weekday:
   return { full, weekday };
 }
 
+/** 'YYYY-MM-DD' → "6월 2일 (월)" (날짜 필드 표시) */
+function fmtDateFull(isoDate: string, localeTag: string): string {
+  const { full, weekday } = fmtDateParts(isoDate, localeTag);
+  return `${full} (${weekday})`;
+}
+
+/** 'YYYY-MM-DD' → 'M/D' (리스트 행 날짜 표시) */
+function shortDateLabel(isoDate: string): string {
+  const dt = new Date(`${isoDate}T00:00:00+09:00`);
+  const m = dt.getMonth() + 1;
+  const d = dt.getDate();
+  return `${m}/${d}`;
+}
+
 /** context "201, 202, 301" → "201 · 202 · 301" */
 function roomsLabel(item: TransportItem): string {
   const raw = item.rooms ?? item.context;
   if (!raw) return "-";
   return raw.replace(/\s*,\s*/g, " · ");
+}
+
+// Tokyo 오늘 날짜를 'YYYY-MM-DD' 형식으로 반환.
+function getTodayTokyo(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
 }
 
 function ItemBadge({ item, dict }: { item: TransportItem; dict: Dictionary }) {
@@ -223,24 +265,148 @@ function ItemBadge({ item, dict }: { item: TransportItem; dict: Dictionary }) {
   return <span className="trn-mn">{t.badgeManual(item.receiptCount)}</span>;
 }
 
-function AddItemSheet({ dict, onClose }: { dict: Dictionary; onClose: () => void }) {
+// 실제 운영 건물 키(고정 순서). 표시 라벨은 i18n(dict.transport.buildings)에서 로케일별로 가져온다.
+// 하드코딩된 한국어 문자열 대신 키만 보유 → 다국어 지원.
+const BUILDING_KEYS = [
+  "arakichoA",
+  "arakichoB",
+  "kabukicho",
+  "takadanobaba",
+  "okuboA",
+  "okuboB",
+  "okuboC",
+  "sky",
+  "office",
+] as const;
+
+function AddItemSheet({
+  dict,
+  localeTag,
+  organizationId,
+  reportId,
+  monthKey,
+  onClose,
+  onCreated,
+}: {
+  dict: Dictionary;
+  localeTag: string;
+  organizationId: string;
+  reportId: string;
+  monthKey: string;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
   const t = dict.transport;
-  const [inputMode, setInputMode] = useState<"linked" | "manual">("linked");
+  const [inputMode, setInputMode] = useState<"linked" | "manual">("manual");
+  const [usageDate, setUsageDate] = useState(getTodayTokyo());
+  const [showCal, setShowCal] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [building, setBuilding] = useState("");
+  const [showBuildingList, setShowBuildingList] = useState(false);
+  const [memo, setMemo] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [pending, setPending] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const buildingWrapRef = useRef<HTMLDivElement>(null);
+
+  // 표시 라벨은 로케일별 i18n에서 — 컴포넌트에 건물명 하드코딩 없음.
+  const buildingOptions = BUILDING_KEYS.map((k) => t.buildings[k]);
+
+  useEffect(() => {
+    if (!showBuildingList) return;
+    function onOutside(e: MouseEvent) {
+      if (buildingWrapRef.current && !buildingWrapRef.current.contains(e.target as Node)) {
+        setShowBuildingList(false);
+      }
+    }
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [showBuildingList]);
+
+  async function handleSubmit() {
+    const amountNum = parseInt(amount.replace(/[^\d]/g, ""), 10);
+    if (!amountNum || amountNum <= 0) return;
+    setPending(true);
+    try {
+      const result = await createTransportItemAction({
+        targetMonth: monthKey,
+        usageDate,
+        amountYen: amountNum,
+        entryMode: inputMode,
+        buildingLabel: building.trim() || undefined,
+        memo: memo.trim() || null,
+      });
+      if (!result.ok) {
+        setPending(false);
+        return;
+      }
+      const itemId = result.itemId;
+      // 이미지가 있으면 compress → upload → DB 등록
+      for (const file of files) {
+        try {
+          const path = await uploadTransportImage(file, organizationId, reportId, itemId);
+          await addTransportItemImageAction(itemId, path);
+        } catch {
+          // 이미지 업로드 실패는 비치명적; 항목 자체는 생성 완료
+        }
+      }
+      onCreated();
+      onClose();
+    } catch {
+      setPending(false);
+    }
+  }
+
+  // 캘린더는 별도 시트로 분리 — 폼 시트와 동시에 뜨지 않으므로(둘 중 하나만 렌더)
+  // 겹침이 없고, 캘린더를 쓸어내리면(드래그 dismiss) 폼으로 자동 복귀한다.
+  // AddItemSheet 자체는 계속 마운트되어 폼 입력 상태가 보존된다.
+  if (showCal) {
+    return (
+      <BottomSheet key="trn-cal-sheet" onClose={() => setShowCal(false)}>
+        {({ close }) => (
+          <CalendarPanel
+            value={usageDate}
+            dict={dict}
+            localeTag={localeTag}
+            onConfirm={(d) => {
+              setUsageDate(d);
+              close();
+            }}
+            onBack={close}
+          />
+        )}
+      </BottomSheet>
+    );
+  }
 
   return (
-    <BottomSheet onClose={onClose} className="max-h-[88dvh] flex flex-col">
+    <BottomSheet key="trn-form-sheet" onClose={onClose} className="max-h-[88dvh] flex flex-col">
       <div className="trn trn-form">
         <div className="trn-sh-h">{t.addSheetTitle}</div>
 
         <div className="trn-row2">
           <div className="trn-tf">
             <div className="trn-tf-l">{t.fieldDate}</div>
-            <div className="trn-tf-in">6월 15일 (월)</div>
+            <button
+              type="button"
+              className="trn-tf-in trn-tf-btn"
+              onClick={() => setShowCal(true)}
+            >
+              <span className="trn-date-val">{fmtDateFull(usageDate, localeTag)}</span>
+              <CalIcon />
+            </button>
           </div>
           <div className="trn-tf">
             <div className="trn-tf-l">{t.fieldAmount} <b>*</b></div>
             <div className="trn-tf-in trn-amt-in">
-              520
+              <input
+                className="trn-input trn-input-amt"
+                inputMode="numeric"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0"
+                aria-label={t.fieldAmount}
+              />
               <span className="trn-un">{t.amountUnit}</span>
             </div>
           </div>
@@ -248,25 +414,67 @@ function AddItemSheet({ dict, onClose }: { dict: Dictionary; onClose: () => void
 
         <div className="trn-tf">
           <div className="trn-tf-l">{t.fieldBuilding}</div>
-          <div className="trn-tf-in">
-            오쿠보C <ChevDownIcon />
-          </div>
-        </div>
-
-        <div className="trn-tf">
-          <div className="trn-tf-l">{t.fieldContext}</div>
-          <div className="trn-tf-in">
-            <span className="trn-ph">점검 동행</span>
+          <div className="trn-bld-wrap" ref={buildingWrapRef}>
+            <button
+              type="button"
+              className="trn-bld-trigger"
+              data-open={showBuildingList ? "true" : undefined}
+              onClick={() => setShowBuildingList((v) => !v)}
+              aria-label={t.fieldBuilding}
+            >
+              {building ? (
+                <span className="trn-bld-val">{building}</span>
+              ) : (
+                <span className="trn-bld-ph">{t.fieldBuildingPlaceholder}</span>
+              )}
+              <ChevDownIcon />
+            </button>
+            {showBuildingList && (
+              <div className="trn-bld-list">
+                {buildingOptions.map((b) => (
+                  <button
+                    key={b}
+                    type="button"
+                    className="trn-bld-opt"
+                    onClick={() => {
+                      setBuilding(b);
+                      setShowBuildingList(false);
+                    }}
+                  >
+                    {b}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         <div className="trn-tf">
           <div className="trn-tf-l">{t.fieldReceipt}</div>
           <div className="trn-shots">
-            <div className="trn-shot" />
-            <button type="button" className="trn-shot-add" aria-label="사진 추가">
+            {files.map((f, i) => (
+              <div key={i} className="trn-shot" title={f.name} />
+            ))}
+            <button
+              type="button"
+              className="trn-shot-add"
+              aria-label="사진 추가"
+              onClick={() => fileInputRef.current?.click()}
+            >
               <CameraIcon />
             </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="sr-only"
+              onChange={(e) => {
+                if (e.target.files) {
+                  setFiles((prev) => [...prev, ...Array.from(e.target.files!)].slice(0, 5));
+                }
+              }}
+            />
           </div>
           <div className="trn-hint">
             <AlertIcon />
@@ -277,7 +485,13 @@ function AddItemSheet({ dict, onClose }: { dict: Dictionary; onClose: () => void
         <div className="trn-tf">
           <div className="trn-tf-l">{t.fieldMemo}</div>
           <div className="trn-tf-in">
-            <span className="trn-ph" style={{ color: "var(--faint)" }}>예) 왕복 교통비</span>
+            <input
+              className="trn-input"
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              placeholder={t.fieldMemoPlaceholder}
+              aria-label={t.fieldMemo}
+            />
           </div>
         </div>
 
@@ -303,7 +517,13 @@ function AddItemSheet({ dict, onClose }: { dict: Dictionary; onClose: () => void
           </div>
         </div>
 
-        <button type="button" className="trn-add-submit" onClick={onClose}>
+        <button
+          type="button"
+          className="trn-add-submit"
+          onClick={handleSubmit}
+          disabled={pending}
+        >
+          {pending ? <span className="trn-spin" /> : null}
           {t.addSheetSubmit}
         </button>
       </div>
@@ -424,19 +644,23 @@ function DetailSheet({
   );
 }
 
-/** Edit sheet — controlled form pre-filled from the item; saves real changes. */
+/** Edit sheet — 실제 서버 액션으로 저장. */
 function EditItemSheet({
   item,
   dict,
   localeTag,
+  organizationId,
+  reportId,
   onClose,
-  onSave,
+  onSaved,
 }: {
   item: TransportItem;
   dict: Dictionary;
   localeTag: string;
+  organizationId: string;
+  reportId: string;
   onClose: () => void;
-  onSave: (patch: Pick<TransportItem, "amount" | "context" | "memo" | "mode">) => void;
+  onSaved: (patch: Pick<TransportItem, "amount" | "context" | "memo" | "mode">) => void;
 }) {
   const t = dict.transport;
   const { full, weekday } = fmtDateParts(item.date, localeTag);
@@ -444,13 +668,39 @@ function EditItemSheet({
   const [context, setContext] = useState(item.context);
   const [memo, setMemo] = useState(item.memo ?? "");
   const [mode, setMode] = useState<"linked" | "manual">(item.mode);
+  const [files, setFiles] = useState<File[]>([]);
+  const [pending, setPending] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const buildPatch = () => ({
-    amount: Math.max(0, parseInt(amount.replace(/[^\d]/g, ""), 10) || 0),
-    context: context.trim(),
-    memo: memo.trim(),
-    mode,
-  });
+  async function handleSave(close: () => void) {
+    const amountNum = Math.max(0, parseInt(amount.replace(/[^\d]/g, ""), 10) || 0);
+    setPending(true);
+    try {
+      const result = await updateTransportItemAction({
+        itemId: item.id,
+        amountYen: amountNum,
+        memo: memo.trim() || null,
+        contextSummary: context.trim() || undefined,
+      });
+      if (!result.ok) {
+        setPending(false);
+        return;
+      }
+      // 새 이미지 추가
+      for (const file of files) {
+        try {
+          const path = await uploadTransportImage(file, organizationId, reportId, item.id);
+          await addTransportItemImageAction(item.id, path);
+        } catch {
+          // 이미지 업로드 실패는 비치명적
+        }
+      }
+      onSaved({ amount: amountNum, context: context.trim(), memo: memo.trim(), mode });
+      close();
+    } catch {
+      setPending(false);
+    }
+  }
 
   return (
     <BottomSheet onClose={onClose} className="max-h-[88dvh] flex flex-col">
@@ -508,16 +758,28 @@ function EditItemSheet({
               i < item.receiptCount ? (
                 <div key={i} className="trn-shot" />
               ) : (
-                <button key={i} type="button" className="trn-shot-add" aria-label="사진 추가">
+                <button key={i} type="button" className="trn-shot-add" aria-label="사진 추가" onClick={() => fileInputRef.current?.click()}>
                   <CameraIcon />
                 </button>
               ),
             )}
             {item.receiptCount < 2 && (
-              <button type="button" className="trn-shot-add" aria-label="사진 추가">
+              <button type="button" className="trn-shot-add" aria-label="사진 추가" onClick={() => fileInputRef.current?.click()}>
                 <CameraIcon />
               </button>
             )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="sr-only"
+              onChange={(e) => {
+                if (e.target.files) {
+                  setFiles((prev) => [...prev, ...Array.from(e.target.files!)].slice(0, 5));
+                }
+              }}
+            />
           </div>
         </div>
 
@@ -528,7 +790,7 @@ function EditItemSheet({
               className="trn-input"
               value={memo}
               onChange={(e) => setMemo(e.target.value)}
-              placeholder="예) 왕복 교통비"
+              placeholder={t.fieldMemoPlaceholder}
               aria-label={t.fieldMemo}
             />
           </div>
@@ -559,11 +821,10 @@ function EditItemSheet({
         <button
           type="button"
           className="trn-add-submit"
-          onClick={() => {
-            onSave(buildPatch());
-            close();
-          }}
+          disabled={pending}
+          onClick={() => handleSave(close)}
         >
+          {pending ? <span className="trn-spin" /> : null}
           {t.editSheetSubmit}
         </button>
       </div>
@@ -609,7 +870,7 @@ function DeleteConfirmSheet({
         <div className="trn">
           <div className="trn-confirm-card">
             <span className="k">
-              {item.date} · {item.building}
+              {shortDateLabel(item.date)} · {item.building}
             </span>
             <span className="v">{fmtYen(item.amount)}</span>
           </div>
@@ -680,27 +941,47 @@ function Toast({
   );
 }
 
-export function TransportStatement({ locale, userName, teamName, monthLabel }: Props) {
+// report status → i18n 키 매핑
+const STATUS_KEY_MAP: Record<string, string> = {
+  submitted: "statusSubmitted",
+  reviewing: "statusReviewing",
+  approved: "statusApproved",
+  rejected: "statusRejected",
+};
+
+export function TransportStatement({
+  locale,
+  userName,
+  organizationId,
+  report,
+  initialItems,
+  monthKey,
+  monthLabel,
+}: Props) {
   const dict = getDictionary(locale);
   const t = dict.transport;
   const localeTag = locale === "ja" ? "ja-JP" : locale === "en" ? "en-US" : "ko-KR";
+  const router = useRouter();
 
-  // Items live in state so add/edit/delete are real, verifiable interactions.
-  const [items, setItems] = useState<TransportItem[]>(MOCK_ITEMS);
+  const [items, setItems] = useState<TransportItem[]>(() => initialItems.map(mapItemRow));
   const [showAddSheet, setShowAddSheet] = useState(false);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  // One sheet at a time: detail slides OUT, then (per intent) edit/delete slides IN.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // 한 번에 하나의 시트만: detail 슬라이드아웃 후 edit/delete 진입
   const [showEdit, setShowEdit] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const intentRef = useRef<"edit" | "delete" | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: "ok" | "del" } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const total = items.reduce((s, x) => s + x.amount, 0);
   const selectedItem = items.find((x) => x.id === selectedId) ?? null;
 
+  // draft / rejected 상태만 편집 허용
+  const isEditable = report.status === "draft" || report.status === "rejected";
+
   const dismissToast = useCallback(() => setToast(null), []);
 
-  // Detail sheet finished its slide-out → open the next sheet (or clear selection).
+  // Detail sheet 슬라이드아웃 완료 → 다음 시트 열기(또는 선택 해제)
   const handleDetailClosed = useCallback(() => {
     const intent = intentRef.current;
     intentRef.current = null;
@@ -709,7 +990,7 @@ export function TransportStatement({ locale, userName, teamName, monthLabel }: P
     else setSelectedId(null);
   }, []);
 
-  const handleSave = useCallback(
+  const handleSaved = useCallback(
     (patch: Pick<TransportItem, "amount" | "context" | "memo" | "mode">) => {
       setItems((prev) =>
         prev.map((it) =>
@@ -717,34 +998,70 @@ export function TransportStatement({ locale, userName, teamName, monthLabel }: P
             ? {
                 ...it,
                 ...patch,
-                // 증빙이 있으면 누락 플래그 해제
                 missingReceipt: it.receiptCount > 0 ? undefined : it.missingReceipt,
               }
             : it,
         ),
       );
-      // showEdit는 시트의 슬라이드아웃(close) 후 onClose에서 false 처리됨.
       setToast({ message: t.toastSaved, tone: "ok" });
+      router.refresh();
     },
-    [selectedId, t.toastSaved],
+    [selectedId, t.toastSaved, router],
   );
 
   const handleDelete = useCallback(() => {
     const id = selectedId;
-    // 확인 모달의 슬라이드아웃(320ms)이 끝난 뒤 실제 제거 + 토스트
-    setTimeout(() => {
-      setItems((prev) => prev.filter((it) => it.id !== id));
+    // 확인 모달 슬라이드아웃(320ms) 후 실제 삭제 + 토스트
+    setTimeout(async () => {
+      if (!id) return;
+      const result = await deleteTransportItemAction(id);
       setShowDelete(false);
       setSelectedId(null);
-      setToast({ message: t.toastDeleted, tone: "del" });
+      if (result.ok) {
+        setItems((prev) => prev.filter((it) => it.id !== id));
+        setToast({ message: t.toastDeleted, tone: "del" });
+        router.refresh();
+      }
     }, 340);
-  }, [selectedId, t.toastDeleted]);
+  }, [selectedId, t.toastDeleted, router]);
+
+  async function handleSubmit() {
+    setSubmitting(true);
+    const result = await submitTransportReportAction(monthKey);
+    setSubmitting(false);
+    if (!result.ok) {
+      if (result.error === "missing_evidence") {
+        setToast({ message: t.submitErrorMissingEvidence, tone: "del" });
+      } else if (result.error === "no_items") {
+        setToast({ message: t.submitErrorNoItems, tone: "del" });
+      }
+      return;
+    }
+    setToast({ message: t.submitSuccess, tone: "ok" });
+    router.refresh();
+  }
+
+  // draft 이외 status 표시용 칩 라벨
+  const statusKey = STATUS_KEY_MAP[report.status];
+  const statusLabel = statusKey ? (t as Record<string, unknown>)[statusKey] as string : null;
 
   return (
     <div className="trn">
+      {/* 제출 후 상태 칩 */}
+      {statusLabel && (
+        <div className="trn-status-chip" data-status={report.status}>
+          {statusLabel}
+        </div>
+      )}
+
       {/* Top action bar */}
       <div className="trn-top">
-        <button type="button" className="trn-add" onClick={() => setShowAddSheet(true)}>
+        <button
+          type="button"
+          className="trn-add"
+          onClick={() => setShowAddSheet(true)}
+          disabled={!isEditable}
+        >
           <PlusIcon />
           {t.addBtn}
         </button>
@@ -760,7 +1077,7 @@ export function TransportStatement({ locale, userName, teamName, monthLabel }: P
         <div className="trn-dh">
           <div className="trn-dt">{t.statementTitle}</div>
           <div className="trn-dm">
-            <span>{userName} · {teamName}</span>
+            <span>{userName}</span>
             <span>{monthLabel}</span>
           </div>
           <div className="trn-tot">
@@ -784,7 +1101,7 @@ export function TransportStatement({ locale, userName, teamName, monthLabel }: P
             <span className="trn-no">{String(idx + 1).padStart(2, "0")}</span>
             <div className="trn-c">
               <div className="trn-c1">
-                <span className="trn-dt-label">{item.date}</span>
+                <span className="trn-dt-label">{shortDateLabel(item.date)}</span>
                 {item.building}
               </div>
               <div className="trn-c2">
@@ -807,13 +1124,27 @@ export function TransportStatement({ locale, userName, teamName, monthLabel }: P
 
       {/* Submit */}
       <div className="trn-acts">
-        <button type="button" className="trn-submit">
+        <button
+          type="button"
+          className="trn-submit"
+          disabled={!isEditable || submitting}
+          onClick={handleSubmit}
+        >
+          {submitting ? <span className="trn-spin" /> : null}
           {t.submitBtn}
         </button>
       </div>
 
-      {showAddSheet && (
-        <AddItemSheet dict={dict} onClose={() => setShowAddSheet(false)} />
+      {showAddSheet && isEditable && (
+        <AddItemSheet
+          dict={dict}
+          localeTag={localeTag}
+          organizationId={organizationId}
+          reportId={report.id}
+          monthKey={monthKey}
+          onClose={() => setShowAddSheet(false)}
+          onCreated={() => router.refresh()}
+        />
       )}
 
       {/* Detail sheet — only shows when neither edit nor delete is active (one sheet at a time) */}
@@ -833,21 +1164,23 @@ export function TransportStatement({ locale, userName, teamName, monthLabel }: P
       )}
 
       {/* Edit sheet — opens after the detail finishes sliding out */}
-      {selectedItem && showEdit && (
+      {selectedItem && showEdit && isEditable && (
         <EditItemSheet
           item={selectedItem}
           dict={dict}
           localeTag={localeTag}
+          organizationId={organizationId}
+          reportId={report.id}
           onClose={() => {
             setShowEdit(false);
             setSelectedId(null);
           }}
-          onSave={handleSave}
+          onSaved={handleSaved}
         />
       )}
 
       {/* Delete confirm — opens after the detail finishes sliding out */}
-      {selectedItem && showDelete && (
+      {selectedItem && showDelete && isEditable && (
         <DeleteConfirmSheet
           item={selectedItem}
           dict={dict}

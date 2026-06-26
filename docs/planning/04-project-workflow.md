@@ -91,6 +91,13 @@ Before implementation, define:
 
 Build in small vertical slices.
 
+Before writing UI for any new or changed feature:
+
+- do **not** hardcode Korean-only visible text
+- define the needed visible copy in `src/lib/i18n.ts`
+- add `ko`, `ja`, and `en` together in the same implementation cycle
+- treat multilingual design as part of the first implementation, not a later cleanup step
+
 Recommended first build order:
 
 ```txt

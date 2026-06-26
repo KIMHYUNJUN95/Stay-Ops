@@ -1,56 +1,68 @@
 import { notFound, redirect } from "next/navigation";
-import { CircleCheck, Megaphone } from "lucide-react";
-import { AnnouncementCommentsSection } from "@/components/announcements/announcement-comments-section";
 import { AnnouncementImageGrid } from "@/components/announcements/announcement-image-grid";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getMobileNavBadges } from "@/lib/nav-badges";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { getAnnouncementDictionary } from "@/lib/announcement-i18n";
 import {
   ensureAnnouncementRead,
-  getAnnouncementComments,
   getVisibleAnnouncementById,
 } from "@/lib/announcements";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
+import type { OrganizationRole } from "@/config/roles";
 
-const ANNOUNCEMENT_CARD =
-  "rounded-[24px] border border-slate-200/80 bg-surface shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)] backdrop-blur-none";
+function AlertIcon() {
+  return (
+    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 3.5l9 16H3l9-16z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/>
+      <path d="M12 10v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+      <circle cx="12" cy="16.7" r="1.05" fill="currentColor"/>
+    </svg>
+  );
+}
+
+function ExpandIcon() {
+  return (
+    <svg className="w-[14px] h-[14px]" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M9 4H5a1 1 0 00-1 1v4M15 4h4a1 1 0 011 1v4M9 20H5a1 1 0 01-1-1v-4M15 20h4a1 1 0 001-1v-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+    </svg>
+  );
+}
 
 type PageProps = {
   params: Promise<{
     id: string;
   }>;
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-function formatDate(value: string | null, locale: string) {
-  if (!value) {
-    return "";
-  }
-
-  return new Intl.DateTimeFormat(locale, {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
+function formatDate(value: string | null, locale: string): string {
+  if (!value) return "";
+  const tag = locale === "ko" ? "ko-KR" : locale === "ja" ? "ja-JP" : "en-US";
+  return new Intl.DateTimeFormat(tag, {
+    year: "numeric", month: "long", day: "numeric", timeZone: "Asia/Tokyo",
   }).format(new Date(value));
 }
 
-function firstParam(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
+function targetLabel(
+  scope: string,
+  roles: string[],
+  copy: ReturnType<typeof getAnnouncementDictionary>
+): string {
+  if (scope === "everyone") return copy.targetScopes.everyone;
+  if (roles.length === 0) return copy.targetScopes.roles;
+  const names = roles.map((r) => copy.targetRoles[r as OrganizationRole] ?? r);
+  if (names.length <= 2) return names.join(", ");
+  return `${names[0]} +${names.length - 1}`;
 }
 
 export default async function MobileAnnouncementDetailPage({
   params,
-  searchParams,
 }: PageProps) {
   const [state, session, routeParams] = await Promise.all([
     getOnboardingState(),
     getCurrentAppSession(),
     params,
   ]);
-  const query = (await searchParams) ?? {};
 
   if (state.status === "unauthenticated") {
     redirect(`/auth/login?next=/mobile/announcements/${routeParams.id}`);
@@ -71,127 +83,77 @@ export default async function MobileAnnouncementDetailPage({
     notFound();
   }
 
-  const [readAt, comments] = await Promise.all([
-    ensureAnnouncementRead(announcement, session.user.id),
-    getAnnouncementComments(announcement, session.user.id),
-  ]);
-  const errorKey = firstParam(query.error);
-  const errorMessage = errorKey
-    ? (copy.errors[errorKey] ?? copy.errors.comment_failed)
-    : null;
-  const successMessage =
-    firstParam(query.commentSaved) === "1"
-      ? copy.commentSaved
-      : firstParam(query.commentUpdated) === "1"
-        ? copy.commentUpdated
-        : firstParam(query.commentDeleted) === "1"
-          ? copy.commentDeleted
-          : null;
+  // 읽음 처리 — 결과값은 사용하지 않음
+  await ensureAnnouncementRead(announcement, session.user.id);
 
   const navBadges = await getMobileNavBadges();
+  const locale = session.user.preferredLanguage;
 
   return (
     <MobileShell
       activeItem="announcements"
-      appearance="announcement"
       badges={navBadges}
       title={copy.readAnnouncement}
     >
-      <div className="space-y-3">
+      <div className="px-5 pt-5 pb-10">
+        {/* 중요 칩 */}
+        {announcement.is_important && (
+          <span className="inline-flex items-center gap-[3px] text-[10.5px] font-extrabold text-red-600 bg-red-50 px-2 py-[3px] rounded-full border border-red-200">
+            <AlertIcon />
+            {copy.important}
+          </span>
+        )}
 
-        <Card className={`${ANNOUNCEMENT_CARD} relative overflow-hidden p-5 text-foreground`}>
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-12 -top-10 size-32 rounded-full bg-primary/10 blur-2xl"
-          />
-          <div className="relative">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            {announcement.is_important && (
-              <Badge className="rounded-full border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-black text-red-600">
-                {copy.important}
-              </Badge>
-            )}
-            <p className="text-xs font-bold text-slate-500">
+        {/* 제목 */}
+        <h1 className="text-[21px] font-black tracking-[-0.02em] leading-[1.3] mt-[11px]">
+          {announcement.title}
+        </h1>
+
+        {/* 메타 블록 */}
+        <div className="mt-4 mb-4 rounded-[13px] border border-border bg-surface p-[14px]">
+          <div className="flex justify-between py-[5px] text-xs">
+            <span className="text-[10.5px] font-extrabold tracking-[0.07em] uppercase text-slate-500">
+              {copy.publishedAt}
+            </span>
+            <span className="font-bold">
+              {formatDate(announcement.published_at, locale)}
+            </span>
+          </div>
+          <div className="flex justify-between py-[5px] text-xs border-t border-border/60">
+            <span className="text-[10.5px] font-extrabold tracking-[0.07em] uppercase text-slate-500">
               {copy.target}
-            </p>
+            </span>
+            <span className="font-bold">
+              {targetLabel(announcement.target_scope, announcement.target_roles as string[], copy)}
+            </span>
           </div>
-          <h2 className="break-words text-[24px] font-black leading-tight tracking-normal">
-            {announcement.title}
-          </h2>
-          <div className="mt-4 flex items-center gap-3 border-t border-slate-200/80 pt-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
-              <Megaphone className="size-4" aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-foreground">
-                {announcement.author_name}
-              </p>
-              <p className="line-clamp-2 text-xs leading-5 text-slate-500">
-                {announcement.organization_name}{" "}
-                <span
-                  aria-hidden="true"
-                  className="px-1 text-slate-300"
-                >
-                  ·
-                </span>
-                {formatDate(announcement.published_at, session.user.preferredLanguage)}
-              </p>
-            </div>
+          <div className="flex justify-between py-[5px] text-xs border-t border-border/60">
+            <span className="text-[10.5px] font-extrabold tracking-[0.07em] uppercase text-slate-500">
+              {copy.authorCredit}
+            </span>
+            <span className="font-bold">{announcement.author_name}</span>
           </div>
-          </div>
-        </Card>
+        </div>
 
-        <Card className={`${ANNOUNCEMENT_CARD} p-5 text-foreground`}>
-          <p className="whitespace-pre-line break-words text-[15px] font-semibold leading-7 text-slate-700">
-            {announcement.content}
-          </p>
-        </Card>
+        {/* 본문 */}
+        <p className="text-[14px] font-medium leading-[1.72] text-slate-600 whitespace-pre-line break-words">
+          {announcement.content}
+        </p>
 
-        {announcement.image_urls.length > 0 ? (
-          <Card className={`${ANNOUNCEMENT_CARD} p-4 text-foreground`}>
-            <p className="text-xs font-black uppercase tracking-[0.1em] text-slate-400">
-              {copy.imageAttachments} ({announcement.image_urls.length})
-            </p>
+        {/* 이미지 + 탭 힌트 */}
+        {announcement.image_urls.length > 0 && (
+          <div className="mt-5">
             <AnnouncementImageGrid
               imageUrls={announcement.image_urls}
               variant="feature"
             />
-          </Card>
-        ) : null}
-
-        <Card className={`${ANNOUNCEMENT_CARD} p-4 text-foreground`}>
-          <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/[0.06] px-3 py-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-surface text-primary ring-1 ring-primary/15">
-              <CircleCheck className="size-5" aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-foreground">
-                {copy.markAsRead}
-              </p>
-              <p className="text-xs text-slate-500">
-                {copy.markedAsRead}
-              </p>
+            <div className="flex items-center justify-center gap-1.5 mt-2 text-[11.5px] font-bold text-slate-500">
+              <ExpandIcon />
+              {copy.tapToZoom}
             </div>
           </div>
-          <div className="mt-3 rounded-2xl border border-slate-200/80 bg-white/82 px-3 py-2 text-xs font-bold text-slate-500 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)]">
-            {copy.readAt}:{" "}
-            {readAt
-              ? formatDate(readAt, session.user.preferredLanguage)
-              : copy.notReadYet}
-          </div>
-        </Card>
+        )}
       </div>
-
-      <AnnouncementCommentsSection
-        allowComments={announcement.allow_comments}
-        announcementId={announcement.id}
-        comments={comments}
-        errorMessage={errorMessage}
-        appearance="announcement"
-        locale={session.user.preferredLanguage}
-        returnTo={`/mobile/announcements/${announcement.id}`}
-        successMessage={successMessage}
-      />
     </MobileShell>
   );
 }

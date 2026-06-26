@@ -1064,6 +1064,9 @@ Tables (11):
 | `hourly_rate_history` | per-person `hourly_rate` with `effective_from`/`effective_to`. Past never changes. |
 | `attendance_month_snapshots` | per-person per-month payroll snapshot; `status` (draft/finalized/superseded/reopened), `total_paid_minutes`, `gross_amount`, `rate_breakdown jsonb`, `supersedes_snapshot_id`. One current row per user-month is server-enforced (historical rows intentional). |
 | `attendance_export_logs` | export audit trail; `export_scope` (monthly_bulk/single_user), `target_month`, `snapshot_ids uuid[]`, `exported_by_user_id`. |
+| `transport_reimbursement_reports` | per-user-month transport-cost ledger (migration `202606260001`), **separate from payroll** (`attendance_month_snapshots`). `target_month` (1st of Tokyo month), `status` (draft/submitted/reviewing/approved/rejected), `submitted_at`/`reviewed_at`/`reviewed_by_user_id`/`review_note`, `total_amount_cached` (convenience; items are source of truth). Unique `(organization_id, user_id, target_month)`. |
+| `transport_reimbursement_items` | reimbursable transport entries (many per report); `usage_date`, `amount_yen` (>0), `entry_mode` (linked/manual), optional `attendance_session_id`/`property_id`/`room_id`, `work_context jsonb` (building/room/cleaning summary), `memo`, `sort_order`. FKs to session/property/room are `on delete set null`. |
+| `transport_reimbursement_item_images` | receipt/proof images per item; `storage_path`, `sort_order`. Image count enforced in app. Storage: `request-images/{org}/transport-reimbursements/{report_id}/{item_id}/{file}` (5-part path). |
 
 **Step 2 (2026-06-17):** site/QR **backend** — migration `202606170002_issue_attendance_qr_fn.sql` adds
 the atomic `issue_attendance_qr(org, site, created_by, token)` function (deactivate old → insert new →

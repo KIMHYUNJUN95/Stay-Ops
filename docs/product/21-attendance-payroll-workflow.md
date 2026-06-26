@@ -497,6 +497,8 @@ They cannot see:
 
 ## Transportation Reimbursement
 
+**Status: Backend implemented (2026-06-26)** — schema, query layer, server actions, storage policy 완료. 프론트엔드 UI 연결(mock 제거, 실데이터 주입)은 같은 작업 사이클에서 완료 예정. 상세 구현 내용은 `docs/engineering/11-attendance-payroll-technical-design.md` "As-built — Transport Reimbursement Backend (2026-06-26)" 참조.
+
 Transportation reimbursement belongs to the same **attendance/payroll operating domain**, but it is
 **not part of gross wage calculation**.
 

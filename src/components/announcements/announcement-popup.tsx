@@ -2,9 +2,6 @@
 
 import { useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { AlertCircle, CircleCheck, Megaphone } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { AnnouncementImageGrid } from "@/components/announcements/announcement-image-grid";
 import type { Locale } from "@/lib/i18n";
@@ -101,12 +98,31 @@ function subscribeHydration(callback: () => void) {
   return () => window.cancelAnimationFrame(id);
 }
 
+function AlertIcon() {
+  return (
+    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 3.5l9 16H3l9-16z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/>
+      <path d="M12 10v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+      <circle cx="12" cy="16.7" r="1.05" fill="currentColor"/>
+    </svg>
+  );
+}
+
+// 연도 없이 월+일만 표시
+function formatPopupDate(value: string, locale: string): string {
+  const tag = locale === "ko" ? "ko-KR" : locale === "ja" ? "ja-JP" : "en-US";
+  return new Intl.DateTimeFormat(tag, {
+    month: "long", day: "numeric", timeZone: "Asia/Tokyo",
+  }).format(new Date(value));
+}
+
 export type PopupAnnouncement = {
   content: string;
   id: string;
   imageUrls: string[];
   isImportant: boolean;
   organizationId: string;
+  publishedAt?: string | null;
   title: string;
 };
 
@@ -181,8 +197,7 @@ export function AnnouncementPopup({
 
       writeHiddenPopupMap(nextMap);
 
-      // Persist to server — fire-and-forget inside transition so it does not
-      // block the immediate UI update.
+      // 서버에 비동기로 저장 — UI를 즉시 업데이트하기 위해 transition 내부에서 fire-and-forget
       startTransition(() => {
         void dismissPopupForWeek(announcement.id, announcement.organizationId);
       });
@@ -195,50 +210,39 @@ export function AnnouncementPopup({
     <BottomSheet
       ariaLabel={copy.important}
       className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain"
-      header={
-        <div className="flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-2xl border border-red-200 bg-red-50 text-red-600">
-            <AlertCircle className="size-6" aria-hidden="true" />
-          </div>
-          <h2 className="text-[25px] font-black leading-tight">
-            {copy.important}
-          </h2>
-        </div>
-      }
       onClose={dismissCurrentAnnouncement}
     >
       {({ close }) => (
         <>
-          <div className="mt-4 rounded-[24px] border border-slate-200/80 bg-surface/82 p-5 shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="line-clamp-2 break-words text-base font-black leading-6 text-foreground">
-                  {announcement.title}
-                </p>
-                <p className="mt-3 line-clamp-6 whitespace-pre-line break-words text-base font-medium leading-7 text-slate-600">
-                  {announcement.content}
-                </p>
-              </div>
-              {announcement.imageUrls[0] ? (
-                <Image
-                  alt=""
-                  className="h-[92px] w-[92px] shrink-0 rounded-2xl object-cover shadow-[0_12px_22px_-18px_rgba(31,58,95,0.45)]"
-                  height={112}
-                  src={announcement.imageUrls[0]}
-                  width={112}
-                />
-              ) : (
-                <div className="flex h-[92px] w-[92px] shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
-                  <Megaphone className="size-8" aria-hidden="true" />
-                </div>
-              )}
-            </div>
+          {/* 중요 칩 + 날짜 */}
+          <div className="flex items-center gap-[7px] pt-1.5">
+            <span className="inline-flex items-center gap-[3px] text-[10.5px] font-extrabold text-red-600 bg-red-50 px-2 py-[3px] rounded-full border border-red-200">
+              <AlertIcon />
+              {copy.important}
+            </span>
+            {announcement.publishedAt && (
+              <span className="text-[11.5px] font-bold text-slate-500">
+                {formatPopupDate(announcement.publishedAt, locale)}
+              </span>
+            )}
           </div>
 
-          {announcement.imageUrls.length > 1 ? (
-            <AnnouncementImageGrid imageUrls={announcement.imageUrls.slice(1)} />
-          ) : null}
+          {/* 제목 */}
+          <h2 className="text-[19px] font-black leading-snug tracking-tight mt-3">
+            {announcement.title}
+          </h2>
 
+          {/* 본문 (최대 6줄) */}
+          <p className="text-[13.5px] font-medium leading-relaxed text-slate-600 mt-3 line-clamp-6 whitespace-pre-line">
+            {announcement.content}
+          </p>
+
+          {/* 이미지 */}
+          {announcement.imageUrls.length > 0 && (
+            <AnnouncementImageGrid imageUrls={announcement.imageUrls} />
+          )}
+
+          {/* 7일 숨기기 체크박스 */}
           <label className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-slate-500">
             <input
               checked={hideForWeek}
@@ -254,22 +258,21 @@ export function AnnouncementPopup({
             {copy.hideForWeek}
           </label>
 
-          <div className="mt-5 space-y-3">
-            <Link
-              className="inline-flex h-[54px] w-full items-center justify-center rounded-2xl bg-primary px-4 text-base font-black text-primary-foreground shadow-[0_18px_34px_-22px_hsl(var(--primary-hsl)/0.68)] transition-colors hover:bg-primary/90"
-              href={`${detailHrefBase}/${announcement.id}`}
-            >
-              {copy.readAnnouncement}
-            </Link>
-            <Button
-              className="h-12 w-full rounded-2xl border-border bg-surface text-slate-700 shadow-[0_12px_24px_-22px_rgba(31,58,95,0.45)] hover:bg-slate-50"
-              onClick={close}
+          {/* CTA: 확인(ghost) + 자세히 보기(primary) */}
+          <div className="mt-5 flex gap-3">
+            <button
               type="button"
-              variant="secondary"
+              className="flex-1 h-12 rounded-[13px] border border-border bg-surface text-sm font-extrabold text-slate-700"
+              onClick={close}
             >
-              <CircleCheck className="size-4" aria-hidden="true" />
-              {copy.close}
-            </Button>
+              {copy.confirm}
+            </button>
+            <Link
+              href={`${detailHrefBase}/${announcement.id}`}
+              className="flex-1 h-12 rounded-[13px] bg-primary text-sm font-extrabold text-white inline-flex items-center justify-center shadow-[0_12px_22px_-12px_hsl(223_46%_32%/0.55)]"
+            >
+              {copy.viewDetail}
+            </Link>
           </div>
         </>
       )}

@@ -106,9 +106,10 @@ export async function getOnboardingState(): Promise<OnboardingState> {
   const supabase = await getSupabaseServerClient();
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  if (userError || !user) {
     return {
       status: "unauthenticated",
       user: null,

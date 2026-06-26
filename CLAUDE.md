@@ -91,6 +91,10 @@ Completion rule:
 - Check `src/lib/i18n.ts` first.
 - If new copy is needed, add `ko`, `ja`, and `en` together.
 - Fallback behavior exists, but new UI should not depend on missing translations.
+- This is a **hard rule for every feature addition and every feature modification**.
+- Do **not** hardcode Korean UI text temporarily "just for now" during implementation.
+- New UI/UX, status labels, validation copy, action labels, empty states, and modal text must be
+  designed and implemented as **multilingual from the start** (`ko`, `ja`, `en` together).
 
 ### 3. Mobile shell is a shared contract
 

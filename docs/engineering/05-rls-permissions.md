@@ -591,6 +591,15 @@ Read (SELECT) policies — "own rows, or org-wide for privileged admins" unless 
 - `attendance_month_snapshots`: own pay rows or privileged admin (finalization queue / dashboard).
 - `attendance_export_logs`: **privileged admins only**.
 
+**Transport reimbursement (2026-06-26, migration `202606260001`).** `transport_reimbursement_reports`
+/ `transport_reimbursement_items` / `transport_reimbursement_item_images` are **read-only RLS, no write
+policies** (same pattern as the attendance foundation — all authoritative writes go through service-role
+server actions; `service_role` bypasses RLS). SELECT policy on all three: `has_active_membership(org)`
+**AND** (`user_id = auth.uid()` OR `can_manage_attendance_payroll(org)`) — i.e. own rows for any active
+member, org-wide for org owner / `attendance_payroll_admin` / platform admin. This is the **same
+privilege helper as payroll, but a fully separate dataset** from `attendance_month_snapshots`. Reuses
+the shared `set_updated_at()` trigger.
+
 **Step 2 (2026-06-17) — site/QR write path.** Site master + QR lifecycle writes go through the
 service-role helpers in `src/lib/attendance-sites.ts` (create/update/activate site, issue/reissue/revoke
 QR; QR issuance is atomic via `issue_attendance_qr`, migration `202606170002`). These helpers are
@@ -750,6 +759,7 @@ Update/delete:
 **스토리지 RLS**
 - `request-images`: `board-posts` / `board-comments` 폴더 추가 (part_time_staff 허용). `202606250001_board.sql`에서 "org members can upload/delete request images" 정책 재생성.
 - `board-attachments` (새 버킷, private): org 멤버 SELECT·INSERT; 업로드한 본인만 DELETE (owner = auth.uid()).
+- `request-images`: 교통비 증빙용 **5단계 경로** 정책 추가 (`202606260001_transport_reimbursement.sql`). 경로 `{org}/transport-reimbursements/{report_id}/{item_id}/{file}`. 기존 정책은 4단계 경로를 강제하므로, "org members can upload/delete transport reimbursement images" 정책을 별도로 추가 (permissive 정책은 OR 결합 → 4단계·5단계 공존). org_id·report_id·item_id 모두 UUID 형식 검증, 활성 org 멤버(part_time_staff 포함) 또는 platform admin 허용.
 
 ## bug_reports
 
