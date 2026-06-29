@@ -37,11 +37,33 @@ export function ImageLightbox({ images, startIndex, onClose }: Props) {
   const live = useRef({ scale: 1, tx: 0, ty: 0, index });
   live.current = { scale, tx, ty, index };
 
-  // Body scroll lock
+  // Body scroll lock + viewport 줌 방지
+  // PWA에서 핀치줌 시 브라우저 레벨 뷰포트 줌이 함께 적용되는 문제를 방지한다.
+  // 라이트박스 오픈 중: user-scalable=no 로 브라우저 줌을 막고, 우리 JS 줌만 동작.
+  // 라이트박스 닫힐 때: initial-scale=1,maximum-scale=1 → 원복 순서로 뷰포트를 1x 로 강제 리셋.
   useEffect(() => {
-    const prev = document.body.style.overflow;
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    const prevViewport = meta?.getAttribute("content") ?? "";
+    if (meta) {
+      meta.setAttribute(
+        "content",
+        "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
+      );
+    }
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      if (meta) {
+        // 먼저 scale=1 로 강제 리셋한 뒤 원래 설정 복원 — 뷰포트 확대 잔존 현상 제거
+        meta.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1");
+        requestAnimationFrame(() => {
+          meta.setAttribute("content", prevViewport);
+        });
+      }
+    };
   }, []);
 
   // Keyboard
