@@ -285,8 +285,19 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
 
             // ── 1단계: 건물 목록 ──────────────────────────────
             if (pickerStep === "buildings") {
-              const buildings = [...new Set(pickRows.map((r) => r.propertyName))].sort();
-              const filtered = q ? buildings.filter((b) => b.toLowerCase().includes(q)) : buildings;
+              // canonical 이름(propertyName)으로 중복 제거 후 표시명(displayPropertyName)으로 렌더
+              const seen = new Set<string>();
+              const buildings: { canonical: string; display: string }[] = [];
+              for (const r of pickRows) {
+                if (!seen.has(r.propertyName)) {
+                  seen.add(r.propertyName);
+                  buildings.push({ canonical: r.propertyName, display: r.displayPropertyName });
+                }
+              }
+              buildings.sort((a, b) => a.display.localeCompare(b.display));
+              const filtered = q
+                ? buildings.filter((b) => b.display.toLowerCase().includes(q))
+                : buildings;
               return (
                 <div className="cx cx-sheet">
                   <div className="cx-sheet__head">
@@ -306,21 +317,21 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
                     {filtered.length === 0 ? (
                       <div className="cx-pick-empty">—</div>
                     ) : (
-                      filtered.map((name) => {
-                        const hasLive = pickRows.some((r) => r.propertyName === name && r.live);
+                      filtered.map(({ canonical, display }) => {
+                        const hasLive = pickRows.some((r) => r.propertyName === canonical && r.live);
                         return (
                           <button
-                            key={name}
+                            key={canonical}
                             type="button"
                             className="cx-bldrow"
                             onClick={() => {
-                              setPickerProperty(name);
+                              setPickerProperty(canonical);
                               setPickerStep("rooms");
                               setSearch("");
                             }}
                           >
                             <span className="cx-bldrow__ic"><CIc>{CxIcon.building}</CIc></span>
-                            <span className="cx-bldrow__n">{name}</span>
+                            <span className="cx-bldrow__n">{display}</span>
                             {hasLive && <span className="cx-rrow__live">{t.pickerLiveTag}</span>}
                             <span className="cx-bldrow__chev">{CxIcon.chevR}</span>
                           </button>
@@ -339,15 +350,28 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
             // ── 2단계: 객실 목록 ──────────────────────────────
             if (pickerStep === "rooms" && pickerProperty) {
               const inProperty = pickRows.filter((r) => r.propertyName === pickerProperty);
-              const rooms = [...new Set(inProperty.map((r) => r.roomLabel))].sort();
-              const filtered = q ? rooms.filter((rm) => rm.toLowerCase().includes(q)) : rooms;
+              // canonical roomLabel로 중복 제거 후 displayRoomLabel로 렌더
+              const seenR = new Set<string>();
+              const rooms: { canonical: string; display: string }[] = [];
+              for (const r of inProperty) {
+                if (!seenR.has(r.roomLabel)) {
+                  seenR.add(r.roomLabel);
+                  rooms.push({ canonical: r.roomLabel, display: r.displayRoomLabel });
+                }
+              }
+              rooms.sort((a, b) => a.display.localeCompare(b.display));
+              const filtered = q
+                ? rooms.filter((rm) => rm.display.toLowerCase().includes(q))
+                : rooms;
+              // 헤더: pickerProperty(canonical)에 해당하는 displayPropertyName
+              const headerBuilding = inProperty[0]?.displayPropertyName ?? pickerProperty;
               return (
                 <div className="cx cx-sheet">
                   <div className="cx-sheet__head cx-sheet__head--nav">
                     <button type="button" className="cx-back" onClick={goBack}>
                       <CIc>{CxIcon.chevR}</CIc>
                     </button>
-                    <p className="cx-sheet__title">{pickerProperty}</p>
+                    <p className="cx-sheet__title">{headerBuilding}</p>
                   </div>
                   <div className="cx-search">
                     <span className="ic cx-search__ic">{CxIcon.search}</span>
@@ -362,22 +386,22 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
                     {filtered.length === 0 ? (
                       <div className="cx-pick-empty">—</div>
                     ) : (
-                      filtered.map((roomLabel) => {
-                        const hasLive = inProperty.some((r) => r.roomLabel === roomLabel && r.live);
-                        const count = inProperty.filter((r) => r.roomLabel === roomLabel).length;
+                      filtered.map(({ canonical, display }) => {
+                        const hasLive = inProperty.some((r) => r.roomLabel === canonical && r.live);
+                        const count = inProperty.filter((r) => r.roomLabel === canonical).length;
                         return (
                           <button
-                            key={roomLabel}
+                            key={canonical}
                             type="button"
                             className="cx-bldrow"
                             onClick={() => {
-                              setPickerRoom(roomLabel);
+                              setPickerRoom(canonical);
                               setPickerStep("guests");
                               setSearch("");
                             }}
                           >
                             <span className="cx-bldrow__ic"><CIc>{CxIcon.door}</CIc></span>
-                            <span className="cx-bldrow__n">{roomLabel}</span>
+                            <span className="cx-bldrow__n">{display}</span>
                             {hasLive && <span className="cx-rrow__live">{t.pickerLiveTag}</span>}
                             <span className="cx-bldrow__cnt">{count}</span>
                             <span className="cx-bldrow__chev">{CxIcon.chevR}</span>
@@ -402,6 +426,9 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
                 : inRoom;
               const fStaying = filtered.filter((r) => r.group === "staying");
               const fUpcoming = filtered.filter((r) => r.group === "upcoming");
+              // 헤더 표시명: 첫 번째 매칭 행에서 추출
+              const headerRoom = inRoom[0]?.displayRoomLabel ?? pickerRoom;
+              const headerBuilding = inRoom[0]?.displayPropertyName ?? pickerProperty;
 
               const selectRow = (r: ReservationPickRow) => {
                 setLinked({ plat: r.plat, place: r.place, guest: r.guest, stay: r.stay, reservationId: r.reservationId });
@@ -419,8 +446,8 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
                       <CIc>{CxIcon.chevR}</CIc>
                     </button>
                     <div>
-                      <p className="cx-sheet__title">{pickerRoom}</p>
-                      <p className="cx-sheet__sub">{pickerProperty}</p>
+                      <p className="cx-sheet__title">{headerRoom}</p>
+                      <p className="cx-sheet__sub">{headerBuilding}</p>
                     </div>
                   </div>
                   {(staying.length + upcoming.length) > 1 && (

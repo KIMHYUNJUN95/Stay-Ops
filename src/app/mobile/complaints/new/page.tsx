@@ -27,12 +27,13 @@ export default async function MobileComplaintCreatePage() {
     redirect("/mobile/complaints");
   }
 
-  const [navBadges, pickRows] = await Promise.all([
-    getMobileNavBadges(),
-    listComplaintPickerReservations(session.organization.id),
-  ]);
   const locale = session.user.preferredLanguage;
   const dict = getDictionary(locale);
+
+  const [navBadges, pickRows] = await Promise.all([
+    getMobileNavBadges(),
+    listComplaintPickerReservations(session.organization.id, locale),
+  ]);
 
   return (
     <MobileShell activeItem="complaints" badges={navBadges} title={dict.complaints.createTitle}>
