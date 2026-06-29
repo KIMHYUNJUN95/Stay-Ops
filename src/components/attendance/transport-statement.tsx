@@ -294,7 +294,7 @@ function AddItemSheet({
   reportId: string;
   monthKey: string;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (item: TransportItem) => void;
 }) {
   const t = dict.transport;
   const [inputMode, setInputMode] = useState<"linked" | "manual">("manual");
@@ -342,15 +342,27 @@ function AddItemSheet({
       }
       const itemId = result.itemId;
       // 이미지가 있으면 compress → upload → DB 등록
+      let receiptCount = 0;
       for (const file of files) {
         try {
           const path = await uploadTransportImage(file, organizationId, reportId, itemId);
           await addTransportItemImageAction(itemId, path);
+          receiptCount++;
         } catch {
           // 이미지 업로드 실패는 비치명적; 항목 자체는 생성 완료
         }
       }
-      onCreated();
+      onCreated({
+        id: itemId,
+        date: usageDate,
+        building: building.trim(),
+        context: "",
+        amount: amountNum,
+        receiptCount,
+        mode: inputMode,
+        missingReceipt: receiptCount === 0,
+        memo: memo.trim() || undefined,
+      });
       onClose();
     } catch {
       setPending(false);
@@ -1143,7 +1155,10 @@ export function TransportStatement({
           reportId={report.id}
           monthKey={monthKey}
           onClose={() => setShowAddSheet(false)}
-          onCreated={() => router.refresh()}
+          onCreated={(item) => {
+            setItems((prev) => [...prev, item]);
+            router.refresh();
+          }}
         />
       )}
 
