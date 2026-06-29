@@ -70,6 +70,12 @@ export const routeAccess = [
     roles: allRoles,
   },
   {
+    path: "/mobile/complaints",
+    mode: "mobile",
+    label: "컴플레인",
+    roles: allRoles,
+  },
+  {
     path: "/admin",
     mode: "admin",
     label: "관리자 대시보드",

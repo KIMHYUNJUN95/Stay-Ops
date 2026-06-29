@@ -2440,3 +2440,26 @@ Files: `src/app/mobile/announcements/[id]/page.tsx`,
 `docs/product/11-announcement-workflow.md`.
 
 Verification: `npm run lint` + `npm run build` pass.
+
+### 2026-06-29 — 컴플레인(customer_complaints) 백엔드 구현
+
+OTA 고객 컴플레인 기록 기능의 서버 사이드를 구현. 도메인 헬퍼 `src/lib/complaints.ts`
+(server-only) 와 모바일 server action 래퍼 `src/app/mobile/complaints/actions.ts` 추가.
+프론트엔드(목록/상세/작성 화면)는 아직 design-only 목 데이터 — 이번 작업은 백엔드 한정.
+
+핵심:
+- 읽기(`listComplaints`/`getComplaint`/`listComplaintComments`)는 RLS-scoped 서버 클라이언트 +
+  `organization_id` 직접 필터. 쓰기는 service-role 클라이언트 + 코드 레벨 권한 게이트.
+- 권한: 작성 = developer_super_admin·owner·office_admin·cs_staff / 댓글 = part_time_staff 제외
+  전원 / 상태변경·삭제 = 작성자 본인 또는 owner·office_admin·developer_super_admin.
+- 컴플레인 본체 hard-delete, 댓글 soft-delete(`deleted_at`).
+- 이미지: `request-images` 버킷 공유, 경로는 세션 org id 기반 서버 구성
+  (`{org}/complaint-images/{id}/...`, 댓글은 `{org}/complaint-comment-images/{id}/{commentId}/...`),
+  MIME image/* + 8MB + 최대 5장.
+- `customer_complaints`/`complaint_comments` 가 아직 생성 DB 타입에 없어 untyped 클라이언트 뷰로
+  접근 (타입 재생성 시 정리 예정).
+
+Files: `src/lib/complaints.ts`, `src/app/mobile/complaints/actions.ts`,
+`docs/product/25-complaint-workflow.md`.
+
+Verification: `npm run lint` + `npm run build` pass.

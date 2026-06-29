@@ -470,7 +470,7 @@ function AddItemSheet({
             <button
               type="button"
               className="trn-shot-add"
-              aria-label="사진 추가"
+              aria-label={t.addPhoto}
               onClick={() => fileInputRef.current?.click()}
             >
               <CameraIcon />
@@ -770,13 +770,13 @@ function EditItemSheet({
               i < item.receiptCount ? (
                 <div key={i} className="trn-shot" />
               ) : (
-                <button key={i} type="button" className="trn-shot-add" aria-label="사진 추가" onClick={() => fileInputRef.current?.click()}>
+                <button key={i} type="button" className="trn-shot-add" aria-label={t.addPhoto} onClick={() => fileInputRef.current?.click()}>
                   <CameraIcon />
                 </button>
               ),
             )}
             {item.receiptCount < 2 && (
-              <button type="button" className="trn-shot-add" aria-label="사진 추가" onClick={() => fileInputRef.current?.click()}>
+              <button type="button" className="trn-shot-add" aria-label={t.addPhoto} onClick={() => fileInputRef.current?.click()}>
                 <CameraIcon />
               </button>
             )}

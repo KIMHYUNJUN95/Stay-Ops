@@ -2851,6 +2851,25 @@
 }
 
 /* 로스터 컬럼 헤더 */
+.att .roster-section {
+  margin-top: 4px;
+}
+.att .roster-section__hd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 12px 4px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.att .roster-section__hd .cdot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 .att .roster-colhead {
   display: flex;
   align-items: center;
@@ -2937,6 +2956,15 @@
   font-weight: 600;
   color: var(--muted);
   margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.att .rcard__site {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--primary);
+  margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

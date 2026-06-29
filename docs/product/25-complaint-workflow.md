@@ -224,18 +224,30 @@ URL: `/admin/complaints/[id]`
 
 ## Server Actions
 
+도메인 로직은 `src/lib/complaints.ts` (server-only) 에 있고, 모바일 server action 래퍼는
+`src/app/mobile/complaints/actions.ts` 에 있다. 읽기는 RLS-scoped 서버 클라이언트, 쓰기는
+service-role 클라이언트 + 코드 레벨 권한 게이트 (`canWriteComplaint` / `canWriteComment` /
+`canChangeStatus`) 를 거친다.
+
 ```txt
 src/app/mobile/complaints/actions.ts
-  createComplaint(input)               -- 오피스 이상만
-  updateComplaint(id, patch)           -- 작성자만, open 상태일 때
-  deleteComplaint(id)                  -- 작성자·Owner·Admin만
-  resolveComplaint(id)                 -- 작성자·Owner·Office Admin
-  reopenComplaint(id)                  -- 작성자·Owner·Office Admin
+  uploadComplaintImageAction(complaintId, formData)              -- { url } | { error }
+  uploadComplaintCommentImageAction(complaintId, commentId, fd)  -- { url } | { error }
+  createComplaintAction(formData)                  -- 작성 권한 역할만 (오피스 이상 + CS)
+  updateComplaintAction(id, formData)              -- 작성자만, open 상태일 때
+  deleteComplaintAction(id)                        -- 작성자·Owner·Office Admin·Super Admin (hard delete)
+  resolveComplaintAction(id)                       -- 작성자·Owner·Office Admin·Super Admin
+  reopenComplaintAction(id)                        -- 작성자·Owner·Office Admin·Super Admin
 
-  createComplaintComment(complaintId, body, imageUrls)
-  updateComplaintComment(commentId, body)
-  deleteComplaintComment(commentId)
+  createComplaintCommentAction(complaintId, content, imageUrls)
+  updateComplaintCommentAction(commentId, content) -- 댓글 작성자 본인만
+  deleteComplaintCommentAction(commentId)          -- 댓글 작성자·Owner·Office Admin·Super Admin (soft delete)
 ```
+
+이미지 업로드는 항상 전용 업로드 액션을 먼저 호출해 서버가 storage 경로를 구성한 뒤,
+반환된 public URL 을 create/update 액션의 `image_0..image_4` 또는 `imageUrls` 필드로 전달한다.
+댓글은 `deleted_at` 으로 soft-delete 되고 목록 조회 시 제외된다 (공지/게시판 댓글과 동일 규약).
+컴플레인 본체는 hard-delete (MVP 정책).
 
 ---
 

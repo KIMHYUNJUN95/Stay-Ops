@@ -12,6 +12,7 @@ const ROSTER_SESSION_SELECT = [
   "clock_in_at",
   "clock_out_at",
   "clock_in_site_id",
+  "clock_out_site_id",
   "review_state",
   "invalidated_at",
 ].join(", ");
@@ -26,7 +27,8 @@ export type RosterEntry = {
   role: string;        // display role label
   roleCode: string;    // raw role enum value from DB
   phoneNumber: string | null;
-  siteName: string;
+  siteName: string;         // 출근 사이트명
+  clockOutSiteName: string; // 퇴근 사이트명
   clockInTimeLabel: string;    // HH:mm Asia/Tokyo
   clockOutTimeLabel: string | null;
   breakCount: number;
@@ -111,7 +113,12 @@ export async function getAttendanceRoster(
 
   const userIds = [...new Set(sessions.map((s) => s.user_id).filter(Boolean))] as string[];
   const sessionIds = sessions.map((s) => s.id);
-  const siteIds = [...new Set(sessions.map((s) => s.clock_in_site_id).filter(Boolean))] as string[];
+  const siteIds = [
+    ...new Set([
+      ...sessions.map((s) => s.clock_in_site_id),
+      ...sessions.map((s) => s.clock_out_site_id),
+    ].filter(Boolean)),
+  ] as string[];
 
   // 2. 프로필, 멤버십, 사이트 이름, 브레이크 병렬 조회
   type ProfileSnap = { id: string; name: string | null; phone_number: string | null };
@@ -176,6 +183,7 @@ export async function getAttendanceRoster(
       roleCode,
       phoneNumber: profile?.phone_number ?? null,
       siteName: siteMap.get(session.clock_in_site_id ?? "") ?? "",
+      clockOutSiteName: siteMap.get(session.clock_out_site_id ?? "") ?? "",
       clockInTimeLabel: tokyoHHmm(session.clock_in_at, locale) ?? "--:--",
       clockOutTimeLabel: tokyoHHmm(session.clock_out_at, locale),
       breakCount: breaks.length,

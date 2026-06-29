@@ -2,6 +2,16 @@
 
 This file records important project decisions.
 
+## 2026-06-29
+
+### Complaints — 백엔드 권한·삭제 정책 확정
+
+- 컴플레인 작성 권한 = developer_super_admin·owner·office_admin·cs_staff. 상태변경·삭제 권한은
+  작성자 본인 또는 owner·office_admin·developer_super_admin. 댓글 작성은 part_time_staff 제외 전원.
+- 컴플레인 본체는 hard-delete (MVP 정책), 댓글은 `deleted_at` soft-delete (공지/게시판 댓글 규약과 일치).
+- `customer_complaints`/`complaint_comments` 가 생성 DB 타입에 없어 server-only 헬퍼에서 untyped
+  Supabase 클라이언트 뷰로 접근. 타입 재생성 시 정리.
+
 ## 2026-06-25
 
 ### Announcements — redesign direction reset to notice-only flow

@@ -8,15 +8,13 @@
  */
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
-import { Plus } from "lucide-react";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { StaffSuggestionStatus } from "@/lib/suggestions";
 import type { SuggestionListData, SuggestionListItem } from "@/lib/suggestions-queries";
 import "./suggestions.css";
 import { Ic, SgIcon } from "./sg-icons";
+import { MobileFab } from "@/components/shell/mobile-fab";
 
 type SgCopy = Dictionary["mobile"]["suggestions"];
 
@@ -131,7 +129,6 @@ export function SuggestionsList({
   locale: Locale;
   copy: SgCopy;
 }) {
-  const router = useRouter();
   const [segment, setSegment] = useState<keyof SuggestionListData>("received");
   const [filter, setFilter] = useState<string>("active");
   const hydrated = useSyncExternalStore(
@@ -210,19 +207,7 @@ export function SuggestionsList({
           )}
         </div>
       </div>
-      {hydrated
-        ? createPortal(
-            <button
-              aria-label={copy.fabLabel}
-              className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-30 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_16px_30px_-10px_hsl(var(--primary-hsl)/0.5)] transition-transform active:scale-[0.93]"
-              onClick={() => router.push("/mobile/suggestions/new")}
-              type="button"
-            >
-              <Plus className="size-6" strokeWidth={2.2} aria-hidden="true" />
-            </button>,
-            document.body,
-          )
-        : null}
+      <MobileFab href="/mobile/suggestions/new" label={copy.fabLabel} />
     </div>
   );
 }

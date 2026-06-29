@@ -49,7 +49,7 @@ Living: Must be updated continuously.
 | [Feature Map](./product/02-feature-map.md) | Living | Product module map |
 | [Multilingual Strategy](./product/03-multilingual-strategy.md) | Confirmed | Korean/Japanese/English rules |
 | [Organization and Invitations](./product/04-organization-invitations.md) | Confirmed | Org, membership, invite flow |
-| [Admin Web IA](./product/05-admin-web-ia.md) | Confirmed | Admin sidebar and screen structure |
+| [Admin Dashboard IA](./product/05-admin-web-ia.md) | Living | Admin dashboard principles, IA, and module priorities |
 | [Property and Room Model](./product/06-property-room-model.md) | Confirmed | Property/room structure |
 | [Cleaning Workflow](./product/07-cleaning-workflow.md) | Confirmed | Cleaning timer and records |
 | [Maintenance Workflow](./product/08-maintenance-workflow.md) | Confirmed | Maintenance request workflow |
@@ -71,6 +71,7 @@ Living: Must be updated continuously.
 | [Project Workflow](./product/23-project-workflow.md) | Draft | Project boards and section-based task coordination |
 | [Attendance Workflow](./product/24-attendance-workflow.md) | Draft | Attendance mobile UX and screen-level behavior |
 | [Bug Report Workflow](./product/25-bug-report-workflow.md) | Living | StayOps product/system issue reporting workflow (1차 구현 2026-06-25) |
+| [Complaint Workflow](./product/25-complaint-workflow.md) | Living | Customer complaint intake and tracking workflow (모바일 1차 구현) |
 
 ## Design Docs
 

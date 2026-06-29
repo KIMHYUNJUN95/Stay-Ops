@@ -13,6 +13,15 @@ StayOps must support two primary clients:
 
 The admin web app must support daily operational management, especially calendar/occupancy, check-in/check-out, cleaning status, maintenance requests, lost and found, order/supply requests, and announcements.
 
+Confirmed 2026-06-29 direction:
+
+- the admin dashboard is a full desktop/PC operations surface, not a read-only back-office screen
+- all major mobile product modules should also be operable from the admin dashboard
+- the dashboard and the mobile app are connected but remain separate surfaces
+- mobile/tablet use the mobile app; desktop/notebook use the dashboard
+- device-bound exceptions are allowed only where the PC cannot realistically perform the action (for
+  example QR scan clock-in/out)
+
 ## Target Users
 
 Initial users:
@@ -123,6 +132,24 @@ permission errors, or notification issues. This module is separate from Maintena
 property issues) and separate from Staff Suggestions (person-directed feedback). The first planned
 slice is a **very simple** private reporter-to-reviewer workflow: title, description, optional
 screenshots, and status tracking only. See `docs/product/25-bug-report-workflow.md`.
+
+### Customer Complaints
+
+Office/CS staff can record guest complaints coming from OTA platform reviews, direct guest contact,
+or other CS channels.
+
+The module should support:
+
+- complaint registration
+- building / room / reservation linking
+- platform and review-channel tracking
+- severity and status management
+- assignee / follow-up tracking
+- internal memo / comment history
+- screenshot/photo attachments
+- admin dashboard handling as a first-class operations module
+
+See `docs/product/25-complaint-workflow.md`.
 
 ### Attendance / Clock-In-Out + Payroll
 

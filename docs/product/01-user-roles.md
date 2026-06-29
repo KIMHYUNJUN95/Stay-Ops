@@ -38,6 +38,19 @@ Important:
 
 ## Organization-Level Roles
 
+### Admin Dashboard Access Direction (confirmed 2026-06-29)
+
+The dashboard rebuild target is:
+
+- `part_time_staff` cannot access the admin dashboard
+- every non-part-time role can access the admin dashboard surface
+
+Important:
+
+- dashboard access does **not** mean every role gets the same admin powers
+- detailed module permissions will be finalized feature by feature during dashboard implementation
+- treat `can enter dashboard` and `can perform action X inside dashboard` as separate rules
+
 ## Signup / Invite Categories (2026-06-18 planning baseline)
 
 Login/onboarding must expose the following business-facing role categories through team invite codes:
@@ -97,6 +110,7 @@ Can:
 - View guest information
 - View all rooms/properties needed for guest support
 - View reservation and stay schedule data
+- Use admin web
 - Manually update early check-out information
 - Add guest-related operational notes
 - Create tasks related to guest requests
@@ -111,6 +125,7 @@ On-site manager responsible for field operations.
 Can:
 
 - Use mobile app
+- Use admin web
 - View field tasks
 - Manage maintenance-related work
 - Register and update maintenance issues
@@ -133,6 +148,7 @@ Regular employee.
 Can:
 
 - Use mobile app
+- Use admin web
 - View guest/reservation information except price/revenue data
 - View all rooms/properties needed for work
 - Register lost items
@@ -164,6 +180,9 @@ Part-time staff should not see:
 - Revenue
 - Payment amount
 - Financial performance data
+
+Part-time staff also do **not** access the admin dashboard surface in the confirmed 2026-06-29
+dashboard direction.
 
 ## Post-MVP Feature Batch Permissions (confirmed 2026-06-09)
 

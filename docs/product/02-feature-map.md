@@ -7,6 +7,7 @@
 Purpose:
 
 - Show today's operational status at a glance.
+- Act as the full desktop operations console, not a read-only summary board.
 
 Possible widgets:
 
@@ -19,6 +20,12 @@ Possible widgets:
 - Inventory alerts
 - Today's schedules
 - Unread announcements
+
+Confirmed admin direction (2026-06-29):
+
+- the dashboard must support operation, management, and correction workflows
+- major mobile modules should also be usable from the dashboard
+- physical-device exceptions are allowed only when desktop hardware cannot realistically perform the action
 
 ### 2. Todo and Tasks
 
@@ -78,6 +85,23 @@ Examples:
 - Team communication
 
 Permissions: **all active roles including Part-Time Staff can create posts** (confirmed 2026-06-09) — unlike Announcements, where part-time staff cannot create. See `docs/product/20-internal-board-workflow.md`.
+
+### 4A. Customer Complaints
+
+Purpose:
+
+- Record guest complaints coming from OTA reviews, direct guest contact, and CS intake.
+
+Key features:
+
+- Complaint registration
+- Building / room / reservation linking
+- Platform / review channel tracking
+- Severity classification
+- Status management
+- Assignee and follow-up tracking
+- Internal memo / comment thread
+- Screenshot / photo attachment
 
 ### 5. Work Scheduler
 

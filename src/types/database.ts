@@ -181,6 +181,133 @@ export type Database = {
           updated_at?: string;
         };
       };
+      complaint_comments: {
+        Insert: {
+          complaint_id: string;
+          content: string;
+          created_at?: string;
+          created_by_user_id: string;
+          deleted_at?: string | null;
+          id?: string;
+          image_urls?: string[];
+          organization_id: string;
+          updated_at?: string;
+        };
+        Row: {
+          complaint_id: string;
+          content: string;
+          created_at: string;
+          created_by_user_id: string;
+          deleted_at: string | null;
+          id: string;
+          image_urls: string[];
+          organization_id: string;
+          updated_at: string;
+        };
+        Update: {
+          complaint_id?: string;
+          content?: string;
+          created_at?: string;
+          created_by_user_id?: string;
+          deleted_at?: string | null;
+          id?: string;
+          image_urls?: string[];
+          organization_id?: string;
+          updated_at?: string;
+        };
+      };
+      customer_complaints: {
+        Insert: {
+          created_at?: string;
+          created_by_user_id: string;
+          description?: string | null;
+          guest_name?: string | null;
+          id?: string;
+          image_urls?: string[];
+          organization_id: string;
+          platform:
+            | "airbnb"
+            | "booking"
+            | "google"
+            | "tripadvisor"
+            | "jalan"
+            | "rakuten"
+            | "direct"
+            | "other";
+          platform_ref?: string | null;
+          property_id?: string | null;
+          property_name?: string | null;
+          rating?: number | null;
+          reservation_id?: string | null;
+          resolved_at?: string | null;
+          resolved_by_user_id?: string | null;
+          room_id?: string | null;
+          room_label?: string | null;
+          status?: "open" | "resolved";
+          title: string;
+          updated_at?: string;
+        };
+        Row: {
+          created_at: string;
+          created_by_user_id: string;
+          description: string | null;
+          guest_name: string | null;
+          id: string;
+          image_urls: string[];
+          organization_id: string;
+          platform:
+            | "airbnb"
+            | "booking"
+            | "google"
+            | "tripadvisor"
+            | "jalan"
+            | "rakuten"
+            | "direct"
+            | "other";
+          platform_ref: string | null;
+          property_id: string | null;
+          property_name: string | null;
+          rating: number | null;
+          reservation_id: string | null;
+          resolved_at: string | null;
+          resolved_by_user_id: string | null;
+          room_id: string | null;
+          room_label: string | null;
+          status: "open" | "resolved";
+          title: string;
+          updated_at: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_id?: string;
+          description?: string | null;
+          guest_name?: string | null;
+          id?: string;
+          image_urls?: string[];
+          organization_id?: string;
+          platform?:
+            | "airbnb"
+            | "booking"
+            | "google"
+            | "tripadvisor"
+            | "jalan"
+            | "rakuten"
+            | "direct"
+            | "other";
+          platform_ref?: string | null;
+          property_id?: string | null;
+          property_name?: string | null;
+          rating?: number | null;
+          reservation_id?: string | null;
+          resolved_at?: string | null;
+          resolved_by_user_id?: string | null;
+          room_id?: string | null;
+          room_label?: string | null;
+          status?: "open" | "resolved";
+          title?: string;
+          updated_at?: string;
+        };
+      };
       attendance_sites: {
         Insert: {
           allowed_radius_meters?: number;

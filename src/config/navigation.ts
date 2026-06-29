@@ -13,6 +13,7 @@ import {
   Inbox,
   Bug,
   Megaphone,
+  MessageSquareWarning,
   Newspaper,
   Package,
   Recycle,
@@ -130,6 +131,15 @@ const mobileNavAttendance = {
   icon: Clock,
 } as const satisfies NavigationItem;
 
+// Complaints / 컴플레인 — guest complaint logging per booking platform. Side-menu entry + pinnable
+// bottom-bar candidate. Design-only for now; backend deferred. See docs/product/26-complaint-workflow.md.
+const mobileNavComplaints = {
+  id: "complaints",
+  label: localizedNavigationLabels.mobile.complaints,
+  href: "/mobile/complaints",
+  icon: MessageSquareWarning,
+} as const satisfies NavigationItem;
+
 // Bottom tab bar uses a center action ("추가") button, so it holds only 4 tabs.
 // "Cleaning" intentionally lives in the side menu (hamburger) instead of the bottom bar.
 export const mobileBottomNavigation = [
@@ -151,6 +161,7 @@ export const mobileSidebarNavigation = [
   mobileNavAnnouncements,
   mobileNavBoard,
   mobileNavSuggestions,
+  mobileNavComplaints,
   mobileNavLinenReturn,
   {
     id: "directory",

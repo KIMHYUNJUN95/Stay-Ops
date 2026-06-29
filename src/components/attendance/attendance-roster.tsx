@@ -83,7 +83,10 @@ function fmtDateMeta(d: Date, locale: string): string {
 
 function RosterCard({ entry, copy }: { entry: RosterEntry; copy: ReturnType<typeof getDictionary>["attendance"] }) {
   const isActive = entry.statusKey === "working" || entry.statusKey === "on_break";
+  const isDone = entry.statusKey === "done";
   const canCall = isActive && !!entry.phoneNumber;
+  // 출근 중이면 출근 사이트, 퇴근 완료면 퇴근 사이트 표시
+  const displaySite = isDone ? entry.clockOutSiteName : entry.siteName;
 
   const outCell = () => {
     if (entry.clockOutTimeLabel) {
@@ -106,6 +109,7 @@ function RosterCard({ entry, copy }: { entry: RosterEntry; copy: ReturnType<type
       <div className="rcard__id">
         <div className="rcard__name">{entry.name}</div>
         <div className="rcard__role">{entry.role}</div>
+        {displaySite && <div className="rcard__site">{displaySite}</div>}
       </div>
       <div className="rcard__t inn">{entry.clockInTimeLabel}</div>
       <div className="rcard__t outt">{outCell()}</div>
@@ -359,7 +363,7 @@ export function AttendanceRoster({ rosterDay, operatingDate, todayDate, locale }
         <div className="roster-datemeta__c">
           <span className="cin">
             <span className="cdot" style={{ background: "var(--work-dot)" }} />
-            {copy.rosterSummaryIn(rosterDay.counts.total)}
+            {copy.rosterSummaryIn(rosterDay.counts.working + rosterDay.counts.on_break)}
           </span>
           <span className="cout">
             <span className="cdot" style={{ background: "var(--out-col)" }} />
@@ -368,7 +372,7 @@ export function AttendanceRoster({ rosterDay, operatingDate, todayDate, locale }
         </div>
       </div>
 
-      {/* 직원 행 리스트 */}
+      {/* 직원 행 리스트 — 출근 중 / 퇴근 완료 섹션 분리 */}
       <div style={{ marginTop: 8 }}>
         {rosterDay.entries.length === 0 ? (
           <div className="roster-empty">
@@ -378,19 +382,62 @@ export function AttendanceRoster({ rosterDay, operatingDate, todayDate, locale }
             <div className="roster-empty__t">{copy.rosterNoEntries}</div>
             <div className="roster-empty__s">{copy.rosterNoEntriesSub}</div>
           </div>
-        ) : (
-          <>
+        ) : (() => {
+          const activeEntries = rosterDay.entries.filter(
+            (e) => e.statusKey === "working" || e.statusKey === "on_break",
+          );
+          const doneEntries = rosterDay.entries.filter((e) => e.statusKey === "done");
+          const otherEntries = rosterDay.entries.filter(
+            (e) => e.statusKey !== "working" && e.statusKey !== "on_break" && e.statusKey !== "done",
+          );
+          const colHead = (
             <div className="roster-colhead">
               <span className="rch-who">{copy.rosterColWho}</span>
               <span className="rch-ci">{copy.rosterColIn}</span>
               <span className="rch-co">{copy.rosterColOut}</span>
               <span className="rch-sp" />
             </div>
-            {rosterDay.entries.map((entry) => (
-              <RosterCard key={entry.sessionId} entry={entry} copy={copy} />
-            ))}
-          </>
-        )}
+          );
+          return (
+            <>
+              {/* 출근 중 섹션 */}
+              {activeEntries.length > 0 && (
+                <div className="roster-section">
+                  <div className="roster-section__hd">
+                    <span className="cdot" style={{ background: "var(--work-dot)" }} />
+                    {copy.rosterSummaryIn(activeEntries.length)}
+                  </div>
+                  {colHead}
+                  {activeEntries.map((entry) => (
+                    <RosterCard key={entry.sessionId} entry={entry} copy={copy} />
+                  ))}
+                </div>
+              )}
+              {/* 퇴근 완료 섹션 */}
+              {doneEntries.length > 0 && (
+                <div className="roster-section">
+                  <div className="roster-section__hd">
+                    <span className="cdot" style={{ background: "var(--out-col)" }} />
+                    {copy.rosterSummaryOut(doneEntries.length)}
+                  </div>
+                  {colHead}
+                  {doneEntries.map((entry) => (
+                    <RosterCard key={entry.sessionId} entry={entry} copy={copy} />
+                  ))}
+                </div>
+              )}
+              {/* 검토 필요 / 무효 (기타) */}
+              {otherEntries.length > 0 && (
+                <div className="roster-section">
+                  {colHead}
+                  {otherEntries.map((entry) => (
+                    <RosterCard key={entry.sessionId} entry={entry} copy={copy} />
+                  ))}
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       {/* 날짜 선택 캘린더 BottomSheet */}
