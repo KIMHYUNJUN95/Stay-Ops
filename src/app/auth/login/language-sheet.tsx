@@ -82,13 +82,13 @@ export function LanguageSheet({ locale, next, view }: LanguageSheetProps) {
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-label={SHEET_TITLE}
-        className="inline-flex h-[34px] items-center gap-1.5 rounded-full border border-border bg-surface/70 pl-[11px] pr-3 text-[12.5px] font-bold text-[hsl(222_20%_28%)]"
+        className="langpill"
       >
-        <span className="text-muted-foreground">
+        <span className="ic">
           <GlobeIcon />
         </span>
         {current.name}
-        <span className="text-[hsl(222_10%_62%)]">
+        <span className="ic chev">
           <ChevronDownIcon />
         </span>
       </button>

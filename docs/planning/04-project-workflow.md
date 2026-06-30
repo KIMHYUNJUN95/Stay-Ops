@@ -208,6 +208,22 @@ Current StayOps handoff expectations:
 - Keep the workflow/status documents current as implementation moves
 - Treat every completed task as requiring code sync and doc sync together
 
+## Admin Dashboard Active Workflow
+
+For the admin-dashboard rebuild, use a lightweight active-workflow model:
+
+- `docs/planning/16-admin-dashboard-workflow.md` = active board only
+- `docs/planning/06-current-status.md` = completed record
+- `docs/planning/01-decision-log.md` = important dashboard decisions
+
+The dashboard workflow intentionally stays short:
+
+```txt
+Backlog -> Ready -> Design -> Build -> Verify -> Done
+```
+
+Completed dashboard items should be removed from the active board and recorded in current-status.
+
 ## Important Rule
 
 No major feature should be implemented only in code without documentation.

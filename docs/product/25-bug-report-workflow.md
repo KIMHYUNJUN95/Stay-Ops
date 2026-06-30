@@ -1,5 +1,10 @@
 # Bug Report / Problem Report Workflow
 
+> 2026-06-29 dashboard note:
+> reviewer handling is no longer being planned as mobile-only forever.
+> The dashboard rebuild includes a bug-report admin surface; treat `docs/product/05-admin-web-ia.md`
+> as the current admin direction while the detailed reviewer rules here are refined during implementation.
+
 Status: 1차 구현 (2026-06-25)
 
 Design note:

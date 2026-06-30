@@ -1,5 +1,11 @@
 ﻿# Attendance / Clock-In-Out / Payroll Workflow
 
+> 2026-06-29 dashboard note:
+> earlier "admin dashboard deferred" wording in this document reflects the old build order.
+> The current dashboard rebuild direction is active. Treat `docs/product/05-admin-web-ia.md` as the
+> source of truth for the admin attendance/payroll surface while this document continues to define the
+> domain workflow, mobile flow, and payroll rules.
+
 Status: Refined planning draft (policy baseline confirmed 2026-06-17) 쨌 **Steps 1?? + Steps 10??4
 implemented 2026-06-17/18** (schema 쨌 site/QR backend 쨌 GPS+QR clock-in/out 쨌 breaks 쨌 self-view history
 쨌 correction requests 쨌 admin review backend 쨌 manual admin management backend 쨌 hourly expected-pay +

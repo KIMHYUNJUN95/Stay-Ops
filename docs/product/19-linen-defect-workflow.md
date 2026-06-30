@@ -1,5 +1,10 @@
 # Linen Defect Workflow
 
+> 2026-06-29 dashboard note:
+> the old "admin web deferred" wording below is historical first-slice context.
+> The active dashboard rebuild now includes a linen-return admin surface. See
+> `docs/product/05-admin-web-ia.md` for the current admin direction.
+
 Status: First slice implemented (2026-06-10). Mobile linen return ledger is live under
 `/mobile/linen-return/*` (side-menu entry `linen-return`). See
 `docs/engineering/08-linen-defect-technical-design.md` → "As-Built" for the implemented schema,

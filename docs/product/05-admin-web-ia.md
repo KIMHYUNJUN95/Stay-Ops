@@ -19,6 +19,28 @@
 - 현재 코드의 역할/화면 범위는 이 문서와 완전히 일치하지 않을 수 있다.
 - 앞으로 대시보드 관련 구현은 이 문서를 기준으로 정렬한다.
 
+### Implemented (2026-06-29)
+
+- **Dashboard Home** 가 데스크톱 운영 콘솔로 구현됨.
+  - Shell: 그룹형 IA 사이드바(Home / Operations / Work·Comms / Management) +
+    조직 컨텍스트 + 모바일 보기 진입 + 콘솔 헤더(크럼 · 전역 검색 · 알림 · 계정).
+    `src/components/shell/admin-shell.tsx`.
+  - Home: ops summary bar + 최상단 우선 블록 카드(진행 중 청소 · 즉시 처리 큐 ·
+    이상 근태/정정 · 중요 공지 · 오늘 할 일 · 예약 체크인/아웃). 모든 블록은
+    `getAdminDashboard`(`src/lib/admin-dashboard.ts`)로 실데이터 연동되고 각 모듈로
+    진입한다. `src/components/admin/dashboard-home.tsx`.
+  - **진행 중 청소 카드**는 행 클릭 시 **우측 상세 슬라이드 패널**(작업 정보 · 활동 기록 · 완료/메시지
+    액션)을 연다. 체크리스트는 StayOps 청소 데이터 모델에 없어 제외하고 실제 보유 필드(담당/시작/경과/유형/
+    상태)만 표시한다. 다른 모듈의 우측 패널·자동 갱신·알림/조직 전환 팝오버는 후속 슬라이스다.
+  - 사이드바는 디자인 핸드오프 기준 **다크 웜-에스프레소 레일**(골드 액티브 액센트) + 아이보리 콘텐츠이고,
+    섹션은 **운영 / 인력 / 정보** 3그룹이다. 브랜드 마크는 실제 앱 아이콘(`/icon-192.png`)을 쓴다.
+- **Admin Login** 구현됨 (2026-06-30). 데스크톱 콘솔 진입 화면을 split 레이아웃(좌측 다크 클레이
+  브랜드 패널 + 우측 인증 폼)으로 통일했고, 전 상태(진입 · 이메일 로그인 · 가입 · 비밀번호 재설정 ·
+  발송 완료 · 새 비밀번호 · 차단/정지/제거/비활성)에 적용했다. 실제 인증 흐름(`next`·온보딩·차단
+  게이팅·언어 선택)은 그대로 보존했다. 파일: `src/app/auth/login/auth-frame.tsx`,
+  `auth-console.css`(.authx), 재스타일된 `email-*-form.tsx`/`google-button.tsx`/`page.tsx`.
+  i18n는 `auth.console`(ko/ja/en) 추가. 모바일/태블릿은 좁은 폭에서 브랜드 패널을 숨기고 폼만 노출한다.
+
 ## Surface Boundary
 
 관리자 대시보드는 독립 표면이다.
@@ -122,40 +144,33 @@
 
 ## Primary Navigation
 
-대시보드 좌측 내비게이션은 4개 묶음으로 정리한다.
+대시보드 좌측 내비게이션은 디자인 핸드오프 기준 **3개 묶음(운영 / 인력 / 정보)** 으로 정리한다.
+(구현은 현재 존재하는 `/admin/*` 라우트만 노출하며, 모듈이 추가되면 해당 그룹에 편입한다.
+`src/config/navigation.ts` 의 `adminNavGroupOf` / `adminNavGroupOrder` 가 단일 소스다.)
 
-### Home
+### 운영 (Operations)
 
-- Dashboard Home
+- Dashboard Home (홈)
+- Cleaning (청소)
+- Maintenance (정비·시설)
+- Lost & Found (분실물)
+- Orders (주문·비품)
 
-### Operations
+### 인력 (People)
 
-- Reservations / Calendar
-- Check-In / Check-Out
-- Cleaning
-- Maintenance
-- Lost & Found
-- Orders
-- Linen Return
-- Complaints
+- Attendance / Payroll / Transportation (근태)
+- Users / Members (멤버)
 
-### Work / Communication
+### 정보 (Information)
 
-- Tasks / Projects
-- Board
-- Announcements
-- Suggestions
-- Bug Reports
-- Notifications
+- Reservations / Calendar (예약)
+- Check-In / Check-Out (체크인/아웃)
+- Announcements / Board (공지·게시판)
+- Recurring Work (반복 업무)
+- Settings (설정)
 
-### Management
-
-- Attendance / Payroll / Transportation
-- Users
-- Permissions
-- Invite Codes
-- Organization Settings
-- Attendance Sites / QR
+향후 모듈(Linen Return · Complaints · Tasks/Projects · Suggestions · Bug Reports · Notifications ·
+Permissions · Invite Codes · Attendance Sites/QR 등)은 위 3개 그룹의 성격에 맞춰 편입한다.
 
 ## Dashboard Home
 
@@ -241,6 +256,210 @@
 - 예약 / 체크인 / 체크아웃 현황
 
 나머지는 수동 새로고침 또는 재진입 기준으로 처리해도 된다.
+
+## Foundational First Screens
+
+대시보드 디자인은 아래 2개 화면부터 시작한다.
+
+1. 로그인 화면
+2. 홈 화면
+
+이 두 화면이 대시보드 전체의 첫 인상, 톤, 구조, 정보 우선순위를 결정한다.
+
+### Why These Two First
+
+- 로그인 화면은 데스크톱 대시보드의 진입 규칙을 고정한다
+- 홈 화면은 대시보드 전체 IA 와 운영 철학을 고정한다
+- 이후 기능 화면은 홈에서 무엇을 먼저 보여주는지에 따라 구조가 정해진다
+
+## Admin Login Screen
+
+### Purpose
+
+관리자 대시보드 로그인 화면은 데스크톱 사용자가 StayOps 운영 콘솔로 진입하는 첫 화면이다.
+
+이 화면은:
+
+- 하나의 계정 체계
+- 데스크톱 우선 진입
+- 운영 제품다운 신뢰감
+- 다국어 지원
+- 로그인 이후 정확한 표면 진입
+
+을 동시에 보여줘야 한다.
+
+### Core Rules
+
+- 루트 데스크톱 진입은 로그인 화면으로 들어간다
+- 모바일/태블릿은 대시보드 로그인 화면을 기본 표면으로 보지 않는다
+- 로그인 성공 후에는 온보딩/권한/조직 상태를 반영해 다음 표면으로 이동한다
+- 같은 계정 체계로 모바일 앱과 대시보드를 함께 사용한다
+- 대시보드와 모바일 중 하나를 고르는 랜딩 화면은 두지 않는다
+
+### Required Login States
+
+디자인은 아래 상태를 수용할 수 있어야 한다.
+
+- 기본 로그인 진입
+- 이메일 로그인
+- 이메일 회원가입
+- 비밀번호 재설정 요청
+- 새 비밀번호 설정
+- 확인 메일 발송 완료
+- 비밀번호 변경 완료
+- 계정/멤버십 차단 상태
+
+즉, 로그인 화면은 한 장의 정적 화면이 아니라 인증 상태를 담는 공통 프레임이다.
+
+### Required Elements
+
+- StayOps 브랜드 영역
+- 운영 콘솔이라는 정체성을 보여주는 짧은 설명
+- Google 로그인 진입
+- 이메일 로그인 진입
+- 언어 선택
+- 오류/상태 메시지 배너 영역
+- 비밀번호 재설정 진입
+- 계정 차단/제거/비활성 상태 대응 영역
+
+### Product Tone
+
+로그인 화면은 일반 소비자용 마케팅 랜딩처럼 보이면 안 된다.
+
+원하는 인상:
+
+- 안정적
+- 신뢰 가능
+- 조용하지만 고급스러움
+- 실무 제품답게 명확함
+- 모바일과 같은 브랜드 감성
+
+### Layout Direction
+
+디자인 자유도는 열어두되, 아래 원칙은 유지한다.
+
+- 데스크톱 폭을 전제로 한 구조
+- 브랜드/설명 영역과 인증 영역의 시각적 위계 분리
+- 인증 폼은 한눈에 읽히고 빠르게 입력 가능해야 함
+- 언어 변경과 상태 메시지가 폼을 방해하지 않아야 함
+- “처음 진입하는 관리자/사무실 사용자” 에게 불안감을 주지 않아야 함
+
+### UX Notes For Design
+
+- 대시보드 로그인 화면에서 모바일 앱 선택 버튼은 두지 않는다
+- 하지만 데스크톱 관리자도 같은 계정으로 모바일 앱을 쓴다는 느낌은 줄 수 있다
+- 보안/조직 운영 제품이라는 인상을 주는 보조 카피나 아이콘은 허용된다
+- 입력량보다 상태 가독성이 더 중요하다
+
+### What The Login Screen Is Not
+
+- 제품 소개 랜딩 페이지
+- 마케팅 사이트
+- 대시보드/모바일 선택 페이지
+- 복잡한 온보딩 설명 페이지
+
+## Dashboard Home Screen
+
+### Purpose
+
+홈 화면은 “오늘 운영에서 무엇이 중요한가” 를 가장 빠르게 보여주는 관리자 콘솔 첫 화면이다.
+
+이 화면은:
+
+- 숫자 요약
+- 긴급 작업
+- 검토 대기
+- 운영 이상 상태
+- 빠른 상세 진입
+
+을 한 화면 안에서 균형 있게 보여줘야 한다.
+
+### Home Type
+
+홈은 아래 두 성격이 섞인 운영 콘솔이다.
+
+- KPI / 현황 보드
+- 오늘 해야 할 일 허브
+
+즉 단순 숫자 카드 모음도 아니고, 단순 할 일 리스트도 아니다.
+
+### Required Top-Priority Blocks
+
+홈 최상단에서 우선 보여야 하는 정보 묶음:
+
+- 진행 중 청소
+- 미처리 정비 / 분실물 / 주문
+- 이상 근태 / 정정 요청
+- 중요 공지 / 오늘 할 일
+
+### Required Secondary Blocks
+
+최상단 다음으로 강하게 보여야 하는 정보:
+
+- 예약 / 체크인 / 체크아웃 현황
+- 알림 센터 진입
+- 전역 검색
+- 조직 전환
+- 모바일 버전 보기 진입
+
+### Header Requirements
+
+홈 상단 공통 헤더에는 아래 요소가 들어가야 한다.
+
+- 조직 전환기
+- 전역 검색
+- 알림
+- 계정/프로필 진입
+- 필요 시 모바일 버전 보기 진입
+
+### Home Layout Direction
+
+홈은 카드 몇 개만 띄우는 단순 대시보드가 아니라, 운영 밀도가 느껴져야 한다.
+
+권장 구조:
+
+- 상단: 조직 / 검색 / 알림 / 계정
+- 첫 번째 구역: 오늘 운영 핵심 요약
+- 두 번째 구역: 처리 대기 큐
+- 세 번째 구역: 경고 / 이상 / 검토 필요
+- 네 번째 구역: 공지 / 오늘 할 일 / 빠른 진입
+
+### Interaction Pattern
+
+홈의 모든 핵심 카드/행은 아래 중 하나로 바로 이어져야 한다.
+
+- 우측 상세 패널
+- 해당 모듈의 목록 화면
+- 전체 상세 페이지
+
+홈은 정보를 “보여주기만” 하면 안 되고, 즉시 운영 화면으로 이어져야 한다.
+
+### Auto-Refresh Targets
+
+홈에서 자동 갱신 우선 대상:
+
+- 진행 중 청소
+- 이상 근태 / 정정 요청
+- 미처리 정비 / 분실물 / 주문
+- 알림 센터
+- 오늘 할 일
+- 예약 / 체크인 / 체크아웃 현황
+
+### Design Tone
+
+홈 화면은 아래 느낌을 동시에 가져야 한다.
+
+- 차분함
+- 통제력
+- 밀도감
+- 즉시성
+- 모바일과 같은 브랜드 무드
+
+중요:
+
+- 정보가 많아도 정신없어 보이면 안 된다
+- KPI 카드만 예쁘게 놓는 식의 generic SaaS 대시보드가 되면 안 된다
+- 실제 운영자가 “오늘 어디부터 봐야 하는지” 가 즉시 읽혀야 한다
 
 ## Mobile View Inside Dashboard
 

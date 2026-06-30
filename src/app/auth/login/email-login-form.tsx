@@ -4,13 +4,6 @@ import { useFormStatus } from "react-dom";
 import { useState } from "react";
 import { signInWithEmailPassword } from "@/app/auth/actions";
 
-const GRADIENT_EMAIL =
-  "linear-gradient(165deg, hsl(223 50% 42%), hsl(223 54% 22%))";
-const SHADOW_EMAIL = "0 18px 36px -20px hsl(223 46% 32% / 0.7)";
-
-const INPUT_BASE =
-  "h-[52px] w-full rounded-[13px] border border-border bg-surface px-[14px] text-[15px] font-semibold text-foreground outline-none placeholder:font-medium placeholder:text-[hsl(222_10%_62%)] focus:border-primary focus:ring-[3.5px] focus:ring-primary/15";
-
 function EyeIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="size-[19px]" aria-hidden="true">
@@ -53,24 +46,12 @@ type EmailLoginFormCopy = {
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      aria-busy={pending}
-      className={`relative mt-[14px] h-[54px] w-full rounded-[15px] text-[15.5px] font-extrabold tracking-[-0.01em] text-white ${
-        pending ? "pointer-events-none opacity-70" : ""
-      }`}
-      style={{ background: GRADIENT_EMAIL, boxShadow: SHADOW_EMAIL }}
-    >
+    <button type="submit" disabled={pending} aria-busy={pending} className="submit" style={pending ? { opacity: 0.7 } : undefined}>
       {pending ? (
-        <span
-          className="absolute inset-0 flex items-center justify-center"
-          aria-hidden="true"
-        >
-          <span className="size-5 animate-spin rounded-full border-[2.4px] border-white/60 border-t-white" />
-        </span>
-      ) : null}
-      <span className={pending ? "opacity-0" : ""}>{label}</span>
+        <span className="size-5 animate-spin rounded-full border-[2.4px] border-white/60 border-t-white" aria-hidden="true" />
+      ) : (
+        label
+      )}
     </button>
   );
 }
@@ -95,46 +76,42 @@ export function EmailLoginForm({
       <input type="hidden" name="next" value={next} />
       <input type="hidden" name="lang" value={lang} />
 
-      <div className="mb-[14px]">
-        <div className="mb-[7px] text-[12.5px] font-extrabold text-[hsl(222_20%_28%)]">
-          {copy.emailLabel}
+      <div className="field">
+        <div className="field__l">{copy.emailLabel}</div>
+        <div className="inp">
+          <input
+            type="email"
+            name="email"
+            autoComplete="email"
+            enterKeyHint="next"
+            defaultValue={initialEmail}
+            placeholder={copy.emailPlaceholder}
+            required
+          />
         </div>
-        <input
-          type="email"
-          name="email"
-          autoComplete="email"
-          enterKeyHint="next"
-          defaultValue={initialEmail}
-          placeholder={copy.emailPlaceholder}
-          className={INPUT_BASE}
-          required
-        />
       </div>
 
-      <div className="mb-[14px]">
-        <div className="mb-[7px] flex items-center justify-between text-[12.5px] font-extrabold text-[hsl(222_20%_28%)]">
+      <div className="field">
+        <div className="field__l">
           {copy.passwordLabel}
-          <a href={forgotHref} className="text-[12px] font-extrabold text-primary">
-            {copy.forgot}
-          </a>
+          <a href={forgotHref}>{copy.forgot}</a>
         </div>
-        <div className="relative">
+        <div className="inp pw">
           <input
             type={showPassword ? "text" : "password"}
             name="password"
             autoComplete="current-password"
             enterKeyHint="go"
             placeholder={copy.passwordPlaceholder}
-            className={`${INPUT_BASE} pr-[46px]`}
             required
           />
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
             aria-label={showPassword ? copy.hidePassword : copy.showPassword}
-            className="absolute right-2 top-2 flex size-9 items-center justify-center rounded-[9px] text-[hsl(222_10%_62%)]"
+            className="inp__eye"
           >
-            {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+            <span className="ic">{showPassword ? <EyeOffIcon /> : <EyeIcon />}</span>
           </button>
         </div>
       </div>

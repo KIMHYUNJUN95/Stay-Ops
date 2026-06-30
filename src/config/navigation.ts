@@ -293,6 +293,12 @@ export const adminNavigation = [
     icon: Building2,
   },
   {
+    id: "attendance",
+    label: localizedNavigationLabels.admin.attendance,
+    href: "/admin/attendance",
+    icon: Clock,
+  },
+  {
     id: "users",
     label: localizedNavigationLabels.admin.users,
     href: "/admin/users",
@@ -305,6 +311,35 @@ export const adminNavigation = [
     icon: Settings,
   },
 ] as const satisfies readonly NavigationItem[];
+
+// Desktop console sidebar grouping — matches the design handoff: 운영 / 인력 / 정보.
+// Maps each admin nav id to a group bucket; ids not listed fall under "operations".
+// See docs/product/05-admin-web-ia.md → "Primary Navigation".
+export type AdminNavGroupKey = "operations" | "people" | "info";
+
+export const adminNavGroupOf: Record<string, AdminNavGroupKey> = {
+  // 운영
+  dashboard: "operations",
+  cleaning: "operations",
+  maintenance: "operations",
+  "lost-found": "operations",
+  orders: "operations",
+  // 인력
+  attendance: "people",
+  users: "people",
+  // 정보
+  calendar: "info",
+  "check-in-out": "info",
+  announcements: "info",
+  "recurring-work": "info",
+  settings: "info",
+};
+
+export const adminNavGroupOrder: readonly AdminNavGroupKey[] = [
+  "operations",
+  "people",
+  "info",
+];
 
 export const utilityNavigation = [
   {

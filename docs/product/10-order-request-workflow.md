@@ -285,9 +285,11 @@ Editing (as built):
 Admin web (deferred):
 
 - The delivery calendar is currently **mobile only** (the requester-facing surface). An equivalent
-  view on the **admin web** (`/admin/orders` or `/admin/calendar`) is **intentionally deferred until
-  the mobile app development is complete**, then revisited. The delivery-date edit already works on the
-  admin order detail (shared `OrderActionBar`); only the calendar visualization is deferred for web.
+  view on the **admin web** (`/admin/orders` or `/admin/calendar`) was historically deferred while the
+  mobile-first slice shipped. The current dashboard rebuild now treats the admin order surface as active
+  scope again; use `docs/product/05-admin-web-ia.md` as the dashboard source of truth. The
+  delivery-date edit already works on the admin order detail (shared `OrderActionBar`); only the older
+  documentation timing is obsolete.
 
 ## Admin Surface
 

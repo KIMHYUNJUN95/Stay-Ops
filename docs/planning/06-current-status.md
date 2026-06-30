@@ -16,6 +16,61 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+## Dashboard Rebuild Direction (confirmed 2026-06-29)
+
+The admin dashboard direction was re-confirmed and broadened on 2026-06-29.
+
+- The dashboard is being treated as a **full desktop operations surface**, not a limited back-office view.
+- Major mobile product modules are expected to gain admin-dashboard counterparts.
+- Mobile app and admin dashboard remain **separate surfaces**: mobile/tablet -> `/mobile`,
+  desktop/notebook -> `/admin`.
+- The dashboard may include an embedded **interactive mobile-view frame**, but that does not merge the
+  two surfaces.
+- Only physical-device exceptions stay mobile-only; the confirmed example is **QR scan clock-in/out**.
+- Detailed per-feature admin permissions are intentionally deferred to each module's implementation
+  cycle; access to the dashboard surface itself is being broadened beyond the old office-only model.
+
+Important implementation note:
+
+- The existing `/admin` code and some older docs still reflect the narrower earlier dashboard scope.
+- The new source of truth for dashboard structure is `docs/product/05-admin-web-ia.md`.
+- As dashboard modules are rebuilt, their domain docs will be updated from "admin deferred" to the new
+  active dashboard direction.
+- The active dashboard work queue itself is now tracked in
+  `docs/planning/16-admin-dashboard-workflow.md`; this file is the place to record completed dashboard
+  slices after they leave the active board.
+
+Dashboard design kickoff scope:
+
+- first design targets are the **admin login screen** and the **dashboard home screen**
+- these two screens are being used to lock the dashboard's entry rules, header structure, information
+  density, and brand tone before the module-by-module screen design begins
+
+Completed dashboard slices:
+
+- **Dashboard home (desktop operations console)** — implemented 2026-06-29.
+  - Console shell rebuilt with a grouped IA sidebar (Home / Operations / Work·Comms / Management),
+    organization context, mobile-view entry, and a console header (breadcrumb · global search · notifications
+    · account): `src/components/shell/admin-shell.tsx`.
+  - `/admin` home rebuilt as an ops console: ops summary bar + top-priority section cards
+    (진행 중 청소 · 즉시 처리 큐 · 이상 근태/정정 · 중요 공지 · 오늘 할 일 · 예약 체크인/아웃),
+    all wired to real data through `src/lib/admin-dashboard.ts` (`getAdminDashboard`) and linking into each
+    module. Files: `src/components/admin/dashboard-home.tsx`, `src/components/admin/admin-console.css`,
+    `src/app/admin/page.tsx`. i18n (`admin.console`) added for ko/ja/en. lint + build green.
+  - Follow-up slices: auto-refresh wiring, right-side detail panel, notification/org-switcher popovers.
+  - Console shell visuals were aligned to the design handoff on 2026-06-30 (dark warm-espresso
+    navigation rail with a gold active accent + ivory content), replacing the earlier ivory sidebar.
+- **Admin login screen (desktop console entry)** — implemented 2026-06-30.
+  - Split layout (warm clay/espresso brand panel + auth form) applied to every auth state via a new
+    `AuthFrame` shell and scoped `auth-console.css` (`.authx`). The auth forms (`email-login`,
+    `email-signup`, `email-reset`, `email-new-password`, `google-button`) were restyled to the design's
+    `.field/.inp/.submit/.banner` system, and the language pill now uses the design `.langpill`.
+  - The real authentication flow is unchanged: Google / email sign-in, signup, password reset, new
+    password, sign-out, `next` handling, onboarding redirect, and blocked/suspended/removed/disabled
+    gating all behave exactly as before. i18n `auth.console` added for ko/ja/en. lint + build green.
+  - The earlier design-preview `?view=error` frame set was retired (real errors surface via the inline
+    error banner in each form).
+
 All core MVP implementation phases (6–12) are substantially complete. Phase 13 (QA and internal rollout) is now the active phase. Controlled internal rollout may begin once the required pre-rollout steps in `docs/planning/13-qa-checklist.md` section 12 are completed. Phase 13 remains open until browser E2E verification is finished and the first staff batch is successfully onboarded.
 
 See `docs/planning/13-qa-checklist.md` for the full system QA checklist and release-readiness summary.  

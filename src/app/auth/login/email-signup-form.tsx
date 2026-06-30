@@ -4,13 +4,6 @@ import { useFormStatus } from "react-dom";
 import { useState } from "react";
 import { signUpWithEmail } from "@/app/auth/actions";
 
-const GRADIENT_EMAIL =
-  "linear-gradient(165deg, hsl(223 50% 42%), hsl(223 54% 22%))";
-const SHADOW_EMAIL = "0 18px 36px -20px hsl(223 46% 32% / 0.7)";
-
-const INPUT_BASE =
-  "h-[52px] w-full rounded-[13px] border border-border bg-surface px-[14px] text-[15px] font-semibold text-foreground outline-none placeholder:font-medium placeholder:text-[hsl(222_10%_62%)] transition-colors focus:border-primary focus:ring-[3.5px] focus:ring-primary/15";
-
 function CheckIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="size-[19px]" aria-hidden="true">
@@ -51,9 +44,9 @@ function getStrengthSegments(pw: string): SegmentState[] {
 }
 
 function segmentClass(s: SegmentState) {
-  if (s === "on") return "bg-[hsl(146_50%_32%)]";
-  if (s === "mid") return "bg-[hsl(35_80%_38%)]";
-  return "bg-muted";
+  if (s === "on") return "on";
+  if (s === "mid") return "mid";
+  return "";
 }
 
 type EmailSignupFormCopy = {
@@ -74,24 +67,12 @@ function SubmitButton({ label, disabled }: { label: string; disabled?: boolean }
   const { pending } = useFormStatus();
   const dim = disabled || pending;
   return (
-    <button
-      type="submit"
-      disabled={dim}
-      aria-busy={pending}
-      className={`relative mt-[6px] h-[54px] w-full rounded-[15px] text-[15.5px] font-extrabold tracking-[-0.01em] text-white ${
-        dim ? "pointer-events-none opacity-[0.42]" : ""
-      }`}
-      style={{
-        background: GRADIENT_EMAIL,
-        boxShadow: dim ? "none" : SHADOW_EMAIL,
-      }}
-    >
+    <button type="submit" disabled={dim} aria-busy={pending} className={`submit${dim ? " dim" : ""}`}>
       {pending ? (
-        <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
-          <span className="size-5 animate-spin rounded-full border-[2.4px] border-white/60 border-t-white" />
-        </span>
-      ) : null}
-      <span className={pending ? "opacity-0" : ""}>{label}</span>
+        <span className="size-5 animate-spin rounded-full border-[2.4px] border-white/60 border-t-white" aria-hidden="true" />
+      ) : (
+        label
+      )}
     </button>
   );
 }
@@ -121,15 +102,7 @@ export function EmailSignupForm({
 
   const segments = getStrengthSegments(password);
   const isReady = emailState === "good" && password.length >= 1;
-
-  const emailInputClass = [
-    INPUT_BASE,
-    emailState === "good"
-      ? "border-[hsl(146_50%_32%)] pr-[46px] focus:ring-[hsl(146_50%_32%)/0.15]"
-      : emailState === "bad"
-      ? "border-[hsl(4_62%_46%)] focus:ring-[hsl(4_62%_46%)/0.12]"
-      : "",
-  ].join(" ");
+  const emailStateClass = emailState === "good" ? " good" : emailState === "bad" ? " bad" : "";
 
   return (
     <form action={signUpWithEmail}>
@@ -137,45 +110,36 @@ export function EmailSignupForm({
       <input type="hidden" name="lang" value={lang} />
 
       {/* Email field */}
-      <div className="mb-[14px]">
-        <div className="mb-[7px] text-[12.5px] font-extrabold text-[hsl(222_20%_28%)]">
-          {copy.emailLabel}
-        </div>
-        <div className="relative">
+      <div className="field">
+        <div className="field__l">{copy.emailLabel}</div>
+        <div className={`inp${emailStateClass}`}>
           <input
             type="email"
             name="email"
             autoComplete="email"
             enterKeyHint="next"
             placeholder={copy.emailPlaceholder}
-            className={emailInputClass}
             onChange={handleEmailChange}
             required
           />
           {emailState === "good" && (
-            <span
-              className="pointer-events-none absolute right-[14px] top-[17px] text-[hsl(146_50%_32%)]"
-              aria-hidden="true"
-            >
-              <CheckIcon />
+            <span className="inp__ok" aria-hidden="true">
+              <span className="ic"><CheckIcon /></span>
             </span>
           )}
         </div>
       </div>
 
       {/* Password field */}
-      <div className="mb-[14px]">
-        <div className="mb-[7px] text-[12.5px] font-extrabold text-[hsl(222_20%_28%)]">
-          {copy.passwordLabel}
-        </div>
-        <div className="relative">
+      <div className="field">
+        <div className="field__l">{copy.passwordLabel}</div>
+        <div className="inp pw">
           <input
             type={showPassword ? "text" : "password"}
             name="password"
             autoComplete="new-password"
             enterKeyHint="go"
             placeholder="••••••••"
-            className={`${INPUT_BASE} pr-[46px]`}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -184,37 +148,26 @@ export function EmailSignupForm({
             type="button"
             onClick={() => setShowPassword((v) => !v)}
             aria-label={showPassword ? copy.hidePassword : copy.showPassword}
-            className="absolute right-2 top-2 flex size-9 items-center justify-center rounded-[9px] text-[hsl(222_10%_62%)]"
+            className="inp__eye"
           >
-            {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+            <span className="ic">{showPassword ? <EyeOffIcon /> : <EyeIcon />}</span>
           </button>
         </div>
 
-        {/* Strength meter — 4 segments */}
-        <div className="mt-[9px] flex gap-[5px]">
+        <div className="pw-meter">
           {segments.map((s, i) => (
-            <span
-              key={i}
-              className={`h-1 flex-1 rounded-full transition-colors ${segmentClass(s)}`}
-            />
+            <i key={i} className={segmentClass(s)} />
           ))}
         </div>
-        <p className="mt-[7px] text-[11.5px] font-semibold leading-[1.45] text-[hsl(222_10%_62%)]">
-          {copy.passwordHint}
-        </p>
+        <div className="field__hint">{copy.passwordHint}</div>
       </div>
 
       <SubmitButton label={copy.signupCta} disabled={!isReady} />
 
-      {/* Terms consent */}
-      <p className="mt-[14px] whitespace-pre-line text-center text-[11.5px] font-semibold leading-[1.55] text-[hsl(222_10%_62%)]">
-        <a href={termsHref} className="font-extrabold text-muted-foreground">
-          {copy.termsLink}
-        </a>
+      <p className="field__hint" style={{ textAlign: "center", marginTop: 14, whiteSpace: "pre-line", lineHeight: 1.55 }}>
+        <a href={termsHref} style={{ color: "var(--muted)", fontWeight: 800 }}>{copy.termsLink}</a>
         {copy.termsConMid}
-        <a href={privacyHref} className="font-extrabold text-muted-foreground">
-          {copy.privacyLink}
-        </a>
+        <a href={privacyHref} style={{ color: "var(--muted)", fontWeight: 800 }}>{copy.privacyLink}</a>
         {copy.termsConPost}
       </p>
     </form>

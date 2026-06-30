@@ -39,6 +39,7 @@ Living: Must be updated continuously.
 | [QA Checklist](./planning/13-qa-checklist.md) | Living | Full system QA and release-readiness checklist |
 | [Rollout Guide](./planning/14-rollout-guide.md) | Living | Internal rollout sequence and operational checks |
 | [Feature Batch Plan](./planning/15-feature-batch-plan.md) | Draft | Upcoming feature batch scoping and implementation order |
+| [Admin Dashboard Workflow](./planning/16-admin-dashboard-workflow.md) | Living | Active workflow board for dashboard planning and implementation |
 
 ## Product Docs
 

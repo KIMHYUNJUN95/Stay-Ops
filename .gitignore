@@ -49,3 +49,9 @@ cookies.txt
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE
+.idea/
+
+# Backup files
+*.bak

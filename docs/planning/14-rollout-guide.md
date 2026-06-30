@@ -99,6 +99,9 @@ If a staff member gets stuck on step 6, confirm the invite code is active at `/a
 
 ## Role Reference
 
+This table reflects the **current rollout implementation** during Phase 13, not the broader
+2026-06-29 dashboard rebuild target documented in `docs/product/05-admin-web-ia.md`.
+
 | Role | Mobile access | Admin web access |
 |---|---|---|
 | `owner` | Full mobile + cleaning | Full admin web |
