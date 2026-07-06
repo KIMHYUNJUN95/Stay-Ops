@@ -150,6 +150,21 @@ Important interpretation for StayOps:
 - Use solid or lightly translucent surfaces behind important text.
 - Avoid low contrast glass panels for critical data.
 
+### Admin Dashboard Shared UI Contract
+
+The admin dashboard uses one operations-console design system. The current implementation baseline is
+`src/components/admin/admin-console.css` plus reusable primitives in `src/components/admin/shared`.
+
+- Reuse shared admin primitives before creating feature-local controls.
+- Month/date/time pickers, chip filters, reason modals, side-panel behavior, status chips, cards, tables,
+  and action bars should remain visually and interaction-wise consistent across `/admin/*`.
+- Shared formatting/downloading helpers that affect visible output, such as yen formatting and status-pill
+  mappings, should live with the admin shared layer when multiple admin pages use the same result.
+- New admin pages may extend the shared system, but should not introduce a second visual language or
+  one-off control set unless a documented decision explains why.
+- Multilingual length checks (`ko`, `ja`, `en`) are part of the design acceptance criteria for shared
+  admin controls.
+
 ## Mandatory Mobile Visual Consistency Rule (Do Not Break)
 
 This is a hard project rule and must always be enforced:
