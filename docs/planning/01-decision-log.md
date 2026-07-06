@@ -2,6 +2,591 @@
 
 This file records important project decisions.
 
+## 2026-07-06 (7)
+
+### Annual leave: swipe-to-delete for draft rows in history
+
+- Added real delete (not just cancel) for draft leave requests, since a draft was never submitted —
+  cancel doesn't apply, hard delete does. Reused the existing swipe-to-delete pattern from
+  `src/components/notifications/notification-list.tsx` (`SwipeItem`) rather than inventing a new
+  interaction: one row open at a time, 76px reveal, 40px commit threshold, spring-back animation,
+  delete fires immediately on tapping the revealed button (no extra confirmation modal — the swipe +
+  explicit tap is already a two-step deliberate gesture, matching the only existing precedent for this
+  interaction in the app). Only draft rows get the swipe wrapper; other statuses are unaffected.
+- `deleteLeaveRequestDraft` (`src/lib/annual-leave-requests-server.ts`, new): hard-deletes, self-scoped,
+  only while `status = 'draft'`. `deleteLeaveRequestDraftAction`
+  (`src/app/mobile/attendance/leave/actions.ts`, new) wraps it.
+- Added a `trash` icon to `att-icons.tsx` (matching the hand-ported inline-SVG icon set's stroke
+  style) instead of importing `lucide-react`'s `Trash2` as notifications does — keeps this feature's
+  icon set visually consistent with itself rather than mixing icon libraries.
+- New CSS (`leave.css`): `.lswipe*` classes for the reveal/delete-button layout, `.lrow-outer` to
+  re-anchor the existing `.lrow + .lrow` spacing rule now that history rows are wrapped one level
+  deeper (needed for the swipeable rows' own stacking context).
+- i18n: `draftSwipeDelete` ("삭제"/"Delete"/"削除") added to all three locales; leave dict key count
+  confirmed at 136/136/136 (no drift).
+
+Why: draft deletion is a real gap (drafts have no other way to be removed), and swipe-to-delete
+already exists once in this codebase — reusing that exact interaction/physics avoids introducing a
+second, subtly different gesture pattern for the same underlying action.
+
+Impact:
+- `src/lib/annual-leave-requests-server.ts` (`deleteLeaveRequestDraft`)
+- `src/app/mobile/attendance/leave/actions.ts` (`deleteLeaveRequestDraftAction`)
+- `src/components/attendance/leave-history.tsx` (`SwipeableDraftRow`), `att-icons.tsx` (`trash`),
+  `leave.css`
+
+**Addendum:** tapping/clicking anywhere outside a swiped-open draft row now springs it closed too (not
+just tapping the row itself or opening a different row) — a document-level `pointerdown` listener
+scoped to each row while it's open, torn down once closed. This wasn't present in the
+`notification-list.tsx` precedent either; added here as a small UX improvement on top of the reused
+pattern.
+
+**Bug fix:** tapping elsewhere to close a swiped-open row showed a brief red flash. Root cause:
+`leave.css` was missing the `-webkit-tap-highlight-color: transparent` reset that its sibling files
+(`attendance.css`, `transport.css`) already apply globally within their scope — every other button in
+this app already had it, `leave.css` just never got it. Added the same `.lv *`/`.lv-sheet *` reset
+block to `leave.css`, matching the existing project pattern exactly.
+
+**Bug fix #2:** the tap-highlight fix didn't fully resolve it — a faint red edge was still visible
+during/after the close animation. First attempt gave `.lswipe__content` its own `background: var(--card)`
+**+ `border-radius: 15px`**, which was itself wrong and didn't fix it: `.lswipe__content` is the
+element that slides via `translateX`, so while open or mid-animation its box sits away from the
+container's true corners — rounding that same element rounds those off-corner positions too,
+creating small red crescents where the `.lswipe__del` layer behind peeks through the curve exactly
+at the row's edges during the slide. **Bug fix #3 (actual root cause):** removed `border-radius` from
+`.lswipe__content` entirely, keeping only the opaque `background`. Rounding belongs solely on the
+fixed outer `.lswipe` (`overflow: hidden` + `border-radius: 15px`), which correctly clips the plain
+rectangular content into the right shape regardless of its horizontal offset — no rounded corners
+mid-slide, so nothing red can peek through a curve that shouldn't exist there.
+
+**Bug fix #4:** a full rectangular red ring (with a small gap between it and the card, like
+`outline-offset`) was still visible around one row after closing via outside-tap — not a corner
+bleed like #2/#3, shaped like a focus ring. Not confirmed against live DevTools (not available in
+this session), but this file's own established convention is that custom-styled interactive elements
+explicitly opt out of the default outline (`.finput` already does this) — `.lrow`, `.lswipe`, and
+`.lswipe__delbtn` never got that treatment, so if any of them received `:focus-visible` (native
+browser behavior on some platforms after a tap/click completes), the default ring would show. Added
+`outline: none` to all three, matching the existing `.finput` pattern, rather than the global
+`:focus-visible` ring (which is blue via `--ring`, not red) applying unexpectedly.
+
+## 2026-07-06 (6)
+
+### Annual leave: draft resume/continue-editing closes the mobile experience
+
+- Found and fixed a real gap while confirming mobile was feature-complete: "임시저장" (save draft)
+  persisted a real `draft` row, but no screen ever showed it again — `leave-home.tsx`'s recent list
+  and `leave-history.tsx` both filtered drafts out, so a saved draft was effectively unrecoverable.
+- `leave-history.tsx` no longer filters out drafts (they show under the "전체" filter tab with the
+  existing muted "임시저장" chip); tapping a draft row now navigates to
+  `/mobile/attendance/leave/new?id=<id>` instead of opening the read-only detail sheet.
+- `/mobile/attendance/leave/new` accepts `?id=` to load and prefill an existing draft
+  (`getMyLeaveRequest`); only rows still in `draft` status are treated as editable (a requested/
+  decided row falls through to a blank new form instead).
+- `updateDraftLeaveRequest` (`src/lib/annual-leave-requests-server.ts`, new) overwrites the draft's
+  fields in place and, if the user submits (not saves-as-draft-again) this time, transitions it to
+  `requested`. `submitLeaveRequestAction` gained an optional `requestId` to route to this instead of
+  creating a new row.
+- `leave-home.tsx`'s recent-requests teaser still excludes drafts (unchanged) — drafts are a
+  history/edit concern, not a "recent activity" one.
+
+Why: this was found by directly re-verifying "is mobile actually done" rather than trusting the
+earlier checklist — the draft button existed and appeared to work, but had no way back. Confirmed
+worth fixing now, per "finish mobile first."
+
+Impact:
+- `src/lib/annual-leave-requests-server.ts` (`updateDraftLeaveRequest`)
+- `src/app/mobile/attendance/leave/actions.ts` (`submitLeaveRequestAction` requestId param)
+- `src/app/mobile/attendance/leave/new/page.tsx`, `history/page.tsx`
+- `src/components/attendance/leave-form.tsx` (draft prefill), `leave-history.tsx` (draft row → edit)
+
+## 2026-07-06 (5)
+
+### Annual leave: mobile team calendar (L5) wired to real approved-only, org-wide data
+
+- Confirmed the mobile leave calendar shows every employee's leave (including the viewer's own), but
+  only **approved** requests — pending/rejected/draft/cancelled stay private. This completes the last
+  remaining mock piece of the mobile employee-facing annual-leave experience (per the "finish mobile
+  first" build order confirmed earlier today).
+- Migration `202607060003_annual_leave_approved_visibility.sql` (applied): additive SELECT RLS policy
+  `annual_leave_requests_org_approved_select` grants org-wide read of `status = 'approved'` rows on
+  top of the existing self-or-approver policy.
+- `listApprovedLeaveForMonth` (`src/lib/annual-leave-requests-server.ts`, new) queries approved leave
+  overlapping a given Tokyo month. `leave-calendar.tsx` converted from a hardcoded July-2026 mock
+  (fake names, no navigation) to a real month grid with `?ym=` navigation and real applicant names
+  (already denormalized on `annual_leave_requests.applicant_name`, no join needed).
+
+Why: this was the one piece of mobile-side annual leave still fully mocked; wiring it closes out the
+"mobile first" milestone before admin-dashboard work (approval queue, stage 2/3) begins.
+
+Impact:
+- `supabase/migrations/202607060003_annual_leave_approved_visibility.sql` (new, applied)
+- `src/lib/annual-leave-requests-server.ts` (`listApprovedLeaveForMonth`)
+- `src/components/attendance/leave-calendar.tsx`, `src/app/mobile/attendance/leave/calendar/page.tsx`
+- `docs/engineering/04-data-model.md`, `05-rls-permissions.md`
+
+## 2026-07-06 (4)
+
+### Annual leave: approval queue is admin-dashboard scope; build order is mobile-first
+
+- Confirmed the approval queue, approve/reject action, and document output (Phase 2 stage 2/3) belong
+  on the **admin web dashboard** (`/admin/attendance/leave`, planned to mirror the existing
+  correction-review queue at `/admin/attendance/queue`), not mobile — mobile is the employee
+  submit/view surface, the PC dashboard is the manager review/approve surface.
+- Confirmed rejecting a leave request does NOT require a reason, unlike attendance-correction
+  rejection (which does) — noted so the eventual reject UI doesn't copy that requirement by default.
+- Confirmed build order: finish the mobile employee-facing annual-leave experience completely first;
+  the admin dashboard piece starts only afterward. Not a scope cut — just sequencing.
+
+Why: this keeps the mobile/dashboard surface split consistent with the rest of the product (mobile =
+field/employee, dashboard = office/manager), and avoids splitting attention across both surfaces
+before either is solid.
+
+Impact: `docs/product/26-annual-leave-workflow.md` (approval-location + reject-reason-optional +
+build-order notes)
+
+## 2026-07-06 (3)
+
+### Annual leave: approval-workflow policy locked; Phase 2 stage 1 (request submission) implemented
+
+- Confirmed the remaining open policy from `docs/product/26-annual-leave-workflow.md` against the
+  actual paper form photo (休暇届): approver = any member flagged with a new
+  `memberships.leave_approver_role` (`department_head` = 대표/CEO, `senior_managing_director` = 전무),
+  either one approving completes the request (matches the doc's "either VP or CEO, one approval
+  enough" — the paper form's 部署長/専務 stamp boxes map to those two roles, not a 3-step chain).
+  Attachments are optional. E-signature is an approval "stamp" (button click, name+timestamp), not a
+  drawn signature. Document output will replicate the paper form's exact layout once its own stage
+  (3) is built — deferred because there's no PDF-generation library in the project yet; the interim
+  plan is a print-optimized HTML view (browser print-to-PDF).
+- Implemented **Phase 2, stage 1 only**: request submission + self-cancel. Migration
+  `202607060002_annual_leave_requests.sql` adds `annual_leave_requests` (draft/requested/approved/
+  rejected/cancelled) and `memberships.leave_approver_role` + `is_leave_approver()` helper (read-only
+  RLS, same shape as `attendance_payroll_admin`/`can_manage_attendance_payroll`). Approve/reject
+  action, approval queue UI, and document output are explicitly deferred to stage 2/3 — not built.
+- `src/lib/annual-leave-requests-server.ts` (new): self-scoped create/cancel/list/get. Wired into
+  `leave-form.tsx` (실제 제출/임시저장), `leave-home.tsx` (실제 최근 신청/대기 건수),
+  `leave-history.tsx` (실제 목록 + 실제 취소), `leave-done.tsx`/`leave-cancel-done.tsx` (실제 신청
+  데이터, no more MOCK constants).
+- Converted the leave-request date pickers from a hardcoded July-2026 mock calendar to a real
+  month/year-navigating calendar (`leave-date-picker.tsx`, mirroring `hire-date-picker.tsx`) — a
+  necessary companion fix, since submitting to the real backend with fake hardcoded July-2026 dates
+  would have been actively wrong regardless of when someone actually applies. `leave-form.tsx` now
+  tracks real ISO date state instead of July-day integers.
+
+Why: the approver-identity gap was the one thing genuinely blocking the approval backend (attachments/
+e-signature were already effectively decided); confirming it against the real paper form let us lock
+the whole policy in one pass instead of guessing. Submission is safe to build now because its shape
+doesn't depend on the still-unbuilt approval action — a request can sit in `requested` status
+indefinitely without needing stage 2 to exist.
+
+Impact:
+- `supabase/migrations/202607060002_annual_leave_requests.sql` (new, applied to the linked Supabase project)
+- `src/types/database.ts` (annual_leave_requests, memberships.leave_approver_role)
+- `src/lib/annual-leave-requests-server.ts` (new)
+- `src/app/mobile/attendance/leave/actions.ts` (submit/cancel actions)
+- `src/app/mobile/attendance/leave/{page,history/page,done/page,cancel-done/page}.tsx`
+- `src/components/attendance/{leave-form,leave-date-picker,leave-home,leave-history,leave-done,leave-cancel-done}.tsx`
+- `docs/engineering/04-data-model.md`, `05-rls-permissions.md`, `docs/product/26-annual-leave-workflow.md`
+
+## 2026-07-06 (2)
+
+### Annual leave: Phase 1 backend implemented (hire_date + balance baseline only)
+
+- Scope confirmed as narrow on purpose: only `profiles.hire_date` + a self-entered leave-balance
+  baseline are backed by real DB now. The request-submission/approval/e-signature/document workflow
+  in `docs/product/26-annual-leave-workflow.md` remains an unimplemented planning draft — its
+  approver identity, e-signature style, and document output are still unresolved, so building that
+  backend now would risk being thrown away.
+- Migration `202607060001_annual_leave_hire_date_baseline.sql`: adds `profiles.hire_date` (same
+  pattern as `birth_date`) and a new `annual_leave_baselines` table (one row per user: `base_amount`,
+  `bonus_amount`, `baseline_date`). RLS is read-only self-or-admin (`can_manage_attendance_payroll`),
+  identical shape to `transport_reimbursement_reports` — all writes go through the service-role
+  server action `setAnnualLeaveBaselineAction` (`src/app/mobile/attendance/leave/actions.ts`).
+- `src/lib/annual-leave-server.ts` (new): `getAnnualLeaveBaseline` / `setAnnualLeaveBaselineForUser` /
+  `getMyAnnualLeaveSummary` — server-only, self-scoped reads/writes, wraps the existing pure
+  `computeAnnualLeaveSummary` (unchanged calculation logic, just given a real data source now).
+- Removed the temporary `localStorage` bridge from `src/lib/annual-leave.ts`
+  (`readLeaveBaseline`/`writeLeaveBaseline`/`LeaveBaselineInput`) now that it's replaced by the real
+  backend. `leave-home.tsx` reverted from a client component back to a plain presentational component
+  that receives `summary` as a prop from the server page instead of reading browser storage itself;
+  `leave-exception.tsx`'s self-entry form now calls the server action instead of writing localStorage.
+- `computeAnnualLeaveSummary`/`buildLeaveBuckets` gained an optional `bonusBaselineAmount` parameter
+  (separate from `baselineAmount`) so a pre-existing 특별휴가 balance is tracked in the bonus pool,
+  not folded into the 유급 휴가 pool — mirrors the `annual_leave_baselines.bonus_amount` column.
+
+Why: the hire-date/balance piece was fully speced and tested (src/lib/annual-leave.ts,
+annual-leave.test.ts) and had no more open policy questions, so it was safe to back with real
+Supabase tables now. The approval/document workflow still has unresolved open questions (approver
+identity, e-signature style, carryover beyond 2 years), so its backend is deliberately deferred rather
+than guessed at.
+
+Impact:
+- `supabase/migrations/202607060001_annual_leave_hire_date_baseline.sql` (new)
+- `src/types/database.ts` (profiles.hire_date, annual_leave_baselines)
+- `src/lib/annual-leave-server.ts` (new), `src/lib/annual-leave.ts`
+- `src/app/mobile/attendance/leave/actions.ts` (new), `leave/page.tsx`
+- `src/components/attendance/leave-home.tsx`, `leave-exception.tsx`
+- `docs/engineering/04-data-model.md`, `05-rls-permissions.md`, `docs/product/26-annual-leave-workflow.md`
+
+**Migration applied 2026-07-06** to the linked StayOps Supabase project (`sspdgzkytkpmquqsfaup`) via
+the Supabase MCP `apply_migration`. Verified `profiles.hire_date` exists and
+`annual_leave_baselines_self_or_admin_select` RLS policy is in place; `get_advisors` showed no new
+security issues introduced by this migration.
+
+## 2026-07-06
+
+### Annual leave: confirmed accrual table, 2-year carryover (partial), self-entry interim design
+
+- Confirmed the exact accrual schedule: +6mo=10d, +1y6m=11d, +2y6m=12d, +3y6m=14d, +4y6m=16d,
+  +5y6m=18d, +6y6m onward=20d/year (cap), plus a one-time +4-day bonus at the 4-year mark (outside
+  the cap). Implemented as pure functions in `src/lib/annual-leave.ts`, covered by
+  `src/lib/__tests__/annual-leave.test.ts`.
+- Confirmed unused leave lapses 2 years after its grant date. What happens beyond 2 years is still
+  unconfirmed pending an internal company check — kept as a single named constant
+  (`LEAVE_EXPIRY_YEARS`) so it's a one-line change later.
+- Interim decision (backend not started yet): the employee self-enters their hire date and current
+  remaining leave balance directly (not admin-mediated), stored in browser `localStorage` only until
+  a real `hire_date` column + balance ledger exist in Supabase. `leave-exception.tsx` (missing-hire-date
+  screen) now collects this input instead of showing a "request setup" CTA; `leave-home.tsx` reads it
+  and renders the auto-calculated balance instead of a hardcoded mock number.
+- Half-day (AM/PM) leave requests now restrict the date-range picker to a single selectable day
+  (`leave-date-picker.tsx`, `singleDay` prop) instead of allowing a multi-day range.
+- Hire-date entry uses a new real single-date calendar bottom sheet (`hire-date-picker.tsx`) instead
+  of a native `<input type="date">`. The native control renders the OS/browser's own calendar chrome
+  (uncontrolled, unlocalized by this app — it was showing Korean regardless of the selected locale),
+  which conflicts with the mandatory ko/ja/en multilingual rule. The new picker follows the same
+  bottom-sheet visual pattern as `leave-date-picker.tsx` but does real month/year navigation (not a
+  fixed mock month) since a hire date can be many years in the past.
+- Fixed a Next.js RSC error introduced while making `leave-home.tsx`/`leave-exception.tsx` client
+  components: they were receiving the whole `copy` i18n dictionary (which includes functions like
+  `fDays`/`balExpire`) as a prop from a Server Component page, which Next.js disallows. Fixed by
+  having them take a `locale: string` prop and call `getDictionary(locale)` internally instead —
+  matching the existing pattern already used by `leave-form.tsx`.
+- The hire-date calendar bottom sheet (`hire-date-picker.tsx`) gained a year-stepper + 12-month grid
+  (tap the month/year label) so users don't have to page month-by-month back to their hire year.
+- Confirmed the four leave-request types are NOT four labels on one balance — each has different
+  balance/payment behavior: 경조 휴가(`annual`) is a fixed 3 paid days per request, independent of the
+  hire-date accrual pool (extra days beyond 3 must come from the employee's own 유급휴가); 유급
+  휴가(`paid`) draws from the hire-date accrual pool; 특별휴가(`special`) draws only from the one-time
+  4-year +4-day bonus pool, never mixed with the accrual pool; 기타(`other`) is unpaid, no balance
+  deduction. `computeAnnualLeaveSummary` now returns `baseRemaining`/`bonusRemaining` as two
+  independent numbers (with independent `usedDays`/`specialUsedDays` inputs) instead of one merged
+  total; `leave-form.tsx` auto-fills a fixed 3-day range and hides the half-day toggle when 경조 휴가
+  is selected, and shows an "unpaid" hint for 기타; `leave-home.tsx` shows the 특별휴가 balance as a
+  separate secondary card, not folded into the main progress bar.
+
+Why: automatic, hire-date-based accrual removes manual balance bookkeeping once the real backend
+exists, but the exact schedule and carryover policy had to be nailed down first since getting them
+wrong would be costly to unwind. The localStorage bridge lets the UI/calculation work be built and
+tested now without blocking on the backend.
+
+Impact:
+- `src/lib/annual-leave.ts` (new), `src/lib/__tests__/annual-leave.test.ts` (new)
+- `src/components/attendance/hire-date-picker.tsx` (new)
+- `src/components/attendance/leave-exception.tsx`, `leave-home.tsx`, `leave-date-picker.tsx`,
+  `leave-form.tsx`, `leave.css`
+- `src/app/mobile/attendance/leave/page.tsx`, `leave/exception/page.tsx`
+- `src/lib/i18n.ts` (ko/ja/en)
+- `docs/product/26-annual-leave-workflow.md`
+
+## 2026-07-03
+
+### Admin dashboard shared format utilities extracted
+
+- Added `src/components/admin/shared/admin-format.ts`.
+- Moved repeated admin Excel workbook download, yen formatting, optional yen formatting, and transport
+  status-pill mapping into the shared admin layer.
+- Payroll, transport, staff-detail, overview, wages, and receipt-review components now reuse the shared
+  utilities where the output is identical. Domain-specific session/payroll status decisions remain local
+  to their components.
+
+Why: this removes duplicate utility code without changing labels, class names, layout, or visual output.
+
+Impact:
+- `src/components/admin/shared/admin-format.ts`
+- `src/components/admin/attendance/*`
+- `docs/product/05-admin-web-ia.md`
+- `docs/design/00-design-direction.md`
+- `docs/planning/06-current-status.md`
+
+### Admin attendance page auth guard centralized
+
+- Added `src/lib/admin-page-auth.ts` with `requireAdminPageSession({ nextPath })`.
+- Replaced duplicated auth/onboarding/admin-role guards across `/admin/attendance/*` page components.
+- The helper enforces organization context in the same place as auth and role access:
+  unauthenticated users go to `/auth/login?next=...`, incomplete or platform/no-org sessions go to
+  `/onboarding`, and roles outside admin-web access go to `/mobile`.
+- The focused receipt review page keeps its query-bearing `nextPath` through the same helper.
+
+Why: the attendance admin pages had repeated guard blocks, and only some checked organization context.
+Centralizing the guard prevents route drift without changing the rendered UI.
+
+Impact:
+- `src/lib/admin-page-auth.ts`
+- `src/app/admin/attendance/*/page.tsx`
+- `docs/product/05-admin-web-ia.md`
+- `docs/planning/06-current-status.md`
+
+### Admin dashboard shared primitives extracted
+
+- Moved reusable desktop-console primitives out of the attendance feature folder into
+  `src/components/admin/shared`.
+- Shared primitives now include `AdminMonthPicker`, `AdminDatePicker`, `AdminTimePicker`,
+  `ChipDropdown`, `AdminReasonModal`, and `useAdminPanelA11y`.
+- Attendance pages now import these from the shared admin location. Rendering classes and CSS are
+  unchanged, so this is a structure/design-system cleanup rather than a visual redesign.
+- The dashboard standard remains `admin-console.css` + shared primitives for new and touched admin
+  operation screens; older Tailwind-style admin pages are not force-rewritten in this step.
+
+Why: the admin dashboard had started to accumulate reusable controls inside one domain folder. Moving
+them to a shared location prevents future dashboard pages from creating duplicate date pickers, reason
+modals, filter controls, or panel behavior.
+
+Impact:
+- `src/components/admin/shared/*`
+- `src/components/admin/attendance/*` imports
+- `docs/product/05-admin-web-ia.md`
+- `docs/design/00-design-direction.md`
+- `AGENTS.md`
+- `CLAUDE.md`
+
+### Admin attendance follow-up hardening — state, i18n, and month-context cleanup
+
+- The overview transport card now reads the real missing-receipt count from reimbursement items without
+  image rows; the previous placeholder `0` is no longer used.
+- Month context is preserved on overview → payroll/transport, staff-day → queue, and wage-panel →
+  staff-detail links so badges/body/detail views do not silently drift to another month.
+- Bulk queue processing remains parallel and now keeps partial-failure feedback visible until dismissed,
+  including the first failed staff/date targets.
+- Payroll finalization and reopen both use the shared admin modal; finalization has its own optional-note
+  copy, while reopen remains reason-required.
+- Admin attendance aria labels and urgency chips are dictionary-backed in ko/ja/en; Japanese `番号` and
+  `台帳` labels replace the previous ambiguous strings.
+
+Why: these were reported QA inconsistencies that could make the admin console show stale or misleading
+state without changing the visual design contract.
+
+Impact:
+- `src/lib/transport-reimbursement.ts`, `src/lib/admin-attendance.ts`
+- `src/components/admin/attendance/*`
+- `src/app/admin/attendance/wages/page.tsx`
+- `src/lib/i18n.ts`
+- `docs/product/24-attendance-workflow.md`
+- `docs/engineering/11-attendance-payroll-technical-design.md`
+- `docs/planning/06-current-status.md`
+
+### 교통비 검토 흐름 완성 — 보완 요청(changes_requested) + 재오픈
+
+- 그동안 비활성 스텁이던 상세 패널의 **"보완 요청"·"재오픈"** 버튼을 실제 동작으로 구현했다.
+- **보완 요청**: 새 리포트 상태 **`changes_requested`** 도입(마이그레이션 `202607030001` — status CHECK에
+  값 추가). 반려(거절)보다 부드러운 중간 단계로, **직원에게 "고쳐서 다시 제출"** 요청을 보낸다. 직원은
+  draft/rejected와 동일하게 이 상태에서 항목을 편집·재제출할 수 있다(모바일 편집 규칙·상태 라벨 추가).
+  사유 필수.
+- **재오픈**: 이미 승인/반려된 리포트를 되돌린다(→ `submitted`). **승인을 실수로 했거나 승인 후 오류를
+  발견한 경우 복구** 가능. 특히 승인된 리포트를 재오픈하면 급여 합산(승인 건만 집계)에서 빠지므로 재검토
+  후 다시 승인해야 반영된다. 사유 선택.
+- 서버 전이 규칙(`setTransportReportReview`): submitted/reviewing/changes_requested → approved | rejected
+  | changes_requested / approved·rejected → reopen(→submitted). 반려·보완요청은 사유 필수.
+- UI: 급여 검토와 동일한 중앙 정렬 `AdminReasonModal` 재사용. 상태 칩(관리자 리스트/영수증 뷰/모바일)에
+  `changes_requested` 라벨 추가.
+
+Why: 실무적으로 (1) "승인하면 되돌릴 수 없음"이 돈이 걸린 흐름에서 위험했고(재오픈으로 해결), (2) 반려/승인
+2택뿐이라 "영수증 한 장만 보완" 같은 흔한 케이스가 애매했다(보완 요청으로 해결). 급여 검토의 마감→재오픈과
+같은 개념을 교통비에도 맞췄다.
+
+Impact:
+- `supabase/migrations/202607030001_transport_changes_requested_status.sql` (신규, 적용 완료)
+- `src/lib/transport-reimbursement.ts`(타입), `src/app/mobile/attendance/transport/actions.ts`(편집 허용),
+  `src/components/attendance/transport-statement.tsx`(상태 라벨·편집)
+- `src/app/admin/attendance/actions.ts`(전이 규칙 확장), `src/components/admin/attendance/attendance-transport-client.tsx`(버튼·모달),
+  `src/components/admin/attendance/transport-receipt-view.tsx`(상태 칩)
+- i18n(ko/ja/en): 관리자·모바일 상태 라벨 + 재오픈/보완요청 액션 문구
+- `docs/engineering/04-data-model.md`, `docs/planning/06-current-status.md`
+
+### Annual Leave Workflow — salary staff only, 6-month eligibility, paper-form parity
+
+- Annual leave is being introduced as a separate attendance-adjacent workflow for salary-based regular
+  employees only. Hourly staff are excluded.
+- Eligibility begins exactly 6 months after hire date. The first grant is 10 days.
+- After that, leave accrues by tenure year, capped at 20 days for the base accrual.
+- A 4-year bonus leave grant adds 4 days separately from the base accrual cap.
+- The employee entry flow should start from signup with employee code and hire date collection, then
+  fall back to a first-use hire-date prompt for legacy accounts, and allow admin correction from the
+  employee detail screen.
+- The request form should be reachable from both the mobile surface and the admin dashboard surface.
+- The selected leave type must carry into the generated document with automatic color fill on the same
+  option block used by the paper form.
+- Morning and afternoon half-day leave are part of the same workflow and must use the same paper-form
+  output with the selected block highlighted.
+- Either the VP or the CEO can approve a request; one approval is sufficient.
+- The approved document should be generated automatically and keep the company paper form as the visual
+  reference.
+
+Why: The paper approval process is slow in the field and only two people approve it, so the workflow
+should stay close to the existing form while moving the intake and approval into the system.
+
+Impact:
+- `docs/product/26-annual-leave-workflow.md`
+- future design file for annual leave
+- later engineering and data-model docs once the flow is frozen
+
+### 급여 계산 정합성 하드닝 — 마감 스냅샷 우선 + 개인별 문서 합계 보정
+
+- 시급 계산의 순수 헬퍼를 `src/lib/attendance-pay-calculation.ts`로 분리하고 회귀 테스트를 추가했다.
+  테스트 범위는 시급 적용 시작일 경계, 겹치는 이력에서 최신 `effective_from` 우선, 닫힌 휴게 차감,
+  일별 exact gross, 월 10엔 올림, 개인별 export 일별 금액 보정이다.
+- 마감된 사용자-월은 관리자 급여 목록, 직원 월별 상세, 월별 Excel/PDF export에서
+  `attendance_month_snapshots.gross_amount`와 `total_paid_minutes`를 우선 사용한다. 마감 이후 시급 이력이
+  변경되어도 이미 잠긴 지급 금액이 바뀌어 보이거나 내보내지지 않도록 한다.
+- 개인별 Excel/PDF는 일별 금액을 정수 엔으로 표시하되, 공식 지급 총액은 월 단위 10엔 올림 규칙을 따른다.
+  따라서 일별 표시 합계가 공식 월 총액과 1엔이라도 어긋나지 않도록 마지막 유급일에 반올림 보정액을
+  반영한다.
+
+Why: 급여 지급 자료는 1엔 단위 오류도 허용할 수 없다. 특히 월 중 시급 인상, 마감 이후 이력 변경,
+일별 반올림 합계와 월 단위 공식 합계의 차이는 실지급 오류로 이어질 수 있으므로 계산 정책과 export
+표시를 하나의 기준으로 고정했다.
+
+Impact:
+- `src/lib/attendance-pay-calculation.ts`
+- `src/lib/attendance-pay.ts`
+- `src/lib/admin-attendance.ts`
+- `src/app/admin/attendance/actions.ts`
+- `src/lib/attendance-user-payroll-export.ts`
+- `src/lib/__tests__/attendance-pay.test.ts`
+- `docs/engineering/11-attendance-payroll-technical-design.md`
+- `docs/product/24-attendance-workflow.md`
+
+### 교통비 정산 월별 내보내기 (Excel + PDF, 영수증 썸네일 포함)
+
+- `/admin/attendance/transport`의 "이번 달 내보내기"(이전에는 비활성 스텁)를 급여 내보내기와 같은
+  포맷 조합(엑셀 + PDF)으로 구현했다.
+- 내보내기 단위는 **직원별 요약이 아니라 정산 항목(item) 단위**다 — 이번 달에 항목이 1건이라도
+  입력된 모든 직원을 상태(작성중/제출됨/검토중/승인됨/반려)와 무관하게 포함하고, 행마다 상태 라벨을
+  표시한다.
+- 영수증 사진은 **엑셀에는 삽입하지 않고**(썸네일이 너무 작아 무의미 — 사용자 요청 2026-07-03로
+  영수증 썸네일 열·이미지를 완전히 제거, "원본보기" 하이퍼링크 열만 남기고 전 셀 중앙정렬), **PDF에는
+  항목당 첫 번째 사진만** 작은 썸네일로 삽입한다(2장 이상은 "+N" 표기). 전체 사진은 딥링크로 여는
+  앱 내 상세 패널에서 확인한다.
+- 서버 이미지 리사이즈 라이브러리는 도입하지 않는다 — 업로드 시 클라이언트 압축 정책이 이미 적용돼
+  있어 원본 자체가 과도하게 크지 않다는 전제. jpg/jpeg/png/gif 외 포맷은 썸네일 없이 건수만 표시한다.
+- 엑셀·PDF 모두 **급여 내보내기와 완전히 동일한 그린 회계 장부 양식**을 따른다 — 타이틀바(#b6d7a8),
+  헤더/줄무늬/합계 행 색(#d9ead3/#e2f0d9), 1px 검정 테두리, Meiryo 우선 폰트, 엑셀은 급여와 동일하게
+  최소 50행까지 빈 줄로 채우는 사전인쇄 장부 형태(`Math.max(50, 항목수)`)까지 맞췄다. (최초 구현 시
+  PDF를 이전 대화 요약 속 오래된 네이비/카드형 스타일로 잘못 만들었던 실수를 사용자가 지적해 수정함 —
+  급여 리포트가 그 사이 그린 장부형으로 이미 통일되어 있었는데 파일을 다시 읽지 않고 기억에 의존한 것이
+  원인. 앞으로 "두 내보내기가 완전히 같아야 한다" 요청 시 반드시 현재 파일을 직접 diff해서 확인한다.)
+- **영수증 처리 방식 최종 결정(2026-07-03): 파일에는 영수증을 넣지 않고, 웹 대시보드 전용 검토
+  페이지에서 본다.** 중간에 (a) 파일에 썸네일 삽입 → (b) 항목별 딥링크(`receipt/{itemId}`)로 원본 뷰 열기
+  단계를 거쳤으나, 40×40 썸네일은 판독 불가하고 항목별 링크는 20일이면 20번 클릭·20탭이 되어 불편하다는
+  지적에 따라, **엑셀·PDF에서 영수증 썸네일·링크·이미지 다운로드를 전부 제거**하고 순수 장부로 확정했다
+  (열: 번호/직원/날짜/사용내역/건물/상태/금액, 전 셀 중앙정렬).
+- **영수증 검토는 데스크톱 마스터-디테일 웹페이지로 분리한다.** 대시보드(데스크톱)이므로 모바일식 스와이프
+  갤러리가 아니라, 좌: 그 직원 한 달 항목 목록(날짜·금액·건물) / 우: 선택 영수증 크게(클릭 확대, 원본
+  열기, 여러 장 이전/다음, 키보드 ↑/↓ 항목·←/→ 사진) 구조다. **20번 클릭 문제와 "이 행이 어느 영수증인가"
+  대조 문제를 동시에 해결**한다.
+  - 라우트 `src/app/admin/attendance/transport/receipt/page.tsx`(`?ym=&user=`, 직원-월 단위).
+    진입은 **기존 교통비 패널에 "영수증 원본 검토" 버튼만 추가**(패널의 나머지 UI/UX는 그대로) — 고정 창
+    이름(`stayops_receipt`)으로 열어 반복 클릭 시 한 탭 재사용.
+  - 데이터 `getAdminTransportReceiptsForUser(session, ym, userId, localeTag)`(admin-attendance.ts)는
+    **권한(`isAttendancePayrollAdmin`) + 조직 격리**(`getTransportReport`가 `(org,user,month)` 스코프)를
+    서버에서 강제. 사진은 요청 시점 10분 서명 URL. 미인증 → `/auth/login?next=...`.
+  - 장기 유효 서명 URL을 파일에 박는 방식은 끝까지 채택하지 않았다 — 로그인 없이 접근 가능한 링크가 문서
+    유출 시 영수증까지 노출시키는 보안 리스크 때문. 웹 뷰는 로그인·권한·조직 격리가 항상 걸린다.
+
+Why: 세무·회계 자료는 항목별 증빙(날짜·금액·건물)이 핵심이고, 검토는 "한 직원의 한 달치를 한 화면에서
+훑고 대조"하는 데스크톱 워크플로가 최선이다. 파일은 가볍고 깔끔한 장부로, 원본 확인은 권한이 걸린 웹으로
+분리하는 것이 용량·보안·사용성 모두에서 유리하다고 판단했다. 서류 양식(엑셀·PDF)은 급여 내보내기와 동일한
+그린 장부 템플릿을 그대로 재사용한다.
+
+Impact:
+- `src/lib/attendance-transport-workbook.ts` / `attendance-transport-report.ts` (영수증·링크 제거, 순수 장부)
+- `src/lib/attendance-payroll-workbook.ts` (팔레트 상수 export)
+- `src/app/admin/attendance/actions.ts` (export에서 이미지 다운로드/딥링크/`getAppOrigin` 제거)
+- `src/app/admin/attendance/transport/receipt/page.tsx` (직원-월 마스터-디테일 뷰, 구 `[itemId]` 라우트 대체),
+  `src/components/admin/attendance/transport-receipt-view.tsx`,
+  `src/lib/admin-attendance.ts`(`getAdminTransportReceiptsForUser`)
+- `src/components/admin/attendance/attendance-transport-client.tsx` ("영수증 원본 검토" 진입 버튼 추가)
+- `docs/engineering/11-attendance-payroll-technical-design.md`, `docs/planning/06-current-status.md`
+
+### 관리자 콘솔 설치형 PWA 분리
+
+- 관리자 대시보드(`/admin/*`)를 모바일 앱과 **완전히 분리된 독립 설치형 PWA**로 제공한다.
+- 모바일 매니페스트(`public/manifest.webmanifest`, `id "/"`, `scope "/"`, `start_url "/mobile"`,
+  세로 고정)는 그대로 두고, 관리자 전용 매니페스트(`public/manifest-admin.webmanifest`,
+  `id "/admin"`, `scope "/admin"`, `start_url "/admin"`, orientation 미지정=any)를 신설했다.
+- `src/app/admin/layout.tsx`에서 `metadata.manifest`를 관리자 매니페스트로 오버라이드해
+  `/admin/*` 페이지에서 설치하면 "StayOps Admin"(id `/admin`)이 모바일 "StayOps"(id `/`)와
+  별개의 앱으로 등록된다. 서비스워커(`public/sw.js`, scope `/`)는 두 표면이 공유한다.
+- 아이콘/스플래시는 **1차로 기존 모바일 아이콘 세트(`/icons/*`)를 재사용**한다. 두 앱을 나란히
+  설치했을 때 시각적 구분이 필요해지면 관리자 전용 아이콘을 후속으로 제작한다.
+- 데스크톱 exe(Electron/Tauri) 패키징은 현재 도입하지 않는다. 로컬 파일시스템 심층 통합이나
+  브라우저 비의존 상주가 실제로 필요해지는 시점에 재검토한다. 현 구조는 그 전환의 선행 작업이 된다.
+
+Why: 오피스/관리 인력의 일상 진입 마찰을 줄이고 "전용 프로그램" 사용감을 주되, 앱스토어로 향하는
+모바일과 표면을 혼동시키지 않기 위해 매니페스트/설치 아이덴티티를 분리한다. exe 패키징은 현재 요구되는
+기능(파일 다운로드·알림·오프라인 셸)을 PWA가 이미 커버하므로 배포·서명 인프라 비용 대비 이점이 낮다.
+
+주의: macOS Safari는 데스크톱 PWA 설치를 지원하지 않으므로 관리자는 Chrome/Edge로 설치해야 한다.
+`scope "/admin"`이므로 `/auth`·`/onboarding` 등 스코프 밖 이동은 브라우저 탭으로 빠질 수 있다(관리자
+셸의 일상 흐름은 `/admin` 내부에서 완결되어 현재 문제 없음).
+
+Impact:
+- `public/manifest-admin.webmanifest` (신규)
+- `src/app/admin/layout.tsx` (신규)
+- `public/manifest.webmanifest` (변경 없음, 분리 근거 명시)
+- `docs/product/05-admin-web-ia.md`
+
+## 2026-07-02
+
+### Admin Attendance Roster 날짜 선택 통합
+
+- 관리자 근태의 출근자 명단은 `/admin/attendance/roster` 독립 탭으로 제공한다.
+- 데이터 소스는 모바일 `/mobile/attendance/roster`와 같은 `getAttendanceRoster`로 고정한다.
+  모바일 출퇴근/휴게 기록과 관리자 명단 사이에 별도 동기화 계층을 두지 않는다.
+- 월 단위 화면(개요, 검토 큐, 급여, 교통비, 시급, 직원 상세)은 상단 공통 월 선택기를 유지한다.
+- 출근자 명단은 운영일 단위 화면이므로 근태 subnav 우측의 상단 일자 선택기와 캘린더 팝오버 하나로
+  날짜를 조회한다. 명단 본문, 카드, 섹션 안에 별도 날짜 선택기를 반복하지 않는다.
+- 오늘 날짜 조회는 클라이언트에서 짧은 주기로 재조회해 실시간 감지에 가깝게 운영 현황을 보여준다.
+
+Why: 출근자 명단은 급여/교통비처럼 월 마감 대상이 아니라 현재 현장 운영 감시용 일 단위 화면이다.
+날짜 선택 UI를 여러 곳에 두면 사용자가 같은 개념을 화면마다 다르게 조작하게 되므로, 일 단위 명단은
+하나의 상단 캘린더로 묶고 월 단위 근태 탭은 공통 월 선택기로 분리한다.
+
+Impact:
+- `src/app/admin/attendance/roster`
+- `src/components/admin/attendance/attendance-roster-client.tsx`
+- `src/components/admin/attendance/attendance-subnav.tsx`
+- `docs/product/05-admin-web-ia.md`
+- `docs/product/24-attendance-workflow.md`
+
+### Admin Dashboard Shared UI Contract — 공통 패턴 통일 필수
+
+- 관리자 대시보드에서 반복되는 공통 UI는 페이지별 임의 변형이 아니라 **공유 계약**으로 취급한다.
+- 특히 아래는 강한 공통 패턴으로 관리한다:
+  - calendar chrome
+  - date picker / month-week navigation
+  - filter bar / search row
+  - summary cards
+  - tables
+  - status badges
+  - action bars
+  - empty / loading / error states
+  - right detail panels
+  - pagination
+- 출근자 명단, 예약, 근태, 급여, 교통비, 캘린더 등에서 같은 개념의 날짜 선택이나 필터 조작이
+  서로 다른 구조/간격/동작으로 흩어지면 안 된다.
+- 새로운 대시보드 페이지를 만들 때는 먼저 기존 공통 패턴을 재사용/확장하는지 확인하고,
+  같은 역할의 UI를 새로 따로 디자인하지 않는다.
+- 대시보드 공통 컴포넌트와 패턴은 **ko / ja / en 다국어 길이 차이**까지 포함해서 검토한다.
+
+Why: 사용자는 대시보드 전반의 통일감을 매우 중요하게 보고 있다. 기능별로 따로 디자인하면
+캘린더/날짜선택/필터/테이블 조작이 페이지마다 달라져 운영 콘솔 품질이 떨어지고, 이후 구현과
+유지보수 비용도 커진다.
+
+Impact:
+- `AGENTS.md` / `CLAUDE.md` / `docs/planning/05-ai-collaboration-rules.md` 에 관리자 대시보드
+  공통 UI 계약 규칙 추가
+- 이후 관리자 대시보드 디자인/구현 작업은 공통 패턴 재사용 여부를 먼저 확인
+
 ## 2026-06-29
 
 ### Admin Dashboard — 리빌드 방향 확정
@@ -415,6 +1000,7 @@ Data / account rules:
 - Name is organization-visible by default
 - Phone number is private by default
 - Date of birth is private by default and viewable only by the user plus tightly limited admin access
+- Gender is stored for payroll/employment record use and is private by default
 - Users may edit name / date of birth / phone number later
 - Team invite code is not editable after join
 - Organization leave and full account deletion are separate actions
@@ -422,6 +1008,29 @@ Data / account rules:
   account access
 
 Status: Confirmed planning baseline (2026-06-18). Implementation and schema cleanup still pending.
+
+## 2026-07-03
+
+### Onboarding Gender Field
+
+Decision: Add `gender` to the onboarding-required profile capture flow and store it on `profiles`.
+
+Reason:
+
+- Payroll and employment record flows need a stable profile-level gender field rather than ad hoc export-only data.
+- The onboarding wizard is already the place where identity-grade profile fields are collected.
+- Existing active users should not be forced back into onboarding just because this field was added later.
+
+Rules:
+
+- New onboarding submissions must provide `gender`.
+- Allowed values are currently limited to `female` and `male`.
+- `profiles.gender` stays nullable for legacy accounts.
+- Legacy accounts should be guided to fill missing profile fields from `/account`, not forced back through onboarding.
+- `gender` is private by default and not shown to teammates in normal directory surfaces.
+- UI copy remains fully multilingual (`ko`, `ja`, `en`) with no hardcoded visible strings.
+
+Status: Implemented in onboarding + schema/docs sync
 
 ## 2026-05-04
 
@@ -1947,5 +2556,101 @@ RSC is ready, which the slide then animates in — more native than a chrome-les
 
 Keyboard occlusion of fixed submit bars is handled globally via `KeyboardInsetSync` →
 `--keyboard-inset` (VisualViewport), consumed by the linen-return and attendance-correction fixed bars.
+
+### Admin wage-change effective date: today allowed, past disallowed (not "strictly future")
+
+Decision: in the admin console's hourly-wage editor (`/admin/attendance/wages`), `setHourlyRate`
+(`src/app/admin/attendance/actions.ts`) rejects `effective_from` dates **before today** (Tokyo) but now
+**allows today itself**. The prior implementation rejected today too (`effectiveFrom <= todayTokyo`),
+which was stricter than the documented "never retroactive" rule actually requires — today hasn't
+finished yet, so setting a same-day rate isn't reinterpreting a day that already closed.
+
+Reason: user-confirmed (2026-07-02) — past dates must stay blocked, but today must be selectable.
+`getAdminAttendanceWages` now returns `minEffectiveFrom` = today (Tokyo) as the calendar's minimum
+selectable date (previously computed as tomorrow); the suggested default value shown in the field is
+still the 1st of next month. The internal close/replace logic in `setHourlyRate` (closing an already-
+active open rate period vs. deleting-and-replacing a still-future scheduled one) is unaffected by this
+change.
+
+Status: Confirmed (2026-07-02).
+
+### Admin attendance console month selection is a shared top control
+
+Decision: the admin attendance console uses one shared month picker in the top attendance subnav
+instead of separate page-level month controls on overview, payroll, transport, or staff detail pages.
+The selected month is carried as `?ym=YYYY-MM` across overview / review queue / payroll / transport /
+wages / staff detail. Month changes preserve relevant non-month panel context where useful
+(`sessionId` in the review queue, selected transport `user` in transportation review).
+
+Reason: user-confirmed (2026-07-02) while reviewing the attendance overview screenshot. Payroll,
+transportation, and overview are all slices of the same monthly attendance operating context, so a
+single top control reduces duplicated UI, keeps the console chrome consistent, and makes tab switching
+feel like changing views on the same month rather than opening separate tools.
+
+Status: Confirmed (2026-07-02).
+
+### Attendance session invalidate now has an explicit, auditable reverse: restore
+
+Decision: `invalidateAttendanceSession` (mark a session `status='invalid'`, excluding it from payroll
+without deleting it) previously had no reverse path — an admin who invalidated a session by mistake had
+no way to undo it from the console. `restoreAttendanceSession` (`src/app/admin/attendance/actions.ts`)
+adds that reverse: it sets `status` back to `completed`, clears `invalidated_at` /
+`invalidated_by_user_id` / `invalidated_reason`, and resets `review_state` to `normal`. **Restore
+requires both clock ends to already exist** — an invalid session still missing a clock-out returns
+`incomplete`, and the admin must fill the clock-out via 수동 정정 (`updateAttendanceSessionAdmin`)
+first (refined 2026-07-02: the first cut restored to `open` when incomplete, but that silently
+produced an in-progress session that never counts toward pay and contradicts the "완료 처리" label —
+per user request, restore now only ever completes a session). Mandatory reason +
+`attendance_session_audits` row (new `action_type = 'restore'`, added via migration
+`202607020001_attendance_session_restore.sql` — extends the `attendance_session_audits.action_type`
+check constraint).
+
+UX: this is NOT a separate button. The existing "검토 완료 처리" (mark reviewed) button in the queue's
+session detail panel (`attendance-queue-client.tsx` → `SessionPanel`) does double duty — when the
+session's `status` is `invalid` it relabels to "복구 및 완료 처리" (restore & mark reviewed), and its
+reason-modal copy switches to explain the restore, but it's the same click target and the same
+`AdminReasonModal`. When the invalid session is missing a clock end, that button is **disabled** with a
+tooltip directing the admin to 수동 정정 first (the panel's manual-edit form works on invalid sessions
+too — it fills the clock-out while keeping the session invalid, which then unblocks restore).
+
+Reason: user-confirmed (2026-07-02) — a worker/admin data-entry mistake shouldn't be a dead end;
+if the original clock-in/out is later confirmed legitimate, the session should be recoverable without
+re-creating it as a new manual session (which would lose the original clock-in/out proof + history).
+
+Status: Confirmed (2026-07-02).
+
+### Payroll monthly export is an accounting Excel hand-off
+
+Decision: the payroll page's monthly export button is labeled `엑셀 내보내기` in Korean and the workbook is
+treated as a tax/accounting hand-off document, not an internal review-table dump. The monthly workbook
+includes staff name, work days, total recognized hours, hourly rate, approved transport reimbursement,
+payroll excluding transport, and total payout including transport.
+
+Transport reimbursement is joined from the same-month transportation review data, but only reports in
+`approved` status are included in the payroll workbook totals. Pending/reviewing/rejected transport
+amounts stay visible in the transportation review surface and separate transport exports, but do not
+inflate the accounting payroll total.
+
+Reason: user-confirmed (2026-07-02) — payroll Excel is primarily for tax accountant / bookkeeping
+workflow. Approved transport must be visible beside pay for payment reconciliation, while wage-only and
+transport-included totals must remain separate for accounting clarity.
+
+Status: Confirmed (2026-07-02).
+
+### Per-user payroll export uses daily detail and cleaning-room linkage
+
+Decision: per-user payroll export in the admin payroll side panel is no longer the legacy finalized-only
+CSV hand-off. It is an individual monthly Excel/PDF detail sheet with date, clock-in, clock-out, daily
+work time, daily pay, approved transport, cleaned rooms, and totals.
+
+Cleaning rooms are linked from completed `cleaning_sessions` for the same staff and date. The current
+room summary rules are: Arakicho A -> `AA` + room, Arakicho B -> `AB` + room, Kabukicho -> `KK` + room,
+Takadanobaba -> `T2` + room, Okubo labels unchanged, and Sky labels unchanged until its opening/data
+mapping is decided.
+
+Reason: user-confirmed (2026-07-03) — individual exports are for staff-level payroll checking, so the
+sheet needs daily attendance/pay, transport, and the cleaned-room evidence that caused the work.
+
+Status: Confirmed (2026-07-03).
 
 Status: Confirmed (2026-06-22). Part of the native standalone hardening pass.

@@ -1,0 +1,1155 @@
+/* 연차 · 휴가 (모바일) — 독립 흐름 스타일. 모든 규칙은 `.lv` 루트로 스코프.
+   디자인 핸드오프 "Attendance · Annual Leave (mobile)"의 콘텐츠 스타일을 앱 토큰으로 재현.
+   셸/헤더/탭바는 MobileShell 계약을 따르므로 여기서는 콘텐츠만 담는다. */
+
+/* Design tokens — the attendance palette lives under `.att` only, so re-declare the same set here
+   (plus `--violet`, which the leave calendar/special type needs and `.att` doesn't define) so every
+   `var(--…)` resolves in the leave scope. `.lv-sheet` is the wrapper for content portaled into the
+   canonical BottomSheet (rendered on <body>, outside `.lv`), so it needs the tokens too. Values match
+   `.att` 1:1. */
+.lv,
+.lv-sheet {
+  --bg: hsl(42 36% 95%);
+  --card: hsl(44 52% 98.5%);
+  --card2: hsl(42 34% 96%);
+  --ink: hsl(222 28% 14%);
+  --ink-soft: hsl(222 20% 28%);
+  --muted: hsl(222 10% 44%);
+  --faint: hsl(222 10% 62%);
+  --line: hsl(40 20% 84%);
+  --line-soft: hsl(40 24% 89%);
+  --surface: hsl(40 22% 90%);
+  --surface2: hsl(40 24% 94%);
+  --primary: hsl(223 46% 32%);
+  --primary-ink: hsl(223 54% 22%);
+  --primary-lift: hsl(223 50% 42%);
+  --primary-soft: color-mix(in oklab, hsl(223 46% 32%) 8%, hsl(44 52% 98.5%));
+  --done: hsl(146 50% 32%);
+  --done-bg: hsl(146 44% 92%);
+  --warn: hsl(35 80% 38%);
+  --warn-bg: hsl(38 82% 92%);
+  --info: hsl(206 70% 40%);
+  --info-bg: hsl(206 66% 93%);
+  --violet: hsl(265 38% 46%);
+  --violet-bg: hsl(265 44% 95%);
+  --danger: hsl(4 62% 46%);
+  --danger-bg: hsl(6 70% 95%);
+  --mono: "Geist Mono", ui-monospace, monospace;
+
+  color: var(--ink);
+}
+/* Missing from this file (present in attendance.css/transport.css) — without it, tapping any button
+   shows the browser's default translucent tap-highlight flash, which reads as an odd color flicker
+   especially right next to the swipe-to-delete row's red reveal layer. Applied to `.lv-sheet` too
+   since BottomSheet content is portaled to <body>, outside the `.lv` DOM subtree, but shares the same
+   buttons/interactions. */
+.lv *,
+.lv *::before,
+.lv *::after,
+.lv-sheet *,
+.lv-sheet *::before,
+.lv-sheet *::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+.lv { padding: 2px 2px 4px; }
+
+/* 콘텐츠 상단 페이지 제목 (앱 상단바는 워드마크만 표시하므로, 어느 화면인지 알리는 텍스트를 본문에 둔다).
+   목업 shellPage의 크럼 + 타이틀 텍스트만 옮긴 것 — 별도 고정 헤더바가 아니라 스크롤되는 본문 제목. */
+.lv .pagehead {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 2px 14px;
+}
+.lv .pagehead__crumb {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+}
+.lv .pagehead__t {
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+/* ── chips ── */
+.lv .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.lv .chip .d {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+}
+.lv .c-done { background: var(--done-bg); color: var(--done); }
+.lv .c-warn { background: var(--warn-bg); color: var(--warn); }
+.lv .c-info { background: var(--info-bg); color: var(--info); }
+.lv .c-violet { background: var(--violet-bg); color: var(--violet); }
+.lv .c-muted { background: var(--surface); color: var(--muted); }
+.lv .c-danger { background: var(--danger-bg); color: var(--danger); }
+
+/* ── balance summary card ── */
+.lv .balcard {
+  border-radius: 24px;
+  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 44px -32px rgba(20, 32, 43, 0.5);
+  margin-bottom: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.lv .balcard__deco {
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 170px;
+  height: 170px;
+  border-radius: 999px;
+  border: 30px solid var(--primary-soft);
+  pointer-events: none;
+}
+.lv .balcard__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  position: relative;
+}
+.lv .balcard__k {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.lv .balcard__yr {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+}
+.lv .balcard__main {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  position: relative;
+}
+.lv .balcard__big {
+  font-size: 52px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 0.9;
+  font-family: var(--mono);
+  color: var(--primary);
+}
+.lv .balcard__big small {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--faint);
+  letter-spacing: 0;
+}
+.lv .balcard__meta { padding-bottom: 5px; }
+.lv .balcard__meta div {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.lv .balcard__meta div + div { margin-top: 3px; }
+.lv .balcard__bar {
+  height: 7px;
+  border-radius: 999px;
+  background: var(--surface);
+  overflow: hidden;
+  margin-top: 16px;
+  position: relative;
+}
+.lv .balcard__bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+}
+.lv .balcard__foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-top: 8px;
+}
+/* smaller secondary card — e.g. 특별휴가(4년 보너스), a separate pool from the main balance */
+.lv .balcard--sub {
+  padding: 14px 16px;
+  border-radius: 18px;
+}
+.lv .balcard--sub .balcard__top { margin-bottom: 6px; }
+.lv .balcard--sub .balcard__big { color: var(--ink); }
+
+/* ── 3-up mini stats ── */
+.lv .mstats {
+  display: flex;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.lv .mstat {
+  flex: 1;
+  padding: 13px 8px;
+  text-align: center;
+}
+.lv .mstat + .mstat { border-left: 1px solid var(--line-soft); }
+.lv .mstat__v {
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  font-family: var(--mono);
+}
+.lv .mstat__v.pri { color: var(--primary); }
+.lv .mstat__v.warn { color: var(--warn); }
+.lv .mstat__v.done { color: var(--done); }
+.lv .mstat__k {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ── section label + list ── */
+.lv .slabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 18px 2px 10px;
+}
+.lv .slabel .more {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--primary);
+  text-transform: none;
+  letter-spacing: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  text-decoration: none;
+}
+.lv .slabel .more svg { width: 14px; height: 14px; }
+
+.lv .lrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  outline: none;
+}
+.lv .lrow + .lrow { margin-top: 9px; }
+/* history list rows are wrapped one level deeper (swipeable draft rows need their own stacking
+   context), so spacing is re-anchored on the wrapper instead of the .lrow + .lrow sibling rule. */
+.lv .lrow-outer + .lrow-outer { margin-top: 9px; }
+.lv .lrow-outer .lrow { margin: 0; }
+/* swipe-to-delete — draft rows only (leave-history.tsx). Physics mirror notifications' SwipeItem:
+   76px reveal, spring animation on release. */
+.lv .lswipe { position: relative; overflow: hidden; border-radius: 15px; outline: none; }
+/* Flush, no radius of its own — the outer .lswipe already clips to border-radius: 15px via
+   overflow: hidden, so this panel inherits that exact curvature on its exposed right corners
+   instead of carrying a separate smaller radius that would clash with the row's own rounding. */
+.lv .lswipe__del {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  background: var(--danger);
+}
+.lv .lswipe__delbtn {
+  width: 76px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: #fff;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  outline: none;
+  transition: background-color 150ms;
+}
+.lv .lswipe__delbtn:active { background-color: hsl(0 0% 100% / 0.12); }
+.lv .lswipe__delbtn svg { width: 18px; height: 18px; }
+.lv .lswipe__delbtn:disabled { opacity: 0.6; cursor: default; }
+.lv .lswipe__dellabel { font-size: 10.5px; font-weight: 800; letter-spacing: -0.01em; }
+/* Own opaque background on the transformed layer itself — `transform` promotes this element to its
+   own compositing layer, and browsers can leave a hairline sub-pixel gap between that layer and the
+   parent's `overflow: hidden` clip, letting the red .lswipe__del layer bleed through faintly at the
+   edges. Deliberately NO border-radius here: this element slides via translateX, so while open/
+   mid-animation its box sits away from the container's true corners — rounding it would round those
+   off-corner positions too, creating little red crescents where .lswipe__del peeks through the curve.
+   Rounding belongs solely on the fixed outer .lswipe (overflow: hidden + border-radius), which clips
+   this plain rectangle into the right shape regardless of its horizontal offset. */
+.lv .lswipe__content {
+  position: relative;
+  z-index: 1;
+  touch-action: pan-y;
+  background: var(--card);
+}
+.lv .lrow__ic {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.lv .lrow__ic svg { width: 20px; height: 20px; }
+.lv .lrow__b { flex: 1; min-width: 0; }
+.lv .lrow__t { font-size: 14px; font-weight: 800; letter-spacing: -0.01em; }
+.lv .lrow__s {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.lv .lrow__meta {
+  text-align: right;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+.lv .lrow__days {
+  font-size: 13px;
+  font-weight: 900;
+  font-family: var(--mono);
+}
+
+/* icon tints (type) */
+.lv .t-annual { background: var(--info-bg); color: var(--info); }
+.lv .t-special { background: var(--violet-bg); color: var(--violet); }
+.lv .t-paid { background: var(--done-bg); color: var(--done); }
+.lv .t-other { background: var(--surface); color: var(--muted); }
+
+/* ── accrual rules mini-card ── */
+.lv .rulecard {
+  display: block;
+  padding: 12px 15px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 15px;
+}
+.lv .rulerow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 0;
+}
+.lv .rulerow + .rulerow { border-top: 1px solid var(--line-soft); }
+.lv .rulerow .ic { color: var(--primary); font-size: 15px; display: inline-flex; }
+.lv .rulerow .ic svg { width: 15px; height: 15px; }
+.lv .rulerow span:last-child {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.lv .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ── sticky footer actions (uses hideBottomNav on the shell) ── */
+.lv-foot {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 16;
+  max-width: var(--mobile-max, 480px);
+  margin: 0 auto;
+  background: color-mix(in oklab, var(--bg) 90%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line-soft);
+  padding: 12px 18px max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  gap: 10px;
+}
+.lv-foot .fbtn {
+  height: 52px;
+  border-radius: 15px;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 800;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+}
+.lv-foot .fbtn .ic { font-size: 18px; display: inline-flex; }
+.lv-foot .fbtn .ic svg { width: 18px; height: 18px; }
+.lv-foot .fbtn--draft {
+  flex: 0 0 auto;
+  padding: 0 18px;
+  background: var(--surface);
+  color: var(--ink-soft);
+}
+.lv-foot .fbtn--submit {
+  flex: 1;
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 16px 30px -14px hsl(223 46% 32% / 0.55);
+}
+
+/* ── L2 · 신청서 작성 (종이 양식 디지털화) ── */
+.lv .field { margin-bottom: 16px; }
+.lv .field__l {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+}
+.lv .field__l > :first-child { white-space: nowrap; }
+.lv .field__l .req { color: var(--danger); }
+.lv .field__l .auto {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--faint);
+  white-space: nowrap;
+  flex: 0 0 auto;
+  padding-left: 8px;
+}
+.lv .finput {
+  width: 100%;
+  height: 50px;
+  border: 1.5px solid var(--line);
+  border-radius: 13px;
+  background: var(--card);
+  padding: 0 14px;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink);
+  outline: none;
+  display: flex;
+  align-items: center;
+}
+.lv .finput.mono { font-family: var(--mono); }
+/* tappable date field (button variant of .finput) */
+.lv button.finput { text-align: left; cursor: pointer; font-family: var(--mono); }
+.lv .finput.ro {
+  background: var(--surface2);
+  color: var(--ink-soft);
+  border-style: dashed;
+}
+.lv .finput.focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3.5px var(--primary-soft);
+}
+.lv .finput.err { border-color: var(--danger); }
+.lv .finput__ph { color: var(--faint); font-weight: 600; }
+.lv .finput .tail { margin-left: auto; color: var(--faint); display: inline-flex; }
+.lv .finput .tail svg { width: 19px; height: 19px; }
+.lv .finput .lead { margin-right: 10px; color: var(--muted); display: inline-flex; }
+.lv .finput .lead svg { width: 18px; height: 18px; }
+.lv .ro-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+/* date range */
+.lv .daterange { display: flex; align-items: center; gap: 8px; }
+.lv .daterange .finput { flex: 1; }
+.lv .daterange__arrow { color: var(--faint); flex: 0 0 auto; }
+.lv .daterange__arrow svg { width: 18px; height: 18px; }
+.lv .daycount {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 9px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border: 1px solid color-mix(in oklab, var(--primary) 16%, transparent);
+  border-radius: 999px;
+  padding: 5px 11px;
+}
+.lv .daycount svg { width: 14px; height: 14px; }
+.lv .periodfoot { display: flex; align-items: center; gap: 9px; margin-top: 10px; flex-wrap: wrap; }
+/* duration segment */
+.lv .durseg {
+  display: flex;
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 4px;
+  margin-top: 10px;
+}
+.lv .durseg button {
+  flex: 1;
+  height: 38px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--muted);
+  border-radius: 9px;
+}
+.lv .durseg button.on {
+  background: var(--card);
+  color: var(--primary);
+  box-shadow: 0 2px 6px rgba(20, 32, 43, 0.12);
+}
+/* half-day collapses the range to a single date */
+.lv .field.period.half .daterange__arrow,
+.lv .field.period.half .finput.end { display: none; }
+.lv .field.period.half .finput.start { flex: 1; }
+/* leave-type selector */
+.lv .ftypes { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.lv .ftype {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px;
+  border-radius: 14px;
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.lv .ftype__box {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 2px solid var(--line);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+}
+.lv .ftype__box svg { width: 14px; height: 14px; }
+.lv .ftype__l { font-size: 13.5px; font-weight: 800; color: var(--ink-soft); }
+.lv .ftype.on {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.lv .ftype.on .ftype__box { background: var(--primary); border-color: var(--primary); color: #fff; }
+.lv .ftype.on .ftype__l { color: var(--primary-ink); }
+/* textarea */
+.lv .ftext {
+  width: 100%;
+  min-height: 96px;
+  resize: none;
+  border: 1.5px solid var(--line);
+  border-radius: 13px;
+  background: var(--card);
+  padding: 13px 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.55;
+  outline: none;
+}
+.lv .ftext::placeholder { color: var(--faint); font-weight: 600; }
+.lv .ftext:focus { border-color: var(--primary); box-shadow: 0 0 0 3.5px var(--primary-soft); }
+.lv .fcount {
+  text-align: right;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--faint);
+  margin-top: 5px;
+  font-family: var(--mono);
+}
+.lv .fhint { font-size: 11.5px; font-weight: 600; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+.lv .ferr { font-size: 11.5px; font-weight: 700; color: var(--danger); margin-top: 6px; }
+/* input that accepts typing (emergency contact) */
+.lv .finput input {
+  border: none;
+  background: none;
+  outline: none;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink);
+  width: 100%;
+}
+.lv .finput input::placeholder { color: var(--faint); font-weight: 600; }
+
+/* ── L3 · 제출 완료 · 승인 단계 ── */
+.lv .doneburst {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 30px 26px 8px;
+}
+.lv .doneburst__ic {
+  width: 76px;
+  height: 76px;
+  border-radius: 24px;
+  background: var(--done-bg);
+  color: var(--done);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.lv .doneburst__ic svg { width: 38px; height: 38px; }
+.lv .doneburst__t { font-size: 22px; font-weight: 900; letter-spacing: -0.025em; margin: 0; }
+.lv .doneburst__s {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 9px 0 0;
+  line-height: 1.55;
+}
+
+/* request recap card */
+.lv .reqcard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  margin: 18px 0;
+  overflow: hidden;
+}
+.lv .reqcard__h {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 15px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.lv .reqcard__no {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+.lv .reqcard__body { padding: 4px 15px; }
+.lv .reqrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 0;
+  font-size: 13px;
+}
+.lv .reqrow + .reqrow { border-top: 1px solid var(--line-soft); }
+.lv .reqrow__k { color: var(--muted); font-weight: 600; }
+.lv .reqrow__v { font-weight: 800; }
+.lv .reqrow__v.mono { font-family: var(--mono); }
+
+/* approval timeline */
+.lv .appt { position: relative; padding-left: 26px; margin-top: 6px; }
+.lv .appt::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 6px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--line);
+}
+.lv .apstep { position: relative; padding-bottom: 20px; }
+.lv .apstep:last-child { padding-bottom: 0; }
+.lv .apstep__dot {
+  position: absolute;
+  left: -26px;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 3px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lv .apstep__dot svg { width: 10px; height: 10px; color: #fff; }
+.lv .apstep.done .apstep__dot { background: var(--done); border-color: var(--done); }
+.lv .apstep.on .apstep__dot {
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-soft);
+}
+.lv .apstep__t { font-size: 13.5px; font-weight: 800; letter-spacing: -0.01em; }
+.lv .apstep.pending .apstep__t { color: var(--faint); }
+.lv .apstep__s { font-size: 11.5px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.lv .apstep__time {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--faint);
+  font-family: var(--mono);
+  margin-top: 2px;
+}
+
+/* now-step highlight in the section label */
+.lv .slabel .now { color: var(--primary); text-transform: none; letter-spacing: 0; }
+
+/* ── L4 · 신청 내역 ── */
+.lv .seg {
+  display: flex;
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 14px;
+}
+.lv .seg button {
+  flex: 1;
+  height: 36px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--muted);
+  border-radius: 9px;
+}
+.lv .seg button.on {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 2px 6px rgba(20, 32, 43, 0.12);
+}
+/* history row is a clickable button variant of .lrow */
+.lv button.lrow {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.lv .lrow__t .mono { font-family: var(--mono); font-weight: 800; }
+.lv .histempty {
+  text-align: center;
+  padding: 40px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* ── L5 · 연차 캘린더 ── */
+.lv .lcal__nav { display: flex; align-items: center; gap: 10px; margin: 2px 2px 14px; }
+.lv .lcal__month { font-size: 17px; font-weight: 900; letter-spacing: -0.01em; }
+.lv .lcal__navsp { flex: 1; }
+.lv .lcal__navbtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lv .lcal__navbtn svg { width: 17px; height: 17px; }
+.lv .lcal__wk { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 4px; }
+.lv .lcal__wd { text-align: center; font-size: 10.5px; font-weight: 800; color: var(--faint); padding: 0 0 6px; }
+.lv .lcal__wd.sun { color: color-mix(in oklab, var(--danger) 60%, var(--faint)); }
+.lv .lcal__wd.sat { color: color-mix(in oklab, var(--info) 60%, var(--faint)); }
+.lv .lcal__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.lv .lcal__cell {
+  min-height: 56px;
+  border-radius: 12px;
+  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.lv .lcal__cell.pad { visibility: hidden; }
+.lv .lcal__d {
+  align-self: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.lv .lcal__cell.today .lcal__d { background: var(--primary); color: #fff; }
+.lv .lcal__bars { display: flex; flex-direction: column; gap: 3px; padding: 0 1px; }
+.lv .lcal__bar { height: 5px; }
+.lv .lcal__bar--gap { background: transparent; }
+.lv .lcal-annual { background: var(--info); }
+.lv .lcal-special { background: var(--violet); }
+.lv .lcal-paid { background: var(--done); }
+.lv .lcal-other { background: var(--muted); }
+.lv .lcal__legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 2px 4px; }
+.lv .lcal__lg { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.lv .lcal__lgdot { width: 9px; height: 9px; border-radius: 3px; }
+.lv .lcal__auto {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--card2);
+  border: 1px solid var(--line-soft);
+  border-radius: 11px;
+  padding: 9px 12px;
+  margin-top: 12px;
+}
+.lv .lcal__auto svg { width: 15px; height: 15px; color: var(--faint); flex: 0 0 auto; }
+/* avatar for the this-month list */
+.lv .lav {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 14px;
+  flex: 0 0 auto;
+}
+
+/* ── S · 예외 상태 (신청 차단 / 미대상) ── */
+.lv .exwrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 40px 22px 24px;
+  min-height: calc(100dvh - 140px);
+}
+.lv .exwrap__ic {
+  width: 78px;
+  height: 78px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.lv .exwrap__ic svg { width: 38px; height: 38px; }
+.lv .ic-danger { background: var(--danger-bg); color: var(--danger); }
+.lv .ic-warn { background: var(--warn-bg); color: var(--warn); }
+.lv .ic-info { background: var(--info-bg); color: var(--info); }
+.lv .ic-done { background: var(--done-bg); color: var(--done); }
+.lv .exwrap__ey {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+.lv .exwrap__t { font-size: 21px; font-weight: 900; letter-spacing: -0.025em; margin: 0; line-height: 1.2; }
+.lv .exwrap__s {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 11px 0 0;
+  line-height: 1.6;
+  max-width: 290px;
+}
+.lv .exwrap__note {
+  width: 100%;
+  margin-top: 22px;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  padding: 4px 15px;
+}
+.lv .exrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  font-size: 13px;
+}
+.lv .exrow + .exrow { border-top: 1px solid var(--line-soft); }
+.lv .exrow__k { color: var(--muted); font-weight: 600; }
+.lv .exrow__v { font-weight: 800; }
+.lv .exrow__v.mono { font-family: var(--mono); }
+.lv .exrow__v.pri { color: var(--primary); }
+.lv .exwrap__cta { width: 100%; margin-top: auto; padding-top: 22px; }
+.lv .exbtn {
+  width: 100%;
+  height: 54px;
+  border-radius: 15px;
+  border: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+}
+.lv .exbtn .ic { font-size: 19px; display: inline-flex; }
+.lv .exbtn .ic svg { width: 19px; height: 19px; }
+.lv .exbtn--pri { background: var(--primary); color: #fff; box-shadow: 0 16px 30px -14px hsl(223 46% 32% / 0.55); }
+.lv .exbtn--ghost { background: var(--surface); color: var(--ink-soft); margin-top: 10px; }
+
+/* ── C · 신청 취소 — BottomSheet 내부 콘텐츠 (.lv-sheet 는 <body>로 포털된 시트 래퍼) ── */
+.lv-sheet { color: var(--ink); }
+.lv-sheet .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.lv-sheet .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.lv-sheet .chip .d { width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
+.lv-sheet .c-done { background: var(--done-bg); color: var(--done); }
+.lv-sheet .c-warn { background: var(--warn-bg); color: var(--warn); }
+.lv-sheet .c-info { background: var(--info-bg); color: var(--info); }
+.lv-sheet .c-violet { background: var(--violet-bg); color: var(--violet); }
+.lv-sheet .c-muted { background: var(--surface); color: var(--muted); }
+.lv-sheet .c-danger { background: var(--danger-bg); color: var(--danger); }
+.lv-sheet .t-annual { background: var(--info-bg); color: var(--info); }
+.lv-sheet .t-special { background: var(--violet-bg); color: var(--violet); }
+.lv-sheet .t-paid { background: var(--done-bg); color: var(--done); }
+.lv-sheet .t-other { background: var(--surface); color: var(--muted); }
+.lv-sheet .ic-danger { background: var(--danger-bg); color: var(--danger); }
+
+.lv-sheet .lsheet__h { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.lv-sheet .lsheet__ic {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.lv-sheet .lsheet__ic svg { width: 20px; height: 20px; }
+.lv-sheet .lsheet__t { font-size: 16px; font-weight: 900; letter-spacing: -0.02em; }
+.lv-sheet .lsheet__no { margin-left: auto; font-family: var(--mono); font-size: 11px; font-weight: 800; color: var(--faint); }
+.lv-sheet .lsheet__chips { display: flex; gap: 6px; margin-bottom: 12px; }
+.lv-sheet .lsheet__recap {
+  background: var(--bg);
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  padding: 2px 14px;
+  margin-bottom: 16px;
+}
+.lv-sheet .reqrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 0;
+  font-size: 13px;
+}
+.lv-sheet .reqrow + .reqrow { border-top: 1px solid var(--line-soft); }
+.lv-sheet .reqrow__k { color: var(--muted); font-weight: 600; }
+.lv-sheet .reqrow__v { font-weight: 800; }
+.lv-sheet .reqrow__v.mono { font-family: var(--mono); }
+.lv-sheet .lsheet__note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: var(--card2);
+  border: 1px solid var(--line-soft);
+  border-radius: 13px;
+  padding: 11px 13px;
+  margin: 2px 0 16px;
+}
+.lv-sheet .lsheet__note svg { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; margin-top: 1px; }
+.lv-sheet .lsheet__note p { font-size: 11.5px; font-weight: 600; color: var(--muted); margin: 0; line-height: 1.5; }
+.lv-sheet .lsheet__lede { font-size: 13px; font-weight: 600; color: var(--muted); line-height: 1.6; margin: 2px 2px 18px; }
+.lv-sheet .lsheet__btns { display: flex; gap: 10px; }
+.lv-sheet .lbtn {
+  flex: 1;
+  height: 52px;
+  border-radius: 15px;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 800;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+}
+.lv-sheet .lbtn .ic { font-size: 18px; display: inline-flex; }
+.lv-sheet .lbtn .ic svg { width: 18px; height: 18px; }
+.lv-sheet .lbtn--ghost { background: var(--surface); color: var(--ink-soft); }
+.lv-sheet .lbtn--danger { background: var(--danger); color: #fff; box-shadow: 0 14px 28px -14px hsl(4 62% 46% / 0.6); }
+.lv-sheet .lbtn--danger-soft { background: var(--danger-bg); color: var(--danger); }
+.lv-sheet .lbtn--primary { background: var(--primary); color: #fff; box-shadow: 0 14px 28px -14px hsl(223 46% 32% / 0.6); }
+.lv-sheet .lbtn.dim { opacity: 0.5; }
+
+/* ── D · 날짜 범위 캘린더 (바텀시트) ── */
+.lv-sheet .lsheet__ic.bg-pick { background: var(--primary-soft); color: var(--primary); }
+.lv-sheet .dpick__sum {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card2);
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.lv-sheet .dpick__sumcol { display: flex; flex-direction: column; gap: 3px; }
+.lv-sheet .dpick__sumk {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.lv-sheet .dpick__sumv { font-size: 14px; font-weight: 800; color: var(--ink); white-space: nowrap; }
+.lv-sheet .dpick__sumv.ph { color: var(--faint); font-weight: 700; }
+.lv-sheet .dpick__sumar { color: var(--faint); }
+.lv-sheet .dpick__sumar svg { width: 16px; height: 16px; }
+.lv-sheet .dpick__sumd {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border: 1px solid color-mix(in oklab, var(--primary) 16%, transparent);
+  border-radius: 999px;
+  padding: 5px 11px;
+}
+.lv-sheet .dpick__nav { display: flex; align-items: center; gap: 10px; margin: 2px 2px 10px; }
+.lv-sheet .lcal__month { font-size: 17px; font-weight: 900; letter-spacing: -0.01em; }
+.lv-sheet .lcal__navsp { flex: 1; }
+.lv-sheet .lcal__navbtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lv-sheet .lcal__navbtn svg { width: 17px; height: 17px; }
+.lv-sheet .dpick__wkrow { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 2px; }
+.lv-sheet .dpick__wd { text-align: center; font-size: 10.5px; font-weight: 800; color: var(--faint); padding: 0 0 6px; }
+.lv-sheet .dpick__wd.sun { color: color-mix(in oklab, var(--danger) 60%, var(--faint)); }
+.lv-sheet .dpick__wd.sat { color: color-mix(in oklab, var(--info) 60%, var(--faint)); }
+.lv-sheet .dpick__grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.lv-sheet .dpick__cell {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  border: none;
+  background: none;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.lv-sheet .dpick__cell.pad { visibility: hidden; }
+.lv-sheet .dpick__cell.dim { cursor: default; }
+.lv-sheet .dpick__d {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  position: relative;
+  z-index: 1;
+}
+.lv-sheet .dpick__cell.dim .dpick__d { color: var(--faint); }
+.lv-sheet .dpick__cell.today .dpick__d { box-shadow: inset 0 0 0 1.6px var(--primary); color: var(--primary); }
+.lv-sheet .dpick__cell.inrange::before,
+.lv-sheet .dpick__cell.rstart::before,
+.lv-sheet .dpick__cell.rend::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  right: 0;
+  background: var(--primary-soft);
+  z-index: 0;
+}
+.lv-sheet .dpick__cell.rstart::before { left: 50%; }
+.lv-sheet .dpick__cell.rend::before { right: 50%; }
+.lv-sheet .dpick__cell.rstart .dpick__d,
+.lv-sheet .dpick__cell.rend .dpick__d,
+.lv-sheet .dpick__cell.rsingle .dpick__d {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 8px 16px -8px hsl(223 46% 32% / 0.7);
+}
+/* month label as a button that opens the year/month grid view */
+.lv-sheet button.lcal__month {
+  background: none;
+  border: none;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  color: var(--ink);
+}
+.lv-sheet .dpick__yrnav { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 2px 2px 16px; }
+.lv-sheet .dpick__yr { font-family: var(--mono); font-size: 17px; font-weight: 900; min-width: 60px; text-align: center; }
+.lv-sheet .dpick__mgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 4px; }
+.lv-sheet .dpick__mcell {
+  height: 46px;
+  border-radius: 13px;
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.lv-sheet .dpick__mcell.sel { background: var(--primary); border-color: var(--primary); color: #fff; }
+.lv-sheet .dpick__mcell:disabled { color: var(--faint); cursor: default; opacity: 0.5; }

@@ -600,6 +600,35 @@ member, org-wide for org owner / `attendance_payroll_admin` / platform admin. Th
 privilege helper as payroll, but a fully separate dataset** from `attendance_month_snapshots`. Reuses
 the shared `set_updated_at()` trigger.
 
+**Annual leave — Phase 1 backend only (2026-07-06, migration `202607060001`).** `annual_leave_baselines`
+is **read-only RLS, no write policies** — identical shape to transport reimbursement above: own row
+for any active member, org-wide for org owner / `attendance_payroll_admin` / platform admin. All
+writes go through `setAnnualLeaveBaselineAction` (`src/app/mobile/attendance/leave/actions.ts`,
+service-role), which also sets `profiles.hire_date`. This migration deliberately does NOT add a leave
+request/approval table — that workflow is still a planning draft (see
+`docs/product/26-annual-leave-workflow.md`).
+
+**Annual leave — Phase 2, stage 1 (2026-07-06, migration `202607060002`).** `annual_leave_requests` is
+**read-only RLS, no write policies** — own row for any active member, org-wide for a NEW privilege
+helper `is_leave_approver(org)` (checks `memberships.leave_approver_role is not null`, same shape as
+`can_manage_attendance_payroll` but keyed off a role-enum column instead of a boolean, since the
+future printed document needs to know which stamp box — 부서장/대표 vs 전무 — an approval fills).
+All writes go through `submitLeaveRequestAction` / `cancelLeaveRequestAction`
+(`src/app/mobile/attendance/leave/actions.ts`, service-role). There is deliberately no approve/reject
+write path yet — `is_leave_approver` exists so approvers can already READ the queue once stage 2
+adds the UI, but nothing can act on it yet. Storage policies mirror the transport-reimbursement
+5-part-path pattern, scaled to this table's 4-part path
+(`{org}/annual-leave-requests/{request_id}/{file}`), open to all active members including
+`part_time_staff` (same precedent as attendance-corrections/transport uploads) even though this
+feature itself targets salary-based regular employees only.
+
+**Annual leave — team calendar visibility (2026-07-06, migration `202607060003`).** A second, additive
+SELECT policy `annual_leave_requests_org_approved_select` grants any active org member read access to
+rows where `status = 'approved'`, org-wide — confirmed policy: the mobile leave calendar shows every
+employee's approved leave (including the viewer's own), but pending/rejected/draft/cancelled stay
+private (visible only via the existing self-or-approver policy). Combined with that policy, the net
+effect is: own rows (any status) + approver/admin rows (any status) + everyone's approved rows.
+
 **Step 2 (2026-06-17) — site/QR write path.** Site master + QR lifecycle writes go through the
 service-role helpers in `src/lib/attendance-sites.ts` (create/update/activate site, issue/reissue/revoke
 QR; QR issuance is atomic via `issue_attendance_qr`, migration `202606170002`). These helpers are

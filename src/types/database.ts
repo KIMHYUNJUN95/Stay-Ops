@@ -9,6 +9,115 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      annual_leave_baselines: {
+        Insert: {
+          base_amount?: number;
+          baseline_date: string;
+          bonus_amount?: number;
+          created_at?: string;
+          id?: string;
+          organization_id: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Row: {
+          base_amount: number;
+          baseline_date: string;
+          bonus_amount: number;
+          created_at: string;
+          id: string;
+          organization_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Update: {
+          base_amount?: number;
+          baseline_date?: string;
+          bonus_amount?: number;
+          created_at?: string;
+          id?: string;
+          organization_id?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+      };
+      annual_leave_requests: {
+        Insert: {
+          applicant_name: string;
+          approved_at?: string | null;
+          approved_by_user_id?: string | null;
+          approved_role?: string | null;
+          cancelled_at?: string | null;
+          created_at?: string;
+          days_count: number;
+          duration_unit?: string;
+          emergency_contact: string;
+          end_date: string;
+          id?: string;
+          image_urls?: string[];
+          leave_type: string;
+          organization_id: string;
+          reason: string;
+          rejected_at?: string | null;
+          rejected_by_user_id?: string | null;
+          rejected_reason?: string | null;
+          start_date: string;
+          status?: string;
+          submitted_at?: string | null;
+          updated_at?: string;
+          user_id: string;
+        };
+        Row: {
+          applicant_name: string;
+          approved_at: string | null;
+          approved_by_user_id: string | null;
+          approved_role: string | null;
+          cancelled_at: string | null;
+          created_at: string;
+          days_count: number;
+          duration_unit: string;
+          emergency_contact: string;
+          end_date: string;
+          id: string;
+          image_urls: string[];
+          leave_type: string;
+          organization_id: string;
+          reason: string;
+          rejected_at: string | null;
+          rejected_by_user_id: string | null;
+          rejected_reason: string | null;
+          start_date: string;
+          status: string;
+          submitted_at: string | null;
+          updated_at: string;
+          user_id: string;
+        };
+        Update: {
+          applicant_name?: string;
+          approved_at?: string | null;
+          approved_by_user_id?: string | null;
+          approved_role?: string | null;
+          cancelled_at?: string | null;
+          created_at?: string;
+          days_count?: number;
+          duration_unit?: string;
+          emergency_contact?: string;
+          end_date?: string;
+          id?: string;
+          image_urls?: string[];
+          leave_type?: string;
+          organization_id?: string;
+          reason?: string;
+          rejected_at?: string | null;
+          rejected_by_user_id?: string | null;
+          rejected_reason?: string | null;
+          start_date?: string;
+          status?: string;
+          submitted_at?: string | null;
+          updated_at?: string;
+          user_id?: string;
+        };
+      };
       board_comments: {
         Insert: {
           content: string;
@@ -1960,6 +2069,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           joined_at?: string | null;
+          leave_approver_role?: string | null;
           organization_id: string;
           role: Database["public"]["Enums"]["organization_role"];
           status?: Database["public"]["Enums"]["membership_status"];
@@ -1971,6 +2081,7 @@ export type Database = {
           created_at: string;
           id: string;
           joined_at: string | null;
+          leave_approver_role: string | null;
           organization_id: string;
           role: Database["public"]["Enums"]["organization_role"];
           status: Database["public"]["Enums"]["membership_status"];
@@ -1982,6 +2093,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           joined_at?: string | null;
+          leave_approver_role?: string | null;
           organization_id?: string;
           role?: Database["public"]["Enums"]["organization_role"];
           status?: Database["public"]["Enums"]["membership_status"];
@@ -2049,6 +2161,8 @@ export type Database = {
           can_generate_report?: boolean;
           created_at?: string;
           deleted_at?: string | null;
+          gender?: Database["public"]["Enums"]["profile_gender"] | null;
+          hire_date?: string | null;
           id: string;
           last_used_organization_id?: string | null;
           name: string;
@@ -2065,6 +2179,8 @@ export type Database = {
           can_generate_report: boolean;
           created_at: string;
           deleted_at: string | null;
+          gender: Database["public"]["Enums"]["profile_gender"] | null;
+          hire_date: string | null;
           id: string;
           last_used_organization_id: string | null;
           name: string;
@@ -2081,6 +2197,8 @@ export type Database = {
           can_generate_report?: boolean;
           created_at?: string;
           deleted_at?: string | null;
+          gender?: Database["public"]["Enums"]["profile_gender"] | null;
+          hire_date?: string | null;
           id?: string;
           last_used_organization_id?: string | null;
           name?: string;
@@ -2276,6 +2394,7 @@ export type Database = {
         | "staff";
       organization_status: "active" | "archived" | "suspended";
       platform_role: "developer_super_admin";
+      profile_gender: "female" | "male";
       property_status: "active" | "archived" | "inactive" | "under_construction";
       property_type: "apartment" | "hotel" | "house" | "multi_room_building" | "standalone";
       reservation_status:

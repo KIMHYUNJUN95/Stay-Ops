@@ -112,6 +112,8 @@ Fields:
 id uuid primary key references auth.users(id)
 name text not null
 birth_date date                                   -- added migration 202606180004; replaces age
+gender profile_gender                             -- added migration 202607030002; nullable for legacy accounts
+hire_date date                                    -- added migration 202607060001; self-entered, annual-leave accrual basis
 phone_number text                                 -- unique (partial index, excludes NULL/empty)
 last_used_organization_id uuid references organizations(id) on delete set null  -- added 202606180004
 profile_photo_url text
@@ -126,9 +128,10 @@ updated_at timestamptz
 Auth/onboarding notes (updated 2026-06-18):
 
 - `birth_date` is the active operational field. `age` is the legacy column from initial DB gen; kept for backward compat but not used in onboarding logic. Do not add new code that reads `age`.
+- `gender` is collected during onboarding for payroll/employment-facing exports and records. Current allowed values are `female` and `male`. It is intentionally nullable so already-onboarded accounts are not forced back through onboarding.
 - `phone_number` is stored in international format and enforced as account-level unique via the partial unique index `profiles_phone_number_unique` (excludes NULL and empty). Migration `202606180004`.
 - `last_used_organization_id` tracks the last organization the user actively signed into — used for multi-org routing so login returns to the right org. Nullable (NULL = first login or single-org user).
-- Users may edit `name`, `birth_date`, and `phone_number` later.
+- Users may edit `name`, `birth_date`, `phone_number`, and `gender` later. The current `/account` UI surfaces `birth_date` and `gender` specifically so legacy accounts can fill missing profile fields without being forced back through onboarding.
 - `preferred_language` is chosen during onboarding and becomes the user's top-priority locale after join.
 
 `can_generate_report` (migration `supabase/migrations/202606130001_profile_report_access.sql`) is a
@@ -140,6 +143,13 @@ management for the few part-timers who work in a management capacity. See
 `docs/engineering/05-rls-permissions.md` and `docs/product/18-todo-task-workflow.md` (2026-06-13).
 
 `bottom_nav_tabs` stores the user's customized mobile bottom-bar tabs (ordered ids, max 4 enforced in app logic). Added in `supabase/migrations/202606080001_profile_bottom_nav.sql`. Selectable ids match the mobile side-menu nav items (`home`, `calendar`, `cleaning`, `requests`, `announcements`, `notifications`, `directory`).
+
+`hire_date` (migration `202607060001`) is self-entered by the employee from the "hire date missing"
+screen (`src/components/attendance/leave-exception.tsx`, `missing` variant → `setAnnualLeaveBaselineAction`
+in `src/app/mobile/attendance/leave/actions.ts`). It is the basis for annual-leave accrual — see
+`annual_leave_baselines` below and `docs/product/26-annual-leave-workflow.md`. There is no admin
+edit UI for it yet (planned per that doc, not built); salary-based-only exclusion of hourly staff is
+also not yet enforced at this layer.
 
 Language values:
 
@@ -1059,14 +1069,22 @@ Tables (11):
 | `attendance_breaks` | multiple breaks per session; `started_at`/`ended_at` (open while null). Clock-out-blocked-by-open-break is server-enforced. |
 | `attendance_attempt_logs` | every attempt (success/failure) for admin diagnostics; `action_type`, `method`, `failure_reason` (gps_denied/outside_radius/qr_*/wifi_*/open_break_blocks_clock_out/midnight_crossing/open_session_exists). Admin-visible only; no payroll effect. |
 | `attendance_correction_requests` | user-submitted corrections; `status` (requested/in_review/approved/rejected), `reason_type`, `target_month` (YYYY-MM-01, migration `202606180003`), `desired_clock_in/out_at/_site_id`, `memo`, `image_urls` (**max 5**), `review_comment`/`reviewed_*`. |
-| `attendance_session_audits` | append-only manager-action trail; `action_type` (manual_create/manual_update/invalidate/correction_apply/reopen/finalize), mandatory `reason`, `before_json`/`after_json`. |
+| `attendance_session_audits` | append-only manager-action trail; `action_type` (manual_create/manual_update/invalidate/restore/correction_apply/reopen/finalize), mandatory `reason`, `before_json`/`after_json`. |
 | `employment_type_history` | per-person `employment_type` (hourly/salaried) with `effective_from`/`effective_to`. Past never reinterpreted. |
 | `hourly_rate_history` | per-person `hourly_rate` with `effective_from`/`effective_to`. Past never changes. |
-| `attendance_month_snapshots` | per-person per-month payroll snapshot; `status` (draft/finalized/superseded/reopened), `total_paid_minutes`, `gross_amount`, `rate_breakdown jsonb`, `supersedes_snapshot_id`. One current row per user-month is server-enforced (historical rows intentional). |
+| `attendance_month_snapshots` | per-person per-month payroll snapshot; `status` (draft/finalized/superseded/reopened), `total_paid_minutes`, `gross_amount`, `rate_breakdown jsonb`, `supersedes_snapshot_id`. Migration `202607030003_attendance_finalized_snapshot_unique.sql` enforces at most one `finalized` row per `(organization_id, user_id, target_month)` while preserving historical reopened/superseded rows. |
 | `attendance_export_logs` | export audit trail; `export_scope` (monthly_bulk/single_user), `target_month`, `snapshot_ids uuid[]`, `exported_by_user_id`. |
-| `transport_reimbursement_reports` | per-user-month transport-cost ledger (migration `202606260001`), **separate from payroll** (`attendance_month_snapshots`). `target_month` (1st of Tokyo month), `status` (draft/submitted/reviewing/approved/rejected), `submitted_at`/`reviewed_at`/`reviewed_by_user_id`/`review_note`, `total_amount_cached` (convenience; items are source of truth). Unique `(organization_id, user_id, target_month)`. |
+| `transport_reimbursement_reports` | per-user-month transport-cost ledger (migration `202606260001`), **separate from payroll** (`attendance_month_snapshots`). `target_month` (1st of Tokyo month), `status` (draft/submitted/reviewing/approved/rejected/**changes_requested** — the last added in migration `202607030001`; worker-editable like draft/rejected, i.e. "sent back for fixes, please resubmit"), `submitted_at`/`reviewed_at`/`reviewed_by_user_id`/`review_note`, `total_amount_cached` (convenience; items are source of truth). Unique `(organization_id, user_id, target_month)`. Admin review transitions: submitted/reviewing/changes_requested → approved \| rejected \| changes_requested; approved/rejected → **reopen** (back to submitted, drops out of the payroll total until re-approved). |
 | `transport_reimbursement_items` | reimbursable transport entries (many per report); `usage_date`, `amount_yen` (>0), `entry_mode` (linked/manual), optional `attendance_session_id`/`property_id`/`room_id`, `work_context jsonb` (building/room/cleaning summary), `memo`, `sort_order`. FKs to session/property/room are `on delete set null`. |
 | `transport_reimbursement_item_images` | receipt/proof images per item; `storage_path`, `sort_order`. Image count enforced in app. Storage: `request-images/{org}/transport-reimbursements/{report_id}/{item_id}/{file}` (5-part path). |
+
+Attendance/payroll integrity hardening (2026-07-03):
+
+- Admin manual session writes and correction approval validate chronological order; completed sessions must have `clock_out_at > clock_in_at`.
+- Overnight manual clock-out times are resolved to the next Tokyo date when the same-day time would be earlier than clock-in, then flagged for review when crossing Tokyo midnight.
+- Finalized user-months are locked against manual session edits, invalidation, restore, and correction approval that would change pay-affecting data.
+- Session-less exception approvals create a completed manual attendance session with audit trail.
+- Admin payroll/transport views include active members plus inactive members with month activity/snapshots/reports, preventing resigned staff from disappearing from accounting exports.
 
 **Step 2 (2026-06-17):** site/QR **backend** — migration `202606170002_issue_attendance_qr_fn.sql` adds
 the atomic `issue_attendance_qr(org, site, created_by, token)` function (deactivate old → insert new →
@@ -1113,12 +1131,15 @@ ends present) and writes an `attendance_session_audits` row (`correction_apply`,
 dashboard (deferred)**; this is the backend.
 
 **Step 8 (2026-06-17):** **manual admin management** (`src/app/admin/attendance/actions.ts`:
-`createManualAttendanceSession` / `updateAttendanceSessionAdmin` / `invalidateAttendanceSession`,
-owner+`attendance_payroll_admin` only). Create sets `manual_created` + `manual_created_by_user_id` +
-`manual_created_reason` (methods `manual`); update edits clock-in/out times+sites+review_state; invalidate
-sets `status='invalid'` + `invalidated_at/_by_user_id/_reason` (**never hard-deletes**). Every action
-requires a reason and writes an `attendance_session_audits` row (`manual_create` / `manual_update` /
-`invalidate`, before/after). No admin web UI (deferred).
+`createManualAttendanceSession` / `updateAttendanceSessionAdmin` / `invalidateAttendanceSession` /
+`restoreAttendanceSession` (added 2026-07-02), owner+`attendance_payroll_admin` only). Create sets
+`manual_created` + `manual_created_by_user_id` + `manual_created_reason` (methods `manual`); update
+edits clock-in/out times+sites+review_state; invalidate sets `status='invalid'` +
+`invalidated_at/_by_user_id/_reason` (**never hard-deletes**); restore is invalidate's explicit reverse
+(recomputes `status` from the session's own clock-in/out, clears the `invalidated_*` fields, resets
+`review_state`, blocked on a conflicting open session). Every action requires a reason and writes an
+`attendance_session_audits` row (`manual_create` / `manual_update` / `invalidate` / `restore`,
+before/after). No admin web UI beyond the queue panel's restore relabel (deferred otherwise).
 
 **Step 10 (2026-06-18):** **hourly expected-pay** reads `attendance_sessions` + `attendance_breaks` +
 `hourly_rate_history` + `employment_type_history` (effective-date resolution) via `src/lib/attendance-pay.ts`
@@ -1169,6 +1190,116 @@ reminder targets the worker. Scheduled scan `GET /api/attendance/reminders` (CRO
 
 Wi-Fi attendance (`gps_wifi`) is modeled but **not active** in the PWA. Shared row types +
 status/method/reason unions + constants live in `src/lib/attendance.ts`.
+
+## annual_leave_baselines
+
+**Phase 1 backend only (implemented 2026-07-06), migration `202607060001_annual_leave_hire_date_baseline.sql`.**
+Scope is intentionally narrow — only `profiles.hire_date` (see above) + this baseline table. The
+request-submission / approval / e-signature / document-generation workflow in
+`docs/product/26-annual-leave-workflow.md` is still a planning draft and is NOT implemented.
+
+One row per user: the employee's self-entered "as of today" starting balance for the two pools
+tracked by `src/lib/annual-leave.ts` (`computeAnnualLeaveSummary`) — 유급 휴가 (base) and 특별휴가
+(one-time 4-year bonus). The accrual schedule itself (10/11/12/14/16/18/20d + 4-year +4d bonus, 2-year
+lapse) is computed in app code from `hire_date`, not stored.
+
+```txt
+id uuid primary key default gen_random_uuid()
+organization_id uuid not null references organizations(id) on delete cascade
+user_id uuid not null references profiles(id) on delete cascade
+base_amount numeric(5,1) not null default 0    -- 유급 휴가 pool, as of baseline_date
+bonus_amount numeric(5,1) not null default 0   -- 특별휴가 pool, as of baseline_date (usually 0)
+baseline_date date not null                    -- Tokyo date the baseline was recorded (auto, = today at save time)
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()  -- set_updated_at() trigger
+unique (organization_id, user_id)
+```
+
+RLS: read-only (self row, or org owner/`attendance_payroll_admin`/platform admin org-wide) — same
+shape as `transport_reimbursement_reports`. All writes go through the service-role server action
+`setAnnualLeaveBaselineAction` (`src/app/mobile/attendance/leave/actions.ts`), which also sets
+`profiles.hire_date`. Self-service upsert — one row per user, overwritten (not versioned) on
+re-save. Reads: `getMyAnnualLeaveSummary` (`src/lib/annual-leave-server.ts`) returns null when either
+`hire_date` or this row is missing, which routes the mobile screen to the "hire date missing"
+self-entry form instead of the balance view.
+
+Not yet implemented (as of this table alone): usage deduction from real submitted/approved leave
+requests, an admin edit UI for `hire_date` or this baseline, and enforcement that only salary-based
+(non-hourly) employees see this feature. `annual_leave_requests` below adds the request side —
+`usedDays`/`specialUsedDays` are still not wired into `computeAnnualLeaveSummary` calls yet (the
+requests exist and are readable, but the balance screen doesn't subtract approved usage from them
+yet, since there's no approval action to produce an "approved" row in the first place).
+
+## annual_leave_requests
+
+**Phase 2 backend, stage 1 only (implemented 2026-07-06), migration `202607060002_annual_leave_requests.sql`.**
+Request submission/cancellation only — the approve/reject action, approval queue UI, and document
+output (PDF/print replicating the paper form) are NOT implemented; they are stage 2/3 of the same
+plan (`docs/product/26-annual-leave-workflow.md`).
+
+Confirmed policy this schema encodes:
+
+- approver = any member with `memberships.leave_approver_role` set — either one approving completes
+  the request (no sequential chain)
+- attachments are optional
+- e-signature is an approval "stamp" (button click; name + timestamp recorded on approval), not a
+  drawn signature
+- 경조휴가(`annual`)/기타(`other`) requests never affect the accrual pools; 유급휴가(`paid`) draws
+  the base pool; 특별휴가(`special`) draws the bonus pool only (see `src/lib/annual-leave.ts`)
+
+```txt
+id uuid primary key default gen_random_uuid()
+organization_id uuid not null references organizations(id) on delete cascade
+user_id uuid not null references profiles(id) on delete cascade
+applicant_name text not null          -- snapshot at submit time, survives later profile name changes
+leave_type text not null              -- annual(경조) | paid(유급) | special(특별휴가) | other(기타)
+start_date date not null
+end_date date not null                -- check: end_date >= start_date
+duration_unit text not null default 'full'  -- full | am | pm
+days_count numeric(4,1) not null      -- allows .5 for half-day
+reason text not null
+emergency_contact text not null
+image_urls text[] not null default '{}'     -- optional, max 5
+status text not null default 'requested'    -- draft | requested | approved | rejected | cancelled
+submitted_at timestamptz              -- null while draft
+approved_by_user_id uuid references profiles(id) on delete set null
+approved_role text                    -- department_head | senior_managing_director (stage 2, unused yet)
+approved_at timestamptz
+rejected_by_user_id uuid references profiles(id) on delete set null
+rejected_reason text
+rejected_at timestamptz
+cancelled_at timestamptz
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()  -- set_updated_at() trigger
+```
+
+Permission foundation: `memberships.leave_approver_role text` (values `department_head` = 대표/CEO,
+`senior_managing_director` = 전무, matching the two stamp boxes on the paper form's 결재란 — 부서장
+column is filled by the company's 대표) + `is_leave_approver(org)` SECURITY DEFINER helper, same
+shape as `attendance_payroll_admin`/`can_manage_attendance_payroll` but a role enum instead of a
+boolean since the (not-yet-built) printed document needs to know which stamp box an approval fills.
+
+RLS: read-only (self row, or `is_leave_approver(org)`/platform admin org-wide) — no write policies;
+all writes go through service-role server actions `submitLeaveRequestAction` /
+`cancelLeaveRequestAction` / `deleteLeaveRequestDraftAction`
+(`src/app/mobile/attendance/leave/actions.ts`). `submitLeaveRequestAction` takes an optional
+`requestId`: omitted → insert a new row; present → `updateDraftLeaveRequest` overwrites that row in
+place (only while it's still `status = 'draft'`) and, if not saving as a draft again, transitions it
+to `requested` — this is how "임시저장" (save draft) is resumed and finished from
+`/mobile/attendance/leave/new?id=<id>`. `deleteLeaveRequestDraft` (only callable while still `draft`)
+hard-deletes a draft — surfaced as a swipe-to-delete row in `leave-history.tsx` (reuses the
+`notification-list.tsx` `SwipeItem` interaction). Storage: optional evidence images reuse
+`request-images` at `{org_id}/annual-leave-requests/{request_id}/{filename}` (max 5, same convention
+as attendance-corrections/transport-reimbursements).
+
+**Team calendar visibility (2026-07-06, migration `202607060003_annual_leave_approved_visibility.sql`).**
+Confirmed: the mobile leave calendar (L5) shows every employee's **approved** leave, including the
+viewer's own — an additive SELECT policy `annual_leave_requests_org_approved_select`
+(`status = 'approved' AND has_active_membership(org)`) grants this on top of the existing
+self-or-approver policy. Pending/rejected/draft/cancelled requests are never visible org-wide.
+Query: `listApprovedLeaveForMonth` (`src/lib/annual-leave-requests-server.ts`), rendered by
+`leave-calendar.tsx` with real month/year navigation (`?ym=` query) — replacing the earlier
+hardcoded July-2026 mock calendar.
 
 ## Storage buckets — batch note
 

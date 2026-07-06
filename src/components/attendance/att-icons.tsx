@@ -183,6 +183,76 @@ export const AttIcon = {
       <path d="M6.62 10.79a15.5 15.5 0 006.59 6.59l2.2-2.2a1.02 1.02 0 011.05-.24c1.12.37 2.33.57 3.54.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.4 21 3 13.6 3 4.5c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.22.2 2.42.57 3.54.11.36.03.76-.25 1.04l-2.2 2.17z" fill="currentColor" />
     </svg>
   ),
+  // 연차 · 휴가 바로가기 — 파라솔(휴가) 아이콘
+  beach: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M12 20V9M12 9a7 7 0 00-8 3l16-2a7 7 0 00-8-1z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M4 20h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  ),
+  // 휴가 종류 아이콘 (경조=heart · 특별=gift · 유급=coin · 기타=doc[기존])
+  heart: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M12 20s-7-4.4-7-9.5A3.5 3.5 0 0112 8a3.5 3.5 0 017 2.5C19 15.6 12 20 12 20z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    </svg>
+  ),
+  gift: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <rect x="4" y="10" width="16" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M3 7.5h18V10H3zM12 7.5V20M12 7.5S10.5 4 8.5 4.6 10 7.5 12 7.5zM12 7.5S13.5 4 15.5 4.6 14 7.5 12 7.5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
+  ),
+  coin: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M12 7.5v9M9.5 9.5h4a1.7 1.7 0 010 3.4h-3a1.7 1.7 0 000 3.4h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  ),
+  plus: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
+    </svg>
+  ),
+  save: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M5 4.5h11l3 3V19a1.5 1.5 0 01-1.5 1.5H5A1.5 1.5 0 013.5 19V6A1.5 1.5 0 015 4.5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M8 4.5v4h6M8 20v-5h8v5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
+  ),
+  home: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M4 11.5L12 5l8 6.5M6 10.5V19h12v-8.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  list: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M9 6h11M9 12h11M9 18h11" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M4 6h.5M4 12h.5M4 18h.5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
+  ),
+  shield: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M12 3l7 2.5v5.2c0 4.5-3 8-7 10-4-2-7-5.5-7-10V5.5L12 3z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  ban: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M6 6l12 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  ),
+  trash: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M4 7h16M9 7V4.5A1.5 1.5 0 0110.5 3h3A1.5 1.5 0 0115 4.5V7M6 7l1 12.5A1.5 1.5 0 008.5 21h7a1.5 1.5 0 001.5-1.5L18 7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  ),
+  undo: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <path d="M9 7L5 11l4 4M5 11h9a5 5 0 010 10h-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
 } satisfies Record<string, ReactNode>;
 
 /** SVG gradient defs used by the progress ring (navy = working, amber = break). Render once. */
