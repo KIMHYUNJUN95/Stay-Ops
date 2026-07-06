@@ -194,6 +194,13 @@ output are **not implemented** — stage 2/3.
 - employee leave balance / grant history — balance built; a full grant-history ledger view is not
 - document preview / print / PDF export — not built (stage 3)
 
+### Mobile UX notes
+
+- All typing fields on the mobile leave forms (reason `.ftext`, emergency-contact `.finput input`,
+  and the baseline-setup number input) use `font-size: 16px`. iOS Safari auto-zooms the viewport
+  when focusing a text field smaller than 16px; 16px keeps the page at its mobile size on focus while
+  leaving pinch-zoom available elsewhere. Do not lower these below 16px (fixed 2026-07-06).
+
 ## Document output
 
 - the company leave form should keep the current paper layout as the reference (photo on file, see

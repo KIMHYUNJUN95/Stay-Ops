@@ -584,7 +584,10 @@
   background: var(--card);
   padding: 13px 14px;
   font: inherit;
-  font-size: 14px;
+  /* 16px min: iOS Safari auto-zooms the viewport when focusing a text field smaller
+     than 16px. Keeping typed inputs at exactly 16px stops the page from zooming in
+     on focus while leaving pinch-zoom available elsewhere. */
+  font-size: 16px;
   font-weight: 600;
   color: var(--ink);
   line-height: 1.55;
@@ -608,7 +611,8 @@
   background: none;
   outline: none;
   font: inherit;
-  font-size: 14.5px;
+  /* 16px min — see .lv .ftext note (prevents iOS focus auto-zoom). */
+  font-size: 16px;
   font-weight: 700;
   color: var(--ink);
   width: 100%;
