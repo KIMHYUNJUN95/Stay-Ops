@@ -352,6 +352,16 @@ export function AttendanceHome({
     <>
       <div className="seclbl">{copy.homeShortcutLabel}</div>
       <div className="entrylist">
+        <Link href="/mobile/attendance/leave" className="entryrow leave">
+          <span className="entryrow__ic"><AIc>{AttIcon.beach}</AIc></span>
+          <div className="entryrow__b">
+            <div className="entryrow__t">{copy.homeLeaveTitle}</div>
+            <div className="entryrow__s">{copy.homeLeaveSub}</div>
+          </div>
+          <div className="entryrow__r">
+            <span className="entryrow__new">{copy.homeNewBadge}</span>
+          </div>
+        </Link>
         <Link href="/mobile/attendance/history" className="entryrow hist">
           <span className="entryrow__ic"><AIc>{AttIcon.clock}</AIc></span>
           <div className="entryrow__b">
