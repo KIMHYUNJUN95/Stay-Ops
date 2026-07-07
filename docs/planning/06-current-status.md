@@ -93,9 +93,15 @@ Annual leave planning status:
   queue + summary cards, status/type filters, search, and a right-side detail panel with
   balance-impact/overlap info and approve ("stamp")/reject (reason optional) actions
   (`src/lib/annual-leave-approvals-server.ts`, `src/components/admin/attendance/leave-queue-client.tsx`).
-  No new migration — reuses the approval/reject columns from `202607060002`. Still not wired: usage
-  deduction into the balance calculation, applicant notifications, the leave subnav's other 4 sub-tabs
-  (팀 캘린더/직원 잔여·부여/승인자 관리/문서, placeholders only), and document output (stage 3).
+  No new migration — reuses the approval/reject columns from `202607060002`. **Admin request creation
+  added (2026-07-07):** toolbar 대리 신청 (proxy, on behalf of an active employee) + 내 연차 신청
+  (self) buttons open `leave-request-modal.tsx` → `createAdminLeaveRequest`
+  (`src/lib/annual-leave-admin-server.ts`), reusing `createLeaveRequest` with the mobile day-count
+  rules; requests enter the queue as `requested`. Toolbar also gained a real sort dropdown and a
+  건/件 count unit; branch/building filter dropped (no user↔building association in schema). Still not
+  wired: usage deduction into the balance calculation, applicant notifications, the leave subnav's
+  other 4 sub-tabs (팀 캘린더/직원 잔여·부여/승인자 관리/문서, placeholders only), queue export, and
+  document output (stage 3).
 
 Completed dashboard slices:
 

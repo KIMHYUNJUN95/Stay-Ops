@@ -11,6 +11,10 @@ import {
   approveLeaveRequestForApprover,
   rejectLeaveRequestForApprover,
 } from "@/lib/annual-leave-approvals-server";
+import {
+  createAdminLeaveRequest,
+  type AdminLeaveRequestInput,
+} from "@/lib/annual-leave-admin-server";
 
 const LEAVE_PATH = "/admin/attendance/leave";
 
@@ -31,4 +35,13 @@ export async function rejectLeaveRequestAction(
   const result = await rejectLeaveRequestForApprover(session, requestId, reason);
   if (result.ok) revalidatePath(LEAVE_PATH);
   return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
+export async function createAdminLeaveRequestAction(
+  input: AdminLeaveRequestInput,
+): Promise<{ ok: boolean; error?: string; id?: string }> {
+  const session = await requireAdminPageSession({ nextPath: LEAVE_PATH });
+  const result = await createAdminLeaveRequest(session, input);
+  if (result.ok) revalidatePath(LEAVE_PATH);
+  return result.ok ? { ok: true, id: result.id } : { ok: false, error: result.error };
 }

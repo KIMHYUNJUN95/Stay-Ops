@@ -186,10 +186,24 @@ this stage reuses the approval/reject columns already added by `202607060002_ann
   전체, client-side filter), leave-type filter (유급/경조/특별/기타), search, table, right-side detail
   panel (request info · balance impact · same-period overlap · approval timeline · approve-stamp/reject
   actions). i18n: `admin.leaveConsole.*` + `attendanceConsole.tabLeave` added ko/ja/en.
+- **Toolbar refinements (2026-07-07):** summary card 1 counts requests in 건/件/cases (not 명/people);
+  the sort control is a real dropdown (신청 순 / 일수 많은 순); the type & sort chip popovers drop
+  straight down under their trigger (`ChipDropdown` gained `align`/`fitTrigger` props, defaults keep the
+  attendance queue's existing right-align). Branch/building filter was intentionally dropped (StayOps
+  has no user↔building association in the schema; confirmed not needed 2026-07-07).
+- **Admin request creation — proxy + self (implemented 2026-07-07):** the toolbar has two buttons —
+  **대리 신청** (file a request on behalf of an active employee, employee picker) and **내 연차 신청**
+  (the admin's own request). Both open `leave-request-modal.tsx` and submit through
+  `createAdminLeaveRequestAction` → `createAdminLeaveRequest` (`src/lib/annual-leave-admin-server.ts`),
+  which reuses `createLeaveRequest`, snapshots the target's `profiles.name` as `applicant_name`, and
+  normalizes day count exactly like the mobile form (경조=fixed 3 full days, half-day=0.5 single day,
+  else inclusive range). The request enters the queue as `requested`. Target must be an **active** org
+  member (`listLeaveApplicants` returns active-only). Any admin-web user may create for self or proxy
+  (the console is a management surface; the page gate already restricts to admin-web roles).
 - **Not implemented in this stage (explicit follow-up):**
   - The leave subnav's other 4 sub-tabs (팀 캘린더 / 직원 잔여·부여 / 승인자 관리 / 문서) are
     **inactive placeholders only** — no functionality behind them yet.
-  - Branch filter, export, and proxy-submit-for-employee button: excluded.
+  - Branch/building filter and queue export: excluded.
   - Approval does **not** yet feed back into `computeAnnualLeaveSummary`'s `usedDays`/
     `specialUsedDays` — the detail panel's "잔여 영향" (balance impact) is a **display-only**
     projection computed at review time; wiring approved usage into the actual balance calculation is

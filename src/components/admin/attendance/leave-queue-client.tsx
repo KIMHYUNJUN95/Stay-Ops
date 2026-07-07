@@ -5,6 +5,7 @@ import {
   ArrowUpDown,
   Ban,
   Calendar,
+  CalendarPlus,
   Check,
   CheckCheck,
   ChevronRight,
@@ -13,6 +14,7 @@ import {
   LogOut,
   Search,
   TriangleAlert,
+  UserPlus,
   X,
 } from "lucide-react";
 import type {
@@ -25,6 +27,7 @@ import type {
   LeaveStatusGroup,
   LeaveType,
 } from "@/lib/annual-leave-approvals-server";
+import type { LeaveApplicantOption } from "@/lib/annual-leave-admin-server";
 import { getDictionary, type Dictionary, type Locale } from "@/lib/i18n";
 import {
   approveLeaveRequestAction,
@@ -34,6 +37,7 @@ import { loadLeaveApprovalDetail } from "@/app/admin/attendance/leave/detail-act
 import { AdminReasonModal } from "../shared/admin-reason-modal";
 import { ChipDropdown } from "../shared/admin-chip-dropdown";
 import { useAdminPanelA11y } from "../shared/use-admin-panel-a11y";
+import { LeaveRequestModal } from "./leave-request-modal";
 
 type Lc = Dictionary["admin"]["leaveConsole"];
 
@@ -228,6 +232,9 @@ export function LeaveQueueClient({
   initialSearch,
   initialRequestId = null,
   locale,
+  applicants,
+  currentUserId,
+  currentUserName,
 }: {
   initialItems: LeaveQueueItem[];
   summary: LeaveQueueSummary;
@@ -236,6 +243,9 @@ export function LeaveQueueClient({
   initialSearch: string;
   initialRequestId?: string | null;
   locale: Locale;
+  applicants: LeaveApplicantOption[];
+  currentUserId: string;
+  currentUserName: string;
 }) {
   const dictionary = getDictionary(locale);
   const lc = dictionary.admin.leaveConsole;
@@ -247,6 +257,7 @@ export function LeaveQueueClient({
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(initialRequestId);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
+  const [requestModal, setRequestModal] = useState<"proxy" | "self" | null>(null);
   const showToast = (msg: string) => setToast({ id: Date.now(), msg });
 
   useEffect(() => {
@@ -389,6 +400,23 @@ export function LeaveQueueClient({
           align="left"
           fitTrigger
         />
+        <button
+          type="button"
+          className="btn"
+          style={{ background: "var(--primary)", color: "#fff" }}
+          onClick={() => setRequestModal("proxy")}
+        >
+          <Ic>
+            <UserPlus />
+          </Ic>
+          {lc.btnProxyRequest}
+        </button>
+        <button type="button" className="btn btn--ghost" onClick={() => setRequestModal("self")}>
+          <Ic>
+            <CalendarPlus />
+          </Ic>
+          {lc.btnSelfRequest}
+        </button>
       </div>
 
       {rows.length === 0 ? (
@@ -506,6 +534,19 @@ export function LeaveQueueClient({
           localeTag={localeTag}
           onClose={() => setSelectedId(null)}
           onResolved={(msg) => showToast(msg)}
+        />
+      ) : null}
+
+      {requestModal ? (
+        <LeaveRequestModal
+          mode={requestModal}
+          applicants={applicants}
+          currentUserId={currentUserId}
+          currentUserName={currentUserName}
+          locale={locale}
+          lc={lc}
+          onClose={() => setRequestModal(null)}
+          onCreated={(msg) => showToast(msg)}
         />
       ) : null}
 
