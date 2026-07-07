@@ -18,6 +18,10 @@ type ChipDropdownProps = {
   value: string | null;
   onChange: (value: string | null) => void;
   ariaLabel: string;
+  /** Popover horizontal alignment relative to the trigger. Default "right" (existing behavior). */
+  align?: "left" | "right";
+  /** When true, the popover matches the trigger width and drops straight down (min 150px). */
+  fitTrigger?: boolean;
 };
 
 /** Chip-trigger popover single-select filter — site / issue-type dropdowns in the queue toolbar. */
@@ -29,6 +33,8 @@ export function ChipDropdown({
   value,
   onChange,
   ariaLabel,
+  align = "right",
+  fitTrigger = false,
 }: ChipDropdownProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -66,7 +72,17 @@ export function ChipDropdown({
       </button>
 
       {open ? (
-        <div className="adp__pop" role="listbox" aria-label={ariaLabel} style={{ width: 220 }}>
+        <div
+          className="adp__pop"
+          role="listbox"
+          aria-label={ariaLabel}
+          style={{
+            width: fitTrigger ? "100%" : 220,
+            minWidth: fitTrigger ? 150 : undefined,
+            left: align === "left" ? 0 : "auto",
+            right: align === "left" ? "auto" : 0,
+          }}
+        >
           <button
             type="button"
             className={`adp__opt${value == null ? " sel" : ""}`}

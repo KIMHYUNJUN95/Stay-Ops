@@ -375,6 +375,8 @@ export function LeaveQueueClient({
           value={typeFilter}
           onChange={(v) => setTypeFilter(v as LeaveType | null)}
           ariaLabel={lc.filterChipType}
+          align="left"
+          fitTrigger
         />
         <ChipDropdown
           icon={<ArrowUpDown />}
@@ -384,6 +386,8 @@ export function LeaveQueueClient({
           value={sortBy}
           onChange={(v) => setSortBy(v)}
           ariaLabel={lc.sortLabel}
+          align="left"
+          fitTrigger
         />
       </div>
 
