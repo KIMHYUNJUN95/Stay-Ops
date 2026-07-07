@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { requireAdminSession } from "@/lib/admin-session";
-import { getDictionary, type Locale } from "@/lib/i18n";
+import { getDictionary } from "@/lib/i18n";
 import { organizationRoles } from "@/config/roles";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
@@ -49,14 +49,18 @@ function statusBadgeClass(status: MembershipStatus) {
   return map[status];
 }
 
-function getStatusLabel(status: MembershipStatus, locale: Locale) {
-  const labels: Record<MembershipStatus, Record<Locale, string>> = {
-    active: { ko: "활성", ja: "アクティブ", en: "Active" },
-    invited: { ko: "초대됨", ja: "招待済み", en: "Invited" },
-    removed: { ko: "제거됨", ja: "削除済み", en: "Removed" },
-    suspended: { ko: "중지됨", ja: "停止済み", en: "Suspended" },
-  };
-  return labels[status][locale];
+function getStatusLabel(
+  status: MembershipStatus,
+  dictionary: ReturnType<typeof getDictionary>,
+) {
+  const statusLabels = {
+    active: dictionary.common.active,
+    invited: dictionary.common.invited,
+    removed: dictionary.common.removed,
+    suspended: dictionary.common.suspended,
+  } satisfies Record<MembershipStatus, string>;
+
+  return statusLabels[status];
 }
 
 export default async function AdminUserDetailPage({ params, searchParams }: PageProps) {
@@ -134,7 +138,7 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
               <h2 className="text-2xl font-black">{profile?.name ?? "—"}</h2>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <Badge className={statusBadgeClass(membership.status)}>
-                  {getStatusLabel(membership.status, locale)}
+                  {getStatusLabel(membership.status, dictionary)}
                 </Badge>
                 <span className="text-sm font-semibold text-muted-foreground">
                   {dictionary.roles[membership.role]}
@@ -214,7 +218,7 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
               >
                 {(["active", "invited", "removed", "suspended"] as const).map((s) => (
                   <option key={s} value={s}>
-                    {getStatusLabel(s, locale)}
+                    {getStatusLabel(s, dictionary)}
                   </option>
                 ))}
               </select>

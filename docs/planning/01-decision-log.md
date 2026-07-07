@@ -2654,3 +2654,33 @@ sheet needs daily attendance/pay, transport, and the cleaned-room evidence that 
 Status: Confirmed (2026-07-03).
 
 Status: Confirmed (2026-06-22). Part of the native standalone hardening pass.
+
+## i18n dead-key cleanup + status-label consistency (2026-07-07)
+
+Decision: removed orphaned dictionary keys and one unused component surfaced by a full trilingual
+(ko/ja/en) audit. All user-visible copy was already dictionary-sourced with full ko/ja parity — this
+pass only deletes dead code; no behavior/UI change.
+
+Removed:
+- `src/components/foundation-preview.tsx` (unused component, not imported anywhere) and its
+  `dictionary.app.*` / `dictionary.foundation.*` keys (its only consumers).
+- `dictionary.devEntry.*` (no references), plus `dictionary.app.*` / `dictionary.foundation.*`, from
+  both the `FALLBACK_DICTIONARY` (en base) and the `ko` override block.
+- Flat duplicate success strings `admin.settings.attendanceQrIssued` / `attendanceQrReissued` /
+  `attendanceSiteSaved` — the live settings UI uses the nested `admin.settings.success.*` copies.
+
+Also: `src/app/admin/users/[id]/page.tsx` `getStatusLabel` no longer inlines ko/ja/en membership-status
+labels; it now reads `dictionary.common.{active,invited,removed,suspended}`, matching the users list
+page (`src/app/admin/users/page.tsx`). The "Stay Ops" wordmark stays hardcoded in the shells — it is a
+brand mark, locale-invariant by design (see design-direction doc), not translatable UI copy.
+
+Deferred follow-up: the flat `dictionary.auth.*` block (`loginTitle`, `subtitle`, `magicLinkSent`,
+`welcomeBack`, `productSubtitle`, `sendMagicLink`, `signInErrorPrefix`, etc.) appears largely orphaned
+by the login redesign to `dictionary.auth.console`, but at least one key (`languageSelector`) is still
+referenced. It needs a dedicated audit against the current login page before removal — deliberately
+NOT removed in this pass to avoid arbitrary partial deletion.
+
+Reason: user asked for a full i18n check + cleanup (2026-07-07). Verified via lint + build + a
+key-parity script that evaluates the real module and lists fallback keys lacking ko/ja overrides.
+
+Status: Confirmed (2026-07-07).
