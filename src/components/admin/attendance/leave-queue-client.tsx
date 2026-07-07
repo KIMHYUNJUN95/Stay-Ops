@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import {
+  ArrowUpDown,
   Ban,
   Calendar,
   Check,
@@ -181,7 +182,7 @@ function SummaryCards({ summary, lc }: { summary: LeaveQueueSummary; lc: Lc }) {
         <div className="lvscard__b">
           <div className="lvscard__v">
             {summary.pendingCount}
-            {lc.unitPeople}
+            {lc.unitCount}
           </div>
           <div className="lvscard__t">
             {lc.summaryPendingTitle} · {lc.summaryPendingSub(String(summary.pendingDays))}
@@ -242,6 +243,8 @@ export function LeaveQueueClient({
   const [statusGroup, setStatusGroup] = useState<LeaveStatusGroup>(initialStatusGroup);
   const [typeFilter, setTypeFilter] = useState<LeaveType | null>(initialType);
   const [nameQuery, setNameQuery] = useState(initialSearch);
+  // Sort: null = newest submission first (default), "days" = most days first.
+  const [sortBy, setSortBy] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(initialRequestId);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const showToast = (msg: string) => setToast({ id: Date.now(), msg });
@@ -283,11 +286,12 @@ export function LeaveQueueClient({
           it.applicantName.toLowerCase().includes(q) ||
           it.reason.toLowerCase().includes(q),
       )
-      .sort(
-        (a, b) =>
-          new Date(b.submittedAt ?? 0).getTime() - new Date(a.submittedAt ?? 0).getTime(),
+      .sort((a, b) =>
+        sortBy === "days"
+          ? b.daysCount - a.daysCount
+          : new Date(b.submittedAt ?? 0).getTime() - new Date(a.submittedAt ?? 0).getTime(),
       );
-  }, [items, statusGroup, typeFilter, nameQuery]);
+  }, [items, statusGroup, typeFilter, nameQuery, sortBy]);
 
   const localeTag = localeTagOf(locale);
 
@@ -372,13 +376,15 @@ export function LeaveQueueClient({
           onChange={(v) => setTypeFilter(v as LeaveType | null)}
           ariaLabel={lc.filterChipType}
         />
-        <span
-          className="pill pill--muted"
-          style={{ height: 34, borderRadius: 10, fontWeight: 700 }}
-          title={lc.sortSubmittedDesc}
-        >
-          {lc.sortSubmittedDesc}
-        </span>
+        <ChipDropdown
+          icon={<ArrowUpDown />}
+          chipLabel={`${lc.sortLabel} · ${sortBy === "days" ? lc.sortDaysDesc : lc.sortSubmittedDesc}`}
+          allLabel={lc.sortSubmittedDesc}
+          options={[{ value: "days", label: lc.sortDaysDesc }]}
+          value={sortBy}
+          onChange={(v) => setSortBy(v)}
+          ariaLabel={lc.sortLabel}
+        />
       </div>
 
       {rows.length === 0 ? (
