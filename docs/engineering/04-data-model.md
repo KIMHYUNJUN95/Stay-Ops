@@ -1232,10 +1232,11 @@ yet, since there's no approval action to produce an "approved" row in the first 
 
 ## annual_leave_requests
 
-**Phase 2 backend, stage 1 only (implemented 2026-07-06), migration `202607060002_annual_leave_requests.sql`.**
-Request submission/cancellation only — the approve/reject action, approval queue UI, and document
-output (PDF/print replicating the paper form) are NOT implemented; they are stage 2/3 of the same
-plan (`docs/product/26-annual-leave-workflow.md`).
+**Phase 2 backend. Stage 1 (request submission/cancellation, implemented 2026-07-06) and stage 2
+(admin approval review, implemented 2026-07-07) are both live** — migration
+`202607060002_annual_leave_requests.sql` (no new migration was needed for stage 2; it reuses the
+approval/reject columns already defined here). Only document output (PDF/print replicating the paper
+form, stage 3) remains NOT implemented — see `docs/product/26-annual-leave-workflow.md`.
 
 Confirmed policy this schema encodes:
 
@@ -1278,6 +1279,15 @@ Permission foundation: `memberships.leave_approver_role text` (values `departmen
 column is filled by the company's 대표) + `is_leave_approver(org)` SECURITY DEFINER helper, same
 shape as `attendance_payroll_admin`/`can_manage_attendance_payroll` but a role enum instead of a
 boolean since the (not-yet-built) printed document needs to know which stamp box an approval fills.
+
+**Stage 2 (implemented 2026-07-07):** `approved_by_user_id`/`approved_role`/`approved_at` and
+`rejected_by_user_id`/`rejected_reason`/`rejected_at` are now actually written by the admin approval
+queue at `/admin/attendance/leave`, via `approveLeaveRequestForApprover` /
+`rejectLeaveRequestForApprover` (`src/lib/annual-leave-approvals-server.ts`, service-role,
+organization-isolated, re-verifies `is_leave_approver`). Approve transitions `status: requested →
+approved` only from `requested`; reject transitions to `rejected` with an optional (not required)
+reason, per confirmed policy. Usage deduction into `computeAnnualLeaveSummary`'s `usedDays`/
+`specialUsedDays` is still not wired — approval does not yet affect the balance calculation itself.
 
 RLS: read-only (self row, or `is_leave_approver(org)`/platform admin org-wide) — no write policies;
 all writes go through service-role server actions `submitLeaveRequestAction` /

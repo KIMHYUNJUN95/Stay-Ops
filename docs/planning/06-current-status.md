@@ -88,6 +88,14 @@ Annual leave planning status:
 - **Not yet built (dashboard, stage 2/3, deferred until mobile is complete):** the approve/reject
   action, the approver-facing approval queue UI, usage deduction from approved requests into the
   balance calculation, and document output (PDF/print replicating the paper form).
+- **Admin approval queue implemented (2026-07-07):** `/admin/attendance/leave` (new "연차" tab in the
+  attendance console subnav) is now a working approver-facing review console — org-wide request
+  queue + summary cards, status/type filters, search, and a right-side detail panel with
+  balance-impact/overlap info and approve ("stamp")/reject (reason optional) actions
+  (`src/lib/annual-leave-approvals-server.ts`, `src/components/admin/attendance/leave-queue-client.tsx`).
+  No new migration — reuses the approval/reject columns from `202607060002`. Still not wired: usage
+  deduction into the balance calculation, applicant notifications, the leave subnav's other 4 sub-tabs
+  (팀 캘린더/직원 잔여·부여/승인자 관리/문서, placeholders only), and document output (stage 3).
 
 Completed dashboard slices:
 

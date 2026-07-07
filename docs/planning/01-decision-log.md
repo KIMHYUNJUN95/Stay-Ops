@@ -2,6 +2,48 @@
 
 This file records important project decisions.
 
+## 2026-07-07
+
+### Annual leave: admin approval review (Phase 2, stage 2) implemented
+
+- Built the admin-dashboard approval queue confirmed as scope on 2026-07-06: new route
+  `/admin/attendance/leave`, a new "연차"/"年次"/"Leave" tab added to the attendance console subnav
+  (`src/components/admin/attendance/attendance-subnav.tsx`). Server page
+  (`src/app/admin/attendance/leave/page.tsx`) gates on `requireAdminPageSession` + `is_leave_approver`;
+  non-approvers see a permission-denied card.
+- Backend `src/lib/annual-leave-approvals-server.ts`: `getAdminLeaveQueue` (org-wide queue + summary),
+  `getAdminLeaveApprovalDetail` (detail + balance-impact projection + same-period overlap),
+  `approveLeaveRequestForApprover` (approval stamp: `status → approved`, records
+  `approved_by_user_id`/`approved_role`/`approved_at`, only from `requested`),
+  `rejectLeaveRequestForApprover` (`status → rejected`, reason optional per the 2026-07-06 policy). All
+  four are service-role, org-isolated, and re-verify the caller is an approver. Server actions:
+  `src/app/admin/attendance/leave/actions.ts` (approve/reject), `detail-actions.ts` (detail wrapper).
+- Frontend `src/components/admin/attendance/leave-queue-client.tsx`: 3 summary cards, status-group
+  tabs, leave-type filter, search, table, right-side detail panel — following the same dashboard
+  list/detail-panel pattern as `/admin/attendance/queue`. i18n `admin.leaveConsole.*` +
+  `attendanceConsole.tabLeave` added ko/ja/en.
+- No new migration — reuses the approval/reject columns already added by
+  `202607060002_annual_leave_requests.sql` and the `is_leave_approver()` helper.
+- Explicitly out of scope this slice: the leave subnav's other 4 sub-tabs (팀 캘린더/직원 잔여·부여/
+  승인자 관리/문서) are inactive placeholders only; branch filter, export, and proxy-submit are
+  excluded; approval does not yet feed `computeAnnualLeaveSummary`'s `usedDays`/`specialUsedDays` (the
+  detail panel's "잔여 영향" is a display-only projection); no applicant notification on approve/
+  reject; document output (stage 3) remains not built.
+
+Why: this closes out Phase 2 stage 2 of the annual-leave workflow per the build order confirmed
+2026-07-06 (mobile-first, then admin approval). Scoping usage-deduction wiring and notifications out
+of this slice keeps the review action itself (the part actually blocking approvers from doing their
+job) shippable without waiting on the balance-calculation and notification work.
+
+Impact:
+- `src/app/admin/attendance/leave/{page.tsx,actions.ts,detail-actions.ts}` (new)
+- `src/lib/annual-leave-approvals-server.ts` (new)
+- `src/components/admin/attendance/leave-queue-client.tsx` (new),
+  `attendance-subnav.tsx` (new "연차" tab)
+- `src/lib/i18n.ts` (`admin.leaveConsole.*`, `attendanceConsole.tabLeave`, ko/ja/en)
+- `docs/product/26-annual-leave-workflow.md`, `docs/product/05-admin-web-ia.md`,
+  `docs/engineering/04-data-model.md`, `docs/planning/06-current-status.md`
+
 ## 2026-07-06 (7)
 
 ### Annual leave: swipe-to-delete for draft rows in history

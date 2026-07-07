@@ -2,9 +2,10 @@
 
 Status: the mobile employee-facing experience is done — hire-date/balance backend, request
 submission/self-cancel/draft-resume, and the real team calendar are all implemented and applied
-(Phase 1 + Phase 2 stage 1, see below). The admin-dashboard side (approve/reject action, approval
-queue, document generation — Phase 2 stage 2/3) is confirmed scope but not started; per the confirmed
-build order, it begins only after mobile is fully complete. This is the target annual-leave workflow
+(Phase 1 + Phase 2 stage 1, see below). The admin-dashboard **approval review** (Phase 2 stage 2,
+approve/reject action + approval queue at `/admin/attendance/leave`) is now **implemented
+(2026-07-07)** — see "Backend — Phase 2, stage 2 (implemented 2026-07-07)" below. Document generation
+(stage 3) is still not started. This is the target annual-leave workflow
 for salary-based regular employees. Hourly staff are excluded. The goal is to remove paper approvals
 while keeping the current company form (photographed 2026-07-06, see "Paper form reference" below) as
 the visual and document reference.
@@ -55,15 +56,13 @@ so the two stamp boxes map to "either VP or CEO approves" above — not a 3-step
   rejection, which does. Any future reject action/UI for leave should make the reason field optional,
   not mandatory.
 
-### Where approval happens (confirmed 2026-07-06)
+### Where approval happens (confirmed 2026-07-06; approval queue implemented 2026-07-07)
 
-The approval queue, approve/reject action, and document output are an **admin web dashboard**
-feature (`/admin/attendance/leave`, planned to mirror the existing correction-review queue at
+The approval queue and approve/reject action are an **admin web dashboard** feature
+(`/admin/attendance/leave`, mirroring the existing correction-review queue at
 `/admin/attendance/queue`), not a mobile screen. Mobile is the employee-facing surface (submit/view
-own requests); the PC dashboard is the manager-facing surface (review/approve org-wide). **Build
-order: finish the mobile employee-facing experience first; the admin approval dashboard (stage 2/3)
-starts only after that.** This is a sequencing decision, not a scope cut — the dashboard work is
-still planned, just not started yet.
+own requests); the PC dashboard is the manager-facing surface (review/approve org-wide). Document
+output (stage 3) remains not started.
 
 ### Leave types (confirmed 2026-07-06)
 
@@ -163,6 +162,41 @@ output are **not implemented** — stage 2/3.
 - Usage deduction (approved requests reducing `computeAnnualLeaveSummary`'s `usedDays`/
   `specialUsedDays`) is still not wired — there's no way for a request to reach `approved` status yet.
 
+### Backend — Phase 2, stage 2 (implemented 2026-07-07)
+
+Approval review only — document output (stage 3) is still not built. No new migration was needed;
+this stage reuses the approval/reject columns already added by `202607060002_annual_leave_requests.sql`
+(`approved_by_user_id`/`approved_role`/`approved_at`/`rejected_by_user_id`/`rejected_reason`/
+`rejected_at`) and `is_leave_approver()` / `memberships.leave_approver_role`.
+
+- New route `/admin/attendance/leave` with a new "연차"/"年次"/"Leave" tab in the attendance console
+  subnav (`src/components/admin/attendance/attendance-subnav.tsx`). Server page
+  (`src/app/admin/attendance/leave/page.tsx`) gates on `requireAdminPageSession` + `is_leave_approver`
+  — non-approvers see a permission-denied card instead of the queue.
+- Backend: `src/lib/annual-leave-approvals-server.ts` — `getAdminLeaveQueue` (org-wide request queue +
+  summary), `getAdminLeaveApprovalDetail` (request detail + computed balance impact + same-period
+  overlapping leave), `approveLeaveRequestForApprover` (the approval "stamp": `status` → `approved`,
+  records `approved_by_user_id`/`approved_role`/`approved_at`, only from `requested`),
+  `rejectLeaveRequestForApprover` (`status` → `rejected`, reason optional, per confirmed policy). All
+  four are service-role, organization-isolated, and re-verify the caller is an approver (platform admin
+  or a membership with `leave_approver_role` set). Server actions:
+  `src/app/admin/attendance/leave/actions.ts` (approve/reject), `detail-actions.ts` (detail wrapper).
+- Frontend: `src/components/admin/attendance/leave-queue-client.tsx` — 3 summary cards (승인 대기 건수·
+  일수 / 이번 주 승인 휴가자 / 잔여 부족·미도래 경고), status-group tabs (승인 대기/승인 완료/반려·취소/
+  전체, client-side filter), leave-type filter (유급/경조/특별/기타), search, table, right-side detail
+  panel (request info · balance impact · same-period overlap · approval timeline · approve-stamp/reject
+  actions). i18n: `admin.leaveConsole.*` + `attendanceConsole.tabLeave` added ko/ja/en.
+- **Not implemented in this stage (explicit follow-up):**
+  - The leave subnav's other 4 sub-tabs (팀 캘린더 / 직원 잔여·부여 / 승인자 관리 / 문서) are
+    **inactive placeholders only** — no functionality behind them yet.
+  - Branch filter, export, and proxy-submit-for-employee button: excluded.
+  - Approval does **not** yet feed back into `computeAnnualLeaveSummary`'s `usedDays`/
+    `specialUsedDays` — the detail panel's "잔여 영향" (balance impact) is a **display-only**
+    projection computed at review time; wiring approved usage into the actual balance calculation is
+    separate follow-up work.
+  - No notification is sent to the applicant on approve/reject in this slice.
+  - Document output (休暇届, stage 3) remains not built.
+
 ## Recommended user entry flow
 
 ### Mobile
@@ -189,8 +223,11 @@ output are **not implemented** — stage 2/3.
   org-wide data)
 - request detail / approval status — **built** (read-only detail sheet in history)
 - hire-date missing prompt — **built**
-- approval queue — not built (stage 2)
-- request detail drawer or page (approver-facing, with approve/reject) — not built (stage 2)
+- approval queue (`/admin/attendance/leave`) — **built** (2026-07-07)
+- request detail drawer (approver-facing, with approve/reject) — **built** (2026-07-07, right-side
+  panel in `leave-queue-client.tsx`)
+- admin dashboard team calendar / employee balance-grant management / approver management / documents
+  sub-tabs — inactive placeholders only, not built
 - employee leave balance / grant history — balance built; a full grant-history ledger view is not
 - document preview / print / PDF export — not built (stage 3)
 
@@ -221,8 +258,9 @@ output are **not implemented** — stage 2/3.
   viewer's own — not a self-only view. Only **approved** leave appears; pending/rejected/draft/
   cancelled requests are never shown org-wide (RLS: `annual_leave_requests_org_approved_select`,
   migration `202607060003`).
-- admins will additionally get a team-wide calendar view on the dashboard (not yet built, stage 2/3
-  scope) — likely the same approved-only data, just presented in an admin-console layout.
+- admins will additionally get a team-wide calendar view on the dashboard — the leave subnav's
+  "팀 캘린더" sub-tab exists as a placeholder (2026-07-07) but has no functionality yet; likely the
+  same approved-only data, just presented in an admin-console layout.
 
 ## Open questions
 
@@ -232,7 +270,7 @@ output are **not implemented** — stage 2/3.
 
 ## Next step
 
-Finish the mobile employee-facing experience first (confirmed 2026-07-06). Once mobile is complete,
-build the admin dashboard: stage 2 (approve/reject action + approval queue UI at
-`/admin/attendance/leave`, gated on `is_leave_approver`, reject reason optional), then stage 3
-(document output).
+Approval review (stage 2) is implemented. Remaining follow-up work, in no fixed order: wire approved
+usage into `computeAnnualLeaveSummary`'s balance calculation, applicant notification on approve/reject,
+the leave subnav's remaining placeholder sub-tabs (team calendar / employee balance management /
+approver management), and stage 3 (document output — 休暇届 print/PDF replicating the paper form).
