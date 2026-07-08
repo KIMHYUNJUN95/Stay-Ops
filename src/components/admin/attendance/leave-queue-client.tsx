@@ -11,6 +11,7 @@ import {
   ChevronRight,
   CircleCheck,
   Filter,
+  Info,
   LogOut,
   Search,
   TriangleAlert,
@@ -38,6 +39,10 @@ import { AdminReasonModal } from "../shared/admin-reason-modal";
 import { ChipDropdown } from "../shared/admin-chip-dropdown";
 import { useAdminPanelA11y } from "../shared/use-admin-panel-a11y";
 import { LeaveRequestModal } from "./leave-request-modal";
+import { LeaveTeamCalendar } from "./leave-team-calendar";
+import { LeaveBalanceView } from "./leave-balance-view";
+import { LeaveApproversView } from "./leave-approvers-view";
+import { LeaveDocumentsView } from "./leave-documents-view";
 
 type Lc = Dictionary["admin"]["leaveConsole"];
 
@@ -116,6 +121,20 @@ function durationLabel(unit: LeaveDurationUnit, lc: Lc): string {
   return lc.durationFull;
 }
 
+/** Tokyo "today" as YYYY-MM-DD — matches the server's operational-date convention. */
+function tokyoTodayStr(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
+}
+
+/** Pending requests starting within 5 days get a left-edge urgency indicator (row.urgent CSS). */
+function isUrgent(item: LeaveQueueItem, today: string): boolean {
+  if (item.status !== "requested") return false;
+  const start = new Date(`${item.startDate}T00:00:00+09:00`).getTime();
+  const now = new Date(`${today}T00:00:00+09:00`).getTime();
+  const diffDays = Math.round((start - now) / 86_400_000);
+  return diffDays >= 0 && diffDays <= 5;
+}
+
 function groupOf(status: LeaveStatus): LeaveStatusGroup {
   if (status === "requested") return "pending";
   if (status === "approved") return "approved";
@@ -151,25 +170,52 @@ function errLabel(reason: string | undefined, lc: Lc): string {
   }
 }
 
-/** Sub-tab bar for the leave section — only "승인 심사" is wired; the rest are visual placeholders. */
-function LeaveSubTabs({ lc }: { lc: Lc }) {
-  const disabledTabs: { key: keyof Lc }[] = [
-    { key: "subTabCalendar" },
-    { key: "subTabBalance" },
-    { key: "subTabApprovers" },
-    { key: "subTabDocuments" },
-  ];
+type LeaveView = "review" | "calendar" | "balance" | "approvers" | "documents";
+
+/** Sub-tab bar for the leave section — all five views now render real content. */
+function LeaveSubTabs({ view, onChange, lc }: { view: LeaveView; onChange: (v: LeaveView) => void; lc: Lc }) {
   return (
     <div className="lvsubtabs" role="tablist">
-      <button type="button" className="lvsubtab on" aria-current="page">
+      <button
+        type="button"
+        className={`lvsubtab${view === "review" ? " on" : ""}`}
+        aria-current={view === "review" ? "page" : undefined}
+        onClick={() => onChange("review")}
+      >
         {lc.subTabReview}
       </button>
-      {disabledTabs.map((t) => (
-        <button key={t.key} type="button" className="lvsubtab disabled" disabled>
-          {lc[t.key] as string}
-          <span className="lvsubtab__soon">{lc.subTabComingSoon}</span>
-        </button>
-      ))}
+      <button
+        type="button"
+        className={`lvsubtab${view === "calendar" ? " on" : ""}`}
+        aria-current={view === "calendar" ? "page" : undefined}
+        onClick={() => onChange("calendar")}
+      >
+        {lc.subTabCalendar}
+      </button>
+      <button
+        type="button"
+        className={`lvsubtab${view === "balance" ? " on" : ""}`}
+        aria-current={view === "balance" ? "page" : undefined}
+        onClick={() => onChange("balance")}
+      >
+        {lc.subTabBalance}
+      </button>
+      <button
+        type="button"
+        className={`lvsubtab${view === "approvers" ? " on" : ""}`}
+        aria-current={view === "approvers" ? "page" : undefined}
+        onClick={() => onChange("approvers")}
+      >
+        {lc.subTabApprovers}
+      </button>
+      <button
+        type="button"
+        className={`lvsubtab${view === "documents" ? " on" : ""}`}
+        aria-current={view === "documents" ? "page" : undefined}
+        onClick={() => onChange("documents")}
+      >
+        {lc.subTabDocuments}
+      </button>
     </div>
   );
 }
@@ -249,11 +295,13 @@ export function LeaveQueueClient({
 }) {
   const dictionary = getDictionary(locale);
   const lc = dictionary.admin.leaveConsole;
+  const [view, setView] = useState<LeaveView>("review");
   const [items] = useState(initialItems);
   const [statusGroup, setStatusGroup] = useState<LeaveStatusGroup>(initialStatusGroup);
   const [typeFilter, setTypeFilter] = useState<LeaveType | null>(initialType);
   const [nameQuery, setNameQuery] = useState(initialSearch);
-  // Sort: null = newest submission first (default), "days" = most days first.
+  // Sort: null = newest submission first (default), "days" = most days, "soon" = start date
+  // soonest, "name" = applicant name ascending.
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(initialRequestId);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
@@ -297,14 +345,16 @@ export function LeaveQueueClient({
           it.applicantName.toLowerCase().includes(q) ||
           it.reason.toLowerCase().includes(q),
       )
-      .sort((a, b) =>
-        sortBy === "days"
-          ? b.daysCount - a.daysCount
-          : new Date(b.submittedAt ?? 0).getTime() - new Date(a.submittedAt ?? 0).getTime(),
-      );
-  }, [items, statusGroup, typeFilter, nameQuery, sortBy]);
+      .sort((a, b) => {
+        if (sortBy === "days") return b.daysCount - a.daysCount;
+        if (sortBy === "soon") return a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0;
+        if (sortBy === "name") return a.applicantName.localeCompare(b.applicantName, localeTagOf(locale));
+        return new Date(b.submittedAt ?? 0).getTime() - new Date(a.submittedAt ?? 0).getTime();
+      });
+  }, [items, statusGroup, typeFilter, nameQuery, sortBy, locale]);
 
   const localeTag = localeTagOf(locale);
+  const today = tokyoTodayStr();
 
   function changeStatusGroup(g: LeaveStatusGroup) {
     setStatusGroup(g);
@@ -312,9 +362,60 @@ export function LeaveQueueClient({
 
   const selectedItem = selectedId ? items.find((i) => i.id === selectedId) ?? null : null;
 
+  if (view === "calendar") {
+    return (
+      <div style={{ position: "relative" }}>
+        <LeaveSubTabs view={view} onChange={setView} lc={lc} />
+        <LeaveTeamCalendar lc={lc} locale={locale} onSelect={(msg) => showToast(msg)} />
+        {toast ? (
+          <div key={toast.id} role="status" className="adm-toast" onClick={() => setToast(null)}>
+            {toast.msg}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (view === "balance") {
+    return (
+      <div style={{ position: "relative" }}>
+        <LeaveSubTabs view={view} onChange={setView} lc={lc} />
+        <LeaveBalanceView lc={lc} onToast={(msg) => showToast(msg)} />
+        {toast ? (
+          <div key={toast.id} role="status" className="adm-toast" onClick={() => setToast(null)}>
+            {toast.msg}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (view === "approvers") {
+    return (
+      <div style={{ position: "relative" }}>
+        <LeaveSubTabs view={view} onChange={setView} lc={lc} />
+        <LeaveApproversView lc={lc} onToast={(msg) => showToast(msg)} />
+        {toast ? (
+          <div key={toast.id} role="status" className="adm-toast" onClick={() => setToast(null)}>
+            {toast.msg}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (view === "documents") {
+    return (
+      <div style={{ position: "relative" }}>
+        <LeaveSubTabs view={view} onChange={setView} lc={lc} />
+        <LeaveDocumentsView lc={lc} />
+      </div>
+    );
+  }
+
   return (
     <div style={{ position: "relative" }}>
-      <LeaveSubTabs lc={lc} />
+      <LeaveSubTabs view={view} onChange={setView} lc={lc} />
       <SummaryCards summary={summary} lc={lc} />
 
       {/* Filter toolbar */}
@@ -391,9 +492,21 @@ export function LeaveQueueClient({
         />
         <ChipDropdown
           icon={<ArrowUpDown />}
-          chipLabel={`${lc.sortLabel} · ${sortBy === "days" ? lc.sortDaysDesc : lc.sortSubmittedDesc}`}
+          chipLabel={`${lc.sortLabel} · ${
+            sortBy === "days"
+              ? lc.sortDaysDesc
+              : sortBy === "soon"
+                ? lc.sortSoon
+                : sortBy === "name"
+                  ? lc.sortName
+                  : lc.sortSubmittedDesc
+          }`}
           allLabel={lc.sortSubmittedDesc}
-          options={[{ value: "days", label: lc.sortDaysDesc }]}
+          options={[
+            { value: "soon", label: lc.sortSoon },
+            { value: "days", label: lc.sortDaysDesc },
+            { value: "name", label: lc.sortName },
+          ]}
           value={sortBy}
           onChange={(v) => setSortBy(v)}
           ariaLabel={lc.sortLabel}
@@ -459,12 +572,14 @@ export function LeaveQueueClient({
             <tbody>
               {rows.map((item) => {
                 const pill = statusPill(item.status, lc);
+                const rowClass = [
+                  selectedId === item.id ? "sel" : "",
+                  isUrgent(item, today) ? "urgent" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
                 return (
-                  <tr
-                    key={item.id}
-                    className={selectedId === item.id ? "sel" : ""}
-                    onClick={() => setSelectedId(item.id)}
-                  >
+                  <tr key={item.id} className={rowClass} onClick={() => setSelectedId(item.id)}>
                     <td style={{ paddingLeft: 16 }}>
                       <div className="who">
                         <span
@@ -700,26 +815,49 @@ function LeavePanel({
                   : lc.attachmentsNone}
               </span>
             </div>
-            <div className="kv">
-              <span className="kv__k">{lc.panelKvReason}</span>
-              <span className="kv__v">{item.reason || "—"}</span>
-            </div>
           </div>
 
-          {detail && detail.balancePool !== "none" ? (
+          <div className="pblock">
+            <div className="pblock__t">{lc.panelSecReason}</div>
+            <div className="reason">{item.reason || "—"}</div>
+          </div>
+
+          {detail && detail.balancePool !== "none" && detail.balanceBefore != null && detail.balanceAfter != null ? (
             <div className="pblock">
               <div className="pblock__t">{lc.panelSecBalance}</div>
-              <div className="kv">
-                <span className="kv__v">
-                  {lc.balanceLine(
-                    detail.balancePool === "paid" ? lc.poolPaid : lc.poolSpecial,
-                    String(detail.balanceBefore ?? "—"),
-                    String(detail.balanceAfter ?? "—"),
-                  )}
-                </span>
-              </div>
-              <div className="who__sub" style={{ marginTop: 4 }}>
-                {lc.balanceDeductNote(String(item.daysCount))}
+              <div className="limpact">
+                <div className="limpact__row">
+                  <span>{detail.balancePool === "paid" ? lc.poolPaid : lc.poolSpecial}</span>
+                  <b className="mono">
+                    {detail.balanceBefore}
+                    {lc.unitDays} → {detail.balanceAfter}
+                    {lc.unitDays}
+                  </b>
+                </div>
+                <div className="limpact__bar">
+                  <i
+                    style={{
+                      width: detail.balanceBefore
+                        ? `${(detail.balanceAfter / detail.balanceBefore) * 100}%`
+                        : "0%",
+                    }}
+                  />
+                  <em
+                    style={{
+                      width: detail.balanceBefore
+                        ? `${(item.daysCount / detail.balanceBefore) * 100}%`
+                        : "0%",
+                    }}
+                  />
+                </div>
+                <div className="limpact__note">
+                  <Ic>
+                    <Info />
+                  </Ic>
+                  {status === "requested"
+                    ? lc.balanceDeductNote(String(item.daysCount))
+                    : lc.balanceDeductedNote(String(item.daysCount))}
+                </div>
               </div>
             </div>
           ) : detail ? (
@@ -729,22 +867,56 @@ function LeavePanel({
             </div>
           ) : null}
 
-          {detail && detail.overlaps.length > 0 ? (
+          {detail ? (
             <div className="pblock">
-              <div className="pblock__t">{lc.panelSecOverlaps}</div>
-              <div className="tl">
-                {detail.overlaps.map((o: LeaveOverlap, i: number) => (
-                  <div className="tlrow" key={i}>
-                    <span className="tlrow__dot done" />
-                    <div className="tlrow__b">
-                      <div className="tlrow__t">{o.applicantName}</div>
-                      <div className="tlrow__s">
-                        {fmtMd(o.startDate)} – {fmtMd(o.endDate)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="pblock__t">
+                {lc.panelSecOverlaps}
+                {detail.overlaps.length > 0 ? (
+                  <span className="pblock__cnt">{detail.overlaps.length}</span>
+                ) : null}
               </div>
+              {detail.overlaps.length === 0 ? (
+                <div className="cvok">
+                  <Ic>
+                    <CircleCheck />
+                  </Ic>
+                  {lc.overlapEmpty}
+                </div>
+              ) : (
+                <>
+                  <div className="cvhead">
+                    <Ic>
+                      <Info />
+                    </Ic>
+                    {lc.overlapHead(String(detail.overlaps.length))}
+                  </div>
+                  <div className="cvlist">
+                    {detail.overlaps.map((o: LeaveOverlap, i: number) => {
+                      const op = statusPill(o.status, lc);
+                      return (
+                        <div className="cvrow" key={i}>
+                          <span
+                            className="uhead__av"
+                            style={{ background: "var(--primary)", width: 30, height: 30, borderRadius: 8, fontSize: 12 }}
+                          >
+                            {o.avatarInitial || initial(o.applicantName)}
+                          </span>
+                          <div className="cvrow__b">
+                            <div className="cvrow__t">{o.applicantName}</div>
+                            <div className="cvrow__s mono">
+                              {fmtMd(o.startDate)} – {fmtMd(o.endDate)}
+                            </div>
+                          </div>
+                          <span className={`pill ${op.cls}`}>
+                            <span className="d" />
+                            {op.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           ) : null}
 

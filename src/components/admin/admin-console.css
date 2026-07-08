@@ -1869,3 +1869,235 @@
 
 /* ---- leave console: half-day AM/PM tag ---- */
 .adm .halftag { display:inline-flex; align-items:center; height:18px; padding:0 6px; border-radius:6px; font-size:10px; font-weight:800; background:var(--surface); color:var(--muted); margin-left:5px; }
+
+/* ---- leave console: balance impact before→after bar (approval drawer) ---- */
+.adm .limpact { border:1px solid var(--line-soft); border-radius:13px; background:var(--surface2); padding:13px 14px; }
+.adm .limpact__row { display:flex; align-items:center; justify-content:space-between; font-size:12.5px; font-weight:700; color:var(--ink-soft); }
+.adm .limpact__row b { font-size:14px; font-weight:900; }
+.adm .limpact__bar { position:relative; height:8px; border-radius:999px; background:var(--surface); margin:11px 0 9px; overflow:hidden; display:flex; }
+.adm .limpact__bar i { display:block; height:100%; background:var(--primary); border-radius:999px 0 0 999px; }
+.adm .limpact__bar em { display:block; height:100%; background:repeating-linear-gradient(45deg, color-mix(in oklab,var(--warn) 60%,transparent), color-mix(in oklab,var(--warn) 60%,transparent) 4px, transparent 4px, transparent 8px); }
+.adm .limpact__note { display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; color:var(--muted); }
+.adm .limpact__note .ic { font-size:15px; color:var(--info); flex:0 0 auto; }
+
+/* ---- leave console: team calendar (TimeTree-style continuous multi-day bars) ---- */
+.adm .calcard { display:flex; flex-direction:column; min-height:calc(100vh - 320px); }
+.adm .calcard__head { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+.adm .calnav { display:inline-flex; align-items:center; gap:3px; }
+.adm .calnav__b { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--muted); cursor:pointer; }
+.adm .calnav__b:hover { background:var(--surface); color:var(--ink); }
+.adm .calnav__b .ic { font-size:14px; }
+.adm .calnav__label { min-width:92px; text-align:center; font-size:13.5px; font-weight:900; letter-spacing:-.01em; }
+.adm .calnav__today { height:28px; padding:0 11px; margin-left:3px; border-radius:8px; border:1px solid var(--line); background:var(--card); font-size:11.5px; font-weight:700; color:var(--primary); cursor:pointer; }
+.adm .calnav__today:hover { background:var(--primary-soft); }
+.adm .lcal__legend { display:flex; align-items:center; gap:13px; flex-wrap:wrap; margin-left:auto; }
+.adm .lcal__lg { display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:var(--muted); }
+.adm .lcal__lg .dot { width:9px; height:9px; border-radius:999px; }
+.adm .tt { flex:1; display:flex; flex-direction:column; border:1px solid var(--line); border-radius:13px; overflow:hidden; background:var(--card); }
+.adm .ttwk { display:grid; grid-template-columns:repeat(7,1fr); background:var(--card2); border-bottom:1px solid var(--line); }
+.adm .ttwd { text-align:center; font-size:11px; font-weight:800; letter-spacing:.04em; color:var(--faint); padding:8px 0; }
+.adm .ttwd.sun { color:var(--danger); }
+.adm .ttwd.sat { color:var(--info); }
+.adm .ttweek { position:relative; border-bottom:1px solid var(--line-soft); flex:1 1 0; }
+.adm .ttweek:last-child { border-bottom:none; }
+.adm .ttcells { display:grid; grid-template-columns:repeat(7,1fr); height:100%; }
+.adm .ttcell { border-right:1px solid var(--line-soft); padding:6px 8px; }
+.adm .ttcell:last-child { border-right:none; }
+.adm .ttcell.sun { background:color-mix(in oklab,var(--danger) 3%, transparent); }
+.adm .ttcell.sat { background:color-mix(in oklab,var(--info) 3%, transparent); }
+.adm .ttcell.is-today { background:var(--primary-soft); }
+.adm .ttnum { font-family:var(--mono); font-size:12.5px; font-weight:800; color:var(--ink-soft); }
+.adm .ttcell.sun .ttnum { color:var(--danger); }
+.adm .ttcell.sat .ttnum { color:var(--info); }
+.adm .ttcell.is-today .ttnum { color:var(--primary); }
+.adm .ttbars { position:absolute; inset:0; pointer-events:none; }
+.adm .ttbar { position:absolute; height:22px; display:flex; align-items:center; gap:5px; padding:0 9px; border:none; border-radius:7px; background:var(--b); color:var(--c); border:1px solid color-mix(in oklab,var(--c) 24%,transparent); border-left:3px solid var(--c); font-size:11.5px; font-weight:800; white-space:nowrap; overflow:hidden; cursor:pointer; pointer-events:auto; box-sizing:border-box; transition:filter .12s; font-family:inherit; }
+.adm .ttbar:hover { filter:brightness(.96); }
+.adm .ttbar.cl { border-top-left-radius:0; border-bottom-left-radius:0; border-left-width:1px; margin-left:-2px; }
+.adm .ttbar.cr { border-top-right-radius:0; border-bottom-right-radius:0; }
+.adm .ttbar__nm { overflow:hidden; text-overflow:ellipsis; }
+.adm .ttbar__h { display:inline-flex; align-items:center; justify-content:center; height:14px; min-width:19px; padding:0 4px; border-radius:4px; font-family:var(--mono); font-size:8.5px; font-weight:800; background:color-mix(in oklab,var(--c) 18%,#fff); color:var(--c); flex:0 0 auto; }
+
+/* ---- leave console: coming-soon sub-tab placeholder card ---- */
+.adm .lvsoon { display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px; padding:60px 24px; }
+.adm .lvsoon__ic { width:48px; height:48px; border-radius:14px; display:flex; align-items:center; justify-content:center; background:var(--surface); color:var(--muted); }
+.adm .lvsoon__ic .ic { font-size:24px; }
+.adm .lvsoon__t { font-size:14.5px; font-weight:800; color:var(--ink); }
+.adm .lvsoon__s { font-size:12.5px; font-weight:600; color:var(--muted); max-width:340px; }
+
+/* ── Annual leave — proxy/self request modal + form fields (handoff leave.css, .adm-scoped) ── */
+.adm .modal-scrim { position:fixed; inset:0; background:rgba(24,28,38,.4); backdrop-filter:blur(2px); z-index:60; opacity:0; transition:opacity .22s; }
+.adm .modal-scrim.on { opacity:1; }
+.adm .modal { position:fixed; z-index:61; top:50%; left:50%; width:560px; max-width:calc(100vw - 40px); max-height:calc(100vh - 60px); transform:translate(-50%,-46%); opacity:0; transition:.24s cubic-bezier(.2,.8,.2,1); background:var(--card); border:1px solid var(--line); border-radius:20px; box-shadow:var(--sh-pop); display:flex; flex-direction:column; overflow:hidden; }
+.adm .modal.on { opacity:1; transform:translate(-50%,-50%); }
+.adm .modal__h { display:flex; align-items:flex-start; justify-content:space-between; padding:20px 22px 16px; border-bottom:1px solid var(--line); }
+.adm .modal__kicker { font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--primary); }
+.adm .modal__t { font-size:18px; font-weight:900; letter-spacing:-.02em; margin-top:4px; }
+.adm .modal__body { padding:18px 22px; overflow-y:auto; display:flex; flex-direction:column; gap:14px; }
+.adm .modal__foot { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 22px; border-top:1px solid var(--line); background:var(--card2); flex-wrap:wrap; }
+.adm .modal__foot-note { display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; color:var(--muted); }
+.adm .fld { display:flex; flex-direction:column; gap:6px; }
+.adm .fld__l { font-size:12px; font-weight:800; color:var(--ink-soft); }
+.adm .fld__l .req { color:var(--danger); }
+.adm .fld input, .adm .fld textarea, .adm .fld select { border:1.5px solid var(--line); border-radius:10px; padding:10px 12px; font:inherit; font-size:13px; font-weight:600; color:var(--ink); outline:none; background:var(--card); }
+.adm .fld input:focus, .adm .fld textarea:focus, .adm .fld select:focus { border-color:var(--primary); box-shadow:0 0 0 3.5px var(--primary-soft); }
+.adm .fld textarea { min-height:64px; resize:vertical; }
+.adm .fld2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.adm .selwrap { position:relative; display:flex; align-items:center; }
+.adm .selwrap > .ic:first-child { position:absolute; left:11px; font-size:16px; color:var(--muted); pointer-events:none; display:inline-flex; }
+.adm .selwrap .chev { position:absolute; right:11px; font-size:15px; color:var(--muted); pointer-events:none; display:inline-flex; }
+.adm .selwrap select { width:100%; padding-left:34px; padding-right:30px; appearance:none; }
+.adm .seg { display:flex; gap:6px; background:var(--surface); border-radius:12px; padding:4px; margin:22px 0 20px; }
+.adm .seg--wrap { flex-wrap:wrap; }
+.adm .segb { flex:1 1 0; height:38px; padding:0 14px; border-radius:9px; border:none; background:none; font-size:13px; font-weight:800; color:var(--muted); cursor:pointer; }
+.adm .segb:not(.on):hover { color:var(--ink-soft); }
+.adm .segb.on { background:var(--card); color:var(--ink); box-shadow:0 2px 6px rgba(20,32,43,.12); }
+.adm .fpill { display:flex; align-items:center; gap:11px; padding:11px 13px; border:1px solid var(--line-soft); border-radius:12px; background:var(--card2); }
+.adm .fpill__nm { font-size:13.5px; font-weight:800; }
+.adm .fpill__s { font-size:11.5px; font-weight:600; color:var(--muted); margin-top:2px; }
+.adm .fpill__bal { margin-left:auto; text-align:center; }
+.adm .fpill__bal b { display:block; font-family:var(--mono); font-size:18px; font-weight:900; color:var(--info); line-height:1; }
+.adm .fpill__bal span { font-size:10px; font-weight:700; color:var(--muted); }
+.adm .fdays { display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; color:var(--ink-soft); }
+.adm .fdays .ic { font-size:16px; color:var(--warn); display:inline-flex; }
+.adm .fdays b { font-family:var(--mono); font-weight:900; color:var(--ink); }
+.adm .fpv { display:flex; align-items:center; gap:8px; padding:11px 13px; border-radius:11px; background:var(--info-bg); font-size:12.5px; font-weight:700; color:color-mix(in oklab,var(--info) 60%,var(--ink)); }
+.adm .fpv .ic { font-size:16px; flex:0 0 auto; display:inline-flex; }
+.adm .fpv b { font-family:var(--mono); font-weight:900; }
+.adm .fpv--muted { background:var(--surface); color:var(--muted); }
+.adm .fpv--warn { background:var(--warn-bg); color:color-mix(in oklab,var(--warn) 62%,var(--ink)); }
+.adm .ltext { width:100%; min-height:72px; resize:vertical; border:1.5px solid var(--line); border-radius:11px; padding:10px 12px; font:inherit; font-size:13px; font-weight:600; color:var(--ink); outline:none; background:var(--card); }
+.adm .ltext:focus { border-color:var(--primary); box-shadow:0 0 0 3.5px var(--primary-soft); }
+.adm .ltext::placeholder { color:var(--faint); font-weight:600; }
+
+.adm .btn.is-disabled { opacity:.45; pointer-events:none; }
+
+/* ── Annual leave — detail drawer: reason box + same-period overlap list (handoff att.css/leave.css) ── */
+.adm .reason { padding:12px 14px; border-radius:12px; background:var(--card2); border:1px solid var(--line-soft); font-size:12.5px; font-weight:600; color:var(--ink-soft); line-height:1.6; }
+.adm .reason__q { font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--faint); margin-bottom:6px; }
+.adm .pblock__cnt { display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px; padding:0 5px; border-radius:999px; background:var(--surface); color:var(--muted); font-family:var(--mono); font-size:10px; font-weight:800; margin-left:5px; vertical-align:middle; }
+.adm .cvhead { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:var(--muted); padding:9px 11px; border-radius:10px; background:var(--card2); margin-bottom:9px; }
+.adm .cvhead .ic { font-size:16px; color:var(--info); flex:0 0 auto; }
+.adm .cvhead b { color:var(--ink-soft); font-weight:800; }
+.adm .cvok { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:var(--done); padding:9px 11px; border-radius:10px; background:var(--done-bg); }
+.adm .cvok .ic { font-size:16px; flex:0 0 auto; }
+.adm .cvlist { display:flex; flex-direction:column; gap:6px; }
+.adm .cvrow { display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--line-soft); border-radius:10px; }
+.adm .cvrow__b { flex:1; min-width:0; }
+.adm .cvrow__t { font-size:12.5px; font-weight:800; display:flex; align-items:center; gap:7px; }
+.adm .cvrow__s { font-size:11px; font-weight:600; color:var(--muted); margin-top:2px; }
+
+/* ── Annual leave — staff balance & grants (handoff leave.css .balrow/.excl-flag/.editbox) ── */
+.adm .balrow { display:flex; align-items:center; background:var(--card2); border:1px solid var(--line-soft); border-radius:13px; padding:14px 6px; }
+.adm .balrow__cell { flex:1; text-align:center; }
+.adm .balrow__v { font-size:24px; font-weight:900; letter-spacing:-.02em; line-height:1; font-family:var(--mono); }
+.adm .balrow__k { font-size:10.5px; font-weight:800; letter-spacing:.03em; color:var(--muted); margin-top:6px; }
+.adm .excl-flag { display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:800; color:var(--warn); background:var(--warn-bg); border-radius:999px; padding:3px 9px 3px 8px; white-space:nowrap; }
+.adm .excl-flag .ic { font-size:14px; }
+.adm .editbox { border:1px solid color-mix(in oklab,var(--primary) 26%,transparent); border-radius:14px; background:var(--primary-soft); padding:14px; margin-bottom:16px; display:flex; flex-direction:column; gap:11px; }
+.adm .editbox__h { display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:900; color:var(--primary-ink); }
+.adm .editbox__h .ic { font-size:16px; }
+.adm .editbox__note { display:flex; align-items:flex-start; gap:7px; font-size:11px; font-weight:600; color:var(--muted); line-height:1.5; }
+.adm .editbox__note .ic { font-size:14px; color:var(--info); flex:0 0 auto; margin-top:1px; }
+
+/* ── Annual leave — approver management (handoff leave.css .apbanner/.apchip/.switch) ── */
+.adm .apbanner { display:flex; align-items:center; gap:15px; padding:16px 18px; border:1px solid color-mix(in oklab,var(--primary) 22%,transparent); border-radius:15px; background:linear-gradient(120deg, var(--primary-soft), color-mix(in oklab,var(--primary-soft) 40%, var(--card))); }
+.adm .apbanner__ic { width:42px; height:42px; border-radius:12px; background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+.adm .apbanner__ic .ic { font-size:22px; }
+.adm .apbanner__b { flex:1; min-width:0; }
+.adm .apbanner__t { font-size:15px; font-weight:900; letter-spacing:-.01em; }
+.adm .apbanner__s { font-size:12px; font-weight:600; color:var(--ink-soft); margin-top:3px; line-height:1.5; }
+.adm .apbanner__s b { color:var(--primary-ink); font-weight:800; }
+.adm .apbanner__who { display:flex; gap:8px; flex-wrap:wrap; flex:0 0 auto; }
+.adm .apchip { display:inline-flex; align-items:center; gap:7px; padding:5px 12px 5px 5px; background:var(--card); border:1px solid var(--line); border-radius:999px; font-size:12.5px; font-weight:800; }
+.adm .selftag { font-size:9.5px; font-weight:800; color:var(--primary); background:var(--primary-soft); border-radius:5px; padding:1px 6px; vertical-align:middle; }
+.adm .lockchip { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:800; color:var(--faint); }
+.adm .lockchip .ic { font-size:15px; }
+.adm .switch { width:46px; height:26px; border-radius:999px; background:var(--line); position:relative; transition:background .18s; flex:0 0 auto; border:none; cursor:pointer; padding:0; }
+.adm .switch.on { background:var(--done); }
+.adm .switch:disabled { cursor:not-allowed; opacity:.7; }
+.adm .switch__k { position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:transform .18s; }
+.adm .switch.on .switch__k { transform:translateX(20px); }
+
+/* ── Annual leave — documents (休暇届) view (handoff leave.css .dwrap/.demp/.ddoc/.dviewer/.jp*) ── */
+.adm .dwrap { display:flex; gap:14px; align-items:flex-start; }
+.adm .dlist { width:296px; flex:0 0 auto; background:var(--card); border:1px solid var(--line); border-radius:var(--r-card); box-shadow:var(--sh-card); overflow:hidden; align-self:flex-start; }
+.adm .dlist__h { padding:12px 14px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; }
+.adm .dlist__h .ic { font-size:17px; color:var(--muted); }
+.adm .dlist__h .t { font-size:13px; font-weight:800; }
+.adm .dlist__scroll { max-height:660px; overflow-y:auto; }
+.adm .demp { display:flex; align-items:center; gap:11px; padding:12px 14px; border-bottom:1px solid var(--line-soft); cursor:pointer; position:relative; }
+.adm .demp:last-child { border-bottom:none; }
+.adm .demp:hover { background:var(--card2); }
+.adm .demp.on { background:var(--primary-soft); }
+.adm .demp.on::before { content:""; position:absolute; left:0; top:8px; bottom:8px; width:3px; border-radius:0 3px 3px 0; background:var(--primary); }
+.adm .demp .avatar { width:34px; height:34px; font-size:13px; color:#fff; }
+.adm .demp__b { flex:1; min-width:0; }
+.adm .demp__nm { font-size:13px; font-weight:800; }
+.adm .demp__s { font-size:11.5px; font-weight:600; color:var(--muted); margin-top:3px; }
+.adm .demp__cnt { font-family:var(--mono); font-size:11px; font-weight:800; color:var(--muted); background:var(--surface); border-radius:999px; padding:3px 9px; flex:0 0 auto; }
+.adm .ddetail { flex:1; min-width:0; }
+.adm .dtop { display:flex; align-items:center; gap:10px; margin:0 2px 12px; }
+.adm .dtop .avatar { width:28px; height:28px; font-size:12px; color:#fff; }
+.adm .dtop__t { font-size:14.5px; font-weight:900; letter-spacing:-.01em; }
+.adm .dtop__s { font-size:12px; font-weight:600; color:var(--muted); }
+.adm .ddocs { margin-bottom:12px; overflow:hidden; }
+.adm .ddoc { display:flex; align-items:center; gap:14px; padding:10px 15px; border-bottom:1px solid var(--line-soft); cursor:pointer; font-size:12.5px; font-weight:600; color:var(--ink-soft); position:relative; }
+.adm .ddoc:last-child { border-bottom:none; }
+.adm .ddoc:hover { background:var(--card2); }
+.adm .ddoc.on { background:var(--primary-soft); }
+.adm .ddoc.on::before { content:""; position:absolute; left:0; top:7px; bottom:7px; width:3px; border-radius:0 3px 3px 0; background:var(--primary); }
+.adm .ddoc__no { font-weight:800; color:var(--ink); flex:0 0 auto; }
+.adm .ddoc__per { color:var(--ink-soft); }
+.adm .ddoc__days { font-weight:800; color:var(--ink); }
+.adm .ddoc__by { margin-left:auto; font-size:11.5px; color:var(--muted); }
+.adm .ddoc__chk { font-size:15px; color:var(--faint); flex:0 0 auto; }
+.adm .ddoc.on .ddoc__chk { color:var(--primary); }
+.adm .dviewer { overflow:hidden; }
+.adm .dviewer__bar { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+.adm .dviewer__meta { font-size:11.5px; font-weight:700; color:var(--muted); }
+.adm .dviewer__meta b { color:var(--ink-soft); }
+.adm .dviewer__stage { background:linear-gradient(180deg,#efece4,#e7e3d9); padding:26px; display:flex; justify-content:center; overflow:auto; max-height:calc(100vh - 330px); min-height:420px; }
+.adm .dviewer__wrap { position:relative; flex:0 0 auto; }
+
+/* 実際の会社様式「休暇届」— printed form is Japanese-only, not an i18n target (see CLAUDE.md multilingual rule scope). */
+.adm .jp { width:210mm; min-height:297mm; box-sizing:border-box; flex:0 0 auto; background:#fff; border:1px solid #e2ddd2; box-shadow:0 2px 6px rgba(30,28,22,.08), 0 26px 60px -28px rgba(30,28,22,.55); padding:26mm 24mm; font-family:var(--font-noto-jp, "Noto Serif JP", "Noto Serif", serif); color:#1c1c1a; display:flex; flex-direction:column; }
+.adm .jp__title { text-align:center; font-size:33px; font-weight:700; letter-spacing:.1em; width:fit-content; margin:6px auto 0; padding-bottom:7px; position:relative; }
+.adm .jp__title::after { content:""; position:absolute; left:-6px; right:-6px; bottom:0; height:0; border-bottom:2.4px double #1c1c1a; }
+.adm .jp__appdate { text-align:right; font-size:14px; margin:26px 0 24px; letter-spacing:.02em; color:#2a2a28; }
+.adm .jp__appdate u { text-decoration:none; border-bottom:1px solid #9a958a; padding:0 12px 1px; margin:0 3px; font-family:var(--mono); font-weight:600; }
+.adm .jp__cln { margin:0 4px; }
+.adm .jp__tbl { width:100%; border-collapse:collapse; }
+.adm .jp__tbl th, .adm .jp__tbl td { border:1.2px solid #2a2a28; text-align:left; vertical-align:middle; }
+.adm .jp__tbl th { width:104px; text-align:center; font-size:14px; font-weight:500; letter-spacing:.08em; padding:0 4px; white-space:nowrap; }
+.adm .jp__tbl td { padding:9px 15px; font-size:14.5px; font-weight:500; }
+.adm .jp__tbl tr.r-sm th, .adm .jp__tbl tr.r-sm td { height:44px; }
+.adm .jp__tbl tr.r-type td { height:62px; padding:8px 15px; }
+.adm .jp__tbl tr.r-tall th, .adm .jp__tbl tr.r-tall td { height:118px; vertical-align:top; }
+.adm .jp__tbl tr.r-tall td { padding-top:11px; }
+.adm .jp__tbl tr.r-md th, .adm .jp__tbl tr.r-md td { height:74px; }
+.adm .jp__sub { font-size:12.5px; color:#6b6b66; white-space:nowrap; }
+.adm .jp__per { white-space:nowrap; }
+.adm .jp__opts { display:flex; gap:26px; flex-wrap:wrap; }
+.adm .jp__opts + .jp__opts { margin-top:7px; }
+.adm .jp__opt { display:inline-flex; align-items:center; gap:7px; font-size:14px; color:#1c1c1a; }
+.adm .jp__radio { width:13px; height:13px; border:1.3px solid #2a2a28; border-radius:50%; position:relative; flex:0 0 auto; }
+.adm .jp__opt.on { font-weight:700; }
+.adm .jp__opt.on .jp__radio::after { content:""; position:absolute; inset:2.5px; border-radius:50%; background:#1c1c1a; }
+.adm .jp__sign { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; margin-top:22px; }
+.adm .jp__note { font-size:14px; letter-spacing:.02em; color:#2a2a28; }
+.adm .jp__stamps { border-collapse:collapse; flex:0 0 auto; }
+.adm .jp__stamps th, .adm .jp__stamps td { border:1.2px solid #2a2a28; width:74px; text-align:center; }
+.adm .jp__stamps th { font-size:13px; font-weight:500; padding:5px 0; letter-spacing:.06em; }
+.adm .jp__stamps td { height:62px; vertical-align:middle; }
+.adm .jp__seal { display:inline-flex; align-items:center; justify-content:center; width:46px; height:46px; border-radius:50%; border:2px solid #c0392b; color:#c0392b; font-family:var(--font-noto-jp, "Noto Serif JP", serif); font-size:21px; font-weight:700; transform:rotate(-6deg); opacity:.92; box-shadow:inset 0 0 0 1px rgba(192,57,43,.25); }
+
+@media print {
+  @page { size:A4; margin:0; }
+  body * { visibility:hidden; }
+  #docSheet, #docSheet * { visibility:visible; }
+  #docSheet { position:absolute; left:0; top:0; width:auto; max-width:none; padding:0; }
+  .adm .dviewer__stage { background:none; border:none; padding:0; display:block; overflow:visible; max-height:none; }
+  .adm .dviewer__wrap { width:auto !important; height:auto !important; }
+  .adm .jp { box-shadow:none; border:none; margin:0; transform:none !important; }
+}

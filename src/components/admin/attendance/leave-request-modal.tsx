@@ -1,19 +1,20 @@
 "use client";
 
-// Admin console — leave request creation modal (proxy or self). Tone matches
-// admin-reason-modal.tsx (scrim + rounded var(--card) shell) but is form-specific, so it is not
-// built on top of that component. Reuses AdminDatePicker (inline mode) for the desktop date fields
-// and the same day-count / bereavement-leave / half-day rules as the mobile leave-form.
-// See docs/product/26-annual-leave-workflow.md.
+// Admin console — leave request creation modal (proxy or self). Markup mirrors the design handoff
+// (design_handoff_annual_leave → agentForm in leave-views.js) 1:1 using the .adm-scoped handoff
+// classes (.modal / .fld / .selwrap / .seg / .segb / .fpill / .fdays / .fpv). Day-count /
+// bereavement / half-day rules match the mobile leave-form; the balance preview reads the selected
+// applicant's live remaining balance. See docs/product/26-annual-leave-workflow.md.
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
-import { AdminDatePicker } from "../shared/admin-date-picker";
+import { Check, ChevronDown, Info, Sun, TriangleAlert, Users, X } from "lucide-react";
 import { createAdminLeaveRequestAction } from "@/app/admin/attendance/leave/actions";
+import { loadApplicantLeaveSummary } from "@/app/admin/attendance/leave/detail-actions";
 import type {
   LeaveApplicantOption,
   AdminLeaveRequestInput,
+  ApplicantLeaveSummary,
 } from "@/lib/annual-leave-admin-server";
 import type { LeaveType, LeaveDurationUnit } from "@/lib/annual-leave-approvals-server";
 import type { Dictionary, Locale } from "@/lib/i18n";
@@ -22,39 +23,6 @@ type Lc = Dictionary["admin"]["leaveConsole"];
 
 const TYPES: LeaveType[] = ["paid", "annual", "special", "other"];
 const BEREAVEMENT_DAYS = 3;
-
-// Inline styles below stand in for the mobile-only `.field__l` / `.req` / `.fhint` / `.ferr` /
-// `.durseg` classes (leave.css is scoped to `.lv`, not `.adm`) so this form stays in the admin
-// console's `.adm` visual language without leaking mobile-scoped CSS.
-const FIELD_LABEL_STYLE: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 4,
-  fontSize: 12.5,
-  fontWeight: 800,
-  color: "var(--ink-soft)",
-};
-const REQ_STYLE: React.CSSProperties = { color: "var(--danger)" };
-const HINT_STYLE: React.CSSProperties = {
-  fontSize: 11.5,
-  fontWeight: 600,
-  color: "var(--muted)",
-  lineHeight: 1.4,
-};
-const FERR_STYLE: React.CSSProperties = { fontSize: 11.5, fontWeight: 700, color: "var(--danger)" };
-
-function typeBadgeClass(type: LeaveType): string {
-  switch (type) {
-    case "paid":
-      return "typebadge--paid";
-    case "annual":
-      return "typebadge--annual";
-    case "special":
-      return "typebadge--special";
-    default:
-      return "typebadge--other";
-  }
-}
 
 function typeLabel(type: LeaveType, lc: Lc): string {
   switch (type) {
@@ -69,9 +37,28 @@ function typeLabel(type: LeaveType, lc: Lc): string {
   }
 }
 
+/** Which balance pool a leave type draws from. */
+function poolOf(type: LeaveType): "base" | "bonus" | "none" {
+  if (type === "paid") return "base";
+  if (type === "special") return "bonus";
+  return "none";
+}
+
 function addDaysISO(iso: string, delta: number): string {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + delta)).toISOString().slice(0, 10);
+}
+
+function diffDaysInclusive(start: string, end: string): number {
+  const [sy, sm, sd] = start.split("-").map(Number);
+  const [ey, em, ed] = end.split("-").map(Number);
+  return Math.round((Date.UTC(ey, em - 1, ed) - Date.UTC(sy, sm - 1, sd)) / 86400000) + 1;
+}
+
+function calcDays(start: string, end: string, dur: LeaveDurationUnit): number {
+  if (!start || !end || start > end) return 0;
+  const n = diffDaysInclusive(start, end);
+  return (dur === "am" || dur === "pm") && n === 1 ? 0.5 : n;
 }
 
 function tokyoToday(): string {
@@ -83,8 +70,8 @@ function tokyoToday(): string {
   }).format(new Date());
 }
 
-function localeTagOf(locale: Locale): string {
-  return locale === "ko" ? "ko-KR" : locale === "ja" ? "ja-JP" : "en-US";
+function initialOf(name: string): string {
+  return Array.from(name.trim())[0] ?? "·";
 }
 
 function errLabel(reason: string | undefined, lc: Lc): string {
@@ -108,7 +95,6 @@ export function LeaveRequestModal({
   applicants,
   currentUserId,
   currentUserName,
-  locale,
   lc,
   onClose,
   onCreated,
@@ -117,13 +103,12 @@ export function LeaveRequestModal({
   applicants: LeaveApplicantOption[];
   currentUserId: string;
   currentUserName: string;
-  locale: Locale;
+  locale?: Locale;
   lc: Lc;
   onClose: () => void;
   onCreated: (msg: string) => void;
 }) {
   const router = useRouter();
-  const localeTag = localeTagOf(locale);
   const today = tokyoToday();
 
   const [targetUserId, setTargetUserId] = useState(mode === "self" ? currentUserId : "");
@@ -133,15 +118,20 @@ export function LeaveRequestModal({
   const [endDate, setEndDate] = useState(today);
   const [reason, setReason] = useState("");
   const [emergencyContact, setEmergencyContact] = useState("");
-  const [fieldErr, setFieldErr] = useState<{ target?: boolean; reason?: boolean; dates?: boolean }>(
-    {},
-  );
+  const [summary, setSummary] = useState<ApplicantLeaveSummary | null>(null);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [shown, setShown] = useState(false);
 
   const isBereavement = leaveType === "annual";
-  const isUnpaid = leaveType === "other";
-  const half = durationUnit !== "full" && !isBereavement;
+  const half = (durationUnit === "am" || durationUnit === "pm") && !isBereavement;
+  const days = useMemo(() => calcDays(startDate, endDate, durationUnit), [startDate, endDate, durationUnit]);
+
+  // Entrance transition (scrim + modal scale-in) — add `.on` after mount.
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -150,6 +140,18 @@ export function LeaveRequestModal({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  // Live balance for the selected applicant (self loads its own on mount).
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const res = targetUserId ? await loadApplicantLeaveSummary(targetUserId) : null;
+      if (alive) setSummary(res);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [targetUserId]);
 
   function chooseType(type: LeaveType) {
     setLeaveType(type);
@@ -161,13 +163,9 @@ export function LeaveRequestModal({
 
   function chooseStart(next: string) {
     setStartDate(next);
-    if (isBereavement) {
-      setEndDate(addDaysISO(next, BEREAVEMENT_DAYS - 1));
-    } else if (half) {
-      setEndDate(next);
-    } else if (next > endDate) {
-      setEndDate(next);
-    }
+    if (leaveType === "annual") setEndDate(addDaysISO(next, BEREAVEMENT_DAYS - 1));
+    else if (durationUnit === "am" || durationUnit === "pm") setEndDate(next);
+    else if (next > endDate) setEndDate(next);
   }
 
   function chooseDuration(unit: LeaveDurationUnit) {
@@ -175,14 +173,15 @@ export function LeaveRequestModal({
     if (unit !== "full") setEndDate(startDate);
   }
 
-  function submit() {
-    const hasTarget = targetUserId.trim().length > 0;
-    const hasReason = reason.trim().length > 0;
-    const datesOk = isBereavement || half || endDate >= startDate;
-    setFieldErr({ target: !hasTarget, reason: !hasReason, dates: !datesOk });
-    setSubmitErr(null);
-    if (!hasTarget || !hasReason || !datesOk) return;
+  const valid = Boolean(targetUserId) && Boolean(startDate) && Boolean(endDate) && startDate <= endDate;
 
+  function submit() {
+    setSubmitErr(null);
+    if (!valid) return;
+    if (reason.trim().length === 0) {
+      setSubmitErr(lc.formErrReason);
+      return;
+    }
     const input: AdminLeaveRequestInput = {
       targetUserId,
       leaveType,
@@ -192,7 +191,6 @@ export function LeaveRequestModal({
       reason,
       emergencyContact,
     };
-
     startTransition(async () => {
       const res = await createAdminLeaveRequestAction(input);
       if (res.ok) {
@@ -205,298 +203,242 @@ export function LeaveRequestModal({
     });
   }
 
+  // Balance preview (mirrors handoff agentForm preview logic).
+  const preview = useMemo(() => {
+    const pool = poolOf(leaveType);
+    if (!summary) {
+      return { cls: "fpv--muted", icon: null as React.ReactNode, node: mode === "self" ? lc.previewMutedSelf : lc.previewMuted };
+    }
+    if (summary.ineligible && pool === "base") {
+      return {
+        cls: "fpv--warn",
+        icon: <TriangleAlert />,
+        node: lc.previewIneligible(summary.name, (summary.nextGrantDate ?? "").replace(/-/g, "/")),
+      };
+    }
+    if (pool === "base" || pool === "bonus") {
+      const before = pool === "base" ? summary.baseRemaining : summary.bonusRemaining;
+      const after = before - days;
+      const short = after < 0;
+      return {
+        cls: short ? "fpv--warn" : "",
+        icon: short ? <TriangleAlert /> : <Info />,
+        node: (
+          <span>
+            {pool === "base" ? lc.previewPoolPaid : lc.previewPoolSpecial} <b>{lc.daysUnit(before)}</b> →{" "}
+            <b>{lc.daysUnit(after)}</b> (−{lc.daysUnit(days)}){short ? lc.previewShortfall : ""}
+          </span>
+        ),
+      };
+    }
+    // none pool (annual = company-granted, other = unpaid)
+    return {
+      cls: "",
+      icon: <Info />,
+      node:
+        leaveType === "annual"
+          ? lc.previewNoDeductCompany(typeLabel(leaveType, lc))
+          : lc.previewNoDeduct(typeLabel(leaveType, lc)),
+    };
+  }, [summary, leaveType, days, mode, lc]);
+
+  const kicker = mode === "proxy" ? lc.modalKickerProxy : lc.modalKickerSelf;
+  const title = mode === "proxy" ? lc.modalTitleProxy : lc.modalTitleSelf;
+  const footNote = mode === "proxy" ? lc.footNoteProxy : lc.footNoteSelf;
+
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={mode === "proxy" ? lc.modalTitleProxy : lc.modalTitleSelf}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 80,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(15, 23, 32, 0.45)",
-        padding: 20,
-      }}
-      onClick={onClose}
-    >
+    <>
       <div
-        className="admodal"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%",
-          maxWidth: 460,
-          maxHeight: "88vh",
-          overflowY: "auto",
-          background: "var(--card)",
-          borderRadius: 16,
-          border: "1px solid var(--line)",
-          boxShadow: "var(--sh-pop)",
-          padding: 20,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div style={{ fontSize: 15, fontWeight: 900, color: "var(--ink)" }}>
-            {mode === "proxy" ? lc.modalTitleProxy : lc.modalTitleSelf}
+        className={`modal-scrim${shown ? " on" : ""}`}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className={`modal${shown ? " on" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+        <div className="modal__h">
+          <div>
+            <div className="modal__kicker">{kicker}</div>
+            <div className="modal__t">{title}</div>
           </div>
-          <button
-            type="button"
-            className="panel__x"
-            onClick={onClose}
-            aria-label="close"
-            disabled={pending}
-          >
+          <button type="button" className="panel__x" onClick={onClose} aria-label="close" disabled={pending}>
             <span className="ic">
               <X />
             </span>
           </button>
         </div>
 
-        {/* 신청 대상 */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={FIELD_LABEL_STYLE}>
-            {lc.formTarget}
-            <span style={REQ_STYLE}>*</span>
-          </div>
-          {mode === "self" ? (
-            <div
-              style={{
-                padding: "9px 11px",
-                border: "1px solid var(--line)",
-                borderRadius: 10,
-                background: "var(--surface)",
-                fontSize: 13,
-                fontWeight: 700,
-                color: "var(--ink-soft)",
-              }}
-            >
-              {currentUserName || lc.formTargetSelf}
-            </div>
-          ) : (
-            <select
-              value={targetUserId}
-              onChange={(e) => setTargetUserId(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "9px 11px",
-                border: `1px solid ${fieldErr.target ? "var(--danger)" : "var(--line)"}`,
-                borderRadius: 10,
-                background: "var(--surface)",
-                fontSize: 13,
-                fontWeight: 700,
-                color: "var(--ink)",
-                fontFamily: "inherit",
-              }}
-            >
-              <option value="">{lc.formTargetSelect}</option>
-              {applicants.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          )}
-          {fieldErr.target ? (
-            <div style={{ ...FERR_STYLE, marginTop: 4 }}>{lc.formErrTarget}</div>
+        <div className="modal__body">
+          {mode === "proxy" ? (
+            <label className="fld">
+              <span className="fld__l">
+                {lc.formTarget} <b className="req">*</b>
+              </span>
+              <div className="selwrap">
+                <span className="ic">
+                  <Users />
+                </span>
+                <select value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)}>
+                  <option value="">{lc.formTargetSelect}</option>
+                  {applicants.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="ic chev">
+                  <ChevronDown />
+                </span>
+              </div>
+            </label>
           ) : null}
-        </div>
 
-        {/* 휴가 구분 */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ ...FIELD_LABEL_STYLE, marginBottom: 6 }}>
-            {lc.formType}
-            <span style={REQ_STYLE}>*</span>
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {TYPES.map((t) => (
-              <button
-                key={t}
-                type="button"
-                className={`typebadge ${typeBadgeClass(t)}`}
-                style={{
-                  cursor: "pointer",
-                  border: t === leaveType ? "1.5px solid var(--primary)" : "1px solid transparent",
-                  opacity: t === leaveType ? 1 : 0.55,
-                }}
-                onClick={() => chooseType(t)}
+          {summary ? (
+            <div className="fpill">
+              <span
+                className="uhead__av"
+                style={{ width: 40, height: 40, borderRadius: 11, background: "var(--primary)", color: "#fff", fontSize: 15 }}
               >
-                {typeLabel(t, lc)}
-              </button>
-            ))}
-          </div>
-          {isBereavement ? <div style={{ ...HINT_STYLE, marginTop: 6 }}>{lc.formBereaveHint}</div> : null}
-          {isUnpaid ? <div style={{ ...HINT_STYLE, marginTop: 6 }}>{lc.formUnpaidHint}</div> : null}
-        </div>
-
-        {/* 기간 */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ ...FIELD_LABEL_STYLE, marginBottom: 6 }}>
-            {lc.formPeriod}
-            <span style={REQ_STYLE}>*</span>
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <div>
-              <div className="who__sub" style={{ marginBottom: 4 }}>
-                {lc.formStart}
-              </div>
-              <AdminDatePicker
-                value={startDate}
-                onChange={chooseStart}
-                localeTag={localeTag}
-                ariaLabel={lc.formStart}
-                labels={{ prevMonth: lc.formStart, nextMonth: lc.formEnd, today: lc.formStart }}
-              />
-            </div>
-            {!isBereavement && !half ? (
+                {initialOf(mode === "self" ? currentUserName || summary.name : summary.name)}
+              </span>
               <div>
-                <div className="who__sub" style={{ marginBottom: 4 }}>
-                  {lc.formEnd}
-                </div>
-                <AdminDatePicker
-                  value={endDate}
-                  onChange={setEndDate}
-                  min={startDate}
-                  localeTag={localeTag}
-                  ariaLabel={lc.formEnd}
-                  labels={{ prevMonth: lc.formStart, nextMonth: lc.formEnd, today: lc.formEnd }}
-                />
-              </div>
-            ) : (
-              <div>
-                <div className="who__sub" style={{ marginBottom: 4 }}>
-                  {lc.formEnd}
-                </div>
-                <div
-                  style={{
-                    padding: "9px 11px",
-                    border: "1px solid var(--line)",
-                    borderRadius: 10,
-                    background: "var(--surface)",
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: "var(--ink-soft)",
-                  }}
-                >
-                  {endDate}
+                <div className="fpill__nm">{summary.name || currentUserName}</div>
+                <div className="fpill__s">
+                  {summary.role ? `${summary.role} · ` : ""}
+                  {summary.hireDate ? `${lc.fpillHirePrefix} ${summary.hireDate.replace(/-/g, "/")}` : ""}
                 </div>
               </div>
-            )}
-          </div>
-          {fieldErr.dates ? <div style={{ ...FERR_STYLE, marginTop: 4 }}>{lc.formErrDates}</div> : null}
-
-          {!isBereavement ? (
-            <div style={{ marginTop: 10 }}>
-              <div style={{ ...FIELD_LABEL_STYLE, marginBottom: 6 }}>{lc.formDuration}</div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {(
-                  [
-                    ["full", lc.formDurationFull],
-                    ["am", lc.formDurationAm],
-                    ["pm", lc.formDurationPm],
-                  ] as const
-                ).map(([unit, label]) => (
-                  <button
-                    key={unit}
-                    type="button"
-                    onClick={() => chooseDuration(unit)}
-                    style={{
-                      height: 32,
-                      padding: "0 12px",
-                      borderRadius: 9,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      border: durationUnit === unit ? "1.5px solid var(--primary)" : "1px solid var(--line)",
-                      background: durationUnit === unit ? "var(--surface)" : "var(--card)",
-                      color: durationUnit === unit ? "var(--ink)" : "var(--ink-soft)",
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div className="fpill__bal">
+                <b>{summary.ineligible ? "—" : summary.baseRemaining}</b>
+                <span>{lc.fpillBal}</span>
               </div>
             </div>
           ) : null}
-        </div>
 
-        {/* 사유 */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ ...FIELD_LABEL_STYLE, marginBottom: 6 }}>
-            {lc.formReason}
-            <span style={REQ_STYLE}>*</span>
+          <div className="fld">
+            <span className="fld__l">
+              {lc.formType} <b className="req">*</b>
+            </span>
+            <div className="seg seg--wrap">
+              {TYPES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className={`segb${leaveType === t ? " on" : ""}`}
+                  onClick={() => chooseType(t)}
+                >
+                  {typeLabel(t, lc)}
+                </button>
+              ))}
+            </div>
           </div>
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder={lc.formReasonPh}
-            rows={3}
-            style={{
-              width: "100%",
-              resize: "none",
-              padding: "9px 11px",
-              border: `1px solid ${fieldErr.reason ? "var(--danger)" : "var(--line)"}`,
-              borderRadius: 10,
-              background: "var(--surface)",
-              fontSize: 13,
-              fontWeight: 600,
-              color: "var(--ink)",
-              fontFamily: "inherit",
-            }}
-          />
-          {fieldErr.reason ? <div style={{ ...FERR_STYLE, marginTop: 4 }}>{lc.formErrReason}</div> : null}
-        </div>
 
-        {/* 긴급 연락처 */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ ...FIELD_LABEL_STYLE, marginBottom: 6 }}>{lc.formEmergency}</div>
-          <input
-            type="tel"
-            value={emergencyContact}
-            onChange={(e) => setEmergencyContact(e.target.value)}
-            placeholder={lc.formEmergencyPh}
-            style={{
-              width: "100%",
-              padding: "9px 11px",
-              border: "1px solid var(--line)",
-              borderRadius: 10,
-              background: "var(--surface)",
-              fontSize: 13,
-              fontWeight: 600,
-              color: "var(--ink)",
-              fontFamily: "inherit",
-            }}
-          />
-        </div>
-
-        {submitErr ? (
-          <div style={{ marginBottom: 10, fontSize: 11.5, fontWeight: 700, color: "var(--danger)" }}>
-            {submitErr}
+          <div className="fld2">
+            <label className="fld">
+              <span className="fld__l">
+                {lc.formStart} <b className="req">*</b>
+              </span>
+              <input type="date" value={startDate} onChange={(e) => chooseStart(e.target.value)} />
+            </label>
+            <label className="fld">
+              <span className="fld__l">
+                {lc.formEnd} <b className="req">*</b>
+              </span>
+              <input
+                type="date"
+                value={endDate}
+                min={startDate}
+                readOnly={isBereavement || half}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </label>
           </div>
-        ) : null}
 
-        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            style={{ flex: 1 }}
-            onClick={onClose}
-            disabled={pending}
-          >
-            {lc.formCancel}
-          </button>
-          <button
-            type="button"
-            className="btn"
-            style={{ flex: 1.4, background: "var(--primary)", color: "#fff" }}
-            onClick={submit}
-            disabled={pending}
-          >
-            {pending ? lc.formSubmitting : lc.formSubmit}
-          </button>
+          <div className="fld">
+            <span className="fld__l">{lc.formDuration}</span>
+            <div className="seg">
+              {(
+                [
+                  ["full", lc.formDurationFull],
+                  ["am", lc.formDurationAm],
+                  ["pm", lc.formDurationPm],
+                ] as const
+              ).map(([unit, label]) => (
+                <button
+                  key={unit}
+                  type="button"
+                  className={`segb${durationUnit === unit ? " on" : ""}`}
+                  onClick={() => chooseDuration(unit)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="fdays">
+            <span className="ic">
+              <Sun />
+            </span>
+            {lc.formDaysLabel} <b>{lc.daysUnit(days)}</b>
+            {durationUnit !== "full" && !isBereavement
+              ? ` · ${durationUnit === "am" ? lc.formDurationAm : lc.formDurationPm}`
+              : ""}
+          </div>
+
+          <label className="fld">
+            <span className="fld__l">{lc.formReason}</span>
+            <textarea
+              className="ltext"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder={lc.formReasonPh}
+            />
+          </label>
+
+          <label className="fld">
+            <span className="fld__l">{lc.formEmergency}</span>
+            <input
+              type="text"
+              value={emergencyContact}
+              onChange={(e) => setEmergencyContact(e.target.value)}
+              placeholder={lc.formEmergencyPh}
+            />
+          </label>
+
+          <div className={`fpv ${preview.cls}`}>
+            {preview.icon ? <span className="ic">{preview.icon}</span> : null}
+            {preview.node}
+          </div>
+
+          {submitErr ? (
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--danger)" }}>{submitErr}</div>
+          ) : null}
+        </div>
+
+        <div className="modal__foot">
+          <span className="modal__foot-note">
+            <span className="ic">
+              <Info />
+            </span>
+            {footNote}
+          </span>
+          <div style={{ display: "flex", gap: 9 }}>
+            <button type="button" className="btn btn--ghost" onClick={onClose} disabled={pending}>
+              {lc.formCancel}
+            </button>
+            <button
+              type="button"
+              className={`btn btn--pri${valid ? "" : " is-disabled"}`}
+              onClick={submit}
+              disabled={pending || !valid}
+            >
+              <span className="ic">
+                <Check />
+              </span>
+              {pending ? lc.formSubmitting : lc.formSubmit}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -9,10 +9,82 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { AppSession } from "@/lib/session";
 import type { LeaveType, LeaveDurationUnit } from "@/lib/annual-leave-approvals-server";
 import { createLeaveRequest } from "@/lib/annual-leave-requests-server";
+import { getAnnualLeaveBaseline } from "@/lib/annual-leave-server";
+import { computeAnnualLeaveSummary, tokyoToday } from "@/lib/annual-leave";
 
 const BEREAVEMENT_DAYS = 3;
 
 export type LeaveApplicantOption = { id: string; name: string };
+
+/** Balance snapshot for a prospective applicant — powers the request modal's live "잔여 영향" preview.
+ *  `ineligible` = no hire-date/baseline set yet (treated as not-yet-accrued / 미도래). */
+export type ApplicantLeaveSummary = {
+  userId: string;
+  name: string;
+  role: string | null;
+  hireDate: string | null;
+  baseRemaining: number;
+  bonusRemaining: number;
+  ineligible: boolean;
+  nextGrantDate: string | null;
+};
+
+export async function getApplicantLeaveSummary(
+  session: AppSession,
+  userId: string,
+): Promise<ApplicantLeaveSummary | null> {
+  const service = getSupabaseServiceClient();
+  const organizationId = session.organization.id;
+
+  const { data: memData } = await service
+    .from("memberships")
+    .select("role, status")
+    .eq("organization_id", organizationId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const membership = memData as { role: string; status: string } | null;
+  if (!membership || membership.status !== "active") return null;
+
+  const { data: profData } = await service
+    .from("profiles")
+    .select("name")
+    .eq("id", userId)
+    .maybeSingle();
+  const name = (profData as { name: string } | null)?.name ?? "";
+
+  const baseline = await getAnnualLeaveBaseline(service, organizationId, userId);
+  if (!baseline) {
+    return {
+      userId,
+      name,
+      role: membership.role,
+      hireDate: null,
+      baseRemaining: 0,
+      bonusRemaining: 0,
+      ineligible: true,
+      nextGrantDate: null,
+    };
+  }
+
+  const summary = computeAnnualLeaveSummary({
+    hireDate: baseline.hireDate,
+    baselineDate: baseline.baselineDate,
+    baselineAmount: baseline.baseAmount,
+    bonusBaselineAmount: baseline.bonusAmount,
+    asOf: tokyoToday(),
+  });
+
+  return {
+    userId,
+    name,
+    role: membership.role,
+    hireDate: baseline.hireDate,
+    baseRemaining: summary.baseRemaining,
+    bonusRemaining: summary.bonusRemaining,
+    ineligible: false,
+    nextGrantDate: summary.nextBaseGrant?.date ?? null,
+  };
+}
 
 export type AdminLeaveRequestInput = {
   targetUserId: string;

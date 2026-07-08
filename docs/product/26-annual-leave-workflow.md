@@ -4,8 +4,10 @@ Status: the mobile employee-facing experience is done — hire-date/balance back
 submission/self-cancel/draft-resume, and the real team calendar are all implemented and applied
 (Phase 1 + Phase 2 stage 1, see below). The admin-dashboard **approval review** (Phase 2 stage 2,
 approve/reject action + approval queue at `/admin/attendance/leave`) is now **implemented
-(2026-07-07)** — see "Backend — Phase 2, stage 2 (implemented 2026-07-07)" below. Document generation
-(stage 3) is still not started. This is the target annual-leave workflow
+(2026-07-07)** — see "Backend — Phase 2, stage 2 (implemented 2026-07-07)" below. The remaining four
+admin sub-tabs (팀 캘린더/직원 잔여·부여/승인자 관리/문서) are now all built as **design-only, static-mock
+views** (no Supabase/server-action wiring yet) — see "Admin sub-tabs — design-only views" below. This is
+the target annual-leave workflow
 for salary-based regular employees. Hourly staff are excluded. The goal is to remove paper approvals
 while keeping the current company form (photographed 2026-07-06, see "Paper form reference" below) as
 the visual and document reference.
@@ -191,6 +193,14 @@ this stage reuses the approval/reject columns already added by `202607060002_ann
   straight down under their trigger (`ChipDropdown` gained `align`/`fitTrigger` props, defaults keep the
   attendance queue's existing right-align). Branch/building filter was intentionally dropped (StayOps
   has no user↔building association in the schema; confirmed not needed 2026-07-07).
+- **Pixel-fidelity pass, Phase 1 (implemented 2026-07-07):** sort now has all 4 handoff options (신청
+  순/기간 임박순/일수 많은 순/이름순, client-side). Pending requests whose start date is within 5 days
+  get a left-edge orange row indicator (`.qtbl tr.urgent`, Tokyo-date based). The detail drawer's "잔여
+  영향" (balance impact) block now renders the handoff's visual before→after progress bar
+  (`.limpact`/`.limpact__bar`, added to `admin-console.css`) instead of a plain text line. The 5-view
+  sub-tab bar (승인 심사/팀 캘린더/직원 잔여·부여/승인자 관리/문서) is now clickable — the 4
+  not-yet-built views render a shared "곧 제공됩니다" (`lvsoon`) placeholder card instead of doing
+  nothing when clicked.
 - **Admin request creation — proxy + self (implemented 2026-07-07):** the toolbar has two buttons —
   **대리 신청** (file a request on behalf of an active employee, employee picker) and **내 연차 신청**
   (the admin's own request). Both open `leave-request-modal.tsx` and submit through
@@ -201,15 +211,38 @@ this stage reuses the approval/reject columns already added by `202607060002_ann
   member (`listLeaveApplicants` returns active-only). Any admin-web user may create for self or proxy
   (the console is a management surface; the page gate already restricts to admin-web roles).
 - **Not implemented in this stage (explicit follow-up):**
-  - The leave subnav's other 4 sub-tabs (팀 캘린더 / 직원 잔여·부여 / 승인자 관리 / 문서) are
-    **inactive placeholders only** — no functionality behind them yet.
   - Branch/building filter and queue export: excluded.
   - Approval does **not** yet feed back into `computeAnnualLeaveSummary`'s `usedDays`/
     `specialUsedDays` — the detail panel's "잔여 영향" (balance impact) is a **display-only**
     projection computed at review time; wiring approved usage into the actual balance calculation is
     separate follow-up work.
   - No notification is sent to the applicant on approve/reject in this slice.
-  - Document output (休暇届, stage 3) remains not built.
+
+### Admin sub-tabs — design-only views (implemented 2026-07-08)
+
+The remaining four leave sub-tabs are now visually complete but run entirely on **static mock data**
+(no Supabase reads/writes) — a real backend wiring pass is separate follow-up work:
+
+- **팀 캘린더** (`leave-team-calendar.tsx`): TimeTree-style month grid, continuous multi-day bars,
+  greedy lane packing for overlaps, AM/PM half-day badges, arbitrary year/month navigation.
+- **직원 잔여·부여** (`leave-balance-view.tsx`): balance table + staff detail drawer with grant-schedule
+  timeline and an inline hire-date/grant editor (mock only — no recalculation persisted).
+- **승인자 관리** (`leave-approvers-view.tsx`): approver summary banner + member table with toggle
+  switches; the current admin's own row is locked; minimum-one-approver guard is UI-only here.
+- **문서 (休暇届)** (`leave-documents-view.tsx`): 296px staff list (approved-document holders only) →
+  document row list (문서번호/유형/기간/일수/승인자) → an A4 (210mm×297mm) form viewer that
+  auto-scales to the stage width and reproduces the actual company 休暇届 form (title with double
+  underline, 申請日 fill-in date, 氏名/期間/休暇区分/事由/緊急連絡先 table, 本人/部署長/専務 stamp
+  row with a red circular seal on the deciding approver's box). "인쇄/PDF" calls `window.print()`;
+  `@media print` (global, not `.adm`-scoped) hides everything except `#docSheet` and forces
+  `@page { size: A4; margin: 0 }`. The 休暇届 form text itself (title, field labels, 上記の通り…) is the
+  actual Japanese company form wording, not app UI copy, so it is hardcoded rather than run through
+  `dictionary.*` — only the surrounding screen chrome (staff-list header, buttons, meta line) is
+  translated ko/ja/en via `admin.leaveConsole.docs*`.
+  - Uses the existing `--font-noto-jp` (Noto Sans JP, already loaded in `src/app/layout.tsx`) rather
+    than adding a new Noto Serif JP font load; letter-spacing/size were matched to the handoff instead.
+  - Document output as a **real, backend-generated** artifact (auto-created on approval, tied to a real
+    `AL-YYYY-MM-NNN` sequence) remains not built — this stage is the pixel-perfect visual shell only.
 
 ## Recommended user entry flow
 
