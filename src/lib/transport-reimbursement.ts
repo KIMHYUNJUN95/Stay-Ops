@@ -35,7 +35,8 @@ export type TransportReportStatus =
   | "submitted"
   | "reviewing"
   | "approved"
-  | "rejected";
+  | "rejected"
+  | "changes_requested";
 export type TransportEntryMode = "linked" | "manual";
 
 export type TransportReportRow = {
@@ -440,6 +441,7 @@ export type TransportReportAdminSummary = {
   status: TransportReportStatus;
   totalAmount: number;
   itemCount: number;
+  missingCount: number;
 };
 
 /**
@@ -464,11 +466,31 @@ export async function getTransportReportSummaryForAdmin(
 
   const itemsRes = await untyped(service)
     .from("transport_reimbursement_items")
-    .select("report_id")
+    .select("id, report_id")
     .in("report_id", reportIds);
   const itemCounts = new Map<string, number>();
-  for (const r of (itemsRes.data ?? []) as { report_id: string }[]) {
+  const itemRows = (itemsRes.data ?? []) as { id: string; report_id: string }[];
+  for (const r of itemRows) {
     itemCounts.set(r.report_id, (itemCounts.get(r.report_id) ?? 0) + 1);
+  }
+  const itemIdToReportId = new Map(itemRows.map((row) => [row.id, row.report_id]));
+  const itemIds = itemRows.map((row) => row.id);
+  const itemIdsWithImages = new Set<string>();
+  if (itemIds.length > 0) {
+    const imagesRes = await untyped(service)
+      .from("transport_reimbursement_item_images")
+      .select("item_id")
+      .in("item_id", itemIds);
+    for (const row of (imagesRes.data ?? []) as { item_id: string }[]) {
+      itemIdsWithImages.add(row.item_id);
+    }
+  }
+  const missingCounts = new Map<string, number>();
+  for (const itemId of itemIds) {
+    if (itemIdsWithImages.has(itemId)) continue;
+    const reportId = itemIdToReportId.get(itemId);
+    if (!reportId) continue;
+    missingCounts.set(reportId, (missingCounts.get(reportId) ?? 0) + 1);
   }
 
   const names = new Map<string, string>();
@@ -481,6 +503,7 @@ export async function getTransportReportSummaryForAdmin(
     status: r.status as TransportReportStatus,
     totalAmount: r.total_amount_cached,
     itemCount: itemCounts.get(r.id) ?? 0,
+    missingCount: missingCounts.get(r.id) ?? 0,
   }));
 }
 

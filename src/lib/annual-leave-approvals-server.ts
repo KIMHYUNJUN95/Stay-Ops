@@ -122,6 +122,15 @@ async function getLeaveApproverRole(
   return { isApprover: false, approverRole: null };
 }
 
+/** Public approver check (platform admin, or an active membership with a non-null leave_approver_role).
+ *  Used to gate management writes (balance edit, approver toggle) that live behind the approver-only
+ *  console but must still be re-verified server-side. */
+export async function isSessionLeaveApprover(session: AppSession): Promise<boolean> {
+  const service = getSupabaseServiceClient();
+  const { isApprover } = await getLeaveApproverRole(service, session.organization.id, session.user.id);
+  return isApprover;
+}
+
 function toQueueItem(row: RequestRow, roleByUser: Map<string, string>): LeaveQueueItem {
   return {
     id: row.id,
@@ -365,6 +374,46 @@ export async function getAdminLeaveApprovalDetail(
   };
 }
 
+/**
+ * Best-effort assignment of the 休暇届 document number (AL-YYYY-MM-NNN) after approval.
+ * Never fails the approval: if the column isn't migrated yet or any non-conflict error occurs it just
+ * returns. On a unique-violation race with a concurrent approval it recomputes and retries.
+ */
+async function assignLeaveDocumentNumber(
+  service: Service,
+  organizationId: string,
+  requestId: string,
+): Promise<void> {
+  const ym = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+  }).format(new Date());
+  const prefix = `AL-${ym}-`;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const { data: last } = await service
+      .from("annual_leave_requests")
+      .select("document_number")
+      .eq("organization_id", organizationId)
+      .like("document_number", `${prefix}%`)
+      .order("document_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lastNo = (last as { document_number: string | null } | null)?.document_number ?? null;
+    const lastNnn = lastNo ? parseInt(lastNo.slice(prefix.length), 10) || 0 : 0;
+    const candidate = `${prefix}${String(lastNnn + 1).padStart(3, "0")}`;
+    const { error } = await service
+      .from("annual_leave_requests")
+      .update({ document_number: candidate } as never)
+      .eq("id", requestId)
+      .eq("organization_id", organizationId)
+      .is("document_number", null);
+    if (!error) return;
+    // Only a unique-violation race is worth retrying; anything else (e.g. column not migrated) → give up.
+    if ((error as { code?: string }).code !== "23505") return;
+  }
+}
+
 export async function approveLeaveRequestForApprover(
   session: AppSession,
   requestId: string,
@@ -402,6 +451,9 @@ export async function approveLeaveRequestForApprover(
     .eq("status", "requested");
   if (error) return { ok: false, error: "approve_failed" };
 
+  // Assign the 休暇届 document number (best-effort — never blocks the approval).
+  await assignLeaveDocumentNumber(service, organizationId, requestId);
+
   return { ok: true };
 }
 
@@ -438,6 +490,49 @@ export async function rejectLeaveRequestForApprover(
     .eq("organization_id", organizationId)
     .eq("status", "requested");
   if (error) return { ok: false, error: "reject_failed" };
+
+  return { ok: true };
+}
+
+/**
+ * Revokes an already-approved leave (대시보드 "승인 취소"). Sets the request to `cancelled` and records
+ * who/why. Approved usage is keyed off `status = 'approved'`, so cancelling automatically restores the
+ * applicant's balance and drops the request from the calendar/documents. Approver-gated, org-isolated,
+ * only from `approved`. The 休暇届 document number is kept (audit trail) but no longer surfaces.
+ */
+export async function cancelApprovedLeaveForApprover(
+  session: AppSession,
+  requestId: string,
+  reason?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const service = getSupabaseServiceClient();
+  const organizationId = session.organization.id;
+
+  const { isApprover } = await getLeaveApproverRole(service, organizationId, session.user.id);
+  if (!isApprover) return { ok: false, error: "forbidden" };
+
+  const { data: existing } = await service
+    .from("annual_leave_requests")
+    .select("status")
+    .eq("id", requestId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  const row = existing as { status: string } | null;
+  if (!row) return { ok: false, error: "not_found" };
+  if (row.status !== "approved") return { ok: false, error: "not_approved" };
+
+  const { error } = await service
+    .from("annual_leave_requests")
+    .update({
+      status: "cancelled",
+      cancelled_by_user_id: session.user.id,
+      cancelled_reason: reason ?? "",
+      cancelled_at: new Date().toISOString(),
+    } as never)
+    .eq("id", requestId)
+    .eq("organization_id", organizationId)
+    .eq("status", "approved");
+  if (error) return { ok: false, error: "cancel_failed" };
 
   return { ok: true };
 }

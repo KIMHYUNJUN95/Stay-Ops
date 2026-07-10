@@ -1,19 +1,33 @@
 import { redirect } from "next/navigation";
-import { MobileShell } from "@/components/shell/mobile-shell";
 import { ComplaintCreate } from "@/components/complaints/complaint-create";
+import type { LinkTarget } from "@/components/complaints/complaint-mock";
+import { MobileShell } from "@/components/shell/mobile-shell";
+import { canWriteComplaint } from "@/lib/complaints";
+import { listComplaintPickerReservations } from "@/lib/complaint-reservations";
+import { getDictionary } from "@/lib/i18n";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
-import { getDictionary } from "@/lib/i18n";
-import { canWriteComplaint } from "@/lib/complaints";
-import { listComplaintPickerReservations } from "@/lib/complaint-reservations";
 
-// Complaints / 컴플레인 — Screen 3 (create). See docs/product/26-complaint-workflow.md.
-export default async function MobileComplaintCreatePage() {
-  const [state, session] = await Promise.all([getOnboardingState(), getCurrentAppSession()]);
+type PageProps = {
+  searchParams: Promise<{
+    reservationId?: string;
+  }>;
+};
+
+export default async function MobileComplaintCreatePage({ searchParams }: PageProps) {
+  const [state, session, params] = await Promise.all([
+    getOnboardingState(),
+    getCurrentAppSession(),
+    searchParams,
+  ]);
+
+  const nextPath = params.reservationId
+    ? `/mobile/complaints/new?reservationId=${encodeURIComponent(params.reservationId)}`
+    : "/mobile/complaints/new";
 
   if (state.status === "unauthenticated") {
-    redirect(`/auth/login?next=${encodeURIComponent("/mobile/complaints/new")}`);
+    redirect(`/auth/login?next=${encodeURIComponent(nextPath)}`);
   }
   if (state.status !== "ready" || !session) {
     redirect("/onboarding");
@@ -22,7 +36,6 @@ export default async function MobileComplaintCreatePage() {
     redirect("/mobile/unavailable");
   }
 
-  // part_time_staff 등 작성 권한 없는 역할은 목록으로 리다이렉트
   if (!canWriteComplaint(session.user.role)) {
     redirect("/mobile/complaints");
   }
@@ -35,9 +48,26 @@ export default async function MobileComplaintCreatePage() {
     listComplaintPickerReservations(session.organization.id, locale),
   ]);
 
+  const prefilledRow = params.reservationId
+    ? pickRows.find((row) => row.reservationId === params.reservationId) ?? null
+    : null;
+
+  const initialLinked: LinkTarget | null = prefilledRow
+    ? {
+        plat: prefilledRow.plat,
+        propertyName: prefilledRow.propertyName,
+        roomLabel: prefilledRow.roomLabel,
+        place: prefilledRow.place,
+        guest: prefilledRow.guest,
+        guestName: prefilledRow.guest,
+        reservationId: prefilledRow.reservationId,
+        stay: prefilledRow.stay,
+      }
+    : null;
+
   return (
     <MobileShell activeItem="complaints" badges={navBadges} title={dict.complaints.createTitle}>
-      <ComplaintCreate locale={locale} pickRows={pickRows} />
+      <ComplaintCreate initialLinked={initialLinked} locale={locale} pickRows={pickRows} />
     </MobileShell>
   );
 }

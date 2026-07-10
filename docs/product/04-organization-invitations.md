@@ -145,6 +145,9 @@ Implementation note (2026-06-03):
 - If membership is removed → routed to the blocked state on `/auth/login` by default; the user may explicitly enter a re-join flow with another valid invite code.
 - If the authenticated account is disabled at the Auth level → routed to the blocked state on `/auth/login`.
 - Google login button is live on `/auth/login`; `prompt: "select_account"` forces account selection on each login attempt.
+- The profile-setup wizard now exposes an explicit return-to-login action on every step so users who
+  entered with the wrong Google/email account can leave onboarding immediately. The action signs the
+  user out and returns to `/auth/login` while preserving the chosen language.
 
 ## Email Signup / Login
 
@@ -171,6 +174,9 @@ Rules:
 Implementation note:
 
 - Same-email Google/email account attachment currently depends on **Supabase Auth automatic identity linking + confirmed email settings**. StayOps app code explicitly handles duplicate/incomplete-account resume on the email-signup path, but Google sign-in itself relies on the Supabase-side linking policy.
+- Phone number uniqueness remains account-level. If onboarding hits the unique `profiles.phone_number`
+  rule, the user is returned to the phone-number step and told to either enter a different number or
+  return to login and use the existing account that already owns that number.
 
 ## Team Invite Codes
 
@@ -349,7 +355,7 @@ Owner later manages members / roles / code lifecycle from dashboard (when built)
 Implementation notes (current as of 2026-06-18):
 
 - Email magic-link has been **removed**. Auth methods are email+password and Google OAuth only.
-- `/onboarding` profile completion now collects all five required fields — **name, date of birth (`birthDate`), phone number, preferred language, and (optionally at this step) invite code**. `birth_date` is required by `getOnboardingState()`; an incomplete/invalid value keeps the user in `needs_profile`.
+- `/onboarding` profile completion now collects the required operational profile fields — **name, date of birth (`birthDate`), gender (`gender`), phone number, preferred language, and (optionally at this step) invite code**. New/incomplete accounts still go through this onboarding gate. For already-active legacy users, missing `birth_date` and/or `gender` is now completed from `/account` instead of forcing them back through the new-user onboarding intro.
 - Invite-code join uses a **verify → preview → confirm** flow: `previewInviteCode` validates the code without consuming it and shows the resolved **organization name + user-facing role category** (the five business-facing categories, mapped from the DB role via `roleToInviteCategory`) before the user commits. Final join is still the atomic `join_organization_with_invite_code` RPC. This matches the rule "validation succeeds first, then the app shows the resolved organization + role before final membership activation."
 - The pre-auth language selection persists via the `stayops_locale` cookie and is honored on `/onboarding`, so the chosen locale survives the login → callback → onboarding chain; the completed profile stores `preferred_language`.
 - `/onboarding` handles profile completion and invite-code organization joining.
@@ -358,7 +364,13 @@ Implementation notes (current as of 2026-06-18):
 - `/admin/settings/organization` lets Developer / Super Admin create organizations.
 - Organization creation can attach the current Developer / Super Admin user as organization `owner`.
 - `/admin/settings/invite-codes` lets Developer / Super Admin, Owner, and Office Admin create invite codes.
-- The first invite-code implementation supports `staff` and `part_time_staff` as default roles.
+- The invite-code default-role picker supports `staff`, `part_time_staff`, `office_admin`, and
+  `field_manager` (extended 2026-07-09 — the first implementation only had `staff`/
+  `part_time_staff`; `office_admin`/`field_manager` were always defined in `INVITE_CATEGORIES` /
+  `inviteCategoryToRole` (`src/config/roles.ts`) but the creation UI never exposed them until now).
+  `owner` and `cs_staff` remain deliberately excluded from self-service invite-code creation: `owner`
+  needs a separate single-use-code flow that is not built yet, and `cs_staff` has no invite category
+  at all (admin-assigned only, by design). Both stay as manual role changes at `/admin/users/[id]`.
 - Invite codes can be listed and deactivated from the admin settings UI.
 - Invite code error handling distinguishes: expired, inactive, max-uses exceeded, and invalid/not-found.
 - Membership state access control: `active` allows access; `suspended` shows a blocked screen with logout; `removed` shows a blocked screen by default but can move into a re-join flow with another valid invite code; `invited` prompts for invite code.

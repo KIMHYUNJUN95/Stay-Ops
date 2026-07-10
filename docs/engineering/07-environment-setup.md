@@ -424,3 +424,14 @@ Run the commands after Supabase API authentication is available through `npx sup
 - What exact Beds24 webhook verification mechanism will be used?
 - Will Web Push be included in the first internal MVP or added after in-app notifications?
 - What email/contact should be used for `VAPID_SUBJECT`?
+## Reservation Calendar Flags
+
+### `BEDS24_SYNC_PAUSED`
+
+- Default operational expectation for the current phase: `true`
+- When unset, the app currently treats Beds24 sync as paused by default
+- Set to one of `0`, `false`, `off`, or `no` to re-enable webhook/reconcile processing
+- Used by:
+  - `src/app/api/beds24/webhook/route.ts`
+  - `src/app/api/beds24/reconcile/route.ts`
+  - admin reservation calendar sync status chip

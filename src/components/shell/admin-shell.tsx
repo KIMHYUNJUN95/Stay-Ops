@@ -17,10 +17,11 @@ import { getDictionary } from "@/lib/i18n";
 type AdminShellProps = {
   activeItem?: (typeof adminNavigation)[number]["id"];
   children: React.ReactNode;
+  mobileHref?: string;
   title: string;
 };
 
-export function AdminShell({ activeItem, children, title }: AdminShellProps) {
+export function AdminShell({ activeItem, children, mobileHref = "/mobile", title }: AdminShellProps) {
   const { session } = useSession();
   if (!session) {
     return null;
@@ -106,7 +107,7 @@ export function AdminShell({ activeItem, children, title }: AdminShellProps) {
               <kbd>⌘K</kbd>
             </div>
             <div className="top__actions">
-              <Link className="top__mobbtn" href="/mobile">
+              <Link className="top__mobbtn" href={mobileHref}>
                 <span className="ic"><Smartphone /></span>
                 {c.mobileView}
               </Link>

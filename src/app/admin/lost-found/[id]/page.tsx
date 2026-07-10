@@ -11,6 +11,8 @@ import { Card } from "@/components/ui/card";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { getLostItemById, lostItemStatuses, type LostItemStatus } from "@/lib/lost-found";
 import { requireAdminSession } from "@/lib/admin-session";
+import { resolveRequestLocation } from "@/lib/request-location";
+import { getActiveRoomCatalogServer } from "@/lib/rooms";
 
 const statusBadgeClass: Record<LostItemStatus, string> = {
   registered: "border-blue-200 bg-blue-50 text-blue-700",
@@ -48,10 +50,20 @@ export default async function AdminLostFoundDetailPage({
   const copy = dictionary.lostFound;
   const common = dictionary.common;
 
-  const item = await getLostItemById(session, id);
+  const [item, roomCatalog] = await Promise.all([
+    getLostItemById(session, id),
+    getActiveRoomCatalogServer(session.organization.id).catch(() => undefined),
+  ]);
   if (!item) {
     notFound();
   }
+
+  const location = resolveRequestLocation(
+    item.room_label,
+    roomCatalog,
+    dictionary.cleaning.buildingLabels,
+    item.property_name,
+  );
 
   const errorMessage = query.error ? (copy.errors[query.error] ?? null) : null;
 
@@ -74,6 +86,7 @@ export default async function AdminLostFoundDetailPage({
               deleteFailed: common.deleteFailed,
               deletePermanently: common.deletePermanently,
               deleteRecord: common.deleteRecord,
+              permissionDeniedMessage: common.permissionDeniedBody,
             }}
             redirectTo="/admin/lost-found"
             title={item.item_name}
@@ -107,8 +120,14 @@ export default async function AdminLostFoundDetailPage({
 
           <dl className="mt-4 space-y-3">
             <div className="flex items-start justify-between gap-3 text-sm">
+              <dt className="font-semibold text-muted-foreground">
+                {dictionary.cleaning.manualBuildingLabel}
+              </dt>
+              <dd className="font-black">{location.buildingLabel ?? "-"}</dd>
+            </div>
+            <div className="flex items-start justify-between gap-3 text-sm">
               <dt className="font-semibold text-muted-foreground">{copy.room}</dt>
-              <dd className="font-black">{item.room_label}</dd>
+              <dd className="font-black">{location.roomLabel}</dd>
             </div>
             <div className="flex items-start justify-between gap-3 text-sm">
               <dt className="font-semibold text-muted-foreground">{copy.reporter}</dt>
@@ -129,6 +148,32 @@ export default async function AdminLostFoundDetailPage({
               </div>
             ) : null}
           </dl>
+
+          {item.reservation_id || item.guest_name ? (
+            <div className="mt-4 rounded-2xl border border-border bg-background/70 p-4">
+              <p className="text-xs font-semibold text-muted-foreground">
+                {dictionary.tasks.contextLinkedSection}
+              </p>
+              <dl className="mt-2 space-y-2 text-sm">
+                {item.guest_name ? (
+                  <div className="flex items-start justify-between gap-3">
+                    <dt className="font-semibold text-muted-foreground">
+                      {dictionary.admin.calendar.guestName}
+                    </dt>
+                    <dd className="font-black">{item.guest_name}</dd>
+                  </div>
+                ) : null}
+                {item.reservation_id ? (
+                  <div className="flex items-start justify-between gap-3">
+                    <dt className="font-semibold text-muted-foreground">
+                      {dictionary.mobile.calendarReservationId}
+                    </dt>
+                    <dd className="font-mono text-xs font-semibold">{item.reservation_id}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            </div>
+          ) : null}
 
           {item.memo ? (
             <div className="mt-4 rounded-2xl border border-border bg-background/70 p-4">

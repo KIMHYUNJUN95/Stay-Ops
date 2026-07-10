@@ -48,8 +48,11 @@ export type Database = {
           approved_by_user_id?: string | null;
           approved_role?: string | null;
           cancelled_at?: string | null;
+          cancelled_by_user_id?: string | null;
+          cancelled_reason?: string | null;
           created_at?: string;
           days_count: number;
+          document_number?: string | null;
           duration_unit?: string;
           emergency_contact: string;
           end_date: string;
@@ -73,8 +76,11 @@ export type Database = {
           approved_by_user_id: string | null;
           approved_role: string | null;
           cancelled_at: string | null;
+          cancelled_by_user_id: string | null;
+          cancelled_reason: string | null;
           created_at: string;
           days_count: number;
+          document_number: string | null;
           duration_unit: string;
           emergency_contact: string;
           end_date: string;
@@ -98,8 +104,11 @@ export type Database = {
           approved_by_user_id?: string | null;
           approved_role?: string | null;
           cancelled_at?: string | null;
+          cancelled_by_user_id?: string | null;
+          cancelled_reason?: string | null;
           created_at?: string;
           days_count?: number;
+          document_number?: string | null;
           duration_unit?: string;
           emergency_contact?: string;
           end_date?: string;
@@ -551,6 +560,7 @@ export type Database = {
           manual_created?: boolean;
           manual_created_by_user_id?: string | null;
           manual_created_reason?: string | null;
+          manual_location?: string | null;
           operating_date: string;
           organization_id: string;
           review_state?: string;
@@ -583,6 +593,7 @@ export type Database = {
           manual_created: boolean;
           manual_created_by_user_id: string | null;
           manual_created_reason: string | null;
+          manual_location: string | null;
           operating_date: string;
           organization_id: string;
           review_state: string;
@@ -615,6 +626,7 @@ export type Database = {
           manual_created?: boolean;
           manual_created_by_user_id?: string | null;
           manual_created_reason?: string | null;
+          manual_location?: string | null;
           operating_date?: string;
           organization_id?: string;
           review_state?: string;
@@ -865,6 +877,7 @@ export type Database = {
       };
       attendance_month_snapshots: {
         Insert: {
+          allowance_breakdown?: Json;
           created_at?: string;
           finalized_at?: string | null;
           finalized_by_user_id?: string | null;
@@ -880,6 +893,7 @@ export type Database = {
           user_id: string;
         };
         Row: {
+          allowance_breakdown: Json;
           created_at: string;
           finalized_at: string | null;
           finalized_by_user_id: string | null;
@@ -895,6 +909,7 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          allowance_breakdown?: Json;
           created_at?: string;
           finalized_at?: string | null;
           finalized_by_user_id?: string | null;
@@ -908,6 +923,56 @@ export type Database = {
           total_paid_minutes?: number;
           updated_at?: string;
           user_id?: string;
+        };
+      };
+      attendance_pay_allowances: {
+        Insert: {
+          allowance_type: string;
+          amount_yen: number;
+          cancelled_at?: string | null;
+          cancelled_by_user_id?: string | null;
+          created_at?: string;
+          created_by_user_id: string;
+          id?: string;
+          memo?: string | null;
+          organization_id: string;
+          category: string;
+          status?: string;
+          target_date: string;
+          target_user_id?: string | null;
+          updated_at?: string;
+        };
+        Row: {
+          allowance_type: string;
+          amount_yen: number;
+          cancelled_at: string | null;
+          cancelled_by_user_id: string | null;
+          created_at: string;
+          created_by_user_id: string;
+          id: string;
+          memo: string | null;
+          organization_id: string;
+          category: string;
+          status: string;
+          target_date: string;
+          target_user_id: string | null;
+          updated_at: string;
+        };
+        Update: {
+          allowance_type?: string;
+          amount_yen?: number;
+          cancelled_at?: string | null;
+          cancelled_by_user_id?: string | null;
+          created_at?: string;
+          created_by_user_id?: string;
+          id?: string;
+          memo?: string | null;
+          organization_id?: string;
+          category?: string;
+          status?: string;
+          target_date?: string;
+          target_user_id?: string | null;
+          updated_at?: string;
         };
       };
       attendance_export_logs: {
@@ -1734,12 +1799,15 @@ export type Database = {
           cleaning_session_id?: string | null;
           created_at?: string;
           found_at?: string;
+          guest_name?: string | null;
           id?: string;
           image_urls?: string[];
           item_name: string;
           memo?: string | null;
           organization_id: string;
+          property_name?: string | null;
           reported_by_user_id: string;
+          reservation_id?: string | null;
           room_label: string;
           status?: Database["public"]["Enums"]["lost_item_status"];
           updated_at?: string;
@@ -1748,12 +1816,15 @@ export type Database = {
           cleaning_session_id: string | null;
           created_at: string;
           found_at: string;
+          guest_name: string | null;
           id: string;
           image_urls: string[];
           item_name: string;
           memo: string | null;
           organization_id: string;
+          property_name: string | null;
           reported_by_user_id: string;
+          reservation_id: string | null;
           room_label: string;
           status: Database["public"]["Enums"]["lost_item_status"];
           updated_at: string;
@@ -1762,12 +1833,15 @@ export type Database = {
           cleaning_session_id?: string | null;
           created_at?: string;
           found_at?: string;
+          guest_name?: string | null;
           id?: string;
           image_urls?: string[];
           item_name?: string;
           memo?: string | null;
           organization_id?: string;
+          property_name?: string | null;
           reported_by_user_id?: string;
+          reservation_id?: string | null;
           room_label?: string;
           status?: Database["public"]["Enums"]["lost_item_status"];
           updated_at?: string;
@@ -1880,12 +1954,14 @@ export type Database = {
           cleaning_session_id?: string | null;
           created_at?: string;
           description?: string | null;
+          guest_name?: string | null;
           id?: string;
           image_urls?: string[];
           issue_title: string;
           organization_id: string;
           property_name?: string | null;
           reported_by_user_id: string;
+          reservation_id?: string | null;
           room_label: string;
           status?: Database["public"]["Enums"]["maintenance_status"];
           updated_at?: string;
@@ -1894,12 +1970,14 @@ export type Database = {
           cleaning_session_id: string | null;
           created_at: string;
           description: string | null;
+          guest_name: string | null;
           id: string;
           image_urls: string[];
           issue_title: string;
           organization_id: string;
           property_name: string | null;
           reported_by_user_id: string;
+          reservation_id: string | null;
           room_label: string;
           status: Database["public"]["Enums"]["maintenance_status"];
           updated_at: string;
@@ -1908,12 +1986,14 @@ export type Database = {
           cleaning_session_id?: string | null;
           created_at?: string;
           description?: string | null;
+          guest_name?: string | null;
           id?: string;
           image_urls?: string[];
           issue_title?: string;
           organization_id?: string;
           property_name?: string | null;
           reported_by_user_id?: string;
+          reservation_id?: string | null;
           room_label?: string;
           status?: Database["public"]["Enums"]["maintenance_status"];
           updated_at?: string;
@@ -2061,6 +2141,44 @@ export type Database = {
           status?: Database["public"]["Enums"]["cleaning_status"];
           task_label?: string;
           updated_at?: string;
+        };
+      };
+      membership_permission_overrides: {
+        Insert: {
+          created_at?: string;
+          expires_at: string;
+          granted_by_user_id?: string | null;
+          id?: string;
+          organization_id: string;
+          permission_key: string;
+          reason: string;
+          revoked_at?: string | null;
+          revoked_by_user_id?: string | null;
+          user_id: string;
+        };
+        Row: {
+          created_at: string;
+          expires_at: string;
+          granted_by_user_id: string | null;
+          id: string;
+          organization_id: string;
+          permission_key: string;
+          reason: string;
+          revoked_at: string | null;
+          revoked_by_user_id: string | null;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          expires_at?: string;
+          granted_by_user_id?: string | null;
+          id?: string;
+          organization_id?: string;
+          permission_key?: string;
+          reason?: string;
+          revoked_at?: string | null;
+          revoked_by_user_id?: string | null;
+          user_id?: string;
         };
       };
       memberships: {
@@ -2298,6 +2416,76 @@ export type Database = {
           source_reservation_id?: string;
           status?: Database["public"]["Enums"]["reservation_status"];
           updated_at?: string;
+        };
+      };
+      property_operation_infos: {
+        Insert: {
+          address_en?: string | null;
+          address_ja?: string | null;
+          address_ko?: string | null;
+          canonical_name: string;
+          created_at?: string;
+          id?: string;
+          note?: string;
+          organization_id: string;
+          room_access?: Json;
+          shared_access?: Json;
+          updated_at?: string;
+        };
+        Row: {
+          address_en: string | null;
+          address_ja: string | null;
+          address_ko: string | null;
+          canonical_name: string;
+          created_at: string;
+          id: string;
+          note: string;
+          organization_id: string;
+          room_access: Json;
+          shared_access: Json;
+          updated_at: string;
+        };
+        Update: {
+          address_en?: string | null;
+          address_ja?: string | null;
+          address_ko?: string | null;
+          canonical_name?: string;
+          created_at?: string;
+          id?: string;
+          note?: string;
+          organization_id?: string;
+          room_access?: Json;
+          shared_access?: Json;
+          updated_at?: string;
+        };
+      };
+      reservation_internal_notes: {
+        Insert: {
+          created_at?: string;
+          id?: string;
+          note: string;
+          organization_id: string;
+          reservation_id: string;
+          updated_at?: string;
+          updated_by_user_id: string;
+        };
+        Row: {
+          created_at: string;
+          id: string;
+          note: string;
+          organization_id: string;
+          reservation_id: string;
+          updated_at: string;
+          updated_by_user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          note?: string;
+          organization_id?: string;
+          reservation_id?: string;
+          updated_at?: string;
+          updated_by_user_id?: string;
         };
       };
       rooms: {

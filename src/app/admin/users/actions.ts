@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import type { OrganizationRole, Role } from "@/config/roles";
-import { organizationRoles } from "@/config/roles";
+import { officeAdminAssignableRoles, organizationRoles } from "@/config/roles";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
@@ -21,13 +21,6 @@ const membershipStatuses = [
   "removed",
   "suspended",
 ] as const satisfies readonly MembershipStatus[];
-const officeAdminAssignableRoles = [
-  "cs_staff",
-  "field_manager",
-  "staff",
-  "part_time_staff",
-] as const satisfies readonly OrganizationRole[];
-
 async function getCurrentUserId() {
   const supabase = await getSupabaseServerClient();
   const {

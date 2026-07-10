@@ -1,48 +1,49 @@
-import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/shell/admin-shell";
-import { canAccessAdminWeb } from "@/config/roles";
-import { adminNavigation, getNavigationLabel } from "@/config/navigation";
+import { AttendanceSubnav } from "@/components/admin/attendance/attendance-subnav";
+import { AttendanceOverview } from "@/components/admin/attendance/attendance-overview";
+import { currentTokyoYm, getAdminAttendanceOverview } from "@/lib/admin-attendance";
+import { requireAdminPageSession } from "@/lib/admin-page-auth";
 import { getDictionary } from "@/lib/i18n";
-import { getOnboardingState } from "@/lib/onboarding";
-import { getCurrentAppSession } from "@/lib/session";
 
-// Admin · Attendance — placeholder until the full attendance/payroll console module ships.
-// Renders inside the console shell so the sidebar/dashboard links resolve (no 404).
+// Admin · Attendance Overview (Slice 1).
+// Shell sub-tab bar + KPI bar + review/correction cards + payroll/transport summary.
+// The selected month is controlled by the shared attendance subnav month picker.
 // See docs/product/05-admin-web-ia.md → "Attendance / Payroll / Transportation".
-export default async function AdminAttendancePage() {
-  const [state, session] = await Promise.all([getOnboardingState(), getCurrentAppSession()]);
-
-  if (state.status === "unauthenticated") {
-    redirect("/auth/login?next=/admin/attendance");
-  }
-  if (state.status !== "ready" || !session) {
-    redirect("/onboarding");
-  }
-  if (!canAccessAdminWeb(session.user.role)) {
-    redirect("/mobile");
-  }
+export default async function AdminAttendanceOverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ym?: string }>;
+}) {
+  const [session, params] = await Promise.all([
+    requireAdminPageSession({ nextPath: "/admin/attendance" }),
+    searchParams,
+  ]);
 
   const locale = session.user.preferredLanguage;
   const dictionary = getDictionary(locale);
-  const c = dictionary.admin.console;
-  const navItem = adminNavigation.find((item) => item.id === "attendance");
-  const title = navItem ? getNavigationLabel(navItem, locale) : c.opsAttendance;
+  const c = dictionary.admin.attendanceConsole;
+  const localeTag = locale === "ko" ? "ko-KR" : locale === "ja" ? "ja-JP" : "en-US";
+  const requestedYm =
+    typeof params.ym === "string" && /^\d{4}-\d{2}$/.test(params.ym)
+      ? params.ym
+      : currentTokyoYm();
+  const data = await getAdminAttendanceOverview(session, localeTag, requestedYm);
 
   return (
-    <AdminShell activeItem="attendance" title={title}>
-      <div className="adm">
-        <div
-          className="card"
-          style={{ maxWidth: 560, margin: "40px auto 0", padding: "40px 32px", textAlign: "center" }}
-        >
-          <p style={{ fontSize: 17, fontWeight: 900, letterSpacing: "-0.02em" }}>
-            {c.modulePendingTitle}
-          </p>
-          <p style={{ marginTop: 10, fontSize: 13.5, fontWeight: 600, color: "var(--muted)", lineHeight: 1.6 }}>
-            {c.modulePendingBody}
-          </p>
-        </div>
-      </div>
+    <AdminShell activeItem="attendance" title={c.headerOverview}>
+      <AttendanceSubnav
+        active="overview"
+        monthLabel={data.monthLabel}
+        c={c}
+        ym={data.ym}
+        localeTag={localeTag}
+        badges={{
+          queue: { n: data.kpi.reviewSessions + data.kpi.corrOpen, urgent: data.kpi.urgent > 0 },
+          payroll: { n: data.kpi.payEstimated },
+          transport: { n: data.kpi.trPending },
+        }}
+      />
+      <AttendanceOverview data={data} c={c} localeTag={localeTag} />
     </AdminShell>
   );
 }

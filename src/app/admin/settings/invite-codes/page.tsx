@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { OrganizationRole } from "@/config/roles";
+import { officeAdminAssignableRoles } from "@/config/roles";
 import { getDictionary } from "@/lib/i18n";
 import { requireAdminSession } from "@/lib/admin-session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -27,9 +28,13 @@ type MembershipRow = Pick<
   "organization_id"
 >;
 
+// Keep in sync with the identically-named allow-list in actions.ts (owner/cs_staff excluded — see
+// comment there).
 const inviteDefaultRoles = [
   "staff",
   "part_time_staff",
+  "office_admin",
+  "field_manager",
 ] as const satisfies readonly OrganizationRole[];
 
 function firstParam(value: string | string[] | undefined) {
@@ -84,6 +89,14 @@ export default async function AdminInviteCodesPage({ searchParams }: PageProps) 
   const params = (await searchParams) ?? {};
   const dictionary = getDictionary(session.user.preferredLanguage);
   const settings = dictionary.admin.settings;
+  // office_admin can't grant office_admin-or-above via invite code (matches canAssignRole's manual
+  // role-change tiering) — hide the option instead of letting them pick it and get rejected server-side.
+  const selectableDefaultRoles =
+    session.user.role === "developer_super_admin" || session.user.role === "owner"
+      ? inviteDefaultRoles
+      : inviteDefaultRoles.filter((role) =>
+          (officeAdminAssignableRoles as readonly OrganizationRole[]).includes(role),
+        );
   const organizations = await getManageableOrganizations(
     session.user.id,
     session.user.role,
@@ -161,7 +174,7 @@ export default async function AdminInviteCodesPage({ searchParams }: PageProps) 
               name="defaultRole"
               required
             >
-              {inviteDefaultRoles.map((role) => (
+              {selectableDefaultRoles.map((role) => (
                 <option key={role} value={role}>
                   {dictionary.roles[role]}
                 </option>

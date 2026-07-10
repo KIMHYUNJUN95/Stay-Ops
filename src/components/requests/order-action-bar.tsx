@@ -16,6 +16,8 @@ import {
   updateOrderDeliveryDate,
   updateOrderRequestStatus,
 } from "@/app/mobile/requests/orders/actions";
+import { AdminToast, useAdminToast } from "@/components/admin/shared/admin-toast";
+import { PermissionDeniedSheet } from "@/components/shell/permission-denied-sheet";
 import { useBodyScrollLock } from "@/components/shell/use-body-scroll-lock";
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import { cn } from "@/lib/utils";
@@ -58,6 +60,9 @@ type OrderActionBarLabels = {
   hintStatusClosed: string;
   calPrevMonth: string;
   calNextMonth: string;
+  permissionDeniedTitle: string;
+  permissionDeniedBody: string;
+  close: string;
 };
 
 type OrderActionBarProps = {
@@ -65,6 +70,8 @@ type OrderActionBarProps = {
   locale: Locale;
   orderId: string;
   status: OrderStatus;
+  /** Which shell this renders inside — picks the permission-denied UI (mobile sheet vs admin toast). */
+  surface: "mobile" | "admin";
   currentDeliveryDate?: string | null;
   currentDeliveryStartDate?: string | null;
   currentDeliveryEndDate?: string | null;
@@ -277,6 +284,7 @@ export function OrderActionBar({
   locale,
   orderId,
   status,
+  surface,
   currentDeliveryDate,
   currentDeliveryStartDate,
   currentDeliveryEndDate,
@@ -285,6 +293,8 @@ export function OrderActionBar({
   const [activeAction, setActiveAction]         = useState<OrderAction | null>(null);
   const [isPending, setIsPending]               = useState(false);
   const [errorMessage, setErrorMessage]         = useState<string | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const adminToast = useAdminToast();
   const [deliveryMode, setDeliveryMode]         = useState<"exact" | "range">("exact");
   const [deliveryDate, setDeliveryDate]         = useState("");
   const [deliveryStartDate, setDeliveryStartDate] = useState("");
@@ -401,6 +411,15 @@ export function OrderActionBar({
     setIsPending(false);
 
     if (!result.ok) {
+      if (result.error === "unauthorized" || result.error === "forbidden") {
+        close();
+        if (surface === "admin") {
+          adminToast.showToast(labels.permissionDeniedBody, true);
+        } else {
+          setPermissionDenied(true);
+        }
+        return;
+      }
       setErrorMessage(
         result.error === "invalid_transition"      ? labels.errorInvalidTransition :
         result.error === "missing_delivery_date"   ? labels.deliveryDateRequired :
@@ -693,6 +712,19 @@ export function OrderActionBar({
             document.body,
           )
         : null}
+
+      {surface === "mobile" && permissionDenied ? (
+        <PermissionDeniedSheet
+          body={labels.permissionDeniedBody}
+          closeLabel={labels.close}
+          onClose={() => setPermissionDenied(false)}
+          title={labels.permissionDeniedTitle}
+        />
+      ) : null}
+
+      {surface === "admin" && adminToast.toast ? (
+        <AdminToast message={adminToast.toast.message} onDismiss={adminToast.dismiss} />
+      ) : null}
     </>
   );
 }

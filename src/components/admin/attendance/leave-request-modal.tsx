@@ -92,6 +92,7 @@ function errLabel(reason: string | undefined, lc: Lc): string {
 
 export function LeaveRequestModal({
   mode,
+  prefillDate,
   applicants,
   currentUserId,
   currentUserName,
@@ -100,6 +101,8 @@ export function LeaveRequestModal({
   onCreated,
 }: {
   mode: "proxy" | "self";
+  /** Pre-filled start/end date (YYYY-MM-DD), e.g. when opened from a team-calendar day cell. */
+  prefillDate?: string;
   applicants: LeaveApplicantOption[];
   currentUserId: string;
   currentUserName: string;
@@ -110,12 +113,13 @@ export function LeaveRequestModal({
 }) {
   const router = useRouter();
   const today = tokyoToday();
+  const initialDate = prefillDate ?? today;
 
   const [targetUserId, setTargetUserId] = useState(mode === "self" ? currentUserId : "");
   const [leaveType, setLeaveType] = useState<LeaveType>("paid");
   const [durationUnit, setDurationUnit] = useState<LeaveDurationUnit>("full");
-  const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
+  const [startDate, setStartDate] = useState(initialDate);
+  const [endDate, setEndDate] = useState(initialDate);
   const [reason, setReason] = useState("");
   const [emergencyContact, setEmergencyContact] = useState("");
   const [summary, setSummary] = useState<ApplicantLeaveSummary | null>(null);
@@ -293,10 +297,7 @@ export function LeaveRequestModal({
 
           {summary ? (
             <div className="fpill">
-              <span
-                className="uhead__av"
-                style={{ width: 40, height: 40, borderRadius: 11, background: "var(--primary)", color: "#fff", fontSize: 15 }}
-              >
+              <span className="avatar" style={{ background: "var(--primary)", color: "#fff" }}>
                 {initialOf(mode === "self" ? currentUserName || summary.name : summary.name)}
               </span>
               <div>

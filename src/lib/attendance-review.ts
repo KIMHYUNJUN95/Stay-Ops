@@ -17,6 +17,10 @@ import type {
   AttendanceMethod,
   AttendanceCorrectionStatus,
 } from "@/lib/attendance";
+import {
+  localizeAttendanceSiteName,
+  type AttendanceSiteDisplayRow,
+} from "@/lib/attendance-site-display";
 
 const TZ = "Asia/Tokyo";
 
@@ -100,9 +104,14 @@ export type ReviewQueueItem = {
   manualCreated: boolean;
   isAbnormal: boolean;
   clockInLabel: string | null;
+  /** Tokyo calendar date (YYYY-MM-DD) of the clock-in instant — may differ from `operatingDate`. */
+  clockInDate: string | null;
   clockInSiteName: string | null;
   clockInMethod: AttendanceMethod | null;
   clockOutLabel: string | null;
+  /** Tokyo calendar date (YYYY-MM-DD) of the clock-out instant — e.g. the next day for a
+   *  midnight-crossing session. */
+  clockOutDate: string | null;
   clockOutSiteName: string | null;
   clockOutMethod: AttendanceMethod | null;
   breakTotalSec: number;
@@ -120,9 +129,9 @@ function tokyoDateKey(d: Date): string {
   }).format(d);
 }
 
-function tokyoTimeLabel(iso: string | null): string | null {
+function tokyoTimeLabel(iso: string | null, localeTag: string): string | null {
   if (!iso) return null;
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat(localeTag, {
     timeZone: TZ,
     hour: "2-digit",
     minute: "2-digit",
@@ -130,9 +139,14 @@ function tokyoTimeLabel(iso: string | null): string | null {
   }).format(new Date(iso));
 }
 
-function dateLabelOf(operatingDate: string): string {
+function tokyoDateOnly(iso: string | null): string | null {
+  if (!iso) return null;
+  return tokyoDateKey(new Date(iso));
+}
+
+function dateLabelOf(operatingDate: string, localeTag: string): string {
   const d = new Date(`${operatingDate}T00:00:00+09:00`);
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat(localeTag, {
     timeZone: TZ,
     month: "long",
     day: "numeric",
@@ -156,6 +170,7 @@ function priorityRank(item: ReviewQueueItem): number {
 export async function getAttendanceReviewQueue(
   organizationId: string,
   params: ReviewQueueParams = {},
+  localeTag = "ko-KR",
 ): Promise<ReviewQueueItem[]> {
   const service = getSupabaseServiceClient();
   const limit = params.limit ?? 100;
@@ -235,7 +250,7 @@ export async function getAttendanceReviewQueue(
 
   const [names, siteNames, breakTotals, correctionStatuses] = await Promise.all([
     loadUserNames(service, userIds),
-    loadSiteNames(service, organizationId, siteIds),
+    loadSiteNames(service, organizationId, siteIds, localeTag),
     loadBreakTotals(service, sessionIds),
     loadCorrectionStatuses(service, organizationId, sessionIds),
   ]);
@@ -254,15 +269,17 @@ export async function getAttendanceReviewQueue(
       userId: s.user_id,
       userName: names.get(s.user_id) ?? "—",
       operatingDate: s.operating_date,
-      dateLabel: dateLabelOf(s.operating_date),
+      dateLabel: dateLabelOf(s.operating_date, localeTag),
       status,
       reviewState,
       manualCreated: s.manual_created,
       isAbnormal: reviewState !== "normal" || status === "invalid",
-      clockInLabel: tokyoTimeLabel(s.clock_in_at),
+      clockInLabel: tokyoTimeLabel(s.clock_in_at, localeTag),
+      clockInDate: tokyoDateOnly(s.clock_in_at),
       clockInSiteName: s.clock_in_site_id ? (siteNames.get(s.clock_in_site_id) ?? null) : null,
       clockInMethod: (s.clock_in_method as AttendanceMethod | null) ?? null,
-      clockOutLabel: tokyoTimeLabel(s.clock_out_at),
+      clockOutLabel: tokyoTimeLabel(s.clock_out_at, localeTag),
+      clockOutDate: tokyoDateOnly(s.clock_out_at),
       clockOutSiteName: s.clock_out_site_id ? (siteNames.get(s.clock_out_site_id) ?? null) : null,
       clockOutMethod: (s.clock_out_method as AttendanceMethod | null) ?? null,
       breakTotalSec,
@@ -291,15 +308,18 @@ async function loadSiteNames(
   service: Service,
   organizationId: string,
   siteIds: string[],
+  localeTag: string,
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   if (siteIds.length === 0) return map;
   const res = await service
     .from("attendance_sites")
-    .select("id, name")
+    .select("id, name, properties(display_name_ko, display_name_ja, display_name_en)")
     .eq("organization_id", organizationId)
     .in("id", siteIds);
-  for (const r of (res.data ?? []) as { id: string; name: string }[]) map.set(r.id, r.name);
+  for (const r of (res.data ?? []) as (AttendanceSiteDisplayRow & { id: string })[]) {
+    map.set(r.id, localizeAttendanceSiteName(r, localeTag));
+  }
   return map;
 }
 

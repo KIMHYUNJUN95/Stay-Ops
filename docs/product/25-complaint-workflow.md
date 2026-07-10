@@ -185,6 +185,14 @@ URL: `/mobile/complaints/new`
 5. 고객명 직접 입력 (예약 연결 없을 때)
 6. 이미지 업로드 (최대 5장)
 
+Implementation note (2026-07-09):
+- `/mobile/complaints/new?reservationId=<uuid>` is now supported as a reservation-calendar deep link.
+- When opened from the admin reservation inspector, the mobile create screen pre-links the
+  matching reservation context and submits `property_name`, `room_label`, `reservation_id`, and
+  `guest_name` together.
+- The standalone admin web routes `/admin/complaints` and `/admin/complaints/[id]` are still not
+  implemented; the admin calendar complaint action intentionally routes into the mobile create flow.
+
 작성 권한이 없는 역할에게는 작성 버튼을 표시하지 않는다.
 
 ### 상세 화면
@@ -219,6 +227,11 @@ URL: `/admin/complaints/[id]`
 
 - 모바일 상세와 동일한 구성
 - 어드민은 모든 컴플레인의 상태를 변경할 수 있다
+
+Current implementation note:
+- These dedicated admin complaint routes are still design/documentation targets, not live pages.
+- Current office-side entry is the reservation calendar inspector's deep link into the mobile
+  complaint create screen with reservation context prefilled.
 
 ---
 

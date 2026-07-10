@@ -10,12 +10,17 @@ import {
   CheckCheck,
   ChevronRight,
   CircleCheck,
+  Clock,
+  FileText,
+  ScrollText,
   Filter,
   Info,
   LogOut,
   Search,
+  Shield,
   TriangleAlert,
   UserPlus,
+  Wallet,
   X,
 } from "lucide-react";
 import type {
@@ -28,10 +33,17 @@ import type {
   LeaveStatusGroup,
   LeaveType,
 } from "@/lib/annual-leave-approvals-server";
-import type { LeaveApplicantOption } from "@/lib/annual-leave-admin-server";
+import type {
+  AdminApproverMember,
+  AdminLeaveBalanceRow,
+  LeaveApplicantOption,
+  LeaveDocument,
+  LeaveLedgerEntry,
+} from "@/lib/annual-leave-admin-server";
 import { getDictionary, type Dictionary, type Locale } from "@/lib/i18n";
 import {
   approveLeaveRequestAction,
+  cancelApprovedLeaveAction,
   rejectLeaveRequestAction,
 } from "@/app/admin/attendance/leave/actions";
 import { loadLeaveApprovalDetail } from "@/app/admin/attendance/leave/detail-actions";
@@ -43,6 +55,7 @@ import { LeaveTeamCalendar } from "./leave-team-calendar";
 import { LeaveBalanceView } from "./leave-balance-view";
 import { LeaveApproversView } from "./leave-approvers-view";
 import { LeaveDocumentsView } from "./leave-documents-view";
+import { LeaveLedgerView } from "./leave-ledger-view";
 
 type Lc = Dictionary["admin"]["leaveConsole"];
 
@@ -161,61 +174,46 @@ function errLabel(reason: string | undefined, lc: Lc): string {
     case "not_found":
       return lc.errNotFound;
     case "not_requested":
+    case "not_approved":
       return lc.errNotRequested;
     case "reject_failed":
       return lc.errRejectFailed;
+    case "cancel_failed":
+      return lc.errCancelFailed;
     case "approve_failed":
     default:
       return lc.errApproveFailed;
   }
 }
 
-type LeaveView = "review" | "calendar" | "balance" | "approvers" | "documents";
+type LeaveView = "review" | "calendar" | "balance" | "approvers" | "documents" | "ledger";
+
+// View tabs (handoff .lviews): icon + label, selected = filled navy. Matches leave-views.js order/icons.
+const SUB_TABS: { view: LeaveView; key: keyof Lc; icon: React.ReactNode }[] = [
+  { view: "review", key: "subTabReview", icon: <Clock /> },
+  { view: "calendar", key: "subTabCalendar", icon: <Calendar /> },
+  { view: "balance", key: "subTabBalance", icon: <Wallet /> },
+  { view: "approvers", key: "subTabApprovers", icon: <Shield /> },
+  { view: "documents", key: "subTabDocuments", icon: <FileText /> },
+  { view: "ledger", key: "subTabLedger", icon: <ScrollText /> },
+];
 
 /** Sub-tab bar for the leave section — all five views now render real content. */
 function LeaveSubTabs({ view, onChange, lc }: { view: LeaveView; onChange: (v: LeaveView) => void; lc: Lc }) {
   return (
     <div className="lvsubtabs" role="tablist">
-      <button
-        type="button"
-        className={`lvsubtab${view === "review" ? " on" : ""}`}
-        aria-current={view === "review" ? "page" : undefined}
-        onClick={() => onChange("review")}
-      >
-        {lc.subTabReview}
-      </button>
-      <button
-        type="button"
-        className={`lvsubtab${view === "calendar" ? " on" : ""}`}
-        aria-current={view === "calendar" ? "page" : undefined}
-        onClick={() => onChange("calendar")}
-      >
-        {lc.subTabCalendar}
-      </button>
-      <button
-        type="button"
-        className={`lvsubtab${view === "balance" ? " on" : ""}`}
-        aria-current={view === "balance" ? "page" : undefined}
-        onClick={() => onChange("balance")}
-      >
-        {lc.subTabBalance}
-      </button>
-      <button
-        type="button"
-        className={`lvsubtab${view === "approvers" ? " on" : ""}`}
-        aria-current={view === "approvers" ? "page" : undefined}
-        onClick={() => onChange("approvers")}
-      >
-        {lc.subTabApprovers}
-      </button>
-      <button
-        type="button"
-        className={`lvsubtab${view === "documents" ? " on" : ""}`}
-        aria-current={view === "documents" ? "page" : undefined}
-        onClick={() => onChange("documents")}
-      >
-        {lc.subTabDocuments}
-      </button>
+      {SUB_TABS.map((t) => (
+        <button
+          key={t.view}
+          type="button"
+          className={`lvsubtab${view === t.view ? " on" : ""}`}
+          aria-current={view === t.view ? "page" : undefined}
+          onClick={() => onChange(t.view)}
+        >
+          <span className="ic">{t.icon}</span>
+          {lc[t.key] as string}
+        </button>
+      ))}
     </div>
   );
 }
@@ -279,6 +277,10 @@ export function LeaveQueueClient({
   initialRequestId = null,
   locale,
   applicants,
+  balances,
+  approvers,
+  documents,
+  ledger,
   currentUserId,
   currentUserName,
 }: {
@@ -290,13 +292,17 @@ export function LeaveQueueClient({
   initialRequestId?: string | null;
   locale: Locale;
   applicants: LeaveApplicantOption[];
+  balances: AdminLeaveBalanceRow[];
+  approvers: AdminApproverMember[];
+  documents: LeaveDocument[];
+  ledger: LeaveLedgerEntry[];
   currentUserId: string;
   currentUserName: string;
 }) {
   const dictionary = getDictionary(locale);
   const lc = dictionary.admin.leaveConsole;
   const [view, setView] = useState<LeaveView>("review");
-  const [items] = useState(initialItems);
+  const [items, setItems] = useState(initialItems);
   const [statusGroup, setStatusGroup] = useState<LeaveStatusGroup>(initialStatusGroup);
   const [typeFilter, setTypeFilter] = useState<LeaveType | null>(initialType);
   const [nameQuery, setNameQuery] = useState(initialSearch);
@@ -305,8 +311,20 @@ export function LeaveQueueClient({
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(initialRequestId);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
-  const [requestModal, setRequestModal] = useState<"proxy" | "self" | null>(null);
+  const [requestModal, setRequestModal] = useState<{ mode: "proxy" | "self"; date?: string } | null>(
+    null,
+  );
   const showToast = (msg: string) => setToast({ id: Date.now(), msg });
+
+  // After an approve/reject, update the resolved request in-place so it leaves 승인 대기 and the
+  // tab counts refresh — the list is client-held, so without this it would still show as pending
+  // (and re-opening it would hit "already processed").
+  function handleResolved(msg: string, resolvedId?: string, resolvedStatus?: LeaveStatus) {
+    if (resolvedId && resolvedStatus) {
+      setItems((prev) => prev.map((i) => (i.id === resolvedId ? { ...i, status: resolvedStatus } : i)));
+    }
+    showToast(msg);
+  }
 
   useEffect(() => {
     if (!toast) return;
@@ -366,7 +384,36 @@ export function LeaveQueueClient({
     return (
       <div style={{ position: "relative" }}>
         <LeaveSubTabs view={view} onChange={setView} lc={lc} />
-        <LeaveTeamCalendar lc={lc} locale={locale} onSelect={(msg) => showToast(msg)} />
+        <LeaveTeamCalendar
+          lc={lc}
+          locale={locale}
+          items={items.filter((i) => i.status === "approved")}
+          onSelect={(requestId) => setSelectedId(requestId)}
+          onCreateRequest={(mode, date) => setRequestModal({ mode, date })}
+        />
+        {selectedItem ? (
+          <LeavePanel
+            item={selectedItem}
+            lc={lc}
+            dictionary={dictionary}
+            localeTag={localeTag}
+            onClose={() => setSelectedId(null)}
+            onResolved={handleResolved}
+          />
+        ) : null}
+        {requestModal ? (
+          <LeaveRequestModal
+            mode={requestModal.mode}
+            prefillDate={requestModal.date}
+            applicants={applicants}
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            locale={locale}
+            lc={lc}
+            onClose={() => setRequestModal(null)}
+            onCreated={(msg) => showToast(msg)}
+          />
+        ) : null}
         {toast ? (
           <div key={toast.id} role="status" className="adm-toast" onClick={() => setToast(null)}>
             {toast.msg}
@@ -380,7 +427,7 @@ export function LeaveQueueClient({
     return (
       <div style={{ position: "relative" }}>
         <LeaveSubTabs view={view} onChange={setView} lc={lc} />
-        <LeaveBalanceView lc={lc} onToast={(msg) => showToast(msg)} />
+        <LeaveBalanceView lc={lc} locale={locale} employees={balances} onToast={(msg) => showToast(msg)} />
         {toast ? (
           <div key={toast.id} role="status" className="adm-toast" onClick={() => setToast(null)}>
             {toast.msg}
@@ -394,7 +441,7 @@ export function LeaveQueueClient({
     return (
       <div style={{ position: "relative" }}>
         <LeaveSubTabs view={view} onChange={setView} lc={lc} />
-        <LeaveApproversView lc={lc} onToast={(msg) => showToast(msg)} />
+        <LeaveApproversView lc={lc} locale={locale} members={approvers} onToast={(msg) => showToast(msg)} />
         {toast ? (
           <div key={toast.id} role="status" className="adm-toast" onClick={() => setToast(null)}>
             {toast.msg}
@@ -408,15 +455,32 @@ export function LeaveQueueClient({
     return (
       <div style={{ position: "relative" }}>
         <LeaveSubTabs view={view} onChange={setView} lc={lc} />
-        <LeaveDocumentsView lc={lc} />
+        <LeaveDocumentsView lc={lc} locale={locale} documents={documents} />
       </div>
     );
   }
 
+  if (view === "ledger") {
+    return (
+      <div style={{ position: "relative" }}>
+        <LeaveSubTabs view={view} onChange={setView} lc={lc} />
+        <LeaveLedgerView lc={lc} locale={locale} entries={ledger} />
+      </div>
+    );
+  }
+
+  // Keep the 승인 대기 card in sync with the client-held list (approve/reject updates `items`).
+  const pendingItems = items.filter((i) => i.status === "requested");
+  const liveSummary = {
+    ...summary,
+    pendingCount: pendingItems.length,
+    pendingDays: pendingItems.reduce((sum, i) => sum + i.daysCount, 0),
+  };
+
   return (
     <div style={{ position: "relative" }}>
       <LeaveSubTabs view={view} onChange={setView} lc={lc} />
-      <SummaryCards summary={summary} lc={lc} />
+      <SummaryCards summary={liveSummary} lc={lc} />
 
       {/* Filter toolbar */}
       <div className="toolbar">
@@ -517,14 +581,14 @@ export function LeaveQueueClient({
           type="button"
           className="btn"
           style={{ background: "var(--primary)", color: "#fff" }}
-          onClick={() => setRequestModal("proxy")}
+          onClick={() => setRequestModal({ mode: "proxy" })}
         >
           <Ic>
             <UserPlus />
           </Ic>
           {lc.btnProxyRequest}
         </button>
-        <button type="button" className="btn btn--ghost" onClick={() => setRequestModal("self")}>
+        <button type="button" className="btn btn--ghost" onClick={() => setRequestModal({ mode: "self" })}>
           <Ic>
             <CalendarPlus />
           </Ic>
@@ -582,10 +646,7 @@ export function LeaveQueueClient({
                   <tr key={item.id} className={rowClass} onClick={() => setSelectedId(item.id)}>
                     <td style={{ paddingLeft: 16 }}>
                       <div className="who">
-                        <span
-                          className="uhead__av"
-                          style={{ background: "var(--primary)", width: 34, height: 34, borderRadius: 9 }}
-                        >
+                        <span className="avatar" style={{ background: "var(--primary)", color: "#fff" }}>
                           {item.avatarInitial || initial(item.applicantName)}
                         </span>
                         <div>
@@ -654,7 +715,8 @@ export function LeaveQueueClient({
 
       {requestModal ? (
         <LeaveRequestModal
-          mode={requestModal}
+          mode={requestModal.mode}
+          prefillDate={requestModal.date}
           applicants={applicants}
           currentUserId={currentUserId}
           currentUserName={currentUserName}
@@ -687,11 +749,11 @@ function LeavePanel({
   dictionary: Dictionary;
   localeTag: string;
   onClose: () => void;
-  onResolved: (msg: string) => void;
+  onResolved: (msg: string, resolvedId?: string, resolvedStatus?: LeaveStatus) => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
-  const [modal, setModal] = useState<"reject" | null>(null);
+  const [modal, setModal] = useState<"reject" | "cancel" | null>(null);
   const [detail, setDetail] = useState<LeaveApprovalDetail | null>(null);
   const [status, setStatus] = useState<LeaveQueueItem["status"]>(item.status);
   const panelRef = useAdminPanelA11y<HTMLElement>(onClose, { disabled: modal !== null });
@@ -714,7 +776,7 @@ function LeavePanel({
       const res = await approveLeaveRequestAction(item.id);
       if (res.ok) {
         setStatus("approved");
-        onResolved(lc.actionDoneApprove);
+        onResolved(lc.actionDoneApprove, item.id, "approved");
         onClose();
       } else {
         setErr(errLabel(res.error, lc));
@@ -729,7 +791,22 @@ function LeavePanel({
       if (res.ok) {
         setModal(null);
         setStatus("rejected");
-        onResolved(lc.actionDoneReject);
+        onResolved(lc.actionDoneReject, item.id, "rejected");
+        onClose();
+      } else {
+        setErr(errLabel(res.error, lc));
+      }
+    });
+  }
+
+  function submitCancel(reason: string) {
+    setErr(null);
+    startTransition(async () => {
+      const res = await cancelApprovedLeaveAction(item.id, reason.trim() || undefined);
+      if (res.ok) {
+        setModal(null);
+        setStatus("cancelled");
+        onResolved(lc.actionDoneCancel, item.id, "cancelled");
         onClose();
       } else {
         setErr(errLabel(res.error, lc));
@@ -754,7 +831,7 @@ function LeavePanel({
           </div>
           <div className="panel__title">
             <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="uhead__av" style={{ background: "var(--primary)" }}>
+              <span className="avatar" style={{ background: "var(--primary)", color: "#fff" }}>
                 {item.avatarInitial || initial(item.applicantName)}
               </span>
               <span>
@@ -895,10 +972,7 @@ function LeavePanel({
                       const op = statusPill(o.status, lc);
                       return (
                         <div className="cvrow" key={i}>
-                          <span
-                            className="uhead__av"
-                            style={{ background: "var(--primary)", width: 30, height: 30, borderRadius: 8, fontSize: 12 }}
-                          >
+                          <span className="avatar" style={{ background: "var(--primary)", color: "#fff" }}>
                             {o.avatarInitial || initial(o.applicantName)}
                           </span>
                           <div className="cvrow__b">
@@ -995,6 +1069,22 @@ function LeavePanel({
             </button>
           </div>
         ) : null}
+        {status === "approved" ? (
+          <div className="panel__foot">
+            <button
+              type="button"
+              className="btn btn--danger-ghost"
+              style={{ flex: 1 }}
+              onClick={() => setModal("cancel")}
+              disabled={pending}
+            >
+              <Ic>
+                <Ban />
+              </Ic>
+              {pending ? lc.actionCancelling : lc.panelBtnCancelApproval}
+            </button>
+          </div>
+        ) : null}
       </aside>
 
       {modal === "reject" ? (
@@ -1008,6 +1098,21 @@ function LeavePanel({
           errorText={err}
           danger
           onConfirm={submitReject}
+          onCancel={() => setModal(null)}
+        />
+      ) : null}
+
+      {modal === "cancel" ? (
+        <AdminReasonModal
+          title={lc.panelBtnCancelApproval}
+          description={lc.promptCancelReason}
+          placeholder={lc.dialogReasonPlaceholder}
+          confirmLabel={pending ? lc.actionCancelling : lc.panelBtnCancelApproval}
+          cancelLabel={lc.dialogCancel}
+          pending={pending}
+          errorText={err}
+          danger
+          onConfirm={submitCancel}
           onCancel={() => setModal(null)}
         />
       ) : null}

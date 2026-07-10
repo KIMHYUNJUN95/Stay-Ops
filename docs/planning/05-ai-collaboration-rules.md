@@ -122,6 +122,25 @@ All assistants must treat the project workflow as an implementation contract, no
 - Bottom sheets must use the shared iPhone-style dismissal pattern: drag down from the top touch area / handle, or tap the empty scrim area to dismiss.
 - Mixed visual quality between mobile tabs is not acceptable. If consistency is not achieved, the task is incomplete.
 
+### Mandatory Admin Dashboard Design Consistency (Hard Rule)
+
+- This rule is mandatory and non-optional.
+- Any change to `/admin/*` must preserve one coherent desktop operations-console system.
+- Repeated admin-dashboard patterns are shared contracts, not page-specific inventions.
+- Calendar chrome, date pickers, month/week navigation, filter bars, search rows, summary cards, tables,
+  status chips, action bars, empty states, loading states, error states, pagination, and right detail
+  panels must stay visually and interaction-wise unified across dashboard pages.
+- If a page needs a new shared pattern, define it for reuse and extend the dashboard language; do not
+  create a one-off page-only control set when an existing pattern can be adapted.
+- Calendar/date-selection UX must be especially consistent across attendance, reservations, roster,
+  payroll, and any future admin pages. The same concept should not appear with different structure,
+  spacing, or interaction rules unless there is an explicit documented reason.
+- Multilingual support is part of the design contract. Shared dashboard components must be checked for
+  `ko`, `ja`, and `en`, including longer labels in table headers, date controls, filter buttons, empty
+  states, and action areas.
+- Mixed density, inconsistent spacing, and page-by-page divergence in core admin controls are treated as
+  incomplete work.
+
 ## Data and Permission Principles
 
 - Every business record must belong to an organization.

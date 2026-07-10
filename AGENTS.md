@@ -117,34 +117,63 @@ If shared mobile shell behavior changes, also review and update:
 - `docs/planning/04-project-workflow.md`
 - `docs/planning/06-current-status.md`
 
-### 4. Respect Supabase client boundaries
+### 4. Admin dashboard shared design contract
+
+For `/admin/*`, treat repeated desktop-console patterns as a shared contract, not page-by-page custom UI.
+
+- Do not redesign common admin dashboard primitives separately on each page.
+- Repeated patterns such as calendar chrome, date pickers, month/week navigation, filter bars, search inputs,
+  summary cards, tables, status badges, empty states, loading states, error states, action bars, pagination,
+  and right-side detail panels must stay visually and interaction-wise unified across the dashboard.
+- If a page introduces a new shared pattern, define it in a way that can be reused by later admin pages
+  instead of making a one-off layout.
+- Calendar-related controls must stay especially consistent: the same date-selection concept should not look
+  or behave differently between attendance, reservations, roster, payroll, or other admin pages without an
+  explicit documented reason.
+- Do not create feature-specific date pickers, calendar headers, filter rows, or table action areas when an
+  existing dashboard pattern can be extended.
+- Shared admin dashboard primitives live in `src/components/admin/shared`. Reuse or extend these first
+  for month/date/time pickers, chip filters, reason modals, and side-panel behavior before adding a
+  feature-local equivalent.
+- Admin pages should feel like one coherent operations console. Mixed visual density, inconsistent spacing,
+  or different control metaphors between dashboard pages are treated as incomplete work.
+- Multilingual support is part of this contract: shared dashboard components must be checked against `ko`,
+  `ja`, and `en`, including longer labels, button widths, date labels, table headers, and empty-state text.
+
+If shared admin dashboard behavior or structure changes, also review and update:
+
+- `docs/product/05-admin-web-ia.md`
+- `docs/planning/01-decision-log.md`
+- `docs/planning/06-current-status.md`
+
+### 5. Respect Supabase client boundaries
 
 - Do not mix browser and server Supabase usage carelessly.
 - Never expose `SUPABASE_SERVICE_ROLE_KEY` to client code.
 - Keep service-role usage in server-only paths.
 - When auth routing changes, inspect `middleware.ts` carefully.
 
-### 5. Organization isolation and permissions are server concerns
+### 6. Organization isolation and permissions are server concerns
 
 - All business records are organization-scoped by default.
 - Do not rely on UI-only permission checks.
 - Enforce access in server actions, queries, and RLS-compatible logic.
 - Existing role rules such as part-time restrictions and office-level order processing are intentional. Verify before changing.
 
-### 6. Tokyo timezone matters
+### 7. Tokyo timezone matters
 
 This project uses Tokyo operating dates in several important flows.
 
 - Do not casually use raw UTC date slicing for operational logic.
 - Review existing patterns before changing cleaning dates, calendar logic, or order delivery dates.
 
-### 7. Upload and storage rules are not arbitrary
+### 8. Upload and storage rules are not arbitrary
 
 - Image upload limit is generally 5 files per feature.
 - Client-side compression is part of the current policy.
 - Storage path validation and RLS expectations already exist. Do not bypass them casually.
 
-### 8. Deletion policy is sensitive
+### 9. Deletion policy is sensitive
 
 - MVP user-triggered deletion is hard delete by default.
 - Keep confirmation UX for destructive actions.

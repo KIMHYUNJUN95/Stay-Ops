@@ -4,6 +4,7 @@ import type { AppMode } from "@/config/routes";
 import { canAccessAdminWeb } from "@/config/roles";
 import type { Role } from "@/config/roles";
 import { getDictionary, type Locale } from "@/lib/i18n";
+import type { ProfileGender } from "@/lib/onboarding";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 export type OrganizationSummary = {
@@ -15,6 +16,8 @@ export type SessionUser = {
   id: string;
   name: string;
   email: string;
+  birthDate: string | null;
+  gender: ProfileGender | null;
   phoneNumber: string;
   preferredLanguage: Locale;
   role: Role;
@@ -40,6 +43,8 @@ type ActiveMembership = {
 };
 
 type CurrentProfile = {
+  birth_date: string | null;
+  gender: ProfileGender | null;
   name: string;
   phone_number: string;
   preferred_language: Locale;
@@ -63,7 +68,9 @@ export const mockSession: AppSession = {
     id: "user_sarah_jenkins",
     name: "Sarah Jenkins",
     email: "sarah.jenkins@example.com",
+    birthDate: "1992-03-14",
     phoneNumber: "+81 90-0000-0000",
+    gender: "female",
     preferredLanguage: "ko",
     role: "office_admin",
     preferredMode: "admin",
@@ -104,12 +111,27 @@ export const getCurrentAppSession = cache(
 
     const { data: profileResult, error: profileError } = await supabase
       .from("profiles")
-      .select("id, name, phone_number, preferred_language")
+      .select("id, name, birth_date, gender, phone_number, preferred_language")
       .eq("id", user.id)
       .maybeSingle();
-    const profile = profileResult as CurrentProfile | null;
+    let profile = profileResult as CurrentProfile | null;
 
-    if (profileError || !profile) {
+    if (profileError) {
+      const { data: fallbackProfile, error: fallbackProfileError } = await supabase
+        .from("profiles")
+        .select("id, name, birth_date, phone_number, preferred_language")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (fallbackProfileError || !fallbackProfile) {
+        return null;
+      }
+      profile = {
+        ...(fallbackProfile as Omit<CurrentProfile, "gender">),
+        gender: null,
+      };
+    }
+
+    if (!profile) {
       return null;
     }
 
@@ -178,6 +200,8 @@ export const getCurrentAppSession = cache(
         id: user.id,
         name: profile.name,
         email: user.email ?? "",
+        birthDate: profile.birth_date,
+        gender: profile.gender,
         phoneNumber: profile.phone_number,
         preferredLanguage: profile.preferred_language,
         role,

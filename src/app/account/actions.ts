@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sanitizeBottomNavTabIds } from "@/config/navigation";
 import { isLocale } from "@/lib/i18n";
-import { isValidBirthDate, isValidPhone } from "@/lib/onboarding";
+import { isProfileGender, isValidBirthDate, isValidPhone } from "@/lib/onboarding";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
@@ -65,6 +65,7 @@ export async function updateAccountProfile(formData: FormData) {
   const mode = String(formData.get("mode") ?? "admin");
   const name = String(formData.get("name") ?? "").trim();
   const birthDate = String(formData.get("birthDate") ?? "").trim();
+  const gender = String(formData.get("gender") ?? "").trim();
   const phoneNumber = String(formData.get("phoneNumber") ?? "").trim();
   const preferredLanguage = String(formData.get("preferredLanguage") ?? "");
 
@@ -74,6 +75,10 @@ export async function updateAccountProfile(formData: FormData) {
 
   if (!phoneNumber) {
     toAccountRedirect(mode, "error=missing_profile_fields");
+  }
+
+  if (!isProfileGender(gender)) {
+    toAccountRedirect(mode, "error=missing_gender");
   }
 
   if (!isValidPhone(phoneNumber)) {
@@ -88,6 +93,7 @@ export async function updateAccountProfile(formData: FormData) {
     .from("profiles")
     .update({
       name,
+      gender,
       ...(birthDate ? { birth_date: birthDate } : {}),
       phone_number: phoneNumber,
       preferred_language: preferredLanguage,

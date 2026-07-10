@@ -1,0 +1,79 @@
+import { CircleAlert } from "lucide-react";
+import { AdminShell } from "@/components/shell/admin-shell";
+import { AttendanceSubnav } from "@/components/admin/attendance/attendance-subnav";
+import { AttendanceStaffDetail } from "@/components/admin/attendance/attendance-staff-detail";
+import {
+  currentTokyoYm,
+  getAdminAttendanceBadgeStats,
+  getAdminStaffDetail,
+} from "@/lib/admin-attendance";
+import { requireAdminPageSession } from "@/lib/admin-page-auth";
+import { getDictionary } from "@/lib/i18n";
+
+// Admin · Attendance · Staff Detail (Slice 6).
+// Per-user monthly detail page wired to `getAdminStaffDetail` — header KPIs,
+// daily session ledger (click → side panel), payroll + transport summary cards.
+// Month is controlled by the shared attendance subnav picker.
+export default async function AdminAttendanceStaffPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ userId: string }>;
+  searchParams: Promise<{ ym?: string }>;
+}) {
+  const [p, q] = await Promise.all([params, searchParams]);
+  const session = await requireAdminPageSession({
+    nextPath: `/admin/attendance/staff/${p.userId}`,
+  });
+
+  const locale = session.user.preferredLanguage;
+  const dictionary = getDictionary(locale);
+  const c = dictionary.admin.attendanceConsole;
+  const localeTag = locale === "ko" ? "ko-KR" : locale === "ja" ? "ja-JP" : "en-US";
+  const requestedYm =
+    typeof q.ym === "string" && /^\d{4}-\d{2}$/.test(q.ym) ? q.ym : currentTokyoYm();
+
+  const [badgeStats, detail] = await Promise.all([
+    getAdminAttendanceBadgeStats(session, requestedYm),
+    getAdminStaffDetail(session, p.userId, requestedYm, localeTag),
+  ]);
+
+  const title = c.staffPageTitle(detail.user.name, detail.monthLabel);
+
+  return (
+    <AdminShell activeItem="attendance" title={title}>
+      <AttendanceSubnav
+        active="payroll"
+        monthLabel={detail.monthLabel}
+        c={c}
+        ym={detail.ym}
+        localeTag={localeTag}
+        monthPickerBasePath={`/admin/attendance/staff/${p.userId}`}
+        badges={{
+          queue: {
+            n: badgeStats.queueOpen,
+            urgent: badgeStats.queueUrgent > 0,
+          },
+          payroll: { n: badgeStats.payrollTargets },
+          transport: { n: badgeStats.transportPending },
+        }}
+      />
+
+      {detail.isPrivileged ? (
+        <AttendanceStaffDetail data={detail} locale={locale} localeTag={localeTag} />
+      ) : (
+        <div className="card">
+          <div className="state">
+            <span className="state__ic empty">
+              <span className="ic">
+                <CircleAlert />
+              </span>
+            </span>
+            <div className="state__t">{c.payNoDataTitle}</div>
+            <div className="state__s">{c.payNoDataBody}</div>
+          </div>
+        </div>
+      )}
+    </AdminShell>
+  );
+}

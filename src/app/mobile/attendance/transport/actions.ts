@@ -39,7 +39,9 @@ function untyped(service: Service) {
   };
 }
 
-const EDITABLE_STATUSES = new Set(["draft", "rejected"]);
+// A report is editable by its owner while draft/rejected, and also while `changes_requested` — that
+// state exists precisely so the worker can fix the flagged items and resubmit.
+const EDITABLE_STATUSES = new Set(["draft", "rejected", "changes_requested"]);
 
 /** Convert a 'YYYY-MM' month key to the 'YYYY-MM-01' first-day form used by target_month. */
 function monthKeyToFirstDay(targetMonth: string): string | null {

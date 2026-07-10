@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { backfillBeds24Reservations } from "@/lib/beds24/reservations-backfill";
+import { isBeds24SyncPaused } from "@/lib/beds24/sync-control";
 import { recordBeds24ReconciliationEvent } from "@/lib/beds24/webhook-events";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
@@ -53,6 +54,10 @@ function isUuid(value: string | null) {
 }
 
 async function handle(request: NextRequest) {
+  if (isBeds24SyncPaused()) {
+    return NextResponse.json({ ok: true, paused: true }, { status: 202 });
+  }
+
   const auth = authorize(request);
   if (!auth.ok) {
     return NextResponse.json({ ok: false, error: auth.status === 404 ? "not_found" : "forbidden" }, { status: auth.status });

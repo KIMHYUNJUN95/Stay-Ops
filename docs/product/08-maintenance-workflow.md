@@ -143,7 +143,14 @@ Maintenance requests can be created from:
 - Quick action on mobile home
 - Active cleaning timer
 - Admin web
-- Calendar/reservation context later if useful
+- Reservation calendar linked action (`/mobile/maintenance/new?reservationId=...`)
+
+Implementation note (2026-07-09):
+- The reservation-calendar linked action is now implemented.
+- When entered from `/admin/calendar`, the mobile form pre-fills the building / room / guest
+  context from the linked reservation and stores `reservation_id` when the submitted room context
+  still matches that reservation server-side.
+- Standalone manual creation still works without any reservation context.
 
 ## Visibility
 

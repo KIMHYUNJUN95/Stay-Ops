@@ -14,26 +14,23 @@ import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 const statusBadgeClass: Record<LostItemStatus, string> = {
-  registered:
-    "border-blue-200 bg-blue-50 text-blue-700",
-  stored:
-    "border-amber-200 bg-amber-50 text-amber-700",
-  disposal_scheduled:
-    "border-orange-200 bg-orange-50 text-orange-700",
+  registered: "border-blue-200 bg-blue-50 text-blue-700",
+  stored: "border-amber-200 bg-amber-50 text-amber-700",
+  disposal_scheduled: "border-orange-200 bg-orange-50 text-orange-700",
   disposed: "border-border bg-muted/50 text-muted-foreground",
 };
 const DETAIL_CARD =
   "rounded-[24px] border border-slate-200/80 bg-surface shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]";
 
 type ListFilterQuery = {
-  created?: string;
-  scope?: string;
-  type?: string;
-  status?: string;
   building?: string;
+  created?: string;
   date?: string;
-  startDate?: string;
   endDate?: string;
+  scope?: string;
+  startDate?: string;
+  status?: string;
+  type?: string;
 };
 
 type PageProps = {
@@ -60,9 +57,7 @@ export default async function MobileLostItemDetailPage({ params, searchParams }:
   ]);
 
   if (state.status === "unauthenticated") {
-    redirect(
-      `/auth/login?next=${encodeURIComponent(`/mobile/requests/lost-found/${id}`)}`,
-    );
+    redirect(`/auth/login?next=${encodeURIComponent(`/mobile/requests/lost-found/${id}`)}`);
   }
   if (state.status !== "ready" || !session) {
     redirect("/onboarding");
@@ -88,6 +83,7 @@ export default async function MobileLostItemDetailPage({ params, searchParams }:
     item.room_label,
     roomCatalog,
     dictionary.cleaning.buildingLabels,
+    item.property_name,
   );
   const currentStatusIdx = lostItemStatuses.indexOf(item.status);
   const showCreatedBanner = query.created === "1";
@@ -136,9 +132,35 @@ export default async function MobileLostItemDetailPage({ params, searchParams }:
             </div>
             <div className="flex items-start justify-between gap-3 text-sm">
               <dt className="font-semibold text-muted-foreground">{copy.reporter}</dt>
-              <dd className="text-right font-black">{item.reporter_name || "—"}</dd>
+              <dd className="text-right font-black">{item.reporter_name || "-"}</dd>
             </div>
           </dl>
+
+          {item.reservation_id || item.guest_name ? (
+            <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/82 p-3.5 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)]">
+              <p className="text-xs font-semibold text-muted-foreground">
+                {dictionary.tasks.contextLinkedSection}
+              </p>
+              <dl className="mt-2 space-y-2 text-sm">
+                {item.guest_name ? (
+                  <div className="flex items-start justify-between gap-3">
+                    <dt className="font-semibold text-muted-foreground">
+                      {dictionary.admin.calendar.guestName}
+                    </dt>
+                    <dd className="text-right font-black">{item.guest_name}</dd>
+                  </div>
+                ) : null}
+                {item.reservation_id ? (
+                  <div className="flex items-start justify-between gap-3">
+                    <dt className="font-semibold text-muted-foreground">
+                      {dictionary.mobile.calendarReservationId}
+                    </dt>
+                    <dd className="font-mono text-[11px] font-semibold">{item.reservation_id}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            </div>
+          ) : null}
 
           {item.memo ? (
             <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/82 p-3.5 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)]">
@@ -176,9 +198,7 @@ export default async function MobileLostItemDetailPage({ params, searchParams }:
                 key={s}
                 className={cn(
                   "flex-1 text-center text-[10px] font-semibold leading-tight",
-                  s === item.status
-                    ? "text-foreground"
-                    : "text-muted-foreground/40",
+                  s === item.status ? "text-foreground" : "text-muted-foreground/40",
                 )}
               >
                 {copy.statusLabels[s]}

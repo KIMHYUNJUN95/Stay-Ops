@@ -1,55 +1,60 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Info, Shield } from "lucide-react";
-import type { Dictionary } from "@/lib/i18n";
+import { getDictionary, type Dictionary, type Locale } from "@/lib/i18n";
+import type { AdminApproverMember } from "@/lib/annual-leave-admin-server";
+import { setLeaveApproverAction } from "@/app/admin/attendance/leave/actions";
 
 type Lc = Dictionary["admin"]["leaveConsole"];
 
-/** Static mock (design-only view — no Supabase/server-action wiring). Mirrors .handoff/src/leave-data.js MEMBERS shape. */
-type MockMember = {
-  id: string;
-  name: string;
-  initial: string;
-  bg: string;
-  role: string;
-  dept: string;
-  self?: boolean;
-  locked?: boolean;
-};
+function roleLabel(role: string | null, dictionary: Dictionary): string {
+  if (!role) return "—";
+  const map = dictionary.roles as Record<string, string>;
+  return map[role] ?? role;
+}
 
-const MOCK_MEMBERS: MockMember[] = [
-  { id: "ceo", name: "김현준", initial: "김", bg: "var(--primary)", role: "대표 · 최고 관리자", dept: "경영", self: true, locked: true },
-  { id: "smd", name: "모리 다이스케", initial: "모", bg: "#7a5ea8", role: "전무", dept: "경영" },
-  { id: "ito", name: "이토 카즈야", initial: "이", bg: "#7a5ea8", role: "운영 매니저", dept: "신주쿠 아넥스" },
-  { id: "nakamura", name: "나카무라 아오이", initial: "나", bg: "#4d6db5", role: "프론트 매니저", dept: "아라키초 A" },
-  { id: "oh", name: "오세훈", initial: "오", bg: "#3f7d5a", role: "하우스키핑 리드", dept: "아라키초 B" },
-  { id: "watanabe", name: "와타나베 소라", initial: "와", bg: "#557a8a", role: "시설 관리", dept: "아라키초 B" },
-];
+export function LeaveApproversView({
+  lc,
+  locale,
+  members,
+  onToast,
+}: {
+  lc: Lc;
+  locale: Locale;
+  members: AdminApproverMember[];
+  onToast: (msg: string) => void;
+}) {
+  const dictionary = getDictionary(locale);
+  const [approverIds, setApproverIds] = useState<Set<string>>(
+    () => new Set(members.filter((m) => m.isApprover).map((m) => m.userId)),
+  );
+  const [pending, startTransition] = useTransition();
 
-const INITIAL_APPROVER_IDS = new Set(["ceo", "smd"]);
+  const activeApprovers = members.filter((m) => approverIds.has(m.userId));
 
-export function LeaveApproversView({ lc, onToast }: { lc: Lc; onToast: (msg: string) => void }) {
-  const [approverIds, setApproverIds] = useState<Set<string>>(new Set(INITIAL_APPROVER_IDS));
-
-  const activeApprovers = MOCK_MEMBERS.filter((m) => approverIds.has(m.id));
-
-  function toggle(member: MockMember) {
-    if (member.locked) return;
-    const isApprover = approverIds.has(member.id);
+  function toggle(member: AdminApproverMember) {
+    if (member.locked || pending) return;
+    const isApprover = approverIds.has(member.userId);
     if (isApprover && approverIds.size <= 1) {
       onToast(lc.approversToastMinRequired);
       return;
     }
+    // optimistic — revert on server error
     const next = new Set(approverIds);
-    if (isApprover) {
-      next.delete(member.id);
-      onToast(lc.approversToastRevoked(member.name));
-    } else {
-      next.add(member.id);
-      onToast(lc.approversToastGranted(member.name));
-    }
+    if (isApprover) next.delete(member.userId);
+    else next.add(member.userId);
     setApproverIds(next);
+
+    startTransition(async () => {
+      const res = await setLeaveApproverAction({ userId: member.userId, isApprover: !isApprover });
+      if (res.ok) {
+        onToast(isApprover ? lc.approversToastRevoked(member.name) : lc.approversToastGranted(member.name));
+      } else {
+        setApproverIds(approverIds); // revert
+        onToast(res.error === "min_one_approver" ? lc.approversToastMinRequired : lc.approversToastError);
+      }
+    });
   }
 
   return (
@@ -74,11 +79,8 @@ export function LeaveApproversView({ lc, onToast }: { lc: Lc; onToast: (msg: str
         </div>
         <div className="apbanner__who">
           {activeApprovers.map((m) => (
-            <span className="apchip" key={m.id}>
-              <span
-                className="uhead__av"
-                style={{ background: m.bg, width: 22, height: 22, borderRadius: 6, fontSize: 10.5 }}
-              >
+            <span className="apchip" key={m.userId}>
+              <span className="avatar" style={{ background: m.bg, color: "#fff" }}>
                 {m.initial}
               </span>
               {m.name}
@@ -98,16 +100,13 @@ export function LeaveApproversView({ lc, onToast }: { lc: Lc; onToast: (msg: str
             </tr>
           </thead>
           <tbody>
-            {MOCK_MEMBERS.map((m) => {
-              const isApprover = approverIds.has(m.id);
+            {members.map((m) => {
+              const isApprover = approverIds.has(m.userId);
               return (
-                <tr key={m.id}>
+                <tr key={m.userId}>
                   <td style={{ paddingLeft: 16 }}>
                     <div className="who">
-                      <span
-                        className="uhead__av"
-                        style={{ background: m.bg, width: 34, height: 34, borderRadius: 9, fontSize: 13 }}
-                      >
+                      <span className="avatar" style={{ background: m.bg, color: "#fff" }}>
                         {m.initial}
                       </span>
                       <div>
@@ -115,11 +114,11 @@ export function LeaveApproversView({ lc, onToast }: { lc: Lc; onToast: (msg: str
                           {m.name}
                           {m.self ? <span className="selftag"> {lc.approversSelfTag}</span> : null}
                         </div>
-                        <div className="who__sub">{m.role}</div>
+                        <div className="who__sub">{roleLabel(m.role, dictionary)}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="dim-cell">{m.dept}</td>
+                  <td className="dim-cell">—</td>
                   <td>
                     {isApprover ? (
                       <span className="pill pill--done">

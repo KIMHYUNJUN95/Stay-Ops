@@ -6,7 +6,7 @@ type ExportCsvLinkProps = {
   label: string;
   resource: AdminExportResource;
   searchParams: Record<string, string | undefined>;
-  variant?: "primary" | "secondary" | "ghost" | "glass";
+  variant?: "primary" | "secondary" | "ghost" | "glass" | "toolbar";
 };
 
 export function ExportCsvLink({
@@ -32,6 +32,8 @@ export function ExportCsvLink({
     ghost: "text-muted-foreground hover:bg-muted hover:text-foreground",
     glass:
       "border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.64)_0%,rgba(255,255,255,0.40)_100%)] text-neutral-900 shadow-[0_16px_24px_-14px_rgba(15,23,42,0.34)] backdrop-blur-xl hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.74)_0%,rgba(255,255,255,0.50)_100%)]",
+    toolbar:
+      "h-9 rounded-[10px] border border-border bg-card px-3.5 text-[12px] font-extrabold text-foreground shadow-[0_8px_20px_-20px_rgba(20,32,43,0.24)] hover:bg-surface",
   } as const;
 
   return (

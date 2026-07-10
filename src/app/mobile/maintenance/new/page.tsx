@@ -9,15 +9,28 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getDictionary } from "@/lib/i18n";
 import { getOnboardingState } from "@/lib/onboarding";
+import {
+  getCanonicalPropertyName,
+  getCanonicalRoomLabel,
+} from "@/lib/room-label-normalization";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/database";
 
 type PageProps = {
   searchParams: Promise<{
     error?: string;
+    reservationId?: string;
     sessionId?: string;
   }>;
+};
+
+type ReservationPrefill = {
+  guestName: string;
+  propertyName: string;
+  reservationId: string;
+  roomLabel: string;
 };
 
 export default async function MaintenanceNewPage({ searchParams }: PageProps) {
@@ -29,9 +42,11 @@ export default async function MaintenanceNewPage({ searchParams }: PageProps) {
 
   if (state.status === "unauthenticated") {
     const basePath = "/mobile/maintenance/new";
-    const targetPath = params.sessionId
-      ? `${basePath}?sessionId=${encodeURIComponent(params.sessionId)}`
-      : basePath;
+    const targetParams = new URLSearchParams();
+    if (params.sessionId) targetParams.set("sessionId", params.sessionId);
+    if (params.reservationId) targetParams.set("reservationId", params.reservationId);
+    const targetPath =
+      targetParams.size > 0 ? `${basePath}?${targetParams.toString()}` : basePath;
     redirect(`/auth/login?next=${encodeURIComponent(targetPath)}`);
   }
   if (state.status !== "ready" || !session) {
@@ -47,35 +62,62 @@ export default async function MaintenanceNewPage({ searchParams }: PageProps) {
   const copy = dict.maintenance;
   const imgCopy = dict.requestImages;
 
-  // Distinguish: no sessionId (standalone) vs sessionId provided (linked mode).
   const isLinkedMode = !!params.sessionId;
   let linkedSessionValid = false;
   let defaultRoom = "";
   let cleaningSessionId = "";
+  let reservationPrefill: ReservationPrefill | null = null;
+
+  const supabase = await getSupabaseServerClient();
 
   if (isLinkedMode) {
-    const supabase = await getSupabaseServerClient();
     const { data } = await supabase
       .from("cleaning_sessions")
       .select("id, room_label")
       .eq("id", params.sessionId!)
       .eq("organization_id", session.organization.id)
       .eq("staff_user_id", session.user.id)
-      // No status filter: accept any session (in_progress or completed) so the link is
-      // preserved even when the user finishes cleaning before submitting the form.
       .maybeSingle();
+
     const linked = data as { id: string; room_label: string } | null;
     if (linked) {
       linkedSessionValid = true;
       defaultRoom = linked.room_label;
       cleaningSessionId = linked.id;
     }
-    // If linked is null: session not found, wrong user, or wrong org → show error state.
+  }
+
+  if (params.reservationId) {
+    const { data } = await supabase
+      .from("reservations")
+      .select("id, guest_name, property_name, room_label")
+      .eq("id", params.reservationId)
+      .eq("organization_id", session.organization.id)
+      .maybeSingle();
+
+    const linkedReservation = data as Pick<
+      Database["public"]["Tables"]["reservations"]["Row"],
+      "id" | "guest_name" | "property_name" | "room_label"
+    > | null;
+
+    if (linkedReservation) {
+      const propertyName = getCanonicalPropertyName(linkedReservation.property_name);
+      const roomLabel =
+        getCanonicalRoomLabel(propertyName, linkedReservation.room_label) ??
+        linkedReservation.room_label.trim();
+
+      reservationPrefill = {
+        guestName: linkedReservation.guest_name,
+        propertyName,
+        reservationId: linkedReservation.id,
+        roomLabel,
+      };
+      defaultRoom = roomLabel;
+    }
   }
 
   const catalog = await getActiveRoomCatalogServer(session.organization.id);
 
-  // Field-level error from an action redirect (only relevant when form is visible).
   const errorMessage =
     !isLinkedMode || linkedSessionValid
       ? params.error
@@ -104,7 +146,43 @@ export default async function MaintenanceNewPage({ searchParams }: PageProps) {
           </div>
         </Card>
 
-        {/* Invalid linked session: show explicit error — do not fall back to standalone form. */}
+        {reservationPrefill ? (
+          <Card className="rounded-2xl p-4">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-primary">
+              {dict.tasks.contextLinkedSection}
+            </p>
+            <dl className="mt-3 space-y-2 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <dt className="font-semibold text-muted-foreground">
+                  {dict.cleaning.manualBuildingLabel}
+                </dt>
+                <dd className="font-black">
+                  {dict.cleaning.buildingLabels[reservationPrefill.propertyName] ??
+                    reservationPrefill.propertyName}
+                </dd>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <dt className="font-semibold text-muted-foreground">{copy.room}</dt>
+                <dd className="font-black">{reservationPrefill.roomLabel}</dd>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <dt className="font-semibold text-muted-foreground">
+                  {dict.admin.calendar.guestName}
+                </dt>
+                <dd className="font-black">{reservationPrefill.guestName}</dd>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <dt className="font-semibold text-muted-foreground">
+                  {dict.mobile.calendarReservationId}
+                </dt>
+                <dd className="font-mono text-xs font-semibold">
+                  {reservationPrefill.reservationId}
+                </dd>
+              </div>
+            </dl>
+          </Card>
+        ) : null}
+
         {isLinkedMode && !linkedSessionValid ? (
           <>
             <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
@@ -132,6 +210,9 @@ export default async function MaintenanceNewPage({ searchParams }: PageProps) {
                 copy={copy}
                 defaultRoom={defaultRoom}
                 imgCopy={imgCopy}
+                initialPropertyName={reservationPrefill?.propertyName ?? ""}
+                linkedGuestName={reservationPrefill?.guestName ?? ""}
+                linkedReservationId={reservationPrefill?.reservationId ?? ""}
                 organizationId={session.organization.id}
                 reporterName={session.user.name}
                 roomCatalog={catalog || []}
@@ -143,6 +224,9 @@ export default async function MaintenanceNewPage({ searchParams }: PageProps) {
                 copy={copy}
                 defaultRoom={defaultRoom}
                 imgCopy={imgCopy}
+                initialPropertyName={reservationPrefill?.propertyName ?? ""}
+                linkedGuestName={reservationPrefill?.guestName ?? ""}
+                linkedReservationId={reservationPrefill?.reservationId ?? ""}
                 organizationId={session.organization.id}
                 reporterName={session.user.name}
                 roomCatalog={catalog || []}

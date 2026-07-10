@@ -135,12 +135,18 @@ export default async function OnboardingPage({
           dobHint: o.steps.dobHint,
           dobSheetTitle: o.steps.dobSheetTitle,
           dobConfirm: o.steps.dobConfirm,
+          genderTitle: o.steps.genderTitle,
+          genderSubtitle: o.steps.genderSubtitle,
+          genderLabel: o.steps.genderLabel,
+          genderHint: o.steps.genderHint,
+          genderOptions: o.genderOptions,
           phoneTitle: o.steps.phoneTitle,
           phoneSubtitle: o.steps.phoneSubtitle,
           phoneNumLabel: o.steps.phoneNumLabel,
           phoneInputPlaceholder: o.steps.phoneInputPlaceholder,
           phoneHint: o.steps.phoneHint,
           phoneCountrySheetTitle: o.steps.phoneCountrySheetTitle,
+          phoneDuplicateHelp: o.phoneDuplicateHelp,
         }}
         countries={o.countries}
         join={{
@@ -169,6 +175,7 @@ export default async function OnboardingPage({
           subtitle: o.review.subtitle,
           rowName: o.review.rowName,
           rowDob: o.review.rowDob,
+          rowGender: o.review.rowGender,
           rowPhone: o.review.rowPhone,
           rowLang: o.review.rowLang,
           rowOrg: o.review.rowOrg,
@@ -197,6 +204,9 @@ export default async function OnboardingPage({
             birthDateLabel: o.birthDateLabel,
             birthDatePlaceholder: o.birthDatePlaceholder,
             birthDateHint: o.birthDateHint,
+            genderLabel: o.genderLabel,
+            genderPlaceholder: o.genderPlaceholder,
+            genderOptions: o.genderOptions,
             phoneLabel: o.phonePlaceholder,
             phonePlaceholder: o.phonePlaceholder,
             phoneHint: o.phoneHint,
@@ -210,8 +220,10 @@ export default async function OnboardingPage({
           safeNext,
           initialName: "",
           initialBirthDate: "",
+          initialGender: "",
           initialPhone: "",
         }}
+        showExitToLogin
       />
     );
   }
@@ -248,12 +260,18 @@ export default async function OnboardingPage({
           dobHint: o.steps.dobHint,
           dobSheetTitle: o.steps.dobSheetTitle,
           dobConfirm: o.steps.dobConfirm,
+          genderTitle: o.steps.genderTitle,
+          genderSubtitle: o.steps.genderSubtitle,
+          genderLabel: o.steps.genderLabel,
+          genderHint: o.steps.genderHint,
+          genderOptions: o.genderOptions,
           phoneTitle: o.steps.phoneTitle,
           phoneSubtitle: o.steps.phoneSubtitle,
           phoneNumLabel: o.steps.phoneNumLabel,
           phoneInputPlaceholder: o.steps.phoneInputPlaceholder,
           phoneHint: o.steps.phoneHint,
           phoneCountrySheetTitle: o.steps.phoneCountrySheetTitle,
+          phoneDuplicateHelp: o.phoneDuplicateHelp,
         }}
         countries={o.countries}
         join={{
@@ -282,6 +300,7 @@ export default async function OnboardingPage({
           subtitle: o.review.subtitle,
           rowName: o.review.rowName,
           rowDob: o.review.rowDob,
+          rowGender: o.review.rowGender,
           rowPhone: o.review.rowPhone,
           rowLang: o.review.rowLang,
           rowOrg: o.review.rowOrg,
@@ -310,6 +329,9 @@ export default async function OnboardingPage({
             birthDateLabel: o.birthDateLabel,
             birthDatePlaceholder: o.birthDatePlaceholder,
             birthDateHint: o.birthDateHint,
+            genderLabel: o.genderLabel,
+            genderPlaceholder: o.genderPlaceholder,
+            genderOptions: o.genderOptions,
             phoneLabel: o.phonePlaceholder,
             phonePlaceholder: o.phonePlaceholder,
             phoneHint: o.phoneHint,
@@ -323,9 +345,10 @@ export default async function OnboardingPage({
           safeNext,
           initialName: joinProfile.name,
           initialBirthDate: joinProfile.birthDate ?? "",
+          initialGender: joinProfile.gender ?? "",
           initialPhone: joinProfile.phoneNumber,
         }}
-        initialStep={4}
+        initialStep={5}
         allowInviteSkip={false}
         showExitToLogin
       />

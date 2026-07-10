@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { extractBeds24WebhookBookingCandidates } from "@/lib/beds24/booking-payload";
 import { processBeds24WebhookBooking } from "@/lib/beds24/process-webhook-booking";
+import { isBeds24SyncPaused } from "@/lib/beds24/sync-control";
 import { recordBeds24WebhookEvent } from "@/lib/beds24/webhook-events";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
@@ -13,6 +14,10 @@ function resolveWebhookSecret(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (isBeds24SyncPaused()) {
+    return NextResponse.json({ ok: true, paused: true }, { status: 202 });
+  }
+
   const requiredSecret = process.env.BEDS24_WEBHOOK_SECRET?.trim();
   if (requiredSecret) {
     const provided = resolveWebhookSecret(request);

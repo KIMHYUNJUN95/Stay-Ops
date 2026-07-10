@@ -96,6 +96,14 @@ Rules:
 - The suggested guest/reservation should be visible to the user for confirmation.
 - If the suggested guest/reservation is wrong or unavailable, the user should be able to edit or clear the link.
 
+Implementation note (2026-07-09):
+- The reservation-calendar linked entry is implemented via
+  `/mobile/lost-found/new?reservationId=...`.
+- In that path, the form opens with reservation-linked building / room / guest context already
+  filled and stores optional `property_name`, `reservation_id`, and `guest_name` snapshots.
+- The standalone direct lost-found form does **not yet** auto-suggest the latest checkout after
+  room selection; that broader suggestion flow remains future work.
+
 ### Retrieval
 
 The workflow needs retrieval tracking.

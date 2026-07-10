@@ -38,6 +38,17 @@ Important:
 
 Buttons can be hidden in the UI, but permissions must also be enforced server-side/database-side.
 
+**Permission-denied feedback (as-built, 2026-07-09).** When a server action rejects a call with
+`unauthorized`/`forbidden`, the client should tell the user why, not just show a generic failure
+message. Two shared components exist for this: `PermissionDeniedSheet`
+(`src/components/shell/permission-denied-sheet.tsx`, canonical `BottomSheet`) for `/mobile/*`, and
+`AdminToast`/`useAdminToast` (`src/components/admin/shared/admin-toast.tsx`, bottom-center toast) for
+`/admin/*`. Copy lives in `dictionary.common.permissionDeniedTitle`/`permissionDeniedBody` (ko/ja/en).
+Not every forbidden-returning action is wired to these yet — `DeleteConfirmButton` and
+`OrderActionBar` are (see decision log 2026-07-09); other screens (daily report, attendance approval
+queue, attendance correction form) already had their own equivalent messaging before this pass and
+were left as-is.
+
 ## Role Groups
 
 ## Platform
@@ -310,6 +321,12 @@ USING (
 )
 ```
 
+Additional implementation note (2026-07-09):
+- Reservation-linked maintenance creation may also set `reservation_id` / `guest_name`, but the
+  create path must first verify server-side that the linked reservation belongs to the same
+  organization and matches the submitted property / room context.
+- These extra context columns do not broaden who can read or mutate maintenance rows.
+
 ## lost_items
 
 Read:
@@ -344,6 +361,41 @@ Delete:
 - Hard delete.
 
 RLS pattern: same structure as `maintenance_requests` delete policy above.
+
+Additional implementation note (2026-07-09):
+- Reservation-linked lost-found creation may set `property_name` / `reservation_id` / `guest_name`
+  after the same organization-scoped reservation validation.
+- These snapshot columns are descriptive only and do not change lost-item access control.
+
+## reservation_internal_notes
+
+Platform override:
+
+- Platform admins
+
+Read:
+
+- All active organization members
+
+Create / update / delete:
+
+- Owner
+- Office Admin
+- CS Staff
+- Field Manager
+
+Blocked from write:
+
+- Staff
+- Part-time Staff
+
+Notes:
+- `reservation_internal_notes` is the admin reservation-calendar inspector memo table.
+- Read policy is `is_platform_admin()` OR `has_active_membership(organization_id)`.
+- Write policies keep the privileged operator scope:
+  `is_platform_admin()` OR `has_org_role(organization_id, ['owner','office_admin','cs_staff','field_manager'])`.
+- Notes are organization-scoped operational metadata and are never exposed as public reservation
+  data.
 
 ## order_requests
 
@@ -588,6 +640,12 @@ Read (SELECT) policies — "own rows, or org-wide for privileged admins" unless 
 - `attendance_session_audits`: **privileged admins only** (manager-side trail).
 - `employment_type_history` / `hourly_rate_history`: own rows (the monthly pay view shows the user their
   own type/rate segments) or privileged admin. Other users' wage figures never leak to non-admins.
+- `attendance_pay_allowances` (implemented 2026-07-10, migration `202607100001`): read-only RLS —
+  `has_active_membership(org) AND (target_user_id = auth.uid() OR can_manage_attendance_payroll(org))`.
+  Org-wide (`target_user_id IS NULL`) rows reach a worker only through the service-role monthly pay view,
+  never a direct client read. No write policies; `createAttendanceAllowance` / `cancelAttendanceAllowance`
+  (service-role, `isAttendancePayrollAdmin`-gated) perform all writes and reject changes to a finalized
+  user-month until it is reopened.
 - `attendance_month_snapshots`: own pay rows or privileged admin (finalization queue / dashboard).
 - `attendance_export_logs`: **privileged admins only**.
 
@@ -628,6 +686,24 @@ rows where `status = 'approved'`, org-wide — confirmed policy: the mobile leav
 employee's approved leave (including the viewer's own), but pending/rejected/draft/cancelled stay
 private (visible only via the existing self-or-approver policy). Combined with that policy, the net
 effect is: own rows (any status) + approver/admin rows (any status) + everyone's approved rows.
+
+**Membership permission overrides — schema only (2026-07-09, migration `202607090002`).**
+`membership_permission_overrides` is **read-only RLS, no write policies** (same service-role write
+boundary as attendance/transport/annual-leave above). Single SELECT policy
+`membership_permission_overrides_owner_admin_select`: `has_org_role(org, ['owner'])` OR
+`is_platform_admin()` — i.e. **only `owner` / `developer_super_admin` may read overrides**.
+`office_admin` cannot (unlike role changes, where it has partial authority). A self-view policy is an
+open question in `docs/product/27-permission-override-workflow.md` and is deliberately NOT added yet.
+INSERT/UPDATE/DELETE have no policies, so all grant/revoke goes through a future service-role server
+action (`service_role` bypasses RLS). A DB CHECK `granted_by_user_id <> user_id` blocks self-grant at
+the DB level (double defense).
+
+A new SECURITY DEFINER helper `has_permission_override(org, user, key)` (same shape as `has_org_role` /
+`is_leave_approver`) returns true iff an active grant exists (`revoked_at is null AND expires_at >
+now()`). It is **created but intentionally not referenced by any other table's policy** — a prepared
+building block. Feature adoption (adding `OR has_permission_override(...)` to a given table's existing
+`has_org_role(...)` policy) is out of scope for this migration and happens per-feature later. The
+feature UI and grant/revoke server actions are not implemented yet.
 
 **Step 2 (2026-06-17) — site/QR write path.** Site master + QR lifecycle writes go through the
 service-role helpers in `src/lib/attendance-sites.ts` (create/update/activate site, issue/reissue/revoke
@@ -694,6 +770,16 @@ pay only (no writes, no finalization). Org-wide compensation visibility remains 
 this step); other users' rate/history/pay never load. Employment/rate **management** writes (Step 9) are
 deferred (web dashboard); a dev-only seed route (`/api/dev/attendance/seed-pay`, gated like seed-login)
 exists for local testing.
+
+**Implemented — attendance allowances (2026-07-10, migration `202607100001`).**
+`attendance_pay_allowances` follows the same payroll-sensitive boundary: no direct authenticated writes,
+service-role server actions only (`createAttendanceAllowance` / `cancelAttendanceAllowance`), and
+server-side `isAttendancePayrollAdmin` enforcement for create/cancel. Self pay reads include only
+allowances applicable to the authenticated user's own monthly pay view (surfaced through the service-role
+`getMonthlyPayView`). Org-wide allowance management and payroll-panel visibility are limited to `owner` /
+`attendance_payroll_admin`. The server actions check finalized snapshots and reject allowance changes for
+a closed user-month (per-user for a targeted row, any-finalized for an org-wide row) unless that month is
+reopened first.
 
 **Step 11 (2026-06-18) — monthly finalization.** `finalizeAttendanceMonth` / `reopenAttendanceMonth`
 (`src/app/admin/attendance/actions.ts`, service-role) **enforce `isAttendancePayrollAdmin` server-side**;
@@ -849,3 +935,10 @@ AND status = 'submitted'
 - Should Field Manager be able to delete other users' records?
 - Should hard delete be blocked if a record has attachments?
 - Should some actions require server functions instead of direct table updates?
+## 2026-07-10 Property Operation Info Permissions
+
+`public.property_operation_infos`
+
+- `SELECT`: active organization members in the same org, plus platform/developer super admins
+- `INSERT / UPDATE / DELETE`: `owner`, `office_admin`, `cs_staff`, plus platform/developer super admins
+- purpose: shared calendar building metadata consumed by both admin and mobile reservation calendar

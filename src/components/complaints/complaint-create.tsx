@@ -1,21 +1,28 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import { useRef, useState, useTransition, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
-import "./complaints.css";
-import { CIc, CxIcon } from "./cx-icons";
-import { PlatformSource, PLATFORMS, ratingMax } from "./cx-platform";
-import { type PlatformKey, type LinkTarget } from "./complaint-mock";
-import type { ReservationPickRow } from "@/lib/complaint-reservations";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
-import { ImageLightbox } from "./image-lightbox";
-import { getDictionary, type Dictionary } from "@/lib/i18n";
 import {
   createComplaintAction,
   uploadComplaintImageAction,
 } from "@/app/mobile/complaints/actions";
+import { getDictionary, type Dictionary } from "@/lib/i18n";
+import type { ReservationPickRow } from "@/lib/complaint-reservations";
+import { ImageLightbox } from "./image-lightbox";
+import { type LinkTarget, type PlatformKey } from "./complaint-mock";
+import { CIc, CxIcon } from "./cx-icons";
+import { PlatformSource, PLATFORMS, ratingMax } from "./cx-platform";
+import "./complaints.css";
 
 const MAX_IMAGES = 5;
+
+function defaultRatingForPlatform(plat: PlatformKey | null) {
+  if (!plat) return 0;
+  const max = ratingMax(plat);
+  if (!max) return 0;
+  return max === 5 ? 2 : 4;
+}
 
 function RatingInput({
   plat,
@@ -25,21 +32,22 @@ function RatingInput({
 }: {
   plat: PlatformKey;
   value: number;
-  onChange: (v: number) => void;
+  onChange: (value: number) => void;
   dict: Dictionary;
 }) {
   const max = ratingMax(plat);
   if (!max) return <div className="cx-rate-none">{dict.complaints.ratingNone}</div>;
+
   return (
     <>
       <div className={`cx-rstars${max > 5 ? " ten" : ""}`}>
-        {Array.from({ length: max }).map((_, i) => (
+        {Array.from({ length: max }).map((_, index) => (
           <button
-            key={i}
+            key={index}
             type="button"
-            className={`cx-rstar${i < value ? " on" : ""}`}
-            onClick={() => onChange(i + 1)}
-            aria-label={`${i + 1}`}
+            className={`cx-rstar${index < value ? " on" : ""}`}
+            onClick={() => onChange(index + 1)}
+            aria-label={`${index + 1}`}
           >
             {CxIcon.star}
           </button>
@@ -52,61 +60,82 @@ function RatingInput({
   );
 }
 
-export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows: ReservationPickRow[] }) {
+export function ComplaintCreate({
+  initialLinked = null,
+  locale,
+  pickRows,
+}: {
+  initialLinked?: LinkTarget | null;
+  locale: string;
+  pickRows: ReservationPickRow[];
+}) {
   const dict = getDictionary(locale);
   const t = dict.complaints;
   const router = useRouter();
 
-  const [plat, setPlat] = useState<PlatformKey | null>(null);
-  const [rating, setRating] = useState(0);
-  const [linked, setLinked] = useState<LinkTarget | null>(null);
+  const [plat, setPlat] = useState<PlatformKey | null>(initialLinked?.plat ?? null);
+  const [rating, setRating] = useState(defaultRatingForPlatform(initialLinked?.plat ?? null));
+  const [linked, setLinked] = useState<LinkTarget | null>(initialLinked);
   const [showPicker, setShowPicker] = useState(false);
   const [search, setSearch] = useState("");
-  // 3단계 드릴다운: buildings → rooms → guests
   const [pickerStep, setPickerStep] = useState<"buildings" | "rooms" | "guests">("buildings");
   const [pickerProperty, setPickerProperty] = useState<string | null>(null);
   const [pickerRoom, setPickerRoom] = useState<string | null>(null);
-  const [guestName, setGuestName] = useState("");
+  const [guestName, setGuestName] = useState(
+    initialLinked?.guestName ?? initialLinked?.guest ?? "",
+  );
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
-  // 이미지 업로드용 draft ID — 업로드 전 서버에서 경로 확정에 필요
+
   const draftId = useRef(crypto.randomUUID()).current;
   const titleRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  function resetPickerState() {
+    setSearch("");
+    setPickerStep("buildings");
+    setPickerProperty(null);
+    setPickerRoom(null);
+  }
+
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
     if (!file) return;
-    const fd = new FormData();
-    fd.append("file", file);
-    // 파일 input 초기화 (같은 파일 재선택 허용)
-    e.target.value = "";
+
+    const formData = new FormData();
+    formData.append("file", file);
+    event.target.value = "";
+
     startTransition(async () => {
-      const result = await uploadComplaintImageAction(draftId, fd);
+      const result = await uploadComplaintImageAction(draftId, formData);
       if ("url" in result) {
-        setUploadedImages((prev) => [...prev, result.url]);
+        setUploadedImages((current) => [...current, result.url]);
       }
     });
   }
 
-  function handleRemoveImage(idx: number) {
-    setUploadedImages((prev) => prev.filter((_, i) => i !== idx));
+  function handleRemoveImage(index: number) {
+    setUploadedImages((current) => current.filter((_, currentIndex) => currentIndex !== index));
   }
 
   function handleSubmit() {
     startTransition(async () => {
-      const fd = new FormData();
-      fd.append("platform", plat ?? "other");
-      fd.append("title", titleRef.current?.value ?? "");
-      fd.append("description", bodyRef.current?.value ?? "");
-      if (rating > 0) fd.append("rating", String(rating));
-      uploadedImages.forEach((url, i) => fd.append(`image_${i}`, url));
-      if (linked?.reservationId) fd.append("reservation_id", linked.reservationId);
-      if (guestName.trim()) fd.append("guest_name", guestName.trim());
+      const formData = new FormData();
+      formData.append("platform", plat ?? "other");
+      formData.append("title", titleRef.current?.value ?? "");
+      formData.append("description", bodyRef.current?.value ?? "");
 
-      const result = await createComplaintAction(fd);
+      if (rating > 0) formData.append("rating", String(rating));
+      uploadedImages.forEach((url, index) => formData.append(`image_${index}`, url));
+
+      if (linked?.reservationId) formData.append("reservation_id", linked.reservationId);
+      if (linked?.propertyName) formData.append("property_name", linked.propertyName);
+      if (linked?.roomLabel) formData.append("room_label", linked.roomLabel);
+      if (guestName.trim()) formData.append("guest_name", guestName.trim());
+
+      const result = await createComplaintAction(formData);
       if ("id" in result) {
         router.push(`/mobile/complaints/${result.id}`);
       }
@@ -115,7 +144,6 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
 
   return (
     <div className="cx cx-create">
-      {/* Title */}
       <div className="cx-fsec">
         <div className="cx-fsec__h">
           {t.fieldTitle} <span className="req">{t.required}</span>
@@ -123,7 +151,6 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
         <input ref={titleRef} className="cx-fld" placeholder={t.fieldTitle} />
       </div>
 
-      {/* Body */}
       <div className="cx-fsec">
         <div className="cx-fsec__h">
           {t.fieldBody} <span className="opt">{t.optional}</span>
@@ -131,7 +158,6 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
         <textarea ref={bodyRef} className="cx-fld" placeholder={t.fieldBodyPlaceholder} />
       </div>
 
-      {/* Link reservation/room — 연결하면 플랫폼 자동 확정 */}
       <div className="cx-fsec">
         <div className="cx-fsec__h">
           {t.fieldLink} <span className="opt">{t.optional}</span>
@@ -140,7 +166,7 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
           <div className="cx-linked">
             <span className="cx-linked__ic">{CxIcon.building}</span>
             <div className="cx-linked__b">
-              <div className="cx-linked__n">{linked.place.replace(" · ", " ")}</div>
+              <div className="cx-linked__n">{linked.place}</div>
               <div className="cx-linked__s">
                 <PlatformSource plat={linked.plat} dict={dict} />
                 <span>
@@ -151,7 +177,11 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
             <button
               type="button"
               className="cx-linked__x"
-              onClick={() => { setLinked(null); setPlat(null); setRating(0); }}
+              onClick={() => {
+                setLinked(null);
+                setPlat(null);
+                setRating(0);
+              }}
             >
               {CxIcon.x}
             </button>
@@ -165,7 +195,6 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
         )}
       </div>
 
-      {/* Rating — 예약 연결 후 플랫폼이 확정된 경우에만 표시 */}
       {plat !== null && (
         <div className="cx-fsec">
           <div className="cx-fsec__h">
@@ -175,7 +204,6 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
         </div>
       )}
 
-      {/* Guest name */}
       <div className="cx-fsec">
         <div className="cx-fsec__h">
           {t.fieldGuestName} <span className="opt">{t.optional}</span>
@@ -183,29 +211,28 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
         <input
           className="cx-fld"
           value={guestName}
-          onChange={(e) => setGuestName(e.target.value)}
+          onChange={(event) => setGuestName(event.target.value)}
           placeholder={t.fieldGuestPlaceholder}
         />
       </div>
 
-      {/* Images */}
       <div className="cx-fsec">
         <div className="cx-fsec__h">
           {t.fieldImages} <span className="opt">{t.imagesMax}</span>
         </div>
         <div className="cx-upgrid">
-          {uploadedImages.map((url, idx) => (
+          {uploadedImages.map((url, index) => (
             <div key={url} className="cx-upthumb">
               <img
                 src={url}
                 alt=""
                 className="cx-upthumb__img"
-                onClick={() => setLightboxIndex(idx)}
+                onClick={() => setLightboxIndex(index)}
               />
               <button
                 type="button"
                 className="cx-upthumb__x"
-                onClick={() => handleRemoveImage(idx)}
+                onClick={() => handleRemoveImage(index)}
               >
                 {CxIcon.x}
               </button>
@@ -225,7 +252,6 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
             </button>
           )}
         </div>
-        {/* hidden file input — 클라이언트 압축은 추후 추가 */}
         <input
           ref={fileInputRef}
           type="file"
@@ -240,33 +266,29 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
         {t.submit}
       </button>
 
-      {/* 이미지 라이트박스 */}
       {lightboxIndex !== null && uploadedImages.length > 0 && (
         <ImageLightbox
           images={uploadedImages}
           startIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
+          labels={{
+            close: t.lightboxClose,
+            photo: t.lightboxPhoto,
+          }}
         />
       )}
 
-      {/* Picker sheet — 건물 → 객실 → 예약자 3단계 드릴다운 */}
       {showPicker && (
         <BottomSheet
           onClose={() => {
             setShowPicker(false);
-            setSearch("");
-            setPickerStep("buildings");
-            setPickerProperty(null);
-            setPickerRoom(null);
+            resetPickerState();
           }}
           className="max-h-[82dvh] flex flex-col"
         >
           {({ close }) => {
             const closePicker = () => {
-              setSearch("");
-              setPickerStep("buildings");
-              setPickerProperty(null);
-              setPickerRoom(null);
+              resetPickerState();
               close();
             };
 
@@ -275,29 +297,33 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
               if (pickerStep === "guests") {
                 setPickerStep("rooms");
                 setPickerRoom(null);
-              } else {
-                setPickerStep("buildings");
-                setPickerProperty(null);
+                return;
               }
+              setPickerStep("buildings");
+              setPickerProperty(null);
             };
 
-            const q = search.trim().toLowerCase();
+            const query = search.trim().toLowerCase();
 
-            // ── 1단계: 건물 목록 ──────────────────────────────
             if (pickerStep === "buildings") {
-              // canonical 이름(propertyName)으로 중복 제거 후 표시명(displayPropertyName)으로 렌더
               const seen = new Set<string>();
               const buildings: { canonical: string; display: string }[] = [];
-              for (const r of pickRows) {
-                if (!seen.has(r.propertyName)) {
-                  seen.add(r.propertyName);
-                  buildings.push({ canonical: r.propertyName, display: r.displayPropertyName });
-                }
+
+              for (const row of pickRows) {
+                if (seen.has(row.propertyName)) continue;
+                seen.add(row.propertyName);
+                buildings.push({
+                  canonical: row.propertyName,
+                  display: row.displayPropertyName,
+                });
               }
-              buildings.sort((a, b) => a.display.localeCompare(b.display));
-              const filtered = q
-                ? buildings.filter((b) => b.display.toLowerCase().includes(q))
+
+              buildings.sort((left, right) => left.display.localeCompare(right.display));
+
+              const filtered = query
+                ? buildings.filter((building) => building.display.toLowerCase().includes(query))
                 : buildings;
+
               return (
                 <div className="cx cx-sheet">
                   <div className="cx-sheet__head">
@@ -308,7 +334,7 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
                     <span className="ic cx-search__ic">{CxIcon.search}</span>
                     <input
                       value={search}
-                      onChange={(e) => setSearch(e.target.value)}
+                      onChange={(event) => setSearch(event.target.value)}
                       placeholder={t.pickerTitle}
                       autoFocus
                     />
@@ -318,7 +344,10 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
                       <div className="cx-pick-empty">—</div>
                     ) : (
                       filtered.map(({ canonical, display }) => {
-                        const hasLive = pickRows.some((r) => r.propertyName === canonical && r.live);
+                        const hasLive = pickRows.some(
+                          (row) => row.propertyName === canonical && row.live,
+                        );
+
                         return (
                           <button
                             key={canonical}
@@ -330,7 +359,9 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
                               setSearch("");
                             }}
                           >
-                            <span className="cx-bldrow__ic"><CIc>{CxIcon.building}</CIc></span>
+                            <span className="cx-bldrow__ic">
+                              <CIc>{CxIcon.building}</CIc>
+                            </span>
                             <span className="cx-bldrow__n">{display}</span>
                             {hasLive && <span className="cx-rrow__live">{t.pickerLiveTag}</span>}
                             <span className="cx-bldrow__chev">{CxIcon.chevR}</span>
@@ -347,24 +378,31 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
               );
             }
 
-            // ── 2단계: 객실 목록 ──────────────────────────────
             if (pickerStep === "rooms" && pickerProperty) {
-              const inProperty = pickRows.filter((r) => r.propertyName === pickerProperty);
-              // canonical roomLabel로 중복 제거 후 displayRoomLabel로 렌더
-              const seenR = new Set<string>();
+              const rowsInProperty = pickRows.filter(
+                (row) => row.propertyName === pickerProperty,
+              );
+              const seen = new Set<string>();
               const rooms: { canonical: string; display: string }[] = [];
-              for (const r of inProperty) {
-                if (!seenR.has(r.roomLabel)) {
-                  seenR.add(r.roomLabel);
-                  rooms.push({ canonical: r.roomLabel, display: r.displayRoomLabel });
-                }
+
+              for (const row of rowsInProperty) {
+                if (seen.has(row.roomLabel)) continue;
+                seen.add(row.roomLabel);
+                rooms.push({
+                  canonical: row.roomLabel,
+                  display: row.displayRoomLabel,
+                });
               }
-              rooms.sort((a, b) => a.display.localeCompare(b.display));
-              const filtered = q
-                ? rooms.filter((rm) => rm.display.toLowerCase().includes(q))
+
+              rooms.sort((left, right) => left.display.localeCompare(right.display));
+
+              const filtered = query
+                ? rooms.filter((room) => room.display.toLowerCase().includes(query))
                 : rooms;
-              // 헤더: pickerProperty(canonical)에 해당하는 displayPropertyName
-              const headerBuilding = inProperty[0]?.displayPropertyName ?? pickerProperty;
+
+              const headerBuilding =
+                rowsInProperty[0]?.displayPropertyName ?? pickerProperty;
+
               return (
                 <div className="cx cx-sheet">
                   <div className="cx-sheet__head cx-sheet__head--nav">
@@ -377,7 +415,7 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
                     <span className="ic cx-search__ic">{CxIcon.search}</span>
                     <input
                       value={search}
-                      onChange={(e) => setSearch(e.target.value)}
+                      onChange={(event) => setSearch(event.target.value)}
                       placeholder={t.metaRoom}
                       autoFocus
                     />
@@ -387,8 +425,13 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
                       <div className="cx-pick-empty">—</div>
                     ) : (
                       filtered.map(({ canonical, display }) => {
-                        const hasLive = inProperty.some((r) => r.roomLabel === canonical && r.live);
-                        const count = inProperty.filter((r) => r.roomLabel === canonical).length;
+                        const hasLive = rowsInProperty.some(
+                          (row) => row.roomLabel === canonical && row.live,
+                        );
+                        const count = rowsInProperty.filter(
+                          (row) => row.roomLabel === canonical,
+                        ).length;
+
                         return (
                           <button
                             key={canonical}
@@ -400,7 +443,9 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
                               setSearch("");
                             }}
                           >
-                            <span className="cx-bldrow__ic"><CIc>{CxIcon.door}</CIc></span>
+                            <span className="cx-bldrow__ic">
+                              <CIc>{CxIcon.door}</CIc>
+                            </span>
                             <span className="cx-bldrow__n">{display}</span>
                             {hasLive && <span className="cx-rrow__live">{t.pickerLiveTag}</span>}
                             <span className="cx-bldrow__cnt">{count}</span>
@@ -414,28 +459,34 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
               );
             }
 
-            // ── 3단계: 예약자(고객) 목록 ─────────────────────
             if (pickerStep === "guests" && pickerProperty && pickerRoom) {
-              const inRoom = pickRows.filter(
-                (r) => r.propertyName === pickerProperty && r.roomLabel === pickerRoom,
+              const rowsInRoom = pickRows.filter(
+                (row) => row.propertyName === pickerProperty && row.roomLabel === pickerRoom,
               );
-              const staying = inRoom.filter((r) => r.group === "staying");
-              const upcoming = inRoom.filter((r) => r.group === "upcoming");
-              const filtered = q
-                ? inRoom.filter((r) => r.guest.toLowerCase().includes(q))
-                : inRoom;
-              const fStaying = filtered.filter((r) => r.group === "staying");
-              const fUpcoming = filtered.filter((r) => r.group === "upcoming");
-              // 헤더 표시명: 첫 번째 매칭 행에서 추출
-              const headerRoom = inRoom[0]?.displayRoomLabel ?? pickerRoom;
-              const headerBuilding = inRoom[0]?.displayPropertyName ?? pickerProperty;
+              const stayingRows = rowsInRoom.filter((row) => row.group === "staying");
+              const upcomingRows = rowsInRoom.filter((row) => row.group === "upcoming");
+              const filtered = query
+                ? rowsInRoom.filter((row) => row.guest.toLowerCase().includes(query))
+                : rowsInRoom;
+              const filteredStaying = filtered.filter((row) => row.group === "staying");
+              const filteredUpcoming = filtered.filter((row) => row.group === "upcoming");
+              const headerRoom = rowsInRoom[0]?.displayRoomLabel ?? pickerRoom;
+              const headerBuilding = rowsInRoom[0]?.displayPropertyName ?? pickerProperty;
 
-              const selectRow = (r: ReservationPickRow) => {
-                setLinked({ plat: r.plat, place: r.place, guest: r.guest, stay: r.stay, reservationId: r.reservationId });
-                setPlat(r.plat);
-                // 플랫폼에 맞는 초기 별점 세팅 (direct는 별점 없음)
-                const mx = ratingMax(r.plat);
-                setRating(mx ? (mx === 5 ? 2 : 4) : 0);
+              const selectRow = (row: ReservationPickRow) => {
+                setLinked({
+                  plat: row.plat,
+                  propertyName: row.propertyName,
+                  roomLabel: row.roomLabel,
+                  place: row.place,
+                  guest: row.guest,
+                  guestName: row.guest,
+                  stay: row.stay,
+                  reservationId: row.reservationId,
+                });
+                setPlat(row.plat);
+                setGuestName(row.guest);
+                setRating(defaultRatingForPlatform(row.plat));
                 closePicker();
               };
 
@@ -450,33 +501,42 @@ export function ComplaintCreate({ locale, pickRows }: { locale: string; pickRows
                       <p className="cx-sheet__sub">{headerBuilding}</p>
                     </div>
                   </div>
-                  {(staying.length + upcoming.length) > 1 && (
+                  {stayingRows.length + upcomingRows.length > 1 && (
                     <div className="cx-search">
                       <span className="ic cx-search__ic">{CxIcon.search}</span>
                       <input
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={(event) => setSearch(event.target.value)}
                         placeholder={t.metaGuest}
                         autoFocus
                       />
                     </div>
                   )}
                   <div className="cx-picker-scroll">
-                    {fStaying.length > 0 && (
+                    {filteredStaying.length > 0 && (
                       <>
                         <p className="cx-glabel">{t.pickerStaying}</p>
-                        {fStaying.map((r) => (
-                          <PickRow key={r.reservationId} row={r} liveLabel={t.pickerLiveTag} onClick={() => selectRow(r)} />
+                        {filteredStaying.map((row) => (
+                          <PickRow
+                            key={row.reservationId}
+                            row={row}
+                            liveLabel={t.pickerLiveTag}
+                            onClick={() => selectRow(row)}
+                          />
                         ))}
                       </>
                     )}
-                    {fUpcoming.length > 0 && (
+                    {filteredUpcoming.length > 0 && (
                       <>
                         <p className="cx-glabel">{t.pickerUpcoming}</p>
-                        {fUpcoming.map((r, i) => (
-                          <div key={r.reservationId}>
-                            {i > 0 && <div className="cx-rsep" />}
-                            <PickRow row={r} liveLabel={t.pickerLiveTag} onClick={() => selectRow(r)} />
+                        {filteredUpcoming.map((row, index) => (
+                          <div key={row.reservationId}>
+                            {index > 0 && <div className="cx-rsep" />}
+                            <PickRow
+                              row={row}
+                              liveLabel={t.pickerLiveTag}
+                              onClick={() => selectRow(row)}
+                            />
                           </div>
                         ))}
                       </>
@@ -504,10 +564,11 @@ function PickRow({
   liveLabel: string;
   onClick: () => void;
 }) {
-  const p = PLATFORMS[row.plat];
+  const platform = PLATFORMS[row.plat];
+
   return (
     <button type="button" className="cx-rrow" onClick={onClick}>
-      <span className="cx-rrow__av" style={{ background: p.avg }}>
+      <span className="cx-rrow__av" style={{ background: platform.avg }}>
         {row.guest.slice(0, 1)}
       </span>
       <div className="cx-rrow__b">

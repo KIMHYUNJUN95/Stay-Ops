@@ -4,11 +4,15 @@ import { canAccessAdminWeb } from "@/config/roles";
 import { isLocale, type Locale } from "@/lib/i18n";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import type { Database } from "@/types/database";
+
+export type ProfileGender = Database["public"]["Enums"]["profile_gender"];
 
 export type ProfileSnapshot = {
   id: string;
   name: string;
   birthDate: string | null;
+  gender: ProfileGender | null;
   phoneNumber: string;
   preferredLanguage: Locale;
 };
@@ -55,11 +59,6 @@ export type OnboardingState =
       user: User;
     };
 
-/**
- * Validates a phone number at a basic operational level.
- * Allows digits, +, spaces, hyphens, and parentheses.
- * Requires 7-15 digits total (stripped of non-digit chars).
- */
 export function isValidPhone(phone: string): boolean {
   const trimmed = phone.trim();
   if (!trimmed) return false;
@@ -68,10 +67,6 @@ export function isValidPhone(phone: string): boolean {
   return digits.length >= 7 && digits.length <= 15;
 }
 
-/**
- * Validates a birth date in YYYY-MM-DD form and requires it to be in the past.
- * Shared by onboarding, account editing, and onboarding-state gating.
- */
 export function isValidBirthDate(value: string): boolean {
   const trimmed = value.trim();
   if (!trimmed || !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return false;
@@ -79,10 +74,17 @@ export function isValidBirthDate(value: string): boolean {
   return !Number.isNaN(birthDate.getTime()) && birthDate < new Date();
 }
 
+const PROFILE_GENDER_VALUES: ProfileGender[] = ["female", "male"];
+
+export function isProfileGender(value: string): value is ProfileGender {
+  return PROFILE_GENDER_VALUES.includes(value as ProfileGender);
+}
+
 type ProfileRow = {
   id: string;
   name: string;
   birth_date: string | null;
+  gender: ProfileGender | null;
   phone_number: string;
   preferred_language: Locale;
   last_used_organization_id: string | null;
@@ -130,48 +132,32 @@ export async function getOnboardingState(): Promise<OnboardingState> {
     }
   }
 
-  const [{ data: profileResult }, { count: platformAdminCount }] =
+  const [{ data: profileResult, error: profileError }, { count: platformAdminCount }] =
     await Promise.all([
       service
         .from("profiles")
-        .select("id, name, birth_date, phone_number, preferred_language, last_used_organization_id")
+        .select(
+          "id, name, birth_date, gender, phone_number, preferred_language, last_used_organization_id",
+        )
         .eq("id", user.id)
         .maybeSingle(),
-      service
-        .from("platform_admins")
-        .select("id", { count: "exact", head: true }),
+      service.from("platform_admins").select("id", { count: "exact", head: true }),
     ]);
 
-  const profile = profileResult as ProfileRow | null;
-  const canClaimPlatformAdmin = (platformAdminCount ?? 0) === 0;
-
-  // Profile row missing → needs profile.
-  // Profile row exists but required fields are incomplete/invalid → also needs profile.
-  // birth_date is required for identity verification; Google login cannot skip this.
-  const isProfileComplete =
-    !!profile &&
-    !!profile.name?.trim() &&
-    !!profile.birth_date &&
-    isValidBirthDate(profile.birth_date) &&
-    !!profile.phone_number?.trim() &&
-    isValidPhone(profile.phone_number) &&
-    isLocale(profile.preferred_language);
-
-  if (!isProfileComplete) {
-    return {
-      status: "needs_profile",
-      canClaimPlatformAdmin,
-      user,
-    };
+  let profile = profileResult as ProfileRow | null;
+  if (profileError) {
+    const { data: fallbackProfile } = await service
+      .from("profiles")
+      .select(
+        "id, name, birth_date, phone_number, preferred_language, last_used_organization_id",
+      )
+      .eq("id", user.id)
+      .maybeSingle();
+    profile = fallbackProfile
+      ? ({ ...(fallbackProfile as Omit<ProfileRow, "gender">), gender: null } as ProfileRow)
+      : null;
   }
-
-  const profileSnapshot: ProfileSnapshot = {
-    id: profile.id,
-    name: profile.name,
-    birthDate: profile.birth_date,
-    phoneNumber: profile.phone_number,
-    preferredLanguage: profile.preferred_language,
-  };
+  const canClaimPlatformAdmin = (platformAdminCount ?? 0) === 0;
 
   const [{ data: platformAdminResult }, { data: membershipResults }] =
     await Promise.all([
@@ -181,7 +167,6 @@ export async function getOnboardingState(): Promise<OnboardingState> {
         .eq("user_id", user.id)
         .eq("is_active", true)
         .maybeSingle(),
-      // Query ALL non-invited memberships to support multi-org.
       service
         .from("memberships")
         .select("organization_id, role, status")
@@ -192,8 +177,41 @@ export async function getOnboardingState(): Promise<OnboardingState> {
 
   const platformAdmin = platformAdminResult as PlatformAdminRow | null;
   const memberships = (membershipResults ?? []) as MembershipRow[];
+  const activeMemberships = memberships.filter((m) => m.status === "active");
 
-  // Platform admin bypasses org membership requirements.
+  if (!profile) {
+    return {
+      status: "needs_profile",
+      canClaimPlatformAdmin,
+      user,
+    };
+  }
+
+  const isProfileComplete =
+    !!profile.name?.trim() &&
+    !!profile.birth_date &&
+    isValidBirthDate(profile.birth_date) &&
+    !!profile.phone_number?.trim() &&
+    isValidPhone(profile.phone_number) &&
+    isLocale(profile.preferred_language);
+
+  const profileSnapshot: ProfileSnapshot = {
+    id: profile.id,
+    name: profile.name,
+    birthDate: profile.birth_date,
+    gender: profile.gender,
+    phoneNumber: profile.phone_number,
+    preferredLanguage: profile.preferred_language,
+  };
+
+  if (!isProfileComplete && !platformAdmin?.role && activeMemberships.length === 0) {
+    return {
+      status: "needs_profile",
+      canClaimPlatformAdmin,
+      user,
+    };
+  }
+
   if (platformAdmin?.role) {
     return {
       status: "ready",
@@ -201,10 +219,6 @@ export async function getOnboardingState(): Promise<OnboardingState> {
       user,
     };
   }
-
-  // Among all memberships, prefer the one matching last_used_organization_id,
-  // then fall back to the most recent active one.
-  const activeMemberships = memberships.filter((m) => m.status === "active");
 
   if (activeMemberships.length > 0) {
     const lastUsedOrgId = profile.last_used_organization_id;
@@ -220,7 +234,6 @@ export async function getOnboardingState(): Promise<OnboardingState> {
     };
   }
 
-  // Check for suspended/removed states across any membership.
   const suspended = memberships.find((m) => m.status === "suspended");
   if (suspended) {
     return { status: "suspended", user, profile: profileSnapshot };
@@ -231,7 +244,6 @@ export async function getOnboardingState(): Promise<OnboardingState> {
     return { status: "removed", user, profile: profileSnapshot };
   }
 
-  // No qualifying membership — user needs to join via invite code.
   return {
     status: "needs_membership",
     canClaimPlatformAdmin,
@@ -240,10 +252,6 @@ export async function getOnboardingState(): Promise<OnboardingState> {
   };
 }
 
-/**
- * Persists the last-used organization for multi-org routing.
- * Called after a successful sign-in when the user has multiple active memberships.
- */
 export async function setLastUsedOrganization(
   userId: string,
   organizationId: string,

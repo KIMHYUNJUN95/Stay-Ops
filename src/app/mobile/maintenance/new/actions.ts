@@ -1,6 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import {
+  getCanonicalPropertyName,
+  getCanonicalRoomLabel,
+} from "@/lib/room-label-normalization";
 import { getCurrentAppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
@@ -36,14 +40,21 @@ function isValidUuid(value: string) {
 
 export async function createMaintenanceReport(formData: FormData) {
   const rawCleaningSessionId = cleanText(formData.get("cleaningSessionId"));
+  const rawReservationId = cleanText(formData.get("reservationId"));
   const requestedId = cleanText(formData.get("id"));
 
   const session = await getCurrentAppSession();
   if (!session) {
     const basePath = "/mobile/maintenance/new";
-    const targetPath = rawCleaningSessionId
-      ? `${basePath}?sessionId=${encodeURIComponent(rawCleaningSessionId)}`
-      : basePath;
+    const targetParams = new URLSearchParams();
+    if (rawCleaningSessionId) {
+      targetParams.set("sessionId", rawCleaningSessionId);
+    }
+    if (rawReservationId) {
+      targetParams.set("reservationId", rawReservationId);
+    }
+    const targetPath =
+      targetParams.size > 0 ? `${basePath}?${targetParams.toString()}` : basePath;
     redirect(`/auth/login?next=${encodeURIComponent(targetPath)}`);
   }
 
@@ -56,9 +67,10 @@ export async function createMaintenanceReport(formData: FormData) {
     .map((v) => cleanText(v))
     .filter(Boolean);
 
-  const sessionParam = rawCleaningSessionId
-    ? `&sessionId=${encodeURIComponent(rawCleaningSessionId)}`
-    : "";
+  const sessionParams = new URLSearchParams();
+  if (rawCleaningSessionId) sessionParams.set("sessionId", rawCleaningSessionId);
+  if (rawReservationId) sessionParams.set("reservationId", rawReservationId);
+  const sessionParam = sessionParams.size > 0 ? `&${sessionParams.toString()}` : "";
 
   if (roomLabel.length === 0 || roomLabel.length > 100) {
     redirect(`/mobile/maintenance/new?error=invalid_room${sessionParam}`);
@@ -112,11 +124,47 @@ export async function createMaintenanceReport(formData: FormData) {
     }
   }
 
+  let reservationId: string | null = null;
+  let guestName: string | null = null;
+  if (rawReservationId) {
+    const { data } = await supabase
+      .from("reservations")
+      .select("id, guest_name, property_name, room_label")
+      .eq("id", rawReservationId)
+      .eq("organization_id", session.organization.id)
+      .maybeSingle();
+
+    const linkedReservation = data as {
+      guest_name: string;
+      id: string;
+      property_name: string;
+      room_label: string;
+    } | null;
+
+    if (!linkedReservation) {
+      redirect(`/mobile/maintenance/new?error=save_failed${sessionParam}`);
+    }
+
+    const linkedPropertyName = getCanonicalPropertyName(linkedReservation.property_name);
+    const linkedRoomLabel =
+      getCanonicalRoomLabel(linkedPropertyName, linkedReservation.room_label) ??
+      linkedReservation.room_label.trim();
+
+    if (linkedPropertyName !== propertyName || linkedRoomLabel !== roomLabel) {
+      redirect(`/mobile/maintenance/new?error=save_failed${sessionParam}`);
+    }
+
+    reservationId = linkedReservation.id;
+    guestName = linkedReservation.guest_name;
+  }
+
   const insert: Database["public"]["Tables"]["maintenance_reports"]["Insert"] = {
     id: requestId,
     organization_id: session.organization.id,
     reported_by_user_id: session.user.id,
+    guest_name: guestName,
     property_name: propertyName,
+    reservation_id: reservationId,
     room_label: roomLabel,
     issue_title: issueTitle,
     description: description || null,

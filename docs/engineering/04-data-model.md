@@ -461,7 +461,8 @@ Note: room_label and property are stored as free text rather than FKs to propert
 
 Maintenance/field issue records.
 
-Migration: `supabase/migrations/202605210007_maintenance_reports.sql`
+Migrations: `supabase/migrations/202605210007_maintenance_reports.sql`,
+`supabase/migrations/202607090003_reservation_calendar_linking_and_notes.sql`
 
 Fields:
 
@@ -470,6 +471,8 @@ id uuid primary key
 organization_id uuid not null references organizations(id)
 reported_by_user_id uuid not null references profiles(id)
 room_label text not null           -- free text, matches cleaning_sessions.room_label pattern
+reservation_id uuid references reservations(id) on delete set null
+guest_name text                    -- reservation-linked guest snapshot
 issue_title text not null
 description text
 category text                      -- optional category key
@@ -489,13 +492,18 @@ resolved
 closed
 ```
 
-Note: room is stored as free text `room_label` (same pattern as cleaning_sessions). There is no property_id or room_id FK. When created from an active cleaning session, `cleaning_session_id` is set automatically.
+Note: room is stored as free text `room_label` (same pattern as cleaning_sessions). There is no
+property_id or room_id FK. When created from an active cleaning session, `cleaning_session_id` is
+set automatically. When created from the reservation calendar linked action, `reservation_id` and
+`guest_name` can be stored as optional context snapshots after the server re-validates that the
+reservation belongs to the same organization and matches the selected property / room.
 
 ## lost_items
 
 Lost and found records.
 
-Migration: `supabase/migrations/202605210006_lost_items.sql`
+Migrations: `supabase/migrations/202605210006_lost_items.sql`,
+`supabase/migrations/202607090003_reservation_calendar_linking_and_notes.sql`
 
 Fields:
 
@@ -504,6 +512,9 @@ id uuid primary key
 organization_id uuid not null references organizations(id)
 reported_by_user_id uuid not null references profiles(id)
 room_label text not null           -- free text, matches cleaning_sessions.room_label pattern
+property_name text                 -- optional building snapshot for reservation-linked create
+reservation_id uuid references reservations(id) on delete set null
+guest_name text                    -- reservation-linked guest snapshot
 item_name text not null
 found_at timestamptz not null
 status lost_item_status not null
@@ -523,7 +534,37 @@ disposal_scheduled
 disposed
 ```
 
-Note: storage_location, retrieval_status, retrieved_at, retrieved_by_user_id, guest_name, reservation_id, and dispose-tracking fields were planned in the original design but are not in the current MVP implementation.
+Note: retrieval tracking / disposal extensions are still future scope, but `property_name`,
+`reservation_id`, and `guest_name` are now implemented as optional context snapshots for
+reservation-linked create flows. The workflow still keeps `room_label` as the primary free-text
+location field.
+
+## reservation_internal_notes
+
+Per-reservation internal operator memo used by the admin reservation calendar inspector.
+
+Migration: `supabase/migrations/202607090003_reservation_calendar_linking_and_notes.sql`
+
+Fields:
+
+```txt
+id uuid primary key
+organization_id uuid not null references organizations(id) on delete cascade
+reservation_id uuid not null references reservations(id) on delete cascade
+updated_by_user_id uuid references profiles(id) on delete set null
+note text not null
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()
+unique (organization_id, reservation_id)
+```
+
+Notes:
+- One note row per reservation per organization.
+- Empty save from the admin calendar deletes the row instead of storing blank text.
+- This table is operational metadata owned by StayOps, distinct from Beds24 reservation source data.
+- Read access is intentionally broader than write access: all active organization members can read
+  the note, while create / update / delete remains limited to the privileged reservation-calendar
+  operator roles.
 
 ## order_requests
 
@@ -1065,13 +1106,14 @@ Tables (11):
 |---|---|
 | `attendance_sites` | registered sites; `latitude`/`longitude`/`allowed_radius_meters` (default **100**), `wifi_ssids text[]` (modeled, PWA-inactive), `is_active`. Owner-managed. |
 | `attendance_qr_tokens` | one **active token per site** (partial unique on `site_id where is_active`); reissue revokes + links `replaced_by_token_id`. |
-| `attendance_sessions` | the core work session; `status` (open/completed/reopened/invalid), `review_state` (normal/review_required/pending_correction/approved_correction/rejected_correction), separate clock-in/out `*_at/_site_id/_method/_qr_token_id/_lat/_long/_accuracy/_device_info`, `operating_date` (Tokyo), `manual_created*`, `invalidated*`. **One `open` session per user** (partial unique on `user_id where status='open'`). Methods: `gps_qr`/`gps_wifi`/`manual`. |
+| `attendance_sessions` | the core work session; `status` (open/completed/reopened/invalid), `review_state` (normal/review_required/pending_correction/approved_correction/rejected_correction), separate clock-in/out `*_at/_site_id/_method/_qr_token_id/_lat/_long/_accuracy/_device_info`, `operating_date` (Tokyo), `manual_created*`, `manual_location` (free-text work location for off-site / manual entries, migration `202607100004`; overrides the site name in per-user payroll exports), `invalidated*`. **One `open` session per user** (partial unique on `user_id where status='open'`). Methods: `gps_qr`/`gps_wifi`/`manual`. |
 | `attendance_breaks` | multiple breaks per session; `started_at`/`ended_at` (open while null). Clock-out-blocked-by-open-break is server-enforced. |
 | `attendance_attempt_logs` | every attempt (success/failure) for admin diagnostics; `action_type`, `method`, `failure_reason` (gps_denied/outside_radius/qr_*/wifi_*/open_break_blocks_clock_out/midnight_crossing/open_session_exists). Admin-visible only; no payroll effect. |
 | `attendance_correction_requests` | user-submitted corrections; `status` (requested/in_review/approved/rejected), `reason_type`, `target_month` (YYYY-MM-01, migration `202606180003`), `desired_clock_in/out_at/_site_id`, `memo`, `image_urls` (**max 5**), `review_comment`/`reviewed_*`. |
 | `attendance_session_audits` | append-only manager-action trail; `action_type` (manual_create/manual_update/invalidate/restore/correction_apply/reopen/finalize), mandatory `reason`, `before_json`/`after_json`. |
 | `employment_type_history` | per-person `employment_type` (hourly/salaried) with `effective_from`/`effective_to`. Past never reinterpreted. |
-| `hourly_rate_history` | per-person `hourly_rate` with `effective_from`/`effective_to`. Past never changes. |
+| `hourly_rate_history` | per-person `hourly_rate` with `effective_from`/`effective_to`. Past never changes. This remains the base contractual/default rate layer; one-off busy-day allowances must not be stored here. |
+| `attendance_pay_allowances` | **Implemented (2026-07-10, migration `202607100001`).** Date-based attendance allowance layer for busy/short-staffed days. Columns: `target_date`, nullable `target_user_id` (null = all hourly workers), `allowance_type` (`daily_fixed` / `hourly_extra` — calculation method), `amount_yen`, `category` (`regular` = 추가수당 / `special` = 특별수당, renamed from `reason_type` in migration `202607100003`; decides which payroll column the amount lands in), `memo`, `status` (`active` / `cancelled`), creator/canceller audit fields. Separate from `hourly_rate_history`; reflected into payroll calculation (`attendance-pay.ts`, split into 추가수당/특별수당 buckets) and preserved in the finalized snapshot's `allowance_breakdown jsonb` column. Read-only RLS (own targeted rows or payroll admin); create/cancel via service-role actions only, blocked for a finalized user-month. |
 | `attendance_month_snapshots` | per-person per-month payroll snapshot; `status` (draft/finalized/superseded/reopened), `total_paid_minutes`, `gross_amount`, `rate_breakdown jsonb`, `supersedes_snapshot_id`. Migration `202607030003_attendance_finalized_snapshot_unique.sql` enforces at most one `finalized` row per `(organization_id, user_id, target_month)` while preserving historical reopened/superseded rows. |
 | `attendance_export_logs` | export audit trail; `export_scope` (monthly_bulk/single_user), `target_month`, `snapshot_ids uuid[]`, `exported_by_user_id`. |
 | `transport_reimbursement_reports` | per-user-month transport-cost ledger (migration `202606260001`), **separate from payroll** (`attendance_month_snapshots`). `target_month` (1st of Tokyo month), `status` (draft/submitted/reviewing/approved/rejected/**changes_requested** — the last added in migration `202607030001`; worker-editable like draft/rejected, i.e. "sent back for fixes, please resubmit"), `submitted_at`/`reviewed_at`/`reviewed_by_user_id`/`review_note`, `total_amount_cached` (convenience; items are source of truth). Unique `(organization_id, user_id, target_month)`. Admin review transitions: submitted/reviewing/changes_requested → approved \| rejected \| changes_requested; approved/rejected → **reopen** (back to submitted, drops out of the payroll total until re-approved). |
@@ -1085,6 +1127,10 @@ Attendance/payroll integrity hardening (2026-07-03):
 - Finalized user-months are locked against manual session edits, invalidation, restore, and correction approval that would change pay-affecting data.
 - Session-less exception approvals create a completed manual attendance session with audit trail.
 - Admin payroll/transport views include active members plus inactive members with month activity/snapshots/reports, preventing resigned staff from disappearing from accounting exports.
+- Attendance allowances (implemented 2026-07-10) are locked by the same finalized-month rule: once a
+  user-month has a finalized snapshot, allowance creation/cancellation for that user-month is blocked
+  until reopen and
+  re-finalize.
 
 **Step 2 (2026-06-17):** site/QR **backend** — migration `202606170002_issue_attendance_qr_fn.sql` adds
 the atomic `issue_attendance_qr(org, site, created_by, token)` function (deactivate old → insert new →
@@ -1144,7 +1190,11 @@ before/after). No admin web UI beyond the queue panel's restore relabel (deferre
 **Step 10 (2026-06-18):** **hourly expected-pay** reads `attendance_sessions` + `attendance_breaks` +
 `hourly_rate_history` + `employment_type_history` (effective-date resolution) via `src/lib/attendance-pay.ts`
 (`getMonthlyPayView`, self-scoped) — usable sessions only, 1-min paid units, breaks excluded, monthly gross
-rounded to 10 yen; no writes, no finalization. New self screen `/mobile/attendance/pay`. The employment/rate
+rounded to 10 yen; no writes, no finalization. `attendance_pay_allowances` (implemented 2026-07-10) adds
+a separate date-based allowance layer (`daily_fixed` / `hourly_extra`) without changing base hourly-rate
+history; `expectedGross` in the pay view now means base wage + allowance (rounded once at the monthly
+layer).
+New self screen `/mobile/attendance/pay`. The employment/rate
 **management** writes (Step 9) are still pending (deferred web dashboard); a dev route
 `/api/dev/attendance/seed-pay` seeds `employment_type_history` / `hourly_rate_history` for testing.
 
@@ -1270,9 +1320,19 @@ rejected_by_user_id uuid references profiles(id) on delete set null
 rejected_reason text
 rejected_at timestamptz
 cancelled_at timestamptz
+cancelled_by_user_id uuid references profiles(id) on delete set null  -- admin revoke or self-cancel (202607090001)
+cancelled_reason text                 -- optional (202607090001)
+document_number text                  -- 休暇届 no. AL-YYYY-MM-NNN, assigned on approval (202607080001)
 created_at timestamptz not null default now()
 updated_at timestamptz not null default now()  -- set_updated_at() trigger
 ```
+
+**Stage 3 — 休暇届 document (implemented 2026-07-08):** `document_number` (migration
+`202607080001_annual_leave_document_number.sql`) holds the printable form number `AL-YYYY-MM-NNN`
+(`YYYY-MM` = approval month, Asia/Tokyo; `NNN` = zero-padded per-org/month sequence), assigned on approval
+(best-effort, never blocks the approval). A partial unique index `(organization_id, document_number)`
+guards collisions; the migration backfills existing approved rows. No separate documents table — the A4
+休暇届 is derived from the request row + approver name; the 문서 sub-tab reads it via `listLeaveDocuments`.
 
 Permission foundation: `memberships.leave_approver_role text` (values `department_head` = 대표/CEO,
 `senior_managing_director` = 전무, matching the two stamp boxes on the paper form's 결재란 — 부서장
@@ -1311,6 +1371,54 @@ Query: `listApprovedLeaveForMonth` (`src/lib/annual-leave-requests-server.ts`), 
 `leave-calendar.tsx` with real month/year navigation (`?ym=` query) — replacing the earlier
 hardcoded July-2026 mock calendar.
 
+## membership_permission_overrides
+
+**Schema designed only (2026-07-09, migration `202607090002_membership_permission_overrides.sql`);
+the feature (admin UI + grant/revoke server actions) is NOT implemented yet.** See
+`docs/product/27-permission-override-workflow.md`.
+
+Purpose: let `owner` / `developer_super_admin` grant one specific person a specific, named,
+**time-bound** feature exception **without** changing their role and without a new migration per
+exception type. This is additive to — not a replacement for — the six-role model and the three
+existing per-feature flags (`memberships.attendance_payroll_admin`, `memberships.leave_approver_role`,
+`profiles.can_generate_report`), none of which this migration touches.
+
+```txt
+id uuid primary key default gen_random_uuid()
+organization_id uuid not null references organizations(id) on delete cascade
+user_id uuid not null references profiles(id) on delete cascade   -- the person receiving the exception
+permission_key text not null           -- OPEN whitelist, no DB enum/CHECK (managed in app code, src/config/roles.ts style)
+granted_by_user_id uuid references profiles(id) on delete set null
+reason text not null                   -- mandatory reason (audit)
+expires_at timestamptz not null        -- time-bound BY DESIGN; no permanent grants through this system
+revoked_at timestamptz                 -- null = still active (if not expired)
+revoked_by_user_id uuid references profiles(id) on delete set null
+created_at timestamptz not null default now()
+-- check: granted_by_user_id <> user_id   -- DB-level self-grant guard (double defense; server action also checks)
+```
+
+Design notes:
+- `permission_key` is intentionally free `text` with **no CHECK/enum** — the whitelist is an open
+  question (see doc 27) and will be enforced in application code once a concrete first use case locks
+  it down, so new keys never require a migration. It can never be `"role"`; role changes stay on the
+  existing role-change flow (`updateMemberRole`).
+- `expires_at` is `not null` — no permanent/indefinite grants through this system by policy.
+- No `updated_at` (revoke is a one-shot write of `revoked_at`/`revoked_by_user_id`); no `set_updated_at`
+  trigger.
+- Actor columns (`granted_by_user_id`/`revoked_by_user_id`) use `on delete set null` so the audit row
+  survives an actor's profile deletion — same convention as `reviewed_by_user_id`/`approved_by_user_id`
+  elsewhere.
+
+New SECURITY DEFINER helper `has_permission_override(org, user, key) → boolean` (same style as
+`has_org_role`/`is_platform_admin`): true iff an **active** row exists (`revoked_at is null AND
+expires_at > now()`). It is **created but not wired into any other table's RLS** — a prepared building
+block. Each feature adopts it later by adding `OR has_permission_override(...)` next to its existing
+`has_org_role(...)` check; that adoption is out of scope for this migration.
+
+Indexes: partial `(organization_id, user_id, permission_key) where revoked_at is null` (helper hot
+path) + `(organization_id, user_id)` (admin browse). RLS: read-only, owner/platform-admin only — see
+`docs/engineering/05-rls-permissions.md`.
+
 ## Storage buckets — batch note
 
 Linen/board/todo image uploads reuse the existing 5-file client-compressed pattern. The linen tech-design proposes a dedicated `linen-images` bucket as an alternative to reusing `request-images`; pick one at implementation and keep org-id in the storage path (decision pending — see `docs/engineering/08`).
@@ -1337,3 +1445,24 @@ Basic rules:
 - Which exact actions must be audit logged in MVP?
 - Should hard delete cascade related records or be blocked when related records exist (currently varies by table)?
 - Will age and profile photo be added to the profile editing screen?
+## 2026-07-10 Reservation Calendar Metadata
+
+### `public.property_operation_infos`
+
+Organization-scoped shared building-operation metadata used by both admin and mobile calendars.
+
+- `organization_id`
+- `canonical_name`
+- `address_ko`
+- `address_ja`
+- `address_en`
+- `shared_access jsonb`
+- `room_access jsonb`
+- `note`
+- timestamps
+
+Constraints / behavior:
+
+- unique on `(organization_id, canonical_name)`
+- stores overrides on top of the static property seed metadata
+- intended for shared address, access, and ops-note editing from admin calendar

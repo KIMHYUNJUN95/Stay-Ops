@@ -6,7 +6,13 @@ import {
   type LeaveStatusGroup,
   type LeaveType,
 } from "@/lib/annual-leave-approvals-server";
-import { listLeaveApplicants } from "@/lib/annual-leave-admin-server";
+import {
+  listAdminApprovers,
+  listAdminLeaveBalances,
+  listLeaveApplicants,
+  listLeaveDocuments,
+  listLeaveLedger,
+} from "@/lib/annual-leave-admin-server";
 import { requireAdminPageSession } from "@/lib/admin-page-auth";
 import { getDictionary } from "@/lib/i18n";
 import { CircleAlert } from "lucide-react";
@@ -46,9 +52,13 @@ export default async function AdminAttendanceLeavePage({
   // The client filters by status group / type / search locally (its tabs are buttons, not links) and
   // needs the FULL set to compute the per-group counts, so always fetch every group here. The URL's
   // statusGroup/type/search are passed through only as the client's initial UI state (deep-linking).
-  const [queue, applicants] = await Promise.all([
+  const [queue, applicants, balances, approvers, documents, ledger] = await Promise.all([
     getAdminLeaveQueue(session, { statusGroup: "all" }),
     listLeaveApplicants(session),
+    listAdminLeaveBalances(session),
+    listAdminApprovers(session),
+    listLeaveDocuments(session),
+    listLeaveLedger(session),
   ]);
 
   return (
@@ -64,6 +74,10 @@ export default async function AdminAttendanceLeavePage({
           initialRequestId={typeof params.requestId === "string" ? params.requestId : null}
           locale={locale}
           applicants={applicants}
+          balances={balances}
+          approvers={approvers}
+          documents={documents}
+          ledger={ledger}
           currentUserId={session.user.id}
           currentUserName={session.user.name}
         />

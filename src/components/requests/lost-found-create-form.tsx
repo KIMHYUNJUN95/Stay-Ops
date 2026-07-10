@@ -21,6 +21,9 @@ type LostFoundCreateFormProps = {
   copy: Dictionary["lostFound"];
   defaultRoom: string;
   imgCopy: Dictionary["requestImages"];
+  initialPropertyName: string;
+  linkedGuestName: string;
+  linkedReservationId: string;
   organizationId: string;
   reporterName: string;
   roomCatalog: readonly ActiveRoomCatalogItem[];
@@ -44,15 +47,27 @@ export function LostFoundCreateForm({
   buildingLabels,
   cleaningSessionId,
   copy,
+  defaultRoom,
   imgCopy,
+  initialPropertyName,
+  linkedGuestName,
+  linkedReservationId,
   organizationId,
   reporterName,
   roomCatalog,
 }: LostFoundCreateFormProps) {
+  const inferredInitialBuilding = (() => {
+    if (initialPropertyName) return initialPropertyName;
+    if (!defaultRoom) return "";
+    const matches = roomCatalog.filter((item) => item.canonicalRoomLabel === defaultRoom);
+    return matches.length === 1 ? matches[0]?.propertyName ?? "" : "";
+  })();
+  const inferredInitialRoom = inferredInitialBuilding ? defaultRoom : "";
+
   const formRef = useRef<HTMLFormElement>(null);
   const uploaderRef = useRef<AnnouncementImageUploaderHandle>(null);
-  const [selectedBuilding, setSelectedBuilding] = useState("");
-  const [selectedRoom, setSelectedRoom] = useState("");
+  const [selectedBuilding, setSelectedBuilding] = useState(inferredInitialBuilding);
+  const [selectedRoom, setSelectedRoom] = useState(inferredInitialRoom);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [summary, setSummary] = useState({ item: "", building: "", room: "" });
@@ -191,6 +206,8 @@ export function LostFoundCreateForm({
         ref={formRef}
       >
         <input name="cleaningSessionId" type="hidden" value={cleaningSessionId} />
+        <input name="guestName" type="hidden" value={linkedGuestName} />
+        <input name="reservationId" type="hidden" value={linkedReservationId} />
 
         {/* Hidden inputs to feed data to Server Action validation successfully */}
         <input name="propertyName" type="hidden" value={selectedBuilding} />

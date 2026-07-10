@@ -2,6 +2,163 @@
 
 This file records important project decisions.
 
+## 2026-07-10
+
+### Onboarding recovery UX hardened: visible login return path and actionable duplicate-phone handling
+
+- The profile-setup onboarding wizard now exposes an explicit `로그인으로 돌아가기 / Back to login / ログインに戻る` action on every step, not only on some footer states. The action signs the user out and returns to `/auth/login` while preserving the selected language.
+- Reason: users can enter onboarding through the wrong Google/email account and previously had no obvious escape path once they moved past the intro screen.
+- Duplicate phone-number handling stays an account-level uniqueness rule, but the UX is now recoverable:
+  - when profile submit fails with `phone_duplicate`, onboarding jumps the user back to the phone-number step
+  - the phone step shows a visible error/explanation telling the user to either enter a different number or return to login and use the existing account that already owns the number
+- This is a UX hardening change only. No role, schema, or uniqueness-policy change was made.
+
+Impact:
+- `src/app/onboarding/onboarding-wizard.tsx`
+- `src/app/onboarding/page.tsx`
+- `src/lib/i18n.ts`
+- `docs/product/04-organization-invitations.md`
+- `docs/product/17-user-profile-directory.md`
+- `docs/planning/06-current-status.md`
+
+### Attendance allowance design accepted for busy-day staffing coverage
+
+- **Implemented 2026-07-10** (migration `202607100001`): table + calculation + admin/mobile display +
+  Excel/PDF export + finalized-snapshot `allowance_breakdown`. See
+  `docs/engineering/11-attendance-payroll-technical-design.md` → "As-built — attendance allowances".
+- Planned a new **근태 추가수당 / attendance allowance** layer for cases where the company pays extra on
+  busy or short-staffed days to secure enough workers.
+- Confirmed terminology: use **추가수당 / allowance**, not "bonus" or "incentive". This is operational
+  staffing coverage pay, not a discretionary bonus.
+- Confirmed boundary: do **not** write one-off busy-day amounts into `hourly_rate_history`. That table
+  remains the base contractual/default hourly-rate history. Allowances are a separate pay calculation
+  layer and must be preserved in finalized payroll snapshots.
+- MVP allowance types:
+  - `daily_fixed`: a fixed extra amount paid once per worker/date when the worker has valid paid work.
+  - `hourly_extra`: an extra hourly amount multiplied by recognized paid minutes for the date.
+- MVP targeting: a Tokyo operating date, applying either to all hourly workers or to one specific
+  worker. Site/role/time-window/work-type targeting stays deferred.
+- Permission direction: create/cancel and org-wide views stay with `owner` /
+  `attendance_payroll_admin`; workers may see only allowances applied to their own pay view.
+- Finalized-month rule: allowance changes are blocked once a user-month is finalized; operators must
+  reopen the month, change allowances, then re-finalize.
+
+Impact:
+- `docs/product/21-attendance-payroll-workflow.md`
+- `docs/engineering/11-attendance-payroll-technical-design.md`
+- `docs/engineering/04-data-model.md`
+- `docs/engineering/05-rls-permissions.md`
+
+## 2026-07-09 (2)
+
+### Invite-code creation UI extended to office_admin / field_manager; owner and cs_staff stay manual
+
+- `src/config/roles.ts` has always defined 5 invite categories (`INVITE_CATEGORIES` /
+  `inviteCategoryToRole`), but the actual invite-code creation UI
+  (`src/app/admin/settings/invite-codes/page.tsx`) and its server-side validation
+  (`src/app/admin/settings/actions.ts`) only ever allowed picking `staff`/`part_time_staff` as the
+  default role — a known, documented gap (`docs/product/04-organization-invitations.md`). Discovered
+  while reviewing whether the new permission-override feature (`docs/product/27`) interacts with the
+  signup/role-assignment path.
+- Fixed: `inviteDefaultRoles` in both files now also includes `office_admin` and `field_manager`. No
+  new i18n needed — `dictionary.roles` and `dictionary.*.inviteCategories` already had labels for
+  every role/category, they just weren't reachable from this screen.
+- `owner` stays excluded: it needs a separate single-use invite-code flow that doesn't exist yet, and
+  handing out a shareable multi-use code that grants org ownership is a meaningfully bigger risk than
+  the other roles.
+- `cs_staff` stays excluded: it has no invite category at all by original design (admin-assigned
+  only, per the comment in `roles.ts`) — this was intentional, not a gap, so it's untouched.
+- Both remain reachable only via manual role change at `/admin/users/[id]` (`updateMemberRole`),
+  which already has its own tiered permission check (`canAssignRole`).
+
+Why: this was flagged as unrelated to the permission-override feature currently being designed, but
+the user asked to fix genuine gaps found along the way rather than deferring them, since letting a
+documented-but-unfixed limitation sit indefinitely is its own form of drift between docs and code.
+
+Impact:
+- `src/app/admin/settings/invite-codes/page.tsx`, `src/app/admin/settings/actions.ts`
+- `docs/product/04-organization-invitations.md`
+
+## 2026-07-09
+
+### Admin reservation calendar dashboard v1 implemented
+
+- Implemented the first real `/admin/calendar` dashboard slice using the accepted admin-calendar
+  direction from `docs/product/15-reservation-calendar.md`: dense room/date month board first, with
+  no financial data and a secondary reservation inspector.
+- The page is now a single integrated reservation console with 4 views:
+  - month board
+  - today ops
+  - room status
+  - building info
+- Reused the same reservation-to-room mapping policy as the mobile calendar so the admin console does
+  not drift on room resolution, fallback rows, or the no-drop policy for reservations that do not map
+  cleanly to the active room catalog.
+- Confirmed policy: the dashboard does **not** expose a real manual Beds24 reconcile action.
+  The new top-right refresh chip is intentionally passive (`router.refresh()` only), because
+  `/api/beds24/reconcile` remains secret-protected and is not part of the normal admin permission
+  surface.
+- Confirmed policy: building access/address info in the new `Building info` view is currently sourced
+  from `src/lib/property-map-links.ts`, and in-page edits are browser-session preview only. They are
+  deliberately not persisted until a separate storage / permission decision is made.
+- Confirmed policy: the reservation inspector's complaint action remains a placeholder toast because a
+  real `/admin/complaints` route is not implemented yet; we do not fake a broken deep link.
+- Follow-up polish on the same dashboard slice:
+  - the month-board date header must remain visible while the inner calendar grid scrolls vertically
+  - `Today ops` uses reservation-driven `setting targets` instead of the earlier turnover/cleaning
+    placeholder, matching the mobile cleaning smart-list rule for same-day arrivals without same-room
+    departures
+  - property-selection chips are label-only and centered; room-count badges were removed to reduce
+    visual noise in the month-board filter row
+
+Why: the user requested implementation of the reservation-calendar design handoff on the dashboard,
+and the existing `/admin/calendar` page was still a much simpler month table + two lists. This ships a
+real dashboard console while preserving existing permissions, Beds24 source-of-truth boundaries, and
+the current operational-window rules.
+
+Impact:
+- `src/app/admin/calendar/page.tsx`
+- `src/components/admin/calendar/admin-reservation-console.{tsx,css}`
+- `src/lib/i18n.ts` (`admin.calendar.*`, `common.save`)
+- `docs/product/15-reservation-calendar.md`
+- `docs/product/05-admin-web-ia.md`
+- `docs/planning/06-current-status.md`
+
+### Unified permission-denied UX: mobile BottomSheet / admin bottom-center toast
+
+- Added a shared `common.permissionDeniedTitle` / `common.permissionDeniedBody` i18n pair (ko/ja/en)
+  and two reusable presentational components: `PermissionDeniedSheet`
+  (`src/components/shell/permission-denied-sheet.tsx`, canonical `BottomSheet`, lock icon + title +
+  body + close button — same visual language as the daily-report "forbidden" state) for `/mobile/*`,
+  and `AdminToast` / `useAdminToast` (`src/components/admin/shared/admin-toast.tsx`, reuses the
+  existing `.adm-toast` bottom-center pill CSS) for `/admin/*`.
+- Wired into the two spots that previously collapsed an `unauthorized`/`forbidden` server-action error
+  into a generic "삭제 실패"/"저장 실패" message: `DeleteConfirmButton`
+  (`src/components/requests/delete-confirm-button.tsx`, admin-only) and `OrderActionBar`
+  (`src/components/requests/order-action-bar.tsx`, used by both `/mobile/requests/orders/[id]` and
+  `/admin/orders/[id]` — added a required `surface: "mobile" | "admin"` prop so it picks the right UI).
+- Explicitly out of scope: screens that already had their own permission-denied messaging (daily
+  report sheet, admin attendance approval queue, attendance correction form) were left untouched —
+  this was a deliberate scoping choice, not an oversight, to avoid rewriting working code.
+- The message body says "개발자에게 문의하세요" (contact the developer) per explicit user instruction,
+  rather than "관리자에게 문의" (contact an org admin) — a deliberate product-copy choice, not the
+  usual admin-escalation phrasing used elsewhere in the app.
+
+Why: server-side permission checks already reject these actions correctly (see
+`docs/engineering/05-rls-permissions.md`), but the client was showing an unhelpful generic failure
+message that didn't tell the user *why* the action failed. This closes that specific UX gap without
+touching the underlying authorization logic.
+
+Impact:
+- `src/lib/i18n.ts` (`common.permissionDeniedTitle`, `common.permissionDeniedBody`, `common.close`)
+- `src/components/shell/permission-denied-sheet.tsx` (new)
+- `src/components/admin/shared/admin-toast.tsx` (new)
+- `src/components/requests/delete-confirm-button.tsx`
+- `src/components/requests/order-action-bar.tsx`
+- `src/app/admin/maintenance/[id]/page.tsx`, `src/app/admin/lost-found/[id]/page.tsx`
+- `src/app/mobile/requests/orders/[id]/page.tsx`, `src/app/admin/orders/[id]/page.tsx`
+- `docs/engineering/05-rls-permissions.md`
+
 ## 2026-07-07
 
 ### Annual leave: admin approval review (Phase 2, stage 2) implemented
@@ -2726,3 +2883,226 @@ Reason: user asked for a full i18n check + cleanup (2026-07-07). Verified via li
 key-parity script that evaluates the real module and lists fallback keys lacking ko/ja overrides.
 
 Status: Confirmed (2026-07-07).
+
+## Annual leave admin sub-tabs — backend wiring + approver toggle model (2026-07-08)
+
+Wired three of the four leave-console sub-tabs to real data (문서 stays design-only for stage 3):
+
+- 팀 캘린더: bar click reuses the review-queue request detail drawer (read-only for approved), driven
+  by the org-wide approved requests the client already holds — no new fetch, no new server code.
+- 직원 잔여·부여: `listAdminLeaveBalances` (active non-hourly members, approved 유급/특별 usage deducted
+  via `computeAnnualLeaveSummary`); drawer editor persists hire-date/grant via `saveEmployeeLeaveBaseline`.
+- 승인자 관리: `listAdminApprovers` + `setLeaveApprover` write `memberships.leave_approver_role`.
+
+Approver toggle model (confirmed with user 2026-07-08): keep the handoff's plain on/off toggle; enabling
+stores `'department_head'` by default. The `department_head`(部署長) vs `senior_managing_director`(専務)
+distinction only affects the stage-3 document stamp box — `is_leave_approver()` treats any non-null value
+as an approver. Server guards: can't remove your own approver right (self row locked), org must keep ≥1
+approver. Management writes re-verify approver via `isSessionLeaveApprover` on top of the page gate.
+
+The 승인자 관리 소속 column has no data source (no user↔building association, same reason the queue's
+branch filter was dropped) and renders "—". Hourly exclusion is by membership role (`part_time_staff`)
+for now, not `employment_type_history`.
+
+Reason: user asked to attach the backend for the leave views and add the team-calendar side panel
+(2026-07-08). Verified via lint + build + browser render of each view with real-shaped mock props.
+
+Status: Confirmed (2026-07-08).
+
+## Developer account shows as 개발자, not 대표 (2026-07-08)
+
+The developer (김현준) was displaying as **대표** everywhere because their session role resolves from an
+`owner` org membership (`dictionary.roles.owner` = "대표"). `owner` is a real permission-bearing business
+role (owner-only server actions, payroll finalization, site master), so its label must NOT be renamed.
+
+Correct fix: register the developer as a platform admin (`platform_admins.role = developer_super_admin`).
+The session already prefers the platform role (`platformAdmin?.role ?? membership?.role` in
+`src/lib/session.ts`), so once registered, all session-based surfaces (mobile shell, admin sidebar,
+account) auto-display "개발자 / 최고 관리자" with true top authority — no code change needed there. This
+`platform_admins` insert is an access-control change, so it is handed to the user to run in Supabase
+rather than executed by the agent.
+
+Code change: the leave-console admin tables (`listAdminApprovers`, `listAdminLeaveBalances`) read the raw
+membership role, so they were also surfacing "대표" for the developer. They now resolve active platform
+admins (`platformAdminIdSet`) and label them `developer_super_admin`, matching the session-based surfaces
+so the developer reads as "개발자 / 최고 관리자" across the whole dashboard.
+
+Reason: user asked to show 김현준 as 개발자 (not 대표) everywhere while keeping top authority (2026-07-08).
+Verified via lint + build.
+
+Status: Confirmed (2026-07-08).
+
+## Employment-type (시급↔정규직) management UI (2026-07-08)
+
+Added employment-type change to the 시급 관리 console (`/admin/attendance/wages`), the last missing piece
+of payroll rate/employment management (hourly-rate management via `setHourlyRate` was already built).
+
+- Server: `setEmploymentType` (`src/app/admin/attendance/actions.ts`) — privileged
+  (`isAttendancePayrollAdmin`), writes `employment_type_history` with the same no-retroactive interval
+  logic as `setHourlyRate` (close active period at effective_from−1, delete a still-future pending row,
+  insert the new open period), plus an `audit_logs` entry (`employment_type_set`). Blocks a redundant
+  same-type change (`no_change`); a member with no history yet can be assigned a type (curType null =
+  any pick is a change).
+- Frontend: `attendance-wages-client.tsx` — a "고용 형태 변경" section (시급/정규직 segmented control +
+  effective date + preview) above the rate editor, shown for both hourly and salaried members,
+  so either can be switched to the other. On success it `router.refresh()`es and toasts. i18n
+  `wagePanelEmp*` / `wageActionEmploymentDone` added ko/ja/en.
+- Safety measures (added 2026-07-08, since employment change alters pay model + leave eligibility): an
+  always-visible guidance note (`wagePanelEmpNote`) and a required confirmation step — "적용" opens the
+  shared `AdminReasonModal` (danger-styled) with a consequence summary naming the person, target type and
+  date (`wagePanelEmpConfirmDesc`) plus a reason field, so the write only happens after an explicit
+  confirm. The rate editor keeps its lighter inline flow; only the employment switch is gated this way.
+- Switching type leaves `hourly_rate_history` untouched — pay branches on the active employment type, so
+  an existing rate stops applying once salaried and resumes if switched back (rate set separately).
+
+Reason: user's attendance gap check flagged "no employment-type change UI"; asked to implement it first
+(2026-07-08). Verified via lint + build + live render of the panel (toggle → preview/enable) on the real
+authed page; the apply write was intentionally not triggered against real data.
+
+Status: Confirmed (2026-07-08).
+
+## Wage / employment change reasons are now viewable in the panel (2026-07-08)
+
+Follow-up to the employment-type feature: the change **reason** entered in the confirm modal (and the rate
+editor's reason) was only stored on `audit_logs.metadata.note` with no viewer. Now the 시급 관리 panel
+surfaces it.
+
+- `getAdminAttendanceWages` (`src/lib/admin-attendance.ts`) joins `audit_logs` notes back to each history
+  row by `target_id` (target_type `hourly_rate_history` / `employment_type_history`), and now also returns
+  a full `employmentHistory` list (was: current type only). New types: `WageHistoryEntry.note`,
+  `EmploymentHistoryEntry`, `AdminWageRow.employmentHistory`. The employment select now includes `id`
+  (needed for the audit join). Dev-seeded rows have no audit row, so their note is null.
+- `attendance-wages-client.tsx`: each 시급 구간 이력 entry shows its reason under the period when present,
+  and a new "고용 형태 이력" section (always shown, both hourly/salaried) lists each employment interval
+  (type · date range · reason · current pill). i18n `wagePanelReasonLabel` / `wagePanelEmpHistoryTitle` /
+  `wagePanelEmpHistoryEmpty` added ko/ja/en; `.ratelist__note` style added.
+- `audit_logs` remains otherwise write-only — this is the first read of it, scoped to wage/employment
+  target types. A general audit-log viewer is still not built.
+
+Reason: user asked where the entered reason can be seen; chose to surface it on each history entry plus add
+an employment-history section (2026-07-08). Verified via lint + build + live render of the "고용 형태
+이력" section (seeded intervals show no reason, as expected; no real write was made).
+
+Status: Confirmed (2026-07-08).
+
+## 연차 문서(休暇届) 실제 생성 + 문서번호 (stage 3, 2026-07-08)
+
+The 문서 sub-tab moved from static mock to real generation. No separate documents table — the printable
+休暇届 is derived from the approved `annual_leave_requests` row; only the number is persisted.
+
+- Migration `202607080001_annual_leave_document_number.sql` adds `annual_leave_requests.document_number`
+  + a partial unique index `(organization_id, document_number)` and backfills existing approved rows.
+  **Must be applied on the linked project** (Supabase SQL editor or `supabase db push`).
+- Number `AL-YYYY-MM-NNN`: `YYYY-MM` = approval month (Asia/Tokyo), `NNN` = zero-padded per-org/month
+  sequence. Assigned in `approveLeaveRequestForApprover` as a **best-effort** step (never blocks the
+  approval; retries on a unique-violation race; silently skips if the column isn't migrated yet).
+- `listLeaveDocuments` (`annual-leave-admin-server.ts`) returns approved requests that have a number,
+  joined with applicant org role + approver name; resilient (returns [] if column missing).
+  `leave-documents-view.tsx` now takes real `documents` + `locale`, groups by employee, and renders the
+  A4 休暇届. Stamp box by `approved_role`: department_head → 部署長, senior_managing_director → 専務;
+  本人 = applicant initial. 申請日 = submitted_at (Tokyo). Print = `window.print()`. Empty-state added.
+- Dropped the mock "원본 신청 보기" button (was unwired). `document_number` added to `src/types/database.ts`.
+  i18n `docsEmptyTitle`/`docsEmptyBody` ko/ja/en.
+
+Reason: user asked to implement real 休暇届 generation + document numbering (2026-07-08, next attendance
+gap). Verified via lint + build + live render of the 문서 view with real-shaped mock data (doc number,
+approver stamp, form fields). Real page shows the empty state until the migration is applied.
+
+Status: Confirmed (2026-07-08).
+
+## Leave queue: list/counts refresh after approve/reject (2026-07-08)
+
+Symptom: after approving your own request the row stayed in 승인 대기 and re-opening it showed
+"이미 처리된 신청입니다." Cause: the queue list was frozen (`const [items] = useState(initialItems)`),
+so an approve/reject updated the DB (and the panel) but never the client list — the stale row still
+looked pending, and a second approve hit `not_requested`. Self-approval itself was never blocked
+(platform admin = approver; `approveLeaveRequestForApprover` has no requester≠approver guard), so the
+developer can file and approve their own request — confirmed on the real page.
+
+Fix (`leave-queue-client.tsx`): `items` is now stateful; `handleResolved(msg, id, status)` updates the
+resolved request in place, so it leaves 승인 대기, moves to 승인 완료/반려, and the status-group tab
+counts update immediately. The 승인 대기 summary card (건수·일수) is now derived from the live `items`
+(`liveSummary`) instead of the frozen server `summary`, so card and list always agree. Re-opening a
+resolved request now shows the read-only detail (no approve/reject, since `canAct = status ===
+"requested"`).
+
+Note: a future "전무(senior_managing_director) only" approval restriction is not applied — any approver
+(incl. platform admin) can still approve, by design, until that change is requested.
+
+Reason: user tested self-file + self-approve and saw the stale "already processed" state (2026-07-08).
+Verified via lint + build + real authed page (approved request now sits correctly in 승인 완료 1 / 승인
+대기 0).
+
+Status: Confirmed (2026-07-08).
+
+_Applied to production 2026-07-08 via the Supabase connector (migration `annual_leave_document_number`); backfill assigned AL-2026-07-001 to the first approved request. Note: a platform-admin approver has `approved_role` = null, so neither 部署長/専務 stamp box is sealed for their approvals — only real 대표(department_head)/전무(senior_managing_director) approvers fill a box._
+
+## 休暇届 도장(전자 서명) 디자인 (2026-07-09)
+
+확인: 도장은 이름 앞글자를 딴 자동 생성 도장(빨간 원형 seal). 실제 법적 근거는 승인자 이름+승인 시각 기록(approved_by_user_id/approved_at)이고, seal은 그 시각적 표현.
+
+결정(2026-07-09): 本人 칸은 기존대로 신청자 앞글자 자동 도장 유지. 部署長 칸은 우선 공란. 専務 칸은 실제 전무 도장을 본떠 한자 鄭을 사용 — approved_role=senior_managing_director 승인 시에만 표시. .jp__seal--smd 스타일(똑바로, 얇은 원, 글자 크게)로 촬영한 도장 사진에 맞춤. 현재 鄭은 현 전무 도장으로 하드코딩(추후 승인자별 seal 설정으로 확장 가능).
+
+의존성: 실제 승인건에서 鄭 도장이 뜨려면 leave_approver_role=senior_managing_director 인 전무 승인자가 승인해야 함(승인자 관리 토글은 현재 department_head 기본). 플랫폼 관리자 승인은 approved_role=null 이라 部署長/専務 모두 공란.
+
+Status: Confirmed (2026-07-09).
+
+_2026-07-09 결정: 전무 미가입 상태이므로 専務 도장은 당분간 공란 유지(현 구현이 이미 senior_managing_director 승인 시에만 鄭 표시). 전무 가입 후 (1) 초대·가입 (2) 승인자 관리에 부서장/전무 선택 추가해 전무 지정 (3) 전무 승인 시 鄭 자동 — 순으로 진행 예정._
+
+## 연차 잔여 모바일·어드민 완전 연동 (2026-07-09)
+
+승인된 연차 사용분이 모바일 본인 잔여에도 반영되도록, 사용분 집계를 공용 헬퍼 `sumApprovedLeaveUsage`(annual-leave-server.ts)로 단일화. 유급(paid)->base, 특별(special)->bonus, 승인건만 합산(경조·기타 미차감). getMyAnnualLeaveSummary(모바일)·getApplicantLeaveSummary(신청 모달 미리보기)가 이제 차감하며, listAdminLeaveBalances(어드민 표)도 동일 로직 -> 세 곳 숫자 일치.
+
+Reason: 사용자 요청 "승인 사용분 반영, 모바일과 완전 연동" (2026-07-09). Verified via lint + build + 실제 데이터 집계(유급 1일) 확인.
+
+Status: Confirmed (2026-07-09).
+
+## 연차 이력(승인 장부) 탭 추가 (2026-07-09)
+
+연차 하위에 6번째 서브탭 "이력"(subTabLedger) 추가 — 모든 신청을 장부처럼 시간순으로 보는 읽기전용 표. listLeaveLedger(annual-leave-admin-server.ts)가 draft 제외 전체 상태를 반환(신청자 역할 + 처리자 이름 조인). 컬럼: 신청자·유형·기간·일수·상태·처리자·처리일시·문서번호·사유. 상태 필터(전체/승인/대기/반려/취소) + 검색 + 클라이언트측 CSV(UTF-8 BOM) 내보내기. 상태/검색 클래스는 큐(.fseg/.qsearch) 재사용.
+
+Reason: 사용자 요청 "승인이력을 장부처럼 볼 곳" (2026-07-09, 전체 상태 포함 + CSV). Verified via lint + build + 실제 페이지 렌더(승인건 1 행: 처리자·처리일·문서번호 정상).
+
+Status: Confirmed (2026-07-09).
+
+## 승인 취소(revoke) + 과거 날짜 연차 신청 (2026-07-09)
+
+**승인 취소(대시보드)** — 승인 완료 건을 취소(무효)로 되돌리는 기능.
+- Migration `202607090001_annual_leave_cancel_tracking.sql` (applied to production): adds
+  `cancelled_by_user_id` + `cancelled_reason` to `annual_leave_requests` (mirrors the reject columns).
+- Server `cancelApprovedLeaveForApprover` (`annual-leave-approvals-server.ts`): approver-gated, only from
+  `approved`, sets status→cancelled + cancelled_by/reason/at. Approved usage is keyed off
+  `status='approved'`, so cancelling **auto-restores the applicant's balance** and drops the request from
+  the team calendar / documents. The 休暇届 number is kept (audit) but no longer surfaces. Action
+  `cancelApprovedLeaveAction`.
+- Frontend: the request detail drawer (`LeavePanel`) shows a danger "승인 취소" button when
+  `status==='approved'`, opening the shared `AdminReasonModal` (consequence text + optional reason). On
+  success `handleResolved` flips the item to `cancelled` so it leaves 승인 완료 / disappears from the
+  calendar immediately and shows in the 이력 장부 as 취소. i18n `panelBtnCancelApproval`/`actionDoneCancel`/
+  `actionCancelling`/`promptCancelReason`/`errCancelFailed`.
+- The 이력 장부's processor/decision-reason now covers cancelled too (`cancelled_by_user_id` →
+  processor, `cancelled_reason` → decisionReason); the mobile self-cancel also records
+  `cancelled_by_user_id` so employee cancels show a processor. LeaveLedgerEntry `rejectedReason` →
+  `decisionReason` (reject or cancel reason).
+
+**과거 날짜 신청** — leave can now be filed for past dates (mobile + dashboard), e.g. urgent leave taken
+first, paperwork filed after.
+- The server (`submitLeaveRequestAction`, `createAdminLeaveRequest`/`normalizeDays`) never rejected past
+  dates, and the admin modal's native date input already allowed them — only the mobile
+  `leave-date-picker.tsx` blocked past days. Removed its past-date guards (tap block, dim/disabled cells,
+  prev-month/year disables). Any date (past or future) is now selectable.
+
+Reason: user asked for (1) dashboard revoke of an approved leave [chose "취소(무효)"], and (2) backdated
+requests on mobile & dashboard (2026-07-09). Verified via lint + build + real authed page (승인 취소 button
++ confirm modal render on the approved request; not executed against real data).
+
+Status: Confirmed (2026-07-09).
+## 2026-07-10 Reservation Calendar Shared Metadata / Export / Beds24 Pause
+
+- Decision: admin reservation calendar `Building info` edits are persisted as shared
+  organization-scoped metadata and must be reflected in the mobile calendar as the same source of
+  truth.
+- Decision: reservation calendar export is not a reservation CSV. The admin export action now opens
+  an A4 landscape print surface for browser print / PDF save.
+- Decision: Beds24 ingestion stays paused by default during the temporary webhook shutdown period,
+  and the calendar chrome should surface this as a paused state instead of a live sync state.

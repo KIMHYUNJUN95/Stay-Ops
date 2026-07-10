@@ -17,6 +17,13 @@
 import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { resolveLocale, type Locale } from "@/lib/i18n";
+import {
+  allowanceCalculatedExact,
+  dailyGrossExact,
+  paidSecondsForSession,
+  resolveEffective,
+  roundToNearest10,
+} from "@/lib/attendance-pay-calculation";
 import type {
   AttendanceSessionRow,
   AttendanceCorrectionStatus,
@@ -35,39 +42,7 @@ const PAY_SESSION_SELECT = [
 
 // ── Pure calculation helpers (reusable for finalization) ─────────────────────────
 
-/** Effective-date row resolution: the row whose [effective_from, effective_to] covers `date`, latest. */
-export function resolveEffective<T extends { effective_from: string; effective_to: string | null }>(
-  rows: T[],
-  date: string,
-): T | null {
-  let best: T | null = null;
-  for (const r of rows) {
-    if (r.effective_from <= date && (r.effective_to == null || r.effective_to >= date)) {
-      if (!best || r.effective_from > best.effective_from) best = r;
-    }
-  }
-  return best;
-}
-
-/** Paid seconds for one resolved session = worked − closed breaks (never negative). */
-export function paidSecondsForSession(
-  clockInAt: string,
-  clockOutAt: string,
-  closedBreakSec: number,
-): number {
-  const gross = (new Date(clockOutAt).getTime() - new Date(clockInAt).getTime()) / 1000;
-  return Math.max(0, Math.floor(gross) - closedBreakSec);
-}
-
-/** Round a yen amount UP to the nearest 10 yen ceiling (monthly final layer). e.g. 93→100, 100→100. */
-export function roundToNearest10(yen: number): number {
-  return Math.ceil(yen / 10) * 10;
-}
-
-/** Daily gross (exact yen, unrounded) for paid minutes at a rate. 1-minute units. */
-function dailyGrossExact(paidMinutes: number, hourlyRate: number): number {
-  return (hourlyRate * paidMinutes) / 60;
-}
+export { dailyGrossExact, paidSecondsForSession, resolveEffective, roundToNearest10 };
 
 // ── View types ───────────────────────────────────────────────────────────────
 
@@ -89,13 +64,40 @@ export type PayDaySessionView = {
   excludeReason: PayExcludeReason;
 };
 
+// ── Attendance allowance (추가수당) ─────────────────────────────────────────────
+// Busy-day / short-staffed-day extra pay applied to specific Tokyo operating dates WITHOUT changing the
+// contractual base rate in `hourly_rate_history`. NOT a bonus/incentive.
+
+export type AllowanceType = "daily_fixed" | "hourly_extra";
+/** Payroll bucket the amount lands in: regular (추가수당) or special (특별수당). */
+export type AllowanceCategory = "regular" | "special";
+
+/** One attendance allowance applied to a specific day in the pay view (and preserved in the snapshot). */
+export type AppliedAllowanceView = {
+  allowanceId: string;
+  date: string; // Tokyo YYYY-MM-DD
+  type: AllowanceType;
+  category: AllowanceCategory;
+  memo: string | null;
+  /** Configured amount: flat yen (daily_fixed) or extra yen-per-hour (hourly_extra). */
+  amountYen: number;
+  /** Paid minutes on the date (0 for daily_fixed display purposes; drives hourly_extra). */
+  paidMinutes: number;
+  /** Actual applied yen for this day (exact, unrounded). */
+  calculatedAmount: number;
+};
+
 export type PayDayView = {
   date: string; // YYYY-MM-DD (Tokyo)
   dateLabel: string;
   employmentType: EmploymentType | null;
   hourlyRate: number | null;
   paidMinutes: number;
-  grossExact: number;
+  grossExact: number; // base wage only (allowance excluded)
+  allowanceExact: number; // day's applied allowance total, both buckets (unrounded)
+  allowanceRegularExact: number; // 추가수당 bucket for the day (unrounded)
+  allowanceSpecialExact: number; // 특별수당 bucket for the day (unrounded)
+  allowances: AppliedAllowanceView[];
   sessions: PayDaySessionView[];
 };
 
@@ -117,8 +119,18 @@ export type MonthlyPayView = {
   /** True when the user was salaried for the whole month (no hourly day) → no pay totals. */
   salariedOnly: boolean;
   totalPaidMinutes: number;
-  /** Expected monthly gross, rounded to the nearest 10 yen. */
+  /** Expected monthly gross = base wage + attendance allowance, rounded to the nearest 10 yen. */
   expectedGross: number;
+  /** Base wage portion of `expectedGross` (= expectedGross − allowanceTotal), for export/breakdown. */
+  baseGross: number;
+  /** Applied attendance allowance total for the month, both buckets (yen, nearest-yen rounded). */
+  allowanceTotal: number;
+  /** 추가수당 bucket total for the month (yen, nearest-yen rounded). */
+  allowanceRegularTotal: number;
+  /** 특별수당 bucket total for the month (yen, nearest-yen rounded). */
+  allowanceSpecialTotal: number;
+  /** Every allowance applied across the month (for the payroll panel / self view / snapshot). */
+  allowances: AppliedAllowanceView[];
   /** Count of hourly-day sessions excluded from pay (unresolved / pending / open / invalid). */
   excludedCount: number;
   rateSegments: RateSegmentView[];
@@ -248,7 +260,7 @@ export async function getMonthlyPayView(
   const firstDay = `${ym}-01`;
   const lastDay = lastDayOfMonth(ym);
 
-  const [sessRes, rateRes, empRes, finalizedRow] = await Promise.all([
+  const [sessRes, rateRes, empRes, allowRes, finalizedRow] = await Promise.all([
     service
       .from("attendance_sessions")
       .select(PAY_SESSION_SELECT)
@@ -268,6 +280,16 @@ export async function getMonthlyPayView(
       .select("employment_type, effective_from, effective_to")
       .eq("organization_id", organizationId)
       .eq("user_id", userId),
+    // Active attendance allowances for the month. Org-wide (target_user_id IS NULL) + this user's own
+    // targeted rows are kept; the user filter is applied in JS below to avoid PostgREST .or() string
+    // interpolation. Cancelled rows are ignored.
+    service
+      .from("attendance_pay_allowances")
+      .select("id, target_date, target_user_id, allowance_type, amount_yen, category, memo")
+      .eq("organization_id", organizationId)
+      .eq("status", "active")
+      .gte("target_date", firstDay)
+      .lte("target_date", lastDay),
     service
       .from("attendance_month_snapshots")
       .select("gross_amount, total_paid_minutes, finalized_at")
@@ -289,6 +311,24 @@ export async function getMonthlyPayView(
     effective_from: string;
     effective_to: string | null;
   }[];
+  const allowanceRows = (allowRes.data ?? []) as {
+    id: string;
+    target_date: string;
+    target_user_id: string | null;
+    allowance_type: string;
+    amount_yen: number;
+    category: string;
+    memo: string | null;
+  }[];
+  // Keep only allowances applicable to this user (org-wide null-target, or explicitly this user), then
+  // group by Tokyo operating date.
+  const allowancesByDate = new Map<string, typeof allowanceRows>();
+  for (const a of allowanceRows) {
+    if (a.target_user_id !== null && a.target_user_id !== userId) continue;
+    const list = allowancesByDate.get(a.target_date) ?? [];
+    list.push(a);
+    allowancesByDate.set(a.target_date, list);
+  }
 
   const sessionIds = sessions.map((s) => s.id);
   const [breakSecs, correctionStatuses] = await Promise.all([
@@ -307,9 +347,13 @@ export async function getMonthlyPayView(
   const days: PayDayView[] = [];
   let totalPaidMinutes = 0;
   let totalGrossExact = 0;
+  let totalAllowanceExact = 0;
+  let totalAllowanceRegularExact = 0;
+  let totalAllowanceSpecialExact = 0;
   let excludedCount = 0;
   let hourlyEligible = false;
   const segments = new Map<number, { paidMinutes: number; gross: number }>();
+  const monthlyAllowances: AppliedAllowanceView[] = [];
 
   for (const date of Array.from(byDate.keys()).sort()) {
     const dayRate = resolveEffective(rateRows, date)?.hourly_rate ?? null;
@@ -355,6 +399,39 @@ export async function getMonthlyPayView(
       });
     }
 
+    // Attendance allowances apply only to hourly days that have recognized paid work. daily_fixed pays
+    // its flat amount once for the day (regardless of session count); hourly_extra scales with the day's
+    // recognized paid minutes. Base rates in hourly_rate_history are never touched.
+    const dayAllowances: AppliedAllowanceView[] = [];
+    let dayAllowanceExact = 0;
+    let dayAllowanceRegularExact = 0;
+    let dayAllowanceSpecialExact = 0;
+    if (isHourly && dayPaidMinutes > 0) {
+      for (const a of allowancesByDate.get(date) ?? []) {
+        const type = a.allowance_type as AllowanceType;
+        const category = (a.category === "special" ? "special" : "regular") as AllowanceCategory;
+        const calculated = allowanceCalculatedExact(type, a.amount_yen, dayPaidMinutes);
+        if (calculated <= 0) continue;
+        dayAllowanceExact += calculated;
+        if (category === "special") dayAllowanceSpecialExact += calculated;
+        else dayAllowanceRegularExact += calculated;
+        dayAllowances.push({
+          allowanceId: a.id,
+          date,
+          type,
+          category,
+          memo: a.memo,
+          amountYen: a.amount_yen,
+          paidMinutes: dayPaidMinutes,
+          calculatedAmount: calculated,
+        });
+      }
+    }
+    totalAllowanceExact += dayAllowanceExact;
+    totalAllowanceRegularExact += dayAllowanceRegularExact;
+    totalAllowanceSpecialExact += dayAllowanceSpecialExact;
+    monthlyAllowances.push(...dayAllowances);
+
     totalPaidMinutes += dayPaidMinutes;
     totalGrossExact += dayGrossExact;
     days.push({
@@ -364,9 +441,68 @@ export async function getMonthlyPayView(
       hourlyRate: dayRate,
       paidMinutes: dayPaidMinutes,
       grossExact: dayGrossExact,
+      allowanceExact: dayAllowanceExact,
+      allowanceRegularExact: dayAllowanceRegularExact,
+      allowanceSpecialExact: dayAllowanceSpecialExact,
+      allowances: dayAllowances,
       sessions: sessionViews,
     });
   }
+
+  // Allowance-only days: an allowance can target a date the worker didn't clock in (off-site or an
+  // unrecorded shift — the field always has variables). A `daily_fixed` allowance still applies as a flat
+  // grant for an hourly worker on that date; `hourly_extra` needs recognized minutes, so it can't apply
+  // without a session (0 minutes → 0). These days carry no base wage, only the allowance.
+  for (const [date, allowsForDate] of allowancesByDate) {
+    if (byDate.has(date)) continue; // days with sessions were handled above
+    const empType = (resolveEffective(empRows, date)?.employment_type as EmploymentType | null) ?? null;
+    if (empType !== "hourly") continue;
+
+    const dayAllowances: AppliedAllowanceView[] = [];
+    let dayAllowanceExact = 0;
+    let dayAllowanceRegularExact = 0;
+    let dayAllowanceSpecialExact = 0;
+    for (const a of allowsForDate) {
+      const type = a.allowance_type as AllowanceType;
+      const category = (a.category === "special" ? "special" : "regular") as AllowanceCategory;
+      const calculated = allowanceCalculatedExact(type, a.amount_yen, 0); // no minutes: hourly_extra → 0
+      if (calculated <= 0) continue; // hourly_extra without a session does not apply
+      dayAllowanceExact += calculated;
+      if (category === "special") dayAllowanceSpecialExact += calculated;
+      else dayAllowanceRegularExact += calculated;
+      dayAllowances.push({
+        allowanceId: a.id,
+        date,
+        type,
+        category,
+        memo: a.memo,
+        amountYen: a.amount_yen,
+        paidMinutes: 0,
+        calculatedAmount: calculated,
+      });
+    }
+    if (dayAllowances.length === 0) continue;
+
+    hourlyEligible = true;
+    totalAllowanceExact += dayAllowanceExact;
+    totalAllowanceRegularExact += dayAllowanceRegularExact;
+    totalAllowanceSpecialExact += dayAllowanceSpecialExact;
+    monthlyAllowances.push(...dayAllowances);
+    days.push({
+      date,
+      dateLabel: dayLabelOf(date, locale),
+      employmentType: empType,
+      hourlyRate: resolveEffective(rateRows, date)?.hourly_rate ?? null,
+      paidMinutes: 0,
+      grossExact: 0,
+      allowanceExact: dayAllowanceExact,
+      allowanceRegularExact: dayAllowanceRegularExact,
+      allowanceSpecialExact: dayAllowanceSpecialExact,
+      allowances: dayAllowances,
+      sessions: [],
+    });
+  }
+  days.sort((a, b) => a.date.localeCompare(b.date));
 
   const rateSegments: RateSegmentView[] = Array.from(segments.entries())
     .map(([rate, v]) => ({ rate, paidMinutes: v.paidMinutes, gross: Math.round(v.gross) }))
@@ -396,7 +532,18 @@ export async function getMonthlyPayView(
           (r.effective_to == null || r.effective_to >= firstDay),
       ),
     totalPaidMinutes,
-    expectedGross: roundToNearest10(totalGrossExact),
+    // Monthly ceiling to 10 yen applies once, AFTER base wage + allowance are summed (design rule).
+    expectedGross: roundToNearest10(totalGrossExact + totalAllowanceExact),
+    // Each bucket rounds to the nearest yen; allowanceTotal is their sum and base absorbs the 10-yen
+    // monthly ceiling so base + 추가수당 + 특별수당 always sum back to expectedGross exactly.
+    allowanceRegularTotal: Math.round(totalAllowanceRegularExact),
+    allowanceSpecialTotal: Math.round(totalAllowanceSpecialExact),
+    allowanceTotal: Math.round(totalAllowanceRegularExact) + Math.round(totalAllowanceSpecialExact),
+    baseGross:
+      roundToNearest10(totalGrossExact + totalAllowanceExact) -
+      Math.round(totalAllowanceRegularExact) -
+      Math.round(totalAllowanceSpecialExact),
+    allowances: monthlyAllowances,
     excludedCount,
     rateSegments,
     days,

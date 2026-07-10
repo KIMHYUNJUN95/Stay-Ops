@@ -7,6 +7,10 @@ interface Props {
   images: string[];
   startIndex: number;
   onClose: () => void;
+  labels: {
+    close: string;
+    photo: (index: number) => string;
+  };
 }
 
 type XY = { clientX: number; clientY: number };
@@ -14,7 +18,7 @@ function dist2(a: XY, b: XY) {
   return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 }
 
-export function ImageLightbox({ images, startIndex, onClose }: Props) {
+export function ImageLightbox({ images, startIndex, onClose, labels }: Props) {
   const [index, setIndex] = useState(startIndex);
   const [scale, setScale] = useState(1);
   const [tx, setTx] = useState(0);
@@ -161,7 +165,7 @@ export function ImageLightbox({ images, startIndex, onClose }: Props) {
         <div className="cx-lb__counter">{index + 1} / {images.length}</div>
       )}
       {/* 닫기 */}
-      <button className="cx-lb__close" onClick={onClose} aria-label="닫기">
+      <button className="cx-lb__close" onClick={onClose} aria-label={labels.close}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round">
           <line x1="18" y1="6" x2="6" y2="18" />
           <line x1="6" y1="6" x2="18" y2="18" />
@@ -190,7 +194,7 @@ export function ImageLightbox({ images, startIndex, onClose }: Props) {
               key={i}
               className={`cx-lb__dot${i === index ? " on" : ""}`}
               onClick={() => go(i)}
-              aria-label={`사진 ${i + 1}`}
+              aria-label={labels.photo(i + 1)}
             />
           ))}
         </div>

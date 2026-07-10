@@ -24,6 +24,9 @@ type MaintenanceLinkedFormProps = {
   copy: Dictionary["maintenance"];
   defaultRoom: string;
   imgCopy: Dictionary["requestImages"];
+  initialPropertyName: string;
+  linkedGuestName: string;
+  linkedReservationId: string;
   organizationId: string;
   reporterName: string;
   roomCatalog: readonly ActiveRoomCatalogItem[];
@@ -59,6 +62,9 @@ export function MaintenanceLinkedForm({
   copy,
   defaultRoom,
   imgCopy,
+  initialPropertyName,
+  linkedGuestName,
+  linkedReservationId,
   organizationId,
   reporterName,
   roomCatalog,
@@ -86,7 +92,7 @@ export function MaintenanceLinkedForm({
   }, []);
 
   const resolvedLocation = resolveRequestCatalogLocation(defaultRoom, roomCatalog, buildingLabels);
-  const defaultBuilding = resolvedLocation.buildingName ?? "";
+  const defaultBuilding = initialPropertyName || resolvedLocation.buildingName || "";
   const canonicalRoom = resolvedLocation.canonicalRoomLabel;
   const buildingDisplay = resolvedLocation.buildingLabel ?? copy.form.noBuildingInfo;
   const roomDisplay = canonicalRoom || copy.form.noRoomInfo;
@@ -143,7 +149,9 @@ export function MaintenanceLinkedForm({
     <>
       <form className="flex flex-col gap-6" onSubmit={handleSubmit} ref={formRef}>
         <input name="cleaningSessionId" type="hidden" value={cleaningSessionId} />
+        <input name="guestName" type="hidden" value={linkedGuestName} />
         <input name="propertyName" type="hidden" value={defaultBuilding} />
+        <input name="reservationId" type="hidden" value={linkedReservationId} />
         <input name="roomLabel" type="hidden" value={canonicalRoom} />
 
         <section className="flex flex-col gap-2">

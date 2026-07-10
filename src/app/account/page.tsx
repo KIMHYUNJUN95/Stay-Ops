@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { DeleteAccountSheet } from "@/components/account/delete-account-sheet";
+import { GenderSegmented } from "@/components/account/gender-segmented";
 import { LanguageSegmented } from "@/components/account/language-segmented";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { MobileShell } from "@/components/shell/mobile-shell";
@@ -64,6 +65,21 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
         </div>
       )}
 
+      {(!session.user.birthDate || !session.user.gender) && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-4 shadow-sm">
+          <p className="text-sm font-bold text-amber-900">
+            {dictionary.accountProfile.completionTitle}
+          </p>
+          <p className="mt-1 text-sm leading-6 text-amber-800">
+            {!session.user.birthDate && !session.user.gender
+              ? dictionary.accountProfile.missingBirthDateAndGenderBody
+              : !session.user.birthDate
+                ? dictionary.accountProfile.missingBirthDateBody
+                : dictionary.accountProfile.genderMissingBody}
+          </p>
+        </div>
+      )}
+
       <Card className="p-5">
         <h2 className="text-2xl font-black">{dictionary.onboarding.profileTitle}</h2>
         <form action={updateAccountProfile} className="mt-5 grid gap-3">
@@ -79,6 +95,18 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
             />
           </label>
           <label className="grid gap-1.5 text-sm font-semibold">
+            <span>{dictionary.onboarding.birthDateLabel}</span>
+            <Input
+              defaultValue={session.user.birthDate ?? ""}
+              name="birthDate"
+              placeholder={dictionary.onboarding.birthDatePlaceholder}
+              type="date"
+            />
+            <span className="text-xs font-normal text-muted-foreground">
+              {dictionary.onboarding.birthDateHint}
+            </span>
+          </label>
+          <label className="grid gap-1.5 text-sm font-semibold">
             <span>{dictionary.onboarding.phonePlaceholder}</span>
             <Input
               defaultValue={session.user.phoneNumber}
@@ -91,6 +119,27 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
               {dictionary.onboarding.phoneHint}
             </span>
           </label>
+          <div className="grid gap-1.5 text-sm font-semibold">
+            <span>{dictionary.onboarding.genderLabel}</span>
+            <GenderSegmented
+              name="gender"
+              defaultValue={session.user.gender ?? ""}
+              ariaLabel={dictionary.onboarding.genderLabel}
+              options={[
+                {
+                  code: "female",
+                  label: dictionary.onboarding.genderOptions.female,
+                },
+                {
+                  code: "male",
+                  label: dictionary.onboarding.genderOptions.male,
+                },
+              ]}
+            />
+            <span className="text-xs font-normal leading-5 text-muted-foreground">
+              {dictionary.accountProfile.genderHint}
+            </span>
+          </div>
           <div className="grid gap-1.5 text-sm font-semibold">
             <span>{dictionary.common.language}</span>
             <LanguageSegmented

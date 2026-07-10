@@ -160,6 +160,10 @@ export function AttendancePay({
   const isFinal = !!view.finalization;
   const grossAmount = isFinal ? view.finalization!.gross : view.expectedGross;
   const paidMins = isFinal ? view.finalization!.paidMinutes : view.totalPaidMinutes;
+  // grossAmount already includes attendance allowances; base wage = total − allowance so the daily
+  // table foot (base wage) and the allowance section always add back up to the headline total.
+  const allowanceTotal = view.allowanceTotal;
+  const baseSubtotal = grossAmount - allowanceTotal;
 
   // Page title: "이번 달 급여" / "6월 급여" / "급여" for salaried
   const segCurLabel = shortMonthLabel(view.ym, locale);
@@ -320,6 +324,52 @@ export function AttendancePay({
         </>
       ) : null}
 
+      {/* Attendance allowances applied to this user's month (급여에 포함) */}
+      {view.allowances.length > 0 ? (
+        <>
+          <div className="sectt" style={{ marginTop: "20px" }}>
+            {copy.payAllowanceSection}
+            <span className="cnt">{copy.paySegCount(view.allowances.length)}</span>
+          </div>
+          <div className="rate">
+            {view.allowances.map((a) => (
+              <div key={a.allowanceId} className="rate__r">
+                <span
+                  className="rate__dot"
+                  style={{
+                    background: a.category === "special" ? "var(--warn)" : "var(--primary-lift)",
+                  }}
+                />
+                <div className="rate__b">
+                  <div className="rate__period">
+                    {a.category === "special" ? copy.payAllowanceSpecial : copy.payAllowanceRegular}
+                  </div>
+                  <div className="rate__rate">
+                    {shortDate(a.date)} ·{" "}
+                    {a.type === "hourly_extra" ? copy.payAllowanceHourly : copy.payAllowanceDaily}
+                  </div>
+                </div>
+                <div className="rate__sub">
+                  <div className="rate__amt">+{amount(Math.round(a.calculatedAmount))}</div>
+                </div>
+              </div>
+            ))}
+            <div className="rate__r" style={{ fontWeight: 800 }}>
+              <span className="rate__dot" style={{ background: "var(--primary)" }} />
+              <div className="rate__b">
+                <div className="rate__rate">{copy.payAllowanceTotal}</div>
+              </div>
+              <div className="rate__sub">
+                <div className="rate__amt">+{amount(allowanceTotal)}</div>
+              </div>
+            </div>
+          </div>
+          <p className="gross-note" style={{ marginTop: "8px" }}>
+            {copy.payAllowanceIncluded}
+          </p>
+        </>
+      ) : null}
+
       {/* Daily breakdown table */}
       <div className="sectt" style={{ marginTop: "20px" }}>
         {copy.payDailyBreakdown}
@@ -372,9 +422,10 @@ export function AttendancePay({
         })}
         <div className="ptbl__foot">
           <span className="k">
-            {segCurLabel} {copy.payTotal} · {dur(paidMins)}
+            {segCurLabel} {allowanceTotal > 0 ? copy.payBaseSubtotal : copy.payTotal} ·{" "}
+            {dur(paidMins)}
           </span>
-          <span className="v">{amount(grossAmount)}</span>
+          <span className="v">{amount(baseSubtotal)}</span>
         </div>
       </div>
 

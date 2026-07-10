@@ -5,6 +5,91 @@ foundation) implemented 2026-06-17** ??migration `202606170001_attendance_payrol
 
 ## As-built — Step 2 (site/QR backend helpers + dev temp-QR, 2026-06-17)
 
+## As-built — Monthly transport reimbursement export + receipt review (2026-07-03)
+
+`/admin/attendance/transport`'s "이번 달 내보내기" toolbar (previously a disabled stub) now exports a
+plain itemized ledger for the month (Excel + PDF), and receipts are reviewed in a separate desktop web
+page (see "Receipt review" below) rather than from the file:
+
+- **Excel** (`src/lib/attendance-transport-workbook.ts`, `buildTransportWorkbookBase64`) and **PDF**
+  (`src/lib/attendance-transport-report.ts`, `buildTransportReportHtml`) both match the payroll
+  export's **plain green accounting-ledger** template EXACTLY — same title bar (`#b6d7a8`), header
+  (`#d9ead3`)/zebra/total (`#e2f0d9`) fills, solid 1px black borders, Meiryo-first font stack, and (on
+  the Excel side) the same "pad to at least 50 rows" pre-printed-ledger behavior as
+  `attendance-payroll-workbook.ts`. The PDF's manual "인쇄 / PDF 저장" button (no auto-triggered print
+  dialog) is the same markup/CSS as `attendance-payroll-report.ts`. An earlier draft of the PDF used a
+  navy/card-based style copied from a stale reference — that was a real mismatch bug, caught and fixed
+  before shipping, once the two files were diffed side by side against the CURRENT payroll report
+  (which had itself been unified to the green ledger look in an earlier cycle — always re-read the
+  current file rather than trusting memory/summaries when a user says two exports must match exactly).
+- **Server actions** (`src/app/admin/attendance/actions.ts`): `exportMonthlyTransportWorkbook(ym)` /
+  `exportMonthlyTransportReport(ym)`, built on a shared `buildTransportExportItems` helper. Scope:
+  every reimbursement **item** (not per-staff summary) across all staff whose report for the month has
+  at least one entered item, regardless of submission status (draft/submitted/reviewing/approved/
+  rejected) — each row carries a localized status label so accounting can see what's still provisional.
+  Columns are exactly No / staff / date / building / status / amount — all center-aligned. (The
+  "usage/context" column was dropped 2026-07-03: work detail is checked in payroll review; for
+  transport only the commute building matters.)
+- **The exported files are PLAIN LEDGERS — no receipt images, no links (user decision 2026-07-03).**
+  An earlier iteration embedded a first-photo thumbnail (Excel + PDF) and a "원본보기" deep link, but a
+  cell-sized thumbnail is unreadable and one link per item means 20 clicks / 20 tabs for a 20-day
+  month. So thumbnails, the receipt/link columns, and the per-item image download were all removed from
+  the export path; `buildTransportExportItems` no longer touches storage at all. Receipts now live only
+  in the dedicated web review page below.
+  - exceljs note (retained for future image work): `exceljs.addImage()` wants a plain `ArrayBuffer` —
+    its own `index.d.ts` declares `interface Buffer extends ArrayBuffer {}` scoped to its module, NOT
+    the Node.js global `Buffer`, so a Node Buffer/Uint8Array view must be sliced down to its backing
+    `ArrayBuffer` (`buf.buffer.slice(byteOffset, byteOffset + byteLength)`) before assignment.
+
+### Receipt review — desktop master-detail page (2026-07-03)
+
+Receipts are reviewed in the web dashboard, not from the exported file. Because this is the desktop
+console (not mobile), the viewer is a **master-detail** layout, not a swipe gallery:
+
+- **Route** `src/app/admin/attendance/transport/receipt/page.tsx` — query params `?ym=&user=` (per
+  staff-month). **Entry point**: a "영수증 원본 검토" button in the existing transport review panel
+  (`attendance-transport-client.tsx`, shown when the staff has ≥1 item). The rest of that panel's
+  UI/UX is unchanged — the button just opens this page (`target="stayops_receipt"`, a fixed window name
+  so repeated opens reuse one tab). It is NOT wrapped in AdminShell — a focused reviewer meant to open
+  in its own tab.
+- **Component** `src/components/admin/attendance/transport-receipt-view.tsx`: a **contact-sheet grid**
+  — every receipt photo of the month rendered as a captioned thumbnail (date / amount / building,
+  `object-fit: cover`, `+n/N` badge for multi-photo items), plus dashed "no receipt" cards for items
+  without a photo so a missing day stays visible. Clicking a thumbnail opens a **focus overlay** (large
+  `object-fit: contain` image, click-to-zoom fit↔actual, ←/→ across every photo, `Esc`/backdrop to
+  close, "원본 열기" to the raw signed URL). This replaced an earlier one-photo-at-a-time master-detail
+  layout that left large whitespace; the grid fills the space and makes a whole month scannable at once
+  while still allowing drill-in.
+- **Data** `getAdminTransportReceiptsForUser(session, ym, userId, localeTag)` in `admin-attendance.ts`
+  — **privileged + organization-scoped**: requires `isAttendancePayrollAdmin`; the report is fetched
+  via `getTransportReport(service, session.organization.id, userId, ...)` which is `(org, user, month)`
+  scoped, so another org's receipts can't be reached. All image paths resolve to 10-min signed URLs in
+  one batch. Unauthenticated hits redirect to `/auth/login?next=...`; non-payroll-admins get the
+  "not available" state.
+
+## As-built — Personal payroll Excel/PDF export refinements (2026-07-03)
+
+The admin payroll side panel's single-user Excel/PDF export now shares the same personal payroll data
+shape for both formats: date, clock-in, clock-out, recognized work time, daily pay, approved transport,
+cleaned rooms, and cleaning notes. Cleaned room labels are summarized through the export room rules
+(`AA`, `AB`, `KK`, `T2`, with Okubo/Sky kept as stored labels) and duplicate account suffixes such as
+`_2` collapse to the same visible room label through `room-label-normalization`.
+
+The personal totals row carries `합계`/`Total`, the localized work-day label, and the work-day count in
+the adjacent cells before the time/pay totals. Work days are counted from rows with positive recognized
+paid minutes only; dates that only have approved transportation reimbursement are included in the sheet
+but do not count as attendance days.
+
+Cleaning notes are pulled from `cleaning_sessions.notes` for completed sessions owned by the exported
+staff member in the selected month. Notes are grouped by `cleaning_date` and rendered in the new memo
+column as room-summary-prefixed entries (for example, `AA501: memo`). Multiple same-day notes are joined
+with ` / ` so the payroll export remains one row per operating date.
+
+Payroll review document alignment rule (2026-07-03): `attendance-payroll-workbook.ts`,
+`attendance-payroll-report.ts`, and `attendance-user-payroll-export.ts` intentionally keep the existing
+green accounting-ledger layout and column set, while center-aligning all visible title, meta, table body,
+and total text in both monthly and personal Excel/PDF exports.
+
 **Original scope decision (2026-06-17, user-confirmed):** the owner-only **site master + QR management
 UI would live in the WEB DASHBOARD (admin web)** and the app would be finished first. So the initial
 Step 2 shipped **backend helpers first**, plus a **dev-only temporary-QR tool** so the app's attendance
@@ -267,8 +352,26 @@ stays owner-only.
     `invalid` session is not auto-revived). Audit `manual_update` with before/after.
   - `invalidateAttendanceSession(sessionId, reason)` ??sets `status='invalid'` + `invalidated_at /
     _by_user_id / _reason`; **never hard-deletes**. Audit `invalidate`.
+  - `restoreAttendanceSession(sessionId, reason)` (added 2026-07-02) ??the explicit reverse of
+    invalidate: sets `status` back to `completed`, clears `invalidated_at/_by_user_id/_reason`, resets
+    `review_state` to `normal`. **Both clock ends must already be present** — an invalid session still
+    missing a clock-out returns `incomplete`; the admin must fill it via `updateAttendanceSessionAdmin`
+    (수동 정정) first, so a restore never silently resurrects an incomplete/open session that wouldn't
+    count toward pay (refined 2026-07-02 from the initial "restore to open when incomplete" behavior).
+    Audit `restore` (new `action_type`, migration `202607020001_attendance_session_restore.sql` extends
+    the `attendance_session_audits.action_type` check). Admin console UX: no separate button — the queue
+    panel's "mark reviewed" button relabels to "restore & mark reviewed" and calls this action when the
+    session is `invalid`; that button is **disabled until both clock ends exist** (tooltip directs the
+    admin to 수동 정정 first).
   - All require a non-empty reason (also a DB CHECK on the audit row) and `revalidatePath` the worker
     self-view + home.
+  - `loadSessionAuditTrail(sessionId)` (added 2026-07-02) — read-only, privileged viewer for the
+    `attendance_session_audits` rows of one session. Resolves actor names + site names, and derives a
+    human-readable before→after diff over the curated fields (clock-in/out time, clock-in/out site,
+    status, review_state). Fully localized server-side (ko/ja/en via `getDictionary`) so the client
+    just renders. Powers the queue session panel's "변경 내역" (change history) section — the first UI
+    surface for the audit trail (previously written-only). Loaded on-demand when the panel opens and
+    re-fetched after a successful manual edit.
 - **Reflection (no UI change):** manual/invalidated sessions already render in the existing flows ??the
   review-queue layer (`manual` filter, `manual_created` marker, `invalid` status), and the worker's own
   history (?섎룞 chip via `manualCreated`, 臾댄슚 chip via `invalid` status). Invalidated records remain
@@ -289,7 +392,12 @@ data. **No admin PC/web dashboard** (explicit scope rule). The 湲됱뿬 screen 
   finalization/snapshot/export steps):
   - `resolveEffective(rows, date)` ??effective-date resolution (the segment covering a Tokyo date,
     latest `effective_from`); a rate/employment change applies to that **whole day**, never retroactive.
-  - `paidSecondsForSession` (worked ??closed breaks, ??), `roundToNearest10` (monthly final layer only).
+  - Pure payroll math now lives in `src/lib/attendance-pay-calculation.ts` and is covered by
+    `src/lib/__tests__/attendance-pay.test.ts`: effective-date rate boundaries, overlapping rate rows,
+    closed-break subtraction, exact daily gross, monthly 10-yen ceiling, and personal-export daily
+    reconciliation are regression-tested.
+  - `paidSecondsForSession` (worked ??closed breaks, never negative), `roundToNearest10` (10-yen
+    **ceiling** at the monthly final layer only).
   - **Usable session** = `completed` + both clock ends + `review_state ??{normal, approved_correction}`
     + correction status ??{requested, in_review}. Excluded: open/reopened/invalid, review_required,
     pending correction. Paid minutes in **1-minute units**; breaks excluded; no premiums.
@@ -305,15 +413,136 @@ data. **No admin PC/web dashboard** (explicit scope rule). The 湲됱뿬 screen 
 - **Real-time before finalization:** the view recomputes from current usable attendance ??completed
   sessions, break changes, approved corrections, and rate/employment history all move the number. No
   lock/snapshot here.
-- **Rate-data note (Step 9 still pending):** the proper owner/`attendance_payroll_admin` employment-type
-  + hourly-rate **management** (writing `employment_type_history` / `hourly_rate_history`) is NOT built
-  yet ??it belongs to the deferred web dashboard. Until then those tables are empty, so for **app
-  testing** a dev-only `GET /api/dev/attendance/seed-pay` (gated by `ENABLE_LOCAL_DEV_TOOLS`) seeds the
-  caller's employment type + rate. Pay shows 짜0 / empty until a rate exists.
+- **Locked finalized amount:** once a user-month has a finalized snapshot, admin payroll rows, staff
+  detail, and monthly Excel/PDF exports prefer `attendance_month_snapshots.gross_amount` and
+  `total_paid_minutes` over any newly recomputed expected value. This prevents later hourly-rate edits
+  from changing a previously finalized payable amount.
+- **Personal export reconciliation:** personal Excel/PDF rows display integer-yen daily pay. Because the
+  official payable amount is rounded only at the monthly layer, the export reconciles the daily display
+  rows to the official monthly payroll total (`finalization.gross` when finalized, otherwise
+  `expectedGross`) by applying any rounding delta to the final paid day. The visible daily sum and the
+  official total therefore cannot drift by 1 yen.
+- **Rate + employment management (now built in the web dashboard):** the owner/`attendance_payroll_admin`
+  hourly-rate and employment-type management is implemented at `/admin/attendance/wages`
+  (`attendance-wages-client.tsx`). Hourly rate → `setHourlyRate`; employment type (시급↔정규직) →
+  `setEmploymentType` (2026-07-08) — both privileged server actions in `src/app/admin/attendance/actions.ts`
+  that write `hourly_rate_history` / `employment_type_history` as no-retroactive interval changes (close
+  the active period at effective_from−1, delete a still-future pending row, insert the new open period),
+  with an `audit_logs` entry. The 시급 관리 panel now has a "고용 형태 변경" section (시급/정규직 segmented
+  control + effective date + reason) above the rate editor, available for both hourly and salaried members;
+  switching type leaves the rate history untouched (pay branches on the active employment type). The
+  dev-only `GET /api/dev/attendance/seed-pay` (gated by `ENABLE_LOCAL_DEV_TOOLS`) is now only a testing
+  convenience, not the sole writer. Pay shows ¥0 / empty until a rate exists for an hourly member.
+
+### As-built — attendance allowances / 추가수당 (2026-07-10)
+
+> **Implemented (2026-07-10).** Migration `202607100001_attendance_pay_allowances.sql` (table + RLS +
+> `attendance_month_snapshots.allowance_breakdown jsonb`) applied to production. Calculation in
+> `src/lib/attendance-pay.ts` (+ pure helper `allowanceCalculatedExact` in
+> `attendance-pay-calculation.ts`); create/cancel server actions `createAttendanceAllowance` /
+> `cancelAttendanceAllowance` (`src/app/admin/attendance/actions.ts`, `isAttendancePayrollAdmin`-gated,
+> finalized-month blocked); admin UI section `AttendanceAllowancesSection` on `/admin/attendance/wages`;
+> applied-allowance display in the `/admin/attendance/payroll` side panel and `/mobile/attendance/pay`;
+> base wage / allowance / transport shown as separate columns in every monthly & per-user Excel/PDF
+> export. Snapshot `allowance_breakdown` preserves `{allowanceId, date, type, amountYen, paidMinutes,
+> calculatedAmount, reasonType, memo}` per applied row at finalize time. Decisions taken during
+> implementation (matching the design below): the snapshot got a **dedicated `allowance_breakdown jsonb`
+> column** (not an extended `rate_breakdown`); `expectedGross` now means **base wage + allowance**
+> (rounded once at the monthly layer), with `baseGross` = `expectedGross − allowanceTotal` exposed for the
+> unmixed base column; allowances apply only on hourly days with recognized paid work.
+
+> **Update (2026-07-10, migration `202607100003`):** the free `reason_type` (staff_shortage/busy_day/…)
+> was replaced by a payroll **`category`** — `regular` (추가수당) or `special` (특별수당) — which decides
+> the payroll column the amount lands in. The admin form field is now "구분"(Category), not "사유". The pay
+> view splits the applied allowance into `allowanceRegularTotal` / `allowanceSpecialTotal` (per-day
+> `allowanceRegularExact` / `allowanceSpecialExact`); `allowanceTotal` = their sum, and `baseGross` =
+> `expectedGross − allowanceTotal`. Every monthly & per-user Excel/PDF export now shows **기본급 · 추가수당 ·
+> 특별수당 · 교통비 · 총액** as separate columns. `hourly_extra` still keeps base wage in the base column and
+> puts only the extra (추가 시급 × 인정 시간 차액) into the allowance column, now routed by category.
+> Cancelling an allowance from the wage-page list (`cancelAttendanceAllowance`) restores the affected pay.
+>
+> **Update (2026-07-10, off-site / manual entry):** the field always has variables — off-site work and
+> forgotten clock-ins. So (1) admins can enter a session by hand from the review queue
+> (`ManualSessionModal` → `createManualAttendanceSession`, free-text `manual_location` instead of a
+> required site; migration `202607100004`), (2) per-user Excel/PDF exports gained a **근무 위치** column
+> (manual location, else the site name), and (3) `getMonthlyPayView` now applies a **`daily_fixed`
+> allowance to an hourly worker even on a date with no session** (an "allowance-only day" carrying no base
+> wage). `hourly_extra` still needs recognized minutes, so it only applies where a session (clocked or
+> manual) exists.
+
+The accepted design for busy-day staffing allowances follows.
+
+Naming:
+
+- product label: 추가수당 / Attendance allowance
+- internal table candidate: `attendance_pay_allowances`
+- avoid "bonus" or "incentive" language; the operational reason is staffing coverage on busy or
+  short-staffed dates
+
+Planned schema:
+
+```txt
+attendance_pay_allowances
+
+id uuid primary key
+organization_id uuid not null references organizations(id)
+target_date date not null
+target_user_id uuid references profiles(id) null
+allowance_type text not null -- daily_fixed | hourly_extra
+amount_yen numeric not null
+reason_type text not null -- staff_shortage | busy_day | urgent_shift | special_work | other
+memo text
+status text not null default 'active' -- active | cancelled
+created_by_user_id uuid not null references profiles(id)
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()
+cancelled_by_user_id uuid references profiles(id)
+cancelled_at timestamptz
+```
+
+MVP rules:
+
+- `target_date` is a Tokyo operating date.
+- `target_user_id is null` means all hourly workers with recognized paid work on that date.
+- `target_user_id is not null` limits the allowance to that worker.
+- `daily_fixed` applies once per worker/date when the worker has at least one valid paid session that
+  date; multiple sessions must not multiply the fixed amount.
+- `hourly_extra` applies to the recognized paid minutes for that date.
+- Allowances never change `hourly_rate_history`; base rates stay the contractual/default rate layer.
+- Allowance create/cancel is blocked for a user-month that already has a finalized
+  `attendance_month_snapshots` row. Operators must reopen, edit allowances, then re-finalize.
+
+Calculation integration:
+
+- `src/lib/attendance-pay.ts` should load active allowance rows for the requested month alongside
+  sessions, breaks, `hourly_rate_history`, and `employment_type_history`.
+- `PayDayView` should expose both base gross and allowance gross so `/mobile/attendance/pay`,
+  `/admin/attendance/payroll`, and per-user exports can show the breakdown.
+- `rateSegments` should remain the base-rate segment summary; allowance breakdown should be carried in
+  a separate structure to avoid mixing contractual rates with date allowances.
+- Monthly rounding remains at the final gross layer after base pay and allowance amounts are summed.
+
+Snapshot/export integration:
+
+- `attendance_month_snapshots.rate_breakdown` currently stores the finalized rate summary. When
+  allowances ship, finalized snapshots must also preserve applied allowance detail, either by extending
+  the JSON shape or by adding a dedicated `allowance_breakdown jsonb` column in the same migration.
+- The snapshot must include enough data to explain the finalized amount without recomputing mutable
+  allowance rows later: allowance id, target date, type, amount, calculated amount, reason, and memo.
+- Monthly and per-user Excel/PDF exports should show allowance amounts as separate columns/rows from
+  base wage and transportation reimbursement. Transport reimbursement remains a separate total.
+
+Admin UI integration:
+
+- First implementation should attach allowance management to `/admin/attendance/wages` as a section in
+  the existing wage-management surface.
+- `/admin/attendance/payroll` should show applied allowances in the employee payroll side panel.
+- A separate `/admin/attendance/allowances` tab can be considered later only if allowance volume makes
+  the wage page too dense.
 
 Still pending (Step 11+): monthly finalization snapshots + reopen, dashboard totals, export,
-notifications, full midnight sweep, the employment/rate **management** backend (Step 9), and the
-owner/admin **web-dashboard UI**.
+notifications, full midnight sweep, and the owner/admin **web-dashboard UI**. (The employment/rate
+**management** backend + its 시급 관리 UI are now built — see the rate + employment management note above.)
 
 ## As-built ??Step 11 (per-person monthly finalization + reopen + snapshot, 2026-06-18)
 
@@ -386,6 +615,12 @@ UI** including the totals dashboard (all deferred until the app is complete).
 
 ## As-built ??Step 13 (finalized-only payroll export, 2026-06-18)
 
+> **Superseded (2026-07-03):** the interim CSV described below is no longer the shipped format. The
+> admin 급여 검토 page now exports the **final** monthly + per-user **Excel workbook + PDF** (see the
+> "Personal payroll Excel/PDF export refinements" and "Per-user accounting exports" as-built sections).
+> The CSV `runPayrollExport` / `exportMonthlyPayroll` / `exportUserPayroll` path and the dev test route
+> remain as a legacy/back-compat foundation but are not wired into the dashboard UI.
+
 Privileged finalized-only payroll export (monthly bulk + per-person) + export audit logging. **No admin
 dashboard/export UI** (the export trigger UI is in the deferred web dashboard); no app screen expects
 export, so this is backend + a dev test route.
@@ -416,8 +651,9 @@ export, so this is backend + a dev test route.
 
 Still pending (Step 14+): **notifications** (18:30 reminder, correction/finalize outcomes), full
 midnight sweep, the employment/rate **management** backend (Step 9), and the owner/admin **web-dashboard
-UI** (site/QR 쨌 review queue 쨌 manual mgmt 쨌 rate mgmt 쨌 finalize/reopen 쨌 totals dashboard 쨌 export ??all deferred until the app is complete). The final operator Excel **export template** also remains
-pending (interim CSV is in place).
+UI** (site/QR 쨌 review queue 쨌 manual mgmt 쨌 rate mgmt 쨌 finalize/reopen 쨌 totals dashboard 쨌 export ??all deferred until the app is complete). ~~The final operator Excel export template also remains
+pending (interim CSV is in place).~~ **Done (2026-07-03):** the final monthly + per-user **Excel
+workbook + PDF** export ships in the admin 급여 검토 page; see the 2026-07-03 as-built sections below.
 
 ## As-built ??Step 14 (attendance notifications + 18:30 reminder, 2026-06-18)
 
@@ -533,7 +769,7 @@ UI-only pass over the self history + pay screens (no policy/schema change beyond
 교통비 정산 백엔드 구현 완료. 급여(payroll)와 완전 분리된 증빙 기반 비용 정산 모듈.
 
 - **마이그레이션** `202606260001_transport_reimbursement.sql`:
-  - `transport_reimbursement_reports` — 사용자별 월 1개; status `draft/submitted/reviewing/approved/rejected`; `total_amount_cached` (소스 of truth는 items, 캐시 전용)
+  - `transport_reimbursement_reports` — 사용자별 월 1개; status `draft/submitted/reviewing/approved/rejected/changes_requested`; `total_amount_cached` (소스 of truth는 items, 캐시 전용)
   - `transport_reimbursement_items` — 항목 (usage_date, amount_yen, entry_mode, attendance_session_id nullable, property_id/room_id nullable, work_context jsonb)
   - `transport_reimbursement_item_images` — 항목당 증빙 이미지
   - RLS: 사용자는 자기 데이터 SELECT만; owner/attendance_payroll_admin은 조직 전체 SELECT; 모든 write는 service-role
@@ -545,7 +781,9 @@ UI-only pass over the self history + pay screens (no policy/schema change beyond
   - `getTransportItems` — report_id로 items + images 조회
   - `getLinkedTransportCandidates` — 선택 월의 attendance_sessions + cleaning_sessions 읽어 후보 생성 (DB 미저장, 쿼리에서 계산)
   - `syncReportTotalAmount` — items 합계를 total_amount_cached에 반영
-  - `getTransportReportSummaryForAdmin` / `getTransportReportUserDetailForAdmin` — 관리자 전용
+  - `getTransportReportSummaryForAdmin` / `getTransportReportUserDetailForAdmin` — 관리자 전용.
+    Summary rows include `itemCount` and `missingCount` so overview/list KPI can report missing receipt
+    evidence without hardcoded placeholders.
 
 - **Server actions** `src/app/mobile/attendance/transport/actions.ts`:
   - `createTransportItemAction` — report 자동 생성, draft/rejected 상태에서만 허용
@@ -555,6 +793,91 @@ UI-only pass over the self history + pay screens (no policy/schema change beyond
   - `submitTransportReportAction` — 증빙 누락 항목 있으면 `missing_evidence` 오류로 제출 차단
 
 - **프론트엔드 연결 상태**: UI (transport/page.tsx + transport-statement.tsx) mock 제거 및 실데이터 주입은 같은 작업 사이클에서 완료 예정. 현재 transport-statement.tsx는 MOCK_ITEMS 사용 중 → 실데이터 props로 전환 필요.
+
+## As-built — Admin Attendance Dashboard Console Hardening (2026-07-02)
+
+The desktop admin attendance console now consumes the attendance/payroll/transport backend slices
+directly instead of rendering placeholder dashboard values.
+
+- **Overview aggregation** (`src/lib/admin-attendance.ts`): `getAdminAttendanceOverview` pulls from the
+  same review queue, correction-request, payroll, and transport helpers used by the detail pages. KPI
+  values therefore represent the current queue/payroll/transport data instead of safe-zero placeholders.
+  Transport KPI includes real missing-receipt evidence count derived from reimbursement items with no
+  image rows.
+- **Open correction sample** (`src/components/admin/attendance/attendance-overview.tsx`): the overview
+  correction card renders recent open requests (`requested` / `in_review`) with requester, date, field,
+  before/after value, and submitted time. The card only uses the empty state when there are no open
+  correction requests.
+- **Correction approval site integrity** (`src/app/admin/attendance/actions.ts`): approving a correction
+  applies final clock-in and clock-out site IDs independently. A legacy single `finalSiteId` remains as a
+  compatibility fallback, but new callers should send `finalClockInSiteId` and `finalClockOutSiteId`.
+  Every final site ID is validated server-side against the organization before updating the session.
+- **Hourly-rate future replacement UI** (`src/components/admin/attendance/attendance-wages-client.tsx`):
+  the wage editor's optimistic history now mirrors server behavior. When a still-future open rate row is
+  replaced, the client removes that superseded row instead of displaying it as a closed historical row.
+- **Shared month control** (`src/components/admin/attendance/attendance-subnav.tsx` +
+  `admin-month-picker.tsx`): the attendance console uses one top-right month picker in the shared subnav.
+  It drives the common `?ym=YYYY-MM` context for overview, queue, payroll, transport, wages, and staff
+  detail pages. Page-local month-picker toolbars were removed; non-month panel context such as
+  `sessionId` or selected transport `user` is preserved when relevant. Follow-up links from overview to
+  payroll/transport, staff-day panels to queue, and wage panels to staff detail also carry the selected
+  `ym`.
+- **Blocker → review-queue deep links (2026-07-10)**: in the payroll side panel, each 마감 차단 사유
+  card (검토 필요 세션 / 정정 요청 대기 / 진행 중 세션) is a link into the review queue pre-filtered to
+  the blocking work. `검토 필요`·`진행 중` → `filter=review`, `정정 요청` → `filter=corr`, all carrying
+  `?ym=<selected>&q=<staff name>`. The queue page (`/admin/attendance/queue`) now reads `filter`
+  (`review|pending|corr|all`, default `review`) and `q` (name search, ≤60 chars) from `searchParams` and
+  seeds `AttendanceQueueClient`'s initial `filter` / `nameQuery`. On arrival the client also **auto-opens
+  that staff member's side panel** — the first matching session (`filter=review`) or correction request
+  (`filter=corr`) for the searched name — computed in the `panel` `useState` initializer (an explicit
+  `sessionId` deep link still wins). This lets an operator jump straight from "why can't I finalize" to
+  the exact session's detail panel to resolve; once all blockers clear, `finalizationEligible` flips true
+  (마감 button enables), and finalizing enables the per-user PDF/Excel export.
+- **Panel summary shows transport + total payout (2026-07-10)**: the per-user payroll side panel's
+  "월별 요약" now lists **교통비**(approved) and **총 지급액(교통비 포함)** (= expected pre-tax wage +
+  approved transport) right under the wage-only "예상 세전 총액", so the on-screen summary matches the
+  exported PDF/Excel totals. `AdminPayrollRow` gained `transportApproved` (¥); `getAdminAttendancePayroll`
+  joins it from the same source the export uses (`transport_reimbursement_reports`, `status='approved'`,
+  `target_month='YYYY-MM-01'`, `total_amount_cached`) so panel and file totals cannot drift. Labels reuse
+  `payExportTransport` / `payExportTotalWithTransport` (ko/ja/en); the total row uses `.kv--total`.
+  Salaried rows dash the total (wage isn't computed in this panel) but still show the transport amount.
+- **Accounting Excel export** (`src/app/admin/attendance/actions.ts` +
+  `src/lib/attendance-payroll-workbook.ts`): the payroll page's monthly workbook action is labeled
+  `엑셀 내보내기` in Korean and emits a tax/accounting hand-off summary rather than an internal review
+  table. Columns are staff name, work days, total recognized time, hourly rate, approved transport
+  reimbursement, payroll excluding transport, and total payout including transport. Transport is joined
+  from the transport-review helper for the same month and only `approved` reports are included in the
+  workbook totals. The workbook intentionally uses a plain payroll-ledger template rather than a
+  report-style design: one green title row, Meiryo-sized headers with slightly roomy columns, black grid
+  borders, black text throughout, bold-only emphasis for money columns (not text columns such as
+  cleaned-room labels), up to 50 staff rows with blank bordered rows left available, and a simple
+  right-aligned totals row.
+- **Per-user accounting exports** (`src/lib/attendance-user-payroll-export.ts`): the payroll side panel's
+  staff export now emits per-user Excel/PDF monthly detail instead of the legacy single-user CSV. The
+  export rows are keyed by date and combine `getMonthlyPayView` day data (clock-in/out labels,
+  paid minutes, daily gross), approved transport reimbursement items grouped by `usage_date`, and
+  completed cleaning sessions grouped by `cleaning_date`. Cleaning rooms are summarized with the current
+  user-provided room-label rules: Arakicho A/B -> `AA`/`AB` + room, Kabukicho -> `KK` + room,
+  Takadanobaba -> `T2` + room, Okubo/Sky kept as stored labels until a later abbreviation decision.
+  The export now reuses the same `getDisplayRoomLabel()` collapse rule as the cleaning UI, so duplicate
+  Arakicho account keys such as `501_2` render as `AA501` / `AB501` instead of leaking the raw suffix.
+  When a raw room already includes a building prefix (`ab201`, `t2203`, etc.), that prefix is stripped
+  before the summary is prepended so exports show `AB201`, `T2203`, not duplicated forms like `ABab201`.
+  The workbook totals row keeps payout as a right-aligned numeric cell with a custom number format rather
+  than a left-aligned text formula. Monthly Excel/PDF and per-user Excel/PDF are intentionally kept on
+  the same green ledger template so export surfaces do not diverge visually.
+- **Admin roster** (`/admin/attendance/roster`): the web console now exposes the same daily attendance
+  roster as mobile by reusing `src/lib/attendance-roster.ts` and the `attendance_sessions` +
+  `attendance_breaks` source data. The route accepts `?date=YYYY-MM-DD`, clamps future and older-than-90-day
+  requests to Tokyo today like mobile, and the client performs a quiet 10-second refresh while viewing
+  today. The visible live-time label ticks every second independently from that data refresh; active
+  status chips use the same small pulse-dot convention as the mobile roster, while the live-time
+  indicator keeps its own pulse. `RosterEntry` includes `openBreakStartedAt` so the admin roster can show
+  an elapsed `휴게 N분` value in the break column while keeping `휴게 중` as the status chip. Date selection
+  lives in one top attendance-subnav date picker, not inside the roster body. This page is read-only;
+  payroll-impacting edits remain in the review queue actions.
+- **i18n guard fix**: the complaint image lightbox aria labels are dictionary-backed (`lightboxClose`,
+  `lightboxPhoto`) in ko/ja/en so the repository-wide i18n guard remains green.
 
 ## Purpose
 
@@ -916,6 +1239,47 @@ Notes:
 - the rate effective date also applies to the full operating day
 - final hourly gross result is rounded to nearest 10 yen
 
+### Planned `attendance_pay_allowances`
+
+```txt
+id uuid primary key
+organization_id uuid not null references organizations(id)
+target_date date not null
+target_user_id uuid references profiles(id)
+allowance_type text not null
+amount_yen numeric not null
+reason_type text not null
+memo text
+status text not null default 'active'
+created_by_user_id uuid not null references profiles(id)
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()
+cancelled_by_user_id uuid references profiles(id)
+cancelled_at timestamptz
+```
+
+Recommended `allowance_type` values:
+
+```txt
+daily_fixed
+hourly_extra
+```
+
+Recommended `status` values:
+
+```txt
+active
+cancelled
+```
+
+Notes:
+
+- this is a planned table; it is not present in the current migrations yet
+- allowances are separate from `hourly_rate_history`
+- `daily_fixed` applies once per worker/date when the date has recognized paid work
+- `hourly_extra` is multiplied by recognized paid minutes for the date
+- finalized payroll must preserve applied allowance detail in snapshot data
+
 ### `attendance_month_snapshots`
 
 ```txt
@@ -946,7 +1310,43 @@ reopened
 Notes:
 
 - one user-month may have multiple historical snapshots
-- only one current non-superseded row should be treated as current
+- only one `finalized` row per `(organization_id, user_id, target_month)` is allowed by
+  `attendance_month_snapshots_one_finalized_idx` (migration
+  `202607030003_attendance_finalized_snapshot_unique.sql`)
+- reopened/superseded rows are retained as history and are not considered payable current rows
+
+Admin attendance consistency hardening (2026-07-03):
+
+- Manual create/update, correction approval, invalidate, and restore all block pay-affecting changes once
+  the target user-month has a current finalized snapshot.
+- Manual and correction-applied completed sessions require `clock_out_at > clock_in_at`; otherwise the
+  action fails instead of silently producing zero paid time.
+- Manual clock-out `HH:mm` values that are earlier than clock-in resolve to the next Tokyo day, and
+  midnight-crossing sessions are kept review-required.
+- Session-less exception approvals insert the missing completed manual session and audit row before the
+  correction request is marked approved.
+- Correction approval/rejection and transport-review mutations include current-status guards so a second
+  admin cannot overwrite an already-transitioned request/report.
+
+Admin dashboard aggregation performance rule (2026-07-03):
+
+- Attendance subnav badges must use `getAdminAttendanceBadgeStats`, the lightweight count-only helper.
+  They must not call `getAdminAttendanceOverview`, because overview loads review samples, correction
+  samples, payroll fanout, and transport rows for the full landing page.
+- Full overview aggregation remains reserved for `/admin/attendance` only.
+- Correction request site labels are batch-loaded from `attendance_sites` once per correction list, not
+  resolved with per-row site lookup calls.
+- Overview queue links must preserve the selected `ym`; session deep links use
+  `/admin/attendance/queue?ym=YYYY-MM&sessionId=...` so past-month rows do not open an empty current-month
+  queue.
+- The admin correction queue is an open-work queue: it loads `requested` / `in_review` rows only and
+  removes rows from client state after approval/rejection.
+- Transport "submitted total" KPI excludes draft, rejected, and changes-requested reports; it only sums
+  submitted/reviewing/approved reports and recalculates from current client rows after review actions.
+- Attendance side panels share `useAdminPanelA11y`: `Esc` closes the active panel, body scroll is locked
+  while open, focus moves into the panel, and the previously focused element is restored on close. Nested
+  reason modals and receipt lightboxes disable the parent panel's `Esc` handler so only the top overlay
+  responds.
 
 ### `attendance_export_logs`
 
@@ -999,7 +1399,14 @@ submitted
 reviewing
 approved
 rejected
+changes_requested
 ```
+
+Admin review transitions are intentionally narrower than the status list. Admins may approve, reject,
+or request a fix only from `submitted` / `reviewing`; `changes_requested` is with the worker and must be
+resubmitted before another admin decision. The desktop transport panel hides impossible decision buttons
+for `draft`, `none`, and `changes_requested`, while staff detail renders `changes_requested` as the same
+localized request-fix label instead of treating it as no submission.
 
 Notes:
 
@@ -1122,7 +1529,7 @@ gross = hourly_rate * (paid_minutes / 60)
 Monthly total:
 
 - sum all gross segments by effective rate
-- round final per-person monthly gross to nearest 10 yen
+- round final per-person monthly gross up to the next 10 yen ceiling
 
 ### No Premium Layers
 
@@ -1190,6 +1597,7 @@ These are intentionally out of scope for now.
 - `getAttendanceReviewQueue`
 - `getAttendanceDashboard`
 - `getAttendanceSiteCostSummary`
+- planned `getAttendancePayAllowances`
 - `getMyTransportReimbursementMonth`
 - `getTransportReimbursementUserMonth`
 - `getTransportReimbursementMonthSummary`
@@ -1202,12 +1610,14 @@ These are intentionally out of scope for now.
 - read own breaks
 - read own correction requests
 - read own month summaries
+- planned: read own applied attendance allowances through the pay view
 - read own transport reimbursement reports/items/images
 - no direct client-side writes to authoritative payroll data
 
 ### Privileged admin access
 
 - `owner` and `attendance_payroll_admin` read org-wide attendance and payroll data
+- planned: `owner` and `attendance_payroll_admin` read and manage org-wide attendance allowances
 - `owner` and `attendance_payroll_admin` read org-wide transport reimbursement data
 - site master writes should still remain owner-only in application logic
 
@@ -1216,6 +1626,7 @@ These are intentionally out of scope for now.
 Recommended pattern:
 
 - authoritative attendance mutations go through controlled server actions
+- planned attendance allowance create/cancel goes through controlled privileged server actions
 - RLS may remain conservative/read-focused for complex payroll-sensitive tables
 
 ## Finalization Rules
@@ -1227,9 +1638,14 @@ A user-month cannot finalize while any of these exist:
 - open sessions
 - reopened month state
 
+When attendance allowances ship, a user-month also cannot be finalized while allowance edits are in an
+invalid state. Allowance create/cancel is blocked once the user-month is finalized; changing it requires
+reopen and re-finalize.
+
 Finalization should:
 
 - compute paid minutes and gross amount
+- compute and preserve applied attendance allowance breakdown
 - persist a snapshot
 - record audit action
 
@@ -1260,7 +1676,7 @@ existing `attendance_activity` design until the reimbursement review lifecycle i
 - export only finalized data
 - support monthly bulk and single-user export
 - exclude unresolved / draft / reopened records
-- template content remains pending from operator
+- final format = per-user + monthly **Excel workbook + PDF** (2026-07-03), superseding the interim CSV
 - store export audit trail
 
 Transportation reimbursement export should be modeled separately from finalized wage export.
@@ -1300,4 +1716,3 @@ Important:
 - transportation reimbursement is now planned as a later attendance/payroll-adjacent module: per-user
   monthly ledger, mandatory photo evidence per item, linked + manual entry, clean Excel export, and
   separate totals from wages
-

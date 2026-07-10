@@ -1,6 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import {
+  getCanonicalPropertyName,
+  getCanonicalRoomLabel,
+} from "@/lib/room-label-normalization";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
 import { getCurrentAppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -37,14 +41,21 @@ function isValidUuid(value: string) {
 
 export async function createLostItem(formData: FormData) {
   const rawCleaningSessionId = cleanText(formData.get("cleaningSessionId"));
+  const rawReservationId = cleanText(formData.get("reservationId"));
   const requestedId = cleanText(formData.get("id"));
 
   const session = await getCurrentAppSession();
   if (!session) {
     const basePath = "/mobile/lost-found/new";
-    const targetPath = rawCleaningSessionId
-      ? `${basePath}?sessionId=${encodeURIComponent(rawCleaningSessionId)}`
-      : basePath;
+    const targetParams = new URLSearchParams();
+    if (rawCleaningSessionId) {
+      targetParams.set("sessionId", rawCleaningSessionId);
+    }
+    if (rawReservationId) {
+      targetParams.set("reservationId", rawReservationId);
+    }
+    const targetPath =
+      targetParams.size > 0 ? `${basePath}?${targetParams.toString()}` : basePath;
     redirect(`/auth/login?next=${encodeURIComponent(targetPath)}`);
   }
 
@@ -57,9 +68,10 @@ export async function createLostItem(formData: FormData) {
     .map((v) => cleanText(v))
     .filter(Boolean);
 
-  const sessionParam = rawCleaningSessionId
-    ? `&sessionId=${encodeURIComponent(rawCleaningSessionId)}`
-    : "";
+  const sessionParams = new URLSearchParams();
+  if (rawCleaningSessionId) sessionParams.set("sessionId", rawCleaningSessionId);
+  if (rawReservationId) sessionParams.set("reservationId", rawReservationId);
+  const sessionParam = sessionParams.size > 0 ? `&${sessionParams.toString()}` : "";
 
   if (!propertyName) {
     redirect(`/mobile/lost-found/new?error=missing_building${sessionParam}`);
@@ -130,6 +142,40 @@ export async function createLostItem(formData: FormData) {
     }
   }
 
+  let guestName: string | null = null;
+  let reservationId: string | null = null;
+  if (rawReservationId) {
+    const { data } = await supabase
+      .from("reservations")
+      .select("id, guest_name, property_name, room_label")
+      .eq("id", rawReservationId)
+      .eq("organization_id", session.organization.id)
+      .maybeSingle();
+
+    const linkedReservation = data as {
+      guest_name: string;
+      id: string;
+      property_name: string;
+      room_label: string;
+    } | null;
+
+    if (!linkedReservation) {
+      redirect(`/mobile/lost-found/new?error=save_failed${sessionParam}`);
+    }
+
+    const linkedPropertyName = getCanonicalPropertyName(linkedReservation.property_name);
+    const linkedRoomLabel =
+      getCanonicalRoomLabel(linkedPropertyName, linkedReservation.room_label) ??
+      linkedReservation.room_label.trim();
+
+    if (linkedPropertyName !== propertyName || linkedRoomLabel !== roomLabel) {
+      redirect(`/mobile/lost-found/new?error=save_failed${sessionParam}`);
+    }
+
+    guestName = linkedReservation.guest_name;
+    reservationId = linkedReservation.id;
+  }
+
   // Store the room_label in combined format "{propertyName} {canonicalRoom}" so that
   // resolveRequestLocation() can recover the building via its combinedMatch path.
   // When propertyName === roomLabel (Okubo pattern) just use roomLabel as-is.
@@ -142,6 +188,9 @@ export async function createLostItem(formData: FormData) {
     id: requestId,
     organization_id: session.organization.id,
     reported_by_user_id: session.user.id,
+    guest_name: guestName,
+    property_name: propertyName,
+    reservation_id: reservationId,
     room_label: combinedRoomLabel,
     item_name: itemName,
     memo: memo || null,

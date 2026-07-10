@@ -25,7 +25,7 @@ import {
   PlaneLanding,
   PlaneTakeoff,
 } from "lucide-react";
-import { PROPERTY_MAP_META, type PropertyMapMeta, getPropertyAddress } from "@/lib/property-map-links";
+import { type PropertyMapMeta, getPropertyAddress } from "@/lib/property-map-links";
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { useBodyScrollLock } from "@/components/shell/use-body-scroll-lock";
@@ -42,6 +42,7 @@ export type CalendarReservationItem = {
   guestCount: number | null;
   guestName: string;
   id: string;
+  internalNote: string | null;
   phone: string | null;
   propertyName: string;
   roomLabel: string;
@@ -110,6 +111,10 @@ type MobileCalendarViewProps = {
     mapNoAccessData: string;
     noFilterResults: string;
     noEmptyRooms: string;
+    internalNote: string;
+    internalNoteEmpty: string;
+    opsNote: string;
+    opsNoteEmpty: string;
     phone: string;
     phoneMissing: string;
     listReferenceDate: string;
@@ -126,6 +131,7 @@ type MobileCalendarViewProps = {
   // Computed server-side: true when selectedMonth is outside the 2-month operational window.
   // Passed as a prop to avoid recomputing on the client and to keep a single source of truth.
   isOutOfWindow: boolean;
+  buildingInfos: PropertyMapMeta[];
   locale: Locale;
   reservations: CalendarReservationItem[];
   // When populated with room labels from the room master table, Empty today switches
@@ -365,6 +371,7 @@ function sharedAccessCodeLabel(
 }
 
 export function MobileCalendarView({
+  buildingInfos,
   copy,
   isOutOfWindow,
   locale,
@@ -477,8 +484,8 @@ export function MobileCalendarView({
   const buildingPickerHref = new URLSearchParams();
   buildingPickerHref.set("month", selectedMonth);
   const propertyMetaByName = useMemo(
-    () => new Map(PROPERTY_MAP_META.map((item) => [item.canonicalName, item])),
-    [],
+    () => new Map(buildingInfos.map((item) => [item.canonicalName, item])),
+    [buildingInfos],
   );
   const getPropertyCalendarHref = (property: string) => {
     const params = new URLSearchParams();
@@ -1048,6 +1055,7 @@ export function MobileCalendarView({
                             .toSorted((a, b) => a.laneIndex - b.laneIndex)
                             .map((bar) => {
                               const isCompactBar = bar.widthPx < 58;
+                              const hasInternalNote = Boolean(bar.item.internalNote?.trim());
                               const label = reservationBarLabel(bar.item.guestName, bar.widthPx);
                               const isOther = normalizeSource(bar.item.source) === "other";
                               // A reservation that begins/ends outside the visible month gets a
@@ -1074,7 +1082,11 @@ export function MobileCalendarView({
                                     top: `${CALENDAR_BAR_TOP + bar.laneIndex * CALENDAR_COMPACT_LANE_OFFSET}px`,
                                     height: `${CALENDAR_BAR_HEIGHT}px`,
                                   }}
-                                  title={bar.item.guestName}
+                                  title={
+                                    hasInternalNote
+                                      ? `${bar.item.guestName} · ${copy.internalNote}`
+                                      : bar.item.guestName
+                                  }
                                   type="button"
                                 >
                                   {startsInView && bar.widthPx >= 30 ? (
@@ -1089,6 +1101,15 @@ export function MobileCalendarView({
                                   <span className="block min-w-0 truncate tracking-[-0.02em]">
                                     {label}
                                   </span>
+                                  {hasInternalNote && bar.widthPx >= 26 ? (
+                                    <span
+                                      className={cn(
+                                        "ml-1 size-1.5 shrink-0 rounded-full",
+                                        isOther ? "bg-slate-700 ring-2 ring-white/85" : "bg-amber-200 ring-2 ring-white/45",
+                                      )}
+                                      aria-hidden="true"
+                                    />
+                                  ) : null}
                                   {!endsInView ? (
                                     <span
                                       className={cn(
@@ -1264,10 +1285,10 @@ export function MobileCalendarView({
               <MapPin className="size-3.5" />
             </span>
             <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground/80">
-              {PROPERTY_MAP_META.length} buildings
+              {buildingInfos.length} buildings
             </p>
           </div>
-          {PROPERTY_MAP_META.map((meta) => {
+          {buildingInfos.map((meta) => {
             const address = getPropertyAddress(meta, locale);
             const roomCount = meta.roomAccess?.length ?? 0;
             const sharedCount = meta.sharedAccess.length;
@@ -1493,6 +1514,13 @@ export function MobileCalendarView({
                   <p className="mt-2 text-[11px] text-muted-foreground">{copyFeedback}</p>
                 ) : null}
               </Card>
+
+              <Card className={`${GLASS_CARD} p-4`}>
+                <p className="text-xs text-muted-foreground">{copy.internalNote}</p>
+                <p className="mt-1 whitespace-pre-wrap break-words font-semibold text-slate-900">
+                  {selectedReservation.internalNote?.trim() || copy.internalNoteEmpty}
+                </p>
+              </Card>
             </div>
           </div>
         </div>,
@@ -1575,6 +1603,13 @@ export function MobileCalendarView({
                     {copy.mapOpenInMaps}
                   </Button>
                 </div>
+              </Card>
+
+              <Card className="rounded-2xl border-white/70 bg-white/60 p-4 shadow-sm backdrop-blur-xl">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{copy.opsNote}</p>
+                <p className="mt-1.5 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-slate-900">
+                  {selectedMapProperty.note?.trim() || copy.opsNoteEmpty}
+                </p>
               </Card>
 
               <Card className="rounded-2xl border-white/70 bg-white/60 p-4 shadow-sm backdrop-blur-xl">

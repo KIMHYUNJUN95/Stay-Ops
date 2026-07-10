@@ -205,7 +205,11 @@ export async function cancelLeaveRequest(
 
   const { error } = await service
     .from("annual_leave_requests")
-    .update({ status: "cancelled", cancelled_at: new Date().toISOString() } as never)
+    .update({
+      status: "cancelled",
+      cancelled_at: new Date().toISOString(),
+      cancelled_by_user_id: userId,
+    } as never)
     .eq("id", requestId)
     .eq("organization_id", organizationId)
     .eq("user_id", userId);

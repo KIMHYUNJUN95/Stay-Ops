@@ -24,6 +24,9 @@ type MaintenanceCreateFormProps = {
   copy: Dictionary["maintenance"];
   defaultRoom: string;
   imgCopy: Dictionary["requestImages"];
+  initialPropertyName: string;
+  linkedGuestName: string;
+  linkedReservationId: string;
   organizationId: string;
   reporterName: string;
   roomCatalog: readonly ActiveRoomCatalogItem[];
@@ -60,15 +63,27 @@ export function MaintenanceCreateForm({
   buildingLabels,
   cleaningSessionId,
   copy,
+  defaultRoom,
   imgCopy,
+  initialPropertyName,
+  linkedGuestName,
+  linkedReservationId,
   organizationId,
   reporterName,
   roomCatalog,
 }: MaintenanceCreateFormProps) {
+  const inferredInitialBuilding = (() => {
+    if (initialPropertyName) return initialPropertyName;
+    if (!defaultRoom) return "";
+    const matches = roomCatalog.filter((item) => item.canonicalRoomLabel === defaultRoom);
+    return matches.length === 1 ? matches[0]?.propertyName ?? "" : "";
+  })();
+  const inferredInitialRoom = inferredInitialBuilding ? defaultRoom : "";
+
   const formRef = useRef<HTMLFormElement>(null);
   const uploaderRef = useRef<AnnouncementImageUploaderHandle>(null);
-  const [selectedBuilding, setSelectedBuilding] = useState("");
-  const [selectedRoom, setSelectedRoom] = useState("");
+  const [selectedBuilding, setSelectedBuilding] = useState(inferredInitialBuilding);
+  const [selectedRoom, setSelectedRoom] = useState(inferredInitialRoom);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [urgency, setUrgency] = useState<UrgencyTone>("normal");
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -204,6 +219,8 @@ export function MaintenanceCreateForm({
       >
         <input name="cleaningSessionId" type="hidden" value={cleaningSessionId} />
         <input name="propertyName" type="hidden" value={selectedBuilding} />
+        <input name="guestName" type="hidden" value={linkedGuestName} />
+        <input name="reservationId" type="hidden" value={linkedReservationId} />
         <input name="roomLabel" type="hidden" value={selectedRoom} />
 
         {/* Section 1: Location */}

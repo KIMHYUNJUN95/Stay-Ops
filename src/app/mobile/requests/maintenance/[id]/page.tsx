@@ -19,24 +19,22 @@ import { cn } from "@/lib/utils";
 
 const statusBadgeClass: Record<MaintenanceStatus, string> = {
   open: "border-blue-200 bg-blue-50 text-blue-700",
-  in_progress:
-    "border-amber-200 bg-amber-50 text-amber-700",
-  resolved:
-    "border-green-200 bg-green-50 text-green-700",
+  in_progress: "border-amber-200 bg-amber-50 text-amber-700",
+  resolved: "border-green-200 bg-green-50 text-green-700",
   closed: "border-border bg-muted/50 text-muted-foreground",
 };
 const DETAIL_CARD =
   "rounded-[24px] border border-slate-200/80 bg-surface shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]";
 
 type ListFilterQuery = {
-  created?: string;
-  scope?: string;
-  type?: string;
-  status?: string;
   building?: string;
+  created?: string;
   date?: string;
-  startDate?: string;
   endDate?: string;
+  scope?: string;
+  startDate?: string;
+  status?: string;
+  type?: string;
 };
 
 type PageProps = {
@@ -63,9 +61,7 @@ export default async function MobileMaintenanceDetailPage({ params, searchParams
   ]);
 
   if (state.status === "unauthenticated") {
-    redirect(
-      `/auth/login?next=${encodeURIComponent(`/mobile/requests/maintenance/${id}`)}`,
-    );
+    redirect(`/auth/login?next=${encodeURIComponent(`/mobile/requests/maintenance/${id}`)}`);
   }
   if (state.status !== "ready" || !session) {
     redirect("/onboarding");
@@ -140,18 +136,40 @@ export default async function MobileMaintenanceDetailPage({ params, searchParams
             </div>
             <div className="flex items-start justify-between gap-3 text-sm">
               <dt className="font-semibold text-muted-foreground">{copy.reporter}</dt>
-              <dd className="text-right font-black">{report.reporter_name || "—"}</dd>
+              <dd className="text-right font-black">{report.reporter_name || "-"}</dd>
             </div>
           </dl>
 
-          {report.description ? (
+          {report.reservation_id || report.guest_name ? (
             <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/82 p-3.5 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)]">
               <p className="text-xs font-semibold text-muted-foreground">
-                {copy.description}
+                {dictionary.tasks.contextLinkedSection}
               </p>
-              <p className="mt-1 whitespace-pre-wrap text-sm leading-6">
-                {report.description}
-              </p>
+              <dl className="mt-2 space-y-2 text-sm">
+                {report.guest_name ? (
+                  <div className="flex items-start justify-between gap-3">
+                    <dt className="font-semibold text-muted-foreground">
+                      {dictionary.admin.calendar.guestName}
+                    </dt>
+                    <dd className="text-right font-black">{report.guest_name}</dd>
+                  </div>
+                ) : null}
+                {report.reservation_id ? (
+                  <div className="flex items-start justify-between gap-3">
+                    <dt className="font-semibold text-muted-foreground">
+                      {dictionary.mobile.calendarReservationId}
+                    </dt>
+                    <dd className="font-mono text-[11px] font-semibold">{report.reservation_id}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            </div>
+          ) : null}
+
+          {report.description ? (
+            <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/82 p-3.5 shadow-[0_10px_20px_-18px_rgba(31,58,95,0.4)]">
+              <p className="text-xs font-semibold text-muted-foreground">{copy.description}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{report.description}</p>
             </div>
           ) : null}
 
@@ -184,9 +202,7 @@ export default async function MobileMaintenanceDetailPage({ params, searchParams
                 key={s}
                 className={cn(
                   "flex-1 text-center text-[10px] font-semibold leading-tight",
-                  s === report.status
-                    ? "text-foreground"
-                    : "text-muted-foreground/40",
+                  s === report.status ? "text-foreground" : "text-muted-foreground/40",
                 )}
               >
                 {copy.statusLabels[s]}

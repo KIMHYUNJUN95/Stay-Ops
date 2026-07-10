@@ -75,6 +75,7 @@ export default async function AdminMaintenanceDetailPage({
               deleteFailed: common.deleteFailed,
               deletePermanently: common.deletePermanently,
               deleteRecord: common.deleteRecord,
+              permissionDeniedMessage: common.permissionDeniedBody,
             }}
             redirectTo="/admin/maintenance"
             title={report.issue_title}
@@ -136,6 +137,32 @@ export default async function AdminMaintenanceDetailPage({
               </div>
             ) : null}
           </dl>
+
+          {report.reservation_id || report.guest_name ? (
+            <div className="mt-4 rounded-2xl border border-border bg-background/70 p-4">
+              <p className="text-xs font-semibold text-muted-foreground">
+                {dictionary.tasks.contextLinkedSection}
+              </p>
+              <dl className="mt-2 space-y-2 text-sm">
+                {report.guest_name ? (
+                  <div className="flex items-start justify-between gap-3">
+                    <dt className="font-semibold text-muted-foreground">
+                      {dictionary.admin.calendar.guestName}
+                    </dt>
+                    <dd className="font-black">{report.guest_name}</dd>
+                  </div>
+                ) : null}
+                {report.reservation_id ? (
+                  <div className="flex items-start justify-between gap-3">
+                    <dt className="font-semibold text-muted-foreground">
+                      {dictionary.mobile.calendarReservationId}
+                    </dt>
+                    <dd className="font-mono text-xs font-semibold">{report.reservation_id}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            </div>
+          ) : null}
 
           {report.description ? (
             <div className="mt-4 rounded-2xl border border-border bg-background/70 p-4">

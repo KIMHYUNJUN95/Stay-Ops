@@ -593,3 +593,12 @@ Quick fault isolation (webhook vs backfill):
   - webhook writes produce UPDATE/UPSERT changes in `public.reservations`,
   - mobile calendar subscribes with `event: "*"` and debounced `router.refresh()`,
   - hidden-tab updates are queued and refreshed immediately when the tab becomes visible.
+## Temporary Sync Pause (2026-07-10)
+
+- Beds24 webhook/API ingestion is temporarily paused while the external webhook connection is
+  intentionally disconnected.
+- StayOps now short-circuits the production webhook and reconcile endpoints when
+  `BEDS24_SYNC_PAUSED` is enabled.
+- Existing reservation rows remain readable in the reservation calendar. The pause only affects new
+  ingestion / reconciliation.
+- Re-enable this only when the Beds24 webhook/API path is explicitly restored.

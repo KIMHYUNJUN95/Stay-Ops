@@ -328,6 +328,9 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             hintStatusClosed: mobileCopy.hintStatusClosed,
             calPrevMonth: mobileCopy.calPrevMonth,
             calNextMonth: mobileCopy.calNextMonth,
+            permissionDeniedTitle: dictionary.common.permissionDeniedTitle,
+            permissionDeniedBody: dictionary.common.permissionDeniedBody,
+            close: dictionary.common.close,
           }}
           currentDeliveryDate={order.delivery_date}
           currentDeliveryStartDate={order.delivery_start_date}
@@ -335,6 +338,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           locale={locale}
           orderId={order.id}
           status={order.status}
+          surface="admin"
         />
       </div>
     </AdminShell>

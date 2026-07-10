@@ -959,6 +959,7 @@ const STATUS_KEY_MAP: Record<string, string> = {
   reviewing: "statusReviewing",
   approved: "statusApproved",
   rejected: "statusRejected",
+  changes_requested: "statusChangesRequested",
 };
 
 export function TransportStatement({
@@ -988,8 +989,11 @@ export function TransportStatement({
   const total = items.reduce((s, x) => s + x.amount, 0);
   const selectedItem = items.find((x) => x.id === selectedId) ?? null;
 
-  // draft / rejected 상태만 편집 허용
-  const isEditable = report.status === "draft" || report.status === "rejected";
+  // draft / rejected / changes_requested 상태에서 편집 허용 (보완 요청 시 수정 후 재제출)
+  const isEditable =
+    report.status === "draft" ||
+    report.status === "rejected" ||
+    report.status === "changes_requested";
 
   const dismissToast = useCallback(() => setToast(null), []);
 

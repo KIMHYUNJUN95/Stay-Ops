@@ -4,11 +4,12 @@
 // per-person. Draft / reopened / unresolved / non-finalized snapshots are NEVER included. Every export
 // writes an `attendance_export_logs` audit row.
 //
-// The operator's final Excel template is still pending, so this produces a clean, structured **CSV**
-// (UTF-8 BOM so Excel opens Korean correctly) whose columns map 1:1 to the documented finalized snapshot
-// fields. The row builder is kept separate from the serializer so the final template can be slotted in
-// later without touching the data layer. There is NO admin dashboard/export UI here (deferred web
-// dashboard); this is the backend it (and a dev test route) calls.
+// LEGACY / SUPERSEDED (2026-07-03): the shipped final export is the monthly + per-user **Excel workbook
+// + PDF** in the admin 급여 검토 page (see attendance-payroll-workbook.ts, attendance-payroll-report.ts,
+// attendance-user-payroll-export.ts). This CSV path is kept as a back-compat foundation (structured rows
+// + audit log) and is still exercised by the dev test route, but it is NOT wired into the dashboard UI.
+// It produces a clean, structured CSV (UTF-8 BOM so Excel opens Korean correctly) whose columns map 1:1
+// to the documented finalized snapshot fields. The row builder is kept separate from the serializer.
 
 import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";

@@ -379,6 +379,9 @@ export default async function MobileOrderRequestDetailPage({
             hintStatusClosed: copy.hintStatusClosed,
             calPrevMonth: copy.calPrevMonth,
             calNextMonth: copy.calNextMonth,
+            permissionDeniedTitle: dictionary.common.permissionDeniedTitle,
+            permissionDeniedBody: dictionary.common.permissionDeniedBody,
+            close: dictionary.common.close,
           }}
           currentDeliveryDate={order.delivery_date}
           currentDeliveryStartDate={order.delivery_start_date}
@@ -386,6 +389,7 @@ export default async function MobileOrderRequestDetailPage({
           locale={locale}
           orderId={order.id}
           status={order.status}
+          surface="mobile"
         />
       </div>
     </MobileShell>

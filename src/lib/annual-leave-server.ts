@@ -77,7 +77,32 @@ export async function setAnnualLeaveBaselineForUser(
   return { ok: true };
 }
 
-/** Reads the baseline and computes today's summary. Null = hire date/baseline not set up yet. */
+/**
+ * Approved leave days that draw down the balance pools: 유급(paid) → base pool, 특별(special) → bonus
+ * pool. 경조(annual, company-granted) and 기타(other, unpaid) draw from neither. Single source of truth
+ * so the mobile self-summary and the admin balance views always agree.
+ */
+export async function sumApprovedLeaveUsage(
+  service: Service,
+  organizationId: string,
+  userId: string,
+): Promise<{ base: number; bonus: number }> {
+  const { data } = await service
+    .from("annual_leave_requests")
+    .select("leave_type, days_count")
+    .eq("organization_id", organizationId)
+    .eq("user_id", userId)
+    .eq("status", "approved");
+  let base = 0;
+  let bonus = 0;
+  for (const r of (data ?? []) as { leave_type: string; days_count: number }[]) {
+    if (r.leave_type === "paid") base += Number(r.days_count);
+    else if (r.leave_type === "special") bonus += Number(r.days_count);
+  }
+  return { base, bonus };
+}
+
+/** Reads the baseline and computes today's summary, with approved usage deducted. Null = not set up. */
 export async function getMyAnnualLeaveSummary(
   service: Service,
   organizationId: string,
@@ -86,11 +111,14 @@ export async function getMyAnnualLeaveSummary(
   const baseline = await getAnnualLeaveBaseline(service, organizationId, userId);
   if (!baseline) return null;
 
+  const usage = await sumApprovedLeaveUsage(service, organizationId, userId);
   return computeAnnualLeaveSummary({
     hireDate: baseline.hireDate,
     baselineDate: baseline.baselineDate,
     baselineAmount: baseline.baseAmount,
     bonusBaselineAmount: baseline.bonusAmount,
+    usedDays: usage.base,
+    specialUsedDays: usage.bonus,
     asOf: tokyoToday(),
   });
 }

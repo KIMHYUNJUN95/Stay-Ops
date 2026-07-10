@@ -43,6 +43,9 @@ export type ProfileFormCopy = {
   birthDateLabel: string;
   birthDatePlaceholder: string;
   birthDateHint: string;
+  genderLabel: string;
+  genderPlaceholder: string;
+  genderOptions: Record<string, string>;
   phoneLabel: string;
   phonePlaceholder: string;
   phoneHint: string;
@@ -66,6 +69,7 @@ export function ProfileForm({
   safeNext,
   defaultName = "",
   defaultBirthDate = "",
+  defaultGender = "",
   defaultPhone = "",
 }: {
   copy: ProfileFormCopy;
@@ -73,6 +77,7 @@ export function ProfileForm({
   safeNext: string;
   defaultName?: string;
   defaultBirthDate?: string;
+  defaultGender?: string;
   defaultPhone?: string;
 }) {
   const [verifiedCode, setVerifiedCode] = useState<string | null>(null);
@@ -109,6 +114,22 @@ export function ProfileForm({
         </label>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block space-y-2">
+          <span className="text-sm font-bold text-foreground">{copy.genderLabel}</span>
+          <select
+            className={`${inputClass} w-full`}
+            defaultValue={defaultGender}
+            name="gender"
+            required
+          >
+            <option value="">{copy.genderPlaceholder}</option>
+            {Object.entries(copy.genderOptions).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="block space-y-2">
           <span className="text-sm font-bold text-foreground">{copy.phoneLabel}</span>
           <input

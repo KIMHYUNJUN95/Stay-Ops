@@ -34,6 +34,7 @@ export type RosterEntry = {
   breakCount: number;
   closedBreakSeconds: number;
   hasOpenBreak: boolean;
+  openBreakStartedAt: string | null;
   statusKey: RosterStatusKey;
   isVoid: boolean;
 };
@@ -189,6 +190,7 @@ export async function getAttendanceRoster(
       breakCount: breaks.length,
       closedBreakSeconds,
       hasOpenBreak,
+      openBreakStartedAt: openBreak?.started_at ?? null,
       statusKey,
       isVoid: !!session.invalidated_at,
     };

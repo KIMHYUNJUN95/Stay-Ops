@@ -435,6 +435,54 @@ Admin Stitch status:
 - The accepted direction is structural only: dense channel-manager room/date grid, no financial data, optional detail inspector.
 - Final visual/layout details should be completed during implementation with a custom data-grid/timeline component.
 
+### Admin dashboard implementation status (2026-07-09)
+
+`/admin/calendar` now ships a first real dashboard implementation aligned to the accepted structural
+direction above.
+
+- The screen is split into **4 dashboard views** inside one page:
+  - `Month board`: dense room × day timeline grid
+  - `Today ops`: arrivals / departures / setting targets / in-house operational lists
+  - `Room status`: property-grouped room status table with current guest / next reservation
+    stay ranges shown directly as check-in ~ check-out dates
+  - `Building info`: address + shared-access + room-access board for each property
+- The **month board** is the primary admin view:
+  - sticky room label column + sticky day header that stays visible while the inner grid scrolls
+  - centered property-name chips (label only, no room-count badge), custom anchored channel menu,
+    export button
+  - channel-colored multi-day bars (Airbnb / Booking.com / other)
+  - Airbnb / Booking badges and bars use a softer, more premium palette instead of flat saturated
+    blocks, so property/room chips in `Today ops` and the reservation inspector read less harshly
+  - clicking a reservation opens a right-side inspector drawer
+- `Today ops` now mirrors the mobile cleaning smart-list rule for **setting targets**:
+  - target = reservations with `check_in_date = today`
+  - exclude same-room same-day turnover cases where a checkout already exists for that room
+  - when no setting targets exist, the card shows an explicit empty state instead of reusing the
+    turnover / cleaning list
+- The admin calendar follows the signed-in user's `preferred_language` only.
+  - there is **no in-page locale toggle**
+  - language changes belong to the user/profile settings flow, not the reservation console
+- The **reservation inspector** is read-only for reservation core data because Beds24 remains the
+  source of truth. Current actions:
+  - copy Beds24 ID
+  - deep-link into maintenance / complaint / lost-found creation flows with
+    `reservationId=<uuid>` so the mobile form opens with reservation-linked property / room /
+    guest context already filled
+  - save a persistent internal note per reservation (`reservation_internal_notes`); the note is
+    stored server-side, reloaded when the inspector is reopened, and visible to all active
+    organization members in the mobile reservation detail sheet
+  - reservations with internal-note text show a small indicator on the month-view reservation bar
+- **Operational fetch window behavior remains current month + next month relative to today.**
+  The server still fetches the live operational window even if the user browses an out-of-window
+  month, so `Today ops`, `Room status`, and `Building info` keep working from the current snapshot.
+  The month grid itself shows an explicit out-of-window warning for those months.
+- The top-right **refresh chip is passive only**:
+  - it refreshes the page snapshot (`router.refresh()`)
+  - it does **not** expose the secret-protected `/api/beds24/reconcile` route as a manual admin action
+- **Building info** currently reads from `src/lib/property-map-links.ts`.
+  - address, shared access, and room access codes are loaded from that shared metadata source
+  - in-page edits are currently **browser-session preview only** and are not persisted yet
+
 ## Calendar Interaction Ideas
 
 Mobile:
@@ -946,3 +994,17 @@ captured. The operational display/fetch window stays current month + next month;
 Still pending (infra, not code): live Beds24 webhook delivery — `beds24_webhook_events` shows
 **0 webhook events** and reconcile last ran 2026-06-10. Until webhook + reconcile run, data is
 frozen regardless of the above logic fixes.
+## 2026-07-10 Admin Calendar Update
+
+- Admin `Building info` is no longer browser-preview-only. It now saves shared property operation
+  metadata to Supabase and the same data is read by both `/admin/calendar` and `/mobile/calendar`.
+- Shared building operation metadata currently includes localized address overrides (`ko`, `ja`,
+  `en`), shared access codes, room-level access codes, and a shared ops note.
+- Reservation internal notes remain organization-visible operational notes. When a reservation bar
+  has a note, the calendar bar shows a small indicator dot.
+- The admin reservation export button is no longer a reservation CSV download. Reservation
+  calendar export now opens `/admin/calendar/print` and renders an A4 landscape month board
+  intended for browser print / save-as-PDF output.
+- Beds24 ingestion is intentionally paused during the temporary webhook/API shutdown window. Admin
+  calendar data remains readable from existing reservation records, but new webhook/reconcile
+  ingestion should be considered suspended until Beds24 is re-enabled.

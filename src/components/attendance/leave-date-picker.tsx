@@ -69,7 +69,7 @@ export function LeaveDatePicker({
   const [viewYear, setViewYear] = useState(() => Number(startDate.slice(0, 4)));
 
   function tap(key: string) {
-    if (key < today) return; // past days disabled
+    // Past dates are allowed — leave is sometimes taken first and the request filed afterward.
     if (fixedRangeDays) {
       // e.g. bereavement leave: one tap picks the start date, the fixed span follows automatically
       setDStart(key);
@@ -108,9 +108,7 @@ export function LeaveDatePicker({
   for (let i = 0; i < lead; i++) cells.push(<div className="dpick__cell pad" key={`pad${i}`} />);
   for (let d = 1; d <= total; d++) {
     const key = `${ym}-${String(d).padStart(2, "0")}`;
-    const past = key < today;
     let cls = "";
-    if (past) cls = "dim";
     if (dEnd !== null) {
       if (key === dStart && key === dEnd) cls = "rsingle";
       else if (key === dStart) cls = "rstart";
@@ -121,7 +119,7 @@ export function LeaveDatePicker({
     }
     if (key === today && !/r(start|end|single)/.test(cls)) cls += " today";
     cells.push(
-      <button type="button" className={`dpick__cell ${cls}`.trim()} key={key} onClick={() => tap(key)} disabled={past}>
+      <button type="button" className={`dpick__cell ${cls}`.trim()} key={key} onClick={() => tap(key)}>
         <span className="dpick__d">{d}</span>
       </button>,
     );
@@ -181,7 +179,6 @@ export function LeaveDatePicker({
               type="button"
               className="lcal__navbtn"
               aria-label={c.calPrevMonth}
-              disabled={ym <= today.slice(0, 7)}
               onClick={() => setYm((m) => shiftMonth(m, -1))}
             >
               {AttIcon.back}
@@ -216,13 +213,11 @@ export function LeaveDatePicker({
                 {monthNames.map((name, i) => {
                   const m = i + 1;
                   const targetYm = `${viewYear}-${String(m).padStart(2, "0")}`;
-                  const past = `${targetYm}-${daysInMonth(viewYear, m)}` < today;
                   return (
                     <button
                       type="button"
                       key={m}
                       className={`dpick__mcell${targetYm === ym ? " sel" : ""}`}
-                      disabled={past}
                       onClick={() => {
                         setYm(targetYm);
                         setView("days");

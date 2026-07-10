@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Trash2 } from "lucide-react";
+import { AdminToast, useAdminToast } from "@/components/admin/shared/admin-toast";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 
 type DeleteConfirmLabels = {
@@ -12,6 +13,7 @@ type DeleteConfirmLabels = {
   cancel: string;
   deleteFailed: string;
   deleteRecord: string;
+  permissionDeniedMessage: string;
 };
 
 type DeleteConfirmButtonProps = {
@@ -31,8 +33,9 @@ export function DeleteConfirmButton({
   const [open, setOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast, showToast, dismiss } = useAdminToast();
 
-  async function handleConfirm() {
+  async function handleConfirm(close: () => void) {
     if (isDeleting) return;
     setIsDeleting(true);
     setError(null);
@@ -41,6 +44,11 @@ export function DeleteConfirmButton({
     setIsDeleting(false);
 
     if (!result.ok) {
+      if (result.error === "unauthorized") {
+        close();
+        showToast(labels.permissionDeniedMessage, true);
+        return;
+      }
       setError(labels.deleteFailed);
       return;
     }
@@ -109,7 +117,7 @@ export function DeleteConfirmButton({
                 <button
                   className="inline-flex h-12 items-center justify-center gap-1.5 rounded-xl bg-red-500 text-sm font-black text-white transition-colors hover:bg-red-600 disabled:opacity-40"
                   disabled={isDeleting}
-                  onClick={handleConfirm}
+                  onClick={() => handleConfirm(close)}
                   type="button"
                 >
                   {isDeleting ? (
@@ -124,6 +132,8 @@ export function DeleteConfirmButton({
           )}
         </BottomSheet>
       ) : null}
+
+      {toast ? <AdminToast message={toast.message} onDismiss={dismiss} /> : null}
     </>
   );
 }

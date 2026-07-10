@@ -471,6 +471,42 @@ This module calculates **gross principal only**.
 - overtime premiums
 - night premiums
 
+### Attendance Allowances
+
+**Status: implemented (2026-07-10, migration `202607100001`).** Managed in the 추가수당 section of
+`/admin/attendance/wages`; applied allowances appear in the `/admin/attendance/payroll` side panel, the
+worker's `/mobile/attendance/pay` screen, and as a separate base-wage / allowance / transport breakdown in
+every monthly & per-user Excel/PDF export.
+
+StayOps adds **attendance allowances** for busy days or short-staffed days. This is not a bonus or a
+permanent hourly-rate change. It is an extra allowance applied to a specific Tokyo operating date to help
+secure staff when demand is high.
+
+Core principle:
+
+- keep the user's base hourly rate in `hourly_rate_history`
+- do not rewrite base-rate history for one-off busy days
+- calculate allowances as a separate pay layer on top of recognized hourly work
+- preserve applied allowance details in the finalized month snapshot
+
+MVP allowance types:
+
+- `daily_fixed`: a fixed extra amount paid once for a date when the worker has at least one valid paid
+  session on that date
+- `hourly_extra`: an extra hourly amount multiplied by the recognized paid minutes on that date
+
+MVP targeting:
+
+- specific Tokyo operating date
+- all hourly workers, or a specific worker
+
+Deferred targeting:
+
+- site-specific allowance
+- role-specific allowance
+- time-window allowance
+- work-type allowance
+
 ### Calculation Rules
 
 - work time is tracked in 1-minute units
@@ -478,7 +514,19 @@ This module calculates **gross principal only**.
 - paid time excludes recorded break time
 - only closed / resolved sessions count
 - review-required, incomplete, or pending-correction records are excluded until resolved
+- planned attendance allowances apply only to days that otherwise have recognized paid work
+- `daily_fixed` allowances apply once per worker per date, even if the worker has multiple sessions
+- `hourly_extra` allowances are calculated from recognized paid minutes for that date
 - final gross amount is rounded **up** to the nearest `10 yen` (ceiling — e.g. 93→100, 95→100; not round-half)
+
+Planned daily formula:
+
+```txt
+base pay = recognized paid minutes × base hourly rate
+hourly allowance = recognized paid minutes × hourly_extra amount
+fixed allowance = daily_fixed amount, once per worker/date
+daily gross = base pay + hourly allowance + fixed allowance
+```
 
 ## Monthly View for Hourly Workers
 
@@ -495,6 +543,7 @@ Hourly workers can see:
   - break total
   - paid time
   - daily gross amount
+  - planned applied allowance breakdown once the allowance feature ships
 
 They cannot see:
 
@@ -686,9 +735,14 @@ When finalizing a user-month, store a snapshot that includes:
 - user
 - total paid time
 - pay by rate segment
+- applied allowance breakdown once the allowance feature ships
 - final gross amount
 - finalizer
 - finalized timestamp
+
+When the planned allowance feature is implemented, finalized snapshots must lock the allowance result
+the same way they lock the base wage result. Later allowance edits must not silently change an already
+finalized user-month; the month must be reopened and re-finalized.
 
 If reopened later:
 
@@ -708,6 +762,7 @@ Only `owner` and `attendance_payroll_admin` can see:
 
 - organization-wide attendance
 - other users' hourly pay
+- other users' attendance allowances
 - other users' transportation reimbursement detail
 - transportation reimbursement monthly totals
 - monthly payroll finalization queue

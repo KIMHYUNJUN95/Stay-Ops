@@ -27,6 +27,8 @@ For the rollout execution steps, see `docs/planning/14-rollout-guide.md`.
 | Auth callback redirects correctly after email click | Browser E2E | Not tested |
 | First-time user reaches `/onboarding` | Browser E2E | Not tested |
 | Profile completion (name, phone, language) saves correctly | Browser E2E | Not tested |
+| Onboarding shows a visible `return to login` action on every step and returns to `/auth/login` after sign-out | Browser E2E | Not tested |
+| Duplicate phone-number submit returns user to the phone step with recovery guidance | Browser E2E | Not tested |
 | Invite code join assigns correct role | Browser E2E | Not tested |
 | First developer/super-admin claim works | Browser E2E | Not tested |
 | Unauthenticated access to `/mobile/*` redirects to login | Code trace | Pass |

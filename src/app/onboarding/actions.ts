@@ -10,6 +10,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import {
   getDefaultRouteForRole,
   getOnboardingState,
+  isProfileGender,
   isValidBirthDate,
   isValidPhone,
   setLastUsedOrganization,
@@ -158,6 +159,7 @@ export async function completeProfile(formData: FormData) {
   const next = sanitizeNext(formData.get("next"), surface);
   const name = cleanText(formData.get("name"));
   const birthDate = cleanText(formData.get("birthDate"));
+  const gender = cleanText(formData.get("gender"));
   const phoneNumber = cleanText(formData.get("phoneNumber"));
   const preferredLanguage = cleanText(formData.get("preferredLanguage"));
   const inviteCode = normalizeInviteCode(formData.get("inviteCode"));
@@ -168,6 +170,10 @@ export async function completeProfile(formData: FormData) {
 
   if (!birthDate || !isValidBirthDate(birthDate)) {
     onboardingError("missing_birth_date", next);
+  }
+
+  if (!isProfileGender(gender)) {
+    onboardingError("missing_gender", next);
   }
 
   if (!isValidPhone(phoneNumber)) {
@@ -183,6 +189,7 @@ export async function completeProfile(formData: FormData) {
     id: user.id,
     name,
     birth_date: birthDate,
+    gender,
     phone_number: phoneNumber,
     preferred_language: preferredLanguage,
   };
@@ -307,6 +314,7 @@ export async function joinWithInviteCode(input: {
 export async function submitOnboardingProfile(input: {
   name: string;
   birthDate: string;
+  gender: string;
   phoneNumber: string;
   preferredLanguage: string;
   inviteCode: string;
@@ -316,6 +324,7 @@ export async function submitOnboardingProfile(input: {
   const surface = await getCurrentSurface();
   const name = input.name.trim();
   const birthDate = input.birthDate.trim();
+  const gender = input.gender.trim();
   const phoneNumber = input.phoneNumber.trim();
   const lang = input.preferredLanguage.trim();
   const code = input.inviteCode.trim().toUpperCase();
@@ -325,6 +334,7 @@ export async function submitOnboardingProfile(input: {
   if (!birthDate || !isValidBirthDate(birthDate)) {
     return { ok: false, errorKey: "missing_birth_date" };
   }
+  if (!isProfileGender(gender)) return { ok: false, errorKey: "missing_gender" };
   if (!isValidPhone(phoneNumber)) return { ok: false, errorKey: "phone_invalid" };
   if (!isLocale(lang)) return { ok: false, errorKey: "invalid_language" };
 
@@ -333,6 +343,7 @@ export async function submitOnboardingProfile(input: {
     id: user.id,
     name,
     birth_date: birthDate,
+    gender,
     phone_number: phoneNumber,
     preferred_language: lang,
   };

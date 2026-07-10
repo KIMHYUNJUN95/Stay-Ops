@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { MobileCalendarView, type CalendarReservationItem } from "@/components/calendar/mobile-calendar-view";
+import type { PropertyMapMeta } from "@/lib/property-map-links";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { Locale } from "@/lib/i18n";
 
@@ -56,6 +57,10 @@ type MobileCalendarLiveViewProps = {
     mapNoAccessData: string;
     noFilterResults: string;
     noEmptyRooms: string;
+    internalNote: string;
+    internalNoteEmpty: string;
+    opsNote: string;
+    opsNoteEmpty: string;
     phone: string;
     phoneMissing: string;
     listReferenceDate: string;
@@ -70,6 +75,7 @@ type MobileCalendarLiveViewProps = {
     today: string;
   };
   isOutOfWindow: boolean;
+  buildingInfos: PropertyMapMeta[];
   locale: Locale;
   organizationId: string;
   propertyLabelMap: Record<string, string>;
@@ -122,6 +128,14 @@ export function MobileCalendarLiveView(props: MobileCalendarLiveViewProps) {
         event: "*",
         schema: "public",
         table: "reservations",
+        filter: `organization_id=eq.${props.organizationId}`,
+      }, () => {
+        scheduleRefresh();
+      })
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "reservation_internal_notes",
         filter: `organization_id=eq.${props.organizationId}`,
       }, () => {
         scheduleRefresh();

@@ -16,6 +16,13 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **Onboarding recovery UX hardened (2026-07-10).** The profile-setup wizard now shows an explicit
+  return-to-login action on every step (sign-out + `/auth/login`, language preserved), so a user who
+  entered with the wrong email/Google account is no longer trapped in onboarding. Duplicate
+  `profiles.phone_number` submit failures now send the user back to the phone-number step with a
+  visible explanation: either enter a different number or return to login and use the existing
+  account that already owns that number. No schema/permission change.
+
 ## Dashboard Rebuild Direction (confirmed 2026-06-29)
 
 The admin dashboard direction was re-confirmed and broadened on 2026-06-29.
@@ -98,13 +105,90 @@ Annual leave planning status:
   (self) buttons open `leave-request-modal.tsx` → `createAdminLeaveRequest`
   (`src/lib/annual-leave-admin-server.ts`), reusing `createLeaveRequest` with the mobile day-count
   rules; requests enter the queue as `requested`. Toolbar also gained a real sort dropdown and a
-  건/件 count unit; branch/building filter dropped (no user↔building association in schema). Still not
-  wired: usage deduction into the balance calculation, applicant notifications, the leave subnav's
-  other 4 sub-tabs (팀 캘린더/직원 잔여·부여/승인자 관리/문서, placeholders only), queue export, and
-  document output (stage 3).
+  건/件 count unit; branch/building filter dropped (no user↔building association in schema).
+- **Leave sub-tabs backend-wired (2026-07-08):** 팀 캘린더 / 직원 잔여·부여 / 승인자 관리 now run on real
+  data (문서 stays a design-only shell for stage 3). Team calendar bar → the review-queue request detail
+  drawer, reused read-only for approved requests. 직원 잔여·부여: `listAdminLeaveBalances` deducts approved
+  유급/특별 usage from each pool; the drawer editor persists hire-date/grant via `saveEmployeeLeaveBaseline`.
+  승인자 관리: toggle writes `memberships.leave_approver_role` (`listAdminApprovers`/`setLeaveApprover`),
+  enabling stores `'department_head'` by default (confirmed 2026-07-08), with self-lock + ≥1-approver
+  server guards. No new migration. Still not wired: applicant notifications, approved-usage feedback into
+  the **mobile** balance summary, hourly exclusion by real `employment_type`, and document output (stage 3).
+
+Attendance/payroll planning status:
+
+- **Attendance allowances / 근태 추가수당 planned (2026-07-10):** accepted the design for busy-day or
+  short-staffed-day extra pay. This is a separate allowance layer, not a base hourly-rate change and not
+  a "bonus" feature. MVP types are `daily_fixed` (once per worker/date with valid paid work) and
+  `hourly_extra` (recognized paid minutes × extra hourly amount). MVP targets are all hourly workers or
+  a specific worker on a Tokyo operating date. Implementation, migration, UI, and export wiring are not
+  built yet. Source docs: `docs/product/21-attendance-payroll-workflow.md` and
+  `docs/engineering/11-attendance-payroll-technical-design.md`.
+
+- **Permission overrides — schema designed and applied (2026-07-09, migration
+  `202607090002_membership_permission_overrides.sql`):** new `membership_permission_overrides` table
+  (org/user/`permission_key`/granted_by/reason/`expires_at` not-null/revoked_at) + read-only RLS
+  (owner/platform-admin SELECT only, no write policies → grant/revoke via future service-role action)
+  + a DB `granted_by_user_id <> user_id` self-grant guard + a reusable `has_permission_override(org,
+  user, key)` SECURITY DEFINER helper that is **created but not yet wired into any other table's RLS**.
+  `permission_key` has no DB enum (open whitelist, managed in app code later). **Applied to the live
+  Supabase project (2026-07-09)** — confirmed via `list_migrations`; `get_advisors` shows no new
+  findings beyond the same RPC-exposure warning every existing role-check helper already carries.
+  **The feature itself — the `/admin/users/[id]` "권한 예외" card and the grant/revoke server actions —
+  is NOT implemented yet; UI/UX design is still pending before implementation resumes.**
+  `src/types/database.ts` updated manually (no codegen script in this repo). Design:
+  `docs/product/27-permission-override-workflow.md`.
 
 Completed dashboard slices:
 
+- **Reservation calendar dashboard v1** — implemented 2026-07-09.
+  - `/admin/calendar` is now a real reservation operations console instead of the earlier simple
+    month grid + list view.
+  - The page ships 4 views in one screen: month board, today ops, room status, building info.
+  - The month board uses a dense room × day timeline with property chips, channel filter, export,
+    channel-colored multi-day bars, and a right-side reservation inspector drawer.
+  - Follow-up polish on the same day: the month-grid date header now stays visible during inner
+    vertical scroll, and `Today ops` / the top ops KPI now show reservation-driven `setting targets`
+    instead of the earlier turnover-cleaning placeholder.
+  - Property chips in the month board are now centered text-only filters; the room-count badges were
+    removed from the chip row.
+  - Follow-up integration on the same day: the reservation inspector's linked actions now open
+    maintenance / complaint / lost-found mobile create flows with `reservationId` prefilled,
+    internal notes persist in the new `reservation_internal_notes` table, and the mobile-view link
+    can preserve the current calendar month / property context.
+  - The server keeps the current-month + next-month operational fetch window, but still fetches the
+    live window even when browsing an out-of-window month so today/room/info boards remain useful.
+    The month board itself shows an explicit out-of-window warning in that case.
+- `Building info` reads shared metadata from `src/lib/property-map-links.ts`; in-page edits are
+  browser-session preview only, not persisted.
+  - The refresh chip is intentionally passive (`router.refresh()` only) and does not expose the
+    secret-protected `/api/beds24/reconcile` endpoint as a manual admin action.
+
+## 2026-07-09 Reservation calendar follow-up integrations
+
+Follow-up implementation completed on top of the new admin reservation dashboard:
+
+- Added migration `202607090003_reservation_calendar_linking_and_notes.sql`.
+  - `maintenance_reports`: optional `reservation_id`, `guest_name`
+  - `lost_items`: optional `property_name`, `reservation_id`, `guest_name`
+  - new `reservation_internal_notes` table with org-scoped RLS for owner / office_admin /
+    cs_staff / field_manager
+- Admin reservation inspector note field is now persistent instead of browser-session-only.
+- Added follow-up migration `202607100001_reservation_internal_notes_member_read.sql`.
+  - `reservation_internal_notes` SELECT scope is now all active organization members
+  - create / update / delete stays limited to owner / office_admin / cs_staff / field_manager
+- Reservation-note text is now visible in the mobile calendar reservation detail sheet, and
+  reservation bars with note text show a small indicator.
+- Linked actions now deep-link to:
+  - `/mobile/maintenance/new?reservationId=...`
+  - `/mobile/complaints/new?reservationId=...`
+  - `/mobile/lost-found/new?reservationId=...`
+- Mobile maintenance / lost-found / complaint create flows now load the reservation context,
+  prefill building / room / guest data, and persist the linked reservation metadata when the
+  server-side validation passes.
+- The generic admin-shell "모바일 보기" button now accepts a page-specific `mobileHref`, so the
+  reservation dashboard can jump into `/mobile/calendar` with the current `month` / `property`
+  preserved instead of always opening the mobile home.
 - **Dashboard home (desktop operations console)** — implemented 2026-06-29.
   - Console shell rebuilt with a grouped IA sidebar (Home / Operations / Work·Comms / Management),
     organization context, mobile-view entry, and a console header (breadcrumb · global search · notifications
@@ -2700,3 +2784,137 @@ Files: `src/lib/complaints.ts`, `src/app/mobile/complaints/actions.ts`,
 `docs/product/25-complaint-workflow.md`.
 
 Verification: `npm run lint` + `npm run build` pass.
+
+## 2026-07-10 급여 내보내기 상태 정리 + 마감 차단 딥링크 + 패널 교통비 표시
+
+- **급여 PDF/Excel 내보내기 = 최종(완료).** 옛 문서/주석의 "CSV 임시 · 최종 엑셀 템플릿 대기" 표현이
+  스테일이라 정정했다: 실제 최종 형식은 월별·직원별 **Excel 워크북 + PDF**(2026-07-03 구현)이며, 6/18의
+  CSV(`attendance-export.ts` / `runPayrollExport`)는 레거시/백호환 기반으로만 남는다.
+  - 정정 위치: `docs/engineering/11-attendance-payroll-technical-design.md`(Step 13 Superseded 배너 +
+    "Still pending"·Export Rules 2곳), `src/lib/attendance-export.ts` 헤더 주석.
+- **마감 차단 사유 → 검토 큐 딥링크 + 패널 자동 오픈 (신규).** 급여 사이드 패널의 마감 차단 카드(검토
+  필요 세션 / 정정 요청 대기 / 진행 중 세션)를 클릭하면 해당 직원·유형으로 사전 필터된 검토 큐로 이동하며,
+  **도착 즉시 그 직원의 사이드 패널(첫 해당 세션/정정 상세)이 자동으로 열린다.**
+  - 검토 필요·진행 중 → `filter=review`, 정정 요청 → `filter=corr`, 공통으로 `?ym=<선택월>&q=<직원명>`.
+  - `/admin/attendance/queue`가 `filter`(`review|pending|corr|all`, 기본 `review`) + `q`(이름 검색, ≤60자)
+    searchParams를 읽어 `AttendanceQueueClient`의 초기 `filter`/`nameQuery`로 시드하고, `panel` useState
+    초기화 함수에서 이름·필터에 맞는 첫 세션/정정 항목을 찾아 패널을 연다(명시적 `sessionId` 딥링크 우선).
+  - 흐름: 차단 3건(검토 2 + 정정 1 등) 해소 → `finalizationEligible=true`(마감 버튼 활성) → 마감 실행 →
+    직원별 PDF/Excel 내보내기 활성. i18n `payPanelBlockerGo`(ko/ja/en) 추가.
+
+- **급여 검토 사이드 패널에 교통비 2줄 추가 (신규).** 직원별 사이드 패널 "월별 요약"의 예상 세전 총액
+  아래에 **교통비**(승인분) + **총 지급액(교통비 포함 = 예상 세전 + 교통비)** 2줄을 추가해, 화면 요약과
+  내보내기 PDF/Excel의 총액을 일치시킨다.
+  - `AdminPayrollRow`에 `transportApproved`(¥) 필드 추가. `getAdminAttendancePayroll`가 내보내기와
+    동일 소스(`transport_reimbursement_reports`, `status='approved'`, `target_month='YYYY-MM-01'`,
+    `total_amount_cached`)로 조인 → 패널 숫자가 파일 총액과 드리프트하지 않음.
+  - 라벨은 기존 `payExportTransport`("교통비") + `payExportTotalWithTransport`("총 지급액(교통비 포함)")
+    재사용(ko/ja/en). 총 지급액 줄은 `.kv--total`(상단 구분선 + primary 강조). 정규직은 예상 세전과
+    동일하게 총 지급액을 "—"로 표기(임금이 이 패널에서 산출되지 않음), 교통비 금액은 표시.
+
+Files: `src/app/admin/attendance/queue/page.tsx`,
+`src/components/admin/attendance/attendance-queue-client.tsx`,
+`src/components/admin/attendance/attendance-payroll-client.tsx`,
+`src/components/admin/admin-console.css`, `src/lib/i18n.ts`, `src/lib/attendance-export.ts`,
+`src/lib/admin-attendance.ts`, `docs/engineering/11-attendance-payroll-technical-design.md`.
+
+Verification: `npm run lint`(0 errors) + `npm run build` pass. 브라우저 프리뷰 검증은 인증된 어드민
+세션 + 특정 차단 데이터(6월 임시)가 필요해 샌드박스에서 재현 불가 — 로직은 코드 리딩으로 확인.
+
+## 2026-07-10 근태 추가수당(attendance allowance) 구현
+
+바쁜 날/인력 부족일에 **기본 시급을 바꾸지 않고** 특정 근무일에만 추가 지급하는 "추가수당" 레이어.
+보너스/인센티브가 아니라 운영상 추가수당. (마이그레이션 `202607100001`, 프로덕션 적용)
+
+- **테이블 `attendance_pay_allowances`** — `target_date`, `target_user_id`(null=전체 시급직), `allowance_type`
+  (`daily_fixed`|`hourly_extra`), `amount_yen`, `reason_type`(5종), `memo`, `status`(`active`|`cancelled`),
+  생성/취소 감사 컬럼. RLS 읽기전용(본인 대상 행 또는 급여 관리자). `attendance_month_snapshots`에
+  `allowance_breakdown jsonb` 추가 — 마감 시 적용 내역(id/date/type/amount/paidMinutes/calc/reason/memo) 보존.
+- **계산(`attendance-pay.ts`)** — 월 활성 추가수당 로드 → **인정 근무가 있는 시급직 날짜에만** 적용.
+  `daily_fixed`=하루 1회 고정, `hourly_extra`=인정분×추가시급. `expectedGross`가 이제 **기본급+추가수당**
+  (월 최종 10엔 올림 1회), `baseGross`=`expectedGross−allowanceTotal`로 분리 노출. 순수 헬퍼
+  `allowanceCalculatedExact`.
+- **서버 액션** — `createAttendanceAllowance`/`cancelAttendanceAllowance`(service-role, `isAttendancePayrollAdmin`
+  게이트). **확정된 user-month는 생성/취소 차단**(대상 지정=해당 유저, 전체=그 달 확정 스냅샷 있으면 차단) →
+  변경하려면 마감 해제 후 재확정. 마감 시 `allowance_breakdown` 저장.
+- **UI** — `/admin/attendance/wages`에 **추가수당 섹션**(`AttendanceAllowancesSection`, 유형/대상/날짜/금액/사유/메모,
+  목록+취소). 별도 탭 없음. 급여 검토 패널에 기본급·추가수당 분리 표시. `/mobile/attendance/pay`에 본인 적용
+  추가수당 섹션 + 기본급 소계.
+- **Export** — 월별/직원별 Excel·PDF에 **기본급 / 추가수당 / 교통비**를 각각 별도 컬럼으로(총액=합). 교통비는 계속
+  별도 총액. 직원별 일별 기본급은 base total로 정산.
+- i18n: `payPanelKvBase`·`payPanelKvAllowance`·`payExportBaseWage`·`payExportAllowance`·`allow*`(어드민),
+  `payAllowance*`·`payBaseSubtotal`(모바일) ko/ja/en 추가.
+
+Files: `supabase/migrations/202607100001_attendance_pay_allowances.sql`, `src/types/database.ts`,
+`src/lib/attendance-pay.ts`, `src/lib/attendance-pay-calculation.ts`, `src/lib/admin-attendance.ts`,
+`src/app/admin/attendance/actions.ts`, `src/app/admin/attendance/wages/page.tsx`,
+`src/components/admin/attendance/attendance-allowances-section.tsx`(신규),
+`src/components/admin/attendance/attendance-payroll-client.tsx`, `src/components/attendance/attendance-pay.tsx`,
+`src/lib/attendance-payroll-workbook.ts`, `src/lib/attendance-payroll-report.ts`,
+`src/lib/attendance-user-payroll-export.ts`, `src/components/admin/admin-console.css`, `src/lib/i18n.ts`,
+docs(11/04/05/21/01/06).
+
+Verification: 추가수당 관련 파일 **`npx tsc --noEmit` 타입 에러 0** + `npm run lint` **에러 0**(경고만).
+전체 `npm run build`는 **무관한 미추적 예약 캘린더 WIP**(`src/lib/property-operation-info.ts`,
+`src/app/admin/calendar/page.tsx` — 병렬 작업, database.ts 타입/컴포넌트 prop 미정합)로 인해 통과하지 못함 —
+추가수당 코드와 무관. 브라우저 프리뷰 검증은 인증된 어드민 세션 + 실제 데이터 필요로 샌드박스 재현 불가.
+## 2026-07-10 Reservation Calendar Status
+
+- Admin reservation calendar building info now has a real shared save path backed by Supabase.
+- Mobile calendar map/access view now reads the same building-operation metadata as admin.
+- Reservation bar internal notes are shared organization-wide and show a visual indicator on bars.
+- Reservation calendar export now uses the A4 landscape print page, not reservation CSV.
+- Beds24 webhook/reconcile ingestion is intentionally paused until the external integration is
+  restored.
+
+## 2026-07-10 추가수당 → 추가수당/특별수당 2구분 + 엑셀 특별수당 컬럼
+
+- **구분(category) 도입** — `reason_type`(5종 사유) → **`category`**(`regular`=추가수당 / `special`=특별수당)로
+  교체(마이그레이션 `202607100003`, 적용). 폼 필드 라벨 **"사유" → "구분"**, 옵션 2개.
+- **계산 분리** — `attendance-pay.ts`가 적용 수당을 **추가수당/특별수당 버킷으로 분리 집계**
+  (`allowanceRegularTotal`/`allowanceSpecialTotal` + 일별 `allowanceRegularExact`/`allowanceSpecialExact`).
+  `allowanceTotal`=둘 합, `baseGross`=`expectedGross−allowanceTotal`. `hourly_extra`는 기본급은 그대로,
+  추가 시급×인정시간 **차액만** 해당 구분 칸으로(요구사항대로).
+- **엑셀/PDF 특별수당 컬럼 추가** — 월별·직원별 모두 `기본급 | 추가수당 | 특별수당 | 교통비 | 총액`. 폼에서
+  구분에 맞춰 자동으로 해당 칸에 반영. `AdminPayrollRow`에 regular/special 분리 노출.
+- **표시** — 급여 검토 패널: 추가수당·특별수당 각각 줄. `/mobile/attendance/pay`: 각 적용 수당에 구분(추가/특별)
+  라벨. 임금관리 목록 행: 구분 pill(추가=info, 특별=warn) + 유형 pill.
+- **취소** — 아래 목록 각 행 "취소" 버튼 + `cancelAttendanceAllowance`(기존 구현, 확인). 등록 건이 생기면 노출.
+- **UI 개선(같은 날)** — 추가수당 폼을 전체 폭 4열 그리드로(오른쪽 여백 제거), 그라데이션 제거 → 크림(`--bg2`)
+  단색, 사유/직원 셀렉트를 커스텀 `AdminSelectField`(공유 컴포넌트)로 교체.
+- i18n `allowFieldCategory`·`allowCatRegular`·`allowCatSpecial`·`payPanelKvSpecial`·`payExportSpecialAllowance`
+  (어드민), `payAllowanceRegular`·`payAllowanceSpecial`(모바일) ko/ja/en 추가.
+
+Files: `supabase/migrations/202607100003_attendance_allowance_category.sql`, `src/types/database.ts`,
+`src/lib/attendance-pay.ts`, `src/lib/admin-attendance.ts`, `src/app/admin/attendance/actions.ts`,
+`src/components/admin/attendance/attendance-allowances-section.tsx`,
+`src/components/admin/attendance/attendance-payroll-client.tsx`, `src/components/attendance/attendance-pay.tsx`,
+`src/lib/attendance-payroll-workbook.ts`, `src/lib/attendance-payroll-report.ts`,
+`src/lib/attendance-user-payroll-export.ts`, `src/components/admin/shared/admin-select-field.tsx`(신규),
+`src/components/admin/admin-console.css`, `src/lib/i18n.ts`, docs(04/11/06).
+
+Verification: 전체 `npm run build` **통과**(예약 캘린더 타입 누락도 병렬 세션이 해결, 빌드 그린), `npx tsc --noEmit`
+**0 에러**, `npm run lint` **에러 0**. 신규 i18n 키 3로케일 완비 확인. 브라우저 프리뷰는 어드민 인증 필요로 미실행.
+
+## 2026-07-10 수기 근무 입력 + 근무 위치 export + 수당 규칙 완화
+
+현장 변수(외부 근무·출퇴근 누락) 대응. 근무가 (수기로라도) 들어가면 급여·수당이 따라붙는 구조를 완성.
+
+- **수기 근무 입력 UI** — `/admin/attendance/queue`(검토 큐) 툴바 **"근무 추가"** → 모달(`ManualSessionModal`,
+  신규): 직원·날짜·출근·퇴근(선택)·**근무 위치(자유 텍스트)**·사유. `createManualAttendanceSession` 확장 —
+  **근무지(site) 대신 위치 텍스트 허용**(site 없이 저장, 위치 또는 site 중 하나 필수). ko/ja/en, 공통 모달/토스트.
+- **스키마** — `attendance_sessions.manual_location text`(마이그레이션 `202607100004`, 적용).
+- **근무 위치 export** — 직원별 PDF/Excel에 **"근무 위치" 열**(수기 위치 우선, 없으면 등록 근무지명).
+  `UserPayrollExportRow.location` + `buildUserPayrollExportData` 세션+사이트명 조인.
+- **추가수당 규칙 완화** — `daily_fixed`는 **그 날짜 출퇴근 세션이 없어도** hourly 대상이면 그 달 급여에 가산.
+  `getMonthlyPayView`에 "수당 전용 일자" 루프 추가(`hourly_extra`는 인정 분 없어 미적용). 근무 없는 날 수당도 반영.
+- 경량 헬퍼 `listActiveAttendanceStaff`. i18n `manual*`·`userExportColLocation` ko/ja/en.
+
+Files: `supabase/migrations/202607100004_attendance_manual_location.sql`, `src/types/database.ts`,
+`src/app/admin/attendance/actions.ts`, `src/lib/attendance-pay.ts`, `src/lib/admin-attendance.ts`,
+`src/lib/attendance-user-payroll-export.ts`, `src/app/admin/attendance/queue/page.tsx`,
+`src/components/admin/attendance/attendance-queue-client.tsx`,
+`src/components/admin/attendance/manual-session-modal.tsx`(신규), `src/components/admin/admin-console.css`,
+`src/lib/i18n.ts`, docs(04/11/24/06).
+
+Verification: `npx tsc --noEmit` **0 에러**. build/lint는 마지막에 실행. 브라우저 프리뷰는 어드민 인증 필요로 미실행.

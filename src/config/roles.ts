@@ -114,3 +114,17 @@ export const roleToInviteCategory: Partial<Record<OrganizationRole, InviteCatego
   field_manager: "part_time_manager",
   owner: "owner",
 };
+
+/**
+ * Roles an `office_admin` (non-owner) may hand to someone else — via manual role change
+ * (`src/app/admin/users/actions.ts`) or invite-code creation (`src/app/admin/settings/actions.ts`).
+ * Deliberately excludes `owner` and `office_admin` itself: only `owner`/`developer_super_admin` may
+ * grant office_admin-or-above access, in either flow. Single source of truth so the two enforcement
+ * points can't drift apart.
+ */
+export const officeAdminAssignableRoles = [
+  "cs_staff",
+  "field_manager",
+  "staff",
+  "part_time_staff",
+] as const satisfies readonly OrganizationRole[];

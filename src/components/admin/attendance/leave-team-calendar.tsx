@@ -1,30 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Info } from "lucide-react";
-import type { LeaveDurationUnit, LeaveType } from "@/lib/annual-leave-approvals-server";
+import { useEffect, useMemo, useState } from "react";
+import { CalendarPlus, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Info, UserPlus } from "lucide-react";
+import type { LeaveQueueItem, LeaveType } from "@/lib/annual-leave-approvals-server";
 import type { Dictionary, Locale } from "@/lib/i18n";
 
 type Lc = Dictionary["admin"]["leaveConsole"];
 
-/** Static mock (design-only view — no Supabase/server-action wiring). Mirrors .handoff/src/leave-data.js shape. */
-type MockLeave = {
+/** Internal calendar-bar shape, derived from real approved requests (LeaveQueueItem). */
+type CalLeave = {
   id: string;
   name: string;
   type: LeaveType;
   start: string; // YYYY-MM-DD
   end: string; // YYYY-MM-DD
-  dur: LeaveDurationUnit;
+  dur: LeaveQueueItem["durationUnit"];
 };
-
-// Mirrors the handoff's approved leave set (leave-data.js l7–l11) so the design matches 1:1.
-const MOCK_APPROVED: MockLeave[] = [
-  { id: "l7", name: "정유진", type: "paid", start: "2026-07-03", end: "2026-07-03", dur: "pm" },
-  { id: "l8", name: "오세훈", type: "paid", start: "2026-07-07", end: "2026-07-08", dur: "full" },
-  { id: "l9", name: "나카무라 아오이", type: "paid", start: "2026-07-24", end: "2026-07-24", dur: "full" },
-  { id: "l10", name: "와타나베 소라", type: "paid", start: "2026-07-15", end: "2026-07-17", dur: "full" },
-  { id: "l11", name: "다카하시 리쿠", type: "paid", start: "2026-07-15", end: "2026-07-15", dur: "pm" },
-];
 
 // Bar accent (--c) / background (--b) per leave type — CSS vars, matching the handoff exactly.
 function typeAccent(type: LeaveType): { c: string; b: string } {
@@ -59,7 +50,7 @@ function dayNum(iso: string): number {
 }
 
 type WeekSeg = {
-  leave: MockLeave;
+  leave: CalLeave;
   startDow: number;
   span: number;
   contL: boolean;
@@ -77,10 +68,27 @@ function weekdayLabels(locale: Locale): string[] {
   });
 }
 
-export function LeaveTeamCalendar({ lc, locale, onSelect }: { lc: Lc; locale: Locale; onSelect: (msg: string) => void }) {
+export function LeaveTeamCalendar({
+  lc,
+  locale,
+  items,
+  onSelect,
+  onCreateRequest,
+}: {
+  lc: Lc;
+  locale: Locale;
+  /** Approved org-wide leave requests (calendar shows approved-only). */
+  items: LeaveQueueItem[];
+  /** Called with the request id when a calendar bar is clicked → opens the detail panel. */
+  onSelect: (requestId: string) => void;
+  /** Called when an empty day cell's popover action is chosen → opens the request modal for that date. */
+  onCreateRequest: (mode: "proxy" | "self", date: string) => void;
+}) {
   const today = new Date();
   const [y, setY] = useState(today.getFullYear());
   const [m, setM] = useState(today.getMonth() + 1); // 1-12
+  // Popover anchored to a clicked empty day cell (viewport coords).
+  const [dayMenu, setDayMenu] = useState<{ iso: string; x: number; y: number } | null>(null);
 
   const WD = weekdayLabels(locale);
 
@@ -91,7 +99,16 @@ export function LeaveTeamCalendar({ lc, locale, onSelect }: { lc: Lc; locale: Lo
     const mStart = `${y}-${mm}-01`;
     const mEnd = `${y}-${mm}-${String(daysInMonth).padStart(2, "0")}`;
 
-    const approved = MOCK_APPROVED.filter((r) => r.start <= mEnd && r.end >= mStart);
+    const approved: CalLeave[] = items
+      .map((it) => ({
+        id: it.id,
+        name: it.applicantName,
+        type: it.leaveType,
+        start: it.startDate,
+        end: it.endDate,
+        dur: it.durationUnit,
+      }))
+      .filter((r) => r.start <= mEnd && r.end >= mStart);
 
     const info: Record<number, { dow: number; wk: number }> = {};
     for (let day = 1; day <= daysInMonth; day += 1) {
@@ -151,10 +168,41 @@ export function LeaveTeamCalendar({ lc, locale, onSelect }: { lc: Lc; locale: Lo
     });
 
     return { weeks };
-  }, [y, m]);
+  }, [y, m, items]);
 
   const isThisMonth = y === today.getFullYear() && m === today.getMonth() + 1;
   const todayDay = isThisMonth ? today.getDate() : 0;
+
+  // Close the day-cell popover on Escape.
+  useEffect(() => {
+    if (!dayMenu) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setDayMenu(null);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [dayMenu]);
+
+  const mm = String(m).padStart(2, "0");
+  const isoFor = (day: number) => `${y}-${mm}-${String(day).padStart(2, "0")}`;
+
+  function openDayMenu(e: React.MouseEvent, day: number) {
+    setDayMenu({ iso: isoFor(day), x: e.clientX, y: e.clientY });
+  }
+
+  function pickCreate(mode: "proxy" | "self") {
+    if (!dayMenu) return;
+    const iso = dayMenu.iso;
+    setDayMenu(null);
+    onCreateRequest(mode, iso);
+  }
+
+  const menuDateLabel = dayMenu
+    ? new Intl.DateTimeFormat(locale === "ko" ? "ko-KR" : locale === "ja" ? "ja-JP" : "en-US", {
+        month: "long",
+        day: "numeric",
+      }).format(new Date(`${dayMenu.iso}T00:00:00`))
+    : "";
 
   function nav(delta: "y-1" | "m-1" | "m+1" | "y+1" | "today") {
     if (delta === "today") {
@@ -235,9 +283,25 @@ export function LeaveTeamCalendar({ lc, locale, onSelect }: { lc: Lc; locale: Lo
                 return (
                   <div
                     key={col}
-                    className={`ttcell${isToday ? " is-today" : ""}${col === 0 ? " sun" : col === 6 ? " sat" : ""}`}
+                    className={`ttcell${day ? " ttcell--open" : ""}${isToday ? " is-today" : ""}${col === 0 ? " sun" : col === 6 ? " sat" : ""}`}
+                    onClick={day ? (e) => openDayMenu(e, day) : undefined}
+                    role={day ? "button" : undefined}
+                    tabIndex={day ? 0 : undefined}
+                    aria-label={day ? lc.calendarAddLeaveAria(String(day)) : undefined}
+                    onKeyDown={
+                      day
+                        ? (e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                              setDayMenu({ iso: isoFor(day), x: r.left + 12, y: r.top + 12 });
+                            }
+                          }
+                        : undefined
+                    }
                   >
                     {day ? <span className="ttnum">{day}</span> : null}
+                    {day ? <span className="ttadd" aria-hidden="true">+</span> : null}
                   </div>
                 );
               })}
@@ -263,7 +327,7 @@ export function LeaveTeamCalendar({ lc, locale, onSelect }: { lc: Lc; locale: Lo
                       ["--b" as any]: accent.b,
                     }}
                     title={`${sg.leave.name} · ${typeLabel(sg.leave.type, lc)}`}
-                    onClick={() => onSelect(`${sg.leave.name} · ${typeLabel(sg.leave.type, lc)}`)}
+                    onClick={() => onSelect(sg.leave.id)}
                   >
                     {showHalf ? (
                       <span className="ttbar__h">{sg.leave.dur === "am" ? "AM" : "PM"}</span>
@@ -278,9 +342,39 @@ export function LeaveTeamCalendar({ lc, locale, onSelect }: { lc: Lc; locale: Lo
       </div>
 
       <div className="locknote">
-        <Info className="ic" />
+        <span className="ic">
+          <Info />
+        </span>
         {lc.calendarFootnote}
       </div>
+
+      {dayMenu ? (
+        <>
+          <div className="ttmenu-scrim" onClick={() => setDayMenu(null)} aria-hidden="true" />
+          <div
+            className="ttmenu"
+            role="menu"
+            style={{
+              top: Math.min(dayMenu.y + 6, (typeof window !== "undefined" ? window.innerHeight : 900) - 132),
+              left: Math.min(dayMenu.x, (typeof window !== "undefined" ? window.innerWidth : 1200) - 216),
+            }}
+          >
+            <div className="ttmenu__h">{menuDateLabel}</div>
+            <button type="button" className="ttmenu__b" role="menuitem" onClick={() => pickCreate("proxy")}>
+              <span className="ic">
+                <UserPlus />
+              </span>
+              {lc.btnProxyRequest}
+            </button>
+            <button type="button" className="ttmenu__b" role="menuitem" onClick={() => pickCreate("self")}>
+              <span className="ic">
+                <CalendarPlus />
+              </span>
+              {lc.btnSelfRequest}
+            </button>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

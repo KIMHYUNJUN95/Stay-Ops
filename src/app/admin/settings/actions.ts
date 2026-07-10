@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import type { OrganizationRole, Role } from "@/config/roles";
+import { officeAdminAssignableRoles } from "@/config/roles";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
@@ -11,9 +12,15 @@ const inviteManagerRoles = [
   "owner",
   "office_admin",
 ] as const satisfies readonly Role[];
+// Owner and cs_staff are deliberately excluded from self-service invite-code creation (2026-07-09):
+// owner needs a separate single-use flow not built yet, and cs_staff has no invite category at all
+// (admin-assigned only, src/config/roles.ts). office_admin/field_manager were added here to close a
+// gap — src/config/roles.ts already defined their invite categories, but this UI never exposed them.
 const inviteDefaultRoles = [
   "staff",
   "part_time_staff",
+  "office_admin",
+  "field_manager",
 ] as const satisfies readonly OrganizationRole[];
 
 type OrganizationRow = Database["public"]["Tables"]["organizations"]["Row"];
@@ -180,6 +187,18 @@ export async function createInviteCode(formData: FormData) {
 
   if (!(await canManageInvites(userId, organizationId, role))) {
     redirect("/admin/settings/invite-codes?error=forbidden");
+  }
+
+  // office_admin may not hand out office_admin-or-above access via invite code — mirrors the same
+  // tiering already enforced for manual role changes (canAssignRole, src/app/admin/users/actions.ts).
+  // Without this, an office_admin could self-service-promote anyone to office_admin by creating an
+  // office_admin-default invite code, bypassing a restriction that manual role assignment enforces.
+  const canGrantDefaultRole =
+    role === "developer_super_admin" ||
+    role === "owner" ||
+    (officeAdminAssignableRoles as readonly OrganizationRole[]).includes(defaultRole);
+  if (!canGrantDefaultRole) {
+    redirect("/admin/settings/invite-codes?error=invalid_invite");
   }
 
   const invite: InviteInsert = {

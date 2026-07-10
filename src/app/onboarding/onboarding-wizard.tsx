@@ -13,6 +13,7 @@ import {
 } from "@/app/onboarding/onboarding-forms";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import type { Locale } from "@/lib/i18n";
+import type { ProfileGender } from "@/lib/onboarding";
 
 // Navy accent gradient + shadow pulled from the design tokens (matches the auth screens).
 const GRADIENT = "linear-gradient(165deg, hsl(223 50% 42%), hsl(223 54% 22%))";
@@ -24,7 +25,7 @@ const PRIMARY_SOFT =
 
 // Numbered steps shown in the progress bar: name → dob → phone → invite.
 // (Language is intentionally not a wizard step — it's already chosen at login.)
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 export type OnboardingIntroCopy = {
   title: string;
@@ -56,12 +57,18 @@ export type OnboardingStepsCopy = {
   dobHint: string;
   dobSheetTitle: string;
   dobConfirm: string;
+  genderTitle: string;
+  genderSubtitle: string;
+  genderLabel: string;
+  genderHint: string;
+  genderOptions: Record<ProfileGender, string>;
   phoneTitle: string;
   phoneSubtitle: string;
   phoneNumLabel: string;
   phoneInputPlaceholder: string;
   phoneHint: string;
   phoneCountrySheetTitle: string;
+  phoneDuplicateHelp: string;
 };
 
 export type OnboardingJoinCopy = {
@@ -92,6 +99,7 @@ export type OnboardingReviewCopy = {
   subtitle: string;
   rowName: string;
   rowDob: string;
+  rowGender: string;
   rowPhone: string;
   rowLang: string;
   rowOrg: string;
@@ -116,6 +124,10 @@ export type OnboardingExitCopy = {
 };
 
 type Country = { iso: string; flag: string; dial: string };
+const GENDER_ORDER: ProfileGender[] = [
+  "female",
+  "male",
+];
 
 // Curated country codes (common for hospitality staff in Japan). Names are i18n-driven.
 const COUNTRIES: Country[] = [
@@ -150,6 +162,20 @@ function GlobeIcon() {
     <svg viewBox="0 0 24 24" fill="none" className="size-[18px]" aria-hidden="true">
       <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.7" />
       <path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.3 3.6 8.5S14.4 18.2 12 20.5C9.6 18.2 8.4 15.2 8.4 12S9.6 5.8 12 3.5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SparkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-[18px]" aria-hidden="true">
+      <path
+        d="M12 3.8l1.9 4.5 4.5 1.9-4.5 1.9-1.9 4.5-1.9-4.5-4.5-1.9 4.5-1.9L12 3.8z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path d="M18 16l.9 2.1L21 19l-2.1.9L18 22l-.9-2.1L15 19l2.1-.9L18 16z" fill="currentColor" />
     </svg>
   );
 }
@@ -284,11 +310,11 @@ function ProgressHeader({ step }: { step: number }) {
   return (
     <header className="flex-none px-[26px] pb-[10px] pt-1">
       <div className="flex h-[44px] items-center justify-between">
-        <span className="w-9" />
+        <span className="w-[112px]" />
         <span className="text-[12.5px] font-extrabold tabular-nums text-muted-foreground">
           <b className="text-foreground">{step}</b> / {TOTAL_STEPS}
         </span>
-        <span className="w-9" />
+        <span className="w-[112px]" />
       </div>
       <div className="h-[5px] overflow-hidden rounded-full bg-muted">
         <i
@@ -297,6 +323,32 @@ function ProgressHeader({ step }: { step: number }) {
         />
       </div>
     </header>
+  );
+}
+
+function ExitToLoginForm({
+  label,
+  locale,
+  compact = false,
+}: {
+  label: string;
+  locale: Locale;
+  compact?: boolean;
+}) {
+  return (
+    <form action={signOut}>
+      <input name="next" type="hidden" value={`/auth/login?lang=${locale}`} />
+      <button
+        type="submit"
+        className={
+          compact
+            ? "inline-flex h-9 items-center justify-end text-right text-[12.5px] font-extrabold leading-tight text-muted-foreground underline-offset-2 hover:underline"
+            : "text-[13px] font-extrabold text-muted-foreground underline-offset-2 hover:underline"
+        }
+      >
+        {label}
+      </button>
+    </form>
   );
 }
 
@@ -549,6 +601,46 @@ function ReviewRow({
   );
 }
 
+function GenderChoice({
+  selected,
+  label,
+  active,
+  onClick,
+}: {
+  selected: boolean;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group relative flex min-h-[84px] items-start justify-between rounded-[18px] border px-[18px] py-[16px] text-left transition-all ${
+        active
+          ? "border-[hsl(223_46%_32%/0.34)] bg-[hsl(223_46%_32%/0.08)] shadow-[0_16px_34px_-30px_rgba(20,32,43,0.6)]"
+          : "border-border bg-surface hover:border-[hsl(223_22%_74%)]"
+      }`}
+    >
+      <div>
+        <div className="text-[14.5px] font-extrabold tracking-[-0.01em] text-foreground">
+          {label}
+        </div>
+      </div>
+      <span
+        className={`mt-[2px] flex size-6 items-center justify-center rounded-full border transition-colors ${
+          active
+            ? "border-[hsl(223_46%_32%)] bg-[hsl(223_46%_32%)] text-white"
+            : "border-[hsl(222_14%_78%)] bg-white text-transparent"
+        }`}
+        aria-hidden="true"
+      >
+        {selected ? <CheckIcon /> : null}
+      </span>
+    </button>
+  );
+}
+
 function CountrySheet({
   title,
   countryNames,
@@ -647,6 +739,7 @@ export function OnboardingWizard({
     safeNext: string;
     initialName?: string;
     initialBirthDate?: string;
+    initialGender?: ProfileGender | "";
     initialPhone?: string;
   };
   initialStep?: number;
@@ -677,6 +770,7 @@ export function OnboardingWizard({
     return { year: y, month: m, day: d };
   });
   const [dobSheet, setDobSheet] = useState(false);
+  const [gender, setGender] = useState<ProfileGender | "">(profile.initialGender ?? "");
   const [countryIso, setCountryIso] = useState(inferredCountry.iso);
   const [phone, setPhone] = useState(initialNationalDigits);
   const [countrySheet, setCountrySheet] = useState(false);
@@ -691,6 +785,7 @@ export function OnboardingWizard({
   } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitErrorKey, setSubmitErrorKey] = useState<string | null>(null);
+  const [phoneErrorKey, setPhoneErrorKey] = useState<string | null>(null);
   const [dest, setDest] = useState("/mobile");
 
   async function submit() {
@@ -700,6 +795,7 @@ export function OnboardingWizard({
       const result = await submitOnboardingProfile({
         name: name.trim(),
         birthDate,
+        gender,
         phoneNumber: phoneE164,
         preferredLanguage: profile.locale,
         inviteCode: preview ? inviteCode.trim() : "",
@@ -708,8 +804,17 @@ export function OnboardingWizard({
       if (result.ok) {
         setDest(result.redirectTo);
         setSubmitting(false);
-        goTo(7);
+        goTo(8);
       } else {
+        if (
+          result.errorKey === "phone_duplicate" ||
+          result.errorKey === "phone_invalid"
+        ) {
+          setPhoneErrorKey(result.errorKey);
+          setSubmitting(false);
+          goTo(4);
+          return;
+        }
         setSubmitErrorKey(result.errorKey);
         setSubmitting(false);
       }
@@ -730,7 +835,7 @@ export function OnboardingWizard({
       if (result.ok) {
         setDest(result.redirectTo);
         setSubmitting(false);
-        goTo(7);
+        goTo(8);
       } else {
         setSubmitErrorKey(result.errorKey);
         setSubmitting(false);
@@ -754,7 +859,7 @@ export function OnboardingWizard({
           roleCategory: result.roleCategory,
         });
         setInviteStatus("idle");
-        goTo(5);
+        goTo(6);
       } else {
         setPreview(null);
         setInviteErrorKey(result.errorKey);
@@ -793,16 +898,22 @@ export function OnboardingWizard({
     ? `${selectedCountry.dial}${nationalDigits}`
     : "";
   const phoneValid = nationalDigits.length >= 6;
-  const showExitLink = showExitToLogin && step >= 4 && step <= 6;
+  const showExitLink = showExitToLogin;
+  const exitAction = showExitLink ? (
+    <ExitToLoginForm label={exit.backToLogin} locale={profile.locale} compact />
+  ) : null;
 
   // ── Fallback · existing all-in-one profile form (unreachable in the normal flow) ─
-  if (step >= 8) {
+  if (step >= 9) {
     return (
       <main
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
-        <ProgressHeader step={4} />
+        <ProgressHeader step={5} />
+        {showExitLink ? (
+          <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
+        ) : null}
         <section className="mx-auto w-full max-w-[460px] flex-1 px-[26px] pb-[max(26px,env(safe-area-inset-bottom))]">
           <ProfileForm
             copy={profile.copy}
@@ -810,6 +921,7 @@ export function OnboardingWizard({
             safeNext={profile.safeNext}
             defaultName={name.trim()}
             defaultBirthDate={birthDate}
+            defaultGender={gender}
             defaultPhone={phoneE164}
           />
         </section>
@@ -818,7 +930,7 @@ export function OnboardingWizard({
   }
 
   // ── Step 7 · Success / welcome ───────────────────────────────────────────────
-  if (step === 7) {
+  if (step === 8) {
     const roleLabel = preview
       ? join.roleCategories[preview.roleCategory] ?? preview.roleCategory
       : "";
@@ -862,10 +974,11 @@ export function OnboardingWizard({
   }
 
   // ── Step 6 · Review all entered info ─────────────────────────────────────────
-  if (step === 6) {
+  if (step === 7) {
     const roleLabel = preview
       ? join.roleCategories[preview.roleCategory] ?? preview.roleCategory
       : "";
+    const genderLabel = gender ? steps.genderOptions[gender] : "";
     const dobDisplay = dob
       ? `${dob.year}. ${pad2(dob.month)}. ${pad2(dob.day)}`
       : "";
@@ -875,7 +988,10 @@ export function OnboardingWizard({
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
-        <ProgressHeader step={4} />
+        <ProgressHeader step={5} />
+        {showExitLink ? (
+          <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
+        ) : null}
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
           <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em]">
@@ -901,10 +1017,17 @@ export function OnboardingWizard({
                 divider
               />
               <ReviewRow
+                label={review.rowGender}
+                value={genderLabel}
+                editLabel={review.edit}
+                onEdit={() => goTo(3)}
+                divider
+              />
+              <ReviewRow
                 label={review.rowPhone}
                 value={phoneDisplay}
                 editLabel={review.edit}
-                onEdit={() => goTo(3)}
+                onEdit={() => goTo(4)}
                 divider
               />
               {/* Language is chosen at login (not a wizard step) — shown read-only. */}
@@ -920,14 +1043,14 @@ export function OnboardingWizard({
                     label={review.rowOrg}
                     value={preview.organizationName}
                     editLabel={review.edit}
-                    onEdit={() => goTo(4)}
+                    onEdit={() => goTo(5)}
                     divider
                   />
                   <ReviewRow
                     label={review.rowRole}
                     value={roleLabel}
                     editLabel={review.edit}
-                    onEdit={() => goTo(4)}
+                    onEdit={() => goTo(5)}
                     divider
                   />
                 </>
@@ -968,16 +1091,6 @@ export function OnboardingWizard({
 
           <div className="flex-none py-[14px] pb-[max(14px,env(safe-area-inset-bottom))]">
             <SpinnerButton label={review.submit} onClick={submit} busy={submitting} />
-            {showExitLink && (
-              <form action={signOut} className="mt-3 text-center">
-                <button
-                  type="submit"
-                  className="text-[13px] font-extrabold text-muted-foreground underline-offset-2 hover:underline"
-                >
-                  {exit.backToLogin}
-                </button>
-              </form>
-            )}
           </div>
         </section>
       </main>
@@ -985,14 +1098,17 @@ export function OnboardingWizard({
   }
 
   // ── Step 5 · Organization / role confirmation (after a verified invite code) ──
-  if (step === 5 && preview) {
+  if (step === 6 && preview) {
     const roleLabel = join.roleCategories[preview.roleCategory] ?? preview.roleCategory;
     return (
       <main
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
-        <ProgressHeader step={4} />
+        <ProgressHeader step={5} />
+        {showExitLink ? (
+          <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
+        ) : null}
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
           <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
@@ -1035,7 +1151,7 @@ export function OnboardingWizard({
           </div>
 
           {allowInviteSkip ? (
-            <StickyCta label={join.reviewCta} onClick={() => goTo(6)} withArrow />
+            <StickyCta label={join.reviewCta} onClick={() => goTo(7)} withArrow />
           ) : (
             <>
               {submitErrorKey && (
@@ -1046,30 +1162,23 @@ export function OnboardingWizard({
               <StickyCta label={join.submitCta} onClick={submitMembership} disabled={submitting} />
             </>
           )}
-          {showExitLink && (
-            <form action={signOut} className="px-[26px] pb-[calc(max(14px,env(safe-area-inset-bottom))+var(--keyboard-inset,0px))] text-center">
-              <button
-                type="submit"
-                className="text-[13px] font-extrabold text-muted-foreground underline-offset-2 hover:underline"
-              >
-                {exit.backToLogin}
-              </button>
-            </form>
-          )}
         </section>
       </main>
     );
   }
 
   // ── Step 4 · Invite code entry (verify → preview, or skip) ───────────────────
-  if (step === 4) {
+  if (step === 5) {
     const verifying = inviteStatus === "verifying";
     return (
       <main
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
-        <ProgressHeader step={4} />
+        <ProgressHeader step={5} />
+        {showExitLink ? (
+          <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
+        ) : null}
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
           <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
@@ -1151,7 +1260,7 @@ export function OnboardingWizard({
                   type="button"
                   onClick={() => {
                     setPreview(null);
-                    goTo(6);
+                    goTo(7);
                   }}
                   className="text-[13px] font-extrabold text-muted-foreground"
                 >
@@ -1159,14 +1268,6 @@ export function OnboardingWizard({
                 </button>
               </div>
             )}
-            <form action={signOut} className="mt-3 text-center">
-              <button
-                type="submit"
-                className="text-[13px] font-extrabold text-muted-foreground underline-offset-2 hover:underline"
-              >
-                {exit.backToLogin}
-              </button>
-            </form>
           </div>
         </section>
       </main>
@@ -1174,13 +1275,16 @@ export function OnboardingWizard({
   }
 
   // ── Step 3 · Phone number ────────────────────────────────────────────────────
-  if (step === 3) {
+  if (step === 4) {
     return (
       <main
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
-        <ProgressHeader step={3} />
+        <ProgressHeader step={4} />
+        {showExitLink ? (
+          <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
+        ) : null}
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
           <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
@@ -1217,7 +1321,12 @@ export function OnboardingWizard({
                   inputMode="tel"
                   autoComplete="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                    if (phoneErrorKey) {
+                      setPhoneErrorKey(null);
+                    }
+                  }}
                   placeholder={steps.phoneInputPlaceholder}
                   className="h-[54px] flex-1 rounded-[14px] border border-border bg-surface px-[15px] text-[16px] font-semibold text-foreground outline-none transition-colors placeholder:font-medium placeholder:text-[hsl(222_10%_62%)] focus:border-primary focus:ring-[3.5px] focus:ring-primary/15"
                 />
@@ -1225,12 +1334,29 @@ export function OnboardingWizard({
               <p className="mt-2 text-[11.5px] font-semibold leading-[1.5] text-[hsl(222_10%_62%)]">
                 {steps.phoneHint}
               </p>
+              {phoneErrorKey ? (
+                <div className="mt-[14px] flex items-start gap-[11px] rounded-[14px] border border-[hsl(4_62%_46%/0.24)] bg-[hsl(6_70%_95.5%)] px-[14px] py-[13px]">
+                  <span className="mt-[1px] flex-none text-[hsl(4_62%_46%)]">
+                    <WarnIcon />
+                  </span>
+                  <div>
+                    <div className="text-[13px] font-extrabold text-[hsl(4_62%_46%)]">
+                      {join.errors[phoneErrorKey] ?? phoneErrorKey}
+                    </div>
+                    <div className="mt-[3px] text-[11.5px] font-semibold leading-[1.5] text-[hsl(222_20%_28%)]">
+                      {phoneErrorKey === "phone_duplicate"
+                        ? steps.phoneDuplicateHelp
+                        : steps.phoneHint}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
           <StickyCta
             label={steps.continueCta}
-            onClick={() => goTo(4)}
+            onClick={() => goTo(5)}
             disabled={!phoneValid}
             withArrow
           />
@@ -1241,7 +1367,12 @@ export function OnboardingWizard({
             title={steps.phoneCountrySheetTitle}
             countryNames={countries}
             selectedIso={countryIso}
-            onSelect={setCountryIso}
+            onSelect={(iso) => {
+              setCountryIso(iso);
+              if (phoneErrorKey) {
+                setPhoneErrorKey(null);
+              }
+            }}
             onClose={() => setCountrySheet(false)}
           />
         )}
@@ -1257,6 +1388,9 @@ export function OnboardingWizard({
         style={{ background: IVORY_BG }}
       >
         <ProgressHeader step={2} />
+        {showExitLink ? (
+          <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
+        ) : null}
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
           <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
@@ -1317,6 +1451,63 @@ export function OnboardingWizard({
   }
 
   // ── Step 1 · Name ────────────────────────────────────────────────────────────
+  if (step === 3) {
+    return (
+      <main
+        className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
+        style={{ background: IVORY_BG }}
+      >
+        <ProgressHeader step={3} />
+        {showExitLink ? (
+          <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
+        ) : null}
+        <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
+          <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
+            <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
+              {steps.basicsEyebrow}
+            </p>
+            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em]">
+              {steps.genderTitle}
+            </h1>
+            <p className="mt-[10px] text-[13.5px] font-semibold leading-[1.55] text-muted-foreground">
+              {steps.genderSubtitle}
+            </p>
+
+            <div className="mt-[22px]">
+              <div className="mb-3 flex items-center gap-2 text-[12.5px] font-extrabold text-[hsl(222_20%_28%)]">
+                <span className="text-primary">
+                  <SparkIcon />
+                </span>
+                {steps.genderLabel}
+              </div>
+              <div className="grid gap-3">
+                {GENDER_ORDER.map((option) => (
+                  <GenderChoice
+                    key={option}
+                    selected={gender === option}
+                    active={gender === option}
+                    label={steps.genderOptions[option]}
+                    onClick={() => setGender(option)}
+                  />
+                ))}
+              </div>
+              <p className="mt-3 text-[11.5px] font-semibold leading-[1.5] text-[hsl(222_10%_62%)]">
+                {steps.genderHint}
+              </p>
+            </div>
+          </div>
+
+          <StickyCta
+            label={steps.continueCta}
+            onClick={() => goTo(4)}
+            disabled={!gender}
+            withArrow
+          />
+        </section>
+      </main>
+    );
+  }
+
   if (step === 1) {
     const isGood = name.trim().length > 0;
     return (
@@ -1325,6 +1516,9 @@ export function OnboardingWizard({
         style={{ background: IVORY_BG }}
       >
         <ProgressHeader step={1} />
+        {showExitLink ? (
+          <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
+        ) : null}
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
           <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
             <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
@@ -1380,7 +1574,9 @@ export function OnboardingWizard({
       className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
       style={{ background: IVORY_BG }}
     >
-      <header className="h-[48px] flex-none" />
+      <header className="flex h-[48px] flex-none items-center justify-end px-[26px]">
+        {exitAction}
+      </header>
       <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
         <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
           {/* Logo slot intentionally empty (a brand logo is added later). */}

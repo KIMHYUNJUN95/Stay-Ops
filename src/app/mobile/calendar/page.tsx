@@ -6,6 +6,8 @@ import { MobileShell } from "@/components/shell/mobile-shell";
 import { getDictionary } from "@/lib/i18n";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
+import { listPropertyMapMeta } from "@/lib/property-operation-info";
+import { listReservationInternalNotes } from "@/lib/reservation-internal-notes";
 import {
   getCanonicalPropertyName,
   getCanonicalRoomLabel,
@@ -424,6 +426,7 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
         guestCount: getGuestCount(item.raw_payload),
         guestName: item.guest_name,
         id: item.id,
+        internalNote: null,
         phone: getPhone(item.raw_payload),
         propertyName: canonicalProperty,
         roomLabel,
@@ -440,6 +443,17 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
     // added to the room axis (canonicalRoomMasterRooms / propertyRoomsMap) below so their
     // bars still render instead of silently disappearing.
     reservations = filteredRows.map(mapToCalendarItem);
+  }
+
+  if (reservations.length > 0) {
+    const reservationNotes = await listReservationInternalNotes(
+      session,
+      reservations.map((item) => item.id),
+    );
+    reservations = reservations.map((item) => ({
+      ...item,
+      internalNote: reservationNotes[item.id]?.trim() || null,
+    }));
   }
 
   const propertyOptionsFromCatalog = roomCatalog
@@ -520,7 +534,10 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
       }
     : null;
 
-  const navBadges = await getMobileNavBadges();
+  const [navBadges, buildingInfos] = await Promise.all([
+    getMobileNavBadges(),
+    listPropertyMapMeta(session),
+  ]);
 
   return (
     <MobileShell
@@ -579,6 +596,10 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
           mapNoAccessData: dictionary.mobile.calendarMapNoAccessData,
           noFilterResults: dictionary.mobile.noFilterResults,
           noEmptyRooms: dictionary.mobile.calendarNoEmptyRooms,
+          internalNote: dictionary.admin.calendar.internalNote,
+          internalNoteEmpty: dictionary.admin.calendar.opsNotePlaceholder,
+          opsNote: dictionary.admin.calendar.opsNote,
+          opsNoteEmpty: dictionary.admin.calendar.opsNotePlaceholder,
           listReferenceDate: dictionary.mobile.calendarListReferenceDate,
           emptyRoomsModalTitle: dictionary.mobile.calendarEmptyRoomsModalTitle,
           guestCountLabel: dictionary.mobile.calendarGuestCountLabel,
@@ -593,6 +614,7 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
           today: dictionary.mobile.today,
         }}
         isOutOfWindow={isOutOfWindow}
+        buildingInfos={buildingInfos}
         locale={session.user.preferredLanguage}
         organizationId={session.organization.id}
         reservations={reservations}
@@ -611,4 +633,3 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
     </MobileShell>
   );
 }
-

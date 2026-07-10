@@ -3,7 +3,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Check, ChevronRight, Download, FileText, Users } from "lucide-react";
 import type { LeaveDurationUnit, LeaveType } from "@/lib/annual-leave-approvals-server";
-import type { Dictionary } from "@/lib/i18n";
+import type { LeaveDocument } from "@/lib/annual-leave-admin-server";
+import { getDictionary, type Dictionary, type Locale } from "@/lib/i18n";
 
 type Lc = Dictionary["admin"]["leaveConsole"];
 
@@ -11,126 +12,11 @@ function Ic({ children }: { children: React.ReactNode }) {
   return <span className="ic">{children}</span>;
 }
 
-/** Static mock (design-only view — no Supabase/server-action wiring). Mirrors
- * .handoff/src/leave-data.js REQ (approved subset) + EMP + APPROVERS shape. */
-type MockDoc = {
-  id: string;
-  docNo: string;
-  empKey: string;
-  type: LeaveType;
-  start: string; // YYYY-MM-DD
-  end: string; // YYYY-MM-DD
-  dur: LeaveDurationUnit;
-  days: number;
-  reason: string;
-  contact: string;
-  appliedOn: string; // YYYY/MM/DD — 申請日
-  approverKey: "ceo" | "smd";
-  approverName: string;
-  decidedAt: string;
-};
-
-type MockEmp = {
-  key: string;
-  name: string;
-  initial: string;
-  bg: string;
-  role: string;
-};
-
-const MOCK_EMP: Record<string, MockEmp> = {
-  jung: { key: "jung", name: "정유진", initial: "정", bg: "#9a4d6d", role: "프론트" },
-  oh: { key: "oh", name: "오세훈", initial: "오", bg: "#3f7d5a", role: "하우스키핑 리드" },
-  nakamura: { key: "nakamura", name: "나카무라 아오이", initial: "나", bg: "#4d6db5", role: "프론트 매니저" },
-  watanabe: { key: "watanabe", name: "와타나베 소라", initial: "와", bg: "#557a8a", role: "시설 관리" },
-  takahashi: { key: "takahashi", name: "다카하시 리쿠", initial: "다", bg: "#b5683f", role: "예약 담당" },
-};
-
-const APPROVER_NAME: Record<"ceo" | "smd", string> = { ceo: "김현준", smd: "모리 다이스케" };
-const APPROVER_INITIAL: Record<"ceo" | "smd", string> = { ceo: "김", smd: "모" };
-
-const MOCK_DOCS: MockDoc[] = [
-  {
-    id: "l7",
-    docNo: "AL-2026-07-007",
-    empKey: "jung",
-    type: "paid",
-    start: "2026-07-03",
-    end: "2026-07-03",
-    dur: "pm",
-    days: 0.5,
-    reason: "개인 용무",
-    contact: "090-2841-5567",
-    appliedOn: "2026/07/01",
-    approverKey: "ceo",
-    approverName: APPROVER_NAME.ceo,
-    decidedAt: "07/01 15:22",
-  },
-  {
-    id: "l8",
-    docNo: "AL-2026-07-008",
-    empKey: "oh",
-    type: "paid",
-    start: "2026-07-07",
-    end: "2026-07-08",
-    dur: "full",
-    days: 2,
-    reason: "가족 행사",
-    contact: "090-7712-3390",
-    appliedOn: "2026/06/30",
-    approverKey: "smd",
-    approverName: APPROVER_NAME.smd,
-    decidedAt: "07/02 13:40",
-  },
-  {
-    id: "l9",
-    docNo: "AL-2026-07-009",
-    empKey: "nakamura",
-    type: "paid",
-    start: "2026-07-24",
-    end: "2026-07-24",
-    dur: "full",
-    days: 1,
-    reason: "개인 사정",
-    contact: "080-4402-8871",
-    appliedOn: "2026/07/01",
-    approverKey: "ceo",
-    approverName: APPROVER_NAME.ceo,
-    decidedAt: "07/02 09:05",
-  },
-  {
-    id: "l10",
-    docNo: "AL-2026-07-010",
-    empKey: "watanabe",
-    type: "paid",
-    start: "2026-07-15",
-    end: "2026-07-17",
-    dur: "full",
-    days: 3,
-    reason: "여름 휴가",
-    contact: "090-1123-9987",
-    appliedOn: "2026/06/28",
-    approverKey: "smd",
-    approverName: APPROVER_NAME.smd,
-    decidedAt: "06/29 11:20",
-  },
-  {
-    id: "l11",
-    docNo: "AL-2026-07-011",
-    empKey: "takahashi",
-    type: "paid",
-    start: "2026-07-15",
-    end: "2026-07-15",
-    dur: "pm",
-    days: 0.5,
-    reason: "오후 개인 용무",
-    contact: "070-8890-2245",
-    appliedOn: "2026/07/02",
-    approverKey: "ceo",
-    approverName: APPROVER_NAME.ceo,
-    decidedAt: "07/03 08:50",
-  },
-];
+function roleLabel(role: string | null, dictionary: Dictionary): string {
+  if (!role) return "—";
+  const map = dictionary.roles as Record<string, string>;
+  return map[role] ?? role;
+}
 
 function typeBadgeClass(type: LeaveType): string {
   switch (type) {
@@ -163,19 +49,19 @@ function fmtMd(dateStr: string): string {
   return dateStr.slice(5).replace("-", "/");
 }
 
-function fmtPeriod(doc: MockDoc, lc: Lc): string {
-  const s = fmtMd(doc.start);
-  const e = fmtMd(doc.end);
+function fmtPeriod(doc: LeaveDocument, lc: Lc): string {
+  const s = fmtMd(doc.startDate);
+  const e = fmtMd(doc.endDate);
   const base = s === e ? s : `${s} – ${e}`;
-  if (doc.dur === "am") return `${base} · ${lc.durationAm}`;
-  if (doc.dur === "pm") return `${base} · ${lc.durationPm}`;
+  if (doc.durationUnit === "am") return `${base} · ${lc.durationAm}`;
+  if (doc.durationUnit === "pm") return `${base} · ${lc.durationPm}`;
   return base;
 }
 
-/** 「休暇届」form period column — Japanese slash-date range + half-day/day-count suffix. */
-function fmtFormPeriod(doc: MockDoc): string {
-  const s = doc.start.replace(/-/g, "/");
-  const e = doc.end.replace(/-/g, "/");
+/** 「休暇届」form period column — Japanese slash-date range. */
+function fmtFormPeriod(doc: LeaveDocument): string {
+  const s = doc.startDate.replace(/-/g, "/");
+  const e = doc.endDate.replace(/-/g, "/");
   return s === e ? s : `${s} ～ ${e}`;
 }
 
@@ -194,10 +80,10 @@ const JP_DUR_LABEL: Record<LeaveDurationUnit, string> = {
 
 /** A4 「休暇届」paper form — pixel-matched to .handoff/src/leave-views.js doc() + leave.css .jp*.
  * Form copy is the actual Japanese company form text, not app UI — not an i18n target. */
-function LeaveFormSheet({ doc, emp }: { doc: MockDoc; emp: MockEmp }) {
+function LeaveFormSheet({ doc }: { doc: LeaveDocument }) {
   const [dy, dm, dd] = doc.appliedOn.split("/");
   const radioOption = (key: LeaveType) => (
-    <span className={`jp__opt${doc.type === key ? " on" : ""}`} key={key}>
+    <span className={`jp__opt${doc.leaveType === key ? " on" : ""}`} key={key}>
       <span className="jp__radio" />
       {JP_TYPE_LABEL[key]}
     </span>
@@ -214,14 +100,14 @@ function LeaveFormSheet({ doc, emp }: { doc: MockDoc; emp: MockEmp }) {
         <tbody>
           <tr className="r-sm">
             <th>氏　名</th>
-            <td>{emp.name}</td>
+            <td>{doc.applicantName}</td>
           </tr>
           <tr className="r-sm">
             <th>期　間</th>
             <td>
               <span className="jp__per">{fmtFormPeriod(doc)}</span>
               <span className="jp__sub">
-                　（{JP_DUR_LABEL[doc.dur]} ・ {doc.days}日）
+                　（{JP_DUR_LABEL[doc.durationUnit]} ・ {doc.daysCount}日）
               </span>
             </td>
           </tr>
@@ -242,7 +128,7 @@ function LeaveFormSheet({ doc, emp }: { doc: MockDoc; emp: MockEmp }) {
           </tr>
           <tr className="r-md">
             <th>緊急連絡先</th>
-            <td>{doc.contact}</td>
+            <td>{doc.emergencyContact}</td>
           </tr>
         </tbody>
       </table>
@@ -257,10 +143,16 @@ function LeaveFormSheet({ doc, emp }: { doc: MockDoc; emp: MockEmp }) {
             </tr>
             <tr>
               <td>
-                <span className="jp__seal">{emp.initial}</span>
+                <span className="jp__seal">{doc.applicantInitial}</span>
               </td>
-              <td>{doc.approverKey === "ceo" ? <span className="jp__seal">{APPROVER_INITIAL.ceo}</span> : null}</td>
-              <td>{doc.approverKey === "smd" ? <span className="jp__seal">{APPROVER_INITIAL.smd}</span> : null}</td>
+              {/* 部署長 — intentionally left blank for now (confirmed 2026-07-09). */}
+              <td />
+              {/* 専務 — the senior managing director's actual seal (鄭). Shown only once a 전무 approves. */}
+              <td>
+                {doc.approverRole === "senior_managing_director" ? (
+                  <span className="jp__seal jp__seal--smd">鄭</span>
+                ) : null}
+              </td>
             </tr>
           </tbody>
         </table>
@@ -269,13 +161,23 @@ function LeaveFormSheet({ doc, emp }: { doc: MockDoc; emp: MockEmp }) {
   );
 }
 
-export function LeaveDocumentsView({ lc }: { lc: Lc }) {
-  const empKeys = Array.from(new Set(MOCK_DOCS.map((d) => d.empKey)));
-  const [empKey, setEmpKey] = useState(empKeys[0]);
-  const empDocs = MOCK_DOCS.filter((d) => d.empKey === empKey).sort((a, b) => (a.start < b.start ? -1 : 1));
+export function LeaveDocumentsView({
+  lc,
+  locale,
+  documents,
+}: {
+  lc: Lc;
+  locale: Locale;
+  documents: LeaveDocument[];
+}) {
+  const dictionary = getDictionary(locale);
+  const userIds = Array.from(new Set(documents.map((d) => d.userId)));
+  const [userId, setUserId] = useState(userIds[0]);
+  const empDocs = documents
+    .filter((d) => d.userId === userId)
+    .sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
   const [docId, setDocId] = useState(empDocs[0]?.id);
-  const doc = MOCK_DOCS.find((d) => d.id === docId) ?? empDocs[0];
-  const emp = MOCK_EMP[empKey];
+  const doc = documents.find((d) => d.id === docId) ?? empDocs[0];
 
   const stageRef = useRef<HTMLDivElement>(null);
   const paperRef = useRef<HTMLDivElement>(null);
@@ -299,13 +201,29 @@ export function LeaveDocumentsView({ lc }: { lc: Lc }) {
     return () => window.removeEventListener("resize", fit);
   }, [docId]);
 
-  function selectEmp(key: string) {
-    setEmpKey(key);
-    const firstDoc = MOCK_DOCS.filter((d) => d.empKey === key).sort((a, b) => (a.start < b.start ? -1 : 1))[0];
+  function selectEmp(id: string) {
+    setUserId(id);
+    const firstDoc = documents
+      .filter((d) => d.userId === id)
+      .sort((a, b) => (a.startDate < b.startDate ? -1 : 1))[0];
     setDocId(firstDoc?.id);
   }
 
-  if (!doc) return null;
+  if (documents.length === 0 || !doc) {
+    return (
+      <div className="card">
+        <div className="state">
+          <span className="state__ic empty">
+            <span className="ic">
+              <FileText />
+            </span>
+          </span>
+          <div className="state__t">{lc.docsEmptyTitle}</div>
+          <div className="state__s">{lc.docsEmptyBody}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dwrap">
@@ -316,32 +234,31 @@ export function LeaveDocumentsView({ lc }: { lc: Lc }) {
           </Ic>
           <span className="t">{lc.docsEmpListTitle}</span>
           <span className="card__cnt" style={{ marginLeft: "auto" }}>
-            {lc.docsEmpCount(empKeys.length)}
+            {lc.docsEmpCount(userIds.length)}
           </span>
         </div>
         <div className="dlist__scroll">
-          {empKeys.map((key) => {
-            const e = MOCK_EMP[key];
-            const docs = MOCK_DOCS.filter((d) => d.empKey === key);
-            const latest = docs.slice().sort((a, b) => (a.start < b.start ? 1 : -1))[0];
+          {userIds.map((id) => {
+            const docs = documents.filter((d) => d.userId === id);
+            const latest = docs.slice().sort((a, b) => (a.startDate < b.startDate ? 1 : -1))[0];
             return (
               <div
-                key={key}
-                className={`demp${key === empKey ? " on" : ""}`}
-                onClick={() => selectEmp(key)}
+                key={id}
+                className={`demp${id === userId ? " on" : ""}`}
+                onClick={() => selectEmp(id)}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(ev) => {
-                  if (ev.key === "Enter" || ev.key === " ") selectEmp(key);
+                  if (ev.key === "Enter" || ev.key === " ") selectEmp(id);
                 }}
               >
-                <span className="avatar" style={{ background: e.bg }}>
-                  {e.initial}
+                <span className="avatar" style={{ background: latest.applicantBg }}>
+                  {latest.applicantInitial}
                 </span>
                 <div className="demp__b">
-                  <div className="demp__nm">{e.name}</div>
+                  <div className="demp__nm">{latest.applicantName}</div>
                   <div className="demp__s">
-                    {e.role} · {lc.docsEmpLatest(fmtMd(latest.start))}
+                    {roleLabel(latest.applicantRole, dictionary)} · {lc.docsEmpLatest(fmtMd(latest.startDate))}
                   </div>
                 </div>
                 <span className="demp__cnt">{lc.docsEmpCount(docs.length)}</span>
@@ -353,20 +270,14 @@ export function LeaveDocumentsView({ lc }: { lc: Lc }) {
 
       <div className="ddetail">
         <div className="dtop">
-          <span className="avatar" style={{ background: emp.bg, width: 28, height: 28, fontSize: 12 }}>
-            {emp.initial}
+          <span className="avatar" style={{ background: doc.applicantBg, width: 28, height: 28, fontSize: 12 }}>
+            {doc.applicantInitial}
           </span>
-          <span className="dtop__t">{emp.name}</span>
+          <span className="dtop__t">{doc.applicantName}</span>
           <span className="dtop__s">
-            {emp.role} · {lc.docsCountLabel(empDocs.length)}
+            {roleLabel(doc.applicantRole, dictionary)} · {lc.docsCountLabel(empDocs.length)}
           </span>
           <span className="toolbar__spacer" />
-          <button type="button" className="btn btn--ghost btn--sm">
-            <Ic>
-              <FileText />
-            </Ic>
-            {lc.docsBtnOriginal}
-          </button>
           <button type="button" className="btn btn--pri btn--sm" onClick={() => window.print()}>
             <Ic>
               <Download />
@@ -387,11 +298,13 @@ export function LeaveDocumentsView({ lc }: { lc: Lc }) {
                 if (ev.key === "Enter" || ev.key === " ") setDocId(d.id);
               }}
             >
-              <span className="ddoc__no mono">{d.docNo}</span>
-              <span className={`typebadge ${typeBadgeClass(d.type)}`}>{typeLabel(d.type, lc)}</span>
+              <span className="ddoc__no mono">{d.documentNumber}</span>
+              <span className={`typebadge ${typeBadgeClass(d.leaveType)}`}>{typeLabel(d.leaveType, lc)}</span>
               <span className="mono ddoc__per">{fmtPeriod(d, lc)}</span>
-              <span className="ddoc__days">{lc.daysUnit(d.days)}</span>
-              <span className="ddoc__by">{lc.docsApprovedBy(d.approverName, d.decidedAt)}</span>
+              <span className="ddoc__days">{lc.daysUnit(d.daysCount)}</span>
+              {d.approverName ? (
+                <span className="ddoc__by">{lc.docsApprovedBy(d.approverName, d.decidedAt)}</span>
+              ) : null}
               <span className="ic ddoc__chk">{d.id === docId ? <Check /> : <ChevronRight />}</span>
             </div>
           ))}
@@ -400,13 +313,13 @@ export function LeaveDocumentsView({ lc }: { lc: Lc }) {
         <div className="card dviewer">
           <div className="dviewer__bar">
             <span className="dviewer__meta">
-              <b className="mono">{doc.docNo}</b> · {lc.docsViewerMeta}
+              <b className="mono">{doc.documentNumber}</b> · {lc.docsViewerMeta}
             </span>
           </div>
           <div className="dviewer__stage" ref={stageRef}>
             <div className="dviewer__wrap" id="paperWrap" ref={wrapRef}>
               <div id="docSheet" ref={paperRef}>
-                <LeaveFormSheet doc={doc} emp={emp} />
+                <LeaveFormSheet doc={doc} />
               </div>
             </div>
           </div>

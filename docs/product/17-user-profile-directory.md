@@ -38,7 +38,10 @@ Signup required fields:
 Implementation note:
 
 - Initial profile completion is available at `/onboarding`.
-- The current form captures name, phone number, preferred language, and optional invite code.
+- The current onboarding flow captures name, date of birth, gender, phone number, preferred language, and an optional invite code.
+- Phone number stays an account-level unique field. If onboarding submission hits a duplicate number,
+  the wizard now returns the user to the phone step and explains that they must either enter a
+  different number or go back to login and use the existing account that already owns that number.
 - Age and profile photo remain deferred to the later My Profile screen.
 
 Optional after signup:
@@ -55,7 +58,8 @@ Theme preference:
 Implementation note:
 
 - `/account` now provides the first editable My Profile screen.
-- The current version supports name, phone number, and language. (The theme preference control was removed with dark mode.)
+- The current version supports name, date of birth, phone number, language, and gender.
+- Existing accounts with missing `birth_date` and/or `gender` are not forced back into onboarding; instead, `/account` shows a gentle completion prompt and lets the user save the missing fields there.
 - The page is reachable from the account icon in both admin and mobile shells.
 - Age and profile photo are still deferred.
 

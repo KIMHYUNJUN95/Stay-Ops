@@ -28,6 +28,7 @@ export type PropertyMapMeta = {
     en: string;
   };
   googleMapsUrl: string;
+  note?: string;
   sharedAccess: PropertyAccessInfo[];
   roomAccess?: PropertyRoomCode[];
 };
