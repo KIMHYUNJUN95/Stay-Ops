@@ -17,7 +17,6 @@ import {
   Info,
   LogOut,
   Search,
-  Shield,
   TriangleAlert,
   UserPlus,
   Wallet,
@@ -34,7 +33,6 @@ import type {
   LeaveType,
 } from "@/lib/annual-leave-approvals-server";
 import type {
-  AdminApproverMember,
   AdminLeaveBalanceRow,
   LeaveApplicantOption,
   LeaveDocument,
@@ -53,7 +51,6 @@ import { useAdminPanelA11y } from "../shared/use-admin-panel-a11y";
 import { LeaveRequestModal } from "./leave-request-modal";
 import { LeaveTeamCalendar } from "./leave-team-calendar";
 import { LeaveBalanceView } from "./leave-balance-view";
-import { LeaveApproversView } from "./leave-approvers-view";
 import { LeaveDocumentsView } from "./leave-documents-view";
 import { LeaveLedgerView } from "./leave-ledger-view";
 
@@ -186,14 +183,15 @@ function errLabel(reason: string | undefined, lc: Lc): string {
   }
 }
 
-type LeaveView = "review" | "calendar" | "balance" | "approvers" | "documents" | "ledger";
+type LeaveView = "review" | "calendar" | "balance" | "documents" | "ledger";
 
 // View tabs (handoff .lviews): icon + label, selected = filled navy. Matches leave-views.js order/icons.
+// Approver management moved to the Users screen (/admin/users) — all role/permission granting is
+// unified there — so the former 승인자 관리 sub-tab was removed.
 const SUB_TABS: { view: LeaveView; key: keyof Lc; icon: React.ReactNode }[] = [
   { view: "review", key: "subTabReview", icon: <Clock /> },
   { view: "calendar", key: "subTabCalendar", icon: <Calendar /> },
   { view: "balance", key: "subTabBalance", icon: <Wallet /> },
-  { view: "approvers", key: "subTabApprovers", icon: <Shield /> },
   { view: "documents", key: "subTabDocuments", icon: <FileText /> },
   { view: "ledger", key: "subTabLedger", icon: <ScrollText /> },
 ];
@@ -278,7 +276,6 @@ export function LeaveQueueClient({
   locale,
   applicants,
   balances,
-  approvers,
   documents,
   ledger,
   currentUserId,
@@ -293,7 +290,6 @@ export function LeaveQueueClient({
   locale: Locale;
   applicants: LeaveApplicantOption[];
   balances: AdminLeaveBalanceRow[];
-  approvers: AdminApproverMember[];
   documents: LeaveDocument[];
   ledger: LeaveLedgerEntry[];
   currentUserId: string;
@@ -428,20 +424,6 @@ export function LeaveQueueClient({
       <div style={{ position: "relative" }}>
         <LeaveSubTabs view={view} onChange={setView} lc={lc} />
         <LeaveBalanceView lc={lc} locale={locale} employees={balances} onToast={(msg) => showToast(msg)} />
-        {toast ? (
-          <div key={toast.id} role="status" className="adm-toast" onClick={() => setToast(null)}>
-            {toast.msg}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  if (view === "approvers") {
-    return (
-      <div style={{ position: "relative" }}>
-        <LeaveSubTabs view={view} onChange={setView} lc={lc} />
-        <LeaveApproversView lc={lc} locale={locale} members={approvers} onToast={(msg) => showToast(msg)} />
         {toast ? (
           <div key={toast.id} role="status" className="adm-toast" onClick={() => setToast(null)}>
             {toast.msg}

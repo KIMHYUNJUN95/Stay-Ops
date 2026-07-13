@@ -50,7 +50,12 @@ export async function isAttendancePayrollAdmin(
     .eq("user_id", userId)
     .maybeSingle();
   const row = m.data as { role: string; attendance_payroll_admin: boolean; status: string } | null;
-  return !!row && row.status === "active" && (row.role === "owner" || row.attendance_payroll_admin === true);
+  return (
+    !!row &&
+    row.status === "active" &&
+    // 전무(senior_managing_director) is owner-equivalent.
+    (row.role === "owner" || row.role === "senior_managing_director" || row.attendance_payroll_admin === true)
+  );
 }
 
 /**
@@ -72,7 +77,12 @@ export async function getAttendancePayrollAdminUserIds(
     attendance_payroll_admin: boolean;
   }[];
   return rows
-    .filter((m) => m.role === "owner" || m.attendance_payroll_admin === true)
+    .filter(
+      (m) =>
+        m.role === "owner" ||
+        m.role === "senior_managing_director" ||
+        m.attendance_payroll_admin === true,
+    )
     .map((m) => m.user_id);
 }
 

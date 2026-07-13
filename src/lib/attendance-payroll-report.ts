@@ -110,7 +110,7 @@ export function buildPayrollReportHtml(
   .meta { margin: 8px 0 10px; font-size: 10px; text-align: center; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   thead th { background: #d9ead3; color: #000; font-size: 11px; font-weight: 800; padding: 6px 8px;
-    border: 1px solid #000; white-space: nowrap; text-align: center; }
+    border: 1px solid #000; white-space: normal; word-break: keep-all; line-height: 1.2; text-align: center; }
   thead th.l { text-align: left; }
   tbody td { border: 1px solid #000; padding: 5px 7px; font-size: 11px; height: 24px; text-align: center; }
   td.c { text-align: center; }
@@ -135,6 +135,9 @@ export function buildPayrollReportHtml(
     <div class="title">${esc(labels.monthLabel)} ${esc(labels.title)}</div>
     <div class="meta">${esc(labels.orgName)} / ${esc(labels.generatedLabel)}</div>
     <table>
+      <colgroup>
+        <col style="width:5%" /><col style="width:12%" /><col style="width:8%" /><col style="width:9%" /><col style="width:8%" /><col style="width:7%" /><col style="width:9%" /><col style="width:9%" /><col style="width:9%" /><col style="width:8%" /><col style="width:16%" />
+      </colgroup>
       <thead>
         <tr>
           <th>${esc(labels.colNo)}</th>

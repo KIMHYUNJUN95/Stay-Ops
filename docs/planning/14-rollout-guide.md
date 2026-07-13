@@ -65,7 +65,8 @@ Verify the Vercel deployment completes without build errors.
 
 ## Creating Invite Codes
 
-Go to `/admin/settings/invite-codes` (requires `owner` or `office_admin` role).
+Go to `/admin/users/invites` (moved from `/admin/settings/invite-codes` 2026-07-13; requires
+developer access or a delegated `manage_users` permission — see `docs/product/05-admin-web-ia.md`).
 
 1. Click **Create invite code**.
 2. Enter a **display name** (for your reference, e.g. "Field Staff May 2026").
@@ -93,7 +94,7 @@ Each staff member follows this flow on first use:
 6. Enter the **invite code** they received.
 7. They land on the **Home** screen.
 
-If a staff member gets stuck on step 6, confirm the invite code is active at `/admin/settings/invite-codes`.
+If a staff member gets stuck on step 6, confirm the invite code is active at `/admin/users/invites`.
 
 ---
 
@@ -142,7 +143,7 @@ Admin web (for office/admin staff):
 | Announcements | `/admin/announcements` |
 | Users | `/admin/users` |
 | Settings | `/admin/settings/organization` |
-| Invite codes | `/admin/settings/invite-codes` |
+| Invite codes | `/admin/users/invites` |
 
 ---
 
@@ -176,7 +177,7 @@ After inviting the first staff batch, verify these within the first week:
 
 ### Staff cannot join with invite code
 
-1. Go to `/admin/settings/invite-codes` and confirm the code is active (not deactivated).
+1. Go to `/admin/users/invites` and confirm the code is active (not deactivated).
 2. Ask the staff member to type the code exactly as shown (case-sensitive).
 3. If the code was deactivated, create a new one.
 

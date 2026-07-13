@@ -2,6 +2,7 @@ export const platformRoles = ["developer_super_admin"] as const;
 
 export const organizationRoles = [
   "owner",
+  "senior_managing_director",
   "office_admin",
   "cs_staff",
   "field_manager",
@@ -15,12 +16,26 @@ export type PlatformRole = (typeof platformRoles)[number];
 export type OrganizationRole = (typeof organizationRoles)[number];
 export type Role = (typeof roles)[number];
 
+// Admin-web access = everyone except part_time_staff (confirmed 2026-07-13). field_manager/staff can
+// reach /admin/* too; sensitive pages (users, settings, payroll) apply their own stricter per-page gate.
 export const adminWebRoles = [
   "developer_super_admin",
   "owner",
+  "senior_managing_director",
   "office_admin",
   "cs_staff",
+  "field_manager",
+  "staff",
 ] as const satisfies readonly Role[];
+
+/**
+ * Top org admins — `owner` and `senior_managing_director`(전무) are treated as fully equivalent
+ * (every permission). Single source of truth so app-code owner-gates can include 전무 the same way the
+ * DB does via `has_org_role` (see migration 202607130003). Platform developers are handled separately.
+ */
+export function isOrgTopAdmin(role: Role): boolean {
+  return role === "owner" || role === "senior_managing_director";
+}
 
 export const fieldModeRoles = [
   "field_manager",
@@ -30,6 +45,7 @@ export const fieldModeRoles = [
 
 export const fieldOperationRoles = [
   "owner",
+  "senior_managing_director",
   ...fieldModeRoles,
 ] as const satisfies readonly Role[];
 
@@ -37,8 +53,20 @@ export function canAccessAdminWeb(role: Role) {
   return (adminWebRoles as readonly Role[]).includes(role);
 }
 
+// Every role except part_time_staff can switch between admin and field modes. (field_manager/staff can
+// now reach the admin web, so they must also be able to switch back to field mode.)
 export function canSwitchToFieldMode(role: Role) {
-  return role !== "staff" && role !== "part_time_staff";
+  return role !== "part_time_staff";
+}
+
+/**
+ * The surface a role LANDS on by default — separate from what it can *access*. Field roles
+ * (field_manager/staff/part_time) default to mobile even though field_manager/staff can also open the
+ * admin web; office/dev roles default to admin. Used for default routing / preferred mode, so granting
+ * field roles admin access does not change where they land by default.
+ */
+export function defaultsToAdminSurface(role: Role) {
+  return !(fieldModeRoles as readonly Role[]).includes(role);
 }
 
 export function canAccessFieldOperations(role: Role) {
@@ -53,6 +81,7 @@ export function canAccessFieldOperations(role: Role) {
 export const cleaningRecordViewerRoles = [
   "developer_super_admin",
   "owner",
+  "senior_managing_director",
   "office_admin",
   "cs_staff",
   "field_manager",

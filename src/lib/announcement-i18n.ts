@@ -224,6 +224,7 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
       office_admin: "\uC624\uD53C\uC2A4 \uAD00\uB9AC\uC790",
       owner: "\uC624\uB108",
       part_time_staff: "\uD30C\uD2B8\uD0C0\uC784 \uC9C1\uC6D0",
+      senior_managing_director: "\uC804\uBB34",
       staff: "\uC9C1\uC6D0",
     },
     maintenance: {
@@ -377,6 +378,7 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
       office_admin: "\u30AA\u30D5\u30A3\u30B9\u7BA1\u7406\u8005",
       owner: "\u30AA\u30FC\u30CA\u30FC",
       part_time_staff: "\u30D1\u30FC\u30C8\u30BF\u30A4\u30E0\u30B9\u30BF\u30C3\u30D5",
+      senior_managing_director: "\u5C02\u52D9",
       staff: "\u30B9\u30BF\u30C3\u30D5",
     },
     maintenance: {
@@ -504,6 +506,7 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
       office_admin: "Office Admin",
       owner: "Owner",
       part_time_staff: "Part-time Staff",
+      senior_managing_director: "Managing Director",
       staff: "Staff",
     },
     maintenance: {

@@ -16,6 +16,14 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **Invite-code (team code) management moved from Settings to Users (2026-07-13).**
+  `/admin/settings/invite-codes` moved to `/admin/users/invites`; the old path now just redirects.
+  `/admin/users` and `/admin/users/invites` share a "멤버 목록"/"멤버 초대" tab switcher. The create/
+  deactivate gate now uses the same developer-or-`manage_users` check as `/admin/users`
+  (`actorCanManageUsersInOrg`), replacing a hardcoded owner/office_admin/senior_managing_director role
+  check that had also been silently blocking 전무 from creating invite codes. The invite-role grant
+  ceiling (developer/owner/전무 = any category, others = `officeAdminAssignableRoles` only) is
+  unchanged. See `docs/planning/01-decision-log.md` → 2026-07-13.
 - **Onboarding recovery UX hardened (2026-07-10).** The profile-setup wizard now shows an explicit
   return-to-login action on every step (sign-out + `/auth/login`, language preserved), so a user who
   entered with the wrong email/Google account is no longer trapped in onboarding. Duplicate
@@ -112,17 +120,24 @@ Annual leave planning status:
   유급/특별 usage from each pool; the drawer editor persists hire-date/grant via `saveEmployeeLeaveBaseline`.
   승인자 관리: toggle writes `memberships.leave_approver_role` (`listAdminApprovers`/`setLeaveApprover`),
   enabling stores `'department_head'` by default (confirmed 2026-07-08), with self-lock + ≥1-approver
-  server guards. No new migration. Still not wired: applicant notifications, approved-usage feedback into
-  the **mobile** balance summary, hourly exclusion by real `employment_type`, and document output (stage 3).
+  server guards. No new migration.
+  - **Correction (2026-07-13, verified against code):** two items previously listed here as "not wired"
+    are in fact **implemented** — (1) **approved-usage feedback into the mobile balance summary** is live
+    (`getMyAnnualLeaveSummary` → `sumApprovedLeaveUsage` deducts 유급→base / 특별→bonus, used by
+    `/mobile/attendance/leave`), and (2) **document output** (休暇届 A4 print/PDF) is built and print-ready
+    (`leave-documents-view.tsx` + `@media print` isolating `#docSheet`, real data via `listLeaveDocuments`).
+    Genuinely still open: **applicant notifications** and **hourly exclusion by real `employment_type`**
+    (leave eligibility is currently gated by org **role** `part_time_staff`, not `employment_type_history`).
 
 Attendance/payroll planning status:
 
-- **Attendance allowances / 근태 추가수당 planned (2026-07-10):** accepted the design for busy-day or
-  short-staffed-day extra pay. This is a separate allowance layer, not a base hourly-rate change and not
-  a "bonus" feature. MVP types are `daily_fixed` (once per worker/date with valid paid work) and
-  `hourly_extra` (recognized paid minutes × extra hourly amount). MVP targets are all hourly workers or
-  a specific worker on a Tokyo operating date. Implementation, migration, UI, and export wiring are not
-  built yet. Source docs: `docs/product/21-attendance-payroll-workflow.md` and
+- **Attendance allowances / 근태 추가수당 planned (2026-07-10)** *(superseded — see the "2026-07-10 근태
+  추가수당(attendance allowance) 구현" dated entry further below in this file; implementation, migration,
+  UI, and export wiring are done, not pending)*: accepted the design for busy-day or short-staffed-day
+  extra pay. This is a separate allowance layer, not a base hourly-rate change and not a "bonus" feature.
+  MVP types are `daily_fixed` (once per worker/date with valid paid work) and `hourly_extra` (recognized
+  paid minutes × extra hourly amount). MVP targets are all hourly workers or a specific worker on a Tokyo
+  operating date. Source docs: `docs/product/21-attendance-payroll-workflow.md` and
   `docs/engineering/11-attendance-payroll-technical-design.md`.
 
 - **Permission overrides — schema designed and applied (2026-07-09, migration
@@ -532,8 +547,10 @@ Doc reconciliation status (2026-06-10): linen feature planning now reflects the 
 - Profile completion works.
 - Super Admin organization creation UI exists at `/admin/settings/organization`.
 - Super Admin can optionally attach themselves as organization `owner` during organization setup.
-- Invite code management UI exists at `/admin/settings/invite-codes`.
-- Owner-only attendance site/QR settings UI exists at `/admin/settings/attendance`.
+- Invite code management UI exists at `/admin/users/invites` (moved from `/admin/settings/invite-codes`
+  2026-07-13; old path redirects).
+- Owner or 전무(`senior_managing_director`)-only attendance site/QR settings UI exists at
+  `/admin/settings/attendance` (전무 added as owner-equivalent 2026-07-13).
 - **Initial real attendance site master loaded for `StayOps Internal` (2026-06-23).** The org-level `attendance_sites` table is no longer test-only: the existing temporary office QR site was promoted to the real office site (keeping its active QR/history), the old dummy attendance site was retired as an inactive legacy record, and the first real field-site rows were loaded for the current operations buildings plus the pre-open `스카이` site. Exact coordinates remain operational data in Supabase, not Markdown.
 - Invite codes can be created for `staff` and `part_time_staff`.
 - Invite codes can be deactivated.
@@ -861,7 +878,7 @@ Required before first staff use:
 
 1. Run `scripts/dev/beds24-backfill-room-master.sh` (switches calendar to authoritative empty count).
 2. Perform a manual browser golden-path pass: login -> cleaning start/complete -> order request -> admin approves and processes order -> mobile user sees notification.
-3. Invite first staff batch via `/admin/settings/invite-codes`.
+3. Invite first staff batch via `/admin/users/invites`.
 
 See `docs/planning/13-qa-checklist.md` section 12 for the full verification scope breakdown.
 
@@ -2918,3 +2935,285 @@ Files: `supabase/migrations/202607100004_attendance_manual_location.sql`, `src/t
 `src/lib/i18n.ts`, docs(04/11/24/06).
 
 Verification: `npx tsc --noEmit` **0 에러**. build/lint는 마지막에 실행. 브라우저 프리뷰는 어드민 인증 필요로 미실행.
+
+## 2026-07-13 연차 승인자 관리 탭 제거 + 권한 부여를 사용자 화면으로 통일 (방향 확정)
+
+- **방향 확정:** 모든 **역할·권한 부여를 사용자 화면(`/admin/users`)으로 통일**한다. 급여 담당
+  (`attendance_payroll_admin`) · 연차 결재자(`leave_approver_role`) · 시간제한 권한 예외
+  (`membership_permission_overrides`) 모두 사용자 상세에서 관리. 부여 가시성은 **대표(owner)·개발자**
+  전용(권한 예외 카드 기준).
+- **Step 1 (이번 커밋) — 연차 '승인자 관리' 서브탭 제거.** 기능이 사용자 화면으로 이관되므로 연차 콘솔의
+  승인자 관리 탭을 삭제. 연차 서브탭은 **5개**(승인 심사 / 팀 캘린더 / 직원 잔여·부여 / 문서 / 이력)로 축소.
+  - 제거: `leave-approvers-view.tsx`(파일 삭제), `leave-queue-client.tsx`의 `approvers` 뷰/탭/프롭/`Shield`
+    아이콘, `leave/page.tsx`의 `listAdminApprovers` fetch·프롭, `leave/actions.ts`의 `setLeaveApproverAction`.
+  - **유지(의도적):** `annual-leave-admin-server.ts`의 `AdminApproverMember`/`listAdminApprovers`/
+    `setLeaveApprover` — 곧 사용자 화면 권한 백엔드에서 재사용(주석 명시). `i18n.subTabApprovers` 등 승인자
+    전용 문자열은 무해한 dead 항목으로 남겨둠(추후 정리).
+  - **주의:** 사용자 백엔드 연결 전까지 `leave_approver_role`는 DB 직접 변경 외 경로 없음(개발 단계 허용).
+- **Step 2 (다음, 디자인만) — 사용자 화면 재구현.** `design_handoff_permission_override` 핸드오프대로
+  `/admin/users` 명단 + `/admin/users/[id]` 상세 + **권한 예외 카드**를 **100% 디자인만** 구현(서버 미연결).
+  핸드오프에 없는 급여 담당·연차 결재자도 같은 디자인 언어로 유동 배치. 백엔드는 **디자인 컨펌 후**.
+- **문서 정정(코드 대조):** 기존 status의 "연차 문서출력 미구현/모바일 잔여 미연동" 서술은 **오류**였음 —
+  둘 다 이미 구현됨(위 '연차 sub-tabs' 정정 참조). 실제 잔여 연차 갭은 **신청자 알림**과
+  **`employment_type` 기준 시급직 제외**뿐.
+- 마이그레이션 없음. 빌드/푸시 미실행(사용자 지시), lint만.
+
+Files: `src/components/admin/attendance/leave-queue-client.tsx`,
+`src/app/admin/attendance/leave/page.tsx`, `src/app/admin/attendance/leave/actions.ts`,
+`src/lib/annual-leave-admin-server.ts`(주석), `src/components/admin/attendance/leave-approvers-view.tsx`(삭제),
+docs(26/05/06/01).
+
+## 2026-07-13 사용자 화면 재디자인 (Step 2 — 디자인만, 백엔드 보류)
+
+- **범위:** `design_handoff_permission_override` 핸드오프대로 `/admin/users` 명단 + `/admin/users/[id]`
+  상세 + **권한 예외 카드**를 재구현. **디자인/인터랙션만** — 저장/부여/회수는 로컬 상태 + 토스트
+  프로토타입이며 **실제 DB 미반영**(백엔드는 디자인 컨펌 후). 역할·상태 서버 액션(`users/actions.ts`)은
+  보존(미사용) → 나중에 배선.
+- **CSS:** `src/components/admin/users-console.css`(flow.css+perm4.css를 `.adm` 스코프로 이식,
+  `--primary-tint` 추가). 기존 클래스 충돌 없음.
+- **컴포넌트(신규):** `adm-dropdown.tsx`(커스텀 `.dd` 드롭다운), `users-directory-client.tsx`(명단),
+  `user-detail-client.tsx`(상세 — 프로필/역할·상태/근태 권한/권한 예외 hero/부여폼/회수확인/토스트).
+  급여 담당·연차 결재자는 핸드오프에 없어 상세의 **별도 '근태 권한' 카드**(owner/개발자 전용)로 배치.
+- **권한 예외 카드 가시성:** owner/`developer_super_admin`만 렌더(office_admin은 미렌더). 프로토타입의
+  "보는 사람" 데모 토글은 제외(세션 역할로 판정).
+- **i18n:** `admin.users.console` 네임스페이스 ko/ja/en 3종 추가(권한 키 화이트리스트 라벨/설명 포함).
+- **프리뷰:** `src/app/users-preview/page.tsx`(임시 미인증, mock 데이터) — 로그인 없이 `/users-preview`에서
+  디자인 확인용. **컨펌 후 삭제 예정**(`leave-preview`와 동일 성격).
+- 검증: `npx tsc --noEmit` 0, `npm run lint` 0 errors, 프리뷰 렌더 확인(콘솔 에러 없음). 빌드/푸시 미실행.
+- **미완(컨펌 후):** 서버 배선(역할/상태/리포트 실제 저장, 급여담당/연차결재자/권한예외 CRUD +
+  `membership_permission_overrides` 연동·RLS), `27-permission-override-workflow.md`·`05-admin-web-ia.md`
+  본문 갱신, 프리뷰 라우트 삭제.
+
+Files(신규): `src/components/admin/users-console.css`,
+`src/components/admin/users/adm-dropdown.tsx`, `src/components/admin/users/users-directory-client.tsx`,
+`src/components/admin/users/user-detail-client.tsx`, `src/app/users-preview/page.tsx`.
+Files(변경): `src/app/admin/users/page.tsx`, `src/app/admin/users/[id]/page.tsx`, `src/lib/i18n.ts`.
+
+## 2026-07-13 사용자 권한 백엔드 연결 (Phase 1 — 실제 저장/CRUD)
+
+디자인 컨펌 후, 재디자인 사용자 화면을 **실제 DB에 연결**. 프로토타입(로컬 상태)이던 저장/부여/회수가
+이제 서버 액션 → Supabase로 반영된다. **마이그레이션 없음**(모든 컬럼/테이블 기존재).
+
+- **결과-반환형 서버 액션** (`src/app/admin/users/actions.ts` 전면 정비, FormData·redirect → `{ok,error}`):
+  `setMemberRole`/`setMemberStatus`(owner·office_admin·dev, 본인 차단, office_admin은 상위 역할 부여 불가),
+  `setMemberReportAccess`(`profiles.can_generate_report`), `setMemberPayrollAdmin`
+  (`memberships.attendance_payroll_admin`, **owner·dev만**), `setMemberLeaveApprover`
+  (`memberships.leave_approver_role`, **owner·dev만**, min-1·self-lock·시급직 제외 가드),
+  `grantPermissionOverrideAction`/`revokePermissionOverrideAction`(**owner·dev만**, service-role).
+- **권한키 화이트리스트** `src/config/permission-overrides.ts`(4키) + 서버 검증(키·만료 미래·사유 필수·self-grant 차단).
+- **override 데이터 레이어** `src/lib/permission-overrides-server.ts`(list/grant/revoke, service-role).
+  `membership_permission_overrides`는 쓰기 RLS 없음 → service-role로만 기록(설계대로). revoke=소프트(`revoked_at`).
+- **`setLeaveApprover` 리팩터** — 세션 기반 → `{organizationId, actorUserId, userId, isApprover}` 명시형
+  (dev 크로스-org 정확성). ⚠️ "연차 결재=전무 고정" 확정건: 현재 부여 default가 `department_head`라
+  전무 지정 경로는 추후 조정 필요(기능상 승인권은 동일, 문서 도장칸만 차이).
+- **클라이언트 배선:** 명단/상세가 `useTransition`으로 액션 호출, 성공/실패 토스트(에러 i18n
+  `admin.users.console.err*` ko/ja/en 추가). 상세는 `listMemberOverrides` 실데이터 로드.
+- 검증: `npx tsc --noEmit` 0, `npm run lint` 0 errors. 빌드/푸시 미실행.
+
+**미완 (Phase 2 — 권한 예외 실효성, 별도):** `has_permission_override()`가 아직 어느 기능의 RLS/게이트에도
+연결 안 됨 → 부여해도 실제 권한은 안 변함. 4키를 각 도메인(주문/수리/건물·객실/리포트)에
+`OR has_permission_override(...)`로 채택하는 **새 마이그레이션** 필요(사용자가 적용). 도메인별 인증 모델
+조사 후 단계 적용 예정. 문서: `27-permission-override-workflow.md`.
+
+Files: `src/app/admin/users/actions.ts`, `src/config/permission-overrides.ts`(신규),
+`src/lib/permission-overrides-server.ts`(신규), `src/lib/annual-leave-admin-server.ts`,
+`src/components/admin/users/users-directory-client.tsx`,
+`src/components/admin/users/user-detail-client.tsx`, `src/app/admin/users/[id]/page.tsx`,
+`src/lib/i18n.ts`, docs(27/06).
+
+## 2026-07-13 사용자/권한 모델 개편 — P1 (접근 통제) 백엔드
+
+결정 로그(2026-07-13 "사용자/권한 모델 개편") 기준. **P1 = 사용자 화면 접근을 개발자 기본으로 잠금 + 위임.**
+
+- **마이그레이션(작성, 적용 대기):** `202607130001_membership_manage_users.sql` — `memberships.manage_users boolean default false`.
+- **게이트:** `src/lib/user-management-access.ts`(신규) — `isDeveloper`, `actorCanOpenUserManagement`
+  (개발자 또는 `manage_users` 보유), `actorCanManageUsersInOrg`(org 범위). `/admin/users`·`/admin/users/[id]`
+  진입 시 미통과 → `/admin` 리다이렉트. **owner·office_admin의 자동 사용자관리 접근 제거** — 이제 개발자
+  또는 위임받은 사람만.
+- **액션 게이트 교체:** 역할/상태/리포트 저장의 기본 게이트를 `actorCanManageUsersInOrg`로 변경(기존
+  owner/office_admin/dev → 개발자‖manage_users). 급여담당/연차결재자/권한예외는 여전히 owner‖dev(P2에서 +전무).
+- **개발자 전용 액션(신규):** `setMemberManageUsers`(manage_users 위임, **재위임 불가=개발자만**),
+  `assignDeveloper`(`platform_admins` 기록, 최고권한, **본인 개발자 해제 차단**=lockout 방지).
+- 참고: 마이그레이션 적용 전에도 개발자는 게이트 단축평가로 정상 접근(비개발자는 차단). 김현준=개발자
+  (`platform_admins`)이라 영향 없음.
+- 검증: `npx tsc --noEmit` 0, `npm run lint` 0 errors.
+
+**P1 UI 완료(2026-07-13):** 사용자 상세에 **개발자 전용 카드 "개발자 · 사용자 관리"**(isDeveloperViewer
+게이트) — `개발자 지정`(assignDeveloper)·`사용자 관리 권한`(setMemberManageUsers) 토글 + 안내문.
+목록/상세에서 **플랫폼 개발자를 "개발자"로 표시**(org role은 작업 드롭다운에서 별도 편집 유지 — 개발자는
+플랫폼 평면). i18n `console.dev*`/`manageUsersLabel` ko/ja/en. 마이그레이션 `202607130001` **적용됨**.
+프리뷰 렌더 확인(콘솔 에러 없음), tsc 0 / lint 0.
+
+**다음 단계:** P2 전무 역할(enum+RLS 스윕+연차결재 기본값=전무), P3 상태 축소+완전차단, P4 가드형 삭제.
+
+Files(추가): `src/lib/i18n.ts`, `src/app/admin/users/page.tsx`, `src/app/admin/users/[id]/page.tsx`,
+`src/components/admin/users/users-directory-client.tsx`,
+`src/components/admin/users/user-detail-client.tsx`, `src/app/users-preview/page.tsx`.
+Files(P1 백엔드): `supabase/migrations/202607130001_membership_manage_users.sql`,
+`src/lib/user-management-access.ts`, `src/app/admin/users/actions.ts`, `src/types/database.ts`, docs(01/06).
+
+## 2026-07-13 사용자/권한 모델 개편 — P2 (전무 역할, owner 동급)
+
+`senior_managing_director`(전무)를 조직 역할로 추가하고 **owner와 완전 동급**으로 처리.
+
+- **마이그레이션 2개(적용 필요, 순서 중요):** `202607130002_add_senior_managing_director_role.sql`
+  (enum 값 추가) → `202607130003_senior_managing_director_owner_equivalent.sql`(`has_org_role` 재정의).
+  **핵심 기법:** owner를 검사하는 모든 RLS가 `has_org_role(org, array['owner',...])`를 통과하므로,
+  `has_org_role` **함수 하나만** "전무면 owner 허용 통과"로 고쳐 **정책을 하나도 안 건드리고 전역 적용**.
+- **연차 결재 기본값 = 전무:** `DEFAULT_APPROVER_ROLE`를 `department_head` → `senior_managing_director`
+  (`is_leave_approver()`는 non-null만 보므로 승인권은 동일, 休暇届 도장칸만 전무로).
+- **config/roles.ts:** `organizationRoles`에 전무 추가(드롭다운 자동 노출) + `isOrgTopAdmin(role)=owner|전무`
+  헬퍼 + `adminWebRoles`/`fieldOperationRoles`/`cleaningRecordViewerRoles`에 전무 포함.
+- **앱 코드 owner-게이트 스윕:** `users/actions.ts`(canManagePermissions/canAssignRole),
+  `users/[id]/page.tsx`(카드 가시성), `attendance-review.ts`(isAttendancePayrollAdmin) → 전무 포함.
+  나머지(settings/announcements/complaints/invite-codes)는 동일 원칙으로 스윕(프로젝트-멤버 owner는 제외).
+- **i18n:** `roles.senior_managing_director` + `announcement targetRoles` ko(전무)/ja(専務)/en(Managing Director).
+- `database.ts` enum에 전무 추가. tsc 0 / lint 0.
+- ⚠️ **마이그레이션 적용 전 전무 배정 금지**(enum 값 없으면 저장 실패). leave_approver_role는 text라 무관.
+
+Files: `supabase/migrations/202607130002_*.sql`·`202607130003_*.sql`(신규), `src/config/roles.ts`,
+`src/types/database.ts`, `src/lib/annual-leave-admin-server.ts`, `src/lib/attendance-review.ts`,
+`src/app/admin/users/actions.ts`, `src/app/admin/users/[id]/page.tsx`, `src/lib/i18n.ts`,
+`src/lib/announcement-i18n.ts` + settings/announcements/complaints(에이전트 스윕), docs(06).
+
+## 2026-07-13 사용자/권한 모델 개편 — P3 (상태 활성/비활성 + 완전 차단)
+
+- **설계 판단(마이그레이션 없음):** Postgres는 enum 값을 삭제할 수 없고 `invited/suspended/removed`는
+  초대·온보딩·디렉토리 흐름에서 실사용 중이라, enum을 **파괴적으로 줄이지 않았다.** 대신 **사용자 화면을
+  활성/비활성 2개로** 두고, `비활성`은 기존 **`suspended`**(이미 온보딩에서 차단)로 매핑. 안전 + 무마이그레이션.
+- **완전 차단(신규):** `setMemberStatus`가 상태 저장 시 **Supabase auth 밴까지** 적용 —
+  `service.auth.admin.updateUserById(userId, { ban_duration: active ? "none" : "876000h" })`. 활성→언밴,
+  비활성→밴. 이제 조직 접근 차단(기존 세션 로직)뿐 아니라 **로그인 자체가 차단**됨. 본인 상태 변경은
+  기존대로 차단되어 self-lockout 없음.
+- **UI:** 상태 SET 드롭다운 = 활성/비활성(비활성 저장 시 `suspended`), 필터 = 활성/비활성(비활성 = non-active
+  전체), 표시/상태 pill은 active→활성(green) / 그 외→비활성(muted)로 축약. i18n `console.statusActive/
+  statusInactive` ko(활성/비활성)·ja(有効/無効)·en. tsc 0 / lint 0, 프리뷰 확인.
+- 참고: 이 변경 전부터 있던 suspended/invited 계정은 auth 밴이 안 걸려 있음 — 필요시 1회 백필(선택).
+- **다음:** P4 가드형 하드 삭제(활동 기록 있으면 차단, 허용 시 auth 계정까지 삭제, 2단계 확인).
+
+Files: `src/app/admin/users/actions.ts`, `src/components/admin/users/users-directory-client.tsx`,
+`src/components/admin/users/user-detail-client.tsx`, `src/lib/i18n.ts`, docs(06). 마이그레이션 없음.
+
+## 2026-07-13 사용자/권한 모델 개편 — P4 (가드형 하드 삭제) + 본인 행 정리
+
+- **가드형 삭제(`deleteMember`):** 기본은 비활성, 하드 삭제는 **실수/미활동 계정 정리용**. **활동 기록
+  가드(넓게, 옵션 A):** `attendance_sessions.user_id` / `cleaning_sessions.staff_user_id` /
+  `annual_leave_requests.user_id` 중 하나라도 있으면 **삭제 차단**(`has_activity`) → 비활성 유도(기록 보호).
+  기록 없으면 memberships→profiles→**auth 계정까지** 삭제(전체 제거). 개발자‖manage_users 게이트, **본인
+  삭제 차단**. 마이그레이션 없음(기존 테이블·auth API).
+- **UI:** 사용자 상세 하단 **위험 존**(destructive) — "회원 삭제" + 안내 + **2단계 확인**(취소/삭제).
+  본인(self) 상세엔 미표시. i18n `console.delete*`/`toastDeleted`/`errHasActivity` ko/ja/en.
+- **본인 UI 정리(목록+상세):** 목록에서 **내(self) 행의 작업(역할/상태) 컨트롤을 "—"로 대체**하고,
+  **본인 상세에선 편집 카드 전부 숨김**(역할·상태·개발자관리·근태권한·권한예외·삭제 → 프로필 정보만 표시).
+  최고권한이 자기 자신을 설정할 필요가 없고, 자기 변경은 어차피 서버에서 차단(self_update_blocked)됨.
+- 검증: `npx tsc --noEmit` 0, `npm run lint` 0 errors, 프리뷰 렌더 확인(삭제 존·본인행 "—").
+  (프리뷰 콘솔에 편집 중간 HMR stale 에러가 남을 수 있으나 옛 라인번호 참조로, 현재 컴파일과 무관.)
+
+**→ P1~P4 전부 코드 완료.** 적용 대기 마이그레이션: `202607130002`·`003`(전무, ①→② 순서). P3/P4는 마이그 없음.
+
+Files: `src/app/admin/users/actions.ts`, `src/components/admin/users/user-detail-client.tsx`,
+`src/components/admin/users/users-directory-client.tsx`, `src/lib/i18n.ts`, docs(06). 마이그레이션 없음.
+
+## 2026-07-13 권한 예외 실효성 연결(enforcement) + 임시 프리뷰 삭제 — 마무리
+
+권한 예외가 이제 **부여하면 실제 권한이 바뀝니다**(기존엔 카드에 기록만).
+- **마이그레이션(적용 필요):** `202607130004_permission_override_enforcement.sql`
+  - `order_processor` → `order_requests` UPDATE RLS에 `OR has_permission_override(...)` 추가(주문/비품 상태변경).
+  - `maintenance_status_change` → `maintenance_reports` UPDATE RLS 동일.
+  - `property_room_manage` → `properties`/`rooms`에 override 관리 정책 신설 + authenticated DML 그랜트
+    (쓰기는 여전히 platform-admin 또는 override 보유자만 RLS로 허용).
+- **앱 게이트(리포트):** `can_generate_report`는 RLS가 아니라 앱에서 검사 →
+  `hasPermissionOverride()`(`permission-overrides-server.ts`)를 `generateDailyReport`(mobile)에 추가.
+  활성(미만료·미회수) override면 시급직도 리포트 생성 가능.
+- **정리:** 임시 디자인 검증 라우트 `src/app/users-preview` **삭제**.
+- 검증: `npx tsc --noEmit` 0, `npm run lint` 0 errors. 문서(27/06) 갱신.
+
+**→ 사용자/권한 개편 전체 완료.** 남은 적용 마이그레이션: `202607130002`·`003`(전무) + `202607130004`(권한예외 enforcement).
+
+Files: `supabase/migrations/202607130004_permission_override_enforcement.sql`(신규),
+`src/lib/permission-overrides-server.ts`, `src/app/mobile/tasks/report-actions.ts`,
+`src/app/users-preview/`(삭제), docs(27/06).
+
+## 2026-07-13 권한 예외 부여 폼 UI 정리
+
+- **권한 키 드롭다운:** 좌측 mono 키 컬럼 → **세로 스택**(라벨 굵게 → `permission_key`(mono, muted) → 설명)으로
+  정리해 스캔이 쉬워짐. `adm-dropdown.tsx` rich 렌더 + `users-console.css`(`.dd__opt__key`/`--wide` 정렬).
+- **만료일시:** 네이티브 `datetime-local` → 앱 공용 **`AdminDatePicker`(팝오버 달력) + `AdminTimePicker`(팝오버
+  시간)** 로 교체. 날짜+시간을 각각 고르면 `form.expires`(YYYY-MM-DDTHH:mm)로 합침. `min`=오늘.
+- **공용 `AdminDatePicker` 보강(빈 값 안전):** 값이 비었을 때 달력이 깨지던 것(`calendarMonth=""`)을
+  min→오늘 달로 폴백, `placeholder` prop 추가(빈 트리거 표시). 기존 호출부(항상 값 있음)엔 영향 없음.
+- i18n `console.datePrev/dateNext/dateToday/datePlaceholder` ko/ja/en. 검증: tsc 0 / lint 0, 프리뷰에서
+  빈 값 달력(2026년 7월·31칸·Invalid 없음)·드롭다운 스택·콘솔 무에러 확인 후 임시 프리뷰 삭제.
+
+Files: `src/components/admin/users/adm-dropdown.tsx`, `src/components/admin/users/user-detail-client.tsx`,
+`src/components/admin/users-console.css`, `src/components/admin/shared/admin-date-picker.tsx`,
+`src/lib/i18n.ts`, docs(06).
+
+## 2026-07-13 사용자/권한 기능 — 완료 정리 ✅
+
+사용자/권한 개편 이니셔티브를 **완료**로 마감. 멤버 라이프사이클(초대 → 역할·권한 관리 → 비활성 → 삭제)이
+모두 **사용자 화면 한 곳**으로 통일되고 실제 동작한다.
+
+**완료 범위:**
+- 접근 통제(개발자 기본 + `manage_users` 위임, 재위임 개발자만), 개발자 지정(`platform_admins`)
+- 전무(`senior_managing_director`) = owner 동급(RLS는 `has_org_role` 1함수로 전역, 연차 결재 기본=전무)
+- 상태 활성/비활성 + 비활성=Supabase auth 밴(로그인 차단, 기존 온보딩 "disabled"와 정합)
+- 가드형 하드 삭제(활동 기록 있으면 차단, 없으면 auth 계정까지 삭제, 2단계 확인)
+- 권한 예외 CRUD + **enforcement 연결**(주문/수리=RLS, 건물·객실=RLS+grant, 리포트=앱 게이트)
+- 초대코드(팀코드) 관리를 `/admin/users/invites`로 이전(설정→리다이렉트), 게이트 통일
+- 본인 UI 정리(목록 작업 "—", 본인 상세 편집 카드 숨김), 재디자인 사용자 명단/상세(핸드오프 100%)
+- 권한 예외 폼 정리(권한 키 세로 스택, 만료일시 커스텀 팝오버 피커)
+
+**적용 필요 마이그레이션(전부 적용 시 실동작):** `202607130001`(manage_users, 적용됨),
+`202607130002`·`003`(전무, 적용됨), `202607130004`(권한 예외 enforcement — **미적용 시 적용 필요**).
+
+**의도적으로 남긴/후속 항목(완료 판단에 지장 없음):**
+- 권한 예외 **만료 상한 없음** — 현재 미래이기만 하면 최대 9999년까지 가능(설계상 "영구 금지" 취지와는
+  일부 어긋나나, 사용자 결정으로 상한 미적용). 필요 시 피커 `max` + 서버 검증에 상한 추가.
+- 연차 stage 3(신청자 알림), employment_type 기반 시급직 연차 제외는 **연차 도메인** 후속(사용자 기능 아님).
+- `getManageableOrganizations`는 `manage_users` 기준으로 정렬됨(초대 org 선택).
+
+검증 전반: `npx tsc --noEmit` 0, `npm run lint` 0 errors 유지. 실기기 E2E 클릭 확인은 대표님 몫으로 남김.
+
+## 2026-07-13 예약 캘린더 A4 인쇄 폭 동적 계산 수정
+
+`/admin/calendar/print` 일자 컬럼 폭을 고정 `7.78mm` → `calc((256mm - var(--label-width)) /
+<dateCount>)` 동적 계산으로 변경. 고정폭에서는 30~31일 달(예: 7월 31일 → 약 275mm 필요)이 A4 landscape
+콘텐츠 폭(약 257mm)을 넘어 `overflow: hidden`으로 우측 날짜가 잘렸음. 이제 28~31일 어떤 달 길이든 라벨
+컬럼+전체 일자 컬럼이 한 페이지에 맞는다. 예약 바는 공유 `--day-width` 변수를 기준으로 배치되어 정렬
+유지. 상세: `docs/product/15-reservation-calendar.md` → "2026-07-13 A4 Print Fit Fix". Files:
+`src/app/admin/calendar/print/page.tsx`.
+
+## 2026-07-13 현장 매니저·직원 어드민 웹 접근 허용 (문서-코드 정합 후속)
+
+문서 감사 중 `05-admin-web-ia.md`의 "part_time 제외 전원 어드민 접근" 서술이 코드(`adminWebRoles`)와
+어긋난 게 발견됨. 대표님 확인 결과 **문서 의도(현장 매니저·직원도 접근 가능)가 정답** → 코드를 정정.
+
+- `src/config/roles.ts` `adminWebRoles`에 `field_manager`·`staff` 추가(= part_time 제외 전원 접근).
+- **접근 ≠ 기본 착지 분리:** 새 헬퍼 `defaultsToAdminSurface(role)`(field_manager/staff/part_time → 모바일,
+  그 외 → 어드민)로 `preferredMode`(`session.ts`)·`getDefaultRouteForRole`(`onboarding.ts`)를 교체 →
+  현장 인력은 어드민 접근은 되지만 **기본 착지는 모바일 유지**(기존 동작 불변).
+- `canSwitchToFieldMode`를 `role !== 'part_time_staff'`로 완화(직원도 어드민↔현장 모드 전환 가능).
+- 민감 페이지(사용자/설정/급여)는 각자 더 강한 페이지별 게이트를 그대로 유지.
+- 검증: `npx tsc --noEmit` 0, `npm run lint` 0 errors. 문서 `05-admin-web-ia.md` 정정.
+
+Files: `src/config/roles.ts`, `src/lib/session.ts`, `src/lib/onboarding.ts`, docs(05/06).
+
+## 2026-07-13 근태·사용자·예약 캘린더 — 완료 정리 (연기 항목 명시)
+
+세 도메인의 코드·문서 정합성 작업을 마감. 문서 감사(3도메인)로 나온 코드↔문서 불일치를 코드=정답 기준으로
+전부 정정했고(9개 문서, 별도 항목 참조), 남은 것은 아래 **의도적 연기** 항목뿐.
+
+- **사용자/권한 — 완료 ✅.** 접근 통제·전무·상태·삭제·권한 예외(enforcement 포함)·초대코드 이전·UI·문서 전부.
+  마이그레이션 `202607130001~0004` **적용 확인**(DB 상태 직접 검증).
+- **근태 — 코어 완료 ✅.** 출퇴근·급여(PDF/Excel export, 급여 PDF "총 지급액" 열 잘림 수정 포함)·교통비·
+  추가/특별수당·정정·수기 근무입력(근무 위치)·명단·전무 게이트·문서 정합. 
+  - **연기:** **연차(annual leave)** 잔여(신청자 알림, `employment_type` 시급직 제외, 결재 흐름 실검증) —
+    **연차 결재 담당 전무가 아직 미가입**이라 가입 후 진행.
+- **예약 캘린더 — 기능 완료 ✅.** 관리자 콘솔 4뷰·A4 인쇄(폭 동적 계산)·Building info 실저장·모바일 캘린더·문서 정합.
+  - **연기:** **Beds24 실시간 연동(webhook/reconcile)** — 인프라 재작업 중(파일:본인). **알림(notifications)** —
+    예약 관련 알림은 후속.
+
+검증 전반: `npx tsc --noEmit` 0, `npm run lint` 0 errors 유지.
+
+Files: docs(06) — 상태 기록.

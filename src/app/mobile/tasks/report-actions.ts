@@ -2,6 +2,7 @@
 
 import { canGenerateDailyReport } from "@/config/roles";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
+import { hasPermissionOverride } from "@/lib/permission-overrides-server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { tokyoDateOf } from "@/lib/tasks";
 
@@ -90,7 +91,10 @@ export async function generateDailyReport(date: string): Promise<DailyReportResu
 
   const session = await getCurrentAppSession();
   if (!session || !hasOrganizationContext(session)) return { ok: false, reason: "forbidden" };
-  if (!canGenerateDailyReport(session.user.role, session.user.canGenerateReport)) {
+  if (
+    !canGenerateDailyReport(session.user.role, session.user.canGenerateReport) &&
+    !(await hasPermissionOverride(session.organization.id, session.user.id, "can_generate_report"))
+  ) {
     return { ok: false, reason: "forbidden" };
   }
 

@@ -74,7 +74,10 @@ The company representative or business owner.
 Can:
 
 - Manage organization settings
-- Manage all staff
+- Manage all staff (**note, 2026-07-13:** the `/admin/users` user-management screen itself — list,
+  detail, invites — is gated to **developer default + `manage_users` delegation**; an owner without an
+  explicit delegation cannot open it. See "Senior Managing Director (전무)" below and
+  `docs/product/27-permission-override-workflow.md`.)
 - View all records
 - Configure permissions
 - Access admin web
@@ -86,6 +89,21 @@ Implementation note:
 
 - `owner` is treated as a hybrid operations role in the app, which means owners can move between admin web and selected mobile field workflows without needing a separate staff account.
 
+### Senior Managing Director (전무) (added 2026-07-13)
+
+An organization role fully equivalent to `owner` in every organization-scoped permission check.
+
+- Introduced via migrations `202607130002` (enum value) and `202607130003` (`has_org_role` redefined so
+  every RLS policy that already checks for `owner` automatically also passes for 전무, with no per-policy
+  changes needed).
+- Has every capability listed under Owner above, including the same 2026-07-13 user-management-access
+  caveat.
+- Is the **default 연차(annual leave) approver role** (`DEFAULT_APPROVER_ROLE`), replacing the earlier
+  `department_head` default — see `docs/product/26-annual-leave-workflow.md` and
+  `docs/planning/01-decision-log.md` → 2026-07-13.
+- See `docs/planning/01-decision-log.md` → 2026-07-13 ("사용자/권한 모델 개편") for the full decision
+  record.
+
 ### Office Admin
 
 Office or back-office manager.
@@ -95,7 +113,9 @@ Can:
 - Use admin web
 - View operational records
 - Create and manage announcements
-- Manage staff invitations
+- Manage staff invitations (**note, 2026-07-13:** invite management now lives at `/admin/users/invites`
+  and shares the same developer-default + `manage_users`-delegation gate as `/admin/users`; office_admin
+  does not get this automatically without a delegation)
 - Assign or update tasks
 - Manage inventory and order requests
 - View calendar and reservation data

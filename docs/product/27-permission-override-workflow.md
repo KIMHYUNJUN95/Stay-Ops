@@ -1,22 +1,48 @@
 # Permission Override / 사용자별 권한 예외 부여
 
-Status: **schema designed and applied to the remote database — feature not implemented.** The schema
-is committed as migration `supabase/migrations/202607090002_membership_permission_overrides.sql`
-(table `membership_permission_overrides` + read-only owner/platform-admin RLS + the reusable
-`has_permission_override(org, user, key)` helper, which is created but **not yet wired into any other
-table's policy**) and has been **applied to the live Supabase project** (2026-07-09; confirmed via
-`list_migrations`, no new security-advisor findings beyond the same `SECURITY DEFINER`/RPC-exposure
-warning every other role-check helper in this project already carries). UI design for the feature is
-not finished yet, so the feature itself — the `/admin/users/[id]` "권한 예외" card, the grant/revoke
-service-role server actions, and the application-level `permission_key` whitelist — is **still NOT
-implemented**. Implementation resumes once the UI/UX design is ready. The rest of this document
-remains the design direction agreed on 2026-07-09.
+Status: **UI + grant/revoke/list backend + enforcement all implemented (2026-07-13, migration
+`202607130004_permission_override_enforcement.sql`).** All four whitelisted keys (RLS for
+`order_processor`/`maintenance_status_change`/`property_room_manage`, app-code gate for
+`can_generate_report`) actually change access now, not just show in the UI — see "Enforcement — DONE"
+below. The schema was migrated 2026-07-09
+(`supabase/migrations/202607090002_membership_permission_overrides.sql` — table
+`membership_permission_overrides` + read-only owner/platform-admin RLS + the reusable
+`has_permission_override(org, user, key)` helper).
+
+**Implemented 2026-07-13:**
+- `/admin/users/[id]` "권한 예외" card (owner/senior_managing_director(전무)/`developer_super_admin`
+  only) — list active overrides,
+  grant (rich key picker + required datetime-local expiry + required reason), two-step inline revoke.
+  Component `src/components/admin/users/user-detail-client.tsx`.
+- Application-level `permission_key` whitelist: `src/config/permission-overrides.ts`
+  (`order_processor`, `maintenance_status_change`, `property_room_manage`, `can_generate_report`).
+  Labels/descriptions in i18n `admin.users.console.keys` (ko/ja/en).
+- Service-role data layer `src/lib/permission-overrides-server.ts`
+  (`listMemberOverrides`/`grantMemberOverride`/`revokeMemberOverride`) + server actions
+  `grantPermissionOverrideAction`/`revokePermissionOverrideAction` in `src/app/admin/users/actions.ts`,
+  gated to owner/senior_managing_director(전무)/developer, org-scoped, self-grant blocked (DB constraint
+  + action), expiry-required.
+- **No new migration** — reuses `202607090002`.
+
+**Enforcement — DONE (2026-07-13, migration `202607130004_permission_override_enforcement.sql`).** All
+four whitelisted keys now actually change access, not just show in the UI:
+- `order_processor` → `order_requests` UPDATE (상태 변경) RLS policy gains
+  `OR has_permission_override(organization_id, auth.uid(), 'order_processor')`.
+- `maintenance_status_change` → `maintenance_reports` UPDATE RLS policy, same OR.
+- `property_room_manage` → new `for all` override policies on `properties` / `rooms` (+ DML grants to
+  authenticated so RLS can allow an override-holder; writes stay limited to platform admins OR
+  override-holders).
+- `can_generate_report` → enforced in **app code** (mobile `generateDailyReport` action) via
+  `hasPermissionOverride()` (`src/lib/permission-overrides-server.ts`), since that gate is not RLS.
+A granted override (active, not expired, not revoked) now grants the real capability; revoke/expiry
+removes it immediately.
 
 ## Problem
 
 StayOps' role model (`docs/product/01-user-roles.md`, `docs/engineering/05-rls-permissions.md`) is a
-fixed six-role org model (`owner / office_admin / cs_staff / field_manager / staff /
-part_time_staff`) plus a handful of **per-feature membership flags** that already exist
+seven-role org model (`owner / senior_managing_director / office_admin / cs_staff / field_manager /
+staff / part_time_staff` — `senior_managing_director`/전무 added 2026-07-13, fully owner-equivalent)
+plus a handful of **per-feature membership flags** that already exist
 (`attendance_payroll_admin`, `leave_approver_role`, `profiles.can_generate_report`). Sometimes an
 owner/developer needs to grant one specific person access to one specific feature **without**
 promoting their role or adding a brand-new dedicated column for a one-off need.
@@ -60,9 +86,9 @@ every time a new exception need comes up.
 - **Mandatory reason + audit log** on every grant and revoke, following the same pattern already used
   for manual attendance-session edits (`attendance_session_audits`) and account-linking-sensitive
   actions — write to `audit_logs`.
-- **Who can grant**: `owner` and `developer_super_admin` only (matches the "개발자, 최고관리자" scope
-  given in conversation). `office_admin` cannot grant overrides, unlike role changes where it has
-  partial authority.
+- **Who can grant**: `owner`, `senior_managing_director`(전무, owner-equivalent since 2026-07-13), and
+  `developer_super_admin` only (matches the "개발자, 최고관리자" scope given in conversation).
+  `office_admin` cannot grant overrides, unlike role changes where it has partial authority.
 - **Adoption is a two-layer change, not just RLS (corrected 2026-07-09).** A lot of StayOps'
   real authorization logic lives in **TypeScript, not pure RLS** — e.g. `ORDER_PROCESSOR_ROLES`
   (`src/app/mobile/requests/orders/actions.ts`), `canGenerateDailyReport()` /
@@ -96,14 +122,16 @@ that already handles role/status changes.
 - **Primary entry: `/admin/users/[id]`.** Add a new card ("권한 예외" / 권한 override) directly below
   the existing "Role & status management" card on the same page — same page, same mental model
   ("manage this one person"), consistent with how role changes already live there. Visible only to
-  `owner`/`developer_super_admin`; other viewers of the page (e.g. `office_admin`, who can already
-  reach this page to manage roles) don't see this card at all, since they can't act on it.
+  `owner`/`senior_managing_director`(전무)/`developer_super_admin`; other viewers of the page (e.g.
+  `office_admin`, who can already reach this page to manage roles) don't see this card at all, since
+  they can't act on it.
   - Card shows: any currently-active overrides for this user (permission key, granted by, expires at,
     reason) + a "grant new exception" action (select permission_key from the whitelist, set an
     expiry, enter a reason) + a revoke action per active row.
 - **Secondary/audit surface (phase 2, not MVP): `/admin/settings`.** The existing settings area
-  already has sub-pages per concern (`settings/attendance`, `settings/invite-codes`,
-  `settings/organization`). A future `settings/permissions` sub-page could show an org-wide list of
+  already has sub-pages per concern (`settings/attendance`, `settings/organization`; invite-code
+  management moved out to `/admin/users/invites` on 2026-07-13). A future `settings/permissions`
+  sub-page could show an org-wide list of
   all active + past overrides for accountability review, mirroring the existing sub-page pattern. Not
   required to ship the MVP grant/revoke flow on the user detail page.
 

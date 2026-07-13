@@ -74,7 +74,11 @@ function canManageAnnouncementInList(
 
   const role = membershipRoleByOrgId.get(announcement.organization_id);
 
-  if (role === "owner" || role === "office_admin") {
+  if (
+    role === "owner" ||
+    role === "senior_managing_director" ||
+    role === "office_admin"
+  ) {
     return true;
   }
 

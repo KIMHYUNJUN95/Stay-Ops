@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { defaultBottomNavTabIds } from "@/config/navigation";
 import type { AppMode } from "@/config/routes";
-import { canAccessAdminWeb } from "@/config/roles";
+import { defaultsToAdminSurface } from "@/config/roles";
 import type { Role } from "@/config/roles";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import type { ProfileGender } from "@/lib/onboarding";
@@ -205,7 +205,8 @@ export const getCurrentAppSession = cache(
         phoneNumber: profile.phone_number,
         preferredLanguage: profile.preferred_language,
         role,
-        preferredMode: canAccessAdminWeb(role) ? "admin" : "mobile",
+        // Default landing surface (field roles → mobile even though they can also access admin).
+        preferredMode: defaultsToAdminSurface(role) ? "admin" : "mobile",
         bottomNavTabs,
         canGenerateReport,
       },

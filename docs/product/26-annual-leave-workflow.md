@@ -1,5 +1,15 @@
 # Annual Leave / 연차 Workflow
 
+> **2026-07-13 — 승인자 관리 sub-tab removed.** Approver granting is being unified onto the **Users
+> screen** (`/admin/users`), where all role/permission granting will be managed together. The former
+> 연차 콘솔 **승인자 관리** sub-tab (`leave-approvers-view.tsx`) was removed and the leave section now has
+> **5 sub-tabs** (승인 심사 / 팀 캘린더 / 직원 잔여·부여 / 문서 / 이력). The backend helpers
+> (`listAdminApprovers` / `setLeaveApprover` in `annual-leave-admin-server.ts`) are **retained** for the
+> upcoming Users permission backend. Until that Users backend is wired (after design confirmation),
+> `memberships.leave_approver_role` can only be changed directly in the DB. Historical entries below
+> that describe the 승인자 관리 tab record its prior state and are kept for provenance. See
+> `docs/product/27-permission-override-workflow.md` and `docs/product/05-admin-web-ia.md`.
+
 Status: the mobile employee-facing experience is done — hire-date/balance backend, request
 submission/self-cancel/draft-resume, and the real team calendar are all implemented and applied
 (Phase 1 + Phase 2 stage 1, see below). The admin-dashboard **approval review** (Phase 2 stage 2,

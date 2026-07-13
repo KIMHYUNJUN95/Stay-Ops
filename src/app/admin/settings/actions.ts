@@ -3,15 +3,11 @@
 import { redirect } from "next/navigation";
 import type { OrganizationRole, Role } from "@/config/roles";
 import { officeAdminAssignableRoles } from "@/config/roles";
+import { actorCanManageUsersInOrg } from "@/lib/user-management-access";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
 
-const inviteManagerRoles = [
-  "developer_super_admin",
-  "owner",
-  "office_admin",
-] as const satisfies readonly Role[];
 // Owner and cs_staff are deliberately excluded from self-service invite-code creation (2026-07-09):
 // owner needs a separate single-use flow not built yet, and cs_staff has no invite category at all
 // (admin-assigned only, src/config/roles.ts). office_admin/field_manager were added here to close a
@@ -79,26 +75,11 @@ async function getCurrentRole(userId: string): Promise<Role | null> {
   return membership?.role ?? null;
 }
 
+// Invite-code management is gated the same way as /admin/users: developer, or the org-scoped
+// `manage_users` delegate flag (see src/lib/user-management-access.ts). This also fixes a prior bug
+// where senior_managing_director (전무) was locked out by a hardcoded owner/office_admin role check.
 async function canManageInvites(userId: string, organizationId: string, role: Role) {
-  if (!(inviteManagerRoles as readonly Role[]).includes(role)) {
-    return false;
-  }
-
-  if (role === "developer_super_admin") {
-    return true;
-  }
-
-  const service = getSupabaseServiceClient();
-  const { data } = await service
-    .from("memberships")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("organization_id", organizationId)
-    .eq("status", "active")
-    .in("role", ["owner", "office_admin"])
-    .maybeSingle();
-
-  return Boolean(data);
+  return actorCanManageUsersInOrg(userId, role, organizationId);
 }
 
 export async function createOrganization(formData: FormData) {
@@ -158,12 +139,12 @@ export async function createOrganization(formData: FormData) {
 export async function createInviteCode(formData: FormData) {
   const userId = await getCurrentUserId();
   if (!userId) {
-    redirect("/auth/login?next=/admin/settings/invite-codes");
+    redirect("/auth/login?next=/admin/users/invites");
   }
 
   const role = await getCurrentRole(userId);
   if (!role) {
-    redirect("/admin/settings/invite-codes?error=forbidden");
+    redirect("/admin/users/invites?error=forbidden");
   }
 
   const organizationId = String(formData.get("organizationId") ?? "");
@@ -182,11 +163,11 @@ export async function createInviteCode(formData: FormData) {
     !Number.isInteger(maxUses) ||
     maxUses < 1
   ) {
-    redirect("/admin/settings/invite-codes?error=invalid_invite");
+    redirect("/admin/users/invites?error=invalid_invite");
   }
 
   if (!(await canManageInvites(userId, organizationId, role))) {
-    redirect("/admin/settings/invite-codes?error=forbidden");
+    redirect("/admin/users/invites?error=forbidden");
   }
 
   // office_admin may not hand out office_admin-or-above access via invite code — mirrors the same
@@ -196,9 +177,10 @@ export async function createInviteCode(formData: FormData) {
   const canGrantDefaultRole =
     role === "developer_super_admin" ||
     role === "owner" ||
+    role === "senior_managing_director" ||
     (officeAdminAssignableRoles as readonly OrganizationRole[]).includes(defaultRole);
   if (!canGrantDefaultRole) {
-    redirect("/admin/settings/invite-codes?error=invalid_invite");
+    redirect("/admin/users/invites?error=invalid_invite");
   }
 
   const invite: InviteInsert = {
@@ -216,16 +198,16 @@ export async function createInviteCode(formData: FormData) {
     .insert(invite as never);
 
   if (error) {
-    redirect("/admin/settings/invite-codes?error=save_failed");
+    redirect("/admin/users/invites?error=save_failed");
   }
 
-  redirect("/admin/settings/invite-codes?created=1");
+  redirect("/admin/users/invites?created=1");
 }
 
 export async function deactivateInviteCode(formData: FormData) {
   const userId = await getCurrentUserId();
   if (!userId) {
-    redirect("/auth/login?next=/admin/settings/invite-codes");
+    redirect("/auth/login?next=/admin/users/invites");
   }
 
   const role = await getCurrentRole(userId);
@@ -233,11 +215,11 @@ export async function deactivateInviteCode(formData: FormData) {
   const organizationId = String(formData.get("organizationId") ?? "");
 
   if (!role || !inviteCodeId || !organizationId) {
-    redirect("/admin/settings/invite-codes?error=forbidden");
+    redirect("/admin/users/invites?error=forbidden");
   }
 
   if (!(await canManageInvites(userId, organizationId, role))) {
-    redirect("/admin/settings/invite-codes?error=forbidden");
+    redirect("/admin/users/invites?error=forbidden");
   }
 
   const { error } = await getSupabaseServiceClient()
@@ -246,8 +228,8 @@ export async function deactivateInviteCode(formData: FormData) {
     .eq("id", inviteCodeId);
 
   if (error) {
-    redirect("/admin/settings/invite-codes?error=save_failed");
+    redirect("/admin/users/invites?error=save_failed");
   }
 
-  redirect("/admin/settings/invite-codes?deactivated=1");
+  redirect("/admin/users/invites?deactivated=1");
 }

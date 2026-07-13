@@ -22,10 +22,11 @@ self pay view 쨌 monthly finalization/reopen/snapshot 쨌 payroll-totals data l
 > **Step 13 (2026-06-18):** finalized-only payroll **export** is live (`exportMonthlyPayroll` /
 > `exportUserPayroll`, owner / `attendance_payroll_admin` only): monthly bulk + per-person, **finalized
 > snapshots only** (draft/reopened/superseded never included), with an `attendance_export_logs` audit row
-> each. The operator's final Excel **template is still pending**, so the interim output is a clean
-> structured CSV (UTF-8 BOM) mapping to the documented snapshot fields. **No export UI** (deferred web
-> dashboard); a dev route exists for testing. See
-> `docs/engineering/11-attendance-payroll-technical-design.md` ??"As-built ??Step 13".
+> each. **Superseded (2026-07-03):** the operator's final **Excel workbook + PDF** export now ships from
+> the admin 급여 검토 page (`/admin/attendance/payroll`) — see the "Export" section below. The original
+> CSV path (`runPayrollExport` / `exportMonthlyPayroll` / `exportUserPayroll` + the dev test route)
+> remains only as a legacy/back-compat foundation and is not wired into the dashboard UI. See
+> `docs/engineering/11-attendance-payroll-technical-design.md` → "As-built — Step 13".
 
 > **Step 12 (2026-06-18):** the privileged **org-wide payroll-totals data layer** is ready
 > (`getPayrollTotals(org, ym)`): finalized labor total (from finalized snapshots), expected labor total
@@ -155,7 +156,8 @@ Scheduling is handled in another app. StayOps only handles actual attendance rec
 
 ### Privileged Admins
 
-- `owner`
+- `owner` (or `senior_managing_director` / 전무, treated as fully owner-equivalent org-wide since
+  2026-07-13 — see `docs/planning/01-decision-log.md` → 2026-07-13)
 - explicitly designated `attendance_payroll_admin`
 
 These privileged admins can:
@@ -170,7 +172,7 @@ These privileged admins can:
 
 ### Owner-only Authority
 
-Only the `owner` can manage:
+Only the `owner` (or `senior_managing_director` / 전무, owner-equivalent since 2026-07-13) can manage:
 
 - site master
 - site coordinates / radius
@@ -418,14 +420,26 @@ Minimum audit history must include:
 
 ### Manual Admin Creation
 
-- `owner` and `attendance_payroll_admin` may manually create a session
+Implemented (2026-07-10). Admins can manually enter attendance for off-site work or missed QR
+clock-in/out.
+
+- **Entry point:** `/admin/attendance/queue` (검토 큐) toolbar **"근무 추가"** → `ManualSessionModal`
+  → `createManualAttendanceSession` (`src/app/admin/attendance/actions.ts`).
+- **Who:** `isAttendancePayrollAdmin` — `owner` / `senior_managing_director`(전무, owner-equivalent) /
+  `attendance_payroll_admin`.
+- **Input:** employee, date, clock-in, clock-out (optional), **work location (free text)**, reason. For
+  off-site work the free-text location replaces a registered attendance site (no site/coordinates exist).
 - manual records must store:
   - `manual_created = true`
   - creator
   - creation time
   - creation reason
+  - **`manual_location`** — the free-text work location (`attendance_sessions.manual_location`, migration
+    `202607100004`); also surfaced as a "근무 위치" column in the per-user payroll export.
 
 Manual records follow the same correction, review, payroll, snapshot, and export rules as normal records.
+A manually-entered work day still receives applicable pay allowances (e.g. `daily_fixed`) even when it
+has no QR clock-in/out session.
 
 ## Employment Type and Rate Rules
 
@@ -660,12 +674,16 @@ Recommended monthly-report states:
 - `draft`
 - `submitted`
 - `reviewing`
+- `changes_requested` (implemented, migration `202607030001`) — reviewer sends the report back for edits;
+  unlike `rejected`, this status expects the user to revise and resubmit the same report/items rather
+  than treating the report as closed
 - `approved`
 - `rejected`
 
 Suggested edit rule:
 
 - user may edit own report/items while `draft`
+- a `changes_requested` report is editable and expected to be resubmitted
 - rejected report returns to editable state for resubmission
 
 ### Dashboard Direction (Deferred)
@@ -809,8 +827,12 @@ For first slice, site cost rollup is based on the **clock-in site**.
 - per-person export supported
 - export includes finalized data only
 - draft / reopened / unresolved records are excluded
-- template is required but still pending from the operator
-- Google Sheets compatibility may be added later, but template definition is still pending
+- **Implemented (2026-07-03):** the final monthly + per-person **Excel workbook + PDF** export ships in
+  the admin 급여 검토 page (`/admin/attendance/payroll`), with base wage / 추가수당 / 특별수당 / 교통비
+  shown as separate columns (see `docs/engineering/11-attendance-payroll-technical-design.md` → the
+  2026-07-03 as-built export sections). The earlier interim CSV path is retained only as a
+  legacy/back-compat foundation, not the shipped export.
+- Google Sheets compatibility may be added later; not scheduled
 
 Export history must be stored:
 

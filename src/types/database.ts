@@ -2188,6 +2188,7 @@ export type Database = {
           id?: string;
           joined_at?: string | null;
           leave_approver_role?: string | null;
+          manage_users?: boolean;
           organization_id: string;
           role: Database["public"]["Enums"]["organization_role"];
           status?: Database["public"]["Enums"]["membership_status"];
@@ -2200,6 +2201,7 @@ export type Database = {
           id: string;
           joined_at: string | null;
           leave_approver_role: string | null;
+          manage_users: boolean;
           organization_id: string;
           role: Database["public"]["Enums"]["organization_role"];
           status: Database["public"]["Enums"]["membership_status"];
@@ -2212,6 +2214,7 @@ export type Database = {
           id?: string;
           joined_at?: string | null;
           leave_approver_role?: string | null;
+          manage_users?: boolean;
           organization_id?: string;
           role?: Database["public"]["Enums"]["organization_role"];
           status?: Database["public"]["Enums"]["membership_status"];
@@ -2579,6 +2582,7 @@ export type Database = {
         | "office_admin"
         | "owner"
         | "part_time_staff"
+        | "senior_managing_director"
         | "staff";
       organization_status: "active" | "archived" | "suspended";
       platform_role: "developer_super_admin";

@@ -2,6 +2,48 @@
 
 This file records important project decisions.
 
+## 2026-07-13 초대코드(팀코드) 관리를 설정에서 사용자 화면으로 이전
+
+### Invite-code (team code) management moved from Settings into the Users screen
+
+- Moved `/admin/settings/invite-codes` → `/admin/users/invites`, so the full member lifecycle
+  (invite → manage role/status → deactivate → delete) lives in one place instead of being split
+  between Settings and Users. `/admin/users` and `/admin/users/invites` are now linked by a shared
+  "멤버 목록"/"멤버 초대" pill tab switcher (`src/components/admin/users/users-section-tabs.tsx`).
+  Old links to `/admin/settings/invite-codes` still resolve — the page there is now a redirect stub.
+- Gate unified: `canManageInvites` (`src/app/admin/settings/actions.ts`) no longer hardcodes
+  `owner`/`office_admin`/`senior_managing_director` role checks. It now defers to
+  `actorCanManageUsersInOrg` (`src/lib/user-management-access.ts`) — developer, or an org membership
+  with `manage_users = true` — the same gate that already protects `/admin/users`. This also fixes a
+  standing bug where `senior_managing_director` (전무) couldn't create invite codes because the old
+  hardcoded role array omitted that role.
+- **Not changed:** the default-role grant ceiling inside `createInviteCode` — developer/owner/전무 may
+  pick any invite category, everyone else (i.e. `manage_users` delegates without one of those roles)
+  is still limited to `officeAdminAssignableRoles`. This mirrors `canAssignRole`'s manual role-change
+  tiering and stops a delegate from self-service-granting `office_admin`-or-above via invite code.
+- The settings page's invite-code card was removed; `/admin/settings` now only lists organization
+  (and, for org top admins, attendance) settings.
+- New page (`src/app/admin/users/invites/page.tsx`) reuses the old create-form + list + deactivate
+  markup, restyled with the `.adm`-scoped `users-console.css` primitives (`ui-card`, `ui-btn`,
+  `ui-input`, `ui-badge`, `ctitle`, `chint`) instead of shadcn `Card`/`Button`/`Input`, to match the
+  visual tone of the rest of the users console.
+- Known gap carried over, not fixed in this change: `getManageableOrganizations` (the org picker for
+  the invite-create form) still filters by `role in (owner, office_admin)` rather than `manage_users`.
+  A `manage_users` delegate who holds neither role would pass the page gate but see zero organizations
+  to pick from. Flagged for a follow-up once it's clear whether `manage_users` delegates are expected
+  to hold cross-org invite scope.
+
+Impact:
+- `src/app/admin/settings/actions.ts`
+- `src/app/admin/settings/invite-codes/page.tsx` (now a redirect stub)
+- `src/app/admin/settings/page.tsx`
+- `src/app/admin/users/invites/page.tsx` (new)
+- `src/app/admin/users/page.tsx`
+- `src/components/admin/users/users-section-tabs.tsx` (new)
+- `src/components/admin/users-console.css`
+- `src/lib/i18n.ts`
+- `docs/product/05-admin-web-ia.md`
+
 ## 2026-07-10
 
 ### Onboarding recovery UX hardened: visible login return path and actionable duplicate-phone handling
@@ -3106,3 +3148,46 @@ Status: Confirmed (2026-07-09).
   an A4 landscape print surface for browser print / PDF save.
 - Decision: Beds24 ingestion stays paused by default during the temporary webhook shutdown period,
   and the calendar chrome should surface this as a paused state instead of a live sync state.
+
+## 2026-07-13 권한 부여를 사용자 화면으로 통일 / 연차 승인자 관리 탭 제거
+
+- Decision: 모든 역할·권한 부여(급여 담당 `attendance_payroll_admin`, 연차 결재자 `leave_approver_role`,
+  시간제한 권한 예외 `membership_permission_overrides`)를 **사용자 화면(`/admin/users`)으로 통일**한다.
+  부여 UI 가시성은 대표(owner)·개발자 전용.
+- Decision: 기능이 사용자 화면으로 이관되므로 연차 콘솔의 **승인자 관리 서브탭을 제거**한다(연차 서브탭 5개로 축소).
+  백엔드 헬퍼(`listAdminApprovers`/`setLeaveApprover`)는 사용자 화면 백엔드 재사용을 위해 유지.
+- Decision: 사용자 화면 재구현은 `design_handoff_permission_override` 핸드오프를 **100% 디자인만** 먼저
+  구현하고, 백엔드는 **디자인 컨펌 후** 진행한다. 그때까지 `leave_approver_role`는 DB 직접 변경만 가능.
+
+Reason: 권한/역할 관리 진입점이 연차 콘솔·사용자 화면으로 분산되어 있어 사용자 화면으로 일원화하기로 함(2026-07-13).
+
+Status: Confirmed (2026-07-13). Step 1(탭 제거+문서) 구현 완료, Step 2(사용자 디자인) 예정.
+
+## 2026-07-13 사용자/권한 모델 개편 — 전무 역할·상태 축소·삭제·사용자관리 접근 통제
+
+두 권한 평면을 명확히 분리한다: **플랫폼 평면**(`developer_super_admin`, `platform_admins`, 크로스-org
+최고권한)과 **조직 평면**(`memberships.role` enum). 아래는 확정 결정(2026-07-13).
+
+- **전무(`senior_managing_director`) 조직 역할 추가.** `organization_role` enum에 추가하고 **owner와 완전
+  동급(모든 권한)** 으로 취급한다. owner를 검사하는 모든 RLS/서버 게이트를 `isOrgTopAdmin = owner |
+  senior_managing_director` 단일 헬퍼로 통일해 스윕(누락 방지). **연차 결재는 전무가 담당** → 연차 결재자
+  부여 기본 역할값을 `senior_managing_director`로. 전무/대표는 아직 미가입 — 가입 후 개발자가 직접 부여.
+- **개발자는 조직 역할 드롭다운에 넣지 않는다.** `developer_super_admin`은 플랫폼 최고권한이라 일반 역할
+  부여 UI로 노출하면 권한 상승 취약점. **개발자 지정은 기존 개발자만** 가능한 별도 경로(=`platform_admins`
+  기록)로 한다.
+- **상태를 `active`/`inactive` 2개로 축소.** 기존 `invited/removed/suspended`는 통합(초대 흐름 확인 후
+  `invited` 처리 결정). **비활성화 = 완전 차단**: 조직 접근은 이미 세션이 active 멤버십만 로드해 차단되지만,
+  **로그인(Supabase auth) 차단까지** 확장한다.
+- **사용자 하드 삭제 = 가드형.** 기본은 비활성화. **활동 기록(근태·급여·청소·연차 등)이 있으면 하드 삭제
+  차단**(기록 파괴 방지). 삭제 허용 시 **로그인 계정(auth user)까지 함께 삭제**. 2단계 확인 UX 필수.
+  실수/미활동 계정 정리용으로 한정.
+- **사용자 관리 접근을 통제·위임.** `/admin/users`(+ 액션) 접근을 **개발자 기본**으로 좁히고, 개발자가
+  **`manage_users` 권한을 위임**할 수 있게 한다. **재위임은 개발자만**(위임받은 사람은 화면은 쓰되 그 권한을
+  남에게 넘길 수 없음). 위임자는 자기 이하 역할만 부여 가능(상승 체인 차단).
+- **모든 역할·권한 부여를 사용자 화면으로 통일**(재확인). 다른 화면엔 권한 부여 UI를 만들지 않는다.
+
+Reason: 권한 부여가 여러 화면에 흩어져 있고, 최고권한을 일반 드롭다운에 노출/하드삭제로 감사기록 파괴 같은
+구조적 위험이 있어, 두 평면 분리 + 사용자 화면 단일화 + 안전 가드로 정리(2026-07-13).
+
+Status: Confirmed (2026-07-13). 단계 구현 예정 — 스키마(enum 2개, `manage_users` 컬럼)·앱 전역 RLS 스윕·
+인증 차단·가드형 삭제는 마이그레이션 적용(대표)이 필요.

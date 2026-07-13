@@ -61,12 +61,19 @@ developer_super_admin
 
 ```txt
 owner
+senior_managing_director
 office_admin
 cs_staff
 field_manager
 staff
 part_time_staff
 ```
+
+`senior_managing_director`(전무, added 2026-07-13, migrations `202607130002`/`202607130003`) is fully
+`owner`-equivalent: `has_org_role(org, roles[])` was redefined so that whenever `'owner'` is one of the
+checked roles, an active 전무 membership also passes — automatically, with no per-policy edits needed,
+since every RLS policy that gates on owner already calls `has_org_role`. See
+"2026-07-13 User/Permission Model Rework" below.
 
 ## Office-Level Roles
 
@@ -163,6 +170,13 @@ Important:
 
 - Users cannot promote themselves.
 - Part-time Staff cannot change roles/statuses.
+- **(2026-07-13)** In practice, real writes to this table go through **service-role server actions**
+  only, additionally gated by **developer default + `manage_users` delegation**
+  (`actorCanManageUsersInOrg`, `src/lib/user-management-access.ts`) — an `owner` or `office_admin`
+  without a delegation cannot actually change roles/statuses at `/admin/users`, even though the RLS
+  policies above still name them. Treat the Owner/Office Admin/Platform Create/Update policies above as
+  a **client-side-bypass backstop only**, not the real access rule. See
+  "2026-07-13 User/Permission Model Rework" below and `docs/product/27-permission-override-workflow.md`.
 
 ## invite_codes
 
@@ -942,3 +956,36 @@ AND status = 'submitted'
 - `SELECT`: active organization members in the same org, plus platform/developer super admins
 - `INSERT / UPDATE / DELETE`: `owner`, `office_admin`, `cs_staff`, plus platform/developer super admins
 - purpose: shared calendar building metadata consumed by both admin and mobile reservation calendar
+
+## 2026-07-13 User/Permission Model Rework
+
+Full decision record: `docs/planning/01-decision-log.md` → 2026-07-13 ("사용자/권한 모델 개편"). Summary
+of the RLS/permission-relevant pieces:
+
+- **`senior_managing_director`(전무) = owner-equivalent.** Migrations `202607130002` (enum value) then
+  `202607130003` (`has_org_role` redefinition — the only place this needed to change; every policy that
+  gates on `'owner'` via `has_org_role` now also passes for an active 전무 membership, with zero
+  per-policy edits). App-side helper `isOrgTopAdmin(role)` mirrors this in `src/config/roles.ts`.
+- **`/admin/users` (+ actions + `/admin/users/invites`) access is developer-default +
+  `manage_users`-delegation gated**, not role-gated. Migration `202607130001` adds
+  `memberships.manage_users boolean default false`. `owner`/`office_admin` get **no automatic access**
+  to the user-management screen without an explicit delegation; only `developer_super_admin` (platform
+  role) can grant/revoke `manage_users` and cannot be locked out of its own developer status. The RLS
+  Create/Update policies on `memberships` above are a backstop only — real enforcement is in
+  `src/lib/user-management-access.ts` + service-role server actions.
+- **Status model stays `invited`/`active`/`suspended`/`removed`(unchanged enum, no migration)**, but the
+  user-facing UI now only exposes **활성(active) / 비활성(maps to `suspended`)**. Setting 비활성 now also
+  bans the Supabase auth user (`ban_duration: "876000h"`), so it blocks login itself, not just
+  org-scoped session access. Setting 활성 unbans.
+- **Guard-railed hard delete (`deleteMember`, no migration):** blocked if the target has any
+  `attendance_sessions` / `cleaning_sessions` / `annual_leave_requests` rows (`has_activity`) — must be
+  deactivated instead. If no activity exists, deletes memberships → profile → the Supabase auth account.
+  Self-delete is blocked server-side.
+- **Permission-override enforcement (migration `202607130004`):** `has_permission_override(org, user,
+  key)` is now actually wired into RLS for `order_processor` (`order_requests` UPDATE),
+  `maintenance_status_change` (`maintenance_reports` UPDATE), and `property_room_manage` (new `for all`
+  policies on `properties`/`rooms`, plus authenticated DML grants so RLS can allow an override-holder);
+  `can_generate_report` is enforced in app code (`hasPermissionOverride()` in the mobile report action),
+  not RLS. See `docs/product/27-permission-override-workflow.md`.
+- **Migrations to apply for full effect:** `202607130001` (manage_users), `202607130002` +
+  `202607130003` (전무, apply in that order), `202607130004` (override enforcement).

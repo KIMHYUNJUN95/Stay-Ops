@@ -12,6 +12,7 @@ import { getDictionary } from "@/lib/i18n";
 import { requireAdminSession } from "@/lib/admin-session";
 import { getActiveQrToken, listAttendanceSites } from "@/lib/attendance-sites";
 import { hasOrganizationContext } from "@/lib/session";
+import { isOrgTopAdmin } from "@/config/roles";
 import type { AttendanceSiteRow } from "@/lib/attendance";
 
 type PageProps = {
@@ -24,7 +25,7 @@ function firstParam(value: string | string[] | undefined) {
 
 export default async function AdminAttendanceSettingsPage({ searchParams }: PageProps) {
   const session = await requireAdminSession();
-  if (session.user.role !== "owner" || !hasOrganizationContext(session)) {
+  if (!isOrgTopAdmin(session.user.role) || !hasOrganizationContext(session)) {
     redirect("/admin/settings?error=forbidden");
   }
 

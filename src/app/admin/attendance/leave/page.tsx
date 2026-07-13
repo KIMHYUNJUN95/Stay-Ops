@@ -7,7 +7,6 @@ import {
   type LeaveType,
 } from "@/lib/annual-leave-approvals-server";
 import {
-  listAdminApprovers,
   listAdminLeaveBalances,
   listLeaveApplicants,
   listLeaveDocuments,
@@ -20,10 +19,10 @@ import { CircleAlert } from "lucide-react";
 const STATUS_GROUPS: LeaveStatusGroup[] = ["pending", "approved", "rejectedCancelled", "all"];
 const LEAVE_TYPES: LeaveType[] = ["annual", "paid", "special", "other"];
 
-// Admin · Attendance · Leave approval review (Slice 1).
-// Only the "승인 심사" sub-tab is functional this slice; the other four leave sub-tabs
-// (팀 캘린더 / 직원 잔여·부여 / 승인자 관리 / 문서) render as disabled placeholders.
-// See docs/product/26-annual-leave-workflow.md.
+// Admin · Attendance · Leave approval review.
+// Sub-tabs: 승인 심사 / 팀 캘린더 / 직원 잔여·부여 / 문서 / 대장. Approver management moved to the
+// Users screen (/admin/users) where all role/permission granting is unified, so the former
+// 승인자 관리 sub-tab was removed. See docs/product/26-annual-leave-workflow.md.
 export default async function AdminAttendanceLeavePage({
   searchParams,
 }: {
@@ -52,11 +51,10 @@ export default async function AdminAttendanceLeavePage({
   // The client filters by status group / type / search locally (its tabs are buttons, not links) and
   // needs the FULL set to compute the per-group counts, so always fetch every group here. The URL's
   // statusGroup/type/search are passed through only as the client's initial UI state (deep-linking).
-  const [queue, applicants, balances, approvers, documents, ledger] = await Promise.all([
+  const [queue, applicants, balances, documents, ledger] = await Promise.all([
     getAdminLeaveQueue(session, { statusGroup: "all" }),
     listLeaveApplicants(session),
     listAdminLeaveBalances(session),
-    listAdminApprovers(session),
     listLeaveDocuments(session),
     listLeaveLedger(session),
   ]);
@@ -75,7 +73,6 @@ export default async function AdminAttendanceLeavePage({
           locale={locale}
           applicants={applicants}
           balances={balances}
-          approvers={approvers}
           documents={documents}
           ledger={ledger}
           currentUserId={session.user.id}

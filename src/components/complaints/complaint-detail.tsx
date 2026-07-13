@@ -25,7 +25,12 @@ function formatCommentTime(iso: string, locale: string): string {
 }
 
 function isOwnerRole(role: string | null): boolean {
-  return role === "owner" || role === "developer_super_admin" || role === "office_admin";
+  return (
+    role === "owner" ||
+    role === "senior_managing_director" ||
+    role === "developer_super_admin" ||
+    role === "office_admin"
+  );
 }
 
 function Lightbox({

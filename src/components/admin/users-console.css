@@ -1,0 +1,298 @@
+/* ===================================================================
+   StayOps · 사용자 관리 흐름 (list → detail → 권한 예외)
+   Ported from the design handoff (flow.css + perm4.css) into the real
+   admin console. Every rule is scoped under `.adm` so it lives inside the
+   existing AdminShell chrome and reuses its token set. Only `--primary-tint`
+   was missing from admin-console.css and is defined here; perm4's `--ui-*`
+   tokens are re-declared locally (exact globals.css values) so those rules
+   port 1:1 without remapping.
+   Source: design_handoff_permission_override/design/{flow,perm4}.css
+   =================================================================== */
+
+.adm {
+  /* missing from admin-console.css — used by flow.css .urow__self + badges */
+  --primary-tint: color-mix(in oklab, var(--primary) 24%, var(--line));
+
+  /* perm4.css tokens (exact globals.css values, namespaced) */
+  --ui-bg: hsl(42 36% 95%);
+  --ui-fg: hsl(222 28% 14%);
+  --ui-muted: hsl(40 22% 90%);
+  --ui-muted-fg: hsl(222 10% 44%);
+  --ui-surface: hsl(44 52% 98.5%);
+  --ui-border: hsl(40 20% 84%);
+  --ui-primary: hsl(223 46% 32%);
+  --ui-primary-fg: hsl(0 0% 100%);
+  --ui-ring: hsl(223 46% 40%);
+  --ui-destructive: hsl(4 62% 46%);
+  --ui-destructive-bg: hsl(6 70% 95.5%);
+  --ui-shadow-glass: 0 18px 70px hsl(222 30% 14% / 0.1);
+}
+
+/* ===================================================================
+   SECTION TABS — members ↔ invites switcher (shared by /admin/users
+   and /admin/users/invites, 2026-07-13 invite-code relocation)
+   =================================================================== */
+.adm .sectiontabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--card2); border: 1px solid var(--line); margin-bottom: 18px; }
+.adm .sectiontab { display: inline-flex; align-items: center; height: 34px; padding: 0 16px; border-radius: 999px; font-size: 13px; font-weight: 800; color: var(--muted); text-decoration: none; transition: background-color 0.12s, color 0.12s; }
+.adm .sectiontab:hover { color: var(--ink); }
+.adm .sectiontab.active { background: var(--card); color: var(--primary); box-shadow: var(--sh-card); }
+
+/* ===================================================================
+   PAGE INTRO HEADER (flow.css)
+   =================================================================== */
+.adm .pagehead { display: flex; align-items: flex-start; gap: 16px; margin: 2px 2px 18px; }
+.adm .pagehead__l { min-width: 0; flex: 1; }
+.adm .pagehead__lede { font-size: 14px; font-weight: 600; color: var(--ink-soft); line-height: 1.5; }
+.adm .pagehead__org { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-top: 6px; display: inline-flex; align-items: center; gap: 6px; }
+.adm .pagehead__org b { color: var(--ink); font-weight: 800; }
+.adm .pagehead__count { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--sh-card); }
+.adm .pagehead__count b { font-size: 22px; font-weight: 900; letter-spacing: -0.03em; color: var(--primary); line-height: 1; }
+.adm .pagehead__count span { font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
+
+/* ===================================================================
+   FILTER BAR (flow.css)
+   =================================================================== */
+.adm .filterbar { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); box-shadow: var(--sh-card); margin-bottom: 18px; }
+.adm .filterbar__search { flex: 1; min-width: 0; position: relative; }
+.adm .filterbar__search .ic { position: absolute; left: 13px; top: 11px; color: var(--faint); pointer-events: none; display: inline-flex; }
+.adm .filterbar__search .ic svg { width: 19px; height: 19px; }
+.adm .filterbar__search input { width: 100%; height: 42px; border-radius: 11px; border: 1px solid var(--line); background: var(--card2); padding: 0 14px 0 42px; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink); outline: none; }
+.adm .filterbar__search input::placeholder { color: var(--faint); font-weight: 500; }
+.adm .filterbar__search input:focus { border-color: var(--primary); box-shadow: 0 0 0 3.5px var(--primary-soft); background: var(--card); }
+.adm .filterbar .dd { width: 172px; flex: 0 0 auto; }
+.adm .filterbar__go { flex: 0 0 auto; width: 46px; height: 42px; border-radius: 11px; border: 1px solid transparent; background: linear-gradient(165deg, var(--primary-lift), var(--primary-ink)); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 12px 26px -16px hsl(223 46% 32% / 0.7); cursor: pointer; }
+.adm .filterbar__go:hover { filter: brightness(1.06); }
+.adm .filterbar__go .ic svg { width: 20px; height: 20px; }
+
+/* ===================================================================
+   USERS TABLE (flow.css)
+   =================================================================== */
+.adm .utable { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); box-shadow: var(--sh-card); overflow: visible; }
+/* overflow must stay visible so an open 작업 dropdown can float above the row below. (overflow-x:auto
+   would promote overflow-y to auto per spec — clipping the menu and adding an unwanted scrollbar.) */
+.adm .utable__scroll { overflow: visible; border-radius: var(--r-card); }
+.adm .utable table { width: 100%; border-collapse: collapse; min-width: 940px; }
+.adm .utable thead th:first-child { border-top-left-radius: var(--r-card); }
+.adm .utable thead th:last-child { border-top-right-radius: var(--r-card); }
+.adm .utable tbody tr:last-child td:first-child { border-bottom-left-radius: var(--r-card); }
+.adm .utable tbody tr:last-child td:last-child { border-bottom-right-radius: var(--r-card); }
+.adm .utable th { text-align: left; font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); padding: 13px 20px; border-bottom: 1px solid var(--line); background: var(--card2); white-space: nowrap; }
+.adm .utable td { padding: 16px 20px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+.adm .utable tbody tr:last-child td { border-bottom: none; }
+.adm .utable tbody tr { cursor: pointer; transition: background-color 0.12s; }
+.adm .utable tbody tr:hover { background: var(--card2); }
+.adm .utable tbody tr:hover .urow__chev { opacity: 1; transform: translateX(0); }
+
+.adm .urow__name { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.adm .urow__av { width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(150deg, color-mix(in oklab, var(--primary-lift) 84%, #fff), var(--primary-ink)); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex: 0 0 auto; }
+.adm .urow__nm { font-size: 14px; font-weight: 800; letter-spacing: -0.01em; color: var(--ink); white-space: nowrap; }
+.adm .urow__self { font-size: 10px; font-weight: 800; letter-spacing: 0.04em; color: var(--primary); background: var(--primary-soft); border: 1px solid var(--primary-tint); border-radius: 999px; padding: 1px 7px; margin-left: 2px; vertical-align: middle; }
+.adm .ucell { font-size: 13px; font-weight: 600; color: var(--ink-soft); white-space: nowrap; }
+.adm .ucell.mono { font-family: var(--mono); font-weight: 600; letter-spacing: -0.02em; color: var(--muted); }
+.adm .ucell.role { font-weight: 800; color: var(--ink); }
+.adm .ucell.date { color: var(--muted); font-weight: 700; }
+.adm .urow__chev { color: var(--faint); opacity: 0; transform: translateX(-4px); transition: 0.14s; display: inline-flex; }
+.adm .urow__chev svg { width: 18px; height: 18px; }
+
+/* status pill in table */
+.adm .spill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 11px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+.adm .spill .d { width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
+.adm .spill--active { background: var(--done-bg); color: var(--done); }
+.adm .spill--invited { background: var(--info-bg); color: var(--info); }
+.adm .spill--suspended { background: var(--warn-bg); color: var(--warn); }
+.adm .spill--removed { background: var(--surface); color: var(--muted); }
+
+/* 작업 column: two stacked (dropdown + save) rows */
+.adm .uacts { display: flex; flex-direction: column; gap: 8px; }
+.adm .uact { display: flex; align-items: center; gap: 8px; }
+.adm .uact .dd { width: 148px; flex: 0 0 auto; }
+.adm .uact__save { flex: 0 0 auto; height: 38px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); font-size: 12.5px; font-weight: 800; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; cursor: pointer; }
+.adm .uact__save:hover { background: var(--surface); }
+.adm .uact__save.dirty { background: var(--primary); border-color: transparent; color: #fff; box-shadow: 0 10px 22px -14px hsl(223 46% 32% / 0.8); }
+.adm .uact__save .ic svg { width: 15px; height: 15px; }
+
+/* ===================================================================
+   CUSTOM DROPDOWN (shared) — replaces native <select>
+   =================================================================== */
+.adm .dd { position: relative; }
+.adm .dd__btn { width: 100%; display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-size: 13.5px; font-weight: 700; text-align: left; cursor: pointer; }
+.adm .dd__btn:hover { border-color: color-mix(in oklab, var(--primary) 34%, var(--line)); }
+.adm .dd__btn--sm { height: 38px; border-radius: 10px; font-size: 12.5px; padding: 0 11px; }
+.adm .dd__val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm .dd__val.ph { color: var(--faint); font-weight: 600; }
+.adm .dd__chev { flex: 0 0 auto; color: var(--muted); transition: transform 0.16s; display: inline-flex; }
+.adm .dd__chev svg { width: 17px; height: 17px; }
+.adm .dd.open .dd__btn { border-color: var(--primary); box-shadow: 0 0 0 3.5px var(--primary-soft); }
+.adm .dd.open .dd__chev { transform: rotate(180deg); }
+
+.adm .dd__menu { position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; right: 0; min-width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 13px; box-shadow: var(--sh-pop); padding: 6px; animation: ddIn 0.14s ease; overflow: hidden; }
+.adm .dd__menu--up { top: auto; bottom: calc(100% + 6px); transform-origin: bottom; }
+.adm .dd__menu--wide { min-width: 280px; }
+@keyframes ddIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.adm .dd__opt { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; border: none; background: none; text-align: left; font-size: 13px; font-weight: 700; color: var(--ink-soft); cursor: pointer; }
+.adm .dd__opt:hover { background: var(--card2); color: var(--ink); }
+.adm .dd__opt.on { background: var(--primary-soft); color: var(--primary); }
+.adm .dd__opt__k { flex: 1; min-width: 0; }
+.adm .dd__opt__k b { display: block; font-size: 13px; font-weight: 800; color: inherit; letter-spacing: -0.01em; }
+.adm .dd__opt__k small { display: block; font-size: 11.5px; font-weight: 500; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+.adm .dd__opt.on .dd__opt__k small { color: color-mix(in oklab, var(--primary) 70%, var(--muted)); }
+/* empty-state placeholder for the shared AdminDatePicker trigger (used by the override expiry field) */
+.adm .adp__ph { color: var(--faint); font-weight: 500; }
+
+/* mono permission_key as a stacked secondary line (was a left column — cleaner as a vertical stack) */
+.adm .dd__opt__key { display: block; font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: var(--faint); letter-spacing: -0.02em; margin-top: 3px; }
+.adm .dd__opt.on .dd__opt__key { color: color-mix(in oklab, var(--primary) 62%, var(--faint)); }
+/* rich (permission-key) options: top-align so the multi-line stack reads cleanly next to the check */
+.adm .dd__menu--wide .dd__opt { align-items: flex-start; }
+.adm .dd__menu--wide .dd__chk { margin-top: 2px; }
+.adm .dd__chk { margin-left: auto; flex: 0 0 auto; color: var(--primary); display: inline-flex; }
+.adm .dd__chk svg { width: 16px; height: 16px; }
+
+/* ===================================================================
+   DETAIL — back row (flow.css)
+   =================================================================== */
+.adm .backrow { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.adm .backbtn { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px 0 11px; border-radius: 11px; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); font-size: 13px; font-weight: 800; box-shadow: var(--sh-card); cursor: pointer; text-decoration: none; }
+.adm .backbtn:hover { background: var(--surface); }
+.adm .backbtn .ic svg { width: 18px; height: 18px; }
+.adm .backrow__crumb { font-size: 12.5px; font-weight: 700; color: var(--faint); }
+.adm .backrow__crumb b { color: var(--ink-soft); }
+
+/* self-grant blocked note (permission card) */
+.adm .selfnote { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 7px 11px; }
+.adm .selfnote .ic { color: var(--faint); display: inline-flex; }
+.adm .selfnote .ic svg { width: 15px; height: 15px; }
+
+/* ===================================================================
+   DETAIL CONTENT PRIMITIVES (perm4.css)
+   =================================================================== */
+.adm .uwrap { max-width: 42rem; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+.adm .ui-card { border-radius: 16px; border: 1px solid var(--ui-border); background: color-mix(in srgb, var(--ui-surface) 80%, var(--ui-bg)); box-shadow: var(--ui-shadow-glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.adm .ui-card.p6 { padding: 24px; }
+.adm .ui-card.p5 { padding: 20px; }
+
+.adm .ui-banner { border-radius: 12px; border: 1px solid var(--ui-border); background: color-mix(in srgb, var(--ui-surface) 70%, var(--ui-bg)); padding: 12px 16px; font-size: 14px; font-weight: 600; color: var(--ui-fg); display: flex; align-items: center; gap: 8px; }
+.adm .ui-banner .ic { color: var(--ui-muted-fg); display: inline-flex; }
+.adm .ui-banner .ic svg { width: 16px; height: 16px; }
+
+/* profile card */
+.adm .ui-avatar { width: 56px; height: 56px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 16px; background: color-mix(in srgb, var(--ui-primary) 10%, transparent); color: var(--ui-primary); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-primary) 20%, transparent); }
+.adm .uname { font-size: 24px; font-weight: 900; letter-spacing: -0.02em; color: var(--ui-fg); }
+.adm .umeta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.adm .umeta__role { font-size: 14px; font-weight: 600; color: var(--ui-muted-fg); }
+.adm .udl { margin-top: 24px; border-top: 1px solid var(--ui-border); padding-top: 20px; display: flex; flex-direction: column; gap: 12px; }
+
+.adm .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
+.adm .row__k { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ui-muted-fg); }
+.adm .row__k .ic { display: inline-flex; }
+.adm .row__k .ic svg { width: 16px; height: 16px; }
+.adm .row__v { font-weight: 600; color: var(--ui-fg); text-align: right; }
+.adm .row__v a { color: var(--ui-primary); text-underline-offset: 2px; }
+.adm .row__v a:hover { text-decoration: underline; }
+
+.adm .ctitle { font-size: 16px; font-weight: 900; letter-spacing: -0.01em; color: var(--ui-fg); }
+.adm .chint { font-size: 12px; font-weight: 500; color: var(--ui-muted-fg); }
+
+/* Badge */
+.adm .ui-badge { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; border: 1px solid; padding: 3px 12px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.adm .ui-badge .ic { display: inline-flex; }
+.adm .ui-badge .ic svg { width: 13px; height: 13px; }
+.adm .ui-badge--green { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
+.adm .ui-badge--blue { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.adm .ui-badge--amber { border-color: #fde68a; background: #fffbeb; color: #b45309; }
+.adm .ui-badge--muted { border-color: var(--ui-border); background: color-mix(in srgb, var(--ui-muted) 50%, transparent); color: var(--ui-muted-fg); }
+.adm .badge-dd { font-family: var(--mono); }
+
+/* Button */
+.adm .ui-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid transparent; font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color 0.1s, color 0.1s, transform 0.1s; }
+.adm .ui-btn:active { transform: scale(0.98); }
+.adm .ui-btn .ic { display: inline-flex; }
+.adm .ui-btn .ic svg { width: 16px; height: 16px; }
+.adm .ui-btn.h10 { height: 40px; }
+.adm .ui-btn.fw-black { font-weight: 900; }
+.adm .ui-btn--primary { background: var(--ui-primary); color: var(--ui-primary-fg); box-shadow: var(--ui-shadow-glass); }
+.adm .ui-btn--primary:hover { background: color-mix(in srgb, var(--ui-primary) 90%, black); }
+.adm .ui-btn--secondary { border-color: var(--ui-border); background: color-mix(in srgb, var(--ui-surface) 80%, var(--ui-bg)); color: var(--ui-fg); box-shadow: var(--ui-shadow-glass); }
+.adm .ui-btn--secondary:hover { background: var(--ui-surface); }
+.adm .ui-btn--destructive { background: var(--ui-destructive); color: #fff; box-shadow: var(--ui-shadow-glass); }
+.adm .ui-btn--destructive:hover { background: color-mix(in srgb, var(--ui-destructive) 90%, black); }
+.adm .ui-btn--sm { height: 36px; padding: 0 12px; font-size: 13px; border-radius: 10px; }
+.adm .ui-btn[disabled], .adm .ui-btn.dim { opacity: 0.5; pointer-events: none; }
+
+/* small outline/destructive revoke */
+.adm .revbtn { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 11px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--ui-destructive) 30%, var(--ui-border)); background: transparent; color: var(--ui-destructive); font-size: 13px; font-weight: 600; cursor: pointer; }
+.adm .revbtn .ic { display: inline-flex; }
+.adm .revbtn .ic svg { width: 14px; height: 14px; }
+.adm .revbtn:hover { background: color-mix(in srgb, var(--ui-destructive) 10%, transparent); }
+
+/* form controls */
+.adm .ui-input, .adm .ui-textarea { width: 100%; height: 40px; border-radius: 12px; border: 1px solid var(--ui-border); background: color-mix(in srgb, var(--ui-surface) 80%, var(--ui-bg)); padding: 0 12px; font: inherit; font-size: 14px; font-weight: 600; color: var(--ui-fg); outline: none; }
+.adm .ui-textarea { height: auto; min-height: 40px; padding: 9px 12px; resize: vertical; line-height: 1.5; font-weight: 500; }
+.adm .ui-input:focus, .adm .ui-textarea:focus { border-color: var(--ui-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-primary) 15%, transparent); }
+.adm .ui-input::placeholder, .adm .ui-textarea::placeholder { color: color-mix(in srgb, var(--ui-muted-fg) 70%, transparent); font-weight: 500; }
+.adm input[type="datetime-local"].ui-input { font-family: var(--mono); font-weight: 600; cursor: pointer; }
+
+/* role/status/report sibling forms */
+.adm .roleform { display: flex; align-items: center; gap: 8px; }
+.adm .roleform .dd { flex: 1; }
+.adm .roleform .ui-btn { flex: 0 0 auto; }
+
+/* permission override card — page hero, subtle accent frame */
+.adm .ui-card--feature { position: relative; border-color: color-mix(in srgb, var(--ui-primary) 22%, var(--ui-border)); box-shadow: 0 22px 70px hsl(222 30% 14% / 0.12); }
+.adm .ui-card--feature::before { content: ""; position: absolute; left: 0; top: 18px; bottom: 18px; width: 3px; border-radius: 0 3px 3px 0; background: var(--ui-primary); }
+.adm .permhead { display: flex; align-items: flex-start; gap: 12px; }
+.adm .permhead__ic { width: 40px; height: 40px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: color-mix(in srgb, var(--ui-primary) 11%, transparent); color: var(--ui-primary); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-primary) 18%, transparent); }
+.adm .permhead__ic .ic { display: inline-flex; }
+.adm .permhead__ic .ic svg { width: 21px; height: 21px; }
+
+/* permission override list */
+.adm .ovlist { border-top: 1px solid var(--ui-border); }
+.adm .ov { border-bottom: 1px solid var(--ui-border); padding: 14px 0; }
+.adm .ov:last-child { border-bottom: none; }
+.adm .ov__top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.adm .ov__key { font-family: var(--mono); font-size: 13px; font-weight: 800; color: var(--ui-fg); letter-spacing: -0.01em; }
+.adm .ov__keylabel { font-size: 12px; font-weight: 600; color: var(--ui-muted-fg); }
+.adm .ov__act { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.adm .ov__reason { font-size: 14px; font-weight: 500; color: var(--ui-fg); line-height: 1.5; margin: 9px 0 10px; }
+.adm .ov__meta { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.adm .ov__m { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--ui-muted-fg); }
+.adm .ov__m .k { color: color-mix(in srgb, var(--ui-muted-fg) 78%, transparent); }
+.adm .ov__m .v { font-weight: 700; color: var(--ui-fg); }
+.adm .ov__m .mono { font-family: var(--mono); font-weight: 600; }
+
+/* inline revoke confirm */
+.adm .ovconfirm { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 11px 13px; border-radius: 12px; background: var(--ui-destructive-bg); border: 1px solid color-mix(in srgb, var(--ui-destructive) 26%, transparent); }
+.adm .ovconfirm__t { font-size: 13px; font-weight: 700; color: var(--ui-destructive); line-height: 1.4; }
+.adm .ovconfirm__act { margin-left: auto; display: flex; gap: 8px; flex: 0 0 auto; }
+
+/* empty state */
+.adm .ovempty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 30px 16px 24px; }
+.adm .ovempty__ic { width: 44px; height: 44px; border-radius: 13px; background: color-mix(in srgb, var(--ui-muted) 60%, transparent); color: var(--ui-muted-fg); display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+.adm .ovempty__ic .ic svg { width: 21px; height: 21px; }
+.adm .ovempty__t { font-size: 14px; font-weight: 700; color: var(--ui-fg); }
+.adm .ovempty__s { font-size: 13px; font-weight: 500; color: var(--ui-muted-fg); margin-top: 5px; max-width: 320px; line-height: 1.5; }
+
+/* grant form (inline) */
+.adm .grant { border: 1px solid var(--ui-border); border-radius: 12px; background: color-mix(in srgb, var(--ui-muted) 32%, var(--ui-surface)); padding: 14px; margin-bottom: 14px; }
+.adm .grant__t { font-size: 13px; font-weight: 900; color: var(--ui-fg); margin-bottom: 12px; }
+.adm .gfield { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.adm .gfield:last-of-type { margin-bottom: 0; }
+.adm .gfield__l { font-size: 12px; font-weight: 700; color: var(--ui-muted-fg); display: inline-flex; align-items: center; gap: 5px; }
+.adm .gfield__l .req { color: var(--ui-destructive); font-weight: 800; }
+.adm .gfield__hint { font-size: 11px; font-weight: 500; color: color-mix(in srgb, var(--ui-muted-fg) 80%, transparent); display: inline-flex; align-items: center; gap: 5px; }
+.adm .gfield__hint .ic { display: inline-flex; }
+.adm .gfield__hint .ic svg { width: 13px; height: 13px; }
+.adm .grant__foot { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.adm .grant__foot .sp { flex: 1; }
+
+/* ===================================================================
+   TOAST (perm4.css)
+   =================================================================== */
+.adm .toastlayer { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 120; display: flex; flex-direction: column; gap: 9px; align-items: center; pointer-events: none; }
+.adm .toast { display: flex; align-items: center; gap: 9px; padding: 11px 16px; border-radius: 12px; background: var(--ui-fg); color: #fff; font-size: 13px; font-weight: 700; box-shadow: 0 24px 60px -24px rgba(20, 32, 43, 0.45); transform: translateY(12px); opacity: 0; transition: 0.24s; }
+.adm .toast.on { transform: none; opacity: 1; }
+.adm .toast .ic { display: inline-flex; }
+.adm .toast .ic svg { width: 17px; height: 17px; }
+.adm .toast--ok .ic { color: hsl(146 60% 62%); }
+.adm .toast--danger .ic { color: hsl(4 80% 72%); }

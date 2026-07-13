@@ -1,6 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 import type { Role } from "@/config/roles";
-import { canAccessAdminWeb } from "@/config/roles";
+import { defaultsToAdminSurface } from "@/config/roles";
 import { isLocale, type Locale } from "@/lib/i18n";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -101,7 +101,8 @@ type PlatformAdminRow = {
 };
 
 export function getDefaultRouteForRole(role: Role) {
-  return canAccessAdminWeb(role) ? "/admin" : "/mobile";
+  // Default landing (field roles → /mobile even though they can also access /admin).
+  return defaultsToAdminSurface(role) ? "/admin" : "/mobile";
 }
 
 export async function getOnboardingState(): Promise<OnboardingState> {

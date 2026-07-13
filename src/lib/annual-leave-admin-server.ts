@@ -351,12 +351,15 @@ export async function saveEmployeeLeaveBaseline(
   });
 }
 
-// Default approver role assigned when a member is toggled on. The two DB values
-// ('department_head'=대표/部署長, 'senior_managing_director'=전무/専務) only differ on the eventual
-// document stamp box (stage 3); `is_leave_approver()` only checks for a non-null value, so either
-// grants approval rights today. Confirmed 2026-07-08: keep the mock's simple on/off toggle, default
-// new approvers to 'department_head'.
-const DEFAULT_APPROVER_ROLE = "department_head";
+// Default approver role assigned when a member is toggled on. `is_leave_approver()` only checks for a
+// non-null value, so any value grants approval; the value only drives the 休暇届 document stamp box.
+// Confirmed 2026-07-13: 연차 결재는 전무(senior_managing_director)가 담당 → default new approvers to 전무.
+const DEFAULT_APPROVER_ROLE = "senior_managing_director";
+
+// NOTE: The 승인자 관리 sub-tab was removed (2026-07-13) — approver granting is moving to the unified
+// Users screen (/admin/users). `AdminApproverMember` / `listAdminApprovers` / `setLeaveApprover` are
+// intentionally retained (currently unreferenced) because the upcoming Users permission backend will
+// reuse them. Do not delete without checking the Users permission work.
 
 /** One row per active salary-based member for the 승인자 관리 table. */
 export type AdminApproverMember = {
@@ -416,16 +419,19 @@ export async function listAdminApprovers(session: AppSession): Promise<AdminAppr
 }
 
 /**
- * Grants/revokes a member's leave-approval right (승인자 관리 toggle). Approver-gated by the caller.
- * Guards: target must be an active non-hourly member; the current admin can't remove their own right;
- * the org must always keep at least one approver.
+ * Grants/revokes a member's leave-approval right. Authorization is enforced by the caller; this
+ * function takes an explicit `organizationId` (the TARGET member's org) so it stays correct when the
+ * actor is a platform admin acting across orgs. Guards: target must be an active non-hourly member;
+ * an approver can't remove their own right; the org must always keep at least one approver.
  */
-export async function setLeaveApprover(
-  session: AppSession,
-  input: { userId: string; isApprover: boolean },
-): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function setLeaveApprover(input: {
+  organizationId: string;
+  actorUserId: string;
+  userId: string;
+  isApprover: boolean;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
   const service = getSupabaseServiceClient();
-  const organizationId = session.organization.id;
+  const { organizationId, actorUserId } = input;
 
   const { data: memData } = await service
     .from("memberships")
@@ -438,7 +444,7 @@ export async function setLeaveApprover(
   if (membership.role === HOURLY_ROLE) return { ok: false, error: "hourly_excluded" };
 
   if (!input.isApprover) {
-    if (input.userId === session.user.id) return { ok: false, error: "cannot_remove_self" };
+    if (input.userId === actorUserId) return { ok: false, error: "cannot_remove_self" };
     const { count } = await service
       .from("memberships")
       .select("user_id", { count: "exact", head: true })

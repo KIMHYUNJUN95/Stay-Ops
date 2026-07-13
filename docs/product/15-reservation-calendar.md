@@ -180,7 +180,8 @@ Reservation popup/detail should show:
 - Check-in date
 - Check-out date
 
-Reservation notes/memos are not required in the MVP.
+Reservation detail shows a read-only, organization-shared internal note synced from the admin
+reservation inspector (`reservation_internal_notes`) — see "2026-07-10 Admin Calendar Update" below.
 
 Phone number actions:
 
@@ -225,6 +226,12 @@ Future optional view:
 - The monthly date-cell calendar should remain useful for small properties or selected room/unit views, but it should not try to show all reservations for a 28-room building inside one month grid.
 
 ### Mobile Large-Building Calendar Strategy
+
+> **Superseded (2026-05-23)** — the "Month / Rooms / Lists" view switcher and the separate density-mode
+> "Rooms view" described below were not built this way. The shipped mobile calendar tabs are
+> `Calendar` (overview month timeline) / `Lists` / `Map`, with no standalone "Rooms" view — the Map tab
+> replaced that role. See "2026-05-23 Mobile Calendar Policy Update" further below for the confirmed
+> current behavior. The section below is kept as historical design context only.
 
 Problem:
 
@@ -273,7 +280,8 @@ For large buildings, a mobile overview cannot show 28 rooms, many dates, and ful
 Implementation note (2026-05-22):
 
 - Mobile calendar currently ships with two interaction modes in the same screen:
-  - `Overview`: dense 14-day room timeline with reservation bars
+  - `Overview`: full selected-month room timeline (dates = every day in the selected month, per
+    `daysInMonth` in `mobile-calendar-view.tsx`), horizontally scrollable, with reservation bars
   - `Lists`: Check-in Today / Check-out Today / Staying Today operational lists
 - Tapping a reservation in either mode opens a bottom-sheet reservation detail modal.
 - Overview header supports month navigation (prev/next). The selected month is represented by `month=YYYY-MM` in the route query.
@@ -449,7 +457,7 @@ direction above.
 - The **month board** is the primary admin view:
   - sticky room label column + sticky day header that stays visible while the inner grid scrolls
   - centered property-name chips (label only, no room-count badge), custom anchored channel menu,
-    export button
+    print/export button
   - channel-colored multi-day bars (Airbnb / Booking.com / other)
   - Airbnb / Booking badges and bars use a softer, more premium palette instead of flat saturated
     blocks, so property/room chips in `Today ops` and the reservation inspector read less harshly
@@ -479,9 +487,16 @@ direction above.
 - The top-right **refresh chip is passive only**:
   - it refreshes the page snapshot (`router.refresh()`)
   - it does **not** expose the secret-protected `/api/beds24/reconcile` route as a manual admin action
-- **Building info** currently reads from `src/lib/property-map-links.ts`.
-  - address, shared access, and room access codes are loaded from that shared metadata source
-  - in-page edits are currently **browser-session preview only** and are not persisted yet
+- **Building info** is now backed by shared property-operation metadata.
+  - `src/lib/property-map-links.ts` remains the canonical base metadata / fallback source
+  - organization-specific overrides are persisted in `property_operation_infos`
+  - `/admin/calendar` saves edits server-side and revalidates both `/admin/calendar` and
+    `/mobile/calendar`
+  - shared metadata currently includes localized address overrides (`ko`, `ja`, `en`), shared
+    access codes, room-level access codes, and a shared ops note
+- The admin reservation export action now opens `/admin/calendar/print` instead of downloading a
+  reservation CSV. The print route renders an A4 landscape month board intended for browser print /
+  save-as-PDF output.
 
 ## Calendar Interaction Ideas
 
@@ -1008,3 +1023,13 @@ frozen regardless of the above logic fixes.
 - Beds24 ingestion is intentionally paused during the temporary webhook/API shutdown window. Admin
   calendar data remains readable from existing reservation records, but new webhook/reconcile
   ingestion should be considered suspended until Beds24 is re-enabled.
+
+## 2026-07-13 A4 Print Fit Fix
+
+- `/admin/calendar/print` day-column width is now computed from the available A4 landscape content
+  width instead of a fixed `7.78mm`. Previously the fixed width made 30/31-day months overflow the
+  ~257mm sheet content area (e.g. July at 31 days needed ~275mm), and the grid's `overflow: hidden`
+  clipped the right-most dates.
+- The day column is now `calc((256mm - var(--label-width)) / <dateCount>)`, so the label column plus
+  all day columns always fit within one A4 landscape page for any month length (28–31 days). Reservation
+  bars stay aligned because they already position off the shared `--day-width` variable.

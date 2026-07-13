@@ -151,7 +151,11 @@ async function canManageAnnouncement(
   const membershipRole = (data as { role: Role }).role;
 
   // owner / office_admin can manage any announcement in their organization.
-  if (membershipRole === "owner" || membershipRole === "office_admin") {
+  if (
+    membershipRole === "owner" ||
+    membershipRole === "senior_managing_director" ||
+    membershipRole === "office_admin"
+  ) {
     return true;
   }
 

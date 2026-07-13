@@ -324,7 +324,7 @@ Controlled internal rollout may begin once the two required steps below are comp
 
 1. Run `scripts/dev/beds24-backfill-room-master.sh` to populate room master and switch calendar empty count from provisional to authoritative.
 2. Perform a manual browser golden-path pass covering: login, cleaning start/complete, order request creation, admin order approval and processing, and notification receipt.
-3. Create invite codes at `/admin/settings/invite-codes` for the first staff batch.
+3. Create invite codes at `/admin/users/invites` for the first staff batch.
 
 ### Recommended actions after rollout
 

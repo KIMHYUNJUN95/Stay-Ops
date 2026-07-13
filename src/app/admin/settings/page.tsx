@@ -1,16 +1,19 @@
 import Link from "next/link";
-import { Building2, QrCode, Ticket } from "lucide-react";
+import { Building2, QrCode } from "lucide-react";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { Card } from "@/components/ui/card";
 import { getDictionary } from "@/lib/i18n";
 import { hasOrganizationContext } from "@/lib/session";
 import { requireAdminSession } from "@/lib/admin-session";
+import { isOrgTopAdmin } from "@/config/roles";
 
 export default async function AdminSettingsPage() {
   const session = await requireAdminSession();
   const dictionary = getDictionary(session.user.preferredLanguage);
   const settings = dictionary.admin.settings;
 
+  // Invite-code (team code) management moved to /admin/users/invites, 2026-07-13 — no card here
+  // anymore; see users section tabs instead.
   const cards = [
     {
       description: settings.organizationDescription,
@@ -18,15 +21,9 @@ export default async function AdminSettingsPage() {
       icon: Building2,
       title: settings.organizationTitle,
     },
-    {
-      description: settings.inviteCodesDescription,
-      href: "/admin/settings/invite-codes",
-      icon: Ticket,
-      title: settings.inviteCodesTitle,
-    },
   ];
 
-  if (session.user.role === "owner" && hasOrganizationContext(session)) {
+  if (isOrgTopAdmin(session.user.role) && hasOrganizationContext(session)) {
     cards.push({
       description: settings.attendanceDescription,
       href: "/admin/settings/attendance",

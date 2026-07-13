@@ -363,7 +363,9 @@ Implementation notes (current as of 2026-06-18):
 - Onboarding is required for all new users regardless of login method. Google users are not exempt.
 - `/admin/settings/organization` lets Developer / Super Admin create organizations.
 - Organization creation can attach the current Developer / Super Admin user as organization `owner`.
-- `/admin/settings/invite-codes` lets Developer / Super Admin, Owner, and Office Admin create invite codes.
+- `/admin/users/invites` lets developers and `manage_users` delegates create invite codes (moved from
+  `/admin/settings/invite-codes` on 2026-07-13 — the old path now redirects there; see
+  `docs/planning/01-decision-log.md` → 2026-07-13).
 - The invite-code default-role picker supports `staff`, `part_time_staff`, `office_admin`, and
   `field_manager` (extended 2026-07-09 — the first implementation only had `staff`/
   `part_time_staff`; `office_admin`/`field_manager` were always defined in `INVITE_CATEGORIES` /
@@ -371,7 +373,7 @@ Implementation notes (current as of 2026-06-18):
   `owner` and `cs_staff` remain deliberately excluded from self-service invite-code creation: `owner`
   needs a separate single-use-code flow that is not built yet, and `cs_staff` has no invite category
   at all (admin-assigned only, by design). Both stay as manual role changes at `/admin/users/[id]`.
-- Invite codes can be listed and deactivated from the admin settings UI.
+- Invite codes can be listed and deactivated from the `/admin/users/invites` UI.
 - Invite code error handling distinguishes: expired, inactive, max-uses exceeded, and invalid/not-found.
 - Membership state access control: `active` allows access; `suspended` shows a blocked screen with logout; `removed` shows a blocked screen by default but can move into a re-join flow with another valid invite code; `invited` prompts for invite code.
 - Logout is accessible from `/account` and clears the session fully, redirecting to `/auth/login`.
@@ -387,6 +389,8 @@ Future public release can add:
 Initial organization roles:
 
 - Owner
+- Senior Managing Director (전무) — added 2026-07-13, fully owner-equivalent; see
+  `docs/product/01-user-roles.md` → "Senior Managing Director (전무)"
 - Office Admin
 - CS Staff
 - Field Manager
@@ -414,6 +418,7 @@ Default routing:
 ```txt
 Developer / Super Admin -> Admin web
 Owner -> Admin web
+Senior Managing Director (전무) -> Admin web
 Office Admin -> Admin web
 CS Staff -> Admin web
 Field Manager -> Mobile field home
@@ -426,6 +431,7 @@ Mode switching:
 ```txt
 Developer / Super Admin: Admin mode + Field mode
 Owner: Admin mode + Field mode
+Senior Managing Director (전무): Admin mode + Field mode
 Office Admin: Admin mode + Field mode
 CS Staff: Admin mode + Field mode
 Field Manager: Field mode + Admin mode

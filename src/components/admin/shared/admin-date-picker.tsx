@@ -23,6 +23,7 @@ type InlineDatePickerProps = {
   max?: string;
   localeTag: string;
   ariaLabel: string;
+  placeholder?: string;
   labels: Pick<AdminDatePickerLabels, "prevMonth" | "nextMonth" | "today">;
 };
 
@@ -101,11 +102,16 @@ function InlineDatePicker({
   max,
   localeTag,
   ariaLabel,
+  placeholder,
   labels,
 }: InlineDatePickerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
-  const [calendarMonth, setCalendarMonth] = useState(value.slice(0, 7));
+  // Resilient to an empty value (nothing picked yet): fall back to min's month, else today's, so the
+  // calendar always renders a valid month even before the first selection.
+  const [calendarMonth, setCalendarMonth] = useState(
+    () => value.slice(0, 7) || min?.slice(0, 7) || formatDateKey(new Date()).slice(0, 7),
+  );
   const upperDate = max ?? "9999-12-31";
   const cells = useMemo(
     () => buildCalendarCells(calendarMonth, upperDate, value),
@@ -152,11 +158,13 @@ function InlineDatePicker({
         aria-expanded={open}
         aria-label={ariaLabel}
         onClick={() => {
-          if (!open) setCalendarMonth(value.slice(0, 7));
+          if (!open) {
+            setCalendarMonth(value.slice(0, 7) || min?.slice(0, 7) || formatDateKey(new Date()).slice(0, 7));
+          }
           setOpen((current) => !current);
         }}
       >
-        <span>{value}</span>
+        <span className={value ? undefined : "adp__ph"}>{value || placeholder || ""}</span>
         <CalendarDays className="adp__trigger-ic" aria-hidden="true" />
       </button>
       {open ? (

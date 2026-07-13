@@ -199,7 +199,8 @@ Current implementation notes:
 - Onboarding route at `/onboarding` requires profile completion and invite code before granting app access. Both steps are mandatory for all users.
 - The first setup user can claim `developer_super_admin` only while no platform admin exists.
 - `/admin/settings/organization` lets Developer / Super Admin create organizations.
-- `/admin/settings/invite-codes` lets Developer / Super Admin, Owner, and Office Admin create, list, and deactivate invite codes.
+- `/admin/users/invites` lets developers and `manage_users` delegates create, list, and deactivate
+  invite codes (moved from `/admin/settings/invite-codes` 2026-07-13; old path redirects there).
 - `/admin/users` displays member directory with search/filter and role/status update actions.
 - `/admin/users/[id]` provides member detail view with role and status management.
 

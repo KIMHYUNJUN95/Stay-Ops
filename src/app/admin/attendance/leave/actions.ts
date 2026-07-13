@@ -16,7 +16,6 @@ import {
 import {
   createAdminLeaveRequest,
   saveEmployeeLeaveBaseline,
-  setLeaveApprover,
   type AdminLeaveRequestInput,
 } from "@/lib/annual-leave-admin-server";
 
@@ -70,18 +69,6 @@ export async function saveEmployeeLeaveBaselineAction(input: {
   const session = await requireAdminPageSession({ nextPath: LEAVE_PATH });
   if (!(await isSessionLeaveApprover(session))) return { ok: false, error: "not_approver" };
   const result = await saveEmployeeLeaveBaseline(session, input);
-  if (result.ok) revalidatePath(LEAVE_PATH);
-  return result.ok ? { ok: true } : { ok: false, error: result.error };
-}
-
-/** Grant/revoke a member's leave-approval right (승인자 관리 toggle). Approver-gated. */
-export async function setLeaveApproverAction(input: {
-  userId: string;
-  isApprover: boolean;
-}): Promise<{ ok: boolean; error?: string }> {
-  const session = await requireAdminPageSession({ nextPath: LEAVE_PATH });
-  if (!(await isSessionLeaveApprover(session))) return { ok: false, error: "not_approver" };
-  const result = await setLeaveApprover(session, input);
   if (result.ok) revalidatePath(LEAVE_PATH);
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }

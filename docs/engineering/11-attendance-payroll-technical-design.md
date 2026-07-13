@@ -297,9 +297,10 @@ backend it will call. Worker self-view reflects the outcome with no UI change. *
 creation / payroll / finalization / dashboard / export / notifications here.
 
 - **Privilege gate** `isAttendancePayrollAdmin(service, org, userId)` (`src/lib/attendance-review.ts`) =
-  platform admin, OR active `owner` / `attendance_payroll_admin` member. Site-master management stays
-  owner-only (untouched). Enforced server-side in every write action; the read query is caller-agnostic
-  and the dashboard must gate it.
+  platform admin, OR active `owner` (or `senior_managing_director` / 전무, owner-equivalent since
+  2026-07-13 — see `docs/planning/01-decision-log.md` → 2026-07-13) / `attendance_payroll_admin` member.
+  Site-master management stays owner-equivalent-only (owner or 전무). Enforced server-side in every write
+  action; the read query is caller-agnostic and the dashboard must gate it.
 - **Review queue** `getAttendanceReviewQueue(org, params)` (caller-agnostic, org-wide): documented
   filters `all` / `review_required` / `correction_requested` / `incomplete` / `manual` /
   `not_finalized` + name search + date range + site filter; resolves worker name, date, clock-in/out
@@ -627,7 +628,8 @@ export, so this is backend + a dev test route.
 
 - **Export lib** `src/lib/attendance-export.ts` ??`runPayrollExport(service, org, actorId, { scope, ym,
   userId? })`:
-  - **Privilege enforced here** (`isAttendancePayrollAdmin`; owner / `attendance_payroll_admin`) ??    `forbidden` otherwise. Regular users can never export.
+  - **Privilege enforced here** (`isAttendancePayrollAdmin`; owner/전무 (senior_managing_director) /
+    `attendance_payroll_admin`) — `forbidden` otherwise. Regular users can never export.
   - **Finalized-only, strict:** gathers `attendance_month_snapshots` with `status='finalized'` for the
     Tokyo `target_month` (all users for `monthly_bulk`; the one user for `single_user`). Draft /
     reopened / superseded / non-finalized are never included. Empty bulk ??`empty`; missing per-person ??    `not_finalized`.
@@ -666,7 +668,8 @@ notification center; the privileged review/manage UI stays in the deferred web d
 - **Types/display/i18n:** `AttendanceNotificationPayload` + guard (`notifications/types.ts`); a display
   branch + kind label (`notifications/display.ts`); `mobile.notifications.attendance*` copy in **ko/ja/en**.
 - **Create helpers** (`notifications/create.ts`): `notifyAttendanceAdmins` (fan-out to caller-resolved
-  owner / `attendance_payroll_admin` ids, actor-skipped, deduped ??never broadens visibility) and
+  owner/전무 (senior_managing_director) / `attendance_payroll_admin` ids, actor-skipped, deduped — never
+  broadens visibility) and
   `createAttendanceOpenSessionReminder` (worker, deduped once per Tokyo day). Admin ids come from
   `getAttendancePayrollAdminUserIds` (`attendance-review.ts`).
 - **Admin alerts (synchronous):** `createAttendanceCorrectionRequest` fans out `correction_created` to
@@ -1239,7 +1242,7 @@ Notes:
 - the rate effective date also applies to the full operating day
 - final hourly gross result is rounded to nearest 10 yen
 
-### Planned `attendance_pay_allowances`
+### `attendance_pay_allowances` (implemented 2026-07-10, migration `202607100001`)
 
 ```txt
 id uuid primary key
@@ -1274,7 +1277,8 @@ cancelled
 
 Notes:
 
-- this is a planned table; it is not present in the current migrations yet
+- **implemented (2026-07-10)** — see "As-built — attendance allowances / 추가수당" above; `reason_type`
+  shown here was superseded by `category` (`regular`/`special`) in migration `202607100003`
 - allowances are separate from `hourly_rate_history`
 - `daily_fixed` applies once per worker/date when the date has recognized paid work
 - `hourly_extra` is multiplied by recognized paid minutes for the date
@@ -1491,7 +1495,8 @@ Reason:
 
 - org-scoped privilege
 - separate from broad role names
-- matches the product rule: `owner + explicitly designated users`
+- matches the product rule: `owner (or senior_managing_director / 전무, owner-equivalent since
+  2026-07-13) + explicitly designated users`
 
 ## Derived Rules
 
@@ -1597,7 +1602,7 @@ These are intentionally out of scope for now.
 - `getAttendanceReviewQueue`
 - `getAttendanceDashboard`
 - `getAttendanceSiteCostSummary`
-- planned `getAttendancePayAllowances`
+- `getAttendancePayAllowances` (implemented 2026-07-10)
 - `getMyTransportReimbursementMonth`
 - `getTransportReimbursementUserMonth`
 - `getTransportReimbursementMonthSummary`
@@ -1610,23 +1615,26 @@ These are intentionally out of scope for now.
 - read own breaks
 - read own correction requests
 - read own month summaries
-- planned: read own applied attendance allowances through the pay view
+- **implemented:** read own applied attendance allowances through the pay view
 - read own transport reimbursement reports/items/images
 - no direct client-side writes to authoritative payroll data
 
 ### Privileged admin access
 
-- `owner` and `attendance_payroll_admin` read org-wide attendance and payroll data
-- planned: `owner` and `attendance_payroll_admin` read and manage org-wide attendance allowances
-- `owner` and `attendance_payroll_admin` read org-wide transport reimbursement data
-- site master writes should still remain owner-only in application logic
+- `owner` (or `senior_managing_director` / 전무, owner-equivalent since 2026-07-13) and
+  `attendance_payroll_admin` read org-wide attendance and payroll data
+- **Implemented:** `owner`/전무 and `attendance_payroll_admin` read and manage org-wide attendance
+  allowances (see the 2026-07-10 as-built section above)
+- `owner`/전무 and `attendance_payroll_admin` read org-wide transport reimbursement data
+- site master writes should still remain owner-equivalent-only (owner or 전무) in application logic
 
 ### Service-role writes
 
 Recommended pattern:
 
 - authoritative attendance mutations go through controlled server actions
-- planned attendance allowance create/cancel goes through controlled privileged server actions
+- **implemented:** attendance allowance create/cancel goes through controlled privileged server actions
+  (`createAttendanceAllowance` / `cancelAttendanceAllowance`)
 - RLS may remain conservative/read-focused for complex payroll-sensitive tables
 
 ## Finalization Rules
@@ -1638,9 +1646,8 @@ A user-month cannot finalize while any of these exist:
 - open sessions
 - reopened month state
 
-When attendance allowances ship, a user-month also cannot be finalized while allowance edits are in an
-invalid state. Allowance create/cancel is blocked once the user-month is finalized; changing it requires
-reopen and re-finalize.
+**Implemented (2026-07-10):** allowance create/cancel is blocked once the user-month is finalized;
+changing it requires reopen and re-finalize.
 
 Finalization should:
 

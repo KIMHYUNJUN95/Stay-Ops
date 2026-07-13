@@ -20,7 +20,6 @@ export default function LeavePreviewPage() {
           locale="ko"
           applicants={[]}
           balances={[]}
-          approvers={[]}
           documents={[]}
           ledger={[]}
           currentUserId="preview"

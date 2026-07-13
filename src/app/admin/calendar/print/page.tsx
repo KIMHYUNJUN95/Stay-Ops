@@ -199,7 +199,10 @@ export default async function AdminCalendarPrintPage({ searchParams }: PageProps
 
         .admcal-print__grid {
           --label-width: 34mm;
-          --day-width: 7.78mm;
+          /* Fit the label column + all day columns inside the A4 sheet content
+             width (~257mm; 256mm leaves ~1mm slack for the grid border) so 30/31-day
+             months no longer overflow and clip the right-side dates. */
+          --day-width: calc((256mm - var(--label-width)) / ${data.dates.length});
           border: 1px solid #ded7cc;
           border-radius: 12px;
           overflow: hidden;

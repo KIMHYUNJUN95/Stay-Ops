@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
+import { isOrgTopAdmin } from "@/config/roles";
 import type { FileAttachment } from "@/components/board/board-types";
 import type { Database, Json } from "@/types/database";
 
@@ -43,7 +44,7 @@ export async function createBoardPost(
   const orgId = session.organization.id;
 
   const canPin =
-    session.user.role === "owner" ||
+    isOrgTopAdmin(session.user.role) ||
     session.user.role === "office_admin";
 
   const shouldPin = isPinned && canPin;

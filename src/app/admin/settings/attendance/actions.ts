@@ -10,6 +10,7 @@ import {
 } from "@/lib/attendance-sites";
 import { requireAdminSession } from "@/lib/admin-session";
 import { hasOrganizationContext } from "@/lib/session";
+import { isOrgTopAdmin } from "@/config/roles";
 
 function parseText(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -22,7 +23,7 @@ function parseNumberField(value: string) {
 
 async function requireOwnerOrgSession() {
   const session = await requireAdminSession();
-  if (session.user.role !== "owner" || !hasOrganizationContext(session)) {
+  if (!isOrgTopAdmin(session.user.role) || !hasOrganizationContext(session)) {
     redirect("/admin/settings?error=forbidden");
   }
   return session;
