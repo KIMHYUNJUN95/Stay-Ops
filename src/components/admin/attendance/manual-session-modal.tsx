@@ -12,7 +12,7 @@ import { getDictionary, type Dictionary, type Locale } from "@/lib/i18n";
 import { createManualAttendanceSession } from "@/app/admin/attendance/actions";
 import { AdminDatePicker } from "../shared/admin-date-picker";
 import { AdminTimePicker } from "../shared/admin-time-picker";
-import { AdminSelectField } from "../shared/admin-select-field";
+import { AdmDropdown } from "../shared/adm-dropdown";
 
 type Att = Dictionary["admin"]["attendanceConsole"];
 
@@ -117,7 +117,7 @@ export function ManualSessionModal({
         <div className="msmodal__body">
           <div className="wreason">
             <div className="wfield__l">{c.manualFieldStaff}</div>
-            <AdminSelectField
+            <AdmDropdown
               value={userId}
               onChange={setUserId}
               options={staff.map((s) => ({ value: s.userId, label: s.userName }))}

@@ -44,7 +44,7 @@
   --danger: hsl(4 62% 46%);
   --danger-bg: hsl(6 70% 95.5%);
   --serif: "Noto Serif", Georgia, serif;
-  --mono: "Geist Mono", ui-monospace, monospace;
+  --mono: "Geist Mono", ui-monospace, var(--font-noto-kr), var(--font-noto-jp), monospace;
   --r-card: 16px;
   --r-pill: 999px;
   --sh-card: 0 18px 44px -34px rgba(20, 32, 43, 0.5);
@@ -1645,29 +1645,7 @@
 .adm .msmodal__grid { display:grid; grid-template-columns:1fr 1fr; gap:13px; }
 .adm .msmodal__foot { display:flex; justify-content:flex-end; gap:9px; margin-top:18px; }
 
-/* Shared form select field — clean branded dropdown (replaces native <select>) */
-.adm .selfield { position:relative; }
-.adm .selfield__trig { width:100%; height:40px; display:flex; align-items:center; gap:10px; padding:0 12px 0 13px;
-  border:1px solid var(--line); border-radius:11px; background:var(--card); color:var(--ink); font-size:13px; font-weight:600;
-  cursor:pointer; text-align:left; transition:border-color .12s ease, box-shadow .12s ease; }
-.adm .selfield__trig:hover { border-color:color-mix(in oklab,var(--primary) 24%,var(--line)); }
-.adm .selfield__trig.is-open, .adm .selfield__trig:focus-visible { outline:none; border-color:var(--primary);
-  box-shadow:0 0 0 3px color-mix(in oklab,var(--primary) 16%,transparent); }
-.adm .selfield__trig[disabled] { opacity:.5; cursor:not-allowed; }
-.adm .selfield__val { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.adm .selfield__ph { flex:1; min-width:0; color:var(--faint); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.adm .selfield__chev { flex:0 0 auto; color:var(--muted); font-size:16px; transition:transform .16s ease, color .12s ease; }
-.adm .selfield__trig.is-open .selfield__chev { transform:rotate(180deg); color:var(--primary); }
-.adm .selfield__pop { position:absolute; z-index:40; top:calc(100% + 6px); left:0; right:0; max-height:264px; overflow:auto;
-  padding:6px; border:1px solid var(--line); border-radius:13px; background:var(--card); box-shadow:var(--sh-pop);
-  animation:selfieldIn .13s ease; }
-@keyframes selfieldIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
-.adm .selfield__opt { width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 11px;
-  border:none; border-radius:9px; background:transparent; color:var(--ink-soft); font-size:13px; font-weight:600; cursor:pointer;
-  text-align:left; transition:background .1s ease, color .1s ease; }
-.adm .selfield__opt:hover { background:var(--surface); color:var(--ink); }
-.adm .selfield__opt.sel { background:color-mix(in oklab,var(--primary) 10%,var(--card)); color:var(--primary-ink); font-weight:800; }
-.adm .selfield__ck { color:var(--primary); font-size:15px; flex:0 0 auto; }
+/* (Shared form select field `.selfield` retired 2026-07-14 → replaced by the single `.dd` dropdown.) */
 .adm .permzone { border:1px solid color-mix(in oklab,var(--warn) 30%,transparent); border-radius:13px; background:color-mix(in oklab,var(--warn) 6%,var(--card)); padding:13px 15px; }
 .adm .permzone__h { display:flex; align-items:center; gap:9px; margin-bottom:11px; }
 .adm .permzone__h > div { min-width:0; }
@@ -1904,6 +1882,45 @@
 .adm .adp__optcnt { font-size:11px; font-weight:800; color:var(--faint); }
 .adm .adp__opt.sel .adp__optcnt { color:var(--primary); }
 .adm .adp__optempty { padding:8px 9px; font-size:12px; font-weight:600; color:var(--faint); }
+
+/* ── date-RANGE picker (AdminDateRangePicker) — single combined trigger + range-select popover.
+   The popover is `position:fixed` with coordinates computed from the trigger's
+   getBoundingClientRect (component-side), not CSS `top:calc(100%+…)`, so it can never be clipped
+   by a scrollable ancestor (e.g. `.content`) or rendered under the sidebar. ── */
+.adm .dpick { position:relative; }
+.adm .datepick { display:inline-flex; align-items:center; gap:7px; height:36px; padding:0 12px; border:1px solid var(--line); border-radius:9px; background:var(--card); font-size:12.5px; font-weight:700; color:var(--ink-soft); cursor:pointer; }
+.adm .datepick:hover { background:var(--surface); }
+.adm .datepick .ic { font-size:15px; color:var(--muted); }
+.adm .datepick .v { font-family:var(--mono); font-weight:800; color:var(--ink); }
+.adm .datepick .dash { color:var(--faint); font-weight:700; }
+.adm .datepick .dd__chev { margin-left:2px; font-size:15px; color:var(--muted); transition:transform .16s; }
+.adm .dpick.open .datepick { border-color:var(--primary); box-shadow:0 0 0 3.5px var(--primary-soft); }
+.adm .dpick.open .datepick .dd__chev { transform:rotate(180deg); }
+.adm .calpop { z-index:70; width:292px; background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--sh-pop); padding:14px; animation:ddIn .14s ease; }
+.adm .calpop__head { display:flex; align-items:center; justify-content:space-between; margin-bottom:11px; }
+.adm .calpop__title { font-size:14px; font-weight:900; letter-spacing:-.01em; color:var(--ink); }
+.adm .calpop__nav { width:30px; height:30px; border-radius:9px; border:1px solid var(--line); background:var(--card); color:var(--ink-soft); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
+.adm .calpop__nav:hover { background:var(--card2); border-color:color-mix(in oklab,var(--primary) 30%,var(--line)); }
+.adm .calpop__nav svg { width:16px; height:16px; }
+.adm .calpop__wd { display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:4px; }
+.adm .calpop__wd span { text-align:center; font-size:10.5px; font-weight:800; color:var(--faint); padding:4px 0; }
+.adm .calpop__wd span.sun { color:color-mix(in oklab,var(--danger) 60%,var(--faint)); }
+.adm .calpop__grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.adm .cald { height:34px; border:none; background:none; border-radius:9px; font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--ink-soft); position:relative; cursor:pointer; }
+.adm .cald--pad { pointer-events:none; }
+.adm .cald:hover:not(.cald--pad) { background:var(--card2); color:var(--ink); }
+.adm .cald.is-today { color:var(--primary); font-weight:900; }
+.adm .cald.is-today::after { content:""; position:absolute; bottom:5px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:999px; background:var(--primary); }
+.adm .cald.is-range { background:var(--primary-soft); border-radius:0; color:var(--primary-ink); }
+.adm .cald.is-from, .adm .cald.is-to { background:var(--primary); color:#fff; font-weight:800; }
+.adm .cald.is-from { border-radius:9px 0 0 9px; }
+.adm .cald.is-to { border-radius:0 9px 9px 0; }
+.adm .cald.is-from.is-single { border-radius:9px; }
+.adm .cald.is-from.is-to { border-radius:9px; }
+.adm .cald.is-today.is-from::after, .adm .cald.is-today.is-to::after { background:#fff; }
+.adm .calpop__foot { display:flex; align-items:center; gap:8px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line-soft); }
+.adm .calpop__quick { height:32px; padding:0 12px; border-radius:9px; border:1px solid var(--line); background:var(--card); font-size:12px; font-weight:800; color:var(--primary); cursor:pointer; }
+.adm .calpop__quick:hover { background:var(--primary-soft); }
 
 .adm .chipbtn:disabled { opacity:.55; cursor:not-allowed; }
 .adm .chipbtn:disabled:hover { background:var(--card); }
@@ -2238,3 +2255,38 @@
   .adm .dviewer__wrap { width:auto !important; height:auto !important; }
   .adm .jp { box-shadow:none !important; border:none !important; margin:0 !important; transform:none !important; width:210mm !important; }
 }
+
+/* ===================================================================
+   CUSTOM DROPDOWN (.dd) — the single shared dropdown standard that replaces the
+   native <select> across every admin console (users / attendance / cleaning / …).
+   Moved here from users-console.css so all `.adm` pages get it. Do not add a
+   second dropdown style (the old chip `.adp` dropdown is retired).
+   =================================================================== */
+.adm .dd { position: relative; }
+.adm .dd__btn { width: 100%; display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-size: 13.5px; font-weight: 700; text-align: left; cursor: pointer; }
+.adm .dd__btn:hover { border-color: color-mix(in oklab, var(--primary) 34%, var(--line)); }
+.adm .dd__btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.adm .dd__btn--sm { height: 38px; border-radius: 10px; font-size: 12.5px; padding: 0 11px; }
+.adm .dd__val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm .dd__val.ph { color: var(--faint); font-weight: 600; }
+.adm .dd__chev { flex: 0 0 auto; color: var(--muted); transition: transform 0.16s; display: inline-flex; }
+.adm .dd__chev svg { width: 17px; height: 17px; }
+.adm .dd.open .dd__btn { border-color: var(--primary); box-shadow: 0 0 0 3.5px var(--primary-soft); }
+.adm .dd.open .dd__chev { transform: rotate(180deg); }
+.adm .dd__menu { position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; right: 0; min-width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 13px; box-shadow: var(--sh-pop); padding: 6px; animation: ddIn 0.14s ease; overflow: hidden; }
+.adm .dd__menu--up { top: auto; bottom: calc(100% + 6px); transform-origin: bottom; }
+.adm .dd__menu--wide { min-width: 280px; }
+@keyframes ddIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.adm .dd__opt { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; border: none; background: none; text-align: left; font-size: 13px; font-weight: 700; color: var(--ink-soft); cursor: pointer; }
+.adm .dd__opt:hover { background: var(--card2); color: var(--ink); }
+.adm .dd__opt.on { background: var(--primary-soft); color: var(--primary); }
+.adm .dd__opt__k { flex: 1; min-width: 0; }
+.adm .dd__opt__k b { display: block; font-size: 13px; font-weight: 800; color: inherit; letter-spacing: -0.01em; }
+.adm .dd__opt__k small { display: block; font-size: 11.5px; font-weight: 500; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+.adm .dd__opt.on .dd__opt__k small { color: color-mix(in oklab, var(--primary) 70%, var(--muted)); }
+.adm .dd__opt__key { display: block; font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: var(--faint); letter-spacing: -0.02em; margin-top: 3px; }
+.adm .dd__opt.on .dd__opt__key { color: color-mix(in oklab, var(--primary) 62%, var(--faint)); }
+.adm .dd__menu--wide .dd__opt { align-items: flex-start; }
+.adm .dd__menu--wide .dd__chk { margin-top: 2px; }
+.adm .dd__chk { margin-left: auto; flex: 0 0 auto; color: var(--primary); display: inline-flex; }
+.adm .dd__chk svg { width: 16px; height: 16px; }

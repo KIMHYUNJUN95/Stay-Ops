@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -17,7 +17,7 @@ import {
   Trash2,
 } from "lucide-react";
 import "@/components/admin/users-console.css";
-import { AdmDropdown, type AdmOption } from "./adm-dropdown";
+import { AdmDropdown, type AdmOption } from "../shared/adm-dropdown";
 import { AdminDatePicker } from "@/components/admin/shared/admin-date-picker";
 import { AdminTimePicker } from "@/components/admin/shared/admin-time-picker";
 import {
@@ -31,6 +31,7 @@ import {
   setMemberReportAccess,
   setMemberRole,
   setMemberStatus,
+  setMemberTeam,
 } from "@/app/admin/users/actions";
 import { organizationRoles } from "@/config/roles";
 import { getDictionary, type Locale } from "@/lib/i18n";
@@ -50,7 +51,10 @@ export type UserDetailVM = {
   leaveApprover: boolean;
   isDeveloper: boolean;
   manageUsers: boolean;
+  teamId: string | null;
 };
+
+export type TeamOption = { id: string; kind: string; name: string };
 
 export type Override = {
   id: string;
@@ -68,6 +72,7 @@ export function UserDetailClient({
   isDeveloperViewer = false,
   currentUserName,
   initialOverrides = [],
+  teams = [],
 }: {
   member: UserDetailVM;
   locale: Locale;
@@ -76,6 +81,7 @@ export function UserDetailClient({
   isDeveloperViewer?: boolean;
   currentUserName: string;
   initialOverrides?: Override[];
+  teams?: TeamOption[];
 }) {
   const router = useRouter();
   const dictionary = getDictionary(locale);
@@ -105,6 +111,13 @@ export function UserDetailClient({
     label: meta.label,
     desc: meta.desc,
   }));
+  // Team (현장/사무실 소속). Phase 1: one team per kind, so label each by its kind. Sub-teams (later)
+  // will need the team name too.
+  const teamLabel = (kind: string) => (kind === "field" ? c.teamFieldOption : c.teamOfficeOption);
+  const teamOptions: AdmOption[] = [
+    { value: "", label: c.teamUnassigned },
+    ...teams.map((team) => ({ value: team.id, label: teamLabel(team.kind) })),
+  ];
 
   // Local prototype state (committed = "saved"; draft = current select). Persistence lands after
   // design confirmation.
@@ -116,6 +129,7 @@ export function UserDetailClient({
     approver: member.leaveApprover ? "grant" : "revoke",
     developer: member.isDeveloper ? "grant" : "revoke",
     manageUsers: member.manageUsers ? "grant" : "revoke",
+    team: member.teamId ?? "",
   };
   const [committed, setCommitted] = useState(initial);
   const [draft, setDraft] = useState(initial);
@@ -140,15 +154,15 @@ export function UserDetailClient({
   const [revoking, setRevoking] = useState<string | null>(null);
   const [deleteConfirming, setDeleteConfirming] = useState(false);
   const [toast, setToast] = useState<{ id: number; msg: string; kind: "ok" | "danger" } | null>(null);
-  const toastSeq = useRef(0);
 
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 2400);
     return () => clearTimeout(timer);
   }, [toast]);
+  // id from the previous toast (functional update) — avoids a render-scope ref the compiler flags.
   const showToast = (msg: string, kind: "ok" | "danger" = "ok") =>
-    setToast({ id: (toastSeq.current += 1), msg, kind });
+    setToast((prev) => ({ id: (prev?.id ?? 0) + 1, msg, kind }));
 
   // Capture "now" once at mount (React Compiler disallows argless Date.now()/new Date() during render).
   const [nowMs] = useState(() => Date.now());
@@ -196,6 +210,9 @@ export function UserDetailClient({
           break;
         case "report":
           res = await setMemberReportAccess(mid, value === "on");
+          break;
+        case "team":
+          res = await setMemberTeam(mid, value || null);
           break;
         case "payroll":
           res = await setMemberPayrollAdmin(mid, value === "grant");
@@ -388,6 +405,7 @@ export function UserDetailClient({
         <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
           {roleForm(u.saveRole, "role", roleOptions, c.toastRole)}
           {roleForm(u.saveStatus, "status", statusOptions, c.toastStatus)}
+          {teams.length > 0 ? roleForm(c.teamSave, "team", teamOptions, c.toastTeam) : null}
           {roleForm(u.saveReportAccess, "report", reportOptions, c.toastReport)}
           <p className="chint">{u.reportAccessHint}</p>
         </div>

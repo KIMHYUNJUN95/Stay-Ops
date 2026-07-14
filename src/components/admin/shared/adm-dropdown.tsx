@@ -22,11 +22,14 @@ type AdmDropdownProps = {
   rich?: boolean;
   wide?: boolean;
   ariaLabel?: string;
+  disabled?: boolean;
 };
 
 /**
- * Custom dropdown that replaces the native <select> across the users flow, matching the design
- * handoff `.dd` component (flow.css). Self-manages open state with outside-click + Esc close.
+ * The single shared admin dropdown that replaces the native <select> across every admin console
+ * (users / attendance / cleaning / …). Matches the design-handoff `.dd` component; its CSS lives in
+ * admin-console.css so all `.adm` pages pick it up. Self-manages open state with outside-click + Esc.
+ * Do not add a second dropdown style — this is the one.
  */
 export function AdmDropdown({
   options,
@@ -37,6 +40,7 @@ export function AdmDropdown({
   rich = false,
   wide = false,
   ariaLabel,
+  disabled = false,
 }: AdmDropdownProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -68,6 +72,7 @@ export function AdmDropdown({
         type="button"
         className={`dd__btn${size === "sm" ? " dd__btn--sm" : ""}`}
         onClick={() => setOpen((prev) => !prev)}
+        disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}

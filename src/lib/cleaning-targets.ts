@@ -1,4 +1,6 @@
 import {
+  buildRoomKey,
+  buildSessionRoomLabel,
   getCanonicalPropertyName,
   getCanonicalRoomLabel,
   isExcludedOperationalProperty,
@@ -6,19 +8,6 @@ import {
 } from "@/lib/room-label-normalization";
 import { getCleaningOperatingDateKey } from "@/lib/cleaning";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-
-// Room key = canonical property + "_" + canonical room — used for deduplication and turnover detection.
-function buildRoomKey(canonicalProperty: string, canonicalRoom: string) {
-  return `${canonicalProperty}_${canonicalRoom}`;
-}
-
-// Label stored in cleaning_sessions.room_label.
-// Okubo buildings return the property name as the canonical room, so no prefix needed.
-function buildSessionRoomLabel(canonicalProperty: string, canonicalRoom: string) {
-  return canonicalRoom === canonicalProperty
-    ? canonicalRoom
-    : `${canonicalProperty} ${canonicalRoom}`;
-}
 
 function getPax(rawPayload: unknown): number | null {
   if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) return null;

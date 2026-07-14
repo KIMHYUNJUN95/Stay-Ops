@@ -114,39 +114,12 @@
 /* ===================================================================
    CUSTOM DROPDOWN (shared) — replaces native <select>
    =================================================================== */
-.adm .dd { position: relative; }
-.adm .dd__btn { width: 100%; display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 12px; border-radius: 11px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-size: 13.5px; font-weight: 700; text-align: left; cursor: pointer; }
-.adm .dd__btn:hover { border-color: color-mix(in oklab, var(--primary) 34%, var(--line)); }
-.adm .dd__btn--sm { height: 38px; border-radius: 10px; font-size: 12.5px; padding: 0 11px; }
-.adm .dd__val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.adm .dd__val.ph { color: var(--faint); font-weight: 600; }
-.adm .dd__chev { flex: 0 0 auto; color: var(--muted); transition: transform 0.16s; display: inline-flex; }
-.adm .dd__chev svg { width: 17px; height: 17px; }
-.adm .dd.open .dd__btn { border-color: var(--primary); box-shadow: 0 0 0 3.5px var(--primary-soft); }
-.adm .dd.open .dd__chev { transform: rotate(180deg); }
-
-.adm .dd__menu { position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; right: 0; min-width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 13px; box-shadow: var(--sh-pop); padding: 6px; animation: ddIn 0.14s ease; overflow: hidden; }
-.adm .dd__menu--up { top: auto; bottom: calc(100% + 6px); transform-origin: bottom; }
-.adm .dd__menu--wide { min-width: 280px; }
-@keyframes ddIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-.adm .dd__opt { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; border: none; background: none; text-align: left; font-size: 13px; font-weight: 700; color: var(--ink-soft); cursor: pointer; }
-.adm .dd__opt:hover { background: var(--card2); color: var(--ink); }
-.adm .dd__opt.on { background: var(--primary-soft); color: var(--primary); }
-.adm .dd__opt__k { flex: 1; min-width: 0; }
-.adm .dd__opt__k b { display: block; font-size: 13px; font-weight: 800; color: inherit; letter-spacing: -0.01em; }
-.adm .dd__opt__k small { display: block; font-size: 11.5px; font-weight: 500; color: var(--muted); margin-top: 2px; line-height: 1.4; }
-.adm .dd__opt.on .dd__opt__k small { color: color-mix(in oklab, var(--primary) 70%, var(--muted)); }
+/* .dd custom dropdown moved to admin-console.css — shared single dropdown standard across all
+   admin consoles (users / attendance / cleaning / …). Do not redefine here. */
 /* empty-state placeholder for the shared AdminDatePicker trigger (used by the override expiry field) */
 .adm .adp__ph { color: var(--faint); font-weight: 500; }
 
-/* mono permission_key as a stacked secondary line (was a left column — cleaner as a vertical stack) */
-.adm .dd__opt__key { display: block; font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: var(--faint); letter-spacing: -0.02em; margin-top: 3px; }
-.adm .dd__opt.on .dd__opt__key { color: color-mix(in oklab, var(--primary) 62%, var(--faint)); }
-/* rich (permission-key) options: top-align so the multi-line stack reads cleanly next to the check */
-.adm .dd__menu--wide .dd__opt { align-items: flex-start; }
-.adm .dd__menu--wide .dd__chk { margin-top: 2px; }
-.adm .dd__chk { margin-left: auto; flex: 0 0 auto; color: var(--primary); display: inline-flex; }
-.adm .dd__chk svg { width: 16px; height: 16px; }
+/* (.dd rich-option / check styles also moved to admin-console.css) */
 
 /* ===================================================================
    DETAIL — back row (flow.css)

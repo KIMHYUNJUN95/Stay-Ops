@@ -1,0 +1,325 @@
+"use client";
+
+// Admin cleaning console — right-side detail panel, shared by both the today board's room cards
+// and the history table's rows. Mirrors clean-views.js panel(). Uses the shared .panel/.panel-scrim/
+// .pblock/.kv/.locknote/.rptiles primitives from admin-console.css + cleaning-console.css. Data is
+// real (src/lib/admin-cleaning.ts) as of 2026-07-14.
+import { BedDouble, ChevronRight, Info, PackageSearch, ShieldCheck, Wrench, X } from "lucide-react";
+import { useAdminPanelA11y } from "@/components/admin/shared/use-admin-panel-a11y";
+import type { AdminCleaningHistoryItem, AdminCleaningTask, AdminSettingTarget } from "@/lib/admin-cleaning";
+import { durationMin, elapsedMin, fmtDate, fmtDur, todayDateKeyTokyo, toMin } from "./cleaning-console-data";
+import {
+  ReportBadges,
+  StatusPill,
+  TYPE_ICON,
+  buildingLabelOf,
+  localeTagOf,
+  staffLabelOf,
+  typeLabel,
+  type ConsoleCopy,
+  type StaffDirectory,
+} from "./cleaning-console-shared";
+import type { Locale } from "@/lib/i18n";
+
+type DetailPanelProps = {
+  task: AdminCleaningTask | null;
+  history: AdminCleaningHistoryItem | null;
+  setupTarget: AdminSettingTarget | null;
+  t: ConsoleCopy;
+  buildingLabels: Record<string, string>;
+  staffDirectory: StaffDirectory;
+  locale: Locale;
+  onClose: () => void;
+  onOpenForceComplete: (task: AdminCleaningTask) => void;
+  onOpenReport: (kind: "lost" | "issue") => void;
+  disabled?: boolean;
+};
+
+export function CleaningDetailPanel({
+  task,
+  history,
+  setupTarget,
+  t,
+  buildingLabels,
+  staffDirectory,
+  locale,
+  onClose,
+  onOpenForceComplete,
+  onOpenReport,
+  disabled,
+}: DetailPanelProps) {
+  const panelRef = useAdminPanelA11y<HTMLElement>(onClose, { disabled });
+  if (!task && !history && !setupTarget) return null;
+
+  // 셋팅 대상은 예약만 있고 아직 cleaning_sessions 레코드가 없는 방이라, 청소 세션 상세(시간·담당·
+  // 리포트)를 보여줄 데이터가 없다 — 예약 정보만 담은 축소 패널을 별도로 렌더링한다.
+  if (!task && !history && setupTarget) {
+    return (
+      <>
+        <div className="panel-scrim on" onClick={onClose} />
+        <aside ref={panelRef} className="panel on" role="dialog" aria-label={t.secSetup} tabIndex={-1}>
+          <div className="panel__h">
+            <div className="panel__top">
+              <span className="panel__kicker">
+                {t.secSetup} · {buildingLabelOf(setupTarget, buildingLabels)}
+              </span>
+              <button type="button" className="panel__x" onClick={onClose} aria-label={t.close}>
+                <X />
+              </button>
+            </div>
+            <div className="panel__title" style={{ alignItems: "baseline", marginTop: 11 }}>
+              <span className="panel__room">{setupTarget.room}</span>
+              <span className="cpanel__type">
+                <BedDouble aria-hidden="true" />
+                {t.tySetup}
+              </span>
+            </div>
+          </div>
+
+          <div className="panel__body">
+            <div className="pblock">
+              <div className="pblock__t">{t.pInfo}</div>
+              <div className="kv">
+                <span className="kv__k">{t.pRoom}</span>
+                <span className="kv__v">
+                  {buildingLabelOf(setupTarget, buildingLabels)} · {setupTarget.room}
+                </span>
+              </div>
+              <div className="kv">
+                <span className="kv__k">{t.pGuest}</span>
+                <span className="kv__v">{setupTarget.guest}</span>
+              </div>
+              <div className="kv">
+                <span className="kv__k">{t.pPax}</span>
+                <span className="kv__v">
+                  {setupTarget.pax == null ? "—" : `${setupTarget.pax}${t.pax}`}
+                </span>
+              </div>
+              <div className="kv">
+                <span className="kv__k">{t.arriving}</span>
+                <span className="kv__v">{t.today}</span>
+              </div>
+            </div>
+
+            <div className="pblock">
+              <div className="locknote">
+                <Info className="ic" aria-hidden="true" />
+                {t.setupNoSession}
+              </div>
+            </div>
+          </div>
+
+          <div className="panel__foot">
+            <button type="button" className="btn btn--ghost btn--block" onClick={onClose}>
+              {t.close}
+            </button>
+          </div>
+        </aside>
+      </>
+    );
+  }
+
+  const isHist = !task;
+  const location = task ? task : history!;
+  const room = task ? task.room : history!.room;
+  const type = task ? task.type : history!.type;
+  const status = task ? task.status : "done";
+  const staffId = task ? task.staffId : history!.staffId;
+  const proxy = task ? task.proxy : history!.proxy;
+  const note = task ? task.note : history!.note;
+  const reports = task ? task.reports : null;
+  const start = task ? task.start : history!.start;
+  const dur = task ? durationMin(task.start, task.end) : history!.dur;
+  const localeTag = localeTagOf(locale);
+  const dateStr = fmtDate(isHist ? history!.date : todayDateKeyTokyo(), localeTag);
+  const TypeIcon = TYPE_ICON[type];
+
+  let end: string | null = null;
+  if (isHist) {
+    const startMin = toMin(history!.start);
+    const totalMin = (startMin ?? 0) + history!.dur;
+    end = `${String(Math.floor(totalMin / 60)).padStart(2, "0")}:${String(totalMin % 60).padStart(2, "0")}`;
+  } else if (task!.end) {
+    end = task!.end;
+  }
+
+  const staff = staffId ? staffDirectory.get(staffId) : null;
+
+  return (
+    <>
+      <div className="panel-scrim on" onClick={onClose} />
+      <aside ref={panelRef} className="panel on" role="dialog" aria-label={t.pKicker} tabIndex={-1}>
+        <div className="panel__h">
+          <div className="panel__top">
+            <span className="panel__kicker">
+              {t.pKicker} · {buildingLabelOf(location, buildingLabels)}
+            </span>
+            <button type="button" className="panel__x" onClick={onClose} aria-label={t.close}>
+              <X />
+            </button>
+          </div>
+          <div className="panel__title" style={{ alignItems: "baseline", marginTop: 11 }}>
+            <span className="panel__room">{room}</span>
+            <span className="cpanel__type">
+              <TypeIcon aria-hidden="true" />
+              {typeLabel(type, t)}
+            </span>
+          </div>
+          <div className="panel__chips" style={{ marginTop: 11 }}>
+            <StatusPill status={status} t={t} />
+            <ReportBadges reports={reports} t={t} />
+          </div>
+        </div>
+
+        <div className="panel__body">
+          <div className="pblock">
+            <div className="pblock__t">{t.pInfo}</div>
+            <div className="kv">
+              <span className="kv__k">{t.pRoom}</span>
+              <span className="kv__v">
+                {buildingLabelOf(location, buildingLabels)} · {room}
+              </span>
+            </div>
+            <div className="kv">
+              <span className="kv__k">{t.pType}</span>
+              <span className="kv__v">{typeLabel(type, t)}</span>
+            </div>
+            <div className="kv">
+              <span className="kv__k">{t.pDate}</span>
+              <span className="kv__v">{dateStr}</span>
+            </div>
+          </div>
+
+          {start && (end || isHist) ? (
+            <div className="pblock">
+              <div className="pblock__t">{t.pTime}</div>
+              <div className="timespan">
+                <div className="timenode">
+                  <div className="timenode__lbl">{t.startAt}</div>
+                  <div className="timenode__t">{start}</div>
+                </div>
+                <div className="timemid">
+                  <div className="timemid__n">{fmtDur(dur)}</div>
+                  <div className="timeline2" />
+                </div>
+                <div className="timenode">
+                  <div className="timenode__lbl">{t.endAt}</div>
+                  <div className="timenode__t">{end}</div>
+                </div>
+              </div>
+              <div className="durbig" style={{ marginTop: 12 }}>
+                <div className="durbig__v">{fmtDur(dur)}</div>
+                <span className="durbig__lbl">{t.duration}</span>
+              </div>
+            </div>
+          ) : start ? (
+            <div className="pblock">
+              <div className="pblock__t">{t.pTime}</div>
+              <div className="durbig">
+                <div className="durbig__v">{start}</div>
+                <span className="durbig__lbl">
+                  {t.startAt} · {t.elapsed} {fmtDur(task ? elapsedMin(task.start) : null)}
+                </span>
+              </div>
+            </div>
+          ) : null}
+
+          {staff ? (
+            <div className="pblock">
+              <div className="pblock__t">{t.pStaff}</div>
+              <div className="staffpill">
+                <span className="staffpill__av" style={{ background: staff.bg }}>
+                  {staff.name.slice(0, 1)}
+                </span>
+                <div>
+                  <div className="staffpill__nm">{staffLabelOf(staff.id, staffDirectory)}</div>
+                  <div className="staffpill__s">{t.pAssignee}</div>
+                </div>
+              </div>
+              {proxy ? (
+                <div className="proxynote" style={{ marginTop: 10 }}>
+                  <span className="proxynote__ic">
+                    <ShieldCheck aria-hidden="true" />
+                  </span>
+                  <div>
+                    <div className="proxynote__t">{t.proxy}</div>
+                    <div className="proxynote__s">{t.proxyNoteDesc}</div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {note ? (
+            <div className="pblock">
+              <div className="pblock__t">{t.pNote}</div>
+              <div className="locknote">
+                <Info className="ic" aria-hidden="true" />
+                {note}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="pblock">
+            <div className="pblock__t">{t.pLinked}</div>
+            {reports && (reports.lost || reports.issue) ? (
+              <div className="rptiles">
+                {reports.issue ? (
+                  <button type="button" className="rptile rptile--issue" onClick={() => onOpenReport("issue")}>
+                    <span className="rptile__ic">
+                      <Wrench aria-hidden="true" />
+                    </span>
+                    <span className="rptile__b">
+                      <span className="rptile__t">{t.pIssue}</span>
+                      <span className="rptile__s">{reports.issue}</span>
+                    </span>
+                    <ChevronRight className="ic rptile__go" aria-hidden="true" />
+                  </button>
+                ) : null}
+                {reports.lost ? (
+                  <button type="button" className="rptile rptile--lost" onClick={() => onOpenReport("lost")}>
+                    <span className="rptile__ic">
+                      <PackageSearch aria-hidden="true" />
+                    </span>
+                    <span className="rptile__b">
+                      <span className="rptile__t">{t.pLostItem}</span>
+                      <span className="rptile__s">{reports.lost}</span>
+                    </span>
+                    <ChevronRight className="ic rptile__go" aria-hidden="true" />
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              <div className="locknote">
+                <Info className="ic" aria-hidden="true" />
+                {t.noReports}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="panel__foot">
+          {!isHist && status !== "done" ? (
+            <>
+              <button type="button" className="btn btn--ghost" style={{ flex: 1 }} onClick={onClose}>
+                {t.close}
+              </button>
+              <button
+                type="button"
+                className="btn btn--pri"
+                style={{ flex: 1.4 }}
+                onClick={() => task && onOpenForceComplete(task)}
+              >
+                {t.forceDone}
+              </button>
+            </>
+          ) : (
+            <button type="button" className="btn btn--ghost btn--block" onClick={onClose}>
+              {t.close}
+            </button>
+          )}
+        </div>
+      </aside>
+    </>
+  );
+}

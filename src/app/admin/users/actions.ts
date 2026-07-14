@@ -145,6 +145,39 @@ export async function setMemberStatus(membershipId: string, status: string): Pro
   return { ok: true };
 }
 
+/**
+ * Assign a member to a team (현장/사무실 소속, or a sub-team). `teamId` null clears it (미지정). Same
+ * gate as role/status (`manage_users`/top admin). The team must belong to the member's org. Takes a
+ * team id (not just a kind) so it already supports sub-teams once team CRUD lands.
+ */
+export async function setMemberTeam(membershipId: string, teamId: string | null): Promise<ActionResult> {
+  const ctx = await resolveActor(membershipId);
+  if ("error" in ctx) return { ok: false, error: ctx.error };
+  if (!(await actorCanManageUsersInOrg(ctx.actorUserId, ctx.actorRole, ctx.membership.organization_id))) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const service = getSupabaseServiceClient();
+  if (teamId) {
+    const { data: team } = await service
+      .from("teams")
+      .select("id, organization_id")
+      .eq("id", teamId)
+      .maybeSingle();
+    if (!team || (team as { organization_id: string }).organization_id !== ctx.membership.organization_id) {
+      return { ok: false, error: "invalid_team" };
+    }
+  }
+
+  const { error } = await service
+    .from("memberships")
+    .update({ team_id: teamId } as never)
+    .eq("id", membershipId);
+  if (error) return { ok: false, error: "save_failed" };
+  revalidateMember(membershipId);
+  return { ok: true };
+}
+
 export async function setMemberReportAccess(membershipId: string, grant: boolean): Promise<ActionResult> {
   const ctx = await resolveActor(membershipId);
   if ("error" in ctx) return { ok: false, error: ctx.error };

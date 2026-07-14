@@ -2,6 +2,56 @@
 
 This file records important project decisions.
 
+## 2026-07-14 조직 모델 방향 — 단일 조직 + 현장/사무실 뷰 라벨 (조직 간 공유 아님)
+
+### Org model — single org + field/office view label, NOT cross-org data sharing
+
+- 대표님 의도: "조직은 나눠져 있어도 같은 팀이라 데이터가 이어져 보여야 하고, 조직만 나눠서 볼 뿐."
+- **결정: 조직을 여러 개로 쪼개 데이터를 공유하는 방향(Option B)은 채택하지 않는다.** 그건 전 테이블
+  RLS·쿼리·멤버십을 갈아엎고 조직 격리(확정 계약, CLAUDE.md 규칙 6)를 약화시키는 대규모·고위험 작업.
+- **채택(Option A): 조직은 그대로 테넌트 경계로 두고, 한 조직 안에 "현장/사무실"(사이트/부서) 라벨을
+  뷰·필터 차원으로 추가**한다. 데이터는 한 조직 안에서 자연히 전부 공유되고, 화면에서 현장/사무실로
+  나눠 보기만 한다. RLS 재설계 불필요.
+- **미정(설계 필요):** 라벨을 무엇에 붙일지(멤버십이 유력), 어느 화면에서 필터로 쓸지, 값이 고정
+  현장/사무실인지 일반 사이트 목록인지. 별도 기획 사이클에서 확정 후 구현.
+- 조직 CRUD(이름 변경·빈 조직 삭제·생성)는 이 방향과 무관하게 유지(개발자가 서로 다른 고객 팀=서로 다른
+  조직을 관리하는 용도).
+
+Status: Direction confirmed (2026-07-14). 설계·구현 대기. 아직 데이터 모델 변경 없음.
+
+**Status update (2026-07-14): Phase 1 implemented.** 라벨은 `memberships`에 붙는 것으로 확정 —
+새 `teams` 테이블(`kind` = field/office, `name`은 향후 하위팀용)을 추가하고 `memberships.team_id`로
+연결. 마이그레이션 `supabase/migrations/202607140001_teams.sql` 작성 완료(조직별 현장/사무실 기본 팀
+시딩 + 기존 멤버 role 기반 백필 + RLS: 활성 멤버 SELECT, 쓰기는 서비스롤 서버 액션만) — **DB에는 아직
+미적용**. `/admin/users/[id]`에 소속(현장/사무실/미지정) 드롭다운+저장, `/admin/users` 목록에 소속
+컬럼+필터 추가(`setMemberTeam` 서버 액션, `getOrgTeams` 헬퍼). tsc 0 / lint 0. **후속 단계(미구현):**
+팀 CRUD(하위팀 생성)와 근태/청소/대시보드 화면의 팀 필터. 상세: `docs/product/01-user-roles.md`,
+`docs/engineering/04-data-model.md` → `teams`, `docs/planning/06-current-status.md`.
+
+## 2026-07-13 어드민 드롭다운 단일 표준화 (`.dd`) — 칩형 드롭다운 폐기
+
+### Single admin dropdown standard — `.dd` (AdmDropdown), chip dropdown retired
+
+- **어드민 콘솔의 드롭다운은 사용자 화면의 `.dd`(`AdmDropdown`) 하나로 통일.** 화면마다 다른
+  드롭다운을 두지 않는다. 값 편집·필터·정렬 전부 이 컴포넌트만 쓴다. 네이티브 `<select>`를 폼에서
+  대체할 땐 `DdFormSelect`(숨은 input 래퍼)를 쓴다.
+- **구 칩형 `ChipDropdown`(`.adp` 드롭다운)은 폐기·삭제.** 근태 큐(출근·연차)의 필터 4곳을 `.dd`로
+  이관했고 컴포넌트 파일(`admin-chip-dropdown.tsx`)을 삭제했다. 초대(invites) 페이지의 네이티브
+  `<select>` 2곳도 `.dd`로 교체.
+- `.dd` CSS를 `users-console.css` → **`admin-console.css`로 이동**(AdminShell이 전 `.adm` 페이지에
+  로드)하고, 컴포넌트를 `components/admin/users/` → **`components/admin/shared/`로 이동**해 공용화.
+- **후속(2026-07-14): 두 번째 커스텀 드롭다운 `AdminSelectField`(`.selfield`)도 폐기·삭제.** 근태 수기
+  세션 모달·수당 섹션 3곳을 `.dd`로 이관(`AdmDropdown`에 `disabled` prop 추가), `.selfield` CSS 제거.
+  초대 페이지 만료일 네이티브 `<input type="date">`도 `AdminDatePicker`(폼 래퍼 `DateFormField`)로 교체.
+  이로써 어드민 드롭다운/선택 컨트롤은 `.dd` 하나로 완전 일원화(달력형 피커는 별개 컨트롤로 유지).
+- 달력형 피커(`AdminDatePicker`/`TimePicker`/`MonthPicker`)와 `.adp`/`.chipbtn` 시각 언어는 드롭다운이
+  아닌 별개 컨트롤이라 그대로 유지(날짜/월 피커 등에서 계속 사용).
+
+Reason: 역할 드롭다운(사용자)·칩 필터(근태)·네이티브 select(초대 등)로 드롭다운이 화면마다 달라
+일관성이 깨졌다. 청소 등 신규 대시보드를 만들기 전에 단일 표준으로 못박음(2026-07-13).
+
+Status: Confirmed + 구현 완료 (2026-07-13). tsc 0 / lint 0 errors. 청소 대시보드 기획도 `.dd` 사용으로 기록됨.
+
 ## 2026-07-13 초대코드(팀코드) 관리를 설정에서 사용자 화면으로 이전
 
 ### Invite-code (team code) management moved from Settings into the Users screen

@@ -25,7 +25,14 @@ import type { CleaningTarget, SettingTarget } from "@/lib/cleaning-targets";
 import { getCleaningTargets } from "@/lib/cleaning-targets";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { getOnboardingState } from "@/lib/onboarding";
-import { getDisplayRoomLabel } from "@/lib/room-label-normalization";
+import {
+  buildLegacyAliasToRoomKeyMap,
+  buildSessionLabelToRoomKeyMap,
+  buildSessionRoomLabel,
+  CANONICAL_TO_BUILDING_KEY,
+  getDisplayRoomLabel,
+  resolveRoomKey,
+} from "@/lib/room-label-normalization";
 import type { ActiveRoomCatalogItem } from "@/lib/rooms";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
@@ -40,20 +47,6 @@ type MobileCleaningPageProps = {
     started?: string;
   }>;
 };
-
-// Canonical keys used for ordering and i18n lookup.
-// These are stable English slugs; display labels come from dictionary.cleaning.buildingLabels.
-// i18n-ignore-start: canonical building-name domain keys (room-label normalization), not UI copy.
-const CANONICAL_TO_BUILDING_KEY: Record<string, string> = {
-  아라키초A: "arakicho_a",
-  아라키초B: "arakicho_b",
-  가부키초: "kabukicho",
-  다카다노바바: "takadanobaba",
-  오쿠보A: "okubo_a",
-  오쿠보B: "okubo_b",
-  오쿠보C: "okubo_c",
-};
-// i18n-ignore-end
 
 const BUILDING_KEY_ORDER = [
   "arakicho_a",
@@ -123,88 +116,6 @@ function getBuildingKey(canonicalPropertyName: string): string {
   return CANONICAL_TO_BUILDING_KEY[canonicalPropertyName] ?? canonicalPropertyName;
 }
 
-function normalizeRoomLabelInput(value: string): string {
-  return value
-    .normalize("NFKC")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
-
-// Builds sessionRoomLabel → roomKey map from the active room catalog (primary lookup).
-function buildSessionLabelToRoomKeyMap(
-  catalog: ActiveRoomCatalogItem[],
-): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const item of catalog) {
-    const sessionLabel =
-      item.canonicalRoomLabel === item.propertyName
-        ? item.propertyName
-        : `${item.propertyName} ${item.canonicalRoomLabel}`;
-    map.set(sessionLabel, `${item.propertyName}_${item.canonicalRoomLabel}`);
-  }
-  return map;
-}
-
-function buildLegacyAliasToRoomKeyMap(
-  catalog: ActiveRoomCatalogItem[],
-): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const item of catalog) {
-    const roomKey = `${item.propertyName}_${item.canonicalRoomLabel}`;
-    const aliases = [
-      item.propertyName,
-      item.canonicalRoomLabel,
-      item.roomLabel,
-      item.propertyName === item.canonicalRoomLabel
-        ? item.propertyName
-        : `${item.propertyName} ${item.canonicalRoomLabel}`,
-      item.roomLabel === item.propertyName ? item.roomLabel : `${item.propertyName} ${item.roomLabel}`,
-    ];
-    for (const raw of aliases) {
-      const key = normalizeRoomLabelInput(raw);
-      if (!key) continue;
-      if (!map.has(key)) map.set(key, roomKey);
-    }
-  }
-  return map;
-}
-
-type ResolveRoomKeyResult = {
-  roomKey: string | null;
-  matchedBy: "catalog_exact" | "canonical_prefix" | "legacy_alias" | "unknown";
-};
-
-// Resolves a cleaning_sessions.room_label to the canonical roomKey used by
-// CleaningTarget/SettingTarget. Returns null for unrecognised labels (logged in dev)
-// so they are excluded from processedRoomKeys rather than producing a spurious match.
-function resolveRoomKey(
-  roomLabel: string,
-  catalogMap: Map<string, string>,
-  legacyAliasMap: Map<string, string>,
-): ResolveRoomKeyResult {
-  // 1. Catalog exact match (primary — covers all active room master entries)
-  const fromCatalog = catalogMap.get(roomLabel);
-  if (fromCatalog !== undefined) return { roomKey: fromCatalog, matchedBy: "catalog_exact" };
-
-  // 2. Canonical prefix parse (legacy / pre-catalog labels)
-  for (const cp of Object.keys(CANONICAL_TO_BUILDING_KEY)) {
-    if (roomLabel === cp) return { roomKey: `${cp}_${cp}`, matchedBy: "canonical_prefix" };
-    if (roomLabel.startsWith(`${cp} `)) {
-      return { roomKey: `${cp}_${roomLabel.slice(cp.length + 1)}`, matchedBy: "canonical_prefix" };
-    }
-  }
-
-  // 3. Legacy alias map (ko/ja/en variants, historical formatting)
-  const fromAlias = legacyAliasMap.get(normalizeRoomLabelInput(roomLabel));
-  if (fromAlias !== undefined) {
-    return { roomKey: fromAlias, matchedBy: "legacy_alias" };
-  }
-
-  // 4. Truly unknown
-  return { roomKey: null, matchedBy: "unknown" };
-}
-
 // Transforms the active room catalog into ManualBuildingOption[] for the manual form.
 // Buildings and rooms are sorted using the same ordering rules as the cleaning/setting lists.
 function buildManualRoomOptions(
@@ -219,17 +130,26 @@ function buildManualRoomOptions(
     if (!map.has(buildingKey)) {
       map.set(buildingKey, { buildingKey, rooms: [] });
     }
-    const sessionRoomLabel =
-      item.canonicalRoomLabel === item.propertyName
-        ? item.propertyName
-        : `${item.propertyName} ${item.canonicalRoomLabel}`;
+    const sessionRoomLabel = buildSessionRoomLabel(item.propertyName, item.canonicalRoomLabel);
+    const displayRoomLabel = getDisplayRoomLabel(item.propertyName, item.canonicalRoomLabel);
 
     const group = map.get(buildingKey)!;
-    if (!group.rooms.some((r) => r.sessionRoomLabel === sessionRoomLabel)) {
+    // Collapse Arakicho sub-units (201 / 201_2 = same physical room) to one option keyed by the
+    // display label, so the picker shows "201" once — matching every other room-facing screen. Prefer
+    // the base account (canonical === display) as the representative sessionRoomLabel.
+    const existing = group.rooms.find((r) => r.displayRoomLabel === displayRoomLabel);
+    if (!existing) {
       group.rooms.push({
         canonicalRoomLabel: item.canonicalRoomLabel,
+        displayRoomLabel,
         sessionRoomLabel,
       });
+    } else if (
+      item.canonicalRoomLabel === displayRoomLabel &&
+      existing.canonicalRoomLabel !== displayRoomLabel
+    ) {
+      existing.canonicalRoomLabel = item.canonicalRoomLabel;
+      existing.sessionRoomLabel = sessionRoomLabel;
     }
   }
 
@@ -258,10 +178,7 @@ function buildSessionLabelToLocalizedRoomTitleMap(
   if (!catalog) return map;
 
   for (const item of catalog) {
-    const sessionLabel =
-      item.canonicalRoomLabel === item.propertyName
-        ? item.propertyName
-        : `${item.propertyName} ${item.canonicalRoomLabel}`;
+    const sessionLabel = buildSessionRoomLabel(item.propertyName, item.canonicalRoomLabel);
     map.set(sessionLabel, getLocalizedRoomTitle(item.propertyName, item.canonicalRoomLabel, copy));
   }
 
@@ -306,17 +223,19 @@ function getTaskLabel(
   return isCleaningTaskKey(taskLabel) ? copy.taskOptions[taskLabel] : taskLabel;
 }
 
+type CleaningKpiCardProps = {
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+  tone: "primary" | "slate" | "muted";
+};
+
 function CleaningKpiCard({
   icon,
   label,
   value,
   tone,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: ReactNode;
-  tone: "primary" | "slate" | "muted";
-}) {
+}: CleaningKpiCardProps) {
   // Primary KPI (today's cleaning targets) gets a filled navy icon to draw focus;
   // the others stay neutral. Tiles share a soft navy wash so they read as one group.
   const iconTone = {

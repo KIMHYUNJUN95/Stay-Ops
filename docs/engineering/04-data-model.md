@@ -179,10 +179,15 @@ organization_id uuid not null references organizations(id)
 user_id uuid not null references profiles(id)
 role text not null
 status text not null
+team_id uuid references teams(id) on delete set null  -- added migration 202607140001; nullable = 미지정
 joined_at timestamptz
 created_at timestamptz
 updated_at timestamptz
 ```
+
+`team_id` (migration `202607140001`, **not yet applied**) links the membership to its 현장/사무실 team
+(see `teams` above). Assigned/edited via `setMemberTeam` in `/admin/users/[id]`. `on delete set null`
+so deleting a team un-assigns its members without deleting the people.
 
 Role values:
 
@@ -205,6 +210,43 @@ active
 suspended
 removed
 ```
+
+## teams
+
+**Phase 1 implemented (2026-07-14), migration `supabase/migrations/202607140001_teams.sql` — NOT yet
+applied to the linked Supabase project.** Within-org 소속(현장/사무실) split. The org stays the tenant
+boundary (see `docs/planning/01-decision-log.md` → 2026-07-14 "조직 모델 방향"); `teams` adds a
+top-level field/office dimension per member, with room for named sub-teams later without another
+migration.
+
+```txt
+id uuid primary key
+organization_id uuid not null references organizations(id) on delete cascade
+name text not null
+kind team_kind not null        -- 'field' | 'office'
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()
+```
+
+`team_kind` enum values:
+
+```txt
+field
+office
+```
+
+Notes:
+- Two default teams are seeded per existing org by the migration: `현장` (`kind='field'`) and `사무실`
+  (`kind='office'`). Existing memberships are backfilled onto the default team matching their role
+  (`field_manager`/`staff`/`part_time_staff` → 현장; everyone else → 사무실).
+- Index: `teams_organization_id_idx (organization_id)`.
+- RLS: SELECT for active org members; no write policies — writes go only through service-role server
+  actions gated the same way as `memberships.manage_users` (`actorCanManageUsersInOrg`). See
+  `docs/engineering/05-rls-permissions.md`.
+- Phase 1 scope is schema + backfill + assignment/filter on the Users screen only. Team CRUD (creating
+  sub-teams) and 근태/청소/대시보드 filters by team are later phases, not built yet.
+- See `docs/product/01-user-roles.md` for how this relates to (and is independent of) role, and
+  `docs/planning/06-current-status.md` / `01-decision-log.md` → 2026-07-14 for status.
 
 ## invite_codes
 
@@ -428,7 +470,8 @@ Notes:
 
 Cleaning timer and completion records.
 
-Migration: `supabase/migrations/202605210001_cleaning_sessions.sql`
+Migrations: `supabase/migrations/202605210001_cleaning_sessions.sql`,
+`supabase/migrations/202607150001_cleaning_sessions_admin_force_complete.sql`
 
 Fields:
 
@@ -444,6 +487,9 @@ started_at timestamptz not null
 completed_at timestamptz
 duration_seconds integer
 notes text
+completed_by_admin uuid references profiles(id) on delete set null  -- admin id when force-completed on
+                                                                     -- behalf of staff (202607150001); null
+                                                                     -- for normal self-completion
 created_at timestamptz not null
 updated_at timestamptz not null
 ```
@@ -453,9 +499,20 @@ Status values (cleaning_status enum):
 ```txt
 in_progress
 completed
+cancelled
 ```
 
 Note: room_label and property are stored as free text rather than FKs to properties/rooms tables because cleaning sessions predate the room master and must survive property data changes. The room master (properties/rooms tables) is used for display and filtering but is not enforced as a FK here.
+
+Note: `cleaning_date`'s default expression (migration `202605210002`) computes the operating date via
+`(now() at time zone 'Asia/Seoul')::date`. This is not a bug — Seoul and Tokyo share the same UTC+9
+offset with no DST — but the label is inconsistent with the rest of the codebase's `Asia/Tokyo`
+convention (`cleaningOperatingTimeZone` in `src/lib/cleaning.ts`, etc). Left as-is (an already-applied
+migration; behavior is correct) — noted here so it isn't mistaken for a timezone bug during review.
+
+Admin force-complete (`forceCompleteCleaningSession` in `src/app/admin/cleaning/actions.ts`) is the
+only write path that sets `completed_by_admin`. See `docs/product/07-cleaning-workflow.md` →
+"2026-07-14 어드민 청소 대시보드 — 백엔드 연동".
 
 ## maintenance_reports
 

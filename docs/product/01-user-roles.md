@@ -227,6 +227,28 @@ TBD:
 - Should Staff and Part-Time Staff have different access by property?
 - Which roles can see price/revenue information?
 
+## Team (소속: 현장/사무실) Assignment (Phase 1 implemented 2026-07-14)
+
+Separate from role. Every membership can be assigned to a **team** (`teams` table, `kind` = 현장(field)
+/ 사무실(office)), a within-org grouping used for future view/filter purposes — not a permission
+control. See `docs/planning/01-decision-log.md` → 2026-07-14 ("조직 모델 방향") for why this is a
+same-org dimension rather than separate organizations, and `docs/engineering/04-data-model.md` → `teams`
+for schema.
+
+- Assignment is **independent of role**: a `field_manager` is not forced onto 현장, and an `office_admin`
+  is not forced onto 사무실 — the default backfill maps role → team kind once, but an admin can
+  re-assign any member to either team afterward.
+- Migration `202607140001_teams.sql` seeds two default teams per org (현장/사무실) and backfills existing
+  members: `field_manager`/`staff`/`part_time_staff` → 현장, everyone else → 사무실.
+- Assignment/edit lives on `/admin/users/[id]` (a 소속 dropdown: 현장/사무실/미지정, save button) and the
+  `/admin/users` directory shows a 소속 column + a 소속 filter (전체 소속/현장/사무실). Only shown when
+  the org has teams.
+- Server action `setMemberTeam` (`src/app/admin/users/actions.ts`) uses the same
+  `actorCanManageUsersInOrg` gate as role/status changes. `null` clears the assignment (미지정).
+- **Phase 1 scope only.** Team CRUD (creating additional/sub-teams beyond the two defaults) and using
+  team as a filter on 근태/청소/대시보드 screens are later phases, not built yet.
+- Migration is written but **not yet applied** to the linked Supabase project as of 2026-07-14.
+
 ## Auth / Onboarding Rules (2026-06-18 planning baseline)
 
 - A user can belong to more than one organization.

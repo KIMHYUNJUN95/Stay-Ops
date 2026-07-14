@@ -25,7 +25,7 @@ export default async function AdminUsersPage() {
 
   const membershipQuery = service
     .from("memberships")
-    .select("id, organization_id, user_id, role, status, joined_at, created_at, updated_at")
+    .select("id, organization_id, user_id, role, status, joined_at, created_at, updated_at, team_id")
     .order("created_at", { ascending: false });
 
   const { data: membershipData } =
@@ -72,6 +72,16 @@ export default async function AdminUsersPage() {
       : { data: [] as { user_id: string }[] };
   const devIds = new Set(((paData ?? []) as { user_id: string }[]).map((row) => row.user_id));
 
+  // Team kind (현장/사무실) per membership, resolved from the org's teams.
+  const orgIds = [...new Set(memberships.map((membership) => membership.organization_id))];
+  const { data: teamData } =
+    orgIds.length > 0
+      ? await service.from("teams").select("id, kind").in("organization_id", orgIds)
+      : { data: [] as { id: string; kind: string }[] };
+  const teamKindById = new Map(
+    ((teamData ?? []) as { id: string; kind: string }[]).map((team) => [team.id, team.kind]),
+  );
+
   const members: DirectoryMemberVM[] = memberships.map((membership) => {
     const profile = profileMap.get(membership.user_id);
     return {
@@ -85,6 +95,7 @@ export default async function AdminUsersPage() {
       joinedAt: membership.joined_at,
       isSelf: membership.user_id === session.user.id,
       isDeveloper: devIds.has(membership.user_id),
+      teamKind: membership.team_id ? teamKindById.get(membership.team_id) ?? null : null,
     };
   });
 

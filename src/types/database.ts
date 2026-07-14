@@ -2100,6 +2100,7 @@ export type Database = {
         Insert: {
           cleaning_date?: string;
           completed_at?: string | null;
+          completed_by_admin?: string | null;
           created_at?: string;
           duration_seconds?: number | null;
           id?: string;
@@ -2115,6 +2116,7 @@ export type Database = {
         Row: {
           cleaning_date: string;
           completed_at: string | null;
+          completed_by_admin: string | null;
           created_at: string;
           duration_seconds: number | null;
           id: string;
@@ -2130,6 +2132,7 @@ export type Database = {
         Update: {
           cleaning_date?: string;
           completed_at?: string | null;
+          completed_by_admin?: string | null;
           created_at?: string;
           duration_seconds?: number | null;
           id?: string;
@@ -2192,6 +2195,7 @@ export type Database = {
           organization_id: string;
           role: Database["public"]["Enums"]["organization_role"];
           status?: Database["public"]["Enums"]["membership_status"];
+          team_id?: string | null;
           updated_at?: string;
           user_id: string;
         };
@@ -2205,6 +2209,7 @@ export type Database = {
           organization_id: string;
           role: Database["public"]["Enums"]["organization_role"];
           status: Database["public"]["Enums"]["membership_status"];
+          team_id: string | null;
           updated_at: string;
           user_id: string;
         };
@@ -2218,8 +2223,35 @@ export type Database = {
           organization_id?: string;
           role?: Database["public"]["Enums"]["organization_role"];
           status?: Database["public"]["Enums"]["membership_status"];
+          team_id?: string | null;
           updated_at?: string;
           user_id?: string;
+        };
+      };
+      teams: {
+        Insert: {
+          created_at?: string;
+          id?: string;
+          kind: Database["public"]["Enums"]["team_kind"];
+          name: string;
+          organization_id: string;
+          updated_at?: string;
+        };
+        Row: {
+          created_at: string;
+          id: string;
+          kind: Database["public"]["Enums"]["team_kind"];
+          name: string;
+          organization_id: string;
+          updated_at: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          kind?: Database["public"]["Enums"]["team_kind"];
+          name?: string;
+          organization_id?: string;
+          updated_at?: string;
         };
       };
       organizations: {
@@ -2596,6 +2628,7 @@ export type Database = {
         | "confirmed"
         | "no_show";
       room_status: "active" | "inactive" | "under_construction";
+      team_kind: "field" | "office";
       theme_preference: "dark" | "light" | "system";
     };
   };

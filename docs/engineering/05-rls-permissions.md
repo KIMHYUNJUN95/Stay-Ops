@@ -957,6 +957,23 @@ AND status = 'submitted'
 - `INSERT / UPDATE / DELETE`: `owner`, `office_admin`, `cs_staff`, plus platform/developer super admins
 - purpose: shared calendar building metadata consumed by both admin and mobile reservation calendar
 
+## 2026-07-14 teams (소속: 현장/사무실)
+
+**Phase 1 implemented (2026-07-14), migration `supabase/migrations/202607140001_teams.sql` — written,
+not yet applied.** See `docs/planning/01-decision-log.md` → 2026-07-14 and
+`docs/engineering/04-data-model.md` → `teams`.
+
+- `teams`:
+  - SELECT: `organization_id in (select organization_id from active memberships for auth.uid())` —
+    any active org member (assignment dropdowns / filters need to read team names).
+  - No INSERT/UPDATE/DELETE policies — writes go only through service-role server actions
+    (`setMemberTeam`, `src/app/admin/users/actions.ts`), gated by the same
+    `actorCanManageUsersInOrg` check as `memberships.manage_users` (developer default or an explicit
+    `manage_users` delegation).
+- `memberships.team_id`: no separate RLS — covered by the existing `memberships` SELECT/write policies
+  above. Writes to this column go through `setMemberTeam`, which additionally validates the target
+  team belongs to the same org as the membership before saving.
+
 ## 2026-07-13 User/Permission Model Rework
 
 Full decision record: `docs/planning/01-decision-log.md` → 2026-07-13 ("사용자/권한 모델 개편"). Summary

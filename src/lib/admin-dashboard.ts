@@ -5,6 +5,7 @@ import {
   getCleaningOperatingDateKey,
   getCleaningSessionsForDate,
 } from "@/lib/cleaning";
+import { getDisplaySessionRoomLabel } from "@/lib/room-label-normalization";
 import { getOrgMaintenanceReports } from "@/lib/maintenance-reports";
 import { getOrgLostItems } from "@/lib/lost-found";
 import { getOrgOrderRequests } from "@/lib/order-requests";
@@ -166,7 +167,7 @@ export async function getAdminDashboard(session: AppSession): Promise<AdminDashb
     .filter((s) => s.status === "in_progress")
     .map((s) => ({
       id: s.id,
-      room: s.room_label,
+      room: getDisplaySessionRoomLabel(s.room_label),
       taskLabel: s.task_label ?? "",
       staff: s.staff_name || "",
       startedAt: s.started_at ?? null,

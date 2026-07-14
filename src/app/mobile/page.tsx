@@ -33,7 +33,11 @@ import {
 } from "@/lib/home";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getVisibleAnnouncements } from "@/lib/announcements";
-import { CANONICAL_TO_BUILDING_KEY, getCanonicalPropertyName } from "@/lib/room-label-normalization";
+import {
+  CANONICAL_TO_BUILDING_KEY,
+  getCanonicalPropertyName,
+  getDisplayRoomLabel,
+} from "@/lib/room-label-normalization";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import "@/components/mobile/home-screen.css";
@@ -77,7 +81,9 @@ function localizeRoomLabel(rawRoom: string, buildingLabels: Record<string, strin
   const localizedBuilding = buildingLabels[buildingKey];
   if (!localizedBuilding) return rawRoom;
   const roomPart = rawRoom.slice(canonicalProperty.length).trim();
-  return roomPart ? `${localizedBuilding} ${roomPart}` : localizedBuilding;
+  // Collapse Arakicho sub-units (201_2 → 201) so the label matches every other room-facing screen.
+  const displayRoom = roomPart ? getDisplayRoomLabel(canonicalProperty, roomPart) : "";
+  return displayRoom ? `${localizedBuilding} ${displayRoom}` : localizedBuilding;
 }
 
 // Activity-event → log-row icon accent (mirrors the timeline dot meaning of the
@@ -368,7 +374,7 @@ export default async function MobileHomePage() {
                 <Timer aria-hidden="true" />
               </span>
               <div className="hm__task-b">
-                <div className="hm__task-t">{activeSession.data.room_label}</div>
+                <div className="hm__task-t">{localizeRoomLabel(activeSession.data.room_label, dictionary.cleaning.buildingLabels)}</div>
                 <div className="hm__task-s">{activeSession.data.task_label}</div>
               </div>
               <div className="hm__task-right">

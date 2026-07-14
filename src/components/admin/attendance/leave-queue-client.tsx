@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import {
-  ArrowUpDown,
   Ban,
   Calendar,
   CalendarPlus,
@@ -13,7 +12,6 @@ import {
   Clock,
   FileText,
   ScrollText,
-  Filter,
   Info,
   LogOut,
   Search,
@@ -46,7 +44,7 @@ import {
 } from "@/app/admin/attendance/leave/actions";
 import { loadLeaveApprovalDetail } from "@/app/admin/attendance/leave/detail-actions";
 import { AdminReasonModal } from "../shared/admin-reason-modal";
-import { ChipDropdown } from "../shared/admin-chip-dropdown";
+import { AdmDropdown } from "../shared/adm-dropdown";
 import { useAdminPanelA11y } from "../shared/use-admin-panel-a11y";
 import { LeaveRequestModal } from "./leave-request-modal";
 import { LeaveTeamCalendar } from "./leave-team-calendar";
@@ -525,40 +523,29 @@ export function LeaveQueueClient({
             </button>
           ) : null}
         </div>
-        <ChipDropdown
-          icon={<Filter />}
-          chipLabel={typeFilter ? lc.filterChipTypeWith(typeLabel(typeFilter, lc)) : lc.filterChipType}
-          allLabel={lc.filterChipAllOption}
-          options={typeOptions}
-          value={typeFilter}
-          onChange={(v) => setTypeFilter(v as LeaveType | null)}
-          ariaLabel={lc.filterChipType}
-          align="left"
-          fitTrigger
-        />
-        <ChipDropdown
-          icon={<ArrowUpDown />}
-          chipLabel={`${lc.sortLabel} · ${
-            sortBy === "days"
-              ? lc.sortDaysDesc
-              : sortBy === "soon"
-                ? lc.sortSoon
-                : sortBy === "name"
-                  ? lc.sortName
-                  : lc.sortSubmittedDesc
-          }`}
-          allLabel={lc.sortSubmittedDesc}
-          options={[
-            { value: "soon", label: lc.sortSoon },
-            { value: "days", label: lc.sortDaysDesc },
-            { value: "name", label: lc.sortName },
-          ]}
-          value={sortBy}
-          onChange={(v) => setSortBy(v)}
-          ariaLabel={lc.sortLabel}
-          align="left"
-          fitTrigger
-        />
+        <div style={{ width: 152, flex: "0 0 auto" }}>
+          <AdmDropdown
+            size="sm"
+            options={[{ value: "", label: lc.filterChipAllOption }, ...typeOptions]}
+            value={typeFilter ?? ""}
+            onChange={(v) => setTypeFilter((v || null) as LeaveType | null)}
+            ariaLabel={lc.filterChipType}
+          />
+        </div>
+        <div style={{ width: 176, flex: "0 0 auto" }}>
+          <AdmDropdown
+            size="sm"
+            options={[
+              { value: "", label: lc.sortSubmittedDesc },
+              { value: "soon", label: lc.sortSoon },
+              { value: "days", label: lc.sortDaysDesc },
+              { value: "name", label: lc.sortName },
+            ]}
+            value={sortBy ?? ""}
+            onChange={(v) => setSortBy(v || null)}
+            ariaLabel={lc.sortLabel}
+          />
+        </div>
         <button
           type="button"
           className="btn"

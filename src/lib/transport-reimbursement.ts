@@ -7,6 +7,7 @@
 // authenticated writes; see supabase/migrations/202606260001_transport_reimbursement.sql).
 
 import "server-only";
+import { getDisplaySessionRoomLabel } from "@/lib/room-label-normalization";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
 type Service = ReturnType<typeof getSupabaseServiceClient>;
@@ -393,11 +394,13 @@ export async function getLinkedTransportCandidates(
     const room = roomByLabel.get(row.room_label);
     const propertyId = room?.propertyId;
     const buildingLabel = (propertyId ? propertyNames.get(propertyId) : null) ?? "";
-    const summaryParts = [buildingLabel, row.room_label].filter(Boolean);
+    // Collapse Arakicho sub-units (201_2 → 201) for the user-facing statement; matching above keeps raw.
+    const displayRoomLabel = getDisplaySessionRoomLabel(row.room_label);
+    const summaryParts = [buildingLabel, displayRoomLabel].filter(Boolean);
     const contextSummary = summaryParts.join(" · ");
     const workContext: Record<string, string> = {};
     if (buildingLabel) workContext.buildingLabel = buildingLabel;
-    if (row.room_label) workContext.roomLabel = row.room_label;
+    if (displayRoomLabel) workContext.roomLabel = displayRoomLabel;
     if (row.task_label) workContext.taskLabel = row.task_label;
     candidates.push({
       type: "cleaning",

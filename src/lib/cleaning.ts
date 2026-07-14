@@ -30,6 +30,20 @@ export const cleaningMobileAccessRoles = [
   "part_time_staff",
 ] as const satisfies readonly Role[];
 
+// Roles allowed to force-complete a cleaning session on another staff member's behalf from the
+// admin console (관리자 대리 완료). Matches docs/product/07-cleaning-workflow.md → 강제완료 스펙.
+export const cleaningForceCompleteRoles = [
+  "developer_super_admin",
+  "owner",
+  "senior_managing_director",
+  "office_admin",
+  "field_manager",
+] as const satisfies readonly Role[];
+
+export function canForceCompleteCleaning(role: string) {
+  return (cleaningForceCompleteRoles as readonly string[]).includes(role);
+}
+
 export function isCleaningTaskKey(
   value: string,
 ): value is (typeof cleaningTaskKeys)[number] {
@@ -101,6 +115,63 @@ export async function getOrgTodayCleaningRoomLabels(
 
   if (error) throw new Error(error.message);
   return (data ?? []) as { room_label: string; status: string }[];
+}
+
+// Full session rows for the org, today (org-wide, every staff member) — used by the admin console
+// to overlay real cleaning-session status onto the reservation-derived today targets.
+export async function getOrgTodayCleaningSessions(
+  organizationId: string,
+): Promise<CleaningSessionRow[]> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .from("cleaning_sessions")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .eq("cleaning_date", getCleaningOperatingDateKey())
+    .order("started_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CleaningSessionRow[];
+}
+
+export type CleaningStaffOption = { id: string; name: string };
+
+// Org members eligible to be assigned a cleaning session (mobile field roles), for the admin
+// console's staff filter/summary/force-complete assignee picker. Narrower than
+// getOrgMemberOptions, which returns every org member regardless of role.
+export async function getCleaningStaffOptions(
+  organizationId: string,
+): Promise<CleaningStaffOption[]> {
+  const supabase = await getSupabase();
+  // cleaningMobileAccessRoles includes "developer_super_admin" (platform-only); memberships.role is
+  // the organization_role DB enum, which never stores that value — passing it through `.in()` makes
+  // Postgres reject the whole query (invalid enum input), silently emptying this list. Filter it out
+  // before querying (same pattern as orgAdminWebRoles in admin/announcements/[id]/page.tsx).
+  const queryableRoles = (cleaningMobileAccessRoles as readonly string[]).filter(
+    (role) => role !== "developer_super_admin",
+  );
+  const { data: membershipData, error } = await supabase
+    .from("memberships")
+    .select("user_id, role, status")
+    .eq("organization_id", organizationId)
+    .eq("status", "active")
+    .in("role", queryableRoles);
+
+  if (error) throw new Error(error.message);
+
+  const userIds = [...new Set((membershipData ?? []).map((m) => (m as { user_id: string }).user_id))];
+  if (userIds.length === 0) return [];
+
+  const { data: profileData, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, name")
+    .in("id", userIds);
+
+  if (profileError) throw new Error(profileError.message);
+
+  return ((profileData ?? []) as ProfileName[])
+    .map((profile) => ({ id: profile.id, name: profile.name }))
+    .sort((a, b) => a.name.localeCompare(b.name, "ko"));
 }
 
 export async function getCleaningSessionsForDate(

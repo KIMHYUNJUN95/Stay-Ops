@@ -16,6 +16,66 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **Organization rename + guarded delete added (2026-07-14).** `/admin/settings/organization`
+  (developer-only) now supports **rename (name only)** via `updateOrganization` and **delete** via
+  `deleteOrganization`. Delete is **guarded to EMPTY orgs (zero members)** because every org-scoped
+  table FKs `organization_id` with `ON DELETE CASCADE` — deleting a populated org would wipe all its
+  data. Non-empty orgs show a "empty it first" note instead of a delete button; the server re-checks
+  and rejects with `org_not_empty`. Slug stays fixed (referenced by links/caches). Create already
+  existed. Page still uses the legacy shadcn styling (design unification pending).
+- **Org model direction decided (2026-07-14): single org + field/office view label (Option A).** The
+  user clarified that "one team split only for viewing" should NOT become multiple data-isolated orgs
+  sharing data (that would require gutting the RLS/isolation model). Instead, an org stays the tenant
+  boundary, and a **field/office (site/department) attribute becomes a view/filter dimension WITHIN one
+  org** so all data is naturally shared. **Phase 1 implemented (2026-07-14): the label attaches to
+  `memberships` via a new `teams` table** (`kind` = field/office, `name` for future sub-teams). New
+  migration `supabase/migrations/202607140001_teams.sql` (seeds 현장/사무실 defaults per org + backfills
+  existing members by role; RLS = org-member SELECT, service-role writes) — **written but not yet
+  applied** to the linked Supabase project. `src/types/database.ts` hand-updated. New server action
+  `setMemberTeam` (`src/app/admin/users/actions.ts`) and helper `getOrgTeams`
+  (`src/lib/teams.ts`). `/admin/users/[id]` gained a 소속 (현장/사무실/미지정) dropdown + save; `/admin/users`
+  directory gained a 소속 column + filter. i18n added ko/ja/en (`admin.users.console.team*`,
+  `filterAllTeams`). tsc 0 / lint 0 errors. **Later phases (not built):** team CRUD (creating sub-teams
+  beyond the two defaults) and team filters on 근태/청소/대시보드 screens. See
+  `docs/planning/01-decision-log.md` → 2026-07-14, `docs/product/01-user-roles.md`,
+  `docs/engineering/04-data-model.md` → `teams`.
+- **Admin dropdown unified to a single standard `.dd` (AdmDropdown) (2026-07-13).** 사용자 화면의
+  `.dd` 하나로 통일: 근태 큐(출근·연차) 칩 필터 4곳과 초대(invites) 네이티브 `<select>` 2곳을 `.dd`로
+  이관, 폐기된 칩형 `ChipDropdown`(`admin-chip-dropdown.tsx`) 삭제. `.dd` CSS는 `admin-console.css`로,
+  컴포넌트는 `components/admin/shared/`로 이동(폼용 `DdFormSelect` 추가). 청소 등 신규 대시보드는 이
+  표준을 사용. tsc 0 / lint 0 errors. 상세: `docs/planning/01-decision-log.md` → 2026-07-13.
+  **후속(2026-07-14):** 두 번째 커스텀 드롭다운 `AdminSelectField`(`.selfield`)도 폐기·삭제(근태 수기
+  세션·수당 3곳 → `.dd`, `AdmDropdown`에 `disabled` 추가), 초대 만료일 네이티브 date → `AdminDatePicker`
+  (`DateFormField` 래퍼). 어드민 드롭다운/선택 컨트롤은 이제 `.dd` 하나로 완전 통일. tsc 0 / lint 0 errors.
+- **Cleaning admin dashboard re-planned (감시·이력·강제완료) (2026-07-13); design implemented
+  2026-07-14.** 기존 읽기 전용 `/admin/cleaning`을 Claude Design 핸드오프 기준으로 전면 재설계
+  구현했다(오늘 현황 KPI 6-스트립 + 건물별/상태별 객실 카드 + 셋팅 대상 + 직원별 요약, 기록 탭
+  필터+테이블, 우측 상세 패널, 강제완료 모달) — 처음엔 **정적 mock 데이터** 단계였으나 아래
+  2026-07-14 후속에서 백엔드 전면 연동 완료. 새 파일:
+  `src/components/admin/cleaning/*`(`cleaning-console.tsx` 외 5개 + 데이터/CSS), i18n
+  `cleaning.console.*`(ko/ja/en). 공용 `.dd`/`AdminDatePicker`/`AdminTimePicker`/`.panel`/`.modal`을
+  그대로 재사용. 부수 수정: `admin-console.css`의 `--mono` 토큰에 `--font-noto-kr`/`--font-noto-jp`
+  폴백 추가(모노스페이스 요소 안의 한글 깨짐 수정, 전 어드민 화면 영향). 상세 스펙+디자인 프롬프트+
+  구현 노트는 `docs/product/07-cleaning-workflow.md` → "2026-07-13 어드민 청소 대시보드 — 재기획".
+  tsc 0 / lint 0 errors. 다음 단계: `completed_by_admin` 마이그레이션 + 실제 데이터 연동.
+  **후속(2026-07-14): 기록 탭 Excel/PDF export 구현.** 근태 급여 export와 동일한 그린 렛저
+  템플릿(`attendance-payroll-workbook.ts`/`attendance-payroll-report.ts`의 색상·테두리 상수 재사용,
+  새 템플릿 없음). 컬럼: No·날짜·건물·객실·청소유형·담당자·시작/종료시각·소요시간·구분(정상/대리
+  완료)·메모 + 합계 행. 서버 액션(`src/app/admin/cleaning/actions.ts`)이 세션의
+  `preferredLanguage`로 문서를 만들어 **로그인 언어 그대로 출력**(근태와 동일 원칙, 클라이언트가
+  로케일을 넘기지 않음). 상세: `docs/product/07-cleaning-workflow.md` → "2026-07-14 청소 기록
+  내보내기". tsc 0 / lint 0 errors.
+  **후속(2026-07-14): 백엔드 전면 연동 완료.** 정적 mock 데이터를 실제 `cleaning_sessions` + 예약
+  데이터로 전면 교체 — 오늘 현황/기록/강제완료/export 전부 실데이터. 신규 마이그레이션
+  `202607150001`(`cleaning_sessions.completed_by_admin` 컬럼, 원격 프로젝트에 적용 완료). 신규
+  `src/lib/admin-cleaning.ts`(실데이터 레이어), `forceCompleteCleaningSession`/
+  `fetchAdminCleaningHistory` 서버 액션(`src/app/admin/cleaning/actions.ts`). 룸키 해석 로직을
+  `src/lib/room-label-normalization.ts`로 공용화(모바일 청소 페이지와 어드민이 함께 사용, 중복 제거).
+  셋팅 대상 정의를 모바일과 동일하게 통일(체크아웃 없는 순수 입실 객실만). 강제완료는 `router.refresh()`
+  기반(낙관적 로컬 패치 없음), 오늘 현황은 60초 폴링 + 수동 동기화 칩으로 갱신. 상세:
+  `docs/product/07-cleaning-workflow.md` → "2026-07-14 어드민 청소 대시보드 — 백엔드 연동". tsc 0 /
+  lint 0 errors. **로그인 세션이 필요한 실제 클릭 동작(강제완료·기간 재조회·export)은 라이브 테스트
+  못함 — 사용자 확인 필요.**
 - **Invite-code (team code) management moved from Settings to Users (2026-07-13).**
   `/admin/settings/invite-codes` moved to `/admin/users/invites`; the old path now just redirects.
   `/admin/users` and `/admin/users/invites` share a "멤버 목록"/"멤버 초대" tab switcher. The create/
@@ -24,6 +84,10 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   check that had also been silently blocking 전무 from creating invite codes. The invite-role grant
   ceiling (developer/owner/전무 = any category, others = `officeAdminAssignableRoles` only) is
   unchanged. See `docs/planning/01-decision-log.md` → 2026-07-13.
+  **Invite delete added (2026-07-14):** `/admin/users/invites` can now **hard-delete** invite codes
+  (`deleteInviteCode`, org-scoped, `.ovconfirm` confirm) for both active and inactive codes, alongside
+  the existing deactivate. Members who already joined keep their memberships. Invite limits
+  (expiry / max-uses / active flag) unchanged. See `docs/product/04-organization-invitations.md`.
 - **Onboarding recovery UX hardened (2026-07-10).** The profile-setup wizard now shows an explicit
   return-to-login action on every step (sign-out + `/auth/login`, language preserved), so a user who
   entered with the wrong email/Google account is no longer trapped in onboarding. Duplicate

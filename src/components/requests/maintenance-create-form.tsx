@@ -116,16 +116,18 @@ export function MaintenanceCreateForm({
 
   const buildings = Array.from(new Set(roomCatalog.map((item) => item.propertyName))).sort();
 
+  // Use displayRoomLabel (not canonicalRoomLabel) so Arakicho sub-units (201 / 201_2 = the same
+  // physical room, two Beds24 accounts) collapse to one "201" entry — matching the reservation calendar.
   const availableRooms = (() => {
     const seen = new Set<string>();
     const result: string[] = [];
     for (const item of roomCatalog) {
-      if (item.propertyName === selectedBuilding && !seen.has(item.canonicalRoomLabel)) {
-        seen.add(item.canonicalRoomLabel);
-        result.push(item.canonicalRoomLabel);
+      if (item.propertyName === selectedBuilding && !seen.has(item.displayRoomLabel)) {
+        seen.add(item.displayRoomLabel);
+        result.push(item.displayRoomLabel);
       }
     }
-    return result.sort((a, b) => a.localeCompare(b));
+    return result.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   })();
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -297,20 +299,36 @@ export function MaintenanceCreateForm({
                 </button>
                 {roomOpen && selectedBuilding && (
                   <ul className="absolute left-0 z-50 mt-1.5 max-h-60 w-full overflow-y-auto rounded-2xl border border-slate-200/80 bg-white p-1 shadow-[0_18px_40px_-24px_rgba(31,58,95,0.55)] divide-y divide-slate-100">
-                    {availableRooms.map((canonicalLabel) => (
+                    {/* Building-only option: report a whole-building/common-area issue with no specific room. */}
+                    <li
+                      className={cn(
+                        "flex items-center h-10 w-full px-3 text-sm font-bold rounded-lg cursor-pointer transition-colors",
+                        selectedRoom === copy.form.roomBuildingOnly
+                          ? "bg-sky-50 text-sky-700"
+                          : "text-slate-600 hover:bg-slate-50"
+                      )}
+                      onClick={() => {
+                        setSelectedRoom(copy.form.roomBuildingOnly);
+                        setRoomOpen(false);
+                        if (validationError) setValidationError(null);
+                      }}
+                    >
+                      {copy.form.roomBuildingOnly}
+                    </li>
+                    {availableRooms.map((roomLabel) => (
                       <li
                         className={cn(
                           "flex items-center h-10 w-full px-3 text-sm font-semibold rounded-lg cursor-pointer transition-colors",
-                          selectedRoom === canonicalLabel ? "bg-sky-50 text-sky-700" : "text-slate-700 hover:bg-slate-50"
+                          selectedRoom === roomLabel ? "bg-sky-50 text-sky-700" : "text-slate-700 hover:bg-slate-50"
                         )}
-                        key={canonicalLabel}
+                        key={roomLabel}
                         onClick={() => {
-                          setSelectedRoom(canonicalLabel);
+                          setSelectedRoom(roomLabel);
                           setRoomOpen(false);
                           if (validationError) setValidationError(null);
                         }}
                       >
-                        {canonicalLabel}
+                        {roomLabel}
                       </li>
                     ))}
                   </ul>

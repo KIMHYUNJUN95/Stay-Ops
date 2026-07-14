@@ -1,10 +1,14 @@
 import { redirect } from "next/navigation";
 import { Ticket } from "lucide-react";
 import {
+  activateInviteCode,
   createInviteCode,
   deactivateInviteCode,
 } from "@/app/admin/settings/actions";
+import { InviteDeleteButton } from "@/components/admin/users/invite-delete-button";
 import { AdminShell } from "@/components/shell/admin-shell";
+import { DdFormSelect } from "@/components/admin/shared/dd-form-select";
+import { DateFormField } from "@/components/admin/shared/date-form-field";
 import { UsersSectionTabs } from "@/components/admin/users/users-section-tabs";
 import "@/components/admin/users-console.css";
 import type { OrganizationRole } from "@/config/roles";
@@ -130,6 +134,8 @@ export default async function AdminUsersInvitesPage({ searchParams }: PageProps)
 
   const created = firstParam(params.created) === "1";
   const deactivated = firstParam(params.deactivated) === "1";
+  const activated = firstParam(params.activated) === "1";
+  const deleted = firstParam(params.deleted) === "1";
   const errorKey = firstParam(params.error);
 
   return (
@@ -149,10 +155,12 @@ export default async function AdminUsersInvitesPage({ searchParams }: PageProps)
             {settings.inviteCodesDescription}
           </p>
 
-          {(created || deactivated || errorKey) && (
+          {(created || deactivated || activated || deleted || errorKey) && (
             <div className="ui-banner" style={{ marginTop: 16 }}>
               {created && settings.success.inviteCreated}
               {deactivated && settings.success.inviteDeactivated}
+              {activated && settings.success.inviteActivated}
+              {deleted && settings.success.inviteDeleted}
               {errorKey &&
                 (settings.errors[errorKey] ?? settings.errors.save_failed)}
             </div>
@@ -162,14 +170,15 @@ export default async function AdminUsersInvitesPage({ searchParams }: PageProps)
             action={createInviteCode}
             style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 12 }}
           >
-            <select className="ui-input" name="organizationId" required defaultValue="">
-              <option value="">{settings.organization}</option>
-              {organizations.map((organization) => (
-                <option key={organization.id} value={organization.id}>
-                  {organization.name}
-                </option>
-              ))}
-            </select>
+            <DdFormSelect
+              name="organizationId"
+              placeholder={settings.organization}
+              ariaLabel={settings.organization}
+              options={organizations.map((organization) => ({
+                value: organization.id,
+                label: organization.name,
+              }))}
+            />
             <input
               className="ui-input"
               name="name"
@@ -183,14 +192,26 @@ export default async function AdminUsersInvitesPage({ searchParams }: PageProps)
               required
               spellCheck={false}
             />
-            <select className="ui-input" name="defaultRole" required>
-              {selectableDefaultRoles.map((role) => (
-                <option key={role} value={role}>
-                  {dictionary.roles[role]}
-                </option>
-              ))}
-            </select>
-            <input className="ui-input" name="expiresAt" required type="date" />
+            <DdFormSelect
+              name="defaultRole"
+              defaultValue={selectableDefaultRoles[0]}
+              ariaLabel={settings.create}
+              options={selectableDefaultRoles.map((role) => ({
+                value: role,
+                label: dictionary.roles[role],
+              }))}
+            />
+            <DateFormField
+              name="expiresAt"
+              localeTag={session.user.preferredLanguage}
+              ariaLabel={tabs.datePlaceholder}
+              placeholder={tabs.datePlaceholder}
+              labels={{
+                prevMonth: tabs.datePrev,
+                nextMonth: tabs.dateNext,
+                today: tabs.dateToday,
+              }}
+            />
             <input
               className="ui-input"
               min={1}
@@ -237,28 +258,44 @@ export default async function AdminUsersInvitesPage({ searchParams }: PageProps)
                       {inviteCode.used_count}/{inviteCode.max_uses}
                     </p>
                   </div>
-                  <div style={{ display: "flex", flexShrink: 0, alignItems: "center", gap: 8 }}>
-                    <span
-                      className={`ui-badge ui-badge--${inviteCode.is_active ? "green" : "muted"}`}
-                    >
-                      {inviteCode.is_active
-                        ? dictionary.common.active
-                        : dictionary.common.inactive}
-                    </span>
-                    {inviteCode.is_active && (
-                      <form action={deactivateInviteCode}>
-                        <input name="inviteCodeId" type="hidden" value={inviteCode.id} />
-                        <input
-                          name="organizationId"
-                          type="hidden"
-                          value={inviteCode.organization_id}
-                        />
-                        <button type="submit" className="ui-btn ui-btn--secondary ui-btn--sm">
-                          {settings.deactivate}
-                        </button>
-                      </form>
-                    )}
-                  </div>
+                  <span
+                    className={`ui-badge ui-badge--${inviteCode.is_active ? "green" : "muted"}`}
+                    style={{ flexShrink: 0 }}
+                  >
+                    {inviteCode.is_active
+                      ? dictionary.common.active
+                      : dictionary.common.inactive}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    gap: 8,
+                    marginTop: 12,
+                  }}
+                >
+                  <form action={inviteCode.is_active ? deactivateInviteCode : activateInviteCode}>
+                    <input name="inviteCodeId" type="hidden" value={inviteCode.id} />
+                    <input
+                      name="organizationId"
+                      type="hidden"
+                      value={inviteCode.organization_id}
+                    />
+                    <button type="submit" className="ui-btn ui-btn--secondary ui-btn--sm">
+                      {inviteCode.is_active ? settings.deactivate : settings.activate}
+                    </button>
+                  </form>
+                  <InviteDeleteButton
+                    inviteCodeId={inviteCode.id}
+                    organizationId={inviteCode.organization_id}
+                    labels={{
+                      delete: tabs.deleteBtn,
+                      cancel: tabs.cancel,
+                      confirm: settings.inviteDeleteConfirm,
+                    }}
+                  />
                 </div>
               </div>
             ))}

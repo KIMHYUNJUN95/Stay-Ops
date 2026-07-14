@@ -136,6 +136,81 @@ export async function createOrganization(formData: FormData) {
   redirect("/admin/settings/organization?created=1");
 }
 
+export async function updateOrganization(formData: FormData) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    redirect("/auth/login?next=/admin/settings/organization");
+  }
+
+  const role = await getCurrentRole(userId);
+  if (role !== "developer_super_admin") {
+    redirect("/admin/settings/organization?error=forbidden");
+  }
+
+  const organizationId = String(formData.get("organizationId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  if (!organizationId || !name) {
+    redirect("/admin/settings/organization?error=invalid_organization");
+  }
+
+  // Name only — slug is left fixed because it can be referenced by links/caches (see org settings UI).
+  const { error } = await getSupabaseServiceClient()
+    .from("organizations")
+    .update({ name } as never)
+    .eq("id", organizationId);
+
+  if (error) {
+    redirect("/admin/settings/organization?error=save_failed");
+  }
+
+  redirect("/admin/settings/organization?updated=1");
+}
+
+export async function deleteOrganization(formData: FormData) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    redirect("/auth/login?next=/admin/settings/organization");
+  }
+
+  const role = await getCurrentRole(userId);
+  if (role !== "developer_super_admin") {
+    redirect("/admin/settings/organization?error=forbidden");
+  }
+
+  const organizationId = String(formData.get("organizationId") ?? "");
+  if (!organizationId) {
+    redirect("/admin/settings/organization?error=invalid_organization");
+  }
+
+  const service = getSupabaseServiceClient();
+
+  // Guard: only an EMPTY org (zero members) may be deleted. Every org-scoped table FKs
+  // organization_id with ON DELETE CASCADE, so deleting a populated org would silently wipe all of
+  // its data (members, attendance, cleaning, reservations, …). Block that here.
+  const { count, error: countError } = await service
+    .from("memberships")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId);
+
+  if (countError) {
+    redirect("/admin/settings/organization?error=save_failed");
+  }
+  if ((count ?? 0) > 0) {
+    redirect("/admin/settings/organization?error=org_not_empty");
+  }
+
+  const { error } = await service
+    .from("organizations")
+    .delete()
+    .eq("id", organizationId);
+
+  if (error) {
+    redirect("/admin/settings/organization?error=save_failed");
+  }
+
+  redirect("/admin/settings/organization?deleted=1");
+}
+
 export async function createInviteCode(formData: FormData) {
   const userId = await getCurrentUserId();
   if (!userId) {
@@ -232,4 +307,69 @@ export async function deactivateInviteCode(formData: FormData) {
   }
 
   redirect("/admin/users/invites?deactivated=1");
+}
+
+export async function activateInviteCode(formData: FormData) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    redirect("/auth/login?next=/admin/users/invites");
+  }
+
+  const role = await getCurrentRole(userId);
+  const inviteCodeId = String(formData.get("inviteCodeId") ?? "");
+  const organizationId = String(formData.get("organizationId") ?? "");
+
+  if (!role || !inviteCodeId || !organizationId) {
+    redirect("/admin/users/invites?error=forbidden");
+  }
+
+  if (!(await canManageInvites(userId, organizationId, role))) {
+    redirect("/admin/users/invites?error=forbidden");
+  }
+
+  const { error } = await getSupabaseServiceClient()
+    .from("invite_codes")
+    .update({ is_active: true } as never)
+    .eq("id", inviteCodeId)
+    .eq("organization_id", organizationId);
+
+  if (error) {
+    redirect("/admin/users/invites?error=save_failed");
+  }
+
+  redirect("/admin/users/invites?activated=1");
+}
+
+export async function deleteInviteCode(formData: FormData) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    redirect("/auth/login?next=/admin/users/invites");
+  }
+
+  const role = await getCurrentRole(userId);
+  const inviteCodeId = String(formData.get("inviteCodeId") ?? "");
+  const organizationId = String(formData.get("organizationId") ?? "");
+
+  if (!role || !inviteCodeId || !organizationId) {
+    redirect("/admin/users/invites?error=forbidden");
+  }
+
+  if (!(await canManageInvites(userId, organizationId, role))) {
+    redirect("/admin/users/invites?error=forbidden");
+  }
+
+  // Hard delete (MVP deletion policy). Org-scoped so a code can only be deleted from within its own
+  // organization. Members who already joined with this code keep their memberships — only the code
+  // record is removed.
+  const { error } = await getSupabaseServiceClient()
+    .from("invite_codes")
+    .delete()
+    .eq("id", inviteCodeId)
+    .eq("organization_id", organizationId);
+
+  if (error) {
+    redirect("/admin/users/invites?error=save_failed");
+  }
+
+  redirect("/admin/users/invites?deleted=1");
 }

@@ -13,6 +13,7 @@ import { uploadRequestImages } from "@/components/requests/request-image-upload"
 import type { Dictionary } from "@/lib/i18n";
 import type { ActiveRoomCatalogItem } from "@/lib/rooms";
 import { resolveRequestCatalogLocation } from "@/lib/request-location";
+import { getDisplayRoomLabel } from "@/lib/room-label-normalization";
 
 type LostFoundLinkedFormProps = {
   buildingLabels: Record<string, string>;
@@ -65,7 +66,9 @@ export function LostFoundLinkedForm({
 
   const resolvedLocation = resolveRequestCatalogLocation(defaultRoom, roomCatalog, buildingLabels);
   const defaultBuilding = initialPropertyName || resolvedLocation.buildingName || "";
-  const canonicalRoom = resolvedLocation.canonicalRoomLabel;
+  // Collapse Arakicho sub-units (201_2 → 201) to match the picker / calendar. The cleaning_session_id
+  // FK keeps the exact session link regardless of the room label.
+  const canonicalRoom = getDisplayRoomLabel(defaultBuilding, resolvedLocation.canonicalRoomLabel);
   const buildingDisplay = resolvedLocation.buildingLabel ?? copy.form.noBuildingInfo;
   const roomDisplay = canonicalRoom || copy.form.noRoomInfo;
 

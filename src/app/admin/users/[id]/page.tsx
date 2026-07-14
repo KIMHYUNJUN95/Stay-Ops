@@ -9,6 +9,7 @@ import { actorCanOpenUserManagement } from "@/lib/user-management-access";
 import { isOrgTopAdmin } from "@/config/roles";
 import { getDictionary } from "@/lib/i18n";
 import { listMemberOverrides } from "@/lib/permission-overrides-server";
+import { getOrgTeams } from "@/lib/teams";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
 
@@ -30,7 +31,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
   const { data: membershipData } = await service
     .from("memberships")
     .select(
-      "id, organization_id, user_id, role, status, joined_at, attendance_payroll_admin, leave_approver_role, manage_users",
+      "id, organization_id, user_id, role, status, joined_at, attendance_payroll_admin, leave_approver_role, manage_users, team_id",
     )
     .eq("id", id)
     .maybeSingle();
@@ -46,6 +47,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
     | "attendance_payroll_admin"
     | "leave_approver_role"
     | "manage_users"
+    | "team_id"
   >;
 
   // Scope guard: non-super-admins may only view members of their own organization.
@@ -82,6 +84,8 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
     ? await listMemberOverrides(membership.organization_id, membership.user_id)
     : [];
 
+  const teams = await getOrgTeams(membership.organization_id);
+
   const member: UserDetailVM = {
     membershipId: membership.id,
     userId: membership.user_id,
@@ -97,6 +101,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
     leaveApprover: membership.leave_approver_role != null,
     isDeveloper: memberIsDeveloper,
     manageUsers: membership.manage_users ?? false,
+    teamId: membership.team_id ?? null,
   };
 
   return (
@@ -108,6 +113,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
         isDeveloperViewer={isDeveloperViewer}
         currentUserName={session.user.name ?? ""}
         initialOverrides={overrides}
+        teams={teams}
       />
     </AdminShell>
   );

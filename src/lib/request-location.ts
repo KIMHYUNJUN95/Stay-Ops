@@ -37,20 +37,16 @@ function fromCatalogItem(
 ): RequestLocationDisplay {
   return {
     buildingLabel: localizePropertyName(item.propertyName, buildingLabels),
-    roomLabel: item.canonicalRoomLabel,
+    // Display the collapsed room (Arakicho 201_2 → 201), never the raw sub-unit.
+    roomLabel: item.displayRoomLabel,
   };
 }
 
 function isSessionLabelMatch(item: ActiveRoomCatalogItem, trimmed: string) {
-  const canonicalCombined =
-    item.canonicalRoomLabel === item.propertyName
-      ? item.propertyName
-      : `${item.propertyName} ${item.canonicalRoomLabel}`;
-  const rawCombined =
-    item.roomLabel === item.propertyName
-      ? item.propertyName
-      : `${item.propertyName} ${item.roomLabel}`;
-  return trimmed === canonicalCombined || trimmed === rawCombined;
+  const combos = [item.canonicalRoomLabel, item.roomLabel, item.displayRoomLabel].map((room) =>
+    room === item.propertyName ? item.propertyName : `${item.propertyName} ${room}`,
+  );
+  return combos.includes(trimmed);
 }
 
 export function resolveRequestCatalogLocation(
@@ -76,21 +72,28 @@ export function resolveRequestCatalogLocation(
       buildingName: combinedMatch.propertyName,
       canonicalRoomLabel: combinedMatch.canonicalRoomLabel,
       item: combinedMatch,
-      roomLabel: combinedMatch.canonicalRoomLabel,
+      roomLabel: combinedMatch.displayRoomLabel,
     };
   }
 
   const exactMatches = catalog.filter(
-    (item) => item.canonicalRoomLabel === trimmed || item.roomLabel === trimmed,
+    (item) =>
+      item.canonicalRoomLabel === trimmed ||
+      item.roomLabel === trimmed ||
+      item.displayRoomLabel === trimmed,
   );
-  if (exactMatches.length === 1) {
+  // Sub-units (201, 201_2) map to one physical room, so 1+ matches that all resolve to the same
+  // building+display room is unambiguous — take the first. (displayRoomLabel matching also recovers
+  // the building for newer records stored as the collapsed "201".)
+  const samePhysical = new Set(exactMatches.map((m) => `${m.propertyName}::${m.displayRoomLabel}`));
+  if (exactMatches.length >= 1 && samePhysical.size === 1) {
     const match = exactMatches[0];
     return {
       buildingLabel: localizePropertyName(match.propertyName, buildingLabels),
       buildingName: match.propertyName,
       canonicalRoomLabel: match.canonicalRoomLabel,
       item: match,
-      roomLabel: match.canonicalRoomLabel,
+      roomLabel: match.displayRoomLabel,
     };
   }
 
@@ -129,9 +132,13 @@ export function resolveRequestLocation(
   }
 
   const exactMatches = catalog.filter(
-    (item) => item.canonicalRoomLabel === trimmed || item.roomLabel === trimmed,
+    (item) =>
+      item.canonicalRoomLabel === trimmed ||
+      item.roomLabel === trimmed ||
+      item.displayRoomLabel === trimmed,
   );
-  if (exactMatches.length === 1) {
+  const samePhysical = new Set(exactMatches.map((m) => `${m.propertyName}::${m.displayRoomLabel}`));
+  if (exactMatches.length >= 1 && samePhysical.size === 1) {
     return fromCatalogItem(exactMatches[0], buildingLabels);
   }
 

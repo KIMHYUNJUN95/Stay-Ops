@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 
 export type ManualRoomEntry = {
   canonicalRoomLabel: string;
+  /** Collapsed label shown to the user (Arakicho 201_2 → 201). sessionRoomLabel stays canonical. */
+  displayRoomLabel: string;
   sessionRoomLabel: string;
 };
 
@@ -329,7 +331,7 @@ export function ManualCleaningForm({
   const roomOptions: SelectOption[] = (selectedBuilding?.rooms ?? []).map(
     (r) => ({
       value: r.sessionRoomLabel,
-      label: r.canonicalRoomLabel,
+      label: r.displayRoomLabel,
     }),
   );
   const taskSelectOptions: SelectOption[] = taskOptions.map((t) => ({

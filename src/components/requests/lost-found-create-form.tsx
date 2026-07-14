@@ -102,18 +102,18 @@ export function LostFoundCreateForm({
   // Deduplicate and sort active properties
   const buildings = Array.from(new Set(roomCatalog.map((item) => item.propertyName))).sort();
 
-  // Canonical rooms for the selected building — deduped by canonicalRoomLabel (first entry wins),
-  // matching the same deduplication policy used in the calendar room axis.
+  // Rooms for the selected building — deduped by displayRoomLabel so Arakicho sub-units (201 / 201_2
+  // = the same physical room, two Beds24 accounts) collapse to one "201" entry, matching the calendar.
   const availableRooms = (() => {
     const seen = new Set<string>();
     const result: string[] = [];
     for (const item of roomCatalog) {
-      if (item.propertyName === selectedBuilding && !seen.has(item.canonicalRoomLabel)) {
-        seen.add(item.canonicalRoomLabel);
-        result.push(item.canonicalRoomLabel);
+      if (item.propertyName === selectedBuilding && !seen.has(item.displayRoomLabel)) {
+        seen.add(item.displayRoomLabel);
+        result.push(item.displayRoomLabel);
       }
     }
-    return result.sort((a, b) => a.localeCompare(b));
+    return result.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   })();
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import {
   getCanonicalPropertyName,
   getCanonicalRoomLabel,
+  getDisplayRoomLabel,
 } from "@/lib/room-label-normalization";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
 import { getCurrentAppSession } from "@/lib/session";
@@ -86,8 +87,10 @@ export async function createLostItem(formData: FormData) {
     redirect(`/mobile/lost-found/new?error=save_failed${sessionParam}`);
   }
 
+  // The form submits the collapsed displayRoomLabel ("201", not "201_2"), so validate against
+  // displayRoomLabel — otherwise a room whose only active Beds24 account is a "_2" sub-unit would fail.
   const isValidCombination = catalog.some(
-    (item) => item.propertyName === propertyName && item.canonicalRoomLabel === roomLabel
+    (item) => item.propertyName === propertyName && item.displayRoomLabel === roomLabel
   );
   if (!isValidCombination) {
     redirect(`/mobile/lost-found/new?error=invalid_room${sessionParam}`);
@@ -164,9 +167,11 @@ export async function createLostItem(formData: FormData) {
     }
 
     const linkedPropertyName = getCanonicalPropertyName(linkedReservation.property_name);
-    const linkedRoomLabel =
+    const linkedCanonical =
       getCanonicalRoomLabel(linkedPropertyName, linkedReservation.room_label) ??
       linkedReservation.room_label.trim();
+    // Compare against the collapsed display label — the form sends "201", the reservation may be "201_2".
+    const linkedRoomLabel = getDisplayRoomLabel(linkedPropertyName, linkedCanonical);
 
     if (linkedPropertyName !== propertyName || linkedRoomLabel !== roomLabel) {
       redirect(`/mobile/lost-found/new?error=save_failed${sessionParam}`);

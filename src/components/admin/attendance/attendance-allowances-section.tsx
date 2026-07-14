@@ -17,7 +17,7 @@ import {
 } from "@/app/admin/attendance/actions";
 import { AdminDatePicker } from "../shared/admin-date-picker";
 import { AdminReasonModal } from "../shared/admin-reason-modal";
-import { AdminSelectField } from "../shared/admin-select-field";
+import { AdmDropdown } from "../shared/adm-dropdown";
 import { AdminToast, useAdminToast } from "../shared/admin-toast";
 import { formatAdminYen } from "../shared/admin-format";
 
@@ -255,7 +255,7 @@ export function AttendanceAllowancesSection({
 
           <div className="wreason">
             <div className="wfield__l">{c.allowFieldCategory}</div>
-            <AdminSelectField
+            <AdmDropdown
               value={category}
               onChange={(v) => setCategory(v as Category)}
               options={CATEGORIES.map((cat) => ({ value: cat, label: categoryLabel(cat, c) }))}
@@ -266,7 +266,7 @@ export function AttendanceAllowancesSection({
           {scope === "user" ? (
             <div className="wreason">
               <div className="wfield__l">{c.allowFieldUser}</div>
-              <AdminSelectField
+              <AdmDropdown
                 value={targetUserId}
                 onChange={setTargetUserId}
                 options={staff.map((s) => ({ value: s.userId, label: s.userName }))}

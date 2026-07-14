@@ -373,7 +373,18 @@ Implementation notes (current as of 2026-06-18):
   `owner` and `cs_staff` remain deliberately excluded from self-service invite-code creation: `owner`
   needs a separate single-use-code flow that is not built yet, and `cs_staff` has no invite category
   at all (admin-assigned only, by design). Both stay as manual role changes at `/admin/users/[id]`.
-- Invite codes can be listed and deactivated from the `/admin/users/invites` UI.
+- Invite codes can be listed, **activated / deactivated, and deleted** from the `/admin/users/invites` UI.
+  - **Deactivate / Activate** (`deactivateInviteCode` / `activateInviteCode`) toggle `is_active`. Active
+    codes show a "Deactivate" button; inactive codes show an "Activate" button — so a deactivated code
+    can be turned back on. The row is always kept (usage history preserved). Re-activating does not
+    override expiry/max-use limits — those are still checked at join time.
+  - **Delete** (`deleteInviteCode`, 2026-07-14) hard-deletes the code row (MVP hard-delete policy),
+    org-scoped, behind a `.ovconfirm` inline confirmation. Available for **both active and inactive**
+    codes. Members who already joined with the code **keep their memberships** — only the code record
+    is removed. Both actions use the same `canManageInvites` gate as creation.
+- **Invite conditions/limits** enforced by `validateInviteCode`: **expiry** (`expires_at`), **max uses**
+  (`max_uses` vs `used_count`), and **active flag** (`is_active`). The default role a code grants is
+  capped at what the issuer may assign.
 - Invite code error handling distinguishes: expired, inactive, max-uses exceeded, and invalid/not-found.
 - Membership state access control: `active` allows access; `suspended` shows a blocked screen with logout; `removed` shows a blocked screen by default but can move into a re-join flow with another valid invite code; `invited` prompts for invite code.
 - Logout is accessible from `/account` and clears the session fully, redirecting to `/auth/login`.

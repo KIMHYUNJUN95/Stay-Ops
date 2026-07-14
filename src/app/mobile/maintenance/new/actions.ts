@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import {
   getCanonicalPropertyName,
   getCanonicalRoomLabel,
+  getDisplayRoomLabel,
 } from "@/lib/room-label-normalization";
 import { getCurrentAppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -146,9 +147,11 @@ export async function createMaintenanceReport(formData: FormData) {
     }
 
     const linkedPropertyName = getCanonicalPropertyName(linkedReservation.property_name);
-    const linkedRoomLabel =
+    const linkedCanonical =
       getCanonicalRoomLabel(linkedPropertyName, linkedReservation.room_label) ??
       linkedReservation.room_label.trim();
+    // Compare against the collapsed display label — the form sends "201", the reservation may be "201_2".
+    const linkedRoomLabel = getDisplayRoomLabel(linkedPropertyName, linkedCanonical);
 
     if (linkedPropertyName !== propertyName || linkedRoomLabel !== roomLabel) {
       redirect(`/mobile/maintenance/new?error=save_failed${sessionParam}`);

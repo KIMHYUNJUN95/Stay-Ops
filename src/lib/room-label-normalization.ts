@@ -1,4 +1,6 @@
-﻿function normalizeKey(value: string) {
+﻿import type { ActiveRoomCatalogItem } from "@/lib/rooms";
+
+function normalizeKey(value: string) {
   return value
     .replace(/\s+/g, "")
     .replace(/[_()\-]/g, "")
@@ -102,7 +104,10 @@ export function normalizeArakichoRoomKey(raw: string) {
     .replace(/^(?:荒木町\s*[abAB]?|아라키초\s*[abAB]?|arakicho\s*[abAB]?)/iu, "")
     .replace(/^(?:room|unit|호|号室)/iu, "");
 
-  return (withoutPrefix || compact).replace(/-/g, "_").replace(/[()]/g, "");
+  const cleaned = (withoutPrefix || compact).replace(/-/g, "_").replace(/[()]/g, "");
+  // Arakicho B rooms are stored as "Ab101" — uppercase the leading alpha prefix so it reads "AB101".
+  // (Arakicho A rooms are numeric, so this only affects the Arakicho B "Ab" prefix.)
+  return cleaned.replace(/^[A-Za-z]+/, (match) => match.toUpperCase());
 }
 
 /**
@@ -156,6 +161,22 @@ export function getDisplayRoomLabel(propertyName: string, internalRoomKey: strin
   return internalRoomKey;
 }
 
+/**
+ * Collapses a stored cleaning **session** room label ("아라키초A 201_2") to its display form
+ * ("아라키초A 201"), keeping the canonical property prefix. Okubo single-token labels (property ===
+ * room) and non-Arakicho labels are returned unchanged. Use for USER-FACING display of session
+ * labels (home feed, transport statement, dashboard cards); session↔reservation MATCHING keeps the
+ * raw canonical value.
+ */
+export function getDisplaySessionRoomLabel(sessionRoomLabel: string): string {
+  const trimmed = sessionRoomLabel.trim();
+  const spaceIndex = trimmed.indexOf(" ");
+  if (spaceIndex === -1) return trimmed;
+  const property = trimmed.slice(0, spaceIndex);
+  const room = trimmed.slice(spaceIndex + 1);
+  return `${property} ${getDisplayRoomLabel(property, room)}`;
+}
+
 export function isExcludedOperationalProperty(propertyName: string) {
   const canonical = getCanonicalPropertyName(propertyName);
   return canonical === "사노";
@@ -168,4 +189,98 @@ export function isExcludedOperationalRoom(propertyName: string, roomLabel: strin
     return true;
   }
   return false;
+}
+
+/* ============================================================
+   Session room-label ↔ roomKey resolution — shared by the mobile cleaning queue
+   (src/app/mobile/cleaning/page.tsx) and the admin cleaning console
+   (src/lib/admin-cleaning.ts). Previously duplicated privately in the mobile page; extracted here
+   so there's a single implementation. See docs/product/07-cleaning-workflow.md → roomKey resolution
+   priority.
+   ============================================================ */
+
+/** Room key = canonical property + "_" + canonical room — used for dedup/turnover/session matching. */
+export function buildRoomKey(canonicalPropertyName: string, canonicalRoomLabel: string): string {
+  return `${canonicalPropertyName}_${canonicalRoomLabel}`;
+}
+
+/**
+ * Label stored in `cleaning_sessions.room_label`. Okubo buildings return the property name as the
+ * canonical room (single-unit buildings), so no room suffix is appended.
+ */
+export function buildSessionRoomLabel(canonicalPropertyName: string, canonicalRoomLabel: string): string {
+  return canonicalRoomLabel === canonicalPropertyName
+    ? canonicalRoomLabel
+    : `${canonicalPropertyName} ${canonicalRoomLabel}`;
+}
+
+function normalizeRoomLabelInput(value: string): string {
+  return value.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** sessionRoomLabel → roomKey, built from the active room catalog (primary lookup). */
+export function buildSessionLabelToRoomKeyMap(
+  catalog: readonly ActiveRoomCatalogItem[],
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const item of catalog) {
+    const sessionLabel = buildSessionRoomLabel(item.propertyName, item.canonicalRoomLabel);
+    map.set(sessionLabel, buildRoomKey(item.propertyName, item.canonicalRoomLabel));
+  }
+  return map;
+}
+
+/** Normalized (NFKC/whitespace/lowercase) alias → roomKey, covering historical ko/ja/en label variants. */
+export function buildLegacyAliasToRoomKeyMap(
+  catalog: readonly ActiveRoomCatalogItem[],
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const item of catalog) {
+    const roomKey = buildRoomKey(item.propertyName, item.canonicalRoomLabel);
+    const aliases = [
+      item.propertyName,
+      item.canonicalRoomLabel,
+      item.roomLabel,
+      buildSessionRoomLabel(item.propertyName, item.canonicalRoomLabel),
+      item.roomLabel === item.propertyName ? item.roomLabel : `${item.propertyName} ${item.roomLabel}`,
+    ];
+    for (const raw of aliases) {
+      const key = normalizeRoomLabelInput(raw);
+      if (!key) continue;
+      if (!map.has(key)) map.set(key, roomKey);
+    }
+  }
+  return map;
+}
+
+export type ResolveRoomKeyResult = {
+  roomKey: string | null;
+  matchedBy: "catalog_exact" | "canonical_prefix" | "legacy_alias" | "unknown";
+};
+
+/**
+ * Resolves a `cleaning_sessions.room_label` to the canonical roomKey used by
+ * CleaningTarget/SettingTarget. Returns null for unrecognised labels so callers can exclude them
+ * rather than produce a spurious match. Three-stage fallback: catalog exact → canonical prefix
+ * parse → legacy alias map.
+ */
+export function resolveRoomKey(
+  roomLabel: string,
+  catalogMap: Map<string, string>,
+  legacyAliasMap: Map<string, string>,
+): ResolveRoomKeyResult {
+  const fromCatalog = catalogMap.get(roomLabel);
+  if (fromCatalog !== undefined) return { roomKey: fromCatalog, matchedBy: "catalog_exact" };
+
+  for (const cp of Object.keys(CANONICAL_TO_BUILDING_KEY)) {
+    if (roomLabel === cp) return { roomKey: `${cp}_${cp}`, matchedBy: "canonical_prefix" };
+    if (roomLabel.startsWith(`${cp} `)) {
+      return { roomKey: `${cp}_${roomLabel.slice(cp.length + 1)}`, matchedBy: "canonical_prefix" };
+    }
+  }
+
+  const fromAlias = legacyAliasMap.get(normalizeRoomLabelInput(roomLabel));
+  if (fromAlias !== undefined) return { roomKey: fromAlias, matchedBy: "legacy_alias" };
+
+  return { roomKey: null, matchedBy: "unknown" };
 }

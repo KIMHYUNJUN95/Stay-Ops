@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Search } from "lucide-react";
 import "@/components/admin/users-console.css";
-import { AdmDropdown, type AdmOption } from "./adm-dropdown";
+import { AdmDropdown, type AdmOption } from "../shared/adm-dropdown";
 import { setMemberRole, setMemberStatus } from "@/app/admin/users/actions";
 import { organizationRoles } from "@/config/roles";
 import { getDictionary, type Locale } from "@/lib/i18n";
@@ -20,6 +20,7 @@ export type DirectoryMemberVM = {
   joinedAt: string | null;
   isSelf: boolean;
   isDeveloper: boolean;
+  teamKind: string | null;
 };
 
 export function UsersDirectoryClient({
@@ -55,11 +56,18 @@ export function UsersDirectoryClient({
     { value: "active", label: c.statusActive },
     { value: "inactive", label: c.statusInactive },
   ];
+  const teamFilterOptions: AdmOption[] = [
+    { value: "field", label: c.teamFieldOption },
+    { value: "office", label: c.teamOfficeOption },
+  ];
+  const teamLabel = (kind: string | null) =>
+    kind === "field" ? c.teamFieldOption : kind === "office" ? c.teamOfficeOption : "—";
   const normStatus = (status: string) => (status === "active" ? "active" : "suspended");
 
   const [query, setQuery] = useState("");
   const [fRole, setFRole] = useState("");
   const [fStatus, setFStatus] = useState("");
+  const [fTeam, setFTeam] = useState("");
   // Local prototype state — committed values start from the server data; saving commits the draft
   // locally and toasts. Real persistence is wired after design confirmation.
   const [committed, setCommitted] = useState<Record<string, { role: string; status: string }>>(
@@ -93,9 +101,10 @@ export function UsersDirectoryClient({
       const matchesRole = !fRole || m.role === fRole;
       const matchesStatus =
         !fStatus || (fStatus === "active" ? m.status === "active" : m.status !== "active");
-      return matchesQuery && matchesRole && matchesStatus;
+      const matchesTeam = !fTeam || m.teamKind === fTeam;
+      return matchesQuery && matchesRole && matchesStatus && matchesTeam;
     });
-  }, [members, query, fRole, fStatus]);
+  }, [members, query, fRole, fStatus, fTeam]);
 
   const [, startTransition] = useTransition();
 
@@ -167,6 +176,13 @@ export function UsersDirectoryClient({
           placeholder={u.status}
           ariaLabel={u.status}
         />
+        <AdmDropdown
+          options={[{ value: "", label: c.filterAllTeams }, ...teamFilterOptions]}
+          value={fTeam}
+          onChange={setFTeam}
+          placeholder={c.teamField}
+          ariaLabel={c.teamField}
+        />
         <button type="button" className="filterbar__go" aria-label={c.searchPlaceholder}>
           <span className="ic">
             <Search />
@@ -183,6 +199,7 @@ export function UsersDirectoryClient({
                 <th>{u.email}</th>
                 <th>{u.phone}</th>
                 <th>{u.role}</th>
+                <th>{c.teamField}</th>
                 <th>{u.status}</th>
                 <th>{u.joinedAt}</th>
                 <th>{u.actions}</th>
@@ -221,6 +238,9 @@ export function UsersDirectoryClient({
                     </td>
                     <td>
                       <span className="ucell role">{m.isDeveloper ? c.devRole : roleLabel(m.role)}</span>
+                    </td>
+                    <td>
+                      <span className="ucell">{teamLabel(m.teamKind)}</span>
                     </td>
                     <td>
                       <span className={`spill spill--${m.status === "active" ? "active" : "removed"}`}>

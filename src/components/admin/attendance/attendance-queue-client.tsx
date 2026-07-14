@@ -11,7 +11,6 @@ import {
   CircleCheck,
   Clock,
   Filter,
-  Flag,
   LogOut,
   MessageSquare,
   Pencil,
@@ -36,7 +35,7 @@ import {
   type SessionAuditEntry,
 } from "@/app/admin/attendance/actions";
 import { AdminReasonModal } from "../shared/admin-reason-modal";
-import { ChipDropdown } from "../shared/admin-chip-dropdown";
+import { AdmDropdown } from "../shared/adm-dropdown";
 import { AdminTimePicker } from "../shared/admin-time-picker";
 import { useAdminPanelA11y } from "../shared/use-admin-panel-a11y";
 
@@ -626,24 +625,24 @@ export function AttendanceQueueClient({
             </button>
           ) : null}
         </div>
-        <ChipDropdown
-          icon={<Filter />}
-          chipLabel={c.filterChipSite(siteFilter ?? c.filterChipAllOption)}
-          allLabel={c.filterChipAllOption}
-          options={siteOptions}
-          value={siteFilter}
-          onChange={changeSiteFilter}
-          ariaLabel={c.filterChipSite(c.filterChipAllOption)}
-        />
-        <ChipDropdown
-          icon={<Flag />}
-          chipLabel={issueFilter ? c.filterChipIssueWith(issueLabel(issueFilter, c).t) : c.filterChipIssue}
-          allLabel={c.filterChipAllOption}
-          options={issueOptions}
-          value={issueFilter}
-          onChange={changeIssueFilter}
-          ariaLabel={c.filterChipIssue}
-        />
+        <div style={{ width: 168, flex: "0 0 auto" }}>
+          <AdmDropdown
+            size="sm"
+            options={[{ value: "", label: c.filterChipAllOption }, ...siteOptions]}
+            value={siteFilter ?? ""}
+            onChange={(v) => changeSiteFilter(v || null)}
+            ariaLabel={c.filterChipSite(c.filterChipAllOption)}
+          />
+        </div>
+        <div style={{ width: 156, flex: "0 0 auto" }}>
+          <AdmDropdown
+            size="sm"
+            options={[{ value: "", label: c.filterChipIssue }, ...issueOptions]}
+            value={issueFilter ?? ""}
+            onChange={(v) => changeIssueFilter(v || null)}
+            ariaLabel={c.filterChipIssue}
+          />
+        </div>
         <button
           type="button"
           className="btn btn--pri btn--sm"

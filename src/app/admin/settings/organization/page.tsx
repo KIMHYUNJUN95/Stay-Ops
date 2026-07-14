@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Building2 } from "lucide-react";
-import { createOrganization } from "@/app/admin/settings/actions";
+import {
+  createOrganization,
+  updateOrganization,
+} from "@/app/admin/settings/actions";
 import { AdminShell } from "@/components/shell/admin-shell";
+import { OrgDeleteButton } from "@/components/admin/settings/org-delete-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -36,13 +40,27 @@ export default async function AdminOrganizationSettingsPage({
   const settings = dictionary.admin.settings;
   const statusLabels = settings.organizationStatusLabels as Record<OrganizationStatus, string>;
 
-  const { data } = await getSupabaseServiceClient()
-    .from("organizations")
-    .select("id, name, slug, status, created_at, updated_at")
-    .order("created_at", { ascending: false });
+  const service = getSupabaseServiceClient();
+  const [{ data }, { data: memberRows }] = await Promise.all([
+    service
+      .from("organizations")
+      .select("id, name, slug, status, created_at, updated_at")
+      .order("created_at", { ascending: false }),
+    service.from("memberships").select("organization_id"),
+  ]);
   const organizations = (data ?? []) as OrganizationRow[];
 
+  const memberCounts = new Map<string, number>();
+  for (const row of (memberRows ?? []) as { organization_id: string }[]) {
+    memberCounts.set(
+      row.organization_id,
+      (memberCounts.get(row.organization_id) ?? 0) + 1,
+    );
+  }
+
   const created = firstParam(params.created) === "1";
+  const updated = firstParam(params.updated) === "1";
+  const deleted = firstParam(params.deleted) === "1";
   const errorKey = firstParam(params.error);
 
   return (
@@ -62,11 +80,16 @@ export default async function AdminOrganizationSettingsPage({
             {settings.organizationDescription}
           </p>
 
-          {(created || errorKey) && (
+          {(created || updated || deleted || errorKey) && (
             <div className="mt-4 rounded-xl border border-border bg-background/70 px-3 py-2 text-sm font-semibold">
               {created
                 ? settings.success.organizationCreated
-                : settings.errors[errorKey ?? "save_failed"] ?? settings.errors.save_failed}
+                : updated
+                  ? settings.success.organizationUpdated
+                  : deleted
+                    ? settings.success.organizationDeleted
+                    : settings.errors[errorKey ?? "save_failed"] ??
+                      settings.errors.save_failed}
             </div>
           )}
 
@@ -97,22 +120,58 @@ export default async function AdminOrganizationSettingsPage({
               </p>
             )}
 
-            {organizations.map((organization) => (
-              <div
-                className="rounded-xl border border-border bg-background/70 p-4"
-                key={organization.id}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-black">{organization.name}</p>
-                    <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                      {organization.slug}
-                    </p>
+            {organizations.map((organization) => {
+              const memberCount = memberCounts.get(organization.id) ?? 0;
+              return (
+                <div
+                  className="rounded-xl border border-border bg-background/70 p-4"
+                  key={organization.id}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="font-black">{organization.name}</p>
+                      <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                        {organization.slug} · {settings.membersLabel} {memberCount}
+                      </p>
+                    </div>
+                    <Badge>{statusLabels[organization.status] ?? organization.status}</Badge>
                   </div>
-                  <Badge>{statusLabels[organization.status] ?? organization.status}</Badge>
+
+                  <form
+                    action={updateOrganization}
+                    className="mt-3 flex flex-wrap items-center gap-2"
+                  >
+                    <input name="organizationId" type="hidden" value={organization.id} />
+                    <Input
+                      className="h-9 min-w-[180px] flex-1"
+                      defaultValue={organization.name}
+                      name="name"
+                      required
+                    />
+                    <Button className="h-9 px-3 text-sm" type="submit" variant="secondary">
+                      {settings.saveName}
+                    </Button>
+                  </form>
+
+                  <div className="mt-3">
+                    {memberCount === 0 ? (
+                      <OrgDeleteButton
+                        organizationId={organization.id}
+                        labels={{
+                          delete: settings.deleteOrganization,
+                          cancel: dictionary.common.cancel,
+                          confirm: settings.orgDeleteConfirm,
+                        }}
+                      />
+                    ) : (
+                      <p className="text-xs font-semibold text-muted-foreground">
+                        {settings.errors.org_not_empty}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
       </div>
