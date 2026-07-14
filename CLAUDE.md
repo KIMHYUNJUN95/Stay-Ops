@@ -145,6 +145,43 @@ For `/admin/*`, treat repeated desktop-console patterns as a shared contract, no
 - Multilingual support is part of this contract: shared dashboard components must be checked against `ko`,
   `ja`, and `en`, including longer labels, button widths, date labels, table headers, and empty-state text.
 
+#### 4a. Date selection — one calendar, no exceptions (ABSOLUTE, 2026-07-14)
+
+Every date control in `/admin/*` is one of exactly three shared primitives in
+`src/components/admin/shared`. There is no fourth, and there are no feature-local calendars.
+
+| Need | Component | Form-friendly wrapper (for `<form method="get">`) |
+| --- | --- | --- |
+| A date range | `AdminDateRangePicker` | `DateRangeFormField` |
+| A single day | `AdminDatePicker` | `DateFormField` |
+| A month | `AdminMonthPicker` | — |
+
+- **Never use a native `<input type="date">` inside the admin console.** It renders the browser's own
+  calendar, which will never match the console.
+- The canonical calendar chrome is the `.calpop` popover (the cleaning 기록 range picker): 292px wide,
+  16px radius, 14px padding, 30px nav buttons, 34px day cells, today-dot marker. `.adp__*` (single day)
+  and `.amp__*` (month) in `admin-console.css` are deliberately kept in lockstep with it — **if you
+  restyle one, restyle all three.**
+- `AdminMonthPicker` stays a *month* control (payroll / commute / wages). Do not silently convert a
+  month selector into a range picker, or vice versa.
+
+#### 4b. Excel + PDF export — one control, one template (ABSOLUTE, 2026-07-14)
+
+- Every export in `/admin/*` renders through **`<AdminExportButtons>`**
+  (`src/components/admin/shared/admin-export-buttons.tsx`) — the `chipbtn` + lucide `Download` pair.
+  Do not hand-roll export buttons.
+- **Always ship Excel AND PDF together.** A screen that exports only one of the two is incomplete.
+- Server side, both formats come from the same input shape:
+  `buildAdminTableWorkbookBase64()` (`src/lib/admin-table-workbook.ts`) and
+  `buildAdminTableReportHtml()` (`src/lib/admin-table-report.ts`). Reuse the green-ledger fills from
+  `attendance-payroll-workbook.ts`; do not introduce new export colors or a new workbook layout.
+- **CSV is retired.** Do not add a new CSV download, a `Blob`-based client export, or a
+  `/api/admin/export/*` route — that whole path was deleted on 2026-07-14.
+- **The export locale is resolved on the server** from `session.user.preferredLanguage` via
+  `buildAdminExportMeta(session)`. A client must never pass a locale into an export action.
+- Copy for both primitives lives in the shared `dictionary.admin.shared` namespace (`ko`/`ja`/`en`).
+  Do not re-declare `exportXls`, `pickRange`, `dateApply`, etc. in a feature namespace.
+
 If shared admin dashboard behavior or structure changes, also review and update:
 
 - `docs/product/05-admin-web-ia.md`

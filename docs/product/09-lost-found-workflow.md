@@ -293,6 +293,31 @@ Potential alerts:
 - High-value item registered
 - Guest/reservation linked to item
 
+## Admin Surface (`/admin/lost-found`)
+
+### Filters and Export (2026-07-14)
+
+- **Filter bar**: date range (formerly two native `<input type="date">` fields) now uses the shared
+  `<DateRangeFormField>` (`src/components/admin/shared/date-range-form-field.tsx`, an
+  `AdminDateRangePicker` popover + 2 hidden inputs). `startDate`/`endDate` search params are unchanged,
+  so deep links still work. Status filter unchanged.
+- **Export = Excel + PDF (was CSV).** The old `ExportCsvLink` download link was replaced with
+  `LostFoundExportBar` (`src/components/admin/lost-found/lost-found-export-bar.tsx`) rendering the
+  canonical `<AdminExportButtons>`. New server actions `exportLostFoundWorkbook(filters)` /
+  `exportLostFoundReport(filters)` (`src/app/admin/lost-found/actions.ts`) — gated by
+  `requireAdminSession()` + organization scope. The client sends only the current filter values, never
+  row data; the server re-queries via `getOrgLostItems` so the file always matches the filtered screen.
+- **Export columns** (carried over from the old CSV headers): building / room / item name / status /
+  reporter / found-at.
+- Output goes through the shared admin export builders (`src/lib/admin-table-workbook.ts` /
+  `admin-table-report.ts` — the same green-ledger template used across the whole admin console).
+  Language is resolved server-side from `session.user.preferredLanguage`; the client never passes a
+  locale.
+- **The old `/api/admin/export/lost-found` CSV route no longer exists.** All `/api/admin/export/*`
+  endpoints were removed on 2026-07-14 as part of a console-wide export unification (see
+  `docs/product/07-cleaning-workflow.md` and `docs/product/10-order-request-workflow.md` for the same
+  change on cleaning records and order requests).
+
 ## Open Questions
 
 - Should returned-to-guest be a separate status or a retrieval field?

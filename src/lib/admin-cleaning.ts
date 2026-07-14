@@ -30,7 +30,7 @@ import type { AppSession } from "@/lib/session";
 // visible with its current status instead of removing processed ones. See
 // docs/product/07-cleaning-workflow.md → "2026-07-14 어드민 청소 대시보드 — 백엔드 연동".
 
-export type AdminCleaningStatus = "pending" | "progress" | "done" | "overdue";
+export type AdminCleaningStatus = "pending" | "progress" | "done";
 
 export type AdminCleaningTask = {
   id: string;
@@ -182,12 +182,9 @@ export async function getAdminCleaningToday(session: AppSession): Promise<AdminC
   if (targetsResult) {
     for (const target of targetsResult.cleaningList) {
       targetRoomKeys.add(target.roomKey);
-      // No time-of-day threshold: whenever an admin is actually looking at this board, an unstarted
-      // checkout room is something they need to act on immediately — there's no "not due yet" grace
-      // period (see docs/product/07-cleaning-workflow.md → "지연 판정 시각 기준 삭제").
       const matched = pickRelevantSession(sessionsByRoomKey.get(target.roomKey) ?? []);
 
-      let status: AdminCleaningStatus = "overdue";
+      let status: AdminCleaningStatus = "pending";
       if (matched?.status === "in_progress") status = "progress";
       else if (matched?.status === "completed") status = "done";
 

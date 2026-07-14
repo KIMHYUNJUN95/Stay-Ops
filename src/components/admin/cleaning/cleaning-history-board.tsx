@@ -6,11 +6,10 @@
 // design handoff's combined "시작일 – 종료일" trigger 1:1, not two separate date fields). Data is
 // real (src/lib/admin-cleaning.ts) as of 2026-07-14 — the parent owns fetching a fresh range via
 // fetchAdminCleaningHistory; this component only filters/renders whatever range it's given.
-import { useTransition } from "react";
-import { Download, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { AdmDropdown } from "@/components/admin/shared/adm-dropdown";
 import { AdminDateRangePicker } from "@/components/admin/shared/admin-date-range-picker";
-import { downloadAdminWorkbook } from "@/components/admin/shared/admin-format";
+import { AdminExportButtons, type AdminExportLabels } from "@/components/admin/shared/admin-export-buttons";
 import type { Locale } from "@/lib/i18n";
 import {
   exportCleaningHistoryReport,
@@ -32,6 +31,7 @@ import {
 type HistoryBoardProps = {
   history: AdminCleaningHistoryItem[];
   t: ConsoleCopy;
+  sharedLabels: AdminExportLabels;
   buildingLabels: Record<string, string>;
   staffDirectory: StaffDirectory;
   locale: Locale;
@@ -56,6 +56,7 @@ type HistoryBoardProps = {
 export function HistoryBoard({
   history,
   t,
+  sharedLabels,
   buildingLabels,
   staffDirectory,
   locale,
@@ -93,9 +94,6 @@ export function HistoryBoard({
     return true;
   });
 
-  const [xlsPending, startXlsExport] = useTransition();
-  const [pdfPending, startPdfExport] = useTransition();
-
   const exportRows: CleaningHistoryExportRow[] = rows.map((h) => ({
     date: h.date,
     building: h.building,
@@ -109,44 +107,12 @@ export function HistoryBoard({
     note: h.note,
   }));
 
-  function handleExportXls() {
-    startXlsExport(async () => {
-      const res = await exportCleaningHistoryWorkbook(exportRows, from, to);
-      if (res.ok) {
-        downloadAdminWorkbook(res.base64, res.filename);
-        onToast(t.tExportDone);
-      } else {
-        onToast(t.tExportFailed);
-      }
-    });
-  }
-
-  function handleExportPdf() {
-    // Open the tab synchronously (on the click) so pop-up blockers don't kill it after the await.
-    const win = window.open("", "_blank");
-    startPdfExport(async () => {
-      const res = await exportCleaningHistoryReport(exportRows, from, to);
-      if (!res.ok) {
-        win?.close();
-        onToast(t.tExportFailed);
-        return;
-      }
-      if (!win) {
-        onToast(t.exportBlocked);
-        return;
-      }
-      win.document.open();
-      win.document.write(res.html);
-      win.document.close();
-    });
-  }
-
   const rangePickerLabels = {
-    prevMonth: t.datePickerPrevMonth,
-    nextMonth: t.datePickerNextMonth,
-    thisMonth: t.thisMonth,
-    reset: t.reset,
-    apply: t.apply,
+    prevMonth: sharedLabels.datePrevMonth,
+    nextMonth: sharedLabels.dateNextMonth,
+    thisMonth: sharedLabels.dateThisMonth,
+    reset: sharedLabels.dateReset,
+    apply: sharedLabels.dateApply,
   };
 
   const staffOptions = [...staffDirectory.values()].sort((a, b) => a.name.localeCompare(b.name, "ko"));
@@ -158,7 +124,7 @@ export function HistoryBoard({
         to={to}
         onChange={onRangeChange}
         localeTag={localeTag}
-        ariaLabel={t.pickRange}
+        ariaLabel={sharedLabels.pickRange}
         labels={rangePickerLabels}
       />
       <AdmDropdown
@@ -203,14 +169,13 @@ export function HistoryBoard({
         ) : null}
       </div>
       <span className="ctoolbar__spacer" />
-      <button type="button" className="chipbtn" onClick={handleExportXls} disabled={xlsPending || !rows.length}>
-        <Download className="ic" aria-hidden="true" />
-        {t.exportXls}
-      </button>
-      <button type="button" className="chipbtn" onClick={handleExportPdf} disabled={pdfPending || !rows.length}>
-        <Download className="ic" aria-hidden="true" />
-        {t.exportPdf}
-      </button>
+      <AdminExportButtons
+        onExportXls={() => exportCleaningHistoryWorkbook(exportRows, from, to)}
+        onExportPdf={() => exportCleaningHistoryReport(exportRows, from, to)}
+        disabled={!rows.length}
+        onToast={onToast}
+        labels={sharedLabels}
+      />
     </div>
   );
 

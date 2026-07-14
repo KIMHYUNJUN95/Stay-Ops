@@ -16,6 +16,25 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **어드민 캘린더 / Excel·PDF 내보내기 전면 통일 — 완료 (2026-07-14).** 콘솔 전체를 두 개의 캐논
+  패턴으로 통일했다. **캘린더**: `AdminDateRangePicker`(기간) / `AdminDatePicker`(하루) /
+  `AdminMonthPicker`(월) 3개만 사용하고, 팝오버 크롬은 청소 기록 탭의 `.calpop`에 맞춰 정렬. 분실물·
+  수리점검·주문 필터바, 연차 신청 모달, 연차 잔여 입사일 편집에서 네이티브 `<input type="date">`를
+  전부 제거했다. **내보내기**: 공용 `<AdminExportButtons>`(`chipbtn` + `Download` ×2) +
+  `buildAdminTableWorkbookBase64()` / `buildAdminTableReportHtml()` 단일 빌더로 통일. 분실물·수리점검·
+  주문의 CSV는 **실제 Excel+PDF로 교체**했고, 연차 이력의 Blob CSV도 교체했으며, 동작하지 않던 스텁
+  버튼(근태 수당, 연차 잔여)을 **실제 구현**했다. 연차 이력에는 없던 날짜 범위 필터를 신규 추가.
+  구 CSV 경로(`/api/admin/export/[resource]` 라우트, `lib/export/admin-export.ts`, `lib/export/csv.ts`,
+  `ExportCsvLink`)는 **전부 삭제** — CSV는 폐기됐다. 이 두 패턴은 이제 **절대 규칙**이며
+  (`CLAUDE.md` §4a/§4b), 앞으로 추가되는 모든 어드민 화면에 무조건 적용한다. 결정 근거·적용 표는
+  `docs/planning/01-decision-log.md` → 2026-07-14 "어드민 캘린더 / 내보내기 공용 캐논 확정" 참고.
+- **청소 / 근태 / 사용자 / 예약 캘린더 — 마무리 확정 (2026-07-14).** 사용자가 이 4개 어드민 화면
+  (`/admin/cleaning`, `/admin/attendance/*`, `/admin/users/*`, `/admin/calendar`)을 완전히 마무리
+  상태로 선언했다. 실데이터 연동, 라이브 테스트, 사용자 피드백 기반 버그 수정까지 끝났고, 추가
+  지시가 없는 한 이 4개 화면에 선제적 변경을 하지 않는다 — 다음 작업은 사용자가 명시적으로 요청할
+  때 시작. 결정 근거·범위는 `docs/planning/01-decision-log.md` → 2026-07-14 "청소/근태/사용자/예약
+  캘린더 4개 화면 마무리 확정" 참고. 청소의 최종 구현 상태는 아래 항목들과
+  `docs/product/07-cleaning-workflow.md`에 남아있다.
 - **Organization rename + guarded delete added (2026-07-14).** `/admin/settings/organization`
   (developer-only) now supports **rename (name only)** via `updateOrganization` and **delete** via
   `deleteOrganization`. Delete is **guarded to EMPTY orgs (zero members)** because every org-scoped
@@ -74,8 +93,20 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   셋팅 대상 정의를 모바일과 동일하게 통일(체크아웃 없는 순수 입실 객실만). 강제완료는 `router.refresh()`
   기반(낙관적 로컬 패치 없음), 오늘 현황은 60초 폴링 + 수동 동기화 칩으로 갱신. 상세:
   `docs/product/07-cleaning-workflow.md` → "2026-07-14 어드민 청소 대시보드 — 백엔드 연동". tsc 0 /
-  lint 0 errors. **로그인 세션이 필요한 실제 클릭 동작(강제완료·기간 재조회·export)은 라이브 테스트
-  못함 — 사용자 확인 필요.**
+  lint 0 errors.
+  **완료 (2026-07-14): 사용자 라이브 테스트 + 문서 감사 후속 수정까지 반영, 기능 구현 종료.**
+  실제 로그인 세션에서 사용자가 직접 확인하며 발견한 이슈들을 전부 수정했다: (1) 강제완료 모달
+  담당자 드롭다운이 비어 보이던 버그(`getCleaningStaffOptions`가 DB에 없는 플랫폼 전용 역할
+  `developer_super_admin`을 `.in("role", ...)`에 그대로 넘겨 쿼리가 enum 캐스팅 에러로 통째로
+  거부되던 것 — 쿼리 직전 필터링으로 수정), (2) 직원별 오늘 요약을 "청소 담당 가능 역할 전원"에서
+  "오늘 실제로 완료한 직원만"으로 축소, (3) 셋팅 대상 카드 클릭 시 예약 정보 전용 축소 상세 패널
+  추가, (4) KPI 데이터 로드 실패 시 `-` 표시 구현, (5) 연동 분실물/유지보수 리포트 타일 클릭 →
+  실제 해당 레코드로 이동(과거엔 토스트만 뜨던 placeholder), (6) 문서상 범위 제외 항목이었던 소요
+  70분 이상 경고 배지를 삭제(임의 하드코딩 기준값이 실제 최단 청소시간 150분과 맞지 않아 상시
+  경고 상태였음), (7) 청소 "지연" 상태·배지·KPI를 완전히 삭제(대기중과 100% 동일 조건이 되어
+  기능이 무의미해짐 → 원래의 대기중/진행중/완료 3상태로 정리). 상세는
+  `docs/product/07-cleaning-workflow.md` 하단 2026-07-14 후속 항목들 참고. 매 라운드 `npm run lint`
+  / `npm run build` 통과. 이 시점 이후 `/admin/cleaning` 기능 구현은 종료된 것으로 본다.
 - **Invite-code (team code) management moved from Settings to Users (2026-07-13).**
   `/admin/settings/invite-codes` moved to `/admin/users/invites`; the old path now just redirects.
   `/admin/users` and `/admin/users/invites` share a "멤버 목록"/"멤버 초대" tab switcher. The create/
@@ -3041,8 +3072,8 @@ docs(26/05/06/01).
 - **권한 예외 카드 가시성:** owner/`developer_super_admin`만 렌더(office_admin은 미렌더). 프로토타입의
   "보는 사람" 데모 토글은 제외(세션 역할로 판정).
 - **i18n:** `admin.users.console` 네임스페이스 ko/ja/en 3종 추가(권한 키 화이트리스트 라벨/설명 포함).
-- **프리뷰:** `src/app/users-preview/page.tsx`(임시 미인증, mock 데이터) — 로그인 없이 `/users-preview`에서
-  디자인 확인용. **컨펌 후 삭제 예정**(`leave-preview`와 동일 성격).
+- **프리뷰:** ~~`src/app/users-preview/page.tsx`(임시 미인증, mock 데이터)~~ — 디자인 확인용 임시 라우트.
+  **삭제 완료.** 같은 성격의 `leave-preview`도 2026-07-15에 함께 삭제됐다(둘 다 코드 참조 0건, 데이터 미조회).
 - 검증: `npx tsc --noEmit` 0, `npm run lint` 0 errors, 프리뷰 렌더 확인(콘솔 에러 없음). 빌드/푸시 미실행.
 - **미완(컨펌 후):** 서버 배선(역할/상태/리포트 실제 저장, 급여담당/연차결재자/권한예외 CRUD +
   `membership_permission_overrides` 연동·RLS), `27-permission-override-workflow.md`·`05-admin-web-ia.md`
@@ -3281,3 +3312,67 @@ Files: `src/config/roles.ts`, `src/lib/session.ts`, `src/lib/onboarding.ts`, doc
 검증 전반: `npx tsc --noEmit` 0, `npm run lint` 0 errors 유지.
 
 Files: docs(06) — 상태 기록.
+
+## 2026-07-14 어드민 수리·점검 콘솔 — 디자인 구현 완료 (목데이터)
+
+`/admin/maintenance`가 기존 목록 카드 화면 → **운영 콘솔**로 교체됐다. Claude Design 핸드오프를 100%
+이식한 것으로, **데이터는 전부 목데이터**이고 백엔드 연동은 후속이다(청소 콘솔과 동일한 순서).
+
+- **3뷰**: 현황 보드(접수/처리중/무효 3칼럼, 완료는 제외) · 목록·이력 · 완료. KPI 5칸(접수·처리중·긴급·
+  오래된 미해결·완료).
+- **우측 상세 패널** + **예외 개입 모달 3종**(강제 완료 / 무효 처리 / 삭제, 각각 사유 메모 선택).
+- **파생 값**: 재실 중(예약 `ci ≤ 오늘(Tokyo) < co`) · 오래된 미해결(`open` + 접수 72h 초과). 저장 안 함.
+- **날짜/드롭다운은 공용 프리미티브**(`AdminDateRangePicker`, `AdmDropdown`) — 어드민 캘린더 캐논 준수.
+- **내보내기 버튼 없음** — 핸드오프에 없어서 뺐다(한시적 예외). 서버 액션은 살아 있고, 백엔드 연동 시
+  `<AdminExportButtons>`로 다시 붙인다.
+- 청소 전용 CSS에 있던 공용 콘솔 프리미티브를 `admin-console.css`로 승격(수리·점검이 두 번째 소비자).
+- i18n `dictionary.maintenance.console` ko/ja/en 동시 추가.
+
+검증: `npx tsc --noEmit` 0, `npm run lint` 0 errors, `npm run build` 통과, 3뷰·패널·모달 브라우저 렌더 확인
+(콘솔 에러 0).
+
+**남은 것(후속 사이클)**: 마이그레이션(`priority`/`category`/`resolution_memo`/`completed_at`/
+`resolution_image_urls`/`cancelled` 상태) → 실데이터 연결 → 예외 개입 서버 액션 → 내보내기 재부착 →
+모바일 신청 폼 카테고리 10종·우선순위 4종 교체.
+
+Files: `src/app/admin/maintenance/page.tsx`, `src/app/admin/maintenance/actions.ts`(주석),
+`src/components/admin/maintenance/*`(7개 신규), `src/components/admin/admin-console.css`,
+`src/components/admin/cleaning/cleaning-console.css`, `src/lib/i18n.ts`,
+docs(05-admin-web-ia / 08-maintenance-workflow / 01-decision-log / 06-current-status).
+
+## 2026-07-14 수리·점검 — 백엔드 연동 + 모바일 현장 처리 (마이그레이션 적용 완료)
+
+어드민 콘솔이 목데이터 → **실데이터**로 붙었고, 그동안 없던 **모바일 현장 처리 UI**를 만들었다.
+
+- **스키마**: `priority` / `category`(10종) / `resolution_memo` / `resolution_image_urls` /
+  `completed_at` / `completed_by` / `completed_by_admin` / `is_building_only` 추가.
+  상태 enum 재정의 — `resolved` 폐기(→ `closed` 병합), `cancelled` 추가. `property_name` 따라잡기.
+- **모바일**: 상세 화면에 "현장 처리" 블록 신설 (상태 + 처리 메모 + 완료 사진 ≤5). 신청 폼의
+  카테고리·우선순위가 이제 실제로 저장된다(그전엔 전부 버려졌다).
+- **어드민**: 예외 개입(강제 완료 / 무효 처리 / 삭제)이 실제 서버 액션.
+  **Excel/PDF 내보내기는 없다**(확정) — 버튼·서버 액션 모두 삭제.
+- **같이 고친 버그**: `property_name` 마이그레이션 누락 · 상태 변경 silent-success · RLS UPDATE 정책의
+  `staff` 누락 · 건물 전체 신고가 로케일별 문자열로 저장되던 문제.
+
+검증: `npx tsc --noEmit` 0, `npm run lint` 0 errors, `npm run build` 통과, `/admin/maintenance`와
+`/mobile/maintenance/new` 라우트 컴파일·인증 게이트 확인.
+
+> ✅ **마이그레이션 적용 완료 (2026-07-14).** `202607160001_maintenance_backend.sql`이 연결된
+> Supabase 프로젝트에 반영됐고, 원격 DB에서 직접 확인했다 — 컬럼 22개, enum 3종
+> (`maintenance_status` / `maintenance_priority` / `maintenance_category`), 인덱스 2개,
+> RLS UPDATE 정책에 `staff` + `with check` 포함, 스토리지 정책에 `maintenance-resolutions` 폴더 포함,
+> security advisor 신규 경고 없음. 적용 시점 테이블 행 수가 0이라 `resolved`→`closed` 병합과
+> 건물 전체 백필은 각각 0행에 적용됐다.
+>
+> **남은 것: 라이브 E2E 1회** — 실제 신고 → 모바일 현장 처리(완료 사진 업로드 포함) → 어드민 콘솔
+> 확인. 특히 완료 사진 업로드는 스토리지 정책을 실제로 통과하는지 코드 외 검증이 안 된 유일한 경로다.
+
+Files: `supabase/migrations/202607160001_maintenance_backend.sql`, `src/types/database.ts`,
+`src/lib/maintenance-constants.ts`(신규), `src/lib/maintenance-reports.ts`,
+`src/lib/admin-maintenance.ts`(신규), `src/app/admin/maintenance/{page,actions}.ts(x)`,
+`src/app/mobile/requests/maintenance/actions.ts`(신규),
+`src/app/mobile/requests/maintenance/[id]/page.tsx`, `src/app/mobile/maintenance/new/actions.ts`,
+`src/components/requests/maintenance-handling-form.tsx`(신규),
+`src/components/requests/{maintenance-create-form,request-image-upload,requests-filter-view}.tsx`,
+`src/components/cleaning/maintenance-linked-form.tsx`, `src/components/admin/maintenance/*`,
+`src/lib/i18n.ts`, docs(04/05-eng, 05/08-product, 01/06-planning).

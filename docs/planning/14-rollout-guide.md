@@ -157,7 +157,9 @@ After inviting the first staff batch, verify these within the first week:
 - [ ] The requester received an in-app notification after the order was processed.
 - [ ] A reservation appears in `/mobile/calendar` after a Beds24 booking event.
 - [ ] An announcement has been published and a staff member has confirmed seeing it.
-- [ ] CSV export downloads correctly from `/admin/orders` (or another export page).
+- [ ] Excel and PDF export both work correctly from `/admin/orders` (or another admin export page) — the
+      CSV export path was removed 2026-07-14; every admin-web list now exports Excel + PDF through the
+      shared admin table exporters (see `docs/planning/13-qa-checklist.md` → "Admin Export (Excel / PDF)").
 
 ---
 

@@ -1,9 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Search } from "lucide-react";
+import { Search } from "lucide-react";
+import { AdminDateRangePicker } from "@/components/admin/shared/admin-date-range-picker";
+import { AdminExportButtons } from "@/components/admin/shared/admin-export-buttons";
+import { adminLocaleTag } from "@/lib/admin-export-meta";
 import type { LeaveStatus, LeaveType } from "@/lib/annual-leave-approvals-server";
 import type { LeaveLedgerEntry } from "@/lib/annual-leave-admin-server";
+import {
+  exportLeaveLedgerReport,
+  exportLeaveLedgerWorkbook,
+} from "@/app/admin/attendance/leave/actions";
 import { getDictionary, type Dictionary, type Locale } from "@/lib/i18n";
 
 type Lc = Dictionary["admin"]["leaveConsole"];
@@ -68,36 +75,53 @@ function fmtPeriod(e: LeaveLedgerEntry, lc: Lc): string {
 
 const STATUS_ORDER: LeaveStatus[] = ["approved", "requested", "rejected", "cancelled"];
 
-/** RFC-4180-ish CSV cell (quote when needed, escape inner quotes). */
-function csvCell(value: string | number): string {
-  const s = String(value ?? "");
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+/** `processedAt` is Tokyo "YYYY/MM/DD HH:mm" — reduce it to the "YYYY-MM-DD" key the picker speaks. */
+function processedDateKey(entry: LeaveLedgerEntry): string {
+  return entry.processedAt.slice(0, 10).replace(/\//g, "-");
+}
+
+function todayKey(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
 }
 
 export function LeaveLedgerView({
   lc,
+  shared,
   locale,
   entries,
+  onToast,
 }: {
   lc: Lc;
+  shared: Dictionary["admin"]["shared"];
   locale: Locale;
   entries: LeaveLedgerEntry[];
+  onToast: (message: string) => void;
 }) {
   const dictionary = getDictionary(locale);
   const [statusFilter, setStatusFilter] = useState<LeaveStatus | null>(null);
   const [query, setQuery] = useState("");
 
+  // The ledger arrives whole (listLeaveLedger has no date params), so the range starts wide enough to
+  // cover every row — narrowing is opt-in and nothing is hidden on first paint.
+  const [range, setRange] = useState(() => {
+    const keys = entries.map(processedDateKey).filter(Boolean).sort();
+    const today = todayKey();
+    return { from: keys[0] ?? today, to: today };
+  });
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return entries.filter((e) => {
       if (statusFilter && e.status !== statusFilter) return false;
+      const key = processedDateKey(e);
+      if (key && (key < range.from || key > range.to)) return false;
       if (q) {
         const hay = `${e.applicantName} ${e.reason} ${e.documentNumber ?? ""} ${e.processorName ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [entries, statusFilter, query]);
+  }, [entries, statusFilter, query, range]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -105,51 +129,23 @@ export function LeaveLedgerView({
     return c;
   }, [entries]);
 
-  function exportCsv() {
-    const headers = [
-      lc.ledgerColProcessedAt,
-      lc.ledgerColDocNo,
-      lc.ledgerColApplicant,
-      lc.approversColRole,
-      lc.ledgerColType,
-      lc.formStart,
-      lc.formEnd,
-      lc.ledgerColDays,
-      lc.ledgerColStatus,
-      lc.ledgerColProcessor,
-      lc.formReason,
-      lc.ledgerColDecisionReason,
-    ];
-    const lines = filtered.map((e) =>
-      [
-        e.processedAt,
-        e.documentNumber ?? "",
-        e.applicantName,
-        roleLabel(e.applicantRole, dictionary),
-        typeLabel(e.leaveType, lc),
-        e.startDate,
-        e.endDate,
-        e.daysCount,
-        statusPill(e.status, lc).label,
-        e.processorName ?? "",
-        e.reason,
-        e.decisionReason ?? "",
-      ]
-        .map(csvCell)
-        .join(","),
-    );
-    const csv = `﻿${headers.map(csvCell).join(",")}\n${lines.join("\n")}`;
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = lc.ledgerExportFilename;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
   return (
     <div>
       <div className="toolbar">
+        <AdminDateRangePicker
+          from={range.from}
+          to={range.to}
+          onChange={(from, to) => setRange({ from, to })}
+          localeTag={adminLocaleTag(locale)}
+          ariaLabel={shared.pickRange}
+          labels={{
+            prevMonth: shared.datePrevMonth,
+            nextMonth: shared.dateNextMonth,
+            thisMonth: shared.dateThisMonth,
+            reset: shared.dateReset,
+            apply: shared.dateApply,
+          }}
+        />
         <div className="fseg" role="tablist">
           <button
             type="button"
@@ -184,12 +180,13 @@ export function LeaveLedgerView({
             aria-label={lc.ledgerSearchPlaceholder}
           />
         </div>
-        <button type="button" className="chipbtn" onClick={exportCsv} disabled={filtered.length === 0}>
-          <span className="ic">
-            <Download />
-          </span>
-          {lc.ledgerExportBtn}
-        </button>
+        <AdminExportButtons
+          onExportXls={() => exportLeaveLedgerWorkbook(filtered)}
+          onExportPdf={() => exportLeaveLedgerReport(filtered)}
+          disabled={filtered.length === 0}
+          onToast={onToast}
+          labels={shared}
+        />
       </div>
 
       {filtered.length === 0 ? (

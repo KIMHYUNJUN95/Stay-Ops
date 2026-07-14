@@ -2,20 +2,32 @@ import type { AppSession } from "@/lib/session";
 import { getTimestampRange, type RequestDateFilter } from "@/lib/request-filters";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
+import type { MaintenanceStatus } from "@/lib/maintenance-constants";
 
 export type MaintenanceReportRow =
   Database["public"]["Tables"]["maintenance_reports"]["Row"];
-export type MaintenanceStatus = Database["public"]["Enums"]["maintenance_status"];
 
-export const maintenanceStatuses: readonly MaintenanceStatus[] = [
-  "open",
-  "in_progress",
-  "resolved",
-  "closed",
-];
+// Domain constants live in a client-safe module (this one pulls in the server Supabase client, which
+// drags `next/headers` into any client component that touches it). Re-exported for existing callers.
+export {
+  maintenanceCategories,
+  maintenancePriorities,
+  maintenanceStatuses,
+  isMaintenanceCategory,
+  isMaintenancePriority,
+  isMaintenanceStatus,
+  isMaintenanceTerminal,
+  MAINTENANCE_AGING_HOURS,
+  MAINTENANCE_RESOLUTION_IMAGE_LIMIT,
+  type MaintenanceCategory,
+  type MaintenancePriority,
+  type MaintenanceStatus,
+} from "@/lib/maintenance-constants";
 
 export type MaintenanceReportWithReporter = MaintenanceReportRow & {
   reporter_name: string;
+  /** 완료/무효를 실제로 처리한 사람. 아직 처리 전이면 null. */
+  completed_by_name: string | null;
 };
 
 type ProfileName = { id: string; name: string };
@@ -24,22 +36,29 @@ type MaintenanceReportFilters = RequestDateFilter & {
   status?: MaintenanceStatus;
 };
 
-async function attachReporterNames(
+// 신고자 + 완료 처리자 이름을 한 번의 profiles 조회로 붙인다 (PostgREST join 대신 배치 조회 —
+// 이 코드베이스의 기존 패턴).
+async function attachNames(
   items: MaintenanceReportRow[],
 ): Promise<MaintenanceReportWithReporter[]> {
   if (items.length === 0) return [];
   const supabase = await getSupabaseServerClient();
-  const reporterIds = Array.from(new Set(items.map((i) => i.reported_by_user_id)));
+  const ids = new Set<string>();
+  for (const item of items) {
+    ids.add(item.reported_by_user_id);
+    if (item.completed_by) ids.add(item.completed_by);
+  }
   const { data: profiles } = await supabase
     .from("profiles")
     .select("id, name")
-    .in("id", reporterIds);
+    .in("id", [...ids]);
   const names = new Map(
     ((profiles ?? []) as ProfileName[]).map((p) => [p.id, p.name] as const),
   );
   return items.map((item) => ({
     ...item,
     reporter_name: names.get(item.reported_by_user_id) ?? "",
+    completed_by_name: item.completed_by ? (names.get(item.completed_by) ?? null) : null,
   }));
 }
 
@@ -64,7 +83,7 @@ export async function getOrgMaintenanceReports(
   }
   const { data, error } = await query.order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
-  return attachReporterNames((data ?? []) as MaintenanceReportRow[]);
+  return attachNames((data ?? []) as MaintenanceReportRow[]);
 }
 
 export async function getMaintenanceReportById(
@@ -79,16 +98,8 @@ export async function getMaintenanceReportById(
     .eq("organization_id", session.organization.id)
     .maybeSingle();
   if (!data) return null;
-  const item = data as MaintenanceReportRow;
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, name")
-    .eq("id", item.reported_by_user_id)
-    .maybeSingle();
-  return {
-    ...item,
-    reporter_name: (profile as ProfileName | null)?.name ?? "",
-  };
+  const [withNames] = await attachNames([data as MaintenanceReportRow]);
+  return withNames ?? null;
 }
 
 export async function getMyMaintenanceReportById(

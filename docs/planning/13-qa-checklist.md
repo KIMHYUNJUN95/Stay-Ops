@@ -1,6 +1,6 @@
 # Phase 13: Full-System QA Checklist
 
-Last updated: 2026-06-04  
+Last updated: 2026-07-14  
 Verification method: code trace + unit tests + TypeScript build + DB migration check (browser E2E pending)
 
 Use this document as the live gate for internal rollout decisions.  
@@ -114,7 +114,7 @@ The automated tests above cover pure-function and static-structure behavior. The
 | Today column highlighted | Code trace | Pass |
 | Property filter chips filter room axis and stats | Code trace | Pass |
 | Check-in / check-out lists show today's guests | Code trace | Pass |
-| CSV export downloads reservations file | Browser E2E | Not tested |
+| Reservation export opens `/admin/calendar/print` (A4 landscape month board for browser print/save-as-PDF) — CSV download route no longer exists (2026-07-10) | Code trace | Pass |
 | Out-of-window month shows notice card | Code trace | Pass |
 
 ---
@@ -216,20 +216,35 @@ The automated tests above cover pure-function and static-structure behavior. The
 
 ---
 
-## 8. CSV Export
+## 8. Admin Export (Excel / PDF)
+
+> **Superseded (2026-07-14):** the original `/api/admin/export/[resource]` CSV route (and every
+> `/api/admin/export/*` endpoint — `reservations`, `cleaning`, `maintenance`, `lost-found`, `orders`)
+> was **deleted**. All admin-web exports now go through canonical server actions
+> (`exportCleaningHistoryWorkbook/Report`, `exportLostFoundWorkbook/Report`,
+> `exportOrdersWorkbook/Report`, `exportLeaveLedgerWorkbook/Report`,
+> `exportLeaveBalanceWorkbook/Report`, `exportAttendanceWagesWorkbook/Report`, plus the pre-existing
+> attendance payroll/transport export actions) that render through the shared
+> `src/lib/admin-table-workbook.ts` (Excel) / `src/lib/admin-table-report.ts` (PDF/print HTML) builders.
+> The reservation calendar export is a separate path — it opens `/admin/calendar/print` for
+> browser print/save-as-PDF (2026-07-10), not a workbook download. The table below replaces the old
+> CSV-route checklist.
+>
+> **수리·점검은 내보내기가 아예 없다 (2026-07-14 확정).** `exportMaintenanceWorkbook/Report`도
+> 함께 삭제됐다 — 아래 표에서 수리·점검은 검증 대상이 아니다.
 
 | Test case | Method | Status |
 |---|---|---|
-| `/api/admin/export/reservations` requires admin session | Code trace | Pass |
-| `/api/admin/export/cleaning` requires admin session | Code trace | Pass |
-| `/api/admin/export/maintenance` requires admin session | Code trace | Pass |
-| `/api/admin/export/lost-found` requires admin session | Code trace | Pass |
-| `/api/admin/export/orders` requires admin session | Code trace | Pass |
-| CSV file has UTF-8 BOM (Korean/Japanese text not broken) | Code trace | Pass |
-| Filename uses RFC 5987 encoding for non-ASCII characters | Code trace | Pass |
-| Date range filters are applied in export output | Code trace | Pass |
-| Status filter is applied in export output | Code trace | Pass |
-| Actual file downloads in browser | Browser E2E | Not tested |
+| Every admin export action calls `requireAdminSession()` (or the page-level equivalent) before querying | Code trace | Pass |
+| Export actions re-query rows server-side from the current filter values only — client never transmits row data | Code trace | Pass |
+| Excel output uses the shared green-ledger template (title row → header row → numbered data rows → total row → org/generated-at footer) | Code trace | Pass |
+| PDF output is an A4-landscape-style print HTML using the same shared template as Excel | Code trace | Pass |
+| Export language is resolved server-side from `session.user.preferredLanguage` — client never passes a locale | Code trace | Pass |
+| Date range filters are applied in export output where the surface has a date filter (cleaning history, lost-found, orders) | Code trace | Pass |
+| Status filter is applied in export output where the surface has a status filter | Code trace | Pass |
+| Empty result set returns a distinct "no rows" result instead of an empty file | Code trace | Pass |
+| Leave 이력/잔여 and 근태 수당 exports are approver/`attendance_payroll_admin`-gated (not open to all admin-web roles) | Code trace | Pass |
+| Actual file downloads / print dialog opens in browser | Browser E2E | Not tested |
 
 ---
 

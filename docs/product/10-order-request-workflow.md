@@ -297,8 +297,21 @@ Admin web (deferred):
 
 - Shows all order requests for the organization.
 - Columns: building / room, title, status badge, requester, requested at.
-- Filter controls: date range (startDate / endDate), status.
-- CSV export available.
+- Filter controls: date range (startDate / endDate) rendered via the shared
+  `<DateRangeFormField>` (`src/components/admin/shared/date-range-form-field.tsx`, an
+  `AdminDateRangePicker` popover + hidden inputs — replaced the two native `<input type="date">`
+  fields on 2026-07-14; `startDate`/`endDate` search params and deep links are unchanged), status.
+- **Export = Excel + PDF (2026-07-14; was CSV).** `OrdersExportBar`
+  (`src/components/admin/orders/orders-export-bar.tsx`) renders the canonical `<AdminExportButtons>`.
+  New server actions `exportOrdersWorkbook(filters)` / `exportOrdersReport(filters)`
+  (`src/app/admin/orders/actions.ts`, new file) — gated by `requireAdminSession()` + organization scope.
+  The client sends only the current filter values; the server re-queries via `getOrgOrderRequests` so
+  the file always matches the filtered screen. Columns (carried over from the old CSV headers): building
+  / location / title / status / urgency / requester / created-at / item summary. Output uses the shared
+  admin export builders (`src/lib/admin-table-workbook.ts` / `admin-table-report.ts`); language is
+  resolved server-side from `session.user.preferredLanguage`. **The old `/api/admin/export/orders` CSV
+  route no longer exists** — all `/api/admin/export/*` endpoints were removed as part of a console-wide
+  export unification (see `docs/product/07-cleaning-workflow.md`, `docs/product/09-lost-found-workflow.md`).
 - Each row links to the admin order detail page (`/admin/orders/[id]`).
 
 ### Admin Detail (`/admin/orders/[id]`)

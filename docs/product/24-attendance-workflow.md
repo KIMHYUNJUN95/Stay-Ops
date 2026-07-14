@@ -87,6 +87,17 @@ sentence.
 단, 전화 연결 버튼은 모바일 roster에서만 제공한다. PC 관리자 콘솔의 `/admin/attendance/roster`는
 전화 컬럼/`tel:` 버튼을 노출하지 않는다.
 
+**수당(시급) 화면 Excel/PDF 내보내기 구현 (2026-07-14):** `/admin/attendance/wages` 사이드 패널의
+비활성(disabled) 스텁 내보내기 버튼을 제거하고, 툴바에 공용 `<AdminExportButtons>`
+(`src/components/admin/shared/admin-export-buttons.tsx`)를 신설했다. 신규 서버 액션
+`exportAttendanceWagesWorkbook()` / `exportAttendanceWagesReport()`(`src/app/admin/attendance/actions.ts`)는
+기존 급여(payroll) export와 동일한 `attendance_payroll_admin`/`owner` 권한 게이트를 쓴다. 산출물은
+2시트 구성: (1) 직원별 요약 — 직원/고용형태/현재 시급/적용 시작일/이력 단계 수, (2) 시급 이력 상세 —
+직원/시급/적용 시작일/적용 종료일/사유. 어드민 콘솔 공용 그린 렛저 템플릿
+(`src/lib/admin-table-workbook.ts` / `admin-table-report.ts`)을 통해 렌더링되며, 근태 급여·교통비
+내보내기는 이번 변경 이전에 이미 같은 공용 톤을 쓰고 있어 변경 없음. i18n: `attendanceConsole.wageColTo`
+신규 추가(ko/ja/en).
+
 ## Design source
 
 Ported from `Attendance Module v2.html` (high-fidelity handoff). Same ivory + deep-ink-navy tokens as

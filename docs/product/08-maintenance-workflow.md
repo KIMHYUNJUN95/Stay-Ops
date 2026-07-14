@@ -8,24 +8,38 @@ This includes broken items, missing items, facility issues, cleaning condition i
 
 ## Required Fields
 
-Maintenance request fields:
+`maintenance_reports` 실제 컬럼 (2026-07-14 백엔드 연동 기준). 스키마 원본은
+`docs/engineering/04-data-model.md`, 마이그레이션은 `supabase/migrations/202607160001_maintenance_backend.sql`.
 
 ```txt
 id
 organization_id
-property_id
-room_id
-category
-description
-photos
-priority
 reported_by_user_id
-status
-memo
+room_label                -- 자유 텍스트. property_id / room_id FK는 없다.
+is_building_only          -- 객실 없는 건물 단위(공용부) 신고
+property_name             -- 건물명 스냅샷
+issue_title
+description
+category                  -- maintenance_category enum (10종)
+priority                  -- maintenance_priority enum (low/normal/high/urgent)
+status                    -- maintenance_status enum (open/in_progress/closed/cancelled)
+image_urls                -- 신고 사진 (≤5)
+resolution_image_urls     -- 완료(수리 후) 사진 (≤5, 선택)
+resolution_memo           -- 처리 메모 (신고 시 description과 별개)
+completed_at              -- closed/cancelled 로 갈 때 기록, 재오픈 시 null
+completed_by              -- 완료/무효를 처리한 사람
+completed_by_admin        -- 관리자 예외 개입으로 종료됐는지
+cleaning_session_id       -- 청소 중 신고 시 연동
+reservation_id
+guest_name
 created_at
 updated_at
-completed_at
 ```
+
+**담당자(assignee) 컬럼은 없다** — 배정 개념 자체가 없다(아래 "성격" 절 참고).
+
+> 이 문서는 오랫동안 위치를 `property_id`/`room_id` FK로, 메모를 `memo`로 적어 두었지만 실제 구현은
+> 그런 적이 없다. 위 목록이 실제 스키마다.
 
 ## Field Meaning
 
@@ -58,7 +72,8 @@ value for session matching). Cleaning's session↔reservation MATCHING keys stay
 (`src/lib/request-location.ts`) previously returned `canonicalRoomLabel` ("201_2") as the display value
 on a catalog match. They now return `displayRoomLabel` ("201") and also match on `displayRoomLabel`
 (so records stored as the collapsed "201" still recover their building). This fixes the **admin
-maintenance/lost-found/orders lists** and the **cleaning + request CSV exports**, which route through
+maintenance/lost-found/orders lists** and the **cleaning + request Excel/PDF exports** (CSV export was
+later removed org-wide — see "2026-07-14 어드민 수리/점검 내보내기" below), which route through
 this helper, in one place. The `canonicalRoomLabel` field it returns stays canonical (matching consumers
 like the linked forms are unaffected). **Attendance** room display (payroll export cleaning column,
 work-context) already collapses via `summarizeCleaningRoomLabel`/`getDisplayRoomLabel` — OK. Still
@@ -106,14 +121,17 @@ Compression:
 
 ### Priority
 
-Required.
+Required. Default `normal`.
 
-Priority candidates:
+DB enum `maintenance_priority`:
 
 - low
 - normal
 - high
 - urgent
+
+> 2026-07-14 이전에는 신고 폼에 우선순위 칩 4개가 렌더됐지만 **폼에 실리지도 않았고**(hidden input이
+> 없었다) 저장할 컬럼도 없었다. 사용자가 고른 값이 그대로 버려졌다. 이제 실제로 저장된다.
 
 ### Reported By
 
@@ -125,22 +143,47 @@ The app should automatically store the user who reported the issue.
 
 Required.
 
-Implemented DB enum values (maintenance_status):
+Implemented DB enum values (maintenance_status) — **4-state as of 2026-07-14**:
 
-- open
-- in_progress
-- resolved
-- closed
+- open (접수)
+- in_progress (처리중)
+- closed (완료)
+- cancelled (무효)
 
-Note: the originally planned values (reported, confirmed, waiting, completed, cancelled) were not used in the final implementation. The current enum reflects the simpler 4-state model.
+**`resolved`는 2026-07-14에 폐기됐다.** 현장이 "해결"과 "완료"를 구분할 수 없어 두 상태가 실질적으로
+같게 쓰였다. 마이그레이션 `202607160001`이 기존 `resolved` 행을 `closed`로 병합한 뒤 enum을 재생성한다
+(되돌릴 수 없음). 대신 `cancelled`(무효)가 추가됐다 — 잘못된·중복 신고를 하드 삭제하는 대신 감사 흔적을
+남기기 위해서다.
+
+**재오픈 허용**: `closed`/`cancelled`를 다시 `open`/`in_progress`로 되돌릴 수 있다(실제로 안 고쳐진
+경우). 재오픈하면 `completed_at` / `completed_by`가 초기화된다.
 
 ### Memo
 
 Optional.
 
-Used for internal notes, follow-up details, manager comments, or resolution notes.
+**처리 메모(`resolution_memo`)** — 현장이 확인·수리한 내용을 남긴다. 신고 시 작성하는 `description`과
+별개이며, 신고 폼이 아니라 **상세 화면의 "현장 처리" 블록**에서 입력한다.
+
+> 2026-07-14 이전에는 신고 폼에 "메모" 입력칸이 있었지만 `name` 속성이 없어 **아무것도 저장되지
+> 않았다**. 그 죽은 입력칸은 제거됐다.
+
+### Resolution photos
+
+Optional. 완료(수리 후) 사진을 최대 5장 첨부할 수 있다. **강제가 아니다.**
+
+- 신고 사진(`image_urls`)과 분리해 `resolution_image_urls`에 저장한다.
+- 스토리지 경로도 분리: `{orgId}/maintenance-resolutions/{reportId}/{file}`
+  (신고 사진은 `{orgId}/maintenance-reports/…`). 같은 `request-images` 버킷.
+- 압축·용량·타입 정책은 신고 사진과 동일하다.
 
 ## Categories
+
+DB enum `maintenance_category` (10종, 2026-07-14 확정). Default `other`.
+
+> 모바일 폼에는 그전까지 **다른 8종**(electric / water / hvac / appliance / lock / internet /
+> amenities / other)이 렌더됐지만, 서버 액션이 `formData`의 category를 읽지 않아 **한 번도 저장된 적이
+> 없었다**. 따라서 아래 10종으로 교체하는 데 데이터 마이그레이션이 필요하지 않았다.
 
 Confirmed categories:
 
@@ -219,15 +262,24 @@ Default mobile behavior:
 Can change status:
 
 - Developer / Super Admin
-- Owner
+- Owner (+ Senior Managing Director, owner-equivalent)
 - Office Admin
 - CS Staff if permitted
 - Field Manager
 - Staff
+- 신고자 본인 (own record)
+- `maintenance_status_change` 권한 예외(override) 보유자
 
 Cannot change status:
 
 - Part-time Staff
+
+**어디서 바꾸는가 (2026-07-14):** 현장이 **모바일 상세 화면의 "현장 처리" 블록**에서 바꾼다
+(상태 + 처리 메모 + 완료 사진을 한 번에 저장). 어드민 콘솔의 예외 개입은 아래 별도 절 참고.
+
+> 2026-07-14 이전에는 **모바일에 상태 변경 UI가 아예 없었다.** 상세 화면은 상태를 보여주기만 했고,
+> 상태를 바꿀 수 있는 경로는 어드민 상세 페이지 하나뿐이었다 — 이 문서가 못박은 규칙이 구현된 적이
+> 없었다. 또한 RLS UPDATE 정책에서 `staff`가 빠져 있었다(문서가 정답이라 정책을 정정했다).
 
 ## Edit and Delete Permission
 
@@ -271,100 +323,157 @@ When created from an active cleaning timer, the request should automatically lin
 
 ## Open Questions
 
-- Should urgent maintenance trigger push notifications to Field Manager and Office Admin?
-- Should completed maintenance require a completion photo?
-- Should cost be tracked in this module later?
-- Should requests support assigning a responsible person?
-- Should staff be able to edit after submitting?
+대부분 2026-07-14에 확정됐다. 남은 것은 알림 하나뿐이다.
 
-## 2026-07-14 어드민 수리/점검 대시보드 — 재기획 (감시·이력·예외 개입)
+| 질문 | 결론 |
+| --- | --- |
+| 긴급 건에 푸시 알림을 보낼 것인가? | **미정 (유일한 후속 항목).** 알림은 개발 완료 후 출시 전 단계에서 일괄 구현한다. |
+| 완료 사진을 필수로 할 것인가? | **아니오.** 선택적 첨부만 허용 (`resolution_image_urls`, ≤5). |
+| 비용을 추적할 것인가? | **아니오.** 범위 밖. |
+| 담당자 배정을 지원할 것인가? | **아니오.** 배정 개념 자체를 두지 않는다. |
+| 제출 후 본문(제목·설명·카테고리·우선순위·사진)을 수정할 수 있는가? | **아니오.** 편집 경로를 두지 않는다 — 접수된 신고는 사실 기록이다. 잘못 올린 건은 삭제(본인) 또는 무효 처리(어드민)로 정리한다. 상세에서 할 수 있는 쓰기는 "현장 처리"(상태·처리 메모·완료 사진)뿐이다. |
 
-> **상태:** 기획 확정. 구현은 후속(디자인 파일 없이 공용 `.adm`/`.dd` 패턴으로 구현 예정). 이 섹션이
-> 재구현의 기준 스펙이다. 알림(급한 건 통지)은 이번 범위 아님(알림 단계에서).
+## 설계 원칙 — 감시 + 이력 + 예외 개입 (확정, 2026-07-14)
 
-### 현행 vs 재구현 (문서-코드 정합 주의)
+수리·점검은 **관리자가 배정·처리하는 콘솔이 아니다.** 유지보수 인력도 결국 현장이라, 신청이 등록되면
+**현장이 모바일에서 보고 직접 가서 처리**한다(확인 · 상태 갱신 · 처리 메모 · 완료 사진 전부 모바일).
 
-이 문서 상단의 "Required Fields"는 **기획만 되고 실제 테이블엔 없는 필드**(category, priority, memo,
-completed_at, room_id/property_id)를 포함한다. **실제 `maintenance_reports` 테이블**은 더 단순하다:
-`issue_title · description · room_label · property_name · guest_name · image_urls[] · status · reported_by_user_id ·
-cleaning_session_id · reservation_id · created_at · updated_at` (위치는 FK가 아니라 `room_label`/`property_name`
-텍스트, 청소와 동일). 이번 재구현에서 아래 필드를 **실제로 추가**한다.
-
-### 성격 — 청소와 동일 (감시 + 이력 + 예외 개입)
-
-수리/점검은 **관리자가 배정·처리하는 콘솔이 아니다.** 유지보수 팀도 결국 **현장**이라, 신청이 등록되면
-**현장이 모바일에서 보고 직접 가서 처리**한다(확인·상태 갱신·처리 메모 모두 모바일). **배정 개념 없음.**
-
+- **배정 개념이 없다.** `assignee` 컬럼도, 배정 UI도 만들지 않는다.
 - 대시보드의 역할 = **감시(oversight) + 이력(record) + 예외 개입**.
-- 예외 개입 = **관리자 강제 종료**(오래 방치된 건) + **삭제**(잘못된/중복 신청). 청소의 강제완료와 동일 철학.
+- **예외 개입 = 강제 완료 / 무효 처리 / 삭제** 3종. 청소의 강제완료와 같은 철학이고 같은 역할 게이트를 쓴다.
+- 무효(`cancelled`)는 **삭제의 대안**이다. 잘못된·중복 신고를 하드 삭제하는 대신 감사 흔적을 남긴다.
+  삭제는 정말 불필요할 때만.
 
-### 티켓 모델 (재구현 — 마이그레이션 필요)
-
-- **추가 enum**: `maintenance_priority` = low/normal/high/urgent · `maintenance_category` =
-  electric/water/air_conditioning_heating/wifi/furniture/appliance/cleaning_condition/supplies/damage/other
-  (표시 라벨은 상단 Categories 표 그대로, ko/ja/en).
-- **추가 컬럼**(`maintenance_reports`): `priority`(default `normal`) · `category`(default `other`) ·
-  `resolution_memo text` · `completed_at timestamptz`. **담당자(assignee) 컬럼은 두지 않는다**(배정 없음).
-- **유지**: issue_title · description · room_label/property_name · guest_name · image_urls(≤5) · status ·
-  신고자 · 청소/예약 연동 · 타임스탬프.
-- **상태**: 접수(open) → 처리중(in_progress) → 해결(resolved) → 종료(closed). `resolved`/`closed`로
-  바뀔 때 `completed_at` 기록. 상태 갱신은 **주로 모바일(현장)**.
-
-### 모바일 신청/처리 영향
-
-- 신청 폼에 **카테고리·우선순위 선택 추가** — 둘 다 **기본값 있는 선택**(카테고리 기본 `기타`, 우선순위
-  기본 `normal`). 기존 진입점(정비 탭 · 홈 퀵액션 · 청소 타이머 · 예약캘린더 연동 · 어드민) 유지.
-- 현장이 모바일에서 **확인 → 상태 갱신(처리중/해결) → 처리 메모** 수행(기존 상태변경 권한 그대로).
-
-### 대시보드 (보드/목록 전환) — 읽기 중심
-
-- **현황 보드 뷰**: 상태 4칼럼(접수/처리중/해결/종료), 카드에 우선순위 뱃지 · 카테고리 · 제목 · 위치 ·
-  사진 유무 · 경과시간. 우선순위 높은 순 정렬. **긴급·오래된 미해결 강조**(접수 후 오래 방치된 건).
-- **KPI 스트립**: 접수 · 처리중 · 긴급 · 오래된 미해결 · 해결.
-- **목록/이력 뷰**: 필터(상태 · 우선순위 · 카테고리 · 건물 · 신고자 · 기간 · 검색) + 테이블 +
-  **내보내기(CSV/Excel)**.
-- **우측 상세 슬라이드 패널**(읽기 중심): 사진 갤러리 · 제목/설명 · 위치 · 신고자/신고시각 ·
-  카테고리/우선순위 · 상태 · 처리 메모 · 연동(청소/예약). + **예외 액션**: 강제 종료 · 삭제(확인 모달, 제목 표시).
-- 보드 ↔ 목록 **토글**. 빈/로딩/에러 상태 포함.
-
-### 권한
-
-- **상태 변경(일반)**: 현장이 **모바일에서** 수행 — `part_time_staff` 제외 전원(기존 규칙).
-- **대시보드 강제 종료**: 관리자(developer/owner/전무/office_admin 등)만. 서버 게이트에서 확정.
-- **삭제**: 본인 기록은 전원, 타인 기록은 관리자. 하드 삭제 + 확인 모달(제목 표시). RLS로 서버 강제.
-
-### 디자인 시스템
-
-어드민 공용 `.adm` + `.dd` 드롭다운 · 우측 슬라이드 패널 · 중앙 하단 토스트 · 상태/우선순위 뱃지.
-근태·사용자 콘솔과 한 몸으로. 새 라벨(우선순위 4종, 카테고리 10종, 처리 메모, 빈/에러 문구)은
-ko·ja·en 동시 추가.
+구현 상세(3뷰 구성 · KPI · 파생 값 · 파일 목록)는 아래 "디자인 + 백엔드 연동" 절이 기준이다.
 
 ### 범위에서 제외
 
-- ❌ **담당자 배정**(배정 개념 없음) · ❌ 관리자 능동 처리 콘솔(처리는 모바일 현장)
-- ❌ 급한 건 알림 발송(알림 단계에서) · ❌ 비용 추적 · ❌ 완료 사진 **필수화**(선택적 완료 사진은 허용 — 아래 보강 참고)
-- ❌ **긴급 상시 배지** — 알림은 개발 완료 후 출시 전 단계에서 일괄 구현하며, 그 전까지는 전부 테스트
-  버전이라 긴급 가시성은 알림 단계에서 처리한다.
+- ❌ **담당자 배정** (배정 개념 없음)
+- ❌ 관리자 능동 처리 콘솔 (처리는 모바일 현장)
+- ❌ 완료 사진 **필수화** (선택적 첨부만 허용)
+- ❌ 비용 추적
+- ❌ **Excel/PDF 내보내기** (2026-07-14 확정 — 아래 "내보내기" 절)
+- ❌ 급한 건 알림 발송 · **긴급 상시 배지** — 알림은 개발 완료 후 출시 전 단계에서 일괄 구현한다.
+  그 전까지는 전부 테스트 버전이라 긴급 가시성은 알림 단계에서 처리한다. (유일하게 남은 후속 항목)
 
-### 기획 보강 (2026-07-14 확정) — 카테고리·상태·완료사진·재실
+## 2026-07-14 어드민 수리·점검 대시보드 — 디자인 + 백엔드 연동 (완료)
 
-**티켓 모델 추가/변경**
+> **상태:** 화면(디자인) 100% 이식 **+ 실데이터 연동 완료 + 모바일 현장 처리 UI 신설**.
+> 청소 콘솔과 같은 순서를 따랐다 — 디자인 포팅 → 실데이터 연결.
+>
+> 마이그레이션 `202607160001_maintenance_backend.sql`은 **원격 Supabase에 적용 완료**(2026-07-14, 대표
+> 직접 실행). 컬럼 22개 · enum 3종 · 인덱스 2개 · RLS/storage 정책 반영을 DB에서 직접 대조 확인했다.
+> 적용 시점에 테이블 행이 0개였으므로 `resolved` → `closed` 병합과 건물 전체 backfill은 모두 0건이었다.
+>
+> **아직 라이브 검증(실제 신고 → 현장 처리 → 어드민 확인)은 하지 않았다.** 특히 완료 사진 업로드가
+> storage 정책을 실제로 통과하는지는 코드로 검증되지 않은 유일한 지점이다.
 
-- **카테고리 = 10종 확정**: `electric` / `water` / `air_conditioning_heating` / `wifi` / `furniture` /
-  `appliance` / `cleaning_condition` / `supplies` / `damage` / `other` (표시 라벨은 상단 Categories 표,
-  ko·ja·en). 모바일 폼의 기존 8종(`hvac`/`lock`/`internet`/`amenities` 등)을 이 10종으로 **교체**.
-  enum `maintenance_category`.
-- **상태 enum에 `cancelled`(무효) 추가** → `open`/`in_progress`/`resolved`/`closed`/**`cancelled`**.
-  잘못된·중복 신고는 하드삭제 대신 `cancelled`로 남겨 감사 흔적 유지(삭제는 정말 불필요할 때만).
-- **재오픈 허용**: 기본은 정방향 전이지만, `resolved`/`closed`를 **다시 `open`/`in_progress`로 되돌릴 수
-  있다**(실제로 안 고쳐진 경우). 재오픈 시 `completed_at` 초기화.
-- **`resolution_image_urls text[]` 추가**: 현장이 '해결' 처리 시 **선택적 완료(수리 후) 사진** 첨부
-  (신청 사진 `image_urls`와 분리, ≤5장, 강제 아님). `resolution_memo` + `completed_at`과 함께 저장.
+`/admin/maintenance`가 기존 목록 카드 화면에서 **운영 콘솔**로 교체됐다. Claude Design 핸드오프
+(`StayOps 수리 점검 (admin)/수리 점검 현황 (admin).html`)를 그대로 옮긴 것으로, 위 "설계 원칙" 절의
+스펙을 화면으로 구현한 결과다.
 
-**대시보드/모바일 강화**
+### 구성 (3뷰)
 
-- **재실 중 경고(파생)**: 예약 연동으로 그 방에 **지금 손님이 있으면**(확정 예약 `check_in ≤ 오늘(Tokyo) <
-  check_out`) 모바일 신청 화면·대시보드 카드/상세에 **'재실 중' 배지**. 저장값이 아니라 조회 시 계산.
-- **오래된 미해결 강조**: `open` 접수 후 기준 시각(**기본 24시간**, 상수) 초과한 미해결 건을 현황 보드에서
-  경고색으로 강조.
-- **건물 전체(공용부) 리포트**: room 없이 건물만인 신고("건물 전체")도 대시보드 목록·보드에서 필터·표시.
+- **KPI 스트립(5칸)**: 접수 · 처리중 · 긴급 · 오래된 미해결 · 완료.
+- **현황 보드**: 상태 3칼럼 — **접수 / 처리중 / 무효**. 완료(closed)는 누적 데이터라 보드에서 빼고
+  별도 "완료" 뷰에서만 본다. 카드에 우선순위·카테고리·사진 수·위치·재실 중·신고자·경과시간.
+  정렬은 우선순위 → 오래된 순. 보드에만 `읽기 전용 · 처리는 현장(모바일)` 배지 + 실시간 동기화 칩.
+- **목록 · 이력**: 기간(공용 `AdminDateRangePicker`) + 상태·우선순위·카테고리·건물·신고자 드롭다운
+  (`AdmDropdown`) + 검색. 완료 건은 제외.
+- **완료**: 같은 필터바에서 상태 드롭다운만 빠지고, 완료시각·완료 처리자 컬럼이 추가된다.
+- **우측 상세 패널**: 재실 경고 → 신고 사진 → 설명 → 기본 정보 → 처리 메모 → 완료 사진(closed 전용)
+  → 연동(청소/예약) → 모바일 처리 안내 → **관리자 예외 개입**(강제 완료 / 무효 처리 / 삭제).
+- **확인 모달** 3종: 강제 완료(`btn--pri`) · 무효 처리(`btn--warnsolid`) · 삭제(`btn--danger`).
+  세 가지 모두 사유 메모(선택)를 받는다.
+
+### 파생 값 (저장하지 않는다)
+
+- **재실 중** = 연동 예약의 `check_in ≤ 오늘(Tokyo) < check_out`. 조회 시 계산.
+- **오래된 미해결** = `open` 상태이면서 접수 후 **72시간** 초과.
+  상수는 `MAINTENANCE_AGING_HOURS` (`src/lib/maintenance-constants.ts`).
+
+둘 다 컬럼이 아니다. 저장하면 예약이 바뀌거나 시간이 흐를 때 즉시 낡은 값이 되기 때문에,
+`src/lib/admin-maintenance.ts`가 조회할 때마다 계산해서 뷰모델에 실어 보낸다.
+
+### 모바일 — 현장 처리 UI (신설)
+
+이 콘솔은 "처리는 현장(모바일)"을 전제하는데, **그 모바일 UI가 존재한 적이 없었다.** 이번에 만들었다.
+
+- 위치: `/mobile/requests/maintenance/[id]` 상세 화면 하단의 **"현장 처리"** 블록
+  (`src/components/requests/maintenance-handling-form.tsx`).
+- 한 번의 저장으로 **상태 + 처리 메모 + 완료 사진**을 같이 기록한다.
+- 상태 칩 4개(접수 / 처리중 / 완료 / 무효). 무효를 고르면 "삭제가 아니라 기록은 남는다"는 안내가,
+  종료 건을 다시 열면 "완료시각이 초기화된다"는 안내가 뜬다.
+- `part_time_staff`에게는 폼 대신 읽기 전용 안내만 보인다. 서버 액션과 RLS가 최종 게이트다.
+- 서버 액션: `updateMaintenanceHandling`(`src/app/mobile/requests/maintenance/actions.ts`).
+
+### 모바일 — 신청 폼의 "유령 필드" 수정
+
+신청 폼에는 **카테고리 드롭다운·우선순위 칩·메모 입력이 렌더되고 있었지만 전부 저장되지 않았다.**
+
+- **카테고리**: hidden input으로 제출은 됐지만 서버 액션이 읽지 않았다(컬럼도 없었다). → 10종으로
+  교체하고 실제 저장.
+- **우선순위**: `name` 속성이 없어 폼에 실리지도 않았다. → hidden input 추가, 실제 저장.
+- **메모**: `name` 속성이 없었다. → 신고 메모가 아니라 **처리 메모**가 맞는 개념이므로 신청 폼에서
+  제거하고 상세의 "현장 처리" 블록으로 옮겼다.
+- **건물 전체 신고**: 그동안 신고자의 **언어로 번역된 문자열**("건물 전체" / "建物全体" /
+  "Whole building")이 `room_label`에 저장돼, 조회하는 사람의 언어가 다르면 그대로 노출됐다. 이제
+  `is_building_only` 불리언으로 정규화하고, 기존 행은 마이그레이션이 backfill한다.
+
+### 내보내기 — 없다 (확정)
+
+**수리·점검에는 Excel/PDF 내보내기가 없다** (2026-07-14, 사용자 결정). 급여·정산처럼 외부로 넘길
+산출물이 아니라 현장이 처리하고 콘솔이 감시하는 운영 기록이라 내보낼 일이 없다고 판단했다.
+버튼과 서버 액션(`exportMaintenanceWorkbook` / `exportMaintenanceReport`)을 **모두 삭제**했다.
+
+`docs/product/05-admin-web-ia.md`의 "Excel + PDF 내보내기 — 절대 규칙"에 대한 **확정 예외**다.
+그 규칙은 *내보내기를 제공하는 화면*이 두 포맷을 함께 내야 한다는 뜻이지, 모든 화면이 내보내기를
+가져야 한다는 뜻이 아니다. 다시 필요해지면 공용 빌더(`buildAdminTableWorkbookBase64` /
+`buildAdminTableReportHtml`)로 되살린다.
+
+### 같이 고친 버그 (문서에도 없던 것)
+
+- **`property_name` 컬럼에 마이그레이션이 없었다.** `database.ts`와 모바일 create 액션이 이미 쓰고
+  있었는데 DDL이 어디에도 없었다(원격 DB에 대시보드로 직접 추가된 것으로 보인다). `supabase db reset`을
+  하면 모바일 신청이 깨지는 상태였다. `add column if not exists`로 따라잡았다.
+- **상태 변경이 조용히 실패했다.** `updateMaintenanceStatus`는 `requireAdminSession()`만 통과하면
+  실행됐는데, RLS UPDATE 정책은 더 좁았다. RLS가 행을 걸러내면 Supabase는 **에러 없이 0행**을 돌려주므로,
+  권한 없는 사용자(예: 남의 신고를 건드리는 `staff`)에게도 "변경됨"이라고 응답했다. 모든 쓰기 경로가
+  이제 영향 행 수를 확인한다.
+- **RLS UPDATE 정책에서 `staff`가 빠져 있었다.** 이 문서의 "Status Change Permission"은 Staff를
+  포함하는데 정책은 아니었다. 문서를 정답으로 보고 정책에 추가했다.
+
+### 파일
+
+- `supabase/migrations/202607160001_maintenance_backend.sql` — 스키마 + RLS + storage 정책.
+- `src/lib/maintenance-constants.ts` — 상태/우선순위/카테고리 상수 (클라이언트 안전).
+  `maintenance-reports.ts`는 서버 전용 Supabase 클라이언트를 끌어오므로 상수를 분리했다.
+- `src/lib/maintenance-reports.ts` — 조회 + 신고자/완료처리자 이름 배치 조인.
+- `src/lib/admin-maintenance.ts` — **어드민 콘솔 실데이터 레이어**. 청소의 `admin-cleaning.ts` 패턴:
+  조직 스코프, `loadError` 플래그(KPI가 0 대신 "–"), 프리젠테이션용 flat 뷰모델, 연동 예약·청소 배치 조회.
+  재실 중·오래된 미해결을 **조회 시 파생**한다.
+- `src/app/admin/maintenance/actions.ts` — 예외 개입(`applyMaintenanceException`) · 삭제 · 내보내기.
+- `src/app/mobile/requests/maintenance/actions.ts` — 현장 처리(`updateMaintenanceHandling`).
+- `src/components/admin/maintenance/` — 콘솔 6개 파일. `maintenance-console-data.ts`는 이제 목데이터가
+  아니라 **표시 헬퍼**(상태/우선순위/카테고리 메타 맵, 정렬, Tokyo 시각 포맷터)다.
+- `src/components/requests/maintenance-handling-form.tsx` — 모바일 현장 처리 블록.
+- 공용 CSS 프리미티브(`.cviewbar` · `.lviews` · `.syncchip` · `.ctoolbar` · `.cstat` · `.rptile` ·
+  `.hmeta` · `.opscell__v` 상태색 · `.panel .kv`)는 청소 전용 스타일시트에서 `admin-console.css`로
+  **승격**했다 — 수리·점검이 두 번째 소비자가 됐기 때문.
+- i18n: `dictionary.maintenance.console` + `dictionary.maintenance.handling` (ko/ja/en).
+
+## 2026-07-14 (이전) `/admin/maintenance` 목록 — 폐기된 중간 단계
+
+같은 날 하루 사이에 이 화면은 두 번 바뀌었다. 기록만 남긴다.
+
+1. 구 목록 카드 화면의 네이티브 `<input type="date">`를 공용 `DateRangeFormField`로 바꾸고,
+   CSV 링크를 실제 Excel/PDF(`MaintenanceExportBar`)로 교체했다.
+2. 그 직후 화면 전체가 **운영 콘솔**로 교체되면서 위 목록 화면 · 필터 폼 · `MaintenanceExportBar`가
+   전부 사라졌고, 이어서 사용자 결정으로 **내보내기 자체가 제거**됐다(서버 액션 포함).
+
+따라서 `MaintenanceExportBar` · `exportMaintenanceWorkbook` · `exportMaintenanceReport`는 **현재 코드에
+존재하지 않는다.** 되살릴 일이 생기면 공용 빌더(`src/lib/admin-table-workbook.ts` /
+`admin-table-report.ts`)와 `<AdminExportButtons>`로 다시 만든다.
+
+여전히 유효한 사실 하나: **구 CSV 경로(`/api/admin/export/*`)는 조직 전체에서 삭제됐다** — 청소 문서(07)·
+주문 문서(10)와 동일한 export 통합 작업의 일부다.

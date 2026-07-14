@@ -1,7 +1,14 @@
 "use server";
 
+// 어드민 수리·점검 서버 액션 — 상태 변경(구 상세 페이지) · 삭제 · 예외 개입(강제 완료/무효).
+//
+// 내보내기(Excel/PDF)는 없다 — 사용자 결정(2026-07-14): 수리·점검은 내보낼 일이 없다. 이는
+// `docs/product/05-admin-web-ia.md` §"Excel + PDF 내보내기 — 절대 규칙"의 명시적 예외다.
+// See docs/product/08-maintenance-workflow.md → "2026-07-14 어드민 수리·점검 대시보드".
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/admin-session";
+import { canForceCompleteCleaning } from "@/lib/cleaning";
 import { maintenanceStatuses, type MaintenanceStatus } from "@/lib/maintenance-reports";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -39,17 +46,78 @@ export async function updateMaintenanceStatus(formData: FormData) {
     redirect("/admin/maintenance?error=not_found");
   }
 
-  const { error } = await supabase
+  // RLS가 행을 걸러내면 Supabase는 에러 없이 0행을 돌려준다. 영향 행 수를 확인하지 않으면 권한이
+  // 없는 사용자(예: 남의 신고를 건드리는 staff)에게도 "변경됨"이라고 응답하게 된다 — 실제 버그였다.
+  const { data: updated, error } = await supabase
     .from("maintenance_reports")
     .update({ status: newStatus } as never)
     .eq("id", reportId)
-    .eq("organization_id", session.organization.id);
+    .eq("organization_id", session.organization.id)
+    .select("id");
 
-  if (error) {
+  if (error || !updated || updated.length === 0) {
     redirect(`/admin/maintenance/${reportId}?error=status_update_failed`);
   }
 
   redirect(`/admin/maintenance/${reportId}?statusUpdated=1`);
+}
+
+// ── 관리자 예외 개입 (강제 완료 / 무효 처리) ────────────────────────────────
+// 일반 처리는 현장(모바일)이 한다. 여기는 오래 방치된 건을 관리자가 닫거나, 잘못된·중복 신고를 무효로
+// 남기는 예외 경로다. 청소 강제완료와 같은 역할 게이트(canForceCompleteCleaning)를 쓴다.
+
+export type MaintenanceExceptionKind = "force" | "void";
+
+export type MaintenanceExceptionResult =
+  | { ok: true }
+  | { ok: false; reason: "forbidden" | "invalid" | "not_found" | "failed" };
+
+export async function applyMaintenanceException(input: {
+  kind: MaintenanceExceptionKind;
+  memo: string;
+  reportId: string;
+}): Promise<MaintenanceExceptionResult> {
+  const session = await requireAdminSession();
+  if (!canForceCompleteCleaning(session.user.role)) {
+    return { ok: false, reason: "forbidden" };
+  }
+  if (!isValidUUID(input.reportId)) {
+    return { ok: false, reason: "invalid" };
+  }
+
+  const supabase = await getSupabaseServerClient();
+  const { data: existing } = await supabase
+    .from("maintenance_reports")
+    .select("id, resolution_memo")
+    .eq("id", input.reportId)
+    .eq("organization_id", session.organization.id)
+    .maybeSingle();
+  if (!existing) return { ok: false, reason: "not_found" };
+
+  const previousMemo = (existing as { resolution_memo: string | null }).resolution_memo ?? "";
+  const addition = input.memo.trim();
+  // 예외 개입 사유는 기존 처리 메모를 덮어쓰지 않고 덧붙인다 — 현장이 남긴 기록이 감사 흔적이다.
+  const memo = addition ? (previousMemo ? `${previousMemo}\n${addition}` : addition) : previousMemo;
+
+  const { data: updated, error } = await supabase
+    .from("maintenance_reports")
+    .update({
+      status: input.kind === "force" ? "closed" : "cancelled",
+      completed_at: new Date().toISOString(),
+      completed_by: session.user.id,
+      completed_by_admin: true,
+      resolution_memo: memo || null,
+    } as never)
+    .eq("id", input.reportId)
+    .eq("organization_id", session.organization.id)
+    .select("id");
+
+  if (error) return { ok: false, reason: "failed" };
+  if (!updated || updated.length === 0) return { ok: false, reason: "forbidden" };
+
+  revalidatePath("/admin/maintenance");
+  revalidatePath(`/mobile/requests/maintenance/${input.reportId}`);
+  return { ok: true };
 }
 
 export async function deleteMaintenanceReportById(
@@ -81,5 +149,6 @@ export async function deleteMaintenanceReportById(
     return { ok: false, error: "not_found" };
   }
 
+  revalidatePath("/admin/maintenance");
   return { ok: true };
 }

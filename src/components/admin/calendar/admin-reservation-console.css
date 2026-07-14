@@ -177,6 +177,7 @@
   box-shadow: 0 8px 20px -20px rgba(20, 32, 43, 0.24);
   font-size: 12px;
   font-weight: 800;
+  line-height: 1;
   cursor: pointer;
 }
 
@@ -184,13 +185,21 @@
   border-color: color-mix(in oklab, var(--ink) 10%, var(--line));
 }
 
+/* Kicker and value must share font-size + line-height. Flex centers each span's BOX, so a smaller
+   kicker would sit on a different text baseline than the value and the two words would look
+   vertically misaligned. Hierarchy comes from color/weight only. */
 .adm .admcal__menu-kicker {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .adm .admcal__menu-value {
   color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .adm .admcal__menu-trigger > svg:last-child {

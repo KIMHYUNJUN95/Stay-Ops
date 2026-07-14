@@ -11,6 +11,9 @@ import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Info, Sun, TriangleAlert, Users, X } from "lucide-react";
 import { createAdminLeaveRequestAction } from "@/app/admin/attendance/leave/actions";
 import { loadApplicantLeaveSummary } from "@/app/admin/attendance/leave/detail-actions";
+import { AdminDatePicker } from "@/components/admin/shared/admin-date-picker";
+import { adminLocaleTag } from "@/lib/admin-export-meta";
+import { getDictionary } from "@/lib/i18n";
 import type {
   LeaveApplicantOption,
   AdminLeaveRequestInput,
@@ -96,6 +99,7 @@ export function LeaveRequestModal({
   applicants,
   currentUserId,
   currentUserName,
+  locale = "ko",
   lc,
   onClose,
   onCreated,
@@ -114,6 +118,13 @@ export function LeaveRequestModal({
   const router = useRouter();
   const today = tokyoToday();
   const initialDate = prefillDate ?? today;
+  const localeTag = adminLocaleTag(locale);
+  const shared = getDictionary(locale).admin.shared;
+  const datePickerLabels = {
+    prevMonth: shared.datePrevMonth,
+    nextMonth: shared.dateNextMonth,
+    today: shared.dateToday,
+  };
 
   const [targetUserId, setTargetUserId] = useState(mode === "self" ? currentUserId : "");
   const [leaveType, setLeaveType] = useState<LeaveType>("paid");
@@ -337,18 +348,27 @@ export function LeaveRequestModal({
               <span className="fld__l">
                 {lc.formStart} <b className="req">*</b>
               </span>
-              <input type="date" value={startDate} onChange={(e) => chooseStart(e.target.value)} />
+              <AdminDatePicker
+                value={startDate}
+                onChange={chooseStart}
+                localeTag={localeTag}
+                ariaLabel={lc.formStart}
+                labels={datePickerLabels}
+              />
             </label>
             <label className="fld">
               <span className="fld__l">
                 {lc.formEnd} <b className="req">*</b>
               </span>
-              <input
-                type="date"
+              {/* Bereavement + half-day derive the end date from the start date — read-only, not editable. */}
+              <AdminDatePicker
                 value={endDate}
+                onChange={setEndDate}
                 min={startDate}
-                readOnly={isBereavement || half}
-                onChange={(e) => setEndDate(e.target.value)}
+                disabled={isBereavement || half}
+                localeTag={localeTag}
+                ariaLabel={lc.formEnd}
+                labels={datePickerLabels}
               />
             </label>
           </div>

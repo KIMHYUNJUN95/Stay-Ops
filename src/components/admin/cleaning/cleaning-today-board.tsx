@@ -93,17 +93,9 @@ function RoomCard({
             {fmtDur(elapsed)}
           </span>
         ) : null}
-        {task.status === "overdue" ? (
-          <span className="elapsed is-late">
-            <span className="ic">
-              <Clock />
-            </span>
-            {t.overduePast}
-          </span>
-        ) : null}
       </div>
 
-      {task.staffId || task.status === "done" || task.status === "progress" || (task.status === "overdue" && task.hasArrivalToday) ? (
+      {task.staffId || task.status === "done" || task.status === "progress" ? (
         <div className="rmc__meta">
           {task.staffId ? (
             <div className="rmc__row">
@@ -134,17 +126,6 @@ function RoomCard({
               <Clock className="ic" aria-hidden="true" />
               <span className="k">{t.startAt}</span>
               <span className="mono">{task.start}</span>
-            </div>
-          ) : null}
-          {task.status === "overdue" && task.hasArrivalToday ? (
-            <div className="rmc__row">
-              <KeyRound className="ic" aria-hidden="true" />
-              <span className="k">{t.arriving}</span>
-              <span className="mono">{t.today}</span>
-              <span className="sp" />
-              <span style={{ color: "var(--danger)", fontWeight: 800, fontSize: 11.5 }}>
-                {t.overdueNote}
-              </span>
             </div>
           ) : null}
         </div>
@@ -285,7 +266,7 @@ function StatusBuckets(props: {
       key: "pending",
       label: t.bkPending,
       icon: <Clock aria-hidden="true" />,
-      has: (task) => task.status === "pending" || task.status === "overdue",
+      has: (task) => task.status === "pending",
     },
     {
       key: "progress",

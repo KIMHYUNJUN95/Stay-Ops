@@ -2,10 +2,17 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Download, Edit3, Info, TriangleAlert, X } from "lucide-react";
+import { ChevronRight, Edit3, Info, TriangleAlert, X } from "lucide-react";
+import { AdminDatePicker } from "@/components/admin/shared/admin-date-picker";
+import { AdminExportButtons } from "@/components/admin/shared/admin-export-buttons";
+import { adminLocaleTag } from "@/lib/admin-export-meta";
 import { getDictionary, type Dictionary, type Locale } from "@/lib/i18n";
 import type { AdminLeaveBalanceRow } from "@/lib/annual-leave-admin-server";
-import { saveEmployeeLeaveBaselineAction } from "@/app/admin/attendance/leave/actions";
+import {
+  exportLeaveBalanceReport,
+  exportLeaveBalanceWorkbook,
+  saveEmployeeLeaveBaselineAction,
+} from "@/app/admin/attendance/leave/actions";
 import { useAdminPanelA11y } from "../shared/use-admin-panel-a11y";
 
 type Lc = Dictionary["admin"]["leaveConsole"];
@@ -44,11 +51,13 @@ function grantSchedule(hire: string): { dateYm: string; amt: number; kind: "base
 
 export function LeaveBalanceView({
   lc,
+  shared,
   locale,
   employees,
   onToast,
 }: {
   lc: Lc;
+  shared: Dictionary["admin"]["shared"];
   locale: Locale;
   employees: AdminLeaveBalanceRow[];
   onToast: (msg: string) => void;
@@ -66,12 +75,13 @@ export function LeaveBalanceView({
           <span>{lc.balanceHourlyExcludedNote}</span>
         </div>
         <span className="toolbar__spacer" />
-        <button type="button" className="chipbtn" onClick={() => onToast(lc.balanceExportToast)}>
-          <span className="ic">
-            <Download />
-          </span>
-          {lc.balanceExportBtn}
-        </button>
+        <AdminExportButtons
+          onExportXls={() => exportLeaveBalanceWorkbook()}
+          onExportPdf={() => exportLeaveBalanceReport()}
+          disabled={employees.length === 0}
+          onToast={onToast}
+          labels={shared}
+        />
       </div>
 
       {employees.length === 0 ? (
@@ -200,6 +210,8 @@ export function LeaveBalanceView({
         <EmployeeDrawer
           emp={selectedEmp}
           lc={lc}
+          shared={shared}
+          localeTag={adminLocaleTag(locale)}
           dictionary={dictionary}
           onClose={() => setSelected(null)}
           onToast={onToast}
@@ -212,12 +224,16 @@ export function LeaveBalanceView({
 function EmployeeDrawer({
   emp,
   lc,
+  shared,
+  localeTag,
   dictionary,
   onClose,
   onToast,
 }: {
   emp: AdminLeaveBalanceRow;
   lc: Lc;
+  shared: Dictionary["admin"]["shared"];
+  localeTag: string;
   dictionary: Dictionary;
   onClose: () => void;
   onToast: (msg: string) => void;
@@ -301,10 +317,16 @@ function EmployeeDrawer({
               </div>
               <label className="fld">
                 <span className="fld__l">{lc.balanceEditHireLabel}</span>
-                <input
-                  type="date"
+                <AdminDatePicker
                   value={hireInput}
-                  onChange={(ev) => setHireInput(ev.target.value)}
+                  onChange={setHireInput}
+                  localeTag={localeTag}
+                  ariaLabel={lc.balanceEditHireLabel}
+                  labels={{
+                    prevMonth: shared.datePrevMonth,
+                    nextMonth: shared.dateNextMonth,
+                    today: shared.dateToday,
+                  }}
                 />
               </label>
               <div className="fld2">
@@ -481,17 +503,13 @@ function EmployeeDrawer({
           <button type="button" className="btn btn--ghost" style={{ flex: 1 }} onClick={onClose}>
             {lc.balancePanelClose}
           </button>
-          <button
-            type="button"
-            className="btn btn--pri"
-            style={{ flex: 1 }}
-            onClick={() => onToast(lc.balanceExportToast)}
-          >
-            <span className="ic">
-              <Download />
-            </span>
-            {lc.balancePanelExportBtn}
-          </button>
+          {/* Same canonical export pair as the toolbar, scoped to this one employee. */}
+          <AdminExportButtons
+            onExportXls={() => exportLeaveBalanceWorkbook(emp.userId)}
+            onExportPdf={() => exportLeaveBalanceReport(emp.userId)}
+            onToast={onToast}
+            labels={shared}
+          />
         </div>
       </aside>
     </>

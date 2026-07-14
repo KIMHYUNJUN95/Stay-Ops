@@ -676,7 +676,7 @@ Implementation notes:
 
 ## Phase 12: Exports
 
-Status: Completed (2026-06-01/02)
+Status: Completed (2026-06-01/02); **CSV route superseded 2026-07-14** (see below)
 
 Goals:
 
@@ -689,7 +689,7 @@ Deliverables:
 - Admin-web roles can download CSV exports
 - Field staff cannot export
 
-Implementation notes:
+Implementation notes (original, 2026-06-01/02 — route no longer exists, see superseded note below):
 
 - Export route: `GET /api/admin/export/[resource]` (requires admin session).
 - Supported resources: `reservations`, `cleaning`, `maintenance`, `lost-found`, `orders`.
@@ -698,6 +698,35 @@ Implementation notes:
 - Building labels localized per user's preferred language.
 - Filters (date range, status, property, staff) passed as URL search params and applied in the export query.
 - Reservation export uses the same out-of-window guard as the calendar page.
+
+**Superseded (2026-07-14) — CSV route removed, Excel + PDF via shared server actions:**
+
+- `/api/admin/export/[resource]` and every route under `/api/admin/export/*` were deleted, along with
+  `src/lib/export/admin-export.ts`, `src/lib/export/csv.ts`, `src/lib/export/admin-reservations.ts`, and
+  `src/components/admin/export-csv-link.tsx`.
+- Every admin-web list (cleaning history, lost-found, maintenance, orders, annual-leave ledger/balance,
+  attendance wages, plus the pre-existing attendance payroll/transport exports) now exports through a
+  dedicated server action pair (`export<Resource>Workbook` / `export<Resource>Report`) that renders via
+  two new shared builders:
+  - `src/lib/admin-table-workbook.ts` (`buildAdminTableWorkbookBase64`) — the single `.xlsx` builder for
+    the whole admin console (exceljs; green-ledger template: title merge row → header row → numbered
+    data rows → total row → org/generated-at footer; multi-sheet supported).
+  - `src/lib/admin-table-report.ts` (`buildAdminTableReportHtml`) — the matching A4-landscape print HTML
+    (PDF via browser print) for the same input shape.
+  - `src/lib/admin-export-meta.ts` (`buildAdminExportMeta`) — resolves org name / generated-at / shared
+    labels; **locale is always resolved server-side from `session.user.preferredLanguage`**, never passed
+    by the client.
+  - `src/components/admin/shared/admin-export-buttons.tsx` (`<AdminExportButtons>`) — the canonical
+    Excel/PDF button pair used by every export bar.
+- The client always sends only the current filter values (never row data); each server action re-queries
+  the underlying data function so the exported file always matches the filtered screen.
+- Reservation calendar export is unaffected by this change — it was already moved to
+  `/admin/calendar/print` (browser print/save-as-PDF) on 2026-07-10, a separate path from the table
+  exporters above.
+- See `docs/product/07-cleaning-workflow.md`, `docs/product/08-maintenance-workflow.md`,
+  `docs/product/09-lost-found-workflow.md`, `docs/product/10-order-request-workflow.md`,
+  `docs/product/26-annual-leave-workflow.md`, and `docs/product/21-attendance-payroll-workflow.md` for
+  the per-surface detail.
 
 ## Phase 13: QA and Internal Rollout
 

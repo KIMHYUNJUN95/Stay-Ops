@@ -14,6 +14,7 @@ import {
 import { uploadRequestImages } from "@/components/requests/request-image-upload";
 import { Button } from "@/components/ui/button";
 import type { Dictionary } from "@/lib/i18n";
+import { maintenanceCategories } from "@/lib/maintenance-constants";
 import type { ActiveRoomCatalogItem } from "@/lib/rooms";
 import { resolveRequestCatalogLocation } from "@/lib/request-location";
 import { getDisplayRoomLabel } from "@/lib/room-label-normalization";
@@ -220,7 +221,7 @@ export function MaintenanceLinkedForm({
                 </button>
                 {categoryOpen && (
                   <ul className="absolute left-0 z-50 mt-1.5 max-h-60 w-full overflow-y-auto rounded-xl border border-border bg-surface p-1 shadow-glass backdrop-blur-xl divide-y divide-border/20">
-                    {(["electric", "water", "hvac", "appliance", "lock", "internet", "amenities", "other"] as const).map((key) => (
+                    {maintenanceCategories.map((key) => (
                       <li
                         className={cn(
                           "flex h-10 w-full cursor-pointer items-center rounded-lg px-3 text-sm font-semibold transition-colors",
@@ -242,6 +243,7 @@ export function MaintenanceLinkedForm({
 
             <div className="flex flex-col gap-2">
               <span className="text-xs font-semibold text-muted-foreground">{copy.form.urgencyLabel}</span>
+              <input name="priority" type="hidden" value={urgency} />
               <div className="flex flex-wrap gap-2">
                 {URGENCY_TONES.map((tone) => (
                   <button
@@ -300,15 +302,6 @@ export function MaintenanceLinkedForm({
                 <span className="truncate text-sm font-semibold text-foreground">{reporterName}</span>
               </div>
             </div>
-            <label className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-muted-foreground">{copy.form.memoLabel}</span>
-              <input
-                autoComplete="off"
-                className={FIELD_CLASS}
-                placeholder={copy.form.memoPlaceholder}
-                type="text"
-              />
-            </label>
           </div>
         </section>
 

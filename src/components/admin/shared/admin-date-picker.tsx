@@ -21,6 +21,8 @@ type InlineDatePickerProps = {
   onChange: (value: string) => void;
   min?: string;
   max?: string;
+  /** Read-only display (e.g. an end date the form derives itself). The popover never opens. */
+  disabled?: boolean;
   localeTag: string;
   ariaLabel: string;
   placeholder?: string;
@@ -100,6 +102,7 @@ function InlineDatePicker({
   onChange,
   min,
   max,
+  disabled = false,
   localeTag,
   ariaLabel,
   placeholder,
@@ -157,6 +160,7 @@ function InlineDatePicker({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={ariaLabel}
+        disabled={disabled}
         onClick={() => {
           if (!open) {
             setCalendarMonth(value.slice(0, 7) || min?.slice(0, 7) || formatDateKey(new Date()).slice(0, 7));

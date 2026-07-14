@@ -737,23 +737,23 @@ If the inventory call succeeds and yields `minimumStay`, `getActiveRoomLabels()`
 
 - Active room selection rule remains authoritative: only `minimumStay < 50` is active (`>= 50` inactive).
 - UI room labels now normalize by property-level operational rules:
-  - �ƶ�Ű��A: suffix room labels like `201_2` still normalize to base room label `201`, but reservations carrying inactive external room IDs are filtered before rendering so inactive aliases do not reappear.
-  - ����Ű��: `K202`, `202#` -> `202`
-  - ������A/B/C: all Beds24 room IDs in each property collapse to one detached-house room label (`������A`, `������B`, `������C`)
+  - Arakicho A: suffix room labels like `201_2` still normalize to base room label `201`, but reservations carrying inactive external room IDs are filtered before rendering so inactive aliases do not reappear.
+  - Kabukicho: `K202`, `202#` -> `202`
+  - Okubo A/B/C: all Beds24 room IDs in each property collapse to one detached-house room label (`Okubo A`, `Okubo B`, `Okubo C`)
 - Reservation bars and room axis use the same canonical label mapping to avoid split rows for one physical room.
 
 ## 2026-05-26 Canonical property naming update
 
 - Property labels are now normalized to the fixed operational names in UI:
-  - �ƶ�Ű��A, �ƶ�Ű��B, ����Ű��, ��ī�ٳ�ٹ�, ������A, ������B, ������C
+  - Arakicho A, Arakicho B, Kabukicho, Takadanobaba, Okubo A, Okubo B, Okubo C
 - This normalization is applied before calendar filters and room-label canonicalization.
 
 ## 2026-05-26 Operational exclusion updates
 
 - Excluded from mobile calendar operations:
-  - Property: `���` (currently not operated)
-  - Room: `��ī�ٳ�ٹ� 401_2` (inactive room-id alias)
-- Okubo property display is unified to `������A`, `������B`, `������C` (no raw Beds24 suffix labels in UI).
+  - Property: `Test` (currently not operated)
+  - Room: `Takadanobaba 401_2` (inactive room-id alias)
+- Okubo property display is unified to `Okubo A`, `Okubo B`, `Okubo C` (no raw Beds24 suffix labels in UI).
 - Property chips and reservation property labels now render locale-specific names (ko/ja/en) while keeping canonical internal mapping.
 
 ## 2026-05-26 Property label format adjustment

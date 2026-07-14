@@ -181,7 +181,7 @@ export default async function MobileOrderRequestDetailPage({
 
   const items = parseItems(order.items);
   const isClosed = order.status === "closed";
-  // closed: neutral timeline (all muted) ??the badge already communicates the terminal state.
+  // closed: neutral timeline (all muted) -> the badge already communicates the terminal state.
   // received: maps to ordered (MVP hides the received step).
   const progressStatus: (typeof TIMELINE_STATUSES)[number] | null = isClosed
     ? null
@@ -189,8 +189,8 @@ export default async function MobileOrderRequestDetailPage({
       ? "requested"
       : order.status === "approved"
         ? "approved"
-        : "ordered"; // ordered / received ??show full active progress
-  // -1 when closed so every i <= currentIdx check is false ??all bars muted.
+        : "ordered"; // ordered / received -> show full active progress
+  // -1 when closed so every i <= currentIdx check is false -> all bars muted.
   const currentIdx = progressStatus !== null ? TIMELINE_STATUSES.indexOf(progressStatus) : -1;
 
   const navBadges = await getMobileNavBadges();

@@ -70,7 +70,7 @@ const CLEANING_START_BUTTON =
   "h-10 shrink-0 rounded-2xl border border-slate-200/70 bg-white px-4 text-xs font-black text-slate-800 shadow-[0_14px_28px_-24px_rgba(31,58,95,0.48)] transition-all hover:bg-slate-50 active:scale-[0.98]";
 
 // Extract the leading integer from a room label for numeric-aware sorting.
-// "101" ??101, "202" ??202, "?ㅼ퓼蹂퀮" ??Infinity (no digit ??sort last).
+// "101" -> 101, "202" -> 202, "No digits" -> Infinity (sort last).
 function roomSortKey(canonicalRoomLabel: string): number {
   const match = /\d+/.exec(canonicalRoomLabel);
   return match ? parseInt(match[0], 10) : Infinity;
@@ -707,7 +707,7 @@ export default async function MobileCleaningPage({
           </Card>
         ) : (
           <>
-            {/* ?? Cleaning targets (today's checkouts) ?? */}
+            {/* Cleaning targets (today's checkouts) */}
             <section className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -759,7 +759,7 @@ export default async function MobileCleaningPage({
               )}
             </section>
 
-            {/* ?? Setting targets (today's check-ins with no checkout) ?? */}
+            {/* Setting targets (today's check-ins with no checkout) */}
             {settingGroups && (
               <section className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
@@ -799,7 +799,7 @@ export default async function MobileCleaningPage({
               </section>
             )}
 
-            {/* ?? Manual / Other ?? */}
+            {/* Manual / Other */}
             <section className="space-y-3">
               <div className="flex items-center gap-2">
                 <span className="flex size-9 items-center justify-center rounded-2xl bg-slate-50 text-slate-700 ring-1 ring-slate-200/80">

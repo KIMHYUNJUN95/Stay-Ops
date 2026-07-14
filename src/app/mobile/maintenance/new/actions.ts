@@ -6,6 +6,12 @@ import {
   getCanonicalRoomLabel,
   getDisplayRoomLabel,
 } from "@/lib/room-label-normalization";
+import {
+  isMaintenanceCategory,
+  isMaintenancePriority,
+  type MaintenanceCategory,
+  type MaintenancePriority,
+} from "@/lib/maintenance-constants";
 import { getCurrentAppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
@@ -67,6 +73,19 @@ export async function createMaintenanceReport(formData: FormData) {
     .getAll("imageUrls")
     .map((v) => cleanText(v))
     .filter(Boolean);
+
+  // Category and priority were rendered by the form but silently dropped here until 2026-07-14 —
+  // there were no columns to store them. Both now persist; unknown values fall back to the defaults
+  // rather than rejecting the submission (a stale client must never lose a field report).
+  const rawCategory = cleanText(formData.get("category"));
+  const category: MaintenanceCategory = isMaintenanceCategory(rawCategory) ? rawCategory : "other";
+  const rawPriority = cleanText(formData.get("priority"));
+  const priority: MaintenancePriority = isMaintenancePriority(rawPriority) ? rawPriority : "normal";
+
+  // "건물 전체"(whole-building) reports used to be detected by string-matching the reporter's
+  // localized label, so a Japanese reporter's report looked room-specific to a Korean reader. The
+  // form now sends an explicit flag and the DB stores a boolean.
+  const isBuildingOnly = cleanText(formData.get("isBuildingOnly")) === "1";
 
   const sessionParams = new URLSearchParams();
   if (rawCleaningSessionId) sessionParams.set("sessionId", rawCleaningSessionId);
@@ -169,8 +188,11 @@ export async function createMaintenanceReport(formData: FormData) {
     property_name: propertyName,
     reservation_id: reservationId,
     room_label: roomLabel,
+    is_building_only: isBuildingOnly,
     issue_title: issueTitle,
     description: description || null,
+    category,
+    priority,
     image_urls: imageUrls,
     cleaning_session_id: cleaningSessionId,
   };

@@ -1474,15 +1474,17 @@
 .adm .amp__arw { padding:0 9px; }
 .adm .amp__label { min-width:132px; text-align:center; height:34px; padding:0 14px; border-radius:9px; border:1px solid var(--line); background:var(--card); font-size:13px; font-weight:900; color:var(--ink); cursor:pointer; }
 .adm .amp__label:hover { border-color:color-mix(in oklab,var(--primary) 30%,var(--line)); }
-.adm .amp__pop { position:absolute; z-index:60; top:calc(100% + 6px); right:0; width:246px; padding:12px; background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:var(--sh-pop); }
-.adm .amp__pop--day { width:280px; }
-.adm .amp__hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-.adm .amp__yr { font-size:13px; font-weight:900; color:var(--ink); font-variant-numeric:tabular-nums; }
+/* Month popover — same canonical chrome as `.calpop` / `.adp__pop`; only the grid differs (12 months
+   instead of a day matrix). The roster's day variant (`.amp__pop--day`) reuses the `.adp__*` day cells. */
+.adm .amp__pop { position:absolute; z-index:70; top:calc(100% + 6px); right:0; width:292px; padding:14px; background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--sh-pop); animation:ddIn .14s ease; }
+.adm .amp__pop--day { width:292px; }
+.adm .amp__hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:11px; }
+.adm .amp__yr { font-size:14px; font-weight:900; letter-spacing:-.01em; color:var(--ink); font-variant-numeric:tabular-nums; }
 .adm .amp__grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
 .adm .amp__m { height:38px; border:1px solid transparent; border-radius:9px; background:var(--surface2); font-size:12.5px; font-weight:800; color:var(--ink); cursor:pointer; }
 .adm .amp__m:hover { border-color:color-mix(in oklab,var(--primary) 30%,var(--line)); background:var(--card); }
 .adm .amp__m.sel { background:var(--primary); color:#fff; border-color:var(--primary); }
-.adm .amp__today { width:100%; margin-top:10px; padding:8px 0; border:none; border-top:1px solid var(--line); background:transparent; font-size:11.5px; font-weight:800; color:var(--primary); cursor:pointer; text-align:center; }
+.adm .amp__today { width:100%; margin-top:12px; padding-top:12px; border:none; border-top:1px solid var(--line-soft); background:transparent; font-size:12px; font-weight:800; color:var(--primary); cursor:pointer; text-align:center; }
 
 /* ---- bulk action bar (multi-select) ---- */
 .adm .bulkbar { display:flex; align-items:center; gap:12px; padding:10px 14px; margin:0 2px 13px; border-radius:13px;
@@ -1854,26 +1856,32 @@
 
 .adm .adp { position:relative; }
 .adm .adp__trigger { display:flex; align-items:center; justify-content:space-between; gap:6px; width:100%; padding:7px 10px; border:1px solid var(--line); background:var(--card); border-radius:9px; font-family:var(--mono); font-size:13px; font-weight:800; color:var(--ink); cursor:pointer; text-align:left; }
-.adm .adp__trigger:hover { border-color:color-mix(in oklab,var(--primary) 30%,var(--line)); }
+.adm .adp__trigger:hover:not(:disabled) { border-color:color-mix(in oklab,var(--primary) 30%,var(--line)); }
+.adm .adp__trigger:disabled { background:var(--surface2); color:var(--muted); cursor:not-allowed; }
 .adm .adp__trigger-ic { width:14px; height:14px; flex-shrink:0; color:var(--muted); }
-.adm .adp__pop { position:absolute; z-index:60; top:calc(100% + 6px); right:0; left:auto; width:260px; max-width:calc(100vw - 32px); padding:12px; background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:var(--sh-pop); }
-.adm .adp__hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-.adm .adp__ml { font-size:12.5px; font-weight:800; color:var(--ink); }
-.adm .adp__nav { display:flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:8px; border:1px solid transparent; background:transparent; color:var(--ink-soft); cursor:pointer; }
-.adm .adp__nav:hover { background:var(--surface2); border-color:var(--line); }
-.adm .adp__nav svg { width:14px; height:14px; }
-.adm .adp__wd { display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:2px; }
-.adm .adp__wd span { text-align:center; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; color:var(--faint); padding:4px 0; }
-.adm .adp__wd span.sun { color:color-mix(in oklab,#e0524a 75%,var(--faint)); }
-.adm .adp__wd span.sat { color:color-mix(in oklab,var(--primary) 75%,var(--faint)); }
+/* The single-day popover shares the canonical calendar chrome defined by `.calpop` (the cleaning
+   history range picker) — same width, radius, padding, nav buttons, weekday strip and 34px day cells.
+   Keep these two blocks in lockstep: one calendar design across the whole console. See CLAUDE.md →
+   "Admin dashboard shared design contract". */
+.adm .adp__pop { position:absolute; z-index:70; top:calc(100% + 6px); right:0; left:auto; width:292px; max-width:calc(100vw - 32px); padding:14px; background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--sh-pop); animation:ddIn .14s ease; }
+.adm .adp__hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:11px; }
+.adm .adp__ml { font-size:14px; font-weight:900; letter-spacing:-.01em; color:var(--ink); }
+.adm .adp__nav { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:9px; border:1px solid var(--line); background:var(--card); color:var(--ink-soft); cursor:pointer; }
+.adm .adp__nav:hover { background:var(--card2); border-color:color-mix(in oklab,var(--primary) 30%,var(--line)); }
+.adm .adp__nav svg { width:16px; height:16px; }
+.adm .adp__wd { display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:4px; }
+.adm .adp__wd span { text-align:center; font-size:10.5px; font-weight:800; color:var(--faint); padding:4px 0; }
+.adm .adp__wd span.sun { color:color-mix(in oklab,var(--danger) 60%,var(--faint)); }
 .adm .adp__grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
-.adm .adp__cell { display:flex; align-items:center; justify-content:center; height:30px; border:none; background:transparent; border-radius:8px; font-size:12.5px; font-weight:700; color:var(--ink); cursor:pointer; }
+.adm .adp__cell { display:flex; align-items:center; justify-content:center; height:34px; border:none; background:none; border-radius:9px; font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--ink-soft); position:relative; cursor:pointer; }
 .adm .adp__cell.empty { cursor:default; }
-.adm .adp__cell:not(.empty):not(:disabled):hover { background:var(--surface2); }
-.adm .adp__cell.today { box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--primary) 40%,transparent); }
+.adm .adp__cell:not(.empty):not(:disabled):hover { background:var(--card2); color:var(--ink); }
+.adm .adp__cell.today { color:var(--primary); font-weight:900; }
+.adm .adp__cell.today::after { content:""; position:absolute; bottom:5px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:999px; background:var(--primary); }
 .adm .adp__cell.sel { background:var(--primary); color:#fff; font-weight:800; }
+.adm .adp__cell.sel.today::after { background:#fff; }
 .adm .adp__cell:disabled { color:var(--faint); cursor:not-allowed; opacity:.5; }
-.adm .adp__today { width:100%; margin-top:10px; padding:7px 0; border:none; border-top:1px solid var(--line); background:transparent; font-size:11.5px; font-weight:800; color:var(--primary); cursor:pointer; text-align:center; }
+.adm .adp__today { width:100%; margin-top:12px; padding-top:12px; border:none; border-top:1px solid var(--line-soft); background:transparent; font-size:12px; font-weight:800; color:var(--primary); cursor:pointer; text-align:center; }
 .adm .adp__today:disabled { color:var(--faint); cursor:not-allowed; }
 
 .adm .adp__opt { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; padding:8px 9px; border:none; border-radius:8px; background:transparent; font-size:12.5px; font-weight:700; color:var(--ink); cursor:pointer; text-align:left; }
@@ -2290,3 +2298,68 @@
 .adm .dd__menu--wide .dd__chk { margin-top: 2px; }
 .adm .dd__chk { margin-left: auto; flex: 0 0 auto; color: var(--primary); display: inline-flex; }
 .adm .dd__chk svg { width: 16px; height: 16px; }
+
+/* ===================================================================
+   SHARED OPERATIONS-CONSOLE PRIMITIVES
+   Promoted out of cleaning-console.css on 2026-07-14 when the 수리·점검 console
+   became the second screen to need them. Any /admin/* console that has a view
+   switcher, a live-sync chip, a filter toolbar, a status pill, linked-record
+   tiles or a result-count line uses THESE — do not re-declare them in a
+   screen-local stylesheet. See CLAUDE.md → "Admin dashboard shared design contract".
+   =================================================================== */
+
+/* ── view switcher row + live-sync chip ── */
+.adm .cviewbar { display: flex; align-items: center; gap: 12px; margin: 2px 2px 16px; flex-wrap: wrap; }
+.adm .lviews { display: inline-flex; background: var(--surface); border-radius: 11px; padding: 4px; gap: 2px; }
+.adm .lviews button { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 15px; border: none; background: none; border-radius: 8px; font-size: 13px; font-weight: 800; color: var(--muted); cursor: pointer; }
+.adm .lviews button .ic { font-size: 16px; }
+.adm .lviews button.on { background: var(--card); color: var(--primary-ink); box-shadow: 0 2px 6px rgba(20, 32, 43, 0.14); }
+.adm .syncchip { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 13px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); font-size: 12px; font-weight: 700; cursor: pointer; }
+.adm .syncchip:hover { background: var(--surface); }
+.adm .syncchip__dot { width: 7px; height: 7px; border-radius: 999px; background: var(--done); box-shadow: 0 0 0 3px var(--done-bg); flex: 0 0 auto; }
+.adm .syncchip .ic { font-size: 15px; color: var(--muted); }
+
+/* ── KPI strip value modifiers (the .opsbar--N grid itself stays screen-local) ── */
+.adm .opscell__v.is-danger { color: var(--danger); }
+.adm .opscell__v.is-progress { color: var(--info); }
+.adm .opscell__v.is-done { color: var(--done); }
+.adm .opscell__v.is-muted { color: var(--ink-soft); }
+
+/* ── filter toolbar ── */
+.adm .ctoolbar { display: flex; align-items: center; gap: 9px; margin: 2px 2px 14px; flex-wrap: wrap; }
+.adm .ctoolbar__spacer { flex: 1; }
+.adm .ctoolbar .dd { width: 168px; flex: 0 0 auto; }
+.adm .ctoolbar .dpick { flex: 0 0 auto; }
+.adm .qsearch--inline { min-width: 180px; }
+
+/* ── result-count line above a table ── */
+.adm .hmeta { font-size: 11.5px; font-weight: 700; color: var(--muted); margin: 0 4px 9px; display: flex; align-items: center; gap: 7px; }
+.adm .hmeta .sep { width: 3px; height: 3px; border-radius: 999px; background: var(--faint); }
+
+/* ── status pill (base + the variants shared across consoles) ── */
+.adm .cstat { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: 0.01em; white-space: nowrap; }
+.adm .cstat .ic { font-size: 13px; }
+.adm .cstat .d { width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+.adm .cstat--pending { background: var(--surface); color: var(--muted); }
+.adm .cstat--progress { background: var(--info-bg); color: var(--info); }
+.adm .cstat--done { background: var(--done-bg); color: var(--done); }
+
+/* ── table avatar cell ── */
+.adm .qtbl .who__av { width: 26px; height: 26px; border-radius: 8px; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex: 0 0 auto; }
+
+/* ── detail-panel key/value rows stay on one line (CJK must not break mid-word) ── */
+.adm .panel .kv { gap: 16px; }
+.adm .panel .kv__k { white-space: nowrap; flex: 0 0 auto; }
+.adm .panel .kv__v { text-align: right; white-space: nowrap; }
+
+/* ── linked-record tiles in a detail panel (per-kind color variants stay screen-local) ── */
+.adm .rptiles { display: flex; flex-direction: column; gap: 9px; }
+.adm .rptile { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 13px; border-radius: 13px; border: 1px solid var(--line); background: var(--card); text-align: left; cursor: pointer; transition: border-color 0.14s, background 0.14s, box-shadow 0.14s; }
+.adm .rptile:hover { background: var(--card2); box-shadow: 0 10px 24px -20px rgba(20, 32, 43, 0.5); }
+.adm .rptile__ic { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.adm .rptile__ic .ic { font-size: 18px; }
+.adm .rptile__b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.adm .rptile__t { font-size: 13px; font-weight: 800; color: var(--ink); }
+.adm .rptile__s { font-size: 11.5px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.adm .rptile__go { font-size: 16px; color: var(--faint); flex: 0 0 auto; transition: transform 0.14s, color 0.14s; }
+.adm .rptile:hover .rptile__go { transform: translateX(2px); color: var(--muted); }

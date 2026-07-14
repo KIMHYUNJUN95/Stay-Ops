@@ -49,8 +49,18 @@ import {
 import {
   getAdminAttendancePayroll,
   getAdminAttendanceTransport,
+  getAdminAttendanceWages,
   type AdminTransportRow,
+  type AdminWageRow,
 } from "@/lib/admin-attendance";
+import { buildAdminExportMeta, type AdminExportMeta } from "@/lib/admin-export-meta";
+import type { AdminReportExportResult, AdminWorkbookExportResult } from "@/lib/admin-export-result";
+import { buildAdminTableReportHtml } from "@/lib/admin-table-report";
+import {
+  buildAdminTableWorkbookBase64,
+  type AdminTableColumn,
+  type AdminTableSheet,
+} from "@/lib/admin-table-workbook";
 import {
   buildPayrollWorkbookBase64,
   type PayrollWorkbookLabels,
@@ -2560,4 +2570,122 @@ export async function loadSessionAuditTrail(sessionId: string): Promise<SessionA
   });
 
   return { ok: true, entries };
+}
+
+// ── 수당(시급·고용형태) Excel / PDF 내보내기 ─────────────────────────────────
+// Implemented 2026-07-14, replacing the disabled placeholder button in the wage side panel. Two
+// sheets: a per-staff summary plus the full rate-change history (the placeholder was labelled
+// "이력 내보내기", so the history is what it actually has to carry). Same 급여관리자 gate as the
+// payroll export, and rendered through the canonical admin table exporters.
+
+function wageEmploymentLabel(
+  employment: AdminWageRow["employment"],
+  c: ReturnType<typeof getDictionary>["admin"]["attendanceConsole"],
+): string {
+  if (employment === "hourly") return c.wageFilterHourly;
+  if (employment === "salaried") return c.wageFilterSalaried;
+  return "—";
+}
+
+function wageSheets(rows: AdminWageRow[], meta: AdminExportMeta): AdminTableSheet[] {
+  const dictionary = getDictionary(meta.locale);
+  const c = dictionary.admin.attendanceConsole;
+  const yen = (n: number | null) =>
+    n == null ? "" : `¥${new Intl.NumberFormat(meta.localeTag).format(n)}`;
+
+  const summaryColumns: AdminTableColumn[] = [
+    { key: "staff", label: c.wageColStaff, width: 18, printWidth: 22 },
+    { key: "employment", label: c.wageColEmployment, width: 14, printWidth: 16 },
+    { key: "rate", label: c.wageColCurrent, width: 14, printWidth: 16, bold: true },
+    { key: "from", label: c.wageColFrom, width: 14, printWidth: 16 },
+    { key: "tiers", label: c.wageColTiers, width: 10, printWidth: 12 },
+  ];
+
+  const historyColumns: AdminTableColumn[] = [
+    { key: "staff", label: c.wageColStaff, width: 18, printWidth: 18 },
+    { key: "rate", label: c.wageColCurrent, width: 14, printWidth: 14, bold: true },
+    { key: "from", label: c.wageColFrom, width: 14, printWidth: 14 },
+    { key: "to", label: c.wageColTo, width: 14, printWidth: 14 },
+    { key: "note", label: c.wagePanelReasonLabel, width: 34, printWidth: 36, wrap: true },
+  ];
+
+  const historyRows = rows.flatMap((row) =>
+    row.history.map((h) => ({
+      staff: row.userName,
+      rate: yen(h.rate),
+      from: h.from,
+      to: h.to ?? "—",
+      note: h.note ?? "",
+    })),
+  );
+
+  return [
+    {
+      sheetName: c.headerWages,
+      title: c.headerWages,
+      colNoLabel: meta.shared.colNo,
+      totalLabel: meta.shared.exportTotalLabel,
+      columns: summaryColumns,
+      rows: rows.map((row) => ({
+        staff: row.userName,
+        employment: wageEmploymentLabel(row.employment, c),
+        rate: yen(row.currentRate),
+        from: row.currentFrom ?? "",
+        tiers: String(row.history.length),
+      })),
+    },
+    {
+      sheetName: c.wagePanelHistoryTitle(historyRows.length),
+      title: c.wagePanelHistoryTitle(historyRows.length),
+      colNoLabel: meta.shared.colNo,
+      totalLabel: meta.shared.exportTotalLabel,
+      columns: historyColumns,
+      rows: historyRows,
+    },
+  ];
+}
+
+export async function exportAttendanceWagesWorkbook(): Promise<AdminWorkbookExportResult> {
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return { ok: false, reason: "error" };
+
+  try {
+    const data = await getAdminAttendanceWages(session);
+    if (!data.isPrivileged) return { ok: false, reason: "forbidden" };
+    if (data.rows.length === 0) return { ok: false, reason: "empty" };
+
+    const meta = buildAdminExportMeta(session);
+    const sheets = wageSheets(data.rows, meta);
+    const base64 = await buildAdminTableWorkbookBase64({
+      orgName: meta.orgName,
+      generatedLabel: meta.generatedLabel,
+      sheets,
+    });
+    return { ok: true, filename: "attendance-wages.xlsx", base64, rowCount: data.rows.length };
+  } catch {
+    return { ok: false, reason: "error" };
+  }
+}
+
+export async function exportAttendanceWagesReport(): Promise<AdminReportExportResult> {
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return { ok: false, reason: "error" };
+
+  try {
+    const data = await getAdminAttendanceWages(session);
+    if (!data.isPrivileged) return { ok: false, reason: "forbidden" };
+    if (data.rows.length === 0) return { ok: false, reason: "empty" };
+
+    const meta = buildAdminExportMeta(session);
+    const html = buildAdminTableReportHtml({
+      orgName: meta.orgName,
+      generatedLabel: meta.generatedLabel,
+      printLabel: meta.shared.exportPrint,
+      localeTag: meta.localeTag,
+      sheets: wageSheets(data.rows, meta),
+    });
+    return { ok: true, html, rowCount: data.rows.length };
+  } catch {
+    return { ok: false, reason: "error" };
+  }
 }

@@ -16,8 +16,8 @@ import { localizePropertyName } from "@/lib/room-label-normalization";
 const statusBadgeClass: Record<MaintenanceStatus, string> = {
   open: "border-blue-200 bg-blue-50 text-blue-700",
   in_progress: "border-amber-200 bg-amber-50 text-amber-700",
-  resolved: "border-green-200 bg-green-50 text-green-700",
-  closed: "border-border bg-muted/50 text-muted-foreground",
+  closed: "border-green-200 bg-green-50 text-green-700",
+  cancelled: "border-border bg-muted/50 text-muted-foreground",
 };
 
 type PageProps = {

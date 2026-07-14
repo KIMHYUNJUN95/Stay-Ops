@@ -1951,49 +1951,73 @@ export type Database = {
       };
       maintenance_reports: {
         Insert: {
+          category?: Database["public"]["Enums"]["maintenance_category"];
           cleaning_session_id?: string | null;
+          completed_at?: string | null;
+          completed_by?: string | null;
+          completed_by_admin?: boolean;
           created_at?: string;
           description?: string | null;
           guest_name?: string | null;
           id?: string;
           image_urls?: string[];
+          is_building_only?: boolean;
           issue_title: string;
           organization_id: string;
+          priority?: Database["public"]["Enums"]["maintenance_priority"];
           property_name?: string | null;
           reported_by_user_id: string;
           reservation_id?: string | null;
+          resolution_image_urls?: string[];
+          resolution_memo?: string | null;
           room_label: string;
           status?: Database["public"]["Enums"]["maintenance_status"];
           updated_at?: string;
         };
         Row: {
+          category: Database["public"]["Enums"]["maintenance_category"];
           cleaning_session_id: string | null;
+          completed_at: string | null;
+          completed_by: string | null;
+          completed_by_admin: boolean;
           created_at: string;
           description: string | null;
           guest_name: string | null;
           id: string;
           image_urls: string[];
+          is_building_only: boolean;
           issue_title: string;
           organization_id: string;
+          priority: Database["public"]["Enums"]["maintenance_priority"];
           property_name: string | null;
           reported_by_user_id: string;
           reservation_id: string | null;
+          resolution_image_urls: string[];
+          resolution_memo: string | null;
           room_label: string;
           status: Database["public"]["Enums"]["maintenance_status"];
           updated_at: string;
         };
         Update: {
+          category?: Database["public"]["Enums"]["maintenance_category"];
           cleaning_session_id?: string | null;
+          completed_at?: string | null;
+          completed_by?: string | null;
+          completed_by_admin?: boolean;
           created_at?: string;
           description?: string | null;
           guest_name?: string | null;
           id?: string;
           image_urls?: string[];
+          is_building_only?: boolean;
           issue_title?: string;
           organization_id?: string;
+          priority?: Database["public"]["Enums"]["maintenance_priority"];
           property_name?: string | null;
           reported_by_user_id?: string;
           reservation_id?: string | null;
+          resolution_image_urls?: string[];
+          resolution_memo?: string | null;
           room_label?: string;
           status?: Database["public"]["Enums"]["maintenance_status"];
           updated_at?: string;
@@ -2587,7 +2611,19 @@ export type Database = {
     Enums: {
       announcement_status: "archived" | "draft" | "published";
       lost_item_status: "disposal_scheduled" | "disposed" | "registered" | "stored";
-      maintenance_status: "closed" | "in_progress" | "open" | "resolved";
+      maintenance_category:
+        | "air_conditioning_heating"
+        | "appliance"
+        | "cleaning_condition"
+        | "damage"
+        | "electric"
+        | "furniture"
+        | "other"
+        | "supplies"
+        | "water"
+        | "wifi";
+      maintenance_priority: "high" | "low" | "normal" | "urgent";
+      maintenance_status: "cancelled" | "closed" | "in_progress" | "open";
       order_request_status: "approved" | "closed" | "ordered" | "received" | "requested";
       order_request_urgency: "high" | "normal";
       announcement_target_scope: "everyone" | "roles";

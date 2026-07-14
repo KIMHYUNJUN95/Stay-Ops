@@ -363,7 +363,9 @@ No new migration was needed for these three — this reuses `annual_leave_reques
   approval, 休暇届 rendered from the real approved request
 - admin dashboard 이력 (승인 장부) sub-tab — **built** (2026-07-09): read-only ledger of every request
   (draft excluded) with 신청자·유형·기간·일수·상태·처리자·처리일시·문서번호·사유, status filter, search,
-  and client-side CSV export. Server: `listLeaveLedger`.
+  and a **date range filter (added 2026-07-14)** + **Excel/PDF export (2026-07-14; the earlier
+  client-side Blob CSV was removed)**. Server: `listLeaveLedger`. See "2026-07-14 이력·잔여 내보내기 +
+  날짜 피커 공용화" below.
 - employee leave balance / grant history — balance built; a full grant-history ledger view is not
 - document preview / print — **built** (on-screen A4 + `window.print()`); a dedicated PDF export template
   beyond browser print is a possible follow-up
@@ -404,6 +406,36 @@ No new migration was needed for these three — this reuses `annual_leave_reques
 - whether leave older than the confirmed 2-year carryover window behaves differently for any leave
   category, and whether the 2-year window itself is final (pending company confirmation)
 - exact print/PDF fidelity requirements against the paper form once stage 3 is scoped
+
+## 2026-07-14 이력·잔여 내보내기 + 날짜 피커 공용화
+
+Part of a console-wide export/date-picker unification (see `docs/product/07-cleaning-workflow.md`,
+`docs/product/09-lost-found-workflow.md`, `docs/product/10-order-request-workflow.md` for the same
+pattern applied to other admin lists).
+
+- **이력 (`leave-ledger-view.tsx`) — new date range filter.** The ledger previously had no date filter
+  (status filter + search only). It now also has a date range control (shared `AdminDateRangePicker`),
+  filtering client-side on each entry's `processedAt`. The initial range spans the earliest to the
+  latest `processedAt` in the loaded set (today if no entries), so nothing is hidden on first paint —
+  narrowing is opt-in.
+- **이력 export = Excel + PDF (was client-side Blob CSV).** `exportLeaveLedgerWorkbook` /
+  `exportLeaveLedgerReport` (`src/app/admin/attendance/leave/actions.ts`) replace the old in-browser CSV
+  Blob download. Approver-gated (`isSessionLeaveApprover`). The client sends the rows it is currently
+  showing (status/search/date filtering already happened client-side over an already-hydrated array);
+  every visible label is still resolved server-side from the actor's own locale.
+- **잔여 (`leave-balance-view.tsx`) — export button implemented (was a toast-only stub).**
+  `exportLeaveBalanceWorkbook(userId?)` / `exportLeaveBalanceReport(userId?)` (same actions file) —
+  approver-gated, re-queries `listAdminLeaveBalances` server-side (a snapshot, not date-filtered). The
+  toolbar button exports **all** staff; the staff detail drawer footer button exports that **one**
+  employee only (`userId` passed through).
+- Both new export pairs render through the canonical admin table exporters
+  (`src/lib/admin-table-workbook.ts` / `admin-table-report.ts`) — the same green-ledger template used
+  across the whole admin console.
+- **연차 신청 모달 (`leave-request-modal.tsx`)** — start/end date fields changed from native
+  `<input type="date">` to the shared `AdminDatePicker`. End date stays read-only when the leave type is
+  경조 (bereavement, fixed 3 days) or a half-day type.
+- **잔여 탭 드로어의 입사일 수정** — the hire-date field in the employee detail drawer's inline editor
+  also changed from a native `<input type="date">` to `AdminDatePicker`.
 
 ## Next step
 

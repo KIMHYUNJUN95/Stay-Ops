@@ -95,9 +95,9 @@ const maintenanceStatusBadgeClass: Record<MaintenanceStatus, string> = {
   open: "border-primary/20 bg-primary/10 text-primary",
   in_progress:
     "border-amber-200 bg-amber-50 text-amber-700",
-  resolved:
+  closed:
     "border-green-200 bg-green-50 text-green-700",
-  closed: "border-border bg-muted/50 text-muted-foreground",
+  cancelled: "border-border bg-muted/50 text-muted-foreground",
 };
 
 const orderStatusBadgeClass: Record<OrderStatus, string> = {

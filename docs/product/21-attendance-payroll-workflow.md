@@ -6,18 +6,19 @@
 > source of truth for the admin attendance/payroll surface while this document continues to define the
 > domain workflow, mobile flow, and payroll rules.
 
-Status: Refined planning draft (policy baseline confirmed 2026-06-17) 쨌 **Steps 1?? + Steps 10??4
-implemented 2026-06-17/18** (schema 쨌 site/QR backend 쨌 GPS+QR clock-in/out 쨌 breaks 쨌 self-view history
-쨌 correction requests 쨌 admin review backend 쨌 manual admin management backend 쨌 hourly expected-pay +
-self pay view 쨌 monthly finalization/reopen/snapshot 쨌 payroll-totals data layer 쨌 finalized-only export
-쨌 notifications + 18:30 reminder). **App-scope attendance/payroll is now feature-complete.** *(Step 9 ??employment/rate management backend ??and the owner/admin web dashboard remain deferred.)*
+Status: Refined planning draft (policy baseline confirmed 2026-06-17) and **Steps 1-8 + Steps 10-14
+implemented on 2026-06-17/18** (schema, site/QR backend, GPS+QR clock-in/out, breaks, self-view history,
+correction requests, admin review backend, manual admin management backend, hourly expected-pay +
+self pay view, monthly finalization/reopen/snapshot, payroll-totals data layer, finalized-only export,
+notifications + 18:30 reminder). **App-scope attendance/payroll is now feature-complete.** *(Step 9
+employment/rate management backend and the owner/admin web dashboard remain deferred.)*
 
 > **Step 14 (2026-06-18, final app step):** attendance **notifications** use the shared system (one
 > `attendance_activity` type): admin alerts on **correction created** + **abnormal/midnight session**
-> (owner / `attendance_payroll_admin` only), and the worker **18:30 open-session reminder** ??a
-> once-per-Tokyo-day home prompt ("洹쇰Т 以묒씠?먯슂" suppresses; "?대? ?닿렐?덉뼱?? routes to correction, **no
+> (owner / `attendance_payroll_admin` only), and the worker **18:30 open-session reminder** -> a
+> once-per-Tokyo-day home prompt ("Still working?" suppresses; "Already left work" routes to correction, **no
 > auto clock-out**) + a CRON_SECRET-gated scan (`/api/attendance/reminders`). In-app only (Web Push
-> deferred); no admin dashboard. See `docs/engineering/11-attendance-payroll-technical-design.md` ??> "As-built ??Step 14" and `docs/product/14-notification-design.md`.
+> deferred); no admin dashboard. See `docs/engineering/11-attendance-payroll-technical-design.md` -> "As-built - Step 14" and `docs/product/14-notification-design.md`.
 
 > **Step 13 (2026-06-18):** finalized-only payroll **export** is live (`exportMonthlyPayroll` /
 > `exportUserPayroll`, owner / `attendance_payroll_admin` only): monthly bulk + per-person, **finalized
@@ -31,10 +32,10 @@ self pay view 쨌 monthly finalization/reopen/snapshot 쨌 payroll-totals data l
 > **Step 12 (2026-06-18):** the privileged **org-wide payroll-totals data layer** is ready
 > (`getPayrollTotals(org, ym)`): finalized labor total (from finalized snapshots), expected labor total
 > (sum of relevant hourly workers' current expected pay), unfinalized worker count, and site-based
-> totals (by clock-in site). Expected vs finalized are kept explicitly separate. **Query-only ??no
+> totals (by clock-in site). Expected vs finalized are kept explicitly separate. **Query-only, no
 > dashboard UI** (the totals dashboard is part of the deferred web dashboard); owner /
 > `attendance_payroll_admin` gate enforced by the caller. See
-> `docs/engineering/11-attendance-payroll-technical-design.md` ??"As-built ??Step 12".
+> `docs/engineering/11-attendance-payroll-technical-design.md` -> "As-built - Step 12".
 
 > **Step 11 (2026-06-18):** per-person **monthly finalization** + reopen is live as a privileged backend
 > (`finalizeAttendanceMonth` / `reopenAttendanceMonth`, owner / `attendance_payroll_admin` only).
@@ -42,8 +43,8 @@ self pay view 쨌 monthly finalization/reopen/snapshot 쨌 payroll-totals data l
 > finalized); it stores a `finalized` snapshot (paid minutes, rate breakdown, gross, finalizer, time).
 > **Reopen requires a reason**, flips the snapshot to `reopened` (expected pay resumes), and **never
 > destroys prior history** (superseded chain + `audit_logs`). The worker self pay screen shows the
-> finalized number + ?뺤젙 badge when finalized. **No admin dashboard** (deferred). See
-> `docs/engineering/11-attendance-payroll-technical-design.md` ??"As-built ??Step 11".
+> finalized number + finalized badge when finalized. **No admin dashboard** (deferred). See
+> `docs/engineering/11-attendance-payroll-technical-design.md` -> "As-built - Step 11".
 
 > **Step 10 (2026-06-18):** hourly **expected** gross-pay is live with a new self monthly pay screen
 > (`/mobile/attendance/pay`). Effective-date rate resolution (a rate change applies to the whole Tokyo
@@ -52,47 +53,47 @@ self pay view 쨌 monthly finalization/reopen/snapshot 쨌 payroll-totals data l
 > gross rounded **up** to the nearest 10 yen (ceiling; e.g. 93→100, 95→100). Salaried days never pay.
 > **Self-only.** No finalization yet, and **no admin dashboard** (deferred). Employment/rate
 > **management** (시급 설정·변경) is deferred to the **admin dashboard** (Step 9); a dev seed route
-> exists for testing. See `docs/engineering/11-attendance-payroll-technical-design.md` ??> "As-built ??Step 10".
+> exists for testing. See `docs/engineering/11-attendance-payroll-technical-design.md` -> "As-built - Step 10".
 
-> **Step 8 (2026-06-17):** privileged **manual attendance** backend is live ??> `createManualAttendanceSession` / `updateAttendanceSessionAdmin` / `invalidateAttendanceSession`
+> **Step 8 (2026-06-17):** privileged **manual attendance** backend is live -> `createManualAttendanceSession` / `updateAttendanceSessionAdmin` / `invalidateAttendanceSession`
 > (owner / `attendance_payroll_admin` only, server-enforced; **mandatory reason + audit**). Bad records
 > are **invalidated, never deleted**. **No admin PC/web dashboard was built** (deferred until the app is
 > done); these are the backend it will call, and manual/invalid sessions already reflect in the existing
 > review-queue + worker self-history. See
-> `docs/engineering/11-attendance-payroll-technical-design.md` ??"As-built ??Step 8".
+> `docs/engineering/11-attendance-payroll-technical-design.md` -> "As-built - Step 8".
 
-> **Step 7 (2026-06-17):** the admin correction-review **backend** is live ??org-wide review-queue
+> **Step 7 (2026-06-17):** the admin correction-review **backend** is live -> org-wide review-queue
 > query layer + approve / reject / in-review actions (owner / `attendance_payroll_admin` only,
 > server-enforced). **Approve authoritatively applies** admin-confirmed final values to the session
 > (defaulting to the requester's proposals) and writes an `attendance_session_audits` row; **reject
 > requires a comment** and leaves the session unchanged. The **review-queue UI is built in the web
 > dashboard later** (like site/QR); worker self-view reflects the outcome automatically. See
-> `docs/engineering/11-attendance-payroll-technical-design.md` ??"As-built ??Step 7".
+> `docs/engineering/11-attendance-payroll-technical-design.md` -> "As-built - Step 7".
 
 > **Step 6 (2026-06-17):** correction / exception requests are live (`createAttendanceCorrectionRequest`).
 > Users request corrections for **their own** records, **current or previous Tokyo month only**, with
-> reason + desired times + desired site + memo + photos (??); requests **only suggest values and never
+> reason + desired times + desired site + memo + photos (optional); requests **only suggest values and never
 > mutate the session** (admin confirms in Step 7). Session-linked and session-less exception requests
 > are supported; status is visible to the requester and surfaced as a chip in self-history. See
-> `docs/engineering/11-attendance-payroll-technical-design.md` ??"As-built ??Step 6".
+> `docs/engineering/11-attendance-payroll-technical-design.md` -> "As-built - Step 6".
 
-> **Step 5 (2026-06-17):** own attendance **history** is live at `/mobile/attendance/history` ??today
+> **Step 5 (2026-06-17):** own attendance **history** is live at `/mobile/attendance/history` -> today
 > summary + the user's own session list with per-session detail (clock-in/out, sites, methods, break
-> rows, review/abnormal markers). **Self-only** (server-scoped to the authenticated user). The ?대젰
-> screen is **new UI in the existing design language** (the handoff had no ?대젰 frame). See
-> `docs/engineering/11-attendance-payroll-technical-design.md` ??"As-built ??Step 5".
+> rows, review/abnormal markers). **Self-only** (server-scoped to the authenticated user). The history
+> screen is **new UI in the existing design language** (the handoff had no history frame). See
+> `docs/engineering/11-attendance-payroll-technical-design.md` -> "As-built - Step 5".
 
 > **Step 4 (2026-06-17):** break start/end is live on the home screen (`startBreak` / `endBreak`).
 > Multiple breaks per session, one open break at a time, each break stored as its own row;
 > **clock-out is blocked while a break is open** (the break is never auto-closed). Same for salaried and
-> hourly users. See `docs/engineering/11-attendance-payroll-technical-design.md` ??"As-built ??Step 4".
+> hourly users. See `docs/engineering/11-attendance-payroll-technical-design.md` -> "As-built - Step 4".
 
 > **Step 3 (2026-06-17):** the worker UI is now functional for **GPS + QR clock-in / clock-out**. One
 > server action (`submitAttendanceScan`) validates the QR token, resolves the site, checks GPS against
 > the site radius, enforces one-open-session-per-user, creates/completes the session, and logs every
 > attempt; the capture screen does in-app camera QR scan (`jsqr`) + Geolocation and the home shows the
 > live open-session state. Breaks, corrections, payroll, dashboards, exports, and notifications are
-> still later steps. See `docs/engineering/11-attendance-payroll-technical-design.md` ??"As-built ??> Step 3".
+> still later steps. See `docs/engineering/11-attendance-payroll-technical-design.md` -> "As-built - Step 3".
 
 > **Build-surface note (updated 2026-06-22):** the owner-only site/QR backend shipped first, and the
 > first owner-facing web bridge now exists at **/admin/settings/attendance**. The page lets an
@@ -138,7 +139,7 @@ Scheduling is handled in another app. StayOps only handles actual attendance rec
 ### Deferred / Limited
 
 - `GPS + Wi-Fi` attendance is part of the long-term design, but **PWA cannot use it yet**
-- in the PWA UI, Wi-Fi attendance should appear as `以鍮꾩쨷`
+- in the PWA UI, Wi-Fi attendance should appear as `준비중`
 - taxes, insurance, deductions, and company-side payroll processing remain outside this module
 
 ## User Model
@@ -218,7 +219,7 @@ Designed but not active in PWA:
 
 PWA reason:
 
-- browser/PWA delivery should expose Wi-Fi attendance as `以鍮꾩쨷`
+- browser/PWA delivery should expose Wi-Fi attendance as `준비중`
 - the data model should still reserve Wi-Fi method support for a later non-web or extended release
 
 ### GPS Rule
@@ -248,7 +249,7 @@ If GPS is missing or denied:
 - Wi-Fi is a long-term supported method in the design
 - one site may hold multiple allowed SSIDs
 - site SSIDs are distinct per building in the current operating assumption
-- PWA release keeps Wi-Fi disabled and marked `以鍮꾩쨷`
+- PWA release keeps Wi-Fi disabled and marked `준비중`
 
 ## Attendance UX
 
@@ -832,6 +833,11 @@ For first slice, site cost rollup is based on the **clock-in site**.
   shown as separate columns (see `docs/engineering/11-attendance-payroll-technical-design.md` → the
   2026-07-03 as-built export sections). The earlier interim CSV path is retained only as a
   legacy/back-compat foundation, not the shipped export.
+- **Implemented (2026-07-14):** the 수당(시급) management screen (`/admin/attendance/wages`) also has a
+  real Excel + PDF export (`exportAttendanceWagesWorkbook` / `exportAttendanceWagesReport`), replacing a
+  previously disabled placeholder button. Same `owner` / `attendance_payroll_admin` gate as the payroll
+  export. Two sheets: per-staff current-rate summary, and full rate-change history. See
+  `docs/product/24-attendance-workflow.md` → "수당(시급) 화면 Excel/PDF 내보내기 구현".
 - Google Sheets compatibility may be added later; not scheduled
 
 Export history must be stored:
@@ -869,7 +875,7 @@ should be defined separately when the reimbursement module is implemented.
 - site master
 - QR issuance / replacement
 - GPS + QR attendance in PWA
-- Wi-Fi method shown as `以鍮꾩쨷`
+- Wi-Fi method shown as `준비중`
 - shared attendance UI
 - own attendance history
 - correction / exception requests

@@ -289,7 +289,10 @@ Export:
 - Field Manager
 - Platform admins
 
-## maintenance_requests
+## maintenance_reports
+
+> 테이블 이름은 `maintenance_reports`다. 이 문서의 예전 판은 `maintenance_requests`로 적혀 있었으나
+> 코드·마이그레이션 어디에도 그런 테이블은 없다. (2026-07-14 정정)
 
 Read:
 
@@ -301,9 +304,11 @@ Create:
 
 Update content:
 
-- Creator can edit their own record.
-- Part-time Staff can edit only their own record.
-- Staff and above can manage according to organization policy.
+- RLS UPDATE 정책은 컬럼을 구분하지 않지만, **앱이 실제로 쓰는 UPDATE 경로는 세 개뿐이다**:
+  `updateMaintenanceStatus`(상태), `updateMaintenanceHandling`(상태 + `resolution_memo` +
+  `resolution_image_urls` + `completed_*`), `applyMaintenanceException`(강제 완료/무효).
+- **접수 후 본문(제목·설명·카테고리·우선순위·사진) 수정 경로는 없다** — 의도된 설계다
+  (2026-07-14 확정). 잘못 올린 신고는 수정이 아니라 삭제 또는 무효 처리로 정리한다.
 
 Change status:
 
@@ -341,6 +346,30 @@ Additional implementation note (2026-07-09):
   organization and matches the submitted property / room context.
 - These extra context columns do not broaden who can read or mutate maintenance rows.
 
+### 2026-07-14 백엔드 연동 — UPDATE 정책 정정 + 예외 개입
+
+마이그레이션 `202607160001_maintenance_backend.sql`.
+
+- **`staff`가 UPDATE 정책에서 빠져 있었다.** 위 "Change status" 목록은 Staff를 포함하는데, 실제 RLS
+  정책은 `owner / office_admin / cs_staff / field_manager`만 허용했다. **문서가 정답**이므로 정책에
+  `staff`를 추가했다. `part_time_staff`는 계속 제외된다. `has_org_role`이
+  `senior_managing_director`를 owner-equivalent로 처리하므로(마이그레이션 `202607130003`) 전무도
+  자동 포함된다. `maintenance_status_change` 권한 예외(override)도 그대로 유지된다.
+- **`with check` 절이 없었다.** USING만 있던 기존 UPDATE 정책은 업데이트로 행을 **다른 조직으로 옮기는
+  것**을 DB 레벨에서 막지 못했다(앱 코드가 항상 `organization_id`를 고정해 실제 사고는 없었다).
+  `with check (has_active_membership(organization_id))`를 추가했다.
+- **RLS-필터된 0행 업데이트를 성공으로 착각하면 안 된다.** RLS가 행을 걸러내면 Supabase는 **에러 없이
+  0행**을 돌려준다. 구 `updateMaintenanceStatus`는 영향 행 수를 확인하지 않아, 권한 없는 사용자에게도
+  "상태 변경됨"이라고 응답했다. 모든 maintenance 쓰기 경로가 이제 `.select("id")`로 영향 행 수를 확인하고
+  0행이면 `forbidden`으로 처리한다.
+- **관리자 예외 개입**(강제 완료 / 무효 처리)은 RLS가 아니라 **서버 액션의 역할 게이트**로 막는다:
+  `requireAdminSession()` + `canForceCompleteCleaning(role)` (= developer_super_admin / owner /
+  senior_managing_director / office_admin / field_manager). 청소 강제완료와 같은 게이트다.
+  `completed_by_admin = true`로 기록되어 현장 처리와 구분된다.
+- **완료 사진 storage 정책**: `request-images` 버킷의 폴더 화이트리스트에
+  `maintenance-resolutions`를 추가했다. 나머지 조건(4세그먼트, orgId/reportId UUID 형태,
+  `part_time_staff` 제외)은 신고 사진과 동일하다.
+
 ## lost_items
 
 Read:
@@ -374,7 +403,7 @@ Delete:
 - Requires confirmation modal before executing.
 - Hard delete.
 
-RLS pattern: same structure as `maintenance_requests` delete policy above.
+RLS pattern: same structure as the `maintenance_reports` delete policy above.
 
 Additional implementation note (2026-07-09):
 - Reservation-linked lost-found creation may set `property_name` / `reservation_id` / `guest_name`
@@ -449,7 +478,7 @@ Delete:
 - Requires confirmation modal before executing.
 - Hard delete.
 
-RLS pattern: same structure as `maintenance_requests` delete policy above.
+RLS pattern: same structure as the `maintenance_reports` delete policy above.
 
 ## announcements
 
@@ -944,7 +973,10 @@ AND status = 'submitted'
 
 ## Open Questions
 
-- Should Staff be allowed to status-change lost items and maintenance forever, or only certain statuses?
+- ~~Should Staff be allowed to status-change lost items and maintenance forever, or only certain
+  statuses?~~ → **해결 (2026-07-14):** 수리·점검은 `staff`를 UPDATE 정책에 명시적으로 포함하고
+  상태 제한은 두지 않는다 (마이그레이션 `202607160001_maintenance_backend.sql` §5). 현장이 처리하는
+  것이 이 기능의 전제이기 때문이다. `part_time_staff`만 앱 레벨에서 읽기 전용.
 - Should CS Staff be allowed to export cleaning records by default?
 - Should Field Manager be able to delete other users' records?
 - Should hard delete be blocked if a record has attachments?

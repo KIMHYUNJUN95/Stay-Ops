@@ -1,0 +1,213 @@
+/*
+ * Admin 수리·점검 console — screen-local additions on top of admin-console.css.
+ * Ported 1:1 from the Claude Design handoff (StayOps 수리 점검 (admin) → maint.css).
+ * Reuses the shared primitives as-is (.card/.opsbar/.dd/.calpop/.panel/.modal/.fld/.qtbl/.qsearch/
+ * .cviewbar/.lviews/.syncchip/.ctoolbar/.cstat/.rptile/.hmeta/.kv/.pblock/.state) — only genuinely
+ * new components for this screen live here: the 3-column status board, priority badge, category chip,
+ * occupied/aging derived badges, photo gallery, and the exception-action confirm modal.
+ * See docs/product/08-maintenance-workflow.md → "2026-07-14 어드민 수리·점검 대시보드".
+ */
+
+/* ── KPI strip: 5 cells (접수 · 처리중 · 긴급 · 오래된 미해결 · 완료) ── */
+.adm .opsbar--5 { grid-template-columns: repeat(5, 1fr); box-shadow: 0 20px 48px -36px rgba(20, 32, 43, 0.5); }
+.adm .opsbar--5 .opscell { padding: 16px 18px; gap: 9px; }
+.adm .opsbar--5 .opscell__k { font-size: 11.5px; letter-spacing: 0.01em; }
+.adm .opsbar--5 .opscell__v { font-size: 30px; letter-spacing: -0.035em; }
+.adm .opsbar--5 .opscell__sub { font-size: 11px; }
+@media (max-width: 1180px) { .adm .opsbar--5 { grid-template-columns: repeat(3, 1fr); } }
+
+/* read-only note chip on the view bar */
+.adm .robadge { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 13px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--muted); font-size: 11.5px; font-weight: 700; }
+.adm .robadge .ic { font-size: 15px; color: var(--faint); }
+
+/* ── status pill — maintenance-only variants (progress reuses the shared one) ── */
+.adm .cstat--open { background: var(--warn-bg); color: var(--warn); }
+.adm .cstat--resolved { background: var(--done-bg); color: var(--done); }
+.adm .cstat--closed { background: var(--surface); color: var(--ink-soft); }
+.adm .cstat--cancelled { background: var(--surface); color: var(--faint); }
+.adm .cstat--cancelled .d { opacity: 0.6; }
+
+/* ── priority badge ── */
+.adm .pri { display: inline-flex; align-items: center; gap: 4px; height: 21px; padding: 0 8px; border-radius: 7px; font-size: 10.5px; font-weight: 900; letter-spacing: 0.01em; white-space: nowrap; text-transform: uppercase; }
+.adm .pri .d { width: 6px; height: 6px; border-radius: 999px; background: currentColor; flex: 0 0 auto; }
+.adm .pri--urgent { background: var(--danger-bg); color: var(--danger); }
+.adm .pri--high { background: var(--warn-bg); color: var(--warn); }
+.adm .pri--normal { background: var(--surface); color: var(--muted); }
+.adm .pri--low { background: var(--surface); color: var(--faint); }
+.adm .pri--urgent .d { animation: priPulse 1.8s ease-in-out infinite; }
+@keyframes priPulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--danger) 55%, transparent); }
+  50% { box-shadow: 0 0 0 3px transparent; }
+}
+
+/* ── category chip ── */
+.adm .cat { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.adm .cat .ic { font-size: 14px; color: var(--faint); flex: 0 0 auto; }
+
+/* ── derived warning badges (occupied / aging) ── */
+.adm .occ { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 7px; font-size: 10.5px; font-weight: 800; background: color-mix(in oklab, var(--warn) 15%, #fff); color: color-mix(in oklab, var(--warn) 72%, var(--ink)); border: 1px dashed color-mix(in oklab, var(--warn) 45%, transparent); white-space: nowrap; }
+.adm .occ .ic { font-size: 12px; }
+.adm .agingtag { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 800; color: var(--danger); }
+.adm .agingtag .ic { font-size: 13px; }
+
+/* ── photo-count badge ── */
+.adm .phcount { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 7px; font-size: 10.5px; font-weight: 800; background: var(--surface); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.adm .phcount .ic { font-size: 13px; color: var(--muted); }
+.adm .phcount.is-none { color: var(--faint); }
+.adm .phcount.is-none .ic { color: var(--faint); }
+
+/* ── status board (read-only columns; NOT drag-and-drop) ── */
+.adm .mboard-wrap { overflow-x: auto; padding-bottom: 6px; margin: 0 -2px; }
+.adm .mbkgrid { display: grid; grid-template-columns: repeat(3, minmax(260px, 1fr)); gap: 14px; align-items: start; min-width: 820px; }
+.adm .mbkcol { background: var(--card2); border: 1px solid var(--line-soft); border-radius: 16px; padding: 6px; }
+.adm .mbkcol__h { display: flex; align-items: center; gap: 9px; padding: 11px 12px 10px; }
+.adm .mbkcol__ic { width: 24px; height: 24px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.adm .mbkcol__ic .ic { font-size: 14px; }
+.adm .mbkcol__t { font-size: 12.5px; font-weight: 900; letter-spacing: -0.01em; color: var(--ink); }
+.adm .mbkcol__c { margin-left: auto; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 12px; font-weight: 800; background: var(--card); color: var(--ink-soft); border: 1px solid var(--line); }
+.adm .mbkcol__body { display: flex; flex-direction: column; gap: 10px; padding: 2px; min-height: 44px; }
+.adm .mbkcol--open { border-top: 3px solid var(--warn); }
+.adm .mbkcol--progress { border-top: 3px solid var(--info); }
+.adm .mbkcol--resolved { border-top: 3px solid var(--done); }
+.adm .mbkcol--closed { border-top: 3px solid var(--faint); }
+.adm .mbkcol--cancelled { border-top: 3px solid var(--line); }
+.adm .mbkcol--open .mbkcol__ic { background: var(--warn-bg); color: var(--warn); }
+.adm .mbkcol--progress .mbkcol__ic { background: var(--info-bg); color: var(--info); }
+.adm .mbkcol--resolved .mbkcol__ic { background: var(--done-bg); color: var(--done); }
+.adm .mbkcol--closed .mbkcol__ic { background: var(--surface); color: var(--muted); }
+.adm .mbkcol--cancelled .mbkcol__ic { background: var(--surface); color: var(--faint); }
+
+/* ── maintenance card (title-led; priority + category + location + meta) ── */
+.adm .mcard { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 15px; box-shadow: 0 12px 30px -28px rgba(20, 32, 43, 0.5); padding: 13px 14px 12px; display: flex; flex-direction: column; gap: 10px; cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s; border-left: 3px solid var(--line); min-width: 0; }
+.adm .mcard:hover { box-shadow: 0 20px 40px -26px rgba(20, 32, 43, 0.5); transform: translateY(-2px); }
+.adm .mcard.sel { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft), var(--sh-card); }
+.adm .mcard.is-open { border-left-color: var(--warn); }
+.adm .mcard.is-progress { border-left-color: var(--info); }
+.adm .mcard.is-resolved { border-left-color: var(--done); }
+.adm .mcard.is-closed { border-left-color: var(--faint); }
+.adm .mcard.is-cancelled { border-left-color: var(--line); opacity: 0.82; }
+.adm .mcard.is-cancelled .mcard__title { color: var(--muted); }
+/* aging (open past the threshold) — danger emphasis */
+.adm .mcard.is-aging { border-left-color: var(--danger); background: color-mix(in oklab, var(--danger) 4%, var(--card)); }
+.adm .mcard.is-aging:hover { box-shadow: 0 20px 40px -24px color-mix(in oklab, var(--danger) 40%, rgba(20, 32, 43, 0.5)); }
+.adm .mcard__top { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.adm .mcard__title { font-size: 13.5px; font-weight: 800; line-height: 1.34; color: var(--ink); letter-spacing: -0.01em; text-wrap: pretty; }
+.adm .mcard__loc { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: var(--ink-soft); }
+.adm .mcard__loc .ic { font-size: 14px; color: var(--faint); flex: 0 0 auto; }
+.adm .mcard__loc .mono { font-family: var(--mono); font-weight: 800; color: var(--ink); }
+.adm .mcard__mid { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adm .mcard__sp { flex: 1; }
+.adm .mcard__foot { display: flex; align-items: center; gap: 8px; padding-top: 9px; border-top: 1px solid var(--line-soft); }
+.adm .mcard__rep { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--muted); min-width: 0; }
+.adm .mcard__av { width: 20px; height: 20px; border-radius: 6px; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; flex: 0 0 auto; }
+.adm .mcard__rep span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm .mcard__el { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 11px; font-weight: 800; color: var(--muted); white-space: nowrap; flex: 0 0 auto; }
+.adm .mcard__el .ic { font-size: 13px; color: var(--faint); }
+.adm .mcard__el.is-late { color: var(--danger); }
+.adm .mcard__el.is-late .ic { color: var(--danger); }
+
+/* small in-column empty */
+.adm .mnone { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px 10px; font-size: 12px; font-weight: 700; color: var(--faint); text-align: center; }
+.adm .mnone .ic { font-size: 15px; }
+
+/* ── list / history table specifics ── */
+.adm .mtbl .tt-title { font-size: 13px; font-weight: 800; color: var(--ink); display: block; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm .mtbl .tt-loc { font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.adm .mtbl .tt-id { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--faint); }
+.adm .mtbl tr.is-cancelled .tt-title { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
+.adm .mtbl .el-cell { font-family: var(--mono); font-weight: 800; color: var(--ink-soft); }
+.adm .mtbl .el-cell.is-late { color: var(--danger); }
+.adm .filterbar .dd { width: 150px; flex: 0 0 auto; }
+
+/* ── detail panel — maintenance bits ── */
+.adm .mpanel__title { font-size: 16.5px; font-weight: 900; line-height: 1.3; letter-spacing: -0.01em; color: var(--ink); text-wrap: pretty; }
+.adm .mpanel__chips { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 11px; }
+
+/* photo gallery */
+.adm .pgal { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.adm .pgal--res { grid-template-columns: repeat(3, 1fr); }
+.adm .pshot { position: relative; aspect-ratio: 4 / 3; border-radius: 11px; border: 1px solid var(--line); overflow: hidden; background: repeating-linear-gradient(135deg, var(--card2) 0 9px, var(--surface) 9px 18px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; color: var(--faint); }
+.adm .pshot .ic { font-size: 20px; }
+.adm .pshot__n { font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.02em; }
+/* Real photos (2026-07-14, backend wiring). The striped background above stays as the loading/empty
+   backdrop; a loaded image covers it. Clicking a tile opens the full-size original in a new tab. */
+.adm a.pshot { cursor: pointer; padding: 0; gap: 0; transition: border-color 0.14s ease, transform 0.14s ease; }
+.adm a.pshot:hover { border-color: var(--primary); transform: translateY(-1px); }
+.adm .pshot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.adm .pshot--res { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--done) 9%, var(--card2)) 0 9px, color-mix(in oklab, var(--done) 5%, var(--surface)) 9px 18px); color: color-mix(in oklab, var(--done) 55%, var(--faint)); }
+.adm .pnophoto { display: flex; align-items: center; gap: 8px; padding: 14px; border-radius: 12px; background: var(--card2); border: 1px dashed var(--line); font-size: 12px; font-weight: 700; color: var(--faint); }
+.adm .pnophoto .ic { font-size: 16px; }
+
+/* description + notes */
+.adm .mdesc { font-size: 13px; font-weight: 500; line-height: 1.62; color: var(--ink-soft); }
+.adm .infonote { font-size: 12.5px; font-weight: 600; line-height: 1.6; color: var(--ink-soft); padding: 12px 14px; border-radius: 12px; background: var(--card2); border: 1px solid var(--line-soft); white-space: pre-wrap; }
+.adm .dimnote { font-size: 12px; font-weight: 600; color: var(--faint); display: flex; align-items: center; gap: 8px; padding: 11px 13px; border-radius: 11px; background: var(--card2); border: 1px dashed var(--line); }
+.adm .dimnote .ic { font-size: 15px; flex: 0 0 auto; }
+
+/* occupied derived warning callout */
+.adm .occnote { display: flex; gap: 11px; padding: 12px 14px; border-radius: 13px; background: color-mix(in oklab, var(--warn) 10%, #fff); border: 1px solid color-mix(in oklab, var(--warn) 32%, transparent); }
+.adm .occnote__ic { width: 30px; height: 30px; border-radius: 8px; background: color-mix(in oklab, var(--warn) 16%, #fff); color: color-mix(in oklab, var(--warn) 70%, var(--ink)); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.adm .occnote__ic .ic { font-size: 16px; }
+.adm .occnote__t { font-size: 12px; font-weight: 800; color: color-mix(in oklab, var(--warn) 68%, var(--ink)); }
+.adm .occnote__s { font-size: 11px; font-weight: 600; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
+
+/* mobile-handling note (this dashboard is oversight only) */
+.adm .mobnote { display: flex; gap: 10px; align-items: center; padding: 11px 13px; border-radius: 12px; background: var(--info-bg); border: 1px solid color-mix(in oklab, var(--info) 20%, transparent); }
+.adm .mobnote__ic { color: var(--info); flex: 0 0 auto; display: flex; }
+.adm .mobnote__ic .ic { font-size: 17px; }
+.adm .mobnote__t { font-size: 11.5px; font-weight: 700; color: color-mix(in oklab, var(--info) 55%, var(--ink)); line-height: 1.5; }
+
+/* linked-record tiles — maintenance kinds (base .rptile is shared) */
+.adm .rptile--clean .rptile__ic { background: var(--done-bg); color: var(--done); }
+.adm .rptile--clean:hover { border-color: color-mix(in oklab, var(--done) 40%, var(--line)); }
+.adm .rptile--resv .rptile__ic { background: var(--primary-soft); color: var(--primary); }
+.adm .rptile--resv:hover { border-color: color-mix(in oklab, var(--primary) 40%, var(--line)); }
+
+/* ── exception-action zone in the panel ── */
+.adm .exczone { margin-top: 4px; padding: 13px 14px; border-radius: 14px; background: color-mix(in oklab, var(--danger) 3.5%, var(--card2)); border: 1px solid color-mix(in oklab, var(--danger) 16%, var(--line-soft)); }
+.adm .exczone__t { font-size: 11.5px; font-weight: 900; color: var(--ink); display: flex; align-items: center; gap: 7px; }
+.adm .exczone__t .ic { font-size: 15px; color: var(--danger); }
+.adm .exczone__s { font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+.adm .exczone__btns { display: flex; gap: 8px; margin-top: 11px; flex-wrap: wrap; }
+.adm .excbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 13px; border-radius: 10px; font-size: 12px; font-weight: 800; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); flex: 1; white-space: nowrap; cursor: pointer; }
+.adm .excbtn .ic { font-size: 15px; }
+.adm .excbtn:hover { background: var(--surface); }
+.adm .excbtn--force { color: var(--ink); }
+.adm .excbtn--force:hover { border-color: color-mix(in oklab, var(--ink) 26%, var(--line)); }
+.adm .excbtn--void { color: var(--warn); }
+.adm .excbtn--void:hover { border-color: color-mix(in oklab, var(--warn) 45%, var(--line)); background: var(--warn-bg); }
+.adm .excbtn--del { color: var(--danger); flex: 0 0 auto; width: 44px; }
+.adm .excbtn--del:hover { border-color: color-mix(in oklab, var(--danger) 45%, var(--line)); background: var(--danger-bg); }
+
+/* ── confirm modal (exception actions) ── */
+.adm .cfhead { display: flex; gap: 13px; align-items: flex-start; }
+.adm .cficon { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.adm .cficon .ic { font-size: 21px; }
+.adm .cficon--force { background: var(--surface); color: var(--ink-soft); }
+.adm .cficon--void { background: var(--warn-bg); color: var(--warn); }
+.adm .cficon--del { background: var(--danger-bg); color: var(--danger); }
+.adm .cfbody-t { font-size: 15px; font-weight: 900; letter-spacing: -0.01em; color: var(--ink); }
+.adm .cfbody-s { font-size: 12.5px; font-weight: 500; line-height: 1.6; color: var(--muted); margin-top: 6px; }
+/* the record being acted on — the title MUST be shown to prevent mistakes */
+.adm .cfrec { display: flex; align-items: center; gap: 11px; padding: 12px 14px; border-radius: 13px; background: var(--card2); border: 1px solid var(--line-soft); margin-top: 15px; }
+.adm .cfrec__ic { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; background: var(--surface); color: var(--muted); }
+.adm .cfrec__ic .ic { font-size: 16px; }
+.adm .cfrec__b { flex: 1; min-width: 0; }
+.adm .cfrec__t { font-size: 13px; font-weight: 800; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm .cfrec__s { font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.adm .btn--danger { background: var(--danger); color: #fff; box-shadow: 0 10px 22px -16px hsl(4 62% 46% / 0.8); }
+.adm .btn--danger:hover { filter: brightness(1.06); }
+.adm .btn--warnsolid { background: var(--warn); color: #fff; box-shadow: 0 10px 22px -16px hsl(35 80% 45% / 0.7); }
+.adm .btn--warnsolid:hover { filter: brightness(1.06); }
+.adm .modal__foot-note.is-danger { color: var(--danger); }
+.adm .modal__foot-note.is-danger .ic { color: var(--danger); }
+
+/* ── loading skeleton ── */
+.adm .mskel-grid { display: grid; grid-template-columns: repeat(3, minmax(260px, 1fr)); gap: 14px; min-width: 820px; }
+.adm .mskel-col { background: var(--card2); border: 1px solid var(--line-soft); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.adm .mskel-card { height: 96px; border-radius: 13px; background: linear-gradient(100deg, var(--surface) 30%, var(--card2) 50%, var(--surface) 70%); background-size: 220% 100%; animation: mskel 1.3s ease-in-out infinite; }
+.adm .mskel-bar { height: 14px; width: 60%; border-radius: 6px; background: linear-gradient(100deg, var(--surface) 30%, var(--card2) 50%, var(--surface) 70%); background-size: 220% 100%; animation: mskel 1.3s ease-in-out infinite; }
+@keyframes mskel {
+  0% { background-position: 180% 0; }
+  100% { background-position: -40% 0; }
+}

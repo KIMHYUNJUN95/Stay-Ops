@@ -519,7 +519,9 @@ only write path that sets `completed_by_admin`. See `docs/product/07-cleaning-wo
 Maintenance/field issue records.
 
 Migrations: `supabase/migrations/202605210007_maintenance_reports.sql`,
-`supabase/migrations/202607090003_reservation_calendar_linking_and_notes.sql`
+`supabase/migrations/202605210008_request_images.sql`,
+`supabase/migrations/202607090003_reservation_calendar_linking_and_notes.sql`,
+`supabase/migrations/202607160001_maintenance_backend.sql` (2026-07-14 백엔드 연동)
 
 Fields:
 
@@ -528,32 +530,63 @@ id uuid primary key
 organization_id uuid not null references organizations(id)
 reported_by_user_id uuid not null references profiles(id)
 room_label text not null           -- free text, matches cleaning_sessions.room_label pattern
+is_building_only boolean not null default false  -- 객실 없는 건물 단위(공용부) 신고
+property_name text                 -- 건물명 스냅샷
 reservation_id uuid references reservations(id) on delete set null
 guest_name text                    -- reservation-linked guest snapshot
 issue_title text not null
 description text
-category text                      -- optional category key
-status maintenance_status not null
-image_urls text[] not null default '{}'
+category maintenance_category not null default 'other'
+priority maintenance_priority not null default 'normal'
+status maintenance_status not null default 'open'
+image_urls text[] not null default '{}'            -- 신고 사진 (≤5)
+resolution_image_urls text[] not null default '{}' -- 완료(수리 후) 사진 (≤5, 선택)
+resolution_memo text               -- 처리 메모 (신고 시 description과 별개)
+completed_at timestamptz           -- closed/cancelled 로 갈 때 기록, 재오픈 시 null
+completed_by uuid references profiles(id) on delete set null   -- 완료/무효를 처리한 사람
+completed_by_admin boolean not null default false               -- 관리자 예외 개입으로 종료됐는지
 cleaning_session_id uuid references cleaning_sessions(id)  -- set when created during active cleaning
 created_at timestamptz not null
 updated_at timestamptz not null
 ```
 
-Status values (maintenance_status enum):
+Status values (maintenance_status enum) — **4-state as of 2026-07-14**:
 
 ```txt
 open
 in_progress
-resolved
 closed
+cancelled
 ```
 
-Note: room is stored as free text `room_label` (same pattern as cleaning_sessions). There is no
-property_id or room_id FK. When created from an active cleaning session, `cleaning_session_id` is
-set automatically. When created from the reservation calendar linked action, `reservation_id` and
-`guest_name` can be stored as optional context snapshots after the server re-validates that the
-reservation belongs to the same organization and matches the selected property / room.
+> **`resolved`는 폐기됐다** (2026-07-14). 현장이 "해결"과 "완료"를 구분할 수 없었고 두 상태가 실질적으로
+> 같게 쓰였다. 마이그레이션 `202607160001`이 기존 `resolved` 행을 `closed`로 옮긴 뒤 enum을 재생성한다
+> (되돌릴 수 없음). 대신 `cancelled`(무효)가 추가됐다 — 잘못된·중복 신고를 하드 삭제하는 대신 감사 흔적을
+> 남기기 위해서다.
+
+Priority values (maintenance_priority enum): `low` / `normal` / `high` / `urgent`.
+
+Category values (maintenance_category enum, 10종): `electric` / `water` / `air_conditioning_heating` /
+`wifi` / `furniture` / `appliance` / `cleaning_condition` / `supplies` / `damage` / `other`.
+모바일 폼의 기존 8종(hvac / lock / internet / amenities …)은 **UI에만 있었고 저장된 적이 없어서**
+(서버 액션이 `formData`의 category를 읽지 않았다) 데이터 마이그레이션 없이 교체했다.
+
+Notes:
+
+- Room is stored as free text `room_label` (same pattern as cleaning_sessions). There is no
+  property_id or room_id FK. When created from an active cleaning session, `cleaning_session_id` is
+  set automatically. When created from the reservation calendar linked action, `reservation_id` and
+  `guest_name` can be stored as optional context snapshots after the server re-validates that the
+  reservation belongs to the same organization and matches the selected property / room.
+- **`property_name`은 2026-07-14까지 마이그레이션 없이 원격 DB에만 존재했다** (대시보드 SQL로 직접 추가된
+  것으로 보인다). `202607160001`이 `add column if not exists`로 따라잡는다 — 그 전에는
+  `supabase db reset`을 하면 모바일 신청이 깨졌다.
+- **파생 값은 저장하지 않는다.** "재실 중"(연동 예약이 오늘(Tokyo)을 덮는지)과 "오래된 미해결"
+  (`open` + 접수 후 72h 초과, `MAINTENANCE_AGING_HOURS`)은 조회 시 계산한다 —
+  `src/lib/admin-maintenance.ts`.
+- **완료 사진은 별도 폴더**에 올라간다: `{orgId}/maintenance-resolutions/{reportId}/{file}`
+  (신고 사진은 `{orgId}/maintenance-reports/…`). 같은 `request-images` 버킷이며, storage RLS 정책의
+  폴더 화이트리스트에 추가돼 있다.
 
 ## lost_items
 

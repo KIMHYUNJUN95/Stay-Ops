@@ -7,7 +7,6 @@ import {
   ArrowUpRight,
   ChevronRight,
   CircleAlert,
-  Download,
   Info,
   Lock,
   LogOut,
@@ -19,8 +18,14 @@ import {
 } from "lucide-react";
 import type { AdminWageRow } from "@/lib/admin-attendance";
 import { getDictionary, type Dictionary, type Locale } from "@/lib/i18n";
-import { setEmploymentType, setHourlyRate } from "@/app/admin/attendance/actions";
+import {
+  exportAttendanceWagesReport,
+  exportAttendanceWagesWorkbook,
+  setEmploymentType,
+  setHourlyRate,
+} from "@/app/admin/attendance/actions";
 import { AdminDatePicker } from "../shared/admin-date-picker";
+import { AdminExportButtons } from "../shared/admin-export-buttons";
 import { AdminReasonModal } from "../shared/admin-reason-modal";
 import { formatOptionalAdminYen } from "../shared/admin-format";
 import { useAdminPanelA11y } from "../shared/use-admin-panel-a11y";
@@ -54,7 +59,9 @@ export function AttendanceWagesClient({
   locale: Locale;
   localeTag: string;
 }) {
-  const c = getDictionary(locale).admin.attendanceConsole;
+  const dictionary = getDictionary(locale);
+  const c = dictionary.admin.attendanceConsole;
+  const shared = dictionary.admin.shared;
   const [rows, setRows] = useState(initialRows);
   const [filter, setFilter] = useState<Filter>("all");
   const [panelId, setPanelId] = useState<string | null>(null);
@@ -120,6 +127,14 @@ export function AttendanceWagesClient({
             <span className="cnt">{counts.salaried}</span>
           </button>
         </div>
+        <span className="toolbar__spacer" />
+        <AdminExportButtons
+          onExportXls={exportAttendanceWagesWorkbook}
+          onExportPdf={exportAttendanceWagesReport}
+          disabled={rows.length === 0}
+          onToast={showToast}
+          labels={shared}
+        />
       </div>
 
       {list.length === 0 ? (
@@ -851,18 +866,6 @@ function WagePanel({
                 </Ic>
                 {c.wagePanelBtnUserDetail}
               </Link>
-              <button
-                type="button"
-                className="btn btn--subtle"
-                style={{ flex: 1 }}
-                disabled
-                title={c.wagePanelSwitchPendingNote}
-              >
-                <Ic>
-                  <Download />
-                </Ic>
-                {c.wagePanelBtnExportHistory}
-              </button>
             </>
           )}
         </div>

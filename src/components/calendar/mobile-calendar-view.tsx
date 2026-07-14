@@ -158,10 +158,10 @@ const DAY_WIDTH = 34;
 const ROOM_LABEL_WIDTH = 64;
 const CALENDAR_BAR_HEIGHT = 32;
 const CALENDAR_BAR_TOP = 8;
-/** Compact vertical offset per lane ??keeps all bars within the fixed row height. */
+/** Compact vertical offset per lane -> keeps all bars within the fixed row height. */
 const CALENDAR_COMPACT_LANE_OFFSET = 4;
 const CALENDAR_SINGLE_ROW_HEIGHT = 48;
-/** Room grid pane height ??uses remaining viewport below shell chrome + bottom nav padding. */
+/** Room grid pane height -> uses remaining viewport below shell chrome + bottom nav padding. */
 const CALENDAR_GRID_VIEWPORT_HEIGHT = "calc(100dvh - 20rem)";
 const CALENDAR_GRID_MIN_HEIGHT_PX = 220;
 const DEFAULT_CHECK_IN_TIME = "16:00";
@@ -213,7 +213,7 @@ function roundCalendarPx(value: number) {
   return Math.round(value * 100) / 100;
 }
 
-/** Half-open rendered interval ??turnover at equal boundary is non-overlapping. */
+/** Half-open rendered interval -> turnover at equal boundary is non-overlapping. */
 function reservationBarsOverlap(
   a: Pick<ReservationBarBounds, "leftPx" | "rightPx">,
   b: Pick<ReservationBarBounds, "leftPx" | "rightPx">,
@@ -271,7 +271,7 @@ const GLASS_PANEL =
   "rounded-[24px] border border-slate-200/80 bg-surface shadow-[0_18px_34px_-28px_rgba(31,58,95,0.42)] backdrop-blur-none";
 const GLASS_CARD =
   "rounded-2xl border border-slate-200/80 bg-surface shadow-[0_14px_28px_-24px_rgba(31,58,95,0.38)] backdrop-blur-none";
-// 以묒븰 怨좎젙 modal card (?덉빟 ?곸꽭 / 鍮?媛앹떎 / 吏??怨듭슜)
+// Centered pinned modal card (reservation detail / empty room / area info).
 const RESERVATION_SHEET_TRANSITION_MS = 440;
 
 function parseDate(value: string) {
@@ -534,7 +534,7 @@ export function MobileCalendarView({
     [roomBarLayouts, rooms],
   );
 
-  // today is passed from server (Asia/Tokyo) ??never recompute on client
+  // today is passed from server (Asia/Tokyo) -> never recompute on client
   // findIndex (not indexOf) makes the "date === today" predicate explicit
   const todayIndex = dates.findIndex((date) => date === today);
   const isTodayInView = todayIndex !== -1;

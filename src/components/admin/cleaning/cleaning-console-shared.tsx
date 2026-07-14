@@ -10,7 +10,6 @@ import {
   Moon,
   PackageSearch,
   SprayCan,
-  TriangleAlert,
   Wrench,
   Zap,
 } from "lucide-react";
@@ -33,7 +32,6 @@ export const STATUS_ICON: Record<AdminCleaningStatus, IconType> = {
   pending: Clock,
   progress: SprayCan,
   done: Check,
-  overdue: TriangleAlert,
 };
 
 export function typeLabel(type: CleaningTaskType, t: ConsoleCopy): string {
@@ -46,13 +44,12 @@ export function typeLabel(type: CleaningTaskType, t: ConsoleCopy): string {
 export function statusLabel(status: AdminCleaningStatus, t: ConsoleCopy): string {
   if (status === "pending") return t.stPending;
   if (status === "progress") return t.stProgress;
-  if (status === "done") return t.stDone;
-  return t.stOverdue;
+  return t.stDone;
 }
 
 export function StatusPill({ status, t }: { status: AdminCleaningStatus; t: ConsoleCopy }) {
   const Icon = STATUS_ICON[status];
-  const showIcon = status === "pending" || status === "overdue";
+  const showIcon = status === "pending";
   return (
     <span className={`cstat cstat--${status}`}>
       {showIcon ? (

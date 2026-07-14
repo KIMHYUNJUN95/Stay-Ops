@@ -14,6 +14,7 @@ import {
 import { uploadRequestImages } from "@/components/requests/request-image-upload";
 import { Button } from "@/components/ui/button";
 import type { Dictionary } from "@/lib/i18n";
+import { maintenanceCategories } from "@/lib/maintenance-constants";
 import type { ActiveRoomCatalogItem } from "@/lib/rooms";
 import { localizePropertyName } from "@/lib/room-label-normalization";
 import { cn } from "@/lib/utils";
@@ -184,6 +185,9 @@ export function MaintenanceCreateForm({
     formData.set("id", requestId);
     formData.set("propertyName", selectedBuilding);
     formData.set("roomLabel", selectedRoom);
+    // The room dropdown's "건물 전체" entry stores the *localized* label as the room. Send an explicit
+    // flag so the server records a boolean instead of having to string-match a translated label.
+    formData.set("isBuildingOnly", selectedRoom === copy.form.roomBuildingOnly ? "1" : "0");
     formData.set("issueTitle", issueTitle);
 
     try {
@@ -382,7 +386,7 @@ export function MaintenanceCreateForm({
                 </button>
                 {categoryOpen && (
                   <ul className="absolute left-0 z-50 mt-1.5 max-h-60 w-full overflow-y-auto rounded-2xl border border-slate-200/80 bg-white p-1 shadow-[0_18px_40px_-24px_rgba(31,58,95,0.55)] divide-y divide-slate-100">
-                    {(["electric", "water", "hvac", "appliance", "lock", "internet", "amenities", "other"] as const).map((key) => (
+                    {maintenanceCategories.map((key) => (
                       <li
                         className={cn(
                           "flex items-center h-10 w-full px-3 text-sm font-semibold rounded-lg cursor-pointer transition-colors",
@@ -401,6 +405,7 @@ export function MaintenanceCreateForm({
 
             <div className="flex flex-col gap-2">
               <span className="text-xs font-semibold text-muted-foreground">{copy.form.urgencyLabel}</span>
+              <input name="priority" type="hidden" value={urgency} />
               <div className="flex flex-wrap gap-2">
                 {URGENCY_TONES.map((tone) => (
                   <button
@@ -456,10 +461,6 @@ export function MaintenanceCreateForm({
                 <span className="truncate text-sm font-semibold text-foreground">{reporterName}</span>
               </div>
             </div>
-            <label className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-muted-foreground">{copy.form.memoLabel}</span>
-              <input autoComplete="off" className={INPUT_CLASS} placeholder={copy.form.memoPlaceholder} type="text" />
-            </label>
           </div>
         </section>
 

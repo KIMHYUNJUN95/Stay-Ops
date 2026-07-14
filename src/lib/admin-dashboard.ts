@@ -182,7 +182,9 @@ export async function getAdminDashboard(session: AppSession): Promise<AdminDashb
       title: m.issue_title,
       location: [m.property_name, m.room_label].filter(Boolean).join(" · "),
       createdAt: m.created_at,
-      urgent: m.status === "open",
+      // 2026-07-14: `priority`가 실제 컬럼이 되기 전에는 open 이면 전부 urgent로 표시했다(= 사실상
+      // 전부 빨간색). 이제 신고자가 고른 우선순위를 그대로 쓴다.
+      urgent: m.priority === "urgent",
     }));
   const lostQueue: QueueEntry[] = lost
     .filter((l) => l.status === "registered")

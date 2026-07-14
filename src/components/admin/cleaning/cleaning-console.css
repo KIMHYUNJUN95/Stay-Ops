@@ -7,28 +7,14 @@
  * See docs/product/07-cleaning-workflow.md → "2026-07-13 어드민 청소 대시보드 — 재기획".
  */
 
-/* ── view switcher row (오늘 현황 / 기록) + group segment + sync chip ── */
-.adm .cviewbar { display: flex; align-items: center; gap: 12px; margin: 2px 2px 16px; flex-wrap: wrap; }
-.adm .lviews { display: inline-flex; background: var(--surface); border-radius: 11px; padding: 4px; gap: 2px; }
-.adm .lviews button { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 15px; border: none; background: none; border-radius: 8px; font-size: 13px; font-weight: 800; color: var(--muted); cursor: pointer; }
-.adm .lviews button .ic { font-size: 16px; }
-.adm .lviews button.on { background: var(--card); color: var(--primary-ink); box-shadow: 0 2px 6px rgba(20, 32, 43, 0.14); }
+/* ── group segment (건물별 / 상태별) — cleaning-only; .cviewbar/.lviews/.syncchip are shared
+   primitives and live in admin-console.css ── */
 .adm .groupseg { display: inline-flex; background: var(--surface); border-radius: 9px; padding: 3px; gap: 2px; }
 .adm .groupseg button { height: 32px; padding: 0 13px; border: none; background: none; border-radius: 7px; font-size: 12px; font-weight: 800; color: var(--muted); cursor: pointer; }
 .adm .groupseg button.on { background: var(--card); color: var(--primary-ink); box-shadow: 0 1px 3px rgba(20, 32, 43, 0.14); }
-.adm .syncchip { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 13px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); font-size: 12px; font-weight: 700; cursor: pointer; }
-.adm .syncchip:hover { background: var(--surface); }
-.adm .syncchip__dot { width: 7px; height: 7px; border-radius: 999px; background: var(--done); box-shadow: 0 0 0 3px var(--done-bg); flex: 0 0 auto; }
-.adm .syncchip .ic { font-size: 15px; color: var(--muted); }
 
 /* ── KPI strip: 6 cells (청소 대상 · 미시작 · 진행중 · 완료 · 완료율 · 셋팅) ── */
 .adm .opsbar--6 { grid-template-columns: repeat(6, 1fr); }
-.adm .opscell__v.is-danger { color: var(--danger); }
-.adm .opscell__v.is-progress { color: var(--info); }
-.adm .opscell__v.is-done { color: var(--done); }
-.adm .opscell__v.is-muted { color: var(--ink-soft); }
-.adm .opscell__flag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 800; color: var(--danger); }
-.adm .opscell__flag .ic { font-size: 13px; }
 @media (max-width: 1240px) { .adm .opsbar--6 { grid-template-columns: repeat(3, 1fr); } }
 
 /* ── building/bucket section header (occupancy pill) ── */
@@ -51,7 +37,6 @@
 .adm .rmc.is-pending { border-left-color: var(--muted); }
 .adm .rmc.is-progress { border-left-color: var(--info); }
 .adm .rmc.is-done { border-left-color: var(--done); }
-.adm .rmc.is-overdue { border-left-color: var(--danger); background: color-mix(in oklab, var(--danger) 4%, var(--card)); }
 .adm .rmc__top { display: flex; align-items: flex-start; gap: 9px; }
 .adm .rmc__rm { font-family: var(--mono); font-size: 17px; font-weight: 900; letter-spacing: -0.01em; color: var(--ink); line-height: 1.05; }
 .adm .rmc__type { font-size: 11px; font-weight: 700; color: var(--muted); margin-top: 3px; }
@@ -61,16 +46,8 @@
 .adm .rbadge--lost { background: var(--info-bg); color: var(--info); }
 .adm .rbadge--issue { background: var(--warn-bg); color: var(--warn); }
 .adm .rmc__st { display: flex; align-items: center; gap: 7px; }
-.adm .cstat { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: 0.01em; white-space: nowrap; }
-.adm .cstat .ic { font-size: 13px; }
-.adm .cstat .d { width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
-.adm .cstat--pending { background: var(--surface); color: var(--muted); }
-.adm .cstat--progress { background: var(--info-bg); color: var(--info); }
-.adm .cstat--done { background: var(--done-bg); color: var(--done); }
-.adm .cstat--overdue { background: var(--danger-bg); color: var(--danger); }
 .adm .elapsed { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 11.5px; font-weight: 800; color: var(--info); }
 .adm .elapsed .ic { font-size: 13px; }
-.adm .elapsed.is-late { color: var(--danger); }
 .adm .rmc__meta { display: flex; flex-direction: column; gap: 7px; }
 .adm .rmc__row { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
 .adm .rmc__row .ic { font-size: 15px; color: var(--faint); flex: 0 0 auto; }
@@ -129,23 +106,11 @@
 .adm .staffc__sep { width: 1px; align-self: stretch; background: var(--line-soft); margin: 2px 0; }
 
 /* ── history filter toolbar + table specifics ── */
-.adm .ctoolbar { display: flex; align-items: center; gap: 9px; margin: 2px 2px 14px; flex-wrap: wrap; }
-.adm .ctoolbar__spacer { flex: 1; }
-.adm .ctoolbar .dd { width: 168px; flex: 0 0 auto; }
-.adm .ctoolbar .dpick { flex: 0 0 auto; }
-.adm .qsearch--inline { min-width: 180px; }
 .adm .rrow__rm { font-family: var(--mono); font-size: 13.5px; font-weight: 900; color: var(--ink); }
-.adm .qtbl .who__av { width: 26px; height: 26px; border-radius: 8px; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex: 0 0 auto; }
 .adm .htype { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink-soft); }
 .adm .htype .ic { font-size: 15px; color: var(--muted); }
 .adm .hdur { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-weight: 800; color: var(--ink); }
-.adm .hmeta { font-size: 11.5px; font-weight: 700; color: var(--muted); margin: 0 4px 9px; display: flex; align-items: center; gap: 7px; }
-.adm .hmeta .sep { width: 3px; height: 3px; border-radius: 999px; background: var(--faint); }
 
-/* keep key/value rows on one line (CJK values must not break mid-word) */
-.adm .panel .kv { gap: 16px; }
-.adm .panel .kv__k { white-space: nowrap; flex: 0 0 auto; }
-.adm .panel .kv__v { text-align: right; white-space: nowrap; }
 
 /* ── detail panel: cleaning-specific blocks ── */
 .adm .cpanel__type { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: var(--muted); margin-top: 2px; }
@@ -172,16 +137,6 @@
 .adm .proxynote__ic .ic { font-size: 16px; }
 .adm .proxynote__t { font-size: 12px; font-weight: 800; color: #6a3fae; }
 .adm .proxynote__s { font-size: 11px; font-weight: 600; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
-.adm .rptiles { display: flex; flex-direction: column; gap: 9px; }
-.adm .rptile { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 13px; border-radius: 13px; border: 1px solid var(--line); background: var(--card); text-align: left; cursor: pointer; transition: border-color 0.14s, background 0.14s, box-shadow 0.14s; }
-.adm .rptile:hover { background: var(--card2); box-shadow: 0 10px 24px -20px rgba(20, 32, 43, 0.5); }
-.adm .rptile__ic { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
-.adm .rptile__ic .ic { font-size: 18px; }
-.adm .rptile__b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.adm .rptile__t { font-size: 13px; font-weight: 800; color: var(--ink); }
-.adm .rptile__s { font-size: 11.5px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
-.adm .rptile__go { font-size: 16px; color: var(--faint); flex: 0 0 auto; transition: transform 0.14s, color 0.14s; }
-.adm .rptile:hover .rptile__go { transform: translateX(2px); color: var(--muted); }
 .adm .rptile--issue .rptile__ic { background: var(--warn-bg); color: var(--warn); }
 .adm .rptile--issue:hover { border-color: color-mix(in oklab, var(--warn) 40%, var(--line)); }
 .adm .rptile--lost .rptile__ic { background: var(--info-bg); color: var(--info); }

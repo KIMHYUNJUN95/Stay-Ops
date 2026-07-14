@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { Wrench } from "lucide-react";
 import { AnnouncementImageGrid } from "@/components/announcements/announcement-image-grid";
+import { MaintenanceHandlingForm } from "@/components/requests/maintenance-handling-form";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { Badge } from "@/components/ui/badge";
@@ -8,20 +9,19 @@ import { Card } from "@/components/ui/card";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import {
   getMaintenanceReportById,
-  maintenanceStatuses,
+  isMaintenanceTerminal,
   type MaintenanceStatus,
 } from "@/lib/maintenance-reports";
 import { getOnboardingState } from "@/lib/onboarding";
 import { resolveRequestLocation } from "@/lib/request-location";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
-import { cn } from "@/lib/utils";
 
 const statusBadgeClass: Record<MaintenanceStatus, string> = {
   open: "border-blue-200 bg-blue-50 text-blue-700",
   in_progress: "border-amber-200 bg-amber-50 text-amber-700",
-  resolved: "border-green-200 bg-green-50 text-green-700",
-  closed: "border-border bg-muted/50 text-muted-foreground",
+  closed: "border-green-200 bg-green-50 text-green-700",
+  cancelled: "border-border bg-muted/50 text-muted-foreground",
 };
 const DETAIL_CARD =
   "rounded-[24px] border border-slate-200/80 bg-surface shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]";
@@ -89,7 +89,10 @@ export default async function MobileMaintenanceDetailPage({ params, searchParams
     dictionary.cleaning.buildingLabels,
     report.property_name,
   );
-  const currentStatusIdx = maintenanceStatuses.indexOf(report.status);
+  const isTerminal = isMaintenanceTerminal(report.status);
+  // 상태 변경 = part_time_staff 제외 전원 (docs/product/08-maintenance-workflow.md → Status Change
+  // Permission). 서버 액션과 RLS가 최종 게이트고, 여기서는 UI만 감춘다.
+  const canHandle = session.user.role !== "part_time_staff";
   const showCreatedBanner = query.created === "1";
 
   const navBadges = await getMobileNavBadges();
@@ -129,6 +132,14 @@ export default async function MobileMaintenanceDetailPage({ params, searchParams
             <div className="flex items-start justify-between gap-3 text-sm">
               <dt className="font-semibold text-muted-foreground">{copy.room}</dt>
               <dd className="text-right font-black">{location.roomLabel}</dd>
+            </div>
+            <div className="flex items-start justify-between gap-3 text-sm">
+              <dt className="font-semibold text-muted-foreground">{copy.form.categoryLabel}</dt>
+              <dd className="text-right font-black">{copy.form.categories[report.category]}</dd>
+            </div>
+            <div className="flex items-start justify-between gap-3 text-sm">
+              <dt className="font-semibold text-muted-foreground">{copy.form.urgencyLabel}</dt>
+              <dd className="text-right font-black">{copy.form.urgencies[report.priority]}</dd>
             </div>
             <div className="flex items-start justify-between gap-3 text-sm">
               <dt className="font-semibold text-muted-foreground">{copy.reportedAt}</dt>
@@ -185,31 +196,56 @@ export default async function MobileMaintenanceDetailPage({ params, searchParams
               {copy.statusLabels[report.status]}
             </Badge>
           </div>
-          <div className="mt-4 flex gap-1.5">
-            {maintenanceStatuses.map((s, i) => (
-              <div
-                key={s}
-                className={cn(
-                  "h-2 flex-1 rounded-full",
-                  i <= currentStatusIdx ? "bg-primary" : "bg-muted",
-                )}
-              />
-            ))}
-          </div>
-          <div className="mt-2 flex">
-            {maintenanceStatuses.map((s) => (
-              <p
-                key={s}
-                className={cn(
-                  "flex-1 text-center text-[10px] font-semibold leading-tight",
-                  s === report.status ? "text-foreground" : "text-muted-foreground/40",
-                )}
-              >
-                {copy.statusLabels[s]}
+
+          {isTerminal ? (
+            <dl className="mt-4 space-y-2.5 border-t border-slate-200/70 pt-4">
+              {report.completed_at ? (
+                <div className="flex items-start justify-between gap-3 text-sm">
+                  <dt className="font-semibold text-muted-foreground">{copy.handling.completedAt}</dt>
+                  <dd className="font-semibold">{formatDateTime(report.completed_at, locale)}</dd>
+                </div>
+              ) : null}
+              {report.completed_by_name ? (
+                <div className="flex items-start justify-between gap-3 text-sm">
+                  <dt className="font-semibold text-muted-foreground">{copy.handling.completedBy}</dt>
+                  <dd className="text-right font-black">{report.completed_by_name}</dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
+
+          {report.completed_by_admin ? (
+            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+              {report.status === "cancelled" ? copy.handling.adminVoided : copy.handling.adminForced}
+            </p>
+          ) : null}
+
+          {report.resolution_memo ? (
+            <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/82 p-3.5">
+              <p className="text-xs font-semibold text-muted-foreground">{copy.handling.memoLabel}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{report.resolution_memo}</p>
+            </div>
+          ) : null}
+
+          {report.resolution_image_urls.length > 0 ? (
+            <div className="mt-4">
+              <p className="text-xs font-semibold text-muted-foreground">
+                {copy.handling.photosLabel}
               </p>
-            ))}
-          </div>
+              <AnnouncementImageGrid imageUrls={report.resolution_image_urls} />
+            </div>
+          ) : null}
         </Card>
+
+        <MaintenanceHandlingForm
+          canHandle={canHandle}
+          copy={copy}
+          imgCopy={dictionary.requestImages}
+          initialMemo={report.resolution_memo ?? ""}
+          initialStatus={report.status}
+          organizationId={session.organization.id}
+          reportId={report.id}
+        />
       </div>
     </MobileShell>
   );

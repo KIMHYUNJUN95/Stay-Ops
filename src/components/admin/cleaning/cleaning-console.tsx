@@ -99,7 +99,6 @@ export function CleaningConsole({
   }, [view, router]);
 
   const pendingCount = tasks.filter((task) => task.status === "pending").length;
-  const overdueCount = tasks.filter((task) => task.status === "overdue").length;
   const progressCount = tasks.filter((task) => task.status === "progress").length;
   const doneCount = tasks.filter((task) => task.status === "done").length;
   const rate = tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0;
@@ -203,14 +202,12 @@ export function CleaningConsole({
             </span>
             {t.kpiPending}
           </div>
-          <div className={`opscell__v${!loadError && pendingCount + overdueCount > 0 ? " is-danger" : " is-muted"}`}>
-            {loadError ? "-" : pendingCount + overdueCount}
+          <div className={`opscell__v${!loadError && pendingCount > 0 ? " is-danger" : " is-muted"}`}>
+            {loadError ? "-" : pendingCount}
           </div>
           <div className="opscell__sub">
             {loadError ? (
               t.errT
-            ) : overdueCount ? (
-              <span className="opscell__flag">{overdueCount} {t.stOverdue}</span>
             ) : pendingCount ? (
               t.today
             ) : (
@@ -323,6 +320,7 @@ export function CleaningConsole({
           <HistoryBoard
             history={history}
             t={t}
+            sharedLabels={dictionary.admin.shared}
             buildingLabels={buildingLabels}
             staffDirectory={staffDirectory}
             locale={locale}

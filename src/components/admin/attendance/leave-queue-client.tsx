@@ -421,7 +421,13 @@ export function LeaveQueueClient({
     return (
       <div style={{ position: "relative" }}>
         <LeaveSubTabs view={view} onChange={setView} lc={lc} />
-        <LeaveBalanceView lc={lc} locale={locale} employees={balances} onToast={(msg) => showToast(msg)} />
+        <LeaveBalanceView
+          lc={lc}
+          shared={dictionary.admin.shared}
+          locale={locale}
+          employees={balances}
+          onToast={(msg) => showToast(msg)}
+        />
         {toast ? (
           <div key={toast.id} role="status" className="adm-toast" onClick={() => setToast(null)}>
             {toast.msg}
@@ -444,7 +450,18 @@ export function LeaveQueueClient({
     return (
       <div style={{ position: "relative" }}>
         <LeaveSubTabs view={view} onChange={setView} lc={lc} />
-        <LeaveLedgerView lc={lc} locale={locale} entries={ledger} />
+        <LeaveLedgerView
+          lc={lc}
+          shared={dictionary.admin.shared}
+          locale={locale}
+          entries={ledger}
+          onToast={(msg) => showToast(msg)}
+        />
+        {toast ? (
+          <div key={toast.id} role="status" className="adm-toast" onClick={() => setToast(null)}>
+            {toast.msg}
+          </div>
+        ) : null}
       </div>
     );
   }

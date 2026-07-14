@@ -4,11 +4,18 @@ import { requireAdminSession } from "@/lib/admin-session";
 import { getAdminCleaningHistory, type AdminCleaningHistoryItem } from "@/lib/admin-cleaning";
 import { canForceCompleteCleaning, getCleaningOperatingDateKey } from "@/lib/cleaning";
 import {
-  buildCleaningHistoryWorkbookBase64,
-  formatCleaningDuration,
-  type CleaningHistoryWorkbookRow,
-} from "@/lib/cleaning-history-workbook";
-import { buildCleaningHistoryReportHtml } from "@/lib/cleaning-history-report";
+  buildAdminExportMeta,
+  compactRangePart,
+  type AdminExportMeta,
+} from "@/lib/admin-export-meta";
+import {
+  buildAdminTableWorkbookBase64,
+  type AdminTableColumn,
+  type AdminTableExportRow,
+  type AdminTableSheet,
+} from "@/lib/admin-table-workbook";
+import { buildAdminTableReportHtml } from "@/lib/admin-table-report";
+import type { AdminReportExportResult, AdminWorkbookExportResult } from "@/lib/admin-export-result";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { buildSessionRoomLabel } from "@/lib/room-label-normalization";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -17,10 +24,9 @@ import { fmtDate, toMin, type BuildingKey, type CleaningTaskType } from "@/compo
 // Server actions backing the 기록 (history) tab's Excel/PDF export. The client sends the raw,
 // already-filtered history rows (canonical building/type keys, not display strings) — every visible
 // string is resolved here from the actor's own session locale, so the exported file always matches
-// the signed-in user's language regardless of what the client happened to render. Reuses the same
-// green-ledger workbook/report template as the attendance payroll export
-// (src/lib/attendance-payroll-workbook.ts / attendance-payroll-report.ts) for a unified look across
-// every export in the admin console. See docs/product/07-cleaning-workflow.md →
+// the signed-in user's language regardless of what the client happened to render. Builds through the
+// canonical admin table exporters (src/lib/admin-table-workbook.ts / admin-table-report.ts) that every
+// other /admin/* export also uses. See docs/product/07-cleaning-workflow.md →
 // "2026-07-14 청소 기록 내보내기".
 
 export type CleaningHistoryExportRow = {
@@ -36,17 +42,8 @@ export type CleaningHistoryExportRow = {
   note: string;
 };
 
-export type CleaningHistoryWorkbookResult =
-  | { ok: true; filename: string; base64: string; rowCount: number }
-  | { ok: false; reason: "forbidden" | "empty" | "error" };
-
-export type CleaningHistoryReportResult =
-  | { ok: true; html: string; rowCount: number }
-  | { ok: false; reason: "forbidden" | "empty" | "error" };
-
-function compactRangePart(value: string): string {
-  return value.replace(/-/g, "");
-}
+export type CleaningHistoryWorkbookResult = AdminWorkbookExportResult;
+export type CleaningHistoryReportResult = AdminReportExportResult;
 
 export type FetchCleaningHistoryResult =
   | { ok: true; items: AdminCleaningHistoryItem[] }
@@ -74,6 +71,12 @@ function minToHHMM(min: number): string {
   return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 }
 
+function formatCleaningDuration(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
+}
+
 function typeLabelOf(type: CleaningTaskType, t: ReturnType<typeof getDictionary>["cleaning"]["console"]): string {
   if (type === "checkout") return t.tyCheckout;
   if (type === "simple") return t.tySimple;
@@ -81,11 +84,27 @@ function typeLabelOf(type: CleaningTaskType, t: ReturnType<typeof getDictionary>
   return t.tySetup;
 }
 
-function buildWorkbookRows(
+function cleaningColumns(locale: Locale): AdminTableColumn[] {
+  const t = getDictionary(locale).cleaning.console;
+  return [
+    { key: "date", label: t.colDate, width: 11, printWidth: 8 },
+    { key: "building", label: t.building, width: 14, printWidth: 11 },
+    { key: "room", label: t.colRoom, width: 10, printWidth: 7 },
+    { key: "type", label: t.colType, width: 13, printWidth: 10 },
+    { key: "staff", label: t.colStaff, width: 16, printWidth: 12 },
+    { key: "start", label: t.colStart, width: 10, printWidth: 7 },
+    { key: "end", label: t.colEnd, width: 10, printWidth: 7 },
+    { key: "dur", label: t.colDur, width: 11, printWidth: 8, bold: true },
+    { key: "status", label: t.colStatus, width: 14, printWidth: 10 },
+    { key: "note", label: t.colNote, width: 34, printWidth: 16, wrap: true },
+  ];
+}
+
+function cleaningTableRows(
   rows: CleaningHistoryExportRow[],
   locale: Locale,
   localeTag: string,
-): CleaningHistoryWorkbookRow[] {
+): AdminTableExportRow[] {
   const dictionary = getDictionary(locale);
   const t = dictionary.cleaning.console;
   const buildingLabels = dictionary.cleaning.buildingLabels;
@@ -100,42 +119,30 @@ function buildWorkbookRows(
       staff: r.staffName || "—",
       start: r.start,
       end: minToHHMM(startMin + r.dur),
-      durationLabel: formatCleaningDuration(r.dur),
-      durationMinutes: r.dur,
+      dur: formatCleaningDuration(r.dur),
       status: r.proxy ? t.stProxy : t.stNormal,
       note: r.note,
     };
   });
 }
 
-function reportMeta(orgName: string, locale: Locale, localeTag: string, from: string, to: string) {
-  const t = getDictionary(locale).cleaning.console;
-  const generatedAt = new Intl.DateTimeFormat(localeTag, {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date());
+function cleaningSheet(
+  rows: CleaningHistoryExportRow[],
+  meta: AdminExportMeta,
+  from: string,
+  to: string,
+): AdminTableSheet {
+  const t = getDictionary(meta.locale).cleaning.console;
+  const totalMinutes = rows.reduce((sum, r) => sum + r.dur, 0);
   return {
+    sheetName: t.exportTitle,
     title: t.exportTitle,
-    rangeLabel: `${fmtDate(from, localeTag)} – ${fmtDate(to, localeTag)}`,
-    orgName,
-    generatedLabel: `${t.exportGeneratedLabel} · ${generatedAt}`,
-    colNo: t.colNo,
-    colDate: t.colDate,
-    colBuilding: t.building,
-    colRoom: t.colRoom,
-    colType: t.colType,
-    colStaff: t.colStaff,
-    colStart: t.colStart,
-    colEnd: t.colEnd,
-    colDur: t.colDur,
-    colStatus: t.colStatus,
-    colNote: t.colNote,
-    totalLabel: t.exportTotalLabel,
+    rangeLabel: `${fmtDate(from, meta.localeTag)} – ${fmtDate(to, meta.localeTag)}`,
+    colNoLabel: meta.shared.colNo,
+    totalLabel: meta.shared.exportTotalLabel,
+    columns: cleaningColumns(meta.locale),
+    rows: cleaningTableRows(rows, meta.locale, meta.localeTag),
+    totals: { dur: formatCleaningDuration(totalMinutes) },
   };
 }
 
@@ -147,17 +154,19 @@ export async function exportCleaningHistoryWorkbook(
   const session = await requireAdminSession();
   if (rows.length === 0) return { ok: false, reason: "empty" };
 
-  const locale = session.user.preferredLanguage;
-  const localeTag = locale === "ko" ? "ko-KR" : locale === "ja" ? "ja-JP" : "en-US";
-  const wbRows = buildWorkbookRows(rows, locale, localeTag);
-  const labels = { ...reportMeta(session.organization.name ?? "", locale, localeTag, from, to) };
-  const base64 = await buildCleaningHistoryWorkbookBase64(wbRows, labels);
+  const meta = buildAdminExportMeta(session);
+  const sheet = cleaningSheet(rows, meta, from, to);
+  const base64 = await buildAdminTableWorkbookBase64({
+    orgName: meta.orgName,
+    generatedLabel: meta.generatedLabel,
+    sheets: [sheet],
+  });
 
   return {
     ok: true,
     filename: `cleaning-history_${compactRangePart(from)}_${compactRangePart(to)}.xlsx`,
     base64,
-    rowCount: wbRows.length,
+    rowCount: sheet.rows.length,
   };
 }
 
@@ -169,16 +178,17 @@ export async function exportCleaningHistoryReport(
   const session = await requireAdminSession();
   if (rows.length === 0) return { ok: false, reason: "empty" };
 
-  const locale = session.user.preferredLanguage;
-  const localeTag = locale === "ko" ? "ko-KR" : locale === "ja" ? "ja-JP" : "en-US";
-  const wbRows = buildWorkbookRows(rows, locale, localeTag);
-  const labels = {
-    ...reportMeta(session.organization.name ?? "", locale, localeTag, from, to),
-    printLabel: getDictionary(locale).cleaning.console.exportPrint,
-  };
-  const html = buildCleaningHistoryReportHtml(wbRows, labels, localeTag);
+  const meta = buildAdminExportMeta(session);
+  const sheet = cleaningSheet(rows, meta, from, to);
+  const html = buildAdminTableReportHtml({
+    orgName: meta.orgName,
+    generatedLabel: meta.generatedLabel,
+    printLabel: meta.shared.exportPrint,
+    localeTag: meta.localeTag,
+    sheets: [sheet],
+  });
 
-  return { ok: true, html, rowCount: wbRows.length };
+  return { ok: true, html, rowCount: sheet.rows.length };
 }
 
 // ── 강제완료 (관리자 대리 완료) ─────────────────────────────────────────────

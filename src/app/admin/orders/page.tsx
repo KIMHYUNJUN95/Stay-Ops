@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { Package } from "lucide-react";
-import { ExportCsvLink } from "@/components/admin/export-csv-link";
+import { OrdersExportBar } from "@/components/admin/orders/orders-export-bar";
+import { DateRangeFormField } from "@/components/admin/shared/date-range-form-field";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getNavigationLabel, adminNavigation } from "@/config/navigation";
+import { adminLocaleTag } from "@/lib/admin-export-meta";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import {
   getOrgOrderRequests,
@@ -52,6 +54,14 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
     ? getNavigationLabel(navItem, locale)
     : dictionary.mobile.quickActions.order;
   const copy = dictionary.admin.orders;
+  const shared = dictionary.admin.shared;
+  const rangePickerLabels = {
+    prevMonth: shared.datePrevMonth,
+    nextMonth: shared.dateNextMonth,
+    thisMonth: shared.dateThisMonth,
+    reset: shared.dateReset,
+    apply: shared.dateApply,
+  };
   const statusLabels = dictionary.mobile.orderStatusLabels;
   const dateRange = parseRequestDateRange(params);
   const status = parseOrderStatus(params.status);
@@ -87,23 +97,17 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
         </Card>
 
         <Card className="p-4">
-          <form className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto_auto_auto]" method="get">
+          <form className="flex flex-wrap items-end gap-3" method="get">
             <label className="grid gap-1.5 text-xs font-bold text-muted-foreground">
-              {dictionary.common.dateFrom}
-              <input
-                className="h-10 rounded-xl border border-border bg-background/70 px-3 text-sm font-semibold text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-                defaultValue={dateRange.startDate ?? ""}
-                name="startDate"
-                type="date"
-              />
-            </label>
-            <label className="grid gap-1.5 text-xs font-bold text-muted-foreground">
-              {dictionary.common.dateTo}
-              <input
-                className="h-10 rounded-xl border border-border bg-background/70 px-3 text-sm font-semibold text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-                defaultValue={dateRange.endDate ?? ""}
-                name="endDate"
-                type="date"
+              {dictionary.common.dateRange}
+              <DateRangeFormField
+                startName="startDate"
+                endName="endDate"
+                defaultFrom={dateRange.startDate ?? ""}
+                defaultTo={dateRange.endDate ?? ""}
+                localeTag={adminLocaleTag(locale)}
+                ariaLabel={shared.pickRange}
+                labels={rangePickerLabels}
               />
             </label>
             <label className="grid gap-1.5 text-xs font-bold text-muted-foreground">
@@ -121,29 +125,24 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                 ))}
               </select>
             </label>
-            <div className="flex items-end">
-              <Button className="h-10 w-full rounded-xl" type="submit">
-                {dictionary.common.apply}
+            <Button className="h-10 rounded-xl" type="submit">
+              {dictionary.common.apply}
+            </Button>
+            <Link href="/admin/orders">
+              <Button className="h-10 rounded-xl" type="button" variant="secondary">
+                {dictionary.common.clear}
               </Button>
-            </div>
-            <div className="flex items-end">
-              <Link href="/admin/orders">
-                <Button className="h-10 w-full rounded-xl" type="button" variant="secondary">
-                  {dictionary.common.clear}
-                </Button>
-              </Link>
-            </div>
-            <div className="flex items-end">
-              <ExportCsvLink
-                label={dictionary.common.exportCsv}
-                resource="orders"
-                searchParams={{
-                  endDate: dateRange.endDate,
-                  startDate: dateRange.startDate,
-                  status: status ?? undefined,
-                }}
-              />
-            </div>
+            </Link>
+            <span className="flex-1" />
+            <OrdersExportBar
+              disabled={orders.length === 0}
+              filters={{
+                startDate: dateRange.startDate,
+                endDate: dateRange.endDate,
+                status: status ?? undefined,
+              }}
+              labels={shared}
+            />
           </form>
         </Card>
 
