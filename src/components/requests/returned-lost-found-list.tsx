@@ -177,7 +177,7 @@ export function ReturnedLostFoundList({
       <div className="flex flex-wrap gap-2">
         <button
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-[12.5px] font-bold transition-colors",
+            "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11.5px] font-semibold tracking-[-0.01em] transition-colors",
             period !== "all"
               ? "border-primary/30 bg-primary/10 text-primary"
               : "border-slate-200/80 bg-white text-slate-700",
@@ -186,12 +186,12 @@ export function ReturnedLostFoundList({
           type="button"
         >
           <span className="text-muted-foreground">{copy.filterPeriod}:</span>
-          <span className="font-black text-primary">{periodLabel[period]}</span>
-          <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden="true" />
+          <span className="font-bold text-primary">{periodLabel[period]}</span>
+          <ChevronDown className="size-3 text-muted-foreground/70" aria-hidden="true" />
         </button>
         <button
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-[12.5px] font-bold transition-colors",
+            "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11.5px] font-semibold tracking-[-0.01em] transition-colors",
             buildingActive
               ? "border-primary/30 bg-primary/10 text-primary"
               : "border-slate-200/80 bg-white text-slate-700",
@@ -199,10 +199,10 @@ export function ReturnedLostFoundList({
           onClick={() => setSheetOpen(true)}
           type="button"
         >
-          <Building2 className="size-3.5 text-muted-foreground" aria-hidden="true" />
+          <Building2 className="size-3 text-muted-foreground/70" aria-hidden="true" />
           <span className="text-muted-foreground">{copy.filterBuilding}:</span>
-          <span className="font-black text-primary">{buildingActive ? building : copy.periodAll}</span>
-          <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden="true" />
+          <span className="font-bold text-primary">{buildingActive ? building : copy.periodAll}</span>
+          <ChevronDown className="size-3 text-muted-foreground/70" aria-hidden="true" />
         </button>
       </div>
 
