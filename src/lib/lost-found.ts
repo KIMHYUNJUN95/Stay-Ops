@@ -1,19 +1,27 @@
 import type { AppSession } from "@/lib/session";
 import { getTimestampRange, type RequestDateFilter } from "@/lib/request-filters";
+import type { LostItemStatus } from "@/lib/lost-found-constants";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
+// 상태 배열·가드·상한은 client-safe 파일 하나에서만 정의하고 여기서 재수출한다
+// (서버 lib을 client가 import 하면 next/headers가 클라 번들로 새기 때문).
+export {
+  lostItemStatuses,
+  lostItemLinearStatuses,
+  isLostItemStatus,
+  isLostItemTerminal,
+  LOST_FOUND_HANDLING_IMAGE_LIMIT,
+} from "@/lib/lost-found-constants";
+export type { LostItemStatus } from "@/lib/lost-found-constants";
+
 export type LostItemRow = Database["public"]["Tables"]["lost_items"]["Row"];
-export type LostItemStatus = Database["public"]["Enums"]["lost_item_status"];
 
-export const lostItemStatuses: readonly LostItemStatus[] = [
-  "registered",
-  "stored",
-  "disposal_scheduled",
-  "disposed",
-];
-
-export type LostItemWithReporter = LostItemRow & { reporter_name: string };
+// reporter_name = 등록자, handled_by_name = 마지막 처리자(반환·폐기 등). 종결 이력 표시에 쓴다.
+export type LostItemWithReporter = LostItemRow & {
+  reporter_name: string;
+  handled_by_name: string | null;
+};
 
 type ProfileName = { id: string; name: string };
 
@@ -26,17 +34,22 @@ async function attachReporterNames(
 ): Promise<LostItemWithReporter[]> {
   if (items.length === 0) return [];
   const supabase = await getSupabaseServerClient();
-  const reporterIds = Array.from(new Set(items.map((i) => i.reported_by_user_id)));
+  const ids = new Set<string>();
+  for (const item of items) {
+    ids.add(item.reported_by_user_id);
+    if (item.handled_by) ids.add(item.handled_by);
+  }
   const { data: profiles } = await supabase
     .from("profiles")
     .select("id, name")
-    .in("id", reporterIds);
+    .in("id", Array.from(ids));
   const names = new Map(
     ((profiles ?? []) as ProfileName[]).map((p) => [p.id, p.name] as const),
   );
   return items.map((item) => ({
     ...item,
     reporter_name: names.get(item.reported_by_user_id) ?? "",
+    handled_by_name: item.handled_by ? (names.get(item.handled_by) ?? null) : null,
   }));
 }
 
@@ -64,6 +77,24 @@ export async function getOrgLostItems(
   return attachReporterNames((data ?? []) as LostItemRow[]);
 }
 
+// 반환완료(returned) 분실물만 — 전용 목록 화면(/mobile/requests/lost-found/returned)용.
+// found_at 기간 제한 없이 전량 반환하고, 처리 시각(handled_at) 최신순으로 정렬한다
+// (오래전에 발견됐어도 최근에 반환된 건이 위로).
+export async function getReturnedLostItems(
+  session: AppSession,
+): Promise<LostItemWithReporter[]> {
+  const supabase = await getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("lost_items")
+    .select("*")
+    .eq("organization_id", session.organization.id)
+    .eq("status", "returned")
+    .order("handled_at", { ascending: false, nullsFirst: false })
+    .order("updated_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return attachReporterNames((data ?? []) as LostItemRow[]);
+}
+
 export async function getLostItemById(
   session: AppSession,
   id: string,
@@ -77,14 +108,19 @@ export async function getLostItemById(
     .maybeSingle();
   if (!data) return null;
   const item = data as LostItemRow;
-  const { data: profile } = await supabase
+  const ids = new Set<string>([item.reported_by_user_id]);
+  if (item.handled_by) ids.add(item.handled_by);
+  const { data: profiles } = await supabase
     .from("profiles")
     .select("id, name")
-    .eq("id", item.reported_by_user_id)
-    .maybeSingle();
+    .in("id", Array.from(ids));
+  const names = new Map(
+    ((profiles ?? []) as ProfileName[]).map((p) => [p.id, p.name] as const),
+  );
   return {
     ...item,
-    reporter_name: (profile as ProfileName | null)?.name ?? "",
+    reporter_name: names.get(item.reported_by_user_id) ?? "",
+    handled_by_name: item.handled_by ? (names.get(item.handled_by) ?? null) : null,
   };
 }
 

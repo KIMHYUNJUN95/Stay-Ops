@@ -365,8 +365,10 @@ When created from an active cleaning timer, the request should automatically lin
 > 직접 실행). 컬럼 22개 · enum 3종 · 인덱스 2개 · RLS/storage 정책 반영을 DB에서 직접 대조 확인했다.
 > 적용 시점에 테이블 행이 0개였으므로 `resolved` → `closed` 병합과 건물 전체 backfill은 모두 0건이었다.
 >
-> **아직 라이브 검증(실제 신고 → 현장 처리 → 어드민 확인)은 하지 않았다.** 특히 완료 사진 업로드가
-> storage 정책을 실제로 통과하는지는 코드로 검증되지 않은 유일한 지점이다.
+> ✅ **완료 확정 (2026-07-15).** 라이브 DB에 사진 첨부 테스트 신고 6건(상태 4종·긴급·72h 초과·건물
+> 전체·완료사진 포함)을 삽입해, 신고 사진(`maintenance-reports/`)과 완료 사진
+> (`maintenance-resolutions/`)의 스토리지 업로드·public 읽기를 실제로 검증했다 — 둘 다 인증 없이
+> `HTTP 200 image/png`. 코드로 검증되지 않았던 마지막 경로(완료 사진 storage 정책)가 닫혔다.
 
 `/admin/maintenance`가 기존 목록 카드 화면에서 **운영 콘솔**로 교체됐다. Claude Design 핸드오프
 (`StayOps 수리 점검 (admin)/수리 점검 현황 (admin).html`)를 그대로 옮긴 것으로, 위 "설계 원칙" 절의

@@ -380,13 +380,13 @@ Create:
 
 - All active organization members.
 
-Update content:
+Update / 현장 처리 (상태 변경 · 처리 메모 · 증빙 사진):
 
-- Creator can edit their own record.
-- Part-time Staff can edit only their own record.
-- Staff and above can manage according to organization policy.
+- 앱이 실제로 쓰는 UPDATE 경로는 `updateLostItemHandling`(모바일 현장 처리 — 상태 +
+  `handling_memo` + `handling_image_urls` + `handled_*`)과 기존 어드민 상태 변경뿐이다.
+- 반환은 등록자와 무관하게 **누구나(파트타임 제외) 처리 가능** — 요구사항.
 
-Change status/retrieval:
+Change status / 처리 (모바일·어드민 동일 게이트):
 
 - Owner
 - Office Admin
@@ -394,6 +394,14 @@ Change status/retrieval:
 - Field Manager
 - Staff
 - Platform admins
+- (part_time_staff 제외)
+
+> RLS 보강 (2026-07-15): 기존 lost_items UPDATE 정책은 `owner/office_admin/cs_staff/field_manager`만
+> 허용해 **`staff`가 빠져 있었다**(수리·점검에서 고친 것과 동일한 누락). `staff`를 추가하고, USING만
+> 있던 정책에 `with check (has_active_membership(organization_id))`를 붙여 업데이트로 행을 다른 조직에
+> 옮기는 것을 막았다 — 마이그레이션 `202607170001_lostfound_return.sql`.
+> 스토리지: 처리 증빙 사진은 `request-images` 버킷의 `{org}/lost-found-handling/{itemId}/` 폴더이며,
+> 같은 마이그레이션이 storage 정책 화이트리스트에 `lost-found-handling`을 추가했다(part_time 제외).
 
 Delete:
 

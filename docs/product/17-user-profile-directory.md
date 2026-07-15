@@ -60,6 +60,7 @@ Implementation note:
 - `/account` now provides the first editable My Profile screen.
 - The current version supports name, date of birth, phone number, language, and gender.
 - Existing accounts with missing `birth_date` and/or `gender` are not forced back into onboarding; instead, `/account` shows a gentle completion prompt and lets the user save the missing fields there.
+- Mobile `date of birth` input now uses the same full-width field width contract as the other profile inputs, so the native date control does not overflow or render wider than the surrounding form fields on mobile WebKit.
 - The page is reachable from the account icon in both admin and mobile shells.
 - Age and profile photo are still deferred.
 

@@ -8,30 +8,34 @@ The company generally stores lost items for 2 weeks. Expensive or important item
 
 ## Required Fields
 
-Lost item fields:
+`lost_items` 실제 컬럼 (권위 있는 정의는 `docs/engineering/04-data-model.md`):
 
 ```txt
 id
 organization_id
-property_id
-room_id
+cleaning_session_id        -- 청소 타이머에서 등록 시 연동 (nullable)
+reported_by_user_id        -- 등록자
+room_label                 -- free text (properties/rooms FK 아님, 청소 세션과 동일 패턴)
+property_name              -- free text (nullable)
 item_name
-photos
+memo                       -- 등록 메모
+image_urls                 -- 등록 사진 (≤5)
 found_at
-reported_by_user_id
-guest_name
-reservation_id
-retrieval_status
-retrieved_at
-retrieved_by
-memo
-status
-dispose_after
-scheduled_for_disposal_at
-disposed_at
+reservation_id             -- 예약 연동 (nullable, 서버 재검증 후 스냅샷)
+guest_name                 -- 예약 연동 스냅샷 (nullable)
+status                     -- lost_item_status (registered/stored/disposal_scheduled/disposed/returned)
+handling_memo              -- 현장 처리 메모 (2026-07-15 신설). 등록 memo와 별개
+handling_image_urls        -- 처리 증빙 사진 (≤5, 2026-07-15 신설)
+handled_at                 -- 마지막 처리 시각 (2026-07-15 신설)
+handled_by                 -- 마지막 처리자 (2026-07-15 신설)
+handled_by_admin           -- 어드민 예외 개입 여부 (2026-07-15 신설, default false)
 created_at
 updated_at
 ```
+
+> 과거 판에 있던 `property_id`/`room_id`/`photos`/`retrieval_status`/`retrieved_*`/`dispose_after`/
+> `scheduled_for_disposal_at`/`disposed_at`는 코드·마이그레이션 어디에도 없는 가공의 필드였다.
+> (2026-07-15 정정) 반환은 별도 `retrieved_*` 컬럼이 아니라 `status = 'returned'` + `handled_*`로 남는다.
 
 ## Field Meaning
 
@@ -144,21 +148,33 @@ Used for internal notes, guest contact notes, or special handling instructions.
 
 ## Statuses
 
-Confirmed statuses:
+Confirmed statuses (5 — `returned` added 2026-07-15):
 
 - registered
 - stored
 - disposal_scheduled
 - disposed
+- **returned** ← 신규. 손님에게 전달을 마친 종결 상태.
 
 Display labels:
 
 ```txt
-registered: 등록됨 / 登録済み / Registered
+registered: 접수됨 / 受付済み / Registered
 stored: 보관중 / 保管中 / Stored
 disposal_scheduled: 폐기예정 / 廃棄予定 / Disposal Scheduled
-disposed: 폐기완료 / 廃棄済み / Disposed
+disposed: 폐기됨 / 廃棄済み / Disposed
+returned: 반환완료 / 返却済み / Returned
 ```
+
+`returned`의 배경: 기존 4상태는 "아무도 안 찾아가서 결국 폐기한다" 흐름만 담고 있어, 물건이
+**주인에게 돌아가는 결말**을 담을 상태가 없었다. 수리·점검의 종결(`closed`)에 대응하는 개념으로
+`returned`를 추가했다. DB enum은 값을 **추가**만 한다(제거 없음) — 마이그레이션
+`202607170001_lostfound_return.sql`.
+
+**종결(terminal) 상태 = `returned` 또는 `disposed`.** 이 두 상태에서는 상세 화면이 처리 블록 대신
+처리 이력(처리자·시각·메모·사진)을 보여준다. `registered`/`stored`/`disposal_scheduled`는 진행
+상태다. 읽기 전용 진행바(폐기 경로)는 `returned`를 제외한 4단계만 표시한다 — 반환은 이 선형 흐름
+밖의 종결이기 때문.
 
 ## Storage Policy
 
@@ -221,9 +237,55 @@ Default mobile behavior:
 - `All` scope should be the default list mode in `/mobile/requests`.
 - `My registered lost item records` should be available via an explicit scope filter/toggle.
 
+## 설계 원칙 — 감시 + 이력 + 예외 개입 (확정, 2026-07-15)
+
+분실물은 수리·점검과 **동일한 매커니즘**을 쓴다. 습득물은 결국 현장이 손에 쥐고 있으므로,
+**현장이 모바일에서 직접 처리**한다(상태 변경 · 처리 메모 · 증빙 사진 전부 모바일).
+
+- **배정 개념이 없다.** 등록자와 무관하게 **누구나(파트타임 제외) 처리 가능** — 특히 반환은 손님에게
+  물건을 넘긴 사람이 그대로 저장한다.
+- 대시보드의 역할 = **감시(oversight) + 이력(record) + 예외 개입**. (예외 개입 = 상태 정정 · 무효 ·
+  삭제. 이번 사이클은 모바일 처리까지만 구현했고, 어드민 예외 개입 UI는 후속.)
+- **반환완료는 되돌릴 수 없는 종결**이라, 모바일에서 저장 전 canonical `BottomSheet`로 한 번 더
+  확인한다(오조작 방지). 그 외 상태 변경은 확인 없이 바로 저장.
+- 저장하면 **처리자·시각**이 기록으로 남는다(`handled_by` / `handled_at`).
+
+### 모바일 현장 처리 (2026-07-15 신설)
+
+- 화면: 분실물 상세 `/mobile/requests/lost-found/[id]`. 기존 카드1(품목·위치·사진)은 그대로.
+  읽기 전용이던 상태 스테퍼(카드2)를 **처리 블록**으로 승격.
+- 컴포넌트: `src/components/requests/lost-found-handling-form.tsx` (수리·점검의
+  `MaintenanceHandlingForm`과 동일 구조). 상태 칩 5개 + 처리 메모 + 증빙 사진(≤5) + 저장.
+- 서버 액션: `updateLostItemHandling`
+  (`src/app/mobile/requests/lost-found/actions.ts`). part_time 차단 → 이미지 경로 검증
+  (`{org}/lost-found-handling/{itemId}/`) → 영향 행 수 확인(RLS backstop) → `handled_*` 기록.
+- 상세 페이지 분기: **종결(returned/disposed) → 처리 이력 카드**, **처리 가능(비-파트타임) → 처리
+  블록**, **파트타임 → 읽기 전용 진행바 + 잠금 안내**.
+- 증빙 사진은 `request-images` 버킷의 `{org}/lost-found-handling/{itemId}/` 경로. 스토리지 정책
+  화이트리스트에 `lost-found-handling` 추가(마이그레이션 `202607170001`).
+
+### 반환완료 전용 목록 (2026-07-15 신설)
+
+반환완료(`returned`)된 분실물만 따로 모아 보는 전용 화면. 반환이 늘어나면 일반 목록에서는 진행 중인
+건에 묻히기 때문에, 반환 이력을 한눈에 보고 검색·필터할 수 있게 분리했다.
+
+- **진입점**: 요청 → 분실물 탭의 필터 행, **"내 등록" 토글 옆**에 네이비 아웃라인 "반환완료" pill
+  (`requests-filter-view.tsx`, 분실물 탭에서만 렌더). 누르면 전용 화면으로 이동.
+- **경로**: `/mobile/requests/lost-found/returned`
+  (`src/app/mobile/requests/lost-found/returned/page.tsx`).
+- **구성**: 상단 통계(총 반환 / 이번 달 / 이번 주, Tokyo 기준 서버 계산) + 검색(물품·등록자·객실) +
+  기간(전체/오늘/7일/30일)·건물 필터(canonical `BottomSheet`) + **월별 그룹**(이번 달 / 지난 달 /
+  그 이전은 "YYYY년 M월") 카드. 카드마다 반환일시·처리자·위치·처리 메모.
+- 클라이언트: `src/components/requests/returned-lost-found-list.tsx`. 데이터는
+  `getReturnedLostItems(session)`(`src/lib/lost-found.ts`) — `status='returned'`, `handled_at`
+  내림차순, `found_at` 기간 제한 없음(오래전 발견돼도 최근 반환된 건이 위로).
+- 카드 탭 → 기존 상세(`/mobile/requests/lost-found/[id]`). 상세는 종결이라 처리 이력 카드를 보여준다.
+- **범위 메모**: 기간 필터는 프리셋(전체/오늘/7일/30일)만 — 디자인의 "사용자 지정" 커스텀 범위는
+  모바일 canonical 범위 피커가 없어 이번엔 제외(후속). 통계는 필터와 무관하게 전체 기준으로 고정 표시.
+
 ## Status Change Permission
 
-Can change status:
+Can change status (모바일 현장 처리 + 어드민 모두 동일 게이트):
 
 - Developer / Super Admin
 - Owner
@@ -234,7 +296,11 @@ Can change status:
 
 Cannot change status:
 
-- Part-time Staff
+- Part-time Staff (모바일에서 처리 블록 대신 읽기 전용 안내를 본다. 서버 액션·RLS가 최종 게이트.)
+
+> RLS 보강 (2026-07-15): 기존 lost_items UPDATE 정책은 `owner/office_admin/cs_staff/field_manager`만
+> 허용해 **`staff`가 빠져 있었다**(수리·점검에서 고친 것과 같은 누락). "반환은 누구나"가 요구사항이라
+> `staff`를 추가하고 `with check`도 붙였다 — 마이그레이션 `202607170001_lostfound_return.sql`.
 
 ## Edit and Delete Permission
 

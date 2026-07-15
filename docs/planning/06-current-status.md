@@ -125,6 +125,11 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   `profiles.phone_number` submit failures now send the user back to the phone-number step with a
   visible explanation: either enter a different number or return to login and use the existing
   account that already owns that number. No schema/permission change.
+- **Mobile account profile birth-date field width fix (2026-07-15).** The `/account?mode=mobile`
+  date-of-birth input no longer renders wider than the name/phone fields on mobile WebKit. Shared
+  input chrome now enforces `block + min-width: 0`, and native `input[type="date"]` is width-clamped
+  globally (`max-width: 100%`) so profile forms keep one consistent field width contract. No data or
+  validation change.
 
 ## Dashboard Rebuild Direction (confirmed 2026-06-29)
 
@@ -3340,7 +3345,7 @@ Files: `src/app/admin/maintenance/page.tsx`, `src/app/admin/maintenance/actions.
 `src/components/admin/cleaning/cleaning-console.css`, `src/lib/i18n.ts`,
 docs(05-admin-web-ia / 08-maintenance-workflow / 01-decision-log / 06-current-status).
 
-## 2026-07-14 수리·점검 — 백엔드 연동 + 모바일 현장 처리 (마이그레이션 적용 완료)
+## 2026-07-14 수리·점검 — 백엔드 연동 + 모바일 현장 처리 (✅ 완료, 2026-07-15 확정)
 
 어드민 콘솔이 목데이터 → **실데이터**로 붙었고, 그동안 없던 **모바일 현장 처리 UI**를 만들었다.
 
@@ -3364,8 +3369,12 @@ docs(05-admin-web-ia / 08-maintenance-workflow / 01-decision-log / 06-current-st
 > security advisor 신규 경고 없음. 적용 시점 테이블 행 수가 0이라 `resolved`→`closed` 병합과
 > 건물 전체 백필은 각각 0행에 적용됐다.
 >
-> **남은 것: 라이브 E2E 1회** — 실제 신고 → 모바일 현장 처리(완료 사진 업로드 포함) → 어드민 콘솔
-> 확인. 특히 완료 사진 업로드는 스토리지 정책을 실제로 통과하는지 코드 외 검증이 안 된 유일한 경로다.
+> ✅ **기능 완료 확정 (2026-07-15).** 라이브 DB에 테스트 신고 6건을 사진 첨부로 삽입해
+> (상태 4종 · 긴급 · 72h 초과 · 건물 전체 · 완료사진 포함) 스토리지 업로드 경로와 public 읽기를
+> 실제로 검증했다 — 신고 사진(`maintenance-reports/`)·완료 사진(`maintenance-resolutions/`) 모두
+> 인증 없이 `HTTP 200 image/png`로 열린다(스토리지 정책 통과). 코드 외 미검증이던 마지막 경로가
+> 닫혔다. **수리·점검은 완료.** 유일한 후속 항목은 긴급 건 푸시 알림이며, 이는 개발 완료 후 출시 전
+> **프로젝트 전체 알림 단계**에서 일괄 구현한다(수리·점검만의 미완이 아님).
 
 Files: `supabase/migrations/202607160001_maintenance_backend.sql`, `src/types/database.ts`,
 `src/lib/maintenance-constants.ts`(신규), `src/lib/maintenance-reports.ts`,
@@ -3376,3 +3385,54 @@ Files: `supabase/migrations/202607160001_maintenance_backend.sql`, `src/types/da
 `src/components/requests/{maintenance-create-form,request-image-upload,requests-filter-view}.tsx`,
 `src/components/cleaning/maintenance-linked-form.tsx`, `src/components/admin/maintenance/*`,
 `src/lib/i18n.ts`, docs(04/05-eng, 05/08-product, 01/06-planning).
+
+## 2026-07-15 분실물 — 모바일 반환(현장 처리) 백엔드 연동 (디자인 이식 + 백엔드)
+
+수리·점검과 **동일한 매커니즘**을 분실물에 이식했다. 그동안 모바일 분실물은 등록·조회·삭제만 됐고
+상태 변경 UI가 없었다(상태 진행바는 읽기 전용). 이번에 **현장이 모바일에서 직접 처리**(상태 변경 +
+처리 메모 + 증빙 사진)하게 만들었고, 특히 **반환완료**(손님에게 전달)를 누구나 처리할 수 있다.
+
+- **디자인**: Claude Design 핸드오프(`StayOps 분실물 반환 (mobile)/분실물 반환 처리 (mobile).html`)
+  100% 이식. 기존 상세 화면은 그대로 두고, 읽기 전용 상태 스테퍼를 처리 블록으로 승격.
+- **상태**: `lost_item_status`에 `returned`(반환완료) 추가(enum ADD VALUE). 종결 = returned/disposed.
+- **스키마**: `handling_memo` / `handling_image_urls` / `handled_at` / `handled_by` /
+  `handled_by_admin` 추가. storage 폴더 화이트리스트 += `lost-found-handling`.
+- **모바일**: 상세에 처리 블록 신설(상태 칩 5 + 메모 + 사진 ≤5). 반환완료는 되돌릴 수 없어 저장 전
+  canonical `BottomSheet`로 확인. 종결 → 처리 이력 카드, 파트타임 → 읽기 전용 + 잠금.
+- **버그 함께 수정**: lost_items UPDATE RLS에서 `staff` 누락(수리·점검과 동일) → 추가 + `with check`.
+
+검증: `npx tsc --noEmit` 0, `npm run lint` 0 errors, `npm run build` 통과.
+
+> ⚠️ **대표님 작업 필요**: 마이그레이션 `202607170001_lostfound_return.sql`을 Supabase 대시보드
+> SQL 에디터에서 실행해야 한다. 적용 전에는 `/mobile/requests/lost-found/[id]`가 없는 컬럼을 읽으려다
+> 깨진다. (수리·점검 때와 동일한 방식.) 적용 후 라이브 E2E 1회 권장.
+>
+> **범위**: 이번은 **모바일까지**. 대시보드(어드민)의 반환 이력 표시·예외 개입 UI는 후속.
+
+Files: `supabase/migrations/202607170001_lostfound_return.sql`(신규), `src/types/database.ts`,
+`src/lib/lost-found-constants.ts`(신규), `src/lib/lost-found.ts`,
+`src/app/mobile/requests/lost-found/actions.ts`(신규),
+`src/app/mobile/requests/lost-found/[id]/page.tsx`,
+`src/components/requests/lost-found-handling-form.tsx`(신규),
+`src/components/requests/request-image-upload.ts`,
+`src/app/admin/lost-found/{page,[id]/page}.tsx`, `src/components/requests/requests-filter-view.tsx`,
+`src/lib/i18n.ts`, docs(04/05-eng, 09-product, 01/06-planning).
+
+## 2026-07-15 분실물 — 반환완료 전용 목록 화면 (모바일)
+
+반환 처리에 이은 후속. 반환이 쌓이면 일반 목록에서 진행 중 건에 묻혀서, **반환완료만 모아 보는
+전용 화면**을 추가했다. Claude Design 핸드오프(반환완료 분실물 목록) 이식.
+
+- **진입점**: 요청 → 분실물 탭 "내 등록" 토글 옆의 네이비 "반환완료" pill →
+  `/mobile/requests/lost-found/returned`.
+- **화면**: 통계(총 반환/이번 달/이번 주, Tokyo 서버 계산) + 검색 + 기간(전체/오늘/7일/30일)·건물
+  필터(canonical BottomSheet) + 월별 그룹 카드(반환일시·처리자·위치·메모).
+- **데이터**: `getReturnedLostItems(session)` — `status='returned'`, `handled_at` 내림차순, 기간 무제한.
+- **범위**: 기간 필터 프리셋만(커스텀 범위는 후속). DB 변경 없음(반환 처리 마이그레이션에 포함됨).
+
+검증: `npx tsc --noEmit` 0, `npm run lint` 0 errors, `npm run build` 통과(`/mobile/requests/lost-found/returned` 라우트 등록 확인).
+
+Files: `src/app/mobile/requests/lost-found/returned/page.tsx`(신규),
+`src/components/requests/returned-lost-found-list.tsx`(신규),
+`src/lib/lost-found.ts`, `src/components/requests/requests-filter-view.tsx`,
+`src/app/mobile/requests/page.tsx`, `src/lib/i18n.ts`, docs(09-product, 16-product, 06-planning).

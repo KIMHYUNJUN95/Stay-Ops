@@ -10,12 +10,14 @@ import {
   CalendarDays,
   CalendarRange,
   Check,
+  ChevronRight,
   Clock,
   MapPin,
   Package,
   ShoppingCart,
   SlidersHorizontal,
   Trash2,
+  Undo2,
   User,
   Wrench,
   X,
@@ -89,6 +91,7 @@ const lostStatusBadgeClass: Record<LostItemStatus, string> = {
   disposal_scheduled:
     "border-orange-200 bg-orange-50 text-orange-700",
   disposed: "border-border bg-muted/50 text-muted-foreground",
+  returned: "border-[#c5cdf0] bg-[#eef1fb] text-[#3949ab]",
 };
 
 const maintenanceStatusBadgeClass: Record<MaintenanceStatus, string> = {
@@ -235,6 +238,7 @@ type FilterLabels = {
   groupEarlier: string;
   openCountTemplate: string;
   noFilterResults: string;
+  returnedEntry: string;
 };
 
 type LostFoundCopy = {
@@ -1015,6 +1019,18 @@ export function RequestsFilterView({
               />
             </span>
           </button>
+
+          {/* 반환완료 전용 목록 진입 — 분실물 탭에서만. "내 등록" 토글 옆의 네이비 아웃라인 pill. */}
+          {typeFilter === "lost-found" ? (
+            <Link
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border-[1.5px] border-[#c5cdf0] bg-[#eef1fb] px-3 py-1.5 text-[13px] font-black text-[#3949ab] shadow-[0_10px_22px_-16px_rgba(57,73,171,0.55)] transition-colors hover:bg-[#e2e7f8] active:scale-[0.97]"
+              href="/mobile/requests/lost-found/returned"
+            >
+              <Undo2 className="size-3.5" aria-hidden="true" />
+              {filterLabels.returnedEntry}
+              <ChevronRight className="size-3.5 text-[#3949ab]/60" aria-hidden="true" />
+            </Link>
+          ) : null}
 
           {/* Delivery calendar — order tab only (only order requests carry a delivery date). */}
           {typeFilter === "order" ? (

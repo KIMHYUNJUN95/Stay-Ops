@@ -283,7 +283,12 @@ List visibility:
 
 List layout (`src/components/requests/requests-filter-view.tsx`):
 
-- **Filter row**: `[필터 버튼] · [내 요청/내 등록 토글] · (비품주문 탭) [배송 캘린더 아이콘] · [총 N건 카운트(ml-auto)]`.
+- **Filter row**: `[필터 버튼] · [내 요청/내 등록 토글] · (분실물 탭) [반환완료 진입 pill] · (비품주문 탭) [배송 캘린더 아이콘] · [총 N건 카운트(ml-auto)]`.
+- **반환완료 진입 pill (2026-07-15)**: 분실물 탭에서만, "내 등록" 토글 옆에 네이비 아웃라인 pill
+  (Undo2 아이콘 + `dictionary.lostFound.returned.entry`)이 뜬다. 탭 → **반환완료 전용 목록**
+  `/mobile/requests/lost-found/returned` (`ReturnedLostFoundList`). 반환완료(`returned`) 항목만
+  통계·검색·기간/건물 필터와 함께 월별 그룹으로 본다. 자세한 내용은 `docs/product/09-lost-found-workflow.md`
+  → "반환완료 전용 목록".
 - **Delivery calendar icon (2026-06-15)**: a high-quality calendar icon button sits next to the scope
   toggle **on the 비품주문 (order) tab only — it does NOT appear on the 수리요청 or 분실물 tabs**
   (only order requests carry a delivery date). Tapping it opens a **popup (centered modal) with a large

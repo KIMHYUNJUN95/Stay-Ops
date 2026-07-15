@@ -593,7 +593,8 @@ Notes:
 Lost and found records.
 
 Migrations: `supabase/migrations/202605210006_lost_items.sql`,
-`supabase/migrations/202607090003_reservation_calendar_linking_and_notes.sql`
+`supabase/migrations/202607090003_reservation_calendar_linking_and_notes.sql`,
+`supabase/migrations/202607170001_lostfound_return.sql` (반환 처리 백엔드)
 
 Fields:
 
@@ -608,26 +609,32 @@ guest_name text                    -- reservation-linked guest snapshot
 item_name text not null
 found_at timestamptz not null
 status lost_item_status not null
-image_urls text[] not null default '{}'
-memo text
+image_urls text[] not null default '{}' -- 등록 사진
+memo text                          -- 등록 메모
 cleaning_session_id uuid references cleaning_sessions(id)  -- set when created during active cleaning
+handling_memo text                 -- 현장 처리 메모 (2026-07-15). 등록 memo와 별개
+handling_image_urls text[] not null default '{}'  -- 처리 증빙 사진 ≤5 (2026-07-15)
+handled_at timestamptz             -- 마지막 처리 시각 (2026-07-15)
+handled_by uuid references profiles(id) on delete set null  -- 마지막 처리자 (2026-07-15)
+handled_by_admin boolean not null default false  -- 어드민 예외 개입 여부 (2026-07-15)
 created_at timestamptz not null
 updated_at timestamptz not null
 ```
 
-Status values (lost_item_status enum):
+Status values (lost_item_status enum — `returned` added 2026-07-15):
 
 ```txt
 registered
 stored
 disposal_scheduled
 disposed
+returned            -- 손님에게 전달 완료 (종결). enum ADD VALUE (제거 없음)
 ```
 
-Note: retrieval tracking / disposal extensions are still future scope, but `property_name`,
-`reservation_id`, and `guest_name` are now implemented as optional context snapshots for
-reservation-linked create flows. The workflow still keeps `room_label` as the primary free-text
-location field.
+반환은 별도 `retrieved_*` 컬럼이 아니라 `status = 'returned'` + `handled_*`로 남는다. 종결 상태는
+`returned` 또는 `disposed` 둘이며, 이 상태에서 모바일 상세는 처리 이력을 보여준다. `property_name`,
+`reservation_id`, `guest_name`은 예약 연동 create의 선택적 컨텍스트 스냅샷이고 `room_label`이 여전히
+주 위치 필드다.
 
 ## reservation_internal_notes
 

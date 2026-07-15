@@ -19,6 +19,7 @@ const statusBadgeClass: Record<LostItemStatus, string> = {
   stored: "border-amber-200 bg-amber-50 text-amber-700",
   disposal_scheduled: "border-orange-200 bg-orange-50 text-orange-700",
   disposed: "border-border bg-muted/50 text-muted-foreground",
+  returned: "border-indigo-200 bg-indigo-50 text-indigo-700",
 };
 
 type PageProps = {

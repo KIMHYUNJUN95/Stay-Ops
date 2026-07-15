@@ -9,6 +9,9 @@ const FALLBACK_MARKER = `/storage/v1/object/${BUCKET}/`;
 
 export type RequestImageType =
   | "lost-items"
+  // 분실물 현장 처리(반환·폐기 등) 증빙 사진. 등록 사진과 같은 버킷이지만 폴더를 분리한다 —
+  // supabase/migrations/202607170001_lostfound_return.sql의 storage 정책 화이트리스트와 일치해야 한다.
+  | "lost-found-handling"
   | "maintenance-reports"
   // 완료(수리 후) 사진. 신고 사진과 같은 버킷이지만 폴더를 분리한다 —
   // supabase/migrations/202607160001_maintenance_backend.sql의 storage 정책 화이트리스트와 일치해야 한다.

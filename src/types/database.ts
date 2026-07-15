@@ -1800,6 +1800,11 @@ export type Database = {
           created_at?: string;
           found_at?: string;
           guest_name?: string | null;
+          handled_at?: string | null;
+          handled_by?: string | null;
+          handled_by_admin?: boolean;
+          handling_image_urls?: string[];
+          handling_memo?: string | null;
           id?: string;
           image_urls?: string[];
           item_name: string;
@@ -1817,6 +1822,11 @@ export type Database = {
           created_at: string;
           found_at: string;
           guest_name: string | null;
+          handled_at: string | null;
+          handled_by: string | null;
+          handled_by_admin: boolean;
+          handling_image_urls: string[];
+          handling_memo: string | null;
           id: string;
           image_urls: string[];
           item_name: string;
@@ -1834,6 +1844,11 @@ export type Database = {
           created_at?: string;
           found_at?: string;
           guest_name?: string | null;
+          handled_at?: string | null;
+          handled_by?: string | null;
+          handled_by_admin?: boolean;
+          handling_image_urls?: string[];
+          handling_memo?: string | null;
           id?: string;
           image_urls?: string[];
           item_name?: string;
@@ -2610,7 +2625,7 @@ export type Database = {
     };
     Enums: {
       announcement_status: "archived" | "draft" | "published";
-      lost_item_status: "disposal_scheduled" | "disposed" | "registered" | "stored";
+      lost_item_status: "disposal_scheduled" | "disposed" | "registered" | "returned" | "stored";
       maintenance_category:
         | "air_conditioning_heating"
         | "appliance"
