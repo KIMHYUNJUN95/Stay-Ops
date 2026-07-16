@@ -13,9 +13,12 @@
 .adm .groupseg button { height: 32px; padding: 0 13px; border: none; background: none; border-radius: 7px; font-size: 12px; font-weight: 800; color: var(--muted); cursor: pointer; }
 .adm .groupseg button.on { background: var(--card); color: var(--primary-ink); box-shadow: 0 1px 3px rgba(20, 32, 43, 0.14); }
 
-/* ── KPI strip: 6 cells (청소 대상 · 미시작 · 진행중 · 완료 · 완료율 · 셋팅) ── */
-.adm .opsbar--6 { grid-template-columns: repeat(6, 1fr); }
-@media (max-width: 1240px) { .adm .opsbar--6 { grid-template-columns: repeat(3, 1fr); } }
+/* ── KPI strip: 6 cells (청소 대상 · 미시작 · 진행중 · 완료 · 완료율 · 셋팅) ──
+ * 셀렉터를 .opsbar.opsbar--6 로 체이닝해 specificity(0,3,0)를 올린다 — 공용 admin-console.css의
+ * 기본 .adm .opsbar { repeat(5,1fr) }(0,2,0)가 번들 로드 순서에 따라 이겨서 6번째 셀이 둘째 줄로
+ * 밀리던(빈칸 4개) 문제를 방지한다. 로드 순서와 무관하게 6칸 한 줄을 보장. */
+.adm .opsbar.opsbar--6 { grid-template-columns: repeat(6, 1fr); }
+@media (max-width: 1240px) { .adm .opsbar.opsbar--6 { grid-template-columns: repeat(3, 1fr); } }
 
 /* ── building/bucket section header (occupancy pill) ── */
 .adm .csec { display: flex; align-items: center; gap: 11px; margin: 24px 2px 13px; }
