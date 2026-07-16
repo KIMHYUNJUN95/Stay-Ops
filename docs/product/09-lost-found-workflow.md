@@ -312,6 +312,27 @@ Default mobile behavior:
 - **범위 메모**: 기간 필터는 프리셋(전체/오늘/7일/30일)만 — 디자인의 "사용자 지정" 커스텀 범위는
   모바일 canonical 범위 피커가 없어 이번엔 제외(후속). 통계는 필터와 무관하게 전체 기준으로 고정 표시.
 
+### 폐기 내역 전용 목록 (2026-07-16 신설)
+
+대시보드에 **폐기 내역** 뷰가 생기면서, 모바일에도 대칭되는 폐기 전용 목록을 추가해 정합을 맞췄다.
+반환완료 목록을 **1:1 미러링**하고 톤만 슬레이트(폐기)로 바꾼 것이다. **읽기 전용** — 복원/삭제는
+관리자 전용(`canForceCompleteCleaning`)이라 모바일엔 없다.
+
+- **진입점**: 요청 → 분실물 탭 필터 행, **반환완료 pill 옆**에 슬레이트 아웃라인 "폐기 내역" pill
+  (`requests-filter-view.tsx`, 분실물 탭에서만 렌더, `Trash2` 아이콘 + `dictionary.lostFound.disposed.entry`).
+- **경로**: `/mobile/requests/lost-found/disposed`
+  (`src/app/mobile/requests/lost-found/disposed/page.tsx`).
+- **구성**: 상단 통계(총 폐기 / 이번 달 / 이번 주, Tokyo 기준 서버 계산) + 검색 + 기간·건물 필터
+  (canonical `BottomSheet`) + 월별 그룹 카드. 카드마다 **폐기일시 · 처리(자동/수동) · 위치 · 처리 메모**.
+  **처리 라인은 `handled_by` 유무로 자동/수동을 구분** — 자동 폐기 배치가 처리한 건은 "시스템(자동)"
+  (`metaAuto`), 관리자 수동 폐기는 처리자 이름.
+- **삭제 예정일(90일) D-day는 표시하지 않는다** — 90일 자동삭제는 관리자 오버사이트 영역이라 모바일은
+  폐기일까지만 보여준다(사용자 결정 2026-07-16). 대시보드 폐기 내역 뷰에는 삭제 시계가 있다.
+- 클라이언트: `src/components/requests/disposed-lost-found-list.tsx`. 데이터는
+  `getDisposedLostItems(session)`(`src/lib/lost-found.ts`) — `status='disposed'`, `handled_at`
+  내림차순(자동/수동 폐기 모두 포함).
+- 카드 탭 → 기존 상세(`/mobile/requests/lost-found/[id]`). 완료 상태라 처리 이력 카드를 보여준다.
+
 ## Status Change Permission
 
 Can change status (모바일 현장 처리 + 어드민 모두 동일 게이트):

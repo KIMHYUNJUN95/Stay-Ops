@@ -239,6 +239,7 @@ type FilterLabels = {
   openCountTemplate: string;
   noFilterResults: string;
   returnedEntry: string;
+  disposedEntry: string;
 };
 
 type LostFoundCopy = {
@@ -1020,18 +1021,6 @@ export function RequestsFilterView({
             </span>
           </button>
 
-          {/* 반환완료 전용 목록 진입 — 분실물 탭에서만. "내 등록" 토글 옆의 네이비 아웃라인 pill. */}
-          {typeFilter === "lost-found" ? (
-            <Link
-              className="inline-flex shrink-0 items-center gap-1 rounded-full border-[1.5px] border-[#c5cdf0] bg-[#eef1fb] px-3 py-1.5 text-[13px] font-black text-[#3949ab] shadow-[0_10px_22px_-16px_rgba(57,73,171,0.55)] transition-colors hover:bg-[#e2e7f8] active:scale-[0.97]"
-              href="/mobile/requests/lost-found/returned"
-            >
-              <Undo2 className="size-3.5" aria-hidden="true" />
-              {filterLabels.returnedEntry}
-              <ChevronRight className="size-3.5 text-[#3949ab]/60" aria-hidden="true" />
-            </Link>
-          ) : null}
-
           {/* Delivery calendar — order tab only (only order requests carry a delivery date). */}
           {typeFilter === "order" ? (
             <button
@@ -1051,6 +1040,28 @@ export function RequestsFilterView({
             {openCountSuffix}
           </span>
         </div>
+
+        {/* 완료-목록 진입 행 (분실물 탭 전용) — 반환완료·폐기 내역. 필터 행이 좁아 별도 줄로 분리했다. */}
+        {typeFilter === "lost-found" ? (
+          <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <Link
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border-[1.5px] border-[#c5cdf0] bg-[#eef1fb] px-3 py-1.5 text-[13px] font-black text-[#3949ab] shadow-[0_10px_22px_-16px_rgba(57,73,171,0.55)] transition-colors hover:bg-[#e2e7f8] active:scale-[0.97]"
+              href="/mobile/requests/lost-found/returned"
+            >
+              <Undo2 className="size-3.5" aria-hidden="true" />
+              {filterLabels.returnedEntry}
+              <ChevronRight className="size-3.5 text-[#3949ab]/60" aria-hidden="true" />
+            </Link>
+            <Link
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border-[1.5px] border-slate-200 bg-slate-100 px-3 py-1.5 text-[13px] font-black text-slate-600 shadow-[0_10px_22px_-16px_rgba(71,85,105,0.5)] transition-colors hover:bg-slate-200 active:scale-[0.97]"
+              href="/mobile/requests/lost-found/disposed"
+            >
+              <Trash2 className="size-3.5" aria-hidden="true" />
+              {filterLabels.disposedEntry}
+              <ChevronRight className="size-3.5 text-slate-500/60" aria-hidden="true" />
+            </Link>
+          </div>
+        ) : null}
 
         {/* Active filter chips (scope excluded — handled by the toggle above). */}
         {activeChips.length > 0 ? (

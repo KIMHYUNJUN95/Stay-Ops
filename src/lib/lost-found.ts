@@ -107,6 +107,24 @@ export async function getReturnedLostItems(
   return attachReporterNames((data ?? []) as LostItemRow[]);
 }
 
+// 폐기(disposed) 분실물만 — 전용 목록 화면(/mobile/requests/lost-found/disposed)용.
+// getReturnedLostItems 미러. 자동 폐기(handled_by null)·수동 폐기 모두 포함하고, 처리 시각
+// (handled_at) 최신순으로 정렬한다. 90일 자동삭제 전까지의 폐기 내역을 현장에서 조회한다.
+export async function getDisposedLostItems(
+  session: AppSession,
+): Promise<LostItemWithReporter[]> {
+  const supabase = await getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("lost_items")
+    .select("*")
+    .eq("organization_id", session.organization.id)
+    .eq("status", "disposed")
+    .order("handled_at", { ascending: false, nullsFirst: false })
+    .order("updated_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return attachReporterNames((data ?? []) as LostItemRow[]);
+}
+
 export async function getLostItemById(
   session: AppSession,
   id: string,

@@ -283,12 +283,21 @@ List visibility:
 
 List layout (`src/components/requests/requests-filter-view.tsx`):
 
-- **Filter row**: `[필터 버튼] · [내 요청/내 등록 토글] · (분실물 탭) [반환완료 진입 pill] · (비품주문 탭) [배송 캘린더 아이콘] · [총 N건 카운트(ml-auto)]`.
+- **Filter row**: `[필터 버튼] · [내 요청/내 등록 토글] · (비품주문 탭) [배송 캘린더 아이콘] · [총 N건 카운트(ml-auto)]`.
+- **완료-목록 진입 행 (분실물 탭 전용, 2026-07-16)**: 필터 행 바로 아래 **별도 줄**에 `[반환완료 pill][폐기 내역 pill]`
+  두 개를 나란히 둔다. 두 pill을 필터 행에 함께 넣으면 좁은 화면에서 오른쪽이 잘려서 별도 줄로 분리했다
+  (`space-y-3` 형제 행, 가로 넘침 시 스크롤).
 - **반환완료 진입 pill (2026-07-15)**: 분실물 탭에서만, "내 등록" 토글 옆에 네이비 아웃라인 pill
   (Undo2 아이콘 + `dictionary.lostFound.returned.entry`)이 뜬다. 탭 → **반환완료 전용 목록**
   `/mobile/requests/lost-found/returned` (`ReturnedLostFoundList`). 반환완료(`returned`) 항목만
   통계·검색·기간/건물 필터와 함께 월별 그룹으로 본다. 자세한 내용은 `docs/product/09-lost-found-workflow.md`
   → "반환완료 전용 목록".
+- **폐기 내역 진입 pill (2026-07-16)**: 분실물 탭에서만, 반환완료 pill **바로 옆**에 슬레이트 아웃라인 pill
+  (Trash2 아이콘 + `dictionary.lostFound.disposed.entry`)이 뜬다. 탭 → **폐기 내역 전용 목록**
+  `/mobile/requests/lost-found/disposed` (`DisposedLostFoundList`). 폐기(`disposed`) 항목만 통계·검색·
+  기간/건물 필터와 함께 월별 그룹으로 본다. 반환완료 목록의 1:1 미러(톤만 슬레이트), 읽기 전용,
+  처리 라인은 자동/수동 구분, 90일 삭제시계는 미표시. 자세한 내용은
+  `docs/product/09-lost-found-workflow.md` → "폐기 내역 전용 목록".
 - **Delivery calendar icon (2026-06-15)**: a high-quality calendar icon button sits next to the scope
   toggle **on the 비품주문 (order) tab only — it does NOT appear on the 수리요청 or 분실물 tabs**
   (only order requests carry a delivery date). Tapping it opens a **popup (centered modal) with a large

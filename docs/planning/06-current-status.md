@@ -23,6 +23,10 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   **복원(2026-07-16)**: 완료(폐기/반환) 건을 보관중으로 되돌린다 — 상태 `stored`, 보관 시계 복원일+14일,
   처리 메모에 복원 사유 append(`restoreLostItem`). 내보내기 없음·무효(void) 없음. 구
   `/admin/lost-found/[id]` 상세 라우트·`lost-found-export-bar.tsx`는 **삭제**됐다.
+  **모바일 폐기 내역 목록(2026-07-16)**: 대시보드 폐기 내역과 대칭되게 모바일에도 폐기 전용 목록
+  `/mobile/requests/lost-found/disposed`(`DisposedLostFoundList`)를 신설. 반환완료 목록 1:1 미러(슬레이트
+  톤), 분실물 탭에 두 번째 진입 pill, 읽기 전용, 처리 라인 자동/수동 구분, 90일 삭제시계 미표시.
+  데이터 `getDisposedLostItems`. `npm run lint`/`npm run build` 통과.
   반환 방식은 기획 초안의 `shipped`/`picked_up`이 아니라 **`delivery`(배송)/`pickup`(방문 수령)**으로
   최종 구현. 품목 분류(`category`, 9종) 신설, 모바일 등록 폼에도 반영. 자동 생애주기(등록일+14일 →
   자동 폐기 → 폐기 내역 90일 → 자동 하드 삭제)는 `public.lostfound_auto_dispose()` /

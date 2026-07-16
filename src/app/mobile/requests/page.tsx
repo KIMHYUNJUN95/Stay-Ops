@@ -126,6 +126,7 @@ export default async function MobileRequestsPage({ searchParams }: PageProps) {
           openCountTemplate: dictionary.mobile.requestOpenCount,
           noFilterResults: dictionary.mobile.noFilterResults,
           returnedEntry: dictionary.lostFound.returned.entry,
+          disposedEntry: dictionary.lostFound.disposed.entry,
         }}
         buildingLabels={dictionary.cleaning.buildingLabels}
         currentUserId={session.user.id}
