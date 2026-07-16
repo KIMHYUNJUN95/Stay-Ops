@@ -12,8 +12,20 @@ export {
   isLostItemStatus,
   isLostItemTerminal,
   LOST_FOUND_HANDLING_IMAGE_LIMIT,
+  lostItemCategories,
+  lostReturnMethods,
+  isLostItemCategory,
+  isLostReturnMethod,
+  LOST_FOUND_STORAGE_DAYS,
+  LOST_FOUND_DUE_SOON_DAYS,
+  LOST_FOUND_DISPOSAL_RETENTION_DAYS,
+  LOST_FOUND_PURGE_SOON_DAYS,
 } from "@/lib/lost-found-constants";
-export type { LostItemStatus } from "@/lib/lost-found-constants";
+export type {
+  LostItemStatus,
+  LostItemCategory,
+  LostReturnMethod,
+} from "@/lib/lost-found-constants";
 
 export type LostItemRow = Database["public"]["Tables"]["lost_items"]["Row"];
 

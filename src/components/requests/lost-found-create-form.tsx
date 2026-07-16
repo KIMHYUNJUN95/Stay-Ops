@@ -11,6 +11,7 @@ import { LostFoundConfirmModal } from "@/components/requests/lost-found-confirm-
 import { uploadRequestImages } from "@/components/requests/request-image-upload";
 import { Button } from "@/components/ui/button";
 import type { Dictionary } from "@/lib/i18n";
+import { lostItemCategories } from "@/lib/lost-found-constants";
 import type { ActiveRoomCatalogItem } from "@/lib/rooms";
 import { localizePropertyName } from "@/lib/room-label-normalization";
 import { cn } from "@/lib/utils";
@@ -76,8 +77,11 @@ export function LostFoundCreateForm({
   // Custom select dropdown state
   const [buildingOpen, setBuildingOpen] = useState(false);
   const [roomOpen, setRoomOpen] = useState(false);
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("");
   const buildingDropdownRef = useRef<HTMLDivElement>(null);
   const roomDropdownRef = useRef<HTMLDivElement>(null);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -93,6 +97,12 @@ export function LostFoundCreateForm({
         !roomDropdownRef.current.contains(event.target as Node)
       ) {
         setRoomOpen(false);
+      }
+      if (
+        categoryDropdownRef.current &&
+        !categoryDropdownRef.current.contains(event.target as Node)
+      ) {
+        setCategoryOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -212,6 +222,7 @@ export function LostFoundCreateForm({
         {/* Hidden inputs to feed data to Server Action validation successfully */}
         <input name="propertyName" type="hidden" value={selectedBuilding} />
         <input name="roomLabel" type="hidden" value={selectedRoom} />
+        <input name="category" type="hidden" value={selectedCategory} />
 
         {/* Section 1: Location */}
         {/* We dynamically raise the z-index (z-30) on this section when a dropdown is open, ensuring options display on top of the next card */}
@@ -322,8 +333,7 @@ export function LostFoundCreateForm({
         </section>
 
         {/* Section 2: Details */}
-        {/* Keep Section 2 at standard z-10 layout so Section 1 easily paints over it when active */}
-        <section className="flex flex-col gap-2 relative z-10">
+        <section className={cn("flex flex-col gap-2 relative transition-all duration-150", categoryOpen ? "z-20" : "z-10")}>
           <SectionLabel index={2}>{copy.form.sectionDetails}</SectionLabel>
           <div className={PANEL_CLASS}>
             <label className="flex flex-col gap-2">
@@ -340,6 +350,47 @@ export function LostFoundCreateForm({
                 type="text"
               />
             </label>
+
+            <div className="flex flex-col gap-2" ref={categoryDropdownRef}>
+              <span className="text-xs font-semibold text-muted-foreground">{copy.form.category}</span>
+              <div className="relative">
+                <button
+                  className={cn(FIELD_CLASS, categoryOpen && "border-sky-300 ring-2 ring-sky-200/60")}
+                  onClick={() => setCategoryOpen(!categoryOpen)}
+                  type="button"
+                >
+                  <span className={cn("truncate text-sm font-semibold", !selectedCategory && "text-muted-foreground/70")}>
+                    {selectedCategory
+                      ? copy.categoryLabels[selectedCategory as keyof typeof copy.categoryLabels]
+                      : copy.form.category}
+                  </span>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className="size-4 shrink-0 text-muted-foreground transition-transform duration-200"
+                    style={{ transform: categoryOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+                  />
+                </button>
+                {categoryOpen && (
+                  <ul className="absolute left-0 z-50 mt-1.5 max-h-60 w-full overflow-y-auto rounded-2xl border border-slate-200/80 bg-white p-1 shadow-[0_18px_40px_-24px_rgba(31,58,95,0.55)] divide-y divide-slate-100">
+                    {lostItemCategories.map((key) => (
+                      <li
+                        className={cn(
+                          "flex items-center h-10 w-full px-3 text-sm font-semibold rounded-lg cursor-pointer transition-colors",
+                          selectedCategory === key ? "bg-sky-50 text-sky-700" : "text-slate-700 hover:bg-slate-50",
+                        )}
+                        key={key}
+                        onClick={() => {
+                          setSelectedCategory(key);
+                          setCategoryOpen(false);
+                        }}
+                      >
+                        {copy.categoryLabels[key]}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
 
             <label className="flex flex-col gap-2">
               <span className="text-xs font-semibold text-muted-foreground">{copy.memo}</span>

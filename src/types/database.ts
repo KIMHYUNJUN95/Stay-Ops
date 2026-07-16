@@ -1796,6 +1796,7 @@ export type Database = {
       };
       lost_items: {
         Insert: {
+          category?: Database["public"]["Enums"]["lost_item_category"];
           cleaning_session_id?: string | null;
           created_at?: string;
           found_at?: string;
@@ -1805,6 +1806,8 @@ export type Database = {
           handled_by_admin?: boolean;
           handling_image_urls?: string[];
           handling_memo?: string | null;
+          hold_reason?: string | null;
+          hold_until?: string | null;
           id?: string;
           image_urls?: string[];
           item_name: string;
@@ -1813,11 +1816,14 @@ export type Database = {
           property_name?: string | null;
           reported_by_user_id: string;
           reservation_id?: string | null;
+          return_method?: Database["public"]["Enums"]["lost_return_method"] | null;
+          return_tracking_no?: string | null;
           room_label: string;
           status?: Database["public"]["Enums"]["lost_item_status"];
           updated_at?: string;
         };
         Row: {
+          category: Database["public"]["Enums"]["lost_item_category"];
           cleaning_session_id: string | null;
           created_at: string;
           found_at: string;
@@ -1827,6 +1833,8 @@ export type Database = {
           handled_by_admin: boolean;
           handling_image_urls: string[];
           handling_memo: string | null;
+          hold_reason: string | null;
+          hold_until: string | null;
           id: string;
           image_urls: string[];
           item_name: string;
@@ -1835,11 +1843,14 @@ export type Database = {
           property_name: string | null;
           reported_by_user_id: string;
           reservation_id: string | null;
+          return_method: Database["public"]["Enums"]["lost_return_method"] | null;
+          return_tracking_no: string | null;
           room_label: string;
           status: Database["public"]["Enums"]["lost_item_status"];
           updated_at: string;
         };
         Update: {
+          category?: Database["public"]["Enums"]["lost_item_category"];
           cleaning_session_id?: string | null;
           created_at?: string;
           found_at?: string;
@@ -1849,6 +1860,8 @@ export type Database = {
           handled_by_admin?: boolean;
           handling_image_urls?: string[];
           handling_memo?: string | null;
+          hold_reason?: string | null;
+          hold_until?: string | null;
           id?: string;
           image_urls?: string[];
           item_name?: string;
@@ -1857,6 +1870,8 @@ export type Database = {
           property_name?: string | null;
           reported_by_user_id?: string;
           reservation_id?: string | null;
+          return_method?: Database["public"]["Enums"]["lost_return_method"] | null;
+          return_tracking_no?: string | null;
           room_label?: string;
           status?: Database["public"]["Enums"]["lost_item_status"];
           updated_at?: string;
@@ -2625,7 +2640,18 @@ export type Database = {
     };
     Enums: {
       announcement_status: "archived" | "draft" | "published";
+      lost_item_category:
+        | "accessory"
+        | "bag"
+        | "clothing"
+        | "document"
+        | "electronics"
+        | "other"
+        | "toiletry"
+        | "umbrella"
+        | "wallet";
       lost_item_status: "disposal_scheduled" | "disposed" | "registered" | "returned" | "stored";
+      lost_return_method: "delivery" | "pickup";
       maintenance_category:
         | "air_conditioning_heating"
         | "appliance"

@@ -6,6 +6,7 @@ import {
   getCanonicalRoomLabel,
   getDisplayRoomLabel,
 } from "@/lib/room-label-normalization";
+import { isLostItemCategory, type LostItemCategory } from "@/lib/lost-found-constants";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
 import { getCurrentAppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -63,6 +64,8 @@ export async function createLostItem(formData: FormData) {
   const propertyName = cleanText(formData.get("propertyName"));
   const roomLabel = cleanText(formData.get("roomLabel"));
   const itemName = cleanText(formData.get("itemName"));
+  const rawCategory = cleanText(formData.get("category"));
+  const category: LostItemCategory = isLostItemCategory(rawCategory) ? rawCategory : "other";
   const memo = cleanText(formData.get("memo"));
   const imageUrls = formData
     .getAll("imageUrls")
@@ -198,6 +201,7 @@ export async function createLostItem(formData: FormData) {
     reservation_id: reservationId,
     room_label: combinedRoomLabel,
     item_name: itemName,
+    category,
     memo: memo || null,
     image_urls: imageUrls,
     cleaning_session_id: cleaningSessionId,

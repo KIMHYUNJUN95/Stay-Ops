@@ -1,69 +1,279 @@
 "use server";
 
-import { redirect } from "next/navigation";
+// 어드민 분실물(lost & found) 서버 액션 — 능동 처리(반환/폐기/보관 연장) · 상태 정정(예외 개입) · 삭제.
+//
+// 내보내기(Excel/PDF)는 없다 — 사용자 결정(2026-07-16): 분실물 콘솔은 내보낼 일이 없다. 구 CSV/워크북
+// 액션은 전부 제거됐다. See docs/product/09-lost-found-workflow.md.
+//
+// 일반 처리는 콘솔의 능동 처리 존(반환/폐기/보관연장)에서 하고, 상태 정정은 잘못된 자동/수동 상태를
+// 관리자가 되돌리는 예외 경로다. 청소 강제완료와 같은 역할 게이트(canForceCompleteCleaning)를 쓴다.
+import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/admin-session";
-import { buildAdminExportMeta, compactRangePart, type AdminExportMeta } from "@/lib/admin-export-meta";
-import type { AdminReportExportResult, AdminWorkbookExportResult } from "@/lib/admin-export-result";
-import { buildAdminTableReportHtml } from "@/lib/admin-table-report";
+import { canForceCompleteCleaning } from "@/lib/cleaning";
 import {
-  buildAdminTableWorkbookBase64,
-  type AdminTableColumn,
-  type AdminTableSheet,
-} from "@/lib/admin-table-workbook";
-import { getDictionary } from "@/lib/i18n";
-import { getOrgLostItems, lostItemStatuses, type LostItemStatus } from "@/lib/lost-found";
-import { parseRequestDateRange } from "@/lib/request-filters";
-import { resolveRequestLocation } from "@/lib/request-location";
-import { getActiveRoomCatalogServer } from "@/lib/rooms";
-import type { AppSession } from "@/lib/session";
+  isLostReturnMethod,
+  LOST_FOUND_STORAGE_DAYS,
+  type LostReturnMethod,
+} from "@/lib/lost-found-constants";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+
+type LostActionResult =
+  | { ok: true }
+  | { ok: false; reason: "forbidden" | "invalid" | "not_found" | "failed" };
 
 function isValidUUID(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
-function isValidStatus(value: string): value is LostItemStatus {
-  return (lostItemStatuses as readonly string[]).includes(value);
+function isValidDateKey(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T00:00:00Z`).getTime());
 }
 
-export async function updateLostItemStatus(formData: FormData) {
+// 도쿄 기준 오늘 + days 만큼 더한 "YYYY-MM-DD". 복원 시 보관 시계 재설정에 쓴다 — 자동 폐기 배치가
+// 발견일+14 기준으로 다시 즉시 걸리지 않도록 새 만료일을 준다.
+function tokyoDateKeyPlusDays(days: number): string {
+  const todayKey = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const [y, m, d] = todayKey.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+function revalidateItem(itemId: string) {
+  revalidatePath("/admin/lost-found");
+  revalidatePath(`/mobile/requests/lost-found/${itemId}`);
+}
+
+// 관리자 예외 개입(반환/폐기/연장/정정)의 공통 진입 가드: 세션 · 역할 게이트 · UUID.
+async function requireLostFoundAction(itemId: string) {
   const session = await requireAdminSession();
-
-  const itemId = String(formData.get("itemId") ?? "").trim();
-  const newStatus = String(formData.get("status") ?? "").trim();
-
-  if (!isValidUUID(itemId)) {
-    redirect("/admin/lost-found?error=not_found");
+  if (!canForceCompleteCleaning(session.user.role)) {
+    return { ok: false as const, result: { ok: false, reason: "forbidden" } as LostActionResult };
   }
-  if (!isValidStatus(newStatus)) {
-    redirect(`/admin/lost-found/${itemId}?error=status_update_failed`);
+  if (!isValidUUID(itemId)) {
+    return { ok: false as const, result: { ok: false, reason: "invalid" } as LostActionResult };
+  }
+  return { ok: true as const, session };
+}
+
+export async function returnLostItem(input: {
+  itemId: string;
+  method: LostReturnMethod;
+  tracking: string;
+  memo: string;
+}): Promise<LostActionResult> {
+  const gate = await requireLostFoundAction(input.itemId);
+  if (!gate.ok) return gate.result;
+  const { session } = gate;
+
+  if (!isLostReturnMethod(input.method)) {
+    return { ok: false, reason: "invalid" };
+  }
+
+  const trackingNo = input.method === "delivery" ? input.tracking.trim() : "";
+  const memo = input.memo.trim();
+
+  const supabase = await getSupabaseServerClient();
+  const { data: updated, error } = await supabase
+    .from("lost_items")
+    .update({
+      status: "returned",
+      return_method: input.method,
+      return_tracking_no: trackingNo,
+      handling_memo: memo || null,
+      handled_at: new Date().toISOString(),
+      handled_by: session.user.id,
+      handled_by_admin: true,
+    } as never)
+    .eq("id", input.itemId)
+    .eq("organization_id", session.organization.id)
+    .select("id");
+
+  if (error) return { ok: false, reason: "failed" };
+  if (!updated || updated.length === 0) return { ok: false, reason: "not_found" };
+
+  revalidateItem(input.itemId);
+  return { ok: true };
+}
+
+export async function disposeLostItem(input: {
+  itemId: string;
+  memo: string;
+}): Promise<LostActionResult> {
+  const gate = await requireLostFoundAction(input.itemId);
+  if (!gate.ok) return gate.result;
+  const { session } = gate;
+
+  const memo = input.memo.trim();
+
+  const supabase = await getSupabaseServerClient();
+  const { data: updated, error } = await supabase
+    .from("lost_items")
+    .update({
+      status: "disposed",
+      handling_memo: memo || null,
+      handled_at: new Date().toISOString(),
+      handled_by: session.user.id,
+      handled_by_admin: true,
+    } as never)
+    .eq("id", input.itemId)
+    .eq("organization_id", session.organization.id)
+    .select("id");
+
+  if (error) return { ok: false, reason: "failed" };
+  if (!updated || updated.length === 0) return { ok: false, reason: "not_found" };
+
+  revalidateItem(input.itemId);
+  return { ok: true };
+}
+
+export async function extendLostItemStorage(input: {
+  itemId: string;
+  dueDate: string; // "YYYY-MM-DD"
+  reason: string;
+}): Promise<LostActionResult> {
+  const gate = await requireLostFoundAction(input.itemId);
+  if (!gate.ok) return gate.result;
+  const { session } = gate;
+
+  if (!isValidDateKey(input.dueDate)) {
+    return { ok: false, reason: "invalid" };
+  }
+  const reason = input.reason.trim();
+
+  const supabase = await getSupabaseServerClient();
+  const { data: existing } = await supabase
+    .from("lost_items")
+    .select("id, status")
+    .eq("id", input.itemId)
+    .eq("organization_id", session.organization.id)
+    .maybeSingle();
+  if (!existing) return { ok: false, reason: "not_found" };
+
+  // 폐기예정 건을 연장하면 다시 보관중으로 되돌린다(종결 아님). 그 외 상태는 유지.
+  const currentStatus = (existing as { status: string }).status;
+  const nextStatus = currentStatus === "disposal_scheduled" ? "stored" : currentStatus;
+
+  const { data: updated, error } = await supabase
+    .from("lost_items")
+    .update({
+      hold_until: input.dueDate,
+      hold_reason: reason || null,
+      status: nextStatus,
+    } as never)
+    .eq("id", input.itemId)
+    .eq("organization_id", session.organization.id)
+    .select("id");
+
+  if (error) return { ok: false, reason: "failed" };
+  if (!updated || updated.length === 0) return { ok: false, reason: "not_found" };
+
+  revalidateItem(input.itemId);
+  return { ok: true };
+}
+
+export async function correctLostItemStatus(input: {
+  itemId: string;
+  status: "registered" | "stored" | "disposal_scheduled";
+  memo: string;
+}): Promise<LostActionResult> {
+  const gate = await requireLostFoundAction(input.itemId);
+  if (!gate.ok) return gate.result;
+  const { session } = gate;
+
+  // 진행 상태 3종만 허용 — 종결(disposed/returned)로의 정정은 능동 처리 액션이 담당한다.
+  if (!["registered", "stored", "disposal_scheduled"].includes(input.status)) {
+    return { ok: false, reason: "invalid" };
   }
 
   const supabase = await getSupabaseServerClient();
-
-  // Confirm the record belongs to this org before updating (defense-in-depth; RLS also guards).
   const { data: existing } = await supabase
     .from("lost_items")
-    .select("id")
-    .eq("id", itemId)
+    .select("id, handling_memo")
+    .eq("id", input.itemId)
     .eq("organization_id", session.organization.id)
     .maybeSingle();
+  if (!existing) return { ok: false, reason: "not_found" };
 
-  if (!existing) {
-    redirect(`/admin/lost-found?error=not_found`);
-  }
+  const previousMemo = (existing as { handling_memo: string | null }).handling_memo ?? "";
+  const addition = input.memo.trim();
+  // 정정 사유는 기존 처리 메모를 덮어쓰지 않고 덧붙인다 — 감사 흔적을 남긴다.
+  const memo = addition ? (previousMemo ? `${previousMemo}\n${addition}` : addition) : previousMemo;
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("lost_items")
-    .update({ status: newStatus } as never)
-    .eq("id", itemId)
-    .eq("organization_id", session.organization.id);
+    .update({
+      status: input.status,
+      handling_memo: memo || null,
+    } as never)
+    .eq("id", input.itemId)
+    .eq("organization_id", session.organization.id)
+    .select("id");
 
-  if (error) {
-    redirect(`/admin/lost-found/${itemId}?error=status_update_failed`);
+  if (error) return { ok: false, reason: "failed" };
+  if (!updated || updated.length === 0) return { ok: false, reason: "not_found" };
+
+  revalidateItem(input.itemId);
+  return { ok: true };
+}
+
+// 완료(폐기/반환) 건을 다시 진행 상태로 되돌린다 — 관리자 실수, 고객 재방문 등 변수 대응.
+// 상태는 '보관중'으로, 보관 시계는 복원일+14일로 재설정하고 폐기/반환 처리 정보는 초기화한다.
+export async function restoreLostItem(input: {
+  itemId: string;
+  reason: string;
+}): Promise<LostActionResult> {
+  const gate = await requireLostFoundAction(input.itemId);
+  if (!gate.ok) return gate.result;
+  const { session } = gate;
+
+  const supabase = await getSupabaseServerClient();
+  const { data: existing } = await supabase
+    .from("lost_items")
+    .select("id, status, handling_memo")
+    .eq("id", input.itemId)
+    .eq("organization_id", session.organization.id)
+    .maybeSingle();
+  if (!existing) return { ok: false, reason: "not_found" };
+
+  // 완료(폐기/반환) 건만 복원 대상 — 진행 중인 건은 정정/연장 경로가 담당한다.
+  const current = existing as { status: string; handling_memo: string | null };
+  if (current.status !== "disposed" && current.status !== "returned") {
+    return { ok: false, reason: "invalid" };
   }
 
-  redirect(`/admin/lost-found/${itemId}?statusUpdated=1`);
+  // 복원 사유를 기존 처리 메모에 덧붙여 감사 흔적을 남긴다(사용자 결정 2026-07-16). 접두어는
+  // 자동 폐기 메모와 마찬가지로 서버측 고정 문자열이라 뷰어 로케일과 무관하다.
+  const previousMemo = current.handling_memo ?? "";
+  const reason = input.reason.trim();
+  const note = reason ? `관리자 복원: ${reason}` : "관리자 복원";
+  const memo = previousMemo ? `${previousMemo}\n${note}` : note;
+
+  const { data: updated, error } = await supabase
+    .from("lost_items")
+    .update({
+      status: "stored",
+      hold_until: tokyoDateKeyPlusDays(LOST_FOUND_STORAGE_DAYS),
+      hold_reason: null,
+      return_method: null,
+      return_tracking_no: null,
+      handled_at: null,
+      handled_by: null,
+      handled_by_admin: false,
+      handling_memo: memo,
+    } as never)
+    .eq("id", input.itemId)
+    .eq("organization_id", session.organization.id)
+    .select("id");
+
+  if (error) return { ok: false, reason: "failed" };
+  if (!updated || updated.length === 0) return { ok: false, reason: "not_found" };
+
+  revalidateItem(input.itemId);
+  return { ok: true };
 }
 
 export async function deleteLostItemById(
@@ -95,134 +305,6 @@ export async function deleteLostItemById(
     return { ok: false, error: "not_found" };
   }
 
+  revalidatePath("/admin/lost-found");
   return { ok: true };
-}
-
-// ── Excel / PDF 내보내기 ───────────────────────────────────────────────────
-// Replaced the old CSV download on 2026-07-14. The client sends only the current filter values —
-// never rows — and this action re-queries the list server-side, so the file always matches exactly
-// what the filtered screen shows. Rendering goes through the canonical admin table exporters
-// (src/lib/admin-table-workbook.ts / admin-table-report.ts) shared by every /admin/* export.
-// See docs/product/09-lost-found-workflow.md.
-
-export type LostFoundExportFilters = {
-  startDate?: string;
-  endDate?: string;
-  status?: string;
-};
-
-function rangeSuffix(filters: LostFoundExportFilters): string {
-  const parts = [filters.startDate, filters.endDate]
-    .filter((v): v is string => Boolean(v))
-    .map(compactRangePart);
-  return parts.length ? `_${parts.join("_")}` : "";
-}
-
-async function buildLostFoundSheet(
-  session: AppSession,
-  filters: LostFoundExportFilters,
-  meta: AdminExportMeta,
-): Promise<AdminTableSheet> {
-  const dictionary = getDictionary(meta.locale);
-  const copy = dictionary.lostFound;
-  const dateRange = parseRequestDateRange(filters);
-  const status = isValidStatus(filters.status ?? "") ? (filters.status as LostItemStatus) : undefined;
-
-  const [items, roomCatalog] = await Promise.all([
-    getOrgLostItems(session, { ...dateRange, status }),
-    getActiveRoomCatalogServer(session.organization.id).catch(() => undefined),
-  ]);
-
-  const columns: AdminTableColumn[] = [
-    { key: "building", label: dictionary.cleaning.manualBuildingLabel, width: 16, printWidth: 16 },
-    { key: "room", label: copy.room, width: 12, printWidth: 11 },
-    { key: "item", label: copy.itemName, width: 28, printWidth: 24, wrap: true },
-    { key: "status", label: copy.statusLabel, width: 14, printWidth: 13 },
-    { key: "reporter", label: copy.reporter, width: 16, printWidth: 14 },
-    { key: "foundAt", label: copy.foundAt, width: 18, printWidth: 18 },
-  ];
-
-  const formatter = new Intl.DateTimeFormat(meta.localeTag, {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-
-  return {
-    sheetName: copy.adminTitle,
-    title: copy.adminTitle,
-    rangeLabel:
-      dateRange.startDate && dateRange.endDate
-        ? `${dateRange.startDate} – ${dateRange.endDate}`
-        : undefined,
-    colNoLabel: meta.shared.colNo,
-    totalLabel: meta.shared.exportTotalLabel,
-    columns,
-    rows: items.map((item) => {
-      const location = resolveRequestLocation(
-        item.room_label,
-        roomCatalog,
-        dictionary.cleaning.buildingLabels,
-      );
-      return {
-        building: location.buildingLabel ?? "",
-        room: location.roomLabel,
-        item: item.item_name,
-        status: copy.statusLabels[item.status],
-        reporter: item.reporter_name,
-        foundAt: formatter.format(new Date(item.found_at)),
-      };
-    }),
-  };
-}
-
-export async function exportLostFoundWorkbook(
-  filters: LostFoundExportFilters,
-): Promise<AdminWorkbookExportResult> {
-  const session = await requireAdminSession();
-  try {
-    const meta = buildAdminExportMeta(session);
-    const sheet = await buildLostFoundSheet(session, filters, meta);
-    if (sheet.rows.length === 0) return { ok: false, reason: "empty" };
-
-    const base64 = await buildAdminTableWorkbookBase64({
-      orgName: meta.orgName,
-      generatedLabel: meta.generatedLabel,
-      sheets: [sheet],
-    });
-    return {
-      ok: true,
-      filename: `lost-found${rangeSuffix(filters)}.xlsx`,
-      base64,
-      rowCount: sheet.rows.length,
-    };
-  } catch {
-    return { ok: false, reason: "error" };
-  }
-}
-
-export async function exportLostFoundReport(
-  filters: LostFoundExportFilters,
-): Promise<AdminReportExportResult> {
-  const session = await requireAdminSession();
-  try {
-    const meta = buildAdminExportMeta(session);
-    const sheet = await buildLostFoundSheet(session, filters, meta);
-    if (sheet.rows.length === 0) return { ok: false, reason: "empty" };
-
-    const html = buildAdminTableReportHtml({
-      orgName: meta.orgName,
-      generatedLabel: meta.generatedLabel,
-      printLabel: meta.shared.exportPrint,
-      localeTag: meta.localeTag,
-      sheets: [sheet],
-    });
-    return { ok: true, html, rowCount: sheet.rows.length };
-  } catch {
-    return { ok: false, reason: "error" };
-  }
 }

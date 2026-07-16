@@ -5,6 +5,8 @@
 import type { Database } from "@/types/database";
 
 export type LostItemStatus = Database["public"]["Enums"]["lost_item_status"];
+export type LostItemCategory = Database["public"]["Enums"]["lost_item_category"];
+export type LostReturnMethod = Database["public"]["Enums"]["lost_return_method"];
 
 // 표시 순서 = 접수 → 보관 → 폐기예정 → 폐기완료 → 반환완료(신규).
 // 읽기 전용 진행바(폐기 경로)는 'returned'를 제외한 4개만 쓴다 — 상세 페이지에서 필터링한다.
@@ -34,3 +36,35 @@ export function isLostItemTerminal(status: LostItemStatus): boolean {
 }
 
 export const LOST_FOUND_HANDLING_IMAGE_LIMIT = 5;
+
+// 품목 분류 9종 — 등록 폼 선택지 + 콘솔 필터/뱃지. (모바일 폼도 이 배열을 쓴다.)
+export const lostItemCategories: readonly LostItemCategory[] = [
+  "electronics",
+  "wallet",
+  "accessory",
+  "clothing",
+  "document",
+  "bag",
+  "umbrella",
+  "toiletry",
+  "other",
+];
+
+// 반환 방식 — 배송(송장 기록) / 직접 수령.
+export const lostReturnMethods: readonly LostReturnMethod[] = ["delivery", "pickup"];
+
+export function isLostItemCategory(value: string): value is LostItemCategory {
+  return (lostItemCategories as readonly string[]).includes(value);
+}
+
+export function isLostReturnMethod(value: string): value is LostReturnMethod {
+  return (lostReturnMethods as readonly string[]).includes(value);
+}
+
+// 보관 생애주기(도쿄 기준, 파생 계산 — 저장 안 함).
+// 발견 후 14일 보관 → 폐기예정(만료 3일 전부터) → 만료 시 자동 폐기.
+export const LOST_FOUND_STORAGE_DAYS = 14;
+export const LOST_FOUND_DUE_SOON_DAYS = 3;
+// 폐기 후 90일 경과 시 하드 삭제(자동 정리). 삭제 7일 전부터 "삭제 임박".
+export const LOST_FOUND_DISPOSAL_RETENTION_DAYS = 90;
+export const LOST_FOUND_PURGE_SOON_DAYS = 7;

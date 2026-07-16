@@ -16,6 +16,35 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **대시보드 분실물 관리 콘솔 — 구현 완료 (빌드 그린) (2026-07-16).** `/admin/lost-found`가 목록+필터폼
+  에서 **4뷰 운영 콘솔**로 교체됐다: ① 현황 보드(접수/보관중/폐기예정) ② 목록·이력 ③ **완료**(반환+폐기
+  아카이브 — 반환 방식·송장·종결시각) ④ **폐기 내역**(폐기됨만, 삭제 예정일 D-day·90일 자동삭제 안내
+  배너). 우측 상세 패널 + 능동 처리 모달(반환/폐기/보관 연장) + 예외 개입(상태 정정/**복원**/삭제).
+  **복원(2026-07-16)**: 완료(폐기/반환) 건을 보관중으로 되돌린다 — 상태 `stored`, 보관 시계 복원일+14일,
+  처리 메모에 복원 사유 append(`restoreLostItem`). 내보내기 없음·무효(void) 없음. 구
+  `/admin/lost-found/[id]` 상세 라우트·`lost-found-export-bar.tsx`는 **삭제**됐다.
+  반환 방식은 기획 초안의 `shipped`/`picked_up`이 아니라 **`delivery`(배송)/`pickup`(방문 수령)**으로
+  최종 구현. 품목 분류(`category`, 9종) 신설, 모바일 등록 폼에도 반영. 자동 생애주기(등록일+14일 →
+  자동 폐기 → 폐기 내역 90일 → 자동 하드 삭제)는 `public.lostfound_auto_dispose()` /
+  `public.lostfound_auto_purge()`(SECURITY DEFINER) + pg_cron 매일 1회로 마이그레이션
+  `202607180001_lostfound_console.sql`에 구현됐다. **✅ 마이그레이션 원격 Supabase 프로젝트 적용
+  완료(2026-07-16, MCP) — pg_cron 확장 활성화 + 배치 잡 2종 등록 확인됨.** `npm run lint` /
+  `npm run build` 통과. 상세는
+  `docs/product/09-lost-found-workflow.md` → "대시보드 분실물 관리 콘솔", 결정 근거는
+  `docs/planning/01-decision-log.md` → 2026-07-16 Status update.
+- **대시보드 분실물 관리 콘솔 — 기획 확정 (2026-07-15, 자동 생애주기 2026-07-16 추가, → 위 항목에서
+  구현 완료).** 등록된
+  분실물을 관리·감시할 어드민 콘솔을 기획했다. 수리·점검 콘솔과 같은 매커니즘(감시 + 이력 + 예외 개입)에
+  **분실물 한정 능동 처리 3종(반환 · 폐기 · 보관 기간 연장)**을 더한다 — 배송 반환은 사무실이 직접 하기
+  때문. **자동 생애주기(2026-07-16 확정, 이전 "수동 폐기" 대체):** 등록일 + 14일 → **자동 폐기(`disposed`)**
+  → **폐기 내역** 이동, 폐기일 + 90일 → **자동 하드 삭제**. 연장(`hold_until`) 건은 자동 폐기 제외. →
+  콘솔은 **4뷰**(현황 보드 / 목록·이력 / 반환완료 / **폐기 내역**). 폐기 내역 뷰는 삭제 예정일(폐기+90일)
+  D-day·삭제 임박(D-7)을 보여준다. 반환 방식은 배송/직접수령 구조화(+송장번호). 필요 스키마
+  (`return_method`, `return_tracking_no`, `hold_until`) + **매일 1회 스케줄 작업(pg_cron/Vercel Cron)**은
+  구현 사이클에서 추가한다. 무효(void) 상태 없이 잘못된 등록은 **수동 하드 삭제만**, **내보내기 없음**.
+  화면·백엔드는 (2026-07-16 정정) **위 항목대로 구현 완료됐다.** 전체 명세는
+  `docs/product/09-lost-found-workflow.md` → "대시보드 분실물 관리 콘솔", 결정 근거는
+  `docs/planning/01-decision-log.md` → 2026-07-16 / 2026-07-15 항목.
 - **어드민 캘린더 / Excel·PDF 내보내기 전면 통일 — 완료 (2026-07-14).** 콘솔 전체를 두 개의 캐논
   패턴으로 통일했다. **캘린더**: `AdminDateRangePicker`(기간) / `AdminDatePicker`(하루) /
   `AdminMonthPicker`(월) 3개만 사용하고, 팝오버 크롬은 청소 기록 탭의 `.calpop`에 맞춰 정렬. 분실물·
@@ -3394,11 +3423,11 @@ Files: `supabase/migrations/202607160001_maintenance_backend.sql`, `src/types/da
 
 - **디자인**: Claude Design 핸드오프(`StayOps 분실물 반환 (mobile)/분실물 반환 처리 (mobile).html`)
   100% 이식. 기존 상세 화면은 그대로 두고, 읽기 전용 상태 스테퍼를 처리 블록으로 승격.
-- **상태**: `lost_item_status`에 `returned`(반환완료) 추가(enum ADD VALUE). 종결 = returned/disposed.
+- **상태**: `lost_item_status`에 `returned`(반환완료) 추가(enum ADD VALUE). 완료 = returned/disposed.
 - **스키마**: `handling_memo` / `handling_image_urls` / `handled_at` / `handled_by` /
   `handled_by_admin` 추가. storage 폴더 화이트리스트 += `lost-found-handling`.
 - **모바일**: 상세에 처리 블록 신설(상태 칩 5 + 메모 + 사진 ≤5). 반환완료는 되돌릴 수 없어 저장 전
-  canonical `BottomSheet`로 확인. 종결 → 처리 이력 카드, 파트타임 → 읽기 전용 + 잠금.
+  canonical `BottomSheet`로 확인. 완료 → 처리 이력 카드, 파트타임 → 읽기 전용 + 잠금.
 - **버그 함께 수정**: lost_items UPDATE RLS에서 `staff` 누락(수리·점검과 동일) → 추가 + `with check`.
 
 검증: `npx tsc --noEmit` 0, `npm run lint` 0 errors, `npm run build` 통과.

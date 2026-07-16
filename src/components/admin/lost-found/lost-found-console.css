@@ -1,0 +1,167 @@
+/*
+ * Admin 분실물(Lost & Found) console — screen-local additions on top of admin-console.css +
+ * maintenance-console.css (imported by lost-found-console.tsx for the primitives this screen shares
+ * with 수리·점검: .opsbar--5/.robadge/.mboard-wrap/.mbkgrid/.mbkcol/.mcard/.pgal/.pshot/.pnophoto/
+ * .mdesc/.infonote/.dimnote/.mpanel__title/.mpanel__chips/.cfhead/.cficon/.cfbody-t/.cfbody-s/.cfrec/
+ * .exczone/.excbtn/.btn--danger/.btn--warnsolid/.mtbl .tt-x/.el-cell/.filterbar .dd). Ported 1:1 from
+ * the Claude Design handoff (lf-design.css) — only genuinely NEW components for this screen live here.
+ * See docs/product/09-lost-found-workflow.md.
+ */
+
+.adm .opscell__flag.is-soon { color: var(--warn); }
+
+/* STATUS PILL — lost&found statuses (extend .cstat base from admin-console.css) */
+.adm .cstat--received { background: var(--info-bg); color: var(--info); }
+.adm .cstat--stored { background: var(--primary-soft); color: var(--primary-ink, var(--primary)); }
+.adm .cstat--pending { background: var(--warn-bg); color: var(--warn); }
+.adm .cstat--disposed { background: var(--surface); color: var(--faint); }
+.adm .cstat--disposed .d { opacity: 0.6; }
+.adm .cstat--returned { background: var(--done-bg); color: var(--done); }
+
+/* BOARD COLUMNS — 접수 / 보관중 / 폐기예정 */
+.adm .mbkcol--received { border-top: 3px solid var(--info); }
+.adm .mbkcol--stored { border-top: 3px solid var(--primary); }
+.adm .mbkcol--pending { border-top: 3px solid var(--warn); }
+.adm .mbkcol--received .mbkcol__ic { background: var(--info-bg); color: var(--info); }
+.adm .mbkcol--stored .mbkcol__ic { background: var(--primary-soft); color: var(--primary); }
+.adm .mbkcol--pending .mbkcol__ic { background: var(--warn-bg); color: var(--warn); }
+
+/* CARD — item-led (thumb + type + due badge + storage) */
+.adm .mcard.is-received { border-left-color: var(--info); }
+.adm .mcard.is-stored { border-left-color: var(--primary); }
+.adm .mcard.is-pending { border-left-color: var(--warn); }
+.adm .mcard.is-expired { border-left-color: var(--danger); background: color-mix(in oklab, var(--danger) 4%, var(--card)); }
+.adm .mcard.is-expired:hover { box-shadow: 0 20px 40px -24px color-mix(in oklab, var(--danger) 40%, rgba(20, 32, 43, 0.5)); }
+
+.adm .mcard__head { display: flex; gap: 11px; align-items: flex-start; }
+.adm .mcard__thumb { width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--line); flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: var(--muted);
+  background: repeating-linear-gradient(135deg, var(--card2) 0 7px, var(--surface) 7px 14px); }
+.adm .mcard__thumb .ic { font-size: 19px; }
+.adm .mcard__hbody { min-width: 0; flex: 1; }
+
+/* D-day badge (폐기 임박 / 만료 / 삭제 임박) */
+.adm .dday { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 7px; font-size: 10.5px; font-weight: 900; letter-spacing: 0.01em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.adm .dday .ic { font-size: 12px; }
+.adm .dday--soon { background: var(--warn-bg); color: var(--warn); }
+.adm .dday--expired { background: var(--danger-bg); color: var(--danger); }
+.adm .dday--expired .ic { animation: priPulse 1.9s ease-in-out infinite; border-radius: 999px; }
+.adm .dday--delete { background: var(--danger-bg); color: var(--danger); }
+.adm .dday--delete .ic { animation: priPulse 1.9s ease-in-out infinite; border-radius: 999px; }
+.adm .dday--muted { background: var(--surface); color: var(--muted); border: 1px solid var(--line-soft); }
+
+/* system(auto) chip — 자동 처리 */
+.adm .syschip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; border-radius: 7px; font-size: 11px; font-weight: 800; white-space: nowrap; background: var(--surface); color: var(--muted); border: 1px solid var(--line-soft); }
+.adm .syschip .ic { font-size: 13px; }
+
+/* disposal-log info banner (90일 자동 삭제 안내) */
+.adm .lfbanner { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 12px 16px; border-radius: 13px; font-size: 12.5px; font-weight: 700; color: var(--ink-soft);
+  background: var(--info-bg); border: 1px solid color-mix(in oklab, var(--info) 26%, transparent); }
+.adm .lfbanner .ic { font-size: 17px; color: var(--info); flex: 0 0 auto; }
+
+/* delete-imminent table row emphasis */
+.adm .mtbl tr.row-warn td { background: color-mix(in oklab, var(--danger) 4%, transparent); }
+
+/* storage-extended badge (기간 연장) */
+.adm .extb { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 7px; font-size: 10.5px; font-weight: 800; white-space: nowrap;
+  background: var(--primary-soft); color: var(--primary); border: 1px solid color-mix(in oklab, var(--primary) 28%, transparent); }
+.adm .extb .ic { font-size: 12px; }
+
+.adm .mcard__el.is-soon { color: var(--warn); }
+.adm .mcard__el.is-soon .ic { color: var(--warn); }
+
+/* LIST / DONE / DISPOSAL table specifics (reuse .qtbl / .mtbl from admin-console.css) */
+.adm .mtbl .due-cell { font-family: var(--mono); font-weight: 800; color: var(--ink-soft); white-space: nowrap; }
+.adm .mtbl .due-cell.is-soon { color: var(--warn); }
+.adm .mtbl .due-cell.is-expired { color: var(--danger); }
+.adm .mtbl .meth { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: var(--ink-soft); }
+.adm .mtbl .meth .ic { font-size: 15px; color: var(--muted); }
+.adm .mtbl .trk { font-family: var(--mono); font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.adm .mtbl .trk.is-none { color: var(--faint); }
+
+/* DETAIL PANEL — storage / delete state box */
+.adm .stnote { display: flex; gap: 11px; padding: 12px 14px; border-radius: 13px; }
+.adm .stnote__ic { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.adm .stnote__ic .ic { font-size: 16px; }
+.adm .stnote__t { font-size: 12px; font-weight: 800; }
+.adm .stnote__s { font-size: 11px; font-weight: 600; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
+.adm .stnote--soon { background: var(--warn-bg); border: 1px solid color-mix(in oklab, var(--warn) 32%, transparent); }
+.adm .stnote--soon .stnote__ic { background: color-mix(in oklab, var(--warn) 16%, #fff); color: var(--warn); }
+.adm .stnote--soon .stnote__t { color: color-mix(in oklab, var(--warn) 66%, var(--ink)); }
+.adm .stnote--expired { background: var(--danger-bg); border: 1px solid color-mix(in oklab, var(--danger) 30%, transparent); }
+.adm .stnote--expired .stnote__ic { background: color-mix(in oklab, var(--danger) 14%, #fff); color: var(--danger); }
+.adm .stnote--expired .stnote__t { color: color-mix(in oklab, var(--danger) 66%, var(--ink)); }
+
+.adm .sgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.adm .scell { padding: 11px 13px; border-radius: 12px; background: var(--card2); border: 1px solid var(--line-soft); }
+.adm .scell__k { font-size: 10.5px; font-weight: 800; color: var(--muted); letter-spacing: 0.02em; }
+.adm .scell__v { font-size: 16px; font-weight: 900; letter-spacing: -0.02em; color: var(--ink); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.adm .scell__v .u { font-size: 11px; font-weight: 800; color: var(--muted); margin-left: 2px; }
+.adm .scell__v.is-soon { color: var(--warn); }
+.adm .scell__v.is-expired { color: var(--danger); }
+.adm .scell__v .mono { font-family: var(--mono); }
+
+.adm .sbar { height: 7px; border-radius: 999px; background: var(--surface); overflow: hidden; margin-top: 10px; border: 1px solid var(--line-soft); }
+.adm .sbar__fill { height: 100%; border-radius: 999px; background: var(--primary); }
+.adm .sbar__fill.is-soon { background: var(--warn); }
+.adm .sbar__fill.is-expired { background: var(--danger); }
+
+.adm .methline { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; }
+.adm .methline .ic { font-size: 15px; color: var(--muted); }
+
+.adm .rptile--guest .rptile__ic { background: var(--primary-soft); color: var(--primary); }
+.adm .rptile--guest:hover { border-color: color-mix(in oklab, var(--primary) 40%, var(--line)); }
+
+/* ACTIVE-ACTION ZONE (반환 / 폐기 / 보관 연장) */
+.adm .actzone { padding: 14px; border-radius: 14px; background: color-mix(in oklab, var(--primary) 3.5%, var(--card2)); border: 1px solid color-mix(in oklab, var(--primary) 15%, var(--line-soft)); }
+.adm .actzone__t { font-size: 11.5px; font-weight: 900; color: var(--ink); display: flex; align-items: center; gap: 7px; }
+.adm .actzone__t .ic { font-size: 15px; color: var(--primary); }
+.adm .actzone__s { font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+.adm .actzone__btns { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.adm .actbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 12px; border-radius: 11px; font-size: 12.5px; font-weight: 800; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); flex: 1; white-space: nowrap; min-width: 0; cursor: pointer; }
+.adm .actbtn .ic { font-size: 16px; flex: 0 0 auto; }
+.adm .actbtn:hover { background: var(--surface); }
+.adm .actbtn--return { background: var(--primary); color: #fff; border-color: transparent; box-shadow: 0 10px 22px -16px color-mix(in oklab, var(--primary) 80%, transparent); }
+.adm .actbtn--return:hover { filter: brightness(1.06); background: var(--primary); }
+.adm .actbtn--dispose { color: var(--danger); }
+.adm .actbtn--dispose:hover { border-color: color-mix(in oklab, var(--danger) 42%, var(--line)); background: var(--danger-bg); }
+.adm .actbtn--extend { color: var(--ink); }
+.adm .actbtn--extend:hover { border-color: color-mix(in oklab, var(--ink) 24%, var(--line)); }
+
+/* MODAL EXTRAS — return-method radio, tracking reveal, status-pick chips */
+.adm .segradio { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.adm .segopt { display: flex; align-items: center; gap: 11px; padding: 12px 13px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); cursor: pointer; text-align: left; transition: border-color 0.14s, background 0.14s; }
+.adm .segopt__ic { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; background: var(--surface); color: var(--muted); }
+.adm .segopt__ic .ic { font-size: 17px; }
+.adm .segopt__b { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.adm .segopt__t { font-size: 13px; font-weight: 900; color: var(--ink); }
+.adm .segopt__s { font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.adm .segopt__rd { margin-left: auto; width: 18px; height: 18px; border-radius: 999px; border: 2px solid var(--line); flex: 0 0 auto; position: relative; }
+.adm .segopt.on { border-color: var(--primary); background: var(--primary-soft); }
+.adm .segopt.on .segopt__ic { background: color-mix(in oklab, var(--primary) 16%, #fff); color: var(--primary); }
+.adm .segopt.on .segopt__rd { border-color: var(--primary); }
+.adm .segopt.on .segopt__rd::after { content: ""; position: absolute; inset: 3px; border-radius: 999px; background: var(--primary); }
+
+.adm .reveal { animation: revIn 0.2s ease; }
+@keyframes revIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.adm .stpick { display: flex; gap: 8px; flex-wrap: wrap; }
+.adm .stchip { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--card); font-size: 12.5px; font-weight: 800; color: var(--ink-soft); cursor: pointer; }
+.adm .stchip .ic { font-size: 15px; color: var(--muted); }
+.adm .stchip.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+.adm .stchip.on .ic { color: var(--primary); }
+
+.adm .cficon--return { background: var(--primary-soft); color: var(--primary); }
+.adm .cficon--dispose { background: var(--danger-bg); color: var(--danger); }
+.adm .cficon--extend { background: var(--surface); color: var(--ink-soft); }
+.adm .cficon--correct { background: var(--info-bg); color: var(--info); }
+.adm .cficon--restore { background: var(--primary-soft); color: var(--primary); }
+
+/* 예외 개입 — 복원(완료 건을 보관중으로 되돌림). primary 톤으로 회복 액션임을 알린다. */
+.adm .excbtn--restore { color: var(--primary); }
+.adm .excbtn--restore:hover { border-color: color-mix(in oklab, var(--primary) 42%, var(--line)); background: var(--primary-soft); }
+
+.adm .btn--prisolid { background: var(--primary); color: #fff; box-shadow: 0 10px 22px -16px color-mix(in oklab, var(--primary) 80%, transparent); }
+.adm .btn--prisolid:hover { filter: brightness(1.06); }

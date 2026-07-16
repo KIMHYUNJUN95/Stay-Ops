@@ -403,6 +403,16 @@ Change status / 처리 (모바일·어드민 동일 게이트):
 > 스토리지: 처리 증빙 사진은 `request-images` 버킷의 `{org}/lost-found-handling/{itemId}/` 폴더이며,
 > 같은 마이그레이션이 storage 정책 화이트리스트에 `lost-found-handling`을 추가했다(part_time 제외).
 
+> **어드민 콘솔 컬럼 추가 (2026-07-16, 마이그레이션 `202607180001_lostfound_console.sql`):**
+> `category`/`return_method`/`return_tracking_no`/`hold_until`/`hold_reason` 5개 컬럼은 **RLS 정책을
+> 바꾸지 않는다** — 직전(`202607170001`)에서 정의된 `lost_items` UPDATE/DELETE 정책이 그대로 적용된다
+> (콘솔의 능동 처리 액션도 이 정책 아래에서 동작하며, 역할 게이트는 서버 액션의
+> `canForceCompleteCleaning()`이 추가로 좁힌다). 단, 같은 마이그레이션이 추가하는 **자동 생애주기
+> 함수 2종(`lostfound_auto_dispose()` / `lostfound_auto_purge()`)은 `SECURITY DEFINER`라 RLS를
+> 우회하는 전역 배치 작업**이다 — pg_cron 실행에는 조직/세션 컨텍스트가 없으므로, 대상 행은
+> `status`와 도쿄 기준 날짜 계산만으로 좁힌다(조직 스코프 없음, 의도된 설계). 원격 DB에 적용
+> 완료(2026-07-16, MCP) — pg_cron 확장 활성화 + 두 배치 잡 등록 확인됨.
+
 Delete:
 
 - **Admin roles** (developer_super_admin, owner, office_admin, cs_staff): can delete any record.

@@ -594,7 +594,9 @@ Lost and found records.
 
 Migrations: `supabase/migrations/202605210006_lost_items.sql`,
 `supabase/migrations/202607090003_reservation_calendar_linking_and_notes.sql`,
-`supabase/migrations/202607170001_lostfound_return.sql` (반환 처리 백엔드)
+`supabase/migrations/202607170001_lostfound_return.sql` (반환 처리 백엔드),
+`supabase/migrations/202607180001_lostfound_console.sql` (어드민 콘솔 스키마 + 자동 생애주기,
+**적용 완료 2026-07-16, MCP**)
 
 Fields:
 
@@ -617,6 +619,11 @@ handling_image_urls text[] not null default '{}'  -- 처리 증빙 사진 ≤5 (
 handled_at timestamptz             -- 마지막 처리 시각 (2026-07-15)
 handled_by uuid references profiles(id) on delete set null  -- 마지막 처리자 (2026-07-15)
 handled_by_admin boolean not null default false  -- 어드민 예외 개입 여부 (2026-07-15)
+category lost_item_category not null default 'other'      -- 품목 분류 (2026-07-16)
+return_method lost_return_method                            -- 반환 방식: delivery/pickup (2026-07-16)
+return_tracking_no text                                     -- 배송 송장번호 (2026-07-16)
+hold_until date                                              -- 보관 연장 시 새 폐기 예정일 (2026-07-16)
+hold_reason text                                             -- 보관 연장 사유 (2026-07-16)
 created_at timestamptz not null
 updated_at timestamptz not null
 ```
@@ -631,10 +638,34 @@ disposed
 returned            -- 손님에게 전달 완료 (종결). enum ADD VALUE (제거 없음)
 ```
 
+New enums (2026-07-16, migration `202607180001_lostfound_console.sql`):
+
+```txt
+lost_item_category: electronics | wallet | accessory | clothing | document | bag | umbrella
+                   | toiletry | other                                              -- 9 values
+lost_return_method: delivery | pickup                                              -- 2 values
+```
+
 반환은 별도 `retrieved_*` 컬럼이 아니라 `status = 'returned'` + `handled_*`로 남는다. 종결 상태는
 `returned` 또는 `disposed` 둘이며, 이 상태에서 모바일 상세는 처리 이력을 보여준다. `property_name`,
 `reservation_id`, `guest_name`은 예약 연동 create의 선택적 컨텍스트 스냅샷이고 `room_label`이 여전히
 주 위치 필드다.
+
+### Automated lifecycle functions (2026-07-16, applied remotely via MCP)
+
+Migration `202607180001_lostfound_console.sql` also defines two `SECURITY DEFINER` functions, scheduled
+daily via pg_cron (Tokyo-anchored, UTC `15:05`/`15:15`):
+
+- `public.lostfound_auto_dispose()` — active (registered/stored/disposal_scheduled) rows whose due date
+  (`hold_until` else `found_at + 14 days`, Tokyo date) has passed are set to `status = 'disposed'`
+  (`handled_at = now()`, `handled_by = null` = system auto-dispose, `handled_by_admin = false`); rows
+  within 3 days of the due date are bumped to `disposal_scheduled`.
+- `public.lostfound_auto_purge()` — hard-deletes `status = 'disposed'` rows whose disposal date
+  (`handled_at`, Tokyo) is more than 90 days in the past. Guarded to `status = 'disposed'` only.
+
+Both bypass RLS by design (cron has no org/session context) and instead scope purely by `status` and
+Tokyo date. See `docs/engineering/05-rls-permissions.md` → `lost_items` for the RLS-bypass note, and
+`docs/product/09-lost-found-workflow.md` → "대시보드 분실물 관리 콘솔" for the full policy.
 
 ## reservation_internal_notes
 
