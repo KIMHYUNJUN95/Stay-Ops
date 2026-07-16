@@ -344,6 +344,94 @@ Business logic reuse:
 - `OrderActionBar` component — shared with mobile detail; `router.refresh()` updates the admin page after a status change.
 - `updateOrderRequestStatus` server action — shared with mobile detail; handles approve, ordered (with delivery date), and reject transitions.
 
+## 주문·비품 어드민 운영 콘솔 (기획 확정 — 2026-07-16, 구현 전)
+
+`/admin/orders`가 아직 **구형 플랫 목록**(Card + GET 필터폼 + 테이블 + 내보내기 바)이라, 청소·수리·점검·
+분실물이 모두 옮겨간 **운영 콘솔** 패턴에서 혼자 벗어나 있다. 이를 같은 공용 디자인 계약
+(KPI strip + 뷰 전환 + 우측 상세 패널 + 공용 primitives)으로 재구축한다. 결정 근거는
+`docs/planning/01-decision-log.md` → 2026-07-16.
+
+### 성격
+
+분실물 콘솔과 같은 **감시(oversight) + 이력(record) + 능동 처리(active processing) + 예외 개입**.
+사무실이 실제로 승인·거절·주문 처리를 하는 처리형 콘솔이다(수리·점검의 읽기 중심과 다르다).
+
+### 재사용 (스키마·서버 로직 변경 최소화)
+
+- **데이터**: `getOrgOrderRequests` / `getOrderRequestById` / `parseOrderItems`
+  (`src/lib/order-requests.ts`) 그대로.
+- **능동 처리 서버 액션**: `updateOrderRequestStatus`(승인/주문처리/거절) ·
+  `updateOrderDeliveryDate`(배송일 수정) · 삭제 액션 재사용.
+- **신규 서버 액션은 재오픈 1종만** — 아래 참고. **DB 스키마 변경 없음.**
+- 콘솔은 껍데기(뷰 전환 + KPI + 상세 패널 + 모달)만 새로 만든다.
+
+### KPI strip (5)
+
+승인 대기(`requested`) · 주문 대기(`approved`) · 긴급(`urgency='high'` 중 진행) · 이번주 배송 예정
+(`delivery_date`/range가 이번 주) · 이번달 주문 처리(`ordered` 이번 달).
+
+### 뷰 구성 (4)
+
+1. **현황 보드** — 처리 파이프라인 3칼럼: **승인 대기(requested) / 주문 대기(approved) / 주문 완료
+   (ordered)**. 카드 정렬은 긴급 건 우선, 동률이면 오래된 요청 우선. `closed`·`received`는 보드에 없다.
+2. **목록·이력** — 전 상태. 필터: 기간(공용 `AdminDateRangePicker`) · 상태 · 건물 · 요청자 · **긴급도** +
+   검색(품목·제목·요청자).
+3. **배송 예정 (캘린더)** — 어드민에 그동안 없던 **배송 캘린더**를 콘솔 뷰로 신설(그간 모바일 전용이던
+   공백 해소). `delivery_date`(point) / `delivery_start_date`..`delivery_end_date`(range)에서 **파생**
+   (별도 테이블·스키마 변경 없음, `order_requests` 직접 조회). 월 그리드 + 배송 있는 날 마커(●) + 날짜
+   탭 시 그날 배송 목록(**어느 건물 · 누가 신청 · 무슨 비품(제목) · 언제 배송 · 상태**, range는 `~end`)이
+   상세로 링크. 조직 전체 스코프.
+   - **건물별로 볼 수 있어야 한다(요구사항 2026-07-16).** 캘린더에 **건물 필터**(전체 / 특정 건물)를 두어,
+     특정 건물의 배송만 마커·목록으로 좁혀 본다. 날짜별 배송 목록은 건물 라벨을 항상 표기한다.
+   - 관리자는 여기서 "어느 건물에 · 누가 신청한 · 어떤 비품이 · 언제 배송되는지"를 한 화면에서 관리한다.
+4. **종결** — `ordered`(주문 완료) + `closed`(거절/종결) 아카이브.
+
+### 능동 처리 · 예외 개입 액션
+
+- **승인** — `requested → approved`.
+- **거절** — 진행 중 어느 상태든 → `closed`, 사유 입력(기존 동작 유지).
+- **주문 처리** — `approved → ordered`, **배송일(point/range) 필수 입력**(공용 날짜 피커).
+- **배송일 수정** — `ordered` 상태에서 배송 컬럼만 갱신(상태 불변).
+- **재오픈(reopen)** — **신규.** `closed` 건을 `requested`로 되돌린다(관리자 실수·재요청 대응, 분실물
+  복원과 같은 예외 개입 개념). 되돌릴 때 배송 컬럼(`delivery_date`/`delivery_start_date`/
+  `delivery_end_date`)을 **초기화**한다(아직 주문 전 단계로 돌아가므로). 서버 액션 신규 필요, `closed`가
+  아니면 거부. (문서 하단 Open Question "거절 건 재제출" 을 해소한다.)
+- **삭제(예외 개입)** — 기존 상태별 권한 제약(`ordered`/`received`는 어드민만) + 확인 모달 + 하드 삭제 그대로.
+
+### 긴급도(urgency) 노출 (신규 — 지금까지 UI 미노출)
+
+`urgency='high'` 건에 **긴급 배지**(danger 톤) + 목록의 **긴급도 필터** + 보드·목록 **정렬 우선순위**
+(긴급 먼저). DB enum(`high`/`normal`)은 그대로, 표시만 추가한다.
+
+### 우측 상세 패널 — 모바일 전 기능을 대시보드에서 전부 관리 (요구사항 2026-07-16)
+
+요청자가 **모바일에서 넣은 모든 것**을 관리자가 상세 패널에서 그대로 보고 처리할 수 있어야 한다(대칭).
+
+- 주문 기본정보: 건물/객실 · 요청자 · 요청일시 · **긴급도 배지** · 사유/메모.
+- **품목 리스트**: 이름 · 수량 · **상품 링크** · 메모 · **품목별 사진**.
+  - **상품 링크는 클릭 가능한 앵커(새 탭)로 열 수 있어야 한다.** 모바일은 요청자가 **Amazon(코자파)·
+    IKEA(jp) 검색**으로 상품을 찾아 링크를 붙인다 — URL 호스트로 도메인을 판별해
+    (`OrderLinkDomain = "amazon" | "ikea" | "other"`, `src/components/requests/order-item-row.tsx`)
+    색 배지(Amazon 주황 · IKEA 파랑 · 기타)로 표시한다. **콘솔 상세도 동일하게 도메인 배지 + 클릭 링크**
+    로 렌더한다(현 어드민 상세는 링크 클릭은 되지만 도메인 배지가 없어, 콘솔에서 배지를 추가한다).
+    링크는 `https://`/`http://` 절대 URL만 앵커로 렌더(기존 안전 규칙 유지).
+- 배송일(point/range) · 상태 타임라인(requested → approved → ordered; `received`는 ordered 위치로 접힘,
+  `closed`는 중립).
+- **능동 처리 존**: 승인 → (사무실이 실제 주문) → **배송일 기입** → 배송일 수정. 상태에 따라 버튼 노출.
+- **예외 개입**: 재오픈(거절 되돌리기) · 삭제.
+
+즉 요청자가 모바일에서 만든 주문(품목·링크·사진·긴급도·건물)을 관리자가 대시보드 한 곳에서 **승인 →
+주문 → 배송일 기입 → 캘린더 자동 반영**까지 끝낸다.
+
+### 범위 밖 / 후속
+
+- **알림**은 이번에 붙이지 않는다 — 개발 막바지 **알림 일괄 구현 단계**에서 처리(프로젝트 전역 방침).
+  기존 승인/거절/주문처리/배송일변경 알림은 그대로 동작.
+- **입고/도착 추적(`received` 활성화) · 비품 카탈로그 · 재고 · 단가**는 이번 콘솔 재구축 범위 밖(별도
+  워크플로 확장 과제). `received`는 콘솔에서 계속 비활성 단계로 둔다.
+- **내보내기(Excel/PDF)**: 기존 `OrdersExportBar` + 공용 export primitives를 콘솔에서도 그대로 유지
+  (분실물과 달리 주문은 내보내기가 필요한 기존 기능).
+
 ## Visibility
 
 All users can create and view order requests.
@@ -413,7 +501,9 @@ Important:
 
 ## Open Questions
 
-- Should rejected requests be editable and resubmitted?
+- ~~Should rejected requests be editable and resubmitted?~~ → **해소(2026-07-16 기획):** 어드민 콘솔의
+  **재오픈(reopen)** 액션으로 `closed → requested` 되돌리기를 지원한다. 위 "주문·비품 어드민 운영 콘솔"
+  참고.
 - Should quantity have unit input, such as boxes, pieces, sets?
 - Should `delivery_date` allow time input in a post-MVP phase?
 - Should photo attachment be added to order requests (deferred)?
@@ -424,3 +514,7 @@ Important:
 - Field Manager cannot process status; only office-level roles can (owner, office_admin, cs_staff, developer_super_admin).
 - Items are stored as a single JSONB array, not individual rows, for MVP simplicity.
 - `delivery_date` is required (not optional) when marking as ordered.
+- **어드민 주문 콘솔 재구축 (2026-07-16 기획 확정, 구현 전):** `/admin/orders`를 운영 콘솔(4뷰: 현황
+  보드/목록·이력/배송 예정 캘린더/종결)로 재구축. 배송 캘린더를 어드민에도 신설, 긴급도 배지+필터+정렬
+  노출, 거절 건 재오픈 추가. 스키마 변경 없음(재오픈 서버 액션만 신규). 상세는 위 "주문·비품 어드민 운영
+  콘솔" 절.
