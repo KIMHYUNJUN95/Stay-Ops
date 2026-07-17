@@ -423,8 +423,23 @@ textarea {
 }
 
 input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
   min-width: 0;
   max-width: 100%;
+}
+
+/* iOS Safari renders the value via ::-webkit-date-and-time-value with its own
+   intrinsic width / centering / margin, which stretches the field and pushes
+   the text off-baseline. Force it to follow the container box (left-aligned,
+   no extra margin). Desktop is unaffected. */
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+}
+
+input[type="date"]::-webkit-datetime-edit {
+  padding: 0;
 }
 
 select {
