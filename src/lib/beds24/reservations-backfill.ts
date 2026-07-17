@@ -103,12 +103,18 @@ function toJstDateString(date: Date) {
   }).format(date);
 }
 
+// Operational completeness window (Asia/Tokyo), keyed by ARRIVAL/stay overlap — never by booking
+// date. A reservation made a year ago whose check-in falls inside this window is still pulled, because
+// the query filters `arrivalTo`/`departureFrom`, not creation time. The window spans the CURRENT month
+// plus the next TWO months (3 months total): any check-in in "당월 + 미래 2달" must never be missing.
+// `month` is 1-indexed here while Date.UTC's month arg is 0-indexed; `month + 2` therefore lands on the
+// first day of the month AFTER the third covered month (e.g. Jul → Oct 1, covering Jul/Aug/Sep).
 function getOperationalWindow() {
   const today = toJstDateString(new Date());
   const currentJstMonth = today.slice(0, 7);
   const [year, month] = currentJstMonth.split("-").map(Number);
   const from = `${currentJstMonth}-01`;
-  const toExclusive = new Date(Date.UTC(year, month + 1, 1)).toISOString().slice(0, 10);
+  const toExclusive = new Date(Date.UTC(year, month + 2, 1)).toISOString().slice(0, 10);
   return { from, toExclusive };
 }
 
@@ -338,11 +344,21 @@ async function fetchBeds24Bookings(from: string, toExclusive: string) {
   };
 }
 
+function isIsoDate(value: string | undefined): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 export async function backfillBeds24Reservations(
   supabase: SupabaseClient<Database>,
-  options?: { organizationId?: string; dryRun?: boolean },
+  options?: { organizationId?: string; dryRun?: boolean; from?: string; toExclusive?: string },
 ): Promise<Beds24ReservationsBackfillResult> {
-  const { from, toExclusive } = getOperationalWindow();
+  // Default window = current + next operational month (used by the daily reconcile cron and webhooks).
+  // A one-time wide catch-up (e.g. the dev backfill route) may override both bounds to pull far-future
+  // reservations the narrow window would never reach. Both bounds must be provided together.
+  const { from, toExclusive } =
+    isIsoDate(options?.from) && isIsoDate(options?.toExclusive)
+      ? { from: options.from, toExclusive: options.toExclusive }
+      : getOperationalWindow();
 
   const { endpointTried, rows, skippedReason, partial, failedPageUrl } = await fetchBeds24Bookings(from, toExclusive);
   if (rows.length === 0 || partial) {

@@ -5,6 +5,7 @@ import {
   createInviteCode,
   deactivateInviteCode,
 } from "@/app/admin/settings/actions";
+import { InviteCopyButton } from "@/components/admin/users/invite-copy-button";
 import { InviteDeleteButton } from "@/components/admin/users/invite-delete-button";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { DdFormSelect } from "@/components/admin/shared/dd-form-select";
@@ -276,6 +277,14 @@ export default async function AdminUsersInvitesPage({ searchParams }: PageProps)
                     marginTop: 12,
                   }}
                 >
+                  <InviteCopyButton
+                    code={inviteCode.code}
+                    labels={{
+                      copy: settings.copyCode,
+                      copied: settings.copiedCode,
+                      failed: settings.copyFailed,
+                    }}
+                  />
                   <form action={inviteCode.is_active ? deactivateInviteCode : activateInviteCode}>
                     <input name="inviteCodeId" type="hidden" value={inviteCode.id} />
                     <input

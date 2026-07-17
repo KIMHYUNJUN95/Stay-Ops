@@ -2096,6 +2096,7 @@ export type Database = {
       };
       order_requests: {
         Insert: {
+          admin_memo?: string | null;
           building_name: string;
           created_at?: string;
           delivery_date?: string | null;
@@ -2114,6 +2115,7 @@ export type Database = {
           urgency?: Database["public"]["Enums"]["order_request_urgency"];
         };
         Row: {
+          admin_memo: string | null;
           building_name: string;
           created_at: string;
           delivery_date: string | null;
@@ -2132,6 +2134,7 @@ export type Database = {
           urgency: Database["public"]["Enums"]["order_request_urgency"];
         };
         Update: {
+          admin_memo?: string | null;
           building_name?: string;
           created_at?: string;
           delivery_date?: string | null;

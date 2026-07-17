@@ -373,7 +373,12 @@ Implementation notes (current as of 2026-06-18):
   `owner` and `cs_staff` remain deliberately excluded from self-service invite-code creation: `owner`
   needs a separate single-use-code flow that is not built yet, and `cs_staff` has no invite category
   at all (admin-assigned only, by design). Both stay as manual role changes at `/admin/users/[id]`.
-- Invite codes can be listed, **activated / deactivated, and deleted** from the `/admin/users/invites` UI.
+- Invite codes can be listed, **copied, activated / deactivated, and deleted** from the `/admin/users/invites` UI.
+  - **Copy code** (`InviteCopyButton`, 2026-07-17) copies the code string to the clipboard from each
+    invite card's action row (client component, `.ui-btn--sm` secondary style; async Clipboard API with
+    an `execCommand` fallback for non-secure contexts). Shows a transient "복사됨 / Copied / コピーしました"
+    state (~1.6s), or "복사 실패" on failure. Read-only convenience — no server action, no state change.
+    Copy for the label lives in `dictionary.admin.settings.{copyCode,copiedCode,copyFailed}` (ko/ja/en).
   - **Deactivate / Activate** (`deactivateInviteCode` / `activateInviteCode`) toggle `is_active`. Active
     codes show a "Deactivate" button; inactive codes show an "Activate" button — so a deactivated code
     can be turned back on. The row is always kept (usage history preserved). Re-activating does not

@@ -56,11 +56,26 @@ async function handle(request: NextRequest) {
 
   const dryRun = request.nextUrl.searchParams.get("dryRun") === "true";
 
+  // Optional one-time wide window (dev-only catch-up for far-future reservations the default
+  // current+next-month window never reaches). Both bounds must be valid YYYY-MM-DD and from < to.
+  const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+  const fromParam = request.nextUrl.searchParams.get("from");
+  const toParam = request.nextUrl.searchParams.get("to");
+  if ((fromParam && !isoDate.test(fromParam)) || (toParam && !isoDate.test(toParam))) {
+    return NextResponse.json({ error: "invalid_date" }, { status: 400 });
+  }
+  if (fromParam && toParam && fromParam >= toParam) {
+    return NextResponse.json({ error: "invalid_window" }, { status: 400 });
+  }
+  const windowOverride =
+    fromParam && toParam ? { from: fromParam, toExclusive: toParam } : {};
+
   try {
     const supabase = getSupabaseServiceClient();
     const result = await backfillBeds24Reservations(supabase, {
       organizationId: organizationIdParam ?? undefined,
       dryRun,
+      ...windowOverride,
     });
 
     const mode = result.partial

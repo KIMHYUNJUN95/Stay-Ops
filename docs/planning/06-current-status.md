@@ -16,13 +16,55 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
-- **주문·비품 어드민 운영 콘솔 — 기획 확정, 구현 전 (2026-07-16).** `/admin/orders`가 아직 구형 플랫
-  목록이라 청소·수리·점검·분실물과 같은 운영 콘솔 패턴으로 재구축하기로 기획 확정. **4뷰**(현황 보드 3칼럼
-  / 목록·이력 / **배송 예정 캘린더(어드민 신설)** / 종결), 능동 처리(승인·거절·주문처리·배송일수정·**재오픈**·
-  삭제), **긴급도 배지+필터+정렬 신설**. 재사용: 데이터 헬퍼·능동 처리 서버 액션·Excel/PDF 내보내기 전부
-  기존 것, **DB 스키마 변경 없음**(재오픈 서버 액션만 신규). 알림·입고(`received`)·카탈로그·재고는 범위 밖.
-  상세 `docs/product/10-order-request-workflow.md` → "주문·비품 어드민 운영 콘솔", 근거
-  `docs/planning/01-decision-log.md` → 2026-07-16.
+- **Beds24 실연동 활성화 + 예약 캘린더 스케일 버그 수정 — 구현 완료 (2026-07-17).** 프로덕션 웹훅을
+  활성화(`BEDS24_SYNC_PAUSED=false`, org 기본값, refresh token 경로)하고 8개 숙소 전부 웹훅 URL 확인 →
+  실시간 신규·취소 무손실. 운영 윈도우를 **당월+미래 2달(3개월)**로 확대(도착일 기준이라 예약 시점 무관).
+  광역 백필(2026-06~2027-12)로 먼 미래 예약 seed(사무실 org 1815건, 미래 확정 498, 2027-01까지). `Arakicho A`
+  external_property_id null 수정 + 룸 마스터/인벤토리 재동기화 → 룸 매핑 전부 정상(unknown 0). 예약 캘린더
+  버그 3종 수정: **크래시**(`.in()` 510건 URL 초과 → `chunk()` 200개 분할, 어드민+모바일 공통), **월-경계 바
+  누락**(다음달 1일 체크아웃이 점으로 찌부러짐 → `endsAfterMonth` `>`→`>=`), **어드민 청소 룸 라벨 raw
+  표시**("501_2"→"501", `getDisplayRoomLabel` 적용). 검증: tsc·lint·build 통과. 상세
+  `docs/planning/01-decision-log.md` → 2026-07-17, `docs/engineering/07-environment-setup.md` → Beds24.
+- **iPhone 설치형 PWA 홈 콜드스타트 경량화 — 구현 완료 (2026-07-17).** 홈 화면 추가로 설치한 iPhone
+  standalone 앱에서 첫 진입이 느리게 느껴지던 원인을 줄이기 위해, 실제 초기 경로의 지연 요소를
+  저위험 위주로 정리했다. `src/components/pwa/splash-screen.tsx` 의 런치 스플래시는
+  **약 850ms hold + 420ms fade → 160ms hold + 180ms fade** 로 대폭 축소됐고, 페이드 중 터치를
+  막지 않도록 **항상 `pointer-events: none`** 으로 바꿨다. `middleware.ts` 는 이제 보호 경로와
+  로그인 페이지가 아닌 요청에서 `supabase.auth.getUser()` 를 건너뛰어 공개 라우트의 불필요한 auth
+  왕복을 피한다. `/mobile` 홈(`src/app/mobile/page.tsx`)은 더 이상 `getOnboardingState()` 를 추가로
+  호출하지 않고 `getCurrentAppSession()` 하나만 사용해 미완성 세션을 `/onboarding` 으로 보낸다.
+  또한 홈의 중요 공지 카드는 `src/lib/announcements.ts` 신규 헬퍼
+  `getHomeImportantAnnouncement()` 으로 **최신 중요 공지 1건만** 읽도록 바꿨고, 초기 shell badge는
+  `src/lib/nav-badges.ts` 의 `getMobileNotificationBadge()` 로 **알림 카운트만** 먼저 읽어 전체
+  청소/요청/공지/게시판 badge fan-out을 첫 홈 렌더에서 제외했다. 결과적으로 iPhone 홈 화면 설치형
+  PWA의 콜드스타트 체감 지연이 줄었다. 세부 계약은 `docs/product/16-mobile-navigation.md` 의
+  launch splash / home cold-start query trimming 항목에 반영했다.
+
+- **주문·비품 어드민 운영 콘솔 — 구현 완료 (2026-07-16).** `/admin/orders`가 구형 플랫 목록에서 청소·
+  수리·점검·분실물과 같은 **4뷰 운영 콘솔**로 교체됐다: ① 현황 보드(승인대기/주문대기/주문완료 3칼럼) ②
+  목록·이력(기간·상태·건물·요청자·긴급도 필터+검색) ③ **배송 예정 캘린더**(어드민에 신설, 건물별 필터)
+  ④ 종결(ordered+closed 아카이브). KPI 5칸 + 우측 상세 패널(품목 도메인 배지·클릭 링크·사진, 타임라인,
+  능동 처리, 예외 개입) + 8종 액션 모달(approve/reject/process/editdeliv/reopen/correct/edit/delete).
+  **신규 마이그레이션 `202607190001_orders_console.sql`**이 `order_requests`에 `admin_memo text`
+  (nullable) 컬럼을 추가(RLS 불변, 원격 Supabase 적용 완료) — 기획 단계의 "스키마 변경 없음"에서 정정.
+  **신규 서버 액션 4종**(`rejectOrder`/`reopenOrder`/`correctOrderStatus`/`editOrder`,
+  `src/app/admin/orders/actions.ts`) — 기획 단계의 "재오픈 1종"에서 확대. VM 레이어
+  `src/lib/admin-orders.ts`(`getAdminOrders`)가 DB `received` 상태를 콘솔에서 `ordered`로 매핑(표시는
+  4상태만). **긴급도(urgency) 배지+필터+정렬 신설.** 구 상세 라우트 `/admin/orders/[id]`는 패널로 대체된
+  고아 라우트여서 **2026-07-17에 삭제**(파일·`[id]` 디렉토리 제거; 공유 헬퍼는 모바일 상세에서 계속 사용).
+  마이그레이션 `orders_console`는 원격 `schema_migrations`에 version `20260717005554`로 등록(2026-07-17).
+  기존 승인/주문처리/배송일수정/삭제 액션과
+  Excel/PDF 내보내기(`OrdersExportBar`)는 그대로 재사용. 알림·입고(`received`활성화)·카탈로그·재고는
+  범위 밖. `npm run lint` / `npm run build` 통과. 상세 `docs/product/10-order-request-workflow.md` →
+  "주문·비품 어드민 운영 콘솔 (구현 완료 — 2026-07-16)", 근거 `docs/planning/01-decision-log.md` →
+  2026-07-16 "Status update".
+- **주문·비품 어드민 운영 콘솔 — 기획 확정, 구현 전 (2026-07-16, → 위 항목에서 같은 날 구현 완료됨).**
+  `/admin/orders`가 아직 구형 플랫 목록이라 청소·수리·점검·분실물과 같은 운영 콘솔 패턴으로 재구축하기로
+  기획 확정. **4뷰**(현황 보드 3칼럼 / 목록·이력 / **배송 예정 캘린더(어드민 신설)** / 종결), 능동 처리
+  (승인·거절·주문처리·배송일수정·**재오픈**·삭제), **긴급도 배지+필터+정렬 신설**. 재사용: 데이터 헬퍼·
+  능동 처리 서버 액션·Excel/PDF 내보내기 전부 기존 것, DB 스키마 변경 없음(재오픈 서버 액션만 신규) —
+  **이 기획 당시 예상은 위 구현 완료 항목에서 정정됨(admin_memo 컬럼 추가, 신규 액션 4종)**. 알림·
+  입고(`received`)·카탈로그·재고는 범위 밖. 근거 `docs/planning/01-decision-log.md` → 2026-07-16.
 - **대시보드 분실물 관리 콘솔 — 구현 완료 (빌드 그린) (2026-07-16).** `/admin/lost-found`가 목록+필터폼
   에서 **4뷰 운영 콘솔**로 교체됐다: ① 현황 보드(접수/보관중/폐기예정) ② 목록·이력 ③ **완료**(반환+폐기
   아카이브 — 반환 방식·송장·종결시각) ④ **폐기 내역**(폐기됨만, 삭제 예정일 D-day·90일 자동삭제 안내

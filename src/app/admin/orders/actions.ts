@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { adminNavigation, getNavigationLabel } from "@/config/navigation";
 import { requireAdminSession } from "@/lib/admin-session";
 import { buildAdminExportMeta, compactRangePart, type AdminExportMeta } from "@/lib/admin-export-meta";
@@ -10,17 +11,21 @@ import {
   type AdminTableColumn,
   type AdminTableSheet,
 } from "@/lib/admin-table-workbook";
+import { canForceCompleteCleaning } from "@/lib/cleaning";
 import { getDictionary } from "@/lib/i18n";
 import {
   getOrgOrderRequests,
   orderRequestStatuses,
   parseOrderItems,
+  type OrderRequestItem,
   type OrderRequestStatus,
 } from "@/lib/order-requests";
 import { parseRequestDateRange } from "@/lib/request-filters";
 import { resolveRequestLocation } from "@/lib/request-location";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
 import type { AppSession } from "@/lib/session";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { Json } from "@/types/database";
 
 // Excel / PDF 내보내기 for 주문·비품. Replaced the old CSV download on 2026-07-14 — the client sends
 // only the current filter values and this action re-queries the list server-side, so the file always
@@ -165,4 +170,237 @@ export async function exportOrdersReport(
   } catch {
     return { ok: false, reason: "error" };
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 어드민 주문·비품 콘솔 — 예외 개입 액션(거절/재오픈/상태 정정/내용 수정).
+//
+// 일반 처리(승인/주문처리/배송일수정/삭제)는 기존 액션을 콘솔 클라이언트가 직접 재사용한다:
+// updateOrderRequestStatus·updateOrderDeliveryDate(src/app/mobile/requests/orders/actions.ts),
+// deleteOrderRequest(src/app/mobile/requests/delete-actions.ts). 아래는 관리자 예외 경로다.
+// 청소 강제완료와 같은 역할 게이트(canForceCompleteCleaning)를 쓴다.
+// See docs/product/10-order-request-workflow.md.
+
+type OrderActionResult =
+  | { ok: true }
+  | { ok: false; reason: "forbidden" | "invalid" | "not_found" | "failed" };
+
+function isValidUUID(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+function revalidateOrders() {
+  revalidatePath("/admin/orders");
+  revalidatePath("/mobile/requests");
+}
+
+// 예외 개입의 공통 진입 가드: 세션 · 역할 게이트 · UUID.
+async function requireOrderAction(orderId: string) {
+  const session = await requireAdminSession();
+  if (!canForceCompleteCleaning(session.user.role)) {
+    return { ok: false as const, result: { ok: false, reason: "forbidden" } as OrderActionResult };
+  }
+  if (!isValidUUID(orderId)) {
+    return { ok: false as const, result: { ok: false, reason: "invalid" } as OrderActionResult };
+  }
+  return { ok: true as const, session };
+}
+
+// 진행 중인 건을 거절/종결한다. admin_memo에 거절 사유를 남기고 배송 정보는 초기화한다.
+export async function rejectOrder(input: {
+  orderId: string;
+  reason: string;
+}): Promise<OrderActionResult> {
+  const gate = await requireOrderAction(input.orderId);
+  if (!gate.ok) return gate.result;
+  const { session } = gate;
+
+  const supabase = await getSupabaseServerClient();
+  const { data: existing } = await supabase
+    .from("order_requests")
+    .select("id, status")
+    .eq("id", input.orderId)
+    .eq("organization_id", session.organization.id)
+    .maybeSingle();
+  if (!existing) return { ok: false, reason: "not_found" };
+  if ((existing as { status: string }).status === "closed") {
+    return { ok: false, reason: "invalid" };
+  }
+
+  const { data: updated, error } = await supabase
+    .from("order_requests")
+    .update({
+      status: "closed",
+      admin_memo: input.reason.trim() || null,
+      delivery_date: null,
+      delivery_start_date: null,
+      delivery_end_date: null,
+    } as never)
+    .eq("id", input.orderId)
+    .eq("organization_id", session.organization.id)
+    .select("id");
+
+  if (error) return { ok: false, reason: "failed" };
+  if (!updated || updated.length === 0) return { ok: false, reason: "not_found" };
+
+  revalidateOrders();
+  return { ok: true };
+}
+
+// 종결된 건을 다시 승인 대기로 되돌린다. 배송 정보와 거절 사유를 초기화한다.
+export async function reopenOrder(input: {
+  orderId: string;
+}): Promise<OrderActionResult> {
+  const gate = await requireOrderAction(input.orderId);
+  if (!gate.ok) return gate.result;
+  const { session } = gate;
+
+  const supabase = await getSupabaseServerClient();
+  const { data: existing } = await supabase
+    .from("order_requests")
+    .select("id, status")
+    .eq("id", input.orderId)
+    .eq("organization_id", session.organization.id)
+    .maybeSingle();
+  if (!existing) return { ok: false, reason: "not_found" };
+  if ((existing as { status: string }).status !== "closed") {
+    return { ok: false, reason: "invalid" };
+  }
+
+  const { data: updated, error } = await supabase
+    .from("order_requests")
+    .update({
+      status: "requested",
+      delivery_date: null,
+      delivery_start_date: null,
+      delivery_end_date: null,
+      admin_memo: null,
+    } as never)
+    .eq("id", input.orderId)
+    .eq("organization_id", session.organization.id)
+    .select("id");
+
+  if (error) return { ok: false, reason: "failed" };
+  if (!updated || updated.length === 0) return { ok: false, reason: "not_found" };
+
+  revalidateOrders();
+  return { ok: true };
+}
+
+// 관리자가 잘못된 상태를 임의 상태로 되돌리는 예외 경로. requested/approved면 배송 정보를 비우고,
+// closed가 아니면 거절 사유(admin_memo)를 지운다.
+export async function correctOrderStatus(input: {
+  orderId: string;
+  status: "requested" | "approved" | "ordered" | "closed";
+  memo: string;
+}): Promise<OrderActionResult> {
+  const gate = await requireOrderAction(input.orderId);
+  if (!gate.ok) return gate.result;
+  const { session } = gate;
+
+  if (!["requested", "approved", "ordered", "closed"].includes(input.status)) {
+    return { ok: false, reason: "invalid" };
+  }
+
+  const updatePayload: Record<string, unknown> = { status: input.status };
+  if (input.status === "requested" || input.status === "approved") {
+    updatePayload.delivery_date = null;
+    updatePayload.delivery_start_date = null;
+    updatePayload.delivery_end_date = null;
+  }
+  if (input.status !== "closed") {
+    updatePayload.admin_memo = null;
+  } else {
+    const memo = input.memo.trim();
+    if (memo) updatePayload.admin_memo = memo;
+  }
+
+  const supabase = await getSupabaseServerClient();
+  const { data: updated, error } = await supabase
+    .from("order_requests")
+    .update(updatePayload as never)
+    .eq("id", input.orderId)
+    .eq("organization_id", session.organization.id)
+    .select("id");
+
+  if (error) return { ok: false, reason: "failed" };
+  if (!updated || updated.length === 0) return { ok: false, reason: "not_found" };
+
+  revalidateOrders();
+  return { ok: true };
+}
+
+// 주문 내용(제목/긴급도/사유/품목)을 관리자가 직접 수정한다. 품목 사진(imageUrls)은 기존 항목에서
+// 보존한다 — 이름이 같거나 같은 인덱스의 기존 항목을 찾아 imageUrls와 id를 물려준다.
+export async function editOrder(input: {
+  orderId: string;
+  title: string;
+  urgency: "high" | "normal";
+  reason: string;
+  items: { name: string; qty: string; link: string; memo: string }[];
+}): Promise<OrderActionResult> {
+  const gate = await requireOrderAction(input.orderId);
+  if (!gate.ok) return gate.result;
+  const { session } = gate;
+
+  if (input.urgency !== "high" && input.urgency !== "normal") {
+    return { ok: false, reason: "invalid" };
+  }
+
+  const supabase = await getSupabaseServerClient();
+  const { data: existing } = await supabase
+    .from("order_requests")
+    .select("id, title, items")
+    .eq("id", input.orderId)
+    .eq("organization_id", session.organization.id)
+    .maybeSingle();
+  if (!existing) return { ok: false, reason: "not_found" };
+
+  const existingRow = existing as { id: string; title: string; items: Json };
+  const previousItems = parseOrderItems(existingRow.items);
+
+  const cleaned = input.items.filter((item) => item.name.trim().length > 0);
+  if (cleaned.length === 0) return { ok: false, reason: "invalid" };
+
+  const used = new Set<number>();
+  const nextItems: OrderRequestItem[] = cleaned.map((item, index) => {
+    const name = item.name.trim();
+    // 사진 보존: 같은 이름의 미사용 기존 항목을 먼저, 없으면 같은 인덱스를 매칭한다.
+    let matchIndex = previousItems.findIndex(
+      (prev, i) => !used.has(i) && prev.name === name,
+    );
+    if (matchIndex === -1 && index < previousItems.length && !used.has(index)) {
+      matchIndex = index;
+    }
+    const match = matchIndex >= 0 ? previousItems[matchIndex] : undefined;
+    if (matchIndex >= 0) used.add(matchIndex);
+
+    const imageUrls = match?.imageUrls;
+    return {
+      id: match?.id || crypto.randomUUID(),
+      name,
+      quantity: item.qty.trim() || "1",
+      link: item.link.trim(),
+      memo: item.memo.trim(),
+      ...(imageUrls && imageUrls.length > 0 ? { imageUrls } : {}),
+    };
+  });
+
+  const { data: updated, error } = await supabase
+    .from("order_requests")
+    .update({
+      title: input.title.trim() || existingRow.title,
+      urgency: input.urgency,
+      reason: input.reason.trim(),
+      items: nextItems as unknown as Json,
+    } as never)
+    .eq("id", input.orderId)
+    .eq("organization_id", session.organization.id)
+    .select("id");
+
+  if (error) return { ok: false, reason: "failed" };
+  if (!updated || updated.length === 0) return { ok: false, reason: "not_found" };
+
+  revalidateOrders();
+  return { ok: true };
 }

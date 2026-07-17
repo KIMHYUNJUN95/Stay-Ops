@@ -195,6 +195,28 @@ export async function getVisibleAnnouncements(session: AppSession) {
   );
 }
 
+export async function getHomeImportantAnnouncement(session: AppSession) {
+  if (session.organization.id === "platform") {
+    return null;
+  }
+
+  const supabase = await getSupabaseServerClient();
+  const { data } = await supabase
+    .from("announcements")
+    .select("id, title, content")
+    .eq("organization_id", session.organization.id)
+    .eq("status", "published")
+    .eq("is_important", true)
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return (
+    (data as Pick<AnnouncementRow, "id" | "title" | "content"> | null) ?? null
+  );
+}
+
 export async function getVisibleAnnouncementById(
   session: AppSession,
   id: string,

@@ -22,7 +22,7 @@ import { HomeRefreshButton } from "@/components/mobile/home-refresh-button";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getCurrentOpenSession } from "@/lib/attendance-sessions";
 import { getDictionary } from "@/lib/i18n";
-import { getMobileNavBadges } from "@/lib/nav-badges";
+import { getMobileNotificationBadge } from "@/lib/nav-badges";
 import {
   formatActivityTimeJst,
   getHomeActiveCleaningSession,
@@ -31,8 +31,7 @@ import {
   type HomeActivityEvent,
   type HomeReservationRow,
 } from "@/lib/home";
-import { getOnboardingState } from "@/lib/onboarding";
-import { getVisibleAnnouncements } from "@/lib/announcements";
+import { getHomeImportantAnnouncement } from "@/lib/announcements";
 import {
   CANONICAL_TO_BUILDING_KEY,
   getCanonicalPropertyName,
@@ -152,16 +151,9 @@ function formatGreetingDate(locale: Locale): string {
 }
 
 export default async function MobileHomePage() {
-  const [state, session] = await Promise.all([
-    getOnboardingState(),
-    getCurrentAppSession(),
-  ]);
+  const session = await getCurrentAppSession();
 
-  if (state.status === "unauthenticated") {
-    redirect("/auth/login?next=/mobile");
-  }
-
-  if (state.status !== "ready" || !session) {
+  if (!session) {
     redirect("/onboarding");
   }
 
@@ -174,18 +166,17 @@ export default async function MobileHomePage() {
   const m = dictionary.mobile;
   const a = dictionary.attendance;
 
-  const [checkInOut, todayActivity, activeSession, announcements, openAttendanceSession] =
+  const [checkInOut, todayActivity, activeSession, latestAnnouncement, openAttendanceSession] =
     await Promise.all([
       getHomeCheckInOutReservations(session),
       getHomeTodayActivity(session, 10),
       getHomeActiveCleaningSession(session),
-      getVisibleAnnouncements(session),
+      getHomeImportantAnnouncement(session),
       getCurrentOpenSession(session.organization.id, session.user.id),
     ]);
 
   const buildingLabels = dictionary.cleaning.buildingLabels;
 
-  const latestAnnouncement = announcements.find((announcement) => announcement.is_important) ?? null;
   const lastUpdatedTime = formatActivityTimeJst(new Date().toISOString());
 
   const greetDate = formatGreetingDate(locale);
@@ -227,7 +218,7 @@ export default async function MobileHomePage() {
     ? `/mobile/announcements/${latestAnnouncement.id}`
     : "/mobile/announcements";
 
-  const navBadges = await getMobileNavBadges();
+  const navBadges = await getMobileNotificationBadge();
 
   return (
     <MobileShell activeItem="home" badges={navBadges} title={m.homeTitle}>

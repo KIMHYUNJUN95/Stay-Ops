@@ -432,10 +432,13 @@ input[type="date"] {
 /* iOS Safari renders the value via ::-webkit-date-and-time-value with its own
    intrinsic width / centering / margin, which stretches the field and pushes
    the text off-baseline. Force it to follow the container box (left-aligned,
-   no extra margin). Desktop is unaffected. */
+   no extra margin). Desktop is unaffected.
+   The block-axis `auto` margin is the UA's vertical centering inside the
+   flex shadow container — keep it, or the value sits at the top of the h-11 box. */
 input[type="date"]::-webkit-date-and-time-value {
   text-align: left;
-  margin: 0;
+  margin-inline: 0;
+  margin-block: auto;
 }
 
 input[type="date"]::-webkit-datetime-edit {

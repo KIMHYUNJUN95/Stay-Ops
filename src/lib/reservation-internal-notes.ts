@@ -1,7 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { chunk } from "@/lib/utils";
 import type { Database } from "@/types/database";
+
+// PostgREST puts `.in(...)` values in the request URL. A busy calendar month can hold hundreds of
+// reservations (one org saw 510 in a single month), and 500+ UUIDs overflow the gateway's URL-length
+// limit, failing the whole query with a low-level `fetch failed`. Query in batches instead. 200 UUIDs
+// keeps each URL well under ~8KB.
+const RESERVATION_ID_QUERY_CHUNK = 200;
 
 type ReservationInternalNoteRow =
   Database["public"]["Tables"]["reservation_internal_notes"]["Row"];
@@ -19,22 +26,28 @@ export async function listReservationInternalNotes(
   }
 
   const supabase = await getSupabaseServerClient();
-  const { data, error } = await untyped(supabase)
-    .from("reservation_internal_notes")
-    .select("reservation_id, note")
-    .eq("organization_id", session.organization.id)
-    .in("reservation_id", reservationIds);
+  const result: Record<string, string> = {};
 
-  if (error) {
-    throw new Error(error.message);
+  for (const idsChunk of chunk(reservationIds, RESERVATION_ID_QUERY_CHUNK)) {
+    const { data, error } = await untyped(supabase)
+      .from("reservation_internal_notes")
+      .select("reservation_id, note")
+      .eq("organization_id", session.organization.id)
+      .in("reservation_id", idsChunk);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    for (const row of (data ?? []) as Pick<
+      ReservationInternalNoteRow,
+      "reservation_id" | "note"
+    >[]) {
+      result[row.reservation_id] = row.note;
+    }
   }
 
-  return ((data ?? []) as Pick<ReservationInternalNoteRow, "reservation_id" | "note">[]).reduce<
-    Record<string, string>
-  >((acc, row) => {
-    acc[row.reservation_id] = row.note;
-    return acc;
-  }, {});
+  return result;
 }
 
 export async function saveReservationInternalNote(input: {

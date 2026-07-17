@@ -38,7 +38,8 @@ Not included:
 
 ## Required Fields
 
-Actual DB schema (`order_requests` table, migrations `202606010001`, `202606010002`, `202606020001`):
+Actual DB schema (`order_requests` table, migrations `202606010001`, `202606010002`, `202606020001`,
+`202607190001`):
 
 ```txt
 id                    uuid primary key
@@ -55,6 +56,8 @@ items                 jsonb not null default '[]'     -- per-item imageUrls stor
 delivery_date         date    -- single delivery date; populated when status transitions to 'ordered'
 delivery_start_date   date    -- range start (mutually exclusive with delivery_date point mode)
 delivery_end_date     date    -- range end; constraint: start <= end, both null or both set
+admin_memo            text    -- admin exception-handling memo (reject reason / status-correction memo);
+                                 added 2026-07-19 migration, distinct from requester reason/description
 created_at            timestamptz not null default now()
 updated_at            timestamptz not null default now()
 ```
@@ -181,7 +184,7 @@ Status meaning:
 - `requested`: requester submitted request
 - `approved`: office/admin approved request
 - `ordered`: office/admin completed order processing (주문 처리 완료); this is the terminal active state in MVP
-- `received`: item received — not shown as an active step in the current UI timeline; maps to the "ordered" progress position if encountered
+- `received`: item received — not shown as an active step in the current UI timeline; maps to the "ordered" progress position if encountered. In the admin operations console (`/admin/orders`, `getAdminOrders` VM layer, implemented 2026-07-16), `received` is explicitly **mapped/displayed as `ordered`** — the console exposes only 4 visible statuses (requested/approved/ordered/closed); `received` is kept in the DB enum for a possible future receiving-tracking feature but stays an inactive step everywhere in the UI.
 - `closed`: request closed/rejected (terminal; timeline shown as neutral/inactive, not full-progress)
 
 User-facing label policy:
@@ -293,63 +296,53 @@ Admin web (deferred):
 
 ## Admin Surface
 
-### Admin List (`/admin/orders`)
+### Admin Console (`/admin/orders`) — replaced the old flat list (implemented 2026-07-16)
 
-- Shows all order requests for the organization.
-- Columns: building / room, title, status badge, requester, requested at.
-- Filter controls: date range (startDate / endDate) rendered via the shared
-  `<DateRangeFormField>` (`src/components/admin/shared/date-range-form-field.tsx`, an
-  `AdminDateRangePicker` popover + hidden inputs — replaced the two native `<input type="date">`
-  fields on 2026-07-14; `startDate`/`endDate` search params and deep links are unchanged), status.
-- **Export = Excel + PDF (2026-07-14; was CSV).** `OrdersExportBar`
-  (`src/components/admin/orders/orders-export-bar.tsx`) renders the canonical `<AdminExportButtons>`.
-  New server actions `exportOrdersWorkbook(filters)` / `exportOrdersReport(filters)`
-  (`src/app/admin/orders/actions.ts`, new file) — gated by `requireAdminSession()` + organization scope.
-  The client sends only the current filter values; the server re-queries via `getOrgOrderRequests` so
-  the file always matches the filtered screen. Columns (carried over from the old CSV headers): building
-  / location / title / status / urgency / requester / created-at / item summary. Output uses the shared
-  admin export builders (`src/lib/admin-table-workbook.ts` / `admin-table-report.ts`); language is
-  resolved server-side from `session.user.preferredLanguage`. **The old `/api/admin/export/orders` CSV
-  route no longer exists** — all `/api/admin/export/*` endpoints were removed as part of a console-wide
-  export unification (see `docs/product/07-cleaning-workflow.md`, `docs/product/09-lost-found-workflow.md`).
-- Each row links to the admin order detail page (`/admin/orders/[id]`).
+`/admin/orders` is now the **주문·비품 어드민 운영 콘솔** described above (4 views: 현황 보드 / 목록·이력
+/ 배송 예정 캘린더 / 종결, KPI strip, right-side detail panel, 8 action modals) — see "주문·비품 어드민
+운영 콘솔 (구현 완료 — 2026-07-16)" for the full spec. The pre-2026-07-16 flat list (Card + GET
+filter form + table + export bar, each row linking to `/admin/orders/[id]`) no longer exists as the
+page's UI; its filters and export behavior were carried into the console's 목록·이력 view.
 
-### Admin Detail (`/admin/orders/[id]`)
+- **Export = Excel + PDF (unchanged since 2026-07-14).** `OrdersExportBar`
+  (`src/components/admin/orders/orders-export-bar.tsx`) renders the canonical `<AdminExportButtons>`,
+  reused as-is inside the console. Server actions `exportOrdersWorkbook(filters)` /
+  `exportOrdersReport(filters)` (`src/app/admin/orders/actions.ts`) — gated by `requireAdminSession()` +
+  organization scope. The client sends only the current filter values; the server re-queries via
+  `getOrgOrderRequests` so the file always matches the filtered screen. Columns: building / location /
+  title / status / urgency / requester / created-at / item summary. Output uses the shared admin export
+  builders (`src/lib/admin-table-workbook.ts` / `admin-table-report.ts`); language is resolved
+  server-side from `session.user.preferredLanguage`. No CSV path exists.
+- Each row/card opens the **right-side detail panel** in place (no navigation to a separate detail
+  route) — see "우측 상세 패널" above.
 
-Added 2026-06-04. Admins now have a dedicated order detail page on the admin web surface.
+### Admin Detail (`/admin/orders/[id]`) — removed (2026-07-17)
 
-What the admin detail page shows:
+Added 2026-06-04 as a dedicated order detail page. As of the 2026-07-16 console rebuild, the console's
+right-side detail panel provides full parity (and more — item link domain badges, urgency, exception
+actions) with what this page showed, and no console UI linked to it anymore. The orphaned route file
+(`src/app/admin/orders/[id]/page.tsx`) was **deleted on 2026-07-17**; the `[id]` directory no longer
+exists under `/admin/orders`. The shared helpers it used (`OrderActionBar`, `getOrderRequestById`,
+`parseOrderItems`) remain in use by the mobile order detail (`/mobile/requests/orders/[id]`).
 
-- Order title, status badge, and order ID.
-- Building and room.
-- Requester name.
-- Requested-at timestamp.
-- Expected delivery date or date range (if set).
-- Memo / reason (if provided).
-- Requested items: name, quantity, optional reference link, per-item images.
-- Status timeline progress bar (requested → approved → ordered).
-- Action bar: Approve, Process Order (with delivery date picker), Reject.
+Historical reference — what the page showed while it was the primary admin detail surface (2026-06-04
+– 2026-07-16): order title/status badge/ID, building/room, requester, requested-at, expected delivery
+date/range, memo/reason, requested items (name/quantity/link/images), status timeline (requested →
+approved → ordered), action bar (Approve, Process Order with delivery date picker, Reject). It reused
+`getOrderRequestById`, `parseOrderItems`, `OrderActionBar`, and `updateOrderRequestStatus` — all of
+which the console also reuses.
 
-Access control:
+## 주문·비품 어드민 운영 콘솔 (구현 완료 — 2026-07-16)
 
-- Page requires an admin session (`requireAdminSession()`).
-- Data is scoped to the admin's organization via `getOrderRequestById()`.
-- Returns `404` for unknown or out-of-organization IDs.
-- Status transitions use the same `updateOrderRequestStatus` server action as the mobile surface; role and transition validation is enforced server-side.
+`/admin/orders`가 **구형 플랫 목록**(Card + GET 필터폼 + 테이블 + 내보내기 바)이라, 청소·수리·점검·
+분실물이 모두 옮겨간 **운영 콘솔** 패턴에서 혼자 벗어나 있었다. 같은 공용 디자인 계약
+(KPI strip + 뷰 전환 + 우측 상세 패널 + 공용 primitives)으로 재구축을 기획하고, **같은 사이클(2026-07-16)에
+구현까지 완료했다.** 결정 근거는 `docs/planning/01-decision-log.md` → 2026-07-16.
 
-Business logic reuse:
-
-- `getOrderRequestById` — shared with mobile detail.
-- `parseOrderItems` — shared with mobile detail.
-- `OrderActionBar` component — shared with mobile detail; `router.refresh()` updates the admin page after a status change.
-- `updateOrderRequestStatus` server action — shared with mobile detail; handles approve, ordered (with delivery date), and reject transitions.
-
-## 주문·비품 어드민 운영 콘솔 (기획 확정 — 2026-07-16, 구현 전)
-
-`/admin/orders`가 아직 **구형 플랫 목록**(Card + GET 필터폼 + 테이블 + 내보내기 바)이라, 청소·수리·점검·
-분실물이 모두 옮겨간 **운영 콘솔** 패턴에서 혼자 벗어나 있다. 이를 같은 공용 디자인 계약
-(KPI strip + 뷰 전환 + 우측 상세 패널 + 공용 primitives)으로 재구축한다. 결정 근거는
-`docs/planning/01-decision-log.md` → 2026-07-16.
+구현 컴포넌트: `src/components/admin/orders/*`(8개 컴포넌트 + `orders-console.css` +
+`orders-console-data.ts`) + VM 레이어 `src/lib/admin-orders.ts`(`getAdminOrders`) + 서버 액션
+`src/app/admin/orders/actions.ts`. `/admin/orders` 페이지가 `AdminShell` + `<OrdersConsole>`로 전면
+교체됐다. i18n: `dictionary.admin.orders.console`(ko/ja/en).
 
 ### 성격
 
@@ -360,10 +353,21 @@ Business logic reuse:
 
 - **데이터**: `getOrgOrderRequests` / `getOrderRequestById` / `parseOrderItems`
   (`src/lib/order-requests.ts`) 그대로.
-- **능동 처리 서버 액션**: `updateOrderRequestStatus`(승인/주문처리/거절) ·
-  `updateOrderDeliveryDate`(배송일 수정) · 삭제 액션 재사용.
-- **신규 서버 액션은 재오픈 1종만** — 아래 참고. **DB 스키마 변경 없음.**
-- 콘솔은 껍데기(뷰 전환 + KPI + 상세 패널 + 모달)만 새로 만든다.
+- **능동 처리 서버 액션**: `updateOrderRequestStatus`(승인/주문처리 — mobile orders actions) ·
+  `updateOrderDeliveryDate`(배송일 수정) · `deleteOrderRequest`(삭제, delete-actions) 재사용.
+- **신규 서버 액션 4종** (`src/app/admin/orders/actions.ts`, 구현 완료 — 계획했던 "재오픈 1종"에서
+  범위가 커졌다): `rejectOrder` · `reopenOrder` · `correctOrderStatus` · `editOrder`. 모두
+  `requireAdminSession()` + 역할 게이트(`canForceCompleteCleaning(role)`) + 조직 스코프 + UUID 검증,
+  반환 `{ok:true}|{ok:false, reason:"forbidden"|"invalid"|"not_found"|"failed"}`. 상세는 아래
+  "능동 처리 · 예외 개입 액션".
+- **DB 스키마 변경 있음(구현 완료).** 마이그레이션 `202607190001_orders_console.sql`이
+  `order_requests`에 `admin_memo text`(nullable) 컬럼을 추가했다 — 관리자 예외 개입 메모(거절 사유·
+  상태정정 메모)를 저장하며 요청자용 `reason`/`description`과 구분된다. RLS 정책은 불변. `src/types/database.ts`의
+  `order_requests` Row/Insert/Update에 반영 완료. 원격 Supabase에 적용 완료이며, 원격 마이그레이션 이력
+  (`schema_migrations`)에도 `orders_console`(version `20260717005554`)로 등록됨(DDL은 `if not exists`라
+  재적용 안전). 파일명 번호 `202607190001`은 lostfound 마이그레이션 뒤를 잇는 순차 스탬프이고, 실제
+  구현일은 2026-07-16이다.
+- 콘솔 껍데기(뷰 전환 + KPI + 상세 패널 + 모달)도 함께 구현했다.
 
 ### KPI strip (5)
 
@@ -388,15 +392,25 @@ Business logic reuse:
 
 ### 능동 처리 · 예외 개입 액션
 
-- **승인** — `requested → approved`.
-- **거절** — 진행 중 어느 상태든 → `closed`, 사유 입력(기존 동작 유지).
-- **주문 처리** — `approved → ordered`, **배송일(point/range) 필수 입력**(공용 날짜 피커).
-- **배송일 수정** — `ordered` 상태에서 배송 컬럼만 갱신(상태 불변).
-- **재오픈(reopen)** — **신규.** `closed` 건을 `requested`로 되돌린다(관리자 실수·재요청 대응, 분실물
-  복원과 같은 예외 개입 개념). 되돌릴 때 배송 컬럼(`delivery_date`/`delivery_start_date`/
-  `delivery_end_date`)을 **초기화**한다(아직 주문 전 단계로 돌아가므로). 서버 액션 신규 필요, `closed`가
-  아니면 거부. (문서 하단 Open Question "거절 건 재제출" 을 해소한다.)
-- **삭제(예외 개입)** — 기존 상태별 권한 제약(`ordered`/`received`는 어드민만) + 확인 모달 + 하드 삭제 그대로.
+- **승인** — `requested → approved` (`updateOrderRequestStatus` 재사용).
+- **거절** — `rejectOrder({orderId, reason})` (**신규**). 진행 중 건을 `closed` + `admin_memo`=사유로
+  전환하고 배송 3컬럼(`delivery_date`/`delivery_start_date`/`delivery_end_date`)을 null로 초기화한다.
+  이미 `closed`면 `invalid`.
+- **주문 처리** — `approved → ordered`, **배송일(point/range) 필수 입력**(공용 날짜 피커,
+  `updateOrderRequestStatus` 재사용).
+- **배송일 수정** — `updateOrderDeliveryDate`, `ordered` 상태에서 배송 컬럼만 갱신(상태 불변).
+- **재오픈(reopen)** — `reopenOrder({orderId})` (**신규**). `closed` 건을 `requested`로 되돌린다(관리자
+  실수·재요청 대응, 분실물 복원과 같은 예외 개입 개념). 배송 컬럼과 `admin_memo`를 함께 초기화한다(아직
+  주문 전 단계로 돌아가므로). `closed`가 아니면 `invalid`. (문서 하단 Open Question "거절 건 재제출"을
+  해소한다.)
+- **상태 정정(correct)** — `correctOrderStatus({orderId, status, memo})` (**신규**). 임의 상태로
+  직접 정정한다. `requested`/`approved`로 정정하면 배송 컬럼을 null로 초기화하고, `closed`가 아니면
+  `admin_memo`도 null로 초기화한다.
+- **요청 수정(edit)** — `editOrder({orderId, title, urgency, reason, items})` (**신규**). 제목·긴급도·
+  사유·품목을 관리자가 직접 수정한다. 품목의 사진(`imageUrls`)과 `id`는 이름 우선(인덱스 폴백)으로 기존
+  값을 보존한다. 이름이 빈 품목은 제거하며, 결과가 0개면 `invalid`.
+- **삭제(예외 개입)** — `deleteOrderRequest` 재사용. 기존 상태별 권한 제약(`ordered`/`received`는
+  어드민만) + 확인 모달 + 하드 삭제 그대로.
 
 ### 긴급도(urgency) 노출 (신규 — 지금까지 UI 미노출)
 
@@ -422,6 +436,18 @@ Business logic reuse:
 
 즉 요청자가 모바일에서 만든 주문(품목·링크·사진·긴급도·건물)을 관리자가 대시보드 한 곳에서 **승인 →
 주문 → 배송일 기입 → 캘린더 자동 반영**까지 끝낸다.
+
+**8종 액션 모달**로 구현됐다: approve · reject · process · editdeliv(배송일 수정) · reopen · correct ·
+edit · delete. 배송일 피커는 공용 `.calpop` 크롬을 재사용(단일/기간 토글). KPI strip은 위 "KPI strip (5)"
+정의 그대로 5칸 구현됐다.
+
+### 구 상세 라우트 상태 — 삭제 완료 (2026-07-17)
+
+`src/app/admin/orders/[id]/page.tsx`(구 모바일식 상세 페이지)는 콘솔 우측 상세 패널이 완전히 대체하여
+인바운드 링크가 0이던 **고아 라우트**였고, **2026-07-17에 파일·`[id]` 디렉토리를 삭제**했다. 삭제로
+인해 죽는 헬퍼는 없다(`OrderActionBar`·`getOrderRequestById`·`parseOrderItems`는 모바일 주문 상세
+`/mobile/requests/orders/[id]`에서 계속 사용). 이제 `/admin/orders` 아래에는 `page.tsx`와 `actions.ts`만
+남는다.
 
 ### 범위 밖 / 후속
 
@@ -501,7 +527,7 @@ Important:
 
 ## Open Questions
 
-- ~~Should rejected requests be editable and resubmitted?~~ → **해소(2026-07-16 기획):** 어드민 콘솔의
+- ~~Should rejected requests be editable and resubmitted?~~ → **해소·구현 완료(2026-07-16):** 어드민 콘솔의
   **재오픈(reopen)** 액션으로 `closed → requested` 되돌리기를 지원한다. 위 "주문·비품 어드민 운영 콘솔"
   참고.
 - Should quantity have unit input, such as boxes, pieces, sets?
@@ -514,7 +540,7 @@ Important:
 - Field Manager cannot process status; only office-level roles can (owner, office_admin, cs_staff, developer_super_admin).
 - Items are stored as a single JSONB array, not individual rows, for MVP simplicity.
 - `delivery_date` is required (not optional) when marking as ordered.
-- **어드민 주문 콘솔 재구축 (2026-07-16 기획 확정, 구현 전):** `/admin/orders`를 운영 콘솔(4뷰: 현황
-  보드/목록·이력/배송 예정 캘린더/종결)로 재구축. 배송 캘린더를 어드민에도 신설, 긴급도 배지+필터+정렬
-  노출, 거절 건 재오픈 추가. 스키마 변경 없음(재오픈 서버 액션만 신규). 상세는 위 "주문·비품 어드민 운영
-  콘솔" 절.
+- **어드민 주문 콘솔 재구축 (2026-07-16 기획 확정, 같은 사이클에 구현 완료):** `/admin/orders`를 운영
+  콘솔(4뷰: 현황 보드/목록·이력/배송 예정 캘린더/종결)로 재구축. 배송 캘린더를 어드민에도 신설, 긴급도
+  배지+필터+정렬 노출, 거절/재오픈/상태정정/요청수정 4종 신규 서버 액션 추가. `order_requests`에
+  `admin_memo` 컬럼 추가(스키마 변경). 상세는 위 "주문·비품 어드민 운영 콘솔" 절.

@@ -817,7 +817,11 @@ export function AdminReservationConsole({
                                     const checkOutDay = Number(reservation.checkOutDate.slice(8));
                                     const hasInternalNote = hasReservationNote(reservation.id);
                                     const startsBeforeMonth = reservation.checkInDate < `${selectedMonth}-01`;
-                                    const endsAfterMonth = reservation.checkOutDate > `${nextMonth}-01`;
+                                    // Checkout ON the 1st of next month still occupies the whole last day of
+                                    // THIS month, so it must clamp to the month-end edge. Using `>` here left
+                                    // checkout==nextMonth-01 to fall through to `checkOutDay(=1) - 1 + 0.5`,
+                                    // collapsing multi-night stays that end on the 1st into a 0.75 dot.
+                                    const endsAfterMonth = reservation.checkOutDate >= `${nextMonth}-01`;
                                     const startUnit = startsBeforeMonth ? 0 : checkInDay - 1 + 0.5;
                                     const endUnit = endsAfterMonth ? dates.length : checkOutDay - 1 + 0.5;
                                     const span = Math.max(0.75, endUnit - startUnit);

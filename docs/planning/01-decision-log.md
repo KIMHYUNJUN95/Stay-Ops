@@ -2,6 +2,33 @@
 
 This file records important project decisions.
 
+## 2026-07-17 Beds24 실연동 활성화 + 예약 캘린더 스케일 버그 수정
+
+### 결정/작업
+
+- **웹훅 실시간 연동 활성화.** Vercel 프로덕션에 `BEDS24_SYNC_PAUSED=false`·`BEDS24_DEFAULT_ORGANIZATION_ID`
+  (사무실 org)·`BEDS24_API_REFRESH_TOKEN`을 설정하고 만료된 `BEDS24_API_TOKEN`을 삭제 → refresh token
+  자동 발급 경로 활성화. invite code는 `/authentication/setup`으로 1회 교환해 refresh token 획득.
+  웹훅은 8개 연동 숙소 전부에 설정됨(실시간 신규·취소 무손실).
+- **운영 윈도우 확대 (당월+1 → 당월+미래 2달, 3개월).** `getOperationalWindow()` (`reservations-backfill.ts`).
+  reconcile/크론이 이 창을 쓴다. 창은 **도착일(arrival) 기준 overlap**이라 예약 시점과 무관 —
+  "1년 전 예약, 내일 체크인"도 잡힌다. 근거: 체크인이 당월+미래 2달 안이면 무손실이어야 한다는 요구사항.
+- **광역 백필 기능.** `backfillBeds24Reservations`에 옵션 `from`/`toExclusive` (기본=운영 윈도우, 크론 불변),
+  dev 라우트 `/api/dev/beds24/backfill-reservations`에 `from`/`to` 파라미터. 2026-06~2027-12 1회 백필로
+  먼 미래 예약 seed(사무실 org 예약 1476→1815, 미래 확정 498, 2027-01까지).
+- **데이터 정합 수정.** `Arakicho A`의 `external_property_id`가 null이라 예약 176430(최다 숙소)이 매핑 실패
+  → `176430` 설정 후 전부 복구. 룸 마스터·인벤토리 재동기화. 테스트/artifact 예약 2건 삭제.
+- **예약 캘린더 스케일 버그 3종 수정:**
+  1. **크래시** — `listReservationInternalNotes`의 `.in(reservation_id, [510개])`가 URL 길이 초과로
+     `fetch failed`. `chunk()` 헬퍼(`utils.ts`)로 200개씩 분할. 어드민+모바일 캘린더 공통 해결.
+  2. **월-경계 바 누락** — `admin-reservation-console.tsx`에서 체크아웃이 다음달 1일인 예약이
+     `checkOutDay(=1)`로 계산돼 0.75칸 점으로 찌부러짐. `endsAfterMonth` 판정을 `>` → `>=`로 수정
+     (월말까지 clamp). 모바일·프린트 뷰는 date-diff/clamp 방식이라 애초에 정상.
+  3. **룸 라벨 표시** — 어드민 청소 콘솔이 표시용 `room`에 raw `canonicalRoomLabel`("501_2")을 노출
+     → `getDisplayRoomLabel`/`getDisplaySessionRoomLabel` 적용해 "501"로. 매칭용 `roomKey`는 raw 유지.
+     모바일·어드민 캘린더는 이미 display 함수 사용.
+- 검증: tsc·lint·build 통과.
+
 ## 2026-07-16 주문·비품 어드민 운영 콘솔 재구축 — 기획 확정 (구현 전)
 
 ### 배경
@@ -28,6 +55,21 @@ primitives)으로 재구축됐는데, `/admin/orders`만 **구형 플랫 목록*
 - **범위 밖**: 알림(막바지 일괄 구현 방침), 입고/`received` 활성화·비품 카탈로그·재고·단가(별도 워크플로 확장).
 
 상세 명세는 `docs/product/10-order-request-workflow.md` → "주문·비품 어드민 운영 콘솔".
+
+**Status update (2026-07-16): 구현 완료.** 위에서 기획한 대로 `/admin/orders`를 4뷰 운영 콘솔로
+구현했다(현황 보드 / 목록·이력 / 배송 예정 캘린더 / 종결). 계획 단계에서 "스키마 변경 없음 · 신규 액션
+재오픈 1종"으로 정했던 것이 구현 중 범위가 넓어졌다 — 실제로는 **신규 마이그레이션
+`202607190001_orders_console.sql`이 `order_requests`에 `admin_memo text`(nullable) 컬럼을 추가**했고
+(RLS 정책 불변, 원격 Supabase 적용 완료), **신규 서버 액션이 4종**(`rejectOrder`/`reopenOrder`/
+`correctOrderStatus`/`editOrder`, `src/app/admin/orders/actions.ts`)으로 늘었다. VM 레이어
+`src/lib/admin-orders.ts`(`getAdminOrders`)가 DB의 `received` 상태를 콘솔 표시에서 `ordered`로
+매핑한다(콘솔은 4개 표시 상태만 사용: requested/approved/ordered/closed). 배송 예정 캘린더는 계획대로
+어드민에 신설(건물 필터 포함), 긴급도(urgency) 배지·필터·정렬도 계획대로 노출했다. 구 상세 라우트
+`/admin/orders/[id]`는 콘솔 우측 패널로 대체되어 고아 라우트가 됐고 **2026-07-17에 삭제**했다(파일·
+`[id]` 디렉토리 제거, 공유 헬퍼는 모바일 상세에서 계속 사용). 마이그레이션 `orders_console`는 원격
+`schema_migrations`에 version `20260717005554`로 등록(2026-07-17). 기존 내보내기(Excel/PDF)·승인/
+주문처리/배송일수정/삭제 액션은 계획대로 재사용했다. `npm run lint` / `npm run build` 통과. 상세는 `docs/product/10-order-request-workflow.md` → "주문·비품
+어드민 운영 콘솔 (구현 완료 — 2026-07-16)".
 
 ## 2026-07-16 분실물 자동 폐기 · 폐기 내역 90일 · 자동 삭제 확정 (2026-07-15 "수동 폐기" 대체)
 
@@ -2378,6 +2420,12 @@ Direction:
 - Temporary designs may use a StayOps wordmark or placeholder logo.
 
 Status: Confirmed requirement; logo design pending
+
+**2026-07-17 tuning update:** the requirement to show a launch splash stays, but the previous
+implementation timing (~850ms hold + ~420ms fade) was too long for the installed iPhone PWA and made
+the app feel slower than the actual backend. The splash remains, but its timing is shortened to
+**~160ms hold + ~180ms fade**, and it no longer captures touches while fading (`pointer-events: none`).
+This keeps the "brief native launch" intent while removing avoidable perceived latency.
 
 ### Reservation Calendar Visual Rules
 

@@ -698,7 +698,7 @@ Notes:
 
 Free-text supply/amenity requests. Multiple items per request stored as JSONB.
 
-Migrations: `202606010001_order_requests.sql`, `202606010002_order_requests_delivery_date.sql`, `202606020001_order_requests_delivery_range.sql`
+Migrations: `202606010001_order_requests.sql`, `202606010002_order_requests_delivery_date.sql`, `202606020001_order_requests_delivery_range.sql`, `202607190001_orders_console.sql`
 
 Fields:
 
@@ -717,6 +717,9 @@ items                 jsonb not null default '[]'    -- array of {id, name, quan
 delivery_date         date                            -- single delivery date; populated at ordered transition
 delivery_start_date   date                            -- range start (mutually exclusive with delivery_date)
 delivery_end_date     date                            -- range end; constraint: start <= end, both null or both set
+admin_memo            text                            -- admin exception-handling memo (e.g. reject reason,
+                                                        -- status-correction memo); added by 202607190001;
+                                                        -- distinct from the requester-facing reason/description
 created_at            timestamptz not null default now()
 updated_at            timestamptz not null default now()
 ```
@@ -730,7 +733,7 @@ order_request_status:  requested | approved | ordered | received | closed
 order_request_urgency: normal | high
 ```
 
-Note: per-transition audit columns are not in the MVP schema. The `status` enum value tracks workflow state. Per-item photo URLs are stored inside `items[].imageUrls` within the JSONB column.
+Note: per-transition audit columns are not in the MVP schema. The `status` enum value tracks workflow state. Per-item photo URLs are stored inside `items[].imageUrls` within the JSONB column. `admin_memo` (added 2026-07-19, part of the `/admin/orders` operations-console rebuild) is nullable and RLS policies are unchanged by the migration; the admin console (`getAdminOrders`, `src/lib/admin-orders.ts`) displays the DB `received` status as `ordered` (an inactive step) and does not surface a distinct `received` state in the UI.
 
 ## announcements
 

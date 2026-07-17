@@ -184,7 +184,7 @@ Usage:
 
 Reconciliation safety net (production):
 
-- `GET/POST /api/beds24/reconcile` re-pulls the operational window (current month + next month) from Beds24 `/bookings` and upserts anything missing. It is the production-safe, idempotent counterpart to the dev-only `backfill-reservations` route.
+- `GET/POST /api/beds24/reconcile` re-pulls the operational window (**current month + next two months**, 3 months total, widened 2026-07-17) from Beds24 `/bookings` and upserts anything missing. The window is keyed by **arrival/stay overlap, never by booking date** — a reservation booked long ago whose check-in falls in the window is still pulled. It is the production-safe, idempotent counterpart to the dev-only `backfill-reservations` route. That dev route now also accepts `from`/`to` (YYYY-MM-DD) query params for a one-time **wide catch-up** of far-future reservations the narrow window never reaches (used 2026-07-17 to seed 2026-06 → 2027-12).
 - Driven daily by Vercel Cron (`vercel.json`, `0 19 * * *` UTC = 04:00 Asia/Tokyo). Webhooks remain the primary update path; this only heals dropped/never-delivered webhook events.
 - Every run (and every inbound webhook) is logged to `beds24_webhook_events` for observability.
 - Manual trigger: `curl "$APP_URL/api/beds24/reconcile" -H "Authorization: Bearer $CRON_SECRET"` (or `-H "x-beds24-webhook-secret: $BEDS24_WEBHOOK_SECRET"`).
@@ -428,9 +428,11 @@ Run the commands after Supabase API authentication is available through `npx sup
 
 ### `BEDS24_SYNC_PAUSED`
 
-- Default operational expectation for the current phase: `true`
-- When unset, the app currently treats Beds24 sync as paused by default
-- Set to one of `0`, `false`, `off`, or `no` to re-enable webhook/reconcile processing
+- Default when unset: `true` (paused). The app treats Beds24 sync as paused unless explicitly disabled.
+- Set to one of `0`, `false`, `off`, or `no` to re-enable webhook/reconcile processing.
+- **Production activated 2026-07-17:** the Vercel production project now sets `BEDS24_SYNC_PAUSED=false`,
+  so live webhooks (all 8 linked properties) and the daily reconcile cron are active. The stale
+  `BEDS24_API_TOKEN` was removed so the app mints access tokens from `BEDS24_API_REFRESH_TOKEN`.
 - Used by:
   - `src/app/api/beds24/webhook/route.ts`
   - `src/app/api/beds24/reconcile/route.ts`

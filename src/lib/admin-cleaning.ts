@@ -18,6 +18,8 @@ import {
   buildSessionLabelToRoomKeyMap,
   buildSessionRoomLabel,
   CANONICAL_TO_BUILDING_KEY,
+  getDisplayRoomLabel,
+  getDisplaySessionRoomLabel,
   resolveRoomKey,
 } from "@/lib/room-label-normalization";
 import { getActiveRoomCatalogServer, type ActiveRoomCatalogItem } from "@/lib/rooms";
@@ -194,7 +196,7 @@ export async function getAdminCleaningToday(session: AppSession): Promise<AdminC
         roomKey: target.roomKey,
         building: buildingKeyOf(target.canonicalPropertyName),
         buildingRaw: target.canonicalPropertyName,
-        room: target.canonicalRoomLabel,
+        room: getDisplayRoomLabel(target.canonicalPropertyName, target.canonicalRoomLabel),
         type: matched ? taskLabelToType(matched.task_label) : "checkout",
         status,
         staffId: matched?.staff_user_id ?? null,
@@ -220,7 +222,7 @@ export async function getAdminCleaningToday(session: AppSession): Promise<AdminC
     if (!relevant) continue; // only cancelled sessions for this room — nothing to show
 
     let buildingRaw = relevant.room_label;
-    let room = relevant.room_label;
+    let room = getDisplaySessionRoomLabel(relevant.room_label);
     const catalogMatch = catalog.find(
       (item) =>
         buildSessionRoomLabel(item.propertyName, item.canonicalRoomLabel) === relevant.room_label ||
@@ -228,7 +230,7 @@ export async function getAdminCleaningToday(session: AppSession): Promise<AdminC
     );
     if (catalogMatch) {
       buildingRaw = catalogMatch.propertyName;
-      room = catalogMatch.canonicalRoomLabel;
+      room = getDisplayRoomLabel(catalogMatch.propertyName, catalogMatch.canonicalRoomLabel);
     }
 
     tasks.push({
@@ -276,7 +278,7 @@ export async function getAdminCleaningToday(session: AppSession): Promise<AdminC
         roomKey: target.roomKey,
         building: buildingKeyOf(target.canonicalPropertyName),
         buildingRaw: target.canonicalPropertyName,
-        room: target.canonicalRoomLabel,
+        room: getDisplayRoomLabel(target.canonicalPropertyName, target.canonicalRoomLabel),
         guest: target.arrivingGuestName,
         pax: target.arrivingPax,
       }))
@@ -310,7 +312,7 @@ function mapSessionToHistoryItem(
   catalog: readonly ActiveRoomCatalogItem[],
 ): AdminCleaningHistoryItem {
   let buildingRaw = s.room_label;
-  let room = s.room_label;
+  let room = getDisplaySessionRoomLabel(s.room_label);
   const catalogMatch = catalog.find(
     (item) =>
       buildSessionRoomLabel(item.propertyName, item.canonicalRoomLabel) === s.room_label ||
@@ -318,7 +320,7 @@ function mapSessionToHistoryItem(
   );
   if (catalogMatch) {
     buildingRaw = catalogMatch.propertyName;
-    room = catalogMatch.canonicalRoomLabel;
+    room = getDisplayRoomLabel(catalogMatch.propertyName, catalogMatch.canonicalRoomLabel);
   }
 
   return {

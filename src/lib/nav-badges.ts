@@ -172,3 +172,20 @@ export const getMobileNavBadges = cache(async (): Promise<NavBadgeCounts> => {
     notifications,
   };
 });
+
+export const getMobileNotificationBadge = cache(async (): Promise<NavBadgeCounts> => {
+  const session = await getCurrentAppSession();
+  if (!session || session.organization.id === "platform") {
+    return {};
+  }
+
+  const notifications = await countUnreadNotifications(
+    await getSupabaseServerClient(),
+    {
+      userId: session.user.id,
+      organizationId: session.organization.id,
+    },
+  ).catch(() => 0);
+
+  return notifications > 0 ? { notifications } : {};
+});

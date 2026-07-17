@@ -92,6 +92,10 @@ export async function middleware(request: NextRequest) {
     request,
   });
 
+  if (!isProtectedPath(pathname) && !isAuthPage(pathname)) {
+    return response;
+  }
+
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

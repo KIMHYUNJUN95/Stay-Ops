@@ -10,8 +10,8 @@ import { useEffect, useState } from "react";
  * first paint (no flash of empty canvas before hydration). App-internal route
  * transitions don't reload the document, so it only appears on a real launch.
  */
-const HOLD_MS = 850;
-const FADE_MS = 420;
+const HOLD_MS = 160;
+const FADE_MS = 180;
 
 export function SplashScreen() {
   const [phase, setPhase] = useState<"visible" | "fading" | "gone">("visible");
@@ -41,7 +41,7 @@ export function SplashScreen() {
         background: "#f7f4ee",
         opacity: phase === "fading" ? 0 : 1,
         transition: `opacity ${FADE_MS}ms ease`,
-        pointerEvents: phase === "fading" ? "none" : "auto",
+        pointerEvents: "none",
         paddingBottom: "env(safe-area-inset-bottom)",
         paddingTop: "env(safe-area-inset-top)",
       }}
