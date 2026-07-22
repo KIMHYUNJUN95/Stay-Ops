@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -37,7 +38,7 @@ import {
   getCanonicalPropertyName,
   getDisplayRoomLabel,
 } from "@/lib/room-label-normalization";
-import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
+import { getCurrentAppSession, hasOrganizationContext, type AppSession } from "@/lib/session";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import "@/components/mobile/home-screen.css";
 
@@ -150,48 +151,35 @@ function formatGreetingDate(locale: Locale): string {
   }).format(new Date());
 }
 
-export default async function MobileHomePage() {
-  const session = await getCurrentAppSession();
-
-  if (!session) {
-    redirect("/onboarding");
-  }
-
-  if (!hasOrganizationContext(session)) {
-    redirect("/mobile/unavailable");
-  }
-
-  const locale = session.user.preferredLanguage;
-  const dictionary = getDictionary(locale);
+/**
+ * Streaming boundary — the data-heavy body of the home screen.
+ *
+ * The shell + greeting render immediately (they only need the already-resolved session), while this
+ * component's Supabase reads (check-in/out, today's activity, active cleaning, announcement, open
+ * attendance session) run and stream in behind a Suspense skeleton. This keeps the cold-start "first
+ * paint" fast without going stale — the data is still fetched fresh on every load, just not blocking
+ * the initial byte. See docs/planning/06-current-status.md → 2026-07-22 PWA cold start.
+ */
+async function HomeBody({
+  session,
+  dictionary,
+}: {
+  session: AppSession;
+  dictionary: Dictionary;
+}) {
   const m = dictionary.mobile;
   const a = dictionary.attendance;
 
-  // navBadges used to be awaited AFTER this batch (an extra serial round-trip on the home's
-  // critical path). It only needs the (already-resolved, request-cached) session, so fold it into
-  // the same parallel batch — one fewer sequential wait before first byte on cold start.
-  const [
-    checkInOut,
-    todayActivity,
-    activeSession,
-    latestAnnouncement,
-    openAttendanceSession,
-    navBadges,
-  ] = await Promise.all([
-    getHomeCheckInOutReservations(session),
-    getHomeTodayActivity(session, 10),
-    getHomeActiveCleaningSession(session),
-    getHomeImportantAnnouncement(session),
-    getCurrentOpenSession(session.organization.id, session.user.id),
-    getMobileNotificationBadge(),
-  ]);
+  const [checkInOut, todayActivity, activeSession, latestAnnouncement, openAttendanceSession] =
+    await Promise.all([
+      getHomeCheckInOutReservations(session),
+      getHomeTodayActivity(session, 10),
+      getHomeActiveCleaningSession(session),
+      getHomeImportantAnnouncement(session),
+      getCurrentOpenSession(session.organization.id, session.user.id),
+    ]);
 
   const buildingLabels = dictionary.cleaning.buildingLabels;
-
-  const lastUpdatedTime = formatActivityTimeJst(new Date().toISOString());
-
-  const greetDate = formatGreetingDate(locale);
-  const userName = session.user.name?.trim() || "";
-  const avatarInitial = userName ? Array.from(userName)[0] : "·";
 
   const quickActionItems: QuickActionItem[] = [
     {
@@ -229,9 +217,274 @@ export default async function MobileHomePage() {
     : "/mobile/announcements";
 
   return (
+    <>
+      {/* Quick attendance hero — reflects the real open attendance session state. */}
+      <Link
+        aria-label={openAttendanceSession ? m.homeClockOpenTitle : m.homeClockIdleTitle}
+        className="hm__clockhero"
+        href="/mobile/attendance"
+      >
+        <span className="hm__ch-deco" aria-hidden="true" />
+        <div className="hm__ch-top">
+          <span className="hm__ch-state">
+            {openAttendanceSession
+              ? (openAttendanceSession.openBreakStartedAt ? a.ringOnBreak : a.ringWorking)
+              : m.homeClockBefore}
+          </span>
+          <span className="hm__ch-tag">
+            {openAttendanceSession
+              ? (openAttendanceSession.openBreakStartedAt ? a.ringOnBreak : a.ringWorking)
+              : m.homeClockWaiting}
+          </span>
+        </div>
+        <div className="hm__ch-mid">
+          <div>
+            {openAttendanceSession?.clockInAt ? (
+              <div className="hm__ch-big hm__ch-big--timer mono">
+                <HomeElapsedTimer startedAt={openAttendanceSession.clockInAt} />
+              </div>
+            ) : (
+              <div className="hm__ch-big">{m.homeClockIdleTitle}</div>
+            )}
+            <div className="hm__ch-sub">
+              {openAttendanceSession
+                ? (openAttendanceSession.openBreakStartedAt
+                    ? m.homeClockBreakSub
+                    : m.homeClockOpenSub)
+                : m.homeClockIdleSub}
+            </div>
+          </div>
+          <span className="hm__ch-btn">
+            <span className="ic">
+              <QrCode aria-hidden="true" />
+            </span>
+            {openAttendanceSession ? m.homeClockOpenCta : m.homeClockIn}
+          </span>
+        </div>
+        {openAttendanceSession ? (
+          <div className="hm__ch-meta">
+            <div className="hm__ch-meta-item">
+              <span className="hm__ch-meta-k">{a.clockInSite}</span>
+              <span className="hm__ch-meta-v">{openAttendanceSession.siteName}</span>
+            </div>
+            <div className="hm__ch-meta-item">
+              <span className="hm__ch-meta-k">{a.clockInTime}</span>
+              <span className="hm__ch-meta-v mono">{openAttendanceSession.clockInTimeLabel}</span>
+            </div>
+          </div>
+        ) : null}
+        <div className="hm__ch-methods">
+          <span className="hm__mchip hm__mchip--on">
+            <span className="ic">
+              <QrCode aria-hidden="true" />
+            </span>
+            {m.homeClockMethodQr}
+          </span>
+          <span className="hm__mchip hm__mchip--ghost">
+            <span className="ic">
+              <Wifi aria-hidden="true" />
+            </span>
+            {m.homeClockMethodWifi}
+          </span>
+        </div>
+      </Link>
+
+      {/* Important announcement */}
+      {latestAnnouncement ? (
+        <Link aria-label={latestAnnouncement.title} href={announcementHref}>
+          <div className="hm__notice">
+            <span className="hm__notice-ic">
+              <Bell aria-hidden="true" />
+            </span>
+            <div className="hm__notice-b">
+              <div className="hm__notice-h">
+                <span className="hm__notice-cat">{m.homeAnnouncementTitle}</span>
+                <span className="hm__notice-badge">{m.homeAnnouncementImportant}</span>
+              </div>
+              <div className="hm__notice-t">{latestAnnouncement.title}</div>
+              <div className="hm__notice-s">{latestAnnouncement.content}</div>
+              <span className="hm__notice-more">
+                {m.homeAnnouncementViewDetail}
+                <ChevronRight aria-hidden="true" />
+              </span>
+            </div>
+          </div>
+        </Link>
+      ) : null}
+
+      {/* Today's check-in / check-out — cards tap to open a detail sheet */}
+      <div className="hm__sectt">{m.homeStatsSectionLabel}</div>
+      <section aria-label={m.homeStatsSectionLabel}>
+        {checkInOut.status === "ok" ? (
+          <HomeCheckInOut
+            checkInLabel={dictionary.admin.stats.checkIns}
+            checkOutLabel={dictionary.admin.stats.checkOuts}
+            checkIns={toReservationItems(checkInOut.data.checkIns, buildingLabels)}
+            checkOuts={toReservationItems(checkInOut.data.checkOuts, buildingLabels)}
+            emptyCheckIn={m.homeCheckInEmpty}
+            emptyCheckOut={m.homeCheckOutEmpty}
+            guestFallback={m.homeGuestUnknown}
+          />
+        ) : (
+          <div className="hm__stats">
+            <div className="hm__stat hm__stat--full">
+              <p className="hm__stat-k">{m.homeSectionLoadError}</p>
+              <HomeRefreshButton label={m.homeRetry} className="hm__state-cta" />
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Active cleaning task */}
+      <div className="hm__sectt">{m.homeActiveTaskTitle}</div>
+      <section aria-label={m.homeActiveTaskTitle}>
+        {activeSession.status === "ok" ? (
+          <div className="hm__task">
+            <span className="hm__task-ic">
+              <Timer aria-hidden="true" />
+            </span>
+            <div className="hm__task-b">
+              <div className="hm__task-t">{localizeRoomLabel(activeSession.data.room_label, dictionary.cleaning.buildingLabels)}</div>
+              <div className="hm__task-s">{activeSession.data.task_label}</div>
+            </div>
+            <div className="hm__task-right">
+              <div className="hm__task-rk">{m.homeActiveTaskElapsed}</div>
+              <div className="hm__task-rv">
+                <HomeElapsedTimer startedAt={activeSession.data.started_at} />
+              </div>
+            </div>
+          </div>
+        ) : activeSession.status === "error" ? (
+          <div className="hm__taskempty">
+            <div className="hm__taskempty-s" style={{ marginTop: 0 }}>
+              {m.homeSectionLoadError}
+            </div>
+            <HomeRefreshButton label={m.homeRetry} className="hm__state-cta" />
+          </div>
+        ) : (
+          <div className="hm__taskempty">
+            <div className="hm__taskempty-t">{m.homeActiveTaskNone}</div>
+            <div className="hm__taskempty-s">{m.homeActiveTaskNoneBody}</div>
+          </div>
+        )}
+      </section>
+
+      {/* Quick actions */}
+      <div className="hm__sectt-row">
+        <span className="hm__sectt">{m.homeQuickActionsTitle}</span>
+      </div>
+      <nav className="hm__qa" aria-label={m.homeQuickActionsTitle}>
+        {quickActionItems.map((action) => (
+          <Link className="hm__qa-item" href={action.href} key={action.id}>
+            <span className={`hm__qa-ic ${action.colorClass}`}>
+              <action.Icon aria-hidden="true" />
+            </span>
+            <span className="hm__qa-lbl">{action.label}</span>
+          </Link>
+        ))}
+      </nav>
+
+      {/* Today's activity timeline */}
+      <div className="hm__sectt-row">
+        <span className="hm__sectt">{m.homeTodayActivityTitle}</span>
+      </div>
+      <section aria-label={m.homeTodayActivityTitle}>
+        {todayActivity.status === "error" ? (
+          <div className="hm__log">
+            <div className="hm__state-msg">
+              <p>{m.homeSectionLoadError}</p>
+              <HomeRefreshButton label={m.homeRetry} className="hm__state-cta" />
+            </div>
+          </div>
+        ) : todayActivity.status === "empty" ? (
+          <div className="hm__log">
+            <div className="hm__state-msg">
+              <p>{m.homeActivityEmpty}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="hm__log">
+            {todayActivity.data.map((event) => {
+              const localizedRoom = localizeRoomLabel(
+                event.room,
+                dictionary.cleaning.buildingLabels,
+              );
+              return (
+                <div className="hm__log-r" key={event.id}>
+                  <span className={`hm__log-ic ${getActivityLogClass(event)}`}>
+                    {getActivityLogIcon(event)}
+                  </span>
+                  <div className="hm__log-b">
+                    <div className="hm__log-t">
+                      {getActivityLabel(
+                        { ...event, room: localizedRoom },
+                        m,
+                        dictionary.cleaning?.taskOptions,
+                      )}
+                    </div>
+                  </div>
+                  <span className="hm__log-time">
+                    {formatActivityTimeJst(event.timestamp)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </>
+  );
+}
+
+/** Lightweight skeleton shown while HomeBody streams in — reserves the section shapes to avoid
+ *  a big layout jump when the real content arrives. Pure Tailwind (animate-pulse), no new CSS. */
+function HomeBodySkeleton() {
+  return (
+    <div aria-hidden="true" className="animate-pulse space-y-4 pt-1">
+      <div className="h-40 rounded-[26px] bg-slate-200/70" />
+      <div className="h-20 rounded-2xl bg-slate-200/55" />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="h-24 rounded-2xl bg-slate-200/55" />
+        <div className="h-24 rounded-2xl bg-slate-200/55" />
+      </div>
+      <div className="h-16 rounded-2xl bg-slate-200/55" />
+      <div className="grid grid-cols-4 gap-2">
+        <div className="h-16 rounded-2xl bg-slate-200/55" />
+        <div className="h-16 rounded-2xl bg-slate-200/55" />
+        <div className="h-16 rounded-2xl bg-slate-200/55" />
+        <div className="h-16 rounded-2xl bg-slate-200/55" />
+      </div>
+      <div className="h-24 rounded-2xl bg-slate-200/55" />
+    </div>
+  );
+}
+
+export default async function MobileHomePage() {
+  const session = await getCurrentAppSession();
+
+  if (!session) {
+    redirect("/onboarding");
+  }
+
+  if (!hasOrganizationContext(session)) {
+    redirect("/mobile/unavailable");
+  }
+
+  const locale = session.user.preferredLanguage;
+  const dictionary = getDictionary(locale);
+  const m = dictionary.mobile;
+
+  const navBadges = await getMobileNotificationBadge();
+
+  const lastUpdatedTime = formatActivityTimeJst(new Date().toISOString());
+  const greetDate = formatGreetingDate(locale);
+  const userName = session.user.name?.trim() || "";
+  const avatarInitial = userName ? Array.from(userName)[0] : "·";
+
+  return (
     <MobileShell activeItem="home" badges={navBadges} title={m.homeTitle}>
       <div className="hm pb-2">
-        {/* Greeting */}
+        {/* Greeting — renders immediately with the shell (no data reads). */}
         <div className="hm__greet">
           <div>
             <div className="hm__greet-d">{greetDate}</div>
@@ -247,220 +500,10 @@ export default async function MobileHomePage() {
           <HomeLastUpdatedClock initialTime={lastUpdatedTime} locale={locale} />
         </div>
 
-        {/* Quick attendance hero — now reflects the real open attendance session state. */}
-        <Link
-          aria-label={openAttendanceSession ? m.homeClockOpenTitle : m.homeClockIdleTitle}
-          className="hm__clockhero"
-          href="/mobile/attendance"
-        >
-          <span className="hm__ch-deco" aria-hidden="true" />
-          <div className="hm__ch-top">
-            <span className="hm__ch-state">
-              {openAttendanceSession
-                ? (openAttendanceSession.openBreakStartedAt ? a.ringOnBreak : a.ringWorking)
-                : m.homeClockBefore}
-            </span>
-            <span className="hm__ch-tag">
-              {openAttendanceSession
-                ? (openAttendanceSession.openBreakStartedAt ? a.ringOnBreak : a.ringWorking)
-                : m.homeClockWaiting}
-            </span>
-          </div>
-          <div className="hm__ch-mid">
-            <div>
-              {openAttendanceSession?.clockInAt ? (
-                <div className="hm__ch-big hm__ch-big--timer mono">
-                  <HomeElapsedTimer startedAt={openAttendanceSession.clockInAt} />
-                </div>
-              ) : (
-                <div className="hm__ch-big">{m.homeClockIdleTitle}</div>
-              )}
-              <div className="hm__ch-sub">
-                {openAttendanceSession
-                  ? (openAttendanceSession.openBreakStartedAt
-                      ? m.homeClockBreakSub
-                      : m.homeClockOpenSub)
-                  : m.homeClockIdleSub}
-              </div>
-            </div>
-            <span className="hm__ch-btn">
-              <span className="ic">
-                <QrCode aria-hidden="true" />
-              </span>
-              {openAttendanceSession ? m.homeClockOpenCta : m.homeClockIn}
-            </span>
-          </div>
-          {openAttendanceSession ? (
-            <div className="hm__ch-meta">
-              <div className="hm__ch-meta-item">
-                <span className="hm__ch-meta-k">{a.clockInSite}</span>
-                <span className="hm__ch-meta-v">{openAttendanceSession.siteName}</span>
-              </div>
-              <div className="hm__ch-meta-item">
-                <span className="hm__ch-meta-k">{a.clockInTime}</span>
-                <span className="hm__ch-meta-v mono">{openAttendanceSession.clockInTimeLabel}</span>
-              </div>
-            </div>
-          ) : null}
-          <div className="hm__ch-methods">
-            <span className="hm__mchip hm__mchip--on">
-              <span className="ic">
-                <QrCode aria-hidden="true" />
-              </span>
-              {m.homeClockMethodQr}
-            </span>
-            <span className="hm__mchip hm__mchip--ghost">
-              <span className="ic">
-                <Wifi aria-hidden="true" />
-              </span>
-              {m.homeClockMethodWifi}
-            </span>
-          </div>
-        </Link>
-
-        {/* Important announcement */}
-        {latestAnnouncement ? (
-          <Link aria-label={latestAnnouncement.title} href={announcementHref}>
-            <div className="hm__notice">
-              <span className="hm__notice-ic">
-                <Bell aria-hidden="true" />
-              </span>
-              <div className="hm__notice-b">
-                <div className="hm__notice-h">
-                  <span className="hm__notice-cat">{m.homeAnnouncementTitle}</span>
-                  <span className="hm__notice-badge">{m.homeAnnouncementImportant}</span>
-                </div>
-                <div className="hm__notice-t">{latestAnnouncement.title}</div>
-                <div className="hm__notice-s">{latestAnnouncement.content}</div>
-                <span className="hm__notice-more">
-                  {m.homeAnnouncementViewDetail}
-                  <ChevronRight aria-hidden="true" />
-                </span>
-              </div>
-            </div>
-          </Link>
-        ) : null}
-
-        {/* Today's check-in / check-out — cards tap to open a detail sheet */}
-        <div className="hm__sectt">{m.homeStatsSectionLabel}</div>
-        <section aria-label={m.homeStatsSectionLabel}>
-          {checkInOut.status === "ok" ? (
-            <HomeCheckInOut
-              checkInLabel={dictionary.admin.stats.checkIns}
-              checkOutLabel={dictionary.admin.stats.checkOuts}
-              checkIns={toReservationItems(checkInOut.data.checkIns, buildingLabels)}
-              checkOuts={toReservationItems(checkInOut.data.checkOuts, buildingLabels)}
-              emptyCheckIn={m.homeCheckInEmpty}
-              emptyCheckOut={m.homeCheckOutEmpty}
-              guestFallback={m.homeGuestUnknown}
-            />
-          ) : (
-            <div className="hm__stats">
-              <div className="hm__stat hm__stat--full">
-                <p className="hm__stat-k">{m.homeSectionLoadError}</p>
-                <HomeRefreshButton label={m.homeRetry} className="hm__state-cta" />
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* Active cleaning task */}
-        <div className="hm__sectt">{m.homeActiveTaskTitle}</div>
-        <section aria-label={m.homeActiveTaskTitle}>
-          {activeSession.status === "ok" ? (
-            <div className="hm__task">
-              <span className="hm__task-ic">
-                <Timer aria-hidden="true" />
-              </span>
-              <div className="hm__task-b">
-                <div className="hm__task-t">{localizeRoomLabel(activeSession.data.room_label, dictionary.cleaning.buildingLabels)}</div>
-                <div className="hm__task-s">{activeSession.data.task_label}</div>
-              </div>
-              <div className="hm__task-right">
-                <div className="hm__task-rk">{m.homeActiveTaskElapsed}</div>
-                <div className="hm__task-rv">
-                  <HomeElapsedTimer startedAt={activeSession.data.started_at} />
-                </div>
-              </div>
-            </div>
-          ) : activeSession.status === "error" ? (
-            <div className="hm__taskempty">
-              <div className="hm__taskempty-s" style={{ marginTop: 0 }}>
-                {m.homeSectionLoadError}
-              </div>
-              <HomeRefreshButton label={m.homeRetry} className="hm__state-cta" />
-            </div>
-          ) : (
-            <div className="hm__taskempty">
-              <div className="hm__taskempty-t">{m.homeActiveTaskNone}</div>
-              <div className="hm__taskempty-s">{m.homeActiveTaskNoneBody}</div>
-            </div>
-          )}
-        </section>
-
-        {/* Quick actions */}
-        <div className="hm__sectt-row">
-          <span className="hm__sectt">{m.homeQuickActionsTitle}</span>
-        </div>
-        <nav className="hm__qa" aria-label={m.homeQuickActionsTitle}>
-          {quickActionItems.map((action) => (
-            <Link className="hm__qa-item" href={action.href} key={action.id}>
-              <span className={`hm__qa-ic ${action.colorClass}`}>
-                <action.Icon aria-hidden="true" />
-              </span>
-              <span className="hm__qa-lbl">{action.label}</span>
-            </Link>
-          ))}
-        </nav>
-
-        {/* Today's activity timeline */}
-        <div className="hm__sectt-row">
-          <span className="hm__sectt">{m.homeTodayActivityTitle}</span>
-        </div>
-        <section aria-label={m.homeTodayActivityTitle}>
-          {todayActivity.status === "error" ? (
-            <div className="hm__log">
-              <div className="hm__state-msg">
-                <p>{m.homeSectionLoadError}</p>
-                <HomeRefreshButton label={m.homeRetry} className="hm__state-cta" />
-              </div>
-            </div>
-          ) : todayActivity.status === "empty" ? (
-            <div className="hm__log">
-              <div className="hm__state-msg">
-                <p>{m.homeActivityEmpty}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="hm__log">
-              {todayActivity.data.map((event) => {
-                const localizedRoom = localizeRoomLabel(
-                  event.room,
-                  dictionary.cleaning.buildingLabels,
-                );
-                return (
-                  <div className="hm__log-r" key={event.id}>
-                    <span className={`hm__log-ic ${getActivityLogClass(event)}`}>
-                      {getActivityLogIcon(event)}
-                    </span>
-                    <div className="hm__log-b">
-                      <div className="hm__log-t">
-                        {getActivityLabel(
-                          { ...event, room: localizedRoom },
-                          m,
-                          dictionary.cleaning?.taskOptions,
-                        )}
-                      </div>
-                    </div>
-                    <span className="hm__log-time">
-                      {formatActivityTimeJst(event.timestamp)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
+        {/* Data-heavy sections stream in behind a skeleton so first paint stays fast. */}
+        <Suspense fallback={<HomeBodySkeleton />}>
+          <HomeBody session={session} dictionary={dictionary} />
+        </Suspense>
       </div>
 
       <div className="sr-only">

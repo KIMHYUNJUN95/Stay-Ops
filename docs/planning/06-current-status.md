@@ -23,9 +23,12 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   순차 실행 ③ 가끔 Vercel serverless 콜드스타트. **1차 수정(안전·순수 이득, staleness 없음):**
   `getCurrentAppSession`에서 user.id만 필요한 4개 쿼리(profiles·platform_admins·memberships·nav
   profiles)를 `Promise.all` 병렬화(공용 크리티컬 패스라 모바일·어드민 전 렌더에 이득), 홈의
-  `getMobileNotificationBadge()`를 뒤 순차 await → 메인 배치 병렬로 이동. `npm run lint`/`npm run build`
-  통과. **다음 후보(미착수):** 홈 첫 화면 스트리밍(Suspense)으로 셸 즉시 페인트, (정책 결정 필요)
-  서비스워커 앱 셸 캐시. 상세 원인은 이 세션 조사 기록 참고.
+  `getMobileNotificationBadge()`를 뒤 순차 await → 메인 배치 병렬로 이동. **2차 수정(홈 스트리밍, 안전·
+  staleness 없음):** `/mobile` 홈을 셸+인사말(세션만 필요)은 즉시 렌더하고, 데이터 6종(체크인/아웃·오늘
+  활동·근태·공지·청소 세션)은 `HomeBody` 컴포넌트로 분리해 **`<Suspense>` 뒤에서 스트리밍**(스켈레톤
+  fallback). 첫 페인트가 데이터 전부를 기다리지 않아 "화면 뜨는" 체감이 빨라짐. 데이터는 여전히 매
+  로드마다 최신(캐시 아님). `npm run lint`/`npm run build` 통과. **다음 후보(미착수):** (정책 결정 필요)
+  서비스워커 앱 셸 캐시(stale 감수), (후순위·비용) Vercel 함수 웜 유지. 상세 원인은 이 세션 조사 기록 참고.
 
 - **대시보드 `체크인/아웃` 독립 메뉴 폐기 — 예약 캘린더 통합으로 정리 완료 (2026-07-22).**
   관리자 사이드바에 남아 있던 `/admin/check-in-out`은 실제 기능 없는 플레이스홀더였고, 실운영 기능은
