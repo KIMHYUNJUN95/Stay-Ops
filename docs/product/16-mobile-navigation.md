@@ -488,6 +488,14 @@ bottom sheet looks identical. The reference design is the home check-in/out shee
 - **Dismiss**: drag past threshold, scrim tap, or Esc. **No top-right X button.**
 - **Lifecycle**: portals to `<body>`, locks body scroll, closes on Esc.
 - **Drag performance (2026-06-23)**: live drag distance updates are coalesced with `requestAnimationFrame`; refs still track every pointer sample for threshold/velocity accuracy, but React renders at most once per frame.
+- **Sheet content must be self-contained (2026-07-22)**: because `BottomSheet` portals to `<body>`,
+  a sheet's content leaves its page DOM subtree — so **page-scoped CSS does not reach it**. The
+  attendance 미퇴근 리마인더 sheet was styled with `.att .rsheet*` / `.att .rbtn*` rules that never
+  applied inside the portal (giant unstyled warning triangle + text-like buttons — a stale test look).
+  Fixed by rebuilding it with self-contained Tailwind (`attendance-home.tsx` → `ReminderPrompt`):
+  amber icon badge, ivory/navy hierarchy, **full-width stacked buttons** (primary "근무 중" navy fill +
+  outline "이미 퇴근했어요" with edit icon) so longer `ja`/`en` labels never clip. Rule: never rely on
+  a feature's page-scoped stylesheet for content rendered inside a `BottomSheet`.
 
 **Mandatory going forward:** build any NEW bottom sheet with the shared
 **`BottomSheet`** component (`src/components/shell/bottom-sheet.tsx`) — do not hand-roll a sheet

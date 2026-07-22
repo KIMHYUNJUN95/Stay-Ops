@@ -221,18 +221,41 @@ function ReminderPrompt({ sessionId, copy }: { sessionId: string; copy: Attendan
 
   if (!open) return null;
 
+  // NOTE: this sheet portals to <body> via BottomSheet, so the `.att`-scoped CSS does
+  // NOT reach it. Styling is intentionally self-contained (Tailwind) — do not rely on
+  // `.att .rsheet*` / `.att .rbtn*` here. Buttons stack full-width so longer ja/en labels
+  // never clip (multilingual-safe).
   return (
-    <BottomSheet onClose={() => setOpen(false)}>
-      <div className="rsheet__ic ic-warn">{AttIcon.warn}</div>
-      <h3 className="rsheet__t">{copy.reminderTitle}</h3>
-      <p className="rsheet__s">{copy.reminderBody}</p>
-      <div className="rbtns">
-        <button type="button" className="rbtn rbtn--primary" onClick={onStillWorking} disabled={busy}>
-          {copy.ringWorking}
-        </button>
-        <button type="button" className="rbtn rbtn--ghost" onClick={onLeftWork} disabled={busy}>
-          <AIc>{AttIcon.edit}</AIc>{copy.reminderLeft}
-        </button>
+    <BottomSheet onClose={() => setOpen(false)} ariaLabel={copy.reminderTitle}>
+      <div className="px-1 pb-1 pt-3 text-center">
+        <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-[18px] bg-amber-100 text-amber-600 ring-1 ring-amber-200/70 [&>svg]:size-7">
+          {AttIcon.warn}
+        </div>
+        <h3 className="text-[19px] font-extrabold tracking-[-0.02em] text-foreground">
+          {copy.reminderTitle}
+        </h3>
+        <p className="mx-auto mt-1.5 max-w-[300px] text-[13.5px] leading-relaxed text-muted-foreground">
+          {copy.reminderBody}
+        </p>
+        <div className="mt-6 flex flex-col gap-2.5">
+          <button
+            type="button"
+            onClick={onStillWorking}
+            disabled={busy}
+            className="flex h-[52px] w-full items-center justify-center rounded-2xl bg-primary text-[15px] font-bold text-white shadow-[0_6px_16px_-6px_rgba(30,41,84,0.5)] transition active:scale-[0.98] disabled:opacity-60"
+          >
+            {copy.ringWorking}
+          </button>
+          <button
+            type="button"
+            onClick={onLeftWork}
+            disabled={busy}
+            className="flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border border-border bg-surface text-[15px] font-bold text-foreground transition active:scale-[0.98] disabled:opacity-60 [&>svg]:size-[18px] [&>svg]:text-muted-foreground"
+          >
+            {AttIcon.edit}
+            {copy.reminderLeft}
+          </button>
+        </div>
       </div>
     </BottomSheet>
   );

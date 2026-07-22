@@ -161,8 +161,11 @@ const CALENDAR_BAR_TOP = 8;
 /** Compact vertical offset per lane -> keeps all bars within the fixed row height. */
 const CALENDAR_COMPACT_LANE_OFFSET = 4;
 const CALENDAR_SINGLE_ROW_HEIGHT = 48;
-/** Room grid pane height -> uses remaining viewport below shell chrome + bottom nav padding. */
-const CALENDAR_GRID_VIEWPORT_HEIGHT = "calc(100dvh - 20rem)";
+/** Room grid pane height -> uses remaining viewport below shell chrome + bottom nav padding.
+ *  Subtract env(safe-area-inset-bottom) so devices with a home-indicator (iPhone) — whose
+ *  bottom tab bar is taller by that inset — do not push the grid's last rows down UNDER the
+ *  tab bar (which made the sticky room-label column overlap it). */
+const CALENDAR_GRID_VIEWPORT_HEIGHT = "calc(100dvh - 20rem - env(safe-area-inset-bottom, 0px))";
 const CALENDAR_GRID_MIN_HEIGHT_PX = 220;
 const DEFAULT_CHECK_IN_TIME = "16:00";
 const DEFAULT_CHECK_OUT_TIME = "10:00";
@@ -908,7 +911,10 @@ export function MobileCalendarView({
               </span>
             </div>
             <div
-              className="min-h-0 overflow-auto overscroll-x-contain bg-surface"
+              // `isolate` contains the grid's internal stacking (sticky room-label column is
+              // z-40, day header z-20) so they can NEVER paint over the shell's bottom tab bar
+              // (z-20) — the grid becomes its own stacking context that sits below the tab bar.
+              className="isolate min-h-0 overflow-auto overscroll-x-contain bg-surface"
               onScroll={handleGridScroll}
               // Stop touches here from bubbling to the shell's left-edge-back / pull-to-refresh
               // handlers — a horizontal scroll started near the left edge used to fire router.back().

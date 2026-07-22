@@ -1,5 +1,17 @@
 # Reservation Calendar
 
+## Overview grid — room-label / bottom-bar overlap fix (2026-07-22)
+
+On iPhone (home-indicator devices) the sticky left **room-number column overlapped the shell's
+bottom tab bar** while scrolling the grid. Two causes, both in `mobile-calendar-view.tsx`:
+
+- The grid pane height was `calc(100dvh - 20rem)`, which did **not** subtract
+  `env(safe-area-inset-bottom)`. The bottom tab bar is taller by that inset on such devices, so the
+  grid's last rows were pushed **down under** the bar. Fixed → `calc(100dvh - 20rem - env(safe-area-inset-bottom, 0px))`.
+- The sticky room-label column is `z-40` (day header `z-20`) while the shell tab bar is `z-20`, in the
+  **same stacking context**, so the labels painted over the bar. Fixed by adding `isolate` to the grid
+  scroll container, making the grid its own stacking context that sits below the tab bar.
+
 ## Overview grid UI (2026-06-10 readability redesign)
 
 Visual/UX-only refinement of the mobile **overview (timeline) grid** in
