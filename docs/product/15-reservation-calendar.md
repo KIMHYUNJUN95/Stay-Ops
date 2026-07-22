@@ -1054,9 +1054,9 @@ frozen regardless of the above logic fixes.
 - The admin reservation export button is no longer a reservation CSV download. Reservation
   calendar export now opens `/admin/calendar/print` and renders an A4 landscape month board
   intended for browser print / save-as-PDF output.
-- Beds24 ingestion is intentionally paused during the temporary webhook/API shutdown window. Admin
-  calendar data remains readable from existing reservation records, but new webhook/reconcile
-  ingestion should be considered suspended until Beds24 is re-enabled.
+- Historical note: Beds24 ingestion was temporarily paused during the 2026-07-10 webhook/API shutdown
+  window, but this is **no longer the current state**. Since 2026-07-17 production runs with
+  `BEDS24_SYNC_PAUSED=false`, live webhook ingestion and reconcile are active again.
 
 ## 2026-07-13 A4 Print Fit Fix
 

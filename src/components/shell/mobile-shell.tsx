@@ -17,6 +17,7 @@ import {
   mobileSidebarNavigation,
   resolveBottomNavItems,
 } from "@/config/navigation";
+import { haptic } from "@/lib/haptics";
 import { getDictionary } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -408,6 +409,7 @@ export function MobileShell({
     }
     setPullDistanceState(0);
     if (dist >= PULL_THRESHOLD) {
+      haptic("medium");
       startRefreshTransition(() => { router.refresh(); });
     }
   }
@@ -494,6 +496,20 @@ export function MobileShell({
         aria-current={isActive ? "page" : undefined}
         className={cn("tabbar__item", isActive && "is-active")}
         href={item.href}
+        // Native pattern: tapping the tab you're already on scrolls the content back to the
+        // top (and closes the sidebar) instead of a no-op navigation.
+        onClick={(event) => {
+          if (!isActive) return;
+          event.preventDefault();
+          haptic("light");
+          setSidebarOpen(false);
+          const el = scrollElRef.current;
+          if (!el) return;
+          const reduce =
+            typeof window !== "undefined" &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          el.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+        }}
       >
         <span className="ico">{LAUNCHER_META[item.id]?.icon ?? FALLBACK_ICON}</span>
         <span className="lbl">{getNavigationLabel(item, locale)}</span>

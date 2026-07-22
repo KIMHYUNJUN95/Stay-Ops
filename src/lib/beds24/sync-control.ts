@@ -5,7 +5,7 @@ function normalizeFlag(value: string | undefined) {
 export function isBeds24SyncPaused() {
   const flag = normalizeFlag(process.env.BEDS24_SYNC_PAUSED);
   if (!flag) {
-    return true;
+    return false;
   }
   return flag !== "0" && flag !== "false" && flag !== "off" && flag !== "no";
 }

@@ -456,8 +456,8 @@ Run the commands after Supabase API authentication is available through `npx sup
 
 ### `BEDS24_SYNC_PAUSED`
 
-- Default when unset: `true` (paused). The app treats Beds24 sync as paused unless explicitly disabled.
-- Set to one of `0`, `false`, `off`, or `no` to re-enable webhook/reconcile processing.
+- Default when unset: `false` (active). The app treats Beds24 sync as active unless it is explicitly paused.
+- Set to one of `1`, `true`, `on`, or `yes` to pause webhook/reconcile processing.
 - **Production activated 2026-07-17:** the Vercel production project now sets `BEDS24_SYNC_PAUSED=false`,
   so live webhooks (all 8 linked properties) and the daily reconcile cron are active. The stale
   `BEDS24_API_TOKEN` was removed so the app mints access tokens from `BEDS24_API_REFRESH_TOKEN`.
