@@ -16,6 +16,15 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **iPhone PWA 첫 진입 흰 화면 — Apple 런치 스플래시 커버 구멍 수정 (2026-07-22).** "누르자마자 화면이
+  안 뜨고 흰 화면이 길다"는 지적. 원인: iOS는 PWA를 띄우기 전 `apple-touch-startup-image`(기종별 이미지)를
+  보여주는데, **커버 목록에 흔한 기종이 빠져** 매칭 실패 시 iOS가 흰 화면을 첫 페인트까지 표시. 빠진 크기:
+  `375×812@3x`(X·XS·11 Pro·12/13 mini), `414×896@3x`(XS Max·11 Pro Max), `414×896@2x`(XR·11) — 특히 mini를
+  `360×780`으로 잘못 넣어 매칭 안 됨. 수정: `scripts/gen-splash.mjs`에 3개 크기 추가 → 아이보리(#f7f4ee)+로고
+  스플래시 재생성(11장), `src/app/layout.tsx`에 `<link rel="apple-touch-startup-image">` 3개 추가. 이제 해당
+  기종도 첫 진입에 흰 화면 대신 아이보리+로고가 즉시 떠 네이티브처럼 매끄러움. 스플래시 배경은 이미 아이보리라
+  커버되던 기종은 영향 없음. `npm run lint`/`npm run build` 통과.
+
 - **iPhone 설치형 PWA 콜드스타트 느림 — 원인 진단 + 1차 서버 TTFB 최적화 (2026-07-22).** 조사 결과 3개
   원인: ① 서비스워커가 HTML/RSC를 캐시 안 함(network-first)이라 매 콜드런치가 풀 서버 렌더를 대기 ②
   `/mobile` 첫 바이트가 **auth 2회 + Supabase 10~20 왕복(일부 워터폴)** 뒤에 갇힘 — 특히 공용

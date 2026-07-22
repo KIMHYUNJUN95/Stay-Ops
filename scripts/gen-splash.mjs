@@ -31,7 +31,10 @@ const SIZES = [
   { w: 1179, h: 2556, dw: 393, dh: 852, dpr: 3 }, // iPhone 16 / 15 Pro / 15 / 14 Pro
   { w: 1284, h: 2778, dw: 428, dh: 926, dpr: 3 }, // iPhone 15 Plus / 14 Plus / 13 Pro Max / 12 Pro Max
   { w: 1170, h: 2532, dw: 390, dh: 844, dpr: 3 }, // iPhone 14 / 13 Pro / 13 / 12 Pro / 12
-  { w: 1080, h: 2340, dw: 360, dh: 780, dpr: 3 }, // iPhone 13 mini / 12 mini
+  { w: 1125, h: 2436, dw: 375, dh: 812, dpr: 3 }, // iPhone 13 mini / 12 mini / 11 Pro / XS / X
+  { w: 1242, h: 2688, dw: 414, dh: 896, dpr: 3 }, // iPhone 11 Pro Max / XS Max
+  { w: 828,  h: 1792, dw: 414, dh: 896, dpr: 2 }, // iPhone 11 / XR
+  { w: 1080, h: 2340, dw: 360, dh: 780, dpr: 3 }, // (legacy fallback size; no exact iPhone)
   { w: 750,  h: 1334, dw: 375, dh: 667, dpr: 2 }, // iPhone SE (2nd / 3rd gen)
 ];
 
