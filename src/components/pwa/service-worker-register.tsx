@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 /**
  * Registers the service worker (production only) so the installed PWA is installable on Android
@@ -8,6 +9,26 @@ import { useEffect } from "react";
  * Dev is skipped so a cached SW never interferes with HMR. Renders nothing.
  */
 export function ServiceWorkerRegister() {
+  const router = useRouter();
+
+  // The SW serves the cold-launch document from a stale-while-revalidate cache for an instant
+  // paint, then messages us once it has revalidated: pull fresh server data quietly (router.refresh)
+  // so the momentarily-stale screen self-corrects — or hard-reload if the revalidation redirected
+  // (e.g. the session expired and the server wants to send us to login).
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    const onMessage = (event: MessageEvent) => {
+      const type = (event.data as { type?: string } | null)?.type;
+      if (type === "sw-nav-fresh") {
+        router.refresh();
+      } else if (type === "sw-nav-redirected") {
+        window.location.reload();
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, [router]);
+
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") return;
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;

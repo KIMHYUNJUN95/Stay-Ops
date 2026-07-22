@@ -27,8 +27,13 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   staleness 없음):** `/mobile` 홈을 셸+인사말(세션만 필요)은 즉시 렌더하고, 데이터 6종(체크인/아웃·오늘
   활동·근태·공지·청소 세션)은 `HomeBody` 컴포넌트로 분리해 **`<Suspense>` 뒤에서 스트리밍**(스켈레톤
   fallback). 첫 페인트가 데이터 전부를 기다리지 않아 "화면 뜨는" 체감이 빨라짐. 데이터는 여전히 매
-  로드마다 최신(캐시 아님). `npm run lint`/`npm run build` 통과. **다음 후보(미착수):** (정책 결정 필요)
-  서비스워커 앱 셸 캐시(stale 감수), (후순위·비용) Vercel 함수 웜 유지. 상세 원인은 이 세션 조사 기록 참고.
+  로드마다 최신(캐시 아님). **3차 수정(SW 앱 셸 캐시 — 대표님 승인 2026-07-22, stale 트레이드오프 감수):**
+  서비스워커가 **콜드런치 문서(전체 HTML)를 stale-while-revalidate**로 캐시 → 열자마자 이전 화면 즉시
+  표시 후 백그라운드 재검증. 안전장치: ①성공·동일출처·비리다이렉트 HTML만 캐시(로그아웃→login 리다이렉트는
+  stale 사본 **제거**), ②stale 표시 후 SW가 클라이언트에 메시지 → `router.refresh()`로 조용히 최신화(리다이렉트면
+  하드 reload). 앱 내부 RSC 이동은 미영향(항상 최신). `getMobileNotificationBadge()`도 병렬로 이동.
+  `npm run lint`/`npm run build` 전부 통과. **남은 후보(미착수·후순위·비용):** Vercel 함수 웜 유지. 근거
+  `docs/planning/01-decision-log.md` → 2026-07-22 SW 앱 셸 캐시.
 
 - **대시보드 `체크인/아웃` 독립 메뉴 폐기 — 예약 캘린더 통합으로 정리 완료 (2026-07-22).**
   관리자 사이드바에 남아 있던 `/admin/check-in-out`은 실제 기능 없는 플레이스홀더였고, 실운영 기능은
