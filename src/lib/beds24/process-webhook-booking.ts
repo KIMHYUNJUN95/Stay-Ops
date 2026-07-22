@@ -386,15 +386,15 @@ export async function processBeds24WebhookBooking(params: {
     (guestFullName.length > 0 ? guestFullName : null) ??
     readBeds24String(payload, ["guestName", "guest_name", "customerName", "customer_name", "name"]);
 
-  const propertyName = readBeds24String(payload, [
+  // Read ONLY the human property name from the payload. The raw property id
+  // (propId) is intentionally NOT a fallback here — using it as the reservation's
+  // property_name split one building into a duplicate raw-id building ("176431").
+  // The canonical name is resolved from the property master after room sync below.
+  const payloadPropertyName = readBeds24String(payload, [
     "propName",
     "prop_name",
     "propertyName",
     "property_name",
-    "propId",
-    "prop_id",
-    "propertyId",
-    "property_id",
   ]);
 
   const source = normalizeReservationSource(
@@ -440,6 +440,21 @@ export async function processBeds24WebhookBooking(params: {
   }
 
   await syncBeds24InventoryMinimumStay(organizationId, syncFields.externalPropertyId, supabase);
+
+  // Resolve the reservation's property_name from the operator-controlled property
+  // MASTER (by the just-synced property id), preferring it over the payload propName.
+  // We never fall back to the raw external property id — the master is the single
+  // source of truth for the building name. See decision-log 2026-07-22.
+  let propertyName = payloadPropertyName;
+  if (roomSync.propertyId) {
+    const masterProperty = await supabase
+      .from("properties")
+      .select("name")
+      .eq("id", roomSync.propertyId)
+      .maybeSingle();
+    const masterName = (masterProperty.data as { name: string } | null)?.name ?? null;
+    if (masterName) propertyName = masterName;
+  }
 
   let storedRoomLabel = roomResolution.resolvedRoomLabel ?? "(unknown)";
   let roomLabelResolvedFrom: "payload" | "room_master" | "recovery" | "unknown_fallback" = roomResolution.resolvedFromValue;

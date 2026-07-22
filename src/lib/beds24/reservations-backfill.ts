@@ -466,9 +466,16 @@ export async function backfillBeds24Reservations(
       continue;
     }
 
-    const resolvedPropertyName =
-      propertyName ||
-      (propertyExternalId ? propertyNameByExternalPropertyId.get(propertyExternalId) ?? null : null);
+    // Prefer the operator-controlled property MASTER name (resolved by external
+    // property id) over the per-booking payload propName. Beds24 responses carry
+    // propName inconsistently — some bookings omit it and fall back to the raw
+    // property id — so trusting the payload split one building ("Kabukicho") into
+    // two ("Kabukicho" + "176431"). The master name is the single source of truth.
+    // See docs/planning/01-decision-log.md → 2026-07-22.
+    const masterPropertyName = propertyExternalId
+      ? propertyNameByExternalPropertyId.get(propertyExternalId) ?? null
+      : null;
+    const resolvedPropertyName = masterPropertyName || propertyName || null;
     if (!resolvedPropertyName) {
       console.warn("[beds24/backfill] skip:property_name_unresolved", {
         sourceReservationId,

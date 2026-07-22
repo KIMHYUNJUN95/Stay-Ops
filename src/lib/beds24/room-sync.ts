@@ -114,7 +114,7 @@ export function extractBeds24RoomSyncFields(payload: RawPayload): Beds24RoomSync
 
 async function upsertPropertyByExternalId(
   organizationId: string,
-  name: string,
+  name: string | null,
   externalPropertyId: string,
   supabase: SupabaseClient<Database>,
 ): Promise<string | null> {
@@ -133,14 +133,15 @@ async function upsertPropertyByExternalId(
 
   if (existingByExternalId.data) {
     const existingProperty = existingByExternalId.data as { id: string };
+    // Only overwrite the display name when the payload actually carried one.
+    // A booking without propName must NEVER rename an existing property to its raw
+    // external id — that is exactly what produced the duplicate "176431" building
+    // (see docs/planning/01-decision-log.md → 2026-07-22). We still (re)activate it.
+    const patch: { status: "active"; name?: string } = { status: "active" };
+    if (name) patch.name = name;
     const updateResult = await supabase
       .from("properties")
-      .update(
-        {
-          name,
-          status: "active",
-        } as never,
-      )
+      .update(patch as never)
       .eq("id", existingProperty.id)
       .select("id")
       .single();
@@ -153,11 +154,16 @@ async function upsertPropertyByExternalId(
     return (updateResult.data as { id: string } | null)?.id ?? null;
   }
 
+  // Brand-new property (external id not seen before). We need SOME display name to
+  // create the row; use the payload name when present, otherwise fall back to the raw
+  // external id purely as a last-resort placeholder for the initial insert.
+  const effectiveName = name ?? externalPropertyId;
+
   const existingByName = await supabase
     .from("properties")
     .select("id")
     .eq("organization_id", organizationId)
-    .eq("name", name)
+    .eq("name", effectiveName)
     .maybeSingle();
 
   if (existingByName.error) {
@@ -193,7 +199,7 @@ async function upsertPropertyByExternalId(
     .insert(
       {
         organization_id: organizationId,
-        name,
+        name: effectiveName,
         status: "active",
         external_provider: "beds24",
         external_property_id: externalPropertyId,
@@ -243,12 +249,17 @@ async function upsertPropertyByName(
 // Prefer external property ID as the stable key; only fall back to name when the payload omits it.
 async function upsertProperty(
   organizationId: string,
-  name: string,
+  name: string | null,
   externalPropertyId: string | null,
   supabase: SupabaseClient<Database>,
 ): Promise<string | null> {
   if (externalPropertyId) {
     return upsertPropertyByExternalId(organizationId, name, externalPropertyId, supabase);
+  }
+
+  if (!name) {
+    console.warn("[beds24/sync] property has neither name nor external id -> skipped");
+    return null;
   }
 
   console.log(`[beds24/sync] property "${name}" missing external_property_id -> using name fallback`);
@@ -330,8 +341,11 @@ export async function syncBeds24PropertyAndRoom(
 ): Promise<Beds24SyncResult> {
   const skipped: string[] = [];
 
-  const propertyName = fields.propertyName ?? fields.externalPropertyId;
-  if (!propertyName) {
+  // Pass the payload name as-is (may be null). upsertProperty resolves by external id
+  // first and will NOT clobber an existing property's name with the raw external id
+  // when the payload omits propName.
+  const propertyName = fields.propertyName;
+  if (!propertyName && !fields.externalPropertyId) {
     skipped.push("property:no-name-or-id");
     skipped.push("room:property-skipped");
     return { propertyId: null, roomId: null, roomStatus: null, skipped };
