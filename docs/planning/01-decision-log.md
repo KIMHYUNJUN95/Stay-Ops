@@ -2,6 +2,39 @@
 
 This file records important project decisions.
 
+## 2026-07-22 숙소 매핑 중복(가부키초=176431) 근본 수정 — property_name을 마스터 기준으로 해결
+
+### 증상
+
+예약 캘린더에서 **가부키초가 "가부키초" + "176431" 두 건물로 쪼개져** 표시. `176431`은 가부키초의
+Beds24 external_property_id. 같은 방(202#, 403#…)이 두 건물에 나뉘어 나타남.
+
+### 원인
+
+- **예약 property_name을 Beds24 payload 기준으로 저장**하는데, `/bookings` 응답에 `propName`이 빠진
+  건은 코드가 **raw `propId`("176431")로 폴백** → 같은 건물이 두 이름으로 갈림.
+- 게다가 `room-sync.ts`의 `upsertPropertyByExternalId`가 **매 동기화마다 property 마스터 이름을 payload
+  값으로 무조건 덮어써서**, propName 없는 웹훅 한 번이면 마스터 이름 자체가 "176431"로 변질됨.
+- `getCanonicalPropertyName`은 "Kabukicho"→"가부키초" 매핑은 있으나 raw id "176431"은 매핑이 없어 그대로
+  노출. (제 웹훅 400 수정과 무관한, 이전부터 있던 매핑 결함. 라이브 웹훅이 살아나며 표면화)
+
+### 수정 (코드 3곳 — 어느 경로든 건물 이름이 property 마스터 하나로 수렴)
+
+1. `room-sync.ts`: propName이 없으면 **기존 property 마스터 이름을 raw external id로 덮어쓰지 않음**
+   (상태만 active 갱신). 신규 property일 때만 최후수단으로 external id를 placeholder 사용.
+2. `reservations-backfill.ts`: 예약 property_name을 payload propName 대신 **external_property_id로 조회한
+   마스터 이름 우선**.
+3. `process-webhook-booking.ts`: 웹훅도 raw propId 폴백 제거 → 동기화된 property 마스터(id)에서 이름 조회해
+   우선 적용.
+
+### 데이터 정정 (배포 후, 프로덕션)
+
+- property 마스터 8개 이름 재확정(raw 숫자로 남은 것만): 176431→Kabukicho 등. 중복 property 없음.
+- **raw-id 예약 property_name을 external_property_id 매칭으로 마스터 이름에 일괄 병합**(176431→Kabukicho,
+  176430/280663/243936→각 마스터). 정정 후 사무실 org 예약은 **8개 건물로 클린**(raw-id 0건, 합계 1904).
+
+검증: `npm run lint`(에러 0) / `npm run build` 통과. 최신 배포(commit `8fa6664`) 프로덕션 READY.
+
 ## 2026-07-22 Beds24 웹훅 전량 400 유실 — 근본 수정 (파싱 견고화 + 무손실 캡처)
 
 ### 배경 (재발 사고)

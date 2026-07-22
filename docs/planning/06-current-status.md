@@ -16,6 +16,15 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **Beds24 숙소 매핑 중복(가부키초=176431) 근본 수정 — 완료 (2026-07-22).** 예약 캘린더에서 가부키초가
+  "가부키초"+"176431" 두 건물로 쪼개져 보이던 문제. 원인: 예약 property_name을 Beds24 payload 기준으로
+  저장하는데 `propName`이 빠진 응답은 raw `propId`("176431")로 폴백 + `room-sync`가 매 동기화마다 마스터
+  이름을 payload 값으로 덮어써 마스터 자체가 "176431"로 변질. **코드 3곳 수정**(room-sync는 propName
+  없으면 마스터 이름 미변경, backfill·webhook은 external_property_id로 조회한 마스터 이름 우선)으로 어느
+  경로든 건물명이 property 마스터 하나로 수렴 → raw-id 건물 재발 방지. **데이터 정정**: 마스터 이름 재확정
+  + raw-id 예약을 external_property_id 매칭으로 일괄 병합 → 사무실 org 예약 8개 건물 클린(raw-id 0, 합계
+  1904). 배포(`8fa6664`) READY. 상세 `docs/planning/01-decision-log.md` → 2026-07-22 숙소 매핑 중복.
+
 - **Beds24 웹훅 전량 400 유실 — 근본 수정 (코드 완료, 배포/복구 진행 중) (2026-07-22).** "다카다노바바
   7층 예약 고객 누락" 제보에서 출발했으나, 실제로는 **2026-07-17 이후 전 숙소 신규·취소·변경 예약이
   통째로 누락**된 사고였다. Beds24는 웹훅을 계속 보내는데 라우트가 예약 후보를 못 찾으면 **관측 로그도
