@@ -4,6 +4,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { UIEvent } from "react";
 import { createPortal } from "react-dom";
 
 const Lottie = dynamic(() => import("lottie-react"), { ssr: false });
@@ -566,9 +567,6 @@ export function MobileCalendarView({
   // Uses a Set so each selectedMonth+selectedProperty combo scrolls at most once per session.
   // mode is in the dependency array so the effect re-runs when overview panel mounts.
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  // Frozen date header: lives outside the horizontal grid scroller (so it can be page-sticky),
-  // and its horizontal position is kept in sync with the grid via translateX on this inner strip.
-  const headerInnerRef = useRef<HTMLDivElement | null>(null);
   const lastDateLabelRef = useRef<string | null>(null);
   const autoScrolledKeys = useRef(new Set<string>());
   const [visibleDateRangeLabel, setVisibleDateRangeLabel] = useState<string | null>(null);
@@ -596,51 +594,19 @@ export function MobileCalendarView({
     [dates, locale],
   );
 
-  // Sync the frozen date header to the grid's horizontal scroll via a NATIVE passive listener +
-  // GPU transform (translate3d), NOT React's synthetic onScroll. Combined with the change-only
-  // label update above, the header no longer re-renders per frame, so it tracks the grid smoothly
-  // instead of jittering during momentum scroll.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    let rafId = 0;
-    let lastLeft = -1;
-    let idle = 0;
-    // During momentum scroll iOS fires `scroll` events sparsely, so reading scrollLeft only on the
-    // event made the header lurch between updates. Instead we run a rAF loop while scrolling and
-    // read scrollLeft EVERY frame, applying the transform via translate3d (GPU). The loop parks
-    // itself after the scroll settles so it isn't burning frames at rest.
-    const frame = () => {
-      const left = el.scrollLeft;
-      if (left !== lastLeft) {
-        lastLeft = left;
-        idle = 0;
-        if (headerInnerRef.current) {
-          headerInnerRef.current.style.transform = `translate3d(${-left}px, 0, 0)`;
-        }
-        updateVisibleDateRangeLabel(left, el.clientWidth);
-      } else if (++idle > 6) {
-        rafId = 0;
-        return; // settled — stop until the next scroll/touch
-      }
-      rafId = requestAnimationFrame(frame);
-    };
-    const kick = () => {
-      if (!rafId) {
-        idle = 0;
-        lastLeft = -1;
-        rafId = requestAnimationFrame(frame);
-      }
-    };
-    el.addEventListener("scroll", kick, { passive: true });
-    el.addEventListener("touchstart", kick, { passive: true });
-    kick(); // initial alignment (also covers the today auto-scroll)
-    return () => {
-      el.removeEventListener("scroll", kick);
-      el.removeEventListener("touchstart", kick);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, [mode, selectedProperty, updateVisibleDateRangeLabel]);
+  // The grid is now the native 2-axis scroll surface (sticky header + sticky room-label column
+  // ride along with zero JS sync), so it also owns vertical scroll — forward scrollTop to the
+  // shell's auto-hiding top chrome, which otherwise listens to the page scroller.
+  const handleGridScroll = useCallback(
+    (event: UIEvent<HTMLDivElement>) => {
+      const { scrollLeft, scrollTop, clientWidth } = event.currentTarget;
+      window.dispatchEvent(
+        new CustomEvent("mobile-shell-scroll", { detail: { scrollTop } }),
+      );
+      updateVisibleDateRangeLabel(scrollLeft, clientWidth);
+    },
+    [updateVisibleDateRangeLabel],
+  );
 
   const openReservationSheet = useCallback((reservationId: string) => {
     if (reservationCloseTimeoutRef.current) {
@@ -900,11 +866,14 @@ export function MobileCalendarView({
       ) : null}
 
       {mode === "overview" ? (
-        // NOTE: no `overflow-hidden` on this Card — the frozen date header below is page-`sticky`,
-        // and any overflow!=visible ancestor between it and the shell scroll container would trap
-        // it. Rounded corners are handled per-child instead (month-nav top, grid bottom).
-        <Card className={GLASS_PANEL}>
-          <div className="flex items-center justify-between rounded-t-[24px] border-b border-slate-200/70 bg-surface/70 px-3 py-2.5">
+        // The grid itself is now the 2-axis native scroll surface (sticky header + sticky
+        // room-label column), so this Card needs overflow-hidden for its rounded corners and a
+        // bounded height so the grid's overflow-auto has somewhere to kick in.
+        <Card
+          className={`flex flex-col overflow-hidden ${GLASS_PANEL}`}
+          style={{ maxHeight: "calc(100dvh - 15rem - env(safe-area-inset-bottom, 0px))" }}
+        >
+          <div className="flex shrink-0 items-center justify-between rounded-t-[24px] border-b border-slate-200/70 bg-surface/70 px-3 py-2.5">
             <Link
               className="inline-flex size-9 items-center justify-center rounded-full border border-slate-200 bg-white text-muted-foreground shadow-[0_10px_22px_-18px_rgba(31,58,95,0.35)] transition-colors hover:text-foreground"
               href={`/mobile/calendar?${previousHref.toString()}`}
@@ -934,7 +903,7 @@ export function MobileCalendarView({
             </div>
           ) : (
             <>
-            <div className="mb-3 flex items-center gap-4 rounded-2xl bg-slate-50 px-3 py-2.5">
+            <div className="mb-3 flex shrink-0 items-center gap-4 rounded-2xl bg-slate-50 px-3 py-2.5">
               <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11.5px] font-bold text-slate-700">
                 <span className="h-3 w-[18px] rounded bg-[linear-gradient(180deg,#ff718c_0%,#f05273_100%)]" aria-hidden="true" />
                 Airbnb
@@ -948,91 +917,15 @@ export function MobileCalendarView({
                 {copy.legendDirect}
               </span>
             </div>
-            {/* Frozen date header — stays pinned to the top of the screen while the room rows
-                scroll under it (page vertical scroll), so the dates never disappear no matter how
-                many rooms there are. It lives OUTSIDE the horizontal grid scroller (a horizontal
-                scroller is itself a sticky boundary, so a header inside it can't pin to the page);
-                its horizontal offset is synced to the grid via a translate3d set from a native
-                passive scroll listener (see the useEffect above) to avoid per-frame jitter.
-                Left spacer matches the sticky room-label column width so the date columns align. */}
-            {/* `-top-[84px]` cancels the shell content scroller's `pt-[84px]` (the space reserved
-                for the auto-hiding top chrome). iOS Safari pins a sticky element at the padding edge,
-                so a plain `top-0` would leave the header floating 84px down with older rooms peeking
-                through the gap once the top chrome hides. Pulling it up by that padding pins the
-                header flush to the true top of the viewport (behind the chrome while it's visible;
-                at the very top once it hides). Keep in sync with mobile-shell's content `pt-[84px]`. */}
-            <div className="sticky -top-[84px] z-20 flex overflow-hidden border-b border-slate-200/55 bg-surface">
-              <div
-                aria-hidden="true"
-                className="shrink-0 border-r border-slate-200/55 bg-surface"
-                style={{ width: `${ROOM_LABEL_WIDTH}px` }}
-              />
-              <div className="min-w-0 flex-1 overflow-hidden">
-                <div
-                  ref={headerInnerRef}
-                  className="flex h-11 will-change-transform"
-                  style={{ minWidth: `${dates.length * DAY_WIDTH}px` }}
-                >
-                  {dates.map((date) => {
-                    const isToday = date === today;
-                    const dow = parseDate(date).getDay();
-                    const isSat = dow === 6;
-                    const isSun = dow === 0;
-                    return (
-                      <div
-                        className={cn(
-                          "relative flex shrink-0 flex-col items-center justify-center gap-0.5 border-r border-slate-200/60",
-                          isToday ? "bg-amber-100/60" : isSat || isSun ? "bg-slate-50/70" : "",
-                        )}
-                        key={date}
-                        style={{ width: `${DAY_WIDTH}px` }}
-                      >
-                        <span
-                          className={cn(
-                            "text-[10px] font-bold leading-none",
-                            isToday
-                              ? "text-amber-700"
-                              : isSat
-                                ? "text-blue-600"
-                                : isSun
-                                  ? "text-rose-600"
-                                  : "text-slate-500",
-                          )}
-                        >
-                          {weekdayFmt.format(parseDate(date))}
-                        </span>
-                        <span
-                          className={cn(
-                            "text-[15px] font-extrabold leading-none tabular-nums",
-                            isToday ? "text-amber-700" : "text-slate-700",
-                          )}
-                        >
-                          {date.slice(8, 10)}
-                        </span>
-                        {isToday ? (
-                          <span className="absolute bottom-0 whitespace-nowrap rounded-full bg-amber-400 px-1.5 text-[8.5px] font-extrabold leading-[1.35] text-white">
-                            {copy.today}
-                          </span>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
             <div
-              // Scroll model (2026-07-22): the grid scrolls ONLY horizontally (the date axis). It
-              // has no fixed height and no vertical scroll, so a vertical swipe passes straight
-              // through to the page (the shell content scroll) — the whole calendar, room rows
-              // included, scrolls as one. This removes the old nested-vertical-scroll trap where
-              // swiping the grid moved the room list instead of the page (you had to touch empty
-              // space to scroll the screen). `overflow-x-auto` still makes this a scroll container,
-              // but because its height fits all rows there is no vertical overflow, so the browser
-              // hands vertical scrolling to the page. `isolate` keeps the sticky room-label column
-              // (z-40) from ever painting over the shell's bottom tab bar.
-              className="isolate overflow-x-auto overscroll-x-contain rounded-b-[24px] bg-surface"
-              // Horizontal scroll → frozen date header sync is handled by a native passive `scroll`
-              // listener (see the useEffect above), not a React onScroll, to avoid per-frame jitter.
+              // Scroll model (2026-07-22): the grid itself is the native 2-axis scroll surface.
+              // The date header uses `position: sticky; top` and the room-label column uses
+              // `position: sticky; left` — both track the native scroll with zero JS sync, so
+              // there is no main-thread lag against the compositor-driven scroll (the old
+              // JS-transform-synced frozen header jittered because it moved a frame behind).
+              // `isolate` keeps the sticky layers from ever painting over the shell's bottom tab bar.
+              className="isolate flex-1 min-h-0 overflow-auto overscroll-contain rounded-b-[24px] bg-surface"
+              onScroll={handleGridScroll}
               // Stop touches here from bubbling to the shell's left-edge-back / pull-to-refresh
               // handlers — a horizontal scroll started near the left edge used to fire router.back().
               onTouchMove={(e) => e.stopPropagation()}
@@ -1044,17 +937,66 @@ export function MobileCalendarView({
                 className="relative w-max min-w-full"
                 style={{ minWidth: `${ROOM_LABEL_WIDTH + dates.length * DAY_WIDTH}px` }}
               >
-                <div
-                  className="sticky left-0 top-0 z-40 h-0 overflow-visible"
-                  style={{ width: `${ROOM_LABEL_WIDTH}px` }}
-                >
+                <div className="sticky top-0 z-30 flex h-11 bg-surface">
                   <div
-                    className="overflow-hidden border-r border-slate-200/55 bg-surface shadow-[5px_0_10px_-8px_rgba(15,23,42,0.10)]"
-                    style={{
-                      width: `${ROOM_LABEL_WIDTH + 2}px`,
-                      marginLeft: "-1px",
-                      transform: "translateZ(0)",
-                    }}
+                    aria-hidden="true"
+                    className="sticky left-0 z-10 shrink-0 border-b border-r border-slate-200/55 bg-surface"
+                    style={{ width: `${ROOM_LABEL_WIDTH}px` }}
+                  />
+                  <div
+                    className="flex border-b border-slate-200/55"
+                    style={{ minWidth: `${dates.length * DAY_WIDTH}px` }}
+                  >
+                    {dates.map((date) => {
+                      const isToday = date === today;
+                      const dow = parseDate(date).getDay();
+                      const isSat = dow === 6;
+                      const isSun = dow === 0;
+                      return (
+                        <div
+                          className={cn(
+                            "relative flex shrink-0 flex-col items-center justify-center gap-0.5 border-r border-slate-200/60",
+                            isToday ? "bg-amber-100/60" : isSat || isSun ? "bg-slate-50/70" : "",
+                          )}
+                          key={date}
+                          style={{ width: `${DAY_WIDTH}px` }}
+                        >
+                          <span
+                            className={cn(
+                              "text-[10px] font-bold leading-none",
+                              isToday
+                                ? "text-amber-700"
+                                : isSat
+                                  ? "text-blue-600"
+                                  : isSun
+                                    ? "text-rose-600"
+                                    : "text-slate-500",
+                            )}
+                          >
+                            {weekdayFmt.format(parseDate(date))}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-[15px] font-extrabold leading-none tabular-nums",
+                              isToday ? "text-amber-700" : "text-slate-700",
+                            )}
+                          >
+                            {date.slice(8, 10)}
+                          </span>
+                          {isToday ? (
+                            <span className="absolute bottom-0 whitespace-nowrap rounded-full bg-amber-400 px-1.5 text-[8.5px] font-extrabold leading-[1.35] text-white">
+                              {copy.today}
+                            </span>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex">
+                  <div
+                    className="sticky left-0 z-20 shrink-0 border-r border-slate-200/55 bg-surface shadow-[5px_0_10px_-8px_rgba(15,23,42,0.10)]"
+                    style={{ width: `${ROOM_LABEL_WIDTH}px` }}
                   >
                     {rooms.map((room, roomIndex) => {
                       const rowHeight =
@@ -1073,8 +1015,6 @@ export function MobileCalendarView({
                       );
                     })}
                   </div>
-                </div>
-                <div style={{ paddingLeft: `${ROOM_LABEL_WIDTH}px` }}>
                   <div
                     className="relative"
                     style={{

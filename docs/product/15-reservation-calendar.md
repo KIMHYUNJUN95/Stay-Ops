@@ -39,8 +39,27 @@ between the header and the shell content scroller.
 frame, starving the main thread so the JS-driven header fell behind the compositor-driven grid and
 visibly shook during momentum scroll. Fixed two ways: (1) the label only `setState`s when its text
 actually changes (a ref guards it), and (2) the header transform is now driven by a **native passive
-`scroll` listener** using `translate3d(...)` (GPU), not React's synthetic onScroll. The header no
-longer re-renders per frame and tracks the grid smoothly.
+`scroll` listener** using `translate3d(...)` (GPU), not React's synthetic onScroll.
+
+**Superseded — native 2-axis scroll (2026-07-22, "B안").** Even the rAF/translate3d sync left a
+residual ~1-frame lag on fast momentum scroll, because the header moved on the **main thread** while
+the grid scrolled on the **compositor** — an inherent limit of any JS-synced frozen header. The
+definitive fix (owner-approved) makes the grid ITSELF the native 2-axis scroll surface, so the header
+and columns scroll in the **same compositor scroll** (zero lag/jitter):
+- The overview `Card` is `flex flex-col overflow-hidden` with `max-height: calc(100dvh - 15rem -
+  env(safe-area-inset-bottom))`; the grid scroller is `flex-1 min-h-0 overflow-auto` — it fills the
+  card and is the scroll surface. Month-nav + legend are `shrink-0` above it.
+- Inside the grid: a **`sticky top-0`** header row (with a `sticky left-0` corner) + a body flex row
+  = **`sticky left-0`** room-label column + the bar canvas. All native — the JS translate3d sync,
+  `headerInnerRef`, and the external header are gone.
+- The grid now owns the vertical scroll, so it re-dispatches the `mobile-shell-scroll` event
+  (`{scrollTop}`) to keep the shell's top-chrome auto-hide working; `handleGridScroll` also updates
+  the visible-date label (change-guarded).
+- **Trade-off:** the page no longer scrolls as one — vertical scrolling happens **inside the grid**
+  (month-nav/controls stay fixed above, always visible). This is the standard calendar-app model and
+  is what makes the pinned header perfectly jitter-free. Grid height is `dvh`-based, so verify on
+  device that it fills without overlapping the bottom tab bar or leaving dead space (tune the `15rem`
+  reserve if needed).
 
 ## Overview grid UI (2026-06-10 readability redesign)
 
