@@ -6,8 +6,9 @@ import { getDictionary } from "@/lib/i18n";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession } from "@/lib/session";
 
-// Admin · Recurring Work — placeholder until the full recurring-work console module ships.
-// Renders inside the console shell so the sidebar links resolve (no 404).
+// Admin · Todoist (legacy route: /admin/recurring-work) — placeholder until the full
+// desktop Todoist management console ships. Renders inside the console shell so the
+// sidebar links resolve (no 404).
 // See docs/product/05-admin-web-ia.md → "Primary Navigation · 정보".
 export default async function AdminRecurringWorkPage() {
   const [state, session] = await Promise.all([getOnboardingState(), getCurrentAppSession()]);

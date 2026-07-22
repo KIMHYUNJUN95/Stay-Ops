@@ -522,6 +522,10 @@ Follow-up implementation completed on top of the new admin reservation dashboard
   - Follow-up slices: auto-refresh wiring, right-side detail panel, notification/org-switcher popovers.
   - Console shell visuals were aligned to the design handoff on 2026-06-30 (dark warm-espresso
     navigation rail with a gold active accent + ivory content), replacing the earlier ivory sidebar.
+- **Todoist naming unified across mobile/admin (2026-07-22).**
+  - Mobile side-menu/bottom-bar candidate `tasks` is now user-facing `Todoist`; the mobile screen title also uses `Todoist`.
+  - Admin sidebar `recurring-work` is now user-facing `Todoist`; the route remains `/admin/recurring-work` for now as a legacy path.
+  - Product docs were updated so the older separate `Recurring Work Scheduler` concept is no longer treated as the active end-user module.
 - **Admin login screen (desktop console entry)** — implemented 2026-06-30.
   - Split layout (warm clay/espresso brand panel + auth form) applied to every auth state via a new
     `AuthFrame` shell and scoped `auth-console.css` (`.authx`). The auth forms (`email-login`,

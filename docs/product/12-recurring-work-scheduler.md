@@ -1,118 +1,36 @@
-# Recurring Work Scheduler
+# Todoist Admin Console (Legacy Route: `/admin/recurring-work`)
+
+Status: Renamed direction confirmed on 2026-07-22.
 
 ## Purpose
 
-The work scheduler is for recurring operational and facility work that must be done periodically across properties or rooms.
+The admin sidebar item previously labeled `Recurring Work` is now exposed to users as `Todoist` and is intended to manage the same task workspace used on mobile.
 
-It is separate from the Beds24 reservation calendar.
+This document supersedes the older separate recurring-work scheduler direction for the current product surface.
 
-## Not the Same as Beds24 Calendar
+## Current Product Direction
 
-Beds24 reservation calendar:
+- Mobile and admin should point at one shared Todoist/task domain.
+- User-facing naming is `Todoist` on both surfaces.
+- The current desktop route may temporarily remain `/admin/recurring-work`, but that is a route legacy, not a product name.
+- Future desktop work should focus on management/oversight for the same task workspace rather than inventing a second standalone scheduler.
 
-- Guest stays
-- Occupancy
-- Availability
-- Check-in/check-out
+## Relationship To Mobile
 
-Recurring work scheduler:
+- Mobile route: `/mobile/tasks`
+- Mobile label: `Todoist`
+- Admin route for now: `/admin/recurring-work`
+- Admin label: `Todoist`
 
-- Periodic operational work
-- Facility maintenance routines
-- Property/room care tasks
-- Annual or seasonal work
+Both surfaces should refer to the same concept and avoid presenting `Recurring Work` as a separate end-user feature.
 
-## Example Work Types
+## What This Admin Surface Should Eventually Manage
 
-Examples:
+- Today / Tomorrow / Inbox / Shared / Completed / Calendar task visibility
+- Project-based work organization
+- Shared-task monitoring and follow-up
+- Oversight and management actions that are harder to do efficiently on mobile
 
-- Weed removal
-- Air conditioner filter cleaning/replacement
-- Waxing
-- Seasonal inspection
-- Facility check
-- Room-wide maintenance routine
+## Retired Direction
 
-## Core Requirements
-
-The scheduler should support:
-
-- Work title
-- Description
-- Target property/building
-- Target rooms/units if needed
-- Frequency
-- Due date
-- Assigned role/person if needed
-- Status
-- Notes
-- Photos if needed
-- Completion date
-
-## Creation Permission
-
-Initial recurring work items will be entered by the Developer/Super Admin.
-
-Field Manager must also be able to create recurring work schedules from the field or admin interface.
-
-Recommended creation/edit permission:
-
-- Developer / Super Admin
-- Owner
-- Office Admin
-- Field Manager
-
-Part-time Staff should not create recurring work schedules in the first version.
-
-## Recurrence
-
-Recurring schedule options may include:
-
-- Once
-- Weekly
-- Monthly
-- Every N months
-- Yearly
-- Custom schedule
-
-Examples:
-
-```txt
-Air conditioner filter work: every 3 months
-Waxing: yearly
-Weed removal: seasonal or every N months
-```
-
-## Statuses
-
-Status candidates:
-
-- scheduled
-- due_soon
-- overdue
-- in_progress
-- completed
-- skipped
-- cancelled
-
-## Relationship to Tasks
-
-The scheduler may generate work tasks.
-
-Recommended model:
-
-```txt
-Recurring Work Template
-  -> Generated Work Occurrence
-      -> Completion Record
-```
-
-This allows the app to keep the long-term schedule while also tracking each actual work instance.
-
-## Open Questions
-
-- Should recurring work be property-level or room-level by default?
-- Should the system automatically generate future occurrences?
-- How far ahead should work appear?
-- Should overdue work trigger notifications?
-- Should completion require photos?
+The older idea of a separate `Recurring Work Scheduler` for end users is retired from the current IA. Any future formal facility-routine planning should be reconsidered as an explicit new module, not assumed to still be this screen.

@@ -1,7 +1,7 @@
-# Todo / Task Workflow
+# Todoist / Task Workflow
 
-Status: First slice implemented (2026-06-10), hardened through 2026-06-15. Mobile Todo/Shared Task is live under
-`/mobile/tasks/*` (side-menu entry `tasks`). Seven tabs now present: Today / Tomorrow / Inbox(관리함) / **프로젝트** / Sent(공유함) / Completed(완료/기록) / Calendar. The 프로젝트 tab is **functional (first slice, 2026-06-15)**: project create/delete, sections (add/rename/delete with their tasks), an Unsectioned area, project-task create + complete/reopen, member invite/remove/leave, a Completed-tab filter (전체/일반/프로젝트), and a `project_shared` notification. Project tasks appear only in the Projects tab (never in Today/Tomorrow/Inbox/Sent/Calendar). Requires migration `202606150002_projects.sql`. See `docs/product/23-project-workflow.md` and `docs/engineering/09-todo-task-technical-design.md`.
+Status: First slice implemented (2026-06-10), hardened through 2026-06-15. Mobile Todoist/Shared Task is live under
+`/mobile/tasks/*` (side-menu entry `tasks`, user-facing label `Todoist`). Seven tabs now present: Today / Tomorrow / Inbox(관리함) / **프로젝트** / Sent(공유함) / Completed(완료/기록) / Calendar. The 프로젝트 tab is **functional (first slice, 2026-06-15)**: project create/delete, sections (add/rename/delete with their tasks), an Unsectioned area, project-task create + complete/reopen, member invite/remove/leave, a Completed-tab filter (전체/일반/프로젝트), and a `project_shared` notification. Project tasks appear only in the Projects tab (never in Today/Tomorrow/Inbox/Sent/Calendar). Requires migration `202606150002_projects.sql`. See `docs/product/23-project-workflow.md` and `docs/engineering/09-todo-task-technical-design.md`.
 quick add + detailed create/edit, task detail with unified update log, multi-select sharing, and
 author/participant rules are implemented. Recurrence is **Todoist-style (2026-06-16)** — a recurring
 task is **one live row** that rolls forward to its next occurrence on completion (no pre-materialized
@@ -54,32 +54,14 @@ This module should cover:
 - task calendar
 - lightweight recurring task behavior
 
-This module should **not** be treated as the same thing as the recurring work scheduler.
+This module is the canonical task workspace across mobile and admin.
 
-## Separation From Recurring Work Scheduler
+## Naming And Admin Surface
 
-Todo/Task and Recurring Work Scheduler must remain separate features.
-
-### Todo / Task
-
-Use for:
-
-- personal reminders
-- ad hoc follow-up
-- shared coordination
-- CS promise tracking
-- guest/request exception handling
-- flexible repeated reminders
-
-### Recurring Work Scheduler
-
-Use for:
-
-- formal operational recurring work
-- facility/process routines
-- official scheduled work programs
-
-Do not collapse these two into one workflow.
+- Mobile user-facing label is `Todoist`.
+- Admin sidebar user-facing label is also `Todoist`.
+- The current admin route remains `/admin/recurring-work` as a legacy path until the desktop console is rebuilt.
+- The old separate "Recurring Work Scheduler" concept is not the active user-facing module anymore; the shared task workspace is the canonical direction.
 
 ## Core Product Direction
 
@@ -262,12 +244,12 @@ Examples:
 
 Todo is not a substitute for the original record in those modules.
 
-### Recurring Work Scheduler
+### Legacy Separate Scheduler Concept
 
 Again:
 
 - recurring task support here is lightweight and personal/team-task oriented
-- official recurring operations stay in the Work Scheduler
+- any future formal facility routine module must be treated as a new explicit feature, not as this Todoist workspace
 
 ## Core Task Model
 

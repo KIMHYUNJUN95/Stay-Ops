@@ -603,15 +603,43 @@ export function MobileCalendarView({
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const onScroll = () => {
-      if (headerInnerRef.current) {
-        headerInnerRef.current.style.transform = `translate3d(${-el.scrollLeft}px, 0, 0)`;
+    let rafId = 0;
+    let lastLeft = -1;
+    let idle = 0;
+    // During momentum scroll iOS fires `scroll` events sparsely, so reading scrollLeft only on the
+    // event made the header lurch between updates. Instead we run a rAF loop while scrolling and
+    // read scrollLeft EVERY frame, applying the transform via translate3d (GPU). The loop parks
+    // itself after the scroll settles so it isn't burning frames at rest.
+    const frame = () => {
+      const left = el.scrollLeft;
+      if (left !== lastLeft) {
+        lastLeft = left;
+        idle = 0;
+        if (headerInnerRef.current) {
+          headerInnerRef.current.style.transform = `translate3d(${-left}px, 0, 0)`;
+        }
+        updateVisibleDateRangeLabel(left, el.clientWidth);
+      } else if (++idle > 6) {
+        rafId = 0;
+        return; // settled — stop until the next scroll/touch
       }
-      updateVisibleDateRangeLabel(el.scrollLeft, el.clientWidth);
+      rafId = requestAnimationFrame(frame);
     };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    onScroll(); // initial alignment (also covers the today auto-scroll)
-    return () => el.removeEventListener("scroll", onScroll);
+    const kick = () => {
+      if (!rafId) {
+        idle = 0;
+        lastLeft = -1;
+        rafId = requestAnimationFrame(frame);
+      }
+    };
+    el.addEventListener("scroll", kick, { passive: true });
+    el.addEventListener("touchstart", kick, { passive: true });
+    kick(); // initial alignment (also covers the today auto-scroll)
+    return () => {
+      el.removeEventListener("scroll", kick);
+      el.removeEventListener("touchstart", kick);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, [mode, selectedProperty, updateVisibleDateRangeLabel]);
 
   const openReservationSheet = useCallback((reservationId: string) => {

@@ -27,7 +27,7 @@ Confirmed admin direction (2026-06-29):
 - major mobile modules should also be usable from the dashboard
 - physical-device exceptions are allowed only when desktop hardware cannot realistically perform the action
 
-### 2. Todo and Tasks
+### 2. Todoist and Tasks
 
 Purpose:
 
@@ -103,20 +103,18 @@ Key features:
 - Internal memo / comment thread
 - Screenshot / photo attachment
 
-### 5. Work Scheduler
+### 5. Todoist Admin Console
 
 Purpose:
 
-- Coordinate recurring operational/facility work such as weed removal, air conditioner filter work, waxing, and seasonal property tasks.
-- This is separate from the Beds24 reservation calendar.
+- Provide the desktop management surface for the same Todoist/task workspace used on mobile.
+- Give office/admin staff a larger-screen way to monitor shared work, projects, and task follow-up.
 
-Calendar use cases:
+Current direction:
 
-- Yearly recurring work overview
-- Due soon work
-- Overdue work
-- Completed periodic work history
-- Property/room maintenance routines
+- User-facing name is `Todoist`
+- Current route may remain `/admin/recurring-work` temporarily as a legacy path
+- This is not a separate end-user feature from the mobile Todoist workspace
 
 Default stay time rules:
 

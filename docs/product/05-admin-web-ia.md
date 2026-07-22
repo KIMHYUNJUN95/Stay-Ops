@@ -194,7 +194,7 @@
 
 - Reservations / Calendar (예약)
 - Announcements / Board (공지·게시판)
-- Recurring Work (반복 업무)
+- Todoist (투두이스트)
 - Settings (설정)
 
 향후 모듈(Linen Return · Complaints · Tasks/Projects · Suggestions · Bug Reports · Notifications ·
