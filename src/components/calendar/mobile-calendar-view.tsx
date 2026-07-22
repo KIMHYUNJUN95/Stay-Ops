@@ -567,6 +567,9 @@ export function MobileCalendarView({
   // Uses a Set so each selectedMonth+selectedProperty combo scrolls at most once per session.
   // mode is in the dependency array so the effect re-runs when overview panel mounts.
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Frozen date header: lives outside the horizontal grid scroller (so it can be page-sticky),
+  // and its horizontal position is kept in sync with the grid via translateX on this inner strip.
+  const headerInnerRef = useRef<HTMLDivElement | null>(null);
   const autoScrolledKeys = useRef(new Set<string>());
   const [visibleDateRangeLabel, setVisibleDateRangeLabel] = useState<string | null>(null);
 
@@ -593,10 +596,13 @@ export function MobileCalendarView({
 
   const handleGridScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
     const { clientWidth, scrollLeft } = event.currentTarget;
-    // Horizontal-only scroller now: just keep the visible date-range label in sync. Vertical
-    // scrolling lives on the shell content container, which drives the top-chrome hide natively —
-    // so we no longer dispatch a synthetic mobile-shell-scroll (needed only when the grid owned
-    // the vertical scroll).
+    // Keep the frozen date header horizontally aligned with the grid body.
+    if (headerInnerRef.current) {
+      headerInnerRef.current.style.transform = `translateX(${-scrollLeft}px)`;
+    }
+    // Horizontal-only scroller now: keep the visible date-range label in sync. Vertical scrolling
+    // lives on the shell content container, which drives the top-chrome hide natively — so we no
+    // longer dispatch a synthetic mobile-shell-scroll (needed only when the grid owned vertical).
     updateVisibleDateRangeLabel(scrollLeft, clientWidth);
   }, [updateVisibleDateRangeLabel]);
 
@@ -858,8 +864,11 @@ export function MobileCalendarView({
       ) : null}
 
       {mode === "overview" ? (
-        <Card className={`overflow-hidden ${GLASS_PANEL}`}>
-          <div className="flex items-center justify-between border-b border-slate-200/70 bg-surface/70 px-3 py-2.5">
+        // NOTE: no `overflow-hidden` on this Card — the frozen date header below is page-`sticky`,
+        // and any overflow!=visible ancestor between it and the shell scroll container would trap
+        // it. Rounded corners are handled per-child instead (month-nav top, grid bottom).
+        <Card className={GLASS_PANEL}>
+          <div className="flex items-center justify-between rounded-t-[24px] border-b border-slate-200/70 bg-surface/70 px-3 py-2.5">
             <Link
               className="inline-flex size-9 items-center justify-center rounded-full border border-slate-200 bg-white text-muted-foreground shadow-[0_10px_22px_-18px_rgba(31,58,95,0.35)] transition-colors hover:text-foreground"
               href={`/mobile/calendar?${previousHref.toString()}`}
@@ -903,6 +912,71 @@ export function MobileCalendarView({
                 {copy.legendDirect}
               </span>
             </div>
+            {/* Frozen date header — stays pinned to the top of the screen while the room rows
+                scroll under it (page vertical scroll), so the dates never disappear no matter how
+                many rooms there are. It lives OUTSIDE the horizontal grid scroller (a horizontal
+                scroller is itself a sticky boundary, so a header inside it can't pin to the page);
+                its horizontal offset is synced to the grid via translateX in handleGridScroll.
+                Left spacer matches the sticky room-label column width so the date columns align. */}
+            <div className="sticky top-0 z-20 flex overflow-hidden border-b border-slate-200/55 bg-surface">
+              <div
+                aria-hidden="true"
+                className="shrink-0 border-r border-slate-200/55 bg-surface"
+                style={{ width: `${ROOM_LABEL_WIDTH}px` }}
+              />
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <div
+                  ref={headerInnerRef}
+                  className="flex h-11 will-change-transform"
+                  style={{ minWidth: `${dates.length * DAY_WIDTH}px` }}
+                >
+                  {dates.map((date) => {
+                    const isToday = date === today;
+                    const dow = parseDate(date).getDay();
+                    const isSat = dow === 6;
+                    const isSun = dow === 0;
+                    return (
+                      <div
+                        className={cn(
+                          "relative flex shrink-0 flex-col items-center justify-center gap-0.5 border-r border-slate-200/60",
+                          isToday ? "bg-amber-100/60" : isSat || isSun ? "bg-slate-50/70" : "",
+                        )}
+                        key={date}
+                        style={{ width: `${DAY_WIDTH}px` }}
+                      >
+                        <span
+                          className={cn(
+                            "text-[10px] font-bold leading-none",
+                            isToday
+                              ? "text-amber-700"
+                              : isSat
+                                ? "text-blue-600"
+                                : isSun
+                                  ? "text-rose-600"
+                                  : "text-slate-500",
+                          )}
+                        >
+                          {weekdayFmt.format(parseDate(date))}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-[15px] font-extrabold leading-none tabular-nums",
+                            isToday ? "text-amber-700" : "text-slate-700",
+                          )}
+                        >
+                          {date.slice(8, 10)}
+                        </span>
+                        {isToday ? (
+                          <span className="absolute bottom-0 whitespace-nowrap rounded-full bg-amber-400 px-1.5 text-[8.5px] font-extrabold leading-[1.35] text-white">
+                            {copy.today}
+                          </span>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
             <div
               // Scroll model (2026-07-22): the grid scrolls ONLY horizontally (the date axis). It
               // has no fixed height and no vertical scroll, so a vertical swipe passes straight
@@ -913,7 +987,7 @@ export function MobileCalendarView({
               // but because its height fits all rows there is no vertical overflow, so the browser
               // hands vertical scrolling to the page. `isolate` keeps the sticky room-label column
               // (z-40) from ever painting over the shell's bottom tab bar.
-              className="isolate overflow-x-auto overscroll-x-contain bg-surface"
+              className="isolate overflow-x-auto overscroll-x-contain rounded-b-[24px] bg-surface"
               onScroll={handleGridScroll}
               // Stop touches here from bubbling to the shell's left-edge-back / pull-to-refresh
               // handlers — a horizontal scroll started near the left edge used to fire router.back().
@@ -938,7 +1012,6 @@ export function MobileCalendarView({
                       transform: "translateZ(0)",
                     }}
                   >
-                    <div className="h-11 shrink-0 border-b border-slate-200/55 bg-surface" />
                     {rooms.map((room, roomIndex) => {
                       const rowHeight =
                         roomBarLayouts.get(room)?.rowHeight ?? CALENDAR_SINGLE_ROW_HEIGHT;
@@ -958,55 +1031,6 @@ export function MobileCalendarView({
                   </div>
                 </div>
                 <div style={{ paddingLeft: `${ROOM_LABEL_WIDTH}px` }}>
-                  <div
-                    className="sticky top-0 z-20 flex h-11 bg-surface"
-                    style={{ minWidth: `${dates.length * DAY_WIDTH}px` }}
-                  >
-                    {dates.map((date) => {
-                      const isToday = date === today;
-                      const dow = parseDate(date).getDay();
-                      const isSat = dow === 6;
-                      const isSun = dow === 0;
-                      return (
-                        <div
-                          className={cn(
-                            "relative flex shrink-0 flex-col items-center justify-center gap-0.5 border-r border-slate-200/60",
-                            isToday ? "bg-amber-100/60" : isSat || isSun ? "bg-slate-50/70" : "",
-                          )}
-                          key={date}
-                          style={{ width: `${DAY_WIDTH}px` }}
-                        >
-                          <span
-                            className={cn(
-                              "text-[10px] font-bold leading-none",
-                              isToday
-                                ? "text-amber-700"
-                                : isSat
-                                  ? "text-blue-600"
-                                  : isSun
-                                    ? "text-rose-600"
-                                    : "text-slate-500",
-                            )}
-                          >
-                            {weekdayFmt.format(parseDate(date))}
-                          </span>
-                          <span
-                            className={cn(
-                              "text-[15px] font-extrabold leading-none tabular-nums",
-                              isToday ? "text-amber-700" : "text-slate-700",
-                            )}
-                          >
-                            {date.slice(8, 10)}
-                          </span>
-                          {isToday ? (
-                            <span className="absolute bottom-0 whitespace-nowrap rounded-full bg-amber-400 px-1.5 text-[8.5px] font-extrabold leading-[1.35] text-white">
-                              {copy.today}
-                            </span>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
                   <div
                     className="relative"
                     style={{

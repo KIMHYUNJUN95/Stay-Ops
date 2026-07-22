@@ -22,10 +22,17 @@ room-label column (left) is unchanged and still pins on horizontal scroll.
 - The top-chrome hide is now driven natively by the shell content container's own scroll
   (`handleContentScroll`), so the grid no longer dispatches the synthetic `mobile-shell-scroll`
   event (that existed only because the grid used to own the vertical scroll).
-- **Trade-off:** because a horizontally-scrolling container is itself a sticky boundary, the day/date
-  header can no longer be CSS-`sticky`-pinned to the viewport; it now scrolls with the page (sits at
-  the top of the grid). A future frozen-header (synced horizontal scroll) pass could re-pin it if
-  needed.
+
+**(c) frozen date header (2026-07-22).** Requirement: with many rooms the date row must stay visible
+while scrolling down. Because a horizontally-scrolling container is itself a `position: sticky`
+boundary, the date header can't be pinned from *inside* the grid — so it now lives **outside** the
+grid scroller as a page-`sticky` (`top-0`) element, and its horizontal position is kept in sync with
+the grid via `translateX` on an inner strip (set in `handleGridScroll` from the grid's `scrollLeft`).
+A left spacer equal to the room-label column width keeps the date columns aligned with the body. The
+old in-grid header row and the room-label column's header spacer were removed. For this sticky to
+resolve against the shell scroll container, the overview `Card` dropped `overflow-hidden` (rounded
+corners are now per-child: month-nav top, grid bottom) — no overflow!=visible ancestor may sit
+between the header and the shell content scroller.
 
 ## Overview grid UI (2026-06-10 readability redesign)
 
