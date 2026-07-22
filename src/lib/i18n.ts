@@ -8,7 +8,6 @@ export const localizedNavigationLabels = {
     announcements: { ko: "공지", ja: "お知らせ", en: "Announcements" },
     attendance: { ko: "근태", ja: "勤怠", en: "Attendance" },
     calendar: { ko: "예약 캘린더", ja: "予約カレンダー", en: "Calendar" },
-    checkInOut: { ko: "체크인/아웃", ja: "チェックイン/アウト", en: "Check-In/Out" },
     cleaning: { ko: "청소", ja: "清掃", en: "Cleaning" },
     dashboard: { ko: "대시보드", ja: "ダッシュボード", en: "Dashboard" },
     lostFound: { ko: "분실물", ja: "遺失物", en: "Lost & Found" },

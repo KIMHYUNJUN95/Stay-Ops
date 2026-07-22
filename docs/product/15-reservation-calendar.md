@@ -1,16 +1,31 @@
 # Reservation Calendar
 
-## Overview grid — room-label / bottom-bar overlap fix (2026-07-22)
+## Overview grid — scroll model: page-vertical / grid-horizontal (2026-07-22)
 
-On iPhone (home-indicator devices) the sticky left **room-number column overlapped the shell's
-bottom tab bar** while scrolling the grid. Two causes, both in `mobile-calendar-view.tsx`:
+Two related mobile fixes to `mobile-calendar-view.tsx`, in order:
 
-- The grid pane height was `calc(100dvh - 20rem)`, which did **not** subtract
-  `env(safe-area-inset-bottom)`. The bottom tab bar is taller by that inset on such devices, so the
-  grid's last rows were pushed **down under** the bar. Fixed → `calc(100dvh - 20rem - env(safe-area-inset-bottom, 0px))`.
-- The sticky room-label column is `z-40` (day header `z-20`) while the shell tab bar is `z-20`, in the
-  **same stacking context**, so the labels painted over the bar. Fixed by adding `isolate` to the grid
-  scroll container, making the grid its own stacking context that sits below the tab bar.
+**(a) room-label / bottom-bar overlap.** On iPhone the sticky left **room-number column overlapped
+the shell's bottom tab bar** while scrolling. The sticky room-label column is `z-40` (day header
+`z-20`) and the shell tab bar is `z-20` in the **same stacking context**, so the labels painted over
+the bar. Fixed by adding **`isolate`** to the grid scroll container so it becomes its own stacking
+context that always sits below the tab bar.
+
+**(b) nested-vertical-scroll trap → decoupled axes.** The grid used to be a **fixed-height 2-axis
+scroll pane** (`height: calc(100dvh - …)`, `overflow: auto`). A vertical swipe scrolled the *room
+list inside the grid* instead of the page, so to scroll the screen you had to touch empty space. Now
+the grid scrolls **horizontally only** (`overflow-x-auto`, no fixed height): its height fits all
+rows, so it has no vertical overflow and the browser hands vertical scrolling to the **page** (the
+shell content container). Result: a vertical swipe anywhere scrolls the whole calendar — rooms
+included — as one natural page scroll; horizontal swipe still pans the date axis. The sticky
+room-label column (left) is unchanged and still pins on horizontal scroll.
+
+- The top-chrome hide is now driven natively by the shell content container's own scroll
+  (`handleContentScroll`), so the grid no longer dispatches the synthetic `mobile-shell-scroll`
+  event (that existed only because the grid used to own the vertical scroll).
+- **Trade-off:** because a horizontally-scrolling container is itself a sticky boundary, the day/date
+  header can no longer be CSS-`sticky`-pinned to the viewport; it now scrolls with the page (sits at
+  the top of the grid). A future frozen-header (synced horizontal scroll) pass could re-pin it if
+  needed.
 
 ## Overview grid UI (2026-06-10 readability redesign)
 

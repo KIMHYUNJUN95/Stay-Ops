@@ -34,7 +34,6 @@ This section is the live design progress tracker for Stitch review. Update it wh
 - Admin Announcements
 - Admin Recurring Work
 - Admin Users
-- Admin Check-In / Check-Out
 
 ### Deferred / Implementation Required
 

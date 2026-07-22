@@ -161,12 +161,6 @@ const CALENDAR_BAR_TOP = 8;
 /** Compact vertical offset per lane -> keeps all bars within the fixed row height. */
 const CALENDAR_COMPACT_LANE_OFFSET = 4;
 const CALENDAR_SINGLE_ROW_HEIGHT = 48;
-/** Room grid pane height -> uses remaining viewport below shell chrome + bottom nav padding.
- *  Subtract env(safe-area-inset-bottom) so devices with a home-indicator (iPhone) — whose
- *  bottom tab bar is taller by that inset — do not push the grid's last rows down UNDER the
- *  tab bar (which made the sticky room-label column overlap it). */
-const CALENDAR_GRID_VIEWPORT_HEIGHT = "calc(100dvh - 20rem - env(safe-area-inset-bottom, 0px))";
-const CALENDAR_GRID_MIN_HEIGHT_PX = 220;
 const DEFAULT_CHECK_IN_TIME = "16:00";
 const DEFAULT_CHECK_OUT_TIME = "10:00";
 
@@ -598,13 +592,12 @@ export function MobileCalendarView({
   );
 
   const handleGridScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
-    const { clientWidth, scrollLeft, scrollTop } = event.currentTarget;
+    const { clientWidth, scrollLeft } = event.currentTarget;
+    // Horizontal-only scroller now: just keep the visible date-range label in sync. Vertical
+    // scrolling lives on the shell content container, which drives the top-chrome hide natively —
+    // so we no longer dispatch a synthetic mobile-shell-scroll (needed only when the grid owned
+    // the vertical scroll).
     updateVisibleDateRangeLabel(scrollLeft, clientWidth);
-    window.dispatchEvent(
-      new CustomEvent("mobile-shell-scroll", {
-        detail: { scrollTop },
-      }),
-    );
   }, [updateVisibleDateRangeLabel]);
 
   const openReservationSheet = useCallback((reservationId: string) => {
@@ -911,21 +904,22 @@ export function MobileCalendarView({
               </span>
             </div>
             <div
-              // `isolate` contains the grid's internal stacking (sticky room-label column is
-              // z-40, day header z-20) so they can NEVER paint over the shell's bottom tab bar
-              // (z-20) — the grid becomes its own stacking context that sits below the tab bar.
-              className="isolate min-h-0 overflow-auto overscroll-x-contain bg-surface"
+              // Scroll model (2026-07-22): the grid scrolls ONLY horizontally (the date axis). It
+              // has no fixed height and no vertical scroll, so a vertical swipe passes straight
+              // through to the page (the shell content scroll) — the whole calendar, room rows
+              // included, scrolls as one. This removes the old nested-vertical-scroll trap where
+              // swiping the grid moved the room list instead of the page (you had to touch empty
+              // space to scroll the screen). `overflow-x-auto` still makes this a scroll container,
+              // but because its height fits all rows there is no vertical overflow, so the browser
+              // hands vertical scrolling to the page. `isolate` keeps the sticky room-label column
+              // (z-40) from ever painting over the shell's bottom tab bar.
+              className="isolate overflow-x-auto overscroll-x-contain bg-surface"
               onScroll={handleGridScroll}
               // Stop touches here from bubbling to the shell's left-edge-back / pull-to-refresh
               // handlers — a horizontal scroll started near the left edge used to fire router.back().
               onTouchMove={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
               ref={scrollRef}
-              style={{
-                height: CALENDAR_GRID_VIEWPORT_HEIGHT,
-                maxHeight: CALENDAR_GRID_VIEWPORT_HEIGHT,
-                minHeight: `${CALENDAR_GRID_MIN_HEIGHT_PX}px`,
-              }}
             >
               {/* Single scroll pane -- room labels and grid rows share identical row heights */}
               <div

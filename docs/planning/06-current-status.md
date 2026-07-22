@@ -16,6 +16,13 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **대시보드 `체크인/아웃` 독립 메뉴 폐기 — 예약 캘린더 통합으로 정리 완료 (2026-07-22).**
+  관리자 사이드바에 남아 있던 `/admin/check-in-out`은 실제 기능 없는 플레이스홀더였고, 실운영 기능은
+  이미 `/admin` 홈 요약과 `/admin/calendar`의 `Today ops`에 들어가 있었다. 기능 중복 IA를 없애기 위해
+  **사이드바 `체크인/아웃` 항목과 플레이스홀더 라우트 `/admin/check-in-out`을 삭제**했다. 문서도 이에
+  맞춰 "독립 체크인/아웃 모듈"이 아니라 "예약 캘린더 통합 운영 기능"으로 정렬했다. 관련 파일:
+  `src/config/navigation.ts`, `docs/product/05-admin-web-ia.md`, `docs/planning/01-decision-log.md`.
+
 - **Beds24 숙소 매핑 중복(가부키초=176431) 근본 수정 — 완료 (2026-07-22).** 예약 캘린더에서 가부키초가
   "가부키초"+"176431" 두 건물로 쪼개져 보이던 문제. 원인: 예약 property_name을 Beds24 payload 기준으로
   저장하는데 `propName`이 빠진 응답은 raw `propId`("176431")로 폴백 + `room-sync`가 매 동기화마다 마스터

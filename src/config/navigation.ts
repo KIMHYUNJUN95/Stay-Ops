@@ -251,12 +251,6 @@ export const adminNavigation = [
     icon: CalendarDays,
   },
   {
-    id: "check-in-out",
-    label: localizedNavigationLabels.admin.checkInOut,
-    href: "/admin/check-in-out",
-    icon: ClipboardCheck,
-  },
-  {
     id: "cleaning",
     label: localizedNavigationLabels.admin.cleaning,
     href: "/admin/cleaning",
@@ -329,7 +323,6 @@ export const adminNavGroupOf: Record<string, AdminNavGroupKey> = {
   users: "people",
   // 정보
   calendar: "info",
-  "check-in-out": "info",
   announcements: "info",
   "recurring-work": "info",
   settings: "info",

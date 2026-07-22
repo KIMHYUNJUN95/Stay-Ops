@@ -2,6 +2,29 @@
 
 This file records important project decisions.
 
+## 2026-07-22 대시보드 `체크인/아웃` 독립 메뉴 폐기 — 예약 캘린더로 통합
+
+### 배경
+
+- 관리자 사이드바에 `/admin/check-in-out` 메뉴가 남아 있었지만 실제 페이지는 플레이스홀더뿐이었다.
+- 반면 실운영 기능은 이미 `/admin` 홈의 "예약 체크인/아웃" 요약 카드와 `/admin/calendar`의 `Today ops`
+  (체크인 / 체크아웃 / 투숙중 / 셋팅 대상) 안에 구현되어 있었다.
+- 결과적으로 사용성 이득 없이 IA만 중복되고, "독립 모듈이 따로 있다"는 잘못된 기대를 만들고 있었다.
+
+### 결정
+
+- 대시보드에서 **체크인/체크아웃은 독립 모듈로 두지 않는다.**
+- 예약 체크인/체크아웃 운영은 계속 필요하지만, 이는 **예약 캘린더 통합 콘솔의 일부**로 본다.
+- 사이드바의 `체크인/아웃` 항목은 제거한다.
+- 기존 플레이스홀더 라우트 `/admin/check-in-out`도 함께 삭제한다.
+
+### 영향
+
+- 관리자 정보(Information) 그룹은 `예약 / 캘린더`, `공지·게시판`, `반복 업무`, `설정`만 유지한다.
+- 향후 체크인/체크아웃 관련 재기획이 있어도 우선 기준 표면은 `/admin/calendar`와 `/admin` 홈이다.
+- 문서도 독립 "체크인/체크아웃 전용 보드"를 별도 1차 필수 화면으로 보지 않고, 예약 콘솔 안의 운영
+  영역으로 정렬한다.
+
 ## 2026-07-22 숙소 매핑 중복(가부키초=176431) 근본 수정 — property_name을 마스터 기준으로 해결
 
 ### 증상
@@ -2483,7 +2506,6 @@ Decision: The following Stitch screens are accepted as v1 working design directi
 - Admin Announcements
 - Admin Recurring Work
 - Admin Users
-- Admin Check-In / Check-Out
 
 New Request Menu v1 is structurally accepted but needs more Liquid Glass polish later.
 
