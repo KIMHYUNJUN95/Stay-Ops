@@ -169,8 +169,12 @@ export function DisposedLostFoundList({
         <Search className="size-4 shrink-0 text-slate-400" aria-hidden="true" />
         <input
           className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:font-medium placeholder:text-slate-400"
+          autoCapitalize="none"
+          autoCorrect="off"
+          enterKeyHint="search"
           onChange={(e) => setQuery(e.target.value)}
           placeholder={copy.searchPlaceholder}
+          type="search"
           value={query}
         />
       </label>

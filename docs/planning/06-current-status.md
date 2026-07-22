@@ -24,7 +24,10 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   `@capacitor/haptics`로 교체하면 호출부 불변. **광범위·검증불가라 이번에 제외한 것(별도 배치 필요):**
   낙관적 UI(기능별), 리스트 스와이프 액션(기능별), 입력 키보드 힌트 전면화(공용 Input 블랭킷 위험),
   상태바 immersive(외형 변경 위험). 근본 개선(App Store 출시·안정 푸시·iOS 햅틱 실체감)은 **Capacitor
-  네이티브 래핑 결정** 이후. `npm run lint`/`npm run build` 통과.
+  네이티브 래핑 결정** 이후. ③ **모바일 검색창 → 검색 키보드**: 모바일 검색 input 6곳(반환/폐기 분실물,
+  Todo 검색, 컨텍스트/공유 피커, 보드 멘션)에 `type="search"`·`enterKeyHint="search"`·`autoCapitalize=none`·
+  `autoCorrect=off` 추가(돋보기 리턴키+클리어 버튼+오토수정 끔). 온보딩·계정 신원 필드(이름·전화·이메일·
+  초대코드)와 주문 수량(`inputMode=numeric`)은 이미 시맨틱 적용돼 있어 그대로. `npm run lint`/`npm run build` 통과.
 
 - **모바일 모션 네이티브화 — 공용 모션 토큰 + 커브 일괄 통일 (2026-07-22).** "바텀시트 등 움직이는 것들을
   전부 네이티브처럼 부드럽게" 요청. 감사 결과 심각한 jank(레이아웃 속성 애니메이션·`transition: all`)는

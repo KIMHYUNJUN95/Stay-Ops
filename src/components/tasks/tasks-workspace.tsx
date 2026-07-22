@@ -1249,8 +1249,12 @@ export function TasksWorkspace({
               />
               <input
                 className="h-11 w-full rounded-2xl border border-border bg-surface pl-9 pr-9 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary"
+                autoCapitalize="none"
+                autoCorrect="off"
+                enterKeyHint="search"
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={copy.searchPlaceholder}
+                type="search"
                 value={search}
               />
               {hasSearch ? (

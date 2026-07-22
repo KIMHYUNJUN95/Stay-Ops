@@ -727,9 +727,13 @@ export function ContextPickerSheet({
               />
               <input
                 className="h-11 w-full rounded-[13px] border border-border bg-background px-4 pl-[37px] text-[13.5px] font-medium text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-primary"
+                autoCapitalize="none"
+                autoCorrect="off"
+                enterKeyHint="search"
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={copy.contextPickerSearch}
                 ref={searchRef}
+                type="search"
                 value={search}
               />
               {search ? (

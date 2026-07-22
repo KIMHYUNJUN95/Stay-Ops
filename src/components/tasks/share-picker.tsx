@@ -62,8 +62,12 @@ export function SharePicker({
             <Search className="pointer-events-none absolute left-3.5 size-4 text-slate-400" aria-hidden="true" />
             <input
               className="h-11 w-full rounded-2xl border border-border bg-background/60 pl-10 pr-3 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary"
+              autoCapitalize="none"
+              autoCorrect="off"
+              enterKeyHint="search"
               onChange={(e) => setQuery(e.target.value)}
               placeholder={copy.shareSearch}
+              type="search"
               value={query}
             />
           </div>

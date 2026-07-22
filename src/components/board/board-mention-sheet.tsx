@@ -100,7 +100,10 @@ export function BoardMentionSheet({
       <div className="mb-1.5 mt-1 flex h-[42px] items-center gap-[9px] rounded-[12px] border border-border bg-background px-[14px]">
         <Search className="size-[17px] shrink-0 text-muted-foreground" aria-hidden="true" />
         <input
-          type="text"
+          type="search"
+          enterKeyHint="search"
+          autoCapitalize="none"
+          autoCorrect="off"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={copy.mentionSearchPlaceholder}
