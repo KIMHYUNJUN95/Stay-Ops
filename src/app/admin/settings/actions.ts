@@ -300,7 +300,11 @@ export async function deactivateInviteCode(formData: FormData) {
   const { error } = await getSupabaseServiceClient()
     .from("invite_codes")
     .update({ is_active: false } as never)
-    .eq("id", inviteCodeId);
+    .eq("id", inviteCodeId)
+    // Org-scope the write like activate/delete do — canManageInvites only proves the caller may
+    // manage THIS org's invites, not that the given code belongs to it, so without this an invite
+    // manager could deactivate another org's code by id.
+    .eq("organization_id", organizationId);
 
   if (error) {
     redirect("/admin/users/invites?error=save_failed");

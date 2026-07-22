@@ -16,6 +16,16 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **출시 전 보안 감사 결과 + 수정 (2026-07-22).** 서버 액션 37개·`lib/*` 헬퍼·API 라우트 10개·인증/미들웨어/
+  서비스클라이언트 전수 읽기 전용 감사. **출시 차단급 유출/변조 취약점 없음**(org 스코프+ownership+role 재검증
+  패턴이 일관·방어적). **수정 3건:** ① [조직 격리 버그] `deactivateInviteCode`(`admin/settings/actions.ts`)에
+  서비스롤 UPDATE의 `.eq("organization_id")` 누락(형제 activate/delete엔 있음) → 타 org 초대코드 비활성화
+  가능했음 → 형제와 동일하게 org 필터 추가. ② `lib/supabase/service.ts`·`server.ts`에 `import "server-only"`
+  가드 추가(클라이언트 import 컴파일 타임 차단; 빌드로 현재 위반 0 확인). ③ `signInWithGoogle`의 URL
+  `console.log` 2줄 제거. **오너 확인/결정 필요(미변경):** (a) 주문 상태 처리 권한에 `field_manager` 포함
+  (`mobile/requests/orders/actions.ts`)이 `docs/engineering/05-rls-permissions.md`와 불일치 → 코드/문서 중 어느
+  쪽이 맞는지 확정 필요, (b) 웹훅/리컨사일/크론 라우트가 `?secret=` 쿼리도 수용 → 헤더 전용으로 좁힐지(로그
+  노출 최소화) 결정. `npm run lint`/`npm run build` 통과.
 - **출시 전 위생 배치 + 보안/RLS 감사 착수 (2026-07-22).** 지금 환경에서 완결 가능한 출시-전 항목부터.
   ① **검색엔진 색인 차단**: 비공개 초대제 앱인데 크롤링 차단이 없어, `src/app/robots.ts`(전면 disallow) +
   루트 metadata `robots: { index:false, follow:false }` 추가 → 로그인/앱 페이지가 검색에 안 뜸. ②

@@ -313,8 +313,6 @@ export async function signInWithGoogle(formData: FormData) {
 
   const appUrl = await getAppUrl();
   const oauthRedirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(callbackNext)}`;
-  console.log("[signInWithGoogle] appUrl =", appUrl);
-  console.log("[signInWithGoogle] redirectTo =", oauthRedirectTo);
 
   const supabase = await getSupabaseServerClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
