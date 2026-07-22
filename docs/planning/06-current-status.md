@@ -26,9 +26,12 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   2xx ACK — 다시는 조용히 유실되지 않음). 신규 마이그레이션 `202607220001_beds24_webhook_raw_capture.sql`
   (원격 적용 완료). `npm run lint`/`npm run build` 통과. 배포 완료(`4b1f1b2`, 프로덕션 READY).
   **누락분 복구 완료(2026-07-22):** 로컬 dev 백필(org 사무실, 2026-06→2028-01)로 Beds24 재풀 → 사무실
-  org 예약 1813→**1904건**(2027-01-26까지), 다카다노바바 7층 7/17 이후 신규 예약 정상 복구. **남은 일:**
-  라이브 웹훅 실트래픽 2xx 확인(다음 organic 웹훅 대기), **reconcile+task reminders 크론 전면 미실행
-  원인(Vercel 크론 자체 미발화) 점검**으로 자동 안전망 복원. 상세
+  org 예약 1813→**1904건**(2027-01-26까지), 다카다노바바 7층 7/17 이후 신규 예약 정상 복구.
+  **라이브 웹훅 2xx 검증 완료(2026-07-22 01:22):** 실제 Beds24 웹훅이 새 배포에서 `upserted` 200으로
+  처리됨(시스템 최초의 성공 webhook 이벤트). **자동 안전망 복원:** Vercel 크론이 안 뜨는 원인은
+  스케줄러 미발화(엔드포인트는 수동 호출 시 200 정상)로 확정 → `.github/workflows/beds24-reconcile.yml`
+  **6시간 외부 트리거**로 이중화(GitHub repo Secret `BEDS24_WEBHOOK_SECRET` 1회 설정 필요). task
+  reminders 미발화는 알림 막바지 일괄구현 방침상 정상. 미사용 org `현장 근무`(멤버 0)는 보류. 상세
   `docs/planning/01-decision-log.md` → 2026-07-22, `docs/engineering/07-environment-setup.md` →
   "Webhook ingestion hardening (2026-07-22)".
 
