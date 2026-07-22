@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { UIEvent } from "react";
 
 const Lottie = dynamic(() => import("lottie-react"), { ssr: false });
 import {
@@ -570,41 +569,50 @@ export function MobileCalendarView({
   // Frozen date header: lives outside the horizontal grid scroller (so it can be page-sticky),
   // and its horizontal position is kept in sync with the grid via translateX on this inner strip.
   const headerInnerRef = useRef<HTMLDivElement | null>(null);
+  const lastDateLabelRef = useRef<string | null>(null);
   const autoScrolledKeys = useRef(new Set<string>());
   const [visibleDateRangeLabel, setVisibleDateRangeLabel] = useState<string | null>(null);
 
   const updateVisibleDateRangeLabel = useCallback(
     (scrollLeft: number, clientWidth: number) => {
-      if (dates.length === 0) {
-        setVisibleDateRangeLabel(null);
-        return;
+      let label: string | null = null;
+      if (dates.length > 0) {
+        const startIndex = Math.max(0, Math.min(dates.length - 1, Math.floor(scrollLeft / DAY_WIDTH)));
+        const visibleDateCount = Math.max(1, Math.ceil((clientWidth - ROOM_LABEL_WIDTH) / DAY_WIDTH));
+        const endIndex = Math.max(
+          startIndex,
+          Math.min(dates.length - 1, startIndex + visibleDateCount - 1),
+        );
+        label = `${formatDateLabel(dates[startIndex], locale)} - ${formatDateLabel(dates[endIndex], locale)}`;
       }
-
-      const startIndex = Math.max(0, Math.min(dates.length - 1, Math.floor(scrollLeft / DAY_WIDTH)));
-      const visibleDateCount = Math.max(1, Math.ceil((clientWidth - ROOM_LABEL_WIDTH) / DAY_WIDTH));
-      const endIndex = Math.max(
-        startIndex,
-        Math.min(dates.length - 1, startIndex + visibleDateCount - 1),
-      );
-
-      setVisibleDateRangeLabel(
-        `${formatDateLabel(dates[startIndex], locale)} - ${formatDateLabel(dates[endIndex], locale)}`,
-      );
+      // Only re-render when the label text actually CHANGES. Calling setState on every scroll frame
+      // re-rendered the whole calendar each frame, which starved the main thread and made the
+      // JS-driven frozen header jitter as it fell behind the compositor-driven grid scroll.
+      if (label !== lastDateLabelRef.current) {
+        lastDateLabelRef.current = label;
+        setVisibleDateRangeLabel(label);
+      }
     },
     [dates, locale],
   );
 
-  const handleGridScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
-    const { clientWidth, scrollLeft } = event.currentTarget;
-    // Keep the frozen date header horizontally aligned with the grid body.
-    if (headerInnerRef.current) {
-      headerInnerRef.current.style.transform = `translateX(${-scrollLeft}px)`;
-    }
-    // Horizontal-only scroller now: keep the visible date-range label in sync. Vertical scrolling
-    // lives on the shell content container, which drives the top-chrome hide natively — so we no
-    // longer dispatch a synthetic mobile-shell-scroll (needed only when the grid owned vertical).
-    updateVisibleDateRangeLabel(scrollLeft, clientWidth);
-  }, [updateVisibleDateRangeLabel]);
+  // Sync the frozen date header to the grid's horizontal scroll via a NATIVE passive listener +
+  // GPU transform (translate3d), NOT React's synthetic onScroll. Combined with the change-only
+  // label update above, the header no longer re-renders per frame, so it tracks the grid smoothly
+  // instead of jittering during momentum scroll.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      if (headerInnerRef.current) {
+        headerInnerRef.current.style.transform = `translate3d(${-el.scrollLeft}px, 0, 0)`;
+      }
+      updateVisibleDateRangeLabel(el.scrollLeft, el.clientWidth);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    onScroll(); // initial alignment (also covers the today auto-scroll)
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [mode, selectedProperty, updateVisibleDateRangeLabel]);
 
   const openReservationSheet = useCallback((reservationId: string) => {
     if (reservationCloseTimeoutRef.current) {
@@ -916,7 +924,8 @@ export function MobileCalendarView({
                 scroll under it (page vertical scroll), so the dates never disappear no matter how
                 many rooms there are. It lives OUTSIDE the horizontal grid scroller (a horizontal
                 scroller is itself a sticky boundary, so a header inside it can't pin to the page);
-                its horizontal offset is synced to the grid via translateX in handleGridScroll.
+                its horizontal offset is synced to the grid via a translate3d set from a native
+                passive scroll listener (see the useEffect above) to avoid per-frame jitter.
                 Left spacer matches the sticky room-label column width so the date columns align. */}
             {/* `-top-[84px]` cancels the shell content scroller's `pt-[84px]` (the space reserved
                 for the auto-hiding top chrome). iOS Safari pins a sticky element at the padding edge,
@@ -994,7 +1003,8 @@ export function MobileCalendarView({
               // hands vertical scrolling to the page. `isolate` keeps the sticky room-label column
               // (z-40) from ever painting over the shell's bottom tab bar.
               className="isolate overflow-x-auto overscroll-x-contain rounded-b-[24px] bg-surface"
-              onScroll={handleGridScroll}
+              // Horizontal scroll → frozen date header sync is handled by a native passive `scroll`
+              // listener (see the useEffect above), not a React onScroll, to avoid per-frame jitter.
               // Stop touches here from bubbling to the shell's left-edge-back / pull-to-refresh
               // handlers — a horizontal scroll started near the left edge used to fire router.back().
               onTouchMove={(e) => e.stopPropagation()}

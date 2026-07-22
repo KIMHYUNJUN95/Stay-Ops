@@ -34,6 +34,14 @@ resolve against the shell scroll container, the overview `Card` dropped `overflo
 corners are now per-child: month-nav top, grid bottom) — no overflow!=visible ancestor may sit
 between the header and the shell content scroller.
 
+**Jitter fix (2026-07-22).** The first cut synced the header from React's `onScroll`, which also
+`setState`d the visible-date-range label **every scroll frame** → the whole calendar re-rendered per
+frame, starving the main thread so the JS-driven header fell behind the compositor-driven grid and
+visibly shook during momentum scroll. Fixed two ways: (1) the label only `setState`s when its text
+actually changes (a ref guards it), and (2) the header transform is now driven by a **native passive
+`scroll` listener** using `translate3d(...)` (GPU), not React's synthetic onScroll. The header no
+longer re-renders per frame and tracks the grid smoothly.
+
 ## Overview grid UI (2026-06-10 readability redesign)
 
 Visual/UX-only refinement of the mobile **overview (timeline) grid** in
