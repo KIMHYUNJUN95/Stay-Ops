@@ -37,10 +37,9 @@ type UpdateOrderStatusResult =
     };
 
 // Roles that may approve / process / reject order requests.
-const ORDER_PROCESSOR_ROLES: readonly Role[] = [
-  ...adminWebRoles,
-  "field_manager",
-];
+// Order status processing (approve / order / reject) is office/admin-web only — NOT field_manager.
+// Confirmed 2026-07-22 (owner decision) to match docs/engineering/05-rls-permissions.md.
+const ORDER_PROCESSOR_ROLES: readonly Role[] = [...adminWebRoles];
 
 // Allowed status transitions (server is the single source of truth).
 // ordered requires approved first — requested → ordered direct is not allowed.
@@ -73,7 +72,7 @@ export async function updateOrderRequestStatus(
     return { ok: false, error: "unauthorized" };
   }
 
-  // Role-based authorization: admin-web roles and field_manager may change order status.
+  // Role-based authorization: office/admin-web roles may change order status (not field_manager).
   const role = session.user.role as Role | undefined;
   if (!role || !(ORDER_PROCESSOR_ROLES as readonly Role[]).includes(role)) {
     return { ok: false, error: "forbidden" };

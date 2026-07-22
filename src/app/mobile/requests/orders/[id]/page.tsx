@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { getOrderRequestById, type OrderRequestItem } from "@/lib/order-requests";
+import { adminWebRoles, type Role } from "@/config/roles";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -169,6 +170,10 @@ export default async function MobileOrderRequestDetailPage({
   }
 
   const locale = session.user.preferredLanguage;
+  // Only office/admin-web roles process orders (approve/order/reject/edit delivery) — mirrors the
+  // server gate in orders/actions.ts. Non-processors (incl. field_manager) get no processing action,
+  // so hide the whole bar instead of showing buttons that would fail with "forbidden".
+  const canProcessOrder = (adminWebRoles as readonly Role[]).includes(session.user.role as Role);
   const dictionary = getDictionary(locale);
   const copy = dictionary.mobile.orderDetail;
   const statusLabels = dictionary.mobile.orderStatusLabels;
@@ -345,6 +350,7 @@ export default async function MobileOrderRequestDetailPage({
           </div>
         </Card>
 
+        {canProcessOrder && (
         <OrderActionBar
           labels={{
             actionApprove: copy.actionApprove,
@@ -391,6 +397,7 @@ export default async function MobileOrderRequestDetailPage({
           status={order.status}
           surface="mobile"
         />
+        )}
       </div>
     </MobileShell>
   );
