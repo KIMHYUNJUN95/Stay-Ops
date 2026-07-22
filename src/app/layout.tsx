@@ -50,6 +50,8 @@ export const metadata: Metadata = {
   title: "StayOps",
   description: "Hotel operations app for field staff and office teams.",
   manifest: "/manifest.webmanifest",
+  // Private, invite-only ops app — keep every page out of search indexes.
+  robots: { index: false, follow: false },
   // iOS ignores the manifest icons for the home-screen icon — it needs apple-touch-icon.
   // Without these the installed app showed a blank/screenshot glyph.
   icons: {

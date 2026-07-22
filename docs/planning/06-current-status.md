@@ -16,6 +16,16 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **출시 전 위생 배치 + 보안/RLS 감사 착수 (2026-07-22).** 지금 환경에서 완결 가능한 출시-전 항목부터.
+  ① **검색엔진 색인 차단**: 비공개 초대제 앱인데 크롤링 차단이 없어, `src/app/robots.ts`(전면 disallow) +
+  루트 metadata `robots: { index:false, follow:false }` 추가 → 로그인/앱 페이지가 검색에 안 뜸. ②
+  **`.env.example` 보강**: 누락 변수 4개(`BEDS24_API_REFRESH_TOKEN`·`BEDS24_SYNC_PAUSED`·
+  `ENABLE_DEV_SEED_LOGIN`·`DEV_SEED_LOGIN_PASSWORD`) 추가로 실제 env와 일치. ③ **보안/RLS/프로덕션 준비
+  감사** 착수(읽기 전용): org 격리·service-role 노출·auth 라우팅·입력 검증·dev 라우트 프로덕션 도달·시크릿
+  누출을 전수 점검해 심각도별 액션 리스트 산출 중. **지금 환경에서 불가(별도 인프라/결정 필요):** Capacitor
+  네이티브 래핑(Mac/Xcode/Apple 계정·스토어 제출), Sentry(계정/DSN), Vercel Pro(비용), 법무(개인정보/약관),
+  E2E 실행(브라우저/시드로그인). `loading.tsx`는 셸이 페이지별 렌더라 넣으면 로딩 중 크롬 사라져 제외.
+  `npm run lint`/`npm run build` 통과(`/robots.txt` 생성 확인).
 - **낙관적 UI — 조사 + 남은 갭 보강 (2026-07-22).** "낙관적 UI를 붙여달라"(디자인 불변). 조사 결과 **큰
   타깃은 이미 낙관적**이었다: 할일 완료 토글(행 즉시 숨김 + undo, `tasks-workspace`), 보드 리액션
   (`useOptimistic`, `board-detail-client`), 알림 스와이프 삭제, 공지 팝업 dismiss(로컬 상태 즉시 닫힘).
