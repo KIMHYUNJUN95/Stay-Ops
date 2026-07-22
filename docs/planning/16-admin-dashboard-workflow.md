@@ -167,7 +167,7 @@
 
 ## Active Workflow Board
 
-Last updated: 2026-06-29
+Last updated: 2026-07-22
 
 ### Backlog
 
@@ -180,6 +180,7 @@ Last updated: 2026-06-29
 - Attendance / Payroll / Transportation dashboard IA refinement
 - Reservations / Calendar dashboard IA refinement
 - Users / Permissions / Organization Settings dashboard IA refinement
+- Announcements dashboard management console redesign
 
 ### Design
 

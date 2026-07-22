@@ -16,6 +16,25 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **모바일 모션 네이티브화 — 공용 모션 토큰 + 커브 일괄 통일 (2026-07-22).** "바텀시트 등 움직이는 것들을
+  전부 네이티브처럼 부드럽게" 요청. 감사 결과 심각한 jank(레이아웃 속성 애니메이션·`transition: all`)는
+  없었고(이미 transform/opacity 기반), 셸·사이드바·바텀시트·화면전환은 이미 iOS 커브. 남은 "웹 느낌"은
+  일반 `ease` 커브가 77곳에 흩어져 제각각인 점. 수정: **`globals.css`에 모션 토큰 신설**
+  (`--ease-ios`/`--ease-out`/`--ease-spring` + `--dur-press/fast/base/slow`), 모바일 표면 CSS
+  (home-screen·attendance·transport·leave·complaints·suggestions)의 탭 피드백 transform transition을
+  `var(--dur-press) var(--ease-out)`(스냅감 있는 ease-out)로 통일, 독립 `ease` 커브를 `var(--ease-out)`로
+  일괄 스왑(지속시간 유지, `ease-in/out`은 미변경). 탭이 더 크리스프해지고 앱 전체가 한 모션 언어로 수렴.
+  어드민(데스크톱) CSS는 범위 밖. JS 셸/시트는 이미 동일 커브라 유지. `npm run lint`/`npm run build` 통과.
+
+- **어드민 공지 관리 콘솔 재기획 확정 (구현 전) (2026-07-22).** 모바일 공지 기능은 목록 / 상세 / 팝업 /
+  읽음 추적 기준이 정리됐지만, 어드민 `/admin/announcements`는 아직 공용 운영 콘솔 패턴으로 정돈되지
+  않았다. 이번 문서 정리로 어드민 공지는 **배포 관리 콘솔**로 재정의했다: 기본 뷰는
+  **Published / Drafts / Archived**, 상단 요약은 게시중 / 초안 / 중요 / 팝업 활성 / 미읽음 남은 중요
+  공지, 목록은 제목+상태+대상+읽음 요약의 고밀도 스캔, 우측 상세 패널은 본문 / 첨부 / 읽음 현황 /
+  게시·보관·삭제 액션을 맡는다. 현재 어드민 댓글 UI는 공지 방향성과 맞지 않는 **레거시 클린업 대상**으로
+  정리했다. 구현은 아직 시작하지 않았고, 기준 문서는 `docs/product/11-announcement-workflow.md`,
+  `docs/product/05-admin-web-ia.md`, `docs/planning/01-decision-log.md`.
+
 - **iPhone PWA 첫 진입 흰 화면 — Apple 런치 스플래시 커버 구멍 수정 (2026-07-22).** "누르자마자 화면이
   안 뜨고 흰 화면이 길다"는 지적. 원인: iOS는 PWA를 띄우기 전 `apple-touch-startup-image`(기종별 이미지)를
   보여주는데, **커버 목록에 흔한 기종이 빠져** 매칭 실패 시 iOS가 흰 화면을 첫 페인트까지 표시. 빠진 크기:

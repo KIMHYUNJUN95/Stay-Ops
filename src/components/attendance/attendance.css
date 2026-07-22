@@ -208,7 +208,7 @@
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--ink);
-  transition: color 0.2s ease, text-shadow 0.2s ease;
+  transition: color 0.2s var(--ease-out), text-shadow 0.2s var(--ease-out);
 }
 .att a.entryrow.pay .entryrow__val {
   color: var(--done);
@@ -2002,7 +2002,7 @@
 .att .msw__label .ic {
   font-size: 15px;
   color: var(--muted);
-  transition: transform 0.2s ease;
+  transition: transform var(--dur-base) var(--ease-out);
 }
 .att .msw__label.open .ic { transform: rotate(180deg); }
 .att .msw__backdrop {
@@ -2023,7 +2023,7 @@
   box-shadow: 0 22px 48px -20px rgba(20, 32, 43, 0.42);
   max-height: 288px;
   overflow-y: auto;
-  animation: msw-pop 0.16s ease;
+  animation: msw-pop 0.16s var(--ease-out);
 }
 @keyframes msw-pop {
   from { opacity: 0; transform: translateY(-6px); }
@@ -2424,7 +2424,7 @@
   line-height: 1.05;
   margin-top: 3px;
   position: relative;
-  transition: color 0.22s ease, text-shadow 0.22s ease;
+  transition: color 0.22s var(--ease-out), text-shadow 0.22s var(--ease-out);
 }
 .att .pc__amt .yen { font-size: 24px; opacity: 0.7; margin-right: 2px; }
 /* Transparent text + text-shadow blur (see entryrow note) — avoids the iOS `filter: blur()`
@@ -2467,7 +2467,7 @@
   font-size: 16px;
   font-weight: 800;
   margin-top: 4px;
-  transition: color 0.22s ease, text-shadow 0.22s ease;
+  transition: color 0.22s var(--ease-out), text-shadow 0.22s var(--ease-out);
 }
 .att .paycard.hide .pc__v { color: transparent; text-shadow: 0 0 12px var(--ink); user-select: none; -webkit-user-select: none; }
 .att .paycard--final.hide .pc__v { text-shadow: 0 0 12px rgba(255, 255, 255, 0.9); }

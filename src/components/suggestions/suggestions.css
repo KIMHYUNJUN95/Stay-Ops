@@ -1491,7 +1491,7 @@
   z-index: 60;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.28s ease;
+  transition: opacity 0.28s var(--ease-out);
 }
 .sg .dim.show {
   opacity: 1;
@@ -1853,7 +1853,7 @@
   font: inherit;
   color: inherit;
   cursor: pointer;
-  transition: transform 0.12s ease, background-color 0.12s ease;
+  transition: transform var(--dur-press) var(--ease-out), background-color 0.12s var(--ease-out);
 }
 .sg .notif:active {
   transform: scale(0.99);
