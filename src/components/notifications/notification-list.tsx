@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import { Trash2 } from "lucide-react";
 import {
@@ -291,7 +291,15 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null);
 
-  const unreadCount = items.filter((n) => !n.read_at).length;
+  // Optimistic "mark all read": clear every unread dot the instant the button is tapped, before the
+  // server round-trip. useOptimistic re-bases on the fresh `items` after router.refresh(), so the
+  // real (all-read) data seamlessly takes over. Same rows/styles — only the timing changes.
+  const [displayItems, optimisticMarkAllRead] = useOptimistic<NotificationRow[], void>(
+    items,
+    (state) => state.map((n) => (n.read_at ? n : { ...n, read_at: new Date().toISOString() })),
+  );
+
+  const unreadCount = displayItems.filter((n) => !n.read_at).length;
   const allSelected = items.length > 0 && selectedIds.size === items.length;
   const anyPending = isPending || isDeleting;
 
@@ -328,6 +336,7 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
 
   function handleMarkAllRead() {
     startTransition(async () => {
+      optimisticMarkAllRead();
       await markAllNotificationsRead();
       router.refresh();
     });
@@ -432,7 +441,7 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
       )}
 
       {/* Notification rows */}
-      {items.map((notification) => (
+      {displayItems.map((notification) => (
         <SwipeItem
           key={notification.id}
           isPending={anyPending}

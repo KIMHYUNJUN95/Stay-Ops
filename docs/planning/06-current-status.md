@@ -16,6 +16,14 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **낙관적 UI — 조사 + 남은 갭 보강 (2026-07-22).** "낙관적 UI를 붙여달라"(디자인 불변). 조사 결과 **큰
+  타깃은 이미 낙관적**이었다: 할일 완료 토글(행 즉시 숨김 + undo, `tasks-workspace`), 보드 리액션
+  (`useOptimistic`, `board-detail-client`), 알림 스와이프 삭제, 공지 팝업 dismiss(로컬 상태 즉시 닫힘).
+  나머지 mutation은 대부분 **내비게이션형 폼 제출**(수리/주문/분실물 생성, 청소 시작/완료 = `redirect`)이라
+  낙관적 대상이 아니고 pending 상태가 올바른 패턴. **보강한 것:** 알림 **"모두 읽음"을 `useOptimistic`으로**
+  낙관적 처리 — 탭 즉시 모든 안읽음 표시 제거 후 서버 확정(`router.refresh`가 최신으로 re-base). 컴포넌트·
+  스타일 불변, 타이밍만 즉시. `npm run lint`/`npm run build` 통과. 더 큰 "즉시감"은 이후 Capacitor 래핑(네이티브
+  전환·프리페치) 결정 영역.
 - **모바일 네이티브 감 — 즉시 가능한 안전 배치 구현 (2026-07-22).** (다크모드는 추후 별도.) ① **탭 재탭 →
   최상단 스무스 스크롤**(iOS 표준): 이미 활성인 하단 탭을 다시 누르면 내비게이션 대신 콘텐츠를 최상단으로
   스크롤 + 사이드바 닫기(`mobile-shell.tsx` `renderTab` onClick, `prefers-reduced-motion` 존중). ② **햅틱
