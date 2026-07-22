@@ -918,7 +918,13 @@ export function MobileCalendarView({
                 scroller is itself a sticky boundary, so a header inside it can't pin to the page);
                 its horizontal offset is synced to the grid via translateX in handleGridScroll.
                 Left spacer matches the sticky room-label column width so the date columns align. */}
-            <div className="sticky top-0 z-20 flex overflow-hidden border-b border-slate-200/55 bg-surface">
+            {/* `-top-[84px]` cancels the shell content scroller's `pt-[84px]` (the space reserved
+                for the auto-hiding top chrome). iOS Safari pins a sticky element at the padding edge,
+                so a plain `top-0` would leave the header floating 84px down with older rooms peeking
+                through the gap once the top chrome hides. Pulling it up by that padding pins the
+                header flush to the true top of the viewport (behind the chrome while it's visible;
+                at the very top once it hides). Keep in sync with mobile-shell's content `pt-[84px]`. */}
+            <div className="sticky -top-[84px] z-20 flex overflow-hidden border-b border-slate-200/55 bg-surface">
               <div
                 aria-hidden="true"
                 className="shrink-0 border-r border-slate-200/55 bg-surface"
