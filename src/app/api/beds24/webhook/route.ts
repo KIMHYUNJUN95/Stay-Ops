@@ -2,7 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { extractBeds24WebhookBookingCandidates } from "@/lib/beds24/booking-payload";
 import { processBeds24WebhookBooking } from "@/lib/beds24/process-webhook-booking";
 import { isBeds24SyncPaused } from "@/lib/beds24/sync-control";
-import { recordBeds24WebhookEvent } from "@/lib/beds24/webhook-events";
+import {
+  recordBeds24WebhookEvent,
+  recordBeds24WebhookRejection,
+} from "@/lib/beds24/webhook-events";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
 function resolveWebhookSecret(request: NextRequest) {
@@ -11,6 +14,46 @@ function resolveWebhookSecret(request: NextRequest) {
   const fromQuery = request.nextUrl.searchParams.get("secret");
 
   return fromHeader ?? fromBearer ?? fromQuery;
+}
+
+/**
+ * Parse an inbound webhook body defensively. Beds24 deliveries have shipped as
+ * JSON *and* as `application/x-www-form-urlencoded` (sometimes with a field whose
+ * value is itself a JSON string) depending on account/config. We read the raw
+ * text once and try both so the ingestion path never rejects a delivery merely
+ * because of its transport encoding.
+ */
+function parseWebhookBody(raw: string): { body: unknown; parsed: boolean } {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return { body: null, parsed: false };
+
+  // 1) JSON (Beds24 API v2 webhooks).
+  try {
+    return { body: JSON.parse(trimmed), parsed: true };
+  } catch {
+    // fall through
+  }
+
+  // 2) Form-encoded. Each field value may itself be JSON.
+  try {
+    const params = new URLSearchParams(trimmed);
+    const keys = Array.from(params.keys());
+    if (keys.length > 0) {
+      const obj: Record<string, unknown> = {};
+      for (const [key, value] of params) {
+        try {
+          obj[key] = JSON.parse(value);
+        } catch {
+          obj[key] = value;
+        }
+      }
+      return { body: obj, parsed: true };
+    }
+  } catch {
+    // fall through
+  }
+
+  return { body: trimmed, parsed: false };
 }
 
 export async function POST(request: NextRequest) {
@@ -26,19 +69,41 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
-  }
-
-  const bookingPayloads = extractBeds24WebhookBookingCandidates(body);
-  if (bookingPayloads.length === 0) {
-    return NextResponse.json({ ok: false, error: "invalid_payload" }, { status: 400 });
-  }
+  const contentType = request.headers.get("content-type");
+  const rawText = await request.text();
+  const { body } = parseWebhookBody(rawText);
 
   const supabase = getSupabaseServiceClient();
+  const bookingPayloads = extractBeds24WebhookBookingCandidates(body);
+
+  // No booking could be extracted (unparseable body or unrecognized envelope).
+  // NEVER drop this silently: persist the raw body so the shape is debuggable and
+  // the delivery is replayable, then ACK so Beds24 does not retry-storm. The daily
+  // reconciliation heals the missed reservation from the Beds24 API in the meantime.
+  if (bookingPayloads.length === 0) {
+    console.error("[beds24/webhook] no booking candidates in delivery", {
+      contentType,
+      topLevelKeys:
+        body && typeof body === "object" && !Array.isArray(body)
+          ? Object.keys(body as Record<string, unknown>)
+          : Array.isArray(body)
+            ? "(array)"
+            : typeof body,
+      rawSample: rawText.slice(0, 500),
+    });
+    await recordBeds24WebhookRejection({
+      supabase,
+      httpStatus: 200,
+      reason: "no_booking_candidates",
+      rawBody: body ?? rawText,
+      contentType,
+    });
+    return NextResponse.json(
+      { ok: true, accepted: true, processed: 0, note: "no_booking_candidates_captured" },
+      { status: 200 },
+    );
+  }
+
   const organizationIdDefault = process.env.BEDS24_DEFAULT_ORGANIZATION_ID?.trim() ?? null;
 
   const results = [];
@@ -53,30 +118,39 @@ export async function POST(request: NextRequest) {
 
   const succeeded = results.filter((result) => result.ok).length;
   const failed = results.length - succeeded;
-  const allOk = failed === 0;
-  const httpStatus = allOk ? 200 : failed === results.length ? 400 : 207;
 
   if (process.env.NODE_ENV === "development") {
     console.log("[beds24/webhook] batch processed", {
       total: results.length,
       succeeded,
       failed,
-      modes: results.map((result) => (result.ok ? result.mode : result.mode)),
+      modes: results.map((result) => result.mode),
     });
   }
 
   // Observability: persist the batch result so a dropped/failed booking is traceable
   // (see public.beds24_webhook_events). Never blocks the webhook response.
-  await recordBeds24WebhookEvent({ supabase, httpStatus, results });
+  // When some bookings failed to process, keep their raw body for replay/debug.
+  const anyFailed = failed > 0;
+  await recordBeds24WebhookEvent({
+    supabase,
+    httpStatus: anyFailed ? 207 : 200,
+    results,
+    rawBody: anyFailed ? body : undefined,
+    contentType: anyFailed ? contentType : undefined,
+  });
 
+  // Always ACK with 2xx once we have durably recorded the outcome, so Beds24 does
+  // not treat a partially-failed batch as a delivery failure and retry-storm; the
+  // failed rows are captured above and healed by reconciliation.
   return NextResponse.json(
     {
-      ok: allOk,
+      ok: !anyFailed,
       processed: results.length,
       succeeded,
       failed,
       results,
     },
-    { status: httpStatus },
+    { status: 200 },
   );
 }

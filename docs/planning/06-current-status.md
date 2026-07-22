@@ -16,6 +16,20 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **Beds24 웹훅 전량 400 유실 — 근본 수정 (코드 완료, 배포/복구 진행 중) (2026-07-22).** "다카다노바바
+  7층 예약 고객 누락" 제보에서 출발했으나, 실제로는 **2026-07-17 이후 전 숙소 신규·취소·변경 예약이
+  통째로 누락**된 사고였다. Beds24는 웹훅을 계속 보내는데 라우트가 예약 후보를 못 찾으면 **관측 로그도
+  없이 HTTP 400으로 조기 드롭**해 5일치가 흔적 없이 사라졌다(2026-06-10 유실 사고의 재발 클래스).
+  근본 수정 3종: ① **본문 파싱 견고화**(JSON+form-urlencoded, JSON 담은 폼 필드 언랩) ② **envelope 무관
+  추출**(고정 키 대신 모든 중첩 객체 재귀, `booking` 등 어떤 wrapper도 탐지, id로 중복 제거) ③ **무손실
+  캡처**(못 뽑은 배치는 원본 본문+Content-Type을 `beds24_webhook_events.raw_payload/content_type`에 저장 후
+  2xx ACK — 다시는 조용히 유실되지 않음). 신규 마이그레이션 `202607220001_beds24_webhook_raw_capture.sql`
+  (원격 적용 완료). `npm run lint`/`npm run build` 통과. **남은 일:** 배포 후 웹훅 정상 인입 확인 →
+  7/17→현재 누락분은 소급 복구 불가이므로 **reconcile 1회 수동 트리거로 복구** → **reconcile 일일 크론
+  미실행 원인(Vercel 크론/`CRON_SECRET`) 점검**으로 자동 안전망 복원. 상세
+  `docs/planning/01-decision-log.md` → 2026-07-22, `docs/engineering/07-environment-setup.md` →
+  "Webhook ingestion hardening (2026-07-22)".
+
 - **Beds24 실연동 활성화 + 예약 캘린더 스케일 버그 수정 — 구현 완료 (2026-07-17).** 프로덕션 웹훅을
   활성화(`BEDS24_SYNC_PAUSED=false`, org 기본값, refresh token 경로)하고 8개 숙소 전부 웹훅 URL 확인 →
   실시간 신규·취소 무손실. 운영 윈도우를 **당월+미래 2달(3개월)**로 확대(도착일 기준이라 예약 시점 무관).

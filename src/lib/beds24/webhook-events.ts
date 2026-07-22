@@ -19,6 +19,10 @@ export async function recordBeds24WebhookEvent(params: {
   results: ProcessWebhookBookingResult[];
   organizationId?: string | null;
   errorMessage?: string | null;
+  // Present only when the batch had failures worth replaying: the raw body and its
+  // Content-Type are persisted so a failed booking can be re-processed/debugged.
+  rawBody?: unknown;
+  contentType?: string | null;
 }): Promise<void> {
   try {
     const { results } = params;
@@ -31,6 +35,15 @@ export async function recordBeds24WebhookEvent(params: {
       mode: result.mode,
     }));
 
+    let rawPayload: unknown = null;
+    if (params.rawBody !== undefined) {
+      try {
+        rawPayload = JSON.parse(JSON.stringify(params.rawBody));
+      } catch {
+        rawPayload = { raw: String(params.rawBody ?? "") };
+      }
+    }
+
     await params.supabase.from("beds24_webhook_events").insert({
       organization_id: params.organizationId ?? null,
       trigger_source: "webhook",
@@ -40,10 +53,55 @@ export async function recordBeds24WebhookEvent(params: {
       failed_count: failed,
       modes,
       booking_summary: bookingSummary as never,
+      raw_payload: rawPayload as never,
+      content_type: params.contentType ?? null,
       error_message: params.errorMessage ?? null,
     } as never);
   } catch (error) {
     console.error("[beds24/webhook-events] failed to record webhook event", error);
+  }
+}
+
+/**
+ * Record one inbound webhook delivery that produced NO processable booking
+ * (unparseable body, unknown envelope, or empty candidate list).
+ *
+ * This exists so an unrecognized delivery is never dropped without a trace again
+ * (see docs/planning/01-decision-log.md → 2026-07-22). The full raw body and
+ * Content-Type are persisted so the exact shape is debuggable and the delivery is
+ * replayable; the daily reconciliation still heals the missed reservation from the
+ * Beds24 API in the meantime.
+ */
+export async function recordBeds24WebhookRejection(params: {
+  supabase: SupabaseClient<Database>;
+  httpStatus: number;
+  reason: string;
+  rawBody: unknown;
+  contentType: string | null;
+}): Promise<void> {
+  try {
+    let rawPayload: unknown = params.rawBody;
+    try {
+      // Ensure it is JSON-serializable; fall back to a string form otherwise.
+      rawPayload = JSON.parse(JSON.stringify(params.rawBody));
+    } catch {
+      rawPayload = { raw: String(params.rawBody ?? "") };
+    }
+
+    await params.supabase.from("beds24_webhook_events").insert({
+      trigger_source: "webhook",
+      http_status: params.httpStatus,
+      processed_count: 0,
+      succeeded_count: 0,
+      failed_count: 0,
+      modes: [params.reason],
+      booking_summary: [] as never,
+      raw_payload: rawPayload as never,
+      content_type: params.contentType ?? null,
+      error_message: params.reason,
+    } as never);
+  } catch (error) {
+    console.error("[beds24/webhook-events] failed to record webhook rejection", error);
   }
 }
 

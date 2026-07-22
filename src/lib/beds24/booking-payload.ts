@@ -66,38 +66,65 @@ export function looksLikeWebhookBookingRecord(record: Beds24JsonRecord): boolean
   return false;
 }
 
+// Bound the recursion so a pathological/cyclic-looking payload can never spin.
+// Real Beds24 payloads nest a booking at most a couple of levels deep.
+const MAX_EXTRACT_DEPTH = 8;
+
 function extractWithMatcher(
   value: unknown,
   matchesRecord: (record: Beds24JsonRecord) => boolean,
+  depth = 0,
 ): Beds24JsonRecord[] {
+  if (depth > MAX_EXTRACT_DEPTH) return [];
+
   if (Array.isArray(value)) {
-    return value.flatMap((item) => extractWithMatcher(item, matchesRecord));
+    return value.flatMap((item) => extractWithMatcher(item, matchesRecord, depth + 1));
   }
 
   const record = asRecord(value);
   if (!record) return [];
 
   const results: Beds24JsonRecord[] = matchesRecord(record) ? [record] : [];
-  for (const key of ["data", "bookings", "items", "results"]) {
-    if (record[key] !== undefined) {
-      results.push(...extractWithMatcher(record[key], matchesRecord));
+  // Recurse into EVERY nested object/array value — not a fixed key list — so a
+  // booking wrapped under any envelope key (Beds24 webhooks have shipped it under
+  // "booking", "data", "bookings", etc. depending on account/config) is still
+  // found. Matching requires a booking id + stay dates (or a cancel signal), so
+  // over-recursion does not produce false positives; duplicates are removed below.
+  for (const key of Object.keys(record)) {
+    const child = record[key];
+    if (child !== null && typeof child === "object") {
+      results.push(...extractWithMatcher(child, matchesRecord, depth + 1));
     }
   }
   return results;
+}
+
+/** Drop duplicate booking records (same booking id) surfaced from different envelope levels. */
+function dedupeBookingRecords(records: Beds24JsonRecord[]): Beds24JsonRecord[] {
+  const seen = new Set<string>();
+  const out: Beds24JsonRecord[] = [];
+  for (const record of records) {
+    const id = readBeds24BookingId(record);
+    const key = id ?? JSON.stringify(record);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(record);
+  }
+  return out;
 }
 
 /**
  * Strict extractor for backfill `/bookings` API responses.
  */
 export function extractBeds24BookingCandidates(value: unknown): Beds24JsonRecord[] {
-  return extractWithMatcher(value, looksLikeBookingRecord);
+  return dedupeBookingRecords(extractWithMatcher(value, looksLikeBookingRecord));
 }
 
 /**
  * Relaxed extractor for Beds24 webhooks (includes sparse cancellation payloads).
  */
 export function extractBeds24WebhookBookingCandidates(value: unknown): Beds24JsonRecord[] {
-  return extractWithMatcher(value, looksLikeWebhookBookingRecord);
+  return dedupeBookingRecords(extractWithMatcher(value, looksLikeWebhookBookingRecord));
 }
 
 export function readBeds24String(record: Beds24JsonRecord, keys: string[]): string | null {

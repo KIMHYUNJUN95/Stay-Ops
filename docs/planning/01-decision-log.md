@@ -2,6 +2,46 @@
 
 This file records important project decisions.
 
+## 2026-07-22 Beds24 웹훅 전량 400 유실 — 근본 수정 (파싱 견고화 + 무손실 캡처)
+
+### 배경 (재발 사고)
+
+대표님이 "다카다노바바 7층 예약 고객 데이터가 누락된 것 같다"고 지적. 조사 결과 **7층만의
+문제가 아니라 2026-07-17 이후 전 숙소의 신규·취소·변경 예약이 통째로 누락**된 상태였다.
+
+- 예약 테이블 1,813건 전부 `updated_at`/`created_at`이 **2026-07-17 07:07:31에 정지** — 이후 생성·수정 0건.
+- `beds24_webhook_events` 기록은 전부 `reconciliation`(수동)뿐, 라이브 `webhook` 수신은 **역대 0건**.
+- Vercel 런타임 로그: Beds24가 웹훅을 지금도 분 단위로 보내고 있으나 **전부 HTTP 400**으로 거부됨.
+- 원인: 웹훅 라우트가 예약 후보를 못 찾으면(`extractBeds24WebhookBookingCandidates`가 0건) **관측 로그를
+  남기기 전에 400으로 조기 반환**해 버려, 5일치 예약이 흔적도 없이 사라졌다. 이는 2026-06-10 사고
+  (Kabukicho 302 유실)와 같은 클래스의 "조용한 유실"의 재발이다.
+- 400의 하위 원인은 확정 전(로그에 본문 미기록)이지만 유력 후보는 (a) 본문이 JSON이 아닌
+  form-urlencoded, (b) 예약이 우리가 탐색하지 않던 envelope 키(`booking` 등) 아래로 옴 — **둘 다** 이번
+  수정에서 견디도록 처리.
+
+### 결정/작업 — "앞으로 데이터 누락은 절대 없어야 한다"(대표님 지시)
+
+1. **본문 파싱 견고화** — 원본 텍스트를 1회 읽어 JSON *또는* `application/x-www-form-urlencoded`
+   (JSON을 담은 폼 필드는 언랩)로 파싱. 전송 인코딩 때문에 유실되지 않음.
+2. **Envelope 무관 추출** — `extractWithMatcher`가 고정 키 목록(`data/bookings/items/results`) 대신
+   **모든 중첩 객체/배열을 재귀 탐색**(깊이 8 제한)하도록 일반화. 어떤 wrapper 키로 감싸도 예약을
+   찾아낸다. 예약 매칭은 booking id + 체류일(또는 취소 신호) 필수라 오탐 없음. booking id로 중복 제거.
+3. **무손실 캡처(핵심 계약)** — 예약을 하나도 못 뽑으면 **400으로 버리지 않고**, 전체 원본 본문 +
+   `Content-Type`을 `beds24_webhook_events`에 저장(신규 컬럼 `raw_payload`/`content_type`, 마이그레이션
+   `202607220001_beds24_webhook_raw_capture.sql`, 원격 적용 완료)하고 **2xx로 ACK**(Beds24 재시도 폭주
+   방지). 부분 실패 배치도 원본을 남겨 재처리 가능. 성공 예약은 기존대로 raw 미저장(PII 최소화).
+4. 관련 헬퍼: `recordBeds24WebhookRejection` 신설, `recordBeds24WebhookEvent`에 실패 시 raw 캡처 옵션 추가.
+
+### 남은 운영 확인 (코드 밖)
+
+- **7/17→현재 누락분 복구**는 웹훅 수정으로 소급되지 않는다(이미 온 웹훅은 Beds24가 재전송 안 함). 오직
+  **reconcile 재실행(Beds24 API 재풀)**으로만 메워진다 → 배포 후 reconcile 1회 수동 트리거 필요.
+- **reconcile 일일 크론이 최근 미실행**(로그상 25시간 내 `/api/beds24/reconcile` 호출 0건)인 점 별도
+  확인 필요 — Vercel 크론 발화/`CRON_SECRET` 설정 점검. 이게 살아야 자동 안전망이 복원된다.
+
+검증: `npm run lint`(에러 0) / `npm run build`(성공) 통과. 상세는
+`docs/engineering/07-environment-setup.md` → "Webhook ingestion hardening (2026-07-22)".
+
 ## 2026-07-17 Beds24 실연동 활성화 + 예약 캘린더 스케일 버그 수정
 
 ### 결정/작업

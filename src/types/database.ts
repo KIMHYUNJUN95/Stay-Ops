@@ -1525,6 +1525,7 @@ export type Database = {
       beds24_webhook_events: {
         Insert: {
           booking_summary?: Json;
+          content_type?: string | null;
           created_at?: string;
           error_message?: string | null;
           failed_count?: number;
@@ -1533,12 +1534,14 @@ export type Database = {
           modes?: string[];
           organization_id?: string | null;
           processed_count?: number;
+          raw_payload?: Json | null;
           received_at?: string;
           succeeded_count?: number;
           trigger_source?: string;
         };
         Row: {
           booking_summary: Json;
+          content_type: string | null;
           created_at: string;
           error_message: string | null;
           failed_count: number;
@@ -1547,12 +1550,14 @@ export type Database = {
           modes: string[];
           organization_id: string | null;
           processed_count: number;
+          raw_payload: Json | null;
           received_at: string;
           succeeded_count: number;
           trigger_source: string;
         };
         Update: {
           booking_summary?: Json;
+          content_type?: string | null;
           created_at?: string;
           error_message?: string | null;
           failed_count?: number;
@@ -1561,6 +1566,7 @@ export type Database = {
           modes?: string[];
           organization_id?: string | null;
           processed_count?: number;
+          raw_payload?: Json | null;
           received_at?: string;
           succeeded_count?: number;
           trigger_source?: string;

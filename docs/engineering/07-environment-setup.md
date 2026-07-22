@@ -189,6 +189,26 @@ Reconciliation safety net (production):
 - Every run (and every inbound webhook) is logged to `beds24_webhook_events` for observability.
 - Manual trigger: `curl "$APP_URL/api/beds24/reconcile" -H "Authorization: Bearer $CRON_SECRET"` (or `-H "x-beds24-webhook-secret: $BEDS24_WEBHOOK_SECRET"`).
 
+Webhook ingestion hardening (2026-07-22):
+
+- The webhook endpoint (`/api/beds24/webhook`) previously rejected any delivery whose
+  booking record it could not locate with a bare **HTTP 400, before writing any
+  observability row** — so a run of unrecognized deliveries went silently missing. Fixed:
+  1. **Defensive body parsing** — the raw body is read once and parsed as JSON *or*
+     `application/x-www-form-urlencoded` (a form field whose value is itself JSON is unwrapped),
+     so a delivery is never dropped merely for its transport encoding.
+  2. **Envelope-agnostic extraction** — `extractBeds24WebhookBookingCandidates` now recurses
+     into *every* nested object/array (bounded depth), so a booking wrapped under any envelope
+     key (`booking`, `data`, `bookings`, …) is still found; duplicates are de-duped by booking id.
+  3. **No silent drops, ever** — when no booking can be extracted, the full raw body +
+     `Content-Type` are persisted to `beds24_webhook_events` (`raw_payload` / `content_type`
+     columns, migration `202607220001_beds24_webhook_raw_capture.sql`) with mode
+     `no_booking_candidates`, and the endpoint **ACKs 2xx** so Beds24 does not retry-storm. The
+     daily reconcile still heals the missed reservation from the Beds24 API. Partially-failed
+     batches likewise keep their raw body for replay/debug.
+- `raw_payload` is captured **only** for failed/unparsed deliveries (the case that needs
+  debugging), not for every successful booking, keeping bulk guest PII out of the log.
+
 Task reminder cron (production):
 
 - `GET/POST /api/tasks/reminders` first materializes recurring Todo / Shared Task instances for the active task window, then evaluates time-based notifications and fans out one deduped reminder per task per recipient. Due-soon = active task due today (Asia/Tokyo); overdue = active task due before today. It is org-scoped and participant-only. See `src/lib/notifications/task-reminders.ts` and `docs/product/14-notification-design.md`.
