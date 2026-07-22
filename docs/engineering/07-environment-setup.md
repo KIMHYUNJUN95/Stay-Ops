@@ -185,7 +185,15 @@ Usage:
 Reconciliation safety net (production):
 
 - `GET/POST /api/beds24/reconcile` re-pulls the operational window (**current month + next two months**, 3 months total, widened 2026-07-17) from Beds24 `/bookings` and upserts anything missing. The window is keyed by **arrival/stay overlap, never by booking date** — a reservation booked long ago whose check-in falls in the window is still pulled. It is the production-safe, idempotent counterpart to the dev-only `backfill-reservations` route. That dev route now also accepts `from`/`to` (YYYY-MM-DD) query params for a one-time **wide catch-up** of far-future reservations the narrow window never reaches (used 2026-07-17 to seed 2026-06 → 2027-12).
-- Driven daily by Vercel Cron (`vercel.json`, `0 19 * * *` UTC = 04:00 Asia/Tokyo). Webhooks remain the primary update path; this only heals dropped/never-delivered webhook events.
+- Driven by Vercel Cron (`vercel.json`, `0 19 * * *` UTC) **and** — since 2026-07-22 — an independent
+  GitHub Actions schedule (`.github/workflows/beds24-reconcile.yml`, every 6h). Webhooks remain the primary
+  update path; this only heals dropped/never-delivered webhook events.
+- **Why two triggers (2026-07-22):** the Vercel cron was found to have silently stopped firing for days
+  (0 invocations for both crons — a Vercel-side scheduling failure, not code/token: the endpoint returns
+  HTTP 200 when hit manually). The GitHub Actions schedule is a redundant external trigger that does not
+  depend on Vercel's cron scheduler, so the safety net survives a broken Vercel cron. reconcile is
+  idempotent, so running from both is harmless. **Required GitHub repo secret:** `BEDS24_WEBHOOK_SECRET`
+  (same value as on Vercel) — set it under repo Settings → Secrets and variables → Actions.
 - Every run (and every inbound webhook) is logged to `beds24_webhook_events` for observability.
 - Manual trigger: `curl "$APP_URL/api/beds24/reconcile" -H "Authorization: Bearer $CRON_SECRET"` (or `-H "x-beds24-webhook-secret: $BEDS24_WEBHOOK_SECRET"`).
 

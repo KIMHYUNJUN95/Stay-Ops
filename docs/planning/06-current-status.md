@@ -24,9 +24,11 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   추출**(고정 키 대신 모든 중첩 객체 재귀, `booking` 등 어떤 wrapper도 탐지, id로 중복 제거) ③ **무손실
   캡처**(못 뽑은 배치는 원본 본문+Content-Type을 `beds24_webhook_events.raw_payload/content_type`에 저장 후
   2xx ACK — 다시는 조용히 유실되지 않음). 신규 마이그레이션 `202607220001_beds24_webhook_raw_capture.sql`
-  (원격 적용 완료). `npm run lint`/`npm run build` 통과. **남은 일:** 배포 후 웹훅 정상 인입 확인 →
-  7/17→현재 누락분은 소급 복구 불가이므로 **reconcile 1회 수동 트리거로 복구** → **reconcile 일일 크론
-  미실행 원인(Vercel 크론/`CRON_SECRET`) 점검**으로 자동 안전망 복원. 상세
+  (원격 적용 완료). `npm run lint`/`npm run build` 통과. 배포 완료(`4b1f1b2`, 프로덕션 READY).
+  **누락분 복구 완료(2026-07-22):** 로컬 dev 백필(org 사무실, 2026-06→2028-01)로 Beds24 재풀 → 사무실
+  org 예약 1813→**1904건**(2027-01-26까지), 다카다노바바 7층 7/17 이후 신규 예약 정상 복구. **남은 일:**
+  라이브 웹훅 실트래픽 2xx 확인(다음 organic 웹훅 대기), **reconcile+task reminders 크론 전면 미실행
+  원인(Vercel 크론 자체 미발화) 점검**으로 자동 안전망 복원. 상세
   `docs/planning/01-decision-log.md` → 2026-07-22, `docs/engineering/07-environment-setup.md` →
   "Webhook ingestion hardening (2026-07-22)".
 

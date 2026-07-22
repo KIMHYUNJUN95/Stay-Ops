@@ -1,0 +1,65 @@
+name: Beds24 reconcile safety net
+
+# WHY THIS EXISTS
+# ---------------
+# Webhooks are the primary, real-time Beds24 ingestion path. The daily
+# reconciliation endpoint (/api/beds24/reconcile) is the catch-up safety net that
+# re-pulls the operational window from the Beds24 API and upserts anything a
+# dropped/missed webhook left behind (see docs/planning/01-decision-log.md
+# "Beds24 Webhook Reliability").
+#
+# That safety net was wired to a Vercel Cron (vercel.json). On 2026-07-22 we found
+# the Vercel cron had NOT fired for days (0 invocations for BOTH the reconcile and
+# the reminders cron) — a Vercel-platform/plan-side scheduling failure, not a code
+# or token problem: hitting the endpoint manually returns HTTP 200 and heals data.
+# So the automatic safety net was silently dead, and 5 days of reservations went
+# missing. This GitHub Actions schedule is an INDEPENDENT external trigger that does
+# not depend on Vercel's cron scheduler, so the net keeps running even if Vercel
+# cron stays broken. vercel.json's cron is kept as a redundant second trigger
+# (reconcile is idempotent — a double run is harmless).
+#
+# SETUP (one-time): add a repository secret named BEDS24_WEBHOOK_SECRET
+#   (GitHub → repo Settings → Secrets and variables → Actions → New repository secret)
+#   whose value matches BEDS24_WEBHOOK_SECRET on the Vercel production project.
+#   The reconcile endpoint accepts that secret via the x-beds24-webhook-secret header.
+
+on:
+  schedule:
+    # Every 6 hours at :13 (off the :00 mark so we don't pile onto the fleet).
+    # ~04:13 / 10:13 / 16:13 / 22:13 JST. Tighter than the old once-daily cadence
+    # because a missed webhook now heals within ~6h instead of up to ~24h.
+    - cron: "13 */6 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: beds24-reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Beds24 reconciliation
+        env:
+          RECONCILE_URL: https://stay-ops-two.vercel.app/api/beds24/reconcile
+          WEBHOOK_SECRET: ${{ secrets.BEDS24_WEBHOOK_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK_SECRET}" ]; then
+            echo "::error::BEDS24_WEBHOOK_SECRET repository secret is not set — add it in repo Settings → Secrets → Actions."
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/reconcile.json -w '%{http_code}' \
+            -X POST "${RECONCILE_URL}" \
+            -H "x-beds24-webhook-secret: ${WEBHOOK_SECRET}" \
+            --max-time 120)
+          echo "HTTP ${code}"
+          cat /tmp/reconcile.json || true
+          echo
+          # 200 = success, 207 = partial (some pages failed but rows were upserted).
+          # Both mean the net ran; anything else (401/403/404/5xx) is a real failure.
+          case "${code}" in
+            200|207) echo "reconcile ok" ;;
+            *) echo "::error::reconcile failed with HTTP ${code}"; exit 1 ;;
+          esac

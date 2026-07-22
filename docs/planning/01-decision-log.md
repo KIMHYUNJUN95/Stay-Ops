@@ -32,12 +32,28 @@ This file records important project decisions.
    방지). 부분 실패 배치도 원본을 남겨 재처리 가능. 성공 예약은 기존대로 raw 미저장(PII 최소화).
 4. 관련 헬퍼: `recordBeds24WebhookRejection` 신설, `recordBeds24WebhookEvent`에 실패 시 raw 캡처 옵션 추가.
 
-### 남은 운영 확인 (코드 밖)
+### 복구/운영 확인
 
-- **7/17→현재 누락분 복구**는 웹훅 수정으로 소급되지 않는다(이미 온 웹훅은 Beds24가 재전송 안 함). 오직
-  **reconcile 재실행(Beds24 API 재풀)**으로만 메워진다 → 배포 후 reconcile 1회 수동 트리거 필요.
-- **reconcile 일일 크론이 최근 미실행**(로그상 25시간 내 `/api/beds24/reconcile` 호출 0건)인 점 별도
-  확인 필요 — Vercel 크론 발화/`CRON_SECRET` 설정 점검. 이게 살아야 자동 안전망이 복원된다.
+- **7/17→현재 누락분 복구 — 완료 (2026-07-22).** 웹훅 수정은 소급되지 않으므로(이미 온 웹훅은 Beds24가
+  재전송 안 함), 로컬 dev 백필 라우트(`/api/dev/beds24/backfill-reservations`, org=사무실
+  `f393a735`, window `2026-06-01`→`2028-01-01`)로 Beds24 API에서 재풀해 upsert. 결과: fetch 1538 /
+  upsert 1533(취소 474 반영) / 실패 0 / partial 없음. 사무실 org 예약 1813→**1904건**, 최원거리 체크인
+  **2027-01-26**까지. 다카다노바바 7층 등 7/17 이후 신규 예약(예: 7/22 체크인 건) 정상 복구 확인. 스킵
+  5건은 guestName/propertyName 없는 Beds24 플레이스홀더(오너 블록 추정, 실제 고객 예약 아님).
+- **라이브 웹훅 실트래픽 검증 — 대기.** 새 배포(`4b1f1b2`) 이후 아직 Beds24 웹훅 미수신이라 2xx 전환
+  확인은 다음 organic 웹훅 대기 중.
+- **reconcile 자동 안전망 복원 — GitHub Actions로 이중화 (2026-07-22).** 원인 확정: `/api/beds24/reconcile`
+  를 **수동 호출하면 HTTP 200**(fetch 882/upsert 880)으로 정상 작동 → 토큰·코드 정상, **유일한 문제는
+  Vercel 크론 스케줄러가 엔드포인트를 아예 안 부르는 것**(24h 내 reconcile·reminders 둘 다 호출 0건, Hobby
+  플랜/크론 설정 이슈로 추정). Vercel MCP로는 크론/env를 못 고치므로, **Vercel 크론에 의존하지 않는 외부
+  트리거**를 추가: `.github/workflows/beds24-reconcile.yml`이 **6시간마다** reconcile 엔드포인트를
+  `x-beds24-webhook-secret` 헤더로 호출(prod에서 200 확인). vercel.json 크론은 idempotent라 중복 트리거로
+  그대로 유지(살아나면 이득, 안 살아도 무해). **설정(1회): GitHub repo Secret `BEDS24_WEBHOOK_SECRET`**
+  (Vercel 값과 동일)를 추가해야 워크플로가 인증된다.
+- **task reminders 크론 미발화는 현재 정상.** 알림은 개발 막바지 일괄 구현 방침이라 지금 미가동이 맞다
+  (reminders 엔드포인트는 `CRON_SECRET` 필요, 현재 404). 별도 조치 불필요.
+- **미사용 org `현장 근무`(06445066)** — 멤버 0명·stale 예약 178건. 로그인 사용자가 없어 운영 영향 없음.
+  삭제는 정책상 승인 필요하므로 보류(그대로 둠). 실운영 org는 `사무실`(f393a735) 하나.
 
 검증: `npm run lint`(에러 0) / `npm run build`(성공) 통과. 상세는
 `docs/engineering/07-environment-setup.md` → "Webhook ingestion hardening (2026-07-22)".
