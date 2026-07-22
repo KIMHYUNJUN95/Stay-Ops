@@ -109,14 +109,42 @@ export const getCurrentAppSession = cache(
       return null;
     }
 
-    const { data: profileResult, error: profileError } = await supabase
-      .from("profiles")
-      .select("id, name, birth_date, gender, phone_number, preferred_language")
-      .eq("id", user.id)
-      .maybeSingle();
-    let profile = profileResult as CurrentProfile | null;
+    // These four reads only depend on user.id, so run them concurrently instead of as a
+    // sequential waterfall — this is the shared critical path for every mobile AND admin render,
+    // so collapsing ~4 serial round-trips into one batch is the biggest TTFB win on cold start.
+    // (organizations still follows because it needs the resolved membership.organization_id.)
+    const [profileRes, platformAdminRes, membershipRes, navRes] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, name, birth_date, gender, phone_number, preferred_language")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("platform_admins")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle(),
+      supabase
+        .from("memberships")
+        .select("organization_id, role")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .order("joined_at", { ascending: true, nullsFirst: false })
+        .limit(1)
+        .maybeSingle(),
+      // Per-user bottom-bar customization + report-access flag, read defensively (these columns
+      // may not exist on projects where the migration has not been applied).
+      supabase
+        .from("profiles")
+        .select("bottom_nav_tabs, can_generate_report")
+        .eq("id", user.id)
+        .maybeSingle(),
+    ]);
 
-    if (profileError) {
+    let profile = profileRes.data as CurrentProfile | null;
+
+    if (profileRes.error) {
       const { data: fallbackProfile, error: fallbackProfileError } = await supabase
         .from("profiles")
         .select("id, name, birth_date, phone_number, preferred_language")
@@ -135,23 +163,8 @@ export const getCurrentAppSession = cache(
       return null;
     }
 
-    const { data: platformAdminResult } = await supabase
-      .from("platform_admins")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .maybeSingle();
-    const platformAdmin = platformAdminResult as ActivePlatformAdmin | null;
-
-    const { data: membershipResult } = await supabase
-      .from("memberships")
-      .select("organization_id, role")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .order("joined_at", { ascending: true, nullsFirst: false })
-      .limit(1)
-      .maybeSingle();
-    const membership = membershipResult as ActiveMembership | null;
+    const platformAdmin = platformAdminRes.data as ActivePlatformAdmin | null;
+    const membership = membershipRes.data as ActiveMembership | null;
 
     if (!membership && !platformAdmin) {
       return null;
@@ -170,16 +183,11 @@ export const getCurrentAppSession = cache(
     const role = (platformAdmin?.role ?? membership?.role) as Role;
     const dictionary = getDictionary(profile.preferred_language);
 
-    // Read per-user bottom-bar customization + report-access flag defensively: these columns
-    // may not exist yet on projects where the migration has not been applied, so any error
-    // falls back to the defaults rather than breaking the session.
+    // Applied from the concurrent read above; any error falls back to defaults rather than
+    // breaking the session (the columns may not exist on un-migrated projects).
     let bottomNavTabs: string[] = [...defaultBottomNavTabIds];
     let canGenerateReport = false;
-    const { data: navResult, error: navError } = await supabase
-      .from("profiles")
-      .select("bottom_nav_tabs, can_generate_report")
-      .eq("id", user.id)
-      .maybeSingle();
+    const { data: navResult, error: navError } = navRes;
     if (!navError && navResult) {
       const raw = (navResult as { bottom_nav_tabs?: string[] | null })
         .bottom_nav_tabs;

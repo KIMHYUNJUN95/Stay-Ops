@@ -16,6 +16,17 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **iPhone 설치형 PWA 콜드스타트 느림 — 원인 진단 + 1차 서버 TTFB 최적화 (2026-07-22).** 조사 결과 3개
+  원인: ① 서비스워커가 HTML/RSC를 캐시 안 함(network-first)이라 매 콜드런치가 풀 서버 렌더를 대기 ②
+  `/mobile` 첫 바이트가 **auth 2회 + Supabase 10~20 왕복(일부 워터폴)** 뒤에 갇힘 — 특히 공용
+  `getCurrentAppSession`이 getUser→profiles→platform_admins→memberships→organizations→profiles를
+  순차 실행 ③ 가끔 Vercel serverless 콜드스타트. **1차 수정(안전·순수 이득, staleness 없음):**
+  `getCurrentAppSession`에서 user.id만 필요한 4개 쿼리(profiles·platform_admins·memberships·nav
+  profiles)를 `Promise.all` 병렬화(공용 크리티컬 패스라 모바일·어드민 전 렌더에 이득), 홈의
+  `getMobileNotificationBadge()`를 뒤 순차 await → 메인 배치 병렬로 이동. `npm run lint`/`npm run build`
+  통과. **다음 후보(미착수):** 홈 첫 화면 스트리밍(Suspense)으로 셸 즉시 페인트, (정책 결정 필요)
+  서비스워커 앱 셸 캐시. 상세 원인은 이 세션 조사 기록 참고.
+
 - **대시보드 `체크인/아웃` 독립 메뉴 폐기 — 예약 캘린더 통합으로 정리 완료 (2026-07-22).**
   관리자 사이드바에 남아 있던 `/admin/check-in-out`은 실제 기능 없는 플레이스홀더였고, 실운영 기능은
   이미 `/admin` 홈 요약과 `/admin/calendar`의 `Today ops`에 들어가 있었다. 기능 중복 IA를 없애기 위해

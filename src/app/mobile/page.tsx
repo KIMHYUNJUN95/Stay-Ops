@@ -166,14 +166,24 @@ export default async function MobileHomePage() {
   const m = dictionary.mobile;
   const a = dictionary.attendance;
 
-  const [checkInOut, todayActivity, activeSession, latestAnnouncement, openAttendanceSession] =
-    await Promise.all([
-      getHomeCheckInOutReservations(session),
-      getHomeTodayActivity(session, 10),
-      getHomeActiveCleaningSession(session),
-      getHomeImportantAnnouncement(session),
-      getCurrentOpenSession(session.organization.id, session.user.id),
-    ]);
+  // navBadges used to be awaited AFTER this batch (an extra serial round-trip on the home's
+  // critical path). It only needs the (already-resolved, request-cached) session, so fold it into
+  // the same parallel batch — one fewer sequential wait before first byte on cold start.
+  const [
+    checkInOut,
+    todayActivity,
+    activeSession,
+    latestAnnouncement,
+    openAttendanceSession,
+    navBadges,
+  ] = await Promise.all([
+    getHomeCheckInOutReservations(session),
+    getHomeTodayActivity(session, 10),
+    getHomeActiveCleaningSession(session),
+    getHomeImportantAnnouncement(session),
+    getCurrentOpenSession(session.organization.id, session.user.id),
+    getMobileNotificationBadge(),
+  ]);
 
   const buildingLabels = dictionary.cleaning.buildingLabels;
 
@@ -217,8 +227,6 @@ export default async function MobileHomePage() {
   const announcementHref = latestAnnouncement
     ? `/mobile/announcements/${latestAnnouncement.id}`
     : "/mobile/announcements";
-
-  const navBadges = await getMobileNotificationBadge();
 
   return (
     <MobileShell activeItem="home" badges={navBadges} title={m.homeTitle}>
