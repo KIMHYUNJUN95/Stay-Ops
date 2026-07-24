@@ -3753,3 +3753,26 @@ Status: 코드 완료 — `npx tsc --noEmit` 0, `npm run lint` 0 errors, `npm ru
 (Claude Design 핸드오프) 100% 이식. **마이그레이션 `202607170001_lostfound_return.sql`은 대표님이
 Supabase 대시보드에서 적용**해야 한다(수리·점검과 동일) — 적용 전에는 화면이 없는 컬럼을 읽으려다
 깨진다. 적용 후 라이브 E2E 1회 권장.
+
+## 어드민 공지 관리 콘솔 재구현 — Claude Design 1:1 이식 (2026-07-23)
+
+Decision: `/admin/announcements` 를 2026-07-22 재기획 명세대로 **공용 운영 콘솔 패턴**으로 재구현했다.
+좌측 고정 생성 카드 → KPI 요약 바(게시중/초안/중요/팝업/중요·미읽음) + Published/Drafts/Archived 3
+상태 세그먼트 + 고밀도 목록 표 + 우측 상세 패널 구조. 상세 패널은 **작성 zone ↔ 운영 zone** 권한 분리
+UI 를 가지며, 새 공지/편집·게시/재게시/보관/초안 복귀/삭제 확인·읽음 현황(대상자 명단)·이미지 뷰어 모달을
+포함한다. 데이터 모델(`announcements` 테이블, 3 상태, 대상 scope/roles, 중요/고정/팝업+`popup_until`,
+읽음 추적)은 기존 그대로 재사용했고 스키마 변경은 없다.
+
+Reason: 주문·분실물·수리 콘솔과 동일한 대시보드 콘솔 계약(§4)에 공지도 맞춰, 어드민을 모바일 공지의
+배포·감사 관리 표면으로 정리하기 위함. Claude Design 핸드오프("StayOps 공지 관리 (admin)")를 StayOps
+admin-console.css 토큰·공유 primitive 위에 1:1 이식했다.
+
+Scope: 신규 `src/lib/admin-announcements.ts`(도달/읽음 파생 지표 배치 로드), 결과 반환형 서버 액션 4종,
+`announcement-i18n.ts` `console` 네임스페이스(ko/ja/en), `src/components/admin/announcements/*`
+(+`announcements-console.css`), `page.tsx` 재작성. 콘솔 페이지에서 앱-오픈 팝업 미리보기 +
+고아 이미지 정리 버튼 UI 제거(서버 로직 유지). `/admin/announcements/[id]` 상세 + 기존 redirect 액션은
+긴 본문/직접 진입 fallback·레거시로 유지. 댓글은 콘솔에 포함하지 않음(방향성 유지).
+
+Status: 코드 완료 — `npm run lint` 0 errors, `npm run build` 통과. 마이그레이션 없음(기존 스키마 재사용).
+문서 동기화: `docs/product/11-announcement-workflow.md`, `docs/product/05-admin-web-ia.md`,
+`docs/planning/06-current-status.md`.

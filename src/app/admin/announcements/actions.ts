@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import type { OrganizationRole, Role } from "@/config/roles";
 import { organizationRoles } from "@/config/roles";
 import { getPublicSupabaseEnv } from "@/lib/env";
+import { getAnnouncementReadSummary } from "@/lib/announcements";
 import { createImportantAnnouncementNotifications } from "@/lib/notifications/create";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -524,4 +525,317 @@ export async function deleteAnnouncement(formData: FormData) {
   }
 
   announcementsRedirect("deleted=1");
+}
+
+// ===========================================================================
+// Admin 공지 관리 콘솔 — client-driven actions (return a result instead of
+// redirecting, so the console can toast + router.refresh() in place).
+// Reuses the same validation / permission / notification helpers as above.
+// ===========================================================================
+
+export type AnnouncementConsoleResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+type SaveAnnouncementConsoleInput = {
+  announcementId: string;
+  organizationId: string;
+  title: string;
+  content: string;
+  status: "draft" | "published";
+  targetScope: "everyone" | "roles";
+  targetRoles: string[];
+  imageUrls: string[];
+  isImportant: boolean;
+  isPinned: boolean;
+  showPopup: boolean;
+  popupUntil: string | null;
+};
+
+function normalizeConsoleTargetRoles(roles: string[]): OrganizationRole[] {
+  return roles.filter((role): role is OrganizationRole =>
+    (organizationRoles as readonly string[]).includes(role),
+  );
+}
+
+function normalizeConsolePopupUntil(
+  showPopup: boolean,
+  popupUntil: string | null,
+): string | null {
+  if (!showPopup || !popupUntil) return null;
+  const parsed = new Date(popupUntil);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+export async function saveAnnouncementConsole(
+  input: SaveAnnouncementConsoleInput,
+): Promise<AnnouncementConsoleResult> {
+  const userId = await getCurrentUserId();
+  if (!userId) return { ok: false, error: "forbidden" };
+
+  const title = input.title.trim();
+  const content = input.content.trim();
+  const status = input.status;
+  const targetScope = input.targetScope;
+  const targetRoles = normalizeConsoleTargetRoles(input.targetRoles);
+  const imageUrls = input.imageUrls.filter(Boolean);
+  const announcementId = input.announcementId;
+
+  if (!announcementId || !isValidUUID(announcementId)) {
+    return { ok: false, error: "invalid_announcement" };
+  }
+  if (
+    !title ||
+    !content ||
+    !["draft", "published"].includes(status) ||
+    !["everyone", "roles"].includes(targetScope) ||
+    (targetScope === "roles" && targetRoles.length === 0)
+  ) {
+    return { ok: false, error: "invalid_announcement" };
+  }
+
+  const service = getSupabaseServiceClient();
+  const existing = await getAnnouncement(announcementId);
+  const now = new Date().toISOString();
+  const popupUntil = normalizeConsolePopupUntil(input.showPopup, input.popupUntil);
+
+  if (existing) {
+    // Edit path — organization is immutable; validate against the stored org.
+    const organizationId = existing.organization_id;
+    if (
+      imageUrls.length > maxAnnouncementImages ||
+      imageUrls.some(
+        (url) => !isValidAnnouncementImageUrl(url, organizationId, announcementId),
+      )
+    ) {
+      return { ok: false, error: "invalid_images" };
+    }
+    if (!(await canManageAnnouncement(userId, existing))) {
+      return { ok: false, error: "forbidden" };
+    }
+
+    const wasPublished = existing.status === "published";
+    // The edit form only produces draft/published, so the row never stays archived
+    // after an edit — clear archived_at unconditionally to avoid a stale timestamp.
+    const { error } = await service
+      .from("announcements")
+      .update({
+        archived_at: null,
+        content,
+        image_urls: imageUrls,
+        is_important: input.isImportant,
+        is_pinned: input.isPinned,
+        popup_until: popupUntil,
+        published_at:
+          status === "published" ? (existing.published_at ?? now) : existing.published_at,
+        show_popup_on_app_open: input.showPopup,
+        status,
+        target_roles: targetScope === "roles" ? targetRoles : [],
+        target_scope: targetScope,
+        title,
+      } as never)
+      .eq("id", announcementId);
+
+    if (error) return { ok: false, error: "save_failed" };
+
+    if (status === "published" && !wasPublished && input.isImportant) {
+      await createImportantAnnouncementNotifications(service, {
+        organizationId,
+        announcementId,
+        announcementTitle: title,
+        actorUserId: userId,
+        targetScope,
+        targetRoles,
+      });
+    }
+    return { ok: true };
+  }
+
+  // Create path.
+  const organizationId = input.organizationId;
+  if (!organizationId || !isValidUUID(organizationId)) {
+    await cleanupSubmittedAnnouncementImages(imageUrls, organizationId, announcementId);
+    return { ok: false, error: "invalid_organization" };
+  }
+  if (
+    imageUrls.length > maxAnnouncementImages ||
+    imageUrls.some(
+      (url) => !isValidAnnouncementImageUrl(url, organizationId, announcementId),
+    )
+  ) {
+    await cleanupSubmittedAnnouncementImages(imageUrls, organizationId, announcementId);
+    return { ok: false, error: "invalid_images" };
+  }
+  if (!(await canCreateInOrganization(userId, organizationId))) {
+    await cleanupSubmittedAnnouncementImages(imageUrls, organizationId, announcementId);
+    return { ok: false, error: "forbidden" };
+  }
+
+  const { error } = await service.from("announcements").insert({
+    allow_comments: false,
+    content,
+    created_by_user_id: userId,
+    id: announcementId,
+    image_urls: imageUrls,
+    is_important: input.isImportant,
+    is_pinned: input.isPinned,
+    organization_id: organizationId,
+    popup_until: popupUntil,
+    published_at: status === "published" ? now : null,
+    show_popup_on_app_open: input.showPopup,
+    status,
+    target_roles: targetScope === "roles" ? targetRoles : [],
+    target_scope: targetScope,
+    title,
+  } as never);
+
+  if (error) {
+    await cleanupSubmittedAnnouncementImages(imageUrls, organizationId, announcementId);
+    return { ok: false, error: "save_failed" };
+  }
+
+  if (status === "published" && input.isImportant) {
+    await createImportantAnnouncementNotifications(service, {
+      organizationId,
+      announcementId,
+      announcementTitle: title,
+      actorUserId: userId,
+      targetScope,
+      targetRoles,
+    });
+  }
+  return { ok: true };
+}
+
+export async function setAnnouncementStatusConsole(
+  announcementId: string,
+  nextStatus: "draft" | "published" | "archived",
+): Promise<AnnouncementConsoleResult> {
+  const userId = await getCurrentUserId();
+  if (!userId) return { ok: false, error: "forbidden" };
+  if (
+    !announcementId ||
+    !isValidUUID(announcementId) ||
+    !["draft", "published", "archived"].includes(nextStatus)
+  ) {
+    return { ok: false, error: "invalid_announcement" };
+  }
+
+  const announcement = await getAnnouncement(announcementId);
+  if (!announcement) return { ok: false, error: "invalid_announcement" };
+  if (!(await canManageAnnouncement(userId, announcement))) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const now = new Date().toISOString();
+  const service = getSupabaseServiceClient();
+  const { error } = await service
+    .from("announcements")
+    .update({
+      archived_at: nextStatus === "archived" ? now : null,
+      published_at:
+        nextStatus === "published" ? now : announcement.published_at,
+      status: nextStatus,
+    } as never)
+    .eq("id", announcementId);
+
+  if (error) return { ok: false, error: "save_failed" };
+
+  if (
+    nextStatus === "published" &&
+    announcement.status !== "published" &&
+    announcement.is_important
+  ) {
+    await createImportantAnnouncementNotifications(service, {
+      organizationId: announcement.organization_id,
+      announcementId: announcement.id,
+      announcementTitle: announcement.title,
+      actorUserId: userId,
+      targetScope: announcement.target_scope,
+      targetRoles: announcement.target_roles,
+    });
+  }
+  return { ok: true };
+}
+
+export async function deleteAnnouncementConsole(
+  announcementId: string,
+): Promise<AnnouncementConsoleResult> {
+  const userId = await getCurrentUserId();
+  if (!userId) return { ok: false, error: "forbidden" };
+  if (!announcementId || !isValidUUID(announcementId)) {
+    return { ok: false, error: "invalid_announcement" };
+  }
+
+  const announcement = await getAnnouncement(announcementId);
+  if (!announcement) return { ok: false, error: "invalid_announcement" };
+  if (!(await canManageAnnouncement(userId, announcement))) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const { error } = await getSupabaseServiceClient()
+    .from("announcements")
+    .delete()
+    .eq("id", announcementId);
+
+  if (error) return { ok: false, error: "save_failed" };
+
+  if (announcement.image_urls.length > 0) {
+    const storagePaths = getValidatedAnnouncementImagePaths(
+      announcement.image_urls,
+      announcement.organization_id,
+      announcement.id,
+    );
+    if (storagePaths.length > 0) {
+      const { error: storageError } = await getSupabaseServiceClient()
+        .storage.from(announcementImageBucket)
+        .remove(storagePaths);
+      if (storageError) {
+        console.error(
+          "[deleteAnnouncementConsole] Storage cleanup failed for announcement",
+          announcementId,
+          storageError.message,
+        );
+      }
+    }
+  }
+  return { ok: true };
+}
+
+export type AnnouncementReadStatusResult =
+  | {
+      ok: true;
+      readers: { id: string; name: string; readAt: string | null }[];
+      unreadUsers: { id: string; name: string }[];
+    }
+  | { ok: false; error: string };
+
+export async function getAnnouncementReadStatusConsole(
+  announcementId: string,
+): Promise<AnnouncementReadStatusResult> {
+  const userId = await getCurrentUserId();
+  if (!userId) return { ok: false, error: "forbidden" };
+  if (!announcementId || !isValidUUID(announcementId)) {
+    return { ok: false, error: "invalid_announcement" };
+  }
+
+  const announcement = await getAnnouncement(announcementId);
+  if (!announcement) return { ok: false, error: "invalid_announcement" };
+  if (!(await canManageAnnouncement(userId, announcement))) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const summary = await getAnnouncementReadSummary(announcement);
+  return {
+    ok: true,
+    readers: summary.readers.map((reader) => ({
+      id: reader.id,
+      name: reader.name,
+      readAt: reader.readAt,
+    })),
+    unreadUsers: summary.unreadUsers.map((user) => ({
+      id: user.id,
+      name: user.name,
+    })),
+  };
 }

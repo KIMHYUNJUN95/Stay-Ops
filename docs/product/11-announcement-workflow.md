@@ -415,18 +415,46 @@ Current implementation:
 
 ### Current Implementation Note
 
-현재 구현은 `/admin/announcements` 목록+생성, `/admin/announcements/[id]` 상세, 읽음 추적 패널,
-팝업 후보 표시, 이미지 업로드/정리까지는 이미 동작한다.
+`/admin/announcements` 는 위 콘솔 명세대로 **재구현 완료**되었다 (2026-07-23, Claude Design handoff
+"StayOps 공지 관리 (admin)" 1:1 포팅).
 
-다만 대시보드 공통 콘솔 패턴 기준으로는 아직 아래가 남아 있다.
+구현된 구조:
 
-- 좌측 고정 생성 카드 → 콘솔형 작성 흐름 재구성
-- Published / Drafts / Archived 뷰 전환
-- 상단 KPI/요약 바
-- 우측 상세 패널 중심 구조
-- 댓글 레거시 정리
+- `src/app/admin/announcements/page.tsx` — 얇은 서버 래퍼. `getAdminAnnouncements(session)` 로
+  데이터를 로드하고 `AdminShell` 안에 `<AnnouncementsConsole>` 을 렌더링한다. (좌측 고정 생성 카드 제거)
+- `src/lib/admin-announcements.ts` — `getAdminAnnouncements()`: 작성 가능한 조직 전체의 공지를
+  작성자/조직 이름 + 도달(대상자 수)·읽음/미읽음·팝업 닫음 수 파생 지표와 함께 로드 (배치 쿼리).
+  행별 `canEdit`/`canOperate` 권한도 서버에서 계산한다.
+- `src/components/admin/announcements/`
+  - `announcements-console.tsx` — KPI 요약 바(게시중/초안/중요/팝업/중요·미읽음) + 3 상태 세그먼트
+    (게시중/초안/보관) + 고밀도 목록 표 + 우측 상세 패널·모달 오케스트레이션 + 토스트.
+  - `announcement-detail-panel.tsx` — 우측 상세 패널. 정보/본문/첨부/읽음 요약 + **작성 zone ↔
+    운영 zone** 권한 분리 UI.
+  - `announcement-form-modal.tsx` — 새 공지/편집 모달. 조직·제목·본문·이미지(≤5, 브라우저 직접
+    업로드)·대상 범위/역할·상태·중요/고정/팝업(+`popup_until` 종료 시각).
+  - `announcement-confirm-modal.tsx` — 게시/재게시/보관/초안 복귀/삭제 확인 모달.
+  - `announcement-read-modal.tsx` — 읽음 현황 모달. 열릴 때 서버 액션으로 대상자 명단 로드 (감사용).
+  - `announcements-console.css` — announce.css 포팅 (admin-console.css + maintenance-console.css 위에 확장).
+- 서버 액션 (`src/app/admin/announcements/actions.ts`, 결과 반환형):
+  `saveAnnouncementConsole`(생성/편집) · `setAnnouncementStatusConsole`(게시/보관/초안) ·
+  `deleteAnnouncementConsole` · `getAnnouncementReadStatusConsole`(읽음 명단).
+  기존 redirect 기반 액션(`createAnnouncement` 등)과 `/admin/announcements/[id]` 상세 페이지는
+  긴 본문/직접 진입 fallback 및 레거시 경로로 유지된다.
+- i18n: `src/lib/announcement-i18n.ts` 의 `console` 네임스페이스 (ko/ja/en 전체).
 
-이 문서의 어드민 공지 콘솔 명세는 위 구현을 대체하는 **재기획 기준**이다.
+권한 매핑 (Permission Split 반영):
+
+- `canEdit`(작성 zone) / `canOperate`(운영 zone) = platform admin, 또는 대상 조직에서
+  owner / senior_managing_director / office_admin, 또는 본인이 작성한 공지 (part-time 제외).
+  서버 액션(`canManageAnnouncement` / `canCreateInOrganization`)이 최종 강제한다.
+
+콘솔 재구현에 따른 동작 변경 (2026-07-23):
+
+- `/admin/announcements` 에서 **앱 오픈 팝업 미리보기(AnnouncementPopup)** 와 **고아 이미지 정리
+  버튼(OrphanCleanupButton)** UI 를 제거했다 (콘솔은 관리 표면이라는 방향에 맞춤). 두 기능의 서버
+  로직(`purgeOrphanAnnouncementImages` 등)은 그대로 유지되며, 추후 필요 시 별도 위치에서 재노출한다.
+- 목록 행의 읽음 수는 성능을 위해 `announcement_reads` 원시 레코드 수(대상자 수로 상한)를 사용한다.
+  정밀 명단(현재 활성 대상자 교차)은 읽음 현황 모달에서 `getAnnouncementReadStatusConsole` 로 조회한다.
 
 ## Comments
 
