@@ -73,7 +73,7 @@ export async function quickCreateTask(formData: FormData) {
   redirect("/mobile/tasks?view=inbox&created=1");
 }
 
-// Quick-create with today's Tokyo date as scheduled_date — appears in the Today tab immediately.
+// Quick-create anchored to today's Tokyo date via all-day due_at — appears in the Today tab immediately.
 export async function quickCreateTodayTask(formData: FormData) {
   const session = await getCurrentAppSession();
   if (!session) {
@@ -89,6 +89,7 @@ export async function quickCreateTodayTask(formData: FormData) {
   }
 
   const todayYmd = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
+  const dueAt = new Date(`${todayYmd}T00:00:00+09:00`).toISOString();
   const id = crypto.randomUUID();
   const supabase = getSupabaseServiceClient();
 
@@ -97,7 +98,8 @@ export async function quickCreateTodayTask(formData: FormData) {
     organization_id: session.organization.id,
     created_by_user_id: session.user.id,
     title,
-    scheduled_date: todayYmd,
+    due_at: dueAt,
+    all_day: true,
     is_inbox: false,
     is_shared: false,
   };
@@ -118,7 +120,7 @@ export async function quickCreateTodayTask(formData: FormData) {
   redirect("/mobile/tasks?view=today&created=1");
 }
 
-// Quick-create with tomorrow's Tokyo date as scheduled_date — appears in the Tomorrow tab immediately.
+// Quick-create anchored to tomorrow's Tokyo date via all-day due_at — appears in the Tomorrow tab immediately.
 export async function quickCreateTomorrowTask(formData: FormData) {
   const session = await getCurrentAppSession();
   if (!session) {
@@ -136,6 +138,7 @@ export async function quickCreateTomorrowTask(formData: FormData) {
   const todayYmd = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
   const [ty, tm, td] = todayYmd.split("-").map(Number);
   const tomorrowYmd = new Date(Date.UTC(ty, tm - 1, td + 1)).toISOString().slice(0, 10);
+  const dueAt = new Date(`${tomorrowYmd}T00:00:00+09:00`).toISOString();
   const id = crypto.randomUUID();
   const supabase = getSupabaseServiceClient();
 
@@ -144,7 +147,8 @@ export async function quickCreateTomorrowTask(formData: FormData) {
     organization_id: session.organization.id,
     created_by_user_id: session.user.id,
     title,
-    scheduled_date: tomorrowYmd,
+    due_at: dueAt,
+    all_day: true,
     is_inbox: false,
     is_shared: false,
   };
@@ -183,6 +187,7 @@ export async function createTask(formData: FormData) {
   const scheduledDate = cleanText(formData.get("scheduledDate"));
   const dueDate = cleanText(formData.get("dueDate"));
   const time = cleanText(formData.get("time"));
+  const durationRaw = cleanText(formData.get("durationMinutes"));
   const priorityRaw = cleanText(formData.get("priority"));
   const repeatRaw = cleanText(formData.get("repeat"));
   const priority = PRIORITIES.has(priorityRaw) ? priorityRaw : "normal";
@@ -214,6 +219,11 @@ export async function createTask(formData: FormData) {
     dueDate,
     time,
   });
+  // Duration is a time-block length (1–1440 min) and is only meaningful with a time-of-day.
+  const durationParsed = /^\d+$/.test(durationRaw) ? Number(durationRaw) : null;
+  const durationMinutes =
+    durationParsed && durationParsed >= 1 && durationParsed <= 1440 ? durationParsed : null;
+  const finalDuration = timeLabel ? durationMinutes : null;
   const anchorDate = taskAnchorDateInput({ scheduledDate: sched, dueAt });
   if (taskNeedsRecurrenceDate(repeat, anchorDate)) {
     redirect("/mobile/tasks/new?error=repeat_needs_date");
@@ -259,6 +269,7 @@ export async function createTask(formData: FormData) {
     due_at: dueAt,
     all_day: allDay,
     time_label: timeLabel,
+    duration_minutes: finalDuration,
     priority,
     status: "open",
     is_inbox: false,

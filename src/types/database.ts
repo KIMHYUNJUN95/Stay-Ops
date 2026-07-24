@@ -1148,6 +1148,7 @@ export type Database = {
           created_by_user_id: string;
           description?: string | null;
           due_at?: string | null;
+          duration_minutes?: number | null;
           guest_name?: string | null;
           id?: string;
           image_urls?: string[];
@@ -1179,6 +1180,7 @@ export type Database = {
           created_by_user_id: string;
           description: string | null;
           due_at: string | null;
+          duration_minutes: number | null;
           guest_name: string | null;
           id: string;
           image_urls: string[];
@@ -1210,6 +1212,7 @@ export type Database = {
           created_by_user_id?: string;
           description?: string | null;
           due_at?: string | null;
+          duration_minutes?: number | null;
           guest_name?: string | null;
           id?: string;
           image_urls?: string[];

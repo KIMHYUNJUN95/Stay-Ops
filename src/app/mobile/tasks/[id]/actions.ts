@@ -18,6 +18,7 @@ import {
   taskTimeWithoutDate,
   tokyoDateOf,
   tokyoToday,
+  ymdShift,
   type TaskDetail,
   type TaskRecord,
 } from "@/lib/tasks";
@@ -249,6 +250,7 @@ export async function updateTaskCore(formData: FormData) {
   const scheduledDate = cleanText(formData.get("scheduledDate"));
   const dueDate = cleanText(formData.get("dueDate"));
   const time = cleanText(formData.get("time"));
+  const durationRaw = cleanText(formData.get("durationMinutes"));
   const priorityRaw = cleanText(formData.get("priority"));
   const repeatRaw = cleanText(formData.get("repeat"));
   const tags = parseStringArray(cleanText(formData.get("tagsJson")))
@@ -276,6 +278,11 @@ export async function updateTaskCore(formData: FormData) {
     dueDate,
     time,
   });
+  // Duration is a time-block length (1–1440 min) and is only meaningful with a time-of-day.
+  const durationParsed = /^\d+$/.test(durationRaw) ? Number(durationRaw) : null;
+  const durationMinutes =
+    durationParsed && durationParsed >= 1 && durationParsed <= 1440 ? durationParsed : null;
+  const finalDuration = timeLabel ? durationMinutes : null;
   const nextRecurrenceRule = resolveRecurrenceRule(repeatRaw, task.recurrenceRule);
   const anchorDate = taskAnchorDateInput({ scheduledDate: sched, dueAt });
   if (taskNeedsRecurrenceDate(nextRecurrenceRule, anchorDate)) {
@@ -290,6 +297,7 @@ export async function updateTaskCore(formData: FormData) {
     due_at: dueAt,
     all_day: allDay,
     time_label: timeLabel,
+    duration_minutes: finalDuration,
     priority: PRIORITIES.has(priorityRaw) ? priorityRaw : "normal",
     // `custom` is kept only if this task already had it; non-custom tasks can't become custom.
     recurrence_rule: nextRecurrenceRule,
@@ -354,22 +362,30 @@ function listPathForView(formData: FormData): string {
   return LIST_VIEWS.has(view) ? `/mobile/tasks?view=${view}` : "/mobile/tasks";
 }
 
-// Shift a Tokyo YYYY-MM-DD by n days, returning the same format.
-function ymdShift(ymd: string, n: number): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+// Fields to anchor a task to `date` (Tokyo YYYY-MM-DD) via due_at, preserving any time-of-day.
+// Clears scheduled_date so due_at is the single anchor; keeps a recurring task's instance date in sync.
+function anchorToDate(task: TaskDetail, date: string): Database["public"]["Tables"]["tasks"]["Update"] {
+  const dueAt = new Date(`${date}T${task.timeLabel ?? "00:00"}:00+09:00`).toISOString();
+  const update: Database["public"]["Tables"]["tasks"]["Update"] = {
+    due_at: dueAt,
+    all_day: !task.timeLabel,
+    scheduled_date: null,
+    is_inbox: false,
+  };
+  if (task.recurrenceSeriesId) update.recurrence_instance_date = date;
+  return update;
 }
 
-// "To today" swipe action: schedule the task for the Tokyo operating date and pull it
+// "To today" swipe action: anchor the task to the Tokyo operating date and pull it
 // out of Inbox. Returns to the originating tab so the card moves into Today.
 export async function moveTaskToToday(formData: FormData) {
   const id = cleanText(formData.get("taskId"));
-  await requireSessionAndTask(id);
-  const today = (await import("@/lib/tasks")).tokyoToday();
+  const { task } = await requireSessionAndTask(id);
+  const today = tokyoToday();
   const supabase = getSupabaseServiceClient();
   await supabase
     .from("tasks")
-    .update({ scheduled_date: today, is_inbox: false } as never)
+    .update(anchorToDate(task, today) as never)
     .eq("id", id);
   redirect(listPathForView(formData));
 }
@@ -378,13 +394,12 @@ export async function moveTaskToToday(formData: FormData) {
 // it out of Inbox. Returns to the originating tab so the card moves into Tomorrow.
 export async function moveTaskToTomorrow(formData: FormData) {
   const id = cleanText(formData.get("taskId"));
-  await requireSessionAndTask(id);
-  const today = (await import("@/lib/tasks")).tokyoToday();
-  const tomorrow = ymdShift(today, 1);
+  const { task } = await requireSessionAndTask(id);
+  const tomorrow = ymdShift(tokyoToday(), 1);
   const supabase = getSupabaseServiceClient();
   await supabase
     .from("tasks")
-    .update({ scheduled_date: tomorrow, is_inbox: false } as never)
+    .update(anchorToDate(task, tomorrow) as never)
     .eq("id", id);
   redirect(listPathForView(formData));
 }

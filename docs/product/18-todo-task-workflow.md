@@ -60,8 +60,12 @@ This module is the canonical task workspace across mobile and admin.
 
 - Mobile user-facing label is `Todoist`.
 - Admin sidebar user-facing label is also `Todoist`.
-- The current admin route remains `/admin/recurring-work` as a legacy path until the desktop console is rebuilt.
+- The current admin route is legacy `/admin/recurring-work` (a "준비 중" placeholder); the dashboard
+  console will move to `/admin/tasks` (legacy path redirects). See the planning spec below.
 - The old separate "Recurring Work Scheduler" concept is not the active user-facing module anymore; the shared task workspace is the canonical direction.
+- **대시보드 Todoist 기획 스펙 (2026-07-24): `docs/product/28-admin-todoist-console.md`.** 대시보드는
+  "모바일 코어 기능 그대로 + 업무 지시(Work Directive) 하나"로 심플하게 간다 — 관리자 분석/오버사이트나
+  부가기능은 넣지 않는다. 정식 담당자(assignee)는 보류. 디자인은 대표님이 직접 진행.
 
 ## Core Product Direction
 
@@ -468,6 +472,64 @@ text, and the "add a task on this date" CTA is a soft accent-tinted button. No b
 or anchor-date change — visual/interaction polish only.
 
 ## Dates And Time
+
+### Single-date model + unified schedule picker (as-built 2026-07-24, A안 — supersedes the two-date UI)
+
+The mobile create/edit form now exposes **one date**, not a scheduled/due pair, benchmarked on
+Todoist's date popover. Rationale: field staff almost always mean "do it / due on this day"; the
+scheduled + due split added UI weight without real use.
+
+- **One date → `due_at`.** The single date maps to `due_at` (all-day = `00:00` Tokyo; a time sets the
+  clock). This matches the app's existing anchor (`due ?? scheduled`, so Today/Tomorrow/Calendar/overdue
+  already prefer due). The form submits `scheduledDate=""` + `dueDate=<date>`, so any created or edited
+  task writes due-only and `scheduled_date` is cleared.
+- **`scheduled_date` is legacy-only.** The column is kept (no migration); un-edited legacy tasks that
+  only have `scheduled_date` still display via the anchor. Editing any such task through the form
+  converts it to due-only.
+- **Unified picker** — `src/components/tasks/task-schedule-sheet.tsx` (`TaskSchedulePicker`), a canonical
+  `BottomSheet`: quick relative options (**오늘 · 내일 · 다음 주 · 다음 주말 · 날짜 없음**, each with its
+  computed date), an inline month calendar, and expandable **시간 / 반복** rows — all in one sheet.
+  Commit-on-close (Todoist-style: any dismiss keeps the current selection). The create/edit form's
+  date/time/repeat now live only in this sheet (removed from the old "더 보기" section); the form shows a
+  single 일정 chip summarizing date + time + repeat.
+- **Consistency actions** — the quick-create (`quickCreateTodayTask` / `quickCreateTomorrowTask`) and
+  swipe move (`moveTaskToToday` / `moveTaskToTomorrow`) actions now write `due_at` (move preserves
+  time-of-day and re-anchors a recurring occurrence) instead of `scheduled_date`, so the single-date
+  model is coherent across create, edit, quick-add, and swipe.
+- i18n: `scheduleTitle` / `scheduleNoDate` / `scheduleNextWeek` / `scheduleNextWeekend` / `scheduleDone`
+  / `scheduleEmpty` / `scheduleAddTime` / `scheduleAddRepeat` (ko/ja/en).
+
+### Time-block duration + contextual repeat (as-built 2026-07-24)
+
+Inside the schedule sheet, the **Time** and **Repeat** sub-pickers were rebuilt to match Todoist:
+
+- **Duration (기간)** — a timed task can carry a same-day **time-block length**. Default is **기간 없음**;
+  tapping offers **15분 / 30분 / 1시간 / 2시간 / 사용자 정의(분 입력)**. Stored in a new nullable column
+  `tasks.duration_minutes` (migration `202607240001_task_duration.sql` — **apply in Supabase before
+  deploy**). Duration is only kept when the task has a time-of-day (`time_label`); all-day tasks force it
+  to null (server-guarded). Display: cards show `HH:MM–HH:MM` and detail shows `HH:MM – HH:MM · <length>`.
+  This is a **single-day block**, not a multi-day span (the single-date model is preserved).
+- **Repeat — contextual list keyed off the selected date** (Todoist-style vertical menu, not chips):
+  반복 없음 · 매일 · **매주 {요일}** · 평일마다 (월-금) · **매월 {일}일** · **매년 {월 일}** · 사용자 정의
+  (read-only, legacy). The weekly/monthly labels are display-only (the engine already anchors to the
+  selected weekday/day-of-month). **`매년`(yearly) is a new recurrence rule** added to the engine
+  (`nextOccurrence` = +1 year, same month/day, Feb-29 clamped). Standalone "주말마다"(weekends) was
+  dropped from the new picker (engine + legacy display retained). i18n: `durationLabel` / `durationNone`
+  / `duration15…120` / `durationCustom` / `durationMinUnit` / `repeatWeeklyOn` / `repeatEveryWeekday` /
+  `repeatMonthlyOn` / `repeatYearlyOn` / `repeatYearly` (ko/ja/en).
+
+### Overdue bulk reschedule reuses the picker + check-alignment fix (as-built 2026-07-24)
+
+The Today-tab overdue **"일정변경 N개 선택"** sheet now renders the same `TaskSchedulePicker` in a
+**date-only variant** (`variant="date"`: quick options 오늘/내일/다음 주/다음 주말 + inline calendar, no
+time/repeat, no 날짜 없음). Unlike the create/edit picker (commit-on-close), the date variant **commits
+only on the 완료 button** (a scrim tap / drag / Esc cancels), then applies the chosen date to every
+selected overdue task via `rescheduleOverdueTo(date, ids)`. The previous bespoke reschedule sheet and its
+custom mini-calendar (plus the `overdueCustom*` state) were removed. Also fixed: in the picker's quick
+options, the selected row's 요일/날짜 no longer shifts left — the check (✓) now sits in a fixed-width slot.
+
+The scheduling model description below is the **original two-date direction**, kept for history; the
+single-date model above is the current UI truth.
 
 The task system needs stronger scheduling than a simple due-date field.
 
@@ -960,7 +1022,11 @@ Example direction:
 
 This task system should be designed for mobile first.
 
-Admin web is intentionally deferred until the wider mobile feature set is complete.
+Admin web was intentionally deferred until the mobile feature set matured. **As of 2026-07-24 the mobile
+Todoist is feature-complete for its first-slice scope** (single-date schedule picker + duration +
+contextual repeat/yearly + overdue reschedule picker shipped), and the **dashboard console is now
+planned** — see `docs/product/28-admin-todoist-console.md`. The dashboard reuses the same DB / server
+actions (no separate sync layer) and stays simple: mobile parity + a manager **Work Directive** only.
 
 ## Suggested First Design Slice
 

@@ -1013,11 +1013,12 @@ scheduled_date date
 due_at timestamptz
 all_day boolean not null default true
 time_label text
+duration_minutes integer                   -- 시간 블록 길이(분). NULL=기간 없음. time_label 있을 때만 유효 (202607240001)
 priority text not null default 'normal'   -- normal | important | urgent
 status text not null default 'open'        -- open | in_progress | completed | cancelled
 is_inbox boolean not null default true
 is_shared boolean not null default false
-recurrence_rule text
+recurrence_rule text                       -- daily | weekly | monthly | weekdays | weekends | yearly | custom (yearly: 202607240001)
 tags text[]
 image_urls text[]
 completed_by_user_id uuid references profiles(id)

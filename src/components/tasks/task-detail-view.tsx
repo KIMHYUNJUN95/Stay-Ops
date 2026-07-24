@@ -76,9 +76,27 @@ function repeatLabel(rule: string, copy: Copy): string {
     monthly: copy.repeatMonthly,
     weekdays: copy.repeatWeekdays,
     weekends: copy.repeatWeekends,
+    yearly: copy.repeatYearly,
     custom: copy.repeatCustom,
   };
   return map[rule] ?? rule;
+}
+// End of a time block (start "HH:MM" + duration minutes), wrapping within the day.
+function addMinutesHHMM(hhmm: string, mins: number): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const total = (((h * 60 + m + mins) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+function durationText(mins: number, copy: Copy): string {
+  return mins === 15
+    ? copy.duration15
+    : mins === 30
+      ? copy.duration30
+      : mins === 60
+        ? copy.duration60
+        : mins === 120
+          ? copy.duration120
+          : `${mins}${copy.durationMinUnit}`;
 }
 function prioLabel(p: string, copy: Copy): string {
   return p === "urgent" ? copy.prioUrgent : p === "important" ? copy.prioImportant : copy.prioNormal;
@@ -124,13 +142,23 @@ export function TaskDetailView({
   if (task.scheduledDate) meta.push({ icon: CalendarDays, label: copy.scheduledDate, value: longDate(task.scheduledDate, locale) });
   if (task.dueAt)
     meta.push({
-      icon: Flag,
-      label: copy.dueDate,
-      // All-day due dates are stored at 00:00 Tokyo — render them date-only so they don't
+      // Single-date model (A안): the task's one date is stored on due_at; label it neutrally as 일정.
+      icon: CalendarDays,
+      label: copy.scheduleTitle,
+      // All-day dates are stored at 00:00 Tokyo — render them date-only so they don't
       // contradict the "All day" time row; timed tasks keep date + time.
       value: task.allDay ? longDateOnlyIso(task.dueAt, locale) : longDateTime(task.dueAt, locale),
     });
-  meta.push({ icon: Clock, label: copy.sectionTime, value: task.timeLabel || copy.allDay });
+  meta.push({
+    icon: Clock,
+    label: copy.sectionTime,
+    // Timed task with a duration → show the block (start – end · length); else just the time or All day.
+    value: task.timeLabel
+      ? task.durationMinutes
+        ? `${task.timeLabel} – ${addMinutesHHMM(task.timeLabel, task.durationMinutes)} · ${durationText(task.durationMinutes, copy)}`
+        : task.timeLabel
+      : copy.allDay,
+  });
   if (task.recurrenceRule) meta.push({ icon: Repeat2, label: copy.sectionRepeat, value: repeatLabel(task.recurrenceRule, copy) });
   meta.push({ icon: Flag, label: copy.sectionPriority, value: prioLabel(task.priority, copy) });
 

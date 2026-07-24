@@ -64,6 +64,7 @@ export default async function MobileTaskEditPage({ params, searchParams }: PageP
           scheduled: task.scheduledDate ?? "",
           due: tokyoDateOf(task.dueAt) ?? "",
           time: task.timeLabel ?? "",
+          duration: task.durationMinutes ?? 0,
           priority: task.priority,
           repeat: task.recurrenceRule ?? "",
           tags: task.tags,

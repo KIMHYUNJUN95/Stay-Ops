@@ -44,9 +44,17 @@ function repeatLabel(rule: string, copy: Copy): string {
     monthly: copy.repeatMonthly,
     weekdays: copy.repeatWeekdays,
     weekends: copy.repeatWeekends,
+    yearly: copy.repeatYearly,
     custom: copy.repeatCustom,
   };
   return map[rule] ?? rule;
+}
+
+// End of a time block (start "HH:MM" + duration minutes), wrapping within the day.
+function addMinutesHHMM(hhmm: string, mins: number): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const total = (((h * 60 + m + mins) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
 function shareSummary(task: TaskRecord, currentUserId: string): string | null {
@@ -388,6 +396,7 @@ export function TaskCard({
               <span className={chip}>
                 <Clock className="size-3" aria-hidden="true" />
                 {task.timeLabel}
+                {task.durationMinutes ? `–${addMinutesHHMM(task.timeLabel, task.durationMinutes)}` : ""}
               </span>
             ) : null}
             {task.recurrenceRule ? (

@@ -194,7 +194,9 @@
 
 - Reservations / Calendar (예약)
 - Announcements / Board (공지·게시판)
-- Todoist (투두이스트)
+- Todoist (투두이스트) — 대시보드 콘솔은 다른 어드민 모듈의 "관리형" 패턴이 **아니라** Todoist 본연의
+  워크스페이스(모바일 코어 패리티) + 사무실 **업무 지시**만. 기획 스펙: `docs/product/28-admin-todoist-console.md`.
+  라우트는 legacy `/admin/recurring-work` → 신설 `/admin/tasks` 예정.
 - Settings (설정)
 
 향후 모듈(Linen Return · Complaints · Tasks/Projects · Suggestions · Bug Reports · Notifications ·

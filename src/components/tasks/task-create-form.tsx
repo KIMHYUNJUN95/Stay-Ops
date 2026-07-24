@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { CalendarDays, ChevronDown, ChevronRight, Clock, Share2, Users, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronRight, Clock, Repeat, Share2, Users, X } from "lucide-react";
 import { createTask } from "@/app/mobile/tasks/new/actions";
 import { updateTaskCore } from "@/app/mobile/tasks/[id]/actions";
-import { MiniCalendar, TimeWheels } from "@/components/tasks/date-time-fields";
+import { TaskSchedulePicker } from "@/components/tasks/task-schedule-sheet";
 import {
   AnnouncementImageUploader,
   type AnnouncementImageUploaderHandle,
@@ -19,33 +19,7 @@ import { cn } from "@/lib/utils";
 
 type Copy = Dictionary["tasks"];
 
-function addDays(ymd: string, n: number): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d + n));
-  return dt.toISOString().slice(0, 10);
-}
-function nextWeekday(ymd: string): string {
-  let cur = addDays(ymd, 1);
-  for (let i = 0; i < 7; i++) {
-    const [y, m, d] = cur.split("-").map(Number);
-    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-    if (dow >= 1 && dow <= 5) return cur;
-    cur = addDays(cur, 1);
-  }
-  return cur;
-}
-function nextWeekend(ymd: string): string {
-  let cur = addDays(ymd, 1);
-  for (let i = 0; i < 7; i++) {
-    const [y, m, d] = cur.split("-").map(Number);
-    if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 6) return cur;
-    cur = addDays(cur, 1);
-  }
-  return cur;
-}
-
 const PRIOS = ["normal", "important", "urgent"] as const;
-const REPEATS = ["", "daily", "weekly", "monthly", "weekdays", "weekends"] as const;
 
 type TaskInitial = {
   title: string;
@@ -53,6 +27,7 @@ type TaskInitial = {
   scheduled: string;
   due: string;
   time: string;
+  duration: number;
   priority: string;
   repeat: string;
   tags: string[];
@@ -120,15 +95,15 @@ export function TaskCreateForm({
   const isEdit = mode === "edit";
   const formRef = useRef<HTMLFormElement>(null);
   const uploaderRef = useRef<AnnouncementImageUploaderHandle>(null);
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
 
-  const [scheduled, setScheduled] = useState<string>(initial?.scheduled ?? defaultDate ?? "");
-  const [due, setDue] = useState<string>(initial?.due ?? "");
+  // Single-date model (A안, 2026-07-24): the form exposes ONE date, mapped to due_at on submit.
+  // For edit, seed it from the task's anchor (due wins over legacy scheduled).
+  const [date, setDate] = useState<string>(initial?.due || initial?.scheduled || defaultDate || "");
   const [time, setTime] = useState<string>(initial?.time ?? "");
-  const [dateField, setDateField] = useState<"scheduled" | "due" | null>(null);
-  const [timeOpen, setTimeOpen] = useState(false);
-  const [priority, setPriority] = useState<string>(initial?.priority ?? "normal");
+  const [duration, setDuration] = useState<number>(initial?.duration ?? 0);
   const [repeat, setRepeat] = useState<string>(initial?.repeat ?? "");
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [priority, setPriority] = useState<string>(initial?.priority ?? "normal");
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [tagDraft, setTagDraft] = useState("");
   const [existingImgUrls, setExistingImgUrls] = useState<string[]>(initial?.imageUrls ?? []);
@@ -168,9 +143,9 @@ export function TaskCreateForm({
     const draft = {
       title: titleVal,
       description: descVal,
-      scheduled,
-      due,
+      date,
       time,
+      duration,
       priority,
       repeat,
       tags,
@@ -184,7 +159,7 @@ export function TaskCreateForm({
     } catch {
       /* ignore storage errors */
     }
-  }, [draftKey, scheduled, due, time, priority, repeat, tags, shareIds, linkedCtx, more, existingImgUrls]);
+  }, [draftKey, date, time, duration, priority, repeat, tags, shareIds, linkedCtx, more, existingImgUrls]);
 
   // Restore once on mount (before the persist effect can overwrite with initial state).
   useEffect(() => {
@@ -215,9 +190,9 @@ export function TaskCreateForm({
     // State fields: applied in a microtask so setState is not called synchronously in the effect
     // body (react-hooks/set-state-in-effect), and still before paint so there is no flicker.
     queueMicrotask(() => {
-      if (typeof d.scheduled === "string") setScheduled(d.scheduled);
-      if (typeof d.due === "string") setDue(d.due);
+      if (typeof d.date === "string") setDate(d.date);
       if (typeof d.time === "string") setTime(d.time);
+      if (typeof d.duration === "number") setDuration(d.duration);
       if (typeof d.priority === "string") setPriority(d.priority);
       if (typeof d.repeat === "string") setRepeat(d.repeat);
       if (Array.isArray(d.tags)) setTags(d.tags.filter((x): x is string => typeof x === "string"));
@@ -242,13 +217,6 @@ export function TaskCreateForm({
   // so a legacy value is not silently lost and the selection never looks ambiguous.
   const hadCustom = initial?.repeat === "custom";
 
-  const dateChips: { k: string; l: string; v: () => string }[] = [
-    { k: "today", l: copy.quickToday, v: () => today },
-    { k: "tomorrow", l: copy.quickTomorrow, v: () => addDays(today, 1) },
-    { k: "weekday", l: copy.quickWeekday, v: () => nextWeekday(today) },
-    { k: "weekend", l: copy.quickWeekend, v: () => nextWeekend(today) },
-  ];
-
   function addTag() {
     const t = tagDraft.trim();
     if (!t || tags.includes(t) || tags.length >= 10) return;
@@ -269,18 +237,21 @@ export function TaskCreateForm({
       setError(copy.errors.missing_title);
       return;
     }
-    // A specific time needs a date anchor — block submission instead of silently dropping it.
-    if (time && !scheduled && !due) {
+    // A specific time / repeat needs a date anchor — block submission instead of silently dropping it.
+    if (time && !date) {
       setError(copy.errors.time_needs_date);
       return;
     }
-    if (repeat && !scheduled && !due) {
+    if (repeat && !date) {
       setError(copy.errors.repeat_needs_date);
       return;
     }
-    formData.set("scheduledDate", scheduled);
-    formData.set("dueDate", due);
+    // Single-date model (A안): the one date maps to due_at; scheduled stays empty.
+    formData.set("scheduledDate", "");
+    formData.set("dueDate", date);
     formData.set("time", time);
+    // Duration is a same-day time block; only meaningful with a time-of-day.
+    formData.set("durationMinutes", time && duration > 0 ? String(duration) : "");
     formData.set("priority", priority);
     formData.set("repeat", repeat);
     formData.set("tagsJson", JSON.stringify(tags));
@@ -340,8 +311,6 @@ export function TaskCreateForm({
   }
 
   const sectionTitle = "mb-2 px-0.5 text-[12.5px] font-extrabold tracking-[-0.01em] text-foreground";
-  const chip =
-    "rounded-full border px-3 py-1.5 text-[13px] font-bold transition-colors";
 
   // "더 보기 — 시간 · 우선순위 …" → bold lead + muted hint (every locale uses an em-dash separator).
   const dashIdx = copy.moreToggle.indexOf("—");
@@ -363,6 +332,34 @@ export function TaskCreateForm({
     const h12 = h % 12 === 0 ? 12 : h % 12;
     return `${h >= 12 ? copy.pmLabel : copy.amLabel} ${h12}:${String(m).padStart(2, "0")}`;
   };
+  const repeatSummary =
+    repeat === "daily"
+      ? copy.repeatDaily
+      : repeat === "weekly"
+        ? copy.repeatWeekly
+        : repeat === "monthly"
+          ? copy.repeatMonthly
+          : repeat === "weekdays"
+            ? copy.repeatWeekdays
+            : repeat === "weekends"
+              ? copy.repeatWeekends
+              : repeat === "custom"
+                ? copy.repeatCustom
+                : repeat === "yearly"
+                  ? copy.repeatYearly
+                  : "";
+  const durationSummary =
+    duration === 15
+      ? copy.duration15
+      : duration === 30
+        ? copy.duration30
+        : duration === 60
+          ? copy.duration60
+          : duration === 120
+            ? copy.duration120
+            : duration > 0
+              ? `${duration}${copy.durationMinUnit}`
+              : "";
 
   return (
     <form className="space-y-5 pb-10" onSubmit={handleSubmit} ref={formRef}>
@@ -405,74 +402,62 @@ export function TaskCreateForm({
         rows={2}
       />
 
-      {/* Dates */}
+      {/* Schedule — one date + time + repeat, all in a single Todoist-style sheet. */}
       <div>
-        <p className={sectionTitle}>{copy.sectionDates}</p>
-        <div className="mb-2.5 flex flex-wrap gap-2">
-          {dateChips.map((c) => (
-            <button
-              className={cn(
-                chip,
-                scheduled === c.v()
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border bg-surface text-slate-600",
-              )}
-              key={c.k}
-              onClick={() => setScheduled(c.v())}
-              type="button"
-            >
-              {c.l}
-            </button>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-2.5">
-          {([
-            { key: "scheduled" as const, label: copy.scheduledDate, val: scheduled },
-            { key: "due" as const, label: copy.dueDate, val: due },
-          ]).map((f) => (
-            <button
-              className={cn(
-                "flex flex-col gap-1 rounded-2xl border px-3 py-2 text-left transition-colors",
-                dateField === f.key ? "border-primary bg-primary/[0.05]" : "border-border bg-surface",
-              )}
-              key={f.key}
-              onClick={() => setDateField((cur) => (cur === f.key ? null : f.key))}
-              type="button"
-            >
-              <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                {f.label}
+        <p className={sectionTitle}>{copy.scheduleTitle}</p>
+        <button
+          className={cn(
+            "flex w-full items-center gap-2.5 rounded-2xl border px-3.5 py-3 text-left transition-colors",
+            date ? "border-primary/40 bg-primary/[0.05]" : "border-border bg-surface",
+          )}
+          onClick={() => setScheduleOpen(true)}
+          type="button"
+        >
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <CalendarDays className="size-4" aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            {date ? (
+              <span className="flex flex-wrap items-center gap-1.5">
+                <span className="text-sm font-bold text-foreground">{fmtDate(date)}</span>
+                {time ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/[0.08] px-2 py-0.5 text-[11.5px] font-bold text-primary">
+                    <Clock className="size-3" aria-hidden="true" />
+                    {fmtTime(time)}
+                    {durationSummary ? ` · ${durationSummary}` : ""}
+                  </span>
+                ) : null}
+                {repeat ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/[0.08] px-2 py-0.5 text-[11.5px] font-bold text-primary">
+                    <Repeat className="size-3" aria-hidden="true" />
+                    {repeatSummary}
+                  </span>
+                ) : null}
               </span>
-              <span className="flex items-center gap-1.5">
-                <CalendarDays className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <span
-                  className={cn(
-                    "truncate text-sm font-bold",
-                    f.val ? "text-foreground" : "text-muted-foreground/60",
-                  )}
-                >
-                  {f.val ? fmtDate(f.val) : copy.pickDate}
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
-        {dateField ? (
-          <MiniCalendar
-            copy={copy}
-            locale={locale}
-            onClear={() => {
-              if (dateField === "scheduled") setScheduled("");
-              else setDue("");
-              setDateField(null);
-            }}
-            onSelect={(ymd) => {
-              if (dateField === "scheduled") setScheduled(ymd);
-              else setDue(ymd);
-              setDateField(null);
-            }}
-            value={dateField === "scheduled" ? scheduled : due}
-          />
-        ) : null}
+            ) : (
+              <span className="text-sm font-semibold text-muted-foreground/70">{copy.scheduleEmpty}</span>
+            )}
+          </span>
+          {date ? (
+            <span
+              aria-label={copy.clearDate}
+              className="flex size-7 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDate("");
+                setTime("");
+                setDuration(0);
+                setRepeat("");
+              }}
+              role="button"
+              tabIndex={0}
+            >
+              <X className="size-4" aria-hidden="true" />
+            </span>
+          ) : (
+            <ChevronRight className="size-4 shrink-0 text-slate-400" aria-hidden="true" />
+          )}
+        </button>
       </div>
 
       {/* Share — creation only; hidden for project tasks (sharing is governed by the project). */}
@@ -535,76 +520,6 @@ export function TaskCreateForm({
 
       {more ? (
         <div className="space-y-5">
-          <div>
-            <p className={sectionTitle}>{copy.sectionTime}</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                className={cn(
-                  chip,
-                  !time ? "border-primary bg-primary/10 text-primary" : "border-border bg-surface text-slate-600",
-                )}
-                onClick={() => {
-                  setTime("");
-                  setTimeOpen(false);
-                }}
-                type="button"
-              >
-                {copy.allDay}
-              </button>
-              <button
-                aria-label={copy.sectionTime}
-                className={cn(
-                  "flex h-10 items-center gap-1.5 rounded-xl border px-3 text-sm font-bold transition-colors",
-                  time || timeOpen
-                    ? "border-primary bg-primary/[0.06] text-primary"
-                    : "border-border bg-surface text-slate-600",
-                )}
-                onClick={() => setTimeOpen((v) => !v)}
-                type="button"
-              >
-                <Clock className="size-4" aria-hidden="true" />
-                {time ? fmtTime(time) : copy.sectionTime}
-                <ChevronDown
-                  className={cn("size-3.5 transition-transform", timeOpen && "rotate-180")}
-                  aria-hidden="true"
-                />
-              </button>
-              {time ? (
-                <button
-                  aria-label={copy.clearDate}
-                  className="flex size-9 items-center justify-center rounded-xl border border-border bg-surface text-slate-400"
-                  onClick={() => {
-                    setTime("");
-                    setTimeOpen(false);
-                  }}
-                  type="button"
-                >
-                  <X className="size-4" aria-hidden="true" />
-                </button>
-              ) : null}
-            </div>
-            {timeOpen ? <TimeWheels copy={copy} onChange={setTime} value={time} /> : null}
-            <div className="mt-2 grid grid-cols-5 gap-1.5">
-              {["09:00", "12:00", "15:00", "18:00", "21:00"].map((tv) => (
-                <button
-                  className={cn(
-                    "flex items-center justify-center rounded-full border py-1.5 text-[12.5px] font-bold transition-colors",
-                    time === tv ? "border-primary bg-primary/10 text-primary" : "border-border bg-surface text-slate-600",
-                  )}
-                  key={tv}
-                  onClick={() => setTime(tv)}
-                  type="button"
-                >
-                  {tv}
-                </button>
-              ))}
-            </div>
-            {time && !scheduled && !due ? (
-              <p className="mt-2 px-0.5 text-[11.5px] font-semibold text-amber-600">
-                {copy.timeNeedsDate}
-              </p>
-            ) : null}
-          </div>
           <div>
             <p className={sectionTitle}>{copy.sectionPriority}</p>
             <div className="flex gap-2">
@@ -715,56 +630,26 @@ export function TaskCreateForm({
               )}
             </div>
           </div>
-          <div>
-            <p className={sectionTitle}>{copy.sectionRepeat}</p>
-            <div className="flex flex-wrap gap-2">
-              {REPEATS.map((r) => {
-                const label =
-                  r === ""
-                    ? copy.repeatNone
-                    : r === "daily"
-                      ? copy.repeatDaily
-                      : r === "weekly"
-                        ? copy.repeatWeekly
-                        : r === "monthly"
-                          ? copy.repeatMonthly
-                          : r === "weekdays"
-                            ? copy.repeatWeekdays
-                            : copy.repeatWeekends;
-                return (
-                  <button
-                    className={cn(
-                      chip,
-                      repeat === r ? "border-primary bg-primary/10 text-primary" : "border-border bg-surface text-slate-600",
-                    )}
-                    key={r || "none"}
-                    onClick={() => setRepeat(r)}
-                    type="button"
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-              {hadCustom ? (
-                <button
-                  className={cn(
-                    chip,
-                    repeat === "custom"
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-surface text-slate-600",
-                  )}
-                  onClick={() => setRepeat("custom")}
-                  type="button"
-                >
-                  {copy.repeatCustom}
-                </button>
-              ) : null}
-            </div>
-            <p className="mt-2 px-0.5 text-[11.5px] font-medium text-muted-foreground">
-              {copy.repeatHint}
-            </p>
-          </div>
         </div>
+      ) : null}
+
+      {scheduleOpen ? (
+        <TaskSchedulePicker
+          copy={copy}
+          hadCustom={hadCustom}
+          initialDate={date}
+          initialDuration={duration}
+          initialRepeat={repeat}
+          initialTime={time}
+          locale={locale}
+          onApply={(v) => {
+            setDate(v.date);
+            setTime(v.time);
+            setDuration(v.duration);
+            setRepeat(v.repeat);
+            setScheduleOpen(false);
+          }}
+        />
       ) : null}
 
       {pickerOpen ? (

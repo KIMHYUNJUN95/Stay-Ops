@@ -475,6 +475,33 @@ Completed / Calendar) filters client-side in `tasks-workspace.tsx`.
 
 ## Dates / Recurrence Direction
 
+### Single-date model (as-built 2026-07-24, A안)
+
+The create/edit UI exposes **one date** and maps it to `due_at` (see product doc `18` → "Single-date
+model"). No schema change: `scheduled_date` stays as a column but the form submits `scheduledDate=""` +
+`dueDate=<date>`, so `createTask` / `updateTaskCore` (unchanged — they already route through
+`normalizeTaskDateTime`) write due-only and clear `scheduled_date`. The anchor helper
+(`taskAnchorDateInput` = `tokyoDateOf(dueAt) ?? scheduledDate`) means legacy scheduled-only rows still
+resolve. `quickCreateTodayTask` / `quickCreateTomorrowTask` and `moveTaskToToday` / `moveTaskToTomorrow`
+were switched from `scheduled_date` to `due_at` (a shared `anchorToDate(task, date)` helper in
+`[id]/actions.ts` builds the Tokyo all-day/timed `due_at`, preserves `time_label`, sets
+`scheduled_date: null`, and re-anchors `recurrence_instance_date` for a series). The unified
+date/time/repeat picker is `src/components/tasks/task-schedule-sheet.tsx` (`TaskSchedulePicker`,
+canonical `BottomSheet`); `MiniCalendar` / `TimeWheels` (`date-time-fields.tsx`) are reused inside it.
+
+**Duration + yearly (as-built 2026-07-24).** New nullable column `tasks.duration_minutes` (migration
+`202607240001_task_duration.sql`) stores a same-day time-block length; `TaskRecord.durationMinutes`
+maps it, and it is added to the shared `TASK_SELECT` list (so `getVisibleTasks` / `getProjectTasks` /
+`getTaskDetail` all read it). `createTask` / `updateTaskCore` parse `durationMinutes` (int 1–1440, else
+null) and **guard it to `null` unless `timeLabel` is set** (all-day tasks have no duration). A new
+`yearly` recurrence rule was added to the engine: `"yearly"` in `STANDARD_RECURRENCE_RULES`, a
+`shiftYearlyYmd(ymd, ±1)` helper (month/day preserved, Feb-29 clamped), and cases in
+`nextOccurrenceDate` / `previousOccurrenceDate`; `resolveRecurrenceRule` accepts it automatically via the
+STANDARD list, so completion roll-forward / calendar previews / reminders support yearly with no extra
+change. The schedule sheet's Repeat sub-picker renders **contextual labels** (매주 {요일} / 매월 {일}일 /
+매년 {월 일}) derived from the selected date; display helpers (`repeatLabel` in card/detail) map `yearly`
+to `repeatYearly`.
+
 ### Time handling (as-built 2026-06-11)
 
 `createTask` and `updateTaskCore` apply one shared rule via `normalizeTaskDateTime()` in
@@ -530,9 +557,13 @@ As-built (2026-06-15):
   completion state, and update log. The originally saved task is the first occurrence.
 - A repeat rule **requires a date anchor** (`scheduled_date` or `due_at`). The form blocks repeat
   with no date (`tasks.errors.repeat_needs_date`), and both server actions re-check it.
-- `materializeRecurringTasks()` (`src/lib/tasks.ts`) expands future occurrences inside the active
-  task window (current Tokyo month through the end of next month). `getVisibleTasks`,
-  `getProjectTasks`, `getTaskDetail`, and the reminder cron all call this helper before reading.
+- ~~`materializeRecurringTasks()` pre-generated real occurrence rows for the active task window and
+  was called by `getVisibleTasks` / `getProjectTasks` / `getTaskDetail` / the reminder cron before
+  each read.~~ **Deprecated by the 2026-06-16 Todoist-style roll-forward switch** (a recurring task is
+  now a single live row that rolls forward on completion; the calendar expands future occurrences
+  virtually via `recurringOccurrencesInRange`). No read path calls it anymore, and the dead helper
+  (plus its private `getRecurrenceWindow` / `fastForwardRecurrenceCursor` / `buildRecurringTaskInsert`
+  helpers) was **removed from the code on 2026-07-24**.
 - Series continuation uses the **latest occurrence row's** repeat rule. So changing repeat on the
   latest row changes future generation from that point, and clearing repeat there stops the series.
 - `createTask` and `updateTaskCore` persist identically through one shared helper,
