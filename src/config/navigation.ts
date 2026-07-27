@@ -283,7 +283,7 @@ export const adminNavigation = [
   {
     id: "recurring-work",
     label: localizedNavigationLabels.admin.recurringWork,
-    href: "/admin/recurring-work",
+    href: "/admin/tasks",
     icon: Building2,
   },
   {

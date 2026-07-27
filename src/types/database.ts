@@ -1149,6 +1149,7 @@ export type Database = {
           description?: string | null;
           due_at?: string | null;
           duration_minutes?: number | null;
+          is_directive?: boolean;
           guest_name?: string | null;
           id?: string;
           image_urls?: string[];
@@ -1181,6 +1182,7 @@ export type Database = {
           description: string | null;
           due_at: string | null;
           duration_minutes: number | null;
+          is_directive: boolean;
           guest_name: string | null;
           id: string;
           image_urls: string[];
@@ -1213,6 +1215,7 @@ export type Database = {
           description?: string | null;
           due_at?: string | null;
           duration_minutes?: number | null;
+          is_directive?: boolean;
           guest_name?: string | null;
           id?: string;
           image_urls?: string[];

@@ -16,6 +16,17 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **어드민 Todoist 콘솔 구현 완료 (2026-07-27).** 대시보드 `/admin/tasks` 에 데스크톱 Todoist 워크스페이스
+  라이브(Claude Design 핸드오프 이식). 모바일 코어 패리티(오늘/내일/관리함/공유함/캘린더/완료·기록/프로젝트)
+  + 매니저 **업무 지시**를 콘솔 "지시" 탭(받은/보낸 세그)으로 통합. 신규 `src/components/admin/tasks/`
+  (`admin-tasks-console.tsx` + `helpers.ts` 클라이언트 안전 Tokyo 헬퍼 + `admin-tasks-console.css`), 콘솔
+  액션 `src/app/admin/tasks/actions.ts`(결과 반환형 15종), 로더 `src/lib/admin-tasks.ts`, i18n
+  `src/lib/admin-tasks-i18n.ts`(ko/ja/en). DB: `tasks.is_directive` 컬럼 추가(마이그레이션
+  `202607270001_task_directive.sql` 프로덕션 적용). 인라인 추가 + 상세 슬라이드오버 + 일정/우선순위/공유
+  팝오버 + 우산 레일 + 새 프로젝트/보고서 모달. Tokyo 타임존·RLS/조직격리 감사 통과(회귀 없음, 심층 방어
+  org 필터 4곳 보강). 의도적 축소: 인라인 사진·태그 입력 없음, yearly 반복 제외. `npm run lint`(0 errors)·
+  `npm run build`(`/admin/tasks` 생성) 통과. 상세 → `docs/product/28-admin-todoist-console.md` §12,
+  결정 로그 2026-07-27.
 - **출시 전 보안 감사 결과 + 수정 (2026-07-22).** 서버 액션 37개·`lib/*` 헬퍼·API 라우트 10개·인증/미들웨어/
   서비스클라이언트 전수 읽기 전용 감사. **출시 차단급 유출/변조 취약점 없음**(org 스코프+ownership+role 재검증
   패턴이 일관·방어적). **수정 3건:** ① [조직 격리 버그] `deactivateInviteCode`(`admin/settings/actions.ts`)에
@@ -528,7 +539,7 @@ Follow-up implementation completed on top of the new admin reservation dashboard
     navigation rail with a gold active accent + ivory content), replacing the earlier ivory sidebar.
 - **Todoist naming unified across mobile/admin (2026-07-22).**
   - Mobile side-menu/bottom-bar candidate `tasks` is now user-facing `Todoist`; the mobile screen title also uses `Todoist`.
-  - Admin sidebar `recurring-work` is now user-facing `Todoist`; the route remains `/admin/recurring-work` for now as a legacy path.
+  - Admin sidebar `recurring-work` is now user-facing `Todoist`; the route moved to **`/admin/tasks`** on 2026-07-27 (legacy `/admin/recurring-work` now `redirect()`s there).
   - Product docs were updated so the older separate `Recurring Work Scheduler` concept is no longer treated as the active end-user module.
 - **Admin login screen (desktop console entry)** — implemented 2026-06-30.
   - Split layout (warm clay/espresso brand panel + auth form) applied to every auth state via a new

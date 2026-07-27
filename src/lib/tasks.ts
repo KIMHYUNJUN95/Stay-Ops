@@ -29,6 +29,7 @@ const TASK_SELECT = [
   "project_id",
   "section_id",
   "is_inbox",
+  "is_directive",
   "recurrence_rule",
   "recurrence_series_id",
   "recurrence_instance_date",
@@ -95,6 +96,7 @@ export type TaskRecord = {
   sectionId: string | null;
   isInbox: boolean;
   isShared: boolean;
+  isDirective: boolean;
   recurrenceRule: string | null;
   recurrenceSeriesId: string | null;
   recurrenceInstanceDate: string | null;
@@ -574,6 +576,7 @@ async function hydrate(rows: TaskRow[]): Promise<TaskRecord[]> {
       sectionId: r.section_id ?? null,
       isInbox: r.is_inbox,
       isShared: sharedCount > 0,
+      isDirective: r.is_directive ?? false,
       recurrenceRule: r.recurrence_rule,
       recurrenceSeriesId: r.recurrence_series_id ?? null,
       recurrenceInstanceDate: r.recurrence_instance_date ?? null,

@@ -3844,3 +3844,29 @@ Reason: 대표님 방향 — "투두는 번거롭거나 무거우면 안 되고,
 Status: **기획 문서만 작성(코드 없음).** 스펙: `docs/product/28-admin-todoist-console.md`. 교차 참조
 갱신: `docs/product/18-todo-task-workflow.md`, `docs/product/05-admin-web-ia.md`. 디자인은 대표님이 이
 문서를 기준으로 직접 진행.
+
+## 어드민 Todoist 콘솔 구현 착수 — Claude Design 이식 (2026-07-27)
+
+Decision: 대시보드 Todoist 콘솔을 Claude Design 핸드오프("StayOps 투두 (admin)") 기준으로 구현 시작.
+`/admin/tasks` 신설(legacy `/admin/recurring-work`는 리다이렉트), 사이드바 "Todoist" 활성. 기존 tasks
+백엔드(getVisibleTasks/getVisibleProjects/getShareableUsers + task 액션)를 재사용하고, 결과 반환형 콘솔
+액션(`src/app/admin/tasks/actions.ts`) + 데이터 로더(`src/lib/admin-tasks.ts`)를 얹는다. 단일 날짜 모델·
+기간·문맥형 반복은 모바일과 동일. base.css가 StayOps admin-console.css와 동일 디자인 시스템이라 AdminShell
+셸을 재사용하고 todo.css의 투두 전용 스타일만 이식.
+
+업무 지시: 새 컬럼 `tasks.is_directive`(마이그레이션 `202607270001_task_directive.sql` — Supabase 적용
+완료). author=지시자, 대상=참여자. 보낸 지시는 보낸 사람 개인 뷰에서 제외(myOwn 필터), 콘솔의 "지시" 탭
+(보낸/받은) + 받은 지시 "[매니저] 지시" 표식으로 노출. 담당자(assignee)는 미도입.
+
+Status: 구현 중. 마이그레이션 적용 완료. 기준 문서 `docs/product/28-admin-todoist-console.md`.
+
+**완료 (2026-07-27):** 콘솔 전량 구현·통합·검증 완료. `src/components/admin/tasks/`
+(`admin-tasks-console.tsx` 메인 + `helpers.ts` 클라이언트 안전 Tokyo 날짜/술어 + `admin-tasks-console.css`
+디자인 포팅). 뷰: 오늘/내일/관리함/지시(받은·보낸 세그)/공유함/캘린더/완료·기록 + 프로젝트 + 우산 레일 +
+인라인 추가 + 상세 슬라이드오버 + 일정/우선순위/공유(대상) 팝오버 + 새 프로젝트/보고서 모달. 콘솔 액션에
+`getConsoleTaskDetail`·`getConsoleProjectDetail` 추가, 날짜 없는 빠른추가는 `is_inbox` 저장. i18n
+`admin-tasks-i18n.ts`(ko/ja/en). 확정 디자인은 지시 전용 화면 대신 **콘솔 "지시" 탭으로 통합**(구 §7.2
+개정). CSS 충돌 3종 리네임(`.subnav→.tsubnav`/`.empty→.tempty`/`.wgrid→.tgrid`). 공용 콘솔 계약(§4/4a/4b)은
+Todoist 독립 시각 언어로 의도적 미적용(문서화). 의도적 축소: 인라인 사진·태그 입력 없음, yearly 반복 제외
+(백엔드 미지원), 리마인드/답장은 상세 열기로. `npm run lint`(0 errors)·`npm run build`(`/admin/tasks` 생성)
+통과. As-built 상세 → `docs/product/28-admin-todoist-console.md` §12.
