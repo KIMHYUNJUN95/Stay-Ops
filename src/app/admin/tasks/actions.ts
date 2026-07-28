@@ -465,6 +465,29 @@ export async function rescheduleConsoleTask(
 
   const date = input.date.trim();
   const time = input.time.trim();
+  // Empty date clears the schedule → the task returns to the no-date Inbox (Todoist "remove date").
+  // Without an anchor a recurrence rule is meaningless, so it is cleared too.
+  if (!date) {
+    const supabase = getSupabaseServiceClient();
+    const { error } = await supabase
+      .from("tasks")
+      .update({
+        due_at: null,
+        scheduled_date: null,
+        all_day: true,
+        time_label: null,
+        duration_minutes: null,
+        is_inbox: true,
+        recurrence_rule: null,
+        recurrence_series_id: null,
+        recurrence_instance_date: null,
+      } as never)
+      .eq("id", task.id)
+      .eq("organization_id", session.organization.id);
+    if (error) return { ok: false, error: "save_failed" };
+    revalidatePath(CONSOLE_PATH);
+    return { ok: true };
+  }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "invalid_date" };
 
   const { dueAt, allDay, timeLabel } = normalizeTaskDateTime({
@@ -678,9 +701,22 @@ export async function moveConsoleToInbox(taskId: string): Promise<TaskActionResu
   if (!resolved) return { ok: false, error: "not_found" };
   const { session, task } = resolved;
   const supabase = getSupabaseServiceClient();
+  // Inbox is the "no-date staging" bucket (createConsoleTask only marks inbox when dateless), so
+  // moving to Inbox must clear the date/time/recurrence — otherwise the task shows in both Inbox
+  // AND Today/Calendar (which key off the date).
   const { error } = await supabase
     .from("tasks")
-    .update({ is_inbox: true } as never)
+    .update({
+      is_inbox: true,
+      due_at: null,
+      scheduled_date: null,
+      all_day: true,
+      time_label: null,
+      duration_minutes: null,
+      recurrence_rule: null,
+      recurrence_series_id: null,
+      recurrence_instance_date: null,
+    } as never)
     .eq("id", task.id)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "save_failed" };

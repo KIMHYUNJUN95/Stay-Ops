@@ -184,6 +184,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   );
   const [reportEdited, setReportEdited] = useState("");
   const [newProj, setNewProj] = useState<{ name: string; members: string[]; q: string } | null>(null);
+  const [confirm, setConfirm] = useState<{ message: string; confirmLabel: string; onConfirm: () => void } | null>(null);
 
   // ── name / role maps ──────────────────────────────────────────────────────────
   const nameMap = useMemo(() => {
@@ -281,7 +282,8 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (pop) setPop(null);
+      if (confirm) setConfirm(null);
+      else if (pop) setPop(null);
       else if (daySheet) setDaySheet(null);
       else if (report) setReport(null);
       else if (newProj) setNewProj(null);
@@ -290,7 +292,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [pop, daySheet, report, newProj, sel, add, closePanel]);
+  }, [confirm, pop, daySheet, report, newProj, sel, add, closePanel]);
 
   // ── derived task groups (내 뷰는 myOwn) ────────────────────────────────────────────
   const overdueList = tasks.filter((t) => isOverdue(t, today) && myOwn(t, meId));
@@ -496,11 +498,13 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     title,
     n,
     mod,
+    listClass,
     children,
   }: {
     title: string;
     n: number;
     mod?: string;
+    listClass?: string;
     children: ReactNode;
   }) => (
     <>
@@ -509,7 +513,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
         <span className="sech__n">{n}</span>
         <span className="sech__line" />
       </div>
-      <div className="tlist">{children}</div>
+      <div className={listClass ? `tlist ${listClass}` : "tlist"}>{children}</div>
     </>
   );
 
@@ -727,10 +731,11 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       setPop(null);
       return;
     }
-    if (!p.taskId || !p.draft.date) {
+    if (!p.taskId) {
       setPop(null);
       return;
     }
+    // Empty date is allowed here: rescheduleConsoleTask clears the schedule → task moves to Inbox.
     const id = p.taskId;
     const d = p.draft;
     run(() => rescheduleConsoleTask(id, { date: d.date, time: d.time, durationMinutes: d.dur, repeat: d.repeat }), {
@@ -831,7 +836,16 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                 <button className="od-b" onClick={rescheduleAllOverdue}>
                   {dict.overdueReschedule}
                 </button>
-                <button className="od-b od-b--ghost" onClick={clearOverdue}>
+                <button
+                  className="od-b od-b--ghost"
+                  onClick={() =>
+                    setConfirm({
+                      message: dict.confirmClearMsg,
+                      confirmLabel: dict.confirmDeleteBtn,
+                      onConfirm: clearOverdue,
+                    })
+                  }
+                >
                   {dict.overdueClear}
                 </button>
               </div>
@@ -922,10 +936,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     const note = (
       <div className="sentnote">
         <Megaphone size={15} />
-        <span>
-          <b>{dict.instrSentNote.split(".")[0]}.</b>
-          {dict.instrSentNote.slice(dict.instrSentNote.indexOf(".") + 1)}
-        </span>
+        <span>{dict.instrSentNote}</span>
       </div>
     );
     if (all.length === 0)
@@ -1006,24 +1017,12 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             >
               <UserPlus size={15} />
             </button>
-            <button
-              className="srow__b2"
-              onClick={(e) => {
-                e.stopPropagation();
-                openTask(t.id);
-              }}
-              title={dict.instrRemind}
-            >
-              <Bell size={15} />
-            </button>
           </div>
         </div>
       );
     };
     const sec = (title: string, list: TaskRecord[]) =>
-      list.length > 0
-        ? Section({ title, n: list.length, children: <div className="slist">{list.map(srow)}</div> })
-        : null;
+      list.length > 0 ? Section({ title, n: list.length, listClass: "slist", children: list.map(srow) }) : null;
     return (
       <>
         {note}
@@ -1039,10 +1038,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     const note = (
       <div className="sentnote sentnote--recv">
         <Bell size={15} />
-        <span>
-          <b>{dict.instrRecvNote.split(".")[0]}.</b>
-          {dict.instrRecvNote.slice(dict.instrRecvNote.indexOf(".") + 1)}
-        </span>
+        <span>{dict.instrRecvNote}</span>
       </div>
     );
     if (all.length === 0)
@@ -1170,7 +1166,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     };
     const sec = (title: string, list: TaskRecord[], mod?: string) =>
       list.length > 0
-        ? Section({ title, n: list.length, mod, children: <div className="slist">{list.map(rrow)}</div> })
+        ? Section({ title, n: list.length, mod, listClass: "slist", children: list.map(rrow) })
         : null;
     return (
       <>
@@ -1575,7 +1571,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
               <span className="card__ic bg-done">
                 <CheckCircle2 size={14} />
               </span>
-              <span className="card__t">{dict.vToday}</span>
+              <span className="card__t">{dict.railTodayTitle}</span>
             </div>
           </div>
           <div className="card__body">
@@ -1597,7 +1593,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             </div>
             <div className="railbar">
               <div className="railbar__k">
-                {dict.vToday}
+                {dict.railTodayProgress}
                 <b>{pct}%</b>
               </div>
               <div className={`pbar ${pct >= 70 ? "done" : ""}`}>
@@ -1908,6 +1904,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       {daySheet && DaySheet()}
       {report && ReportModal()}
       {newProj && NewProjectModal()}
+      {confirm && ConfirmModal()}
 
       {toast && <AdminToast message={toast.message} onDismiss={dismiss} />}
       {pending && <span className="sr-only" aria-live="polite" />}
@@ -2193,7 +2190,11 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
               <button
                 className="btn btn--warn btn--sm"
                 onClick={() =>
-                  run(() => deleteConsoleTask(t.id), { toast: dict.tDeleted, after: closePanel })
+                  setConfirm({
+                    message: dict.confirmDeleteMsg,
+                    confirmLabel: dict.confirmDeleteBtn,
+                    onConfirm: () => run(() => deleteConsoleTask(t.id), { toast: dict.tDeleted, after: closePanel }),
+                  })
                 }
               >
                 <Trash2 size={15} />
@@ -2209,7 +2210,13 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
               <span className="sp" />
               <button
                 className="btn btn--ghost btn--sm"
-                onClick={() => run(() => leaveConsoleTask(t.id), { toast: dict.tDeleted, after: closePanel })}
+                onClick={() =>
+                  setConfirm({
+                    message: dict.confirmLeaveMsg,
+                    confirmLabel: dict.dpLeave,
+                    onConfirm: () => run(() => leaveConsoleTask(t.id), { toast: dict.tDeleted, after: closePanel }),
+                  })
+                }
               >
                 {dict.dpLeave}
               </button>
@@ -2505,10 +2512,12 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           <CalendarDays size={15} />
           {dict.mScheduleChange}
         </button>
-        <button className="mitem" onClick={(e) => openPrioPop(e, t)}>
-          <Flag size={15} />
-          {dict.mPriority}
-        </button>
+        {mine && (
+          <button className="mitem" onClick={(e) => openPrioPop(e, t)}>
+            <Flag size={15} />
+            {dict.mPriority}
+          </button>
+        )}
         {mine && !t.projectId && (
           <button className="mitem" onClick={(e) => openSharePop(e, t, "share")}>
             <UserPlus size={15} />
@@ -2541,7 +2550,12 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             className="mitem mitem--warn"
             onClick={() => {
               close();
-              run(() => deleteConsoleTask(t.id), { toast: dict.tDeleted, after: () => sel === t.id && closePanel() });
+              setConfirm({
+                message: dict.confirmDeleteMsg,
+                confirmLabel: dict.confirmDeleteBtn,
+                onConfirm: () =>
+                  run(() => deleteConsoleTask(t.id), { toast: dict.tDeleted, after: () => sel === t.id && closePanel() }),
+              });
             }}
           >
             <Trash2 size={15} />
@@ -2552,7 +2566,12 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             className="mitem mitem--warn"
             onClick={() => {
               close();
-              run(() => leaveConsoleTask(t.id), { toast: dict.tDeleted, after: () => sel === t.id && closePanel() });
+              setConfirm({
+                message: dict.confirmLeaveMsg,
+                confirmLabel: dict.dpLeave,
+                onConfirm: () =>
+                  run(() => leaveConsoleTask(t.id), { toast: dict.tDeleted, after: () => sel === t.id && closePanel() }),
+              });
             }}
           >
             <Trash2 size={15} />
@@ -2707,7 +2726,11 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                 </div>
               ) : report.error ? (
                 <div className="tempty__s" style={{ padding: 24 }}>
-                  {report.error === "forbidden" ? dict.errForbidden : dict.emCompleted}
+                  {report.error === "forbidden"
+                    ? dict.errForbidden
+                    : report.error === "empty"
+                      ? dict.emCompleted
+                      : dict.errGeneric}
                 </div>
               ) : (
                 <>
@@ -2858,6 +2881,51 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   function durText(mins: number): string {
     const opt = DURATION_OPTIONS.find((o) => o.value === mins);
     return opt ? dict[opt.key] : "";
+  }
+
+  // ── CONFIRM MODAL (destructive actions) ─────────────────────────────────────────────────────
+  function ConfirmModal() {
+    if (!confirm) return null;
+    const c = confirm;
+    return createPortal(
+      <div className="adm" style={{ display: "contents" }}>
+        <div className="day-scrim" onClick={() => setConfirm(null)} />
+        <div className="day-wrap" onClick={() => setConfirm(null)}>
+          <div className="pop" style={{ width: 380, maxWidth: "92vw" }} onClick={(e) => e.stopPropagation()}>
+            <div className="dp__top">
+              <span className="dp__crumb">
+                <AlertTriangle size={14} />
+                <b>{dict.confirmTitle}</b>
+              </span>
+              <span className="sp" />
+              <button className="dp__tb" onClick={() => setConfirm(null)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div style={{ padding: "6px 20px 16px", fontSize: 14, color: "var(--ink-soft)", lineHeight: 1.5 }}>
+              {c.message}
+            </div>
+            <div className="sch__foot">
+              <button className="btn btn--ghost btn--sm" onClick={() => setConfirm(null)}>
+                {dict.iaCancel}
+              </button>
+              <span style={{ flex: 1 }} />
+              <button
+                className="btn btn--warn btn--sm"
+                onClick={() => {
+                  setConfirm(null);
+                  c.onConfirm();
+                }}
+              >
+                <Trash2 size={15} />
+                {c.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
   }
 }
 

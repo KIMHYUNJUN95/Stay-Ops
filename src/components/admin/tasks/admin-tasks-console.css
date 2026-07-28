@@ -90,6 +90,12 @@
 .adm .pj__avs .av:first-child { margin-left: 0; }
 .adm .navi .pj__n { margin-left: 6px; }
 
+/* 콘솔 루트 — AdminShell `.cwrap`(padding:20px 22px 60px) 안에 렌더되므로, 디자인처럼
+   서브내브/필터가 화면 폭을 꽉 채우도록(구분선 풀블리드) cwrap 패딩을 상쇄하고 본문만 22px 인셋 */
+.adm .admtasks { margin: -20px -22px 0; }
+.adm .admtasks > .tgrid,
+.adm .admtasks > .wcol { padding: 0 22px; }
+
 /* ── 투두 화면 내부 뷰 전환 (서브내브) — .subnav → .tsubnav (충돌 회피) ── */
 .adm .tsubnav { display: flex; align-items: center; gap: 7px; padding: 11px 22px 0; }
 .adm .tsubnav--proj { padding-top: 9px; border-bottom: 1px solid var(--line); padding-bottom: 11px; flex-wrap: wrap; }
@@ -374,7 +380,7 @@
    (팝오버는 document.body 로 포털되며 `.adm` 래퍼로 감싸 토큰/스코프를 유지) */
 .adm .tpop-scrim { position: fixed; inset: 0; z-index: 129; }
 .adm .tpop-anchor { position: fixed; z-index: 130; }
-.adm .tpop-anchor > .pop { position: static; top: auto; right: auto; left: auto; }
+.adm .tpop-anchor > .pop { position: static; top: auto; right: auto; left: auto; max-height: calc(100vh - 24px); overflow-y: auto; }
 /* 멤버별 공유 카드 아이콘 배경 (base admin-console.css 에 없는 유일한 bg 변형) */
 .adm .bg-violet { background: hsl(265 42% 94%); color: hsl(265 45% 46%); }
 .adm .sch { width: 320px; transform-origin: top left; }

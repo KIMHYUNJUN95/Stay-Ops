@@ -236,6 +236,15 @@ export type AdminTasksDictionary = {
   tNoteAdded: string;
   tProjectCreated: string;
   tReminded: string;
+  // confirm modal (destructive)
+  confirmTitle: string;
+  confirmDeleteMsg: string;
+  confirmLeaveMsg: string;
+  confirmClearMsg: string;
+  confirmDeleteBtn: string;
+  // rail
+  railTodayTitle: string;
+  railTodayProgress: string;
 };
 
 const ko: AdminTasksDictionary = {
@@ -306,6 +315,12 @@ const ko: AdminTasksDictionary = {
   tCreated: "작업을 추가했습니다.", tUpdated: "작업을 수정했습니다.", tCompleted: "완료 처리했습니다.", tReopened: "다시 열었습니다.",
   tShared: "공유했습니다.", tInstructed: "지시를 보냈습니다.", tDeleted: "삭제했습니다.", tMoved: "이동했습니다.",
   tRescheduled: "일정을 변경했습니다.", tNoteAdded: "노트를 추가했습니다.", tProjectCreated: "프로젝트를 만들었습니다.", tReminded: "리마인드를 보냈습니다.",
+  confirmTitle: "확인",
+  confirmDeleteMsg: "이 작업을 삭제할까요? 되돌릴 수 없습니다.",
+  confirmLeaveMsg: "이 작업에서 나만 빠질까요?",
+  confirmClearMsg: "지난 미완료 작업을 모두 정리할까요? 되돌릴 수 없습니다.",
+  confirmDeleteBtn: "삭제",
+  railTodayTitle: "오늘 진행 현황", railTodayProgress: "오늘 작업 진척률",
 };
 
 const ja: AdminTasksDictionary = {
@@ -376,6 +391,12 @@ const ja: AdminTasksDictionary = {
   tCreated: "タスクを追加しました。", tUpdated: "タスクを更新しました。", tCompleted: "完了しました。", tReopened: "再度開きました。",
   tShared: "共有しました。", tInstructed: "指示を送りました。", tDeleted: "削除しました。", tMoved: "移動しました。",
   tRescheduled: "日程を変更しました。", tNoteAdded: "ノートを追加しました。", tProjectCreated: "プロジェクトを作成しました。", tReminded: "リマインドを送りました。",
+  confirmTitle: "確認",
+  confirmDeleteMsg: "このタスクを削除しますか？元に戻せません。",
+  confirmLeaveMsg: "このタスクから自分だけ抜けますか？",
+  confirmClearMsg: "過去の未完了タスクをすべて整理しますか？元に戻せません。",
+  confirmDeleteBtn: "削除",
+  railTodayTitle: "今日の進捗", railTodayProgress: "今日のタスク進捗率",
 };
 
 const en: AdminTasksDictionary = {
@@ -446,6 +467,12 @@ const en: AdminTasksDictionary = {
   tCreated: "Task added.", tUpdated: "Task updated.", tCompleted: "Marked complete.", tReopened: "Reopened.",
   tShared: "Shared.", tInstructed: "Directive sent.", tDeleted: "Deleted.", tMoved: "Moved.",
   tRescheduled: "Rescheduled.", tNoteAdded: "Note added.", tProjectCreated: "Project created.", tReminded: "Reminder sent.",
+  confirmTitle: "Confirm",
+  confirmDeleteMsg: "Delete this task? This can't be undone.",
+  confirmLeaveMsg: "Leave this task (you only)?",
+  confirmClearMsg: "Clear all past unfinished tasks? This can't be undone.",
+  confirmDeleteBtn: "Delete",
+  railTodayTitle: "Today's progress", railTodayProgress: "Today's completion",
 };
 
 const dictionaries: Record<Locale, AdminTasksDictionary> = { ko, ja, en };
