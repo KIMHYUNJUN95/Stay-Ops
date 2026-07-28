@@ -242,13 +242,11 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   );
 
   // ── detail loading (updates + resolved context) ─────────────────────────────────
+  // Load full detail (updates + context) for the open task. `detail` may briefly hold the previous
+  // task's data after `sel` changes; consumers gate on `detail.id === sel` (no sync setState here).
   useEffect(() => {
-    if (!sel) {
-      setDetail(null);
-      return;
-    }
+    if (!sel) return;
     let alive = true;
-    setDetail(null);
     getConsoleTaskDetail(sel).then((res) => {
       if (alive && res.ok) setDetail(res.task);
     });
@@ -267,13 +265,10 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   }, []);
 
   // ── project detail loading ───────────────────────────────────────────────────────
+  // Load project sections+tasks for the project view. Gated on `projectDetail.id === projectId`.
   useEffect(() => {
-    if (!projectId) {
-      setProjectDetail(null);
-      return;
-    }
+    if (!projectId) return;
     let alive = true;
-    setProjectDetail(null);
     getConsoleProjectDetail(projectId).then((res) => {
       if (alive && res.ok) setProjectDetail(res.project);
     });
@@ -671,7 +666,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
 
   const InlineAddSlot = ({ ctx, sectionId, label }: { ctx: AddDraft["ctx"]; sectionId?: string | null; label?: string }) => {
     if (add && add.ctx === ctx && (ctx !== "project" || add.sectionId === (sectionId ?? null)))
-      return <InlineAdd />;
+      return InlineAdd();
     return (
       <button className="iadd-trigger" onClick={() => openInlineAdd(ctx, "", sectionId ?? null)}>
         <span className="p">
@@ -841,15 +836,19 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                 </button>
               </div>
             </div>
-            <Section title={dict.secOverdue} n={od.length} mod="over">
-              {od.map((t) => renderRow(t))}
-            </Section>
+            {Section({ title: dict.secOverdue, n: od.length, mod: "over", children: od.map((t) => renderRow(t)) })}
           </>
         )}
-        <Section title={dict.secToday} n={td.length}>
-          {td.map((t) => renderRow(t))}
-          <InlineAddSlot ctx="today" />
-        </Section>
+        {Section({
+          title: dict.secToday,
+          n: td.length,
+          children: (
+            <>
+              {td.map((t) => renderRow(t))}
+              {InlineAddSlot({ ctx: "today" })}
+            </>
+          ),
+        })}
       </>
     );
   };
@@ -862,12 +861,16 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       ) : (
         <EmptyState icon={emptyIcon} t={emT} s={emS} ctx={ctx} />
       );
-    return (
-      <Section title={label} n={items.length}>
-        {items.map((t) => renderRow(t))}
-        <InlineAddSlot ctx={ctx} />
-      </Section>
-    );
+    return Section({
+      title: label,
+      n: items.length,
+      children: (
+        <>
+          {items.map((t) => renderRow(t))}
+          {InlineAddSlot({ ctx })}
+        </>
+      ),
+    });
   };
 
   const inboxView = () => {
@@ -888,7 +891,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
         ) : (
           <div className="tlist">
             {items.map((t) => renderRow(t, { hideDate: true }))}
-            <InlineAddSlot ctx="inbox" />
+            {InlineAddSlot({ ctx: "inbox" })}
           </div>
         )}
       </>
@@ -905,16 +908,10 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       return <EmptyState icon={<Share2 size={26} />} t={dict.emShared} s={dict.emSharedS} />;
     return (
       <>
-        {received.length > 0 && (
-          <Section title={dict.sharedRecvSec} n={received.length}>
-            {received.map((t) => renderRow(t))}
-          </Section>
-        )}
-        {sent.length > 0 && (
-          <Section title={dict.sharedSentSec} n={sent.length}>
-            {sent.map((t) => renderRow(t))}
-          </Section>
-        )}
+        {received.length > 0 &&
+          Section({ title: dict.sharedRecvSec, n: received.length, children: received.map((t) => renderRow(t)) })}
+        {sent.length > 0 &&
+          Section({ title: dict.sharedSentSec, n: sent.length, children: sent.map((t) => renderRow(t)) })}
       </>
     );
   };
@@ -1024,11 +1021,9 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       );
     };
     const sec = (title: string, list: TaskRecord[]) =>
-      list.length > 0 ? (
-        <Section title={title} n={list.length}>
-          <div className="slist">{list.map(srow)}</div>
-        </Section>
-      ) : null;
+      list.length > 0
+        ? Section({ title, n: list.length, children: <div className="slist">{list.map(srow)}</div> })
+        : null;
     return (
       <>
         {note}
@@ -1174,11 +1169,9 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       );
     };
     const sec = (title: string, list: TaskRecord[], mod?: string) =>
-      list.length > 0 ? (
-        <Section title={title} n={list.length} mod={mod}>
-          <div className="slist">{list.map(rrow)}</div>
-        </Section>
-      ) : null;
+      list.length > 0
+        ? Section({ title, n: list.length, mod, children: <div className="slist">{list.map(rrow)}</div> })
+        : null;
     return (
       <>
         {note}
@@ -1402,6 +1395,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           </div>
         </div>
         <div className="cv__agenda">
+          {add?.ctx === "day" && <div className="tlist">{InlineAdd()}</div>}
           <div className="sech">
             <span className="sech__t">{dict.calUpcoming}</span>
             <span className="sech__n">{upcoming.length}</span>
@@ -1434,9 +1428,10 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     const summary = projectId ? projById.get(projectId) : null;
     if (!summary) return null;
     const members = summary.members.map((mem) => mem.userId);
+    const pd = projectDetail && projectDetail.id === projectId ? projectDetail : null;
     const sections =
-      projectDetail?.sections && projectDetail.sections.length > 0
-        ? projectDetail.sections
+      pd?.sections && pd.sections.length > 0
+        ? pd.sections
         : [{ id: "__default", title: dict.dpTask, sortOrder: 0 }];
     const projTasks = filtered(tasks.filter((t) => t.projectId === projectId && isActive(t)));
     const banner = (
@@ -1477,7 +1472,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                 <span className="n">{list.length}</span>
               </div>
               <div className="tlist">{list.map((t) => renderRow(t))}</div>
-              <InlineAddSlot ctx="project" sectionId={sec.id} label={fill(dict.pjAddTaskTo, { name: sec.title })} />
+              {InlineAddSlot({ ctx: "project", sectionId: sec.id, label: fill(dict.pjAddTaskTo, { name: sec.title }) })}
             </div>
           );
         })}
@@ -1906,13 +1901,13 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       )}
 
       {/* DETAIL PANEL */}
-      {sel && <DetailPanel />}
+      {sel && DetailPanel()}
 
       {/* POPOVERS / SHEETS / MODALS */}
-      {pop && <PopoverLayer />}
-      {daySheet && <DaySheet />}
-      {report && <ReportModal />}
-      {newProj && <NewProjectModal />}
+      {pop && PopoverLayer()}
+      {daySheet && DaySheet()}
+      {report && ReportModal()}
+      {newProj && NewProjectModal()}
 
       {toast && <AdminToast message={toast.message} onDismiss={dismiss} />}
       {pending && <span className="sr-only" aria-live="polite" />}
@@ -1923,7 +1918,8 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   // DETAIL PANEL (E)
   // ────────────────────────────────────────────────────────────────────────────────────────────
   function DetailPanel() {
-    const t = detail ?? tasks.find((x) => x.id === sel) ?? null;
+    const loaded = detail && detail.id === sel ? detail : null;
+    const t = loaded ?? tasks.find((x) => x.id === sel) ?? null;
     if (!t) return null;
     const done = t.status === "completed";
     const mine = isMine(t, meId);
@@ -1937,7 +1933,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     const firstRecipient = t.participants.find((p) => p.isFirstRecipient)?.userId ?? null;
 
     return (
-      <aside className="dp" onClick={(e) => e.stopPropagation()}>
+      <aside className="dp on" onClick={(e) => e.stopPropagation()}>
         <div className="dp__top">
           <span className="dp__crumb">
             {proj ? (
@@ -2152,7 +2148,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                 <span className="log-sys__line" />
                 {fill(dict.dpLogCreated, { name: nameOf(t.createdByUserId) })}
               </div>
-              {(detail?.updates ?? [])
+              {(loaded?.updates ?? [])
                 .filter((u) => u.type === "note")
                 .map((u) => (
                   <div key={u.id} className="log-note">
@@ -2229,20 +2225,23 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   // ────────────────────────────────────────────────────────────────────────────────────────────
   function PopoverLayer() {
     if (!pop) return null;
+    const vw = typeof window !== "undefined" ? window.innerWidth : 1280;
+    const vh = typeof window !== "undefined" ? window.innerHeight : 800;
     const style: CSSProperties = {
-      position: "fixed",
-      left: Math.min(pop.x, (typeof window !== "undefined" ? window.innerWidth : 1200) - 320),
-      top: pop.y,
-      zIndex: 120,
+      left: Math.max(8, Math.min(pop.x, vw - 372)),
+      top: Math.max(8, Math.min(pop.y, vh - 80)),
     };
     return createPortal(
-      <div style={style} onClick={(e) => e.stopPropagation()}>
-        {pop.kind === "schedule" && <SchedulePopover p={pop} />}
-        {pop.kind === "prio" && <PrioMenu p={pop} />}
-        {pop.kind === "share" && <SharePopover p={pop} />}
-        {pop.kind === "rowmenu" && <RowMenu p={pop} />}
-        {pop.kind === "datefilter" && <DateFilterMenu />}
-        {pop.kind === "priofilter" && <PrioFilterMenu />}
+      <div className="adm" style={{ display: "contents" }}>
+        <div className="tpop-scrim" onClick={() => setPop(null)} />
+        <div className="tpop-anchor" style={style} onClick={(e) => e.stopPropagation()}>
+          {pop.kind === "schedule" && SchedulePopover({ p: pop })}
+          {pop.kind === "prio" && PrioMenu({ p: pop })}
+          {pop.kind === "share" && SharePopover({ p: pop })}
+          {pop.kind === "rowmenu" && RowMenu({ p: pop })}
+          {pop.kind === "datefilter" && DateFilterMenu()}
+          {pop.kind === "priofilter" && PrioFilterMenu()}
+        </div>
       </div>,
       document.body,
     );
@@ -2640,9 +2639,10 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       .filter((t) => isActive(t) && myOwn(t, meId) && (t.scheduledDate === iso || dueDateOf(t) === iso))
       .sort(prioSort);
     return createPortal(
-      <div className="day-scrim" onClick={() => setDaySheet(null)}>
-        <div className="day-wrap" onClick={(e) => e.stopPropagation()}>
-          <div className="pop" style={{ width: 400, maxWidth: "92vw" }}>
+      <div className="adm" style={{ display: "contents" }}>
+        <div className="day-scrim" onClick={() => setDaySheet(null)} />
+        <div className="day-wrap" onClick={() => setDaySheet(null)}>
+          <div className="pop" style={{ width: 400, maxWidth: "92vw" }} onClick={(e) => e.stopPropagation()}>
             <div className="dp__top" style={{ borderBottom: "1px solid var(--line-soft)" }}>
               <span className="dp__crumb">
                 <CalendarDays size={14} />
@@ -2686,9 +2686,10 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   function ReportModal() {
     if (!report) return null;
     return createPortal(
-      <div className="day-scrim" onClick={() => setReport(null)}>
-        <div className="day-wrap" onClick={(e) => e.stopPropagation()}>
-          <div className="pop rpt">
+      <div className="adm" style={{ display: "contents" }}>
+        <div className="day-scrim" onClick={() => setReport(null)} />
+        <div className="day-wrap" onClick={() => setReport(null)}>
+          <div className="pop rpt" onClick={(e) => e.stopPropagation()}>
             <div className="dp__top">
               <span className="dp__crumb">
                 <FileText size={14} />
@@ -2768,9 +2769,10 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       });
     };
     return createPortal(
-      <div className="day-scrim" onClick={() => setNewProj(null)}>
-        <div className="day-wrap" onClick={(e) => e.stopPropagation()}>
-          <div className="pop npm">
+      <div className="adm" style={{ display: "contents" }}>
+        <div className="day-scrim" onClick={() => setNewProj(null)} />
+        <div className="day-wrap" onClick={() => setNewProj(null)}>
+          <div className="pop npm" onClick={(e) => e.stopPropagation()}>
             <div className="dp__top">
               <span className="dp__crumb">
                 <Hash size={14} />

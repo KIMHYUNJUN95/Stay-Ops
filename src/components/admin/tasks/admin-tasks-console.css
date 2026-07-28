@@ -369,6 +369,14 @@
    ===================================================================== */
 .adm .pop-layer { position: fixed; inset: 0; z-index: 60; }
 .adm .pop-scrim { position: absolute; inset: 0; }
+/* React 포털 팝오버 앵커 — JS 로 계산한 좌표(fixed)에 띄우고, base `.pop`의
+   position:absolute/top/right 를 무력화해 앵커 좌상단 기준으로 흐르게 한다.
+   (팝오버는 document.body 로 포털되며 `.adm` 래퍼로 감싸 토큰/스코프를 유지) */
+.adm .tpop-scrim { position: fixed; inset: 0; z-index: 129; }
+.adm .tpop-anchor { position: fixed; z-index: 130; }
+.adm .tpop-anchor > .pop { position: static; top: auto; right: auto; left: auto; }
+/* 멤버별 공유 카드 아이콘 배경 (base admin-console.css 에 없는 유일한 bg 변형) */
+.adm .bg-violet { background: hsl(265 42% 94%); color: hsl(265 45% 46%); }
 .adm .sch { width: 320px; transform-origin: top left; }
 .adm .sch__label { padding: 14px 16px 10px; text-align: center; border-bottom: 1px solid var(--line-soft); }
 .adm .sch__label b { font-size: 15px; font-weight: 800; letter-spacing: -0.02em; }
