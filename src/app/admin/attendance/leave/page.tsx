@@ -12,6 +12,7 @@ import {
   listLeaveDocuments,
   listLeaveLedger,
 } from "@/lib/annual-leave-admin-server";
+import { getAdminAttendanceBadgeStats } from "@/lib/admin-attendance";
 import { requireAdminPageSession } from "@/lib/admin-page-auth";
 import { getDictionary } from "@/lib/i18n";
 import { CircleAlert } from "lucide-react";
@@ -51,17 +52,28 @@ export default async function AdminAttendanceLeavePage({
   // The client filters by status group / type / search locally (its tabs are buttons, not links) and
   // needs the FULL set to compute the per-group counts, so always fetch every group here. The URL's
   // statusGroup/type/search are passed through only as the client's initial UI state (deep-linking).
-  const [queue, applicants, balances, documents, ledger] = await Promise.all([
+  const [queue, applicants, balances, documents, ledger, badgeStats] = await Promise.all([
     getAdminLeaveQueue(session, { statusGroup: "all" }),
     listLeaveApplicants(session),
     listAdminLeaveBalances(session),
     listLeaveDocuments(session),
     listLeaveLedger(session),
+    // Same badge counts every other attendance tab shows. Without these the 검토 큐 / 급여 검토 /
+    // 교통비 검토 chips vanish on this tab only, and the whole tab row shifts left.
+    getAdminAttendanceBadgeStats(session),
   ]);
 
   return (
     <AdminShell activeItem="attendance" title={lc.header}>
-      <AttendanceSubnav active="leave" monthLabel={lc.header} c={c} />
+      <AttendanceSubnav
+        active="leave"
+        c={c}
+        badges={{
+          queue: { n: badgeStats.queueOpen, urgent: badgeStats.queueUrgent > 0 },
+          payroll: { n: badgeStats.payrollTargets },
+          transport: { n: badgeStats.transportPending },
+        }}
+      />
       {queue.isApprover ? (
         <LeaveQueueClient
           initialItems={queue.items}

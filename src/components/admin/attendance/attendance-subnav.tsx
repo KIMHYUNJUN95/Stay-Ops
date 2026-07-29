@@ -30,7 +30,8 @@ export function AttendanceSubnav({
   datePicker,
 }: {
   active: Tab;
-  monthLabel: string;
+  /** Accessible name for the right-side picker. Omit on tabs that have no month/date scope (연차). */
+  monthLabel?: string;
   c: Att;
   badges?: Partial<Record<Tab, { n: number; urgent?: boolean }>>;
   /** When set, carried as `?ym=` on every tab link so the selected month persists across tabs. */
@@ -47,6 +48,45 @@ export function AttendanceSubnav({
   const suffix = ym ? `?ym=${ym}` : "";
   const activeTab = TABS.find((tab) => tab.id === active);
   const pickerBasePath = monthPickerBasePath ?? activeTab?.href ?? "/admin/attendance";
+
+  // Tabs without a month/date scope (연차) render no right-side control at all. There used to be a
+  // static-text fallback here, but it duplicated the page title and made the bar read as a different
+  // component from every other tab.
+  const picker =
+    localeTag && datePicker ? (
+      <AdminDatePicker
+        date={datePicker.date}
+        todayDate={datePicker.todayDate}
+        localeTag={localeTag}
+        basePath={datePicker.basePath ?? activeTab?.href ?? "/admin/attendance/roster"}
+        labels={{
+          prevDay: c.payPagerPrev,
+          nextDay: c.payPagerNext,
+          prevMonth: c.monthPickerPrevYear,
+          nextMonth: c.monthPickerNextYear,
+          open: c.rosterDateSelectLabel,
+          today: c.rosterGoToday,
+          todayTag: c.rosterTodayTag,
+          pastTag: c.rosterPastTag,
+        }}
+      />
+    ) : localeTag && ym ? (
+      <AdminMonthPicker
+        ym={ym}
+        localeTag={localeTag}
+        basePath={pickerBasePath}
+        preserveQueryKeys={preserveMonthQueryKeys}
+        labels={{
+          prevMonth: c.payPagerPrev,
+          nextMonth: c.payPagerNext,
+          prevYear: c.monthPickerPrevYear,
+          nextYear: c.monthPickerNextYear,
+          open: c.monthPickerOpen,
+          thisMonth: c.monthPickerThisMonth,
+        }}
+      />
+    ) : null;
+
   return (
     <div className="subnav" role="tablist" aria-label={c.crumb}>
       {TABS.map((t) => {
@@ -56,9 +96,7 @@ export function AttendanceSubnav({
           <Link
             key={t.id}
             href={`${t.href}${suffix}`}
-            className={`subnav__t${t.id === "roster" ? " subnav__t--entry" : ""}${
-              t.id === active ? " on" : ""
-            }`}
+            className={`subnav__t${t.id === active ? " on" : ""}`}
             aria-current={t.id === active ? "page" : undefined}
           >
             <span className="ic">{t.icon}</span>
@@ -70,43 +108,11 @@ export function AttendanceSubnav({
         );
       })}
       <span className="subnav__spacer" />
-      <div className="subnav__month" aria-label={monthLabel}>
-        {datePicker && localeTag ? (
-          <AdminDatePicker
-            date={datePicker.date}
-            todayDate={datePicker.todayDate}
-            localeTag={localeTag}
-            basePath={datePicker.basePath ?? activeTab?.href ?? "/admin/attendance/roster"}
-            labels={{
-              prevDay: c.payPagerPrev,
-              nextDay: c.payPagerNext,
-              prevMonth: c.monthPickerPrevYear,
-              nextMonth: c.monthPickerNextYear,
-              open: c.rosterDateSelectLabel,
-              today: c.rosterGoToday,
-              todayTag: c.rosterTodayTag,
-              pastTag: c.rosterPastTag,
-            }}
-          />
-        ) : ym && localeTag ? (
-          <AdminMonthPicker
-            ym={ym}
-            localeTag={localeTag}
-            basePath={pickerBasePath}
-            preserveQueryKeys={preserveMonthQueryKeys}
-            labels={{
-              prevMonth: c.payPagerPrev,
-              nextMonth: c.payPagerNext,
-              prevYear: c.monthPickerPrevYear,
-              nextYear: c.monthPickerNextYear,
-              open: c.monthPickerOpen,
-              thisMonth: c.monthPickerThisMonth,
-            }}
-          />
-        ) : (
-          monthLabel
-        )}
-      </div>
+      {picker ? (
+        <div className="subnav__month" aria-label={monthLabel}>
+          {picker}
+        </div>
+      ) : null}
     </div>
   );
 }

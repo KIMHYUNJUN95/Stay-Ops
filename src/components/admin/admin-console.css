@@ -1326,16 +1326,11 @@
   border-color: color-mix(in oklab,var(--primary) 18%,var(--line));
   box-shadow: 0 8px 18px -16px rgba(20,32,43,.55), inset 0 1px 0 rgba(255,255,255,.78);
 }
-.adm .subnav__t--entry { margin-left: 6px; border: 1px solid transparent; }
-.adm .subnav__t--entry.on {
-  color: #fff;
-  background: var(--primary);
-  border-color: var(--primary);
-  box-shadow: 0 8px 18px color-mix(in oklab,var(--primary) 25%,transparent);
-}
+/* NOTE: 출근자 명단 used to get a `.subnav__t--entry` solid-navy CTA treatment here. Removed
+   2026-07-29 — every attendance tab now shares one active style so the bar doesn't change
+   appearance depending on which tab is open. */
 .adm .subnav__t .ic { font-size: 15px; color: var(--faint); }
 .adm .subnav__t.on .ic { color: var(--primary); }
-.adm .subnav__t--entry.on .ic { color: #fff; }
 .adm .subnav__t .cnt {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 18px; height: 18px; padding: 0 6px;
@@ -1343,7 +1338,6 @@
   background: var(--surface); color: var(--muted);
 }
 .adm .subnav__t.on .cnt { background: var(--primary); color: #fff; }
-.adm .subnav__t--entry.on .cnt { background: rgba(255,255,255,.18); color: #fff; }
 .adm .subnav__t .cnt.urgent { background: var(--danger); color: #fff; }
 .adm .subnav__spacer { flex: 1; }
 .adm .subnav__month {

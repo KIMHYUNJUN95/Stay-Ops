@@ -889,6 +889,20 @@ Management Console" → Current Implementation Note.
 - 단, 출근자 명단은 운영일 단위 조회 화면이므로 월 단위 `?ym=` 대신 `?date=YYYY-MM-DD`를 사용한다.
   실제 날짜 선택은 근태 subnav 우측의 상단 일자 선택기 하나로 통합하고, 명단 본문 안에는 별도
   캘린더를 반복하지 않는다.
+- **근태 subnav는 어느 탭에 있든 동일하게 보여야 한다 (2026-07-29 확정).** 탭을 옮길 때 바 자체가
+  변형되면 안 된다는 뜻이며, 구체적으로 세 가지를 강제한다.
+  1. **배지는 모든 탭에서 동일하게 표시한다.** 7개 페이지 전부 `getAdminAttendanceBadgeStats`를
+     호출해 `queue` / `payroll` / `transport` 배지를 `AttendanceSubnav`에 넘긴다. 한 페이지라도
+     `badges`를 빠뜨리면 숫자 칩이 사라지면서 뒤쪽 탭들이 통째로 왼쪽으로 밀려, 사용자에게는
+     "탭 위치가 움직인다"로 보인다(연차 탭에서 실제로 발생했던 버그).
+  2. **활성 탭 스타일은 7개 탭이 전부 같다** — 연한 primary 칩(`.subnav__t.on`). 특정 탭만 solid
+     navy CTA로 강조하지 않는다. 과거 출근자 명단에만 적용되던 `.subnav__t--entry` 규칙은
+     삭제됐다.
+  3. **우측 컨트롤은 피커이거나 아무것도 없거나 둘 중 하나다.** 월 스코프가 있으면
+     `AdminMonthPicker`, 운영일 스코프면 `AdminDatePicker`, 스코프 자체가 없으면(연차)
+     아무것도 렌더링하지 않는다. 정적 텍스트를 대신 넣지 않는다 — 페이지 제목과 중복되고 그
+     탭만 다른 컴포넌트처럼 보이게 만든다. `AttendanceSubnav`의 `monthLabel`은 이제 선택적
+     prop이며 피커의 `aria-label` 용도로만 쓰인다.
 - `/admin/attendance/*` page entry guards use the shared `requireAdminPageSession` helper. The helper
   centralizes unauthenticated → `/auth/login?next=...`, incomplete/no-organization → `/onboarding`, and
   non-admin-web role → `/mobile` redirects, so attendance admin pages cannot drift on organization
