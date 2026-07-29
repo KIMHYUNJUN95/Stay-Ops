@@ -177,6 +177,16 @@ export function getDisplaySessionRoomLabel(sessionRoomLabel: string): string {
   return `${property} ${getDisplayRoomLabel(property, room)}`;
 }
 
+/**
+ * Canonical room-label ordering used wherever rooms are listed for operations staff
+ * (청소 오늘 현황 / 기록, 셋팅 대상). Numeric collation so digit runs compare as numbers:
+ * `202 < 302 < 402`, `AB201 < AB202 < AB301`, `8 < 9 < 10`. Purely lexical `localeCompare`
+ * would put 402 before 8 and AB301 before AB202, which reads as random to the field team.
+ */
+export function compareRoomLabel(a: string, b: string): number {
+  return a.localeCompare(b, "ko", { numeric: true });
+}
+
 export function isExcludedOperationalProperty(propertyName: string) {
   const canonical = getCanonicalPropertyName(propertyName);
   return canonical === "사노";

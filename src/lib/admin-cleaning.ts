@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { BuildingKey, CleaningTaskType } from "@/components/admin/cleaning/cleaning-console-data";
+import { BUILDING_ORDER, type BuildingKey, type CleaningTaskType } from "@/components/admin/cleaning/cleaning-console-data";
 import {
   cleaningOperatingTimeZone,
   getCleaningStaffOptions,
@@ -18,6 +18,7 @@ import {
   buildSessionLabelToRoomKeyMap,
   buildSessionRoomLabel,
   CANONICAL_TO_BUILDING_KEY,
+  compareRoomLabel,
   getDisplayRoomLabel,
   getDisplaySessionRoomLabel,
   resolveRoomKey,
@@ -81,6 +82,25 @@ function taskLabelToType(taskLabel: string): CleaningTaskType {
 function buildingKeyOf(canonicalPropertyName: string): BuildingKey | null {
   const key = CANONICAL_TO_BUILDING_KEY[canonicalPropertyName];
   return (key as BuildingKey | undefined) ?? null;
+}
+
+/** Fixed operational building order; unknown/unmapped properties sort after the 7 canonical ones. */
+function buildingRank(building: BuildingKey | null): number {
+  if (!building) return BUILDING_ORDER.length;
+  const index = BUILDING_ORDER.indexOf(building);
+  return index === -1 ? BUILDING_ORDER.length : index;
+}
+
+/** 건물 순 → 객실번호 순. 건물별 그룹과 상태별 버킷이 같은 정렬을 공유하도록 서버에서 한 번만 적용한다. */
+function compareByBuildingThenRoom(
+  a: { building: BuildingKey | null; buildingRaw: string; room: string },
+  b: { building: BuildingKey | null; buildingRaw: string; room: string },
+): number {
+  return (
+    buildingRank(a.building) - buildingRank(b.building) ||
+    a.buildingRaw.localeCompare(b.buildingRaw, "ko") ||
+    compareRoomLabel(a.room, b.room)
+  );
 }
 
 function formatTokyoTime(iso: string | null): string | null {
@@ -284,6 +304,12 @@ export async function getAdminCleaningToday(session: AppSession): Promise<AdminC
       }))
     : [];
 
+  // Targets arrive in reservation order and ad-hoc sessions are appended afterwards, so without this
+  // the cards render in effectively arbitrary room order (402 → 302 → 202). Sorting here — not in the
+  // board component — keeps 건물별 그룹 / 상태별 버킷 / 셋팅 대상 on one ordering.
+  tasks.sort(compareByBuildingThenRoom);
+  setupTargets.sort(compareByBuildingThenRoom);
+
   return { tasks, setupTargets, staff, loadError };
 }
 
@@ -352,6 +378,11 @@ export async function getAdminCleaningHistory(
     { ...filters, status: filters.status ?? "completed" },
     catalog,
   );
-  return sessions.map((s) => mapSessionToHistoryItem(s, catalog));
+  // Query order is cleaning_date ASC, started_at DESC — keep the day ordering, but make rooms within
+  // one day read in operational order instead of start-time order. Table rows and the Excel/PDF
+  // export both derive from this array, so they stay in sync.
+  return sessions
+    .map((s) => mapSessionToHistoryItem(s, catalog))
+    .sort((a, b) => a.date.localeCompare(b.date) || compareByBuildingThenRoom(a, b));
 }
 

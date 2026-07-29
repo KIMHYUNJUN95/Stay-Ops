@@ -3,6 +3,7 @@ import {
   buildSessionRoomLabel,
   getCanonicalPropertyName,
   getCanonicalRoomLabel,
+  getDisplayRoomLabel,
   isExcludedOperationalProperty,
   isExcludedOperationalRoom,
 } from "@/lib/room-label-normalization";
@@ -110,32 +111,39 @@ export async function getCleaningTargets(organizationId: string): Promise<Cleani
   function canonicalize(row: ResRow) {
     const cp = getCanonicalPropertyName(row.property_name);
     const cr = getCanonicalRoomLabel(cp, row.room_label);
-    return { cp, cr, key: buildRoomKey(cp, cr) };
+    // Physical-room key: collapses Arakicho _N sub-listings (501 / 501_2 → 501). The same
+    // physical room carries two Beds24 listings (one per channel), so a same-day checkout and
+    // check-in of that one room can land under different room_labels. Turnover/setting detection
+    // must match on the physical room, not the per-listing key, or the arrival is misclassified
+    // as a setting target. Non-Arakicho keys are unchanged. Mirrors the admin console, which
+    // already keys these off the display-collapsed room. See docs/product/07-cleaning-workflow.md.
+    const physicalKey = buildRoomKey(cp, getDisplayRoomLabel(cp, cr));
+    return { cp, cr, key: buildRoomKey(cp, cr), physicalKey };
   }
 
   const departures = ((depResult.data ?? []) as ResRow[]).filter((r) => !excluded(r));
   const arrivals = ((arrResult.data ?? []) as ResRow[]).filter((r) => !excluded(r));
 
-  // Map: roomKey → first departure row (edge-case: multiple checkouts same room)
+  // Map: physicalKey → first departure row (edge-case: multiple checkouts same physical room)
   const departureMap = new Map<string, { row: ResRow; cp: string; cr: string }>();
   for (const row of departures) {
-    const { cp, cr, key } = canonicalize(row);
-    if (!departureMap.has(key)) departureMap.set(key, { row, cp, cr });
+    const { cp, cr, physicalKey } = canonicalize(row);
+    if (!departureMap.has(physicalKey)) departureMap.set(physicalKey, { row, cp, cr });
   }
 
-  // Map: roomKey → arrivals sorted ascending by check_in_date (already ordered from DB)
+  // Map: physicalKey → arrivals sorted ascending by check_in_date (already ordered from DB)
   const arrivalsByKey = new Map<string, ResRow[]>();
   for (const row of arrivals) {
-    const { key } = canonicalize(row);
-    const list = arrivalsByKey.get(key) ?? [];
+    const { physicalKey } = canonicalize(row);
+    const list = arrivalsByKey.get(physicalKey) ?? [];
     list.push(row);
-    arrivalsByKey.set(key, list);
+    arrivalsByKey.set(physicalKey, list);
   }
 
   // Build cleaning list
   const cleaningList: CleaningTarget[] = [];
-  for (const [key, { row: dep, cp, cr }] of departureMap) {
-    const roomArrivals = arrivalsByKey.get(key) ?? [];
+  for (const [physicalKey, { row: dep, cp, cr }] of departureMap) {
+    const roomArrivals = arrivalsByKey.get(physicalKey) ?? [];
     const todayArrival = roomArrivals.find((a) => a.check_in_date === targetDate) ?? null;
     const hasTurnover = todayArrival !== null;
     const nextArrival = hasTurnover
@@ -143,7 +151,7 @@ export async function getCleaningTargets(organizationId: string): Promise<Cleani
       : (roomArrivals.find((a) => a.check_in_date > targetDate) ?? null);
 
     cleaningList.push({
-      roomKey: key,
+      roomKey: buildRoomKey(cp, cr),
       sessionRoomLabel: buildSessionRoomLabel(cp, cr),
       canonicalPropertyName: cp,
       canonicalRoomLabel: cr,
@@ -158,14 +166,17 @@ export async function getCleaningTargets(organizationId: string): Promise<Cleani
     });
   }
 
-  // Build setting list: today's arrivals whose room is NOT in the departure set
+  // Build setting list: today's arrivals whose physical room is NOT in the departure set.
+  // Keyed by physicalKey so a same-day turnover split across two Beds24 listings of the same
+  // physical room (checkout under 501_2, check-in under 501) is excluded here and surfaces as a
+  // turnover in the cleaning list instead.
   const settingList: SettingTarget[] = [];
   const settingKeysSeen = new Set<string>();
   for (const row of arrivals) {
     if (row.check_in_date !== targetDate) continue;
-    const { cp, cr, key } = canonicalize(row);
-    if (departureMap.has(key) || settingKeysSeen.has(key)) continue;
-    settingKeysSeen.add(key);
+    const { cp, cr, key, physicalKey } = canonicalize(row);
+    if (departureMap.has(physicalKey) || settingKeysSeen.has(physicalKey)) continue;
+    settingKeysSeen.add(physicalKey);
     settingList.push({
       roomKey: key,
       sessionRoomLabel: buildSessionRoomLabel(cp, cr),

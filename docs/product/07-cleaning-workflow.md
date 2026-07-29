@@ -74,7 +74,7 @@ When `getCleaningTargets()` fails (returns `null`), the Cleaning targets / Setti
 Rooms with a confirmed `check_out_date = today`. Each card shows:
 - Room label (canonical property + room, e.g. `Arakicho A 201`)
 - Departing guest name
-- Turnover badge + arriving guest info if `check_in_date = today` for the same room
+- Turnover badge + arriving guest info if `check_in_date = today` for the same **physical** room
 - Next check-in date and guest if no same-day arrival but a future one exists within 30 days
 - "No check-in today" if the room is free after cleaning
 
@@ -82,7 +82,19 @@ Tapping Start records the room label directly from the reservation data into `cl
 
 ### Setting List
 
-Rooms with a confirmed `check_in_date = today` whose room does NOT appear in the checkout set. These are set-up tasks (not post-checkout cleaning). Each card shows arriving guest name and PAX count.
+Rooms with a confirmed `check_in_date = today` whose **physical room** does NOT appear in the checkout set. These are set-up tasks (not post-checkout cleaning). Each card shows arriving guest name and PAX count.
+
+#### Physical-room matching (Arakicho sub-listings)
+
+Turnover detection (Cleaning List) and setting exclusion (Setting List) match on the **physical room**, not the raw Beds24 `room_label`. In Arakicho every physical room carries **two Beds24 listings** — one per channel (e.g. `501` on Airbnb, `501_2` on Booking.com) with distinct `external_room_id`s. A single same-day turnover of that one room can therefore land under two different `room_label`s: the checkout under `501_2`, the check-in under `501`.
+
+`getCleaningTargets()` (`src/lib/cleaning-targets.ts`) keys departures and arrivals by a **physical-room key** (`buildRoomKey(property, getDisplayRoomLabel(...))`, which strips the Arakicho `_N` sub-listing suffix — `501 / 501_2 → 501`). This means:
+
+- A same-day checkout+check-in of the same physical room across two listings is correctly a **turnover in the Cleaning List**, not a phantom **Setting** entry.
+- Non-Arakicho labels are unchanged (`getDisplayRoomLabel` is a no-op for them), and distinct rooms (`A301` vs `301`) stay distinct — only the trailing `_N` sub-listing suffix collapses.
+- The per-listing internal `roomKey` / `sessionRoomLabel` emitted on each card are **unchanged** (still `501` or `501_2`), so `cleaning_sessions` matching is unaffected.
+
+This mirrors the admin reservation console, which already keys its setting-target KPI off the display-collapsed room (`admin-calendar-dashboard.ts`). Both surfaces now agree on the same-day turnover count.
 
 #### Setting KPI Interaction
 
@@ -848,3 +860,34 @@ Claude Design 핸드오프(`StayOps 청소 (admin)/청소 현황 (admin).html`)�
 - **검증**: `npm run lint` / `npm run build` 통과. 로그인 세션이 필요한 실제 클릭 동작(강제완료,
   기간 재조회, export)은 이 작업에서 라이브 테스트하지 못했다 — 사용자가 로그인된 세션에서 직접
   확인 필요.
+
+## 2026-07-29 어드민 청소 대시보드 — 객실 정렬 규칙 (건물 순 → 객실번호 순)
+
+**문제.** `getAdminCleaningToday()`가 정렬을 전혀 하지 않아, `getCleaningTargets()`가 돌려준 예약
+순서(+ 뒤에 append 되는 예약 미매칭 세션) 그대로 카드가 렌더링됐다. 실제 화면에서 가부키초가
+`402 → 302 → 202`, 아라키초B가 `AB201 → AB301 → AB401 → AB202`로 나와 현장에서 방을 찾기 어려웠다.
+
+**규칙 (확정).** 어드민 청소 콘솔의 모든 객실 목록은 **건물 순 → 객실번호 오름차순**으로 정렬한다.
+
+- **건물 순서**는 `BUILDING_ORDER`(아라키초A → 아라키초B → 가부키초 → 다카다노바바 → 오쿠보A →
+  오쿠보B → 오쿠보C)를 그대로 따른다. 이 7개에 매핑되지 않는 건물은 뒤로 밀고 건물명 가나다순.
+- **객실번호**는 `compareRoomLabel()`(신규, `src/lib/room-label-normalization.ts`)로 비교한다.
+  구현은 `localeCompare(b, "ko", { numeric: true })` — 숫자 구간을 숫자로 비교하므로
+  `202 < 302 < 402`, `AB201 < AB202 < AB301 < AB401`, `8 < 9 < 10`이 된다. 단순 사전순이면
+  402가 8보다, AB301이 AB202보다 앞에 오는 문제가 생긴다.
+
+**적용 위치.** 정렬은 **서버(`src/lib/admin-cleaning.ts`)에서 한 번만** 수행한다. 보드 컴포넌트가
+아니라 데이터 레이어에서 정렬하므로 "건물별" 그룹 · "상태별" 버킷 · 셋팅 대상 섹션이 자동으로
+같은 순서를 공유한다(그룹핑이 원본 배열 순서를 보존하기 때문).
+
+- `getAdminCleaningToday()`: 반환 직전 `tasks` / `setupTargets`에 `compareByBuildingThenRoom` 적용.
+- `getAdminCleaningHistory()`(기록 탭): 쿼리 순서인 `cleaning_date ASC`는 유지하고, **같은 날짜
+  안에서만** 건물 순 → 객실번호 순으로 재정렬한다(기존에는 `started_at DESC`, 즉 시작 시각 역순
+  이라 날짜 안 객실 순서가 무작위로 보였다). 기록 테이블 행과 Excel/PDF 내보내기가 같은 배열에서
+  파생되므로 화면과 내보내기 서식이 항상 일치한다.
+
+**변경 파일**: `src/lib/room-label-normalization.ts`(`compareRoomLabel` 신규 export),
+`src/lib/admin-cleaning.ts`(`buildingRank` / `compareByBuildingThenRoom` 내부 헬퍼 + 두 조회 함수에 적용).
+UI 컴포넌트 · i18n · DB 스키마 변경 없음.
+
+**검증**: `npm run lint`(에러 0) / `npm run build` 통과.
