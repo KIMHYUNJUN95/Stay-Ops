@@ -383,7 +383,7 @@
    (팝오버는 document.body 로 포털되며 `.adm` 래퍼로 감싸 토큰/스코프를 유지) */
 .adm .tpop-scrim { position: fixed; inset: 0; z-index: 129; }
 .adm .tpop-anchor { position: fixed; z-index: 130; }
-.adm .tpop-anchor > .pop { position: static; top: auto; right: auto; left: auto; max-height: calc(100vh - 24px); overflow-y: auto; }
+.adm .tpop-anchor > .pop { position: static; top: auto; right: auto; left: auto; bottom: auto; max-height: var(--tpop-maxh, calc(100vh - 24px)); overflow-y: auto; }
 /* 멤버별 공유 카드 아이콘 배경 (base admin-console.css 에 없는 유일한 bg 변형) */
 .adm .bg-violet { background: hsl(265 42% 94%); color: hsl(265 45% 46%); }
 .adm .sch { width: 320px; transform-origin: top left; }

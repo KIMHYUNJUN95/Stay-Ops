@@ -127,7 +127,7 @@ type AddDraft = {
   targets: string[];
 };
 
-type Anchor = { x: number; y: number };
+type Anchor = { x: number; y: number; aTop: number };
 type SchedulePop = {
   kind: "schedule";
   src: "add" | "task" | "overdue";
@@ -152,7 +152,7 @@ type Pop = SchedulePop | PrioPop | SharePop | RowMenuPop | DateFilterPop | PrioF
 
 function anchorFrom(e: ReactMouseEvent): Anchor {
   const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-  return { x: r.left, y: r.bottom + 6 };
+  return { x: r.left, y: r.bottom + 6, aTop: r.top };
 }
 
 export function AdminTasksConsole({ locale, data }: { locale: Locale; data: AdminTasksData }) {
@@ -2288,10 +2288,15 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     if (!pop) return null;
     const vw = typeof window !== "undefined" ? window.innerWidth : 1280;
     const vh = typeof window !== "undefined" ? window.innerHeight : 800;
-    const style: CSSProperties = {
-      left: Math.max(8, Math.min(pop.x, vw - 372)),
-      top: Math.max(8, Math.min(pop.y, vh - 80)),
-    };
+    // Trigger low on screen → open upward so a tall popover isn't cut off at the bottom.
+    // Either way the available space is passed to `--tpop-maxh` so the popover scrolls if needed.
+    const openUp = pop.y > vh * 0.6;
+    const avail = Math.max(180, openUp ? pop.aTop - 16 : vh - pop.y - 12);
+    const style = {
+      left: Math.max(8, Math.min(pop.x, vw - 340)),
+      ...(openUp ? { bottom: Math.max(8, vh - pop.aTop + 6) } : { top: pop.y }),
+      "--tpop-maxh": `${avail}px`,
+    } as unknown as CSSProperties;
     return (
       <>
         <div className="tpop-scrim" onClick={() => setPop(null)} />
