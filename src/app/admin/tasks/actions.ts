@@ -533,16 +533,30 @@ export async function shareConsoleTask(
   // Project tasks are governed by project membership, not per-task sharing.
   if (task.projectId) return { ok: false, error: "forbidden" };
 
+  // Reconcile the participant set to exactly `userIds` (the picker shows existing participants
+  // pre-checked, so unchecking one must REMOVE them — not just add). Author is never touched.
   const allowed = new Set((await getShareableUsers(session)).map((u) => u.id));
-  const existing = new Set(task.participants.map((p) => p.userId));
-  const newIds = Array.from(new Set(userIds)).filter(
-    (uid) => uid !== session.user.id && allowed.has(uid) && !existing.has(uid),
+  const desired = new Set(
+    Array.from(new Set(userIds)).filter((uid) => uid !== session.user.id && allowed.has(uid)),
   );
+  const currentNonAuthor = task.participants
+    .filter((p) => p.role !== "author")
+    .map((p) => p.userId);
+  const toAdd = Array.from(desired).filter((uid) => !currentNonAuthor.includes(uid));
+  const toRemove = currentNonAuthor.filter((uid) => !desired.has(uid));
 
   const supabase = getSupabaseServiceClient();
-  if (newIds.length > 0) {
-    const hadFirst = task.participants.some((p) => p.isFirstRecipient);
-    const rows: Database["public"]["Tables"]["task_participants"]["Insert"][] = newIds.map(
+  if (toRemove.length > 0) {
+    await supabase
+      .from("task_participants")
+      .delete()
+      .eq("task_id", task.id)
+      .in("user_id", toRemove);
+  }
+  if (toAdd.length > 0) {
+    // A first-recipient still remains only if a kept (not-removed) participant already had it.
+    const hadFirst = task.participants.some((p) => p.isFirstRecipient && !toRemove.includes(p.userId));
+    const rows: Database["public"]["Tables"]["task_participants"]["Insert"][] = toAdd.map(
       (uid, index) => ({
         task_id: task.id,
         user_id: uid,
@@ -560,19 +574,17 @@ export async function shareConsoleTask(
     } as never);
   }
 
-  const nonAuthorCount =
-    task.participants.filter((p) => p.role !== "author").length + newIds.length;
-  const isShared = nonAuthorCount > 0;
+  const isShared = desired.size > 0;
   await supabase
     .from("tasks")
     .update({ is_shared: isShared, is_directive: asDirective && isShared } as never)
     .eq("id", task.id)
     .eq("organization_id", session.organization.id);
 
-  if (newIds.length > 0) {
+  if (toAdd.length > 0) {
     await notify(
       task.id,
-      newIds,
+      toAdd,
       session.user.id,
       session.organization.id,
       "task_shared",
@@ -701,11 +713,11 @@ export async function moveConsoleToInbox(taskId: string): Promise<TaskActionResu
   if (!resolved) return { ok: false, error: "not_found" };
   const { session, task } = resolved;
   const supabase = getSupabaseServiceClient();
-  // 관리함 = "프로젝트 밖 모든 작업"(Todoist Inbox 모델). 따라서 관리함으로 이동 = 프로젝트에서
-  // 빼는 것(날짜/시간/반복은 유지). 비프로젝트 작업이면 사실상 no-op.
+  // 관리함 = "프로젝트 밖 모든 작업"(Todoist Inbox 모델). 관리함으로 이동 = 프로젝트에서 빼는 것
+  // (날짜/시간/반복 유지). is_inbox 는 뷰를 가르지 않으므로 건드리지 않는다(날짜 있는 작업의 crumb 오표시 방지).
   const { error } = await supabase
     .from("tasks")
-    .update({ is_inbox: true, project_id: null, section_id: null } as never)
+    .update({ project_id: null, section_id: null } as never)
     .eq("id", task.id)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "save_failed" };

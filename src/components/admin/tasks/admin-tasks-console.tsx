@@ -280,8 +280,10 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     setSel(id); // intent → the effect below runs the slide-in
   }, []);
   const closePanel = useCallback(() => {
-    setSel(null); // intent → the effect runs the slide-out, then clears panelTask/detail
-    setDetail(null);
+    // Keep `detail` during the exit so the panel content persists while it slides out — even after a
+    // delete/leave removes the task from `tasks` (detail is local state, so it survives the refresh).
+    // Both panelTask and detail are cleared together when the exit finishes (effect below).
+    setSel(null);
   }, []);
   // Enter/exit animation driven by the open/close intent (`sel`). All setState is deferred into
   // rAF/setTimeout so nothing runs synchronously in the effect body.
@@ -293,7 +295,10 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     }
     // Slide out, then unmount the content once the transition has finished.
     const r = requestAnimationFrame(() => setPanelOn(false));
-    const t = setTimeout(() => setPanelTask(null), 300);
+    const t = setTimeout(() => {
+      setPanelTask(null);
+      setDetail(null);
+    }, 300);
     return () => {
       cancelAnimationFrame(r);
       clearTimeout(t);
@@ -1619,14 +1624,14 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
         </div>
       );
     };
-    const inbound = tasks
+    const inbound = personalTasks
       .filter((t) => recvInstr(t, meId) && isActive(t))
       .sort((a, b) => prioSort(a, b) || dateSort(a, b))
       .slice(0, 4);
-    const up = tasks
+    const up = personalTasks
       .filter((t) => {
         const d = dateOf(t);
-        return isActive(t) && !!d && d > today;
+        return isActive(t) && myOwn(t, meId) && !!d && d > today;
       })
       .sort(dateSort)
       .slice(0, 4);
@@ -1634,7 +1639,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     for (const t of personalTasks.filter((t) => isActive(t) && isSharedTask(t)))
       for (const id of [t.createdByUserId, ...partsOf(t)]) if (id !== meId) byMember.set(id, (byMember.get(id) ?? 0) + 1);
     const mem = Array.from(byMember.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4);
-    const sent = tasks
+    const sent = personalTasks
       .filter((t) => sentInstr(t, meId) && isActive(t))
       .sort((a, b) => dateSort(a, b) || prioSort(a, b))
       .slice(0, 4);
@@ -2578,7 +2583,12 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           )}
         </div>
         <div className="shp__foot">
-          <button className="btn btn--pri" disabled={p.sel.length === 0} onClick={() => applyShare(p)}>
+          <button
+            className="btn btn--pri"
+            /* 기존 작업 공유 관리(src=task)는 0명(전원 제거)도 적용 가능. 인라인 추가 대상 선택만 0에서 비활성. */
+            disabled={p.src === "add" && p.sel.length === 0}
+            onClick={() => applyShare(p)}
+          >
             {cta}
           </button>
         </div>
@@ -2619,16 +2629,19 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           <Sun size={15} />
           {dict.mMoveToday}
         </button>
-        <button
-          className="mitem"
-          onClick={() => {
-            close();
-            run(() => moveConsoleToInbox(t.id), { toast: dict.tMoved });
-          }}
-        >
-          <Inbox size={15} />
-          {dict.mMoveInbox}
-        </button>
+        {/* "관리함으로" = 프로젝트에서 빼기. 비프로젝트 작업은 이미 관리함이라 프로젝트 작업에만 노출. */}
+        {t.projectId && (
+          <button
+            className="mitem"
+            onClick={() => {
+              close();
+              run(() => moveConsoleToInbox(t.id), { toast: dict.tMoved });
+            }}
+          >
+            <Inbox size={15} />
+            {dict.mMoveInbox}
+          </button>
+        )}
         <div className="msep" />
         {mine ? (
           <button
@@ -2821,7 +2834,13 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                   <div className="rpt__hint">
                     <Share2 size={14} />
                     {fill(dict.rptHint, {
-                      n: tasks.filter((t) => t.status === "completed" && completedDateOf(t) === report.date).length,
+                      // 보고서는 본인 완료만 집계(generateDailyReport) → 힌트 건수도 본인 기준으로 맞춘다.
+                      n: tasks.filter(
+                        (t) =>
+                          t.status === "completed" &&
+                          completedDateOf(t) === report.date &&
+                          t.completedByUserId === meId,
+                      ).length,
                     })}
                   </div>
                   <textarea
