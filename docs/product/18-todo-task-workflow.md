@@ -611,6 +611,15 @@ As-built (2026-06-16, Todoist-style — supersedes the 2026-06-11 pre-materializ
   `recurrence_instance_date`, preserving time-of-day) and keeps it `open`, logging a `completed`
   update + firing the `task_completed` notification. The quick-complete **undo** (`reopenTask`) rolls
   the row **back** to the previous occurrence.
+  - Because a recurring completion never sets `status=completed`, it does **not** appear as a card in
+    the **Completed (완료/기록)** tab (which lists `status=completed` rows) — but it **is** counted in
+    the **daily report (업무일지)**, which reads the `task_updates` completion log (see Daily Report).
+    This is intentional: the tab is a task-state view, the report is the work log.
+  - **Undo of a *late* completion lands on the most recent valid occurrence, not the original stale
+    overdue date.** A daily task overdue from a week ago, completed today then undone, returns to
+    today (the previous occurrence of the future instance) rather than the week-old date. This is an
+    accepted trade-off of the stateless single-row design (no pre-roll instance is stored); restoring
+    to "today" is the sensible reading of "undo a completion done today".
 - **Not completed → becomes overdue (one row, not a pile).** Recurrence advances **only on
   completion**, never automatically when the day passes. So an uncompleted daily task stays on its
   date and simply shows as **overdue** (a single task in the Today tab's overdue section) until
@@ -932,8 +941,15 @@ Task completion was re-introduced (it had been removed in the 2026-06-12 IA clea
 Each day-group header in the **Completed (완료/기록)** tab has a **보고서 (Report)** button that opens
 the **ReportSheet** bottom sheet:
 
-- It gathers the **caller's own** completed tasks for that Tokyo date and builds a Korean daily work
+- It gathers the **caller's own** completions for that Tokyo date and builds a Korean daily work
   report ("업무일지") — a date header followed by one bullet per completed item.
+- **Recurring completions are included (fix 2026-07-29).** Because completing a recurring task rolls
+  the row forward and keeps it `open` (never `status=completed`), the report is built from the
+  `completed`/`reopened` events in **`task_updates`** (not `tasks.status`): the per-task net
+  (`completed − reopened`) for that day. This captures a recurring task's daily completion (e.g. a
+  daily cleaning check) — which the old `status=completed` query missed — and a same-day undo cancels
+  out (net 0 → excluded). Titles are de-duplicated. The dashboard console report
+  (`generateConsoleReport`) delegates here, so both surfaces behave identically.
 - **Free, no AI.** The report is template-based with a deterministic local tidy-up (whitespace,
   leading bullet glyphs, punctuation spacing) for light auto-correction — no LLM, no API key, no
   per-use cost. (An LLM-backed variant was prototyped then dropped; see the decision log.)

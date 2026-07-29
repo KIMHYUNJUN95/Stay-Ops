@@ -4,7 +4,6 @@ import { canGenerateDailyReport } from "@/config/roles";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { hasPermissionOverride } from "@/lib/permission-overrides-server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { tokyoDateOf } from "@/lib/tasks";
 
 export type DailyReportResult =
   | { ok: true; text: string }
@@ -101,27 +100,52 @@ export async function generateDailyReport(date: string): Promise<DailyReportResu
   const locale = session.user.preferredLanguage;
   const tmpl = REPORT_TEMPLATE[locale] ?? REPORT_TEMPLATE.ko;
 
-  // The user's own completions in this org. completed_at is a timestamptz, so the exact Tokyo-date
-  // match is done in JS against tokyoDateOf (mirrors how the 완료/기록 tab groups).
+  // The user's own completions on this Tokyo day, derived from the `completed`/`reopened` events in
+  // `task_updates` (NOT `tasks.status`). A recurring task completion rolls the row forward and keeps
+  // it `open`, so it never has `status=completed` — the completion only lives in the log. Counting a
+  // per-task net (completed − reopened) captures recurring completions too and cancels a same-day undo.
   const supabase = await getSupabaseServerClient();
-  const { data, error } = await supabase
+  const dayStart = new Date(`${day}T00:00:00+09:00`);
+  const dayStartIso = dayStart.toISOString();
+  const dayEndIso = new Date(dayStart.getTime() + 86_400_000).toISOString(); // +09:00 range == the Tokyo day
+  const { data: updData, error: updErr } = await supabase
+    .from("task_updates")
+    .select("task_id, update_type, created_at")
+    .in("update_type", ["completed", "reopened"])
+    .eq("created_by_user_id", session.user.id)
+    .gte("created_at", dayStartIso)
+    .lt("created_at", dayEndIso)
+    .order("created_at", { ascending: true });
+  if (updErr) return { ok: false, reason: "error" };
+
+  type Upd = { task_id: string; update_type: string };
+  const net = new Map<string, number>();
+  const order: string[] = []; // task_ids in first-completion order
+  for (const r of (updData ?? []) as Upd[]) {
+    if (!net.has(r.task_id)) {
+      net.set(r.task_id, 0);
+      order.push(r.task_id);
+    }
+    net.set(r.task_id, (net.get(r.task_id) ?? 0) + (r.update_type === "completed" ? 1 : -1));
+  }
+  const completedIds = order.filter((id) => (net.get(id) ?? 0) > 0);
+  if (completedIds.length === 0) return { ok: false, reason: "empty" };
+
+  // Resolve titles (org-scoped; a task deleted after completion simply drops out).
+  const { data: taskData, error: taskErr } = await supabase
     .from("tasks")
-    .select("title, completed_at")
+    .select("id, title")
     .eq("organization_id", session.organization.id)
-    .eq("status", "completed")
-    .eq("completed_by_user_id", session.user.id)
-    .order("completed_at", { ascending: true });
-  if (error) return { ok: false, reason: "error" };
+    .in("id", completedIds);
+  if (taskErr) return { ok: false, reason: "error" };
+  const titleById = new Map<string, string>();
+  for (const t of (taskData ?? []) as { id: string; title: string }[]) titleById.set(t.id, t.title);
 
-  type Row = { title: string; completed_at: string | null };
-  const rows = ((data ?? []) as Row[]).filter((r) => tokyoDateOf(r.completed_at) === day);
-  if (rows.length === 0) return { ok: false, reason: "empty" };
-
-  // Collect unique titles only (no tags, no descriptions).
+  // Collect unique titles only (no tags, no descriptions), in completion order.
   const seen = new Set<string>();
   const titles: string[] = [];
-  for (const r of rows) {
-    const title = tidy(r.title);
+  for (const id of completedIds) {
+    const title = tidy(titleById.get(id) ?? "");
     if (!title || seen.has(title)) continue;
     seen.add(title);
     titles.push(title);

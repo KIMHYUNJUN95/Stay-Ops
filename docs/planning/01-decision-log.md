@@ -3860,7 +3860,13 @@ Status: **기획 문서만 작성(코드 없음).** 스펙: `docs/product/28-adm
 - **[낮] 공유/초대 검색 대소문자 구분**(share-picker/projects-board) → toLowerCase 비교.
 - **[낮] 오버듀 일괄 선택에 남의 작업 포함**(카운트 과대) → `toggleOverdueTask`를 owned로 제한.
 - **[낮] SharePicker 전원 해제 불가** → 기존 선택이 있던 경우 0명 적용 허용.
-- 미수정(엣지): 늦게 완료한 반복 작업 undo가 원래 오버듀 날짜 대신 직전 회차로 복구(Todoist형 설계).
+- **[후속 2026-07-29] 업무일지(보고서)에 반복 완료 포함**: 반복 완료는 `status=completed`가 아니라
+  `task_updates`의 `completed` 이벤트로만 남으므로 보고서에서 누락됐음. `generateDailyReport`를 그날의
+  `task_updates` 완료/재오픈 **net(완료−재오픈)** 집계로 재작성 → 반복 완료(매일 청소 등) 포함 + 같은 날
+  undo는 상쇄. 대시보드 콘솔 보고서도 위임이라 동일 적용. (완료·기록 **탭**은 여전히 status 기준 — 탭은
+  상태 뷰, 보고서는 업무 로그로 역할 분리, 문서화.)
+- 미수정(설계상 수용): 늦게 완료한 반복 작업 undo는 원래 오버듀 날짜가 아닌 직전 회차(대개 오늘)로 복구
+  — 단일 행 stateless 설계(사전 인스턴스 미저장)의 수용된 트레이드오프로 문서화.
 `npm run lint`(0 errors)/`build` 통과. `docs/product/18` 갱신.
 
 ## 관리함 = 프로젝트 밖 모든 활성 작업 (Todoist Inbox 모델, 모바일·대시보드 정렬) (2026-07-29)
@@ -3899,3 +3905,26 @@ Status: 구현 중. 마이그레이션 적용 완료. 기준 문서 `docs/produc
 Todoist 독립 시각 언어로 의도적 미적용(문서화). 의도적 축소: 인라인 사진·태그 입력 없음, yearly 반복 제외
 (백엔드 미지원), 리마인드/답장은 상세 열기로. `npm run lint`(0 errors)·`npm run build`(`/admin/tasks` 생성)
 통과. As-built 상세 → `docs/product/28-admin-todoist-console.md` §12.
+
+## 2026-07-29 근태 subnav — 탭 간 시각 일관성 확정
+
+**결정.** `/admin/attendance/*`의 공통 subnav는 어느 탭이 열려 있든 동일한 모습을 유지한다. 사용자가
+"연차만 누르면 버튼색·위치가 달라진다"고 보고한 문제를 세 축으로 정리해 확정했다.
+
+1. **배지 누락 금지.** 7개 페이지 전부 `getAdminAttendanceBadgeStats`로 `queue`/`payroll`/`transport`
+   배지를 넘긴다. 연차 페이지만 `badges`를 안 넘겨 숫자 칩이 사라졌고, 그만큼 뒤 탭들이 왼쪽으로
+   밀려 "탭 위치가 움직이는" 현상이 생겼다 → 수정.
+2. **활성 탭 스타일 단일화.** 출근자 명단에만 붙던 solid navy CTA 스타일(`.subnav__t--entry`,
+   `admin-console.css` + `attendance-subnav.tsx`의 조건부 클래스)을 **삭제**했다. 7개 탭이 모두
+   연한 primary 칩(`.subnav__t.on`)으로 활성화된다.
+3. **우측 컨트롤은 피커 or 없음.** 월 스코프 → `AdminMonthPicker`, 운영일 스코프 → `AdminDatePicker`,
+   스코프 없음(연차) → 렌더링하지 않음. 기존의 정적 텍스트 폴백은 제거했다 — 좌측 페이지 제목과
+   같은 문자열(`lc.header`)을 그대로 반복해 화면에 두 번 나왔고, 그 탭만 다른 컴포넌트처럼 보였다.
+   `AttendanceSubnav.monthLabel`은 선택적 prop이 되어 피커 `aria-label` 용도로만 남는다.
+
+**대안 검토.** 연차에도 월 피커를 넣어 완전히 동일한 컨트롤을 두는 안은 기각 — 연차 승인 큐는 월로
+필터되지 않아 아무 효과 없는 버튼이 된다. 반대로 배지만 고치고 텍스트를 유지하는 안도 기각(제목 중복).
+
+**변경 파일**: `src/app/admin/attendance/leave/page.tsx`, `src/components/admin/attendance/attendance-subnav.tsx`,
+`src/components/admin/admin-console.css`. i18n·DB 변경 없음. `npm run lint`(에러 0) / `npm run build` 통과.
+문서: `docs/product/05-admin-web-ia.md`(근태 subnav 계약 3항 추가).
