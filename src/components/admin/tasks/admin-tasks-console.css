@@ -695,4 +695,6 @@
 /* ── 일자(day) 시트 ── */
 .adm .day-scrim { position: fixed; inset: 0; z-index: 62; background: rgba(16, 22, 28, 0.34); }
 .adm .day-wrap { position: fixed; inset: 0; z-index: 63; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-.adm .day-wrap .pop { pointer-events: auto; position: relative; opacity: 1; transform: none; }
+/* base `.pop`의 top:calc(100%+8px)/right:0 를 반드시 리셋 — 안 하면 relative 오프셋으로
+   중앙 모달이 뷰포트 높이만큼 아래(화면 밖)로 밀려 스크림만 보이고 카드가 안 뜬다. */
+.adm .day-wrap .pop { pointer-events: auto; position: relative; top: auto; right: auto; left: auto; bottom: auto; opacity: 1; transform: none; }
