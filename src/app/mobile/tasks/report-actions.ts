@@ -136,7 +136,8 @@ export async function generateDailyReport(date: string): Promise<DailyReportResu
     .from("tasks")
     .select("id, title")
     .eq("organization_id", session.organization.id)
-    .in("id", completedIds);
+    .in("id", completedIds)
+    .is("deleted_at", null);
   if (taskErr) return { ok: false, reason: "error" };
   const titleById = new Map<string, string>();
   for (const t of (taskData ?? []) as { id: string; title: string }[]) titleById.set(t.id, t.title);

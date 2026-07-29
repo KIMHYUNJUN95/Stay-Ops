@@ -209,7 +209,11 @@ export async function dismissOverdueTasks(taskIds: string[]) {
         .eq("id", t.id)
         .eq("organization_id", orgId);
     } else {
-      await supabase.from("tasks").delete().eq("id", t.id).eq("organization_id", orgId);
+      await supabase
+        .from("tasks")
+        .update({ deleted_at: new Date().toISOString() } as never)
+        .eq("id", t.id)
+        .eq("organization_id", orgId);
     }
   }
   revalidatePath("/mobile/tasks");
@@ -596,10 +600,14 @@ export async function removeTaskParticipant(formData: FormData) {
   const removingSelf = targetUserId === session.user.id;
   const supabase = getSupabaseServiceClient();
 
-  // Author leaving = full task deletion for everyone.
+  // Author leaving = full task deletion for everyone (soft delete → undoable).
   if (isAuthor && removingSelf) {
-    await supabase.from("tasks").delete().eq("id", id);
-    redirect("/mobile/tasks");
+    await supabase
+      .from("tasks")
+      .update({ deleted_at: new Date().toISOString() } as never)
+      .eq("id", id)
+      .eq("organization_id", session.organization.id);
+    redirect(`/mobile/tasks?deleted=${id}`);
   }
 
   // Only the author may remove others; anyone may remove themselves.
@@ -639,11 +647,42 @@ export async function deleteTask(formData: FormData) {
     redirect(detailPath(id, "forbidden"));
   }
   const supabase = getSupabaseServiceClient();
-  const { error } = await supabase.from("tasks").delete().eq("id", id);
+  const { error } = await supabase
+    .from("tasks")
+    .update({ deleted_at: new Date().toISOString() } as never)
+    .eq("id", id)
+    .eq("organization_id", session.organization.id);
   if (error) {
     redirect(detailPath(id, "delete_failed"));
   }
-  redirect("/mobile/tasks");
+  // ?deleted=<id> → the list shows a "삭제했습니다 · 실행 취소" toast that calls restoreTask.
+  redirect(`/mobile/tasks?deleted=${id}`);
+}
+
+// Undo a soft delete (from the list's delete toast). requireSessionAndTask filters deleted rows, so
+// read the row directly, verify org + authorship, then clear `deleted_at`.
+export async function restoreTask(taskId: string): Promise<{ ok: boolean }> {
+  const id = String(taskId ?? "").trim();
+  if (!id) return { ok: false };
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return { ok: false };
+  const supabase = getSupabaseServiceClient();
+  const { data } = await supabase
+    .from("tasks")
+    .select("created_by_user_id")
+    .eq("id", id)
+    .eq("organization_id", session.organization.id)
+    .maybeSingle();
+  const row = data as { created_by_user_id: string } | null;
+  if (!row || row.created_by_user_id !== session.user.id) return { ok: false };
+  const { error } = await supabase
+    .from("tasks")
+    .update({ deleted_at: null } as never)
+    .eq("id", id)
+    .eq("organization_id", session.organization.id);
+  if (error) return { ok: false };
+  revalidatePath("/mobile/tasks");
+  return { ok: true };
 }
 
 // Batch delete from the list (multi-select). Only deletes tasks the acting user authored —
@@ -664,7 +703,7 @@ export async function deleteTasksInList(taskIds: string[]) {
   const supabase = getSupabaseServiceClient();
   await supabase
     .from("tasks")
-    .delete()
+    .update({ deleted_at: new Date().toISOString() } as never)
     .in("id", ids)
     .eq("created_by_user_id", session.user.id);
   revalidatePath("/mobile/tasks");

@@ -60,6 +60,7 @@ export async function runTaskReminders(
     .select("id, organization_id, title, due_at, status")
     .not("due_at", "is", null)
     .in("status", ["open", "in_progress"])
+    .is("deleted_at", null)
     .lt("due_at", upperBoundIso);
   if (options.organizationId) {
     query = query.eq("organization_id", options.organizationId);

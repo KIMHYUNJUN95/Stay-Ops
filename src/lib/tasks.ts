@@ -600,6 +600,7 @@ export async function getVisibleTasks(session: AppSession): Promise<TaskRecord[]
     .from("tasks")
     .select(TASK_SELECT)
     .eq("organization_id", session.organization.id)
+    .is("deleted_at", null) // soft-delete: hide deleted tasks (undo restores them)
     .order("created_at", { ascending: false });
   if (error) {
     if (isMissingTable(error.message ?? "")) return [];
@@ -619,6 +620,7 @@ export async function getProjectTasks(
     .select(TASK_SELECT)
     .eq("organization_id", session.organization.id)
     .eq("project_id", projectId)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (error) {
     if (isMissingTable(error.message ?? "")) return [];
@@ -638,6 +640,7 @@ export async function getTaskDetail(
     .select(TASK_SELECT)
     .eq("id", id)
     .eq("organization_id", session.organization.id)
+    .is("deleted_at", null)
     .maybeSingle();
   if (error) {
     if (isMissingTable(error.message ?? "")) return null;

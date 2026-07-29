@@ -197,9 +197,13 @@ export async function deleteProjectSection(formData: FormData) {
     redirect(detailPath(id, "forbidden"));
   }
   const supabase = getSupabaseServiceClient();
-  // Spec: deleting a section also deletes its tasks (the section FK is ON DELETE SET NULL,
-  // so we must remove the tasks explicitly before dropping the section).
-  await supabase.from("tasks").delete().eq("project_id", id).eq("section_id", sectionId);
+  // Spec: deleting a section also deletes its tasks. Soft-delete them (consistent with the rest of
+  // the deletion policy — reads filter deleted_at) before dropping the section.
+  await supabase
+    .from("tasks")
+    .update({ deleted_at: new Date().toISOString() } as never)
+    .eq("project_id", id)
+    .eq("section_id", sectionId);
   await supabase.from("project_sections").delete().eq("id", sectionId).eq("project_id", id);
   redirect(detailPath(id));
 }

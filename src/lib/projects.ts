@@ -111,7 +111,11 @@ export async function getVisibleProjects(session: AppSession): Promise<ProjectSu
       .from("project_participants")
       .select("project_id, user_id, role, is_first_recipient")
       .in("project_id", projectIds),
-    supabase.from("tasks").select("project_id, status").in("project_id", projectIds),
+    supabase
+      .from("tasks")
+      .select("project_id, status")
+      .in("project_id", projectIds)
+      .is("deleted_at", null),
   ]);
 
   const parts = (partData ?? []) as Array<

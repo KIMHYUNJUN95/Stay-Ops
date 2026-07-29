@@ -1150,6 +1150,7 @@ export type Database = {
           due_at?: string | null;
           duration_minutes?: number | null;
           is_directive?: boolean;
+          deleted_at?: string | null;
           guest_name?: string | null;
           id?: string;
           image_urls?: string[];
@@ -1183,6 +1184,7 @@ export type Database = {
           due_at: string | null;
           duration_minutes: number | null;
           is_directive: boolean;
+          deleted_at: string | null;
           guest_name: string | null;
           id: string;
           image_urls: string[];
@@ -1216,6 +1218,7 @@ export type Database = {
           due_at?: string | null;
           duration_minutes?: number | null;
           is_directive?: boolean;
+          deleted_at?: string | null;
           guest_name?: string | null;
           id?: string;
           image_urls?: string[];

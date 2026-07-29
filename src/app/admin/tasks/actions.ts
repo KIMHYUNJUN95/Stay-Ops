@@ -628,6 +628,8 @@ export async function addConsoleNote(taskId: string, body: string): Promise<Task
 }
 
 // ── 8. Delete (author) / leave (participant) ───────────────────────────────────
+// User deletion is now a SOFT delete (`deleted_at`) so the undo toast / restoreConsoleTask can bring
+// it back. Reads filter `deleted_at is null`, so a soft-deleted task disappears from every view.
 export async function deleteConsoleTask(taskId: string): Promise<TaskActionResult> {
   const resolved = await resolveTask(taskId);
   if (!resolved) return { ok: false, error: "not_found" };
@@ -636,10 +638,37 @@ export async function deleteConsoleTask(taskId: string): Promise<TaskActionResul
   const supabase = getSupabaseServiceClient();
   const { error } = await supabase
     .from("tasks")
-    .delete()
+    .update({ deleted_at: new Date().toISOString() } as never)
     .eq("id", task.id)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "delete_failed" };
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
+// Undo a soft delete. getTaskDetail filters deleted rows, so this reads the row directly and checks
+// authorship before clearing `deleted_at`.
+export async function restoreConsoleTask(taskId: string): Promise<TaskActionResult> {
+  const session = await resolveSession();
+  if (!session) return { ok: false, error: "auth" };
+  const id = String(taskId ?? "").trim();
+  if (!id) return { ok: false, error: "not_found" };
+  const supabase = getSupabaseServiceClient();
+  const { data } = await supabase
+    .from("tasks")
+    .select("created_by_user_id")
+    .eq("id", id)
+    .eq("organization_id", session.organization.id)
+    .maybeSingle();
+  const row = data as { created_by_user_id: string } | null;
+  if (!row) return { ok: false, error: "not_found" };
+  if (row.created_by_user_id !== session.user.id) return { ok: false, error: "forbidden" };
+  const { error } = await supabase
+    .from("tasks")
+    .update({ deleted_at: null } as never)
+    .eq("id", id)
+    .eq("organization_id", session.organization.id);
+  if (error) return { ok: false, error: "save_failed" };
   revalidatePath(CONSOLE_PATH);
   return { ok: true };
 }
@@ -650,11 +679,11 @@ export async function leaveConsoleTask(taskId: string): Promise<TaskActionResult
   const { session, task } = resolved;
   const supabase = getSupabaseServiceClient();
 
-  // Author leaving = full deletion for everyone (mirrors mobile removeTaskParticipant self path).
+  // Author leaving = full deletion for everyone (soft delete, so it's undoable like a normal delete).
   if (task.createdByUserId === session.user.id) {
     const { error } = await supabase
       .from("tasks")
-      .delete()
+      .update({ deleted_at: new Date().toISOString() } as never)
       .eq("id", task.id)
       .eq("organization_id", session.organization.id);
     if (error) return { ok: false, error: "delete_failed" };
