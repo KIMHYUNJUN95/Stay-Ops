@@ -1023,9 +1023,16 @@ tags text[]
 image_urls text[]
 completed_by_user_id uuid references profiles(id)
 completed_at timestamptz
+is_directive boolean not null default false -- 업무 지시(대상에게 부여). 대시보드 "지시" 탭 (202607270001)
+deleted_at timestamptz                      -- SOFT delete. NULL=live. 되돌리기(Undo)용. 모든 조회가 deleted_at is null 필터 (202607290001)
 created_at timestamptz
 updated_at timestamptz
 ```
+
+Note (2026-07-29): task deletion is **soft** (`deleted_at`) so the Undo toast can restore it. All task
+list/detail reads (`getVisibleTasks` / `getProjectTasks` / `getTaskDetail`, project counts, reminders,
+report) filter `deleted_at is null`; RLS still sees deleted rows so the author can restore via
+`restoreTask` / `restoreConsoleTask`. Owner-approved exception to the hard-delete policy (CLAUDE.md §9).
 
 Note (2026-06-13): `completed_at` / `completed_by_user_id` (and `status`) are **actively written
 again** by the re-introduced complete/reopen actions (`completeTask` / `reopenTask` in

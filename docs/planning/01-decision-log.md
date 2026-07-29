@@ -3845,6 +3845,24 @@ Status: **기획 문서만 작성(코드 없음).** 스펙: `docs/product/28-adm
 갱신: `docs/product/18-todo-task-workflow.md`, `docs/product/05-admin-web-ia.md`. 디자인은 대표님이 이
 문서를 기준으로 직접 진행.
 
+## Todoist 삭제 = soft-delete + 되돌리기(실행 취소) 토스트 (2026-07-29, 오너 승인)
+
+Decision: 작업(task) 삭제를 **hard-delete → soft-delete(`deleted_at`)** 로 전환하고, 완료·삭제 시
+**"실행 취소" 토스트**로 되돌릴 수 있게 한다(Todoist 방식). **삭제 정책 변경은 오너 명시 승인**(규칙 9).
+- **DB**: 마이그레이션 `202607290001_task_soft_delete` — `tasks.deleted_at timestamptz` + 부분 인덱스
+  (프로덕션 적용 완료). 모든 목록/상세 조회가 `deleted_at is null` 필터(RLS 아님 — RLS는 삭제행도 보이므로
+  작성자가 복구 가능). 자동 정리(purge)는 아직 없음(향후 크론).
+- **삭제 액션**: 콘솔 deleteConsoleTask/leaveConsoleTask(author), 모바일 deleteTask/deleteTasksInList/
+  removeTaskParticipant(author-self)/dismissOverdue(one-off)/섹션 삭제 → `deleted_at` 세팅. 생성 롤백 삭제는
+  하드 유지. 복구: restoreConsoleTask / restoreTask(삭제행 직접 조회 + 작성자 검증 후 `deleted_at=null`).
+- **되돌리기 토스트**: 완료 → "완료했습니다"(+반복이면 "다음: {날짜}") · 실행 취소(reopen). 삭제 → "삭제했습니다"
+  · 실행 취소(restore). 대시보드는 다크 하단-좌측 `.undobar`(신규), 모바일은 기존 완료 토스트 확장 + 삭제는
+  `?deleted=<id>` 리다이렉트로 리스트 토스트. 6초 자동 소멸 + X.
+- **확인 모달 처리**: 단일 작업 삭제는 확인 모달 제거 → **즉시 삭제 + 되돌리기**(대시보드). 나가기·지난 정리
+  (벌크)는 확인 모달 유지. 프로젝트/섹션 삭제는 기존 확인 유지.
+- 문서: `docs/engineering/04-data-model`·`05-rls-permissions`, `docs/product/18`·`28`, CLAUDE.md 규칙 9 갱신.
+`npm run lint`(0 errors)/`build` 통과.
+
 ## 모바일 Todoist 디버그 QA — yearly 반복 데이터 손실 외 (2026-07-29)
 
 정적 전수 감사 후 실사용 버그 수정:

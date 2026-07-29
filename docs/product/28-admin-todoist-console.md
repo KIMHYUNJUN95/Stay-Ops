@@ -312,6 +312,17 @@ Status: **Implemented (2026-07-27).** 이 문서는 대시보드(어드민 웹) 
   검색/우선순위/날짜 필터를 초기화한다(`goView`). 다른 뷰로 이동하는 탭/레일 링크도 `goView`로 통일.
 - **today 자동 롤오버:** `today`를 상태로 두고 1분 간격 + 창 포커스/가시성 변경 시 Tokyo 날짜를 재확인해
   갱신(변경 없으면 리렌더 스킵). 콘솔을 열어둔 채 Tokyo 자정을 넘겨도 오늘/내일/지연 기준이 새로고침 없이 롤오버.
+
+### 12.8 되돌리기(실행 취소) 토스트 + soft-delete (2026-07-29, 오너 승인)
+- **소프트 삭제:** 작업 삭제는 hard-delete → `deleted_at`(마이그레이션 `202607290001`). 모든 조회는
+  `deleted_at is null` 필터. `deleteConsoleTask`/author `leaveConsoleTask` 가 `deleted_at` 세팅,
+  `restoreConsoleTask` 가 복구(삭제행 직접 조회 + 작성자 검증). See CLAUDE.md 규칙 9 예외.
+- **되돌리기 토스트(`.undobar`)**: Todoist식 다크 하단-좌측 바(메시지 + 서브 + "실행 취소" + X, 6초).
+  - **완료**: 체크박스/상세 완료 시 "완료 처리했습니다"(+반복이면 "다음: {날짜}") · 실행 취소 = reopen.
+    재오픈은 정정이라 일반 토스트(undo 없음).
+  - **삭제**: 단일 작업 삭제는 **확인 모달 제거 → 즉시 soft-delete + "작업을 삭제했습니다 · 실행 취소"**(restore).
+    나가기·지난 정리(벌크)는 확인 모달 유지.
+- i18n: `undoBtn`/`undoNext`/`tDeletedUndoable`. 모바일도 동일 패턴(완료 undo 확장 + 삭제 `?deleted` 토스트).
 - **상세 패널 바깥 클릭 닫기 + 슬라이드 인/아웃:** 우측 상세 슬라이드오버 뒤에 스크림(`.dp-scrim`, 어드민
   `.panel-scrim` 계약과 동일한 dim)을 두어 빈 공간 클릭 시 닫힌다(Esc·X 동일). 패널은 열 때 우측에서
   슬라이드로 들어오고 닫을 때 슬라이드로 나간다 — `sel`(열림 의도)와 `panelTask`(렌더 콘텐츠, exit 트랜지션
@@ -326,3 +337,54 @@ Status: **Implemented (2026-07-27).** 이 문서는 대시보드(어드민 웹) 
   콘솔 내부(=`.adm` 자식) 인라인 렌더로 전환(조상 transform 없음 → `position:fixed` 정상). 필터 검색
   돋보기는 `.filt__search .ic`(absolute) 규칙을 받도록 `<span class="ic">`로 감쌈.
 - 캘린더 "이 날짜에 작업 추가", 보고서 오류 메시지 정확화, 지시 안내문 다국어(마침표) 렌더 수정 포함.
+
+---
+
+## 13. 상태 세그먼트 컨트롤 — 누름 피드백 (2026-07-29)
+
+상세 패널의 **대기 / 진행 중 / 완료** 세그먼트가 "누르는 느낌이 없다"는 피드백을 받아 수정했다.
+원인은 세 가지가 겹친 것이었다.
+
+1. `.dp__status button`에 `cursor: pointer`가 없어 클릭 가능한 요소로 보이지 않았다.
+2. `:hover` / `:active`가 없어 누르는 순간의 물리적 피드백이 전혀 없었다.
+3. `setConsoleTaskStatus` → `router.refresh()` 서버 왕복이 끝날 때까지 활성 칩이 옛 값에 멈춰
+   있다가 갑자기 점프했다. `transition`도 없어서 이동이 아니라 깜빡임으로 보였다.
+
+### 확정 구현
+
+**활성 배경은 버튼별 `background`가 아니라 슬라이딩 썸 하나다.** `.dp__status`에
+`.dp__status__thumb` 한 장을 절대 배치하고, 컨테이너의 `data-active` 속성으로
+`translateX(0 / 100% / 200%)` 시킨다. 버튼별로 배경을 켜고 끄면 중간 프레임이 없어 구조적으로
+애니메이션이 불가능하다. 썸은 `cubic-bezier(.34, 1.32, .5, 1)`로 살짝 오버슈트해서 멈추지 않고
+자리를 잡는다 — 이게 "임팩트"의 실체다. 완료 칸에서는 썸이 `--done` 초록으로 물든다.
+
+> 썸 CSS는 세그먼트가 **정확히 3개**라고 가정한다(`width: calc((100% - 8px) / 3)` + 100% 단위 이동).
+> 항목을 추가하려면 `admin-tasks-console.css`의 `.dp__status__thumb` 폭·오프셋도 같이 고쳐야 한다.
+> 코드 쪽 순서는 `admin-tasks-console.tsx`의 `STATUS_SEGMENTS` 상수 하나로 관리한다.
+
+**클릭 즉시 움직인다 (낙관적 업데이트).** 부모 컴포넌트의 `statusDraft` state가 눌린 값을 들고
+있고, 세그먼트는 서버 응답을 기다리지 않고 바로 이동한다. 서버 액션이 실패하면 `run()`에 새로
+추가된 `onError` 콜백이 draft를 버려 원래 칸으로 되돌아가고 에러 토스트가 뜬다.
+
+`statusDraft`가 **부모에 있는 이유**: `DetailPanel`은 `{panelTask && DetailPanel()}`로 조건부
+호출되는 일반 함수라, 그 안에 훅을 두면 훅 순서가 깨진다.
+
+`statusDraft`가 **스스로 만료되는 방식**: draft는 `{ id, from, status }`를 저장하고, 렌더 시
+`t.status === draft.from`인 동안에만 적용된다. 서버 데이터(또는 한 틱 뒤 갱신되는 `detail`)가
+따라잡는 순간 조건이 깨지면서 실제 상태가 자동으로 인계받는다. 정리용 `useEffect`가 필요 없다 —
+effect 안에서 동기 `setState`를 호출하면 lint 규칙(cascading renders)에 걸린다. 다른 컨트롤이
+상태를 되돌려 우연히 `from` 값으로 복귀하는 경우를 대비해 `openTask`와 `toggleComplete`에서
+draft를 명시적으로 비운다.
+
+**접근성**: 각 버튼에 `type="button"`과 `aria-pressed`, 컨테이너에 `role="group"`,
+`:focus-visible` 링을 추가했다. `prefers-reduced-motion: reduce`에서는 썸 이동과 눌림 스케일을
+끄고 색 전환만 남긴다.
+
+**범위**: 어드민 콘솔 전용. 모바일 작업 화면(`src/components/tasks/tasks-workspace.tsx`)은 별도
+시각 언어(BottomSheet 계약)라 이번 변경에 포함하지 않았다.
+
+**변경 파일**: `src/components/admin/tasks/admin-tasks-console.tsx`,
+`src/components/admin/tasks/admin-tasks-console.css`. i18n·서버 액션·DB 변경 없음
+(`run()`에 선택적 `onError` opt만 추가).
+
+**검증**: `npx tsc --noEmit` 0, `npm run lint` 0 errors, `npm run build` 통과.

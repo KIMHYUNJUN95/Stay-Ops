@@ -603,6 +603,12 @@ use the RLS-scoped client; **all writes go through service-role server actions**
 permission checks (author-only core edits, participant workflow, author-leave = full delete,
 non-author-all-removed → private). Direct authenticated writes to `task_participants` are denied.
 
+**Soft delete (2026-07-29):** user task deletion sets `deleted_at` (not a row DELETE). This is
+enforced in the **query lib** (`.is("deleted_at", null)` on every list/detail read), **not in RLS** —
+RLS intentionally still returns soft-deleted rows so the author's `restoreTask` / `restoreConsoleTask`
+(service-role, author-checked) can clear `deleted_at`. Owner-approved exception to the hard-delete
+policy (CLAUDE.md §9).
+
 - Read: active participants only.
 - Create: any active org member when creating a task where they are the original author.
 - Update: original author edits core task content; current participants can mutate only shared workflow-state fields through controlled actions.

@@ -930,7 +930,17 @@ Avoid by default:
 Task completion was re-introduced (it had been removed in the 2026-06-12 IA cleanup):
 
 - Tapping the leading **status circle** on any task card **completes** it (active task) or **reopens**
-  it (completed task). Completing shows a bottom **undo toast** ("완료했습니다 · 되돌리기").
+  it (completed task). Completing shows a bottom **undo toast** ("완료했습니다 · 실행 취소"); for a
+  **recurring** task it adds a **"다음: {날짜}"** subline (the next occurrence it rolled to). Undo = reopen.
+
+### Soft-delete & Undo (2026-07-29, owner-approved deletion-policy change)
+
+- **Tasks now use SOFT delete** (`deleted_at`, migration `202607290001`) so deletes are undoable. All
+  task list/detail reads filter `deleted_at is null`; `restoreTask` clears it (author-checked). Create-
+  rollback deletes stay hard. This is a scoped exception to the hard-delete MVP policy (CLAUDE.md §9).
+- **Delete undo:** `deleteTask` soft-deletes and redirects to `/mobile/tasks?deleted=<id>`; the list
+  shows a **"작업을 삭제했습니다 · 실행 취소"** toast that calls `restoreTask` (ref-guarded, once per id).
+- The dashboard console (`/admin/tasks`) uses the identical model + a Todoist-style `.undobar`.
 - The task **detail view** also has a **완료 / 다시 열기** button.
 - Completing sets `status` + `completed_at` + `completed_by_user_id`, writes a `completed` row to the
   update log, and fans out a `task_completed` notification to other participants; reopening clears

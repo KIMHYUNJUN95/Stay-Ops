@@ -221,8 +221,14 @@ This project uses Tokyo operating dates in several important flows.
 ### 9. Deletion policy is sensitive
 
 - MVP user-triggered deletion is hard delete by default.
-- Keep confirmation UX for destructive actions.
-- Do not switch to soft delete or retention-heavy behavior without explicit user approval.
+- **Exception — Todoist tasks (approved 2026-07-29): `tasks` use SOFT delete** (`deleted_at`) so the
+  "실행 취소 / Undo" toast can restore a completion or a delete. User deletes set `deleted_at`; all task
+  list/detail reads filter `deleted_at is null`; `restoreTask`/`restoreConsoleTask` clear it. Create-
+  rollback deletes stay hard. This exception is scoped to tasks — do NOT extend soft-delete to other
+  entities without the same explicit approval.
+- Keep confirmation UX for destructive actions **that are not undoable**. A single-task delete is now
+  immediate + undo (no confirm); bulk clears (지난 미완료 정리) and project/section deletes keep confirm.
+- Do not switch other entities to soft delete or retention-heavy behavior without explicit user approval.
 
 ## High-Risk Change Areas
 
