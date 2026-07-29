@@ -1931,7 +1931,9 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     const firstRecipient = t.participants.find((p) => p.isFirstRecipient)?.userId ?? null;
 
     return (
-      <aside className="dp on" onClick={(e) => e.stopPropagation()}>
+      <>
+        <div className="dp-scrim" onClick={closePanel} />
+        <aside className="dp on" onClick={(e) => e.stopPropagation()}>
         <div className="dp__top">
           <span className="dp__crumb">
             {proj ? (
@@ -2225,6 +2227,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           )}
         </div>
       </aside>
+      </>
     );
   }
 
