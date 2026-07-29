@@ -161,6 +161,18 @@ function anchorFrom(e: ReactMouseEvent): Anchor {
 // (avoids the SSR warning; the popover never renders during SSR anyway).
 const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
+// Detail-panel status segments, in display order. The CSS thumb assumes exactly these three, in
+// this order (it translates by whole segment widths) — adding a fourth means updating
+// `.dp__status__thumb` width/offsets in admin-tasks-console.css too.
+const STATUS_SEGMENTS = [
+  { status: "open", labelKey: "stOpen" },
+  { status: "in_progress", labelKey: "stInProgress" },
+  { status: "completed", labelKey: "stCompleted" },
+] as const satisfies readonly {
+  status: "open" | "in_progress" | "completed";
+  labelKey: "stOpen" | "stInProgress" | "stCompleted";
+}[];
+
 export function AdminTasksConsole({ locale, data }: { locale: Locale; data: AdminTasksData }) {
   const dict = getAdminTasksDictionary(locale);
   const router = useRouter();
@@ -177,6 +189,19 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   const [projectDetail, setProjectDetail] = useState<ProjectDetailData | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [detail, setDetail] = useState<TaskDetail | null>(null);
+  // Optimistic status for the detail panel's 대기/진행 중/완료 segmented control. `setConsoleTaskStatus`
+  // + `router.refresh()` is a full server round-trip, so without this the segment sits frozen on the
+  // old value until fresh data lands and then jumps. Lives here (not in DetailPanel) because
+  // DetailPanel is a conditionally-called plain function — hooks inside it would break hook order.
+  //
+  // `from` is what makes this self-expiring without a clean-up effect: the draft only applies while
+  // the task still reads as `from`. The moment the server (or the separately-refetched `detail`)
+  // catches up, the guard fails and the real status takes over on its own.
+  const [statusDraft, setStatusDraft] = useState<{
+    id: string;
+    from: string;
+    status: "open" | "in_progress" | "completed";
+  } | null>(null);
   // Panel slide-in/out. `sel` is the open/close intent; `panelTask` is the task actually rendered
   // and PERSISTS through the exit transition (so content doesn't vanish mid-slide); `panelOn`
   // toggles the `.dp.on` slide position. The animation timing lives in an effect whose setState
@@ -246,7 +271,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   const run = useCallback(
     (
       fn: () => Promise<TaskActionResult>,
-      opts?: { toast?: string; after?: () => void },
+      opts?: { toast?: string; after?: () => void; onError?: () => void },
     ) => {
       startTransition(async () => {
         const res = await fn();
@@ -255,12 +280,14 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           opts?.after?.();
           router.refresh();
         } else {
+          opts?.onError?.();
           showToast(errMsg(res.error));
         }
       });
     },
     [errMsg, router, showToast],
   );
+
 
   // Auto-dismiss the undo toast (~6s). Clicking undo or a new toast replaces it.
   useEffect(() => {
@@ -294,6 +321,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     setDaySheet(null);
     setPop(null);
     setNoteDraft("");
+    setStatusDraft(null); // never carry a pending segment click into another task
     setPanelTask(id); // content is ready immediately
     setSel(id); // intent → the effect below runs the slide-in
   }, []);
@@ -332,6 +360,9 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   // correction → plain toast, no undo.
   const toggleComplete = useCallback(
     (t: TaskRecord) => {
+      // The checkbox can move status behind the segmented control's back; drop any pending segment
+      // click so it can't re-apply if the status happens to land back on its `from` value.
+      setStatusDraft(null);
       if (t.status === "completed") {
         run(() => toggleConsoleComplete(t.id, false), { toast: dict.tReopened });
         return;
@@ -2115,6 +2146,12 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     const t = loaded ?? tasks.find((x) => x.id === panelTask) ?? null;
     if (!t) return null;
     const done = t.status === "completed";
+    // What the segmented control shows: the pending click while the data still reads as it did when
+    // the click happened, else server truth.
+    const shownStatus =
+      statusDraft && statusDraft.id === t.id && t.status === statusDraft.from
+        ? statusDraft.status
+        : t.status;
     const mine = isMine(t, meId);
     const instr = t.isDirective && !mine ? t.authorName : null;
     const proj = t.projectId ? projById.get(t.projectId) : null;
@@ -2199,25 +2236,30 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             </div>
           </div>
 
-          <div className="dp__status">
-            <button
-              className={t.status === "open" ? "on" : ""}
-              onClick={() => run(() => setConsoleTaskStatus(t.id, "open"))}
-            >
-              {dict.stOpen}
-            </button>
-            <button
-              className={t.status === "in_progress" ? "on" : ""}
-              onClick={() => run(() => setConsoleTaskStatus(t.id, "in_progress"))}
-            >
-              {dict.stInProgress}
-            </button>
-            <button
-              className={`done ${done ? "on" : ""}`}
-              onClick={() => run(() => setConsoleTaskStatus(t.id, "completed"), { toast: dict.tCompleted })}
-            >
-              {dict.stCompleted}
-            </button>
+          {/* Segmented control. `shownStatus` is the optimistic value so the thumb slides the instant
+              the button is pressed; the CSS thumb is driven by data-active, not per-button bg. */}
+          <div className="dp__status" data-active={shownStatus} role="group">
+            <span className="dp__status__thumb" aria-hidden="true" />
+            {STATUS_SEGMENTS.map((seg) => (
+              <button
+                key={seg.status}
+                type="button"
+                className={`${seg.status === "completed" ? "done " : ""}${
+                  shownStatus === seg.status ? "on" : ""
+                }`}
+                aria-pressed={shownStatus === seg.status}
+                onClick={() => {
+                  if (shownStatus === seg.status) return;
+                  setStatusDraft({ id: t.id, from: t.status, status: seg.status });
+                  run(() => setConsoleTaskStatus(t.id, seg.status), {
+                    toast: seg.status === "completed" ? dict.tCompleted : undefined,
+                    onError: () => setStatusDraft(null),
+                  });
+                }}
+              >
+                {dict[seg.labelKey]}
+              </button>
+            ))}
           </div>
 
           <div className="dsec">

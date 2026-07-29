@@ -231,11 +231,17 @@
 /* =====================================================================
    인라인 추가
    ===================================================================== */
-.adm .iadd-trigger { display: flex; align-items: center; gap: 11px; width: 100%; padding: 14px 8px; border: none; background: transparent; color: var(--muted); font-size: 14px; font-weight: 700; text-align: left; border-top: 1px solid var(--line-soft); font-family: inherit; }
+/* Sits directly under `.trow`, so its leading circle must land on the same vertical line as the
+   task checkboxes: same horizontal padding (8px), same gap (12px), same 24px circle. It used to be
+   gap 11 + a 22px circle, which pushed the + 1px left of the checkbox column and the label 3px left
+   of the task titles — small enough to read as "the + isn't centered". */
+.adm .iadd-trigger { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 8px; border: none; background: transparent; color: var(--muted); font-size: 14px; font-weight: 700; text-align: left; border-top: 1px solid var(--line-soft); font-family: inherit; }
 .adm .iadd-trigger:hover { color: var(--primary); }
-.adm .iadd-trigger .p { width: 22px; height: 22px; border-radius: 999px; color: var(--primary); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.adm .iadd-trigger .p { width: 24px; height: 24px; border-radius: 999px; color: var(--primary); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .adm .iadd-trigger:hover .p { background: var(--primary); color: #fff; }
-.adm .iadd-trigger .p .ic { font-size: 17px; }
+/* Pin the glyph box like `.tchk svg` does, so centering inside the circle can't drift with the
+   JSX `size` prop. (The old rule here targeted `.ic`, which lucide SVGs never carry — it was dead.) */
+.adm .iadd-trigger .p svg { width: 14px; height: 14px; display: block; }
 .adm .iadd { border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); box-shadow: var(--sh-pop); margin: 9px 0; }
 .adm .iadd__main { padding: 14px 16px 4px; }
 .adm .iadd__title { width: 100%; border: none; outline: none; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; background: transparent; color: var(--ink); }
@@ -312,10 +318,42 @@
 .adm .dp__title.is-done { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
 .adm .dp__desc { font-size: 14px; color: var(--ink-soft); line-height: 1.65; margin: 10px 0 0; white-space: pre-wrap; }
 .adm .dp__tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 11px; }
-.adm .dp__status { display: flex; gap: 6px; background: var(--surface); border-radius: 12px; padding: 4px; margin: 16px 0; }
-.adm .dp__status button { flex: 1; height: 38px; border: none; border-radius: 9px; background: transparent; font-size: 13.5px; font-weight: 800; color: var(--muted); }
-.adm .dp__status button.on { background: var(--card); color: var(--ink); box-shadow: 0 2px 6px rgba(20, 32, 43, 0.12); }
-.adm .dp__status button.done.on { background: var(--done); color: #fff; }
+/* 대기 / 진행 중 / 완료 segmented control. The active background is ONE sliding thumb driven by
+   `data-active`, not a per-button `background` — a per-button swap has no in-between frames, so the
+   state change read as a flicker rather than a move. Buttons stay transparent and sit above it. */
+.adm .dp__status { position: relative; display: flex; background: var(--surface); border-radius: 12px; padding: 4px; margin: 16px 0; }
+.adm .dp__status__thumb {
+  position: absolute; top: 4px; bottom: 4px; left: 4px;
+  width: calc((100% - 8px) / 3);
+  border-radius: 9px; background: var(--card);
+  box-shadow: 0 2px 6px rgba(20, 32, 43, 0.12);
+  pointer-events: none;
+  /* Slight overshoot so it settles instead of stopping dead — this is the "impact" of the press. */
+  transition: transform .3s cubic-bezier(.34, 1.32, .5, 1), background-color .22s ease, box-shadow .22s ease;
+}
+.adm .dp__status[data-active="in_progress"] .dp__status__thumb { transform: translateX(100%); }
+.adm .dp__status[data-active="completed"] .dp__status__thumb {
+  transform: translateX(200%);
+  background: var(--done);
+  box-shadow: 0 4px 14px -2px color-mix(in oklab, var(--done) 42%, transparent);
+}
+.adm .dp__status button {
+  position: relative; z-index: 1; flex: 1; height: 38px;
+  border: none; border-radius: 9px; background: transparent;
+  font-size: 13.5px; font-weight: 800; color: var(--muted); cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color .2s ease, transform .1s ease;
+}
+.adm .dp__status button:hover { color: var(--ink-soft); }
+.adm .dp__status button:active { transform: scale(.95); }
+.adm .dp__status button.on { color: var(--ink); }
+.adm .dp__status button.done.on { color: #fff; }
+.adm .dp__status button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) {
+  .adm .dp__status__thumb { transition: background-color .22s ease; }
+  .adm .dp__status button { transition: color .2s ease; }
+  .adm .dp__status button:active { transform: none; }
+}
 .adm .dsec { margin-bottom: 18px; }
 .adm .dsec__t { font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
 .adm .meta { display: flex; flex-direction: column; }

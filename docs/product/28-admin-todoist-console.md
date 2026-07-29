@@ -388,3 +388,26 @@ draft를 명시적으로 비운다.
 (`run()`에 선택적 `onError` opt만 추가).
 
 **검증**: `npx tsc --noEmit` 0, `npm run lint` 0 errors, `npm run build` 통과.
+
+### 13.1 "작업 추가" 트리거 정렬 (2026-07-29)
+
+`.iadd-trigger`(오늘 / 내일 / 관리함 / 프로젝트 섹션이 공유하는 인라인 추가 트리거)의 `+` 원이
+바로 위 작업 행의 체크박스 열과 어긋나 있었다. 호버 시 파란 원이 켜지면서 그 어긋남이 드러났다.
+
+| | 원/체크박스 범위 | 중심 | 텍스트 시작 |
+| --- | --- | --- | --- |
+| `.trow` (padding 8px, gap 12px, `.tchk` 24px) | 8 → 32px | 20px | 44px |
+| `.iadd-trigger` (수정 전: gap 11px, `.p` 22px) | 8 → 30px | 19px | 41px |
+
+원 중심 1px, 라벨 3px 어긋남. `.iadd-trigger`의 `gap`을 12px, `.p`를 24px로 맞춰 작업 행과 동일한
+수직선에 올렸다.
+
+**규칙**: 목록 안에 들어가는 리딩 원형 컨트롤(체크박스, 추가 트리거 등)은 같은 컬럼에 서야 한다 —
+좌측 패딩·gap·원 지름 세 값을 모두 `.trow`와 일치시킨다.
+
+함께 정리: `.iadd-trigger .p .ic { font-size: 17px }`는 lucide SVG에 `.ic` 클래스가 없어 동작한
+적이 없는 죽은 규칙이었다. `.tchk svg`와 같은 형태의 `.p svg { width: 14px; height: 14px;
+display: block; }`로 교체해, 원 안에서의 아이콘 중앙 정렬이 JSX `size` prop과 무관하게 고정된다.
+
+**변경 파일**: `src/components/admin/tasks/admin-tasks-console.css`(CSS 전용, TSX 변경 없음).
+**검증**: `npm run lint` 0 errors, `npm run build` 통과.
