@@ -3845,6 +3845,17 @@ Status: **기획 문서만 작성(코드 없음).** 스펙: `docs/product/28-adm
 갱신: `docs/product/18-todo-task-workflow.md`, `docs/product/05-admin-web-ia.md`. 디자인은 대표님이 이
 문서를 기준으로 직접 진행.
 
+## 관리함 = 프로젝트 밖 모든 활성 작업 (Todoist Inbox 모델, 모바일·대시보드 정렬) (2026-07-29)
+
+Decision: 벤치마크(Todoist)처럼 **관리함(Inbox) = 프로젝트에 속하지 않은 모든 활성 작업**(날짜 유무 무관)으로
+확정. 오늘/내일은 이 집합의 **필터**(날짜 있는 작업은 관리함·오늘 동시 노출). 프로젝트 작업은 프로젝트 뷰에만.
+- **모바일**: 이미 이 모델(`page.tsx`가 `!projectId`로 분리 + 관리함=`isActive` 전체, 문구도 "모든 할 일 관리").
+  변경 없음.
+- **대시보드**: 관리함을 `is_inbox`(날짜 없는 것만)로 필터하던 것을 수정 → `personalTasks=tasks.filter(!projectId)`
+  로 오늘/내일/관리함/공유함/지시/캘린더/레일을 프로젝트 제외 집합으로 렌더. `moveConsoleToInbox`=프로젝트에서
+  빼기(날짜 유지). `is_inbox` 컬럼은 뷰를 안 가름(잔존). 완료·기록만 전체 기준(프로젝트 완료 포함).
+- 문서: `docs/product/18` §Inbox, `docs/product/28` §4·§12 갱신. `npm run lint`/`build` 통과.
+
 ## 어드민 Todoist 콘솔 구현 착수 — Claude Design 이식 (2026-07-27)
 
 Decision: 대시보드 Todoist 콘솔을 Claude Design 핸드오프("StayOps 투두 (admin)") 기준으로 구현 시작.

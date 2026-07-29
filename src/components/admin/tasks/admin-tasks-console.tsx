@@ -219,6 +219,10 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   const roleOf = useCallback((id: string) => roleMap.get(id) ?? "", [roleMap]);
 
   const tasks = data.tasks;
+  // 관리함/오늘/내일/공유함/지시/캘린더 등 메인 뷰는 **프로젝트에 속하지 않은** 작업만 다룬다
+  // (Todoist 모델: 관리함 = 프로젝트 밖 모든 활성 작업, 오늘/내일은 그 필터). 프로젝트 작업은
+  // 프로젝트 뷰에만. `tasks`(전체)는 완료·기록/프로젝트/상세 조회에만 쓴다. 모바일 page.tsx 와 동일 분리.
+  const personalTasks = useMemo(() => data.tasks.filter((t) => !t.projectId), [data.tasks]);
   const projById = useMemo(() => new Map(data.projects.map((p) => [p.id, p])), [data.projects]);
 
   // ── action runner ──────────────────────────────────────────────────────────────
@@ -341,16 +345,18 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     el.style.top = `${top}px`;
   }, [pop]);
 
-  // ── derived task groups (내 뷰는 myOwn) ────────────────────────────────────────────
-  const overdueList = tasks.filter((t) => isOverdue(t, today) && myOwn(t, meId));
-  const inboxCount = tasks.filter((t) => t.isInbox && isActive(t) && myOwn(t, meId)).length;
-  const todayCount = tasks.filter((t) => isTodayTask(t, today) && myOwn(t, meId)).length + overdueList.length;
-  const tomorrowCount = tasks.filter((t) => isTomorrowTask(t, today) && myOwn(t, meId)).length;
-  const sharedCount = tasks.filter(
+  // ── derived task groups (프로젝트 제외 personalTasks 기준, 내 뷰는 myOwn) ─────────────────
+  const overdueList = personalTasks.filter((t) => isOverdue(t, today) && myOwn(t, meId));
+  // 관리함 = 프로젝트 밖 모든 활성 작업(날짜 무관).
+  const inboxCount = personalTasks.filter((t) => isActive(t) && myOwn(t, meId)).length;
+  const todayCount =
+    personalTasks.filter((t) => isTodayTask(t, today) && myOwn(t, meId)).length + overdueList.length;
+  const tomorrowCount = personalTasks.filter((t) => isTomorrowTask(t, today) && myOwn(t, meId)).length;
+  const sharedCount = personalTasks.filter(
     (t) => isActive(t) && isSharedTask(t) && !sentInstr(t, meId) && !recvInstr(t, meId),
   ).length;
-  const recvOpen = tasks.filter((t) => recvInstr(t, meId) && isActive(t)).length;
-  const sentOpen = tasks.filter((t) => sentInstr(t, meId) && isActive(t)).length;
+  const recvOpen = personalTasks.filter((t) => recvInstr(t, meId) && isActive(t)).length;
+  const sentOpen = personalTasks.filter((t) => sentInstr(t, meId) && isActive(t)).length;
 
   const matches = useCallback(
     (t: TaskRecord) =>
@@ -872,7 +878,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   // ── VIEWS ────────────────────────────────────────────────────────────────────────────
   const todayView = () => {
     const od = filtered(overdueList).sort((a, b) => dateSort(a, b) || prioSort(a, b));
-    const td = filtered(tasks.filter((t) => isTodayTask(t, today) && myOwn(t, meId))).sort(prioSort);
+    const td = filtered(personalTasks.filter((t) => isTodayTask(t, today) && myOwn(t, meId))).sort(prioSort);
     if (od.length === 0 && td.length === 0 && !add)
       return hasActiveFilter ? (
         <EmptyState icon={<Search size={26} />} t={dict.emFilter} s={dict.emFilterS} />
@@ -962,8 +968,9 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   };
 
   const inboxView = () => {
-    const items = filtered(tasks.filter((t) => t.isInbox && isActive(t) && myOwn(t, meId))).sort(
-      (a, b) => prioSort(a, b) || dateSort(a, b),
+    // 관리함 = 프로젝트 밖 모든 활성 작업(날짜 있든 없든). 날짜순 → 우선순위순, 날짜 칩 표시.
+    const items = filtered(personalTasks.filter((t) => isActive(t) && myOwn(t, meId))).sort(
+      (a, b) => dateSort(a, b) || prioSort(a, b),
     );
     return (
       <>
@@ -978,7 +985,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           )
         ) : (
           <div className="tlist">
-            {items.map((t) => renderRow(t, { hideDate: true }))}
+            {items.map((t) => renderRow(t))}
             {InlineAddSlot({ ctx: "inbox" })}
           </div>
         )}
@@ -988,7 +995,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
 
   const sharedView = () => {
     const all = filtered(
-      tasks.filter((t) => isActive(t) && isSharedTask(t) && !sentInstr(t, meId) && !recvInstr(t, meId)),
+      personalTasks.filter((t) => isActive(t) && isSharedTask(t) && !sentInstr(t, meId) && !recvInstr(t, meId)),
     );
     const received = all.filter((t) => !isMine(t, meId)).sort((a, b) => prioSort(a, b) || dateSort(a, b));
     const sent = all.filter((t) => isMine(t, meId)).sort((a, b) => prioSort(a, b) || dateSort(a, b));
@@ -1006,7 +1013,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
 
   // ── INSTR (지시) ─────────────────────────────────────────────────────────────────────
   const sentView = () => {
-    const all = filtered(tasks.filter((t) => sentInstr(t, meId)));
+    const all = filtered(personalTasks.filter((t) => sentInstr(t, meId)));
     const note = (
       <div className="sentnote">
         <Megaphone size={15} />
@@ -1108,7 +1115,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   };
 
   const recvView = () => {
-    const all = filtered(tasks.filter((t) => recvInstr(t, meId)));
+    const all = filtered(personalTasks.filter((t) => recvInstr(t, meId)));
     const note = (
       <div className="sentnote sentnote--recv">
         <Bell size={15} />
@@ -1326,10 +1333,10 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     const prevDays = new Date(Date.UTC(y, m - 1, 0)).getUTCDate();
     const iso = (dd: number) => `${y}-${String(m).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
     const tasksOn = (dstr: string) =>
-      tasks
+      personalTasks
         .filter((t) => isActive(t) && myOwn(t, meId) && (t.scheduledDate === dstr || dueDateOf(t) === dstr))
         .sort((a, b) => (a.timeLabel ?? "99").localeCompare(b.timeLabel ?? "99") || prioSort(a, b));
-    const monthCount = tasks.filter((t) => {
+    const monthCount = personalTasks.filter((t) => {
       const d = dateOf(t);
       return isActive(t) && myOwn(t, meId) && !!d && d.slice(0, 7) === calMonth;
     }).length;
@@ -1405,7 +1412,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           <span className="ccell__d">{i}</span>
         </div>,
       );
-    const upcoming = tasks
+    const upcoming = personalTasks
       .filter((t) => {
         const d = dateOf(t);
         return isActive(t) && myOwn(t, meId) && !!d && d >= today && d.slice(0, 7) === calMonth;
@@ -1558,7 +1565,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       ? todayView()
       : view === "tomorrow"
         ? listView(
-            tasks.filter((t) => isTomorrowTask(t, today) && myOwn(t, meId)),
+            personalTasks.filter((t) => isTomorrowTask(t, today) && myOwn(t, meId)),
             dict.vTomorrow,
             "tomorrow",
             <Sunrise size={26} />,
@@ -1577,10 +1584,10 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
 
   // ── RAIL ─────────────────────────────────────────────────────────────────────────────────
   const rail = () => {
-    const scope = tasks.filter((t) => (isTodayTask(t, today) || isOverdue(t, today)) && myOwn(t, meId));
+    const scope = personalTasks.filter((t) => (isTodayTask(t, today) || isOverdue(t, today)) && myOwn(t, meId));
     const open = scope.filter((t) => t.status === "open").length;
     const prog = scope.filter((t) => t.status === "in_progress").length;
-    const doneToday = tasks.filter((t) => t.status === "completed" && completedDateOf(t) === today).length;
+    const doneToday = personalTasks.filter((t) => t.status === "completed" && completedDateOf(t) === today).length;
     const pct = scope.length + doneToday ? Math.round((doneToday / (scope.length + doneToday)) * 100) : 0;
     const qrow = (t: TaskRecord, right: ReactNode) => {
       const cx = ctxItems(t);
@@ -1620,7 +1627,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       .sort(dateSort)
       .slice(0, 4);
     const byMember = new Map<string, number>();
-    for (const t of tasks.filter((t) => isActive(t) && isSharedTask(t)))
+    for (const t of personalTasks.filter((t) => isActive(t) && isSharedTask(t)))
       for (const id of [t.createdByUserId, ...partsOf(t)]) if (id !== meId) byMember.set(id, (byMember.get(id) ?? 0) + 1);
     const mem = Array.from(byMember.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4);
     const sent = tasks
@@ -2728,7 +2735,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   function DaySheet() {
     if (!daySheet) return null;
     const iso = daySheet;
-    const list = tasks
+    const list = personalTasks
       .filter((t) => isActive(t) && myOwn(t, meId) && (t.scheduledDate === iso || dueDateOf(t) === iso))
       .sort(prioSort);
     return (

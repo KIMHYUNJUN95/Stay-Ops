@@ -701,22 +701,11 @@ export async function moveConsoleToInbox(taskId: string): Promise<TaskActionResu
   if (!resolved) return { ok: false, error: "not_found" };
   const { session, task } = resolved;
   const supabase = getSupabaseServiceClient();
-  // Inbox is the "no-date staging" bucket (createConsoleTask only marks inbox when dateless), so
-  // moving to Inbox must clear the date/time/recurrence — otherwise the task shows in both Inbox
-  // AND Today/Calendar (which key off the date).
+  // 관리함 = "프로젝트 밖 모든 작업"(Todoist Inbox 모델). 따라서 관리함으로 이동 = 프로젝트에서
+  // 빼는 것(날짜/시간/반복은 유지). 비프로젝트 작업이면 사실상 no-op.
   const { error } = await supabase
     .from("tasks")
-    .update({
-      is_inbox: true,
-      due_at: null,
-      scheduled_date: null,
-      all_day: true,
-      time_label: null,
-      duration_minutes: null,
-      recurrence_rule: null,
-      recurrence_series_id: null,
-      recurrence_instance_date: null,
-    } as never)
+    .update({ is_inbox: true, project_id: null, section_id: null } as never)
     .eq("id", task.id)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "save_failed" };

@@ -359,13 +359,14 @@ Meaning:
 - ongoing active tasks are also managed here
 - this is the broadest day-to-day task list in the mobile IA
 
-Rules:
+Rules (Todoist "Inbox = default project" model):
 
-- quick-add defaults to Inbox
-- detailed create produces an organized task, not an Inbox task — opening the full create form is the deliberate "organize" act
-- shared tasks may also remain in Inbox
-- a shared Inbox task appears in every participant's Inbox
-- current mobile implementation also uses this tab as the general active-task list (`관리함`), so users can review all active tasks in one place without a separate intermediate list tab
+- Inbox(`관리함`) = **every active task that is not in a named project** — dated or not. This is the one place to manage all non-project work. (Mobile `TasksWorkspace` keys the Inbox view off "no project", i.e. `isActive`, not the `is_inbox` flag.)
+- **Today / Tomorrow are filters over this same set** — a task dated today appears in Inbox AND in Today (they are not mutually exclusive).
+- **Project tasks are excluded** from Inbox/Today/Tomorrow/Sent/Calendar; they live only in the Projects tab.
+- shared / received-directive tasks (non-project) also appear in Inbox; a shared Inbox task appears in every participant's Inbox.
+- The `is_inbox` column still exists from earlier iterations but **no longer gates this view** (the view is "no project"). Quick-add still stamps it, harmlessly.
+- **Dashboard(`/admin/tasks`) uses the identical model (aligned 2026-07-27):** `관리함` = all active non-project tasks, Today/Tomorrow are filters, project tasks only in the project view, "관리함으로 이동" = remove from project (keeps the date). See `docs/product/28-admin-todoist-console.md` §12.
 
 Recommended behavior:
 
