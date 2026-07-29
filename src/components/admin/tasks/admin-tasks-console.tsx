@@ -169,6 +169,12 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   const [projectDetail, setProjectDetail] = useState<ProjectDetailData | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [detail, setDetail] = useState<TaskDetail | null>(null);
+  // Panel slide-in/out. `sel` is the open/close intent; `panelTask` is the task actually rendered
+  // and PERSISTS through the exit transition (so content doesn't vanish mid-slide); `panelOn`
+  // toggles the `.dp.on` slide position. The animation timing lives in an effect whose setState
+  // calls are all inside rAF/setTimeout (never synchronous in the effect body).
+  const [panelTask, setPanelTask] = useState<string | null>(null);
+  const [panelOn, setPanelOn] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [add, setAdd] = useState<AddDraft | null>(null);
   const [pop, setPop] = useState<Pop>(null);
@@ -245,24 +251,41 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   // Load full detail (updates + context) for the open task. `detail` may briefly hold the previous
   // task's data after `sel` changes; consumers gate on `detail.id === sel` (no sync setState here).
   useEffect(() => {
-    if (!sel) return;
+    if (!panelTask) return;
     let alive = true;
-    getConsoleTaskDetail(sel).then((res) => {
+    getConsoleTaskDetail(panelTask).then((res) => {
       if (alive && res.ok) setDetail(res.task);
     });
     return () => {
       alive = false;
     };
-  }, [sel, data]);
+  }, [panelTask, data]);
 
   const openTask = useCallback((id: string) => {
-    setSel(id);
     setNoteDraft("");
+    setPanelTask(id); // content is ready immediately
+    setSel(id); // intent → the effect below runs the slide-in
   }, []);
   const closePanel = useCallback(() => {
-    setSel(null);
+    setSel(null); // intent → the effect runs the slide-out, then clears panelTask/detail
     setDetail(null);
   }, []);
+  // Enter/exit animation driven by the open/close intent (`sel`). All setState is deferred into
+  // rAF/setTimeout so nothing runs synchronously in the effect body.
+  useEffect(() => {
+    if (sel) {
+      // Mount is already done (panelTask set by openTask); flip `.on` next frame to slide in.
+      const r = requestAnimationFrame(() => requestAnimationFrame(() => setPanelOn(true)));
+      return () => cancelAnimationFrame(r);
+    }
+    // Slide out, then unmount the content once the transition has finished.
+    const r = requestAnimationFrame(() => setPanelOn(false));
+    const t = setTimeout(() => setPanelTask(null), 300);
+    return () => {
+      cancelAnimationFrame(r);
+      clearTimeout(t);
+    };
+  }, [sel]);
 
   // ── project detail loading ───────────────────────────────────────────────────────
   // Load project sections+tasks for the project view. Gated on `projectDetail.id === projectId`.
@@ -1735,8 +1758,8 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
 
   // ── note send ────────────────────────────────────────────────────────────────────────────
   const sendNote = () => {
-    if (!sel || !noteDraft.trim()) return;
-    const id = sel;
+    if (!panelTask || !noteDraft.trim()) return;
+    const id = panelTask;
     const body = noteDraft;
     run(() => addConsoleNote(id, body), {
       toast: dict.tNoteAdded,
@@ -1898,7 +1921,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       )}
 
       {/* DETAIL PANEL */}
-      {sel && DetailPanel()}
+      {panelTask && DetailPanel()}
 
       {/* POPOVERS / SHEETS / MODALS */}
       {pop && PopoverLayer()}
@@ -1916,8 +1939,8 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   // DETAIL PANEL (E)
   // ────────────────────────────────────────────────────────────────────────────────────────────
   function DetailPanel() {
-    const loaded = detail && detail.id === sel ? detail : null;
-    const t = loaded ?? tasks.find((x) => x.id === sel) ?? null;
+    const loaded = detail && detail.id === panelTask ? detail : null;
+    const t = loaded ?? tasks.find((x) => x.id === panelTask) ?? null;
     if (!t) return null;
     const done = t.status === "completed";
     const mine = isMine(t, meId);
@@ -1932,8 +1955,8 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
 
     return (
       <>
-        <div className="dp-scrim" onClick={closePanel} />
-        <aside className="dp on" onClick={(e) => e.stopPropagation()}>
+        <div className={`dp-scrim ${panelOn ? "on" : ""}`} onClick={closePanel} />
+        <aside className={`dp ${panelOn ? "on" : ""}`} onClick={(e) => e.stopPropagation()}>
         <div className="dp__top">
           <span className="dp__crumb">
             {proj ? (
