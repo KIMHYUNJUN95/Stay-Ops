@@ -271,6 +271,10 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   }, [panelTask, data]);
 
   const openTask = useCallback((id: string) => {
+    // Opening the detail panel dismisses transient overlays (calendar day sheet, any popover) so
+    // their scrims don't sit on top of the panel and block it.
+    setDaySheet(null);
+    setPop(null);
     setNoteDraft("");
     setPanelTask(id); // content is ready immediately
     setSel(id); // intent → the effect below runs the slide-in
