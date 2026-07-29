@@ -1512,7 +1512,8 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     const upcoming = personalTasks
       .filter((t) => {
         const d = dateOf(t);
-        return isActive(t) && myOwn(t, meId) && !!d && d >= today && d.slice(0, 7) === calMonth;
+        // "다가오는 일정" = 미래만(오늘 제외) — 레일 카드와 동일 의미로 통일(오늘 작업은 그리드 오늘 칸/오늘 탭에).
+        return isActive(t) && myOwn(t, meId) && !!d && d > today && d.slice(0, 7) === calMonth;
       })
       .sort(dateSort);
     const agByDay = new Map<string, TaskRecord[]>();
@@ -1855,7 +1856,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             )
           ) : (
             <div className="card__body">
-              <div className="railempty">{dict.calNoMonth}</div>
+              <div className="railempty">{dict.railUpcomingEmpty}</div>
             </div>
           )}
         </div>

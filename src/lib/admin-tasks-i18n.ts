@@ -245,6 +245,7 @@ export type AdminTasksDictionary = {
   // rail
   railTodayTitle: string;
   railTodayProgress: string;
+  railUpcomingEmpty: string;
   // undo toast
   undoBtn: string;
   undoNext: string; // "다음: {date}"
@@ -324,7 +325,7 @@ const ko: AdminTasksDictionary = {
   confirmLeaveMsg: "이 작업에서 나만 빠질까요?",
   confirmClearMsg: "지난 미완료 작업을 모두 정리할까요? 되돌릴 수 없습니다.",
   confirmDeleteBtn: "삭제",
-  railTodayTitle: "오늘 진행 현황", railTodayProgress: "오늘 작업 진척률",
+  railTodayTitle: "오늘 진행 현황", railTodayProgress: "오늘 작업 진척률", railUpcomingEmpty: "다가오는 일정이 없습니다",
   undoBtn: "실행 취소", undoNext: "다음: {date}", tDeletedUndoable: "작업을 삭제했습니다",
 };
 
@@ -401,7 +402,7 @@ const ja: AdminTasksDictionary = {
   confirmLeaveMsg: "このタスクから自分だけ抜けますか？",
   confirmClearMsg: "過去の未完了タスクをすべて整理しますか？元に戻せません。",
   confirmDeleteBtn: "削除",
-  railTodayTitle: "今日の進捗", railTodayProgress: "今日のタスク進捗率",
+  railTodayTitle: "今日の進捗", railTodayProgress: "今日のタスク進捗率", railUpcomingEmpty: "今後の予定はありません",
   undoBtn: "元に戻す", undoNext: "次回: {date}", tDeletedUndoable: "タスクを削除しました",
 };
 
@@ -478,7 +479,7 @@ const en: AdminTasksDictionary = {
   confirmLeaveMsg: "Leave this task (you only)?",
   confirmClearMsg: "Clear all past unfinished tasks? This can't be undone.",
   confirmDeleteBtn: "Delete",
-  railTodayTitle: "Today's progress", railTodayProgress: "Today's completion",
+  railTodayTitle: "Today's progress", railTodayProgress: "Today's completion", railUpcomingEmpty: "Nothing upcoming",
   undoBtn: "Undo", undoNext: "Next: {date}", tDeletedUndoable: "Task deleted",
 };
 
