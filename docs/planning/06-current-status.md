@@ -3661,3 +3661,23 @@ Files: `src/app/mobile/requests/lost-found/returned/page.tsx`(신규),
 `src/components/requests/returned-lost-found-list.tsx`(신규),
 `src/lib/lost-found.ts`, `src/components/requests/requests-filter-view.tsx`,
 `src/app/mobile/requests/page.tsx`, `src/lib/i18n.ts`, docs(09-product, 16-product, 06-planning).
+
+## 2026-07-29 어드민 콘솔 정합성 수정 2건
+
+**1. 청소 대시보드 객실 정렬.** `/admin/cleaning` 오늘 현황/기록의 객실 카드가 예약 조회 순서 그대로
+렌더링돼 가부키초가 `402 → 302 → 202`처럼 뒤섞여 보이던 문제. `compareRoomLabel()`
+(`src/lib/room-label-normalization.ts`, 신규)을 추가하고 `src/lib/admin-cleaning.ts`에서
+**건물 순 → 객실번호 오름차순**으로 서버에서 한 번만 정렬한다. 숫자 구간을 숫자로 비교하므로
+`202 < 302 < 402`, `AB201 < AB202 < AB301`, `8 < 9 < 10`. 기록 탭은 날짜 순서를 유지한 채 같은 날짜
+안에서만 재정렬하며, 화면 테이블과 Excel/PDF 내보내기가 같은 배열을 공유한다. Docs: 07-product.
+
+**2. 근태 subnav 탭 간 시각 일관성.** 연차 탭에서만 (a) 배지 칩이 사라져 탭 위치가 밀리고 (b) 우측이
+피커 대신 페이지 제목과 중복되는 정적 텍스트로 나오던 문제. 연차 페이지도 배지를 넘기도록 수정하고,
+정적 텍스트 폴백을 제거했으며, 출근자 명단에만 적용되던 solid navy 활성 스타일(`.subnav__t--entry`)을
+삭제해 7개 탭의 활성 스타일을 통일했다. Docs: 05-product, 01-planning(결정 로그).
+
+검증: `npm run lint` 0 errors, `npm run build` 통과. 실제 로그인 화면 확인은 사용자 몫.
+
+Files: `src/lib/room-label-normalization.ts`, `src/lib/admin-cleaning.ts`,
+`src/app/admin/attendance/leave/page.tsx`, `src/components/admin/attendance/attendance-subnav.tsx`,
+`src/components/admin/admin-console.css`, docs(07-product, 05-product, 01-planning, 06-planning).
