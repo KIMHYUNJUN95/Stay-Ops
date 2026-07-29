@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Archive,
   CalendarDays,
@@ -39,6 +39,7 @@ import {
   reopenTask,
   reorderTasks,
   rescheduleOverdueTo,
+  restoreTask,
 } from "@/app/mobile/tasks/[id]/actions";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { TaskSchedulePicker } from "@/components/tasks/task-schedule-sheet";
@@ -283,6 +284,33 @@ export function TasksWorkspace({
     if (undoTimer.current) clearTimeout(undoTimer.current);
   }, [runStatus]);
 
+  // Delete undo: deleteTask soft-deletes then redirects to ?deleted=<id>. Show a "삭제했습니다 · 실행
+  // 취소" toast that calls restoreTask. Guarded by a ref so it fires once per id (no re-show on refresh).
+  const searchParams = useSearchParams();
+  const [deletedUndoId, setDeletedUndoId] = useState<string | null>(null);
+  const processedDelete = useRef<string | null>(null);
+  useEffect(() => {
+    const id = searchParams.get("deleted");
+    if (!id || processedDelete.current === id) return;
+    processedDelete.current = id;
+    const raf = requestAnimationFrame(() => setDeletedUndoId(id));
+    const t = setTimeout(() => setDeletedUndoId((cur) => (cur === id ? null : cur)), 5500);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [searchParams]);
+  const handleRestore = useCallback(() => {
+    setDeletedUndoId((id) => {
+      if (id)
+        startComplete(async () => {
+          await restoreTask(id);
+          router.refresh();
+        });
+      return null;
+    });
+  }, [router]);
+
   // 완료/기록 tab: daily-report sheet target date (the day-group whose 보고서 button was tapped).
   const [reportDate, setReportDate] = useState<string | null>(null);
   // 완료/기록 tab: regular vs. project completions filter. Project tasks don't exist yet
@@ -301,6 +329,29 @@ export function TasksWorkspace({
   const isTomorrow = (t: TaskRecord) =>
     isActive(t) && (t.scheduledDate === tomorrowDate || dueDateOf(t) === tomorrowDate);
   const anchor = (t: TaskRecord) => dueDateOf(t) ?? t.scheduledDate ?? null;
+  // "다음: {날짜}" for the just-completed recurring task (its next occurrence after today).
+  const undoSub = (() => {
+    if (!undoTask || !isStandardRecurrence(undoTask.recurrenceRule)) return undefined;
+    const a = anchor(undoTask);
+    if (!a) return undefined;
+    const next = recurringOccurrencesInRange(
+      undoTask.recurrenceRule,
+      a,
+      ymdShift(today, 1),
+      ymdShift(today, 366),
+    )[0];
+    if (!next) return undefined;
+    const label =
+      next === ymdShift(today, 1)
+        ? copy.viewTomorrow
+        : new Intl.DateTimeFormat(locale, {
+            month: "numeric",
+            day: "numeric",
+            weekday: "short",
+            timeZone: "UTC",
+          }).format(new Date(`${next}T00:00:00Z`));
+    return copy.nextLabel.replace("{date}", label);
+  })();
   const prioSort = (a: TaskRecord, b: TaskRecord) =>
     (PRIO_ORD[a.priority] ?? 2) - (PRIO_ORD[b.priority] ?? 2);
   // Today-view ordering: a manual drag-reorder (sort_order) wins; unranked tasks (sort_order null)
@@ -1639,19 +1690,37 @@ export function TasksWorkspace({
         </BottomSheet>
       ) : null}
 
-      {/* Quick-complete undo toast — floats above the tab bar after a status-circle tap. */}
-      {undoTask && hydrated
+      {/* Undo toast — floats above the tab bar after a complete (status-circle) or a delete. */}
+      {(undoTask || deletedUndoId) && hydrated
         ? createPortal(
             <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-4">
-              <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-slate-900 py-2.5 pl-4 pr-2.5 text-white shadow-[0_14px_36px_-12px_rgba(20,16,10,0.5)]">
-                <span className="text-[13px] font-bold">{copy.completedToast}</span>
+              <div className="pointer-events-auto flex max-w-[420px] items-center gap-2.5 rounded-[18px] bg-slate-900 py-2.5 pl-4 pr-2 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
+                <div className="flex min-w-0 flex-col">
+                  <span className="whitespace-nowrap text-[13px] font-bold tracking-[-0.01em]">
+                    {undoTask ? copy.completedToast : copy.deletedToast}
+                  </span>
+                  {undoTask && undoSub ? (
+                    <span className="whitespace-nowrap text-[11.5px] font-medium text-slate-400">{undoSub}</span>
+                  ) : null}
+                </div>
                 <button
-                  className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-[12.5px] font-extrabold text-white transition-colors active:bg-white/25"
-                  onClick={handleUndo}
+                  className="ml-1 inline-flex flex-none items-center gap-1 rounded-xl px-2.5 py-1.5 text-[13px] font-extrabold text-rose-300 transition-colors active:bg-white/10"
+                  onClick={undoTask ? handleUndo : handleRestore}
                   type="button"
                 >
                   <RotateCcw className="size-3.5" aria-hidden="true" />
                   {copy.undo}
+                </button>
+                <button
+                  className="inline-flex size-8 flex-none items-center justify-center rounded-xl text-slate-400 transition-colors active:bg-white/10"
+                  onClick={() => {
+                    setUndoTask(null);
+                    setDeletedUndoId(null);
+                  }}
+                  type="button"
+                  aria-label={copy.undo}
+                >
+                  <X className="size-4" aria-hidden="true" />
                 </button>
               </div>
             </div>,

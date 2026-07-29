@@ -2600,6 +2600,8 @@ const FALLBACK_DICTIONARY = {
     complete: "Complete",
     reopen: "Reopen",
     completedToast: "Marked complete",
+    nextLabel: "Next: {date}",
+    deletedToast: "Task deleted",
     undo: "Undo",
     photoCountLabel: "{count} photo",
     completedBy: "completed",
@@ -4011,8 +4013,8 @@ const FALLBACK_DICTIONARY = {
     },
   },
   maintenance: {
-    // Admin ìë¦¬Â·ì ê² console (/admin/maintenance). Ported from the Claude Design handoff on
-    // 2026-07-14 â see docs/product/08-maintenance-workflow.md.
+    // Admin 수리·점검 console (/admin/maintenance). Ported from the Claude Design handoff on
+    // 2026-07-14 — see docs/product/08-maintenance-workflow.md.
     console: {
       crumb: "Operations Â· Facilities",
       title: "Maintenance",
@@ -6933,6 +6935,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       complete: "완료",
       reopen: "다시 열기",
       completedToast: "완료했습니다",
+      nextLabel: "다음: {date}",
+      deletedToast: "작업을 삭제했습니다",
       undo: "실행 취소",
       photoCountLabel: "사진 {count}장",
       completedBy: "완료",
@@ -11203,6 +11207,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       complete: "完了",
       reopen: "再開",
       completedToast: "完了しました",
+      nextLabel: "次回: {date}",
+      deletedToast: "タスクを削除しました",
       undo: "元に戻す",
       photoCountLabel: "写真{count}枚",
       completedBy: "完了",
