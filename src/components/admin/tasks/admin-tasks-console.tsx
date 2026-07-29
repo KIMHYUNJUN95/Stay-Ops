@@ -130,7 +130,7 @@ type AddDraft = {
 type Anchor = { x: number; y: number };
 type SchedulePop = {
   kind: "schedule";
-  src: "add" | "task";
+  src: "add" | "task" | "overdue";
   taskId: string | null;
   draft: { date: string; time: string; dur: number | null; repeat: string };
   calMonth: string;
@@ -753,6 +753,26 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       setPop(null);
       return;
     }
+    if (p.src === "overdue") {
+      // Bulk-reschedule every overdue task to the picked date, preserving each task's own
+      // time/duration/recurrence (the picker's time/repeat are per-task, not meaningful in bulk).
+      const date = p.draft.date;
+      const items = overdueList.slice();
+      setPop(null);
+      startTransition(async () => {
+        for (const task of items) {
+          await rescheduleConsoleTask(task.id, {
+            date,
+            time: task.timeLabel ?? "",
+            durationMinutes: task.durationMinutes,
+            repeat: task.recurrenceRule ?? "none",
+          });
+        }
+        showToast(dict.tRescheduled);
+        router.refresh();
+      });
+      return;
+    }
     if (!p.taskId) {
       setPop(null);
       return;
@@ -812,14 +832,6 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   };
 
   // ── OVERDUE BULK ────────────────────────────────────────────────────────────────────
-  const rescheduleAllOverdue = () => {
-    const ids = overdueList.map((t) => t.id);
-    startTransition(async () => {
-      for (const id of ids) await moveConsoleToToday(id);
-      showToast(dict.tMoved);
-      router.refresh();
-    });
-  };
   const clearOverdue = () => {
     const items = overdueList.slice();
     startTransition(async () => {
@@ -855,7 +867,22 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                 <div className="odbanner__s">{dict.overdueSub}</div>
               </div>
               <div className="odbanner__acts">
-                <button className="od-b" onClick={rescheduleAllOverdue}>
+                <button
+                  className="od-b"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const a = anchorFrom(e);
+                    setPop({
+                      kind: "schedule",
+                      src: "overdue",
+                      taskId: null,
+                      draft: { date: today, time: "", dur: null, repeat: "none" },
+                      calMonth: today.slice(0, 7),
+                      expand: null,
+                      ...a,
+                    });
+                  }}
+                >
                   {dict.overdueReschedule}
                 </button>
                 <button
