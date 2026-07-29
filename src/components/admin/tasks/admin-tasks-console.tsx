@@ -166,7 +166,9 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   const { toast, showToast, dismiss } = useAdminToast();
 
   const meId = data.me.id;
-  const today = useMemo(() => tokyoToday(), []);
+  // Tokyo operating date. Kept live so a console left open across Tokyo midnight rolls today/내일/
+  // overdue over without a manual refresh (checked each minute + on focus/visibility change).
+  const [today, setToday] = useState(() => tokyoToday());
 
   const [view, setView] = useState<View>("today");
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -285,6 +287,17 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     // Both panelTask and detail are cleared together when the exit finishes (effect below).
     setSel(null);
   }, []);
+  const goView = useCallback((v: View) => {
+    setProjectId(null);
+    setView(v);
+    setAdd(null);
+    // 캘린더는 필터바가 없어 활성 필터를 해제할 UI가 없으므로, 진입 시 검색/우선순위/날짜 필터를 초기화한다.
+    if (v === "calendar") {
+      setQ("");
+      setPrioFilter("");
+      setDateFilter(null);
+    }
+  }, []);
   // Enter/exit animation driven by the open/close intent (`sel`). All setState is deferred into
   // rAF/setTimeout so nothing runs synchronously in the effect body.
   useEffect(() => {
@@ -333,6 +346,19 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [confirm, pop, daySheet, report, newProj, sel, add, closePanel]);
+
+  // ── keep the Tokyo operating date live (roll over at Tokyo midnight without a refresh) ──────
+  useEffect(() => {
+    const check = () => setToday((prev) => (tokyoToday() !== prev ? tokyoToday() : prev));
+    const id = setInterval(check, 60_000);
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, []);
 
   // ── popover placement: put the whole popover on screen (no scroll on normal viewports) ──────
   // Measured before paint (useLayoutEffect): fit below the trigger, else above, else clamp.
@@ -1702,7 +1728,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
               <span className="card__t">{dict.instrRecv}</span>
             </div>
             <div className="card__act">
-              <button className="linkmore" onClick={() => { setProjectId(null); setView("instr"); setInstrTab("recv"); }}>
+              <button className="linkmore" onClick={() => { goView("instr"); setInstrTab("recv"); }}>
                 {dict.vInstr}
                 <ChevronRight size={13} />
               </button>
@@ -1726,7 +1752,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
               <span className="card__t">{dict.instrSent}</span>
             </div>
             <div className="card__act">
-              <button className="linkmore" onClick={() => { setProjectId(null); setView("instr"); setInstrTab("sent"); }}>
+              <button className="linkmore" onClick={() => { goView("instr"); setInstrTab("sent"); }}>
                 {dict.vInstr}
                 <ChevronRight size={13} />
               </button>
@@ -1750,7 +1776,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
               <span className="card__t">{dict.calUpcoming}</span>
             </div>
             <div className="card__act">
-              <button className="linkmore" onClick={() => { setProjectId(null); setView("calendar"); }}>
+              <button className="linkmore" onClick={() => goView("calendar")}>
                 {dict.vCalendar}
                 <ChevronRight size={13} />
               </button>
@@ -1880,11 +1906,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             <button
               key={v}
               className={`tab ${!projectId && view === v ? "on" : ""}`}
-              onClick={() => {
-                setProjectId(null);
-                setView(v);
-                setAdd(null);
-              }}
+              onClick={() => goView(v)}
             >
               {icon}
               {label}
