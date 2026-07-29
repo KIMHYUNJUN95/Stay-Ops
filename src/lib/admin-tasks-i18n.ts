@@ -245,6 +245,10 @@ export type AdminTasksDictionary = {
   // rail
   railTodayTitle: string;
   railTodayProgress: string;
+  // undo toast
+  undoBtn: string;
+  undoNext: string; // "다음: {date}"
+  tDeletedUndoable: string;
 };
 
 const ko: AdminTasksDictionary = {
@@ -321,6 +325,7 @@ const ko: AdminTasksDictionary = {
   confirmClearMsg: "지난 미완료 작업을 모두 정리할까요? 되돌릴 수 없습니다.",
   confirmDeleteBtn: "삭제",
   railTodayTitle: "오늘 진행 현황", railTodayProgress: "오늘 작업 진척률",
+  undoBtn: "실행 취소", undoNext: "다음: {date}", tDeletedUndoable: "작업을 삭제했습니다",
 };
 
 const ja: AdminTasksDictionary = {
@@ -397,6 +402,7 @@ const ja: AdminTasksDictionary = {
   confirmClearMsg: "過去の未完了タスクをすべて整理しますか？元に戻せません。",
   confirmDeleteBtn: "削除",
   railTodayTitle: "今日の進捗", railTodayProgress: "今日のタスク進捗率",
+  undoBtn: "元に戻す", undoNext: "次回: {date}", tDeletedUndoable: "タスクを削除しました",
 };
 
 const en: AdminTasksDictionary = {
@@ -473,6 +479,7 @@ const en: AdminTasksDictionary = {
   confirmClearMsg: "Clear all past unfinished tasks? This can't be undone.",
   confirmDeleteBtn: "Delete",
   railTodayTitle: "Today's progress", railTodayProgress: "Today's completion",
+  undoBtn: "Undo", undoNext: "Next: {date}", tDeletedUndoable: "Task deleted",
 };
 
 const dictionaries: Record<Locale, AdminTasksDictionary> = { ko, ja, en };

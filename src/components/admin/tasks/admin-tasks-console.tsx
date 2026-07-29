@@ -61,12 +61,14 @@ import {
   moveConsoleToInbox,
   moveConsoleToToday,
   rescheduleConsoleTask,
+  restoreConsoleTask,
   setConsoleTaskStatus,
   shareConsoleTask,
   toggleConsoleComplete,
   updateConsoleTaskCore,
   type TaskActionResult,
 } from "@/app/admin/tasks/actions";
+import { isStandardRecurrence, recurringOccurrencesInRange } from "@/lib/tasks-recurrence";
 import type { AdminTasksData } from "@/lib/admin-tasks";
 import { getAdminTasksDictionary } from "@/lib/admin-tasks-i18n";
 import type { Locale } from "@/lib/i18n";
@@ -197,6 +199,8 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   const [reportEdited, setReportEdited] = useState("");
   const [newProj, setNewProj] = useState<{ name: string; members: string[]; q: string } | null>(null);
   const [confirm, setConfirm] = useState<{ message: string; confirmLabel: string; onConfirm: () => void } | null>(null);
+  // Undo toast (Todoist-style): dark bottom-left toast with a "실행 취소" action, ~6s.
+  const [undo, setUndo] = useState<{ id: number; message: string; sub?: string; onUndo: () => void } | null>(null);
 
   // ── name / role maps ──────────────────────────────────────────────────────────
   const nameMap = useMemo(() => {
@@ -258,6 +262,18 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     [errMsg, router, showToast],
   );
 
+  // Auto-dismiss the undo toast (~6s). Clicking undo or a new toast replaces it.
+  useEffect(() => {
+    if (!undo) return;
+    const t = setTimeout(() => setUndo(null), 6000);
+    return () => clearTimeout(t);
+  }, [undo]);
+  const showUndo = useCallback(
+    (message: string, onUndo: () => void, sub?: string) =>
+      setUndo({ id: Date.now(), message, onUndo, sub }),
+    [],
+  );
+
   // ── detail loading (updates + resolved context) ─────────────────────────────────
   // Load full detail (updates + context) for the open task. `detail` may briefly hold the previous
   // task's data after `sel` changes; consumers gate on `detail.id === sel` (no sync setState here).
@@ -298,6 +314,54 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       setDateFilter(null);
     }
   }, []);
+  // "다음: {date}" for a recurring task (its next occurrence after today), else undefined.
+  const recurringNextLabel = useCallback(
+    (t: TaskRecord): string | undefined => {
+      if (!isStandardRecurrence(t.recurrenceRule)) return undefined;
+      const anchor = dueDateOf(t) ?? t.scheduledDate;
+      if (!anchor) return undefined;
+      const next = recurringOccurrencesInRange(t.recurrenceRule, anchor, addDays(today, 1), addDays(today, 366))[0];
+      if (!next) return undefined;
+      const label =
+        next === addDays(today, 1) ? dict.tomorrow : `${fmtShort(next, locale)} (${fmtWeekday(next, locale)})`;
+      return fill(dict.undoNext, { date: label });
+    },
+    [today, dict, locale],
+  );
+  // Toggle complete; on completing show a "완료 · 실행 취소" undo toast (reopen). Reopen is itself the
+  // correction → plain toast, no undo.
+  const toggleComplete = useCallback(
+    (t: TaskRecord) => {
+      if (t.status === "completed") {
+        run(() => toggleConsoleComplete(t.id, false), { toast: dict.tReopened });
+        return;
+      }
+      const sub = recurringNextLabel(t);
+      run(() => toggleConsoleComplete(t.id, true), {
+        after: () =>
+          showUndo(
+            dict.tCompleted,
+            () => run(() => toggleConsoleComplete(t.id, false), { after: () => setUndo(null) }),
+            sub,
+          ),
+      });
+    },
+    [run, dict, recurringNextLabel, showUndo],
+  );
+  // Immediate (soft) delete + undo toast — replaces the confirm modal for single-task delete.
+  const deleteWithUndo = useCallback(
+    (t: TaskRecord) => {
+      run(() => deleteConsoleTask(t.id), {
+        after: () => {
+          if (sel === t.id || panelTask === t.id) closePanel();
+          showUndo(dict.tDeletedUndoable, () =>
+            run(() => restoreConsoleTask(t.id), { after: () => setUndo(null) }),
+          );
+        },
+      });
+    },
+    [run, dict, sel, panelTask, closePanel, showUndo],
+  );
   // Enter/exit animation driven by the open/close intent (`sel`). All setState is deferred into
   // rAF/setTimeout so nothing runs synchronously in the effect body.
   useEffect(() => {
@@ -482,9 +546,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           className={`tchk ${pcls} ${done ? "is-done" : ""}`}
           onClick={(e) => {
             e.stopPropagation();
-            run(() => toggleConsoleComplete(t.id, !done), {
-              toast: done ? dict.tReopened : dict.tCompleted,
-            });
+            toggleComplete(t);
           }}
           aria-label={dict.stCompleted}
         >
@@ -1190,7 +1252,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             className={`tchk ${t.priority !== "normal" ? `p-${t.priority}` : ""} ${done ? "is-done" : ""}`}
             onClick={(e) => {
               e.stopPropagation();
-              run(() => toggleConsoleComplete(t.id, !done), { toast: done ? dict.tReopened : dict.tCompleted });
+              toggleComplete(t);
             }}
             aria-label={dict.stCompleted}
           >
@@ -2021,6 +2083,25 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       {confirm && ConfirmModal()}
 
       {toast && <AdminToast message={toast.message} onDismiss={dismiss} />}
+      {undo && (
+        <div className="undobar" role="status" onClick={(e) => e.stopPropagation()}>
+          <div className="undobar__txt">
+            <span className="undobar__msg">{undo.message}</span>
+            {undo.sub && <span className="undobar__sub">{undo.sub}</span>}
+          </div>
+          <button
+            className="undobar__act"
+            onClick={() => {
+              undo.onUndo();
+            }}
+          >
+            {dict.undoBtn}
+          </button>
+          <button className="undobar__x" onClick={() => setUndo(null)} aria-label={dict.iaCancel}>
+            <X size={15} />
+          </button>
+        </div>
+      )}
       {pending && <span className="sr-only" aria-live="polite" />}
     </div>
   );
@@ -2076,7 +2157,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           <div className="dp__lead">
             <button
               className={`tchk ${t.priority !== "normal" ? `p-${t.priority}` : ""} ${done ? "is-done" : ""}`}
-              onClick={() => run(() => toggleConsoleComplete(t.id, !done), { toast: done ? dict.tReopened : dict.tCompleted })}
+              onClick={() => toggleComplete(t)}
             >
               <Check size={13} />
             </button>
@@ -2303,16 +2384,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                 </button>
               )}
               <span className="sp" />
-              <button
-                className="btn btn--warn btn--sm"
-                onClick={() =>
-                  setConfirm({
-                    message: dict.confirmDeleteMsg,
-                    confirmLabel: dict.confirmDeleteBtn,
-                    onConfirm: () => run(() => deleteConsoleTask(t.id), { toast: dict.tDeleted, after: closePanel }),
-                  })
-                }
-              >
+              <button className="btn btn--warn btn--sm" onClick={() => deleteWithUndo(t)}>
                 <Trash2 size={15} />
                 {shared ? dict.dpUnshareDelete : dict.dpDelete}
               </button>
@@ -2670,12 +2742,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             className="mitem mitem--warn"
             onClick={() => {
               close();
-              setConfirm({
-                message: dict.confirmDeleteMsg,
-                confirmLabel: dict.confirmDeleteBtn,
-                onConfirm: () =>
-                  run(() => deleteConsoleTask(t.id), { toast: dict.tDeleted, after: () => sel === t.id && closePanel() }),
-              });
+              deleteWithUndo(t);
             }}
           >
             <Trash2 size={15} />
