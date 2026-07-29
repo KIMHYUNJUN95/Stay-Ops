@@ -5,7 +5,7 @@
 // 디자인: Claude Design "StayOps 투두 (admin)" 이식. CSS: admin-tasks-console.css (.adm 스코프).
 // 서버 액션(@/app/admin/tasks/actions)이 모든 쓰기를 처리하고, revalidatePath + router.refresh() 로 갱신한다.
 // See docs/product/28-admin-todoist-console.md.
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -155,6 +155,10 @@ function anchorFrom(e: ReactMouseEvent): Anchor {
   return { x: r.left, y: r.bottom + 6, aTop: r.top };
 }
 
+// useLayoutEffect on the client (positions before paint → no flicker), useEffect on the server
+// (avoids the SSR warning; the popover never renders during SSR anyway).
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 export function AdminTasksConsole({ locale, data }: { locale: Locale; data: AdminTasksData }) {
   const dict = getAdminTasksDictionary(locale);
   const router = useRouter();
@@ -178,6 +182,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   const [noteDraft, setNoteDraft] = useState("");
   const [add, setAdd] = useState<AddDraft | null>(null);
   const [pop, setPop] = useState<Pop>(null);
+  const popAnchorRef = useRef<HTMLDivElement>(null);
   const [instrTab, setInstrTab] = useState<"recv" | "sent">("recv");
   const [calMonth, setCalMonth] = useState<string>(() => today.slice(0, 7));
   const [q, setQ] = useState("");
@@ -315,6 +320,26 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [confirm, pop, daySheet, report, newProj, sel, add, closePanel]);
+
+  // ── popover placement: put the whole popover on screen (no scroll on normal viewports) ──────
+  // Measured before paint (useLayoutEffect): fit below the trigger, else above, else clamp.
+  // Positioned imperatively via the DOM (no setState) so there's no re-render/flicker/jump.
+  useIsoLayoutEffect(() => {
+    const el = popAnchorRef.current;
+    if (!el || !pop) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const h = el.offsetHeight;
+    const w = el.offsetWidth;
+    const left = Math.max(8, Math.min(pop.x, vw - w - 8));
+    let top = pop.y; // below the trigger
+    if (top + h > vh - 8) {
+      const above = pop.aTop - 6 - h; // flip above the trigger
+      top = above >= 8 ? above : Math.max(8, vh - 8 - h);
+    }
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+  }, [pop]);
 
   // ── derived task groups (내 뷰는 myOwn) ────────────────────────────────────────────
   const overdueList = tasks.filter((t) => isOverdue(t, today) && myOwn(t, meId));
@@ -2286,21 +2311,12 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   // ────────────────────────────────────────────────────────────────────────────────────────────
   function PopoverLayer() {
     if (!pop) return null;
-    const vw = typeof window !== "undefined" ? window.innerWidth : 1280;
-    const vh = typeof window !== "undefined" ? window.innerHeight : 800;
-    // Trigger low on screen → open upward so a tall popover isn't cut off at the bottom.
-    // Either way the available space is passed to `--tpop-maxh` so the popover scrolls if needed.
-    const openUp = pop.y > vh * 0.6;
-    const avail = Math.max(180, openUp ? pop.aTop - 16 : vh - pop.y - 12);
-    const style = {
-      left: Math.max(8, Math.min(pop.x, vw - 340)),
-      ...(openUp ? { bottom: Math.max(8, vh - pop.aTop + 6) } : { top: pop.y }),
-      "--tpop-maxh": `${avail}px`,
-    } as unknown as CSSProperties;
+    // Initial guess (below the trigger); the layout effect measures and repositions before paint.
+    const style: CSSProperties = { left: pop.x, top: pop.y };
     return (
       <>
         <div className="tpop-scrim" onClick={() => setPop(null)} />
-        <div className="tpop-anchor" style={style} onClick={(e) => e.stopPropagation()}>
+        <div ref={popAnchorRef} className="tpop-anchor" style={style} onClick={(e) => e.stopPropagation()}>
           {pop.kind === "schedule" && SchedulePopover({ p: pop })}
           {pop.kind === "prio" && PrioMenu({ p: pop })}
           {pop.kind === "share" && SharePopover({ p: pop })}

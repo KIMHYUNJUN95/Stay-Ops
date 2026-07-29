@@ -294,6 +294,10 @@ Status: **Implemented (2026-07-27).** 이 문서는 대시보드(어드민 웹) 
   동안 유지)를 분리하고 `.dp.on`/`.dp-scrim.on` 토글을 rAF/타이머로 구동(닫힘 후 280~300ms에 언마운트).
 - **중앙 모달 오프셋 버그:** 공용 `.pop`의 `top:calc(100%+8px)`/`right:0` 이 `.day-wrap .pop`(relative)에서
   리셋되지 않아 모달이 뷰포트 밖으로 밀리던 문제 → `.day-wrap .pop`에 `top/right/left/bottom:auto` 리셋.
+- **팝오버 화면 내 배치(스크롤 통일):** 팝오버(일정/우선순위/공유/메뉴)는 `useLayoutEffect`로 paint 전에
+  높이를 측정해 "아래에 들어가면 아래, 안 되면 위, 그래도 안 되면 클램프"로 배치한다(imperative DOM, setState
+  없음 → 재렌더/깜빡임/점프 없음). 항상 통째로 보이므로 정상 화면에선 **스크롤이 생기지 않는다**(뷰포트보다
+  큰 극단 상황에서만 내부 스크롤).
 - **오버레이는 포털 대신 인라인 렌더:** 초기 `document.body` 포털이 `.adm` 스코프 CSS를 못 받아 미표시 →
   콘솔 내부(=`.adm` 자식) 인라인 렌더로 전환(조상 transform 없음 → `position:fixed` 정상). 필터 검색
   돋보기는 `.filt__search .ic`(absolute) 규칙을 받도록 `<span class="ic">`로 감쌈.
