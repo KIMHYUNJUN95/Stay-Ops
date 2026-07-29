@@ -48,6 +48,12 @@ const REQUEST_IMAGE_BUCKET = "request-images";
 const detailPath = (id: string, error?: string) =>
   `/mobile/tasks/${id}${error ? `?error=${error}` : ""}`;
 
+// Project tasks are shown on their project page too, so a status change there must revalidate it —
+// otherwise the checkbox/progress in the project detail view won't refresh (only Today/detail did).
+function revalidateProjectPath(projectId: string | null) {
+  if (projectId) revalidatePath(`/mobile/tasks/projects/${projectId}`);
+}
+
 // Extract the Storage object path from a request-images public URL.
 // Returns null for URLs that are not public objects in the expected bucket/host.
 function extractRequestImagePath(publicUrl: string): string | null {
@@ -447,6 +453,7 @@ export async function completeTask(taskId: string) {
     );
     revalidatePath("/mobile/tasks");
     revalidatePath(detailPath(id));
+    revalidateProjectPath(task.projectId);
     return;
   }
 
@@ -475,6 +482,7 @@ export async function completeTask(taskId: string) {
   );
   revalidatePath("/mobile/tasks");
   revalidatePath(detailPath(id));
+  revalidateProjectPath(task.projectId);
 }
 
 // Re-open a completed task: clear status + completion stamps and log a `reopened` update. No
@@ -509,6 +517,7 @@ export async function reopenTask(taskId: string) {
     } as never);
     revalidatePath("/mobile/tasks");
     revalidatePath(detailPath(id));
+    revalidateProjectPath(task.projectId);
     return;
   }
 
@@ -527,6 +536,7 @@ export async function reopenTask(taskId: string) {
   } as never);
   revalidatePath("/mobile/tasks");
   revalidatePath(detailPath(id));
+  revalidateProjectPath(task.projectId);
 }
 
 export async function shareTaskWithUsers(formData: FormData) {

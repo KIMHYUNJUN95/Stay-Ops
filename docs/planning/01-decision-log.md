@@ -3845,6 +3845,24 @@ Status: **기획 문서만 작성(코드 없음).** 스펙: `docs/product/28-adm
 갱신: `docs/product/18-todo-task-workflow.md`, `docs/product/05-admin-web-ia.md`. 디자인은 대표님이 이
 문서를 기준으로 직접 진행.
 
+## 모바일 Todoist 디버그 QA — yearly 반복 데이터 손실 외 (2026-07-29)
+
+정적 전수 감사 후 실사용 버그 수정:
+- **[높음/데이터 손실] yearly 반복 규칙이 두 lib 간 불일치**: `tasks.ts`의 `STANDARD_RECURRENCE_RULES`는
+  yearly 포함(create/edit/complete 처리 O)인데 client-safe `tasks-recurrence.ts`엔 누락 → 오버듀 yearly
+  작업에 "지난 미완료 삭제" 시 `isStandardRecurrence("yearly")===false`로 **영구 삭제**되던 버그.
+  `tasks-recurrence.ts`에 yearly + `shiftYearlyYmd` + `nextOccurrence` 분기 추가해 `tasks.ts`와 단일화
+  (두 파일 sync 필수 주석). 캘린더 미리보기·reschedule 데스싱크도 함께 해소.
+- **[중] 캘린더 날짜 시트가 반복 확장 안 함**: 달력 셀엔 보이는데 날짜 탭 시 시트가 비던 문제 →
+  `renderDaySheet`를 캘린더 셀과 동일한 `recurringOccurrencesInRange` 확장으로 정렬.
+- **[중] 프로젝트 상세 완료 토글 미반영**: `completeTask`/`reopenTask`가 프로젝트 경로를 재검증 안 함 →
+  `revalidateProjectPath(task.projectId)` 추가(4개 경로).
+- **[낮] 공유/초대 검색 대소문자 구분**(share-picker/projects-board) → toLowerCase 비교.
+- **[낮] 오버듀 일괄 선택에 남의 작업 포함**(카운트 과대) → `toggleOverdueTask`를 owned로 제한.
+- **[낮] SharePicker 전원 해제 불가** → 기존 선택이 있던 경우 0명 적용 허용.
+- 미수정(엣지): 늦게 완료한 반복 작업 undo가 원래 오버듀 날짜 대신 직전 회차로 복구(Todoist형 설계).
+`npm run lint`(0 errors)/`build` 통과. `docs/product/18` 갱신.
+
 ## 관리함 = 프로젝트 밖 모든 활성 작업 (Todoist Inbox 모델, 모바일·대시보드 정렬) (2026-07-29)
 
 Decision: 벤치마크(Todoist)처럼 **관리함(Inbox) = 프로젝트에 속하지 않은 모든 활성 작업**(날짜 유무 무관)으로

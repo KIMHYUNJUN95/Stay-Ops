@@ -7,10 +7,15 @@
  * are computed on the fly (here) for calendar previews rather than stored as rows.
  */
 
+// MUST stay in sync with `STANDARD_RECURRENCE_RULES` in `@/lib/tasks` (the server-only twin).
+// A rule present in one but not the other silently diverges the two code paths — e.g. an overdue
+// `yearly` task would roll forward via tasks.ts but be **hard-deleted** by the dismiss/reschedule
+// branch that gates on this file's `isStandardRecurrence`.
 export const STANDARD_RECURRENCE_RULES = [
   "daily",
   "weekly",
   "monthly",
+  "yearly",
   "weekdays",
   "weekends",
 ] as const;
@@ -37,6 +42,12 @@ function shiftMonthlyYmd(ymd: string, months: number): string {
   return formatYmd(targetYear, targetMonth, Math.min(day, daysInMonth(targetYear, targetMonth)));
 }
 
+function shiftYearlyYmd(ymd: string, years: number): string {
+  const [year, month, day] = ymd.split("-").map(Number);
+  const targetYear = year + years;
+  return formatYmd(targetYear, month, Math.min(day, daysInMonth(targetYear, month)));
+}
+
 function isStd(value: string | null): value is StandardRecurrenceRule {
   return !!value && (STANDARD_RECURRENCE_RULES as readonly string[]).includes(value);
 }
@@ -50,6 +61,7 @@ function nextOccurrence(rule: StandardRecurrenceRule, fromDate: string): string 
   if (rule === "daily") return ymdShift(fromDate, 1);
   if (rule === "weekly") return ymdShift(fromDate, 7);
   if (rule === "monthly") return shiftMonthlyYmd(fromDate, 1);
+  if (rule === "yearly") return shiftYearlyYmd(fromDate, 1);
 
   let cursor = ymdShift(fromDate, 1);
   while (true) {

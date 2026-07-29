@@ -24,8 +24,8 @@ export function SharePicker({
 }) {
   const [selected, setSelected] = useState<string[]>(initialSelected);
   const [query, setQuery] = useState("");
-  const q = query.trim();
-  const list = q ? users.filter((u) => u.name.includes(q)) : users;
+  const q = query.trim().toLowerCase();
+  const list = q ? users.filter((u) => u.name.toLowerCase().includes(q)) : users;
 
   // The sheet's exit animation runs first; on completion BottomSheet fires onClose. We branch
   // there so "apply" still slides the sheet down before committing the selection.
@@ -118,7 +118,8 @@ export function SharePicker({
                 ? "bg-primary text-primary-foreground"
                 : "bg-slate-100 text-slate-400",
             )}
-            disabled={selected.length === 0}
+            /* 처음부터 0명이면 할 게 없어 비활성, 하지만 기존 선택을 전원 해제한 경우엔 "없음"으로 적용 가능. */
+            disabled={selected.length === 0 && initialSelected.length === 0}
             onClick={() => {
               applyingRef.current = true;
               close();

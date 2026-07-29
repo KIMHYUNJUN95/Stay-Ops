@@ -497,6 +497,10 @@ export function TasksWorkspace({
       const allOverdueSelected = selectedCount === ownedOverdue && ownedOverdue > 0;
 
       const toggleOverdueTask = (task: TaskRecord) => {
+        // Only the caller's own overdue tasks are actionable (bulk actions are author-scoped
+        // server-side), so non-owned rows must not enter the selection — otherwise the button
+        // count would include items the server silently ignores.
+        if (task.createdByUserId !== currentUserId) return;
         const next = new Set(overdueSelection);
         if (next.has(task.id)) next.delete(task.id);
         else next.add(task.id);
@@ -1086,7 +1090,17 @@ export function TasksWorkspace({
   }
 
   function renderDaySheet(iso: string) {
-    const list = tasks.filter((t) => isActive(t) && anchor(t) === iso);
+    // Match the calendar grid/agenda (which show recurring tasks on every virtual occurrence) so the
+    // day sheet isn't empty on a recurring task's future occurrence day. Non-recurring: anchor === iso.
+    const list = tasks.filter((t) => {
+      if (!isActive(t)) return false;
+      const a = anchor(t);
+      if (!a) return false;
+      if (isStandardRecurrence(t.recurrenceRule)) {
+        return recurringOccurrencesInRange(t.recurrenceRule, a, iso, iso).length > 0;
+      }
+      return a === iso;
+    });
     const label = new Intl.DateTimeFormat(locale, {
       month: "long",
       day: "numeric",

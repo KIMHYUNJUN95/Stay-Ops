@@ -70,10 +70,10 @@ export function ProjectsBoard({
   const [inviteQuery, setInviteQuery] = useState("");
   const invitedUsers = shareableUsers.filter((u) => inviteIds.includes(u.id));
   const inviteResults = (() => {
-    const q = inviteQuery.trim();
+    const q = inviteQuery.trim().toLowerCase();
     if (!q) return [];
     return shareableUsers
-      .filter((u) => !inviteIds.includes(u.id) && u.name.includes(q))
+      .filter((u) => !inviteIds.includes(u.id) && u.name.toLowerCase().includes(q))
       .slice(0, 6);
   })();
 

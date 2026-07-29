@@ -632,16 +632,24 @@ As-built (2026-06-16, Todoist-style — supersedes the 2026-06-11 pre-materializ
   Both actions are **author-scoped** server-side (`createdByUserId === viewer`) so they never
   reschedule or delete another member's shared task. The banner hides while a search/date filter or
   multi-select is active. i18n: `tasks.overduePrompt*` (ko/ja/en).
-- **Calendar previews are virtual.** The calendar/agenda expands each recurring task across the
-  visible month from its rule (`recurringOccurrencesInRange`) for display only — no DB rows are
-  added, and tapping/editing a virtual occurrence acts on the one real series task.
+- **Calendar previews are virtual.** The calendar/agenda **and the day sheet** expand each recurring
+  task across the visible month from its rule (`recurringOccurrencesInRange`) for display only — no DB
+  rows are added, and tapping/editing a virtual occurrence acts on the one real series task.
+  (Fix 2026-07-29: the day sheet previously filtered actual anchors only, so a recurring task's future
+  occurrence day showed a dot/agenda entry but opened an empty sheet — now aligned with the grid.)
 - The old window-materializer (`materializeRecurringTasks`) is **deprecated and no longer called**
   from any read path. Pre-existing materialized instances were collapsed to one row per series by
   migration `202606160002_collapse_recurring_instances.sql`.
 - A repeat rule **requires a date anchor** (`scheduled_date` or `due_at`). Saving repeat with no date
   is rejected both in the form and in the server actions.
-- User-selectable rules: **None, daily, weekly, monthly, weekdays, weekends** (six chips, None clears
-  it). Recurrence can be set in create, changed in edit, and cleared back to None at any time.
+- User-selectable rules: **None, daily, weekly, monthly, yearly, weekdays, weekends** (None clears it).
+  Recurrence can be set in create, changed in edit, and cleared back to None at any time.
+- **Two recurrence-rule tables MUST stay in sync:** `STANDARD_RECURRENCE_RULES` +
+  `nextOccurrence` exist in both `@/lib/tasks` (server-only, TaskRecord rollover) and
+  `@/lib/tasks-recurrence` (client-safe, calendar previews + overdue dismiss/reschedule gating). A rule
+  in one but not the other silently diverges the paths — this caused a **data-loss bug (fixed
+  2026-07-29)** where an overdue `yearly` task was hard-deleted by "지난 미완료 삭제" instead of rolling
+  forward, because `tasks-recurrence.ts` was missing `yearly`.
 - **`custom` is recognized but not user-configurable in this slice.** There is no rule builder, so the
   form does not offer `custom` as a new choice. If a task already stores `custom` (legacy/external),
   the edit form surfaces it as a read-only highlighted chip so the selection is unambiguous and the
