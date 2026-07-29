@@ -7,7 +7,6 @@
 // See docs/product/28-admin-todoist-console.md.
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from "react";
-import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -1834,7 +1833,9 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       {filterableView && (
         <div className="filt">
           <div className="filt__search">
-            <Search size={14} />
+            <span className="ic">
+              <Search size={16} />
+            </span>
             <input placeholder={dict.filterSearch} value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
           <button
@@ -2238,8 +2239,8 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       left: Math.max(8, Math.min(pop.x, vw - 372)),
       top: Math.max(8, Math.min(pop.y, vh - 80)),
     };
-    return createPortal(
-      <div className="adm" style={{ display: "contents" }}>
+    return (
+      <>
         <div className="tpop-scrim" onClick={() => setPop(null)} />
         <div className="tpop-anchor" style={style} onClick={(e) => e.stopPropagation()}>
           {pop.kind === "schedule" && SchedulePopover({ p: pop })}
@@ -2249,8 +2250,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           {pop.kind === "datefilter" && DateFilterMenu()}
           {pop.kind === "priofilter" && PrioFilterMenu()}
         </div>
-      </div>,
-      document.body,
+      </>
     );
   }
 
@@ -2657,8 +2657,8 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     const list = tasks
       .filter((t) => isActive(t) && myOwn(t, meId) && (t.scheduledDate === iso || dueDateOf(t) === iso))
       .sort(prioSort);
-    return createPortal(
-      <div className="adm" style={{ display: "contents" }}>
+    return (
+      <>
         <div className="day-scrim" onClick={() => setDaySheet(null)} />
         <div className="day-wrap" onClick={() => setDaySheet(null)}>
           <div className="pop" style={{ width: 400, maxWidth: "92vw" }} onClick={(e) => e.stopPropagation()}>
@@ -2696,16 +2696,15 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             </div>
           </div>
         </div>
-      </div>,
-      document.body,
+      </>
     );
   }
 
   // ── REPORT MODAL ─────────────────────────────────────────────────────────────────────────
   function ReportModal() {
     if (!report) return null;
-    return createPortal(
-      <div className="adm" style={{ display: "contents" }}>
+    return (
+      <>
         <div className="day-scrim" onClick={() => setReport(null)} />
         <div className="day-wrap" onClick={() => setReport(null)}>
           <div className="pop rpt" onClick={(e) => e.stopPropagation()}>
@@ -2765,8 +2764,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             </div>
           </div>
         </div>
-      </div>,
-      document.body,
+      </>
     );
   }
 
@@ -2791,8 +2789,8 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
         after: () => setNewProj(null),
       });
     };
-    return createPortal(
-      <div className="adm" style={{ display: "contents" }}>
+    return (
+      <>
         <div className="day-scrim" onClick={() => setNewProj(null)} />
         <div className="day-wrap" onClick={() => setNewProj(null)}>
           <div className="pop npm" onClick={(e) => e.stopPropagation()}>
@@ -2873,8 +2871,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             </div>
           </div>
         </div>
-      </div>,
-      document.body,
+      </>
     );
   }
 
@@ -2887,8 +2884,8 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   function ConfirmModal() {
     if (!confirm) return null;
     const c = confirm;
-    return createPortal(
-      <div className="adm" style={{ display: "contents" }}>
+    return (
+      <>
         <div className="day-scrim" onClick={() => setConfirm(null)} />
         <div className="day-wrap" onClick={() => setConfirm(null)}>
           <div className="pop" style={{ width: 380, maxWidth: "92vw" }} onClick={(e) => e.stopPropagation()}>
@@ -2923,8 +2920,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             </div>
           </div>
         </div>
-      </div>,
-      document.body,
+      </>
     );
   }
 }
