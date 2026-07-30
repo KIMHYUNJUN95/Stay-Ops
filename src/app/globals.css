@@ -443,22 +443,31 @@ input[type="date"] {
   appearance: none;
   min-width: 0;
   max-width: 100%;
+  /* iOS 는 날짜 입력에 자체 intrinsic 높이를 갖는다. 이걸 풀어주지 않으면 옆의 텍스트 입력보다
+     상자가 더 커져(스크린샷상 약 8%) 폼 줄이 어긋난다. */
+  min-height: 0;
+  line-height: normal;
 }
 
-/* iOS Safari renders the value via ::-webkit-date-and-time-value with its own
-   intrinsic width / centering / margin, which stretches the field and pushes
-   the text off-baseline. Force it to follow the container box (left-aligned,
-   no extra margin). Desktop is unaffected.
-   The block-axis `auto` margin is the UA's vertical centering inside the
-   flex shadow container — keep it, or the value sits at the top of the h-11 box. */
+/* iOS Safari 는 값을 `::-webkit-date-and-time-value` 로 그리고, 이 슈도 요소가 자체 폭·정렬·마진을
+   갖는다. 그대로 두면 값이 상자 **위쪽에 붙고** 상자도 늘어난다(2026-07-30 실제 발생).
+   이전에는 `margin-block: auto` 로 세로 중앙을 노렸는데, `appearance: none` 으로 UA 의 flex 셰도
+   컨테이너가 사라지면 auto 마진이 해소될 여백 자체가 없어 무력화된다. 슈도 요소를 직접 높이 100%
+   짜리 flex 컨테이너로 만들어 확실히 중앙에 둔다 — 데스크톱은 영향 없다. */
 input[type="date"]::-webkit-date-and-time-value {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  margin: 0;
   text-align: left;
-  margin-inline: 0;
-  margin-block: auto;
 }
 
 input[type="date"]::-webkit-datetime-edit {
   padding: 0;
+  /* 편집 영역도 같은 높이를 차지해야 위 정렬이 실제로 먹는다. */
+  display: flex;
+  align-items: center;
+  height: 100%;
 }
 
 select {
