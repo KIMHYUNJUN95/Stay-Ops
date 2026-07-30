@@ -1,17 +1,13 @@
 # Linen Defect Workflow
 
-> 2026-06-29 dashboard note:
-> the old "admin web deferred" wording below is historical first-slice context.
-> The active dashboard rebuild now includes a linen-return admin surface. See
-> `docs/product/05-admin-web-ia.md` for the current admin direction.
-
-Status: First slice implemented (2026-06-10). Mobile linen return ledger is live under
+Status: Mobile first slice implemented (2026-06-10). The dashboard record-management console is
+planned (2026-07-30; implementation and visual design are not started). Mobile linen return ledger is live under
 `/mobile/linen-return/*` (side-menu entry `linen-return`). See
 `docs/engineering/08-linen-defect-technical-design.md` → "As-Built" for the implemented schema,
 routes, and permissions. All five screens below are implemented: building picker, building list,
 create, detail (with permission-gated edit/delete), and ledger (record + item-summary views with
-registrant/item filters and month navigation). Building-specific item master and admin web remain
-deferred as noted in "Out Of Scope".
+registrant/item filters and month navigation). The building-specific item master remains deferred.
+The planned dashboard record-management console is described below.
 
 ## Purpose
 
@@ -312,8 +308,6 @@ Rules:
 
 This feature is mobile-first.
 
-Admin web is intentionally deferred until the broader mobile feature set is complete.
-
 ### Entry Placement
 
 - dedicated side-menu entry
@@ -336,6 +330,82 @@ Required direction:
 - first entry screen should be a building card grid
 - search should be available
 - after entering a building, the screen should still offer a "change building" action
+
+## Admin Dashboard — Linen Return Record Management (Planned 2026-07-30)
+
+### Purpose and Surface
+
+The dashboard surface is an office-side **record-management console**, not a second registration
+workflow. Field staff continue to register returns on mobile; office users use the dashboard to
+verify and correct the records that were registered in the field.
+
+Planned route and navigation placement:
+
+```txt
+/admin/linen-return
+Operations group → Linen Return
+```
+
+The visual design will be supplied separately. This product specification deliberately defines
+behavior and data only.
+
+### Required Information
+
+For each registered return event, the dashboard must make it possible to verify:
+
+- **when**: registered date/time, displayed in Tokyo time
+- **where**: building
+- **what**: every linen item in the record
+- **how many**: quantity per item and the record's total quantity
+- **who**: the staff member who registered it
+
+Because one record can contain multiple item lines, the list must never truncate the record into
+an ambiguous single item. It may use a compact item summary in the row, but opening/expanding the
+row must reveal every item and quantity.
+
+### List and Filtering Contract
+
+- Default period: current Tokyo calendar month.
+- Default sort: most recently registered first.
+- Filters: building and date/date range.
+- The initial view may include all buildings; choosing a building narrows the records to that
+  building.
+- Empty, loading, and error states are required and must use the dashboard's shared patterns.
+- Building/date filtering is a server-side organization-scoped query; the dashboard must not load
+  another organization's records into the browser and filter them client-side.
+
+### Record Management Contract
+
+Opening a record must show its full item lines, quantities, note, photos (when present), registration
+time, and registrant. The office can manage a mobile-created record from this detail surface.
+
+- **Edit:** building, item lines/quantities, note, and photo set may be corrected. The existing
+  one-building-per-record, no-duplicate-item, and positive-integer quantity rules remain in force.
+- **Evidence fields are immutable:** `registered_at` and `registered_by_user_id` remain the original
+  field-registration evidence and cannot be edited from the dashboard.
+- **Delete:** deletion is hard delete under the MVP deletion policy. It requires an explicit
+  destructive-action confirmation and removes the return record and its line items according to the
+  existing data model.
+- **Authorization:** the dashboard reuses the existing author/admin edit-delete rules and enforces
+  them again in server actions and organization-scoped queries; showing an action in the UI is never
+  sufficient authorization.
+- **Traceability:** dashboard edits and deletes must write an audit entry with actor, time, action,
+  and reason before the feature is implemented. The exact audit storage design belongs to the
+  implementation/technical-design cycle.
+
+### Explicitly Out of Scope
+
+The dashboard v1 does not provide:
+
+- registration or mobile-flow replacement
+- item-master management
+- monthly/item aggregate dashboards
+- Excel/PDF export
+- vendor settlement, inventory adjustment, or claim handling
+
+The existing mobile author/admin edit-delete permissions and the current record data model remain
+unchanged. Dashboard access continues to follow the existing dashboard/session permission model;
+this plan does not create or alter a role, team, or per-user permission rule.
 
 ## Mobile Screens
 
@@ -555,13 +625,13 @@ Not required in first slice:
 
 Deferred:
 
-- admin web surface
+- dashboard management beyond existing-record edit/delete (new registration, item master, and aggregation)
 - vendor settlement / reimbursement workflow
 - replacement tracking
 - stock deduction
 - approval/status workflow
 - per-item structured reason enums
-- all-buildings mixed operational feed
+- all-buildings mixed operational feed on the mobile building list
 - free-text item entry as the primary design pattern
 
 ## Open Implementation Notes

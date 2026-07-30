@@ -16,6 +16,14 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **어드민 린넨 반품 기록 관리 콘솔 기획 확정 (2026-07-30, 구현 전).** 현장 등록은 기존 모바일
+  `/mobile/linen-return/*`를 유지한다. 예정 `/admin/linen-return`은 사무실이 건물별·날짜별로
+  등록 시각·건물·전 품목·품목별/총수량·등록자를 확인하고 기존 기록을 수정·삭제하는 화면이다. 기본은
+  Tokyo 이번 달, 최신 등록순, 건물·날짜/기간 필터. 새 등록/상태/품목마스터/집계/Excel·PDF export와
+  시각 디자인은 이번 범위 밖이다. 등록 시각·등록자는 보존하고, 삭제는 MVP hard delete 확인 + 감사
+  기록을 따른다. 기준 문서: `docs/product/19-linen-defect-workflow.md`,
+  `docs/product/05-admin-web-ia.md`, `docs/planning/01-decision-log.md`.
+
 - **어드민 Todoist 콘솔 구현 완료 (2026-07-27).** 대시보드 `/admin/tasks` 에 데스크톱 Todoist 워크스페이스
   라이브(Claude Design 핸드오프 이식). 모바일 코어 패리티(오늘/내일/관리함/공유함/캘린더/완료·기록/프로젝트)
   + 매니저 **업무 지시**를 콘솔 "지시" 탭(받은/보낸 세그)으로 통합. 신규 `src/components/admin/tasks/`
