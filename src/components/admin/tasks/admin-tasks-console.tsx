@@ -71,6 +71,7 @@ import {
   moveConsoleToTomorrow,
   removeConsoleProjectMember,
   renameConsoleProjectSection,
+  reorderConsoleDateTasks,
   reorderConsoleTasks,
   rescheduleConsoleTask,
   restoreConsoleTask,
@@ -392,6 +393,31 @@ export function AdminTasksConsole({
     }
     return m;
   }, [data.occurrenceStates]);
+  // 반복 회차의 날짜별 수동 순서: `${taskId}|${date}` → sort_order (2026-07-30 B안).
+  const occOrderMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const o of data.occurrenceOrders) m.set(`${o.taskId}|${o.occurrenceDate}`, o.sortOrder);
+    return m;
+  }, [data.occurrenceOrders]);
+  /** 일회성은 `tasks.sort_order`, 반복은 그 날짜의 회차 순서 — 저장처가 둘이라 읽을 때 합친다. */
+  const dateOrderOf = useCallback(
+    (t: TaskRecord, date: string): number | null =>
+      isStandardRecurrence(t.recurrenceRule) ? occOrderMap.get(`${t.id}|${date}`) ?? null : t.sortOrder,
+    [occOrderMap],
+  );
+  /** 수동 위치가 있는 항목이 먼저, 없으면 우선순위 폴백. */
+  const sortByDateOrder = useCallback(
+    (arr: TaskRecord[], date: string): TaskRecord[] =>
+      [...arr].sort((a, b) => {
+        const ao = dateOrderOf(a, date);
+        const bo = dateOrderOf(b, date);
+        if (ao != null && bo != null) return ao !== bo ? ao - bo : prioSort(a, b);
+        if (ao != null) return -1;
+        if (bo != null) return 1;
+        return prioSort(a, b);
+      }),
+    [dateOrderOf],
+  );
   const occState = useCallback(
     (taskId: string, date: string): OccurrenceState | undefined => occByTask.get(taskId)?.get(date),
     [occByTask],
@@ -404,10 +430,15 @@ export function AdminTasksConsole({
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [inboxOrder, setInboxOrder] = useState<string[] | null>(null);
+  // 날짜 목록(오늘/내일)의 낙관적 순서 — `${date}` → taskId[]. 서버 갱신되면 초기화된다.
+  const [dateOrder, setDateOrder] = useState<{ date: string; ids: string[] } | null>(null);
   // 서버 새로고침(revalidate)되면 낙관적 순서 초기화 — sort_order가 이미 반영돼 있으므로.
   // rAF로 감싸 effect 내 동기 setState 경고를 피한다(이 파일의 기존 패턴).
   useEffect(() => {
-    const raf = requestAnimationFrame(() => setInboxOrder(null));
+    const raf = requestAnimationFrame(() => {
+      setInboxOrder(null);
+      setDateOrder(null);
+    });
     return () => cancelAnimationFrame(raf);
   }, [data.tasks]);
   // 특정 토쿄일에 이 작업이 걸리는가 — 반복은 규칙으로 회차 계산(Todoist 가상 미리보기), 비반복은 앵커 하루.
@@ -1573,10 +1604,11 @@ export function AdminTasksConsole({
         matchQuery(t, q, nameOf) &&
         matchPrio(t, prioFilter),
     );
+    // 정렬은 renderDateList 가 회차 순서까지 합쳐 처리한다(여기서 미리 정렬하지 않는다).
     const td = [
       ...filtered(personalTasks.filter((t) => isTodayTask(t, today) && myOwn(t, meId))),
       ...tdRec,
-    ].sort(prioSort);
+    ];
     const overdueCount = odOne.length + recOverdue.length;
     if (overdueCount === 0 && td.length === 0 && !add)
       return hasActiveFilter ? (
@@ -1649,17 +1681,79 @@ export function AdminTasksConsole({
           n: td.length,
           children: (
             <>
-              {td.map((t) =>
-                isStandardRecurrence(t.recurrenceRule)
-                  ? renderRow(t, { occurrence: { date: today, done: false } })
-                  : renderRow(t),
-              )}
+              {renderDateList(td, today)}
               {InlineAddSlot({ ctx: "today" })}
             </>
           ),
         })}
       </>
     );
+  };
+
+  /**
+   * 오늘/내일 목록 렌더 — 일회성과 반복 회차가 **하나의 순서 공간**을 공유한다(2026-07-30 B안).
+   * 저장은 `reorderConsoleDateTasks` 가 일회성/반복으로 나눠 쓴다. 드래그 방식은 관리함과 동일한
+   * HTML5 draggable 이라 콘솔 안에서 조작 감각이 갈리지 않는다.
+   */
+  const renderDateList = (arr: TaskRecord[], date: string) => {
+    const ranked = sortByDateOrder(arr, date);
+    const pending = dateOrder && dateOrder.date === date ? dateOrder.ids : null;
+    const items = pending
+      ? pending
+          .map((id) => ranked.find((t) => t.id === id))
+          .filter((t): t is TaskRecord => !!t)
+          .concat(ranked.filter((t) => !pending.includes(t.id)))
+      : ranked;
+    // 검색/필터 중엔 부분집합이라 재정렬 비활성(순서가 의미 없음) — 관리함과 같은 규칙.
+    const canDrag = !hasActiveFilter && !selMode;
+    const onRowDrop = (targetId: string) => {
+      if (!dragId || dragId === targetId) {
+        setDragId(null);
+        setOverId(null);
+        return;
+      }
+      const ids = items.map((t) => t.id);
+      const from = ids.indexOf(dragId);
+      const to = ids.indexOf(targetId);
+      setDragId(null);
+      setOverId(null);
+      if (from < 0 || to < 0) return;
+      ids.splice(to, 0, ids.splice(from, 1)[0]);
+      setDateOrder({ date, ids });
+      run(() =>
+        reorderConsoleDateTasks(
+          date,
+          ids.map((id) => ({
+            taskId: id,
+            recurring: isStandardRecurrence(items.find((t) => t.id === id)?.recurrenceRule ?? null),
+          })),
+        ),
+      );
+    };
+    return items.map((t) => (
+      <div
+        key={t.id}
+        className={`idrag ${dragId === t.id ? "is-drag" : ""} ${
+          overId === t.id && dragId && dragId !== t.id ? "is-over" : ""
+        }`}
+        draggable={canDrag}
+        onDragStart={canDrag ? () => setDragId(t.id) : undefined}
+        onDragOver={
+          canDrag
+            ? (e) => {
+                e.preventDefault();
+                if (overId !== t.id) setOverId(t.id);
+              }
+            : undefined
+        }
+        onDrop={canDrag ? () => onRowDrop(t.id) : undefined}
+        onDragEnd={canDrag ? () => { setDragId(null); setOverId(null); } : undefined}
+      >
+        {isStandardRecurrence(t.recurrenceRule)
+          ? renderRow(t, { occurrence: { date, done: false }, reorder: canDrag })
+          : renderRow(t, { reorder: canDrag })}
+      </div>
+    ));
   };
 
   const listView = (arr: TaskRecord[], label: string, ctx: AddDraft["ctx"], emptyIcon: ReactNode, emT: string, emS: string) => {
@@ -1688,10 +1782,11 @@ export function AdminTasksConsole({
     const rec = personalTasks.filter(
       (t) => myOwn(t, meId) && openOccursOn(t, tm) && matchQuery(t, q, nameOf) && matchPrio(t, prioFilter),
     );
+    // 정렬은 renderDateList 가 회차 순서까지 합쳐 처리한다.
     const items = [
       ...filtered(personalTasks.filter((t) => isTomorrowTask(t, today) && myOwn(t, meId))),
       ...rec,
-    ].sort((a, b) => prioSort(a, b) || dateSort(a, b));
+    ];
     if (items.length === 0 && !add)
       return hasActiveFilter ? (
         <EmptyState icon={<Search size={26} />} t={dict.emFilter} s={dict.emFilterS} />
@@ -1703,11 +1798,7 @@ export function AdminTasksConsole({
       n: items.length,
       children: (
         <>
-          {items.map((t) =>
-            isStandardRecurrence(t.recurrenceRule)
-              ? renderRow(t, { occurrence: { date: tm, done: false } })
-              : renderRow(t),
-          )}
+          {renderDateList(items, tm)}
           {InlineAddSlot({ ctx: "tomorrow" })}
         </>
       ),

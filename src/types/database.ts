@@ -1531,6 +1531,32 @@ export type Database = {
           update_type?: string;
         };
       };
+      task_occurrence_order: {
+        Insert: {
+          created_at?: string;
+          occurrence_date: string;
+          organization_id: string;
+          sort_order: number;
+          task_id: string;
+          updated_at?: string;
+        };
+        Row: {
+          created_at: string;
+          occurrence_date: string;
+          organization_id: string;
+          sort_order: number;
+          task_id: string;
+          updated_at: string;
+        };
+        Update: {
+          created_at?: string;
+          occurrence_date?: string;
+          organization_id?: string;
+          sort_order?: number;
+          task_id?: string;
+          updated_at?: string;
+        };
+      };
       task_occurrence_state: {
         Insert: {
           completed_by_user_id?: string | null;

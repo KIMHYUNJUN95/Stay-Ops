@@ -29,6 +29,7 @@ import {
   completeOccurrence,
   moveOccurrences,
   resolvedOccurrenceDates,
+  setOccurrenceOrders,
   skipOccurrences,
 } from "@/lib/task-occurrences";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
@@ -875,6 +876,59 @@ export async function reorderConsoleTasks(orderedIds: string[]): Promise<TaskAct
     ),
   );
   revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
+/**
+ * 한 날짜 목록(오늘/내일)의 순서 저장 — 콘솔판. 모바일 `reorderDateTasks` 와 **같은 저장 모델**을
+ * 쓴다: 일회성은 `tasks.sort_order`, 반복 회차는 `task_occurrence_order(task_id, occurrence_date)`.
+ * 반복은 행 하나가 여러 날짜에 나타나므로 날짜별 위치를 따로 들어야 한다.
+ *
+ * 인덱스는 병합 목록 기준. 두 저장처를 다시 합쳐 정렬했을 때 사용자가 놓은 순서가 재현되어야 한다.
+ */
+export async function reorderConsoleDateTasks(
+  occurrenceDate: string,
+  items: { taskId: string; recurring: boolean }[],
+): Promise<TaskActionResult> {
+  const session = await resolveSession();
+  if (!session) return { ok: false, error: "auth" };
+  const date = String(occurrenceDate ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "invalid_date" };
+
+  const seen = new Set<string>();
+  const clean = (items ?? [])
+    .map((it) => ({ taskId: String(it?.taskId ?? "").trim(), recurring: !!it?.recurring }))
+    .filter((it) => it.taskId && !seen.has(it.taskId) && seen.add(it.taskId))
+    .slice(0, 500);
+  if (clean.length === 0) return { ok: true };
+
+  const supabase = getSupabaseServiceClient();
+  const recurringPositions = new Map<string, number>();
+  const oneOffUpdates: { taskId: string; index: number }[] = [];
+  clean.forEach((it, index) => {
+    if (it.recurring) recurringPositions.set(it.taskId, index);
+    else oneOffUpdates.push({ taskId: it.taskId, index });
+  });
+
+  const [, orderOk] = await Promise.all([
+    Promise.all(
+      oneOffUpdates.map((it) =>
+        supabase
+          .from("tasks")
+          .update({ sort_order: it.index } as never)
+          .eq("id", it.taskId)
+          .eq("organization_id", session.organization.id),
+      ),
+    ),
+    setOccurrenceOrders({
+      organizationId: session.organization.id,
+      occurrenceDate: date,
+      positions: recurringPositions,
+    }),
+  ]);
+  revalidatePath(CONSOLE_PATH);
+  // 회차 순서 저장이 실패하면 화면만 바뀐 채 새로고침에서 되돌아간다 — 조용히 넘기지 않는다.
+  if (!orderOk) return { ok: false, error: "save_failed" };
   return { ok: true };
 }
 

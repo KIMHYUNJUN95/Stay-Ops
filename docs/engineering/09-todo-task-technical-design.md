@@ -998,3 +998,85 @@ show project completions while the other views never see project tasks).
 - subtasks
 - advanced search
 - admin/manager oversight view if explicitly approved later
+
+
+## 2026-07-30 회차별 드래그 순서 (task_occurrence_order)
+
+**문제.** 오늘/내일 목록에서 **일회성 작업에만 드래그 핸들이 있고 반복 회차에는 없었다.** 순서가
+`tasks.sort_order` 한 컬럼에만 저장되는데, 반복 작업은 **행 하나가 여러 날짜에 나타나므로** 날짜별
+위치를 담을 자리가 없었기 때문이다. 그래서 오늘/내일 섹션이 목록을 둘로 갈라 렌더했고
+(`ReorderableTaskList` + `RecurringOccurrenceCards`), 후자는 `reorderable` 을 아예 넘기지 않았다.
+
+### 저장 모델 — 저장처가 둘, 순서 공간은 하나
+
+| 항목 | 저장처 | 키 |
+| --- | --- | --- |
+| 일회성 작업 | `tasks.sort_order` | 행 하나 = 날짜 하나 = 위치 하나 |
+| 반복 회차 | **`task_occurrence_order.sort_order`** (신규) | `(task_id, occurrence_date)` |
+
+인덱스는 **병합 목록 기준**으로 부여한다. 읽을 때 두 저장처를 다시 합쳐 정렬해야 사용자가 놓은
+순서가 재현되기 때문이다(`mergeByDateOrder` / `dateOrderOf` in `tasks-workspace.tsx`).
+
+### 왜 `task_occurrence_state` 에 컬럼을 더하지 않았나
+
+그 테이블의 계약은 **"행이 없으면 아직 열린 회차"** 다 — `outstandingOverdueOccurrences` 가 행이
+있는 날짜를 전부 resolved 로 본다. 순서용 행을 거기 넣으면 **오버듀 회차가 조용히 사라진다.**
+순서는 완료·스킵과 무관한 별개 수명(아직 아무 상태도 없는 회차에도 존재)이라 테이블을 분리했다.
+마이그레이션: `202607300002_task_occurrence_order.sql`. RLS·grant 는 state 테이블과 동일 패턴
+(참여자 read-only, 쓰기는 service-role 서버 액션).
+
+행이 없으면 "아직 수동 배치 안 됨"이고 우선순위 폴백을 탄다.
+
+### 서버
+
+`reorderDateTasks(occurrenceDate, items)` (`mobile/tasks/[id]/actions.ts`) — 항목마다
+`{ taskId, recurring }` 을 받아 일회성은 `tasks.sort_order`, 반복은 `setOccurrenceOrders` 로
+나눠 쓴다. 기존 `reorderTasks(orderedIds)` 는 날짜 개념이 없는 **관리함 전용**으로 남는다.
+
+### 클라이언트
+
+- `ReorderableTaskList` 가 `occurrenceDate` + `onPersistDate` 를 받으면 날짜 목록 모드로 동작한다.
+- **회차 컨텍스트 복원이 이 변경의 핵심 함정이었다.** 두 목록을 합치면서 예전
+  `RecurringOccurrenceCards` 가 넘기던 `occurrence={{date, done}}` 과 `swipe: false` 가 빠지면,
+  체크박스가 **회차가 아니라 행 전체**를 완료 처리한다(`TaskCard` 의 `done` / `onCompleteToggle`
+  분기). 목록 컴포넌트가 항목별로 다시 붙인다.
+- `RecurringOccurrenceCards` 는 사용처가 사라져 삭제했다.
+
+### 어드민 콘솔 (2026-07-30, 같은 날 후속)
+
+**같은 저장 모델을 공유한다** — `reorderConsoleDateTasks(date, items)` 가 모바일
+`reorderDateTasks` 와 동일하게 일회성/반복을 나눠 쓴다. 저장처를 새로 만들지 않았으므로 두 표면에서
+바꾼 순서가 서로 그대로 보인다.
+
+콘솔은 원래부터 오늘/내일 목록을 하나로 합쳐 렌더하고 `renderRow(t, { occurrence })` 로 회차
+컨텍스트를 넘기고 있었다(모바일이 목록을 둘로 갈랐던 것과 다름). 그래서 **정렬과 드래그만** 얹으면
+됐고, 모바일에서 겪은 `occurrence` 누락 함정은 발생하지 않았다.
+
+드래그 방식은 관리함과 동일한 **HTML5 `draggable`**(`onDragStart`/`onDragOver`/`onDrop`)이고 CSS
+(`.idrag` / `.is-drag` / `.is-over`)도 재사용한다 — 콘솔 안에서 조작 감각이 갈리지 않게. 모바일의
+포인터+핸들 방식과 다른 것은 표면 성격 차이이며 의도적이다.
+
+`renderDateList(arr, date)` 하나가 오늘·내일 양쪽을 담당한다. 낙관적 순서는 `dateOrder`
+(`{date, ids}`)에 두고 서버 갱신 시 `inboxOrder` 와 함께 초기화한다.
+
+### 적용 범위
+
+| 뷰 | 모바일 | 어드민 |
+| --- | --- | --- |
+| 오늘 · 내일 | ✅ 일회성 + 반복 회차 | ✅ 일회성 + 반복 회차 |
+| 지연 | 일회성만 | 드래그 없음 |
+| 관리함 | 일회성 (날짜 없음) | 일회성 (날짜 없음) |
+
+지연(overdue) 섹션은 반복 backlog 를 날짜별 그룹 카드(`recOverdueGroup`)로 그리는 구조라 순서
+개념이 달라 제외했다. 관리함은 날짜가 없어 기존 `tasks.sort_order` 유지.
+
+### 마이그레이션 적용 — 완료 (2026-07-30)
+
+`supabase/migrations/202607300002_task_occurrence_order.sql` 를 원격 프로젝트(StayOps)에 적용
+완료했다. 검증: 컬럼 6 · 인덱스 3 · RLS 정책 1 · updated_at 트리거 1 · `rowsecurity = true`.
+
+> ⚠️ **여기서 실제로 겪은 일.** 코드를 먼저 배포하고 테이블은 안 만든 상태로 테스트해서, 드래그가
+> 화면에서만 먹고 탭을 옮기면 되돌아갔다. `setOccurrenceOrders` 가 upsert 결과를 버리고 있어
+> **에러가 어디에도 남지 않았고**, 원인을 찾는 데 시간이 걸렸다. 그래서 지금은 실패 시
+> `false` 를 돌려주고 로그를 남기며, 어드민 액션은 `save_failed` 로 사용자에게 알린다.
+> 스키마가 필요한 기능은 **마이그레이션 적용을 코드 배포와 같은 단계로 취급**할 것.

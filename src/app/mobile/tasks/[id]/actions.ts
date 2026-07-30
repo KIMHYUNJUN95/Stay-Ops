@@ -30,6 +30,7 @@ import {
   completeOccurrence,
   moveOccurrences,
   resolvedOccurrenceDates,
+  setOccurrenceOrders,
   skipOccurrences,
 } from "@/lib/task-occurrences";
 import { cleanupRemovedTaskImages, sanitizeTaskImageUrls } from "@/lib/task-images";
@@ -787,6 +788,69 @@ export async function reorderTasks(orderedIds: string[]) {
         .eq("organization_id", session.organization.id),
     ),
   );
+  revalidatePath("/mobile/tasks");
+}
+
+/**
+ * 한 날짜 목록(오늘/내일/지연)의 순서를 저장한다 — **일회성과 반복 회차가 섞인 하나의 순서 공간**.
+ *
+ * 저장처가 둘로 나뉘는 것이 이 함수의 존재 이유다.
+ * - 일회성 작업: `tasks.sort_order` (행 하나 = 날짜 하나 = 위치 하나)
+ * - 반복 회차: `task_occurrence_order(task_id, occurrence_date)` — 반복은 행 하나가 여러 날짜에
+ *   나타나므로 날짜별 위치를 따로 들어야 한다. 여기에 `tasks.sort_order` 를 쓰면 오늘에서 올린
+ *   순서가 내일·모레까지 따라 올라간다.
+ *
+ * 인덱스는 **병합 목록 기준**으로 부여한다. 두 저장처를 다시 합쳐 정렬했을 때 사용자가 놓은 순서가
+ * 그대로 재현되어야 하기 때문이다.
+ */
+export async function reorderDateTasks(
+  occurrenceDate: string,
+  items: { taskId: string; recurring: boolean }[],
+) {
+  const date = String(occurrenceDate ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+  const session = await getCurrentAppSession();
+  if (!session) {
+    redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
+  }
+  if (!hasOrganizationContext(session)) {
+    redirect("/mobile/unavailable");
+  }
+  const seen = new Set<string>();
+  const clean = (items ?? [])
+    .map((it) => ({ taskId: String(it?.taskId ?? "").trim(), recurring: !!it?.recurring }))
+    .filter((it) => it.taskId && !seen.has(it.taskId) && seen.add(it.taskId))
+    .slice(0, 500);
+  if (clean.length === 0) return;
+
+  const supabase = getSupabaseServiceClient();
+  const recurringPositions = new Map<string, number>();
+  const oneOffUpdates: { taskId: string; index: number }[] = [];
+  clean.forEach((it, index) => {
+    if (it.recurring) recurringPositions.set(it.taskId, index);
+    else oneOffUpdates.push({ taskId: it.taskId, index });
+  });
+
+  const [, orderOk] = await Promise.all([
+    Promise.all(
+      oneOffUpdates.map((it) =>
+        supabase
+          .from("tasks")
+          .update({ sort_order: it.index } as never)
+          .eq("id", it.taskId)
+          .eq("organization_id", session.organization.id),
+      ),
+    ),
+    setOccurrenceOrders({
+      organizationId: session.organization.id,
+      occurrenceDate: date,
+      positions: recurringPositions,
+    }),
+  ]);
+  if (!orderOk) {
+    // 저장 실패는 화면상 "드래그했는데 되돌아옴"으로만 보인다 — 서버 로그와 함께 남긴다.
+    console.error("[reorderDateTasks] occurrence order not persisted", { date });
+  }
   revalidatePath("/mobile/tasks");
 }
 

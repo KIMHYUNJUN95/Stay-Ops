@@ -689,6 +689,36 @@ export async function getOccurrenceStates(session: AppSession): Promise<Occurren
   }));
 }
 
+/** One recurring occurrence's manual sort position. See `task_occurrence_order`. */
+export type OccurrenceOrderRecord = {
+  taskId: string;
+  occurrenceDate: string;
+  sortOrder: number;
+};
+
+/**
+ * Manual per-date positions for recurring occurrences (RLS-scoped).
+ *
+ * Kept to a rolling window like `getOccurrenceStates` — positions for dates far in the past are
+ * never rendered, so there is no reason to ship them to the client.
+ */
+export async function getOccurrenceOrders(session: AppSession): Promise<OccurrenceOrderRecord[]> {
+  const supabase = await getSupabaseServerClient();
+  const since = ymdShift(tokyoToday(), -400);
+  const { data, error } = await supabase
+    .from("task_occurrence_order")
+    .select("task_id, occurrence_date, sort_order")
+    .eq("organization_id", session.organization.id)
+    .gte("occurrence_date", since);
+  if (error) return [];
+  type Row = { task_id: string; occurrence_date: string; sort_order: number };
+  return ((data ?? []) as Row[]).map((r) => ({
+    taskId: r.task_id,
+    occurrenceDate: r.occurrence_date,
+    sortOrder: r.sort_order,
+  }));
+}
+
 /** All tasks belonging to a project (RLS-scoped: viewer must be a project participant). */
 export async function getProjectTasks(
   session: AppSession,

@@ -97,3 +97,45 @@ export async function resolvedOccurrenceDates(taskId: string): Promise<Set<strin
     .eq("task_id", taskId);
   return new Set(((data ?? []) as Array<{ occurrence_date: string }>).map((r) => r.occurrence_date));
 }
+
+/* ── 회차별 수동 순서 (task_occurrence_order, 2026-07-30) ─────────────────────────
+   반복 작업은 행 하나가 여러 날짜에 나타나므로 `tasks.sort_order` 한 칸으로는 날짜별 순서를 담을 수
+   없다. 그래서 `(task_id, occurrence_date)` 키로 위치를 따로 저장한다.
+
+   **`task_occurrence_state` 가 아니라 별도 테이블인 이유**: 그 테이블은 "행이 없으면 아직 열린
+   회차"가 계약이라(`outstandingOverdueOccurrences`), 순서용 행을 넣으면 오버듀 회차가 조용히
+   사라진다. 마이그레이션 주석 참고. */
+
+type OccurrenceOrderInsert = Database["public"]["Tables"]["task_occurrence_order"]["Insert"];
+
+/**
+ * 한 날짜 목록의 반복 회차 위치를 통째로 다시 쓴다.
+ *
+ * 목록은 일회성 작업과 반복 회차가 섞여 있고, 인덱스는 **그 병합된 목록 기준**으로 넘어온다 —
+ * 그래야 두 저장처(`tasks.sort_order` / 여기)를 합쳐 정렬했을 때 사용자가 놓은 순서가 재현된다.
+ */
+export async function setOccurrenceOrders(args: {
+  organizationId: string;
+  occurrenceDate: string;
+  /** taskId → 병합 목록에서의 인덱스 */
+  positions: ReadonlyMap<string, number>;
+}): Promise<boolean> {
+  if (args.positions.size === 0) return true;
+  const supabase = getSupabaseServiceClient();
+  const rows: OccurrenceOrderInsert[] = [...args.positions].map(([taskId, sortOrder]) => ({
+    task_id: taskId,
+    organization_id: args.organizationId,
+    occurrence_date: args.occurrenceDate,
+    sort_order: sortOrder,
+  }));
+  const { error } = await supabase
+    .from("task_occurrence_order")
+    .upsert(rows as never, { onConflict: "task_id,occurrence_date" });
+  if (error) {
+    // 초기 구현이 결과를 버려, 테이블 미적용 상태에서 저장이 조용히 실패했다 — 화면은 낙관적으로
+    // 바뀌고 새로고침하면 되돌아가는데 아무 단서가 없었다(2026-07-30). 최소한 로그는 남긴다.
+    console.error("[setOccurrenceOrders] upsert failed:", error.message);
+    return false;
+  }
+  return true;
+}

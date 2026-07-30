@@ -4164,3 +4164,57 @@ Docs: `docs/product/18-todo-task-workflow.md`.
 
 `npx tsc --noEmit` 0(내 파일) / `npm run lint` 0 errors.
 As-built → `docs/product/28-admin-todoist-console.md` §17.
+
+## 2026-07-30 반복 회차 드래그 순서 — 날짜별 저장(B안)
+
+**결정.** 오늘/내일 목록에서 반복 회차에도 드래그 순서를 허용하되, 순서를 **날짜별로** 저장한다.
+
+검토한 두 안:
+- **A안** — 반복도 `tasks.sort_order` 를 쓴다. DB 변경 없음. 대신 오늘에서 올린 순서가 내일·모레까지
+  따라 올라간다.
+- **B안(채택)** — `(task_id, occurrence_date)` 키로 날짜별 위치를 따로 저장한다.
+
+날짜마다 순서가 달라야 실제 운영에 맞으므로 B안.
+
+**신규 테이블 `task_occurrence_order`.** `task_occurrence_state` 에 컬럼을 더하지 않은 이유가
+핵심이다 — 그 테이블은 **"행이 없으면 열린 회차"** 가 계약이라(`outstandingOverdueOccurrences`),
+순서용 행을 넣으면 오버듀 회차가 조용히 사라진다. 순서는 완료·스킵과 수명이 달라 분리했다.
+
+**작업 중 잡은 함정.** 두 목록을 하나로 합치면서, 예전 `RecurringOccurrenceCards` 가 넘기던
+`occurrence={{date, done}}` 이 빠져 **체크박스가 회차가 아니라 행 전체를 완료 처리**할 뻔했다.
+목록 컴포넌트가 항목별로 다시 붙이도록 했다.
+
+**범위**: 오늘 · 내일. 지연 섹션은 날짜별 그룹 카드 구조라 제외, 관리함은 날짜가 없어 기존 유지.
+
+`npx tsc --noEmit` 0 / `npm run lint` 0 errors. **마이그레이션 원격 적용 필요.**
+As-built → `docs/engineering/09-todo-task-technical-design.md`.
+
+## 2026-07-30 (후속) 회차별 드래그 순서 — 어드민 콘솔에도 적용
+
+바로 위 B안을 어드민 콘솔 오늘·내일 뷰에도 넣었다. **저장 모델은 새로 만들지 않고 공유**한다
+(`reorderConsoleDateTasks` ↔ `reorderDateTasks`, 같은 `task_occurrence_order`) — 두 표면에서 바꾼
+순서가 서로 그대로 보여야 하기 때문이다.
+
+드래그 상호작용은 **표면마다 다르게** 뒀다. 콘솔은 관리함이 이미 쓰던 HTML5 `draggable` 과 CSS
+(`.idrag`)를 재사용하고, 모바일은 포인터+전용 핸들을 유지한다. 콘솔 안에서 조작 감각이 갈리지 않는
+쪽이 표면 간 통일보다 중요하다고 봤다.
+
+모바일에서 겪었던 `occurrence` 누락 함정은 콘솔에선 발생하지 않았다 — 콘솔은 원래부터 목록을 합쳐
+`renderRow(t, { occurrence })` 로 넘기고 있었다.
+
+`npx tsc --noEmit` 0 / `npm run lint` 0 errors.
+
+## 2026-07-30 (후속) 순서 저장 실패가 조용히 묻히던 문제
+
+`task_occurrence_order` 마이그레이션을 원격에 적용하기 전에 코드만 돌린 상태에서, 드래그가 화면에서만
+먹고 탭을 옮기면 되돌아갔다. `setOccurrenceOrders` 가 Supabase upsert 결과를 버리고 있어 **에러가
+어디에도 남지 않아** 원인 파악이 늦어졌다.
+
+**수정**: `setOccurrenceOrders` 가 성공 여부를 `boolean` 으로 돌려주고 실패 시 `console.error`.
+어드민 `reorderConsoleDateTasks` 는 `save_failed` 로 반환해 기존 errMsg 매핑이 문구를 띄우고,
+모바일은 서버 로그에 남긴다.
+
+**교훈**: 스키마가 필요한 기능은 마이그레이션 적용을 코드 배포와 같은 단계로 취급한다. 그리고
+쓰기 헬퍼가 결과를 버리면 실패가 "화면만 바뀌고 되돌아감"으로만 드러나 디버깅 단서가 사라진다.
+
+마이그레이션은 원격 적용 완료(컬럼 6 · 인덱스 3 · RLS 정책 1 · 트리거 1 · rowsecurity=true).

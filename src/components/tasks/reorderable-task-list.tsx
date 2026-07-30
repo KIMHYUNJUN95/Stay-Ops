@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { TaskCard } from "@/components/tasks/task-card";
 import type { TaskRecord } from "@/lib/tasks";
+import { isStandardRecurrence } from "@/lib/tasks-recurrence";
 import { cn } from "@/lib/utils";
 
 // Matches the list container's `gap-2` (8px). The crossed rows shift by one dragged "slot"
@@ -39,11 +40,23 @@ export function ReorderableTaskList({
   cardProps,
   disabled = false,
   onPersist,
+  occurrenceDate,
+  onPersistDate,
 }: {
   items: TaskRecord[];
   cardProps: CardProps;
   disabled?: boolean;
-  onPersist: (orderedIds: string[]) => void;
+  /** 날짜 목록이 아닌 곳(관리함)에서 쓰는 단순 순서 저장. */
+  onPersist?: (orderedIds: string[]) => void;
+  /**
+   * 날짜 목록(오늘/내일)에서는 일회성과 반복 회차가 섞이고 저장처가 갈리므로, 항목별로 반복 여부를
+   * 함께 넘긴다. 서버가 `tasks.sort_order` / `task_occurrence_order` 로 나눠 쓴다.
+   */
+  occurrenceDate?: string;
+  onPersistDate?: (
+    occurrenceDate: string,
+    items: { taskId: string; recurring: boolean }[],
+  ) => void;
 }) {
   const [order, setOrder] = useState<TaskRecord[]>(items);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -63,7 +76,11 @@ export function ReorderableTaskList({
   const slotRef = useRef(0);
   const metricsRef = useRef<RowMetric[]>([]);
   const rowRefs = useRef(new Map<string, HTMLDivElement | null>());
+  const isRecurringItem = (t: TaskRecord) =>
+    !!occurrenceDate && isStandardRecurrence(t.recurrenceRule);
   const onPersistRef = useRef(onPersist);
+  const onPersistDateRef = useRef(onPersistDate);
+  const occurrenceDateRef = useRef(occurrenceDate);
 
   // Mirror live render state/props into refs so the once-attached window listeners (below) read
   // current values. Refs may not be written during render, so this happens post-commit in effects.
@@ -75,7 +92,9 @@ export function ReorderableTaskList({
   }, [overIndex]);
   useEffect(() => {
     onPersistRef.current = onPersist;
-  }, [onPersist]);
+    onPersistDateRef.current = onPersistDate;
+    occurrenceDateRef.current = occurrenceDate;
+  }, [onPersist, onPersistDate, occurrenceDate]);
 
   // Resync from the server list whenever it changes — but never mid-drag (that would yank the row
   // out from under the finger). After a persisted reorder the revalidated list arrives here.
@@ -96,7 +115,15 @@ export function ReorderableTaskList({
       if (ti !== si) {
         const next = moveItem(orderRef.current, si, ti);
         setOrder(next);
-        onPersistRef.current(next.map((t) => t.id));
+        const date = occurrenceDateRef.current;
+        if (date && onPersistDateRef.current) {
+          onPersistDateRef.current(
+            date,
+            next.map((t) => ({ taskId: t.id, recurring: isStandardRecurrence(t.recurrenceRule) })),
+          );
+        } else {
+          onPersistRef.current?.(next.map((t) => t.id));
+        }
       }
     }
     function onMove(e: PointerEvent) {
@@ -208,12 +235,18 @@ export function ReorderableTaskList({
               )}
               style={isDragged ? { transform: "scale(1.015)" } : undefined}
             >
+              {/* 날짜 목록에서 반복 항목은 **그 날짜의 회차**로 렌더해야 한다 — `occurrence` 를
+                  빠뜨리면 체크박스가 회차가 아니라 행 전체를 완료 처리한다(TaskCard `done` /
+                  `onCompleteToggle` 분기). 스와이프 이동도 회차엔 의미가 없어 끈다. */}
               <TaskCard
                 task={t}
                 reorderable={!disabled}
                 reordering={isDragged}
                 onReorderHandleDown={beginDrag}
                 {...cardProps}
+                {...(isRecurringItem(t)
+                  ? { occurrence: { date: occurrenceDate as string, done: false }, swipe: false }
+                  : null)}
               />
             </div>
           </div>

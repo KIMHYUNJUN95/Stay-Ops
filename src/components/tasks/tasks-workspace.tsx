@@ -1,6 +1,6 @@
 "use client";
 
-import { type ComponentProps, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -39,6 +39,7 @@ import {
   deleteTasksInList,
   dismissOverdueTasks,
   reopenTask,
+  reorderDateTasks,
   reorderTasks,
   rescheduleOverdueTo,
   restoreTask,
@@ -54,7 +55,12 @@ import { ProjectsBoard } from "@/components/tasks/projects-board";
 import { MiniCalendar } from "@/components/tasks/date-time-fields";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { ProjectSummary } from "@/lib/projects";
-import type { OccurrenceStateRecord, ShareableUser, TaskRecord } from "@/lib/tasks";
+import type {
+  OccurrenceOrderRecord,
+  OccurrenceStateRecord,
+  ShareableUser,
+  TaskRecord,
+} from "@/lib/tasks";
 import {
   isStandardRecurrence,
   type OccurrenceState,
@@ -97,25 +103,6 @@ function ymdShift(ymd: string, n: number): string {
 // 반복 회차 카드 리스트(오늘/내일 뷰) — 각 카드는 그 날짜의 회차로 완료 처리(행 status 아님).
 // viewBody(거대 IIFE) 밖으로 빼서 컴포넌트 크기를 낮추고(React Compiler 최적화 유지) 오늘·내일에서
 // 동일하게 재사용한다.
-function RecurringOccurrenceCards({
-  items,
-  date,
-  cardProps,
-  className,
-}: {
-  items: TaskRecord[];
-  date: string;
-  cardProps: Omit<ComponentProps<typeof TaskCard>, "task" | "occurrence">;
-  className: string;
-}) {
-  return (
-    <div className={className}>
-      {items.map((t) => (
-        <TaskCard key={t.id} task={t} occurrence={{ date, done: false }} {...cardProps} />
-      ))}
-    </div>
-  );
-}
 
 export function TasksWorkspace({
   buildingLabels,
@@ -124,6 +111,7 @@ export function TasksWorkspace({
   initialView,
   locale,
   moveError,
+  occurrenceOrders,
   occurrenceStates,
   projectCompletedTasks,
   projects,
@@ -138,6 +126,8 @@ export function TasksWorkspace({
   locale: Locale;
   /** 이동이 거절된 이유(반복 회차 중복). 서버 액션이 쿼리로 돌려보낸다. */
   moveError?: string;
+  /** 반복 회차의 날짜별 수동 순서(task_occurrence_order). 일회성은 tasks.sort_order 를 쓴다. */
+  occurrenceOrders: OccurrenceOrderRecord[];
   occurrenceStates: OccurrenceStateRecord[];
   // Completed project tasks, supplied separately so the Completed tab's project filter can show
   // them. `tasks` itself excludes project tasks (they live only in the Projects tab).
@@ -386,6 +376,24 @@ export function TasksWorkspace({
     (taskId: string, date: string): OccurrenceState | undefined => occByTask.get(taskId)?.get(date),
     [occByTask],
   );
+  // 날짜별 반복 회차 순서: `${taskId}|${date}` → sort_order.
+  const occOrderMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const o of occurrenceOrders) m.set(`${o.taskId}|${o.occurrenceDate}`, o.sortOrder);
+    return m;
+  }, [occurrenceOrders]);
+  /**
+   * 한 날짜 목록의 정렬 키 — 일회성은 `tasks.sort_order`, 반복은 그 날짜의 회차 순서.
+   * 저장처가 둘이라 읽을 때 다시 합친다(2026-07-30 B안). 수동 위치가 없으면 null 로 두고
+   * 호출부가 우선순위 폴백을 태운다.
+   */
+  const dateOrderOf = useCallback(
+    (t: TaskRecord, date: string): number | null =>
+      isStandardRecurrence(t.recurrenceRule)
+        ? occOrderMap.get(`${t.id}|${date}`) ?? null
+        : t.sortOrder,
+    [occOrderMap],
+  );
   const resolvedDatesFor = useCallback(
     (taskId: string): Set<string> => new Set(occByTask.get(taskId)?.keys() ?? []),
     [occByTask],
@@ -455,6 +463,22 @@ export function TasksWorkspace({
   // Today-view ordering: a manual drag-reorder (sort_order) wins; unranked tasks (sort_order null)
   // fall back to priority, preserving the original behaviour until the user drags. Ranked tasks
   // always sort before unranked ones.
+  /**
+   * 한 날짜의 일회성 + 반복 회차를 하나의 배열로 합쳐 정렬한다.
+   * 수동 위치가 있는 항목이 먼저(작은 인덱스 순), 없는 항목은 뒤에서 우선순위 폴백.
+   */
+  const mergeByDateOrder = useCallback(
+    (oneOff: TaskRecord[], recurring: TaskRecord[], date: string): TaskRecord[] =>
+      [...oneOff, ...recurring].sort((a, b) => {
+        const ao = dateOrderOf(a, date);
+        const bo = dateOrderOf(b, date);
+        if (ao != null && bo != null) return ao !== bo ? ao - bo : prioSort(a, b);
+        if (ao != null) return -1;
+        if (bo != null) return 1;
+        return prioSort(a, b);
+      }),
+    [dateOrderOf],
+  );
   const orderSort = (a: TaskRecord, b: TaskRecord) => {
     const ao = a.sortOrder;
     const bo = b.sortOrder;
@@ -834,22 +858,15 @@ export function TasksWorkspace({
           {(todays.length > 0 || recToday.length > 0) ? (
             <div className={over.length || recOverdue.length ? "mt-4" : ""}>
               {sectionHead(copy.secToday, todays.length + recToday.length)}
-              {todays.length > 0 ? (
-                <ReorderableTaskList
-                  cardProps={cardProps}
-                  disabled={reorderDisabled}
-                  items={todays}
-                  onPersist={reorderTasks}
-                />
-              ) : null}
-              {recToday.length > 0 ? (
-                <RecurringOccurrenceCards
-                  cardProps={{ ...cardProps, swipe: false }}
-                  className={todays.length ? "mt-2 flex flex-col gap-2" : "flex flex-col gap-2"}
-                  date={today}
-                  items={recToday}
-                />
-              ) : null}
+              {/* 일회성과 반복 회차를 **하나의 순서 공간**으로 합쳐 렌더한다(2026-07-30 B안).
+                  전에는 두 목록으로 갈라 반복 카드에만 드래그 핸들이 없었다. */}
+              <ReorderableTaskList
+                cardProps={cardProps}
+                disabled={reorderDisabled}
+                items={mergeByDateOrder(todays, recToday, today)}
+                occurrenceDate={today}
+                onPersistDate={reorderDateTasks}
+              />
             </div>
           ) : null}
         </>
@@ -870,22 +887,13 @@ export function TasksWorkspace({
       return (
         <>
           {sectionHead(copy.secTomorrow, list.length + recList.length)}
-          {list.length > 0 ? (
-            <ReorderableTaskList
-              cardProps={cardProps}
-              disabled={reorderDisabled}
-              items={list}
-              onPersist={reorderTasks}
-            />
-          ) : null}
-          {recList.length > 0 ? (
-            <RecurringOccurrenceCards
-              cardProps={{ ...cardProps, swipe: false }}
-              className={list.length ? "mt-2 flex flex-col gap-2" : "flex flex-col gap-2"}
-              date={tomorrowDate}
-              items={recList}
-            />
-          ) : null}
+          <ReorderableTaskList
+            cardProps={cardProps}
+            disabled={reorderDisabled}
+            items={mergeByDateOrder(list, recList, tomorrowDate)}
+            occurrenceDate={tomorrowDate}
+            onPersistDate={reorderDateTasks}
+          />
         </>
       );
     }

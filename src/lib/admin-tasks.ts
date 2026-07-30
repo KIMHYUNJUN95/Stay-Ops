@@ -2,12 +2,14 @@ import "server-only";
 
 import type { AppSession } from "@/lib/session";
 import {
+  getOccurrenceOrders,
   getOccurrenceStates,
   getShareableUsers,
   getVisibleTasks,
   tokyoDateOf,
   tokyoToday,
   ymdShift,
+  type OccurrenceOrderRecord,
   type OccurrenceStateRecord,
   type ShareableUser,
   type TaskRecord,
@@ -24,6 +26,8 @@ export type AdminTasksData = {
   users: ShareableUser[];
   completions: CompletionRecord[];
   occurrenceStates: OccurrenceStateRecord[];
+  /** 반복 회차의 날짜별 수동 순서. 일회성은 tasks.sort_order 를 쓴다(2026-07-30). */
+  occurrenceOrders: OccurrenceOrderRecord[];
   me: { id: string; name: string; role: string };
   loadError: boolean;
 };
@@ -88,15 +92,35 @@ export async function getAdminTasksData(session: AppSession): Promise<AdminTasks
     role: session.user.role,
   };
   try {
-    const [tasks, projects, users, completions, occurrenceStates] = await Promise.all([
-      getVisibleTasks(session),
-      getVisibleProjects(session),
-      getShareableUsers(session),
-      getCompletionRecords(),
-      getOccurrenceStates(session),
-    ]);
-    return { tasks, projects, users, completions, occurrenceStates, me, loadError: false };
+    const [tasks, projects, users, completions, occurrenceStates, occurrenceOrders] =
+      await Promise.all([
+        getVisibleTasks(session),
+        getVisibleProjects(session),
+        getShareableUsers(session),
+        getCompletionRecords(),
+        getOccurrenceStates(session),
+        getOccurrenceOrders(session),
+      ]);
+    return {
+      tasks,
+      projects,
+      users,
+      completions,
+      occurrenceStates,
+      occurrenceOrders,
+      me,
+      loadError: false,
+    };
   } catch {
-    return { tasks: [], projects: [], users: [], completions: [], occurrenceStates: [], me, loadError: true };
+    return {
+      tasks: [],
+      projects: [],
+      users: [],
+      completions: [],
+      occurrenceStates: [],
+      occurrenceOrders: [],
+      me,
+      loadError: true,
+    };
   }
 }
