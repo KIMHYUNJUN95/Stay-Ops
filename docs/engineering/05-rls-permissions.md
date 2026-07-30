@@ -648,6 +648,16 @@ role != 'part_time_staff'  OR  profiles.can_generate_report = true
 - Create: active participants on the parent task.
 - Update / delete: not required in the first slice unless product rules change later.
 
+## task_occurrence_state
+
+Per-occurrence state for recurring tasks (migration `202607300001_task_occurrence_state.sql`,
+2026-07-30). Same participant model as `task_updates`.
+
+- Read: participants only — `is_platform_admin()` OR `is_task_participant(task_id)`.
+- Write: **server actions only (service-role).** `authenticated` has SELECT-only; all
+  completed/skipped/moved writes go through the task server actions, which enforce
+  org-scoping + participant checks. No direct client insert/update.
+
 ## board_posts
 
 - Read: all active org members.

@@ -10,6 +10,7 @@ import {
   normalizeTaskDateTime,
   resolveRecurrenceRule,
   taskTimeWithoutDate,
+  tokyoToday,
 } from "@/lib/tasks";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -184,7 +185,7 @@ export async function createTask(formData: FormData) {
   }
 
   const description = cleanText(formData.get("description"));
-  const scheduledDate = cleanText(formData.get("scheduledDate"));
+  let scheduledDate = cleanText(formData.get("scheduledDate"));
   const dueDate = cleanText(formData.get("dueDate"));
   const time = cleanText(formData.get("time"));
   const durationRaw = cleanText(formData.get("durationMinutes"));
@@ -193,6 +194,8 @@ export async function createTask(formData: FormData) {
   const priority = PRIORITIES.has(priorityRaw) ? priorityRaw : "normal";
   // Create has no previous rule, so `custom` can never be newly assigned (→ null).
   const repeat = resolveRecurrenceRule(repeatRaw, null);
+  // A recurrence needs a date anchor; a repeat with no date anchors to today (Todoist), not rejected.
+  if (repeat && !scheduledDate && !dueDate) scheduledDate = tokyoToday();
   const tags = parseStringArray(cleanText(formData.get("tagsJson")))
     .map((t) => t.trim())
     .filter(Boolean)

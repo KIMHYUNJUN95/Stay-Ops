@@ -24,6 +24,7 @@ import {
   deleteTask,
   removeTaskParticipant,
   reopenTask,
+  setTaskProgress,
   shareTaskWithUsers,
 } from "@/app/mobile/tasks/[id]/actions";
 import {
@@ -37,6 +38,7 @@ import { LinkedContextBlock } from "@/components/tasks/linked-context-block";
 import { SharePicker } from "@/components/tasks/share-picker";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { ShareableUser, TaskDetail } from "@/lib/tasks";
+import { formatCustomWeekdays } from "@/lib/tasks-recurrence";
 import { cn } from "@/lib/utils";
 
 type Copy = Dictionary["tasks"];
@@ -69,7 +71,11 @@ function longDateOnlyIso(iso: string, locale: Locale): string {
     timeZone: "Asia/Tokyo",
   }).format(new Date(iso));
 }
-function repeatLabel(rule: string, copy: Copy): string {
+function repeatLabel(rule: string, copy: Copy, locale: Locale): string {
+  // 사용자 지정 요일 반복(`custom:1,3,5`)은 고정 매핑에 없으므로 먼저 처리한다 — 빠뜨리면
+  // 어드민에서 만든 반복이 여기서 원문 그대로("custom:1,3,5") 노출된다.
+  const customDays = formatCustomWeekdays(rule, locale);
+  if (customDays) return copy.repeatWeeklyOn.replace("{w}", customDays);
   const map: Record<string, string> = {
     daily: copy.repeatDaily,
     weekly: copy.repeatWeekly,
@@ -159,7 +165,7 @@ export function TaskDetailView({
         : task.timeLabel
       : copy.allDay,
   });
-  if (task.recurrenceRule) meta.push({ icon: Repeat2, label: copy.sectionRepeat, value: repeatLabel(task.recurrenceRule, copy) });
+  if (task.recurrenceRule) meta.push({ icon: Repeat2, label: copy.sectionRepeat, value: repeatLabel(task.recurrenceRule, copy, locale) });
   meta.push({ icon: Flag, label: copy.sectionPriority, value: prioLabel(task.priority, copy) });
 
   function submitShare(ids: string[]) {
@@ -303,6 +309,36 @@ export function TaskDetailView({
             <Crown className="size-3.5 text-amber-500" aria-hidden="true" />
             {copy.coreEditHint.replace("{name}", task.authorName)}
           </p>
+        ) : null}
+
+        {/* 대기 / 진행 중 — 완료는 아래 전용 버튼이 맡는다(반복 회차·알림 처리가 얽혀 있어서).
+            콘솔의 3상태 모델을 모바일에도 여는 것이고, 완료 상태에서는 숨긴다(다시 열기가 먼저). */}
+        {!done ? (
+          <div className="mt-4 grid grid-cols-2 gap-1.5 rounded-2xl bg-slate-100 p-1">
+            {([false, true] as const).map((wantProgress) => {
+              const on = (task.status === "in_progress") === wantProgress;
+              return (
+                <button
+                  aria-pressed={on}
+                  className={cn(
+                    "h-10 rounded-xl text-[13px] font-extrabold transition-colors",
+                    on ? "bg-surface text-foreground shadow-sm" : "text-muted-foreground",
+                  )}
+                  disabled={isTogglingStatus}
+                  key={String(wantProgress)}
+                  onClick={() =>
+                    !on &&
+                    startStatusTransition(async () => {
+                      await setTaskProgress(task.id, wantProgress);
+                    })
+                  }
+                  type="button"
+                >
+                  {wantProgress ? copy.statusInProgress : copy.statusOpen}
+                </button>
+              );
+            })}
+          </div>
         ) : null}
 
         {/* Complete / reopen — any participant may toggle their shared task's completion. */}

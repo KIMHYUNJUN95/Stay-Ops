@@ -3,9 +3,14 @@
 Status: First slice implemented (2026-06-10), hardened through 2026-06-15. Mobile Todoist/Shared Task is live under
 `/mobile/tasks/*` (side-menu entry `tasks`, user-facing label `Todoist`). Seven tabs now present: Today / Tomorrow / Inbox(관리함) / **프로젝트** / Sent(공유함) / Completed(완료/기록) / Calendar. The 프로젝트 tab is **functional (first slice, 2026-06-15)**: project create/delete, sections (add/rename/delete with their tasks), an Unsectioned area, project-task create + complete/reopen, member invite/remove/leave, a Completed-tab filter (전체/일반/프로젝트), and a `project_shared` notification. Project tasks appear only in the Projects tab (never in Today/Tomorrow/Inbox/Sent/Calendar). Requires migration `202606150002_projects.sql`. See `docs/product/23-project-workflow.md` and `docs/engineering/09-todo-task-technical-design.md`.
 quick add + detailed create/edit, task detail with unified update log, multi-select sharing, and
-author/participant rules are implemented. Recurrence is **Todoist-style (2026-06-16)** — a recurring
-task is **one live row** that rolls forward to its next occurrence on completion (no pre-materialized
-per-date rows); the calendar shows future occurrences as **virtual previews**. notifications cover the current slice — shared, update-log activity, **task_completed**, plus
+author/participant rules are implemented. Recurrence is the **occurrence model (2026-07-30, supersedes
+the 2026-06-16 roll-forward model)** — a recurring task is **one live row** with a FIXED anchor; it shows
+on **every** scheduled date independently (completion no longer rolls the row forward), per-occurrence
+completion lives in `task_occurrence_state`, and overdue occurrences persist (grouped "N일 밀림" with
+오늘로 가져오기 / 삭제). See the Recurrence section + `docs/planning/01-decision-log.md`. The calendar header has a
+**"반복 숨기기" (Hide recurring) toggle** (2026-07-29) — a session-only client switch (default off, resets on
+reload) that hides fixed/standard-recurring occurrences across the whole calendar (month grid, month agenda,
+and day sheet) so one-off dated tasks read clearly; it is mirrored 1:1 on the admin console calendar. notifications cover the current slice — shared, update-log activity, **task_completed**, plus
 time-based **due-soon** and **overdue** reminders (daily cron). An extra intermediate tab was removed in the 2026-06-12 IA cleanup; manual complete / reopen was re-introduced on 2026-06-13 and now drives the Completed (완료/기록) tab and the free template-based daily report (업무일지, no LLM). See
 `docs/engineering/09-todo-task-technical-design.md` for the as-built schema/RLS and `docs/product/
 14-notification-design.md` for the notification matrix.
@@ -224,8 +229,10 @@ anchored to tomorrow (Tokyo).
 
 **Drag-reorder** (both day tabs):
 
-- **Today + Tomorrow only.** Today's Overdue/Today sections and the Tomorrow list are each
-  independently reorderable. Other views (Inbox/Sent/Calendar) keep their automatic ordering.
+- **Today + Tomorrow + 관리함(Inbox).** Today's Overdue/Today sections, the Tomorrow list, and the
+  Inbox are reorderable (Inbox added 2026-07-30, mirrored on the admin console). In the Inbox,
+  unranked tasks fall back to **newest-first** (so a new task still lands on top) rather than priority.
+  Sent/Calendar keep automatic ordering.
 - **Dedicated drag handle.** Each card shows a small grip handle (≡) on its right edge; dragging
   starts only from the handle. It owns its own pointer gesture and stops propagation, so it never
   triggers the card's **tap** (open), **long-press** (context menu), or **swipe** — no conflict.
@@ -600,52 +607,36 @@ Not required in first slice:
 - recurrence count limits
 - complex recurrence-end rules
 
-As-built (2026-06-16, Todoist-style — supersedes the 2026-06-11 pre-materialization model):
+As-built (2026-07-30, occurrence model — **supersedes** the 2026-06-16 roll-forward model. See
+`docs/planning/01-decision-log.md` → "2026-07-30 롤포워드 폐지"):
 
-- A recurring task is a **single live `tasks` row** carrying the `recurrence_rule`, its
-  `recurrence_series_id`, and the current occurrence date (`recurrence_instance_date`). Future dates
-  are **not** pre-created — so the date-agnostic tabs (관리함/공유함) show exactly **one entry** per
-  recurring task (this fixed the duplicate-flood bug where a daily task created ~50 rows).
-- **Completion rolls forward.** Completing a recurring task does not close it — `completeTask` moves
-  the same row to the **next occurrence** (advancing `scheduled_date` / `due_at` /
-  `recurrence_instance_date`, preserving time-of-day) and keeps it `open`, logging a `completed`
-  update + firing the `task_completed` notification. The quick-complete **undo** (`reopenTask`) rolls
-  the row **back** to the previous occurrence.
-  - Because a recurring completion never sets `status=completed`, it does **not** appear as a card in
-    the **Completed (완료/기록)** tab (which lists `status=completed` rows) — but it **is** counted in
-    the **daily report (업무일지)**, which reads the `task_updates` completion log (see Daily Report).
-    This is intentional: the tab is a task-state view, the report is the work log.
-  - **Undo of a *late* completion lands on the most recent valid occurrence, not the original stale
-    overdue date.** A daily task overdue from a week ago, completed today then undone, returns to
-    today (the previous occurrence of the future instance) rather than the week-old date. This is an
-    accepted trade-off of the stateless single-row design (no pre-roll instance is stored); restoring
-    to "today" is the sensible reading of "undo a completion done today".
-- **Not completed → becomes overdue (one row, not a pile).** Recurrence advances **only on
-  completion**, never automatically when the day passes. So an uncompleted daily task stays on its
-  date and simply shows as **overdue** (a single task in the Today tab's overdue section) until
-  acted on — it does not multiply into one row per missed day.
-- **Late completion skips to the future.** When a *late* (overdue) recurring task is completed,
-  `nextRecurringInstance` advances past today (iterating the rule, so the weekday / day-of-month
-  anchor is kept) so the next occurrence lands in the future — matching Todoist's "every day"
-  behaviour, instead of forcing the user to complete once per missed day to catch up.
-- **Overdue prompt on the Today tab (2026-06-16).** When the caller has **their own** overdue tasks,
-  a banner appears at the top of the Today tab with two bulk actions:
-  - **오늘로 가져오기** (`rescheduleOverdueToToday`) — moves each overdue task to today. A recurring
-    task's single row is re-anchored to today (series preserved); a one-off task's due date moves to
-    today (time-of-day kept).
-  - **지난 미완료 삭제** (`dismissOverdueTasks`, two-step confirm) — a **one-off** overdue task is
-    deleted, but a **recurring** task is **not** deleted (that would kill the series): it advances to
-    its **next future occurrence**, so the missed run is dropped while the daily/weekly schedule
-    continues. (e.g. a daily task overdue from a few days ago → the missed days clear, the next
-    occurrence remains.)
-  Both actions are **author-scoped** server-side (`createdByUserId === viewer`) so they never
-  reschedule or delete another member's shared task. The banner hides while a search/date filter or
-  multi-select is active. i18n: `tasks.overduePrompt*` (ko/ja/en).
-- **Calendar previews are virtual.** The calendar/agenda **and the day sheet** expand each recurring
-  task across the visible month from its rule (`recurringOccurrencesInRange`) for display only — no DB
-  rows are added, and tapping/editing a virtual occurrence acts on the one real series task.
-  (Fix 2026-07-29: the day sheet previously filtered actual anchors only, so a recurring task's future
-  occurrence day showed a dot/agenda entry but opened an empty sheet — now aligned with the grid.)
+- A recurring task is a **single live `tasks` row** carrying the `recurrence_rule`,
+  `recurrence_series_id`, and a **FIXED anchor** (`recurrence_instance_date`). Occurrences are the
+  rule's dates computed on the fly (`recurringOccurrencesInRange`) — **not** pre-created rows.
+- **Every scheduled date shows independently — completion no longer rolls the row forward.** A
+  recurring task appears on **each** of its occurrence dates in 오늘/내일/캘린더 (so "5 recurring →
+  tomorrow also shows 5"), regardless of whether today's is done. The date-agnostic tabs (관리함/공유함)
+  still show one entry per series.
+- **Per-occurrence completion lives in `task_occurrence_state`** (keyed by `(task_id,
+  occurrence_date)`), **not** on the row. `completeTask(taskId, occurrenceDate)` records that date as
+  `completed` (row untouched, stays `open`) + logs a `completed` update + fires `task_completed`. The
+  quick-complete **undo** (`reopenTask(taskId, occurrenceDate)`) clears that occurrence's state row.
+  The **Completed (완료/기록)** tab and **daily report** still read the `task_updates` completion log
+  (unchanged), so recurring completions appear there by their completion day.
+- **Overdue occurrences persist forever — no auto-skip, no auto-delete.** An occurrence whose date has
+  passed with no recorded state is **overdue** and stays so (연차·연휴·업무 사정으로 며칠 밀려도 사라지지
+  않는다). Overdue occurrences of a recurring task are collapsed into **one grouped item per task**
+  ("○○ · N일 밀림") in the Today tab's overdue area, with two actions:
+  - **오늘로 가져오기** (`carryOverdueToToday`) — marks the outstanding overdue occurrences `moved`
+    and creates a **carry-over one-off** task dated today (a personal make-up for the actor). The
+    recurring series continues on its schedule.
+  - **삭제** (`skipOverdueOccurrences`) — marks the outstanding overdue occurrences `skipped` (kept
+    forever, never re-appears). The series continues.
+  One-off overdue tasks keep the existing bulk 오늘로 가져오기 / 지난 미완료 삭제 prompt (author-scoped).
+- **Calendar/list previews are virtual** — the month grid, agenda, day sheet, and now the 오늘/내일
+  lists expand each recurring task across its occurrence dates from the rule for display; tapping a
+  virtual occurrence acts on the one real series row, and its checkbox completes **that date's**
+  occurrence.
 - The old window-materializer (`materializeRecurringTasks`) is **deprecated and no longer called**
   from any read path. Pre-existing materialized instances were collapsed to one row per series by
   migration `202606160002_collapse_recurring_instances.sql`.
@@ -1087,3 +1078,58 @@ Design in this order:
 - shared Inbox behavior is consistent for all participants
 - calendar stays separate from reservation calendar
 - ko/ja/en strings exist
+
+## 2026-07-30 진행 중(in_progress) 상태 — 모바일 지원
+
+**문제.** 상태 모델은 원래 3개(`open` / `in_progress` / `completed`)인데, 모바일에는
+`completeTask` / `reopenTask` 두 액션뿐이라 **진행 중을 설정할 수단이 없었다.**
+`task-detail-view.tsx`는 값을 **읽어서 표시만** 하고 있었고, 목록 카드에는 표시조차 없어 대기 상태와
+구분되지 않았다. 어드민 콘솔은 3상태 세그먼트를 이미 쓰고 있어서, 관리자가 "진행 중"으로 바꾼 작업이
+현장에서는 그냥 대기로 보였다 — 같은 데이터를 한쪽에서만 다룰 수 있는 상태였다.
+
+**해결.**
+
+- **서버**: `setTaskProgress(taskId, inProgress)` 신규 (`src/app/mobile/tasks/[id]/actions.ts`).
+  `open ↔ in_progress` 만 다루고, 완료 전환은 기존 `completeTask` 가 계속 맡는다 — 완료는 반복
+  회차(occurrence) 처리와 알림이 얽혀 있어 경로를 나누는 편이 안전하다. 이 액션으로 완료 상태가
+  되살아나지 않도록 완료 스탬프(`completed_at` / `completed_by_user_id`)도 함께 지운다.
+  `task_updates` 에 `status_changed` 로그를 남기는 것도 콘솔과 동일하다.
+- **상세 화면**: 완료 버튼 위에 `대기 / 진행 중` 2칸 세그먼트. **완료 상태에서는 숨긴다** —
+  그때 필요한 동작은 "다시 열기"가 먼저다. 완료는 계속 아래 전용 버튼이 맡으므로 콘솔의 3칸
+  세그먼트와 모양은 다르지만 상태 모델은 같다.
+- **목록 카드**: `진행 중` 칩 추가(primary 톤). 이게 없으면 목록에서 대기와 완전히 동일하게 보인다.
+
+**i18n**: `tasks.statusOpen` / `tasks.statusInProgress` 는 ko·ja·en 모두 이미 존재해 재사용했다.
+
+**남은 격차**: 관리함 드래그 정렬은 이제 콘솔에도 있다(2026-07-30). 프로젝트 섹션·멤버 관리 등 일부는
+여전히 모바일 전용일 수 있으니 콘솔 문서(28)를 함께 참고.
+관리자가 프로젝트를 구성하는 화면인데 섹션·멤버를 만질 수 없는 건 어색하므로 별도 슬라이스로 다룬다.
+
+## 2026-07-30 반복 회차 중복 이동 차단
+
+**요구.** 반복 작업의 오늘 회차를 내일로 옮기려는데 **내일에도 이미 그 반복의 회차가 있으면**,
+안내 문구를 띄우고 이동을 거절한다.
+
+단일 행 모델이라 옮겨도 행이 늘지는 않지만, 사용자 눈에는 "내일에도 이미 있는 그 작업"을 또 내일로
+미는 것이라 의미가 없다 — 실제로 아무것도 바뀌지 않는다.
+
+**판정은 한 곳.** `canMoveRecurringTo(rule, anchor, targetDate)`
+(`src/lib/tasks-recurrence.ts`) — 대상 날짜에 회차가 있으면 `false`. 비반복 작업, 앵커 없는 작업,
+그리고 앵커와 같은 날짜(애초에 no-op)는 항상 허용한다. 두 표면이 각자 판정하면 어긋나므로 공용
+모듈에 둔다.
+
+**적용 지점 (4개)**
+
+| 표면 | 액션 | 거절 방식 |
+| --- | --- | --- |
+| 어드민 | `moveConsoleToToday` / `moveConsoleToTomorrow` | `{ ok:false, error:"duplicate_occurrence" }` → 토스트 |
+| 모바일 | `moveTaskToToday` / `moveTaskToTomorrow` (스와이프) | `?moveError=duplicate_occurrence` 로 리다이렉트 → 목록 토스트 |
+
+모바일 스와이프는 form POST + `redirect` 구조라 결과를 돌려줄 수 없어 쿼리로 전달한다. 목록이
+읽어서 한 번만 띄우고 `history.replaceState` 로 URL을 정리한다 — 새로고침 시 안내가 다시 뜨면 안 된다.
+
+**범위 밖.** 일정 변경 팝오버(`rescheduleConsoleTask`)로 임의 날짜를 고르는 경로는 막지 않는다.
+그쪽은 사용자가 날짜를 직접 보고 고르는 흐름이라 실수로 겹칠 여지가 작고, 의도적으로 겹치게 두려는
+경우까지 막게 된다.
+
+**i18n**: `tasks.moveDuplicateOccurrence`, `adminTasks.errDuplicateOccurrence` (ko·ja·en).

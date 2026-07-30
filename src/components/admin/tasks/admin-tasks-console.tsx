@@ -19,6 +19,7 @@ import {
   CalendarDays,
   CalendarX2,
   Check,
+  CheckCheck,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -28,6 +29,7 @@ import {
   Crown,
   FileText,
   Flag,
+  GripVertical,
   Hash,
   Inbox,
   Lock,
@@ -51,24 +53,42 @@ import {
 } from "lucide-react";
 import {
   addConsoleNote,
+  addConsoleProjectSection,
+  bulkDeleteConsoleTasks,
+  carryConsoleOverdueToToday,
   createConsoleProject,
   createConsoleTask,
+  deleteConsoleProject,
+  deleteConsoleProjectSection,
   deleteConsoleTask,
   generateConsoleReport,
   getConsoleProjectDetail,
   getConsoleTaskDetail,
+  inviteConsoleProjectMembers,
   leaveConsoleTask,
   moveConsoleToInbox,
   moveConsoleToToday,
+  moveConsoleToTomorrow,
+  removeConsoleProjectMember,
+  renameConsoleProjectSection,
+  reorderConsoleTasks,
   rescheduleConsoleTask,
   restoreConsoleTask,
+  restoreConsoleTasks,
   setConsoleTaskStatus,
   shareConsoleTask,
+  skipConsoleOverdue,
   toggleConsoleComplete,
   updateConsoleTaskCore,
   type TaskActionResult,
 } from "@/app/admin/tasks/actions";
-import { isStandardRecurrence, recurringOccurrencesInRange } from "@/lib/tasks-recurrence";
+import {
+  CUSTOM_RECURRENCE_PREFIX,
+  isStandardRecurrence,
+  type OccurrenceState,
+  parseCustomWeekdays,
+  recurringOccurrencesInRange,
+} from "@/lib/tasks-recurrence";
 import type { AdminTasksData } from "@/lib/admin-tasks";
 import { getAdminTasksDictionary } from "@/lib/admin-tasks-i18n";
 import type { Locale } from "@/lib/i18n";
@@ -98,19 +118,35 @@ import {
   matchPrio,
   matchQuery,
   myOwn,
+  overdueOccurrenceDates,
   partsOf,
   prioSort,
   dateSort,
   recvInstr,
   REPEAT_RULES,
+  customWeekdayNames,
   repeatLabel,
   repeatShort,
+  weekdayShortName,
+  WEEKDAY_ORDER,
   sentInstr,
   timeRange,
   tokyoToday,
   weekdayIndex,
   type DateFilterKey,
 } from "./helpers";
+import {
+  TaskPhotoUploader,
+  uploadPendingTaskPhotos,
+  uploadPendingTaskUpdatePhotos,
+  type PhotoUploaderCopy,
+} from "@/components/admin/tasks/task-photo-uploader";
+import type { PreviewItem } from "@/components/announcements/announcement-image-uploader";
+import {
+  ContextPickerPopover,
+  type ContextPickerCopy,
+  type TaskContextValue,
+} from "@/components/admin/tasks/context-picker-popover";
 import "./admin-tasks-console.css";
 
 type View = "today" | "tomorrow" | "inbox" | "shared" | "instr" | "completed" | "calendar";
@@ -127,6 +163,11 @@ type AddDraft = {
   repeat: string;
   prio: string;
   targets: string[];
+  tags: string[];
+  /** 태그 입력 버퍼 — 커밋 전 문자열이라 `tags` 와 분리해 둔다. */
+  tagInput: string;
+  /** 연결된 건물/객실/예약/게스트. 미연결이면 undefined. */
+  context?: TaskContextValue;
 };
 
 type Anchor = { x: number; y: number; aTop: number };
@@ -141,21 +182,44 @@ type SchedulePop = {
 type PrioPop = { kind: "prio"; src: "add" | "task"; taskId: string | null; cur: string } & Anchor;
 type SharePop = {
   kind: "share";
-  src: "add" | "task";
+  /** "project" = 프로젝트 멤버 관리(초대 + 제거). taskId 대신 projectId 를 쓴다. */
+  src: "add" | "task" | "project";
   taskId: string | null;
+  projectId?: string;
   mode: "target" | "share";
   sel: string[];
   q: string;
 } & Anchor;
+/** 컨텍스트(건물·객실·예약) 연결 팝오버. `src` 는 인라인 추가 드래프트인지 기존 작업인지. */
+type ContextPop = { kind: "context"; src: "add" | "task"; taskId: string | null } & Anchor;
 type RowMenuPop = { kind: "rowmenu"; taskId: string } & Anchor;
 type DateFilterPop = { kind: "datefilter" } & Anchor;
 type PrioFilterPop = { kind: "priofilter" } & Anchor;
-type Pop = SchedulePop | PrioPop | SharePop | RowMenuPop | DateFilterPop | PrioFilterPop | null;
+type Pop =
+  | SchedulePop
+  | PrioPop
+  | SharePop
+  | ContextPop
+  | RowMenuPop
+  | DateFilterPop
+  | PrioFilterPop
+  | null;
 
 function anchorFrom(e: ReactMouseEvent): Anchor {
   const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
   return { x: r.left, y: r.bottom + 6, aTop: r.top };
 }
+
+/** 연결 없음 상태. 컴포넌트 밖에 두는 이유: `PopoverLayer()` 가 컴포넌트 본문 중간에서 호출되므로
+ *  본문 안의 `const` 는 그 시점에 아직 TDZ 라 `ReferenceError` 가 난다(2026-07-29 실제 발생). */
+const EMPTY_TASK_CONTEXT: TaskContextValue = {
+  propertyId: null,
+  roomId: null,
+  reservationId: null,
+  guestName: null,
+  propertyName: null,
+  roomLabel: null,
+};
 
 // useLayoutEffect on the client (positions before paint → no flicker), useEffect on the server
 // (avoids the SSR warning; the popover never renders during SSR anyway).
@@ -173,8 +237,40 @@ const STATUS_SEGMENTS = [
   labelKey: "stOpen" | "stInProgress" | "stCompleted";
 }[];
 
-export function AdminTasksConsole({ locale, data }: { locale: Locale; data: AdminTasksData }) {
+export function AdminTasksConsole({
+  locale,
+  data,
+  organizationId,
+}: {
+  locale: Locale;
+  data: AdminTasksData;
+  /** Needed for the photo Storage path (`${organizationId}/task-images/...`). */
+  organizationId: string;
+}) {
   const dict = getAdminTasksDictionary(locale);
+  // 업로더는 i18n 모듈을 모르고 이미 번역된 문자열만 받는다(재사용 가능한 프리젠테이션 컴포넌트).
+  const photoCopy: PhotoUploaderCopy = {
+    add: dict.phAdd,
+    addCompact: dict.phAddCompact,
+    dropHint: dict.phDropHint,
+    count: dict.phCount,
+    remove: dict.phRemove,
+    tooMany: dict.phTooMany,
+    invalidType: dict.phInvalidType,
+    tooLarge: dict.phTooLarge,
+    uploading: dict.phUploading,
+  };
+  const contextCopy: ContextPickerCopy = {
+    title: dict.cpTitle, hintBuilding: dict.cpHintBuilding, hintRoom: dict.cpHintRoom,
+    buildings: dict.cpBuildings, rooms: dict.cpRooms, reservations: dict.cpReservations,
+    search: dict.cpSearch, searchClear: dict.cpSearchClear,
+    searchEmpty: dict.cpSearchEmpty, searchEmptySub: dict.cpSearchEmptySub,
+    noBuilding: dict.cpNoBuilding, noRooms: dict.cpNoRooms, noReservation: dict.cpNoReservation,
+    guest: dict.cpGuest, loading: dict.cpLoading, back: dict.cpBack, clear: dict.cpClear,
+    apply: dict.cpApply, cancel: dict.cpCancel, occupied: dict.cpOccupied, vacant: dict.cpVacant,
+    nightsUnit: dict.cpNightsUnit, live: dict.cpLive, roomsUnit: dict.cpRoomsUnit,
+    todayGuests: dict.cpTodayGuests, roomSuffix: dict.cpRoomSuffix, bookingId: dict.cpBookingId,
+  };
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const { toast, showToast, dismiss } = useAdminToast();
@@ -202,6 +298,24 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     from: string;
     status: "open" | "in_progress" | "completed";
   } | null>(null);
+  // 상세 패널 제목·본문·태그 인라인 편집. Lives here (not in DetailPanel) for the same reason
+  // `statusDraft` does — DetailPanel is a conditionally-called plain function, so hooks inside it
+  // would break hook order.
+  const [coreEdit, setCoreEdit] = useState<{
+    id: string;
+    title: string;
+    desc: string;
+    tags: string[];
+    tagInput: string;
+  } | null>(null);
+  // 사진: `pending` 은 아직 업로드 안 된 로컬 선택본. 세 자리(인라인 추가 · 상세 코어 편집 · 노트)가
+  // 각자 드래프트를 들고, 저장 시점에 uploadPending…() 로 Storage 에 올린 뒤 URL 만 액션에 넘긴다.
+  const [addPhotos, setAddPhotos] = useState<PreviewItem[]>([]);
+  const [editPhotos, setEditPhotos] = useState<{ value: string[]; pending: PreviewItem[] }>({
+    value: [],
+    pending: [],
+  });
+  const [notePhotos, setNotePhotos] = useState<PreviewItem[]>([]);
   // Panel slide-in/out. `sel` is the open/close intent; `panelTask` is the task actually rendered
   // and PERSISTS through the exit transition (so content doesn't vanish mid-slide); `panelOn`
   // toggles the `.dp.on` slide position. The animation timing lives in an effect whose setState
@@ -214,6 +328,8 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   const popAnchorRef = useRef<HTMLDivElement>(null);
   const [instrTab, setInstrTab] = useState<"recv" | "sent">("recv");
   const [calMonth, setCalMonth] = useState<string>(() => today.slice(0, 7));
+  // 캘린더에서 고정 반복(표준 반복) 회차를 숨김 — 세션 상태(새로고침 시 초기화), 기본 표시.
+  const [hideRecurring, setHideRecurring] = useState(false);
   const [q, setQ] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilterKey | null>(null);
   const [prioFilter, setPrioFilter] = useState("");
@@ -223,7 +339,14 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   );
   const [reportEdited, setReportEdited] = useState("");
   const [newProj, setNewProj] = useState<{ name: string; members: string[]; q: string } | null>(null);
+  // 프로젝트 섹션 편집 — 이름 변경 인라인 드래프트 / 새 섹션 이름 버퍼.
+  const [sectionEdit, setSectionEdit] = useState<{ id: string; title: string } | null>(null);
+  const [newSection, setNewSection] = useState("");
   const [confirm, setConfirm] = useState<{ message: string; confirmLabel: string; onConfirm: () => void } | null>(null);
+  // ── selection mode (bulk delete) ──
+  // `picked` holds ids across every section of the current view.
+  const [selMode, setSelMode] = useState(false);
+  const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set());
   // Undo toast (Todoist-style): dark bottom-left toast with a "실행 취소" action, ~6s.
   const [undo, setUndo] = useState<{ id: number; message: string; sub?: string; onUndo: () => void } | null>(null);
 
@@ -256,16 +379,74 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   const personalTasks = useMemo(() => data.tasks.filter((t) => !t.projectId), [data.tasks]);
   const projById = useMemo(() => new Map(data.projects.map((p) => [p.id, p])), [data.projects]);
 
+  // 반복 회차 상태(2026-07-30) — taskId → (occurrenceDate → state). 회차 완료 여부/지연 판정에 사용.
+  const occByTask = useMemo(() => {
+    const m = new Map<string, Map<string, OccurrenceState>>();
+    for (const s of data.occurrenceStates) {
+      let inner = m.get(s.taskId);
+      if (!inner) {
+        inner = new Map();
+        m.set(s.taskId, inner);
+      }
+      inner.set(s.occurrenceDate, s.state);
+    }
+    return m;
+  }, [data.occurrenceStates]);
+  const occState = useCallback(
+    (taskId: string, date: string): OccurrenceState | undefined => occByTask.get(taskId)?.get(date),
+    [occByTask],
+  );
+  const resolvedDatesFor = useCallback(
+    (taskId: string): Set<string> => new Set(occByTask.get(taskId)?.keys() ?? []),
+    [occByTask],
+  );
+  // 관리함(Inbox) 드래그 재정렬(2026-07-30). dragId=집는 행, overId=놓을 위치, inboxOrder=낙관적 순서.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  const [inboxOrder, setInboxOrder] = useState<string[] | null>(null);
+  // 서버 새로고침(revalidate)되면 낙관적 순서 초기화 — sort_order가 이미 반영돼 있으므로.
+  // rAF로 감싸 effect 내 동기 setState 경고를 피한다(이 파일의 기존 패턴).
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setInboxOrder(null));
+    return () => cancelAnimationFrame(raf);
+  }, [data.tasks]);
+  // 특정 토쿄일에 이 작업이 걸리는가 — 반복은 규칙으로 회차 계산(Todoist 가상 미리보기), 비반복은 앵커 하루.
+  const occursOn = useCallback((t: TaskRecord, ymd: string) => {
+    const a = dateOf(t);
+    if (!a) return false;
+    if (isStandardRecurrence(t.recurrenceRule))
+      return recurringOccurrencesInRange(t.recurrenceRule, a, ymd, ymd).length > 0;
+    return a === ymd;
+  }, []);
+  // 반복 회차가 오늘/특정일에 미완료로 떠야 하는가(완료·스킵·이동된 회차 제외).
+  const openOccursOn = useCallback(
+    (t: TaskRecord, ymd: string) =>
+      isStandardRecurrence(t.recurrenceRule) && occursOn(t, ymd) && occState(t.id, ymd) !== "completed",
+    [occursOn, occState],
+  );
+
   // ── action runner ──────────────────────────────────────────────────────────────
+  // 서버 액션이 돌려주는 모든 코드를 실제 문구로 매핑한다. 예전에는 auth/forbidden/save_failed 외
+  // 전부가 errGeneric("처리하지 못했습니다")으로 뭉개져, 제목 누락인지 날짜 누락인지 화면에서
+  // 구분할 수 없었다(2026-07-30 수정).
   const errMsg = useCallback(
-    (code: string) =>
-      code === "auth"
-        ? dict.errAuth
-        : code === "forbidden"
-          ? dict.errForbidden
-          : code === "save_failed" || code === "delete_failed"
-            ? dict.errSave
-            : dict.errGeneric,
+    (code: string) => {
+      const map: Record<string, string> = {
+        auth: dict.errAuth,
+        forbidden: dict.errForbidden,
+        save_failed: dict.errSave,
+        delete_failed: dict.errSave,
+        missing_title: dict.errMissingTitle,
+        time_needs_date: dict.errTimeNeedsDate,
+        repeat_needs_date: dict.errRepeatNeedsDate,
+        not_found: dict.errNotFound,
+        invalid_date: dict.errInvalidDate,
+        invalid_project: dict.errNotFound,
+        empty: dict.errEmpty,
+        duplicate_occurrence: dict.errDuplicateOccurrence,
+      };
+      return map[code] ?? dict.errGeneric;
+    },
     [dict],
   );
   const run = useCallback(
@@ -335,6 +516,10 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     setProjectId(null);
     setView(v);
     setAdd(null);
+    // Selection is scoped to the list you can see — leaving the view drops it rather than carrying
+    // invisible picks into a bulk delete.
+    setSelMode(false);
+    setPicked(new Set());
     // 캘린더는 필터바가 없어 활성 필터를 해제할 UI가 없으므로, 진입 시 검색/우선순위/날짜 필터를 초기화한다.
     if (v === "calendar") {
       setQ("");
@@ -358,21 +543,86 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   );
   // Toggle complete; on completing show a "완료 · 실행 취소" undo toast (reopen). Reopen is itself the
   // correction → plain toast, no undo.
+  // ── 상세 패널 코어 편집(제목·본문·태그) ────────────────────────────────────────────
+  const startCoreEdit = useCallback((t: TaskRecord) => {
+    setCoreEdit({ id: t.id, title: t.title, desc: t.description ?? "", tags: [...t.tags], tagInput: "" });
+    setEditPhotos({ value: [...t.imageUrls], pending: [] });
+  }, []);
+  const cancelCoreEdit = useCallback(() => {
+    setCoreEdit(null);
+    setEditPhotos({ value: [], pending: [] });
+  }, []);
+  const addCoreTag = useCallback(() => {
+    setCoreEdit((prev) => {
+      if (!prev) return prev;
+      const tag = prev.tagInput.trim().replace(/^#/, "");
+      // Server slices to 10; stop at the same cap here so the UI never shows a tag that won't persist.
+      if (!tag || prev.tags.includes(tag) || prev.tags.length >= 10) return { ...prev, tagInput: "" };
+      return { ...prev, tags: [...prev.tags, tag], tagInput: "" };
+    });
+  }, []);
+  const saveCoreEdit = useCallback(
+    (t: TaskRecord, draft: NonNullable<typeof coreEdit>) => {
+      if (!draft.title.trim()) return;
+      // Date/time/repeat/priority are not edited here, but the action rewrites all of them — pass the
+      // task's current values back or this edit would silently clear its schedule.
+      const photos = editPhotos;
+      run(
+        async () => {
+          const uploaded = photos.pending.length
+            ? await uploadPendingTaskPhotos({
+                pending: photos.pending,
+                organizationId,
+                taskId: t.id,
+              })
+            : [];
+          return updateConsoleTaskCore({
+            taskId: t.id,
+            title: draft.title,
+            desc: draft.desc,
+            tags: draft.tags,
+            date: dueDateOf(t) ?? t.scheduledDate ?? "",
+            time: t.timeLabel ?? "",
+            durationMinutes: t.durationMinutes,
+            repeat: t.recurrenceRule ?? "none",
+            priority: t.priority,
+            // Kept photos + newly uploaded ones. The action treats this as the full replacement
+            // set and hard-deletes whatever the user removed.
+            imageUrls: [...photos.value, ...uploaded],
+          });
+        },
+        {
+          toast: dict.tUpdated,
+          after: () => {
+            setCoreEdit(null);
+            setEditPhotos({ value: [], pending: [] });
+          },
+        },
+      );
+    },
+    [dict, editPhotos, organizationId, run],
+  );
+
   const toggleComplete = useCallback(
-    (t: TaskRecord) => {
+    (t: TaskRecord, occ?: { date: string; done: boolean }) => {
       // The checkbox can move status behind the segmented control's back; drop any pending segment
       // click so it can't re-apply if the status happens to land back on its `from` value.
       setStatusDraft(null);
-      if (t.status === "completed") {
-        run(() => toggleConsoleComplete(t.id, false), { toast: dict.tReopened });
+      // Recurring: completion is per-occurrence (occ.date) and the done state comes from the
+      // occurrence, not the row's status (which stays open). One-off: row status.
+      const occDate = occ?.date;
+      const isDone = occ ? occ.done : t.status === "completed";
+      if (isDone) {
+        run(() => toggleConsoleComplete(t.id, false, occDate), { toast: dict.tReopened });
         return;
       }
-      const sub = recurringNextLabel(t);
-      run(() => toggleConsoleComplete(t.id, true), {
+      const sub = occ ? undefined : recurringNextLabel(t);
+      run(() => toggleConsoleComplete(t.id, true, occDate), {
         after: () =>
           showUndo(
             dict.tCompleted,
-            () => run(() => toggleConsoleComplete(t.id, false), { after: () => setUndo(null) }),
+            () =>
+              run(() => toggleConsoleComplete(t.id, false, occDate), { after: () => setUndo(null) }),
             sub,
           ),
       });
@@ -461,27 +711,48 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   useIsoLayoutEffect(() => {
     const el = popAnchorRef.current;
     if (!el || !pop) return;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const h = el.offsetHeight;
-    const w = el.offsetWidth;
-    const left = Math.max(8, Math.min(pop.x, vw - w - 8));
-    let top = pop.y; // below the trigger
-    if (top + h > vh - 8) {
-      const above = pop.aTop - 6 - h; // flip above the trigger
-      top = above >= 8 ? above : Math.max(8, vh - 8 - h);
-    }
-    el.style.left = `${left}px`;
-    el.style.top = `${top}px`;
+    const place = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const h = el.offsetHeight;
+      const w = el.offsetWidth;
+      const left = Math.max(8, Math.min(pop.x, vw - w - 8));
+      let top = pop.y; // below the trigger
+      if (top + h > vh - 8) {
+        const above = pop.aTop - 6 - h; // flip above the trigger
+        top = above >= 8 ? above : Math.max(8, vh - 8 - h);
+      }
+      el.style.left = `${left}px`;
+      el.style.top = `${top}px`;
+    };
+    place();
+    // Popovers that load their content async (컨텍스트 피커) or expand a section (일정 피커) grow
+    // AFTER this effect measured them, and a one-shot placement leaves the grown part off-screen.
+    // Re-clamping on resize keeps the footer reachable without special-casing any one popover.
+    const ro = new ResizeObserver(place);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [pop]);
 
   // ── derived task groups (프로젝트 제외 personalTasks 기준, 내 뷰는 myOwn) ─────────────────
   const overdueList = personalTasks.filter((t) => isOverdue(t, today) && myOwn(t, meId));
   // 관리함 = 프로젝트 밖 모든 활성 작업(날짜 무관).
   const inboxCount = personalTasks.filter((t) => isActive(t) && myOwn(t, meId)).length;
+  // 반복 회차 포함: 오늘 미완료 회차 + 반복 지연 backlog(작업별 1건) + 내일 미완료 회차.
+  const recTodayCount = personalTasks.filter((t) => myOwn(t, meId) && openOccursOn(t, today)).length;
+  const recOverdueCount = personalTasks.filter(
+    (t) => myOwn(t, meId) && overdueOccurrenceDates(t, today, resolvedDatesFor(t.id)).length > 0,
+  ).length;
+  const recTomorrowCount = personalTasks.filter(
+    (t) => myOwn(t, meId) && openOccursOn(t, addDays(today, 1)),
+  ).length;
   const todayCount =
-    personalTasks.filter((t) => isTodayTask(t, today) && myOwn(t, meId)).length + overdueList.length;
-  const tomorrowCount = personalTasks.filter((t) => isTomorrowTask(t, today) && myOwn(t, meId)).length;
+    personalTasks.filter((t) => isTodayTask(t, today) && myOwn(t, meId)).length +
+    overdueList.length +
+    recTodayCount +
+    recOverdueCount;
+  const tomorrowCount =
+    personalTasks.filter((t) => isTomorrowTask(t, today) && myOwn(t, meId)).length + recTomorrowCount;
   const sharedCount = personalTasks.filter(
     (t) => isActive(t) && isSharedTask(t) && !sentInstr(t, meId) && !recvInstr(t, meId),
   ).length;
@@ -536,8 +807,22 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   };
 
   // ── TASK ROW ──────────────────────────────────────────────────────────────────────
-  const renderRow = (t: TaskRecord, opts?: { hideDate?: boolean; extraByLabel?: string }) => {
-    const done = t.status === "completed";
+  const renderRow = (
+    t: TaskRecord,
+    opts?: {
+      hideDate?: boolean;
+      extraByLabel?: string;
+      forceDone?: boolean;
+      // 반복 회차 행: 이 날짜 회차의 완료 여부로 체크박스/완료 처리(행 status가 아니라).
+      occurrence?: { date: string; done: boolean };
+      // 관리함 드래그 재정렬: 왼쪽에 그립 핸들 표시(호버 시).
+      reorder?: boolean;
+    },
+  ) => {
+    const occ = opts?.occurrence;
+    const realDone = occ ? occ.done : t.status === "completed";
+    // forceDone: 완료·기록 탭의 반복 완료 이력(행은 open 으로 롤포워드됨)을 완료 상태로 표시.
+    const done = realDone || !!opts?.forceDone;
     const overdue = isOverdue(t, today);
     const selected = sel === t.id;
     const instr = t.isDirective && !isMine(t, meId) ? t.authorName : null;
@@ -567,22 +852,50 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
         </button>
       ) : null;
 
+    const isPicked = picked.has(t.id);
+
     return (
       <div
         key={t.id}
-        className={`trow ${done ? "is-done" : ""} ${selected ? "sel" : ""}`}
-        onClick={() => openTask(t.id)}
+        data-task-id={t.id} /* read by 전체 선택 (selectAllVisible) */
+        className={`trow ${done ? "is-done" : ""} ${selected && !selMode ? "sel" : ""} ${
+          selMode ? "is-picking" : ""
+        } ${isPicked ? "is-picked" : ""} ${opts?.reorder ? "trow--reorder" : ""}`}
+        onClick={() => (selMode ? togglePicked(t.id) : openTask(t.id))}
       >
-        <button
-          className={`tchk ${pcls} ${done ? "is-done" : ""}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleComplete(t);
-          }}
-          aria-label={dict.stCompleted}
-        >
-          <Check size={13} />
-        </button>
+        {opts?.reorder && !selMode ? (
+          <span className="tgrip" aria-hidden="true">
+            <GripVertical size={16} />
+          </span>
+        ) : null}
+        {selMode ? (
+          <button
+            type="button"
+            className={`tpick ${isPicked ? "on" : ""}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              togglePicked(t.id);
+            }}
+            role="checkbox"
+            aria-checked={isPicked}
+            aria-label={t.title}
+          >
+            <Check size={13} />
+          </button>
+        ) : (
+          <button
+            className={`tchk ${pcls} ${done ? "is-done" : ""}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              // 반복 완료 이력은 이미 다음 회차로 넘어가 있어 되돌릴 대상이 아님 → 토글 금지.
+              if (opts?.forceDone && !realDone) return;
+              toggleComplete(t, occ);
+            }}
+            aria-label={dict.stCompleted}
+          >
+            <Check size={13} />
+          </button>
+        )}
         <div className="tbody">
           <div className="trow__head">
             {received && (
@@ -604,7 +917,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
               {t.recurrenceRule && (
                 <span className="chip">
                   <Repeat size={13} />
-                  {repeatShort(t.recurrenceRule, dict)}
+                  {repeatShort(t.recurrenceRule, dict, locale)}
                 </span>
               )}
               {t.tags.slice(0, 2).map((g) => (
@@ -737,14 +1050,27 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       repeat: "none",
       prio: "normal",
       targets: [],
+      tags: [],
+      tagInput: "",
+      context: undefined,
     });
+    setAddPhotos([]);
   };
   const saveInlineAdd = () => {
     if (!add || !add.title.trim()) return;
     const draft = add;
+    const photos = addPhotos;
+    // The task id is minted here so the photos can be uploaded to their final
+    // `${organizationId}/task-images/${id}/` path BEFORE the row exists — the same order the mobile
+    // form uses. If the insert then fails the objects are orphaned, which is the accepted trade
+    // (an orphan file beats a row referencing an upload that never happened).
+    const newTaskId = crypto.randomUUID();
     run(
-      () =>
-        createConsoleTask({
+      async () => {
+        const imageUrls = photos.length
+          ? await uploadPendingTaskPhotos({ pending: photos, organizationId, taskId: newTaskId })
+          : [];
+        return createConsoleTask({
           title: draft.title,
           desc: draft.desc,
           date: draft.date,
@@ -752,13 +1078,23 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           durationMinutes: draft.dur,
           repeat: draft.repeat,
           priority: draft.prio,
-          tags: [],
+          // 커밋 안 된 입력 버퍼도 마지막 태그로 인정한다(Enter 없이 바로 저장하는 흐름).
+          tags: [...draft.tags, draft.tagInput.trim().replace(/^#/, "")].filter(Boolean).slice(0, 10),
           projectId: draft.ctx === "project" ? projectId : null,
           sectionId: draft.ctx === "project" ? draft.sectionId : null,
           targetUserIds: draft.targets,
           isDirective: draft.targets.length > 0,
-        }),
-      { toast: draft.targets.length > 0 ? dict.tInstructed : dict.tCreated, after: () => setAdd(null) },
+          context: draft.context,
+          imageUrls,
+        });
+      },
+      {
+        toast: draft.targets.length > 0 ? dict.tInstructed : dict.tCreated,
+        after: () => {
+          setAdd(null);
+          setAddPhotos([]);
+        },
+      },
     );
   };
 
@@ -830,6 +1166,63 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
               {tgLabel}
             </button>
           )}
+          <button
+            className={`achip ${add.context?.propertyId || add.context?.reservationId ? "set" : ""}`}
+            onClick={(e) => openContextPop(e, null)}
+          >
+            <Building2 size={13} />
+            {[add.context?.propertyName, add.context?.roomLabel].filter(Boolean).join(" · ") ||
+              dict.cpTitle}
+          </button>
+          {/* 칩 줄의 마지막 칩. `display: contents` 라 드롭존과 썸네일이 이 flex 줄의 직접 자식이
+              되어, 사진이 없으면 칩 하나, 있으면 아래 줄로 자연스럽게 감긴다. */}
+          <TaskPhotoUploader
+            compact
+            value={[]}
+            pending={addPhotos}
+            maxImages={add.ctx === "project" ? 20 : 5}
+            copy={photoCopy}
+            onChange={(next) => setAddPhotos(next.pending)}
+          />
+          {/* 태그는 칩 순서상 마지막(사진 바로 오른쪽). 사진 썸네일은 `order: 99` 라 아래 줄로
+              빠지므로 그 사이를 끊지 않는다. */}
+          <span className="iadd__tagwrap">
+            {/* 태그 — 칩 줄 안에서 바로 입력. 10개 상한은 서버(slice 10)와 동일. */}
+            {add.tags.map((g) => (
+              <span key={g} className="chip chip--tag">
+                {g}
+                <button
+                  type="button"
+                  className="chip__x"
+                  aria-label={`${g} ${dict.iaCancel}`}
+                  onClick={() => setAdd({ ...add, tags: add.tags.filter((x) => x !== g) })}
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+            {add.tags.length < 10 && (
+              <input
+                className="iadd__taginput"
+                value={add.tagInput}
+                placeholder={dict.dpTagAdd}
+                onChange={(e) => setAdd({ ...add, tagInput: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    const tag = add.tagInput.trim().replace(/^#/, "");
+                    if (!tag || add.tags.includes(tag)) {
+                      setAdd({ ...add, tagInput: "" });
+                      return;
+                    }
+                    setAdd({ ...add, tags: [...add.tags, tag], tagInput: "" });
+                  } else if (e.key === "Backspace" && !add.tagInput && add.tags.length) {
+                    setAdd({ ...add, tags: add.tags.slice(0, -1) });
+                  }
+                }}
+              />
+            )}
+          </span>
         </div>
         <div className="iadd__foot">
           <span className="proj">
@@ -899,6 +1292,23 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     const a = anchorFrom(e);
     const sel0 = t ? partsOf(t) : add?.targets ?? [];
     setPop({ kind: "share", src: t ? "task" : "add", taskId: t?.id ?? null, mode, sel: sel0, q: "", ...a });
+  };
+  const openProjectMembersPop = (e: ReactMouseEvent, pid: string, current: string[]) => {
+    e.stopPropagation();
+    setPop({
+      kind: "share",
+      src: "project",
+      taskId: null,
+      projectId: pid,
+      mode: "share",
+      sel: current,
+      q: "",
+      ...anchorFrom(e),
+    });
+  };
+  const openContextPop = (e: ReactMouseEvent, t: TaskRecord | null) => {
+    e.stopPropagation();
+    setPop({ kind: "context", src: t ? "task" : "add", taskId: t?.id ?? null, ...anchorFrom(e) });
   };
   const openRowMenu = (e: ReactMouseEvent, taskId: string) => {
     e.stopPropagation();
@@ -972,6 +1382,35 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     );
   };
   const applyShare = (p: SharePop) => {
+    if (p.src === "project" && p.projectId) {
+      const pid = p.projectId;
+      const detail = projectDetail && projectDetail.id === pid ? projectDetail : null;
+      // 소유자는 목록에서 빼고 비교한다 — 서버도 생성자 제거를 거부하므로 diff 에 넣을 이유가 없다.
+      const ownerId = detail?.createdByUserId;
+      const before = (detail?.members ?? [])
+        .map((mem) => mem.userId)
+        .filter((uid) => uid !== ownerId);
+      const after = p.sel.filter((uid) => uid !== ownerId);
+      const added = after.filter((uid) => !before.includes(uid));
+      const removed = before.filter((uid) => !after.includes(uid));
+      if (added.length === 0 && removed.length === 0) {
+        setPop(null);
+        return;
+      }
+      run(
+        async () => {
+          for (const uid of removed) {
+            const res = await removeConsoleProjectMember(pid, uid);
+            if (!res.ok) return res;
+          }
+          return added.length
+            ? await inviteConsoleProjectMembers(pid, added)
+            : ({ ok: true } as TaskActionResult);
+        },
+        { toast: dict.tShared, after: () => setPop(null) },
+      );
+      return;
+    }
     if (p.src === "add") {
       if (add) setAdd({ ...add, targets: p.sel });
       setPop(null);
@@ -990,24 +1429,156 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     });
   };
 
-  // ── OVERDUE BULK ────────────────────────────────────────────────────────────────────
-  const clearOverdue = () => {
-    const items = overdueList.slice();
-    startTransition(async () => {
-      for (const t of items) {
-        if (isMine(t, meId)) await deleteConsoleTask(t.id);
-        else await leaveConsoleTask(t.id);
-      }
-      showToast(dict.tDeleted);
-      router.refresh();
+  // ── 프로젝트 섹션 ────────────────────────────────────────────────────────────────────
+  const addSection = (projectId: string) => {
+    const title = newSection.trim();
+    if (!title) return;
+    run(() => addConsoleProjectSection(projectId, title), {
+      toast: dict.tCreated,
+      after: () => setNewSection(""),
+    });
+  };
+  const saveSectionRename = (projectId: string, draft: { id: string; title: string }) => {
+    const title = draft.title.trim();
+    // 빈 이름은 취소로 처리 — blur 로도 호출되므로 여기서 막지 않으면 실패 토스트가 뜬다.
+    if (!title) {
+      setSectionEdit(null);
+      return;
+    }
+    run(() => renameConsoleProjectSection(projectId, draft.id, title), {
+      toast: dict.tUpdated,
+      after: () => setSectionEdit(null),
     });
   };
 
+  // ── SELECTION MODE + BULK DELETE ────────────────────────────────────────────────────
+  const clearSel = useCallback(() => setPicked(new Set()), []);
+  const exitSelMode = useCallback(() => {
+    setSelMode(false);
+    setPicked(new Set());
+  }, []);
+  const togglePicked = useCallback((id: string) => {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  /** "전체 선택" = every row currently on screen, read from the rendered list at click time.
+   *  Each view builds its own list inline (today = 지난 + 오늘, 공유함 = 받음 + 보냄, …) with the
+   *  search/date/priority filters already applied, so reading the DOM is what actually matches what
+   *  the user sees — recomputing those seven filter expressions here would be a second source of
+   *  truth that silently drifts. This only ever runs from a click, never during render. */
+  const selectAllVisible = useCallback(() => {
+    const ids = Array.from(document.querySelectorAll<HTMLElement>(".adm .trow[data-task-id]"))
+      .map((el) => el.dataset.taskId)
+      .filter((id): id is string => Boolean(id));
+    setPicked(new Set(ids));
+  }, []);
+
+  /** Delete every id in one round trip. Only rows the user authored come back as `deletedIds`, so
+   *  the undo toast is offered for those alone — a "leave" can't be reversed by clearing deleted_at. */
+  const runBulkDelete = useCallback(
+    (ids: string[], onDone?: () => void) => {
+      if (!ids.length) return;
+      startTransition(async () => {
+        const res = await bulkDeleteConsoleTasks(ids);
+        if (!res.ok) {
+          showToast(errMsg(res.error));
+          return;
+        }
+        const removed = res.deletedIds.length + res.leftIds.length;
+        if (res.failedIds.length) {
+          showToast(fill(dict.tBulkPartial, { n: removed, f: res.failedIds.length }));
+        } else if (res.deletedIds.length) {
+          showUndo(fill(dict.tBulkDeleted, { n: removed }), () =>
+            run(() => restoreConsoleTasks(res.deletedIds), { after: () => setUndo(null) }),
+          );
+        } else {
+          showToast(fill(dict.tBulkDeleted, { n: removed }));
+        }
+        onDone?.();
+        router.refresh();
+      });
+    },
+    [dict, errMsg, run, router, showToast, showUndo],
+  );
+
+  const askBulkDelete = () => {
+    const ids = [...picked];
+    if (!ids.length) return;
+    const hasShared = ids.some((id) => {
+      const t = tasks.find((x) => x.id === id);
+      return t ? !isMine(t, meId) : false;
+    });
+    setConfirm({
+      message: `${fill(dict.confirmBulkMsg, { n: ids.length })}${
+        hasShared ? `\n${dict.confirmBulkSharedNote}` : ""
+      }`,
+      confirmLabel: dict.confirmDeleteBtn,
+      onConfirm: () => runBulkDelete(ids, exitSelMode),
+    });
+  };
+
+  // ── OVERDUE BULK ────────────────────────────────────────────────────────────────────
+  const clearOverdue = () => runBulkDelete(overdueList.map((t) => t.id));
+
   // ── VIEWS ────────────────────────────────────────────────────────────────────────────
+  // 반복 지연 backlog 묶음 행(작업별 1건 · N일 밀림 · [오늘로 가져오기]/[삭제]).
+  const renderOverdueGroup = (t: TaskRecord, days: number) => (
+    <div key={`od-${t.id}`} className="odgroup">
+      <button className="odgroup__b" onClick={() => openTask(t.id)}>
+        <span className="odgroup__t">{t.title}</span>
+        <span className="odgroup__n">{fill(dict.odDaysBehind, { n: days })}</span>
+      </button>
+      <div className="odgroup__acts">
+        <button
+          className="od-b"
+          onClick={(e) => {
+            e.stopPropagation();
+            run(() => carryConsoleOverdueToToday(t.id), { toast: dict.tMoved });
+          }}
+        >
+          {dict.odCarry}
+        </button>
+        <button
+          className="od-b od-b--ghost"
+          onClick={(e) => {
+            e.stopPropagation();
+            run(() => skipConsoleOverdue(t.id), { toast: dict.tDeleted });
+          }}
+        >
+          {dict.odSkip}
+        </button>
+      </div>
+    </div>
+  );
+
   const todayView = () => {
-    const od = filtered(overdueList).sort((a, b) => dateSort(a, b) || prioSort(a, b));
-    const td = filtered(personalTasks.filter((t) => isTodayTask(t, today) && myOwn(t, meId))).sort(prioSort);
-    if (od.length === 0 && td.length === 0 && !add)
+    const odOne = filtered(overdueList).sort((a, b) => dateSort(a, b) || prioSort(a, b));
+    // 반복 지연 backlog — 작업별 1건.
+    const recOverdue = personalTasks
+      .filter((t) => myOwn(t, meId) && isStandardRecurrence(t.recurrenceRule))
+      .map((t) => ({ t, days: overdueOccurrenceDates(t, today, resolvedDatesFor(t.id)).length }))
+      .filter((x) => x.days > 0 && matchQuery(x.t, q, nameOf) && matchPrio(x.t, prioFilter))
+      .sort((a, b) => prioSort(a.t, b.t));
+    // 오늘 회차 — 일회성(today) + 반복(occursOn today, 미완료 회차).
+    const tdRec = personalTasks.filter(
+      (t) =>
+        myOwn(t, meId) &&
+        isStandardRecurrence(t.recurrenceRule) &&
+        occursOn(t, today) &&
+        occState(t.id, today) !== "completed" &&
+        matchQuery(t, q, nameOf) &&
+        matchPrio(t, prioFilter),
+    );
+    const td = [
+      ...filtered(personalTasks.filter((t) => isTodayTask(t, today) && myOwn(t, meId))),
+      ...tdRec,
+    ].sort(prioSort);
+    const overdueCount = odOne.length + recOverdue.length;
+    if (overdueCount === 0 && td.length === 0 && !add)
       return hasActiveFilter ? (
         <EmptyState icon={<Search size={26} />} t={dict.emFilter} s={dict.emFilterS} />
       ) : (
@@ -1015,50 +1586,62 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
       );
     return (
       <>
-        {od.length > 0 && (
+        {overdueCount > 0 && (
           <>
-            <div className="odbanner">
-              <div className="odbanner__ic">
-                <AlertTriangle size={18} />
+            {odOne.length > 0 && (
+              <div className="odbanner">
+                <div className="odbanner__ic">
+                  <AlertTriangle size={18} />
+                </div>
+                <div className="odbanner__b">
+                  <div className="odbanner__t">{fill(dict.overdueTitle, { n: odOne.length })}</div>
+                  <div className="odbanner__s">{dict.overdueSub}</div>
+                </div>
+                <div className="odbanner__acts">
+                  <button
+                    className="od-b"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const a = anchorFrom(e);
+                      setPop({
+                        kind: "schedule",
+                        src: "overdue",
+                        taskId: null,
+                        draft: { date: today, time: "", dur: null, repeat: "none" },
+                        calMonth: today.slice(0, 7),
+                        expand: null,
+                        ...a,
+                      });
+                    }}
+                  >
+                    {dict.overdueReschedule}
+                  </button>
+                  <button
+                    className="od-b od-b--ghost"
+                    onClick={() =>
+                      setConfirm({
+                        message: dict.confirmClearMsg,
+                        confirmLabel: dict.confirmDeleteBtn,
+                        onConfirm: clearOverdue,
+                      })
+                    }
+                  >
+                    {dict.overdueClear}
+                  </button>
+                </div>
               </div>
-              <div className="odbanner__b">
-                <div className="odbanner__t">{fill(dict.overdueTitle, { n: od.length })}</div>
-                <div className="odbanner__s">{dict.overdueSub}</div>
-              </div>
-              <div className="odbanner__acts">
-                <button
-                  className="od-b"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const a = anchorFrom(e);
-                    setPop({
-                      kind: "schedule",
-                      src: "overdue",
-                      taskId: null,
-                      draft: { date: today, time: "", dur: null, repeat: "none" },
-                      calMonth: today.slice(0, 7),
-                      expand: null,
-                      ...a,
-                    });
-                  }}
-                >
-                  {dict.overdueReschedule}
-                </button>
-                <button
-                  className="od-b od-b--ghost"
-                  onClick={() =>
-                    setConfirm({
-                      message: dict.confirmClearMsg,
-                      confirmLabel: dict.confirmDeleteBtn,
-                      onConfirm: clearOverdue,
-                    })
-                  }
-                >
-                  {dict.overdueClear}
-                </button>
-              </div>
-            </div>
-            {Section({ title: dict.secOverdue, n: od.length, mod: "over", children: od.map((t) => renderRow(t)) })}
+            )}
+            {Section({
+              title: dict.secOverdue,
+              n: overdueCount,
+              mod: "over",
+              children: (
+                <>
+                  {odOne.map((t) => renderRow(t))}
+                  {recOverdue.map(({ t, days }) => renderOverdueGroup(t, days))}
+                </>
+              ),
+            })}
           </>
         )}
         {Section({
@@ -1066,7 +1649,11 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           n: td.length,
           children: (
             <>
-              {td.map((t) => renderRow(t))}
+              {td.map((t) =>
+                isStandardRecurrence(t.recurrenceRule)
+                  ? renderRow(t, { occurrence: { date: today, done: false } })
+                  : renderRow(t),
+              )}
               {InlineAddSlot({ ctx: "today" })}
             </>
           ),
@@ -1095,11 +1682,74 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     });
   };
 
-  const inboxView = () => {
-    // 관리함 = 프로젝트 밖 모든 활성 작업(날짜 있든 없든). 날짜순 → 우선순위순, 날짜 칩 표시.
-    const items = filtered(personalTasks.filter((t) => isActive(t) && myOwn(t, meId))).sort(
-      (a, b) => dateSort(a, b) || prioSort(a, b),
+  // 내일 — 일회성(내일 기준일) + 반복(내일 회차, 미완료). 반복은 occurrence 행으로 렌더.
+  const tomorrowView = () => {
+    const tm = addDays(today, 1);
+    const rec = personalTasks.filter(
+      (t) => myOwn(t, meId) && openOccursOn(t, tm) && matchQuery(t, q, nameOf) && matchPrio(t, prioFilter),
     );
+    const items = [
+      ...filtered(personalTasks.filter((t) => isTomorrowTask(t, today) && myOwn(t, meId))),
+      ...rec,
+    ].sort((a, b) => prioSort(a, b) || dateSort(a, b));
+    if (items.length === 0 && !add)
+      return hasActiveFilter ? (
+        <EmptyState icon={<Search size={26} />} t={dict.emFilter} s={dict.emFilterS} />
+      ) : (
+        <EmptyState icon={<Sunrise size={26} />} t={dict.emTomorrow} s={dict.emTomorrowS} ctx="tomorrow" />
+      );
+    return Section({
+      title: dict.vTomorrow,
+      n: items.length,
+      children: (
+        <>
+          {items.map((t) =>
+            isStandardRecurrence(t.recurrenceRule)
+              ? renderRow(t, { occurrence: { date: tm, done: false } })
+              : renderRow(t),
+          )}
+          {InlineAddSlot({ ctx: "tomorrow" })}
+        </>
+      ),
+    });
+  };
+
+  const inboxView = () => {
+    // 관리함 = 프로젝트 밖 모든 활성 작업(날짜 무관). 수동 드래그 순서 허용(2026-07-30):
+    // 랭크된(sort_order) 작업이 위, 미랭크는 최신순(새 작업 top 유지). 드래그 직후엔 낙관적 순서.
+    const base = filtered(personalTasks.filter((t) => isActive(t) && myOwn(t, meId)));
+    const ranked = base.slice().sort((a, b) => {
+      const ao = a.sortOrder;
+      const bo = b.sortOrder;
+      if (ao != null && bo != null) return ao !== bo ? ao - bo : b.createdAt.localeCompare(a.createdAt);
+      if (ao != null) return -1;
+      if (bo != null) return 1;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+    const items = inboxOrder
+      ? inboxOrder
+          .map((id) => ranked.find((t) => t.id === id))
+          .filter((t): t is TaskRecord => !!t)
+          .concat(ranked.filter((t) => !inboxOrder.includes(t.id)))
+      : ranked;
+    // 검색/필터 중엔 부분집합이라 재정렬 비활성(순서가 의미 없음).
+    const canDrag = !hasActiveFilter && !selMode;
+    const onRowDrop = (targetId: string) => {
+      if (!dragId || dragId === targetId) {
+        setDragId(null);
+        setOverId(null);
+        return;
+      }
+      const ids = items.map((t) => t.id);
+      const from = ids.indexOf(dragId);
+      const to = ids.indexOf(targetId);
+      setDragId(null);
+      setOverId(null);
+      if (from < 0 || to < 0) return;
+      ids.splice(to, 0, ids.splice(from, 1)[0]);
+      setInboxOrder(ids);
+      run(() => reorderConsoleTasks(ids));
+    };
     return (
       <>
         <p className="tempty__s" style={{ textAlign: "left", padding: "0 2px 10px" }}>
@@ -1113,7 +1763,28 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           )
         ) : (
           <div className="tlist">
-            {items.map((t) => renderRow(t))}
+            {items.map((t) => (
+              <div
+                key={t.id}
+                className={`idrag ${dragId === t.id ? "is-drag" : ""} ${
+                  overId === t.id && dragId && dragId !== t.id ? "is-over" : ""
+                }`}
+                draggable={canDrag}
+                onDragStart={canDrag ? () => setDragId(t.id) : undefined}
+                onDragOver={
+                  canDrag
+                    ? (e) => {
+                        e.preventDefault();
+                        if (overId !== t.id) setOverId(t.id);
+                      }
+                    : undefined
+                }
+                onDrop={canDrag ? () => onRowDrop(t.id) : undefined}
+                onDragEnd={canDrag ? () => { setDragId(null); setOverId(null); } : undefined}
+              >
+                {renderRow(t, { reorder: canDrag })}
+              </div>
+            ))}
             {InlineAddSlot({ ctx: "inbox" })}
           </div>
         )}
@@ -1408,14 +2079,23 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
 
   // ── COMPLETED ────────────────────────────────────────────────────────────────────────
   const completedView = () => {
-    const arr = filtered(tasks.filter((t) => t.status === "completed"));
-    if (arr.length === 0)
+    // 완료·기록 = task_updates 완료 로그(net) 기준. 반복 완료는 행이 open 으로 롤포워드되어
+    // status=completed 가 아니므로 로그에서만 보인다 → 보고서(같은 소스)와 목록이 일치한다.
+    // 검색/우선순위 필터만 적용(날짜는 완료일 그룹 자체가 담당).
+    type CmpRow = { task: TaskRecord; day: string; byUserId: string | null };
+    const rows: CmpRow[] = [];
+    for (const r of data.completions) {
+      const task = tasks.find((t) => t.id === r.taskId);
+      if (!task) continue;
+      if (!(matchQuery(task, q, nameOf) && matchPrio(task, prioFilter))) continue;
+      rows.push({ task, day: r.day, byUserId: r.byUserId });
+    }
+    if (rows.length === 0)
       return <EmptyState icon={<CheckCircle2 size={26} />} t={dict.emCompleted} s={dict.emCompletedS} />;
-    const byDay = new Map<string, TaskRecord[]>();
-    for (const t of arr) {
-      const day = completedDateOf(t) ?? "?";
-      if (!byDay.has(day)) byDay.set(day, []);
-      byDay.get(day)!.push(t);
+    const byDay = new Map<string, CmpRow[]>();
+    for (const row of rows) {
+      if (!byDay.has(row.day)) byDay.set(row.day, []);
+      byDay.get(row.day)!.push(row);
     }
     const days = Array.from(byDay.keys()).sort((a, b) => b.localeCompare(a));
     return (
@@ -1436,12 +2116,13 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                 </button>
               </div>
               <div className="tlist">
-                {list.map((t) =>
-                  renderRow(t, {
+                {list.map(({ task, byUserId }) =>
+                  renderRow(task, {
                     hideDate: true,
+                    forceDone: true,
                     extraByLabel:
-                      t.completedByUserId && t.completedByUserId !== meId
-                        ? fill(dict.cmpBy, { name: nameOf(t.completedByUserId) })
+                      byUserId && byUserId !== meId
+                        ? fill(dict.cmpBy, { name: nameOf(byUserId) })
                         : undefined,
                   }),
                 )}
@@ -1460,14 +2141,31 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
     const prevDays = new Date(Date.UTC(y, m - 1, 0)).getUTCDate();
     const iso = (dd: number) => `${y}-${String(m).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+    const monthStart = iso(1);
+    const monthEnd = iso(days);
+    // Todoist 가상 미리보기: 반복 작업은 단일 행이지만 규칙으로 이달의 모든 회차를 계산해 각 날짜 칸에
+    // 표시(추가 행 없음). 비반복은 앵커 하루만. 앵커=dateOf(마감 or 예정) — 모바일 캘린더와 동일 정의.
+    const occ = new Map<string, TaskRecord[]>();
+    for (const t of personalTasks) {
+      if (!(isActive(t) && myOwn(t, meId))) continue;
+      const a = dateOf(t);
+      if (!a) continue;
+      if (isStandardRecurrence(t.recurrenceRule)) {
+        if (hideRecurring) continue; // "반복 숨기기" 토글: 고정 반복 회차 제외.
+        for (const dstr of recurringOccurrencesInRange(t.recurrenceRule, a, monthStart, monthEnd)) {
+          if (!occ.has(dstr)) occ.set(dstr, []);
+          occ.get(dstr)!.push(t);
+        }
+      } else if (a >= monthStart && a <= monthEnd) {
+        if (!occ.has(a)) occ.set(a, []);
+        occ.get(a)!.push(t);
+      }
+    }
     const tasksOn = (dstr: string) =>
-      personalTasks
-        .filter((t) => isActive(t) && myOwn(t, meId) && (t.scheduledDate === dstr || dueDateOf(t) === dstr))
+      (occ.get(dstr) ?? [])
+        .slice()
         .sort((a, b) => (a.timeLabel ?? "99").localeCompare(b.timeLabel ?? "99") || prioSort(a, b));
-    const monthCount = personalTasks.filter((t) => {
-      const d = dateOf(t);
-      return isActive(t) && myOwn(t, meId) && !!d && d.slice(0, 7) === calMonth;
-    }).length;
+    const monthCount = Array.from(occ.values()).reduce((n, arr) => n + arr.length, 0);
     const wdHead = ["0", "1", "2", "3", "4", "5", "6"].map((_, i) =>
       new Intl.DateTimeFormat(locale === "ja" ? "ja-JP" : locale === "en" ? "en-US" : "ko-KR", {
         weekday: "short",
@@ -1540,18 +2238,17 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           <span className="ccell__d">{i}</span>
         </div>,
       );
-    const upcoming = personalTasks
-      .filter((t) => {
-        const d = dateOf(t);
-        // "다가오는 일정" = 미래만(오늘 제외) — 레일 카드와 동일 의미로 통일(오늘 작업은 그리드 오늘 칸/오늘 탭에).
-        return isActive(t) && myOwn(t, meId) && !!d && d > today && d.slice(0, 7) === calMonth;
-      })
-      .sort(dateSort);
+    // "다가오는 일정" = 이달 미래(오늘 제외) — 반복 회차 포함. 그리드와 같은 occ 맵에서 파생해 통일.
+    // (오늘 작업은 그리드 오늘 칸/오늘 탭에.)
     const agByDay = new Map<string, TaskRecord[]>();
-    for (const t of upcoming) {
-      const d = dateOf(t)!;
-      if (!agByDay.has(d)) agByDay.set(d, []);
-      agByDay.get(d)!.push(t);
+    let upcomingCount = 0;
+    for (const [d, arr] of Array.from(occ.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+      if (d <= today) continue;
+      const sorted = arr
+        .slice()
+        .sort((a, b) => (a.timeLabel ?? "99").localeCompare(b.timeLabel ?? "99") || prioSort(a, b));
+      agByDay.set(d, sorted);
+      upcomingCount += sorted.length;
     }
     const shiftMonth = (delta: number) => {
       const nm = new Date(Date.UTC(y, m - 1 + delta, 1));
@@ -1575,6 +2272,16 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             </div>
             <button className="cal-top__today" onClick={() => setCalMonth(today.slice(0, 7))}>
               {dict.calThisMonth}
+            </button>
+            <button
+              type="button"
+              className={`cal-top__rep ${hideRecurring ? "on" : ""}`}
+              onClick={() => setHideRecurring((v) => !v)}
+              aria-pressed={hideRecurring}
+              title={dict.calHideRepeat}
+            >
+              <Repeat size={14} />
+              {dict.calHideRepeat}
             </button>
             <div className="cal-top__lg">
               <span className="lgi">
@@ -1604,7 +2311,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           {add?.ctx === "day" && <div className="tlist">{InlineAdd()}</div>}
           <div className="sech">
             <span className="sech__t">{dict.calUpcoming}</span>
-            <span className="sech__n">{upcoming.length}</span>
+            <span className="sech__n">{upcomingCount}</span>
             <span className="sech__line" />
           </div>
           {agByDay.size === 0 ? (
@@ -1633,7 +2340,22 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
   const projectView = () => {
     const summary = projectId ? projById.get(projectId) : null;
     if (!summary) return null;
-    const members = summary.members.map((mem) => mem.userId);
+    // summary.members 는 owner(=createdByUserId) 행을 이미 포함한다. 별도로 createdByUserId 를
+    // 앞에 덧붙이면 소유자가 중복 표시·중복 카운트되므로(멤버 4명 버그) Set 으로 합쳐 dedup.
+    const memberIds = Array.from(
+      new Set([summary.createdByUserId, ...summary.members.map((mem) => mem.userId)]),
+    );
+    const canDeleteProject = summary.viewerRole === "owner" || summary.createdByUserId === meId;
+    const askDeleteProject = () =>
+      setConfirm({
+        message: fill(dict.pjDeleteMsg, { title: summary.title }),
+        confirmLabel: dict.confirmDeleteBtn,
+        onConfirm: () =>
+          run(() => deleteConsoleProject(summary.id), {
+            toast: dict.pjDeleted,
+            after: () => goView("today"), // 삭제된 프로젝트 뷰에서 빠져나옴
+          }),
+      });
     const pd = projectDetail && projectDetail.id === projectId ? projectDetail : null;
     const sections =
       pd?.sections && pd.sections.length > 0
@@ -1643,14 +2365,30 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     const banner = (
       <div className="pjbanner">
         <div className="pjbanner__b">
-          <div className="pjbanner__t">{fill(dict.pjBanner, { n: members.length + 1 })}</div>
+          <div className="pjbanner__t">{fill(dict.pjBanner, { n: memberIds.length })}</div>
           <div className="pjbanner__avs">
             <div className="row">
-              <Avatars ids={[summary.createdByUserId, ...members]} />
+              <Avatars ids={memberIds} />
             </div>
-            <span className="names">{[summary.createdByUserId, ...members].map((id) => nameOf(id)).join(", ")}</span>
+            <span className="names">{memberIds.map((id) => nameOf(id)).join(", ")}</span>
           </div>
         </div>
+        {canDeleteProject && (
+          <>
+            <button
+              className="pjbanner__act"
+              onClick={(e) => openProjectMembersPop(e, summary.id, memberIds)}
+              title={dict.pjMembersManage}
+            >
+              <UserPlus size={14} />
+              {dict.pjMembersManage}
+            </button>
+            <button className="pjbanner__del" onClick={askDeleteProject} title={dict.pjDelete}>
+              <Trash2 size={14} />
+              {dict.pjDelete}
+            </button>
+          </>
+        )}
       </div>
     );
     if (projTasks.length === 0 && !hasActiveFilter && !(add && add.ctx === "project")) {
@@ -1674,14 +2412,78 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                 <span className="chev">
                   <ChevronDown size={14} />
                 </span>
-                <b>{sec.title}</b>
+                {sectionEdit?.id === sec.id ? (
+                  <input
+                    className="pjsec-h__input"
+                    value={sectionEdit.title}
+                    autoFocus
+                    onChange={(e) => setSectionEdit({ ...sectionEdit, title: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveSectionRename(summary.id, sectionEdit);
+                      else if (e.key === "Escape") setSectionEdit(null);
+                    }}
+                    onBlur={() => saveSectionRename(summary.id, sectionEdit)}
+                  />
+                ) : (
+                  <b>{sec.title}</b>
+                )}
                 <span className="n">{list.length}</span>
+                {/* `__default` 는 섹션이 없는 프로젝트의 가상 그룹이라 실제 행이 없다 — 이름 변경·
+                    삭제 대상이 될 수 없다. */}
+                {canDeleteProject && sec.id !== "__default" && !sectionEdit && (
+                  <span className="pjsec-h__acts">
+                    <button
+                      className="pjsec-h__b"
+                      title={dict.pjSectionRename}
+                      onClick={() => setSectionEdit({ id: sec.id, title: sec.title })}
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      className="pjsec-h__b pjsec-h__b--danger"
+                      title={dict.pjSectionDelete}
+                      onClick={() =>
+                        setConfirm({
+                          message: fill(dict.pjSectionDeleteMsg, { title: sec.title }),
+                          confirmLabel: dict.confirmDeleteBtn,
+                          onConfirm: () =>
+                            run(() => deleteConsoleProjectSection(summary.id, sec.id), {
+                              toast: dict.tDeleted,
+                            }),
+                        })
+                      }
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </span>
+                )}
               </div>
               <div className="tlist">{list.map((t) => renderRow(t))}</div>
               {InlineAddSlot({ ctx: "project", sectionId: sec.id, label: fill(dict.pjAddTaskTo, { name: sec.title }) })}
             </div>
           );
         })}
+        {canDeleteProject && (
+          <div className="pjsec-add">
+            <input
+              className="pjsec-add__input"
+              placeholder={dict.pjSectionNamePh}
+              value={newSection}
+              onChange={(e) => setNewSection(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addSection(summary.id);
+              }}
+            />
+            <button
+              className="btn btn--ghost btn--sm"
+              disabled={!newSection.trim() || pending}
+              onClick={() => addSection(summary.id)}
+            >
+              <Plus size={14} />
+              {dict.pjSectionAdd}
+            </button>
+          </div>
+        )}
       </>
     );
   };
@@ -1693,14 +2495,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     : view === "today"
       ? todayView()
       : view === "tomorrow"
-        ? listView(
-            personalTasks.filter((t) => isTomorrowTask(t, today) && myOwn(t, meId)),
-            dict.vTomorrow,
-            "tomorrow",
-            <Sunrise size={26} />,
-            dict.emTomorrow,
-            dict.emTomorrowS,
-          )
+        ? tomorrowView()
         : view === "inbox"
           ? inboxView()
           : view === "shared"
@@ -1711,12 +2506,57 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                 ? completedView()
                 : calendarView();
 
+  // ── SELECTION BAR ────────────────────────────────────────────────────────────────────────
+  // Built on the same banner skeleton as `.odbanner` (icon tile → text block → right-aligned
+  // actions), tinted primary instead of danger, so selection mode reads as part of this console
+  // rather than a bar borrowed from another screen.
+  const selectionBar = () => {
+    if (!selMode || !filterableView) return null;
+    const n = picked.size;
+    return (
+      <div className="selbar">
+        <div className={`selbar__ic ${n > 0 ? "on" : ""}`} aria-hidden="true">
+          {n > 0 ? <span className="selbar__n">{n}</span> : <CheckCheck size={19} />}
+        </div>
+        <div className="selbar__b">
+          <div className="selbar__t">{n > 0 ? fill(dict.selSelected, { n }) : dict.selEmptyHint}</div>
+          <div className="selbar__s">{dict.selHint}</div>
+        </div>
+        <div className="selbar__acts">
+          <button type="button" className="sel-b" onClick={selectAllVisible}>
+            {dict.selAll}
+          </button>
+          <button type="button" className="sel-b" onClick={clearSel} disabled={n === 0}>
+            {dict.selClear}
+          </button>
+          <button
+            type="button"
+            className="sel-b sel-b--danger"
+            onClick={askBulkDelete}
+            disabled={n === 0 || pending}
+          >
+            <Trash2 size={15} />
+            {dict.selDelete}
+          </button>
+          <button type="button" className="selbar__x" onClick={exitSelMode} aria-label={dict.iaCancel}>
+            <X size={16} />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // ── RAIL ─────────────────────────────────────────────────────────────────────────────────
   const rail = () => {
     const scope = personalTasks.filter((t) => (isTodayTask(t, today) || isOverdue(t, today)) && myOwn(t, meId));
     const open = scope.filter((t) => t.status === "open").length;
     const prog = scope.filter((t) => t.status === "in_progress").length;
-    const doneToday = personalTasks.filter((t) => t.status === "completed" && completedDateOf(t) === today).length;
+    // 오늘 완료 = 완료 로그(task_updates net) 기준. 반복 완료는 행이 open 으로 롤포워드되어
+    // status=completed 가 아니므로 로그를 봐야 실제 오늘 완료 건수가 나온다(내 개인 작업 한정).
+    const myPersonalIds = new Set(personalTasks.filter((t) => myOwn(t, meId)).map((t) => t.id));
+    const doneToday = data.completions.filter(
+      (r) => r.day === today && r.byUserId === meId && myPersonalIds.has(r.taskId),
+    ).length;
     const pct = scope.length + doneToday ? Math.round((doneToday / (scope.length + doneToday)) * 100) : 0;
     const qrow = (t: TaskRecord, right: ReactNode) => {
       const cx = ctxItems(t);
@@ -1798,7 +2638,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
               <div className="minisep" />
               <div className="ministat">
                 <div className="ministat__v">{doneToday}</div>
-                <div className="ministat__k">{dict.cmpToday}</div>
+                <div className="ministat__k">{dict.railDoneToday}</div>
               </div>
             </div>
             <div className="railbar">
@@ -1946,18 +2786,31 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
 
   // ── note send ────────────────────────────────────────────────────────────────────────────
   const sendNote = () => {
-    if (!panelTask || !noteDraft.trim()) return;
+    // 사진만 있고 본문이 비어도 보낼 수 있다(서버도 같은 규칙).
+    if (!panelTask || (!noteDraft.trim() && notePhotos.length === 0)) return;
     const id = panelTask;
     const body = noteDraft;
-    run(() => addConsoleNote(id, body), {
-      toast: dict.tNoteAdded,
-      after: () => {
-        setNoteDraft("");
-        getConsoleTaskDetail(id).then((res) => {
-          if (res.ok) setDetail(res.task);
-        });
+    const photos = notePhotos;
+    run(
+      async () => {
+        // 노트 사진은 `task-update-images/` 경로 — 작업 레벨 사진과 폴더를 나눠 서로의 정리
+        // 로직에 걸리지 않게 한다(모바일과 동일).
+        const imageUrls = photos.length
+          ? await uploadPendingTaskUpdatePhotos({ pending: photos, organizationId, taskId: id })
+          : [];
+        return addConsoleNote(id, body, imageUrls);
       },
-    });
+      {
+        toast: dict.tNoteAdded,
+        after: () => {
+          setNoteDraft("");
+          setNotePhotos([]);
+          getConsoleTaskDetail(id).then((res) => {
+            if (res.ok) setDetail(res.task);
+          });
+        },
+      },
+    );
   };
 
   // ── loadError ────────────────────────────────────────────────────────────────────────────
@@ -1988,7 +2841,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
         <div className="tsubnav__tabs">
           {(
             [
-              ["today", dict.vToday, <Sun key="i" size={15} />, todayCount, overdueList.length > 0],
+              ["today", dict.vToday, <Sun key="i" size={15} />, todayCount, overdueList.length > 0 || recOverdueCount > 0],
               ["tomorrow", dict.vTomorrow, <Sunrise key="i" size={15} />, tomorrowCount, false],
               ["inbox", dict.vInbox, <Inbox key="i" size={15} />, inboxCount, false],
               ["instr", dict.vInstr, <Megaphone key="i" size={15} />, recvOpen + sentOpen, recvOpen > 0],
@@ -2020,6 +2873,8 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             onClick={() => {
               setProjectId(p.id);
               setAdd(null);
+              setSelMode(false);
+              setPicked(new Set());
             }}
           >
             <Hash size={13} />
@@ -2091,17 +2946,35 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                   : dict.prioNormal
               : dict.filterPrio}
           </button>
+          {/* Sits inline with the filters, not pushed right: `.filt` spans the full width including
+              the rail column, so a `flex:1` spacer would fling this chip past the task list. */}
+          <button
+            type="button"
+            className={`fbtn ${selMode ? "on" : ""}`}
+            aria-pressed={selMode}
+            onClick={() => (selMode ? exitSelMode() : setSelMode(true))}
+          >
+            <CheckCheck size={14} />
+            {dict.selMode}
+          </button>
         </div>
       )}
 
-      {/* BODY */}
+      {/* BODY — the selection bar lives INSIDE `.wcol` so it lines up with the task list card
+          instead of stretching across the rail like the filter bar does. */}
       {showRail ? (
         <div className="tgrid">
-          <div className="wcol">{body}</div>
+          <div className="wcol">
+            {selectionBar()}
+            {body}
+          </div>
           {rail()}
         </div>
       ) : (
-        <div className="wcol">{body}</div>
+        <div className="wcol">
+          {selectionBar()}
+          {body}
+        </div>
       )}
 
       {/* DETAIL PANEL */}
@@ -2146,6 +3019,8 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     const t = loaded ?? tasks.find((x) => x.id === panelTask) ?? null;
     if (!t) return null;
     const done = t.status === "completed";
+    // 코어 편집 드래프트가 이 작업의 것일 때만 편집 모드로 렌더한다.
+    const editing = coreEdit && coreEdit.id === t.id ? coreEdit : null;
     // What the segmented control shows: the pending click while the data still reads as it did when
     // the click happened, else server truth.
     const shownStatus =
@@ -2222,16 +3097,91 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                   )}
                 </div>
               )}
-              <h1 className={`dp__title ${done ? "is-done" : ""}`}>{t.title}</h1>
-              {t.description && <p className="dp__desc">{t.description}</p>}
-              {t.tags.length > 0 && (
-                <div className="dp__tags">
-                  {t.tags.map((g) => (
-                    <span key={g} className="chip chip--tag">
-                      {g}
-                    </span>
-                  ))}
+              {editing ? (
+                <div className="dpedit">
+                  <input
+                    className="dpedit__title"
+                    value={editing.title}
+                    placeholder={dict.iaTitle}
+                    autoFocus
+                    onChange={(e) => setCoreEdit({ ...editing, title: e.target.value })}
+                  />
+                  <textarea
+                    className="dpedit__desc"
+                    value={editing.desc}
+                    placeholder={dict.iaDesc}
+                    rows={3}
+                    onChange={(e) => setCoreEdit({ ...editing, desc: e.target.value })}
+                  />
+                  <div className="dpedit__tags">
+                    {editing.tags.map((g) => (
+                      <span key={g} className="chip chip--tag">
+                        {g}
+                        <button
+                          type="button"
+                          className="chip__x"
+                          aria-label={`${g} ${dict.iaCancel}`}
+                          onClick={() =>
+                            setCoreEdit({ ...editing, tags: editing.tags.filter((x) => x !== g) })
+                          }
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    ))}
+                    {editing.tags.length < 10 && (
+                      <input
+                        className="dpedit__taginput"
+                        value={editing.tagInput}
+                        placeholder={dict.dpTagAdd}
+                        onChange={(e) => setCoreEdit({ ...editing, tagInput: e.target.value })}
+                        onKeyDown={(e) => {
+                          // Enter/comma commit; Backspace on an empty input pops the last chip.
+                          if (e.key === "Enter" || e.key === ",") {
+                            e.preventDefault();
+                            addCoreTag();
+                          } else if (e.key === "Backspace" && !editing.tagInput && editing.tags.length) {
+                            setCoreEdit({ ...editing, tags: editing.tags.slice(0, -1) });
+                          }
+                        }}
+                        onBlur={addCoreTag}
+                      />
+                    )}
+                  </div>
+                  <TaskPhotoUploader
+                    value={editPhotos.value}
+                    pending={editPhotos.pending}
+                    maxImages={t.projectId ? 20 : 5}
+                    copy={photoCopy}
+                    onChange={setEditPhotos}
+                  />
+                  <div className="dpedit__acts">
+                    <button className="btn btn--ghost btn--sm" onClick={cancelCoreEdit}>
+                      {dict.iaCancel}
+                    </button>
+                    <button
+                      className="btn btn--pri btn--sm"
+                      disabled={!editing.title.trim() || pending}
+                      onClick={() => saveCoreEdit(t, editing)}
+                    >
+                      {dict.dpSave}
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <h1 className={`dp__title ${done ? "is-done" : ""}`}>{t.title}</h1>
+                  {t.description && <p className="dp__desc">{t.description}</p>}
+                  {t.tags.length > 0 && (
+                    <div className="dp__tags">
+                      {t.tags.map((g) => (
+                        <span key={g} className="chip chip--tag">
+                          {g}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -2408,9 +3358,24 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                     if (e.key === "Enter") sendNote();
                   }}
                 />
-                <button className="log-send" onClick={sendNote} disabled={!noteDraft.trim()}>
+                <button
+                  className="log-send"
+                  onClick={sendNote}
+                  disabled={!noteDraft.trim() && notePhotos.length === 0}
+                >
                   <Send size={15} />
                 </button>
+              </div>
+              {/* `display: contents` 컴포넌트라 flex 줄을 하나 감싸 준다. */}
+              <div className="log-photos">
+                <TaskPhotoUploader
+                  compact
+                  value={[]}
+                  pending={notePhotos}
+                  maxImages={5}
+                  copy={photoCopy}
+                  onChange={(next) => setNotePhotos(next.pending)}
+                />
               </div>
             </div>
           </div>
@@ -2418,9 +3383,14 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
         <div className="dp__foot">
           {mine ? (
             <>
-              <Link className="dp__tb" href={`/mobile/tasks/${t.id}`} title={dict.dpEdit}>
+              <button
+                className={`dp__tb ${editing ? "on" : ""}`}
+                onClick={() => (editing ? cancelCoreEdit() : startCoreEdit(t))}
+                title={dict.dpEdit}
+                aria-pressed={!!editing}
+              >
                 <Pencil size={16} />
-              </Link>
+              </button>
               {!t.projectId && (
                 <button className="dp__tb" onClick={(e) => openSharePop(e, t, "share")} title={dict.dpShare}>
                   <Share2 size={16} />
@@ -2473,6 +3443,7 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           {pop.kind === "schedule" && SchedulePopover({ p: pop })}
           {pop.kind === "prio" && PrioMenu({ p: pop })}
           {pop.kind === "share" && SharePopover({ p: pop })}
+          {pop.kind === "context" && ContextPicker({ p: pop })}
           {pop.kind === "rowmenu" && RowMenu({ p: pop })}
           {pop.kind === "datefilter" && DateFilterMenu()}
           {pop.kind === "priofilter" && PrioFilterMenu()}
@@ -2486,7 +3457,19 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     const dow = weekdayIndex(today);
     const nextMon = addDays(today, ((8 - dow) % 7) || 7);
     const nextSat = addDays(today, ((6 - dow + 7) % 7) || 7);
-    const set = (patch: Partial<SchedulePop["draft"]>) => setPop({ ...p, draft: { ...p.draft, ...patch } });
+    const set = (patch: Partial<SchedulePop["draft"]>) => {
+      const draft = { ...p.draft, ...patch };
+      // 반복 또는 시간을 새로 켰는데 날짜가 없으면 오늘로 자동 앵커한다. 반복은 날짜 앵커가
+      // 필수라, 그냥 두면 저장 시 서버가 repeat_needs_date 로 거부해 "처리하지 못했습니다"만 뜬다.
+      const settingRepeat =
+        "repeat" in patch &&
+        !!patch.repeat &&
+        patch.repeat !== "none" &&
+        patch.repeat !== CUSTOM_RECURRENCE_PREFIX;
+      const settingTime = "time" in patch && !!patch.time;
+      if ((settingRepeat || settingTime) && !draft.date) draft.date = today;
+      setPop({ ...p, draft });
+    };
     const [cy, cmm] = p.calMonth.split("-").map(Number);
     const firstDow = new Date(Date.UTC(cy, cmm - 1, 1)).getUTCDay();
     const dim = new Date(Date.UTC(cy, cmm, 0)).getUTCDate();
@@ -2513,6 +3496,12 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     );
     const curRep = p.draft.repeat || "none";
     const anchorForRepeat = sel0 || today;
+    // `customDays` is the picker's mode flag AND its value: an array (possibly empty) while the
+    // 사용자 지정 row is on, null otherwise. `custom:` with an empty body parses to null, so the
+    // in-progress "custom mode, nothing picked yet" state needs this explicit prefix check.
+    const inCustomMode = curRep.startsWith(CUSTOM_RECURRENCE_PREFIX);
+    const customDays = inCustomMode ? (parseCustomWeekdays(curRep) ?? []) : null;
+    const repeatIncomplete = inCustomMode && customDays!.length === 0;
     return (
       <div className="pop sch">
         <div className="sch__label">
@@ -2622,6 +3611,54 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                     </span>
                   </button>
                 ))}
+                {/* 사용자 지정 — 켜면 요일 칩이 펼쳐진다. 아무 요일도 안 고르면 `custom:` 뒤가
+                    비어 저장할 수 없으므로 적용 버튼이 잠긴다(아래 sch__foot). */}
+                <button
+                  type="button"
+                  className={`ritem ${customDays !== null ? "on" : ""}`}
+                  onClick={() =>
+                    set({ repeat: customDays !== null ? "none" : `${CUSTOM_RECURRENCE_PREFIX}` })
+                  }
+                  aria-expanded={customDays !== null}
+                >
+                  <CalendarDays size={14} />
+                  {dict.repPickDays}
+                  <span className="ic chk">
+                    <Check size={13} />
+                  </span>
+                </button>
+                {customDays !== null && (
+                  <div className="wdpick">
+                    <div className="wdpick__row">
+                      {WEEKDAY_ORDER.map((wd) => {
+                        const on = customDays.includes(wd);
+                        return (
+                          <button
+                            key={wd}
+                            type="button"
+                            className={`wdchip ${on ? "on" : ""} ${wd === 0 ? "sun" : wd === 6 ? "sat" : ""}`}
+                            aria-pressed={on}
+                            onClick={() =>
+                              set({
+                                repeat: `${CUSTOM_RECURRENCE_PREFIX}${(on
+                                  ? customDays.filter((d) => d !== wd)
+                                  : [...customDays, wd].sort((a, b) => a - b)
+                                ).join(",")}`,
+                              })
+                            }
+                          >
+                            {weekdayShortName(wd, locale)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="wdpick__hint">
+                      {customDays.length
+                        ? fill(dict.repCustomDays, { wd: customWeekdayNames(curRep, locale) })
+                        : dict.repPickDaysHint}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -2630,7 +3667,12 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
           <button className="btn btn--ghost btn--sm" onClick={() => setPop(null)}>
             {dict.schCancel}
           </button>
-          <button className="btn btn--pri btn--sm" onClick={() => applySchedule(p)}>
+          <button
+            className="btn btn--pri btn--sm"
+            onClick={() => applySchedule(p)}
+            disabled={repeatIncomplete}
+            title={repeatIncomplete ? dict.repPickDaysHint : undefined}
+          >
             {dict.schApply}
           </button>
         </div>
@@ -2733,6 +3775,56 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     );
   }
 
+  // 인라인 추가는 로컬 드래프트만 갱신하고, 기존 작업은 곧바로 서버에 저장한다(다른 팝오버와 동일).
+  function ContextPicker({ p }: { p: ContextPop }) {
+    const t = p.taskId ? tasks.find((x) => x.id === p.taskId) : null;
+    const current: TaskContextValue =
+      p.src === "add"
+        ? add?.context ?? EMPTY_TASK_CONTEXT
+        : t?.resolvedContext
+          ? {
+              propertyId: t.resolvedContext.propertyId,
+              roomId: t.resolvedContext.roomId,
+              reservationId: t.resolvedContext.reservationId,
+              guestName: t.resolvedContext.guestName,
+              propertyName: t.resolvedContext.propertyName,
+              roomLabel: t.resolvedContext.roomLabel,
+            }
+          : EMPTY_TASK_CONTEXT;
+    return (
+      <ContextPickerPopover
+        value={current}
+        copy={contextCopy}
+        onClose={() => setPop(null)}
+        onChange={(v) => {
+          setPop(null);
+          if (p.src === "add") {
+            if (add) setAdd({ ...add, context: v });
+            return;
+          }
+          if (!t) return;
+          // 기존 작업은 코어 편집과 같은 액션을 쓴다 — 날짜/시간/반복/우선순위는 현재 값 그대로.
+          run(
+            () =>
+              updateConsoleTaskCore({
+                taskId: t.id,
+                title: t.title,
+                desc: t.description ?? "",
+                tags: t.tags,
+                date: dueDateOf(t) ?? t.scheduledDate ?? "",
+                time: t.timeLabel ?? "",
+                durationMinutes: t.durationMinutes,
+                repeat: t.recurrenceRule ?? "none",
+                priority: t.priority,
+                context: v,
+              }),
+            { toast: dict.tUpdated },
+          );
+        }}
+      />
+    );
+  }
+
   function RowMenu({ p }: { p: RowMenuPop }) {
     const t = tasks.find((x) => x.id === p.taskId);
     if (!t) return null;
@@ -2756,16 +3848,38 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
             {dict.mShareInstr}
           </button>
         )}
-        <button
-          className="mitem"
-          onClick={() => {
-            close();
-            run(() => moveConsoleToToday(t.id), { toast: dict.tMoved });
-          }}
-        >
-          <Sun size={15} />
-          {dict.mMoveToday}
-        </button>
+        {mine && (
+          <button className="mitem" onClick={(e) => openContextPop(e, t)}>
+            <Building2 size={15} />
+            {dict.cpTitle}
+          </button>
+        )}
+        {/* 이동 대상은 탭이 아니라 **작업 자신의 날짜**로 정한다: 오늘 작업이면 내일로, 그 밖이면
+            오늘로. 이 메뉴는 관리함·공유함·지시·캘린더·프로젝트에서도 같이 뜨므로 탭 기준으로는
+            판단할 수 없고, 현재 날짜와 같은 쪽으로 옮기는 무의미한 항목도 사라진다. */}
+        {dateOf(t) === today ? (
+          <button
+            className="mitem"
+            onClick={() => {
+              close();
+              run(() => moveConsoleToTomorrow(t.id), { toast: dict.tMoved });
+            }}
+          >
+            <Sunrise size={15} />
+            {dict.mMoveTomorrow}
+          </button>
+        ) : (
+          <button
+            className="mitem"
+            onClick={() => {
+              close();
+              run(() => moveConsoleToToday(t.id), { toast: dict.tMoved });
+            }}
+          >
+            <Sun size={15} />
+            {dict.mMoveToday}
+          </button>
+        )}
         {/* "관리함으로" = 프로젝트에서 빼기. 비프로젝트 작업은 이미 관리함이라 프로젝트 작업에만 노출. */}
         {t.projectId && (
           <button
@@ -2885,7 +3999,13 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
     if (!daySheet) return null;
     const iso = daySheet;
     const list = personalTasks
-      .filter((t) => isActive(t) && myOwn(t, meId) && (t.scheduledDate === iso || dueDateOf(t) === iso))
+      .filter(
+        (t) =>
+          isActive(t) &&
+          myOwn(t, meId) &&
+          occursOn(t, iso) &&
+          !(hideRecurring && isStandardRecurrence(t.recurrenceRule)),
+      )
       .sort(prioSort);
     return (
       <>
@@ -3135,7 +4255,16 @@ export function AdminTasksConsole({ locale, data }: { locale: Locale; data: Admi
                 <X size={16} />
               </button>
             </div>
-            <div style={{ padding: "6px 20px 16px", fontSize: 14, color: "var(--ink-soft)", lineHeight: 1.5 }}>
+            {/* pre-line: the bulk-delete message appends a second line about shared tasks. */}
+            <div
+              style={{
+                padding: "6px 20px 16px",
+                fontSize: 14,
+                color: "var(--ink-soft)",
+                lineHeight: 1.5,
+                whiteSpace: "pre-line",
+              }}
+            >
               {c.message}
             </div>
             <div className="sch__foot">

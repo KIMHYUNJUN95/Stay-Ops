@@ -29,6 +29,9 @@ export type AdminTasksDictionary = {
   overdueSub: string;
   overdueReschedule: string;
   overdueClear: string;
+  odDaysBehind: string; // 반복 지연 묶음 "{n}일 밀림"
+  odCarry: string; // 오늘로 가져오기
+  odSkip: string; // (지연 회차) 삭제
   inboxNote: string;
   // priority / status / repeat / duration
   prioNormal: string;
@@ -44,6 +47,9 @@ export type AdminTasksDictionary = {
   repMonthly: string; // "매월 {d}일"
   repYearly: string; // "매년 {m}월 {d}일"
   repCustom: string;
+  repCustomDays: string; // "매주 {wd}"
+  repPickDays: string;
+  repPickDaysHint: string;
   repNone: string;
   repShortWeekly: string;
   repShortMonthly: string;
@@ -99,6 +105,46 @@ export type AdminTasksDictionary = {
   dpLogCreated: string; // "{name} 님이 작업 생성"
   dpLogInput: string;
   dpEdit: string;
+  dpSave: string;
+  dpTagAdd: string;
+  // 사진 업로더(TaskPhotoUploader) — {n} 현재 개수, {max} 상한
+  phAdd: string;
+  phAddCompact: string;
+  phDropHint: string;
+  phCount: string;
+  phRemove: string;
+  phTooMany: string;
+  phInvalidType: string;
+  phTooLarge: string;
+  phUploading: string;
+  // 컨텍스트 피커(ContextPickerPopover)
+  cpTitle: string;
+  cpHintBuilding: string;
+  cpHintRoom: string;
+  cpBuildings: string;
+  cpRooms: string;
+  cpReservations: string;
+  cpSearch: string;
+  cpSearchClear: string;
+  cpSearchEmpty: string;
+  cpSearchEmptySub: string;
+  cpNoBuilding: string;
+  cpNoRooms: string;
+  cpNoReservation: string;
+  cpGuest: string;
+  cpLoading: string;
+  cpBack: string;
+  cpClear: string;
+  cpApply: string;
+  cpCancel: string;
+  cpOccupied: string;
+  cpVacant: string;
+  cpNightsUnit: string;
+  cpLive: string;
+  cpRoomsUnit: string;
+  cpTodayGuests: string;
+  cpRoomSuffix: string;
+  cpBookingId: string;
   dpShare: string;
   dpDelete: string;
   dpUnshareDelete: string;
@@ -138,6 +184,7 @@ export type AdminTasksDictionary = {
   mPriority: string;
   mShareInstr: string;
   mMoveToday: string;
+  mMoveTomorrow: string;
   mMoveInbox: string;
   mDelete: string;
   mLeave: string;
@@ -177,6 +224,7 @@ export type AdminTasksDictionary = {
   calUpcoming: string;
   calMore: string; // "+{n}건 더보기"
   calNoMonth: string;
+  calHideRepeat: string; // 반복 숨기기 토글
   calAddOnDay: string;
   calDayEmpty: string;
   // project
@@ -185,6 +233,16 @@ export type AdminTasksDictionary = {
   pjAddTaskTo: string; // "{name}에 작업 추가"
   pjEmptyT: string;
   pjEmptyS: string;
+  pjDelete: string; // 프로젝트 삭제 버튼
+  pjDeleteMsg: string; // "'{title}' 프로젝트를 삭제하시겠어요? ..." 확인 문구
+  // 섹션 · 멤버 관리 (2026-07-30)
+  pjSectionAdd: string;
+  pjSectionNamePh: string;
+  pjSectionRename: string;
+  pjSectionDelete: string;
+  pjSectionDeleteMsg: string; // "'{title}' 섹션과 그 안의 작업을 삭제할까요?"
+  pjMembersManage: string;
+  pjDeleted: string; // 삭제 완료 토스트
   // new project modal
   npTitle: string;
   npName: string;
@@ -224,6 +282,13 @@ export type AdminTasksDictionary = {
   errForbidden: string;
   errSave: string;
   errGeneric: string;
+  errMissingTitle: string;
+  errTimeNeedsDate: string;
+  errRepeatNeedsDate: string;
+  errNotFound: string;
+  errInvalidDate: string;
+  errEmpty: string;
+  errDuplicateOccurrence: string;
   tCreated: string;
   tUpdated: string;
   tCompleted: string;
@@ -245,11 +310,24 @@ export type AdminTasksDictionary = {
   // rail
   railTodayTitle: string;
   railTodayProgress: string;
+  railDoneToday: string; // 진행 현황 "오늘 완료" 스탯 라벨
   railUpcomingEmpty: string;
   // undo toast
   undoBtn: string;
   undoNext: string; // "다음: {date}"
   tDeletedUndoable: string;
+  // selection mode + bulk delete
+  selMode: string;
+  selHint: string;
+  selSelected: string; // "{n}개 선택"
+  selAll: string;
+  selClear: string;
+  selDelete: string;
+  selEmptyHint: string;
+  confirmBulkMsg: string; // "{n}개 …"
+  confirmBulkSharedNote: string;
+  tBulkDeleted: string; // "{n}개 …"
+  tBulkPartial: string; // "{n}개 삭제, {f}개 실패"
 };
 
 const ko: AdminTasksDictionary = {
@@ -261,11 +339,12 @@ const ko: AdminTasksDictionary = {
   secOverdue: "지연", secToday: "오늘",
   overdueTitle: "지난(지연) 작업 {n}건", overdueSub: "마감이 지난 작업입니다. 오늘로 옮기거나 정리하세요.",
   overdueReschedule: "일정 변경", overdueClear: "지난 미완료 삭제",
+  odDaysBehind: "{n}일 밀림", odCarry: "오늘로 가져오기", odSkip: "삭제",
   inboxNote: "프로젝트 밖의 모든 작업이 여기 모입니다. 날짜를 정하면 오늘·캘린더에도 함께 표시됩니다.",
   prioNormal: "일반", prioImportant: "중요", prioUrgent: "긴급",
   stOpen: "대기", stInProgress: "진행 중", stCompleted: "완료", stOverdue: "지연",
   repDaily: "매일", repWeekly: "매주 {wd}요일", repWeekdays: "평일마다 (월–금)", repMonthly: "매월 {d}일",
-  repYearly: "매년 {m}월 {d}일", repCustom: "사용자 정의…", repNone: "반복 없음",
+  repYearly: "매년 {m}월 {d}일", repCustom: "사용자 정의…", repCustomDays: "매주 {wd}", repPickDays: "사용자 지정", repPickDaysHint: "반복할 요일을 선택하세요", repNone: "반복 없음",
   repShortWeekly: "매주", repShortMonthly: "매월", repShortYearly: "매년", repShortWeekdays: "평일", repShortWeekends: "주말",
   durNone: "기간 없음", dur15: "15분", dur30: "30분", dur60: "1시간", dur120: "2시간", durCustom: "사용자 정의",
   today: "오늘", tomorrow: "내일", noDate: "날짜 없음", instructedBy: "{name} 지시", sharedWith: "공유됨", andMore: "{name} 외 {n}명",
@@ -276,7 +355,12 @@ const ko: AdminTasksDictionary = {
   dpLinked: "연결됨", dpViewResv: "예약 보기", dpParticipants: "참여자 · {n}명 · 상태 공통",
   dpAuthor: "작성자", dpFirstRecipient: "최초 수신", dpMe: "나", dpShareManage: "멤버 추가 / 공유 관리",
   dpShareCta: "멤버에게 공유 / 지시", dpPhotos: "첨부 사진 {n}", dpLog: "업데이트 로그",
-  dpLogCreated: "{name} 님이 작업 생성", dpLogInput: "노트 추가…", dpEdit: "편집", dpShare: "공유",
+  dpLogCreated: "{name} 님이 작업 생성", dpLogInput: "노트 추가…", dpEdit: "편집", dpSave: "저장", dpTagAdd: "태그 추가",
+  phAdd: "사진 추가", phAddCompact: "사진", phDropHint: "클릭하거나 파일을 끌어다 놓으세요",
+  phCount: "{n}/{max}", phRemove: "사진 삭제", phTooMany: "최대 {max}장까지 첨부할 수 있습니다",
+  phInvalidType: "이미지 파일만 첨부할 수 있습니다", phTooLarge: "파일 용량은 {max}MB 이하만 가능합니다",
+  phUploading: "업로드 중…",
+  cpTitle: "예약 연결", cpHintBuilding: "건물을 선택하세요", cpHintRoom: "객실을 선택하면 해당 기간 예약이 표시됩니다", cpBuildings: "건물", cpRooms: "객실", cpReservations: "예약", cpSearch: "게스트명 또는 예약번호 검색", cpSearchClear: "지우기", cpSearchEmpty: "검색 결과가 없습니다", cpSearchEmptySub: "게스트명이나 예약번호로 다시 검색해보세요", cpNoBuilding: "등록된 건물이 없습니다", cpNoRooms: "등록된 객실이 없습니다", cpNoReservation: "이 기간에는 예약이 없습니다", cpGuest: "게스트", cpLoading: "불러오는 중", cpBack: "뒤로", cpClear: "연결 해제", cpApply: "적용", cpCancel: "취소", cpOccupied: "투숙 중", cpVacant: "공실", cpNightsUnit: "박", cpLive: "체류중", cpRoomsUnit: "실", cpTodayGuests: "오늘 투숙", cpRoomSuffix: "호", cpBookingId: "예약번호", dpShare: "공유",
   dpDelete: "삭제", dpUnshareDelete: "공유 해제·삭제", dpAuthorOnly: "원문은 작성자({name})만 수정할 수 있습니다",
   dpLeave: "나만 빠지기", dpMobileDetail: "모바일 상세",
   ctxBuilding: "건물", ctxBed: "객실", ctxTicket: "예약", ctxGuest: "게스트",
@@ -287,7 +371,7 @@ const ko: AdminTasksDictionary = {
   shTargetSub: "1명 이상 선택하면 지시로 전송됩니다.", shShareSub: "활성 멤버를 선택해 함께 진행합니다.",
   shTargetHint: "대상에게는 “{name} 지시” 표식이 붙습니다. 담당자 지정이 아닌 공유 기반입니다.",
   shSearch: "멤버 검색", shTargetCta: "지시", shShareCta: "공유", shNoResult: "검색 결과가 없습니다.", shManager: "매니저",
-  mScheduleChange: "일정 변경", mPriority: "우선순위", mShareInstr: "공유 / 지시", mMoveToday: "오늘로 이동",
+  mScheduleChange: "일정 변경", mPriority: "우선순위", mShareInstr: "공유 / 지시", mMoveToday: "오늘로 이동", mMoveTomorrow: "내일로 이동",
   mMoveInbox: "관리함으로", mDelete: "삭제", mLeave: "나만 빠지기",
   instrRecv: "받은 지시", instrSent: "보낸 지시",
   instrSentNote: "지시한 업무는 대상자의 일정으로 잡힙니다. 내 “오늘” 목록에는 들어오지 않고, 이 화면에서 진행 상황만 챙깁니다.",
@@ -300,9 +384,11 @@ const ko: AdminTasksDictionary = {
   cmpDone: "{n}건 완료", cmpReport: "보고서 (업무일지)", cmpBy: "{name} 완료", cmpToday: "오늘", cmpYesterday: "어제",
   calThisMonth: "이번 달", calLegendPersonal: "개인", calLegendShared: "공유", calLegendUrgent: "긴급 · 지연",
   calUpcoming: "다가오는 일정", calMore: "+{n}건 더보기", calNoMonth: "이번 달 예정된 작업이 없습니다.",
+  calHideRepeat: "반복 숨기기",
   calAddOnDay: "이 날짜에 작업 추가", calDayEmpty: "이 날짜에 예정된 작업이 없습니다.",
   pjBanner: "공유 프로젝트 · 멤버 {n}명", pjMembers: "멤버 관리", pjAddTaskTo: "{name}에 작업 추가",
   pjEmptyT: "이 프로젝트에 작업이 없습니다", pjEmptyS: "첫 작업을 추가해 프로젝트를 시작하세요.",
+  pjDelete: "프로젝트 삭제", pjSectionAdd: "섹션 추가", pjSectionNamePh: "섹션 이름", pjSectionRename: "이름 변경", pjSectionDelete: "섹션 삭제", pjSectionDeleteMsg: "'{title}' 섹션과 그 안의 작업을 함께 삭제할까요?", pjMembersManage: "멤버 관리", pjDeleteMsg: "'{title}' 프로젝트를 삭제할까요? 프로젝트의 모든 작업·섹션·멤버가 함께 삭제되며 되돌릴 수 없습니다.", pjDeleted: "프로젝트를 삭제했습니다",
   npTitle: "새 공유 프로젝트", npName: "프로젝트 이름", npNamePh: "예: 성수기 오픈 준비",
   npMembers: "{n}명 · 나 포함", npSearch: "이름 · 직무 검색", npHint: "프로젝트 작업은 멤버 전원이 같은 상태를 공유합니다.",
   npCancel: "취소", npCreate: "프로젝트 만들기",
@@ -317,16 +403,27 @@ const ko: AdminTasksDictionary = {
   emCompleted: "완료된 작업이 없습니다", emCompletedS: "작업을 완료하면 날짜별로 여기에 기록됩니다.",
   errT: "작업을 불러오지 못했습니다", errS: "네트워크 연결을 확인하고 다시 시도해 주세요.", retry: "다시 시도",
   errAuth: "다시 로그인해 주세요.", errForbidden: "권한이 없습니다.", errSave: "저장하지 못했습니다.", errGeneric: "처리하지 못했습니다. 다시 시도해 주세요.",
+  errMissingTitle: "제목을 입력해 주세요.", errTimeNeedsDate: "시간을 지정하려면 날짜를 먼저 선택해 주세요.",
+  errRepeatNeedsDate: "반복을 설정하려면 날짜를 먼저 선택해 주세요.", errNotFound: "작업을 찾을 수 없습니다.",
+  errInvalidDate: "날짜 형식이 올바르지 않습니다.", errEmpty: "내용을 입력해 주세요.",
+  errDuplicateOccurrence: "그 날짜에는 이미 같은 반복 작업이 있습니다.",
   tCreated: "작업을 추가했습니다.", tUpdated: "작업을 수정했습니다.", tCompleted: "완료 처리했습니다.", tReopened: "다시 열었습니다.",
   tShared: "공유했습니다.", tInstructed: "지시를 보냈습니다.", tDeleted: "삭제했습니다.", tMoved: "이동했습니다.",
   tRescheduled: "일정을 변경했습니다.", tNoteAdded: "노트를 추가했습니다.", tProjectCreated: "프로젝트를 만들었습니다.", tReminded: "리마인드를 보냈습니다.",
   confirmTitle: "확인",
   confirmDeleteMsg: "이 작업을 삭제할까요? 되돌릴 수 없습니다.",
   confirmLeaveMsg: "이 작업에서 나만 빠질까요?",
-  confirmClearMsg: "지난 미완료 작업을 모두 정리할까요? 되돌릴 수 없습니다.",
+  confirmClearMsg: "지난 미완료 작업을 모두 정리할까요?",
   confirmDeleteBtn: "삭제",
-  railTodayTitle: "오늘 진행 현황", railTodayProgress: "오늘 작업 진척률", railUpcomingEmpty: "다가오는 일정이 없습니다",
+  railTodayTitle: "오늘 진행 현황", railTodayProgress: "오늘 작업 진척률", railDoneToday: "오늘 완료", railUpcomingEmpty: "다가오는 일정이 없습니다",
   undoBtn: "실행 취소", undoNext: "다음: {date}", tDeletedUndoable: "작업을 삭제했습니다",
+  selMode: "선택", selSelected: "{n}개 선택", selAll: "전체 선택", selClear: "선택 해제",
+  selDelete: "삭제", selEmptyHint: "삭제할 작업을 선택하세요",
+  selHint: "행을 클릭해 선택하거나 해제하세요",
+  confirmBulkMsg: "선택한 {n}개 작업을 삭제할까요?",
+  confirmBulkSharedNote: "공유·지시받은 작업은 삭제 대신 나만 빠집니다. 이 항목은 실행 취소로 되돌릴 수 없습니다.",
+  tBulkDeleted: "{n}개 작업을 삭제했습니다",
+  tBulkPartial: "{n}개 삭제, {f}개 실패",
 };
 
 const ja: AdminTasksDictionary = {
@@ -338,11 +435,12 @@ const ja: AdminTasksDictionary = {
   secOverdue: "遅延", secToday: "今日",
   overdueTitle: "過ぎた(遅延)タスク {n}件", overdueSub: "締切を過ぎたタスクです。今日に移すか整理してください。",
   overdueReschedule: "日程変更", overdueClear: "過去の未完了を削除",
+  odDaysBehind: "{n}日 遅延", odCarry: "今日に持ってくる", odSkip: "削除",
   inboxNote: "プロジェクト外のすべてのタスクがここに集まります。日付を決めると今日・カレンダーにも表示されます。",
   prioNormal: "通常", prioImportant: "重要", prioUrgent: "緊急",
   stOpen: "待機", stInProgress: "進行中", stCompleted: "完了", stOverdue: "遅延",
   repDaily: "毎日", repWeekly: "毎週{wd}曜日", repWeekdays: "平日ごと (月–金)", repMonthly: "毎月{d}日",
-  repYearly: "毎年{m}月{d}日", repCustom: "カスタム…", repNone: "繰り返しなし",
+  repYearly: "毎年{m}月{d}日", repCustom: "カスタム…", repCustomDays: "毎週{wd}", repPickDays: "カスタム", repPickDaysHint: "繰り返す曜日を選択してください", repNone: "繰り返しなし",
   repShortWeekly: "毎週", repShortMonthly: "毎月", repShortYearly: "毎年", repShortWeekdays: "平日", repShortWeekends: "週末",
   durNone: "期間なし", dur15: "15分", dur30: "30分", dur60: "1時間", dur120: "2時間", durCustom: "カスタム",
   today: "今日", tomorrow: "明日", noDate: "日付なし", instructedBy: "{name} 指示", sharedWith: "共有中", andMore: "{name} 他 {n}名",
@@ -353,7 +451,12 @@ const ja: AdminTasksDictionary = {
   dpLinked: "リンク", dpViewResv: "予約を見る", dpParticipants: "参加者 · {n}名 · 状態共通",
   dpAuthor: "作成者", dpFirstRecipient: "最初の受信", dpMe: "自分", dpShareManage: "メンバー追加 / 共有管理",
   dpShareCta: "メンバーに共有 / 指示", dpPhotos: "添付写真 {n}", dpLog: "更新ログ",
-  dpLogCreated: "{name} さんがタスク作成", dpLogInput: "ノート追加…", dpEdit: "編集", dpShare: "共有",
+  dpLogCreated: "{name} さんがタスク作成", dpLogInput: "ノート追加…", dpEdit: "編集", dpSave: "保存", dpTagAdd: "タグ追加",
+  phAdd: "写真を追加", phAddCompact: "写真", phDropHint: "クリックまたはファイルをドラッグしてください",
+  phCount: "{n}/{max}", phRemove: "写真を削除", phTooMany: "最大{max}枚まで添付できます",
+  phInvalidType: "画像ファイルのみ添付できます", phTooLarge: "ファイルサイズは{max}MB以下のみ可能です",
+  phUploading: "アップロード中…",
+  cpTitle: "予約リンク", cpHintBuilding: "建物を選択してください", cpHintRoom: "客室を選択すると該当期間の予約が表示されます", cpBuildings: "建物", cpRooms: "客室", cpReservations: "予約", cpSearch: "ゲスト名または予約番号で検索", cpSearchClear: "クリア", cpSearchEmpty: "検索結果がありません", cpSearchEmptySub: "ゲスト名や予約番号で再検索してください", cpNoBuilding: "登録された建物がありません", cpNoRooms: "登録された客室がありません", cpNoReservation: "この期間に予約はありません", cpGuest: "ゲスト", cpLoading: "読み込み中", cpBack: "戻る", cpClear: "リンク解除", cpApply: "適用", cpCancel: "キャンセル", cpOccupied: "滞在中", cpVacant: "空室", cpNightsUnit: "泊", cpLive: "滞在中", cpRoomsUnit: "室", cpTodayGuests: "本日の宿泊", cpRoomSuffix: "号", cpBookingId: "予約番号", dpShare: "共有",
   dpDelete: "削除", dpUnshareDelete: "共有解除・削除", dpAuthorOnly: "本文は作成者({name})のみ編集できます",
   dpLeave: "自分だけ抜ける", dpMobileDetail: "モバイル詳細",
   ctxBuilding: "建物", ctxBed: "部屋", ctxTicket: "予約", ctxGuest: "ゲスト",
@@ -364,7 +467,7 @@ const ja: AdminTasksDictionary = {
   shTargetSub: "1名以上選ぶと指示として送信されます。", shShareSub: "アクティブなメンバーを選んで一緒に進めます。",
   shTargetHint: "対象には「{name} 指示」の表示が付きます。担当者指定ではなく共有ベースです。",
   shSearch: "メンバー検索", shTargetCta: "指示", shShareCta: "共有", shNoResult: "検索結果がありません。", shManager: "マネージャー",
-  mScheduleChange: "日程変更", mPriority: "優先度", mShareInstr: "共有 / 指示", mMoveToday: "今日に移動",
+  mScheduleChange: "日程変更", mPriority: "優先度", mShareInstr: "共有 / 指示", mMoveToday: "今日に移動", mMoveTomorrow: "明日に移動",
   mMoveInbox: "管理箱へ", mDelete: "削除", mLeave: "自分だけ抜ける",
   instrRecv: "受けた指示", instrSent: "送った指示",
   instrSentNote: "指示した業務は対象者の日程に入ります。自分の「今日」には入らず、この画面で進捗のみ確認します。",
@@ -377,9 +480,11 @@ const ja: AdminTasksDictionary = {
   cmpDone: "{n}件完了", cmpReport: "レポート (業務日報)", cmpBy: "{name} 完了", cmpToday: "今日", cmpYesterday: "昨日",
   calThisMonth: "今月", calLegendPersonal: "個人", calLegendShared: "共有", calLegendUrgent: "緊急 · 遅延",
   calUpcoming: "今後の予定", calMore: "+{n}件 もっと見る", calNoMonth: "今月の予定はありません。",
+  calHideRepeat: "繰り返しを隠す",
   calAddOnDay: "この日にタスク追加", calDayEmpty: "この日の予定はありません。",
   pjBanner: "共有プロジェクト · メンバー {n}名", pjMembers: "メンバー管理", pjAddTaskTo: "{name}にタスク追加",
   pjEmptyT: "このプロジェクトにタスクがありません", pjEmptyS: "最初のタスクを追加してプロジェクトを始めましょう。",
+  pjDelete: "プロジェクト削除", pjSectionAdd: "セクション追加", pjSectionNamePh: "セクション名", pjSectionRename: "名前を変更", pjSectionDelete: "セクション削除", pjSectionDeleteMsg: "'{title}' セクションと中のタスクをまとめて削除しますか？", pjMembersManage: "メンバー管理", pjDeleteMsg: "「{title}」プロジェクトを削除しますか？プロジェクトのすべてのタスク・セクション・メンバーも一緒に削除され、元に戻せません。", pjDeleted: "プロジェクトを削除しました",
   npTitle: "新規共有プロジェクト", npName: "プロジェクト名", npNamePh: "例: 繁忙期オープン準備",
   npMembers: "{n}名 · 自分含む", npSearch: "名前 · 職務 検索", npHint: "プロジェクトのタスクはメンバー全員が同じ状態を共有します。",
   npCancel: "キャンセル", npCreate: "プロジェクト作成",
@@ -394,16 +499,27 @@ const ja: AdminTasksDictionary = {
   emCompleted: "完了したタスクがありません", emCompletedS: "タスクを完了すると日付ごとにここに記録されます。",
   errT: "タスクを読み込めませんでした", errS: "ネットワーク接続を確認して再試行してください。", retry: "再試行",
   errAuth: "再度ログインしてください。", errForbidden: "権限がありません。", errSave: "保存できませんでした。", errGeneric: "処理できませんでした。もう一度お試しください。",
+  errMissingTitle: "タイトルを入力してください。", errTimeNeedsDate: "時間を指定するには先に日付を選択してください。",
+  errRepeatNeedsDate: "繰り返しを設定するには先に日付を選択してください。", errNotFound: "タスクが見つかりません。",
+  errInvalidDate: "日付の形式が正しくありません。", errEmpty: "内容を入力してください。",
+  errDuplicateOccurrence: "その日付には同じ繰り返しタスクが既にあります。",
   tCreated: "タスクを追加しました。", tUpdated: "タスクを更新しました。", tCompleted: "完了しました。", tReopened: "再度開きました。",
   tShared: "共有しました。", tInstructed: "指示を送りました。", tDeleted: "削除しました。", tMoved: "移動しました。",
   tRescheduled: "日程を変更しました。", tNoteAdded: "ノートを追加しました。", tProjectCreated: "プロジェクトを作成しました。", tReminded: "リマインドを送りました。",
   confirmTitle: "確認",
   confirmDeleteMsg: "このタスクを削除しますか？元に戻せません。",
   confirmLeaveMsg: "このタスクから自分だけ抜けますか？",
-  confirmClearMsg: "過去の未完了タスクをすべて整理しますか？元に戻せません。",
+  confirmClearMsg: "過去の未完了タスクをすべて整理しますか？",
   confirmDeleteBtn: "削除",
-  railTodayTitle: "今日の進捗", railTodayProgress: "今日のタスク進捗率", railUpcomingEmpty: "今後の予定はありません",
+  railTodayTitle: "今日の進捗", railTodayProgress: "今日のタスク進捗率", railDoneToday: "本日完了", railUpcomingEmpty: "今後の予定はありません",
   undoBtn: "元に戻す", undoNext: "次回: {date}", tDeletedUndoable: "タスクを削除しました",
+  selMode: "選択", selSelected: "{n}件選択", selAll: "すべて選択", selClear: "選択解除",
+  selDelete: "削除", selEmptyHint: "削除するタスクを選択してください",
+  selHint: "行をクリックして選択・解除できます",
+  confirmBulkMsg: "選択した{n}件のタスクを削除しますか？",
+  confirmBulkSharedNote: "共有・指示されたタスクは削除ではなく自分だけ抜けます。この項目は元に戻せません。",
+  tBulkDeleted: "{n}件のタスクを削除しました",
+  tBulkPartial: "{n}件削除、{f}件失敗",
 };
 
 const en: AdminTasksDictionary = {
@@ -415,11 +531,12 @@ const en: AdminTasksDictionary = {
   secOverdue: "Overdue", secToday: "Today",
   overdueTitle: "{n} overdue task(s)", overdueSub: "Past their due date. Move them to today or clear them out.",
   overdueReschedule: "Reschedule", overdueClear: "Clear past unfinished",
+  odDaysBehind: "{n} days behind", odCarry: "Bring to today", odSkip: "Delete",
   inboxNote: "Every task outside a project lives here. Give it a date and it also shows in Today · Calendar.",
   prioNormal: "Normal", prioImportant: "Important", prioUrgent: "Urgent",
   stOpen: "Open", stInProgress: "In progress", stCompleted: "Done", stOverdue: "Overdue",
   repDaily: "Daily", repWeekly: "Weekly on {wd}", repWeekdays: "Every weekday (Mon–Fri)", repMonthly: "Monthly on the {d}",
-  repYearly: "Yearly on {m}/{d}", repCustom: "Custom…", repNone: "No repeat",
+  repYearly: "Yearly on {m}/{d}", repCustom: "Custom…", repCustomDays: "Weekly on {wd}", repPickDays: "Custom", repPickDaysHint: "Pick the days to repeat on", repNone: "No repeat",
   repShortWeekly: "Weekly", repShortMonthly: "Monthly", repShortYearly: "Yearly", repShortWeekdays: "Weekdays", repShortWeekends: "Weekends",
   durNone: "No duration", dur15: "15 min", dur30: "30 min", dur60: "1 hour", dur120: "2 hours", durCustom: "Custom",
   today: "Today", tomorrow: "Tomorrow", noDate: "No date", instructedBy: "{name} directive", sharedWith: "Shared", andMore: "{name} +{n}",
@@ -430,7 +547,12 @@ const en: AdminTasksDictionary = {
   dpLinked: "Linked", dpViewResv: "View reservation", dpParticipants: "Participants · {n} · shared status",
   dpAuthor: "Author", dpFirstRecipient: "First recipient", dpMe: "You", dpShareManage: "Add member / manage sharing",
   dpShareCta: "Share / assign directive", dpPhotos: "Attached photos {n}", dpLog: "Update log",
-  dpLogCreated: "{name} created the task", dpLogInput: "Add a note…", dpEdit: "Edit", dpShare: "Share",
+  dpLogCreated: "{name} created the task", dpLogInput: "Add a note…", dpEdit: "Edit", dpSave: "Save", dpTagAdd: "Add tag",
+  phAdd: "Add photos", phAddCompact: "Photos", phDropHint: "Click or drag files here",
+  phCount: "{n}/{max}", phRemove: "Remove photo", phTooMany: "Up to {max} photos",
+  phInvalidType: "Image files only", phTooLarge: "Files must be {max}MB or smaller",
+  phUploading: "Uploading…",
+  cpTitle: "Link reservation", cpHintBuilding: "Pick a building", cpHintRoom: "Pick a room to see its reservations", cpBuildings: "Buildings", cpRooms: "Rooms", cpReservations: "Reservations", cpSearch: "Search guest or booking id", cpSearchClear: "Clear", cpSearchEmpty: "No results", cpSearchEmptySub: "Try a guest name or booking id", cpNoBuilding: "No buildings registered", cpNoRooms: "No rooms registered", cpNoReservation: "No reservations in this period", cpGuest: "Guest", cpLoading: "Loading", cpBack: "Back", cpClear: "Unlink", cpApply: "Apply", cpCancel: "Cancel", cpOccupied: "Occupied", cpVacant: "Vacant", cpNightsUnit: "n", cpLive: "Staying", cpRoomsUnit: "rooms", cpTodayGuests: "Guests today", cpRoomSuffix: "", cpBookingId: "Booking id", dpShare: "Share",
   dpDelete: "Delete", dpUnshareDelete: "Unshare · delete", dpAuthorOnly: "Only the author ({name}) can edit the content",
   dpLeave: "Leave (me only)", dpMobileDetail: "Mobile detail",
   ctxBuilding: "Building", ctxBed: "Room", ctxTicket: "Reservation", ctxGuest: "Guest",
@@ -441,7 +563,7 @@ const en: AdminTasksDictionary = {
   shTargetSub: "Selecting 1+ sends it as a directive.", shShareSub: "Pick active members to collaborate.",
   shTargetHint: "The target sees a “{name} directive” marker. Share-based, not a formal assignee.",
   shSearch: "Search members", shTargetCta: "Assign", shShareCta: "Share", shNoResult: "No results.", shManager: "Manager",
-  mScheduleChange: "Reschedule", mPriority: "Priority", mShareInstr: "Share / directive", mMoveToday: "Move to today",
+  mScheduleChange: "Reschedule", mPriority: "Priority", mShareInstr: "Share / directive", mMoveToday: "Move to today", mMoveTomorrow: "Move to tomorrow",
   mMoveInbox: "Move to inbox", mDelete: "Delete", mLeave: "Leave (me only)",
   instrRecv: "Received", instrSent: "Sent",
   instrSentNote: "Directives land on the recipient's schedule. They don't enter your Today; track progress here.",
@@ -454,9 +576,11 @@ const en: AdminTasksDictionary = {
   cmpDone: "{n} done", cmpReport: "Report (work log)", cmpBy: "done by {name}", cmpToday: "Today", cmpYesterday: "Yesterday",
   calThisMonth: "This month", calLegendPersonal: "Personal", calLegendShared: "Shared", calLegendUrgent: "Urgent · overdue",
   calUpcoming: "Upcoming", calMore: "+{n} more", calNoMonth: "No tasks scheduled this month.",
+  calHideRepeat: "Hide recurring",
   calAddOnDay: "Add a task on this date", calDayEmpty: "No tasks scheduled on this date.",
   pjBanner: "Shared project · {n} members", pjMembers: "Manage members", pjAddTaskTo: "Add task to {name}",
   pjEmptyT: "No tasks in this project", pjEmptyS: "Add the first task to start the project.",
+  pjDelete: "Delete project", pjSectionAdd: "Add section", pjSectionNamePh: "Section name", pjSectionRename: "Rename", pjSectionDelete: "Delete section", pjSectionDeleteMsg: "Delete the '{title}' section and its tasks?", pjMembersManage: "Manage members", pjDeleteMsg: "Delete the project “{title}”? All of its tasks, sections, and members are deleted too, and this cannot be undone.", pjDeleted: "Project deleted",
   npTitle: "New shared project", npName: "Project name", npNamePh: "e.g. Peak-season opening prep",
   npMembers: "{n} · incl. you", npSearch: "Search name · role", npHint: "Project tasks share one status across all members.",
   npCancel: "Cancel", npCreate: "Create project",
@@ -471,16 +595,27 @@ const en: AdminTasksDictionary = {
   emCompleted: "No completed tasks", emCompletedS: "Completed tasks are logged here by day.",
   errT: "Couldn't load tasks", errS: "Check your connection and try again.", retry: "Retry",
   errAuth: "Please sign in again.", errForbidden: "You don't have permission.", errSave: "Couldn't save.", errGeneric: "Couldn't complete. Please try again.",
+  errMissingTitle: "Enter a title.", errTimeNeedsDate: "Pick a date before setting a time.",
+  errRepeatNeedsDate: "Pick a date before setting a repeat.", errNotFound: "Task not found.",
+  errInvalidDate: "That date isn't valid.", errEmpty: "Enter some content.",
+  errDuplicateOccurrence: "That date already has this recurring task.",
   tCreated: "Task added.", tUpdated: "Task updated.", tCompleted: "Marked complete.", tReopened: "Reopened.",
   tShared: "Shared.", tInstructed: "Directive sent.", tDeleted: "Deleted.", tMoved: "Moved.",
   tRescheduled: "Rescheduled.", tNoteAdded: "Note added.", tProjectCreated: "Project created.", tReminded: "Reminder sent.",
   confirmTitle: "Confirm",
   confirmDeleteMsg: "Delete this task? This can't be undone.",
   confirmLeaveMsg: "Leave this task (you only)?",
-  confirmClearMsg: "Clear all past unfinished tasks? This can't be undone.",
+  confirmClearMsg: "Clear all past unfinished tasks?",
   confirmDeleteBtn: "Delete",
-  railTodayTitle: "Today's progress", railTodayProgress: "Today's completion", railUpcomingEmpty: "Nothing upcoming",
+  railTodayTitle: "Today's progress", railTodayProgress: "Today's completion", railDoneToday: "Done today", railUpcomingEmpty: "Nothing upcoming",
   undoBtn: "Undo", undoNext: "Next: {date}", tDeletedUndoable: "Task deleted",
+  selMode: "Select", selSelected: "{n} selected", selAll: "Select all", selClear: "Clear selection",
+  selDelete: "Delete", selEmptyHint: "Select tasks to delete",
+  selHint: "Click a row to select or deselect it",
+  confirmBulkMsg: "Delete the {n} selected tasks?",
+  confirmBulkSharedNote: "Tasks shared with you are left rather than deleted. Those can't be undone.",
+  tBulkDeleted: "Deleted {n} tasks",
+  tBulkPartial: "{n} deleted, {f} failed",
 };
 
 const dictionaries: Record<Locale, AdminTasksDictionary> = { ko, ja, en };

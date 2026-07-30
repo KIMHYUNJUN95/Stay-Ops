@@ -554,16 +554,44 @@
 .adm .btn--subtle:hover { background: var(--surface2); }
 .adm .btn--sm { height: 32px; padding: 0 12px; font-size: 12px; border-radius: 9px; }
 
+/* 카드 헤더의 이동 링크(지시 › / 캘린더 › 등). 콘솔 전역 프리미티브 —
+   대시보드 홈 · 근태 · 청소 · 투두 카드가 모두 쓴다.
+   커서·호버·눌림이 전혀 없어 "클릭되는 것"으로 안 읽히던 문제를 2026-07-30 보완했다.
+   화살표가 살짝 밀리는 것 하나로 방향성을 주고, 나머지는 절제한다(카드 헤더는 조용해야 한다). */
 .adm .linkmore {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  padding: 3px 7px;
+  margin: -3px -7px; /* 패딩만큼 되돌려 기존 정렬을 그대로 유지 */
+  border: none;
+  border-radius: 8px;
+  background: transparent;
   font-size: 12.5px;
   font-weight: 800;
   color: var(--primary);
   text-decoration: none;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease, transform .1s ease;
 }
+.adm .linkmore:hover { background: var(--primary-soft); color: var(--primary-lift); }
+.adm .linkmore:active { transform: scale(.96); }
+.adm .linkmore:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+/* 소비처가 두 가지다: 아이콘 폰트를 감싼 `.ic` 스팬과, lucide 가 그대로 뱉는 `<svg>`.
+   후자는 `.ic` 클래스를 달지 않으므로 둘 다 잡아야 화살표가 실제로 밀린다. */
 .adm .linkmore .ic { font-size: 15px; }
+.adm .linkmore .ic,
+.adm .linkmore svg { transition: transform .16s ease; }
+.adm .linkmore:hover .ic,
+.adm .linkmore:hover svg { transform: translateX(2px); }
+@media (prefers-reduced-motion: reduce) {
+  .adm .linkmore,
+  .adm .linkmore .ic,
+  .adm .linkmore svg { transition: none; }
+  .adm .linkmore:active { transform: none; }
+  .adm .linkmore:hover .ic,
+  .adm .linkmore:hover svg { transform: none; }
+}
 
 .adm .avatar {
   border-radius: 9px;

@@ -1531,6 +1531,38 @@ export type Database = {
           update_type?: string;
         };
       };
+      task_occurrence_state: {
+        Insert: {
+          completed_by_user_id?: string | null;
+          created_at?: string;
+          moved_to_date?: string | null;
+          occurrence_date: string;
+          organization_id: string;
+          state: string;
+          task_id: string;
+          updated_at?: string;
+        };
+        Row: {
+          completed_by_user_id: string | null;
+          created_at: string;
+          moved_to_date: string | null;
+          occurrence_date: string;
+          organization_id: string;
+          state: string;
+          task_id: string;
+          updated_at: string;
+        };
+        Update: {
+          completed_by_user_id?: string | null;
+          created_at?: string;
+          moved_to_date?: string | null;
+          occurrence_date?: string;
+          organization_id?: string;
+          state?: string;
+          task_id?: string;
+          updated_at?: string;
+        };
+      };
       beds24_webhook_events: {
         Insert: {
           booking_summary?: Json;

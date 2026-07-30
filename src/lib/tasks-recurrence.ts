@@ -21,6 +21,82 @@ export const STANDARD_RECURRENCE_RULES = [
 ] as const;
 type StandardRecurrenceRule = (typeof STANDARD_RECURRENCE_RULES)[number];
 
+/* ============================================================
+   사용자 지정 요일 반복 (2026-07-29)
+   Stored in the same `tasks.recurrence_rule` text column as `custom:<d>,<d>,…` where each digit is
+   a JS weekday (0=Sun … 6=Sat), deduped and ascending — e.g. `custom:1,3,5` = 매주 월·수·금.
+   No schema change: the column was already free-form text.
+
+   This is the ONE parser for the format; the server twin (`@/lib/tasks`) imports it from here
+   rather than re-implementing, because the two files' recurrence tables drifting apart is exactly
+   the failure the header warning above describes.
+   ============================================================ */
+export const CUSTOM_RECURRENCE_PREFIX = "custom:";
+
+/** 0=일 … 6=토. Admin and mobile weekday pickers share this order so the two read identically. */
+export const WEEKDAY_ORDER = [0, 1, 2, 3, 4, 5, 6] as const;
+
+/** One weekday's short name in `locale` ("월"/"月"/"Mon"). 1970-01-04 was a Sunday. */
+export function formatWeekday(weekday: number, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    weekday: locale.startsWith("en") ? "short" : "narrow",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(1970, 0, 4 + weekday)));
+}
+
+/** `custom:1,3,5` → `[1,3,5]`. Returns null for anything that isn't a well-formed custom rule. */
+export function parseCustomWeekdays(rule: string | null): number[] | null {
+  if (!rule || !rule.startsWith(CUSTOM_RECURRENCE_PREFIX)) return null;
+  const body = rule.slice(CUSTOM_RECURRENCE_PREFIX.length);
+  if (!body) return null;
+  const days: number[] = [];
+  for (const part of body.split(",")) {
+    if (!/^[0-6]$/.test(part)) return null;
+    const day = Number(part);
+    if (!days.includes(day)) days.push(day);
+  }
+  if (!days.length) return null;
+  return days.sort((a, b) => a - b);
+}
+
+/** `[5,1,3]` → `custom:1,3,5`. Returns null for an empty/invalid set (never store an empty rule). */
+export function buildCustomRecurrenceRule(weekdays: readonly number[]): string | null {
+  const days = [...new Set(weekdays.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort(
+    (a, b) => a - b,
+  );
+  return days.length ? `${CUSTOM_RECURRENCE_PREFIX}${days.join(",")}` : null;
+}
+
+/** True for a custom weekday rule specifically (bare legacy `"custom"` is NOT one — see below). */
+export function isCustomWeekdayRecurrence(rule: string | null): boolean {
+  return parseCustomWeekdays(rule) !== null;
+}
+
+/**
+ * `custom:1,3,5` → "월·수·금" (en: "Mon, Wed, Fri"); "" when the rule isn't a custom one.
+ *
+ * Weekday names are locale data, not product copy, so this uses `Intl` like the rest of the task
+ * date rendering rather than dictionary keys. `locale` is any BCP-47 tag ("ko", "ja-JP", …).
+ * 1970-01-04 was a Sunday, which is why it anchors the weekday-0 lookup.
+ */
+export function formatCustomWeekdays(rule: string | null, locale: string): string {
+  const days = parseCustomWeekdays(rule);
+  if (!days) return "";
+  const names = days.map((day) => formatWeekday(day, locale));
+  return locale.startsWith("en") ? names.join(", ") : names.join("·");
+}
+
+/** Next date strictly after `fromDate` whose weekday is in `weekdays`. */
+function nextWeekdayOccurrence(weekdays: readonly number[], fromDate: string, step: 1 | -1): string {
+  let cursor = ymdShift(fromDate, step);
+  for (let guard = 0; guard < 7; guard++) {
+    const [year, month, day] = cursor.split("-").map(Number);
+    if (weekdays.includes(new Date(Date.UTC(year, month - 1, day)).getUTCDay())) return cursor;
+    cursor = ymdShift(cursor, step);
+  }
+  return cursor; // unreachable for a non-empty set; keeps the return type total
+}
+
 function formatYmd(year: number, month: number, day: number): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
@@ -52,12 +128,22 @@ function isStd(value: string | null): value is StandardRecurrenceRule {
   return !!value && (STANDARD_RECURRENCE_RULES as readonly string[]).includes(value);
 }
 
-/** True when the rule is one of the supported standard recurrence rules. */
+/**
+ * True when this module can compute the rule's occurrences — the six standard rules plus a custom
+ * weekday rule (`custom:1,3,5`). Bare legacy `"custom"` carries no weekday set, so it stays false
+ * and keeps its existing display-only behavior.
+ *
+ * Callers use this as the "is this a live recurring task?" gate, so it MUST agree with the server
+ * twin. See the header warning: a rule that rolls forward there but returns false here is hard-
+ * deleted by the dismiss/reschedule branch.
+ */
 export function isStandardRecurrence(value: string | null): boolean {
-  return isStd(value);
+  return isStd(value) || isCustomWeekdayRecurrence(value);
 }
 
-function nextOccurrence(rule: StandardRecurrenceRule, fromDate: string): string {
+function nextOccurrence(rule: string, fromDate: string): string {
+  const customDays = parseCustomWeekdays(rule);
+  if (customDays) return nextWeekdayOccurrence(customDays, fromDate, 1);
   if (rule === "daily") return ymdShift(fromDate, 1);
   if (rule === "weekly") return ymdShift(fromDate, 7);
   if (rule === "monthly") return shiftMonthlyYmd(fromDate, 1);
@@ -75,6 +161,25 @@ function nextOccurrence(rule: StandardRecurrenceRule, fromDate: string): string 
 }
 
 /**
+ * 반복 작업을 `targetDate` 로 옮겨도 되는가 — **이미 그 날짜에 회차가 있으면 false**.
+ *
+ * 단일 행 모델이라 옮겨도 행이 늘지는 않지만, 사용자 눈에는 "내일에도 이미 있는 그 작업"을 또 내일로
+ * 미는 것이라 의미가 없다(2026-07-30 요구). 비반복 작업이나 앵커가 없는 작업은 항상 허용한다.
+ *
+ * `anchor` 는 그 작업의 현재 회차 날짜다. 앵커 자신과 같은 날짜로 옮기는 것은 애초에 no-op 이라
+ * 여기서 막지 않는다(호출부의 메뉴가 반대 방향만 노출한다).
+ */
+export function canMoveRecurringTo(
+  rule: string | null,
+  anchor: string | null,
+  targetDate: string,
+): boolean {
+  if (!anchor || !isStandardRecurrence(rule)) return true;
+  if (anchor === targetDate) return true;
+  return recurringOccurrencesInRange(rule, anchor, targetDate, targetDate).length === 0;
+}
+
+/**
  * All occurrence dates of a recurring task within [start, end] (inclusive), for calendar previews.
  * Generated forward from `anchor`; dates before `start` are skipped (no past previews).
  */
@@ -84,7 +189,7 @@ export function recurringOccurrencesInRange(
   start: string,
   end: string,
 ): string[] {
-  if (!isStd(rule)) return [];
+  if (!isStandardRecurrence(rule) || rule === null) return [];
   const out: string[] = [];
   let cursor = anchor;
   let guard = 0;
@@ -94,4 +199,38 @@ export function recurringOccurrencesInRange(
     cursor = nextOccurrence(rule, cursor);
   }
   return out;
+}
+
+/* ============================================================
+   회차 상태 (2026-07-30, 롤포워드 폐지)
+   반복 업무는 완료해도 행이 안 넘어간다(고정 앵커). 각 회차(occurrence_date)의 완료/스킵/이동
+   상태는 `task_occurrence_state` 테이블이 정본이고, 클라/서버가 이 순수 헬퍼로 판정한다.
+   두 코드 경로(server tasks.ts / client 컴포넌트)가 어긋나면 안 되므로 여기 한 곳에 둔다.
+   ============================================================ */
+export type OccurrenceState = "completed" | "skipped" | "moved";
+
+/** True when a state resolves an occurrence (removes it from "open"/overdue). All three do. */
+export function isResolvedOccurrenceState(state: OccurrenceState | undefined): boolean {
+  return state === "completed" || state === "skipped" || state === "moved";
+}
+
+/**
+ * Outstanding (still-open) OVERDUE occurrence dates of a recurring task: rule occurrences in
+ * `[anchor, today)` that have no recorded state. `resolvedDates` is the set of occurrence_date
+ * strings that already carry a `task_occurrence_state` row (completed/skipped/moved) for this task.
+ * Empty for non-standard rules or when nothing is overdue. Never auto-expires — a date stays here
+ * until it is completed, skipped, or moved (see decision log 2026-07-30).
+ */
+export function outstandingOverdueOccurrences(
+  rule: string | null,
+  anchor: string | null,
+  today: string,
+  resolvedDates: ReadonlySet<string>,
+): string[] {
+  if (!anchor || !isStandardRecurrence(rule)) return [];
+  const yesterday = ymdShift(today, -1);
+  if (yesterday < anchor) return [];
+  return recurringOccurrencesInRange(rule, anchor, anchor, yesterday).filter(
+    (d) => !resolvedDates.has(d),
+  );
 }

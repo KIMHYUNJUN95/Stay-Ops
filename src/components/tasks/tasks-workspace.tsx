@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { type ComponentProps, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -16,6 +16,7 @@ import {
   Inbox,
   ListChecks,
   Plus,
+  Repeat,
   RotateCcw,
   Search,
   SearchX,
@@ -33,6 +34,7 @@ import {
   quickCreateTomorrowTask,
 } from "@/app/mobile/tasks/new/actions";
 import {
+  carryOverdueToToday,
   completeTask,
   deleteTasksInList,
   dismissOverdueTasks,
@@ -40,6 +42,7 @@ import {
   reorderTasks,
   rescheduleOverdueTo,
   restoreTask,
+  skipOverdueOccurrences,
 } from "@/app/mobile/tasks/[id]/actions";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { TaskSchedulePicker } from "@/components/tasks/task-schedule-sheet";
@@ -51,8 +54,13 @@ import { ProjectsBoard } from "@/components/tasks/projects-board";
 import { MiniCalendar } from "@/components/tasks/date-time-fields";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { ProjectSummary } from "@/lib/projects";
-import type { ShareableUser, TaskRecord } from "@/lib/tasks";
-import { isStandardRecurrence, recurringOccurrencesInRange } from "@/lib/tasks-recurrence";
+import type { OccurrenceStateRecord, ShareableUser, TaskRecord } from "@/lib/tasks";
+import {
+  isStandardRecurrence,
+  type OccurrenceState,
+  outstandingOverdueOccurrences,
+  recurringOccurrencesInRange,
+} from "@/lib/tasks-recurrence";
 import { cn } from "@/lib/utils";
 
 type Copy = Dictionary["tasks"];
@@ -86,7 +94,28 @@ function ymdShift(ymd: string, n: number): string {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
-
+// 반복 회차 카드 리스트(오늘/내일 뷰) — 각 카드는 그 날짜의 회차로 완료 처리(행 status 아님).
+// viewBody(거대 IIFE) 밖으로 빼서 컴포넌트 크기를 낮추고(React Compiler 최적화 유지) 오늘·내일에서
+// 동일하게 재사용한다.
+function RecurringOccurrenceCards({
+  items,
+  date,
+  cardProps,
+  className,
+}: {
+  items: TaskRecord[];
+  date: string;
+  cardProps: Omit<ComponentProps<typeof TaskCard>, "task" | "occurrence">;
+  className: string;
+}) {
+  return (
+    <div className={className}>
+      {items.map((t) => (
+        <TaskCard key={t.id} task={t} occurrence={{ date, done: false }} {...cardProps} />
+      ))}
+    </div>
+  );
+}
 
 export function TasksWorkspace({
   buildingLabels,
@@ -94,6 +123,8 @@ export function TasksWorkspace({
   currentUserId,
   initialView,
   locale,
+  moveError,
+  occurrenceStates,
   projectCompletedTasks,
   projects,
   shareableUsers,
@@ -105,6 +136,9 @@ export function TasksWorkspace({
   currentUserId: string;
   initialView: View;
   locale: Locale;
+  /** 이동이 거절된 이유(반복 회차 중복). 서버 액션이 쿼리로 돌려보낸다. */
+  moveError?: string;
+  occurrenceStates: OccurrenceStateRecord[];
   // Completed project tasks, supplied separately so the Completed tab's project filter can show
   // them. `tasks` itself excludes project tasks (they live only in the Projects tab).
   projectCompletedTasks: TaskRecord[];
@@ -145,6 +179,8 @@ export function TasksWorkspace({
     const [ty, tm] = today.split("-").map(Number);
     return { y: ty, m: tm };
   });
+  // 캘린더에서 고정 반복(표준 반복) 회차 숨김 — 세션 상태(새로고침 시 초기화), 기본 표시.
+  const [hideRecurring, setHideRecurring] = useState(false);
   const closeDaySheet = useCallback(() => {
     setSheetShown(false);
     setTimeout(() => setSheetOpen(false), 320); // matches the day-sheet transition duration
@@ -164,6 +200,15 @@ export function TasksWorkspace({
   const router = useRouter();
   const [pressTask, setPressTask] = useState<TaskRecord | null>(null);
   const [pressShown, setPressShown] = useState(false);
+  // 이동 거절 안내 — 쿼리로 들어온 값을 한 번만 띄우고 URL 을 정리한다(새로고침 시 재노출 방지).
+  const [moveNotice, setMoveNotice] = useState<string | null>(moveError ?? null);
+  useEffect(() => {
+    if (!moveNotice) return;
+    window.history.replaceState(null, "", window.location.pathname + window.location.search.replace(/[?&]moveError=[^&]*/, "").replace(/^&/, "?"));
+    const t = setTimeout(() => setMoveNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [moveNotice]);
+
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [confirmIds, setConfirmIds] = useState<string[] | null>(null);
@@ -241,16 +286,19 @@ export function TasksWorkspace({
   // --- Quick complete (status circle tap on any card) + undo toast.
   const [, startComplete] = useTransition();
   const [undoTask, setUndoTask] = useState<TaskRecord | null>(null);
+  const [undoOcc, setUndoOcc] = useState<string | null>(null); // 반복 완료 undo 시 회차 날짜
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Optimistically hide the row, then run the server action; revalidatePath refreshes the list with
   // the new status and we clear the hidden id. Completing shows an undo toast; reopening (in the
   // 완료/기록 tab, or via undo) is itself the correction, so it shows none.
-  const runStatus = useCallback((task: TaskRecord, complete: boolean) => {
-    setHiddenTaskIds((prev) => new Set(prev).add(task.id));
+  const runStatus = useCallback(
+    (task: TaskRecord, complete: boolean, occurrenceDate?: string) => {
+    // 반복 회차 행은 완료해도 목록에서 숨기지 않는다(occurrence 상태로 done 표시). 일회성만 낙관적 숨김.
+    if (!occurrenceDate) setHiddenTaskIds((prev) => new Set(prev).add(task.id));
     startComplete(async () => {
       try {
-        if (complete) await completeTask(task.id);
-        else await reopenTask(task.id);
+        if (complete) await completeTask(task.id, occurrenceDate);
+        else await reopenTask(task.id, occurrenceDate);
       } finally {
         // Always un-hide: on success revalidatePath re-renders with the new status; on failure the
         // row reappears in its original place instead of silently vanishing until a refresh.
@@ -263,26 +311,27 @@ export function TasksWorkspace({
     });
   }, []);
   const handleCompleteToggle = useCallback(
-    (task: TaskRecord) => {
-      const complete = task.status !== "completed";
-      runStatus(task, complete);
+    (task: TaskRecord, occurrence?: { date: string; done: boolean }) => {
+      const complete = occurrence ? !occurrence.done : task.status !== "completed";
+      runStatus(task, complete, occurrence?.date);
       if (undoTimer.current) clearTimeout(undoTimer.current);
       if (complete) {
         setUndoTask(task);
+        setUndoOcc(occurrence?.date ?? null);
         undoTimer.current = setTimeout(() => setUndoTask(null), 4000);
       } else {
         setUndoTask(null);
+        setUndoOcc(null);
       }
     },
     [runStatus],
   );
   const handleUndo = useCallback(() => {
-    setUndoTask((t) => {
-      if (t) runStatus(t, false);
-      return null;
-    });
+    if (undoTask) runStatus(undoTask, false, undoOcc ?? undefined);
+    setUndoTask(null);
+    setUndoOcc(null);
     if (undoTimer.current) clearTimeout(undoTimer.current);
-  }, [runStatus]);
+  }, [runStatus, undoTask, undoOcc]);
 
   // Delete undo: deleteTask soft-deletes then redirects to ?deleted=<id>. Show a "삭제했습니다 · 실행
   // 취소" toast that calls restoreTask. Guarded by a ref so it fires once per id (no re-show on refresh).
@@ -318,17 +367,66 @@ export function TasksWorkspace({
   const [completedFilter, setCompletedFilter] = useState<"all" | "regular" | "project">("all");
 
   // Tokyo "tomorrow" (today + 1), used by the Tomorrow tab + its swipe defer action.
-  const tomorrowDate = ymdShift(today, 1);
+  // Memoized: as a plain render const it flows into occurrence helpers in a way the React Compiler
+  // couldn't reconcile with their manual memoization (bailed the whole component).
+  const tomorrowDate = useMemo(() => ymdShift(today, 1), [today]);
   const isActive = (t: TaskRecord) => t.status !== "completed" && t.status !== "cancelled";
   const dueDateOf = (t: TaskRecord) => tokyoDateOf(t.dueAt);
-  const isOverdue = (t: TaskRecord) => isActive(t) && !!dueDateOf(t) && dueDateOf(t)! < today;
+  // 반복 회차 상태(2026-07-30): taskId → (date → state). 완료/지연 판정에 사용.
+  const occByTask = useMemo(() => {
+    const m = new Map<string, Map<string, OccurrenceState>>();
+    for (const s of occurrenceStates) {
+      const inner = m.get(s.taskId) ?? new Map<string, OccurrenceState>();
+      inner.set(s.occurrenceDate, s.state);
+      m.set(s.taskId, inner);
+    }
+    return m;
+  }, [occurrenceStates]);
+  const occStateOf = useCallback(
+    (taskId: string, date: string): OccurrenceState | undefined => occByTask.get(taskId)?.get(date),
+    [occByTask],
+  );
+  const resolvedDatesFor = useCallback(
+    (taskId: string): Set<string> => new Set(occByTask.get(taskId)?.keys() ?? []),
+    [occByTask],
+  );
+  const anchor = (t: TaskRecord) => dueDateOf(t) ?? t.scheduledDate ?? null;
+  // 반복은 규칙으로 회차 계산, 비반복은 앵커 하루.
+  const occursOn = (t: TaskRecord, ymd: string) => {
+    const a = anchor(t);
+    if (!a) return false;
+    if (isStandardRecurrence(t.recurrenceRule))
+      return recurringOccurrencesInRange(t.recurrenceRule, a, ymd, ymd).length > 0;
+    return a === ymd;
+  };
+  // 이 날짜에 미완료 반복 회차가 떠야 하는가(완료 회차 제외).
+  const openOccursOn = (t: TaskRecord, ymd: string) =>
+    isActive(t) &&
+    isStandardRecurrence(t.recurrenceRule) &&
+    occursOn(t, ymd) &&
+    occStateOf(t.id, ymd) !== "completed";
+  // 미해결 지연 회차 날짜들(과거·상태 없음).
+  const overdueOccDates = (t: TaskRecord) =>
+    isStandardRecurrence(t.recurrenceRule)
+      ? outstandingOverdueOccurrences(t.recurrenceRule, anchor(t), today, resolvedDatesFor(t.id))
+      : [];
+  // 날짜 버킷 술어는 일회성 전용(반복 제외). 반복은 위 occurrence 헬퍼로 따로 처리.
+  const isOverdue = (t: TaskRecord) =>
+    isActive(t) &&
+    !isStandardRecurrence(t.recurrenceRule) &&
+    !!dueDateOf(t) &&
+    dueDateOf(t)! < today;
   const isToday = (t: TaskRecord) =>
-    isActive(t) && !isOverdue(t) && (t.scheduledDate === today || dueDateOf(t) === today);
+    isActive(t) &&
+    !isStandardRecurrence(t.recurrenceRule) &&
+    !isOverdue(t) &&
+    (t.scheduledDate === today || dueDateOf(t) === today);
   // Tomorrow tab: active tasks anchored to tomorrow (scheduled or due). Future-dated, so never
   // overdue. Mirrors isToday so a task can't fall through the IA between the two day tabs.
   const isTomorrow = (t: TaskRecord) =>
-    isActive(t) && (t.scheduledDate === tomorrowDate || dueDateOf(t) === tomorrowDate);
-  const anchor = (t: TaskRecord) => dueDateOf(t) ?? t.scheduledDate ?? null;
+    isActive(t) &&
+    !isStandardRecurrence(t.recurrenceRule) &&
+    (t.scheduledDate === tomorrowDate || dueDateOf(t) === tomorrowDate);
   // "다음: {날짜}" for the just-completed recurring task (its next occurrence after today).
   const undoSub = (() => {
     if (!undoTask || !isStandardRecurrence(undoTask.recurrenceRule)) return undefined;
@@ -364,6 +462,16 @@ export function TasksWorkspace({
     if (ao != null) return -1;
     if (bo != null) return 1;
     return prioSort(a, b);
+  };
+  // Inbox ordering: manual drag (sort_order) wins; unranked fall back to **newest-first** so a freshly
+  // created task still lands on top until the user drags it. (Today uses prio fallback via orderSort.)
+  const inboxOrderSort = (a: TaskRecord, b: TaskRecord) => {
+    const ao = a.sortOrder;
+    const bo = b.sortOrder;
+    if (ao != null && bo != null) return ao !== bo ? ao - bo : b.createdAt.localeCompare(a.createdAt);
+    if (ao != null) return -1;
+    if (bo != null) return 1;
+    return b.createdAt.localeCompare(a.createdAt);
   };
 
   // --- First-slice search / filter: title + author text, and anchor-date single/range.
@@ -446,6 +554,7 @@ export function TasksWorkspace({
   const cardProps = {
     buildingLabels,
     copy,
+    locale,
     currentUserId,
     today,
     selectMode,
@@ -461,8 +570,10 @@ export function TasksWorkspace({
 
   // Per-tab counts (same base filters as each view).
   const tabCounts: Record<View, number> = {
-    today: tasks.filter((t) => isOverdue(t) || isToday(t)).length,
-    tomorrow: tasks.filter(isTomorrow).length,
+    today: tasks.filter(
+      (t) => isOverdue(t) || isToday(t) || openOccursOn(t, today) || overdueOccDates(t).length > 0,
+    ).length,
+    tomorrow: tasks.filter((t) => isTomorrow(t) || openOccursOn(t, tomorrowDate)).length,
     // Archive = every active todo in one management list.
     inbox: tasks.filter((t) => isActive(t)).length,
     // Projects badge stays 0 until the Projects data layer lands (deferred).
@@ -530,11 +641,22 @@ export function TasksWorkspace({
     if (view === "today") {
       const baseOver = tasks.filter(isOverdue);
       const baseToday = tasks.filter(isToday);
-      if (!baseOver.length && !baseToday.length)
+      // 반복 회차(2026-07-30): 오늘 미완료 회차 + 반복 지연 backlog(작업별 1건).
+      const baseRecToday = tasks.filter((t) => openOccursOn(t, today));
+      const baseRecOverdue = tasks.filter((t) => overdueOccDates(t).length > 0);
+      if (
+        !baseOver.length &&
+        !baseToday.length &&
+        !baseRecToday.length &&
+        !baseRecOverdue.length
+      )
         return emptyState(Sun, copy.todayEmptyTitle, copy.todayEmptySub);
       const over = applyFilter(baseOver).sort(orderSort);
       const todays = applyFilter(baseToday).sort(orderSort);
-      if (!over.length && !todays.length) return noMatchState();
+      const recToday = applyFilter(baseRecToday).sort(orderSort);
+      const recOverdue = applyFilter(baseRecOverdue).sort(orderSort);
+      if (!over.length && !todays.length && !recToday.length && !recOverdue.length)
+        return noMatchState();
       // Drag-reorder is offered only on the plain Today list — disabled while a search/date filter
       // is active (the list is a subset) or in multi-select mode (the card body owns the tap).
       const reorderDisabled = filterActive || selectMode;
@@ -566,6 +688,44 @@ export function TasksWorkspace({
           setOverdueConfirm(false);
           setOverdueSelection(new Set());
         });
+      // 반복 지연 backlog(작업별 1건): 오늘로 가져오기 / 삭제(skip). 서버가 revalidate.
+      const carryRec = (id: string) =>
+        startOverdue(async () => {
+          await carryOverdueToToday(id);
+        });
+      const skipRec = (id: string) =>
+        startOverdue(async () => {
+          await skipOverdueOccurrences(id);
+        });
+      const recOverdueGroup = (t: TaskRecord) => (
+        <div
+          key={`od-${t.id}`}
+          className="flex items-center gap-2 rounded-2xl border border-border bg-surface px-3.5 py-3"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[14px] font-bold text-foreground">{t.title}</p>
+            <p className="mt-0.5 text-[11.5px] font-semibold text-rose-600">
+              {copy.odDaysBehind.replace("{n}", String(overdueOccDates(t).length))}
+            </p>
+          </div>
+          <button
+            className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-[12px] font-bold text-primary-foreground disabled:opacity-50"
+            disabled={overduePending}
+            onClick={() => carryRec(t.id)}
+            type="button"
+          >
+            {copy.odCarry}
+          </button>
+          <button
+            className="shrink-0 rounded-full border border-border px-3 py-1.5 text-[12px] font-bold text-muted-foreground disabled:opacity-50"
+            disabled={overduePending}
+            onClick={() => skipRec(t.id)}
+            type="button"
+          >
+            {copy.odSkip}
+          </button>
+        </div>
+      );
       return (
         <>
           {ownedOverdue > 0 && !filterActive && !selectMode ? (
@@ -665,15 +825,31 @@ export function TasksWorkspace({
               />
             </>
           ) : null}
-          {todays.length > 0 ? (
+          {recOverdue.length > 0 ? (
             <div className={over.length ? "mt-4" : ""}>
-              {sectionHead(copy.secToday, todays.length)}
-              <ReorderableTaskList
-                cardProps={cardProps}
-                disabled={reorderDisabled}
-                items={todays}
-                onPersist={reorderTasks}
-              />
+              {over.length === 0 ? sectionHead(copy.secOverdue, recOverdue.length) : null}
+              <div className="flex flex-col gap-2">{recOverdue.map(recOverdueGroup)}</div>
+            </div>
+          ) : null}
+          {(todays.length > 0 || recToday.length > 0) ? (
+            <div className={over.length || recOverdue.length ? "mt-4" : ""}>
+              {sectionHead(copy.secToday, todays.length + recToday.length)}
+              {todays.length > 0 ? (
+                <ReorderableTaskList
+                  cardProps={cardProps}
+                  disabled={reorderDisabled}
+                  items={todays}
+                  onPersist={reorderTasks}
+                />
+              ) : null}
+              {recToday.length > 0 ? (
+                <RecurringOccurrenceCards
+                  cardProps={{ ...cardProps, swipe: false }}
+                  className={todays.length ? "mt-2 flex flex-col gap-2" : "flex flex-col gap-2"}
+                  date={today}
+                  items={recToday}
+                />
+              ) : null}
             </div>
           ) : null}
         </>
@@ -684,20 +860,32 @@ export function TasksWorkspace({
     // anchored tomorrow. Swipe here pulls a task back to today (see swipeActionForView).
     if (view === "tomorrow") {
       const base = tasks.filter(isTomorrow);
-      if (base.length === 0)
+      const baseRec = tasks.filter((t) => openOccursOn(t, tomorrowDate));
+      if (base.length === 0 && baseRec.length === 0)
         return emptyState(Sunrise, copy.tomorrowEmptyTitle, copy.tomorrowEmptySub);
       const list = applyFilter(base).sort(orderSort);
-      if (list.length === 0) return noMatchState();
+      const recList = applyFilter(baseRec).sort(orderSort);
+      if (list.length === 0 && recList.length === 0) return noMatchState();
       const reorderDisabled = filterActive || selectMode;
       return (
         <>
-          {sectionHead(copy.secTomorrow, list.length)}
-          <ReorderableTaskList
-            cardProps={cardProps}
-            disabled={reorderDisabled}
-            items={list}
-            onPersist={reorderTasks}
-          />
+          {sectionHead(copy.secTomorrow, list.length + recList.length)}
+          {list.length > 0 ? (
+            <ReorderableTaskList
+              cardProps={cardProps}
+              disabled={reorderDisabled}
+              items={list}
+              onPersist={reorderTasks}
+            />
+          ) : null}
+          {recList.length > 0 ? (
+            <RecurringOccurrenceCards
+              cardProps={{ ...cardProps, swipe: false }}
+              className={list.length ? "mt-2 flex flex-col gap-2" : "flex flex-col gap-2"}
+              date={tomorrowDate}
+              items={recList}
+            />
+          ) : null}
         </>
       );
     }
@@ -705,7 +893,10 @@ export function TasksWorkspace({
     // Archive (보관함): every active todo, managed in one place. Newest first.
     if (view === "inbox") {
       const base = tasks.filter((t) => isActive(t));
-      const list = applyFilter(base).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      // 관리함은 수동 드래그 순서를 허용(2026-07-30). 랭크된(드래그된) 작업이 위, 미랭크는 최신순
+      // (새 작업 top 유지). 드래그는 검색/필터·선택 모드가 아닐 때만.
+      const list = applyFilter(base).sort(inboxOrderSort);
+      const reorderDisabled = filterActive || selectMode;
       return (
         <>
           <p className="mb-3 px-0.5 text-[12px] font-medium text-muted-foreground">{copy.inboxHint}</p>
@@ -714,11 +905,12 @@ export function TasksWorkspace({
           ) : list.length === 0 ? (
             noMatchState()
           ) : (
-            <div className="flex flex-col gap-2">
-              {list.map((t) => (
-                <TaskCard key={t.id} task={t} {...cardProps} />
-              ))}
-            </div>
+            <ReorderableTaskList
+              cardProps={cardProps}
+              disabled={reorderDisabled}
+              items={list}
+              onPersist={reorderTasks}
+            />
           )}
         </>
       );
@@ -869,6 +1061,7 @@ export function TasksWorkspace({
     for (const t of dated) {
       const a = anchor(t) as string;
       if (isStandardRecurrence(t.recurrenceRule)) {
+        if (hideRecurring) continue; // "반복 숨기기" 토글: 고정 반복 회차 제외.
         for (const iso of recurringOccurrencesInRange(t.recurrenceRule, a, monthStart, monthEnd)) {
           occurrences.push({ iso, task: t });
         }
@@ -991,16 +1184,32 @@ export function TasksWorkspace({
                 <ChevronRight className="size-[18px]" aria-hidden="true" />
               </button>
             </div>
-            {!isCurrentMonth ? (
+            <div className="flex items-center gap-1.5">
               <button
-                className="inline-flex items-center gap-1 rounded-full bg-primary/[0.07] px-3 py-1.5 text-[12px] font-bold text-primary transition-colors hover:bg-primary/10"
-                onClick={goToday}
+                aria-pressed={hideRecurring}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors",
+                  hideRecurring
+                    ? "bg-primary text-primary-foreground"
+                    : "border border-border bg-surface text-slate-500 hover:bg-slate-50",
+                )}
+                onClick={() => setHideRecurring((v) => !v)}
                 type="button"
               >
-                <CalendarDays className="size-3.5" aria-hidden="true" />
-                {copy.todayLabel}
+                <Repeat className="size-3.5" aria-hidden="true" />
+                {copy.calHideRepeat}
               </button>
-            ) : null}
+              {!isCurrentMonth ? (
+                <button
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/[0.07] px-3 py-1.5 text-[12px] font-bold text-primary transition-colors hover:bg-primary/10"
+                  onClick={goToday}
+                  type="button"
+                >
+                  <CalendarDays className="size-3.5" aria-hidden="true" />
+                  {copy.todayLabel}
+                </button>
+              ) : null}
+            </div>
           </div>
 
           {/* Weekday row */}
@@ -1148,6 +1357,7 @@ export function TasksWorkspace({
       const a = anchor(t);
       if (!a) return false;
       if (isStandardRecurrence(t.recurrenceRule)) {
+        if (hideRecurring) return false; // "반복 숨기기" 토글과 그리드/아젠다를 일치시킴.
         return recurringOccurrencesInRange(t.recurrenceRule, a, iso, iso).length > 0;
       }
       return a === iso;
@@ -1689,6 +1899,18 @@ export function TasksWorkspace({
           )}
         </BottomSheet>
       ) : null}
+
+      {/* 이동 거절 안내 — 반복 작업을 이미 회차가 있는 날짜로 옮기려 했을 때. */}
+      {moveNotice && hydrated
+        ? createPortal(
+            <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-4">
+              <div className="pointer-events-auto max-w-[420px] rounded-[18px] bg-slate-900 px-4 py-2.5 text-[13px] font-bold tracking-[-0.01em] text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
+                {copy.moveDuplicateOccurrence}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
 
       {/* Undo toast — floats above the tab bar after a complete (status-circle) or a delete. */}
       {(undoTask || deletedUndoId) && hydrated

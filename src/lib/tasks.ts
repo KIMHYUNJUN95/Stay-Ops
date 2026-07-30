@@ -5,6 +5,14 @@ import {
   getDisplayRoomLabel,
 } from "@/lib/room-label-normalization";
 import type { AppSession } from "@/lib/session";
+// The custom-weekday rule format has exactly one parser, and it lives in the client-safe twin so
+// the two recurrence tables can't drift apart on it (see that file's header warning).
+import {
+  buildCustomRecurrenceRule,
+  isCustomWeekdayRecurrence,
+  type OccurrenceState,
+  parseCustomWeekdays,
+} from "@/lib/tasks-recurrence";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
@@ -223,11 +231,33 @@ export function taskNeedsRecurrenceDate(
   return !!recurrenceRule && !anchorDate;
 }
 
+/** The six literal rules only — use `hasRecurrenceMath` for the "is this recurring?" gate. */
 function isStandardRecurrenceRule(value: string | null): value is StandardRecurrenceRule {
   return !!value && (STANDARD_RECURRENCE_RULES as readonly string[]).includes(value);
 }
 
-function nextOccurrenceDate(rule: StandardRecurrenceRule, fromDate: string): string {
+/**
+ * True when the rule rolls forward — the six standard rules plus a custom weekday rule.
+ * MUST stay in lockstep with `isStandardRecurrence` in `@/lib/tasks-recurrence`.
+ */
+function hasRecurrenceMath(value: string | null): value is string {
+  return isStandardRecurrenceRule(value) || isCustomWeekdayRecurrence(value);
+}
+
+/** Next date strictly after `fromDate` whose weekday is in the set. */
+function stepToWeekday(weekdays: readonly number[], fromDate: string, step: 1 | -1): string {
+  let cursor = ymdShift(fromDate, step);
+  for (let guard = 0; guard < 7; guard++) {
+    const [year, month, day] = cursor.split("-").map(Number);
+    if (weekdays.includes(new Date(Date.UTC(year, month - 1, day)).getUTCDay())) return cursor;
+    cursor = ymdShift(cursor, step);
+  }
+  return cursor;
+}
+
+function nextOccurrenceDate(rule: string, fromDate: string): string {
+  const customDays = parseCustomWeekdays(rule);
+  if (customDays) return stepToWeekday(customDays, fromDate, 1);
   if (rule === "daily") return ymdShift(fromDate, 1);
   if (rule === "weekly") return ymdShift(fromDate, 7);
   if (rule === "monthly") return shiftMonthlyYmd(fromDate, 1);
@@ -246,7 +276,9 @@ function nextOccurrenceDate(rule: StandardRecurrenceRule, fromDate: string): str
   }
 }
 
-function previousOccurrenceDate(rule: StandardRecurrenceRule, fromDate: string): string {
+function previousOccurrenceDate(rule: string, fromDate: string): string {
+  const customDays = parseCustomWeekdays(rule);
+  if (customDays) return stepToWeekday(customDays, fromDate, -1);
   if (rule === "daily") return ymdShift(fromDate, -1);
   if (rule === "weekly") return ymdShift(fromDate, -7);
   if (rule === "monthly") return shiftMonthlyYmd(fromDate, -1);
@@ -284,7 +316,7 @@ function currentInstanceOf(task: TaskRecord): string | null {
  * weekday / day-of-month anchor is preserved (we iterate the rule, never jump to a raw `today`).
  */
 export function nextRecurringInstance(task: TaskRecord): string | null {
-  if (!isStandardRecurrenceRule(task.recurrenceRule)) return null;
+  if (!hasRecurrenceMath(task.recurrenceRule)) return null;
   const current = currentInstanceOf(task);
   if (!current) return null;
   const today = tokyoToday();
@@ -296,7 +328,7 @@ export function nextRecurringInstance(task: TaskRecord): string | null {
 
 /** Previous occurrence date (used to undo a roll-forward), or null if not standard recurring. */
 export function previousRecurringInstance(task: TaskRecord): string | null {
-  if (!isStandardRecurrenceRule(task.recurrenceRule)) return null;
+  if (!hasRecurrenceMath(task.recurrenceRule)) return null;
   const current = currentInstanceOf(task);
   return current ? previousOccurrenceDate(task.recurrenceRule, current) : null;
 }
@@ -324,17 +356,21 @@ export function shiftRecurringTaskDates(
  * Resolve a submitted recurrence rule to its stored value — the server-side contract that
  * matches the documented product rule (not a UI-only restriction):
  * - a standard rule passes through;
+ * - a **custom weekday rule** (`custom:1,3,5`) is re-parsed and re-serialized, so a crafted
+ *   request can't store a malformed, duplicated, or unsorted set (added 2026-07-29);
  * - empty / unrecognized fails closed to `null` (non-recurring);
- * - `custom` is **round-trip only**: kept solely when the task already had `custom`
- *   (`previousRule === "custom"`), never newly assignable. So a new task can never be created
- *   with `custom`, and a non-custom task can never be turned into `custom`, even by a crafted
- *   request. There is no custom rule builder in this slice.
+ * - bare `custom` (no weekday set) stays **round-trip only**: kept solely when the task already
+ *   had it (`previousRule === "custom"`), never newly assignable. It predates the weekday builder
+ *   and carries no schedule, so it must not become newly creatable.
  */
 export function resolveRecurrenceRule(
   submitted: string,
   previousRule: string | null,
 ): string | null {
   if ((STANDARD_RECURRENCE_RULES as readonly string[]).includes(submitted)) return submitted;
+  // Normalize rather than pass through: `custom:5,1,1` is stored as `custom:1,5`.
+  const customDays = parseCustomWeekdays(submitted);
+  if (customDays) return buildCustomRecurrenceRule(customDays);
   if (submitted === "custom" && previousRule === "custom") return "custom";
   return null;
 }
@@ -607,6 +643,50 @@ export async function getVisibleTasks(session: AppSession): Promise<TaskRecord[]
     throw new Error(error.message);
   }
   return hydrate((data ?? []) as TaskRow[]);
+}
+
+/** One recurring occurrence's recorded state (completed/skipped/moved). See `task_occurrence_state`. */
+export type OccurrenceStateRecord = {
+  taskId: string;
+  occurrenceDate: string;
+  state: OccurrenceState;
+  completedByUserId: string | null;
+  movedToDate: string | null;
+};
+
+/**
+ * Occurrence-level state rows for the org's recurring tasks (RLS-scoped to participant membership).
+ * Powers per-date occurrence rendering (done state), overdue detection (absence = still open), and
+ * skip/move resolution. Bounded to a recent window for size — resolved states older than the window
+ * only matter for pathologically stale backlogs. Rolled-forward legacy anchors are recent so this
+ * window comfortably covers active tasks.
+ */
+export async function getOccurrenceStates(session: AppSession): Promise<OccurrenceStateRecord[]> {
+  const supabase = await getSupabaseServerClient();
+  const since = ymdShift(tokyoToday(), -400);
+  const { data, error } = await supabase
+    .from("task_occurrence_state")
+    .select("task_id, occurrence_date, state, completed_by_user_id, moved_to_date")
+    .eq("organization_id", session.organization.id)
+    .gte("occurrence_date", since);
+  if (error) {
+    if (isMissingTable(error.message ?? "")) return [];
+    return [];
+  }
+  type Row = {
+    task_id: string;
+    occurrence_date: string;
+    state: string;
+    completed_by_user_id: string | null;
+    moved_to_date: string | null;
+  };
+  return ((data ?? []) as Row[]).map((r) => ({
+    taskId: r.task_id,
+    occurrenceDate: r.occurrence_date,
+    state: r.state as OccurrenceState,
+    completedByUserId: r.completed_by_user_id,
+    movedToDate: r.moved_to_date,
+  }));
 }
 
 /** All tasks belonging to a project (RLS-scoped: viewer must be a project participant). */

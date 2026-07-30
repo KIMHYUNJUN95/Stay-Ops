@@ -8,21 +8,31 @@ import {
   getShareableUsers,
   getTaskDetail,
   getVisibleTasks,
-  nextRecurringInstance,
   normalizeTaskDateTime,
-  previousRecurringInstance,
   resolveRecurrenceRule,
-  shiftRecurringTaskDates,
   taskAnchorDateInput,
   taskNeedsRecurrenceDate,
   taskTimeWithoutDate,
   tokyoDateOf,
   tokyoToday,
   ymdShift,
+  taskAnchorDate,
   type TaskDetail,
   type TaskRecord,
 } from "@/lib/tasks";
-import { isStandardRecurrence } from "@/lib/tasks-recurrence";
+import {
+  canMoveRecurringTo,
+  isStandardRecurrence,
+  outstandingOverdueOccurrences,
+} from "@/lib/tasks-recurrence";
+import {
+  clearOccurrenceState,
+  completeOccurrence,
+  moveOccurrences,
+  resolvedOccurrenceDates,
+  skipOccurrences,
+} from "@/lib/task-occurrences";
+import { cleanupRemovedTaskImages, sanitizeTaskImageUrls } from "@/lib/task-images";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
@@ -43,7 +53,6 @@ function parseStringArray(value: string): string[] {
 }
 const PRIORITIES = new Set(["normal", "important", "urgent"]);
 
-const REQUEST_IMAGE_BUCKET = "request-images";
 
 const detailPath = (id: string, error?: string) =>
   `/mobile/tasks/${id}${error ? `?error=${error}` : ""}`;
@@ -52,52 +61,6 @@ const detailPath = (id: string, error?: string) =>
 // otherwise the checkbox/progress in the project detail view won't refresh (only Today/detail did).
 function revalidateProjectPath(projectId: string | null) {
   if (projectId) revalidatePath(`/mobile/tasks/projects/${projectId}`);
-}
-
-// Extract the Storage object path from a request-images public URL.
-// Returns null for URLs that are not public objects in the expected bucket/host.
-function extractRequestImagePath(publicUrl: string): string | null {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-    if (!baseUrl) return null;
-    const url = new URL(publicUrl);
-    const supabaseUrl = new URL(baseUrl);
-    const prefix = `/storage/v1/object/public/${REQUEST_IMAGE_BUCKET}/`;
-    if (
-      url.protocol !== "https:" ||
-      url.hostname !== supabaseUrl.hostname ||
-      !url.pathname.startsWith(prefix)
-    ) {
-      return null;
-    }
-    const encoded = url.pathname.slice(prefix.length);
-    if (!encoded) return null;
-    return decodeURIComponent(encoded);
-  } catch {
-    return null;
-  }
-}
-
-// Hard-delete task-level photos that the author detached during a core edit.
-// Defensive boundaries: candidates come only from server-truth previous URLs
-// (never arbitrary client input), and each must resolve to a path under
-// `${organizationId}/task-images/` before it is eligible for removal.
-async function cleanupRemovedTaskImages(
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
-  removedUrls: string[],
-  organizationId: string,
-) {
-  if (removedUrls.length === 0) return;
-  const expectedPrefix = `${organizationId}/task-images/`;
-  const paths = removedUrls
-    .map((u) => extractRequestImagePath(u))
-    .filter((p): p is string => !!p && p.startsWith(expectedPrefix));
-  if (paths.length === 0) return;
-  const { error } = await supabase.storage.from(REQUEST_IMAGE_BUCKET).remove(paths);
-  if (error) {
-    // Non-fatal: the DB reference is already detached; a stray file is the worst case.
-    console.error("[cleanupRemovedTaskImages] storage remove failed:", error.message);
-  }
 }
 
 // getTaskDetail uses the RLS-scoped client, so a non-null result already proves the
@@ -137,6 +100,9 @@ async function requireSession(): Promise<Session> {
 function isOverdueOwned(t: TaskRecord, today: string, userId: string): boolean {
   if (t.projectId || t.createdByUserId !== userId) return false;
   if (t.status === "completed" || t.status === "cancelled") return false;
+  // Recurring overdue is per-occurrence (task_occurrence_state), handled by the carry/skip actions
+  // below — never by the row-due bulk actions (2026-07-30 롤포워드 폐지).
+  if (isStandardRecurrence(t.recurrenceRule)) return false;
   const due = tokyoDateOf(t.dueAt);
   return !!due && due < today;
 }
@@ -156,33 +122,20 @@ export async function rescheduleOverdueTo(targetDate: string, taskIds: string[])
   const supabase = getSupabaseServiceClient();
   const orgId = session.organization.id;
   for (const t of overdue) {
-    if (isStandardRecurrence(t.recurrenceRule)) {
-      const d = shiftRecurringTaskDates(t, targetDate);
-      if (!d) continue;
-      await supabase
-        .from("tasks")
-        .update({
-          scheduled_date: d.scheduledDate,
-          due_at: d.dueAt,
-          recurrence_instance_date: d.recurrenceInstanceDate,
-        } as never)
-        .eq("id", t.id)
-        .eq("organization_id", orgId);
-    } else {
-      const dueAt = new Date(`${targetDate}T${t.timeLabel || "00:00"}:00+09:00`).toISOString();
-      await supabase
-        .from("tasks")
-        .update({ due_at: dueAt } as never)
-        .eq("id", t.id)
-        .eq("organization_id", orgId);
-    }
+    // One-off only — recurring is excluded by isOverdueOwned (handled per-occurrence).
+    const dueAt = new Date(`${targetDate}T${t.timeLabel || "00:00"}:00+09:00`).toISOString();
+    await supabase
+      .from("tasks")
+      .update({ due_at: dueAt } as never)
+      .eq("id", t.id)
+      .eq("organization_id", orgId);
   }
   revalidatePath("/mobile/tasks");
 }
 
 /**
- * "지난 미완료 삭제" — clear the selected overdue tasks. One-offs are deleted; recurring tasks
- * advance to their next future occurrence so the series continues.
+ * "지난 미완료 삭제" — soft-delete the selected overdue one-off tasks. Recurring tasks are excluded
+ * from this path (isOverdueOwned) — their overdue occurrences are cleared via skipOverdueOccurrences.
  */
 export async function dismissOverdueTasks(taskIds: string[]) {
   const session = await requireSession();
@@ -195,28 +148,99 @@ export async function dismissOverdueTasks(taskIds: string[]) {
   const supabase = getSupabaseServiceClient();
   const orgId = session.organization.id;
   for (const t of overdue) {
-    if (isStandardRecurrence(t.recurrenceRule)) {
-      const next = nextRecurringInstance(t);
-      const d = next ? shiftRecurringTaskDates(t, next) : null;
-      if (!d) continue;
-      await supabase
-        .from("tasks")
-        .update({
-          scheduled_date: d.scheduledDate,
-          due_at: d.dueAt,
-          recurrence_instance_date: d.recurrenceInstanceDate,
-        } as never)
-        .eq("id", t.id)
-        .eq("organization_id", orgId);
-    } else {
-      await supabase
-        .from("tasks")
-        .update({ deleted_at: new Date().toISOString() } as never)
-        .eq("id", t.id)
-        .eq("organization_id", orgId);
-    }
+    await supabase
+      .from("tasks")
+      .update({ deleted_at: new Date().toISOString() } as never)
+      .eq("id", t.id)
+      .eq("organization_id", orgId);
   }
   revalidatePath("/mobile/tasks");
+}
+
+/**
+ * Recurring overdue backlog resolution (2026-07-30). Both operate per recurring task and recompute
+ * the still-open overdue occurrences server-side (never trust a client list).
+ *
+ * skipOverdueOccurrences — "삭제": mark every outstanding overdue occurrence `skipped`. Kept forever,
+ * never re-appears as overdue; the series continues on its schedule.
+ * carryOverdueToToday — "오늘로 가져오기": mark them `moved` and create one carry-over one-off task
+ * dated today (a personal make-up for the actor) so the missed work is actionable now.
+ */
+async function outstandingOverdueForTask(
+  task: TaskDetail,
+): Promise<{ anchor: string; dates: string[] }> {
+  const anchor = recurringAnchorDate(task);
+  const resolved = await resolvedOccurrenceDates(task.id);
+  const dates = outstandingOverdueOccurrences(
+    task.recurrenceRule,
+    anchor,
+    tokyoToday(),
+    resolved,
+  );
+  return { anchor, dates };
+}
+
+export async function skipOverdueOccurrences(taskId: string) {
+  const id = String(taskId ?? "").trim();
+  if (!id) return;
+  const { session, task } = await requireSessionAndTask(id);
+  if (!isStandardRecurrence(task.recurrenceRule)) return;
+  const { dates } = await outstandingOverdueForTask(task);
+  await skipOccurrences({ taskId: id, organizationId: session.organization.id, dates });
+  revalidatePath("/mobile/tasks");
+  revalidatePath(detailPath(id));
+}
+
+export async function carryOverdueToToday(taskId: string) {
+  const id = String(taskId ?? "").trim();
+  if (!id) return;
+  const { session, task } = await requireSessionAndTask(id);
+  if (!isStandardRecurrence(task.recurrenceRule)) return;
+  const today = tokyoToday();
+  const { dates } = await outstandingOverdueForTask(task);
+  if (dates.length === 0) return;
+  await moveOccurrences({
+    taskId: id,
+    organizationId: session.organization.id,
+    dates,
+    movedTo: today,
+  });
+  // Carry-over: a personal one-off make-up for the actor, due today. Copies the essentials; not
+  // recurring, not shared (the actor is doing the missed work now). Needs an author participant row
+  // so RLS lets the actor read it.
+  const supabase = getSupabaseServiceClient();
+  const carryId = crypto.randomUUID();
+  await supabase.from("tasks").insert({
+    id: carryId,
+    organization_id: session.organization.id,
+    created_by_user_id: session.user.id,
+    title: task.title,
+    description: task.description ?? null,
+    scheduled_date: today,
+    due_at: null,
+    all_day: true,
+    priority: task.priority,
+    status: "open",
+    is_inbox: false,
+    is_shared: false,
+    recurrence_rule: null,
+    recurrence_series_id: null,
+    recurrence_instance_date: null,
+    tags: task.tags,
+    property_id: task.resolvedContext?.propertyId ?? null,
+    room_id: task.resolvedContext?.roomId ?? null,
+    reservation_id: task.resolvedContext?.reservationId ?? null,
+    guest_name: task.resolvedContext?.guestName ?? null,
+  } as never);
+  await supabase.from("task_participants").insert({
+    task_id: carryId,
+    user_id: session.user.id,
+    role: "author",
+    is_first_recipient: false,
+    added_by_user_id: null,
+  } as never);
+  revalidatePath("/mobile/tasks");
+  revalidatePath(detailPath(id));
 }
 
 function otherParticipantIds(task: TaskDetail, actorUserId: string): string[] {
@@ -257,7 +281,7 @@ export async function updateTaskCore(formData: FormData) {
     redirect(detailPath(id, "missing_title"));
   }
   const description = cleanText(formData.get("description"));
-  const scheduledDate = cleanText(formData.get("scheduledDate"));
+  let scheduledDate = cleanText(formData.get("scheduledDate"));
   const dueDate = cleanText(formData.get("dueDate"));
   const time = cleanText(formData.get("time"));
   const durationRaw = cleanText(formData.get("durationMinutes"));
@@ -267,16 +291,15 @@ export async function updateTaskCore(formData: FormData) {
     .map((t) => t.trim())
     .filter(Boolean)
     .slice(0, 10);
-  const imageUrls = formData
-    .getAll("imageUrls")
-    .map((v) => String(v))
-    .filter((u) => u.startsWith("https://") || u.startsWith("http://"))
-    // Project tasks allow up to 20 photos; regular tasks keep the standard 5.
-    .slice(0, task.projectId ? 20 : 5);
+  // Project tasks allow up to 20 photos; regular tasks keep the standard 5.
+  const imageUrls = sanitizeTaskImageUrls(formData.getAll("imageUrls").map(String), !!task.projectId);
   const ctxPropertyId = cleanText(formData.get("ctxPropertyId")) || null;
   const ctxRoomId = cleanText(formData.get("ctxRoomId")) || null;
   const ctxReservationId = cleanText(formData.get("ctxReservationId")) || null;
   const ctxGuestName = cleanText(formData.get("ctxGuestName")) || null;
+  const nextRecurrenceRule = resolveRecurrenceRule(repeatRaw, task.recurrenceRule);
+  // A recurrence needs a date anchor; a repeat with no date anchors to today (Todoist), not rejected.
+  if (nextRecurrenceRule && !scheduledDate && !dueDate) scheduledDate = tokyoToday();
   // A specific time needs a date anchor — reject rather than silently drop it (back to edit).
   if (taskTimeWithoutDate({ scheduledDate, dueDate, time })) {
     redirect(`/mobile/tasks/${id}/edit?error=time_needs_date`);
@@ -293,7 +316,6 @@ export async function updateTaskCore(formData: FormData) {
   const durationMinutes =
     durationParsed && durationParsed >= 1 && durationParsed <= 1440 ? durationParsed : null;
   const finalDuration = timeLabel ? durationMinutes : null;
-  const nextRecurrenceRule = resolveRecurrenceRule(repeatRaw, task.recurrenceRule);
   const anchorDate = taskAnchorDateInput({ scheduledDate: sched, dueAt });
   if (taskNeedsRecurrenceDate(nextRecurrenceRule, anchorDate)) {
     redirect(`/mobile/tasks/${id}/edit?error=repeat_needs_date`);
@@ -367,9 +389,11 @@ export async function moveTaskOutOfInbox(formData: FormData) {
 // Allowed list views for the swipe-action return redirect (keeps the user on the tab they swiped
 // from). Mirrors the page's VIEWS allow-list.
 const LIST_VIEWS = new Set(["today", "tomorrow", "inbox", "sent", "completed", "calendar"]);
-function listPathForView(formData: FormData): string {
+function listPathForView(formData: FormData, error?: string): string {
   const view = cleanText(formData.get("view"));
-  return LIST_VIEWS.has(view) ? `/mobile/tasks?view=${view}` : "/mobile/tasks";
+  const base = LIST_VIEWS.has(view) ? `/mobile/tasks?view=${view}` : "/mobile/tasks";
+  if (!error) return base;
+  return `${base}${base.includes("?") ? "&" : "?"}moveError=${error}`;
 }
 
 // Fields to anchor a task to `date` (Tokyo YYYY-MM-DD) via due_at, preserving any time-of-day.
@@ -392,6 +416,10 @@ export async function moveTaskToToday(formData: FormData) {
   const id = cleanText(formData.get("taskId"));
   const { task } = await requireSessionAndTask(id);
   const today = tokyoToday();
+  // 반복 작업인데 그 날짜에 이미 회차가 있으면 이동을 거절하고 안내로 돌려보낸다(2026-07-30).
+  if (!canMoveRecurringTo(task.recurrenceRule, taskAnchorDate(task), today)) {
+    redirect(listPathForView(formData, "duplicate_occurrence"));
+  }
   const supabase = getSupabaseServiceClient();
   await supabase
     .from("tasks")
@@ -406,6 +434,10 @@ export async function moveTaskToTomorrow(formData: FormData) {
   const id = cleanText(formData.get("taskId"));
   const { task } = await requireSessionAndTask(id);
   const tomorrow = ymdShift(tokyoToday(), 1);
+  // 반복 작업인데 그 날짜에 이미 회차가 있으면 이동을 거절하고 안내로 돌려보낸다(2026-07-30).
+  if (!canMoveRecurringTo(task.recurrenceRule, taskAnchorDate(task), tomorrow)) {
+    redirect(listPathForView(formData, "duplicate_occurrence"));
+  }
   const supabase = getSupabaseServiceClient();
   await supabase
     .from("tasks")
@@ -414,32 +446,30 @@ export async function moveTaskToTomorrow(formData: FormData) {
   redirect(listPathForView(formData));
 }
 
-// Mark a task complete: set status + completion stamps, log a `completed` update, and notify the
-// other participants. Programmatic (called from the list card and the detail view via a transition)
-// — revalidates the list + detail so the card moves into the 완료/기록 tab. Idempotent: re-completing
-// an already-completed task is a no-op write.
-export async function completeTask(taskId: string) {
+// The occurrence date a recurring complete/reopen targets when the caller passes none: the task's
+// FIXED anchor (recurrence_instance_date), falling back to its due/scheduled date, then today.
+function recurringAnchorDate(task: TaskRecord): string {
+  return task.recurrenceInstanceDate ?? tokyoDateOf(task.dueAt) ?? task.scheduledDate ?? tokyoToday();
+}
+
+// Mark a task complete. RECURRING (2026-07-30): completion never touches the row — it records the
+// given occurrence date in `task_occurrence_state` (no roll-forward), so every scheduled date stays
+// visible and independently completable. ONE-OFF: sets status + completion stamps as before. Both
+// log a `completed` update + notify participants. Programmatic (list card / detail view / calendar).
+export async function completeTask(taskId: string, occurrenceDate?: string) {
   const id = String(taskId ?? "").trim();
   if (!id) return;
   const { session, task } = await requireSessionAndTask(id);
   const supabase = getSupabaseServiceClient();
 
-  // Todoist-style recurrence: completing a recurring task does not close it — it rolls the same
-  // row forward to the next occurrence and stays open. The completion is still logged + notified.
-  const nextInstance = nextRecurringInstance(task);
-  const rolled = nextInstance ? shiftRecurringTaskDates(task, nextInstance) : null;
-  if (rolled) {
-    await supabase
-      .from("tasks")
-      .update({
-        scheduled_date: rolled.scheduledDate,
-        due_at: rolled.dueAt,
-        recurrence_instance_date: rolled.recurrenceInstanceDate,
-        status: "open",
-        completed_at: null,
-        completed_by_user_id: null,
-      } as never)
-      .eq("id", id);
+  if (isStandardRecurrence(task.recurrenceRule)) {
+    const occ = String(occurrenceDate ?? "").trim() || recurringAnchorDate(task);
+    await completeOccurrence({
+      taskId: id,
+      organizationId: session.organization.id,
+      occurrenceDate: occ,
+      userId: session.user.id,
+    });
     await supabase.from("task_updates").insert({
       task_id: id,
       created_by_user_id: session.user.id,
@@ -492,28 +522,17 @@ export async function completeTask(taskId: string) {
 // Re-open a completed task: clear status + completion stamps and log a `reopened` update. No
 // notification (re-opening is a quiet correction, typically the same user undoing a tap). Used by
 // the undo toast and the detail view's "다시 열기" button.
-export async function reopenTask(taskId: string) {
+export async function reopenTask(taskId: string, occurrenceDate?: string) {
   const id = String(taskId ?? "").trim();
   if (!id) return;
   const { session, task } = await requireSessionAndTask(id);
   const supabase = getSupabaseServiceClient();
 
-  // Undo for a recurring task: completing rolled it forward, so reopening rolls it back to the
-  // previous occurrence (the task is already open — there is no completed state to clear).
-  const prevInstance = previousRecurringInstance(task);
-  const rewound = prevInstance ? shiftRecurringTaskDates(task, prevInstance) : null;
-  if (rewound) {
-    await supabase
-      .from("tasks")
-      .update({
-        scheduled_date: rewound.scheduledDate,
-        due_at: rewound.dueAt,
-        recurrence_instance_date: rewound.recurrenceInstanceDate,
-        status: "open",
-        completed_at: null,
-        completed_by_user_id: null,
-      } as never)
-      .eq("id", id);
+  // RECURRING (2026-07-30): reopening clears that occurrence's recorded state so it becomes open
+  // again (the row was never touched by completion). ONE-OFF: clears the row's completion stamps.
+  if (isStandardRecurrence(task.recurrenceRule)) {
+    const occ = String(occurrenceDate ?? "").trim() || recurringAnchorDate(task);
+    await clearOccurrenceState(id, occ);
     await supabase.from("task_updates").insert({
       task_id: id,
       created_by_user_id: session.user.id,
@@ -537,6 +556,38 @@ export async function reopenTask(taskId: string) {
     task_id: id,
     created_by_user_id: session.user.id,
     update_type: "reopened",
+  } as never);
+  revalidatePath("/mobile/tasks");
+  revalidatePath(detailPath(id));
+  revalidateProjectPath(task.projectId);
+}
+
+/**
+ * 진행 중(in_progress) 전환 — 어드민 콘솔의 `setConsoleTaskStatus` 와 같은 3상태 모델을 모바일에도
+ * 연다(2026-07-30). 그전까지 모바일은 완료/재개 2상태뿐이라, 콘솔이 "진행 중"으로 바꾼 작업을
+ * 현장에서 **읽기만 하고 설정할 수 없었다**(`task-detail-view.tsx` 가 값은 표시하고 있었다).
+ *
+ * 완료 전환은 반복 처리(occurrence)와 알림이 얽혀 있어 기존 `completeTask` 가 계속 맡고, 이 액션은
+ * open ↔ in_progress 만 다룬다 — 완료 상태를 이 경로로 되돌리지 않도록 완료 스탬프도 함께 지운다.
+ */
+export async function setTaskProgress(taskId: string, inProgress: boolean) {
+  const id = String(taskId ?? "").trim();
+  if (!id) return;
+  const { session, task } = await requireSessionAndTask(id);
+  const supabase = getSupabaseServiceClient();
+  await supabase
+    .from("tasks")
+    .update({
+      status: inProgress ? "in_progress" : "open",
+      completed_at: null,
+      completed_by_user_id: null,
+    } as never)
+    .eq("id", id);
+  await supabase.from("task_updates").insert({
+    task_id: id,
+    created_by_user_id: session.user.id,
+    update_type: "status_changed",
+    body: inProgress ? "in_progress" : "open",
   } as never);
   revalidatePath("/mobile/tasks");
   revalidatePath(detailPath(id));

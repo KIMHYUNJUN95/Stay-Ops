@@ -22,6 +22,13 @@ import {
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { TimeWheels } from "@/components/tasks/date-time-fields";
 import type { Dictionary } from "@/lib/i18n";
+import {
+  CUSTOM_RECURRENCE_PREFIX,
+  formatCustomWeekdays,
+  formatWeekday,
+  parseCustomWeekdays,
+  WEEKDAY_ORDER,
+} from "@/lib/tasks-recurrence";
 import { cn } from "@/lib/utils";
 
 type Copy = Dictionary["tasks"];
@@ -104,7 +111,13 @@ export function TaskSchedulePicker({
   const draftRef = useRef<ScheduleValue>({ date, time, repeat, duration });
   useEffect(() => {
     // Duration only makes sense with a time-of-day; drop it otherwise so it never leaks out.
-    draftRef.current = { date, time, repeat, duration: time ? duration : 0 };
+    // A half-finished custom rule (`custom:` with no weekdays) commits as 반복 없음 — this sheet is
+    // commit-on-close, so a drag-down while the picker is open must not persist an unschedulable
+    // rule. The server fails it closed to null anyway; normalizing here keeps UI and stored value
+    // in agreement instead of silently disagreeing.
+    const committedRepeat =
+      repeat.startsWith(CUSTOM_RECURRENCE_PREFIX) && !parseCustomWeekdays(repeat) ? "" : repeat;
+    draftRef.current = { date, time, repeat: committedRepeat, duration: time ? duration : 0 };
   }, [date, time, repeat, duration]);
   // "full": commit on any close. "date": commit only when 완료 was tapped (confirmedRef); else cancel.
   const confirmedRef = useRef(false);
@@ -240,9 +253,25 @@ export function TaskSchedulePicker({
     { rule: "monthly", label: fill(copy.repeatMonthlyOn, { d: dayNum }) },
     { rule: "yearly", label: fill(copy.repeatYearlyOn, { md: mdLabel }) },
   ];
-  const currentRepeatLabel =
-    !repeat
-      ? ""
+  // 사용자 지정 요일 반복 — `customDays` is the mode flag AND the value: an array (possibly empty)
+  // while the row is on, null otherwise. `custom:` with an empty body parses to null, so the
+  // "custom mode, nothing picked yet" state needs the explicit prefix check.
+  const inCustomMode = repeat.startsWith(CUSTOM_RECURRENCE_PREFIX);
+  const customDays = inCustomMode ? (parseCustomWeekdays(repeat) ?? []) : null;
+  const repeatIncomplete = inCustomMode && customDays!.length === 0;
+  const toggleCustomDay = (wd: number) => {
+    const next = customDays!.includes(wd)
+      ? customDays!.filter((d) => d !== wd)
+      : [...customDays!, wd].sort((a, b) => a - b);
+    setRepeat(`${CUSTOM_RECURRENCE_PREFIX}${next.join(",")}`);
+  };
+
+  const currentRepeatLabel = !repeat
+    ? ""
+    : inCustomMode
+      ? customDays!.length
+        ? fill(copy.repeatWeeklyOn, { w: formatCustomWeekdays(repeat, locale) })
+        : copy.repeatCustom
       : (repeatOptions.find((o) => o.rule === repeat)?.label ??
         (repeat === "custom" ? copy.repeatCustom : ""));
 
@@ -521,6 +550,50 @@ export function TaskSchedulePicker({
                       ) : null}
                     </button>
                   ) : null}
+                  {/* 사용자 지정 요일 — 켜면 일~토 칩이 펼쳐진다. 하나도 안 고르면 저장 버튼이 잠긴다. */}
+                  <button
+                    aria-expanded={inCustomMode}
+                    className="flex items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-slate-50"
+                    onClick={() => setRepeat(inCustomMode ? "" : CUSTOM_RECURRENCE_PREFIX)}
+                    type="button"
+                  >
+                    <span className="flex-1 text-[14px] font-bold text-foreground">
+                      {copy.repeatPickDays}
+                    </span>
+                    {inCustomMode ? (
+                      <Check className="size-4 text-primary" strokeWidth={3} aria-hidden="true" />
+                    ) : null}
+                  </button>
+                  {customDays ? (
+                    <div className="px-2 pb-1 pt-1">
+                      <div className="grid grid-cols-7 gap-1.5">
+                        {WEEKDAY_ORDER.map((wd) => {
+                          const on = customDays.includes(wd);
+                          return (
+                            <button
+                              aria-pressed={on}
+                              className={cn(
+                                "h-10 rounded-xl border text-[13px] font-extrabold transition-colors",
+                                on
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border bg-surface text-muted-foreground active:bg-slate-100",
+                              )}
+                              key={wd}
+                              onClick={() => toggleCustomDay(wd)}
+                              type="button"
+                            >
+                              {formatWeekday(wd, locale)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="mt-2 text-[12px] font-semibold text-muted-foreground">
+                        {customDays.length
+                          ? fill(copy.repeatWeeklyOn, { w: formatCustomWeekdays(repeat, locale) })
+                          : copy.repeatPickDaysHint}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -531,9 +604,11 @@ export function TaskSchedulePicker({
           <button
             className={cn(
               "mt-3 h-[52px] w-full shrink-0 rounded-2xl text-[15px] font-extrabold transition-colors",
-              isDate && !hasDate ? "bg-slate-100 text-slate-400" : "bg-primary text-primary-foreground",
+              (isDate && !hasDate) || repeatIncomplete
+                ? "bg-slate-100 text-slate-400"
+                : "bg-primary text-primary-foreground",
             )}
-            disabled={isDate && !hasDate}
+            disabled={(isDate && !hasDate) || repeatIncomplete}
             onClick={() => {
               confirmedRef.current = true;
               close();

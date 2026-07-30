@@ -9,6 +9,7 @@ import {
   Flag,
   GripVertical,
   ImageIcon,
+  Loader,
   MapPin,
   Repeat2,
   Share2,
@@ -16,9 +17,10 @@ import {
   Sunrise,
 } from "lucide-react";
 import { moveTaskToToday, moveTaskToTomorrow } from "@/app/mobile/tasks/[id]/actions";
-import type { Dictionary } from "@/lib/i18n";
+import type { Dictionary, Locale } from "@/lib/i18n";
 import { localizePropertyName } from "@/lib/room-label-normalization";
 import type { TaskRecord } from "@/lib/tasks";
+import { formatCustomWeekdays } from "@/lib/tasks-recurrence";
 import { cn } from "@/lib/utils";
 
 type Copy = Dictionary["tasks"];
@@ -37,7 +39,11 @@ function shortDate(ymd: string): string {
   return `${Number(m)}/${Number(d)}`;
 }
 
-function repeatLabel(rule: string, copy: Copy): string {
+function repeatLabel(rule: string, copy: Copy, locale: Locale): string {
+  // 사용자 지정 요일 반복(`custom:1,3,5`)은 고정 매핑에 없으므로 먼저 처리한다 — 빠뜨리면
+  // 어드민에서 만든 반복이 여기서 원문 그대로("custom:1,3,5") 노출된다.
+  const customDays = formatCustomWeekdays(rule, locale);
+  if (customDays) return copy.repeatWeeklyOn.replace("{w}", customDays);
   const map: Record<string, string> = {
     daily: copy.repeatDaily,
     weekly: copy.repeatWeekly,
@@ -89,13 +95,16 @@ export function TaskCard({
   onLongPress,
   swipeAction = "today",
   swipeReturnView,
+  locale,
   reorderable = false,
   reordering = false,
   onReorderHandleDown,
   onCompleteToggle,
+  occurrence,
 }: {
   buildingLabels: Record<string, string>;
   copy: Copy;
+  locale: Locale;
   currentUserId: string;
   task: TaskRecord;
   today: string;
@@ -122,13 +131,18 @@ export function TaskCard({
   // Tapping the leading status circle toggles completion. The button owns its own pointer gesture
   // (stops propagation) so it never starts the card's tap / long-press / swipe. Active → complete,
   // completed → reopen. Omit to render the circle as a static indicator (e.g. calendar day sheet).
-  onCompleteToggle?: (task: TaskRecord) => void;
+  onCompleteToggle?: (task: TaskRecord, occurrence?: { date: string; done: boolean }) => void;
+  // Recurring occurrence row (2026-07-30): completion/done state is per this date, not the row's
+  // `status` (which stays open). When set, the checkbox toggles this occurrence.
+  occurrence?: { date: string; done: boolean };
 }) {
   const router = useRouter();
-  const done = task.status === "completed";
+  const done = occurrence ? occurrence.done : task.status === "completed";
   const selected = selectMode && !!selectedIds?.has(task.id);
   const dueDate = tokyoDateOf(task.dueAt);
-  const overdue = !done && !!dueDate && dueDate < today;
+  // Occurrence rows render for a specific (today/tomorrow) date, so the row anchor's past-ness
+  // doesn't make them "overdue" — recurring overdue is its own grouped backlog.
+  const overdue = !occurrence && !done && !!dueDate && dueDate < today;
 
   // One swipe action (today / tomorrow), revealed at a fixed width sized to its single button.
   const swipeOpen = 74;
@@ -347,7 +361,7 @@ export function TaskCard({
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            onCompleteToggle(task);
+            onCompleteToggle(task, occurrence);
           }}
           onPointerDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
@@ -392,6 +406,14 @@ export function TaskCard({
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {dateChip}
             {ctxChip}
+            {/* 진행 중 — 이 칩이 없으면 목록에서 대기 상태와 완전히 똑같이 보인다. 콘솔은 3상태를
+                쓰는데 모바일 목록이 2상태로만 읽히던 격차(2026-07-30). */}
+            {task.status === "in_progress" ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                <Loader className="size-3" aria-hidden="true" />
+                {copy.statusInProgress}
+              </span>
+            ) : null}
             {task.timeLabel ? (
               <span className={chip}>
                 <Clock className="size-3" aria-hidden="true" />
@@ -402,7 +424,7 @@ export function TaskCard({
             {task.recurrenceRule ? (
               <span className={chip}>
                 <Repeat2 className="size-3" aria-hidden="true" />
-                {repeatLabel(task.recurrenceRule, copy)}
+                {repeatLabel(task.recurrenceRule, copy, locale)}
               </span>
             ) : null}
             {task.tags.slice(0, 2).map((tg) => (

@@ -3,6 +3,15 @@
 // 라벨은 전부 getAdminTasksDictionary(locale) 를 통해 다국어로만 렌더한다(하드코딩 금지).
 import type { Locale } from "@/lib/i18n";
 import type { TaskRecord } from "@/lib/tasks";
+import {
+  formatCustomWeekdays,
+  formatWeekday,
+  isStandardRecurrence,
+  outstandingOverdueOccurrences,
+  parseCustomWeekdays,
+  recurringOccurrencesInRange,
+  WEEKDAY_ORDER,
+} from "@/lib/tasks-recurrence";
 import type { AdminTasksDictionary } from "@/lib/admin-tasks-i18n";
 
 const TZ = "Asia/Tokyo";
@@ -95,18 +104,46 @@ export function dueDateOf(t: TaskRecord): string | null {
 export function dateOf(t: TaskRecord): string | null {
   return tokyoDateOf(t.dueAt) ?? t.scheduledDate ?? null;
 }
+// 날짜 버킷 술어(오늘/내일/지연)는 이제 **일회성 전용**이다. 반복(표준)은 완료해도 롤포워드하지 않고
+// 각 회차가 독립적이므로(2026-07-30), 회차 기준으로 뷰에서 occursOn/occurrence 상태로 따로 처리한다.
 export function isOverdue(t: TaskRecord, today: string): boolean {
+  if (isStandardRecurrence(t.recurrenceRule)) return false;
   const d = dueDateOf(t);
   return isActive(t) && !!d && d < today;
 }
 export function isTodayTask(t: TaskRecord, today: string): boolean {
+  if (isStandardRecurrence(t.recurrenceRule)) return false;
   return (
     isActive(t) && !isOverdue(t, today) && (t.scheduledDate === today || dueDateOf(t) === today)
   );
 }
 export function isTomorrowTask(t: TaskRecord, today: string): boolean {
+  if (isStandardRecurrence(t.recurrenceRule)) return false;
   const tm = addDays(today, 1);
   return isActive(t) && (t.scheduledDate === tm || dueDateOf(t) === tm);
+}
+
+// ── 반복 회차(occurrence) 헬퍼 (2026-07-30) ──────────────────────────────────────
+/** 표준 반복의 앵커(마감/예정, 고정). 회차 계산의 시작점. */
+export function recurrenceAnchor(t: TaskRecord): string | null {
+  return dateOf(t);
+}
+/** 이 작업이 `ymd`에 걸리는가 — 반복은 규칙으로, 비반복은 앵커 하루. */
+export function occursOn(t: TaskRecord, ymd: string): boolean {
+  const a = dateOf(t);
+  if (!a) return false;
+  if (isStandardRecurrence(t.recurrenceRule))
+    return recurringOccurrencesInRange(t.recurrenceRule, a, ymd, ymd).length > 0;
+  return a === ymd;
+}
+/** 미해결 지연 회차 날짜들(과거 · 상태 없음). `resolved`는 해당 작업의 회차상태 보유 날짜 집합. */
+export function overdueOccurrenceDates(
+  t: TaskRecord,
+  today: string,
+  resolved: ReadonlySet<string>,
+): string[] {
+  if (!isStandardRecurrence(t.recurrenceRule)) return [];
+  return outstandingOverdueOccurrences(t.recurrenceRule, dateOf(t), today, resolved);
 }
 export function completedDateOf(t: TaskRecord): string | null {
   return tokyoDateOf(t.completedAt);
@@ -133,9 +170,23 @@ export function statusLabel(status: string, d: AdminTasksDictionary): string {
       : d.stOpen;
 }
 
-// 백엔드 지원 반복 규칙(yearly 미지원, custom 은 round-trip 전용).
+// 백엔드 지원 반복 규칙(yearly 미지원, 요일 없는 bare `custom` 은 round-trip 전용).
+// 사용자 지정 요일 반복은 `custom:1,3,5` 형태라 이 목록이 아니라 별도 빌더로 만든다.
 export const REPEAT_RULES = ["none", "daily", "weekly", "weekdays", "weekends", "monthly"] as const;
 export type RepeatRule = (typeof REPEAT_RULES)[number];
+
+// 요일 순서/이름은 모바일과 공유(@/lib/tasks-recurrence) — 두 화면이 어긋나지 않게 한 곳에서만 정의.
+export { WEEKDAY_ORDER };
+
+/** 요일 숫자 → 로케일 짧은 이름("월"/"月"/"Mon"). */
+export function weekdayShortName(weekday: number, locale: Locale): string {
+  return formatWeekday(weekday, localeTag(locale));
+}
+
+/** `custom:1,3,5` → "월·수·금". Thin wrapper so admin and mobile render the format identically. */
+export function customWeekdayNames(rule: string | null, locale: Locale): string {
+  return formatCustomWeekdays(rule, localeTag(locale));
+}
 
 export function repeatLabel(
   rule: string | null,
@@ -145,6 +196,8 @@ export function repeatLabel(
   d: AdminTasksDictionary,
 ): string {
   const anchor = anchorYmd ?? today;
+  const customNames = customWeekdayNames(rule, locale);
+  if (customNames) return fill(d.repCustomDays, { wd: customNames });
   switch (rule) {
     case "daily":
       return d.repDaily;
@@ -156,13 +209,28 @@ export function repeatLabel(
       return d.repShortWeekends;
     case "monthly":
       return fill(d.repMonthly, { d: Number(anchor.split("-")[2]) });
+    // 콘솔에서 새로 지정할 수는 없지만(REPEAT_RULES 제외) 모바일이 만든 값은 반드시 제대로 읽어야
+    // 한다 — 이 분기가 없으면 `default` 로 떨어져 "반복 없음"이라고 거짓 표시된다(2026-07-30 수정).
+    case "yearly":
+      return fill(d.repYearly, {
+        m: Number(anchor.split("-")[1]),
+        d: Number(anchor.split("-")[2]),
+      });
     case "custom":
       return d.repCustom;
     default:
       return d.repNone;
   }
 }
-export function repeatShort(rule: string | null, d: AdminTasksDictionary): string {
+export function repeatShort(
+  rule: string | null,
+  d: AdminTasksDictionary,
+  locale?: Locale,
+): string {
+  // 행 칩은 공간이 좁아 요일 이름만 노출한다("월·수·금"). locale 없이 불리면 공용 라벨로 폴백.
+  if (parseCustomWeekdays(rule)) {
+    return locale ? customWeekdayNames(rule, locale) : d.repCustom;
+  }
   switch (rule) {
     case "daily":
       return d.repDaily;
@@ -174,6 +242,8 @@ export function repeatShort(rule: string | null, d: AdminTasksDictionary): strin
       return d.repShortWeekends;
     case "monthly":
       return d.repShortMonthly;
+    case "yearly":
+      return d.repShortYearly;
     case "custom":
       return d.repCustom;
     default:

@@ -502,6 +502,38 @@ change. The schedule sheet's Repeat sub-picker renders **contextual labels** (�
 매년 {월 일}) derived from the selected date; display helpers (`repeatLabel` in card/detail) map `yearly`
 to `repeatYearly`.
 
+### Recurrence occurrence model (as-built 2026-07-30 — supersedes roll-forward)
+
+Roll-forward is removed. A recurring task is a single row with a **fixed** anchor
+(`recurrence_instance_date`); occurrences are virtual (rule-computed). Per-occurrence state lives in
+**`task_occurrence_state`** `(task_id, occurrence_date, state: completed|skipped|moved,
+completed_by_user_id, moved_to_date)` (migration `202607300001`, RLS = participant read / service
+write). See `docs/planning/01-decision-log.md` → "2026-07-30 롤포워드 폐지".
+
+- **Pure helpers** (`src/lib/tasks-recurrence.ts`, client+server): `outstandingOverdueOccurrences(rule,
+  anchor, today, resolvedDates)` = rule occurrences in `[anchor, today)` with no state; `OccurrenceState`
+  type; `isResolvedOccurrenceState`. Twin-safe (server `tasks.ts` and both UIs import from here).
+- **Mutations** (`src/lib/task-occurrences.ts`, service-role): `completeOccurrence` /
+  `clearOccurrenceState` / `skipOccurrences` / `moveOccurrences` / `resolvedOccurrenceDates`. Shared by
+  mobile + console actions (no twin drift).
+- **Loader**: `getOccurrenceStates(session)` (RLS-scoped, ~400-day window) → `OccurrenceStateRecord[]`;
+  wired into `getAdminTasksData` (console) and the mobile `page.tsx`, passed to the workspace/console as
+  `occurrenceStates`.
+- **Actions**: `completeTask`/`reopenTask` (mobile) and `completeInternal`/`reopenInternal` (console)
+  take an `occurrenceDate`; recurring → write/clear `task_occurrence_state` (row never rolls, stays
+  `open`) + still log `task_updates` completed/reopened (so 완료탭/보고서 aggregation is unchanged);
+  one-off → existing `status`/`completed_at`. `carryOverdueToToday`/`skipOverdueOccurrences` (mobile) and
+  `carryConsoleOverdueToToday`/`skipConsoleOverdue` (console) recompute the outstanding overdue set
+  server-side; carry marks them `moved` + inserts a one-off carry-over task (author participant row for
+  RLS visibility); skip marks them `skipped`. `isOverdueOwned` and the console date predicates
+  (`isOverdue`/`isTodayTask`/`isTomorrowTask`) now **exclude standard-recurring** (handled per-occurrence).
+- **UI**: 오늘/내일/캘린더/day-sheet expand recurring via `occursOn`; each occurrence's done state =
+  `task_occurrence_state`; the row checkbox threads `occurrenceDate` (`TaskCard.occurrence` prop on
+  mobile, `renderRow(t, { occurrence })` on console). Overdue recurring = one grouped row per task
+  ("N일 밀림") with 오늘로 가져오기 / 삭제. **Compiler note:** on mobile, `tomorrowDate` had to be
+  `useMemo`'d — as a plain render const flowing into the occurrence helpers it made the React Compiler
+  bail the whole component (preserve-manual-memoization).
+
 ### Time handling (as-built 2026-06-11)
 
 `createTask` and `updateTaskCore` apply one shared rule via `normalizeTaskDateTime()` in
@@ -579,10 +611,67 @@ As-built (2026-06-15):
     (submitted `custom` on a non-custom task → `null`).
   This closes the gap where a crafted request could assign `custom` despite the UI omitting it. The
   form still omits `custom` from new choices and only renders a read-only `custom` chip when the loaded
-  task already has that value; there is no custom rule builder (out of scope this slice).
+  task already has that value. **Bare `custom` stays round-trip only even after the 2026-07-29
+  weekday builder below** — it carries no schedule, so it must not become newly creatable.
 - Display helpers (`repeatLabel` in `task-card.tsx` and `task-detail-view.tsx`) map all six values to
   the shared `tasks.repeat*` i18n keys, so labels stay consistent across cards, detail, list, and
   calendar surfaces.
+
+### 사용자 지정 요일 반복 (2026-07-29)
+
+"매주 월·수·금"처럼 **사용자가 직접 요일을 고르는** 반복. 위의 bare `custom`(요일 정보 없음)과는
+별개의 값이며, 그쪽은 기존 round-trip 동작을 그대로 유지한다.
+
+**저장 형식** — 기존 `tasks.recurrence_rule` **text 컬럼 그대로**, 마이그레이션 없음.
+
+```
+custom:<d>[,<d>…]     d = JS 요일 (0=일 … 6=토), 중복 제거 + 오름차순
+예) custom:1,3,5      매주 월·수·금
+```
+
+`custom:`(요일 0개)는 **유효하지 않다** — 파서가 `null`을 돌려주므로 저장되지 않는다. UI는 이 상태를
+"사용자 지정 모드는 켜졌지만 아직 안 고름"으로만 쓰고, 요일이 0개면 적용/완료 버튼을 잠근다.
+
+**파서는 하나뿐이다.** `src/lib/tasks-recurrence.ts`가 `CUSTOM_RECURRENCE_PREFIX` /
+`parseCustomWeekdays` / `buildCustomRecurrenceRule` / `isCustomWeekdayRecurrence` /
+`formatCustomWeekdays` / `formatWeekday` / `WEEKDAY_ORDER`를 export하고, **서버 쌍둥이인
+`src/lib/tasks.ts`가 이 모듈에서 import한다**(재구현하지 않음).
+
+> ⚠️ **왜 이게 중요한가.** 두 파일은 각자 `STANDARD_RECURRENCE_RULES` 표를 갖고 있고,
+> `tasks-recurrence.ts` 헤더가 경고하듯 **한쪽에만 있는 규칙은 조용히 어긋난다** — 지난 반복 작업이
+> `tasks.ts`에서는 롤포워드되는데 dismiss/reschedule 분기는 `tasks-recurrence.ts`의 판정을 보고
+> **하드 삭제**한다. 커스텀 규칙 판정을 한 모듈에 두고 양쪽이 그걸 import하게 만들어, 이 어긋남이
+> 구조적으로 불가능하게 했다.
+
+**판정 함수**
+
+| 파일 | 함수 | 의미 |
+| --- | --- | --- |
+| `tasks-recurrence.ts` | `isStandardRecurrence` | 표준 6종 **+ `custom:요일`**. "살아있는 반복 작업인가" 게이트 |
+| `tasks.ts` | `hasRecurrenceMath` | 위와 동일 판정(신규). 롤포워드/롤백 게이트 |
+| `tasks.ts` | `isStandardRecurrenceRule` | 리터럴 6종만. 타입 좁히기 전용 |
+
+**날짜 계산** — 기존 `weekdays`/`weekends`의 전진 스캔 루프를 요일 집합만 바꿔 재사용한다
+(`nextWeekdayOccurrence` / `stepToWeekday`). 앵커 날짜 자체는 규칙과 무관하게 항상 첫 항목으로
+포함되는데, 이는 `weekends` 등 기존 규칙과 **동일한 기존 동작**이다(앵커 = 그 작업의 현재 발생일).
+
+**서버 검증** — `resolveRecurrenceRule`이 `custom:…`을 **재파싱 후 재직렬화**한다. 조작된 요청이
+`custom:5,1,1`이나 `custom:9`를 보내도 각각 `custom:1,5` / `null`로 정규화된다.
+
+**UI**
+
+- 어드민(`admin-tasks-console.tsx` 일정 팝오버): 반복 목록 맨 아래 "사용자 지정" 행 → 펼치면
+  일~토 7칸 토글(`.wdpick`/`.wdchip`). 요일 0개면 **적용 버튼 비활성**.
+- 모바일(`task-schedule-sheet.tsx`): 같은 구조의 7칸 토글. 이 시트는 **commit-on-close**라서 버튼
+  비활성만으로는 부족하다 — 드래그로 닫아도 미완성 규칙이 저장되지 않도록 `draftRef`에서
+  `custom:`(요일 0개)를 `""`(반복 없음)으로 정규화한다. 서버도 같은 값을 fail-closed 처리하므로
+  화면과 저장값이 어긋나지 않는다.
+- 라벨: 어드민은 `repCustomDays`("매주 {wd}"), 모바일은 기존 `repeatWeeklyOn`("매주 {w}") 재사용.
+  요일 이름은 제품 문구가 아니라 로케일 데이터이므로 `Intl`(ko/ja는 narrow "월", en은 short "Mon")로
+  뽑고, 구분자는 ko/ja `·`, en `, `.
+
+**i18n 신규 키** — 어드민 `repCustomDays`/`repPickDays`/`repPickDaysHint`,
+모바일 `repeatPickDays`/`repeatPickDaysHint` (각각 ko/ja/en 동시).
 
 Not required in first slice:
 

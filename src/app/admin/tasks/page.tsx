@@ -16,7 +16,7 @@ export default async function AdminTasksPage() {
 
   return (
     <AdminShell activeItem="recurring-work" title={title}>
-      <AdminTasksConsole locale={locale} data={data} />
+      <AdminTasksConsole locale={locale} data={data} organizationId={session.organization.id} />
     </AdminShell>
   );
 }

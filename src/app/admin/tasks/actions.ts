@@ -8,18 +8,31 @@ import { getProjectDetail, type ProjectDetailData } from "@/lib/projects";
 import {
   getShareableUsers,
   getTaskDetail,
-  nextRecurringInstance,
   normalizeTaskDateTime,
-  previousRecurringInstance,
   resolveRecurrenceRule,
-  shiftRecurringTaskDates,
+  taskAnchorDate,
   taskAnchorDateInput,
   taskNeedsRecurrenceDate,
   taskTimeWithoutDate,
+  tokyoDateOf,
   tokyoToday,
+  ymdShift,
   type TaskDetail,
 } from "@/lib/tasks";
+import {
+  canMoveRecurringTo,
+  isStandardRecurrence,
+  outstandingOverdueOccurrences,
+} from "@/lib/tasks-recurrence";
+import {
+  clearOccurrenceState,
+  completeOccurrence,
+  moveOccurrences,
+  resolvedOccurrenceDates,
+  skipOccurrences,
+} from "@/lib/task-occurrences";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
+import { cleanupRemovedTaskImages, sanitizeTaskImageUrls } from "@/lib/task-images";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
 
@@ -77,6 +90,34 @@ async function notify(
   });
 }
 
+/**
+ * Linked operational context (건물 / 객실 / 예약 / 게스트) submitted from the console.
+ *
+ * Same four columns the mobile form writes (`property_id` / `room_id` / `reservation_id` /
+ * `guest_name`), so a task links identically no matter which surface created it. Ids are opaque
+ * here — they come from the picker's own org-scoped fetches (`fetchPickerBuildings` /
+ * `fetchPickerRooms` / `fetchRoomReservations`), and the row itself is org-scoped on write.
+ */
+export type ConsoleTaskContext = {
+  propertyId?: string | null;
+  roomId?: string | null;
+  reservationId?: string | null;
+  guestName?: string | null;
+};
+
+function normalizeContext(ctx: ConsoleTaskContext | undefined) {
+  const clean = (v: string | null | undefined) => {
+    const s = typeof v === "string" ? v.trim() : "";
+    return s || null;
+  };
+  return {
+    property_id: clean(ctx?.propertyId),
+    room_id: clean(ctx?.roomId),
+    reservation_id: clean(ctx?.reservationId),
+    guest_name: clean(ctx?.guestName),
+  };
+}
+
 // Clamp a submitted duration to the 1–1440 minute block length, or null if out of range/absent.
 function clampDuration(value: number | null): number | null {
   if (value == null || !Number.isFinite(value)) return null;
@@ -98,6 +139,10 @@ export async function createConsoleTask(input: {
   sectionId?: string | null;
   targetUserIds: string[];
   isDirective: boolean;
+  /** Linked 건물/객실/예약/게스트 (2026-07-29 — parity with the mobile form). */
+  context?: ConsoleTaskContext;
+  /** Already-uploaded public URLs; the browser uploads to Storage first, same as mobile. */
+  imageUrls?: string[];
 }): Promise<TaskActionResult> {
   const session = await resolveSession();
   if (!session) return { ok: false, error: "auth" };
@@ -106,12 +151,15 @@ export async function createConsoleTask(input: {
   if (!title) return { ok: false, error: "missing_title" };
 
   const description = input.desc.trim();
-  const date = input.date.trim();
+  let date = input.date.trim();
   const time = input.time.trim();
   const priority = PRIORITIES.has(input.priority) ? input.priority : "normal";
   // Create has no previous rule, so `custom` can never be newly assigned (→ null).
   const repeat = resolveRecurrenceRule(input.repeat, null);
   const tags = input.tags.map((t) => t.trim()).filter(Boolean).slice(0, 10);
+  // A recurrence needs a date anchor; if the user set a repeat but no date, anchor to today
+  // (Todoist: "매주 월수금" starts today) instead of rejecting with repeat_needs_date.
+  if (repeat && !date) date = tokyoToday();
 
   // Single-date model: scheduledDate is always empty; dueDate carries the single date.
   if (taskTimeWithoutDate({ scheduledDate: "", dueDate: date, time })) {
@@ -180,9 +228,11 @@ export async function createConsoleTask(input: {
     recurrence_series_id: recurrenceSeriesId,
     recurrence_instance_date: recurrenceSeriesId ? anchorDate : null,
     tags,
-    image_urls: [],
+    // Cap is re-applied here, not trusted from the client (CLAUDE.md §8).
+    image_urls: sanitizeTaskImageUrls(input.imageUrls ?? [], !!linkedProjectId),
     project_id: linkedProjectId,
     section_id: linkedSectionId,
+    ...normalizeContext(input.context),
   };
   const { error } = await supabase.from("tasks").insert(insert as never);
   if (error) return { ok: false, error: "save_failed" };
@@ -236,25 +286,24 @@ export async function createConsoleTask(input: {
   return { ok: true, id };
 }
 
-// Shared completion: recurring tasks roll the same row forward to the next occurrence and stay
-// open (Todoist-style); one-offs are stamped completed. Logs `completed` + notifies participants.
-async function completeInternal(session: Session, task: TaskDetail) {
+// The occurrence date a recurring complete/reopen targets when none is passed: the FIXED anchor.
+function recurringAnchorDate(task: TaskDetail): string {
+  return task.recurrenceInstanceDate ?? tokyoDateOf(task.dueAt) ?? task.scheduledDate ?? tokyoToday();
+}
+
+// Shared completion (2026-07-30): RECURRING tasks record the given occurrence date in
+// `task_occurrence_state` and never touch the row (no roll-forward); ONE-OFFs are stamped completed.
+// Both log `completed` + notify participants.
+async function completeInternal(session: Session, task: TaskDetail, occurrenceDate?: string) {
   const supabase = getSupabaseServiceClient();
-  const nextInstance = nextRecurringInstance(task);
-  const rolled = nextInstance ? shiftRecurringTaskDates(task, nextInstance) : null;
-  if (rolled) {
-    await supabase
-      .from("tasks")
-      .update({
-        scheduled_date: rolled.scheduledDate,
-        due_at: rolled.dueAt,
-        recurrence_instance_date: rolled.recurrenceInstanceDate,
-        status: "open",
-        completed_at: null,
-        completed_by_user_id: null,
-      } as never)
-      .eq("id", task.id)
-      .eq("organization_id", session.organization.id);
+  if (isStandardRecurrence(task.recurrenceRule)) {
+    const occ = String(occurrenceDate ?? "").trim() || recurringAnchorDate(task);
+    await completeOccurrence({
+      taskId: task.id,
+      organizationId: session.organization.id,
+      occurrenceDate: occ,
+      userId: session.user.id,
+    });
   } else {
     await supabase
       .from("tasks")
@@ -283,25 +332,13 @@ async function completeInternal(session: Session, task: TaskDetail) {
   );
 }
 
-// Shared reopen: recurring tasks roll back to the previous occurrence (they are never in a
-// completed state); one-offs clear their completion stamps. Logs `reopened`, no notification.
-async function reopenInternal(session: Session, task: TaskDetail) {
+// Shared reopen: RECURRING clears that occurrence's recorded state; ONE-OFF clears completion
+// stamps. Logs `reopened`, no notification.
+async function reopenInternal(session: Session, task: TaskDetail, occurrenceDate?: string) {
   const supabase = getSupabaseServiceClient();
-  const prevInstance = previousRecurringInstance(task);
-  const rewound = prevInstance ? shiftRecurringTaskDates(task, prevInstance) : null;
-  if (rewound) {
-    await supabase
-      .from("tasks")
-      .update({
-        scheduled_date: rewound.scheduledDate,
-        due_at: rewound.dueAt,
-        recurrence_instance_date: rewound.recurrenceInstanceDate,
-        status: "open",
-        completed_at: null,
-        completed_by_user_id: null,
-      } as never)
-      .eq("id", task.id)
-      .eq("organization_id", session.organization.id);
+  if (isStandardRecurrence(task.recurrenceRule)) {
+    const occ = String(occurrenceDate ?? "").trim() || recurringAnchorDate(task);
+    await clearOccurrenceState(task.id, occ);
   } else {
     await supabase
       .from("tasks")
@@ -324,13 +361,20 @@ async function reopenInternal(session: Session, task: TaskDetail) {
 export async function setConsoleTaskStatus(
   taskId: string,
   status: "open" | "in_progress" | "completed",
+  occurrenceDate?: string,
 ): Promise<TaskActionResult> {
   const resolved = await resolveTask(taskId);
   if (!resolved) return { ok: false, error: "not_found" };
   const { session, task } = resolved;
 
   if (status === "completed") {
-    await completeInternal(session, task);
+    await completeInternal(session, task, occurrenceDate);
+    revalidatePath(CONSOLE_PATH);
+    return { ok: true };
+  }
+  // Reopening a recurring occurrence (status→open) clears that occurrence's state, not the row.
+  if (status === "open" && isStandardRecurrence(task.recurrenceRule)) {
+    await reopenInternal(session, task, occurrenceDate);
     revalidatePath(CONSOLE_PATH);
     return { ok: true };
   }
@@ -359,15 +403,81 @@ export async function setConsoleTaskStatus(
 export async function toggleConsoleComplete(
   taskId: string,
   complete: boolean,
+  occurrenceDate?: string,
 ): Promise<TaskActionResult> {
   const resolved = await resolveTask(taskId);
   if (!resolved) return { ok: false, error: "not_found" };
   const { session, task } = resolved;
   if (complete) {
-    await completeInternal(session, task);
+    await completeInternal(session, task, occurrenceDate);
   } else {
-    await reopenInternal(session, task);
+    await reopenInternal(session, task, occurrenceDate);
   }
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
+// ── Recurring overdue backlog resolution (2026-07-30, mirrors the mobile actions) ────────────
+export async function skipConsoleOverdue(taskId: string): Promise<TaskActionResult> {
+  const resolved = await resolveTask(taskId);
+  if (!resolved) return { ok: false, error: "not_found" };
+  const { session, task } = resolved;
+  if (!isStandardRecurrence(task.recurrenceRule)) return { ok: true };
+  const anchor = recurringAnchorDate(task);
+  const resolvedDates = await resolvedOccurrenceDates(task.id);
+  const dates = outstandingOverdueOccurrences(task.recurrenceRule, anchor, tokyoToday(), resolvedDates);
+  await skipOccurrences({ taskId: task.id, organizationId: session.organization.id, dates });
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
+export async function carryConsoleOverdueToToday(taskId: string): Promise<TaskActionResult> {
+  const resolved = await resolveTask(taskId);
+  if (!resolved) return { ok: false, error: "not_found" };
+  const { session, task } = resolved;
+  if (!isStandardRecurrence(task.recurrenceRule)) return { ok: true };
+  const today = tokyoToday();
+  const anchor = recurringAnchorDate(task);
+  const resolvedDates = await resolvedOccurrenceDates(task.id);
+  const dates = outstandingOverdueOccurrences(task.recurrenceRule, anchor, today, resolvedDates);
+  if (dates.length === 0) return { ok: true };
+  await moveOccurrences({
+    taskId: task.id,
+    organizationId: session.organization.id,
+    dates,
+    movedTo: today,
+  });
+  const supabase = getSupabaseServiceClient();
+  const carryId = crypto.randomUUID();
+  await supabase.from("tasks").insert({
+    id: carryId,
+    organization_id: session.organization.id,
+    created_by_user_id: session.user.id,
+    title: task.title,
+    description: task.description ?? null,
+    scheduled_date: today,
+    due_at: null,
+    all_day: true,
+    priority: task.priority,
+    status: "open",
+    is_inbox: false,
+    is_shared: false,
+    recurrence_rule: null,
+    recurrence_series_id: null,
+    recurrence_instance_date: null,
+    tags: task.tags,
+    property_id: task.resolvedContext?.propertyId ?? null,
+    room_id: task.resolvedContext?.roomId ?? null,
+    reservation_id: task.resolvedContext?.reservationId ?? null,
+    guest_name: task.resolvedContext?.guestName ?? null,
+  } as never);
+  await supabase.from("task_participants").insert({
+    task_id: carryId,
+    user_id: session.user.id,
+    role: "author",
+    is_first_recipient: false,
+    added_by_user_id: null,
+  } as never);
   revalidatePath(CONSOLE_PATH);
   return { ok: true };
 }
@@ -383,6 +493,10 @@ export async function updateConsoleTaskCore(input: {
   repeat: string;
   priority: string;
   tags: string[];
+  /** Linked 건물/객실/예약/게스트. Omit to leave the existing link untouched. */
+  context?: ConsoleTaskContext;
+  /** Full replacement set of already-uploaded URLs. Omit to leave photos untouched. */
+  imageUrls?: string[];
 }): Promise<TaskActionResult> {
   const resolved = await resolveTask(input.taskId);
   if (!resolved) return { ok: false, error: "not_found" };
@@ -392,9 +506,12 @@ export async function updateConsoleTaskCore(input: {
   const title = input.title.trim();
   if (!title) return { ok: false, error: "missing_title" };
   const description = input.desc.trim();
-  const date = input.date.trim();
+  let date = input.date.trim();
   const time = input.time.trim();
   const tags = input.tags.map((t) => t.trim()).filter(Boolean).slice(0, 10);
+  const nextRecurrenceRule = resolveRecurrenceRule(input.repeat, task.recurrenceRule);
+  // 반복이 있는데 날짜가 없으면 오늘로 앵커(create 와 동일; repeat_needs_date 방지).
+  if (nextRecurrenceRule && !date) date = tokyoToday();
 
   if (taskTimeWithoutDate({ scheduledDate: "", dueDate: date, time })) {
     return { ok: false, error: "time_needs_date" };
@@ -405,7 +522,6 @@ export async function updateConsoleTaskCore(input: {
     time,
   });
   const finalDuration = timeLabel ? clampDuration(input.durationMinutes) : null;
-  const nextRecurrenceRule = resolveRecurrenceRule(input.repeat, task.recurrenceRule);
   const anchorDate = taskAnchorDateInput({ scheduledDate: sched, dueAt });
   if (taskNeedsRecurrenceDate(nextRecurrenceRule, anchorDate)) {
     return { ok: false, error: "repeat_needs_date" };
@@ -429,12 +545,27 @@ export async function updateConsoleTaskCore(input: {
         : null,
     tags,
   };
+  // Photos and context are optional patches: an omitted field leaves the stored value alone, so a
+  // caller that only edits the title can't silently wipe a link or detach every photo.
+  const nextImageUrls =
+    input.imageUrls === undefined
+      ? null
+      : sanitizeTaskImageUrls(input.imageUrls, !!task.projectId);
+  if (nextImageUrls) update.image_urls = nextImageUrls;
+  if (input.context !== undefined) Object.assign(update, normalizeContext(input.context));
+
+  // Files detached in this edit — from server truth, never from client input.
+  const removedImageUrls = nextImageUrls
+    ? task.imageUrls.filter((u) => !nextImageUrls.includes(u))
+    : [];
   const { error } = await supabase
     .from("tasks")
     .update(update as never)
     .eq("id", task.id)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "save_failed" };
+  // Only after the DB no longer references them, hard-delete the detached files.
+  await cleanupRemovedTaskImages(supabase, removedImageUrls, session.organization.id);
   await supabase.from("task_updates").insert({
     task_id: task.id,
     created_by_user_id: session.user.id,
@@ -598,20 +729,26 @@ export async function shareConsoleTask(
 }
 
 // ── 7. Add note (participant) ──────────────────────────────────────────────────
-export async function addConsoleNote(taskId: string, body: string): Promise<TaskActionResult> {
+export async function addConsoleNote(
+  taskId: string,
+  body: string,
+  imageUrls: string[] = [],
+): Promise<TaskActionResult> {
   const resolved = await resolveTask(taskId);
   if (!resolved) return { ok: false, error: "not_found" };
   const { session, task } = resolved;
   const text = String(body ?? "").trim();
-  if (!text) return { ok: false, error: "empty" };
+  // Update-log photos stay at 5 even on a project task — the 20 cap is task-level only.
+  const photos = sanitizeTaskImageUrls(imageUrls, false);
+  if (!text && photos.length === 0) return { ok: false, error: "empty" };
 
   const supabase = getSupabaseServiceClient();
   await supabase.from("task_updates").insert({
     task_id: task.id,
     created_by_user_id: session.user.id,
     update_type: "note",
-    body: text,
-    image_urls: [],
+    body: text || null,
+    image_urls: photos,
   } as never);
   await notify(
     task.id,
@@ -711,12 +848,153 @@ export async function leaveConsoleTask(taskId: string): Promise<TaskActionResult
   return { ok: true };
 }
 
+// ── 8b. Bulk delete (selection mode + 지난 미완료 정리) ─────────────────────────
+// Mirrors what a per-task delete does, but resolves the whole selection in one round trip: tasks the
+// caller authored are soft-deleted (undoable), tasks they merely participate in are left instead
+// (removing the caller from `task_participants`) — the same author/participant split
+// `leaveConsoleTask` makes, because a participant has no right to delete someone else's task.
+//
+// Persist a manual drag-reorder of the 관리함(Inbox) list (2026-07-30). `orderedIds` is the new
+// top-to-bottom order; each row's `sort_order` is set to its index. Org-scoped. Mirrors the mobile
+// `reorderTasks`; `sort_order` is global to the task (shared with the Today drag order).
+export async function reorderConsoleTasks(orderedIds: string[]): Promise<TaskActionResult> {
+  const session = await resolveSession();
+  if (!session) return { ok: false, error: "auth" };
+  const ids = Array.from(
+    new Set((orderedIds ?? []).map((s) => String(s).trim()).filter(Boolean)),
+  ).slice(0, 500);
+  if (ids.length === 0) return { ok: true };
+  const supabase = getSupabaseServiceClient();
+  await Promise.all(
+    ids.map((id, index) =>
+      supabase
+        .from("tasks")
+        .update({ sort_order: index } as never)
+        .eq("id", id)
+        .eq("organization_id", session.organization.id),
+    ),
+  );
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
+// `deletedIds` is what `restoreConsoleTasks` can undo. `leftIds` cannot be undone this way (undoing
+// a leave means re-adding participant rows), so the caller must not promise undo for those.
+export type BulkDeleteResult =
+  | { ok: true; deletedIds: string[]; leftIds: string[]; failedIds: string[] }
+  | { ok: false; error: string };
+
+export async function bulkDeleteConsoleTasks(taskIds: string[]): Promise<BulkDeleteResult> {
+  const session = await resolveSession();
+  if (!session) return { ok: false, error: "auth" };
+  const ids = [...new Set((taskIds ?? []).map((v) => String(v ?? "").trim()).filter(Boolean))];
+  if (!ids.length) return { ok: true, deletedIds: [], leftIds: [], failedIds: [] };
+
+  const deletedIds: string[] = [];
+  const leftIds: string[] = [];
+  const failedIds: string[] = [];
+
+  // getTaskDetail is RLS-scoped, so this both loads authorship and proves the caller may touch the
+  // row at all. Ids that resolve to nothing are reported as failures rather than silently dropped.
+  const resolved = await Promise.all(
+    ids.map(async (id) => ({ id, task: await getTaskDetail(session, id).catch(() => null) })),
+  );
+
+  const supabase = getSupabaseServiceClient();
+  const now = new Date().toISOString();
+  const mine: string[] = [];
+  const theirs: string[] = [];
+  for (const { id, task } of resolved) {
+    if (!task) {
+      failedIds.push(id);
+      continue;
+    }
+    if (task.createdByUserId === session.user.id) mine.push(id);
+    else theirs.push(id);
+  }
+
+  if (mine.length) {
+    const { error } = await supabase
+      .from("tasks")
+      .update({ deleted_at: now } as never)
+      .in("id", mine)
+      .eq("organization_id", session.organization.id);
+    if (error) failedIds.push(...mine);
+    else deletedIds.push(...mine);
+  }
+
+  if (theirs.length) {
+    const { error } = await supabase
+      .from("task_participants")
+      .delete()
+      .in("task_id", theirs)
+      .eq("user_id", session.user.id);
+    if (error) {
+      failedIds.push(...theirs);
+    } else {
+      leftIds.push(...theirs);
+      // Same rule as the single leave: a task with no non-author participants left goes private.
+      const orphaned = resolved
+        .filter(
+          ({ id, task }) =>
+            theirs.includes(id) &&
+            task != null &&
+            task.participants.filter((p) => p.role !== "author" && p.userId !== session.user.id)
+              .length === 0,
+        )
+        .map(({ id }) => id);
+      if (orphaned.length) {
+        await supabase
+          .from("tasks")
+          .update({ is_shared: false, is_directive: false } as never)
+          .in("id", orphaned)
+          .eq("organization_id", session.organization.id);
+      }
+    }
+  }
+
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true, deletedIds, leftIds, failedIds };
+}
+
+/** Undo for `bulkDeleteConsoleTasks` — restores only rows the caller authored (see above). */
+export async function restoreConsoleTasks(taskIds: string[]): Promise<TaskActionResult> {
+  const session = await resolveSession();
+  if (!session) return { ok: false, error: "auth" };
+  const ids = [...new Set((taskIds ?? []).map((v) => String(v ?? "").trim()).filter(Boolean))];
+  if (!ids.length) return { ok: true };
+  const supabase = getSupabaseServiceClient();
+  // Deleted rows are filtered out of getTaskDetail, so authorship is checked directly here.
+  const { data } = await supabase
+    .from("tasks")
+    .select("id, created_by_user_id")
+    .in("id", ids)
+    .eq("organization_id", session.organization.id);
+  const own = ((data ?? []) as { id: string; created_by_user_id: string }[])
+    .filter((r) => r.created_by_user_id === session.user.id)
+    .map((r) => r.id);
+  if (!own.length) return { ok: false, error: "forbidden" };
+  const { error } = await supabase
+    .from("tasks")
+    .update({ deleted_at: null } as never)
+    .in("id", own)
+    .eq("organization_id", session.organization.id);
+  if (error) return { ok: false, error: "save_failed" };
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
 // ── 9. Move to today / inbox (participant) ─────────────────────────────────────
 export async function moveConsoleToToday(taskId: string): Promise<TaskActionResult> {
   const resolved = await resolveTask(taskId);
   if (!resolved) return { ok: false, error: "not_found" };
   const { session, task } = resolved;
   const today = tokyoToday();
+  // 반복 작업인데 오늘에 이미 회차가 있으면 옮기지 않는다 — 사용자에겐 같은 일을 두 번 놓는 것으로
+  // 보이고, 실제로도 아무것도 바뀌지 않는다.
+  if (!canMoveRecurringTo(task.recurrenceRule, taskAnchorDate(task), today)) {
+    return { ok: false, error: "duplicate_occurrence" };
+  }
   const supabase = getSupabaseServiceClient();
   // Anchor to the Tokyo operating date via due_at, preserving any time-of-day; pull out of Inbox.
   const dueAt = new Date(`${today}T${task.timeLabel ?? "00:00"}:00+09:00`).toISOString();
@@ -727,6 +1005,34 @@ export async function moveConsoleToToday(taskId: string): Promise<TaskActionResu
     is_inbox: false,
   };
   if (task.recurrenceSeriesId) update.recurrence_instance_date = today;
+  const { error } = await supabase
+    .from("tasks")
+    .update(update as never)
+    .eq("id", task.id)
+    .eq("organization_id", session.organization.id);
+  if (error) return { ok: false, error: "save_failed" };
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
+/** Same anchor logic as `moveConsoleToToday`, one Tokyo day later. */
+export async function moveConsoleToTomorrow(taskId: string): Promise<TaskActionResult> {
+  const resolved = await resolveTask(taskId);
+  if (!resolved) return { ok: false, error: "not_found" };
+  const { session, task } = resolved;
+  const tomorrow = ymdShift(tokyoToday(), 1);
+  if (!canMoveRecurringTo(task.recurrenceRule, taskAnchorDate(task), tomorrow)) {
+    return { ok: false, error: "duplicate_occurrence" };
+  }
+  const supabase = getSupabaseServiceClient();
+  const dueAt = new Date(`${tomorrow}T${task.timeLabel ?? "00:00"}:00+09:00`).toISOString();
+  const update: Database["public"]["Tables"]["tasks"]["Update"] = {
+    due_at: dueAt,
+    all_day: !task.timeLabel,
+    scheduled_date: null,
+    is_inbox: false,
+  };
+  if (task.recurrenceSeriesId) update.recurrence_instance_date = tomorrow;
   const { error } = await supabase
     .from("tasks")
     .update(update as never)
@@ -856,4 +1162,183 @@ export async function getConsoleProjectDetail(
   const project = await getProjectDetail(session, id);
   if (!project) return { ok: false, error: "not_found" };
   return { ok: true, project };
+}
+
+/**
+ * Owner-only project delete. Hard delete that cascades to participants, sections, and the project's
+ * tasks (FK `on delete cascade`) — deleting a whole project is a deliberate, non-undoable action
+ * (kept behind a confirm in the UI), so it intentionally does NOT use the task soft-delete/undo path.
+ * Mirrors the mobile `deleteProject`. Org-scoped service-role write; `getProjectDetail` is RLS-scoped
+ * so a non-null result already proves the caller is a member, and `viewerIsOwner` gates the delete.
+ */
+/* ── 프로젝트 섹션 · 멤버 (2026-07-30) ───────────────────────────────────────────
+   모바일에만 있던 프로젝트 구성 기능을 콘솔로 가져온다. 관리자가 프로젝트를 짜는 화면인데 섹션과
+   멤버를 만질 수 없던 격차를 메우는 것. 모바일 액션(`mobile/tasks/projects/actions.ts`)은
+   FormData + redirect 시그니처라 그대로 못 쓰고, 콘솔 관례인 `TaskActionResult` 반환형으로 다시
+   쓴다 — 권한 규칙(**소유자만**)과 부수 효과는 모바일과 동일하게 유지한다. */
+
+/** 소유자 확인 + 프로젝트 로드. `getProjectDetail` 은 RLS 스코프라 non-null 이면 참여자임이 증명된다. */
+type OwnedProject =
+  | { ok: false; error: string }
+  | { ok: true; session: Session; project: ProjectDetailData; id: string };
+
+async function resolveOwnedProject(projectId: string): Promise<OwnedProject> {
+  const session = await resolveSession();
+  if (!session) return { ok: false, error: "auth" };
+  const id = String(projectId ?? "").trim();
+  if (!id) return { ok: false, error: "not_found" };
+  const project = await getProjectDetail(session, id);
+  if (!project) return { ok: false, error: "not_found" };
+  if (!project.viewerIsOwner) return { ok: false, error: "forbidden" };
+  return { ok: true, session, project, id };
+}
+
+export async function addConsoleProjectSection(
+  projectId: string,
+  title: string,
+): Promise<TaskActionResult> {
+  const r = await resolveOwnedProject(projectId);
+  if (!r.ok) return { ok: false, error: r.error };
+  const name = String(title ?? "").trim();
+  if (!name) return { ok: false, error: "missing_title" };
+  const nextOrder = r.project.sections.reduce((max, s) => Math.max(max, (s.sortOrder ?? 0) + 1), 0);
+  const supabase = getSupabaseServiceClient();
+  const { error } = await supabase
+    .from("project_sections")
+    .insert({ project_id: r.id, title: name, sort_order: nextOrder } as never);
+  if (error) return { ok: false, error: "save_failed" };
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
+export async function renameConsoleProjectSection(
+  projectId: string,
+  sectionId: string,
+  title: string,
+): Promise<TaskActionResult> {
+  const r = await resolveOwnedProject(projectId);
+  if (!r.ok) return { ok: false, error: r.error };
+  const name = String(title ?? "").trim();
+  if (!name) return { ok: false, error: "missing_title" };
+  if (!r.project.sections.some((s) => s.id === sectionId)) return { ok: false, error: "not_found" };
+  const supabase = getSupabaseServiceClient();
+  const { error } = await supabase
+    .from("project_sections")
+    .update({ title: name } as never)
+    .eq("id", sectionId)
+    .eq("project_id", r.id);
+  if (error) return { ok: false, error: "save_failed" };
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
+export async function deleteConsoleProjectSection(
+  projectId: string,
+  sectionId: string,
+): Promise<TaskActionResult> {
+  const r = await resolveOwnedProject(projectId);
+  if (!r.ok) return { ok: false, error: r.error };
+  if (!r.project.sections.some((s) => s.id === sectionId)) return { ok: false, error: "not_found" };
+  const supabase = getSupabaseServiceClient();
+  // 스펙: 섹션을 지우면 그 안의 작업도 지운다. 삭제 정책에 맞춰 **소프트 삭제**(reads 가
+  // deleted_at 을 필터)한 뒤 섹션 행을 제거한다 — 모바일과 동일.
+  await supabase
+    .from("tasks")
+    .update({ deleted_at: new Date().toISOString() } as never)
+    .eq("project_id", r.id)
+    .eq("section_id", sectionId);
+  const { error } = await supabase
+    .from("project_sections")
+    .delete()
+    .eq("id", sectionId)
+    .eq("project_id", r.id);
+  if (error) return { ok: false, error: "delete_failed" };
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
+export async function inviteConsoleProjectMembers(
+  projectId: string,
+  userIds: string[],
+): Promise<TaskActionResult> {
+  const r = await resolveOwnedProject(projectId);
+  if (!r.ok) return { ok: false, error: r.error };
+  const allowed = new Set((await getShareableUsers(r.session)).map((u) => u.id));
+  const existing = new Set(r.project.members.map((m) => m.userId));
+  const newIds = Array.from(new Set(userIds ?? []))
+    .filter((uid) => uid !== r.session.user.id && allowed.has(uid) && !existing.has(uid));
+  if (newIds.length === 0) return { ok: true };
+  const supabase = getSupabaseServiceClient();
+  const hadFirst = r.project.members.some((m) => m.isFirstRecipient);
+  const rows: Database["public"]["Tables"]["project_participants"]["Insert"][] = newIds.map(
+    (uid, index) => ({
+      project_id: r.id,
+      user_id: uid,
+      role: "member",
+      is_first_recipient: !hadFirst && index === 0,
+      added_by_user_id: r.session.user.id,
+    }),
+  );
+  const { error } = await supabase.from("project_participants").insert(rows as never);
+  if (error) return { ok: false, error: "save_failed" };
+  await supabase.from("projects").update({ is_shared: true } as never).eq("id", r.id);
+  await notifyProjectMembers(supabase, {
+    organizationId: r.session.organization.id,
+    projectId: r.id,
+    recipientUserIds: newIds,
+    actorUserId: r.session.user.id,
+    dedupeBase: `project_shared:${r.id}`,
+    payload: {
+      projectId: r.id,
+      projectTitle: r.project.title,
+      actorUserId: r.session.user.id,
+      event: "shared",
+    },
+  });
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
+export async function removeConsoleProjectMember(
+  projectId: string,
+  userId: string,
+): Promise<TaskActionResult> {
+  const r = await resolveOwnedProject(projectId);
+  if (!r.ok) return { ok: false, error: r.error };
+  // 생성자(소유자)는 이 경로로 절대 제거되지 않는다 — 모바일과 동일한 방어선.
+  if (userId === r.project.createdByUserId) return { ok: false, error: "forbidden" };
+  const supabase = getSupabaseServiceClient();
+  const { error } = await supabase
+    .from("project_participants")
+    .delete()
+    .eq("project_id", r.id)
+    .eq("user_id", userId);
+  if (error) return { ok: false, error: "delete_failed" };
+  const remaining = r.project.members.filter(
+    (m) => m.role !== "owner" && m.userId !== userId,
+  ).length;
+  if (remaining === 0) {
+    await supabase.from("projects").update({ is_shared: false } as never).eq("id", r.id);
+  }
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
+export async function deleteConsoleProject(projectId: string): Promise<TaskActionResult> {
+  const session = await resolveSession();
+  if (!session) return { ok: false, error: "auth" };
+  const id = String(projectId ?? "").trim();
+  if (!id) return { ok: false, error: "not_found" };
+  const project = await getProjectDetail(session, id);
+  if (!project) return { ok: false, error: "not_found" };
+  if (!project.viewerIsOwner) return { ok: false, error: "forbidden" };
+  const supabase = getSupabaseServiceClient();
+  const { error } = await supabase
+    .from("projects")
+    .delete()
+    .eq("id", id)
+    .eq("organization_id", session.organization.id);
+  if (error) return { ok: false, error: "save_failed" };
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
 }

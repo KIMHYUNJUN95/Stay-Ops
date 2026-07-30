@@ -94,13 +94,13 @@ Status: **Implemented (2026-07-27).** 이 문서는 대시보드(어드민 웹) 
 
 | 뷰 | 내용 | 비고 |
 | --- | --- | --- |
-| 오늘 | 지연(overdue) + 오늘 기준일 작업 | 지연 섹션 상단, 지난-작업 일정변경/삭제 배너 포함(모바일과 동일) |
+| 오늘 | 지연(overdue) + 오늘 기준일 작업 + **반복은 오늘 회차** | 반복(2026-07-30 회차 모델): 완료해도 롤포워드 안 함, 오늘 회차가 독립 표시. 지연은 일회성=기존 배너, **반복=작업별 1건 "N일 밀림" + [오늘로 가져오기]/[삭제]** |
 | 내일 | 내일 기준일 작업 | |
-| 관리함 | **프로젝트 밖 모든 활성 작업**(날짜 무관) | Todoist Inbox 모델. 오늘/내일은 이 집합의 필터 |
-| 프로젝트 | 프로젝트+섹션별 작업 | 프로젝트 작업은 이 뷰에만 |
+| 관리함 | **프로젝트 밖 모든 활성 작업**(날짜 무관) | Todoist Inbox 모델. 오늘/내일은 이 집합의 필터. **드래그 재정렬**(호버 시 왼쪽 그립, `reorderConsoleTasks`→`sort_order`) — 랭크된 작업 위, 미랭크는 최신순(새 작업 top). 검색/필터 중엔 비활성 |
+| 프로젝트 | 프로젝트+섹션별 작업 | 프로젝트 작업은 이 뷰에만. 상단 배너에 멤버 요약(owner 포함 dedup 카운트) + **owner 전용 "프로젝트 삭제"**(confirm→cascade) |
 | 공유함 | 내가 공유한(peer) 작업 | 업무 지시는 별도 "보낸 지시" 화면(§7, 별도 설계) |
-| 완료·기록 | 완료일별 그룹 | 업무일지(보고서) 버튼 — 모바일과 동일(각자 본인 것) |
-| 캘린더 | 월/아젠다 | 반복은 가상 미리보기 |
+| 완료·기록 | 완료일별 그룹 | **완료 로그(`task_updates` net) 기준** — 반복 완료 포함. 업무일지(보고서) 버튼 |
+| 캘린더 | 월/아젠다 | 반복은 가상 미리보기. 상단 **"반복 숨기기" 토글**로 고정 반복 회차를 그리드·다가오는 일정·날짜 시트 전부에서 숨김(세션 상태, 기본 표시) |
 
 - 뷰 전환은 사이드바. 목록/정렬/그룹핑/검색·날짜필터 규칙은 모바일 `TasksWorkspace`와 동일 규칙을
   따른다(중복 로직이 아니라 **동일 데이터·동일 정의** 재현).
@@ -193,9 +193,9 @@ Status: **Implemented (2026-07-27).** 이 문서는 대시보드(어드민 웹) 
 - [x] 완료/다시 열기(상태 세그) + 완료·기록 그룹 + 업무일지(서버 `generateDailyReport`, 본인)
 - [x] 공유(다중 참여자) / 참여자 관리 / 원작성자 leave = 삭제 / 참여자 self-remove
 - [x] 반복 롤포워드(완료 시 다음 회차, 서버) · 지난-작업 일정변경(단일 날짜 피커) · 삭제 · 지연 일괄(오늘로/삭제)
-- [x] 프로젝트 + 섹션 + 프로젝트 작업 + 멤버 초대(새 프로젝트 모달). 사진 20장은 상세/모바일에서
+- [x] 프로젝트 + 섹션 + 프로젝트 작업 + 멤버 초대(새 프로젝트 모달) + **프로젝트 삭제**(owner, confirm, cascade). 사진 20장은 상세/모바일에서
 - [x] 컨텍스트 링크(건물·객실·예약·게스트) + "예약 보기"(→ /admin/calendar)
-- [x] 캘린더 월/아젠다(반복 가상 미리보기는 서버 데이터 기준)
+- [x] 캘린더 월/아젠다(반복 가상 미리보기는 서버 데이터 기준) · "반복 숨기기" 토글(세션, 그리드+다가오는일정+날짜시트 일괄)
 - [x] **업무 지시** — 콘솔 "지시" 탭(받은/보낸 세그) + 받은 지시가 받는 사람 오늘/캘린더에 뜸 + "[작성자] 지시" 표식
 - [x] i18n ko/ja/en / 권한(part-time 제외 웹 접근, 서버 게이트) / Tokyo 기준일(helpers)
 
@@ -226,12 +226,20 @@ Status: **Implemented (2026-07-27).** 이 문서는 대시보드(어드민 웹) 
   `src/app/admin/recurring-work/page.tsx` 는 `/admin/tasks` 로 `redirect()`. 내비(`src/config/navigation.ts`)
   의 `recurring-work` href 를 `/admin/tasks` 로 변경.
 - **데이터 로더** — `src/lib/admin-tasks.ts` `getAdminTasksData(session)`:
-  `getVisibleTasks`/`getVisibleProjects`/`getShareableUsers` 를 `Promise.all` 로 읽어
-  `{ tasks, projects, users, me, loadError }` 반환(실패 시 `loadError`).
+  `getVisibleTasks`/`getVisibleProjects`/`getShareableUsers`/`getCompletionRecords` 를 `Promise.all` 로 읽어
+  `{ tasks, projects, users, completions, me, loadError }` 반환(실패 시 `loadError`).
+  - `completions`: `task_updates`(`completed`/`reopened`, RLS-scoped, 최근 ~120일)를 (작업,토쿄일) 단위
+    net(완료−재개)으로 집계한 완료 이력. **완료·기록 탭이 이걸 소스로 쓴다** — 반복 완료는 행이
+    `open` 으로 롤포워드되어 `status=completed` 가 아니므로, 로그를 봐야 보고서(같은 소스)와 목록이 일치한다.
+    렌더 시 각 record 를 `tasks` 에서 조회해 행으로 그리고, 반복 이력 행은 `forceDone`(완료 표시 + 체크박스 토글 금지).
 - **서버 액션** — `src/app/admin/tasks/actions.ts` (모두 `{ok:true,id?}|{ok:false,error}` 반환):
-  `createConsoleTask` · `setConsoleTaskStatus` · `toggleConsoleComplete` · `updateConsoleTaskCore`(작성자) ·
+  `createConsoleTask` · `setConsoleTaskStatus`/`toggleConsoleComplete`(반복은 `occurrenceDate` 인자로
+  회차 완료 → `task_occurrence_state`, 롤포워드 없음) · `carryConsoleOverdueToToday`/`skipConsoleOverdue`
+  (반복 지연 backlog 오늘로/스킵) · `updateConsoleTaskCore`(작성자) ·
   `rescheduleConsoleTask`(참여자) · `shareConsoleTask`(작성자) · `addConsoleNote` · `deleteConsoleTask`(작성자) ·
   `leaveConsoleTask`(작성자=전체 삭제) · `moveConsoleToToday` · `moveConsoleToInbox` · `createConsoleProject` ·
+  `deleteConsoleProject`(owner 전용, 조직 스코프, cascade 하드 삭제 — 참가자·섹션·프로젝트 작업까지. 되돌릴 수
+  없는 확정 삭제라 confirm 유지, task soft-delete/undo 경로 미사용. 모바일 `deleteProject` 미러) ·
   `generateConsoleReport`(모바일 `generateDailyReport` 위임) · `getConsoleTaskDetail`(상세: updates+context) ·
   `getConsoleProjectDetail`(프로젝트 섹션+작업). 세션+조직 컨텍스트는 `resolveSession`, 개별 작업 권한은
   `getTaskDetail`(RLS-scoped) non-null = 참여 증명. 서비스롤 쓰기는 `.eq("organization_id", …)` 로 스코프.
@@ -247,6 +255,8 @@ Status: **Implemented (2026-07-27).** 이 문서는 대시보드(어드민 웹) 
   (오늘=오늘+지연, 지시=받은+보낸, 지연/받은지시 있으면 `alert`). 프로젝트 칩 줄 + "새 프로젝트".
 - 와이드 뷰(오늘/내일/관리함/공유함/지시/프로젝트)는 우측 **우산 레일**(진행 현황 · 받은 지시 · 보낸 지시 ·
   다가오는 일정 · 멤버별 공유 카드) 동반. 완료·캘린더는 레일 없음.
+- 진행 현황 스탯의 **"오늘 완료"** 는 완료 로그(`data.completions`, task_updates net) 중 `오늘 · 본인 · 개인 작업`
+  건수 — `status=completed` 만 세면 반복 완료(롤포워드로 open)가 빠져 실제보다 적게 나오므로 로그 기준으로 집계.
 - 상세 패널 `.dp` 는 `position:fixed` 우측 슬라이드오버. 작업 클릭 시 `getConsoleTaskDetail` 로 로그+컨텍스트
   lazy 로드.
 
@@ -266,9 +276,9 @@ Status: **Implemented (2026-07-27).** 이 문서는 대시보드(어드민 웹) 
   `.wgrid→.tgrid`. 셸(사이드바/탑바)은 AdminShell 이 소유.
 
 ### 12.5 알려진 차이(모바일 대비 의도적 축소)
-- 인라인 추가에 **첨부(사진)·태그 입력 없음**(콘솔 업로드 경로 미도입) — 상세 패널은 기존 사진을 뷰어로 표시.
-  작성/편집이 필요한 사진·태그·컨텍스트 링크, 그리고 **제목/본문 편집**은 상세 패널의 "편집"(→ 모바일 상세)
-  또는 모바일에서(콘솔 내 제목/본문 인라인 편집은 없음).
+- ~~인라인 추가에 첨부(사진)·태그 입력 없음 … 사진·태그·컨텍스트 링크와 제목/본문 편집은 모바일에서.~~
+  **2026-07-29 폐기 — §16에서 콘솔에 전부 구현됨.** 사진·태그·컨텍스트 링크·제목/본문 모두 콘솔에서
+  생성·편집할 수 있고, 상세 패널의 연필 버튼은 모바일로 나가는 링크가 아니라 인라인 편집 토글이다.
 - 반복은 백엔드 지원 규칙만: 매일/매주/평일/주말/매월(문맥형). **yearly 는 백엔드 미지원이라 제외**,
   `custom` 은 round-trip 전용. 기간(duration)은 프리셋(없음/15/30/60/120분)만.
 - 날짜 필터는 프리셋(오늘/이번 주/지연/날짜 없음). 받은 지시의 "답장·노트" 버튼은 상세 패널(노트 입력)로
@@ -411,3 +421,264 @@ display: block; }`로 교체해, 원 안에서의 아이콘 중앙 정렬이 JSX
 
 **변경 파일**: `src/components/admin/tasks/admin-tasks-console.css`(CSS 전용, TSX 변경 없음).
 **검증**: `npm run lint` 0 errors, `npm run build` 통과.
+
+---
+
+## 14. 선택 모드 + 일괄 삭제 (2026-07-29)
+
+목록에 작업이 쌓였을 때 하나씩 지우는 것 말고 **선택해서 한 번에 삭제**할 수단이 필요하다는
+요청으로 추가했다.
+
+### 14.1 UX
+
+- **진입**: 필터 바(검색 / 날짜 / 우선순위) 우측 끝의 **"선택"** 토글 칩. 모드를 명시적으로 켜고
+  끄기 때문에 실수로 지울 위험이 가장 낮다. 캘린더 뷰처럼 필터 바가 없는 화면에는 나오지 않는다
+  (`filterableView` 게이트 공유).
+- **선택 모드 ON**: 각 행의 완료 토글(`.tchk`, 원형)이 같은 24px 자리에서 **사각 체크박스**
+  (`.tpick`)로 교체된다. 모양을 다르게 한 이유는 "완료"와 "선택"이 절대 헷갈리면 안 되기 때문이고,
+  채움색도 완료의 `--done` 초록이 아니라 `--primary`를 쓴다. 선택된 행은 상세 패널 선택(`.trow.sel`)과
+  같은 좌측 액센트 바 + `--primary-soft` 배경을 받아, 콘솔 전체에서 "선택된 행"이 한 가지 언어로 읽힌다.
+  행 아무 곳이나 클릭하면 선택/해제되고, 상세 패널은 열리지 않는다. 선택 중에는 행 안의 날짜 칩·
+  `⋯` 메뉴가 클릭을 받지 않는다(선택을 만드는 중에 팝오버가 열리는 것을 막음).
+- **선택 바 `.selbar`**: 이 콘솔의 **지연 배너(`.odbanner`) 골격**을 그대로 따른다 — 아이콘 타일 →
+  텍스트 블록 → 우측 액션. danger 톤 대신 primary 톤이고, 아이콘 타일은 선택 개수가 1 이상이면
+  숫자 뱃지(진한 primary 채움)로 바뀐다. 구성: 개수 타일 · 제목/힌트 · **전체 선택** · **선택 해제** ·
+  **삭제**(danger) · **X**(모드 종료).
+  > **공용 `.bulkbar`를 먼저 써봤다가 되돌렸다.** 근태 검토 큐와 통일하려는 의도였지만 두 가지가
+  > 깨졌다. (1) `.bulkbar`가 놓이던 자리는 `.tgrid` 바깥이라 전체 폭 — 우측 레일 위까지 뻗어
+  > 작업 리스트 카드와 세로선이 전혀 맞지 않았다. (2) 솔리드 네이비 채움이 이 콘솔의 밝은 카드
+  > 언어와 충돌했다. 지금은 `.wcol` **안**에서 렌더돼 리스트 카드와 정확히 같은 폭에 선다.
+- **"선택" 칩은 필터들과 같은 줄에 인라인**으로 둔다. `.filt`도 `.tgrid` 바깥의 전체 폭 컨테이너라,
+  `flex:1` 스페이서로 우측 정렬하면 칩이 리스트 카드를 지나 레일 위까지 날아간다.
+- **전체 지우기**는 별도 버튼이 아니라 "전체 선택 → 삭제"로 커버한다. 한 번의 오클릭으로 목록이
+  날아가는 버튼을 만들지 않기 위함.
+- **뷰를 벗어나면 선택이 해제된다**(`goView`, 프로젝트 칩). 보이지 않는 선택이 일괄 삭제에 끌려
+  들어가지 않게 하기 위한 것.
+
+### 14.2 "전체 선택"의 범위
+
+각 뷰가 자기 목록을 인라인으로 만든다(오늘 = 지난 + 오늘, 공유함 = 받음 + 보냄, …). 그래서
+`selectAllVisible`은 **클릭 시점에 렌더된 `.trow[data-task-id]`를 읽는다**. 일곱 개 뷰의 필터
+표현식을 여기서 다시 계산하면 두 번째 진실 원본이 생겨 조용히 어긋난다. DOM을 읽으면 검색·날짜·
+우선순위 필터가 적용된 "지금 화면에 보이는 것"과 정의상 일치한다. 렌더 중에는 절대 실행되지 않는다
+(React Compiler lint가 렌더 중 ref 접근을 금지하므로 ref 수집 방식은 쓸 수 없다).
+
+### 14.3 권한 — 삭제 vs 나만 빠지기
+
+`deleteConsoleTask`가 작성자에게만 허용되는 것과 같은 규칙을 일괄 경로도 따른다.
+
+| 대상 | 처리 | 실행 취소 |
+| --- | --- | --- |
+| 내가 만든 작업 | soft delete (`deleted_at`) | **가능** |
+| 공유·지시받은 작업 | `task_participants`에서 나만 제거 | **불가** |
+
+참여자가 남의 작업을 지울 권리는 없으므로 "나만 빠지기"로 대체된다. 나가기를 되돌리려면 참여자
+행을 다시 만들어야 해서 `deleted_at`을 지우는 방식으로는 복구되지 않는다. 그래서 **선택에 남의
+작업이 섞여 있으면 확인 모달에 그 사실을 명시**하고(`confirmBulkSharedNote`), 실행 취소 토스트는
+내가 만든 작업에만 걸린다. 남의 작업만 지웠을 때는 실행 취소 없이 일반 토스트만 뜬다.
+
+### 14.4 서버
+
+신규 `bulkDeleteConsoleTasks(ids)` — id 배열을 한 번에 처리한다.
+
+- 각 id를 `getTaskDetail`(RLS 스코프)로 해석해 접근 권한과 작성자를 동시에 확인한다. 해석되지
+  않는 id는 조용히 버리지 않고 `failedIds`로 보고한다.
+- 내 작업은 `.in("id", mine)` 한 번의 UPDATE로 soft delete, 남의 작업은 `.in("task_id", theirs)`
+  한 번의 DELETE로 참여자 해제. 단건 나가기와 동일하게, 작성자 외 참여자가 0이 되면 해당 작업은
+  `is_shared`/`is_directive`를 해제해 다시 비공개로 돌린다.
+- 반환: `{ ok, deletedIds, leftIds, failedIds }`. 부분 실패 시 `tBulkPartial`로 개수를 알린다.
+
+신규 `restoreConsoleTasks(ids)` — 일괄 실행 취소. 삭제된 행은 `getTaskDetail`에 안 잡히므로
+작성자 검사를 직접 하고, 내가 만든 것만 `deleted_at`을 지운다.
+
+**기존 "지난 미완료 삭제"도 이 액션으로 교체했다.** 이전에는 클라이언트에서 `for` 루프로 작업
+수만큼 서버를 왕복했다(`clearOverdue`). 이제 한 번에 처리되고, 덤으로 실행 취소도 붙었다 —
+그에 맞춰 `confirmClearMsg`의 "되돌릴 수 없습니다" 문구를 ko/ja/en 모두에서 걷어냈다(작업이
+소프트 삭제로 바뀐 뒤로 사실이 아니었다).
+
+### 14.5 범위
+
+어드민 콘솔 전용. 모바일 작업 화면은 이번 변경에 포함하지 않았다.
+
+**i18n**(ko/ja/en 동시 추가): `selMode`, `selSelected`, `selAll`, `selClear`, `selDelete`,
+`selEmptyHint`, `selHint`, `confirmBulkMsg`, `confirmBulkSharedNote`, `tBulkDeleted`, `tBulkPartial`.
+
+**변경 파일**: `src/app/admin/tasks/actions.ts`, `src/components/admin/tasks/admin-tasks-console.tsx`,
+`src/components/admin/tasks/admin-tasks-console.css`, `src/lib/admin-tasks-i18n.ts`. DB 스키마·
+마이그레이션 변경 없음(기존 `deleted_at` 재사용).
+
+**검증**: `npx tsc --noEmit` 0, `npm run lint` 0 errors, `npm run build` 통과. 로그인 세션이 필요한
+실제 삭제·실행 취소 동작은 라이브 테스트하지 못했다.
+
+---
+
+## 15. 행 메뉴 이동 항목 — 날짜 기준 분기 (2026-07-29)
+
+행 `⋯` 메뉴가 작업 날짜와 무관하게 **항상 "오늘로 이동"** 하나만 렌더해서, 오늘 탭에서는 눌러도
+아무 일도 안 하는 항목이 떠 있었다.
+
+**규칙 (확정).** 이동 대상은 탭이 아니라 **작업 자신의 날짜**로 정한다.
+
+| 작업 날짜 | 메뉴 항목 |
+| --- | --- |
+| 오늘 | **내일로 이동** (`moveConsoleToTomorrow`) |
+| 그 외 (내일 · 지난 · 날짜 없음) | **오늘로 이동** (`moveConsoleToToday`) |
+
+**둘 중 하나만** 보인다 — 현재 날짜와 같은 쪽으로 옮기는 무의미한 항목은 아예 렌더하지 않는다.
+
+**탭 기준이 아닌 이유.** 이 메뉴는 오늘/내일뿐 아니라 관리함 · 공유함 · 지시 · 캘린더 · 프로젝트
+뷰에서도 똑같이 뜬다. 탭을 기준으로 삼으면 그 화면들에서 판단 근거가 없어진다. 날짜 기준이면
+요청받은 오늘↔내일 동작이 그대로 나오면서 나머지 화면에서도 의미가 통한다.
+
+**서버.** `moveConsoleToTomorrow`는 기존 `moveConsoleToToday`와 동일한 앵커 로직을 Tokyo 기준
+하루 뒤로 적용한다 — `due_at`에 시각 보존, `all_day` 재계산, `is_inbox: false`, 그리고 반복
+시리즈면 `recurrence_instance_date`도 함께 이동. 모바일의 `moveTaskToTomorrow`
+(`src/app/mobile/tasks/[id]/actions.ts`)와 같은 패턴이다.
+
+**범위**: 어드민 콘솔만. 모바일 작업 카드·상세의 이동 메뉴는 구조가 달라 이번에 건드리지 않았다.
+
+**i18n**: `mMoveTomorrow` (ko "내일로 이동" / ja "明日に移動" / en "Move to tomorrow").
+
+**변경 파일**: `src/app/admin/tasks/actions.ts`, `src/components/admin/tasks/admin-tasks-console.tsx`,
+`src/lib/admin-tasks-i18n.ts`. DB 변경 없음.
+
+**검증**: `npx tsc --noEmit` 0, `npm run lint` 0 errors.
+
+---
+
+## 16. 모바일 패리티 채우기 — 컨텍스트 · 사진 · 태그 · 코어 편집 (2026-07-29)
+
+§12.5가 "작성/편집이 필요한 것은 모바일에서"로 남겨뒀던 축소를 걷어냈다. 콘솔이 조회 표면에
+머무르면 관리자가 지시를 내릴 때마다 모바일로 넘어가야 해서, `05-admin-web-ia.md`의 원칙
+("모바일에서 가능한 기능은 관리자 대시보드에서도 가능해야 한다")과 정면으로 어긋났다.
+
+### 16.1 결과
+
+| 기능 | 표시 | 인라인 추가 | 상세 편집 |
+| --- | --- | --- | --- |
+| 건물 · 객실 · 예약 · 게스트 | ✅ | ✅ | ✅ |
+| 작업 사진 | ✅ | ✅ | ✅ |
+| 노트 사진 | ✅ | ✅ | 추가만 |
+| 태그 | ✅ | ✅ | ✅ |
+| 제목 · 본문 | ✅ | ✅ | ✅ |
+
+### 16.2 서버
+
+세 액션이 확장됐다(`src/app/admin/tasks/actions.ts`).
+
+- `createConsoleTask` / `updateConsoleTaskCore` — `context`(`ConsoleTaskContext`)와 `imageUrls` 추가.
+  모바일과 **같은 네 컬럼**(`property_id`/`room_id`/`reservation_id`/`guest_name`)에 쓰므로 어느
+  표면에서 만들었든 링크 모양이 같다. 장수 제한은 클라이언트를 믿지 않고 서버에서 다시 적용한다
+  (프로젝트 20 / 일반 5).
+- `updateConsoleTaskCore`의 두 필드는 **선택적 패치**다. 생략하면 기존 값을 건드리지 않는다 —
+  제목만 고치는 호출이 링크를 지우거나 사진을 전부 떼어내면 안 되기 때문.
+- `addConsoleNote` — 사진 인자 추가. 본문이 비어도 사진만 있으면 저장된다(서버·UI 같은 규칙).
+
+**`src/lib/task-images.ts` 신규.** 스토리지 경로 검증(`extractRequestImagePath`)과 삭제
+(`cleanupRemovedTaskImages`)가 모바일 액션 파일 안에 private으로 있었다. 실제로 객체를 지우는
+코드라 두 벌로 두면 한쪽만 고쳐질 위험이 있어 공용 모듈로 추출하고 모바일도 이걸 쓰도록 바꿨다.
+삭제 후보는 **서버 진실값**에서만 뽑고, `${org}/task-images/` prefix에 해당하는 경로만 지운다.
+
+### 16.3 UI
+
+- **컨텍스트 피커** `context-picker-popover.tsx` — 건물 → 객실 → 예약 3단계. 조회는 모바일의
+  기존 서버 액션 4개(`fetchPickerBuildings`/`fetchPickerRooms`/`fetchRoomReservations`/
+  `searchReservations`)를 그대로 쓴다. 모바일 시트는 탭할 때마다 즉시 커밋하지만, 이 팝오버는
+  **로컬 draft + 하단 적용 버튼**으로 콘솔의 다른 팝오버(일정·우선순위·공유)와 동작을 맞췄다.
+- **사진 업로더** `task-photo-uploader.tsx` — 인라인 추가 · 코어 편집 · 노트 세 자리 공용.
+  `compact` 변형은 **`display: contents`** 로 래퍼를 없애 칩 줄의 직접 자식이 된다. 래퍼를 남기면
+  전체 폭 점선 띠가 되어 칩 줄과 겉돈다. 치수는 `.achip`과 픽셀 단위로 동일.
+- **칩 줄 순서**: `날짜 · 우선순위 · 대상 · 예약 연결 · 사진 · 태그`. 사진 썸네일은
+  `order: 99`로 항상 마지막 줄 — 썸네일이 `flex-basis: 100%`라 줄바꿈을 강제해서, 순서를 안 고정하면
+  사진과 태그 사이를 끊는다.
+- **코어 편집**: 상세 패널 연필 버튼이 인라인 편집 모드를 연다. 제목·본문·태그·사진을 그 자리에서
+  고친다. 모바일 상세로 가는 링크는 상단에 별도로 남아 있다.
+  > `updateConsoleTaskCore`는 날짜·시간·반복·우선순위를 **전부 다시 쓰는** 액션이라, 이 편집에서
+  > 건드리지 않는 값도 현재 값으로 되돌려 넘겨야 한다. 안 그러면 제목만 고쳤는데 일정이 지워진다.
+
+### 16.4 알려진 경계
+
+- **노트 사진은 추가만** 된다. 삭제·수정을 열려면 `cleanupRemovedTaskImages`가 `task-images/`
+  prefix만 검증하므로 `task-update-images/`까지 다루도록 확장해야 한다. 모바일도 노트 사진 수정이
+  없어 현재 패리티는 맞다.
+- **인라인 추가는 행 생성 전에 사진을 먼저 올린다.** 최종 경로(`${org}/task-images/${id}/`)로
+  올려야 하기 때문이며 모바일과 같은 순서다. insert가 실패하면 파일이 고아로 남는데, 그 반대(행이
+  참조하는 업로드가 없는 상태)보다 낫다고 판단했다. 회수 경로는 아직 없다.
+
+### 16.5 부수 수정 (2026-07-30)
+
+- **`yearly` 반복이 "반복 없음"으로 표시되던 버그.** `helpers.ts`의 `repeatLabel`/`repeatShort`에
+  `yearly` 분기가 없어 `default`로 떨어졌다. 콘솔에서 새로 지정할 수는 없지만(`REPEAT_RULES` 제외)
+  **모바일이 만든 값은 반드시 제대로 읽어야 한다** — 화면이 데이터를 부정하면 운영 판단을 오도한다.
+  `repYearly`/`repShortYearly` 문구는 사전에 이미 있었고 쓰이지 않고 있었다.
+- **에러 문구가 뭉개지던 문제.** `errMsg`가 auth/forbidden/save_failed 외 전부를
+  "처리하지 못했습니다"로 떨어뜨려, 제목 누락인지 날짜 누락인지 화면에서 구분할 수 없었다(실제로
+  반복 저장 실패 원인을 못 찾은 사례가 있었다). 서버가 돌려주는 코드 전체를 매핑하고
+  `errMissingTitle`/`errTimeNeedsDate`/`errRepeatNeedsDate`/`errNotFound`/`errInvalidDate`/
+  `errEmpty`를 ko·ja·en에 추가했다.
+
+### 16.6 i18n
+
+신규 키(전부 ko/ja/en 동시): 사진 업로더 9개(`ph*`), 컨텍스트 피커 27개(`cp*`),
+코어 편집 2개(`dpSave`/`dpTagAdd`), 에러 6개(`err*`).
+
+### 16.7 변경 파일
+
+`src/lib/task-images.ts`(신규), `src/components/admin/tasks/context-picker-popover.tsx`(신규),
+`src/components/admin/tasks/task-photo-uploader.tsx`(신규),
+`src/app/admin/tasks/{actions.ts,page.tsx}`,
+`src/components/admin/tasks/{admin-tasks-console.tsx,admin-tasks-console.css,helpers.ts}`,
+`src/app/mobile/tasks/[id]/actions.ts`(공용 헬퍼로 전환), `src/lib/admin-tasks-i18n.ts`.
+DB 스키마·마이그레이션 변경 없음.
+
+---
+
+## 17. 프로젝트 섹션 · 멤버 관리 (2026-07-30)
+
+모바일에만 있던 프로젝트 구성 기능을 콘솔로 가져왔다. 관리자가 프로젝트를 짜는 화면인데 섹션과
+멤버를 만질 수 없던 것은 `05-admin-web-ia.md`의 원칙과 어긋난다.
+
+### 17.1 서버
+
+`src/app/admin/tasks/actions.ts`에 5개 추가. 모바일 액션(`mobile/tasks/projects/actions.ts`)은
+`FormData` + `redirect` 시그니처라 콘솔에서 그대로 쓸 수 없어, 콘솔 관례인 `TaskActionResult`
+반환형으로 다시 썼다. **권한 규칙과 부수 효과는 모바일과 동일하게 유지**했다.
+
+| 액션 | 부수 효과 |
+| --- | --- |
+| `addConsoleProjectSection` | `sort_order` 는 기존 최대값+1 |
+| `renameConsoleProjectSection` | — |
+| `deleteConsoleProjectSection` | **섹션 안의 작업도 함께 소프트 삭제**(삭제 정책상 reads 가 `deleted_at` 필터) 후 섹션 행 제거 |
+| `inviteConsoleProjectMembers` | `projects.is_shared = true`, 첫 수신자 지정, 참여자 알림 발송 |
+| `removeConsoleProjectMember` | 비소유 멤버가 0이 되면 `is_shared = false` 로 되돌림 |
+
+공통 게이트는 `resolveOwnedProject` — **소유자만** 통과한다(`getProjectDetail` 이 RLS 스코프라
+non-null 자체가 참여자 증명이고, 그 위에 `viewerIsOwner` 를 얹는다). 생성자는
+`removeConsoleProjectMember` 로 절대 제거되지 않는다.
+
+> 반환 타입은 판별 유니온(`{ok:false,error} | {ok:true,…}`)으로 명시한다. 처음에 추론에 맡겼더니
+> `"error" in r` 가 좁히지 못해 `id` 가 `string | undefined` 로 새어나왔다.
+
+### 17.2 UI
+
+- **멤버 관리**: 프로젝트 배너의 `멤버 관리` 버튼(소유자만) → 기존 공유 팝오버 재사용
+  (`SharePop.src = "project"`). 적용 시 **선택 집합과 현재 멤버를 diff** 해서 제거 → 초대 순으로
+  호출한다. 소유자는 양쪽에서 제외하고 비교한다(서버도 생성자 제거를 거부하므로 diff 에 넣을 이유가
+  없다).
+- **섹션 이름 변경**: 헤더 인라인 입력. Enter 저장 / Esc 취소 / blur 저장. **빈 이름은 취소로
+  처리** — blur 로도 저장이 불리므로 막지 않으면 실패 토스트가 뜬다.
+- **섹션 삭제**: 확인 모달에 "안의 작업도 함께 삭제" 명시. 이름 변경·삭제 버튼은 헤더 호버 시에만
+  드러나 목록이 조용하게 유지된다.
+- **섹션 추가**: 목록 하단 점선 입력 + 버튼.
+- `__default`(섹션이 없는 프로젝트의 가상 그룹)는 실제 행이 없으므로 이름 변경·삭제 대상에서 제외.
+
+### 17.3 남은 것 — 드래그 정렬
+
+`reorderTasks` / `reorderProjectSections` 는 **여전히 모바일 전용**이다. 모바일은 롱프레스+드래그
+상호작용이고 데스크톱은 별도 설계가 필요해(포인터 드래그·드롭 인디케이터·키보드 대체 수단) 이번
+슬라이스에서 분리했다.
+
+### 17.4 i18n
+
+`pjSectionAdd` / `pjSectionNamePh` / `pjSectionRename` / `pjSectionDelete` / `pjSectionDeleteMsg` /
+`pjMembersManage` (ko·ja·en 동시).

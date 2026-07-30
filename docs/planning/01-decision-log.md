@@ -3972,3 +3972,195 @@ Todoist 독립 시각 언어로 의도적 미적용(문서화). 의도적 축소
 **변경 파일**: `src/app/admin/attendance/leave/page.tsx`, `src/components/admin/attendance/attendance-subnav.tsx`,
 `src/components/admin/admin-console.css`. i18n·DB 변경 없음. `npm run lint`(에러 0) / `npm run build` 통과.
 문서: `docs/product/05-admin-web-ia.md`(근태 subnav 계약 3항 추가).
+
+## 2026-07-29 투두이스트 일괄 삭제 — 선택 모드 확정
+
+**결정.** `/admin/tasks` 목록에 선택 모드 + 일괄 삭제를 추가한다. 네 가지를 확정했다.
+
+1. **진입은 필터 바의 "선택" 토글 칩.** 호버 시 체크박스가 나타나는 Gmail 방식은 왼쪽에 이미 있는
+   완료 토글과 헷갈려서 기각. 모드가 명시적이라 오삭제 위험이 가장 낮다.
+2. **"전체 지우기" 전용 버튼은 만들지 않는다.** "전체 선택 → 삭제"로 같은 일을 하되, 오클릭 한 번에
+   목록이 날아가지 않는다.
+3. **남의 작업(공유·지시받음)은 삭제가 아니라 "나만 빠지기".** 참여자에게 남의 작업을 지울 권리가
+   없다는 기존 `deleteConsoleTask` 규칙을 일괄 경로도 그대로 따른다. 나가기는 되돌릴 수 없으므로
+   확인 모달에 명시하고 실행 취소는 내가 만든 작업에만 건다.
+4. **전용 서버 액션 `bulkDeleteConsoleTasks(ids)` 신설.** 기존 "지난 미완료 삭제"가 쓰던 클라이언트
+   `for` 루프(작업 수만큼 서버 왕복)도 이걸로 교체했다. 부분 실패를 `failedIds`로 보고한다.
+
+부수 정리: 작업이 소프트 삭제로 바뀐 뒤로 사실이 아니었던 `confirmClearMsg`의 "되돌릴 수 없습니다"
+문구를 ko/ja/en에서 걷어냈다.
+
+**변경 파일**: `src/app/admin/tasks/actions.ts`, `src/components/admin/tasks/admin-tasks-console.tsx`,
+`src/components/admin/tasks/admin-tasks-console.css`, `src/lib/admin-tasks-i18n.ts`. DB 변경 없음.
+`npx tsc --noEmit` 0 / `npm run lint` 0 errors / `npm run build` 통과.
+As-built 상세 → `docs/product/28-admin-todoist-console.md` §14.
+
+## 2026-07-29 (후속) 투두이스트 선택 바 — 공용 `.bulkbar` 미채택
+
+바로 위 결정의 구현에서 다중 선택 바를 공용 `.bulkbar`(근태 검토 큐와 동일)로 만들었다가, 사용자가
+실제 화면을 확인한 뒤 되돌렸다. 두 가지가 깨졌다.
+
+1. **정렬.** `.bulkbar`와 `.filt`가 놓이던 자리는 `.tgrid` 바깥이라 전체 폭이다. 우측 요약 레일 위까지
+   뻗어 작업 리스트 카드와 세로선이 맞지 않았고, "선택" 칩도 `flex:1` 스페이서 때문에 리스트를 지나
+   화면 끝까지 날아갔다.
+2. **톤.** 솔리드 네이비 채움이 투두이스트 콘솔의 밝은 카드 언어와 충돌했다.
+
+**확정.** 선택 바는 이 콘솔의 지연 배너(`.odbanner`) 골격을 primary 톤으로 재사용한 `.selbar`로
+만들고, `.wcol` **안**에서 렌더해 리스트 카드와 같은 폭에 세운다. "선택" 칩은 필터들과 같은 줄에
+인라인으로 둔다.
+
+이는 `docs/product/28-admin-todoist-console.md` §11이 명시한 "투두이스트는 독립 시각 언어" 방침과
+일치한다 — 공용 콘솔 프리미티브 재사용이 항상 옳은 것은 아니며, 이 화면에서는 레이아웃 컨테이너가
+달라 재사용이 오히려 정렬을 깨뜨렸다.
+
+`npx tsc --noEmit` 0 / `npm run lint` 0 errors / `npm run build` 통과.
+
+## 2026-07-29 투두 반복 — 사용자 지정 요일 추가
+
+**결정.** "매주 월·수·금"처럼 사용자가 직접 요일을 고르는 반복을 추가한다. 기존 표준 6종
+(`daily`/`weekly`/`monthly`/`yearly`/`weekdays`/`weekends`)에 이어지는 7번째 선택지다.
+
+1. **저장은 기존 text 컬럼 재사용, 마이그레이션 없음.** `tasks.recurrence_rule`에
+   `custom:1,3,5`(0=일…6=토, 중복 제거 + 오름차순) 형태로 넣는다.
+2. **요일 없는 bare `custom`(레거시)은 건드리지 않는다.** 스케줄 정보가 없는 값이라 계속
+   round-trip 전용으로 두고, 새 요일 규칙과 별개 값으로 공존시킨다.
+3. **요일 0개는 저장 불가.** 어드민 적용 / 모바일 완료 버튼을 잠근다. 모바일 시트는
+   commit-on-close라 버튼만으로 부족해서, 드래그로 닫아도 미완성 규칙이 `""`로 정규화된다.
+4. **모바일도 편집까지 지원.** 표시만 하면 어드민에서 만든 반복을 모바일에서 못 고치는 반쪽이
+   되므로 요일 선택 UI를 양쪽에 넣었다.
+
+**가장 큰 함정 — 쌍둥이 파일 어긋남.** `STANDARD_RECURRENCE_RULES`가 `src/lib/tasks.ts`(서버)와
+`src/lib/tasks-recurrence.ts`(클라이언트)에 쌍둥이로 존재하고, 후자의 헤더가 경고하듯 **한쪽에만
+있는 규칙은 지난 작업을 하드 삭제시킨다**(서버는 롤포워드, dismiss 분기는 클라이언트 판정을 보고
+삭제). 커스텀 규칙의 파서·판정·요일 포맷을 `tasks-recurrence.ts` 한 곳에만 두고 서버가 그걸
+import하게 만들어, 이 어긋남을 구조적으로 불가능하게 했다.
+
+**서버 검증도 함께 열었다.** `resolveRecurrenceRule`이 `custom:…`을 재파싱 후 재직렬화한다 —
+조작된 `custom:5,1,1`은 `custom:1,5`로, `custom:9`는 `null`로 정규화된다.
+
+**변경 파일**: `src/lib/tasks-recurrence.ts`, `src/lib/tasks.ts`,
+`src/components/admin/tasks/{helpers.ts,admin-tasks-console.tsx,admin-tasks-console.css}`,
+`src/components/tasks/{task-schedule-sheet.tsx,task-card.tsx,task-detail-view.tsx,tasks-workspace.tsx}`,
+`src/lib/{admin-tasks-i18n.ts,i18n.ts}`. **DB 마이그레이션 없음.**
+
+**검증**: `npx tsc --noEmit` 0 / `npm run lint` 0 errors / `npm run build` 통과. 추가로 반복 계산을
+런타임 스크립트로 확인했다 — 파싱 정규화, 범위 밖 요일 거부, bare `custom` 미인식, 앵커 포함 여부가
+기존 `weekends` 규칙과 동일함(`custom:0,6` === `weekends` 출력 일치)까지 검증.
+As-built 상세 → `docs/engineering/09-todo-task-technical-design.md` → "사용자 지정 요일 반복".
+
+## 2026-07-30 투두 반복 — 롤포워드 폐지, 날짜별 독립 회차 모델로 전환
+
+**배경.** 기존 모델(2026-06-16, Todoist식 "단일 살아있는 행 + 완료 시 롤포워드")은 운영 현장과
+맞지 않았다. 반복 업무는 "지금 하나만 처리하고 다음으로 넘기는 리마인더"가 아니라 **각 날짜의
+독립 의무**(매일 청소·재고·매출 시트)다. 완료해야만 다음 날짜로 넘어가서, 오늘 걸 안 하면 내일
+회차가 안 보이고, 날짜별 완료/미완료를 감사할 수 없었다. 사용자 요구: "반복이 5개면 내일도 5개가
+보여야 한다. 완료해야만 넘어가는 게 아니라."
+
+**결정 (2026-06-16 롤포워드 결정을 대체).**
+
+1. **롤포워드 완전 폐지.** 반복 업무 = 고정된 규칙 정의(행 1개 + `recurrence_rule` + 고정 앵커
+   `recurrence_instance_date`). 완료해도 행의 날짜가 바뀌지 않는다. 회차(occurrence)는 규칙으로
+   계산되는 가상 날짜.
+2. **날짜별 독립 회차.** 지정된 각 날짜에 회차가 독립적으로 표시된다(오늘/내일/캘린더/날짜 시트).
+   완료 여부와 무관하게 다음 날짜 회차도 보인다.
+3. **회차별 완료 상태는 새 테이블 `task_occurrence_state`가 정본.** 반복 행의
+   `status`/`completed_at`은 더 이상 완료를 의미하지 않는다(일회성 작업 전용). 마이그레이션
+   `202607300001_task_occurrence_state.sql`.
+4. **지연(overdue)은 영구 유지 — 자동 놓침/자동 삭제 없음.** 연차·연휴·업무 사정으로 며칠이
+   밀려도 사라지지 않는다. overdue 회차 = 과거 지정일인데 미완료·미해결(skipped/moved 아님) 회차.
+   오늘 지연 섹션에 **작업별 1건으로 묶어** "○○ · N일 밀림"으로 표시한다.
+5. **지연 처리 2택.** (a) **삭제** = 그 작업의 미해결 지연 회차를 전부 `skipped`로 기록(시리즈는
+   계속, 영구 보존, 재등장 없음). (b) **오늘로 가져오기** = 미해결 지연 회차를 `moved`로 기록하고
+   **오늘 날짜의 carry-over 일회성 작업 1건**(제목·컨텍스트 복사, 비반복)을 생성한다. 시리즈는
+   그대로 이어진다.
+6. **집계 소스도 회차 기준으로.** 완료탭·업무일지 보고서·"오늘 완료" 카운트는 반복의 경우
+   `task_occurrence_state`(state=completed)를 **occurrence_date 기준**으로 집계한다. 일회성은
+   기존대로 `tasks.status`/`task_updates`. (기존 `task_updates` completed/reopened 로그는 상세
+   활동 로그 용도로 계속 기록.)
+7. **모바일 + 콘솔 동일 적용.**
+
+**carry-over를 합성 회차가 아니라 일회성 작업으로 만든 이유.** "오늘로 가져오기"를 회차 리졸버에
+"moved→today 합성 회차"로 주입하는 방식도 검토했으나, 회차를 계산하는 모든 지점(오늘/내일/캘린더/
+시트/카운트)에 특수분기가 번져 회귀 위험이 컸다. 대신 **기존 일회성 작업 머신(렌더·완료·undo·
+보고서·삭제)을 그대로 재사용**하는 carry-over 일회성 생성이 특수분기 0으로 가장 안전하다.
+
+**기존 데이터 처리.** 이미 롤포워드된 행의 `recurrence_instance_date`(및 due/scheduled)는 규칙
+위상을 이미 올바르게 인코딩하므로 **그대로 고정 앵커로 동결**한다(추가 이동 없음). 과거 완료
+이력은 어느 occurrence_date였는지 복원 불가라 `task_occurrence_state` 백필은 하지 않는다 — 과거
+완료는 기존 `task_updates`(created_at일)로 히스토리에만 남는다. **자동 놓침/클램프는 넣지 않는다**
+(요구사항 4: 지연은 사라지면 안 됨). 앵커가 오래된 방치 반복은 backlog가 커질 수 있으나, 이는
+실제로 밀린 것이며 사용자가 "삭제(일괄 skip)" 1회로 정리한다.
+
+**쌍둥이 파일 경고(재확인).** `src/lib/tasks.ts`(서버)와 `src/lib/tasks-recurrence.ts`(클라)의
+회차 계산·판정이 어긋나면 지난 작업이 잘못 처리된다(2026-07-29 항목 참조). 회차 상태 판정 순수
+헬퍼(`occurrenceStatus`/`outstandingOverdueOccurrences`)는 `tasks-recurrence.ts` 한 곳에 두고 양쪽이
+import한다. 콘솔 `helpers.ts`의 술어도 동일 소스를 쓴다.
+
+**As-built 상세** → `docs/product/18-todo-task-workflow.md`, `docs/product/28-admin-todoist-console.md`,
+`docs/engineering/09-todo-task-technical-design.md`, `docs/product/12-recurring-work-scheduler.md`,
+`docs/engineering/04-data-model.md`, `docs/engineering/05-rls-permissions.md`.
+
+## 2026-07-29~30 어드민 투두이스트 — 모바일 패리티 채우기 + 표시 버그 정리
+
+**배경.** `28-admin-todoist-console.md` §12.5가 사진·태그·컨텍스트 링크·제목/본문 편집을 "모바일에서"로
+남겨둔 의도적 축소였는데, 이는 `05-admin-web-ia.md`의 원칙("모바일에서 가능한 기능은 관리자
+대시보드에서도 가능해야 한다")과 어긋나고 실제로 관리자가 지시할 때마다 모바일로 넘어가야 했다.
+
+**결정.** 축소를 걷어내고 콘솔에서 생성·편집 모두 지원한다. 세부 판단은 다음과 같다.
+
+1. **컨텍스트 조회는 모바일 서버 액션을 그대로 재사용**한다(`fetchPickerBuildings` 등 4개).
+   org 스코프가 이미 걸려 있어 콘솔에서 호출해도 안전하고, 두 표면이 같은 데이터를 본다.
+2. **피커 UX는 모바일이 아니라 콘솔 관례를 따른다.** 모바일 시트는 탭 즉시 커밋이지만 콘솔
+   팝오버는 로컬 draft + 적용 버튼 — 일정·우선순위·공유 팝오버와 일관되게.
+3. **사진 경로 검증·삭제 로직은 공용 모듈로 추출**(`src/lib/task-images.ts`). 스토리지 객체를
+   실제로 지우는 코드라 모바일/어드민 두 벌로 두면 한쪽만 고쳐질 위험이 있다.
+4. **편집 액션의 사진·컨텍스트는 선택적 패치**로 설계한다. 생략 시 기존 값 유지 — 제목만 고치는
+   호출이 링크를 지우거나 사진을 떼어내면 안 된다.
+5. **노트 사진은 별도 폴더**(`task-update-images/`). 작업 레벨 사진 정리 로직에 걸려 지워지면 안 된다.
+
+**함께 고친 표시 버그 2건 (2026-07-30).**
+
+- `yearly` 반복이 콘솔에서 **"반복 없음"으로 거짓 표시**됐다. `repeatLabel`/`repeatShort`에 분기가
+  없어 `default`로 떨어진 것. 콘솔에서 지정할 수 없는 규칙이라도 **모바일이 만든 값은 제대로 읽어야
+  한다** — 화면이 데이터를 부정하면 운영 판단을 오도한다.
+- `errMsg`가 서버 코드 대부분을 "처리하지 못했습니다"로 뭉개, 실제로 반복 저장 실패 원인을 화면에서
+  찾지 못한 사례가 있었다. 코드 전체를 매핑하고 문구 6개를 ko/ja/en에 추가했다.
+
+**남은 격차(별도 슬라이스).** 모바일에만 있는 프로젝트 섹션·멤버 관리와 드래그 정렬, 콘솔에만 있는
+진행 중(in_progress) 상태 설정. 후자는 같은 데이터를 한쪽에서만 다룰 수 있어 우선순위가 높다.
+
+As-built 상세 → `docs/product/28-admin-todoist-console.md` §16.
+
+## 2026-07-30 진행 중 상태 — 모바일에 설정 수단 추가
+
+**결정.** 3상태 모델(`open`/`in_progress`/`completed`)을 모바일에서도 **설정**할 수 있게 한다.
+그전까지 모바일은 완료/재개 2상태뿐이라, 콘솔이 진행 중으로 바꾼 작업을 현장에서 읽기만 하고
+바꿀 수 없었다(상세는 값을 표시하고 있었고, 목록 카드에는 표시조차 없었다).
+
+세부 판단:
+
+1. **완료 전환은 기존 `completeTask` 가 계속 맡는다.** 신규 `setTaskProgress` 는 open ↔ in_progress
+   만 다룬다 — 완료는 반복 회차 처리와 알림이 얽혀 있어 한 액션에 합치면 회귀 위험이 크다.
+2. **모바일 세그먼트는 2칸(대기/진행 중)**, 완료는 아래 전용 버튼 유지. 콘솔의 3칸과 모양은 다르지만
+   상태 모델은 같다. 완료 상태에서는 세그먼트를 숨긴다(그 시점에 필요한 건 "다시 열기").
+3. **목록 카드에 진행 중 칩을 추가**한다. 상세에서만 보이면 목록에서 대기와 구분되지 않아 상태를
+   바꾼 의미가 사라진다.
+
+`npx tsc --noEmit` 0 / `npm run lint` 0 errors.
+Docs: `docs/product/18-todo-task-workflow.md`.
+
+## 2026-07-30 프로젝트 섹션 · 멤버 관리 — 콘솔 이관
+
+**결정.** 모바일 전용이던 프로젝트 섹션(추가·이름변경·삭제)과 멤버(초대·제거)를 콘솔에도 구현한다.
+관리자가 프로젝트를 구성하는 화면에서 구성 자체를 못 만지는 상태였다.
+
+1. **모바일 액션을 재사용하지 않고 콘솔용으로 다시 쓴다.** 모바일은 `FormData` + `redirect` 라
+   결과를 돌려주지 않아 콘솔의 토스트/낙관적 흐름에 못 얹는다. 권한 규칙과 부수 효과(섹션 삭제 시
+   작업 소프트 삭제, 멤버 0명이면 `is_shared` 해제, 알림 발송)는 동일하게 유지했다.
+2. **멤버 관리는 기존 공유 팝오버를 재사용**하고, 적용 시 현재 멤버와 diff 해서 제거→초대를 호출한다.
+   전용 화면을 새로 만들지 않아 콘솔의 사용자 선택 UX가 한 벌로 유지된다.
+3. **드래그 정렬은 이번 범위에서 뺐다.** 모바일은 롱프레스+드래그, 데스크톱은 포인터 드래그와
+   키보드 대체 수단까지 별도 설계가 필요해 성격이 다르다.
+
+`npx tsc --noEmit` 0(내 파일) / `npm run lint` 0 errors.
+As-built → `docs/product/28-admin-todoist-console.md` §17.

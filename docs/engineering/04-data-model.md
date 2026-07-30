@@ -1019,6 +1019,7 @@ status text not null default 'open'        -- open | in_progress | completed | c
 is_inbox boolean not null default true
 is_shared boolean not null default false
 recurrence_rule text                       -- daily | weekly | monthly | weekdays | weekends | yearly | custom (yearly: 202607240001)
+recurrence_instance_date date              -- 반복의 FIXED 앵커(2026-07-30~). 완료해도 롤포워드 안 함. 회차는 규칙으로 계산 → task_occurrence_state
 tags text[]
 image_urls text[]
 completed_by_user_id uuid references profiles(id)
@@ -1039,6 +1040,12 @@ again** by the re-introduced complete/reopen actions (`completeTask` / `reopenTa
 `src/app/mobile/tasks/[id]/actions.ts`). They are no longer dormant — completing a task stamps
 `completed_at` (its Tokyo date drives the Completed/기록 tab grouping) and the completing user, and
 reopening clears them.
+
+Note (2026-07-30): the above `status`/`completed_at` semantics apply to **one-off tasks only**. For
+**recurring** tasks, completion no longer touches the row (no roll-forward) — per-occurrence
+completion lives in `task_occurrence_state` keyed by `occurrence_date`. A recurring row stays
+`status='open'` with a fixed `recurrence_instance_date` anchor. See `docs/planning/01-decision-log.md`
+→ "2026-07-30 롤포워드 폐지".
 
 ## task_participants
 
@@ -1067,6 +1074,33 @@ body text
 image_urls text[]
 created_at timestamptz
 ```
+
+## task_occurrence_state
+
+Per-occurrence state for **recurring** tasks (migration `202607300001_task_occurrence_state.sql`,
+2026-07-30). Recurring tasks no longer roll forward on completion — the row is a fixed rule +
+anchor, occurrences are virtual per scheduled date, and THIS table records whether a given
+`(task_id, occurrence_date)` is completed / skipped / carried. The recurring row's
+`status`/`completed_at` no longer mean "done" (that field is for one-off tasks). See
+`docs/planning/01-decision-log.md` → "2026-07-30 롤포워드 폐지".
+
+```txt
+task_id uuid not null references tasks(id) on delete cascade
+occurrence_date date not null            -- rule-computed occurrence (fixed anchor based)
+organization_id uuid not null references organizations(id)
+state text not null                      -- completed | skipped | moved
+completed_by_user_id uuid references profiles(id)
+moved_to_date date                       -- when state=moved ("오늘로 가져오기" carry target)
+created_at timestamptz / updated_at timestamptz
+primary key (task_id, occurrence_date)
+```
+
+- **completed** — that date's occurrence is done. `completed_by_user_id` set. Aggregated (완료탭 /
+  업무일지 / "오늘 완료") by `occurrence_date`.
+- **skipped** — overdue occurrence dismissed ("삭제"). Kept forever, never re-appears as overdue.
+- **moved** — overdue occurrence carried to today ("오늘로 가져오기"); a carry-over one-off task is
+  created separately for `moved_to_date`. Not counted as a completion.
+- Overdue occurrence = scheduled date `< today` with **no row here** (still open).
 
 ## board_posts / board_post_reads / board_comments / board_reactions
 

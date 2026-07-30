@@ -6,10 +6,15 @@ import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getVisibleProjects } from "@/lib/projects";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
-import { getShareableUsers, getVisibleTasks, tokyoToday } from "@/lib/tasks";
+import {
+  getOccurrenceStates,
+  getShareableUsers,
+  getVisibleTasks,
+  tokyoToday,
+} from "@/lib/tasks";
 
 type PageProps = {
-  searchParams: Promise<{ view?: string; created?: string }>;
+  searchParams: Promise<{ view?: string; created?: string; moveError?: string }>;
 };
 
 const VIEWS = [
@@ -45,11 +50,12 @@ export default async function MobileTasksPage({ searchParams }: PageProps) {
     ? (params.view as (typeof VIEWS)[number])
     : "today";
 
-  const [allVisible, projects, shareableUsers, navBadges] = await Promise.all([
+  const [allVisible, projects, shareableUsers, navBadges, occurrenceStates] = await Promise.all([
     getVisibleTasks(session),
     getVisibleProjects(session),
     getShareableUsers(session),
     getMobileNavBadges(),
+    getOccurrenceStates(session),
   ]);
   // Project tasks live only in the Projects tab; the Completed tab still surfaces project
   // completions via its filter, so those are passed separately.
@@ -66,6 +72,8 @@ export default async function MobileTasksPage({ searchParams }: PageProps) {
         currentUserId={session.user.id}
         initialView={initialView}
         locale={locale}
+        moveError={params.moveError}
+        occurrenceStates={occurrenceStates}
         projectCompletedTasks={projectCompletedTasks}
         projects={projects}
         shareableUsers={shareableUsers}
