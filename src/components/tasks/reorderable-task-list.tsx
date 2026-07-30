@@ -125,13 +125,24 @@ export function ReorderableTaskList({
       if (!draggingRef.current) return;
       finishDrag();
     }
+    // While dragging, swallow touchmove in the CAPTURE phase so it never reaches the mobile shell's
+    // pull-to-refresh / scroll handlers (which are touchmove-driven and would otherwise translate the
+    // whole page along with the finger). preventDefault stops native scroll; stopPropagation stops the
+    // shell's JS pull. No-op when not dragging, so normal scrolling/PTR are untouched.
+    function blockTouch(e: TouchEvent) {
+      if (!draggingRef.current) return;
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+    }
     window.addEventListener("pointermove", onMove, { passive: false });
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
+    window.addEventListener("touchmove", blockTouch, { passive: false, capture: true });
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("touchmove", blockTouch, { capture: true });
     };
   }, []);
 
