@@ -291,6 +291,8 @@ export async function getAttendanceSiteQrOverview(
       .from("attendance_sites")
       .select("*")
       .eq("organization_id", organizationId)
+      // 비활성 현장은 목록 맨 아래로 — 운영에서 뺀 현장이 위를 차지하지 않게.
+      .order("is_active", { ascending: false })
       .order("created_at", { ascending: true }),
     service
       .from("attendance_qr_tokens")
@@ -309,3 +311,55 @@ export async function getAttendanceSiteQrOverview(
     token: bySite.get(site.id) ?? null,
   }));
 }
+
+// ── 현장 정리: 삭제 / 비활성화 (2026-07-31) ────────────────────────────────
+//
+// 스키마가 이미 경계를 정해 두었다:
+//   · attendance_qr_tokens.site_id        → on delete cascade  (QR 은 현장과 함께 사라진다)
+//   · attendance_sessions.clock_in/out_site_id → **on delete restrict**
+//   · attendance_attempt_logs / correction_requests → set null
+//
+// 즉 **출퇴근 기록이 한 건이라도 있는 현장은 DB 가 삭제를 거부한다.** 급여 근거가 되는 기록을
+// 지우지 않기 위한 설계이고, 그대로 유지한다. 그래서 UI 는 두 가지를 나눠 제공한다:
+//   · 기록이 없는 현장 → 완전 삭제
+//   · 기록이 있는 현장 → `is_active = false` 로 운영에서만 제외(기록은 보존)
+// 비활성 현장의 출퇴근은 이미 `submitAttendanceScan` 이 거부한다.
+
+/** 이 현장을 참조하는 출퇴근 세션이 하나라도 있는지. 삭제 가능 여부 판단용. */
+export async function attendanceSiteHasHistory(
+  organizationId: string,
+  siteId: string,
+): Promise<boolean> {
+  const service = getSupabaseServiceClient();
+  const { count, error } = await service
+    .from("attendance_sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .or(`clock_in_site_id.eq.${siteId},clock_out_site_id.eq.${siteId}`);
+  // 확인에 실패하면 "기록이 있다"로 본다 — 모르는 상태에서 삭제 버튼을 열어주지 않는다.
+  if (error) return true;
+  return (count ?? 0) > 0;
+}
+
+export type DeleteAttendanceSiteResult =
+  | { ok: true }
+  | { ok: false; reason: "in_use" | "not_found" | "error" };
+
+/** 현장 삭제. 출퇴근 기록이 있으면 DB(FK restrict)가 막고 `in_use` 를 돌려준다. */
+export async function deleteAttendanceSite(
+  organizationId: string,
+  siteId: string,
+): Promise<DeleteAttendanceSiteResult> {
+  if (!siteId) return { ok: false, reason: "not_found" };
+  const { error } = await getSupabaseServiceClient()
+    .from("attendance_sites")
+    .delete()
+    .eq("organization_id", organizationId)
+    .eq("id", siteId);
+  if (!error) return { ok: true };
+  // 23503 = foreign_key_violation → 이 현장을 참조하는 근태 세션이 있다.
+  if (error.code === "23503") return { ok: false, reason: "in_use" };
+  return { ok: false, reason: "error" };
+}
+
+// 활성/비활성 전환은 위쪽의 기존 `setAttendanceSiteActive()` 를 그대로 쓴다.

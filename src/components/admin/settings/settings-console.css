@@ -28,6 +28,9 @@
 /* 마스터 목록의 선택 행 — 표 대신 목록 행을 쓰므로 `.qtbl tr.sel` 대신 여기서 표시한다.
    행 전체가 링크라 이름 글자 밖을 눌러도 선택된다(표로 만들었을 때 안 눌리던 문제). */
 .adm .setrow.is-sel { background: var(--primary-soft); box-shadow: inset 3px 0 0 var(--primary); }
+/* 비활성 현장 — 목록에 남기되 흐리게. 정렬은 서버에서 맨 아래로 내린다. */
+.adm .setrow.is-off .setsite__n { color: var(--muted); }
+.adm .setrow.is-off .setsite__m { opacity: 0.7; }
 .adm .setrow__side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: 0 0 auto; }
 
 /* 마스터·디테일 — 좌측 목록 / 우측 상세. 화면이 좁으면 한 줄로 떨어진다. */

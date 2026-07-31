@@ -1319,6 +1319,18 @@ const FALLBACK_DICTIONARY = {
       attendanceMissingQrWarn:
         "{n} site(s) have no QR yet. Staff cannot clock in or out at those sites.",
       attendanceDeviceStaff: "Staff",
+      // Site cleanup (2026-07-31). Sites with attendance history cannot be deleted (FK restrict) —
+      // they are deactivated instead so payroll evidence survives.
+      attendanceSiteDelete: "Delete site",
+      attendanceSiteDeleteConfirm:
+        "Delete this site and its QR for good? Printed QR codes for it stop working immediately.",
+      attendanceSiteDeactivate: "Deactivate",
+      attendanceSiteActivate: "Reactivate",
+      attendanceSiteInactive: "Inactive",
+      attendanceSiteDeactivateHint:
+        "Staff cannot clock in or out at an inactive site. Existing records are kept.",
+      attendanceSiteInUseHint:
+        "This site has attendance records, so it cannot be deleted. Deactivate it instead.",
       // Pre-print safety check — a printed QR that opens nowhere costs a full re-print.
       attendanceQrReady: "Opens with the phone camera. Safe to print.",
       attendanceQrWarnMissing:
@@ -1376,6 +1388,9 @@ const FALLBACK_DICTIONARY = {
       status: "Status",
       success: {
         attendanceQrIssued: "Attendance QR issued.",
+        attendanceSiteDeleted: "Site deleted.",
+        attendanceSiteActivated: "Site reactivated.",
+        attendanceSiteDeactivated: "Site deactivated. Clock-in/out is blocked there.",
         attendanceDeviceRevoked: "Device revoked. It will need to sign in again.",
         attendanceQrReissued: "Attendance QR reissued.",
         attendanceSiteSaved: "Attendance site saved.",
@@ -1396,6 +1411,8 @@ const FALLBACK_DICTIONARY = {
         invalid_radius: "Check the allowed radius.",
         invalid_site: "Invalid attendance site.",
         qr_issue_failed: "QR issue failed.",
+        site_in_use: "This site has attendance records and cannot be deleted. Deactivate it instead.",
+        site_delete_failed: "Failed to delete the site.",
         invalid_device: "That device could not be found.",
         device_revoke_failed: "Failed to revoke the device.",
         save_failed: "Save failed",
@@ -5852,6 +5869,16 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         attendanceMissingQrWarn:
           "QR이 없는 현장이 {n}곳 있습니다. 해당 현장에서는 출퇴근을 찍을 수 없습니다.",
         attendanceDeviceStaff: "직원",
+        attendanceSiteDelete: "현장 삭제",
+        attendanceSiteDeleteConfirm:
+          "이 현장과 QR을 완전히 삭제할까요? 이 현장에 붙여둔 인쇄 QR은 즉시 동작하지 않습니다.",
+        attendanceSiteDeactivate: "비활성화",
+        attendanceSiteActivate: "다시 활성화",
+        attendanceSiteInactive: "비활성",
+        attendanceSiteDeactivateHint:
+          "비활성 현장에서는 출퇴근을 찍을 수 없습니다. 기존 기록은 그대로 보존됩니다.",
+        attendanceSiteInUseHint:
+          "이 현장에는 출퇴근 기록이 있어 삭제할 수 없습니다. 대신 비활성화하세요.",
         attendanceQrReady: "휴대폰 카메라로 열립니다. 출력해도 됩니다.",
         attendanceQrWarnMissing:
           "이 QR은 휴대폰 카메라로 열리지 않습니다. NEXT_PUBLIC_APP_URL이 설정되지 않아 토큰만 담겼습니다. 아직 출력하지 마세요.",
@@ -5907,6 +5934,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         status: "상태",
         success: {
           attendanceQrIssued: "출퇴근 QR이 발급되었습니다.",
+          attendanceSiteDeleted: "현장을 삭제했습니다.",
+          attendanceSiteActivated: "현장을 다시 활성화했습니다.",
+          attendanceSiteDeactivated: "현장을 비활성화했습니다. 이 현장에서는 출퇴근을 찍을 수 없습니다.",
           attendanceDeviceRevoked: "기기를 해지했습니다. 다음부터는 다시 로그인해야 합니다.",
           attendanceQrReissued: "출퇴근 QR이 재발급되었습니다.",
           attendanceSiteSaved: "출퇴근 현장이 저장되었습니다.",
@@ -5927,6 +5957,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
           invalid_radius: "허용 반경을 확인해주세요.",
           invalid_site: "출퇴근 현장 정보를 확인해주세요.",
           qr_issue_failed: "QR을 발급하지 못했습니다.",
+          site_in_use: "이 현장에는 출퇴근 기록이 있어 삭제할 수 없습니다. 대신 비활성화하세요.",
+          site_delete_failed: "현장을 삭제하지 못했습니다.",
           invalid_device: "해당 기기를 찾을 수 없습니다.",
           device_revoke_failed: "기기를 해지하지 못했습니다.",
           save_failed: "저장하지 못했습니다.",
@@ -10286,6 +10318,16 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         attendanceMissingQrWarn:
           "QRがない現場が{n}か所あります。その現場では出退勤を打てません。",
         attendanceDeviceStaff: "スタッフ",
+        attendanceSiteDelete: "現場を削除",
+        attendanceSiteDeleteConfirm:
+          "この現場とQRを完全に削除しますか？現場に貼ってある印刷QRはすぐに使えなくなります。",
+        attendanceSiteDeactivate: "無効化",
+        attendanceSiteActivate: "再有効化",
+        attendanceSiteInactive: "無効",
+        attendanceSiteDeactivateHint:
+          "無効な現場では出退勤を打てません。既存の記録はそのまま残ります。",
+        attendanceSiteInUseHint:
+          "この現場には勤怠記録があるため削除できません。代わりに無効化してください。",
         attendanceQrReady: "スマホのカメラで開けます。印刷して大丈夫です。",
         attendanceQrWarnMissing:
           "このQRはスマホのカメラでは開きません。NEXT_PUBLIC_APP_URL が未設定のため、トークンのみが含まれています。まだ印刷しないでください。",
@@ -10341,6 +10383,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         status: "状態",
         success: {
           attendanceQrIssued: "勤怠 QR を発行しました。",
+          attendanceSiteDeleted: "現場を削除しました。",
+          attendanceSiteActivated: "現場を再有効化しました。",
+          attendanceSiteDeactivated: "現場を無効化しました。この現場では出退勤を打てません。",
           attendanceDeviceRevoked: "端末を解除しました。次回からは再ログインが必要です。",
           attendanceQrReissued: "勤怠 QR を再発行しました。",
           attendanceSiteSaved: "勤怠拠点を保存しました。",
@@ -10361,6 +10406,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
           invalid_radius: "許容半径を確認してください。",
           invalid_site: "勤怠拠点を確認してください。",
           qr_issue_failed: "QR を発行できませんでした。",
+          site_in_use: "この現場には勤怠記録があるため削除できません。代わりに無効化してください。",
+          site_delete_failed: "現場を削除できませんでした。",
           invalid_device: "その端末が見つかりません。",
           device_revoke_failed: "端末を解除できませんでした。",
           save_failed: "保存できませんでした。",

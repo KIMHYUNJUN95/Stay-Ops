@@ -9,11 +9,16 @@ import {
 } from "@/app/admin/settings/attendance/actions";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { SettingsSubnav } from "@/components/admin/settings/settings-subnav";
+import { SiteDangerActions } from "@/components/admin/settings/site-danger-actions";
 import "@/components/admin/settings/settings-console.css";
 import { isOrgTopAdminOrPlatform } from "@/config/roles";
 import { requireAdminSession } from "@/lib/admin-session";
 import { attendanceQrLinkState, buildAttendanceQrValue } from "@/lib/attendance-qr";
-import { getAttendanceSiteQrOverview, getQrTokenHistory } from "@/lib/attendance-sites";
+import {
+  attendanceSiteHasHistory,
+  getAttendanceSiteQrOverview,
+  getQrTokenHistory,
+} from "@/lib/attendance-sites";
 import { listTrustedDevices } from "@/lib/attendance-trusted-device";
 import { getDictionary } from "@/lib/i18n";
 import { hasOrganizationContext } from "@/lib/session";
@@ -75,21 +80,29 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
   const qrSvg = qrValue ? await QRCode.toString(qrValue, { type: "svg", margin: 1, width: 256 }) : null;
   const qrLinkState = qrValue ? attendanceQrLinkState(qrValue) : null;
 
-  const [history, trustedDevices] = await Promise.all([
+  const [history, trustedDevices, siteHasHistory] = await Promise.all([
     selectedSite ? getQrTokenHistory(organizationId, selectedSite.id) : Promise.resolve([]),
     listTrustedDevices(organizationId),
+    // 기록이 있으면 DB(FK restrict)가 삭제를 막는다 → 삭제 버튼 대신 비활성화만 노출한다.
+    selectedSite ? attendanceSiteHasHistory(organizationId, selectedSite.id) : Promise.resolve(false),
   ]);
 
   const saved = firstParam(params.saved) === "1";
   const issued = firstParam(params.issued) === "1";
   const reissued = firstParam(params.reissued) === "1";
   const deviceRevoked = firstParam(params.device_revoked) === "1";
+  const siteDeleted = firstParam(params.site_deleted) === "1";
+  const siteActivated = firstParam(params.site_activated) === "1";
+  const siteDeactivated = firstParam(params.site_deactivated) === "1";
   const errorKey = firstParam(params.error);
   const flashMessage =
     (saved && settings.success.attendanceSiteSaved) ||
     (issued && settings.success.attendanceQrIssued) ||
     (reissued && settings.success.attendanceQrReissued) ||
     (deviceRevoked && settings.success.attendanceDeviceRevoked) ||
+    (siteDeleted && settings.success.attendanceSiteDeleted) ||
+    (siteActivated && settings.success.attendanceSiteActivated) ||
+    (siteDeactivated && settings.success.attendanceSiteDeactivated) ||
     (errorKey ? settings.errors[errorKey] ?? settings.errors.save_failed : "");
   const flashIsError = Boolean(errorKey);
   const missingQr = rows.filter((row) => !row.token).length;
@@ -151,7 +164,7 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                   : null;
                 return (
                   <Link
-                    className={`setrow${selectedSite?.id === row.site.id ? " is-sel" : ""}`}
+                    className={`setrow${selectedSite?.id === row.site.id ? " is-sel" : ""}${row.site.is_active ? "" : " is-off"}`}
                     href={`/admin/settings/attendance?site=${row.site.id}`}
                     key={row.site.id}
                   >
@@ -161,7 +174,9 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                         {row.site.latitude}, {row.site.longitude} · {row.site.allowed_radius_meters}m
                       </span>
                     </span>
-                    {!row.token ? (
+                    {!row.site.is_active ? (
+                      <span className="pill pill--muted">{settings.attendanceSiteInactive}</span>
+                    ) : !row.token ? (
                       <span className="pill pill--danger">{settings.attendanceQrNone}</span>
                     ) : state === "ok" ? (
                       <span className="pill pill--done">{settings.attendanceQrOk}</span>
@@ -251,6 +266,31 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                   {selectedSite ? settings.attendanceSaveSite : settings.attendanceCreateSiteCta}
                 </button>
               </form>
+
+              {selectedSite ? (
+                <div
+                  style={{
+                    marginTop: 18,
+                    paddingTop: 16,
+                    borderTop: "1px solid var(--line-soft)",
+                  }}
+                >
+                  <SiteDangerActions
+                    hasHistory={siteHasHistory}
+                    isActive={selectedSite.is_active}
+                    labels={{
+                      activate: settings.attendanceSiteActivate,
+                      cancel: dictionary.common.cancel,
+                      deactivate: settings.attendanceSiteDeactivate,
+                      deactivateHint: settings.attendanceSiteDeactivateHint,
+                      delete: settings.attendanceSiteDelete,
+                      deleteConfirm: settings.attendanceSiteDeleteConfirm,
+                      inUseHint: settings.attendanceSiteInUseHint,
+                    }}
+                    siteId={selectedSite.id}
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
 

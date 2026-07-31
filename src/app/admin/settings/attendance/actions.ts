@@ -3,9 +3,11 @@
 import { redirect } from "next/navigation";
 import {
   createAttendanceSite,
+  deleteAttendanceSite,
   getActiveQrToken,
   getAttendanceSite,
   issueAttendanceQr,
+  setAttendanceSiteActive,
   updateAttendanceSite,
 } from "@/lib/attendance-sites";
 import { revokeTrustedDevice } from "@/lib/attendance-trusted-device";
@@ -145,5 +147,79 @@ async function writeTrustedDeviceAudit(
       } as never);
   } catch {
     console.error("[attendance] trusted-device revoke audit failed", deviceId);
+  }
+}
+
+/**
+ * 현장 삭제 (2026-07-31).
+ *
+ * 출퇴근 기록이 있는 현장은 DB(FK restrict)가 삭제를 거부한다 — 급여 근거가 되는 기록을 지우지
+ * 않기 위한 설계이므로 그대로 둔다. 그런 현장은 `deactivateAttendanceSite` 로 운영에서만 뺀다.
+ * QR 토큰은 cascade 로 함께 삭제된다.
+ */
+export async function deleteAttendanceSiteAction(formData: FormData) {
+  const session = await requireOwnerOrgSession();
+  const organizationId = session.organization.id;
+  const siteId = parseText(formData, "siteId");
+  if (!siteId) {
+    redirect("/admin/settings/attendance?error=invalid_site");
+  }
+
+  const result = await deleteAttendanceSite(organizationId, siteId);
+  if (!result.ok) {
+    const key = result.reason === "in_use" ? "site_in_use" : "site_delete_failed";
+    redirect(`/admin/settings/attendance?site=${encodeURIComponent(siteId)}&error=${key}`);
+  }
+
+  await writeSiteAudit(organizationId, session.user.id, "attendance_site_delete", siteId);
+  redirect("/admin/settings/attendance?site_deleted=1");
+}
+
+/** 현장 활성/비활성 전환. 비활성 현장에서는 출퇴근을 찍을 수 없고, 기록은 그대로 보존된다. */
+export async function setAttendanceSiteActiveAction(formData: FormData) {
+  const session = await requireOwnerOrgSession();
+  const organizationId = session.organization.id;
+  const siteId = parseText(formData, "siteId");
+  const activate = parseText(formData, "activate") === "1";
+  if (!siteId) {
+    redirect("/admin/settings/attendance?error=invalid_site");
+  }
+
+  try {
+    await setAttendanceSiteActive(organizationId, siteId, activate);
+  } catch {
+    redirect(`/admin/settings/attendance?site=${encodeURIComponent(siteId)}&error=save_failed`);
+  }
+
+  await writeSiteAudit(
+    organizationId,
+    session.user.id,
+    activate ? "attendance_site_activate" : "attendance_site_deactivate",
+    siteId,
+  );
+  redirect(
+    `/admin/settings/attendance?site=${encodeURIComponent(siteId)}&${activate ? "site_activated" : "site_deactivated"}=1`,
+  );
+}
+
+async function writeSiteAudit(
+  organizationId: string,
+  actorUserId: string,
+  action: string,
+  siteId: string,
+) {
+  try {
+    await getSupabaseServiceClient()
+      .from("audit_logs")
+      .insert({
+        organization_id: organizationId,
+        actor_user_id: actorUserId,
+        action,
+        target_type: "attendance_site",
+        target_id: siteId,
+        metadata: {},
+      } as never);
+  } catch {
+    console.error("[attendance] site audit failed", action, siteId);
   }
 }

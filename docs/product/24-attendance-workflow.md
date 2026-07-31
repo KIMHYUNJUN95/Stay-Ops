@@ -269,6 +269,31 @@ https://<앱주소>/mobile/attendance/capture?token=att_…
   받는다(`extractAttendanceToken`). 기존 QR 은 앱에서 계속 동작하지만, **카메라 기능을 쓰려면 건물별
   QR 을 새로 출력해 교체해야 한다.**
 
+### 현장 정리 — 삭제 vs 비활성화 (2026-07-31)
+
+출퇴근 현장을 목록에서 치울 수 있어야 한다는 요구가 있었지만, **삭제 범위는 스키마가 이미 정해
+두었다.**
+
+| 참조 | on delete |
+| --- | --- |
+| `attendance_qr_tokens.site_id` | `cascade` — QR 은 현장과 함께 사라진다 |
+| `attendance_sessions.clock_in/out_site_id` | **`restrict`** — 출퇴근 기록이 있으면 삭제 거부 |
+| `attendance_attempt_logs.resolved_site_id` | `set null` |
+| `attendance_correction_requests.desired_*_site_id` | `set null` |
+
+즉 **근태 기록이 한 건이라도 있는 현장은 삭제할 수 없다.** 급여 근거가 되는 기록을 지우지 않기
+위한 설계이며 그대로 유지한다. 그래서 UI 는 두 갈래로 나눈다.
+
+- **완전 삭제** — 기록이 한 번도 없는 현장만. 인라인 확인을 거치고, QR 토큰은 cascade 로 함께
+  삭제된다. 그 현장에 붙여둔 인쇄 QR 은 즉시 죽는다(확인 문구에 명시).
+- **비활성화** — 기록이 있는 현장은 `is_active = false` 로 운영에서만 뺀다. 기록은 보존되고,
+  비활성 현장의 출퇴근은 이미 `submitAttendanceScan` 이 거부한다. 다시 활성화할 수 있다.
+
+기록 유무는 `attendanceSiteHasHistory()` 로 미리 확인해, 삭제할 수 없는 현장에는 삭제 버튼 대신
+안내를 띄운다(눌러도 실패만 하는 버튼을 두지 않는다). 목록에서 비활성 현장은 흐리게 표시하고
+맨 아래로 정렬한다. 삭제·활성/비활성 전환은 `audit_logs` 에 남는다
+(`attendance_site_delete` / `attendance_site_activate` / `attendance_site_deactivate`).
+
 ### 인쇄 전 안전장치 (2026-07-31, 실제 사고 후 추가)
 
 `NEXT_PUBLIC_APP_URL` 이 비어 있으면 QR 은 **조용히 예전 형식(토큰만)** 으로 그려진다. 화면상으로는
