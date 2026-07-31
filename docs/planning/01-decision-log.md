@@ -4590,3 +4590,24 @@ en `{n} assigned`) — 청소·근태·주문 화면이 이미 `담당자`를 �
 `src/components/admin/tasks/{admin-tasks-console.tsx,admin-tasks-console.css}`,
 docs(18-product, 05-engineering, 01·06-planning). **검증**: `tsc --noEmit` 0 errors,
 `npm run lint` 0 errors.
+
+## 2026-07-31 투두 화면 간 불일치 — 한쪽으로 맞추는 기준
+
+병렬 감사에서 나온 투두 불일치를 정리하며 세운 기준.
+
+**반복 옵션은 양쪽 합집합으로.** 어느 화면에서 만들었느냐에 따라 선택지가 다르면 안 된다. 읽기는
+이미 양쪽 다 되고 엔진도 지원하므로 목록만 맞추면 끝나는 문제였다.
+
+**삭제 되돌리기는 경로가 아니라 동작 기준으로.** 모바일은 상세 삭제에만 실행 취소가 있었다.
+같은 "삭제" 인데 어디서 눌렀느냐로 되돌리기 유무가 갈리는 건 사용자가 예측할 수 없다.
+소프트 삭제(CLAUDE.md §9 예외)를 쓰는 이상 **모든 삭제 경로에 되돌리기**를 붙인다.
+
+**같은 숫자를 보여야 하는 집계는 함수 하나로.** 완료 로그가 두 파일에 복사돼 있었다. 이 저장소는
+반복 규칙 복사본이 갈라져 오버듀 작업이 하드 삭제된 전례가 있다. 콘솔 완료·기록과 모바일
+완료·기록/업무일지처럼 **사용자가 두 화면을 대조하는 숫자**는 특히 단일 출처여야 한다.
+
+**변경 파일**: `src/components/tasks/{task-schedule-sheet,tasks-workspace}.tsx`,
+`src/components/admin/tasks/helpers.ts`, `src/app/mobile/tasks/[id]/actions.ts`,
+`src/lib/admin-tasks.ts`, docs(18-product, 01·06-planning).
+**검증**: `tsc --noEmit` 관련 오류 0, `npm run lint` 0 errors.
+

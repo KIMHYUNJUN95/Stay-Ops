@@ -806,11 +806,11 @@ export async function restoreTask(taskId: string): Promise<{ ok: boolean }> {
 // Batch delete from the list (multi-select). Only deletes tasks the acting user authored —
 // the `created_by_user_id` filter is the authorization boundary, so selecting tasks shared to
 // you (that you don't own) simply leaves them untouched. Stays on the list (revalidates).
-export async function deleteTasksInList(taskIds: string[]) {
+export async function deleteTasksInList(taskIds: string[]): Promise<{ deletedIds: string[] }> {
   const ids = Array.from(
     new Set((taskIds ?? []).map((s) => String(s).trim()).filter(Boolean)),
   ).slice(0, 200);
-  if (ids.length === 0) return;
+  if (ids.length === 0) return { deletedIds: [] };
   const session = await getCurrentAppSession();
   if (!session) {
     redirect(`/auth/login?next=${encodeURIComponent("/mobile/tasks")}`);
@@ -819,11 +819,33 @@ export async function deleteTasksInList(taskIds: string[]) {
     redirect("/mobile/unavailable");
   }
   const supabase = getSupabaseServiceClient();
-  await supabase
+  // 실제로 지워진 id 만 돌려준다 — 목록에서 남의 작업을 같이 골랐어도 그건 안 지워지므로,
+  // "실행 취소" 가 지우지도 않은 작업을 되살리려 하면 안 된다(콘솔 `bulkDeleteConsoleTasks` 와 동일).
+  const { data } = await supabase
     .from("tasks")
     .update({ deleted_at: new Date().toISOString() } as never)
     .in("id", ids)
-    .eq("created_by_user_id", session.user.id);
+    .eq("created_by_user_id", session.user.id)
+    .select("id");
+  revalidatePath("/mobile/tasks");
+  return { deletedIds: ((data ?? []) as Array<{ id: string }>).map((r) => r.id) };
+}
+
+/** 목록 일괄 삭제 되돌리기. 소프트 삭제라 `deleted_at` 만 지우면 복구된다(작성자 본인 한정). */
+export async function restoreTasksInList(taskIds: string[]): Promise<void> {
+  const ids = Array.from(
+    new Set((taskIds ?? []).map((s) => String(s).trim()).filter(Boolean)),
+  ).slice(0, 200);
+  if (ids.length === 0) return;
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return;
+  const supabase = getSupabaseServiceClient();
+  await supabase
+    .from("tasks")
+    .update({ deleted_at: null } as never)
+    .in("id", ids)
+    .eq("created_by_user_id", session.user.id)
+    .eq("organization_id", session.organization.id);
   revalidatePath("/mobile/tasks");
 }
 

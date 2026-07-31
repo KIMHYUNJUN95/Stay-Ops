@@ -250,6 +250,7 @@ export function TaskSchedulePicker({
     { rule: "daily", label: copy.repeatDaily },
     { rule: "weekly", label: fill(copy.repeatWeeklyOn, { w: wdLong }) },
     { rule: "weekdays", label: copy.repeatEveryWeekday },
+    { rule: "weekends", label: copy.repeatWeekends },
     { rule: "monthly", label: fill(copy.repeatMonthlyOn, { d: dayNum }) },
     { rule: "yearly", label: fill(copy.repeatYearlyOn, { md: mdLabel }) },
   ];

@@ -44,7 +44,7 @@ import {
   reorderDateTasks,
   reorderTasks,
   rescheduleOverdueTo,
-  restoreTask,
+  restoreTasksInList,
   skipOccurrenceOn,
   skipOverdueOccurrences,
   unskipOccurrenceOn,
@@ -263,6 +263,17 @@ export function TasksWorkspace({
     setSelectMode(false);
     setSelectedIds(new Set());
   }, []);
+  // 삭제 되돌리기 상태. **`performDelete` 보다 위에 선언해야 한다** — 아래에 두면 React Compiler 가
+  // "Cannot access variable before it is declared" 로 막는다.
+  const [deletedUndoIds, setDeletedUndoIds] = useState<string[] | null>(null);
+  const deleteUndoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showDeleteUndo = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    if (deleteUndoTimer.current) clearTimeout(deleteUndoTimer.current);
+    setDeletedUndoIds(ids);
+    deleteUndoTimer.current = setTimeout(() => setDeletedUndoIds(null), 5500);
+  }, []);
+
   // Commit a delete (single from the menu, or the multi-select batch). Optimistically hide the
   // rows, then run the server batch delete; only author-owned tasks are actually removed.
   const performDelete = useCallback(
@@ -274,18 +285,20 @@ export function TasksWorkspace({
         return next;
       });
       startDelete(async () => {
-        await deleteTasksInList(ids);
+        const { deletedIds } = await deleteTasksInList(ids);
         setHiddenTaskIds((prev) => {
           const next = new Set(prev);
           ids.forEach((id) => next.delete(id));
           return next;
         });
+        // 실제로 지워진 것만 되돌릴 수 있다 — 남의 작업을 같이 골랐어도 그건 안 지워진다.
+        showDeleteUndo(deletedIds);
       });
       setConfirmIds(null);
       setSelectMode(false);
       setSelectedIds(new Set());
     },
-    [],
+    [showDeleteUndo],
   );
 
   /**
@@ -399,24 +412,26 @@ export function TasksWorkspace({
   // Delete undo: deleteTask soft-deletes then redirects to ?deleted=<id>. Show a "삭제했습니다 · 실행
   // 취소" toast that calls restoreTask. Guarded by a ref so it fires once per id (no re-show on refresh).
   const searchParams = useSearchParams();
-  const [deletedUndoId, setDeletedUndoId] = useState<string | null>(null);
+  // 상세에서 지우면 `?deleted=<id>` 로 돌아오고, 목록에서 일괄로 지우면 서버가 실제 지운 id 들을
+  // 돌려준다. 두 경로가 같은 토스트를 쓰도록 **배열 하나로** 일반화했다(2026-07-31) — 예전에는
+  // 상세 경로에만 실행 취소가 있어 목록에서 지우면 되돌릴 방법이 없었다.
   const processedDelete = useRef<string | null>(null);
   useEffect(() => {
     const id = searchParams.get("deleted");
     if (!id || processedDelete.current === id) return;
     processedDelete.current = id;
-    const raf = requestAnimationFrame(() => setDeletedUndoId(id));
-    const t = setTimeout(() => setDeletedUndoId((cur) => (cur === id ? null : cur)), 5500);
+    const raf = requestAnimationFrame(() => setDeletedUndoIds([id]));
+    const t = setTimeout(() => setDeletedUndoIds((cur) => (cur?.[0] === id ? null : cur)), 5500);
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(t);
     };
   }, [searchParams]);
   const handleRestore = useCallback(() => {
-    setDeletedUndoId((id) => {
-      if (id)
+    setDeletedUndoIds((ids) => {
+      if (ids?.length)
         startComplete(async () => {
-          await restoreTask(id);
+          await restoreTasksInList(ids);
           router.refresh();
         });
       return null;
@@ -2357,7 +2372,7 @@ export function TasksWorkspace({
         : null}
 
       {/* Undo toast — floats above the tab bar after a complete (status-circle) or a delete. */}
-      {(undoTask || deletedUndoId) && hydrated
+      {(undoTask || deletedUndoIds?.length) && hydrated
         ? createPortal(
             <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-4">
               <div className="pointer-events-auto flex max-w-[420px] items-center gap-2.5 rounded-[18px] bg-slate-900 py-2.5 pl-4 pr-2 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
@@ -2381,7 +2396,7 @@ export function TasksWorkspace({
                   className="inline-flex size-8 flex-none items-center justify-center rounded-xl text-slate-400 transition-colors active:bg-white/10"
                   onClick={() => {
                     setUndoTask(null);
-                    setDeletedUndoId(null);
+                    setDeletedUndoIds(null);
                   }}
                   type="button"
                   aria-label={copy.undo}

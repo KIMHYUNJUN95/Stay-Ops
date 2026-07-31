@@ -199,9 +199,21 @@ export function statusLabel(status: string, d: AdminTasksDictionary): string {
       : d.stOpen;
 }
 
-// 백엔드 지원 반복 규칙(yearly 미지원, 요일 없는 bare `custom` 은 round-trip 전용).
-// 사용자 지정 요일 반복은 `custom:1,3,5` 형태라 이 목록이 아니라 별도 빌더로 만든다.
-export const REPEAT_RULES = ["none", "daily", "weekly", "weekdays", "weekends", "monthly"] as const;
+// 사용자가 고를 수 있는 반복 규칙. 요일 없는 bare `custom` 은 round-trip 전용이라 여기 없고,
+// 사용자 지정 요일 반복(`custom:1,3,5`)은 별도 빌더로 만든다.
+//
+// `yearly` 는 예전 주석이 "백엔드 미지원" 이라 적어 뒀지만 **엔진은 처음부터 지원**한다
+// (`src/lib/tasks.ts` / `tasks-recurrence.ts` 양쪽에 케이스 존재, 아래 `repeatLabel` 도 처리).
+// 모바일에서는 만들 수 있는데 콘솔에서만 못 만드는 비대칭이라 목록에 넣는다(2026-07-31).
+export const REPEAT_RULES = [
+  "none",
+  "daily",
+  "weekly",
+  "weekdays",
+  "weekends",
+  "monthly",
+  "yearly",
+] as const;
 export type RepeatRule = (typeof REPEAT_RULES)[number];
 
 // 요일 순서/이름은 모바일과 공유(@/lib/tasks-recurrence) — 두 화면이 어긋나지 않게 한 곳에서만 정의.

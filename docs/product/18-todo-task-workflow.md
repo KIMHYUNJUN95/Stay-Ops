@@ -1309,3 +1309,44 @@ Design in this order:
 지시로 보낸 작업은 **지시자의 오늘/내일/관리함/캘린더에서 빠지고**(`myOwn`) 대상자의 일정에 잡힌다.
 보낸 쪽은 `지시 › 보낸 지시`에서만 진행 상황을 본다.
 
+## 2026-07-31 모바일 ↔ 콘솔 불일치 일괄 정리
+
+에이전트 병렬 감사에서 나온 투두 관련 불일치를 정리했다. **기능 결손이 아니라 두 화면이 갈라져
+있던 것들**이라 한쪽 기준으로 맞추는 작업이었다.
+
+### 반복 옵션 비대칭 해소
+
+| | 이전 | 지금 |
+| --- | --- | --- |
+| 모바일 | none · daily · weekly · weekdays · monthly · **yearly** | 6종 + **weekends** |
+| 콘솔 | none · daily · weekly · weekdays · **weekends** · monthly | 6종 + **yearly** |
+
+같은 작업을 **어디서 만들었느냐에 따라 선택지가 달랐다.** 양쪽 목록을 같게 맞췄다. 라벨은 두 사전에
+이미 있었고(`repeatWeekends` / `repYearly`) 엔진도 `yearly` 를 처음부터 지원했다 —
+콘솔 주석의 "yearly 미지원" 은 **틀린 서술**이라 함께 고쳤다.
+
+### 목록 일괄 삭제에 실행 취소 추가 (모바일)
+
+모바일은 **상세에서 지우면** `?deleted=<id>` 로 돌아와 실행 취소 토스트가 떴지만,
+**목록에서 여러 개를 지우면** 되돌릴 방법이 없었다. 같은 앱 안에서 삭제 경로에 따라 되돌리기 유무가
+갈리던 것.
+
+- `deleteTasksInList` 가 **실제로 지워진 id** 를 돌려준다(`.select("id")`). 목록에서 남의 작업을
+  같이 골라도 그건 안 지워지므로, 지우지도 않은 작업을 되살리면 안 된다.
+- `restoreTasksInList(ids)` 신설 — 소프트 삭제라 `deleted_at` 만 비우면 복구된다(작성자 본인 한정).
+- 클라이언트의 되돌리기 상태를 **id 배열 하나로 일반화**해 상세·목록 두 경로가 같은 토스트를 쓴다.
+
+> `showDeleteUndo` 는 `performDelete` **위에** 선언해야 한다 — 아래에 두면 React Compiler 가
+> "Cannot access variable before it is declared" 로 막는다.
+
+### 완료 로그 조회 중복 제거
+
+완료 집계(`task_updates` 의 completed − reopened net)가 `src/lib/tasks.ts` 와
+`src/lib/admin-tasks.ts` 두 곳에 복사돼 있었다. **콘솔 완료·기록 탭과 모바일 완료·기록/업무일지가
+같은 숫자를 보여야 하므로** 갈라지면 곧바로 사용자에게 드러난다. `admin-tasks.ts` 의
+`getCompletionRecords` 는 이제 `getTaskCompletions()` 에 **위임만** 하고 콘솔이 쓰는 모양으로
+좁힌다.
+
+이 저장소는 반복 규칙을 두 파일에 복사해 뒀다가 정의가 갈리면서 **오버듀 작업이 하드 삭제되는**
+사고를 낸 적이 있다. 같은 실수를 반복하지 않기 위한 정리다.
+

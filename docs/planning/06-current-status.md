@@ -3832,3 +3832,15 @@ Files: `src/lib/task-directives.ts`(신규), `src/lib/i18n.ts`,
 `task_participants.added_by_user_id`). 소유자가 이 점을 알고 편의를 택한 결정.
 
 검증: `tsc --noEmit` 0 errors, `npm run lint` 0 errors(경고 11 = 기존).
+
+## 2026-07-31 — 투두 모바일↔콘솔 불일치 정리 (3건)
+
+1. **반복 옵션 비대칭 해소** — 모바일에 `weekends`, 콘솔에 `yearly` 추가. 라벨과 엔진 지원은 원래
+   양쪽에 다 있었고 선택 목록에서만 빠져 있었다. 콘솔 주석의 "yearly 백엔드 미지원" 은 오기라 정정.
+2. **모바일 목록 일괄 삭제에 실행 취소 추가** — 상세 삭제에만 있던 되돌리기를 목록에도. 서버가 실제
+   지운 id 만 돌려주고, 클라이언트 되돌리기 상태를 id 배열로 일반화해 두 경로가 한 토스트를 쓴다.
+3. **완료 로그 조회 중복 제거** — `admin-tasks.ts` 가 `tasks.ts` 의 `getTaskCompletions()` 에 위임.
+   콘솔 완료·기록과 모바일 완료·기록/업무일지가 같은 소스를 보게 된다.
+
+검증: `tsc --noEmit` 관련 오류 0, `npm run lint` 0 errors(경고 11 = 기존). Docs: 18-product.
+
