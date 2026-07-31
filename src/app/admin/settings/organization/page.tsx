@@ -113,32 +113,28 @@ export default async function AdminOrganizationSettingsPage({ searchParams }: Pa
               <div className="setnote setnote--dim">{settings.emptyOrganizations}</div>
             </div>
           ) : (
-            <table className="qtbl">
-              <thead>
-                <tr>
-                  <th style={{ paddingLeft: 16 }}>{settings.organizationName}</th>
-                  <th>{settings.membersLabel}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {organizations.map((org) => (
-                  <tr className={selected?.id === org.id ? "sel" : ""} key={org.id}>
-                    <td style={{ paddingLeft: 16 }}>
-                      <Link href={`/admin/settings/organization?org=${org.id}`}>
-                        <span className="setsite__n">{org.name}</span>
-                        <span className="setsite__m">{org.slug}</span>
-                      </Link>
-                    </td>
-                    <td>
-                      <span className={statusPillClass(org.status)}>
-                        {statusLabels[org.status] ?? org.status}
-                      </span>
-                      <span className="setsite__m">{memberCounts.get(org.id) ?? 0}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div>
+              {organizations.map((org) => (
+                <Link
+                  className={`setrow${selected?.id === org.id ? " is-sel" : ""}`}
+                  href={`/admin/settings/organization?org=${org.id}`}
+                  key={org.id}
+                >
+                  <span className="setrow__b">
+                    <span className="setsite__n">{org.name}</span>
+                    <span className="setsite__m">{org.slug}</span>
+                  </span>
+                  <span className="setrow__side">
+                    <span className={statusPillClass(org.status)}>
+                      {statusLabels[org.status] ?? org.status}
+                    </span>
+                    <span className="setsite__m">
+                      {settings.membersLabel} {memberCounts.get(org.id) ?? 0}
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
           )}
         </div>
 
@@ -163,7 +159,7 @@ export default async function AdminOrganizationSettingsPage({ searchParams }: Pa
                 </span>
               </div>
               <div className="card__body">
-                <form action={updateOrganization}>
+                <form action={updateOrganization} className="setform">
                   <input name="organizationId" type="hidden" value={selected.id} />
                   <div className="fld">
                     <label className="fld__l" htmlFor="org-name">
@@ -207,7 +203,7 @@ export default async function AdminOrganizationSettingsPage({ searchParams }: Pa
               </div>
             </div>
             <div className="card__body">
-              <form action={createOrganization}>
+              <form action={createOrganization} className="setform">
                 <div className="fld">
                   <label className="fld__l" htmlFor="new-org-name">
                     {settings.organizationName}

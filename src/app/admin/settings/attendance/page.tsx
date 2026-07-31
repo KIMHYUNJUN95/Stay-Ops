@@ -144,43 +144,34 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
               <div className="setnote setnote--dim">{settings.attendanceEmptySites}</div>
             </div>
           ) : (
-            <table className="qtbl">
-              <thead>
-                <tr>
-                  <th style={{ paddingLeft: 16 }}>{settings.attendanceSiteName}</th>
-                  <th>QR</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  const state = row.token
-                    ? attendanceQrLinkState(buildAttendanceQrValue(row.token.token))
-                    : null;
-                  return (
-                    <tr className={selectedSite?.id === row.site.id ? "sel" : ""} key={row.site.id}>
-                      <td style={{ paddingLeft: 16 }}>
-                        <Link href={`/admin/settings/attendance?site=${row.site.id}`}>
-                          <span className="setsite__n">{row.site.name}</span>
-                          <span className="setsite__m">
-                            {row.site.latitude}, {row.site.longitude} ·{" "}
-                            {row.site.allowed_radius_meters}m
-                          </span>
-                        </Link>
-                      </td>
-                      <td>
-                        {!row.token ? (
-                          <span className="pill pill--danger">{settings.attendanceQrNone}</span>
-                        ) : state === "ok" ? (
-                          <span className="pill pill--done">{settings.attendanceQrOk}</span>
-                        ) : (
-                          <span className="pill pill--warn">{settings.attendanceQrNeedsFix}</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div>
+              {rows.map((row) => {
+                const state = row.token
+                  ? attendanceQrLinkState(buildAttendanceQrValue(row.token.token))
+                  : null;
+                return (
+                  <Link
+                    className={`setrow${selectedSite?.id === row.site.id ? " is-sel" : ""}`}
+                    href={`/admin/settings/attendance?site=${row.site.id}`}
+                    key={row.site.id}
+                  >
+                    <span className="setrow__b">
+                      <span className="setsite__n">{row.site.name}</span>
+                      <span className="setsite__m">
+                        {row.site.latitude}, {row.site.longitude} · {row.site.allowed_radius_meters}m
+                      </span>
+                    </span>
+                    {!row.token ? (
+                      <span className="pill pill--danger">{settings.attendanceQrNone}</span>
+                    ) : state === "ok" ? (
+                      <span className="pill pill--done">{settings.attendanceQrOk}</span>
+                    ) : (
+                      <span className="pill pill--warn">{settings.attendanceQrNeedsFix}</span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
           )}
         </div>
 
@@ -200,7 +191,7 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
               </div>
             </div>
             <div className="card__body">
-              <form action={saveAttendanceSiteSettings}>
+              <form action={saveAttendanceSiteSettings} className="setform">
                 <input name="siteId" type="hidden" value={selectedSite?.id ?? ""} />
                 <div className="fld">
                   <label className="fld__l" htmlFor="site-name">
@@ -302,6 +293,12 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                         <span className="kv__k">{settings.attendanceQrLink}</span>
                         <span className="kv__v mono" style={{ fontSize: 11 }}>
                           {qrValue}
+                        </span>
+                      </div>
+                      <div className="kv">
+                        <span className="kv__k">{settings.attendanceToken}</span>
+                        <span className="kv__v mono" style={{ fontSize: 11 }}>
+                          {activeQr.token}
                         </span>
                       </div>
                       <div className="kv">

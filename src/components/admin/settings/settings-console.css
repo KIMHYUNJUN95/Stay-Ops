@@ -25,6 +25,10 @@
 .adm .setrow__b .card__t { display: block; }
 .adm .setrow__pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
 .adm .setrow__chev { color: var(--faint); display: inline-flex; font-size: 17px; flex: 0 0 auto; }
+/* 마스터 목록의 선택 행 — 표 대신 목록 행을 쓰므로 `.qtbl tr.sel` 대신 여기서 표시한다.
+   행 전체가 링크라 이름 글자 밖을 눌러도 선택된다(표로 만들었을 때 안 눌리던 문제). */
+.adm .setrow.is-sel { background: var(--primary-soft); box-shadow: inset 3px 0 0 var(--primary); }
+.adm .setrow__side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: 0 0 auto; }
 
 /* 마스터·디테일 — 좌측 목록 / 우측 상세. 화면이 좁으면 한 줄로 떨어진다. */
 .adm .setgrid { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 16px; align-items: start; }
@@ -52,9 +56,12 @@
 .adm .sethist__d { font-family: var(--mono); color: var(--muted); font-size: 11.5px; white-space: nowrap; }
 
 /* 목록 행의 현장명 + 좌표 보조줄 */
-.adm .setsite__n { font-size: 13px; font-weight: 800; letter-spacing: -0.02em; }
-.adm .setsite__m { font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: var(--faint); margin-top: 2px; }
+.adm .setsite__n { display: block; font-size: 13px; font-weight: 800; letter-spacing: -0.02em; }
+.adm .setsite__m { display: block; font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: var(--faint); margin-top: 2px; }
+
+/* 상세 폼은 읽기 좋은 폭으로 묶는다 — 우측 컬럼이 넓다고 입력칸을 900px 로 늘리지 않는다. */
+.adm .setform { max-width: 520px; }
 
 /* 인라인 폼 행 (조직명 수정처럼 input + 버튼이 한 줄) */
-.adm .setinline { display: flex; gap: 8px; align-items: center; }
+.adm .setinline { display: flex; gap: 8px; align-items: flex-end; }
 .adm .setinline .fld { flex: 1; min-width: 0; margin: 0; }

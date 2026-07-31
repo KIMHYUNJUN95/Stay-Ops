@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { deleteOrganization } from "@/app/admin/settings/actions";
 
 type OrgDeleteButtonProps = {
@@ -20,36 +19,30 @@ export function OrgDeleteButton({ organizationId, labels }: OrgDeleteButtonProps
 
   if (confirming) {
     return (
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-bold text-destructive">{labels.confirm}</span>
-        <Button
-          className="h-9 px-3 text-sm"
-          type="button"
-          variant="secondary"
-          onClick={() => setConfirming(false)}
-        >
+      <div className="setnote setnote--warn" style={{ flexWrap: "wrap", alignItems: "center", gap: 10 }}>
+        <span style={{ flex: 1, minWidth: 160 }}>{labels.confirm}</span>
+        <button className="btn btn--ghost btn--sm" onClick={() => setConfirming(false)} type="button">
           {labels.cancel}
-        </Button>
+        </button>
         <form action={deleteOrganization}>
           <input name="organizationId" type="hidden" value={organizationId} />
-          <Button className="h-9 px-3 text-sm" type="submit" variant="destructive">
-            <Trash2 className="mr-1.5 size-4" />
+          <button className="btn btn--danger btn--sm" type="submit">
+            <span className="ic">
+              <Trash2 aria-hidden="true" />
+            </span>
             {labels.delete}
-          </Button>
+          </button>
         </form>
       </div>
     );
   }
 
   return (
-    <Button
-      className="h-9 px-3 text-sm"
-      type="button"
-      variant="destructive"
-      onClick={() => setConfirming(true)}
-    >
-      <Trash2 className="mr-1.5 size-4" />
+    <button className="btn btn--ghost btn--sm" onClick={() => setConfirming(true)} type="button">
+      <span className="ic">
+        <Trash2 aria-hidden="true" />
+      </span>
       {labels.delete}
-    </Button>
+    </button>
   );
 }
