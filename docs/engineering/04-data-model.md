@@ -1303,6 +1303,22 @@ reused only while `source_text_hash` equals the current source-review text hash;
 requires a fresh on-demand translation. Translation usage/cost telemetry belongs in a separate
 server-only sync/usage log, not in this user-facing record.
 
+### Period rating summaries (planned query contract)
+
+Building/room rating summaries do **not** add a source-of-truth table in v1. The server aggregates
+`external_reviews` directly by `organization_id`, `provider`, and `reviewed_at` range:
+
+- building: `property_id` / property snapshot; average `rating_value` plus review count;
+- room: only reviews with a reliable `room_id`; average `rating_value` plus review count;
+- scores are never averaged across providers because Airbnb and Booking.com use different native scales;
+- rows without `reviewed_at` are excluded from a selected-period summary;
+- properties identified by the company Okubo detached-house rule return building summary only and
+  suppress all room summary rows, even if room mapping data exists.
+
+The range default/control is a design decision, not a schema default. Introduce a cache/materialized
+aggregate only after measuring a real query-performance need; it must remain derived exclusively from
+`external_reviews`.
+
 ## bug_reports
 
 StayOps 앱/시스템 버그 및 제품 문제 신고. **1차 구현 (2026-06-25).** Migration: `supabase/migrations/<timestamp>_bug_reports.sql` (DB engineer 결과 확인 후 파일명 갱신 필요).

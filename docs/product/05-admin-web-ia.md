@@ -286,6 +286,24 @@ Permissions · Invite Codes · Attendance Sites/QR 등)은 위 3개 그룹의 �
 `buildAdminTableWorkbookBase64` / `buildAdminTableReportHtml`로 되살린다. 새 화면에 내보내기를 붙일
 때는 여전히 Excel + PDF 2종을 함께, `<AdminExportButtons>`로만 제공한다.
 
+### 설정 섹션 — 마스터·디테일 (2026-07-31)
+
+`/admin/settings` · `/admin/settings/organization` · `/admin/settings/attendance` 는 이 콘솔에서
+마지막까지 구형 Tailwind `Card`/`Button` 으로 남아 있던 화면이었다. 2026-07-31 에 공용 `.adm`
+프리미티브로 이식하면서 구조도 다른 콘솔과 맞췄다.
+
+- **탭 바**: `SettingsSubnav`(`src/components/admin/settings/settings-subnav.tsx`). 시각 표현은 공용
+  `.lvsubtabs`/`.lvsubtab` 를 그대로 쓴다 — 설정만의 탭 스타일을 새로 만들지 않는다. 근태 콘솔의
+  `AttendanceSubnav` 와 같은 역할이다.
+- **마스터·디테일**: 출퇴근 QR 과 조직 설정 모두 `좌측 목록 표 / 우측 상세`. 린넨·청소 콘솔의
+  목록+상세 패턴과 같은 구조라, 설정 안에서 조작 방식이 화면마다 바뀌지 않는다.
+- **목록은 상태를 보여준다**: 출퇴근 QR 좌측 표는 현장별 QR 상태를 `.pill` 로 노출한다
+  (준비됨 / 조치 필요 / 미발급). 설정 인덱스 카드도 현장 수·QR 준비됨·조치 필요 카운트를 같이 보여준다.
+- **페이지 전용 CSS 는 최소**: `settings-console.css` 에 마스터·디테일 그리드(`.setgrid`), 결과 배너
+  (`.setnote`), QR 표면(`.setqr`), 발급 이력 행(`.sethist`) 정도만 둔다. 나머지는 전부 공용 프리미티브다.
+- **권한 노출 일치**: 조직 설정은 플랫폼 개발자 전용이므로 인덱스 카드와 탭도 같은 조건으로만 노출한다
+  (이전에는 카드가 모두에게 보이는데 페이지에서 튕겼다).
+
 ### Home Top Priority Blocks
 
 최상단 우선 정보는 아래 4묶음이다.
@@ -856,6 +874,10 @@ Management Console" → Current Implementation Note.
 - 외부 리뷰 기본 순서: 위험도 우선 → 낮은 원점수 → 최신 리뷰
 - 위험 기준: Airbnb 3점 이하 위험, Booking 7.0점 위험·7.0점 미만 매우 위험
 - 객실은 Beds24 예약/객실 식별자와 신뢰성 있게 매칭된 경우만 표시하며, 그렇지 않으면 객실 정보 없음을 명시
+- 선택 기간의 건물별 평점과 (오쿠보 외) 객실별 평점을 같은 로컬 리뷰 데이터에서 집계한다. Airbnb·Booking은
+  척도가 달라 플랫폼별 평균 원점수와 리뷰 수를 분리 표시하며, 단일 종합 평점으로 합치지 않는다.
+- 오쿠보는 모두 독채이므로 건물 평점 하나만 제공하고 객실별 평점 영역은 제공하지 않는다. 기간 선택 UI와
+  기본 기간은 실제 디자인 단계에서 확정한다.
 - 상세 패널에서 외부 리뷰 원문을 확인하고, 권한 있는 사용자는 수동 컴플레인으로 전환하거나 연결된
   컴플레인으로 이동
 

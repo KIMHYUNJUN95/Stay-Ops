@@ -26,11 +26,24 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   플랫폼별 세부 점수는 원본 구조로 보관하며 Booking.com의 긍정/부정 본문과 점수만 있는 리뷰를 모두
   정상 처리한다. 모바일은 기존 컴플레인 사이드 메뉴·핀 가능 탭 진입점 안에서 수동 컴플레인/외부 리뷰를
   분리하는 재설계이며, 공용 모바일 셸은 바꾸지 않는다. 모바일·대시보드는 동일한 조직 데이터 원본과
-  리뷰/컴플레인 연결 상태를 공유한다. 모바일 내비게이션 계약도 Product `16`에 반영했다.
+  리뷰/컴플레인 연결 상태를 공유한다. 선택 기간의 건물별·객실별 평점도 추가했으며, 플랫폼별 원점수로
+  분리 집계한다. 오쿠보는 독채이므로 건물 평점 하나만 제공한다. 기간 선택 UI/기본값은 디자인 단계에서
+  결정한다. 모바일 내비게이션 계약도 Product `16`에 반영했다.
   시각 디자인·DB migration·RLS·API·모바일/어드민 구현은 아직 시작하지 않았다. 기준 문서: `docs/product/25-complaint-workflow.md`,
   `docs/product/05-admin-web-ia.md`, `docs/engineering/01-beds24-integration.md`,
   `docs/engineering/04-data-model.md`, `docs/engineering/05-rls-permissions.md`,
   `docs/planning/01-decision-log.md`.
+
+- **설정 3화면 리디자인 완료 (2026-07-31).** 설정 · 조직 설정 · 출퇴근 QR 만 구형 Tailwind
+  `Card`/`Button` 으로 남아 다른 콘솔과 톤이 어긋나 있던 것을 공용 `.adm` 디자인 시스템으로 이식했다.
+  Claude Design 초안 3개 중 **마스터·디테일(1b)** 채택.
+  **출퇴근 QR** — 좌측 표에 전 현장의 QR 상태(준비됨/조치 필요/미발급), 우측에 선택 현장의 현장 정보 ·
+  QR(인쇄 전 판정 배너 포함) · 발급 이력 · 기억된 기기. **조직 설정** — 같은 구조(좌 목록 / 우 편집·삭제
+  + 신규 생성). **설정 인덱스** — 카드가 현재 상태(현장 수 / QR 준비됨 / 조치 필요)를 함께 노출.
+  신규 `SettingsSubnav`(공용 `.lvsubtab` 재사용) + `settings-console.css`(마스터·디테일 그리드와 결과
+  배너만). 새 시각 언어는 만들지 않았다. 함께 고친 것: 조직 설정 카드가 모두에게 보이는데 페이지는
+  플랫폼 개발자 전용이라 누르면 튕기던 불일치. `npm run lint` + `npm run build` + `tsc --noEmit` 통과.
+  기준 문서: `docs/planning/01-decision-log.md`, `docs/product/05-admin-web-ia.md`.
 
 - **근태 기기 기억 (Trusted Device) 구현 완료 (2026-07-31).** QR 딥링크에서 아이폰이 Safari 로 열리는데
   iOS 는 PWA 와 Safari 의 저장소가 분리돼 로그인이 공유되지 않아 재로그인 요구가 반복되던 문제 해결.
@@ -3819,4 +3832,3 @@ Files: `src/lib/task-directives.ts`(신규), `src/lib/i18n.ts`,
 `task_participants.added_by_user_id`). 소유자가 이 점을 알고 편의를 택한 결정.
 
 검증: `tsc --noEmit` 0 errors, `npm run lint` 0 errors(경고 11 = 기존).
-

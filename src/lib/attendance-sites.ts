@@ -271,3 +271,41 @@ export async function getSiteNameByActiveQrToken(
   }
   return site.name;
 }
+
+// ── 현장별 QR 개요 (2026-07-31, 설정 콘솔 마스터·디테일) ──────────────────
+// 설정 인덱스와 출퇴근 QR 화면이 같은 값을 본다: 현장 목록 + 각 현장의 활성 토큰.
+// 현장 수만큼 쿼리를 돌리지 않도록 활성 토큰을 한 번에 읽어 맵으로 붙인다.
+
+export type AttendanceSiteQrRow = {
+  site: AttendanceSiteRow;
+  /** 활성 토큰이 없으면 null = 이 현장에서는 아직 출퇴근을 찍을 수 없다. */
+  token: AttendanceQrTokenRow | null;
+};
+
+export async function getAttendanceSiteQrOverview(
+  organizationId: string,
+): Promise<AttendanceSiteQrRow[]> {
+  const service = getSupabaseServiceClient();
+  const [sitesRes, tokensRes] = await Promise.all([
+    service
+      .from("attendance_sites")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: true }),
+    service
+      .from("attendance_qr_tokens")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true),
+  ]);
+  if (sitesRes.error) throw new Error(`Failed to load attendance sites: ${sitesRes.error.message}`);
+
+  const bySite = new Map<string, AttendanceQrTokenRow>();
+  for (const row of (tokensRes.data ?? []) as AttendanceQrTokenRow[]) {
+    bySite.set(row.site_id, row);
+  }
+  return ((sitesRes.data ?? []) as AttendanceSiteRow[]).map((site) => ({
+    site,
+    token: bySite.get(site.id) ?? null,
+  }));
+}

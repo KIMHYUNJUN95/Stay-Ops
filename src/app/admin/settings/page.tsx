@@ -1,59 +1,101 @@
 import Link from "next/link";
-import { Building2, QrCode } from "lucide-react";
+import { Building2, ChevronRight, QrCode, TriangleAlert } from "lucide-react";
 import { AdminShell } from "@/components/shell/admin-shell";
-import { Card } from "@/components/ui/card";
+import "@/components/admin/settings/settings-console.css";
+import { isOrgTopAdminOrPlatform } from "@/config/roles";
+import { requireAdminSession } from "@/lib/admin-session";
+import { attendanceQrLinkState, buildAttendanceQrValue } from "@/lib/attendance-qr";
+import { getAttendanceSiteQrOverview } from "@/lib/attendance-sites";
 import { getDictionary } from "@/lib/i18n";
 import { hasOrganizationContext } from "@/lib/session";
-import { requireAdminSession } from "@/lib/admin-session";
-import { isOrgTopAdminOrPlatform } from "@/config/roles";
 
+// Admin · 설정 — 섹션 랜딩.
+//
+// 2026-07-31 리디자인: 설정 3화면만 구형 Tailwind Card/Button 조합으로 남아 다른 콘솔과 톤이
+// 어긋나 있었다. 공용 `.adm` 프리미티브로 옮기면서, 카드가 단순 링크가 아니라 **지금 상태**를
+// 같이 보여주게 했다(현장 수 / QR 준비됨 / 교체 필요). "오쿠보C에 QR이 있나?" 를 클릭 없이 알 수
+// 있어야 한다. 초대코드는 2026-07-13 에 `/admin/users/invites` 로 옮겨져 여기 없다.
 export default async function AdminSettingsPage() {
   const session = await requireAdminSession();
   const dictionary = getDictionary(session.user.preferredLanguage);
   const settings = dictionary.admin.settings;
 
-  // Invite-code (team code) management moved to /admin/users/invites, 2026-07-13 — no card here
-  // anymore; see users section tabs instead.
-  const cards = [
-    {
-      description: settings.organizationDescription,
-      href: "/admin/settings/organization",
-      icon: Building2,
-      title: settings.organizationTitle,
-    },
-  ];
+  const canManageAttendance =
+    isOrgTopAdminOrPlatform(session.user.role) && hasOrganizationContext(session);
+  // 조직 설정은 플랫폼 개발자 전용이다. 예전에는 카드가 모두에게 보이는데 페이지만 막혀 있어서
+  // 누르면 forbidden 으로 튕겼다 — 카드 노출을 페이지 권한과 맞춘다.
+  const canManageOrganization = session.user.role === "developer_super_admin";
 
-  if (isOrgTopAdminOrPlatform(session.user.role) && hasOrganizationContext(session)) {
-    cards.push({
-      description: settings.attendanceDescription,
-      href: "/admin/settings/attendance",
-      icon: QrCode,
-      title: settings.attendanceTitle,
-    });
-  }
+  const sites = canManageAttendance
+    ? await getAttendanceSiteQrOverview(session.organization.id)
+    : [];
+  const readyCount = sites.filter(
+    (row) => row.token && attendanceQrLinkState(buildAttendanceQrValue(row.token.token)) === "ok",
+  ).length;
+  const attentionCount = sites.length - readyCount;
 
   return (
     <AdminShell activeItem="settings" title={settings.settingsTitle}>
-      <p className="max-w-2xl text-sm font-semibold text-muted-foreground">
+      <p className="hmeta" style={{ marginBottom: 16 }}>
         {settings.settingsDescription}
       </p>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        {cards.map((item) => {
-          const Icon = item.icon;
+      <div
+        style={{
+          display: "grid",
+          gap: 14,
+          gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+        }}
+      >
+        {canManageOrganization ? (
+          <Link className="card" href="/admin/settings/organization" style={{ display: "block" }}>
+            <div className="card__h">
+              <span className="ic" style={{ fontSize: 22, color: "var(--primary)" }}>
+                <Building2 aria-hidden="true" />
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="card__t">{settings.organizationTitle}</div>
+                <div className="card__s">{settings.organizationDescription}</div>
+              </div>
+              <span className="ic" style={{ color: "var(--faint)" }}>
+                <ChevronRight aria-hidden="true" />
+              </span>
+            </div>
+          </Link>
+        ) : null}
 
-          return (
-            <Link href={item.href} key={item.href}>
-              <Card className="h-full p-5 transition-colors hover:bg-surface">
-                <Icon className="size-6 text-primary" aria-hidden="true" />
-                <h2 className="mt-8 text-xl font-black">{item.title}</h2>
-                <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
-                  {item.description}
-                </p>
-              </Card>
-            </Link>
-          );
-        })}
+        {canManageAttendance ? (
+          <Link className="card" href="/admin/settings/attendance" style={{ display: "block" }}>
+            <div className="card__h">
+              <span className="ic" style={{ fontSize: 22, color: "var(--primary)" }}>
+                <QrCode aria-hidden="true" />
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="card__t">{settings.attendanceTitle}</div>
+                <div className="card__s">{settings.attendanceDescription}</div>
+              </div>
+              <span className="ic" style={{ color: "var(--faint)" }}>
+                <ChevronRight aria-hidden="true" />
+              </span>
+            </div>
+            <div className="card__b" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <span className="pill pill--muted">
+                {settings.settingsSitesLabel} {sites.length}
+              </span>
+              <span className={readyCount > 0 ? "pill pill--done" : "pill pill--muted"}>
+                {settings.settingsQrReadyLabel} {readyCount}
+              </span>
+              {attentionCount > 0 ? (
+                <span className="pill pill--warn">
+                  <span className="ic">
+                    <TriangleAlert aria-hidden="true" />
+                  </span>
+                  {settings.settingsQrAttentionLabel} {attentionCount}
+                </span>
+              ) : null}
+            </div>
+          </Link>
+        ) : null}
       </div>
     </AdminShell>
   );

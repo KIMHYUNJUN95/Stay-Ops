@@ -33,7 +33,7 @@ async function buildSheet(rows: Record<string, string>[]) {
     ],
   });
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(Buffer.from(base64, "base64"));
+  await workbook.xlsx.load(Buffer.from(base64, "base64") as unknown as Parameters<typeof workbook.xlsx.load>[0]);
   const sheet = workbook.getWorksheet("기록");
   if (!sheet) throw new Error("sheet missing");
   return sheet;

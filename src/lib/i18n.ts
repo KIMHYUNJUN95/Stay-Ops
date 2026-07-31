@@ -1307,6 +1307,18 @@ const FALLBACK_DICTIONARY = {
       attendanceSiteListTitle: "Attendance sites",
       attendanceSiteName: "Site name",
       attendanceQrLink: "QR link (what the code encodes)",
+      // Settings redesign (2026-07-31) — master/detail site list + status pills.
+      settingsSitesLabel: "Sites",
+      settingsQrReadyLabel: "QR ready",
+      settingsQrAttentionLabel: "Needs attention",
+      attendanceQrOk: "Ready",
+      attendanceQrNeedsFix: "Fix needed",
+      attendanceQrNone: "Not issued",
+      attendanceQrRevoked: "Revoked",
+      attendanceQrHistory: "Issue history",
+      attendanceMissingQrWarn:
+        "{n} site(s) have no QR yet. Staff cannot clock in or out at those sites.",
+      attendanceDeviceStaff: "Staff",
       // Pre-print safety check — a printed QR that opens nowhere costs a full re-print.
       attendanceQrReady: "Opens with the phone camera. Safe to print.",
       attendanceQrWarnMissing:
@@ -3589,6 +3601,11 @@ const FALLBACK_DICTIONARY = {
     } as Record<string, string>,
   },
   accountProfile: {
+    // 설정 허브 서브내비 (2026-07-31)
+    tabProfile: "Profile",
+    tabOrganization: "Organization",
+    tabSecurity: "Security",
+    securityIntro: "Sign-in and account removal. Deleting an account cannot be undone.",
     completionTitle: "Complete your profile",
     missingBirthDateBody:
       "Your date of birth is still missing. Please add it now so identity and employment records stay accurate.",
@@ -5824,6 +5841,17 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         attendanceSiteListTitle: "출퇴근 현장",
         attendanceSiteName: "현장 이름",
         attendanceQrLink: "QR 링크 (코드에 담기는 값)",
+        settingsSitesLabel: "현장",
+        settingsQrReadyLabel: "QR 준비됨",
+        settingsQrAttentionLabel: "조치 필요",
+        attendanceQrOk: "준비됨",
+        attendanceQrNeedsFix: "조치 필요",
+        attendanceQrNone: "미발급",
+        attendanceQrRevoked: "폐기됨",
+        attendanceQrHistory: "발급 이력",
+        attendanceMissingQrWarn:
+          "QR이 없는 현장이 {n}곳 있습니다. 해당 현장에서는 출퇴근을 찍을 수 없습니다.",
+        attendanceDeviceStaff: "직원",
         attendanceQrReady: "휴대폰 카메라로 열립니다. 출력해도 됩니다.",
         attendanceQrWarnMissing:
           "이 QR은 휴대폰 카메라로 열리지 않습니다. NEXT_PUBLIC_APP_URL이 설정되지 않아 토큰만 담겼습니다. 아직 출력하지 마세요.",
@@ -8057,6 +8085,11 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       },
     },
     accountProfile: {
+      // 설정 허브 서브내비 (2026-07-31)
+      tabProfile: "프로필",
+      tabOrganization: "조직",
+      tabSecurity: "보안",
+      securityIntro: "로그인과 계정 삭제를 관리합니다. 계정 삭제는 되돌릴 수 없습니다.",
       completionTitle: "프로필을 마저 입력해주세요",
       missingBirthDateBody:
         "생년월일 정보가 아직 비어 있습니다. 본인 확인과 고용 기록이 정확하도록 지금 입력해 주세요.",
@@ -10242,6 +10275,17 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         attendanceSiteListTitle: "勤怠拠点",
         attendanceSiteName: "拠点名",
         attendanceQrLink: "QRリンク（コードに含まれる値）",
+        settingsSitesLabel: "現場",
+        settingsQrReadyLabel: "QR 準備完了",
+        settingsQrAttentionLabel: "要対応",
+        attendanceQrOk: "準備完了",
+        attendanceQrNeedsFix: "要対応",
+        attendanceQrNone: "未発行",
+        attendanceQrRevoked: "破棄",
+        attendanceQrHistory: "発行履歴",
+        attendanceMissingQrWarn:
+          "QRがない現場が{n}か所あります。その現場では出退勤を打てません。",
+        attendanceDeviceStaff: "スタッフ",
         attendanceQrReady: "スマホのカメラで開けます。印刷して大丈夫です。",
         attendanceQrWarnMissing:
           "このQRはスマホのカメラでは開きません。NEXT_PUBLIC_APP_URL が未設定のため、トークンのみが含まれています。まだ印刷しないでください。",
@@ -12475,6 +12519,11 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       },
     },
     accountProfile: {
+      // 설정 허브 서브내비 (2026-07-31)
+      tabProfile: "プロフィール",
+      tabOrganization: "組織",
+      tabSecurity: "セキュリティ",
+      securityIntro: "ログインとアカウント削除を管理します。削除は取り消せません。",
       completionTitle: "プロフィールを補完してください",
       missingBirthDateBody:
         "生年月日がまだ未入力です。本人確認と雇用記録を正確に保つため、今ここで入力してください。",

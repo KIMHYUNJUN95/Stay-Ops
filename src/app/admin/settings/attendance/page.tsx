@@ -1,24 +1,22 @@
 import Link from "next/link";
 import QRCode from "qrcode";
 import { redirect } from "next/navigation";
-import { MapPinned, Plus, QrCode, Smartphone } from "lucide-react";
+import { Check, Plus, QrCode as QrIcon, Smartphone, TriangleAlert } from "lucide-react";
 import {
   issueAttendanceSiteQr,
   revokeAttendanceTrustedDevice,
   saveAttendanceSiteSettings,
 } from "@/app/admin/settings/attendance/actions";
 import { AdminShell } from "@/components/shell/admin-shell";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { getDictionary } from "@/lib/i18n";
-import { requireAdminSession } from "@/lib/admin-session";
-import { getActiveQrToken, listAttendanceSites } from "@/lib/attendance-sites";
-import { attendanceQrLinkState, buildAttendanceQrValue } from "@/lib/attendance-qr";
-import { listTrustedDevices } from "@/lib/attendance-trusted-device";
-import { hasOrganizationContext } from "@/lib/session";
+import { SettingsSubnav } from "@/components/admin/settings/settings-subnav";
+import "@/components/admin/settings/settings-console.css";
 import { isOrgTopAdminOrPlatform } from "@/config/roles";
+import { requireAdminSession } from "@/lib/admin-session";
+import { attendanceQrLinkState, buildAttendanceQrValue } from "@/lib/attendance-qr";
+import { getAttendanceSiteQrOverview, getQrTokenHistory } from "@/lib/attendance-sites";
+import { listTrustedDevices } from "@/lib/attendance-trusted-device";
+import { getDictionary } from "@/lib/i18n";
+import { hasOrganizationContext } from "@/lib/session";
 import type { AttendanceSiteRow } from "@/lib/attendance";
 
 type PageProps = {
@@ -29,6 +27,29 @@ function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function formatField(site: AttendanceSiteRow | null, key: "latitude" | "longitude") {
+  if (!site) return "";
+  return typeof site[key] === "number" ? String(site[key]) : String(site[key] ?? "");
+}
+
+/** 목록·이력의 날짜는 도쿄 기준으로 짧게. */
+function tokyoDate(iso: string) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
+}
+
+// Admin · 출퇴근 QR — 마스터·디테일 (2026-07-31 리디자인, 디자인 초안 1b).
+//
+// 현장이 여러 곳인 현실을 정면으로 다룬다: 좌측 표에서 **전 현장의 QR 상태를 한눈에** 보고,
+// 우측에서 선택한 한 곳을 관리한다(현장 정보 / QR / 기억된 기기). 린넨·청소 콘솔의
+// 목록+상세 패턴과 같은 구조이고, 시각 표현은 공용 `.adm` 프리미티브를 그대로 쓴다.
+//
+// QR 은 인쇄물이라 "지금 뽑아도 되는가"를 출력 전에 알려주는 것이 이 화면의 핵심 책임이다.
+// See docs/product/24-attendance-workflow.md → "QR Deep Link" / "인쇄 전 안전장치".
 export default async function AdminAttendanceSettingsPage({ searchParams }: PageProps) {
   const session = await requireAdminSession();
   if (!isOrgTopAdminOrPlatform(session.user.role) || !hasOrganizationContext(session)) {
@@ -39,23 +60,25 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
   const selectedSiteId = firstParam(params.site) ?? "";
   const dictionary = getDictionary(session.user.preferredLanguage);
   const settings = dictionary.admin.settings;
-  const sites = await listAttendanceSites(session.organization.id);
-  const selectedSite =
-    sites.find((site) => site.id === selectedSiteId) ??
-    (selectedSiteId ? null : sites[0] ?? null);
-  const activeQr = selectedSite ? await getActiveQrToken(session.organization.id, selectedSite.id) : null;
-  // QR 에는 토큰이 아니라 절대 URL 을 담는다 — 휴대폰 기본 카메라로 찍으면 바로 근태 인증
-  // 화면으로 들어오게 하기 위해서다. 토큰 값 자체는 그대로라 기존 인쇄물도 계속 동작한다.
-  // See src/lib/attendance-qr.ts / docs/product/24-attendance-workflow.md → "QR Deep Link".
+  const organizationId = session.organization.id;
+
+  const rows = await getAttendanceSiteQrOverview(organizationId);
+  // `?site=new` 는 "선택 없음" = 신규 등록 폼. 그 외에는 선택된 현장, 없으면 첫 현장.
+  const selectedRow =
+    rows.find((row) => row.site.id === selectedSiteId) ?? (selectedSiteId ? null : rows[0] ?? null);
+  const selectedSite = selectedRow?.site ?? null;
+  const activeQr = selectedRow?.token ?? null;
+
+  // QR 에는 토큰이 아니라 절대 URL 을 담는다 — 휴대폰 기본 카메라로 찍으면 바로 인증 화면으로
+  // 들어오게 하기 위해서다. 토큰 값 자체는 그대로라 기존 인쇄물도 앱 스캔에서 계속 동작한다.
   const qrValue = activeQr ? buildAttendanceQrValue(activeQr.token) : null;
-  const qrSvg = qrValue
-    ? await QRCode.toString(qrValue, { type: "svg", margin: 1, width: 256 })
-    : null;
-  // 인쇄 전 안전장치 — 카메라로 안 열리는 QR 을 뽑아 전 건물에 붙이는 사고를 막는다.
+  const qrSvg = qrValue ? await QRCode.toString(qrValue, { type: "svg", margin: 1, width: 256 }) : null;
   const qrLinkState = qrValue ? attendanceQrLinkState(qrValue) : null;
 
-  // 기억된 근태 기기 — 사이트 선택과 무관하게 조직 전체 목록이다.
-  const trustedDevices = await listTrustedDevices(session.organization.id);
+  const [history, trustedDevices] = await Promise.all([
+    selectedSite ? getQrTokenHistory(organizationId, selectedSite.id) : Promise.resolve([]),
+    listTrustedDevices(organizationId),
+  ]);
 
   const saved = firstParam(params.saved) === "1";
   const issued = firstParam(params.issued) === "1";
@@ -68,255 +91,320 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
     (reissued && settings.success.attendanceQrReissued) ||
     (deviceRevoked && settings.success.attendanceDeviceRevoked) ||
     (errorKey ? settings.errors[errorKey] ?? settings.errors.save_failed : "");
+  const flashIsError = Boolean(errorKey);
+  const missingQr = rows.filter((row) => !row.token).length;
 
   return (
     <AdminShell activeItem="settings" title={settings.attendanceTitle}>
-      <Link
-        className="text-sm font-semibold text-muted-foreground hover:text-foreground"
-        href="/admin/settings"
-      >
-        {settings.backToSettings}
-      </Link>
-
-      <p className="mt-4 max-w-3xl text-sm font-semibold leading-6 text-muted-foreground">
-        {settings.attendanceDescription}
-      </p>
+      <SettingsSubnav
+        active="attendance"
+        settings={settings}
+        showOrganization={session.user.role === "developer_super_admin"}
+      />
 
       {flashMessage ? (
-        <div className="mt-4 rounded-xl border border-border bg-background/70 px-4 py-3 text-sm font-semibold">
-          {flashMessage}
+        <div
+          className={`setnote ${flashIsError ? "setnote--warn" : "setnote--ok"}`}
+          style={{ marginBottom: 14 }}
+        >
+          <span className="ic">{flashIsError ? <TriangleAlert /> : <Check />}</span>
+          <span>{flashMessage}</span>
         </div>
       ) : null}
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,420px)_1fr]">
-        <Card className="p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-black">{settings.attendanceSiteListTitle}</h2>
-              <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
-                {settings.attendanceSiteListDescription}
-              </p>
+      {missingQr > 0 ? (
+        <div className="setnote setnote--warn" style={{ marginBottom: 14 }}>
+          <span className="ic">
+            <TriangleAlert aria-hidden="true" />
+          </span>
+          <span>{settings.attendanceMissingQrWarn.replace("{n}", String(missingQr))}</span>
+        </div>
+      ) : null}
+
+      <div className="setgrid">
+        {/* ── 마스터: 현장 목록 + QR 상태 ── */}
+        <div className="card" style={{ overflow: "hidden" }}>
+          <div className="card__h">
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="card__t">
+                {settings.attendanceSiteListTitle} {rows.length}
+              </div>
+              <div className="card__s">{settings.attendanceSiteListDescription}</div>
             </div>
-            <Link
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border bg-surface/80 px-4 text-sm font-semibold shadow-glass backdrop-blur-xl transition-colors hover:bg-surface"
-              href="/admin/settings/attendance"
-            >
-              <Plus className="size-4" aria-hidden="true" />
+            <Link className="chipbtn" href="/admin/settings/attendance?site=new">
+              <span className="ic">
+                <Plus aria-hidden="true" />
+              </span>
               {settings.attendanceNewSite}
             </Link>
           </div>
 
-          <div className="mt-5 space-y-3">
-            {sites.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-border px-4 py-5 text-sm font-semibold text-muted-foreground">
-                {settings.attendanceEmptySites}
-              </p>
-            ) : (
-              sites.map((site) => {
-                const isSelected = selectedSite?.id === site.id;
-                return (
-                  <Link
-                    className={`block rounded-xl border px-4 py-3 transition-colors ${
-                      isSelected
-                        ? "border-primary bg-primary/8 text-foreground"
-                        : "border-border bg-background/70 text-foreground hover:bg-surface"
-                    }`}
-                    href={`/admin/settings/attendance?site=${site.id}`}
-                    key={site.id}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-black">{site.name}</p>
-                        <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                          {site.latitude}, {site.longitude}
-                        </p>
-                      </div>
-                      <Badge className={site.is_active ? "" : "border-border bg-muted text-muted-foreground"}>
-                        {site.is_active ? dictionary.common.active : dictionary.common.inactive}
-                      </Badge>
+          {rows.length === 0 ? (
+            <div className="card__b">
+              <div className="setnote setnote--dim">{settings.attendanceEmptySites}</div>
+            </div>
+          ) : (
+            <table className="qtbl">
+              <thead>
+                <tr>
+                  <th style={{ paddingLeft: 16 }}>{settings.attendanceSiteName}</th>
+                  <th>QR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const state = row.token
+                    ? attendanceQrLinkState(buildAttendanceQrValue(row.token.token))
+                    : null;
+                  return (
+                    <tr className={selectedSite?.id === row.site.id ? "sel" : ""} key={row.site.id}>
+                      <td style={{ paddingLeft: 16 }}>
+                        <Link href={`/admin/settings/attendance?site=${row.site.id}`}>
+                          <span className="setsite__n">{row.site.name}</span>
+                          <span className="setsite__m">
+                            {row.site.latitude}, {row.site.longitude} ·{" "}
+                            {row.site.allowed_radius_meters}m
+                          </span>
+                        </Link>
+                      </td>
+                      <td>
+                        {!row.token ? (
+                          <span className="pill pill--danger">{settings.attendanceQrNone}</span>
+                        ) : state === "ok" ? (
+                          <span className="pill pill--done">{settings.attendanceQrOk}</span>
+                        ) : (
+                          <span className="pill pill--warn">{settings.attendanceQrNeedsFix}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* ── 디테일: 선택한 현장 ── */}
+        <div className="setstack">
+          <div className="card">
+            <div className="card__h">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="card__t">
+                  {selectedSite ? selectedSite.name : settings.attendanceCreateSiteTitle}
+                </div>
+                <div className="card__s">
+                  {selectedSite
+                    ? settings.attendanceEditSiteDescription
+                    : settings.attendanceCreateSiteDescription}
+                </div>
+              </div>
+            </div>
+            <div className="card__b">
+              <form action={saveAttendanceSiteSettings}>
+                <input name="siteId" type="hidden" value={selectedSite?.id ?? ""} />
+                <div className="fld">
+                  <label className="fld__l" htmlFor="site-name">
+                    {settings.attendanceSiteName}
+                  </label>
+                  <input defaultValue={selectedSite?.name ?? ""} id="site-name" name="name" required />
+                </div>
+                <div
+                  style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 11 }}
+                >
+                  <div className="fld">
+                    <label className="fld__l" htmlFor="site-lat">
+                      {settings.attendanceLatitude}
+                    </label>
+                    <input
+                      defaultValue={formatField(selectedSite, "latitude")}
+                      id="site-lat"
+                      inputMode="decimal"
+                      name="latitude"
+                      required
+                      step="any"
+                      type="number"
+                    />
+                  </div>
+                  <div className="fld">
+                    <label className="fld__l" htmlFor="site-lng">
+                      {settings.attendanceLongitude}
+                    </label>
+                    <input
+                      defaultValue={formatField(selectedSite, "longitude")}
+                      id="site-lng"
+                      inputMode="decimal"
+                      name="longitude"
+                      required
+                      step="any"
+                      type="number"
+                    />
+                  </div>
+                </div>
+                <div className="fld" style={{ marginTop: 11 }}>
+                  <label className="fld__l" htmlFor="site-radius">
+                    {settings.attendanceRadius}
+                  </label>
+                  <input
+                    defaultValue={selectedSite?.allowed_radius_meters?.toString() ?? "100"}
+                    id="site-radius"
+                    inputMode="numeric"
+                    min={1}
+                    name="radius"
+                    required
+                    step={1}
+                    type="number"
+                  />
+                  <p className="fld__hint">{settings.attendanceRadiusHint}</p>
+                </div>
+                <button className="btn btn--pri" style={{ marginTop: 14 }} type="submit">
+                  {selectedSite ? settings.attendanceSaveSite : settings.attendanceCreateSiteCta}
+                </button>
+              </form>
+            </div>
+          </div>
+
+          {/* QR */}
+          <div className="card">
+            <div className="card__h">
+              <span className="ic" style={{ fontSize: 20, color: "var(--primary)" }}>
+                <QrIcon aria-hidden="true" />
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="card__t">{settings.attendanceQrSectionTitle}</div>
+                <div className="card__s">{settings.attendanceQrSectionDescription}</div>
+              </div>
+            </div>
+            <div className="card__b">
+              {!selectedSite ? (
+                <div className="setnote setnote--dim">{settings.attendanceCreateFirstHint}</div>
+              ) : activeQr && qrSvg ? (
+                <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+                  <div className="setqr" dangerouslySetInnerHTML={{ __html: qrSvg }} />
+                  <div style={{ flex: 1, minWidth: 240 }}>
+                    <div
+                      className={`setnote ${qrLinkState === "ok" ? "setnote--ok" : "setnote--warn"}`}
+                    >
+                      <span className="ic">
+                        {qrLinkState === "ok" ? <Check /> : <TriangleAlert />}
+                      </span>
+                      <span>
+                        {qrLinkState === "ok"
+                          ? settings.attendanceQrReady
+                          : qrLinkState === "local"
+                            ? settings.attendanceQrWarnLocal
+                            : settings.attendanceQrWarnMissing}
+                      </span>
                     </div>
-                  </Link>
-                );
-              })
+                    <div style={{ marginTop: 12 }}>
+                      <div className="kv">
+                        <span className="kv__k">{settings.attendanceQrLink}</span>
+                        <span className="kv__v mono" style={{ fontSize: 11 }}>
+                          {qrValue}
+                        </span>
+                      </div>
+                      <div className="kv">
+                        <span className="kv__k">{settings.attendanceIssuedAt}</span>
+                        <span className="kv__v mono">{tokyoDate(activeQr.issued_at)}</span>
+                      </div>
+                    </div>
+                    <form action={issueAttendanceSiteQr} style={{ marginTop: 12 }}>
+                      <input name="siteId" type="hidden" value={selectedSite.id} />
+                      <button className="btn btn--ghost btn--sm" type="submit">
+                        {settings.attendanceReissueQr}
+                      </button>
+                      <p className="fld__hint">{settings.attendanceReissueHint}</p>
+                    </form>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="setnote setnote--warn">
+                    <span className="ic">
+                      <TriangleAlert aria-hidden="true" />
+                    </span>
+                    <span>{settings.attendanceNoQr}</span>
+                  </div>
+                  <form action={issueAttendanceSiteQr} style={{ marginTop: 12 }}>
+                    <input name="siteId" type="hidden" value={selectedSite.id} />
+                    <button className="btn btn--pri" type="submit">
+                      {settings.attendanceIssueQr}
+                    </button>
+                  </form>
+                </>
+              )}
+
+              {history.length > 1 ? (
+                <div style={{ marginTop: 16 }}>
+                  <div className="fld__l">{settings.attendanceQrHistory}</div>
+                  {history.map((token) => (
+                    <div className="sethist" key={token.id}>
+                      <span className={token.is_active ? "pill pill--done" : "pill pill--muted"}>
+                        {token.is_active ? settings.attendanceQrOk : settings.attendanceQrRevoked}
+                      </span>
+                      <span style={{ flex: 1 }} />
+                      <span className="sethist__d">{tokyoDate(token.issued_at)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {/* 기억된 기기 */}
+          <div className="card">
+            <div className="card__h">
+              <span className="ic" style={{ fontSize: 20, color: "var(--primary)" }}>
+                <Smartphone aria-hidden="true" />
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="card__t">
+                  {settings.attendanceDevicesTitle} {trustedDevices.length}
+                </div>
+                <div className="card__s">{settings.attendanceDevicesDescription}</div>
+              </div>
+            </div>
+            {trustedDevices.length === 0 ? (
+              <div className="card__b">
+                <div className="setnote setnote--dim">{settings.attendanceDevicesEmpty}</div>
+              </div>
+            ) : (
+              <table className="qtbl">
+                <thead>
+                  <tr>
+                    <th style={{ paddingLeft: 16 }}>{settings.attendanceDeviceStaff}</th>
+                    <th>{settings.attendanceDeviceLastUsed}</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {trustedDevices.map((device) => (
+                    <tr key={device.id}>
+                      <td style={{ paddingLeft: 16 }}>
+                        <span className="setsite__n">{device.userName}</span>
+                        <span className="setsite__m">
+                          {device.deviceLabel ?? settings.attendanceDeviceUnknown}
+                        </span>
+                      </td>
+                      <td className="mono" style={{ color: "var(--muted)" }}>
+                        {tokyoDate(device.lastUsedAt)}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <form action={revokeAttendanceTrustedDevice}>
+                          <input name="deviceId" type="hidden" value={device.id} />
+                          <input name="siteId" type="hidden" value={selectedSite?.id ?? ""} />
+                          <button className="btn btn--ghost btn--sm" type="submit">
+                            {settings.attendanceDeviceRevoke}
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </div>
-        </Card>
-
-        <div className="grid gap-6">
-          <Card className="p-5">
-            <MapPinned className="size-6 text-primary" aria-hidden="true" />
-            <h2 className="mt-8 text-xl font-black">
-              {selectedSite ? settings.attendanceEditSiteTitle : settings.attendanceCreateSiteTitle}
-            </h2>
-            <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
-              {selectedSite ? settings.attendanceEditSiteDescription : settings.attendanceCreateSiteDescription}
-            </p>
-
-            <form action={saveAttendanceSiteSettings} className="mt-5 space-y-3">
-              <input name="siteId" type="hidden" value={selectedSite?.id ?? ""} />
-              <Input
-                defaultValue={selectedSite?.name ?? ""}
-                name="name"
-                placeholder={settings.attendanceSiteName}
-                required
-              />
-              <Input
-                defaultValue={formatField(selectedSite, "latitude")}
-                inputMode="decimal"
-                name="latitude"
-                placeholder={settings.attendanceLatitude}
-                required
-                step="any"
-                type="number"
-              />
-              <Input
-                defaultValue={formatField(selectedSite, "longitude")}
-                inputMode="decimal"
-                name="longitude"
-                placeholder={settings.attendanceLongitude}
-                required
-                step="any"
-                type="number"
-              />
-              <Input
-                defaultValue={selectedSite?.allowed_radius_meters?.toString() ?? "100"}
-                inputMode="numeric"
-                min={1}
-                name="radius"
-                placeholder={settings.attendanceRadius}
-                required
-                step={1}
-                type="number"
-              />
-              <p className="text-xs font-semibold text-muted-foreground">
-                {settings.attendanceRadiusHint}
-              </p>
-              <Button className="w-full" type="submit">
-                {selectedSite ? settings.attendanceSaveSite : settings.attendanceCreateSiteCta}
-              </Button>
-            </form>
-          </Card>
-
-          <Card className="p-5">
-            <QrCode className="size-6 text-primary" aria-hidden="true" />
-            <h2 className="mt-8 text-xl font-black">{settings.attendanceQrSectionTitle}</h2>
-            <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
-              {settings.attendanceQrSectionDescription}
-            </p>
-
-            {!selectedSite ? (
-              <p className="mt-5 rounded-xl border border-dashed border-border px-4 py-5 text-sm font-semibold text-muted-foreground">
-                {settings.attendanceCreateFirstHint}
-              </p>
-            ) : activeQr && qrSvg ? (
-              <>
-                <div
-                  className="mt-5 flex justify-center rounded-2xl border border-border bg-white p-4"
-                  dangerouslySetInnerHTML={{ __html: qrSvg }}
-                />
-                {qrLinkState === "ok" ? (
-                  <p className="mt-4 rounded-xl border border-emerald-300/70 bg-emerald-50 px-4 py-3 text-sm font-semibold leading-6 text-emerald-800">
-                    {settings.attendanceQrReady}
-                  </p>
-                ) : (
-                  <p className="mt-4 rounded-xl border border-amber-300/80 bg-amber-50 px-4 py-3 text-sm font-semibold leading-6 text-amber-900">
-                    {qrLinkState === "local"
-                      ? settings.attendanceQrWarnLocal
-                      : settings.attendanceQrWarnMissing}
-                  </p>
-                )}
-
-                <div className="mt-4 rounded-xl border border-border bg-background/70 p-4">
-                  <p className="text-sm font-semibold text-muted-foreground">{settings.attendanceQrLink}</p>
-                  <p className="mt-2 break-all font-mono text-xs font-semibold">{qrValue}</p>
-                  <p className="mt-4 text-sm font-semibold text-muted-foreground">{settings.attendanceToken}</p>
-                  <p className="mt-2 break-all font-mono text-xs font-semibold">{activeQr.token}</p>
-                  <p className="mt-4 text-sm font-semibold text-muted-foreground">{settings.attendanceIssuedAt}</p>
-                  <p className="mt-2 text-sm font-semibold">{activeQr.issued_at}</p>
-                </div>
-                <form action={issueAttendanceSiteQr} className="mt-4">
-                  <input name="siteId" type="hidden" value={selectedSite.id} />
-                  <Button className="w-full" type="submit">
-                    {settings.attendanceReissueQr}
-                  </Button>
-                </form>
-                <p className="mt-3 text-xs font-semibold text-muted-foreground">
-                  {settings.attendanceReissueHint}
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="mt-5 rounded-xl border border-dashed border-border px-4 py-5 text-sm font-semibold text-muted-foreground">
-                  {settings.attendanceNoQr}
-                </p>
-                <form action={issueAttendanceSiteQr} className="mt-4">
-                  <input name="siteId" type="hidden" value={selectedSite.id} />
-                  <Button className="w-full" type="submit">
-                    {settings.attendanceIssueQr}
-                  </Button>
-                </form>
-              </>
-            )}
-          </Card>
-
-          <Card className="p-5">
-            <Smartphone className="size-6 text-primary" aria-hidden="true" />
-            <h2 className="mt-8 text-xl font-black">{settings.attendanceDevicesTitle}</h2>
-            <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
-              {settings.attendanceDevicesDescription}
-            </p>
-
-            {trustedDevices.length === 0 ? (
-              <p className="mt-5 rounded-xl border border-dashed border-border px-4 py-5 text-sm font-semibold text-muted-foreground">
-                {settings.attendanceDevicesEmpty}
-              </p>
-            ) : (
-              <ul className="mt-5 space-y-3">
-                {trustedDevices.map((device) => (
-                  <li
-                    className="flex items-start justify-between gap-3 rounded-xl border border-border bg-background/70 px-4 py-3"
-                    key={device.id}
-                  >
-                    <div className="min-w-0">
-                      <p className="font-black">{device.userName}</p>
-                      <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                        {device.deviceLabel ?? settings.attendanceDeviceUnknown}
-                      </p>
-                      <p className="mt-1 text-xs font-semibold text-muted-foreground">
-                        {settings.attendanceDeviceLastUsed} {formatDeviceDate(device.lastUsedAt)}
-                        {" · "}
-                        {settings.attendanceDeviceExpires} {formatDeviceDate(device.expiresAt)}
-                      </p>
-                    </div>
-                    <form action={revokeAttendanceTrustedDevice}>
-                      <input name="deviceId" type="hidden" value={device.id} />
-                      <input name="siteId" type="hidden" value={selectedSite?.id ?? ""} />
-                      <Button type="submit" variant="secondary">
-                        {settings.attendanceDeviceRevoke}
-                      </Button>
-                    </form>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
         </div>
       </div>
     </AdminShell>
   );
-}
-
-/** 기기 목록의 날짜는 도쿄 기준으로 짧게 보여준다. */
-function formatDeviceDate(iso: string) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(iso));
-}
-
-function formatField(site: AttendanceSiteRow | null, key: "latitude" | "longitude") {
-  if (!site) return "";
-  return typeof site[key] === "number" ? String(site[key]) : String(site[key] ?? "");
 }

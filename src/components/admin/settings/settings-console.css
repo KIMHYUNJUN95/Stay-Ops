@@ -1,0 +1,40 @@
+/* ===================================================================
+   Admin · 설정(Settings) — 페이지 전용 glue only.
+   2026-07-31 리디자인: 설정 3화면(설정 / 조직 설정 / 출퇴근 QR)만 구형 Tailwind
+   Card/Button 조합으로 남아 있어서 다른 콘솔과 톤이 달랐다. 공용 `.adm`
+   프리미티브(.card/.qtbl/.fld/.kv/.pill/.btn/.chipbtn/.lvsubtab/.state)로 전면
+   교체하고, 여기에는 그 프리미티브로 표현되지 않는 것만 남긴다.
+   =================================================================== */
+
+/* 마스터·디테일 — 좌측 목록 / 우측 상세. 화면이 좁으면 한 줄로 떨어진다. */
+.adm .setgrid { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .adm .setgrid { grid-template-columns: minmax(0, 1fr); } }
+
+/* 세로로 쌓이는 카드 묶음 */
+.adm .setstack { display: flex; flex-direction: column; gap: 16px; }
+
+/* 결과 안내 배너 — 공용 .dimnote 는 회색뿐이라 성공/경고 색이 필요하다.
+   (인쇄 전 QR 판정처럼 "지금 이대로 진행해도 되는가"를 알려야 하는 자리) */
+.adm .setnote { display: flex; align-items: flex-start; gap: 9px; padding: 11px 13px; border-radius: 12px; font-size: 12px; font-weight: 700; line-height: 1.55; }
+.adm .setnote .ic { font-size: 15px; flex: 0 0 auto; margin-top: 1px; }
+.adm .setnote--ok { background: var(--done-bg); color: var(--done); border: 1px solid color-mix(in oklab, var(--done) 26%, transparent); }
+.adm .setnote--warn { background: var(--warn-bg); color: var(--warn); border: 1px solid color-mix(in oklab, var(--warn) 30%, transparent); }
+.adm .setnote--info { background: var(--info-bg); color: var(--info); border: 1px solid color-mix(in oklab, var(--info) 26%, transparent); }
+.adm .setnote--dim { background: var(--card2); color: var(--muted); border: 1px dashed var(--line); font-weight: 600; }
+
+/* QR 표면 — 인쇄물이 될 물건이므로 흰 바탕을 유지한다(아이보리 카드 위에 얹지 않는다). */
+.adm .setqr { display: flex; align-items: center; justify-content: center; padding: 14px; border-radius: 14px; background: #fff; border: 1px solid var(--line); }
+.adm .setqr svg { width: 100%; height: auto; max-width: 190px; display: block; }
+
+/* 발급 이력 한 줄 */
+.adm .sethist { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); font-size: 12px; font-weight: 700; }
+.adm .sethist:last-child { border-bottom: none; }
+.adm .sethist__d { font-family: var(--mono); color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+
+/* 목록 행의 현장명 + 좌표 보조줄 */
+.adm .setsite__n { font-size: 13px; font-weight: 800; letter-spacing: -0.02em; }
+.adm .setsite__m { font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: var(--faint); margin-top: 2px; }
+
+/* 인라인 폼 행 (조직명 수정처럼 input + 버튼이 한 줄) */
+.adm .setinline { display: flex; gap: 8px; align-items: center; }
+.adm .setinline .fld { flex: 1; min-width: 0; margin: 0; }

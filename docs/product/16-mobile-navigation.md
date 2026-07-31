@@ -61,6 +61,10 @@ Home   Calendar   [ ✎ 편집 (center FAB) ]   Requests   Announcements
     Booking.com positive and negative text are separate; a valid score-only review has no text area.
     Text is translated only on demand into the viewer's app language and cached; it never runs from
     the list.
+  - The external-review view also exposes period rating summaries by building and, except for Okubo,
+    by room. Airbnb and Booking.com averages remain separate with their review counts. Okubo is
+    detached-house-only, so a single building rating is the only rating summary shown there. Date
+    range defaults and controls are deferred to the mobile design work.
   - Any active organization member may read external reviews. Only existing complaint-write roles can
     create a linked manual complaint; this is not automatic even for risky ratings. The mobile screen
     must use the existing shared sheet/edge-swipe/scroll contracts.
