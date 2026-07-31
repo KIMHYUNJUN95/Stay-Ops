@@ -190,7 +190,47 @@ export async function submitAttendanceScan(
     return { ok: false, reason: "qr" };
   }
 
-  // 3) GPS is mandatory.
+  // 3) 세션 상태 선행 검증 (2026-07-31).
+  //
+  // 열린 근무가 있는지 / 없는지는 **위치와 무관한 사실**이다. 예전에는 GPS·반경을 먼저 보느라,
+  // 이미 출근한 사람이 다른 현장 QR 을 찍으면 "허용 범위 밖"이라고 안내했다. 그 안내를 믿고
+  // 현장 안으로 걸어 들어가 다시 찍어도 결과는 같다(이미 출근 중이므로). 사용자를 헛걸음시키는
+  // 안내라서, 위치와 무관하게 이미 결정된 실패는 여기서 먼저 돌려준다.
+  const openSessionRes = await service
+    .from("attendance_sessions")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .eq("user_id", userId)
+    .eq("status", "open")
+    .maybeSingle();
+  const openSession = openSessionRes.data as AttendanceSessionRow | null;
+
+  if (input.mode === "in") {
+    // 한 사람당 열린 근무는 하나다.
+    if (openSession) {
+      await logAttempt({ success: false, failureReason: "open_session_exists", resolvedSiteId: site.id });
+      return { ok: false, reason: "open_session", siteName: localizedSiteName(site, locale) };
+    }
+  } else {
+    if (openSessionRes.error || !openSession) {
+      // "열린 근무 없음"에 해당하는 failure_reason enum 값이 없어 reason 은 null 로 기록한다.
+      await logAttempt({ success: false, failureReason: null, resolvedSiteId: site.id });
+      return { ok: false, reason: "no_session", siteName: localizedSiteName(site, locale) };
+    }
+    // 원칙: 휴게가 열려 있으면 퇴근을 막는다. 휴게를 자동으로 닫지 않는다.
+    const openBreakRes = await service
+      .from("attendance_breaks")
+      .select("id")
+      .eq("session_id", openSession.id)
+      .is("ended_at", null)
+      .maybeSingle();
+    if (openBreakRes.data) {
+      await logAttempt({ success: false, failureReason: "open_break_blocks_clock_out", resolvedSiteId: site.id });
+      return { ok: false, reason: "open_break", siteName: localizedSiteName(site, locale) };
+    }
+  }
+
+  // 4) GPS is mandatory.
   if (input.gpsError || input.latitude == null || input.longitude == null) {
     await logAttempt({
       success: false,
@@ -200,7 +240,7 @@ export async function submitAttendanceScan(
     return { ok: false, reason: "gps", siteName: localizedSiteName(site, locale) };
   }
 
-  // 4) GPS must be within the site's allowed radius.
+  // 5) GPS must be within the site's allowed radius.
   const dist = distanceMeters(site.latitude, site.longitude, input.latitude, input.longitude);
   if (dist > site.allowed_radius_meters) {
     await logAttempt({ success: false, failureReason: "outside_radius", resolvedSiteId: site.id });
@@ -216,19 +256,7 @@ export async function submitAttendanceScan(
   const nowIso = new Date().toISOString();
 
   if (input.mode === "in") {
-    // 5a) One open session per user within this org.
-    const openRes = await service
-      .from("attendance_sessions")
-      .select("id")
-      .eq("organization_id", organizationId)
-      .eq("user_id", userId)
-      .eq("status", "open")
-      .maybeSingle();
-    if (openRes.data) {
-      await logAttempt({ success: false, failureReason: "open_session_exists", resolvedSiteId: site.id });
-      return { ok: false, reason: "open_session", siteName: localizedSiteName(site, locale) };
-    }
-
+    // 열린 근무 검사는 위 3)에서 이미 끝났다.
     const insertRes = await service
       .from("attendance_sessions")
       .insert({
@@ -266,33 +294,12 @@ export async function submitAttendanceScan(
     };
   }
 
-  // 5b) Clock-out requires an existing open session for this user within this org.
-  const openRes = await service
-    .from("attendance_sessions")
-    .select("*")
-    .eq("organization_id", organizationId)
-    .eq("user_id", userId)
-    .eq("status", "open")
-    .maybeSingle();
-  const open = openRes.data as AttendanceSessionRow | null;
-  if (openRes.error || !open) {
-    // No matching failure_reason enum value for "no open session"; record success=false with null
-    // reason (the UI surfaces the specific message).
+  // 퇴근: 열린 근무와 휴게 검사는 위 3)에서 끝났다. (타입 좁히기용 방어 — 여기 도달할 수 없다.)
+  if (!openSession) {
     await logAttempt({ success: false, failureReason: null, resolvedSiteId: site.id });
     return { ok: false, reason: "no_session", siteName: localizedSiteName(site, locale) };
   }
-
-  // Strict rule: clock-out is blocked while a break is still open. Do NOT auto-close the break.
-  const openBreakRes = await service
-    .from("attendance_breaks")
-    .select("id")
-    .eq("session_id", open.id)
-    .is("ended_at", null)
-    .maybeSingle();
-  if (openBreakRes.data) {
-    await logAttempt({ success: false, failureReason: "open_break_blocks_clock_out", resolvedSiteId: site.id });
-    return { ok: false, reason: "open_break", siteName: localizedSiteName(site, locale) };
-  }
+  const open = openSession;
 
   // Midnight-crossing is abnormal — do not silently normalize. Flag for later review (full midnight
   // sweep is a later step); never downgrade an already-flagged session.

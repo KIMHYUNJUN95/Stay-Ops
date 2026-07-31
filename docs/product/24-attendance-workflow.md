@@ -247,6 +247,30 @@ Payroll review document alignment (2026-07-03): monthly payroll Excel/PDF and pe
 exports keep the existing green ledger format, but all title/meta/table/total text is center-aligned for
 visual consistency across the four document paths.
 
+## 打刻 검증 순서 — 위치보다 세션 상태를 먼저 (2026-07-31)
+
+`submitAttendanceScan` 의 검증 순서를 바꿨다.
+
+```txt
+1) QR 토큰 (활성 + 동일 조직)
+2) 사이트 (동일 조직 + 활성)
+3) 세션 상태  ← 여기로 앞당김
+     출근: 열린 근무가 있으면 → open_session
+     퇴근: 열린 근무가 없으면 → no_session / 휴게가 열려 있으면 → open_break
+4) GPS 필수
+5) 사이트 반경 이내
+6) 기록
+```
+
+**이유.** 열린 근무의 유무는 위치와 무관한 사실이다. 예전 순서(GPS·반경 먼저)에서는 이미 출근한
+사람이 **다른 현장 QR** 을 찍으면 "허용 범위 밖입니다" 가 떴다. 그 안내를 믿고 그 현장 안으로
+걸어 들어가 다시 찍어도 결과는 같다 — 이미 출근 중이라 어차피 실패한다. 사용자를 헛걸음시키는
+안내였다. 위치와 무관하게 이미 결정된 실패는 먼저 알려준다.
+
+부수 효과로 `attendance_attempt_logs` 의 `outside_radius` 는 이제 "정말 위치 때문에 실패한 시도"만
+담는다. 세션 상태 때문에 실패한 시도는 `open_session_exists` / `open_break_blocks_clock_out` 으로
+분리돼 진단이 정확해진다.
+
 ## QR Deep Link — 휴대폰 기본 카메라로 바로 인증 (2026-07-31)
 
 ### 배경
