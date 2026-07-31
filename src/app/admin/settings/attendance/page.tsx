@@ -245,7 +245,13 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
               </div>
             </div>
             <div className="card__body">
-              <form action={saveAttendanceSiteSettings} className="setform">
+              <form
+                action={saveAttendanceSiteSettings}
+                className="setform"
+                // 현장이 바뀌면 폼을 통째로 다시 마운트한다. 이게 없으면 소프트 내비게이션에서
+                // 이전 현장의 입력값이 남아, 저장 시 다른 현장을 덮어쓴다(2026-07-31 실제 사고).
+                key={selectedSite?.id ?? "new"}
+              >
                 <input name="siteId" type="hidden" value={selectedSite?.id ?? ""} />
                 <div className="fld">
                   <label className="fld__l" htmlFor="site-name">

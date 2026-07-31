@@ -159,7 +159,12 @@ export default async function AdminOrganizationSettingsPage({ searchParams }: Pa
                 </span>
               </div>
               <div className="card__body">
-                <form action={updateOrganization} className="setform">
+                <form
+                  action={updateOrganization}
+                  className="setform"
+                  // 조직이 바뀌면 폼을 다시 마운트한다 — 근태 현장 폼과 같은 이유(엉뚱한 조직 덮어쓰기 방지).
+                  key={selected.id}
+                >
                   <input name="organizationId" type="hidden" value={selected.id} />
                   <div className="fld">
                     <label className="fld__l" htmlFor="org-name">
