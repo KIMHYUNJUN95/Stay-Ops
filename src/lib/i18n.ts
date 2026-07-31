@@ -1558,6 +1558,11 @@ const FALLBACK_DICTIONARY = {
       signUpEmail: "Sign up with email",
       inviteNote:
         "After signing in, enter your team invite code and basic details to start working. Ask your manager for the code.",
+      // Shown when the visitor arrived by scanning an on-site attendance QR while signed out.
+      // A wall QR can be scanned by anyone walking past, so this says plainly who it is for.
+      qrNoticeTitle: "Attendance QR scanned",
+      qrNoticeBody:
+        "This is a staff-only screen. Sign in and you can clock in or out right away. If you don't work here, this code can't be used.",
       termsLink: "Terms",
       privacyLink: "Privacy",
       helpLink: "Help",
@@ -6104,6 +6109,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         staffSecure: "직원 전용 · 보안 로그인",
         noAccount: "계정이 없으신가요?",
         signUpEmail: "이메일로 가입",
+        qrNoticeTitle: "출퇴근 QR을 읽었어요",
+        qrNoticeBody:
+          "직원 전용 화면이에요. 로그인하면 바로 출근·퇴근을 인증할 수 있어요. 이곳 직원이 아니라면 이 코드는 사용할 수 없어요.",
         inviteNote:
           "로그인 후 팀 초대코드와 기본 정보를 입력해야 업무를 시작할 수 있어요. 코드는 매니저에게 받으세요.",
         termsLink: "이용약관",
@@ -10555,6 +10563,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         staffSecure: "スタッフ専用・セキュアサインイン",
         noAccount: "アカウントをお持ちでないですか？",
         signUpEmail: "メールで登録",
+        qrNoticeTitle: "出退勤QRを読み取りました",
+        qrNoticeBody:
+          "スタッフ専用の画面です。ログインすると、そのまま出勤・退勤を認証できます。こちらのスタッフでない場合、このコードはご利用いただけません。",
         inviteNote:
           "サインイン後、チーム招待コードと基本情報を入力すると業務を開始できます。コードはマネージャーから受け取ってください。",
         termsLink: "利用規約",

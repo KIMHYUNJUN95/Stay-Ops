@@ -9,6 +9,8 @@ import { EmailResetForm } from "@/app/auth/login/email-reset-form";
 import { EmailSignupForm } from "@/app/auth/login/email-signup-form";
 import { GoogleSubmitButton } from "@/app/auth/login/google-button";
 import { resolveAuthErrorMessage } from "@/lib/auth-errors";
+import { ATTENDANCE_QR_PATH } from "@/lib/attendance-qr";
+import { isMobileSurfacePath } from "@/lib/surface-routing";
 import { getDictionary, inferLocaleFromAcceptLanguage, isLocale, type Locale } from "@/lib/i18n";
 import { isMobileUserAgent } from "@/lib/mobile-device";
 import { getOnboardingState } from "@/lib/onboarding";
@@ -34,6 +36,9 @@ const Mail = (
 );
 const Back = (
   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+);
+const QrMark = (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.4" stroke="currentColor" strokeWidth="1.7" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.4" stroke="currentColor" strokeWidth="1.7" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.4" stroke="currentColor" strokeWidth="1.7" /><path d="M13.5 13.5h3v3h-3zM17.5 17.5h2.5v2.5h-2.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>
 );
 const Ticket = (
   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 000 4v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2a2 2 0 000-4V8z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /><path d="M14 6v12" stroke="currentColor" strokeWidth="1.6" strokeDasharray="2 2.5" /></svg>
@@ -87,7 +92,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const userAgent = (await headers()).get("user-agent");
   const isMobileDevice = isMobileUserAgent(userAgent);
   const next = sanitizeNextPath(params.next, isMobileDevice ? "/mobile" : "/admin");
-  const effectiveNext = isMobileDevice ? "/mobile" : next;
+  // 목적지의 경로 부분만 본다 — `next` 에는 쿼리가 붙어 올 수 있다(예: 근태 QR 의 ?token=).
+  const nextPathname = next.split("?")[0].split("#")[0];
+  // 모바일에서는 `/admin/...` 목적지를 앱으로 돌린다. 다만 **이미 모바일 경로인 next 는 지킨다** —
+  // 예전에는 무조건 "/mobile" 로 덮어써서, 로그아웃 상태로 근태 QR 을 찍은 직원이 로그인 후
+  // 인증 화면이 아니라 홈으로 떨어졌다(토큰이 통째로 버려졌다).
+  const effectiveNext = isMobileDevice && !isMobileSurfacePath(nextPathname) ? "/mobile" : next;
+  // 현장에 붙은 출퇴근 QR 을 로그아웃 상태로 찍고 들어온 경우. 지나가던 사람도 찍을 수 있는
+  // 인쇄물이라, 이 화면이 누구를 위한 것인지 분명히 알려준다.
+  const isAttendanceQrEntry =
+    nextPathname === ATTENDANCE_QR_PATH && next.includes("token=");
   const isBlockedState =
     params.view === "blocked" &&
     (state.status === "suspended" ||
@@ -372,6 +386,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <p className="auth-eyebrow">{c.entryEyebrow}</p>
         <h2 className="auth-title" style={{ whiteSpace: "pre-line" }}>{c.entryTitle}</h2>
         <p className="auth-lede">{c.entryLede}</p>
+        {isAttendanceQrEntry && (
+          <div className="banner banner--info" style={{ marginTop: 18 }}>
+            <span className="banner__ic"><Ic>{QrMark}</Ic></span>
+            <div>
+              <div className="banner__t">{t.entry.qrNoticeTitle}</div>
+              <div className="banner__s">{t.entry.qrNoticeBody}</div>
+            </div>
+          </div>
+        )}
         {errorMessage && <div style={{ marginTop: 18 }}><ErrorBanner message={errorMessage} /></div>}
         <div className="abtns">
           <form action={signInWithGoogle}>
