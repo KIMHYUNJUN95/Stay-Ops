@@ -2321,6 +2321,14 @@
 .adm .dd__chk { margin-left: auto; flex: 0 0 auto; color: var(--primary); display: inline-flex; }
 .adm .dd__chk svg { width: 16px; height: 16px; }
 
+/* DD — searchable mode (<AdmDropdown searchable />). 옵션이 수십 개로 늘어나는 필터
+   (등록자 / 담당자 등)를 위해 메뉴 안에 공용 .qsearch 를 넣고 목록을 스크롤한다.
+   2026-07-30 린넨 반품 콘솔에서 처음 필요해졌지만 공용 프리미티브이므로 여기에 둔다. */
+.adm .dd--search .dd__menu { padding: 8px; }
+.adm .qsearch--dd { display: flex; width: 100%; min-width: 0; margin-bottom: 6px; }
+.adm .dd__scroll { max-height: 250px; overflow-y: auto; }
+.adm .ddnone { padding: 12px 10px; font-size: 12px; font-weight: 700; color: var(--faint); text-align: center; }
+
 /* ===================================================================
    SHARED OPERATIONS-CONSOLE PRIMITIVES
    Promoted out of cleaning-console.css on 2026-07-14 when the 수리·점검 console

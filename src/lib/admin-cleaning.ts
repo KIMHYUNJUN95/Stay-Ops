@@ -33,7 +33,7 @@ import type { AppSession } from "@/lib/session";
 // visible with its current status instead of removing processed ones. See
 // docs/product/07-cleaning-workflow.md → "2026-07-14 어드민 청소 대시보드 — 백엔드 연동".
 
-export type AdminCleaningStatus = "pending" | "progress" | "done";
+export type AdminCleaningStatus = "pending" | "progress" | "done" | "cancelled";
 
 export type AdminCleaningTask = {
   id: string;
@@ -41,7 +41,14 @@ export type AdminCleaningTask = {
   roomKey: string;
   building: BuildingKey | null;
   buildingRaw: string;
+  /** 표시용 라벨. 아라키초 서브유닛은 501_2 → 501 로 축약된다 — 저장/매칭에 쓰면 안 된다. */
   room: string;
+  /**
+   * 저장/매칭용 canonical `cleaning_sessions.room_label` ("아라키초A 501_2").
+   * 모바일 큐(getCleaningTargets → sessionRoomLabel)와 동일한 값이라, 강제완료가 이 값을 그대로
+   * 저장해야 모바일 큐에서도 처리 완료로 인식된다. 축약된 `room` 을 저장하면 매칭이 깨진다.
+   */
+  sessionRoomLabel: string;
   type: CleaningTaskType;
   status: AdminCleaningStatus;
   staffId: string | null;
@@ -51,6 +58,12 @@ export type AdminCleaningTask = {
   note: string;
   reports: { lost?: number; issue?: number; lostIds?: string[]; issueIds?: string[] } | null;
   proxy: boolean;
+  /**
+   * 오늘 이 객실에서 취소된 세션 수. 취소는 모바일에서 "다시 청소 대상으로 되돌리는" 동작이라
+   * (docs: cancelCleaningMessage) 카드 상태 자체는 `pending` 을 유지하고, 취소가 있었다는 사실만
+   * 별도 배지로 노출한다.
+   */
+  cancelledCount: number;
   guest: string | null;
   pax: number | null;
   hasArrivalToday: boolean;
@@ -120,6 +133,17 @@ function pickRelevantSession(sessions: CleaningSessionRow[]): CleaningSessionRow
   const inProgress = live.find((s) => s.status === "in_progress");
   if (inProgress) return inProgress;
   return live[0]; // already ordered started_at desc by getOrgTodayCleaningSessions
+}
+
+function countCancelled(sessions: CleaningSessionRow[]): number {
+  return sessions.filter((s) => s.status === "cancelled").length;
+}
+
+/** DB `cleaning_status` → 콘솔 카드 상태. pending 은 세션이 아예 없는 예약 대상에만 쓰인다. */
+function sessionStatusToAdminStatus(status: string): AdminCleaningStatus {
+  if (status === "in_progress") return "progress";
+  if (status === "cancelled") return "cancelled";
+  return "done";
 }
 
 type ReportLinks = { lostIds: string[]; issueIds: string[] };
@@ -204,8 +228,11 @@ export async function getAdminCleaningToday(session: AppSession): Promise<AdminC
   if (targetsResult) {
     for (const target of targetsResult.cleaningList) {
       targetRoomKeys.add(target.roomKey);
-      const matched = pickRelevantSession(sessionsByRoomKey.get(target.roomKey) ?? []);
+      const roomSessions = sessionsByRoomKey.get(target.roomKey) ?? [];
+      const matched = pickRelevantSession(roomSessions);
 
+      // 취소만 있는 방은 모바일 큐에서 다시 "미처리"로 돌아가므로 콘솔에서도 `pending` 이 맞다.
+      // 다만 취소가 있었다는 사실이 콘솔에서 완전히 사라지지 않도록 cancelledCount 로 남긴다.
       let status: AdminCleaningStatus = "pending";
       if (matched?.status === "in_progress") status = "progress";
       else if (matched?.status === "completed") status = "done";
@@ -217,6 +244,7 @@ export async function getAdminCleaningToday(session: AppSession): Promise<AdminC
         building: buildingKeyOf(target.canonicalPropertyName),
         buildingRaw: target.canonicalPropertyName,
         room: getDisplayRoomLabel(target.canonicalPropertyName, target.canonicalRoomLabel),
+        sessionRoomLabel: matched?.room_label ?? target.sessionRoomLabel,
         type: matched ? taskLabelToType(matched.task_label) : "checkout",
         status,
         staffId: matched?.staff_user_id ?? null,
@@ -226,6 +254,7 @@ export async function getAdminCleaningToday(session: AppSession): Promise<AdminC
         note: matched?.notes ?? "",
         reports: null, // filled below once session ids are known
         proxy: Boolean(matched?.completed_by_admin),
+        cancelledCount: countCancelled(roomSessions),
         guest: target.hasTurnover ? target.arrivingGuestName : null,
         pax: target.hasTurnover ? target.arrivingPax : null,
         hasArrivalToday: target.hasTurnover,
@@ -236,10 +265,12 @@ export async function getAdminCleaningToday(session: AppSession): Promise<AdminC
   // Sessions today that don't correspond to any reservation-driven target (manual / long-stay
   // cleanings started from the mobile "기타" section, or ad-hoc rooms) — still surfaced as cards
   // so real data never silently drops work that's actually happening.
+  // 취소만 있는 방은 되돌아갈 예약 대상이 없으므로 "취소" 카드로 노출한다 — 예전처럼 통째로
+  // 버리면 콘솔에서 그 세션이 존재조차 하지 않게 된다.
   for (const [roomKey, sessions] of sessionsByRoomKey) {
     if (targetRoomKeys.has(roomKey)) continue;
-    const relevant = pickRelevantSession(sessions);
-    if (!relevant) continue; // only cancelled sessions for this room — nothing to show
+    const relevant = pickRelevantSession(sessions) ?? sessions[0]; // started_at desc
+    if (!relevant) continue;
 
     let buildingRaw = relevant.room_label;
     let room = getDisplaySessionRoomLabel(relevant.room_label);
@@ -260,8 +291,9 @@ export async function getAdminCleaningToday(session: AppSession): Promise<AdminC
       building: buildingKeyOf(buildingRaw),
       buildingRaw,
       room,
+      sessionRoomLabel: relevant.room_label,
       type: taskLabelToType(relevant.task_label),
-      status: relevant.status === "in_progress" ? "progress" : "done",
+      status: sessionStatusToAdminStatus(relevant.status),
       staffId: relevant.staff_user_id,
       staffName: staffNameById.get(relevant.staff_user_id) ?? null,
       start: formatTokyoTime(relevant.started_at),
@@ -269,6 +301,7 @@ export async function getAdminCleaningToday(session: AppSession): Promise<AdminC
       note: relevant.notes ?? "",
       reports: null,
       proxy: Boolean(relevant.completed_by_admin),
+      cancelledCount: countCancelled(sessions),
       guest: null,
       pax: null,
       hasArrivalToday: false,
@@ -328,7 +361,11 @@ export type AdminCleaningHistoryItem = {
   staffId: string;
   staffName: string;
   start: string;
-  dur: number;
+  /** 분 단위 소요시간. 아직 끝나지 않았거나(진행중) 취소된 세션은 null. */
+  dur: number | null;
+  /** 실제 세션 상태(진행중/완료/취소) — 표의 "상태" 열은 이 값을 쓴다. */
+  status: AdminCleaningStatus;
+  /** 관리자 대리 완료 여부. 세션 상태와는 별개인 "완료 유형" 축. */
   proxy: boolean;
   note: string;
 };
@@ -359,25 +396,24 @@ function mapSessionToHistoryItem(
     staffId: s.staff_user_id,
     staffName: s.staff_name,
     start: formatTokyoTime(s.started_at) ?? "",
-    dur: Math.round((s.duration_seconds ?? 0) / 60),
+    dur: s.duration_seconds == null ? null : Math.round(s.duration_seconds / 60),
+    status: sessionStatusToAdminStatus(s.status),
     proxy: Boolean(s.completed_by_admin),
     note: s.notes ?? "",
   };
 }
 
-/** 기록 탭 필터(기간·건물·직원·상태) 적용 조회. status 필터를 안 넘기면 완료 건만 보여준다
- * (진행중/취소는 기록 화면에서 다루지 않는다 — 오늘 현황에서 이미 보임). */
+/** 기록 탭 필터(기간·건물·직원·상태) 적용 조회.
+ * status 필터를 안 넘기면 **모든 세션 상태**(진행중/완료/취소)를 돌려준다. 예전에는 `completed`
+ * 로 기본 필터링해서 취소된 세션이 콘솔 어디에서도 보이지 않았다 — 상태는 표의 "상태" 열과
+ * 세션 상태 필터에서 클라이언트가 걸러낸다. */
 export async function getAdminCleaningHistory(
   session: AppSession,
   filters: CleaningExportFilters,
   roomCatalog?: readonly ActiveRoomCatalogItem[],
 ): Promise<AdminCleaningHistoryItem[]> {
   const catalog = roomCatalog ?? (await getActiveRoomCatalogServer(session.organization.id).catch(() => undefined)) ?? [];
-  const sessions = await getOrgCleaningSessionsFiltered(
-    session,
-    { ...filters, status: filters.status ?? "completed" },
-    catalog,
-  );
+  const sessions = await getOrgCleaningSessionsFiltered(session, filters, catalog);
   // Query order is cleaning_date ASC, started_at DESC — keep the day ordering, but make rooms within
   // one day read in operational order instead of start-time order. Table rows and the Excel/PDF
   // export both derive from this array, so they stay in sync.

@@ -61,6 +61,63 @@ export type AdminTableWorkbookInput = {
 
 const NO_COLUMN_WIDTH = 5;
 
+// ── Row height for wrapped cells ────────────────────────────────────────────
+// 데이터 행 높이를 18pt 로 고정해 두면 `wrap: true` 열(메모/비고/반품 품목 등)의 두 번째 줄부터가
+// 잘려 보인다 — 명시적 높이가 있으면 Excel/LibreOffice 모두 자동 맞춤을 하지 않기 때문이다.
+// 그래서 줄 수를 추정해 필요한 만큼만 행을 키운다(줄바꿈이 없는 행은 그대로 18pt).
+const DATA_ROW_HEIGHT = 18;
+const WRAP_LINE_HEIGHT = 13.5;
+const WRAP_ROW_PADDING = 4.5;
+/** 비정상적으로 긴 메모 하나가 표 전체를 망가뜨리지 않게 상한을 둔다. */
+const MAX_WRAP_LINES = 12;
+
+/** 전각(한글/한자/가나/전각기호)은 Excel 열 너비 단위로 약 2칸을 차지한다. */
+function isWideChar(code: number): boolean {
+  return (
+    (code >= 0x1100 && code <= 0x115f) ||
+    (code >= 0x2e80 && code <= 0x303e) ||
+    (code >= 0x3041 && code <= 0x33ff) ||
+    (code >= 0x3400 && code <= 0x4dbf) ||
+    (code >= 0x4e00 && code <= 0x9fff) ||
+    (code >= 0xa000 && code <= 0xa4cf) ||
+    (code >= 0xac00 && code <= 0xd7a3) ||
+    (code >= 0xf900 && code <= 0xfaff) ||
+    (code >= 0xfe30 && code <= 0xfe6f) ||
+    (code >= 0xff00 && code <= 0xff60) ||
+    (code >= 0xffe0 && code <= 0xffe6) ||
+    code >= 0x20000
+  );
+}
+
+/** Excel 열 너비("문자 수") 기준 표시 폭. */
+function displayWidth(text: string): number {
+  let width = 0;
+  for (const char of text) {
+    width += isWideChar(char.codePointAt(0) ?? 0) ? 2 : 1;
+  }
+  return width;
+}
+
+function wrappedLineCount(text: string, columnWidth: number): number {
+  if (!text) return 1;
+  // 셀 좌우 여백만큼 빼서 살짝 넉넉하게 잡는다 — 모자란 것보다 남는 편이 안전하다.
+  const usable = Math.max(1, columnWidth - 1);
+  return text
+    .split("\n")
+    .reduce((sum, segment) => sum + Math.max(1, Math.ceil(displayWidth(segment) / usable)), 0);
+}
+
+/** 이 행에서 가장 많이 줄바꿈되는 `wrap` 열에 맞춘 행 높이. */
+function dataRowHeight(row: AdminTableExportRow, columns: AdminTableColumn[]): number {
+  let lines = 1;
+  for (const col of columns) {
+    if (!col.wrap) continue;
+    lines = Math.max(lines, wrappedLineCount(row[col.key] ?? "", col.width));
+  }
+  if (lines <= 1) return DATA_ROW_HEIGHT;
+  return Math.min(lines, MAX_WRAP_LINES) * WRAP_LINE_HEIGHT + WRAP_ROW_PADDING;
+}
+
 function textFont() {
   return { name: "Meiryo", size: 9, color: { argb: WORKBOOK_INK } };
 }
@@ -114,7 +171,7 @@ function addSheet(wb: ExcelJS.Workbook, sheet: AdminTableSheet, input: AdminTabl
   const firstDataRow = 3;
   sheet.rows.forEach((r, i) => {
     const row = ws.getRow(firstDataRow + i);
-    row.height = 18;
+    row.height = dataRowHeight(r, sheet.columns);
 
     const no = row.getCell(1);
     no.value = String(i + 1);

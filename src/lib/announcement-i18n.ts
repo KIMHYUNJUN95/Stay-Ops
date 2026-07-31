@@ -137,6 +137,15 @@ export type AnnouncementConsoleDictionary = {
   fPopup: string;
   fPopupSub: string;
   fPopupUntil: string;
+  /** aria-label for the popup-end date control (shared `AdminDatePicker`). */
+  fPopupUntilDate: string;
+  fPopupUntilDatePh: string;
+  /** aria-label for the popup-end time control (shared `AdminTimePicker`). */
+  fPopupUntilTime: string;
+  // Shared date-picker chrome labels (month nav + "today" shortcut).
+  datePickerPrevMonth: string;
+  datePickerNextMonth: string;
+  datePickerToday: string;
   fPublishNote: string;
   fDraftNote: string;
   fCancel: string;
@@ -554,6 +563,12 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
       fPopup: "\uC571 \uC624\uD508 \uD31D\uC5C5",
       fPopupSub: "\uC571 \uC2E4\uD589 \uC2DC \uD31D\uC5C5\uC73C\uB85C \uB178\uCD9C",
       fPopupUntil: "\uD31D\uC5C5 \uC885\uB8CC \uC2DC\uAC01",
+      fPopupUntilDate: "\uD31D\uC5C5 \uC885\uB8CC\uC77C",
+      fPopupUntilDatePh: "\uB0A0\uC9DC \uC120\uD0DD",
+      fPopupUntilTime: "\uD31D\uC5C5 \uC885\uB8CC \uC2DC\uAC01",
+      datePickerPrevMonth: "\uC774\uC804 \uB2EC",
+      datePickerNextMonth: "\uB2E4\uC74C \uB2EC",
+      datePickerToday: "\uC624\uB298",
       fPublishNote: "\uAC8C\uC2DC\uD558\uBA74 \uB300\uC0C1\uC790\uC5D0\uAC8C \uC571 \uC54C\uB9BC\uC774 \uBC1C\uC1A1\uB429\uB2C8\uB2E4.",
       fDraftNote: "\uCD08\uC548\uC740 \uB098\uC5D0\uAC8C\uB9CC \uBCF4\uC785\uB2C8\uB2E4.",
       fCancel: "\uCDE8\uC18C",
@@ -883,6 +898,12 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
       fPopup: "\u30A2\u30D7\u30EA\u8D77\u52D5\u30DD\u30C3\u30D7\u30A2\u30C3\u30D7",
       fPopupSub: "\u30A2\u30D7\u30EA\u8D77\u52D5\u6642\u306B\u30DD\u30C3\u30D7\u30A2\u30C3\u30D7\u8868\u793A",
       fPopupUntil: "\u30DD\u30C3\u30D7\u30A2\u30C3\u30D7\u7D42\u4E86\u6642\u523B",
+      fPopupUntilDate: "\u30DD\u30C3\u30D7\u30A2\u30C3\u30D7\u7D42\u4E86\u65E5",
+      fPopupUntilDatePh: "\u65E5\u4ED8\u3092\u9078\u629E",
+      fPopupUntilTime: "\u30DD\u30C3\u30D7\u30A2\u30C3\u30D7\u7D42\u4E86\u6642\u523B",
+      datePickerPrevMonth: "\u524D\u6708",
+      datePickerNextMonth: "\u7FCC\u6708",
+      datePickerToday: "\u4ECA\u65E5",
       fPublishNote: "\u516C\u958B\u3059\u308B\u3068\u5BFE\u8C61\u8005\u3078\u30A2\u30D7\u30EA\u901A\u77E5\u304C\u9001\u4FE1\u3055\u308C\u307E\u3059\u3002",
       fDraftNote: "\u4E0B\u66F8\u304D\u306F\u81EA\u5206\u3060\u3051\u306B\u8868\u793A\u3055\u308C\u307E\u3059\u3002",
       fCancel: "\u30AD\u30E3\u30F3\u30BB\u30EB",
@@ -1185,6 +1206,12 @@ const dictionaries: Record<Locale, AnnouncementDictionary> = {
       fPopup: "App-open popup",
       fPopupSub: "Show as a popup when the app opens",
       fPopupUntil: "Popup end time",
+      fPopupUntilDate: "Popup end date",
+      fPopupUntilDatePh: "Select a date",
+      fPopupUntilTime: "Popup end time",
+      datePickerPrevMonth: "Previous month",
+      datePickerNextMonth: "Next month",
+      datePickerToday: "Today",
       fPublishNote: "Publishing sends an app notification to recipients.",
       fDraftNote: "Drafts are visible only to you.",
       fCancel: "Cancel",

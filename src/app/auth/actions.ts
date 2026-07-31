@@ -10,6 +10,7 @@ import {
   normalizeNextPathForSurface,
   normalizePathForSurface,
 } from "@/lib/surface-routing";
+import { forgetTrustedDevice } from "@/lib/attendance-trusted-device";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 const LOCALE_COOKIE = "stayops_locale";
@@ -335,6 +336,9 @@ export async function signInWithGoogle(formData: FormData) {
 export async function signOut(formData?: FormData) {
   const supabase = await getSupabaseServerClient();
   await supabase.auth.signOut();
+  // 명시적 로그아웃은 "이 기기에서 나가겠다" 는 뜻이다 — 근태 기기 기억도 함께 폐기한다.
+  // (기억을 남겨두면 로그아웃한 사람이 계속 打刻할 수 있어 의도와 어긋난다.)
+  await forgetTrustedDevice();
   const surface = await getCurrentSurface();
   const next = normalizeNextPathForSurface(formData?.get("next"), surface, "/auth/login");
   redirect(next);

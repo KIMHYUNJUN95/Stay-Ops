@@ -17,6 +17,7 @@ import {
   MAINTENANCE_RESOLUTION_IMAGE_LIMIT,
   type MaintenanceStatus,
 } from "@/lib/maintenance-constants";
+import { hasPermissionOverride } from "@/lib/permission-overrides-server";
 import { getCurrentAppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
@@ -37,6 +38,21 @@ export type MaintenanceHandlingResult =
 
 function isValidUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+/**
+ * 상태 변경 권한 = part_time_staff 제외 전원, 또는 `maintenance_status_change` 권한 예외(override).
+ * 오버라이드는 RLS에는 이미 반영돼 있었는데(마이그레이션 202607130004 → 202607160001에서 유지)
+ * 앱 게이트가 파트타임을 먼저 거절해서 부여해도 UI상 아무 변화가 없었다. 조회 패턴은
+ * `can_generate_report`(src/app/mobile/tasks/report-actions.ts)와 같다.
+ */
+export async function canHandleMaintenance(
+  organizationId: string,
+  userId: string,
+  role: string,
+): Promise<boolean> {
+  if (role !== "part_time_staff") return true;
+  return hasPermissionOverride(organizationId, userId, "maintenance_status_change");
 }
 
 /** 완료 사진 URL이 반드시 {orgId}/maintenance-resolutions/{reportId}/{file} 아래인지 검증한다. */
@@ -69,8 +85,13 @@ export async function updateMaintenanceHandling(
 ): Promise<MaintenanceHandlingResult> {
   const session = await getCurrentAppSession();
   if (!session) return { ok: false, error: "forbidden" };
-  // 파트타임은 상태를 바꿀 수 없다 (기존 규칙). RLS도 같은 결론을 내지만 여기서 먼저 끊는다.
-  if (session.user.role === "part_time_staff") return { ok: false, error: "forbidden" };
+  // 파트타임은 상태를 바꿀 수 없다 (기존 규칙 + `maintenance_status_change` 오버라이드 예외).
+  // RLS도 같은 결론을 내지만 여기서 먼저 끊는다.
+  if (
+    !(await canHandleMaintenance(session.organization.id, session.user.id, session.user.role))
+  ) {
+    return { ok: false, error: "forbidden" };
+  }
 
   const { reportId, memo, resolutionImageUrls } = input;
   if (!isValidUuid(reportId)) return { ok: false, error: "invalid" };

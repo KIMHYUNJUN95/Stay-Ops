@@ -220,9 +220,18 @@
 .subfld { margin-top: 10px; padding: 12px 13px; border-radius: 12px; background: color-mix(in oklab, var(--violet) 5%, var(--card2)); border: 1px solid color-mix(in oklab, var(--violet) 18%, var(--line-soft)); }
 .subfld__l { font-size: 11.5px; font-weight: 800; color: var(--violet); display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .subfld__l .ic { font-size: 14px; }
+/* 날짜/시각은 공유 콘솔 프리미티브(AdminDatePicker `.adp` + AdminTimePicker `.atp`)를 쓴다.
+   네이티브 date input 금지 (CLAUDE.md §4a). 여기서는 두 트리거를 나란히 늘려 주고
+   팝오버만 이 필드의 violet 액센트에 맞춘다 — 캘린더 chrome 자체는 손대지 않는다. */
 .dtinput { display: flex; gap: 9px; }
-.dtinput input { flex: 1; border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 13px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; background: var(--card); outline: none; }
-.dtinput input:focus { border-color: var(--violet); box-shadow: 0 0 0 3.5px color-mix(in oklab, var(--violet) 12%, transparent); }
+.adm .dtinput > .adp { flex: 1 1 0; min-width: 0; }
+.adm .dtinput > .atp { flex: 0 0 108px; }
+.adm .dtinput .adp__trigger,
+.adm .dtinput .atp__trigger { border-width: 1.5px; border-radius: 10px; padding: 9px 12px; font-size: 13px; }
+.adm .dtinput .adp__trigger:hover:not(:disabled),
+.adm .dtinput .atp__trigger:hover { border-color: color-mix(in oklab, var(--violet) 40%, var(--line)); }
+/* 모달 본문이 overflow-y:auto 라 아래로 열리면 잘린다 — 이 필드는 폼 하단이므로 위로 띄운다. */
+.adm .dtinput .adp__pop, .adm .dtinput .atp__pop { top: auto; bottom: calc(100% + 6px); }
 
 /* 이미지 슬롯 (최대 5장) */
 .imgslots { display: flex; gap: 9px; flex-wrap: wrap; }

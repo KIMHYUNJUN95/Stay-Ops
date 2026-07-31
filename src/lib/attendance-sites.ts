@@ -218,3 +218,56 @@ export async function revokeAttendanceQr(organizationId: string, siteId: string)
     throw new Error(`Failed to revoke attendance QR: ${error.message}`);
   }
 }
+
+// ── QR deep link (2026-07-31) ──────────────────────────────────────────────
+// 휴대폰 기본 카메라로 QR 을 찍으면 `/mobile/attendance/capture?token=…` 로 들어온다. 그 진입
+// 화면이 "어느 건물의 QR 인지"를 먼저 보여주고 출근/퇴근을 고르게 하려면, 제출 전에 토큰 →
+// 사이트 이름을 한 번 조회해야 한다.
+//
+// 여기서 통과했다고 인증이 되는 것은 아니다 — 실제 판정(활성 토큰 · 활성 사이트 · 동일 조직 ·
+// GPS 필수 · 반경 이내)은 전부 `submitAttendanceScan` 이 다시 한다. 이건 화면 표시용 조회다.
+
+type SiteWithProperty = AttendanceSiteRow & {
+  properties: {
+    display_name_ko: string | null;
+    display_name_ja: string | null;
+    display_name_en: string | null;
+  } | null;
+};
+
+/** 활성 QR 토큰이 가리키는 사이트의 표시 이름. 토큰/사이트가 유효하지 않으면 null. */
+export async function getSiteNameByActiveQrToken(
+  organizationId: string,
+  token: string,
+  locale: string,
+): Promise<string | null> {
+  if (!token) return null;
+  const service = getSupabaseServiceClient();
+
+  const tokenRes = await service
+    .from("attendance_qr_tokens")
+    .select("*")
+    .eq("token", token)
+    .eq("is_active", true)
+    .maybeSingle();
+  const tokenRow = tokenRes.data as AttendanceQrTokenRow | null;
+  // 조직 일치는 반드시 확인한다 — 서비스 클라이언트는 RLS 를 우회한다.
+  if (tokenRes.error || !tokenRow || tokenRow.organization_id !== organizationId) return null;
+
+  const siteRes = await service
+    .from("attendance_sites")
+    .select("*, properties(display_name_ko, display_name_ja, display_name_en)")
+    .eq("organization_id", organizationId)
+    .eq("id", tokenRow.site_id)
+    .maybeSingle();
+  const site = siteRes.data as SiteWithProperty | null;
+  if (siteRes.error || !site || !site.is_active) return null;
+
+  const p = site.properties;
+  if (p) {
+    if (locale === "ja" && p.display_name_ja) return p.display_name_ja;
+    if (locale === "en" && p.display_name_en) return p.display_name_en;
+    if (p.display_name_ko) return p.display_name_ko;
+  }
+  return site.name;
+}

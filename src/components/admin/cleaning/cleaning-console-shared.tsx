@@ -3,6 +3,7 @@
 // board, and detail panel so the three stay visually identical.
 import type { ComponentType, SVGProps } from "react";
 import {
+  Ban,
   BedDouble,
   Check,
   Clock,
@@ -18,7 +19,30 @@ import type { AdminCleaningStatus } from "@/lib/admin-cleaning";
 import type { CleaningStaffOption } from "@/lib/cleaning";
 import type { CleaningTaskType } from "./cleaning-console-data";
 
-export type ConsoleCopy = Dictionary["cleaning"]["console"];
+/**
+ * 콘솔 문구 = `cleaning.console` 사전 + 세션 상태 문구.
+ *
+ * `cleaning.console` 에는 "취소"/"전체 상태" 같은 **세션 상태** 문구가 아직 없고, 콘솔 전용으로
+ * 새 키를 만들면 모바일(`cleaning.statusLabels` / `cleaning.records.status`)과 두 벌이 된다.
+ * 그래서 이미 ko/ja/en 이 모두 갖춰진 기존 키를 그대로 재사용해 한 곳에서 합친다.
+ * (후속: `cleaning.console` 에 stCancelled / allSessionStatus / completionType 키가 추가되면
+ *  이 shim 을 걷어내고 콘솔 네임스페이스만 쓰면 된다.)
+ */
+export type ConsoleCopy = Dictionary["cleaning"]["console"] & {
+  stCancelled: string;
+  allSessionStatus: string;
+  sessionStatus: Dictionary["cleaning"]["records"]["status"];
+};
+
+export function buildConsoleCopy(dictionary: Dictionary): ConsoleCopy {
+  return {
+    ...dictionary.cleaning.console,
+    stCancelled: dictionary.cleaning.statusLabels.cancelled,
+    allSessionStatus: dictionary.cleaning.records.statusAll,
+    sessionStatus: dictionary.cleaning.records.status,
+  };
+}
+
 type IconType = ComponentType<SVGProps<SVGSVGElement>>;
 
 export const TYPE_ICON: Record<CleaningTaskType, IconType> = {
@@ -32,6 +56,7 @@ export const STATUS_ICON: Record<AdminCleaningStatus, IconType> = {
   pending: Clock,
   progress: SprayCan,
   done: Check,
+  cancelled: Ban,
 };
 
 export function typeLabel(type: CleaningTaskType, t: ConsoleCopy): string {
@@ -44,12 +69,13 @@ export function typeLabel(type: CleaningTaskType, t: ConsoleCopy): string {
 export function statusLabel(status: AdminCleaningStatus, t: ConsoleCopy): string {
   if (status === "pending") return t.stPending;
   if (status === "progress") return t.stProgress;
+  if (status === "cancelled") return t.stCancelled;
   return t.stDone;
 }
 
 export function StatusPill({ status, t }: { status: AdminCleaningStatus; t: ConsoleCopy }) {
   const Icon = STATUS_ICON[status];
-  const showIcon = status === "pending";
+  const showIcon = status === "pending" || status === "cancelled";
   return (
     <span className={`cstat cstat--${status}`}>
       {showIcon ? (
@@ -148,6 +174,22 @@ export function ReportBadges({
         </span>
       ) : null}
     </>
+  );
+}
+
+/**
+ * 오늘 이 객실에서 청소가 취소된 적이 있음을 알리는 배지. 취소는 방을 다시 청소 대상으로
+ * 되돌리므로 카드 상태는 `pending` 을 유지하고, 취소 이력만 이 배지로 노출한다.
+ */
+export function CancelledBadge({ count, t }: { count: number; t: ConsoleCopy }) {
+  if (count <= 0) return null;
+  return (
+    <span className="rbadge rbadge--cancelled" title={t.stCancelled}>
+      <span className="ic">
+        <Ban />
+      </span>
+      {count}
+    </span>
   );
 }
 

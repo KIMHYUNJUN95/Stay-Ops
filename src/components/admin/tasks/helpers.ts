@@ -13,6 +13,7 @@ import {
   WEEKDAY_ORDER,
 } from "@/lib/tasks-recurrence";
 import type { AdminTasksDictionary } from "@/lib/admin-tasks-i18n";
+import { partsOf } from "@/lib/task-directives";
 
 const TZ = "Asia/Tokyo";
 
@@ -75,27 +76,18 @@ export function fill(tpl: string, vars: Record<string, string | number>): string
 }
 
 // ── 술어(meId 기준) ────────────────────────────────────────────────────────────
-export function partsOf(t: TaskRecord): string[] {
-  return t.participants.filter((p) => p.userId !== t.createdByUserId).map((p) => p.userId);
-}
-export function isMine(t: TaskRecord, meId: string): boolean {
-  return t.createdByUserId === meId;
-}
+// 지시 관련 술어는 모바일(`tasks-workspace.tsx`)도 같은 규칙을 써야 하므로 `@/lib/task-directives`
+// 한 곳에 두고 여기서는 재수출만 한다. 여기에 다시 정의하면 두 화면의 지시 판정이 갈라진다.
+export { isMine, myOwn, recvInstr, sentInstr } from "@/lib/task-directives";
+export { partsOf };
+
 export function isSharedTask(t: TaskRecord): boolean {
   return t.isShared || partsOf(t).length > 0;
 }
-export function sentInstr(t: TaskRecord, meId: string): boolean {
-  return t.isDirective && isMine(t, meId) && partsOf(t).length > 0;
-}
-export function recvInstr(t: TaskRecord, meId: string): boolean {
-  return t.isDirective && !isMine(t, meId) && t.participants.some((p) => p.userId === meId);
-}
-// 내 뷰(오늘/내일/관리함/캘린더)는 내가 보낸 지시를 제외한다(대상자의 일정이므로).
-export function myOwn(t: TaskRecord, meId: string): boolean {
-  return !sentInstr(t, meId);
-}
+// `cancelled` 는 DB CHECK 에 있는 정식 상태다(`202606100003_todo_tasks.sql`). 여기서만 빠져 있어
+// 취소된 작업이 콘솔의 관리함·오늘·캘린더에 계속 떠 있었다 — 서버 정본과 모바일에 맞춘다.
 export function isActive(t: TaskRecord): boolean {
-  return t.status !== "completed";
+  return t.status !== "completed" && t.status !== "cancelled";
 }
 export function dueDateOf(t: TaskRecord): string | null {
   return tokyoDateOf(t.dueAt);
@@ -150,9 +142,10 @@ export function completedDateOf(t: TaskRecord): string | null {
 }
 
 // ── 정렬 ────────────────────────────────────────────────────────────────────────
-const PRIO_ORD: Record<string, number> = { urgent: 0, important: 1, normal: 2 };
+// 우선순위 사다리(2026-07-30, Todoist P1~P4): urgent(1) > important(2) > medium(3) > normal(4=기본).
+const PRIO_ORD: Record<string, number> = { urgent: 0, important: 1, medium: 2, normal: 3 };
 export function prioSort(a: TaskRecord, b: TaskRecord): number {
-  return (PRIO_ORD[a.priority] ?? 2) - (PRIO_ORD[b.priority] ?? 2);
+  return (PRIO_ORD[a.priority] ?? 3) - (PRIO_ORD[b.priority] ?? 3);
 }
 export function dateSort(a: TaskRecord, b: TaskRecord): number {
   return (dateOf(a) ?? "9999-99-99").localeCompare(dateOf(b) ?? "9999-99-99");
@@ -160,8 +153,44 @@ export function dateSort(a: TaskRecord, b: TaskRecord): number {
 
 // ── 라벨(다국어) ────────────────────────────────────────────────────────────────
 export function prioLabel(prio: string, d: AdminTasksDictionary): string {
-  return prio === "urgent" ? d.prioUrgent : prio === "important" ? d.prioImportant : d.prioNormal;
+  return prio === "urgent"
+    ? d.prioUrgent
+    : prio === "important"
+      ? d.prioImportant
+      : prio === "medium"
+        ? d.prioMedium
+        : d.prioNormal;
 }
+/**
+ * 시스템 로그(노트가 아닌 `task_updates`) 한 줄 라벨.
+ *
+ * 모바일 `task-detail-view.tsx` 의 `systemLabel` 과 **같은 update_type 집합**을 덮되, 콘솔 로그의
+ * 기존 관례("{name} 님이 작업 생성")에 맞춰 행위자를 문장 안에 넣는다. `status_changed` 의 목적
+ * 상태는 `body` 에 실려 온다(모바일과 동일).
+ */
+export function systemLogLabel(
+  type: string,
+  body: string | null,
+  name: string,
+  d: AdminTasksDictionary,
+): string {
+  const tpl =
+    type === "system_shared"
+      ? d.logShared
+      : type === "system_edited"
+        ? d.logEdited
+        : type === "completed"
+          ? d.logCompleted
+          : type === "reopened"
+            ? d.logReopened
+            : type === "status_changed"
+              ? body === "in_progress"
+                ? d.logInProgress
+                : d.logOpen
+              : d.logUpdated;
+  return fill(tpl, { name });
+}
+
 export function statusLabel(status: string, d: AdminTasksDictionary): string {
   return status === "completed"
     ? d.stCompleted

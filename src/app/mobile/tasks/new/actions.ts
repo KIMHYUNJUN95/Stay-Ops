@@ -30,7 +30,7 @@ function parseStringArray(value: string): string[] {
   }
 }
 
-const PRIORITIES = new Set(["normal", "important", "urgent"]);
+const PRIORITIES = new Set(["normal", "important", "urgent", "medium"]);
 
 export async function quickCreateTask(formData: FormData) {
   const session = await getCurrentAppSession();
@@ -201,6 +201,8 @@ export async function createTask(formData: FormData) {
     .filter(Boolean)
     .slice(0, 10);
   const requestedShare = parseStringArray(cleanText(formData.get("shareJson")));
+  // 지시로 보내기 — 대상자의 일정으로 잡히고 지시자의 "오늘" 목록에는 들어가지 않는다.
+  const directive = cleanText(formData.get("directive")) === "1";
   // Upper safety bound (20); the real per-task cap (5 regular / 20 project) is applied at insert.
   const imageUrls = formData
     .getAll("imageUrls")
@@ -277,6 +279,9 @@ export async function createTask(formData: FormData) {
     status: "open",
     is_inbox: false,
     is_shared: shareIds.length > 0,
+    // 지시(작성자=지시자, 참여자=대상). 대상이 없으면 지시가 성립하지 않으므로 함께 건다 —
+    // 콘솔 `createConsoleTask` 와 같은 규칙(`is_directive = isDirective && 대상 1명 이상`).
+    is_directive: directive && shareIds.length > 0,
     recurrence_rule: repeat,
     recurrence_series_id: recurrenceSeriesId,
     recurrence_instance_date: recurrenceSeriesId ? anchorDate : null,

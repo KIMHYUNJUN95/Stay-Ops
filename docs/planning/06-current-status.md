@@ -16,13 +16,71 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
-- **어드민 린넨 반품 기록 관리 콘솔 기획 확정 (2026-07-30, 구현 전).** 현장 등록은 기존 모바일
-  `/mobile/linen-return/*`를 유지한다. 예정 `/admin/linen-return`은 사무실이 건물별·날짜별로
-  등록 시각·건물·전 품목·품목별/총수량·등록자를 확인하고 기존 기록을 수정·삭제하는 화면이다. 기본은
-  Tokyo 이번 달, 최신 등록순, 건물·날짜/기간 필터. 새 등록/상태/품목마스터/집계/Excel·PDF export와
-  시각 디자인은 이번 범위 밖이다. 등록 시각·등록자는 보존하고, 삭제는 MVP hard delete 확인 + 감사
-  기록을 따른다. 기준 문서: `docs/product/19-linen-defect-workflow.md`,
-  `docs/product/05-admin-web-ia.md`, `docs/planning/01-decision-log.md`.
+- **컴플레인·외부 리뷰 재기획 완료, 구현 대기 (2026-07-30).** 기존 모바일 수동 컴플레인은 유지하고,
+  Beds24의 Airbnb·Booking.com 리뷰를 별도 로컬 `external_reviews`로 수집해 함께 검토하는 방향을 확정했다.
+  낮은 평점 리뷰를 자동 컴플레인으로 만들지 않으며, 필요한 경우에만 권한자가 수동 컴플레인으로 전환·연결한다.
+  위험 기준은 Airbnb 3점 이하 위험, Booking 7.0점 위험·7.0점 미만 매우 위험이다. 객실은 확실한
+  예약/객실 매핑이 있을 때만 표시한다. Beds24 호출은 UI에서 하지 않고 조직별·채널별 하루 1회 기본 수집,
+  초기/복구 최근 90일 제한 수집 및 로컬 UPSERT로 크레딧을 아낀다. 외국어 리뷰는 DeepL API Free를
+  상세에서 필요할 때만 호출·캐시하는 번역도 1차 범위에 포함했고, 월 450,000자 안전 한도를 둔다.
+  플랫폼별 세부 점수는 원본 구조로 보관하며 Booking.com의 긍정/부정 본문과 점수만 있는 리뷰를 모두
+  정상 처리한다. 모바일은 기존 컴플레인 사이드 메뉴·핀 가능 탭 진입점 안에서 수동 컴플레인/외부 리뷰를
+  분리하는 재설계이며, 공용 모바일 셸은 바꾸지 않는다. 모바일·대시보드는 동일한 조직 데이터 원본과
+  리뷰/컴플레인 연결 상태를 공유한다. 모바일 내비게이션 계약도 Product `16`에 반영했다.
+  시각 디자인·DB migration·RLS·API·모바일/어드민 구현은 아직 시작하지 않았다. 기준 문서: `docs/product/25-complaint-workflow.md`,
+  `docs/product/05-admin-web-ia.md`, `docs/engineering/01-beds24-integration.md`,
+  `docs/engineering/04-data-model.md`, `docs/engineering/05-rls-permissions.md`,
+  `docs/planning/01-decision-log.md`.
+
+- **근태 기기 기억 (Trusted Device) 구현 완료 (2026-07-31).** QR 딥링크에서 아이폰이 Safari 로 열리는데
+  iOS 는 PWA 와 Safari 의 저장소가 분리돼 로그인이 공유되지 않아 재로그인 요구가 반복되던 문제 해결.
+  **한 번 로그인해 실제로 打刻에 성공한 기기**를 기억하고(신규 `attendance_trusted_devices`,
+  마이그레이션 `202607310001`, **연결 프로젝트에 적용 완료**), 이후에는 세션 없이도 **출근/퇴근 打刻만**
+  가능하다. **권한 경계:** 이 자격증명은 出退勤 두 가지만 허용하고 이력·급여·정정·다른 모듈·어드민은
+  전부 정상 세션을 요구한다. `middleware.ts` 보호 경로는 넓히지 않았고, GPS 필수 + 사이트 반경 검증도
+  그대로라 현장 밖에서는 무의미하다. 쿠키는 HttpOnly·Secure·SameSite=Lax·`Path=/mobile/attendance`,
+  DB 에는 **sha256 해시만** 저장한다. 유효기간 **180일 슬라이딩**. 진입 화면에 "○○○님으로 기록됩니다"
+  를 명시한다. 폐기 경로 4가지 — 로그아웃 / 기기 주인 변경 / **관리자 해지**(어드민 → 설정 → 근태
+  「기억된 기기」, `audit_logs` 기록) / 만료. iOS 전용이 아니라 안드로이드·PWA 의 세션 만료에도 동일하게
+  작동한다. `npm run lint` + `npm run build` + `npm test` 통과. 기준 문서:
+  `docs/product/24-attendance-workflow.md` → "Trusted Device", `docs/engineering/05-rls-permissions.md`,
+  `docs/engineering/04-data-model.md`, `docs/planning/01-decision-log.md`.
+
+- **근태 QR 카메라 딥링크 구현 완료 (2026-07-31).** QR 인코딩을 토큰 문자열 → 절대 URL
+  (`<앱주소>/mobile/attendance/capture?token=…`)로 바꿔, 휴대폰 **기본 카메라로 찍으면 바로 근태
+  인증 화면**으로 들어온다(예전에는 아무 반응이 없었다). 토큰 값은 그대로라 **기존 인쇄물도 앱
+  스캔에서 계속 동작**하지만(스캐너가 URL/토큰 두 형식 모두 수용), 카메라 기능을 쓰려면 건물별 QR
+  재출력·교체가 필요하다. 건물 QR 은 방향 정보가 없으므로 진입 화면에서 **건물명 + GPS 상태를 보여준
+  뒤 「출근 인증」/「퇴근 인증」을 고르게** 한다. 로그아웃 상태면 토큰을 `next` 에 실어 로그인 후 복귀.
+  **기기 제약:** Android 는 설치된 앱 창으로 열리지만, **iOS 는 Safari 로만 열린다**(홈 화면 PWA 로
+  넘기는 표준 방법이 iOS 에 없음, iOS 16.4+ 는 저장소 분리로 재로그인 가능성). 그래서 앱 내 스캔
+  동선은 그대로 유지한다. 보안 판정(활성 토큰·활성 사이트·동일 조직·GPS 필수·반경 이내)은
+  `submitAttendanceScan` 이 전부 다시 하므로 변경 없음. 신규 `src/lib/attendance-qr.ts` +
+  `getSiteNameByActiveQrToken`, 하위호환 테스트 4종. `npm run lint` + `npm run build` 통과.
+  기준 문서: `docs/product/24-attendance-workflow.md` → "QR Deep Link", `docs/planning/01-decision-log.md`.
+
+- **어드민 린넨 반품 기록 관리 콘솔 구현 완료 (2026-07-30).** 현장 등록은 기존 모바일
+  `/mobile/linen-return/*`를 그대로 유지하고, 사무실용 `/admin/linen-return` 이 라이브다(사이드바
+  운영 그룹). Claude Design 핸드오프(`린넨 반품 콘솔 (admin).html`) 이식.
+  뷰 2개 — **「기록」**(반품 한 건 = 한 행, 행 안에 전체 품목·수량 노출, 품목 필터 시 전용 수량 열 +
+  해당 품목 강조)과 **「품목별 수량」**(같은 조건의 품목별 대조표, 건물을 좁히면 전체 건물 수량을
+  나란히 표시, 반품 0인 품목도 남김). 조회 기간은 URL `?from=&to=` → **서버 조직 스코프 쿼리**로
+  좁히고(기본 Tokyo 이번 달, 최신 등록순), 건물·품목·등록자 필터는 이미 내려온 같은 조직 데이터에서
+  좁힌다. 상세 패널에서 **건물·품목/수량·메모·사진만 수정**하고 `registered_at`/`registered_by_user_id`
+  는 잠근다(`.rofield`). 삭제는 확인 모달 + MVP hard delete. 수정·삭제는 기존 `audit_logs` 에
+  `linen_return_console_update` / `linen_return_console_delete` 로 변경 전후 스냅샷을 남긴다(새
+  마이그레이션 없음). 신규 파일: `src/app/admin/linen-return/{page.tsx,actions.ts}`,
+  `src/lib/admin-linen-returns.ts`, `src/components/admin/linen-return/*`. 공용 `AdmDropdown` 에
+  `searchable`(메뉴 안 검색) 모드를 추가하고 CSS 는 `admin-console.css` 공용 영역에 두었다.
+  핸드오프의 페이지 전역 타이포 스케일 업 블록과 "검토용 역할 전환 바"는 의도적으로 제외했다
+  (각각 콘솔 일관성 계약 위반 / 프로토타입 전용).
+  **Excel + PDF 내보내기 (같은 날 추가).** 공용 계약 그대로 — 필터 바 오른쪽에 `<AdminExportButtons>`,
+  서버는 `buildAdminTableWorkbookBase64` / `buildAdminTableReportHtml`, 로케일은
+  `buildAdminExportMeta(session)`. 한 파일에 시트 2개(「린넨 반품 기록」 + 「품목별 수량」)를 담고,
+  제목 라벨에 기간 + 적용 필터를 찍는다. 신규 등록·상태·품목 마스터·월별 집계 대시보드는 계속 범위 밖.
+  `npm run lint` + `npm run build` 통과. 기준 문서:
+  `docs/product/19-linen-defect-workflow.md`, `docs/product/05-admin-web-ia.md`,
+  `docs/engineering/08-linen-defect-technical-design.md`, `docs/planning/01-decision-log.md`.
 
 - **어드민 Todoist 콘솔 구현 완료 (2026-07-27).** 대시보드 `/admin/tasks` 에 데스크톱 Todoist 워크스페이스
   라이브(Claude Design 핸드오프 이식). 모바일 코어 패리티(오늘/내일/관리함/공유함/캘린더/완료·기록/프로젝트)
@@ -3689,3 +3747,76 @@ Files: `src/app/mobile/requests/lost-found/returned/page.tsx`(신규),
 Files: `src/lib/room-label-normalization.ts`, `src/lib/admin-cleaning.ts`,
 `src/app/admin/attendance/leave/page.tsx`, `src/components/admin/attendance/attendance-subnav.tsx`,
 `src/components/admin/admin-console.css`, docs(07-product, 05-product, 01-planning, 06-planning).
+
+## 2026-07-30 — 모바일 지시(받은/보낸)
+
+관리 콘솔에만 있던 받은/보낸 지시를 모바일에 반영했다. 기존 **공유함 탭을 지시 탭으로 재구성**해
+탭 수는 7개 그대로다. 탭 안에 받은/보낸 세그먼트(Bell/Megaphone + 카운트)를 두고, 상태 그룹은
+콘솔과 같은 순서(받은: 지연 → 해야 할 지시 → 진행 중 → 완료 / 보낸: 미확인·대기 → 진행 중 → 완료)를
+쓴다. 탭 배지는 미확인 받은 지시 건수.
+
+받은 지시는 오늘/내일/관리함에도 계속 보이고, **내가 보낸 지시는 내 일정 뷰에서 빠진다**(대상자의
+일정이므로 — 콘솔 `myOwn` 과 동일). 지시 판별 술어는 `src/lib/task-directives.ts` 한 곳으로 모으고
+콘솔 `helpers.ts` 는 재수출만 하도록 바꿔 쌍둥이 파일 분기를 막았다.
+
+담당자별 진행률 바는 **구현하지 않았다** — `task_participants` 에 담당자별 완료 상태가 없어
+현재 데이터 모델로 만들 수 없다. 보낸 지시 카드는 담당 인원 수 + 작업 상태만 보여준다.
+
+검증: `tsc --noEmit` 0 errors, `npm run lint` 0 errors(경고 11 = 기존). **`npm run build` 미실행**
+(개발 서버 구동 중). 실제 기기 확인은 사용자 몫.
+
+Files: `src/lib/task-directives.ts`(신규), `src/lib/i18n.ts`,
+`src/components/tasks/{tasks-workspace,task-card,task-detail-view}.tsx`,
+`src/components/admin/tasks/helpers.ts`, `src/app/mobile/tasks/page.tsx`,
+`src/app/mobile/tasks/[id]/actions.ts`, docs(18·16·23-product, 01·06-planning, 09-engineering).
+
+## 2026-07-30 — 반복 회차 건너뛰기
+
+오늘/내일 화면에서 반복 카드를 삭제하면 시리즈 전체가 사라지던 문제를 고쳤다. 반복 작업을 회차로
+보고 있을 때는 삭제 시 `이 날짜만 건너뛰기` / `반복 전체 삭제` 를 먼저 묻는다(BottomSheet).
+건너뛴 회차는 기존 `task_occurrence_state` 의 `skipped` 로 남고 반복은 예정대로 계속되며,
+6초짜리 실행 취소 토스트가 뜬다. 새 테이블·새 개념 없음.
+
+함께 고친 것: 모바일·콘솔의 회차 필터가 완료만 걸러 **건너뛴 회차가 목록에 남던** 문제
+(`state !== "completed"` → `!state`).
+
+관리 콘솔에도 같은 선택지를 붙였다 — 오늘/내일 목록의 반복 행 `⋯` 메뉴가 회차 날짜를 들고 열리고,
+삭제 시 `RecurDeleteModal` 이 뜬다. 상세 패널 삭제와 관리함처럼 회차가 아닌 목록은 의도적으로
+시리즈 삭제 그대로다.
+
+검증: `tsc --noEmit` 0 errors, `npm run lint` 0 errors. `npm run build` 미실행(개발 서버 구동 중).
+
+## 2026-07-31 — 콘솔 "오늘 진행 현황" 집계 오류
+
+오늘 탭이 9건인데 레일의 대기가 2로 뜨던 문제. 레일이 `isTodayTask || isOverdue` 만 세는데
+`isTodayTask` 는 반복 작업을 제외하도록 되어 있어 반복 회차 7건이 빠졌다. 레일 집계를 탭
+배지(`todayCount`)와 같은 기준(일회성 + 오늘 회차 + 반복 지연)으로 맞췄다. 반복은 회차별 상태가
+없으므로 행 `status` 로 대기/진행 중을 가른다. Docs: 28-product.
+
+검증: `tsc --noEmit` 0 errors, `npm run lint` 0 errors.
+
+## 2026-07-31 — 지시 보내기 진입점 (콘솔 + 모바일)
+
+지시를 보는 화면은 있는데 보내는 수단이 없던 문제. 콘솔 `보낸 지시` 뷰에 인라인 **지시 보내기**
+트리거를 넣고(`AddDraft.ctx = "instr"`, 날짜 기본 오늘, 대상 없으면 저장 불가), 모바일에는
+생성 폼의 **"지시로 보내기" 토글** + `보낸 지시` 화면 진입점(`?directive=1`)을 추가했다.
+
+모바일은 그동안 `is_directive` 를 쓰는 경로가 아예 없어 모든 공유가 peer 공유로만 저장됐다 —
+이제 서버가 `is_directive: directive && shareIds.length > 0` 로 콘솔과 같은 규칙을 쓴다.
+
+검증: `tsc --noEmit` 0 errors, `npm run lint` 0 errors(경고 11 = 기존). Docs: 18-product.
+
+## 2026-07-31 — 참여자 재초대(Re-sharing) 통일: 문서 쪽(참여자 허용)
+
+참여자 추가 권한이 모바일(참여자 허용)과 콘솔(작성자만)로 갈라져 있었다. 문서가 "참여자도 재공유
+가능" 이라 **콘솔을 열어** 통일했다.
+
+**부르기만 열고 축출은 잠갔다.** 콘솔 `shareConsoleTask` 는 피커 체크 상태로 집합을 재조정하는
+구조라 그냥 열면 참여자가 다른 참여자를 뺄 수 있다 — 작성자가 아니면 제거분을 버리고 추가만
+적용하며, `is_directive` 전환도 무시한다. 팝오버에서도 기존 참여자 행을 잠갔다.
+
+지시 작업에 참여자가 누군가를 추가하면 그 사람에게는 원 작성자가 보낸 지시로 보인다(실제 초대자는
+`task_participants.added_by_user_id`). 소유자가 이 점을 알고 편의를 택한 결정.
+
+검증: `tsc --noEmit` 0 errors, `npm run lint` 0 errors(경고 11 = 기존).
+

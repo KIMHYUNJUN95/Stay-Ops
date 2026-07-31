@@ -20,6 +20,7 @@ import type { AdminCleaningHistoryItem } from "@/lib/admin-cleaning";
 import { BUILDING_ORDER, fmtDate, fmtDur, type BuildingKey } from "./cleaning-console-data";
 import {
   StaffAvatar,
+  StatusPill,
   buildingLabelOf,
   localeTagOf,
   staffLabelOf,
@@ -27,6 +28,11 @@ import {
   type ConsoleCopy,
   type StaffDirectory,
 } from "./cleaning-console-shared";
+
+/** 세션 상태 축 — 모바일 "상태"(완료/진행중/취소)와 같은 뜻. */
+export type HistorySessionStatusFilter = "all" | "done" | "progress" | "cancelled";
+/** 완료 유형 축 — 정상 완료 / 관리자 대리 완료. 세션 상태가 아니다. */
+export type HistoryCompletionFilter = "all" | "normal" | "proxy";
 
 type HistoryBoardProps = {
   history: AdminCleaningHistoryItem[];
@@ -39,8 +45,10 @@ type HistoryBoardProps = {
   onPropFilterChange: (v: BuildingKey | "all") => void;
   staffFilter: string;
   onStaffFilterChange: (v: string) => void;
-  statusFilter: "all" | "normal" | "proxy";
-  onStatusFilterChange: (v: "all" | "normal" | "proxy") => void;
+  sessionStatusFilter: HistorySessionStatusFilter;
+  onSessionStatusFilterChange: (v: HistorySessionStatusFilter) => void;
+  completionFilter: HistoryCompletionFilter;
+  onCompletionFilterChange: (v: HistoryCompletionFilter) => void;
   query: string;
   onQueryChange: (v: string) => void;
   from: string;
@@ -64,8 +72,10 @@ export function HistoryBoard({
   onPropFilterChange,
   staffFilter,
   onStaffFilterChange,
-  statusFilter,
-  onStatusFilterChange,
+  sessionStatusFilter,
+  onSessionStatusFilterChange,
+  completionFilter,
+  onCompletionFilterChange,
   query,
   onQueryChange,
   from,
@@ -83,8 +93,9 @@ export function HistoryBoard({
     if (h.date < from || h.date > to) return false;
     if (propFilter !== "all" && h.building !== propFilter) return false;
     if (staffFilter !== "all" && h.staffId !== staffFilter) return false;
-    if (statusFilter === "proxy" && !h.proxy) return false;
-    if (statusFilter === "normal" && h.proxy) return false;
+    if (sessionStatusFilter !== "all" && h.status !== sessionStatusFilter) return false;
+    if (completionFilter === "proxy" && !h.proxy) return false;
+    if (completionFilter === "normal" && h.proxy) return false;
     if (q) {
       const buildingText = buildingLabelOf(h, buildingLabels).toLowerCase();
       if (!h.room.toLowerCase().includes(q) && !h.staffName.toLowerCase().includes(q) && !buildingText.includes(q)) {
@@ -103,6 +114,7 @@ export function HistoryBoard({
     staffName: h.staffName,
     start: h.start,
     dur: h.dur,
+    status: h.status,
     proxy: h.proxy,
     note: h.note,
   }));
@@ -144,11 +156,27 @@ export function HistoryBoard({
         ariaLabel={t.staff}
         options={[{ value: "all", label: t.allStaff }, ...staffOptions.map((s) => ({ value: s.id, label: s.name }))]}
       />
+      {/* 세션 상태 축 (모바일 "상태"와 동일: 완료 / 진행중 / 취소) */}
       <AdmDropdown
         size="sm"
-        value={statusFilter}
-        onChange={(v) => onStatusFilterChange(v as "all" | "normal" | "proxy")}
+        value={sessionStatusFilter}
+        onChange={(v) => onSessionStatusFilterChange(v as HistorySessionStatusFilter)}
         ariaLabel={t.status}
+        options={[
+          { value: "all", label: t.allSessionStatus },
+          { value: "done", label: t.sessionStatus.completed },
+          { value: "progress", label: t.sessionStatus.in_progress },
+          { value: "cancelled", label: t.sessionStatus.cancelled },
+        ]}
+      />
+      {/* 완료 유형 축 (정상 완료 / 관리자 대리 완료). ariaLabel 은 이 필터의 기본 옵션 문구
+          ("전체 유형" / "All types" / "全タイプ")를 쓴다 — 콘솔 사전에 "완료 유형" 명사 키가
+          아직 없다. 키가 추가되면 여기만 바꾸면 된다. */}
+      <AdmDropdown
+        size="sm"
+        value={completionFilter}
+        onChange={(v) => onCompletionFilterChange(v as HistoryCompletionFilter)}
+        ariaLabel={t.allStatus}
         options={[
           { value: "all", label: t.allStatus },
           { value: "normal", label: t.stNormal },
@@ -264,10 +292,7 @@ export function HistoryBoard({
                     </span>
                   </td>
                   <td>
-                    <span className="cstat cstat--done">
-                      <span className="d" />
-                      {t.stDone}
-                    </span>
+                    <StatusPill status={h.status} t={t} />
                   </td>
                   <td className="mono">{h.start}</td>
                   <td>

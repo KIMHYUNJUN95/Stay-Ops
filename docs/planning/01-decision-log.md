@@ -2,6 +2,211 @@
 
 This file records important project decisions.
 
+## 2026-07-31 근태 기기 기억 (Trusted Device) — 재로그인 없이 打刻
+
+### 배경
+
+같은 날 도입한 QR 카메라 딥링크에서 아이폰은 Safari 로만 열린다. iOS 는 홈 화면 PWA 와 Safari 의
+저장소가 분리돼 로그인 세션을 공유하지 않아, QR 로 들어올 때마다 재로그인을 요구받는다.
+로그인 수단(구글/이메일)을 바꿔도 이 구조는 해소되지 않는다.
+
+### 결정 — 권한 모델 변경 (사용자 승인)
+
+- **한 번 로그인해 실제로 打刻에 성공한 기기**를 기억하고, 그 다음부터는 인증 세션 없이도
+  **출근/퇴근 打刻만** 가능하게 한다. 신규 테이블 `attendance_trusted_devices`.
+- **권한 경계 — 이 자격증명은 出退勤 打刻 두 가지만 허용한다.** 근무 이력·급여·정정·프로필·다른
+  모듈·어드민은 전부 불가이며 여전히 정상 세션을 요구한다. `middleware.ts` 의 보호 경로는 넓히지
+  않았고, 신원 대체는 `submitAttendanceScan` 과 QR 진입 화면에서만 일어난다.
+- GPS 필수 + 사이트 반경 검증은 그대로다 → 쿠키만으로 현장 밖에서 打刻할 수 없다. 즉 대리 출근
+  위험은 기존과 동일하다.
+- 조직 멤버십이 `active` 가 아니면 즉시 무효 — 퇴사·정지 처리하면 기기도 함께 죽는다.
+- 진입 화면에 **"○○○님으로 기록됩니다"** 를 명시해 다른 사람으로 잘못 찍히는 것을 막는다.
+
+### 선택한 값
+
+- **유효기간 180일 슬라이딩**(사용자 결정). 쓸 때마다 다시 180일. 반년 미사용 시 자동 소멸.
+- **관리자 해지 UI 를 이번에 함께 구현**(사용자 결정). 어드민 → 설정 → 근태의 「기억된 기기」 목록.
+  분실·퇴사 시 즉시 끊을 수 있어야 장기 자격증명을 두는 것이 정당화된다. 해지는 `audit_logs`
+  (`attendance_trusted_device_revoke`)에 남는다.
+- 쿠키는 HttpOnly · Secure · SameSite=Lax · **`Path=/mobile/attendance`** — 근태 경로 요청에만 실린다.
+- **원문 토큰은 DB 에 저장하지 않는다.** sha256 해시만 보관해 DB 유출 시 재사용을 막는다.
+- 발급은 화면 진입이 아니라 **打刻 성공 직후**다. "실제로 현장에서 쓴 기기"라는 근거가 있는 시점.
+- 로그아웃 시 쿠키 삭제 + DB 폐기. 같은 기기에서 다른 사람이 打刻하면 이전 자격증명을 폐기하고 재발급.
+
+### 채택하지 않은 대안
+
+- **세션 수명만 연장** — 언젠가 만료되면 같은 문제가 재발한다. 전체 권한을 가진 세션을 장기간
+  살려두는 것이 근태 전용 자격증명보다 노출이 크다.
+- **패스키(WebAuthn)** — 재로그인 비용을 Face ID 1회로 낮출 뿐 여전히 로그인이다. Supabase 기본
+  제공이 아니라 구현 부담도 크다.
+- **네이티브 래퍼 + Universal Links** — 아이폰에서 앱을 직접 여는 유일한 방법이지만 PWA-first
+  방향을 뒤집는 결정이라 이번 범위에서 제외.
+
+### 부수 효과
+
+iOS 전용 대책이 아니다. 안드로이드·PWA 사용자도 세션이 만료되면 같은 혜택을 받는다.
+
+### 검증
+
+마이그레이션을 연결된 Supabase 프로젝트에 적용 완료. `npm run lint` 통과(0 errors),
+`npm run build` 통과, `npm test` 기존 실패 1건 외 전부 통과.
+상세: `docs/product/24-attendance-workflow.md` → "Trusted Device",
+`docs/engineering/05-rls-permissions.md`.
+
+## 2026-07-31 근태 QR — 휴대폰 기본 카메라 딥링크 도입
+
+### 결정
+
+- 근태 QR 의 인코딩을 **토큰 문자열 → 절대 URL** 로 바꾼다.
+  `https://<앱주소>/mobile/attendance/capture?token=att_…`
+  기존에는 토큰만 담아서, 기본 카메라로 찍으면 열 수 있는 게 없어 아무 반응이 없었다.
+- **토큰 값 자체는 바꾸지 않는다.** 앱 내 스캐너가 URL 과 토큰-only 두 형식을 모두 받으므로
+  이미 현장에 붙어 있는 인쇄물은 앱에서 계속 동작한다. 카메라 기능을 쓰려면 QR 재출력·교체가 필요하다.
+- QR 의 기준 주소는 **`NEXT_PUBLIC_APP_URL`** 이다(요청 호스트 아님). QR 은 인쇄물이라, 관리자가
+  LAN IP 로 접속한 상태에서 뽑으면 현장에서 안 열리는 QR 이 찍힌다. 주소 미설정이면 예전처럼
+  토큰만 담는다 — 깨진 링크를 인쇄하는 것보다 낫다.
+- 건물 QR 에는 방향 정보가 없으므로, 링크로 들어오면 **진입 화면에서 출근/퇴근을 고르게 한다**
+  (사용자 결정). 서버 자동 판단(열린 세션 유무)이나 건물당 QR 2장은 채택하지 않았다 — 전자는 의도치
+  않은 퇴근 위험, 후자는 인쇄물·관리 대상이 2배가 된다.
+- 로그아웃 상태로 QR 을 찍으면 **토큰을 `next` 에 실어** 로그인 후 같은 화면으로 복귀시킨다.
+
+### 확인된 기기 제약 (기능 한계로 명시)
+
+- **Android**: 카메라 → 링크 배너 → URL 이 PWA scope(`/`) 안이라 **설치된 앱 창으로 열린다.** 의도대로 동작.
+- **iOS**: 카메라 → **Safari 로만** 열린다. 홈 화면 PWA 로 넘기는 표준 방법이 iOS 에 없다
+  (Universal Links 는 네이티브 앱이 있어야 한다). iOS 16.4+ 는 standalone PWA 와 Safari 의 저장소가
+  분리돼 재로그인이 필요할 수 있다. 직원 기기가 iOS/Android 혼재라 **앱 내 스캔 동선은 그대로 유지**한다.
+
+### 보안 — 변경 없음
+
+토큰이 URL 에 노출돼도 판정은 `submitAttendanceScan` 이 전부 다시 한다: 동일 조직의 활성 토큰 +
+활성 사이트 + GPS 필수 + 사이트 반경 이내. 링크만 받아서는 현장 밖에서 인증되지 않으므로 대리 출근
+위험은 이전과 동일하다. 진입 화면의 사이트 이름 조회는 표시용이며 인증이 아니다.
+
+### 검증
+
+`extractAttendanceToken` 하위호환 테스트 4종(구형 토큰-only / 신형 URL / 다른 호스트·추가 파라미터 /
+무효 입력) 통과. `npm run lint` 통과(0 errors), `npm run build` 통과.
+상세: `docs/product/24-attendance-workflow.md` → "QR Deep Link".
+
+## 2026-07-30 컴플레인 재기획 — 수동 컴플레인과 Beds24 외부 리뷰를 분리·연결
+
+### 결정
+
+- 기존 `customer_complaints`는 직원이 직접 등록·처리하는 수동 컴플레인으로 유지한다.
+- Beds24에서 수집하는 Airbnb·Booking.com 리뷰는 별도 `external_reviews` 로컬 도메인으로 둔다. 외부
+  리뷰를 낮은 평점이라는 이유만으로 자동 컴플레인으로 만들지 않는다.
+- 실제 조치가 필요한 리뷰만 작성 권한자가 수동 컴플레인으로 전환·연결한다. 이때 원 리뷰 ID·점수·본문·문맥
+  스냅샷을 남기고 동일 리뷰의 중복 전환은 서버에서 막는다.
+- 위험 판정: **Airbnb 3점 이하 = 위험**, **Booking 7.0점 = 위험, 7.0점 미만 = 매우 위험**. Airbnb의
+  별도 매우 위험 구간은 이번에 정하지 않는다.
+- 외부 리뷰는 Beds24 API를 UI에서 직접 호출하지 않는다. 조직별·채널별 하루 1회 기본 수집, 초기/복구 시
+  최근 90일 제한 수집, 로컬 UPSERT·캐시 조회를 원칙으로 한다. 요청 비용/남은 크레딧을 기록하고 예약
+  웹훅 처리보다 리뷰 수집을 우선하지 않는다.
+- 외국어 외부 리뷰는 **DeepL API Free**로 필요할 때만 현재 앱 언어(ko/ja/en)로 번역하고, 동일
+  리뷰·본문 종류·목표 언어의 결과를 캐시한다. 목록/필터에서는 번역하지 않는다. 월 500,000자 무료 한도에 대해
+  450,000자 안전 한도를 두며, 도달 시 새 번역을 다음 월까지 중단하고 원문·기존 번역은 계속 제공한다.
+- 플랫폼별 세부 점수는 `rating_breakdown` 원본 구조로 보관하고 제공된 경우에만 상세에 표시한다.
+  Booking.com의 긍정/부정 본문은 분리 보관하며, 본문 없이 점수만 존재하는 리뷰도 정상 데이터로 수집·표시한다.
+- 객실은 Beds24의 예약/객실 식별자와 로컬 데이터가 신뢰성 있게 매칭될 때만 표시한다. 추정 매핑은 금지한다.
+- 모바일과 대시보드는 같은 조직의 수동 컴플레인·외부 리뷰·번역 캐시를 공유한다. 화면별 복사 테이블이나
+  별도 Beds24/DeepL 호출을 만들지 않으며, 어느 화면의 처리 결과도 다른 화면에서 같은 ID와 연결 상태로
+  확인한다.
+- 현 작업은 기획·문서만이다. 시각 디자인, API/DB/RLS 구현, 새 어드민 화면은 후속 작업에서 함께 진행한다.
+
+### 범위 밖
+
+- OTA 답글 전송, 자동 티켓/알림, AI 분석, 통계·export, 담당자 배정
+
+상세 계약은 Product `25`, Beds24 연동은 Engineering `01`, 계획 스키마/RLS는 Engineering `04`/`05`에
+동일하게 반영한다.
+
+## 2026-07-30 린넨 반품 콘솔 — Excel · PDF 내보내기 추가 (범위 밖 결정 번복)
+
+### 결정
+
+- `/admin/linen-return` 에 **Excel + PDF 내보내기를 추가한다.** 같은 날 두 번(오전 기획, 오후 디자인
+  확정) "대시보드 v1에서 Excel/PDF export 는 범위 밖"으로 적었던 결정을 번복한다. 사무실이 세탁업체
+  청구서를 대조하려면 기간별 반품 내역을 파일로 넘길 수 있어야 한다는 요구가 확인됐다.
+- **새 양식을 만들지 않는다.** 근태·청소·주문 콘솔이 쓰는 공용 계약(CLAUDE.md §4b)을 그대로 따른다:
+  버튼은 `<AdminExportButtons>`(`chipbtn` + lucide `Download` 한 쌍), 서버는 같은 입력으로
+  `buildAdminTableWorkbookBase64` / `buildAdminTableReportHtml`, 푸터·로케일은
+  `buildAdminExportMeta(session)`. 초록 원장 색과 레이아웃도 그대로다.
+- **Excel 과 PDF 는 항상 같이 낸다.** CSV·클라이언트 `Blob` 다운로드·`/api/admin/export/*` 라우트는
+  만들지 않는다.
+- **한 파일에 시트 2개** — 「린넨 반품 기록」 + 「품목별 수량」. 콘솔의 두 탭과 1:1로 맞춰서, 사무실이
+  기록 목록과 품목 합계를 한 파일에서 대조할 수 있게 한다. (공용 빌더가 원래 `sheets[]` 를 받도록
+  설계돼 있어 새 기능 추가 없이 가능했다. 인쇄본은 두 번째 섹션에 page break 가 들어간다.)
+- 제목 앞 라벨에 **기간 + 적용 필터(건물 · 품목 · 등록자)** 를 함께 찍는다. 파일만 받아도 어떤 조건의
+  자료인지 알 수 있어야 한다.
+- 내보내는 값은 **화면에 그린 그대로**를 클라이언트가 서버 액션에 넘긴다(청소·주문·근태와 동일 패턴).
+  단, 품목 필터는 드롭다운이 실제로 보이는 「기록」 뷰에서만 적용한다 — 「품목별 수량」 뷰에서 내보낼 때
+  기록 시트만 몰래 좁혀지면 두 시트의 조건이 어긋나기 때문이다.
+- 내보내기 로케일은 서버가 `session.user.preferredLanguage` 에서 정한다. 클라이언트는 로케일을 넘기지
+  않는다(공용 규칙).
+
+### 공용 빌더 버그 수정 — `wrap` 열 잘림 (같은 날)
+
+내보낸 xlsx 에서 메모 열의 두 번째 줄부터가 잘려 보이는 문제를 확인했다. 원인은 린넨이 아니라
+**공용 빌더**(`admin-table-workbook.ts`)가 모든 데이터 행 높이를 18pt 로 고정하고 있던 것이다 —
+명시적 행 높이가 있으면 Excel/LibreOffice 는 줄바꿈 자동 맞춤을 하지 않는다. 청소 비고, 주문 등
+`wrap: true` 를 쓰는 모든 화면이 같은 증상이었다.
+
+- 고정 18pt 대신 **열 너비 대비 표시 폭으로 줄 수를 추정해 필요한 만큼만 행을 키운다**(전각 2칸으로
+  계산, 최대 12줄, 줄바꿈 없는 행은 18pt 유지). 색·서식·레이아웃은 그대로다.
+- 회귀 가드로 `src/lib/__tests__/admin-table-workbook.test.ts` 를 추가했다. 이 빌더는 4개 이상의
+  콘솔이 공유하므로 한 번 깨지면 전부 깨지는데, 파일을 열어보기 전에는 드러나지 않는 종류의 버그다.
+
+### 검증
+
+공용 빌더에 린넨 2시트 입력을 넣는 스모크 테스트로 xlsx(zip `PK` 시그니처)와 인쇄 HTML(두 섹션 +
+page break) 생성을 확인했고, 행 높이 테스트 3개 통과(단일 줄 18pt / 3줄 45pt / 비-wrap 열 무시).
+`npm run lint` 통과(0 errors), `npm run build` 통과.
+
+## 2026-07-30 어드민 린넨 반품 콘솔 — 디자인 확정 + 구현 완료
+
+### 결정
+
+- `/admin/linen-return` 을 같은 날 확정된 Claude Design 핸드오프(`린넨 반품 콘솔 (admin).html`)
+  그대로 구현했다. 사이드바 운영 그룹에 `린넨 반품` 항목을 추가했다.
+- 뷰는 **「기록」 / 「품목별 수량」 2개 탭**이다. 「기록」은 반품 한 건이 한 행이고, 행 안에 전체
+  품목·수량을 항상 노출한다. 「품목별 수량」은 같은 조건의 품목별 대조표이며, 행을 누르면 그
+  품목으로 「기록」 뷰를 좁힌다.
+- **같은 날 오전의 "대시보드 v1에서 품목별 집계는 범위 밖" 결정을 이 항목으로 번복한다.**
+  확정된 디자인이 품목별 수량 뷰를 포함하고, 사무실의 실제 대조 업무(세탁업체 청구 대조)가
+  품목별 합계를 요구하기 때문이다. 월별 집계 대시보드와 Excel/PDF export 는 계속 범위 밖이다.
+- 조회 기간은 URL(`?from=&to=`)로 관리하고 **서버에서 조직 스코프 쿼리로 좁힌다.** 건물·품목·
+  등록자 필터만 이미 내려온 같은 조직 데이터 안에서 클라이언트가 좁힌다.
+- 수정 가능 범위는 건물·품목/수량·메모·사진이다. `registered_at` / `registered_by_user_id` 는
+  증빙값이라 UI에서 잠그고 서버 update payload 에도 넣지 않는다.
+- 삭제는 MVP hard delete 이며 확인 모달을 유지한다(되돌릴 수 없으므로 undo 토스트 대상이 아니다).
+- **감사 기록은 기존 `audit_logs` 테이블에 남긴다.** action 은 `linen_return_console_update` /
+  `linen_return_console_delete`, target_type 은 `linen_return_record`. metadata 에 변경 전/후
+  스냅샷(건물·품목/수량·메모·사진 수)과 원 등록 증빙값을 담는다. 새 마이그레이션은 필요 없었다.
+- 계획 문서가 요구한 "reason(사유)" 는 **자유 입력 사유 대신 자동 변경 스냅샷으로 대체**했다.
+  확정된 삭제 확인 디자인에 사유 입력 필드가 없고, 사유 필드를 추가하면 디자인을 벗어난다.
+- 디자인 핸드오프의 **페이지 전역 타이포 스케일 업 블록은 의도적으로 이식하지 않았다.** 해당
+  블록은 `.navi`/`.side__*`/`.toast`/`.btn` 등 모든 어드민 페이지가 공유하는 셸 요소까지 키우는데,
+  이 페이지만 사이드바·버튼·토스트 크기가 달라지면 "하나의 운영 콘솔" 계약(CLAUDE.md §4)이
+  깨진다. 린넨 전용 신규 요소(`.litem`/`.ltotal`/`.rofield`/`.leline`)는 핸드오프 값 그대로다.
+- 디자인의 **"검토용 관리자 / 열람 전용" 전환 바는 구현하지 않았다.** 핸드오프 파일이 스스로
+  "제품 UI 아님 — 검토용"이라고 표시한 프로토타입 장치이며, 실제 권한은 세션 역할(작성자 본인
+  또는 owner/office_admin/cs_staff/field_manager)에서 파생한다.
+- 등록자 필터의 "메뉴 안 검색"은 공용 `AdmDropdown` 에 `searchable` 모드로 추가했다. 별도 드롭다운을
+  만들지 않았고, 관련 CSS 는 `admin-console.css` 의 공용 영역에 두어 다른 콘솔도 쓸 수 있게 했다.
+
+### 여전히 범위 밖
+
+- 대시보드 신규 등록, 상태 워크플로우
+- 품목 마스터 관리, 월별 집계 대시보드, Excel/PDF export
+- 모바일 흐름이나 기존 역할·권한 모델 변경
+
+### 검증
+
+`npm run lint` 통과(0 errors), `npm run build` 통과. 기준 문서:
+`docs/product/19-linen-defect-workflow.md`, `docs/product/05-admin-web-ia.md`,
+`docs/engineering/08-linen-defect-technical-design.md`.
+
 ## 2026-07-30 어드민 린넨 반품 — 사무실 기록 관리 콘솔로 범위 확정 (구현 전)
 
 ### 결정
@@ -4218,3 +4423,129 @@ As-built → `docs/engineering/09-todo-task-technical-design.md`.
 쓰기 헬퍼가 결과를 버리면 실패가 "화면만 바뀌고 되돌아감"으로만 드러나 디버깅 단서가 사라진다.
 
 마이그레이션은 원격 적용 완료(컬럼 6 · 인덱스 3 · RLS 정책 1 · 트리거 1 · rowsecurity=true).
+
+## 2026-07-30 투두 우선순위 — 4단계(Todoist P1~P4) + 색 깃발
+
+**결정.** 우선순위를 `긴급/중요/일반`(3단계, 워드 라벨)에서 **`우선순위 1~4`(Todoist식 4단계)**로 바꾸고
+깃발에 색을 넣는다.
+
+- **내부 값은 최소 변경.** 기존 `urgent/important/normal`을 유지하고 신규 값 `medium`(P3) **하나만**
+  추가한다(마이그레이션 `202607300002_task_priority_medium.sql` — check 제약에 `medium` 추가, 데이터
+  마이그레이션 없음). 사다리: `urgent > important > medium > normal`.
+- **표시 매핑**: urgent=우선순위 1(빨강) · important=우선순위 2(주황) · medium=우선순위 3(파랑) ·
+  normal=우선순위 4(회색·기본). i18n `prioUrgent/prioImportant/prioMedium/prioNormal`(ko/ja/en) 재라벨.
+- **색 소스**: 콘솔 `--flag-urgent`(빨)/`--flag-warn`(주)/신규 `--flag-medium`(파), normal은 무색.
+  모바일은 rose/amber/blue/slate. 콘솔 우선순위 피커가 정의되지 않은 `--rose/--amber`를 써서 색이
+  네이비로 보이던 버그도 정의된 `--flag-*`로 교정.
+- **정렬/필터/피커/상세/캘린더/레일** 전부 4단계 반영. `prioLabel`/`PRIO_ORD`(helpers) 중앙화.
+
+**변경 파일**: `supabase/migrations/202607300002_*`, `src/lib/{admin-tasks-i18n,i18n}.ts`,
+`src/components/admin/tasks/{helpers.ts,admin-tasks-console.tsx,admin-tasks-console.css}`,
+`src/components/admin/admin-console.css`, `src/components/tasks/{task-card,task-create-form,task-detail-view}.tsx`,
+`src/app/{admin,mobile}/tasks/**/actions.ts`. **검증**: lint 0 errors / build 통과.
+
+## 2026-07-30 모바일 지시(받은/보낸) — 공유함 탭을 재구성
+
+**결정.** 관리 콘솔에만 있던 **받은 지시 / 보낸 지시**를 모바일에도 넣는다. 탭 수를 늘리지 않고
+**기존 `공유함`(`sent`) 탭을 `지시`(`instr`) 탭으로 재구성**한다(7탭 유지).
+
+- **받은 지시는 오늘/내일/관리함에도 계속 보인다** — 지시 탭은 *모아보기* 역할(사용자 확정).
+- **내가 보낸 지시는 내 일정 뷰에서 제외한다** — 대상자의 일정이므로. 콘솔 `myOwn` 과 같은 규칙.
+- 상태 그룹은 콘솔 `recvView`/`sentView` 와 **같은 순서**를 쓴다: 받은 = 지연 → 해야 할 지시 →
+  진행 중 → 완료, 보낸 = 미확인·대기 → 진행 중 → 완료. 사무실과 현장이 같은 분류를 보게 하는 것이
+  이 화면의 목적이다.
+- 세그먼트 컨트롤의 시각 규격은 **이미 배포된 건의함 세그먼트**(`suggestions.css` `.seg`)를 따른다.
+  새 컨트롤 문법을 만들지 않는다.
+
+**지시 술어는 한 곳에서만 정의한다.** `sentInstr`/`recvInstr`/`myOwn`/`partsOf`/`isMine` 을
+`src/lib/task-directives.ts` 로 옮기고 `src/components/admin/tasks/helpers.ts` 는 재수출만 한다.
+모바일·콘솔에 같은 규칙을 복사하면 `tasks.ts` / `tasks-recurrence.ts` 반복 규칙에서 이미 겪은
+쌍둥이 파일 분기(오버듀 작업이 하드 삭제되던 사고)를 되풀이한다.
+
+**담당자별 진행률은 만들지 않는다.** `task_participants` 에 담당자별 완료 상태가 없고 완료는 작업
+1건당 하나다. 보낸 지시 카드는 **담당 인원 수 + 작업 상태**만 보여준다(콘솔과 동일). 담당자별
+진행률이 필요하면 `task_participants.completed_at` 추가 + 완료 의미 변경이라는 별도 결정이 필요하다.
+
+**용어.** 카드 칩은 "수행"이 아니라 **담당**을 쓴다(ko `담당 {n}명` · ja `担当 {n}名` ·
+en `{n} assigned`) — 청소·근태·주문 화면이 이미 `담당자`를 쓰고 있어 새 단어를 만들지 않는다.
+
+**받아들인 손실.** peer 공유만 모아 보는 모바일 화면이 없어진다. 공유한 작업은 여전히 내 작업이라
+오늘/내일/관리함에 그대로 보이고, 콘솔에는 공유함 탭이 남는다.
+
+**하위호환.** 뷰 키 `sent` → `instr`. 예전 `?view=sent` 링크·되돌아오기 쿼리는 `page.tsx` 에서
+조용히 `instr` 로 넘긴다.
+
+**변경 파일**: `src/lib/task-directives.ts`(신규), `src/lib/i18n.ts`,
+`src/components/tasks/{tasks-workspace,task-card,task-detail-view}.tsx`,
+`src/components/admin/tasks/helpers.ts`, `src/app/mobile/tasks/page.tsx`,
+`src/app/mobile/tasks/[id]/actions.ts`, docs(18·16·23-product, 01·06-planning, 09-engineering).
+**검증**: `tsc --noEmit` 0 errors, `npm run lint` 0 errors(경고 11 = 기존).
+`npm run build` 는 **실행하지 않음** — 사용자의 `next dev` 가 같은 `.next/` 를 쓰고 있어 빌드가
+개발 서버를 깨뜨린다(이번 세션에 2회 발생).
+
+## 2026-07-30 반복 작업 삭제 — "이 날짜만 건너뛰기 / 반복 전체 삭제"
+
+**문제.** 오늘 화면에서 반복 카드를 삭제하면 시리즈 전체가 모든 날짜에서 사라졌다. 반복 업무는
+"오늘만 못 한다"가 흔한데 그걸 표현할 수단이 없었다.
+
+**결정(A안).** 반복 작업을 **회차로 보고 있을 때만** 삭제 시 무엇을 지울지 먼저 묻는다 —
+`이 날짜만 건너뛰기` / `반복 전체 삭제`. 구글 캘린더 반복 일정 삭제와 같은 문법이라 학습 비용이 없다.
+일회성 작업과 회차가 아닌 목록(관리함)은 기존 확인 모달 그대로다.
+
+**새 저장소를 만들지 않는다.** 기존 `task_occurrence_state` 의 `skipped` 를 그대로 쓴다 — 오버듀
+회차 정리에 이미 쓰던 상태이고, 오늘/내일 회차에만 배선이 없었다. 날짜는 서버에서 반복 규칙으로
+재계산해 실제 회차인지 검증한다(클라이언트 값을 믿지 않는다).
+
+**확인 모달 대신 실행 취소.** `skipped` 는 영구 상태이므로 6초짜리 "실행 취소" 토스트를 둔다.
+되돌릴 수 있는 동작에는 확인 모달을 붙이지 않는다는 기존 규칙(CLAUDE.md §9)과 같은 판단이다.
+
+**필터 규약 정정.** 모바일·콘솔의 회차 필터가 `state !== "completed"` 였다 —
+**상태 행이 있으면 해결된 회차**(completed · skipped · moved)이므로 `!state` 로 바꿨다. 안 고치면
+건너뛴 회차가 목록에 그대로 남는다. 콘솔은 주석이 이미 셋 다 제외한다고 적혀 있었으나 코드가
+달랐다.
+
+**두 화면 모두 적용.** 모바일(BottomSheet)과 관리 콘솔(`RecurDeleteModal`) 둘 다 같은 선택지를
+제공하고 같은 서버 규칙(`task_occurrence_state` + 날짜 재검증)을 쓴다. 콘솔의 상세 패널 삭제와
+관리함처럼 회차가 아닌 목록은 **의도적으로** 시리즈 삭제 그대로다 — 거기선 행이 곧 시리즈다.
+
+**변경 파일**: `src/app/mobile/tasks/[id]/actions.ts`, `src/app/admin/tasks/actions.ts`,
+`src/components/tasks/{tasks-workspace,task-card}.tsx`,
+`src/components/admin/tasks/{admin-tasks-console.tsx,admin-tasks-console.css}`,
+`src/lib/{i18n,admin-tasks-i18n}.ts`, docs(18-product, 01·06-planning). **검증**: `tsc --noEmit` 0 errors(다른 세션이 만든
+`__tests__/admin-table-workbook.test.ts` 오류 1건 제외), `npm run lint` 0 errors.
+`npm run build` 미실행(개발 서버 구동 중).
+
+## 2026-07-31 참여자 재초대(Re-sharing) — 문서 쪽으로 통일, 콘솔을 연다
+
+**발견.** 참여자 추가 권한이 두 화면에서 갈라져 있었다.
+
+- 모바일 `shareTaskWithUsers` — 작성자 검사 **없음**(참여자도 추가 가능)
+- 콘솔 `shareConsoleTask` — `createdByUserId !== session.user.id → forbidden`(작성자만)
+
+**어느 쪽이 옳았나.** 문서(`18-todo-task-workflow.md` → Sharing Model → Re-sharing)에
+*"participants may re-share to more people"* 라고 적혀 있었다. **모바일이 문서를 따랐고 콘솔이
+갈라진** 상태였다.
+
+**결정.** 소유자 확인으로 **문서 쪽(참여자도 초대 가능)** 으로 통일한다. 콘솔을 연다.
+
+> 검토 과정에서 "지시받은 사람이 그 지시를 제3자에게 다시 뿌릴 수 있다"는 점을 제기했고
+> (추가된 사람에게는 원 작성자가 보낸 지시로 보이며 객실·예약·게스트 컨텍스트도 함께 전달된다),
+> 소유자가 그 위험을 알고 **현장에서 동료를 부를 수 있는 편의**를 택했다. 필요해지면 지시만
+> 다시 잠그는 것으로 좁힐 수 있다.
+
+**부르기는 열되 축출은 잠근다.** 남을 참여자에서 빼는 것은 계속 작성자만
+(`removeTaskParticipant`; 자기 나가기는 누구나), `is_directive` 전환도 작성자만.
+
+**콘솔 액션의 구조적 함정.** `shareConsoleTask` 는 피커 체크 상태로 **집합을 재조정**한다(체크 해제
+= 제거). 작성자 검사만 걷어내면 참여자가 다른 참여자를 **축출**할 수 있게 된다 — 모바일 액션은
+추가 전용이라 애초에 그 힘이 없다. 그래서 작성자가 아니면 `toRemove = []` 로 두고 `tasks` 갱신도
+`is_shared: true` 만 한다. 화면에서도 기존 참여자 행을 `disabled` 로 잠가 유령 조작을 막는다.
+
+**프로젝트 작업.** 두 화면 모두 per-task 공유를 거부한다(프로젝트 멤버십이 정한다). 모바일에는
+이 검사가 없었어서 이번에 함께 넣었다.
+
+**변경 파일**: `src/app/admin/tasks/actions.ts`, `src/app/mobile/tasks/[id]/actions.ts`,
+`src/components/admin/tasks/{admin-tasks-console.tsx,admin-tasks-console.css}`,
+docs(18-product, 05-engineering, 01·06-planning). **검증**: `tsc --noEmit` 0 errors,
+`npm run lint` 0 errors.
+

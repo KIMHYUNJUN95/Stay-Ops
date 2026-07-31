@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { AdminToast, useAdminToast } from "@/components/admin/shared/admin-toast";
+import { adminLocaleTag } from "@/lib/admin-export-meta";
 import { getAnnouncementDictionary } from "@/lib/announcement-i18n";
 import type { Locale } from "@/lib/i18n";
 import type { OrganizationRole } from "@/config/roles";
@@ -76,7 +77,15 @@ export function AnnouncementsConsole({ locale, data }: ConsoleProps) {
   const roleLabel = (role: OrganizationRole) => dictionary.targetRoles[role];
   const { toast, showToast, dismiss } = useAdminToast();
 
-  const { announcements, loadError } = data;
+  const { announcements, loadError, creatableOrganizationIds } = data;
+  // The composer is only offered for organizations where the server action would
+  // actually accept the insert — otherwise the button was live but every submit
+  // came back forbidden.
+  const creatableOrganizations = useMemo(
+    () => data.organizations.filter((o) => creatableOrganizationIds.includes(o.id)),
+    [data.organizations, creatableOrganizationIds],
+  );
+  const canCreate = creatableOrganizations.length > 0;
   const [tab, setTab] = useState<Tab>("published");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -313,12 +322,18 @@ export function AnnouncementsConsole({ locale, data }: ConsoleProps) {
           </Ic>
           <b>{t.permLegend}</b>
         </span>
-        <button type="button" className="newbtn" onClick={() => setForm({ mode: "new", item: null })}>
-          <Ic>
-            <Plus />
-          </Ic>
-          {t.newBtn}
-        </button>
+        {canCreate ? (
+          <button
+            type="button"
+            className="newbtn"
+            onClick={() => setForm({ mode: "new", item: null })}
+          >
+            <Ic>
+              <Plus />
+            </Ic>
+            {t.newBtn}
+          </button>
+        ) : null}
       </div>
 
       {/* body */}
@@ -363,7 +378,7 @@ export function AnnouncementsConsole({ locale, data }: ConsoleProps) {
                       ? t.emptyDraftS
                       : t.emptyArcS}
               </div>
-              {tab !== "archived" ? (
+              {tab !== "archived" && canCreate ? (
                 <button
                   type="button"
                   className="btn btn--pri btn--sm"
@@ -509,8 +524,11 @@ export function AnnouncementsConsole({ locale, data }: ConsoleProps) {
           mode={form.mode}
           item={form.item}
           t={t}
+          localeTag={adminLocaleTag(locale)}
           roleLabel={roleLabel}
-          organizations={data.organizations}
+          organizations={
+            form.mode === "new" ? creatableOrganizations : data.organizations
+          }
           roleCountsByOrg={data.roleCountsByOrg}
           onClose={() => setForm(null)}
           onSaved={handleSaved}

@@ -335,9 +335,20 @@ invite_code.created
 request.deleted
 reservation.manual_checkout_updated
 platform_admin.used
+attendance_month_finalize
+attendance_month_reopen
+linen_return_console_update
+linen_return_console_delete
 ```
 
 Notes:
+
+- `linen_return_console_update` / `linen_return_console_delete` (2026-07-30) come from the admin
+  린넨 반품 console (`/admin/linen-return`). `target_type = linen_return_record`, `target_id` = the
+  record id, and `metadata` holds the before/after (or pre-delete) snapshot — building, item lines +
+  quantities, note, photo count — plus the original `registered_at` / `registered_by_user_id`
+  evidence. There is no free-text reason field for these two actions; see
+  `docs/product/19-linen-defect-workflow.md`.
 
 - `organization_id` can be null for platform-level actions.
 - Super Admin actions should be recorded.
@@ -1014,7 +1025,7 @@ due_at timestamptz
 all_day boolean not null default true
 time_label text
 duration_minutes integer                   -- 시간 블록 길이(분). NULL=기간 없음. time_label 있을 때만 유효 (202607240001)
-priority text not null default 'normal'   -- normal | important | urgent
+priority text not null default 'normal'   -- 4단계(2026-07-30, 202607300002): urgent=우선순위1 · important=우선순위2 · medium=우선순위3 · normal=우선순위4(기본). 색: 빨/주/파/회
 status text not null default 'open'        -- open | in_progress | completed | cancelled
 is_inbox boolean not null default true
 is_shared boolean not null default false
@@ -1221,6 +1232,77 @@ Visibility helper: `public.can_view_staff_suggestion(target_suggestion_id uuid)`
 
 Permissions note: read access is limited to author + recipient + referenced users (+ platform admin). Only the recipient changes status. Referenced users can comment but cannot change status or edit the main suggestion. The author edits/deletes the main suggestion only while `submitted`; comment edit/delete is always comment-author only. These mutation rules are enforced in server actions (later steps); RLS currently grants read-only to participants and routes all writes through the service role.
 
+## customer_complaints / complaint_comments / external_reviews / review_translations
+
+`customer_complaints`와 `complaint_comments`는 수동 컴플레인 도메인으로 이미 구현되어 있다
+(migration `202606290001_customer_complaints.sql`). `external_reviews`는 Beds24 외부 리뷰 수집을 위해
+다음 구현 단계에서 추가할 계획이다. 외부 리뷰는 수동 컴플레인과 별도 레코드이며, 자동 티켓 생성하지 않는다.
+
+```txt
+external_reviews (planned)
+  id uuid primary key default gen_random_uuid()
+  organization_id uuid not null references organizations(id) on delete cascade
+  provider text not null                         -- airbnb | booking
+  external_review_id text not null
+  rating_value numeric
+  rating_scale numeric
+  risk_level text not null default 'unrated'     -- unrated | normal | risk | critical
+  rating_breakdown jsonb not null default '{}'   -- provider-specific detailed scores; may be empty
+  reviewed_at timestamptz
+  imported_at timestamptz not null default now()
+  source_updated_at timestamptz
+  property_id uuid references properties(id) on delete set null
+  property_name text
+  room_id uuid references rooms(id) on delete set null
+  room_label text
+  reservation_id uuid references reservations(id) on delete set null
+  guest_display_name text
+  review_text text                               -- nullable: provider may submit score-only review
+  positive_review_text text                      -- Booking.com, nullable
+  negative_review_text text                      -- Booking.com, nullable
+  raw_payload jsonb not null default '{}'
+  linked_complaint_id uuid references customer_complaints(id) on delete set null
+  created_at timestamptz not null default now()
+  updated_at timestamptz not null default now()
+  unique (organization_id, provider, external_review_id)
+```
+
+Planned indexes: `(organization_id, provider, reviewed_at desc)`,
+`(organization_id, risk_level, rating_value asc, reviewed_at desc)`,
+`(organization_id, property_id, room_id, reviewed_at desc)`, and a partial index for unlinked risky
+reviews. `customer_complaints` will gain an optional one-to-one external review link/snapshot only
+when a user explicitly converts a review; implementation must enforce that one review cannot create
+duplicate linked complaints. External-review risk is server-calculated: Airbnb `<= 3.0` = `risk`;
+Booking `= 7.0` = `risk`, `< 7.0` = `critical`; no score = `unrated`. `rating_breakdown` deliberately
+preserves provider-specific dimensions rather than fabricating a cross-provider schema. Booking.com
+positive/negative text is independently nullable; both may be absent for a valid score-only review.
+
+Source payloads may omit a room or safe reservation key. In that case `room_id`/`room_label` remain
+null rather than inferred. `raw_payload` is server-side troubleshooting data, not a client rendering
+contract. Full workflow: `docs/product/25-complaint-workflow.md`.
+
+```txt
+review_translations (planned)
+  id uuid primary key default gen_random_uuid()
+  organization_id uuid not null references organizations(id) on delete cascade
+  external_review_id uuid not null references external_reviews(id) on delete cascade
+  source_part text not null                      -- review | positive | negative
+  target_locale text not null                    -- ko | ja | en
+  source_locale text
+  translated_text text not null
+  provider text not null default 'deepl'
+  translated_at timestamptz not null default now()
+  source_text_hash text not null
+  created_at timestamptz not null default now()
+  updated_at timestamptz not null default now()
+  unique (external_review_id, source_part, target_locale)
+```
+
+The server verifies `organization_id` against the parent review on every read/write. A translation is
+reused only while `source_text_hash` equals the current source-review text hash; changed source text
+requires a fresh on-demand translation. Translation usage/cost telemetry belongs in a separate
+server-only sync/usage log, not in this user-facing record.
+
 ## bug_reports
 
 StayOps 앱/시스템 버그 및 제품 문제 신고. **1차 구현 (2026-06-25).** Migration: `supabase/migrations/<timestamp>_bug_reports.sql` (DB engineer 결과 확인 후 파일명 갱신 필요).
@@ -1273,12 +1355,13 @@ Permission foundation:
   who is the org `owner` or carries the `attendance_payroll_admin` flag. Site master / QR issuance stays
   **owner-only** (enforced in app logic via `has_org_role(org, ['owner'])`).
 
-Tables (11):
+Tables (12):
 
 | Table | Purpose / key columns |
 |---|---|
 | `attendance_sites` | registered sites; `latitude`/`longitude`/`allowed_radius_meters` (default **100**), `wifi_ssids text[]` (modeled, PWA-inactive), `is_active`. Owner-managed. |
 | `attendance_qr_tokens` | one **active token per site** (partial unique on `site_id where is_active`); reissue revokes + links `replaced_by_token_id`. |
+| `attendance_trusted_devices` | **Implemented (2026-07-31, migration `202607310001`).** 근태 QR 딥링크용 "기억된 기기". 컬럼: `token_hash`(**원문 토큰은 저장하지 않는다 — sha256 해시만**), `device_label`("iPhone · Safari" 수준), `last_used_at`, `expires_at`(**180일 슬라이딩**), `revoked_at`. 打刻 **성공 직후**에만 발급/연장된다. **이 자격증명은 출근/퇴근 打刻 두 가지만 허용한다** — 이력·급여·정정·다른 모듈은 여전히 정상 세션이 필요하고, GPS 필수 + 사이트 반경 검증도 그대로다. 로그아웃·기기 주인 변경·관리자 해지·만료로 폐기. See `docs/product/24-attendance-workflow.md` → "Trusted Device". |
 | `attendance_sessions` | the core work session; `status` (open/completed/reopened/invalid), `review_state` (normal/review_required/pending_correction/approved_correction/rejected_correction), separate clock-in/out `*_at/_site_id/_method/_qr_token_id/_lat/_long/_accuracy/_device_info`, `operating_date` (Tokyo), `manual_created*`, `manual_location` (free-text work location for off-site / manual entries, migration `202607100004`; overrides the site name in per-user payroll exports), `invalidated*`. **One `open` session per user** (partial unique on `user_id where status='open'`). Methods: `gps_qr`/`gps_wifi`/`manual`. |
 | `attendance_breaks` | multiple breaks per session; `started_at`/`ended_at` (open while null). Clock-out-blocked-by-open-break is server-enforced. |
 | `attendance_attempt_logs` | every attempt (success/failure) for admin diagnostics; `action_type`, `method`, `failure_reason` (gps_denied/outside_radius/qr_*/wifi_*/open_break_blocks_clock_out/midnight_crossing/open_session_exists). Admin-visible only; no payroll effect. |

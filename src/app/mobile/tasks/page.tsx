@@ -10,6 +10,7 @@ import {
   getOccurrenceOrders,
   getOccurrenceStates,
   getShareableUsers,
+  getTaskCompletions,
   getVisibleTasks,
   tokyoToday,
 } from "@/lib/tasks";
@@ -23,7 +24,7 @@ const VIEWS = [
   "tomorrow",
   "inbox",
   "projects",
-  "sent",
+  "instr",
   "completed",
   "calendar",
 ] as const;
@@ -47,30 +48,46 @@ export default async function MobileTasksPage({ searchParams }: PageProps) {
 
   const locale = session.user.preferredLanguage;
   const dict = getDictionary(locale);
-  const initialView = VIEWS.includes((params.view ?? "") as (typeof VIEWS)[number])
-    ? (params.view as (typeof VIEWS)[number])
+  // 2026-07-30 "공유함"(sent) 탭이 "지시"(instr)로 재구성됐다. 예전 링크·북마크·되돌아오기 쿼리가
+  // 아직 `view=sent` 를 실어 오므로 조용히 새 키로 넘긴다.
+  const rawView = params.view === "sent" ? "instr" : (params.view ?? "");
+  const initialView = VIEWS.includes(rawView as (typeof VIEWS)[number])
+    ? (rawView as (typeof VIEWS)[number])
     : "today";
 
-  const [allVisible, projects, shareableUsers, navBadges, occurrenceStates, occurrenceOrders] =
-    await Promise.all([
-      getVisibleTasks(session),
-      getVisibleProjects(session),
-      getShareableUsers(session),
-      getMobileNavBadges(),
-      getOccurrenceStates(session),
-      getOccurrenceOrders(session),
-    ]);
+  const [
+    allVisible,
+    projects,
+    shareableUsers,
+    navBadges,
+    occurrenceStates,
+    occurrenceOrders,
+    completions,
+  ] = await Promise.all([
+    getVisibleTasks(session),
+    getVisibleProjects(session),
+    getShareableUsers(session),
+    getMobileNavBadges(),
+    getOccurrenceStates(session),
+    getOccurrenceOrders(session),
+    getTaskCompletions(),
+  ]);
   // Project tasks live only in the Projects tab; the Completed tab still surfaces project
   // completions via its filter, so those are passed separately.
   const tasks = allVisible.filter((t) => !t.projectId);
+  // 완료·기록 탭은 완료 **로그** 기준이다(반복 완료는 행 status 를 건드리지 않는다 — getTaskCompletions
+  // 주석 참고). 그래서 status=completed 뿐 아니라 로그에 완료가 찍힌 프로젝트 작업도 함께 넘겨야
+  // 반복 프로젝트 작업의 완료가 목록에서 빠지지 않는다.
+  const completedTaskIds = new Set(completions.map((c) => c.taskId));
   const projectCompletedTasks = allVisible.filter(
-    (t) => t.projectId && t.status === "completed",
+    (t) => t.projectId && (t.status === "completed" || completedTaskIds.has(t.id)),
   );
 
   return (
     <MobileShell activeItem="tasks" badges={navBadges} title={dict.tasks.title}>
       <TasksWorkspace
         buildingLabels={dict.cleaning.buildingLabels}
+        completions={completions}
         copy={dict.tasks}
         currentUserId={session.user.id}
         initialView={initialView}

@@ -534,6 +534,41 @@ export type Database = {
           token?: string;
         };
       };
+      attendance_trusted_devices: {
+        Insert: {
+          created_at?: string;
+          device_label?: string | null;
+          expires_at: string;
+          id?: string;
+          last_used_at?: string;
+          organization_id: string;
+          revoked_at?: string | null;
+          token_hash: string;
+          user_id: string;
+        };
+        Row: {
+          created_at: string;
+          device_label: string | null;
+          expires_at: string;
+          id: string;
+          last_used_at: string;
+          organization_id: string;
+          revoked_at: string | null;
+          token_hash: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          device_label?: string | null;
+          expires_at?: string;
+          id?: string;
+          last_used_at?: string;
+          organization_id?: string;
+          revoked_at?: string | null;
+          token_hash?: string;
+          user_id?: string;
+        };
+      };
       attendance_sessions: {
         Insert: {
           clock_in_accuracy_meters?: number | null;

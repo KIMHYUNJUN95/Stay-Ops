@@ -1,0 +1,100 @@
+/* ===================================================================
+   Admin · 린넨 반품(Linen Return) 콘솔 — 페이지 전용 glue only.
+   공용 프리미티브(admin-console.css 의 .card/.ctoolbar/.dd/.calpop/.qtbl/.mtbl/
+   .panel/.modal/.state/.hmeta/.kv/.pblock/.fld/.selwrap/.who/.dim-cell/.colchev,
+   maintenance-console.css 의 .robadge/.dimnote/.infonote/.mdesc/.cat/.phcount/
+   .pgal/.pshot/.cficon/.cfrec/.cfhead, lost-found-console.css 의 .stnote/
+   .cficon--dispose)를 그대로 재사용한다.
+   여기에는 새 시각 언어가 아니라 "품목 행(line item)" 레이아웃과 수량 열만 있다.
+
+   ⚠ 디자인 핸드오프의 페이지 전역 타이포 스케일 업(.navi, .side__nm, .toast, .btn 등
+   공용 셸 요소까지 한 단계 키우던 블록)은 의도적으로 이식하지 않았다. 어드민 콘솔은
+   하나의 콘솔로 보여야 하므로(CLAUDE.md §4) 이 페이지만 사이드바·토스트·버튼
+   크기가 달라지면 안 된다. 린넨 전용 신규 요소는 핸드오프 값 그대로 유지한다.
+   =================================================================== */
+
+/* ── 목록 표 ─────────────────────────────────────────────────────── */
+.adm .mtbl--linen { min-width: 900px; }
+.adm .mtbl--linen td .mono,
+.adm .mtbl--linen td .issue,
+.adm .mtbl--linen .who { white-space: nowrap; }
+
+/* 등록 일시 셀의 요일 보조 표기 */
+.adm .qtbl .wdsub { font-size: 11px; font-weight: 700; color: var(--faint); margin-top: 2px; }
+
+/* 수량 열 — 우측 정렬 + tabular numerals */
+.adm .qtbl th.num-h { text-align: right; }
+.adm .qtbl td.num { text-align: right; white-space: nowrap; font-family: var(--mono); font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+.adm .qtbl td.num .u { font-family: var(--font); font-size: 10.5px; font-weight: 800; color: var(--muted); margin-left: 2px; }
+.adm .qtbl td.num--hit { color: var(--primary); font-weight: 900; }
+
+/* 반품 품목 셀 — 전체 품목을 한 줄로 나열하고, 선택한 품목만 강조 */
+.adm .qtbl .tt-items { font-size: 11px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.adm .qtbl .tt-items .hit { color: var(--primary); font-weight: 800; }
+.adm .qtbl .tt-items .dotsep { color: var(--faint); margin: 0 5px; }
+
+/* 품목별 수량 뷰 — 이 기간에 반품이 없던 품목 행 */
+.adm .mtbl--linen tr.is-zero td { cursor: default; }
+.adm .mtbl--linen tr.is-zero:hover { background: transparent; }
+.adm .mtbl--linen tr.is-zero .tt-title,
+.adm .mtbl--linen tr.is-zero td.num { color: var(--faint); font-weight: 700; }
+
+.adm .hmeta b { white-space: nowrap; }
+
+/* 필터 드롭다운 폭 — 공용 .filterbar .dd 는 150px 이지만 건물명("다카다노바바")과
+   품목명("싱글 매트리스 커버")이 길어 잘린다. 이 콘솔에서만 넓힌다.
+   등록자 드롭다운(메뉴 안 검색)의 시각 규칙 자체는 공용 프리미티브이므로
+   admin-console.css → "DD — searchable mode" 에 있다. 여기서는 폭만 고정한다. */
+.adm .ctoolbar.filterbar .dd { width: 176px; }
+.adm .ctoolbar.filterbar .dd--search { width: 184px; }
+
+/* ── 상세(읽기) — 반품 품목 ──────────────────────────────────────── */
+.adm .litems { display: flex; flex-direction: column; gap: 8px; }
+.adm .litem { display: flex; align-items: baseline; gap: 10px; padding: 11px 13px; border-radius: 12px; background: var(--card2); border: 1px solid var(--line-soft); }
+.adm .litem__nm { flex: 1; min-width: 0; font-size: 13px; font-weight: 800; color: var(--ink); line-height: 1.45; }
+.adm .litem__qty { font-size: 13px; font-weight: 900; color: var(--primary); font-variant-numeric: tabular-nums; font-family: var(--mono); white-space: nowrap; }
+.adm .litem__qty .u { font-family: var(--font); font-size: 10.5px; font-weight: 800; color: var(--muted); margin-left: 2px; }
+
+.adm .ltotal { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: var(--primary-soft); border: 1px solid color-mix(in oklab, var(--primary) 22%, transparent); }
+.adm .ltotal__k { flex: 1; font-size: 12px; font-weight: 800; color: var(--primary); }
+.adm .ltotal__v { font-family: var(--mono); font-size: 19px; font-weight: 900; color: var(--primary-ink, var(--primary)); font-variant-numeric: tabular-nums; }
+.adm .ltotal__v .u { font-family: var(--font); font-size: 11px; font-weight: 800; color: var(--muted); margin-left: 2px; }
+
+/* ── 상세(수정) — 현장 증빙값(수정 불가) 필드 ────────────────────── */
+.adm .rofield { display: flex; align-items: center; gap: 11px; padding: 11px 13px; border-radius: 11px; background: var(--surface2, var(--card2)); border: 1px dashed var(--line); }
+.adm .rofield + .rofield { margin-top: 8px; }
+.adm .rofield__ic { width: 30px; height: 30px; border-radius: 9px; background: var(--card); color: var(--muted); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.adm .rofield__ic .ic { font-size: 15px; }
+.adm .rofield__b { min-width: 0; flex: 1; }
+.adm .rofield__k { display: block; font-size: 11px; font-weight: 800; color: var(--muted); }
+.adm .rofield__v { display: block; font-size: 13px; font-weight: 800; color: var(--ink-soft); margin-top: 2px; word-break: break-word; }
+.adm .rofield__tag { display: inline-flex; color: var(--faint); white-space: nowrap; flex: 0 0 auto; }
+.adm .rofield__tag .ic { font-size: 14px; }
+
+/* ── 상세(수정) — 품목 행 ────────────────────────────────────────── */
+.adm .lehead { display: grid; grid-template-columns: minmax(0, 1fr) 92px 38px; gap: 8px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--faint); margin-bottom: 2px; }
+.adm .lehead span:nth-child(2) { text-align: right; }
+.adm .lelines { display: flex; flex-direction: column; gap: 8px; }
+.adm .leline { display: grid; grid-template-columns: minmax(0, 1fr) 92px 38px; gap: 8px; align-items: center; }
+.adm .leline .fld { margin: 0; }
+.adm .leline select { width: 100%; }
+.adm .leline input { width: 100%; text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.adm .leline.is-dup select { border-color: var(--danger); box-shadow: 0 0 0 3.5px color-mix(in oklab, var(--danger) 12%, transparent); }
+.adm .leline__del { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--muted); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; cursor: pointer; }
+.adm .leline__del:hover:not(:disabled) { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 40%, var(--line)); background: var(--danger-bg); }
+.adm .leline__del:disabled { opacity: 0.4; cursor: not-allowed; }
+.adm .leline__del .ic { font-size: 16px; }
+
+.adm .lerr { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: var(--danger); margin-top: 8px; }
+.adm .lerr .ic { font-size: 14px; flex: 0 0 auto; }
+
+/* ── 상세(수정) — 사진 추가/제거 (공용 .pgal/.pshot 위에 얹는다) ─────── */
+.adm .pshot__x { position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; border-radius: 7px; border: none; background: rgba(20, 24, 32, 0.62); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.adm .pshot__x .ic { font-size: 12px; }
+.adm .pshot__x:hover { background: var(--danger); }
+.adm .phadd { display: inline-flex; align-items: center; gap: 7px; padding: 10px 13px; border-radius: 11px; border: 1px dashed var(--line); background: var(--card2); color: var(--muted); font-size: 12px; font-weight: 800; cursor: pointer; }
+.adm .phadd:hover { border-color: color-mix(in oklab, var(--primary) 40%, var(--line)); color: var(--primary); }
+.adm .phadd.is-disabled { opacity: 0.5; cursor: not-allowed; }
+.adm .phadd .ic { font-size: 15px; }
+
+.adm .modal__foot-note.is-danger { white-space: nowrap; color: var(--danger); }

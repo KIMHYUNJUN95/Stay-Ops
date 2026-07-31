@@ -107,6 +107,22 @@ Usage:
 - Do not set it in production or staging.
 - It does **not** provide a test-login shortcut; QA now signs in with real Google/email accounts.
 
+#### Sample data — linen returns (`scripts/dev/seed-linen-returns.js`)
+
+Creates sample 린넨 반품 records so `/admin/linen-return` has something to look at. It reads the
+organization's real building catalog, active `linen_items`, and active members, then writes records
+across the current Tokyo month plus two in the previous month (for range-filter checks). Notes are
+prefixed with `[샘플]` so seeded rows are easy to spot and delete from the console. Photos are not
+seeded (they would need real storage objects). Uses `SUPABASE_SERVICE_ROLE_KEY` — **local only**.
+
+```bash
+node scripts/dev/seed-linen-returns.js                  # dry run (prints the plan, writes nothing)
+node scripts/dev/seed-linen-returns.js --apply          # first organization
+node scripts/dev/seed-linen-returns.js --apply --org <organization_id>
+```
+
+Delete seeded rows from the console UI (삭제 → 확인), or by the `[샘플]` note prefix.
+
 ### Testing the dev server on a phone over any network (Cloudflare quick tunnel)
 
 To open the local dev server on a phone **without** needing the same WiFi (works on cellular too):

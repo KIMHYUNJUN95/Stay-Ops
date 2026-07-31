@@ -12,6 +12,10 @@
  *     already-clocked-in / no-open-session), and reuses the app's shared drag-down-to-dismiss sheet.
  *
  * `mode` = "in" (출근 인증) or "out" (퇴근 인증). Wi-Fi stays inactive (`준비중`).
+ *
+ * QR deep link (2026-07-31): when the phone's own camera opened the printed site QR, the page passes
+ * `qrToken` and we start in the **landing** phase instead of the camera — the building QR carries no
+ * direction, so the staff member picks 출근/퇴근 here and we submit that token directly.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -26,12 +30,13 @@ import {
   type AttendanceScanMode,
   type AttendanceScanResult,
 } from "@/app/mobile/attendance/actions";
+import { extractAttendanceToken } from "@/lib/attendance-qr";
 import { getDictionary, type Dictionary } from "@/lib/i18n";
 
 type AttendanceCopy = Dictionary["attendance"];
 
 type Gps = { lat: number; lng: number; acc: number | null } | { error: "denied" | "unavailable" };
-type Phase = "scanning" | "submitting" | "result";
+type Phase = "landing" | "scanning" | "submitting" | "result";
 type GpsStatus = "pending" | "ok" | "denied" | "unavailable";
 
 function getGpsOnce(): Promise<Gps> {
@@ -49,14 +54,35 @@ function getGpsOnce(): Promise<Gps> {
   });
 }
 
-export function AttendanceCapture({ mode = "in", locale }: { mode?: AttendanceScanMode; locale: string }) {
+export function AttendanceCapture({
+  mode = "in",
+  locale,
+  qrToken = null,
+  qrSiteName = null,
+  trustedDeviceName = null,
+}: {
+  mode?: AttendanceScanMode;
+  locale: string;
+  /** Set when the phone camera opened the printed site QR — starts in the landing phase. */
+  qrToken?: string | null;
+  /** Building name behind `qrToken`; null means the token no longer resolves (reissued/revoked). */
+  qrSiteName?: string | null;
+  /**
+   * Set when there is no login session and the staff member was identified by the remembered
+   * device instead (iOS Safari path). Shown prominently so nobody clocks in as someone else.
+   */
+  trustedDeviceName?: string | null;
+}) {
   const copy = getDictionary(locale).attendance;
   const router = useRouter();
 
-  const [phase, setPhase] = useState<Phase>("scanning");
+  const [phase, setPhase] = useState<Phase>(qrToken ? "landing" : "scanning");
   const [result, setResult] = useState<AttendanceScanResult | null>(null);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("pending");
   const [cameraError, setCameraError] = useState(false);
+  // The direction actually submitted — from the `mode` prop in the scan flow, from the landing
+  // buttons in the QR flow. The result sheet reads this, not the prop.
+  const [activeMode, setActiveMode] = useState<AttendanceScanMode>(mode);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -67,7 +93,8 @@ export function AttendanceCapture({ mode = "in", locale }: { mode?: AttendanceSc
   // Holds the latest scan tick so the rAF loop never references the callback before it is declared.
   const scanTickRef = useRef<() => void>(() => {});
 
-  const isOut = mode === "out";
+  const isOut = activeMode === "out";
+  const isQrLanding = qrToken !== null;
 
   const stopCamera = useCallback(() => {
     if (rafRef.current != null) {
@@ -81,9 +108,10 @@ export function AttendanceCapture({ mode = "in", locale }: { mode?: AttendanceSc
   }, []);
 
   const submit = useCallback(
-    async (token: string | null) => {
+    async (token: string | null, submitMode: AttendanceScanMode) => {
       if (submittedRef.current) return;
       submittedRef.current = true;
+      setActiveMode(submitMode);
       stopCamera();
       setPhase("submitting");
       let g = gpsRef.current;
@@ -94,13 +122,13 @@ export function AttendanceCapture({ mode = "in", locale }: { mode?: AttendanceSc
       const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : null;
       const res = await submitAttendanceScan(
         "lat" in g
-          ? { mode, token, latitude: g.lat, longitude: g.lng, accuracy: g.acc, gpsError: null, userAgent }
-          : { mode, token, latitude: null, longitude: null, accuracy: null, gpsError: g.error, userAgent },
+          ? { mode: submitMode, token, latitude: g.lat, longitude: g.lng, accuracy: g.acc, gpsError: null, userAgent }
+          : { mode: submitMode, token, latitude: null, longitude: null, accuracy: null, gpsError: g.error, userAgent },
       );
       setResult(res);
       setPhase("result");
     },
-    [mode, stopCamera],
+    [stopCamera],
   );
 
   const scanTick = useCallback(() => {
@@ -123,11 +151,13 @@ export function AttendanceCapture({ mode = "in", locale }: { mode?: AttendanceSc
     const img = ctx.getImageData(0, 0, w, h);
     const code = jsQR(img.data, w, h, { inversionAttempts: "dontInvert" });
     if (code && code.data) {
-      void submit(code.data);
+      // New QRs encode a URL, older printed ones the bare token — accept both. Anything else is
+      // forwarded as-is so the server answers with the familiar "QR 인식 실패" sheet.
+      void submit(extractAttendanceToken(code.data) ?? code.data, mode);
       return;
     }
     rafRef.current = requestAnimationFrame(() => scanTickRef.current());
-  }, [submit]);
+  }, [mode, submit]);
 
   // Keep the rAF loop pointed at the latest scanTick.
   useEffect(() => {
@@ -170,13 +200,24 @@ export function AttendanceCapture({ mode = "in", locale }: { mode?: AttendanceSc
     };
   }, [phase, startScanning, stopCamera]);
 
+  // QR landing: no camera, but GPS still warms up so the chip is honest and submit is instant.
+  useEffect(() => {
+    if (phase !== "landing") return;
+    submittedRef.current = false;
+    void getGpsOnce().then((g) => {
+      gpsRef.current = g;
+      setGpsStatus("lat" in g ? "ok" : g.error);
+    });
+  }, [phase]);
+
   const goHome = useCallback(() => router.push("/mobile/attendance"), [router]);
   const retry = useCallback(() => {
     setCameraError(false);
     setGpsStatus("pending");
     setResult(null);
-    setPhase("scanning");
-  }, []);
+    // Came in from a QR link → go back to the direction picker, not the camera.
+    setPhase(isQrLanding ? "landing" : "scanning");
+  }, [isQrLanding]);
   const retryCamera = useCallback(() => {
     setCameraError(false);
     setGpsStatus("pending");
@@ -199,6 +240,101 @@ export function AttendanceCapture({ mode = "in", locale }: { mode?: AttendanceSc
     : phase === "submitting"
       ? copy.captureHintSubmitting
       : copy.captureHintScan;
+
+  // ── QR deep link landing: pick 출근 / 퇴근 for the building we just scanned ──
+  if (isQrLanding) {
+    const submitting = phase === "submitting";
+    const unusable = qrSiteName === null;
+    return (
+      <div className="att">
+        <div className="caphead">
+          <span className="capttl">
+            {unusable ? copy.qrLandingInvalidTitle : copy.qrLandingTitle}
+          </span>
+        </div>
+
+        <p className="caplead">{unusable ? copy.qrLandingInvalidSub : copy.qrLandingSub}</p>
+
+        {unusable ? null : (
+          <div className="recap">
+            <div className="recap__r">
+              <span className="recap__k">
+                <AIc>{AttIcon.pin}</AIc>
+                {copy.resultSiteLabel}
+              </span>
+              <span className="recap__v">{qrSiteName}</span>
+            </div>
+            <div className="recap__r">
+              <span className="recap__k">
+                <AIc>{AttIcon.pin}</AIc>GPS
+              </span>
+              <span className="recap__v">{gpsText}</span>
+            </div>
+            {trustedDeviceName ? (
+              <div className="recap__r">
+                <span className="recap__k">
+                  <AIc>{AttIcon.checkc}</AIc>
+                  {copy.resultAuthLabel}
+                </span>
+                <span className="recap__v">
+                  {copy.qrLandingRememberedAs.replace("{name}", trustedDeviceName)}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {trustedDeviceName && !unusable ? (
+          <p className="caplead" style={{ marginTop: "-8px" }}>
+            {copy.qrLandingRememberedHint}
+          </p>
+        ) : null}
+
+        {unusable ? (
+          <div className="rbtns">
+            <Link href="/mobile/attendance/capture?mode=in" className="rbtn rbtn--primary">
+              <AIc>{AttIcon.qr}</AIc>
+              {copy.qrLandingScanInstead}
+            </Link>
+          </div>
+        ) : (
+          <div className="rbtns">
+            <button
+              type="button"
+              className="rbtn rbtn--primary"
+              disabled={submitting}
+              onClick={() => void submit(qrToken, "in")}
+            >
+              {copy.qrLandingIn}
+            </button>
+            <button
+              type="button"
+              className="rbtn rbtn--retry"
+              disabled={submitting}
+              onClick={() => void submit(qrToken, "out")}
+            >
+              {copy.qrLandingOut}
+            </button>
+          </div>
+        )}
+
+        <Link href="/mobile/attendance/correction" className="breakbtn" style={{ marginTop: "14px" }}>
+          <AIc>{AttIcon.edit}</AIc>
+          {copy.captureNoQr}
+        </Link>
+
+        {phase === "result" && result ? (
+          <BottomSheet
+            ariaLabel={isOut ? copy.resultOutTitle : copy.resultInTitle}
+            className="att att__result-sheet"
+            onClose={onDismiss}
+          >
+            <ResultSheet result={result} isOut={isOut} onHome={goHome} onRetry={retry} copy={copy} />
+          </BottomSheet>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="att">

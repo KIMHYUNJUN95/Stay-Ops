@@ -32,6 +32,8 @@ type DetailPanelProps = {
   onClose: () => void;
   onOpenForceComplete: (task: AdminCleaningTask) => void;
   onOpenReport: (kind: "lost" | "issue") => void;
+  /** 서버(canForceCompleteCleaning)가 내려준 권한. false면 강제완료 버튼 자체를 감춘다. */
+  canForceComplete: boolean;
   disabled?: boolean;
 };
 
@@ -46,6 +48,7 @@ export function CleaningDetailPanel({
   onClose,
   onOpenForceComplete,
   onOpenReport,
+  canForceComplete,
   disabled,
 }: DetailPanelProps) {
   const panelRef = useAdminPanelA11y<HTMLElement>(onClose, { disabled });
@@ -123,7 +126,7 @@ export function CleaningDetailPanel({
   const location = task ? task : history!;
   const room = task ? task.room : history!.room;
   const type = task ? task.type : history!.type;
-  const status = task ? task.status : "done";
+  const status = task ? task.status : history!.status;
   const staffId = task ? task.staffId : history!.staffId;
   const proxy = task ? task.proxy : history!.proxy;
   const note = task ? task.note : history!.note;
@@ -134,12 +137,14 @@ export function CleaningDetailPanel({
   const dateStr = fmtDate(isHist ? history!.date : todayDateKeyTokyo(), localeTag);
   const TypeIcon = TYPE_ICON[type];
 
+  // 진행중·취소 세션은 duration 이 없으므로 종료 시각을 만들 수 없다 — 시간 블록을 "시작만"
+  // 형태로 떨어뜨린다.
   let end: string | null = null;
-  if (isHist) {
+  if (isHist && history!.dur != null) {
     const startMin = toMin(history!.start);
     const totalMin = (startMin ?? 0) + history!.dur;
     end = `${String(Math.floor(totalMin / 60)).padStart(2, "0")}:${String(totalMin % 60).padStart(2, "0")}`;
-  } else if (task!.end) {
+  } else if (!isHist && task!.end) {
     end = task!.end;
   }
 
@@ -190,7 +195,7 @@ export function CleaningDetailPanel({
             </div>
           </div>
 
-          {start && (end || isHist) ? (
+          {start && end ? (
             <div className="pblock">
               <div className="pblock__t">{t.pTime}</div>
               <div className="timespan">
@@ -299,7 +304,10 @@ export function CleaningDetailPanel({
         </div>
 
         <div className="panel__foot">
-          {!isHist && status !== "done" ? (
+          {/* 강제완료는 권한이 있는 역할에게만 노출한다. cs_staff/staff 는 예전엔 모달을 다 채운
+              뒤에야 사유 없는 실패 토스트를 받았다. 서버(canForceCompleteCleaning)의 검사는
+              그대로 남아 있으며 이 게이트는 UI 편의일 뿐이다. */}
+          {canForceComplete && !isHist && status !== "done" ? (
             <>
               <button type="button" className="btn btn--ghost" style={{ flex: 1 }} onClick={onClose}>
                 {t.close}

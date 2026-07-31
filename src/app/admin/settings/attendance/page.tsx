@@ -1,8 +1,12 @@
 import Link from "next/link";
 import QRCode from "qrcode";
 import { redirect } from "next/navigation";
-import { MapPinned, Plus, QrCode } from "lucide-react";
-import { issueAttendanceSiteQr, saveAttendanceSiteSettings } from "@/app/admin/settings/attendance/actions";
+import { MapPinned, Plus, QrCode, Smartphone } from "lucide-react";
+import {
+  issueAttendanceSiteQr,
+  revokeAttendanceTrustedDevice,
+  saveAttendanceSiteSettings,
+} from "@/app/admin/settings/attendance/actions";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +15,8 @@ import { Input } from "@/components/ui/input";
 import { getDictionary } from "@/lib/i18n";
 import { requireAdminSession } from "@/lib/admin-session";
 import { getActiveQrToken, listAttendanceSites } from "@/lib/attendance-sites";
+import { buildAttendanceQrValue } from "@/lib/attendance-qr";
+import { listTrustedDevices } from "@/lib/attendance-trusted-device";
 import { hasOrganizationContext } from "@/lib/session";
 import { isOrgTopAdmin } from "@/config/roles";
 import type { AttendanceSiteRow } from "@/lib/attendance";
@@ -38,18 +44,27 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
     sites.find((site) => site.id === selectedSiteId) ??
     (selectedSiteId ? null : sites[0] ?? null);
   const activeQr = selectedSite ? await getActiveQrToken(session.organization.id, selectedSite.id) : null;
-  const qrSvg = activeQr
-    ? await QRCode.toString(activeQr.token, { type: "svg", margin: 1, width: 256 })
+  // QR 에는 토큰이 아니라 절대 URL 을 담는다 — 휴대폰 기본 카메라로 찍으면 바로 근태 인증
+  // 화면으로 들어오게 하기 위해서다. 토큰 값 자체는 그대로라 기존 인쇄물도 계속 동작한다.
+  // See src/lib/attendance-qr.ts / docs/product/24-attendance-workflow.md → "QR Deep Link".
+  const qrValue = activeQr ? buildAttendanceQrValue(activeQr.token) : null;
+  const qrSvg = qrValue
+    ? await QRCode.toString(qrValue, { type: "svg", margin: 1, width: 256 })
     : null;
+
+  // 기억된 근태 기기 — 사이트 선택과 무관하게 조직 전체 목록이다.
+  const trustedDevices = await listTrustedDevices(session.organization.id);
 
   const saved = firstParam(params.saved) === "1";
   const issued = firstParam(params.issued) === "1";
   const reissued = firstParam(params.reissued) === "1";
+  const deviceRevoked = firstParam(params.device_revoked) === "1";
   const errorKey = firstParam(params.error);
   const flashMessage =
     (saved && settings.success.attendanceSiteSaved) ||
     (issued && settings.success.attendanceQrIssued) ||
     (reissued && settings.success.attendanceQrReissued) ||
+    (deviceRevoked && settings.success.attendanceDeviceRevoked) ||
     (errorKey ? settings.errors[errorKey] ?? settings.errors.save_failed : "");
 
   return (
@@ -198,7 +213,9 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                   dangerouslySetInnerHTML={{ __html: qrSvg }}
                 />
                 <div className="mt-4 rounded-xl border border-border bg-background/70 p-4">
-                  <p className="text-sm font-semibold text-muted-foreground">{settings.attendanceToken}</p>
+                  <p className="text-sm font-semibold text-muted-foreground">{settings.attendanceQrLink}</p>
+                  <p className="mt-2 break-all font-mono text-xs font-semibold">{qrValue}</p>
+                  <p className="mt-4 text-sm font-semibold text-muted-foreground">{settings.attendanceToken}</p>
                   <p className="mt-2 break-all font-mono text-xs font-semibold">{activeQr.token}</p>
                   <p className="mt-4 text-sm font-semibold text-muted-foreground">{settings.attendanceIssuedAt}</p>
                   <p className="mt-2 text-sm font-semibold">{activeQr.issued_at}</p>
@@ -227,10 +244,62 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
               </>
             )}
           </Card>
+
+          <Card className="p-5">
+            <Smartphone className="size-6 text-primary" aria-hidden="true" />
+            <h2 className="mt-8 text-xl font-black">{settings.attendanceDevicesTitle}</h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+              {settings.attendanceDevicesDescription}
+            </p>
+
+            {trustedDevices.length === 0 ? (
+              <p className="mt-5 rounded-xl border border-dashed border-border px-4 py-5 text-sm font-semibold text-muted-foreground">
+                {settings.attendanceDevicesEmpty}
+              </p>
+            ) : (
+              <ul className="mt-5 space-y-3">
+                {trustedDevices.map((device) => (
+                  <li
+                    className="flex items-start justify-between gap-3 rounded-xl border border-border bg-background/70 px-4 py-3"
+                    key={device.id}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-black">{device.userName}</p>
+                      <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                        {device.deviceLabel ?? settings.attendanceDeviceUnknown}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                        {settings.attendanceDeviceLastUsed} {formatDeviceDate(device.lastUsedAt)}
+                        {" · "}
+                        {settings.attendanceDeviceExpires} {formatDeviceDate(device.expiresAt)}
+                      </p>
+                    </div>
+                    <form action={revokeAttendanceTrustedDevice}>
+                      <input name="deviceId" type="hidden" value={device.id} />
+                      <input name="siteId" type="hidden" value={selectedSite?.id ?? ""} />
+                      <Button type="submit" variant="secondary">
+                        {settings.attendanceDeviceRevoke}
+                      </Button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
         </div>
       </div>
     </AdminShell>
   );
+}
+
+/** 기기 목록의 날짜는 도쿄 기준으로 짧게 보여준다. */
+function formatDeviceDate(iso: string) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
 }
 
 function formatField(site: AttendanceSiteRow | null, key: "latitude" | "longitude") {

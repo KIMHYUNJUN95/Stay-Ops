@@ -12,8 +12,12 @@
 import { revalidatePath } from "next/cache";
 import {
   isLostItemStatus,
+  isLostItemTerminal,
+  isLostReturnMethod,
   LOST_FOUND_HANDLING_IMAGE_LIMIT,
+  lostItemLinearStatuses,
   type LostItemStatus,
+  type LostReturnMethod,
 } from "@/lib/lost-found-constants";
 import { getCurrentAppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -27,6 +31,10 @@ export type LostItemHandlingInput = {
   status: LostItemStatus;
   memo: string;
   handlingImageUrls: string[];
+  /** 반환완료(returned)로 넘어갈 때의 반환 방식. 어드민 `returnLostItem`과 같은 컬럼에 기록한다. */
+  returnMethod?: LostReturnMethod;
+  /** 배송 반환일 때의 송장번호. 손님 클레임 시 증빙이 된다. */
+  returnTrackingNo?: string;
 };
 
 export type LostItemHandlingResult =
@@ -35,6 +43,26 @@ export type LostItemHandlingResult =
 
 function isValidUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+/**
+ * 상태 전이 검증 — 그동안 모바일은 "값이 상태 목록에 있는가"만 봤기 때문에 접수 → 폐기완료 직행이
+ * 가능했고, 종결되면 모바일 상세는 읽기 전용이라 되돌릴 수도 없었다(복구는 어드민 `restoreLostItem`
+ * 전용). 어드민 콘솔이 지키는 규칙과 같은 기준을 현장에도 적용한다:
+ *
+ * - 상태 변경 없이 메모·사진만 저장하는 것은 허용한다.
+ * - 종결(폐기완료 / 반환완료)에서 다른 상태로 나가는 것은 금지 — 관리자 복원 경로만 되돌릴 수 있다.
+ * - 손님 반환(returned)은 진행 중 어느 단계에서든 가능하다(보관 흐름 밖의 종결).
+ * - 폐기 경로는 접수 → 보관 → 폐기예정 → 폐기완료를 한 단계씩만 전진한다. 되돌리기(보관 연장 등)는
+ *   어드민 `extendLostItemStorage` / `correctLostItemStatus` 담당.
+ */
+function isValidLostItemTransition(from: LostItemStatus, to: LostItemStatus): boolean {
+  if (from === to) return true;
+  if (isLostItemTerminal(from)) return false;
+  if (to === "returned") return true;
+  const fromIdx = lostItemLinearStatuses.indexOf(from);
+  const toIdx = lostItemLinearStatuses.indexOf(to);
+  return fromIdx >= 0 && toIdx === fromIdx + 1;
 }
 
 /** 증빙 사진 URL이 반드시 {orgId}/lost-found-handling/{itemId}/{file} 아래인지 검증한다. */
@@ -82,14 +110,23 @@ export async function updateLostItemHandling(
     }
   }
 
+  const returnMethod =
+    input.returnMethod && isLostReturnMethod(input.returnMethod) ? input.returnMethod : null;
+  if (input.returnMethod && !returnMethod) return { ok: false, error: "invalid" };
+
   const supabase = await getSupabaseServerClient();
   const { data: existing } = await supabase
     .from("lost_items")
-    .select("id")
+    .select("id, status")
     .eq("id", itemId)
     .eq("organization_id", session.organization.id)
     .maybeSingle();
   if (!existing) return { ok: false, error: "not_found" };
+
+  const currentStatus = (existing as { status: LostItemStatus }).status;
+  if (!isValidLostItemTransition(currentStatus, input.status)) {
+    return { ok: false, error: "invalid" };
+  }
 
   // 어떤 상태 변경이든 "누가·언제 처리했는지"를 기록으로 남긴다(요구사항). 현장 처리이므로
   // handled_by_admin = false — 관리자 예외 개입(대시보드)이 아니다.
@@ -101,6 +138,14 @@ export async function updateLostItemHandling(
     handled_by: session.user.id,
     handled_by_admin: false,
   };
+
+  // 반환 처리는 반환 방식·송장번호까지 남겨야 손님 클레임 시 증빙이 된다 — 어드민 `returnLostItem`과
+  // 같은 컬럼·같은 규칙(송장번호는 배송 반환일 때만).
+  if (input.status === "returned") {
+    update.return_method = returnMethod;
+    update.return_tracking_no =
+      returnMethod === "delivery" ? (input.returnTrackingNo ?? "").trim() : "";
+  }
 
   const { data: updated, error } = await supabase
     .from("lost_items")

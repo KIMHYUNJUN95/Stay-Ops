@@ -34,9 +34,10 @@ export type AdminTasksDictionary = {
   odSkip: string; // (지연 회차) 삭제
   inboxNote: string;
   // priority / status / repeat / duration
-  prioNormal: string;
-  prioImportant: string;
-  prioUrgent: string;
+  prioNormal: string; // 우선순위 4 (기본)
+  prioImportant: string; // 우선순위 2
+  prioUrgent: string; // 우선순위 1
+  prioMedium: string; // 우선순위 3
   stOpen: string;
   stInProgress: string;
   stCompleted: string;
@@ -81,6 +82,7 @@ export type AdminTasksDictionary = {
   iaSave: string;
   iaInbox: string;
   iaSendInstr: string; // "지시로 전송"
+  iaSendInstrCta: string; // 지시 탭의 추가 트리거 · 저장 버튼
   // detail panel
   dpTask: string;
   dpInbox: string;
@@ -103,6 +105,15 @@ export type AdminTasksDictionary = {
   dpPhotos: string; // "첨부 사진 {n}"
   dpLog: string;
   dpLogCreated: string; // "{name} 님이 작업 생성"
+  // 시스템 로그 한 줄(노트가 아닌 task_updates) — 모두 {name} 을 받는다. 모바일
+  // `task-detail-view.tsx` 의 systemLabel 과 같은 종류를 덮는다.
+  logShared: string;
+  logEdited: string;
+  logCompleted: string;
+  logReopened: string;
+  logInProgress: string;
+  logOpen: string;
+  logUpdated: string; // 알 수 없는 update_type 폴백
   dpLogInput: string;
   dpEdit: string;
   dpSave: string;
@@ -189,6 +200,13 @@ export type AdminTasksDictionary = {
   mDelete: string;
   mLeave: string;
   // instr view
+  // 반복 회차 건너뛰기 (2026-07-30)
+  recurDeleteTitle: string;
+  recurSkipOne: string;
+  recurSkipOneSub: string;
+  recurDeleteAll: string;
+  recurDeleteAllSub: string;
+  recurSkippedToast: string;
   instrRecv: string;
   instrSent: string;
   instrSentNote: string;
@@ -324,6 +342,7 @@ export type AdminTasksDictionary = {
   selClear: string;
   selDelete: string;
   selEmptyHint: string;
+  odPickHint: string; // 지연 배너 — 대상 미선택 안내
   confirmBulkMsg: string; // "{n}개 …"
   confirmBulkSharedNote: string;
   tBulkDeleted: string; // "{n}개 …"
@@ -341,7 +360,7 @@ const ko: AdminTasksDictionary = {
   overdueReschedule: "일정 변경", overdueClear: "지난 미완료 삭제",
   odDaysBehind: "{n}일 밀림", odCarry: "오늘로 가져오기", odSkip: "삭제",
   inboxNote: "프로젝트 밖의 모든 작업이 여기 모입니다. 날짜를 정하면 오늘·캘린더에도 함께 표시됩니다.",
-  prioNormal: "일반", prioImportant: "중요", prioUrgent: "긴급",
+  prioNormal: "우선순위 4", prioImportant: "우선순위 2", prioUrgent: "우선순위 1", prioMedium: "우선순위 3",
   stOpen: "대기", stInProgress: "진행 중", stCompleted: "완료", stOverdue: "지연",
   repDaily: "매일", repWeekly: "매주 {wd}요일", repWeekdays: "평일마다 (월–금)", repMonthly: "매월 {d}일",
   repYearly: "매년 {m}월 {d}일", repCustom: "사용자 정의…", repCustomDays: "매주 {wd}", repPickDays: "사용자 지정", repPickDaysHint: "반복할 요일을 선택하세요", repNone: "반복 없음",
@@ -349,13 +368,17 @@ const ko: AdminTasksDictionary = {
   durNone: "기간 없음", dur15: "15분", dur30: "30분", dur60: "1시간", dur120: "2시간", durCustom: "사용자 정의",
   today: "오늘", tomorrow: "내일", noDate: "날짜 없음", instructedBy: "{name} 지시", sharedWith: "공유됨", andMore: "{name} 외 {n}명",
   iaTitle: "작업 이름", iaDesc: "설명", iaSchedule: "일정", iaPriority: "우선순위", iaTarget: "대상 (지시)",
-  iaAttach: "첨부", iaAttachN: "사진 {n}", iaCancel: "취소", iaSave: "작업 추가", iaInbox: "관리함", iaSendInstr: "지시로 전송",
+  iaAttach: "첨부", iaAttachN: "사진 {n}", iaCancel: "취소", iaSave: "작업 추가", iaInbox: "관리함", iaSendInstr: "지시로 전송", iaSendInstrCta: "지시 보내기",
   dpTask: "작업", dpInbox: "관리함", dpStatus: "상태", dpSchedule: "일정", dpScheduleChange: "일정 변경",
   dpDue: "마감", dpSched: "예정", dpTime: "시간", dpRepeat: "반복", dpNoDate: "일정 없음",
   dpLinked: "연결됨", dpViewResv: "예약 보기", dpParticipants: "참여자 · {n}명 · 상태 공통",
   dpAuthor: "작성자", dpFirstRecipient: "최초 수신", dpMe: "나", dpShareManage: "멤버 추가 / 공유 관리",
   dpShareCta: "멤버에게 공유 / 지시", dpPhotos: "첨부 사진 {n}", dpLog: "업데이트 로그",
-  dpLogCreated: "{name} 님이 작업 생성", dpLogInput: "노트 추가…", dpEdit: "편집", dpSave: "저장", dpTagAdd: "태그 추가",
+  dpLogCreated: "{name} 님이 작업 생성",
+  logShared: "{name} 님이 공유", logEdited: "{name} 님이 내용 수정", logCompleted: "{name} 님이 완료 처리",
+  logReopened: "{name} 님이 다시 열기", logInProgress: "{name} 님이 진행 중으로 변경",
+  logOpen: "{name} 님이 대기로 변경", logUpdated: "{name} 님이 업데이트",
+  dpLogInput: "노트 추가…", dpEdit: "편집", dpSave: "저장", dpTagAdd: "태그 추가",
   phAdd: "사진 추가", phAddCompact: "사진", phDropHint: "클릭하거나 파일을 끌어다 놓으세요",
   phCount: "{n}/{max}", phRemove: "사진 삭제", phTooMany: "최대 {max}장까지 첨부할 수 있습니다",
   phInvalidType: "이미지 파일만 첨부할 수 있습니다", phTooLarge: "파일 용량은 {max}MB 이하만 가능합니다",
@@ -373,6 +396,9 @@ const ko: AdminTasksDictionary = {
   shSearch: "멤버 검색", shTargetCta: "지시", shShareCta: "공유", shNoResult: "검색 결과가 없습니다.", shManager: "매니저",
   mScheduleChange: "일정 변경", mPriority: "우선순위", mShareInstr: "공유 / 지시", mMoveToday: "오늘로 이동", mMoveTomorrow: "내일로 이동",
   mMoveInbox: "관리함으로", mDelete: "삭제", mLeave: "나만 빠지기",
+  recurDeleteTitle: "반복되는 작업입니다", recurSkipOne: "{date}만 건너뛰기",
+  recurSkipOneSub: "이 날짜만 넘어가고 반복은 계속됩니다", recurDeleteAll: "반복 전체 삭제",
+  recurDeleteAllSub: "모든 날짜에서 사라집니다", recurSkippedToast: "{date} 건너뜀",
   instrRecv: "받은 지시", instrSent: "보낸 지시",
   instrSentNote: "지시한 업무는 대상자의 일정으로 잡힙니다. 내 “오늘” 목록에는 들어오지 않고, 이 화면에서 진행 상황만 챙깁니다.",
   instrRecvNote: "나에게 부여된 업무입니다. 내 “오늘 · 캘린더”에도 함께 표시되며, 상황을 바꾸면 지시한 사람에게 바로 공유됩니다.",
@@ -419,6 +445,7 @@ const ko: AdminTasksDictionary = {
   undoBtn: "실행 취소", undoNext: "다음: {date}", tDeletedUndoable: "작업을 삭제했습니다",
   selMode: "선택", selSelected: "{n}개 선택", selAll: "전체 선택", selClear: "선택 해제",
   selDelete: "삭제", selEmptyHint: "삭제할 작업을 선택하세요",
+  odPickHint: "처리할 지연 작업을 선택하세요",
   selHint: "행을 클릭해 선택하거나 해제하세요",
   confirmBulkMsg: "선택한 {n}개 작업을 삭제할까요?",
   confirmBulkSharedNote: "공유·지시받은 작업은 삭제 대신 나만 빠집니다. 이 항목은 실행 취소로 되돌릴 수 없습니다.",
@@ -437,7 +464,7 @@ const ja: AdminTasksDictionary = {
   overdueReschedule: "日程変更", overdueClear: "過去の未完了を削除",
   odDaysBehind: "{n}日 遅延", odCarry: "今日に持ってくる", odSkip: "削除",
   inboxNote: "プロジェクト外のすべてのタスクがここに集まります。日付を決めると今日・カレンダーにも表示されます。",
-  prioNormal: "通常", prioImportant: "重要", prioUrgent: "緊急",
+  prioNormal: "優先度 4", prioImportant: "優先度 2", prioUrgent: "優先度 1", prioMedium: "優先度 3",
   stOpen: "待機", stInProgress: "進行中", stCompleted: "完了", stOverdue: "遅延",
   repDaily: "毎日", repWeekly: "毎週{wd}曜日", repWeekdays: "平日ごと (月–金)", repMonthly: "毎月{d}日",
   repYearly: "毎年{m}月{d}日", repCustom: "カスタム…", repCustomDays: "毎週{wd}", repPickDays: "カスタム", repPickDaysHint: "繰り返す曜日を選択してください", repNone: "繰り返しなし",
@@ -445,13 +472,17 @@ const ja: AdminTasksDictionary = {
   durNone: "期間なし", dur15: "15分", dur30: "30分", dur60: "1時間", dur120: "2時間", durCustom: "カスタム",
   today: "今日", tomorrow: "明日", noDate: "日付なし", instructedBy: "{name} 指示", sharedWith: "共有中", andMore: "{name} 他 {n}名",
   iaTitle: "タスク名", iaDesc: "説明", iaSchedule: "日程", iaPriority: "優先度", iaTarget: "対象 (指示)",
-  iaAttach: "添付", iaAttachN: "写真 {n}", iaCancel: "キャンセル", iaSave: "タスク追加", iaInbox: "管理箱", iaSendInstr: "指示で送信",
+  iaAttach: "添付", iaAttachN: "写真 {n}", iaCancel: "キャンセル", iaSave: "タスク追加", iaInbox: "管理箱", iaSendInstr: "指示で送信", iaSendInstrCta: "指示を送る",
   dpTask: "タスク", dpInbox: "管理箱", dpStatus: "状態", dpSchedule: "日程", dpScheduleChange: "日程変更",
   dpDue: "締切", dpSched: "予定", dpTime: "時間", dpRepeat: "繰り返し", dpNoDate: "日程なし",
   dpLinked: "リンク", dpViewResv: "予約を見る", dpParticipants: "参加者 · {n}名 · 状態共通",
   dpAuthor: "作成者", dpFirstRecipient: "最初の受信", dpMe: "自分", dpShareManage: "メンバー追加 / 共有管理",
   dpShareCta: "メンバーに共有 / 指示", dpPhotos: "添付写真 {n}", dpLog: "更新ログ",
-  dpLogCreated: "{name} さんがタスク作成", dpLogInput: "ノート追加…", dpEdit: "編集", dpSave: "保存", dpTagAdd: "タグ追加",
+  dpLogCreated: "{name} さんがタスク作成",
+  logShared: "{name} さんが共有", logEdited: "{name} さんが内容を編集", logCompleted: "{name} さんが完了",
+  logReopened: "{name} さんが再オープン", logInProgress: "{name} さんが進行中に変更",
+  logOpen: "{name} さんが待機に変更", logUpdated: "{name} さんが更新",
+  dpLogInput: "ノート追加…", dpEdit: "編集", dpSave: "保存", dpTagAdd: "タグ追加",
   phAdd: "写真を追加", phAddCompact: "写真", phDropHint: "クリックまたはファイルをドラッグしてください",
   phCount: "{n}/{max}", phRemove: "写真を削除", phTooMany: "最大{max}枚まで添付できます",
   phInvalidType: "画像ファイルのみ添付できます", phTooLarge: "ファイルサイズは{max}MB以下のみ可能です",
@@ -469,6 +500,9 @@ const ja: AdminTasksDictionary = {
   shSearch: "メンバー検索", shTargetCta: "指示", shShareCta: "共有", shNoResult: "検索結果がありません。", shManager: "マネージャー",
   mScheduleChange: "日程変更", mPriority: "優先度", mShareInstr: "共有 / 指示", mMoveToday: "今日に移動", mMoveTomorrow: "明日に移動",
   mMoveInbox: "管理箱へ", mDelete: "削除", mLeave: "自分だけ抜ける",
+  recurDeleteTitle: "繰り返しのタスクです", recurSkipOne: "{date}のみスキップ",
+  recurSkipOneSub: "この日だけ飛ばし、繰り返しは続きます", recurDeleteAll: "繰り返しを全て削除",
+  recurDeleteAllSub: "全ての日付から消えます", recurSkippedToast: "{date} をスキップ",
   instrRecv: "受けた指示", instrSent: "送った指示",
   instrSentNote: "指示した業務は対象者の日程に入ります。自分の「今日」には入らず、この画面で進捗のみ確認します。",
   instrRecvNote: "自分に付与された業務です。自分の「今日 · カレンダー」にも表示され、状態を変えると指示者にすぐ共有されます。",
@@ -515,6 +549,7 @@ const ja: AdminTasksDictionary = {
   undoBtn: "元に戻す", undoNext: "次回: {date}", tDeletedUndoable: "タスクを削除しました",
   selMode: "選択", selSelected: "{n}件選択", selAll: "すべて選択", selClear: "選択解除",
   selDelete: "削除", selEmptyHint: "削除するタスクを選択してください",
+  odPickHint: "処理する遅延タスクを選択してください",
   selHint: "行をクリックして選択・解除できます",
   confirmBulkMsg: "選択した{n}件のタスクを削除しますか？",
   confirmBulkSharedNote: "共有・指示されたタスクは削除ではなく自分だけ抜けます。この項目は元に戻せません。",
@@ -533,7 +568,7 @@ const en: AdminTasksDictionary = {
   overdueReschedule: "Reschedule", overdueClear: "Clear past unfinished",
   odDaysBehind: "{n} days behind", odCarry: "Bring to today", odSkip: "Delete",
   inboxNote: "Every task outside a project lives here. Give it a date and it also shows in Today · Calendar.",
-  prioNormal: "Normal", prioImportant: "Important", prioUrgent: "Urgent",
+  prioNormal: "Priority 4", prioImportant: "Priority 2", prioUrgent: "Priority 1", prioMedium: "Priority 3",
   stOpen: "Open", stInProgress: "In progress", stCompleted: "Done", stOverdue: "Overdue",
   repDaily: "Daily", repWeekly: "Weekly on {wd}", repWeekdays: "Every weekday (Mon–Fri)", repMonthly: "Monthly on the {d}",
   repYearly: "Yearly on {m}/{d}", repCustom: "Custom…", repCustomDays: "Weekly on {wd}", repPickDays: "Custom", repPickDaysHint: "Pick the days to repeat on", repNone: "No repeat",
@@ -541,13 +576,17 @@ const en: AdminTasksDictionary = {
   durNone: "No duration", dur15: "15 min", dur30: "30 min", dur60: "1 hour", dur120: "2 hours", durCustom: "Custom",
   today: "Today", tomorrow: "Tomorrow", noDate: "No date", instructedBy: "{name} directive", sharedWith: "Shared", andMore: "{name} +{n}",
   iaTitle: "Task name", iaDesc: "Description", iaSchedule: "Schedule", iaPriority: "Priority", iaTarget: "Target (directive)",
-  iaAttach: "Attach", iaAttachN: "{n} photos", iaCancel: "Cancel", iaSave: "Add task", iaInbox: "Inbox", iaSendInstr: "Send as directive",
+  iaAttach: "Attach", iaAttachN: "{n} photos", iaCancel: "Cancel", iaSave: "Add task", iaInbox: "Inbox", iaSendInstr: "Send as directive", iaSendInstrCta: "Send a directive",
   dpTask: "Task", dpInbox: "Inbox", dpStatus: "Status", dpSchedule: "Schedule", dpScheduleChange: "Reschedule",
   dpDue: "Due", dpSched: "Scheduled", dpTime: "Time", dpRepeat: "Repeat", dpNoDate: "No date",
   dpLinked: "Linked", dpViewResv: "View reservation", dpParticipants: "Participants · {n} · shared status",
   dpAuthor: "Author", dpFirstRecipient: "First recipient", dpMe: "You", dpShareManage: "Add member / manage sharing",
   dpShareCta: "Share / assign directive", dpPhotos: "Attached photos {n}", dpLog: "Update log",
-  dpLogCreated: "{name} created the task", dpLogInput: "Add a note…", dpEdit: "Edit", dpSave: "Save", dpTagAdd: "Add tag",
+  dpLogCreated: "{name} created the task",
+  logShared: "{name} shared it", logEdited: "{name} edited the content", logCompleted: "{name} completed it",
+  logReopened: "{name} reopened it", logInProgress: "{name} set it to in progress",
+  logOpen: "{name} set it back to open", logUpdated: "{name} updated it",
+  dpLogInput: "Add a note…", dpEdit: "Edit", dpSave: "Save", dpTagAdd: "Add tag",
   phAdd: "Add photos", phAddCompact: "Photos", phDropHint: "Click or drag files here",
   phCount: "{n}/{max}", phRemove: "Remove photo", phTooMany: "Up to {max} photos",
   phInvalidType: "Image files only", phTooLarge: "Files must be {max}MB or smaller",
@@ -565,6 +604,9 @@ const en: AdminTasksDictionary = {
   shSearch: "Search members", shTargetCta: "Assign", shShareCta: "Share", shNoResult: "No results.", shManager: "Manager",
   mScheduleChange: "Reschedule", mPriority: "Priority", mShareInstr: "Share / directive", mMoveToday: "Move to today", mMoveTomorrow: "Move to tomorrow",
   mMoveInbox: "Move to inbox", mDelete: "Delete", mLeave: "Leave (me only)",
+  recurDeleteTitle: "This task repeats", recurSkipOne: "Skip {date} only",
+  recurSkipOneSub: "Skips this date; the series keeps running", recurDeleteAll: "Delete the whole series",
+  recurDeleteAllSub: "Removes it from every date", recurSkippedToast: "Skipped {date}",
   instrRecv: "Received", instrSent: "Sent",
   instrSentNote: "Directives land on the recipient's schedule. They don't enter your Today; track progress here.",
   instrRecvNote: "Assigned to you. Also shown in your Today · Calendar; status changes are shared back to the sender.",
@@ -611,6 +653,7 @@ const en: AdminTasksDictionary = {
   undoBtn: "Undo", undoNext: "Next: {date}", tDeletedUndoable: "Task deleted",
   selMode: "Select", selSelected: "{n} selected", selAll: "Select all", selClear: "Clear selection",
   selDelete: "Delete", selEmptyHint: "Select tasks to delete",
+  odPickHint: "Select the overdue tasks to act on",
   selHint: "Click a row to select or deselect it",
   confirmBulkMsg: "Delete the {n} selected tasks?",
   confirmBulkSharedNote: "Tasks shared with you are left rather than deleted. Those can't be undone.",

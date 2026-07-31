@@ -48,7 +48,11 @@ function formatDate(value: string | null, locale: string) {
     return "";
   }
 
+  // Announcement timestamps are UTC instants but the product reads them as Tokyo
+  // operating dates (mobile groups the list by the Tokyo `published_at` day), so the
+  // admin detail must pin the same zone or it drifts a day before 09:00 JST.
   return new Intl.DateTimeFormat(locale, {
+    timeZone: "Asia/Tokyo",
     day: "2-digit",
     month: "short",
     year: "numeric",

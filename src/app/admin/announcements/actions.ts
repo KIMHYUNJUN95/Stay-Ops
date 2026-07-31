@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import type { OrganizationRole, Role } from "@/config/roles";
 import { organizationRoles } from "@/config/roles";
+import { announcementCreatorRoles } from "@/lib/admin-announcements";
 import { getPublicSupabaseEnv } from "@/lib/env";
 import { getAnnouncementReadSummary } from "@/lib/announcements";
 import { createImportantAnnouncementNotifications } from "@/lib/notifications/create";
@@ -17,14 +18,6 @@ type AnnouncementStatus = Database["public"]["Enums"]["announcement_status"];
 type AnnouncementTargetScope =
   Database["public"]["Enums"]["announcement_target_scope"];
 
-const announcementCreatorRoles = [
-  "developer_super_admin",
-  "owner",
-  "office_admin",
-  "cs_staff",
-  "field_manager",
-  "staff",
-] as const satisfies readonly Role[];
 const announcementImageBucket = "announcement-images";
 const maxAnnouncementImages = 5;
 
@@ -558,12 +551,22 @@ function normalizeConsoleTargetRoles(roles: string[]): OrganizationRole[] {
   );
 }
 
+// A datetime-local value ("YYYY-MM-DDTHH:mm", optionally with seconds) carries no
+// timezone, so `new Date()` would resolve it against the *server's* zone — UTC in
+// production. The console form asks for a Tokyo wall clock ("팝업 노출 종료일"), so a
+// naive value is interpreted as Asia/Tokyo (+09:00) here; anything already carrying
+// an explicit offset or `Z` is passed through untouched.
+const NAIVE_LOCAL_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
+
 function normalizeConsolePopupUntil(
   showPopup: boolean,
   popupUntil: string | null,
 ): string | null {
   if (!showPopup || !popupUntil) return null;
-  const parsed = new Date(popupUntil);
+  const value = NAIVE_LOCAL_DATETIME_RE.test(popupUntil)
+    ? `${popupUntil}+09:00`
+    : popupUntil;
+  const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 

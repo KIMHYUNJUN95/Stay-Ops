@@ -24,6 +24,7 @@ import {
   canMoveRecurringTo,
   isStandardRecurrence,
   outstandingOverdueOccurrences,
+  recurringOccurrencesInRange,
 } from "@/lib/tasks-recurrence";
 import {
   clearOccurrenceState,
@@ -52,7 +53,7 @@ function parseStringArray(value: string): string[] {
     return [];
   }
 }
-const PRIORITIES = new Set(["normal", "important", "urgent"]);
+const PRIORITIES = new Set(["normal", "important", "urgent", "medium"]);
 
 
 const detailPath = (id: string, error?: string) =>
@@ -188,6 +189,55 @@ export async function skipOverdueOccurrences(taskId: string) {
   if (!isStandardRecurrence(task.recurrenceRule)) return;
   const { dates } = await outstandingOverdueForTask(task);
   await skipOccurrences({ taskId: id, organizationId: session.organization.id, dates });
+  revalidatePath("/mobile/tasks");
+  revalidatePath(detailPath(id));
+}
+
+/**
+ * 반복 작업의 **한 회차만** 건너뛰기 / 되돌리기 (2026-07-30).
+ *
+ * 목록에서 반복 카드를 삭제하면 시리즈 전체(`tasks` 행)가 사라져, "오늘만 못 한다"를 표현할 방법이
+ * 없었다. 오버듀 회차에는 이미 `skipped` 수단이 있었지만 **오늘/내일 회차에는 배선이 없었다** —
+ * 여기서 그 구멍을 메운다. 저장소는 기존 `task_occurrence_state` 를 그대로 쓴다.
+ *
+ * 날짜는 **절대 클라이언트를 믿지 않고** 규칙에서 다시 계산해 실제 회차인지 확인한다. 아니면 조용히
+ * 무시한다(임의 날짜로 상태 행을 심을 수 없게).
+ */
+function isOccurrenceDate(task: TaskDetail, occurrenceDate: string): boolean {
+  if (!isStandardRecurrence(task.recurrenceRule)) return false;
+  const anchor = recurringAnchorDate(task);
+  if (!anchor) return false;
+  return (
+    recurringOccurrencesInRange(task.recurrenceRule, anchor, occurrenceDate, occurrenceDate).length > 0
+  );
+}
+
+/** "이 날짜만 건너뛰기" — 그 회차만 `skipped`, 반복은 예정대로 계속된다. */
+export async function skipOccurrenceOn(taskId: string, occurrenceDate: string) {
+  const id = String(taskId ?? "").trim();
+  const date = String(occurrenceDate ?? "").trim();
+  if (!id || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+  const { session, task } = await requireSessionAndTask(id);
+  if (!isOccurrenceDate(task, date)) return;
+  await skipOccurrences({ taskId: id, organizationId: session.organization.id, dates: [date] });
+  revalidatePath("/mobile/tasks");
+  revalidatePath(detailPath(id));
+}
+
+/**
+ * 건너뛰기 되돌리기(토스트의 "실행 취소").
+ *
+ * `clearOccurrenceState` 는 상태 종류를 가리지 않고 지운다. 사용자가 방금 누른 건너뛰기를 곧바로
+ * 되돌리는 용도로만 노출하므로 실무상 문제는 없지만, 그 사이 같은 회차가 완료 처리됐다면 완료가
+ * 풀린다는 점은 알고 있어야 한다(회차 상태는 한 칸뿐이라 종류별 삭제가 불가능하다).
+ */
+export async function unskipOccurrenceOn(taskId: string, occurrenceDate: string) {
+  const id = String(taskId ?? "").trim();
+  const date = String(occurrenceDate ?? "").trim();
+  if (!id || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+  const { task } = await requireSessionAndTask(id);
+  if (!isOccurrenceDate(task, date)) return;
+  await clearOccurrenceState(id, date);
   revalidatePath("/mobile/tasks");
   revalidatePath(detailPath(id));
 }
@@ -389,7 +439,8 @@ export async function moveTaskOutOfInbox(formData: FormData) {
 
 // Allowed list views for the swipe-action return redirect (keeps the user on the tab they swiped
 // from). Mirrors the page's VIEWS allow-list.
-const LIST_VIEWS = new Set(["today", "tomorrow", "inbox", "sent", "completed", "calendar"]);
+// "sent" 는 구 탭 키(→ instr). 되돌아오기 쿼리에 남아 있을 수 있어 계속 받아 준다.
+const LIST_VIEWS = new Set(["today", "tomorrow", "inbox", "instr", "sent", "completed", "calendar"]);
 function listPathForView(formData: FormData, error?: string): string {
   const view = cleanText(formData.get("view"));
   const base = LIST_VIEWS.has(view) ? `/mobile/tasks?view=${view}` : "/mobile/tasks";
@@ -595,9 +646,24 @@ export async function setTaskProgress(taskId: string, inProgress: boolean) {
   revalidateProjectPath(task.projectId);
 }
 
+/**
+ * 참여자 추가(공유 / 지시 대상 확대) — **참여자도 할 수 있다**(소유자 결정 2026-07-31,
+ * `docs/product/18-todo-task-workflow.md` → Sharing Model → Re-sharing).
+ *
+ * 이 액션은 **추가 전용**이다(`!existing.has(uid)`). 남을 빼는 것은 작성자만 가능하며 그 경로는
+ * `removeTaskParticipant` 가 따로 막는다 — "초대는 열되 축출은 잠근다".
+ *
+ * 알아둘 것: 지시(`is_directive`) 작업에 참여자가 누군가를 추가하면, 추가된 사람에게는 **원
+ * 작성자가 보낸 지시**로 보인다(`recvInstr` 판정은 작성자 기준). 누가 실제로 불렀는지는
+ * `task_participants.added_by_user_id` 에 남는다.
+ */
 export async function shareTaskWithUsers(formData: FormData) {
   const id = cleanText(formData.get("taskId"));
   const { session, task } = await requireSessionAndTask(id);
+  // 프로젝트 작업의 공유는 per-task 가 아니라 프로젝트 멤버십이 정한다(콘솔과 동일한 규칙).
+  if (task.projectId) {
+    redirect(detailPath(id, "forbidden"));
+  }
   const requested = parseStringArray(cleanText(formData.get("shareJson")));
   const allowed = new Set((await getShareableUsers(session)).map((u) => u.id));
   const existing = new Set(task.participants.map((p) => p.userId));

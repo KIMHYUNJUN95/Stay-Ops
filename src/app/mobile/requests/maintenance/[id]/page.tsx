@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { Wrench } from "lucide-react";
 import { AnnouncementImageGrid } from "@/components/announcements/announcement-image-grid";
 import { MaintenanceHandlingForm } from "@/components/requests/maintenance-handling-form";
+import { canHandleMaintenance } from "@/app/mobile/requests/maintenance/actions";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { Badge } from "@/components/ui/badge";
@@ -91,8 +92,13 @@ export default async function MobileMaintenanceDetailPage({ params, searchParams
   );
   const isTerminal = isMaintenanceTerminal(report.status);
   // 상태 변경 = part_time_staff 제외 전원 (docs/product/08-maintenance-workflow.md → Status Change
-  // Permission). 서버 액션과 RLS가 최종 게이트고, 여기서는 UI만 감춘다.
-  const canHandle = session.user.role !== "part_time_staff";
+  // Permission) + `maintenance_status_change` 권한 예외를 받은 파트타이머. 서버 액션과 RLS가 최종
+  // 게이트고, 여기서는 UI만 감춘다 — 판정은 서버 액션 모듈과 같은 함수를 쓴다.
+  const canHandle = await canHandleMaintenance(
+    session.organization.id,
+    session.user.id,
+    session.user.role,
+  );
   const showCreatedBanner = query.created === "1";
 
   const navBadges = await getMobileNavBadges();

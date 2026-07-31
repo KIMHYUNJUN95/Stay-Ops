@@ -13,6 +13,10 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
+import {
+  rememberTrustedDevice,
+  resolveTrustedDevice,
+} from "@/lib/attendance-trusted-device";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getAttendancePayrollAdminUserIds } from "@/lib/attendance-review";
 import { notifyAttendanceAdmins } from "@/lib/notifications/create";
@@ -115,12 +119,22 @@ export async function submitAttendanceScan(
   input: AttendanceScanInput,
 ): Promise<AttendanceScanResult> {
   const session = await getCurrentAppSession();
-  if (!session || !hasOrganizationContext(session)) {
+  const hasSession = Boolean(session && hasOrganizationContext(session));
+
+  // 세션이 없으면 "기억된 기기" 로 신원을 확인한다. 아이폰에서 건물 QR 을 기본 카메라로 찍으면
+  // Safari 로 열리는데, iOS 는 PWA 와 Safari 의 저장소가 분리돼 로그인이 공유되지 않기 때문이다.
+  //
+  // ⚠ 이 대체 신원은 **여기(출근/퇴근 打刻)에서만** 허용된다. 다른 어떤 화면·액션도 이 경로로
+  //   권한을 얻지 않는다. GPS 필수 + 사이트 반경 검증은 아래에서 그대로 수행되므로, 쿠키만으로
+  //   현장 밖에서 打刻할 수는 없다. See src/lib/attendance-trusted-device.ts.
+  const trusted = hasSession ? null : await resolveTrustedDevice();
+  if (!hasSession && !trusted) {
     return { ok: false, reason: "error" };
   }
-  const organizationId = session.organization.id;
-  const userId = session.user.id;
-  const locale = session.user.preferredLanguage ?? "ko";
+
+  const organizationId = hasSession ? session!.organization.id : trusted!.organizationId;
+  const userId = hasSession ? session!.user.id : trusted!.userId;
+  const locale = (hasSession ? session!.user.preferredLanguage : null) ?? "ko";
   const service = getSupabaseServiceClient();
   const actionType: AttendanceActionType = input.mode === "in" ? "clock_in" : "clock_out";
   const deviceInfo = { userAgent: input.userAgent ?? null };
@@ -240,6 +254,8 @@ export async function submitAttendanceScan(
     }
 
     await logAttempt({ success: true, failureReason: null, resolvedSiteId: site.id });
+    // 打刻에 성공한 기기만 기억한다(또는 만료를 연장한다) — 실제로 현장에서 쓴 기기라는 증거가 있는 셈.
+    await rememberTrustedDevice({ userId, organizationId, userAgent: input.userAgent ?? null });
     return {
       ok: true,
       kind: "in",
@@ -319,12 +335,13 @@ export async function submitAttendanceScan(
       payload: {
         event: "abnormal_session",
         subjectUserId: userId,
-        subjectName: session.user.name ?? null,
+        subjectName: session?.user.name ?? null,
         sessionId: open.id,
       },
     });
   }
 
+  await rememberTrustedDevice({ userId, organizationId, userAgent: input.userAgent ?? null });
   return {
     ok: true,
     kind: "out",

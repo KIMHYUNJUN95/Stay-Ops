@@ -7,6 +7,13 @@
  * See docs/product/07-cleaning-workflow.md → "2026-07-13 어드민 청소 대시보드 — 재기획".
  */
 
+/* ── status pill: 취소 상태 ──
+ * admin-console.css 의 .cstat 베이스에는 pending/progress/done 3색만 있다. 유지보수 콘솔이
+ * 같은 값으로 .cstat--cancelled 를 정의하지만 그 CSS 는 이 페이지에서 로드되지 않으므로
+ * (번들이 화면별로 갈린다) 여기서 동일한 값으로 다시 선언한다. 색이 바뀌면 양쪽을 함께 고칠 것. */
+.adm .cstat--cancelled { background: var(--surface); color: var(--faint); }
+.adm .cstat--cancelled .d { opacity: 0.6; }
+
 /* ── group segment (건물별 / 상태별) — cleaning-only; .cviewbar/.lviews/.syncchip are shared
    primitives and live in admin-console.css ── */
 .adm .groupseg { display: inline-flex; background: var(--surface); border-radius: 9px; padding: 3px; gap: 2px; }
@@ -40,6 +47,7 @@
 .adm .rmc.is-pending { border-left-color: var(--muted); }
 .adm .rmc.is-progress { border-left-color: var(--info); }
 .adm .rmc.is-done { border-left-color: var(--done); }
+.adm .rmc.is-cancelled { border-left-color: var(--faint); }
 .adm .rmc__top { display: flex; align-items: flex-start; gap: 9px; }
 .adm .rmc__rm { font-family: var(--mono); font-size: 17px; font-weight: 900; letter-spacing: -0.01em; color: var(--ink); line-height: 1.05; }
 .adm .rmc__type { font-size: 11px; font-weight: 700; color: var(--muted); margin-top: 3px; }
@@ -48,6 +56,7 @@
 .adm .rbadge .ic { font-size: 12px; }
 .adm .rbadge--lost { background: var(--info-bg); color: var(--info); }
 .adm .rbadge--issue { background: var(--warn-bg); color: var(--warn); }
+.adm .rbadge--cancelled { background: var(--surface); color: var(--faint); }
 .adm .rmc__st { display: flex; align-items: center; gap: 7px; }
 .adm .elapsed { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 11.5px; font-weight: 800; color: var(--info); }
 .adm .elapsed .ic { font-size: 13px; }
@@ -67,6 +76,9 @@
 
 /* ── status 3-bucket board (kanban-style columns) ── */
 .adm .bkgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; align-items: start; }
+/* 취소 세션이 하나라도 있을 때만 4번째(취소) 칼럼이 붙는다 — 평소에는 3칼럼 그대로. */
+.adm .bkgrid--4 { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 1240px) { .adm .bkgrid--4 { grid-template-columns: repeat(2, 1fr); } }
 .adm .bkcol { background: var(--card2); border: 1px solid var(--line-soft); border-radius: 16px; padding: 6px; }
 .adm .bkcol__h { display: flex; align-items: center; gap: 9px; padding: 11px 12px 10px; }
 .adm .bkcol__ic { width: 24px; height: 24px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
@@ -77,6 +89,8 @@
 .adm .bkcol--pending .bkcol__ic { background: var(--surface); color: var(--muted); }
 .adm .bkcol--progress .bkcol__ic { background: var(--info-bg); color: var(--info); }
 .adm .bkcol--done .bkcol__ic { background: var(--done-bg); color: var(--done); }
+.adm .bkcol--cancelled .bkcol__ic { background: var(--surface); color: var(--faint); }
+.adm .bkcol--cancelled { border-top: 3px solid var(--faint); }
 .adm .bkcol--pending { border-top: 3px solid var(--muted); }
 .adm .bkcol--progress { border-top: 3px solid var(--info); }
 .adm .bkcol--done { border-top: 3px solid var(--done); }

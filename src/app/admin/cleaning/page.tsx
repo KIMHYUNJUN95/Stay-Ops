@@ -3,7 +3,7 @@ import { CleaningConsole } from "@/components/admin/cleaning/cleaning-console";
 import { monthRange } from "@/components/admin/cleaning/cleaning-console-data";
 import { getAdminCleaningHistory, getAdminCleaningToday } from "@/lib/admin-cleaning";
 import { requireAdminPageSession } from "@/lib/admin-page-auth";
-import { getCleaningOperatingDateKey } from "@/lib/cleaning";
+import { canForceCompleteCleaning, getCleaningOperatingDateKey } from "@/lib/cleaning";
 import { getDictionary } from "@/lib/i18n";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
 
@@ -39,6 +39,7 @@ export default async function AdminCleaningPage() {
         initialHistory={history}
         initialHistoryFrom={range.from}
         initialHistoryTo={range.to}
+        canForceComplete={canForceCompleteCleaning(session.user.role)}
       />
     </AdminShell>
   );

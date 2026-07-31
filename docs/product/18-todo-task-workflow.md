@@ -1,7 +1,7 @@
 # Todoist / Task Workflow
 
 Status: First slice implemented (2026-06-10), hardened through 2026-06-15. Mobile Todoist/Shared Task is live under
-`/mobile/tasks/*` (side-menu entry `tasks`, user-facing label `Todoist`). Seven tabs now present: Today / Tomorrow / Inbox(관리함) / **프로젝트** / Sent(공유함) / Completed(완료/기록) / Calendar. The 프로젝트 tab is **functional (first slice, 2026-06-15)**: project create/delete, sections (add/rename/delete with their tasks), an Unsectioned area, project-task create + complete/reopen, member invite/remove/leave, a Completed-tab filter (전체/일반/프로젝트), and a `project_shared` notification. Project tasks appear only in the Projects tab (never in Today/Tomorrow/Inbox/Sent/Calendar). Requires migration `202606150002_projects.sql`. See `docs/product/23-project-workflow.md` and `docs/engineering/09-todo-task-technical-design.md`.
+`/mobile/tasks/*` (side-menu entry `tasks`, user-facing label `Todoist`). Seven tabs now present: Today / Tomorrow / Inbox(관리함) / **프로젝트** / **지시(받은/보낸)** / Completed(완료/기록) / Calendar. The 프로젝트 tab is **functional (first slice, 2026-06-15)**: project create/delete, sections (add/rename/delete with their tasks), an Unsectioned area, project-task create + complete/reopen, member invite/remove/leave, a Completed-tab filter (전체/일반/프로젝트), and a `project_shared` notification. Project tasks appear only in the Projects tab (never in Today/Tomorrow/Inbox/지시/Calendar). Requires migration `202606150002_projects.sql`. See `docs/product/23-project-workflow.md` and `docs/engineering/09-todo-task-technical-design.md`.
 quick add + detailed create/edit, task detail with unified update log, multi-select sharing, and
 author/participant rules are implemented. Recurrence is the **occurrence model (2026-07-30, supersedes
 the 2026-06-16 roll-forward model)** — a recurring task is **one live row** with a FIXED anchor; it shows
@@ -289,7 +289,8 @@ Required major views:
 - Today
 - Tomorrow
 - Inbox
-- Sent By Me
+- 프로젝트
+- 지시 (받은 / 보낸)
 - Completed (완료/기록)
 - Calendar
 
@@ -307,7 +308,8 @@ Recommended order:
 Today
 Tomorrow
 Inbox
-Sent By Me
+프로젝트
+지시 (받은 / 보낸)
 Completed (완료/기록)
 Calendar
 ```
@@ -415,7 +417,7 @@ Include:
   (`tokyoDateOf(completed_at)`), newest day first — so a task scheduled for tomorrow but finished
   today appears under today's group, not its scheduled date.
 
-Tab order is `Today · Tomorrow · Inbox(관리함) · Sent(공유함) · Completed(완료) · Calendar`.
+Tab order is `Today · Tomorrow · Inbox(관리함) · 프로젝트 · 지시 · Completed(완료) · Calendar`.
 
 Rules:
 
@@ -615,7 +617,7 @@ As-built (2026-07-30, occurrence model — **supersedes** the 2026-06-16 roll-fo
   rule's dates computed on the fly (`recurringOccurrencesInRange`) — **not** pre-created rows.
 - **Every scheduled date shows independently — completion no longer rolls the row forward.** A
   recurring task appears on **each** of its occurrence dates in 오늘/내일/캘린더 (so "5 recurring →
-  tomorrow also shows 5"), regardless of whether today's is done. The date-agnostic tabs (관리함/공유함)
+  tomorrow also shows 5"), regardless of whether today's is done. The date-agnostic tabs (관리함/지시)
   still show one entry per series.
 - **Per-occurrence completion lives in `task_occurrence_state`** (keyed by `(task_id,
   occurrence_date)`), **not** on the row. `completeTask(taskId, occurrenceDate)` records that date as
@@ -748,9 +750,29 @@ without a separate audit UI.
 - multi-select sharing is required
 - one share action can add multiple recipients
 
-### Re-sharing
+### Re-sharing — 참여자도 부를 수 있다 (규칙 유지, 2026-07-31 확인)
 
-- participants may re-share to more people
+- **참여자도 다른 사람을 추가할 수 있다.** 지시를 받은 사람, 공유를 받은 사람 모두 해당한다.
+- **부르기만 되고 빼기는 안 된다.** 남을 참여자에서 제거하는 것은 **작성자만** 가능하다
+  (`removeTaskParticipant` — 자기 자신 나가기는 누구나). 참여자의 "지시/공유 성격 변경"
+  (`is_directive` 전환)도 작성자 전용이다.
+- 이 규칙은 원래 문서에 있었으나 **관리 콘솔만 작성자 전용으로 구현되어 두 화면이 갈라져
+  있었다.** 2026-07-31 소유자 확인으로 **문서 쪽(참여자 허용)** 으로 통일했다.
+
+**두 화면의 구현이 다른 점 — 서버가 흡수한다.**
+
+| | 모바일 `shareTaskWithUsers` | 콘솔 `shareConsoleTask` |
+| --- | --- | --- |
+| 구조 | 추가 전용(`!existing.has`) | 피커 체크 상태로 **집합 재조정** |
+| 참여자가 호출하면 | 그대로 추가 | **제거분을 버리고 추가만 적용**, `is_directive` 미변경 |
+
+콘솔 액션을 그냥 열면 참여자가 다른 참여자를 축출할 수 있게 되므로, 작성자가 아닐 때는
+`toRemove = []` 로 두고 `tasks` 갱신도 `is_shared: true` 만 한다. 화면에서도 기존 참여자 행을
+`disabled` 로 잠가, 해제했다가 새로고침에 되살아나는 유령 조작을 막는다.
+
+**알아둘 것.** 지시(`is_directive`) 작업에 참여자가 누군가를 추가하면, 추가된 사람에게는 **원
+작성자가 보낸 지시**로 보인다(`recvInstr` 판정이 작성자 기준). 누가 실제로 불렀는지는
+`task_participants.added_by_user_id` 에 남는다. 연결된 객실·예약·게스트 컨텍스트도 함께 전달된다.
 
 ### First Recipient
 
@@ -1133,3 +1155,157 @@ Design in this order:
 경우까지 막게 된다.
 
 **i18n**: `tasks.moveDuplicateOccurrence`, `adminTasks.errDuplicateOccurrence` (ko·ja·en).
+
+## 2026-07-30 지시(받은/보낸) — 모바일 반영
+
+관리 콘솔에만 있던 **받은 지시 / 보낸 지시**를 모바일에도 넣었다. 탭을 늘리지 않고 기존
+**공유함(`sent`) 탭을 지시(`instr`) 탭으로 재구성**했다 — 7탭 유지.
+
+### IA
+
+- 탭 라벨: `지시` / `指示` / `Directives`. 탭 **배지 = 미확인(=`status open`) 받은 지시 건수** —
+  탭을 열지 않아도 밀린 지시가 보인다.
+- 탭 안에 **받은 지시 / 보낸 지시** 세그먼트 컨트롤(Bell / Megaphone + 카운트 배지).
+  시각 규격은 이미 쓰고 있는 건의함 세그먼트(`suggestions.css` `.seg`/`.seg__b`)와 같다:
+  슬레이트 트랙 + 흰 알약 + 활성 시 네이비 카운트.
+- **받은 지시는 오늘 / 내일 / 관리함에도 그대로 보인다.** 지시 탭은 *모아보기* 역할이다.
+- **내가 보낸 지시는 내 일정 뷰(오늘·내일·관리함·캘린더·기록)에서 빠진다** — 대상자의 일정이기
+  때문이며, 관리 콘솔 `myOwn` 과 같은 규칙이다. 진행 상황은 `지시 › 보낸 지시`에서만 본다.
+
+### 상태 그룹 (콘솔 `recvView`/`sentView` 와 동일 순서)
+
+| | 그룹 |
+| --- | --- |
+| 받은 지시 | 지연 → 해야 할 지시(open) → 진행 중 → 완료 |
+| 보낸 지시 | 미확인 · 대기(open) → 진행 중 → 완료 |
+
+지연은 받은 지시에서만 따로 뽑는다(보낸 쪽의 지연은 대상자가 처리할 몫이라 상태로만 표시).
+반복 작업은 기존 `isOverdue` 규약대로 지연 판정에서 빠진다.
+
+### 카드
+
+공용 `TaskCard` 를 그대로 쓰고 `instrMode="recv" | "sent"` 만 추가했다.
+
+- `recv` — 지시자를 **이니셜 아바타 + 이름 칩**으로 칩 줄 맨 앞에 올린다(기존 `이름 →` 접두사 대체).
+- `sent` — **담당 {n}명** 칩. 체크 원을 **렌더하지 않는다**(`onCompleteToggle` 미전달): 지시자가
+  대상자의 작업을 대신 완료 처리하지 않는다. 스와이프도 끈다.
+
+### 담당자별 진행률은 없다 (2026-07-30 확인)
+
+`task_participants` 에는 **담당자별 완료 상태가 없다** — 완료는 작업 1건당
+하나(`status` / `completed_at` / `completed_by_user_id`)다. 따라서 "2 / 3 완료" 같은 담당자별
+진행률 바는 현재 데이터 모델로 만들 수 없고, 보낸 지시 카드는 **담당 인원 수 + 작업 상태**만
+보여준다(콘솔 `sentView` 와 동일). 담당자별 진행이 필요해지면 `task_participants.completed_at`
+추가 + 완료 의미 변경이라는 **별도 결정**이 필요하다.
+
+### 구현 메모
+
+- 지시 판별 술어(`sentInstr` / `recvInstr` / `myOwn` / `partsOf` / `isMine`)는
+  **`src/lib/task-directives.ts` 한 곳**에 두고 `src/components/admin/tasks/helpers.ts` 는
+  재수출만 한다. 모바일·콘솔에 같은 규칙을 복사하면 이 저장소가 이미 한 번 데인 쌍둥이 파일
+  문제(`tasks.ts` / `tasks-recurrence.ts`)를 되풀이한다.
+- 뷰 키 `sent` → `instr`. 예전 링크·되돌아오기 쿼리의 `?view=sent` 는 `page.tsx` 에서 조용히
+  `instr` 로 넘긴다(`LIST_VIEWS` 도 두 키를 모두 받는다).
+- **peer 공유 전용 목록은 모바일에서 사라졌다.** 내가 공유한(지시가 아닌) 작업은 여전히 내
+  작업이므로 오늘/내일/관리함에 그대로 보인다 — 다만 "공유한 것만 모아 보는" 화면은 없다.
+  콘솔에는 공유함 탭이 그대로 남아 있다.
+- i18n: `dict.tasks.viewInstr / instrRecv / instrSent / instrRecvNote / instrSentNote /
+  instrSec* / instrUnconfirmed / instrBy / instrAssigned / instrEmpty*`(ko·ja·en). 문구는
+  콘솔(`admin-tasks-i18n.ts`)과 같은 표현을 쓴다. 로그 라벨 `system_shared` 가 탭 이름
+  `viewSent` 를 빌려 쓰고 있어 전용 키 `logShared` 로 분리했다.
+
+## 2026-07-30 반복 회차 건너뛰기 — "이 날짜만" vs "반복 전체"
+
+**문제.** 오늘/내일 화면의 반복 카드를 길게 눌러 삭제하면 `tasks` 행이 지워져 **모든 날짜에서**
+사라졌다. "오늘만 못 한다"(공실·휴무 등)를 표현할 수단이 없어, 사용자가 한 회차를 넘기려고
+시리즈 전체를 날리게 되는 구조였다.
+
+**해결(A안).** 반복 작업을 **회차로 보고 있을 때** 삭제를 누르면 확인 모달 대신 선택 시트를 띄운다.
+
+```
+반복되는 작업입니다
+  ⏭  7/30 (목)만 건너뛰기 — 이 날짜만 넘어가고 반복은 계속됩니다
+  🗑  반복 전체 삭제        — 모든 날짜에서 사라집니다
+      취소
+```
+
+- **일회성 작업은 그대로** 기존 확인 모달을 쓴다.
+- **관리함처럼 회차가 아닌 목록**에서는 행 자체가 시리즈를 뜻하므로 역시 기존 모달 그대로다.
+  시트는 `occurrence` 로 렌더된 카드에서만 뜬다.
+
+### 저장
+
+새 테이블 없음. 기존 `task_occurrence_state` 에 `state='skipped'` 행을 하나 넣는다 — 오버듀 회차
+정리에 이미 쓰던 그 상태다. 지금까지 **오늘/내일 회차에만 배선이 없었을 뿐**이다.
+
+- `skipOccurrenceOn(taskId, occurrenceDate)` — 그 회차만 `skipped`
+- `unskipOccurrenceOn(taskId, occurrenceDate)` — 되돌리기(`clearOccurrenceState`)
+
+두 액션 모두 날짜를 **클라이언트에서 믿지 않고** 반복 규칙에서 다시 계산해 실제 회차인지 확인한다
+(`isOccurrenceDate`). 아니면 조용히 무시한다 — 임의 날짜로 상태 행을 심을 수 없다.
+
+### 되돌리기
+
+`skipped` 는 영구 상태(*kept forever, never re-appears*)이므로 건너뛴 직후
+**"{날짜} 건너뜀 · 실행 취소" 토스트**를 6초간 띄운다. 되돌릴 수 있으므로 별도 확인 모달은 두지
+않는다(CLAUDE.md — 확인 UX는 되돌릴 수 없는 파괴적 동작에만).
+
+되돌리기의 한계: 회차 상태는 한 칸뿐이라 종류별 삭제가 불가능하다. 토스트가 떠 있는 사이 같은
+회차가 완료 처리되면 실행 취소가 그 완료까지 푼다(실무상 6초 안에 겹칠 일은 거의 없다).
+
+### 같이 고친 버그 — 상태 있는 회차가 목록에 남던 문제
+
+모바일·콘솔 모두 회차 필터가 `state !== "completed"` 였다. **상태 행이 있으면 그 회차는 해결된
+것**(completed · skipped · moved)이므로 `!state` 로 바꿨다. 이걸 안 고치면 건너뛴 회차가 목록에
+그대로 남는다. 콘솔은 주석에 이미 "완료·스킵·이동된 회차 제외"라고 적혀 있었는데 코드가 따라가지
+못한 상태였고, 이제 `outstandingOverdueOccurrences` 의 "행이 있으면 해결" 규약과도 일치한다.
+
+### 관리 콘솔도 동일 (2026-07-30)
+
+`/admin/tasks` 의 행 메뉴 삭제도 같은 규칙을 따른다. 오늘/내일 목록의 반복 행은 `⋯` 메뉴가 회차
+날짜(`RowMenuPop.occ`)를 함께 들고 열리고, 삭제를 누르면 `RecurDeleteModal` 이 뜬다 —
+`이 날짜만 건너뛰기` / `반복 전체 삭제`. 서버는 `skipConsoleOccurrence` /
+`unskipConsoleOccurrence` 로 모바일과 같은 `task_occurrence_state` 를 쓰고, 같은 방식으로 날짜를
+규칙에서 재검증한다.
+
+예외 두 곳은 의도된 것이다.
+
+- **상세 패널의 삭제** — 패널은 작업 전체를 보여주므로 시리즈 삭제가 맞다(회차를 넘기지 않는다).
+- **관리함 등 회차가 아닌 목록** — 행이 곧 시리즈다. 기존 즉시 삭제 + 실행 취소 그대로.
+
+모달 크롬은 콘솔 규격(`day-scrim` + `pop`)을 그대로 쓰고, 두 선택지는 `.rcopt` 카드로 같은 크기로
+놓되 되돌릴 수 없는 쪽(전체 삭제)만 danger 톤을 준다.
+
+## 2026-07-31 지시 보내기 — 두 화면 모두 진입점 추가
+
+지시를 **볼** 수는 있는데 **보낼** 수단이 화면마다 빠져 있었다. "보낸 지시" 탭이 빈 상태에서
+"작업을 만들 때 대상을 지정하면…"이라고 안내만 하고, 정작 거기서 만들 수는 없었다.
+
+### 관리 콘솔
+
+`보낸 지시` 뷰(목록·빈 상태 둘 다)에 인라인 **지시 보내기** 트리거를 넣었다.
+
+- `AddDraft.ctx` 에 `"instr"` 추가. 기존 인라인 추가 폼을 그대로 쓰므로 새 UI가 없다 —
+  그 폼에는 이미 **대상(지시) 칩**(`openSharePop(…, "target")`)이 있다.
+- **날짜 기본값 = 오늘.** 날짜 없는 지시는 대상자의 관리함에 묻히기 쉽다(스케줄 칩에서 변경 가능).
+- **대상이 없으면 저장 불가.** 대상 없이 저장하면 `is_directive=false` 인 내 개인 작업이 되어
+  저장 직후 이 목록에서 사라진다. 저장 버튼을 잠그고 라벨도 `지시 보내기` 로 바꾼다.
+
+### 모바일
+
+모바일에는 **지시를 보낼 경로가 아예 없었다** — 생성 액션이 `is_directive` 를 한 번도 쓰지 않아
+모든 공유가 peer 공유로만 저장됐다.
+
+- 상세 생성 폼(`/mobile/tasks/new`)에 **"지시로 보내기" 토글** 추가. 공유 대상을 고른 뒤에만
+  노출된다(대상 없는 지시는 성립하지 않는다). 공유(동료끼리 같이 봄)와 지시(대상자가 수행)는 다른
+  행위라 한 화면에서 분명히 갈라 준다.
+- 서버: `is_directive: directive && shareIds.length > 0` — 콘솔 `createConsoleTask` 와 같은 규칙.
+- `지시 › 보낸 지시` 화면 상단에 **지시 보내기** 진입점(→ `/mobile/tasks/new?directive=1`).
+  쿼리로 들어오면 토글이 켜진 채 시작하고, **저장된 초안이 그 의도를 덮지 않는다**(초안의 false 는
+  무시). 안 그러면 사용자가 눈치채지 못한 채 평범한 공유로 나간다.
+
+### 검증 포인트
+
+지시로 보낸 작업은 **지시자의 오늘/내일/관리함/캘린더에서 빠지고**(`myOwn`) 대상자의 일정에 잡힌다.
+보낸 쪽은 `지시 › 보낸 지시`에서만 진행 상황을 본다.
+

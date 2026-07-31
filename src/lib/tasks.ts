@@ -689,6 +689,70 @@ export async function getOccurrenceStates(session: AppSession): Promise<Occurren
   }));
 }
 
+/**
+ * One net completion of a task on a Tokyo day, derived from the `completed`/`reopened` log.
+ * `at` is the timestamp of the last `completed` event, used to order rows inside a day group.
+ */
+export type TaskCompletionRecord = {
+  taskId: string;
+  day: string;
+  byUserId: string | null;
+  at: string;
+};
+
+/**
+ * Completion history from `task_updates` (NOT `tasks.status`).
+ *
+ * 2026-07-30 롤포워드 폐지 이후 **반복 완료는 행의 status 를 건드리지 않는다** — 완료는
+ * `task_occurrence_state` 와 이 로그에만 남는다. 그래서 `status = "completed"` 만 보는 목록은
+ * 반복 완료를 하나도 못 보여주고, 같은 로그를 읽는 업무일지(`report-actions.ts`)와 어긋난다.
+ * 완료·기록 화면은 모바일·콘솔 모두 이 함수를 기준으로 그린다.
+ *
+ * (task, Tokyo 날짜)별 net = completed − reopened 라 같은 날의 실행 취소는 서로 상쇄된다.
+ * `task_updates` 에는 organization_id 가 없고 RLS 가 참가자 범위를 강제하므로 org 필터는 두지 않는다.
+ * 최근 ~120일만 읽는다(그 이전 기록은 어느 화면도 렌더하지 않는다).
+ */
+export async function getTaskCompletions(): Promise<TaskCompletionRecord[]> {
+  const supabase = await getSupabaseServerClient();
+  const sinceIso = new Date(`${ymdShift(tokyoToday(), -120)}T00:00:00+09:00`).toISOString();
+  const { data, error } = await supabase
+    .from("task_updates")
+    .select("task_id, update_type, created_at, created_by_user_id")
+    .in("update_type", ["completed", "reopened"])
+    .gte("created_at", sinceIso)
+    .order("created_at", { ascending: true });
+  if (error) return [];
+  type Row = {
+    task_id: string;
+    update_type: string;
+    created_at: string | null;
+    created_by_user_id: string | null;
+  };
+  // key = `${taskId}|${day}`
+  const net = new Map<string, { net: number; by: string | null; at: string }>();
+  for (const r of (data ?? []) as Row[]) {
+    const day = tokyoDateOf(r.created_at);
+    if (!day) continue;
+    const key = `${r.task_id}|${day}`;
+    const cur = net.get(key) ?? { net: 0, by: null, at: r.created_at ?? "" };
+    if (r.update_type === "completed") {
+      cur.net += 1;
+      cur.by = r.created_by_user_id;
+      cur.at = r.created_at ?? cur.at;
+    } else {
+      cur.net -= 1;
+    }
+    net.set(key, cur);
+  }
+  const out: TaskCompletionRecord[] = [];
+  for (const [key, v] of net) {
+    if (v.net <= 0) continue;
+    const sep = key.lastIndexOf("|");
+    out.push({ taskId: key.slice(0, sep), day: key.slice(sep + 1), byUserId: v.by, at: v.at });
+  }
+  return out;
+}
+
 /** One recurring occurrence's manual sort position. See `task_occurrence_order`. */
 export type OccurrenceOrderRecord = {
   taskId: string;

@@ -57,11 +57,65 @@ export function initial(name: string): string {
   return (name || "?").trim().charAt(0) || "?";
 }
 
+// ── Tokyo operating-time formatters ────────────────────────────────────────
+// Every timestamp on an announcement row (`published_at` / `archived_at` /
+// `popup_until` / `updated_at`) is stored as a UTC instant. The mobile surface
+// renders and groups them in Asia/Tokyo (see docs/product/11-announcement-workflow.md
+// → "공지는 Tokyo 시간 기준 published_at 날짜로 그룹핑된다"), so the admin console
+// must do the same — slicing the raw ISO string would show the UTC wall clock and
+// drift a full day for anything published before 09:00 JST.
+// Same pattern as `tokyoDateKey` / `tokyoStamp` in `src/lib/admin-orders.ts`.
+const TOKYO_TZ = "Asia/Tokyo";
+
+type TokyoParts = {
+  year: string;
+  month: string;
+  day: string;
+  hour: string;
+  minute: string;
+};
+
+function tokyoParts(iso: string): TokyoParts | null {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TOKYO_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return {
+    year: get("year"),
+    month: get("month"),
+    day: get("day"),
+    // Some ICU builds emit "24" for midnight with hour12:false — normalize it.
+    hour: get("hour") === "24" ? "00" : get("hour"),
+    minute: get("minute"),
+  };
+}
+
+/** "YYYY-MM-DD" in Tokyo. Used to seed date inputs from a stored UTC instant. */
+export function tokyoDateKey(iso: string | null): string {
+  const parts = iso ? tokyoParts(iso) : null;
+  return parts ? `${parts.year}-${parts.month}-${parts.day}` : "";
+}
+
+/** "HH:mm" (24h) in Tokyo. Used to seed time inputs from a stored UTC instant. */
+export function tokyoTimeHm(iso: string | null): string {
+  const parts = iso ? tokyoParts(iso) : null;
+  return parts ? `${parts.hour}:${parts.minute}` : "";
+}
+
+/** "M.DD" in Tokyo — the dense list-column date. */
 export function fmtDateShort(iso: string | null): string {
-  if (!iso) return "—";
-  const [, m, d] = iso.slice(0, 10).split("-").map(Number);
-  if (!m || !d) return "—";
-  return `${m}.${String(d).padStart(2, "0")}`;
+  const parts = iso ? tokyoParts(iso) : null;
+  if (!parts) return "—";
+  return `${Number(parts.month)}.${parts.day}`;
 }
 
 export function fmtDateLong(iso: string | null, locale: Locale): string {
@@ -69,16 +123,25 @@ export function fmtDateLong(iso: string | null, locale: Locale): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat(locale, {
+    timeZone: TOKYO_TZ,
     day: "numeric",
     month: "long",
     year: "numeric",
   }).format(date);
 }
 
+/** "M.DD HH:mm" in Tokyo. */
 export function fmtDateTime(iso: string | null): string {
-  if (!iso) return "—";
-  const time = iso.slice(11, 16);
-  return `${fmtDateShort(iso)}${time ? ` ${time}` : ""}`;
+  const parts = iso ? tokyoParts(iso) : null;
+  if (!parts) return "—";
+  return `${Number(parts.month)}.${parts.day} ${parts.hour}:${parts.minute}`;
+}
+
+/** "YYYY-MM-DD HH:mm" in Tokyo — the detail panel's monospace stamp. */
+export function fmtStamp(iso: string | null): string {
+  const parts = iso ? tokyoParts(iso) : null;
+  if (!parts) return "—";
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
 }
 
 export function targetLabel(

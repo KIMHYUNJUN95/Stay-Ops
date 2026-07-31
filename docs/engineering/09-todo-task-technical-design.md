@@ -1080,3 +1080,43 @@ show project completions while the other views never see project tasks).
 > **에러가 어디에도 남지 않았고**, 원인을 찾는 데 시간이 걸렸다. 그래서 지금은 실패 시
 > `false` 를 돌려주고 로그를 남기며, 어드민 액션은 `save_failed` 로 사용자에게 알린다.
 > 스키마가 필요한 기능은 **마이그레이션 적용을 코드 배포와 같은 단계로 취급**할 것.
+
+## 2026-07-30 지시 술어 모듈 — `src/lib/task-directives.ts`
+
+`sentInstr` / `recvInstr` / `myOwn` / `partsOf` / `isMine` 은 원래 관리 콘솔 전용
+`src/components/admin/tasks/helpers.ts` 안에만 있었다. 모바일에 지시 화면이 생기면서 **한 곳으로
+옮기고** `helpers.ts` 는 재수출만 한다.
+
+```ts
+// src/lib/task-directives.ts — 클라이언트 안전(@/lib/tasks 는 타입만 import)
+sentInstr(t, meId)  // t.isDirective && 내가 작성 && 대상 1명 이상
+recvInstr(t, meId)  // t.isDirective && 남이 작성 && 참여자에 나 포함
+myOwn(t, meId)      // !sentInstr — 내 일정 뷰(오늘/내일/관리함/캘린더)에 넣을지
+```
+
+**왜 공유 모듈인가.** 이 저장소는 `tasks.ts` / `tasks-recurrence.ts` 두 곳에
+`STANDARD_RECURRENCE_RULES` 를 복사해 뒀다가 두 정의가 갈라지면서 **오버듀 작업이 하드 삭제되는**
+사고를 냈다. 지시 판정도 모바일과 콘솔이 갈라지면 "누구 화면에서는 지시인데 다른 화면에서는 아닌"
+상태가 되므로 같은 실수를 막는다.
+
+**소비처**
+
+| 화면 | 쓰는 곳 |
+| --- | --- |
+| 모바일 `tasks-workspace.tsx` | `myOwn` 으로 내 일정 뷰 필터, `recvInstr`/`sentInstr` 로 지시 탭 목록 |
+| 콘솔 `admin-tasks-console.tsx` | `helpers.ts` 재수출을 통해 기존과 동일하게 사용 |
+
+### `TaskCard` `instrMode`
+
+지시 화면 전용 표시 모드. `"recv"` 는 지시자를 이니셜 아바타 칩으로 칩 줄 맨 앞에 올리고(기존
+`이름 →` 접두사를 끈다), `"sent"` 는 **담당 {n}명** 칩을 올리고 공유 요약 칩을 중복 제거한다.
+보낸 지시는 호출부에서 `onCompleteToggle` 을 넘기지 않아 **체크 원 자체가 렌더되지 않는다** —
+지시자가 대상자의 작업을 대신 완료 처리하지 않는다는 규칙을 UI 구조로 강제한다.
+
+### 담당자별 완료 상태는 없다
+
+`task_participants` 는 `(task_id, user_id, role, is_first_recipient, added_by_user_id)` 뿐이고
+완료는 작업 행 하나에만 있다(`status` / `completed_at` / `completed_by_user_id`). 그래서 보낸 지시
+카드의 "2 / 3 완료" 같은 담당자별 진행률은 **구현 불가**이며, 필요해지면
+`task_participants.completed_at` 추가 + 완료 의미 변경이라는 별도 결정이 선행되어야 한다.
+

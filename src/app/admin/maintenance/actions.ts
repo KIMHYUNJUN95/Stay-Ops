@@ -7,6 +7,7 @@
 // See docs/product/08-maintenance-workflow.md → "2026-07-14 어드민 수리·점검 대시보드".
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { isOrgTopAdmin, type Role } from "@/config/roles";
 import { requireAdminSession } from "@/lib/admin-session";
 import { canForceCompleteCleaning } from "@/lib/cleaning";
 import { maintenanceStatuses, type MaintenanceStatus } from "@/lib/maintenance-reports";
@@ -120,6 +121,22 @@ export async function applyMaintenanceException(input: {
   return { ok: true };
 }
 
+// 삭제는 DELETE RLS 정책과 같은 기준 — 작성자 본인 또는 관리 역할. `requireAdminSession()`만으로는
+// staff/part_time_staff까지 통과해(어드민 웹 접근 자체는 허용된 역할이다) 감사 흔적이 남는 무효 처리는
+// 못 하면서 흔적이 없는 하드 삭제만 성공하게 된다. RLS: 202605210007 + has_org_role(202607130003).
+const DELETE_ANY_ROLES: readonly Role[] = [
+  "developer_super_admin",
+  "owner",
+  "senior_managing_director",
+  "office_admin",
+  "cs_staff",
+  "field_manager",
+];
+
+function canDeleteAnyMaintenanceReport(role: Role): boolean {
+  return isOrgTopAdmin(role) || DELETE_ANY_ROLES.includes(role);
+}
+
 export async function deleteMaintenanceReportById(
   id: string,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -130,6 +147,20 @@ export async function deleteMaintenanceReportById(
   }
 
   const supabase = await getSupabaseServerClient();
+  const { data: existing } = await supabase
+    .from("maintenance_reports")
+    .select("id, reported_by_user_id")
+    .eq("id", id)
+    .eq("organization_id", session.organization.id)
+    .maybeSingle();
+  if (!existing) {
+    return { ok: false, error: "not_found" };
+  }
+  const owner = (existing as { reported_by_user_id: string }).reported_by_user_id;
+  if (owner !== session.user.id && !canDeleteAnyMaintenanceReport(session.user.role)) {
+    return { ok: false, error: "unauthorized" };
+  }
+
   const { data, error } = await supabase
     .from("maintenance_reports")
     .delete()

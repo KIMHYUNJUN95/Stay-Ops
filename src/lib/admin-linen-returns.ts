@@ -1,0 +1,286 @@
+import "server-only";
+
+// Real-data layer for the admin 린넨 반품(Linen Return) console (/admin/linen-return).
+// Mirrors `admin-lost-found.ts` / `admin-maintenance.ts`: presentation-ready flat view models,
+// organization-scoped queries, and a `loadError` flag so the console can show an error state
+// instead of a misleading empty list.
+//
+// The dashboard is a RECORD-MANAGEMENT console, not a second registration flow: field staff keep
+// registering on mobile, the office verifies (when / where / what / how many / who) and corrects.
+// `registered_at` / `registered_by_user_id` are field evidence and are never editable here.
+// See docs/product/19-linen-defect-workflow.md → "Admin Dashboard — Linen Return Record Management".
+
+import { organizationRoles, type Role } from "@/config/roles";
+import { getDictionary, type Locale } from "@/lib/i18n";
+import { getActiveRoomCatalogServer } from "@/lib/rooms";
+import type { AppSession } from "@/lib/session";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/database";
+
+type RecordRow = Database["public"]["Tables"]["linen_return_records"]["Row"];
+type ItemRow = Database["public"]["Tables"]["linen_items"]["Row"];
+type LineRow = Database["public"]["Tables"]["linen_return_record_items"]["Row"];
+
+/** Admin-capable roles may edit/delete ANY record (mirrors the RLS policy set). */
+const ADMIN_CAPABLE_ROLES: readonly Role[] = ["owner", "office_admin", "cs_staff", "field_manager"];
+
+export type AdminLinenLine = {
+  itemId: string;
+  /** Seeded-catalog code (null for building-specific custom items). */
+  code: string | null;
+  name: string;
+  quantity: number;
+};
+
+export type AdminLinenRecordVM = {
+  id: string;
+  /** Short display number — uuid의 앞 6자리(대문자). */
+  shortId: string;
+  buildingName: string;
+  /** "YYYY-MM-DD HH:MM" (Tokyo) — 현장 증빙값, 수정 불가. */
+  registeredAt: string;
+  /** 등록자 — 현장 증빙값, 수정 불가. */
+  registeredById: string;
+  registrantName: string;
+  lines: AdminLinenLine[];
+  totalQuantity: number;
+  note: string | null;
+  photos: string[];
+  /** 작성자 본인 또는 관리자 역할일 때만 수정·삭제 가능(서버에서 다시 검증한다). */
+  canManage: boolean;
+};
+
+export type AdminLinenItemOption = {
+  id: string;
+  code: string | null;
+  name: string;
+  /** null = 모든 건물에서 선택 가능한 기본 품목. */
+  buildingName: string | null;
+};
+
+export type AdminLinenReturnData = {
+  records: AdminLinenRecordVM[];
+  items: AdminLinenItemOption[];
+  buildings: string[];
+  loadError: boolean;
+};
+
+const TOKYO_TZ = "Asia/Tokyo";
+
+// Seeded default catalog rows carry a stable `code`; show its localized label. Building-specific
+// custom items have no code → fall back to the stored DB name. Same rule as linen-returns.ts.
+function localizeItemName(code: string | null, name: string, locale: Locale): string {
+  if (code) {
+    const label = getDictionary(locale).linenReturn.items[code];
+    if (label) return label;
+  }
+  return name;
+}
+
+/** "YYYY-MM-DD HH:MM" in Tokyo — the format the console formatters expect. */
+function tokyoStamp(iso: string): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TOKYO_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(iso));
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}`;
+}
+
+/** "YYYY-MM-DD" in Tokyo, today. */
+export function todayKeyTokyo(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TOKYO_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+/** 기본 조회 기간 — 이번 달(Tokyo) 1일 ~ 말일. 계획 문서의 "current Tokyo calendar month". */
+export function defaultRangeTokyo(): { from: string; to: string } {
+  const today = todayKeyTokyo();
+  const [year, month] = today.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return { from: `${today.slice(0, 7)}-01`, to: `${today.slice(0, 7)}-${String(lastDay).padStart(2, "0")}` };
+}
+
+// Inclusive Tokyo-day range [from 00:00 JST, to+1 00:00 JST). JST is UTC+9, so 00:00 JST on a day
+// is the UTC instant 9 hours earlier — never slice UTC ISO strings for operational dates.
+function tokyoDayRange(from: string, to: string): { fromIso: string; toIso: string } {
+  const [fy, fm, fd] = from.split("-").map(Number);
+  const [ty, tm, td] = to.split("-").map(Number);
+  return {
+    fromIso: new Date(Date.UTC(fy, fm - 1, fd, -9, 0, 0)).toISOString(),
+    toIso: new Date(Date.UTC(ty, tm - 1, td + 1, -9, 0, 0)).toISOString(),
+  };
+}
+
+function isMissingTableError(message: string): boolean {
+  return message.includes("does not exist") || message.includes("schema cache");
+}
+
+function shortIdOf(id: string): string {
+  return id.replace(/-/g, "").slice(0, 6).toUpperCase();
+}
+
+/** 작성자 본인 또는 관리자 역할이면 관리 가능. `canManageLinenRecord`(모바일)와 같은 규칙. */
+function canManage(session: AppSession, registeredById: string): boolean {
+  if (session.user.id === registeredById) return true;
+  return ADMIN_CAPABLE_ROLES.includes(session.user.role);
+}
+
+export function isAdminCapableRole(role: Role): boolean {
+  return ADMIN_CAPABLE_ROLES.includes(role);
+}
+
+export function isOrganizationRole(role: Role): boolean {
+  return (organizationRoles as readonly string[]).includes(role);
+}
+
+/** Active linen catalog for the whole organization (필터 + 수정 폼 선택지). */
+export async function getOrgLinenItems(session: AppSession): Promise<AdminLinenItemOption[]> {
+  const supabase = await getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("linen_items")
+    .select("id, code, name, building_name, is_active, display_order")
+    .eq("organization_id", session.organization.id)
+    .eq("is_active", true)
+    .order("display_order", { ascending: true });
+  if (error) {
+    if (isMissingTableError(error.message ?? "")) return [];
+    throw new Error(error.message);
+  }
+  const locale = session.user.preferredLanguage;
+  return ((data ?? []) as ItemRow[]).map((row) => ({
+    id: row.id,
+    code: row.code,
+    name: localizeItemName(row.code, row.name, locale),
+    buildingName: row.building_name,
+  }));
+}
+
+/**
+ * Records registered inside an inclusive Tokyo-day range, latest-registration first.
+ * The date range is applied in the QUERY (server-side, organization-scoped) — the browser never
+ * receives rows outside the requested period, and never another organization's rows.
+ */
+export async function getAdminLinenReturns(
+  session: AppSession,
+  from: string,
+  to: string,
+): Promise<AdminLinenReturnData> {
+  const locale = session.user.preferredLanguage;
+  const empty: AdminLinenReturnData = { records: [], items: [], buildings: [], loadError: false };
+
+  try {
+    const supabase = await getSupabaseServerClient();
+    const [start, end] = from <= to ? [from, to] : [to, from];
+    const { fromIso, toIso } = tokyoDayRange(start, end);
+
+    const { data, error } = await supabase
+      .from("linen_return_records")
+      .select("*")
+      .eq("organization_id", session.organization.id)
+      .gte("registered_at", fromIso)
+      .lt("registered_at", toIso)
+      .order("registered_at", { ascending: false });
+    if (error) {
+      if (isMissingTableError(error.message ?? "")) return empty;
+      throw new Error(error.message);
+    }
+
+    const rows = (data ?? []) as RecordRow[];
+    const [items, buildings] = await Promise.all([
+      getOrgLinenItems(session),
+      getLinenBuildingNames(session),
+    ]);
+
+    if (rows.length === 0) return { records: [], items, buildings, loadError: false };
+
+    const recordIds = rows.map((r) => r.id);
+    const { data: lineData, error: lineError } = await supabase
+      .from("linen_return_record_items")
+      .select("return_record_id, linen_item_id, quantity, sort_order")
+      .in("return_record_id", recordIds)
+      .order("sort_order", { ascending: true });
+    if (lineError) throw new Error(lineError.message);
+    const lineRows = (lineData ?? []) as Array<
+      Pick<LineRow, "return_record_id" | "linen_item_id" | "quantity" | "sort_order">
+    >;
+
+    // Line items may reference retired catalog rows (is_active=false) — resolve every referenced id
+    // so a historical record never loses its item label.
+    const itemMeta = new Map<string, { code: string | null; name: string }>();
+    for (const item of items) itemMeta.set(item.id, { code: item.code, name: item.name });
+    const missingItemIds = [
+      ...new Set(lineRows.map((l) => l.linen_item_id).filter((id) => !itemMeta.has(id))),
+    ];
+    if (missingItemIds.length > 0) {
+      const { data: extra } = await supabase
+        .from("linen_items")
+        .select("id, code, name")
+        .in("id", missingItemIds);
+      for (const row of (extra ?? []) as Array<Pick<ItemRow, "id" | "code" | "name">>) {
+        itemMeta.set(row.id, { code: row.code, name: localizeItemName(row.code, row.name, locale) });
+      }
+    }
+
+    const registrantIds = [...new Set(rows.map((r) => r.registered_by_user_id))];
+    const registrantNames = new Map<string, string>();
+    if (registrantIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, name")
+        .in("id", registrantIds);
+      for (const p of (profiles ?? []) as Array<{ id: string; name: string }>) {
+        registrantNames.set(p.id, p.name);
+      }
+    }
+
+    const linesByRecord = new Map<string, AdminLinenLine[]>();
+    for (const line of lineRows) {
+      const meta = itemMeta.get(line.linen_item_id);
+      const list = linesByRecord.get(line.return_record_id) ?? [];
+      list.push({
+        itemId: line.linen_item_id,
+        code: meta?.code ?? null,
+        name: meta?.name ?? "",
+        quantity: line.quantity,
+      });
+      linesByRecord.set(line.return_record_id, list);
+    }
+
+    const records: AdminLinenRecordVM[] = rows.map((row) => {
+      const lines = linesByRecord.get(row.id) ?? [];
+      return {
+        id: row.id,
+        shortId: shortIdOf(row.id),
+        buildingName: row.building_name,
+        registeredAt: tokyoStamp(row.registered_at),
+        registeredById: row.registered_by_user_id,
+        registrantName: registrantNames.get(row.registered_by_user_id) ?? "",
+        lines,
+        totalQuantity: lines.reduce((sum, l) => sum + l.quantity, 0),
+        note: row.note,
+        photos: row.image_urls ?? [],
+        canManage: canManage(session, row.registered_by_user_id),
+      };
+    });
+
+    return { records, items, buildings, loadError: false };
+  } catch {
+    return { records: [], items: [], buildings: [], loadError: true };
+  }
+}
+
+/** Canonical building names the org operates (same source as orders / mobile linen return). */
+export async function getLinenBuildingNames(session: AppSession): Promise<string[]> {
+  const catalog = (await getActiveRoomCatalogServer(session.organization.id)) ?? [];
+  return [...new Set(catalog.map((item) => item.propertyName))].sort((a, b) => a.localeCompare(b, "ko"));
+}

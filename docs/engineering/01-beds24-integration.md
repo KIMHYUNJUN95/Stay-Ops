@@ -51,6 +51,23 @@ Needed data:
 
 Reservation memo/notes are not required for the MVP reservation calendar.
 
+### External Reviews: Planned Read-only Collection (2026-07-30)
+
+Beds24가 제공하는 Airbnb 및 Booking.com 리뷰는 예약 동기화와 분리된 **저빈도 수집 작업**으로 다룬다.
+StayOps UI는 Beds24를 실시간 조회하지 않고, 수집한 `external_reviews` 로컬 사본만 읽는다.
+
+- 대상 엔드포인트: Beds24 API V2의 Booking.com reviews 및 Airbnb reviews 읽기 엔드포인트
+- 기본 주기: 조직별·채널별 하루 1회 (기본 최대 2회/일). 초기 도입/복구만 최근 90일 범위를 제한적으로 수집
+- 중복 키: `(organization_id, provider, external_review_id)` UPSERT. 이미 수집한 리뷰를 중복 생성하지 않는다.
+- 매핑: Beds24의 예약/객실 식별자를 로컬 예약·객실과 신뢰성 있게 연결할 수 있을 때만 객실을 기록한다.
+  불확실한 값은 추정하지 않는다.
+- API 비용 통제: 응답 `x-request-cost`, `x-five-min-limit-remaining`, `x-five-min-limit-resets-in`을 수집 로그에
+  남긴다. 여유 크레딧이 낮으면 다음 주기로 미루고, 예약 웹훅 처리보다 우선하지 않는다.
+- 보안: API 토큰은 서버 전용 환경변수에서 재사용한다. 브라우저 요청, 클라이언트 로그, 문서에 토큰을 노출하지 않는다.
+
+위 수집은 외부 리뷰를 자동으로 `customer_complaints`로 만들지 않는다. 운영자가 필요할 때만 수동
+컴플레인으로 전환·연결한다. 상세 제품 계약은 `docs/product/25-complaint-workflow.md`를 따른다.
+
 ## Company-Specific Active Room Rule
 
 This is not a Beds24 platform rule. It is an internal StayOps/company operating rule and must be applied when importing room data.

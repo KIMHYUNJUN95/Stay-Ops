@@ -2,8 +2,29 @@ import "server-only";
 
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
-import type { OrganizationRole } from "@/config/roles";
+import type { OrganizationRole, Role } from "@/config/roles";
 import type { Database } from "@/types/database";
+
+/**
+ * Roles allowed to CREATE an announcement. Single source of truth — the server
+ * actions in `src/app/admin/announcements/actions.ts` import this list to gate
+ * `canCreateInOrganization`, and the console uses it to decide whether the
+ * "새 공지" button is rendered at all. Keep the two in lockstep: a role that can
+ * see the button but is rejected by the action produces a silent forbidden.
+ *
+ * NOTE: this list intentionally differs from the manage/edit gate
+ * (`canManageAnnouncement`), which also accepts `senior_managing_director`.
+ * Widening creation rights is a role-permission change and needs explicit
+ * product approval — do not add roles here on your own.
+ */
+export const announcementCreatorRoles = [
+  "developer_super_admin",
+  "owner",
+  "office_admin",
+  "cs_staff",
+  "field_manager",
+  "staff",
+] as const satisfies readonly Role[];
 
 type AnnouncementRow = Database["public"]["Tables"]["announcements"]["Row"];
 type OrganizationRow = Pick<
@@ -64,6 +85,12 @@ export type AdminAnnouncementsData = {
   orgMemberTotal: Record<string, number>;
   me: { id: string; name: string; role: string };
   isPlatformAdmin: boolean;
+  /**
+   * Organizations this user may create an announcement in — i.e. the orgs where the
+   * server action would actually accept the insert. Empty means the composer must not
+   * be offered at all.
+   */
+  creatableOrganizationIds: string[];
   loadError: boolean;
 };
 
@@ -112,6 +139,7 @@ export async function getAdminAnnouncements(
     orgMemberTotal: {},
     me,
     isPlatformAdmin,
+    creatableOrganizationIds: [],
     loadError: false,
   };
 
@@ -157,6 +185,18 @@ export async function getAdminAnnouncements(
       return empty;
     }
     const orgNameById = new Map(organizations.map((o) => [o.id, o.name]));
+
+    // Mirror of the server action's `canCreateInOrganization` gate, so the console can
+    // hide the composer instead of letting the user hit a forbidden on submit.
+    const creatableOrganizationIds = isPlatformAdmin
+      ? orgIds
+      : orgIds.filter((org) => {
+          const role = membershipRoleByOrgId.get(org);
+          return (
+            role !== undefined &&
+            (announcementCreatorRoles as readonly Role[]).includes(role)
+          );
+        });
 
     // 2. Announcements across those orgs.
     const { data: announcementData } = await service
@@ -299,6 +339,7 @@ export async function getAdminAnnouncements(
       orgMemberTotal,
       me,
       isPlatformAdmin,
+      creatableOrganizationIds,
       loadError: false,
     };
   } catch {

@@ -1,8 +1,8 @@
 # Linen Defect Technical Design
 
-Status: First slice implemented (2026-06-10). Sections below the "As-Built" block are the
-original design direction kept for context; where they disagree with "As-Built", the
-"As-Built" section is authoritative.
+Status: Mobile first slice implemented (2026-06-10); admin console implemented (2026-07-30).
+Sections below the "As-Built" blocks are the original design direction kept for context; where they
+disagree with an "As-Built" section, the "As-Built" section is authoritative.
 
 ## As-Built (First Slice)
 
@@ -80,6 +80,106 @@ so a plain `position: fixed` child is trapped inside it (not the viewport) and i
 Read/insert: all active org members. Update/delete: the record author or admin-capable roles
 (`owner, office_admin, cs_staff, field_manager`) — enforced in RLS and re-checked in actions via
 `canManageLinenRecord`. Deletion is hard delete. Line-item RLS follows the parent record.
+
+## As-Built (Admin Console, 2026-07-30)
+
+The office-side record-management console at `/admin/linen-return`. Ported from the Claude Design
+handoff (`린넨 반품 콘솔 (admin).html`). **No new tables and no new migration** — it reads and mutates
+the existing `linen_*` tables and writes audit rows into the existing `audit_logs`.
+
+### Files
+
+| Path | Role |
+| --- | --- |
+| `src/app/admin/linen-return/page.tsx` | server page; validates `?from=&to=` (default = Tokyo current month) and loads the data |
+| `src/app/admin/linen-return/actions.ts` | `updateAdminLinenRecord` / `deleteAdminLinenRecord` + audit writes + `exportLinenReturnWorkbook` / `exportLinenReturnReport` |
+| `src/lib/admin-linen-returns.ts` | org-scoped loader → `AdminLinenRecordVM[]` + catalog + buildings + `loadError` |
+| `src/components/admin/linen-return/linen-console.tsx` | client shell: views, filters, selection, save/delete transitions, toast |
+| `src/components/admin/linen-return/linen-console-data.ts` | Tokyo formatters, filter-option builders, per-item aggregation, avatar palette |
+| `src/components/admin/linen-return/linen-record-list.tsx` | 기록 view table |
+| `src/components/admin/linen-return/linen-item-summary.tsx` | 품목별 수량 view table |
+| `src/components/admin/linen-return/linen-detail-panel.tsx` | right-side panel (read ↔ edit) incl. photo add/remove |
+| `src/components/admin/linen-return/linen-delete-modal.tsx` | destructive-action confirm modal |
+| `src/components/admin/linen-return/linen-console.css` | page-local glue only (line-item layout + quantity columns) |
+
+### Data loading
+
+`getAdminLinenReturns(session, from, to)` runs one org-scoped query on `linen_return_records`
+between the inclusive Tokyo-day bounds (`Date.UTC(y, m-1, d, -9)` — never UTC string slicing),
+then hydrates line items, the linen catalog, and registrant names in bulk. Line items may point at
+**retired** catalog rows (`is_active = false`), so any referenced item id missing from the active
+catalog is resolved in a second lookup — a historical record never loses its item label.
+`registered_at` is converted once to a Tokyo `"YYYY-MM-DD HH:MM"` string; the client never re-converts.
+Any failure returns `loadError: true` instead of a misleadingly empty list.
+
+`canManage` is computed per record (author or admin-capable role) for UI gating only — the server
+action re-derives it.
+
+### Server actions
+
+Both actions share a `guard(recordId)` that resolves the session, re-reads the record **scoped by
+`organization_id`**, and re-checks the author/admin rule. UI visibility is never treated as
+authorization.
+
+- `updateAdminLinenRecord` — validates building against the org room catalog (`isKnownBuilding`
+  equivalent), re-derives the selectable item set (global items + that building's items) from the DB,
+  and enforces positive-integer quantities, no duplicate item, at least one line, and ≤5 photos.
+  The header update payload contains **only** `building_name`, `note`, `image_urls` — the evidence
+  columns are structurally excluded. Line items are replaced wholesale (delete + insert), the same
+  approach the mobile edit uses, which keeps the `(record, item)` unique constraint satisfied.
+- `deleteAdminLinenRecord` — hard delete of the header; line items cascade.
+- Both write `audit_logs` through the service-role client with
+  `action = linen_return_console_update | linen_return_console_delete`,
+  `target_type = linen_return_record`, and a before/after (or pre-delete) snapshot in `metadata`.
+  Audit failure is logged and does not roll back the applied change.
+- Both `revalidatePath` `/admin/linen-return` and `/mobile/linen-return`.
+
+### Images
+
+Same contract as mobile: `compressImageFile` → `uploadRequestImages({ requestType: "linen-returns" })`
+→ public URLs, ≤5 per record, re-capped server-side. Unlike the mobile edit flow (where photo
+editing is deferred), the console edit panel **can add and remove photos**; removal drops the URL
+from `image_urls` (the storage object is left in place, matching how other consoles handle it).
+
+### Shared-primitive changes
+
+`AdmDropdown` gained a `searchable` mode (in-menu `.qsearch` + scrollable list; the first option —
+usually "전체 …" — always survives filtering so the reset path is never lost) for the registrant
+filter, plus its CSS in `admin-console.css` — a shared primitive extension, not a console-local
+dropdown. The registrant option shows the **name only**; no secondary line. Everything else reuses
+existing `.adm` primitives; only line-item layout and the numeric columns are new
+(`linen-console.css`).
+
+### Excel / PDF export
+
+`exportLinenReturnWorkbook` / `exportLinenReturnReport` follow the shared export contract
+(CLAUDE.md §4b) exactly: `<AdminExportButtons>` on the client, `buildAdminTableWorkbookBase64` and
+`buildAdminTableReportHtml` on the server from one shared `AdminTableSheet[]`, and
+`buildAdminExportMeta(session)` for the locale/org/generated footer. No CSV, no client-side `Blob`,
+no `/api/admin/export/*` route.
+
+- Both actions build **two sheets** — 기록 and 품목별 수량 — from the same payload, so the workbook
+  has two tabs and the print view has two page-broken sections.
+- The client sends the already-rendered rows (same pattern as 청소 / 주문 / 근태), so the file always
+  matches the screen. `requireAdminSession()` still gates the call; the payload only affects the
+  caller's own download.
+- `rangeLabel` = period + applied filters (건물 · 품목 · 등록자), so a saved file is self-describing.
+- The 품목별 sheet's quantity column is headed with the building name when a building filter is on
+  (and gains a 전체 건물 comparison column), mirroring the on-screen table.
+- The item filter is applied to the 기록 sheet only when the item dropdown is actually visible
+  (기록 view) — otherwise the two sheets would disagree about scope.
+- Empty (no records in scope) → `{ ok: false, reason: "empty" }`; the button is also disabled
+  client-side.
+
+### Building names are canonical, not raw
+
+`linen_return_records.building_name` holds the **canonical** property name produced by
+`getCanonicalPropertyName` (`아라키초A`, `가부키초`, `오쿠보A`…), the same value
+`getActiveRoomCatalog` puts in `propertyName` — not the raw `properties.name`
+(`Arakicho A`, `Okubo_A (B棟)`…). The mobile create flow already writes canonical names via
+`getLinenBuildings`, and the console's filter list comes from the same helper. Anything that writes
+linen records directly (backfills, seed scripts) **must canonicalize first**, or the rows will not
+match the building filter and the dropdown will show both spellings side by side.
 
 ---
 

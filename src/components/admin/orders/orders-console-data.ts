@@ -4,6 +4,7 @@
 // See docs/product/10-order-request-workflow.md.
 
 import type { AdminOrderVM, OrderDeliv } from "@/lib/admin-orders";
+import { dictionaries } from "@/lib/i18n";
 
 export type OrdersLang = "ko" | "ja" | "en";
 
@@ -70,7 +71,11 @@ export function delivOnDate(deliv: OrderDeliv | null, d: string): boolean {
 }
 
 export type DelivBadge = { kind: "over" | "today" | "soon"; text: string } | null;
-/** ordered 배송 D-day 배지. c = console 사전(dToday/dOver 라벨), lang = 로케일. */
+/**
+ * ordered 배송 D-day 배지. c = console 사전(dToday/dOver 라벨), lang = 로케일.
+ * "일 수" 단위는 사전(`admin.orders.console.dDayUnit`)에서 읽는다 — 예전에는 en이 아니면 무조건
+ * 한국어 "일"을 붙여서 일본어 콘솔에 "3일 超過"가 찍혔다.
+ */
 export function delivBadge(
   deliv: OrderDeliv | null,
   todayKey: string,
@@ -79,7 +84,10 @@ export function delivBadge(
 ): DelivBadge {
   const d = delivDaysLeft(deliv, todayKey);
   if (d == null) return null;
-  if (d < 0) return { kind: "over", text: `${-d}${lang === "en" ? "d" : "일"} ${c.dOver}` };
+  if (d < 0) {
+    const unit = dictionaries[lang].admin.orders.console.dDayUnit;
+    return { kind: "over", text: `${-d}${unit} ${c.dOver}` };
+  }
   if (d === 0) return { kind: "today", text: c.dToday };
   return { kind: "soon", text: `D-${d}` };
 }

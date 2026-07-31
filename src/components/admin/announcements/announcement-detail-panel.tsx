@@ -32,6 +32,7 @@ import {
   RoleLabel,
   StatusPill,
   fmtDateLong,
+  fmtStamp,
   targetLabel,
   tpl,
   tpl2,
@@ -165,7 +166,7 @@ export function AnnouncementDetailPanel({
             {item.popup ? (
               <Kv label={t.pPopupUntil}>
                 <span className="mono">
-                  {item.popupUntil ? item.popupUntil.slice(0, 16).replace("T", " ") : "—"}
+                  {fmtStamp(item.popupUntil)}
                 </span>
               </Kv>
             ) : null}

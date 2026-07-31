@@ -247,7 +247,114 @@ Payroll review document alignment (2026-07-03): monthly payroll Excel/PDF and pe
 exports keep the existing green ledger format, but all title/meta/table/total text is center-aligned for
 visual consistency across the four document paths.
 
-Remaining/explicitly limited scope: Wi-Fi attendance stays inactive; QR scanning itself remains
-mobile-only due to physical device constraints; payroll premiums (overtime/holiday/night) remain out of
-scope; broader automated midnight sweep and advanced export/reporting refinements are handled in the
-technical roadmap.
+## QR Deep Link — 휴대폰 기본 카메라로 바로 인증 (2026-07-31)
+
+### 배경
+
+QR 에는 토큰 문자열(`att_…`)만 들어 있었다. 휴대폰 기본 카메라로 찍으면 "열 수 있는 것"이 없어
+아무 반응이 없었고, 직원은 반드시 앱을 열어 → 근태 → 출근/퇴근 → 스캔 순서를 밟아야 했다.
+
+### 인코딩
+
+QR 은 이제 **절대 URL** 을 담는다. **토큰 값 자체는 바뀌지 않았다.**
+
+```txt
+https://<앱주소>/mobile/attendance/capture?token=att_…
+```
+
+- 기준 주소는 **`NEXT_PUBLIC_APP_URL`** 이다(요청 호스트가 아니다). QR 은 인쇄물이라, 관리자가
+  LAN IP 로 접속한 상태에서 뽑으면 현장에서 열리지 않는 QR 이 인쇄된다. 주소가 비어 있으면 예전처럼
+  토큰만 담는다.
+- **하위호환은 필수다.** 이미 붙어 있는 인쇄물은 토큰만 담고 있으므로 앱 내 스캐너는 두 형식을 모두
+  받는다(`extractAttendanceToken`). 기존 QR 은 앱에서 계속 동작하지만, **카메라 기능을 쓰려면 건물별
+  QR 을 새로 출력해 교체해야 한다.**
+
+### 기기별 동작 (확인된 제약)
+
+| 기기 | 카메라로 QR 촬영 시 |
+| --- | --- |
+| Android | 링크 배너 → URL 이 PWA scope(`/`) 안이라 **설치된 앱 창으로 열린다.** 의도한 동작. |
+| iOS | **Safari 로만 열린다.** 홈 화면 PWA 로 넘기는 방법이 iOS 에 없다(Universal Links 는 네이티브 앱 필요). iOS 16.4+ 는 standalone PWA 와 Safari 의 저장소가 분리돼 있어 Safari 에서 재로그인이 필요할 수 있다. |
+
+iOS 사용자는 기존처럼 앱에서 스캔하는 동선이 여전히 가장 빠르다. 두 동선 모두 유지한다.
+
+### 진입 화면
+
+건물 QR 에는 **방향(출근/퇴근) 정보가 없다.** 그래서 링크로 들어오면 카메라를 켜지 않고 진입
+화면을 보여준다.
+
+- 어느 건물의 QR 인지(토큰 → 사이트 이름 조회)와 GPS 상태를 먼저 보여준다.
+- 직원이 **「출근 인증」 / 「퇴근 인증」** 을 고르면 그 토큰으로 바로 제출한다.
+- 토큰이 더 이상 유효하지 않으면(재발급·폐기) "사용할 수 없는 QR" 안내와 앱 스캔 경로를 준다.
+- 로그아웃 상태면 로그인으로 보내되 **토큰을 `next` 에 실어** 인증 후 같은 화면으로 돌아온다.
+
+### 보안 — 바뀐 것 없음
+
+토큰이 URL 로 노출돼도 판정은 전부 서버(`submitAttendanceScan`)가 그대로 한다: 동일 조직의 **활성**
+토큰 + **활성** 사이트 + **GPS 필수** + **사이트 반경 이내**. 링크를 받아도 현장에 있지 않으면
+인증되지 않으므로 대리 출근 위험은 이전과 동일하다. 진입 화면의 사이트 이름 조회는 **표시용**이며
+인증이 아니다.
+
+관련 파일: `src/lib/attendance-qr.ts`(인코딩/파싱, 테스트
+`src/lib/__tests__/attendance-qr.test.ts`), `src/lib/attendance-sites.ts`
+(`getSiteNameByActiveQrToken`), `src/app/mobile/attendance/capture/page.tsx`,
+`src/components/attendance/attendance-capture.tsx`, `src/app/admin/settings/attendance/page.tsx`.
+
+## Trusted Device — 재로그인 없이 打刻 (2026-07-31)
+
+### 왜 필요한가
+
+위 QR 딥링크에서 아이폰은 **Safari 로만** 열린다. iOS 는 홈 화면 PWA 와 Safari 의 저장소가 분리돼
+있어 로그인 세션을 공유하지 않는다. 그래서 QR 로 들어올 때마다 재로그인을 요구받는 상황이 생긴다.
+로그인 수단(구글/이메일)을 바꿔도 이 구조는 그대로다.
+
+### 방식
+
+**한 번 로그인해 실제로 打刻에 성공한 기기**를 기억한다. 그 다음부터는 인증 세션이 없어도 그
+기기에서 出退勤만 바로 된다.
+
+- 발급 시점: 打刻 **성공 직후**(출근 또는 퇴근). 화면만 열어서는 발급되지 않는다 — 실제로 현장에서
+  쓴 기기라는 증거가 있는 셈이다.
+- 저장: `attendance_trusted_devices` (조직·사용자·**토큰 sha256 해시**·기기 라벨·최종 사용·만료·폐기).
+  **원문 토큰은 DB 에 없다.** 쿠키에만 있다.
+- 쿠키: `stayops_att_device` — HttpOnly · Secure · SameSite=Lax · **`Path=/mobile/attendance`**
+  (근태 경로 요청에만 실린다).
+- 만료: **180일 슬라이딩.** 쓸 때마다 다시 180일로 밀린다. 반년간 한 번도 안 쓰면 자동으로 죽는다.
+- 기기 라벨은 UA 에서 "iPhone · Safari" 수준만 뽑아 저장한다. 원본 UA 는 보관하지 않는다.
+
+### 권한 경계 (이 기능의 핵심 — 넓히지 말 것)
+
+이 자격증명이 허용하는 것은 **출근/퇴근 打刻 두 가지뿐**이다.
+
+- 근무 이력 · 급여 · 정정 요청 · 프로필 · 다른 모듈 · 어드민 = **전부 불가.** 그 화면들은 여전히
+  정상 인증 세션을 요구한다.
+- `middleware.ts` 의 보호 경로는 이 기능 때문에 넓히지 않는다.
+- 신원 대체는 `submitAttendanceScan` 과 QR 진입 화면 렌더링에서만 일어난다
+  (`resolveTrustedDevice()`). 다른 어떤 권한 판단에도 쓰지 않는다.
+- **GPS 필수 + 사이트 반경 검증은 그대로다.** 쿠키만으로 현장 밖에서 打刻할 수 없다.
+- 조직 멤버십이 `active` 가 아니면 즉시 무효 — 퇴사·정지 처리하면 그 기기도 같이 죽는다.
+- 진입 화면에 **"○○○님으로 기록됩니다"** 를 명시해 다른 사람으로 잘못 찍히는 걸 막는다.
+
+### 폐기 경로
+
+- **로그아웃**: 쿠키 삭제 + DB 폐기. 명시적 로그아웃은 "이 기기에서 나가겠다"는 뜻이므로 기억도 함께 끊는다.
+- **기기 주인 변경**: 같은 기기에서 다른 사람이 로그인해 打刻하면 이전 자격증명을 폐기하고 새로 발급한다.
+- **관리자 해지**: 어드민 → 설정 → 근태의 **「기억된 기기」** 목록에서 해지. 휴대폰 분실·퇴사 시 사용한다.
+  해지는 `audit_logs`(`attendance_trusted_device_revoke`)에 기록된다.
+- **만료**: 180일 미사용 시 자동.
+
+### 부수 효과
+
+iOS 전용 대책이 아니다. 안드로이드·PWA 에서도 세션이 만료된 사람은 같은 혜택을 받는다.
+
+관련 파일: `src/lib/attendance-trusted-device.ts`,
+`supabase/migrations/202607310001_attendance_trusted_devices.sql`,
+`src/app/mobile/attendance/actions.ts`(打刻 시 신원 대체 + 기억),
+`src/app/mobile/attendance/capture/page.tsx`, `src/app/auth/actions.ts`(로그아웃 폐기),
+`src/app/admin/settings/attendance/*`(목록·해지).
+
+Remaining/explicitly limited scope: Wi-Fi attendance stays inactive; QR **scanning inside the app**
+remains mobile-only due to physical device constraints (the camera deep link above does not change
+that — it only removes the manual navigation before the scan); payroll premiums
+(overtime/holiday/night) remain out of scope; broader automated midnight sweep and advanced
+export/reporting refinements are handled in the technical roadmap.

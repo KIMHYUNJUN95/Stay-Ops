@@ -1,13 +1,13 @@
 # Linen Defect Workflow
 
 Status: Mobile first slice implemented (2026-06-10). The dashboard record-management console is
-planned (2026-07-30; implementation and visual design are not started). Mobile linen return ledger is live under
+**implemented (2026-07-30)** at `/admin/linen-return`. Mobile linen return ledger is live under
 `/mobile/linen-return/*` (side-menu entry `linen-return`). See
 `docs/engineering/08-linen-defect-technical-design.md` → "As-Built" for the implemented schema,
 routes, and permissions. All five screens below are implemented: building picker, building list,
 create, detail (with permission-gated edit/delete), and ledger (record + item-summary views with
 registrant/item filters and month navigation). The building-specific item master remains deferred.
-The planned dashboard record-management console is described below.
+The dashboard record-management console is described below.
 
 ## Purpose
 
@@ -331,7 +331,7 @@ Required direction:
 - search should be available
 - after entering a building, the screen should still offer a "change building" action
 
-## Admin Dashboard — Linen Return Record Management (Planned 2026-07-30)
+## Admin Dashboard — Linen Return Record Management (Implemented 2026-07-30)
 
 ### Purpose and Surface
 
@@ -339,15 +339,18 @@ The dashboard surface is an office-side **record-management console**, not a sec
 workflow. Field staff continue to register returns on mobile; office users use the dashboard to
 verify and correct the records that were registered in the field.
 
-Planned route and navigation placement:
+Route and navigation placement:
 
 ```txt
 /admin/linen-return
 Operations group → Linen Return
 ```
 
-The visual design will be supplied separately. This product specification deliberately defines
-behavior and data only.
+The visual design was confirmed on 2026-07-30 from the Claude Design handoff
+(`린넨 반품 콘솔 (admin).html`) and implemented the same day. Two deliberate deviations from the
+handoff are recorded in `docs/planning/01-decision-log.md`: the page-wide typography scale-up block
+(it would have resized shared shell chrome on this page only) and the "검토용 관리자 / 열람 전용"
+switcher (a prototype-only device — real permissions come from the session role).
 
 ### Required Information
 
@@ -363,16 +366,49 @@ Because one record can contain multiple item lines, the list must never truncate
 an ambiguous single item. It may use a compact item summary in the row, but opening/expanding the
 row must reveal every item and quantity.
 
+### Views
+
+The console has exactly two views, switched with the shared `.cviewbar` / `.lviews` tabs.
+
+**1. 기록 (Records)** — one row per registered return event.
+
+| Column | Content |
+| --- | --- |
+| 등록 일시 | Tokyo `YYYY.MM.DD HH:MM` + weekday sub-line |
+| 건물 | building name |
+| 반품 품목 | summary title ("싱글 이불 커버 외 2종") + **every** item and quantity below it |
+| \[품목 열\] | only when an item filter is active — that item's quantity, highlighted |
+| 총 수량 | the record's total |
+| 등록자 | avatar + name + building |
+
+**2. 품목별 수량 (Quantity by item)** — a per-item reconciliation table for the same period /
+building / registrant conditions. The item filter is deliberately ignored here so the table is
+always a full-catalog comparison.
+
+| Column | Content |
+| --- | --- |
+| 반품 품목 | item name |
+| 수량 | quantity in the current scope + a proportional bar |
+| \[전체 건물\] | only when a building is selected — the same period's all-building quantity |
+| 기록 수 | how many records contained the item |
+| 최종 반품 | last registration timestamp for the item |
+
+Items with zero returns in the period stay in the table (rendered dimmed and non-clickable) so
+"nothing was returned" is distinguishable from "the item is missing". Clicking a non-zero row
+narrows the 기록 view to that item.
+
 ### List and Filtering Contract
 
 - Default period: current Tokyo calendar month.
-- Default sort: most recently registered first.
-- Filters: building and date/date range.
-- The initial view may include all buildings; choosing a building narrows the records to that
-  building.
-- Empty, loading, and error states are required and must use the dashboard's shared patterns.
-- Building/date filtering is a server-side organization-scoped query; the dashboard must not load
-  another organization's records into the browser and filter them client-side.
+- Default sort: 기록 = most recently registered first; 품목별 수량 = highest quantity first.
+- Filters: date range, building, item, and registrant. The registrant dropdown searches by name
+  inside its menu (shared `AdmDropdown searchable` mode).
+- The initial view includes all buildings; choosing a building narrows the records to that building.
+- Empty and error states use the dashboard's shared `.state` patterns. There is no separate loading
+  state — the list is server-rendered.
+- The **date range is a server-side organization-scoped query** driven by `?from=&to=` on the URL.
+  Building / item / registrant then narrow the already-scoped rows in the browser. Another
+  organization's records are never loaded.
 
 ### Record Management Contract
 
@@ -389,9 +425,13 @@ time, and registrant. The office can manage a mobile-created record from this de
 - **Authorization:** the dashboard reuses the existing author/admin edit-delete rules and enforces
   them again in server actions and organization-scoped queries; showing an action in the UI is never
   sufficient authorization.
-- **Traceability:** dashboard edits and deletes must write an audit entry with actor, time, action,
-  and reason before the feature is implemented. The exact audit storage design belongs to the
-  implementation/technical-design cycle.
+- **Traceability:** dashboard edits and deletes write to the existing `audit_logs` table —
+  `action` = `linen_return_console_update` / `linen_return_console_delete`,
+  `target_type` = `linen_return_record`, `target_id` = the record id, plus actor and timestamp.
+  `metadata` carries the before/after snapshot (building, item lines + quantities, note, photo count)
+  and the original registration evidence. **There is no free-text reason field** — the confirmed
+  delete design has no reason input, so the automatic change snapshot replaces it (decision log,
+  2026-07-30). Audit failure never rolls back an already-applied change; it is logged server-side.
 
 ### Explicitly Out of Scope
 
@@ -399,9 +439,26 @@ The dashboard v1 does not provide:
 
 - registration or mobile-flow replacement
 - item-master management
-- monthly/item aggregate dashboards
-- Excel/PDF export
+- monthly aggregate dashboards (the in-period per-item reconciliation table IS in scope — see "Views")
 - vendor settlement, inventory adjustment, or claim handling
+
+### Export (Implemented 2026-07-30)
+
+Excel and PDF export ship through the console's shared export contract — the `<AdminExportButtons>`
+pair at the right end of the filter bar. Both formats are always offered together; CSV does not
+exist in this console.
+
+- One file carries **two sheets**, matching the two views: 「린넨 반품 기록」 and 「품목별 수량」.
+- 기록 sheet columns: 등록 일시 · 건물 · 반품 품목(전체 나열) · 품목 수 · 총 수량 · 등록자 · 메모,
+  with a 총 수량 total row.
+- 품목별 sheet columns: 반품 품목 · 수량 · \[건물을 좁혔을 때 전체 건물\] · 기록 수 · 최종 반품,
+  with a 수량 total row.
+- The title bar carries the period **and** the applied filters (건물 · 품목 · 등록자) so the file is
+  self-describing.
+- The export always mirrors what is on screen. The item filter is only applied when it is actually
+  visible (기록 view) — exporting from the 품목별 수량 view never silently narrows the 기록 sheet.
+- Export locale is resolved server-side from the actor's `preferredLanguage`; the client never sends
+  a locale.
 
 The existing mobile author/admin edit-delete permissions and the current record data model remain
 unchanged. Dashboard access continues to follow the existing dashboard/session permission model;
@@ -625,7 +682,9 @@ Not required in first slice:
 
 Deferred:
 
-- dashboard management beyond existing-record edit/delete (new registration, item master, and aggregation)
+- dashboard management beyond existing-record edit/delete (new registration, item master, monthly
+  aggregate dashboards, Excel/PDF export) — the in-period per-item reconciliation table shipped
+  2026-07-30 and is no longer deferred
 - vendor settlement / reimbursement workflow
 - replacement tracking
 - stock deduction

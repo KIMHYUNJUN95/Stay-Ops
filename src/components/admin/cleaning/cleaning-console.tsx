@@ -16,7 +16,8 @@ import type { CleaningStaffOption } from "@/lib/cleaning";
 import { fetchAdminCleaningHistory, forceCompleteCleaningSession } from "@/app/admin/cleaning/actions";
 import "./cleaning-console.css";
 import { nowLabelTokyo, type BuildingKey } from "./cleaning-console-data";
-import { buildStaffDirectory } from "./cleaning-console-shared";
+import { buildConsoleCopy, buildStaffDirectory } from "./cleaning-console-shared";
+import type { HistoryCompletionFilter, HistorySessionStatusFilter } from "./cleaning-history-board";
 import { TodayBoard } from "./cleaning-today-board";
 import { HistoryBoard } from "./cleaning-history-board";
 import { CleaningDetailPanel } from "./cleaning-detail-panel";
@@ -31,6 +32,11 @@ type CleaningConsoleProps = {
   initialHistory: AdminCleaningHistoryItem[];
   initialHistoryFrom: string;
   initialHistoryTo: string;
+  /**
+   * 강제완료(관리자 대리 완료) 권한. 서버(canForceCompleteCleaning)에서 결정해 내려준다 —
+   * UI 게이트일 뿐이며 서버 액션의 권한 검사를 대체하지 않는다.
+   */
+  canForceComplete: boolean;
 };
 
 function syncAgoText(lastSyncAt: number, t: Dictionary["cleaning"]["console"], locale: Locale): string {
@@ -56,10 +62,11 @@ export function CleaningConsole({
   initialHistory,
   initialHistoryFrom,
   initialHistoryTo,
+  canForceComplete,
 }: CleaningConsoleProps) {
   const router = useRouter();
   const dictionary = getDictionary(locale);
-  const t = dictionary.cleaning.console;
+  const t = useMemo(() => buildConsoleCopy(dictionary), [dictionary]);
   const buildingLabels = dictionary.cleaning.buildingLabels;
   const { toast, showToast, dismiss } = useAdminToast();
 
@@ -77,7 +84,10 @@ export function CleaningConsole({
   const [history, setHistory] = useState<AdminCleaningHistoryItem[]>(initialHistory);
   const [historyFrom, setHistoryFrom] = useState(initialHistoryFrom);
   const [historyTo, setHistoryTo] = useState(initialHistoryTo);
-  const [historyStatus, setHistoryStatus] = useState<"all" | "normal" | "proxy">("all");
+  // 기록 탭에는 두 개의 서로 다른 축이 있다: 세션 상태(진행중/완료/취소)와 완료 유형(정상/대리).
+  // 예전에는 후자 하나만 있으면서 이름이 "상태"라 모바일의 "상태"와 뜻이 어긋났다.
+  const [historySessionStatus, setHistorySessionStatus] = useState<HistorySessionStatusFilter>("all");
+  const [historyCompletion, setHistoryCompletion] = useState<HistoryCompletionFilter>("all");
   const [isHistoryPending, startHistoryFetch] = useTransition();
   const [isForcePending, startForceComplete] = useTransition();
 
@@ -98,10 +108,13 @@ export function CleaningConsole({
     return () => clearInterval(id);
   }, [view, router]);
 
-  const pendingCount = tasks.filter((task) => task.status === "pending").length;
-  const progressCount = tasks.filter((task) => task.status === "progress").length;
-  const doneCount = tasks.filter((task) => task.status === "done").length;
-  const rate = tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0;
+  // 취소 카드(예약 대상이 없는 임의 청소가 취소된 건)는 청소 "대상"이 아니므로 KPI 분모에서 뺀다.
+  // 카드 자체는 오늘 현황 보드에 계속 보인다.
+  const countableTasks = tasks.filter((task) => task.status !== "cancelled");
+  const pendingCount = countableTasks.filter((task) => task.status === "pending").length;
+  const progressCount = countableTasks.filter((task) => task.status === "progress").length;
+  const doneCount = countableTasks.filter((task) => task.status === "done").length;
+  const rate = countableTasks.length ? Math.round((doneCount / countableTasks.length) * 100) : 0;
   const setupCount = setupTargets.length;
 
   const selectedTask = view === "today" && selectedId ? (tasks.find((task) => task.id === selectedId) ?? null) : null;
@@ -127,7 +140,8 @@ export function CleaningConsole({
   function handleClearFilters() {
     setPropFilter("all");
     setStaffFilter("all");
-    setHistoryStatus("all");
+    setHistorySessionStatus("all");
+    setHistoryCompletion("all");
     setQuery("");
   }
 
@@ -192,7 +206,7 @@ export function CleaningConsole({
             </span>
             {t.kpiTarget}
           </div>
-          <div className="opscell__v">{loadError ? "-" : tasks.length}</div>
+          <div className="opscell__v">{loadError ? "-" : countableTasks.length}</div>
           <div className="opscell__sub">{loadError ? t.errT : t.today}</div>
         </div>
         <div className="opscell">
@@ -235,7 +249,7 @@ export function CleaningConsole({
             {t.kpiDone}
           </div>
           <div className="opscell__v is-done">{loadError ? "-" : doneCount}</div>
-          <div className="opscell__sub">{loadError ? t.errT : `/ ${tasks.length}`}</div>
+          <div className="opscell__sub">{loadError ? t.errT : `/ ${countableTasks.length}`}</div>
         </div>
         <div className="opscell">
           <div className="opscell__k">
@@ -328,8 +342,10 @@ export function CleaningConsole({
             onPropFilterChange={setPropFilter}
             staffFilter={staffFilter}
             onStaffFilterChange={setStaffFilter}
-            statusFilter={historyStatus}
-            onStatusFilterChange={setHistoryStatus}
+            sessionStatusFilter={historySessionStatus}
+            onSessionStatusFilterChange={setHistorySessionStatus}
+            completionFilter={historyCompletion}
+            onCompletionFilterChange={setHistoryCompletion}
             query={query}
             onQueryChange={setQuery}
             from={historyFrom}
@@ -355,10 +371,11 @@ export function CleaningConsole({
         onClose={handleCloseDetail}
         onOpenForceComplete={setModalTask}
         onOpenReport={handleOpenReport}
+        canForceComplete={canForceComplete}
         disabled={modalTask !== null}
       />
 
-      {modalTask ? (
+      {modalTask && canForceComplete ? (
         <CleaningForceCompleteModal
           task={modalTask}
           nowLabel={nowLabelTokyo()}

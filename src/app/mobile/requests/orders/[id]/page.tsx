@@ -16,8 +16,12 @@ import { getMobileNavBadges } from "@/lib/nav-badges";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { getDictionary, type Locale } from "@/lib/i18n";
-import { getOrderRequestById, type OrderRequestItem } from "@/lib/order-requests";
-import { adminWebRoles, type Role } from "@/config/roles";
+import {
+  getOrderRequestById,
+  type OrderRequestItem,
+  type OrderRequestStatus,
+} from "@/lib/order-requests";
+import { canCurrentUserProcessOrders } from "@/app/mobile/requests/orders/actions";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -44,17 +48,29 @@ const LIST_FILTER_KEYS = [
 // "received" is not shown as an active step in MVP; map it to "ordered" for progress display.
 const TIMELINE_STATUSES = ["requested", "approved", "ordered"] as const;
 
-const statusBadgeClass = {
+/**
+ * 화면에 노출되는 상태는 4종(requested/approved/ordered/closed)뿐이다.
+ * `received`는 DB enum에만 남아 있는 비활성 단계이고, 어드민 콘솔과 동일하게 `ordered`로 접어서
+ * 표시한다 (docs/product/10-order-request-workflow.md → Statuses: "stays an inactive step everywhere
+ * in the UI", 어드민은 `getAdminOrders`에서 명시적으로 ordered로 매핑). 이전에는 모바일만 초록
+ * "입고됨" 배지를 그렸는데, `isValidTransition`에 `received` 케이스가 없어 어떤 경로로도 설정할 수
+ * 없는 유령 상태였다.
+ */
+type OrderDisplayStatus = "requested" | "approved" | "ordered" | "closed";
+
+function toDisplayStatus(status: OrderRequestStatus): OrderDisplayStatus {
+  return status === "received" ? "ordered" : status;
+}
+
+const statusBadgeClass: Record<OrderDisplayStatus, string> = {
   requested:
     "border-blue-200 bg-blue-50 text-blue-700",
   approved:
     "border-indigo-200 bg-indigo-50 text-indigo-700",
   ordered:
     "border-amber-200 bg-amber-50 text-amber-700",
-  received:
-    "border-green-200 bg-green-50 text-green-700",
   closed: "border-border bg-muted/50 text-muted-foreground",
-} as const;
+};
 const DETAIL_CARD =
   "rounded-[24px] border border-slate-200/80 bg-surface shadow-[0_16px_34px_-28px_rgba(31,58,95,0.48)]";
 
@@ -170,10 +186,12 @@ export default async function MobileOrderRequestDetailPage({
   }
 
   const locale = session.user.preferredLanguage;
-  // Only office/admin-web roles process orders (approve/order/reject/edit delivery) — mirrors the
-  // server gate in orders/actions.ts. Non-processors (incl. field_manager) get no processing action,
-  // so hide the whole bar instead of showing buttons that would fail with "forbidden".
-  const canProcessOrder = (adminWebRoles as readonly Role[]).includes(session.user.role as Role);
+  // Only office-level roles (or an `order_processor` permission override) process orders
+  // (approve/order/reject/edit delivery). The decision is delegated to the server action module so
+  // the UI can never drift from the gate that actually enforces it. Non-processors (incl.
+  // field_manager) get no processing action, so hide the whole bar instead of showing buttons that
+  // would fail with "forbidden".
+  const canProcessOrder = await canCurrentUserProcessOrders();
   const dictionary = getDictionary(locale);
   const copy = dictionary.mobile.orderDetail;
   const statusLabels = dictionary.mobile.orderStatusLabels;
@@ -185,6 +203,7 @@ export default async function MobileOrderRequestDetailPage({
   }
 
   const items = parseItems(order.items);
+  const displayStatus = toDisplayStatus(order.status);
   const isClosed = order.status === "closed";
   // closed: neutral timeline (all muted) -> the badge already communicates the terminal state.
   // received: maps to ordered (MVP hides the received step).
@@ -205,8 +224,8 @@ export default async function MobileOrderRequestDetailPage({
       <div className="space-y-4 pb-2">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Badge className={statusBadgeClass[order.status]}>
-              {statusLabels[order.status]}
+            <Badge className={statusBadgeClass[displayStatus]}>
+              {statusLabels[displayStatus]}
             </Badge>
             <span className="font-mono text-xs font-semibold text-muted-foreground">{order.id}</span>
           </div>
@@ -318,6 +337,25 @@ export default async function MobileOrderRequestDetailPage({
             </div>
             <p className="rounded-xl border border-border bg-background/60 p-3.5 text-sm leading-6 text-foreground/90">
               {order.reason || order.description}
+            </p>
+          </Card>
+        ) : null}
+
+        {/*
+          거절 사유(admin_memo) — 지금까지 모바일 어디에도 노출되지 않아 요청자는 자기 요청이 왜
+          거절됐는지 영원히 알 수 없었다. 라벨은 어드민 콘솔의 기존 "거절 사유" 문구를 재사용한다
+          (i18n.ts는 다른 작업 소유라 새 키를 추가하지 않았다 — 전용 키 추가 후 교체 권장).
+        */}
+        {order.admin_memo ? (
+          <Card className={`${DETAIL_CARD} p-4`}>
+            <div className="mb-2 flex items-center gap-2">
+              <MessageSquareText className="size-4 text-[#315F91]" aria-hidden="true" />
+              <h2 className="text-sm font-black uppercase tracking-wide text-foreground">
+                {dictionary.admin.orders.console.mrReason}
+              </h2>
+            </div>
+            <p className="whitespace-pre-line rounded-xl border border-border bg-background/60 p-3.5 text-sm leading-6 text-foreground/90">
+              {order.admin_memo}
             </p>
           </Card>
         ) : null}

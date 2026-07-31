@@ -1,7 +1,11 @@
 "use server";
 
 import { requireAdminSession } from "@/lib/admin-session";
-import { getAdminCleaningHistory, type AdminCleaningHistoryItem } from "@/lib/admin-cleaning";
+import {
+  getAdminCleaningHistory,
+  type AdminCleaningHistoryItem,
+  type AdminCleaningStatus,
+} from "@/lib/admin-cleaning";
 import { canForceCompleteCleaning, getCleaningOperatingDateKey } from "@/lib/cleaning";
 import {
   buildAdminExportMeta,
@@ -17,9 +21,15 @@ import {
 import { buildAdminTableReportHtml } from "@/lib/admin-table-report";
 import type { AdminReportExportResult, AdminWorkbookExportResult } from "@/lib/admin-export-result";
 import { getDictionary, type Locale } from "@/lib/i18n";
-import { buildSessionRoomLabel } from "@/lib/room-label-normalization";
+import {
+  buildSessionRoomLabel,
+  getCanonicalPropertyName,
+  getCanonicalRoomLabel,
+} from "@/lib/room-label-normalization";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
-import { fmtDate, toMin, type BuildingKey, type CleaningTaskType } from "@/components/admin/cleaning/cleaning-console-data";
+// 소요시간 포맷은 화면(오늘 현황 카드·기록 표·상세 패널)이 쓰는 fmtDur 를 그대로 재사용한다 —
+// 예전에는 여기에 같은 규칙을 한 번 더 구현해 두 벌이 갈릴 위험이 있었다.
+import { fmtDate, fmtDur, toMin, type BuildingKey, type CleaningTaskType } from "@/components/admin/cleaning/cleaning-console-data";
 
 // Server actions backing the 기록 (history) tab's Excel/PDF export. The client sends the raw,
 // already-filtered history rows (canonical building/type keys, not display strings) — every visible
@@ -37,7 +47,8 @@ export type CleaningHistoryExportRow = {
   type: CleaningTaskType;
   staffName: string;
   start: string;
-  dur: number; // minutes
+  dur: number | null; // minutes; 진행중/취소 세션은 null
+  status: AdminCleaningStatus;
   proxy: boolean;
   note: string;
 };
@@ -71,12 +82,6 @@ function minToHHMM(min: number): string {
   return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 }
 
-function formatCleaningDuration(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
-}
-
 function typeLabelOf(type: CleaningTaskType, t: ReturnType<typeof getDictionary>["cleaning"]["console"]): string {
   if (type === "checkout") return t.tyCheckout;
   if (type === "simple") return t.tySimple;
@@ -100,6 +105,18 @@ function cleaningColumns(locale: Locale): AdminTableColumn[] {
   ];
 }
 
+/** 세션 상태(진행중/완료/취소) 문구. 모바일과 같은 사전 키를 쓴다 — 콘솔 네임스페이스에는
+ * 아직 취소 문구가 없다. */
+function sessionStatusLabelOf(
+  status: AdminCleaningStatus,
+  dictionary: ReturnType<typeof getDictionary>,
+): string {
+  if (status === "progress") return dictionary.cleaning.records.status.in_progress;
+  if (status === "cancelled") return dictionary.cleaning.records.status.cancelled;
+  if (status === "pending") return dictionary.cleaning.console.stPending;
+  return dictionary.cleaning.records.status.completed;
+}
+
 function cleaningTableRows(
   rows: CleaningHistoryExportRow[],
   locale: Locale,
@@ -111,16 +128,19 @@ function cleaningTableRows(
 
   return rows.map((r) => {
     const startMin = toMin(r.start) ?? 0;
+    // "상태" 열은 실제 세션 상태를 쓴다. 정상/대리 완료는 상태가 아니라 완료 유형이라
+    // 담당자 셀에 함께 표기한다(화면의 대리 완료 태그와 같은 축).
+    const staffLabel = r.staffName || "—";
     return {
       date: fmtDate(r.date, localeTag),
       building: (r.building ? buildingLabels[r.building] : null) ?? r.buildingRaw,
       room: r.room,
       type: typeLabelOf(r.type, t),
-      staff: r.staffName || "—",
+      staff: r.proxy ? `${staffLabel} · ${t.stProxy}` : staffLabel,
       start: r.start,
-      end: minToHHMM(startMin + r.dur),
-      dur: formatCleaningDuration(r.dur),
-      status: r.proxy ? t.stProxy : t.stNormal,
+      end: r.dur == null ? "—" : minToHHMM(startMin + r.dur),
+      dur: fmtDur(r.dur),
+      status: sessionStatusLabelOf(r.status, dictionary),
       note: r.note,
     };
   });
@@ -133,7 +153,7 @@ function cleaningSheet(
   to: string,
 ): AdminTableSheet {
   const t = getDictionary(meta.locale).cleaning.console;
-  const totalMinutes = rows.reduce((sum, r) => sum + r.dur, 0);
+  const totalMinutes = rows.reduce((sum, r) => sum + (r.dur ?? 0), 0);
   return {
     sheetName: t.exportTitle,
     title: t.exportTitle,
@@ -142,7 +162,7 @@ function cleaningSheet(
     totalLabel: meta.shared.exportTotalLabel,
     columns: cleaningColumns(meta.locale),
     rows: cleaningTableRows(rows, meta.locale, meta.localeTag),
-    totals: { dur: formatCleaningDuration(totalMinutes) },
+    totals: { dur: fmtDur(totalMinutes) },
   };
 }
 
@@ -200,9 +220,13 @@ export async function exportCleaningHistoryReport(
 
 export type ForceCompleteCleaningInput = {
   sessionId: string | null; // existing session → UPDATE; null (room never started) → INSERT
-  roomKey: string;
-  buildingRaw: string; // canonical property name, e.g. "아라키초A"
-  room: string; // canonical room label, e.g. "201"
+  /**
+   * canonical `cleaning_sessions.room_label` — 예: "아라키초A 501_2", 오쿠보처럼 단독 건물은 "오쿠보A".
+   * 콘솔 카드가 보여주는 축약 라벨("아라키초A 501")을 저장하면 getCleaningTargets 의 canonical
+   * roomKey 와 매칭되지 않아 모바일 큐에 미처리로 남고(중복 청소) 콘솔에는 매칭 안 되는 유령
+   * 완료 카드가 생긴다. 아래에서 서버가 한 번 더 canonical 로 정규화한다.
+   */
+  sessionRoomLabel: string;
   taskType: CleaningTaskType;
   staffId: string;
   start: string; // "HH:MM"
@@ -225,6 +249,28 @@ function tokyoDateTimeIso(hhmm: string): string | null {
   return `${getCleaningOperatingDateKey()}T${hhmm}:00+09:00`;
 }
 
+/**
+ * 클라이언트가 보낸 세션 라벨을 다시 canonical 형태로 정규화한다 — 모바일이 저장하는 값
+ * (`${propertyName} ${canonicalRoomLabel}`, src/app/mobile/cleaning/actions.ts)과 정확히 같은
+ * 모양이어야 getCleaningTargets / resolveRoomKey 매칭이 성립한다.
+ * 새 정규화 규칙을 만들지 않고 room-label-normalization.ts 의 기존 헬퍼만 조합한다.
+ */
+function canonicalizeSessionRoomLabel(raw: string): string | null {
+  const trimmed = raw.trim().replace(/\s+/g, " ");
+  if (!trimmed || trimmed.length > 100) return null;
+
+  const spaceIndex = trimmed.indexOf(" ");
+  // 공백이 없으면 오쿠보처럼 "건물 = 객실"인 단독 건물 라벨이다.
+  const rawProperty = spaceIndex === -1 ? trimmed : trimmed.slice(0, spaceIndex);
+  const rawRoom = spaceIndex === -1 ? trimmed : trimmed.slice(spaceIndex + 1);
+
+  const canonicalProperty = getCanonicalPropertyName(rawProperty);
+  const canonicalRoom = getCanonicalRoomLabel(canonicalProperty, rawRoom);
+  if (!canonicalProperty || !canonicalRoom) return null;
+
+  return buildSessionRoomLabel(canonicalProperty, canonicalRoom);
+}
+
 export async function forceCompleteCleaningSession(
   input: ForceCompleteCleaningInput,
 ): Promise<ForceCompleteCleaningResult> {
@@ -235,7 +281,8 @@ export async function forceCompleteCleaningSession(
 
   const startIso = tokyoDateTimeIso(input.start);
   const endIso = tokyoDateTimeIso(input.end);
-  if (!startIso || !endIso || !input.staffId) {
+  const roomLabel = canonicalizeSessionRoomLabel(input.sessionRoomLabel);
+  if (!startIso || !endIso || !input.staffId || !roomLabel) {
     return { ok: false, reason: "invalid" };
   }
   const durationSeconds = Math.max(
@@ -278,7 +325,7 @@ export async function forceCompleteCleaningSession(
 
   const { error } = await service.from("cleaning_sessions").insert({
     organization_id: organizationId,
-    room_label: buildSessionRoomLabel(input.buildingRaw, input.room),
+    room_label: roomLabel,
     task_label: taskTypeToTaskLabel(input.taskType),
     staff_user_id: input.staffId,
     cleaning_date: getCleaningOperatingDateKey(),

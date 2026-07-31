@@ -14,6 +14,8 @@ type PageProps = {
     title?: string;
     project?: string;
     section?: string;
+    /** "1" 이면 지시 모드로 시작 — 모바일 "보낸 지시" 화면의 진입점이 붙여 보낸다. */
+    directive?: string;
   }>;
 };
 
@@ -57,6 +59,7 @@ export default async function MobileTaskNewPage({ searchParams }: PageProps) {
         buildingLabels={dict.cleaning.buildingLabels}
         copy={copy}
         defaultDate={defaultDate}
+        defaultDirective={params.directive === "1"}
         defaultTitle={defaultTitle}
         headerTitle={copy.newTask}
         imgCopy={dict.requestImages}

@@ -15,6 +15,7 @@ import {
   Share2,
   Sun,
   Sunrise,
+  Users,
 } from "lucide-react";
 import { moveTaskToToday, moveTaskToTomorrow } from "@/app/mobile/tasks/[id]/actions";
 import type { Dictionary, Locale } from "@/lib/i18n";
@@ -39,7 +40,8 @@ function shortDate(ymd: string): string {
   return `${Number(m)}/${Number(d)}`;
 }
 
-function repeatLabel(rule: string, copy: Copy, locale: Locale): string {
+/** 반복 규칙 → 사람이 읽는 라벨. 워크스페이스의 반복 삭제 시트도 같은 표현을 써야 해서 내보낸다. */
+export function repeatLabel(rule: string, copy: Copy, locale: Locale): string {
   // 사용자 지정 요일 반복(`custom:1,3,5`)은 고정 매핑에 없으므로 먼저 처리한다 — 빠뜨리면
   // 어드민에서 만든 반복이 여기서 원문 그대로("custom:1,3,5") 노출된다.
   const customDays = formatCustomWeekdays(rule, locale);
@@ -73,9 +75,11 @@ function shareSummary(task: TaskRecord, currentUserId: string): string | null {
   return others.length === 1 ? others[0] : `${others[0]} +${others.length - 1}`;
 }
 
+// 우선순위 1~4 (Todoist): urgent=빨강, important=주황, medium=파랑, normal=회색(기본).
 const PRIO_RING: Record<string, string> = {
   urgent: "border-rose-500 text-rose-500",
   important: "border-amber-500 text-amber-500",
+  medium: "border-blue-500 text-blue-500",
   normal: "border-slate-300 text-slate-300",
 };
 
@@ -88,6 +92,7 @@ export function TaskCard({
   today,
   showDate = true,
   swipe = true,
+  instrMode,
   sentMode = false,
   selectMode = false,
   selectedIds,
@@ -110,13 +115,22 @@ export function TaskCard({
   today: string;
   showDate?: boolean;
   swipe?: boolean;
+  /**
+   * 지시 화면(받은/보낸)에서만 켠다. 카드에서 "누구인지"를 텍스트 접두사가 아니라
+   * 아바타 칩으로 올려, 지시 목록의 첫 관심사(보낸 사람 / 담당자)를 먼저 읽히게 한다.
+   */
+  instrMode?: "recv" | "sent";
   sentMode?: boolean;
   // Multi-select: in select mode tapping toggles selection (instead of navigating) and a
   // checkbox replaces the complete circle. Long-press (outside select mode) opens the context menu.
   selectMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (task: TaskRecord) => void;
-  onLongPress?: (task: TaskRecord) => void;
+  /**
+   * 두 번째 인자는 이 카드가 **어느 회차로 렌더됐는지**(반복 작업의 날짜). 목록의 삭제가 시리즈 전체를
+   * 지울지 그 날짜만 건너뛸지 고르려면 메뉴가 이 날짜를 알아야 한다.
+   */
+  onLongPress?: (task: TaskRecord, occurrence?: { date: string; done: boolean }) => void;
   // Swipe reveal action: "today" pulls the task to today (Tomorrow/Inbox tabs), "tomorrow" defers
   // it to tomorrow (Today tab). `swipeReturnView` is posted with the action so the server redirect
   // keeps the user on the tab they swiped from.
@@ -182,7 +196,7 @@ export function TaskCard({
       longFired.current = true;
       setOffset(0); // close any open swipe so the menu opens over a clean card
       if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
-      onLongPress(task);
+      onLongPress(task, occurrence);
     }, 480);
   }
   function movePress(x: number, y: number) {
@@ -267,8 +281,26 @@ export function TaskCard({
   }
 
   const fromLabel =
-    !sentMode && task.createdByUserId !== currentUserId ? `${task.authorName} → ` : "";
+    !sentMode && !instrMode && task.createdByUserId !== currentUserId
+      ? `${task.authorName} → `
+      : "";
   const summary = shareSummary(task, currentUserId);
+  // 지시 카드의 신원 칩: 받은 지시는 지시자, 보낸 지시는 담당자 수.
+  const targetCount = task.participants.filter((p) => p.userId !== task.createdByUserId).length;
+  const instrChip =
+    instrMode === "recv" ? (
+      <span className="inline-flex items-center gap-1 rounded-full bg-primary/[0.09] py-0.5 pl-0.5 pr-2 text-[11px] font-bold text-primary">
+        <span className="flex size-[15px] items-center justify-center rounded-full bg-primary text-[8px] font-extrabold text-primary-foreground">
+          {task.authorName.slice(0, 1)}
+        </span>
+        {task.authorName}
+      </span>
+    ) : instrMode === "sent" && targetCount > 0 ? (
+      <span className="inline-flex items-center gap-1 rounded-full bg-primary/[0.09] px-2 py-0.5 text-[11px] font-bold text-primary">
+        <Users className="size-3" aria-hidden="true" />
+        {copy.instrAssigned.replace("{n}", String(targetCount))}
+      </span>
+    ) : null;
 
   const dateChip = (() => {
     if (!showDate) return null;
@@ -402,8 +434,10 @@ export function TaskCard({
         task.recurrenceRule ||
         task.tags.length ||
         task.imageUrls.length ||
+        instrChip ||
         summary ? (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {instrChip}
             {dateChip}
             {ctxChip}
             {/* 진행 중 — 이 칩이 없으면 목록에서 대기 상태와 완전히 똑같이 보인다. 콘솔은 3상태를
@@ -441,7 +475,7 @@ export function TaskCard({
                 {task.imageUrls.length}
               </span>
             ) : null}
-            {summary ? (
+            {summary && instrMode !== "sent" ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
                 <Share2 className="size-3" aria-hidden="true" />
                 {sentMode ? `${summary} ${copy.sharedSuffix}` : summary}
@@ -455,7 +489,11 @@ export function TaskCard({
         <Flag
           className={cn(
             "mt-0.5 size-3.5 shrink-0",
-            task.priority === "urgent" ? "text-rose-500" : "text-amber-500",
+            task.priority === "urgent"
+              ? "text-rose-500"
+              : task.priority === "medium"
+                ? "text-blue-500"
+                : "text-amber-500",
           )}
           aria-hidden="true"
         />
@@ -488,7 +526,7 @@ export function TaskCard({
   const onContextMenu = (e: React.MouseEvent) => {
     if (!onLongPress || selectMode) return;
     e.preventDefault();
-    onLongPress(task);
+    onLongPress(task, occurrence);
   };
 
   // 0 → 1 as the card slides open; drives the reveal buttons' scale-in.

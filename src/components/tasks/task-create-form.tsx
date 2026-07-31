@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { CalendarDays, ChevronDown, ChevronRight, Clock, Repeat, Share2, Users, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronRight, Clock, Megaphone, Repeat, Share2, Users, X } from "lucide-react";
 import { createTask } from "@/app/mobile/tasks/new/actions";
 import { updateTaskCore } from "@/app/mobile/tasks/[id]/actions";
 import { TaskSchedulePicker } from "@/components/tasks/task-schedule-sheet";
@@ -19,7 +19,8 @@ import { cn } from "@/lib/utils";
 
 type Copy = Dictionary["tasks"];
 
-const PRIOS = ["normal", "important", "urgent"] as const;
+// 우선순위 1~4 (Todoist) 순서로 표시: urgent(1) · important(2) · medium(3) · normal(4).
+const PRIOS = ["urgent", "important", "medium", "normal"] as const;
 
 type TaskInitial = {
   title: string;
@@ -52,6 +53,7 @@ export function TaskCreateForm({
   buildingLabels,
   copy,
   defaultDate,
+  defaultDirective = false,
   defaultTitle,
   headerTitle,
   imgCopy,
@@ -71,6 +73,8 @@ export function TaskCreateForm({
   buildingLabels: Record<string, string>;
   copy: Copy;
   defaultDate: string | null;
+  /** 지시 모드로 폼을 연다(모바일 "보낸 지시" 진입점). 대상을 고르면 토글이 켜진 채로 보인다. */
+  defaultDirective?: boolean;
   locale: string;
   // Prefilled title carried over from Quick Add (create mode only). Kept separate from
   // `initial` so the Calendar date-prefill (`defaultDate`) keeps working.
@@ -108,6 +112,11 @@ export function TaskCreateForm({
   const [tagDraft, setTagDraft] = useState("");
   const [existingImgUrls, setExistingImgUrls] = useState<string[]>(initial?.imageUrls ?? []);
   const [shareIds, setShareIds] = useState<string[]>([]);
+  /**
+   * 지시로 보내기 — 켜면 대상자의 일정으로 잡히고 **내 오늘/내일/관리함에는 들어오지 않는다**.
+   * 대상이 없으면 지시가 성립하지 않으므로 공유 대상을 고른 뒤에만 노출한다(서버도 같은 조건).
+   */
+  const [directive, setDirective] = useState(defaultDirective);
   const [linkedCtx, setLinkedCtx] = useState<LinkedContext | null>(initialCtx ?? null);
   const [ctxPickerOpen, setCtxPickerOpen] = useState(false);
   const [more, setMore] = useState(isEdit);
@@ -150,6 +159,7 @@ export function TaskCreateForm({
       repeat,
       tags,
       shareIds,
+      directive,
       linkedCtx,
       more,
       existingImgUrls,
@@ -159,7 +169,7 @@ export function TaskCreateForm({
     } catch {
       /* ignore storage errors */
     }
-  }, [draftKey, date, time, duration, priority, repeat, tags, shareIds, linkedCtx, more, existingImgUrls]);
+  }, [draftKey, date, time, duration, priority, repeat, tags, shareIds, directive, linkedCtx, more, existingImgUrls]);
 
   // Restore once on mount (before the persist effect can overwrite with initial state).
   useEffect(() => {
@@ -198,6 +208,11 @@ export function TaskCreateForm({
       if (Array.isArray(d.tags)) setTags(d.tags.filter((x): x is string => typeof x === "string"));
       if (Array.isArray(d.shareIds))
         setShareIds(d.shareIds.filter((x): x is string => typeof x === "string"));
+      // `?directive=1` 로 들어온 경우(보낸 지시 화면의 "지시 보내기")는 그 의도가 이긴다 —
+      // 예전 초안이 토글을 꺼 버리면 사용자가 눈치채지 못한 채 평범한 공유로 나간다.
+      // 초기값이 이미 true 면 초안의 false 를 무시하면 되므로, prop 대신 현재 상태로 판단한다
+      // (effect 의존성에 prop 을 더하지 않아도 되고, 동작은 같다).
+      if (typeof d.directive === "boolean") setDirective((cur) => cur || d.directive === true);
       if (d.linkedCtx === null || (d.linkedCtx && typeof d.linkedCtx === "object"))
         setLinkedCtx(d.linkedCtx as LinkedContext | null);
       if (typeof d.more === "boolean") setMore(d.more);
@@ -256,6 +271,7 @@ export function TaskCreateForm({
     formData.set("repeat", repeat);
     formData.set("tagsJson", JSON.stringify(tags));
     formData.set("shareJson", JSON.stringify(shareIds));
+    formData.set("directive", directive && shareIds.length > 0 ? "1" : "0");
     formData.set("ctxPropertyId", linkedCtx?.propertyId ?? "");
     formData.set("ctxRoomId", linkedCtx?.roomId ?? "");
     formData.set("ctxReservationId", linkedCtx?.reservationId ?? "");
@@ -480,6 +496,46 @@ export function TaskCreateForm({
             </span>
             <ChevronRight className="size-4 shrink-0 text-slate-400" aria-hidden="true" />
           </button>
+          {/* 지시 토글 — 대상을 고른 뒤에만 뜬다. 공유(동료끼리 같이 봄)와 지시(대상자가 수행)는
+              다른 행위라 한 화면에서 분명히 갈라 준다. */}
+          {shareIds.length ? (
+            <button
+              className={cn(
+                "mt-2 flex w-full items-center gap-2.5 rounded-2xl border px-3.5 py-3 text-left transition-colors",
+                directive ? "border-primary/40 bg-primary/[0.06]" : "border-border bg-surface",
+              )}
+              onClick={() => setDirective((v) => !v)}
+              type="button"
+            >
+              <span
+                className={cn(
+                  "flex size-9 items-center justify-center rounded-full",
+                  directive ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-500",
+                )}
+              >
+                <Megaphone className="size-4" aria-hidden="true" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-foreground">{copy.sendAsDirective}</span>
+                <span className="mt-0.5 block text-[12px] font-medium leading-snug text-muted-foreground">
+                  {copy.sendAsDirectiveSub}
+                </span>
+              </span>
+              <span
+                className={cn(
+                  "relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors",
+                  directive ? "bg-primary" : "bg-slate-200",
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-[3px] size-5 rounded-full bg-white shadow-sm transition-[left]",
+                    directive ? "left-[21px]" : "left-[3px]",
+                  )}
+                />
+              </span>
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -532,14 +588,22 @@ export function TaskCreateForm({
                         ? "border-rose-300 bg-rose-50 text-rose-700"
                         : p === "important"
                           ? "border-amber-300 bg-amber-50 text-amber-700"
-                          : "border-primary bg-primary/10 text-primary"
+                          : p === "medium"
+                            ? "border-blue-300 bg-blue-50 text-blue-700"
+                            : "border-primary bg-primary/10 text-primary"
                       : "border-border bg-surface text-slate-600",
                   )}
                   key={p}
                   onClick={() => setPriority(p)}
                   type="button"
                 >
-                  {p === "normal" ? copy.prioNormal : p === "important" ? copy.prioImportant : copy.prioUrgent}
+                  {p === "urgent"
+                    ? copy.prioUrgent
+                    : p === "important"
+                      ? copy.prioImportant
+                      : p === "medium"
+                        ? copy.prioMedium
+                        : copy.prioNormal}
                 </button>
               ))}
             </div>

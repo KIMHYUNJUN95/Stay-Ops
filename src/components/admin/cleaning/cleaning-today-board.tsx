@@ -6,10 +6,11 @@
 // handoff, rebuilt as React components over the shared .rmc/.bkgrid/.csec/.setgrid/.staffgrid CSS.
 // Data is real (src/lib/admin-cleaning.ts) as of 2026-07-14.
 import type { ReactNode } from "react";
-import { Building2, Check, Clock, KeyRound, Search, Users } from "lucide-react";
+import { Ban, Building2, Check, Clock, KeyRound, Search, Users } from "lucide-react";
 import type { AdminCleaningTask, AdminSettingTarget } from "@/lib/admin-cleaning";
 import { BUILDING_ORDER, durationMin, elapsedMin, fmtDur, type BuildingKey } from "./cleaning-console-data";
 import {
+  CancelledBadge,
   ReportBadges,
   StaffAvatar,
   StatusPill,
@@ -79,6 +80,7 @@ function RoomCard({
           </div>
         </div>
         <div className="rmc__badges">
+          <CancelledBadge count={task.cancelledCount} t={t} />
           <ReportBadges reports={task.reports} t={t} />
         </div>
       </div>
@@ -256,8 +258,11 @@ function StatusBuckets(props: {
   onSelect: (id: string) => void;
 }) {
   const { tasks, t, buildingLabels, staffDirectory, selectedId, onSelect } = props;
+  // 취소 카드는 예약 대상이 없는 임의(기타) 청소가 취소된 경우에만 생긴다 — 있을 때만 4번째
+  // 칼럼을 붙여 평소 3칼럼 레이아웃을 유지한다.
+  const hasCancelled = tasks.some((task) => task.status === "cancelled");
   const buckets: Array<{
-    key: "pending" | "progress" | "done";
+    key: "pending" | "progress" | "done" | "cancelled";
     label: string;
     icon: ReactNode;
     has: (task: AdminCleaningTask) => boolean;
@@ -276,8 +281,16 @@ function StatusBuckets(props: {
     },
     { key: "done", label: t.bkDone, icon: <Check aria-hidden="true" />, has: (task) => task.status === "done" },
   ];
+  if (hasCancelled) {
+    buckets.push({
+      key: "cancelled",
+      label: t.stCancelled,
+      icon: <Ban aria-hidden="true" />,
+      has: (task) => task.status === "cancelled",
+    });
+  }
   return (
-    <div className="bkgrid">
+    <div className={`bkgrid${hasCancelled ? " bkgrid--4" : ""}`}>
       {buckets.map((bucket) => {
         const items = tasks.filter(bucket.has);
         return (

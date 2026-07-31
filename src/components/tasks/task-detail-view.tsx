@@ -105,7 +105,13 @@ function durationText(mins: number, copy: Copy): string {
           : `${mins}${copy.durationMinUnit}`;
 }
 function prioLabel(p: string, copy: Copy): string {
-  return p === "urgent" ? copy.prioUrgent : p === "important" ? copy.prioImportant : copy.prioNormal;
+  return p === "urgent"
+    ? copy.prioUrgent
+    : p === "important"
+      ? copy.prioImportant
+      : p === "medium"
+        ? copy.prioMedium
+        : copy.prioNormal;
 }
 export function TaskDetailView({
   buildingLabels,
@@ -260,7 +266,11 @@ export function TaskDetailView({
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-bold",
-              task.priority === "urgent" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-700",
+              task.priority === "urgent"
+                ? "bg-rose-50 text-rose-600"
+                : task.priority === "medium"
+                  ? "bg-blue-50 text-blue-700"
+                  : "bg-amber-50 text-amber-700",
             )}
           >
             <Flag className="size-3" aria-hidden="true" />
@@ -431,6 +441,8 @@ export function TaskDetailView({
             ))}
           </div>
           <div className="mt-3 flex gap-2">
+            {/* 참여자 추가는 참여자에게도 열려 있다(Re-sharing 규칙). 남을 빼는 것만 작성자
+                전용이라 아래 참여자 목록의 제거 버튼은 `canEditCore` 로 계속 잠근다. */}
             <button
               className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[12.5px] font-bold text-primary"
               onClick={() => setPickerOpen(true)}
@@ -448,7 +460,9 @@ export function TaskDetailView({
             </button>
           </div>
         </div>
-      ) : (
+      ) : task.projectId ? null : (
+        // 프로젝트 작업의 공유는 프로젝트 멤버십이 정한다 — 서버가 거부하므로(`shareTaskWithUsers`)
+        // CTA 자체를 숨긴다. 콘솔도 모든 공유 진입점을 `!t.projectId` 로 가린다.
         <div className="mt-4">
           <button
             className="flex w-full items-center gap-2.5 rounded-[22px] border border-border bg-surface px-4 py-3.5 text-left"
@@ -703,7 +717,7 @@ export function TaskDetailView({
 function systemLabel(type: string, body: string | null, copy: Copy): string {
   switch (type) {
     case "system_shared":
-      return copy.viewSent;
+      return copy.logShared;
     case "system_edited":
       return copy.editTask;
     case "completed":

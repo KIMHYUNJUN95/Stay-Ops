@@ -20,6 +20,7 @@ import {
   Settings,
   Sparkles,
   SprayCan,
+  Undo2,
   Users,
   Wrench,
 } from "lucide-react";
@@ -269,6 +270,12 @@ export const adminNavigation = [
     icon: Recycle,
   },
   {
+    id: "linen-return",
+    label: localizedNavigationLabels.admin.linenReturn,
+    href: "/admin/linen-return",
+    icon: Undo2,
+  },
+  {
     id: "orders",
     label: localizedNavigationLabels.admin.orders,
     href: "/admin/orders",
@@ -317,6 +324,7 @@ export const adminNavGroupOf: Record<string, AdminNavGroupKey> = {
   cleaning: "operations",
   maintenance: "operations",
   "lost-found": "operations",
+  "linen-return": "operations",
   orders: "operations",
   // 인력
   attendance: "people",

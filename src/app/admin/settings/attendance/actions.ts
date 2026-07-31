@@ -8,7 +8,9 @@ import {
   issueAttendanceQr,
   updateAttendanceSite,
 } from "@/lib/attendance-sites";
+import { revokeTrustedDevice } from "@/lib/attendance-trusted-device";
 import { requireAdminSession } from "@/lib/admin-session";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { hasOrganizationContext } from "@/lib/session";
 import { isOrgTopAdmin } from "@/config/roles";
 
@@ -93,5 +95,55 @@ export async function issueAttendanceSiteQr(formData: FormData) {
     redirect(`/admin/settings/attendance?site=${siteId}&${hadActive ? "reissued" : "issued"}=1`);
   } catch {
     redirect(`/admin/settings/attendance?site=${encodeURIComponent(siteId)}&error=qr_issue_failed`);
+  }
+}
+
+/**
+ * 기억된 근태 기기 해지 (2026-07-31).
+ *
+ * 휴대폰 분실·퇴사처럼 그 기기에서 더 이상 打刻하면 안 되는 상황에서 쓴다. 해지하면 그 기기는
+ * 즉시 정상 로그인을 다시 요구한다. 조직 스코프로 제한해 다른 조직 기기는 건드릴 수 없다.
+ * See docs/product/24-attendance-workflow.md → "Trusted Device".
+ */
+export async function revokeAttendanceTrustedDevice(formData: FormData) {
+  const session = await requireOwnerOrgSession();
+  const organizationId = session.organization.id;
+  const deviceId = parseText(formData, "deviceId");
+  const siteId = parseText(formData, "siteId");
+  const back = siteId
+    ? `/admin/settings/attendance?site=${encodeURIComponent(siteId)}`
+    : "/admin/settings/attendance";
+
+  if (!deviceId) {
+    redirect(`${back}${back.includes("?") ? "&" : "?"}error=invalid_device`);
+  }
+
+  const ok = await revokeTrustedDevice(organizationId, deviceId);
+  if (!ok) {
+    redirect(`${back}${back.includes("?") ? "&" : "?"}error=device_revoke_failed`);
+  }
+
+  await writeTrustedDeviceAudit(organizationId, session.user.id, deviceId);
+  redirect(`${back}${back.includes("?") ? "&" : "?"}device_revoked=1`);
+}
+
+async function writeTrustedDeviceAudit(
+  organizationId: string,
+  actorUserId: string,
+  deviceId: string,
+) {
+  try {
+    await getSupabaseServiceClient()
+      .from("audit_logs")
+      .insert({
+        organization_id: organizationId,
+        actor_user_id: actorUserId,
+        action: "attendance_trusted_device_revoke",
+        target_type: "attendance_trusted_device",
+        target_id: deviceId,
+        metadata: {},
+      } as never);
+  } catch {
+    console.error("[attendance] trusted-device revoke audit failed", deviceId);
   }
 }

@@ -8,6 +8,7 @@
 // 일반 처리는 콘솔의 능동 처리 존(반환/폐기/보관연장)에서 하고, 상태 정정은 잘못된 자동/수동 상태를
 // 관리자가 되돌리는 예외 경로다. 청소 강제완료와 같은 역할 게이트(canForceCompleteCleaning)를 쓴다.
 import { revalidatePath } from "next/cache";
+import { isOrgTopAdmin, type Role } from "@/config/roles";
 import { requireAdminSession } from "@/lib/admin-session";
 import { canForceCompleteCleaning } from "@/lib/cleaning";
 import {
@@ -276,6 +277,22 @@ export async function restoreLostItem(input: {
   return { ok: true };
 }
 
+// 삭제는 DELETE RLS 정책과 같은 기준 — 작성자 본인 또는 관리 역할. `requireAdminSession()`만으로는
+// staff/part_time_staff까지 통과해(어드민 웹 접근 자체는 허용된 역할이다) 감사 흔적이 남는 상태 정정은
+// 못 하면서 흔적이 없는 하드 삭제만 성공하게 된다. RLS: 202605210006 + has_org_role(202607130003).
+const DELETE_ANY_ROLES: readonly Role[] = [
+  "developer_super_admin",
+  "owner",
+  "senior_managing_director",
+  "office_admin",
+  "cs_staff",
+  "field_manager",
+];
+
+function canDeleteAnyLostItem(role: Role): boolean {
+  return isOrgTopAdmin(role) || DELETE_ANY_ROLES.includes(role);
+}
+
 export async function deleteLostItemById(
   id: string,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -286,6 +303,20 @@ export async function deleteLostItemById(
   }
 
   const supabase = await getSupabaseServerClient();
+  const { data: existing } = await supabase
+    .from("lost_items")
+    .select("id, reported_by_user_id")
+    .eq("id", id)
+    .eq("organization_id", session.organization.id)
+    .maybeSingle();
+  if (!existing) {
+    return { ok: false, error: "not_found" };
+  }
+  const owner = (existing as { reported_by_user_id: string }).reported_by_user_id;
+  if (owner !== session.user.id && !canDeleteAnyLostItem(session.user.role)) {
+    return { ok: false, error: "unauthorized" };
+  }
+
   const { data, error } = await supabase
     .from("lost_items")
     .delete()

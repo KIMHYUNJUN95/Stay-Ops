@@ -612,6 +612,14 @@ policy (CLAUDE.md §9).
 - Read: active participants only.
 - Create: any active org member when creating a task where they are the original author.
 - Update: original author edits core task content; current participants can mutate only shared workflow-state fields through controlled actions.
+- **Participant set — add: author OR any current participant (2026-07-31).** Re-sharing is allowed on
+  **both** surfaces (`shareTaskWithUsers` mobile / `shareConsoleTask` console); the console had been
+  author-only and was opened to match the documented rule. **Removal of others stays author-only**
+  (`removeTaskParticipant`; self-removal open to everyone), and flipping `is_directive` stays
+  author-only. The console action reconciles the whole set from the picker, so for a non-author it
+  drops the removal delta and applies additions only — otherwise a participant could evict others.
+  Note: a participant adding someone to a directive makes the new person see it as a directive from
+  the ORIGINAL author; the real inviter is recorded in `task_participants.added_by_user_id`.
 - Delete: original author only for the canonical task row. Participant self-removal is a separate controlled action.
 - **Completion (re-introduced 2026-06-13):** complete/reopen are controlled service-role server
   actions (`completeTask` / `reopenTask`) like every other task write — they stamp/clear
@@ -687,6 +695,27 @@ Business rules to enforce in those server actions (not yet implemented):
   user must be same-org and not the author/recipient.
 - Comments: visible participants can insert; only the comment author can update/delete.
 
+## customer_complaints / complaint_comments / external_reviews / review_translations
+
+`customer_complaints` 및 `complaint_comments`의 현재 구현은 조직 활성 멤버 SELECT와 service-role 서버
+액션 쓰기 경계를 사용한다. 수동 컴플레인 작성·상태·댓글 권한은
+`docs/product/25-complaint-workflow.md`의 역할 계약을 따른다.
+
+외부 리뷰 구현 시 `external_reviews`에는 다음 정책을 추가한다.
+
+- SELECT: `is_platform_admin()` 또는 `has_active_membership(organization_id)`.
+- INSERT / UPDATE / DELETE: authenticated 직접 정책을 만들지 않는다. Beds24 동기화 서버 경로만
+  service role로 UPSERT하며, 같은 조직 안에서만 예약·객실·컴플레인 연결을 검증한다.
+- `raw_payload`는 일반 UI 쿼리의 선택 컬럼에 넣지 않는다. 필요한 최소 표시 필드만 반환한다.
+- 외부 리뷰에서 수동 컴플레인을 만드는 서버 액션은 `canWriteComplaint` 역할을 재검증하고,
+  review와 새 complaint의 `organization_id`가 일치하는지 확인한다. 동일 리뷰의 중복 전환을 거부한다.
+- `review_translations` SELECT는 부모 `external_reviews`와 동일하게 조직 활성 멤버 및 platform admin으로
+  한정한다. INSERT / UPDATE / DELETE는 authenticated에 직접 허용하지 않고, 서버의 DeepL 요청·캐시 경로만
+  service role로 처리한다. 부모 리뷰와 translation의 조직 ID 일치, 목표 locale(`ko`/`ja`/`en`), 원문 hash를
+  서버에서 검증한다.
+
+이 정책은 기획 단계이며 새 migration과 함께 구현한다. 기존 적용 migration은 수정하지 않는다.
+
 ## Attendance / Payroll tables
 
 **As-built (Step 1 — schema, migration `202606170001_attendance_payroll.sql`, 2026-06-17).** This is the
@@ -710,6 +739,11 @@ Read (SELECT) policies — "own rows, or org-wide for privileged admins" unless 
   coordinates aren't secret).
 - `attendance_qr_tokens`: **privileged admins only** (tokens authorize attendance; clock-in resolves the
   token server-side via service role).
+- `attendance_trusted_devices` (2026-07-31): own rows, or `owner`/`senior_managing_director`/
+  `office_admin` (분실·퇴사 시 해지해야 하므로). UPDATE 정책은 **해지(revoke) 용도로만** 열려 있고,
+  발급/갱신은 쿠키 원문을 다루므로 service-role 서버 액션에서만 수행한다(INSERT 정책 없음).
+  ⚠ 이 테이블의 자격증명은 **출근/퇴근 打刻 두 가지만** 허용한다. 다른 어떤 권한 판단에도 쓰지 않으며
+  `middleware.ts` 의 보호 경로를 넓히지 않는다. GPS 필수 + 사이트 반경 검증은 그대로다.
 - `attendance_sessions`: own (`user_id = auth.uid()`) or privileged admin (review queue / dashboard).
 - `attendance_breaks`: session owner (resolved via the parent session) or privileged admin.
 - `attendance_attempt_logs`: **privileged admins only** (diagnostics; no payroll effect).

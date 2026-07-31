@@ -8,6 +8,7 @@ import { getProjectDetail, type ProjectDetailData } from "@/lib/projects";
 import {
   getShareableUsers,
   getTaskDetail,
+  getVisibleTasks,
   normalizeTaskDateTime,
   resolveRecurrenceRule,
   taskAnchorDate,
@@ -18,11 +19,13 @@ import {
   tokyoToday,
   ymdShift,
   type TaskDetail,
+  type TaskRecord,
 } from "@/lib/tasks";
 import {
   canMoveRecurringTo,
   isStandardRecurrence,
   outstandingOverdueOccurrences,
+  recurringOccurrencesInRange,
 } from "@/lib/tasks-recurrence";
 import {
   clearOccurrenceState,
@@ -41,7 +44,7 @@ export type TaskActionResult = { ok: true; id?: string } | { ok: false; error: s
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentAppSession>>>;
 
-const PRIORITIES = new Set(["normal", "important", "urgent"]);
+const PRIORITIES = new Set(["normal", "important", "urgent", "medium"]);
 const CONSOLE_PATH = "/admin/tasks";
 
 // Session + org-context guard for the result-returning console actions (no redirect).
@@ -432,6 +435,57 @@ export async function skipConsoleOverdue(taskId: string): Promise<TaskActionResu
   return { ok: true };
 }
 
+/**
+ * 반복 작업의 **한 회차만** 건너뛰기 / 되돌리기 (2026-07-30) — 모바일 `skipOccurrenceOn` 과 같은 규칙.
+ *
+ * 목록의 삭제는 `tasks` 행을 지워 모든 날짜에서 사라지게 한다. 반복 업무에는 "그날만 못 한다"가
+ * 흔하므로 회차 단위 건너뛰기를 따로 둔다. 저장은 기존 `task_occurrence_state` 의 `skipped`.
+ *
+ * 날짜는 **클라이언트를 믿지 않고** 반복 규칙에서 재계산해 실제 회차인지 확인한다.
+ */
+function isConsoleOccurrenceDate(task: TaskDetail, occurrenceDate: string): boolean {
+  if (!isStandardRecurrence(task.recurrenceRule)) return false;
+  const anchor = recurringAnchorDate(task);
+  if (!anchor) return false;
+  return (
+    recurringOccurrencesInRange(task.recurrenceRule, anchor, occurrenceDate, occurrenceDate).length > 0
+  );
+}
+
+export async function skipConsoleOccurrence(
+  taskId: string,
+  occurrenceDate: string,
+): Promise<TaskActionResult> {
+  const date = String(occurrenceDate ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "invalid_date" };
+  const resolved = await resolveTask(taskId);
+  if (!resolved) return { ok: false, error: "not_found" };
+  const { session, task } = resolved;
+  if (!isConsoleOccurrenceDate(task, date)) return { ok: false, error: "invalid_date" };
+  await skipOccurrences({ taskId: task.id, organizationId: session.organization.id, dates: [date] });
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
+/**
+ * 건너뛰기 되돌리기. `clearOccurrenceState` 는 상태 종류를 가리지 않으므로, 토스트가 떠 있는 사이
+ * 같은 회차가 완료됐다면 그 완료까지 풀린다(회차 상태 칸이 하나뿐이라 종류별 삭제가 불가능).
+ */
+export async function unskipConsoleOccurrence(
+  taskId: string,
+  occurrenceDate: string,
+): Promise<TaskActionResult> {
+  const date = String(occurrenceDate ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "invalid_date" };
+  const resolved = await resolveTask(taskId);
+  if (!resolved) return { ok: false, error: "not_found" };
+  const { task } = resolved;
+  if (!isConsoleOccurrenceDate(task, date)) return { ok: false, error: "invalid_date" };
+  await clearOccurrenceState(task.id, date);
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
 export async function carryConsoleOverdueToToday(taskId: string): Promise<TaskActionResult> {
   const resolved = await resolveTask(taskId);
   if (!resolved) return { ok: false, error: "not_found" };
@@ -586,7 +640,14 @@ export async function updateConsoleTaskCore(input: {
   return { ok: true };
 }
 
-// ── 5. Reschedule (participant) ────────────────────────────────────────────────
+// ── 5. Reschedule (author only) ────────────────────────────────────────────────
+/**
+ * 작성자 전용이다(2026-07-31 수정). `resolveTask` 는 "이 작업을 **볼 수** 있는가"(참여자 포함)만
+ * 증명하므로, 예전에는 공유만 받은 참여자가 남의 작업 마감일·시간·반복 주기를 바꿀 수 있었다.
+ * 날짜를 비우면 아래에서 `recurrence_*` 까지 지우므로 반복 시리즈를 통째로 해제하는 것도 가능했다.
+ * 모바일의 같은 조작(`updateTaskCore`)은 처음부터 작성자 전용이라 두 화면의 권한이 어긋나 있었다.
+ * 오늘/내일로 이동(`moveConsoleToToday`/`Tomorrow`)은 모바일에서도 참여자에게 열려 있어 그대로 둔다.
+ */
 export async function rescheduleConsoleTask(
   taskId: string,
   input: { date: string; time: string; durationMinutes: number | null; repeat: string },
@@ -594,6 +655,7 @@ export async function rescheduleConsoleTask(
   const resolved = await resolveTask(taskId);
   if (!resolved) return { ok: false, error: "not_found" };
   const { session, task } = resolved;
+  if (task.createdByUserId !== session.user.id) return { ok: false, error: "forbidden" };
 
   const date = input.date.trim();
   const time = input.time.trim();
@@ -652,6 +714,87 @@ export async function rescheduleConsoleTask(
   return { ok: true };
 }
 
+// ── 5b. 지연 일괄 처리 (2026-07-31) ────────────────────────────────────────────
+/**
+ * 지연 배너의 "일정 변경" / "지난 미완료 삭제"는 화면에 보이던 목록을 그대로 서버로 넘긴다.
+ * 그 목록을 그대로 믿으면 화면 밖의 남의 작업 id 를 끼워 넣어도 통과하므로, 모바일
+ * (`rescheduleOverdueTo` / `dismissOverdueTasks`)과 **같은 규칙으로 서버에서 다시 계산한다**:
+ * 내가 만든 · 프로젝트 밖 · 활성 · 마감 토쿄일이 오늘 이전인 **일회성** 작업만 대상.
+ *
+ * 반복의 지연은 회차 단위(`task_occurrence_state`)라 여기서 제외한다 —
+ * `carryConsoleOverdueToToday` / `skipConsoleOverdue` 가 따로 처리한다.
+ */
+function isConsoleOverdueOwned(t: TaskRecord, today: string, userId: string): boolean {
+  if (t.projectId || t.createdByUserId !== userId) return false;
+  if (t.status === "completed" || t.status === "cancelled") return false;
+  if (isStandardRecurrence(t.recurrenceRule)) return false;
+  const due = tokyoDateOf(t.dueAt);
+  return !!due && due < today;
+}
+
+/** 선택한 지연 작업들을 `targetDate`(YYYY-MM-DD, Tokyo)로 옮긴다. 각 작업의 시각은 보존한다. */
+export async function rescheduleConsoleOverdue(
+  targetDate: string,
+  taskIds: string[],
+): Promise<TaskActionResult> {
+  const session = await resolveSession();
+  if (!session) return { ok: false, error: "auth" };
+  const date = String(targetDate ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "invalid_date" };
+  const allowed = new Set((taskIds ?? []).map((v) => String(v ?? "").trim()).filter(Boolean));
+  if (allowed.size === 0) return { ok: true };
+  const today = tokyoToday();
+  const targets = (await getVisibleTasks(session)).filter(
+    (t) => allowed.has(t.id) && isConsoleOverdueOwned(t, today, session.user.id),
+  );
+  if (targets.length === 0) return { ok: true };
+
+  const supabase = getSupabaseServiceClient();
+  await Promise.all(
+    targets.map((t) =>
+      supabase
+        .from("tasks")
+        .update({
+          due_at: new Date(`${date}T${t.timeLabel || "00:00"}:00+09:00`).toISOString(),
+          scheduled_date: null,
+          is_inbox: false,
+        } as never)
+        .eq("id", t.id)
+        .eq("organization_id", session.organization.id),
+    ),
+  );
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
+}
+
+/** `deletedIds` 는 `restoreConsoleTasks` 로 되돌릴 수 있는 id 들(전부 내가 만든 작업이다). */
+export type OverdueBulkResult =
+  | { ok: true; deletedIds: string[] }
+  | { ok: false; error: string };
+
+/** 선택한 지연 작업들을 소프트 삭제(실행 취소 가능). 대상 판정은 위와 동일하게 서버에서 재계산. */
+export async function dismissConsoleOverdue(taskIds: string[]): Promise<OverdueBulkResult> {
+  const session = await resolveSession();
+  if (!session) return { ok: false, error: "auth" };
+  const allowed = new Set((taskIds ?? []).map((v) => String(v ?? "").trim()).filter(Boolean));
+  if (allowed.size === 0) return { ok: true, deletedIds: [] };
+  const today = tokyoToday();
+  const ids = (await getVisibleTasks(session))
+    .filter((t) => allowed.has(t.id) && isConsoleOverdueOwned(t, today, session.user.id))
+    .map((t) => t.id);
+  if (ids.length === 0) return { ok: true, deletedIds: [] };
+
+  const supabase = getSupabaseServiceClient();
+  const { error } = await supabase
+    .from("tasks")
+    .update({ deleted_at: new Date().toISOString() } as never)
+    .in("id", ids)
+    .eq("organization_id", session.organization.id);
+  if (error) return { ok: false, error: "delete_failed" };
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true, deletedIds: ids };
+}
+
 // ── 6. Share / assign as directive (author only) ──────────────────────────────
 export async function shareConsoleTask(
   taskId: string,
@@ -661,9 +804,11 @@ export async function shareConsoleTask(
   const resolved = await resolveTask(taskId);
   if (!resolved) return { ok: false, error: "not_found" };
   const { session, task } = resolved;
-  if (task.createdByUserId !== session.user.id) return { ok: false, error: "forbidden" };
   // Project tasks are governed by project membership, not per-task sharing.
   if (task.projectId) return { ok: false, error: "forbidden" };
+  const isAuthor = task.createdByUserId === session.user.id;
+  const isParticipant = task.participants.some((p) => p.userId === session.user.id);
+  if (!isAuthor && !isParticipant) return { ok: false, error: "forbidden" };
 
   // Reconcile the participant set to exactly `userIds` (the picker shows existing participants
   // pre-checked, so unchecking one must REMOVE them — not just add). Author is never touched.
@@ -675,7 +820,13 @@ export async function shareConsoleTask(
     .filter((p) => p.role !== "author")
     .map((p) => p.userId);
   const toAdd = Array.from(desired).filter((uid) => !currentNonAuthor.includes(uid));
-  const toRemove = currentNonAuthor.filter((uid) => !desired.has(uid));
+  /**
+   * 참여자도 사람을 **부를 수** 있지만(Re-sharing, 2026-07-31 소유자 결정) **뺄 수는 없다.**
+   * 이 액션은 피커의 체크 상태를 그대로 반영하는 재조정이라, 그냥 열어 주면 참여자가 다른 참여자를
+   * 축출할 수 있게 된다 — 모바일 `shareTaskWithUsers` 는 추가 전용이라 애초에 그 힘이 없다.
+   * 그래서 작성자가 아니면 제거분을 버리고 추가만 적용한다("초대는 열되 축출은 잠근다").
+   */
+  const toRemove = isAuthor ? currentNonAuthor.filter((uid) => !desired.has(uid)) : [];
 
   const supabase = getSupabaseServiceClient();
   if (toRemove.length > 0) {
@@ -706,12 +857,24 @@ export async function shareConsoleTask(
     } as never);
   }
 
-  const isShared = desired.size > 0;
-  await supabase
-    .from("tasks")
-    .update({ is_shared: isShared, is_directive: asDirective && isShared } as never)
-    .eq("id", task.id)
-    .eq("organization_id", session.organization.id);
+  /**
+   * 작성자만 공유/지시 성격을 바꾼다. 참여자의 추가는 사람만 늘릴 뿐이라 `is_shared` 는 이미 true
+   * 이고, **지시 여부를 뒤집게 두면 참여자가 남의 평범한 공유를 "지시"로 승격**시킬 수 있다.
+   */
+  if (isAuthor) {
+    const isShared = desired.size > 0;
+    await supabase
+      .from("tasks")
+      .update({ is_shared: isShared, is_directive: asDirective && isShared } as never)
+      .eq("id", task.id)
+      .eq("organization_id", session.organization.id);
+  } else if (toAdd.length > 0) {
+    await supabase
+      .from("tasks")
+      .update({ is_shared: true } as never)
+      .eq("id", task.id)
+      .eq("organization_id", session.organization.id);
+  }
 
   if (toAdd.length > 0) {
     await notify(
@@ -941,7 +1104,12 @@ export type BulkDeleteResult =
 export async function bulkDeleteConsoleTasks(taskIds: string[]): Promise<BulkDeleteResult> {
   const session = await resolveSession();
   if (!session) return { ok: false, error: "auth" };
-  const ids = [...new Set((taskIds ?? []).map((v) => String(v ?? "").trim()).filter(Boolean))];
+  // 상한 200 — 모바일 `bulkDeleteTasks` 와 동일. 아래에서 id 마다 `getTaskDetail` 을 병렬로 부르므로
+  // "전체 선택" 후 삭제가 무제한이면 한 번의 클릭이 수백 건의 쿼리로 번진다.
+  const ids = [...new Set((taskIds ?? []).map((v) => String(v ?? "").trim()).filter(Boolean))].slice(
+    0,
+    200,
+  );
   if (!ids.length) return { ok: true, deletedIds: [], leftIds: [], failedIds: [] };
 
   const deletedIds: string[] = [];

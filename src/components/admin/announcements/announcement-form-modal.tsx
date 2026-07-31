@@ -18,6 +18,8 @@ import {
   X,
 } from "lucide-react";
 import { AdmDropdown, type AdmOption } from "@/components/admin/shared/adm-dropdown";
+import { AdminDatePicker } from "@/components/admin/shared/admin-date-picker";
+import { AdminTimePicker } from "@/components/admin/shared/admin-time-picker";
 import { useAdminPanelA11y } from "@/components/admin/shared/use-admin-panel-a11y";
 import {
   cleanupAnnouncementImagePaths,
@@ -31,7 +33,14 @@ import type {
   AdminAnnouncementRoleCount,
   AdminAnnouncementVM,
 } from "@/lib/admin-announcements";
-import { AnnCopy, Ic, RoleLabel, tpl } from "./announcements-console-shared";
+import {
+  AnnCopy,
+  Ic,
+  RoleLabel,
+  tokyoDateKey,
+  tokyoTimeHm,
+  tpl,
+} from "./announcements-console-shared";
 
 const BUCKET = "announcement-images";
 const MAX_IMAGES = 5;
@@ -44,6 +53,8 @@ type FormModalProps = {
   mode: "new" | "edit";
   item: AdminAnnouncementVM | null;
   t: AnnCopy;
+  /** BCP-47 tag for the shared date picker's month/weekday labels. */
+  localeTag: string;
   roleLabel: RoleLabel;
   organizations: { id: string; name: string }[];
   roleCountsByOrg: Record<string, AdminAnnouncementRoleCount[]>;
@@ -61,6 +72,7 @@ export function AnnouncementFormModal({
   mode,
   item,
   t,
+  localeTag,
   roleLabel,
   organizations,
   roleCountsByOrg,
@@ -83,9 +95,10 @@ export function AnnouncementFormModal({
   const [important, setImportant] = useState(item?.isImportant ?? false);
   const [pinned, setPinned] = useState(item?.isPinned ?? false);
   const [popup, setPopup] = useState(item?.popup ?? false);
-  const [popupDate, setPopupDate] = useState(item?.popupUntil?.slice(0, 10) ?? "");
+  // `popup_until` is stored as a UTC instant; the field edits a Tokyo wall clock.
+  const [popupDate, setPopupDate] = useState(() => tokyoDateKey(item?.popupUntil ?? null));
   const [popupTime, setPopupTime] = useState(
-    item?.popupUntil?.slice(11, 16) || "23:59",
+    () => tokyoTimeHm(item?.popupUntil ?? null) || "23:59",
   );
   const [existingImages, setExistingImages] = useState<string[]>(
     item?.images ?? [],
@@ -232,7 +245,11 @@ export function AnnouncementFormModal({
     }
 
     const imageUrls = [...existingImages, ...uploadedUrls];
-    const popupUntil = popup && popupDate ? `${popupDate}T${popupTime || "23:59"}` : null;
+    // Send an explicit +09:00 offset: the picked value is a Tokyo wall clock, and a
+    // bare "YYYY-MM-DDTHH:mm" would be resolved against the server's zone (UTC in
+    // production), extending the popup by 9 hours.
+    const popupUntil =
+      popup && popupDate ? `${popupDate}T${popupTime || "23:59"}:00+09:00` : null;
 
     startServerTransition(async () => {
       const result = await saveAnnouncementConsole({
@@ -553,16 +570,25 @@ export function AnnouncementFormModal({
                   </Ic>
                   {t.fPopupUntil}
                 </div>
+                {/* Shared console primitives only — a native <input type="date"> would
+                    render the browser's own calendar (CLAUDE.md §4a). */}
                 <div className="dtinput">
-                  <input
-                    type="date"
+                  <AdminDatePicker
                     value={popupDate}
-                    onChange={(e) => setPopupDate(e.target.value)}
+                    onChange={setPopupDate}
+                    localeTag={localeTag}
+                    ariaLabel={t.fPopupUntilDate}
+                    placeholder={t.fPopupUntilDatePh}
+                    labels={{
+                      prevMonth: t.datePickerPrevMonth,
+                      nextMonth: t.datePickerNextMonth,
+                      today: t.datePickerToday,
+                    }}
                   />
-                  <input
-                    type="time"
+                  <AdminTimePicker
                     value={popupTime}
-                    onChange={(e) => setPopupTime(e.target.value)}
+                    onChange={setPopupTime}
+                    ariaLabel={t.fPopupUntilTime}
                   />
                 </div>
               </div>

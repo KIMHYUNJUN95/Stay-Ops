@@ -23,9 +23,12 @@ import {
 
 export type ForceCompleteResult = {
   sessionId: string | null;
-  roomKey: string;
-  buildingRaw: string;
-  room: string;
+  /**
+   * canonical `cleaning_sessions.room_label` (예: "아라키초A 501_2").
+   * 카드에 보이는 `task.room` 은 아라키초 서브유닛이 축약된 표시용 값이라 저장에 쓰면
+   * 모바일 청소 큐와 매칭이 깨진다 — 반드시 canonical 라벨을 보낸다.
+   */
+  sessionRoomLabel: string;
   taskType: CleaningTaskType;
   staffId: string;
   start: string;
@@ -149,9 +152,7 @@ export function CleaningForceCompleteModal({
               onClick={() =>
                 onConfirm({
                   sessionId: task.sessionId,
-                  roomKey: task.roomKey,
-                  buildingRaw: task.buildingRaw,
-                  room: task.room,
+                  sessionRoomLabel: task.sessionRoomLabel,
                   taskType: task.type,
                   staffId,
                   start,

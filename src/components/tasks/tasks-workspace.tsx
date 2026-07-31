@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Archive,
+  Bell,
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
@@ -15,13 +16,14 @@ import {
   History,
   Inbox,
   ListChecks,
+  Megaphone,
   Plus,
   Repeat,
   RotateCcw,
   Search,
   SearchX,
+  SkipForward,
   Pencil,
-  Send,
   SlidersHorizontal,
   Sun,
   Sunrise,
@@ -43,12 +45,14 @@ import {
   reorderTasks,
   rescheduleOverdueTo,
   restoreTask,
+  skipOccurrenceOn,
   skipOverdueOccurrences,
+  unskipOccurrenceOn,
 } from "@/app/mobile/tasks/[id]/actions";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { TaskSchedulePicker } from "@/components/tasks/task-schedule-sheet";
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
-import { TaskCard } from "@/components/tasks/task-card";
+import { repeatLabel, TaskCard } from "@/components/tasks/task-card";
 import { ReorderableTaskList } from "@/components/tasks/reorderable-task-list";
 import { ReportSheet } from "@/components/tasks/report-sheet";
 import { ProjectsBoard } from "@/components/tasks/projects-board";
@@ -59,8 +63,10 @@ import type {
   OccurrenceOrderRecord,
   OccurrenceStateRecord,
   ShareableUser,
+  TaskCompletionRecord,
   TaskRecord,
 } from "@/lib/tasks";
+import { myOwn, recvInstr, sentInstr } from "@/lib/task-directives";
 import {
   isStandardRecurrence,
   type OccurrenceState,
@@ -75,7 +81,7 @@ type View =
   | "tomorrow"
   | "inbox"
   | "projects"
-  | "sent"
+  | "instr"
   | "completed"
   | "calendar";
 
@@ -88,7 +94,10 @@ function tokyoDateOf(iso: string | null): string | null {
     day: "2-digit",
   }).format(new Date(iso));
 }
-const PRIO_ORD: Record<string, number> = { urgent: 0, important: 1, normal: 2 };
+// 우선순위 사다리(2026-07-30, Todoist P1~P4): urgent > important > medium > normal(기본).
+// 콘솔 `src/components/admin/tasks/helpers.ts` 의 PRIO_ORD 와 반드시 같아야 한다 — `medium` 이
+// 빠져 있으면 폴백(3)으로 떨어져 normal 과 동점이 되고, 같은 작업이 두 화면에서 다르게 줄 선다.
+const PRIO_ORD: Record<string, number> = { urgent: 0, important: 1, medium: 2, normal: 3 };
 
 function stopSheetTouch(e: React.TouchEvent) {
   e.stopPropagation();
@@ -106,6 +115,7 @@ function ymdShift(ymd: string, n: number): string {
 
 export function TasksWorkspace({
   buildingLabels,
+  completions,
   copy,
   currentUserId,
   initialView,
@@ -120,6 +130,8 @@ export function TasksWorkspace({
   today,
 }: {
   buildingLabels: Record<string, string>;
+  /** 완료 로그(task_updates net). 완료·기록 탭과 그 배지의 유일한 기준 — @/lib/tasks 주석 참고. */
+  completions: TaskCompletionRecord[];
   copy: Copy;
   currentUserId: string;
   initialView: View;
@@ -138,10 +150,22 @@ export function TasksWorkspace({
   today: string;
 }) {
   const [view, setView] = useState<View>(initialView);
+  /** 지시 탭 안의 받은/보낸 세그먼트. */
+  const [instrTab, setInstrTab] = useState<"recv" | "sent">("recv");
   const [hiddenTaskIds, setHiddenTaskIds] = useState<Set<string>>(() => new Set());
-  const tasks = hiddenTaskIds.size
-    ? allTasks.filter((t) => !hiddenTaskIds.has(t.id))
-    : allTasks;
+  const visibleTasks = useMemo(
+    () => (hiddenTaskIds.size ? allTasks.filter((t) => !hiddenTaskIds.has(t.id)) : allTasks),
+    [allTasks, hiddenTaskIds],
+  );
+  // 오늘/내일/관리함/캘린더/기록은 **내 일정**이다. 내가 보낸 지시는 대상자의 일정이므로 빼고,
+  // "지시 › 보낸 지시"에서만 진행 상황을 본다(관리 콘솔 `myOwn` 과 같은 규칙 — @/lib/task-directives).
+  // 받은 지시는 내 일정이므로 그대로 남는다.
+  // useMemo 필수: 이 배열은 아래 회차 헬퍼들의 수동 메모이제이션 의존성으로 흘러가, 매 렌더 새
+  // 배열이면 React Compiler 가 그 메모이제이션을 보존하지 못하고 컴포넌트 전체를 포기한다.
+  const tasks = useMemo(
+    () => visibleTasks.filter((t) => myOwn(t, currentUserId)),
+    [visibleTasks, currentUserId],
+  );
   // Split mount vs. visibility so the sheet can play a slide/fade-OUT before unmounting.
   const [quickMounted, setQuickMounted] = useState(false); // present in the DOM
   const [quickShown, setQuickShown] = useState(false); // drives the in/out transition
@@ -204,10 +228,16 @@ export function TasksWorkspace({
   const [confirmIds, setConfirmIds] = useState<string[] | null>(null);
   const [deleting, startDelete] = useTransition();
 
-  const openPressMenu = useCallback((task: TaskRecord) => {
-    setPressTask(task);
-    requestAnimationFrame(() => requestAnimationFrame(() => setPressShown(true)));
-  }, []);
+  // 이 카드가 렌더된 회차 날짜(반복 작업일 때만). 삭제 시 "그 날짜만 건너뛰기"를 제안하려면 필요하다.
+  const [pressOcc, setPressOcc] = useState<string | null>(null);
+  const openPressMenu = useCallback(
+    (task: TaskRecord, occurrence?: { date: string; done: boolean }) => {
+      setPressTask(task);
+      setPressOcc(occurrence?.date ?? null);
+      requestAnimationFrame(() => requestAnimationFrame(() => setPressShown(true)));
+    },
+    [],
+  );
   const closePressMenu = useCallback(() => {
     setPressShown(false);
     setTimeout(() => setPressTask(null), 240);
@@ -258,20 +288,63 @@ export function TasksWorkspace({
     [],
   );
 
+  /**
+   * 반복 회차 건너뛰기 (2026-07-30).
+   *
+   * 목록의 삭제는 `tasks` 행을 지워 **모든 날짜**에서 사라지게 한다. 반복 작업에는 "오늘만 못 한다"가
+   * 흔하므로, 반복 카드를 회차로 보고 있을 때는 삭제 대신 무엇을 지울지 먼저 묻는다(`recurDelete` 시트).
+   * 건너뛴 회차는 `task_occurrence_state` 에 `skipped` 로 남고 반복 자체는 예정대로 계속된다.
+   *
+   * 낙관적 숨김은 하지 않는다 — 반복 회차 동작은 완료 토글과 마찬가지로 revalidate 후 목록이 다시
+   * 그려지는 방식을 따른다(행이 아니라 회차라 `hiddenTaskIds` 로는 단위가 맞지 않는다).
+   */
+  const [recurDelete, setRecurDelete] = useState<{ task: TaskRecord; date: string } | null>(null);
+  /** YYYY-MM-DD → "7/30 (목)". UTC 로 고정해 Tokyo 날짜 문자열이 하루 밀리지 않게 한다. */
+  const shortDateLabel = useCallback(
+    (ymd: string) =>
+      new Intl.DateTimeFormat(locale, {
+        month: "numeric",
+        day: "numeric",
+        weekday: "short",
+        timeZone: "UTC",
+      }).format(new Date(`${ymd}T00:00:00Z`)),
+    [locale],
+  );
+  const [, startSkip] = useTransition();
+  const [skipUndo, setSkipUndo] = useState<{ taskId: string; date: string } | null>(null);
+  const skipUndoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runSkipOccurrence = useCallback(
+    (taskId: string, date: string) => {
+      setRecurDelete(null);
+      startSkip(async () => {
+        await skipOccurrenceOn(taskId, date);
+      });
+      if (skipUndoTimer.current) clearTimeout(skipUndoTimer.current);
+      setSkipUndo({ taskId, date });
+      skipUndoTimer.current = setTimeout(() => setSkipUndo(null), 6000);
+    },
+    [],
+  );
+  const undoSkipOccurrence = useCallback(() => {
+    setSkipUndo((cur) => {
+      if (cur)
+        startSkip(async () => {
+          await unskipOccurrenceOn(cur.taskId, cur.date);
+        });
+      return null;
+    });
+  }, []);
+
   // --- Overdue prompt (Today tab): reschedule / clear past unfinished.
   const [overduePending, startOverdue] = useTransition();
   const [overdueConfirm, setOverdueConfirm] = useState(false);
   const [overdueRescheduleOpen, setOverdueRescheduleOpen] = useState(false);
   const [overdueSelection, setOverdueSelection] = useState<Set<string>>(new Set());
-
-  // Overdue bulk reschedule handler — applies the chosen date to every selected overdue task.
-  // The date is picked in the shared TaskSchedulePicker (date variant) rendered at the top-level return.
-  const rescheduleOverdue = (targetDate: string) =>
-    startOverdue(async () => {
-      await rescheduleOverdueTo(targetDate, [...overdueSelection]);
-      setOverdueRescheduleOpen(false);
-      setOverdueSelection(new Set());
-    });
+  /**
+   * 지연 섹션의 일괄 선택 모드 (2026-07-31). 꺼져 있으면 지연 카드는 평범한 카드다 — 탭하면 상세가
+   * 열리고 롱프레스로 메뉴가 뜬다. 예전엔 이 섹션이 항상 선택 모드로 렌더돼 카드가 통째로 죽어 있었다.
+   */
+  const [overdueSelectMode, setOverdueSelectMode] = useState(false);
 
   // --- Quick complete (status circle tap on any card) + undo toast.
   const [, startComplete] = useTransition();
@@ -408,11 +481,14 @@ export function TasksWorkspace({
     return a === ymd;
   };
   // 이 날짜에 미완료 반복 회차가 떠야 하는가(완료 회차 제외).
+  // 상태 행이 있으면 그 회차는 **해결된 것**이다 — completed(완료) · skipped(건너뜀) · moved(가져옴).
+  // 예전엔 completed 만 걸러서, 건너뛴 회차가 그대로 목록에 남았을 것이다(2026-07-30 회차 건너뛰기
+  // 도입 시 발견). `outstandingOverdueOccurrences` 의 "행이 있으면 해결" 규약과도 이제 일치한다.
   const openOccursOn = (t: TaskRecord, ymd: string) =>
     isActive(t) &&
     isStandardRecurrence(t.recurrenceRule) &&
     occursOn(t, ymd) &&
-    occStateOf(t.id, ymd) !== "completed";
+    !occStateOf(t.id, ymd);
   // 미해결 지연 회차 날짜들(과거·상태 없음).
   const overdueOccDates = (t: TaskRecord) =>
     isStandardRecurrence(t.recurrenceRule)
@@ -459,7 +535,10 @@ export function TasksWorkspace({
     return copy.nextLabel.replace("{date}", label);
   })();
   const prioSort = (a: TaskRecord, b: TaskRecord) =>
-    (PRIO_ORD[a.priority] ?? 2) - (PRIO_ORD[b.priority] ?? 2);
+    (PRIO_ORD[a.priority] ?? 3) - (PRIO_ORD[b.priority] ?? 3);
+  /** 하루 안의 정렬 — 시간이 있는 항목이 먼저(빠른 시각 순), 없으면 우선순위. 콘솔 `tasksOn` 과 동일. */
+  const timeThenPrio = (a: TaskRecord, b: TaskRecord) =>
+    (a.timeLabel ?? "99").localeCompare(b.timeLabel ?? "99") || prioSort(a, b);
   // Today-view ordering: a manual drag-reorder (sort_order) wins; unranked tasks (sort_order null)
   // fall back to priority, preserving the original behaviour until the user drags. Ranked tasks
   // always sort before unranked ones.
@@ -515,8 +594,15 @@ export function TasksWorkspace({
 
   const matchesFilter = (t: TaskRecord) => {
     if (hasSearch) {
-      // case-insensitive partial match across title + author name
-      if (!`${t.title} ${t.authorName}`.toLowerCase().includes(q)) return false;
+      // case-insensitive partial match across title + author name + tags. 태그는 콘솔
+      // (`helpers.ts` matchQuery)이 이미 검색 대상이라, 빠져 있으면 "#체크아웃" 으로 찾던 작업이
+      // 모바일에서만 안 나온다. 필드를 이어붙이지 않고 각각 확인해 경계를 넘는 오탐을 막는다.
+      if (
+        !t.title.toLowerCase().includes(q) &&
+        !t.authorName.toLowerCase().includes(q) &&
+        !t.tags.some((g) => g.toLowerCase().includes(q))
+      )
+        return false;
     }
     if (hasDate) {
       const a = anchor(t);
@@ -530,8 +616,10 @@ export function TasksWorkspace({
     }
     return true;
   };
+  // 항상 **새 배열**을 돌려준다. 호출부가 곧바로 `.sort()` 로 제자리 정렬을 하는데, 필터가 꺼져
+  // 있을 때 원본을 그대로 넘기면 뷰 밖에서 공유하는 base 목록(`todayBase` 등)을 뒤섞게 된다.
   const applyFilter = (list: TaskRecord[]) =>
-    filterActive ? list.filter(matchesFilter) : list;
+    filterActive ? list.filter(matchesFilter) : list.slice();
   const clearFilters = () => {
     setSearch("");
     setDateMode("single");
@@ -566,7 +654,7 @@ export function TasksWorkspace({
     { key: "tomorrow", label: copy.viewTomorrow, icon: Sunrise },
     { key: "inbox", label: copy.viewInbox, icon: Archive },
     { key: "projects", label: copy.viewProjects, icon: FolderOpen },
-    { key: "sent", label: copy.viewSent, icon: Send },
+    { key: "instr", label: copy.viewInstr, icon: Megaphone },
     { key: "completed", label: copy.viewCompleted, icon: CheckCircle2 },
     { key: "calendar", label: copy.viewCalendar, icon: CalendarDays },
   ];
@@ -592,23 +680,103 @@ export function TasksWorkspace({
     onCompleteToggle: handleCompleteToggle,
   };
 
-  // Per-tab counts (same base filters as each view).
+  // 지시 목록 — `tasks` 는 보낸 지시를 이미 뺐으므로 원본(`visibleTasks`)에서 뽑는다.
+  const recvInstrTasks = visibleTasks.filter((t) => recvInstr(t, currentUserId));
+  const sentInstrTasks = visibleTasks.filter((t) => sentInstr(t, currentUserId));
+  /** 아직 손대지 않은 받은 지시 = 탭 배지. 탭을 열지 않아도 밀린 지시가 보인다. */
+  const recvUnconfirmed = recvInstrTasks.filter((t) => t.status === "open").length;
+
+  // ── 뷰별 base 목록 ────────────────────────────────────────────────────────────────
+  // 뷰 본문(`viewBody`)·탭 배지·"전체 선택"이 **같은 배열**을 보도록 뷰 밖에서 한 번만 계산한다.
+  // 예전에는 셋이 각자 필터를 다시 써서, 오늘 탭에 3건이 보이는데 배지는 다른 수를 쓰고 삭제 확인창은
+  // 관리함까지 포함한 83건을 말하는 상태였다(2026-07-31 수정).
+  const todayOverdueBase = tasks.filter(isOverdue);
+  const todayBase = tasks.filter(isToday);
+  // 반복 회차: 오늘 미완료 회차 + 반복 지연 backlog(작업별 1건).
+  const todayRecBase = tasks.filter((t) => openOccursOn(t, today));
+  const todayRecOverdueBase = tasks.filter((t) => overdueOccDates(t).length > 0);
+  const tomorrowBase = tasks.filter(isTomorrow);
+  const tomorrowRecBase = tasks.filter((t) => openOccursOn(t, tomorrowDate));
+  const inboxBase = tasks.filter((t) => isActive(t));
+  // 지연 일괄 처리는 작성자 본인 것만 서버가 받아준다 — 남의 작업을 대상에 넣으면 버튼의 건수와
+  // 실제 처리 건수가 갈린다. 일정 변경 핸들러도 같은 목록을 봐야 해서 뷰 밖에 둔다.
+  const ownedOverdueIds = todayOverdueBase
+    .filter((t) => t.createdByUserId === currentUserId)
+    .map((t) => t.id);
+
+  // Overdue bulk reschedule handler — applies the chosen date to every targeted overdue task.
+  // The date is picked in the shared TaskSchedulePicker (date variant) rendered at the top-level
+  // return. 선택 모드가 아니면 내 지연 전체가 대상(오늘 뷰의 `overdueTargets` 와 같은 규칙).
+  const rescheduleOverdue = (targetDate: string) =>
+    startOverdue(async () => {
+      await rescheduleOverdueTo(
+        targetDate,
+        overdueSelectMode ? [...overdueSelection] : ownedOverdueIds,
+      );
+      setOverdueRescheduleOpen(false);
+      setOverdueSelectMode(false);
+      setOverdueSelection(new Set());
+    });
+
+  // 완료·기록 — 완료 **로그**(task_updates net) 기준. 2026-07-30 롤포워드 폐지 이후 반복 완료는
+  // 행의 status 를 건드리지 않고 `task_occurrence_state` + 로그에만 남으므로, status=completed 만
+  // 보면 반복 완료가 목록에서 통째로 사라진다. 같은 화면의 업무일지 버튼은 이미 같은 로그를 읽고
+  // 있어서, 목록엔 없는 작업이 보고서엔 찍히고 그날 완료가 반복뿐이면 날짜 그룹조차 안 생겼다.
+  // 콘솔 `completedView` 와 같은 소스를 쓴다.
+  const completedTaskById = new Map<string, TaskRecord>();
+  for (const t of tasks) completedTaskById.set(t.id, t);
+  for (const t of projectCompletedTasks) completedTaskById.set(t.id, t);
+  const completionRows = completions
+    .map((c) => ({ completion: c, task: completedTaskById.get(c.taskId) }))
+    .filter((r): r is { completion: TaskCompletionRecord; task: TaskRecord } => !!r.task);
+
+  // Per-tab counts (same base lists as each view).
   const tabCounts: Record<View, number> = {
-    today: tasks.filter(
-      (t) => isOverdue(t) || isToday(t) || openOccursOn(t, today) || overdueOccDates(t).length > 0,
-    ).length,
-    tomorrow: tasks.filter((t) => isTomorrow(t) || openOccursOn(t, tomorrowDate)).length,
+    // 목록의 **줄 수**와 맞춘다: 반복 지연 backlog 와 오늘 회차를 동시에 가진 작업은 두 줄로
+    // 렌더되므로 2로 세야 한다(콘솔 `todayCount` 와 같은 섹션별 합산 — 한 번의 filter 로 세면 1).
+    today:
+      todayOverdueBase.length +
+      todayBase.length +
+      todayRecBase.length +
+      todayRecOverdueBase.length,
+    tomorrow: tomorrowBase.length + tomorrowRecBase.length,
     // Archive = every active todo in one management list.
-    inbox: tasks.filter((t) => isActive(t)).length,
+    inbox: inboxBase.length,
     // Projects badge stays 0 until the Projects data layer lands (deferred).
     projects: 0,
-    sent: tasks.filter((t) => t.createdByUserId === currentUserId && t.isShared).length,
-    // Completed badge = today's (Tokyo) completions, matching the report's default day.
-    completed: tasks.filter(
-      (t) => t.status === "completed" && tokyoDateOf(t.completedAt) === today,
-    ).length,
+    instr: recvUnconfirmed,
+    // Completed badge = today's (Tokyo) completions, from the same completion log the list uses.
+    completed: completionRows.filter((r) => r.completion.day === today).length,
     calendar: 0,
   };
+
+  // 캘린더 — 보고 있는 달의 회차 목록. 그리드 마커·선택된 날짜·월 아젠다·"전체 선택"이 모두 이
+  // 배열 하나를 본다(예전엔 `renderCalendar` 안에서만 계산해 바깥에서 다시 쓸 수 없었다).
+  const calMonthPrefix = `${calMonth.y}-${String(calMonth.m).padStart(2, "0")}`;
+  const calDaysIn = new Date(Date.UTC(calMonth.y, calMonth.m, 0)).getUTCDate();
+  const calMonthStart = `${calMonthPrefix}-01`;
+  const calMonthEnd = `${calMonthPrefix}-${String(calDaysIn).padStart(2, "0")}`;
+  // Todoist-style virtual previews: a recurring task is a single row, but the calendar shows it
+  // on every occurrence within the visible month (computed from its rule — no extra rows). Each
+  // virtual occurrence points back to the same real task (tap/edit affects the series).
+  const calOccurrences: { iso: string; task: TaskRecord }[] = [];
+  for (const t of tasks) {
+    if (!isActive(t)) continue;
+    const a = anchor(t);
+    if (!a) continue;
+    if (isStandardRecurrence(t.recurrenceRule)) {
+      if (hideRecurring) continue; // "반복 숨기기" 토글: 고정 반복 회차 제외.
+      for (const iso of recurringOccurrencesInRange(t.recurrenceRule, a, calMonthStart, calMonthEnd))
+        calOccurrences.push({ iso, task: t });
+    } else if (a >= calMonthStart && a <= calMonthEnd) {
+      calOccurrences.push({ iso: a, task: t });
+    }
+  }
+  // 하루 안 정렬은 시각 → 우선순위(콘솔 `tasksOn` 과 동일 규칙). 정렬을 빼면 서버가 준
+  // created_at desc 가 그대로 남아, 같은 날의 09:00 과 18:00 이 뒤죽박죽으로 읽힌다.
+  const calByDay = new Map<string, TaskRecord[]>();
+  for (const o of calOccurrences) calByDay.set(o.iso, [...(calByDay.get(o.iso) ?? []), o.task]);
+  for (const list of calByDay.values()) list.sort(timeThenPrio);
 
   const sectionHead = (label: string, n: number, tone?: "over") => (
     <div className="mb-2.5 mt-1 flex items-center gap-2 px-0.5">
@@ -663,22 +831,17 @@ export function TasksWorkspace({
     }
 
     if (view === "today") {
-      const baseOver = tasks.filter(isOverdue);
-      const baseToday = tasks.filter(isToday);
-      // 반복 회차(2026-07-30): 오늘 미완료 회차 + 반복 지연 backlog(작업별 1건).
-      const baseRecToday = tasks.filter((t) => openOccursOn(t, today));
-      const baseRecOverdue = tasks.filter((t) => overdueOccDates(t).length > 0);
       if (
-        !baseOver.length &&
-        !baseToday.length &&
-        !baseRecToday.length &&
-        !baseRecOverdue.length
+        !todayOverdueBase.length &&
+        !todayBase.length &&
+        !todayRecBase.length &&
+        !todayRecOverdueBase.length
       )
         return emptyState(Sun, copy.todayEmptyTitle, copy.todayEmptySub);
-      const over = applyFilter(baseOver).sort(orderSort);
-      const todays = applyFilter(baseToday).sort(orderSort);
-      const recToday = applyFilter(baseRecToday).sort(orderSort);
-      const recOverdue = applyFilter(baseRecOverdue).sort(orderSort);
+      const over = applyFilter(todayOverdueBase).sort(orderSort);
+      const todays = applyFilter(todayBase).sort(orderSort);
+      const recToday = applyFilter(todayRecBase).sort(orderSort);
+      const recOverdue = applyFilter(todayRecOverdueBase).sort(orderSort);
       if (!over.length && !todays.length && !recToday.length && !recOverdue.length)
         return noMatchState();
       // Drag-reorder is offered only on the plain Today list — disabled while a search/date filter
@@ -686,12 +849,18 @@ export function TasksWorkspace({
       const reorderDisabled = filterActive || selectMode;
       // Overdue prompt: only the caller's own overdue tasks are actionable (the bulk actions are
       // author-scoped server-side). Recurring tasks keep their next occurrence; one-offs move/delete.
-      const ownedOverdueIds = baseOver
-        .filter((t) => t.createdByUserId === currentUserId)
-        .map((t) => t.id);
       const ownedOverdue = ownedOverdueIds.length;
-      const selectedCount = overdueSelection.size;
-      const allOverdueSelected = selectedCount === ownedOverdue && ownedOverdue > 0;
+      /**
+       * 일괄 처리 대상 (2026-07-31).
+       *
+       * 지연 카드는 예전에 **항상** selectMode 로 렌더돼서, 탭하면 선택 토글이 되고 롱프레스가 죽었다.
+       * 남이 만든 지연 작업은 토글마저 무시돼(작성자만 대상) 카드를 눌러도 아무 반응이 없었다.
+       * 이제 기본은 평범한 카드(탭 → 상세, 롱프레스 → 메뉴)이고, 섹션 헤더의 "전체 선택"으로만
+       * 일괄 선택 모드에 들어간다. 선택 모드가 아니면 프롬프트 버튼은 내 지연 전체를 대상으로 한다 —
+       * 프롬프트 제목("지연된 N건")이 말하는 범위 그대로라, 선택을 안 해도 버튼이 죽지 않는다.
+       */
+      const overdueTargets = overdueSelectMode ? [...overdueSelection] : ownedOverdueIds;
+      const selectedCount = overdueSelectMode ? overdueSelection.size : 0;
 
       const toggleOverdueTask = (task: TaskRecord) => {
         // Only the caller's own overdue tasks are actionable (bulk actions are author-scoped
@@ -703,13 +872,22 @@ export function TasksWorkspace({
         else next.add(task.id);
         setOverdueSelection(next);
       };
-      const toggleAllOverdue = () =>
-        setOverdueSelection(allOverdueSelected ? new Set() : new Set(ownedOverdueIds));
+      // 진입 시 내 지연을 전부 선택해 둔다(가장 흔한 의도). 빠질 것만 탭으로 해제하면 된다.
+      const toggleOverdueSelectMode = () => {
+        if (overdueSelectMode) {
+          setOverdueSelectMode(false);
+          setOverdueSelection(new Set());
+        } else {
+          setOverdueSelectMode(true);
+          setOverdueSelection(new Set(ownedOverdueIds));
+        }
+      };
 
       const clearOverdue = () =>
         startOverdue(async () => {
-          await dismissOverdueTasks([...overdueSelection]);
+          await dismissOverdueTasks(overdueTargets);
           setOverdueConfirm(false);
+          setOverdueSelectMode(false);
           setOverdueSelection(new Set());
         });
       // 반복 지연 backlog(작업별 1건): 오늘로 가져오기 / 삭제(skip). 서버가 revalidate.
@@ -792,7 +970,7 @@ export function TasksWorkspace({
                   <>
                     <button
                       className="inline-flex h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl bg-primary px-3 text-[13px] font-bold text-primary-foreground shadow-[0_10px_22px_-12px_hsl(var(--primary-hsl)/0.65)] transition-transform active:scale-[0.98] disabled:opacity-50"
-                      disabled={overduePending || selectedCount === 0}
+                      disabled={overduePending || overdueTargets.length === 0}
                       onClick={() => setOverdueRescheduleOpen(true)}
                       type="button"
                     >
@@ -802,7 +980,7 @@ export function TasksWorkspace({
                     </button>
                     <button
                       className="inline-flex h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-border bg-background px-3 text-[13px] font-bold text-muted-foreground transition-colors hover:bg-muted/40 disabled:opacity-50"
-                      disabled={overduePending || selectedCount === 0}
+                      disabled={overduePending || overdueTargets.length === 0}
                       onClick={() => setOverdueConfirm(true)}
                       type="button"
                     >
@@ -818,7 +996,8 @@ export function TasksWorkspace({
 
           {over.length > 0 ? (
             <>
-              {/* Overdue section header with select-all toggle */}
+              {/* Overdue section header. The button enters/leaves 지연 일괄 선택 모드 — 전역
+                  선택 모드(상단 선택 바)일 때는 그쪽이 목록 전체를 이미 쥐고 있어 숨긴다. */}
               <div className="mb-2.5 mt-1 flex items-center gap-2 px-0.5">
                 <span className="text-[11px] font-black uppercase tracking-[0.06em] text-rose-600">
                   {copy.secOverdue}
@@ -827,22 +1006,32 @@ export function TasksWorkspace({
                   {over.length}
                 </span>
                 <span className="h-px flex-1 bg-border" />
-                <button
-                  className="text-[11px] font-bold text-primary transition-opacity active:opacity-60"
-                  onClick={toggleAllOverdue}
-                  type="button"
-                >
-                  {allOverdueSelected ? copy.overdueDeselectAll : copy.overdueSelectAll}
-                </button>
+                {/* 검색/날짜 필터 중에는 목록이 부분집합이라 숨긴다 — 안 그러면 화면에 없는
+                    지연 작업까지 선택된다(같은 이유로 위 프롬프트도 이때 숨는다). */}
+                {!selectMode && !filterActive && ownedOverdue > 0 ? (
+                  <button
+                    className="text-[11px] font-bold text-primary transition-opacity active:opacity-60"
+                    onClick={toggleOverdueSelectMode}
+                    type="button"
+                  >
+                    {overdueSelectMode ? copy.overdueDeselectAll : copy.overdueSelectAll}
+                  </button>
+                ) : null}
               </div>
+              {/* 일괄 선택 모드에서만 체크박스 카드가 된다. 그 밖에는 전역 cardProps 그대로 —
+                  탭하면 상세가 열리고 롱프레스로 메뉴가 뜬다(전역 선택 모드도 그대로 통과). */}
               <ReorderableTaskList
-                cardProps={{
-                  ...cardProps,
-                  selectMode: true,
-                  selectedIds: overdueSelection,
-                  onToggleSelect: toggleOverdueTask,
-                  swipe: false,
-                }}
+                cardProps={
+                  overdueSelectMode && !selectMode
+                    ? {
+                        ...cardProps,
+                        selectMode: true,
+                        selectedIds: overdueSelection,
+                        onToggleSelect: toggleOverdueTask,
+                        swipe: false,
+                      }
+                    : { ...cardProps, swipe: false }
+                }
                 disabled={true}
                 items={over}
                 onPersist={reorderTasks}
@@ -876,12 +1065,10 @@ export function TasksWorkspace({
     // Tomorrow (내일): same shape/features as Today (drag-reorder, chip layout), filtered to tasks
     // anchored tomorrow. Swipe here pulls a task back to today (see swipeActionForView).
     if (view === "tomorrow") {
-      const base = tasks.filter(isTomorrow);
-      const baseRec = tasks.filter((t) => openOccursOn(t, tomorrowDate));
-      if (base.length === 0 && baseRec.length === 0)
+      if (tomorrowBase.length === 0 && tomorrowRecBase.length === 0)
         return emptyState(Sunrise, copy.tomorrowEmptyTitle, copy.tomorrowEmptySub);
-      const list = applyFilter(base).sort(orderSort);
-      const recList = applyFilter(baseRec).sort(orderSort);
+      const list = applyFilter(tomorrowBase).sort(orderSort);
+      const recList = applyFilter(tomorrowRecBase).sort(orderSort);
       if (list.length === 0 && recList.length === 0) return noMatchState();
       const reorderDisabled = filterActive || selectMode;
       return (
@@ -900,7 +1087,7 @@ export function TasksWorkspace({
 
     // Archive (보관함): every active todo, managed in one place. Newest first.
     if (view === "inbox") {
-      const base = tasks.filter((t) => isActive(t));
+      const base = inboxBase;
       // 관리함은 수동 드래그 순서를 허용(2026-07-30). 랭크된(드래그된) 작업이 위, 미랭크는 최신순
       // (새 작업 top 유지). 드래그는 검색/필터·선택 모드가 아닐 때만.
       const list = applyFilter(base).sort(inboxOrderSort);
@@ -924,46 +1111,155 @@ export function TasksWorkspace({
       );
     }
 
-    if (view === "sent") {
-      const base = tasks.filter((t) => t.createdByUserId === currentUserId && t.isShared);
-      if (!base.length) return emptyState(Send, copy.sentEmptyTitle, copy.sentEmptySub);
-      const list = applyFilter(base).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    // 지시 — 받은/보낸 세그먼트. 상태 그룹은 관리 콘솔 `recvView`/`sentView` 와 같은 순서를 쓴다
+    // (지연 → 미확인 → 진행 중 → 완료). 사무실과 현장이 같은 분류를 보게 하는 것이 이 화면의 핵심.
+    if (view === "instr") {
+      const recv = instrTab === "recv";
+      const base = recv ? recvInstrTasks : sentInstrTasks;
+      const segment = (
+        <div className="mb-3 grid grid-cols-2 gap-1 rounded-[13px] bg-slate-100 p-1">
+          {(
+            [
+              ["recv", copy.instrRecv, Bell, recvUnconfirmed],
+              ["sent", copy.instrSent, Megaphone, sentInstrTasks.filter((t) => t.status !== "completed").length],
+            ] as const
+          ).map(([key, label, Icon, n]) => (
+            <button
+              className={cn(
+                "inline-flex h-[38px] items-center justify-center gap-1.5 rounded-[9px] text-[12.5px] font-extrabold transition-colors",
+                instrTab === key
+                  ? "bg-surface text-foreground shadow-[0_1px_4px_rgba(20,32,43,0.12)]"
+                  : "text-slate-500",
+              )}
+              key={key}
+              onClick={() => setInstrTab(key)}
+              type="button"
+            >
+              <Icon className="size-[15px]" aria-hidden="true" />
+              {label}
+              {n > 0 ? (
+                <span
+                  className={cn(
+                    "inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full px-1 text-[10.5px] font-extrabold leading-none tabular-nums",
+                    instrTab === key ? "bg-primary text-primary-foreground" : "bg-slate-200 text-slate-600",
+                  )}
+                >
+                  {n}
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      );
+      const note = (
+        <p className="mb-3 px-0.5 text-[12px] font-medium leading-relaxed text-muted-foreground">
+          {recv ? copy.instrRecvNote : copy.instrSentNote}
+        </p>
+      );
+      // 보낸 지시 화면에서 바로 지시를 만들 수 있어야 한다 — 상세 생성 폼을 지시 모드로 연다
+      // (`?directive=1` → 폼의 "지시로 보내기" 토글이 켜진 채 시작).
+      const sendCta = recv ? null : (
+        <Link
+          className="mb-3 flex items-center gap-2.5 rounded-2xl border border-dashed border-primary/40 bg-primary/[0.04] px-3.5 py-3 transition-colors active:bg-primary/10"
+          href="/mobile/tasks/new?directive=1"
+        >
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Megaphone className="size-4" aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1 text-sm font-extrabold text-foreground">
+            {copy.sendAsDirective}
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-primary/60" aria-hidden="true" />
+        </Link>
+      );
+      if (!base.length)
+        return (
+          <>
+            {segment}
+            {sendCta}
+            {recv
+              ? emptyState(Bell, copy.instrEmptyRecvTitle, copy.instrEmptyRecvSub)
+              : emptyState(Megaphone, copy.instrEmptySentTitle, copy.instrEmptySentSub)}
+          </>
+        );
+      const list = applyFilter(base);
+      if (!list.length)
+        return (
+          <>
+            {segment}
+            {noMatchState()}
+          </>
+        );
+      // 받은 지시만 "지연"을 따로 뽑는다. 보낸 지시의 지연은 대상자가 처리할 몫이라 상태 배지로 족하다.
+      const byDateThenPrio = (a: TaskRecord, b: TaskRecord) =>
+        (dueDateOf(a) ?? "9999").localeCompare(dueDateOf(b) ?? "9999") || prioSort(a, b);
+      const overdueList = recv ? list.filter((t) => isOverdue(t)) : [];
+      const rest = list.filter((t) => !overdueList.includes(t));
+      const groups: { label: string; items: TaskRecord[]; tone?: "over" }[] = [
+        { label: copy.instrSecOverdue, items: overdueList.sort(byDateThenPrio), tone: "over" },
+        {
+          label: recv ? copy.instrSecTodo : copy.instrSecUnconfirmed,
+          items: rest.filter((t) => t.status === "open").sort(byDateThenPrio),
+        },
+        {
+          label: copy.instrSecInProgress,
+          items: rest.filter((t) => t.status === "in_progress").sort(byDateThenPrio),
+        },
+        {
+          label: copy.instrSecCompleted,
+          items: rest
+            .filter((t) => t.status === "completed")
+            .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? "")),
+        },
+      ];
       return (
         <>
-          <p className="mb-3 px-0.5 text-[12px] font-medium text-muted-foreground">{copy.sentHint}</p>
-          {list.length === 0 ? (
-            noMatchState()
-          ) : (
-            <div className="flex flex-col gap-2">
-              {list.map((t) => (
-                <TaskCard key={t.id} task={t} sentMode swipe={false} {...cardProps} />
-              ))}
-            </div>
+          {segment}
+          {sendCta}
+          {note}
+          {groups.map(({ label, items, tone }) =>
+            items.length ? (
+              <div key={label}>
+                {sectionHead(label, items.length, tone)}
+                <div className="mb-1 flex flex-col gap-2">
+                  {items.map((t) => (
+                    <TaskCard
+                      key={t.id}
+                      task={t}
+                      instrMode={recv ? "recv" : "sent"}
+                      swipe={false}
+                      {...cardProps}
+                      // 보낸 지시는 대상자의 일정이다 — 지시자가 대신 완료 처리하지 않으므로 원을
+                      // 아예 렌더하지 않는다(TaskCard 는 onCompleteToggle 이 없으면 생략).
+                      onCompleteToggle={recv ? cardProps.onCompleteToggle : undefined}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null,
           )}
         </>
       );
     }
 
-    // 완료/기록: every completed task, grouped by completion day (Tokyo), newest day first. Each
+    // 완료/기록: every completion, grouped by the day it was logged (Tokyo), newest day first. Each
     // day header carries a 보고서 button that opens the AI daily-report sheet for that date.
     if (view === "completed") {
-      // Regular completed tasks come from `tasks` (project tasks already excluded); project
-      // completions are supplied separately. The filter pills pick which set(s) to show.
-      const regularCompleted = tasks.filter((t) => t.status === "completed");
-      const projectScoped =
-        completedFilter === "project"
-          ? projectCompletedTasks
-          : completedFilter === "regular"
-            ? regularCompleted
-            : [...regularCompleted, ...projectCompletedTasks];
-      if (regularCompleted.length === 0 && projectCompletedTasks.length === 0)
+      // 출처는 완료 로그(`completionRows`) — 행 status 가 아니다. 이유는 위 `completionRows` 주석 참고.
+      // 필터 pill 은 일반 작업(프로젝트 밖)과 프로젝트 작업을 가른다.
+      if (completionRows.length === 0)
         return emptyState(CheckCircle2, copy.completedEmptyTitle, copy.completedEmptySub);
-      const list = applyFilter(projectScoped);
-      const byDay = new Map<string, TaskRecord[]>();
-      for (const t of list) {
-        const k = tokyoDateOf(t.completedAt) ?? "";
-        if (!k) continue;
-        byDay.set(k, [...(byDay.get(k) ?? []), t]);
+      const scoped = completionRows.filter(({ task }) =>
+        completedFilter === "project"
+          ? !!task.projectId
+          : completedFilter === "regular"
+            ? !task.projectId
+            : true,
+      );
+      const list = scoped.filter(({ task }) => !filterActive || matchesFilter(task));
+      const byDay = new Map<string, typeof list>();
+      for (const row of list) {
+        byDay.set(row.completion.day, [...(byDay.get(row.completion.day) ?? []), row]);
       }
       const dayKeys = Array.from(byDay.keys()).sort((a, b) => b.localeCompare(a));
       const filterPills = (
@@ -1004,10 +1300,12 @@ export function TasksWorkspace({
               timeZone: "Asia/Tokyo",
             }).format(new Date(`${k}T00:00:00+09:00`));
             const dayIsToday = k === today;
+            // 로그 시각 기준 최신순. 반복 완료는 `completedAt`(행) 이 비어 있으므로 완료 로그의
+            // 타임스탬프를 쓴다 — 행 값으로 정렬하면 반복 완료가 전부 바닥으로 밀린다.
             const items = byDay
               .get(k)!
               .slice()
-              .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
+              .sort((a, b) => b.completion.at.localeCompare(a.completion.at));
             return (
               <div key={k}>
                 <div className="mb-2.5 flex items-center gap-2 px-0.5">
@@ -1038,9 +1336,31 @@ export function TasksWorkspace({
                   </button>
                 </div>
                 <div className="flex flex-col gap-2">
-                  {items.map((t) => (
-                    <TaskCard key={t.id} task={t} showDate={false} swipe={false} {...cardProps} />
-                  ))}
+                  {items.map(({ task, completion }) => {
+                    // 반복 완료는 행이 계속 `open` 이라 status 로는 완료로 그려지지 않는다. 그 날짜의
+                    // 회차로 넘겨 완료 표시(취소선 + 채운 원)를 살린다. 다만 되돌리기는 붙이지 않는다 —
+                    // 로그의 날짜가 회차 날짜와 다를 수 있어(지난 회차를 오늘 처리) 엉뚱한 회차를
+                    // 되살릴 위험이 있다. 방금 한 완료는 토스트의 "실행 취소"로 되돌린다.
+                    const recurringDone = isStandardRecurrence(task.recurrenceRule);
+                    return (
+                      <TaskCard
+                        key={`${task.id}|${completion.day}`}
+                        task={task}
+                        showDate={false}
+                        swipe={false}
+                        {...cardProps}
+                        {...(recurringDone
+                          ? {
+                              occurrence: { date: completion.day, done: true },
+                              onCompleteToggle: undefined,
+                              // 회차를 넘기면 롱프레스 메뉴가 "그 날짜만 건너뛰기"를 제안하는데,
+                              // 이미 완료된 날짜에는 의미가 없다 — 시리즈 메뉴로만 연다.
+                              onLongPress: (t: TaskRecord) => openPressMenu(t),
+                            }
+                          : null)}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -1056,28 +1376,11 @@ export function TasksWorkspace({
 
   function renderCalendar() {
     const { y, m } = calMonth;
-    const monthPrefix = `${y}-${String(m).padStart(2, "0")}`;
+    const monthPrefix = calMonthPrefix;
     const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
-    const daysIn = new Date(Date.UTC(y, m, 0)).getUTCDate();
-    const monthStart = `${monthPrefix}-01`;
-    const monthEnd = `${monthPrefix}-${String(daysIn).padStart(2, "0")}`;
-    const dated = tasks.filter((t) => isActive(t) && anchor(t));
-    // Todoist-style virtual previews: a recurring task is a single row, but the calendar shows it
-    // on every occurrence within the visible month (computed from its rule — no extra rows). Each
-    // virtual occurrence points back to the same real task (tap/edit affects the series).
-    const occurrences: { iso: string; task: TaskRecord }[] = [];
-    for (const t of dated) {
-      const a = anchor(t) as string;
-      if (isStandardRecurrence(t.recurrenceRule)) {
-        if (hideRecurring) continue; // "반복 숨기기" 토글: 고정 반복 회차 제외.
-        for (const iso of recurringOccurrencesInRange(t.recurrenceRule, a, monthStart, monthEnd)) {
-          occurrences.push({ iso, task: t });
-        }
-      } else if (a >= monthStart && a <= monthEnd) {
-        occurrences.push({ iso: a, task: t });
-      }
-    }
-    const onDay = (iso: string) => occurrences.filter((o) => o.iso === iso).map((o) => o.task);
+    const daysIn = calDaysIn;
+    // 회차 계산은 뷰 밖(`calOccurrences` / `calByDay`)에서 한 번만 한다 — 정렬까지 끝난 상태다.
+    const onDay = (iso: string) => calByDay.get(iso) ?? [];
 
     const openDay = (iso: string) => {
       setCalDay(iso);
@@ -1158,11 +1461,10 @@ export function TasksWorkspace({
       : null;
 
     // Agenda for the shown month: occurrences grouped by day (recurring tasks expand virtually).
-    const monthTasks = occurrences;
-    const byDay = new Map<string, TaskRecord[]>();
-    for (const o of occurrences) {
-      byDay.set(o.iso, [...(byDay.get(o.iso) ?? []), o.task]);
-    }
+    // 모바일 아젠다는 **달 전체**를 보여준다(콘솔은 "다가오는 것만"). 지난 날짜를 되짚는 일이 현장에서
+    // 잦아 의도적으로 남긴 차이다.
+    const monthTasks = calOccurrences;
+    const byDay = calByDay;
     const dayKeys = Array.from(byDay.keys()).sort();
 
     return (
@@ -1360,16 +1662,19 @@ export function TasksWorkspace({
   function renderDaySheet(iso: string) {
     // Match the calendar grid/agenda (which show recurring tasks on every virtual occurrence) so the
     // day sheet isn't empty on a recurring task's future occurrence day. Non-recurring: anchor === iso.
-    const list = tasks.filter((t) => {
-      if (!isActive(t)) return false;
-      const a = anchor(t);
-      if (!a) return false;
-      if (isStandardRecurrence(t.recurrenceRule)) {
-        if (hideRecurring) return false; // "반복 숨기기" 토글과 그리드/아젠다를 일치시킴.
-        return recurringOccurrencesInRange(t.recurrenceRule, a, iso, iso).length > 0;
-      }
-      return a === iso;
-    });
+    // 하루 안 정렬도 그리드/아젠다와 같은 규칙(시각 → 우선순위)을 쓴다.
+    const list = tasks
+      .filter((t) => {
+        if (!isActive(t)) return false;
+        const a = anchor(t);
+        if (!a) return false;
+        if (isStandardRecurrence(t.recurrenceRule)) {
+          if (hideRecurring) return false; // "반복 숨기기" 토글과 그리드/아젠다를 일치시킴.
+          return recurringOccurrencesInRange(t.recurrenceRule, a, iso, iso).length > 0;
+        }
+        return a === iso;
+      })
+      .sort(timeThenPrio);
     const label = new Intl.DateTimeFormat(locale, {
       month: "long",
       day: "numeric",
@@ -1435,8 +1740,44 @@ export function TasksWorkspace({
     );
   }
 
-  // Whole-list "select all" toggles every active task currently in the visible set.
-  const selectableIds = tasks.filter(isActive).map((t) => t.id);
+  /**
+   * "전체 선택" 대상 = **지금 이 탭에 그려진 카드**뿐이다 (2026-07-31).
+   *
+   * 예전엔 `tasks` 전체(내 모든 활성 작업)를 선택해서, 오늘 탭에 3건만 보이는데 관리함의 80건까지
+   * 딸려 들어가고 삭제 확인창이 "83건"으로 떴다 — 보이지 않는 작업을 지우는 데이터 손실 경로였다.
+   * 콘솔(`admin-tasks-console.tsx`)은 렌더된 `.trow[data-task-id]` 를 클릭 시점에 읽어 같은 문제를
+   * 막는데, 모바일 카드에는 그런 마커가 없고 `TaskCard` 는 이 화면 소유가 아니다. 대신 각 뷰가
+   * 쓰는 base 목록을 뷰 밖으로 뽑아 **여기와 뷰 본문이 같은 배열**을 보게 했다.
+   *
+   * 지연 반복 backlog(`todayRecOverdueBase`)는 체크박스 없는 전용 행으로 렌더되므로 제외한다.
+   * 프로젝트 탭은 `ProjectsBoard` 가 자체 목록을 그려서 이 선택 바가 닿지 않는다.
+   */
+  const visibleSelectable: TaskRecord[] =
+    view === "today"
+      ? applyFilter([...todayOverdueBase, ...todayBase, ...todayRecBase])
+      : view === "tomorrow"
+        ? applyFilter([...tomorrowBase, ...tomorrowRecBase])
+        : view === "inbox"
+          ? applyFilter(inboxBase)
+          : view === "instr"
+            ? applyFilter(instrTab === "recv" ? recvInstrTasks : sentInstrTasks)
+            : view === "completed"
+              ? completionRows
+                  .filter(
+                    ({ task }) =>
+                      (completedFilter === "project"
+                        ? !!task.projectId
+                        : completedFilter === "regular"
+                          ? !task.projectId
+                          : true) &&
+                      (!filterActive || matchesFilter(task)),
+                  )
+                  .map((r) => r.task)
+              : view === "calendar"
+                ? Array.from(calByDay.values()).flat()
+                : [];
+  // 같은 작업이 여러 줄로 렌더될 수 있다(반복 회차·캘린더의 여러 날짜) — 선택은 작업 단위라 중복 제거.
+  const selectableIds = Array.from(new Set(visibleSelectable.map((t) => t.id)));
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id));
 
   return (
@@ -1836,9 +2177,13 @@ export function TasksWorkspace({
                     <button
                       className="flex w-full items-center gap-3 rounded-xl px-2.5 py-3 text-left text-[14.5px] font-bold text-rose-600 transition-colors active:bg-rose-50"
                       onClick={() => {
-                        const id = pressTask.id;
+                        const t = pressTask;
+                        const occ = pressOcc;
                         closePressMenu();
-                        setConfirmIds([id]);
+                        // 반복 작업을 **회차로** 보고 있으면 무엇을 지울지 먼저 묻는다. 관리함처럼
+                        // 회차가 아닌 목록에서는 행 자체가 시리즈를 뜻하므로 기존 확인 모달 그대로.
+                        if (occ && isStandardRecurrence(t.recurrenceRule)) setRecurDelete({ task: t, date: occ });
+                        else setConfirmIds([t.id]);
                       }}
                       type="button"
                     >
@@ -1914,6 +2259,97 @@ export function TasksWorkspace({
             <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-4">
               <div className="pointer-events-auto max-w-[420px] rounded-[18px] bg-slate-900 px-4 py-2.5 text-[13px] font-bold tracking-[-0.01em] text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
                 {copy.moveDuplicateOccurrence}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {/* 반복 삭제 선택 시트 — "이 날짜만 건너뛰기" vs "반복 전체 삭제".
+          두 선택지를 같은 크기의 행으로 놓아 "고르는 화면"으로 읽히게 하고, 되돌릴 수 없는 쪽만
+          danger 톤을 준다(콘솔 `RecurDeleteModal` 과 같은 구성). 헤더에 반복 주기를 함께 보여줘
+          "전체"가 무엇을 뜻하는지 누르기 전에 알 수 있게 했다. */}
+      {recurDelete && hydrated ? (
+        <BottomSheet ariaLabel={copy.recurDeleteTitle} onClose={() => setRecurDelete(null)}>
+          <div className="px-4 pb-1">
+            <div className="flex items-center gap-1.5 px-1 text-[11px] font-black uppercase tracking-[0.06em] text-muted-foreground">
+              <Repeat className="size-3.5" aria-hidden="true" />
+              {repeatLabel(recurDelete.task.recurrenceRule ?? "", copy, locale)}
+            </div>
+            <p className="mt-2 line-clamp-2 px-1 text-[15px] font-extrabold leading-snug tracking-[-0.01em] text-foreground">
+              {recurDelete.task.title}
+            </p>
+            <div className="mt-4 overflow-hidden rounded-[18px] border border-border bg-surface">
+              <button
+                className="flex w-full items-center gap-3 px-3.5 py-3.5 text-left transition-colors active:bg-slate-50"
+                onClick={() => runSkipOccurrence(recurDelete.task.id, recurDelete.date)}
+                type="button"
+              >
+                <span className="flex size-[34px] shrink-0 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
+                  <SkipForward className="size-[17px]" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[14px] font-extrabold tracking-[-0.01em] text-foreground">
+                    {copy.recurSkipOne.replace("{date}", shortDateLabel(recurDelete.date))}
+                  </span>
+                  <span className="mt-0.5 block text-[11.5px] font-medium text-muted-foreground">
+                    {copy.recurSkipOneSub}
+                  </span>
+                </span>
+                <ChevronRight className="size-4 shrink-0 text-slate-300" aria-hidden="true" />
+              </button>
+              <div className="mx-3.5 h-px bg-border" />
+              <button
+                className="flex w-full items-center gap-3 px-3.5 py-3.5 text-left transition-colors active:bg-rose-50"
+                onClick={() => {
+                  const id = recurDelete.task.id;
+                  setRecurDelete(null);
+                  performDelete([id]);
+                }}
+                type="button"
+              >
+                <span className="flex size-[34px] shrink-0 items-center justify-center rounded-[11px] bg-rose-50 text-rose-600">
+                  <Trash2 className="size-[17px]" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[14px] font-extrabold tracking-[-0.01em] text-rose-600">
+                    {copy.recurDeleteAll}
+                  </span>
+                  <span className="mt-0.5 block text-[11.5px] font-medium text-muted-foreground">
+                    {copy.recurDeleteAllSub}
+                  </span>
+                </span>
+                <ChevronRight className="size-4 shrink-0 text-slate-300" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        </BottomSheet>
+      ) : null}
+
+      {/* 회차 건너뛰기 되돌리기 토스트 — skipped 는 영구 상태라 실행 취소 경로가 반드시 필요하다. */}
+      {skipUndo && hydrated
+        ? createPortal(
+            <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-4">
+              <div className="pointer-events-auto flex max-w-[420px] items-center gap-2.5 rounded-[18px] bg-slate-900 py-2.5 pl-4 pr-2 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
+                <span className="whitespace-nowrap text-[13px] font-bold tracking-[-0.01em]">
+                  {copy.recurSkippedToast.replace("{date}", shortDateLabel(skipUndo.date))}
+                </span>
+                <button
+                  className="ml-1 inline-flex flex-none items-center gap-1 rounded-xl px-2.5 py-1.5 text-[13px] font-extrabold text-rose-300 transition-colors active:bg-white/10"
+                  onClick={undoSkipOccurrence}
+                  type="button"
+                >
+                  <RotateCcw className="size-3.5" aria-hidden="true" />
+                  {copy.undo}
+                </button>
+                <button
+                  className="inline-flex size-8 flex-none items-center justify-center rounded-xl text-slate-400 transition-colors active:bg-white/10"
+                  onClick={() => setSkipUndo(null)}
+                  type="button"
+                  aria-label={copy.undo}
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </button>
               </div>
             </div>,
             document.body,
