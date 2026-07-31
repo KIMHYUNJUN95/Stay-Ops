@@ -41,6 +41,7 @@ export async function saveAttendanceSiteSettings(formData: FormData) {
   const latitude = parseNumberField(parseText(formData, "latitude"));
   const longitude = parseNumberField(parseText(formData, "longitude"));
   const radius = parseNumberField(parseText(formData, "radius"));
+  const printName = parseText(formData, "printName");
 
   if (!name || latitude == null || longitude == null) {
     redirect(`/admin/settings/attendance?site=${encodeURIComponent(siteId)}&error=invalid_coordinates`);
@@ -56,6 +57,7 @@ export async function saveAttendanceSiteSettings(formData: FormData) {
     const site = siteId
       ? await updateAttendanceSite(organizationId, siteId, {
           name,
+          printName,
           latitude,
           longitude,
           allowedRadiusMeters: radius,

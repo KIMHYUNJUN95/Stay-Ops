@@ -1329,6 +1329,17 @@ const FALLBACK_DICTIONARY = {
       attendanceSiteActivate: "Reactivate",
       attendanceSiteInactive: "Inactive",
       attendanceShowInactive: "Include inactive",
+      // QR print sheet (2026-07-31) — 80×80mm cards, QR + site name only.
+      attendanceQrPrintAll: "Print all",
+      attendanceQrPrintOne: "Print this site",
+      attendancePrintCta: "Print",
+      attendancePrintEmpty: "Nothing to print.",
+      attendancePrintExcluded: "{n} site(s) excluded from printing",
+      attendancePrintExcludedNoQr: "No QR issued yet.",
+      attendancePrintExcludedUnreachable: "This QR does not open with a phone camera — check the site address setting.",
+      attendancePrintName: "Print name (English)",
+      attendancePrintNameHint:
+        "Shown on the printed QR you put on the wall. Leave it empty to use the site name.",
       attendanceSiteDeactivateHint:
         "Staff cannot clock in or out at an inactive site. Existing records are kept.",
       attendanceSiteInUseHint:
@@ -5884,6 +5895,16 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         attendanceSiteActivate: "다시 활성화",
         attendanceSiteInactive: "비활성",
         attendanceShowInactive: "비활성 포함",
+        attendanceQrPrintAll: "전체 인쇄",
+        attendanceQrPrintOne: "이 현장 인쇄",
+        attendancePrintCta: "인쇄",
+        attendancePrintEmpty: "인쇄할 QR이 없습니다.",
+        attendancePrintExcluded: "인쇄에서 제외된 현장 {n}곳",
+        attendancePrintExcludedNoQr: "QR이 아직 발급되지 않았습니다.",
+        attendancePrintExcludedUnreachable: "이 QR은 휴대폰 카메라로 열리지 않습니다. 주소 설정을 확인하세요.",
+        attendancePrintName: "인쇄용 이름 (영문)",
+        attendancePrintNameHint:
+          "벽에 붙이는 QR에 표기됩니다. 비워두면 현장 이름을 그대로 씁니다.",
         attendanceSiteDeactivateHint:
           "비활성 현장에서는 출퇴근을 찍을 수 없습니다. 기존 기록은 그대로 보존됩니다.",
         attendanceSiteInUseHint:
@@ -10338,6 +10359,16 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         attendanceSiteActivate: "再有効化",
         attendanceSiteInactive: "無効",
         attendanceShowInactive: "無効を含める",
+        attendanceQrPrintAll: "すべて印刷",
+        attendanceQrPrintOne: "この現場を印刷",
+        attendancePrintCta: "印刷",
+        attendancePrintEmpty: "印刷するQRがありません。",
+        attendancePrintExcluded: "印刷から除外された現場 {n}か所",
+        attendancePrintExcludedNoQr: "QRがまだ発行されていません。",
+        attendancePrintExcludedUnreachable: "このQRはスマホのカメラで開きません。アドレス設定を確認してください。",
+        attendancePrintName: "印刷用の名称（英語）",
+        attendancePrintNameHint:
+          "壁に貼るQRに表示されます。空欄の場合は現場名をそのまま使います。",
         attendanceSiteDeactivateHint:
           "無効な現場では出退勤を打てません。既存の記録はそのまま残ります。",
         attendanceSiteInUseHint:

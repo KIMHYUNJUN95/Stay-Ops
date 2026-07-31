@@ -1,7 +1,16 @@
 import Link from "next/link";
 import QRCode from "qrcode";
 import { redirect } from "next/navigation";
-import { Check, Eye, EyeOff, Plus, QrCode as QrIcon, Smartphone, TriangleAlert } from "lucide-react";
+import {
+  Check,
+  Eye,
+  EyeOff,
+  Plus,
+  Printer,
+  QrCode as QrIcon,
+  Smartphone,
+  TriangleAlert,
+} from "lucide-react";
 import {
   issueAttendanceSiteQr,
   revokeAttendanceTrustedDevice,
@@ -149,6 +158,12 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
               </div>
               <div className="setsub">{settings.attendanceSiteListDescription}</div>
             </div>
+            <Link className="chipbtn" href="/admin/settings/attendance/print" target="_blank">
+              <span className="ic">
+                <Printer aria-hidden="true" />
+              </span>
+              {settings.attendanceQrPrintAll}
+            </Link>
             <Link className="chipbtn" href="/admin/settings/attendance?site=new">
               <span className="ic">
                 <Plus aria-hidden="true" />
@@ -237,6 +252,18 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                     {settings.attendanceSiteName}
                   </label>
                   <input defaultValue={selectedSite?.name ?? ""} id="site-name" name="name" required />
+                </div>
+                <div className="fld" style={{ marginTop: 11 }}>
+                  <label className="fld__l" htmlFor="site-print-name">
+                    {settings.attendancePrintName}
+                  </label>
+                  <input
+                    defaultValue={selectedSite?.print_name ?? ""}
+                    id="site-print-name"
+                    name="printName"
+                    placeholder={selectedSite?.name ?? ""}
+                  />
+                  <p className="fld__hint">{settings.attendancePrintNameHint}</p>
                 </div>
                 <div
                   style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 11 }}
@@ -370,13 +397,27 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                         <span className="kv__v mono">{tokyoDate(activeQr.issued_at)}</span>
                       </div>
                     </div>
-                    <form action={issueAttendanceSiteQr} style={{ marginTop: 12 }}>
-                      <input name="siteId" type="hidden" value={selectedSite.id} />
-                      <button className="btn btn--ghost btn--sm" type="submit">
-                        {settings.attendanceReissueQr}
-                      </button>
-                      <p className="fld__hint">{settings.attendanceReissueHint}</p>
-                    </form>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+                      {qrLinkState === "ok" ? (
+                        <Link
+                          className="btn btn--pri btn--sm"
+                          href={`/admin/settings/attendance/print?site=${selectedSite.id}`}
+                          target="_blank"
+                        >
+                          <span className="ic">
+                            <Printer aria-hidden="true" />
+                          </span>
+                          {settings.attendanceQrPrintOne}
+                        </Link>
+                      ) : null}
+                      <form action={issueAttendanceSiteQr}>
+                        <input name="siteId" type="hidden" value={selectedSite.id} />
+                        <button className="btn btn--ghost btn--sm" type="submit">
+                          {settings.attendanceReissueQr}
+                        </button>
+                      </form>
+                    </div>
+                    <p className="fld__hint">{settings.attendanceReissueHint}</p>
                   </div>
                 </div>
               ) : (

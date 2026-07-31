@@ -41,6 +41,8 @@ export type CreateAttendanceSiteInput = {
 
 export type UpdateAttendanceSitePatch = {
   name?: string;
+  /** 인쇄물 표기용(주로 영문). 빈 문자열이면 null 로 저장해 `name` 폴백으로 돌아간다. */
+  printName?: string | null;
   latitude?: number;
   longitude?: number;
   allowedRadiusMeters?: number;
@@ -153,6 +155,7 @@ export async function updateAttendanceSite(
 ): Promise<AttendanceSiteRow> {
   const update: Record<string, unknown> = {};
   if (patch.name !== undefined) update.name = patch.name;
+  if (patch.printName !== undefined) update.print_name = patch.printName || null;
   if (patch.latitude !== undefined) update.latitude = patch.latitude;
   if (patch.longitude !== undefined) update.longitude = patch.longitude;
   if (patch.allowedRadiusMeters !== undefined) update.allowed_radius_meters = patch.allowedRadiusMeters;

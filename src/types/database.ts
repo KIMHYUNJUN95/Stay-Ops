@@ -435,6 +435,7 @@ export type Database = {
           latitude: number;
           longitude: number;
           name: string;
+          print_name?: string | null;
           organization_id: string;
           property_id?: string | null;
           updated_at?: string;
@@ -448,6 +449,7 @@ export type Database = {
           latitude: number;
           longitude: number;
           name: string;
+          print_name: string | null;
           organization_id: string;
           property_id: string | null;
           updated_at: string;
@@ -461,6 +463,7 @@ export type Database = {
           latitude?: number;
           longitude?: number;
           name?: string;
+          print_name?: string | null;
           organization_id?: string;
           property_id?: string | null;
           updated_at?: string;
