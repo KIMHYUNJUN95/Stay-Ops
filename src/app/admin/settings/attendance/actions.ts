@@ -12,7 +12,7 @@ import { revokeTrustedDevice } from "@/lib/attendance-trusted-device";
 import { requireAdminSession } from "@/lib/admin-session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { hasOrganizationContext } from "@/lib/session";
-import { isOrgTopAdmin } from "@/config/roles";
+import { isOrgTopAdminOrPlatform } from "@/config/roles";
 
 function parseText(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -25,7 +25,7 @@ function parseNumberField(value: string) {
 
 async function requireOwnerOrgSession() {
   const session = await requireAdminSession();
-  if (!isOrgTopAdmin(session.user.role) || !hasOrganizationContext(session)) {
+  if (!isOrgTopAdminOrPlatform(session.user.role) || !hasOrganizationContext(session)) {
     redirect("/admin/settings?error=forbidden");
   }
   return session;

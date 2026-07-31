@@ -18,7 +18,7 @@ import { getActiveQrToken, listAttendanceSites } from "@/lib/attendance-sites";
 import { attendanceQrLinkState, buildAttendanceQrValue } from "@/lib/attendance-qr";
 import { listTrustedDevices } from "@/lib/attendance-trusted-device";
 import { hasOrganizationContext } from "@/lib/session";
-import { isOrgTopAdmin } from "@/config/roles";
+import { isOrgTopAdminOrPlatform } from "@/config/roles";
 import type { AttendanceSiteRow } from "@/lib/attendance";
 
 type PageProps = {
@@ -31,7 +31,7 @@ function firstParam(value: string | string[] | undefined) {
 
 export default async function AdminAttendanceSettingsPage({ searchParams }: PageProps) {
   const session = await requireAdminSession();
-  if (!isOrgTopAdmin(session.user.role) || !hasOrganizationContext(session)) {
+  if (!isOrgTopAdminOrPlatform(session.user.role) || !hasOrganizationContext(session)) {
     redirect("/admin/settings?error=forbidden");
   }
 

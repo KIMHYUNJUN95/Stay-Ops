@@ -37,6 +37,22 @@ export function isOrgTopAdmin(role: Role): boolean {
   return role === "owner" || role === "senior_managing_director";
 }
 
+/**
+ * 조직 최상위 관리자 **또는** 플랫폼 개발자.
+ *
+ * 세션 역할은 `platformAdmin?.role ?? membership?.role` 순서로 정해진다(`src/lib/session.ts`).
+ * 그래서 플랫폼 관리자는 같은 조직의 `owner` 멤버십을 갖고 있어도 세션 role 이
+ * `developer_super_admin` 으로 덮여 `isOrgTopAdmin` 에서 탈락한다 — 가장 권한이 높은 계정이
+ * 오히려 막히는 상황이 된다(2026-07-31 근태 QR 설정 화면에서 실제로 발생).
+ *
+ * `isOrgTopAdmin` 은 "조직 상위 관리자"라는 의미를 그대로 유지하고(사용처가 여러 곳이라 의미를
+ * 바꾸면 다른 화면 권한까지 함께 움직인다), 플랫폼 개발자까지 허용해야 하는 게이트는 이 헬퍼를 쓴다.
+ * 사용자 관리 화면들이 이미 같은 조합을 인라인으로 쓰고 있었다.
+ */
+export function isOrgTopAdminOrPlatform(role: Role): boolean {
+  return role === "developer_super_admin" || isOrgTopAdmin(role);
+}
+
 export const fieldModeRoles = [
   "field_manager",
   "staff",

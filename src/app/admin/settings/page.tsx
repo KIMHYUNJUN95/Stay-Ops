@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { getDictionary } from "@/lib/i18n";
 import { hasOrganizationContext } from "@/lib/session";
 import { requireAdminSession } from "@/lib/admin-session";
-import { isOrgTopAdmin } from "@/config/roles";
+import { isOrgTopAdminOrPlatform } from "@/config/roles";
 
 export default async function AdminSettingsPage() {
   const session = await requireAdminSession();
@@ -23,7 +23,7 @@ export default async function AdminSettingsPage() {
     },
   ];
 
-  if (isOrgTopAdmin(session.user.role) && hasOrganizationContext(session)) {
+  if (isOrgTopAdminOrPlatform(session.user.role) && hasOrganizationContext(session)) {
     cards.push({
       description: settings.attendanceDescription,
       href: "/admin/settings/attendance",

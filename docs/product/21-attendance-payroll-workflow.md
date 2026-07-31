@@ -180,6 +180,14 @@ Only the `owner` (or `senior_managing_director` / 전무, owner-equivalent since
 - site Wi-Fi SSID configuration
 - site QR issuance / replacement
 
+**플랫폼 개발자(`developer_super_admin`)도 포함된다 (2026-07-31 수정).** 세션 역할은
+`platformAdmin?.role ?? membership?.role` 순서로 정해지므로, 플랫폼 관리자는 같은 조직의 `owner`
+멤버십을 갖고 있어도 세션 role 이 `developer_super_admin` 으로 덮인다. 그래서 `isOrgTopAdmin` 만
+보던 게이트에서 **가장 권한이 높은 계정이 오히려 막혀** 근태 설정 화면에 들어가지 못했다. 해당
+게이트 3곳(설정 카드 · 페이지 · 서버 액션)은 이제 `isOrgTopAdminOrPlatform()` 을 쓴다.
+`isOrgTopAdmin` 자체의 의미(조직 상위 관리자)는 그대로 두었다 — 사용처가 여러 곳이라 의미를 바꾸면
+다른 화면 권한까지 함께 움직인다.
+
 ## Core Operating Rules
 
 ### Session Model
