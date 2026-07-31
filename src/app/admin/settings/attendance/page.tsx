@@ -402,7 +402,9 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                   {history.map((token) => (
                     <div className="sethist" key={token.id}>
                       <span className={token.is_active ? "pill pill--done" : "pill pill--muted"}>
-                        {token.is_active ? settings.attendanceQrOk : settings.attendanceQrRevoked}
+                        {/* 발급 이력은 "토큰 상태"다 — `attendanceQrOk`("준비됨")는 인쇄해도 되는지의
+                            판정 문구라 여기 쓰면 의미가 어긋난다. */}
+                        {token.is_active ? settings.attendanceQrActive : settings.attendanceQrRevoked}
                       </span>
                       <span style={{ flex: 1 }} />
                       <span className="sethist__d">{tokyoDate(token.issued_at)}</span>

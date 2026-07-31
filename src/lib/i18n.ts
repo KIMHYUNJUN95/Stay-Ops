@@ -1315,6 +1315,7 @@ const FALLBACK_DICTIONARY = {
       attendanceQrNeedsFix: "Fix needed",
       attendanceQrNone: "Not issued",
       attendanceQrRevoked: "Revoked",
+      attendanceQrActive: "Active",
       attendanceQrHistory: "Issue history",
       attendanceMissingQrWarn:
         "{n} site(s) have no QR yet. Staff cannot clock in or out at those sites.",
@@ -5866,6 +5867,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         attendanceQrNeedsFix: "조치 필요",
         attendanceQrNone: "미발급",
         attendanceQrRevoked: "폐기됨",
+        attendanceQrActive: "활성",
         attendanceQrHistory: "발급 이력",
         attendanceMissingQrWarn:
           "QR이 없는 현장이 {n}곳 있습니다. 해당 현장에서는 출퇴근을 찍을 수 없습니다.",
@@ -10316,6 +10318,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         attendanceQrNeedsFix: "要対応",
         attendanceQrNone: "未発行",
         attendanceQrRevoked: "破棄",
+        attendanceQrActive: "有効",
         attendanceQrHistory: "発行履歴",
         attendanceMissingQrWarn:
           "QRがない現場が{n}か所あります。その現場では出退勤を打てません。",
