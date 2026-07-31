@@ -503,6 +503,22 @@ photo lightbox carousel, and small anchored dropdown/popover menus. (As of 2026-
 center-aligned confirm / delete / action / picker dialogs are NO LONGER excluded — they were all
 converted to bottom sheets; see the canonical-standard section below.)
 
+## 2026-07-31 BottomSheet — 스크림 탭 관통(ghost click) 가드
+
+시트를 연 그 탭이 곧바로 시트를 닫아버려 **"잠깐 떴다 사라지는"** 버그가 있었다
+(근태 QR 진입 화면에서 「출근 인증」 → 결과 시트가 순간 사라짐).
+
+원인: 시트는 `<body>` 로 포털되어 화면 전체를 덮는다. 모바일의 한 번 탭은
+`pointerdown → pointerup → click` 순으로 오는데, 그 사이에 시트가 마운트되면 **뒤따라오는
+click 이 방금 생긴 스크림 위에 떨어진다.** 서버 응답이 빠를수록(예: 위치 검증 전에 즉시
+반환되는 "이미 출근 중") 재현이 잘 된다.
+
+수정: 스크림 탭으로 닫으려면 **포인터가 스크림 위에서 눌렸어야** 한다(`pointerdown` 타깃 확인).
+시트가 열리기 전에 눌린 탭에는 스크림 `pointerdown` 이 없으므로 걸러진다. 드래그·Esc·스크림
+탭이라는 문서상의 닫기 수단은 그대로다.
+
+이 가드는 공용 `BottomSheet` 에 있으므로 앱의 모든 시트에 함께 적용된다.
+
 ## 2026-06-17 Bottom Sheet — Canonical Visual Standard + Shared `BottomSheet`
 
 The drag-to-dismiss behavior above is now paired with **one canonical visual spec**, so every

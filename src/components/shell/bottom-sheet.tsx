@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -83,6 +84,15 @@ export function BottomSheet({
 
   const drag = useSheetDragDismiss({ shown, onDismiss: close });
 
+  // 스크림 탭으로 닫으려면 **포인터가 스크림 위에서 눌렸어야** 한다.
+  //
+  // 시트는 <body> 로 포털되어 화면 전체를 덮는다. 모바일에서 한 번의 탭은
+  // pointerdown → pointerup → click 순으로 오는데, 그 사이에 시트가 마운트되면
+  // 뒤따라오는 click 이 방금 생긴 스크림 위에 떨어진다. 시트를 연 그 탭이 곧바로
+  // 시트를 닫아버려서 "잠깐 떴다 사라지는" 것처럼 보인다(2026-07-31, 근태 결과 시트).
+  // 시트가 열리기 전에 눌린 탭에는 스크림 pointerdown 이 없으므로 이 가드로 걸러진다.
+  const scrimArmedRef = useRef(false);
+
   // Slide in on mount (double rAF so the initial translate-y-full paints first).
   useEffect(() => {
     const id = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
@@ -136,7 +146,15 @@ export function BottomSheet({
             zIndexClassName,
             shown ? "opacity-100" : "opacity-0",
           )}
-          onClick={close}
+          onClick={(e) => {
+            if (e.target !== e.currentTarget) return;
+            if (!scrimArmedRef.current) return;
+            scrimArmedRef.current = false;
+            close();
+          }}
+          onPointerDown={(e) => {
+            scrimArmedRef.current = e.target === e.currentTarget;
+          }}
           style={drag.scrimStyle}
         >
           <div
