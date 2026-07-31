@@ -5,7 +5,7 @@
 // See src/lib/attendance-qr.ts / docs/product/24-attendance-workflow.md → "QR Deep Link".
 
 import { describe, expect, it } from "vitest";
-import { extractAttendanceToken } from "@/lib/attendance-qr";
+import { attendanceQrLinkState, extractAttendanceToken } from "@/lib/attendance-qr";
 
 const TOKEN = "att_kGh3Zx9QpL7nT2vWbYc4Rd8sMf1AeJu6";
 
@@ -34,5 +34,26 @@ describe("extractAttendanceToken", () => {
     expect(extractAttendanceToken("https://example.com/x?token=not-ours")).toBeNull();
     expect(extractAttendanceToken("att_")).toBeNull();
     expect(extractAttendanceToken("random text")).toBeNull();
+  });
+});
+
+// 인쇄 전 판정 — 카메라로 안 열리는 QR 을 뽑아 전 건물에 붙이는 사고를 막는 안전장치다.
+describe("attendanceQrLinkState", () => {
+  it("passes a public https link", () => {
+    expect(attendanceQrLinkState(`https://ops.example.com/mobile/attendance/capture?token=${TOKEN}`)).toBe(
+      "ok",
+    );
+  });
+
+  it("flags a bare token (NEXT_PUBLIC_APP_URL not set)", () => {
+    expect(attendanceQrLinkState(TOKEN)).toBe("missing");
+    expect(attendanceQrLinkState("")).toBe("missing");
+  });
+
+  it("flags local / private-network addresses that field phones cannot reach", () => {
+    expect(attendanceQrLinkState("http://localhost:3000/mobile/attendance/capture")).toBe("local");
+    expect(attendanceQrLinkState("http://127.0.0.1:3000/x")).toBe("local");
+    expect(attendanceQrLinkState("http://192.168.0.12:3000/x")).toBe("local");
+    expect(attendanceQrLinkState("http://172.16.4.9/x")).toBe("local");
   });
 });

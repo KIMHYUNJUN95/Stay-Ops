@@ -37,6 +37,39 @@ export function buildAttendanceQrValue(token: string): string {
 }
 
 /**
+ * 인쇄 전 안전장치 — 지금 그려질 QR 이 실제로 현장에서 열리는 물건인지 판정한다.
+ *
+ * QR 은 인쇄물이라 한 번 잘못 뽑으면 전 건물을 다시 붙여야 하는데, 화면상으로는 멀쩡해 보인다.
+ * 실제로 2026-07-31 에 `NEXT_PUBLIC_APP_URL` 미설정 상태의 토큰-only QR 이 카메라에서 그냥
+ * 검색어로 읽히는 일이 있었다. 관리자 화면이 출력 전에 이 상태를 명시적으로 경고한다.
+ *
+ *  · "missing" — URL 이 아니라 토큰만 담긴다(기준 주소 미설정). 카메라로 절대 안 열린다.
+ *  · "local"   — localhost / 사설망 주소. 관리자 PC 에서는 열려도 현장 휴대폰에서는 안 열린다.
+ *  · "ok"      — 공개 주소. 출력해도 된다.
+ */
+export type AttendanceQrLinkState = "ok" | "local" | "missing";
+
+export function attendanceQrLinkState(value: string): AttendanceQrLinkState {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return "missing";
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return "missing";
+
+  const host = url.hostname;
+  const isLocal =
+    host === "localhost" ||
+    host.endsWith(".local") ||
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+  return isLocal ? "local" : "ok";
+}
+
+/**
  * 스캔 결과에서 근태 토큰을 뽑는다. 신형(URL)과 구형(토큰만)을 모두 받는다.
  * 형식이 맞지 않으면 null — 서버가 다시 검증하지만, 엉뚱한 QR 을 굳이 전송하지는 않는다.
  */

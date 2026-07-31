@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { getDictionary } from "@/lib/i18n";
 import { requireAdminSession } from "@/lib/admin-session";
 import { getActiveQrToken, listAttendanceSites } from "@/lib/attendance-sites";
-import { buildAttendanceQrValue } from "@/lib/attendance-qr";
+import { attendanceQrLinkState, buildAttendanceQrValue } from "@/lib/attendance-qr";
 import { listTrustedDevices } from "@/lib/attendance-trusted-device";
 import { hasOrganizationContext } from "@/lib/session";
 import { isOrgTopAdmin } from "@/config/roles";
@@ -51,6 +51,8 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
   const qrSvg = qrValue
     ? await QRCode.toString(qrValue, { type: "svg", margin: 1, width: 256 })
     : null;
+  // 인쇄 전 안전장치 — 카메라로 안 열리는 QR 을 뽑아 전 건물에 붙이는 사고를 막는다.
+  const qrLinkState = qrValue ? attendanceQrLinkState(qrValue) : null;
 
   // 기억된 근태 기기 — 사이트 선택과 무관하게 조직 전체 목록이다.
   const trustedDevices = await listTrustedDevices(session.organization.id);
@@ -212,6 +214,18 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                   className="mt-5 flex justify-center rounded-2xl border border-border bg-white p-4"
                   dangerouslySetInnerHTML={{ __html: qrSvg }}
                 />
+                {qrLinkState === "ok" ? (
+                  <p className="mt-4 rounded-xl border border-emerald-300/70 bg-emerald-50 px-4 py-3 text-sm font-semibold leading-6 text-emerald-800">
+                    {settings.attendanceQrReady}
+                  </p>
+                ) : (
+                  <p className="mt-4 rounded-xl border border-amber-300/80 bg-amber-50 px-4 py-3 text-sm font-semibold leading-6 text-amber-900">
+                    {qrLinkState === "local"
+                      ? settings.attendanceQrWarnLocal
+                      : settings.attendanceQrWarnMissing}
+                  </p>
+                )}
+
                 <div className="mt-4 rounded-xl border border-border bg-background/70 p-4">
                   <p className="text-sm font-semibold text-muted-foreground">{settings.attendanceQrLink}</p>
                   <p className="mt-2 break-all font-mono text-xs font-semibold">{qrValue}</p>

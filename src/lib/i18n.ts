@@ -1307,6 +1307,12 @@ const FALLBACK_DICTIONARY = {
       attendanceSiteListTitle: "Attendance sites",
       attendanceSiteName: "Site name",
       attendanceQrLink: "QR link (what the code encodes)",
+      // Pre-print safety check — a printed QR that opens nowhere costs a full re-print.
+      attendanceQrReady: "Opens with the phone camera. Safe to print.",
+      attendanceQrWarnMissing:
+        "This QR will NOT open with a phone camera — it carries only the token because NEXT_PUBLIC_APP_URL is not set. Do not print it yet.",
+      attendanceQrWarnLocal:
+        "This QR points at a local address, so it will not open on staff phones. Check it again on the production site before printing.",
       // Trusted devices — a device that already clocked in once stays remembered for 出退勤 only.
       attendanceDevicesTitle: "Remembered devices",
       attendanceDevicesDescription:
@@ -5818,6 +5824,11 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         attendanceSiteListTitle: "출퇴근 현장",
         attendanceSiteName: "현장 이름",
         attendanceQrLink: "QR 링크 (코드에 담기는 값)",
+        attendanceQrReady: "휴대폰 카메라로 열립니다. 출력해도 됩니다.",
+        attendanceQrWarnMissing:
+          "이 QR은 휴대폰 카메라로 열리지 않습니다. NEXT_PUBLIC_APP_URL이 설정되지 않아 토큰만 담겼습니다. 아직 출력하지 마세요.",
+        attendanceQrWarnLocal:
+          "이 QR은 로컬 주소를 가리켜 현장 휴대폰에서 열리지 않습니다. 운영 사이트에서 다시 확인한 뒤 출력하세요.",
         attendanceDevicesTitle: "기억된 기기",
         attendanceDevicesDescription:
           "재로그인 없이 출퇴근 인증만 할 수 있는 기기입니다. 그 외에는 아무것도 할 수 없습니다. 휴대폰 분실이나 퇴사 시 해지하세요.",
@@ -10231,6 +10242,11 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         attendanceSiteListTitle: "勤怠拠点",
         attendanceSiteName: "拠点名",
         attendanceQrLink: "QRリンク（コードに含まれる値）",
+        attendanceQrReady: "スマホのカメラで開けます。印刷して大丈夫です。",
+        attendanceQrWarnMissing:
+          "このQRはスマホのカメラでは開きません。NEXT_PUBLIC_APP_URL が未設定のため、トークンのみが含まれています。まだ印刷しないでください。",
+        attendanceQrWarnLocal:
+          "このQRはローカルアドレスを指しているため、現場のスマホでは開きません。本番サイトで確認してから印刷してください。",
         attendanceDevicesTitle: "記憶された端末",
         attendanceDevicesDescription:
           "再ログインなしで出退勤の認証だけができる端末です。それ以外は何もできません。端末の紛失や退職時は解除してください。",

@@ -269,6 +269,22 @@ https://<앱주소>/mobile/attendance/capture?token=att_…
   받는다(`extractAttendanceToken`). 기존 QR 은 앱에서 계속 동작하지만, **카메라 기능을 쓰려면 건물별
   QR 을 새로 출력해 교체해야 한다.**
 
+### 인쇄 전 안전장치 (2026-07-31, 실제 사고 후 추가)
+
+`NEXT_PUBLIC_APP_URL` 이 비어 있으면 QR 은 **조용히 예전 형식(토큰만)** 으로 그려진다. 화면상으로는
+멀쩡해 보이지만 카메라로 찍으면 그냥 검색어로 읽힌다 — 실제로 이 상태로 확인하다 한 번 겪었다.
+QR 은 인쇄물이라 잘못 뽑으면 전 건물을 다시 붙여야 하므로, 관리자 화면이 출력 전에 판정해서 알린다.
+
+| 상태 | 화면 표시 | 조치 |
+| --- | --- | --- |
+| `ok` (공개 https 주소) | 초록 "휴대폰 카메라로 열립니다. 출력해도 됩니다." | 출력 진행 |
+| `local` (localhost·사설망) | 노랑 경고 | 운영 사이트에서 다시 확인 후 출력 |
+| `missing` (URL 아님 = 토큰만) | 노랑 경고 | `NEXT_PUBLIC_APP_URL` 설정 → 재배포 후 재확인 |
+
+판정 로직은 `attendanceQrLinkState()` (`src/lib/attendance-qr.ts`), 테스트는
+`src/lib/__tests__/attendance-qr.test.ts`. **QR 은 반드시 운영 사이트에서 뽑는다** — 로컬 개발 서버에서
+뽑으면 `http://localhost:3000` 이 박혀 현장 휴대폰에서 열리지 않는다.
+
 ### 기기별 동작 (확인된 제약)
 
 | 기기 | 카메라로 QR 촬영 시 |
