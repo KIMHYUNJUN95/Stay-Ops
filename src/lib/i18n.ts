@@ -1327,6 +1327,7 @@ const FALLBACK_DICTIONARY = {
       attendanceSiteDeactivate: "Deactivate",
       attendanceSiteActivate: "Reactivate",
       attendanceSiteInactive: "Inactive",
+      attendanceShowInactive: "Include inactive",
       attendanceSiteDeactivateHint:
         "Staff cannot clock in or out at an inactive site. Existing records are kept.",
       attendanceSiteInUseHint:
@@ -5875,6 +5876,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         attendanceSiteDeactivate: "비활성화",
         attendanceSiteActivate: "다시 활성화",
         attendanceSiteInactive: "비활성",
+        attendanceShowInactive: "비활성 포함",
         attendanceSiteDeactivateHint:
           "비활성 현장에서는 출퇴근을 찍을 수 없습니다. 기존 기록은 그대로 보존됩니다.",
         attendanceSiteInUseHint:
@@ -10324,6 +10326,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         attendanceSiteDeactivate: "無効化",
         attendanceSiteActivate: "再有効化",
         attendanceSiteInactive: "無効",
+        attendanceShowInactive: "無効を含める",
         attendanceSiteDeactivateHint:
           "無効な現場では出退勤を打てません。既存の記録はそのまま残ります。",
         attendanceSiteInUseHint:

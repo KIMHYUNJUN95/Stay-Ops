@@ -1,7 +1,7 @@
 import Link from "next/link";
 import QRCode from "qrcode";
 import { redirect } from "next/navigation";
-import { Check, Plus, QrCode as QrIcon, Smartphone, TriangleAlert } from "lucide-react";
+import { Check, Eye, EyeOff, Plus, QrCode as QrIcon, Smartphone, TriangleAlert } from "lucide-react";
 import {
   issueAttendanceSiteQr,
   revokeAttendanceTrustedDevice,
@@ -68,11 +68,16 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
   const organizationId = session.organization.id;
 
   const rows = await getAttendanceSiteQrOverview(organizationId);
+  // 비활성 현장은 기본으로 숨긴다. 선택 중인 현장이 비활성이면 목록에서 사라지지 않도록 강제로 켠다.
+  const requestedInactive = firstParam(params.inactive) === "1";
   // `?site=new` 는 "선택 없음" = 신규 등록 폼. 그 외에는 선택된 현장, 없으면 첫 현장.
   const selectedRow =
     rows.find((row) => row.site.id === selectedSiteId) ?? (selectedSiteId ? null : rows[0] ?? null);
   const selectedSite = selectedRow?.site ?? null;
   const activeQr = selectedRow?.token ?? null;
+  const showInactive = requestedInactive || (selectedSite ? !selectedSite.is_active : false);
+  const visibleRows = showInactive ? rows : rows.filter((row) => row.site.is_active);
+  const inactiveCount = rows.length - rows.filter((row) => row.site.is_active).length;
 
   // QR 에는 토큰이 아니라 절대 URL 을 담는다 — 휴대폰 기본 카메라로 찍으면 바로 인증 화면으로
   // 들어오게 하기 위해서다. 토큰 값 자체는 그대로라 기존 인쇄물도 앱 스캔에서 계속 동작한다.
@@ -105,7 +110,7 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
     (siteDeactivated && settings.success.attendanceSiteDeactivated) ||
     (errorKey ? settings.errors[errorKey] ?? settings.errors.save_failed : "");
   const flashIsError = Boolean(errorKey);
-  const missingQr = rows.filter((row) => !row.token).length;
+  const missingQr = rows.filter((row) => row.site.is_active && !row.token).length;
 
   return (
     <AdminShell activeItem="settings" title={settings.attendanceTitle}>
@@ -140,7 +145,7 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
           <div className="card__h">
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="card__t">
-                {settings.attendanceSiteListTitle} {rows.length}
+                {settings.attendanceSiteListTitle} {visibleRows.length}
               </div>
               <div className="setsub">{settings.attendanceSiteListDescription}</div>
             </div>
@@ -152,13 +157,29 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
             </Link>
           </div>
 
-          {rows.length === 0 ? (
+          {inactiveCount > 0 ? (
+            <div style={{ padding: "0 16px 12px" }}>
+              <Link
+                className={`chipbtn${showInactive ? " is-on" : ""}`}
+                href={
+                  showInactive
+                    ? `/admin/settings/attendance${selectedSite ? `?site=${selectedSite.id}` : ""}`
+                    : `/admin/settings/attendance?inactive=1${selectedSite ? `&site=${selectedSite.id}` : ""}`
+                }
+              >
+                <span className="ic">{showInactive ? <EyeOff /> : <Eye />}</span>
+                {settings.attendanceShowInactive} {inactiveCount}
+              </Link>
+            </div>
+          ) : null}
+
+          {visibleRows.length === 0 ? (
             <div className="card__body">
               <div className="setnote setnote--dim">{settings.attendanceEmptySites}</div>
             </div>
           ) : (
             <div>
-              {rows.map((row) => {
+              {visibleRows.map((row) => {
                 const state = row.token
                   ? attendanceQrLinkState(buildAttendanceQrValue(row.token.token))
                   : null;

@@ -26,9 +26,11 @@ export default async function AdminSettingsPage() {
   // 누르면 forbidden 으로 튕겼다 — 카드 노출을 페이지 권한과 맞춘다.
   const canManageOrganization = session.user.role === "developer_super_admin";
 
-  const sites = canManageAttendance
+  const allSites = canManageAttendance
     ? await getAttendanceSiteQrOverview(session.organization.id)
     : [];
+  // 비활성 현장은 의도적으로 운영에서 뺀 것이므로 카운트·경고에서 제외한다.
+  const sites = allSites.filter((row) => row.site.is_active);
   const readyCount = sites.filter(
     (row) => row.token && attendanceQrLinkState(buildAttendanceQrValue(row.token.token)) === "ok",
   ).length;
