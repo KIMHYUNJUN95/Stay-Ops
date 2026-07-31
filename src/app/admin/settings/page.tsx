@@ -36,64 +36,58 @@ export default async function AdminSettingsPage() {
 
   return (
     <AdminShell activeItem="settings" title={settings.settingsTitle}>
-      <p className="hmeta" style={{ marginBottom: 16 }}>
+      <p className="hmeta" style={{ marginBottom: 14 }}>
         {settings.settingsDescription}
       </p>
 
-      <div
-        style={{
-          display: "grid",
-          gap: 14,
-          gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
-        }}
-      >
+      <div className="card setindex">
         {canManageOrganization ? (
-          <Link className="card" href="/admin/settings/organization" style={{ display: "block" }}>
-            <div className="card__h">
-              <span className="ic" style={{ fontSize: 22, color: "var(--primary)" }}>
+          <Link className="setrow" href="/admin/settings/organization">
+            <span className="card__ic bg-pri">
+              <span className="ic">
                 <Building2 aria-hidden="true" />
               </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="card__t">{settings.organizationTitle}</div>
-                <div className="card__s">{settings.organizationDescription}</div>
-              </div>
-              <span className="ic" style={{ color: "var(--faint)" }}>
-                <ChevronRight aria-hidden="true" />
-              </span>
-            </div>
+            </span>
+            <span className="setrow__b">
+              <span className="card__t">{settings.organizationTitle}</span>
+              <span className="setsub">{settings.organizationDescription}</span>
+            </span>
+            <span className="ic setrow__chev">
+              <ChevronRight aria-hidden="true" />
+            </span>
           </Link>
         ) : null}
 
         {canManageAttendance ? (
-          <Link className="card" href="/admin/settings/attendance" style={{ display: "block" }}>
-            <div className="card__h">
-              <span className="ic" style={{ fontSize: 22, color: "var(--primary)" }}>
+          <Link className="setrow" href="/admin/settings/attendance">
+            <span className="card__ic bg-pri">
+              <span className="ic">
                 <QrCode aria-hidden="true" />
               </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="card__t">{settings.attendanceTitle}</div>
-                <div className="card__s">{settings.attendanceDescription}</div>
-              </div>
-              <span className="ic" style={{ color: "var(--faint)" }}>
-                <ChevronRight aria-hidden="true" />
-              </span>
-            </div>
-            <div className="card__b" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              <span className="pill pill--muted">
-                {settings.settingsSitesLabel} {sites.length}
-              </span>
-              <span className={readyCount > 0 ? "pill pill--done" : "pill pill--muted"}>
-                {settings.settingsQrReadyLabel} {readyCount}
-              </span>
-              {attentionCount > 0 ? (
-                <span className="pill pill--warn">
-                  <span className="ic">
-                    <TriangleAlert aria-hidden="true" />
-                  </span>
-                  {settings.settingsQrAttentionLabel} {attentionCount}
+            </span>
+            <span className="setrow__b">
+              <span className="card__t">{settings.attendanceTitle}</span>
+              <span className="setsub">{settings.attendanceDescription}</span>
+              <span className="setrow__pills">
+                <span className="pill pill--muted">
+                  {settings.settingsSitesLabel} {sites.length}
                 </span>
-              ) : null}
-            </div>
+                <span className={readyCount > 0 ? "pill pill--done" : "pill pill--muted"}>
+                  {settings.settingsQrReadyLabel} {readyCount}
+                </span>
+                {attentionCount > 0 ? (
+                  <span className="pill pill--warn">
+                    <span className="ic">
+                      <TriangleAlert aria-hidden="true" />
+                    </span>
+                    {settings.settingsQrAttentionLabel} {attentionCount}
+                  </span>
+                ) : null}
+              </span>
+            </span>
+            <span className="ic setrow__chev">
+              <ChevronRight aria-hidden="true" />
+            </span>
           </Link>
         ) : null}
       </div>

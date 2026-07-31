@@ -39,23 +39,30 @@ export function AccountSettings({
   ];
 
   return (
-    <div className="space-y-5">
+    /* `@container` 필수 — 브레이크포인트를 뷰포트가 아니라 **이 블록의 실제 폭**에 건다.
+       콘솔의 "모바일 보기"는 넓은 데스크톱 뷰포트 안에 430px 모바일 셸을 그리므로, 뷰포트
+       기준(`sm:`)으로 판단하면 좁은 셸 안에서 좌측 레일 2열이 되어 카드가 잘린다(2026-07-31). */
+    <div className="@container space-y-5">
       {banners}
 
       {/* 좁은 화면(모바일 셸)에서는 서브내비가 위로 올라가 가로 스크롤 칩이 된다. */}
-      <div className="grid gap-4 sm:grid-cols-[168px_minmax(0,1fr)] sm:gap-5">
+      <div className="grid gap-4 @2xl:grid-cols-[168px_minmax(0,1fr)] @2xl:gap-5">
         <nav
           aria-label={labels.profile}
-          className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-col sm:overflow-visible sm:px-0 sm:pb-0"
+          className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 @2xl:mx-0 @2xl:flex-col @2xl:overflow-visible @2xl:px-0 @2xl:pb-0"
         >
           {items.map(({ key, icon: Icon }) => (
             <button
               aria-current={tab === key ? "page" : undefined}
+              /* 좁은 화면 = 모바일 셸. 이때는 앱의 알약형 탭 규격을 그대로 쓴다(테두리 있는
+                 rounded-full, 활성은 네이비 채움 — `tasks-workspace` 탭 스트립과 동일).
+                 sm 이상 = 관리 콘솔의 좌측 레일이라 사각 항목 + 연한 네이비 배경으로 바뀐다. */
               className={cn(
-                "inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-[13px] font-bold transition-colors sm:w-full",
+                "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-bold transition-colors",
+                "@2xl:w-full @2xl:justify-start @2xl:gap-2 @2xl:rounded-xl @2xl:border-transparent @2xl:px-3 @2xl:py-2.5",
                 tab === key
-                  ? "bg-primary/[0.08] text-primary"
-                  : "text-muted-foreground hover:bg-slate-100",
+                  ? "border-primary bg-primary text-primary-foreground @2xl:bg-primary/[0.08] @2xl:text-primary"
+                  : "border-border bg-surface text-slate-600 @2xl:bg-transparent @2xl:text-muted-foreground @2xl:hover:bg-[hsl(40_22%_94%)]",
               )}
               key={key}
               onClick={() => setTab(key)}

@@ -6,6 +6,20 @@
    교체하고, 여기에는 그 프리미티브로 표현되지 않는 것만 남긴다.
    =================================================================== */
 
+/* 카드 부제 — 공용 `.card` 에는 제목(.card__t)만 있고 부제 프리미티브가 없다.
+   설정 화면은 "이 항목이 뭘 하는 곳인지" 한 줄 설명이 꼭 필요해서 여기서 정의한다. */
+.adm .setsub { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); line-height: 1.5; margin-top: 3px; }
+
+/* 설정 인덱스 — 항목이 2개뿐이라 큰 카드를 늘리면 허전하다. 한 카드 안의 목록 행으로 둔다. */
+.adm .setindex { max-width: 720px; }
+.adm .setrow { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line-soft); color: inherit; text-decoration: none; }
+.adm .setrow:first-child { border-top: none; }
+.adm .setrow:hover { background: var(--card2); }
+.adm .setrow__b { flex: 1; min-width: 0; }
+.adm .setrow__b .card__t { display: block; }
+.adm .setrow__pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.adm .setrow__chev { color: var(--faint); display: inline-flex; font-size: 17px; flex: 0 0 auto; }
+
 /* 마스터·디테일 — 좌측 목록 / 우측 상세. 화면이 좁으면 한 줄로 떨어진다. */
 .adm .setgrid { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 1100px) { .adm .setgrid { grid-template-columns: minmax(0, 1fr); } }

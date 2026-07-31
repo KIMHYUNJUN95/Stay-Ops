@@ -129,7 +129,7 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
               <div className="card__t">
                 {settings.attendanceSiteListTitle} {rows.length}
               </div>
-              <div className="card__s">{settings.attendanceSiteListDescription}</div>
+              <div className="setsub">{settings.attendanceSiteListDescription}</div>
             </div>
             <Link className="chipbtn" href="/admin/settings/attendance?site=new">
               <span className="ic">
@@ -140,7 +140,7 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
           </div>
 
           {rows.length === 0 ? (
-            <div className="card__b">
+            <div className="card__body">
               <div className="setnote setnote--dim">{settings.attendanceEmptySites}</div>
             </div>
           ) : (
@@ -192,14 +192,14 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                 <div className="card__t">
                   {selectedSite ? selectedSite.name : settings.attendanceCreateSiteTitle}
                 </div>
-                <div className="card__s">
+                <div className="setsub">
                   {selectedSite
                     ? settings.attendanceEditSiteDescription
                     : settings.attendanceCreateSiteDescription}
                 </div>
               </div>
             </div>
-            <div className="card__b">
+            <div className="card__body">
               <form action={saveAttendanceSiteSettings}>
                 <input name="siteId" type="hidden" value={selectedSite?.id ?? ""} />
                 <div className="fld">
@@ -266,15 +266,17 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
           {/* QR */}
           <div className="card">
             <div className="card__h">
-              <span className="ic" style={{ fontSize: 20, color: "var(--primary)" }}>
-                <QrIcon aria-hidden="true" />
+              <span className="card__ic bg-pri">
+                <span className="ic">
+                  <QrIcon aria-hidden="true" />
+                </span>
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="card__t">{settings.attendanceQrSectionTitle}</div>
-                <div className="card__s">{settings.attendanceQrSectionDescription}</div>
+                <div className="setsub">{settings.attendanceQrSectionDescription}</div>
               </div>
             </div>
-            <div className="card__b">
+            <div className="card__body">
               {!selectedSite ? (
                 <div className="setnote setnote--dim">{settings.attendanceCreateFirstHint}</div>
               ) : activeQr && qrSvg ? (
@@ -353,18 +355,20 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
           {/* 기억된 기기 */}
           <div className="card">
             <div className="card__h">
-              <span className="ic" style={{ fontSize: 20, color: "var(--primary)" }}>
-                <Smartphone aria-hidden="true" />
+              <span className="card__ic bg-pri">
+                <span className="ic">
+                  <Smartphone aria-hidden="true" />
+                </span>
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="card__t">
                   {settings.attendanceDevicesTitle} {trustedDevices.length}
                 </div>
-                <div className="card__s">{settings.attendanceDevicesDescription}</div>
+                <div className="setsub">{settings.attendanceDevicesDescription}</div>
               </div>
             </div>
             {trustedDevices.length === 0 ? (
-              <div className="card__b">
+              <div className="card__body">
                 <div className="setnote setnote--dim">{settings.attendanceDevicesEmpty}</div>
               </div>
             ) : (

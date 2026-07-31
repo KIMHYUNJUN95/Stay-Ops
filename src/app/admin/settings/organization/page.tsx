@@ -109,7 +109,7 @@ export default async function AdminOrganizationSettingsPage({ searchParams }: Pa
           </div>
 
           {organizations.length === 0 ? (
-            <div className="card__b">
+            <div className="card__body">
               <div className="setnote setnote--dim">{settings.emptyOrganizations}</div>
             </div>
           ) : (
@@ -147,12 +147,14 @@ export default async function AdminOrganizationSettingsPage({ searchParams }: Pa
           {selected ? (
             <div className="card">
               <div className="card__h">
-                <span className="ic" style={{ fontSize: 20, color: "var(--primary)" }}>
-                  <Building2 aria-hidden="true" />
+                <span className="card__ic bg-pri">
+                  <span className="ic">
+                    <Building2 aria-hidden="true" />
+                  </span>
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="card__t">{selected.name}</div>
-                  <div className="card__s">
+                  <div className="setsub">
                     {selected.slug} · {settings.membersLabel} {selectedMembers}
                   </div>
                 </div>
@@ -160,7 +162,7 @@ export default async function AdminOrganizationSettingsPage({ searchParams }: Pa
                   {statusLabels[selected.status] ?? selected.status}
                 </span>
               </div>
-              <div className="card__b">
+              <div className="card__body">
                 <form action={updateOrganization}>
                   <input name="organizationId" type="hidden" value={selected.id} />
                   <div className="fld">
@@ -201,10 +203,10 @@ export default async function AdminOrganizationSettingsPage({ searchParams }: Pa
             <div className="card__h">
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="card__t">{settings.createOrganization}</div>
-                <div className="card__s">{settings.organizationDescription}</div>
+                <div className="setsub">{settings.organizationDescription}</div>
               </div>
             </div>
-            <div className="card__b">
+            <div className="card__body">
               <form action={createOrganization}>
                 <div className="fld">
                   <label className="fld__l" htmlFor="new-org-name">

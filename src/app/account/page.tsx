@@ -55,8 +55,15 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
    * `admin-console.css` 가 `.adm` 안에서 `--surface` 를 중간 톤 토프로 재정의한다. 그래서 관리
    * 콘솔에서만 카드가 탁하게 보였다(2026-07-31). 두 셸에서 같게 보이도록 명시적으로 칠한다.
    */
-  const panelCard =
-    "overflow-hidden rounded-2xl border border-border bg-white shadow-[0_1px_2px_rgba(20,32,43,0.04)]";
+  /**
+   * 표면색을 `bg-surface` 토큰으로 못 쓰는 이유: `admin-console.css` 가 `.adm` 안에서 `--surface`
+   * 를 중간 톤 토프로 재정의해 카드·입력·버튼이 전부 탁해진다(2026-07-31). 그래서 globals 의
+   * `--surface` 실측값을 직접 쓴다 — **모바일 카드 계약(`bg-surface`)과 같은 색**이라 두 셸에서
+   * 의도한 톤이 그대로 나온다.
+   */
+  const surface = "bg-[hsl(44_52%_98.5%)]";
+  const panelCard = `overflow-hidden rounded-2xl border border-border ${surface} shadow-[0_1px_2px_rgba(20,32,43,0.04)]`;
+  const inputCls = surface;
   const shared = dictionary.admin.shared;
   const ap = dictionary.accountProfile;
   const profileIncomplete = !session.user.birthDate || !session.user.gender;
@@ -117,13 +124,14 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
           <span>{dictionary.onboarding.fullNamePlaceholder}</span>
           <Input
             defaultValue={session.user.name}
+            className={inputCls}
             name="name"
             placeholder={dictionary.onboarding.fullNamePlaceholder}
             required
             type="text"
           />
         </label>
-        <div className="grid gap-3.5 sm:grid-cols-2">
+        <div className="grid gap-3.5 @2xl:grid-cols-2">
         <div className="grid gap-1.5 text-sm font-semibold">
           <span>{dictionary.onboarding.birthDateLabel}</span>
           {/* 관리 콘솔에서는 네이티브 date input 이 금지다(CLAUDE.md §4a) — 공용 `AdminDatePicker`
@@ -146,6 +154,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
             />
           ) : (
             <Input
+              className={inputCls}
               defaultValue={session.user.birthDate ?? ""}
               name="birthDate"
               placeholder={dictionary.onboarding.birthDatePlaceholder}
@@ -160,6 +169,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
           <span>{dictionary.onboarding.phonePlaceholder}</span>
           <Input
             defaultValue={session.user.phoneNumber}
+            className={inputCls}
             name="phoneNumber"
             placeholder={dictionary.onboarding.phonePlaceholder}
             required
@@ -202,7 +212,11 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
           <Button className="flex-1" type="submit">
             {dictionary.common.save}
           </Button>
-          <Button className="w-[92px]" type="reset" variant="secondary">
+          <Button
+            className={`w-[92px] border-border ${surface} text-foreground shadow-none backdrop-blur-none hover:bg-[hsl(40_22%_94%)]`}
+            type="reset"
+            variant="secondary"
+          >
             {dictionary.common.cancel}
           </Button>
         </div>
@@ -273,7 +287,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
   );
 
   const content = (
-    <div className="mx-auto w-full max-w-3xl pb-10">
+    <div className="mx-auto w-full max-w-5xl pb-10">
       <Badge>{dictionary.common.account}</Badge>
       <div className="mt-5">
         <AccountSettings
