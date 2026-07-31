@@ -36,11 +36,13 @@ export default async function AdminSettingsPage() {
 
   return (
     <AdminShell activeItem="settings" title={settings.settingsTitle}>
-      <p className="hmeta" style={{ marginBottom: 14 }}>
-        {settings.settingsDescription}
-      </p>
+      <div className="setpage">
+        <div className="setpage__h">
+          <div className="setpage__t">{settings.settingsTitle}</div>
+          <div className="setpage__s">{settings.settingsDescription}</div>
+        </div>
 
-      <div className="card setindex">
+        <div className="card setindex">
         {canManageOrganization ? (
           <Link className="setrow" href="/admin/settings/organization">
             <span className="card__ic bg-pri">
@@ -89,7 +91,8 @@ export default async function AdminSettingsPage() {
               <ChevronRight aria-hidden="true" />
             </span>
           </Link>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </AdminShell>
   );

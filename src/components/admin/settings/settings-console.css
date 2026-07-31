@@ -10,8 +10,14 @@
    설정 화면은 "이 항목이 뭘 하는 곳인지" 한 줄 설명이 꼭 필요해서 여기서 정의한다. */
 .adm .setsub { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); line-height: 1.5; margin-top: 3px; }
 
-/* 설정 인덱스 — 항목이 2개뿐이라 큰 카드를 늘리면 허전하다. 한 카드 안의 목록 행으로 둔다. */
-.adm .setindex { max-width: 720px; }
+/* 설정 인덱스 — 항목이 2개뿐이라 큰 카드를 늘리면 허전하다. 한 카드 안의 목록 행으로 두고,
+   넓은 화면에서 좌측 상단에 붙어 보이지 않도록 가운데 정렬한다(다른 콘솔은 목록/표가 화면을
+   가득 채우지만 이 화면은 진입 메뉴라 폭을 잡아 두는 편이 자연스럽다). */
+.adm .setpage { max-width: 640px; margin: 0 auto; padding-top: 6vh; }
+.adm .setpage__t { font-size: 19px; font-weight: 900; letter-spacing: -0.03em; }
+.adm .setpage__s { font-size: 12.5px; font-weight: 600; color: var(--muted); line-height: 1.6; margin-top: 5px; }
+.adm .setpage__h { margin-bottom: 16px; }
+.adm .setindex { max-width: none; }
 .adm .setrow { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line-soft); color: inherit; text-decoration: none; }
 .adm .setrow:first-child { border-top: none; }
 .adm .setrow:hover { background: var(--card2); }
