@@ -163,7 +163,10 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                 className={`chipbtn${showInactive ? " is-on" : ""}`}
                 href={
                   showInactive
-                    ? `/admin/settings/attendance${selectedSite ? `?site=${selectedSite.id}` : ""}`
+                    ? // 끄는 링크: 선택 현장이 비활성이면 선택도 함께 해제한다(안 그러면 강제로 다시 켜진다).
+                      `/admin/settings/attendance${
+                        selectedSite && selectedSite.is_active ? `?site=${selectedSite.id}` : ""
+                      }`
                     : `/admin/settings/attendance?inactive=1${selectedSite ? `&site=${selectedSite.id}` : ""}`
                 }
               >
@@ -435,6 +438,7 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                   <tr>
                     <th style={{ paddingLeft: 16 }}>{settings.attendanceDeviceStaff}</th>
                     <th>{settings.attendanceDeviceLastUsed}</th>
+                    <th>{settings.attendanceDeviceExpires}</th>
                     <th />
                   </tr>
                 </thead>
@@ -449,6 +453,9 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                       </td>
                       <td className="mono" style={{ color: "var(--muted)" }}>
                         {tokyoDate(device.lastUsedAt)}
+                      </td>
+                      <td className="mono" style={{ color: "var(--muted)" }}>
+                        {tokyoDate(device.expiresAt)}
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <form action={revokeAttendanceTrustedDevice}>

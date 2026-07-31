@@ -15,8 +15,15 @@ import { hasOrganizationContext } from "@/lib/session";
 // 어긋나 있었다. 공용 `.adm` 프리미티브로 옮기면서, 카드가 단순 링크가 아니라 **지금 상태**를
 // 같이 보여주게 했다(현장 수 / QR 준비됨 / 교체 필요). "오쿠보C에 QR이 있나?" 를 클릭 없이 알 수
 // 있어야 한다. 초대코드는 2026-07-13 에 `/admin/users/invites` 로 옮겨져 여기 없다.
-export default async function AdminSettingsPage() {
+export default async function AdminSettingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await requireAdminSession();
+  const params = (await searchParams) ?? {};
+  const errorRaw = params.error;
+  const errorKey = Array.isArray(errorRaw) ? errorRaw[0] : errorRaw;
   const dictionary = getDictionary(session.user.preferredLanguage);
   const settings = dictionary.admin.settings;
 
@@ -43,6 +50,15 @@ export default async function AdminSettingsPage() {
           <div className="setpage__t">{settings.settingsTitle}</div>
           <div className="setpage__s">{settings.settingsDescription}</div>
         </div>
+
+        {errorKey ? (
+          <div className="setnote setnote--warn" style={{ marginBottom: 14 }}>
+            <span className="ic">
+              <TriangleAlert aria-hidden="true" />
+            </span>
+            <span>{settings.errors[errorKey] ?? settings.errors.save_failed}</span>
+          </div>
+        ) : null}
 
         <div className="card setindex">
         {canManageOrganization ? (
