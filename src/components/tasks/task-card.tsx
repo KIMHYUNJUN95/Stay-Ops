@@ -21,11 +21,15 @@ import { moveTaskToToday, moveTaskToTomorrow } from "@/app/mobile/tasks/[id]/act
 import type { Dictionary, Locale } from "@/lib/i18n";
 import { localizePropertyName } from "@/lib/room-label-normalization";
 import type { TaskRecord } from "@/lib/tasks";
-import { formatCustomWeekdays } from "@/lib/tasks-recurrence";
+import {
+  formatCustomWeekdays,
+  isStandardRecurrence,
+  recurringOccurrencesInRange,
+} from "@/lib/tasks-recurrence";
 import { cn } from "@/lib/utils";
 
-type Copy = Dictionary["tasks"];
-
+// `@/lib/tasks` 는 서버 전용 모듈(supabase/server)을 끌어오므로 클라이언트 컴포넌트에서 값으로
+// 가져올 수 없다. 날짜 유틸만 여기 둔다.
 function tokyoDateOf(iso: string | null): string | null {
   if (!iso) return null;
   return new Intl.DateTimeFormat("en-CA", {
@@ -35,6 +39,13 @@ function tokyoDateOf(iso: string | null): string | null {
     day: "2-digit",
   }).format(new Date(iso));
 }
+function shiftYmd(ymd: string, days: number): string {
+  const base = new Date(`${ymd}T00:00:00Z`).getTime();
+  return new Date(base + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+type Copy = Dictionary["tasks"];
+
 function shortDate(ymd: string): string {
   const [, m, d] = ymd.split("-");
   return `${Number(m)}/${Number(d)}`;
@@ -182,7 +193,20 @@ export function TaskCard({
     return () => document.removeEventListener("pointerdown", onDown);
   }, [offset]);
 
-  const canSwipe = swipe && !done && !selectMode;
+  // 스와이프 목적지에 이미 이 작업이 걸려 있으면 스와이프를 내주지 않는다.
+  //
+  // 목적지는 탭으로 정해진다(오늘 탭 → 내일, 그 밖 → 오늘). 반복 작업은 규칙으로 회차가 생기므로
+  // 예컨대 평일 반복은 오늘도 내일도 회차가 있고, 서버(`canMoveRecurringTo`)가 그 이동을
+  // `duplicate_occurrence` 로 거절한다. 즉 스와이프해도 아무 일이 일어나지 않는다.
+  // 콘솔의 「오늘로/내일로 이동」 메뉴도 같은 이유로 감춘다(2026-08-03).
+  const swipeTarget = swipeAction === "tomorrow" ? shiftYmd(today, 1) : today;
+  const anchorDate = tokyoDateOf(task.dueAt) ?? task.scheduledDate ?? null;
+  const alreadyOnTarget = anchorDate
+    ? isStandardRecurrence(task.recurrenceRule)
+      ? recurringOccurrencesInRange(task.recurrenceRule, anchorDate, swipeTarget, swipeTarget).length > 0
+      : anchorDate === swipeTarget
+    : false;
+  const canSwipe = swipe && !done && !selectMode && !alreadyOnTarget;
 
   // Long-press → context menu. A 480ms hold with little movement fires; a drag/scroll cancels it.
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
