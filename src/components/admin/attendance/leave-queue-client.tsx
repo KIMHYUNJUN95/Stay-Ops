@@ -129,6 +129,13 @@ function durationLabel(unit: LeaveDurationUnit, lc: Lc): string {
   return lc.durationFull;
 }
 
+/** `value / total` as a CSS width, clamped to 0–100%. Guards the over-balance case where the
+ *  post-approval balance is negative and a raw percentage would be an invalid width. */
+function barPct(value: number, total: number): string {
+  if (!total || total <= 0) return "0%";
+  return `${Math.min(100, Math.max(0, (value / total) * 100))}%`;
+}
+
 /** Tokyo "today" as YYYY-MM-DD — matches the server's operational-date convention. */
 function tokyoTodayStr(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
@@ -566,7 +573,7 @@ export function LeaveQueueClient({
         <button
           type="button"
           className="btn"
-          style={{ background: "var(--primary)", color: "#fff" }}
+          style={{ background: "var(--adm-primary)", color: "#fff" }}
           onClick={() => setRequestModal({ mode: "proxy" })}
         >
           <Ic>
@@ -632,7 +639,7 @@ export function LeaveQueueClient({
                   <tr key={item.id} className={rowClass} onClick={() => setSelectedId(item.id)}>
                     <td style={{ paddingLeft: 16 }}>
                       <div className="who">
-                        <span className="avatar" style={{ background: "var(--primary)", color: "#fff" }}>
+                        <span className="avatar" style={{ background: "var(--adm-primary)", color: "#fff" }}>
                           {item.avatarInitial || initial(item.applicantName)}
                         </span>
                         <div>
@@ -817,7 +824,7 @@ function LeavePanel({
           </div>
           <div className="panel__title">
             <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="avatar" style={{ background: "var(--primary)", color: "#fff" }}>
+              <span className="avatar" style={{ background: "var(--adm-primary)", color: "#fff" }}>
                 {item.avatarInitial || initial(item.applicantName)}
               </span>
               <span>
@@ -898,20 +905,11 @@ function LeavePanel({
                   </b>
                 </div>
                 <div className="limpact__bar">
-                  <i
-                    style={{
-                      width: detail.balanceBefore
-                        ? `${(detail.balanceAfter / detail.balanceBefore) * 100}%`
-                        : "0%",
-                    }}
-                  />
-                  <em
-                    style={{
-                      width: detail.balanceBefore
-                        ? `${(item.daysCount / detail.balanceBefore) * 100}%`
-                        : "0%",
-                    }}
-                  />
+                  {/* balanceAfter goes negative when the request exceeds the remaining balance
+                      (an over-balance approval). A negative CSS width is invalid and would leave the
+                      previous width painted, so both segments are clamped to 0–100%. */}
+                  <i style={{ width: barPct(detail.balanceAfter, detail.balanceBefore) }} />
+                  <em style={{ width: barPct(item.daysCount, detail.balanceBefore) }} />
                 </div>
                 <div className="limpact__note">
                   <Ic>
@@ -958,7 +956,7 @@ function LeavePanel({
                       const op = statusPill(o.status, lc);
                       return (
                         <div className="cvrow" key={i}>
-                          <span className="avatar" style={{ background: "var(--primary)", color: "#fff" }}>
+                          <span className="avatar" style={{ background: "var(--adm-primary)", color: "#fff" }}>
                             {o.avatarInitial || initial(o.applicantName)}
                           </span>
                           <div className="cvrow__b">

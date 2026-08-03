@@ -21,6 +21,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getAttendancePayrollAdminUserIds } from "@/lib/attendance-review";
 import { notifyAttendanceAdmins } from "@/lib/notifications/create";
 import {
+  ATTENDANCE_CORRECTION_PENDING_STATUSES,
   ATTENDANCE_CORRECTION_REASONS,
   ATTENDANCE_CORRECTION_MAX_IMAGES,
   type AttendanceActionType,
@@ -497,6 +498,44 @@ function tokyoInstant(baseDate: string, hhmm: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+export type CancelCorrectionResult = { ok: true } | { ok: false; reason: "error" | "not_pending" };
+
+/**
+ * 정정 요청 철회 (2026-08-03, 마이그레이션 202608030001).
+ *
+ * 예전에는 한 번 낸 요청을 거둘 방법이 없어, 잘못 낸 요청이 관리자가 반려해 줄 때까지 대기 큐에
+ * 남고 그 달의 근태 마감까지 막았다(`getFinalizationEligibility` 가 `requested|in_review` 를 센다).
+ *
+ * **본인 것만**, **아직 처리되지 않은 것만** 철회할 수 있다. service-role 쓰기라 RLS 가 막지
+ * 않으므로 UPDATE 의 `.eq`/`.in` 조건이 유일한 경계다 — 관리자가 그 사이에 승인/반려했다면 0행이
+ * 갱신되고 `not_pending` 으로 떨어진다(레이스 안전).
+ */
+export async function cancelAttendanceCorrectionRequest(
+  requestId: string,
+): Promise<CancelCorrectionResult> {
+  const id = String(requestId ?? "").trim();
+  if (!id) return { ok: false, reason: "error" };
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return { ok: false, reason: "error" };
+
+  const service = getSupabaseServiceClient();
+  const { data, error } = await service
+    .from("attendance_correction_requests")
+    .update({ status: "cancelled", cancelled_at: new Date().toISOString() } as never)
+    .eq("id", id)
+    .eq("organization_id", session.organization.id)
+    .eq("requested_by_user_id", session.user.id)
+    .in("status", [...ATTENDANCE_CORRECTION_PENDING_STATUSES])
+    .select("id");
+  if (error) return { ok: false, reason: "error" };
+  if (!data || (data as unknown[]).length === 0) return { ok: false, reason: "not_pending" };
+
+  revalidatePath("/mobile/attendance");
+  revalidatePath("/mobile/attendance/correction/status");
+  revalidatePath("/mobile/attendance/history");
+  return { ok: true };
+}
+
 export async function createAttendanceCorrectionRequest(
   input: CreateCorrectionInput,
 ): Promise<CreateCorrectionResult> {
@@ -548,25 +587,78 @@ export async function createAttendanceCorrectionRequest(
     if (siteRes.data) desiredSiteId = input.desiredSiteId;
   }
 
-  const ins = (await service
+  const payload = {
+    reason_type: input.reasonType,
+    memo: input.memo?.trim() ? input.memo.trim() : null,
+    desired_clock_in_at: tokyoInstant(baseDate, input.desiredInTime),
+    desired_clock_out_at: tokyoInstant(baseDate, input.desiredOutTime),
+    desired_clock_in_site_id: desiredSiteId,
+    desired_clock_out_site_id: desiredSiteId,
+    image_urls: imageUrls,
+    target_month: `${ym}-01`,
+  };
+
+  // Re-submitting for the SAME target must replace the user's still-pending request, never stack a
+  // second one. Two pending rows for one day used to make the worker's status screen (latest 1) and
+  // the month-close blocker count (all rows) disagree — and gave the reviewer two contradictory
+  // requests to act on. Superseding resets the row to `requested` and drops any stale review verdict,
+  // because the values the reviewer was looking at no longer exist.
+  let pendingQuery = service
     .from("attendance_correction_requests")
-    .insert({
-      organization_id: organizationId,
-      session_id: sessionId,
-      requested_by_user_id: userId,
-      status: "requested",
-      reason_type: input.reasonType,
-      memo: input.memo?.trim() ? input.memo.trim() : null,
-      desired_clock_in_at: tokyoInstant(baseDate, input.desiredInTime),
-      desired_clock_out_at: tokyoInstant(baseDate, input.desiredOutTime),
-      desired_clock_in_site_id: desiredSiteId,
-      desired_clock_out_site_id: desiredSiteId,
-      image_urls: imageUrls,
-      target_month: `${ym}-01`,
-    } as never)
     .select("id")
-    .single()) as { data: { id: string } | null; error: { message: string } | null };
-  if (ins.error || !ins.data) return { ok: false, reason: "error" };
+    .eq("organization_id", organizationId)
+    .eq("requested_by_user_id", userId)
+    .in("status", ["requested", "in_review"]);
+  pendingQuery = sessionId
+    ? pendingQuery.eq("session_id", sessionId)
+    : pendingQuery.is("session_id", null).eq("target_month", `${ym}-01`);
+  const existingRes = await pendingQuery
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const existing = existingRes.data as { id: string } | null;
+
+  const submittedAt = new Date().toISOString();
+  let requestId: string | null = null;
+  let superseded = false;
+  if (existing) {
+    const upd = (await service
+      .from("attendance_correction_requests")
+      .update({
+        ...payload,
+        status: "requested",
+        review_comment: null,
+        reviewed_at: null,
+        reviewed_by_user_id: null,
+        updated_at: submittedAt,
+      } as never)
+      .eq("id", existing.id)
+      .eq("organization_id", organizationId)
+      .eq("requested_by_user_id", userId)
+      // Guard the race where an admin resolves the request between the read and the write.
+      .in("status", ["requested", "in_review"])
+      .select("id")
+      .maybeSingle()) as { data: { id: string } | null; error: { message: string } | null };
+    if (upd.error) return { ok: false, reason: "error" };
+    requestId = upd.data?.id ?? null;
+    superseded = requestId != null;
+  }
+
+  if (!requestId) {
+    const ins = (await service
+      .from("attendance_correction_requests")
+      .insert({
+        organization_id: organizationId,
+        session_id: sessionId,
+        requested_by_user_id: userId,
+        status: "requested",
+        ...payload,
+      } as never)
+      .select("id")
+      .single()) as { data: { id: string } | null; error: { message: string } | null };
+    if (ins.error || !ins.data) return { ok: false, reason: "error" };
+    requestId = ins.data.id;
+  }
 
   // Admin alert: notify owner + attendance_payroll_admin (privileged only; never the requester).
   const adminIds = await getAttendancePayrollAdminUserIds(service, organizationId);
@@ -574,21 +666,25 @@ export async function createAttendanceCorrectionRequest(
     organizationId,
     recipientUserIds: adminIds,
     actorUserId: userId,
-    dedupeBase: `attendance_correction:${ins.data.id}`,
+    // A re-submission reuses the row id, so the dedupe key carries the submission instant — otherwise
+    // the resubmitted (different) values would be silently swallowed as a duplicate alert.
+    dedupeBase: superseded
+      ? `attendance_correction:${requestId}:${submittedAt}`
+      : `attendance_correction:${requestId}`,
     href: "/mobile/attendance",
-    sourceId: ins.data.id,
+    sourceId: requestId,
     payload: {
       event: "correction_created",
       subjectUserId: userId,
       subjectName: session.user.name ?? null,
-      correctionId: ins.data.id,
+      correctionId: requestId,
     },
   });
 
   revalidatePath("/mobile/attendance");
   revalidatePath("/mobile/attendance/correction/status");
   revalidatePath("/mobile/attendance/history");
-  return { ok: true, id: ins.data.id };
+  return { ok: true, id: requestId };
 }
 
 // ── 18:30 open-session reminder response (Step 14) ───────────────────────────

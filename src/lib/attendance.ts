@@ -108,13 +108,27 @@ export const ATTENDANCE_FAILURE_REASONS: readonly AttendanceFailureReason[] = [
 ];
 
 // ── Correction / exception requests ─────────────────────────────────────────────
-export type AttendanceCorrectionStatus = "requested" | "in_review" | "approved" | "rejected";
+// `cancelled` = 요청자가 스스로 철회(2026-08-03, 마이그레이션 202608030001).
+// 대기 큐와 마감 판정은 `requested|in_review` 만 세므로 취소된 요청은 두 곳 모두에서 빠진다.
+export type AttendanceCorrectionStatus =
+  | "requested"
+  | "in_review"
+  | "approved"
+  | "rejected"
+  | "cancelled";
 
 export const ATTENDANCE_CORRECTION_STATUSES: readonly AttendanceCorrectionStatus[] = [
   "requested",
   "in_review",
   "approved",
   "rejected",
+  "cancelled",
+];
+
+/** 아직 관리자가 처리하지 않은 상태 — 이 상태에서만 요청자가 철회할 수 있다. */
+export const ATTENDANCE_CORRECTION_PENDING_STATUSES: readonly AttendanceCorrectionStatus[] = [
+  "requested",
+  "in_review",
 ];
 
 export type AttendanceCorrectionReason =

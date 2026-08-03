@@ -130,6 +130,7 @@ export const CORRECTION_STATUS_I18N_KEYS: Record<AttendanceCorrectionStatus, str
   in_review: "stepInReview",
   approved: "stepApproved",
   rejected: "stepRejected",
+  cancelled: "stepCancelled",
 };
 
 function attendanceLabel(locale: string, key: string, fallback: string): string {

@@ -486,3 +486,80 @@ remains mobile-only due to physical device constraints (the camera deep link abo
 that — it only removes the manual navigation before the scan); payroll premiums
 (overtime/holiday/night) remain out of scope; broader automated midnight sweep and advanced
 export/reporting refinements are handled in the technical roadmap.
+
+## 2026-08-03 정정 요청 · 로스터 · 연차 승인 — 3건 수정
+
+### 정정 요청 재제출은 기존 pending 을 갱신한다 (supersede)
+
+예전에는 재제출이 무조건 INSERT 였다. 화면(`getCorrectionRequestView`)은 최신 1건만 보여주는데
+마감 판정(`getFinalizationEligibility`)은 `requested|in_review` **전 건**을 세므로, 같은 날
+재요청하면 **화면엔 1건인데 마감은 2건으로 막혔고** 관리자 큐에도 서로 모순되는 요청이 2건 떴다.
+
+→ 같은 대상(같은 `session_id`, 세션 없는 예외 요청은 `session_id is null` + 같은 `target_month`)의
+본인 pending 요청이 있으면 **그 행을 갱신**한다. 갱신 시 `status` 를 `requested` 로 되돌리고
+`review_comment` / `reviewed_at` / `reviewed_by_user_id` 를 비운다 — 관리자가 보던 값이 이미
+사라졌으므로 재검토가 맞다. UPDATE 에 상태 가드를 걸어 **읽기~쓰기 사이에 관리자가 처리해버린
+레이스**에도 안전하고, 0행 갱신되면 새 INSERT 로 폴백한다.
+
+- **미완**: 이미 쌓인 legacy 중복 pending 행은 이 변경으로 정리되지 않는다(관리자 큐에서 개별 처리).
+### 정정 요청 철회 (2026-08-03, 마이그레이션 `202608030001`)
+
+요청자가 **아직 처리되지 않은 요청(`requested` / `in_review`)을 스스로 거둘 수 있다.** 예전에는
+잘못 낸 요청을 되돌릴 방법이 없어, 관리자가 반려해 줄 때까지 대기 큐에 남고
+`getFinalizationEligibility` 가 그 요청을 세므로 **그 달의 근태 마감까지 막혔다.**
+
+- 상태 `cancelled` + `cancelled_at` 추가. 하드 삭제가 아니라 상태인 이유: 관리자가 이미 검토를
+  시작했을 수 있고, 마감 판정과 감사 흐름이 요청 이력을 근거로 삼는다. 연차 요청도 같은 이유로
+  `cancelled` 상태를 쓴다 — 그 선례를 따랐다.
+- 행위자는 항상 요청자 본인이라 `cancelled_by` 컬럼은 두지 않았다.
+- **강제는 서버에서.** service-role 쓰기라 RLS 가 막지 않으므로 UPDATE 의
+  `organization_id` / `requested_by_user_id` / `status in (requested, in_review)` 조건이 유일한
+  경계다. 관리자가 그 사이에 승인/반려하면 0행이 갱신되고 `not_pending` 으로 떨어진다(레이스 안전).
+- 대기 큐와 마감 판정은 `requested|in_review` 만 세므로 `cancelled` 는 두 곳에서 자동으로 빠진다.
+- UI: 상태 화면의 철회 버튼 → 공용 `BottomSheet` 확인. 상태 칩은 반려와 달리 **중립색**
+  (스스로 거둔 것이지 거절당한 게 아니다).
+
+### 어드민 정정 큐에 증빙 사진 표시
+
+모바일은 정정 요청에 사진을 첨부하는데(`image_urls`) 어드민 조회·패널이 그 필드를 아예 읽지 않아
+**관리자가 사진 없이 승인/반려**하고 있었다. `AdminCorrectionRow.imageUrls` 를 추가하고, 교통비
+패널과 **동일한 썸네일 + 공용 `ImageLightbox`** 를 재사용해 표시한다(사진 0장이면 누락 표시).
+
+### 로스터 상태 판정 — DB enum 과 표시용 키를 구분
+
+`deriveStatus()` 가 raw `review_state`(DB 값 `review_required`)를 **표시용 키**(`needs_review`)와
+비교하고 있었다. 그래서 `needs_review` 가 절대 생성되지 않았고 어드민 로스터의 **danger dot · flag
+행 · 카운트 타일이 전부 dead code** 였다. 타입에서 상수를 가져와 비교하도록 고쳐 **오타 시 컴파일
+에러**가 나게 했고, `RosterStatusKey` 에 "DB enum 이 아니라 표시용 키" 주석을 남겼다.
+
+### 연차 승인 잔여 계산 — 기사용분 차감
+
+`poolRemainingFor()` 가 `computeAnnualLeaveSummary()` 를 호출하면서 `usedDays` /
+`specialUsedDays` 를 넘기지 않았다. 두 파라미터의 기본값이 `0` 이라 **조용히 통과**했고, 그 결과
+승인 모달의 "잔여 영향" 이 총 부여일수 기준으로 나오고 **잔여 초과 경고가 발화 자체를 하지
+않았다**(`remaining - daysCount < 0` 이 성립 불가).
+
+→ 모바일 잔여 화면이 쓰는 정본 `getMyAnnualLeaveSummary()` 에 **위임**한다. 승인 화면용 별도
+계산을 만들지 않는다 — 같은 숫자를 두 화면이 보여줘야 한다.
+
+- 부수: `balanceAfter` 가 음수가 될 수 있어 잔여 막대 `width` 를 0–100% 로 클램프했다.
+- **경고만, 차단 없음** 이라는 기존 설계는 유지했다. 다만 **승인 모달 자체에는 초과 경고 UI 가
+  없어** 승인자가 모달만 보고 초과를 알아채기 어렵다 — 설계 변경이라 별도 결정 사항.
+- **확인 필요**: 경고가 그동안 발화하지 않았으므로 **잔여를 초과해 승인된 건이 남아 있을 수 있다.**
+  계산 엔진이 초과분을 0 에서 클램프해 화면상 드러나지 않는다.
+
+### 출근자 명단 권한 — 현황 기록 (변경 없음)
+
+`canViewRoster()` 는 **무조건 `true`** 이고 모바일 로스터는 근무 중인 동료의 **전화번호 + `tel:`
+통화 링크**를 전 조직원(파트타임 포함)에게 노출한다. 어드민 로스터는 콘솔 세션 게이트가 있고
+전화번호를 표시하지 않는다. `src/config/roles.ts` 주석("roster is not a privileged view")상
+**의도된 결정**으로 보이나, `src/app/mobile/attendance/roster/page.tsx` 최상단 주석은 아직
+"매니저/오피스 역할만 접근 가능"이라 **코드와 모순**이다. 권한을 좁히기로 한다면 UI 숨김이 아니라
+`getAttendanceRoster` 에서 **서버 측으로 `phoneNumber` 를 null 처리**해야 한다(CLAUDE.md §6).
+
+**판정(2026-08-03): 개방은 의도된 것, 주석이 거짓이었다.** `roles.ts` 의
+"roster is not a privileged view" 가 확정 결정이고, 페이지 주석이 말하던
+"cleaningRecordViewerRoles 로 리다이렉트" 하는 코드는 **존재한 적이 없다**(청소 기록 열람 권한과
+혼동한 서술). 권한은 그대로 두고 **주석만 실제 동작으로 정정**했다. 전화번호 + `tel:` 링크 노출도
+"현장에서 서로 연락하라"는 이 화면의 목적에 부합하므로 유지한다.
+

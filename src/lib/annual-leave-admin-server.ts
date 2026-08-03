@@ -11,6 +11,9 @@ import type { LeaveType, LeaveDurationUnit, LeaveStatus } from "@/lib/annual-lea
 import { createLeaveRequest } from "@/lib/annual-leave-requests-server";
 import {
   getAnnualLeaveBaseline,
+  LEAVE_HOURLY_ROLE,
+  MAX_LEAVE_BONUS,
+  MAX_LEAVE_GRANT,
   setAnnualLeaveBaselineForUser,
   sumApprovedLeaveUsage,
 } from "@/lib/annual-leave-server";
@@ -20,7 +23,9 @@ const BEREAVEMENT_DAYS = 3;
 
 // Hourly / part-time staff are excluded from annual leave (confirmed policy). Every other org role is a
 // salary-based regular employee for leave purposes.
-const HOURLY_ROLE = "part_time_staff";
+// 값 정의는 `annual-leave-server.ts` 에 있다(유일한 baseline 쓰기 지점이 거기라 검증도 거기 있다).
+// 여기서는 목록 필터링에만 쓰므로 재수출본을 그대로 참조한다 — 복사하면 두 정의가 갈라진다.
+const HOURLY_ROLE = LEAVE_HOURLY_ROLE;
 
 // Days-out window used to surface a bucket that lapses "soon" in the balance table's 소멸 예정 column.
 const EXPIRING_SOON_DAYS = 180;
@@ -327,10 +332,10 @@ export async function saveEmployeeLeaveBaseline(
   const organizationId = session.organization.id;
 
   if (!ISO_DATE.test(input.hireDate)) return { ok: false, error: "invalid_dates" };
-  if (!Number.isFinite(input.grant) || input.grant < 0 || input.grant > 40) {
+  if (!Number.isFinite(input.grant) || input.grant < 0 || input.grant > MAX_LEAVE_GRANT) {
     return { ok: false, error: "invalid_grant" };
   }
-  if (!Number.isFinite(input.bonus) || input.bonus < 0 || input.bonus > 8) {
+  if (!Number.isFinite(input.bonus) || input.bonus < 0 || input.bonus > MAX_LEAVE_BONUS) {
     return { ok: false, error: "invalid_bonus" };
   }
 

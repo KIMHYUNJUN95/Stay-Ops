@@ -1738,3 +1738,15 @@ Constraints / behavior:
 - unique on `(organization_id, canonical_name)`
 - stores overrides on top of the static property seed metadata
 - intended for shared address, access, and ops-note editing from admin calendar
+
+## 2026-08-03 `attendance_correction_requests` — 철회 상태 추가
+
+마이그레이션 `202608030001_attendance_correction_cancel.sql` (원격 적용 완료).
+
+- `status` CHECK: `requested | in_review | approved | rejected` → **`cancelled` 추가**
+- `cancelled_at timestamptz` 추가 — `status = 'cancelled'` 일 때만 채워진다. 행위자는 항상
+  `requested_by_user_id`(본인만 철회 가능)라 별도 컬럼을 두지 않았다.
+
+대기 큐(`getAdminAttendanceCorrections`)와 마감 판정(`getFinalizationEligibility`)은
+`requested|in_review` 만 세므로 `cancelled` 는 두 곳에서 자동으로 빠진다 — 별도 인덱스 불필요.
+

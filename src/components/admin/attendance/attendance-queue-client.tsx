@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import {
   Ban,
   CalendarPlus,
+  Camera,
   Check,
   CheckCheck,
   ChevronDown,
@@ -34,6 +35,7 @@ import {
   updateAttendanceSessionAdmin,
   type SessionAuditEntry,
 } from "@/app/admin/attendance/actions";
+import { ImageLightbox } from "@/components/shell/image-lightbox";
 import { AdminReasonModal } from "../shared/admin-reason-modal";
 import { AdmDropdown } from "../shared/adm-dropdown";
 import { AdminTimePicker } from "../shared/admin-time-picker";
@@ -184,7 +186,7 @@ function SessionRow({
         <div className="who">
           <span
             className="uhead__av"
-            style={{ background: "var(--primary)", width: 34, height: 34, borderRadius: 9 }}
+            style={{ background: "var(--adm-primary)", width: 34, height: 34, borderRadius: 9 }}
           >
             {initial(item.userName)}
           </span>
@@ -274,6 +276,8 @@ function corrStatusPill(
   c: Att,
 ): { label: string; cls: string } {
   switch (status) {
+    case "cancelled":
+      return { label: c.corrStatusCancelled, cls: "pill--muted" };
     case "requested":
       return { label: c.corrStatusRequested, cls: "pill--info" };
     case "in_review":
@@ -773,7 +777,7 @@ export function AttendanceQueueClient({
                           <span
                             className="uhead__av"
                             style={{
-                              background: "var(--primary)",
+                              background: "var(--adm-primary)",
                               width: 34,
                               height: 34,
                               borderRadius: 9,
@@ -922,7 +926,7 @@ export function AttendanceQueueClient({
                               <span
                                 className="uhead__av"
                                 style={{
-                                  background: "var(--primary)",
+                                  background: "var(--adm-primary)",
                                   width: 30,
                                   height: 30,
                                   borderRadius: 8,
@@ -1261,7 +1265,7 @@ function SessionPanel({
             <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span
                 className="uhead__av"
-                style={{ background: "var(--primary)" }}
+                style={{ background: "var(--adm-primary)" }}
               >
                 {initial(item.userName)}
               </span>
@@ -1705,7 +1709,12 @@ function CorrectionPanel({
   const [pending, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
   const [modal, setModal] = useState<"approve" | "reject" | null>(null);
-  const panelRef = useAdminPanelA11y<HTMLElement>(onClose, { disabled: modal !== null });
+  // Evidence photos the requester attached — same lightbox carousel the transport panel uses.
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const photos = row.imageUrls;
+  const panelRef = useAdminPanelA11y<HTMLElement>(onClose, {
+    disabled: modal !== null || lightboxIndex !== null,
+  });
   const pill = corrStatusPill(row.status, c);
   const resolved = row.status === "approved" || row.status === "rejected";
 
@@ -1791,7 +1800,7 @@ function CorrectionPanel({
           </div>
           <div className="panel__title">
             <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="uhead__av" style={{ background: "var(--primary)" }}>
+              <span className="uhead__av" style={{ background: "var(--adm-primary)" }}>
                 {initial(row.requesterName)}
               </span>
               <span>
@@ -1852,6 +1861,32 @@ function CorrectionPanel({
               <div className="reason__q">{c.corrPanelReasonHeader}</div>
               {row.memo ?? c.corrPanelReasonEmpty}
             </div>
+          </div>
+
+          {/* evidence photos — the reviewer must never approve/reject without seeing them */}
+          <div className="pblock">
+            <div className="pblock__t">{c.trPanelEvidenceCount(photos.length)}</div>
+            {photos.length > 0 ? (
+              <div className="trthumbs" style={{ flexWrap: "wrap", gap: 6 }}>
+                {photos.map((url, i) => (
+                  <button
+                    key={url}
+                    type="button"
+                    className="trthumb"
+                    style={{ width: 64, height: 64 }}
+                    onClick={() => setLightboxIndex(i)}
+                    aria-label={c.trPanelEvidenceCount(photos.length)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="" loading="lazy" />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <span className="trthumb trthumb--missing" title={c.trEvidenceMissing}>
+                <Camera />
+              </span>
+            )}
           </div>
 
           {/* linked session */}
@@ -2039,6 +2074,13 @@ function CorrectionPanel({
           onCancel={() => setModal(null)}
         />
       ) : null}
+
+      <ImageLightbox
+        urls={photos}
+        openIndex={lightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+        closeLabel={c.panelClose}
+      />
     </>
   );
 }

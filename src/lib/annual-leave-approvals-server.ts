@@ -8,8 +8,8 @@
 import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { AppSession } from "@/lib/session";
-import { computeAnnualLeaveSummary, tokyoToday } from "@/lib/annual-leave";
-import { getAnnualLeaveBaseline } from "@/lib/annual-leave-server";
+import { tokyoToday } from "@/lib/annual-leave";
+import { getMyAnnualLeaveSummary } from "@/lib/annual-leave-server";
 
 type Service = ReturnType<typeof getSupabaseServiceClient>;
 
@@ -180,21 +180,27 @@ function tokyoWeekRange(today: string): { weekStart: string; weekEnd: string } {
   };
 }
 
+/**
+ * Remaining days in one balance pool for `userId`, **with already-approved usage deducted**.
+ *
+ * Delegates to `getMyAnnualLeaveSummary` — the same function the mobile 잔여 screen
+ * (`/mobile/attendance/leave`) and the admin 잔여 table read from. This used to call
+ * `computeAnnualLeaveSummary` directly *without* `usedDays`/`specialUsedDays`, so the approval
+ * screen reported the gross grant (e.g. "12일") while the applicant's own screen showed the net
+ * balance ("2일"). The 잔여 초과 warning is derived from this number, so it effectively never fired
+ * and over-balance requests approved silently. Do not re-inline the computation here: two screens
+ * showing the same number must share one code path.
+ *
+ * Returns null when the employee has no leave baseline yet (hire+6mo not reached / not set up).
+ */
 async function poolRemainingFor(
   service: Service,
   organizationId: string,
   userId: string,
   pool: "paid" | "special",
 ): Promise<number | null> {
-  const baseline = await getAnnualLeaveBaseline(service, organizationId, userId);
-  if (!baseline) return null;
-  const summary = computeAnnualLeaveSummary({
-    hireDate: baseline.hireDate,
-    baselineDate: baseline.baselineDate,
-    baselineAmount: baseline.baseAmount,
-    bonusBaselineAmount: baseline.bonusAmount,
-    asOf: tokyoToday(),
-  });
+  const summary = await getMyAnnualLeaveSummary(service, organizationId, userId);
+  if (!summary) return null;
   return pool === "paid" ? summary.baseRemaining : summary.bonusRemaining;
 }
 
@@ -244,14 +250,13 @@ async function buildSummary(
   for (const r of pending) {
     const pool = poolForType(r.leave_type as LeaveType);
     if (pool === "none") continue;
-    const baseline = await getAnnualLeaveBaseline(service, organizationId, r.user_id);
-    if (!baseline) {
-      // hire+6mo not yet reached / not set up — best-effort "미도래" flag
+    const remaining = await poolRemainingFor(service, organizationId, r.user_id, pool);
+    if (remaining === null) {
+      // no baseline: hire+6mo not yet reached / not set up — best-effort "미도래" flag
       balanceWarningName = r.applicant_name;
       break;
     }
-    const remaining = await poolRemainingFor(service, organizationId, r.user_id, pool);
-    if (remaining !== null && remaining - Number(r.days_count) < 0) {
+    if (remaining - Number(r.days_count) < 0) {
       balanceWarningName = r.applicant_name;
       break;
     }

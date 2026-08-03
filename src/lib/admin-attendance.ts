@@ -410,6 +410,12 @@ export type AdminCorrectionRow = {
   beforeLabel: string;
   afterLabel: string;
   memo: string | null;
+  /**
+   * Evidence photos attached by the requester. Stored as ready-to-render public URLs in
+   * `attendance_correction_requests.image_urls` (same shape as maintenance / lost-found photos), so
+   * the reviewer never has to approve or reject a correction blind.
+   */
+  imageUrls: string[];
   reviewComment: string | null;
   reviewerName: string | null;
   submittedLabel: string;
@@ -582,6 +588,7 @@ export async function getAdminAttendanceCorrections(
         beforeLabel: primary.beforeLabel,
         afterLabel: primary.afterLabel,
         memo: r.memo,
+        imageUrls: r.image_urls ?? [],
         reviewComment: r.review_comment,
         reviewerName: r.reviewed_by_user_id
           ? nameById.get(r.reviewed_by_user_id) ?? null

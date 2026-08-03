@@ -8,6 +8,10 @@
  */
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import { cancelAttendanceCorrectionRequest } from "@/app/mobile/attendance/actions";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import "./attendance.css";
 import { AIc, AttIcon } from "./att-icons";
 import type { AttendanceCorrectionStatus } from "@/lib/attendance";
@@ -96,7 +100,24 @@ export function AttendanceCorrectionStatus({
     in_review: { chip: "c-warn", chipIcon: "none", label: copy.stepInReview, stage: 1, rejected: false },
     approved: { chip: "c-done", chipIcon: "check", label: copy.stepApproved, stage: 2, rejected: false },
     rejected: { chip: "c-danger", chipIcon: "x", label: copy.stepRejected, stage: 2, rejected: true },
+    // 철회 — 요청자가 스스로 거둔 것이라 반려와 달리 경고색을 쓰지 않는다. 진행 막대는 마지막
+    // 단계까지 채우되(더 진행되지 않음) 실패로 읽히지 않게 중립 칩을 쓴다.
+    cancelled: { chip: "c-muted", chipIcon: "x", label: copy.stepCancelled, stage: 2, rejected: false },
   };
+
+  const router = useRouter();
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelling, startCancel] = useTransition();
+  const [cancelErr, setCancelErr] = useState(false);
+  // 아직 처리되지 않은 요청만 철회할 수 있다(서버가 같은 조건으로 다시 막는다).
+  const canCancel = request.status === "requested" || request.status === "in_review";
+  const runCancel = () =>
+    startCancel(async () => {
+      const r = await cancelAttendanceCorrectionRequest(request.id);
+      setConfirmCancel(false);
+      if (r.ok) router.refresh();
+      else setCancelErr(true);
+    });
 
   const m = META[request.status];
   const editHref = request.sessionId
@@ -252,6 +273,56 @@ export function AttendanceCorrectionStatus({
           </Link>
         </>
       )}
+      {/* 철회 — 대기 중인 요청에만. 예전에는 잘못 낸 요청을 거둘 방법이 없어, 관리자가 반려해 줄
+          때까지 대기 큐에 남고 그 달 근태 마감까지 막혔다(2026-08-03). */}
+      {canCancel ? (
+        <>
+          {cancelErr ? <div className="ferr">{copy.corrCancelFailed}</div> : null}
+          <button
+            className="ghostbtn"
+            disabled={cancelling}
+            onClick={() => {
+              setCancelErr(false);
+              setConfirmCancel(true);
+            }}
+            type="button"
+          >
+            <AIc>{AttIcon.x}</AIc>
+            {copy.corrCancel}
+          </button>
+        </>
+      ) : null}
+
+      {confirmCancel ? (
+        <BottomSheet ariaLabel={copy.corrCancelConfirmTitle} onClose={() => setConfirmCancel(false)}>
+          <div className="px-1 pb-1">
+            <p className="text-[16px] font-extrabold tracking-[-0.01em] text-foreground">
+              {copy.corrCancelConfirmTitle}
+            </p>
+            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+              {copy.corrCancelConfirmBody}
+            </p>
+            <div className="mt-5 flex gap-2.5">
+              <button
+                className="h-12 flex-1 rounded-2xl border border-border bg-surface text-[14px] font-bold text-foreground"
+                onClick={() => setConfirmCancel(false)}
+                type="button"
+              >
+                {copy.corrCancelKeep}
+              </button>
+              <button
+                className="h-12 flex-1 rounded-2xl bg-rose-600 text-[14px] font-extrabold text-white transition-opacity disabled:opacity-50"
+                disabled={cancelling}
+                onClick={runCancel}
+                type="button"
+              >
+                {copy.corrCancel}
+              </button>
+            </div>
+          </div>
+        </BottomSheet>
+      ) : null}
+
       <div style={{ height: "16px" }} />
     </div>
   );

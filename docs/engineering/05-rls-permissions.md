@@ -1106,3 +1106,31 @@ of the RLS/permission-relevant pieces:
   not RLS. See `docs/product/27-permission-override-workflow.md`.
 - **Migrations to apply for full effect:** `202607130001` (manage_users), `202607130002` +
   `202607130003` (전무, apply in that order), `202607130004` (override enforcement).
+
+## 2026-08-03 연차 baseline — 검증을 유일한 쓰기 지점으로 이동
+
+**문제.** `setAnnualLeaveBaselineForUser()`(`src/lib/annual-leave-server.ts`)는 service-role
+클라이언트로 쓰므로 **RLS 가 아무것도 막지 않는다.** 그런데 상한·자격 검사가 관리자 경로
+(`saveEmployeeLeaveBaseline`)에만 있었고, 모바일 자가 설정 액션
+(`src/app/mobile/attendance/leave/actions.ts`)에는 형식 검사(날짜 포맷, 음수 아님)뿐이었다.
+→ **직원이 모바일에서 자기 연차 부여일수와 입사일을 무제한으로 자기부여**할 수 있었다. 급여와
+직결되는 값이다.
+
+**수정.** 검증을 **공용 writer 안**으로 옮겼다. baseline 쓰기 지점이 이 함수 하나뿐이므로,
+호출자가 늘어나도 자동으로 같은 규칙을 받는다.
+
+| 규칙 | 값 |
+| --- | --- |
+| 입사일 형식 | `YYYY-MM-DD` |
+| 부여일수 | `0 ≤ grant ≤ MAX_LEAVE_GRANT`(40) |
+| 가산일수 | `0 ≤ bonus ≤ MAX_LEAVE_BONUS`(8) |
+| 멤버십 | 해당 조직에서 `status = active` |
+| 역할 | `LEAVE_HOURLY_ROLE`(`part_time_staff`) **제외** |
+
+값과 규칙은 전부 관리자 경로에 있던 것을 그대로 옮겨온 것이라 **동작 변화는 없다** — 막혀 있어야
+했는데 안 막히던 경로가 이제 막힐 뿐이다. 관리자 경로의 하드코딩(`40`/`8`)과 로컬 `HOURLY_ROLE`
+상수도 공용 상수를 참조하도록 바꿔 정의가 갈라지지 않게 했다.
+
+**호출자별 검사 금지.** 이 값은 급여 계산에 들어가므로, 새 호출 지점을 만들 때 **자체 검증을
+추가하지 말고** 이 함수를 통해서만 써야 한다.
+

@@ -47,13 +47,44 @@ export async function getAnnualLeaveBaseline(
 /**
  * Self-service upsert: sets hire_date on the profile and writes the balance baseline as of today.
  * Overwrites any prior baseline (the employee is expected to do this once at setup).
+ *
+ * **검증이 여기 있는 이유 (2026-08-03).** 이 함수는 service-role 클라이언트로 쓰므로 RLS 가
+ * 아무것도 막지 않는다. 상한·자격 검사가 관리자 경로(`saveEmployeeLeaveBaseline`)에만 있어서,
+ * 모바일 자가 설정 액션은 **부여일수·입사일을 무제한으로 자기부여**할 수 있었다. 급여와 직결되는
+ * 값이라 호출자마다 따로 막으면 언젠가 또 갈라진다 — **유일한 쓰기 지점인 여기서** 막는다.
+ * 상한 값(40 / 8)과 시급직 제외 규칙은 관리자 경로에 있던 것을 그대로 옮겨 왔다.
  */
+export const MAX_LEAVE_GRANT = 40;
+export const MAX_LEAVE_BONUS = 8;
+/** 시급·파트타임은 연차 대상이 아니다(확정 정책). 그 외 조직 역할은 전부 월급제 정규직으로 본다. */
+export const LEAVE_HOURLY_ROLE = "part_time_staff";
+
 export async function setAnnualLeaveBaselineForUser(
   service: Service,
   organizationId: string,
   userId: string,
   input: { hireDate: string; baseAmount: number; bonusAmount?: number },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.hireDate)) return { ok: false, error: "invalid_dates" };
+  if (!Number.isFinite(input.baseAmount) || input.baseAmount < 0 || input.baseAmount > MAX_LEAVE_GRANT) {
+    return { ok: false, error: "invalid_grant" };
+  }
+  const bonus = input.bonusAmount ?? 0;
+  if (!Number.isFinite(bonus) || bonus < 0 || bonus > MAX_LEAVE_BONUS) {
+    return { ok: false, error: "invalid_bonus" };
+  }
+
+  // 활성 멤버십 + 시급직 제외. 조직 스코프로 조회하므로 남의 조직 사용자에게는 쓸 수 없다.
+  const { data: memData } = await service
+    .from("memberships")
+    .select("status, role")
+    .eq("organization_id", organizationId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const membership = memData as { status: string; role: string } | null;
+  if (!membership || membership.status !== "active") return { ok: false, error: "target_not_found" };
+  if (membership.role === LEAVE_HOURLY_ROLE) return { ok: false, error: "hourly_excluded" };
+
   const baselineDate = tokyoToday();
 
   const { error: profileError } = await service

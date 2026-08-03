@@ -1,5 +1,13 @@
-// 출근자 명단 페이지 — 매니저/오피스 역할만 접근 가능.
-// cleaningRecordViewerRoles에 포함되지 않으면 /mobile/attendance 로 리다이렉트.
+// 출근자 명단 페이지 — **조직 전 구성원이 볼 수 있다**(역할 게이트 없음).
+// 근거: `src/config/roles.ts` 의 `rosterViewerRoles` / `canViewRoster()` —
+// "roster is not a privileged view"(오늘 누가 근무 중인지는 특권 정보가 아니라는 확정 결정).
+//
+// 이 주석은 예전에 "매니저/오피스만 접근 가능, cleaningRecordViewerRoles 로 리다이렉트" 라고
+// 적혀 있었으나 **그런 리다이렉트 코드는 존재한 적이 없다.** 청소 기록 열람
+// (`canViewOthersCleaning`)과 혼동한 서술이라 2026-08-03 에 실제 동작으로 정정했다.
+//
+// 참고: 근무 중인 구성원의 전화번호와 `tel:` 통화 링크가 함께 노출된다(현장에서 서로 연락하라는
+// 것이 이 화면의 목적). 어드민 로스터는 전화번호를 표시하지 않는다.
 
 import { redirect } from "next/navigation";
 import { MobileShell } from "@/components/shell/mobile-shell";

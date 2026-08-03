@@ -4,7 +4,7 @@
 import "server-only";
 import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
-import type { AttendanceSessionRow } from "@/lib/attendance";
+import type { AttendanceReviewState, AttendanceSessionRow } from "@/lib/attendance";
 
 const ROSTER_SESSION_SELECT = [
   "id",
@@ -17,7 +17,16 @@ const ROSTER_SESSION_SELECT = [
   "invalidated_at",
 ].join(", ");
 
+/**
+ * Roster DISPLAY keys. These are NOT the DB enum — `needs_review` is the roster's own label for a
+ * session whose `attendance_sessions.review_state` is the enum value `review_required`
+ * (see `AttendanceReviewState` in `@/lib/attendance`). Keep the two apart: comparing a raw
+ * `review_state` against the display key silently produces a status that can never occur.
+ */
 export type RosterStatusKey = "working" | "on_break" | "done" | "needs_review" | "void";
+
+/** The DB `review_state` value that maps to the roster's `needs_review` display key. */
+const ROSTER_REVIEW_STATE: AttendanceReviewState = "review_required";
 
 export type RosterEntry = {
   sessionId: string;
@@ -82,7 +91,7 @@ function deriveStatus(
   hasOpenBreak: boolean,
 ): RosterStatusKey {
   if (invalidatedAt) return "void";
-  if (reviewState === "needs_review") return "needs_review";
+  if (reviewState === ROSTER_REVIEW_STATE) return "needs_review";
   if (clockOutAt) return "done";
   if (hasOpenBreak) return "on_break";
   return "working";

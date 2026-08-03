@@ -26,7 +26,8 @@ export function LeaveException({ locale, variant }: { locale: string; variant: "
   const [baseline, setBaseline] = useState("");
   const [hireErr, setHireErr] = useState(false);
   const [baselineErr, setBaselineErr] = useState(false);
-  const [saveErr, setSaveErr] = useState(false);
+  /** null = 오류 없음. "hourly" 는 파트타임 제외(정책)라 재시도해도 안 되므로 문구를 구분한다. */
+  const [saveErr, setSaveErr] = useState<null | "generic" | "hourly">(null);
   const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -36,14 +37,14 @@ export function LeaveException({ locale, variant }: { locale: string; variant: "
     const hasBaseline = baseline.trim().length > 0 && Number.isFinite(amount) && amount >= 0;
     setHireErr(!hasHire);
     setBaselineErr(!hasBaseline);
-    setSaveErr(false);
+    setSaveErr(null);
     if (!hasHire || !hasBaseline) return;
 
     setSaving(true);
     const result = await setAnnualLeaveBaselineAction({ hireDate, baseAmount: amount });
     setSaving(false);
     if (!result.ok) {
-      setSaveErr(true);
+      setSaveErr(result.error === "hourly_excluded" ? "hourly" : "generic");
       return;
     }
     router.push("/mobile/attendance/leave");
@@ -101,7 +102,11 @@ export function LeaveException({ locale, variant }: { locale: string; variant: "
               <div className="fhint">{c.exSetupBaselineHelp}</div>
               {baselineErr ? <div className="ferr">{c.exSetupBaselineErr}</div> : null}
             </div>
-            {saveErr ? <div className="ferr">{c.exSetupSaveErr}</div> : null}
+            {saveErr ? (
+              <div className="ferr">
+                {saveErr === "hourly" ? c.exSetupHourlyErr : c.exSetupSaveErr}
+              </div>
+            ) : null}
           </div>
 
           <div className="exwrap__cta">
