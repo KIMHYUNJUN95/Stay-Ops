@@ -11,6 +11,7 @@ import {
   Trash2,
   TriangleAlert,
   User,
+  X,
 } from "lucide-react";
 import { createLinenReturnRecord } from "@/app/mobile/linen-return/new/actions";
 import { updateLinenReturnRecord } from "@/app/mobile/linen-return/record/[id]/actions";
@@ -39,8 +40,13 @@ type LinenReturnCreateFormProps = {
   recordId?: string;
   initialLines?: FormLine[];
   initialNote?: string;
+  /** 이미 저장된 사진 URL — 수정 모드에서 남기거나 지울 수 있다. */
+  initialPhotos?: string[];
   submitLabel?: string;
 };
+
+/** CLAUDE.md §8 — 기능당 5장. 서버(create/update 액션)에서도 다시 막는다. */
+const MAX_PHOTOS = 5;
 
 export function LinenReturnCreateForm({
   building,
@@ -55,6 +61,7 @@ export function LinenReturnCreateForm({
   recordId,
   initialLines,
   initialNote,
+  initialPhotos,
   submitLabel,
 }: LinenReturnCreateFormProps) {
   const isEdit = mode === "edit";
@@ -67,6 +74,10 @@ export function LinenReturnCreateForm({
     if (isEdit && initialLines && initialLines.length > 0) return initialLines;
     return hasItems ? [{ itemId: items[0].id, quantity: 1 }] : [];
   });
+  // 수정 모드에서 "남길" 기존 사진. 여기서 뺀 URL 은 저장 시 record 에서 사라진다.
+  const [keptPhotos, setKeptPhotos] = useState<string[]>(() =>
+    isEdit ? (initialPhotos ?? []) : [],
+  );
   const [openLine, setOpenLine] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(serverError);
   const [isPending, startTransition] = useTransition();
@@ -141,6 +152,28 @@ export function LinenReturnCreateForm({
 
     if (isEdit) {
       formData.set("recordId", recordId ?? "");
+      // 사진은 "남긴 기존 URL + 새로 올린 URL" 집합으로 통째로 교체한다.
+      for (const url of keptPhotos) {
+        formData.append("imageUrls", url);
+      }
+      try {
+        const pending = uploaderRef.current?.getItems() ?? [];
+        if (pending.length > 0) {
+          const { imageUrls } = await uploadRequestImages({
+            items: pending,
+            organizationId,
+            // 같은 기록의 사진은 같은 폴더에 모은다(스토리지 경로 규칙 유지).
+            requestId: recordId ?? crypto.randomUUID(),
+            requestType: "linen-returns",
+          });
+          for (const url of imageUrls) {
+            formData.append("imageUrls", url);
+          }
+        }
+      } catch {
+        setError(copy.errors.save_failed);
+        return;
+      }
       startTransition(async () => {
         await updateLinenReturnRecord(formData);
       });
@@ -331,27 +364,50 @@ export function LinenReturnCreateForm({
         />
       </div>
 
-      {/* Photos (create only; photo editing is deferred) */}
-      {isEdit ? null : (
-        <div className="mb-[22px]">
-          <div className="mb-[11px] flex items-center gap-2 px-0.5 text-[12.5px] font-extrabold tracking-[-0.01em] text-foreground">
-            <span>{copy.photoSectionTitle}</span>
-            <span className="text-[11px] font-semibold text-slate-400">{copy.optionalLabel}</span>
-          </div>
-          <div className="rounded-2xl border border-border bg-slate-50/60 p-3">
-            <AnnouncementImageUploader
-              addImagesLabel={imgCopy.addPhotos}
-              errorCountExceeded={imgCopy.errorCount}
-              errorSizeExceeded={imgCopy.errorSize}
-              errorTypeInvalid={imgCopy.errorType}
-              imageAttachmentsLabel={imgCopy.attachments}
-              imageLimitLabel={imgCopy.limit}
-              imageRemoveLabel={imgCopy.remove}
-              ref={uploaderRef}
-            />
-          </div>
+      {/* Photos — 등록과 수정 모두 지원한다. 수정 모드에서는 이미 저장된 사진을 지울 수 있고,
+          남은 자리(최대 5장)만큼 새 사진을 추가할 수 있다. */}
+      <div className="mb-[22px]">
+        <div className="mb-[11px] flex items-center gap-2 px-0.5 text-[12.5px] font-extrabold tracking-[-0.01em] text-foreground">
+          <span>{copy.photoSectionTitle}</span>
+          <span className="text-[11px] font-semibold text-slate-400">{copy.optionalLabel}</span>
         </div>
-      )}
+        <div className="rounded-2xl border border-border bg-slate-50/60 p-3">
+          {keptPhotos.length > 0 ? (
+            <ul className="mb-3 grid grid-cols-4 gap-2">
+              {keptPhotos.map((url) => (
+                <li className="relative" key={url}>
+                  {/* 저장된 원격 사진 미리보기 — next/image 최적화 대상이 아니라 <img> 를 쓴다. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    alt=""
+                    className="aspect-square w-full rounded-xl border border-border object-cover"
+                    src={url}
+                  />
+                  <button
+                    aria-label={imgCopy.remove}
+                    className="absolute -right-1.5 -top-1.5 flex size-6 items-center justify-center rounded-full bg-slate-900/80 text-white"
+                    onClick={() => setKeptPhotos((prev) => prev.filter((item) => item !== url))}
+                    type="button"
+                  >
+                    <X className="size-3.5" aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <AnnouncementImageUploader
+            addImagesLabel={imgCopy.addPhotos}
+            errorCountExceeded={imgCopy.errorCount}
+            errorSizeExceeded={imgCopy.errorSize}
+            errorTypeInvalid={imgCopy.errorType}
+            imageAttachmentsLabel={imgCopy.attachments}
+            imageLimitLabel={imgCopy.limit}
+            imageRemoveLabel={imgCopy.remove}
+            maxImages={MAX_PHOTOS - keptPhotos.length}
+            ref={uploaderRef}
+          />
+        </div>
+      </div>
 
       {error ? (
         <p className="mb-2 flex items-center gap-1.5 px-0.5 text-xs font-semibold text-red-500">

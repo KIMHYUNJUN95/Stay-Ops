@@ -722,3 +722,69 @@ Design in this order:
 - latest-first building list is correct
 - ledger filters work by user / item / date
 - ko/ja/en strings exist
+
+## 2026-08-03 어드민·모바일 정합 정리
+
+### 건물 표기 — 청소 콘솔과 같은 현지화 규칙
+
+린넨 어드민만 DB 원문 한국어를 그대로 출력하고 있었다(청소·분실물·수리·예약 콘솔은 전부
+`localizePropertyName(name, dictionary.cleaning.buildingLabels)` 사용). **정규명과 표시 라벨을
+분리**해 맞췄다 — `AdminLinenRecordVM.buildingLabel` 을 추가하고 표(건물 열·등록자 보조줄), 상세
+패널(읽기/수정·건물 `<option>`), 삭제 모달, 품목별 수량 뷰, Excel/PDF 내보내기까지 전부 라벨을
+쓴다. **필터 값 · 저장 payload · `isKnownBuilding` 검증은 계속 정규명**이라 ja/en 세션에서도 저장이
+깨지지 않는다. 모바일 건물 목록·피커 정렬도 표시 라벨 기준으로 통일했다.
+
+### 목록 화면 헤더 — "이번 달" → 총계
+
+`getLinenReturnsByBuilding` 에는 기간·limit 이 없는데 헤더는 "이번 달" 이었다. **쿼리가 아니라
+라벨을 고쳤다** — 문서상 "2. Building Return List" 는 기간 개념이 없고 기간 조회는
+"5. Ledger / Statistics Screen" 의 책임이기 때문이다. 목록을 이번 달로 좁히면 기본 화면에서 과거
+이력 접근이 사라진다.
+
+- **미완**: 이 목록 쿼리는 여전히 무제한이다. 건물당 기록이 누적되면 limit/페이지네이션이 필요하다.
+
+### 모바일 수정 폼에 사진 편집 추가
+
+문서 어디에도 "모바일 사진 수정 불가" 가 없었고(Deferred 목록에도 없음) 어드민은 "photo set may be
+corrected" 로 명시돼 있었다. 코드 주석의 "photo editing is deferred" 만 있던 **미문서화 결정**이라
+불일치로 판단해 열었다. 기존 사진 썸네일 + 삭제, 업로더 상한은 `5 - 남긴 장수`, 저장 시 "남긴 URL +
+신규 URL" 로 **통째 교체**(어드민 `updateAdminLinenRecord` 와 동일). 5장 상한·압축·스토리지 경로
+규칙(CLAUDE.md §8)은 그대로다. **건물은 모바일에서 못 바꾸는 게 문서와 일치**하므로 유지했다.
+
+### 어드민 서버 가드 통일
+
+`src/app/admin/linen-return/actions.ts` 의 `guard()` 가 `getCurrentAppSession()` 만 확인해서,
+`canAccessAdminWeb` 가 막는 역할(예: 파트타임)도 서버 액션을 직접 호출하면 자기 기록을 수정·삭제할
+수 있었다. 같은 파일의 export 들이 쓰던 `requireAdminSession()` 으로 통일했다.
+
+### revalidate 경로 통일
+
+모바일 등록/합산/수정/삭제 4개 경로에 `revalidatePath` 가 아예 없었고, 어드민은
+`/mobile/linen-return/list` · `/ledger` 를 빠뜨리고 있었다. `revalidateLinenReturnPaths()` 하나로
+모아 양쪽이 같은 경로 집합을 무효화한다.
+
+---
+
+## 미해결 — 자동 합산 모델의 운영 리스크 (결정 필요)
+
+§2 "Same User / Same Building / Same Tokyo Day Auto-Merges" 는 **문서상 확정 모델**이고 어드민의
+"1행 = 1기록" 도 이 헤더 단위와 일치한다. 즉 아래 두 가지는 버그가 아니라 **이 데이터 모델의 논리적
+귀결**이다. 다만 실제 운영에서는 문제가 될 수 있어 별도 결정이 필요하다.
+
+1. **사무실 정정 위에 현장이 덧셈한다.** 합산은 `registered_at` 이 그날 안이기만 하면 무조건
+   `existing.quantity + line.quantity` 다. 어드민이 5 → 3 으로 고친 뒤 현장이 2 를 더 올리면 5 로
+   돌아간다. `audit_logs` 에는 정정 기록이 남지만 최종값은 되돌아간다.
+2. **어드민에서 한 행을 삭제하면 그날 제출 전체가 지워진다.** 문서상 hard delete 대상이 "record"
+   이므로 계약대로지만, 삭제 모달이 "그날 합산 전체" 임을 알려주지 않는다.
+
+코드로 바꾸려면 §2 / §4 개정이 선행되어야 한다.
+
+**판정(2026-08-03).**
+
+- **1번은 버그로 보지 않는다.** 사무실이 5 → 3 으로 고친 뒤 현장이 2 를 더 올려 5 가 되는 것은
+  "그날 실제로 5장을 반품했다"는 뜻이므로 §2 의 합산 모델대로다. 정정을 최종값으로 고정하려면
+  "정정 이후 제출은 합산하지 않는다" 는 새 규칙이 필요하고, 그건 문서 개정 사항이다. 현행 유지.
+- **2번은 UX 결함으로 보고 고쳤다.** 모델(1행 = 그날 헤더)은 그대로 두되, 삭제 모달이 **무엇이
+  지워지는지 알리지 않던 것**이 문제였다. "이 기록은 같은 날·같은 건물에서 같은 사람이 올린 제출이
+  모두 합쳐진 건입니다" 안내(`dScopeNote`, ko/ja/en)를 확인 모달에 추가했다.
+

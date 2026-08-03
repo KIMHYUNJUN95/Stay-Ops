@@ -31,7 +31,11 @@ import {
   type PreviewItem,
 } from "@/components/announcements/announcement-image-uploader";
 import { uploadRequestImages } from "@/components/requests/request-image-upload";
-import type { AdminLinenItemOption, AdminLinenRecordVM } from "@/lib/admin-linen-returns";
+import type {
+  AdminLinenBuildingOption,
+  AdminLinenItemOption,
+  AdminLinenRecordVM,
+} from "@/lib/admin-linen-returns";
 import {
   dayOf,
   fmtDateLong,
@@ -70,7 +74,7 @@ type Props = {
   units: Pick<LinenCopy, "quantityUnit" | "kindsUnit">;
   errors: Record<string, string>;
   catalog: AdminLinenItemOption[];
-  buildings: string[];
+  buildings: AdminLinenBuildingOption[];
   localeTag: string;
   organizationId: string;
   saving: boolean;
@@ -113,6 +117,17 @@ export function LinenDetailPanel({
   const busy = saving || uploading;
   const day = dayOf(record.registeredAt);
   const titleDate = `${fmtDateLong(day, localeTag)} ${timeOf(record.registeredAt)}`;
+
+  // 건물 선택지 — 룸 마스터의 건물 + 이 기록의 건물(마스터에서 빠졌을 수 있다).
+  // `value` 는 정규 건물명(서버 검증/저장 키), 표시만 현지화 라벨을 쓴다.
+  const buildingChoices: AdminLinenBuildingOption[] = [
+    ...(buildings.some((option) => option.name === record.buildingName)
+      ? []
+      : [{ name: record.buildingName, label: record.buildingLabel }]),
+    ...buildings,
+  ].filter((option) => Boolean(option.name));
+  const buildingLabelOf = (name: string) =>
+    buildingChoices.find((option) => option.name === name)?.label ?? name;
 
   // 수정 모드에서 고를 수 있는 품목 = 전역 품목 + 선택한 건물 전용 품목 (서버 검증과 같은 규칙).
   const selectable = draft ? itemsForBuilding(catalog, draft.building) : [];
@@ -301,7 +316,7 @@ export function LinenDetailPanel({
                   <span className="ic">
                     <Building2 aria-hidden="true" />
                   </span>
-                  {draft.building}
+                  {buildingLabelOf(draft.building)}
                 </span>
               </>
             ) : (
@@ -310,7 +325,7 @@ export function LinenDetailPanel({
                   <span className="ic">
                     <Building2 aria-hidden="true" />
                   </span>
-                  {record.buildingName}
+                  {record.buildingLabel}
                 </span>
                 <span className="cat">
                   {record.lines.length}
@@ -387,9 +402,9 @@ export function LinenDetailPanel({
                       onChange={(event) => changeBuilding(event.target.value)}
                       value={draft.building}
                     >
-                      {[...new Set([draft.building, ...buildings])].filter(Boolean).map((name) => (
-                        <option key={name} value={name}>
-                          {name}
+                      {buildingChoices.map((option) => (
+                        <option key={option.name} value={option.name}>
+                          {option.label}
                         </option>
                       ))}
                     </select>
@@ -595,7 +610,7 @@ export function LinenDetailPanel({
                 </div>
                 <div className="kv">
                   <span className="kv__k">{t.pBuilding}</span>
-                  <span className="kv__v">{record.buildingName}</span>
+                  <span className="kv__v">{record.buildingLabel}</span>
                 </div>
                 <div className="dimnote" style={{ marginTop: 11 }}>
                   <span className="ic">

@@ -5,12 +5,16 @@ import {
   canManageLinenRecord,
   getActiveLinenItems,
   getLinenReturnRecordById,
+  revalidateLinenReturnPaths,
 } from "@/lib/linen-returns";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
 type RawLine = { itemId?: string; quantity?: unknown };
+
+/** CLAUDE.md §8 — 기능당 5장. 어드민 콘솔(`updateAdminLinenRecord`)과 같은 상한. */
+const MAX_PHOTOS = 5;
 
 function cleanText(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
@@ -68,6 +72,7 @@ export async function deleteLinenReturnRecord(formData: FormData) {
     redirect(`/mobile/linen-return/record/${recordId}?building=${encodeURIComponent(record.buildingName)}&error=delete_failed`);
   }
 
+  revalidateLinenReturnPaths();
   redirect(listPath(record.buildingName));
 }
 
@@ -122,10 +127,21 @@ export async function updateLinenReturnRecord(formData: FormData) {
     redirect(editPath(recordId, building, "missing_items"));
   }
 
+  // 사진은 폼이 보낸 집합으로 통째로 교체한다 — 남긴 기존 URL + 새로 올린 URL.
+  // 어드민 콘솔의 사진 수정과 같은 규칙이라, 현장도 자기 기록의 사진을 정정할 수 있다.
+  const imageUrls = formData
+    .getAll("imageUrls")
+    .map((value) => String(value))
+    .filter((url) => url.startsWith("https://") || url.startsWith("http://"));
+  if (imageUrls.length > MAX_PHOTOS) {
+    redirect(editPath(recordId, building, "too_many_photos"));
+  }
+
   const supabase = await getSupabaseServerClient();
 
   const headerUpdate: Database["public"]["Tables"]["linen_return_records"]["Update"] = {
     note: note || null,
+    image_urls: imageUrls,
   };
   const { error: headerError } = await supabase
     .from("linen_return_records")
@@ -159,5 +175,6 @@ export async function updateLinenReturnRecord(formData: FormData) {
     redirect(editPath(recordId, building, "save_failed"));
   }
 
+  revalidateLinenReturnPaths();
   redirect(`/mobile/linen-return/record/${recordId}?building=${encodeURIComponent(building)}`);
 }

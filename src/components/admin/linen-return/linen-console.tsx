@@ -126,6 +126,12 @@ export function LinenReturnConsole({
   const confirmRecord = confirmId ? (records.find((r) => r.id === confirmId) ?? null) : null;
   const itemFilterName =
     items.find((item) => item.id === filters.item)?.name ?? t.allItems;
+  // 건물 표시는 정규명이 아니라 현지화 라벨로 — 필터/저장 키는 계속 정규명(`name`)을 쓴다.
+  const buildingFilterLabel =
+    filters.building === "all"
+      ? null
+      : (buildingOptions.find((option) => option.name === filters.building)?.label ??
+        filters.building);
   const hasFilter =
     filters.building !== "all" || filters.registrant !== "all" || (view !== "items" && filters.item !== "all");
 
@@ -137,7 +143,7 @@ export function LinenReturnConsole({
     const itemApplied = view !== "items" && filters.item !== "all";
     const exportRecords = itemApplied ? listRecords : scopedRecords;
     const scope = [
-      filters.building === "all" ? null : filters.building,
+      buildingFilterLabel,
       itemApplied ? itemFilterName : null,
       filters.registrant === "all"
         ? null
@@ -147,11 +153,11 @@ export function LinenReturnConsole({
     return {
       from,
       to,
-      building: filters.building === "all" ? null : filters.building,
+      building: buildingFilterLabel,
       scopeLabel: scope.join(" · "),
       records: exportRecords.map((record) => ({
         registeredAt: fmtDateTime(record.registeredAt),
-        building: record.buildingName,
+        building: record.buildingLabel,
         items: record.lines.map((line) => `${line.name} ${line.quantity}`).join(" · "),
         kinds: record.lines.length,
         totalQuantity: record.totalQuantity,
@@ -168,6 +174,7 @@ export function LinenReturnConsole({
     };
   }, [
     allBuildingRecords,
+    buildingFilterLabel,
     filters.building,
     filters.item,
     filters.registrant,
@@ -252,7 +259,7 @@ export function LinenReturnConsole({
         }}
         options={[
           { value: "all", label: t.allBuildings },
-          ...buildingOptions.map((name) => ({ value: name, label: name })),
+          ...buildingOptions.map((option) => ({ value: option.name, label: option.label })),
         ]}
         size="sm"
         value={filters.building}
@@ -398,7 +405,7 @@ export function LinenReturnConsole({
     body = (
       <LinenItemSummary
         allBuildingRecords={allBuildingRecords}
-        building={filters.building}
+        buildingLabel={buildingFilterLabel}
         catalog={items}
         onSelectItem={(itemId) => {
           setFilters((prev) => ({ ...prev, item: itemId }));

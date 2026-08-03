@@ -3,7 +3,11 @@
 // 값이며 src/lib/admin-linen-returns.ts 에서 만든다.
 // See docs/product/19-linen-defect-workflow.md.
 
-import type { AdminLinenItemOption, AdminLinenRecordVM } from "@/lib/admin-linen-returns";
+import type {
+  AdminLinenBuildingOption,
+  AdminLinenItemOption,
+  AdminLinenRecordVM,
+} from "@/lib/admin-linen-returns";
 import type { Locale } from "@/lib/i18n";
 
 export type LinenFilters = {
@@ -93,10 +97,21 @@ export function quantityOfItem(record: AdminLinenRecordVM, itemId: string): numb
 
 // ── filter option builders (로드된 행에서 파생 — 하드코딩 마스터 금지) ──────────
 
-export function buildingOptionsOf(records: readonly AdminLinenRecordVM[], all: readonly string[]): string[] {
-  const used = new Set(records.map((r) => r.buildingName));
+export function buildingOptionsOf(
+  records: readonly AdminLinenRecordVM[],
+  all: readonly AdminLinenBuildingOption[],
+): AdminLinenBuildingOption[] {
   // 조회 기간에 기록이 없는 건물도 고를 수 있어야 "이 건물은 반품이 없다"를 확인할 수 있다.
-  return [...new Set([...all, ...used])].filter(Boolean).sort((a, b) => a.localeCompare(b, "ko"));
+  const map = new Map<string, AdminLinenBuildingOption>();
+  for (const option of all) {
+    if (option.name) map.set(option.name, option);
+  }
+  // 룸 마스터에서 사라진 과거 건물도 기록에 남아 있으면 고를 수 있어야 한다.
+  for (const record of records) {
+    if (!record.buildingName || map.has(record.buildingName)) continue;
+    map.set(record.buildingName, { name: record.buildingName, label: record.buildingLabel });
+  }
+  return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, "ko"));
 }
 
 export type RegistrantOption = { id: string; name: string };
@@ -211,7 +226,7 @@ export type LinenItemExportRow = {
 export type LinenExportPayload = {
   from: string;
   to: string;
-  /** 건물 필터 값 — 품목 시트의 "전체 건물" 대조 열 헤더에 쓴다. null = 전체 건물. */
+  /** 건물 필터의 표시 라벨 — 품목 시트의 수량 열 헤더에 쓴다. null = 전체 건물. */
   building: string | null;
   /** "아라키초B · 김현준" 처럼 적용된 필터 요약. 없으면 빈 문자열. */
   scopeLabel: string;

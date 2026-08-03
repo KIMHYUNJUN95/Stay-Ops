@@ -84,7 +84,9 @@ export default async function LinenReturnListPage({ searchParams }: PageProps) {
               {buildingLabel}
             </p>
             <p className="mt-0.5 text-[11.5px] font-semibold text-muted-foreground">
-              {`${copy.thisMonth} ${records.length}${copy.countUnit} · ${copy.latestOrder}`}
+              {/* 이 화면은 기간 필터가 없는 건물 전체 이력이다(기간 조회는 장부 화면 담당).
+                  건물 카드 배지의 "이번 달"과 숫자가 달라 보이지 않도록 총계 라벨을 쓴다. */}
+              {`${copy.totalPrefix} ${records.length}${copy.countUnit} · ${copy.latestOrder}`}
             </p>
           </div>
           <Link

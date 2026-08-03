@@ -79,6 +79,7 @@ export default async function LinenReturnEditPage({ params, searchParams }: Page
           quantity: line.quantity,
         }))}
         initialNote={record.note ?? ""}
+        initialPhotos={record.imageUrls}
         items={items}
         mode="edit"
         organizationId={session.organization.id}

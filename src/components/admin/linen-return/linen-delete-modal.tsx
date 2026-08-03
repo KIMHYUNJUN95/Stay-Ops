@@ -4,7 +4,7 @@
 // 공용 파괴적 작업 패턴(.cfhead/.cficon--dispose/.cfrec/.stnote--expired/.btn--danger)을 그대로 쓴다.
 // See CLAUDE.md §9 (되돌릴 수 없는 작업은 확인 UX 유지).
 
-import { ShieldCheck, Trash2, TriangleAlert, Undo2, X } from "lucide-react";
+import { Layers, ShieldCheck, Trash2, TriangleAlert, Undo2, X } from "lucide-react";
 import type { AdminLinenRecordVM } from "@/lib/admin-linen-returns";
 import { fmtDateTime, summaryFullOf, tpl } from "./linen-console-data";
 import type { LinenCopy } from "./linen-record-list";
@@ -61,13 +61,26 @@ export function LinenDeleteModal({ record, t, pending, onCancel, onConfirm }: Pr
             <div className="cfrec__b">
               <div className="cfrec__t">{summaryFullOf(record)}</div>
               <div className="cfrec__s">
-                {record.shortId} · {record.buildingName} · {fmtDateTime(record.registeredAt)} ·{" "}
+                {record.shortId} · {record.buildingLabel} · {fmtDateTime(record.registeredAt)} ·{" "}
                 {record.registrantName || "—"}
               </div>
             </div>
           </div>
 
-          <div className="stnote stnote--expired" style={{ marginTop: 15 }}>
+          {/* 이 기록은 "그날 · 그 건물 · 그 등록자" 제출이 합쳐진 헤더다(문서 §2 자동 합산).
+              한 행 삭제 = 그날 제출 전체 삭제이므로 범위를 먼저 알린다. */}
+          <div className="stnote" style={{ marginTop: 12 }}>
+            <span className="stnote__ic">
+              <span className="ic">
+                <Layers aria-hidden="true" />
+              </span>
+            </span>
+            <div>
+              <div className="stnote__s">{t.dScopeNote}</div>
+            </div>
+          </div>
+
+          <div className="stnote stnote--expired" style={{ marginTop: 12 }}>
             <span className="stnote__ic">
               <span className="ic">
                 <TriangleAlert aria-hidden="true" />

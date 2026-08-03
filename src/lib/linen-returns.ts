@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { organizationRoles, type Role } from "@/config/roles";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
@@ -96,11 +97,26 @@ function isMissingTableError(message: string): boolean {
   return message.includes("does not exist") || message.includes("schema cache");
 }
 
+/**
+ * 린넨 반품이 바뀐 뒤 다시 그려야 하는 서버 렌더 경로.
+ * 모바일(건물 선택 · 건물 목록 · 상세 · 장부)과 어드민 콘솔이 같은 레코드를 보므로,
+ * 어느 쪽에서 등록/수정/삭제하든 같은 목록을 무효화한다. 서버 액션에서만 호출할 것.
+ */
+export function revalidateLinenReturnPaths(): void {
+  revalidatePath("/mobile/linen-return");
+  revalidatePath("/mobile/linen-return/list");
+  revalidatePath("/mobile/linen-return/ledger");
+  revalidatePath("/admin/linen-return");
+}
+
 // ── Buildings ───────────────────────────────────────────────────────────────
 /** Distinct canonical building names the org operates (same source as orders). */
 export async function getLinenBuildings(session: AppSession): Promise<string[]> {
   const catalog = (await getActiveRoomCatalogServer(session.organization.id)) ?? [];
-  return Array.from(new Set(catalog.map((item) => item.propertyName))).sort();
+  // 어드민 콘솔(`getLinenBuildingNames`)과 같은 정렬 규칙을 쓴다.
+  return Array.from(new Set(catalog.map((item) => item.propertyName))).sort((a, b) =>
+    a.localeCompare(b, "ko"),
+  );
 }
 
 /** Per-building monthly record counts and last-return timestamps for the picker. */

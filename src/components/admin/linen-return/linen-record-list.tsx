@@ -95,7 +95,7 @@ export function LinenRecordList({
                     <div className="wdsub">{weekdayLabel(day, localeTag)}</div>
                   </td>
                   <td>
-                    <span className="issue">{record.buildingName}</span>
+                    <span className="issue">{record.buildingLabel}</span>
                   </td>
                   <td>
                     <span className="tt-title">
@@ -133,7 +133,7 @@ export function LinenRecordList({
                       <span>
                         <span className="who__nm">{record.registrantName}</span>
                         <span className="who__sub" style={{ display: "block" }}>
-                          {record.buildingName}
+                          {record.buildingLabel}
                         </span>
                       </span>
                     </span>

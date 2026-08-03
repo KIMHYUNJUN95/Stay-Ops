@@ -13,6 +13,7 @@ import "server-only";
 import { organizationRoles, type Role } from "@/config/roles";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
+import { localizePropertyName } from "@/lib/room-label-normalization";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
@@ -36,7 +37,13 @@ export type AdminLinenRecordVM = {
   id: string;
   /** Short display number — uuid의 앞 6자리(대문자). */
   shortId: string;
+  /** 정규 건물명 — 필터 키 / 저장 payload 로 쓰는 값. 화면에는 `buildingLabel` 을 쓴다. */
   buildingName: string;
+  /**
+   * 표시용 건물명 — 청소·분실물·수리 콘솔과 같은 규칙(`localizePropertyName` + `cleaning.buildingLabels`)
+   * 으로 현지화한다. 어드민만 원문 한국어를 보여주던 불일치를 없앤 값.
+   */
+  buildingLabel: string;
   /** "YYYY-MM-DD HH:MM" (Tokyo) — 현장 증빙값, 수정 불가. */
   registeredAt: string;
   /** 등록자 — 현장 증빙값, 수정 불가. */
@@ -58,10 +65,16 @@ export type AdminLinenItemOption = {
   buildingName: string | null;
 };
 
+/** 필터 · 수정 폼의 건물 선택지. `name` 이 저장/필터 키, `label` 이 표시값. */
+export type AdminLinenBuildingOption = {
+  name: string;
+  label: string;
+};
+
 export type AdminLinenReturnData = {
   records: AdminLinenRecordVM[];
   items: AdminLinenItemOption[];
-  buildings: string[];
+  buildings: AdminLinenBuildingOption[];
   loadError: boolean;
 };
 
@@ -174,6 +187,8 @@ export async function getAdminLinenReturns(
   session: AppSession,
   from: string,
   to: string,
+  /** `dictionary.cleaning.buildingLabels` — 청소 콘솔과 같은 건물 표기를 쓰기 위해 받는다. */
+  buildingLabels: Record<string, string>,
 ): Promise<AdminLinenReturnData> {
   const locale = session.user.preferredLanguage;
   const empty: AdminLinenReturnData = { records: [], items: [], buildings: [], loadError: false };
@@ -198,7 +213,7 @@ export async function getAdminLinenReturns(
     const rows = (data ?? []) as RecordRow[];
     const [items, buildings] = await Promise.all([
       getOrgLinenItems(session),
-      getLinenBuildingNames(session),
+      getLinenBuildingNames(session, buildingLabels),
     ]);
 
     if (rows.length === 0) return { records: [], items, buildings, loadError: false };
@@ -262,6 +277,7 @@ export async function getAdminLinenReturns(
         id: row.id,
         shortId: shortIdOf(row.id),
         buildingName: row.building_name,
+        buildingLabel: localizePropertyName(row.building_name, buildingLabels),
         registeredAt: tokyoStamp(row.registered_at),
         registeredById: row.registered_by_user_id,
         registrantName: registrantNames.get(row.registered_by_user_id) ?? "",
@@ -280,7 +296,12 @@ export async function getAdminLinenReturns(
 }
 
 /** Canonical building names the org operates (same source as orders / mobile linen return). */
-export async function getLinenBuildingNames(session: AppSession): Promise<string[]> {
+export async function getLinenBuildingNames(
+  session: AppSession,
+  buildingLabels: Record<string, string>,
+): Promise<AdminLinenBuildingOption[]> {
   const catalog = (await getActiveRoomCatalogServer(session.organization.id)) ?? [];
-  return [...new Set(catalog.map((item) => item.propertyName))].sort((a, b) => a.localeCompare(b, "ko"));
+  return [...new Set(catalog.map((item) => item.propertyName))]
+    .map((name) => ({ name, label: localizePropertyName(name, buildingLabels) }))
+    .sort((a, b) => a.label.localeCompare(b.label, "ko"));
 }

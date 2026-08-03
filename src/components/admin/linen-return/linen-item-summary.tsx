@@ -23,8 +23,8 @@ type Props = {
   catalog: AdminLinenItemOption[];
   t: LinenCopy["console"];
   units: Pick<LinenCopy, "quantityUnit" | "countUnit">;
-  /** "all" 이 아니면 건물을 좁힌 상태. */
-  building: string;
+  /** 건물을 좁혔을 때의 표시 라벨(현지화된 값). null = 전체 건물. */
+  buildingLabel: string | null;
   selectedItem: string;
   onSelectItem: (itemId: string) => void;
 };
@@ -35,7 +35,7 @@ export function LinenItemSummary({
   catalog,
   t,
   units,
-  building,
+  buildingLabel,
   selectedItem,
   onSelectItem,
 }: Props) {
@@ -44,7 +44,7 @@ export function LinenItemSummary({
   const totalQuantity = rows.reduce((sum, row) => sum + row.quantity, 0);
   const returnedKinds = rows.filter((row) => row.quantity > 0).length;
 
-  const scoped = building !== "all";
+  const scoped = buildingLabel !== null;
   const allQuantities = scoped ? quantityByItemOf(allBuildingRecords) : null;
   const allTotal = scoped ? allBuildingRecords.reduce((sum, r) => sum + r.totalQuantity, 0) : 0;
 
@@ -55,7 +55,7 @@ export function LinenItemSummary({
           {tpl(t.metaItemKinds, { n: returnedKinds, total: rows.length })}
         </b>
         <span className="sep" />
-        {scoped ? `${building} ` : ""}
+        {scoped ? `${buildingLabel} ` : ""}
         {tpl(t.metaRecords, { n: records.length })}
         <span className="sep" />
         {tpl(t.metaTotal, { n: `${totalQuantity}${units.quantityUnit}` })}
@@ -73,7 +73,7 @@ export function LinenItemSummary({
           <thead>
             <tr>
               <th style={{ paddingLeft: 16 }}>{t.colItem}</th>
-              <th className="num-h">{scoped ? building : t.colQty}</th>
+              <th className="num-h">{scoped ? buildingLabel : t.colQty}</th>
               <th />
               {scoped ? <th className="num-h">{t.colAllBuildings}</th> : null}
               <th className="num-h">{t.colRecordCount}</th>

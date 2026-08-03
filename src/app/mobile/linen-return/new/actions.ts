@@ -1,7 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { getActiveLinenItems, isKnownBuilding } from "@/lib/linen-returns";
+import {
+  getActiveLinenItems,
+  isKnownBuilding,
+  revalidateLinenReturnPaths,
+} from "@/lib/linen-returns";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
@@ -201,6 +205,7 @@ export async function createLinenReturnRecord(formData: FormData) {
       redirect(newPath(building, "save_failed"));
     }
 
+    revalidateLinenReturnPaths();
     redirect(
       `/mobile/linen-return/list?building=${encodeURIComponent(building)}&created=${targetRecord.id}`,
     );
@@ -241,6 +246,7 @@ export async function createLinenReturnRecord(formData: FormData) {
 
   // Return to the building list and surface a completion moment there
   // (created=<id> highlights the affected row, whether newly created or merged).
+  revalidateLinenReturnPaths();
   redirect(
     `/mobile/linen-return/list?building=${encodeURIComponent(building)}&created=${recordId}`,
   );

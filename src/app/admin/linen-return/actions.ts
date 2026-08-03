@@ -10,7 +10,6 @@
 //  · 권한: 작성자 본인 또는 관리자 역할 — UI 노출 여부와 무관하게 서버에서 다시 검증한다
 //  · 추적: 수정·삭제는 audit_logs 에 actor / time / action / 변경 스냅샷을 남긴다
 
-import { revalidatePath } from "next/cache";
 import type {
   LinenExportPayload,
   LinenItemExportRow,
@@ -30,8 +29,9 @@ import {
   type AdminTableSheet,
 } from "@/lib/admin-table-workbook";
 import { getDictionary } from "@/lib/i18n";
+import { revalidateLinenReturnPaths } from "@/lib/linen-returns";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
-import { getCurrentAppSession, hasOrganizationContext, type AppSession } from "@/lib/session";
+import { hasOrganizationContext, type AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
@@ -70,8 +70,10 @@ type GuardFail = { ok: false; reason: "forbidden" | "not_found" | "error" };
  * 조직 격리는 조회 자체를 `organization_id` 로 제한해서 보장한다(UI 신뢰 금지).
  */
 async function guard(recordId: string): Promise<GuardOk | GuardFail> {
-  const session = await getCurrentAppSession();
-  if (!session || !hasOrganizationContext(session)) return { ok: false, reason: "forbidden" };
+  // 이 파일의 내보내기 액션들과 같은 어드민 웹 게이트를 쓴다 — 어드민 웹이 막힌 역할이
+  // 서버 액션을 직접 호출해 수정/삭제하지 못하게 한다(UI 노출 여부는 인가 근거가 아니다).
+  const session = await requireAdminSession();
+  if (!hasOrganizationContext(session)) return { ok: false, reason: "forbidden" };
   if (!recordId) return { ok: false, reason: "not_found" };
 
   const supabase = await getSupabaseServerClient();
@@ -124,11 +126,6 @@ async function writeAudit(params: {
     // 감사 기록 실패가 이미 성공한 업무 처리를 되돌리지는 않는다 — 조용히 무시하지 않고 로그만 남긴다.
     console.error("[linen-return] audit log write failed", params.action, params.recordId);
   }
-}
-
-function revalidateConsole() {
-  revalidatePath("/admin/linen-return");
-  revalidatePath("/mobile/linen-return");
 }
 
 /**
@@ -244,7 +241,7 @@ export async function updateAdminLinenRecord(input: {
     } as Json,
   });
 
-  revalidateConsole();
+  revalidateLinenReturnPaths();
   return { ok: true };
 }
 
@@ -285,7 +282,7 @@ export async function deleteAdminLinenRecord(recordId: string): Promise<LinenCon
     } as Json,
   });
 
-  revalidateConsole();
+  revalidateLinenReturnPaths();
   return { ok: true };
 }
 

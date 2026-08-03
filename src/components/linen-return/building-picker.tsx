@@ -34,10 +34,13 @@ export function BuildingPicker({
 }: BuildingPickerProps) {
   const localized = useMemo(
     () =>
-      buildings.map((name) => ({
-        name,
-        label: localizePropertyName(name, buildingLabels),
-      })),
+      buildings
+        .map((name) => ({
+          name,
+          label: localizePropertyName(name, buildingLabels),
+        }))
+        // 어드민 린넨 콘솔의 건물 선택지와 같은 규칙 — 표시 라벨 기준으로 정렬한다.
+        .sort((a, b) => a.label.localeCompare(b.label, "ko")),
     [buildings, buildingLabels],
   );
 
