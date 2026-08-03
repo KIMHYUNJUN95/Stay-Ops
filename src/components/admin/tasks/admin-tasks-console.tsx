@@ -356,6 +356,8 @@ export function AdminTasksConsole({
   const [reportItems, setReportItems] = useState<string[]>([]);
   const [reportTemplate, setReportTemplate] = useState<DailyReportTemplate | null>(null);
   const [reportPicked, setReportPicked] = useState<boolean[]>([]);
+  // 마지막으로 자동 조립한 본문. 사용자가 직접 손댔는지 판정하는 기준(모바일 `builtText` 와 동일).
+  const [reportBuilt, setReportBuilt] = useState("");
   const [newProj, setNewProj] = useState<{ name: string; members: string[]; q: string } | null>(null);
   // 프로젝트 섹션 편집 — 이름 변경 인라인 드래프트 / 새 섹션 이름 버퍼.
   const [sectionEdit, setSectionEdit] = useState<{ id: string; title: string } | null>(null);
@@ -3012,10 +3014,12 @@ export function AdminTasksConsole({
     setReportItems([]);
     setReportTemplate(null);
     setReportPicked([]);
+    setReportBuilt("");
     generateConsoleReport(date).then((res) => {
       if (res.ok) {
         setReport({ date, text: res.text, loading: false, sending: false, error: null });
         setReportEdited(res.text);
+        setReportBuilt(res.text);
         setReportItems(res.items);
         setReportTemplate(res.template);
         setReportPicked(res.items.map(() => true)); // 기본은 전체 포함 — 빼는 쪽이 예외다.
@@ -3028,10 +3032,11 @@ export function AdminTasksConsole({
   /** 체크된 항목만으로 본문을 다시 조립한다(번호·합계도 다시 매겨진다). */
   const applyReportPick = (next: boolean[]) => {
     const chosen = reportItems.filter((_, i) => next[i]);
+    const nextText =
+      reportTemplate && chosen.length ? buildDailyReportText(reportTemplate, chosen) : "";
     setReportPicked(next);
-    setReportEdited(
-      reportTemplate && chosen.length ? buildDailyReportText(reportTemplate, chosen) : "",
-    );
+    setReportEdited(nextText);
+    setReportBuilt(nextText);
   };
   const copyReport = async () => {
     try {
@@ -4495,6 +4500,16 @@ export function AdminTasksConsole({
                       </ul>
                     </div>
                   ) : null}
+                  {/* 0건이면 무엇이 잘못됐는지, 직접 편집했다면 선택 변경이 그 편집을 덮어쓴다는
+                      사실을 알린다(모바일 ReportSheet 의 힌트 줄과 같은 규칙). */}
+                  {reportItems.length > 0 &&
+                  (reportPicked.every((on) => !on) || reportEdited !== reportBuilt) ? (
+                    <p className="rptpick__note" role="status">
+                      {reportPicked.every((on) => !on)
+                        ? dict.rptPickEmpty
+                        : dict.rptPickResetHint}
+                    </p>
+                  ) : null}
                   <textarea
                     className="rpt__ta"
                     placeholder={dict.rptPickEmpty}
@@ -4512,6 +4527,7 @@ export function AdminTasksConsole({
                   // "원본으로"는 편집뿐 아니라 **선택도** 되돌린다 — 둘이 어긋나면 체크는 6/8인데
                   // 본문은 8건인 상태가 되어 사용자가 무엇이 나갈지 알 수 없게 된다.
                   setReportEdited(report.text);
+                  setReportBuilt(report.text);
                   setReportPicked(reportItems.map(() => true));
                 }}
               >
