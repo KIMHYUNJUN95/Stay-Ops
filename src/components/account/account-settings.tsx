@@ -62,7 +62,7 @@ export function AccountSettings({
                 "@2xl:w-full @2xl:justify-start @2xl:gap-2 @2xl:rounded-xl @2xl:border-transparent @2xl:px-3 @2xl:py-2.5",
                 tab === key
                   ? "border-primary bg-primary text-primary-foreground @2xl:bg-primary/[0.08] @2xl:text-primary"
-                  : "border-border bg-surface text-slate-600 @2xl:bg-transparent @2xl:text-muted-foreground @2xl:hover:bg-[hsl(40_22%_94%)]",
+                  : "border-border bg-surface text-slate-600 @2xl:bg-transparent @2xl:text-muted-foreground @2xl:hover:bg-muted/60",
               )}
               key={key}
               onClick={() => setTab(key)}

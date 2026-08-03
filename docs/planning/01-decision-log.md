@@ -4611,3 +4611,43 @@ docs(18-product, 05-engineering, 01·06-planning). **검증**: `tsc --noEmit` 0 
 `src/lib/admin-tasks.ts`, docs(18-product, 01·06-planning).
 **검증**: `tsc --noEmit` 관련 오류 0, `npm run lint` 0 errors.
 
+## 2026-08-03 스코프 CSS 변수는 반드시 접두어를 쓴다 (ABSOLUTE)
+
+**문제.** `admin-console.css` 가 `.adm` 스코프에서 `--muted` / `--surface` / `--primary` 를
+재정의했다. 클래스 이름은 `.adm` 이 막아 주지만 **CSS 변수는 상속된다.** Tailwind 가 이 이름들을
+`bg-muted` / `bg-surface` 유틸로 컴파일하므로, `.adm` 안에 렌더되는 **공용 컴포넌트의 색이 조용히
+바뀌었다.**
+
+| 변수 | globals | `.adm` |
+| --- | --- | --- |
+| `--muted` | `hsl(40 22% 90%)` 밝은 웜 그레이 | `hsl(222 10% 44%)` 어두운 슬레이트 |
+| `--surface` | `hsl(44 52% 98.5%)` 거의 흰색 | `hsl(40 22% 90%)` 중간 토프 |
+| `--primary` | `hsl(223 46% 32%)` | 같은 값(현재 버그는 없으나 잠재 위험) |
+
+실제 증상: `ui/card.tsx`·`ui/input.tsx` 가 탁해지고, `ui/button.tsx` 의 secondary 는
+`active:bg-muted` 때문에 **누를 때 어두운 슬레이트가 번쩍였다.** 유지보수 상세의 "취소됨" 배지는
+어두운 배경 + 어두운 글씨로 판독이 어려웠다. `/admin/announcements/[id]`,
+`/admin/maintenance/[id]`, `/account?mode=admin` 등 12곳이 영향받았다.
+
+**결정. 스코프 CSS 는 globals 의 Tailwind 토큰과 같은 변수 이름을 쓰지 않는다.** 콘솔 전용 값은
+`--adm-*` 접두어를 쓴다. 저장소에 이미 선례가 있다 — `users-console.css` 의 `--ui-*`,
+`home-screen.css` 의 `--hm-*`. `admin-console.css` 계열만 예외였다.
+
+**왜 공용 컴포넌트에 명시 색을 박는 방식(대안 b)이 아닌가.** 그 방식은 재발을 못 막는다. 실제로
+`/account` 를 그 방식으로 막았는데 **그 화면조차 두 곳(`bg-muted/20`, secondary 버튼)이 다시
+새고 있었다.** 앞으로 `bg-muted` 를 쓰는 공용 컴포넌트가 하나 추가될 때마다 같은 버그가 재발한다.
+CLAUDE.md §3 의 "cards/sheets stay white (`bg-surface`)" 토큰 계약도 파기된다.
+
+**적용.** 선언 3개 + 참조 887건 / 42파일을 기계적으로 치환했다. **값을 바꾸지 않으므로 콘솔
+렌더 결과는 픽셀 동일**이고, `var(--muted)` 는 `var(--muted-foreground)` 와, `var(--surface)` 는
+`var(--surface2)` 와 매칭되지 않아 치환이 안전하다. `/account` 의 임시 하드코딩 4곳도 토큰으로
+원복했다.
+
+**나머지 6개 스코프도 같은 날 처리했다.** `.cx`(민원) · `.sg`(건의) · `.att`/`.lv`/`.trn`(근태) ·
+`.authx`(로그인) — 14파일 / 361건. 접두어는 스코프 이름을 따랐고(`--cx-*` `--sg-*` `--authx-*`),
+근태 3개 스코프는 **선언 값이 완전히 동일**해서 `--att-*` 하나로 묶었다(어느 스코프가 감싸든 값이
+같으므로 모호성이 없다).
+
+이 6개 스코프에서는 **실제 버그가 0건**이었다. 유일한 후보였던
+`src/app/auth/login/language-sheet.tsx:120` 의 `bg-muted` 는 `BottomSheet` 안이라 `<body>` 로
+포털되어 `.authx` 밖에서 렌더된다 — 오탐. 즉 이 6개는 순수 예방 조치다.

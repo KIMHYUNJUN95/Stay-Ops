@@ -55,13 +55,9 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
    * `admin-console.css` 가 `.adm` 안에서 `--surface` 를 중간 톤 토프로 재정의한다. 그래서 관리
    * 콘솔에서만 카드가 탁하게 보였다(2026-07-31). 두 셸에서 같게 보이도록 명시적으로 칠한다.
    */
-  /**
-   * 표면색을 `bg-surface` 토큰으로 못 쓰는 이유: `admin-console.css` 가 `.adm` 안에서 `--surface`
-   * 를 중간 톤 토프로 재정의해 카드·입력·버튼이 전부 탁해진다(2026-07-31). 그래서 globals 의
-   * `--surface` 실측값을 직접 쓴다 — **모바일 카드 계약(`bg-surface`)과 같은 색**이라 두 셸에서
-   * 의도한 톤이 그대로 나온다.
-   */
-  const surface = "bg-[hsl(44_52%_98.5%)]";
+  // `.adm` 이 `--surface` 를 재정의하던 문제는 콘솔 변수 접두어화(`--adm-*`, 2026-08-03)로
+  // 해소돼, 이제 두 셸 모두에서 토큰을 그대로 쓴다.
+  const surface = "bg-surface";
   const panelCard = `overflow-hidden rounded-2xl border border-border ${surface} shadow-[0_1px_2px_rgba(20,32,43,0.04)]`;
   const inputCls = surface;
   const shared = dictionary.admin.shared;
@@ -213,7 +209,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
             {dictionary.common.save}
           </Button>
           <Button
-            className={`w-[92px] border-border ${surface} text-foreground shadow-none backdrop-blur-none hover:bg-[hsl(40_22%_94%)]`}
+            className="w-[92px]"
             type="reset"
             variant="secondary"
           >

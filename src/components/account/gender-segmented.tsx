@@ -57,17 +57,15 @@ export function GenderSegmented({
       ref={wrapRef}
       role="radiogroup"
       aria-label={ariaLabel}
-      // 색을 토큰(bg-muted/bg-surface)으로 쓰면 안 된다 — `admin-console.css` 가 `.adm` 안에서 같은
-      // 이름의 변수를 **다른 의미로** 재정의한다(`--muted` 는 콘솔에서 어두운 슬레이트). 그래서 이
-      // 컨트롤이 관리 콘솔에서만 트랙이 시커멓게 나왔다(2026-07-31). 두 셸 모두에서 같게 보이도록
-      // 팔레트 색을 직접 쓴다.
-      className="relative flex h-12 rounded-[13px] bg-[hsl(40_22%_93%)] p-1"
+      // `.adm` 의 `--muted` 재정의로 콘솔에서만 트랙이 시커멓게 나오던 문제는 콘솔 변수
+      // 접두어화(`--adm-*`, 2026-08-03)로 해소됐다 — 토큰을 그대로 쓴다.
+      className="relative flex h-12 rounded-[13px] bg-muted p-1"
     >
       <input type="hidden" name={name} value={value} />
       {thumb ? (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute top-1 bottom-1 z-[1] rounded-[9px] bg-white shadow-[0_2px_6px_rgba(20,40,38,0.12)] transition-[left,width] duration-[260ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+          className="pointer-events-none absolute top-1 bottom-1 z-[1] rounded-[9px] bg-surface shadow-[0_2px_6px_rgba(20,40,38,0.12)] transition-[left,width] duration-[260ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
           style={{ left: thumb.left, width: thumb.width }}
         />
       ) : null}
