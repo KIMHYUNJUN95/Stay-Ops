@@ -3927,11 +3927,16 @@ i18n `stepCancelled` / `corrStatusCancelled` / `corrCancel*` ko·ja·en 추가.
 **보류**: 모바일 "교통비 포함 총 지급액" — 소유자 확인 결과 Excel/PDF 내보내기에 이미 나와
 있어 불필요.
 
-**미해결**: `/admin/users/invites` 의 초대코드 생성 폼에서 조직 드롭다운이 줄무늬 박스로 깨져
-보인다는 보고. CSS 변수 치환·토큰 손상·`useSession` throw·`searchable` CSS 누락·placeholder 타입을
-전부 배제했으나 코드만으로 원인을 특정하지 못했다. **바로 아래 역할 드롭다운은 정상**이고 둘의
-차이는 조직 쪽만 `placeholder` 를 쓰고 `defaultValue` 가 없다는 것뿐. DevTools 로 해당 요소의
-태그·클래스·computed background 와 콘솔 hydration 오류 유무 확인이 필요하다.
+**해소됨 — 코드 문제가 아니었다.** `/admin/users/invites` 의 조직 드롭다운이 줄무늬 박스로 깨져
+보인다는 보고가 있었으나, **코드 변경 없이 재빌드만으로 정상화**됐다(이후 커밋·미커밋 변경 0).
+
+원인은 **CSS 변수 접두어 치환(1,248건)이 진행 중일 때 개발 서버가 반쯤 반영된 CSS 를 서빙한
+것**으로 보인다. `.dd__btn` 의 `background: var(--card)` 가 일시적으로 해석되지 않아 투명해지면
+그 아래 `.ui-card` 의 `backdrop-filter: blur(16px)` 가 비쳐 줄무늬처럼 보인다.
+
+**교훈: 대규모 CSS 변수 치환 중에는 HMR 상태의 화면을 버그로 판단하지 말 것.** 치환을 끝내고
+개발 서버를 재시작한 뒤 판단해야 한다. 이번에는 코드에서 원인을 찾느라 시간을 썼는데, 코드에는
+애초에 문제가 없었다.
 
 검증: `tsc --noEmit` 0 errors, `npm run lint` 0 errors.
 
