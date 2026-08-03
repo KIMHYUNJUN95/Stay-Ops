@@ -26,6 +26,21 @@ function normalizeKey(value) {
   return normalizeInput(value).replace(/[^a-z0-9가-힣ぁ-んァ-ヶ一-龯]/g, "");
 }
 
+/**
+ * 방 라벨의 선두 알파벳 접두사를 대문자로 올린다 — `rooms.room_label` 은 Beds24 원본이라
+ * 아라키초B 가 "Ab101" 로 들어오지만, 앱은 `normalizeArakichoRoomKey()`(src/lib/
+ * room-label-normalization.ts)에서 이를 "AB101" 로 정규화한다.
+ *
+ * 이 스크립트는 TS 를 import 할 수 없어 규칙을 복제하고 있는데, **이 한 줄이 빠져 있어서
+ * 스크립트의 canonical 과 앱의 canonical 이 어긋나 있었다.** 그대로 두면 백필이 앱이 올바르게
+ * 쓴 "AB202" 를 "Ab202" 로 되돌린다. 숫자로만 된 라벨(아라키초A·가부키초)은 영향이 없다.
+ */
+function canonicalizeRoomLabel(roomLabel) {
+  return String(roomLabel ?? "")
+    .trim()
+    .replace(/^[A-Za-z]+/, (match) => match.toUpperCase());
+}
+
 function getCanonicalPropertyName(propertyName) {
   const key = normalizeKey(propertyName);
   if (key.includes("arakicho") || key.includes("아라키초a") || key.includes("荒木町a")) return "아라키초A";
@@ -126,7 +141,7 @@ function buildAliasMap(rooms) {
     .map((r) => ({
       property_name: getCanonicalPropertyName(r.properties?.name ?? ""),
       canonical_property_name: getCanonicalPropertyName(r.properties?.name ?? ""),
-      canonical_room_label: String(r.room_label ?? "").trim(),
+      canonical_room_label: canonicalizeRoomLabel(r.room_label),
       room_label: r.room_label ?? "",
     }))
     .filter((r) => r.property_name && r.canonical_property_name && r.canonical_room_label);
