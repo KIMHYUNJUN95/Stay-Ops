@@ -976,7 +976,16 @@ the **ReportSheet** bottom sheet:
 - **Free, no AI.** The report is template-based with a deterministic local tidy-up (whitespace,
   leading bullet glyphs, punctuation spacing) for light auto-correction — no LLM, no API key, no
   per-use cost. (An LLM-backed variant was prototyped then dropped; see the decision log.)
-- The result is shown in an **editable textarea** and **copied to the clipboard**.
+- The result is shown in an **editable textarea** and can be copied to the clipboard or manually sent
+  to the one configured Slack daily-report channel. The send control keeps its label on one line even
+  on a narrow screen. Slack receives the textarea body unchanged, so the
+  existing report format and the author's final edits are preserved. The message already contains the
+  report's author line; no Slack-user account matching is required.
+- Sending uses the server-only `SLACK_DAILY_REPORT_WEBHOOK_URL` Incoming Webhook. It is never exposed
+  to the browser. The same report-generation permission is rechecked server-side before every send;
+  delivery succeeds only after Slack accepts the request. Successful sends write an `audit_logs`
+  `task_daily_report_slack_sent` event containing the sender, Tokyo report date and character count
+  (never the report body or webhook URL).
 - **Permission — staff-only.** Generation is allowed when the role is anything except
   `part_time_staff`, OR the user has an individually-granted `profiles.can_generate_report = true`
   override (the flag exists for the few part-timers who work in a management capacity; regular staff
@@ -1349,4 +1358,3 @@ Design in this order:
 
 이 저장소는 반복 규칙을 두 파일에 복사해 뒀다가 정의가 갈리면서 **오버듀 작업이 하드 삭제되는**
 사고를 낸 적이 있다. 같은 실수를 반복하지 않기 위한 정리다.
-

@@ -28,6 +28,11 @@ Completion + report (2026-06-13): manual complete / reopen is **re-introduced** 
   profiles.can_generate_report`; a forbidden caller gets a "권한 없음" popup. Owner/office_admin toggle
   the per-user flag in admin user management (`updateMemberReportAccess`).
   (An LLM-backed variant was prototyped then dropped for cost — see decision log 2026-06-13.)
+- **Slack delivery (2026-08-03):** `sendDailyReportToSlack(date, editedText)` repeats the same
+  generation/permission check, validates a server-only `https://hooks.slack.com` Incoming Webhook,
+  and posts the reviewed textarea verbatim as Slack `text`. It refuses reports over 40,000 characters
+  rather than letting Slack truncate them. Both mobile and admin delegate to this one action; a
+  successful delivery writes `audit_logs.task_daily_report_slack_sent` with no report body or secret.
 
 Hardening pass (2026-06-11): `quickCreateTask`/`createTask` roll back the inserted `tasks` row when
 the `task_participants` insert fails (no DB transaction in this path, so the rollback is an explicit
@@ -464,6 +469,8 @@ Report (`src/app/mobile/tasks/report-actions.ts`):
 - `generateDailyReport(date)` — staff-only (`canGenerateDailyReport`); gathers the caller's own
   completions for the Tokyo `date` and returns a free, template-based 업무일지 (no LLM / no API key), or
   `{ ok: false, reason: "forbidden" | "empty" | "error" }`.
+- `sendDailyReportToSlack(date, editedText)` — server-only Incoming Webhook send of the reviewed
+  report; rechecks the same permission and never returns the webhook URL to either UI.
 
 Admin (`src/app/admin/users/actions.ts`):
 
@@ -1119,4 +1126,3 @@ myOwn(t, meId)      // !sentInstr — 내 일정 뷰(오늘/내일/관리함/캘
 완료는 작업 행 하나에만 있다(`status` / `completed_at` / `completed_by_user_id`). 그래서 보낸 지시
 카드의 "2 / 3 완료" 같은 담당자별 진행률은 **구현 불가**이며, 필요해지면
 `task_participants.completed_at` 추가 + 완료 의미 변경이라는 별도 결정이 선행되어야 한다.
-

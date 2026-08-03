@@ -16,6 +16,14 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **Todo 업무일지 Slack 단일 채널 전송 구현 (2026-08-03).** 모바일과 `/admin/tasks`의 기존 보고서
+  편집 양식에 `Slack으로 보내기`를 추가했다. 사용자 최종 편집 본문을 그대로 서버 전용 Incoming Webhook으로
+  전송하며, 기존 보고서 권한을 서버에서 다시 확인한다. 작성자 식별은 보고서 본문의 담당자 줄로 충분하므로
+  Slack 계정 매칭은 만들지 않았다. URL은 `SLACK_DAILY_REPORT_WEBHOOK_URL` 환경변수만 읽고 클라이언트/
+  코드/문서/감사 로그에 저장하지 않는다. 성공 전송은 `audit_logs.task_daily_report_slack_sent`에 본문 없이
+  날짜·문자 수만 기록한다. 웹훅 설정은 배포 환경에 별도로 필요하다. 기준 문서: Product `18`/`28`,
+  Engineering `07`/`09`/`04`, decision log.
+
 - **컴플레인·외부 리뷰 재기획 완료, 구현 대기 (2026-07-30).** 기존 모바일 수동 컴플레인은 유지하고,
   Beds24의 Airbnb·Booking.com 리뷰를 별도 로컬 `external_reviews`로 수집해 함께 검토하는 방향을 확정했다.
   낮은 평점 리뷰를 자동 컴플레인으로 만들지 않으며, 필요한 경우에만 권한자가 수동 컴플레인으로 전환·연결한다.
@@ -3939,4 +3947,3 @@ i18n `stepCancelled` / `corrStatusCancelled` / `corrCancel*` ko·ja·en 추가.
 애초에 문제가 없었다.
 
 검증: `tsc --noEmit` 0 errors, `npm run lint` 0 errors.
-

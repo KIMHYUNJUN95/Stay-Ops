@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy, FileText, Lock, RefreshCw } from "lucide-react";
-import { generateDailyReport } from "@/app/mobile/tasks/report-actions";
+import { Copy, FileText, Lock, RefreshCw, Send } from "lucide-react";
+import { generateDailyReport, sendDailyReportToSlack } from "@/app/mobile/tasks/report-actions";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import type { Dictionary, Locale } from "@/lib/i18n";
 
 type Copy = Dictionary["tasks"];
 type Status = "loading" | "done" | "forbidden" | "empty" | "error";
+type SlackStatus = "idle" | "sending" | "sent" | "not_configured" | "too_long" | "error";
 
 // Clipboard write with a legacy fallback (mirrors the calendar's copy util) so it works in
 // non-secure contexts / older webviews.
@@ -49,10 +50,12 @@ export function ReportSheet({
   const [status, setStatus] = useState<Status>("loading");
   const [text, setText] = useState("");
   const [copied, setCopied] = useState(false);
+  const [slackStatus, setSlackStatus] = useState<SlackStatus>("idle");
 
   const run = useCallback(() => {
     setStatus("loading");
     setCopied(false);
+    setSlackStatus("idle");
     generateDailyReport(date).then((res) => {
       if (res.ok) {
         setText(res.text);
@@ -75,6 +78,32 @@ export function ReportSheet({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const onSlackSend = async () => {
+    setSlackStatus("sending");
+    const result = await sendDailyReportToSlack(date, text);
+    if (result.ok) {
+      setSlackStatus("sent");
+      return;
+    }
+    // 서버는 `forbidden` / `empty` 도 돌려주지만 그 둘은 전용 안내 문구가 없다(그리고 이 시트는
+    // 이미 생성된 보고서를 보여주는 중이라 실제로 나올 일이 드물다). 전용 상태를 만들지 않고
+    // 일반 오류로 접는다 — 안내할 말이 없는 상태를 UI 에 늘리지 않는다.
+    setSlackStatus(
+      result.reason === "not_configured" || result.reason === "too_long" ? result.reason : "error",
+    );
+  };
+
+  const slackMessage =
+    slackStatus === "sent"
+      ? copy.reportSlackSent
+      : slackStatus === "not_configured"
+        ? copy.reportSlackNotConfigured
+        : slackStatus === "too_long"
+          ? copy.reportSlackTooLong
+          : slackStatus === "error"
+            ? copy.reportSlackError
+            : null;
 
   const dateLabel = new Intl.DateTimeFormat(locale, {
     year: "numeric",
@@ -153,12 +182,20 @@ export function ReportSheet({
                   <div>
                     <textarea
                       className="h-[44vh] w-full resize-none rounded-2xl border border-border bg-muted/40 p-3.5 text-[13.5px] leading-relaxed text-foreground outline-none focus:border-primary"
-                      onChange={(e) => setText(e.target.value)}
+                      onChange={(e) => {
+                        setText(e.target.value);
+                        setSlackStatus("idle");
+                      }}
                       value={text}
                     />
                     <p className="mt-1.5 px-0.5 text-[11.5px] text-muted-foreground">
                       {copy.reportEditHint}
                     </p>
+                    {slackMessage ? (
+                      <p className="mt-2 px-0.5 text-[11.5px] text-muted-foreground" role="status">
+                        {slackMessage}
+                      </p>
+                    ) : null}
                     <div className="mt-3 flex gap-2.5">
                       <button
                         className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground transition-colors active:bg-slate-50"
@@ -169,7 +206,20 @@ export function ReportSheet({
                         {copy.reportRegenerate}
                       </button>
                       <button
-                        className="inline-flex h-12 flex-[1.4] items-center justify-center gap-1.5 rounded-2xl bg-primary text-[13.5px] font-extrabold text-primary-foreground transition-opacity active:opacity-90"
+                        className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-border bg-surface text-[12px] font-bold text-foreground transition-colors active:bg-slate-50 disabled:opacity-50"
+                        disabled={slackStatus === "sending"}
+                        onClick={onSlackSend}
+                        type="button"
+                      >
+                        {slackStatus === "sending" ? (
+                          <RefreshCw className="size-4 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <Send className="size-4" aria-hidden="true" />
+                        )}
+                        {slackStatus === "sending" ? copy.reportSlackSending : copy.reportSlackSend}
+                      </button>
+                      <button
+                        className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-primary text-[13.5px] font-extrabold text-primary-foreground transition-opacity active:opacity-90"
                         onClick={onCopy}
                         type="button"
                       >

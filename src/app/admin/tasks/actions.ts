@@ -1,7 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { generateDailyReport, type DailyReportResult } from "@/app/mobile/tasks/report-actions";
+import {
+  generateDailyReport,
+  sendDailyReportToSlack,
+  type DailyReportResult,
+  type SendDailyReportToSlackResult,
+} from "@/app/mobile/tasks/report-actions";
 import { notifyProjectMembers, notifyTaskParticipants } from "@/lib/notifications/create";
 import type { TaskNotificationPayload } from "@/lib/notifications/types";
 import { getProjectDetail, type ProjectDetailData } from "@/lib/projects";
@@ -1352,6 +1357,13 @@ export async function createConsoleProject(
 // ── 11. Daily report (delegate to the shared staff-only generator) ─────────────
 export async function generateConsoleReport(date: string): Promise<DailyReportResult> {
   return generateDailyReport(date);
+}
+
+export async function sendConsoleReportToSlack(
+  date: string,
+  text: string,
+): Promise<SendDailyReportToSlackResult> {
+  return sendDailyReportToSlack(date, text);
 }
 
 // ── 12. Load full task detail (updates + resolved context) for the right panel ─────────────

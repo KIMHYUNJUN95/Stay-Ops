@@ -2,6 +2,25 @@
 
 This file records important project decisions.
 
+## 2026-08-03 Todo 업무일지 — 단일 Slack 채널 수동 전송
+
+### 결정
+
+- 모바일 `/mobile/tasks`와 대시보드 `/admin/tasks`의 기존 업무일지 생성·편집 양식은 바꾸지 않는다.
+  보고서 모달의 `Slack으로 보내기`는 사용자가 최종 수정한 textarea 본문을 그대로 전송한다.
+- 전송 대상은 조직별 선택 UI가 없는 **단일 회사 업무일지 채널**이다. `SLACK_DAILY_REPORT_WEBHOOK_URL`
+  서버 환경변수의 Incoming Webhook만 사용하며, URL은 브라우저·소스·문서·감사 로그에 저장하거나 노출하지 않는다.
+- 전송자 Slack 계정 매칭은 만들지 않는다. 기존 보고서 본문의 담당자 줄이 실제 작성자를 나타내며, Slack
+  메시지는 StayOps 웹훅/앱 명의로 전송된다.
+- 권한은 기존 업무일지 생성 권한과 동일하다. 버튼 노출과 별개로 서버가 생성 권한·Tokyo 날짜·비어 있지 않은
+  보고서를 다시 확인한다. Slack이 수락한 성공 전송만 `audit_logs.task_daily_report_slack_sent`에
+  작성자·날짜·문자 수를 남기며 본문은 남기지 않는다.
+- 웹훅 미설정, Slack 전송 실패, 40,000자 초과는 성공으로 표시하지 않고 각 화면의 현지화된 오류로 돌려준다.
+
+### 범위 밖
+
+- Slack 사용자 계정 연결, 멘션·DM·채널 선택, Slack 수신/버튼 액션, 자동 예약 발송, 메시지 수정·삭제
+
 ## 2026-07-31 설정 3화면 리디자인 — 마스터·디테일 (Claude Design 초안 1b 채택)
 
 ### 문제
@@ -4676,4 +4695,3 @@ CLAUDE.md §3 의 "cards/sheets stay white (`bg-surface`)" 토큰 계약도 파�
 
 **미완**: Supabase 대시보드의 유출 비밀번호 차단은 코드로 켤 수 없다 — 소유자가 직접 활성화해야
 한다(Authentication → Sign In / Providers → Password).
-

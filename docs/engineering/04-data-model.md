@@ -339,6 +339,7 @@ attendance_month_finalize
 attendance_month_reopen
 linen_return_console_update
 linen_return_console_delete
+task_daily_report_slack_sent
 ```
 
 Notes:
@@ -349,6 +350,10 @@ Notes:
   quantities, note, photo count — plus the original `registered_at` / `registered_by_user_id`
   evidence. There is no free-text reason field for these two actions; see
   `docs/product/19-linen-defect-workflow.md`.
+- `task_daily_report_slack_sent` (2026-08-03) records a successful manual daily-report delivery to
+  the configured single Slack channel. `target_type = daily_report`, `target_id = {user_id}:{Tokyo
+  date}`, and metadata retains only `date` and `character_count`; it deliberately excludes the report
+  body and Slack webhook URL.
 
 - `organization_id` can be null for platform-level actions.
 - Super Admin actions should be recorded.
@@ -1749,4 +1754,3 @@ Constraints / behavior:
 
 대기 큐(`getAdminAttendanceCorrections`)와 마감 판정(`getFinalizationEligibility`)은
 `requested|in_review` 만 세므로 `cancelled` 는 두 곳에서 자동으로 빠진다 — 별도 인덱스 불필요.
-

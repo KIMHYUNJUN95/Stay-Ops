@@ -277,6 +277,12 @@ export type AdminTasksDictionary = {
   rptClose: string;
   rptCopy: string;
   rptCopied: string;
+  rptSlackSend: string;
+  rptSlackSending: string;
+  rptSlackSent: string;
+  rptSlackNotConfigured: string;
+  rptSlackTooLong: string;
+  rptSlackError: string;
   // empty / loading / error
   emToday: string;
   emTodayS: string;
@@ -420,6 +426,8 @@ const ko: AdminTasksDictionary = {
   npCancel: "취소", npCreate: "프로젝트 만들기",
   rptTitle: "업무일지 · {date}", rptHint: "완료 {n}건을 정리한 텍스트입니다. 필요한 부분을 직접 수정한 뒤 복사해 붙여 넣으세요.",
   rptReset: "원본으로", rptClose: "닫기", rptCopy: "전체 복사", rptCopied: "복사했습니다.",
+  rptSlackSend: "Slack으로 보내기", rptSlackSending: "전송 중…", rptSlackSent: "Slack으로 보냈습니다.",
+  rptSlackNotConfigured: "Slack 전송이 아직 설정되지 않았습니다.", rptSlackTooLong: "보고서가 너무 길어 Slack으로 보낼 수 없습니다.", rptSlackError: "Slack으로 보내지 못했습니다. 다시 시도해 주세요.",
   emToday: "오늘 처리할 일이 없습니다", emTodayS: "관리함을 정리하거나 새 작업을 추가해 보세요.",
   emTomorrow: "내일 예정된 작업이 없습니다", emTomorrowS: "일정을 잡아두면 여기에서 미리 볼 수 있어요.",
   emInbox: "관리함이 비어 있습니다", emInboxS: "프로젝트 밖의 작업이 여기에 모두 모입니다.",
@@ -524,6 +532,8 @@ const ja: AdminTasksDictionary = {
   npCancel: "キャンセル", npCreate: "プロジェクト作成",
   rptTitle: "業務日報 · {date}", rptHint: "完了{n}件をまとめたテキストです。必要な部分を編集してコピー・貼り付けしてください。",
   rptReset: "元に戻す", rptClose: "閉じる", rptCopy: "全体コピー", rptCopied: "コピーしました。",
+  rptSlackSend: "Slackへ送る", rptSlackSending: "送信中…", rptSlackSent: "Slackへ送信しました。",
+  rptSlackNotConfigured: "Slack送信はまだ設定されていません。", rptSlackTooLong: "レポートが長すぎてSlackへ送信できません。", rptSlackError: "Slackへ送信できませんでした。もう一度お試しください。",
   emToday: "今日やることはありません", emTodayS: "管理箱を整理するか新しいタスクを追加しましょう。",
   emTomorrow: "明日の予定はありません", emTomorrowS: "日程を入れておくとここで先に見られます。",
   emInbox: "管理箱が空です", emInboxS: "プロジェクト外のタスクがすべてここに集まります。",
@@ -628,6 +638,8 @@ const en: AdminTasksDictionary = {
   npCancel: "Cancel", npCreate: "Create project",
   rptTitle: "Work log · {date}", rptHint: "A text summary of {n} completed tasks. Edit as needed, then copy and paste.",
   rptReset: "Reset", rptClose: "Close", rptCopy: "Copy all", rptCopied: "Copied.",
+  rptSlackSend: "Send to Slack", rptSlackSending: "Sending…", rptSlackSent: "Sent to Slack.",
+  rptSlackNotConfigured: "Slack sending is not configured yet.", rptSlackTooLong: "This report is too long to send to Slack.", rptSlackError: "Couldn't send to Slack. Please try again.",
   emToday: "Nothing due today", emTodayS: "Clear your inbox or add a new task.",
   emTomorrow: "No tasks scheduled for tomorrow", emTomorrowS: "Schedule tasks to preview them here.",
   emInbox: "Your inbox is empty", emInboxS: "Every task outside a project collects here.",

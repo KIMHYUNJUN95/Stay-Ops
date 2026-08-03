@@ -294,6 +294,20 @@ it builds the report deterministically from the day's completed tasks with a loc
 > ever wanted, re-introducing the SDK + key behind the same `generateDailyReport` contract is the
 > upgrade path.
 
+### Slack single-channel delivery
+
+Set this server-only variable in local development and the deployed environment:
+
+```txt
+SLACK_DAILY_REPORT_WEBHOOK_URL=
+```
+
+It must be a Slack Incoming Webhook for the single company daily-report channel. Do not put this URL
+in client variables, documentation, source code, or browser logs. The report send action permits only
+`https://hooks.slack.com` endpoints, sends the reviewed textarea body unchanged, and rechecks the
+existing daily-report permission server-side. Leaving it unset keeps report generation/copy working
+and returns a localized "not configured" message for Slack send.
+
 ## Storage
 
 Active Supabase Storage buckets:

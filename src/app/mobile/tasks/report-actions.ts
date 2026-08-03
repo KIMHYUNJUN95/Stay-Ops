@@ -3,11 +3,17 @@
 import { canGenerateDailyReport } from "@/config/roles";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { hasPermissionOverride } from "@/lib/permission-overrides-server";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { Json } from "@/types/database";
 
 export type DailyReportResult =
   | { ok: true; text: string }
   | { ok: false; reason: "forbidden" | "empty" | "error" };
+
+export type SendDailyReportToSlackResult =
+  | { ok: true }
+  | { ok: false; reason: "forbidden" | "empty" | "error" | "not_configured" | "too_long" };
 
 // ── Localized template parts ─────────────────────────────────────────────────
 // i18n-ignore-start: localized server-action report templates live together here.
@@ -176,4 +182,73 @@ export async function generateDailyReport(date: string): Promise<DailyReportResu
   ].join("\n");
 
   return { ok: true, text };
+}
+
+/**
+ * Posts the caller-reviewed daily report to the single company Slack channel.
+ *
+ * The webhook URL stays exclusively in `SLACK_DAILY_REPORT_WEBHOOK_URL`; the client never receives
+ * it. We deliberately send the textarea body unchanged so the existing report template and the
+ * user's final edits are what appear in Slack. Re-generating first is an authorization + empty-report
+ * guard, not a replacement for the edited text.
+ */
+export async function sendDailyReportToSlack(
+  date: string,
+  editedText: string,
+): Promise<SendDailyReportToSlackResult> {
+  const day = String(date ?? "").trim();
+  const text = String(editedText ?? "").trim();
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(day) || !text) return { ok: false, reason: "error" };
+  // Slack truncates text above 40,000 characters. Reject rather than silently posting a partial report.
+  if (text.length > 40_000) return { ok: false, reason: "too_long" };
+
+  const generated = await generateDailyReport(day);
+  if (!generated.ok) return { ok: false, reason: generated.reason };
+
+  const webhookUrl = process.env.SLACK_DAILY_REPORT_WEBHOOK_URL?.trim();
+  if (!webhookUrl) return { ok: false, reason: "not_configured" };
+
+  try {
+    const endpoint = new URL(webhookUrl);
+    if (endpoint.protocol !== "https:" || endpoint.hostname !== "hooks.slack.com") {
+      return { ok: false, reason: "not_configured" };
+    }
+  } catch {
+    return { ok: false, reason: "not_configured" };
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ text }),
+      cache: "no-store",
+    });
+    if (!response.ok) return { ok: false, reason: "error" };
+  } catch {
+    return { ok: false, reason: "error" };
+  }
+
+  // The report body is intentionally not stored in audit metadata; it may contain operational details.
+  // A failed audit write must not turn an already-delivered Slack message into a client-visible failure.
+  try {
+    const session = await getCurrentAppSession();
+    if (session && hasOrganizationContext(session)) {
+      await getSupabaseServiceClient()
+        .from("audit_logs")
+        .insert({
+          organization_id: session.organization.id,
+          actor_user_id: session.user.id,
+          action: "task_daily_report_slack_sent",
+          target_type: "daily_report",
+          target_id: `${session.user.id}:${day}`,
+          metadata: { date: day, character_count: text.length } as Json,
+          // 저장소 관례 — 생성 타입이 좁아 `as never` 로 넘긴다(`admin/settings/attendance` 동일).
+        } as never);
+    }
+  } catch {
+    // External delivery already succeeded; audit retries/monitoring are outside this small first slice.
+  }
+
+  return { ok: true };
 }

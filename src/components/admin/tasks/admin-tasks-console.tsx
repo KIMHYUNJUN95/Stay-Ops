@@ -38,6 +38,7 @@ import {
   Pencil,
   Plus,
   Repeat,
+  RefreshCw,
   SkipForward,
   RotateCcw,
   Search,
@@ -67,6 +68,7 @@ import {
   skipConsoleOccurrence,
   unskipConsoleOccurrence,
   generateConsoleReport,
+  sendConsoleReportToSlack,
   getConsoleProjectDetail,
   getConsoleTaskDetail,
   inviteConsoleProjectMembers,
@@ -345,7 +347,7 @@ export function AdminTasksConsole({
   const [dateFilter, setDateFilter] = useState<DateFilterKey | null>(null);
   const [prioFilter, setPrioFilter] = useState("");
   const [daySheet, setDaySheet] = useState<string | null>(null);
-  const [report, setReport] = useState<{ date: string; text: string; loading: boolean; error: string | null } | null>(
+  const [report, setReport] = useState<{ date: string; text: string; loading: boolean; sending: boolean; error: string | null } | null>(
     null,
   );
   const [reportEdited, setReportEdited] = useState("");
@@ -3000,14 +3002,14 @@ export function AdminTasksConsole({
 
   // ── report ────────────────────────────────────────────────────────────────────────────────
   const openReport = (date: string) => {
-    setReport({ date, text: "", loading: true, error: null });
+    setReport({ date, text: "", loading: true, sending: false, error: null });
     setReportEdited("");
     generateConsoleReport(date).then((res) => {
       if (res.ok) {
-        setReport({ date, text: res.text, loading: false, error: null });
+        setReport({ date, text: res.text, loading: false, sending: false, error: null });
         setReportEdited(res.text);
       } else {
-        setReport({ date, text: "", loading: false, error: res.reason });
+        setReport({ date, text: "", loading: false, sending: false, error: res.reason });
       }
     });
   };
@@ -3018,6 +3020,23 @@ export function AdminTasksConsole({
     } catch {
       showToast(dict.errGeneric);
     }
+  };
+  const sendReportToSlack = () => {
+    if (!report || report.loading || report.error || report.sending) return;
+    const { date } = report;
+    setReport({ ...report, sending: true });
+    sendConsoleReportToSlack(date, reportEdited).then((res) => {
+      setReport((current) => (current && current.date === date ? { ...current, sending: false } : current));
+      if (res.ok) {
+        showToast(dict.rptSlackSent);
+      } else if (res.reason === "not_configured") {
+        showToast(dict.rptSlackNotConfigured);
+      } else if (res.reason === "too_long") {
+        showToast(dict.rptSlackTooLong);
+      } else {
+        showToast(dict.rptSlackError);
+      }
+    });
   };
 
   // ── note send ────────────────────────────────────────────────────────────────────────────
@@ -4416,14 +4435,24 @@ export function AdminTasksConsole({
                 <Repeat size={14} />
                 {dict.rptReset}
               </button>
-              <span style={{ flex: 1 }} />
-              <button className="btn btn--ghost btn--sm" onClick={() => setReport(null)}>
-                {dict.rptClose}
-              </button>
-              <button className="btn btn--pri btn--sm" onClick={copyReport} disabled={!!report.error || report.loading}>
-                <FileText size={14} />
-                {dict.rptCopy}
-              </button>
+              <span className="rpt__spacer" />
+              <div className="rpt__actions">
+                <button className="btn btn--ghost btn--sm" onClick={() => setReport(null)}>
+                  {dict.rptClose}
+                </button>
+                <button
+                  className="btn btn--ghost btn--sm"
+                  onClick={sendReportToSlack}
+                  disabled={!!report.error || report.loading || report.sending}
+                >
+                  {report.sending ? <RefreshCw className="spin" size={14} /> : <Send size={14} />}
+                  {report.sending ? dict.rptSlackSending : dict.rptSlackSend}
+                </button>
+                <button className="btn btn--pri btn--sm" onClick={copyReport} disabled={!!report.error || report.loading}>
+                  <FileText size={14} />
+                  {dict.rptCopy}
+                </button>
+              </div>
             </div>
           </div>
         </div>
