@@ -5,10 +5,17 @@ import { Copy, FileText, Lock, RefreshCw, Send } from "lucide-react";
 import { generateDailyReport, sendDailyReportToSlack } from "@/app/mobile/tasks/report-actions";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import type { Dictionary, Locale } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 type Copy = Dictionary["tasks"];
 type Status = "loading" | "done" | "forbidden" | "empty" | "error";
 type SlackStatus = "idle" | "sending" | "sent" | "not_configured" | "too_long" | "error";
+
+/** 보조 액션(다시 생성 · Slack) 공통 스타일 — 한 곳에 두어 두 버튼의 타이포가 갈리지 않게 한다. */
+const secondaryBtn =
+  "inline-flex h-12 min-w-0 items-center justify-center gap-1.5 rounded-2xl border border-border " +
+  "bg-surface text-[13.5px] font-bold tracking-[-0.01em] text-foreground transition-colors " +
+  "active:bg-muted/60 disabled:opacity-50";
 
 // Clipboard write with a legacy fallback (mirrors the calendar's copy util) so it works in
 // non-secure contexts / older webviews.
@@ -196,34 +203,42 @@ export function ReportSheet({
                         {slackMessage}
                       </p>
                     ) : null}
-                    <div className="mt-3 flex gap-2.5">
+                    {/* 액션 3개를 한 줄에 넣으면 각 버튼이 ~125px 라, 가장 긴 라벨("Slack으로
+                        보내기" / "Send to Slack")이 눌려 보이고 그 버튼만 폰트를 줄여야 했다.
+                        → 보조 2개를 위 줄, 주 동작(복사)을 아래 전체 폭으로 나눈다. 라벨이 길어도
+                        여유가 생기고 세 버튼의 타이포를 하나로 통일할 수 있다(2026-08-03). */}
+                    <div className="mt-3 flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <button
+                          className={cn(secondaryBtn, "flex-1")}
+                          onClick={run}
+                          type="button"
+                        >
+                          <RefreshCw className="size-4 shrink-0" aria-hidden="true" />
+                          {copy.reportRegenerate}
+                        </button>
+                        <button
+                          className={cn(secondaryBtn, "flex-[1.35]")}
+                          disabled={slackStatus === "sending"}
+                          onClick={onSlackSend}
+                          type="button"
+                        >
+                          {slackStatus === "sending" ? (
+                            <RefreshCw className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <Send className="size-4 shrink-0" aria-hidden="true" />
+                          )}
+                          <span className="truncate">
+                            {slackStatus === "sending" ? copy.reportSlackSending : copy.reportSlackSend}
+                          </span>
+                        </button>
+                      </div>
                       <button
-                        className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground transition-colors active:bg-slate-50"
-                        onClick={run}
-                        type="button"
-                      >
-                        <RefreshCw className="size-4" aria-hidden="true" />
-                        {copy.reportRegenerate}
-                      </button>
-                      <button
-                        className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border border-border bg-surface text-[12px] font-bold text-foreground transition-colors active:bg-slate-50 disabled:opacity-50"
-                        disabled={slackStatus === "sending"}
-                        onClick={onSlackSend}
-                        type="button"
-                      >
-                        {slackStatus === "sending" ? (
-                          <RefreshCw className="size-4 animate-spin" aria-hidden="true" />
-                        ) : (
-                          <Send className="size-4" aria-hidden="true" />
-                        )}
-                        {slackStatus === "sending" ? copy.reportSlackSending : copy.reportSlackSend}
-                      </button>
-                      <button
-                        className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-primary text-[13.5px] font-extrabold text-primary-foreground transition-opacity active:opacity-90"
+                        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[14px] font-extrabold tracking-[-0.01em] text-primary-foreground transition-opacity active:opacity-90"
                         onClick={onCopy}
                         type="button"
                       >
-                        <Copy className="size-4" aria-hidden="true" />
+                        <Copy className="size-[17px] shrink-0" aria-hidden="true" />
                         {copied ? copy.reportCopied : copy.reportCopy}
                       </button>
                     </div>
