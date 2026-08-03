@@ -168,6 +168,14 @@ function computeContentOffset(raw: number): number {
 // session (the shell is rendered per page, so this Map is the only thing that persists).
 const SCROLL_POSITIONS = new Map<string, number>();
 
+/**
+ * 하단 탭을 이미 있는 탭에서 한 번 더 눌렀을 때 발생한다. `detail.id` 는 그 탭의 nav id.
+ *
+ * 라우팅만으로는 화면 안쪽 상태(내부 탭·검색어·필터)를 되돌릴 수 없어서, 되돌릴 상태를 가진
+ * 화면이 스스로 듣고 초기화하도록 신호만 보낸다. 듣지 않는 화면은 스크롤-투-탑까지만 동작한다.
+ */
+export const TAB_RESET_EVENT = "stayops:tab-reset";
+
 export function MobileShell({
   activeItem,
   appearance = "default",
@@ -496,19 +504,36 @@ export function MobileShell({
         aria-current={isActive ? "page" : undefined}
         className={cn("tabbar__item", isActive && "is-active")}
         href={item.href}
-        // Native pattern: tapping the tab you're already on scrolls the content back to the
-        // top (and closes the sidebar) instead of a no-op navigation.
+        // 이미 있는 탭을 다시 누르면 **그 탭의 기본 화면으로 되돌린다**(네이티브 앱 관례).
+        //
+        // 예전에는 스크롤만 맨 위로 올렸는데, 목록 화면은 `?view=` `?date=` `?month=` 같은 쿼리로
+        // 상태를 들고 있어서 "완료·기록 탭을 보다가 투두이스트를 다시 눌렀는데 그대로"인 상황이
+        // 됐다. 지금 URL 이 탭 기본 주소와 다르면 기본 주소로 이동해 필터·뷰를 초기화하고,
+        // 이미 기본 주소면 맨 위로 스크롤한다(더 되돌릴 상태가 없으므로).
         onClick={(event) => {
           if (!isActive) return;
           event.preventDefault();
           haptic("light");
           setSidebarOpen(false);
+
           const el = scrollElRef.current;
-          if (!el) return;
           const reduce =
             typeof window !== "undefined" &&
             window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-          el.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+          const current = window.location.pathname + window.location.search;
+
+          if (current !== item.href) {
+            // 되돌아갈 때 예전 스크롤 위치가 복원되면 "리셋"이 아니게 되므로 저장분을 버린다.
+            SCROLL_POSITIONS.delete(item.href);
+            el?.scrollTo({ top: 0, behavior: "auto" });
+            router.push(item.href);
+            return;
+          }
+
+          el?.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+          // URL 이 같아도 화면 안쪽 상태(투두이스트의 오늘/기록 탭, 검색어, 필터)는 클라이언트에
+          // 있어서 라우팅으로는 안 풀린다. 그 화면들이 스스로 초기화하도록 신호만 보낸다.
+          window.dispatchEvent(new CustomEvent(TAB_RESET_EVENT, { detail: { id: item.id } }));
         }}
       >
         <span className="ico">{LAUNCHER_META[item.id]?.icon ?? FALLBACK_ICON}</span>

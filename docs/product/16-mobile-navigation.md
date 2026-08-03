@@ -650,3 +650,25 @@ The five approved batch features (2026-06-09) currently have **no mobile nav hom
 - **Attendance:** dedicated clock-in/out surface (likely Home quick-action + side-menu entry); QR/GPS flow is PWA-specific.
 
 When any of these is added to the bottom-tab pool or side menu, also update the side-menu badge table and `getMobileNavBadges()` if the feature carries an unprocessed count. New nav labels require ko/ja/en i18n keys.
+
+## 2026-08-03 하단 탭 재탭 — 화면 리셋
+
+이미 있는 탭을 하단 바에서 **한 번 더 누르면 그 화면을 처음 상태로 되돌린다**(네이티브 앱 관례).
+예전에는 스크롤-투-탑까지만 했는데(`7e6a4f9`), 목록 화면들이 쿼리와 로컬 상태로 필터를 들고
+있어서 "완료·기록을 보다가 투두이스트를 다시 눌렀는데 그대로"인 상황이 됐다.
+
+**두 단계로 동작한다.**
+
+1. **URL 이 탭 기본 주소와 다르면** 기본 주소로 이동한다(`?view=` `?date=` `?month=` 초기화).
+   되돌아갈 때 예전 스크롤이 복원되면 리셋이 아니게 되므로 `SCROLL_POSITIONS` 에서 그 키를 지운다.
+2. **이미 기본 주소면** 맨 위로 스크롤하고 `TAB_RESET_EVENT`(`stayops:tab-reset`)를 발행한다.
+   `detail.id` 는 그 탭의 nav id.
+
+**왜 이벤트인가.** 내부 탭(투두이스트의 오늘/기록/지시)·검색어·필터·선택 모드는 전부 화면
+컴포넌트의 **로컬 상태**라 같은 URL 로 다시 와도 라우팅으로는 풀리지 않는다. 되돌릴 상태를 가진
+화면이 스스로 듣고 초기화한다.
+
+**듣는 화면을 추가하려면** `TAB_RESET_EVENT` 를 구독하고 `detail.id` 가 자기 탭인지 확인한 뒤
+로컬 상태를 초기화하면 된다. 듣지 않는 화면은 스크롤-투-탑까지만 동작하므로 깨지지 않는다.
+현재 구독 중: `tasks-workspace.tsx`(뷰·지시 세그먼트·완료 필터·검색·날짜 필터·선택 모드).
+

@@ -50,6 +50,7 @@ import {
   unskipOccurrenceOn,
 } from "@/app/mobile/tasks/[id]/actions";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
+import { TAB_RESET_EVENT } from "@/components/shell/mobile-shell";
 import { TaskSchedulePicker } from "@/components/tasks/task-schedule-sheet";
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import { repeatLabel, TaskCard } from "@/components/tasks/task-card";
@@ -643,6 +644,27 @@ export function TasksWorkspace({
     setDateTo("");
     setFilterOpen(false);
   };
+  /**
+   * 하단 탭에서 투두이스트를 한 번 더 누르면 화면을 처음 상태로 되돌린다.
+   *
+   * 라우팅만으로는 안 된다 — 내부 탭(오늘/기록/지시)·검색어·날짜 필터·선택 모드가 전부 이 
+   * 컴포넌트의 로컬 상태라, 같은 URL 로 다시 와도 그대로 남는다. 그래서 셸이 보내는 신호를 듣고
+   * 직접 초기화한다(`TAB_RESET_EVENT`, `mobile-shell.tsx`).
+   */
+  useEffect(() => {
+    const onReset = (e: Event) => {
+      if ((e as CustomEvent<{ id?: string }>).detail?.id !== "tasks") return;
+      setView(initialView);
+      setInstrTab("recv");
+      setCompletedFilter("all");
+      setSelectMode(false);
+      setSelectedIds(new Set());
+      clearFilters();
+    };
+    window.addEventListener(TAB_RESET_EVENT, onReset);
+    return () => window.removeEventListener(TAB_RESET_EVENT, onReset);
+  }, [initialView]);
+
   const chipDate = (ymd: string) =>
     new Intl.DateTimeFormat(locale, {
       month: "short",
