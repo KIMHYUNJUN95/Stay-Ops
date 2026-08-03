@@ -911,14 +911,26 @@ function LeavePanel({
                   <i style={{ width: barPct(detail.balanceAfter, detail.balanceBefore) }} />
                   <em style={{ width: barPct(item.daysCount, detail.balanceBefore) }} />
                 </div>
-                <div className="limpact__note">
-                  <Ic>
-                    <Info />
-                  </Ic>
-                  {status === "requested"
-                    ? lc.balanceDeductNote(String(item.daysCount))
-                    : lc.balanceDeductedNote(String(item.daysCount))}
-                </div>
+                {/* 잔여 초과 경고는 큐 상단 요약 카드에만 있었다. 정작 승인 버튼을 누르는 이
+                    모달에는 없어서, 승인자가 음수(`2일 → -1일`)만 보고 초과인 줄 모른 채 승인할
+                    수 있었다. 결정하는 화면에 경고를 둔다(2026-08-03). */}
+                {detail.balanceAfter < 0 ? (
+                  <div className="limpact__note limpact__note--warn">
+                    <Ic>
+                      <TriangleAlert />
+                    </Ic>
+                    {lc.balanceOverWarning(String(Math.abs(detail.balanceAfter)))}
+                  </div>
+                ) : (
+                  <div className="limpact__note">
+                    <Ic>
+                      <Info />
+                    </Ic>
+                    {status === "requested"
+                      ? lc.balanceDeductNote(String(item.daysCount))
+                      : lc.balanceDeductedNote(String(item.daysCount))}
+                  </div>
+                )}
               </div>
             </div>
           ) : detail ? (

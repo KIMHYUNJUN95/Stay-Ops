@@ -62,12 +62,40 @@ function preserveOnboardingLang(next: string, lang: string) {
 }
 
 /**
- * Password policy: minimum 8 chars, at least one letter and one digit.
- * Special characters are optional.
+ * 비밀번호 정책 (2026-08-03 강화).
+ *
+ * 예전 규칙은 "8자 이상 + 영문자 + 숫자" 였는데, 그 조건은 `password1` / `stayops1` 같은 **유출
+ * 목록 상위 문자열을 전부 통과**시킨다. 실제로 iOS 키체인이 "이 암호는 데이터 유출에 노출되었다"고
+ * 경고하는 상황이 나왔다.
+ *
+ * 정책은 **두 겹**이다.
+ *  1) 여기(앱) — 길이·구성·뻔한 문자열을 막고 **사용자 언어로 즉시 안내**한다.
+ *  2) Supabase Auth 의 유출 비밀번호 차단(HaveIBeenPwned) — 대시보드 설정. 앱이 못 잡는
+ *     "구성은 멀쩡한데 이미 유출된" 문자열을 막는다. 둘 중 하나만으로는 부족하다.
+ *
+ * 최소 길이를 10 으로 올린 이유: 8자는 구성 요건을 붙여도 사전 공격 범위 안이고, 이 제품은 급여·
+ * 개인정보를 다룬다. 특수문자는 계속 선택 사항 — 강제하면 오히려 `Password1!` 류로 수렴한다.
  */
-function isValidPassword(password: string): boolean {
-  if (password.length < 8) return false;
-  return /[a-zA-Z]/.test(password) && /\d/.test(password);
+const MIN_PASSWORD_LENGTH = 10;
+
+/** 제품·도메인에서 곧바로 유추되는 문자열. 부분 일치로 막는다(대소문자 무시). */
+const BANNED_PASSWORD_FRAGMENTS = ["stayops", "password", "qwerty", "123456", "admin", "letmein"];
+
+function isValidPassword(password: string, email?: string): boolean {
+  if (password.length < MIN_PASSWORD_LENGTH) return false;
+  if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) return false;
+
+  const lower = password.toLowerCase();
+  if (BANNED_PASSWORD_FRAGMENTS.some((f) => lower.includes(f))) return false;
+
+  // 같은 문자만 반복하거나(aaaaaaaaaa) 연속 숫자만(1234567890) 인 경우.
+  if (/^(.)\1+$/.test(password)) return false;
+
+  // 이메일 로컬파트를 그대로 쓰는 경우 — 가장 흔한 실패 패턴이라 따로 막는다.
+  const local = (email ?? "").split("@")[0]?.toLowerCase() ?? "";
+  if (local.length >= 4 && lower.includes(local)) return false;
+
+  return true;
 }
 
 function mapSupabaseError(message: string): string {
@@ -188,7 +216,7 @@ export async function signUpWithEmail(formData: FormData) {
 
   if (!email) redirect(`${errorBase}&error=missing_email`);
   if (!password) redirect(`${errorBase}&error=missing_password`);
-  if (!isValidPassword(password)) redirect(`${errorBase}&error=weak_password`);
+  if (!isValidPassword(password, email)) redirect(`${errorBase}&error=weak_password`);
 
   const callbackNext = preserveOnboardingLang(next, lang);
 
@@ -271,6 +299,7 @@ export async function updatePassword(formData: FormData) {
 
   if (!password || !confirm) redirect(`${errorBase}&error=missing_password`);
   if (password !== confirm) redirect(`${errorBase}&error=password_mismatch`);
+  // 재설정 링크로 들어온 경로라 이메일이 폼에 없다 — 이메일 유사도 검사만 건너뛴다.
   if (!isValidPassword(password)) redirect(`${errorBase}&error=weak_password`);
 
   const supabase = await getSupabaseServerClient();

@@ -3914,3 +3914,24 @@ i18n `stepCancelled` / `corrStatusCancelled` / `corrCancel*` ko·ja·en 추가.
 
 검증: `tsc --noEmit` 0 errors, `npm run lint` 0 errors.
 
+## 2026-08-03 — 결정 대기 3건 처리
+
+1. **비밀번호 정책 강화** — 최소 10자 + 뻔한 문자열/이메일 로컬파트 거부. 오류 문구 ko·ja·en
+   갱신. **Supabase 대시보드의 유출 비밀번호 차단은 소유자가 직접 켜야 한다**(코드로 불가).
+2. **연차 승인 모달에 초과 경고** — 경고가 큐 상단 요약 카드에만 있어, 정작 승인 버튼을 누르는
+   모달에서는 음수(`2일 → -1일`)만 보이고 초과인 줄 몰랐다. 결정하는 화면에 danger 톤 경고를
+   넣었다(`balanceOverWarning`, ko·ja·en).
+3. **린넨 목록 상한** — 기간 필터가 없는 전체 이력 조회라 건물당 기록이 무한 누적된다.
+   페이지네이션 전까지의 안전장치로 최신 200건 `limit`.
+
+**보류**: 모바일 "교통비 포함 총 지급액" — 소유자 확인 결과 Excel/PDF 내보내기에 이미 나와
+있어 불필요.
+
+**미해결**: `/admin/users/invites` 의 초대코드 생성 폼에서 조직 드롭다운이 줄무늬 박스로 깨져
+보인다는 보고. CSS 변수 치환·토큰 손상·`useSession` throw·`searchable` CSS 누락·placeholder 타입을
+전부 배제했으나 코드만으로 원인을 특정하지 못했다. **바로 아래 역할 드롭다운은 정상**이고 둘의
+차이는 조직 쪽만 `placeholder` 를 쓰고 `defaultValue` 가 없다는 것뿐. DevTools 로 해당 요소의
+태그·클래스·computed background 와 콘솔 hydration 오류 유무 확인이 필요하다.
+
+검증: `tsc --noEmit` 0 errors, `npm run lint` 0 errors.
+

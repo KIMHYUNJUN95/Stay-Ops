@@ -2046,6 +2046,9 @@
 .adm .limpact__bar em { display:block; height:100%; background:repeating-linear-gradient(45deg, color-mix(in oklab,var(--warn) 60%,transparent), color-mix(in oklab,var(--warn) 60%,transparent) 4px, transparent 4px, transparent 8px); }
 .adm .limpact__note { display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; color:var(--adm-muted); }
 .adm .limpact__note .ic { font-size:15px; color:var(--info); flex:0 0 auto; }
+/* 잔여 초과 — 승인하면 마이너스가 된다는 뜻이라 정보 톤이 아니라 경고 톤으로 바꾼다. */
+.adm .limpact__note--warn { color: var(--danger); }
+.adm .limpact__note--warn .ic { color: var(--danger); }
 
 /* ---- leave console: team calendar (TimeTree-style continuous multi-day bars) ---- */
 .adm .calcard { display:flex; flex-direction:column; padding:16px 18px 18px; min-height:calc(100vh - 248px); }

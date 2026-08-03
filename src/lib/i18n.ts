@@ -915,6 +915,7 @@ const FALLBACK_DICTIONARY = {
       panelSecBalance: "Balance impact",
       balanceLine: (pool: string, before: string, after: string) =>
         `${pool} balance: ${before} day(s) → ${after} day(s)`,
+      balanceOverWarning: (days: string) => `Approving exceeds the remaining balance by ${days} day(s).`,
       balanceDeductNote: (days: string) => `${days} day(s) will be deducted upon approval.`,
       balanceDeductedNote: (days: string) => `${days} day(s) deducted.`,
       balanceNoneNote: "No balance is deducted for this leave type.",
@@ -1741,7 +1742,7 @@ const FALLBACK_DICTIONARY = {
       resume_existing_account:
         "This email already has an unfinished account. Sign in to continue onboarding.",
       weak_password:
-        "Password must be at least 8 characters and include a letter and a number.",
+        "Use at least 10 characters with letters and numbers. Avoid your email address or easy-to-guess words.",
       email_not_confirmed:
         "Please verify your email address first. Check your inbox.",
       password_mismatch: "Passwords don't match.",
@@ -5501,6 +5502,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         panelSecBalance: "잔여 영향",
         balanceLine: (pool: string, before: string, after: string) =>
           `${pool} 잔여: ${before}일 → ${after}일`,
+        balanceOverWarning: (days: string) => `승인하면 잔여를 ${days}일 초과합니다.`,
         balanceDeductNote: (days: string) => `승인 시 ${days}일 차감됩니다.`,
         balanceDeductedNote: (days: string) => `${days}일이 차감되었습니다.`,
         balanceNoneNote: "이 휴가 구분은 잔여 차감이 없습니다.",
@@ -6311,7 +6313,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         resume_existing_account:
           "이 이메일로 시작한 가입이 아직 완료되지 않았습니다. 로그인해서 온보딩을 이어서 진행해주세요.",
         weak_password:
-          "비밀번호는 8자 이상이고 영문자와 숫자를 포함해야 합니다.",
+          "10자 이상, 영문자와 숫자를 포함해 주세요. 이메일 주소나 쉽게 짐작되는 단어는 사용할 수 없습니다.",
         email_not_confirmed:
           "이메일 인증이 필요합니다. 받은 편지함을 확인해 주세요.",
         password_mismatch: "비밀번호가 일치하지 않습니다.",
@@ -9973,6 +9975,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         panelSecBalance: "残日数への影響",
         balanceLine: (pool: string, before: string, after: string) =>
           `${pool}残日数: ${before}日 → ${after}日`,
+        balanceOverWarning: (days: string) => `承認すると残日数を ${days}日 超過します。`,
         balanceDeductNote: (days: string) => `承認すると ${days}日 が差し引かれます。`,
         balanceDeductedNote: (days: string) => `${days}日 が差し引かれました。`,
         balanceNoneNote: "この休暇区分は残日数の差し引きはありません。",
@@ -10785,7 +10788,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         resume_existing_account:
           "このメールアドレスで開始した登録がまだ完了していません。ログインしてオンボーディングを続けてください。",
         weak_password:
-          "パスワードは8文字以上で、英字と数字を含める必要があります。",
+          "10文字以上で英字と数字を含めてください。メールアドレスや推測されやすい単語は使用できません。",
         email_not_confirmed:
           "メールアドレスの確認が必要です。受信トレイをご確認ください。",
         password_mismatch: "パスワードが一致しません。",

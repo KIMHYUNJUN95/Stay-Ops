@@ -253,7 +253,10 @@ export async function getLinenReturnsByBuilding(
     .select("*")
     .eq("organization_id", session.organization.id)
     .eq("building_name", building)
-    .order("registered_at", { ascending: false });
+    .order("registered_at", { ascending: false })
+    // 이 화면은 기간 필터가 없는 전체 이력이다(기간 조회는 장부 화면의 책임). 건물당 기록이 계속
+    // 누적되므로 페이지네이션이 붙기 전까지의 안전장치로 최신 200건만 읽는다(2026-08-03).
+    .limit(200);
   if (error) {
     if (isMissingTableError(error.message ?? "")) return [];
     throw new Error(error.message);
