@@ -94,13 +94,13 @@ export function TransportReceiptView({
           gap: 12,
           padding: "14px 22px",
           borderBottom: "1px solid var(--line)",
-          background: "var(--surface)",
+          background: "var(--adm-surface)",
           position: "sticky",
           top: 0,
           zIndex: 5,
         }}
       >
-        <span className="ic" style={{ color: "var(--primary)" }}>
+        <span className="ic" style={{ color: "var(--adm-primary)" }}>
           <Receipt />
         </span>
         <div style={{ fontSize: 16, fontWeight: 900, color: "var(--ink)" }}>{data.staffName}</div>
@@ -108,8 +108,8 @@ export function TransportReceiptView({
           <span className="d" />
           {pill.label}
         </span>
-        <span style={{ color: "var(--muted)", fontSize: 13 }}>{data.monthLabel}</span>
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--muted)" }}>
+        <span style={{ color: "var(--adm-muted)", fontSize: 13 }}>{data.monthLabel}</span>
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--adm-muted)" }}>
           {c.trReceiptCount(data.items.length)} · {c.trReceiptPhotoCount(photos.length)}
         </span>
         <span className="mono" style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>
@@ -150,7 +150,7 @@ export function TransportReceiptView({
                   border: "1px solid var(--line)",
                   borderRadius: 12,
                   overflow: "hidden",
-                  background: "var(--surface)",
+                  background: "var(--adm-surface)",
                   cursor: "zoom-in",
                   textAlign: "left",
                   boxShadow: "0 4px 14px -10px rgba(31,42,68,.4)",
@@ -190,7 +190,7 @@ export function TransportReceiptView({
                       {yen(cell.item.amountYen)}
                     </span>
                   </div>
-                  <div style={{ marginTop: 2, fontSize: 11, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ marginTop: 2, fontSize: 11, color: "var(--adm-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {cell.item.buildingLabel || cell.item.contextLabel || "—"}
                   </div>
                 </div>
@@ -204,7 +204,7 @@ export function TransportReceiptView({
                 style={{
                   border: "1px dashed var(--line)",
                   borderRadius: 12,
-                  background: "var(--surface)",
+                  background: "var(--adm-surface)",
                   display: "flex",
                   flexDirection: "column",
                 }}
@@ -226,7 +226,7 @@ export function TransportReceiptView({
                       {yen(item.amountYen)}
                     </span>
                   </div>
-                  <div style={{ marginTop: 2, fontSize: 11, color: "var(--muted)" }}>
+                  <div style={{ marginTop: 2, fontSize: 11, color: "var(--adm-muted)" }}>
                     {item.buildingLabel || item.contextLabel || "—"}
                   </div>
                 </div>

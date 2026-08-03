@@ -155,7 +155,7 @@ export function AnnouncementDetailPanel({
             <Kv label={t.pAuthor}>{item.authorName || "—"}</Kv>
             <Kv label={t.pTarget}>
               {everyone ? t.everyone : targetLabel(item, t, roleLabel)}{" "}
-              <span style={{ color: "var(--muted)", fontWeight: 600 }}>
+              <span style={{ color: "var(--adm-muted)", fontWeight: 600 }}>
                 · {tpl(t.pCountSuffix, item.targetTotal)}
               </span>
             </Kv>

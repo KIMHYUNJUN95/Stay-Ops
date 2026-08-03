@@ -69,7 +69,7 @@ export function LeaveBalanceView({
   return (
     <div>
       <div className="toolbar">
-        <div style={{ display: "flex", alignItems: "center", fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>
+        <div style={{ display: "flex", alignItems: "center", fontSize: 12, color: "var(--adm-muted)", fontWeight: 600 }}>
           <span>{lc.balanceRegularCount(String(employees.length))}</span>
           <span className="sep" />
           <span>{lc.balanceHourlyExcludedNote}</span>

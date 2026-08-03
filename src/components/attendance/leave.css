@@ -14,13 +14,13 @@
   --card2: hsl(42 34% 96%);
   --ink: hsl(222 28% 14%);
   --ink-soft: hsl(222 20% 28%);
-  --muted: hsl(222 10% 44%);
+  --att-muted: hsl(222 10% 44%);
   --faint: hsl(222 10% 62%);
   --line: hsl(40 20% 84%);
   --line-soft: hsl(40 24% 89%);
-  --surface: hsl(40 22% 90%);
+  --att-surface: hsl(40 22% 90%);
   --surface2: hsl(40 24% 94%);
-  --primary: hsl(223 46% 32%);
+  --att-primary: hsl(223 46% 32%);
   --primary-ink: hsl(223 54% 22%);
   --primary-lift: hsl(223 50% 42%);
   --primary-soft: color-mix(in oklab, hsl(223 46% 32%) 8%, hsl(44 52% 98.5%));
@@ -96,7 +96,7 @@
 .lv .c-warn { background: var(--warn-bg); color: var(--warn); }
 .lv .c-info { background: var(--info-bg); color: var(--info); }
 .lv .c-violet { background: var(--violet-bg); color: var(--violet); }
-.lv .c-muted { background: var(--surface); color: var(--muted); }
+.lv .c-muted { background: var(--att-surface); color: var(--att-muted); }
 .lv .c-danger { background: var(--danger-bg); color: var(--danger); }
 
 /* ── balance summary card ── */
@@ -130,7 +130,7 @@
 .lv .balcard__k {
   font-size: 13px;
   font-weight: 800;
-  color: var(--muted);
+  color: var(--att-muted);
   white-space: nowrap;
 }
 .lv .balcard__yr {
@@ -139,8 +139,8 @@
   font-weight: 800;
   padding: 4px 10px;
   border-radius: 999px;
-  background: var(--surface);
-  color: var(--muted);
+  background: var(--att-surface);
+  color: var(--att-muted);
 }
 .lv .balcard__main {
   display: flex;
@@ -154,7 +154,7 @@
   letter-spacing: -0.03em;
   line-height: 0.9;
   font-family: var(--mono);
-  color: var(--primary);
+  color: var(--att-primary);
 }
 .lv .balcard__big small {
   font-size: 20px;
@@ -166,13 +166,13 @@
 .lv .balcard__meta div {
   font-size: 12px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .lv .balcard__meta div + div { margin-top: 3px; }
 .lv .balcard__bar {
   height: 7px;
   border-radius: 999px;
-  background: var(--surface);
+  background: var(--att-surface);
   overflow: hidden;
   margin-top: 16px;
   position: relative;
@@ -181,14 +181,14 @@
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: var(--primary);
+  background: var(--att-primary);
 }
 .lv .balcard__foot {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--att-muted);
   margin-top: 8px;
 }
 /* smaller secondary card — e.g. 특별휴가(4년 보너스), a separate pool from the main balance */
@@ -220,13 +220,13 @@
   letter-spacing: -0.02em;
   font-family: var(--mono);
 }
-.lv .mstat__v.pri { color: var(--primary); }
+.lv .mstat__v.pri { color: var(--att-primary); }
 .lv .mstat__v.warn { color: var(--warn); }
 .lv .mstat__v.done { color: var(--done); }
 .lv .mstat__k {
   font-size: 10.5px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--att-muted);
   margin-top: 4px;
 }
 
@@ -239,14 +239,14 @@
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--att-muted);
   margin: 18px 2px 10px;
 }
 .lv .slabel .more {
   margin-left: auto;
   font-size: 11.5px;
   font-weight: 800;
-  color: var(--primary);
+  color: var(--att-primary);
   text-transform: none;
   letter-spacing: 0;
   display: inline-flex;
@@ -333,7 +333,7 @@
 .lv .lrow__s {
   font-size: 11.5px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--att-muted);
   margin-top: 2px;
 }
 .lv .lrow__meta {
@@ -354,7 +354,7 @@
 .lv .t-annual { background: var(--info-bg); color: var(--info); }
 .lv .t-special { background: var(--violet-bg); color: var(--violet); }
 .lv .t-paid { background: var(--done-bg); color: var(--done); }
-.lv .t-other { background: var(--surface); color: var(--muted); }
+.lv .t-other { background: var(--att-surface); color: var(--att-muted); }
 
 /* ── accrual rules mini-card ── */
 .lv .rulecard {
@@ -371,7 +371,7 @@
   padding: 6px 0;
 }
 .lv .rulerow + .rulerow { border-top: 1px solid var(--line-soft); }
-.lv .rulerow .ic { color: var(--primary); font-size: 15px; display: inline-flex; }
+.lv .rulerow .ic { color: var(--att-primary); font-size: 15px; display: inline-flex; }
 .lv .rulerow .ic svg { width: 15px; height: 15px; }
 .lv .rulerow span:last-child {
   font-size: 12.5px;
@@ -415,12 +415,12 @@
 .lv-foot .fbtn--draft {
   flex: 0 0 auto;
   padding: 0 18px;
-  background: var(--surface);
+  background: var(--att-surface);
   color: var(--ink-soft);
 }
 .lv-foot .fbtn--submit {
   flex: 1;
-  background: var(--primary);
+  background: var(--att-primary);
   color: #fff;
   box-shadow: 0 16px 30px -14px hsl(223 46% 32% / 0.55);
 }
@@ -472,21 +472,21 @@
   border-style: dashed;
 }
 .lv .finput.focus {
-  border-color: var(--primary);
+  border-color: var(--att-primary);
   box-shadow: 0 0 0 3.5px var(--primary-soft);
 }
 .lv .finput.err { border-color: var(--danger); }
 .lv .finput__ph { color: var(--faint); font-weight: 600; }
 .lv .finput .tail { margin-left: auto; color: var(--faint); display: inline-flex; }
 .lv .finput .tail svg { width: 19px; height: 19px; }
-.lv .finput .lead { margin-right: 10px; color: var(--muted); display: inline-flex; }
+.lv .finput .lead { margin-right: 10px; color: var(--att-muted); display: inline-flex; }
 .lv .finput .lead svg { width: 18px; height: 18px; }
 .lv .ro-badge {
   margin-left: auto;
   font-size: 10px;
   font-weight: 800;
-  color: var(--muted);
-  background: var(--surface);
+  color: var(--att-muted);
+  background: var(--att-surface);
   border-radius: 999px;
   padding: 2px 8px;
   white-space: nowrap;
@@ -504,9 +504,9 @@
   margin-top: 9px;
   font-size: 12px;
   font-weight: 800;
-  color: var(--primary);
+  color: var(--att-primary);
   background: var(--primary-soft);
-  border: 1px solid color-mix(in oklab, var(--primary) 16%, transparent);
+  border: 1px solid color-mix(in oklab, var(--att-primary) 16%, transparent);
   border-radius: 999px;
   padding: 5px 11px;
 }
@@ -515,7 +515,7 @@
 /* duration segment */
 .lv .durseg {
   display: flex;
-  background: var(--surface);
+  background: var(--att-surface);
   border-radius: 12px;
   padding: 4px;
   margin-top: 10px;
@@ -528,12 +528,12 @@
   font: inherit;
   font-size: 12.5px;
   font-weight: 800;
-  color: var(--muted);
+  color: var(--att-muted);
   border-radius: 9px;
 }
 .lv .durseg button.on {
   background: var(--card);
-  color: var(--primary);
+  color: var(--att-primary);
   box-shadow: 0 2px 6px rgba(20, 32, 43, 0.12);
 }
 /* half-day collapses the range to a single date */
@@ -568,11 +568,11 @@
 .lv .ftype__box svg { width: 14px; height: 14px; }
 .lv .ftype__l { font-size: 13.5px; font-weight: 800; color: var(--ink-soft); }
 .lv .ftype.on {
-  border-color: var(--primary);
+  border-color: var(--att-primary);
   background: var(--primary-soft);
   box-shadow: 0 0 0 3px var(--primary-soft);
 }
-.lv .ftype.on .ftype__box { background: var(--primary); border-color: var(--primary); color: #fff; }
+.lv .ftype.on .ftype__box { background: var(--att-primary); border-color: var(--att-primary); color: #fff; }
 .lv .ftype.on .ftype__l { color: var(--primary-ink); }
 /* textarea */
 .lv .ftext {
@@ -594,7 +594,7 @@
   outline: none;
 }
 .lv .ftext::placeholder { color: var(--faint); font-weight: 600; }
-.lv .ftext:focus { border-color: var(--primary); box-shadow: 0 0 0 3.5px var(--primary-soft); }
+.lv .ftext:focus { border-color: var(--att-primary); box-shadow: 0 0 0 3.5px var(--primary-soft); }
 .lv .fcount {
   text-align: right;
   font-size: 11px;
@@ -603,7 +603,7 @@
   margin-top: 5px;
   font-family: var(--mono);
 }
-.lv .fhint { font-size: 11.5px; font-weight: 600; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+.lv .fhint { font-size: 11.5px; font-weight: 600; color: var(--att-muted); margin-top: 6px; line-height: 1.4; }
 .lv .ferr { font-size: 11.5px; font-weight: 700; color: var(--danger); margin-top: 6px; }
 /* input that accepts typing (emergency contact) */
 .lv .finput input {
@@ -643,7 +643,7 @@
 .lv .doneburst__s {
   font-size: 13px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--att-muted);
   margin: 9px 0 0;
   line-height: 1.55;
 }
@@ -667,7 +667,7 @@
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 800;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .lv .reqcard__body { padding: 4px 15px; }
 .lv .reqrow {
@@ -678,7 +678,7 @@
   font-size: 13px;
 }
 .lv .reqrow + .reqrow { border-top: 1px solid var(--line-soft); }
-.lv .reqrow__k { color: var(--muted); font-weight: 600; }
+.lv .reqrow__k { color: var(--att-muted); font-weight: 600; }
 .lv .reqrow__v { font-weight: 800; }
 .lv .reqrow__v.mono { font-family: var(--mono); }
 
@@ -711,13 +711,13 @@
 .lv .apstep__dot svg { width: 10px; height: 10px; color: #fff; }
 .lv .apstep.done .apstep__dot { background: var(--done); border-color: var(--done); }
 .lv .apstep.on .apstep__dot {
-  background: var(--primary);
-  border-color: var(--primary);
+  background: var(--att-primary);
+  border-color: var(--att-primary);
   box-shadow: 0 0 0 4px var(--primary-soft);
 }
 .lv .apstep__t { font-size: 13.5px; font-weight: 800; letter-spacing: -0.01em; }
 .lv .apstep.pending .apstep__t { color: var(--faint); }
-.lv .apstep__s { font-size: 11.5px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.lv .apstep__s { font-size: 11.5px; font-weight: 600; color: var(--att-muted); margin-top: 2px; }
 .lv .apstep__time {
   font-size: 11px;
   font-weight: 700;
@@ -727,12 +727,12 @@
 }
 
 /* now-step highlight in the section label */
-.lv .slabel .now { color: var(--primary); text-transform: none; letter-spacing: 0; }
+.lv .slabel .now { color: var(--att-primary); text-transform: none; letter-spacing: 0; }
 
 /* ── L4 · 신청 내역 ── */
 .lv .seg {
   display: flex;
-  background: var(--surface);
+  background: var(--att-surface);
   border-radius: 12px;
   padding: 4px;
   margin-bottom: 14px;
@@ -745,7 +745,7 @@
   font: inherit;
   font-size: 12.5px;
   font-weight: 800;
-  color: var(--muted);
+  color: var(--att-muted);
   border-radius: 9px;
 }
 .lv .seg button.on {
@@ -766,7 +766,7 @@
   padding: 40px 20px;
   font-size: 13px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 
 /* ── L5 · 연차 캘린더 ── */
@@ -813,16 +813,16 @@
   font-weight: 800;
   color: var(--ink-soft);
 }
-.lv .lcal__cell.today .lcal__d { background: var(--primary); color: #fff; }
+.lv .lcal__cell.today .lcal__d { background: var(--att-primary); color: #fff; }
 .lv .lcal__bars { display: flex; flex-direction: column; gap: 3px; padding: 0 1px; }
 .lv .lcal__bar { height: 5px; }
 .lv .lcal__bar--gap { background: transparent; }
 .lv .lcal-annual { background: var(--info); }
 .lv .lcal-special { background: var(--violet); }
 .lv .lcal-paid { background: var(--done); }
-.lv .lcal-other { background: var(--muted); }
+.lv .lcal-other { background: var(--att-muted); }
 .lv .lcal__legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 2px 4px; }
-.lv .lcal__lg { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.lv .lcal__lg { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: var(--att-muted); }
 .lv .lcal__lgdot { width: 9px; height: 9px; border-radius: 3px; }
 .lv .lcal__auto {
   display: flex;
@@ -830,7 +830,7 @@
   gap: 7px;
   font-size: 11.5px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--att-muted);
   background: var(--card2);
   border: 1px solid var(--line-soft);
   border-radius: 11px;
@@ -880,14 +880,14 @@
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--att-muted);
   margin: 0 0 8px;
 }
 .lv .exwrap__t { font-size: 21px; font-weight: 900; letter-spacing: -0.025em; margin: 0; line-height: 1.2; }
 .lv .exwrap__s {
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--att-muted);
   margin: 11px 0 0;
   line-height: 1.6;
   max-width: 290px;
@@ -909,10 +909,10 @@
   font-size: 13px;
 }
 .lv .exrow + .exrow { border-top: 1px solid var(--line-soft); }
-.lv .exrow__k { color: var(--muted); font-weight: 600; }
+.lv .exrow__k { color: var(--att-muted); font-weight: 600; }
 .lv .exrow__v { font-weight: 800; }
 .lv .exrow__v.mono { font-family: var(--mono); }
-.lv .exrow__v.pri { color: var(--primary); }
+.lv .exrow__v.pri { color: var(--att-primary); }
 .lv .exwrap__cta { width: 100%; margin-top: auto; padding-top: 22px; }
 .lv .exbtn {
   width: 100%;
@@ -930,8 +930,8 @@
 }
 .lv .exbtn .ic { font-size: 19px; display: inline-flex; }
 .lv .exbtn .ic svg { width: 19px; height: 19px; }
-.lv .exbtn--pri { background: var(--primary); color: #fff; box-shadow: 0 16px 30px -14px hsl(223 46% 32% / 0.55); }
-.lv .exbtn--ghost { background: var(--surface); color: var(--ink-soft); margin-top: 10px; }
+.lv .exbtn--pri { background: var(--att-primary); color: #fff; box-shadow: 0 16px 30px -14px hsl(223 46% 32% / 0.55); }
+.lv .exbtn--ghost { background: var(--att-surface); color: var(--ink-soft); margin-top: 10px; }
 
 /* ── C · 신청 취소 — BottomSheet 내부 콘텐츠 (.lv-sheet 는 <body>로 포털된 시트 래퍼) ── */
 .lv-sheet { color: var(--ink); }
@@ -951,12 +951,12 @@
 .lv-sheet .c-warn { background: var(--warn-bg); color: var(--warn); }
 .lv-sheet .c-info { background: var(--info-bg); color: var(--info); }
 .lv-sheet .c-violet { background: var(--violet-bg); color: var(--violet); }
-.lv-sheet .c-muted { background: var(--surface); color: var(--muted); }
+.lv-sheet .c-muted { background: var(--att-surface); color: var(--att-muted); }
 .lv-sheet .c-danger { background: var(--danger-bg); color: var(--danger); }
 .lv-sheet .t-annual { background: var(--info-bg); color: var(--info); }
 .lv-sheet .t-special { background: var(--violet-bg); color: var(--violet); }
 .lv-sheet .t-paid { background: var(--done-bg); color: var(--done); }
-.lv-sheet .t-other { background: var(--surface); color: var(--muted); }
+.lv-sheet .t-other { background: var(--att-surface); color: var(--att-muted); }
 .lv-sheet .ic-danger { background: var(--danger-bg); color: var(--danger); }
 
 .lv-sheet .lsheet__h { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
@@ -988,7 +988,7 @@
   font-size: 13px;
 }
 .lv-sheet .reqrow + .reqrow { border-top: 1px solid var(--line-soft); }
-.lv-sheet .reqrow__k { color: var(--muted); font-weight: 600; }
+.lv-sheet .reqrow__k { color: var(--att-muted); font-weight: 600; }
 .lv-sheet .reqrow__v { font-weight: 800; }
 .lv-sheet .reqrow__v.mono { font-family: var(--mono); }
 .lv-sheet .lsheet__note {
@@ -1001,9 +1001,9 @@
   padding: 11px 13px;
   margin: 2px 0 16px;
 }
-.lv-sheet .lsheet__note svg { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; margin-top: 1px; }
-.lv-sheet .lsheet__note p { font-size: 11.5px; font-weight: 600; color: var(--muted); margin: 0; line-height: 1.5; }
-.lv-sheet .lsheet__lede { font-size: 13px; font-weight: 600; color: var(--muted); line-height: 1.6; margin: 2px 2px 18px; }
+.lv-sheet .lsheet__note svg { width: 16px; height: 16px; color: var(--att-muted); flex: 0 0 auto; margin-top: 1px; }
+.lv-sheet .lsheet__note p { font-size: 11.5px; font-weight: 600; color: var(--att-muted); margin: 0; line-height: 1.5; }
+.lv-sheet .lsheet__lede { font-size: 13px; font-weight: 600; color: var(--att-muted); line-height: 1.6; margin: 2px 2px 18px; }
 .lv-sheet .lsheet__btns { display: flex; gap: 10px; }
 .lv-sheet .lbtn {
   flex: 1;
@@ -1021,14 +1021,14 @@
 }
 .lv-sheet .lbtn .ic { font-size: 18px; display: inline-flex; }
 .lv-sheet .lbtn .ic svg { width: 18px; height: 18px; }
-.lv-sheet .lbtn--ghost { background: var(--surface); color: var(--ink-soft); }
+.lv-sheet .lbtn--ghost { background: var(--att-surface); color: var(--ink-soft); }
 .lv-sheet .lbtn--danger { background: var(--danger); color: #fff; box-shadow: 0 14px 28px -14px hsl(4 62% 46% / 0.6); }
 .lv-sheet .lbtn--danger-soft { background: var(--danger-bg); color: var(--danger); }
-.lv-sheet .lbtn--primary { background: var(--primary); color: #fff; box-shadow: 0 14px 28px -14px hsl(223 46% 32% / 0.6); }
+.lv-sheet .lbtn--primary { background: var(--att-primary); color: #fff; box-shadow: 0 14px 28px -14px hsl(223 46% 32% / 0.6); }
 .lv-sheet .lbtn.dim { opacity: 0.5; }
 
 /* ── D · 날짜 범위 캘린더 (바텀시트) ── */
-.lv-sheet .lsheet__ic.bg-pick { background: var(--primary-soft); color: var(--primary); }
+.lv-sheet .lsheet__ic.bg-pick { background: var(--primary-soft); color: var(--att-primary); }
 .lv-sheet .dpick__sum {
   display: flex;
   align-items: center;
@@ -1045,7 +1045,7 @@
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .lv-sheet .dpick__sumv { font-size: 14px; font-weight: 800; color: var(--ink); white-space: nowrap; }
 .lv-sheet .dpick__sumv.ph { color: var(--faint); font-weight: 700; }
@@ -1055,9 +1055,9 @@
   margin-left: auto;
   font-size: 12px;
   font-weight: 800;
-  color: var(--primary);
+  color: var(--att-primary);
   background: var(--primary-soft);
-  border: 1px solid color-mix(in oklab, var(--primary) 16%, transparent);
+  border: 1px solid color-mix(in oklab, var(--att-primary) 16%, transparent);
   border-radius: 999px;
   padding: 5px 11px;
 }
@@ -1110,7 +1110,7 @@
   z-index: 1;
 }
 .lv-sheet .dpick__cell.dim .dpick__d { color: var(--faint); }
-.lv-sheet .dpick__cell.today .dpick__d { box-shadow: inset 0 0 0 1.6px var(--primary); color: var(--primary); }
+.lv-sheet .dpick__cell.today .dpick__d { box-shadow: inset 0 0 0 1.6px var(--att-primary); color: var(--att-primary); }
 .lv-sheet .dpick__cell.inrange::before,
 .lv-sheet .dpick__cell.rstart::before,
 .lv-sheet .dpick__cell.rend::before {
@@ -1128,7 +1128,7 @@
 .lv-sheet .dpick__cell.rstart .dpick__d,
 .lv-sheet .dpick__cell.rend .dpick__d,
 .lv-sheet .dpick__cell.rsingle .dpick__d {
-  background: var(--primary);
+  background: var(--att-primary);
   color: #fff;
   box-shadow: 0 8px 16px -8px hsl(223 46% 32% / 0.7);
 }
@@ -1155,5 +1155,5 @@
   color: var(--ink-soft);
   cursor: pointer;
 }
-.lv-sheet .dpick__mcell.sel { background: var(--primary); border-color: var(--primary); color: #fff; }
+.lv-sheet .dpick__mcell.sel { background: var(--att-primary); border-color: var(--att-primary); color: #fff; }
 .lv-sheet .dpick__mcell:disabled { color: var(--faint); cursor: default; opacity: 0.5; }

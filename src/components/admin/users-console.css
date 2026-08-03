@@ -11,7 +11,7 @@
 
 .adm {
   /* missing from admin-console.css — used by flow.css .urow__self + badges */
-  --primary-tint: color-mix(in oklab, var(--primary) 24%, var(--line));
+  --primary-tint: color-mix(in oklab, var(--adm-primary) 24%, var(--line));
 
   /* perm4.css tokens (exact globals.css values, namespaced) */
   --ui-bg: hsl(42 36% 95%);
@@ -33,9 +33,9 @@
    and /admin/users/invites, 2026-07-13 invite-code relocation)
    =================================================================== */
 .adm .sectiontabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--card2); border: 1px solid var(--line); margin-bottom: 18px; }
-.adm .sectiontab { display: inline-flex; align-items: center; height: 34px; padding: 0 16px; border-radius: 999px; font-size: 13px; font-weight: 800; color: var(--muted); text-decoration: none; transition: background-color 0.12s, color 0.12s; }
+.adm .sectiontab { display: inline-flex; align-items: center; height: 34px; padding: 0 16px; border-radius: 999px; font-size: 13px; font-weight: 800; color: var(--adm-muted); text-decoration: none; transition: background-color 0.12s, color 0.12s; }
 .adm .sectiontab:hover { color: var(--ink); }
-.adm .sectiontab.active { background: var(--card); color: var(--primary); box-shadow: var(--sh-card); }
+.adm .sectiontab.active { background: var(--card); color: var(--adm-primary); box-shadow: var(--sh-card); }
 
 /* ===================================================================
    PAGE INTRO HEADER (flow.css)
@@ -43,10 +43,10 @@
 .adm .pagehead { display: flex; align-items: flex-start; gap: 16px; margin: 2px 2px 18px; }
 .adm .pagehead__l { min-width: 0; flex: 1; }
 .adm .pagehead__lede { font-size: 14px; font-weight: 600; color: var(--ink-soft); line-height: 1.5; }
-.adm .pagehead__org { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-top: 6px; display: inline-flex; align-items: center; gap: 6px; }
+.adm .pagehead__org { font-size: 12.5px; font-weight: 700; color: var(--adm-muted); margin-top: 6px; display: inline-flex; align-items: center; gap: 6px; }
 .adm .pagehead__org b { color: var(--ink); font-weight: 800; }
 .adm .pagehead__count { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--sh-card); }
-.adm .pagehead__count b { font-size: 22px; font-weight: 900; letter-spacing: -0.03em; color: var(--primary); line-height: 1; }
+.adm .pagehead__count b { font-size: 22px; font-weight: 900; letter-spacing: -0.03em; color: var(--adm-primary); line-height: 1; }
 .adm .pagehead__count span { font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
 
 /* ===================================================================
@@ -58,7 +58,7 @@
 .adm .filterbar__search .ic svg { width: 19px; height: 19px; }
 .adm .filterbar__search input { width: 100%; height: 42px; border-radius: 11px; border: 1px solid var(--line); background: var(--card2); padding: 0 14px 0 42px; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink); outline: none; }
 .adm .filterbar__search input::placeholder { color: var(--faint); font-weight: 500; }
-.adm .filterbar__search input:focus { border-color: var(--primary); box-shadow: 0 0 0 3.5px var(--primary-soft); background: var(--card); }
+.adm .filterbar__search input:focus { border-color: var(--adm-primary); box-shadow: 0 0 0 3.5px var(--primary-soft); background: var(--card); }
 .adm .filterbar .dd { width: 172px; flex: 0 0 auto; }
 .adm .filterbar__go { flex: 0 0 auto; width: 46px; height: 42px; border-radius: 11px; border: 1px solid transparent; background: linear-gradient(165deg, var(--primary-lift), var(--primary-ink)); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 12px 26px -16px hsl(223 46% 32% / 0.7); cursor: pointer; }
 .adm .filterbar__go:hover { filter: brightness(1.06); }
@@ -86,11 +86,11 @@
 .adm .urow__name { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .adm .urow__av { width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(150deg, color-mix(in oklab, var(--primary-lift) 84%, #fff), var(--primary-ink)); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex: 0 0 auto; }
 .adm .urow__nm { font-size: 14px; font-weight: 800; letter-spacing: -0.01em; color: var(--ink); white-space: nowrap; }
-.adm .urow__self { font-size: 10px; font-weight: 800; letter-spacing: 0.04em; color: var(--primary); background: var(--primary-soft); border: 1px solid var(--primary-tint); border-radius: 999px; padding: 1px 7px; margin-left: 2px; vertical-align: middle; }
+.adm .urow__self { font-size: 10px; font-weight: 800; letter-spacing: 0.04em; color: var(--adm-primary); background: var(--primary-soft); border: 1px solid var(--primary-tint); border-radius: 999px; padding: 1px 7px; margin-left: 2px; vertical-align: middle; }
 .adm .ucell { font-size: 13px; font-weight: 600; color: var(--ink-soft); white-space: nowrap; }
-.adm .ucell.mono { font-family: var(--mono); font-weight: 600; letter-spacing: -0.02em; color: var(--muted); }
+.adm .ucell.mono { font-family: var(--mono); font-weight: 600; letter-spacing: -0.02em; color: var(--adm-muted); }
 .adm .ucell.role { font-weight: 800; color: var(--ink); }
-.adm .ucell.date { color: var(--muted); font-weight: 700; }
+.adm .ucell.date { color: var(--adm-muted); font-weight: 700; }
 .adm .urow__chev { color: var(--faint); opacity: 0; transform: translateX(-4px); transition: 0.14s; display: inline-flex; }
 .adm .urow__chev svg { width: 18px; height: 18px; }
 
@@ -100,15 +100,15 @@
 .adm .spill--active { background: var(--done-bg); color: var(--done); }
 .adm .spill--invited { background: var(--info-bg); color: var(--info); }
 .adm .spill--suspended { background: var(--warn-bg); color: var(--warn); }
-.adm .spill--removed { background: var(--surface); color: var(--muted); }
+.adm .spill--removed { background: var(--adm-surface); color: var(--adm-muted); }
 
 /* 작업 column: two stacked (dropdown + save) rows */
 .adm .uacts { display: flex; flex-direction: column; gap: 8px; }
 .adm .uact { display: flex; align-items: center; gap: 8px; }
 .adm .uact .dd { width: 148px; flex: 0 0 auto; }
 .adm .uact__save { flex: 0 0 auto; height: 38px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); font-size: 12.5px; font-weight: 800; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; cursor: pointer; }
-.adm .uact__save:hover { background: var(--surface); }
-.adm .uact__save.dirty { background: var(--primary); border-color: transparent; color: #fff; box-shadow: 0 10px 22px -14px hsl(223 46% 32% / 0.8); }
+.adm .uact__save:hover { background: var(--adm-surface); }
+.adm .uact__save.dirty { background: var(--adm-primary); border-color: transparent; color: #fff; box-shadow: 0 10px 22px -14px hsl(223 46% 32% / 0.8); }
 .adm .uact__save .ic svg { width: 15px; height: 15px; }
 
 /* ===================================================================
@@ -126,13 +126,13 @@
    =================================================================== */
 .adm .backrow { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
 .adm .backbtn { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px 0 11px; border-radius: 11px; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); font-size: 13px; font-weight: 800; box-shadow: var(--sh-card); cursor: pointer; text-decoration: none; }
-.adm .backbtn:hover { background: var(--surface); }
+.adm .backbtn:hover { background: var(--adm-surface); }
 .adm .backbtn .ic svg { width: 18px; height: 18px; }
 .adm .backrow__crumb { font-size: 12.5px; font-weight: 700; color: var(--faint); }
 .adm .backrow__crumb b { color: var(--ink-soft); }
 
 /* self-grant blocked note (permission card) */
-.adm .selfnote { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 7px 11px; }
+.adm .selfnote { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--adm-muted); background: var(--adm-surface); border: 1px solid var(--line); border-radius: 10px; padding: 7px 11px; }
 .adm .selfnote .ic { color: var(--faint); display: inline-flex; }
 .adm .selfnote .ic svg { width: 15px; height: 15px; }
 

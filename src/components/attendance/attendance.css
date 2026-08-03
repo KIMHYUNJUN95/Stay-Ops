@@ -11,12 +11,12 @@
   --card: hsl(44 52% 98.5%);
   --ink: hsl(222 28% 14%);
   --ink-soft: hsl(222 20% 28%);
-  --muted: hsl(222 10% 44%);
+  --att-muted: hsl(222 10% 44%);
   --faint: hsl(222 10% 62%);
   --line: hsl(40 20% 84%);
   --line-soft: hsl(40 24% 89%);
-  --surface: hsl(40 22% 90%);
-  --primary: hsl(223 46% 32%);
+  --att-surface: hsl(40 22% 90%);
+  --att-primary: hsl(223 46% 32%);
   --primary-ink: hsl(223 54% 22%);
   --primary-lift: hsl(223 50% 42%);
   --primary-soft: color-mix(in oklab, hsl(223 46% 32%) 8%, hsl(44 52% 98.5%));
@@ -110,8 +110,8 @@
 }
 .att .c-method {
   background: var(--primary-soft);
-  color: var(--primary);
-  border: 1px solid color-mix(in oklab, var(--primary) 18%, transparent);
+  color: var(--att-primary);
+  border: 1px solid color-mix(in oklab, var(--att-primary) 18%, transparent);
 }
 
 /* ===== HOME — greeting + ring hero ===== */
@@ -121,7 +121,7 @@
 .att .greet__d {
   font-size: 12.5px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .att .greet__n {
   font-size: 21px;
@@ -135,7 +135,7 @@
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.02em;
-  color: var(--muted);
+  color: var(--att-muted);
   margin: 22px 2px 11px;
 }
 .att .entrylist {
@@ -171,7 +171,7 @@
 }
 .att a.entryrow.hist .entryrow__ic {
   background: var(--primary-soft);
-  color: var(--primary);
+  color: var(--att-primary);
 }
 .att a.entryrow.pay .entryrow__ic {
   background: var(--done-bg);
@@ -193,7 +193,7 @@
 .att .entryrow__s {
   font-size: 11.5px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--att-muted);
   margin-top: 2px;
 }
 .att .entryrow__r {
@@ -232,8 +232,8 @@
   height: 28px;
   border-radius: 999px;
   border: none;
-  background: var(--surface);
-  color: var(--muted);
+  background: var(--att-surface);
+  color: var(--att-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -255,7 +255,7 @@
 .att .topline__d {
   font-size: 12.5px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .att .topline__n {
   font-size: 21px;
@@ -267,7 +267,7 @@
   width: 42px;
   height: 42px;
   border-radius: 14px;
-  background: var(--primary);
+  background: var(--att-primary);
   color: #fff;
   font-weight: 800;
   font-size: 15px;
@@ -296,7 +296,7 @@
 }
 .att .ring__track {
   fill: none;
-  stroke: var(--surface);
+  stroke: var(--att-surface);
   stroke-width: 14;
 }
 .att .ring__prog {
@@ -337,8 +337,8 @@
   color: var(--warn);
 }
 .att .ring__state.idle {
-  background: var(--surface);
-  color: var(--muted);
+  background: var(--att-surface);
+  color: var(--att-muted);
 }
 .att .ring__state .pulse {
   width: 7px;
@@ -374,7 +374,7 @@
 .att .ring__lbl {
   font-size: 12px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--att-muted);
   margin-top: 8px;
 }
 .att .ring__idleicon {
@@ -382,7 +382,7 @@
   height: 52px;
   border-radius: 16px;
   background: var(--primary-soft);
-  color: var(--primary);
+  color: var(--att-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -466,15 +466,15 @@
 }
 .att .clockbtn--out {
   background: var(--card);
-  color: var(--primary);
-  border: 1.5px solid var(--primary);
+  color: var(--att-primary);
+  border: 1.5px solid var(--att-primary);
 }
 .att .clockbtn--out:active {
   transform: scale(0.96);
   opacity: 0.85;
 }
 .att .clockbtn--disabled {
-  background: var(--surface);
+  background: var(--att-surface);
   color: var(--faint);
   cursor: not-allowed;
 }
@@ -496,7 +496,7 @@
 }
 .att .breakbtn .ic {
   font-size: 18px;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .att .breakbtn--active {
   border-color: color-mix(in oklab, var(--warn) 40%, transparent);
@@ -527,7 +527,7 @@
   background: var(--card);
 }
 .att .methodchip.on {
-  border-color: color-mix(in oklab, var(--primary) 35%, transparent);
+  border-color: color-mix(in oklab, var(--att-primary) 35%, transparent);
   background: var(--primary-soft);
 }
 .att .methodchip.ghost {
@@ -537,19 +537,19 @@
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  background: var(--surface);
-  color: var(--primary);
+  background: var(--att-surface);
+  color: var(--att-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
 }
 .att .methodchip.on .methodchip__ic {
-  background: var(--primary);
+  background: var(--att-primary);
   color: #fff;
 }
 .att .methodchip.ghost .methodchip__ic {
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .att .methodchip__t b {
   font-size: 12.5px;
@@ -559,7 +559,7 @@
 .att .methodchip__t span {
   font-size: 10px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 
 .att .breakbanner {
@@ -599,9 +599,9 @@
 .att .skel {
   background: linear-gradient(
     100deg,
-    var(--surface) 30%,
-    color-mix(in oklab, var(--surface) 55%, #fff) 50%,
-    var(--surface) 70%
+    var(--att-surface) 30%,
+    color-mix(in oklab, var(--att-surface) 55%, #fff) 50%,
+    var(--att-surface) 70%
   );
   background-size: 200% 100%;
   animation: att-sh 1.3s infinite;
@@ -643,7 +643,7 @@
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  background: var(--surface);
+  background: var(--att-surface);
   color: var(--ink-soft);
   border: none;
   display: flex;
@@ -667,15 +667,15 @@
   font-size: 13.5px;
   font-weight: 600;
   line-height: 1.55;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 
 .att .capstep {
   margin-left: auto;
   font-size: 11px;
   font-weight: 800;
-  color: var(--muted);
-  background: var(--surface);
+  color: var(--att-muted);
+  background: var(--att-surface);
   padding: 4px 10px;
   border-radius: 999px;
   white-space: nowrap;
@@ -825,7 +825,7 @@
 .att .rsheet__s {
   text-align: center;
   font-size: 13px;
-  color: var(--muted);
+  color: var(--att-muted);
   margin: 0 0 20px;
   line-height: 1.5;
 }
@@ -847,7 +847,7 @@
   border-top: 1px solid var(--line-soft);
 }
 .att .recap__k {
-  color: var(--muted);
+  color: var(--att-muted);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -866,7 +866,7 @@
 }
 .att .recap__v.big {
   font-size: 18px;
-  color: var(--primary);
+  color: var(--att-primary);
 }
 .att .rbtns {
   display: flex;
@@ -895,7 +895,7 @@
   filter: brightness(0.92);
 }
 .att .rbtn--ghost {
-  background: var(--surface);
+  background: var(--att-surface);
   color: var(--ink-soft);
 }
 .att .rbtn--ghost:active {
@@ -904,8 +904,8 @@
 }
 .att .rbtn--retry {
   background: var(--card);
-  color: var(--primary);
-  border: 1.5px solid var(--primary);
+  color: var(--att-primary);
+  border: 1.5px solid var(--att-primary);
 }
 .att .rbtn--retry:active {
   transform: scale(0.96);
@@ -976,7 +976,7 @@
 /* ===== CORRECTION REQUEST (정정 요청) ===== */
 .att .capsub {
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--att-muted);
   font-weight: 600;
   margin-top: 1px;
 }
@@ -987,7 +987,7 @@
   padding: 13px 14px;
   border-radius: 16px;
   background: var(--primary-soft);
-  border: 1px solid color-mix(in oklab, var(--primary) 18%, var(--line));
+  border: 1px solid color-mix(in oklab, var(--att-primary) 18%, var(--line));
   margin-bottom: 20px;
 }
 .att .srcsess__ic {
@@ -995,7 +995,7 @@
   height: 40px;
   border-radius: 12px;
   background: var(--card);
-  color: var(--primary);
+  color: var(--att-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1015,7 +1015,7 @@
 }
 .att .srcsess__m {
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--att-muted);
   font-weight: 600;
   margin-top: 2px;
   display: flex;
@@ -1030,7 +1030,7 @@
   font-weight: 800;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--att-muted);
   margin: 0 2px 10px;
   display: flex;
   align-items: center;
@@ -1064,8 +1064,8 @@
   white-space: nowrap;
 }
 .att .rchip.on {
-  background: var(--primary);
-  border-color: var(--primary);
+  background: var(--att-primary);
+  border-color: var(--att-primary);
   color: #fff;
 }
 .att .duo {
@@ -1101,7 +1101,7 @@
 }
 .att .ibox__v .ic {
   font-size: 15px;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .att .sitebox {
   display: flex;
@@ -1114,7 +1114,7 @@
 }
 .att .sitebox .ic {
   font-size: 18px;
-  color: var(--primary);
+  color: var(--att-primary);
 }
 .att .sitebox__b {
   flex: 1;
@@ -1125,7 +1125,7 @@
 }
 .att .sitebox__b span {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--att-muted);
   display: block;
   margin-top: 1px;
 }
@@ -1170,7 +1170,7 @@
   align-items: center;
   justify-content: center;
   gap: 3px;
-  color: var(--muted);
+  color: var(--att-muted);
   font-size: 10px;
   font-weight: 700;
   cursor: pointer;
@@ -1204,7 +1204,7 @@
 }
 .att .helper {
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--att-muted);
   margin: 9px 2px 0;
   line-height: 1.5;
   display: flex;
@@ -1331,7 +1331,7 @@
 .att .stp__l {
   font-size: 10px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--att-muted);
   white-space: nowrap;
 }
 .att .stp.done .stp__l,
@@ -1353,7 +1353,7 @@
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--att-muted);
   margin: 0 2px 11px;
 }
 .att .recap__v .was {
@@ -1408,7 +1408,7 @@
 }
 .att .review__t {
   font-size: 10.5px;
-  color: var(--muted);
+  color: var(--att-muted);
   margin-top: 6px;
   font-weight: 600;
 }
@@ -1416,9 +1416,9 @@
   width: 100%;
   height: 50px;
   border-radius: 15px;
-  border: 1.5px solid var(--primary);
+  border: 1.5px solid var(--att-primary);
   background: var(--card);
-  color: var(--primary);
+  color: var(--att-primary);
   font: inherit;
   font-size: 14px;
   font-weight: 800;
@@ -1450,7 +1450,7 @@
 }
 .att .histsum__k {
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .att .histsum__v {
   font-size: 15px;
@@ -1509,7 +1509,7 @@
   align-items: center;
   gap: 5px;
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .att .histcard__v {
   font-size: 16px;
@@ -1526,7 +1526,7 @@
   border-top: 1px solid var(--line-soft);
   padding-top: 9px;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .att .histempty {
   display: flex;
@@ -1564,7 +1564,7 @@
   font-size: 12.5px;
 }
 .att .histbreaks__k {
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .att .histbreaks__d {
   font-weight: 700;
@@ -1576,7 +1576,7 @@
   gap: 5px;
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--att-primary);
   background: var(--primary-soft);
   border: 1px solid var(--line-soft);
   border-radius: 999px;
@@ -1596,7 +1596,7 @@
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--att-muted);
   text-align: center;
   margin: 0 0 6px;
 }
@@ -1627,8 +1627,8 @@
   top: 50%;
   transform: translateY(-50%);
   height: 44px;
-  background: color-mix(in oklab, var(--primary) 9%, transparent);
-  border: 1px solid color-mix(in oklab, var(--primary) 22%, transparent);
+  background: color-mix(in oklab, var(--att-primary) 9%, transparent);
+  border: 1px solid color-mix(in oklab, var(--att-primary) 22%, transparent);
   border-radius: 10px;
   pointer-events: none;
   z-index: 2;
@@ -1755,7 +1755,7 @@
   cursor: pointer;
 }
 .att .cpick__item.on {
-  border-color: var(--primary);
+  border-color: var(--att-primary);
   background: var(--primary-soft);
   color: var(--primary-ink);
 }
@@ -1797,7 +1797,7 @@
   transform: none;
 }
 .att .payhero {
-  background: var(--primary);
+  background: var(--att-primary);
   color: #fff;
   border-radius: 18px;
   padding: 18px 18px 16px;
@@ -1826,7 +1826,7 @@
 }
 .att .payseg__t {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--att-muted);
   margin-bottom: 6px;
 }
 .att .payseg__r {
@@ -1872,7 +1872,7 @@
 .att .payday__m {
   display: block;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--att-muted);
   margin-top: 2px;
 }
 .att .payday__g {
@@ -1929,7 +1929,7 @@
 .att .ptitle__sub {
   font-size: 12px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--att-muted);
   margin-top: 3px;
 }
 
@@ -1938,7 +1938,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: var(--surface);
+  background: var(--att-surface);
   border-radius: 999px;
   padding: 4px;
 }
@@ -1949,7 +1949,7 @@
   font: inherit;
   font-size: 12px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--att-muted);
   padding: 5px 11px;
   border-radius: 999px;
   cursor: pointer;
@@ -1969,7 +1969,7 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  background: var(--surface);
+  background: var(--att-surface);
   border-radius: 999px;
   padding: 3px;
   flex: 0 0 auto;
@@ -1980,7 +1980,7 @@
   border-radius: 999px;
   border: none;
   background: transparent;
-  color: var(--muted);
+  color: var(--att-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2010,7 +2010,7 @@
 }
 .att .msw__label .ic {
   font-size: 15px;
-  color: var(--muted);
+  color: var(--att-muted);
   transition: transform var(--dur-base) var(--ease-out);
 }
 .att .msw__label.open .ic { transform: rotate(180deg); }
@@ -2056,13 +2056,13 @@
   text-align: left;
 }
 .att .msw__opt + .msw__opt { margin-top: 1px; }
-.att .msw__opt:active { background: var(--surface); }
+.att .msw__opt:active { background: var(--att-surface); }
 .att .msw__opt.on {
   background: var(--primary-soft);
-  color: var(--primary);
+  color: var(--att-primary);
   font-weight: 800;
 }
-.att .msw__opt .ic { font-size: 15px; color: var(--primary); flex: 0 0 auto; }
+.att .msw__opt .ic { font-size: 15px; color: var(--att-primary); flex: 0 0 auto; }
 @media (prefers-reduced-motion: reduce) {
   .att .msw__menu { animation: none; }
   .att .msw__label .ic { transition: none; }
@@ -2120,7 +2120,7 @@
   font-size: 13px;
   font-weight: 800;
 }
-.att .summary--idle .sm__state-label { color: var(--muted); }
+.att .summary--idle .sm__state-label { color: var(--att-muted); }
 .att .sm__tag {
   margin-left: auto;
   font-size: 11px;
@@ -2129,7 +2129,7 @@
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.18);
 }
-.att .summary--idle .sm__tag { background: var(--surface); color: var(--muted); }
+.att .summary--idle .sm__tag { background: var(--att-surface); color: var(--att-muted); }
 .att .sm__mid {
   display: flex;
   align-items: flex-end;
@@ -2182,7 +2182,7 @@
   gap: 5px;
 }
 .att .sm__k .ic { font-size: 12px; }
-.att .summary--idle .sm__k { color: var(--muted); opacity: 1; }
+.att .summary--idle .sm__k { color: var(--att-muted); opacity: 1; }
 .att .sm__v {
   font-size: 14px;
   font-weight: 800;
@@ -2229,7 +2229,7 @@
 .att .attn--warn .attn__t { color: var(--warn); }
 .att .attn--info .attn__t { color: var(--info); }
 .att .attn__s { font-size: 11.5px; color: var(--ink-soft); margin-top: 2px; font-weight: 600; }
-.att .attn__chev { color: var(--muted); flex: 0 0 auto; }
+.att .attn__chev { color: var(--att-muted); flex: 0 0 auto; }
 .att .attn__chev svg { width: 17px; height: 17px; }
 
 /* ── date group ── */
@@ -2241,7 +2241,7 @@
 }
 .att .dgroup__d { font-size: 12.5px; font-weight: 800; letter-spacing: -0.01em; }
 .att .dgroup__wd { font-size: 11px; font-weight: 700; color: var(--faint); }
-.att .dgroup__sum { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--muted); font-family: var(--mono); }
+.att .dgroup__sum { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--att-muted); font-family: var(--mono); }
 
 /* ── session row ── */
 .att .srow {
@@ -2300,11 +2300,11 @@
   gap: 4px;
 }
 .att .io__time.missing { color: var(--warn); }
-.att .io__period { font-size: 10px; font-weight: 700; color: var(--muted); margin-left: 1px; }
+.att .io__period { font-size: 10px; font-weight: 700; color: var(--att-muted); margin-left: 1px; }
 .att .io__site {
   font-size: 11.5px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--att-muted);
   margin-top: 3px;
   display: flex;
   align-items: center;
@@ -2316,8 +2316,8 @@
   width: 30px;
   height: 30px;
   border-radius: 999px;
-  background: var(--surface);
-  color: var(--muted);
+  background: var(--att-surface);
+  color: var(--att-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2337,7 +2337,7 @@
   gap: 5px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .att .sfi .ic { font-size: 13px; color: var(--faint); }
 .att .sfi.note { margin-left: auto; }
@@ -2414,7 +2414,7 @@
   flex: 0 0 auto;
   padding: 0;
 }
-.att .paycard--expected .pc__eye { background: var(--surface); color: var(--muted); }
+.att .paycard--expected .pc__eye { background: var(--att-surface); color: var(--att-muted); }
 .att .paycard--final .pc__eye { background: rgba(255, 255, 255, 0.18); color: #fff; }
 .att .pc__eye svg { width: 18px; height: 18px; }
 .att .pc__amtlbl {
@@ -2423,7 +2423,7 @@
   opacity: 0.8;
   position: relative;
 }
-.att .paycard--expected .pc__amtlbl { color: var(--muted); opacity: 1; }
+.att .paycard--expected .pc__amtlbl { color: var(--att-muted); opacity: 1; }
 .att .pc__amt {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
@@ -2471,7 +2471,7 @@
   font-weight: 700;
   opacity: 0.72;
 }
-.att .paycard--expected .pc__k { color: var(--muted); opacity: 1; }
+.att .paycard--expected .pc__k { color: var(--att-muted); opacity: 1; }
 .att .pc__v {
   font-size: 16px;
   font-weight: 800;
@@ -2532,14 +2532,14 @@
 }
 .att .ptbl__head {
   height: 32px;
-  background: var(--surface);
+  background: var(--att-surface);
   border-bottom: 1px solid var(--line);
 }
 .att .ptbl__head span {
   font-size: 9.5px;
   font-weight: 800;
   letter-spacing: 0.02em;
-  color: var(--muted);
+  color: var(--att-muted);
   white-space: nowrap;
   text-transform: uppercase;
 }
@@ -2555,7 +2555,7 @@
   text-align: left;
   width: 100%;
 }
-.att .ptbl__row:active { background: color-mix(in oklab, var(--surface) 40%, transparent); }
+.att .ptbl__row:active { background: color-mix(in oklab, var(--att-surface) 40%, transparent); }
 .att .ptbl__row + .ptbl__row { border-top: 1px solid var(--line-soft); }
 .att .ptbl__row.excluded { background: color-mix(in oklab, var(--warn-bg) 35%, transparent); }
 .att .ptbl__date { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
@@ -2577,7 +2577,7 @@
   font-variant-numeric: tabular-nums;
   font-size: 11.5px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--att-muted);
   text-align: right;
   white-space: nowrap;
   overflow: hidden;
@@ -2599,7 +2599,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 11px 12px;
-  background: var(--surface);
+  background: var(--att-surface);
   border-top: 1px solid var(--line);
 }
 .att .ptbl__foot .k { font-size: 11px; font-weight: 800; color: var(--ink-soft); }
@@ -2624,9 +2624,9 @@
 .att .rate__dot { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; }
 .att .rate__b { flex: 1; min-width: 0; }
 .att .rate__period { font-size: 12.5px; font-weight: 800; }
-.att .rate__rate { font-size: 11px; font-weight: 700; color: var(--muted); margin-top: 2px; }
+.att .rate__rate { font-size: 11px; font-weight: 700; color: var(--att-muted); margin-top: 2px; }
 .att .rate__sub { text-align: right; }
-.att .rate__min { font-size: 11px; font-weight: 700; color: var(--muted); font-family: var(--mono); }
+.att .rate__min { font-size: 11px; font-weight: 700; color: var(--att-muted); font-family: var(--mono); }
 .att .rate__amt { font-size: 14px; font-weight: 800; font-family: var(--mono); font-variant-numeric: tabular-nums; margin-top: 2px; }
 
 /* ── salaried note ── */
@@ -2642,7 +2642,7 @@
   height: 64px;
   border-radius: 20px;
   background: var(--primary-soft);
-  color: var(--primary);
+  color: var(--att-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2650,7 +2650,7 @@
 }
 .att .salaried__ic svg { width: 30px; height: 30px; }
 .att .salaried__t { font-size: 16px; font-weight: 800; margin: 0; }
-.att .salaried__s { font-size: 13px; color: var(--muted); margin: 9px 0 0; line-height: 1.6; }
+.att .salaried__s { font-size: 13px; color: var(--att-muted); margin: 9px 0 0; line-height: 1.6; }
 .att .salaried__btn {
   margin-top: 20px;
   height: 46px;
@@ -2671,7 +2671,7 @@
 /* gross note */
 .att .gross-note {
   font-size: 11.5px;
-  color: var(--muted);
+  color: var(--att-muted);
   text-align: center;
   margin: 16px 8px 0;
   line-height: 1.55;
@@ -2749,15 +2749,15 @@
   background: var(--work-dot);
 }
 .att .week-day:not(.sel):not(.future):hover {
-  background: var(--surface);
+  background: var(--att-surface);
 }
 .att .week-day.future {
   opacity: 0.35;
   cursor: not-allowed;
 }
 .att .week-day.sel {
-  background: var(--primary);
-  border-color: var(--primary);
+  background: var(--att-primary);
+  border-color: var(--att-primary);
 }
 .att .week-day.sel .week-day__dow,
 .att .week-day.sel .week-day__num {
@@ -2783,9 +2783,9 @@
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--primary);
+  color: var(--att-primary);
   background: var(--primary-soft);
-  border: 1px solid color-mix(in oklab, var(--primary) 18%, transparent);
+  border: 1px solid color-mix(in oklab, var(--att-primary) 18%, transparent);
   padding: 2px 7px;
   border-radius: 999px;
   margin-left: 7px;
@@ -2814,7 +2814,7 @@
   border-radius: 13px;
   border: 1px solid var(--line);
   background: var(--card);
-  color: var(--primary);
+  color: var(--att-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2871,7 +2871,7 @@
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.02em;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .att .roster-section__hd .cdot {
   width: 7px;
@@ -2938,8 +2938,8 @@
   border-radius: 12px;
   flex: 0 0 auto;
   background: var(--primary-soft);
-  border: 1px solid color-mix(in oklab, var(--primary) 16%, transparent);
-  color: var(--primary);
+  border: 1px solid color-mix(in oklab, var(--att-primary) 16%, transparent);
+  color: var(--att-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2963,7 +2963,7 @@
 .att .rcard__role {
   font-size: 11.5px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--att-muted);
   margin-top: 1px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2972,7 +2972,7 @@
 .att .rcard__site {
   font-size: 11px;
   font-weight: 500;
-  color: var(--primary);
+  color: var(--att-primary);
   margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3001,7 +3001,7 @@
   font-size: 14.5px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 .att .rcard__t .dash {
   color: var(--faint);
@@ -3074,7 +3074,7 @@
   color: var(--warn);
 }
 .att .rstatus.done {
-  background: var(--surface);
+  background: var(--att-surface);
   color: var(--out-col);
 }
 .att .rstatus.needs_review {
@@ -3099,8 +3099,8 @@
   width: 60px;
   height: 60px;
   border-radius: 18px;
-  background: var(--surface);
-  color: var(--muted);
+  background: var(--att-surface);
+  color: var(--att-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3113,7 +3113,7 @@
 .att .roster-empty__s {
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--att-muted);
   line-height: 1.6;
   max-width: 230px;
 }
@@ -3173,12 +3173,12 @@
   background: var(--work-dot);
 }
 .att .cal-btn.sel {
-  background: var(--primary);
+  background: var(--att-primary);
   color: #fff;
 }
 .att .cal-btn.sel.has::after { background: rgba(255, 255, 255, 0.85); }
 .att .cal-btn.today:not(.sel) {
-  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--primary) 45%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--att-primary) 45%, transparent);
 }
 .att .roster-cal-head {
   display: flex;
@@ -3229,7 +3229,7 @@
   cursor: pointer;
 }
 .att .roster-cal-foot .ghost {
-  background: var(--surface);
+  background: var(--att-surface);
   color: var(--ink-soft);
   flex: 0 0 auto;
   padding: 0 20px;
@@ -3241,13 +3241,13 @@
 
 /* Home entry — 출근자 명단 바로가기 */
 .att a.entryrow.roster .entryrow__ic {
-  background: color-mix(in oklab, var(--work-dot) 12%, var(--surface));
+  background: color-mix(in oklab, var(--work-dot) 12%, var(--att-surface));
   color: var(--work);
 }
 .att .entryrow__chev {
   font-size: 18px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--att-muted);
 }
 
 /* Home entry — 연차 · 휴가 바로가기 (NEW) */
@@ -3264,7 +3264,7 @@
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.04em;
-  background: var(--primary);
+  background: var(--att-primary);
   color: #fff;
 }
 

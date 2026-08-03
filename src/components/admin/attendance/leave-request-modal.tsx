@@ -308,7 +308,7 @@ export function LeaveRequestModal({
 
           {summary ? (
             <div className="fpill">
-              <span className="avatar" style={{ background: "var(--primary)", color: "#fff" }}>
+              <span className="avatar" style={{ background: "var(--adm-primary)", color: "#fff" }}>
                 {initialOf(mode === "self" ? currentUserName || summary.name : summary.name)}
               </span>
               <div>

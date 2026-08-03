@@ -141,7 +141,7 @@ export function StaffAvatar({
 }) {
   const entry = staffId ? directory.get(staffId) : null;
   return (
-    <span className={className} style={{ background: entry ? entry.bg : "var(--surface)" }}>
+    <span className={className} style={{ background: entry ? entry.bg : "var(--adm-surface)" }}>
       {entry ? entry.name.slice(0, 1) : "?"}
     </span>
   );

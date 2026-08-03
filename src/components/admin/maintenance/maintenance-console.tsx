@@ -168,7 +168,7 @@ export function MaintenanceConsole({ locale, reports, loadError }: MaintenanceCo
                 {t.kpiUrgent}
               </span>
             ) : (
-              <span style={{ color: "var(--muted)" }}>{t.within}</span>
+              <span style={{ color: "var(--adm-muted)" }}>{t.within}</span>
             )}
           </div>
         </div>

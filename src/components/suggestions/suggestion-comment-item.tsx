@@ -116,7 +116,7 @@ export function SuggestionCommentItem({
         className="cmt__av"
         style={
           comment.authorRole === "recipient"
-            ? { background: "var(--primary)", color: "#fff" }
+            ? { background: "var(--sg-primary)", color: "#fff" }
             : undefined
         }
       >
@@ -141,7 +141,7 @@ export function SuggestionCommentItem({
             <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
               <button
                 type="button"
-                style={{ ...linkBtn, color: "var(--muted)" }}
+                style={{ ...linkBtn, color: "var(--sg-muted)" }}
                 onClick={() => {
                   setEditing(false);
                   setEditText(comment.body ?? "");
@@ -149,7 +149,7 @@ export function SuggestionCommentItem({
               >{copy.cancel}</button>
               <button
                 type="button"
-                style={{ ...linkBtn, color: "var(--primary)", opacity: canSaveEdit ? 1 : 0.5 }}
+                style={{ ...linkBtn, color: "var(--sg-primary)", opacity: canSaveEdit ? 1 : 0.5 }}
                 onClick={saveEdit}
                 disabled={!canSaveEdit}
               >{copy.save}</button>

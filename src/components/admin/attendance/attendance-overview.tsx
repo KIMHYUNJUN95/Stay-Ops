@@ -46,7 +46,7 @@ function ReviewRow({ item, c, ym }: { item: ReviewQueueItem; c: Att; ym: string 
   ].filter(Boolean) as string[];
   return (
     <Link href={`/admin/attendance/queue?ym=${ym}&sessionId=${item.sessionId}`} className="qrow">
-      <span className="avatar qrow__av" style={{ background: "var(--primary)" }}>
+      <span className="avatar qrow__av" style={{ background: "var(--adm-primary)" }}>
         {initial(item.userName)}
       </span>
       <div className="qrow__b">
@@ -337,7 +337,7 @@ export function AttendanceOverview({
             </div>
           </div>
           <div className="card__foot">
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)" }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--adm-muted)" }}>
               {c.payFootNote}
             </span>
           </div>
@@ -392,7 +392,7 @@ export function AttendanceOverview({
             </div>
           </div>
           <div className="card__foot">
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)" }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--adm-muted)" }}>
               {c.trFootNote}
             </span>
           </div>

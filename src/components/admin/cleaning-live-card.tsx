@@ -95,7 +95,7 @@ export function CleaningLiveCard({
                 <td>{row.taskLabel || c.taskOther}</td>
                 <td>
                   <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span className="avatar qrow__av" style={{ background: row.staff ? "var(--primary)" : "var(--surface)", color: row.staff ? "#fff" : "var(--muted)" }}>
+                    <span className="avatar qrow__av" style={{ background: row.staff ? "var(--adm-primary)" : "var(--adm-surface)", color: row.staff ? "#fff" : "var(--adm-muted)" }}>
                       {row.staff ? initial(row.staff) : "?"}
                     </span>
                     <span style={{ fontWeight: 700 }}>{row.staff || c.unassigned}</span>
@@ -134,7 +134,7 @@ export function CleaningLiveCard({
                   <div className="kv">
                     <span className="kv__k">{c.panelStaff}</span>
                     <span className="kv__v">
-                      <span className="avatar" style={{ width: 24, height: 24, fontSize: 11, background: sel.staff ? "var(--primary)" : "var(--surface)", color: sel.staff ? "#fff" : "var(--muted)" }}>
+                      <span className="avatar" style={{ width: 24, height: 24, fontSize: 11, background: sel.staff ? "var(--adm-primary)" : "var(--adm-surface)", color: sel.staff ? "#fff" : "var(--adm-muted)" }}>
                         {sel.staff ? initial(sel.staff) : "?"}
                       </span>
                       {sel.staff || c.unassigned}

@@ -345,10 +345,10 @@ function SetupSection({
   return (
     <>
       <SectionHead
-        icon={<KeyRound aria-hidden="true" style={{ color: "var(--primary)" }} />}
+        icon={<KeyRound aria-hidden="true" style={{ color: "var(--adm-primary)" }} />}
         title={t.secSetup}
         count={targets.length}
-        progress={<span style={{ color: "var(--muted)" }}>{t.secSetupSub}</span>}
+        progress={<span style={{ color: "var(--adm-muted)" }}>{t.secSetupSub}</span>}
       />
       <div className="setgrid">
         {targets.map((target) => (

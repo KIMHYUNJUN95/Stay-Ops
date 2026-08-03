@@ -75,7 +75,7 @@ export function AdminReasonModal({
         <div style={{ fontSize: 15, fontWeight: 900, color: "var(--ink)", marginBottom: 6 }}>
           {title}
         </div>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--muted)", marginBottom: 12 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--adm-muted)", marginBottom: 12 }}>
           {description}
         </div>
         <textarea
@@ -90,7 +90,7 @@ export function AdminReasonModal({
             padding: "9px 11px",
             border: "1px solid var(--line)",
             borderRadius: 10,
-            background: "var(--surface)",
+            background: "var(--adm-surface)",
             fontSize: 13,
             fontWeight: 600,
             color: "var(--ink)",

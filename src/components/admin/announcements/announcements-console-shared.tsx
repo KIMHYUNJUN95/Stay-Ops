@@ -23,7 +23,7 @@ export type RoleLabel = (role: OrganizationRole) => string;
 export type AnnStatus = "draft" | "published" | "archived";
 
 const AVATAR_PALETTE = [
-  "var(--primary)",
+  "var(--adm-primary)",
   "#3f7d5a",
   "#9c5a2c",
   "#6b5aa8",

@@ -2508,7 +2508,7 @@ export function AdminTasksConsole({
                 {dict.calLegendPersonal}
               </span>
               <span className="lgi">
-                <span className="d" style={{ background: "var(--primary)" }} />
+                <span className="d" style={{ background: "var(--adm-primary)" }} />
                 {dict.calLegendShared}
               </span>
               <span className="lgi">
@@ -3968,7 +3968,7 @@ export function AdminTasksConsole({
         </span>
         {label}
         {p.cur === v && (
-          <span className="ic" style={{ marginLeft: "auto", color: "var(--primary)" }}>
+          <span className="ic" style={{ marginLeft: "auto", color: "var(--adm-primary)" }}>
             <Check size={15} />
           </span>
         )}
@@ -4244,7 +4244,7 @@ export function AdminTasksConsole({
         <CalendarDays size={15} />
         {label}
         {dateFilter === k && (
-          <span className="ic" style={{ marginLeft: "auto", color: "var(--primary)" }}>
+          <span className="ic" style={{ marginLeft: "auto", color: "var(--adm-primary)" }}>
             <Check size={15} />
           </span>
         )}
@@ -4274,7 +4274,7 @@ export function AdminTasksConsole({
         </span>
         {label}
         {prioFilter === k && (
-          <span className="ic" style={{ marginLeft: "auto", color: "var(--primary)" }}>
+          <span className="ic" style={{ marginLeft: "auto", color: "var(--adm-primary)" }}>
             <Check size={15} />
           </span>
         )}

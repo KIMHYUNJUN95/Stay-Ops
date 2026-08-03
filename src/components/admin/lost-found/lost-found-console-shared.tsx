@@ -196,7 +196,7 @@ export function ReporterAvatar({
   className: string;
 }) {
   return (
-    <span className={className} style={{ background: id ? avatarColorFor(id) : "var(--surface)" }}>
+    <span className={className} style={{ background: id ? avatarColorFor(id) : "var(--adm-surface)" }}>
       {name ? name.slice(0, 1) : "?"}
     </span>
   );

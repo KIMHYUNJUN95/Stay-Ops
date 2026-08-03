@@ -111,7 +111,7 @@ export function AttendanceStaffDetail({
         <span
           className="uhead__av"
           style={{
-            background: "var(--primary)",
+            background: "var(--adm-primary)",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
@@ -430,7 +430,7 @@ function DayRowItem({
           </span>
         ) : (
           <span className="dayrow__times">
-            <span className="none" style={{ color: "var(--muted)" }}>
+            <span className="none" style={{ color: "var(--adm-muted)" }}>
               {c.cardReviewEmpty}
             </span>
           </span>

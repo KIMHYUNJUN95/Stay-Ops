@@ -84,7 +84,7 @@ export function NotificationBell({
                   className="notif"
                   onClick={() => setOpen(false)}
                 >
-                  <span className="notif__dot" style={{ background: n.read ? "var(--surface)" : "var(--primary)" }} />
+                  <span className="notif__dot" style={{ background: n.read ? "var(--adm-surface)" : "var(--adm-primary)" }} />
                   <div className="notif__b">
                     <div className="notif__t">{n.title}</div>
                     {n.body ? <div className="notif__s">{n.body}</div> : null}

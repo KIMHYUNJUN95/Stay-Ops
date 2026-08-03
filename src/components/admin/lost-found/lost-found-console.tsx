@@ -249,7 +249,7 @@ export function LostFoundConsole({ locale, items, loadError }: LostFoundConsoleP
                 {t.kpiExpired}
               </span>
             ) : (
-              <span style={{ color: "var(--muted)" }}>{t.within}</span>
+              <span style={{ color: "var(--adm-muted)" }}>{t.within}</span>
             )}
           </div>
         </div>

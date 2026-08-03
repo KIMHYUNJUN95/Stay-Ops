@@ -134,7 +134,7 @@ const STATUS_STYLE: Record<
 > = {
   cancelled: { badge: "pill pill--danger", dot: "var(--danger)" },
   checked_in: { badge: "pill pill--done", dot: "var(--done)" },
-  checked_out: { badge: "pill pill--muted", dot: "var(--muted)", dimmed: true },
+  checked_out: { badge: "pill pill--muted", dot: "var(--adm-muted)", dimmed: true },
   confirmed: { badge: "pill pill--info", dot: "var(--info)" },
   no_show: { badge: "pill pill--danger", dot: "var(--danger)" },
 };

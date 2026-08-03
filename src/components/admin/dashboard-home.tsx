@@ -202,7 +202,7 @@ export function DashboardHome({ data, c, locale }: { data: AdminDashboardData; c
             ) : (
               data.attendance.slice(0, 4).map((a) => (
                 <Link key={a.sessionId} href="/admin/attendance" className="qrow">
-                  <span className="avatar qrow__av" style={{ background: "var(--primary)" }}>{initial(a.userName)}</span>
+                  <span className="avatar qrow__av" style={{ background: "var(--adm-primary)" }}>{initial(a.userName)}</span>
                   <div className="qrow__b">
                     <div className="qrow__t">
                       {a.userName} · <span style={{ color: "var(--ink-soft)", fontWeight: 600 }}>{a.dateLabel}</span>
@@ -304,7 +304,7 @@ export function DashboardHome({ data, c, locale }: { data: AdminDashboardData; c
                   <div key={`in-${r.id}`} className="tlrow">
                     <span className="tlrow__dot on" />
                     <div className="tlrow__b">
-                      <div className="tlrow__t"><span className="mono">{r.roomLabel}</span> <span style={{ color: "var(--muted)", fontWeight: 600 }}>{r.guestName}</span></div>
+                      <div className="tlrow__t"><span className="mono">{r.roomLabel}</span> <span style={{ color: "var(--adm-muted)", fontWeight: 600 }}>{r.guestName}</span></div>
                       <div className="tlrow__s">{r.propertyName}{r.source ? ` · ${r.source}` : ""}</div>
                     </div>
                     <span className="tlrow__kind" style={{ background: "var(--info-bg)", color: "var(--info)" }}>{c.resvCheckIn}</span>
@@ -314,7 +314,7 @@ export function DashboardHome({ data, c, locale }: { data: AdminDashboardData; c
                   <div key={`out-${r.id}`} className="tlrow">
                     <span className="tlrow__dot done" />
                     <div className="tlrow__b">
-                      <div className="tlrow__t"><span className="mono">{r.roomLabel}</span> <span style={{ color: "var(--muted)", fontWeight: 600 }}>{r.guestName}</span></div>
+                      <div className="tlrow__t"><span className="mono">{r.roomLabel}</span> <span style={{ color: "var(--adm-muted)", fontWeight: 600 }}>{r.guestName}</span></div>
                       <div className="tlrow__s">{r.propertyName}{r.source ? ` · ${r.source}` : ""}</div>
                     </div>
                     <span className="tlrow__kind" style={{ background: "var(--done-bg)", color: "var(--done)" }}>{c.resvCheckOut}</span>

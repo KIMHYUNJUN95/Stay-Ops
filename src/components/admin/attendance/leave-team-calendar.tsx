@@ -27,7 +27,7 @@ function typeAccent(type: LeaveType): { c: string; b: string } {
     case "special":
       return { c: "var(--warn)", b: "var(--warn-bg)" };
     default:
-      return { c: "var(--muted)", b: "var(--surface)" };
+      return { c: "var(--adm-muted)", b: "var(--adm-surface)" };
   }
 }
 

@@ -1067,3 +1067,20 @@ Management Console" → Current Implementation Note.
   instead of a reservation CSV action. Keep this aligned with the shared admin calendar chrome.
 - Beds24 sync state is exposed in the calendar chrome. During the temporary pause window, the admin
   console should show that sync is paused rather than implying a live Beds24 refresh.
+
+## 2026-08-03 콘솔 CSS 변수 네이밍 — `--adm-*` (ABSOLUTE)
+
+`admin-console.css` 및 `.adm` 스코프 CSS 가 정의하는 **콘솔 전용 값은 전부 `--adm-*` 접두어**를
+쓴다. globals(`src/app/globals.css` `:root`)의 Tailwind 토큰과 같은 이름을 재정의하면, `.adm` 안에
+렌더되는 공용 컴포넌트(`src/components/ui/**` 등)의 `bg-surface` / `bg-muted` 유틸이 조용히 다른
+색이 된다 — CSS 변수는 클래스와 달리 **스코프를 넘어 상속되기 때문**이다.
+
+- 금지: `.adm { --muted: … }` `--surface` `--primary` `--background` `--foreground` `--border` 등
+  globals 토큰과 겹치는 이름
+- 허용: `--adm-muted` `--adm-surface` `--adm-primary`, 그리고 겹치지 않는 콘솔 고유 이름
+  (`--bg` `--ink` `--line` `--card` `--danger` …)
+- 선례: `users-console.css` 의 `--ui-*`, `home-screen.css` 의 `--hm-*`
+
+새 콘솔 CSS 를 만들 때 이 규칙을 먼저 확인할 것. 근거는
+`docs/planning/01-decision-log.md` → 2026-08-03 항목.
+

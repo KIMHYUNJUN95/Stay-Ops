@@ -273,7 +273,7 @@ export function HistoryBoard({
                 <tr key={h.id} className={selectedId === h.id ? "sel" : ""} onClick={() => onSelect(h.id)}>
                   <td style={{ paddingLeft: 16 }}>
                     <span className="rrow__rm mono">{h.room}</span>
-                    <div className="who__sub" style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, marginTop: 2 }}>
+                    <div className="who__sub" style={{ fontSize: 11, color: "var(--adm-muted)", fontWeight: 600, marginTop: 2 }}>
                       {buildingLabelOf(h, buildingLabels)}
                     </div>
                   </td>

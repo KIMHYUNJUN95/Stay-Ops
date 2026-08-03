@@ -151,7 +151,7 @@ export function LeaveCalendar({
 
       <div className="slabel">
         {c.calList}
-        <span style={{ marginLeft: "auto", fontWeight: 800, color: "var(--muted)" }}>{c.calCount(entries.length)}</span>
+        <span style={{ marginLeft: "auto", fontWeight: 800, color: "var(--att-muted)" }}>{c.calCount(entries.length)}</span>
       </div>
       {entries.length === 0 ? (
         <div className="histempty">{c.histEmpty}</div>

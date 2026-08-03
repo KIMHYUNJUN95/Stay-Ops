@@ -140,7 +140,7 @@ export function OrdersDetailPanel({ order, t, locale, todayKey, onClose, onActio
               <span className="mono">{fmtDateTime(order.reqAt, locale)}</span>
             </Kv>
             <Kv label={t.pUrgency}>
-              {order.urgency === "high" ? <UrgBadge t={t} /> : <span style={{ color: "var(--muted)", fontWeight: 700 }}>{t.normal}</span>}
+              {order.urgency === "high" ? <UrgBadge t={t} /> : <span style={{ color: "var(--adm-muted)", fontWeight: 700 }}>{t.normal}</span>}
             </Kv>
             {order.reason ? (
               <div style={{ marginTop: 11 }}>

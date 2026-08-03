@@ -177,7 +177,7 @@ export function AttendanceWagesClient({
                         <span
                           className="uhead__av"
                           style={{
-                            background: "var(--primary)",
+                            background: "var(--adm-primary)",
                             width: 34,
                             height: 34,
                             borderRadius: 9,
@@ -207,7 +207,7 @@ export function AttendanceWagesClient({
                         </span>
                       ) : (
                         <>
-                          <span style={{ color: "var(--muted)" }}>{c.yenSym}</span>
+                          <span style={{ color: "var(--adm-muted)" }}>{c.yenSym}</span>
                           {formatOptionalAdminYen(r.currentRate, localeTag)}
                           <span
                             className="dim-cell"
@@ -438,7 +438,7 @@ function WagePanel({
           </div>
           <div className="panel__title">
             <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="uhead__av" style={{ background: "var(--primary)" }}>
+              <span className="uhead__av" style={{ background: "var(--adm-primary)" }}>
                 {initial(row.userName)}
               </span>
               <span>
@@ -764,7 +764,7 @@ function WagePanel({
                             <span
                               style={{
                                 fontSize: 11,
-                                color: "var(--muted)",
+                                color: "var(--adm-muted)",
                                 fontWeight: 700,
                                 marginLeft: 3,
                               }}

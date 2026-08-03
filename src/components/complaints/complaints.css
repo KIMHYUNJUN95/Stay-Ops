@@ -10,12 +10,12 @@
   --card: hsl(44 52% 98.5%);
   --ink: hsl(222 28% 14%);
   --ink-soft: hsl(222 20% 28%);
-  --muted: hsl(222 10% 44%);
+  --cx-muted: hsl(222 10% 44%);
   --faint: hsl(222 10% 62%);
   --line: hsl(40 20% 84%);
   --line-soft: hsl(40 24% 89%);
-  --surface: hsl(40 22% 90%);
-  --primary: hsl(223 46% 32%);
+  --cx-surface: hsl(40 22% 90%);
+  --cx-primary: hsl(223 46% 32%);
   --primary-ink: hsl(223 54% 22%);
   --primary-lift: hsl(223 50% 42%);
   --primary-bg: color-mix(in oklab, hsl(223 46% 32%) 9%, hsl(44 52% 98.5%));
@@ -205,8 +205,8 @@
   border-radius: 999px;
 }
 .cx-fchip.on {
-  background: var(--primary);
-  border-color: var(--primary);
+  background: var(--cx-primary);
+  border-color: var(--cx-primary);
   color: #fff;
 }
 .cx-seg {
@@ -214,7 +214,7 @@
   gap: 4px;
   margin: 12px 0 6px;
   padding: 4px;
-  background: var(--surface);
+  background: var(--cx-surface);
   border-radius: 13px;
 }
 .cx-seg button {
@@ -226,7 +226,7 @@
   font: inherit;
   font-size: 13px;
   font-weight: 800;
-  color: var(--muted);
+  color: var(--cx-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -244,7 +244,7 @@
   color: var(--faint);
 }
 .cx-seg button.on .cnt {
-  color: var(--primary);
+  color: var(--cx-primary);
 }
 .cx-list {
   padding: 6px 0 16px;
@@ -305,7 +305,7 @@
   margin-top: 8px;
   font-size: 11.5px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--cx-muted);
 }
 .cx-card__meta .ic {
   font-size: 14px;
@@ -334,7 +334,7 @@
   text-align: center;
   font-size: 13px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--cx-muted);
   padding: 48px 0;
 }
 
@@ -386,7 +386,7 @@
   gap: 8px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--cx-muted);
 }
 .cx-meta__l .ic {
   font-size: 15px;
@@ -499,8 +499,8 @@
 .cx-clabel .n {
   font-size: 11px;
   font-weight: 700;
-  color: var(--muted);
-  background: var(--surface);
+  color: var(--cx-muted);
+  background: var(--cx-surface);
   padding: 1px 7px;
   border-radius: 999px;
 }
@@ -521,11 +521,11 @@
   flex: 0 0 auto;
 }
 .cx-cmt__av.p {
-  background: var(--primary);
+  background: var(--cx-primary);
   color: #fff;
 }
 .cx-cmt__av.n {
-  background: var(--surface);
+  background: var(--cx-surface);
   color: var(--ink-soft);
 }
 .cx-cmt__b {
@@ -548,11 +548,11 @@
   padding: 2px 6px;
   border-radius: 999px;
   background: var(--primary-bg);
-  color: var(--primary);
+  color: var(--cx-primary);
 }
 .cx-role-pill.ref {
-  background: var(--surface);
-  color: var(--muted);
+  background: var(--cx-surface);
+  color: var(--cx-muted);
 }
 .cx-cmt__t {
   font-size: 10px;
@@ -601,7 +601,7 @@
   border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--card);
-  color: var(--muted);
+  color: var(--cx-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -633,7 +633,7 @@
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: var(--primary);
+  background: var(--cx-primary);
   color: #fff;
   display: flex;
   align-items: center;
@@ -748,7 +748,7 @@
   font-weight: 800;
   letter-spacing: 0.02em;
   margin: 0 2px 11px;
-  color: var(--muted);
+  color: var(--cx-muted);
 }
 .cx-fsec__h .req {
   color: var(--open);
@@ -759,7 +759,7 @@
   font-size: 10.5px;
   font-weight: 700;
   color: var(--faint);
-  background: var(--surface);
+  background: var(--cx-surface);
   padding: 1px 7px;
   border-radius: 999px;
 }
@@ -781,7 +781,7 @@
   text-align: left;
 }
 .cx-pcell.on {
-  border-color: var(--primary);
+  border-color: var(--cx-primary);
   background: var(--primary-bg);
 }
 .cx-pcell__n {
@@ -843,7 +843,7 @@ textarea.cx-fld {
 .cx-rval {
   margin-top: 9px;
   font-size: 13px;
-  color: var(--muted);
+  color: var(--cx-muted);
   font-weight: 700;
 }
 .cx-rval b {
@@ -854,7 +854,7 @@ textarea.cx-fld {
 .cx-rate-none {
   font-size: 13px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--cx-muted);
   padding: 4px 2px;
 }
 .cx-linkrow {
@@ -871,7 +871,7 @@ textarea.cx-fld {
   cursor: pointer;
 }
 .cx-linkrow__ic {
-  color: var(--primary);
+  color: var(--cx-primary);
   font-size: 19px;
   display: flex;
 }
@@ -892,7 +892,7 @@ textarea.cx-fld {
   gap: 12px;
   width: 100%;
   padding: 13px 14px;
-  border: 1px solid color-mix(in oklab, var(--primary) 24%, var(--line));
+  border: 1px solid color-mix(in oklab, var(--cx-primary) 24%, var(--line));
   border-radius: 14px;
   background: var(--primary-bg);
 }
@@ -901,7 +901,7 @@ textarea.cx-fld {
   height: 42px;
   border-radius: 12px;
   background: var(--card);
-  color: var(--primary);
+  color: var(--cx-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -932,7 +932,7 @@ textarea.cx-fld {
   margin-top: 4px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--cx-muted);
 }
 .cx-linked__x {
   width: 30px;
@@ -940,7 +940,7 @@ textarea.cx-fld {
   border-radius: 999px;
   border: none;
   background: var(--card);
-  color: var(--muted);
+  color: var(--cx-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1006,7 +1006,7 @@ textarea.cx-fld {
   border-radius: 12px;
   border: 1.4px dashed var(--line);
   background: var(--card);
-  color: var(--muted);
+  color: var(--cx-muted);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1072,7 +1072,7 @@ textarea.cx-fld {
 }
 .cx-sheet__sub {
   font-size: 12.5px;
-  color: var(--muted);
+  color: var(--cx-muted);
   margin: 3px 0 0;
   font-weight: 500;
 }
@@ -1092,7 +1092,7 @@ textarea.cx-fld {
 .cx-search input {
   width: 100%;
   height: 48px;
-  border: 1.5px solid var(--primary);
+  border: 1.5px solid var(--cx-primary);
   border-radius: 14px;
   background: var(--bg);
   padding: 0 16px 0 41px;
@@ -1107,7 +1107,7 @@ textarea.cx-fld {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--cx-muted);
   margin: 14px 2px 8px;
 }
 .cx-glabel:first-child {
@@ -1166,7 +1166,7 @@ textarea.cx-fld {
   align-items: center;
   gap: 7px;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--cx-muted);
   font-weight: 600;
   margin-top: 3px;
 }
@@ -1199,7 +1199,7 @@ textarea.cx-fld {
 }
 .cx-roomonly .ic {
   font-size: 16px;
-  color: var(--muted);
+  color: var(--cx-muted);
 }
 
 /* ── 드릴다운 피커 공통 ─────────────────────────────────── */
@@ -1227,7 +1227,7 @@ textarea.cx-fld {
 .cx-pick-empty {
   padding: 24px 16px;
   text-align: center;
-  color: var(--muted);
+  color: var(--cx-muted);
   font-size: 14px;
 }
 
@@ -1248,7 +1248,7 @@ textarea.cx-fld {
 .cx-bldrow:active { background: var(--surface-2, #f5f4f0); }
 .cx-bldrow__ic {
   font-size: 18px;
-  color: var(--primary);
+  color: var(--cx-primary);
   flex-shrink: 0;
 }
 .cx-bldrow__n {
@@ -1271,7 +1271,7 @@ textarea.cx-fld {
 }
 .cx-bldrow__chev {
   font-size: 16px;
-  color: var(--muted);
+  color: var(--cx-muted);
   flex-shrink: 0;
 }
 

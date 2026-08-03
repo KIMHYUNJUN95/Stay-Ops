@@ -305,7 +305,7 @@ export function AttendancePay({
               <div key={seg.rate} className="rate__r">
                 <span
                   className="rate__dot"
-                  style={{ background: i === 0 ? "var(--primary)" : "var(--primary-lift)" }}
+                  style={{ background: i === 0 ? "var(--att-primary)" : "var(--primary-lift)" }}
                 />
                 <div className="rate__b">
                   <div className="rate__period">
@@ -355,7 +355,7 @@ export function AttendancePay({
               </div>
             ))}
             <div className="rate__r" style={{ fontWeight: 800 }}>
-              <span className="rate__dot" style={{ background: "var(--primary)" }} />
+              <span className="rate__dot" style={{ background: "var(--att-primary)" }} />
               <div className="rate__b">
                 <div className="rate__rate">{copy.payAllowanceTotal}</div>
               </div>
@@ -469,7 +469,7 @@ export function AttendancePay({
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 800 }}>{d.dateLabel}</div>
-                        <div className="mono" style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
+                        <div className="mono" style={{ fontSize: 12, color: "var(--att-muted)", marginTop: 3 }}>
                           {s.clockInLabel ?? "--:--"} –{" "}
                           {s.clockOutLabel ?? (s.excludeReason === "open" ? copy.sessOpen : copy.histNoRecord)}
                         </div>
@@ -480,7 +480,7 @@ export function AttendancePay({
                       >
                         {excludeLabel(s.excludeReason)}
                       </span>
-                      <span style={{ color: "var(--muted)", flexShrink: 0 }}><AIc>{AttIcon.chevR}</AIc></span>
+                      <span style={{ color: "var(--att-muted)", flexShrink: 0 }}><AIc>{AttIcon.chevR}</AIc></span>
                     </button>
                   ))
               )}

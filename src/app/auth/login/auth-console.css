@@ -14,12 +14,12 @@
   --card2: hsl(44 40% 97%);
   --ink: hsl(222 28% 14%);
   --ink-soft: hsl(222 20% 28%);
-  --muted: hsl(222 10% 44%);
+  --authx-muted: hsl(222 10% 44%);
   --faint: hsl(222 10% 62%);
   --line: hsl(40 20% 84%);
-  --surface: hsl(40 22% 90%);
+  --authx-surface: hsl(40 22% 90%);
   --surface2: hsl(40 20% 93%);
-  --primary: hsl(223 46% 32%);
+  --authx-primary: hsl(223 46% 32%);
   --primary-ink: hsl(223 54% 22%);
   --primary-lift: hsl(223 50% 42%);
   --primary-soft: color-mix(in oklab, hsl(223 46% 32%) 8%, hsl(44 52% 98.5%));
@@ -267,11 +267,11 @@
   text-decoration: none;
 }
 .authx .langpill:hover {
-  background: var(--surface);
+  background: var(--authx-surface);
 }
 .authx .langpill .ic {
   font-size: 16px;
-  color: var(--muted);
+  color: var(--authx-muted);
 }
 .authx .langpill .chev {
   width: 14px;
@@ -281,10 +281,10 @@
 .authx .auth-help {
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--authx-muted);
 }
 .authx .auth-help a {
-  color: var(--primary);
+  color: var(--authx-primary);
   font-weight: 800;
   text-decoration: none;
   cursor: pointer;
@@ -310,7 +310,7 @@
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--primary);
+  color: var(--authx-primary);
   margin: 0 0 9px;
 }
 .authx .auth-title {
@@ -323,7 +323,7 @@
 .authx .auth-lede {
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--authx-muted);
   margin: 9px 0 0;
   line-height: 1.55;
 }
@@ -360,7 +360,7 @@
   box-shadow: 0 10px 26px -22px rgba(20, 32, 43, 0.6);
 }
 .authx .abtn--google:hover {
-  background: var(--surface);
+  background: var(--authx-surface);
 }
 .authx .abtn--email {
   background: linear-gradient(165deg, var(--primary-lift), var(--primary-ink));
@@ -395,7 +395,7 @@
 
 .authx .seg {
   display: flex;
-  background: var(--surface);
+  background: var(--authx-surface);
   border-radius: 12px;
   padding: 4px;
   margin: 22px 0 20px;
@@ -409,7 +409,7 @@
   background: none;
   font-size: 13px;
   font-weight: 800;
-  color: var(--muted);
+  color: var(--authx-muted);
   border-radius: 9px;
   display: inline-flex;
   align-items: center;
@@ -437,7 +437,7 @@
 .authx .field__l a {
   font-size: 12px;
   font-weight: 800;
-  color: var(--primary);
+  color: var(--authx-primary);
   text-decoration: none;
 }
 .authx .inp {
@@ -465,7 +465,7 @@
 }
 .authx .inp input:focus,
 .authx .inp.focus input {
-  border-color: var(--primary);
+  border-color: var(--authx-primary);
   box-shadow: 0 0 0 3.5px var(--primary-soft);
 }
 .authx .inp.bad input {
@@ -528,7 +528,7 @@
   flex: 1;
   height: 4px;
   border-radius: 999px;
-  background: var(--surface);
+  background: var(--authx-surface);
 }
 .authx .pw-meter i.on {
   background: var(--done);
@@ -568,7 +568,7 @@
   gap: 5px;
   font-size: 13px;
   font-weight: 800;
-  color: var(--muted);
+  color: var(--authx-muted);
   background: none;
   border: none;
   padding: 0;
@@ -672,7 +672,7 @@
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--authx-muted);
   margin: 0 0 9px;
 }
 .authx .scard__t {
@@ -685,7 +685,7 @@
 .authx .scard__s {
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--authx-muted);
   margin: 11px 0 0;
   line-height: 1.6;
   max-width: 340px;
@@ -697,14 +697,14 @@
   margin-top: 16px;
   padding: 8px 14px;
   border-radius: 999px;
-  background: var(--surface);
+  background: var(--authx-surface);
   font-size: 12.5px;
   font-weight: 700;
   color: var(--ink-soft);
 }
 .authx .scard__email .ic {
   font-size: 15px;
-  color: var(--muted);
+  color: var(--authx-muted);
 }
 
 .authx .auth-invite {
@@ -749,7 +749,7 @@
   color: var(--faint);
 }
 .authx .auth-legal a {
-  color: var(--muted);
+  color: var(--authx-muted);
   text-decoration: none;
 }
 .authx .auth-legal .dot {
@@ -759,7 +759,7 @@
   background: var(--faint);
 }
 
-.authx .bg-pri { background: var(--primary-soft); color: var(--primary); }
+.authx .bg-pri { background: var(--primary-soft); color: var(--authx-primary); }
 .authx .bg-warn { background: var(--warn-bg); color: var(--warn); }
 .authx .bg-info { background: var(--info-bg); color: var(--info); }
 .authx .bg-danger { background: var(--danger-bg); color: var(--danger); }

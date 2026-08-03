@@ -165,9 +165,9 @@ export function EmailSignupForm({
       <SubmitButton label={copy.signupCta} disabled={!isReady} />
 
       <p className="field__hint" style={{ textAlign: "center", marginTop: 14, whiteSpace: "pre-line", lineHeight: 1.55 }}>
-        <a href={termsHref} style={{ color: "var(--muted)", fontWeight: 800 }}>{copy.termsLink}</a>
+        <a href={termsHref} style={{ color: "var(--authx-muted)", fontWeight: 800 }}>{copy.termsLink}</a>
         {copy.termsConMid}
-        <a href={privacyHref} style={{ color: "var(--muted)", fontWeight: 800 }}>{copy.privacyLink}</a>
+        <a href={privacyHref} style={{ color: "var(--authx-muted)", fontWeight: 800 }}>{copy.privacyLink}</a>
         {copy.termsConPost}
       </p>
     </form>

@@ -500,10 +500,10 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                           {device.deviceLabel ?? settings.attendanceDeviceUnknown}
                         </span>
                       </td>
-                      <td className="mono" style={{ color: "var(--muted)" }}>
+                      <td className="mono" style={{ color: "var(--adm-muted)" }}>
                         {tokyoDate(device.lastUsedAt)}
                       </td>
-                      <td className="mono" style={{ color: "var(--muted)" }}>
+                      <td className="mono" style={{ color: "var(--adm-muted)" }}>
                         {tokyoDate(device.expiresAt)}
                       </td>
                       <td style={{ textAlign: "right" }}>

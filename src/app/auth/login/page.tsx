@@ -260,7 +260,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         showEmail: true, primary: b.suspendedCta, primaryHref: buildMailto(b.contactSubjectSuspended), secondary: b.logout,
       },
       removed: {
-        icon: UserX, iconBg: "var(--surface)", iconColor: "var(--muted)",
+        icon: UserX, iconBg: "var(--authx-surface)", iconColor: "var(--authx-muted)",
         eyebrow: b.removedEyebrow, title: b.removedTitle, body: b.removedBody,
         showEmail: false, primary: b.removedCta, primaryHref: removedRejoinHref, secondary: b.logout,
       },

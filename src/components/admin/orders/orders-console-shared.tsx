@@ -201,7 +201,7 @@ export function ReporterAvatar({
   className: string;
 }) {
   return (
-    <span className={className} style={{ background: id ? avatarColorFor(id) : "var(--surface)" }}>
+    <span className={className} style={{ background: id ? avatarColorFor(id) : "var(--adm-surface)" }}>
       {name ? name.slice(0, 1) : "?"}
     </span>
   );
@@ -214,7 +214,7 @@ export function ItemSummary({ items, t }: { items: OrderItemVM[]; t: OrdersCopy 
     <>
       {first}
       {more > 0 ? (
-        <span style={{ color: "var(--muted)" }}>
+        <span style={{ color: "var(--adm-muted)" }}>
           {" "}
           {t.itemsMore} {more}
           {t.itemsUnit}

@@ -319,7 +319,7 @@ function FlaggedSessionPicker({
                   <div className="srow__chips">
                     <StatusChips s={s} copy={copy} />
                   </div>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", flexShrink: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--att-muted)", flexShrink: 0 }}>
                     {d} ({wd})
                   </span>
                 </div>
@@ -530,11 +530,11 @@ export function AttendanceHistory({
 
       {sessions.length === 0 ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "56px 28px", gap: "14px" }}>
-          <span style={{ width: 60, height: 60, borderRadius: 19, background: "var(--surface)", color: "var(--faint)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
+          <span style={{ width: 60, height: 60, borderRadius: 19, background: "var(--att-surface)", color: "var(--faint)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
             <AIc>{AttIcon.clock}</AIc>
           </span>
           <p style={{ fontSize: 15, fontWeight: 800, margin: 0, color: "var(--ink)" }}>{copy.histEmpty}</p>
-          <p style={{ fontSize: 13, color: "var(--muted)", margin: 0 }}>{copy.histSubtitle}</p>
+          <p style={{ fontSize: 13, color: "var(--att-muted)", margin: 0 }}>{copy.histSubtitle}</p>
         </div>
       ) : null}
 

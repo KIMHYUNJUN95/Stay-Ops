@@ -281,7 +281,7 @@ export function AttendancePayrollClient({
                         <span
                           className="uhead__av"
                           style={{
-                            background: "var(--primary)",
+                            background: "var(--adm-primary)",
                             width: 34,
                             height: 34,
                             borderRadius: 9,
@@ -318,7 +318,7 @@ export function AttendancePayrollClient({
                         <span className="dim-cell">—</span>
                       ) : (
                         <>
-                          <span style={{ color: "var(--muted)" }}>{c.yenSym}</span>
+                          <span style={{ color: "var(--adm-muted)" }}>{c.yenSym}</span>
                           {formatAdminYen(r.expectedGross, localeTag)}
                         </>
                       )}
@@ -516,7 +516,7 @@ function PayrollPanel({
           </div>
           <div className="panel__title">
             <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="uhead__av" style={{ background: "var(--primary)" }}>
+              <span className="uhead__av" style={{ background: "var(--adm-primary)" }}>
                 {initial(row.userName)}
               </span>
               <span>

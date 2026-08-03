@@ -61,7 +61,7 @@ export function OrdersCalendar({
   const buildingOptions = buildingOptionsOf(orders);
   const buildingBar = (
     <div className="ctoolbar filterbar" style={{ marginBottom: 14 }}>
-      <span style={{ fontSize: 12, fontWeight: 800, color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 7 }}>
+      <span style={{ fontSize: 12, fontWeight: 800, color: "var(--adm-muted)", display: "inline-flex", alignItems: "center", gap: 7 }}>
         <MapPin className="ic" aria-hidden="true" />
         {t.calBuilding}
       </span>

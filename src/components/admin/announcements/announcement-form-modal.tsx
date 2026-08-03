@@ -351,7 +351,7 @@ export function AnnouncementFormModal({
           <div className="fld">
             <label className="fld__l">
               {t.fImages}{" "}
-              <span style={{ color: "var(--muted)", fontWeight: 700 }}>{t.fImagesMax}</span>
+              <span style={{ color: "var(--adm-muted)", fontWeight: 700 }}>{t.fImagesMax}</span>
             </label>
             <div className="imgslots">
               {existingImages.map((url) => (

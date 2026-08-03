@@ -36,17 +36,17 @@
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--card);
-  color: var(--muted);
+  color: var(--adm-muted);
   font-size: 12.5px;
   font-weight: 800;
   cursor: pointer;
 }
 
 .adm .admcal__view-tab.is-active {
-  border-color: var(--primary);
-  background: var(--primary);
+  border-color: var(--adm-primary);
+  background: var(--adm-primary);
   color: #fff;
-  box-shadow: 0 10px 22px -18px color-mix(in oklab, var(--primary) 85%, transparent);
+  box-shadow: 0 10px 22px -18px color-mix(in oklab, var(--adm-primary) 85%, transparent);
 }
 
 .adm .admcal__topline-actions {
@@ -72,7 +72,7 @@
 }
 
 .adm .admcal__sync-chip.is-paused {
-  color: var(--muted);
+  color: var(--adm-muted);
   cursor: default;
 }
 
@@ -133,8 +133,8 @@
 
 .adm .admcal__primary-btn,
 .adm .admcal__chip-button.is-primary {
-  background: var(--primary);
-  border-color: var(--primary);
+  background: var(--adm-primary);
+  border-color: var(--adm-primary);
   color: #fff;
 }
 
@@ -189,7 +189,7 @@
    kicker would sit on a different text baseline than the value and the two words would look
    vertically misaligned. Hierarchy comes from color/weight only. */
 .adm .admcal__menu-kicker {
-  color: var(--muted);
+  color: var(--adm-muted);
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
@@ -204,7 +204,7 @@
 
 .adm .admcal__menu-trigger > svg:last-child {
   margin-left: auto;
-  color: var(--muted);
+  color: var(--adm-muted);
 }
 
 .adm .admcal__menu-popover {
@@ -247,7 +247,7 @@
 }
 
 .adm .admcal__menu-item.is-active svg {
-  color: var(--primary);
+  color: var(--adm-primary);
 }
 
 .adm .admcal__input,
@@ -283,8 +283,8 @@
 }
 
 .adm .admcal__chip.is-active {
-  border-color: var(--primary);
-  background: var(--primary);
+  border-color: var(--adm-primary);
+  background: var(--adm-primary);
   color: #fff;
 }
 
@@ -376,7 +376,7 @@
 }
 
 .adm .admcal__day-head.is-today {
-  background: var(--primary);
+  background: var(--adm-primary);
   color: #fff;
 }
 
@@ -395,7 +395,7 @@
 }
 
 .adm .admcal__group-head {
-  background: linear-gradient(90deg, var(--surface2), var(--surface));
+  background: linear-gradient(90deg, var(--surface2), var(--adm-surface));
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
@@ -405,7 +405,7 @@
   align-items: center;
   gap: 8px;
   padding: 9px 14px;
-  background: linear-gradient(90deg, var(--surface2), var(--surface));
+  background: linear-gradient(90deg, var(--surface2), var(--adm-surface));
   border-right: 1px solid var(--line);
 }
 
@@ -418,7 +418,7 @@
   justify-content: center;
   background: var(--card);
   border: 1px solid var(--line);
-  color: var(--primary);
+  color: var(--adm-primary);
 }
 
 .adm .admcal__group-name {
@@ -430,7 +430,7 @@
   margin-left: auto;
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--muted);
+  color: var(--adm-muted);
 }
 
 .adm .admcal__group-meta {
@@ -440,7 +440,7 @@
   padding: 0 14px;
   font-size: 10.5px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--adm-muted);
 }
 
 .adm .admcal__group-bar {
@@ -448,21 +448,21 @@
   height: 5px;
   overflow: hidden;
   border-radius: 999px;
-  background: var(--surface);
+  background: var(--adm-surface);
 }
 
 .adm .admcal__group-bar > span {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: var(--primary);
+  background: var(--adm-primary);
 }
 
 .adm .admcal__group-blocked {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: var(--muted);
+  color: var(--adm-muted);
 }
 
 .adm .admcal__room-row,
@@ -483,8 +483,8 @@
 }
 
 .adm .admcal__room-label--blocked {
-  color: var(--muted);
-  background: var(--surface);
+  color: var(--adm-muted);
+  background: var(--adm-surface);
 }
 
 .adm .admcal__room-track,
@@ -501,8 +501,8 @@
   background:
     repeating-linear-gradient(
       45deg,
-      var(--surface) 0,
-      var(--surface) 8px,
+      var(--adm-surface) 0,
+      var(--adm-surface) 8px,
       var(--surface2) 8px,
       var(--surface2) 16px
     );
@@ -516,7 +516,7 @@
   border-radius: 9px;
   border: 1px dashed var(--line);
   background: var(--card);
-  color: var(--muted);
+  color: var(--adm-muted);
   font-size: 11px;
   font-weight: 800;
 }
@@ -633,7 +633,7 @@
   gap: 6px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--adm-muted);
 }
 
 .adm .admcal__legend-swatch {
@@ -668,7 +668,7 @@
 
 .adm .admcal__state-body {
   margin-top: 3px;
-  color: var(--muted);
+  color: var(--adm-muted);
 }
 
 .adm .admcal__board-grid,
@@ -709,8 +709,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface);
-  color: var(--primary);
+  background: var(--adm-surface);
+  color: var(--adm-primary);
   flex: 0 0 auto;
 }
 
@@ -718,8 +718,8 @@
   min-width: 24px;
   text-align: center;
   border-radius: 999px;
-  background: var(--surface);
-  color: var(--muted);
+  background: var(--adm-surface);
+  color: var(--adm-muted);
   padding: 2px 9px;
   font-family: var(--mono);
   font-size: 10px;
@@ -797,7 +797,7 @@
   margin-top: 2px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--adm-muted);
 }
 
 .adm .admcal__turnover-chip {
@@ -842,7 +842,7 @@
 
 .adm .admcal__table-group td {
   padding: 0;
-  background: linear-gradient(90deg, var(--surface2), var(--surface));
+  background: linear-gradient(90deg, var(--surface2), var(--adm-surface));
   border-bottom-color: var(--line);
 }
 
@@ -869,7 +869,7 @@
 
 .adm .admcal__cell-stack span:last-child,
 .adm .admcal__info-muted {
-  color: var(--muted);
+  color: var(--adm-muted);
   font-size: 11px;
   font-weight: 600;
 }
@@ -880,7 +880,7 @@
 
 .adm .admcal__info-card.is-blocked .admcal__info-empty {
   padding: 28px 18px;
-  color: var(--muted);
+  color: var(--adm-muted);
   font-size: 12px;
   font-weight: 700;
 }
@@ -911,7 +911,7 @@
 
 .adm .admcal__info-label {
   min-width: 92px;
-  color: var(--muted);
+  color: var(--adm-muted);
   font-size: 11px;
   font-weight: 800;
 }
@@ -980,7 +980,7 @@
   justify-content: center;
   background: var(--primary-soft);
   color: var(--primary-ink);
-  border: 1px solid color-mix(in oklab, var(--primary) 18%, transparent);
+  border: 1px solid color-mix(in oklab, var(--adm-primary) 18%, transparent);
 }
 
 .adm .admcal__input,
@@ -1068,7 +1068,7 @@
 .adm .admcal__panel-kicker {
   font-size: 10.5px;
   font-weight: 800;
-  color: var(--primary);
+  color: var(--adm-primary);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -1082,7 +1082,7 @@
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--card);
-  color: var(--muted);
+  color: var(--adm-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1098,7 +1098,7 @@
 
 .adm .admcal__panel-subtitle {
   margin-top: 3px;
-  color: var(--muted);
+  color: var(--adm-muted);
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 700;
@@ -1158,7 +1158,7 @@
 .adm .admcal__stay-node span:last-child {
   display: block;
   margin-top: 2px;
-  color: var(--muted);
+  color: var(--adm-muted);
   font-size: 11px;
   font-weight: 700;
 }
@@ -1167,7 +1167,7 @@
   flex: 1;
   position: relative;
   text-align: center;
-  color: var(--primary);
+  color: var(--adm-primary);
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 800;
@@ -1228,7 +1228,7 @@
 .adm .admcal__channel-sub,
 .adm .admcal__linked-card-body {
   margin-top: 2px;
-  color: var(--muted);
+  color: var(--adm-muted);
   font-size: 11px;
   font-weight: 600;
 }
@@ -1291,7 +1291,7 @@
   padding: 14px 13px;
   border-radius: 14px;
   border: 1px solid color-mix(in oklab, var(--ink) 8%, var(--line));
-  background: linear-gradient(180deg, var(--card) 0%, color-mix(in oklab, var(--surface) 32%, white) 100%);
+  background: linear-gradient(180deg, var(--card) 0%, color-mix(in oklab, var(--adm-surface) 32%, white) 100%);
   box-shadow: 0 12px 28px -26px rgba(20, 32, 43, 0.35);
   transition:
     transform 0.18s ease,
@@ -1300,7 +1300,7 @@
 }
 
 .adm .admcal__action-tile:hover {
-  border-color: color-mix(in oklab, var(--primary) 20%, var(--line));
+  border-color: color-mix(in oklab, var(--adm-primary) 20%, var(--line));
   box-shadow: 0 18px 34px -28px rgba(20, 32, 43, 0.4);
   transform: translateY(-1px);
 }
@@ -1358,8 +1358,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface);
-  color: var(--primary);
+  background: var(--adm-surface);
+  color: var(--adm-primary);
   flex: 0 0 auto;
 }
 
@@ -1370,7 +1370,7 @@
 
 .adm .admcal__timeline-value {
   margin-top: 2px;
-  color: var(--muted);
+  color: var(--adm-muted);
   font-size: 11px;
   font-weight: 600;
 }
@@ -1378,8 +1378,8 @@
 .adm .admcal__linked-empty {
   padding: 14px;
   border-radius: 12px;
-  background: var(--surface);
-  color: var(--muted);
+  background: var(--adm-surface);
+  color: var(--adm-muted);
   font-size: 12px;
   font-weight: 700;
 }

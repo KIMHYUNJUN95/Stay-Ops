@@ -246,7 +246,7 @@ export function SuggestionsDetail({
             <div className="route__col">
               <span
                 className="route__av"
-                style={{ background: "var(--surface)", color: "var(--ink-soft)" }}
+                style={{ background: "var(--sg-surface)", color: "var(--ink-soft)" }}
               >
                 {initial(data.author.name)}
               </span>
@@ -260,7 +260,7 @@ export function SuggestionsDetail({
             </div>
             <span className="route__arrow">{SgIcon.arrowR}</span>
             <div className="route__col">
-              <span className="route__av" style={{ background: "var(--primary)", color: "#fff" }}>
+              <span className="route__av" style={{ background: "var(--sg-primary)", color: "#fff" }}>
                 {initial(data.recipient.name)}
               </span>
               <div>
@@ -278,7 +278,7 @@ export function SuggestionsDetail({
           <div style={{ display: "flex", gap: "14px", alignItems: "center", margin: "0 0 14px", padding: "0 2px" }}>
             <Link
               href={`/mobile/suggestions/${data.id}/edit`}
-              style={{ fontSize: "12.5px", fontWeight: 700, color: "var(--primary)" }}
+              style={{ fontSize: "12.5px", fontWeight: 700, color: "var(--sg-primary)" }}
             >
               {copy.edit}
             </Link>
@@ -295,7 +295,7 @@ export function SuggestionsDetail({
                 </button>
                 <button
                   type="button"
-                  style={{ fontSize: "12.5px", fontWeight: 700, color: "var(--muted)" }}
+                  style={{ fontSize: "12.5px", fontWeight: 700, color: "var(--sg-muted)" }}
                   onClick={() => setConfirmDelete(false)}
                 >
                   {copy.cancel}
