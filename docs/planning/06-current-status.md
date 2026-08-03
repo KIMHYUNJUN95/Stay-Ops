@@ -3947,3 +3947,19 @@ i18n `stepCancelled` / `corrStatusCancelled` / `corrCancel*` ko·ja·en 추가.
 애초에 문제가 없었다.
 
 검증: `tsc --noEmit` 0 errors, `npm run lint` 0 errors.
+
+## 2026-08-03 — 근태 QR 발급 RPC 가 로그인 없이 호출 가능하던 문제
+
+`issue_attendance_qr` 은 권한 검사가 전혀 없는데 PUBLIC EXECUTE(Postgres 기본값)가 살아 있어,
+org/site UUID 만 알면 **로그인 없이 근태 QR 을 폐기·재발급**할 수 있었다. 인쇄된 QR 을 먹통으로
+만들거나, 자기가 정한 토큰으로 새 QR 을 발급해 현장에 없이도 유효한 토큰을 쥘 수 있는 상태였다.
+
+마이그레이션 `202608030002` 원격 적용 완료 — `issue_attendance_qr` ·
+`update_staff_suggestion` · `lostfound_auto_dispose` · `lostfound_auto_purge` 네 개에서
+`public`/`anon`/`authenticated` EXECUTE 회수, `service_role` 만 유지. 네 함수 모두 앱에서는
+service-role 로만 호출하므로 동작 변화 없음. Supabase security advisor 에서 해당 4건이 사라진 것을
+확인했다.
+
+RLS 판정 헬퍼(`is_task_participant` 등)는 정책 안에서 호출자 역할로 실행되므로 회수하면 정책이
+깨진다 — 의도된 노출로 남긴다.
+

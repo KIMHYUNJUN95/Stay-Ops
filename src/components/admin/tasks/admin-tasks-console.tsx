@@ -4176,21 +4176,15 @@ export function AdminTasksConsole({
             {dict.cpTitle}
           </button>
         )}
-        {/* 이동 대상은 탭이 아니라 **작업 자신의 날짜**로 정한다: 오늘 작업이면 내일로, 그 밖이면
-            오늘로. 이 메뉴는 관리함·공유함·지시·캘린더·프로젝트에서도 같이 뜨므로 탭 기준으로는
-            판단할 수 없고, 현재 날짜와 같은 쪽으로 옮기는 무의미한 항목도 사라진다. */}
-        {dateOf(t) === today ? (
-          <button
-            className="mitem"
-            onClick={() => {
-              close();
-              run(() => moveConsoleToTomorrow(t.id), { toast: dict.tMoved });
-            }}
-          >
-            <Sunrise size={15} />
-            {dict.mMoveTomorrow}
-          </button>
-        ) : (
+        {/* 이동 대상은 탭이 아니라 **작업이 실제로 그 날짜에 걸리는지**로 정한다: 오늘 걸려 있으면
+            내일로, 아니면 오늘로. 이 메뉴는 관리함·공유함·지시·캘린더·프로젝트에서도 같이 뜨므로
+            탭 기준으로는 판단할 수 없다.
+            앵커 날짜(`dateOf`) 비교로는 안 된다 — 반복 작업의 앵커는 규칙의 시작일이라 오늘과
+            다를 수 있고(예: 평일 반복, 앵커 7/30, 오늘 8/3), 그때 이미 오늘 회차가 있는데도
+            「오늘로 이동」이 떴다. 서버는 `canMoveRecurringTo` 로 막으므로 데이터는 안전했지만,
+            눌러도 실패만 하는 메뉴였다(2026-08-03).
+            오늘·내일 양쪽에 회차가 있는 반복(평일 등)은 옮길 곳이 없으므로 항목을 아예 감춘다. */}
+        {!occursOn(t, today) ? (
           <button
             className="mitem"
             onClick={() => {
@@ -4201,7 +4195,18 @@ export function AdminTasksConsole({
             <Sun size={15} />
             {dict.mMoveToday}
           </button>
-        )}
+        ) : !occursOn(t, addDays(today, 1)) ? (
+          <button
+            className="mitem"
+            onClick={() => {
+              close();
+              run(() => moveConsoleToTomorrow(t.id), { toast: dict.tMoved });
+            }}
+          >
+            <Sunrise size={15} />
+            {dict.mMoveTomorrow}
+          </button>
+        ) : null}
         {/* "관리함으로" = 프로젝트에서 빼기. 비프로젝트 작업은 이미 관리함이라 프로젝트 작업에만 노출. */}
         {t.projectId && (
           <button

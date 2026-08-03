@@ -1134,3 +1134,40 @@ of the RLS/permission-relevant pieces:
 **호출자별 검사 금지.** 이 값은 급여 계산에 들어가므로, 새 호출 지점을 만들 때 **자체 검증을
 추가하지 말고** 이 함수를 통해서만 써야 한다.
 
+## 2026-08-03 쓰기 RPC 의 PUBLIC EXECUTE 회수
+
+마이그레이션 `202608030002_revoke_public_execute_write_rpcs.sql` (원격 적용 완료).
+
+**문제.** Postgres 는 함수를 만들면 **기본으로 PUBLIC 에 EXECUTE 를 준다.** Supabase 의 `anon` /
+`authenticated` 도 PUBLIC 의 일원이라, `SECURITY DEFINER` 쓰기 함수가 PostgREST 의
+`/rest/v1/rpc/<fn>` 로 **로그인 없이 호출 가능**했다.
+
+가장 위험했던 것은 `issue_attendance_qr` 이다. 함수 본문에 **권한 검사가 전혀 없고** 인자를 그대로
+믿는다:
+
+```
+1. 그 사이트의 활성 QR 을 전부 폐기(revoked_at)
+2. 호출자가 준 토큰 문자열로 새 QR 발급
+```
+
+즉 org/site UUID 만 알면 로그인 없이 ① 인쇄된 근태 QR 을 먹통으로 만들고(출근 체크 불가)
+② **자기가 정한 토큰**으로 새 QR 을 발급해 현장에 있지 않아도 유효한 토큰을 쥘 수 있었다.
+
+**조치.** 아래 4개에서 `public` / `anon` / `authenticated` 의 EXECUTE 를 회수하고 `service_role`
+만 남겼다. 네 함수 모두 앱에서는 service-role 클라이언트로만 호출하므로 동작 변화는 없다.
+
+| 함수 | 앱 호출 지점 |
+| --- | --- |
+| `issue_attendance_qr` | `src/lib/attendance-sites.ts` |
+| `update_staff_suggestion` | `src/app/mobile/suggestions/actions.ts` |
+| `lostfound_auto_dispose` / `lostfound_auto_purge` | 앱 호출 없음(운영 자동화) |
+
+**RLS 판정 헬퍼는 건드리지 않는다.** `is_task_participant` / `has_org_role` / `is_platform_admin`
+등은 RLS 정책 안에서 **호출자 역할로 실행**되므로 `authenticated` 에서 회수하면 정책 평가가 통째로
+깨진다. advisor 가 계속 경고하지만 이들은 판정 전용이고 `auth.uid()` 없이 부르면 아무것도
+돌려주지 않는다 — **의도된 노출**이다.
+
+**새 RPC 를 만들 때**: 쓰기 함수는 생성 직후 반드시
+`revoke execute … from public, anon, authenticated` + `grant execute … to service_role` 을 함께
+넣을 것. 기본값이 PUBLIC 이라 아무것도 안 하면 열린 채로 배포된다.
+
