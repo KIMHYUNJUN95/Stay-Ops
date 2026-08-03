@@ -168,13 +168,6 @@ function computeContentOffset(raw: number): number {
 // session (the shell is rendered per page, so this Map is the only thing that persists).
 const SCROLL_POSITIONS = new Map<string, number>();
 
-/**
- * 하단 탭을 이미 있는 탭에서 한 번 더 눌렀을 때 발생한다. `detail.id` 는 그 탭의 nav id.
- *
- * 라우팅만으로는 화면 안쪽 상태(내부 탭·검색어·필터)를 되돌릴 수 없어서, 되돌릴 상태를 가진
- * 화면이 스스로 듣고 초기화하도록 신호만 보낸다. 듣지 않는 화면은 스크롤-투-탑까지만 동작한다.
- */
-export const TAB_RESET_EVENT = "stayops:tab-reset";
 
 export function MobileShell({
   activeItem,
@@ -197,6 +190,16 @@ export function MobileShell({
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshPending, startRefreshTransition] = useTransition();
   const router = useRouter();
+  /**
+   * 하단 탭 재탭 리셋용 리마운트 키.
+   *
+   * 화면 안쪽 상태(내부 탭·검색어·필터·선택 모드)는 전부 각 화면 컴포넌트의 로컬 state 라 같은
+   * URL 로 다시 와도 라우팅으로는 풀리지 않는다. 화면마다 리스너를 다는 대신 **콘텐츠 서브트리를
+   * 통째로 리마운트**해 모든 탭이 별도 배선 없이 초기화되게 한다(2026-08-03).
+   *
+   * 서버 컴포넌트 결과는 이미 element 로 넘어와 있어 리마운트해도 재요청이 일어나지 않는다.
+   */
+  const [contentKey, setContentKey] = useState(0);
   const pathname = usePathname();
   const scrollElRef = useRef<HTMLDivElement | null>(null);
   const touchStartYRef = useRef(0);
@@ -531,9 +534,7 @@ export function MobileShell({
           }
 
           el?.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
-          // URL 이 같아도 화면 안쪽 상태(투두이스트의 오늘/기록 탭, 검색어, 필터)는 클라이언트에
-          // 있어서 라우팅으로는 안 풀린다. 그 화면들이 스스로 초기화하도록 신호만 보낸다.
-          window.dispatchEvent(new CustomEvent(TAB_RESET_EVENT, { detail: { id: item.id } }));
+          setContentKey((k) => k + 1);
         }}
       >
         <span className="ico">{LAUNCHER_META[item.id]?.icon ?? FALLBACK_ICON}</span>
@@ -836,7 +837,7 @@ export function MobileShell({
               onTouchStart={handleTouchStart}
               ref={scrollElRef}
             >
-              {children}
+              <div key={contentKey}>{children}</div>
             </div>
           </div>
 
