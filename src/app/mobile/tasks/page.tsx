@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { TasksWorkspace } from "@/components/tasks/tasks-workspace";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { getFieldActivities } from "@/lib/field-activity";
 import { getDictionary } from "@/lib/i18n";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
@@ -63,6 +64,7 @@ export default async function MobileTasksPage({ searchParams }: PageProps) {
     occurrenceStates,
     occurrenceOrders,
     completions,
+    fieldActivities,
   ] = await Promise.all([
     getVisibleTasks(session),
     getVisibleProjects(session),
@@ -71,6 +73,11 @@ export default async function MobileTasksPage({ searchParams }: PageProps) {
     getOccurrenceStates(session),
     getOccurrenceOrders(session),
     getTaskCompletions(),
+    getFieldActivities({
+      organizationId: session.organization.id,
+      userId: session.user.id,
+      locale,
+    }),
   ]);
   // Project tasks live only in the Projects tab; the Completed tab still surfaces project
   // completions via its filter, so those are passed separately.
@@ -88,6 +95,7 @@ export default async function MobileTasksPage({ searchParams }: PageProps) {
       <TasksWorkspace
         buildingLabels={dict.cleaning.buildingLabels}
         completions={completions}
+        fieldActivities={fieldActivities}
         copy={dict.tasks}
         currentUserId={session.user.id}
         initialView={initialView}

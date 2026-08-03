@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getFieldActivities, type FieldActivityRecord } from "@/lib/field-activity";
 import type { AppSession } from "@/lib/session";
 import {
   getOccurrenceOrders,
@@ -22,6 +23,8 @@ export type AdminTasksData = {
   projects: ProjectSummary[];
   users: ShareableUser[];
   completions: CompletionRecord[];
+  /** 투두 밖에서 본인이 완료 처리한 현장 활동(청소·유지보수·린넨·주문). 읽기 전용. */
+  fieldActivities: FieldActivityRecord[];
   occurrenceStates: OccurrenceStateRecord[];
   /** 반복 회차의 날짜별 수동 순서. 일회성은 tasks.sort_order 를 쓴다(2026-07-30). */
   occurrenceOrders: OccurrenceOrderRecord[];
@@ -56,20 +59,34 @@ export async function getAdminTasksData(session: AppSession): Promise<AdminTasks
     role: session.user.role,
   };
   try {
-    const [tasks, projects, users, completions, occurrenceStates, occurrenceOrders] =
-      await Promise.all([
-        getVisibleTasks(session),
-        getVisibleProjects(session),
-        getShareableUsers(session),
-        getCompletionRecords(),
-        getOccurrenceStates(session),
-        getOccurrenceOrders(session),
-      ]);
+    const [
+      tasks,
+      projects,
+      users,
+      completions,
+      fieldActivities,
+      occurrenceStates,
+      occurrenceOrders,
+    ] = await Promise.all([
+      getVisibleTasks(session),
+      getVisibleProjects(session),
+      getShareableUsers(session),
+      getCompletionRecords(),
+      // 모바일 완료·기록과 **같은 함수**를 쓴다 — 두 화면이 같은 줄을 보여야 한다.
+      getFieldActivities({
+        organizationId: session.organization.id,
+        userId: session.user.id,
+        locale: session.user.preferredLanguage,
+      }),
+      getOccurrenceStates(session),
+      getOccurrenceOrders(session),
+    ]);
     return {
       tasks,
       projects,
       users,
       completions,
+      fieldActivities,
       occurrenceStates,
       occurrenceOrders,
       me,
@@ -81,6 +98,7 @@ export async function getAdminTasksData(session: AppSession): Promise<AdminTasks
       projects: [],
       users: [],
       completions: [],
+      fieldActivities: [],
       occurrenceStates: [],
       occurrenceOrders: [],
       me,

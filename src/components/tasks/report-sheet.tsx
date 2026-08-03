@@ -4,7 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Copy, FileText, Lock, RefreshCw, Send } from "lucide-react";
 import { generateDailyReport, sendDailyReportToSlack } from "@/app/mobile/tasks/report-actions";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
-import { buildDailyReportText, type DailyReportTemplate } from "@/lib/daily-report";
+import {
+  buildDailyReportText,
+  type DailyReportItem,
+  type DailyReportTemplate,
+} from "@/lib/daily-report";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -60,7 +64,7 @@ export function ReportSheet({
   const [copied, setCopied] = useState(false);
   const [slackStatus, setSlackStatus] = useState<SlackStatus>("idle");
   // 완료 항목 원본 + 조립 조각. 체크된 항목만으로 본문을 다시 만들기 위해 들고 있는다.
-  const [items, setItems] = useState<string[]>([]);
+  const [items, setItems] = useState<DailyReportItem[]>([]);
   const [template, setTemplate] = useState<DailyReportTemplate | null>(null);
   const [picked, setPicked] = useState<boolean[]>([]);
   // 마지막으로 자동 조립한 본문. 사용자가 직접 손댔는지(`dirty`) 판정하는 기준.
@@ -240,7 +244,7 @@ export function ReportSheet({
                       </div>
                       <ul className="max-h-[22vh] overflow-y-auto overscroll-contain">
                         {items.map((item, i) => (
-                          <li className="border-b border-border/60 last:border-b-0" key={`${item}-${i}`}>
+                          <li className="border-b border-border/60 last:border-b-0" key={`${item.text}-${i}`}>
                             <button
                               aria-pressed={picked[i]}
                               className="flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors active:bg-muted/50"
@@ -268,7 +272,7 @@ export function ReportSheet({
                                     : "text-muted-foreground line-through",
                                 )}
                               >
-                                {item}
+                                {item.text}
                               </span>
                             </button>
                           </li>

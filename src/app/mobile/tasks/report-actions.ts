@@ -1,7 +1,8 @@
 "use server";
 
 import { canGenerateDailyReport } from "@/config/roles";
-import { buildDailyReportText, type DailyReportDraft } from "@/lib/daily-report";
+import { buildDailyReportText, type DailyReportDraft, type DailyReportItem } from "@/lib/daily-report";
+import { getFieldActivities } from "@/lib/field-activity";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { hasPermissionOverride } from "@/lib/permission-overrides-server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -25,6 +26,7 @@ type ReportTemplateParts = {
   labelDate: string;
   labelName: string;
   sectionDone: string;
+  sectionField: string;
   summaryOne: string;
   summaryMany: string;
 };
@@ -35,6 +37,7 @@ const REPORT_TEMPLATE: Record<string, ReportTemplateParts> = {
     labelDate: "날짜",
     labelName: "담당자",
     sectionDone: "■ 완료 업무",
+    sectionField: "■ 현장 활동",
     summaryOne: "총 완료: {n}건",
     summaryMany: "총 완료: {n}건",
   },
@@ -43,6 +46,7 @@ const REPORT_TEMPLATE: Record<string, ReportTemplateParts> = {
     labelDate: "日付",
     labelName: "担当者",
     sectionDone: "■ 完了業務",
+    sectionField: "■ 現場作業",
     summaryOne: "計: {n}件完了",
     summaryMany: "計: {n}件完了",
   },
@@ -51,6 +55,7 @@ const REPORT_TEMPLATE: Record<string, ReportTemplateParts> = {
     labelDate: "Date",
     labelName: "Name",
     sectionDone: "■ Completed Tasks",
+    sectionField: "■ Field Activity",
     summaryOne: "Total: {n} task completed",
     summaryMany: "Total: {n} tasks completed",
   },
@@ -141,29 +146,45 @@ export async function generateDailyReport(date: string): Promise<DailyReportResu
     net.set(r.task_id, (net.get(r.task_id) ?? 0) + (r.update_type === "completed" ? 1 : -1));
   }
   const completedIds = order.filter((id) => (net.get(id) ?? 0) > 0);
-  if (completedIds.length === 0) return { ok: false, reason: "empty" };
 
   // Resolve titles (org-scoped; a task deleted after completion simply drops out).
-  const { data: taskData, error: taskErr } = await supabase
-    .from("tasks")
-    .select("id, title")
-    .eq("organization_id", session.organization.id)
-    .in("id", completedIds)
-    .is("deleted_at", null);
-  if (taskErr) return { ok: false, reason: "error" };
   const titleById = new Map<string, string>();
-  for (const t of (taskData ?? []) as { id: string; title: string }[]) titleById.set(t.id, t.title);
+  if (completedIds.length > 0) {
+    const { data: taskData, error: taskErr } = await supabase
+      .from("tasks")
+      .select("id, title")
+      .eq("organization_id", session.organization.id)
+      .in("id", completedIds)
+      .is("deleted_at", null);
+    if (taskErr) return { ok: false, reason: "error" };
+    for (const t of (taskData ?? []) as { id: string; title: string }[]) titleById.set(t.id, t.title);
+  }
 
   // Collect unique titles only (no tags, no descriptions), in completion order.
   const seen = new Set<string>();
-  const titles: string[] = [];
+  const items: DailyReportItem[] = [];
   for (const id of completedIds) {
     const title = tidy(titleById.get(id) ?? "");
     if (!title || seen.has(title)) continue;
     seen.add(title);
-    titles.push(title);
+    items.push({ text: title, section: "done" });
   }
-  if (titles.length === 0) return { ok: false, reason: "empty" };
+
+  // 현장 활동 — 청소·유지보수·린넨·주문에서 **본인이 완료 처리한** 것만(`src/lib/field-activity.ts`).
+  // 투두 완료가 하나도 없어도 현장 일은 있었을 수 있으므로, `empty` 판정은 둘을 합친 뒤에 한다.
+  const field = await getFieldActivities({
+    organizationId: session.organization.id,
+    userId: session.user.id,
+    locale,
+  });
+  const fieldSeen = new Set<string>();
+  for (const activity of field) {
+    if (activity.day !== day || fieldSeen.has(activity.label)) continue;
+    fieldSeen.add(activity.label);
+    items.push({ text: activity.label, section: "field" });
+  }
+
+  if (items.length === 0) return { ok: false, reason: "empty" };
 
   // Format the date in the user's locale.
   const dateLabel = new Intl.DateTimeFormat(locale, {
@@ -177,7 +198,7 @@ export async function generateDailyReport(date: string): Promise<DailyReportResu
   // 항목 배열과 조각을 함께 내려보내, 클라이언트가 체크한 것만으로 본문을 다시 만들 수 있게 한다.
   const template = { ...tmpl, dateLabel, name: session.user.name };
 
-  return { ok: true, text: buildDailyReportText(template, titles), items: titles, template };
+  return { ok: true, text: buildDailyReportText(template, items), items, template };
 }
 
 /**

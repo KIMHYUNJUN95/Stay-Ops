@@ -800,6 +800,13 @@
 .adm .cmp-h__report:hover { background: var(--adm-surface); border-color: color-mix(in oklab, var(--adm-primary) 30%, var(--line)); color: var(--primary-ink); }
 .adm .cmp-h__report .ic { font-size: 15px; color: var(--adm-muted); }
 
+/* 현장 활동 줄 — 투두 행(`renderRow`)과 시각적으로 구분되게 낮은 대비로 둔다. 읽기 전용이라
+   hover 상태나 커서 변화도 주지 않는다(누를 게 없다는 걸 형태로 알린다). */
+.adm .fieldrow { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border: 1px solid var(--line-soft); border-radius: 11px; background: var(--card2); }
+.adm .fieldrow + .fieldrow { margin-top: 6px; }
+.adm .fieldrow__ic { flex: 0 0 auto; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--primary-soft); color: var(--adm-primary); }
+.adm .fieldrow__label { min-width: 0; flex: 1 1 auto; font-size: 13.5px; font-weight: 600; color: var(--adm-muted); }
+
 /* ── 프로젝트 뷰 ── */
 .adm .pjsec { margin-bottom: 10px; }
 .adm .pjsec-h { display: flex; align-items: center; gap: 8px; margin: 18px 2px 9px; }

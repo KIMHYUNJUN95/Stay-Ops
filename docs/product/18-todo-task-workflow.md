@@ -990,6 +990,10 @@ the **ReportSheet** bottom sheet:
     so the checkboxes never disagree with what would actually be sent.
   - The same picker exists on **both surfaces** — mobile `ReportSheet` and the admin console's
     report modal — sharing one assembly function, so numbering and the summary line cannot drift.
+- **Field activity is folded in automatically (2026-08-04).** Work finished outside the todo feature —
+  cleaning, maintenance, linen returns, supply orders — appears under a second **■ 현장 활동** section
+  and in the **Completed (완료/기록)** tab, without creating any `tasks` row. See "Field Activity"
+  below for the rules.
 - The result is shown in an **editable textarea** and can be copied to the clipboard or manually sent
   to the one configured Slack daily-report channel. The send control keeps its label on one line even
   on a narrow screen. Slack receives the textarea body unchanged, so the
@@ -1007,6 +1011,48 @@ the **ReportSheet** bottom sheet:
   enforced server-side, not just in the UI.
 
 See `docs/planning/01-decision-log.md` (2026-06-13) for the free-template decision.
+
+## Field Activity (현장 활동) — as-built (2026-08-04)
+
+Finishing a job on another screen now shows up in the todo **Completed (완료/기록)** tab and in the
+daily report, so a staff member's log reflects the whole day — not only the items they typed in
+themselves. Source: `src/lib/field-activity.ts` (`getFieldActivities`), shared by mobile and console.
+
+**No `tasks` rows are created.** The union happens at read time. Auto-generating task rows was
+rejected because it would (a) fill 오늘/내일/관리함 with items the user never added, (b) put records
+that have no undo contract inside `tasks`, which does have one (soft delete + 실행 취소), and
+(c) require a second copy to be fixed whenever the original record is corrected — the same
+duplicate-source hazard that once caused overdue tasks to be hard-deleted.
+
+**Only unambiguous completions count.** Starting, reporting, or filing is not completing:
+
+| Source | Counted when | Line |
+| --- | --- | --- |
+| `cleaning_sessions` | `status = completed`, `staff_user_id` = viewer | `아라키초A 201 청소 완료` |
+| `maintenance_reports` | `status = closed`, `completed_by` = viewer | `아라키초A 201 유지보수 완료` |
+| `linen_return_records` | registered (`registered_at`) | `린넨 반품처리 및 등록 완료` |
+| `order_requests` | request filed (`created_at`) | `재고조사 및 주문요청 처리 완료` |
+
+Lost & found is deliberately excluded. Attendance is excluded — it is not work output, and the
+report can be posted to a shared Slack channel.
+
+Rules:
+
+- **Linen and orders collapse to one line per day** no matter how many times they happened; the point
+  is that it was done, not how often. Cleaning and maintenance are per-room, so they stay separate.
+- Room labels reuse the cleaning canonical form, so the two surfaces never print a room differently.
+  Stored session labels keep the Arakicho sub-listing suffix for matching, so display goes through
+  `getDisplaySessionRoomLabel()` ("아라키초A 501_2" → "아라키초A 501").
+- The rows are **read-only** — no complete toggle, no undo, no long-press menu. The record lives on
+  the cleaning / maintenance screen; letting it be reverted from two places would make it unclear
+  which surface is authoritative.
+- They are **hidden while a filter is active** (search, tag, priority, or the 일반/프로젝트 pills).
+  Those filters test task attributes that field activity does not have, so leaving the rows in would
+  read as a broken filter.
+- A day group is created from the **union** of both sources — a day with only cleaning still gets a
+  group, and the daily report is no longer `empty` when the user completed field work but no todos.
+- Included in the report by default and **uncheckable** through the item picker, so anything a staff
+  member does not want to post can be dropped before copying or sending.
 
 ## Swipe Actions
 

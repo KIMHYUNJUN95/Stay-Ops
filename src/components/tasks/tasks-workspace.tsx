@@ -8,6 +8,7 @@ import {
   Archive,
   Bell,
   CalendarDays,
+  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -57,6 +58,7 @@ import { ReorderableTaskList } from "@/components/tasks/reorderable-task-list";
 import { ReportSheet } from "@/components/tasks/report-sheet";
 import { ProjectsBoard } from "@/components/tasks/projects-board";
 import { MiniCalendar } from "@/components/tasks/date-time-fields";
+import type { FieldActivityRecord } from "@/lib/field-activity";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { ProjectSummary } from "@/lib/projects";
 import type {
@@ -116,6 +118,7 @@ function ymdShift(ymd: string, n: number): string {
 export function TasksWorkspace({
   buildingLabels,
   completions,
+  fieldActivities,
   copy,
   currentUserId,
   initialView,
@@ -132,6 +135,7 @@ export function TasksWorkspace({
   buildingLabels: Record<string, string>;
   /** 완료 로그(task_updates net). 완료·기록 탭과 그 배지의 유일한 기준 — @/lib/tasks 주석 참고. */
   completions: TaskCompletionRecord[];
+  fieldActivities: FieldActivityRecord[];
   copy: Copy;
   currentUserId: string;
   initialView: View;
@@ -761,7 +765,9 @@ export function TasksWorkspace({
     projects: 0,
     instr: recvUnconfirmed,
     // Completed badge = today's (Tokyo) completions, from the same completion log the list uses.
-    completed: completionRows.filter((r) => r.completion.day === today).length,
+    completed:
+      completionRows.filter((r) => r.completion.day === today).length +
+      fieldActivities.filter((a) => a.day === today).length,
     calendar: 0,
   };
 
@@ -1262,7 +1268,7 @@ export function TasksWorkspace({
     if (view === "completed") {
       // 출처는 완료 로그(`completionRows`) — 행 status 가 아니다. 이유는 위 `completionRows` 주석 참고.
       // 필터 pill 은 일반 작업(프로젝트 밖)과 프로젝트 작업을 가른다.
-      if (completionRows.length === 0)
+      if (completionRows.length === 0 && fieldActivities.length === 0)
         return emptyState(CheckCircle2, copy.completedEmptyTitle, copy.completedEmptySub);
       const scoped = completionRows.filter(({ task }) =>
         completedFilter === "project"
@@ -1276,7 +1282,18 @@ export function TasksWorkspace({
       for (const row of list) {
         byDay.set(row.completion.day, [...(byDay.get(row.completion.day) ?? []), row]);
       }
-      const dayKeys = Array.from(byDay.keys()).sort((a, b) => b.localeCompare(a));
+      // 현장 활동(청소·유지보수·린넨·주문에서 본인이 완료 처리한 것). 투두가 아니므로
+      // 일반/프로젝트 필터 pill 이나 검색·태그 필터가 걸리면 감춘다 — 그 필터들은 작업의 속성으로
+      // 거르는데 현장 활동에는 그런 속성이 없어서, 남겨 두면 필터가 안 먹는 것처럼 보인다.
+      const fieldVisible = completedFilter === "all" && !filterActive ? fieldActivities : [];
+      const fieldByDay = new Map<string, FieldActivityRecord[]>();
+      for (const activity of fieldVisible) {
+        fieldByDay.set(activity.day, [...(fieldByDay.get(activity.day) ?? []), activity]);
+      }
+      // 날짜 그룹은 두 소스의 합집합 — 그날 투두 완료가 없고 청소만 했어도 그룹이 생겨야 한다.
+      const dayKeys = Array.from(new Set([...byDay.keys(), ...fieldByDay.keys()])).sort((a, b) =>
+        b.localeCompare(a),
+      );
       const filterPills = (
         <div className="mb-4 flex gap-2">
           {(["all", "regular", "project"] as const).map((f) => (
@@ -1296,7 +1313,7 @@ export function TasksWorkspace({
           ))}
         </div>
       );
-      if (list.length === 0)
+      if (list.length === 0 && fieldVisible.length === 0)
         return (
           <>
             {filterPills}
@@ -1317,10 +1334,10 @@ export function TasksWorkspace({
             const dayIsToday = k === today;
             // 로그 시각 기준 최신순. 반복 완료는 `completedAt`(행) 이 비어 있으므로 완료 로그의
             // 타임스탬프를 쓴다 — 행 값으로 정렬하면 반복 완료가 전부 바닥으로 밀린다.
-            const items = byDay
-              .get(k)!
+            const items = (byDay.get(k) ?? [])
               .slice()
               .sort((a, b) => b.completion.at.localeCompare(a.completion.at));
+            const fieldItems = fieldByDay.get(k) ?? [];
             return (
               <div key={k}>
                 <div className="mb-2.5 flex items-center gap-2 px-0.5">
@@ -1338,7 +1355,10 @@ export function TasksWorkspace({
                     </span>
                   ) : null}
                   <span className="rounded-full bg-slate-100 px-[7px] py-px font-mono text-[10.5px] font-semibold text-muted-foreground">
-                    {copy.completedDayCount.replace("{count}", String(items.length))}
+                    {copy.completedDayCount.replace(
+                      "{count}",
+                      String(items.length + fieldItems.length),
+                    )}
                   </span>
                   <span className="h-px flex-1 bg-border" />
                   <button
@@ -1376,6 +1396,22 @@ export function TasksWorkspace({
                       />
                     );
                   })}
+                  {/* 현장 활동 — 읽기 전용. 되돌리기·완료 토글·롱프레스 메뉴를 붙이지 않는다:
+                      원본은 청소·유지보수 화면에 있고, 여기서 되돌릴 수 있게 하면 어느 쪽이
+                      진짜인지 두 화면이 다투게 된다. TaskCard 를 쓰지 않는 것도 같은 이유다. */}
+                  {fieldItems.map((activity, i) => (
+                    <div
+                      className="flex items-center gap-2.5 rounded-2xl border border-border/70 bg-surface/60 px-3.5 py-3"
+                      key={`${k}|${activity.kind}|${i}`}
+                    >
+                      <span className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Check className="size-3" strokeWidth={3} aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0 flex-1 text-[13.5px] font-semibold leading-snug text-muted-foreground">
+                        {activity.label}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             );

@@ -99,7 +99,12 @@ import {
 } from "@/lib/tasks-recurrence";
 import type { AdminTasksData } from "@/lib/admin-tasks";
 import { getAdminTasksDictionary } from "@/lib/admin-tasks-i18n";
-import { buildDailyReportText, type DailyReportTemplate } from "@/lib/daily-report";
+import type { FieldActivityRecord } from "@/lib/field-activity";
+import {
+  buildDailyReportText,
+  type DailyReportItem,
+  type DailyReportTemplate,
+} from "@/lib/daily-report";
 import type { Locale } from "@/lib/i18n";
 import type { ProjectDetailData } from "@/lib/projects";
 import type { TaskDetail, TaskRecord } from "@/lib/tasks";
@@ -353,7 +358,7 @@ export function AdminTasksConsole({
   );
   const [reportEdited, setReportEdited] = useState("");
   // 일지에 포함할 항목 고르기 — 모바일 ReportSheet 와 같은 계약(`src/lib/daily-report.ts`).
-  const [reportItems, setReportItems] = useState<string[]>([]);
+  const [reportItems, setReportItems] = useState<DailyReportItem[]>([]);
   const [reportTemplate, setReportTemplate] = useState<DailyReportTemplate | null>(null);
   const [reportPicked, setReportPicked] = useState<boolean[]>([]);
   // 마지막으로 자동 조립한 본문. 사용자가 직접 손댔는지 판정하는 기준(모바일 `builtText` 와 동일).
@@ -2317,25 +2322,37 @@ export function AdminTasksConsole({
       if (!(matchQuery(task, q, nameOf) && matchPrio(task, prioFilter))) continue;
       rows.push({ task, day: r.day, byUserId: r.byUserId });
     }
-    if (rows.length === 0)
+    // 현장 활동(청소·유지보수·린넨·주문에서 본인이 완료 처리한 것). 투두가 아니라 작업 속성이
+    // 없으므로 검색·우선순위 필터가 걸려 있으면 감춘다 — 남겨 두면 필터가 안 먹는 것처럼 보인다.
+    const fieldVisible = q.trim() || prioFilter ? [] : data.fieldActivities;
+    if (rows.length === 0 && fieldVisible.length === 0)
       return <EmptyState icon={<CheckCircle2 size={26} />} t={dict.emCompleted} s={dict.emCompletedS} />;
     const byDay = new Map<string, CmpRow[]>();
     for (const row of rows) {
       if (!byDay.has(row.day)) byDay.set(row.day, []);
       byDay.get(row.day)!.push(row);
     }
-    const days = Array.from(byDay.keys()).sort((a, b) => b.localeCompare(a));
+    const fieldByDay = new Map<string, FieldActivityRecord[]>();
+    for (const activity of fieldVisible) {
+      if (!fieldByDay.has(activity.day)) fieldByDay.set(activity.day, []);
+      fieldByDay.get(activity.day)!.push(activity);
+    }
+    // 날짜 그룹은 두 소스의 합집합 — 그날 투두 완료가 없고 청소만 했어도 그룹이 생겨야 한다.
+    const days = Array.from(new Set([...byDay.keys(), ...fieldByDay.keys()])).sort((a, b) =>
+      b.localeCompare(a),
+    );
     return (
       <>
         {days.map((day) => {
-          const list = byDay.get(day)!;
+          const list = byDay.get(day) ?? [];
+          const fieldList = fieldByDay.get(day) ?? [];
           const dlabel =
             day === today ? dict.cmpToday : day === addDays(today, -1) ? dict.cmpYesterday : fmtLong(day, locale);
           return (
             <div key={day} className="cmp-day">
               <div className="cmp-h">
                 <span className="cmp-h__d">{dlabel}</span>
-                <span className="cmp-h__n">{fill(dict.cmpDone, { n: list.length })}</span>
+                <span className="cmp-h__n">{fill(dict.cmpDone, { n: list.length + fieldList.length })}</span>
                 <span className="cmp-h__line" />
                 <button className="cmp-h__report" onClick={() => openReport(day)}>
                   <FileText size={14} />
@@ -2353,6 +2370,16 @@ export function AdminTasksConsole({
                         : undefined,
                   }),
                 )}
+                {/* 현장 활동 — 읽기 전용. 되돌리기·완료 토글을 붙이지 않는다: 원본은 청소·유지보수
+                    화면에 있고, 여기서 되돌릴 수 있게 하면 어느 쪽이 진짜인지 두 화면이 다툰다. */}
+                {fieldList.map((activity, i) => (
+                  <div className="fieldrow" key={`${day}|${activity.kind}|${i}`}>
+                    <span className="fieldrow__ic">
+                      <Check size={12} strokeWidth={3} />
+                    </span>
+                    <span className="fieldrow__label">{activity.label}</span>
+                  </div>
+                ))}
               </div>
             </div>
           );
@@ -4479,7 +4506,7 @@ export function AdminTasksConsole({
                       </div>
                       <ul className="rptpick__list">
                         {reportItems.map((item, i) => (
-                          <li key={`${item}-${i}`}>
+                          <li key={`${item.text}-${i}`}>
                             <button
                               aria-pressed={reportPicked[i]}
                               className={`rptpick__row${reportPicked[i] ? " is-on" : ""}`}
@@ -4493,7 +4520,7 @@ export function AdminTasksConsole({
                               <span className="rptpick__box">
                                 {reportPicked[i] ? <Check size={12} strokeWidth={3} /> : null}
                               </span>
-                              <span className="rptpick__label">{item}</span>
+                              <span className="rptpick__label">{item.text}</span>
                             </button>
                           </li>
                         ))}

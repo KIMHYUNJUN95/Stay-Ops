@@ -477,6 +477,21 @@ Report (`src/app/mobile/tasks/report-actions.ts`):
 - **Assembly lives in `src/lib/daily-report.ts`** (`buildDailyReportText`), imported by the server
   action *and* both clients so numbering / summary can never drift between them. It is a separate
   module because a `"use server"` file may only export async functions.
+- **Two sections (2026-08-04).** `DailyReportItem` = `{ text, section: "done" | "field" }`. `done` is
+  todo completions; `field` is `getFieldActivities()` output. Numbering restarts at 1 inside each
+  section, an all-unchecked section drops its heading, and the total counts every selected item.
+
+Field activity (`src/lib/field-activity.ts`):
+
+- `getFieldActivities({ organizationId, userId, locale })` — read-only union of completed cleaning
+  sessions, closed maintenance reports, linen return registrations and filed order requests for the
+  viewer, grouped by Tokyo operating day, over the same 120-day window as `getTaskCompletions()`.
+  **Creates no rows.** Returns already-localized `label` strings (ko/ja/en table in the module, same
+  pattern as the report template). Linen / order collapse to one record per day.
+- Consumed by `generateDailyReport` (field section), `src/app/mobile/tasks/page.tsx` and
+  `getAdminTasksData` (Completed tab). Cleaning days come from `cleaning_date` — **not** from
+  `completed_at` — because the operating date and the calendar date differ for work finished after
+  midnight.
 - `sendDailyReportToSlack(date, editedText)` — server-only Incoming Webhook send of the reviewed
   report; rechecks the same permission and never returns the webhook URL to either UI.
 

@@ -13,12 +13,22 @@
  * `"use server"` 파일은 export 가 전부 async 여야 하므로 이 모듈은 별도로 분리되어 있다.
  */
 
+/**
+ * 일지의 두 구획. `done` 은 사용자가 직접 만든 투두 완료, `field` 는 청소·유지보수처럼 다른
+ * 화면에서 **완료 처리한 현장 활동**이다(`src/lib/field-activity.ts`). 섹션을 나눠 두면
+ * "내가 적어 둔 일"과 "현장에서 처리한 일"이 일지에서 구분된다.
+ */
+export type DailyReportSection = "done" | "field";
+
+export type DailyReportItem = { text: string; section: DailyReportSection };
+
 /** 서버가 이미 로케일에 맞춰 만들어 둔 조각들. 함수는 직렬화되지 않으므로 문구만 담는다. */
 export type DailyReportTemplate = {
   header: string;
   labelDate: string;
   labelName: string;
   sectionDone: string;
+  sectionField: string;
   /** 이미 로케일 포맷을 마친 날짜 문자열. */
   dateLabel: string;
   /** 작성자 이름. */
@@ -31,30 +41,41 @@ export type DailyReportTemplate = {
 export type DailyReportDraft = {
   /** 전체 항목을 포함한 기본 본문. 클라이언트의 초기 textarea 값. */
   text: string;
-  /** 정리를 마친 완료 업무 제목들(완료 순서, 중복 제거). 체크박스 목록의 원본. */
-  items: string[];
+  /** 투두 완료 제목 + 현장 활동. 체크박스 목록의 원본(정리·중복 제거를 마친 상태). */
+  items: DailyReportItem[];
   template: DailyReportTemplate;
 };
 
 /**
- * 선택된 항목만으로 보고서 본문을 만든다. 번호는 **선택된 것 기준으로 다시 매겨져서**,
- * 3번을 빼면 4번이 3번이 된다. 합계도 선택 개수를 따른다.
+ * 선택된 항목만으로 보고서 본문을 만든다. 번호는 **구획별로 1번부터 다시 매겨지고**, 3번을 빼면
+ * 4번이 3번이 된다. 합계는 구획과 무관하게 선택된 전체 개수다.
+ *
+ * 선택된 항목이 하나도 없는 구획은 **제목까지 통째로 빠진다** — 빈 "■ 현장 활동" 머리글만 남으면
+ * 그날 현장 일이 있었는데 지운 것처럼 읽힌다.
  */
-export function buildDailyReportText(template: DailyReportTemplate, items: string[]): string {
-  const numbered = items.map((title, i) => `${i + 1}. ${title}`).join("\n");
+export function buildDailyReportText(
+  template: DailyReportTemplate,
+  items: DailyReportItem[],
+): string {
+  const lines = [
+    template.header,
+    `${template.labelDate}: ${template.dateLabel}`,
+    `${template.labelName}: ${template.name}`,
+  ];
+
+  for (const [section, heading] of [
+    ["done", template.sectionDone],
+    ["field", template.sectionField],
+  ] as const) {
+    const inSection = items.filter((item) => item.section === section);
+    if (inSection.length === 0) continue;
+    lines.push("", heading, ...inSection.map((item, i) => `${i + 1}. ${item.text}`));
+  }
+
   const summary = (items.length === 1 ? template.summaryOne : template.summaryMany).replace(
     "{n}",
     String(items.length),
   );
-
-  return [
-    template.header,
-    `${template.labelDate}: ${template.dateLabel}`,
-    `${template.labelName}: ${template.name}`,
-    "",
-    template.sectionDone,
-    numbered,
-    "",
-    summary,
-  ].join("\n");
+  lines.push("", summary);
+  return lines.join("\n");
 }
