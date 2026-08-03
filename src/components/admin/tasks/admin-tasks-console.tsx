@@ -99,6 +99,7 @@ import {
 } from "@/lib/tasks-recurrence";
 import type { AdminTasksData } from "@/lib/admin-tasks";
 import { getAdminTasksDictionary } from "@/lib/admin-tasks-i18n";
+import { buildDailyReportText, type DailyReportTemplate } from "@/lib/daily-report";
 import type { Locale } from "@/lib/i18n";
 import type { ProjectDetailData } from "@/lib/projects";
 import type { TaskDetail, TaskRecord } from "@/lib/tasks";
@@ -351,6 +352,10 @@ export function AdminTasksConsole({
     null,
   );
   const [reportEdited, setReportEdited] = useState("");
+  // 일지에 포함할 항목 고르기 — 모바일 ReportSheet 와 같은 계약(`src/lib/daily-report.ts`).
+  const [reportItems, setReportItems] = useState<string[]>([]);
+  const [reportTemplate, setReportTemplate] = useState<DailyReportTemplate | null>(null);
+  const [reportPicked, setReportPicked] = useState<boolean[]>([]);
   const [newProj, setNewProj] = useState<{ name: string; members: string[]; q: string } | null>(null);
   // 프로젝트 섹션 편집 — 이름 변경 인라인 드래프트 / 새 섹션 이름 버퍼.
   const [sectionEdit, setSectionEdit] = useState<{ id: string; title: string } | null>(null);
@@ -3004,14 +3009,29 @@ export function AdminTasksConsole({
   const openReport = (date: string) => {
     setReport({ date, text: "", loading: true, sending: false, error: null });
     setReportEdited("");
+    setReportItems([]);
+    setReportTemplate(null);
+    setReportPicked([]);
     generateConsoleReport(date).then((res) => {
       if (res.ok) {
         setReport({ date, text: res.text, loading: false, sending: false, error: null });
         setReportEdited(res.text);
+        setReportItems(res.items);
+        setReportTemplate(res.template);
+        setReportPicked(res.items.map(() => true)); // 기본은 전체 포함 — 빼는 쪽이 예외다.
       } else {
         setReport({ date, text: "", loading: false, sending: false, error: res.reason });
       }
     });
+  };
+
+  /** 체크된 항목만으로 본문을 다시 조립한다(번호·합계도 다시 매겨진다). */
+  const applyReportPick = (next: boolean[]) => {
+    const chosen = reportItems.filter((_, i) => next[i]);
+    setReportPicked(next);
+    setReportEdited(
+      reportTemplate && chosen.length ? buildDailyReportText(reportTemplate, chosen) : "",
+    );
   };
   const copyReport = async () => {
     try {
@@ -4426,8 +4446,58 @@ export function AdminTasksConsole({
                       ).length,
                     })}
                   </div>
+                  {/* 포함할 항목 고르기 — 일지에 넣고 싶지 않은 업무는 체크만 풀면 되고,
+                      번호와 합계는 선택 기준으로 다시 매겨진다(모바일과 동일). */}
+                  {reportItems.length > 0 ? (
+                    <div className="rptpick">
+                      <div className="rptpick__top">
+                        <b>{dict.rptPickTitle}</b>
+                        <span className="rptpick__n">
+                          {fill(dict.rptPickCount, {
+                            selected: reportPicked.filter(Boolean).length,
+                            total: reportItems.length,
+                          })}
+                        </span>
+                        <span className="sp" />
+                        <button
+                          className="rptpick__all"
+                          onClick={() => {
+                            const all = reportPicked.filter(Boolean).length === reportItems.length;
+                            applyReportPick(reportItems.map(() => !all));
+                          }}
+                          type="button"
+                        >
+                          {reportPicked.filter(Boolean).length === reportItems.length
+                            ? dict.rptPickNone
+                            : dict.rptPickAll}
+                        </button>
+                      </div>
+                      <ul className="rptpick__list">
+                        {reportItems.map((item, i) => (
+                          <li key={`${item}-${i}`}>
+                            <button
+                              aria-pressed={reportPicked[i]}
+                              className={`rptpick__row${reportPicked[i] ? " is-on" : ""}`}
+                              onClick={() =>
+                                applyReportPick(
+                                  reportPicked.map((on, idx) => (idx === i ? !on : on)),
+                                )
+                              }
+                              type="button"
+                            >
+                              <span className="rptpick__box">
+                                {reportPicked[i] ? <Check size={12} strokeWidth={3} /> : null}
+                              </span>
+                              <span className="rptpick__label">{item}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                   <textarea
                     className="rpt__ta"
+                    placeholder={dict.rptPickEmpty}
                     spellCheck={false}
                     value={reportEdited}
                     onChange={(e) => setReportEdited(e.target.value)}
@@ -4436,7 +4506,15 @@ export function AdminTasksConsole({
               )}
             </div>
             <div className="sch__foot">
-              <button className="btn btn--ghost btn--sm" onClick={() => setReportEdited(report.text)}>
+              <button
+                className="btn btn--ghost btn--sm"
+                onClick={() => {
+                  // "원본으로"는 편집뿐 아니라 **선택도** 되돌린다 — 둘이 어긋나면 체크는 6/8인데
+                  // 본문은 8건인 상태가 되어 사용자가 무엇이 나갈지 알 수 없게 된다.
+                  setReportEdited(report.text);
+                  setReportPicked(reportItems.map(() => true));
+                }}
+              >
                 <Repeat size={14} />
                 {dict.rptReset}
               </button>
@@ -4448,12 +4526,12 @@ export function AdminTasksConsole({
                 <button
                   className="btn btn--ghost btn--sm"
                   onClick={sendReportToSlack}
-                  disabled={!!report.error || report.loading || report.sending}
+                  disabled={!!report.error || report.loading || report.sending || !reportEdited.trim()}
                 >
                   {report.sending ? <RefreshCw className="spin" size={14} /> : <Send size={14} />}
                   {report.sending ? dict.rptSlackSending : dict.rptSlackSend}
                 </button>
-                <button className="btn btn--pri btn--sm" onClick={copyReport} disabled={!!report.error || report.loading}>
+                <button className="btn btn--pri btn--sm" onClick={copyReport} disabled={!!report.error || report.loading || !reportEdited.trim()}>
                   <FileText size={14} />
                   {dict.rptCopy}
                 </button>

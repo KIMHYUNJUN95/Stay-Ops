@@ -16,6 +16,13 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **Todo 업무일지 — 보낼 항목 선택 (2026-08-03).** 보고서에 자동으로 들어가던 완료 항목을 사용자가
+  **골라서 뺄 수 있게** 했다. 서버는 완성 문자열 하나 대신 `{ text, items, template }`(`DailyReportDraft`)
+  를 내려주고, 체크된 항목만으로 본문을 다시 조립한다 — **번호와 합계도 선택 기준으로 다시 매겨진다.**
+  기본은 전체 체크(빼는 쪽이 예외), 전체 선택/해제 토글, 0건이면 복사·Slack 전송 잠금. 조립 로직은
+  `src/lib/daily-report.ts` 한 곳에만 두고 모바일 `ReportSheet` 와 콘솔 보고서 모달이 함께 부르므로
+  두 화면의 형식이 갈라질 수 없다. 기준 문서: Product `18`/`28`, Engineering `09`.
+
 - **Todo 업무일지 Slack 단일 채널 전송 구현 (2026-08-03).** 모바일과 `/admin/tasks`의 기존 보고서
   편집 양식에 `Slack으로 보내기`를 추가했다. 사용자 최종 편집 본문을 그대로 서버 전용 Incoming Webhook으로
   전송하며, 기존 보고서 권한을 서버에서 다시 확인한다. 작성자 식별은 보고서 본문의 담당자 줄로 충분하므로

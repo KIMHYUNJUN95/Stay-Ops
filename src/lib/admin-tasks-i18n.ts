@@ -274,6 +274,11 @@ export type AdminTasksDictionary = {
   rptTitle: string; // "업무일지 · {date}"
   rptHint: string; // "완료 {n}건을 정리한..."
   rptReset: string;
+  rptPickTitle: string;
+  rptPickAll: string;
+  rptPickNone: string;
+  rptPickCount: string; // "{total}개 중 {selected}개"
+  rptPickEmpty: string;
   rptClose: string;
   rptCopy: string;
   rptCopied: string;
@@ -425,6 +430,8 @@ const ko: AdminTasksDictionary = {
   npMembers: "{n}명 · 나 포함", npSearch: "이름 · 직무 검색", npHint: "프로젝트 작업은 멤버 전원이 같은 상태를 공유합니다.",
   npCancel: "취소", npCreate: "프로젝트 만들기",
   rptTitle: "업무일지 · {date}", rptHint: "완료 {n}건을 정리한 텍스트입니다. 필요한 부분을 직접 수정한 뒤 복사해 붙여 넣으세요.",
+  rptPickTitle: "포함할 항목", rptPickAll: "전체 선택", rptPickNone: "전체 해제",
+  rptPickCount: "{total}개 중 {selected}개", rptPickEmpty: "최소 한 개는 선택해 주세요.",
   rptReset: "원본으로", rptClose: "닫기", rptCopy: "전체 복사", rptCopied: "복사했습니다.",
   rptSlackSend: "Slack으로 보내기", rptSlackSending: "전송 중…", rptSlackSent: "Slack으로 보냈습니다.",
   rptSlackNotConfigured: "Slack 전송이 아직 설정되지 않았습니다.", rptSlackTooLong: "보고서가 너무 길어 Slack으로 보낼 수 없습니다.", rptSlackError: "Slack으로 보내지 못했습니다. 다시 시도해 주세요.",
@@ -531,6 +538,8 @@ const ja: AdminTasksDictionary = {
   npMembers: "{n}名 · 自分含む", npSearch: "名前 · 職務 検索", npHint: "プロジェクトのタスクはメンバー全員が同じ状態を共有します。",
   npCancel: "キャンセル", npCreate: "プロジェクト作成",
   rptTitle: "業務日報 · {date}", rptHint: "完了{n}件をまとめたテキストです。必要な部分を編集してコピー・貼り付けしてください。",
+  rptPickTitle: "含める項目", rptPickAll: "すべて選択", rptPickNone: "すべて解除",
+  rptPickCount: "{total}件中 {selected}件", rptPickEmpty: "少なくとも1件は選択してください。",
   rptReset: "元に戻す", rptClose: "閉じる", rptCopy: "全体コピー", rptCopied: "コピーしました。",
   rptSlackSend: "Slackへ送る", rptSlackSending: "送信中…", rptSlackSent: "Slackへ送信しました。",
   rptSlackNotConfigured: "Slack送信はまだ設定されていません。", rptSlackTooLong: "レポートが長すぎてSlackへ送信できません。", rptSlackError: "Slackへ送信できませんでした。もう一度お試しください。",
@@ -637,6 +646,8 @@ const en: AdminTasksDictionary = {
   npMembers: "{n} · incl. you", npSearch: "Search name · role", npHint: "Project tasks share one status across all members.",
   npCancel: "Cancel", npCreate: "Create project",
   rptTitle: "Work log · {date}", rptHint: "A text summary of {n} completed tasks. Edit as needed, then copy and paste.",
+  rptPickTitle: "Items to include", rptPickAll: "Select all", rptPickNone: "Clear all",
+  rptPickCount: "{selected} of {total}", rptPickEmpty: "Select at least one item to include.",
   rptReset: "Reset", rptClose: "Close", rptCopy: "Copy all", rptCopied: "Copied.",
   rptSlackSend: "Send to Slack", rptSlackSending: "Sending…", rptSlackSent: "Sent to Slack.",
   rptSlackNotConfigured: "Slack sending is not configured yet.", rptSlackTooLong: "This report is too long to send to Slack.", rptSlackError: "Couldn't send to Slack. Please try again.",

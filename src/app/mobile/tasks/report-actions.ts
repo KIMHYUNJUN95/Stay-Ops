@@ -1,6 +1,7 @@
 "use server";
 
 import { canGenerateDailyReport } from "@/config/roles";
+import { buildDailyReportText, type DailyReportDraft } from "@/lib/daily-report";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { hasPermissionOverride } from "@/lib/permission-overrides-server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -8,7 +9,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Json } from "@/types/database";
 
 export type DailyReportResult =
-  | { ok: true; text: string }
+  | ({ ok: true } & DailyReportDraft)
   | { ok: false; reason: "forbidden" | "empty" | "error" };
 
 export type SendDailyReportToSlackResult =
@@ -17,36 +18,41 @@ export type SendDailyReportToSlackResult =
 
 // ── Localized template parts ─────────────────────────────────────────────────
 // i18n-ignore-start: localized server-action report templates live together here.
-const REPORT_TEMPLATE: Record<
-  string,
-  {
-    header: string;
-    labelDate: string;
-    labelName: string;
-    sectionDone: string;
-    summary: (n: number) => string;
-  }
-> = {
+// 합계 문구는 `{n}` 자리표시자를 쓴다 — 클라이언트가 선택 개수에 맞춰 다시 조립하는데
+// 함수는 서버 액션 경계를 넘지 못하기 때문이다(`src/lib/daily-report.ts` 참고).
+type ReportTemplateParts = {
+  header: string;
+  labelDate: string;
+  labelName: string;
+  sectionDone: string;
+  summaryOne: string;
+  summaryMany: string;
+};
+
+const REPORT_TEMPLATE: Record<string, ReportTemplateParts> = {
   ko: {
     header: "[업무일지]",
     labelDate: "날짜",
     labelName: "담당자",
     sectionDone: "■ 완료 업무",
-    summary: (n) => `총 완료: ${n}건`,
+    summaryOne: "총 완료: {n}건",
+    summaryMany: "총 완료: {n}건",
   },
   ja: {
     header: "[業務日報]",
     labelDate: "日付",
     labelName: "担当者",
     sectionDone: "■ 完了業務",
-    summary: (n) => `計: ${n}件完了`,
+    summaryOne: "計: {n}件完了",
+    summaryMany: "計: {n}件完了",
   },
   en: {
     header: "[Daily Work Report]",
     labelDate: "Date",
     labelName: "Name",
     sectionDone: "■ Completed Tasks",
-    summary: (n) => `Total: ${n} task${n === 1 ? "" : "s"} completed`,
+    summaryOne: "Total: {n} task completed",
+    summaryMany: "Total: {n} tasks completed",
   },
 };
 // i18n-ignore-end
@@ -168,20 +174,10 @@ export async function generateDailyReport(date: string): Promise<DailyReportResu
     timeZone: "Asia/Tokyo",
   }).format(new Date(`${day}T00:00:00+09:00`));
 
-  const numbered = titles.map((t, i) => `${i + 1}. ${t}`).join("\n");
+  // 항목 배열과 조각을 함께 내려보내, 클라이언트가 체크한 것만으로 본문을 다시 만들 수 있게 한다.
+  const template = { ...tmpl, dateLabel, name: session.user.name };
 
-  const text = [
-    tmpl.header,
-    `${tmpl.labelDate}: ${dateLabel}`,
-    `${tmpl.labelName}: ${session.user.name}`,
-    "",
-    tmpl.sectionDone,
-    numbered,
-    "",
-    tmpl.summary(titles.length),
-  ].join("\n");
-
-  return { ok: true, text };
+  return { ok: true, text: buildDailyReportText(template, titles), items: titles, template };
 }
 
 /**

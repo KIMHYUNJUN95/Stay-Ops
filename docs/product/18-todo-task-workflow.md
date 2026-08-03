@@ -976,6 +976,20 @@ the **ReportSheet** bottom sheet:
 - **Free, no AI.** The report is template-based with a deterministic local tidy-up (whitespace,
   leading bullet glyphs, punctuation spacing) for light auto-correction — no LLM, no API key, no
   per-use cost. (An LLM-backed variant was prototyped then dropped; see the decision log.)
+- **Pick which items go in (2026-08-03).** Above the text body the sheet lists every completed item
+  with a checkbox — **all checked by default**, so excluding is the exception. Unchecking an item
+  removes it from the body and **renumbers the rest**; the total line follows the selection. A
+  header shows "8개 중 6개" with a **전체 선택 / 전체 해제** toggle. This exists because a work log may
+  contain items a staff member does not want to send to the whole company; before this, the only way
+  to drop one was to delete the line in the textarea and fix the numbering by hand.
+  - With **nothing selected** the body is empty and both 복사 / Slack 전송 are disabled — an empty
+    report can never be sent.
+  - Manual textarea edits are kept, but **changing the selection rebuilds the body** (it has to —
+    numbering and the total are derived). The hint line under the box says so as soon as the text
+    has been edited by hand. In the console, **"원본으로"** resets the selection along with the text,
+    so the checkboxes never disagree with what would actually be sent.
+  - The same picker exists on **both surfaces** — mobile `ReportSheet` and the admin console's
+    report modal — sharing one assembly function, so numbering and the summary line cannot drift.
 - The result is shown in an **editable textarea** and can be copied to the clipboard or manually sent
   to the one configured Slack daily-report channel. The send control keeps its label on one line even
   on a narrow screen. Slack receives the textarea body unchanged, so the

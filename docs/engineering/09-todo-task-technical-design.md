@@ -469,6 +469,14 @@ Report (`src/app/mobile/tasks/report-actions.ts`):
 - `generateDailyReport(date)` — staff-only (`canGenerateDailyReport`); gathers the caller's own
   completions for the Tokyo `date` and returns a free, template-based 업무일지 (no LLM / no API key), or
   `{ ok: false, reason: "forbidden" | "empty" | "error" }`.
+  **Returns a draft, not just a string (2026-08-03):** `{ ok: true, text, items, template }`
+  (`DailyReportDraft`). `items` is the tidied, de-duplicated completed-task titles in completion
+  order; `template` carries the already-localized header / labels / date label / author name and the
+  `summaryOne` / `summaryMany` count phrases with an `{n}` placeholder (functions can't cross the
+  server-action boundary). `text` is the same draft with **every** item included.
+- **Assembly lives in `src/lib/daily-report.ts`** (`buildDailyReportText`), imported by the server
+  action *and* both clients so numbering / summary can never drift between them. It is a separate
+  module because a `"use server"` file may only export async functions.
 - `sendDailyReportToSlack(date, editedText)` — server-only Incoming Webhook send of the reviewed
   report; rechecks the same permission and never returns the webhook URL to either UI.
 

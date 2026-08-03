@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy, FileText, Lock, RefreshCw, Send } from "lucide-react";
+import { Check, Copy, FileText, Lock, RefreshCw, Send } from "lucide-react";
 import { generateDailyReport, sendDailyReportToSlack } from "@/app/mobile/tasks/report-actions";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
+import { buildDailyReportText, type DailyReportTemplate } from "@/lib/daily-report";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +59,12 @@ export function ReportSheet({
   const [text, setText] = useState("");
   const [copied, setCopied] = useState(false);
   const [slackStatus, setSlackStatus] = useState<SlackStatus>("idle");
+  // 완료 항목 원본 + 조립 조각. 체크된 항목만으로 본문을 다시 만들기 위해 들고 있는다.
+  const [items, setItems] = useState<string[]>([]);
+  const [template, setTemplate] = useState<DailyReportTemplate | null>(null);
+  const [picked, setPicked] = useState<boolean[]>([]);
+  // 마지막으로 자동 조립한 본문. 사용자가 직접 손댔는지(`dirty`) 판정하는 기준.
+  const [builtText, setBuiltText] = useState("");
 
   const run = useCallback(() => {
     setStatus("loading");
@@ -65,13 +72,37 @@ export function ReportSheet({
     setSlackStatus("idle");
     generateDailyReport(date).then((res) => {
       if (res.ok) {
+        setItems(res.items);
+        setTemplate(res.template);
+        setPicked(res.items.map(() => true)); // 기본은 전체 포함 — 빼는 쪽이 예외다.
         setText(res.text);
+        setBuiltText(res.text);
         setStatus("done");
       } else {
         setStatus(res.reason);
       }
     });
   }, [date]);
+
+  /**
+   * 선택을 바꾸고 본문을 다시 조립한다. 번호와 합계가 선택 기준으로 다시 매겨지므로, 사용자가
+   * textarea 에서 줄을 지우고 번호를 손보는 일이 없어진다. 직접 편집한 내용은 이 시점에
+   * 덮어써지며, 그 사실은 `reportPickResetHint` 로 미리 알린다.
+   */
+  const applyPick = (next: boolean[]) => {
+    const chosen = items.filter((_, i) => next[i]);
+    const nextText = template && chosen.length ? buildDailyReportText(template, chosen) : "";
+    setPicked(next);
+    setText(nextText);
+    setBuiltText(nextText);
+    setCopied(false);
+    setSlackStatus("idle");
+  };
+
+  const pickedCount = picked.filter(Boolean).length;
+  const allPicked = items.length > 0 && pickedCount === items.length;
+  const dirty = text !== builtText;
+  const canSubmit = pickedCount > 0 && text.trim().length > 0;
 
   // Kick off generation on mount (rAF-scheduled so the loading setState is not called
   // synchronously inside the effect body).
@@ -187,16 +218,78 @@ export function ReportSheet({
                   )
                 : (
                   <div>
+                    {/* 포함할 항목 고르기. 일지에 넣고 싶지 않은 업무를 textarea 에서 직접 지우는
+                        대신 여기서 체크만 풀면 되고, 번호·합계는 자동으로 다시 매겨진다. */}
+                    <div className="mb-3 overflow-hidden rounded-2xl border border-border">
+                      <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-3 py-2">
+                        <div className="flex min-w-0 items-baseline gap-1.5">
+                          <span className="text-[12.5px] font-extrabold tracking-[-0.01em] text-foreground">
+                            {copy.reportPickTitle}
+                          </span>
+                          <span className="truncate text-[11.5px] font-medium text-muted-foreground">
+                            {copy.reportPickCount(pickedCount, items.length)}
+                          </span>
+                        </div>
+                        <button
+                          className="shrink-0 rounded-full px-2 py-1 text-[11.5px] font-bold text-primary transition-colors active:bg-primary/10"
+                          onClick={() => applyPick(items.map(() => !allPicked))}
+                          type="button"
+                        >
+                          {allPicked ? copy.reportPickNone : copy.reportPickAll}
+                        </button>
+                      </div>
+                      <ul className="max-h-[22vh] overflow-y-auto overscroll-contain">
+                        {items.map((item, i) => (
+                          <li className="border-b border-border/60 last:border-b-0" key={`${item}-${i}`}>
+                            <button
+                              aria-pressed={picked[i]}
+                              className="flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors active:bg-muted/50"
+                              onClick={() =>
+                                applyPick(picked.map((on, idx) => (idx === i ? !on : on)))
+                              }
+                              type="button"
+                            >
+                              <span
+                                aria-hidden="true"
+                                className={cn(
+                                  "mt-px flex size-[18px] shrink-0 items-center justify-center rounded-[6px] border transition-colors",
+                                  picked[i]
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-border bg-surface",
+                                )}
+                              >
+                                {picked[i] ? <Check className="size-3" strokeWidth={3} /> : null}
+                              </span>
+                              <span
+                                className={cn(
+                                  "min-w-0 flex-1 text-[13px] leading-snug",
+                                  picked[i]
+                                    ? "font-medium text-foreground"
+                                    : "text-muted-foreground line-through",
+                                )}
+                              >
+                                {item}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                     <textarea
-                      className="h-[44vh] w-full resize-none rounded-2xl border border-border bg-muted/40 p-3.5 text-[13.5px] leading-relaxed text-foreground outline-none focus:border-primary"
+                      className="h-[26vh] w-full resize-none rounded-2xl border border-border bg-muted/40 p-3.5 text-[13.5px] leading-relaxed text-foreground outline-none focus:border-primary"
                       onChange={(e) => {
                         setText(e.target.value);
                         setSlackStatus("idle");
                       }}
+                      placeholder={copy.reportPickEmpty}
                       value={text}
                     />
                     <p className="mt-1.5 px-0.5 text-[11.5px] text-muted-foreground">
-                      {copy.reportEditHint}
+                      {pickedCount === 0
+                        ? copy.reportPickEmpty
+                        : dirty
+                          ? copy.reportPickResetHint
+                          : copy.reportEditHint}
                     </p>
                     {slackMessage ? (
                       <p className="mt-2 px-0.5 text-[11.5px] text-muted-foreground" role="status">
@@ -219,7 +312,7 @@ export function ReportSheet({
                         </button>
                         <button
                           className={cn(secondaryBtn, "flex-[1.35]")}
-                          disabled={slackStatus === "sending"}
+                          disabled={slackStatus === "sending" || !canSubmit}
                           onClick={onSlackSend}
                           type="button"
                         >
@@ -234,7 +327,8 @@ export function ReportSheet({
                         </button>
                       </div>
                       <button
-                        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[14px] font-extrabold tracking-[-0.01em] text-primary-foreground transition-opacity active:opacity-90"
+                        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-[14px] font-extrabold tracking-[-0.01em] text-primary-foreground transition-opacity active:opacity-90 disabled:opacity-50"
+                        disabled={!canSubmit}
                         onClick={onCopy}
                         type="button"
                       >
