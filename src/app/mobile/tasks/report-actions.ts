@@ -236,14 +236,24 @@ export async function sendDailyReportToSlack(
   if (!generated.ok) return fail(generated.reason);
 
   const webhookUrl = process.env.SLACK_DAILY_REPORT_WEBHOOK_URL?.trim();
-  if (!webhookUrl) return fail("not_configured");
+  if (!webhookUrl) {
+    // `not_configured` 는 "값이 없다"와 "값이 이상하다" 둘 다에서 난다. 어느 쪽인지 모르면
+    // 환경변수를 넣고도 원인을 못 좁힌다 — 두 경우를 갈라 남긴다(2026-08-05).
+    console.warn("[report] slack webhook env is missing or empty");
+    return fail("not_configured");
+  }
 
   try {
     const endpoint = new URL(webhookUrl);
     if (endpoint.protocol !== "https:" || endpoint.hostname !== "hooks.slack.com") {
+      // 호스트/프로토콜만 남긴다 — 경로에 토큰이 들어 있으므로 URL 전체는 절대 로그에 남기지 않는다.
+      console.warn(
+        `[report] slack webhook host rejected: ${endpoint.protocol}//${endpoint.hostname} (len=${webhookUrl.length})`,
+      );
       return fail("not_configured");
     }
   } catch {
+    console.warn(`[report] slack webhook is not a valid URL (len=${webhookUrl.length})`);
     return fail("not_configured");
   }
 
