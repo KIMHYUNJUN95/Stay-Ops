@@ -17,6 +17,8 @@ import {
   cleaningTaskKeys,
   formatDuration,
   getCleaningOperatingDateKey,
+  canReadAllCleaningSessions,
+  getCleaningStaffOptions,
   getMyActiveCleaningSession,
   getMyTodayCleaningSessions,
   getOrgTodayCleaningRoomLabels,
@@ -25,6 +27,7 @@ import {
 } from "@/lib/cleaning";
 import type { CleaningTarget, SettingTarget } from "@/lib/cleaning-targets";
 import { getCleaningTargets } from "@/lib/cleaning-targets";
+import { CleaningDaySwitcher } from "@/components/cleaning/cleaning-day-switcher";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { getOnboardingState } from "@/lib/onboarding";
 import {
@@ -41,6 +44,8 @@ import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 
 type MobileCleaningPageProps = {
   searchParams: Promise<{
+    /** 조회할 운영일(YYYY-MM-DD). 없거나 형식이 어긋나면 오늘. */
+    date?: string;
     cancelled?: string;
     completed?: string;
     error?: string;
@@ -306,14 +311,27 @@ function CleaningSummaryCard({
   );
 }
 
+/** 하루치 청소 결과 한 줄 — 과거 날짜 카드에 겹쳐 보여준다. */
+type DayCleaningRecord = { staffName: string; timeLabel: string | null };
+
 function CleaningTargetCard({
   copy,
   locale,
   target,
+  readOnly,
+  record,
 }: {
   copy: ReturnType<typeof getDictionary>["cleaning"];
   locale: Locale;
   target: CleaningTarget;
+  /** 오늘이 아닌 날짜 = 읽기 전용. 시작 버튼을 그리지 않는다(2026-08-04). */
+  readOnly?: boolean;
+  /**
+   * 그날의 청소 결과. 값이 있으면 누가 언제 했는지, `null` 이면 **확실히** 기록이 없는 것,
+   * `undefined` 면 볼 권한이 없어 **단정할 수 없는** 것이다 — 마지막 경우엔 아무것도 그리지
+   * 않는다. 남의 청소를 "기록 없음"으로 그리면 빠뜨린 것처럼 읽히기 때문이다.
+   */
+  record?: DayCleaningRecord | null;
 }) {
   const subLabel = target.hasTurnover ? (
     <span>
@@ -359,16 +377,30 @@ function CleaningTargetCard({
             <span className="truncate">{subLabel}</span>
           </p>
         </div>
-        <form action={startCleaningSession}>
-          <input type="hidden" name="roomLabel" value={target.sessionRoomLabel} />
-          <input type="hidden" name="taskKey" value="checkout" />
-          <Button
-            className={CLEANING_START_BUTTON}
-            type="submit"
-          >
-            {copy.start}
-          </Button>
-        </form>
+        {!readOnly ? (
+          <form action={startCleaningSession}>
+            <input type="hidden" name="roomLabel" value={target.sessionRoomLabel} />
+            <input type="hidden" name="taskKey" value="checkout" />
+            <Button
+              className={CLEANING_START_BUTTON}
+              type="submit"
+            >
+              {copy.start}
+            </Button>
+          </form>
+        ) : record ? (
+          <div className="shrink-0 text-right">
+            <p className="text-[12px] font-black text-primary">{copy.statusLabels.completed}</p>
+            <p className="mt-0.5 text-[11.5px] font-bold text-slate-600">{record.staffName}</p>
+            {record.timeLabel ? (
+              <p className="mt-0.5 text-[11px] font-semibold text-slate-400">{record.timeLabel}</p>
+            ) : null}
+          </div>
+        ) : record === null ? (
+          <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-400">
+            {copy.console.noRecordLabel}
+          </span>
+        ) : null}
       </div>
     </Card>
   );
@@ -377,9 +409,14 @@ function CleaningTargetCard({
 function SettingTargetCard({
   copy,
   target,
+  readOnly,
+  record,
 }: {
   copy: ReturnType<typeof getDictionary>["cleaning"];
   target: SettingTarget;
+  readOnly?: boolean;
+  /** `null` = 확실히 기록 없음, `undefined` = 볼 권한이 없어 단정 불가(아무것도 그리지 않음). */
+  record?: DayCleaningRecord | null;
 }) {
   return (
     <Card className={CLEANING_CARD}>
@@ -405,16 +442,30 @@ function SettingTargetCard({
             </span>
           </p>
         </div>
-        <form action={startCleaningSession}>
-          <input type="hidden" name="roomLabel" value={target.sessionRoomLabel} />
-          <input type="hidden" name="taskKey" value="simple" />
-          <Button
-            className={CLEANING_START_BUTTON}
-            type="submit"
-          >
-            {copy.startSetting}
-          </Button>
-        </form>
+        {!readOnly ? (
+          <form action={startCleaningSession}>
+            <input type="hidden" name="roomLabel" value={target.sessionRoomLabel} />
+            <input type="hidden" name="taskKey" value="simple" />
+            <Button
+              className={CLEANING_START_BUTTON}
+              type="submit"
+            >
+              {copy.startSetting}
+            </Button>
+          </form>
+        ) : record ? (
+          <div className="shrink-0 text-right">
+            <p className="text-[12px] font-black text-primary">{copy.statusLabels.completed}</p>
+            <p className="mt-0.5 text-[11.5px] font-bold text-slate-600">{record.staffName}</p>
+            {record.timeLabel ? (
+              <p className="mt-0.5 text-[11px] font-semibold text-slate-400">{record.timeLabel}</p>
+            ) : null}
+          </div>
+        ) : record === null ? (
+          <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-400">
+            {copy.console.noRecordLabel}
+          </span>
+        ) : null}
       </div>
     </Card>
   );
@@ -449,6 +500,16 @@ export default async function MobileCleaningPage({
     redirect("/mobile");
   }
 
+  // 조회 날짜. 잘못된 값은 조용히 오늘로 떨어진다 — 링크 하나로 화면이 깨지지 않게.
+  const operatingToday = getCleaningOperatingDateKey();
+  const viewDate =
+    params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : operatingToday;
+  const isToday = viewDate === operatingToday;
+  // RLS 상 staff / part_time_staff 는 **본인 세션만** 읽는다. 그 사람들에게 "기록 없음"을 그리면
+  // 남이 끝낸 청소가 빠뜨린 것처럼 보인다 — 단정할 수 있는 사람에게만 그린다(2026-08-04).
+  const canSeeAllSessions = canReadAllCleaningSessions(session.user.role);
+  const isFuture = viewDate > operatingToday;
+
   const sessions = await getMyTodayCleaningSessions(session);
   // 진행 중인 세션은 **오늘 목록이 아니라 날짜 무관 조회**로 잡는다. 유니크 인덱스가 날짜를 보지
   // 않으므로, 지난 날짜의 미완료 세션이 남아 있으면 그것이 새 시작을 막는다 — 화면에 안 보이면
@@ -471,11 +532,17 @@ export default async function MobileCleaningPage({
   // both the catalog-based room label resolver and the manual form options.
   let cleaningTargets: Awaited<ReturnType<typeof getCleaningTargets>> | null = null;
   let roomCatalog: ActiveRoomCatalogItem[] | undefined = undefined;
-  let orgTodaySessions: { room_label: string; status: string }[] = [];
+  let orgTodaySessions: Awaited<ReturnType<typeof getOrgTodayCleaningRoomLabels>> = [];
+  // 과거 날짜에서 담당자 이름을 그리려면 이름표가 필요하다. 오늘만 볼 때는 부르지 않는다.
+  const staffOptions = isToday
+    ? []
+    : await getCleaningStaffOptions(session.organization.id).catch(() => []);
+  const staffNameById = new Map(staffOptions.map((o) => [o.id, o.name] as const));
+
   [cleaningTargets, roomCatalog, orgTodaySessions] = await Promise.all([
-    getCleaningTargets(session.organization.id).catch(() => null),
+    getCleaningTargets(session.organization.id, viewDate).catch(() => null),
     getActiveRoomCatalogServer(session.organization.id).catch(() => undefined),
-    getOrgTodayCleaningRoomLabels(session.organization.id).catch(() => []),
+    getOrgTodayCleaningRoomLabels(session.organization.id, viewDate).catch(() => []),
   ]);
 
   // Catalog-based map is the primary resolver (covers all active room master entries).
@@ -498,6 +565,20 @@ export default async function MobileCleaningPage({
     unknownRoomLabelCount += 1;
     if (unknownRoomLabelSamples.length < 5) unknownRoomLabelSamples.push(s.room_label);
   }
+  // 과거 날짜용 — 객실별 "누가 언제 했는지". 오늘은 시작 버튼을 그려야 하므로 만들지 않는다.
+  const recordByRoomKey = new Map<string, DayCleaningRecord>();
+  if (!isToday) {
+    for (const s of orgTodaySessions) {
+      if (s.status !== "completed") continue;
+      const resolved = resolveRoomKey(s.room_label, catalogLabelMap, legacyAliasMap);
+      if (resolved.roomKey === null) continue;
+      recordByRoomKey.set(resolved.roomKey, {
+        staffName: staffNameById.get(s.staff_user_id) ?? copy.console.unknownStaff,
+        timeLabel: s.completed_at ? formatTime(s.completed_at, locale) : null,
+      });
+    }
+  }
+
   if (process.env.NODE_ENV === "development" && (unknownRoomLabelCount > 0 || resolvedByAliasCount > 0)) {
     console.warn("[cleaning] room_label resolver stats", {
       legacyAliasResolved: resolvedByAliasCount,
@@ -577,6 +658,7 @@ export default async function MobileCleaningPage({
                 cleaningTargets === null ? (
                   "-"
                 ) : (
+                  isToday ? (
                   <SettingTargetsSheet
                     closeLabel={copy.cancelCompletion}
                     count={settingTargetCount}
@@ -587,6 +669,11 @@ export default async function MobileCleaningPage({
                     startLabel={copy.startSetting}
                     title={copy.settingListTitle}
                   />
+                  ) : (
+                    // 과거·미래 날짜에서는 시트를 열지 않는다. 시작 버튼이 눌리면 서버가 **오늘**
+                    // 날짜로 세션을 만들어 엉뚱한 날에 기록된다(2026-08-04).
+                    settingTargetCount
+                  )
                 )
               }
             />
@@ -598,6 +685,27 @@ export default async function MobileCleaningPage({
             />
           </div>
         </Card>
+
+        {/* 운영일 이동. 청소 대상은 예약에서 파생되므로 과거·미래도 그대로 계산된다(2026-08-04). */}
+        <CleaningDaySwitcher
+          basePath="/mobile/cleaning"
+          date={viewDate}
+          labels={{
+            prev: copy.console.dayPrev,
+            next: copy.console.dayNext,
+            select: copy.console.daySelect,
+            today: copy.console.today,
+          }}
+          locale={locale}
+          today={operatingToday}
+        />
+
+        {/* 오늘이 아닌 날짜의 한계를 명시한다 — 숫자를 오해하지 않도록. */}
+        {!isToday ? (
+          <div className="rounded-xl border border-primary/20 bg-primary/[0.06] px-4 py-3 text-[12.5px] font-semibold leading-relaxed text-primary">
+            {isFuture ? copy.console.dateFutureNotice : copy.console.datePastNotice}
+          </div>
+        ) : null}
 
         {/* Cleaning log entry — date-grouped record sheet (own; managers can view others). */}
         <Link
@@ -768,6 +876,11 @@ export default async function MobileCleaningPage({
                           copy={copy}
                           key={target.roomKey}
                           locale={locale}
+                          readOnly={!isToday}
+                          record={
+                            recordByRoomKey.get(target.roomKey) ??
+                            (canSeeAllSessions ? null : undefined)
+                          }
                           target={target}
                         />
                       ))}
@@ -812,6 +925,11 @@ export default async function MobileCleaningPage({
                         <SettingTargetCard
                           copy={copy}
                           key={target.roomKey}
+                          readOnly={!isToday}
+                          record={
+                            recordByRoomKey.get(target.roomKey) ??
+                            (canSeeAllSessions ? null : undefined)
+                          }
                           target={target}
                         />
                       ))}

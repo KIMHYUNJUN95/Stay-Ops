@@ -40,6 +40,28 @@ export const cleaningForceCompleteRoles = [
   "field_manager",
 ] as const satisfies readonly Role[];
 
+/**
+ * 조직의 **모든** 청소 세션을 읽을 수 있는 역할인가.
+ *
+ * RLS 정책 `members can read relevant cleaning sessions` 와 **같은 목록을 유지해야 한다** —
+ * 여기가 넓으면 화면이 있지도 않은 데이터를 기대하고, 좁으면 볼 수 있는 것을 감춘다.
+ *
+ * 왜 필요한가: `staff` / `part_time_staff` 는 자기 세션만 읽는다. 과거 날짜 화면에서 그 사실을
+ * 모르고 그리면 **남이 끝낸 청소가 "기록 없음"으로 보여** 빠뜨린 청소처럼 읽힌다. 그래서 권한이
+ * 없는 사람에게는 "없음"을 단정하지 않는다(2026-08-04).
+ */
+export const cleaningReadAllRoles = [
+  "developer_super_admin",
+  "owner",
+  "office_admin",
+  "cs_staff",
+  "field_manager",
+] as const satisfies readonly Role[];
+
+export function canReadAllCleaningSessions(role: string) {
+  return (cleaningReadAllRoles as readonly string[]).includes(role);
+}
+
 export function canForceCompleteCleaning(role: string) {
   return (cleaningForceCompleteRoles as readonly string[]).includes(role);
 }
@@ -137,16 +159,25 @@ export async function getMyTodayCleaningSessions(session: AppSession) {
 // Used by the cleaning page to build the "already processed" exclusion set.
 export async function getOrgTodayCleaningRoomLabels(
   organizationId: string,
-): Promise<{ room_label: string; status: string }[]> {
+  date?: string,
+): Promise<{ room_label: string; status: string; staff_user_id: string; completed_at: string | null }[]> {
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from("cleaning_sessions")
-    .select("room_label, status")
+    // 과거 날짜 조회에서 "누가 했는지"를 보여주려면 담당자·완료 시각이 필요하다(2026-08-04).
+    // 주의: 이 조회는 RLS 클라이언트를 쓰므로 staff / part_time_staff 는 **본인 세션만** 받는다.
+    // 그래서 남이 끝낸 방이 빈칸으로 보인다 — 권한을 넓히기 전까지 남는 한계다.
+    .select("room_label, status, staff_user_id, completed_at")
     .eq("organization_id", organizationId)
-    .eq("cleaning_date", getCleaningOperatingDateKey());
+    .eq("cleaning_date", date ?? getCleaningOperatingDateKey());
 
   if (error) throw new Error(error.message);
-  return (data ?? []) as { room_label: string; status: string }[];
+  return (data ?? []) as {
+    room_label: string;
+    status: string;
+    staff_user_id: string;
+    completed_at: string | null;
+  }[];
 }
 
 // Full session rows for the org on one operating date (org-wide, every staff member) — used by the
