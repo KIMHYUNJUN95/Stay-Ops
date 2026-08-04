@@ -35,6 +35,14 @@ type RosterNavDatePickerProps = {
   localeTag: string;
   basePath: string;
   labels: AdminDatePickerLabels;
+  /**
+   * 미래 날짜 이동 허용 여부(기본 false).
+   *
+   * 근무표(roster)는 지나간 사실을 보는 화면이라 미래를 막는 것이 맞다. 반면 청소 현황은 대상이
+   * **예약에서 파생**되어 내일·다음 주도 계산되고, 그게 인력 배치의 근거가 된다(2026-08-04).
+   * 그래서 화면이 스스로 정하도록 열어 둔다 — 기본값은 기존 동작 그대로다.
+   */
+  allowFuture?: boolean;
 };
 
 type AdminDatePickerProps = InlineDatePickerProps | RosterNavDatePickerProps;
@@ -83,7 +91,12 @@ function daysInMonthKey(monthKey: string): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
-function buildCalendarCells(monthKey: string, todayDate: string, selectedDate: string) {
+function buildCalendarCells(
+  monthKey: string,
+  todayDate: string,
+  selectedDate: string,
+  allowFuture = false,
+) {
   const firstDow = tokyoDayOfWeek(`${monthKey}-01`);
   const days = daysInMonthKey(monthKey);
   const cells: Array<{ key: string | null; day: number | null; future: boolean; selected: boolean }> =
@@ -92,7 +105,7 @@ function buildCalendarCells(monthKey: string, todayDate: string, selectedDate: s
   for (let i = 0; i < firstDow; i++) cells.push({ key: null, day: null, future: false, selected: false });
   for (let day = 1; day <= days; day++) {
     const key = `${monthKey}-${String(day).padStart(2, "0")}`;
-    cells.push({ key, day, future: key > todayDate, selected: key === selectedDate });
+    cells.push({ key, day, future: !allowFuture && key > todayDate, selected: key === selectedDate });
   }
   return cells;
 }
@@ -229,14 +242,15 @@ function RosterNavDatePicker({
   localeTag,
   basePath,
   labels,
+  allowFuture = false,
 }: RosterNavDatePickerProps) {
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(date.slice(0, 7));
   const cells = useMemo(
-    () => buildCalendarCells(calendarMonth, todayDate, date),
-    [calendarMonth, date, todayDate],
+    () => buildCalendarCells(calendarMonth, todayDate, date, allowFuture),
+    [allowFuture, calendarMonth, date, todayDate],
   );
   const dowLabels = useMemo(
     () =>
@@ -279,7 +293,7 @@ function RosterNavDatePicker({
   }, [open]);
 
   function go(targetDate: string) {
-    const nextDate = targetDate > todayDate ? todayDate : targetDate;
+    const nextDate = !allowFuture && targetDate > todayDate ? todayDate : targetDate;
     setOpen(false);
     router.push(`${basePath}?date=${nextDate}`);
   }

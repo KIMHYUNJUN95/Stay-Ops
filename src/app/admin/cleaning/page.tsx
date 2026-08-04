@@ -11,15 +11,26 @@ import { getActiveRoomCatalogServer } from "@/lib/rooms";
 // cleaning_sessions + reservation data (see src/lib/admin-cleaning.ts) as of 2026-07-14 — replaces
 // the earlier design-implementation mock. See docs/product/07-cleaning-workflow.md →
 // "2026-07-14 어드민 청소 대시보드 — 백엔드 연동".
-export default async function AdminCleaningPage() {
+export default async function AdminCleaningPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string | string[] }>;
+}) {
   const session = await requireAdminPageSession({ nextPath: "/admin/cleaning" });
   const locale = session.user.preferredLanguage;
   const dictionary = getDictionary(locale);
 
-  const [ty, tm] = getCleaningOperatingDateKey().split("-").map(Number);
+  // 조회할 운영일. 형식이 어긋나면 조용히 오늘로 떨어진다 — 잘못된 링크로 화면이 깨지지 않게.
+  const rawDate = (await searchParams)?.date;
+  const dateParam = Array.isArray(rawDate) ? rawDate[0] : rawDate;
+  const operatingToday = getCleaningOperatingDateKey();
+  const viewDate =
+    dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : operatingToday;
+
+  const [ty, tm] = operatingToday.split("-").map(Number);
   const range = monthRange(ty, tm - 1);
   const [today, roomCatalog] = await Promise.all([
-    getAdminCleaningToday(session),
+    getAdminCleaningToday(session, viewDate),
     getActiveRoomCatalogServer(session.organization.id).catch(() => undefined),
   ]);
   const history = await getAdminCleaningHistory(
@@ -32,6 +43,8 @@ export default async function AdminCleaningPage() {
     <AdminShell activeItem="cleaning" title={dictionary.cleaning.adminTitle}>
       <CleaningConsole
         locale={locale}
+        viewDate={viewDate}
+        operatingToday={operatingToday}
         tasks={today.tasks}
         setupTargets={today.setupTargets}
         staff={today.staff}

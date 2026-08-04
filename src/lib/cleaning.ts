@@ -149,17 +149,20 @@ export async function getOrgTodayCleaningRoomLabels(
   return (data ?? []) as { room_label: string; status: string }[];
 }
 
-// Full session rows for the org, today (org-wide, every staff member) — used by the admin console
-// to overlay real cleaning-session status onto the reservation-derived today targets.
+// Full session rows for the org on one operating date (org-wide, every staff member) — used by the
+// admin console to overlay real cleaning-session status onto the reservation-derived targets.
+// `date` 를 열어 과거·미래 날짜도 같은 화면으로 볼 수 있게 한다(2026-08-04). 과거 날짜에서는 이
+// 값이 "그날 실제로 누가 무엇을 했는가"의 유일한 근거다 — 대상은 재계산이지만 세션은 사실이다.
 export async function getOrgTodayCleaningSessions(
   organizationId: string,
+  date?: string,
 ): Promise<CleaningSessionRow[]> {
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from("cleaning_sessions")
     .select("*")
     .eq("organization_id", organizationId)
-    .eq("cleaning_date", getCleaningOperatingDateKey())
+    .eq("cleaning_date", date ?? getCleaningOperatingDateKey())
     .order("started_at", { ascending: false });
 
   if (error) throw new Error(error.message);

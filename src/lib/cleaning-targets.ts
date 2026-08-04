@@ -75,8 +75,22 @@ export type CleaningTargetsResult = {
   targetDate: string;
 };
 
-export async function getCleaningTargets(organizationId: string): Promise<CleaningTargetsResult> {
-  const targetDate = getCleaningOperatingDateKey();
+/**
+ * 청소·셋팅 대상은 **예약에서 파생**된다(그날 체크아웃 → 청소, 그날 체크인 → 셋팅). 그래서 날짜만
+ * 바꾸면 과거·미래도 그대로 계산된다 — 2026-08-04 에 `date` 파라미터를 열었다.
+ *
+ * **과거 조회의 한계:** 대상은 *지금* 예약 데이터로 다시 계산한 값이다. 그 뒤에 취소·변경된 예약은
+ * 사라지거나 달라지므로 **그날 실제로 화면에 보였던 목록과 다를 수 있다.** 정확히 하려면 매일
+ * 대상을 스냅샷으로 남겨야 하는데, 그 비용 대신 화면에서 한계를 안내하는 쪽을 택했다.
+ *
+ * **미래 조회의 한계:** 먼 미래일수록 예약이 덜 차 있어 건수가 실제보다 적게 보인다. 한가한 것이
+ * 아니라 아직 안 찬 것이다 — 화면이 이를 구분해 안내해야 한다.
+ */
+export async function getCleaningTargets(
+  organizationId: string,
+  date?: string,
+): Promise<CleaningTargetsResult> {
+  const targetDate = date ?? getCleaningOperatingDateKey();
   const windowEnd = addCalendarDays(targetDate, 30);
 
   const supabase = await getSupabaseServerClient();

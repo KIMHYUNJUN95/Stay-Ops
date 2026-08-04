@@ -186,17 +186,25 @@ async function collectReportLinksBySession(
   return result;
 }
 
-export async function getAdminCleaningToday(session: AppSession): Promise<AdminCleaningTodayData> {
+/**
+ * `date` 를 주면 그날의 현황을 만든다(기본값은 오늘). 대상은 예약에서 **재계산**하고 세션은 그날의
+ * **사실**이라, 과거 날짜에서는 "해야 했던 것 vs 실제로 한 것"이 자연스럽게 대조된다 — 기록에 없는
+ * 대상이 곧 빠뜨린 청소다(2026-08-04).
+ */
+export async function getAdminCleaningToday(
+  session: AppSession,
+  date?: string,
+): Promise<AdminCleaningTodayData> {
   const organizationId = session.organization.id;
 
   let loadError = false;
   const [targetsResult, roomCatalog, orgTodaySessions, staff] = await Promise.all([
-    getCleaningTargets(organizationId).catch(() => {
+    getCleaningTargets(organizationId, date).catch(() => {
       loadError = true;
       return null;
     }),
     getActiveRoomCatalogServer(organizationId).catch(() => undefined),
-    getOrgTodayCleaningSessions(organizationId).catch(() => {
+    getOrgTodayCleaningSessions(organizationId, date).catch(() => {
       loadError = true;
       return [] as CleaningSessionRow[];
     }),

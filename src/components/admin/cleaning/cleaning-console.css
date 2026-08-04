@@ -168,3 +168,25 @@
 .adm .mdur { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); padding: 10px 13px; border-radius: 11px; background: var(--info-bg); }
 .adm .mdur .ic { font-size: 16px; color: var(--info); flex: 0 0 auto; }
 .adm .mdur b { font-family: var(--mono); font-weight: 900; color: color-mix(in oklab, var(--info) 62%, var(--ink)); }
+
+/* 오늘이 아닌 날짜를 보고 있을 때의 한계 안내. 오류(red)가 아니라 정보(navy tint)다 —
+   잘못된 게 아니라 숫자를 해석하는 방법을 알려주는 줄이다(2026-08-04). */
+.adm .cdatenote {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 14px;
+  padding: 11px 15px;
+  border: 1px solid color-mix(in oklab, var(--adm-primary) 22%, var(--line));
+  border-radius: 12px;
+  background: var(--primary-soft);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--primary-ink);
+}
+.adm .cdatenote .ic {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--adm-primary);
+}

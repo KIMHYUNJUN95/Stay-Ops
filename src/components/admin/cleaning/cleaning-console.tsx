@@ -8,7 +8,8 @@
 // from the original design handoff.
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart3, BedDouble, Check, Clock, History, RefreshCw, SprayCan } from "lucide-react";
+import { BarChart3, BedDouble, Check, Clock, History, Info, RefreshCw, SprayCan } from "lucide-react";
+import { AdminDatePicker } from "@/components/admin/shared/admin-date-picker";
 import { AdminToast, useAdminToast } from "@/components/admin/shared/admin-toast";
 import { getDictionary, type Dictionary, type Locale } from "@/lib/i18n";
 import type { AdminCleaningHistoryItem, AdminCleaningTask, AdminSettingTarget } from "@/lib/admin-cleaning";
@@ -25,6 +26,10 @@ import { CleaningForceCompleteModal, type ForceCompleteResult } from "./cleaning
 
 type CleaningConsoleProps = {
   locale: Locale;
+  /** 보고 있는 운영일(YYYY-MM-DD). 오늘이 아닐 수 있다 — 과거·미래 조회(2026-08-04). */
+  viewDate: string;
+  /** 서버가 계산한 "오늘" 운영일. 클라이언트에서 Date 로 다시 구하면 시차·렌더 순수성 문제가 생긴다. */
+  operatingToday: string;
   tasks: AdminCleaningTask[];
   setupTargets: AdminSettingTarget[];
   staff: CleaningStaffOption[];
@@ -55,6 +60,8 @@ function nowTimestamp(): number {
 
 export function CleaningConsole({
   locale,
+  viewDate,
+  operatingToday,
   tasks,
   setupTargets,
   staff,
@@ -68,9 +75,15 @@ export function CleaningConsole({
   const dictionary = getDictionary(locale);
   const t = useMemo(() => buildConsoleCopy(dictionary), [dictionary]);
   const buildingLabels = dictionary.cleaning.buildingLabels;
+  const shared = dictionary.admin.shared;
   const { toast, showToast, dismiss } = useAdminToast();
 
   const staffDirectory = useMemo(() => buildStaffDirectory(staff), [staff]);
+
+  // 보고 있는 날짜의 성격. 과거·미래는 한계가 서로 달라 안내와 동작이 갈린다(2026-08-04).
+  const isToday = viewDate === operatingToday;
+  const isPast = viewDate < operatingToday;
+  const isFuture = viewDate > operatingToday;
 
   const [view, setView] = useState<"today" | "history">("today");
   const [group, setGroup] = useState<"building" | "status">("building");
@@ -293,6 +306,25 @@ export function CleaningConsole({
         <span style={{ flex: 1 }} />
         {view === "today" ? (
           <>
+            {/* 날짜 이동 — 공용 `AdminDatePicker` 의 nav 변형(CLAUDE.md §4a: 콘솔 달력은 공용
+                프리미티브만). 청소 대상은 예약에서 파생되므로 미래도 계산된다 → allowFuture. */}
+            <AdminDatePicker
+              date={viewDate}
+              todayDate={operatingToday}
+              localeTag={locale}
+              basePath="/admin/cleaning"
+              allowFuture
+              labels={{
+                prevDay: shared.datePrevDay,
+                nextDay: shared.dateNextDay,
+                prevMonth: shared.datePrevMonth,
+                nextMonth: shared.dateNextMonth,
+                open: shared.dateSelect,
+                today: shared.dateToday,
+                todayTag: shared.dateTodayTag,
+                pastTag: isFuture ? t.dateFutureTag : shared.datePastTag,
+              }}
+            />
             <div className="groupseg">
               <button type="button" className={group === "building" ? "on" : ""} onClick={() => setGroup("building")}>
                 {t.byBuilding}
@@ -311,6 +343,17 @@ export function CleaningConsole({
           </>
         ) : null}
       </div>
+
+      {/* 오늘이 아닌 날짜의 한계를 명시한다. 과거는 재계산이라 그날 화면과 다를 수 있고, 미래는
+          예약이 덜 차서 실제보다 적게 보인다 — 둘 다 말해 주지 않으면 숫자를 오해한다. */}
+      {view === "today" && !isToday ? (
+        <div className="cdatenote">
+          <span className="ic">
+            <Info />
+          </span>
+          {isPast ? t.datePastNotice : t.dateFutureNotice}
+        </div>
+      ) : null}
 
       <div className="cbody">
         {view === "today" ? (
@@ -371,7 +414,9 @@ export function CleaningConsole({
         onClose={handleCloseDetail}
         onOpenForceComplete={setModalTask}
         onOpenReport={handleOpenReport}
-        canForceComplete={canForceComplete}
+        // 미래 날짜에는 대리 완료를 노출하지 않는다 — 아직 일어나지 않은 청소를 완료로 만들 수
+        // 있으면 안 된다. 서버가 최종 방어선이고 이건 UI 게이트다(2026-08-04).
+        canForceComplete={canForceComplete && !isFuture}
         disabled={modalTask !== null}
       />
 
