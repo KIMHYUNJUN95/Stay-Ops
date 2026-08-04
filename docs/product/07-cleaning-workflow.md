@@ -1009,10 +1009,11 @@ CLAUDE.md §4a 대로 **공용 `AdminDatePicker`** 의 nav 변형을 그대로 �
 
 ### 모바일 (2026-08-04, 같은 날 추가)
 
-`/mobile/cleaning` 도 `?date=` 로 같은 날짜 이동을 한다. 컨트롤은 **모바일 전용**
-`CleaningDaySwitcher` — `‹ 8월 4일 (월) ›` 에 라벨을 누르면 네이티브 달력이 열린다. 콘솔의 공용
-`AdminDatePicker` 를 쓰지 않는 이유는 **§4a 가 콘솔 한정 규칙**이고, 현장에서 한 손으로 쓰는
-화면은 OS 기본 달력이 가장 빠르기 때문이다(계정 화면 생년월일과 같은 선례).
+`/mobile/cleaning` 도 `?date=` 로 같은 날짜 이동을 한다. 컨트롤은 `CleaningDaySwitcher` —
+`‹ 8월 4일 (월) ›` 이고, **라벨을 누르면 공용 `DatePickerSheet`(바텀시트 달력)** 가 열린다.
+화살표만으로는 몇 주 떨어진 날짜에 갈 수 없기 때문이다. 시트는 `docs/product/16-mobile-navigation.md`
+의 공용 규격을 따른다(§3 — 모든 슬라이드업 시트는 canonical `BottomSheet`). 콘솔은 `.calpop`
+규격의 `AdminDatePicker` 를 유지하며(§4a는 콘솔 한정), **두 규격을 섞지 않는다.**
 
 **오늘이 아닌 날짜에서는 시작 버튼을 전부 감춘다.** 청소 시작 액션은 `cleaning_date` 를 **항상
 오늘**로 기록하므로, 8월 1일을 보다가 시작을 누르면 엉뚱한 날짜에 세션이 생긴다. 청소 카드,

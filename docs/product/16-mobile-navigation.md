@@ -416,6 +416,16 @@ Current rules:
   elsewhere" and triggered a full `window.location.reload()` — a second, harder flash. Cache
   entries now carry an `x-so-cached-at` header (`NAV_CACHE` bumped to `stayops-nav-v2`; entries
   without the header read as stale, which is the safe direction).
+- **Shared date-picker bottom sheet (2026-08-04)**: `src/components/shell/date-picker-sheet.tsx` —
+  the one mobile calendar. Arrow-only navigation can't reach a date weeks away, and the native
+  `<input type="date">` used briefly rendered the OS calendar, which neither matches the app's visual
+  language nor the "every slide-up sheet uses the canonical `BottomSheet`" contract above. It is
+  month-paged (‹ / ›), marks today with a ring and the selection with a filled pill, and carries a
+  full-width "go to today" action. All date arithmetic stays on Tokyo `YYYY-MM-DD` strings — round-
+  tripping through `Date` shifts a day near midnight, a bug this repo has hit repeatedly. **The
+  console is separate**: it keeps the `.calpop` `AdminDatePicker` per §4a, and the two are never
+  mixed. First caller: the cleaning day switcher; other mobile screens should reuse this rather than
+  hand-rolling a calendar.
 - **Fallback screens use the real app icon (2026-08-04)**: `error.tsx` and `/offline` were drawing a
   gradient box with an italic "S" — a mark that exists nowhere else in the product and is not the
   logo. Both now render `public/icons/icon-192.png`, the same PWA icon `not-found.tsx` and the splash

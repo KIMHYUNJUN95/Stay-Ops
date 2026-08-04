@@ -1,15 +1,16 @@
 "use client";
 
-import { useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { DatePickerSheet } from "@/components/shell/date-picker-sheet";
 
 /**
  * 모바일 청소 화면의 운영일 이동 — `‹ 8월 4일 (월) ›` + 라벨 탭으로 달력 열기.
  *
- * 콘솔은 공용 `AdminDatePicker` 를 쓰지만(CLAUDE.md §4a) **그 규칙은 콘솔 한정**이고, 모바일은 앱
- * 표준 입력을 쓴다. 여기서 네이티브 `<input type="date">` 를 쓰는 이유는 현장에서 한 손으로 쓰는
- * 화면이라 OS 기본 달력이 가장 빠르고 익숙하기 때문이다. 입력은 화면 밖에 두고 라벨을 눌러 연다.
+ * 화살표만으로는 먼 날짜로 갈 수 없어, 라벨을 누르면 **공용 `DatePickerSheet`** 가 열린다
+ * (CLAUDE.md §3 — 모든 슬라이드업 시트는 공용 BottomSheet 규격). 콘솔은 `.calpop` 규격의
+ * `AdminDatePicker` 를 쓰지만 그 규칙은 §4a 대로 **콘솔 한정**이고, 두 규격을 섞지 않는다.
  *
  * 미래 날짜를 막지 않는다 — 청소 대상은 예약에서 파생되므로 내일·다음 주도 계산되고, 그것이 인력
  * 배치의 근거가 된다.
@@ -25,10 +26,18 @@ export function CleaningDaySwitcher({
   today: string;
   locale: string;
   basePath: string;
-  labels: { prev: string; next: string; select: string; today: string };
+  labels: {
+    prev: string;
+    next: string;
+    select: string;
+    today: string;
+    prevMonth: string;
+    nextMonth: string;
+    goToday: string;
+  };
 }) {
   const router = useRouter();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const go = (next: string) => router.push(`${basePath}?date=${next}`);
 
@@ -63,7 +72,7 @@ export function CleaningDaySwitcher({
         <button
           aria-label={labels.select}
           className="flex h-9 w-full items-center justify-center gap-1.5 rounded-full border border-border bg-surface px-3 text-[13px] font-extrabold tracking-[-0.01em] text-foreground transition-colors active:bg-muted"
-          onClick={() => inputRef.current?.showPicker?.()}
+          onClick={() => setPickerOpen(true)}
           type="button"
         >
           <span className="truncate">{label}</span>
@@ -73,18 +82,6 @@ export function CleaningDaySwitcher({
             </span>
           ) : null}
         </button>
-        {/* 화면에는 보이지 않지만 접근성 트리에는 남긴다 — showPicker 가 막힌 브라우저에서는
-            이 입력 자체가 대체 경로가 되어야 한다. */}
-        <input
-          aria-label={labels.select}
-          className="absolute inset-0 size-full cursor-pointer opacity-0"
-          onChange={(e) => {
-            if (e.target.value) go(e.target.value);
-          }}
-          ref={inputRef}
-          type="date"
-          value={date}
-        />
       </div>
 
       <button
@@ -95,6 +92,25 @@ export function CleaningDaySwitcher({
       >
         <ChevronRight className="size-4" aria-hidden="true" />
       </button>
+
+      {pickerOpen ? (
+        <DatePickerSheet
+          labels={{
+            title: labels.select,
+            prevMonth: labels.prevMonth,
+            nextMonth: labels.nextMonth,
+            today: labels.goToday,
+          }}
+          locale={locale}
+          onClose={() => setPickerOpen(false)}
+          onSelect={(next) => {
+            setPickerOpen(false);
+            go(next);
+          }}
+          today={today}
+          value={date}
+        />
+      ) : null}
     </div>
   );
 }

@@ -695,6 +695,9 @@ export default async function MobileCleaningPage({
             next: copy.console.dayNext,
             select: copy.console.daySelect,
             today: copy.console.today,
+            prevMonth: copy.console.monthPrev,
+            nextMonth: copy.console.monthNext,
+            goToday: copy.console.goToday,
           }}
           locale={locale}
           today={operatingToday}
