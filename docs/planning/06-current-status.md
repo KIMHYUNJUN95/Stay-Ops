@@ -16,6 +16,14 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **`/mobile/tasks` 프로덕션 장애 수정 (2026-08-04).** 2026-08-03 항목 선택 기능에서
+  `dictionary.tasks.reportPickCount` 를 함수로 넣어, `dict.tasks` 를 통째로 클라이언트 컴포넌트에
+  넘기는 지점에서 RSC 직렬화가 실패했다("Functions cannot be passed directly to Client
+  Components"). 투두 탭 전체가 에러 바운더리로 떨어졌고 약 12시간(8/3 11:40Z ~ 23:53Z, 8건/2명)
+  지속됐다. Vercel 런타임 에러 로그로 특정. 자리표시자 문자열 + `.replace()` 로 되돌리고,
+  `tsc`·lint 가 못 잡는 종류라 `dictionary-serializable.test.ts` 가드를 추가했다. 같은 사이클에
+  모바일 에러 화면의 3개 국어 버튼 줄바꿈도 세로 스택으로 고쳤다.
+
 - **현장 활동 자동 수집 (2026-08-04).** 청소 완료·유지보수 완료·린넨 반품 등록·주문 요청이 투두
   **완료·기록 탭과 업무일지**에 자동으로 올라온다. `tasks` 행은 만들지 않고 `src/lib/field-activity.ts`
   가 읽을 때만 합친다 — 자동 생성은 오늘/관리함 오염, 되돌리기 계약 충돌, 원본 수정 시 이중 관리

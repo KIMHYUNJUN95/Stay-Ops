@@ -237,6 +237,12 @@ This project uses Tokyo operating dates in several important flows.
 - File: `src/lib/i18n.ts`
 - All new visible strings must be translated across `ko`, `ja`, and `en`
 - This includes status labels, validation errors, modal copy, and navigation labels
+- **Never use a function-valued entry in `dictionary.tasks`.** That namespace is handed to a client
+  component whole (`<TasksWorkspace copy={dict.tasks} />`), and RSC cannot serialize a function —
+  one function value crashes `/mobile/tasks` entirely with "Functions cannot be passed directly to
+  Client Components". Use a `{name}` placeholder string plus `.replace()`, like `completedDayCount`.
+  Neither `tsc` nor lint catches this; `src/lib/__tests__/dictionary-serializable.test.ts` does.
+  Other namespaces may keep function copy as long as only the resulting string crosses to a client.
 
 ### Auth and routing
 

@@ -231,7 +231,9 @@ export function ReportSheet({
                             {copy.reportPickTitle}
                           </span>
                           <span className="truncate text-[11.5px] font-medium text-muted-foreground">
-                            {copy.reportPickCount(pickedCount, items.length)}
+                            {copy.reportPickCount
+                              .replace("{selected}", String(pickedCount))
+                              .replace("{total}", String(items.length))}
                           </span>
                         </div>
                         <button
