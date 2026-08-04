@@ -23,6 +23,11 @@ It should also let cleaning staff create linked lost item and maintenance record
   `active_not_found` / `missing_session` 을 ko·ja·en 에 추가.
 - 화면은 이제 **사전에 없는 키여도 무언가는 띄운다**(`start_failed` 문구로 폴백). 키 누락은
   버그지만, 그 버그가 사용자에게 무반응으로 보이는 것이 더 나쁘다.
+- 같은 패턴을 전 화면에서 점검했다(아래 표). `mobile/orders/new` 와 `admin/maintenance`(목록)는
+  `?error=` 를 **읽지도 않고** 있었다 — 저장 실패가 화면에 흔적조차 남지 않았다. 둘 다 배너를
+  붙였고, 주문 폼에는 `errors` 사전 자체가 없어 ko·ja·en 을 새로 추가했다.
+- 재발 방지: `src/lib/__tests__/action-error-keys.test.ts` 가 액션 소스에서 `?error=` / 
+  `redirectWithError("...")` 키를 뽑아 세 로케일 사전에 전부 있는지 검사한다(13개 액션 파일).
 - `redirectWithError()` 가 사유를 `console.warn` 으로 남긴다. 이 액션들은 throw 하지 않으므로
   Vercel 런타임 **에러** 로그에 아무것도 안 남아, 어느 분기에서 막혔는지 추적할 수 없었다.
 
@@ -911,3 +916,19 @@ Claude Design 핸드오프(`StayOps 청소 (admin)/청소 현황 (admin).html`)�
 UI 컴포넌트 · i18n · DB 스키마 변경 없음.
 
 **검증**: `npm run lint`(에러 0) / `npm run build` 통과.
+
+
+### 실패 사유 표시 점검표 (2026-08-04)
+
+| 화면 | 이전 상태 |
+| --- | --- |
+| 모바일 청소 | 사유 6종 사전 누락 → 배너 없음 |
+| 모바일 주문 | `?error=` 를 읽지 않음 → 배너 없음 |
+| 관리자 수리·점검(목록) | `?error=` 를 읽지 않음 → 배너 없음 |
+| 모바일 분실물 · 수리 신고 | `?? null` — 사전에 없는 키면 침묵 |
+| 관리자 수리·점검(상세) | `?? null` — 같은 위험 |
+| 모바일 투두 · 린넨 · 건의 | `?? save_failed` 폴백 (정상) |
+| 관리자 설정 · 근태 설정 · 조직 | `?? save_failed` 폴백 (정상) |
+
+모두 `?? save_failed` 폴백으로 통일했다. **키 누락은 버그지만, 그 버그가 사용자에게 무반응으로
+보이는 것이 더 나쁘다** — 문구가 정확하지 않더라도 무언가는 뜨는 쪽을 택한다.

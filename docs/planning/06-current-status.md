@@ -16,6 +16,13 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **"조용한 실패" 전면 점검 (2026-08-04).** 서버 액션이 `?error=` 로 넘긴 실패 사유가 화면에서
+  사라지던 문제. 청소는 사전에 사유 6종이 없었고(→ "셋팅 시작이 안 된다"로 보고), **모바일 주문**과
+  **관리자 수리·점검 목록**은 `?error=` 를 읽지도 않고 있었다. 분실물·수리 신고·수리 상세는
+  `?? null` 이라 미지 키에 침묵했다. 전부 `?? save_failed` 폴백으로 통일하고, 주문 폼에는 errors
+  사전을 새로 만들었다(ko/ja/en). 재발 방지로 `action-error-keys.test.ts` 를 추가해 13개 액션
+  파일의 키를 세 로케일 사전과 대조한다(52케이스). 기준 문서: Product `07`.
+
 - **`/mobile/tasks` 프로덕션 장애 수정 (2026-08-04).** 2026-08-03 항목 선택 기능에서
   `dictionary.tasks.reportPickCount` 를 함수로 넣어, `dict.tasks` 를 통째로 클라이언트 컴포넌트에
   넘기는 지점에서 RSC 직렬화가 실패했다("Functions cannot be passed directly to Client

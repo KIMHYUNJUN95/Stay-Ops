@@ -11,7 +11,7 @@ import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { sanitizeSharedUrl } from "@/lib/share-target";
 
 type PageProps = {
-  searchParams: Promise<{ sharedUrl?: string; shareError?: string }>;
+  searchParams: Promise<{ sharedUrl?: string; shareError?: string; error?: string }>;
 };
 
 export default async function MobileOrderNewPage({ searchParams }: PageProps) {
@@ -40,6 +40,13 @@ export default async function MobileOrderNewPage({ searchParams }: PageProps) {
     itemCardTitle: undefined,
   } as unknown as typeof dict.mobile.orderForm;
 
+  // 서버 액션이 `?error=` 로 넘긴 실패 사유. 예전에는 이 화면이 그 파라미터를 **아예 읽지 않아**,
+  // 저장에 실패해도 폼만 다시 그려지고 아무 안내가 없었다(2026-08-04). 사전에 없는 키여도
+  // `save_failed` 문구로 폴백해 무반응만은 피한다.
+  const errorMessage = params.error
+    ? (copy.errors?.[params.error] ?? copy.errors?.save_failed ?? params.error)
+    : null;
+
   // Double-validate the URL from the Web Share Target redirect (route already checked once).
   const sharedUrl = sanitizeSharedUrl(params.sharedUrl ?? null);
   // shareError=1 means a URL was shared but failed validation in the route handler.
@@ -64,6 +71,12 @@ export default async function MobileOrderNewPage({ searchParams }: PageProps) {
             </div>
           </div>
         </Card>
+
+        {errorMessage ? (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+            {errorMessage}
+          </div>
+        ) : null}
 
         <OrderCreateForm
           buildingLabels={dict.cleaning.buildingLabels}

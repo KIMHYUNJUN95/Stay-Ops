@@ -3368,6 +3368,14 @@ const FALLBACK_DICTIONARY = {
       calNextMonth: "Next month",
     },
     orderForm: {
+      // 2026-08-04: 액션이 `?error=` 로 실패를 넘기는데 사전에 errors 가 아예 없어 화면에서
+      // 사라졌다. 서버에서만 나오는 save_failed / invalid_building 은 사용자가 알 길이 없었다.
+      errors: {
+        missing_building: "Select a building.",
+        invalid_building: "That building can't be selected. Refresh and try again.",
+        missing_items: "Add at least one item.",
+        save_failed: "Couldn't submit. Please try again.",
+      } as Record<string, string>,
       title: "New Order Request",
       subtitle: "Add multiple items in one quick request.",
       sectionItem: "Item",
@@ -7920,6 +7928,12 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         calNextMonth: "다음 달",
       },
       orderForm: {
+        errors: {
+          missing_building: "건물을 선택해 주세요.",
+          invalid_building: "선택할 수 없는 건물입니다. 새로고침 후 다시 시도해 주세요.",
+          missing_items: "품목을 한 개 이상 추가해 주세요.",
+          save_failed: "요청을 저장하지 못했습니다. 다시 시도해 주세요.",
+        },
         title: "비품 주문 신청",
         subtitle: "필요한 비품을 한 번에 빠르게 요청하세요.",
         sectionItem: "품목 정보",
@@ -12420,6 +12434,12 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         calNextMonth: "次の月",
       },
       orderForm: {
+        errors: {
+          missing_building: "建物を選択してください。",
+          invalid_building: "選択できない建物です。更新してからもう一度お試しください。",
+          missing_items: "品目を1件以上追加してください。",
+          save_failed: "申請を保存できませんでした。もう一度お試しください。",
+        },
         title: "備品注文の申請",
         subtitle: "必要な備品をまとめて素早くリクエストしてください。",
         sectionItem: "品目情報",

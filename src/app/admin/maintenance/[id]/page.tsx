@@ -54,7 +54,10 @@ export default async function AdminMaintenanceDetailPage({
     notFound();
   }
 
-  const errorMessage = query.error ? (copy.errors[query.error] ?? null) : null;
+  // 사전에 없는 키여도 무언가는 띄운다 — 무반응이 가장 나쁜 실패다(2026-08-04).
+  const errorMessage = query.error
+    ? (copy.errors[query.error] ?? copy.errors.save_failed ?? query.error)
+    : null;
 
   return (
     <AdminShell activeItem="maintenance" title={copy.detailTitle}>

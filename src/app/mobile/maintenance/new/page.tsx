@@ -121,7 +121,7 @@ export default async function MaintenanceNewPage({ searchParams }: PageProps) {
   const errorMessage =
     !isLinkedMode || linkedSessionValid
       ? params.error
-        ? (copy.errors[params.error] ?? null)
+        ? (copy.errors[params.error] ?? copy.errors.save_failed ?? params.error)
         : null
       : null;
 
