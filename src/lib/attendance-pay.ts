@@ -48,6 +48,8 @@ export { dailyGrossExact, paidSecondsForSession, resolveEffective, roundToNeares
 
 export type PayExcludeReason =
   | "open"
+  /** 퇴근을 찍지 않은 채 운영일이 넘어간 세션(2026-08-04). 급여에서 빠지고 월 마감을 막는다. */
+  | "abandoned"
   | "invalid"
   | "review_required"
   | "pending_correction"
@@ -185,6 +187,9 @@ function excludeReasonFor(
   correctionStatus: AttendanceCorrectionStatus | null,
 ): PayExcludeReason {
   if (s.status === "invalid") return "invalid";
+  // `abandoned` 는 퇴근 시각이 비어 있어 아래 조건에도 걸리지만, 사유를 따로 돌려줘야 화면에서
+  // "아직 근무 중"과 "퇴근을 안 찍고 넘어감"을 구분해 보여줄 수 있다.
+  if (s.status === "abandoned") return "abandoned";
   if (s.status === "open" || s.status === "reopened") return "open";
   if (!s.clock_in_at || !s.clock_out_at) return "open";
   if (correctionStatus === "requested" || correctionStatus === "in_review") return "pending_correction";

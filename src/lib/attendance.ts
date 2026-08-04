@@ -31,13 +31,27 @@ export type AttendanceExportLogRow =
 
 // ── Session lifecycle ─────────────────────────────────────────────────────────
 /** Session status. Only one `open` session per user is allowed at a time (DB partial unique index). */
-export type AttendanceSessionStatus = "open" | "completed" | "reopened" | "invalid";
+/**
+ * `abandoned` = 퇴근을 찍지 않은 채 운영일이 넘어간 세션(2026-08-04).
+ *
+ * 유니크 인덱스와 출근 액션이 사용자당 `open` 을 하나로 제한하는데 **날짜를 보지 않아서**,
+ * 어제 미퇴근 하나가 오늘 출근을 막고 있었다. 지난 운영일의 `open` 은 다음 출근 시점에 이 상태로
+ * 옮겨 새 출근을 통과시킨다. `clock_out_at` 은 **비운 채로** 둔다 — 시각을 추측해 채우면 그 값이
+ * 그대로 급여가 되기 때문이다. 대신 월 마감 판정이 미해소 건으로 세어 반드시 정리하게 만든다.
+ */
+export type AttendanceSessionStatus =
+  | "open"
+  | "completed"
+  | "reopened"
+  | "invalid"
+  | "abandoned";
 
 export const ATTENDANCE_SESSION_STATUSES: readonly AttendanceSessionStatus[] = [
   "open",
   "completed",
   "reopened",
   "invalid",
+  "abandoned",
 ];
 
 /** Review state. Abnormal sessions (e.g. midnight-crossing, missing clock-out) are `review_required`. */

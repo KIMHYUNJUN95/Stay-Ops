@@ -707,12 +707,18 @@ Business rules to enforce in those server actions (not yet implemented):
 - INSERT / UPDATE / DELETE: authenticated 직접 정책을 만들지 않는다. Beds24 동기화 서버 경로만
   service role로 UPSERT하며, 같은 조직 안에서만 예약·객실·컴플레인 연결을 검증한다.
 - `raw_payload`는 일반 UI 쿼리의 선택 컬럼에 넣지 않는다. 필요한 최소 표시 필드만 반환한다.
+- `private_feedback`(Airbnb 비공개 피드백)은 조직 활성 멤버 읽기 범위 안에 있으나, OTA에 공개되지 않은
+  내용이므로 목록·집계 쿼리에서는 선택하지 않고 **상세 조회에서만** 반환한다. 위험도·평점 집계에
+  반영하지 않는다.
 - 외부 리뷰에서 수동 컴플레인을 만드는 서버 액션은 `canWriteComplaint` 역할을 재검증하고,
   review와 새 complaint의 `organization_id`가 일치하는지 확인한다. 동일 리뷰의 중복 전환을 거부한다.
 - `review_translations` SELECT는 부모 `external_reviews`와 동일하게 조직 활성 멤버 및 platform admin으로
   한정한다. INSERT / UPDATE / DELETE는 authenticated에 직접 허용하지 않고, 서버의 DeepL 요청·캐시 경로만
-  service role로 처리한다. 부모 리뷰와 translation의 조직 ID 일치, 목표 locale(`ko`/`ja`/`en`), 원문 hash를
-  서버에서 검증한다.
+  service role로 처리한다. 부모 리뷰와 translation의 조직 ID 일치, 목표 locale(`ko`/`ja`/`en`),
+  `source_part`(`review`/`positive`/`negative`/`headline`/`private`), 원문 hash를 서버에서 검증한다.
+- Beds24 리뷰 수집 경로는 `rooms.external_room_id` / `properties.external_property_id`가 요청 조직에
+  속하는지 확인한 뒤에만 호출 대상에 넣는다. Booking.com 리뷰의 `reservation_id` 역조회도 같은 조직의
+  `reservations`로 한정하며, 조직이 다르면 예약·객실을 연결하지 않고 null로 남긴다.
 
 이 정책은 기획 단계이며 새 migration과 함께 구현한다. 기존 적용 migration은 수정하지 않는다.
 

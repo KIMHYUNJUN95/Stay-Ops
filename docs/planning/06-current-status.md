@@ -16,6 +16,14 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **근태 퇴근 미기록 `abandoned` 도입 (2026-08-04).** 어제 퇴근을 깜빡한 세션 하나가 오늘 출근을
+  막고 있었다(실제 20일 차단). 열린 근무 1인 1개 제약이 날짜를 보지 않아서다. 지난 운영일의
+  `open` 은 출근 시점에 `abandoned` 로 옮기고 새 출근을 통과시킨다. **`clock_out_at` 은 비운다** —
+  시각을 추정해 채우면 그 값이 그대로 급여가 되기 때문. 급여는 제외(0원), **월 마감은 계속 차단**해
+  누군가 반드시 정리하게 한다. 해소는 기존 수단(정정 요청 승인 / 관리자 직접 수정 / 무효 처리)을
+  그대로 쓴다. 본인 근태 홈에 경고 배너(ko·ja·en). 마이그레이션 `202608040001` 원격 적용 완료,
+  기존 미퇴근 2건 전환. 기준 문서: Product `21`.
+
 - **청소 시작 교착 수정 (2026-08-04).** "셋팅 시작이 안 된다"의 실제 원인. 유니크 인덱스
   `one_active_per_org_user` 가 날짜를 보지 않는데 화면은 **오늘 세션만** 읽어서, 지난 날짜의
   미완료 세션이 남으면 보이지도 않고 새 시작도 막는 영구 교착이 됐다(실제로 6/30 세션이 34일간
@@ -71,12 +79,24 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   날짜·문자 수만 기록한다. 웹훅 설정은 배포 환경에 별도로 필요하다. 기준 문서: Product `18`/`28`,
   Engineering `07`/`09`/`04`, decision log.
 
-- **컴플레인·외부 리뷰 재기획 완료, 구현 대기 (2026-07-30).** 기존 모바일 수동 컴플레인은 유지하고,
-  Beds24의 Airbnb·Booking.com 리뷰를 별도 로컬 `external_reviews`로 수집해 함께 검토하는 방향을 확정했다.
-  낮은 평점 리뷰를 자동 컴플레인으로 만들지 않으며, 필요한 경우에만 권한자가 수동 컴플레인으로 전환·연결한다.
-  위험 기준은 Airbnb 3점 이하 위험, Booking 7.0점 위험·7.0점 미만 매우 위험이다. 객실은 확실한
-  예약/객실 매핑이 있을 때만 표시한다. Beds24 호출은 UI에서 하지 않고 조직별·채널별 하루 1회 기본 수집,
-  초기/복구 최근 90일 제한 수집 및 로컬 UPSERT로 크레딧을 아낀다. 외국어 리뷰는 DeepL API Free를
+- **컴플레인 — Beds24 리뷰 API 실측 완료, 구현 착수 (2026-08-04).** 2026-07-30 기획의 미검증 가정을
+  Beds24 OpenAPI 스펙으로 검증해 수정했다. 두 엔드포인트는 실존하나(`/channels/airbnb/reviews` **Beta**,
+  `/channels/booking/reviews` **Alpha**) 계약이 달랐다. Airbnb는 `roomId` 필수 + **날짜 필터 없음**,
+  Booking은 `propertyId` + `from` 필수다. 따라서 **수집 단위·주기를 룸타입/건물 단위 하루 2회**로
+  재정의했다("채널별 1회"는 성립 불가). 초기 90일 제한은 Booking만 서버 측에서 되고 Airbnb는 전량 수신 후
+  StayOps에서 자른다. **위험도는 `미평가/정상/문제` 3값으로 단순화**했다 — Airbnb ≤3, Booking ≤7.0,
+  **경계값 포함**, `매우 위험` 폐기. **리뷰는 점수와 무관하게 전량 저장**하고 위험도는 분류로만 쓴다.
+  **`문제 객실` 뷰를 v1에 포함** — 건물→객실 2단 집계에 플랫폼별 `평균/리뷰 수/문제 건수/문제 비율`을
+  두고 문제 건수에서 해당 객실 문제 리뷰로 드릴다운한다. **스키마 5개 컬럼 추가**(`headline`,
+  `source_language_code`, `private_feedback`, `ota_reply_text`, `ota_replied_at`). Airbnb 비공개
+  피드백은 수집하되 점수 계산에서 빼고 상세에서만 `비공개` 배지로 분리 표시한다. Airbnb 리뷰는 양방향이라
+  게스트 작성분만 저장한다. 필드 가용성은 플랫폼마다 비대칭이며(Airbnb=객실 확정·예약/이름 없음,
+  Booking=객실 없음·예약/이름 있음) 없는 값을 추정하지 않는다. 오쿠보 독채 판정은
+  `properties.property_type = 'standalone'`을 쓴다. 호출 키는 이미 로컬에 있어(`rooms.external_room_id`,
+  `properties.external_property_id`, `reservations.source_reservation_id`) 새 매핑 테이블이 필요 없다.
+  기존 모바일 수동 컴플레인은 유지하고, 낮은 평점 리뷰를 자동 컴플레인으로 만들지 않으며 필요한 경우에만
+  권한자가 수동 컴플레인으로 전환·연결한다. 객실은 확실한 예약/객실 매핑이 있을 때만 표시한다.
+  Beds24 호출은 UI에서 하지 않고 로컬 UPSERT로 크레딧을 아낀다. 외국어 리뷰는 DeepL API Free를
   상세에서 필요할 때만 호출·캐시하는 번역도 1차 범위에 포함했고, 월 450,000자 안전 한도를 둔다.
   플랫폼별 세부 점수는 원본 구조로 보관하며 Booking.com의 긍정/부정 본문과 점수만 있는 리뷰를 모두
   정상 처리한다. 모바일은 기존 컴플레인 사이드 메뉴·핀 가능 탭 진입점 안에서 수동 컴플레인/외부 리뷰를
@@ -84,7 +104,8 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   리뷰/컴플레인 연결 상태를 공유한다. 선택 기간의 건물별·객실별 평점도 추가했으며, 플랫폼별 원점수로
   분리 집계한다. 오쿠보는 독채이므로 건물 평점 하나만 제공한다. 기간 선택 UI/기본값은 디자인 단계에서
   결정한다. 모바일 내비게이션 계약도 Product `16`에 반영했다.
-  시각 디자인·DB migration·RLS·API·모바일/어드민 구현은 아직 시작하지 않았다. 기준 문서: `docs/product/25-complaint-workflow.md`,
+  **다음 단계: UI/UX 디자인 → DB migration → 서버(수집·집계·번역) → `/admin/complaints` → 모바일.**
+  기준 문서: `docs/product/25-complaint-workflow.md`,
   `docs/product/05-admin-web-ia.md`, `docs/engineering/01-beds24-integration.md`,
   `docs/engineering/04-data-model.md`, `docs/engineering/05-rls-permissions.md`,
   `docs/planning/01-decision-log.md`.

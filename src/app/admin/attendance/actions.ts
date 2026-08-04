@@ -245,7 +245,12 @@ export async function approveCorrectionRequest(
     if (await isFinalizedUserMonth(service, organizationId, s.user_id, ymdToYm(s.operating_date))) {
       return { ok: false, reason: "invalid" };
     }
-    if (s.status === "open" && resultingIn && resultingOut) update.status = "completed";
+    // `abandoned`(퇴근 미기록 후 운영일 경과)도 여기서 닫힌다 — 관리자가 실제 퇴근 시각을 넣으면
+    // completed 로 올라가고 급여에 포함된다. 이 전이를 빼면 방치 세션을 정리할 방법이 없다.
+    if ((s.status === "open" || s.status === "abandoned") && resultingIn && resultingOut) {
+      update.status = "completed";
+      update.abandoned_at = null;
+    }
     if (crossesTokyoMidnight(resultingIn, resultingOut)) update.review_state = "review_required";
 
     const updRes = await service

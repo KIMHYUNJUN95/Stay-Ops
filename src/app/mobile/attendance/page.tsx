@@ -5,6 +5,7 @@ import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import {
+  getAbandonedSessions,
   getCurrentOpenSession,
   hasOpenReminderResponseToday,
   isPastReminderTimeTokyo,
@@ -54,8 +55,8 @@ export default async function MobileAttendancePage({ searchParams }: PageProps) 
 
   // Real state: open session with an open break → 휴게 중; open session → 근무 중; otherwise → 출근 전.
   // Fetch monthly pay view in parallel (skip in preview mode; catch errors gracefully).
-  const [openSession, monthlyPayView] = previewState
-    ? [null, null]
+  const [openSession, monthlyPayView, abandonedSessions] = previewState
+    ? [null, null, []]
     : await Promise.all([
         getCurrentOpenSession(session.organization.id, session.user.id),
         getMonthlyPayView(
@@ -64,6 +65,8 @@ export default async function MobileAttendancePage({ searchParams }: PageProps) 
           tokyoYM,
           session.user.preferredLanguage,
         ).catch(() => null),
+        // 퇴근을 안 찍고 넘어간 날들. 본인이 알아야 정정 요청을 낼 수 있다(2026-08-04).
+        getAbandonedSessions(session.organization.id, session.user.id).catch(() => []),
       ]);
   const homeState =
     previewState ??
@@ -126,6 +129,7 @@ export default async function MobileAttendancePage({ searchParams }: PageProps) 
               }
             : null
         }
+        abandonedDates={abandonedSessions.map((a) => a.operatingDate)}
         reminderOpenSessionId={reminderOpenSessionId}
         monthHours={monthHours}
         monthPay={monthPay}

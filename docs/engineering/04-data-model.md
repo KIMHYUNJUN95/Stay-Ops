@@ -1261,10 +1261,15 @@ external_reviews (planned)
   room_id uuid references rooms(id) on delete set null
   room_label text
   reservation_id uuid references reservations(id) on delete set null
-  guest_display_name text
+  guest_display_name text                        -- Booking.com only; Airbnb exposes no reviewer name
+  headline text                                  -- Booking.com content.headline; Airbnb has none
+  source_language_code text                      -- Booking.com content.language_code; null on Airbnb
   review_text text                               -- nullable: provider may submit score-only review
   positive_review_text text                      -- Booking.com, nullable
   negative_review_text text                      -- Booking.com, nullable
+  private_feedback text                          -- Airbnb only; guest-to-host, never public
+  ota_reply_text text                            -- Booking.com reply.text, read-only
+  ota_replied_at timestamptz                     -- Booking.com reply.last_change_timestamp
   raw_payload jsonb not null default '{}'
   linked_complaint_id uuid references customer_complaints(id) on delete set null
   created_at timestamptz not null default now()
@@ -1277,21 +1282,43 @@ Planned indexes: `(organization_id, provider, reviewed_at desc)`,
 `(organization_id, property_id, room_id, reviewed_at desc)`, and a partial index for unlinked risky
 reviews. `customer_complaints` will gain an optional one-to-one external review link/snapshot only
 when a user explicitly converts a review; implementation must enforce that one review cannot create
-duplicate linked complaints. External-review risk is server-calculated: Airbnb `<= 3.0` = `risk`;
-Booking `= 7.0` = `risk`, `< 7.0` = `critical`; no score = `unrated`. `rating_breakdown` deliberately
-preserves provider-specific dimensions rather than fabricating a cross-provider schema. Booking.com
-positive/negative text is independently nullable; both may be absent for a valid score-only review.
+duplicate linked complaints.
 
-Source payloads may omit a room or safe reservation key. In that case `room_id`/`room_label` remain
-null rather than inferred. `raw_payload` is server-side troubleshooting data, not a client rendering
-contract. Full workflow: `docs/product/25-complaint-workflow.md`.
+**Risk is server-calculated (revised 2026-08-04):** `risk_level` has exactly three values —
+`unrated` / `normal` / `risk`. Airbnb `rating_value <= 3` = `risk`; Booking.com `rating_value <= 7.0`
+= `risk`; anything above the boundary = `normal`; missing/unverifiable score = `unrated`. **Boundary
+values belong to `risk`.** The earlier Booking `critical` (`< 7.0`) tier was dropped. Airbnb's
+`overall_rating` arrives as an int32, so its `risk` band is effectively 1–3.
+
+Reviews are stored **in full regardless of score** — `risk_level` is a classification, not an
+ingestion filter. Building/room average ratings depend on the good reviews too, and the Airbnb
+endpoint offers no score or date filter anyway.
+
+`rating_breakdown` deliberately preserves provider-specific dimensions rather than fabricating a
+cross-provider schema: Airbnb stores `category_ratings[]`, Booking.com stores
+`scoring{clean, facilities, location, services, staff, value}`. Booking.com positive/negative text is
+independently nullable; both may be absent for a valid score-only review.
+
+`private_feedback` is Airbnb's guest-to-host private note. It carries no score and must never feed
+risk classification or rating aggregation; clients render it visually separated from the public
+review. `ota_reply_text` surfaces a reply that already exists on the OTA — StayOps does not compose
+or send replies in v1.
+
+**Field availability is asymmetric between providers.** Airbnb returns no `reservation_id` and no
+reviewer name, but the queried `roomId` pins the room exactly. Booking.com returns no room at all,
+only a `reservation_id` (Beds24 bookingId) resolved against local `reservations.source_reservation_id`.
+Where a payload omits a room or a safe reservation key, `room_id`/`room_label` stay null rather than
+inferred. Airbnb reviews are bidirectional: only guest-authored, submitted, non-hidden reviews are
+ingested. `raw_payload` is server-side troubleshooting data, not a client rendering contract — and it
+matters more than usual because both Beds24 review endpoints are Beta/Alpha. Full workflow:
+`docs/product/25-complaint-workflow.md`.
 
 ```txt
 review_translations (planned)
   id uuid primary key default gen_random_uuid()
   organization_id uuid not null references organizations(id) on delete cascade
   external_review_id uuid not null references external_reviews(id) on delete cascade
-  source_part text not null                      -- review | positive | negative
+  source_part text not null                      -- review | positive | negative | headline | private
   target_locale text not null                    -- ko | ja | en
   source_locale text
   translated_text text not null
@@ -1313,12 +1340,21 @@ server-only sync/usage log, not in this user-facing record.
 Building/room rating summaries do **not** add a source-of-truth table in v1. The server aggregates
 `external_reviews` directly by `organization_id`, `provider`, and `reviewed_at` range:
 
-- building: `property_id` / property snapshot; average `rating_value` plus review count;
-- room: only reviews with a reliable `room_id`; average `rating_value` plus review count;
+- building: `property_id` / property snapshot; average `rating_value`, review count, **risk count**
+  (`risk_level = 'risk'`) and risk ratio;
+- room: only reviews with a reliable `room_id`; same four measures;
 - scores are never averaged across providers because Airbnb and Booking.com use different native scales;
 - rows without `reviewed_at` are excluded from a selected-period summary;
-- properties identified by the company Okubo detached-house rule return building summary only and
-  suppress all room summary rows, even if room mapping data exists.
+- `unrated` rows count toward review count only — never toward the average or the risk count;
+- reviews with a null `room_id` count toward their building's totals but not toward any room row, so
+  the screen states the unmapped remainder explicitly instead of letting building and room sums drift;
+- properties where `properties.property_type = 'standalone'` (the Okubo detached-house rule) return a
+  building summary only and suppress all room summary rows, even if room mapping data exists. The rule
+  keys off the enum, never off a property-name string.
+
+The risk count exists because an average hides a handful of bad stays in a high-volume room. The
+`문제 객실` admin view sorts on risk ratio and drills from a risk count straight into that building's
+or room's filtered review list.
 
 The range default/control is a design decision, not a schema default. Introduce a cache/materialized
 aggregate only after measuring a real query-performance need; it must remain derived exclusively from

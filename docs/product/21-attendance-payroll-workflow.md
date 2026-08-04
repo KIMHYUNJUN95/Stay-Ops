@@ -907,3 +907,57 @@ should be defined separately when the reimbursement module is implemented.
 
 - final Excel export template is still pending from the operator
 - future Wi-Fi activation method depends on the final app delivery form beyond the current PWA
+
+
+## 퇴근 미기록(`abandoned`) — as-built (2026-08-04)
+
+**문제.** 열린 근무는 사용자당 하나인데(`attendance_sessions_one_open_per_user_idx`) 그 제약이
+**날짜를 보지 않는다.** 출근 액션도 열린 세션이 있으면 무조건 거절했다. 그래서 어제 퇴근을 깜빡한
+것 하나가 **오늘 현장에 나온 사람의 출근을 막았다** — 실제로 2026-07-15 출근 후 미퇴근인 세션이
+20일간 그 직원의 모든 출근을 차단하고 있었다.
+
+**원칙.** 기록이 지저분한 것보다 **현장에 나온 사람이 일을 시작하지 못하는 쪽이 훨씬 나쁘다.**
+기록은 나중에 고칠 수 있지만, 출근을 못 찍으면 그날 근무 자체가 남지 않는다.
+**막을 것은 마감이지 출근이 아니다.**
+
+### 동작
+
+| | |
+| --- | --- |
+| 출근 시 지난 운영일의 `open` 이 있으면 | `abandoned` 로 옮기고 **새 출근을 통과**시킨다 |
+| 같은 운영일에 이미 열려 있으면 | 기존대로 거절(`open_session`) |
+| `clock_out_at` | **비운 채로 둔다** |
+| 급여 | 제외(`PayExcludeReason = "abandoned"`) — 0원 |
+| 월 마감 | **차단한다**(`getFinalizationEligibility` 가 미해소로 셈) |
+
+### 왜 퇴근 시각을 추정해 채우지 않는가
+
+"아마 18시쯤 퇴근했겠지" 로 채우면 **그 값이 그대로 급여가 된다.** 근태는 돈이 걸린 기록이라
+추측이 들어가면 안 된다. 비워 두면 급여 계산이 `clock_in_at`·`clock_out_at` 을 둘 다 요구하므로
+자동으로 0원이 되고, 마감 차단이 사람의 정리를 강제한다.
+
+### 해소 경로 (기존 수단 재사용, 신규 없음)
+
+| 상황 | 처리 | 급여 |
+| --- | --- | --- |
+| 실제 근무였다 | 직원의 **정정 요청** 승인, 또는 관리자 `updateAttendanceSessionAdmin`(퇴근 시각 + **사유 필수**) | 시각이 채워지면 **포함** |
+| 안 왔다 / 테스트였다 | `invalidateAttendanceSession` (무효 **표시**, 삭제 아님) | 제외 |
+
+관리자 수정으로 닫히면 `status = completed`, `abandoned_at = null` 로 되돌아간다.
+
+### 표시
+
+- **본인** — 근태 홈에 경고 배너(`abandonedTitle` / `abandonedBody`, ko·ja·en). 날짜만 나열한다:
+  몇 시에 퇴근했는지는 본인만 아는 정보라 화면에서 추정하지 않는다. 관리자만 볼 수 있게 두면
+  직원은 자기 급여에서 그날이 빠진 이유를 끝까지 모른다.
+- **관리자** — 기존 `issueKey = "clockout_missing"` 으로 묶인다. 목록의 `status` 는 `open` 으로
+  접는다(관리자가 할 일이 동일하고, 뷰 타입에 상태를 늘리면 필터·배지·엑셀이 전부 갈라진다).
+
+### 남은 과제
+
+- **18:30 리마인더가 `page.tsx` 호출이라 앱을 열어야 뜬다.** 정작 잊은 사람은 앱을 안 연다.
+  크론 + 푸시가 근본이지만, 알림은 개발 막바지에 전 기능 일괄로 붙이기로 한 정책에 따라 보류.
+- 자동 시각 추정(근무지별 종료 시각 등)은 정책 확정 전까지 도입하지 않는다.
+
+가드: `src/lib/__tests__/attendance-abandoned.test.ts` — 위 조건들이 여러 파일에 흩어져 있어
+한 곳만 되돌려도 조용히 옛 동작으로 돌아가므로 소스를 직접 검사한다.

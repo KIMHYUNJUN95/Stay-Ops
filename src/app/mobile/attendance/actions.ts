@@ -204,10 +204,29 @@ export async function submitAttendanceScan(
     .eq("user_id", userId)
     .eq("status", "open")
     .maybeSingle();
-  const openSession = openSessionRes.data as AttendanceSessionRow | null;
+  let openSession = openSessionRes.data as AttendanceSessionRow | null;
+
+  // 지난 운영일의 미퇴근은 **오늘 출근을 막지 않는다**(2026-08-04).
+  //
+  // 열린 근무는 사용자당 하나인데 그 제약이 날짜를 보지 않아서, 어제 퇴근을 깜빡한 것 하나가
+  // 오늘 현장에 나온 사람의 출근을 통째로 막고 있었다(실제로 20일간 막힌 사례). 기록이 지저분한
+  // 것보다 일을 시작하지 못하는 쪽이 훨씬 나쁘다. 그래서 지난 운영일 세션은 `abandoned` 로 옮기고
+  // 진행한다.
+  //
+  // `clock_out_at` 은 채우지 않는다 — 시각을 추측하면 그 값이 그대로 급여가 된다. 대신 월 마감
+  // 판정이 `abandoned` 를 미해소로 세므로, 관리자가 정리하기 전에는 그 달을 닫을 수 없다.
+  if (input.mode === "in" && openSession && openSession.operating_date !== tokyoDate(new Date().toISOString())) {
+    const abandoned = await service
+      .from("attendance_sessions")
+      .update({ status: "abandoned", abandoned_at: new Date().toISOString() } as never)
+      .eq("id", openSession.id)
+      .eq("status", "open"); // 동시 요청이 먼저 닫았으면 아무것도 하지 않는다.
+    // 전환에 실패해도 출근을 막지 않는다 — 아래 insert 가 유니크 위반으로 걸러 준다.
+    if (!abandoned.error) openSession = null;
+  }
 
   if (input.mode === "in") {
-    // 한 사람당 열린 근무는 하나다.
+    // 한 사람당 열린 근무는 하나다(같은 운영일 기준).
     if (openSession) {
       await logAttempt({ success: false, failureReason: "open_session_exists", resolvedSiteId: site.id });
       return { ok: false, reason: "open_session", siteName: localizedSiteName(site, locale) };

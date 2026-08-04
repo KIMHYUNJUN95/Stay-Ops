@@ -138,6 +138,31 @@
   color: var(--att-muted);
   margin: 22px 2px 11px;
 }
+/* 퇴근 미기록 경고 — 급여에서 그날이 빠진다는 사실을 본인이 알아야 정정 요청을 낼 수 있다.
+   경고 톤(amber)으로 두되 오류(red)는 아니다: 잘못된 게 아니라 정리가 필요한 상태다(2026-08-04). */
+.att .att-warn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 13px 15px;
+  margin-bottom: 12px;
+  border: 1px solid hsl(38 70% 62% / 0.4);
+  border-radius: 14px;
+  background: hsl(42 92% 60% / 0.12);
+  text-align: left;
+}
+.att .att-warn b {
+  font-size: 13px;
+  font-weight: 800;
+  color: hsl(28 72% 34%);
+}
+.att .att-warn span {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: hsl(28 30% 38%);
+}
+
 .att .entrylist {
   display: flex;
   flex-direction: column;

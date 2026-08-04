@@ -51,22 +51,46 @@ Needed data:
 
 Reservation memo/notes are not required for the MVP reservation calendar.
 
-### External Reviews: Planned Read-only Collection (2026-07-30)
+### External Reviews: Read-only Collection (spec verified 2026-08-04)
 
 Beds24가 제공하는 Airbnb 및 Booking.com 리뷰는 예약 동기화와 분리된 **저빈도 수집 작업**으로 다룬다.
 StayOps UI는 Beds24를 실시간 조회하지 않고, 수집한 `external_reviews` 로컬 사본만 읽는다.
 
-- 대상 엔드포인트: Beds24 API V2의 Booking.com reviews 및 Airbnb reviews 읽기 엔드포인트
-- 기본 주기: 조직별·채널별 하루 1회 (기본 최대 2회/일). 초기 도입/복구만 최근 90일 범위를 제한적으로 수집
+엔드포인트 계약은 Beds24 OpenAPI 스펙(`https://beds24.com/api/v2/apiV2.yaml`)에서 실측했다.
+
+| | Airbnb | Booking.com |
+|---|---|---|
+| 엔드포인트 | `GET /channels/airbnb/reviews` | `GET /channels/booking/reviews` |
+| Beds24 성숙도 | **Beta** | **Alpha** |
+| 필수 파라미터 | `roomId` (룸타입 단위) | `propertyId` + `from`(YYYY-MM-DD) |
+| 날짜 필터 | **없음** | 있음 |
+| 페이지 | 100건/응답, `pages.nextPageExists` + `nextPageLink` | 동일 |
+| 응답 타입 | `airbnbReview` | `bookingReview` |
+
+- **기본 주기: 룸타입/건물 단위 하루 2회.** API가 단위 파라미터를 필수로 요구하므로 "채널별 하루 1회"는
+  성립하지 않는다. 1주기 호출 수 = `(Airbnb 연동 룸타입 수) + (Booking 연동 건물 수)` + 페이지네이션.
+- **호출 키는 이미 로컬에 있다:** `rooms.external_room_id` → Airbnb `roomId`,
+  `properties.external_property_id` → Booking `propertyId`. 값이 없는 객실·건물은 호출 대상에서 제외한다.
+- 초기 도입/복구는 최근 90일로 제한한다. **Booking.com만 `from`으로 서버 측 제한이 되고, Airbnb는 날짜
+  파라미터가 없어 전량 응답을 받은 뒤 StayOps에서 잘라낸다.**
 - 중복 키: `(organization_id, provider, external_review_id)` UPSERT. 이미 수집한 리뷰를 중복 생성하지 않는다.
-- 매핑: Beds24의 예약/객실 식별자를 로컬 예약·객실과 신뢰성 있게 연결할 수 있을 때만 객실을 기록한다.
-  불확실한 값은 추정하지 않는다.
-- API 비용 통제: 응답 `x-request-cost`, `x-five-min-limit-remaining`, `x-five-min-limit-resets-in`을 수집 로그에
-  남긴다. 여유 크레딧이 낮으면 다음 주기로 미루고, 예약 웹훅 처리보다 우선하지 않는다.
+- **Airbnb 리뷰는 양방향이다.** `reviewer_role`이 게스트인 리뷰만 저장하고, `submitted=false` 또는
+  `hidden=true`는 버린다. 걸러내지 않으면 호스트가 게스트에게 쓴 리뷰까지 수집된다.
+- 매핑은 플랫폼마다 방식이 다르다. **Airbnb는 조회한 `roomId`로 객실이 확정**되고 예약 ID가 없다.
+  **Booking.com은 객실 정보가 없고** `reservation_id`(Beds24 bookingId)를 같은 조직의
+  `reservations.source_reservation_id`로 역조회해야 객실을 얻는다. 역조회 실패 시 객실을 추정하지 않고
+  null로 둔다.
+- API 비용 통제: 응답 헤더 `X-RequestCost`, `X-FiveMinCreditLimit-Remaining`,
+  `X-FiveMinCreditLimit-ResetsIn`을 수집 로그에 남긴다. 여유 크레딧이 낮으면 남은 대상을 다음 주기로
+  미루고(중단 지점을 다음 주기가 이어받는다), 예약 웹훅 처리보다 우선하지 않는다.
+- 두 엔드포인트가 Beta/Alpha이므로 `raw_payload`를 항상 보존하고, 파싱 실패는 해당 리뷰 1건만 건너뛰고
+  나머지 수집을 계속한다.
 - 보안: API 토큰은 서버 전용 환경변수에서 재사용한다. 브라우저 요청, 클라이언트 로그, 문서에 토큰을 노출하지 않는다.
 
 위 수집은 외부 리뷰를 자동으로 `customer_complaints`로 만들지 않는다. 운영자가 필요할 때만 수동
-컴플레인으로 전환·연결한다. 상세 제품 계약은 `docs/product/25-complaint-workflow.md`를 따른다.
+컴플레인으로 전환·연결한다. 리뷰는 점수와 무관하게 전량 저장하며 위험도(Airbnb ≤3, Booking ≤7.0, 경계
+포함)는 서버 계산 분류일 뿐 수집 필터가 아니다. 상세 제품 계약은
+`docs/product/25-complaint-workflow.md`를 따른다.
 
 ## Company-Specific Active Room Rule
 

@@ -66,23 +66,30 @@ Beds24가 제공하는 Airbnb 또는 Booking.com 리뷰의 로컬 사본이다. 
 
 ---
 
-## Rating Risk Rules (confirmed)
+## Rating Risk Rules (confirmed 2026-08-04)
 
 외부 리뷰는 플랫폼 원점수와 판정 결과를 함께 저장·표시한다. 플랫폼별 척도와 세부 평점 항목을 억지로
 같은 점수 체계로 환산하지 않는다.
 
 | 플랫폼 | 점수 기준 | 위험도 |
 |---|---:|---|
-| Airbnb | 3.0 이하 | `risk` (위험) |
-| Airbnb | 3.0 초과 | `normal` |
-| Booking.com | 7.0 | `risk` (위험 시작) |
-| Booking.com | 7.0 미만 | `critical` (매우 위험) |
+| Airbnb | 3 **이하** (경계 포함) | `risk` (문제) |
+| Airbnb | 3 초과 | `normal` |
+| Booking.com | 7.0 **이하** (경계 포함) | `risk` (문제) |
 | Booking.com | 7.0 초과 | `normal` |
 
-- Airbnb 1~2점에 별도 `critical`을 둘지는 아직 결정하지 않았다. 현재는 3점 이하를 모두 `risk`로
-  취급한다.
+- 위험도는 `unrated` / `normal` / `risk` **3값**이다. 이전 초안의 Booking `critical`(7.0 미만) 단계와
+  Airbnb 1~2점 분리안은 2026-08-04에 폐기했다. 두 플랫폼 모두 단일 경계 하나만 쓴다.
+- 경계값은 **위험 쪽에 포함**한다. Airbnb 3점과 Booking 7.0점은 `risk`다.
+- Airbnb `overall_rating`은 API가 정수(int32)로 돌려주므로 실질 `risk` 구간은 1·2·3점이다.
 - 위험도는 사용자가 편집하는 필드가 아니라 플랫폼·원점수에서 서버가 일관되게 계산한다.
 - 점수가 없거나 범위를 검증할 수 없는 리뷰는 위험도를 계산하지 않고 `unrated`로 보관한다.
+
+### 전량 수집 원칙
+
+`risk` 판정은 **분류**이지 수집 필터가 아니다. 조직의 외부 리뷰는 점수와 무관하게 전량 저장한다.
+문제 리뷰만 저장하면 아래 "Period Rating Summary"의 건물·객실 평균 평점이 성립하지 않고, Airbnb
+엔드포인트에는 애초에 점수·날짜 필터가 없어 서버에서 분류하는 것 외의 선택지도 없다.
 
 ### Provider-specific review content and detailed scores
 
@@ -158,14 +165,16 @@ image_urls, created_at, updated_at
 
 ---
 
-## External Review Fields (planned)
+## External Review Fields (planned, 2026-08-04 API 조사 반영)
 
 ```txt
 id, organization_id, provider, external_review_id,
 rating_value, rating_scale, risk_level, rating_breakdown,
 reviewed_at, imported_at, source_updated_at,
 property_id, property_name, room_id, room_label, reservation_id,
-guest_display_name, review_text, positive_review_text, negative_review_text, raw_payload,
+guest_display_name, headline, source_language_code,
+review_text, positive_review_text, negative_review_text, private_feedback,
+ota_reply_text, ota_replied_at, raw_payload,
 linked_complaint_id, created_at, updated_at
 ```
 
@@ -173,12 +182,50 @@ linked_complaint_id, created_at, updated_at
 - `(organization_id, provider, external_review_id)`는 중복되지 않아야 한다.
 - `rating_value`/`rating_scale`은 출처 원점수 보존용이다. 위험도·정렬은 검증된 원점수로 계산한다.
 - `rating_breakdown`은 제공된 플랫폼별 세부 점수의 원본 구조다. 값이 없을 수 있으며, 공통 스키마로
-  정규화하지 않는다.
+  정규화하지 않는다. Airbnb는 `category_ratings[]`, Booking.com은 `scoring{clean, facilities, location,
+  services, staff, value}` 구조를 그대로 담는다.
 - `review_text`, `positive_review_text`, `negative_review_text`는 모두 nullable이다. 특히 Booking.com은
   긍정·부정 본문 없이 점수만 제공할 수 있다.
+- `headline`은 Booking.com `content.headline`(리뷰 제목)이다. Airbnb에는 대응 필드가 없어 항상 null이다.
+- `source_language_code`는 Booking.com `content.language_code`다. 값이 있으면 번역 시 언어 자동 감지를
+  건너뛰어 DeepL 사용량을 아낀다. Airbnb는 제공하지 않으므로 자동 감지로 되돌아간다.
+- `private_feedback`은 **Airbnb 전용**이다. 게스트가 공개 리뷰와 별도로 호스트에게만 보낸 비공개 내용이며,
+  OTA에 공개되지 않는다. 점수가 없는 텍스트이므로 **위험도·평점 집계에 절대 반영하지 않는다.** 화면에서는
+  공개 리뷰와 시각적으로 구분해 표시한다(비공개 배지). Booking.com에는 대응 필드가 없다.
+- `ota_reply_text` / `ota_replied_at`은 Booking.com `reply{text, last_change_timestamp}`다. 이미 OTA에
+  달린 답글을 **읽기 전용으로 표시**하기 위한 값이다. StayOps에서 답글을 작성·전송하는 기능은 v1 범위 밖이며
+  이 필드가 그 범위를 넓히지 않는다.
 - `raw_payload`는 장애 조사·매핑 보완을 위한 서버 전용 원문 보관이며, UI에 그대로 노출하지 않는다.
+  Beds24 리뷰 엔드포인트가 Beta/Alpha라 스키마가 바뀔 수 있으므로 보존 가치가 크다.
 - `linked_complaint_id`는 해당 리뷰로부터 만든 수동 컴플레인 하나를 가리킨다. 하나의 리뷰를 여러 티켓으로
   중복 전환하지 않도록 서버가 제어한다.
+
+### 플랫폼별 필드 가용성 (실측)
+
+두 엔드포인트가 주는 정보가 **비대칭**이다. 없는 값을 추정으로 채우지 않는다.
+
+| 항목 | Airbnb | Booking.com |
+|---|---|---|
+| 객실 식별 | 쿼리한 `roomId`로 **확정** | 응답에 없음 → `reservation_id` 역조회 필요 |
+| 예약 식별 | **없음** (`reservation_id` 항상 null) | `reservation_id`(Beds24 bookingId) 제공 |
+| 게스트 이름 | **없음** (`reviewer_id`만) → `guest_display_name` null | `reviewer.name` 제공 |
+| 리뷰 제목 | 없음 | `content.headline` |
+| 원문 언어 | 없음 (자동 감지) | `content.language_code` |
+| 비공개 피드백 | `private_feedback` | 없음 |
+| OTA 답글 | 없음 | `reply` |
+| 본문 | `public_review` 단일 | `positive` / `negative` 분리 |
+
+즉 **객실 매핑 신뢰도는 Airbnb가, 예약·게스트 문맥은 Booking.com이 높다.** Booking.com 리뷰의 객실은
+`reservation_id`로 로컬 `reservations`를 조회해 얻으며, 로컬에 해당 예약이 없으면 `room_id`를 null로 두고
+`객실 정보 없음`으로 표시한다.
+
+### 수집 시 제외 규칙 (Airbnb)
+
+Airbnb 리뷰는 **양방향**이다. 호스트가 게스트에게 쓴 리뷰까지 그대로 저장하면 안 된다.
+
+- `reviewer_role`이 게스트인 리뷰만 저장한다. 호스트 작성 리뷰는 버린다.
+- `submitted`가 false이거나 `hidden`이 true인 리뷰는 저장하지 않는다.
+- `reviewee_response` / `responded_at`은 호스트 응답 문맥이며 v1에서는 저장하지 않는다.
 
 ---
 
@@ -190,7 +237,8 @@ linked_complaint_id, created_at, updated_at
 ### User behavior
 
 - 외부 리뷰 상세에서 현재 앱 언어가 원문 언어와 다를 때 `번역 보기`를 제공한다.
-- 첫 요청은 서버가 원문 언어를 자동 감지해 해당 앱 언어로 번역한다. 사용자가 원문과 번역문을 전환할 수 있다.
+- 첫 요청은 서버가 원문 언어를 판별해 해당 앱 언어로 번역한다. Booking.com은 `source_language_code`가
+  있으면 그 값을 쓰고, 없거나 Airbnb면 자동 감지로 되돌아간다. 사용자가 원문과 번역문을 전환할 수 있다.
 - 같은 `리뷰 + 본문 종류 + 목표 언어` 조합은 저장된 번역을 즉시 재사용한다. 목록 화면, 정렬, 필터에서는 번역 요청을
   만들지 않는다.
 - 번역은 `자동 번역`임을 명시한다. 번역 실패·무료 한도 도달 시 원문은 계속 열람 가능하다.
@@ -215,6 +263,9 @@ review_translations (planned)
   source_text_hash, created_at, updated_at
   unique (external_review_id, source_part, target_locale)
 ```
+
+`source_part`는 `review` / `positive` / `negative` / `headline` / `private` 다섯 값이다. `private`는
+Airbnb 비공개 피드백이며, 번역 결과도 상세에서 비공개 영역 안에 표시한다.
 
 `source_text_hash`가 현재 원문과 다르면 이전 번역을 표시하지 않고 다음 상세 요청 때 새 번역을 만든다.
 번역은 외부 리뷰와 같은 조직에만 연결하며, 외부 리뷰 삭제/정리 정책이 정해질 때 함께 cascade 정책을
@@ -241,11 +292,30 @@ review_translations (planned)
 - 별도 집계 테이블을 먼저 만들지 않는다. `external_reviews` 로컬 데이터에서 조직·기간·플랫폼·건물/객실
   조건으로 서버 집계해 두 화면이 같은 결과를 사용한다. 성능 문제가 확인될 때만 캐시/집계 구조를 추가한다.
 
+### 문제 리뷰 집계 (confirmed 2026-08-04)
+
+평균 평점만으로는 "어느 객실이 문제인지"가 드러나지 않는다. 리뷰 수가 많은 객실은 낮은 점수 몇 건이
+평균에 묻히기 때문이다. 그래서 건물·객실 요약은 평균과 **문제 건수를 함께** 제공한다.
+
+- 각 건물 행과 객실 행은 플랫폼별로 `평균 원점수` / `리뷰 수` / `문제 리뷰 수`(`risk_level = 'risk'`)를
+  함께 낸다. 문제 비율(문제 수 ÷ 리뷰 수)도 함께 제공해 리뷰 수가 다른 객실을 비교할 수 있게 한다.
+- 문제 건수는 평균 평점을 대체하지 않는다. 둘은 같은 기간·같은 리뷰 집합에서 나온 별개 지표다.
+- 요약의 문제 건수에서 **해당 건물·객실의 문제 리뷰 목록으로 바로 내려갈 수 있어야 한다.** 이 드릴다운이
+  이 집계의 주 사용 목적이다.
+- 객실이 연결되지 않은 리뷰(`room_id` null)는 건물 문제 건수에는 포함하되 객실 행에는 넣지 않는다.
+  건물 합계와 객실 합계가 어긋날 수 있으므로 화면에서 `객실 미연결 N건`을 별도로 밝힌다.
+- 오쿠보 독채 규칙(아래)이 적용되는 건물은 객실 행 없이 건물 문제 건수만 제공한다.
+- `unrated` 리뷰는 평균과 문제 건수 어느 쪽에도 넣지 않으며, 리뷰 수에만 별도로 밝힌다.
+
 ### Okubo detached-house rule
 
 오쿠보의 운영 단위는 모두 독채이므로 **건물 평점 하나가 곧 해당 독채의 평점**이다. 오쿠보 건물에서는
-객실별 평점 영역·객실 순위·객실 평균을 만들지 않는다. 내부 객실 데이터가 존재하더라도 리뷰 집계 화면에서는
-건물 단위로만 합산한다.
+객실별 평점 영역·객실 순위·객실 평균·객실 문제 건수를 만들지 않는다. 내부 객실 데이터가 존재하더라도 리뷰
+집계 화면에서는 건물 단위로만 합산한다.
+
+판정 근거는 **`properties.property_type = 'standalone'`**을 사용한다. 건물 이름 문자열("오쿠보")로
+분기하지 않는다. 오쿠보 외의 독채 건물이 늘어나도 같은 규칙이 자동 적용되며, 반대로 오쿠보 레코드가
+`standalone`이 아니면 그것은 마스터 데이터 오류로 다뤄 코드에 예외를 넣지 않는다.
 
 ### Date range
 
@@ -255,16 +325,42 @@ review_translations (planned)
 
 ---
 
-## Beds24 Collection and Credit Policy
+## Beds24 Collection and Credit Policy (2026-08-04 API 조사로 재작성)
 
 외부 리뷰는 Beds24 API를 **수집 전용**으로 사용하고, StayOps DB를 운영 화면의 유일한 조회 원본으로 쓴다.
 
-- 채널별(Airbnb, Booking.com) 하루 1회 기본 동기화로 시작한다. 즉, 조직당 기본 최대 2회 수집이다.
-- 초기 도입/복구 때만 제한된 과거 기간(기본 최근 90일)을 가져오며, 이후에는 중복 키 UPSERT로 증분 반영한다.
+### 실제 엔드포인트 계약 (조사 확정)
+
+| | Airbnb | Booking.com |
+|---|---|---|
+| 엔드포인트 | `GET /channels/airbnb/reviews` | `GET /channels/booking/reviews` |
+| Beds24 성숙도 | **Beta** | **Alpha** |
+| 필수 파라미터 | `roomId` (룸타입 단위) | `propertyId` + `from`(YYYY-MM-DD) |
+| 날짜 필터 | **없음** | 있음 |
+| 페이지 크기 | 100건, `pages.nextPageExists` | 100건, 동일 |
+
+로컬 호출 키는 이미 존재한다: `rooms.external_room_id`(Airbnb `roomId`),
+`properties.external_property_id`(Booking `propertyId`), `reservations.source_reservation_id`
+(Booking 리뷰의 `reservation_id` 역조회용). 별도 매핑 테이블을 새로 만들지 않는다.
+
+### 수집 주기 (confirmed 2026-08-04)
+
+- **룸타입/건물 단위로 하루 2회** 동기화한다. 이전 초안의 "채널별 하루 1회 = 조직당 최대 2회"는 API가
+  단위 파라미터를 필수로 요구하므로 성립하지 않아 폐기했다.
+- 따라서 1회 주기의 기본 호출 수는 `(Airbnb 연동 룸타입 수) + (Booking 연동 건물 수)`이며, 페이지네이션이
+  발생하면 그만큼 늘어난다. 하루 총량은 그 2배다.
+- 연동되지 않은(=`external_room_id` / `external_property_id`가 없는) 객실·건물은 호출하지 않는다.
+- 초기 도입/복구 때만 제한된 과거 기간(기본 최근 90일)을 가져온다. **Booking.com만 `from`으로 서버 측
+  제한이 가능하고, Airbnb는 날짜 파라미터가 없어 전량 응답을 받은 뒤 StayOps에서 기간을 잘라낸다.**
+  이후에는 중복 키 UPSERT로 증분 반영한다.
 - 웹·모바일 목록, 정렬, 필터, 상세 진입은 Beds24 호출을 절대 만들지 않는다.
-- Beds24 응답의 요청 비용·남은 5분 크레딧·리셋 시각을 동기화 로그에 기록한다. 잔여 크레딧이 낮으면
-  리뷰 동기화를 다음 주기로 미루며 예약 웹훅 처리보다 우선하지 않는다.
+- Beds24 응답의 `X-RequestCost`, `X-FiveMinCreditLimit-Remaining`, `X-FiveMinCreditLimit-ResetsIn`을
+  동기화 로그에 기록한다. 잔여 크레딧이 낮으면 남은 대상의 리뷰 동기화를 다음 주기로 미루며, 예약 웹훅
+  처리보다 우선하지 않는다. 중단 지점은 다음 주기가 이어받는다.
 - API 토큰은 서버 환경변수에서만 사용·재사용한다. 브라우저, 문서, 로그에 토큰을 노출하지 않는다.
+
+두 엔드포인트가 Beta/Alpha이므로 응답 스키마 변화에 대비해 `raw_payload`를 항상 보존하고, 파싱 실패는
+해당 리뷰 1건만 건너뛰고 나머지 수집을 계속한다.
 
 Beds24 예약 웹훅 우선 원칙은 유지한다. 리뷰는 웹훅이 아닌 정기 수집이 필요하더라도, 예약/객실 연결은
 이미 로컬에 수집된 예약과 객실 마스터를 우선 사용한다.
@@ -291,15 +387,36 @@ Beds24 예약 웹훅 우선 원칙은 유지한다. 리뷰는 웹훅이 아닌 �
 `/admin/complaints` (planned)는 사무실/CS의 통합 검토 콘솔이다. 공용 어드민 테이블·필터·우측 상세 패널
 패턴을 사용하며 별도 디자인 체계를 만들지 않는다.
 
-- 뷰: `수동 컴플레인`과 `외부 리뷰`를 명확히 구분
+- 뷰 3개: `수동 컴플레인` / `외부 리뷰` / `문제 객실`
 - 외부 리뷰 기본 정렬: 위험도 우선 → 낮은 원점수 순 → 최신 리뷰순
 - 외부 리뷰 필터: 플랫폼, 위험도, 건물, 객실, 리뷰 날짜 범위
-- 선택 기간 건물별 평점 및 (오쿠보 외) 객실별 평점: 플랫폼별 평균 원점수와 리뷰 수를 함께 표시
 - 수동 컴플레인 필터: 플랫폼, 상태, 건물, 객실, 등록 날짜 범위, 작성자
 - 행/상세 공통 정보: 플랫폼, 원점수와 위험도(리뷰), 건물, 객실, 예약 문맥, 날짜, 연결 여부. 상세에서는
   출처가 제공한 세부 점수와 Booking.com 긍정/부정 본문을 조건부로 표시
 - 상세에서 권한 있는 사용자는 외부 리뷰를 수동 컴플레인으로 전환하거나 연결된 컴플레인으로 이동한다.
 - 표시할 수 없는 객실은 비어 있는 값처럼 숨기지 않고 `객실 정보 없음` 상태를 명확히 보여준다.
+
+#### `문제 객실` 뷰 (confirmed 2026-08-04)
+
+선택 기간의 리뷰를 건물·객실로 집계해 **어느 객실이 문제인지**를 한 화면에서 판별하는 뷰다. 이 화면이
+외부 리뷰 기능의 주 운영 목적이며, 개별 리뷰 목록보다 상위에 둔다.
+
+- 건물 행 → 객실 행으로 펼치는 2단 구조. 각 행은 플랫폼별로 `평균 원점수` / `리뷰 수` / `문제 건수` /
+  `문제 비율`을 보여준다. Airbnb(5점)와 Booking.com(10점)은 같은 열에 합치지 않고 분리한다.
+- 기본 정렬은 문제 비율 내림차순이며, 문제 건수·평균 평점으로도 정렬할 수 있다.
+- 행의 문제 건수를 누르면 그 건물·객실의 문제 리뷰만 필터된 `외부 리뷰` 뷰로 이동한다.
+- `property_type = 'standalone'` 건물은 객실 행을 펼치지 않고 건물 행 하나만 제공한다.
+- 객실이 연결되지 않은 리뷰는 건물 행에 `객실 미연결 N건`으로 별도 표기한다.
+- 기간 선택은 공용 `AdminDateRangePicker` / `DateRangeFormField`를 쓴다. 전용 캘린더를 만들지 않는다.
+- 리뷰가 없는 기간은 0점이 아니라 `리뷰 없음`으로 표시한다.
+
+#### 외부 리뷰 상세에서 조건부로 보이는 영역
+
+- Booking.com: `headline`, `positive` / `negative` 분리 본문, `scoring` 세부 점수,
+  OTA에 이미 달린 답글(`ota_reply_text`, 읽기 전용 — StayOps에서 답글을 쓰지 않는다)
+- Airbnb: `category_ratings` 세부 점수, 공개 리뷰 본문, **비공개 피드백**
+- 비공개 피드백은 `비공개` 배지와 함께 공개 리뷰와 시각적으로 분리한다. 직원이 OTA 공개 내용으로
+  오해하지 않게 하는 것이 이 구분의 목적이다.
 
 시각 디자인, 카드 구성, 컬러와 아이콘은 디자인 작업에서 결정한다. 위 목록 밖의 차트·내보내기·자동화 UI는
 이번 범위에 넣지 않는다. 대시보드의 변경도 모바일과 공통 데이터 원본에 저장되며 별도 사무실 전용
@@ -321,7 +438,15 @@ Beds24 예약 웹훅 우선 원칙은 유지한다. 리뷰는 웹훅이 아닌 �
 
 ## Deferred Decisions
 
-- Airbnb 1~2점도 `critical`로 분리할지
-- 외부 리뷰 동기화 실패 알림의 수신 역할과 재시도 UI
+- 외부 리뷰 동기화 실패 알림의 수신 역할과 재시도 UI (알림은 개발 막바지 일괄 구현 대상)
 - 외부 리뷰에 대한 내부 메모를 리뷰 자체에 둘지, 연결된 수동 컴플레인 댓글만 사용할지
-- 플랫폼별/기간별 집계와 export의 필요 시점
+- export의 필요 시점 (v1 범위 밖. 추가할 때는 `AdminExportButtons` + Excel·PDF 동시 규약을 따른다)
+- 기간 선택의 기본값과 빠른 기간 버튼 구성 (UI 디자인 단계에서 확정)
+
+### Resolved on 2026-08-04
+
+- ~~Airbnb 1~2점도 `critical`로 분리할지~~ → 분리하지 않는다. `critical` 단계 자체를 폐기하고 두 플랫폼
+  모두 경계 포함 단일 `risk`로 통일했다 (Airbnb ≤3, Booking ≤7.0).
+- ~~외부 리뷰 수집 단위와 주기~~ → 룸타입/건물 단위 하루 2회. API가 `roomId` / `propertyId`를 필수로
+  요구해 "채널별 1회"는 성립하지 않는다.
+- ~~플랫폼별/기간별 집계의 필요 시점~~ → v1에 포함한다. `문제 객실` 뷰가 그 형태다.

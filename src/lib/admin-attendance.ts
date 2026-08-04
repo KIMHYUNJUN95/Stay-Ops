@@ -1389,7 +1389,9 @@ function classifyDayIssue(s: {
   correctionStatus: string | null;
   isAbnormal: boolean;
 }): AdminStaffDaySession["issueKey"] {
-  if (s.status === "open" && !s.clockOutLabel) return "clockout_missing";
+  // `abandoned` 도 "퇴근 미기록"으로 묶는다 — 관리자 입장에서 해야 할 일이 같기 때문이다
+  // (퇴근 시각 입력 또는 무효 처리). 2026-08-04.
+  if ((s.status === "open" || s.status === "abandoned") && !s.clockOutLabel) return "clockout_missing";
   if (s.correctionStatus === "requested" || s.correctionStatus === "in_review")
     return "correction_pending";
   if (s.isAbnormal) return "abnormal";
@@ -1592,9 +1594,15 @@ export async function getAdminStaffDetail(
       paidDurationLabel: fmtDurationMin(paidMin),
       breakLabel: fmtBreakSec(breakSec),
       siteName: r.clock_in_site_id ? siteNameById.get(r.clock_in_site_id) ?? null : null,
-      status: r.status === "open" || r.status === "completed" || r.status === "invalid"
-        ? (r.status as "open" | "completed" | "invalid")
-        : "completed",
+      // `abandoned` 는 목록에서 `open` 으로 접는다. 뷰 타입에 상태를 늘리면 필터·배지·엑셀까지
+      // 전부 갈라지는데, 관리자가 할 일은 "퇴근 시각을 채우거나 무효 처리"로 동일하다. 구분이
+      // 필요한 자리는 위 issueKey(`clockout_missing`)가 이미 담당한다.
+      status:
+        r.status === "completed" || r.status === "invalid"
+          ? (r.status as "completed" | "invalid")
+          : r.status === "open" || r.status === "abandoned"
+            ? "open"
+            : "completed",
       reviewState: r.review_state,
       isAbnormal,
       correctionPending: corrStatus === "requested" || corrStatus === "in_review",

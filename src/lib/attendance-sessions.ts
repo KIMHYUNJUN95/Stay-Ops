@@ -73,6 +73,32 @@ function tokyoTimeLabel(iso: string | null): string {
 }
 
 /**
+ * 퇴근을 찍지 않은 채 운영일이 넘어가 `abandoned` 로 밀린 세션들(2026-08-04).
+ *
+ * 이 세션들은 더 이상 새 출근을 막지 않지만 **월 마감은 막는다.** 본인이 먼저 알아야 정정 요청을
+ * 낼 수 있으므로 근태 홈에 배너로 띄운다 — 청소의 "지난 날짜 미완료" 배너와 같은 취지다.
+ * 관리자만 볼 수 있게 두면 직원은 자기 급여에서 그날이 빠진 이유를 끝까지 모른다.
+ */
+export async function getAbandonedSessions(
+  organizationId: string,
+  userId: string,
+): Promise<{ id: string; operatingDate: string }[]> {
+  const { data, error } = await getSupabaseServiceClient()
+    .from("attendance_sessions")
+    .select("id, operating_date")
+    .eq("organization_id", organizationId)
+    .eq("user_id", userId)
+    .eq("status", "abandoned")
+    .order("operating_date", { ascending: false })
+    .limit(10);
+  if (error || !data) return [];
+  return (data as { id: string; operating_date: string }[]).map((r) => ({
+    id: r.id,
+    operatingDate: r.operating_date,
+  }));
+}
+
+/**
  * The user's current open work session (status = 'open'), or null. Org-scoped; the partial unique
  * index guarantees at most one. Resolves the clock-in site name for the home's info strip.
  */

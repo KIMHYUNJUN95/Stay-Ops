@@ -1819,6 +1819,10 @@ const FALLBACK_DICTIONARY = {
   },
   attendance: {
     pageTitle: "Attendance",
+    // 2026-08-04: 퇴근 미기록으로 운영일이 넘어간 날 안내. 본인이 알아야 정정 요청을 낼 수 있다.
+    abandonedTitle: "Clock-out missing",
+    abandonedBody:
+      "You didn't clock out on {dates}. Those days are excluded from pay until they're fixed — send a correction request or ask your manager.",
     historyTitle: "Attendance History",
     monthPrev: "Previous month",
     monthNext: "Next month",
@@ -6423,6 +6427,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     },
     attendance: {
       pageTitle: "근태",
+      abandonedTitle: "퇴근 기록 없음",
+      abandonedBody:
+        "{dates}에 퇴근을 찍지 않았어요. 정리되기 전까지 그 날짜는 급여에서 빠집니다 — 정정 요청을 보내거나 관리자에게 알려 주세요.",
       historyTitle: "근태 이력",
       monthPrev: "이전 달",
       monthNext: "다음 달",
@@ -10930,6 +10937,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     },
     attendance: {
       pageTitle: "勤怠",
+      abandonedTitle: "退勤の記録なし",
+      abandonedBody:
+        "{dates}に退勤を記録していません。処理されるまでその日は給与から除外されます — 訂正申請を送るか管理者にお知らせください。",
       historyTitle: "勤怠履歴",
       monthPrev: "前の月",
       monthNext: "次の月",

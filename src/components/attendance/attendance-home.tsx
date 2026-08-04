@@ -296,6 +296,7 @@ export function AttendanceHome({
   todayLabel,
   state = "idle",
   openSession = null,
+  abandonedDates = [],
   reminderOpenSessionId = null,
   monthHours = null,
   monthPay = null,
@@ -307,6 +308,8 @@ export function AttendanceHome({
   todayLabel: string;
   state?: HomeState;
   openSession?: OpenSessionView | null;
+  /** 퇴근을 안 찍고 넘어간 운영일들(YYYY-MM-DD). 비어 있으면 배너를 그리지 않는다. */
+  abandonedDates?: string[];
   reminderOpenSessionId?: string | null;
   /** Formatted monthly worked hours (e.g. "32:10"). null = no data to show. */
   monthHours?: string | null;
@@ -369,6 +372,16 @@ export function AttendanceHome({
       <div className="greet__n">{copy.homeGreetFull(userName)}</div>
     </div>
   );
+
+  // 퇴근 미기록 배너 — 근무 중이든 출근 전이든 항상 보여야 한다(정정 요청을 내야 하는 건 같다).
+  // 날짜만 나열한다: 몇 시에 퇴근했는지는 본인만 아는 정보라 여기서 추정하지 않는다(2026-08-04).
+  const abandonedBanner =
+    abandonedDates.length > 0 ? (
+      <div className="att-warn" role="status">
+        <b>{copy.abandonedTitle}</b>
+        <span>{copy.abandonedBody.replace("{dates}", abandonedDates.join(", "))}</span>
+      </div>
+    ) : null;
 
   // Shortcut entry list (idle only)
   const entryList = (
@@ -497,7 +510,9 @@ export function AttendanceHome({
           <p role="alert" style={{ color: "var(--color-error, #c0392b)", fontSize: "0.875rem", textAlign: "center", margin: "8px 0 0" }}>{errorMsg}</p>
         ) : null}
         {/* 근무 중 상태에서도 이력·급여로 바로 이동할 수 있도록 주요 액션 아래에 배치 */}
-        {entryList}
+        {abandonedBanner}
+        {abandonedBanner}
+      {entryList}
         {reminderOpenSessionId ? <ReminderPrompt sessionId={reminderOpenSessionId} copy={copy} /> : null}
       </div>
     );
@@ -552,6 +567,7 @@ export function AttendanceHome({
           <p role="alert" style={{ color: "var(--color-error, #c0392b)", fontSize: "0.875rem", textAlign: "center", margin: "8px 0 0" }}>{errorMsg}</p>
         ) : null}
         {/* 휴게 중 상태에서도 이력·급여 바로가기 유지 */}
+        {abandonedBanner}
         {entryList}
         {reminderOpenSessionId ? <ReminderPrompt sessionId={reminderOpenSessionId} copy={copy} /> : null}
       </div>

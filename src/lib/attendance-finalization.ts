@@ -86,7 +86,11 @@ export async function getFinalizationEligibility(
 
   const reviewRequired = sessions.filter((s) => s.review_state === "review_required").length;
   const openSessions = sessions.filter(
-    (s) => s.status !== "invalid" && (s.status === "open" || s.status === "reopened" || !s.clock_out_at),
+    // `abandoned`(퇴근 미기록 후 운영일 경과)도 미해소로 센다 — 출근은 막지 않되 **마감은 막아야**
+    // 누군가 반드시 정리하게 된다. 정리 경로는 정정 요청 승인 / 관리자 직접 수정 / 무효 처리.
+    (s) =>
+      s.status !== "invalid" &&
+      (s.status === "open" || s.status === "reopened" || s.status === "abandoned" || !s.clock_out_at),
   ).length;
 
   const sessionIds = sessions.map((s) => s.id);

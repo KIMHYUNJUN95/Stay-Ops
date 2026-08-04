@@ -147,6 +147,52 @@ iOS 전용 대책이 아니다. 안드로이드·PWA 사용자도 세션이 만�
 무효 입력) 통과. `npm run lint` 통과(0 errors), `npm run build` 통과.
 상세: `docs/product/24-attendance-workflow.md` → "QR Deep Link".
 
+## 2026-08-04 컴플레인 — Beds24 리뷰 API 실측으로 수집·위험도·스키마 확정
+
+2026-07-30 재기획의 미검증 가정을 Beds24 OpenAPI 스펙(`https://beds24.com/api/v2/apiV2.yaml`)으로
+실측해 수정했다. 두 엔드포인트는 실존하나 계약이 기획 가정과 달랐다.
+
+### 실측 결과
+
+- `GET /channels/airbnb/reviews` (**Beta**) — `roomId` 필수, **날짜 필터 없음**, 100건/페이지
+- `GET /channels/booking/reviews` (**Alpha**) — `propertyId` + `from` 필수, 100건/페이지
+- 호출 키는 이미 로컬에 있다: `rooms.external_room_id`, `properties.external_property_id`,
+  `reservations.source_reservation_id`. 새 매핑 테이블이 필요 없다.
+
+### 결정
+
+- **수집 단위·주기: 룸타입/건물 단위 하루 2회.** "채널별 하루 1회 = 조직당 최대 2회"는 API가 단위
+  파라미터를 필수로 요구해 성립하지 않아 폐기했다. 1주기 호출 수는 `(Airbnb 룸타입 수) + (Booking 건물 수)`
+  + 페이지네이션이다.
+- **초기 90일 제한은 Booking.com만 서버 측(`from`)에서 가능**하고, Airbnb는 전량을 받아 StayOps에서
+  잘라낸다.
+- **위험도는 `unrated` / `normal` / `risk` 3값.** Airbnb ≤3, Booking.com ≤7.0이 `risk`이며 **경계값 포함**.
+  이전 초안의 Booking `critical`(<7.0)과 Airbnb 1~2점 분리안은 폐기했다. Airbnb `overall_rating`이 정수라
+  실질 위험 구간은 1~3점이다.
+- **리뷰는 점수와 무관하게 전량 저장한다.** 위험도는 분류이지 수집 필터가 아니다. 문제 리뷰만 저장하면
+  건물·객실 평균 평점이 성립하지 않고, Airbnb는 애초에 점수·날짜 필터가 없다.
+- **`문제 객실` 뷰를 v1에 포함한다.** 건물 → 객실 2단 집계에 플랫폼별 `평균 / 리뷰 수 / 문제 건수 /
+  문제 비율`을 함께 두고, 문제 건수에서 해당 객실의 문제 리뷰 목록으로 드릴다운한다. 평균만으로는
+  리뷰가 많은 객실의 저평점이 묻히기 때문이다.
+- **스키마 5개 컬럼 추가**: `headline`(Booking 리뷰 제목), `source_language_code`(Booking 원문 언어 →
+  DeepL 자동 감지 생략으로 사용량 절감), `private_feedback`(Airbnb 비공개 피드백),
+  `ota_reply_text` / `ota_replied_at`(Booking 기존 답글, 읽기 전용). `review_translations.source_part`에
+  `headline` / `private`를 추가한다.
+- **비공개 피드백은 수집·표시하되 점수 계산에서 제외한다.** OTA 비공개 내용이므로 목록·집계 쿼리에서
+  선택하지 않고 상세에서만 `비공개` 배지와 함께 공개 리뷰와 분리해 보여준다.
+- **Airbnb 리뷰는 양방향이므로 게스트 작성분만 저장한다.** `reviewer_role` 기준으로 거르고,
+  `submitted=false` / `hidden=true`는 저장하지 않는다.
+- **필드 가용성이 플랫폼마다 비대칭임을 계약으로 명시한다.** Airbnb는 예약 ID·게스트 이름이 없고 객실이
+  확정적이며, Booking.com은 객실이 없고 예약 ID·게스트 이름이 있다. 없는 값을 추정으로 채우지 않는다.
+- **오쿠보 독채 판정은 `properties.property_type = 'standalone'`** 으로 한다. 건물 이름 문자열로 분기하지
+  않는다.
+- 두 엔드포인트가 Beta/Alpha이므로 `raw_payload`를 항상 보존하고, 파싱 실패는 리뷰 1건만 건너뛴다.
+
+### 문서
+
+`docs/product/25-complaint-workflow.md`, `docs/product/05-admin-web-ia.md`,
+`docs/engineering/04-data-model.md`, `docs/engineering/05-rls-permissions.md` 동시 갱신.
+
 ## 2026-07-30 컴플레인 재기획 — 수동 컴플레인과 Beds24 외부 리뷰를 분리·연결
 
 ### 결정
