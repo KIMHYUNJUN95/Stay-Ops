@@ -15,9 +15,18 @@ export const metadata: Metadata = {
 export default function OfflinePage() {
   return (
     <main className="flex min-h-svh flex-col items-center justify-center gap-3 bg-background px-8 text-center text-foreground">
-      <div className="flex size-16 items-center justify-center rounded-[20px] bg-[linear-gradient(160deg,#36568f,#1a2c4f)] text-2xl font-black italic text-[#f7f4ee]">
-        S
-      </div>
+      {/* 실제 PWA 앱 아이콘. 예전엔 여기에 그라데이션 박스 + 이탤릭 "S" 를 그렸는데 그건 제품
+          로고가 아니었다(2026-08-04). `next/image` 대신 <img> 인 이유: 이 페이지는 서비스 워커가
+          네트워크 없이 캐시에서 내보내므로, 이미지 최적화 엔드포인트(/_next/image)를 탈 수 없다.
+          이 경로는 SW 가 프리캐시한다(`OFFLINE_ICON`). */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        alt="StayOps"
+        className="size-16 rounded-[20px]"
+        height={64}
+        src="/icons/icon-192.png"
+        width={64}
+      />
       <h1 className="mt-2 text-[19px] font-black tracking-[-0.02em]">연결이 끊겼어요</h1>
       <p className="text-[13.5px] font-medium leading-relaxed text-muted-foreground">
         인터넷에 연결되면 자동으로 다시 불러옵니다.

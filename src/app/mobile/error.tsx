@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { FALLBACK_COPY, resolveFallbackLocale } from "@/lib/fallback-copy";
 
@@ -34,9 +35,17 @@ export default function MobileError({
 
   return (
     <main className="flex min-h-svh flex-col items-center justify-center gap-3 bg-background px-8 text-center text-foreground">
-      <div className="flex size-16 items-center justify-center rounded-[20px] bg-[linear-gradient(160deg,#36568f,#1a2c4f)] text-2xl font-black italic text-[#f7f4ee]">
-        S
-      </div>
+      {/* 실제 PWA 앱 아이콘 — `not-found.tsx` 와 같은 소스를 써서 콜드런치·에러·404 가 하나의
+          브랜드로 읽히게 한다. 예전엔 여기에 그라데이션 박스 + 이탤릭 "S" 를 직접 그렸는데, 그건
+          제품 로고가 아니라 이 파일에서만 쓰던 임시 마크였다(2026-08-04). */}
+      <Image
+        alt="StayOps"
+        className="rounded-[20px]"
+        height={64}
+        priority
+        src="/icons/icon-192.png"
+        width={64}
+      />
       <h1 className="mt-2 text-[19px] font-black tracking-[-0.02em]">{copy.errorTitle}</h1>
       <p className="text-[13.5px] font-medium leading-relaxed text-muted-foreground">
         {copy.errorBody}

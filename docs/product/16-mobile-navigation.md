@@ -406,6 +406,13 @@ Current rules:
 - **Double-submit guard (2026-06-22)**: `<form action={serverAction}>` submit buttons use the shared `SubmitButton` (`ui/submit-button.tsx`, `useFormStatus`) which disables + shows a spinner while the action is in flight — prevents double-submit and the dead-button feel. New server-action forms should use it (or `disabled={isPending}` with `useTransition`).
 - **Calendar gesture isolation (2026-06-22)**: the horizontal calendar grid `stopPropagation`s its touch events so a left-edge horizontal scroll doesn't trigger the shell's edge-back. Any full-width horizontal scroller inside the shell should do the same.
 - **Tab re-tap scrolls to top (2026-06-22)**: tapping the already-active bottom tab `preventDefault`s the navigation and smooth-scrolls the content container to top (native behavior) instead of a no-op.
+- **Fallback screens use the real app icon (2026-08-04)**: `error.tsx` and `/offline` were drawing a
+  gradient box with an italic "S" — a mark that exists nowhere else in the product and is not the
+  logo. Both now render `public/icons/icon-192.png`, the same PWA icon `not-found.tsx` and the splash
+  screen already used, so cold-launch / error / 404 / offline read as one brand. `/offline` uses a
+  plain `<img>` (not `next/image`) because the service worker serves it with no network, so
+  `/_next/image` is unreachable; the icon is added to the SW precache list (`OFFLINE_ICON`) and the
+  static cache name is bumped to `stayops-static-v2` so installed clients pick it up.
 - **Fallback screens follow the viewer's language (2026-08-04)**: `/mobile` `error.tsx` and
   `not-found.tsx` used to stack ko + ja + en at once, justified as "renders without session locale
   context". That was wrong on both: the root layout writes the session language onto `<html lang>`

@@ -15,15 +15,18 @@
  *     self-corrects to fresh within a moment. Client-side (RSC) navigations inside the running app
  *     are NOT touched by this handler, so in-app data stays live as before.
  * Bump the cache names to invalidate old caches on deploy. */
-const STATIC_CACHE = "stayops-static-v1";
+const STATIC_CACHE = "stayops-static-v2";
 const NAV_CACHE = "stayops-nav-v1";
 const OFFLINE_URL = "/offline";
+// 오프라인 화면이 쓰는 앱 아이콘. 네트워크 없이 뜨는 화면이라 **함께 프리캐시해야** 한다 —
+// 런타임 캐시에만 기대면 한 번도 받은 적 없는 기기에서 깨진 이미지가 뜬다(2026-08-04).
+const OFFLINE_ICON = "/icons/icon-192.png";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(STATIC_CACHE)
-      .then((cache) => cache.addAll([OFFLINE_URL]))
+      .then((cache) => cache.addAll([OFFLINE_URL, OFFLINE_ICON]))
       .then(() => self.skipWaiting()),
   );
 });
