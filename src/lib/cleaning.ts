@@ -84,6 +84,38 @@ async function getSupabase() {
   return getSupabaseServerClient();
 }
 
+/**
+ * 진행 중인 청소 **한 건** — 날짜와 무관하게 찾는다.
+ *
+ * DB 의 `cleaning_sessions_one_active_per_org_user_idx` 는 (organization_id, staff_user_id) 당
+ * `in_progress` 를 하나로 제한하는데 **날짜 조건이 없다.** 그런데 화면은 오늘 날짜 세션만
+ * 읽고 있어서(`getMyTodayCleaningSessions`), 어제 이전에 시작하고 완료하지 않은 세션이 남으면:
+ *   - 화면에는 아무것도 안 보이고
+ *   - 새 청소·셋팅을 시작하면 unique 위반(23505)으로 `already_active` 만 뜨고
+ *   - 그 세션을 완료·취소할 UI 가 없어 **영구 교착**이 된다.
+ *
+ * 실제로 2026-06-30 에 시작된 세션이 34일간 남아 그 사용자의 모든 시작을 막고 있었다
+ * (2026-08-04 발견). 그래서 활성 세션은 날짜를 빼고 조회해 화면이 항상 그것을 보여주게 한다.
+ */
+export async function getMyActiveCleaningSession(session: AppSession) {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase
+    .from("cleaning_sessions")
+    .select("*")
+    .eq("organization_id", session.organization.id)
+    .eq("staff_user_id", session.user.id)
+    .eq("status", "in_progress")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? null) as CleaningSessionRow | null;
+}
+
 export async function getMyTodayCleaningSessions(session: AppSession) {
   const supabase = await getSupabase();
   const { data, error } = await supabase

@@ -16,6 +16,8 @@ import {
   canAccessMobileCleaning,
   cleaningTaskKeys,
   formatDuration,
+  getCleaningOperatingDateKey,
+  getMyActiveCleaningSession,
   getMyTodayCleaningSessions,
   getOrgTodayCleaningRoomLabels,
   isCleaningTaskKey,
@@ -448,7 +450,14 @@ export default async function MobileCleaningPage({
   }
 
   const sessions = await getMyTodayCleaningSessions(session);
-  const activeSession = sessions.find((item) => item.status === "in_progress");
+  // 진행 중인 세션은 **오늘 목록이 아니라 날짜 무관 조회**로 잡는다. 유니크 인덱스가 날짜를 보지
+  // 않으므로, 지난 날짜의 미완료 세션이 남아 있으면 그것이 새 시작을 막는다 — 화면에 안 보이면
+  // 사용자가 풀 방법이 없어 교착이다(2026-08-04). 자세한 배경은 getMyActiveCleaningSession 참고.
+  const activeSession = await getMyActiveCleaningSession(session);
+  const staleActiveDate =
+    activeSession && activeSession.cleaning_date !== getCleaningOperatingDateKey()
+      ? activeSession.cleaning_date
+      : null;
   const recentSessions = sessions.filter((item) => item.status === "completed");
   // 사전에 없는 키여도 **무언가는 보여준다.** 예전에는 `copy.errors[key]` 가 undefined 면 배너가
   // 통째로 사라져, 액션이 막혀도 화면상 아무 일도 안 일어난 것처럼 보였다(2026-08-04). 키가 빠진
@@ -641,6 +650,14 @@ export default async function MobileCleaningPage({
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-700">
             room_label mapping warning: {unknownRoomLabelCount} unresolved session(s)
             {unknownRoomLabelSamples.length > 0 ? ` (${unknownRoomLabelSamples.join(", ")})` : ""}
+          </div>
+        ) : null}
+
+        {/* 지난 날짜의 미완료 세션 — 유니크 인덱스가 날짜를 안 보므로 이게 남아 있으면 오늘
+            아무것도 시작할 수 없다. 무엇이 막고 있는지와 푸는 방법을 알려준다(2026-08-04). */}
+        {staleActiveDate ? (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-700">
+            {copy.staleActiveNotice.replace("{date}", staleActiveDate)}
           </div>
         ) : null}
 

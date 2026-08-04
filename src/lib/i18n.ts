@@ -3724,8 +3724,9 @@ const FALLBACK_DICTIONARY = {
     cancelCleaningTitle: "Cancel this cleaning?",
     cancelSuccess: "Cleaning cancelled.",
     confirmCancelCleaning: "Yes, cancel",
+    staleActiveNotice: "This cleaning was started on {date} and is still open. Complete or cancel it to start a new one.",
     errors: {
-      already_active: "You already have a cleaning in progress.",
+      already_active: "You already have a cleaning in progress. Complete or cancel it first.",
       already_processed_today: "This room has already been processed today.",
       cancel_failed: "Couldn't cancel. Please try again.",
       already_cancelled: "This session is already cancelled.",
@@ -8280,8 +8281,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       cancelCleaningTitle: "이 청소를 취소할까요?",
       cancelSuccess: "청소가 취소되었습니다.",
       confirmCancelCleaning: "취소 확정",
+      staleActiveNotice: "{date}에 시작한 청소가 아직 진행 중입니다. 완료하거나 취소해야 새로 시작할 수 있어요.",
       errors: {
-        already_active: "이미 진행 중인 청소가 있습니다.",
+        already_active: "이미 진행 중인 청소가 있습니다. 먼저 완료하거나 취소해 주세요.",
         already_processed_today: "오늘 이미 처리된 객실입니다.",
         cancel_failed: "취소에 실패했습니다. 다시 시도해 주세요.",
         already_cancelled: "이미 취소된 세션입니다.",
@@ -12786,8 +12788,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       cancelCleaningTitle: "この清掃をキャンセルしますか？",
       cancelSuccess: "清掃をキャンセルしました。",
       confirmCancelCleaning: "キャンセルを確定",
+      staleActiveNotice: "{date}に開始した清掃がまだ進行中です。完了またはキャンセルすると新しく開始できます。",
       errors: {
-        already_active: "すでに進行中の清掃があります。",
+        already_active: "すでに進行中の清掃があります。先に完了またはキャンセルしてください。",
         already_processed_today: "本日すでに処理済みの客室です。",
         cancel_failed: "キャンセルに失敗しました。もう一度お試しください。",
         already_cancelled: "すでにキャンセル済みです。",
