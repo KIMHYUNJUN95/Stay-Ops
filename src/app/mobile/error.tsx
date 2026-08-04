@@ -1,13 +1,18 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-
-// i18n-ignore-file: trilingual error fallback renders without session locale context.
+import { FALLBACK_COPY, resolveFallbackLocale } from "@/lib/fallback-copy";
 
 /**
- * Mobile error boundary — replaces the bare white root error page with a branded, trilingual screen
- * so a thrown error on any /mobile/* screen reads as a recoverable in-app state, not a crash.
+ * Mobile error boundary — replaces the bare white root error page with a branded screen so a thrown
+ * error on any /mobile/* screen reads as a recoverable in-app state, not a crash.
+ *
+ * **Shown in the user's own language (2026-08-04).** It used to stack all three locales at once
+ * because "the boundary renders without session locale context" — but the root layout writes the
+ * session language onto `<html lang>`, and this is a client component, so it can just read it.
+ * Stacking three languages also made the buttons wrap mid-label on a phone. Falls back to `ko`
+ * when the attribute is missing (see `resolveFallbackLocale`).
  */
 export default function MobileError({
   error,
@@ -16,6 +21,13 @@ export default function MobileError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // 첫 페인트부터 맞는 언어로 그리기 위해 lazy initializer 에서 읽는다. 이 경계는 클라이언트에서만
+  // 렌더되지만, 스트리밍 중 서버에서 평가될 여지를 남겨 `document` 유무를 확인한다.
+  const [locale] = useState(() =>
+    resolveFallbackLocale(typeof document === "undefined" ? null : document.documentElement.lang),
+  );
+  const copy = FALLBACK_COPY[locale];
+
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -25,32 +37,23 @@ export default function MobileError({
       <div className="flex size-16 items-center justify-center rounded-[20px] bg-[linear-gradient(160deg,#36568f,#1a2c4f)] text-2xl font-black italic text-[#f7f4ee]">
         S
       </div>
-      <h1 className="mt-2 text-[19px] font-black tracking-[-0.02em]">문제가 발생했어요</h1>
+      <h1 className="mt-2 text-[19px] font-black tracking-[-0.02em]">{copy.errorTitle}</h1>
       <p className="text-[13.5px] font-medium leading-relaxed text-muted-foreground">
-        잠시 후 다시 시도해 주세요.
-        <br />
-        問題が発生しました。もう一度お試しください。
-        <br />
-        Something went wrong. Please try again.
+        {copy.errorBody}
       </p>
-      {/* 3개 국어 라벨은 좁은 화면에서 한 줄에 안 들어간다. 가로로 나란히 두면 "다시 시도 · 再試行 ·
-          / Retry" 처럼 단어 중간에서 접히고, Link 의 고정 line-height 때문에 두 번째 줄이 알약 밖으로
-          삐져나온다(2026-08-04 실기기 확인). 세로 스택 + 전체 폭으로 바꿔 어느 언어에서도 접히지
-          않게 한다. 로케일을 하나만 고를 수 없는 화면이라 라벨은 3개 국어를 유지한다 — 이 경계는
-          세션 컨텍스트가 없는 상태에서도 떠야 하기 때문이다. */}
-      <div className="mt-4 flex w-full max-w-[320px] flex-col gap-2.5">
+      <div className="mt-4 flex items-center gap-2.5">
         <button
-          className="flex h-12 items-center justify-center rounded-full bg-primary px-6 text-[14px] font-extrabold text-primary-foreground transition-transform active:scale-[0.97]"
+          className="flex h-12 items-center justify-center rounded-full bg-primary px-7 text-[14px] font-extrabold text-primary-foreground transition-transform active:scale-[0.97]"
           onClick={reset}
           type="button"
         >
-          다시 시도 · 再試行 · Retry
+          {copy.retry}
         </button>
         <Link
-          className="flex h-12 items-center justify-center rounded-full border border-border bg-surface px-6 text-[14px] font-bold text-foreground transition-transform active:scale-[0.97]"
+          className="flex h-12 items-center justify-center rounded-full border border-border bg-surface px-7 text-[14px] font-bold text-foreground transition-transform active:scale-[0.97]"
           href="/mobile"
         >
-          홈 · ホーム · Home
+          {copy.home}
         </Link>
       </div>
     </main>

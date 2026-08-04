@@ -21,8 +21,15 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   넘기는 지점에서 RSC 직렬화가 실패했다("Functions cannot be passed directly to Client
   Components"). 투두 탭 전체가 에러 바운더리로 떨어졌고 약 12시간(8/3 11:40Z ~ 23:53Z, 8건/2명)
   지속됐다. Vercel 런타임 에러 로그로 특정. 자리표시자 문자열 + `.replace()` 로 되돌리고,
-  `tsc`·lint 가 못 잡는 종류라 `dictionary-serializable.test.ts` 가드를 추가했다. 같은 사이클에
-  모바일 에러 화면의 3개 국어 버튼 줄바꿈도 세로 스택으로 고쳤다.
+  `tsc`·lint 가 못 잡는 종류라 `dictionary-serializable.test.ts` 가드를 추가했다.
+
+- **폴백 화면 다국어화 (2026-08-04).** 모바일 `error.tsx` / `not-found.tsx` 가 ko+ja+en 을 한꺼번에
+  쌓아 보여주던 것을 **사용자 언어 하나로** 바꿨다. "세션 로케일을 알 수 없다"는 기존 근거가 틀렸다 —
+  루트 레이아웃이 `<html lang>` 에 세션 언어를 쓰고(클라이언트 경계에서 읽힘), `not-found.tsx` 는
+  서버 컴포넌트라 세션을 직접 읽는다. 3개 국어 병기가 실제 레이아웃도 깨고 있었다(버튼 라벨이 단어
+  중간에서 접히고 "Home" 이 알약 밖으로 나감). 문구는 `src/lib/fallback-copy.ts` 에 두어 사전 모듈과
+  분리했다 — 앱이 고장난 상태에서 떠야 하는 화면이 11,000줄 사전 청크에 의존하면 안 된다.
+  `/offline` 은 서비스 워커가 네트워크·세션 없이 캐시에서 내보내므로 3개 국어 병기를 유지한다.
 
 - **현장 활동 자동 수집 (2026-08-04).** 청소 완료·유지보수 완료·린넨 반품 등록·주문 요청이 투두
   **완료·기록 탭과 업무일지**에 자동으로 올라온다. `tasks` 행은 만들지 않고 `src/lib/field-activity.ts`
