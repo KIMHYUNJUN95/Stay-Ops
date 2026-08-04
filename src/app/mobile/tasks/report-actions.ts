@@ -13,9 +13,14 @@ export type DailyReportResult =
   | ({ ok: true } & DailyReportDraft)
   | { ok: false; reason: "forbidden" | "empty" | "error" };
 
-export type SendDailyReportToSlackResult =
-  | { ok: true }
-  | { ok: false; reason: "forbidden" | "empty" | "error" | "not_configured" | "too_long" };
+export type SlackSendFailureReason =
+  | "forbidden"
+  | "empty"
+  | "error"
+  | "not_configured"
+  | "too_long";
+
+export type SendDailyReportToSlackResult = { ok: true } | { ok: false; reason: SlackSendFailureReason };
 
 // ── Localized template parts ─────────────────────────────────────────────────
 // i18n-ignore-start: localized server-action report templates live together here.
@@ -213,25 +218,33 @@ export async function sendDailyReportToSlack(
   date: string,
   editedText: string,
 ): Promise<SendDailyReportToSlackResult> {
+  // 실패 사유를 서버 로그에 남긴다. 이 액션은 throw 하지 않고 결과 객체로 실패를 돌려주므로
+  // Vercel 런타임 **에러** 로그에 아무것도 안 남는다. 2026-08-04 "모바일에서 Slack 전송이 안
+  // 된다"를 추적할 때 POST 200 만 보이고 어느 분기인지 알 수 없었다(청소 액션과 같은 교훈).
+  const fail = (reason: SlackSendFailureReason) => {
+    console.warn(`[report] slack send blocked: ${reason}`);
+    return { ok: false as const, reason };
+  };
+
   const day = String(date ?? "").trim();
   const text = String(editedText ?? "").trim();
-  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(day) || !text) return { ok: false, reason: "error" };
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(day) || !text) return fail("error");
   // Slack truncates text above 40,000 characters. Reject rather than silently posting a partial report.
-  if (text.length > 40_000) return { ok: false, reason: "too_long" };
+  if (text.length > 40_000) return fail("too_long");
 
   const generated = await generateDailyReport(day);
-  if (!generated.ok) return { ok: false, reason: generated.reason };
+  if (!generated.ok) return fail(generated.reason);
 
   const webhookUrl = process.env.SLACK_DAILY_REPORT_WEBHOOK_URL?.trim();
-  if (!webhookUrl) return { ok: false, reason: "not_configured" };
+  if (!webhookUrl) return fail("not_configured");
 
   try {
     const endpoint = new URL(webhookUrl);
     if (endpoint.protocol !== "https:" || endpoint.hostname !== "hooks.slack.com") {
-      return { ok: false, reason: "not_configured" };
+      return fail("not_configured");
     }
   } catch {
-    return { ok: false, reason: "not_configured" };
+    return fail("not_configured");
   }
 
   try {
@@ -241,9 +254,16 @@ export async function sendDailyReportToSlack(
       body: JSON.stringify({ text }),
       cache: "no-store",
     });
-    if (!response.ok) return { ok: false, reason: "error" };
-  } catch {
-    return { ok: false, reason: "error" };
+    if (!response.ok) {
+      // Slack 이 거절한 이유는 본문에 온다(no_service / invalid_payload 등). 웹훅 URL 은 절대
+      // 로그에 남기지 않는다.
+      const detail = await response.text().catch(() => "");
+      console.warn(`[report] slack rejected: ${response.status} ${detail.slice(0, 200)}`);
+      return fail("error");
+    }
+  } catch (error) {
+    console.warn("[report] slack fetch failed:", error instanceof Error ? error.message : error);
+    return fail("error");
   }
 
   // The report body is intentionally not stored in audit metadata; it may contain operational details.

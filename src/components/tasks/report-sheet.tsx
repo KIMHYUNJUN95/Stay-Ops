@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Copy, FileText, Lock, RefreshCw, Send } from "lucide-react";
+import { Check, Copy, FileText, Lock, RefreshCw, Send, TriangleAlert } from "lucide-react";
 import { generateDailyReport, sendDailyReportToSlack } from "@/app/mobile/tasks/report-actions";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import {
@@ -14,7 +14,15 @@ import { cn } from "@/lib/utils";
 
 type Copy = Dictionary["tasks"];
 type Status = "loading" | "done" | "forbidden" | "empty" | "error";
-type SlackStatus = "idle" | "sending" | "sent" | "not_configured" | "too_long" | "error";
+type SlackStatus =
+  | "idle"
+  | "sending"
+  | "sent"
+  | "not_configured"
+  | "too_long"
+  | "forbidden"
+  | "empty"
+  | "error";
 
 /** 보조 액션(다시 생성 · Slack) 공통 스타일 — 한 곳에 두어 두 버튼의 타이포가 갈리지 않게 한다. */
 const secondaryBtn =
@@ -128,12 +136,9 @@ export function ReportSheet({
       setSlackStatus("sent");
       return;
     }
-    // 서버는 `forbidden` / `empty` 도 돌려주지만 그 둘은 전용 안내 문구가 없다(그리고 이 시트는
-    // 이미 생성된 보고서를 보여주는 중이라 실제로 나올 일이 드물다). 전용 상태를 만들지 않고
-    // 일반 오류로 접는다 — 안내할 말이 없는 상태를 UI 에 늘리지 않는다.
-    setSlackStatus(
-      result.reason === "not_configured" || result.reason === "too_long" ? result.reason : "error",
-    );
+    // 서버가 준 사유를 **그대로** 보여준다. 예전에는 forbidden / empty 를 일반 오류로 접었는데,
+    // 그러면 "다시 시도해 주세요"만 뜨고 사용자는 무엇이 문제인지 끝까지 모른다(2026-08-04).
+    setSlackStatus(result.reason);
   };
 
   const slackMessage =
@@ -143,9 +148,13 @@ export function ReportSheet({
         ? copy.reportSlackNotConfigured
         : slackStatus === "too_long"
           ? copy.reportSlackTooLong
-          : slackStatus === "error"
-            ? copy.reportSlackError
-            : null;
+          : slackStatus === "forbidden"
+            ? copy.reportSlackForbidden
+            : slackStatus === "empty"
+              ? copy.reportSlackEmpty
+              : slackStatus === "error"
+                ? copy.reportSlackError
+                : null;
 
   const dateLabel = new Intl.DateTimeFormat(locale, {
     year: "numeric",
@@ -297,8 +306,24 @@ export function ReportSheet({
                           ? copy.reportPickResetHint
                           : copy.reportEditHint}
                     </p>
+                    {/* 전송 결과는 놓치면 안 되는 정보다. 예전에는 11.5px 회색 한 줄이라 성공해도
+                        실패해도 눈에 안 띄어 "안 보내진다"로 읽혔다(2026-08-04). 콘솔은 토스트를
+                        띄우는데 모바일만 조용했다 — 성공/실패를 색으로 갈라 배너로 세운다. */}
                     {slackMessage ? (
-                      <p className="mt-2 px-0.5 text-[11.5px] text-muted-foreground" role="status">
+                      <p
+                        className={cn(
+                          "mt-2.5 flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-[12.5px] font-bold leading-snug",
+                          slackStatus === "sent"
+                            ? "bg-primary/10 text-primary"
+                            : "bg-destructive/10 text-destructive",
+                        )}
+                        role="status"
+                      >
+                        {slackStatus === "sent" ? (
+                          <Check className="size-4 shrink-0" strokeWidth={3} aria-hidden="true" />
+                        ) : (
+                          <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
+                        )}
                         {slackMessage}
                       </p>
                     ) : null}

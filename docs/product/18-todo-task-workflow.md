@@ -999,6 +999,15 @@ the **ReportSheet** bottom sheet:
   on a narrow screen. Slack receives the textarea body unchanged, so the
   existing report format and the author's final edits are preserved. The message already contains the
   report's author line; no Slack-user account matching is required.
+- **Send failures are now visible and diagnosable (2026-08-04).** Two problems compounded into
+  "mobile can't send to Slack": (1) the result was an 11.5px muted line that was easy to miss —
+  the console shows a toast, mobile said nothing loud — so even a *successful* send read as
+  "nothing happened"; (2) `forbidden` / `empty` were folded into the generic "try again" message, so
+  the real cause never reached the user. The banner is now colour-split (success vs failure, with an
+  icon) and every reason has its own copy in ko/ja/en. Server side, `sendDailyReportToSlack` logs the
+  blocking reason and Slack's own rejection body — the action returns a result object instead of
+  throwing, so nothing was landing in Vercel's runtime **error** log (the same lesson as the mobile
+  cleaning actions). The webhook URL is never logged.
 - Sending uses the server-only `SLACK_DAILY_REPORT_WEBHOOK_URL` Incoming Webhook. It is never exposed
   to the browser. The same report-generation permission is rechecked server-side before every send;
   delivery succeeds only after Slack accepts the request. Successful sends write an `audit_logs`
