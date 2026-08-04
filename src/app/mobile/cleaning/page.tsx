@@ -450,7 +450,12 @@ export default async function MobileCleaningPage({
   const sessions = await getMyTodayCleaningSessions(session);
   const activeSession = sessions.find((item) => item.status === "in_progress");
   const recentSessions = sessions.filter((item) => item.status === "completed");
-  const errorMessage = params.error ? copy.errors[params.error] : null;
+  // 사전에 없는 키여도 **무언가는 보여준다.** 예전에는 `copy.errors[key]` 가 undefined 면 배너가
+  // 통째로 사라져, 액션이 막혀도 화면상 아무 일도 안 일어난 것처럼 보였다(2026-08-04). 키가 빠진
+  // 것은 버그지만, 그 버그가 사용자에게 "무반응"으로 보이는 것이 더 나쁘다.
+  const errorMessage = params.error
+    ? (copy.errors[params.error] ?? copy.errors.start_failed ?? params.error)
+    : null;
 
   // Fetch cleaning targets, room catalog, and org-wide today sessions in parallel.
   // roomCatalog is always fetched (not gated on activeSession) because it serves

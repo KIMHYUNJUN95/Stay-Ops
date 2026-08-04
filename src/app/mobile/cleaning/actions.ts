@@ -18,7 +18,15 @@ function cleanText(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
 }
 
+/**
+ * 실패 사유를 쿼리로 넘겨 화면에 띄운다.
+ *
+ * 사유를 서버 로그에도 남긴다 — 이 액션들은 실패해도 throw 하지 않고 redirect 하므로 Vercel
+ * 런타임 **에러** 로그에 아무것도 안 남는다. 2026-08-04 에 "셋팅 시작이 안 된다"를 추적할 때,
+ * 서버 에러 0건 + DB 행 0건 + 303 리다이렉트만 보이는 상태라 어느 분기인지 특정할 수 없었다.
+ */
 function redirectWithError(error: string): never {
+  console.warn(`[cleaning] blocked: ${error}`);
   redirect(`${cleaningPath}?error=${encodeURIComponent(error)}`);
 }
 

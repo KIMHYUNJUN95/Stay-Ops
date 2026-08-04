@@ -6,6 +6,26 @@ The cleaning workflow should record when cleaning starts, when it ends, how long
 
 It should also let cleaning staff create linked lost item and maintenance records without leaving the cleaning context.
 
+
+## 실패 사유 표시 (2026-08-04)
+
+모바일 청소 액션(`src/app/mobile/cleaning/actions.ts`)은 실패할 때 throw 하지 않고
+`?error=<사유>` 로 리다이렉트하고, 화면이 `copy.errors[사유]` 를 배너로 띄운다.
+
+**사전에 사유 6종이 빠져 있어 실패가 화면에서 조용히 사라졌다.** 액션은 9종을 내보내는데
+`dictionary.cleaning.errors` 에는 5종만 있었고, 그 객체가 `as Record<string, string>` 이라
+타입 검사도 잡지 못했다. 그래서 "셋팅 시작을 눌러도 아무 일이 없다"로 보고됐다 — 실제로는
+액션이 실행되고 303 으로 되돌아온 뒤 배너만 사라진 상태였다.
+
+정리한 것:
+
+- 빠져 있던 `invalid_selection` / `not_allowed` / `start_failed` / `complete_failed` /
+  `active_not_found` / `missing_session` 을 ko·ja·en 에 추가.
+- 화면은 이제 **사전에 없는 키여도 무언가는 띄운다**(`start_failed` 문구로 폴백). 키 누락은
+  버그지만, 그 버그가 사용자에게 무반응으로 보이는 것이 더 나쁘다.
+- `redirectWithError()` 가 사유를 `console.warn` 으로 남긴다. 이 액션들은 throw 하지 않으므로
+  Vercel 런타임 **에러** 로그에 아무것도 안 남아, 어느 분기에서 막혔는지 추적할 수 없었다.
+
 ## Core Flow
 
 ```txt
