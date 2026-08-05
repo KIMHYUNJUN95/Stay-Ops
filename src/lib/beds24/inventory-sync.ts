@@ -90,15 +90,22 @@ function toJstDateString(date: Date) {
   }).format(date);
 }
 
+/**
+ * 캘린더 최소숙박일수 URL.
+ *
+ * 파라미터 이름은 Beds24 스펙(`/inventory/rooms/calendar`)을 그대로 따른다:
+ * `propertyId` / `startDate` / `endDate`, 그리고 **`includeMinStay=true`가 없으면 minStay가
+ * 응답에 아예 담기지 않는다**("By default no data will be returned").
+ *
+ * 2026-08-05 이전에는 `propId` / `from` / `to` 같은 존재하지 않는 이름을 쓰고 있어서 이 경로가
+ * 한 번도 값을 돌려준 적이 없었다.
+ */
 function buildInventoryUrls(baseUrl: string, propId: string, date: string) {
   const normalizedBase = baseUrl.replace(/\/$/, "");
-  const queryVariants = [
-    `propId=${encodeURIComponent(propId)}&from=${date}&to=${date}`,
-    `propId=${encodeURIComponent(propId)}&dateFrom=${date}&dateTo=${date}`,
-    `propId=${encodeURIComponent(propId)}&start=${date}&end=${date}`,
+  return [
+    `${normalizedBase}/inventory/rooms/calendar?propertyId=${encodeURIComponent(propId)}` +
+      `&startDate=${date}&endDate=${date}&includeMinStay=true`,
   ];
-
-  return queryVariants.map((query) => `${normalizedBase}/inventory/rooms/calendar?${query}`);
 }
 
 function buildPropertiesUrl(baseUrl: string) {
@@ -266,6 +273,44 @@ async function fetchInventoryMinimumStays(propId: string): Promise<InventoryFetc
   let lastEndpoint: string | null = propertiesUrl;
   let lastSkippedReason: string | null = null;
 
+  // ── 1) 캘린더가 우선이다 ────────────────────────────────────────────────
+  // 회사 규칙(50박 이상 = 비활성 어카운트)에서 실제로 쓰는 값은 **캘린더에 날짜별로 설정한**
+  // minStay다. `/properties` 가 돌려주는 건 객실 설정의 기본값이라 번갈아 쓰는 두 어카운트가
+  // 똑같이 1로 보인다 — 그래서 활성/비활성 구분이 불가능했다.
+  // 스펙도 같은 말을 한다: "if these are not set in the calendar then the minimum restrictions
+  // from the room will be returned" → 캘린더가 상위 소스이고 객실 설정은 그 하위 폴백이다.
+  for (const url of urls) {
+    lastEndpoint = url;
+    try {
+      const response = await fetch(url, {
+        headers: {
+          accept: "application/json",
+          token: accessTokenState.token,
+        },
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        console.warn("[beds24/inventory] calendar request failed", { url, status: response.status });
+        lastSkippedReason = `inventory:http-${response.status}`;
+        continue;
+      }
+
+      const json = (await response.json()) as unknown;
+      const rows = extractInventoryRows(json);
+      if (rows.length > 0) {
+        return { endpointTried: url, rows, skippedReason: null };
+      }
+      lastSkippedReason = "inventory:no-calendar-min-stay-rows";
+    } catch (error) {
+      console.warn("[beds24/inventory] calendar request error", { url, error });
+      lastSkippedReason = "inventory:request-error";
+    }
+  }
+
+  // ── 2) 폴백: 객실 설정 ──────────────────────────────────────────────────
+  // 캘린더가 실패하거나 값을 주지 않으면 종전과 동일하게 `/properties` 를 읽는다. 이 경로를
+  // 남겨두는 이유는 회귀 방지다 — 캘린더 호출이 막혀도 동기화가 종전 수준으로는 계속 돈다.
   try {
     const response = await fetch(propertiesUrl, {
       headers: {
@@ -294,34 +339,7 @@ async function fetchInventoryMinimumStays(propId: string): Promise<InventoryFetc
     console.warn("[beds24/inventory] properties request error", { url: propertiesUrl, error });
     lastSkippedReason = "inventory:properties-request-error";
   }
-
-  for (const url of urls) {
-    lastEndpoint = url;
-    try {
-      const response = await fetch(url, {
-        headers: {
-          accept: "application/json",
-          token: accessTokenState.token,
-        },
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        console.warn("[beds24/inventory] request failed", { url, status: response.status });
-        lastSkippedReason = `inventory:http-${response.status}`;
-        continue;
-      }
-
-      const json = (await response.json()) as unknown;
-      const rows = extractInventoryRows(json);
-      if (rows.length > 0) {
-        return { endpointTried: url, rows, skippedReason: null };
-      }
-    } catch (error) {
-      console.warn("[beds24/inventory] request error", { url, error });
-      lastSkippedReason = "inventory:request-error";
-    }
-  }
+  lastEndpoint = propertiesUrl;
 
   return {
     endpointTried: lastEndpoint,

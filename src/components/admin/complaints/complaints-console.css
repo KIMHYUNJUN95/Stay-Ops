@@ -1,0 +1,422 @@
+/* Complaints console — screen-local pieces only.
+   Everything reusable (opsbar / lviews / tbl / rchip / dpick / dd) comes from
+   admin-console.css. Do not re-declare those here.
+   See CLAUDE.md → "Admin dashboard shared design contract". */
+
+/* ── 문제 객실: 플랫폼 열 묶음 ── */
+.adm .cxtbl th.cxgrp {
+  text-align: center;
+  letter-spacing: 0.08em;
+  padding-bottom: 4px;
+  border-bottom: none;
+}
+.adm .cxtbl td.cxnum,
+.adm .cxtbl th.cxnum {
+  text-align: right;
+  white-space: nowrap;
+}
+.adm .cxtbl .cxsep {
+  border-left: 1px solid var(--line-soft);
+}
+.adm .cxtbl tbody tr.cxroom {
+  background: color-mix(in oklab, var(--adm-surface) 32%, var(--card));
+}
+.adm .cxtbl tbody tr.cxroom.is-hot {
+  background: color-mix(in oklab, var(--danger-bg) 62%, var(--card));
+}
+.adm .cxbuilding {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 850;
+}
+.adm .cxroomname {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 26px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.adm .cxnote {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 26px;
+  font-size: 11.5px;
+  font-weight: 750;
+  color: var(--adm-muted);
+}
+.adm .cxavg {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 850;
+}
+.adm .cxavg.is-bad {
+  color: var(--danger);
+}
+.adm .cxcount {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--adm-muted);
+}
+.adm .cxrisk {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--danger);
+}
+.adm .cxrisk.is-zero {
+  color: var(--faint);
+  font-weight: 700;
+}
+.adm .cxdash {
+  color: var(--faint);
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
+/* ── 문제 비율 바 ── */
+.adm .cxratio {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 118px;
+}
+.adm .cxratio__bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--adm-surface);
+  overflow: hidden;
+}
+.adm .cxratio__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--danger);
+}
+.adm .cxratio__fill.is-mid {
+  background: var(--warn);
+}
+.adm .cxratio__fill.is-low {
+  background: var(--done);
+}
+.adm .cxratio__v {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 850;
+  width: 46px;
+  text-align: right;
+}
+.adm .cxratio__v.is-zero {
+  color: var(--faint);
+}
+
+/* ── 외부 리뷰 행 ── */
+.adm .cxrow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-soft);
+  text-decoration: none;
+  color: inherit;
+}
+.adm .cxrow:last-child {
+  border-bottom: none;
+}
+.adm .cxrow:hover {
+  background: var(--card2);
+}
+.adm .cxscore {
+  width: 54px;
+  flex: 0 0 auto;
+  text-align: center;
+}
+.adm .cxscore__v {
+  font-family: var(--mono);
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+.adm .cxscore__v.is-bad {
+  color: var(--danger);
+}
+.adm .cxscore__s {
+  font-size: 9.5px;
+  font-weight: 750;
+  color: var(--faint);
+}
+.adm .cxmain {
+  flex: 1;
+  min-width: 0;
+}
+.adm .cxtop {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.adm .cxttl {
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: -0.01em;
+}
+.adm .cxexcerpt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--adm-muted);
+  line-height: 1.55;
+}
+.adm .cxexcerpt.is-dim {
+  color: var(--faint);
+}
+.adm .cxmeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 750;
+  color: var(--faint);
+  flex-wrap: wrap;
+}
+.adm .cxmeta .cxdot {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--line);
+}
+.adm .cxmeta .is-linked {
+  color: var(--done);
+}
+.adm .cxmeta .is-unlinked {
+  color: var(--warn);
+}
+
+/* ── 필터 바 ── */
+.adm .cxfilters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.adm .cxseg {
+  display: inline-flex;
+  background: var(--adm-surface);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+.adm .cxseg a {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--adm-muted);
+  text-decoration: none;
+}
+.adm .cxseg a.on {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 2px 5px rgba(20, 32, 43, 0.1);
+}
+
+/* ── 외부 리뷰 상세 패널 (.panel 공용 셸 안, 화면 전용 조각만) ── */
+.adm .cxhero {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 13px;
+}
+.adm .cxhero__score {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+.adm .cxhero__v {
+  font-family: var(--mono);
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.adm .cxhero__v.is-bad {
+  color: var(--danger);
+}
+.adm .cxhero__scale {
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--faint);
+}
+.adm .cxhero__title {
+  font-size: 13.5px;
+  font-weight: 800;
+  line-height: 1.4;
+  padding-bottom: 3px;
+}
+.adm .cxhero__title.is-dim {
+  color: var(--faint);
+  font-weight: 650;
+}
+
+.adm .cxbodyhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.adm .cxsrc {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--faint);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.adm .cxtrbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--adm-muted);
+  cursor: pointer;
+}
+.adm .cxtrbtn:hover {
+  background: var(--adm-surface);
+  color: var(--ink);
+}
+.adm .cxtrbtn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.adm .cxscoreonly {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+}
+.adm .cxscoreonly p {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--adm-muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.adm .cxbodypart {
+  margin-bottom: 12px;
+}
+.adm .cxbodypart:last-child {
+  margin-bottom: 0;
+}
+.adm .cxbodypart__t {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--adm-muted);
+  margin-bottom: 4px;
+}
+.adm .cxbodypart__b {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.65;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+/* 비공개 피드백 — 공개 리뷰와 절대 헷갈리면 안 된다: 점선 테두리 + warn 톤. */
+.adm .cxprivate {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  background: color-mix(in oklab, var(--warn) 7%, var(--card));
+  border: 1.5px dashed color-mix(in oklab, var(--warn) 45%, var(--line));
+}
+.adm .cxprivate__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.adm .cxprivate__from {
+  font-size: 11px;
+  font-weight: 750;
+  color: color-mix(in oklab, var(--warn) 65%, var(--ink));
+}
+.adm .cxprivate__body {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.65;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  margin: 9px 0 6px;
+}
+.adm .cxprivate__note {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--adm-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* OTA 답글 — 읽기 전용. 대시보드에서 답글을 쓰지 않는다는 것을 note로 명시한다. */
+.adm .cxreply {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  background: var(--card2);
+  border: 1px solid var(--line-soft);
+}
+.adm .cxreply__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.adm .cxreply__t {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--adm-muted);
+}
+.adm .cxreply__body {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  margin: 8px 0 6px;
+}
+.adm .cxreply__note {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+  margin: 0;
+}
+
+.adm .cxconvertnote {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--adm-muted);
+  line-height: 1.6;
+  margin: 0 0 11px;
+}
+.adm .cxconvertbtn {
+  width: 100%;
+  justify-content: center;
+}
+.adm .cxlinked {
+  display: inline-flex;
+  text-decoration: none;
+}

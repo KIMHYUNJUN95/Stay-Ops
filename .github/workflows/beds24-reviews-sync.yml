@@ -1,0 +1,76 @@
+name: Beds24 external review sync
+
+# WHY THIS IS A GITHUB ACTION AND NOT A VERCEL CRON
+# -------------------------------------------------
+# Two independent reasons, both already paid for once by this project:
+#
+# 1. Plan limits. This project runs on Vercel's free Hobby plan, which allows at
+#    most 2 cron jobs and only once-per-day schedules. vercel.json already spends
+#    both slots (reconcile + task reminders), and review collection is specified
+#    as *twice* daily (docs/product/25-complaint-workflow.md → "수집 주기"), which
+#    a Hobby cron cannot express at all.
+#
+# 2. Vercel cron proved unreliable here. On 2026-07-22 both Vercel crons had not
+#    fired for days — a platform/plan-side scheduling failure, not a code problem —
+#    and 5 days of reservations went silently missing. See
+#    .github/workflows/beds24-reconcile.yml and docs/planning/01-decision-log.md.
+#    Any new scheduled job therefore gets an external trigger from the start.
+#
+# The endpoint is idempotent (UPSERT on organization_id + provider +
+# external_review_id), so a duplicate or retried run is harmless.
+#
+# SETUP (one-time): the repository secret BEDS24_WEBHOOK_SECRET must already exist
+#   for the reconcile workflow; this job reuses it. The reviews-sync endpoint
+#   accepts it via the x-beds24-webhook-secret header, exactly like reconcile.
+
+on:
+  schedule:
+    # Twice a day at :47, off the :00 mark and off the reconcile job's :13 so the
+    # two never contend for Beds24's 5-minute credit window.
+    # 01:47 / 13:47 UTC = 10:47 / 22:47 Asia/Tokyo.
+    - cron: "47 1,13 * * *"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Collect the full 90-day window instead of the rolling 7-day one"
+        type: boolean
+        default: false
+
+concurrency:
+  group: beds24-reviews-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger external review collection
+        env:
+          SYNC_URL: https://stay-ops-two.vercel.app/api/beds24/reviews-sync
+          WEBHOOK_SECRET: ${{ secrets.BEDS24_WEBHOOK_SECRET }}
+          FULL: ${{ inputs.full }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK_SECRET}" ]; then
+            echo "::error::BEDS24_WEBHOOK_SECRET repository secret is not set — add it in repo Settings → Secrets → Actions."
+            exit 1
+          fi
+          url="${SYNC_URL}"
+          if [ "${FULL}" = "true" ]; then
+            url="${SYNC_URL}?full=1"
+          fi
+          code=$(curl -sS -o /tmp/reviews-sync.json -w '%{http_code}' \
+            -X POST "${url}" \
+            -H "x-beds24-webhook-secret: ${WEBHOOK_SECRET}" \
+            --max-time 300)
+          echo "HTTP ${code}"
+          cat /tmp/reviews-sync.json || true
+          echo
+          # 200 = all organizations synced, 202 = sync paused by BEDS24_SYNC_PAUSED,
+          # 207 = partial (one organization failed, the rest went through).
+          # Anything else (403/404/5xx) is a real failure worth a red run.
+          case "${code}" in
+            200|202|207) echo "reviews sync ok" ;;
+            *) echo "::error::reviews sync failed with HTTP ${code}"; exit 1 ;;
+          esac

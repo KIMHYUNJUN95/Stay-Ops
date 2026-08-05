@@ -71,6 +71,16 @@ StayOps UI는 Beds24를 실시간 조회하지 않고, 수집한 `external_revie
   성립하지 않는다. 1주기 호출 수 = `(Airbnb 연동 룸타입 수) + (Booking 연동 건물 수)` + 페이지네이션.
 - **호출 키는 이미 로컬에 있다:** `rooms.external_room_id` → Airbnb `roomId`,
   `properties.external_property_id` → Booking `propertyId`. 값이 없는 객실·건물은 호출 대상에서 제외한다.
+- **Airbnb는 건물 단위 호출이 불가능하다.** 스펙상 `/channels/airbnb/reviews`의 파라미터는 `roomId`
+  하나뿐이고 `required: true`이며, `/channels/` 아래 리뷰 엔드포인트는 `airbnb/reviews`와
+  `booking/reviews` 둘뿐이다(2026-08-05 재확인). Booking.com만 이미 건물 단위(`propertyId`)다.
+- **대상 선별 규칙 (2026-08-05 추가).** 호출 수를 줄이는 유일한 방법이 대상 축소이므로, 예약 캘린더·
+  객실 마스터가 쓰는 것과 **같은 집합**만 본다:
+  `status = 'active'` + `isInactiveBeds24Room(external_minimum_stay)` 제외(최소 숙박 50박 이상은
+  비활성 룸ID) + `isExcludedOperationalProperty()` 제외(사노) + 같은 `external_room_id`는 한 번만.
+  실측 기준 조직당 Airbnb 약 64~65 + Booking 8 = **1주기 72~73회**, 하루 2회면 약 145회다. 현재
+  마스터에는 `external_minimum_stay >= 50`인 룸이 0건이라 이 필터의 즉각적 절감은 거의 없지만,
+  운영 규칙과 어긋난 집합을 부르지 않기 위해 적용한다.
 - 초기 도입/복구는 최근 90일로 제한한다. **Booking.com만 `from`으로 서버 측 제한이 되고, Airbnb는 날짜
   파라미터가 없어 전량 응답을 받은 뒤 StayOps에서 잘라낸다.**
 - 중복 키: `(organization_id, provider, external_review_id)` UPSERT. 이미 수집한 리뷰를 중복 생성하지 않는다.
@@ -86,6 +96,36 @@ StayOps UI는 Beds24를 실시간 조회하지 않고, 수집한 `external_revie
 - 두 엔드포인트가 Beta/Alpha이므로 `raw_payload`를 항상 보존하고, 파싱 실패는 해당 리뷰 1건만 건너뛰고
   나머지 수집을 계속한다.
 - 보안: API 토큰은 서버 전용 환경변수에서 재사용한다. 브라우저 요청, 클라이언트 로그, 문서에 토큰을 노출하지 않는다.
+
+#### 수집 트리거 (구현 2026-08-04)
+
+수집 로직은 `src/lib/beds24/reviews-sync.ts`의 `syncOrganizationReviews()`이고, 실행 경로는 두 개다.
+
+| | 프로덕션 cron | 로컬 dev |
+|---|---|---|
+| 경로 | `GET/POST /api/beds24/reviews-sync` | `GET/POST /api/dev/beds24/sync-reviews` |
+| 인증 | `Authorization: Bearer <CRON_SECRET>` (Vercel Cron 자동). 수동 실행은 `BEDS24_WEBHOOK_SECRET`을 `x-beds24-webhook-secret` 헤더/`?secret=`로 폴백 — **`/api/beds24/reconcile`과 동일 규약** | `ENABLE_LOCAL_DEV_TOOLS=true` + localhost + `BEDS24_WEBHOOK_SECRET` |
+| 대상 | `organizationId` 미지정 시 `status='active'` 전 조직 | `organizationId` **필수** |
+| 수집 창 | 기본 7일, `?full=1`이면 90일 | `?sinceDays=N`(1–365), 미지정 시 90일 |
+
+- **스케줄: 하루 2회 — GitHub Actions** (`.github/workflows/beds24-reviews-sync.yml`,
+  `47 1,13 * * *` UTC = 10:47 / 22:47 Asia/Tokyo). **Vercel Cron을 쓰지 않는다.** 이유가 둘이다:
+  (1) 이 프로젝트는 무료 Hobby 플랜이라 cron이 최대 2개·하루 1회로 제한되는데 그 두 자리는
+  reconcile과 task reminders가 이미 쓰고 있고, 애초에 "하루 2회"를 표현할 수 없다.
+  (2) 2026-07-22에 Vercel cron이 며칠간 아예 발화하지 않아 예약 5일치가 조용히 누락된 전례가 있다
+  (`.github/workflows/beds24-reconcile.yml`, `docs/planning/01-decision-log.md`). 그래서 새 정기 작업은
+  처음부터 외부 트리거로 건다. 수동 실행은 GitHub Actions의 `workflow_dispatch`(전량 수집은 `full` 입력)
+  또는 아래 curl. 정기 실행이 7일 창인
+  이유는 리뷰가 새로 붙는 속도보다 주기가 훨씬 촘촘해 페이지네이션을 1페이지로 유지하기 위해서다. 초기 도입이나
+  누락 복구는 `?full=1`로 90일 전량을 다시 훑는다. UPSERT라 반복 실행은 무해하다.
+- 두 시크릿이 모두 미설정이면 프로덕션 엔드포인트는 404(닫힘), 시크릿이 틀리면 403이다.
+- `BEDS24_SYNC_PAUSED`가 켜져 있으면 인증 이전에 아무 호출도 하지 않고 `202 {ok:true, paused:true}`.
+- 조직 단위로 격리해 실행한다. 한 조직이 실패해도 나머지는 계속 처리하고 실패는 응답 `failures[]`에 모인다
+  (부분 실패 시 HTTP 207).
+- 응답에 `creditsRemaining`과 `stoppedEarly`를 싣는다. 잔여 크레딧이 임계치 아래로 떨어져 `stoppedEarly`가
+  참이 되면 남은 조직은 처리하지 않고 다음 주기가 이어받는다.
+- 응답과 로그에는 토큰·시크릿을 절대 싣지 않는다. 수동 실행 예:
+  `curl "$APP_URL/api/beds24/reviews-sync?full=1" -H "Authorization: Bearer $CRON_SECRET"`
 
 위 수집은 외부 리뷰를 자동으로 `customer_complaints`로 만들지 않는다. 운영자가 필요할 때만 수동
 컴플레인으로 전환·연결한다. 리뷰는 점수와 무관하게 전량 저장하며 위험도(Airbnb ≤3, Booking ≤7.0, 경계

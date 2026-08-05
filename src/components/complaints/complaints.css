@@ -164,6 +164,71 @@
   color: var(--star);
 }
 
+/* external review — risk classification chip (list card + detail top row) */
+.cx-risk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.cx-risk-chip.risk {
+  background: var(--open-bg);
+  color: var(--open);
+}
+.cx-risk-chip.normal {
+  background: var(--done-bg);
+  color: var(--done);
+}
+.cx-risk-chip.unrated {
+  background: var(--cx-surface);
+  color: var(--cx-muted);
+}
+
+/* external review — Airbnb private feedback block, visually distinct from the public review */
+.cx-priv-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: hsl(222 20% 90%);
+  color: hsl(222 20% 30%);
+}
+.cx-priv-block {
+  border: 1px dashed color-mix(in oklab, var(--cx-muted) 40%, var(--line));
+  background: var(--cx-surface);
+  border-radius: 12px;
+  padding: 12px 13px;
+}
+.cx-priv-block .cx-dbody {
+  margin-bottom: 0;
+}
+
+/* external review — translate toggle */
+.cx-translate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--cx-primary);
+  background: none;
+  border: none;
+  padding: 6px 2px;
+  cursor: pointer;
+}
+.cx-translate-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* ── list ── */
 .cx-lhead {
   padding: 6px 2px 2px;
@@ -245,6 +310,29 @@
 }
 .cx-seg button.on .cnt {
   color: var(--cx-primary);
+}
+/* view-switch tabs (manual complaints / external reviews) render as <Link> anchors —
+   mirror the existing button segment look without touching the button rule above. */
+.cx-seg a {
+  flex: 1;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--cx-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-decoration: none;
+}
+.cx-seg a.on {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(20, 24, 30, 0.1);
+}
+.cx-topseg {
+  margin-top: 10px;
 }
 .cx-list {
   padding: 6px 0 16px;
@@ -345,6 +433,7 @@
 .cx-dsrc-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin: 8px 0 13px;
 }
@@ -474,6 +563,7 @@
   font-size: 14.5px;
   font-weight: 800;
   cursor: pointer;
+  text-decoration: none;
 }
 .cx-prim-btn svg {
   width: 18px;

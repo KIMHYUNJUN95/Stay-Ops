@@ -49,32 +49,44 @@ Home   Calendar   [ ✎ 편집 (center FAB) ]   Requests   Announcements
   side-menu entry and a pinnable bottom-bar candidate, not a default tab. The existing mobile manual
   complaint flow is redesigned as one entry point with two distinct data views: **수동 컴플레인** and
   **외부 리뷰**. It does not add a feature-specific header, tab bar, or navigation shell.
-  - `/mobile/complaints`: the two views are separated before filtering. Manual complaints retain
-    platform / building / room / status filters; external reviews use platform / risk / building /
-    room / review-date filters and default to risk → lower source rating → newest review.
+  - `/mobile/complaints`: the two views are separated before filtering via a `?view=manual|reviews`
+    tab switch rendered above the list content (`ComplaintViewTabs`, plain `<Link>` tabs — no client
+    state, so only the active view's data is fetched). Manual complaints keep their existing
+    platform / open-resolved / building-room filters and create entry unchanged. External reviews
+    (implemented 2026-08-05) apply client-side platform and problem-only chip filters plus a building
+    chip derived from the fetched reviews themselves (no separate property lookup); a review-date range
+    filter is **not yet implemented** and is deferred alongside the period-rating-summary UI below. Sort
+    order (risk → lower source rating → newest) comes from `listExternalReviews` and is not
+    re-sorted client-side.
   - `/mobile/complaints/new`: manual complaint registration remains available only to the existing
     write roles. The reservation-calendar `?reservationId=` prefill path remains valid.
   - `/mobile/complaints/[id]`: manual complaint detail retains status, comments and photos.
-  - `/mobile/complaints/reviews/[id]` (planned): read-only external review detail shows the native
-    rating, only the provider-supplied detailed-score fields, building/room/reservation context, and
-    linked complaint state. A missing room is explicitly shown as unavailable rather than guessed.
-    Booking.com positive and negative text are separate; a valid score-only review has no text area.
-    Text is translated only on demand into the viewer's app language and cached; it never runs from
-    the list.
-  - The external-review view also exposes period rating summaries by building and, except for Okubo,
-    by room. Airbnb and Booking.com averages remain separate with their review counts. Okubo is
-    detached-house-only, so a single building rating is the only rating summary shown there. Date
-    range defaults and controls are deferred to the mobile design work.
+  - `/mobile/complaints/reviews/[id]` (implemented 2026-08-05): read-only external review detail
+    shows the native rating and risk chip, the provider-supplied `rating_breakdown` (Airbnb
+    `category_ratings[]` / Booking.com `scoring{...}`, never normalized into a common schema),
+    building/room/reservation context, and linked-complaint state or a convert action. A missing room
+    is shown as `객실 정보 없음` rather than hidden; Airbnb rows explicitly note the missing reservation
+    id and reviewer name. Booking.com positive and negative text render as separate blocks; a
+    valid score-only review shows a "score only" notice instead of an empty body and offers no
+    translate button. Airbnb `private_feedback` renders in a visually distinct dashed block with a
+    private badge, never mixed into the public review, and is explicitly noted as not affecting the
+    rating. Booking.com's existing OTA reply shows read-only with no reply-compose UI. Translation is
+    a single "view translation" toggle per review (not per paragraph) that reuses any already-cached
+    parts and only calls `translateReviewPartAction` for the still-missing ones on demand; it never
+    runs from the list. Converting a review into a manual complaint opens the canonical `BottomSheet`
+    with a title/description form; the button is gated by the same write roles as manual complaint
+    creation and the server re-checks the role and the review's organization.
+  - The external-review view's period rating summaries by building/room (`summarizeReviewsByPlace`)
+    are **not yet surfaced on mobile** — the library function exists and is used by the admin console,
+    but the mobile screen only lists individual reviews for now. This is deferred, not dropped.
   - Any active organization member may read external reviews. Only existing complaint-write roles can
     create a linked manual complaint; this is not automatic even for risky ratings. The mobile screen
-    must use the existing shared sheet/edge-swipe/scroll contracts.
+    uses the existing shared sheet/edge-swipe/scroll contracts — no new bottom-sheet shell.
   - Mobile is a field-oriented view of the **same organization data source** used by
-    `/admin/complaints`; it must not maintain a mobile-only complaint/review list. Manual registration,
+    `/admin/complaints`; it does not maintain a mobile-only complaint/review list. Manual registration,
     comments, status changes, review-to-complaint links and cached translations created on either
     surface are visible on the other surface under the same permissions.
-  - This is a product-plan change only as of 2026-07-30. The planned review routes, data collection,
-    translation and redesigned UI are not yet implemented. Full domain contract:
-    `docs/product/25-complaint-workflow.md`.
+  - Full domain contract: `docs/product/25-complaint-workflow.md`.
 
 Implementation note:
 

@@ -282,6 +282,12 @@ export const adminNavigation = [
     icon: Package,
   },
   {
+    id: "complaints",
+    label: localizedNavigationLabels.admin.complaints,
+    href: "/admin/complaints",
+    icon: MessageSquareWarning,
+  },
+  {
     id: "announcements",
     label: localizedNavigationLabels.admin.announcements,
     href: "/admin/announcements",
@@ -326,6 +332,7 @@ export const adminNavGroupOf: Record<string, AdminNavGroupKey> = {
   "lost-found": "operations",
   "linen-return": "operations",
   orders: "operations",
+  complaints: "operations",
   // 인력
   attendance: "people",
   users: "people",

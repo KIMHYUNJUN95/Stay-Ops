@@ -16,6 +16,13 @@ Use this together with:
 Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 ```
 
+- **영수증 정산(활동비·경비) 기획 (2026-08-05). 구현 착수 전.** 월 1회 A4 에 영수증을 붙이고
+  형광펜을 긋고 엑셀에 손으로 치고 대조하는 과정을 없애는 것이 목표다. 개인별·월별로 **A4 인쇄물
+  + 엑셀 한 쌍**을 뽑고, 번호로 사진과 엑셀 행을 이어 대조를 불필요하게 만든다. OCR(Azure 무료
+  구간)이 금액·날짜·가게명을 채우되 **저장 전 사용자 확인은 필수**다. **전자장부 요건은 지지
+  않는다** — 원본을 계속 보관하므로 법 요건에서 자유롭고 목표는 그대로 달성된다. 새 모듈이 아니라
+  **교통비 정산 모듈 확장**이다. 엑셀 서식 미확정. 기준 문서: Product `29`, decision log.
+
 - **Slack 업무일지 전송 정상화 (2026-08-05).** 모바일에서 안 보내지던 원인은 코드가 아니라 **배포
   환경변수 누락**이었다(`SLACK_DAILY_REPORT_WEBHOOK_URL` 이 로컬 `.env` 에만 있고 Vercel 에 없었다 —
   대시보드에서 됐던 건 로컬 실행이었기 때문). 같이 정리: `CRON_SECRET` 도 없어 크론 2개가 매일
@@ -99,7 +106,59 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   날짜·문자 수만 기록한다. 웹훅 설정은 배포 환경에 별도로 필요하다. 기준 문서: Product `18`/`28`,
   Engineering `07`/`09`/`04`, decision log.
 
-- **컴플레인 — Beds24 리뷰 API 실측 완료, 구현 착수 (2026-08-04).** 2026-07-30 기획의 미검증 가정을
+- **컴플레인 외부 리뷰 — 1차 구현 (2026-08-05): DB · 서버 · 어드민 콘솔.**
+  - **DB** `supabase/migrations/202608050001_external_reviews.sql` — `external_reviews`(24컬럼),
+    `review_translations`, `customer_complaints.external_review_id` + `external_review_snapshot`.
+    인덱스 4개(제공자·기간 / 위험도·점수 / 건물·객실 / 미전환 위험 partial), 리뷰 1건당 컴플레인
+    1건을 강제하는 partial unique index. RLS는 **SELECT 전용** — 수집·전환은 service-role 서버 경로만
+    쓴다(attendance 테이블과 같은 패턴). `src/types/database.ts` 동기화 완료.
+  - **서버** `src/lib/external-reviews.ts` — `calcRiskLevel()`(Airbnb ≤3, Booking ≤7.0, **경계 포함**,
+    3값), 목록/상세, 기간 집계 `summarizeReviewsByPlace()`(건물→객실, 플랫폼별 평균·리뷰 수·문제
+    건수·문제 비율, `unrated` 제외, 객실 미연결 별도 집계, `property_type = 'standalone'`은 객실 행
+    없음), `convertReviewToComplaint()`(역할·조직·중복 전환 재검증 + 리뷰 스냅샷 보존).
+    `private_feedback`은 목록/집계 SELECT에서 제외하고 상세에서만 읽는다.
+  - **수집** `src/lib/beds24/reviews-sync.ts` — 룸타입/건물 단위 호출, 페이지네이션,
+    `X-RequestCost`/`X-FiveMinCreditLimit-Remaining` 확인 후 잔여가 낮으면 중단(다음 주기가 이어받음).
+    Airbnb는 날짜 파라미터가 없어 전량 수신 후 서버에서 90일로 자르고, **양방향 리뷰라 게스트 작성분만**
+    저장(`reviewer_role` / `submitted` / `hidden`). Booking.com 객실은 `reservation_id` →
+    `reservations.source_reservation_id` 역조회로만 얻고 실패 시 null.
+  - **번역** `src/lib/review-translate.ts` — DeepL, `(리뷰+본문종류+목표언어)` 캐시,
+    `source_text_hash` 불일치 시 재번역, 월 450,000자 안전 한도. 키는 `DEEPL_API_KEY` 서버 전용.
+  - **어드민** `/admin/complaints` — `AdminShell` + `opsbar` KPI 5 + `lviews` 3뷰(수동 컴플레인 /
+    외부 리뷰 / 문제 객실) + 공용 `DateRangeFormField`(`.calpop`). 사이드바 `운영` 그룹에 항목 추가.
+    i18n 60여 키를 ko/ja/en 동시 추가.
+  - **어드민 상세** `review-detail-panel.tsx` + `app/admin/complaints/actions.ts` — 우측 `.panel`
+    슬라이드오버를 클라이언트 상태 없이 `?review=<id>&tr=1` 쿼리스트링만으로 다룬다. 제공자별
+    `rating_breakdown` 파싱(Airbnb `category_ratings[]` / Booking `scoring{}`), Booking 긍정/부정 분리,
+    **비공개 피드백은 점선+warn 톤으로 공개 리뷰와 분리**, OTA 답글 읽기 전용. 번역은 텍스트가 있는
+    리뷰에만 노출하고 캐시가 있으면 DeepL을 부르지 않으며, 번역본을 보여줄 때 `자동 번역`을 명시한다.
+  - **수집 트리거** `/api/beds24/reviews-sync`(프로덕션) + `/api/dev/beds24/sync-reviews`(로컬).
+    인증은 `/api/beds24/reconcile`과 동일 규약(`CRON_SECRET` → `BEDS24_WEBHOOK_SECRET` 폴백,
+    미설정 404 / 불일치 403), `BEDS24_SYNC_PAUSED` 시 인증 이전에 202. 조직 단위 격리 실행이라 한
+    조직이 실패해도 나머지는 계속되고 부분 실패는 207. 응답에 `creditsRemaining` / `stoppedEarly` 포함.
+    정기 7일 창, `?full=1`이면 90일.
+  - **스케줄은 Vercel Cron이 아니라 GitHub Actions** (`.github/workflows/beds24-reviews-sync.yml`,
+    `47 1,13 * * *` UTC). 이유 둘: 무료 Hobby 플랜은 cron 2개·하루 1회가 한계이고 그 두 자리는
+    reconcile / task reminders가 이미 쓴다. 그리고 2026-07-22에 Vercel cron이 며칠간 발화하지 않아
+    예약 5일치가 누락된 전례가 있다(그래서 reconcile도 이미 Actions로 옮겨져 있다).
+  - **모바일** `/mobile/complaints`를 `?view=manual|reviews` 2뷰로 분기하고
+    `/mobile/complaints/reviews/[id]` 신설. 외부 리뷰는 읽기 전용이며 전환은 공용 `BottomSheet`로.
+    기존 수동 컴플레인 3화면 컴포넌트는 손대지 않아 회귀 없음.
+  - **빌드 경계 이슈 1건 수정:** 모바일 클라이언트 컴포넌트가 `server-only`인 `external-reviews.ts`에서
+    `REVIEW_SCALE`을 **값으로** 가져가 Supabase/`next/headers` 체인이 브라우저 번들로 끌려오며 빌드가
+    깨졌다. 순수 도메인 규칙(척도·위험도 경계·`calcRiskLevel`)을 `src/lib/external-review-rules.ts`로
+    분리하고 `external-reviews.ts`가 다시 내보내도록 했다. **타입만 쓰는 곳은 `import type`, 값이
+    필요하면 rules 모듈에서** 가져올 것 — tsc는 통과하고 build만 깨지는 유형이라 주의.
+  - **아직 안 한 것:** 어드민 컴플레인 단건 상세 라우트(`/admin/complaints/[id]`)가 없어 "연결된
+    컴플레인으로 이동"이 목록까지만 간다. 모바일 외부 리뷰의 날짜 범위 필터와 기간 평점 요약
+    (`summarizeReviewsByPlace` 연결)은 deferred. **마이그레이션은 원격 Supabase에 아직 미적용.**
+  - 검증: `npx tsc --noEmit` 0, `npm run lint` **0 errors**, `npm run build` 통과
+    (`/admin/complaints`, `/mobile/complaints/reviews/[id]`, `/api/beds24/reviews-sync`,
+    `/api/dev/beds24/sync-reviews` 생성 확인), `vitest src/lib/__tests__` 166 passed.
+    `no-hardcoded-cjk` 1건은 **이번 작업 이전부터 실패하던 것**으로 위반 목록에 컴플레인 파일은 없다.
+    브라우저 확인은 미실행.
+
+- **컴플레인 — Beds24 리뷰 API 실측 완료 (2026-08-04).** 2026-07-30 기획의 미검증 가정을
   Beds24 OpenAPI 스펙으로 검증해 수정했다. 두 엔드포인트는 실존하나(`/channels/airbnb/reviews` **Beta**,
   `/channels/booking/reviews` **Alpha**) 계약이 달랐다. Airbnb는 `roomId` 필수 + **날짜 필터 없음**,
   Booking은 `propertyId` + `from` 필수다. 따라서 **수집 단위·주기를 룸타입/건물 단위 하루 2회**로
@@ -124,7 +183,6 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
   리뷰/컴플레인 연결 상태를 공유한다. 선택 기간의 건물별·객실별 평점도 추가했으며, 플랫폼별 원점수로
   분리 집계한다. 오쿠보는 독채이므로 건물 평점 하나만 제공한다. 기간 선택 UI/기본값은 디자인 단계에서
   결정한다. 모바일 내비게이션 계약도 Product `16`에 반영했다.
-  **다음 단계: UI/UX 디자인 → DB migration → 서버(수집·집계·번역) → `/admin/complaints` → 모바일.**
   기준 문서: `docs/product/25-complaint-workflow.md`,
   `docs/product/05-admin-web-ia.md`, `docs/engineering/01-beds24-integration.md`,
   `docs/engineering/04-data-model.md`, `docs/engineering/05-rls-permissions.md`,

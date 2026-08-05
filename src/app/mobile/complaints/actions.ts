@@ -16,6 +16,8 @@ import {
   type ComplaintInput,
   type ComplaintPatch,
 } from "@/lib/complaints";
+import { convertReviewToComplaint } from "@/lib/external-reviews";
+import { translateReviewPart, type TranslationPart } from "@/lib/review-translate";
 
 type ActionError = { error: string };
 type CreateResult = { id: string } | ActionError;
@@ -243,4 +245,58 @@ export async function deleteComplaintCommentAction(commentId: string): Promise<O
   } catch (err) {
     return { error: messageFor(err) };
   }
+}
+
+// ────────────────────────────────────────────────────────────
+// External review → manual complaint conversion + on-demand translation.
+// See docs/product/25-complaint-workflow.md.
+// ────────────────────────────────────────────────────────────
+
+export async function convertReviewToComplaintAction(
+  reviewId: string,
+  title: string,
+  description: string,
+): Promise<CreateResult> {
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return { error: "no_org" };
+
+  try {
+    const { complaintId } = await convertReviewToComplaint({
+      session,
+      reviewId,
+      title,
+      description: description.trim() ? description.trim() : null,
+    });
+    revalidateComplaintSurfaces(complaintId);
+    revalidatePath(`/mobile/complaints/reviews/${reviewId}`);
+    return { id: complaintId };
+  } catch (err) {
+    return { error: messageFor(err) };
+  }
+}
+
+export type TranslateReviewResult = { status: "ok"; text: string } | { status: "unavailable" };
+
+export async function translateReviewPartAction(
+  reviewId: string,
+  part: TranslationPart,
+  sourceText: string,
+  sourceLanguageCode: string | null,
+): Promise<TranslateReviewResult> {
+  const session = await getCurrentAppSession();
+  if (!session || !hasOrganizationContext(session)) return { status: "unavailable" };
+
+  // Locale is read from the session, never taken from the caller — keeps the translation
+  // cache keyed to the viewer's real app language.
+  const result = await translateReviewPart({
+    organizationId: session.organization.id,
+    externalReviewId: reviewId,
+    part,
+    targetLocale: session.user.preferredLanguage,
+    sourceText,
+    sourceLanguageCode,
+  });
+
+  if (result.status === "ok") return { status: "ok", text: result.text };
+  return { status: "unavailable" };
 }

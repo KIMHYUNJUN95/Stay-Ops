@@ -191,12 +191,17 @@ Usage:
 - `BEDS24_API_BASE_URL`: Beds24 API base URL
 - `BEDS24_API_TOKEN`: short-lived Beds24 access token for direct inventory/property calls
 - `BEDS24_API_REFRESH_TOKEN`: long-lived Beds24 refresh token used to mint access tokens when `BEDS24_API_TOKEN` is unset or expired
-- `CRON_SECRET`: shared secret authorizing **all production cron-backed endpoints**, currently two: the Beds24 reconciliation endpoint (`/api/beds24/reconcile`) and the Todo / Shared Task reminder endpoint (`/api/tasks/reminders`). Vercel Cron automatically sends it as `Authorization: Bearer <CRON_SECRET>` when this var is set on the project. Set it in Vercel project env so **both** daily crons are authorized — if it is unset, the reminder endpoint returns 404 and the reconcile endpoint falls back to `BEDS24_WEBHOOK_SECRET` only. (`BEDS24_WEBHOOK_SECRET` is also accepted by the reconcile endpoint for manual triggers; the reminders endpoint accepts `CRON_SECRET` only.)
+- `DEEPL_API_KEY`: DeepL API key used to translate external reviews on demand. **Server-only** — never expose it to the browser. Optional: without it the review detail simply offers no translate button and the original text still renders. Free-tier keys end in `:fx`; the host is picked automatically (`api-free.deepl.com` vs `api.deepl.com`), or override with `DEEPL_API_URL`. Usage is capped in code at 450,000 characters per calendar month against DeepL API Free's 500,000 so a burst cannot overshoot the free tier. See `docs/product/25-complaint-workflow.md` → "Review Translation".
+- `CRON_SECRET`: shared secret authorizing **all production cron-backed endpoints**, currently three: the Beds24 reconciliation endpoint (`/api/beds24/reconcile`), the Todo / Shared Task reminder endpoint (`/api/tasks/reminders`), and the Beds24 external-review collection endpoint (`/api/beds24/reviews-sync`). Vercel Cron automatically sends it as `Authorization: Bearer <CRON_SECRET>` when this var is set on the project. Set it in Vercel project env so **all** scheduled runs are authorized — if it is unset, the reminder endpoint returns 404 and the reconcile / reviews-sync endpoints fall back to `BEDS24_WEBHOOK_SECRET` only. (`BEDS24_WEBHOOK_SECRET` is also accepted by the reconcile and reviews-sync endpoints for manual triggers; the reminders endpoint accepts `CRON_SECRET` only.)
 - Existing Beds24-linked properties can be backfilled locally through `POST /api/dev/beds24/backfill-inventory`
   - requires `ENABLE_LOCAL_DEV_TOOLS=true`
   - requires localhost access
   - requires the same `BEDS24_WEBHOOK_SECRET` value in `x-beds24-webhook-secret`
   - helper script: `scripts/dev/beds24-backfill-inventory.sh`
+- External reviews can be collected locally through `GET/POST /api/dev/beds24/sync-reviews`
+  - same gate as the other dev routes: `ENABLE_LOCAL_DEV_TOOLS=true`, localhost only, `BEDS24_WEBHOOK_SECRET` in `x-beds24-webhook-secret`
+  - `organizationId` (UUID) is **required**; optional `sinceDays` (1–365, default 90)
+  - production counterpart: `/api/beds24/reviews-sync` (see below)
 
 Reconciliation safety net (production):
 
@@ -239,6 +244,14 @@ Task reminder cron (production):
 - Driven daily by Vercel Cron (`vercel.json`, `0 23 * * *` UTC = 08:00 Asia/Tokyo). Authorized with `CRON_SECRET` only (returns 404 if `CRON_SECRET` is unset, 403 if the secret is missing/wrong).
 - Requires the `task_due_soon` / `task_overdue` enum values from `supabase/migrations/202606110001_task_reminder_notifications.sql` (**applied to the linked project on 2026-06-11**); if a fresh environment lacks them, reminder inserts fail soft (logged, no crash) until applied.
 - Manual trigger: `curl "$APP_URL/api/tasks/reminders" -H "Authorization: Bearer $CRON_SECRET"`.
+
+External review collection cron (production):
+
+- `GET/POST /api/beds24/reviews-sync` pulls Airbnb / Booking.com reviews from Beds24 into `external_reviews` (pure upsert on `organization_id, provider, external_review_id`). Reviews have no webhook, so this is the one Beds24 read path that must be scheduled. See `docs/engineering/01-beds24-integration.md` → "External Reviews".
+- Driven **twice daily** by Vercel Cron (`vercel.json`, `30 1,13 * * *` UTC = 10:30 / 22:30 Asia/Tokyo). Routine runs use a 7-day window; add `?full=1` for the 90-day sweep (initial import / recovery). Optional `?organizationId=<uuid>` limits the run to one org, otherwise every `status='active'` organization is processed.
+- Auth matches the reconcile endpoint: `CRON_SECRET` bearer, falling back to `BEDS24_WEBHOOK_SECRET` (`x-beds24-webhook-secret` header or `?secret=`) for manual triggers. 404 when neither secret is configured, 403 when the provided one is wrong. `BEDS24_SYNC_PAUSED` short-circuits the run with `202 {ok:true,paused:true}`.
+- Per-organization failures do not abort the run — they surface in `failures[]` with HTTP 207. The response carries `creditsRemaining` / `stoppedEarly` so a credit-limited early stop is visible; the next cycle resumes the remainder.
+- Manual trigger: `curl "$APP_URL/api/beds24/reviews-sync?full=1" -H "Authorization: Bearer $CRON_SECRET"`.
 
 Token scope checklist (must verify on token create/refresh):
 

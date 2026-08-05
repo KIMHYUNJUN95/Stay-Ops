@@ -313,9 +313,18 @@ Airbnb 비공개 피드백이며, 번역 결과도 상세에서 비공개 영역
 객실별 평점 영역·객실 순위·객실 평균·객실 문제 건수를 만들지 않는다. 내부 객실 데이터가 존재하더라도 리뷰
 집계 화면에서는 건물 단위로만 합산한다.
 
-판정 근거는 **`properties.property_type = 'standalone'`**을 사용한다. 건물 이름 문자열("오쿠보")로
-분기하지 않는다. 오쿠보 외의 독채 건물이 늘어나도 같은 규칙이 자동 적용되며, 반대로 오쿠보 레코드가
-`standalone`이 아니면 그것은 마스터 데이터 오류로 다뤄 코드에 예외를 넣지 않는다.
+판정 근거는 **정규화된 객실 라벨이 건물명으로 접히는지**다:
+`getCanonicalRoomLabel(propertyName, roomLabel) === getCanonicalPropertyName(propertyName)`
+(`src/lib/room-label-normalization.ts`). 접히면 그 건물은 단일 운영 단위이므로 객실 행을 만들지 않는다.
+`src/lib/home.ts`의 "room key == property → 건물만 표시"와 같은 규칙이며, 오쿠보는 이 함수 안에서
+이미 그렇게 접힌다. 건물 이름 문자열로 직접 분기하지 않는다.
+
+> **`property_type = 'standalone'`을 쓰지 않는 이유 (2026-08-05 실측 후 정정).**
+> 이 문서 초안은 `properties.property_type = 'standalone'`을 판정 근거로 지정했으나, 원격 마스터를
+> 확인해 보니 **16개 건물이 전부 `standalone`**이었다 — 객실 22개짜리 Arakicho A, 20개짜리
+> Kabukicho까지 포함된다. 즉 유지되지 않는 기본값이고, 그대로 쓰면 모든 건물의 객실 행이 사라져
+> 이 화면의 존재 이유인 객실별 문제 파악이 정확히 불가능해진다. 마스터가 실제 값으로 정비되면
+> 그때 `property_type` 기반으로 되돌리는 것이 더 낫다.
 
 ### Date range
 

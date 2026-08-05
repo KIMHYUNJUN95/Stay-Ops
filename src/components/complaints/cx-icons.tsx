@@ -85,6 +85,17 @@ export const CxIcon = {
       <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
     </svg>
   ),
+  translate: (
+    <svg viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="8.4" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M12 3.6c2.3 2.3 3.5 5.3 3.5 8.4s-1.2 6.1-3.5 8.4M12 3.6c-2.3 2.3-3.5 5.3-3.5 8.4s1.2 6.1 3.5 8.4M3.9 9h16.2M3.9 15h16.2"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  ),
 } satisfies Record<string, ReactNode>;
 
 /** Wrap an icon in the `.ic` span (1em sizing). */
