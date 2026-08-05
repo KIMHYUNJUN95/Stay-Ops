@@ -136,7 +136,9 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
     인증은 `/api/beds24/reconcile`과 동일 규약(`CRON_SECRET` → `BEDS24_WEBHOOK_SECRET` 폴백,
     미설정 404 / 불일치 403), `BEDS24_SYNC_PAUSED` 시 인증 이전에 202. 조직 단위 격리 실행이라 한
     조직이 실패해도 나머지는 계속되고 부분 실패는 207. 응답에 `creditsRemaining` / `stoppedEarly` 포함.
-    정기 7일 창, `?full=1`이면 90일.
+    Booking 정기 30일 창, `?full=1`이면 730일. Airbnb는 `from`이 없고 **객실당 50건이 하드
+    상한**(2026-08-05 실측 — `page` 무시, `nextPageExists` 거짓)이라 받은 전량을 그대로 저장하고
+    잘라내지 않으며, 50건이 찬 객실은 `truncatedTargets`로 보고해 과거 이력 누락을 드러낸다.
   - **스케줄은 Vercel Cron이 아니라 GitHub Actions** (`.github/workflows/beds24-reviews-sync.yml`,
     `47 1,13 * * *` UTC). 이유 둘: 무료 Hobby 플랜은 cron 2개·하루 1회가 한계이고 그 두 자리는
     reconcile / task reminders가 이미 쓴다. 그리고 2026-07-22에 Vercel cron이 며칠간 발화하지 않아
@@ -161,7 +163,7 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
 - **컴플레인 — Beds24 리뷰 API 실측 완료 (2026-08-04).** 2026-07-30 기획의 미검증 가정을
   Beds24 OpenAPI 스펙으로 검증해 수정했다. 두 엔드포인트는 실존하나(`/channels/airbnb/reviews` **Beta**,
   `/channels/booking/reviews` **Alpha**) 계약이 달랐다. Airbnb는 `roomId` 필수 + **날짜 필터 없음**,
-  Booking은 `propertyId` + `from` 필수다. 따라서 **수집 단위·주기를 룸타입/건물 단위 하루 2회**로
+  Booking은 `propertyId` + `from` 필수다. 따라서 **수집 단위·주기를 룸타입/건물 단위 하루 1회**로
   재정의했다("채널별 1회"는 성립 불가). 초기 90일 제한은 Booking만 서버 측에서 되고 Airbnb는 전량 수신 후
   StayOps에서 자른다. **위험도는 `미평가/정상/문제` 3값으로 단순화**했다 — Airbnb ≤3, Booking ≤7.0,
   **경계값 포함**, `매우 위험` 폐기. **리뷰는 점수와 무관하게 전량 저장**하고 위험도는 분류로만 쓴다.

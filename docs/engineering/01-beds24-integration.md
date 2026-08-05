@@ -64,11 +64,11 @@ StayOps UI는 Beds24를 실시간 조회하지 않고, 수집한 `external_revie
 | Beds24 성숙도 | **Beta** | **Alpha** |
 | 필수 파라미터 | `roomId` (룸타입 단위) | `propertyId` + `from`(YYYY-MM-DD) |
 | 날짜 필터 | **없음** | 있음 |
-| 페이지 | 100건/응답, `pages.nextPageExists` + `nextPageLink` | 동일 |
+| 페이지 | **객실당 50건 하드 상한, 페이지네이션 불가** (아래 참조) | 100건/응답, `pages.nextPageExists` |
 | 응답 타입 | `airbnbReview` | `bookingReview` |
 
-- **기본 주기: 룸타입/건물 단위 하루 2회.** API가 단위 파라미터를 필수로 요구하므로 "채널별 하루 1회"는
-  성립하지 않는다. 1주기 호출 수 = `(Airbnb 연동 룸타입 수) + (Booking 연동 건물 수)` + 페이지네이션.
+- **기본 주기: 룸타입/건물 단위 하루 1회.** API가 단위 파라미터를 필수로 요구하므로 "채널별 하루 1회"는
+  성립하지 않는다. 1주기 호출 수 = `(Airbnb 활성 룸타입 수) + (Booking 연동 건물 수)`.
 - **호출 키는 이미 로컬에 있다:** `rooms.external_room_id` → Airbnb `roomId`,
   `properties.external_property_id` → Booking `propertyId`. 값이 없는 객실·건물은 호출 대상에서 제외한다.
 - **Airbnb는 건물 단위 호출이 불가능하다.** 스펙상 `/channels/airbnb/reviews`의 파라미터는 `roomId`
@@ -78,11 +78,24 @@ StayOps UI는 Beds24를 실시간 조회하지 않고, 수집한 `external_revie
   객실 마스터가 쓰는 것과 **같은 집합**만 본다:
   `status = 'active'` + `isInactiveBeds24Room(external_minimum_stay)` 제외(최소 숙박 50박 이상은
   비활성 룸ID) + `isExcludedOperationalProperty()` 제외(사노) + 같은 `external_room_id`는 한 번만.
-  실측 기준 조직당 Airbnb 약 64~65 + Booking 8 = **1주기 72~73회**, 하루 2회면 약 145회다. 현재
-  마스터에는 `external_minimum_stay >= 50`인 룸이 0건이라 이 필터의 즉각적 절감은 거의 없지만,
-  운영 규칙과 어긋난 집합을 부르지 않기 위해 적용한다.
-- 초기 도입/복구는 최근 90일로 제한한다. **Booking.com만 `from`으로 서버 측 제한이 되고, Airbnb는 날짜
-  파라미터가 없어 전량 응답을 받은 뒤 StayOps에서 잘라낸다.**
+  2026-08-05 인벤토리 정상화 후 실측: 비활성 44 / 활성 84로 갈렸고, 조직당 Airbnb 42~52 +
+  Booking 8 = **1주기 50~60회**, 하루 1회면 두 조직 합계 약 **110 크레딧/일**이다
+  (요청당 비용은 `x-request-cost` 실측 1).
+- **Airbnb는 객실당 리뷰 50건이 하드 상한이다 (2026-08-05 실측, 스펙이 틀렸다).**
+  스펙은 "Maximum of 100"이라 적고 `pages` 객체를 노출하지만 둘 다 사실이 아니다:
+  리뷰가 50건을 넘는 객실도 정확히 50건만 오고 `pages.nextPageExists`는 그때도 `false`이며,
+  `?page=2` / `?page=3`은 **같은 50건을 그대로 돌려준다**(첫 id까지 동일). 즉 51번째 이후 과거
+  리뷰에 도달할 방법이 Beds24에는 없다.
+  - **과거 이력 전량 백필이 불가능하다.** 이미 50건이 찬 객실의 더 오래된 리뷰는 영구히 못 가져온다.
+    수집 결과의 `truncatedTargets`가 그런 객실을 보고해 "완전한 척"하지 않게 한다.
+  - **정기 수집에는 영향이 없다.** 하루에 한 객실에 50건이 새로 달릴 일은 없다.
+  - 페이지 루프는 Airbnb에서 비활성화했다 — 돌면 같은 50건을 다시 받으며 크레딧만 쓴다.
+  - 과거 Airbnb 리뷰가 꼭 필요하면 Airbnb 호스트 계정에서 직접 내보내는 수밖에 없다.
+- **기간 제한은 Booking.com에만 적용한다.** Airbnb는 `from`이 없고 어차피 최대 50건이 전량으로
+  오므로 받은 것을 절대 잘라내지 않는다(잘라내면 같은 크레딧을 쓰고 버리는 것이며, 상한 탓에
+  다시 가져올 수도 없다). Booking.com은 정기 **30일**, `?full=1`이면 **730일**을 쓴다. 30일인
+  이유는 리뷰가 체크아웃 며칠 뒤에 달리고 `last_change_timestamp`가 있는 걸 보면 수정도 되기
+  때문이다 — 7일 창은 늦게 달린 리뷰를 놓친다. UPSERT라 겹쳐 받아도 무해하다.
 - 중복 키: `(organization_id, provider, external_review_id)` UPSERT. 이미 수집한 리뷰를 중복 생성하지 않는다.
 - **Airbnb 리뷰는 양방향이다.** `reviewer_role`이 게스트인 리뷰만 저장하고, `submitted=false` 또는
   `hidden=true`는 버린다. 걸러내지 않으면 호스트가 게스트에게 쓴 리뷰까지 수집된다.
@@ -106,18 +119,20 @@ StayOps UI는 Beds24를 실시간 조회하지 않고, 수집한 `external_revie
 | 경로 | `GET/POST /api/beds24/reviews-sync` | `GET/POST /api/dev/beds24/sync-reviews` |
 | 인증 | `Authorization: Bearer <CRON_SECRET>` (Vercel Cron 자동). 수동 실행은 `BEDS24_WEBHOOK_SECRET`을 `x-beds24-webhook-secret` 헤더/`?secret=`로 폴백 — **`/api/beds24/reconcile`과 동일 규약** | `ENABLE_LOCAL_DEV_TOOLS=true` + localhost + `BEDS24_WEBHOOK_SECRET` |
 | 대상 | `organizationId` 미지정 시 `status='active'` 전 조직 | `organizationId` **필수** |
-| 수집 창 | 기본 7일, `?full=1`이면 90일 | `?sinceDays=N`(1–365), 미지정 시 90일 |
+| 수집 창 | Booking 기본 30일, `?full=1`이면 730일 (Airbnb는 항상 전량) | `?sinceDays=N`(1–365) |
 
-- **스케줄: 하루 2회 — GitHub Actions** (`.github/workflows/beds24-reviews-sync.yml`,
-  `47 1,13 * * *` UTC = 10:47 / 22:47 Asia/Tokyo). **Vercel Cron을 쓰지 않는다.** 이유가 둘이다:
+- **스케줄: 하루 1회 아침 8시 — GitHub Actions** (`.github/workflows/beds24-reviews-sync.yml`,
+  `5 23 * * *` UTC = **08:05 Asia/Tokyo**). 하루 1회로 충분한 이유는 리뷰가 체크아웃 며칠 뒤에
+  달려 실시간성이 필요 없고, Airbnb 50건 상한에 하루 만에 도달할 일도 없기 때문이다. `:05`인 것은
+  Vercel task-reminder cron(23:00 UTC)과 reconcile(매 6시간 `:13`)을 피해 크레딧 창이 겹치지 않게
+  하기 위해서다. **Vercel Cron을 쓰지 않는다.** 이유가 둘이다:
   (1) 이 프로젝트는 무료 Hobby 플랜이라 cron이 최대 2개·하루 1회로 제한되는데 그 두 자리는
   reconcile과 task reminders가 이미 쓰고 있고, 애초에 "하루 2회"를 표현할 수 없다.
   (2) 2026-07-22에 Vercel cron이 며칠간 아예 발화하지 않아 예약 5일치가 조용히 누락된 전례가 있다
   (`.github/workflows/beds24-reconcile.yml`, `docs/planning/01-decision-log.md`). 그래서 새 정기 작업은
   처음부터 외부 트리거로 건다. 수동 실행은 GitHub Actions의 `workflow_dispatch`(전량 수집은 `full` 입력)
-  또는 아래 curl. 정기 실행이 7일 창인
-  이유는 리뷰가 새로 붙는 속도보다 주기가 훨씬 촘촘해 페이지네이션을 1페이지로 유지하기 위해서다. 초기 도입이나
-  누락 복구는 `?full=1`로 90일 전량을 다시 훑는다. UPSERT라 반복 실행은 무해하다.
+  또는 아래 curl. 초기 도입이나 누락 복구는 `?full=1`로 Booking.com을 730일까지 다시 훑는다.
+  UPSERT라 반복 실행은 무해하다.
 - 두 시크릿이 모두 미설정이면 프로덕션 엔드포인트는 404(닫힘), 시크릿이 틀리면 403이다.
 - `BEDS24_SYNC_PAUSED`가 켜져 있으면 인증 이전에 아무 호출도 하지 않고 `202 {ok:true, paused:true}`.
 - 조직 단위로 격리해 실행한다. 한 조직이 실패해도 나머지는 계속 처리하고 실패는 응답 `failures[]`에 모인다
