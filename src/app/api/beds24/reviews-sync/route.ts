@@ -9,7 +9,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 // schedule (see docs/engineering/01-beds24-integration.md → "External Reviews"). Both Beds24
 // endpoints require a unit parameter, so one cycle costs (Airbnb-linked room types) +
 // (Booking-linked properties) requests plus pagination. That is why the routine schedule is
-// twice a day with a short window, and the 90-day sweep is opt-in via `?full=1`.
+// once a day with a 30-day window, and the deep sweep is opt-in via `?full=1`.
 //
 // Driven by Vercel Cron (see vercel.json). Can also be triggered manually with the Beds24
 // webhook secret. Collection is a pure upsert on (organization_id, provider,
@@ -19,9 +19,13 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /** 정기 실행 창. 하루 2회 주기라 짧게 잡아 페이지네이션을 줄인다. */
-const ROUTINE_SINCE_DAYS = 7;
+// Booking.com 전용 창(Airbnb는 `from`이 없어 항상 전량이 온다). 30일인 이유: 리뷰는 체크아웃
+// 며칠 뒤에 달리고 `last_change_timestamp`가 있는 걸 보면 수정도 되므로, 7일 창은 늦게 달린
+// 리뷰를 놓칠 수 있다. UPSERT라 겹쳐 받아도 무해하다.
+const ROUTINE_SINCE_DAYS = 30;
 /** 초기 도입/복구용 전량 수집 창. */
-const FULL_SINCE_DAYS = 90;
+// `?full=1` — 초기 도입/복구용. 첫 예약이 2026-04-22이라 2년이면 영업 시작 전까지 덮는다.
+const FULL_SINCE_DAYS = 730;
 
 function resolveProvidedSecret(request: NextRequest) {
   const fromBearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");

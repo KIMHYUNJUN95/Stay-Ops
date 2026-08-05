@@ -3,7 +3,7 @@
 // Endpoint contract (measured 2026-08-04 against https://beds24.com/api/v2/apiV2.yaml —
 // see docs/engineering/01-beds24-integration.md → External Reviews):
 //
-//   GET /channels/airbnb/reviews?roomId={int}        Beta   — no date filter, 100/page
+//   GET /channels/airbnb/reviews?roomId={int}        Beta   — no date filter, HARD CAP 50/room
 //   GET /channels/booking/reviews?propertyId={int}&from=YYYY-MM-DD
 //                                                   Alpha  — 100/page
 //
@@ -20,6 +20,21 @@
 //
 // Both endpoints are Beta/Alpha, so `raw_payload` is always kept and a row that fails to parse
 // is skipped individually rather than aborting the run.
+//
+// AIRBNB 50-REVIEW CAP (measured 2026-08-05, the spec is wrong about this)
+// ------------------------------------------------------------------------
+// The spec claims "Maximum of 100 reviews will be returned at once" and exposes a `pages`
+// object, but neither holds for this endpoint:
+//   * a room with more than 50 reviews returns exactly 50 and still reports
+//     `pages.nextPageExists: false` — the flag lies;
+//   * `?page=2` and `?page=3` return the SAME 50 rows (identical first id), so the
+//     documented pagination parameter is simply ignored.
+// There is therefore no way to reach review 51+ through Beds24. Consequences:
+//   * back-filling full Airbnb history is impossible; a room already at 50 has older
+//     reviews we can never fetch. `truncatedTargets` reports which rooms are in that state
+//     so the gap is visible instead of silently looking complete.
+//   * ongoing collection is unaffected — a daily run will never see 50 new reviews in a day.
+// Booking.com is not affected: it takes a real `from` date and paginates properly.
 
 import "server-only";
 
@@ -90,6 +105,9 @@ function readCredits(headers: Headers): CreditInfo {
 
 /** 이 값 아래로 떨어지면 남은 대상을 건너뛰고 다음 주기가 이어받는다. */
 const MIN_REMAINING_CREDITS = 50;
+
+/** Airbnb가 한 룸타입에 대해 돌려주는 최대 리뷰 수 (실측). 페이지로 넘길 방법이 없다. */
+const AIRBNB_REVIEW_CAP = 50;
 
 type PageResult = { rows: unknown[]; credits: CreditInfo; nextPage: string | null };
 
@@ -259,6 +277,11 @@ export type ReviewSyncResult = {
   requests: number;
   creditsRemaining: number | null;
   stoppedEarly: boolean;
+  /**
+   * Airbnb 50건 상한에 걸린 룸타입. 이 방들은 51번째 이후 과거 리뷰를 영구히 가져올 수 없다 —
+   * 데이터가 불완전하다는 사실을 조용히 감추지 않기 위해 남긴다.
+   */
+  truncatedTargets: string[];
 };
 
 type SyncTarget =
@@ -287,6 +310,7 @@ export async function syncOrganizationReviews(input: {
     requests: 0,
     creditsRemaining: null,
     stoppedEarly: false,
+    truncatedTargets: [],
   };
 
   const env = getOptionalBeds24ApiEnv();
@@ -415,14 +439,20 @@ export async function syncOrganizationReviews(input: {
       }
       if (page.credits.remaining !== null) result.creditsRemaining = page.credits.remaining;
 
+      // 정확히 50건이면 상한에 닿았다는 뜻이다(`nextPageExists`는 이 경우에도 false를 준다).
+      if (target.provider === "airbnb" && page.rows.length >= AIRBNB_REVIEW_CAP) {
+        result.truncatedTargets.push(`${target.propertyName} / ${target.roomLabel}`);
+      }
+
       const parsed: ParsedReview[] = [];
       for (const raw of page.rows) {
         const review =
           target.provider === "airbnb" ? parseAirbnbReview(raw) : parseBookingReview(raw);
         // 파싱 실패는 해당 리뷰 1건만 건너뛰고 나머지 수집을 계속한다.
         if (!review) continue;
-        // Airbnb는 날짜 파라미터가 없어 전량이 오므로 여기서 기간을 자른다.
-        if (review.reviewedAt && review.reviewedAt < sinceIso) continue;
+        // Airbnb는 날짜 파라미터가 없고 최대 50건만 오므로 절대 잘라내지 않는다. 잘라내면
+        // 같은 크레딧을 쓰고 받은 데이터를 버리는 셈이고, 50건 상한 탓에 그 데이터는 다시
+        // 가져올 방법도 없다. 기간 제한은 `from`을 실제로 지원하는 Booking.com에만 적용된다.
         parsed.push(review);
       }
 
@@ -479,7 +509,9 @@ export async function syncOrganizationReviews(input: {
         else result.upserted += payload.length;
       }
 
-      url = page.nextPage ?? "";
+      // Airbnb는 `page` 파라미터가 무시되고 `nextPageExists`도 항상 false다 — 루프를 돌면
+      // 같은 50건을 다시 받으며 크레딧만 쓴다. 페이지네이션은 Booking.com에만 적용한다.
+      url = target.provider === "airbnb" ? "" : (page.nextPage ?? "");
     }
   }
 

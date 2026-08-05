@@ -25,10 +25,16 @@ name: Beds24 external review sync
 
 on:
   schedule:
-    # Twice a day at :47, off the :00 mark and off the reconcile job's :13 so the
-    # two never contend for Beds24's 5-minute credit window.
-    # 01:47 / 13:47 UTC = 10:47 / 22:47 Asia/Tokyo.
-    - cron: "47 1,13 * * *"
+    # Once a day at 08:05 Asia/Tokyo (= 23:05 UTC the previous day).
+    #
+    # Daily is enough: reviews are written days after checkout, so nothing is time-critical,
+    # and the Airbnb 50-per-room cap is never reached in a single day. Halving the old
+    # twice-daily cadence also halves the credit spend.
+    #
+    # :05 rather than :00 keeps it clear of the Vercel task-reminder cron at 23:00 UTC, and
+    # the reconcile workflow runs at :13 past every 6th hour — so all three stay apart and
+    # never contend for Beds24's credit window.
+    - cron: "5 23 * * *"
   workflow_dispatch:
     inputs:
       full:
