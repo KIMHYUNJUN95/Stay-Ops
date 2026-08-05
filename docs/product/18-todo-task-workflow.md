@@ -1008,6 +1008,13 @@ the **ReportSheet** bottom sheet:
   blocking reason and Slack's own rejection body — the action returns a result object instead of
   throwing, so nothing was landing in Vercel's runtime **error** log (the same lesson as the mobile
   cleaning actions). The webhook URL is never logged.
+- **The audit write was silently failing (fixed 2026-08-05).** `audit_logs.target_id` is a **uuid**
+  column, but the insert passed `` `${userId}:${day}` `` — Postgres rejected every row. supabase-js
+  returns `{ error }` instead of throwing, and the result was never checked, so the whole audit trail
+  for Slack sends did not exist (0 rows, confirmed against the live DB). A daily report is not a table
+  row, so `target_id` is now `null` and the date stays in `metadata`; the insert error is logged
+  instead of swallowed. Every other `audit_logs` write in the repo passes a real row uuid — this was
+  the only offender.
 - Sending uses the server-only `SLACK_DAILY_REPORT_WEBHOOK_URL` Incoming Webhook. It is never exposed
   to the browser. The same report-generation permission is rechecked server-side before every send;
   delivery succeeds only after Slack accepts the request. Successful sends write an `audit_logs`

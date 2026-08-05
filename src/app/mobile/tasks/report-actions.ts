@@ -276,25 +276,32 @@ export async function sendDailyReportToSlack(
     return fail("error");
   }
 
-  // The report body is intentionally not stored in audit metadata; it may contain operational details.
-  // A failed audit write must not turn an already-delivered Slack message into a client-visible failure.
+  // 본문은 감사 메타데이터에 넣지 않는다 — 운영 정보가 섞일 수 있다. 그리고 감사 기록 실패가
+  // **이미 전달된** Slack 메시지를 실패로 보이게 만들어서도 안 된다.
   try {
     const session = await getCurrentAppSession();
     if (session && hasOrganizationContext(session)) {
-      await getSupabaseServiceClient()
+      const audit = await getSupabaseServiceClient()
         .from("audit_logs")
         .insert({
           organization_id: session.organization.id,
           actor_user_id: session.user.id,
           action: "task_daily_report_slack_sent",
           target_type: "daily_report",
-          target_id: `${session.user.id}:${day}`,
+          // `target_id` 는 **uuid 컬럼**이다. 예전에는 `${userId}:${day}` 를 넣어 Postgres 가 매번
+          // 거절했고, supabase-js 는 던지지 않고 `{ error }` 를 돌려주는데 아무도 확인하지 않아
+          // **감사 기록이 통째로 사라지고 있었다**(2026-08-05 발견, 성공 기록 0건).
+          // 일지는 테이블 행이 아니므로 비우고, 날짜는 metadata 로 옮긴다.
+          target_id: null,
           metadata: { date: day, character_count: text.length } as Json,
           // 저장소 관례 — 생성 타입이 좁아 `as never` 로 넘긴다(`admin/settings/attendance` 동일).
         } as never);
+      // 삼키지 않고 남긴다. 감사 기록이 조용히 실패하면 "누가 회사 채널에 무엇을 보냈는가" 가
+      // 영영 남지 않는다.
+      if (audit.error) console.warn("[report] audit write failed:", audit.error.message);
     }
-  } catch {
-    // External delivery already succeeded; audit retries/monitoring are outside this small first slice.
+  } catch (error) {
+    console.warn("[report] audit write threw:", error instanceof Error ? error.message : error);
   }
 
   return { ok: true };
