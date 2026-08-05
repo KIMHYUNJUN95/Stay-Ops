@@ -1092,3 +1092,25 @@ Management Console" → Current Implementation Note.
 새 콘솔 CSS 를 만들 때 이 규칙을 먼저 확인할 것. 근거는
 `docs/planning/01-decision-log.md` → 2026-08-03 항목.
 
+
+
+## 에러 바운더리 (2026-08-05)
+
+`/admin/*` 이 던지면 `src/app/admin/error.tsx` 가 받는다. 그전에는 루트 `src/app/error.tsx` 의
+흰 화면 + 영어 "Something went wrong." 으로 떨어졌다 — 모바일은 브랜드·다국어 화면이 있는데
+콘솔만 맨몸이었다.
+
+모바일 경계와 **같은 문구 소스**(`src/lib/fallback-copy.ts`)를 쓰고, 언어는 루트 레이아웃이
+심어 둔 `<html lang>` 에서 읽는다(알 수 없으면 `ko`). 사전 모듈(`i18n.ts`)에 의존하지 않는 이유는
+`docs/product/16-mobile-navigation.md` 의 폴백 화면 항목과 같다 — 앱이 고장난 상태에서 떠야 한다.
+
+### 알려진 노출 지점
+
+로더가 던지는데 호출부가 `.catch` 하지 않는 콘솔 라우트가 셋 있다. DB 장애 시 이 화면이 뜬다:
+
+- `admin/settings` → `getAttendanceSiteQrOverview`
+- `admin/calendar` → `getAdminCalendarDashboardData`
+- `admin/linen-return` → `getAdminLinenReturns`
+
+다른 콘솔 로더들은 내부에서 `loadError` 플래그로 접어 화면을 유지한다. 위 셋도 같은 방식으로
+바꾸는 것이 낫지만, 우선 **떨어질 곳을 제대로 만들어 두는 것**을 먼저 했다.
