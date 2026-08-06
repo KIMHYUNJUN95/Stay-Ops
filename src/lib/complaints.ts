@@ -176,6 +176,14 @@ export function canChangeStatus(
   );
 }
 
+/**
+ * 컴플레인 조정 권한(owner/office_admin/super-admin) 여부. UI에서 "작성자 본인 외에도 삭제/상태
+ * 변경 버튼을 보여줄지" 판단하는 용도다. 실제 삭제 권한은 `deleteComplaint`가 서버에서 다시 검증한다.
+ */
+export function canModerateComplaints(role: string): boolean {
+  return COMPLAINT_ADMIN_ROLES.has(role);
+}
+
 function isComplaintAdmin(session: AppSession): boolean {
   return COMPLAINT_ADMIN_ROLES.has(session.user.role);
 }

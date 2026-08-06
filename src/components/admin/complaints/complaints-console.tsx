@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { AlertTriangle, Inbox, MessageSquareWarning, Star, Unlink } from "lucide-react";
+import { AlertTriangle, Inbox, MessageSquareWarning, Star, ThumbsDown, ThumbsUp, Unlink } from "lucide-react";
 import { DateRangeFormField } from "@/components/admin/shared/date-range-form-field";
 import { ReviewDetailPanel, type ReviewPanelLabels } from "@/components/admin/complaints/review-detail-panel";
+import { ManualComplaintList } from "@/components/admin/complaints/manual-complaint-list";
 import type { Complaint } from "@/lib/complaints";
 import type {
   BuildingSummary,
@@ -27,6 +28,9 @@ type Props = {
   to: string;
   filter: ReviewListFilter;
   complaints: Complaint[];
+  /** 수동 컴플레인 행별 삭제 버튼 노출 판단용 — 실제 권한은 서버가 다시 검증한다. */
+  currentUserId: string;
+  canModerate: boolean;
   reviews: ExternalReview[];
   summaries: BuildingSummary[];
   selectedReview: ExternalReviewDetail | null;
@@ -142,6 +146,8 @@ export function ComplaintsConsole({
   to,
   filter,
   complaints,
+  currentUserId,
+  canModerate,
   reviews,
   summaries,
   selectedReview,
@@ -289,20 +295,43 @@ export function ComplaintsConsole({
         </form>
 
         {view === "reviews" ? (
-          <div className="cxseg">
-            <Link
-              href={`/admin/complaints${queryOf({ ...base, view: "reviews", risk: undefined })}`}
-              className={filter.riskOnly ? "" : "on"}
-            >
-              {copy.filterAll}
-            </Link>
-            <Link
-              href={`/admin/complaints${queryOf({ ...base, view: "reviews", risk: "1" })}`}
-              className={filter.riskOnly ? "on" : ""}
-            >
-              {copy.riskOnly}
-            </Link>
-          </div>
+          <>
+            {/* 플랫폼 필터 — Airbnb/Booking.com은 척도가 달라 따로 봐야 한다. 위험도 토글과 서로 독립. */}
+            <div className="cxseg">
+              <Link
+                href={`/admin/complaints${queryOf({ ...base, view: "reviews", provider: undefined })}`}
+                className={filter.provider ? "" : "on"}
+              >
+                {copy.filterAll}
+              </Link>
+              <Link
+                href={`/admin/complaints${queryOf({ ...base, view: "reviews", provider: "airbnb" })}`}
+                className={filter.provider === "airbnb" ? "on" : ""}
+              >
+                {PROVIDER_LABEL.airbnb}
+              </Link>
+              <Link
+                href={`/admin/complaints${queryOf({ ...base, view: "reviews", provider: "booking" })}`}
+                className={filter.provider === "booking" ? "on" : ""}
+              >
+                {PROVIDER_LABEL.booking}
+              </Link>
+            </div>
+            <div className="cxseg">
+              <Link
+                href={`/admin/complaints${queryOf({ ...base, view: "reviews", risk: undefined })}`}
+                className={filter.riskOnly ? "" : "on"}
+              >
+                {copy.filterAll}
+              </Link>
+              <Link
+                href={`/admin/complaints${queryOf({ ...base, view: "reviews", risk: "1" })}`}
+                className={filter.riskOnly ? "on" : ""}
+              >
+                {copy.riskOnly}
+              </Link>
+            </div>
+          </>
         ) : null}
       </div>
 
@@ -439,8 +468,6 @@ export function ComplaintsConsole({
               const hasBody = Boolean(
                 review.reviewText || review.positiveReviewText || review.negativeReviewText,
               );
-              const excerpt =
-                review.negativeReviewText ?? review.reviewText ?? review.positiveReviewText ?? "";
               return (
                 <Link className="cxrow" href={reviewHref(review.id)} key={review.id}>
                   <div className="cxscore">
@@ -467,9 +494,34 @@ export function ComplaintsConsole({
                         <span className="rchip void">{copy.scoreOnly}</span>
                       ) : null}
                     </div>
-                    <div className={hasBody ? "cxexcerpt" : "cxexcerpt is-dim"}>
-                      {hasBody ? excerpt : copy.scoreOnlyNote}
-                    </div>
+                    {/* 클릭해 상세 패널을 열지 않아도 긍정/부정 본문을 목록에서 전부 볼 수 있어야 한다.
+                        Booking.com은 긍정/부정 2단, Airbnb는 공개 리뷰 본문 1단, 본문이 없으면 안내 문구. */}
+                    {!hasBody ? (
+                      <div className="cxexcerpt is-dim">{copy.scoreOnlyNote}</div>
+                    ) : review.positiveReviewText || review.negativeReviewText ? (
+                      <div className="cxpn">
+                        {review.positiveReviewText ? (
+                          <div className="cxpn__col">
+                            <div className="cxpn__k is-pos">
+                              <ThumbsUp aria-hidden="true" />
+                              {copy.positiveLabel}
+                            </div>
+                            <p className="cxpn__b">{review.positiveReviewText}</p>
+                          </div>
+                        ) : null}
+                        {review.negativeReviewText ? (
+                          <div className="cxpn__col">
+                            <div className="cxpn__k is-neg">
+                              <ThumbsDown aria-hidden="true" />
+                              {copy.negativeLabel}
+                            </div>
+                            <p className="cxpn__b">{review.negativeReviewText}</p>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="cxexcerpt">{review.reviewText}</p>
+                    )}
                     <div className="cxmeta">
                       <span>
                         {review.propertyName ?? "—"}
@@ -508,31 +560,12 @@ export function ComplaintsConsole({
               <div className="rstate__s">{copy.manualEmptySub}</div>
             </div>
           ) : (
-            complaints.map((complaint) => (
-              <div className="cxrow" key={complaint.id}>
-                <div className="cxmain">
-                  <div className="cxtop">
-                    <span className="cxttl">{complaint.title}</span>
-                    <span
-                      className={complaint.status === "open" ? "rchip review" : "rchip done"}
-                    >
-                      {complaint.status === "open" ? copy.statusOpen : copy.statusDone}
-                    </span>
-                  </div>
-                  <div className="cxmeta">
-                    <span className="rchip void">{complaint.platform}</span>
-                    <span>
-                      {complaint.propertyName ?? "—"}
-                      {complaint.roomLabel ? ` · ${complaint.roomLabel}` : ""}
-                    </span>
-                    <span className="cxdot" />
-                    <span>{complaint.createdAt.slice(0, 10)}</span>
-                    <span className="cxdot" />
-                    <span>{complaint.authorName}</span>
-                  </div>
-                </div>
-              </div>
-            ))
+            <ManualComplaintList
+              complaints={complaints}
+              currentUserId={currentUserId}
+              canModerate={canModerate}
+              copy={copy}
+            />
           )}
         </div>
       ) : null}

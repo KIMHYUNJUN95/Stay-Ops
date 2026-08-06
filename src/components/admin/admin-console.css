@@ -2352,9 +2352,14 @@
 /* ── view switcher row + live-sync chip ── */
 .adm .cviewbar { display: flex; align-items: center; gap: 12px; margin: 2px 2px 16px; flex-wrap: wrap; }
 .adm .lviews { display: inline-flex; background: var(--adm-surface); border-radius: 11px; padding: 4px; gap: 2px; }
-.adm .lviews button { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 15px; border: none; background: none; border-radius: 8px; font-size: 13px; font-weight: 800; color: var(--adm-muted); cursor: pointer; }
-.adm .lviews button .ic { font-size: 16px; }
-.adm .lviews button.on { background: var(--card); color: var(--primary-ink); box-shadow: 0 2px 6px rgba(20, 32, 43, 0.14); }
+/* 탭은 <button>(청소·수리·주문·공지) 또는 <a>(쿼리스트링 내비게이션 — 컴플레인 콘솔)로 렌더될 수 있다.
+   요소 종류와 무관하게 동일한 pill 탭으로 보여야 하므로 두 셀렉터를 함께 잡는다. */
+.adm .lviews button,
+.adm .lviews a { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 15px; border: none; background: none; border-radius: 8px; font-size: 13px; font-weight: 800; color: var(--adm-muted); text-decoration: none; cursor: pointer; }
+.adm .lviews button .ic,
+.adm .lviews a .ic { font-size: 16px; }
+.adm .lviews button.on,
+.adm .lviews a.on { background: var(--card); color: var(--primary-ink); box-shadow: 0 2px 6px rgba(20, 32, 43, 0.14); }
 .adm .syncchip { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 13px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); font-size: 12px; font-weight: 700; cursor: pointer; }
 .adm .syncchip:hover { background: var(--adm-surface); }
 .adm .syncchip__dot { width: 7px; height: 7px; border-radius: 999px; background: var(--done); box-shadow: 0 0 0 3px var(--done-bg); flex: 0 0 auto; }

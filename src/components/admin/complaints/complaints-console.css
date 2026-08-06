@@ -3,6 +3,31 @@
    admin-console.css. Do not re-declare those here.
    See CLAUDE.md → "Admin dashboard shared design contract". */
 
+/* ── 카드 헤더 부제 / 우측 캡션 ──
+   .card__t(공용 카드 제목) 옆에 오는 작은 muted 보조 텍스트. 기간 표기·척도 안내 등.
+   공용 admin-console.css에는 .card__t만 있고 부제 토큰이 없어 여기서 정의한다
+   (정확한 토큰 .card__s 는 이 콘솔만 사용). 톤은 공용 .ahint / opscell__sub 와 맞춘다. */
+.adm .card__s {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--adm-muted);
+  letter-spacing: -0.005em;
+}
+
+/* ── 표 하단 각주 (칩 + 안내 문구) ──
+   .mcard__foot 톤(상단 소프트 라인 + muted)을 따른다. 칩 뒤 텍스트 노드가 이 스타일을 상속한다. */
+.adm .foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 11px 16px 13px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--adm-muted);
+}
+
 /* ── 문제 객실: 플랫폼 열 묶음 ── */
 .adm .cxtbl th.cxgrp {
   text-align: center;
@@ -172,9 +197,41 @@
   font-weight: 600;
   color: var(--adm-muted);
   line-height: 1.55;
+  margin: 0;
 }
 .adm .cxexcerpt.is-dim {
   color: var(--faint);
+}
+
+/* ── 목록 행의 긍정/부정 본문 (클릭 없이 전량 표시) ──
+   Booking.com은 2단(긍정 왼쪽·부정 오른쪽), 좁으면 1단으로 접힌다. */
+.adm .cxpn {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+}
+@media (max-width: 900px) {
+  .adm .cxpn { grid-template-columns: 1fr; }
+}
+.adm .cxpn__col { min-width: 0; }
+.adm .cxpn__k {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 800;
+  margin-bottom: 3px;
+}
+.adm .cxpn__k svg { width: 12px; height: 12px; }
+.adm .cxpn__k.is-pos { color: var(--done); }
+.adm .cxpn__k.is-neg { color: var(--warn); }
+.adm .cxpn__b {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--adm-muted);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  margin: 0;
 }
 .adm .cxmeta {
   display: flex;
@@ -198,6 +255,77 @@
 .adm .cxmeta .is-unlinked {
   color: var(--warn);
 }
+
+/* ── 수동 컴플레인 행 삭제 버튼 ── */
+.adm .cxrowdel {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--adm-muted);
+  cursor: pointer;
+}
+.adm .cxrowdel:hover {
+  background: var(--danger-bg);
+  border-color: color-mix(in oklab, var(--danger) 30%, var(--line));
+  color: var(--danger);
+}
+.adm .cxrowdel svg { width: 15px; height: 15px; }
+
+/* ── 삭제 확인 모달 본문 (공용 .modal 셸 안, 화면 전용 조각만) ── */
+.adm .cxdelhead {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.adm .cxdelhead__ic {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.adm .cxdelhead__ic svg { width: 20px; height: 20px; }
+.adm .cxdelhead__t {
+  font-size: 14px;
+  font-weight: 850;
+  letter-spacing: -0.01em;
+}
+.adm .cxdelhead__s {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--adm-muted);
+  margin-top: 2px;
+  word-break: break-word;
+}
+.adm .cxdelwarn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 11px 13px;
+  border-radius: 11px;
+  background: color-mix(in oklab, var(--danger) 6%, var(--card));
+  border: 1px solid color-mix(in oklab, var(--danger) 22%, var(--line));
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+.adm .cxdelwarn__ic {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--danger);
+}
+.adm .cxdelwarn__ic svg { width: 15px; height: 15px; }
 
 /* ── 필터 바 ── */
 .adm .cxfilters {

@@ -1,6 +1,6 @@
 import { AdminShell } from "@/components/shell/admin-shell";
 import { ComplaintsConsole } from "@/components/admin/complaints/complaints-console";
-import { canWriteComplaint, listComplaints } from "@/lib/complaints";
+import { canModerateComplaints, canWriteComplaint, listComplaints } from "@/lib/complaints";
 import {
   getExternalReview,
   listExternalReviews,
@@ -100,6 +100,8 @@ export default async function AdminComplaintsPage({
         to={to}
         filter={filter}
         complaints={complaints}
+        currentUserId={session.user.id}
+        canModerate={canModerateComplaints(session.user.role)}
         reviews={reviews}
         summaries={summaries}
         selectedReview={selectedReview}

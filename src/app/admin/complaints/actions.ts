@@ -10,7 +10,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { canWriteComplaint } from "@/lib/complaints";
+import { canWriteComplaint, deleteComplaint } from "@/lib/complaints";
 import { getCurrentAppSession } from "@/lib/session";
 import { convertReviewToComplaint, getExternalReview } from "@/lib/external-reviews";
 import { translateReviewPart, type TranslationPart } from "@/lib/review-translate";
@@ -55,6 +55,28 @@ export async function convertReviewAction(formData: FormData): Promise<void> {
     // 이미 전환됐거나(already_linked) 권한/조직이 어긋난 경우 — 상세를 그대로 다시 보여준다.
   }
   redirect(target);
+}
+
+/**
+ * 수동 컴플레인 삭제 (MVP hard delete — 문서 25 §"컴플레인 본체는 hard delete").
+ *
+ * 권한(작성자 본인 또는 owner/office_admin/super-admin)은 `deleteComplaint`가 서버에서 다시 검증한다.
+ * 폼의 complaintId만 신뢰하지 않는다. 되돌릴 수 없으므로 호출부(모달)에서 확인 UX를 거친다.
+ * redirect 없이 revalidate만 한다 — 클라이언트가 목록에 남은 채로 서버 컴포넌트가 갱신된다.
+ */
+export async function deleteComplaintAction(formData: FormData): Promise<void> {
+  const session = await getCurrentAppSession();
+  if (!session) return;
+
+  const id = String(formData.get("complaintId") ?? "").trim();
+  if (!id) return;
+
+  try {
+    await deleteComplaint({ session, id });
+  } catch {
+    // 이미 삭제됐거나(not_found) 권한/조직이 어긋난 경우 — 목록을 그대로 다시 그린다.
+  }
+  revalidatePath("/admin/complaints");
 }
 
 /**

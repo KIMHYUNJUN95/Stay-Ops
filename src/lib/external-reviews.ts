@@ -43,7 +43,6 @@ export {
   type ReviewRiskLevel,
 } from "@/lib/external-review-rules";
 import {
-  REVIEW_SCALE,
   type ReviewProvider,
   type ReviewRiskLevel,
 } from "@/lib/external-review-rules";
@@ -202,16 +201,9 @@ export async function listExternalReviews(input: {
   if (error) throw error;
 
   const rows = ((data ?? []) as unknown as ReviewRow[]).map(mapReview);
-  const riskRank: Record<ReviewRiskLevel, number> = { risk: 0, normal: 1, unrated: 2 };
-  return rows.sort((a, b) => {
-    if (riskRank[a.riskLevel] !== riskRank[b.riskLevel]) {
-      return riskRank[a.riskLevel] - riskRank[b.riskLevel];
-    }
-    const na = a.ratingValue === null ? Infinity : a.ratingValue / REVIEW_SCALE[a.provider];
-    const nb = b.ratingValue === null ? Infinity : b.ratingValue / REVIEW_SCALE[b.provider];
-    if (na !== nb) return na - nb;
-    return (b.reviewedAt ?? "").localeCompare(a.reviewedAt ?? "");
-  });
+  // 최신 리뷰 우선(reviewed_at desc). 위험도·낮은 점수는 별도 `문제만` 토글과 `문제 객실` 뷰가 맡는다.
+  // 날짜가 없는 리뷰(reviewed_at null)는 빈 문자열로 취급돼 맨 뒤로 간다.
+  return rows.sort((a, b) => (b.reviewedAt ?? "").localeCompare(a.reviewedAt ?? ""));
 }
 
 /** 외부 리뷰 상세. 목록과 달리 비공개 피드백을 포함한다. */
