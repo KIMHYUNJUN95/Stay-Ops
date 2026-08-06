@@ -9,16 +9,28 @@ import { useEffect, useState, useTransition } from "react";
 import { ShieldAlert, Trash2, X } from "lucide-react";
 import { deleteComplaintAction } from "@/app/admin/complaints/actions";
 import type { Complaint } from "@/lib/complaints";
-import type { Dictionary } from "@/lib/i18n";
+
+// 클라이언트 컴포넌트에는 문자열만 넘긴다 — complaints 사전 전체에는 함수 값(nightsSuffix 등)이 섞여
+// 있어 서버→클라이언트 직렬화가 실패한다. 필요한 라벨만 추려 plain object로 받는다.
+export type ManualComplaintLabels = {
+  statusOpen: string;
+  statusDone: string;
+  deleteAction: string;
+  deleteKicker: string;
+  deleteTitle: string;
+  deleteBody: string;
+  deleteConfirm: string;
+  cancel: string;
+};
 
 type Props = {
   complaints: Complaint[];
   currentUserId: string;
   canModerate: boolean;
-  copy: Dictionary["complaints"];
+  labels: ManualComplaintLabels;
 };
 
-export function ManualComplaintList({ complaints, currentUserId, canModerate, copy }: Props) {
+export function ManualComplaintList({ complaints, currentUserId, canModerate, labels }: Props) {
   const [target, setTarget] = useState<Complaint | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -52,7 +64,7 @@ export function ManualComplaintList({ complaints, currentUserId, canModerate, co
               <div className="cxtop">
                 <span className="cxttl">{complaint.title}</span>
                 <span className={complaint.status === "open" ? "rchip review" : "rchip done"}>
-                  {complaint.status === "open" ? copy.statusOpen : copy.statusDone}
+                  {complaint.status === "open" ? labels.statusOpen : labels.statusDone}
                 </span>
               </div>
               <div className="cxmeta">
@@ -71,8 +83,8 @@ export function ManualComplaintList({ complaints, currentUserId, canModerate, co
               <button
                 type="button"
                 className="cxrowdel"
-                aria-label={copy.deleteAction}
-                title={copy.deleteAction}
+                aria-label={labels.deleteAction}
+                title={labels.deleteAction}
                 onClick={() => setTarget(complaint)}
               >
                 <Trash2 aria-hidden="true" />
@@ -90,11 +102,11 @@ export function ManualComplaintList({ complaints, currentUserId, canModerate, co
           />
           <div className="modal on" role="dialog" aria-modal="true" style={{ width: 440 }}>
             <div className="modal__h">
-              <div className="modal__kicker">{copy.deleteKicker}</div>
+              <div className="modal__kicker">{labels.deleteKicker}</div>
               <button
                 type="button"
                 className="panel__x"
-                aria-label={copy.cancel}
+                aria-label={labels.cancel}
                 disabled={pending}
                 onClick={() => setTarget(null)}
               >
@@ -108,7 +120,7 @@ export function ManualComplaintList({ complaints, currentUserId, canModerate, co
                   <Trash2 aria-hidden="true" />
                 </span>
                 <div>
-                  <div className="cxdelhead__t">{copy.deleteTitle}</div>
+                  <div className="cxdelhead__t">{labels.deleteTitle}</div>
                   <div className="cxdelhead__s">{target.title}</div>
                 </div>
               </div>
@@ -116,7 +128,7 @@ export function ManualComplaintList({ complaints, currentUserId, canModerate, co
                 <span className="cxdelwarn__ic">
                   <ShieldAlert aria-hidden="true" />
                 </span>
-                <span>{copy.deleteBody}</span>
+                <span>{labels.deleteBody}</span>
               </div>
             </div>
 
@@ -128,7 +140,7 @@ export function ManualComplaintList({ complaints, currentUserId, canModerate, co
                   disabled={pending}
                   onClick={() => setTarget(null)}
                 >
-                  {copy.cancel}
+                  {labels.cancel}
                 </button>
                 <button
                   type="button"
@@ -139,7 +151,7 @@ export function ManualComplaintList({ complaints, currentUserId, canModerate, co
                   <span className="ic">
                     <Trash2 aria-hidden="true" />
                   </span>
-                  {copy.deleteConfirm}
+                  {labels.deleteConfirm}
                 </button>
               </div>
             </div>

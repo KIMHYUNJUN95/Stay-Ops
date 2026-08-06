@@ -564,7 +564,16 @@ export function ComplaintsConsole({
               complaints={complaints}
               currentUserId={currentUserId}
               canModerate={canModerate}
-              copy={copy}
+              labels={{
+                statusOpen: copy.statusOpen,
+                statusDone: copy.statusDone,
+                deleteAction: copy.deleteAction,
+                deleteKicker: copy.deleteKicker,
+                deleteTitle: copy.deleteTitle,
+                deleteBody: copy.deleteBody,
+                deleteConfirm: copy.deleteConfirm,
+                cancel: copy.cancel,
+              }}
             />
           )}
         </div>
