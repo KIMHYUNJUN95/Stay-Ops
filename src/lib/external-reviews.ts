@@ -22,6 +22,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import {
   getCanonicalPropertyName,
   getCanonicalRoomLabel,
+  getDisplayRoomLabel,
 } from "@/lib/room-label-normalization";
 import type { Database } from "@/types/database";
 
@@ -377,21 +378,27 @@ export async function summarizeReviewsByPlace(input: {
       bucket.collapsed = true;
       continue;
     }
-    if (!review.roomId) {
+    if (!review.roomId || !review.roomLabel) {
       bucket.unmapped += 1;
       continue;
     }
-    let room = bucket.rooms.get(review.roomId);
+    // 같은 물리 객실을 두 Beds24 어카운트가 반년씩 번갈아 쓴다(`201` / `201_2`). 리뷰는 어느
+    // 어카운트에 달렸는지가 아니라 **어느 방에 달렸는지**가 중요하므로 표시 라벨로 묶는다 —
+    // `getDisplayRoomLabel` 이 `_N` 접미사를 떼어 두 어카운트를 한 방으로 만든다. 반면
+    // canonical 라벨은 예약 매칭용이라 둘을 구분한 채로 둬야 해서 여기 키로 쓰면 안 된다.
+    const canonicalRoom = getCanonicalRoomLabel(bucket.name, review.roomLabel);
+    const roomKey = getDisplayRoomLabel(getCanonicalPropertyName(bucket.name), canonicalRoom) || review.roomLabel;
+    let room = bucket.rooms.get(roomKey);
     if (!room) {
       room = {
-        name: review.roomLabel ?? "",
+        name: roomKey,
         airbnb: { sum: 0, n: 0, risk: 0 },
         booking: { sum: 0, n: 0, risk: 0 },
         airbnbRated: 0,
         bookingRated: 0,
         unrated: 0,
       };
-      bucket.rooms.set(review.roomId, room);
+      bucket.rooms.set(roomKey, room);
     }
     const roomAcc = review.provider === "airbnb" ? room.airbnb : room.booking;
     pushStat(roomAcc, review);
@@ -421,8 +428,8 @@ export async function summarizeReviewsByPlace(input: {
       unratedCount: bucket.unrated,
       unmappedCount: bucket.unmapped,
       rooms: [...bucket.rooms.entries()]
-        .map(([roomId, room]) => ({
-          key: roomId,
+        .map(([roomKey, room]) => ({
+          key: roomKey,
           name: room.name,
           airbnb: toStat(room.airbnb, room.airbnbRated),
           booking: toStat(room.booking, room.bookingRated),

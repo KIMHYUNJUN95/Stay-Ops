@@ -42,7 +42,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOptionalBeds24ApiEnv } from "@/lib/env";
 import { calcRiskLevel, REVIEW_SCALE, type ReviewProvider } from "@/lib/external-review-rules";
 import { isExcludedOperationalProperty } from "@/lib/room-label-normalization";
-import { isInactiveBeds24Room } from "@/lib/rooms";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
 type TokenState = { ok: true; token: string } | { ok: false; skipped: string };
@@ -363,13 +362,13 @@ export async function syncOrganizationReviews(input: {
   const seenRoomIds = new Set<string>();
   for (const room of rooms) {
     if (!room.external_room_id) continue;
-    if (room.status !== "active") continue;
-    // 회사 고유 규칙: 최소 숙박 50박 이상은 비활성 룸ID다(`src/lib/rooms.ts`). 예약 캘린더와
-    // 객실 마스터가 이미 이 규칙으로 걸러지므로 리뷰 수집도 같은 집합만 본다 — 안 그러면
-    // 운영에서 쓰지도 않는 룸타입까지 Beds24 크레딧을 쓴다.
-    if (room.external_minimum_stay !== null && isInactiveBeds24Room(room.external_minimum_stay)) {
-      continue;
-    }
+    // 비활성 어카운트도 **일부러** 수집한다.
+    //
+    // 예약 캘린더·청소는 "지금 예약을 받는 방"만 봐야 하므로 `isInactiveBeds24Room()` 으로
+    // 걸러내지만, 리뷰는 성격이 다르다. 같은 물리 객실을 두 어카운트가 반년씩 번갈아 쓰므로
+    // 지금 쉬는 어카운트에도 그 방의 지난 반년치 리뷰가 그대로 쌓여 있다. 활성만 부르면
+    // 그 방 이력의 절반을 통째로 잃는다. 리뷰에서 중요한 건 "어느 어카운트인가"가 아니라
+    // "이 방에 어떤 리뷰가 달렸는가"이므로 두 어카운트를 모두 부르고 아래에서 한 방으로 합친다.
     const property = propertyById.get(room.property_id);
     if (!property) continue;
     if (isExcludedOperationalProperty(property.name)) continue;
