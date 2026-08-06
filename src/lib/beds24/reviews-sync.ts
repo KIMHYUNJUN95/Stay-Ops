@@ -412,7 +412,24 @@ export async function syncOrganizationReviews(input: {
     room_label: string;
     property_name: string;
   }[];
-  const reservationBySource = new Map(reservations.map((r) => [r.source_reservation_id, r]));
+  // `reservations.source_reservation_id` 는 순수 예약 ID가 아니라 `{id}::room::{객실}` 형태다 —
+  // 한 Beds24 예약이 여러 객실에 걸칠 수 있어 객실별로 행을 나누기 때문이다(`reconcile` 도 같은
+  // 규약을 쓴다). Booking.com 리뷰는 접미사 없는 순수 ID만 주므로, 접두 매칭용 인덱스를 따로 만든다.
+  // 접미사에 객실 라벨이 들어 있어 매칭되는 순간 객실까지 함께 확정된다.
+  const reservationBySource = new Map<string, (typeof reservations)[number]>();
+  for (const reservation of reservations) {
+    const raw = reservation.source_reservation_id;
+    if (!raw) continue;
+    reservationBySource.set(raw, reservation);
+    const bare = raw.split("::")[0];
+    // 같은 예약 ID의 객실이 여러 개면 첫 행만 남긴다 — 리뷰는 예약 단위라 객실을 하나로 특정할 수
+    // 없고, 임의로 고르면 틀린 객실에 문제를 귀속시키게 된다. 그런 경우 객실은 null로 남긴다.
+    if (bare !== raw) {
+      const seen = reservationBySource.get(bare);
+      if (seen === undefined) reservationBySource.set(bare, reservation);
+      else if (seen.room_label !== reservation.room_label) reservationBySource.set(bare, { ...seen, room_label: "" });
+    }
+  }
   const roomIdByKey = new Map(rooms.map((r) => [`${r.property_id}::${r.room_label}`, r.id]));
 
   for (const target of targets) {
@@ -466,10 +483,13 @@ export async function syncOrganizationReviews(input: {
             const reservation = reservationBySource.get(review.sourceReservationId);
             if (reservation) {
               reservationId = reservation.id;
-              const resolved = roomIdByKey.get(`${target.propertyId}::${reservation.room_label}`);
-              if (resolved) {
-                roomId = resolved;
-                roomLabel = reservation.room_label;
+              // room_label 이 빈 문자열이면 그 예약이 여러 객실에 걸쳐 있다는 뜻 — 추정하지 않는다.
+              if (reservation.room_label) {
+                const resolved = roomIdByKey.get(`${target.propertyId}::${reservation.room_label}`);
+                if (resolved) {
+                  roomId = resolved;
+                  roomLabel = reservation.room_label;
+                }
               }
             }
           }

@@ -24,8 +24,10 @@ export const maxDuration = 60;
 // 리뷰를 놓칠 수 있다. UPSERT라 겹쳐 받아도 무해하다.
 const ROUTINE_SINCE_DAYS = 30;
 /** 초기 도입/복구용 전량 수집 창. */
-// `?full=1` — 초기 도입/복구용. 첫 예약이 2026-04-22이라 2년이면 영업 시작 전까지 덮는다.
-const FULL_SINCE_DAYS = 730;
+// `?full=1` — 초기 도입/복구용 6개월(180일). 첫 예약이 2026-04-22이라 영업 이력 자체가 약 3.5개월
+// 이므로 6개월이면 사실상 전량을 덮는다. Airbnb에는 적용되지 않는다 — 날짜 파라미터가 없고 최대
+// 50건이 전량으로 오며, 여기에 기간 컷을 걸면 상한 탓에 다시 못 가져올 데이터를 버리게 된다.
+const FULL_SINCE_DAYS = 180;
 
 function resolveProvidedSecret(request: NextRequest) {
   const fromBearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
