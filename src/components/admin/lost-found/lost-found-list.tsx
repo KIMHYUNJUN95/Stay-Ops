@@ -44,10 +44,6 @@ type ListProps = {
   onRetry: () => void;
 };
 
-function unitOf(locale: Locale): string {
-  return locale === "ja" ? "件" : locale === "en" ? " records" : "건";
-}
-
 export function LostFoundList({
   items,
   allItems,
@@ -197,7 +193,7 @@ export function LostFoundList({
       <div className="hmeta">
         <b style={{ color: "var(--ink-soft)" }}>
           {rows.length}
-          {unitOf(locale)}
+          {t.countUnit}
         </b>
         <span className="sep" />
         {`${fmtDate(filters.from, locale)} – ${fmtDate(filters.to, locale)}`}

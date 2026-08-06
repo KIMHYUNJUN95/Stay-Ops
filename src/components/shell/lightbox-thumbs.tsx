@@ -14,6 +14,7 @@ export function LightboxThumbs({
   urls,
   wrapClassName,
   thumbClassName,
+  closeLabel,
   sizes = "72px",
 }: {
   urls: string[];
@@ -21,6 +22,7 @@ export function LightboxThumbs({
   wrapClassName: string;
   /** Class for each sized thumbnail box (the element that was inside the old `<a>`). */
   thumbClassName: string;
+  closeLabel: string;
   sizes?: string;
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -36,7 +38,7 @@ export function LightboxThumbs({
           </div>
         </button>
       ))}
-      <ImageLightbox onClose={() => setOpenIndex(null)} openIndex={openIndex} urls={urls} />
+      <ImageLightbox closeLabel={closeLabel} onClose={() => setOpenIndex(null)} openIndex={openIndex} urls={urls} />
     </div>
   );
 }

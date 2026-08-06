@@ -101,27 +101,25 @@ export function fmtElapsed(ts: string, locale: Locale): string {
   const abs = parseTs(ts);
   if (abs == null) return "—";
   const mins = nowAbsMinutesTokyo() - abs;
-  const ago = locale === "ja" ? "前" : locale === "en" ? "ago" : "전";
+  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "always", style: "short" });
   if (mins < 60) {
     const m = Math.max(1, Math.round(mins));
-    return locale === "en" ? `${m}m ${ago}` : locale === "ja" ? `${m}分${ago}` : `${m}분 ${ago}`;
+    return formatter.format(-m, "minute");
   }
   const h = Math.floor(mins / 60);
   if (h < 24) {
-    return locale === "en" ? `${h}h ${ago}` : locale === "ja" ? `${h}時間${ago}` : `${h}시간 ${ago}`;
+    return formatter.format(-h, "hour");
   }
   const d = Math.floor(h / 24);
-  return locale === "en" ? `${d}d ${ago}` : locale === "ja" ? `${d}日${ago}` : `${d}일 ${ago}`;
+  return formatter.format(-d, "day");
 }
 
 export function fmtDate(d: string, locale: Locale): string {
-  const [, m, dd] = d.split("-");
-  if (locale === "en") {
-    const M = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    return `${M[Number(m) - 1]} ${Number(dd)}`;
-  }
-  if (locale === "ja") return `${Number(m)}月${Number(dd)}日`;
-  return `${Number(m)}월 ${Number(dd)}일`;
+  return new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+    timeZone: "Asia/Tokyo",
+  }).format(new Date(`${d}T00:00:00+09:00`));
 }
 
 export function fmtDateTime(ts: string | null, locale: Locale): string {

@@ -97,6 +97,15 @@ Beds24가 제공하는 Airbnb 또는 Booking.com 리뷰의 로컬 사본이다. 
   표시하며, 위험도를 다시 계산하거나 서로 다른 플랫폼의 세부 항목을 비교하는 기준으로 쓰지 않는다.
 - 세부 평점은 `rating_breakdown` 원본 구조로 보존한다. 플랫폼마다 항목명·점수 척도·제공 여부가 다르므로
   `청결/위치/...` 같은 StayOps 공통 고정 컬럼을 만들지 않는다.
+- **세부 점수 항목명은 화면에서만 현지화한다 (2026-08-06 확정).** 저장되는 `rating_breakdown`의 키와
+  구조는 플랫폼이 준 그대로 두고, 상세 화면에서 표시할 때만 `dictionary.complaints.breakdownLabels`
+  (ko/ja/en)로 라벨을 바꾼다. 이전에는 `clean` → `Clean`처럼 영문 키를 그대로 보여 줬으나, 운영 담당자가
+  읽는 화면에서 영어 항목명이 그대로 노출되는 것은 다국어 원칙에 어긋나므로 변경했다.
+  - 사전 키는 소문자·영숫자로 정규화해 조회한다 (`check_in` / `checkIn` / `Check-In` → `checkin`).
+  - 사전에 없는 항목은 종전과 같이 읽기 좋은 영문(`Check In`)으로 폴백한다. 플랫폼이 새 항목을 추가해도
+    화면이 비지 않으며, 사전에 키를 추가하면 그때부터 번역된다.
+  - 파싱·라벨 매핑은 `src/lib/external-review-rules.ts`의 `parseReviewBreakdown()` 하나로 통일한다
+    (모바일 상세와 어드민 상세 패널이 같은 로직을 두 벌 들고 있던 것을 합쳤다).
 - **Booking.com**은 긍정 리뷰와 부정 리뷰를 별도 본문으로 제공할 수 있으므로, 두 원문·번역을 구분하여
   표시한다. 둘 중 하나만 있거나 둘 다 없을 수 있다.
 - Booking.com은 리뷰 본문 없이 **점수만** 제공할 수 있다. 이 경우에도 외부 리뷰 행을 정상 수집·표시하며,
@@ -135,6 +144,9 @@ Beds24가 제공하는 Airbnb 또는 Booking.com 리뷰의 로컬 사본이다. 
 - 모바일과 대시보드의 목록·상세는 동일한 조직 스코프와 동일한 외부 리뷰 ID / 컴플레인 ID를 사용한다.
 - 모바일에서 만든 수동 컴플레인은 대시보드 수동 컴플레인 목록에, 대시보드에서 상태 변경하거나 리뷰를
   컴플레인으로 전환한 결과는 모바일 목록·상세에 반영된다.
+- **양쪽 등록 폼은 같은 서버 경로를 쓴다** (2026-08-06). 모바일 `createComplaintAction`과 대시보드
+  `createManualComplaintAction`은 UI만 다르고 둘 다 `createComplaint`를 부른다. 권한·조직 스코프·
+  제목/플랫폼/이미지 검증은 그 한 곳에만 있다. 화면별 저장 경로나 별도 검증 규칙을 만들지 않는다.
 - 외부 리뷰 수집과 번역 캐시는 서버에서 한 번만 수행한다. 모바일/대시보드 각각이 별도로 Beds24·DeepL을
   호출하거나 동일 리뷰를 중복 저장해서는 안 된다.
 - 갱신 전파는 구현 단계에서 공용 재검증/실시간 구독 정책으로 정하되, 오래된 화면 데이터로 중복 전환·
@@ -181,6 +193,9 @@ linked_complaint_id, created_at, updated_at
 - `provider`: v1은 `airbnb` 또는 `booking`만 허용한다.
 - `(organization_id, provider, external_review_id)`는 중복되지 않아야 한다.
 - `rating_value`/`rating_scale`은 출처 원점수 보존용이다. 위험도·정렬은 검증된 원점수로 계산한다.
+- `source_reservation_id`는 **제공자가 쓰는 예약 번호**다. Airbnb는 `reservation_confirmation_code`,
+  Booking.com은 `reservation_id`(Beds24 bookingId)를 담는다. 화면에 보여 주는 «예약 ID»가 이 값이다.
+  `reservation_id`(uuid)는 로컬 예약 행으로의 링크이며 사람이 읽을 값이 아니라 노출하지 않는다.
 - `rating_breakdown`은 제공된 플랫폼별 세부 점수의 원본 구조다. 값이 없을 수 있으며, 공통 스키마로
   정규화하지 않는다. Airbnb는 `category_ratings[]`, Booking.com은 `scoring{clean, facilities, location,
   services, staff, value}` 구조를 그대로 담는다.
@@ -207,17 +222,43 @@ linked_complaint_id, created_at, updated_at
 | 항목 | Airbnb | Booking.com |
 |---|---|---|
 | 객실 식별 | 쿼리한 `roomId`로 **확정** | 응답에 없음 → `reservation_id` 역조회 필요 |
-| 예약 식별 | **없음** (`reservation_id` 항상 null) | `reservation_id`(Beds24 bookingId) 제공 |
-| 게스트 이름 | **없음** (`reviewer_id`만) → `guest_display_name` null | `reviewer.name` 제공 |
+| 예약 식별 | `reservation_confirmation_code` 제공 (Airbnb 확인 코드) | `reservation_id`(Beds24 bookingId) 제공 |
+| 게스트 이름 | 리뷰에는 **없음** (`reviewer_id`만) → 매칭된 예약의 `guest_name`으로 채움 | `reviewer.name` 제공 |
 | 리뷰 제목 | 없음 | `content.headline` |
 | 원문 언어 | 없음 (자동 감지) | `content.language_code` |
 | 비공개 피드백 | `private_feedback` | 없음 |
 | OTA 답글 | 없음 | `reply` |
 | 본문 | `public_review` 단일 | `positive` / `negative` 분리 |
 
-즉 **객실 매핑 신뢰도는 Airbnb가, 예약·게스트 문맥은 Booking.com이 높다.** Booking.com 리뷰의 객실은
-`reservation_id`로 로컬 `reservations`를 조회해 얻으며, 로컬에 해당 예약이 없으면 `room_id`를 null로 두고
-`객실 정보 없음`으로 표시한다.
+즉 **객실 매핑 신뢰도는 Airbnb가 높고, 게스트 이름은 Booking.com만 리뷰 자체에서 온다.** Booking.com
+리뷰의 객실은 `reservation_id`로 로컬 `reservations`를 조회해 얻으며, 로컬에 해당 예약이 없으면 `room_id`를
+null로 두고 `객실 정보 없음`으로 표시한다.
+
+#### Airbnb 예약 매칭 (2026-08-06 정정)
+
+초기 기획은 "Airbnb는 예약 ID를 제공하지 않는다"로 적혀 있었으나 **사실이 아니다.** 보존해 둔
+`raw_payload`를 실측한 결과 Airbnb 리뷰 **2,214건 전부**가 `reservation_confirmation_code`
+(예: `HMRWNK5RQW`)를 갖고 있었다. Beds24 bookingId가 아니라서 `source_reservation_id` 역조회로는
+잡히지 않았을 뿐이고, **같은 코드가 우리 예약의 `raw_payload->>apiReference`에 저장돼 있다.**
+
+- 수집 시 조직 범위 안에서 확인 코드로 예약을 찾아 `reservation_id`와 `guest_display_name`을 채운다.
+- **객실은 예약에서 가져오지 않는다.** 조회한 `roomId`가 이미 확정값이라 더 신뢰도가 높다.
+  Booking.com과 반대 방향이다.
+- 매칭 실패 시 두 값 모두 null로 둔다. 추정하지 않는다는 원칙은 그대로다.
+- **작성자 이름 자체는 여전히 Airbnb가 주지 않는다** (`reviewer_id` 숫자 ID뿐). 화면에 보이는 이름은
+  리뷰가 아니라 **매칭된 예약**에서 온 값이다.
+
+**커버리지 한계 (2026-08-06 실측).** 매칭률은 리뷰가 아니라 **예약 보유 범위**가 결정한다. 로컬
+`reservations`가 2026-04-22부터만 있어 전체 2,214건 중 222건(10%)만 매칭된다. 반면 **2026-05-01 이후
+리뷰는 222/233 = 95%**가 매칭된다. 과거분까지 채우려면 Beds24 예약 백필을 과거로 더 돌려야 하며 이는
+별도 작업이다. 매칭된 222건은 **전부** 예약에 게스트 이름이 있었다.
+
+#### 화면에 보여 주는 예약 식별자
+
+`external_reviews.source_reservation_id`에 **제공자가 쓰는 예약 번호**를 저장하고 이 값을 표시한다
+(Airbnb 확인 코드 / Booking.com bookingId). 운영자가 OTA 익스트라넷에서 그대로 검색할 수 있는 값이라야
+의미가 있기 때문이다. `reservation_id`(uuid)는 우리 내부 링크이며 화면에 노출하지 않는다 — 이전 구현은
+Booking.com 상세에서 이 uuid를 «예약 ID»로 그대로 보여 주고 있었다.
 
 ### 수집 시 제외 규칙 (Airbnb)
 
@@ -409,6 +450,27 @@ Beds24 예약 웹훅 우선 원칙은 유지한다. 리뷰는 웹훅이 아닌 �
   위험도(`전체`/`문제만`)는 각각 `.cxseg` 세그먼트로 제공하며 서로 독립적으로 조합된다** (구현 2026-08-06).
   Airbnb와 Booking.com은 척도가 달라(5점 vs 10점) 나눠 보는 것이 기본 사용 흐름이다.
 - 수동 컴플레인 필터: 플랫폼, 상태, 건물, 객실, 등록 날짜 범위, 작성자
+- **수동 컴플레인 직접 등록** (구현 2026-08-06): 수동 컴플레인 뷰 카드 헤더 오른쪽에 공용 `chipbtn`
+  `+ 컴플레인 등록` 버튼을 두고, 누르면 공용 `.panel` 우측 슬라이드오버에 등록 폼이 열린다. 목록이 비어
+  있을 때도 버튼은 보인다 — 빈 목록이 곧 첫 등록 시점이다.
+  - 저장은 모바일 등록과 **같은 도메인 함수**(`createComplaint`)를 부른다. 화면별 저장 경로를 따로
+    만들지 않는다(아래 Cross-surface consistency).
+  - 입력: 제목(필수), 내용, 플랫폼, 평점, 연결, 고객명, 사진(최대 5장 — 모바일과 동일 정책).
+    평점은 척도가 있는 플랫폼에서만 뜬다(`direct`/`other`는 별점 개념이 없다).
+  - **연결 방식 3가지**를 세그먼트로 고른다: `예약 연결` / `건물 · 객실` / `연결 안 함`.
+  - 진입점 노출은 `canWriteComplaint`로 판단하고, 실제 권한은 서버 액션이 다시 검증한다.
+
+#### 왜 「건물 · 객실 직접 선택」이 필요한가 (2026-08-06)
+
+모바일 등록 폼은 **예약을 고르는 길 하나뿐**이다. 그런데 전화·워크인·자사 홈페이지처럼 **Beds24를
+거치지 않고 들어온 예약**은 예약 피커 목록에 아예 없다. 그 결과 그런 건은 건물·객실이 빈 채로 등록되어
+「문제 객실」 집계에서 통째로 빠졌다. 대시보드 등록 폼은 객실 마스터에서 건물·객실을 직접 고르는 경로를
+추가해 이 구멍을 막는다.
+
+- 자유 텍스트가 아니라 **마스터에서 고르게 한다.** 표기가 흔들리면 객실별 집계가 같은 키로 묶이지 않는다.
+- 선택지는 예약 캘린더·청소가 쓰는 것과 같은 활성 객실 집합(`getActiveRoomCatalogServer`)이며, 같은
+  물리 객실에 어카운트가 둘 붙어 있어도 선택지는 하나로 합친다.
+- `연결 안 함`도 유효한 선택이다. 어느 방 건인지 모르는 컴플레인도 등록 자체는 가능해야 한다.
 - **수동 컴플레인 삭제** (구현 2026-08-06): 각 행에 삭제 버튼(휴지통)을 두고, 누르면 중앙 정렬 확인
   모달(공용 `.modal` + `.btn--danger`)을 거친다. 컴플레인 본체는 MVP **hard delete**이며 되돌릴 수 없고
   연결된 댓글·처리 기록도 함께 사라지므로 확인 UX를 유지한다 (CLAUDE.md §9). 삭제 버튼은 **작성자 본인
@@ -420,6 +482,9 @@ Beds24 예약 웹훅 우선 원칙은 유지한다. 리뷰는 웹훅이 아닌 �
   점수만 리뷰는 `점수만` 배지와 안내 문구로 표시한다. 발췌·말줄임 없이 전체 문장을 노출한다.
 - 상세 패널에서는 그 위에 추가로 출처가 제공한 세부 점수, Airbnb 비공개 피드백, OTA 답글(읽기 전용),
   자동 번역 토글, 수동 컴플레인 전환을 조건부로 제공한다.
+- **상세 패널 열림/닫힘은 `?review=` 쿼리로 서버 렌더**되지만, 닫기(스크림 클릭·X·Esc)는
+  `ReviewDetailOverlay`(클라이언트)가 **즉시 슬라이드아웃**시키고 URL 동기화는 뒤에서 처리한다 —
+  force-dynamic 서버 왕복을 기다리느라 닫힘이 지연되던 문제를 없앤다 (구현 2026-08-06).
 - 상세에서 권한 있는 사용자는 외부 리뷰를 수동 컴플레인으로 전환하거나 연결된 컴플레인으로 이동한다.
 - 표시할 수 없는 객실은 비어 있는 값처럼 숨기지 않고 `객실 정보 없음` 상태를 명확히 보여준다.
 

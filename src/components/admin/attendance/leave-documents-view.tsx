@@ -1,3 +1,4 @@
+/* i18n-ignore-file -- Prescribed Japanese company leave form; fixed domain document, not application UI. */
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";

@@ -1,5 +1,9 @@
 # Mobile Navigation
 
+## 2026-08-06 accessibility copy contract
+
+Shared mobile overlays and controls, including image-lightbox close actions, date-range previous/next month controls, toggles, overflow menus, and remove actions, receive localized accessible names from their owning `ko`/`ja`/`en` dictionary. Shared components must not provide an English-only default label.
+
 ## Purpose
 
 The mobile/PWA field interface should be optimized for fast daily work by on-site staff, field managers, regular staff, and part-time staff.
@@ -720,4 +724,3 @@ When any of these is added to the bottom-tab pool or side menu, also update the 
 
 서버 컴포넌트 결과는 이미 element 로 넘어와 있어 리마운트해도 서버 재요청이 일어나지 않는다.
 새 탭을 하단 바에 추가할 때 따로 해 줄 일이 없다.
-

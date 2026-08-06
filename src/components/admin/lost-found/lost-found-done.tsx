@@ -33,10 +33,6 @@ type DoneProps = {
   onRetry: () => void;
 };
 
-function unitOf(locale: Locale): string {
-  return locale === "ja" ? "件" : locale === "en" ? " records" : "건";
-}
-
 export function LostFoundDone({
   items,
   allItems,
@@ -175,7 +171,7 @@ export function LostFoundDone({
       <div className="hmeta">
         <b style={{ color: "var(--ink-soft)" }}>
           {rows.length}
-          {unitOf(locale)}
+          {t.countUnit}
         </b>
         <span className="sep" />
         {t.doneHint}

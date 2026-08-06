@@ -13,6 +13,7 @@ import {
   lostItemLinearStatuses,
   type LostItemStatus,
 } from "@/lib/lost-found";
+import { localizeLostFoundMemo } from "@/lib/lost-found-memo";
 import { getOnboardingState } from "@/lib/onboarding";
 import { resolveRequestLocation } from "@/lib/request-location";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
@@ -85,6 +86,7 @@ export default async function MobileLostItemDetailPage({ params, searchParams }:
   if (!item) {
     notFound();
   }
+  const localizedHandlingMemo = localizeLostFoundMemo(item.handling_memo, copy.adminRestoreMemoLabel);
 
   const location = resolveRequestLocation(
     item.room_label,
@@ -180,7 +182,7 @@ export default async function MobileLostItemDetailPage({ params, searchParams }:
             </div>
           ) : null}
 
-          <AnnouncementImageGrid imageUrls={item.image_urls} />
+          <AnnouncementImageGrid imageUrls={item.image_urls} closeLabel={dictionary.common.close} imageAltLabel={copy.handling.photosLabel} />
         </Card>
 
         {isTerminal ? (
@@ -209,12 +211,12 @@ export default async function MobileLostItemDetailPage({ params, searchParams }:
               ) : null}
             </dl>
 
-            {item.handling_memo ? (
+            {localizedHandlingMemo ? (
               <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/82 p-3.5">
                 <p className="text-xs font-semibold text-muted-foreground">
                   {copy.handling.memoLabel}
                 </p>
-                <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{item.handling_memo}</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{localizedHandlingMemo}</p>
               </div>
             ) : null}
 
@@ -223,7 +225,7 @@ export default async function MobileLostItemDetailPage({ params, searchParams }:
                 <p className="text-xs font-semibold text-muted-foreground">
                   {copy.handling.photosLabel}
                 </p>
-                <AnnouncementImageGrid imageUrls={item.handling_image_urls} />
+                <AnnouncementImageGrid imageUrls={item.handling_image_urls} closeLabel={dictionary.common.close} imageAltLabel={copy.handling.photosLabel} />
               </div>
             ) : null}
 
@@ -238,7 +240,7 @@ export default async function MobileLostItemDetailPage({ params, searchParams }:
             copy={copy}
             handlerName={session.user.name}
             imgCopy={dictionary.requestImages}
-            initialMemo={item.handling_memo ?? ""}
+            initialMemo={localizedHandlingMemo ?? ""}
             initialStatus={item.status}
             itemId={item.id}
             itemName={item.item_name}

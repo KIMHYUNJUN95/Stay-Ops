@@ -126,13 +126,11 @@ export function weekWindow(todayKey: string): { from: number; to: number } {
 
 /* ---------------- formatters ---------------- */
 export function fmtDate(d: string, lang: OrdersLang): string {
-  const [, m, dd] = d.split("-");
-  if (lang === "en") {
-    const M = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    return `${M[+m - 1]} ${+dd}`;
-  }
-  if (lang === "ja") return `${+m}月${+dd}日`;
-  return `${+m}월 ${+dd}일`;
+  return new Intl.DateTimeFormat(lang, {
+    month: "short",
+    day: "numeric",
+    timeZone: "Asia/Tokyo",
+  }).format(new Date(`${d}T00:00:00+09:00`));
 }
 export function fmtDateTime(ts: string | null | undefined, lang: OrdersLang): string {
   if (!ts) return "—";
@@ -141,17 +139,23 @@ export function fmtDateTime(ts: string | null | undefined, lang: OrdersLang): st
 }
 /** fmtMonth(y, m0, lang) — m0은 0-based 월. */
 export function fmtMonth(y: number, m0: number, lang: OrdersLang): string {
-  if (lang === "en") {
-    const M = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    return `${M[m0]} ${y}`;
-  }
-  if (lang === "ja") return `${y}年 ${m0 + 1}月`;
-  return `${y}년 ${m0 + 1}월`;
+  return new Intl.DateTimeFormat(lang, {
+    year: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(y, m0, 1)));
 }
+const weekdayLabels = (lang: OrdersLang) =>
+  Array.from({ length: 7 }, (_, day) =>
+    new Intl.DateTimeFormat(lang, { weekday: "narrow", timeZone: "UTC" }).format(
+      new Date(Date.UTC(2026, 7, 2 + day)),
+    ),
+  );
+
 export const WD: Record<OrdersLang, string[]> = {
-  ko: ["일", "월", "화", "수", "목", "금", "토"],
-  ja: ["日", "月", "火", "水", "木", "金", "土"],
-  en: ["S", "M", "T", "W", "T", "F", "S"],
+  ko: weekdayLabels("ko"),
+  ja: weekdayLabels("ja"),
+  en: weekdayLabels("en"),
 };
 
 /* ---------------- board sort ---------------- */

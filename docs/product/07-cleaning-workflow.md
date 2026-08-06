@@ -1,5 +1,9 @@
 ﻿# Cleaning Workflow
 
+## 2026-08-06 multilingual warning contract
+
+The mobile unresolved room-label production warning is user-facing operations copy. Its heading, count, and examples must be rendered from the `ko`/`ja`/`en` cleaning dictionary; the warning must never fall back to a hardcoded English sentence.
+
 ## Purpose
 
 The cleaning workflow should record when cleaning starts, when it ends, how long it took, and what issues were found during cleaning.

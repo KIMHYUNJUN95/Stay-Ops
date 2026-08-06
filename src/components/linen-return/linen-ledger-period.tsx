@@ -67,7 +67,7 @@ export function LinenLedgerPeriod({
   return (
     <div className="flex items-center gap-1">
       <button
-        aria-label="prev-month"
+        aria-label={copy.rangePreviousMonth}
         className="flex size-9 items-center justify-center rounded-full border border-border bg-surface text-slate-600"
         onClick={() => goMonth(-1)}
         type="button"
@@ -86,7 +86,7 @@ export function LinenLedgerPeriod({
 
       {canGoNext ? (
         <button
-          aria-label="next-month"
+          aria-label={copy.rangeNextMonth}
           className="flex size-9 items-center justify-center rounded-full border border-border bg-surface text-slate-600"
           onClick={() => goMonth(1)}
           type="button"
@@ -104,6 +104,8 @@ export function LinenLedgerPeriod({
           apply: copy.rangeApply,
           clear: copy.rangeClear,
           close: copy.rangeClose,
+          previousMonth: copy.rangePreviousMonth,
+          nextMonth: copy.rangeNextMonth,
           selectEnd: copy.rangeHintEnd,
           selectStart: copy.rangeHintStart,
           title: copy.rangeTitle,

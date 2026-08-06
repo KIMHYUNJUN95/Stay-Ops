@@ -50,10 +50,12 @@ function anchorChip(task: TaskRecord, locale: Locale): string | null {
 function TaskRow({
   task,
   locale,
+  copy,
   onToggle,
 }: {
   task: TaskRecord;
   locale: Locale;
+  copy: Copy;
   onToggle: (task: TaskRecord) => void;
 }) {
   const router = useRouter();
@@ -63,7 +65,7 @@ function TaskRow({
   return (
     <div className="flex items-start gap-3 rounded-[14px] border border-border bg-surface px-3.5 py-3">
       <button
-        aria-label="toggle"
+        aria-label={copy.a11yToggleTask}
         className={cn(
           "mt-px flex size-[22px] shrink-0 items-center justify-center rounded-full border-2 transition-colors",
           done
@@ -220,7 +222,7 @@ export function ProjectDetailView({
         ) : null}
         <div className="relative shrink-0">
           <button
-            aria-label="more"
+            aria-label={copy.a11yMoreActions}
             className="flex size-[34px] items-center justify-center rounded-full bg-slate-100 text-slate-600"
             onClick={() => setMenuOpen((v) => !v)}
             type="button"
@@ -285,7 +287,7 @@ export function ProjectDetailView({
         </div>
         <div className="flex flex-col gap-2">
           {unsectioned.map((t) => (
-            <TaskRow key={t.id} locale={locale} onToggle={onToggle} task={t} />
+            <TaskRow key={t.id} locale={locale} copy={copy} onToggle={onToggle} task={t} />
           ))}
         </div>
         {addTaskLink(null)}
@@ -306,7 +308,7 @@ export function ProjectDetailView({
             <>
               <div className="flex flex-col gap-2">
                 {tasksOf(section.id).map((t) => (
-                  <TaskRow key={t.id} locale={locale} onToggle={onToggle} task={t} />
+                  <TaskRow key={t.id} locale={locale} copy={copy} onToggle={onToggle} task={t} />
                 ))}
               </div>
               {addTaskLink(section.id)}

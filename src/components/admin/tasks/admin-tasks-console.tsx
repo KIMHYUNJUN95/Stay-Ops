@@ -287,7 +287,7 @@ export function AdminTasksConsole({
     noBuilding: dict.cpNoBuilding, noRooms: dict.cpNoRooms, noReservation: dict.cpNoReservation,
     guest: dict.cpGuest, loading: dict.cpLoading, back: dict.cpBack, clear: dict.cpClear,
     apply: dict.cpApply, cancel: dict.cpCancel, occupied: dict.cpOccupied, vacant: dict.cpVacant,
-    nightsUnit: dict.cpNightsUnit, live: dict.cpLive, roomsUnit: dict.cpRoomsUnit,
+    nightsUnit: dict.cpNightsUnit, channelDirect: dict.cpChannelDirect, live: dict.cpLive, roomsUnit: dict.cpRoomsUnit,
     todayGuests: dict.cpTodayGuests, roomSuffix: dict.cpRoomSuffix, bookingId: dict.cpBookingId,
   };
   const router = useRouter();
@@ -2514,10 +2514,10 @@ export function AdminTasksConsole({
         <div className="cal-card">
           <div className="cal-top">
             <div className="cal-top__nav">
-              <button onClick={() => shiftMonth(-1)} aria-label="prev">
+              <button onClick={() => shiftMonth(-1)} aria-label={dict.calPreviousMonth}>
                 <ChevronLeft size={16} />
               </button>
-              <button onClick={() => shiftMonth(1)} aria-label="next">
+              <button onClick={() => shiftMonth(1)} aria-label={dict.calNextMonth}>
                 <ChevronRight size={16} />
               </button>
             </div>

@@ -759,8 +759,12 @@ export default async function MobileCleaningPage({
         ) : null}
         {unknownRoomLabelCount >= ROOM_LABEL_MAPPING_WARNING_THRESHOLD ? (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-700">
-            room_label mapping warning: {unknownRoomLabelCount} unresolved session(s)
-            {unknownRoomLabelSamples.length > 0 ? ` (${unknownRoomLabelSamples.join(", ")})` : ""}
+            {copy.roomMappingWarning
+              .replace("{count}", String(unknownRoomLabelCount))
+              .replace(
+                "{samples}",
+                unknownRoomLabelSamples.length > 0 ? ` (${unknownRoomLabelSamples.join(", ")})` : "",
+              )}
           </div>
         ) : null}
 

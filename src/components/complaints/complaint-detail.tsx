@@ -38,18 +38,20 @@ function Lightbox({
   caption,
   onClose,
   hint,
+  closeLabel,
 }: {
   src: string;
   caption: string;
   onClose: () => void;
   hint: string;
+  closeLabel: string;
 }) {
   if (typeof document === "undefined") return null;
   return createPortal(
     <div className="cx cx-lightbox" role="dialog" aria-modal="true">
       <div className="cx-lightbox__bar">
         <span className="t">{caption}</span>
-        <button type="button" className="cx-lightbox__x" onClick={onClose} aria-label="close">
+        <button type="button" className="cx-lightbox__x" onClick={onClose} aria-label={closeLabel}>
           {CxIcon.x}
         </button>
       </div>
@@ -277,6 +279,7 @@ export function ComplaintDetail({
           src={lightbox.src}
           caption={lightbox.caption}
           hint={t.lightboxHint}
+          closeLabel={t.lightboxClose}
           onClose={() => setLightbox(null)}
         />
       )}

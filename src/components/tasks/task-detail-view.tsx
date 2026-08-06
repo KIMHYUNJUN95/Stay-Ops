@@ -388,6 +388,7 @@ export function TaskDetailView({
           buildingLabels={buildingLabels}
           copy={{
             contextBuildingOnlyLinked: copy.contextBuildingOnlyLinked,
+            contextChannelDirect: copy.contextChannelDirect,
             contextGoToReservation: copy.contextGoToReservation,
             contextLinkedSection: copy.contextLinkedSection,
             contextPickerNightsUnit: copy.contextPickerNightsUnit,

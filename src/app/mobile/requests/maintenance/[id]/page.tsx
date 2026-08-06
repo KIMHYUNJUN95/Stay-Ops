@@ -190,7 +190,7 @@ export default async function MobileMaintenanceDetailPage({ params, searchParams
             </div>
           ) : null}
 
-          <AnnouncementImageGrid imageUrls={report.image_urls} />
+          <AnnouncementImageGrid imageUrls={report.image_urls} closeLabel={dictionary.common.close} imageAltLabel={dictionary.requestImages.attachments} />
         </Card>
 
         <Card className={`${DETAIL_CARD} p-5`}>
@@ -238,7 +238,7 @@ export default async function MobileMaintenanceDetailPage({ params, searchParams
               <p className="text-xs font-semibold text-muted-foreground">
                 {copy.handling.photosLabel}
               </p>
-              <AnnouncementImageGrid imageUrls={report.resolution_image_urls} />
+              <AnnouncementImageGrid imageUrls={report.resolution_image_urls} closeLabel={dictionary.common.close} imageAltLabel={copy.handling.photosLabel} />
             </div>
           ) : null}
         </Card>

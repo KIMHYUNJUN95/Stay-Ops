@@ -45,3 +45,71 @@ export function calcRiskLevel(
   if (ratingValue < 0 || ratingValue > scale) return "unrated";
   return ratingValue <= RISK_THRESHOLD[provider] ? "risk" : "normal";
 }
+
+// ── 세부 점수(rating_breakdown) 표시 ──────────────────────────────────────
+//
+// 모바일 상세와 어드민 상세 패널이 같은 로직을 두 벌 들고 있던 것을 여기로 합쳤다.
+// 저장된 `rating_breakdown`은 플랫폼 원본 구조·키 그대로 두고(공통 스키마로 정규화하지
+// 않는다 — docs/product/25-complaint-workflow.md), **표시 라벨만** 사전으로 현지화한다.
+
+export type ReviewBreakdownRow = { key: string; label: string; value: string };
+
+/** Booking.com `scoring{}`이 주는 고정 항목. 값이 없으면 «—»로 자리만 남긴다. */
+const BOOKING_SCORING_KEYS = ["clean", "facilities", "location", "services", "staff", "value"] as const;
+
+/** 사전에 없는 항목은 최소한 읽을 수 있게만 만든다 (`check_in` → `Check In`). */
+function humanizeKey(key: string): string {
+  return key.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** `check_in` / `checkIn` / `Check-In`이 모두 같은 사전 항목을 찾도록 한다. */
+function normalizeKey(key: string): string {
+  return key.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function labelFor(key: string, labels: Record<string, string>): string {
+  return labels[normalizeKey(key)] ?? humanizeKey(key);
+}
+
+/**
+ * `rating_breakdown` 원본을 플랫폼별로 파싱해 표시용 행으로 만든다.
+ * Airbnb는 `category_ratings[]`, Booking.com은 `scoring{...}` — 둘을 합치지 않는다.
+ *
+ * @param labels `dictionary.complaints.breakdownLabels` (정규화된 소문자 키 → 현지화 라벨)
+ */
+export function parseReviewBreakdown(
+  provider: ReviewProvider,
+  raw: unknown,
+  labels: Record<string, string>,
+): ReviewBreakdownRow[] {
+  if (!raw || typeof raw !== "object") return [];
+
+  if (provider === "airbnb") {
+    const categories = (raw as { category_ratings?: unknown }).category_ratings;
+    if (!Array.isArray(categories)) return [];
+    const rows: ReviewBreakdownRow[] = [];
+    for (const entry of categories) {
+      if (!entry || typeof entry !== "object") continue;
+      const category = (entry as { category?: unknown }).category;
+      const rating = (entry as { rating?: unknown }).rating;
+      if (typeof category !== "string") continue;
+      rows.push({
+        key: category,
+        label: labelFor(category, labels),
+        value: typeof rating === "number" ? String(rating) : "—",
+      });
+    }
+    return rows;
+  }
+
+  const scoring = (raw as { scoring?: unknown }).scoring;
+  if (!scoring || typeof scoring !== "object") return [];
+  return BOOKING_SCORING_KEYS.map((key) => {
+    const value = (scoring as Record<string, unknown>)[key];
+    return {
+      key,
+      label: labelFor(key, labels),
+      value: typeof value === "number" ? String(value) : "—",
+    };
+  });
+}

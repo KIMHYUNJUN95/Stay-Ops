@@ -67,10 +67,6 @@ type ListProps = {
   onRetry: () => void;
 };
 
-function unitOf(locale: Locale): string {
-  return locale === "ja" ? "件" : locale === "en" ? " records" : "건";
-}
-
 export function MaintenanceList({
   scope,
   reports,
@@ -255,7 +251,7 @@ export function MaintenanceList({
       <div className="hmeta">
         <b style={{ color: "var(--ink-soft)" }}>
           {rows.length}
-          {unitOf(locale)}
+          {t.countUnit}
         </b>
         <span className="sep" />
         {scope === "done" ? t.doneHint : `${fmtDate(filters.from, locale)} – ${fmtDate(filters.to, locale)}`}

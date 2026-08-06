@@ -32,12 +32,12 @@ export function ImageLightbox({
   urls,
   openIndex,
   onClose,
-  closeLabel = "Close",
+  closeLabel,
 }: {
   urls: string[];
   openIndex: number | null;
   onClose: () => void;
-  closeLabel?: string;
+  closeLabel: string;
 }) {
   const railRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);

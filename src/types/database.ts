@@ -461,6 +461,7 @@ export type Database = {
           room_id?: string | null;
           room_label?: string | null;
           source_language_code?: string | null;
+          source_reservation_id?: string | null;
           source_updated_at?: string | null;
           updated_at?: string;
         };
@@ -492,6 +493,7 @@ export type Database = {
           room_id: string | null;
           room_label: string | null;
           source_language_code: string | null;
+          source_reservation_id: string | null;
           source_updated_at: string | null;
           updated_at: string;
         };
@@ -523,6 +525,7 @@ export type Database = {
           room_id?: string | null;
           room_label?: string | null;
           source_language_code?: string | null;
+          source_reservation_id?: string | null;
           source_updated_at?: string | null;
           updated_at?: string;
         };

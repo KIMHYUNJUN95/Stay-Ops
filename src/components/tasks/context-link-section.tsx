@@ -29,7 +29,7 @@ function fmtShortDate(ymd: string, locale: string): string {
   }).format(new Date(`${ymd}T00:00:00+09:00`));
 }
 
-function ChannelBadge({ channel }: { channel: LinkedContext["channel"] }) {
+function ChannelBadge({ channel, directLabel }: { channel: LinkedContext["channel"]; directLabel: string }) {
   if (!channel) return null;
   if (channel === "airbnb")
     return (
@@ -45,7 +45,7 @@ function ChannelBadge({ channel }: { channel: LinkedContext["channel"] }) {
     );
   return (
     <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-extrabold text-slate-600">
-      Direct
+      {directLabel}
     </span>
   );
 }
@@ -135,7 +135,7 @@ export function ContextLinkSection({
           </p>
           {hasReservation ? (
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-              <ChannelBadge channel={value.channel} />
+              <ChannelBadge channel={value.channel} directLabel={copy.contextChannelDirect} />
               {value.guestName ? (
                 <span className="text-[11.5px] font-semibold text-muted-foreground">
                   {value.guestName}

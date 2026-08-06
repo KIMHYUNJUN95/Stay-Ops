@@ -4,6 +4,13 @@
 
 This document tracks what has been completed, what is in progress, and what remains for the StayOps MVP.
 
+## 2026-08-06 — Admin/Mobile multilingual hardcoding audit and repair
+
+- Dashboard and mobile production surfaces are normalized so visible copy, accessibility labels, counters, dates, units, print headings, and generated history labels resolve through `ko`/`ja`/`en` dictionaries or locale-aware formatters.
+- Lost-and-found admin restore history now follows a locale-neutral storage contract and is translated on display.
+- The fixed Japanese `休暇届` company form remains the only documented language-specific domain-template exception; it is not application UI copy.
+- Verification completed: `npm run check:i18n` (19 tests), `npm test` (170 tests), `npm run lint` (0 errors; 11 pre-existing warnings), and `npm run build` all pass.
+
 Use this together with:
 
 - `docs/planning/04-project-workflow.md`
@@ -122,14 +129,30 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
     Airbnb는 날짜 파라미터가 없어 전량 수신 후 서버에서 90일로 자르고, **양방향 리뷰라 게스트 작성분만**
     저장(`reviewer_role` / `submitted` / `hidden`). Booking.com 객실은 `reservation_id` →
     `reservations.source_reservation_id` 역조회로만 얻고 실패 시 null.
+  - **Airbnb 예약·게스트 매칭 (2026-08-06)** — 리뷰의 `reservation_confirmation_code`(2,214/2,214건
+    보유)를 `reservations.raw_payload->>apiReference`로 조회해 `reservation_id`·`guest_display_name`을
+    채운다. 객실은 예약에서 가져오지 않는다(조회한 `roomId`가 확정값). 새 컬럼
+    `external_reviews.source_reservation_id`에 제공자 예약 번호를 담고 화면의 «예약 ID»가 이 값이 됐다
+    (이전에는 내부 uuid를 노출). 커버리지는 예약 보유 범위가 결정 — 전체 10%, 2026-05-01 이후 95%.
+    같은 작업에서 예약 인덱스의 PostgREST 1000행 절단 버그도 수정.
+    migration `202608060001_external_reviews_source_reservation.sql`.
   - **번역** `src/lib/review-translate.ts` — DeepL, `(리뷰+본문종류+목표언어)` 캐시,
     `source_text_hash` 불일치 시 재번역, 월 450,000자 안전 한도. 키는 `DEEPL_API_KEY` 서버 전용.
   - **어드민** `/admin/complaints` — `AdminShell` + `opsbar` KPI 5 + `lviews` 3뷰(수동 컴플레인 /
     외부 리뷰 / 문제 객실) + 공용 `DateRangeFormField`(`.calpop`). 사이드바 `운영` 그룹에 항목 추가.
     i18n 60여 키를 ko/ja/en 동시 추가.
+  - **어드민 직접 등록 (2026-08-06)** `complaint-create-panel.tsx` + `complaint-create-launcher.tsx`
+    + `createManualComplaintAction` — 수동 컴플레인 뷰 헤더의 `+ 컴플레인 등록`이 공용 `.panel`
+    슬라이드오버를 연다. 모바일과 **같은 `createComplaint`**를 부른다. 연결 방식 3가지
+    (`예약 연결` / `건물 · 객실` / `연결 안 함`) — Beds24를 거치지 않은 예약(전화·워크인·자사
+    홈페이지)이 객실 없이 등록되던 구멍을 막는다. 건물·객실은 `listComplaintPickerPlaces()`가 주는
+    활성 객실 마스터에서 고른다(자유 텍스트 아님). 사진 최대 5장.
   - **어드민 상세** `review-detail-panel.tsx` + `app/admin/complaints/actions.ts` — 우측 `.panel`
     슬라이드오버를 클라이언트 상태 없이 `?review=<id>&tr=1` 쿼리스트링만으로 다룬다. 제공자별
     `rating_breakdown` 파싱(Airbnb `category_ratings[]` / Booking `scoring{}`), Booking 긍정/부정 분리,
+    세부 점수 **항목명은 화면에서만 현지화**(2026-08-06 — `dictionary.complaints.breakdownLabels`
+    ko/ja/en, 사전에 없는 키는 영문 폴백; 파싱·라벨은 `lib/external-review-rules.ts`의
+    `parseReviewBreakdown()` 하나로 모바일 상세와 공유),
     **비공개 피드백은 점선+warn 톤으로 공개 리뷰와 분리**, OTA 답글 읽기 전용. 번역은 텍스트가 있는
     리뷰에만 노출하고 캐시가 있으면 DeepL을 부르지 않으며, 번역본을 보여줄 때 `자동 번역`을 명시한다.
   - **수집 트리거** `/api/beds24/reviews-sync`(프로덕션) + `/api/dev/beds24/sync-reviews`(로컬).
@@ -4110,4 +4133,3 @@ service-role 로만 호출하므로 동작 변화 없음. Supabase security advi
 
 RLS 판정 헬퍼(`is_task_participant` 등)는 정책 안에서 호출자 역할로 실행되므로 회수하면 정책이
 깨진다 — 의도된 노출로 남긴다.
-

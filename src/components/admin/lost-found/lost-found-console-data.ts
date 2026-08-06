@@ -67,13 +67,11 @@ export function parseTs(ts: string | null): number | null {
 }
 
 export function fmtDate(d: string, locale: Locale): string {
-  const [, m, dd] = d.split("-");
-  if (locale === "en") {
-    const M = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    return `${M[Number(m) - 1]} ${Number(dd)}`;
-  }
-  if (locale === "ja") return `${Number(m)}月${Number(dd)}日`;
-  return `${Number(m)}월 ${Number(dd)}일`;
+  return new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+    timeZone: "Asia/Tokyo",
+  }).format(new Date(`${d}T00:00:00+09:00`));
 }
 
 export function fmtDateTime(ts: string | null, locale: Locale): string {

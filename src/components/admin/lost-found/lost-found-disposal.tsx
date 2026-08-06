@@ -37,10 +37,6 @@ type DisposalProps = {
   onRetry: () => void;
 };
 
-function unitOf(locale: Locale): string {
-  return locale === "ja" ? "件" : locale === "en" ? " records" : "건";
-}
-
 export function LostFoundDisposal({
   items,
   allItems,
@@ -181,7 +177,7 @@ export function LostFoundDisposal({
       <div className="hmeta">
         <b style={{ color: "var(--ink-soft)" }}>
           {rows.length}
-          {unitOf(locale)}
+          {t.countUnit}
         </b>
       </div>
       <div className="card" style={{ overflow: "auto" }}>

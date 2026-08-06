@@ -23,6 +23,7 @@ import { useAdminPanelA11y } from "@/components/admin/shared/use-admin-panel-a11
 import type { Locale } from "@/lib/i18n";
 import type { AdminLostItemVM } from "@/lib/admin-lost-found";
 import { LOST_FOUND_DISPOSAL_RETENTION_DAYS } from "@/lib/lost-found-constants";
+import { localizeLostFoundMemo } from "@/lib/lost-found-memo";
 import { fmtDate, fmtDateTime, isActive, tpl } from "./lost-found-console-data";
 import {
   CategoryChip,
@@ -38,6 +39,7 @@ export type LFActionKind = "return" | "dispose" | "extend" | "correct" | "restor
 type PanelProps = {
   item: AdminLostItemVM | null;
   t: LFCopy;
+  adminRestoreLabel: string;
   locale: Locale;
   onClose: () => void;
   onAction: (kind: LFActionKind, id: string) => void;
@@ -64,7 +66,7 @@ function deletePct(deleteDaysLeft: number): number {
   return Math.min(100, Math.max(0, (elapsed / LOST_FOUND_DISPOSAL_RETENTION_DAYS) * 100));
 }
 
-export function LostFoundDetailPanel({ item, t, locale, onClose, onAction, disabled }: PanelProps) {
+export function LostFoundDetailPanel({ item, t, adminRestoreLabel, locale, onClose, onAction, disabled }: PanelProps) {
   const panelRef = useAdminPanelA11y<HTMLElement>(onClose, { disabled });
   if (!item) return null;
 
@@ -319,7 +321,7 @@ export function LostFoundDetailPanel({ item, t, locale, onClose, onAction, disab
                 {t.pCloseMemo}
               </div>
               {item.handlingMemo ? (
-                <div className="infonote">{item.handlingMemo}</div>
+                <div className="infonote">{localizeLostFoundMemo(item.handlingMemo, adminRestoreLabel)}</div>
               ) : (
                 <div className="dimnote">
                   <span className="ic">

@@ -70,6 +70,7 @@ type MobileCalendarViewProps = {
     calendarBuildingHouseLabel: string;
     calendarBuildingPickerBody: string;
     calendarTokyoNowLabel: string;
+    calendarMapBuildingCount: string;
     legendDirect: string;
     calendarBuildingPickerTitle: string;
     call: string;
@@ -708,7 +709,7 @@ export function MobileCalendarView({
                 {tokyoNow}
               </p>
               <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">
-                Tokyo
+                {copy.calendarTokyoNowLabel}
               </p>
             </div>
             <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/15">
@@ -1293,7 +1294,7 @@ export function MobileCalendarView({
               <MapPin className="size-3.5" />
             </span>
             <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground/80">
-              {buildingInfos.length} buildings
+              {copy.calendarMapBuildingCount.replace("{count}", String(buildingInfos.length))}
             </p>
           </div>
           {buildingInfos.map((meta) => {

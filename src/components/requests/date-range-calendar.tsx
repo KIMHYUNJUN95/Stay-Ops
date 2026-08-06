@@ -15,6 +15,8 @@ export type DateRangeCalendarLabels = {
   apply: string;
   clear: string;
   close: string;
+  previousMonth: string;
+  nextMonth: string;
   selectEnd: string;
   selectStart: string;
   title: string;
@@ -167,7 +169,7 @@ function CalendarPanel({
         <>
           <div className="mt-4 flex items-center justify-between">
             <button
-              aria-label="prev-month"
+              aria-label={labels.previousMonth}
               className="flex size-9 items-center justify-center rounded-full border border-border bg-background/70 text-foreground transition-colors hover:bg-muted/60"
               onClick={() => setViewMonth((prev) => addMonths(prev, -1))}
               type="button"
@@ -176,7 +178,7 @@ function CalendarPanel({
             </button>
             <span className="text-sm font-black text-foreground">{monthLabel}</span>
             <button
-              aria-label="next-month"
+              aria-label={labels.nextMonth}
               className="flex size-9 items-center justify-center rounded-full border border-border bg-background/70 text-foreground transition-colors hover:bg-muted/60"
               onClick={() => setViewMonth((prev) => addMonths(prev, 1))}
               type="button"

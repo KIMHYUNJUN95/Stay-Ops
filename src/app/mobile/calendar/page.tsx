@@ -555,6 +555,7 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
           calendarBuildingPickerBody: dictionary.mobile.calendarBuildingPickerBody,
           calendarBuildingPickerQuestion: dictionary.mobile.calendarBuildingPickerQuestion,
           calendarTokyoNowLabel: dictionary.mobile.calendarTokyoNowLabel,
+          calendarMapBuildingCount: dictionary.mobile.calendarMapBuildingCount,
           legendDirect: dictionary.mobile.calendarLegendDirect,
           calendarBuildingPickerTitle: dictionary.mobile.calendarBuildingPickerTitle,
           call: dictionary.mobile.calendarCall,

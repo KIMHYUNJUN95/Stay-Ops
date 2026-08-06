@@ -1,5 +1,12 @@
 # Multilingual Strategy
 
+## 2026-08-06 Admin/Mobile hardcoding closure
+
+- Production admin and mobile UI copy, accessibility labels, counters, date/unit text, print titles, and system-generated memo labels must be resolved through the `ko`/`ja`/`en` dictionaries or locale-aware formatters.
+- A server action must not persist a viewer-specific translated sentence. Lost-and-found admin restore history is stored with a stable system marker and localized when it is rendered; legacy Korean restore lines remain readable through the same renderer.
+- The Japanese `休暇届` is an official company submission form, not locale-dependent application chrome. Its prescribed Japanese labels remain fixed and are explicitly exempted from the UI hardcoding guard.
+- `npm run check:i18n` is part of the completion check for user-facing copy changes, in addition to lint and build.
+
 ## Supported Languages
 
 Initial languages:

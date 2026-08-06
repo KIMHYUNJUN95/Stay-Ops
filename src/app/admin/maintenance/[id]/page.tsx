@@ -174,7 +174,7 @@ export default async function AdminMaintenanceDetailPage({
             </div>
           ) : null}
 
-          <AnnouncementImageGrid imageUrls={report.image_urls} />
+          <AnnouncementImageGrid imageUrls={report.image_urls} closeLabel={dictionary.common.close} imageAltLabel={dictionary.requestImages.attachments} />
         </Card>
 
         <Card className="p-5">

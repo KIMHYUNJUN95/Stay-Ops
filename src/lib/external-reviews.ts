@@ -61,7 +61,10 @@ export type ExternalReview = {
   propertyName: string | null;
   roomId: string | null;
   roomLabel: string | null;
+  /** 우리 `reservations` 행의 uuid. 사람이 읽을 값이 아니므로 화면에 그대로 노출하지 않는다. */
   reservationId: string | null;
+  /** 제공자가 쓰는 예약 식별자 (Airbnb 확인 코드 / Booking.com bookingId). 화면에는 이 값을 보여 준다. */
+  sourceReservationId: string | null;
   guestDisplayName: string | null;
   headline: string | null;
   sourceLanguageCode: string | null;
@@ -90,7 +93,7 @@ const REVIEW_COLS = `
   id, provider, external_review_id,
   rating_value, rating_scale, risk_level, rating_breakdown,
   reviewed_at, imported_at,
-  property_id, property_name, room_id, room_label, reservation_id,
+  property_id, property_name, room_id, room_label, reservation_id, source_reservation_id,
   guest_display_name, headline, source_language_code,
   review_text, positive_review_text, negative_review_text,
   ota_reply_text, ota_replied_at, linked_complaint_id
@@ -111,6 +114,7 @@ type ReviewRow = {
   room_id: string | null;
   room_label: string | null;
   reservation_id: string | null;
+  source_reservation_id: string | null;
   guest_display_name: string | null;
   headline: string | null;
   source_language_code: string | null;
@@ -139,6 +143,7 @@ function mapReview(row: ReviewRow): ExternalReview {
     roomId: row.room_id,
     roomLabel: row.room_label,
     reservationId: row.reservation_id,
+    sourceReservationId: row.source_reservation_id,
     guestDisplayName: row.guest_display_name,
     headline: row.headline,
     sourceLanguageCode: row.source_language_code,
@@ -491,6 +496,7 @@ export async function convertReviewToComplaint(input: {
     positiveReviewText: row.positive_review_text,
     negativeReviewText: row.negative_review_text,
     guestDisplayName: row.guest_display_name,
+    sourceReservationId: row.source_reservation_id,
     propertyName: row.property_name,
     roomLabel: row.room_label,
     capturedAt: new Date().toISOString(),

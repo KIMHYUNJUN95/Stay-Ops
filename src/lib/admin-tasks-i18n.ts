@@ -151,6 +151,7 @@ export type AdminTasksDictionary = {
   cpOccupied: string;
   cpVacant: string;
   cpNightsUnit: string;
+  cpChannelDirect: string;
   cpLive: string;
   cpRoomsUnit: string;
   cpTodayGuests: string;
@@ -236,6 +237,8 @@ export type AdminTasksDictionary = {
   cmpYesterday: string;
   // calendar
   calThisMonth: string;
+  calPreviousMonth: string;
+  calNextMonth: string;
   calLegendPersonal: string;
   calLegendShared: string;
   calLegendUrgent: string;
@@ -395,7 +398,7 @@ const ko: AdminTasksDictionary = {
   phCount: "{n}/{max}", phRemove: "사진 삭제", phTooMany: "최대 {max}장까지 첨부할 수 있습니다",
   phInvalidType: "이미지 파일만 첨부할 수 있습니다", phTooLarge: "파일 용량은 {max}MB 이하만 가능합니다",
   phUploading: "업로드 중…",
-  cpTitle: "예약 연결", cpHintBuilding: "건물을 선택하세요", cpHintRoom: "객실을 선택하면 해당 기간 예약이 표시됩니다", cpBuildings: "건물", cpRooms: "객실", cpReservations: "예약", cpSearch: "게스트명 또는 예약번호 검색", cpSearchClear: "지우기", cpSearchEmpty: "검색 결과가 없습니다", cpSearchEmptySub: "게스트명이나 예약번호로 다시 검색해보세요", cpNoBuilding: "등록된 건물이 없습니다", cpNoRooms: "등록된 객실이 없습니다", cpNoReservation: "이 기간에는 예약이 없습니다", cpGuest: "게스트", cpLoading: "불러오는 중", cpBack: "뒤로", cpClear: "연결 해제", cpApply: "적용", cpCancel: "취소", cpOccupied: "투숙 중", cpVacant: "공실", cpNightsUnit: "박", cpLive: "체류중", cpRoomsUnit: "실", cpTodayGuests: "오늘 투숙", cpRoomSuffix: "호", cpBookingId: "예약번호", dpShare: "공유",
+  cpTitle: "예약 연결", cpHintBuilding: "건물을 선택하세요", cpHintRoom: "객실을 선택하면 해당 기간 예약이 표시됩니다", cpBuildings: "건물", cpRooms: "객실", cpReservations: "예약", cpSearch: "게스트명 또는 예약번호 검색", cpSearchClear: "지우기", cpSearchEmpty: "검색 결과가 없습니다", cpSearchEmptySub: "게스트명이나 예약번호로 다시 검색해보세요", cpNoBuilding: "등록된 건물이 없습니다", cpNoRooms: "등록된 객실이 없습니다", cpNoReservation: "이 기간에는 예약이 없습니다", cpGuest: "게스트", cpLoading: "불러오는 중", cpBack: "뒤로", cpClear: "연결 해제", cpApply: "적용", cpCancel: "취소", cpOccupied: "투숙 중", cpVacant: "공실", cpNightsUnit: "박", cpChannelDirect: "직접 예약", cpLive: "체류중", cpRoomsUnit: "실", cpTodayGuests: "오늘 투숙", cpRoomSuffix: "호", cpBookingId: "예약번호", dpShare: "공유",
   dpDelete: "삭제", dpUnshareDelete: "공유 해제·삭제", dpAuthorOnly: "원문은 작성자({name})만 수정할 수 있습니다",
   dpLeave: "나만 빠지기", dpMobileDetail: "모바일 상세",
   ctxBuilding: "건물", ctxBed: "객실", ctxTicket: "예약", ctxGuest: "게스트",
@@ -420,7 +423,7 @@ const ko: AdminTasksDictionary = {
   instrEmptyRecvT: "받은 지시가 없습니다", instrEmptyRecvS: "매니저가 부여한 업무가 여기에 모입니다.", instrCommon: "공동 {n}명",
   sharedRecvSec: "다른 멤버가 공유함", sharedSentSec: "내가 공유함",
   cmpDone: "{n}건 완료", cmpReport: "보고서 (업무일지)", cmpBy: "{name} 완료", cmpToday: "오늘", cmpYesterday: "어제",
-  calThisMonth: "이번 달", calLegendPersonal: "개인", calLegendShared: "공유", calLegendUrgent: "긴급 · 지연",
+  calThisMonth: "이번 달", calPreviousMonth: "이전 달", calNextMonth: "다음 달", calLegendPersonal: "개인", calLegendShared: "공유", calLegendUrgent: "긴급 · 지연",
   calUpcoming: "다가오는 일정", calMore: "+{n}건 더보기", calNoMonth: "이번 달 예정된 작업이 없습니다.",
   calHideRepeat: "반복 숨기기",
   calAddOnDay: "이 날짜에 작업 추가", calDayEmpty: "이 날짜에 예정된 작업이 없습니다.",
@@ -504,7 +507,7 @@ const ja: AdminTasksDictionary = {
   phCount: "{n}/{max}", phRemove: "写真を削除", phTooMany: "最大{max}枚まで添付できます",
   phInvalidType: "画像ファイルのみ添付できます", phTooLarge: "ファイルサイズは{max}MB以下のみ可能です",
   phUploading: "アップロード中…",
-  cpTitle: "予約リンク", cpHintBuilding: "建物を選択してください", cpHintRoom: "客室を選択すると該当期間の予約が表示されます", cpBuildings: "建物", cpRooms: "客室", cpReservations: "予約", cpSearch: "ゲスト名または予約番号で検索", cpSearchClear: "クリア", cpSearchEmpty: "検索結果がありません", cpSearchEmptySub: "ゲスト名や予約番号で再検索してください", cpNoBuilding: "登録された建物がありません", cpNoRooms: "登録された客室がありません", cpNoReservation: "この期間に予約はありません", cpGuest: "ゲスト", cpLoading: "読み込み中", cpBack: "戻る", cpClear: "リンク解除", cpApply: "適用", cpCancel: "キャンセル", cpOccupied: "滞在中", cpVacant: "空室", cpNightsUnit: "泊", cpLive: "滞在中", cpRoomsUnit: "室", cpTodayGuests: "本日の宿泊", cpRoomSuffix: "号", cpBookingId: "予約番号", dpShare: "共有",
+  cpTitle: "予約リンク", cpHintBuilding: "建物を選択してください", cpHintRoom: "客室を選択すると該当期間の予約が表示されます", cpBuildings: "建物", cpRooms: "客室", cpReservations: "予約", cpSearch: "ゲスト名または予約番号で検索", cpSearchClear: "クリア", cpSearchEmpty: "検索結果がありません", cpSearchEmptySub: "ゲスト名や予約番号で再検索してください", cpNoBuilding: "登録された建物がありません", cpNoRooms: "登録された客室がありません", cpNoReservation: "この期間に予約はありません", cpGuest: "ゲスト", cpLoading: "読み込み中", cpBack: "戻る", cpClear: "リンク解除", cpApply: "適用", cpCancel: "キャンセル", cpOccupied: "滞在中", cpVacant: "空室", cpNightsUnit: "泊", cpChannelDirect: "直接予約", cpLive: "滞在中", cpRoomsUnit: "室", cpTodayGuests: "本日の宿泊", cpRoomSuffix: "号", cpBookingId: "予約番号", dpShare: "共有",
   dpDelete: "削除", dpUnshareDelete: "共有解除・削除", dpAuthorOnly: "本文は作成者({name})のみ編集できます",
   dpLeave: "自分だけ抜ける", dpMobileDetail: "モバイル詳細",
   ctxBuilding: "建物", ctxBed: "部屋", ctxTicket: "予約", ctxGuest: "ゲスト",
@@ -529,7 +532,7 @@ const ja: AdminTasksDictionary = {
   instrEmptyRecvT: "受けた指示がありません", instrEmptyRecvS: "マネージャーが付与した業務がここに集まります。", instrCommon: "共同 {n}名",
   sharedRecvSec: "他のメンバーが共有", sharedSentSec: "自分が共有",
   cmpDone: "{n}件完了", cmpReport: "レポート (業務日報)", cmpBy: "{name} 完了", cmpToday: "今日", cmpYesterday: "昨日",
-  calThisMonth: "今月", calLegendPersonal: "個人", calLegendShared: "共有", calLegendUrgent: "緊急 · 遅延",
+  calThisMonth: "今月", calPreviousMonth: "前の月", calNextMonth: "次の月", calLegendPersonal: "個人", calLegendShared: "共有", calLegendUrgent: "緊急 · 遅延",
   calUpcoming: "今後の予定", calMore: "+{n}件 もっと見る", calNoMonth: "今月の予定はありません。",
   calHideRepeat: "繰り返しを隠す",
   calAddOnDay: "この日にタスク追加", calDayEmpty: "この日の予定はありません。",
@@ -613,7 +616,7 @@ const en: AdminTasksDictionary = {
   phCount: "{n}/{max}", phRemove: "Remove photo", phTooMany: "Up to {max} photos",
   phInvalidType: "Image files only", phTooLarge: "Files must be {max}MB or smaller",
   phUploading: "Uploading…",
-  cpTitle: "Link reservation", cpHintBuilding: "Pick a building", cpHintRoom: "Pick a room to see its reservations", cpBuildings: "Buildings", cpRooms: "Rooms", cpReservations: "Reservations", cpSearch: "Search guest or booking id", cpSearchClear: "Clear", cpSearchEmpty: "No results", cpSearchEmptySub: "Try a guest name or booking id", cpNoBuilding: "No buildings registered", cpNoRooms: "No rooms registered", cpNoReservation: "No reservations in this period", cpGuest: "Guest", cpLoading: "Loading", cpBack: "Back", cpClear: "Unlink", cpApply: "Apply", cpCancel: "Cancel", cpOccupied: "Occupied", cpVacant: "Vacant", cpNightsUnit: "n", cpLive: "Staying", cpRoomsUnit: "rooms", cpTodayGuests: "Guests today", cpRoomSuffix: "", cpBookingId: "Booking id", dpShare: "Share",
+  cpTitle: "Link reservation", cpHintBuilding: "Pick a building", cpHintRoom: "Pick a room to see its reservations", cpBuildings: "Buildings", cpRooms: "Rooms", cpReservations: "Reservations", cpSearch: "Search guest or booking id", cpSearchClear: "Clear", cpSearchEmpty: "No results", cpSearchEmptySub: "Try a guest name or booking id", cpNoBuilding: "No buildings registered", cpNoRooms: "No rooms registered", cpNoReservation: "No reservations in this period", cpGuest: "Guest", cpLoading: "Loading", cpBack: "Back", cpClear: "Unlink", cpApply: "Apply", cpCancel: "Cancel", cpOccupied: "Occupied", cpVacant: "Vacant", cpNightsUnit: "n", cpChannelDirect: "Direct booking", cpLive: "Staying", cpRoomsUnit: "rooms", cpTodayGuests: "Guests today", cpRoomSuffix: "", cpBookingId: "Booking id", dpShare: "Share",
   dpDelete: "Delete", dpUnshareDelete: "Unshare · delete", dpAuthorOnly: "Only the author ({name}) can edit the content",
   dpLeave: "Leave (me only)", dpMobileDetail: "Mobile detail",
   ctxBuilding: "Building", ctxBed: "Room", ctxTicket: "Reservation", ctxGuest: "Guest",
@@ -638,7 +641,7 @@ const en: AdminTasksDictionary = {
   instrEmptyRecvT: "No received directives", instrEmptyRecvS: "Tasks assigned by a manager collect here.", instrCommon: "{n} shared",
   sharedRecvSec: "Shared by others", sharedSentSec: "Shared by me",
   cmpDone: "{n} done", cmpReport: "Report (work log)", cmpBy: "done by {name}", cmpToday: "Today", cmpYesterday: "Yesterday",
-  calThisMonth: "This month", calLegendPersonal: "Personal", calLegendShared: "Shared", calLegendUrgent: "Urgent · overdue",
+  calThisMonth: "This month", calPreviousMonth: "Previous month", calNextMonth: "Next month", calLegendPersonal: "Personal", calLegendShared: "Shared", calLegendUrgent: "Urgent · overdue",
   calUpcoming: "Upcoming", calMore: "+{n} more", calNoMonth: "No tasks scheduled this month.",
   calHideRepeat: "Hide recurring",
   calAddOnDay: "Add a task on this date", calDayEmpty: "No tasks scheduled on this date.",

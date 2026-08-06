@@ -143,6 +143,7 @@ export default async function LinenReturnDetailPage({ params, searchParams }: Pa
               {copy.photoSectionTitle}
             </div>
             <LightboxThumbs
+              closeLabel={dict.common.close}
               sizes="72px"
               thumbClassName="relative size-[72px] overflow-hidden rounded-[14px] border border-border bg-slate-50"
               urls={record.imageUrls}

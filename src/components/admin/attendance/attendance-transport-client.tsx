@@ -870,6 +870,7 @@ function TransportPanel({
       ) : null}
 
       <ImageLightbox
+        closeLabel={c.panelClose}
         urls={allReceiptUrls}
         openIndex={lightboxIndex}
         onClose={() => setLightboxIndex(null)}

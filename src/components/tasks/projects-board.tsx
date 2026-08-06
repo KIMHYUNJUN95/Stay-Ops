@@ -264,7 +264,7 @@ export function ProjectsBoard({
                               </span>
                               {u.name}
                               <button
-                                aria-label="remove"
+                                aria-label={copy.a11yRemoveMember}
                                 className="flex size-4 items-center justify-center text-primary/60"
                                 onClick={() => setInviteIds((prev) => prev.filter((x) => x !== u.id))}
                                 type="button"

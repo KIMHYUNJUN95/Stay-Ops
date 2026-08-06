@@ -263,7 +263,7 @@ export default async function AdminAnnouncementDetailPage({
             </div>
             <h2 className="text-xl font-black">{copy.imageAttachments}</h2>
           </div>
-          <AnnouncementImageGrid imageUrls={announcement.image_urls} />
+          <AnnouncementImageGrid imageUrls={announcement.image_urls} closeLabel={copy.close} imageAltLabel={copy.imageAttachments} />
         </Card>
       )}
 

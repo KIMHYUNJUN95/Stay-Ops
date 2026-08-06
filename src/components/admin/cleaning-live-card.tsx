@@ -45,7 +45,8 @@ export function CleaningLiveCard({
   /** locale tag (e.g. "ko-KR") — used for Intl + resolved to the console dictionary. */
   locale: string;
 }) {
-  const c = getDictionary(locale).admin.console;
+  const dictionary = getDictionary(locale);
+  const c = dictionary.admin.console;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const sel = cleaning.find((row) => row.id === selectedId) ?? null;
 
@@ -112,12 +113,12 @@ export function CleaningLiveCard({
         typeof document !== "undefined" &&
         createPortal(
           <div className="adm">
-            <button className="panel-scrim" aria-label="close" onClick={() => setSelectedId(null)} />
+            <button className="panel-scrim" aria-label={dictionary.common.close} onClick={() => setSelectedId(null)} />
             <aside className="panel" role="dialog" aria-modal="true">
               <div className="panel__h">
                 <div className="panel__top">
                   <span className="panel__kicker">{c.panelKicker}</span>
-                  <button className="panel__x" onClick={() => setSelectedId(null)} aria-label="close">{X}</button>
+                  <button className="panel__x" onClick={() => setSelectedId(null)} aria-label={dictionary.common.close}>{X}</button>
                 </div>
                 <div className="panel__title">
                   <span className="panel__room">{sel.room}</span>

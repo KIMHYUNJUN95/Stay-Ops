@@ -6,11 +6,15 @@ import { ImageLightbox } from "@/components/shell/image-lightbox";
 
 type AnnouncementImageGridProps = {
   imageUrls: string[];
+  closeLabel: string;
+  imageAltLabel: string;
   variant?: "grid" | "feature";
 };
 
 export function AnnouncementImageGrid({
   imageUrls,
+  closeLabel,
+  imageAltLabel,
   variant = "grid",
 }: AnnouncementImageGridProps) {
   // Open photos in an in-app lightbox instead of `target="_blank"`, which would eject an installed
@@ -23,6 +27,7 @@ export function AnnouncementImageGrid({
 
   const lightbox = (
     <ImageLightbox
+      closeLabel={closeLabel}
       onClose={() => setOpenIndex(null)}
       openIndex={openIndex}
       urls={imageUrls}
@@ -41,7 +46,7 @@ export function AnnouncementImageGrid({
             type="button"
           >
             <Image
-              alt={`Announcement attachment ${index + 1}`}
+              alt={`${imageAltLabel} ${index + 1}`}
               className="h-[160px] w-full object-cover transition-transform group-hover:scale-[1.02]"
               height={480}
               sizes={isSingle ? "(max-width: 640px) 100vw, 460px" : "(max-width: 640px) 50vw, 230px"}
@@ -65,7 +70,7 @@ export function AnnouncementImageGrid({
           type="button"
         >
           <Image
-            alt={`Announcement attachment ${index + 1}`}
+            alt={`${imageAltLabel} ${index + 1}`}
             className="aspect-square w-full object-cover transition-transform group-hover:scale-[1.02] sm:aspect-[4/3]"
             height={900}
             sizes="(max-width: 640px) 50vw, 220px"

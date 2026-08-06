@@ -47,9 +47,7 @@ type CleaningConsoleProps = {
 function syncAgoText(lastSyncAt: number, t: Dictionary["cleaning"]["console"], locale: Locale): string {
   const mins = Math.round((Date.now() - lastSyncAt) / 60000);
   if (mins < 1) return t.syncAgo;
-  if (locale === "ja") return `${mins}分前`;
-  if (locale === "en") return `${mins} min ago`;
-  return `${mins}분 전`;
+  return new Intl.RelativeTimeFormat(locale, { numeric: "always", style: "short" }).format(-mins, "minute");
 }
 
 // Kept as a module-level helper (not inline in the component) so the impure `Date.now()` call sits

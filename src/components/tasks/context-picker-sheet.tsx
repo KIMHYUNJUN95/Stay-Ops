@@ -229,7 +229,7 @@ function ReservationRow({
   onTap: () => void;
 }) {
   const isAir = res.channel === "airbnb";
-  const channelLabel = isAir ? "Airbnb" : res.channel === "booking" ? "Booking" : "Direct";
+  const channelLabel = isAir ? "Airbnb" : res.channel === "booking" ? "Booking" : copy.contextChannelDirect;
   const nightsLabel = `${res.nightsCount}${copy.contextPickerNightsUnit}`;
   return (
     <button
@@ -295,7 +295,7 @@ function ReservationSearchRow({
   onTap: () => void;
 }) {
   const isAir = result.channel === "airbnb";
-  const channelLabel = isAir ? "Airbnb" : result.channel === "booking" ? "Booking" : "Direct";
+  const channelLabel = isAir ? "Airbnb" : result.channel === "booking" ? "Booking" : copy.contextChannelDirect;
   const nightsLabel = `${result.nightsCount}${copy.contextPickerNightsUnit}`;
   const localizedBuilding = localizePropertyName(result.propertyName, buildingLabels);
   // For Okubo-style buildings, displayRoomLabel === propertyName — omit the room suffix.

@@ -119,7 +119,8 @@ export function LeaveRequestModal({
   const today = tokyoToday();
   const initialDate = prefillDate ?? today;
   const localeTag = adminLocaleTag(locale);
-  const shared = getDictionary(locale).admin.shared;
+  const dictionary = getDictionary(locale);
+  const shared = dictionary.admin.shared;
   const datePickerLabels = {
     prevMonth: shared.datePrevMonth,
     nextMonth: shared.dateNextMonth,
@@ -274,7 +275,7 @@ export function LeaveRequestModal({
             <div className="modal__kicker">{kicker}</div>
             <div className="modal__t">{title}</div>
           </div>
-          <button type="button" className="panel__x" onClick={onClose} aria-label="close" disabled={pending}>
+          <button type="button" className="panel__x" onClick={onClose} aria-label={dictionary.common.close} disabled={pending}>
             <span className="ic">
               <X />
             </span>

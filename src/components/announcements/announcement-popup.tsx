@@ -239,7 +239,7 @@ export function AnnouncementPopup({
 
           {/* 이미지 */}
           {announcement.imageUrls.length > 0 && (
-            <AnnouncementImageGrid imageUrls={announcement.imageUrls} />
+            <AnnouncementImageGrid imageUrls={announcement.imageUrls} closeLabel={copy.close} imageAltLabel={copy.imageAttachments} />
           )}
 
           {/* 7일 숨기기 체크박스 */}

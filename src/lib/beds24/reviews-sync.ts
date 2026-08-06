@@ -12,11 +12,14 @@
 // is twice a day per unit.
 //
 // Field availability is asymmetric and we never infer what a provider did not send:
-//   * Airbnb  — the queried roomId pins the room; there is no reservation id and no reviewer
-//               name. Reviews are bidirectional, so only guest-authored, submitted, non-hidden
-//               ones are stored.
+//   * Airbnb  — the queried roomId pins the room. No reviewer NAME (numeric `reviewer_id`
+//               only), but it does send `reservation_confirmation_code`, which matches our
+//               reservations at `raw_payload->>apiReference` — that match supplies both the
+//               reservation link and the guest name. Reviews are bidirectional, so only
+//               guest-authored, submitted, non-hidden ones are stored.
 //   * Booking — no room at all; the room is recovered by resolving `reservation_id` against
 //               local reservations.source_reservation_id, and stays null when that misses.
+// Either way an unmatched review keeps NULLs rather than a guess.
 //
 // Both endpoints are Beta/Alpha, so `raw_payload` is always kept and a row that fails to parse
 // is skipped individually rather than aborting the run.
@@ -173,7 +176,12 @@ export type ParsedReview = {
   privateFeedback: string | null;
   otaReplyText: string | null;
   otaRepliedAt: string | null;
-  /** Booking.com only — Beds24 bookingId, resolved against local reservations later. */
+  /**
+   * 제공자가 쓰는 예약 식별자. 두 플랫폼이 서로 다른 값을 주고 역조회하는 컬럼도 다르다.
+   *   airbnb  → `reservation_confirmation_code` ("HMRWNK5RQW") ↔ `reservations.raw_payload->>apiReference`
+   *   booking → `reservation_id` (Beds24 bookingId, 숫자) ↔ `reservations.source_reservation_id`
+   * 값 자체가 운영자가 OTA 익스트라넷에서 검색할 수 있는 문자열이라 그대로 저장·표시한다.
+   */
   sourceReservationId: string | null;
   raw: unknown;
 };
@@ -208,7 +216,9 @@ export function parseAirbnbReview(payload: unknown): ParsedReview | null {
     ratingBreakdown: Array.isArray(row.category_ratings) ? { category_ratings: row.category_ratings } : {},
     reviewedAt: iso(row.submitted_at) ?? iso(row.first_completed_at),
     sourceUpdatedAt: null,
-    guestDisplayName: null, // Airbnb exposes reviewer_id only — never a name
+    // Airbnb는 작성자 이름을 주지 않는다 (`reviewer_id` 숫자 ID만). 이름은 아래에서 확인 코드로
+    // 찾은 로컬 예약의 `guest_name`으로 채운다 — 페이로드에서 추정하는 것이 아니다.
+    guestDisplayName: null,
     headline: null, // Airbnb has no review title
     sourceLanguageCode: null, // no language code → DeepL auto-detect
     reviewText: str(row.public_review),
@@ -217,7 +227,9 @@ export function parseAirbnbReview(payload: unknown): ParsedReview | null {
     privateFeedback: str(row.private_feedback),
     otaReplyText: null,
     otaRepliedAt: null,
-    sourceReservationId: null, // Airbnb payload carries no reservation id
+    // Airbnb 확인 코드. Beds24 bookingId가 아니라서 `source_reservation_id` 역조회로는 안 잡히지만,
+    // 우리 예약의 `raw_payload->>apiReference`에 같은 값이 들어 있다 (2026-08-06 실측: 2214/2214건 보유).
+    sourceReservationId: str(row.reservation_confirmation_code),
     raw: payload,
   };
 }
@@ -400,17 +412,36 @@ export async function syncOrganizationReviews(input: {
     return result;
   }
 
-  // Booking.com 리뷰의 객실은 예약 ID 역조회로만 얻는다. 조직 안에서만 찾는다.
-  const { data: reservationRows } = await db
-    .from("reservations")
-    .select("id, source_reservation_id, room_label, property_name")
-    .eq("organization_id", organizationId);
-  const reservations = (reservationRows ?? []) as {
+  // 리뷰 ↔ 예약 매칭용 인덱스. 조직 안에서만 찾는다.
+  //
+  // **페이지네이션은 선택이 아니다.** PostgREST는 `range()` 없는 select를 1000행에서 자른다.
+  // 예약이 2000건을 넘는 조직에서는 인덱스 절반이 비어 매칭이 조용히 실패했다 (2026-08-06 발견).
+  type ReservationRow = {
     id: string;
     source_reservation_id: string;
     room_label: string;
     property_name: string;
-  }[];
+    guest_name: string | null;
+    api_reference: string | null;
+  };
+  const reservations: ReservationRow[] = [];
+  const RESERVATION_PAGE = 1000;
+  for (let offset = 0; ; offset += RESERVATION_PAGE) {
+    const { data: page, error } = await db
+      .from("reservations")
+      // `api_reference`는 Airbnb 확인 코드다. 전체 `raw_payload`를 끌어오면 조직당 수 MB라
+      // 필요한 키 하나만 뽑는다.
+      .select("id, source_reservation_id, room_label, property_name, guest_name, api_reference:raw_payload->>apiReference")
+      .eq("organization_id", organizationId)
+      .range(offset, offset + RESERVATION_PAGE - 1);
+    if (error) {
+      skipped.push(`reviews-sync:reservations-${error.code ?? "failed"}`);
+      break;
+    }
+    const rows = (page ?? []) as ReservationRow[];
+    reservations.push(...rows);
+    if (rows.length < RESERVATION_PAGE) break;
+  }
   // `reservations.source_reservation_id` 는 순수 예약 ID가 아니라 `{id}::room::{객실}` 형태다 —
   // 한 Beds24 예약이 여러 객실에 걸칠 수 있어 객실별로 행을 나누기 때문이다(`reconcile` 도 같은
   // 규약을 쓴다). Booking.com 리뷰는 접미사 없는 순수 ID만 주므로, 접두 매칭용 인덱스를 따로 만든다.
@@ -428,6 +459,14 @@ export async function syncOrganizationReviews(input: {
       if (seen === undefined) reservationBySource.set(bare, reservation);
       else if (seen.room_label !== reservation.room_label) reservationBySource.set(bare, { ...seen, room_label: "" });
     }
+  }
+  // Airbnb 확인 코드 → 예약. 한 예약이 여러 객실 행으로 쪼개져 있어도 코드는 같으므로 첫 행만 쓴다
+  // (Airbnb 리뷰의 객실은 조회한 roomId로 이미 확정돼 있어 예약에서 객실을 다시 얻을 필요가 없다).
+  const reservationByAirbnbCode = new Map<string, ReservationRow>();
+  for (const reservation of reservations) {
+    const code = reservation.api_reference?.trim();
+    if (!code) continue;
+    if (!reservationByAirbnbCode.has(code)) reservationByAirbnbCode.set(code, reservation);
   }
   const roomIdByKey = new Map(rooms.map((r) => [`${r.property_id}::${r.room_label}`, r.id]));
 
@@ -477,6 +516,18 @@ export async function syncOrganizationReviews(input: {
           let roomId: string | null = target.provider === "airbnb" ? target.roomId : null;
           let roomLabel: string | null = target.provider === "airbnb" ? target.roomLabel : null;
           let reservationId: string | null = null;
+          let guestDisplayName = review.guestDisplayName;
+
+          if (target.provider === "airbnb" && review.sourceReservationId) {
+            // 객실은 건드리지 않는다 — 조회한 roomId가 이미 확정값이고 예약보다 신뢰도가 높다.
+            // 예약에서 가져오는 건 링크와 게스트 이름뿐이다. 못 찾으면 null로 둔다(추정 금지).
+            const reservation = reservationByAirbnbCode.get(review.sourceReservationId);
+            if (reservation) {
+              reservationId = reservation.id;
+              const name = reservation.guest_name?.trim();
+              if (name) guestDisplayName = name;
+            }
+          }
 
           if (target.provider === "booking" && review.sourceReservationId) {
             const reservation = reservationBySource.get(review.sourceReservationId);
@@ -508,7 +559,8 @@ export async function syncOrganizationReviews(input: {
             room_id: roomId,
             room_label: roomLabel,
             reservation_id: reservationId,
-            guest_display_name: review.guestDisplayName,
+            source_reservation_id: review.sourceReservationId,
+            guest_display_name: guestDisplayName,
             headline: review.headline,
             source_language_code: review.sourceLanguageCode,
             review_text: review.reviewText,

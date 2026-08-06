@@ -211,6 +211,7 @@ export function LeaveBalanceView({
           emp={selectedEmp}
           lc={lc}
           shared={shared}
+          closeLabel={dictionary.common.close}
           localeTag={adminLocaleTag(locale)}
           dictionary={dictionary}
           onClose={() => setSelected(null)}
@@ -225,6 +226,7 @@ function EmployeeDrawer({
   emp,
   lc,
   shared,
+  closeLabel,
   localeTag,
   dictionary,
   onClose,
@@ -233,6 +235,7 @@ function EmployeeDrawer({
   emp: AdminLeaveBalanceRow;
   lc: Lc;
   shared: Dictionary["admin"]["shared"];
+  closeLabel: string;
   localeTag: string;
   dictionary: Dictionary;
   onClose: () => void;
@@ -279,7 +282,7 @@ function EmployeeDrawer({
         <div className="panel__h">
           <div className="panel__top">
             <span className="panel__kicker">{lc.balancePanelKicker}</span>
-            <button type="button" className="panel__x" onClick={onClose} aria-label="close">
+            <button type="button" className="panel__x" onClick={onClose} aria-label={closeLabel}>
               <span className="ic">
                 <X />
               </span>

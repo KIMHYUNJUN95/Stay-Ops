@@ -1,5 +1,9 @@
 # Lost and Found Workflow
 
+## 2026-08-06 localized system history
+
+An admin restore entry is shared operational history, so the server stores a stable locale-neutral marker plus the optional reason. Admin and mobile readers translate that marker for the current `ko`/`ja`/`en` viewer. Existing Korean restore entries are recognized for backward-compatible display.
+
 ## Purpose
 
 The lost and found workflow manages items found in rooms/properties from registration to storage, disposal scheduling, and final disposal.

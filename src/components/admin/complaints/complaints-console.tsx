@@ -2,7 +2,10 @@ import Link from "next/link";
 import { AlertTriangle, Inbox, MessageSquareWarning, Star, ThumbsDown, ThumbsUp, Unlink } from "lucide-react";
 import { DateRangeFormField } from "@/components/admin/shared/date-range-form-field";
 import { ReviewDetailPanel, type ReviewPanelLabels } from "@/components/admin/complaints/review-detail-panel";
+import { ReviewDetailOverlay } from "@/components/admin/complaints/review-detail-overlay";
 import { ManualComplaintList } from "@/components/admin/complaints/manual-complaint-list";
+import { ComplaintCreateLauncher } from "@/components/admin/complaints/complaint-create-launcher";
+import type { PlacePickRow, ReservationPickRow } from "@/lib/complaint-reservations";
 import type { Complaint } from "@/lib/complaints";
 import type {
   BuildingSummary,
@@ -31,6 +34,12 @@ type Props = {
   /** 수동 컴플레인 행별 삭제 버튼 노출 판단용 — 실제 권한은 서버가 다시 검증한다. */
   currentUserId: string;
   canModerate: boolean;
+  /** 수동 컴플레인 직접 등록 진입점 노출 판단용 — 실제 권한은 서버 액션이 다시 검증한다. */
+  canWrite: boolean;
+  /** 등록 패널의 예약 연결 후보. */
+  createReservations: ReservationPickRow[];
+  /** 등록 패널의 건물·객실 직접 선택 후보 (Beds24를 거치지 않은 예약용). */
+  createPlaces: PlacePickRow[];
   reviews: ExternalReview[];
   summaries: BuildingSummary[];
   selectedReview: ExternalReviewDetail | null;
@@ -148,6 +157,9 @@ export function ComplaintsConsole({
   complaints,
   currentUserId,
   canModerate,
+  canWrite,
+  createReservations,
+  createPlaces,
   reviews,
   summaries,
   selectedReview,
@@ -548,6 +560,48 @@ export function ComplaintsConsole({
           <div className="card__h">
             <div className="card__t">{`${copy.viewManual} ${complaints.length}`}</div>
             <div className="card__s">{copy.adminSubtitle}</div>
+            {/* 등록 진입점은 목록이 비어 있을 때도 보여야 한다 — 빈 목록이 곧 첫 등록 시점이다. */}
+            {canWrite ? (
+              <div className="cxcardact">
+                <ComplaintCreateLauncher
+                  label={copy.createAction}
+                  reservations={createReservations}
+                  places={createPlaces}
+                  labels={{
+                    createTitle: copy.createTitle,
+                    fieldPlatform: copy.fieldPlatform,
+                    fieldRating: copy.fieldRating,
+                    fieldTitle: copy.fieldTitle,
+                    fieldBody: copy.fieldBody,
+                    fieldBodyPlaceholder: copy.fieldBodyPlaceholder,
+                    fieldLink: copy.fieldLink,
+                    fieldGuestName: copy.fieldGuestName,
+                    fieldGuestPlaceholder: copy.fieldGuestPlaceholder,
+                    fieldImages: copy.fieldImages,
+                    imagesMax: copy.imagesMax,
+                    submit: copy.submit,
+                    required: copy.required,
+                    optional: copy.optional,
+                    cancel: copy.cancel,
+                    close: panelLabels.close,
+                    linkModeReservation: copy.linkModeReservation,
+                    linkModePlace: copy.linkModePlace,
+                    linkModeNone: copy.linkModeNone,
+                    linkModeHint: copy.linkModeHint,
+                    pickBuilding: copy.pickBuilding,
+                    pickRoom: copy.pickRoom,
+                    pickerSearch: copy.pickerSearch,
+                    pickerStaying: copy.pickerStaying,
+                    pickerUpcoming: copy.pickerUpcoming,
+                    pickerLiveTag: copy.pickerLiveTag,
+                    ratingNone: copy.ratingNone,
+                    titleRequired: copy.titleRequired,
+                    createFailed: copy.createFailed,
+                    platformDirect: copy.platformDirect,
+                  }}
+                />
+              </div>
+            ) : null}
           </div>
           {complaints.length === 0 ? (
             <div className="rstate">
@@ -580,19 +634,21 @@ export function ComplaintsConsole({
       ) : null}
 
       {selectedReview ? (
-        <ReviewDetailPanel
-          review={selectedReview}
-          copy={copy}
-          labels={panelLabels}
-          closeHref={closeHref}
-          showTranslation={showTranslation}
-          originalHref={originalHref}
-          translateRedirectTo={translateRedirectTo}
-          translations={translations}
-          canConvert={canConvert}
-          convertRedirectTo={convertRedirectTo}
-          linkedComplaintHref={linkedComplaintHref}
-        />
+        <ReviewDetailOverlay closeHref={closeHref}>
+          <ReviewDetailPanel
+            review={selectedReview}
+            copy={copy}
+            labels={panelLabels}
+            closeHref={closeHref}
+            showTranslation={showTranslation}
+            originalHref={originalHref}
+            translateRedirectTo={translateRedirectTo}
+            translations={translations}
+            canConvert={canConvert}
+            convertRedirectTo={convertRedirectTo}
+            linkedComplaintHref={linkedComplaintHref}
+          />
+        </ReviewDetailOverlay>
       ) : null}
     </>
   );

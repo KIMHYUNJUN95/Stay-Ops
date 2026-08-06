@@ -7,6 +7,7 @@ import { MobileShell } from "@/components/shell/mobile-shell";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getDictionary } from "@/lib/i18n";
 import { getDisposedLostItems } from "@/lib/lost-found";
+import { localizeLostFoundMemo } from "@/lib/lost-found-memo";
 import { getOnboardingState } from "@/lib/onboarding";
 import { resolveRequestLocation } from "@/lib/request-location";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
@@ -81,7 +82,7 @@ export default async function DisposedLostFoundPage() {
       isAuto: !item.handled_by, // 자동 폐기 배치는 handled_by 를 비운다
       handledByName: item.handled_by_name,
       reporterName: item.reporter_name || "-",
-      handlingMemo: item.handling_memo,
+      handlingMemo: localizeLostFoundMemo(item.handling_memo, dictionary.lostFound.adminRestoreMemoLabel),
       monthKey,
       relativeGroup,
     };

@@ -99,6 +99,8 @@ export default async function MobileRequestsPage({ searchParams }: PageProps) {
           calendarApply: dictionary.mobile.calendarApply,
           calendarClear: dictionary.mobile.calendarClear,
           calendarClose: dictionary.mobile.calendarClose,
+          calendarPreviousMonth: dictionary.mobile.calendarPreviousMonth,
+          calendarNextMonth: dictionary.mobile.calendarNextMonth,
           clearBuildingFilter: dictionary.mobile.clearBuildingFilter,
           calendarSelectEnd: dictionary.mobile.calendarSelectEnd,
           calendarSelectStart: dictionary.mobile.calendarSelectStart,
@@ -172,6 +174,8 @@ export default async function MobileRequestsPage({ searchParams }: PageProps) {
           dayEmpty: dictionary.mobile.deliveryCalendar.dayEmpty,
           today: dictionary.mobile.deliveryCalendar.today,
           close: dictionary.mobile.deliveryCalendar.close,
+          previousMonth: dictionary.mobile.deliveryCalendar.previousMonth,
+          nextMonth: dictionary.mobile.deliveryCalendar.nextMonth,
           countTemplate: dictionary.mobile.deliveryCalendar.countTemplate,
           rangeLabel: dictionary.mobile.deliveryCalendar.rangeLabel,
         }}

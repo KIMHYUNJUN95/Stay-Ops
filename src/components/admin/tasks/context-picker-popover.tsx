@@ -74,6 +74,7 @@ export type ContextPickerCopy = {
   occupied: string;
   vacant: string;
   nightsUnit: string;
+  channelDirect: string;
   live: string;
   roomsUnit: string;
   todayGuests: string;
@@ -103,9 +104,9 @@ function EmptyPane({ icon, title, sub }: { icon: ReactNode; title: string; sub?:
   );
 }
 
-function channelLabel(channel: "airbnb" | "booking" | "direct"): string {
+function channelLabel(channel: "airbnb" | "booking" | "direct", directLabel: string): string {
   // Channel brand names are left untranslated, matching the mobile picker's existing precedent.
-  return channel === "airbnb" ? "Airbnb" : channel === "booking" ? "Booking" : "Direct";
+  return channel === "airbnb" ? "Airbnb" : channel === "booking" ? "Booking" : directLabel;
 }
 
 function BuildingRow({
@@ -187,7 +188,7 @@ function ReservationRow({
           {res.isLive ? <span className="ctxp__livebadge">{copy.live}</span> : null}
         </span>
         <span className="ctxp__rowsub">
-          {channelLabel(res.channel)} · {res.dateRange} · {res.nightsCount}
+          {channelLabel(res.channel, copy.channelDirect)} · {res.dateRange} · {res.nightsCount}
           {copy.nightsUnit}
         </span>
       </span>
@@ -230,7 +231,7 @@ function SearchResultRow({
           {showRoom ? ` · ${result.displayRoomLabel}${copy.roomSuffix}` : ""}
         </span>
         <span className="ctxp__rowsub2">
-          {channelLabel(result.channel)} · {result.dateRange} · {result.nightsCount}
+          {channelLabel(result.channel, copy.channelDirect)} · {result.dateRange} · {result.nightsCount}
           {copy.nightsUnit}
           {result.sourceReservationId ? ` · ${copy.bookingId} ${result.sourceReservationId}` : ""}
         </span>

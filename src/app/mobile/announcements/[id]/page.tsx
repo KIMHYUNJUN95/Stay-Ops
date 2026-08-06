@@ -144,6 +144,8 @@ export default async function MobileAnnouncementDetailPage({
         {announcement.image_urls.length > 0 && (
           <div className="mt-5">
             <AnnouncementImageGrid
+              closeLabel={copy.close}
+              imageAltLabel={copy.imageAttachments}
               imageUrls={announcement.image_urls}
               variant="feature"
             />

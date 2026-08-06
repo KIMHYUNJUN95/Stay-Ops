@@ -99,10 +99,20 @@ StayOps UI는 Beds24를 실시간 조회하지 않고, 수집한 `external_revie
 - 중복 키: `(organization_id, provider, external_review_id)` UPSERT. 이미 수집한 리뷰를 중복 생성하지 않는다.
 - **Airbnb 리뷰는 양방향이다.** `reviewer_role`이 게스트인 리뷰만 저장하고, `submitted=false` 또는
   `hidden=true`는 버린다. 걸러내지 않으면 호스트가 게스트에게 쓴 리뷰까지 수집된다.
-- 매핑은 플랫폼마다 방식이 다르다. **Airbnb는 조회한 `roomId`로 객실이 확정**되고 예약 ID가 없다.
+- 매핑은 플랫폼마다 방식이 다르다. **Airbnb는 조회한 `roomId`로 객실이 확정**된다.
   **Booking.com은 객실 정보가 없고** `reservation_id`(Beds24 bookingId)를 같은 조직의
   `reservations.source_reservation_id`로 역조회해야 객실을 얻는다. 역조회 실패 시 객실을 추정하지 않고
   null로 둔다.
+- **Airbnb 예약 매칭 (2026-08-06 정정).** "Airbnb는 예약 ID가 없다"는 이전 기술은 틀렸다. 리뷰
+  페이로드에 `reservation_confirmation_code`(예: `HMRWNK5RQW`)가 **2,214/2,214건 전부** 들어 있고,
+  같은 코드가 우리 예약의 `raw_payload->>apiReference`에 저장돼 있다. 수집 시 조직 범위에서 이 코드로
+  예약을 찾아 `reservation_id`와 `guest_display_name`을 채운다. **객실은 예약에서 가져오지 않는다** —
+  조회한 `roomId`가 더 신뢰도 높은 확정값이다. 작성자 이름 자체는 Airbnb가 여전히 주지 않으며
+  (`reviewer_id` 숫자 ID뿐), 표시되는 이름은 매칭된 예약의 값이다. 매칭 실패 시 둘 다 null.
+  조회 비용은 `reservations_api_reference_idx` 부분 인덱스가 받친다.
+- **예약 인덱스는 반드시 페이지네이션한다 (2026-08-06 수정).** PostgREST는 `range()` 없는 select를
+  1000행에서 자른다. 예약이 2,000건을 넘는 조직에서 인덱스 절반이 비어 Booking.com 객실 역조회가
+  조용히 실패하고 있었다. 수집 코드는 1000행 단위로 끝까지 읽는다.
 - API 비용 통제: 응답 헤더 `X-RequestCost`, `X-FiveMinCreditLimit-Remaining`,
   `X-FiveMinCreditLimit-ResetsIn`을 수집 로그에 남긴다. 여유 크레딧이 낮으면 남은 대상을 다음 주기로
   미루고(중단 지점을 다음 주기가 이어받는다), 예약 웹훅 처리보다 우선하지 않는다.

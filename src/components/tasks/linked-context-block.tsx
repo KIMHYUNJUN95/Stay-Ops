@@ -11,6 +11,7 @@ type Copy = Pick<
   | "contextBuildingOnlyLinked"
   | "contextGoToReservation"
   | "contextLinkedSection"
+  | "contextChannelDirect"
   | "contextPickerNightsUnit"
   | "contextPickerRoomSuffix"
   | "contextRoomOnlyLinked"
@@ -29,7 +30,7 @@ function calendarHref(context: LinkedTaskContext): string | null {
   return `/mobile/calendar?${params.toString()}`;
 }
 
-function ChannelBadge({ channel }: { channel: LinkedTaskContext["channel"] }) {
+function ChannelBadge({ channel, directLabel }: { channel: LinkedTaskContext["channel"]; directLabel: string }) {
   if (!channel) return null;
   if (channel === "airbnb")
     return (
@@ -45,7 +46,7 @@ function ChannelBadge({ channel }: { channel: LinkedTaskContext["channel"] }) {
     );
   return (
     <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-extrabold text-slate-600">
-      Direct
+      {directLabel}
     </span>
   );
 }
@@ -146,7 +147,7 @@ export function LinkedContextBlock({
           {/* lctx__s */}
           {(context.channel || context.guestName || dateStr) ? (
             <div className="mt-[5px] flex flex-wrap items-center gap-[7px] text-[11.5px] font-semibold text-muted-foreground">
-              <ChannelBadge channel={context.channel} />
+              <ChannelBadge channel={context.channel} directLabel={copy.contextChannelDirect} />
               {context.guestName ? <span>{context.guestName}</span> : null}
               {dateStr ? <span>{dateStr}</span> : null}
             </div>

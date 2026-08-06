@@ -212,6 +212,8 @@ type FilterLabels = {
   calendarApply: string;
   calendarClear: string;
   calendarClose: string;
+  calendarPreviousMonth: string;
+  calendarNextMonth: string;
   clearBuildingFilter: string;
   calendarSelectEnd: string;
   calendarSelectStart: string;
@@ -273,6 +275,8 @@ type DeliveryCalendarCopy = {
   dayEmpty: string;
   today: string;
   close: string;
+  previousMonth: string;
+  nextMonth: string;
   countTemplate: string;
   rangeLabel: string;
 };
@@ -1086,6 +1090,8 @@ export function RequestsFilterView({
           apply: filterLabels.calendarApply,
           clear: filterLabels.calendarClear,
           close: filterLabels.calendarClose,
+          previousMonth: filterLabels.calendarPreviousMonth,
+          nextMonth: filterLabels.calendarNextMonth,
           selectEnd: filterLabels.calendarSelectEnd,
           selectStart: filterLabels.calendarSelectStart,
           title: filterLabels.calendarTitle,
@@ -1472,6 +1478,8 @@ export function RequestsFilterView({
             dayEmpty: deliveryCalendarCopy.dayEmpty,
             today: deliveryCalendarCopy.today,
             close: deliveryCalendarCopy.close,
+            previousMonth: deliveryCalendarCopy.previousMonth,
+            nextMonth: deliveryCalendarCopy.nextMonth,
             countTemplate: deliveryCalendarCopy.countTemplate,
             rangeLabel: deliveryCalendarCopy.rangeLabel,
           }}

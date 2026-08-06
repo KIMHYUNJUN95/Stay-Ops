@@ -16,6 +16,7 @@ import {
   LOST_FOUND_STORAGE_DAYS,
   type LostReturnMethod,
 } from "@/lib/lost-found-constants";
+import { appendAdminRestoreMemo } from "@/lib/lost-found-memo";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 type LostActionResult =
@@ -246,12 +247,10 @@ export async function restoreLostItem(input: {
     return { ok: false, reason: "invalid" };
   }
 
-  // 복원 사유를 기존 처리 메모에 덧붙여 감사 흔적을 남긴다(사용자 결정 2026-07-16). 접두어는
-  // 자동 폐기 메모와 마찬가지로 서버측 고정 문자열이라 뷰어 로케일과 무관하다.
+  // 복원 사유는 locale-neutral marker로 저장하고 각 뷰어의 언어로 렌더링한다.
   const previousMemo = current.handling_memo ?? "";
   const reason = input.reason.trim();
-  const note = reason ? `관리자 복원: ${reason}` : "관리자 복원";
-  const memo = previousMemo ? `${previousMemo}\n${note}` : note;
+  const memo = appendAdminRestoreMemo(previousMemo, reason);
 
   const { data: updated, error } = await supabase
     .from("lost_items")

@@ -1260,8 +1260,9 @@ external_reviews (planned)
   property_name text
   room_id uuid references rooms(id) on delete set null
   room_label text
-  reservation_id uuid references reservations(id) on delete set null
-  guest_display_name text                        -- Booking.com only; Airbnb exposes no reviewer name
+  reservation_id uuid references reservations(id) on delete set null   -- local link; never displayed
+  source_reservation_id text                     -- provider's own reservation number; this is what the UI shows
+  guest_display_name text                        -- Booking.com: reviewer.name. Airbnb: copied from the matched reservation
   headline text                                  -- Booking.com content.headline; Airbnb has none
   source_language_code text                      -- Booking.com content.language_code; null on Airbnb
   review_text text                               -- nullable: provider may submit score-only review
@@ -1298,6 +1299,17 @@ endpoint offers no score or date filter anyway.
 cross-provider schema: Airbnb stores `category_ratings[]`, Booking.com stores
 `scoring{clean, facilities, location, services, staff, value}`. Booking.com positive/negative text is
 independently nullable; both may be absent for a valid score-only review.
+
+**Reservation linkage (corrected 2026-08-06, migration `202608060001_external_reviews_source_reservation.sql`).**
+The original note "Airbnb exposes no reservation id" was wrong — measured against our own stored
+`raw_payload`, all 2,214 Airbnb reviews carry `reservation_confirmation_code` (e.g. `HMRWNK5RQW`).
+It is not a Beds24 bookingId, hence the miss, but the same code lives on our reservations at
+`raw_payload->>apiReference` (indexed by `reservations_api_reference_idx`). `source_reservation_id`
+stores the provider-native number for both providers and is what the detail screen displays;
+`reservation_id` stays the internal uuid link. The Airbnb match also supplies `guest_display_name`,
+since the review payload itself really does carry no reviewer name (numeric `reviewer_id` only).
+Room is **not** taken from the matched reservation for Airbnb — the queried `roomId` is the stronger
+signal. Unmatched reviews keep NULLs; nothing is inferred.
 
 `private_feedback` is Airbnb's guest-to-host private note. It carries no score and must never feed
 risk classification or rating aggregation; clients render it visually separated from the public

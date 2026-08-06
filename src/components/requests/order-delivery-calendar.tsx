@@ -35,6 +35,8 @@ type Copy = {
   dayEmpty: string;
   today: string;
   close: string;
+  previousMonth: string;
+  nextMonth: string;
   countTemplate: string;
   rangeLabel: string;
 };
@@ -212,7 +214,7 @@ export function OrderDeliveryCalendar({
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-1">
               <button
-                aria-label="prev"
+                aria-label={copy.previousMonth}
                 className="flex size-9 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-foreground"
                 onClick={() => shiftMonth(-1)}
                 type="button"
@@ -223,7 +225,7 @@ export function OrderDeliveryCalendar({
                 {monthLabel}
               </span>
               <button
-                aria-label="next"
+                aria-label={copy.nextMonth}
                 className="flex size-9 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-foreground"
                 onClick={() => shiftMonth(1)}
                 type="button"

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Languages, RotateCcw, X } from "lucide-react";
 import { convertReviewAction, translateReviewAction } from "@/app/admin/complaints/actions";
 import { REVIEW_SCALE, type ExternalReviewDetail, type ReviewProvider } from "@/lib/external-reviews";
+import { parseReviewBreakdown } from "@/lib/external-review-rules";
 import type { TranslationPart } from "@/lib/review-translate";
 import type { Dictionary } from "@/lib/i18n";
 
@@ -32,43 +33,6 @@ type Props = {
   convertRedirectTo: string;
   linkedComplaintHref: string | null;
 };
-
-type BreakdownRow = { label: string; value: string };
-
-/** 카테고리 키를 사람이 읽는 형태로만 바꾼다 — 플랫폼이 준 항목명 자체를 번역하거나 재정의하지 않는다. */
-function humanize(key: string): string {
-  return key.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-/**
- * `rating_breakdown` 원본 구조를 플랫폼별로 파싱한다. Airbnb는 `category_ratings[]`,
- * Booking.com은 `scoring{...}` — 공통 스키마로 정규화하지 않는다 (docs/product/25 참고).
- */
-function parseBreakdown(provider: ReviewProvider, raw: unknown): BreakdownRow[] {
-  if (!raw || typeof raw !== "object") return [];
-
-  if (provider === "airbnb") {
-    const categories = (raw as { category_ratings?: unknown }).category_ratings;
-    if (!Array.isArray(categories)) return [];
-    const rows: BreakdownRow[] = [];
-    for (const entry of categories) {
-      if (!entry || typeof entry !== "object") continue;
-      const category = (entry as { category?: unknown }).category;
-      const rating = (entry as { rating?: unknown }).rating;
-      if (typeof category !== "string") continue;
-      rows.push({ label: humanize(category), value: typeof rating === "number" ? String(rating) : "—" });
-    }
-    return rows;
-  }
-
-  const scoring = (raw as { scoring?: unknown }).scoring;
-  if (!scoring || typeof scoring !== "object") return [];
-  const keys = ["clean", "facilities", "location", "services", "staff", "value"] as const;
-  return keys.map((key) => {
-    const value = (scoring as Record<string, unknown>)[key];
-    return { label: humanize(key), value: typeof value === "number" ? String(value) : "—" };
-  });
-}
 
 /** 토글이 켜져 있고 해당 파트의 저장된 번역이 있으면 번역문, 아니면 원문. 번역 실패는 조용히 원문으로. */
 function textFor(
@@ -114,7 +78,8 @@ export function ReviewDetailPanel({
       review.headline ||
       review.privateFeedback,
   );
-  const breakdown = parseBreakdown(review.provider, review.ratingBreakdown);
+  // 세부 점수 라벨은 사전으로 현지화한다 — 저장된 원본 키·구조는 그대로다.
+  const breakdown = parseReviewBreakdown(review.provider, review.ratingBreakdown, copy.breakdownLabels);
 
   const headlineText = textFor("headline", review.headline, showTranslation, translations);
   const publicText = textFor("review", review.reviewText, showTranslation, translations);
@@ -124,12 +89,12 @@ export function ReviewDetailPanel({
 
   return (
     <>
-      <Link href={closeHref} className="panel-scrim" aria-label={labels.close} />
+      <Link href={closeHref} className="panel-scrim" aria-label={labels.close} data-panel-close />
       <aside className="panel" role="dialog" aria-label={copy.viewReviews}>
         <div className="panel__h">
           <div className="panel__top">
             <span className="panel__kicker">{copy.viewReviews}</span>
-            <Link href={closeHref} className="panel__x" aria-label={labels.close}>
+            <Link href={closeHref} className="panel__x" aria-label={labels.close} data-panel-close>
               <X />
             </Link>
           </div>
@@ -163,7 +128,7 @@ export function ReviewDetailPanel({
                 <span className="cxsrc">{copy.breakdownSource}</span>
               </div>
               {breakdown.map((row) => (
-                <Kv key={row.label} label={row.label}>
+                <Kv key={row.key} label={row.label}>
                   {row.value}
                 </Kv>
               ))}
@@ -258,12 +223,16 @@ export function ReviewDetailPanel({
             <div className="pblock__t">{copy.contextTitle}</div>
             <Kv label={labels.building}>{review.propertyName ?? "—"}</Kv>
             <Kv label={labels.room}>{review.roomLabel ?? copy.noRoom}</Kv>
+            {/* 제공자가 쓰는 예약 번호를 그대로 보여 준다 — 운영자가 OTA 익스트라넷에서 검색할 수
+                있는 값이라야 의미가 있다. 우리 예약 행의 uuid는 노출하지 않는다. */}
             <Kv label={labels.reservation}>
-              {review.provider === "airbnb" ? copy.noReservationAirbnb : (review.reservationId ?? "—")}
+              {review.sourceReservationId ? (
+                <span className="mono">{review.sourceReservationId}</span>
+              ) : (
+                copy.noReservationLink
+              )}
             </Kv>
-            <Kv label={labels.guest}>
-              {review.provider === "airbnb" ? copy.noGuestAirbnb : (review.guestDisplayName ?? "—")}
-            </Kv>
+            <Kv label={labels.guest}>{review.guestDisplayName ?? copy.noGuestName}</Kv>
             <Kv label={copy.importedAt}>
               <span className="mono">{review.importedAt.slice(0, 10)}</span>
             </Kv>

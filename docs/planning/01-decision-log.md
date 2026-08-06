@@ -2,6 +2,12 @@
 
 This file records important project decisions.
 
+## 2026-08-06 Admin/Mobile multilingual hardcoding closure
+
+- All ordinary visible copy and accessibility names under `/admin/*` and `/mobile/*` use the shared `ko`/`ja`/`en` dictionaries or locale-aware `Intl` formatting. Direct English/Korean/Japanese literals are not an accepted shortcut.
+- System-authored lost-and-found restore history is persisted as a locale-neutral marker and translated for the current viewer. This avoids permanently storing the administrator's UI language in shared operational data.
+- The prescribed Japanese `休暇届` remains a fixed Japanese business document regardless of the signed-in UI locale. It is documented as an intentional domain-template exception to the UI hardcoding check.
+
 ## 2026-08-03 Todo 업무일지 — 단일 Slack 채널 수동 전송
 
 ### 결정
@@ -212,6 +218,7 @@ iOS 전용 대책이 아니다. 안드로이드·PWA 사용자도 세션이 만�
   450,000자 안전 한도를 두며, 도달 시 새 번역을 다음 월까지 중단하고 원문·기존 번역은 계속 제공한다.
 - 플랫폼별 세부 점수는 `rating_breakdown` 원본 구조로 보관하고 제공된 경우에만 상세에 표시한다.
   Booking.com의 긍정/부정 본문은 분리 보관하며, 본문 없이 점수만 존재하는 리뷰도 정상 데이터로 수집·표시한다.
+  (**2026-08-06 갱신** — 보관 구조는 그대로지만 **표시 라벨은 현지화**한다. 아래 항목 참고.)
 - 객실은 Beds24의 예약/객실 식별자와 로컬 데이터가 신뢰성 있게 매칭될 때만 표시한다. 추정 매핑은 금지한다.
 - 모바일과 대시보드는 같은 조직의 수동 컴플레인·외부 리뷰·번역 캐시를 공유한다. 화면별 복사 테이블이나
   별도 Beds24/DeepL 호출을 만들지 않으며, 어느 화면의 처리 결과도 다른 화면에서 같은 ID와 연결 상태로
@@ -4801,3 +4808,99 @@ Supabase 의 leaked password protection 은 **Pro 플랜 전용**이라 현재 �
 
 **엑셀 서식은 미확정이며 마지막에 얹는다.** 서식이 바뀌어도 앞단(촬영·OCR·집계·검토)은 흔들리지
 않는다.
+
+---
+
+## 2026-08-06 — 외부 리뷰 세부 점수: 항목명을 현지화한다 (표시만)
+
+컴플레인 상세의 «세부 점수»가 `Clean / Facilities / Location / Services / Staff / Value`처럼
+영문으로 노출되고 있었다. 이는 버그가 아니라 초기 결정("플랫폼이 준 항목명 자체를 번역하거나
+재정의하지 않는다")의 결과였으나, **운영 담당자가 읽는 화면에 영어가 그대로 남는 것은 다국어
+원칙에 어긋난다**고 판단해 결정을 바꾼다.
+
+- **저장은 그대로, 표시만 현지화한다.** `rating_breakdown`은 계속 플랫폼 원본 키·구조로 보관한다
+  (Airbnb `category_ratings[]`, Booking.com `scoring{}`). 공통 스키마로 정규화하지 않는다는 원래
+  결정은 유효하다.
+- 라벨은 `dictionary.complaints.breakdownLabels`(ko/ja/en)에서 온다. Booking 6항목
+  (`clean`/`facilities`/`location`/`services`/`staff`/`value`)과 Airbnb 6항목
+  (`cleanliness`/`accuracy`/`checkin`/`communication`/`location`/`value`)을 함께 담는다.
+- **사전에 없는 키는 종전대로 영문 폴백**(`check_in` → `Check In`)이다. 플랫폼이 항목을 추가해도
+  화면이 깨지지 않고, 사전에 키만 추가하면 번역된다. Beds24 리뷰 엔드포인트가 Beta/Alpha라
+  항목명이 바뀔 수 있어 이 폴백은 의도적으로 남긴다.
+- 파싱·라벨 매핑을 `src/lib/external-review-rules.ts`의 `parseReviewBreakdown()` 하나로 합쳤다.
+  모바일 상세(`components/complaints/review-detail.tsx`)와 어드민 상세 패널
+  (`components/admin/complaints/review-detail-panel.tsx`)이 동일 로직을 두 벌 들고 있던 상태를
+  정리한 것으로, 앞으로 항목을 추가할 때 한쪽만 고쳐지는 사고를 막는다.
+
+상세 계약은 Product `25`에 반영했다.
+
+---
+
+## 2026-08-06 — Airbnb 리뷰에 예약·게스트 이름을 붙인다 (초기 기술 정정)
+
+기획 문서와 migration 주석에 "Airbnb는 예약 ID와 작성자 이름을 제공하지 않는다"로 적혀 있었다.
+**절반이 틀렸다.** 보존해 둔 `raw_payload`를 실측했다.
+
+- Airbnb 리뷰 **2,214건 전부**가 `reservation_confirmation_code`(예: `HMRWNK5RQW`)를 갖고 있다.
+  Beds24 bookingId가 아니라서 `source_reservation_id` 역조회에 안 걸렸을 뿐이고, **같은 코드가 우리
+  예약의 `raw_payload->>apiReference`에 저장돼 있다.**
+- 작성자 **이름**은 정말 없다(`reviewer_id` 숫자 ID뿐). 이 부분의 기존 기술은 맞다. 대신 위 코드로
+  찾은 **예약의 `guest_name`**을 쓴다. 리뷰에서 추정하는 것이 아니라 다른 신뢰 가능한 출처를
+  붙이는 것이므로 "없는 값을 추정하지 않는다" 원칙과 충돌하지 않는다.
+
+결정:
+
+1. **`external_reviews.source_reservation_id` 신설.** 제공자가 쓰는 예약 번호를 담는다(Airbnb 확인
+   코드 / Booking.com bookingId). **화면의 «예약 ID»는 이 값이다.** 기존 구현은 Booking.com 상세에
+   내부 uuid를 그대로 보여 주고 있었는데, 운영자가 OTA 익스트라넷에서 검색할 수 없는 값이라 의미가
+   없었다. `reservation_id`(uuid)는 내부 링크로만 남긴다.
+2. **게스트 실명을 그대로 표시한다** (사용자 확인 2026-08-06). Booking.com이 이미 그렇게 하고 있어
+   플랫폼 간 동작이 일치한다.
+3. **객실은 예약에서 가져오지 않는다.** Airbnb는 조회한 `roomId`가 이미 확정값이고 예약보다 신뢰도가
+   높다. Booking.com과 방향이 반대라는 점을 코드·문서에 명시한다.
+4. **매칭 실패는 null로 둔다.** 화면에는 `연결된 예약 없음` / `이름 없음`(ko/ja/en). 플랫폼 탓을 하는
+   이전 문구(`Airbnb는 예약 ID를 제공하지 않습니다`)는 사실이 아니므로 삭제했다.
+
+**커버리지는 리뷰가 아니라 예약 보유 범위가 결정한다.** 로컬 예약이 2026-04-22부터라 전체 2,214건 중
+222건(10%)만 매칭된다. 2026-05-01 이후 리뷰만 보면 **222/233 = 95%**다. 즉 앞으로 들어오는 리뷰는
+거의 다 채워지고, 과거분은 Beds24 예약 백필을 과거로 더 돌리지 않는 한 비어 있다. 이 한계를 감추지
+않고 문서에 남긴다.
+
+**곁가지로 발견한 기존 버그도 고쳤다.** 수집 코드의 예약 인덱스가 `range()` 없이 select 하고 있어
+PostgREST 기본 상한 1000행에서 잘리고 있었다(현재 예약 2,173건). 예약이 2,000건을 넘는 조직에서
+Booking.com 객실 역조회가 조용히 절반만 동작하던 셈이다. 1000행 단위 페이지네이션으로 수정했다.
+
+migration: `202608060001_external_reviews_source_reservation.sql` (컬럼 추가 + 기존 행 백필 +
+`reservations_api_reference_idx`). 상세 계약은 Product `25`, 연동은 Engineering `01`, 스키마는
+Engineering `04`에 반영했다.
+
+---
+
+## 2026-08-06 — 대시보드에서 수동 컴플레인 직접 등록
+
+지금까지 수동 컴플레인 등록은 **모바일에만** 있었다. 사무실에서 접수한 건도 휴대폰을 꺼내야 했고,
+대시보드는 읽기·전환·삭제만 가능했다. 대시보드에도 등록을 넣는다.
+
+결정:
+
+1. **저장 경로는 하나로 유지한다.** 대시보드 `createManualComplaintAction`은 모바일과 같은
+   `createComplaint`를 부른다. 권한(`canWriteComplaint`)·조직 스코프·제목/플랫폼/이미지 검증이
+   한 곳에만 있어야 두 화면이 갈라지지 않는다.
+2. **연결 방식을 3가지로 늘린다** — `예약 연결` / `건물 · 객실` / `연결 안 함`.
+   모바일은 예약을 고르는 길 하나뿐인데, **전화·워크인·자사 홈페이지처럼 Beds24를 거치지 않은
+   예약은 예약 피커에 아예 없다.** 그 건들은 건물·객실이 빈 채로 등록돼 「문제 객실」 집계에서
+   통째로 빠지고 있었다. 객실 마스터에서 직접 고르는 경로로 이 구멍을 막는다.
+3. **건물·객실은 자유 텍스트가 아니라 마스터 선택이다.** 표기가 흔들리면 객실별 집계가 같은 키로
+   묶이지 않는다. 선택지는 예약 캘린더·청소와 같은 활성 객실 집합을 쓴다.
+4. **폼은 공용 `.panel` 우측 슬라이드오버**로 띄운다(사용자 확인). 입력 항목이 많아 세로 공간이
+   넉넉한 쪽이 맞고, 리뷰 상세가 이미 같은 셸을 쓰고 있어 콘솔 안에서 패턴이 하나로 유지된다.
+   전용 스타일을 새로 만들지 않고 `.fld` / `.btn--pri` / `.chipbtn` 공용 primitive를 쓴다.
+5. **사진 첨부 포함** (최대 5장, 모바일과 동일 정책). OTA 메시지 캡처·메일 스크린샷을 붙이는 데는
+   오히려 데스크톱이 편하다.
+6. `연결 안 함`도 유효한 선택으로 남긴다. 어느 방 건인지 모르는 컴플레인도 등록은 가능해야 한다.
+
+구현 메모: `dictionary.complaints`에는 `ratingOf` 같은 **함수 값**이 있어 클라이언트 컴포넌트에
+통째로 넘기면 RSC 직렬화가 깨진다(커밋 cb15f7e 회귀). 등록 패널에는 `ManualComplaintList`와 같은
+방식으로 **문자열만 담은 `labels` 객체**를 넘긴다.
+
+상세 계약은 Product `25`에 반영했다.

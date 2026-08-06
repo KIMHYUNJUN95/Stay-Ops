@@ -8,7 +8,7 @@ import { CIc, CxIcon } from "./cx-icons";
 import { PlatformSource } from "./cx-platform";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { getDictionary } from "@/lib/i18n";
-import { REVIEW_SCALE, type ReviewProvider } from "@/lib/external-review-rules";
+import { REVIEW_SCALE, parseReviewBreakdown } from "@/lib/external-review-rules";
 import type { ExternalReviewDetail } from "@/lib/external-reviews";
 import type { TranslationPart } from "@/lib/review-translate";
 import {
@@ -21,41 +21,6 @@ function formatDate(iso: string | null, locale: string): string {
   return new Intl.DateTimeFormat(locale, { year: "numeric", month: "long", day: "numeric" }).format(
     new Date(iso),
   );
-}
-
-type BreakdownRow = { label: string; value: string };
-
-/** Category keys are only made readable — the platform's own item names are never re-labeled. */
-function humanize(key: string): string {
-  return key.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-/**
- * Parses `rating_breakdown` per provider only — Airbnb `category_ratings[]`,
- * Booking.com `scoring{...}`. Never normalized into one common schema (docs/product/25).
- */
-function parseBreakdown(provider: ReviewProvider, raw: unknown): BreakdownRow[] {
-  if (!raw || typeof raw !== "object") return [];
-  if (provider === "airbnb") {
-    const categories = (raw as { category_ratings?: unknown }).category_ratings;
-    if (!Array.isArray(categories)) return [];
-    const rows: BreakdownRow[] = [];
-    for (const entry of categories) {
-      if (!entry || typeof entry !== "object") continue;
-      const category = (entry as { category?: unknown }).category;
-      const rating = (entry as { rating?: unknown }).rating;
-      if (typeof category !== "string") continue;
-      rows.push({ label: humanize(category), value: typeof rating === "number" ? String(rating) : "—" });
-    }
-    return rows;
-  }
-  const scoring = (raw as { scoring?: unknown }).scoring;
-  if (!scoring || typeof scoring !== "object") return [];
-  const keys = ["clean", "facilities", "location", "services", "staff", "value"] as const;
-  return keys.map((key) => {
-    const value = (scoring as Record<string, unknown>)[key];
-    return { label: humanize(key), value: typeof value === "number" ? String(value) : "—" };
-  });
 }
 
 /** Only used to skip an obviously-redundant translate offer (Booking gives a source language). */
@@ -84,7 +49,8 @@ export function ReviewDetail({
   const hasBody = Boolean(
     review.reviewText || review.positiveReviewText || review.negativeReviewText,
   );
-  const breakdown = parseBreakdown(review.provider, review.ratingBreakdown);
+  // Sub-score labels are localized from the dictionary; the stored keys stay as the platform sent them.
+  const breakdown = parseReviewBreakdown(review.provider, review.ratingBreakdown, t.breakdownLabels);
 
   // 원문 언어를 안정적으로 아는 건 Booking.com뿐이다(source_language_code). Airbnb는 항상
   // 자동 감지로 넘긴다 — 번역 여부를 미리 판단할 수 없으므로 버튼은 그대로 노출한다.
@@ -281,7 +247,7 @@ export function ReviewDetail({
           </div>
           <div className="cx-meta">
             {breakdown.map((row) => (
-              <div className="cx-meta__row" key={row.label}>
+              <div className="cx-meta__row" key={row.key}>
                 <span className="cx-meta__l">{row.label}</span>
                 <span className="cx-meta__v">{row.value}</span>
               </div>
@@ -311,8 +277,9 @@ export function ReviewDetail({
             <CIc>{CxIcon.cal}</CIc>
             {dict.mobile.calendarReservationId}
           </span>
-          <span className="cx-meta__v">
-            {review.provider === "airbnb" ? t.noReservationAirbnb : (review.reservationId ?? "—")}
+          {/* The provider's own reservation number — the value staff can search on the OTA. */}
+          <span className={review.sourceReservationId ? "cx-meta__v mono" : "cx-meta__v"}>
+            {review.sourceReservationId ?? t.noReservationLink}
           </span>
         </div>
         <div className="cx-meta__row">
@@ -320,9 +287,7 @@ export function ReviewDetail({
             <CIc>{CxIcon.person}</CIc>
             {t.metaGuest}
           </span>
-          <span className="cx-meta__v">
-            {review.provider === "airbnb" ? t.noGuestAirbnb : (review.guestDisplayName ?? "—")}
-          </span>
+          <span className="cx-meta__v">{review.guestDisplayName ?? t.noGuestName}</span>
         </div>
         <div className="cx-meta__row">
           <span className="cx-meta__l">{t.importedAt}</span>

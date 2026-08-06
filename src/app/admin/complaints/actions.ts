@@ -10,7 +10,13 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { canWriteComplaint, deleteComplaint } from "@/lib/complaints";
+import {
+  canWriteComplaint,
+  createComplaint,
+  deleteComplaint,
+  uploadComplaintImage,
+  type ComplaintInput,
+} from "@/lib/complaints";
 import { getCurrentAppSession } from "@/lib/session";
 import { convertReviewToComplaint, getExternalReview } from "@/lib/external-reviews";
 import { translateReviewPart, type TranslationPart } from "@/lib/review-translate";
@@ -55,6 +61,92 @@ export async function convertReviewAction(formData: FormData): Promise<void> {
     // 이미 전환됐거나(already_linked) 권한/조직이 어긋난 경우 — 상세를 그대로 다시 보여준다.
   }
   redirect(target);
+}
+
+const MAX_IMAGES = 5;
+
+export type CreateComplaintResult = { id: string } | { error: string };
+export type UploadImageResult = { url: string } | { error: string };
+
+function optional(formData: FormData, key: string): string | null {
+  const value = String(formData.get(key) ?? "").trim();
+  return value ? value : null;
+}
+
+/**
+ * 대시보드에서 수동 컴플레인을 직접 등록한다 (구현 2026-08-06).
+ *
+ * 모바일 `createComplaintAction`과 **같은 도메인 함수**(`createComplaint`)를 부른다 — 화면별로
+ * 다른 저장 경로를 만들지 않는다는 교차 화면 계약(docs/product/25 §Cross-surface consistency).
+ * 권한(`canWriteComplaint`)·조직 스코프·제목/플랫폼/이미지 검증은 전부 그 안에서 다시 이뤄지며,
+ * 여기서 앞서 막는 것은 진입 시점 방어일 뿐이다.
+ *
+ * 결과를 반환하는 이유: 이 액션은 redirect 하는 다른 콘솔 액션과 달리 클라이언트 패널이 부르고,
+ * 성공하면 패널을 닫고 실패하면 그 자리에서 사유를 보여 줘야 한다.
+ */
+export async function createManualComplaintAction(
+  formData: FormData,
+): Promise<CreateComplaintResult> {
+  const session = await getCurrentAppSession();
+  if (!session) return { error: "forbidden" };
+  if (!canWriteComplaint(session.user.role)) return { error: "forbidden" };
+
+  const imageUrls: string[] = [];
+  for (let index = 0; index < MAX_IMAGES; index += 1) {
+    const url = optional(formData, `image_${index}`);
+    if (url) imageUrls.push(url);
+  }
+
+  const ratingRaw = optional(formData, "rating");
+  const rating = ratingRaw === null ? null : Number(ratingRaw);
+
+  const input: ComplaintInput = {
+    platform: String(formData.get("platform") ?? "").trim(),
+    title: String(formData.get("title") ?? "").trim(),
+    description: optional(formData, "description"),
+    rating: rating !== null && Number.isFinite(rating) ? rating : null,
+    // 건물·객실은 예약을 골랐을 때와 객실 마스터에서 직접 골랐을 때 모두 채워진다. 어느 쪽도
+    // 아니면 null로 두고 저장한다 — 어느 방 건인지 모르는 컴플레인도 등록 자체는 가능해야 한다.
+    propertyId: optional(formData, "property_id"),
+    propertyName: optional(formData, "property_name"),
+    roomId: optional(formData, "room_id"),
+    roomLabel: optional(formData, "room_label"),
+    reservationId: optional(formData, "reservation_id"),
+    guestName: optional(formData, "guest_name"),
+    imageUrls,
+  };
+
+  try {
+    const { id } = await createComplaint({ session, input });
+    revalidatePath("/admin/complaints");
+    revalidatePath("/mobile/complaints");
+    return { id };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "save_failed" };
+  }
+}
+
+/**
+ * 등록 패널의 사진 업로드. 아직 존재하지 않는 컴플레인이라 클라이언트가 만든 draft id 아래에
+ * 올린다 — 모바일 등록 폼과 동일한 규약이고, 경로 검증과 5장 제한은 서버가 다시 본다.
+ */
+export async function uploadManualComplaintImageAction(
+  draftId: string,
+  formData: FormData,
+): Promise<UploadImageResult> {
+  const session = await getCurrentAppSession();
+  if (!session) return { error: "forbidden" };
+  if (!canWriteComplaint(session.user.role)) return { error: "forbidden" };
+
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { error: "invalid_file" };
+
+  try {
+    const url = await uploadComplaintImage({ session, complaintId: draftId, file });
+    return { url };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "upload_failed" };
+  }
 }
 
 /**

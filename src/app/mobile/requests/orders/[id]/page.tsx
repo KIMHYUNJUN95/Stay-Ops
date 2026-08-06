@@ -274,6 +274,7 @@ export default async function MobileOrderRequestDetailPage({
                   ) : null}
                   {item.imageUrls && item.imageUrls.length > 0 ? (
                     <LightboxThumbs
+                      closeLabel={dictionary.common.close}
                       sizes="64px"
                       thumbClassName="relative size-16 overflow-hidden rounded-xl border border-border/60 bg-muted"
                       urls={item.imageUrls}

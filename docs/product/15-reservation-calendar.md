@@ -1,5 +1,9 @@
 # Reservation Calendar
 
+## 2026-08-06 multilingual surface contract
+
+The mobile Tokyo-now badge, map building count, and admin print heading are localized through the shared `ko`/`ja`/`en` calendar copy. Calendar navigation accessibility labels also follow the viewer locale.
+
 ## Overview grid — scroll model: page-vertical / grid-horizontal (2026-07-22)
 
 Two related mobile fixes to `mobile-calendar-view.tsx`, in order:

@@ -816,7 +816,7 @@ function LeavePanel({
         <div className="panel__h">
           <div className="panel__top">
             <span className="panel__kicker">{lc.panelKicker}</span>
-            <button type="button" className="panel__x" onClick={onClose} aria-label="close">
+            <button type="button" className="panel__x" onClick={onClose} aria-label={dictionary.common.close}>
               <Ic>
                 <X />
               </Ic>

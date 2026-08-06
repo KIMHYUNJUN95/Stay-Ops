@@ -385,7 +385,7 @@ export default async function AdminCalendarPrintPage({ searchParams }: PageProps
           <section className="admcal-print__sheet" key={group.propertyName}>
             <div className="admcal-print__header">
               <div>
-                <div className="admcal-print__eyebrow">StayOps Reservation Calendar</div>
+                <div className="admcal-print__eyebrow">{copy.printEyebrow}</div>
                 <h1 className="admcal-print__title">{buildMonthLabel(data.selectedMonth, data.locale)}</h1>
                 <p className="admcal-print__subtitle">
                   {localizePropertyName(group.propertyName, buildingLabels)}

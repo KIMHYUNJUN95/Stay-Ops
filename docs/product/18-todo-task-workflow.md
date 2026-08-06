@@ -1,5 +1,9 @@
 # Todoist / Task Workflow
 
+## 2026-08-06 multilingual context and accessibility copy
+
+Direct-booking context labels and task/project accessibility actions (toggle, previous/next month, more actions, remove participant) are dictionary-backed in Korean, Japanese, and English on both mobile and admin task surfaces.
+
 Status: First slice implemented (2026-06-10), hardened through 2026-06-15. Mobile Todoist/Shared Task is live under
 `/mobile/tasks/*` (side-menu entry `tasks`, user-facing label `Todoist`). Seven tabs now present: Today / Tomorrow / Inbox(관리함) / **프로젝트** / **지시(받은/보낸)** / Completed(완료/기록) / Calendar. The 프로젝트 tab is **functional (first slice, 2026-06-15)**: project create/delete, sections (add/rename/delete with their tasks), an Unsectioned area, project-task create + complete/reopen, member invite/remove/leave, a Completed-tab filter (전체/일반/프로젝트), and a `project_shared` notification. Project tasks appear only in the Projects tab (never in Today/Tomorrow/Inbox/지시/Calendar). Requires migration `202606150002_projects.sql`. See `docs/product/23-project-workflow.md` and `docs/engineering/09-todo-task-technical-design.md`.
 quick add + detailed create/edit, task detail with unified update log, multi-select sharing, and
