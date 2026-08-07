@@ -420,6 +420,26 @@ export function TasksWorkspace({
   // 돌려준다. 두 경로가 같은 토스트를 쓰도록 **배열 하나로** 일반화했다(2026-07-31) — 예전에는
   // 상세 경로에만 실행 취소가 있어 목록에서 지우면 되돌릴 방법이 없었다.
   const processedDelete = useRef<string | null>(null);
+  const processedSkip = useRef<string | null>(null);
+  useEffect(() => {
+    const taskId = searchParams.get("skippedTask");
+    const date = searchParams.get("skippedDate");
+    if (!taskId || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    const key = `${taskId}|${date}`;
+    if (processedSkip.current === key) return;
+    processedSkip.current = key;
+    const raf = requestAnimationFrame(() => {
+      if (skipUndoTimer.current) clearTimeout(skipUndoTimer.current);
+      setSkipUndo({ taskId, date });
+      skipUndoTimer.current = setTimeout(() => setSkipUndo(null), 6000);
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete("skippedTask");
+      next.delete("skippedDate");
+      const query = next.toString();
+      router.replace(`/mobile/tasks${query ? `?${query}` : ""}`, { scroll: false });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [router, searchParams]);
   useEffect(() => {
     const id = searchParams.get("deleted");
     if (!id || processedDelete.current === id) return;
@@ -2397,26 +2417,26 @@ export function TasksWorkspace({
       {/* 회차 건너뛰기 되돌리기 토스트 — skipped 는 영구 상태라 실행 취소 경로가 반드시 필요하다. */}
       {skipUndo && hydrated
         ? createPortal(
-            <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-4">
-              <div className="pointer-events-auto flex max-w-[420px] items-center gap-2.5 rounded-[18px] bg-slate-900 py-2.5 pl-4 pr-2 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
-                <span className="whitespace-nowrap text-[13px] font-bold tracking-[-0.01em]">
+            <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-3">
+              <div className="pointer-events-auto flex max-w-[420px] items-center gap-1.5 rounded-[15px] bg-slate-900 py-2 pl-3 pr-1.5 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
+                <span className="whitespace-nowrap text-[12px] font-bold tracking-[-0.01em]">
                   {copy.recurSkippedToast.replace("{date}", shortDateLabel(skipUndo.date))}
                 </span>
                 <button
-                  className="ml-1 inline-flex flex-none items-center gap-1 rounded-xl px-2.5 py-1.5 text-[13px] font-extrabold text-rose-300 transition-colors active:bg-white/10"
+                  className="ml-0.5 inline-flex flex-none items-center gap-1 rounded-[10px] px-2 py-1 text-[12px] font-extrabold text-rose-300 transition-colors active:bg-white/10"
                   onClick={undoSkipOccurrence}
                   type="button"
                 >
-                  <RotateCcw className="size-3.5" aria-hidden="true" />
+                  <RotateCcw className="size-3" aria-hidden="true" />
                   {copy.undo}
                 </button>
                 <button
-                  className="inline-flex size-8 flex-none items-center justify-center rounded-xl text-slate-400 transition-colors active:bg-white/10"
+                  className="inline-flex size-7 flex-none items-center justify-center rounded-[10px] text-slate-400 transition-colors active:bg-white/10"
                   onClick={() => setSkipUndo(null)}
                   type="button"
                   aria-label={copy.undo}
                 >
-                  <X className="size-4" aria-hidden="true" />
+                  <X className="size-3.5" aria-hidden="true" />
                 </button>
               </div>
             </div>,
@@ -2427,26 +2447,26 @@ export function TasksWorkspace({
       {/* Undo toast — floats above the tab bar after a complete (status-circle) or a delete. */}
       {(undoTask || deletedUndoIds?.length) && hydrated
         ? createPortal(
-            <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-4">
-              <div className="pointer-events-auto flex max-w-[420px] items-center gap-2.5 rounded-[18px] bg-slate-900 py-2.5 pl-4 pr-2 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
+            <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-3">
+              <div className="pointer-events-auto flex max-w-[420px] items-center gap-1.5 rounded-[15px] bg-slate-900 py-2 pl-3 pr-1.5 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
                 <div className="flex min-w-0 flex-col">
-                  <span className="whitespace-nowrap text-[13px] font-bold tracking-[-0.01em]">
+                  <span className="whitespace-nowrap text-[12px] font-bold tracking-[-0.01em]">
                     {undoTask ? copy.completedToast : copy.deletedToast}
                   </span>
                   {undoTask && undoSub ? (
-                    <span className="whitespace-nowrap text-[11.5px] font-medium text-slate-400">{undoSub}</span>
+                    <span className="whitespace-nowrap text-[10.5px] font-medium text-slate-400">{undoSub}</span>
                   ) : null}
                 </div>
                 <button
-                  className="ml-1 inline-flex flex-none items-center gap-1 rounded-xl px-2.5 py-1.5 text-[13px] font-extrabold text-rose-300 transition-colors active:bg-white/10"
+                  className="ml-0.5 inline-flex flex-none items-center gap-1 rounded-[10px] px-2 py-1 text-[12px] font-extrabold text-rose-300 transition-colors active:bg-white/10"
                   onClick={undoTask ? handleUndo : handleRestore}
                   type="button"
                 >
-                  <RotateCcw className="size-3.5" aria-hidden="true" />
+                  <RotateCcw className="size-3" aria-hidden="true" />
                   {copy.undo}
                 </button>
                 <button
-                  className="inline-flex size-8 flex-none items-center justify-center rounded-xl text-slate-400 transition-colors active:bg-white/10"
+                  className="inline-flex size-7 flex-none items-center justify-center rounded-[10px] text-slate-400 transition-colors active:bg-white/10"
                   onClick={() => {
                     setUndoTask(null);
                     setDeletedUndoIds(null);
@@ -2454,7 +2474,7 @@ export function TasksWorkspace({
                   type="button"
                   aria-label={copy.undo}
                 >
-                  <X className="size-4" aria-hidden="true" />
+                  <X className="size-3.5" aria-hidden="true" />
                 </button>
               </div>
             </div>,

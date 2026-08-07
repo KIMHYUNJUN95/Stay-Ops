@@ -7,7 +7,7 @@ import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { canEditTaskCore, getShareableUsers, getTaskDetail, taskAnchorDate } from "@/lib/tasks";
 import { resolvedOccurrenceDates } from "@/lib/task-occurrences";
-import { isStandardRecurrence, recurringOccurrencesInRange } from "@/lib/tasks-recurrence";
+import { isRecurringOccurrenceDate } from "@/lib/tasks-recurrence";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -40,23 +40,18 @@ export default async function MobileTaskDetailPage({ params, searchParams }: Pag
   const locale = session.user.preferredLanguage;
   const dict = getDictionary(locale);
   const candidateOccurrence = typeof query.occurrence === "string" ? query.occurrence : "";
-  const anchor = taskAnchorDate(task);
-  const matchesRule =
-    /^\d{4}-\d{2}-\d{2}$/.test(candidateOccurrence) &&
-    !!anchor &&
-    isStandardRecurrence(task.recurrenceRule) &&
-    recurringOccurrencesInRange(
-      task.recurrenceRule,
-      anchor,
-      candidateOccurrence,
-      candidateOccurrence,
-    ).length === 1;
+  const matchesRule = isRecurringOccurrenceDate(
+    task.recurrenceRule,
+    taskAnchorDate(task),
+    candidateOccurrence,
+  );
   const [users, navBadges, resolvedDates] = await Promise.all([
     getShareableUsers(session),
     getMobileNavBadges(),
     matchesRule ? resolvedOccurrenceDates(task.id) : Promise.resolve(new Set<string>()),
   ]);
-  const occurrenceDate = matchesRule && !resolvedDates.has(candidateOccurrence) ? candidateOccurrence : null;
+  const occurrenceDate =
+    matchesRule && !resolvedDates.has(candidateOccurrence) ? candidateOccurrence : null;
   const returnView = ["today", "tomorrow", "calendar"].includes(query.view ?? "")
     ? (query.view as "today" | "tomorrow" | "calendar")
     : "today";

@@ -16,9 +16,15 @@ export const RANGE_PRESET_DAYS = [7, 30, 90, 365];
 
 const PROVIDERS: ("all" | ReviewProvider)[] = ["all", "airbnb", "booking"];
 
-function formatShortDate(iso: string | null, locale: string): string {
+/**
+ * 카드·칩의 날짜는 `08.02` 처럼 2자리 고정이다.
+ *
+ * `Intl` 의 numeric 포맷은 로케일마다 `8. 6.` / `8/6` 처럼 달라지고 자릿수도 흔들려, 목록에서
+ * 세로로 늘어놓았을 때 줄이 맞지 않는다. 날짜는 이미 ISO 문자열이라 잘라 쓰는 편이 안정적이다.
+ */
+function formatShortDate(iso: string | null): string {
   if (!iso) return "—";
-  return new Intl.DateTimeFormat(locale, { month: "numeric", day: "numeric" }).format(new Date(iso));
+  return iso.slice(5, 10).replace("-", ".");
 }
 
 type Props = {
@@ -88,7 +94,7 @@ export function ReviewList({
   const rangeChipLabel = rangeDays
     ? t.rangeDays.replace("{n}", String(rangeDays))
     : from && to
-      ? `${formatShortDate(from, locale)} – ${formatShortDate(to, locale)}`
+      ? `${formatShortDate(from)} – ${formatShortDate(to)}`
       : t.rangeTitle;
 
   return (
@@ -257,7 +263,7 @@ export function ReviewList({
                     {review.displayRoomLabel ?? t.noRoom}
                   </span>
                   <span className="sep">·</span>
-                  <span className="mono">{formatShortDate(review.reviewedAt, locale)}</span>
+                  <span className="mono">{formatShortDate(review.reviewedAt)}</span>
                   {review.linkedComplaintId ? (
                     <span className="cx-rcard__link is-on">
                       <CIc>{CxIcon.check}</CIc>

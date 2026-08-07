@@ -4,10 +4,24 @@
 
 This document tracks what has been completed, what is in progress, and what remains for the StayOps MVP.
 
+## 2026-08-07 — Compact mobile task undo toast
+
+- Mobile task completion, deletion, and recurring-occurrence skip undo toasts keep their current
+  design and behavior but use reduced padding, gaps, typography, icons, and action controls.
+- The admin task-console undo toast is unchanged.
+- Verification completed: `npm run check:i18n` (19 tests), `npm test` (175 tests), `npm run lint`
+  (0 errors; 11 pre-existing warnings), and `npm run build` all pass.
+
 ## 2026-08-07 — Mobile recurring-task delete parity
 
-- In progress: preserve a validated occurrence date from mobile Today/Tomorrow cards into task detail.
-- The detail delete sheet will match the admin console with “skip this date” and “delete the whole series”, including the existing six-second skip undo path.
+- Completed: mobile Today/Tomorrow/Calendar occurrence cards preserve a server-validated occurrence
+  date when opening task detail.
+- The mobile detail delete sheet now matches the admin console with “skip this date” and “delete the
+  whole series”. Skipping returns to the source task view and keeps the existing six-second undo path.
+- Resolved occurrences (`completed`, `skipped`, `moved`) cannot be overwritten by the skip action, and
+  recurrence-date validation is shared by the detail route and server action.
+- Verification completed: `npm run check:i18n` (19 tests), `npm test` (175 tests), `npm run lint`
+  (0 errors; 11 pre-existing warnings), and `npm run build` all pass.
 
 ## 2026-08-06 — Admin/Mobile multilingual hardcoding audit and repair
 

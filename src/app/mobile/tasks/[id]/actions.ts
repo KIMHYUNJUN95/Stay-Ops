@@ -22,9 +22,9 @@ import {
 } from "@/lib/tasks";
 import {
   canMoveRecurringTo,
+  isRecurringOccurrenceDate,
   isStandardRecurrence,
   outstandingOverdueOccurrences,
-  recurringOccurrencesInRange,
 } from "@/lib/tasks-recurrence";
 import {
   clearOccurrenceState,
@@ -204,11 +204,10 @@ export async function skipOverdueOccurrences(taskId: string) {
  * 무시한다(임의 날짜로 상태 행을 심을 수 없게).
  */
 function isOccurrenceDate(task: TaskDetail, occurrenceDate: string): boolean {
-  if (!isStandardRecurrence(task.recurrenceRule)) return false;
-  const anchor = recurringAnchorDate(task);
-  if (!anchor) return false;
-  return (
-    recurringOccurrencesInRange(task.recurrenceRule, anchor, occurrenceDate, occurrenceDate).length > 0
+  return isRecurringOccurrenceDate(
+    task.recurrenceRule,
+    recurringAnchorDate(task),
+    occurrenceDate,
   );
 }
 
@@ -219,6 +218,8 @@ export async function skipOccurrenceOn(taskId: string, occurrenceDate: string) {
   if (!id || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
   const { session, task } = await requireSessionAndTask(id);
   if (!isOccurrenceDate(task, date)) return;
+  const resolved = await resolvedOccurrenceDates(id);
+  if (resolved.has(date)) return;
   await skipOccurrences({ taskId: id, organizationId: session.organization.id, dates: [date] });
   revalidatePath("/mobile/tasks");
   revalidatePath(detailPath(id));

@@ -1442,6 +1442,13 @@ Design in this order:
 > `showDeleteUndo` 는 `performDelete` **위에** 선언해야 한다 — 아래에 두면 React Compiler 가
 > "Cannot access variable before it is declared" 로 막는다.
 
+### 모바일 실행 취소 토스트 밀도 (2026-08-07)
+
+모바일의 완료·삭제·반복 회차 건너뛰기 실행 취소 토스트는 기존 다크 바 디자인, 하단 위치, 메시지,
+실행 취소 및 닫기 동작을 그대로 유지하되 작은 화면을 과하게 가리지 않도록 패딩·간격·글자·아이콘·
+버튼 터치 영역을 한 단계 작게 사용한다. 이 밀도 조정은 `/mobile/tasks` 에만 적용하며 관리자 콘솔의
+`.undobar` 크기와 디자인은 변경하지 않는다.
+
 ### 완료 로그 조회 중복 제거
 
 완료 집계(`task_updates` 의 completed − reopened net)가 `src/lib/tasks.ts` 와

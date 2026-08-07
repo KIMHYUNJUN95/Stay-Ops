@@ -2984,3 +2984,50 @@ details[open] > .cx-bldcard__sum .cx-bldcard__chev {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── 로딩 스켈레톤 (목업 2c) ──
+   빈 화면은 «데이터가 없다» 와 구분되지 않는다. 리뷰가 2,400건 있는데 빈 화면이면 고장으로
+   읽히므로, 카드 형태를 미리 그려 «오는 중»임을 알린다. */
+@keyframes cxshimmer {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+.cx-skel {
+  background: var(--cx-surface);
+  border-radius: 6px;
+  animation: cxshimmer 1.6s ease-in-out infinite;
+}
+.cx-skel--seg {
+  flex: 1;
+  height: 36px;
+  border-radius: 11px;
+}
+.cx-skel--chip {
+  width: 84px;
+  height: 36px;
+  border-radius: 11px;
+}
+.cx-skel--count {
+  width: 40%;
+  height: 13px;
+}
+.cx-skel--score {
+  width: 54px;
+  height: 54px;
+  border-radius: 15px;
+  flex: 0 0 auto;
+}
+.cx-skel--line {
+  height: 12px;
+}
+.cx-skelcard {
+  animation: cxshimmer 1.6s ease-in-out infinite;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cx-skel,
+  .cx-skelcard {
+    animation: none;
+  }
+}

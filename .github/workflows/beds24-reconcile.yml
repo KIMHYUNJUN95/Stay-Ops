@@ -63,3 +63,34 @@ jobs:
             200|207) echo "reconcile ok" ;;
             *) echo "::error::reconcile failed with HTTP ${code}"; exit 1 ;;
           esac
+
+      # 리뷰 수집이 조용히 멈췄는지 여기서 점검한다.
+      #
+      # WHY HERE: 2026-08-06~07, 리뷰 수집 크론이 한 번도 성공한 적이 없는데 이틀간 아무도
+      # 몰랐다. **점검은 수집 밖에 있어야 한다** — 수집이 안 도는 것이 문제인데 수집이 스스로
+      # 알릴 수는 없다. 이 워크플로는 하루 4회, 63회 연속 성공 중이라 감시자로 적합하다.
+      #
+      # Beds24 크레딧을 쓰지 않는다(DB 한 줄만 읽는다).
+      - name: Check external review collection freshness
+        if: always()
+        env:
+          HEALTH_URL: https://stay-ops-two.vercel.app/api/beds24/reviews-sync/health
+          WEBHOOK_SECRET: ${{ secrets.BEDS24_WEBHOOK_SECRET }}
+        run: |
+          set -uo pipefail
+          code=$(curl -sS -o /tmp/reviews-health.json -w '%{http_code}' \
+            -X POST "${HEALTH_URL}" \
+            -H "x-beds24-webhook-secret: ${WEBHOOK_SECRET}" \
+            --max-time 60)
+          echo "HTTP ${code}"
+          cat /tmp/reviews-health.json || true
+          echo
+          if [ "${code}" != "200" ]; then
+            echo "::warning::review freshness check unavailable (HTTP ${code})"
+            exit 0
+          fi
+          if [ "$(jq -r '.stale' /tmp/reviews-health.json)" = "true" ]; then
+            # 경고로 남긴다 — reconcile 자체는 성공했으므로 빨간불로 만들지 않는다.
+            # 실제 알림은 엔드포인트가 Slack 으로 보낸다.
+            echo "::warning::external review collection looks stalled ($(jq -r '.ageDays') days since last write)"
+          fi
