@@ -6,6 +6,7 @@ import "./complaints.css";
 import { CIc, CxIcon } from "./cx-icons";
 import { PlatformSource, RatingPill, PLATFORMS } from "./cx-platform";
 import { getDictionary } from "@/lib/i18n";
+import { getCanonicalPropertyName, localizePropertyName } from "@/lib/room-label-normalization";
 import type { ExternalReview, ReviewProvider } from "@/lib/external-reviews";
 
 const PROVIDERS: ("all" | ReviewProvider)[] = ["all", "airbnb", "booking"];
@@ -25,18 +26,37 @@ export function ReviewList({ locale, reviews }: { locale: string; reviews: Exter
   const [riskOnly, setRiskOnly] = useState(false);
   const [building, setBuilding] = useState<string>("all");
 
+  /**
+   * 건물명은 Beds24 원본(`Arakicho A`, `Okubo_A (B棟)` …)이 그대로 들어온다. 이건 운영자용
+   * 식별자이지 사용자에게 보여줄 이름이 아니다 — 캘린더·청소가 쓰는 것과 같은 경로로
+   * (정규화 → 로케일 라벨) 바꿔서 ko/ja/en 어디서든 읽히게 한다.
+   *
+   * 필터 값은 **정규화 이름**으로 잡는다. 같은 건물이 원본 표기만 다르게 여러 개 들어와도
+   * 칩이 쪼개지지 않는다. 객실 라벨은 건드리지 않는다.
+   */
+  const buildingLabels = dict.cleaning.buildingLabels;
+
   const buildings = useMemo(() => {
-    const seen = new Set<string>();
+    const byCanonical = new Map<string, string>();
     for (const review of reviews) {
-      if (review.propertyName) seen.add(review.propertyName);
+      if (!review.propertyName) continue;
+      const canonical = getCanonicalPropertyName(review.propertyName);
+      if (!byCanonical.has(canonical)) {
+        byCanonical.set(canonical, localizePropertyName(canonical, buildingLabels));
+      }
     }
-    return Array.from(seen).sort((a, b) => a.localeCompare(b));
-  }, [reviews]);
+    return Array.from(byCanonical, ([value, label]) => ({ value, label })).sort((a, b) =>
+      a.label.localeCompare(b.label, locale),
+    );
+  }, [reviews, buildingLabels, locale]);
 
   const rows = reviews.filter((review) => {
     if (provider !== "all" && review.provider !== provider) return false;
     if (riskOnly && review.riskLevel !== "risk") return false;
-    if (building !== "all" && review.propertyName !== building) return false;
+    if (building !== "all") {
+      if (!review.propertyName) return false;
+      if (getCanonicalPropertyName(review.propertyName) !== building) return false;
+    }
     return true;
   });
 
@@ -92,14 +112,14 @@ export function ReviewList({ locale, reviews }: { locale: string; reviews: Exter
           >
             {t.allBuildings}
           </button>
-          {buildings.map((name) => (
+          {buildings.map((item) => (
             <button
-              key={name}
+              key={item.value}
               type="button"
-              className={`cx-fchip${building === name ? " on" : ""}`}
-              onClick={() => setBuilding(name)}
+              className={`cx-fchip${building === item.value ? " on" : ""}`}
+              onClick={() => setBuilding(item.value)}
             >
-              {name}
+              {item.label}
             </button>
           ))}
         </div>
@@ -139,7 +159,14 @@ export function ReviewList({ locale, reviews }: { locale: string; reviews: Exter
                   </div>
                   <div className="cx-card__meta">
                     <CIc>{CxIcon.building}</CIc>
-                    {review.propertyName ?? "—"}
+                    {/* 칩과 카드가 다른 이름을 보이면 같은 건물인지 알 수 없다 — 같은 경로로 맞춘다.
+                        객실 라벨은 운영 식별자 그대로 둔다. */}
+                    {review.propertyName
+                      ? localizePropertyName(
+                          getCanonicalPropertyName(review.propertyName),
+                          buildingLabels,
+                        )
+                      : "—"}
                     <span className="sep">·</span>
                     {review.roomLabel ?? t.noRoom}
                   </div>

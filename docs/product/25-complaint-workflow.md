@@ -424,6 +424,15 @@ Beds24 예약 웹훅 우선 원칙은 유지한다. 리뷰는 웹훅이 아닌 �
 ### Mobile
 
 - `/mobile/complaints`: 수동 컴플레인과 외부 리뷰를 구분해 탐색할 수 있는 통합 진입점
+  - **건물명은 화면에서 현지화한다 (2026-08-07).** `external_reviews.property_name` 에는 Beds24
+    원본(`Arakicho A`, `Okubo_A (B棟)` …)이 들어 있는데 이건 운영 식별자이지 사용자에게 보여줄
+    이름이 아니다. 캘린더·청소와 **같은 경로**(`getCanonicalPropertyName` → `localizePropertyName`
+    + `dictionary.cleaning.buildingLabels`)로 바꿔 ko/ja/en 어디서든 읽히게 한다.
+    - 건물 필터 칩의 **값은 정규화 이름**이다. 같은 건물이 원본 표기만 다르게 여러 개 들어와도
+      칩이 쪼개지지 않는다.
+    - 목록 칩과 카드 하단 건물명이 **같은 라벨**을 쓴다. 서로 다르면 같은 건물인지 알 수 없다.
+    - **객실 라벨은 변환하지 않는다** — 현장에서 부르는 식별자 그대로여야 한다.
+    - 저장 데이터는 그대로다. 표시 단계에서만 바꾼다.
 - `/mobile/complaints/new`: 기존 수동 등록. 플랫폼·제목·내용·건물/객실/예약·고객명·사진 입력
 - `/mobile/complaints/[id]`: 수동 컴플레인 상세, 상태·댓글·이미지
 - `/mobile/complaints/reviews/[id]` (planned): 외부 리뷰 원문, 원점수, 위험도, 건물/객실/예약 문맥,
