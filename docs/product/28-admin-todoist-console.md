@@ -1,5 +1,11 @@
 # Admin Todoist Console (Dashboard) — Spec + As-Built
 
+## 2026-08-07 mobile recurring-delete parity
+
+관리 콘솔의 반복 회차 삭제 선택지(이 회차만 건너뛰기 / 반복 전체 삭제)를 모바일 상세에도 맞췄다.
+콘솔 동작은 변경하지 않으며, 모바일은 회차 카드에서 상세로 이동할 때 서버가 다시 검증할 회차 날짜를
+전달한다.
+
 Status: **Implemented (2026-07-27).** 이 문서는 대시보드(어드민 웹) Todoist의 기획/IA/동작 스펙 +
 실제 구현(as-built)이다. `/admin/tasks` 에 라이브. 구현 상세는 §12 참조.
 

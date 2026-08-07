@@ -12,10 +12,18 @@ import type { ReservationPickRow } from "@/lib/complaint-reservations";
 import { ImageLightbox } from "./image-lightbox";
 import { type LinkTarget, type PlatformKey } from "./complaint-mock";
 import { CIc, CxIcon } from "./cx-icons";
-import { PlatformSource, PLATFORMS, ratingMax } from "./cx-platform";
+import { PlatformSource, PLATFORMS, platformName, ratingMax } from "./cx-platform";
 import "./complaints.css";
 
 const MAX_IMAGES = 5;
+
+/**
+ * 등록 폼의 플랫폼 선택지 (목업 2l 의 2x2 그리드).
+ *
+ * `null` 이 «기타» 다 — `PlatformKey` 에는 `other` 가 없고, 제출 시 `plat ?? "other"` 로
+ * 저장되는 기존 규약을 그대로 쓴다. 별도 타입을 만들지 않는다.
+ */
+const PLATFORM_CHOICES: (PlatformKey | null)[] = ["airbnb", "booking", "direct", null];
 
 function defaultRatingForPlatform(plat: PlatformKey | null) {
   if (!plat) return 0;
@@ -144,6 +152,38 @@ export function ComplaintCreate({
 
   return (
     <div className="cx cx-create">
+      {/* 플랫폼 선택 (2026-08-07 신규).
+          예전에는 `plat` 이 **예약을 연결할 때만** 설정돼, 연결 없이 등록하면 전부 `기타` 로
+          저장됐다. 전화·현장 접수처럼 예약을 못 고르는 경우가 오히려 흔한데도 그랬다.
+          예약을 연결하면 아래 피커가 플랫폼을 자동으로 덮어쓴다. */}
+      <div className="cx-fsec">
+        <div className="cx-fsec__h">{t.fieldPlatform}</div>
+        <div className="cx-platgrid">
+          {PLATFORM_CHOICES.map((key) => {
+            const def = PLATFORMS[key ?? "other"];
+            return (
+              <button
+                key={key ?? "other"}
+                type="button"
+                className={plat === key ? "cx-platopt is-on" : "cx-platopt"}
+                onClick={() => {
+                  setPlat(key);
+                  // 척도가 다른 플랫폼으로 바꾸면 이전 점수는 의미를 잃는다.
+                  setRating(defaultRatingForPlatform(key));
+                }}
+              >
+                <span className="cx-platopt__m" style={{ background: def.bg, color: def.ink }}>
+                  {def.mono}
+                </span>
+                <span className="cx-platopt__n">
+                  {key ? platformName(key, dict) : t.platformOther}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="cx-fsec">
         <div className="cx-fsec__h">
           {t.fieldTitle} <span className="req">{t.required}</span>

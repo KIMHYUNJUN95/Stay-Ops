@@ -117,6 +117,7 @@ export function TaskCard({
   onReorderHandleDown,
   onCompleteToggle,
   occurrence,
+  detailReturnView,
 }: {
   buildingLabels: Record<string, string>;
   copy: Copy;
@@ -160,6 +161,8 @@ export function TaskCard({
   // Recurring occurrence row (2026-07-30): completion/done state is per this date, not the row's
   // `status` (which stays open). When set, the checkbox toggles this occurrence.
   occurrence?: { date: string; done: boolean };
+  /** List tab to restore after a detail action such as skipping one recurring occurrence. */
+  detailReturnView?: string;
 }) {
   const router = useRouter();
   const done = occurrence ? occurrence.done : task.status === "completed";
@@ -301,6 +304,12 @@ export function TaskCard({
       return;
     }
     if (wasLong || wasSwipe) return;
+    if (occurrence && !occurrence.done) {
+      const params = new URLSearchParams({ occurrence: occurrence.date });
+      if (detailReturnView) params.set("view", detailReturnView);
+      router.push(`/mobile/tasks/${task.id}?${params.toString()}`);
+      return;
+    }
     router.push(`/mobile/tasks/${task.id}`);
   }
 

@@ -4,6 +4,11 @@
 
 This document tracks what has been completed, what is in progress, and what remains for the StayOps MVP.
 
+## 2026-08-07 — Mobile recurring-task delete parity
+
+- In progress: preserve a validated occurrence date from mobile Today/Tomorrow cards into task detail.
+- The detail delete sheet will match the admin console with “skip this date” and “delete the whole series”, including the existing six-second skip undo path.
+
 ## 2026-08-06 — Admin/Mobile multilingual hardcoding audit and repair
 
 - Dashboard and mobile production surfaces are normalized so visible copy, accessibility labels, counters, dates, units, print headings, and generated history labels resolve through `ko`/`ja`/`en` dictionaries or locale-aware formatters.

@@ -695,6 +695,7 @@ export function TasksWorkspace({
     swipeAction: swipeActionForView,
     // After the move the server action returns here; keep the user on the tab they swiped from.
     swipeReturnView: view,
+    detailReturnView: view,
     // Status-circle tap completes (active) / reopens (completed) with an undo toast.
     onCompleteToggle: handleCompleteToggle,
   };
@@ -1695,7 +1696,15 @@ export function TasksWorkspace({
                     </button>
                     <div className="flex flex-col gap-2">
                       {byDay.get(k)!.map((t) => (
-                        <TaskCard key={t.id} task={t} swipe={false} {...cardProps} />
+                        <TaskCard
+                          key={t.id}
+                          task={t}
+                          swipe={false}
+                          {...cardProps}
+                          {...(isStandardRecurrence(t.recurrenceRule) && !occStateOf(t.id, k)
+                            ? { occurrence: { date: k, done: false } }
+                            : null)}
+                        />
                       ))}
                     </div>
                   </div>
@@ -1774,7 +1783,15 @@ export function TasksWorkspace({
           ) : (
             <div className="-mx-1 flex max-h-[56vh] flex-col gap-2 overflow-y-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {list.map((t) => (
-                <TaskCard key={t.id} task={t} swipe={false} {...cardProps} />
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  swipe={false}
+                  {...cardProps}
+                  {...(isStandardRecurrence(t.recurrenceRule) && !occStateOf(t.id, iso)
+                    ? { occurrence: { date: iso, done: false } }
+                    : null)}
+                />
               ))}
             </div>
           )}

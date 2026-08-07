@@ -1,5 +1,13 @@
 # Todo / Task Technical Design
 
+## 2026-08-07 mobile occurrence-detail deletion
+
+A recurring mobile `TaskCard` appends a candidate `occurrence` date when navigating to detail. The
+server page recomputes that date against the stored task anchor and recurrence rule before exposing
+the per-occurrence delete choice. Skipping uses the existing `skipOccurrenceOn` action and returns
+to the source list with an undo handoff; whole-series deletion continues through the existing
+author-scoped soft-delete action.
+
 Status: First slice implemented (2026-06-10) — migrations `202606100003_todo_tasks.sql`,
 `202606150003_task_recurrence_instances.sql`. As-built notes:
 `priority`/`status` are text columns with CHECK constraints (not enums); RLS uses a `security definer`

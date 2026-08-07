@@ -2,6 +2,12 @@
 
 This file records important project decisions.
 
+## 2026-08-07 Mobile recurring-task detail delete parity
+
+- A mobile task detail opened from a concrete recurring occurrence must offer the same two choices as the admin console occurrence row: skip only that date or delete the whole series.
+- The occurrence query is navigation context only. The server validates it against the stored recurrence rule and anchor before enabling per-occurrence behavior.
+- Detail pages opened without a valid occurrence keep the whole-task delete confirmation, because there is no single date to skip.
+
 ## 2026-08-06 Admin/Mobile multilingual hardcoding closure
 
 - All ordinary visible copy and accessibility names under `/admin/*` and `/mobile/*` use the shared `ko`/`ja`/`en` dictionaries or locale-aware `Intl` formatting. Direct English/Korean/Japanese literals are not an accepted shortcut.

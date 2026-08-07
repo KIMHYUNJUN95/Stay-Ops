@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   CheckCircle2,
@@ -15,6 +16,7 @@ import {
   RotateCcw,
   Send,
   Share2,
+  SkipForward,
   Trash2,
   UserMinus,
 } from "lucide-react";
@@ -26,6 +28,7 @@ import {
   reopenTask,
   setTaskProgress,
   shareTaskWithUsers,
+  skipOccurrenceOn,
 } from "@/app/mobile/tasks/[id]/actions";
 import {
   AnnouncementImageUploader,
@@ -38,7 +41,7 @@ import { LinkedContextBlock } from "@/components/tasks/linked-context-block";
 import { SharePicker } from "@/components/tasks/share-picker";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import type { ShareableUser, TaskDetail } from "@/lib/tasks";
-import { formatCustomWeekdays } from "@/lib/tasks-recurrence";
+import { formatCustomWeekdays, isStandardRecurrence } from "@/lib/tasks-recurrence";
 import { cn } from "@/lib/utils";
 
 type Copy = Dictionary["tasks"];
@@ -120,6 +123,8 @@ export function TaskDetailView({
   currentUserId,
   imgCopy,
   locale,
+  occurrenceDate,
+  returnView,
   task,
   users,
 }: {
@@ -129,9 +134,12 @@ export function TaskDetailView({
   currentUserId: string;
   imgCopy: Dictionary["requestImages"];
   locale: Locale;
+  occurrenceDate: string | null;
+  returnView: "today" | "tomorrow" | "calendar";
   task: TaskDetail;
   users: ShareableUser[];
 }) {
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -141,6 +149,7 @@ export function TaskDetailView({
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [isUpdating, startUpdateTransition] = useTransition();
   const [isTogglingStatus, startStatusTransition] = useTransition();
+  const [isSkippingOccurrence, startSkipTransition] = useTransition();
   const updateBodyRef = useRef<HTMLInputElement>(null);
   const updateUploaderRef = useRef<AnnouncementImageUploaderHandle>(null);
   const shareFormRef = useRef<HTMLFormElement>(null);
@@ -149,6 +158,22 @@ export function TaskDetailView({
   const done = task.status === "completed";
   const existingParticipantIds = task.participants.map((p) => p.userId);
   const shareableForMore = users.filter((u) => !existingParticipantIds.includes(u.id));
+  const canChooseRecurringDelete =
+    !!occurrenceDate && isStandardRecurrence(task.recurrenceRule);
+
+  function skipCurrentOccurrence() {
+    if (!occurrenceDate || isSkippingOccurrence) return;
+    setConfirmDelete(false);
+    startSkipTransition(async () => {
+      await skipOccurrenceOn(task.id, occurrenceDate);
+      const params = new URLSearchParams({
+        view: returnView,
+        skippedTask: task.id,
+        skippedDate: occurrenceDate,
+      });
+      router.replace(`/mobile/tasks?${params.toString()}`);
+    });
+  }
 
   const meta: { icon: typeof Clock; label: string; value: string }[] = [];
   if (task.scheduledDate) meta.push({ icon: CalendarDays, label: copy.scheduledDate, value: longDate(task.scheduledDate, locale) });
@@ -586,7 +611,73 @@ export function TaskDetailView({
         />
       ) : null}
 
-      {confirmDelete ? (
+      {confirmDelete && canChooseRecurringDelete && occurrenceDate ? (
+        <BottomSheet
+          ariaLabel={copy.recurDeleteTitle}
+          header={
+            <div className="text-center">
+              <span className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Repeat2 className="size-6" aria-hidden="true" />
+              </span>
+              <p className="text-[17px] font-black text-foreground">{copy.recurDeleteTitle}</p>
+              <p className="mt-2 text-sm font-semibold text-muted-foreground">
+                {repeatLabel(task.recurrenceRule ?? "", copy, locale)}
+              </p>
+            </div>
+          }
+          onClose={() => setConfirmDelete(false)}
+        >
+          <div className="mt-6 overflow-hidden rounded-[18px] border border-border bg-surface">
+            <button
+              className="flex w-full items-center gap-3 px-3.5 py-3.5 text-left transition-colors active:bg-slate-50 disabled:opacity-60"
+              disabled={isSkippingOccurrence}
+              onClick={skipCurrentOccurrence}
+              type="button"
+            >
+              <span className="flex size-[34px] shrink-0 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
+                <SkipForward className="size-[17px]" aria-hidden="true" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[14px] font-extrabold tracking-[-0.01em] text-foreground">
+                  {copy.recurSkipOne.replace("{date}", longDate(occurrenceDate, locale))}
+                </span>
+                <span className="mt-0.5 block text-[11.5px] font-medium text-muted-foreground">
+                  {copy.recurSkipOneSub}
+                </span>
+              </span>
+            </button>
+            <div className="mx-3.5 h-px bg-border" />
+            <form action={deleteTask}>
+              <input name="taskId" type="hidden" value={task.id} />
+              <button
+                className="flex w-full items-center gap-3 px-3.5 py-3.5 text-left transition-colors active:bg-rose-50"
+                type="submit"
+              >
+                <span className="flex size-[34px] shrink-0 items-center justify-center rounded-[11px] bg-rose-50 text-rose-600">
+                  <Trash2 className="size-[17px]" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[14px] font-extrabold tracking-[-0.01em] text-rose-600">
+                    {copy.recurDeleteAll}
+                  </span>
+                  <span className="mt-0.5 block text-[11.5px] font-medium text-muted-foreground">
+                    {copy.recurDeleteAllSub}
+                  </span>
+                </span>
+              </button>
+            </form>
+          </div>
+          <button
+            className="mt-3 h-12 w-full rounded-2xl text-sm font-bold text-muted-foreground"
+            onClick={() => setConfirmDelete(false)}
+            type="button"
+          >
+            {copy.cancel}
+          </button>
+        </BottomSheet>
+      ) : null}
+
+      {confirmDelete && !canChooseRecurringDelete ? (
         <BottomSheet
           ariaLabel={copy.deleteConfirmTitle}
           header={

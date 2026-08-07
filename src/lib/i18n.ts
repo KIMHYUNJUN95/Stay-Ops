@@ -2511,6 +2511,7 @@ const FALLBACK_DICTIONARY = {
     deleteConfirm: "Delete",
     cancel: "Cancel",
     platformDirect: "Direct booking",
+    platformOther: "Other",
     ratingNone: "Direct bookings have no guest rating.",
     // Detail
     metaBuilding: "Building",
@@ -7256,6 +7257,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       deleteConfirm: "삭제",
       cancel: "취소",
       platformDirect: "직접예약",
+      platformOther: "기타",
       ratingNone: "직접예약은 게스트 평점이 없습니다.",
       metaBuilding: "건물",
       metaRoom: "객실",
@@ -11926,6 +11928,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       deleteConfirm: "削除",
       cancel: "キャンセル",
       platformDirect: "直接予約",
+      platformOther: "その他",
       ratingNone: "直接予約はゲスト評価がありません。",
       metaBuilding: "建物",
       metaRoom: "客室",
