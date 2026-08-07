@@ -2492,6 +2492,7 @@ const FALLBACK_DICTIONARY = {
     privateFeedbackTitle: "Private feedback",
     noPermission: "You do not have permission to log a complaint. Read-only access.",
     roomsNoneInPeriod: "No reviews in this period",
+    unmappedShort: "Building total only",
     sortRatio: "Highest problem rate",
     // List
     pageTitle: "Complaints",
@@ -7229,6 +7230,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       privateFeedbackTitle: "비공개 피드백",
       noPermission: "등록 권한이 없습니다. 리뷰 열람만 가능합니다.",
       roomsNoneInPeriod: "이 기간 리뷰 없음",
+      unmappedShort: "건물 합계에만 포함",
       rangeTitle: "기간 선택",
       rangeHintStart: "시작일을 선택하세요",
       rangeHintEnd: "종료일을 선택하세요",
@@ -11890,6 +11892,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       privateFeedbackTitle: "非公開フィードバック",
       noPermission: "登録権限がありません。レビューの閲覧のみ可能です。",
       roomsNoneInPeriod: "この期間のレビューなし",
+      unmappedShort: "建物合計にのみ含む",
       riskOnly: "問題のみ",
       linkedShort: "変換済み",
       notLinkedShort: "未変換",

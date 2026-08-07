@@ -198,6 +198,12 @@ export type ReviewListFilter = {
    */
   propertyIds?: string[];
   roomId?: string;
+  /**
+   * 객실을 특정하지 못한 리뷰만. Booking.com 응답에는 객실이 없어 예약 ID 역조회로만 객실을
+   * 얻는데, 실측(2026-08-07) Booking 리뷰의 **65%** 가 역조회에 실패한다. 객실 연결이 안 됐다고
+   * 리뷰 내용까지 못 보게 두면 손해라서, 그 리뷰들만 따로 열어보는 경로를 둔다.
+   */
+  unmappedOnly?: boolean;
   /** 포함 (YYYY-MM-DD) */
   from?: string;
   /** 포함 (YYYY-MM-DD) */
@@ -223,6 +229,7 @@ function applyReviewFilter<T>(query: T, filter: ReviewListFilter): T {
   let q = query as never as {
     eq: (c: string, v: unknown) => typeof q;
     in: (c: string, v: unknown[]) => typeof q;
+    is: (c: string, v: unknown) => typeof q;
     gte: (c: string, v: unknown) => typeof q;
     lte: (c: string, v: unknown) => typeof q;
   };
@@ -231,6 +238,7 @@ function applyReviewFilter<T>(query: T, filter: ReviewListFilter): T {
   if (filter.propertyId) q = q.eq("property_id", filter.propertyId);
   if (filter.propertyIds?.length) q = q.in("property_id", filter.propertyIds);
   if (filter.roomId) q = q.eq("room_id", filter.roomId);
+  if (filter.unmappedOnly) q = q.is("room_id", null);
   if (filter.from) q = q.gte("reviewed_at", `${filter.from}T00:00:00Z`);
   if (filter.to) q = q.lte("reviewed_at", `${filter.to}T23:59:59Z`);
   return q as never as T;

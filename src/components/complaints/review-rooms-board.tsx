@@ -65,6 +65,15 @@ export function ReviewRoomsBoard({ locale, summaries, from, to, rangeDays }: Pro
       ? `${from.slice(5).replace("-", ".")} – ${to.slice(5).replace("-", ".")}`
       : t.rangeTitle;
 
+  /** 객실 미연결 리뷰만 보는 링크. 객실을 못 붙였다고 리뷰 내용까지 못 보게 두지 않는다. */
+  function unmappedHref(propertyId: string | null): string {
+    const params = new URLSearchParams({ view: "reviews", unmapped: "1" });
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    if (propertyId) params.set("propertyId", propertyId);
+    return `/mobile/complaints?${params.toString()}`;
+  }
+
   /** 문제 건수 링크 → 그 건물/객실로 필터된 외부 리뷰 목록. */
   function riskHref(propertyId: string | null): string {
     const params = new URLSearchParams({ view: "reviews", risk: "1" });
@@ -118,6 +127,20 @@ export function ReviewRoomsBoard({ locale, summaries, from, to, rangeDays }: Pro
     );
   }
 
+  /** 플랫폼별 4열 표. 독채는 이것만, 다객실은 객실 블록 안에서 쓴다. */
+  function PlaceGrid({ place, propertyId }: { place: PlaceSummary; propertyId: string | null }) {
+    return (
+      <div className="cx-pgrid">
+        <span />
+        <span className="cx-pgrid__hd">{t.colAverage}</span>
+        <span className="cx-pgrid__hd">{t.colReviews}</span>
+        <span className="cx-pgrid__hd">{t.colRisk}</span>
+        <PlatformRow plat="airbnb" stat={place.airbnb} href={riskHref(propertyId)} />
+        <PlatformRow plat="booking" stat={place.booking} href={riskHref(propertyId)} />
+      </div>
+    );
+  }
+
   function PlaceBlock({
     place,
     propertyId,
@@ -127,7 +150,6 @@ export function ReviewRoomsBoard({ locale, summaries, from, to, rangeDays }: Pro
     place: PlaceSummary;
     propertyId: string | null;
     highlight: boolean;
-    /** 표시용 이름. 독채는 «건물 = 객실» 이라 원본 건물명 대신 현지화한 건물 라벨을 넘긴다. */
     name: string;
   }) {
     const tone = ratioTone(place.riskRatio);
@@ -143,14 +165,7 @@ export function ReviewRoomsBoard({ locale, summaries, from, to, rangeDays }: Pro
             style={{ width: barWidth(place.riskRatio) }}
           />
         </span>
-        <div className="cx-pgrid">
-          <span />
-          <span className="cx-pgrid__hd">{t.colAverage}</span>
-          <span className="cx-pgrid__hd">{t.colReviews}</span>
-          <span className="cx-pgrid__hd">{t.colRisk}</span>
-          <PlatformRow plat="airbnb" stat={place.airbnb} href={riskHref(propertyId)} />
-          <PlatformRow plat="booking" stat={place.booking} href={riskHref(propertyId)} />
-        </div>
+        <PlaceGrid place={place} propertyId={propertyId} />
       </div>
     );
   }
@@ -198,7 +213,7 @@ export function ReviewRoomsBoard({ locale, summaries, from, to, rangeDays }: Pro
         </div>
       ) : (
         <div className="cx-rlist">
-          {summaries.map((building) => {
+          {summaries.map((building, index) => {
             const tone = ratioTone(building.riskRatio);
             const label = localizePropertyName(
               getCanonicalPropertyName(building.name),
@@ -206,44 +221,59 @@ export function ReviewRoomsBoard({ locale, summaries, from, to, rangeDays }: Pro
             );
             const empty = building.reviewCount === 0;
             return (
-              <div className="cx-bldcard" key={building.key}>
-                <div className="cx-bldcard__h">
-                  <div className="cx-bldcard__hb">
-                    <span className="cx-bldcard__n">
-                      {label}
-                      {building.standalone && (
-                        <span className="cx-tag">{t.standalone}</span>
-                      )}
+              /**
+               * 건물 카드를 접는다. 건물 7개를 전부 펼치면 객실이 40개 넘게 이어져 스캔이 안 된다.
+               *
+               * `<details>` 를 쓰는 이유: 이 화면은 서버 컴포넌트라 열림 상태를 들 수 없는데,
+               * 이걸 위해 클라이언트 컴포넌트로 바꾸거나 쿼리스트링에 상태를 넣는 건 과하다.
+               * 브라우저 기본 동작이라 JS 없이 동작하고 키보드·스크린리더도 그대로 지원된다.
+               *
+               * 기본으로 **문제 비율이 가장 높은 건물 하나만** 펼친다(정렬이 비율 내림차순이라
+               * 첫 번째다). 화면을 열자마자 «지금 봐야 할 곳»이 보이는 것이 이 화면의 목적이다.
+               */
+              <details className="cx-bldcard" key={building.key} open={index === 0 && !empty}>
+                <summary className="cx-bldcard__sum">
+                  <div className="cx-bldcard__h">
+                    <div className="cx-bldcard__hb">
+                      <span className="cx-bldcard__n">
+                        {label}
+                        {building.standalone && (
+                          <span className="cx-tag">{t.standalone}</span>
+                        )}
+                      </span>
+                      <span className="cx-bldcard__s">
+                        {empty
+                          ? t.roomsNoneInPeriod
+                          : `${t.colReviews} ${building.reviewCount} · ${t.riskChip} ${building.riskCount}`}
+                      </span>
+                    </div>
+                    <span className={`cx-bldcard__r mono is-${tone}`}>
+                      {fmtRatio(building.riskRatio)}
                     </span>
-                    <span className="cx-bldcard__s">
-                      {empty
-                        ? t.roomsNoneInPeriod
-                        : `${t.colReviews} ${building.reviewCount} · ${t.riskChip} ${building.riskCount}`}
-                    </span>
+                    {!empty && (
+                      <span className="cx-bldcard__chev">
+                        <CIc>{CxIcon.chevR}</CIc>
+                      </span>
+                    )}
                   </div>
-                  <span className={`cx-bldcard__r mono is-${tone}`}>
-                    {fmtRatio(building.riskRatio)}
-                  </span>
-                </div>
-
-                {!empty && (
-                  <>
+                  {/* 막대는 접혀 있어도 보인다 — 목록을 훑을 때 비교 기준이 된다. */}
+                  {!empty && (
                     <span className="cx-bar cx-bar--wide">
                       <span
                         className={`cx-bar__f is-${tone}`}
                         style={{ width: barWidth(building.riskRatio) }}
                       />
                     </span>
+                  )}
+                </summary>
 
+                {!empty && (
+                  <>
                     <div className="cx-bldcard__b">
-                      {/* 독채는 객실 행을 만들지 않는다 — 건물 = 객실이라 같은 숫자가 두 번 나온다. */}
+                      {/* 독채는 «건물 = 객실» 이다. 객실 행을 또 만들면 같은 이름·같은 비율이 두 번
+                          나오므로, 헤더는 위 summary 로 끝내고 여기서는 플랫폼 표만 보여 준다. */}
                       {building.standalone ? (
-                        <PlaceBlock
-                          place={building}
-                          propertyId={building.propertyId}
-                          highlight={tone === "bad"}
-                          name={label}
-                        />
+                        <PlaceGrid place={building} propertyId={building.propertyId} />
                       ) : (
                         building.rooms.map((room) => (
                           <PlaceBlock
@@ -256,14 +286,23 @@ export function ReviewRoomsBoard({ locale, summaries, from, to, rangeDays }: Pro
                         ))
                       )}
 
-                      {building.unmappedCount > 0 && (
-                        <div className="cx-unmapped">
-                          <div className="cx-unmapped__h">
-                            <CIc>{CxIcon.link}</CIc>
-                            <span>{t.unmapped.replace("{n}", String(building.unmappedCount))}</span>
-                          </div>
-                          <p className="cx-unmapped__s">{t.unmappedNote}</p>
-                        </div>
+                      {/* 독채는 «건물 = 객실» 이라 미연결이든 아니든 같은 방이다 — 표시하지 않는다.
+                          다객실 건물에서는 객실별 숫자의 합이 건물 합계와 다른 이유를 설명하므로 남긴다.
+                          누르면 그 리뷰들만 볼 수 있다 — 객실을 못 붙였다고 내용까지 못 보게 두면 손해다. */}
+                      {!building.standalone && building.unmappedCount > 0 && (
+                        <Link className="cx-unmapped" href={unmappedHref(building.propertyId)}>
+                          <CIc>{CxIcon.link}</CIc>
+                          <span className="cx-unmapped__n">
+                            {t.unmapped.replace("{n}", String(building.unmappedCount))}
+                          </span>
+                          <span className="cx-unmapped__pct mono">
+                            {building.reviewCount > 0
+                              ? `${Math.round((building.unmappedCount / building.reviewCount) * 100)}%`
+                              : ""}
+                          </span>
+                          <span className="cx-unmapped__s">{t.unmappedShort}</span>
+                          <CIc>{CxIcon.chevR}</CIc>
+                        </Link>
                       )}
                       {building.unratedCount > 0 && (
                         <p className="cx-unrated">
@@ -274,7 +313,7 @@ export function ReviewRoomsBoard({ locale, summaries, from, to, rangeDays }: Pro
                     </div>
                   </>
                 )}
-              </div>
+              </details>
             );
           })}
         </div>

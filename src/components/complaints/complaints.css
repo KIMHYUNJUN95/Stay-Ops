@@ -2460,34 +2460,48 @@ textarea.cx-fld {
   color: var(--faint);
 }
 
-/* 미연결 안내 — 제목 줄과 설명 줄을 세로로 쌓는다. 설명이 길어 한 줄에 붙이면 제목을 밀어낸다. */
+/* 미연결 안내 — 한 줄 각주. 실제 데이터(객실 블록)보다 눈에 띄면 안 되지만, 눌러서 그
+   리뷰들을 볼 수 있어야 하므로 링크다. 비중(%)을 함께 보여 준다 — 38건 중 1건과 38건 중
+   12건은 «객실별 숫자를 믿어도 되는가» 가 달라지는데 같은 문구로는 그 차이가 안 보인다. */
 .cx-unmapped {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   padding: 9px 11px;
   border-radius: 11px;
   background: var(--cx-surface);
+  text-decoration: none;
+  color: inherit;
 }
-.cx-unmapped__h {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.cx-unmapped__h .ic {
+.cx-unmapped .ic {
   flex: 0 0 auto;
   font-size: 13px;
   color: var(--cx-muted);
 }
-.cx-unmapped__h span {
+.cx-unmapped .ic:last-child {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--faint);
+}
+.cx-unmapped__n {
   font-size: 11px;
   font-weight: 700;
   color: var(--cx-muted);
+  white-space: nowrap;
+}
+.cx-unmapped__pct {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
 }
 .cx-unmapped__s {
-  margin: 5px 0 0;
   font-size: 10px;
   font-weight: 600;
-  line-height: 1.5;
   color: var(--faint);
-  text-wrap: pretty;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cx-unrated {
   margin: 0;
@@ -2495,4 +2509,40 @@ textarea.cx-fld {
   line-height: 1.5;
   color: var(--faint);
   text-wrap: pretty;
+}
+
+/* ── 건물 카드 아코디언 ──
+   건물 7개를 전부 펼치면 객실이 40개 넘게 이어져 스캔이 안 된다. `<details>` 라 JS 없이
+   동작하고 키보드·스크린리더도 그대로 지원된다. */
+.cx-rooms details.cx-bldcard {
+  overflow: hidden;
+}
+.cx-bldcard__sum {
+  list-style: none;
+  cursor: pointer;
+  padding-bottom: 11px;
+}
+.cx-bldcard__sum::-webkit-details-marker {
+  display: none;
+}
+.cx-bldcard__sum .cx-bldcard__h {
+  padding-bottom: 10px;
+}
+.cx-bldcard__chev {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--faint);
+  font-size: 15px;
+  transform: rotate(90deg);
+  transition: transform 0.18s ease;
+}
+details[open] > .cx-bldcard__sum .cx-bldcard__chev {
+  transform: rotate(-90deg);
+}
+/* 접혀 있을 때도 막대는 보인다 — 목록을 훑을 때의 비교 기준이다. */
+.cx-bldcard__sum .cx-bar {
+  margin-bottom: 0;
+}
+.cx-rooms details.cx-bldcard > .cx-bldcard__b {
+  padding-top: 0;
 }

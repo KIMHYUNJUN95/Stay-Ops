@@ -56,6 +56,9 @@ type PageProps = {
     provider?: string;
     risk?: string;
     page?: string;
+    /** 객실 미연결 리뷰만 보기 (문제 객실 화면에서 넘어옴). */
+    unmapped?: string;
+    propertyId?: string;
     /** 포함 (YYYY-MM-DD) */
     from?: string;
     to?: string;
@@ -132,6 +135,8 @@ export default async function MobileComplaintsPage({ searchParams }: PageProps) 
     const filter: ReviewListFilter = {
       provider,
       riskOnly,
+      unmappedOnly: params.unmapped === "1",
+      propertyId: params.propertyId?.trim() || undefined,
       from: from ?? undefined,
       to: to ?? undefined,
     };
