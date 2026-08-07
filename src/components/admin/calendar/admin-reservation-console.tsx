@@ -383,11 +383,23 @@ export function AdminReservationConsole({
     (reservation) => reservation.checkInDate <= today && reservation.checkOutDate > today,
   );
   const departureRoomKeysToday = new Set(departuresToday.map((reservation) => reservation.roomKey));
-  const settingTargetsToday = activeReservations.filter((reservation, index, collection) => {
-    if (reservation.checkInDate !== today) return false;
-    if (departureRoomKeysToday.has(reservation.roomKey)) return false;
-    return collection.findIndex((item) => item.roomKey === reservation.roomKey) === index;
-  });
+  /**
+   * 셋팅 대상 = 오늘 체크인인데 같은 방 체크아웃은 없는 방 (= 불 꺼진 방에 손님이 든다).
+   * 체크아웃 당일 체크인이면 청소하며 그대로 이어지므로 셋팅 대상이 아니다.
+   *
+   * **중복 제거는 «오늘 도착분» 안에서만 해야 한다 (2026-08-07 수정).** 이전 구현은
+   * `activeReservations` 전체를 훑어 `findIndex` 가 그 객실의 *가장 과거* 예약을 가리켰다.
+   * 한 객실에는 수십 건의 예약이 있으니 오늘 도착 건이 그 자리에 올 일이 거의 없어, 조건이
+   * 사실상 항상 거짓 → **KPI 가 늘 0** 이었다 (2026-08-07 실측: 화면 0 / 실제 2건).
+   *
+   * `roomKey` 는 `displayRoomLabel` 기반이라 아라키초 `501` / `501_2` 처럼 한 물리 객실에
+   * 리스팅이 둘인 경우도 이미 한 키로 합쳐진다 — 여기서 따로 처리할 것은 없다.
+   */
+  const settingTargetsToday = arrivalsToday.filter(
+    (reservation, index, collection) =>
+      !departureRoomKeysToday.has(reservation.roomKey) &&
+      collection.findIndex((item) => item.roomKey === reservation.roomKey) === index,
+  );
   const occupiedKeysToday = new Set(inHouseToday.map((reservation) => reservation.roomKey));
   const activeRoomCount = roomRows.filter(
     (room) => !selectedProperty || room.propertyName === selectedProperty,

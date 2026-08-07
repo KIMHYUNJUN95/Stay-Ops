@@ -369,7 +369,14 @@ export async function syncBeds24PropertyAndRoom(
   }
 
   if (fields.minimumStay === null) {
-    console.log(`[beds24/sync] room "${fields.roomLabel}" minimum_stay absent from payload -> stored as inactive (conservative policy)`);
+    // 이 줄은 오래 **거짓말을 하고 있었다** (2026-08-07 정정). 예전에는 min_stay 가 없으면
+    // inactive 로 저장했지만, 그 정책은 실제 운영 객실을 캘린더에서 숨겨 버려 2026-06-18 에
+    // 폐기됐다 — `classifyBeds24Room(null)` 은 **active** 를 돌려준다. 그런데 로그 문구만 옛
+    // 정책 그대로 남아, 장애 조사 때마다 "웹훅이 방을 비활성으로 바꾸고 있다"는 잘못된 단서를
+    // 흘리고 있었다. 실제 동작과 맞춘다.
+    console.log(
+      `[beds24/sync] room "${fields.roomLabel}" minimum_stay absent from payload -> stored as active (unknown min-stay must not hide a real room)`,
+    );
   }
 
   const roomId = await upsertRoom(
