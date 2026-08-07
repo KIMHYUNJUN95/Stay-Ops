@@ -1520,3 +1520,342 @@ textarea.cx-fld {
   font-weight: 600;
   color: var(--cx-faint, var(--muted-foreground));
 }
+
+/* ══════════════════════════════════════════════════════════════
+   외부 리뷰 목록 S2 (v2)
+   컨트롤은 2줄 고정 — 플랫폼 3분할 + 위험도 2분할 + 기간을 한 줄에 넣으면 390px 에서
+   각 항목이 44px 밑으로 떨어진다. 위험도 토글은 카운트 줄 오른쪽에 얹었다.
+   ══════════════════════════════════════════════════════════════ */
+.cx-reviews .cx-ctrlrow {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  padding: 2px 0 0;
+}
+.cx-reviews .cx-seg--plat {
+  flex: 1;
+  min-width: 0;
+}
+.cx-reviews .cx-seg--plat a {
+  gap: 5px;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.cx-reviews .cx-seg--plat .d {
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  flex: 0 0 auto;
+}
+.cx-rangechip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 11px;
+  border-radius: 11px;
+  border: 1px solid var(--cx-line, var(--border));
+  background: var(--cx-surface, var(--surface));
+  color: var(--cx-ink, var(--foreground));
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cx-rangechip .ic {
+  width: 13px;
+  height: 13px;
+  color: var(--cx-muted, var(--muted-foreground));
+}
+
+.cx-countrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 2px 2px;
+}
+.cx-countrow__t {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cx-muted, var(--muted-foreground));
+}
+.cx-countrow__t b {
+  font-weight: 800;
+  color: var(--cx-ink, var(--foreground));
+}
+.cx-countrow__t b.is-bad {
+  color: var(--danger, #c0392b);
+}
+.cx-countrow__t .sep {
+  margin: 0 5px;
+  color: var(--cx-faint, var(--muted-foreground));
+}
+.cx-riskpill {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--cx-line, var(--border));
+  background: var(--cx-surface, var(--surface));
+  color: var(--cx-ink, var(--foreground));
+  font-size: 11.5px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.cx-riskpill.on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground, #fff);
+}
+.cx-riskpill .ic {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── 리뷰 카드 ── */
+.cx-rlist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 0 4px;
+}
+.cx-rcard {
+  display: block;
+  background: var(--cx-surface, var(--surface));
+  border: 1px solid var(--cx-line, var(--border));
+  border-radius: 16px;
+  padding: 13px;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 8px 22px -18px rgba(20, 28, 40, 0.4);
+}
+.cx-rcard__h {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+/* 점수 블록 54px. 위험이면 붉은 톤, 평점이 없으면 회색. */
+.cx-score {
+  flex: 0 0 auto;
+  width: 54px;
+  height: 54px;
+  border-radius: 15px;
+  background: var(--cx-bg, var(--muted));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.cx-score b {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--cx-ink, var(--foreground));
+}
+.cx-score i {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 600;
+  margin-top: 2px;
+  color: var(--cx-muted, var(--muted-foreground));
+}
+.cx-score.is-bad {
+  background: var(--danger-bg, hsl(6 70% 95.5%));
+}
+.cx-score.is-bad b {
+  color: var(--danger, #c0392b);
+}
+.cx-score.is-bad i {
+  color: color-mix(in oklab, var(--danger, #c0392b) 65%, var(--cx-muted, #888));
+}
+.cx-score.is-none b {
+  font-size: 20px;
+  color: var(--cx-muted, var(--muted-foreground));
+}
+.cx-rcard__hb {
+  flex: 1;
+  min-width: 0;
+}
+.cx-rcard__chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.cx-rcard__t {
+  font-size: 13.5px;
+  font-weight: 800;
+  line-height: 1.38;
+  letter-spacing: -0.01em;
+}
+.cx-rcard__t.is-dim {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cx-faint, var(--muted-foreground));
+}
+
+/* 본문은 발췌하지 않는다 — 말줄임으로는 문제 리뷰인지 판단할 수 없다. */
+.cx-rcard__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 11px;
+}
+.cx-pn {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.cx-pn__k {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  width: 16px;
+  height: 16px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+.cx-pn__k.is-pos {
+  background: hsl(146 44% 92%);
+  color: hsl(146 48% 33%);
+}
+.cx-pn__k.is-neg {
+  background: hsl(38 80% 93%);
+  color: hsl(35 78% 38%);
+}
+.cx-pn__l {
+  font-size: 10.5px;
+  font-weight: 800;
+  margin-bottom: 3px;
+}
+.cx-pn__l.is-pos {
+  color: hsl(146 48% 33%);
+}
+.cx-pn__l.is-neg {
+  color: hsl(35 78% 38%);
+}
+.cx-pn__b,
+.cx-rcard__plain {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--cx-ink-soft, var(--foreground));
+  white-space: pre-wrap;
+}
+.cx-rcard__plain {
+  margin-bottom: 11px;
+}
+.cx-rcard__plain.is-dim {
+  color: var(--cx-muted, var(--muted-foreground));
+}
+
+.cx-rcard__f {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-top: 10px;
+  border-top: 1px solid var(--cx-line-soft, var(--border));
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cx-muted, var(--muted-foreground));
+}
+.cx-rcard__f .sep {
+  color: var(--cx-faint, var(--muted-foreground));
+}
+.cx-rcard__f .is-dim {
+  color: var(--cx-faint, var(--muted-foreground));
+}
+.cx-rcard__place {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 130px;
+}
+.cx-rcard__link {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--cx-faint, var(--muted-foreground));
+  white-space: nowrap;
+}
+.cx-rcard__link.is-on {
+  font-weight: 800;
+  color: var(--primary);
+}
+.cx-rcard__link .ic {
+  width: 11px;
+  height: 11px;
+}
+
+/* ── 빈 상태 — 왜 비었는지와 다음 행동 두 개를 함께 둔다 ── */
+.cx-rempty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 34px 0 30px;
+}
+.cx-rempty__ic {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--cx-bg, var(--muted));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cx-muted, var(--muted-foreground));
+}
+.cx-rempty__ic .ic {
+  width: 23px;
+  height: 23px;
+}
+.cx-rempty__t {
+  font-size: 14.5px;
+  font-weight: 800;
+}
+.cx-rempty__s {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--cx-muted, var(--muted-foreground));
+  text-align: center;
+  max-width: 270px;
+  text-wrap: pretty;
+}
+.cx-rempty__acts {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.cx-rempty__btn {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 9px 14px;
+  border-radius: 11px;
+  border: 1px solid var(--cx-line, var(--border));
+  background: var(--cx-surface, var(--surface));
+  color: var(--cx-ink, var(--foreground));
+  text-decoration: none;
+}
+.cx-rempty__btn.is-pri {
+  border-color: color-mix(in oklab, var(--primary) 30%, transparent);
+  background: color-mix(in oklab, var(--primary) 7%, transparent);
+  color: var(--primary);
+}

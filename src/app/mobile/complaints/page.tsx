@@ -2,7 +2,11 @@ import { redirect } from "next/navigation";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { ComplaintList } from "@/components/complaints/complaint-list";
 import { ComplaintViewTabs } from "@/components/complaints/complaint-view-tabs";
-import { ReviewList, REVIEW_PAGE_SIZE } from "@/components/complaints/review-list";
+import {
+  ReviewList,
+  REVIEW_PAGE_SIZE,
+  RANGE_PRESET_DAYS,
+} from "@/components/complaints/review-list";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
@@ -10,7 +14,6 @@ import { getDictionary } from "@/lib/i18n";
 import { listComplaints, canWriteComplaint } from "@/lib/complaints";
 import {
   listExternalReviewPage,
-  listReviewBuildingOptions,
   type ReviewListFilter,
   type ReviewProvider,
 } from "@/lib/external-reviews";
@@ -20,8 +23,10 @@ type PageProps = {
     view?: string;
     provider?: string;
     risk?: string;
-    building?: string;
     page?: string;
+    /** 포함 (YYYY-MM-DD) */
+    from?: string;
+    to?: string;
   }>;
 };
 
@@ -57,25 +62,43 @@ export default async function MobileComplaintsPage({ searchParams }: PageProps) 
     const provider: ReviewProvider | undefined =
       params.provider === "airbnb" || params.provider === "booking" ? params.provider : undefined;
     const riskOnly = params.risk === "1";
-    const building = params.building?.trim() || null;
     const page = Math.max(Number(params.page ?? "1") || 1, 1);
-
-    const buildings = await listReviewBuildingOptions({ session, locale });
-    const selected = building ? buildings.find((b) => b.value === building) : undefined;
+    const isDate = (v?: string) => Boolean(v && /^\d{4}-\d{2}-\d{2}$/.test(v));
+    const from = isDate(params.from) ? params.from! : null;
+    const to = isDate(params.to) ? params.to! : null;
 
     const filter: ReviewListFilter = {
       provider,
       riskOnly,
-      // 선택한 건물이 목록에 없으면(옛 링크·오타) 필터를 걸지 않는다 — 0건 화면보다 전체가 낫다.
-      propertyIds: selected?.propertyIds,
+      from: from ?? undefined,
+      to: to ?? undefined,
     };
 
-    const { rows, total } = await listExternalReviewPage({
-      session,
-      filter,
-      page,
-      pageSize: REVIEW_PAGE_SIZE,
-    });
+    // 카운트 줄의 «문제 N» 은 현재 필터 안의 위험 건수다. `문제만` 이 켜져 있으면 전체가 곧
+    // 문제 건수라 추가 질의를 하지 않는다.
+    const [{ rows, total }, riskPage] = await Promise.all([
+      listExternalReviewPage({ session, filter, page, pageSize: REVIEW_PAGE_SIZE }),
+      riskOnly
+        ? Promise.resolve(null)
+        : listExternalReviewPage({
+            session,
+            filter: { ...filter, riskOnly: true },
+            page: 1,
+            pageSize: 1,
+          }),
+    ]);
+
+    /** 기간 칩에 «90일» 처럼 보여주기 위한 역산. 프리셋과 정확히 맞을 때만 일수로 표기한다. */
+    const rangeDays =
+      from && to
+        ? RANGE_PRESET_DAYS.find(
+            (days) =>
+              from ===
+                new Date(new Date(`${to}T00:00:00Z`).getTime() - (days - 1) * 864e5)
+                  .toISOString()
+                  .slice(0, 10) && to === new Date().toISOString().slice(0, 10),
+          ) ?? null
+        : null;
 
     return (
       <MobileShell activeItem="complaints" badges={navBadges} title={dict.complaints.pageTitle}>
@@ -84,11 +107,13 @@ export default async function MobileComplaintsPage({ searchParams }: PageProps) 
           locale={locale}
           reviews={rows}
           total={total}
+          riskTotal={riskOnly ? total : (riskPage?.total ?? 0)}
           page={page}
-          buildings={buildings}
           provider={provider ?? "all"}
           riskOnly={riskOnly}
-          building={selected?.value ?? "all"}
+          from={from}
+          to={to}
+          rangeDays={rangeDays}
         />
       </MobileShell>
     );
