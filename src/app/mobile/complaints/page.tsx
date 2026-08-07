@@ -12,7 +12,7 @@ import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getDictionary } from "@/lib/i18n";
-import { listComplaints, canWriteComplaint } from "@/lib/complaints";
+import { listComplaints, canWriteComplaint, canModerateComplaints } from "@/lib/complaints";
 import {
   listExternalReviewPage,
   summarizeReviewsByPlace,
@@ -182,6 +182,8 @@ export default async function MobileComplaintsPage({ searchParams }: PageProps) 
         locale={locale}
         complaints={complaints}
         canCreate={canWriteComplaint(session.user.role)}
+        currentUserId={session.user.id}
+        canModerate={canModerateComplaints(session.user.role)}
       />
     </MobileShell>
   );

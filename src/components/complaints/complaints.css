@@ -2546,3 +2546,242 @@ details[open] > .cx-bldcard__sum .cx-bldcard__chev {
 .cx-rooms details.cx-bldcard > .cx-bldcard__b {
   padding-top: 0;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   수동 컴플레인 목록 S5 (v2)
+   v1 에서 뺀 것: 평점 필 · 상태 점(칩과 중복) · 사진 아이콘 · 플랫폼 필터 칩.
+   그 자리를 작성자명이 대신한다 — 현장에서 «누가 올린 건인지»가 평점보다 자주 필요하다.
+   ══════════════════════════════════════════════════════════════ */
+.cx-manual .cx-seg--status {
+  margin: 10px 0 2px;
+  padding: 3px;
+  border-radius: 11px;
+}
+.cx-manual .cx-seg--status button {
+  height: 32px;
+  border-radius: 9px;
+  font-size: 12.5px;
+}
+.cx-manual .cx-seg--status .cnt {
+  font-size: 11px;
+}
+
+.cx-mcard {
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 8px 22px -18px rgba(20, 28, 40, 0.4);
+}
+.cx-mcard__link {
+  display: block;
+  padding: 13px;
+  text-decoration: none;
+  color: inherit;
+}
+.cx-mcard__h {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 9px;
+  /* 휴지통이 절대배치라 제목이 그 아래로 흐르지 않게 자리를 비워 둔다. */
+  padding-right: 38px;
+}
+.cx-mcard__t {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.38;
+  letter-spacing: -0.01em;
+}
+.cx-statuschip {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 4px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.cx-statuschip.is-open {
+  background: var(--open-bg);
+  color: var(--open);
+}
+.cx-statuschip.is-resolved {
+  background: var(--done-bg);
+  color: var(--done);
+}
+.cx-mcard__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cx-muted);
+}
+.cx-mcard__meta .sep {
+  color: var(--faint);
+}
+.cx-mcard__place {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 110px;
+}
+.cx-mcard__author {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cx-muted);
+}
+.cx-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: var(--cx-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+.cx-mcard__nodel {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--faint);
+}
+/* 휴지통은 권한 있는 건에만 붙는다. 카드 전체가 링크라 버튼은 그 위에 절대배치한다. */
+.cx-mcard__del {
+  position: absolute;
+  top: 10px;
+  right: 11px;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--bad) 28%, transparent);
+  background: var(--bad-bg);
+  color: var(--bad);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* ── 삭제 확인 시트 (공용 BottomSheet 안, 내용만) ── */
+.cx-delsheet__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.cx-delsheet__ic {
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  background: var(--bad-bg);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--bad) 20%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bad);
+  font-size: 27px;
+}
+.cx-delsheet__head h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+.cx-delsheet__head p {
+  margin: 5px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--cx-muted);
+  text-wrap: pretty;
+}
+.cx-delsheet__target {
+  margin-top: 14px;
+  border: 1px solid var(--line-soft);
+  background: color-mix(in oklab, var(--cx-surface) 50%, transparent);
+  border-radius: 16px;
+  padding: 10px 13px;
+  font-size: 13.5px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cx-delsheet__note {
+  margin-top: 12px;
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 11px 12px;
+  border-radius: 13px;
+  background: var(--bad-bg);
+  border: 1px solid color-mix(in oklab, var(--bad) 18%, var(--line));
+}
+.cx-delsheet__note .ic {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  font-size: 14px;
+  color: var(--bad);
+}
+.cx-delsheet__note span {
+  font-size: 11.5px;
+  line-height: 1.55;
+  font-weight: 600;
+  color: color-mix(in oklab, var(--bad) 70%, var(--ink));
+  text-wrap: pretty;
+}
+.cx-delsheet__err {
+  margin: 10px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--bad);
+  text-align: center;
+}
+.cx-delsheet__acts {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.cx-delsheet__cancel,
+.cx-delsheet__go {
+  height: 48px;
+  border-radius: 13px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.cx-delsheet__cancel {
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--bg) 70%, transparent);
+  color: var(--ink);
+  font-weight: 700;
+}
+.cx-delsheet__go {
+  border: none;
+  background: var(--bad);
+  color: #fff;
+  font-weight: 900;
+}
+.cx-delsheet__cancel:disabled,
+.cx-delsheet__go:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
