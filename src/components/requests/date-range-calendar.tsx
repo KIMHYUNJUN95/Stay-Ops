@@ -174,6 +174,21 @@ function CalendarPanel({
   const rangeEnd = draftEnd ?? draftStart;
   const hintLabel = !draftStart || draftEnd ? labels.selectStart : labels.selectEnd;
 
+  /**
+   * 이웃 칸의 띠가 맞닿는지 본다 — 맞닿지 않으면 그쪽 끝을 둥글게 막는다.
+   * 하루만 고른 상태(`rangeStart === rangeEnd`)에서는 띠 자체를 그리지 않으므로 항상 false 다.
+   */
+  function bandTouchesRight(index: number): boolean {
+    const iso = cells[index];
+    if (!iso || !rangeStart || !rangeEnd || rangeStart === rangeEnd) return false;
+    return iso === rangeStart || (iso > rangeStart && iso < rangeEnd);
+  }
+  function bandTouchesLeft(index: number): boolean {
+    const iso = cells[index];
+    if (!iso || !rangeStart || !rangeEnd || rangeStart === rangeEnd) return false;
+    return iso === rangeEnd || (iso > rangeStart && iso < rangeEnd);
+  }
+
   const summaryText =
     draftStart && rangeEnd ? `${draftStart.replace(/-/g, ".")} – ${rangeEnd.replace(/-/g, ".")}` : "—";
 
@@ -268,13 +283,21 @@ function CalendarPanel({
               rangeStart && rangeEnd && iso > rangeStart && iso < rangeEnd;
             const isEdge = isStart || isEnd;
             const dayNumber = Number(iso.slice(8, 10));
+            // 띠가 «끊기는» 자리는 둥글게 막는다. 주 경계에서 잘리거나(토→일), 달 첫날이 주중이라
+            // 앞이 빈칸이거나, 기간이 다음 달로 이어져 격자 끝에서 끊길 때 각진 모서리가 남는다.
+            const capLeft = !(index % 7) || !bandTouchesRight(index - 1);
+            const capRight = index % 7 === 6 || !bandTouchesLeft(index + 1);
 
             return (
               <div className="relative flex items-center justify-center" key={iso}>
                 {inRange ? (
                   <span
                     aria-hidden="true"
-                    className="absolute inset-y-1 inset-x-0 bg-[#EAF1F8]"
+                    className={cn(
+                      "absolute inset-y-1 inset-x-0 bg-[#EAF1F8]",
+                      capLeft && "rounded-l-full",
+                      capRight && "rounded-r-full",
+                    )}
                   />
                 ) : null}
                 {isEdge && rangeStart !== rangeEnd ? (
@@ -282,7 +305,11 @@ function CalendarPanel({
                     aria-hidden="true"
                     className={cn(
                       "absolute inset-y-1 w-1/2 bg-[#EAF1F8]",
+                      // 반쪽 띠의 안쪽 끝은 선택 동그라미에 가려지지만, 바깥쪽 끝은 주 경계에서
+                      // 그대로 드러난다.
                       isStart ? "right-0" : "left-0",
+                      isStart && capRight && "rounded-r-full",
+                      isEnd && capLeft && "rounded-l-full",
                     )}
                   />
                 ) : null}

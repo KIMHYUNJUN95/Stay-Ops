@@ -321,6 +321,20 @@ in client variables, documentation, source code, or browser logs. The report sen
 existing daily-report permission server-side. Leaving it unset keeps report generation/copy working
 and returns a localized "not configured" message for Slack send.
 
+### Slack operator alerts — a *different* channel (2026-08-07)
+
+```txt
+SLACK_OPS_ALERT_WEBHOOK_URL=
+```
+
+Used only by `src/lib/slack-notify.ts` (currently: the external-review freshness check). **Do not
+point this at the daily-report webhook.** That channel is where field staff post work logs; a
+"review collection looks stalled" alert there reaches people who cannot act on it and pushes real
+logs off screen. Different audience → different channel.
+
+**Optional.** Unset means no Slack message at all — detection still runs and the reconcile workflow
+still prints a `::warning::` in its run log. Setting it is opting *in* to an extra alert.
+
 ## Storage
 
 Active Supabase Storage buckets:

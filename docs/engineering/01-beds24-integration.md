@@ -762,8 +762,11 @@ Status update:
 **멈춘 것을 알아채는 장치**를 붙인다.
 
 - 엔드포인트 `GET/POST /api/beds24/reviews-sync/health` (인증은 reconcile 과 동일 규약).
-  `max(external_reviews.updated_at)` 이 **2일** 이상 오래되면 `stale: true` 를 반환하고 Slack 으로
-  알린다.
+  `max(external_reviews.updated_at)` 이 **2일** 이상 오래되면 `stale: true` 를 반환한다.
+- **기본 신호는 워크플로 로그의 `::warning::` 이다.** Slack 은 선택 사항 —
+  `SLACK_OPS_ALERT_WEBHOOK_URL` 을 설정한 경우에만 추가로 보낸다. 이 변수는 업무일지 웹훅과
+  **다른 채널**이어야 한다: 업무일지 채널은 현장 직원이 쓰는 곳이라 시스템 경보를 받는 사람이
+  할 수 있는 일이 없고 일지만 밀어 올린다. 대상이 다르면 채널도 달라야 한다.
 - **점검은 수집 밖에 있어야 한다.** 수집이 안 도는 것이 문제인데 수집이 스스로 알릴 수는 없다.
   그래서 **reconcile 워크플로**(하루 4회, 63회 연속 성공)가 마지막 스텝에서 이걸 부른다.
   `if: always()` 라 reconcile 이 실패해도 점검은 돈다. Beds24 크레딧을 쓰지 않는다(DB 한 줄 조회).

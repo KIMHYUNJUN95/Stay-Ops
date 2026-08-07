@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -154,6 +154,26 @@ export function TaskDetailView({
   const updateUploaderRef = useRef<AnnouncementImageUploaderHandle>(null);
   const shareFormRef = useRef<HTMLFormElement>(null);
   const shareInputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    function closeOnOutsidePress(event: PointerEvent) {
+      if (menuRef.current?.contains(event.target as Node)) return;
+      setMenuOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsidePress);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePress);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [menuOpen]);
 
   const done = task.status === "completed";
   const existingParticipantIds = task.participants.map((p) => p.userId);
@@ -250,7 +270,7 @@ export function TaskDetailView({
           {copy.detailTitle}
         </p>
         {canEditCore ? (
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <button
               aria-label={copy.editTask}
               className="flex size-9 items-center justify-center rounded-full bg-slate-50 text-slate-700"

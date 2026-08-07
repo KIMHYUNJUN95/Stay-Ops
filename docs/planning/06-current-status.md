@@ -8,7 +8,10 @@ This document tracks what has been completed, what is in progress, and what rema
 
 - Mobile task completion, deletion, and recurring-occurrence skip undo toasts keep their current
   design and behavior but use reduced padding, gaps, typography, icons, and action controls.
+- Mobile undo messages are single-line and omit occurrence/next-occurrence dates for a cleaner bar.
 - The admin task-console undo toast is unchanged.
+- The mobile task-detail options menu now closes on an outside press or `Escape` without blocking
+  the pressed screen control.
 - Verification completed: `npm run check:i18n` (19 tests), `npm test` (175 tests), `npm run lint`
   (0 errors; 11 pre-existing warnings), and `npm run build` all pass.
 

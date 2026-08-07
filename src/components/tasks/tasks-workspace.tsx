@@ -550,29 +550,6 @@ export function TasksWorkspace({
     isActive(t) &&
     !isStandardRecurrence(t.recurrenceRule) &&
     (t.scheduledDate === tomorrowDate || dueDateOf(t) === tomorrowDate);
-  // "다음: {날짜}" for the just-completed recurring task (its next occurrence after today).
-  const undoSub = (() => {
-    if (!undoTask || !isStandardRecurrence(undoTask.recurrenceRule)) return undefined;
-    const a = anchor(undoTask);
-    if (!a) return undefined;
-    const next = recurringOccurrencesInRange(
-      undoTask.recurrenceRule,
-      a,
-      ymdShift(today, 1),
-      ymdShift(today, 366),
-    )[0];
-    if (!next) return undefined;
-    const label =
-      next === ymdShift(today, 1)
-        ? copy.viewTomorrow
-        : new Intl.DateTimeFormat(locale, {
-            month: "numeric",
-            day: "numeric",
-            weekday: "short",
-            timeZone: "UTC",
-          }).format(new Date(`${next}T00:00:00Z`));
-    return copy.nextLabel.replace("{date}", label);
-  })();
   const prioSort = (a: TaskRecord, b: TaskRecord) =>
     (PRIO_ORD[a.priority] ?? 3) - (PRIO_ORD[b.priority] ?? 3);
   /** 하루 안의 정렬 — 시간이 있는 항목이 먼저(빠른 시각 순), 없으면 우선순위. 콘솔 `tasksOn` 과 동일. */
@@ -2420,7 +2397,7 @@ export function TasksWorkspace({
             <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-3">
               <div className="pointer-events-auto flex max-w-[420px] items-center gap-1.5 rounded-[18px] bg-slate-900 py-2 pl-3 pr-1.5 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
                 <span className="whitespace-nowrap text-[12px] font-bold tracking-[-0.01em]">
-                  {copy.recurSkippedToast.replace("{date}", shortDateLabel(skipUndo.date))}
+                  {copy.recurSkippedToastMobile}
                 </span>
                 <button
                   className="ml-0.5 inline-flex flex-none items-center gap-1 rounded-xl px-2 py-1 text-[12px] font-extrabold text-rose-300 transition-colors active:bg-white/10"
@@ -2449,13 +2426,10 @@ export function TasksWorkspace({
         ? createPortal(
             <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-3">
               <div className="pointer-events-auto flex max-w-[420px] items-center gap-1.5 rounded-[18px] bg-slate-900 py-2 pl-3 pr-1.5 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
-                <div className="flex min-w-0 flex-col">
+                <div className="min-w-0">
                   <span className="whitespace-nowrap text-[12px] font-bold tracking-[-0.01em]">
                     {undoTask ? copy.completedToast : copy.deletedToast}
                   </span>
-                  {undoTask && undoSub ? (
-                    <span className="whitespace-nowrap text-[10.5px] font-medium text-slate-400">{undoSub}</span>
-                  ) : null}
                 </div>
                 <button
                   className="ml-0.5 inline-flex flex-none items-center gap-1 rounded-xl px-2 py-1 text-[12px] font-extrabold text-rose-300 transition-colors active:bg-white/10"
