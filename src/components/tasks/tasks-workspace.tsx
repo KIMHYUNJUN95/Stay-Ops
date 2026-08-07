@@ -2418,12 +2418,12 @@ export function TasksWorkspace({
       {skipUndo && hydrated
         ? createPortal(
             <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-3">
-              <div className="pointer-events-auto flex max-w-[420px] items-center gap-1.5 rounded-[15px] bg-slate-900 py-2 pl-3 pr-1.5 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
+              <div className="pointer-events-auto flex max-w-[420px] items-center gap-1.5 rounded-[18px] bg-slate-900 py-2 pl-3 pr-1.5 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
                 <span className="whitespace-nowrap text-[12px] font-bold tracking-[-0.01em]">
                   {copy.recurSkippedToast.replace("{date}", shortDateLabel(skipUndo.date))}
                 </span>
                 <button
-                  className="ml-0.5 inline-flex flex-none items-center gap-1 rounded-[10px] px-2 py-1 text-[12px] font-extrabold text-rose-300 transition-colors active:bg-white/10"
+                  className="ml-0.5 inline-flex flex-none items-center gap-1 rounded-xl px-2 py-1 text-[12px] font-extrabold text-rose-300 transition-colors active:bg-white/10"
                   onClick={undoSkipOccurrence}
                   type="button"
                 >
@@ -2431,7 +2431,7 @@ export function TasksWorkspace({
                   {copy.undo}
                 </button>
                 <button
-                  className="inline-flex size-7 flex-none items-center justify-center rounded-[10px] text-slate-400 transition-colors active:bg-white/10"
+                  className="inline-flex size-7 flex-none items-center justify-center rounded-xl text-slate-400 transition-colors active:bg-white/10"
                   onClick={() => setSkipUndo(null)}
                   type="button"
                   aria-label={copy.undo}
@@ -2448,7 +2448,7 @@ export function TasksWorkspace({
       {(undoTask || deletedUndoIds?.length) && hydrated
         ? createPortal(
             <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-3">
-              <div className="pointer-events-auto flex max-w-[420px] items-center gap-1.5 rounded-[15px] bg-slate-900 py-2 pl-3 pr-1.5 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
+              <div className="pointer-events-auto flex max-w-[420px] items-center gap-1.5 rounded-[18px] bg-slate-900 py-2 pl-3 pr-1.5 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
                 <div className="flex min-w-0 flex-col">
                   <span className="whitespace-nowrap text-[12px] font-bold tracking-[-0.01em]">
                     {undoTask ? copy.completedToast : copy.deletedToast}
@@ -2458,7 +2458,7 @@ export function TasksWorkspace({
                   ) : null}
                 </div>
                 <button
-                  className="ml-0.5 inline-flex flex-none items-center gap-1 rounded-[10px] px-2 py-1 text-[12px] font-extrabold text-rose-300 transition-colors active:bg-white/10"
+                  className="ml-0.5 inline-flex flex-none items-center gap-1 rounded-xl px-2 py-1 text-[12px] font-extrabold text-rose-300 transition-colors active:bg-white/10"
                   onClick={undoTask ? handleUndo : handleRestore}
                   type="button"
                 >
@@ -2466,7 +2466,7 @@ export function TasksWorkspace({
                   {copy.undo}
                 </button>
                 <button
-                  className="inline-flex size-7 flex-none items-center justify-center rounded-[10px] text-slate-400 transition-colors active:bg-white/10"
+                  className="inline-flex size-7 flex-none items-center justify-center rounded-xl text-slate-400 transition-colors active:bg-white/10"
                   onClick={() => {
                     setUndoTask(null);
                     setDeletedUndoIds(null);
