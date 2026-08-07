@@ -1862,3 +1862,370 @@ textarea.cx-fld {
   background: color-mix(in oklab, var(--cx-primary) 7%, transparent);
   color: var(--cx-primary);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   외부 리뷰 상세 S3 (v2)
+   순서는 어드민 상세 패널과 동일 — 칩 → hero → 세부 점수 → 본문 → 비공개 → OTA 답글
+   → 문맥 → 전환. 두 화면이 다른 순서면 같은 리뷰를 두고 대화가 안 된다.
+   토큰은 .cx 에 실제로 정의된 것만 쓴다: --card --bg --ink --ink-soft --cx-muted
+   --faint --line --line-soft --cx-surface --cx-primary --bad --bad-bg --open --open-bg --done-bg
+   ══════════════════════════════════════════════════════════════ */
+.cx-rdetail .cx-hero {
+  display: flex;
+  gap: 15px;
+  align-items: flex-start;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.cx-hero__score {
+  flex: 0 0 auto;
+  width: 74px;
+  height: 74px;
+  border-radius: 20px;
+  background: var(--cx-surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.cx-hero__score b {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--ink);
+}
+.cx-hero__score i {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 3px;
+  color: var(--cx-muted);
+}
+.cx-hero__score.is-bad {
+  background: var(--bad-bg);
+}
+.cx-hero__score.is-bad b {
+  color: var(--bad);
+}
+.cx-hero__score.is-bad i {
+  color: color-mix(in oklab, var(--bad) 65%, var(--cx-muted));
+}
+.cx-hero__score.is-none b {
+  color: var(--cx-muted);
+}
+.cx-hero__b {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+.cx-hero__t {
+  margin: 0 0 6px;
+  font-size: 16.5px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+.cx-hero__t.is-dim {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--faint);
+  line-height: 1.5;
+}
+.cx-hero__rule {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--faint);
+  text-wrap: pretty;
+}
+
+/* 섹션 헤더 — 왼쪽 라벨, 오른쪽에 보조 표기나 액션 하나 */
+.cx-rdetail .cx-sechead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 2px 9px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--cx-muted);
+}
+.cx-rdetail .cx-sechead > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cx-rdetail .cx-sechead .opt {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--faint);
+}
+.cx-trbadge {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--cx-surface);
+  color: var(--cx-muted);
+}
+
+/* 번역 컨트롤 — 리뷰 1건 단위, 누를 때만 실행 */
+.cx-trbtn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 11px;
+  border: 1px solid color-mix(in oklab, var(--cx-primary) 30%, transparent);
+  background: color-mix(in oklab, var(--cx-primary) 7%, transparent);
+  color: var(--cx-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cx-trbtn.is-plain {
+  border-color: var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+}
+.cx-trbtn:disabled {
+  cursor: default;
+}
+.cx-trbtn .ic {
+  font-size: 15px;
+}
+.cx-spin {
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  border: 2px solid var(--line);
+  border-top-color: var(--cx-primary);
+  animation: cxspin 0.7s linear infinite;
+  display: block;
+}
+@keyframes cxspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.cx-trfail {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 11px;
+  border-radius: 12px;
+  background: var(--bad-bg);
+  border: 1px solid color-mix(in oklab, var(--bad) 22%, var(--line));
+  margin-bottom: 10px;
+}
+.cx-trfail .ic {
+  flex: 0 0 auto;
+  font-size: 14px;
+  color: var(--bad);
+}
+.cx-trfail__t {
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--bad);
+}
+.cx-trfail__retry {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--bad);
+  padding: 5px 9px;
+  border-radius: 9px;
+  border: none;
+  background: var(--card);
+  cursor: pointer;
+}
+
+/* 본문 카드 */
+.cx-bodycard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 13px;
+  margin-bottom: 9px;
+}
+.cx-bodycard__h {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.cx-bodycard__h .is-pos {
+  color: var(--done);
+}
+.cx-bodycard__h .is-neg {
+  color: var(--open);
+}
+.cx-bodycard__b {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+}
+.cx-bodycard.is-dim .cx-bodycard__b {
+  color: var(--cx-muted);
+  margin-top: 7px;
+}
+.cx-replycard__t {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+/* 비공개 피드백 — 경고 톤. 중립 회색은 «공개 내용으로 오해»를 막기에 약하다. */
+.cx-privcard {
+  border: 1px dashed hsl(35 60% 55%);
+  background: var(--open-bg);
+  border-radius: 14px;
+  padding: 12px 13px;
+  margin-bottom: 12px;
+}
+.cx-privcard__h {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.cx-privcard__h .ic {
+  font-size: 13px;
+  color: var(--open);
+}
+.cx-privcard__t {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--open);
+}
+.cx-privcard__badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--open);
+}
+.cx-privcard__from {
+  font-size: 10px;
+  font-weight: 600;
+  color: color-mix(in oklab, var(--open) 80%, var(--cx-muted));
+  margin-bottom: 7px;
+}
+.cx-privcard__b {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+}
+.cx-privcard__note {
+  margin: 8px 0 0;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: color-mix(in oklab, var(--open) 75%, var(--cx-muted));
+}
+
+/* 문맥 — 빈 값을 숨기지 않고 «이름 없음»으로 명시한다. 수집 누락과 실제 부재를 구분해야 한다. */
+.cx-kvcard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 2px 13px;
+  margin-bottom: 14px;
+}
+.cx-kvrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.cx-kvrow:first-child {
+  border-top: none;
+}
+.cx-kvrow__k {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cx-muted);
+  flex: 0 0 auto;
+}
+.cx-kvrow__v {
+  font-size: 12.5px;
+  font-weight: 800;
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cx-kvrow__v.is-dim {
+  font-weight: 600;
+  color: var(--faint);
+}
+
+/* 전환 영역 */
+.cx-convertzone {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 16px;
+}
+.cx-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: var(--cx-surface);
+}
+.cx-note .ic {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  font-size: 13px;
+  color: var(--cx-muted);
+}
+.cx-note span {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--cx-muted);
+  text-wrap: pretty;
+}
+.cx-nopermit {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 12px 13px;
+  border-radius: 13px;
+  border: 1px dashed var(--line);
+}
+.cx-nopermit .ic {
+  flex: 0 0 auto;
+  font-size: 15px;
+  color: var(--faint);
+}
+.cx-nopermit span {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--cx-muted);
+}
