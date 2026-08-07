@@ -409,6 +409,13 @@ export type PlaceSummary = {
 
 export type BuildingSummary = PlaceSummary & {
   propertyId: string | null;
+  /**
+   * 화면에 보여 주는 건물명. `properties.name` 은 `Okubo_A (B棟)` / `Okubo_C (kr)` 처럼 Beds24
+   * 원본 표기라 그대로 쓰면 캘린더·청소와 이름이 갈라진다. 캘린더와 **같은 두 단계**
+   * (`getCanonicalPropertyName` → `localizePropertyName`)를 서버에서 끝내, 어드민·모바일이
+   * 각자 현지화를 다시 하지 않게 한다. 사전에 없는 건물은 정규화 이름을 그대로 쓴다.
+   */
+  label: string;
   /** `properties.property_type = 'standalone'` — 독채는 객실 행을 만들지 않는다. */
   standalone: boolean;
   rooms: PlaceSummary[];
@@ -441,14 +448,18 @@ function toStat(acc: Acc, rated: number): PlatformStat {
  *  - Airbnb(5점)와 Booking.com(10점)은 하나의 평균으로 합치지 않는다.
  *  - 객실이 연결되지 않은 리뷰는 건물 합계에만 넣고 `unmappedCount`로 밝힌다.
  *  - `standalone` 건물은 객실 행을 만들지 않는다 — 건물 이름 문자열로 분기하지 않는다.
+ *  - 건물명은 캘린더와 같은 정규화·현지화를 거쳐 `label` 로 내려보낸다(`name` 은 정규화 이름).
  */
 export async function summarizeReviewsByPlace(input: {
   session: AppSession;
   from: string;
   to: string;
+  /** 건물명 현지화용. 화면마다 다시 매핑하지 않도록 집계 단계에서 라벨을 붙인다. */
+  locale: string;
 }): Promise<BuildingSummary[]> {
   const { session, from, to } = input;
   const organizationId = requireOrg(session);
+  const buildingLabels = getDictionary(input.locale).cleaning.buildingLabels;
 
   const reviews = await listExternalReviews({
     session,
@@ -486,7 +497,9 @@ export async function summarizeReviewsByPlace(input: {
 
   type Bucket = {
     propertyId: string | null;
+    /** 정규화 건물명 — 객실 정규화(`getCanonicalRoomLabel`)의 입력이자 라벨 조회 키. */
     name: string;
+    label: string;
     airbnb: Acc;
     booking: Acc;
     airbnbRated: number;

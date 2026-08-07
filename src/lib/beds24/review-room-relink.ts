@@ -38,6 +38,20 @@ import { readBeds24Credits } from "./credits";
 
 /** 실측으로 확인한 배치 크기 — 40개를 한 요청에 실어도 cost=1 이다. */
 const LOOKUP_BATCH = 40;
+
+/**
+ * 조회할 예약 상태 전부.
+ *
+ * **`status` 를 생략하면 Beds24 는 취소 예약을 빼고 준다.** 이걸 몰라서 2026-08-07 첫 백필이
+ * 1건을 «Beds24 에도 없다» 고 잘못 결론지었다. 실제로는 `status=cancelled` 인 예약이 멀쩡히
+ * 있었고 `roomId` 도 들어 있었다.
+ *
+ * 취소된 예약에도 리뷰가 달린다 — 일부만 묵고 나머지를 취소하는 식은 흔하다. 리뷰가 존재하는
+ * 이상 그 방을 가리키는 것이 맞으므로 취소분도 똑같이 연결한다.
+ *
+ * 상태를 여러 개 실어도 **비용은 그대로 1** 이다(실측). 요청을 두 번 나눌 이유가 없다.
+ */
+const LOOKUP_STATUSES = ["new", "request", "confirmed", "cancelled", "black"] as const;
 /** 업데이트 왕복을 병렬로 묶는 단위. */
 const UPDATE_CHUNK = 25;
 const RESERVATION_PAGE = 1000;
@@ -246,9 +260,10 @@ export async function relinkReviewRooms(input: {
             break;
           }
           const chunk = fresh.slice(i, i + LOOKUP_BATCH);
-          const qs = chunk
-            .map((r) => `apiReference=${encodeURIComponent(r.source_reservation_id ?? "")}`)
-            .join("&");
+          const qs = [
+            ...chunk.map((r) => `apiReference=${encodeURIComponent(r.source_reservation_id ?? "")}`),
+            ...LOOKUP_STATUSES.map((s) => `status=${s}`),
+          ].join("&");
           let json: { data?: unknown } | null = null;
           try {
             const response = await fetch(`${base}/bookings?${qs}`, {
