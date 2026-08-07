@@ -53,63 +53,21 @@ import { isExcludedOperationalProperty } from "@/lib/room-label-normalization";
 import { isInactiveBeds24Room } from "@/lib/rooms";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
-type TokenState = { ok: true; token: string } | { ok: false; skipped: string };
+import { resolveBeds24AccessToken } from "./access-token";
+import { readBeds24Credits, type Beds24CreditInfo } from "./credits";
+import { relinkReviewRooms, type ReviewRelinkResult } from "./review-room-relink";
 
-let cachedToken: { token: string; expiresAt: number } | null = null;
+/** 토큰 해석·캐시는 `access-token.ts` 가 갖는다 — 재연결 모듈과 캐시를 공유하기 위해서다. */
+const resolveAccessToken = () => resolveBeds24AccessToken("reviews-sync");
 
-async function resolveAccessToken(): Promise<TokenState> {
-  const env = getOptionalBeds24ApiEnv();
-  if (!env) return { ok: false, skipped: "reviews-sync:missing-env" };
-  if (env.accessToken) return { ok: true, token: env.accessToken };
-  if (!env.refreshToken) return { ok: false, skipped: "reviews-sync:missing-token" };
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
-    return { ok: true, token: cachedToken.token };
-  }
-  try {
-    const response = await fetch(`${env.baseUrl.replace(/\/$/, "")}/authentication/token`, {
-      method: "GET",
-      headers: { accept: "application/json", refreshToken: env.refreshToken },
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      return {
-        ok: false,
-        skipped:
-          response.status === 401 || response.status === 403
-            ? "reviews-sync:refresh-token-invalid"
-            : `reviews-sync:refresh-http-${response.status}`,
-      };
-    }
-    const json = (await response.json()) as { token?: unknown; expiresIn?: unknown };
-    const token = typeof json.token === "string" && json.token.trim() ? json.token.trim() : null;
-    if (!token) return { ok: false, skipped: "reviews-sync:refresh-missing-token" };
-    const expiresIn = typeof json.expiresIn === "number" && Number.isFinite(json.expiresIn) ? json.expiresIn : 3600;
-    cachedToken = { token, expiresAt: Date.now() + expiresIn * 1000 };
-    return { ok: true, token };
-  } catch {
-    return { ok: false, skipped: "reviews-sync:refresh-request-error" };
-  }
-}
-
-/** 응답 헤더의 크레딧 정보. 잔여가 낮으면 남은 대상을 다음 주기로 미룬다. */
-type CreditInfo = {
-  requestCost: number | null;
-  remaining: number | null;
-  resetsIn: number | null;
-};
-
-function readCredits(headers: Headers): CreditInfo {
-  const num = (raw: string | null) => {
-    if (raw === null) return null;
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) ? parsed : null;
-  };
-  return {
-    requestCost: num(headers.get("X-RequestCost")),
-    remaining: num(headers.get("X-FiveMinCreditLimit-Remaining")),
-    resetsIn: num(headers.get("X-FiveMinCreditLimit-ResetsIn")),
-  };
-}
+/**
+ * 응답 헤더의 크레딧 정보. 잔여가 낮으면 남은 대상을 다음 주기로 미룬다.
+ *
+ * 헤더 이름은 `credits.ts` 가 갖는다 — 2026-08-07 까지 여기 적혀 있던 이름이 전부 틀려서
+ * 잔여 크레딧이 항상 null 이었고 저크레딧 가드가 한 번도 발동하지 않았다. 자세한 내용은 그쪽 주석.
+ */
+type CreditInfo = Beds24CreditInfo;
+const readCredits = readBeds24Credits;
 
 /** 이 값 아래로 떨어지면 남은 대상을 건너뛰고 다음 주기가 이어받는다. */
 const MIN_REMAINING_CREDITS = 50;
@@ -318,7 +276,20 @@ export type ReviewSyncResult = {
    * 정확히 그 지점부터 이어받아 건너뛰는 대상이 생기지 않는다.
    */
   nextOffset: number | null;
+  /** 수집 뒤 사후 재연결 결과. 조직의 마지막 조각에서만 채워진다. */
+  relink?: ReviewRelinkResult;
 };
+
+/**
+ * 상시 경로에서 Beds24 예약 조회를 허용할 리뷰 나이 상한.
+ *
+ * 영영 못 찾는 건(Beds24 에서 삭제된 예약 등)이 **매일 크레딧을 태우는 것**을 막는 장치다.
+ * 상태 컬럼을 새로 만들지 않고 나이로 스스로 빠지게 했다 — 새 리뷰는 45일이면 예약이 들어올
+ * 시간으로 충분하고, 그때까지 못 찾았다면 앞으로도 못 찾는다.
+ */
+const RELINK_LOOKUP_MAX_AGE_DAYS = 45;
+/** 한 주기에 허용할 재연결 조회 요청 수. 40건/요청이라 상시 운영에는 넉넉하다. */
+const RELINK_MAX_LOOKUP_REQUESTS = 3;
 
 type SyncTarget =
   | { provider: "airbnb"; externalId: string; propertyId: string; propertyName: string; roomId: string; roomLabel: string }
@@ -705,6 +676,25 @@ export async function syncOrganizationReviews(input: {
   // `nextOffset` 이 null 이 될 때까지 반복해 부르면 전량이 정확히 한 번씩 처리된다.
   const consumed = offset + processedInSlice;
   result.nextOffset = consumed < targets.length ? consumed : null;
+
+  // 조직의 마지막 조각에서만 재연결을 돌린다. 조각마다 돌리면 예약 인덱스를 매번 다시 읽고
+  // Beds24 조회도 중복된다 — 재연결은 «수집이 한 바퀴 끝난 뒤»에 한 번이면 충분하다.
+  //
+  // 이게 왜 수집과 별개인가: 리뷰가 예약보다 먼저 도착하면 수집 시점엔 객실을 알 수 없는데,
+  // Booking 리뷰는 `from=최근날짜` 로만 다시 조회되므로 **오래된 리뷰는 다시 올라오지 않는다.**
+  // 재수집으로는 영영 안 채워지고, 사후 재연결만이 채운다(2026-08-07 실측 34건).
+  if (result.nextOffset === null && !result.stoppedEarly) {
+    const relink = await relinkReviewRooms({
+      organizationId,
+      lookupMaxAgeDays: RELINK_LOOKUP_MAX_AGE_DAYS,
+      allowLookup: true,
+      maxLookupRequests: RELINK_MAX_LOOKUP_REQUESTS,
+    });
+    result.relink = relink;
+    result.requests += relink.lookupRequests;
+    if (relink.creditsRemaining !== null) result.creditsRemaining = relink.creditsRemaining;
+    skipped.push(...relink.skipped);
+  }
 
   return result;
 }

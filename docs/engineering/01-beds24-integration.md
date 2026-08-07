@@ -102,7 +102,8 @@ StayOps UI는 Beds24를 실시간 조회하지 않고, 수집한 `external_revie
 - 매핑은 플랫폼마다 방식이 다르다. **Airbnb는 조회한 `roomId`로 객실이 확정**된다.
   **Booking.com은 객실 정보가 없고** `reservation_id`(Beds24 bookingId)를 같은 조직의
   `reservations.source_reservation_id`로 역조회해야 객실을 얻는다. 역조회 실패 시 객실을 추정하지 않고
-  null로 둔다.
+  null로 둔다. **수집 시점에는 그대로 두고, 사후에 재연결한다** — 아래 「객실 재연결」 참조.
+  (예약이 리뷰보다 늦게 도착하는 경우가 실제로 34건 있었다.)
 - **Airbnb 예약 매칭 (2026-08-06 정정).** "Airbnb는 예약 ID가 없다"는 이전 기술은 틀렸다. 리뷰
   페이로드에 `reservation_confirmation_code`(예: `HMRWNK5RQW`)가 **2,214/2,214건 전부** 들어 있고,
   같은 코드가 우리 예약의 `raw_payload->>apiReference`에 저장돼 있다. 수집 시 조직 범위에서 이 코드로
@@ -127,9 +128,11 @@ StayOps UI는 Beds24를 실시간 조회하지 않고, 수집한 `external_revie
   - **총 Beds24 호출 수는 쪼개기 전과 같다**(호출 수 = 대상 수). 크레딧이 늘지 않는다.
   - 검증(2026-08-07): `offset=0,limit=2` → `nextOffset=2` / `offset=2,limit=2` → `nextOffset=4`(다른
     객실 처리 확인) / `offset=999` → `requests=0, nextOffset=null`(헛호출 없음).
-- API 비용 통제: 응답 헤더 `X-RequestCost`, `X-FiveMinCreditLimit-Remaining`,
-  `X-FiveMinCreditLimit-ResetsIn`을 수집 로그에 남긴다. 여유 크레딧이 낮으면 남은 대상을 다음 주기로
+- API 비용 통제: 응답 헤더 `x-request-cost`, `x-five-min-limit-remaining`,
+  `x-five-min-limit-resets-in`을 수집 로그에 남긴다. 여유 크레딧이 낮으면 남은 대상을 다음 주기로
   미루고(중단 지점을 다음 주기가 이어받는다), 예약 웹훅 처리보다 우선하지 않는다.
+  **이 이름은 2026-08-07에 정정한 것이다** — 그 전까지 코드와 이 문서가 함께 틀린 이름을 쓰고 있어
+  저크레딧 가드가 한 번도 발동하지 않았다. 아래 「크레딧 헤더 이름이 틀려 있었다」 참조.
 - 두 엔드포인트가 Beta/Alpha이므로 `raw_payload`를 항상 보존하고, 파싱 실패는 해당 리뷰 1건만 건너뛰고
   나머지 수집을 계속한다.
 - 보안: API 토큰은 서버 전용 환경변수에서 재사용한다. 브라우저 요청, 클라이언트 로그, 문서에 토큰을 노출하지 않는다.
@@ -779,3 +782,70 @@ Status update:
 - 알림 실패는 본 작업을 실패로 만들지 않는다. 사유를 응답의 `notified` 에 실어 드러낸다.
 - Slack 문구는 사전을 쓰지 않는다 — 화면이 아니라 운영 채널로 나가고, 크론 컨텍스트에는 «보는
   사람»이 없어 로케일을 고를 근거가 없다. `i18n-ignore` 사유를 코드에 남겼다.
+
+#### 객실 재연결 (2026-08-07)
+
+Airbnb 리뷰는 `roomId` 로 조회하므로 객실이 처음부터 확정이다(실측 0/2,215 미연결). **Booking.com
+은 건물 단위(`propertyId`)로만 조회**돼서 객실을 예약을 거쳐 역추적해야 하는데, 그 역추적이
+**165/253(65.2%)** 실패하고 있었다.
+
+리뷰 payload 자체에는 객실 정보가 **없다.** 전 키 실측:
+`url / reply / content / scoring / reviewer / review_id / reservation_id / created_timestamp /
+last_change_timestamp`. 있는 건 예약번호뿐이다.
+
+**원인은 둘이었고 성격이 다르다.**
+
+1. **예약이 우리 DB에 없다 (128건).** `reservations` 는 «당월 + 향후 2개월» 창으로만 백필돼
+   체크인 2026-04-22 이전 예약이 아예 없다. 그래서 2026-04 이전 Booking 리뷰는 매핑률이 0% 였다.
+2. **리뷰가 예약보다 먼저 도착했다 (34건).** 수집 시점엔 예약이 없어 null 로 저장됐는데, Booking
+   리뷰는 `from=최근날짜` 로만 다시 조회되므로 **오래된 리뷰는 파이프라인에 다시 올라오지 않는다.**
+   재수집으로는 영영 안 채워진다 — 그래서 **재연결이 수집과 별개로 있어야 한다.**
+
+**해법 — `src/lib/beds24/review-room-relink.ts` 한 함수.**
+
+- 먼저 DB 안에서 푼다(크레딧 0): 리뷰의 `source_reservation_id` → 예약 → `room_label` → 객실.
+- 그래도 예약을 못 찾으면 Beds24 `GET /bookings?apiReference=…` 로 조회해 `roomId` 를 얻고
+  `rooms.external_room_id` 로 매핑한다. **`apiReference` 는 한 요청에 여러 개를 실을 수 있다** —
+  실측 40개 배치 = 1크레딧. 128건 전수 조회가 **4요청·4크레딧**이었다.
+- 같은 Beds24 객실이 우리 쪽 여러 행에 매핑돼 있으면(계정 2개인 객실) 리뷰의 건물과 일치하는
+  행을 쓰고, 그래도 못 좁히면 **추정하지 않는다.**
+- 한 예약이 여러 객실에 걸치면 객실은 비우고 예약 링크만 채운다. 하나를 고르는 순간 **틀린 객실에
+  문제를 귀속**시키게 된다.
+
+**상시 경로 vs 일회성 백필은 같은 함수다.** 두 벌로 만들면 한쪽만 고쳐진다. 차이는 인자뿐이다.
+
+| | 호출 | `lookupMaxAgeDays` | 요청 상한 |
+|---|---|---|---|
+| 상시 | `syncOrganizationReviews` 끝(조직의 **마지막 조각**에서만) | 45 | 3 |
+| 일회성 | `POST /api/beds24/reviews-sync/relink` | 제한 없음 | 40 |
+
+- **나이 제한이 크레딧 안전장치다.** 영영 못 찾는 건(Beds24 에서 삭제된 예약 등)이 매일 크레딧을
+  태우지 않도록, 상태 컬럼을 새로 만드는 대신 **나이로 스스로 빠지게** 했다. 45일이면 예약이 들어올
+  시간으로 충분하고, 그때까지 못 찾았다면 앞으로도 못 찾는다.
+- 조직의 **마지막 조각에서만** 도는 이유: 조각마다 돌면 예약 인덱스를 매번 다시 읽고 조회도
+  중복된다. 재연결은 «수집이 한 바퀴 끝난 뒤» 한 번이면 충분하다.
+- 라우트의 플래그는 `skipLookup` 이다. **`dryRun` 이라 부르지 않는다** — 이 경로도 DB 는 쓴다.
+  `dryRun` 이라 이름 붙이면 «아무것도 안 바뀐다»로 읽혀 미리보기인 줄 알고 눌렀다가 데이터가
+  바뀌는 사고가 난다.
+
+**결과 (2026-08-07 실행):** 165 → **4건**. 남은 4건은 다객실 예약 3 + Beds24 에도 없는 1.
+잘못 붙은 건 0(리뷰 건물 ≠ 객실 건물 0건, 라벨 불일치 0건).
+
+#### 크레딧 헤더 이름이 틀려 있었다 (2026-08-07)
+
+같은 작업 중에 발견했다. 코드가 찾던 헤더 이름은
+
+    X-RequestCost / X-FiveMinCreditLimit-Remaining / X-FiveMinCreditLimit-ResetsIn
+
+인데 Beds24 가 실제로 내려주는 이름은
+
+    x-request-cost / x-five-min-limit-remaining / x-five-min-limit-resets-in
+
+이다(bookings·채널 리뷰 엔드포인트 동일하게 실측). 헤더 조회는 대소문자를 가리지 않지만
+**이름 자체가 다르다.** 그래서 `creditsRemaining` 은 **항상 null** 이었고,
+`MIN_REMAINING_CREDITS` 저크레딧 가드는 **한 번도 발동한 적이 없다.** 안전밸브가 달려 있는 줄
+알았지 실제로는 닫혀 있었다.
+
+`src/lib/beds24/credits.ts` 로 한 곳에 모으고 옛 이름도 같이 읽는다(비용 0의 보험).
+`Number(null) === 0` 이라 «헤더 없음»과 «잔여 0»을 반드시 구분해야 한다 — 구분을 빼먹으면
+잔여가 0으로 읽혀 수집이 통째로 멈춘다.
