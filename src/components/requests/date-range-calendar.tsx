@@ -22,6 +22,12 @@ export type DateRangeCalendarLabels = {
   title: string;
 };
 
+/**
+ * 빠른 기간 프리셋. 컴플레인 「외부 리뷰 / 문제 객실」처럼 최근 N일을 반복해서 고르는 화면용이며,
+ * 넘기지 않으면 줄 자체가 렌더되지 않는다(기존 요청 필터 사용처는 그대로).
+ */
+export type DateRangePreset = { days: number; label: string };
+
 type DateRangeCalendarProps = {
   labels: DateRangeCalendarLabels;
   locale: Locale;
@@ -30,6 +36,10 @@ type DateRangeCalendarProps = {
   onClose: () => void;
   open: boolean;
   value: DateRangeValue;
+  /** 있으면 월 이동 위에 프리셋 줄을 그린다. */
+  presets?: DateRangePreset[];
+  /** 있으면 적용 버튼 위에 «선택 기간 · 시작 – 종료» 요약 줄을 그린다. */
+  summaryLabel?: string;
 };
 
 function toIsoDate(date: Date): string {
@@ -77,6 +87,8 @@ function CalendarPanel({
   onClear,
   onClose,
   value,
+  presets,
+  summaryLabel,
 }: Omit<DateRangeCalendarProps, "open">) {
   const [viewMonth, setViewMonth] = useState<Date>(() =>
     value.startDate ? startOfMonth(isoToDate(value.startDate)) : startOfMonth(new Date()),
@@ -146,9 +158,24 @@ function CalendarPanel({
     onClear();
   }
 
+  /**
+   * 프리셋은 «오늘 포함 최근 N일»이다 — 90일을 고르면 오늘이 종료일이고 시작일은 89일 전이다.
+   * 로컬 `Date` 산술이지만 이 컴포넌트의 나머지 셀 계산과 같은 기준이라 하루가 어긋나지 않는다.
+   */
+  function applyPreset(days: number) {
+    const end = new Date();
+    const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - (days - 1));
+    setDraftStart(toIsoDate(start));
+    setDraftEnd(toIsoDate(end));
+    setViewMonth(startOfMonth(end));
+  }
+
   const rangeStart = draftStart;
   const rangeEnd = draftEnd ?? draftStart;
   const hintLabel = !draftStart || draftEnd ? labels.selectStart : labels.selectEnd;
+
+  const summaryText =
+    draftStart && rangeEnd ? `${draftStart.replace(/-/g, ".")} – ${rangeEnd.replace(/-/g, ".")}` : "—";
 
   return (
     <BottomSheet
@@ -167,6 +194,36 @@ function CalendarPanel({
     >
       {() => (
         <>
+          {presets?.length ? (
+            <div className="mt-4 flex gap-1.5">
+              {presets.map((preset) => {
+                // 현재 초안이 정확히 그 프리셋 구간이면 선택 상태로 칠한다.
+                const end = new Date();
+                const start = new Date(
+                  end.getFullYear(),
+                  end.getMonth(),
+                  end.getDate() - (preset.days - 1),
+                );
+                const on = draftStart === toIsoDate(start) && (draftEnd ?? draftStart) === toIsoDate(end);
+                return (
+                  <button
+                    className={cn(
+                      "h-9 flex-1 rounded-xl border text-xs font-extrabold transition-colors",
+                      on
+                        ? "border-[#315F91] bg-[#315F91] text-white"
+                        : "border-border bg-background/70 text-foreground hover:bg-muted/60",
+                    )}
+                    key={preset.days}
+                    onClick={() => applyPreset(preset.days)}
+                    type="button"
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
           <div className="mt-4 flex items-center justify-between">
             <button
               aria-label={labels.previousMonth}
@@ -250,6 +307,15 @@ function CalendarPanel({
               );
             })}
           </div>
+
+          {summaryLabel ? (
+            <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-border bg-background/70 px-3 py-2.5">
+              <span className="text-[11.5px] font-bold text-muted-foreground">{summaryLabel}</span>
+              <span className="font-mono text-[13px] font-bold tabular-nums text-foreground">
+                {summaryText}
+              </span>
+            </div>
+          ) : null}
 
           <div className="mt-2 flex items-center gap-2 border-t border-border/70 pt-4">
             <button
