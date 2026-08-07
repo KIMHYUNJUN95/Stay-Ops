@@ -248,7 +248,7 @@ Confirmed MVP stack:
 - TanStack Query
 - TanStack Table
 - ExcelJS
-- PDF export library TBD
+- Localized print-ready HTML reports with browser Print / Save as PDF; no dedicated PDF library in the current stack
 
 Reason:
 

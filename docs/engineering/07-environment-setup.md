@@ -192,7 +192,11 @@ Usage:
 - `BEDS24_API_TOKEN`: short-lived Beds24 access token for direct inventory/property calls
 - `BEDS24_API_REFRESH_TOKEN`: long-lived Beds24 refresh token used to mint access tokens when `BEDS24_API_TOKEN` is unset or expired
 - `DEEPL_API_KEY`: DeepL API key used to translate external reviews on demand. **Server-only** — never expose it to the browser. Optional: without it the review detail simply offers no translate button and the original text still renders. Free-tier keys end in `:fx`; the host is picked automatically (`api-free.deepl.com` vs `api.deepl.com`), or override with `DEEPL_API_URL`. Usage is capped in code at 450,000 characters per calendar month against DeepL API Free's 500,000 so a burst cannot overshoot the free tier. See `docs/product/25-complaint-workflow.md` → "Review Translation".
-- `CRON_SECRET`: shared secret authorizing **all production cron-backed endpoints**, currently three: the Beds24 reconciliation endpoint (`/api/beds24/reconcile`), the Todo / Shared Task reminder endpoint (`/api/tasks/reminders`), and the Beds24 external-review collection endpoint (`/api/beds24/reviews-sync`). Vercel Cron automatically sends it as `Authorization: Bearer <CRON_SECRET>` when this var is set on the project. Set it in Vercel project env so **all** scheduled runs are authorized — if it is unset, the reminder endpoint returns 404 and the reconcile / reviews-sync endpoints fall back to `BEDS24_WEBHOOK_SECRET` only. (`BEDS24_WEBHOOK_SECRET` is also accepted by the reconcile and reviews-sync endpoints for manual triggers; the reminders endpoint accepts `CRON_SECRET` only.)
+- `CRON_SECRET`: shared secret authorizing production scheduled/maintenance endpoints: Beds24 reconcile,
+  external-review sync/health/relink, Todo reminders, and attendance reminders. Vercel sends it
+  automatically only to routes declared in `vercel.json`; GitHub Actions and manual callers send the
+  bearer header (Beds24 paths also accept `BEDS24_WEBHOOK_SECRET` where documented). An unset reminder
+  secret returns 404; invalid/missing caller credentials return 403.
 - Existing Beds24-linked properties can be backfilled locally through `POST /api/dev/beds24/backfill-inventory`
   - requires `ENABLE_LOCAL_DEV_TOOLS=true`
   - requires localhost access
@@ -248,7 +252,9 @@ Task reminder cron (production):
 External review collection cron (production):
 
 - `GET/POST /api/beds24/reviews-sync` pulls Airbnb / Booking.com reviews from Beds24 into `external_reviews` (pure upsert on `organization_id, provider, external_review_id`). Reviews have no webhook, so this is the one Beds24 read path that must be scheduled. See `docs/engineering/01-beds24-integration.md` → "External Reviews".
-- Driven **twice daily** by Vercel Cron (`vercel.json`, `30 1,13 * * *` UTC = 10:30 / 22:30 Asia/Tokyo). Routine runs use a 7-day window; add `?full=1` for the 90-day sweep (initial import / recovery). Optional `?organizationId=<uuid>` limits the run to one org, otherwise every `status='active'` organization is processed.
+- Driven daily by GitHub Actions (`.github/workflows/beds24-reviews-sync.yml`, `5 23 * * *` UTC =
+  08:05 Asia/Tokyo). Routine runs use the workflow's rolling window; `?full=1` requests a deeper recovery
+  sweep. Optional `?organizationId=<uuid>` limits the run to one org, otherwise active organizations are processed.
 - Auth matches the reconcile endpoint: `CRON_SECRET` bearer, falling back to `BEDS24_WEBHOOK_SECRET` (`x-beds24-webhook-secret` header or `?secret=`) for manual triggers. 404 when neither secret is configured, 403 when the provided one is wrong. `BEDS24_SYNC_PAUSED` short-circuits the run with `202 {ok:true,paused:true}`.
 - Per-organization failures do not abort the run — they surface in `failures[]` with HTTP 207. The response carries `creditsRemaining` / `stoppedEarly` so a credit-limited early stop is visible; the next cycle resumes the remainder.
 - Manual trigger: `curl "$APP_URL/api/beds24/reviews-sync?full=1" -H "Authorization: Bearer $CRON_SECRET"`.
@@ -391,10 +397,13 @@ Required:
 - Add all production-safe variables to Vercel environment settings.
 - Keep server secrets unavailable to client bundle.
 
-## Initial `.env.example` Draft
+## Canonical `.env.example` Shape
 
 ```txt
 NEXT_PUBLIC_APP_URL=
+NEXT_PUBLIC_SUPPORT_EMAIL=
+
+ENABLE_LOCAL_DEV_TOOLS=
 
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
@@ -404,10 +413,18 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
 BEDS24_WEBHOOK_SECRET=
+BEDS24_DEFAULT_ORGANIZATION_ID=
 BEDS24_API_BASE_URL=
 BEDS24_API_TOKEN=
 BEDS24_API_REFRESH_TOKEN=
+BEDS24_SYNC_PAUSED=
 CRON_SECRET=
+
+DEEPL_API_KEY=
+DEEPL_API_URL=
+
+SLACK_DAILY_REPORT_WEBHOOK_URL=
+SLACK_OPS_ALERT_WEBHOOK_URL=
 
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
@@ -430,9 +447,11 @@ For short-lived automation, set `SUPABASE_ACCESS_TOKEN` in the current shell ins
 
 Database operations may also require the remote Postgres password through `-p <db-password>`. The access token authenticates the Supabase API request; the database password authenticates the remote Postgres connection.
 
-### Migration history status (current as of 2026-06-03)
+### Migration history snapshot (verified 2026-06-03; historical)
 
-All local migration files match remote history. The original 18-file reconciliation (2026-05-17/19) has since grown to 37 files with Phase 7-13 implementation.
+At that date, all 37 local migration files matched the linked remote history. The repository has since
+grown substantially (112 local migration files as of 2026-08-07), so this historical list must not be
+used to claim that a deployment is current. Run `npx supabase migration list` against the actual target.
 
 **Local migration files (37 total):**
 
@@ -503,12 +522,12 @@ History is reconciled. The normal workflow applies from this point:
 
 Run the commands after Supabase API authentication is available through `npx supabase login` or `SUPABASE_ACCESS_TOKEN`. Use `-p <db-password>` when the CLI asks for the remote Postgres password.
 
-## Open Questions
+## Deployment-Specific Decisions
 
-- Will Google OAuth be configured only in Supabase dashboard?
-- What exact Beds24 webhook verification mechanism will be used?
-- Will Web Push be included in the first internal MVP or added after in-app notifications?
-- What email/contact should be used for `VAPID_SUBJECT`?
+- Confirm the production support email and `VAPID_SUBJECT` before enabling those channels.
+- Verify Google OAuth and redirect URLs in the target Supabase project/dashboard.
+- Verify both Vercel environment variables and GitHub Actions secrets for scheduled jobs.
+- In-app notifications are live; Web Push remains a separately configured delivery channel.
 ## Reservation Calendar Flags
 
 ### `BEDS24_SYNC_PAUSED`

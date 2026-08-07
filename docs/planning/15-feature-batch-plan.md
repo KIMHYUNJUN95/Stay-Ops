@@ -1,12 +1,15 @@
 # Feature Batch Plan
 
-Status: Approved scope (confirmed 2026-06-09 — see `docs/planning/01-decision-log.md`)  
+Status: Historical approved scope; batch implemented and in active hardening
 Owner: Product / Engineering  
-Last updated: 2026-06-10
+Last updated: 2026-08-07
 
 ## Purpose
 
-This document is the working plan for the next implementation batch.
+This document preserves the original Phase 14 batch plan. It is no longer the current implementation
+queue: the five features are implemented. Older "deferred", "design-only", and next-action text below
+records the build order at that date and is superseded by the current code, the feature documents, and
+`docs/planning/06-current-status.md`.
 
 Use it before coding starts when 2-3 upcoming features must be compared, scoped, prioritized, and broken into implementation slices.
 
@@ -16,11 +19,11 @@ This file should be updated first, then implementation should begin only after t
 
 | Feature | Status | Priority | Primary Surface | Main Dependency | Recommended Next Action |
 |---|---|---:|---|---|---|
-| Linen Defect Registration | Approved (slice 1) | High | Mobile first | Building-specific linen item selector | Move to design based on the 2026-06-10 refined mobile product plan |
-| Personal Todo / Shared Task Inbox | Approved (slice 2 planning refined) | High | Mobile first | Shared-task participant model + calendar/task workspace design | Move to design based on the 2026-06-10 refined product plan |
-| Staff Suggestions / Feedback Box | Approved (scope refined 2026-06-16) | Medium-High | Mobile first | Recipient + reference participant model | Build from Product `22` + Tech `12` first-slice scope |
-| Internal Board | Approved | Medium | Mobile + Admin | Clear separation from Announcements | Flesh out tech-design before build |
-| Attendance / Clock-In-Out + Payroll | Approved (capture only; payroll deferred) | High | PWA + Admin | Wage policy rules + export template for payroll | Build attendance capture; defer payroll calc |
+| Linen Defect Registration | Implemented | High | Mobile + Admin | Building-specific item master remains optional refinement | Harden from operational feedback |
+| Personal Todo / Shared Task Inbox | Implemented | High | Mobile + Admin | Shared recurrence/project/task model | Harden mobile/admin parity |
+| Staff Suggestions / Feedback Box | Implemented | Medium-High | Mobile | Participant visibility model | Preserve participant-only permissions |
+| Internal Board | Implemented | Medium | Mobile | Edit-route follow-up | Harden feed/detail workflow |
+| Attendance / Clock-In-Out + Payroll | Implemented | High | PWA + Admin | Wi-Fi remains inactive; tax/deduction accounting out of scope | Continue rollout QA |
 
 ## Planning Rules
 
@@ -71,7 +74,9 @@ The attendance / clock-in-out exclusion was **reversed and approved** on 2026-06
 - `docs/planning/01-decision-log.md` (2026-06-09 "Attendance / Clock-In-Out + Payroll — Scope Change (Approved)")
 - `docs/planning/03-mvp-priority.md` (out-of-scope entry marked reversed)
 
-Remaining constraint: **attendance capture is buildable now; payroll calculation stays design-only** until the wage rules (rounding, break deduction, lateness, overtime, overnight, holiday, closing date, correction/approval flow) and export template are defined.
+Current result: attendance capture and the defined hourly gross-pay workflow are implemented, including
+rate history, expected pay, finalization/reopen, payroll totals, and Excel/print-to-PDF exports. Taxes,
+deductions, and salaried payroll accounting remain out of scope.
 
 ### Board vs Announcement Separation
 

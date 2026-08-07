@@ -123,8 +123,8 @@ export const mobileNavBugs = {
   icon: Bug,
 } as const satisfies NavigationItem;
 
-// Attendance / 근태 (clock-in/out, live timer, capture) — side-menu entry + pinnable bottom-bar
-// candidate. UI/UX-first (design only); backend deferred. See docs/product/24-attendance-workflow.md.
+// Attendance / 근태 (clock-in/out, live timer, capture) — implemented side-menu entry + pinnable
+// bottom-bar candidate. See docs/product/24-attendance-workflow.md.
 const mobileNavAttendance = {
   id: "attendance",
   label: localizedNavigationLabels.mobile.attendance,
@@ -132,8 +132,8 @@ const mobileNavAttendance = {
   icon: Clock,
 } as const satisfies NavigationItem;
 
-// Complaints / 컴플레인 — guest complaint logging per booking platform. Side-menu entry + pinnable
-// bottom-bar candidate. Design-only for now; backend deferred. See docs/product/26-complaint-workflow.md.
+// Complaints / 컴플레인 — implemented manual complaint + external-review workspace. Side-menu entry
+// + pinnable bottom-bar candidate. See docs/product/25-complaint-workflow.md.
 const mobileNavComplaints = {
   id: "complaints",
   label: localizedNavigationLabels.mobile.complaints,

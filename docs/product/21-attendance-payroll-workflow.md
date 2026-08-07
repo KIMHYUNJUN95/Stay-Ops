@@ -6,12 +6,15 @@
 > source of truth for the admin attendance/payroll surface while this document continues to define the
 > domain workflow, mobile flow, and payroll rules.
 
-Status: Refined planning draft (policy baseline confirmed 2026-06-17) and **Steps 1-8 + Steps 10-14
-implemented on 2026-06-17/18** (schema, site/QR backend, GPS+QR clock-in/out, breaks, self-view history,
-correction requests, admin review backend, manual admin management backend, hourly expected-pay +
-self pay view, monthly finalization/reopen/snapshot, payroll-totals data layer, finalized-only export,
-notifications + 18:30 reminder). **App-scope attendance/payroll is now feature-complete.** *(Step 9
-employment/rate management backend and the owner/admin web dashboard remain deferred.)*
+Status: **Implemented across mobile and admin.** Mobile provides QR/GPS clock-in/out, breaks, trusted
+device flow, corrections, history, expected pay, notifications, and reminders. The admin console provides
+overview, review queue, manual management, roster, employment/rate management, payroll/finalization,
+transportation, annual leave, and Excel/print-to-PDF exports. Wi-Fi activation, tax/deduction accounting,
+and salaried payroll remain outside the current implementation.
+
+The dated Step 1–14 notes below are implementation history. Their statements such as "no admin
+dashboard", "deferred dashboard", or "backend only" describe the state on that date and are superseded
+by the current status above and the later as-built sections.
 
 > **Step 14 (2026-06-18, final app step):** attendance **notifications** use the shared system (one
 > `attendance_activity` type): admin alerts on **correction created** + **abnormal/midnight session**
@@ -43,7 +46,7 @@ employment/rate management backend and the owner/admin web dashboard remain defe
 > finalized); it stores a `finalized` snapshot (paid minutes, rate breakdown, gross, finalizer, time).
 > **Reopen requires a reason**, flips the snapshot to `reopened` (expected pay resumes), and **never
 > destroys prior history** (superseded chain + `audit_logs`). The worker self pay screen shows the
-> finalized number + finalized badge when finalized. **No admin dashboard** (deferred). See
+> finalized number + finalized badge when finalized. The admin attendance/payroll console is now implemented. See
 > `docs/engineering/11-attendance-payroll-technical-design.md` -> "As-built - Step 11".
 
 > **Step 10 (2026-06-18):** hourly **expected** gross-pay is live with a new self monthly pay screen
@@ -575,7 +578,7 @@ They cannot see:
 
 ## Transportation Reimbursement
 
-**Status: Backend implemented (2026-06-26)** — schema, query layer, server actions, storage policy 완료. 프론트엔드 UI 연결(mock 제거, 실데이터 주입)은 같은 작업 사이클에서 완료 예정. 상세 구현 내용은 `docs/engineering/11-attendance-payroll-technical-design.md` "As-built — Transport Reimbursement Backend (2026-06-26)" 참조.
+**Status: Implemented** — schema, query layer, server actions, storage policy, and the mobile statement UI are connected to real data. 상세 구현 내용은 `docs/engineering/11-attendance-payroll-technical-design.md` "As-built — Transport Reimbursement Backend (2026-06-26)" 참조.
 
 Transportation reimbursement belongs to the same **attendance/payroll operating domain**, but it is
 **not part of gross wage calculation**.
@@ -695,9 +698,9 @@ Suggested edit rule:
 - a `changes_requested` report is editable and expected to be resubmitted
 - rejected report returns to editable state for resubmission
 
-### Dashboard Direction (Deferred)
+### Dashboard Direction (implemented)
 
-The later admin dashboard should support:
+The admin dashboard supports:
 
 - total transportation reimbursement for the selected month
 - user-by-user monthly totals
@@ -813,7 +816,7 @@ Only `owner` and `attendance_payroll_admin` can see:
 - 날짜 피커로 과거 날을 선택해 해당 날의 출근자 명단 조회
 - 미래 날짜 선택 불가
 
-**구현 위치:** `/admin/attendance/roster` (관리자 웹 대시보드, 미구현 — 대시보드 1차 빌드 시 포함)
+**구현 위치:** `/admin/attendance/roster` (관리자 웹 대시보드에 구현됨)
 See `docs/product/05-admin-web-ia.md` → "Attendance Roster / 출근자 명단".
 
 ### Dashboard Metrics

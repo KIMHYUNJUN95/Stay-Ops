@@ -6,7 +6,9 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 // (once/Tokyo-day, deduped) + the admin incomplete/stale-session alert. Time-based — no user action
 // triggers them — so this is a narrowly-scoped scheduled path (mirrors /api/tasks/reminders).
 //
-// Run by Vercel Cron (~18:30 Asia/Tokyo) authorized with CRON_SECRET so anonymous callers can't fire it.
+// Authorized with CRON_SECRET so anonymous callers cannot fire it. This route is not currently one of
+// the two Hobby-plan jobs in vercel.json; any production schedule must call it explicitly (for example
+// from an external scheduler) and send the bearer secret.
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;

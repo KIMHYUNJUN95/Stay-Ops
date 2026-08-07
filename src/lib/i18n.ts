@@ -2462,6 +2462,10 @@ const FALLBACK_DICTIONARY = {
     positiveLabel: "Liked",
     negativeLabel: "Disliked",
     noRoom: "No room info",
+    // Shown instead of `noRoom` when the reservation IS linked but the room is not: the guest booked
+    // several rooms on one reservation, so no single room can own the review. Different cause →
+    // different wording, so nobody hunts for a collection bug that is not there.
+    roomMultiBooking: "Multi-room booking",
     // Both providers send a reservation identifier; it stays empty only when the review could
     // not be tied to a reservation we hold locally. Never a platform-specific excuse.
     noReservationLink: "No linked reservation",
@@ -7212,6 +7216,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       positiveLabel: "좋았던 점",
       negativeLabel: "아쉬웠던 점",
       noRoom: "객실 정보 없음",
+      roomMultiBooking: "다중 객실 예약",
       noReservationLink: "연결된 예약 없음",
       noGuestName: "이름 없음",
       noHeadlineAirbnb: "Airbnb는 리뷰 제목을 제공하지 않습니다",
@@ -11884,6 +11889,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       positiveLabel: "良かった点",
       negativeLabel: "残念だった点",
       noRoom: "客室情報なし",
+      roomMultiBooking: "複数客室の予約",
       noReservationLink: "紐づく予約なし",
       noGuestName: "名前なし",
       noHeadlineAirbnb: "Airbnbはレビュータイトルを提供しません",

@@ -361,10 +361,9 @@ export async function saveEmployeeLeaveBaseline(
 // Confirmed 2026-07-13: 연차 결재는 전무(senior_managing_director)가 담당 → default new approvers to 전무.
 const DEFAULT_APPROVER_ROLE = "senior_managing_director";
 
-// NOTE: The 승인자 관리 sub-tab was removed (2026-07-13) — approver granting is moving to the unified
-// Users screen (/admin/users). `AdminApproverMember` / `listAdminApprovers` / `setLeaveApprover` are
-// intentionally retained (currently unreferenced) because the upcoming Users permission backend will
-// reuse them. Do not delete without checking the Users permission work.
+// NOTE: The 승인자 관리 sub-tab was removed (2026-07-13). Approver granting now lives on the unified
+// Users detail screen (`/admin/users/[id]`). These helpers remain the shared leave-approver backend;
+// do not delete them without checking that user-management flow.
 
 /** One row per active salary-based member for the 승인자 관리 table. */
 export type AdminApproverMember = {

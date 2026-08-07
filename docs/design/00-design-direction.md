@@ -7,10 +7,10 @@ The main StayOps visual direction is confirmed.
 Current design status:
 
 - Apple-inspired Liquid Glass accents with strong business-app readability are the confirmed direction.
-- The mobile shell uses a clean pure-white base; Liquid Glass is applied selectively to high-value surfaces such as floating navigation, cards, chips, and bottom sheets.
+- The mobile shell uses a warm ivory canvas/chrome with cream-white cards and sheets; Liquid Glass is applied selectively to high-value surfaces such as cards, chips, overlays, and bottom sheets.
 - Google Stitch is being used for planning and screen direction.
 - Multiple mobile and admin web screens have passed as v1 working directions.
-- Admin Reservation Calendar is deferred from final Stitch acceptance and should be implemented as a custom dense room/date timeline if Stitch cannot produce the required layout.
+- The Admin Reservation Calendar is implemented as a custom dense room/date timeline; the earlier Stitch acceptance gap no longer blocks the live console.
 - Remaining design closeout work includes App Splash / Launch Screen, role-based visibility review, and final Stitch progress cleanup.
 
 ## App Splash / Launch Screen
@@ -31,7 +31,7 @@ Current status:
 - Final logo is not designed yet.
 - Use a temporary `Stay Ops` wordmark or placeholder mark until the official logo is created.
 - The interim wordmark renders as `Stay Ops` (with a space) in a serif italic typeface (Noto Serif, weight 600). It is shared across all shells/entry screens via the `.wordmark` class in `src/app/globals.css` (font loaded in `src/app/layout.tsx` as `--font-wordmark`). Applied in the mobile shell header + side menu, admin shell, dev entry, and the login/onboarding headers (`dictionary.app.name`).
-- The mobile top chrome is flat and borderless: no capsule outline/ring/glass/shadow — just the centered wordmark (20px, `#1c2b2a`) between two 38px circular buttons (bg `#eef1f2`, icon `#3a4a49`) on a plain white background, laid out `justify-between`.
+- The mobile top chrome is flat and borderless: no capsule outline/ring/glass/shadow — the centered wordmark sits between the 38px menu control and the notification/profile control group over the shared warm-ivory chrome.
 
 ## Product Feeling
 
@@ -123,7 +123,7 @@ Possible design direction:
 
 - PWA-first mobile field interface
 - Admin web operations console
-- Pure-white mobile shell with selective Apple-inspired liquid glass accents
+- Warm-ivory mobile shell with cream-white surfaces and selective Apple-inspired liquid glass accents
 - Bottom tab navigation: Home, Calendar, Cleaning, Requests, Announcements
 - Clear status chips
 - Compact task cards
@@ -135,14 +135,14 @@ Possible design direction:
 
 Confirmed direction:
 
-- Pure-white operational base with selective Apple-inspired Liquid Glass surfaces
+- Warm-ivory operational base, deep navy accent, and selective Apple-inspired Liquid Glass surfaces
 - Light mode only for the MVP/internal rollout (dark mode deferred until post-launch — see "Light and Dark Mode" below)
 
 Important interpretation for StayOps:
 
 - Use subtle translucency, blur, depth, and layered surfaces only where they add clarity or polish.
 - Do not make the whole mobile app glass. Keep the global shell/background solid and calm.
-- Prefer restrained Liquid Glass refinements on floating bottom navigation, popup/bottom-sheet surfaces, and selected mobile cards/chips; keep admin data surfaces more solid when readability matters.
+- Prefer restrained Liquid Glass refinements on popup/bottom-sheet surfaces and selected mobile cards/chips; keep the attached bottom navigation and admin data surfaces solid when readability matters.
 - Keep operational readability higher priority than decoration.
 - Avoid making the UI too flashy for field work.
 - Status colors must remain clear and accessible.
@@ -169,15 +169,15 @@ The admin dashboard uses one operations-console design system. The current imple
 
 This is a hard project rule and must always be enforced:
 
-- All mobile pages under `/mobile/*` must share one coherent visual system based on a pure-white shell, high readability, and selective Liquid Glass accents.
-- Liquid Glass is a partial treatment, not a full-screen theme. Apply it to floating navigation, bottom sheets, important cards, chips, and overlays when it improves polish without harming readability.
-- The current shared `MobileShell` behavior is the baseline: pure-white background, scroll-aware top chrome, floating capsule bottom navigation, and slide-out side menu.
+- All mobile pages under `/mobile/*` must share one coherent visual system based on warm-ivory canvas/chrome, cream-white content surfaces, high readability, and selective Liquid Glass accents.
+- Liquid Glass is a partial treatment, not a full-screen theme. Apply it to bottom sheets, important cards, chips, and overlays when it improves polish without harming readability.
+- The current shared `MobileShell` behavior is the baseline: warm-ivory background, scroll-aware top chrome, full-screen slide-in side menu, notification bell, and bottom-attached rounded tab bar with a raised center squircle FAB.
 - No mobile page is allowed to mix unrelated visual languages once touched.
 - If a page is implemented or modified and cannot meet this consistency level in the same cycle, the change is not considered complete.
 
 Required consistency checkpoints for every mobile page update:
 
-1. The shell/background stays visually unified and pure white unless an explicit page-level exception is approved.
+1. The shell/background stays visually unified in the warm-ivory/cream family unless an explicit page-level exception is approved.
 2. Glass accents are used intentionally and consistently, not as a blanket background treatment.
 3. Header/body/cards/controls feel like one design family.
 4. Calendar, Cleaning, Requests, Announcements, and Home have consistent interaction polish.
@@ -210,8 +210,7 @@ Implementation should follow Stitch outputs, but the final product must still re
 
 ## Open Design Questions
 
-- Should the app feel more like a mobile task manager or an operations control panel?
-- Should admins use a web dashboard later?
-- Which admin web features must be included in the first MVP?
+- The mobile app should remain field-first while the admin web remains a dense operations console.
+- The admin dashboard is an active product surface, not a future option.
 - ~~Should the first MVP include dark mode?~~ Resolved 2026-06-08: no — light mode only for MVP; dark mode deferred until post-launch.
 - Should each hotel be able to customize logo/color?

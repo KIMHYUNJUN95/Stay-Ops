@@ -111,6 +111,7 @@ export default async function MobileComplaintsPage({ searchParams }: PageProps) 
       session,
       from: rangeFrom,
       to: rangeTo,
+      locale,
     });
     return (
       <MobileShell activeItem="complaints" badges={navBadges} title={dict.complaints.pageTitle}>

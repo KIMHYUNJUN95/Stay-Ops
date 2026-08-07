@@ -255,7 +255,7 @@ Current implementation notes:
 - Development entry page is available at `/`.
 - The session provider is now backed by server-loaded Supabase session data.
 - Temporary mock session data remains only as a development reference in `src/lib/session.ts`.
-- **Global mobile shell unified (updated 2026-05-28, icon updated 2026-06-04)**: `MobileShell` owns the shared mobile chrome: custom two-line hamburger menu trigger with a shorter bottom line, centered `StayOps` wordmark, profile avatar (`UserCircle`) link, scroll-aware top chrome, 78%-width slide-out side menu, and floating liquid-glass capsule bottom navigation. The base mobile shell/background is pure white; Liquid Glass is applied selectively to surfaces such as the bottom nav, cards, chips, and bottom sheets. `title` prop drives `aria-label` on `<main>` only (no visual rendering from shell). Rule: future mobile pages must not override or extend the shell structure without an explicit architectural decision.
+- **Global mobile shell unified (current contract):** `MobileShell` owns the shared mobile chrome: three-line hamburger with a shorter middle line, centered `Stay Ops` wordmark, notification bell, profile link, scroll-aware top chrome, full-screen slide-in side menu, and a bottom-attached ivory tab bar with a raised center squircle FAB. The canvas/chrome is warm ivory, cards/sheets use cream-white surfaces, and the accent is deep navy. `title` drives `<main aria-label>` only. Future mobile pages must not override the shell structure without an explicit architectural decision.
 
 ## Phase 6: User Profile and Directory
 
@@ -761,9 +761,25 @@ Done criteria:
 
 ## Phase 14: Post-MVP Feature Batch (approved 2026-06-09)
 
-Status: Planned — not started. Five features approved as the next build scope after MVP. Source of truth: `docs/planning/15-feature-batch-plan.md` and `docs/planning/01-decision-log.md` (2026-06-09). Per-feature schema/RLS/actions: `docs/engineering/08`–`12`. Build sub-phases in order:
+Status: **Implemented and in active hardening.** The unchecked build-order lists below are retained as
+historical planning provenance and are superseded by this as-built summary:
 
-### 14.1 Linen Defect Registration (first slice — product plan refined, design next)
+- Linen return: mobile building-first create/detail/ledger plus `/admin/linen-return` console live.
+- Todoist/tasks: mobile tasks, recurrence occurrences, projects, participants, reports/reminders, and
+  `/admin/tasks` desktop console live; `/admin/recurring-work` redirects to the console.
+- Suggestions: participant-aware mobile create/list/detail/edit/delete, status workflow, comments,
+  images, notifications, and ko/ja/en UI live.
+- Board: mobile feed/create/detail, reads, pins, comments, reactions, mentions, files, notifications,
+  and moderation live. The dedicated edit route remains a known follow-up.
+- Attendance/payroll: QR/GPS attendance, breaks, trusted device, corrections, history, expected pay,
+  notifications, and reminders live on mobile; admin overview/review/manual management/roster/wages/
+  payroll/finalization/transport/annual leave/Excel and print-to-PDF exports live under
+  `/admin/attendance/*`.
+- Navigation: all five features have entries in `src/config/navigation.ts` and the shared mobile shell.
+
+Historical build checklist (superseded):
+
+### 14.1 Linen Defect Registration (historical checklist)
 
 - [ ] Design 5 mobile screens from the refined 2026-06-10 product plan: building picker, building list, create, detail, ledger/statistics
 - [ ] Migration: `linen_items`, `linen_return_records`, `linen_return_record_items` → update `src/types/database.ts`
@@ -774,7 +790,7 @@ Status: Planned — not started. Five features approved as the next build scope 
 - [ ] i18n ko/ja/en for building-first flow, ledger/statistics, validation
 - [ ] Sync docs `19`, `08`, `04`, `05`, `16`
 
-### 14.2 Personal Todo / Shared Task Inbox (planning refined, design next)
+### 14.2 Personal Todo / Shared Task Inbox (historical checklist)
 
 - [ ] Design the core mobile task workspace from the refined 2026-06-10 product plan:
   - Today
@@ -791,7 +807,7 @@ Status: Planned — not started. Five features approved as the next build scope 
 - [ ] Actions per `docs/engineering/09`; i18n; sync docs `18`, `09`, `04`, `05`, `16`
 - [ ] Keep task calendar visually and conceptually distinct from the reservation calendar
 
-### 14.3 Staff Suggestions / Feedback Box (Scope refined 2026-06-16)
+### 14.3 Staff Suggestions / Feedback Box (historical checklist)
 
 - [ ] Migration: `staff_suggestions`, `staff_suggestion_references`, `staff_suggestion_comments`
 - [ ] Participant-aware RLS: author / recipient / referenced users only
@@ -800,13 +816,13 @@ Status: Planned — not started. Five features approved as the next build scope 
 - [ ] Comment thread with photo attachments (max 5) and comment-author-only edit/delete
 - [ ] Notifications for create / reference / status / comment; i18n; sync docs `22`, `12`, `04`, `05`, `01`
 
-### 14.4 Internal Board (Partial — tech-design skeleton needs fleshing)
+### 14.4 Internal Board (historical checklist)
 
 - [ ] Expand `docs/engineering/10` (indexes, action detail) before build
 - [ ] Migration: `board_posts`; part-time write allowed (2026-06-09)
 - [ ] RLS, actions, feed + moderation; i18n; sync docs `20`, `10`, `04`, `05`
 
-### 14.5 Attendance / Clock-In-Out + Payroll (session-first; policy baseline confirmed 2026-06-17)
+### 14.5 Attendance / Clock-In-Out + Payroll (historical checklist)
 
 - [x] **Step 1 — schema + permission foundation (2026-06-17):** migration `202606170001_attendance_payroll.sql` — 11 session-first tables (`attendance_sites`, `attendance_qr_tokens`, `attendance_sessions`, `attendance_breaks`, `attendance_attempt_logs`, `attendance_correction_requests`, `attendance_session_audits`, `employment_type_history`, `hourly_rate_history`, `attendance_month_snapshots`, `attendance_export_logs`) + `memberships.attendance_payroll_admin` + `can_manage_attendance_payroll(org)`; read-only RLS; TS types + `src/lib/attendance.ts`. (Supersedes the earlier `attendance_events`/`employment_profiles` draft.)
 - [ ] Step 2+ — PWA QR + GPS clock-in/out + breaks + corrections (service-role actions); Asia/Tokyo operating-date boundaries; one-open-session + open-break-blocks-clock-out enforcement; own history + admin review queries
@@ -814,7 +830,7 @@ Status: Planned — not started. Five features approved as the next build scope 
 - [ ] Wi-Fi (`gps_wifi`) stays modeled but inactive in the PWA (UI `준비중`)
 - [ ] Sync docs `21`, `11`, `04`, `05` each step
 
-### Phase 14 nav/IA prerequisite
+### Phase 14 nav/IA prerequisite (completed; historical checklist)
 
 - [ ] Add nav entries for the new features to `src/config/navigation.ts` and `docs/product/16-mobile-navigation.md` (currently none of the five have a mobile nav home)
 
@@ -841,7 +857,7 @@ For every phase:
 ## 2026-05-22 Implementation Note
 
 - `MobileShell` top chrome was normalized to one shared implementation for all mobile pages.
-- Menu icon now opens the shared 78%-width slide-out side menu instead of acting as a dead control or route-only shortcut.
+- Historical note: the menu icon first opened a 78%-width drawer; the current shared contract uses a full-screen slide-in menu.
 
 
 

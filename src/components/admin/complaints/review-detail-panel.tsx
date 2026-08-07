@@ -2,9 +2,10 @@ import Link from "next/link";
 import { Languages, RotateCcw, X } from "lucide-react";
 import { convertReviewAction, translateReviewAction } from "@/app/admin/complaints/actions";
 import { REVIEW_SCALE, type ExternalReviewDetail, type ReviewProvider } from "@/lib/external-reviews";
-import { parseReviewBreakdown } from "@/lib/external-review-rules";
+import { parseReviewBreakdown, reviewRoomFallbackLabel } from "@/lib/external-review-rules";
 import type { TranslationPart } from "@/lib/review-translate";
 import type { Dictionary } from "@/lib/i18n";
+import { getCanonicalPropertyName, localizePropertyName } from "@/lib/room-label-normalization";
 
 // 외부 리뷰 상세 패널 — 서버 컴포넌트. 콘솔과 마찬가지로 상태는 전부 쿼리스트링(review/tr)이고,
 // 전환·번역은 서버 액션 폼으로만 일어난다. 클라이언트 상태를 새로 만들지 않는다.
@@ -23,6 +24,8 @@ export type ReviewPanelLabels = {
 type Props = {
   review: ExternalReviewDetail;
   copy: Dictionary["complaints"];
+  /** `dictionary.cleaning.buildingLabels` — 캘린더·청소와 같은 건물 표기를 쓰기 위해 받는다. */
+  buildingLabels: Record<string, string>;
   labels: ReviewPanelLabels;
   closeHref: string;
   showTranslation: boolean;
@@ -58,6 +61,7 @@ function Kv({ label, children }: { label: string; children: React.ReactNode }) {
 export function ReviewDetailPanel({
   review,
   copy,
+  buildingLabels,
   labels,
   closeHref,
   showTranslation,
@@ -221,8 +225,14 @@ export function ReviewDetailPanel({
 
           <div className="pblock">
             <div className="pblock__t">{copy.contextTitle}</div>
-            <Kv label={labels.building}>{review.propertyName ?? "—"}</Kv>
-            <Kv label={labels.room}>{review.displayRoomLabel ?? copy.noRoom}</Kv>
+            <Kv label={labels.building}>
+              {review.propertyName
+                ? localizePropertyName(getCanonicalPropertyName(review.propertyName), buildingLabels)
+                : "—"}
+            </Kv>
+            <Kv label={labels.room}>
+              {review.displayRoomLabel ?? reviewRoomFallbackLabel(review, copy)}
+            </Kv>
             {/* 제공자가 쓰는 예약 번호를 그대로 보여 준다 — 운영자가 OTA 익스트라넷에서 검색할 수
                 있는 값이라야 의미가 있다. 우리 예약 행의 uuid는 노출하지 않는다. */}
             <Kv label={labels.reservation}>

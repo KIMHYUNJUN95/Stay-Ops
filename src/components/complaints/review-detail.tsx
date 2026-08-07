@@ -9,7 +9,11 @@ import { PlatformSource } from "./cx-platform";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { getDictionary } from "@/lib/i18n";
 import { getCanonicalPropertyName, localizePropertyName } from "@/lib/room-label-normalization";
-import { REVIEW_SCALE, parseReviewBreakdown } from "@/lib/external-review-rules";
+import {
+  REVIEW_SCALE,
+  parseReviewBreakdown,
+  reviewRoomFallbackLabel,
+} from "@/lib/external-review-rules";
 import type { ExternalReviewDetail } from "@/lib/external-reviews";
 import type { TranslationPart } from "@/lib/review-translate";
 import {
@@ -313,7 +317,7 @@ export function ReviewDetail({
         <div className="cx-kvrow">
           <span className="cx-kvrow__k">{t.metaRoom}</span>
           <span className={`cx-kvrow__v${review.displayRoomLabel ? "" : " is-dim"}`}>
-            {review.displayRoomLabel ?? t.noRoom}
+            {review.displayRoomLabel ?? reviewRoomFallbackLabel(review, t)}
           </span>
         </div>
         <div className="cx-kvrow">

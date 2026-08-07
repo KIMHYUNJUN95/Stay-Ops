@@ -5,7 +5,6 @@ import { PLATFORMS } from "./cx-platform";
 import { ReviewRangeChip } from "./review-range-chip";
 import { RANGE_PRESET_DAYS } from "./review-list";
 import { getDictionary, type Locale } from "@/lib/i18n";
-import { getCanonicalPropertyName, localizePropertyName } from "@/lib/room-label-normalization";
 import type { BuildingSummary, PlaceSummary, PlatformStat } from "@/lib/external-reviews";
 
 /**
@@ -56,7 +55,6 @@ type Props = {
 export function ReviewRoomsBoard({ locale, summaries, from, to, rangeDays }: Props) {
   const dict = getDictionary(locale);
   const t = dict.complaints;
-  const buildingLabels = dict.cleaning.buildingLabels;
 
   const baseParams: Record<string, string> = { view: "rooms" };
   const rangeChipLabel = rangeDays
@@ -215,10 +213,8 @@ export function ReviewRoomsBoard({ locale, summaries, from, to, rangeDays }: Pro
         <div className="cx-rlist">
           {summaries.map((building, index) => {
             const tone = ratioTone(building.riskRatio);
-            const label = localizePropertyName(
-              getCanonicalPropertyName(building.name),
-              buildingLabels,
-            );
+            // 현지화는 집계(`summarizeReviewsByPlace`)가 끝냈다 — 어드민과 같은 라벨을 쓴다.
+            const label = building.label || building.name;
             const empty = building.reviewCount === 0;
             return (
               /**

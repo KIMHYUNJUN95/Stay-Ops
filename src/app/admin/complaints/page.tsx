@@ -78,7 +78,7 @@ export default async function AdminComplaintsPage({
   const [complaints, reviews, summaries, createReservations, createPlaces] = await Promise.all([
     listComplaints({ session }),
     listExternalReviews({ session, filter }),
-    summarizeReviewsByPlace({ session, from, to }),
+    summarizeReviewsByPlace({ session, from, to, locale: session.user.preferredLanguage }),
     canWrite
       ? listComplaintPickerReservations(session.organization.id, session.user.preferredLanguage)
       : Promise.resolve([]),
@@ -107,6 +107,7 @@ export default async function AdminComplaintsPage({
       <ComplaintsConsole
         copy={dictionary.complaints}
         sharedCopy={dictionary.admin.shared}
+        buildingLabels={dictionary.cleaning.buildingLabels}
         locale={session.user.preferredLanguage}
         view={view}
         from={from}

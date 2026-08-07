@@ -7,8 +7,8 @@ The authoritative technical as-built log is
 `docs/engineering/11-attendance-payroll-technical-design.md`. UI copy for the shipped surfaces is
 dictionary-backed in ko/ja/en; new attendance UI must keep that contract.
 
-Annual leave is being planned as a separate attendance-adjacent workflow for salary-based regular
-employees. The source-of-truth draft is `docs/product/26-annual-leave-workflow.md`.
+Annual leave is implemented as a separate attendance-adjacent workflow for salary-based regular
+employees. The source-of-truth contract is `docs/product/26-annual-leave-workflow.md`.
 
 **출근자 명단(`/mobile/attendance/roster`) 구현 완료 (2026-06-24):** 관리자 역할이 당일(혹은 과거 날짜)의
 실제 출근자를 실시간으로 조회할 수 있으며, 전화 연결 기능 포함.
@@ -562,4 +562,3 @@ export/reporting refinements are handled in the technical roadmap.
 "cleaningRecordViewerRoles 로 리다이렉트" 하는 코드는 **존재한 적이 없다**(청소 기록 열람 권한과
 혼동한 서술). 권한은 그대로 두고 **주석만 실제 동작으로 정정**했다. 전화번호 + `tel:` 링크 노출도
 "현장에서 서로 연락하라"는 이 화면의 목적에 부합하므로 유지한다.
-

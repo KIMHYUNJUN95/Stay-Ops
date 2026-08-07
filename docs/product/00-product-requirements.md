@@ -81,7 +81,10 @@ Staff can manage cleaning work with:
 - Linked lost item reporting
 - Linked maintenance issue reporting
 
-Attendance and clock-in/out are an approved post-MVP feature batch item as of 2026-06-09 (the earlier "handled by another app" exclusion was reversed). Attendance capture (PWA QR + GPS clock-in/out) is buildable; hourly payroll calculation stays deferred until wage rules are defined. See `docs/planning/01-decision-log.md` (2026-06-09 scope change) and `docs/product/21-attendance-payroll-workflow.md`.
+Attendance and clock-in/out entered the approved post-MVP batch on 2026-06-09 and are now implemented:
+PWA QR + GPS capture, breaks, corrections, history, expected hourly pay, finalization, admin review, and
+exports. Taxes/deductions and salaried payroll accounting remain outside the current scope. See
+`docs/product/21-attendance-payroll-workflow.md`.
 
 Cleaning staff assignment is not included in the first scope because another system already handles cleaning personnel assignment.
 
@@ -314,7 +317,7 @@ The first usable version should include:
 
 These are useful but should not block the first version:
 
-- Payroll calculation math (deferred — attendance capture is approved post-MVP, but hourly pay calculation is blocked until wage rules are defined; see `docs/product/21-attendance-payroll-workflow.md`)
+- Tax/deduction and salaried payroll accounting (the implemented payroll scope is operational hourly gross pay; see `docs/product/21-attendance-payroll-workflow.md`)
 - Shift scheduling
 - Full PMS integration
 - Accounting

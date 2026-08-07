@@ -959,7 +959,8 @@ Recommended mobile routes/views:
 - Detailed create/edit
 - Participant picker
 
-Admin web routes are intentionally deferred.
+The admin web route is implemented at `/admin/tasks`; `/admin/recurring-work` redirects there. It
+shares the canonical task/project tables and server-enforced participant/author permissions with mobile.
 
 ## Projects (as-built 2026-06-15)
 

@@ -12,7 +12,12 @@ Stage:
 Internal rollout ready — Phase 13 QA in progress
 ```
 
-Core MVP modules are substantially implemented. Auth, onboarding, cleaning workflow, lost-found, maintenance, order requests, announcements, notifications, reservation calendar (Beds24 webhook), CSV exports, profile/directory, and admin web are all live. Remote Supabase migrations are current. See `docs/planning/06-current-status.md` for the full implementation log.
+Core operations modules are substantially implemented. Auth/onboarding, cleaning, requests, announcements,
+notifications, reservations (Beds24 webhook), Todoist/tasks, projects, linen returns, suggestions, board,
+attendance/payroll, annual leave, complaints/reviews, exports, profile/directory, and the admin console are live.
+The linked Supabase migration state must be verified against the target project before deployment; local
+migration files alone do not prove that a remote environment is current. See
+`docs/planning/06-current-status.md` for the detailed implementation log.
 
 ## Development
 
@@ -62,8 +67,8 @@ StayOps supports:
 - Hotel-style buildings
 - Airbnb-style standalone properties
 - Korean, Japanese, and English
-- Light mode and dark mode
-- Pure-white operational UI with selective Apple-inspired Liquid Glass accents and strong readability
+- Light mode only (dark mode is intentionally deferred)
+- Warm-ivory operational UI, deep navy accent, and selective Apple-inspired Liquid Glass surfaces
 
 Core MVP modules:
 
@@ -107,7 +112,7 @@ Zod
 TanStack Query
 TanStack Table
 ExcelJS
-PDF export library TBD
+Localized print-ready HTML reports with browser Print / Save as PDF
 ```
 
 ## Deployment Direction
@@ -174,6 +179,20 @@ Read these first:
 - [Reservation Calendar](./docs/product/15-reservation-calendar.md)
 - [Mobile Navigation](./docs/product/16-mobile-navigation.md)
 - [User Profile and Directory](./docs/product/17-user-profile-directory.md)
+- [Todo / Task Workflow](./docs/product/18-todo-task-workflow.md)
+- [Linen Defect Workflow](./docs/product/19-linen-defect-workflow.md)
+- [Internal Board Concept (historical)](./docs/product/20-internal-board-workflow.md)
+- [Attendance / Payroll Workflow](./docs/product/21-attendance-payroll-workflow.md)
+- [Staff Suggestions Workflow](./docs/product/22-staff-suggestions-workflow.md)
+- [Board Workflow](./docs/product/23-board-workflow.md)
+- [Project Workflow](./docs/product/23-project-workflow.md)
+- [Attendance Mobile Workflow](./docs/product/24-attendance-workflow.md)
+- [Bug Report Workflow](./docs/product/25-bug-report-workflow.md)
+- [Complaint / External Review Workflow](./docs/product/25-complaint-workflow.md)
+- [Annual Leave Workflow](./docs/product/26-annual-leave-workflow.md)
+- [Permission Override Workflow](./docs/product/27-permission-override-workflow.md)
+- [Admin Todoist Console](./docs/product/28-admin-todoist-console.md)
+- [Expense Receipt Workflow](./docs/product/29-expense-receipt-workflow.md)
 
 ## Design Docs
 
@@ -190,6 +209,13 @@ Read these first:
 - [Data Model](./docs/engineering/04-data-model.md)
 - [RLS Permissions](./docs/engineering/05-rls-permissions.md)
 - [Implementation Plan](./docs/engineering/06-implementation-plan.md)
+- [Environment Setup](./docs/engineering/07-environment-setup.md)
+- [Linen Defect Technical Design](./docs/engineering/08-linen-defect-technical-design.md)
+- [Todo / Task Technical Design](./docs/engineering/09-todo-task-technical-design.md)
+- [Internal Board Technical Design](./docs/engineering/10-internal-board-technical-design.md)
+- [Attendance / Payroll Technical Design](./docs/engineering/11-attendance-payroll-technical-design.md)
+- [Staff Suggestions Technical Design](./docs/engineering/12-staff-suggestions-technical-design.md)
+- [Bug Report Technical Design](./docs/engineering/13-bug-report-technical-design.md)
 
 ## Work Process
 
@@ -213,7 +239,7 @@ For each feature:
 2. Update docs
 3. Design in Stitch if UI-heavy
 4. Implement small vertical slice
-5. Test mobile/admin, light/dark, ko/ja/en
+5. Test mobile/admin, light mode, ko/ja/en
 6. Update docs if implementation differs
 ```
 
@@ -228,8 +254,7 @@ Codex, Claude, Cursor, and other AI tools must:
 
 ## Next Practical Steps
 
-1. Paste Supabase anon and service role keys into `.env.local`.
-2. Apply `supabase/migrations/202605090001_initial_foundation.sql` to the Supabase project.
-3. Sign in at `/auth/login`, complete `/onboarding`, and claim the first Developer / Super Admin if this is the first setup account.
-4. Continue Super Admin organization creation and invite-code management UI.
-3. Start project setup after core design direction is visible.
+1. Create `.env.local` from `.env.example` and add only the secrets required for the target environment.
+2. Compare local and remote migration history, then apply every pending migration in order.
+3. Sign in at `/auth/login`; use `/onboarding` only when the account still needs profile or membership setup.
+4. Run the release/physical-device checks in `docs/planning/13-qa-checklist.md` before operational rollout.

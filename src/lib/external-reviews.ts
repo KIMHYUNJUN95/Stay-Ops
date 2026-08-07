@@ -516,9 +516,14 @@ export async function summarizeReviewsByPlace(input: {
     const buildingKey = review.propertyId ?? `name:${review.propertyName ?? "unknown"}`;
     let bucket = buckets.get(buildingKey);
     if (!bucket) {
+      // 원본 표기(`Okubo_A (B棟)`)는 여기서 끝내고, 아래 로직도 화면도 정규화 이름만 본다.
+      const rawName =
+        (review.propertyId ? nameById.get(review.propertyId) : null) ?? review.propertyName ?? "";
+      const canonicalName = rawName ? getCanonicalPropertyName(rawName) : "";
       bucket = {
         propertyId: review.propertyId,
-        name: (review.propertyId ? nameById.get(review.propertyId) : null) ?? review.propertyName ?? "",
+        name: canonicalName,
+        label: canonicalName ? localizePropertyName(canonicalName, buildingLabels) : "",
         airbnb: { sum: 0, n: 0, risk: 0 },
         booking: { sum: 0, n: 0, risk: 0 },
         airbnbRated: 0,
@@ -582,6 +587,7 @@ export async function summarizeReviewsByPlace(input: {
     summaries.push({
       key,
       name: bucket.name,
+      label: bucket.label,
       propertyId: bucket.propertyId,
       standalone: bucket.collapsed && bucket.rooms.size === 0,
       airbnb: toStat(bucket.airbnb, bucket.airbnbRated),

@@ -150,37 +150,24 @@
 
 ## Current Dashboard Priority
 
-2026-06-29 기준 관리자 대시보드 작업 우선순위:
-
-1. Attendance / Payroll / Transportation
-2. Reservations / Calendar / Check-In-Out
-3. Users / Permissions / Organization Settings
-4. Cleaning Operations
-5. Maintenance / Lost & Found / Orders
-6. Linen Return
-7. Tasks / Projects
-8. Board
-9. Announcements
-10. Suggestions
-11. Bug Reports
-12. Complaints
+핵심 관리자 모듈(근태·급여·교통비·연차, 예약, 사용자·권한·조직 설정, 청소, 수리·분실·주문,
+린넨 반품, Todoist/프로젝트, 공지, 컴플레인)은 이미 구현되어 있다. 이제 우선순위는 미구현
+모듈 목록이 아니라 실제 운영 피드백, QA 위험도, 데이터 정합성, 권한 안전성 순으로 정한다.
+게시판·제안함·버그 신고의 별도 데스크톱 표면은 필요성이 확정될 때만 활성 보드에 올린다.
 
 ## Active Workflow Board
 
-Last updated: 2026-07-22
+Last updated: 2026-08-07
 
 ### Backlog
 
 - Dashboard mobile-view runtime
-- Global export unification (CSV / Excel / PDF)
-- Batch actions by module (2차)
+- Remaining module-specific batch actions (2차)
+- Physical-device and desktop browser QA follow-ups
 
 ### Ready
 
-- Attendance / Payroll / Transportation dashboard IA refinement
-- Reservations / Calendar dashboard IA refinement
-- Users / Permissions / Organization Settings dashboard IA refinement
-- Announcements dashboard management console redesign
+- None confirmed. Add only the next concrete, approved dashboard slice.
 
 ### Design
 

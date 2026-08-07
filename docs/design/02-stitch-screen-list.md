@@ -8,7 +8,7 @@ Use these as design prompts and screen requirements.
 
 ## Design Progress Status
 
-Last updated: 2026-05-09
+Last updated: 2026-08-07
 
 This section is the live design progress tracker for Stitch review. Update it whenever a new screen is reviewed, accepted, deferred, or moved back to remaining work.
 
@@ -35,12 +35,9 @@ This section is the live design progress tracker for Stitch review. Update it wh
 - Admin Recurring Work
 - Admin Users
 
-### Deferred / Implementation Required
+### Implemented Outside Final Stitch Acceptance
 
-- Admin Reservation Calendar is not accepted as a final Stitch v1.
-- The direction is confirmed: a dense channel-manager-style room/date timeline.
-- Stitch repeatedly produced layouts that were too sparse, detail-panel-heavy, or structurally wrong for the required calendar density.
-- Final implementation should use a custom grid/timeline component if needed.
+- Admin Reservation Calendar was not accepted as a final Stitch v1, so the live product uses the confirmed dense channel-manager-style room/date timeline implemented as a custom grid.
 - Reservation Calendar must not include price, revenue, inventory, rate management, payment, sales, or channel-manager finance functions.
 
 ### Remaining Design Work
@@ -57,7 +54,7 @@ This section is the live design progress tracker for Stitch review. Update it wh
 - Current task: role-based screen/button visibility review.
 - Remaining design closeout: role-based screen/button visibility review and final Stitch progress documentation cleanup.
 - Review policy for remaining items: fix only blockers; move implementation-polish issues to development.
-- No coding should happen during this planning/design/documentation stage.
+- New implementation work follows the live code and current product/design contracts; this file is a historical Stitch tracker, not a coding gate.
 
 ### Review Rules
 
@@ -66,7 +63,7 @@ This section is the live design progress tracker for Stitch review. Update it wh
 - Minor polish that can be corrected during implementation should be marked as "development-time fix".
 - Correction prompts must be provided as one copyable block, not split into multiple prompts.
 - StayOps is the required brand name. Do not use LUMINA or any other brand name.
-- The visual direction is readable Apple-inspired design: pure-white mobile base, selective translucent cards/overlays, thin lines, soft shadows, teal accent color, and strong operational readability.
+- The visual direction is readable Apple-inspired design: warm-ivory mobile canvas/chrome, cream-white cards/sheets, selective translucent overlays, thin lines, soft shadows, deep navy accent, and strong operational readability.
 
 ### App Splash / Launch Screen Requirement
 

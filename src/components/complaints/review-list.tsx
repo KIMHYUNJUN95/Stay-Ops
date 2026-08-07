@@ -5,7 +5,7 @@ import { PLATFORMS } from "./cx-platform";
 import { ReviewRangeChip } from "./review-range-chip";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { getCanonicalPropertyName, localizePropertyName } from "@/lib/room-label-normalization";
-import { REVIEW_SCALE } from "@/lib/external-review-rules";
+import { REVIEW_SCALE, reviewRoomFallbackLabel } from "@/lib/external-review-rules";
 import type { ExternalReview, ReviewProvider } from "@/lib/external-reviews";
 
 /** 한 페이지에 보여줄 리뷰 수. 카드가 본문을 전량 노출해 세로가 길어 20건이 상한선이다. */
@@ -260,7 +260,7 @@ export function ReviewList({
                   </span>
                   <span className="sep">·</span>
                   <span className={review.displayRoomLabel ? undefined : "is-dim"}>
-                    {review.displayRoomLabel ?? t.noRoom}
+                    {review.displayRoomLabel ?? reviewRoomFallbackLabel(review, t)}
                   </span>
                   <span className="sep">·</span>
                   <span className="mono">{formatShortDate(review.reviewedAt)}</span>

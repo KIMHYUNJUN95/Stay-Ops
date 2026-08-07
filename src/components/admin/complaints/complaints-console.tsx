@@ -15,9 +15,11 @@ import type {
   PlatformStat,
   ReviewListFilter,
 } from "@/lib/external-reviews";
+import { reviewRoomFallbackLabel } from "@/lib/external-review-rules";
 import { REVIEW_SCALE } from "@/lib/external-reviews";
 import type { TranslationPart } from "@/lib/review-translate";
 import type { Dictionary, Locale } from "@/lib/i18n";
+import { getCanonicalPropertyName, localizePropertyName } from "@/lib/room-label-normalization";
 import "./complaints-console.css";
 
 type ConsoleView = "manual" | "reviews" | "rooms";
@@ -25,6 +27,11 @@ type ConsoleView = "manual" | "reviews" | "rooms";
 type Props = {
   copy: Dictionary["complaints"];
   sharedCopy: Dictionary["admin"]["shared"];
+  /**
+   * `dictionary.cleaning.buildingLabels` — 캘린더·청소 콘솔과 같은 건물 표기를 쓰기 위해 받는다.
+   * 리뷰 행의 `propertyName` 은 Beds24 원본 표기(`Okubo_A (B棟)`)라 그대로 보여 주면 안 된다.
+   */
+  buildingLabels: Record<string, string>;
   locale: Locale;
   view: ConsoleView;
   from: string;
@@ -149,6 +156,7 @@ function RatioCell({ place }: { place: PlaceSummary }) {
 export function ComplaintsConsole({
   copy,
   sharedCopy,
+  buildingLabels,
   locale,
   view,
   from,
@@ -400,7 +408,9 @@ export function ComplaintsConsole({
                       <tr>
                         <td>
                           <div className="cxbuilding">
-                            <span>{building.name}</span>
+                            {/* 서버 집계가 붙여 준 현지화 라벨. `properties.name` 원본 표기
+                                (`Okubo_A (B棟)`)를 그대로 쓰면 캘린더와 이름이 갈라진다. */}
+                            <span>{building.label || building.name}</span>
                             {building.standalone ? (
                               <span className="rchip void">{copy.standalone}</span>
                             ) : null}
@@ -536,8 +546,13 @@ export function ComplaintsConsole({
                     )}
                     <div className="cxmeta">
                       <span>
-                        {review.propertyName ?? "—"}
-                        {review.displayRoomLabel ? ` · ${review.displayRoomLabel}` : ` · ${copy.noRoom}`}
+                        {review.propertyName
+                          ? localizePropertyName(
+                              getCanonicalPropertyName(review.propertyName),
+                              buildingLabels,
+                            )
+                          : "—"}
+                        {` · ${review.displayRoomLabel ?? reviewRoomFallbackLabel(review, copy)}`}
                       </span>
                       <span className="cxdot" />
                       <span>{(review.reviewedAt ?? "").slice(0, 10)}</span>
@@ -638,6 +653,7 @@ export function ComplaintsConsole({
           <ReviewDetailPanel
             review={selectedReview}
             copy={copy}
+            buildingLabels={buildingLabels}
             labels={panelLabels}
             closeHref={closeHref}
             showTranslation={showTranslation}

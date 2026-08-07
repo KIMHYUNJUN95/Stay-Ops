@@ -1,24 +1,19 @@
 # Annual Leave / 연차 Workflow
 
-> **2026-07-13 — 승인자 관리 sub-tab removed.** Approver granting is being unified onto the **Users
-> screen** (`/admin/users`), where all role/permission granting will be managed together. The former
+> **2026-07-13 — 승인자 관리 sub-tab removed.** Approver granting is unified onto the **Users
+> screen** (`/admin/users/[id]`), where payroll-admin, leave-approver, platform-developer,
+> `manage_users`, and time-bound permission overrides are managed together. The former
 > 연차 콘솔 **승인자 관리** sub-tab (`leave-approvers-view.tsx`) was removed and the leave section now has
 > **5 sub-tabs** (승인 심사 / 팀 캘린더 / 직원 잔여·부여 / 문서 / 이력). The backend helpers
-> (`listAdminApprovers` / `setLeaveApprover` in `annual-leave-admin-server.ts`) are **retained** for the
-> upcoming Users permission backend. Until that Users backend is wired (after design confirmation),
-> `memberships.leave_approver_role` can only be changed directly in the DB. Historical entries below
+> (`listAdminApprovers` / `setLeaveApprover` in `annual-leave-admin-server.ts`) are retained as shared
+> backend helpers. Historical entries below
 > that describe the 승인자 관리 tab record its prior state and are kept for provenance. See
 > `docs/product/27-permission-override-workflow.md` and `docs/product/05-admin-web-ia.md`.
 
-Status: the mobile employee-facing experience is done — hire-date/balance backend, request
-submission/self-cancel/draft-resume, and the real team calendar are all implemented and applied
-(Phase 1 + Phase 2 stage 1, see below). The admin-dashboard **approval review** (Phase 2 stage 2,
-approve/reject action + approval queue at `/admin/attendance/leave`) is now **implemented
-(2026-07-07)** — see "Backend — Phase 2, stage 2 (implemented 2026-07-07)" below. Of the remaining four
-admin sub-tabs, **팀 캘린더 / 직원 잔여·부여 / 승인자 관리 are now backend-wired (2026-07-08)** — see
-"Admin sub-tabs — backend wiring (implemented 2026-07-08)" below. The **문서 (休暇届)** sub-tab is now
-backend-wired too (2026-07-08): each approved request gets an `AL-YYYY-MM-NNN` document number and the
-休暇届 is rendered from the real approved request — see "문서 (休暇届) — backend wiring (2026-07-08)". This is
+Status: **implemented across mobile and admin.** Hire-date/balance setup, request submission,
+draft resume/cancel/history/calendar, admin proxy/self request, approval/rejection/revoke, team calendar,
+employee balance/grant management, document numbering and printable 休暇届, ledger, and Excel/
+print-to-PDF exports are wired to real data. Approver assignment lives on `/admin/users/[id]`. This is
 the target annual-leave workflow
 for salary-based regular employees. Hourly staff are excluded. The goal is to remove paper approvals
 while keeping the current company form (photographed 2026-07-06, see "Paper form reference" below) as
@@ -63,9 +58,8 @@ so the two stamp boxes map to "either VP or CEO approves" above — not a 3-step
 - Electronic signature is an approval **stamp**: clicking "approve" records the approver's name and
   timestamp, filling the corresponding stamp box on the eventual printed document. Not a drawn/canvas
   signature.
-- Document output (stage 3, not built) will replicate the paper form's exact layout. No PDF-generation
-  library exists in this project yet — the interim plan is a print-optimized HTML view (browser
-  print-to-PDF) rather than server-generated PDF, until a real need for the latter appears.
+- Document output replicates the paper form in a print-optimized HTML view with browser print-to-PDF.
+  A server-generated PDF library is not used because the current output contract does not require it.
 - Rejecting a request does NOT require a reason (confirmed 2026-07-06) — unlike attendance-correction
   rejection, which does. Any future reject action/UI for leave should make the reason field optional,
   not mandatory.
@@ -76,7 +70,7 @@ The approval queue and approve/reject action are an **admin web dashboard** feat
 (`/admin/attendance/leave`, mirroring the existing correction-review queue at
 `/admin/attendance/queue`), not a mobile screen. Mobile is the employee-facing surface (submit/view
 own requests); the PC dashboard is the manager-facing surface (review/approve org-wide). Document
-output (stage 3) remains not started.
+output is implemented in the document sub-tab from approved request data.
 
 ### Leave types (confirmed 2026-07-06)
 
@@ -128,12 +122,11 @@ Reference implementation: `src/lib/annual-leave.ts` (`getScheduledGrants`), cove
   apply the 2-year expiration to it, since its underlying grant history/dates aren't known. Only
   automatic grants issued after that entry point are tracked with a 2-year expiry.
 
-### Backend — Phase 1 only (implemented 2026-07-06)
+### Backend — Phase 1 build snapshot (implemented 2026-07-06; superseded by later phases)
 
-Scope is intentionally narrow: only `profiles.hire_date` + the self-entered balance baseline are
-real. Migration `202607060001_annual_leave_hire_date_baseline.sql`. The request-submission / approval
-/ e-signature / document-generation workflow described elsewhere in this doc is still **not
-implemented** — it remains a planning draft pending the open questions below.
+This section records the first narrow slice (`profiles.hire_date` + self-entered balance baseline,
+migration `202607060001_annual_leave_hire_date_baseline.sql`). Request, approval, document, and admin
+workflows were implemented in the later phases documented below.
 
 - The employee enters their own hire date **and** current remaining leave balance directly (no
   admin-mediated request), from the "hire date missing" screen (`leave-exception.tsx`, `missing`
@@ -154,12 +147,11 @@ implemented** — it remains a planning draft pending the open questions below.
   Tapping the month/year label switches to a year-stepper + 12-month grid (jump straight to a given
   year instead of paging month-by-month, since hire dates can be many years back).
 
-### Backend — Phase 2, stage 1 only (implemented 2026-07-06)
+### Backend — Phase 2, stage 1 build snapshot (implemented 2026-07-06; superseded)
 
-Request submission + self-cancel only. Migration `202607060002_annual_leave_requests.sql` adds
-`annual_leave_requests` and `memberships.leave_approver_role` (see
-`docs/engineering/04-data-model.md`). The approve/reject action, approval queue UI, and document
-output are **not implemented** — stage 2/3.
+This slice added request submission + self-cancel. Migration
+`202607060002_annual_leave_requests.sql` adds `annual_leave_requests` and
+`memberships.leave_approver_role`; approval, queue, and document output were completed in later stages.
 
 - `leave-form.tsx` submits/saves-draft via `submitLeaveRequestAction`
   (`src/app/mobile/attendance/leave/actions.ts`); its date pickers were converted from a hardcoded
@@ -178,7 +170,7 @@ output are **not implemented** — stage 2/3.
 
 ### Backend — Phase 2, stage 2 (implemented 2026-07-07)
 
-Approval review only — document output (stage 3) is still not built. No new migration was needed;
+This dated stage added approval review; document output followed on 2026-07-08. No new migration was needed;
 this stage reuses the approval/reject columns already added by `202607060002_annual_leave_requests.sql`
 (`approved_by_user_id`/`approved_role`/`approved_at`/`rejected_by_user_id`/`rejected_reason`/
 `rejected_at`) and `is_leave_approver()` / `memberships.leave_approver_role`.
@@ -222,18 +214,16 @@ this stage reuses the approval/reject columns already added by `202607060002_ann
   else inclusive range). The request enters the queue as `requested`. Target must be an **active** org
   member (`listLeaveApplicants` returns active-only). Any admin-web user may create for self or proxy
   (the console is a management surface; the page gate already restricts to admin-web roles).
-- **Not implemented in this stage (explicit follow-up):**
+- **Historical stage-2 gaps (later status noted):**
   - Branch/building filter and queue export: excluded.
-  - Approval does **not** yet feed back into `computeAnnualLeaveSummary`'s `usedDays`/
-    `specialUsedDays` — the detail panel's "잔여 영향" (balance impact) is a **display-only**
-    projection computed at review time; wiring approved usage into the actual balance calculation is
-    separate follow-up work.
+  - Approved usage feedback was not part of this dated slice; it is now wired through
+    `sumApprovedLeaveUsage`, so mobile/admin balances agree.
   - No notification is sent to the applicant on approve/reject in this slice.
 
-### Admin sub-tabs — design-only views (implemented 2026-07-08)
+### Admin sub-tabs — historical design pass (2026-07-08; later backend-wired)
 
-The remaining four leave sub-tabs are now visually complete but run entirely on **static mock data**
-(no Supabase reads/writes) — a real backend wiring pass is separate follow-up work:
+The remaining sub-tabs first shipped as static design views. The next sections document their real
+backend wiring; they no longer run on mock-only data.
 
 - **팀 캘린더** (`leave-team-calendar.tsx`): TimeTree-style month grid, continuous multi-day bars,
   greedy lane packing for overlaps, AM/PM half-day badges, arbitrary year/month navigation.
@@ -366,7 +356,7 @@ No new migration was needed for these three — this reuses `annual_leave_reques
   and a **date range filter (added 2026-07-14)** + **Excel/PDF export (2026-07-14; the earlier
   client-side Blob CSV was removed)**. Server: `listLeaveLedger`. See "2026-07-14 이력·잔여 내보내기 +
   날짜 피커 공용화" below.
-- employee leave balance / grant history — balance built; a full grant-history ledger view is not
+- employee leave balance/grant management — built; a separate grant-event ledger remains optional
 - document preview / print — **built** (on-screen A4 + `window.print()`); a dedicated PDF export template
   beyond browser print is a possible follow-up
 
@@ -397,9 +387,8 @@ No new migration was needed for these three — this reuses `annual_leave_reques
   viewer's own — not a self-only view. Only **approved** leave appears; pending/rejected/draft/
   cancelled requests are never shown org-wide (RLS: `annual_leave_requests_org_approved_select`,
   migration `202607060003`).
-- admins will additionally get a team-wide calendar view on the dashboard — the leave subnav's
-  "팀 캘린더" sub-tab exists as a placeholder (2026-07-07) but has no functionality yet; likely the
-  same approved-only data, just presented in an admin-console layout.
+- admins have a team-wide calendar view on the dashboard using the same approved-only source and the
+  shared request detail panel.
 
 ## Open questions
 
@@ -445,7 +434,6 @@ backend-wired (2026-07-08). Approved usage feeds both the admin balance view and
 **mobile** self-summary + the request-modal preview, via the shared `sumApprovedLeaveUsage` helper
 (`annual-leave-server.ts`), so mobile and admin balances always agree. The document-number migration
 `202607080001` has been applied to production. Remaining follow-up work, in no fixed order: applicant
-notification on approve/reject (**deferred** to the end-of-development notification redesign); ability to
-designate an approver as 전무(`senior_managing_director`) (approver toggle currently only sets
-`department_head`) so the 専務 seal can appear on real approvals; hourly-staff exclusion by real
+notification on approve/reject (**deferred** to the end-of-development notification redesign);
+hourly-staff exclusion by real
 `employment_type` rather than membership role; and a dedicated PDF export template beyond browser print.

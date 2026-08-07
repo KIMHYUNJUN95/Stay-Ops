@@ -384,9 +384,10 @@ Key features:
 - On-site QR + device GPS clock-in/out
 - Attendance logs per worker/site
 - Employment type (hourly / salaried) + hourly rate history
-- Hourly payroll calculation + export (**deferred** until wage rules defined)
+- Hourly gross-pay calculation, finalization, and Excel/print-to-PDF export (implemented; taxes/deductions and salaried payroll accounting excluded)
 
-Status: attendance capture approved (2026-06-09); payroll calculation blocked on wage-policy definition. See `docs/product/21-attendance-payroll-workflow.md`.
+Status: attendance capture and the defined hourly gross-pay workflow are implemented across mobile and
+admin. See `docs/product/21-attendance-payroll-workflow.md`.
 
 ## External Integrations
 

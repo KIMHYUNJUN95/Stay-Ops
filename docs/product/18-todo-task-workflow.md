@@ -1159,11 +1159,10 @@ Example direction:
 
 This task system should be designed for mobile first.
 
-Admin web was intentionally deferred until the mobile feature set matured. **As of 2026-07-24 the mobile
-Todoist is feature-complete for its first-slice scope** (single-date schedule picker + duration +
-contextual repeat/yearly + overdue reschedule picker shipped), and the **dashboard console is now
-planned** — see `docs/product/28-admin-todoist-console.md`. The dashboard reuses the same DB / server
-actions (no separate sync layer) and stays simple: mobile parity + a manager **Work Directive** only.
+Admin web was initially deferred until the mobile feature set matured. The mobile Todoist and the
+dashboard console are now implemented; see `docs/product/28-admin-todoist-console.md`. Both surfaces
+reuse the same DB and domain actions (no separate sync layer), with the dashboard also supporting the
+manager Work Directive flow.
 
 ## Suggested First Design Slice
 

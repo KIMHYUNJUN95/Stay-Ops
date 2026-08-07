@@ -1,7 +1,9 @@
 ﻿# Attendance / Payroll Technical Design
 
-Status: Refined technical draft (policy baseline confirmed 2026-06-17), with **Step 1 (schema + permission
-foundation) implemented on 2026-06-17** via migration `202606170001_attendance_payroll.sql`.
+Status: **Implemented technical contract.** The schema and Steps 1–14 have been followed by the live
+mobile attendance flow and the full admin attendance/payroll/transport/annual-leave console. Dated
+"deferred dashboard", "backend only", and "no UI" statements below are build-history snapshots and
+are superseded by the later as-built sections and current routes under `/admin/attendance/*`.
 
 ## As-built — Step 2 (site/QR backend helpers + dev temp-QR, 2026-06-17)
 
@@ -662,8 +664,8 @@ workbook + PDF** export ships in the admin 급여 검토 page; see the 2026-07-0
 Attendance notifications use the **shared** notification system (no separate attendance notifier). One
 discriminated type **`attendance_activity`** (migration `202606180001`) carries every event via
 `payload.event` (`correction_created` / `abnormal_session` / `open_session_reminder`), mirroring
-`suggestion_activity`. **No admin dashboard UI** -> admins receive in-app notifications via the existing
-notification center; the privileged review/manage UI stays in the deferred web dashboard.
+`suggestion_activity`. Admins receive in-app notifications through the existing notification center, and
+the privileged review/manage surfaces are implemented in the admin attendance console.
 
 - **Types/display/i18n:** `AttendanceNotificationPayload` + guard (`notifications/types.ts`); a display
   branch + kind label (`notifications/display.ts`); `mobile.notifications.attendance*` copy in **ko/ja/en**.
@@ -793,7 +795,7 @@ UI-only pass over the self history + pay screens (no policy/schema change beyond
   - `addTransportItemImageAction` / `deleteTransportItemImageAction`
   - `submitTransportReportAction` — 증빙 누락 항목 있으면 `missing_evidence` 오류로 제출 차단
 
-- **프론트엔드 연결 상태**: UI (transport/page.tsx + transport-statement.tsx) mock 제거 및 실데이터 주입은 같은 작업 사이클에서 완료 예정. 현재 transport-statement.tsx는 MOCK_ITEMS 사용 중 → 실데이터 props로 전환 필요.
+- **프론트엔드 연결 상태**: `transport/page.tsx`가 보고서·항목·연결 후보를 조회하고 `transport-statement.tsx`에 실데이터 props로 전달한다. 생성·수정·삭제·이미지 첨부·제출 액션도 연결되어 있다.
 
 ## As-built — Admin Attendance Dashboard Console Hardening (2026-07-02)
 

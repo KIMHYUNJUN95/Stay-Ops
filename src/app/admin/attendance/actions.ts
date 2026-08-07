@@ -10,7 +10,8 @@
 // (deferred); these actions are the backend it will call. Self-view (worker history / request status)
 // reflects the new state on next load (dynamic routes; revalidated here too).
 //
-// Not in this step: manual session creation, payroll, finalization, dashboard, export.
+// Historical Step 7 boundary: later sections in this file now implement manual sessions, payroll,
+// finalization, dashboard actions, and exports too.
 
 import { revalidatePath } from "next/cache";
 import {

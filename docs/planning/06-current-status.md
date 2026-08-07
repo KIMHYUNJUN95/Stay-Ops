@@ -4,6 +4,35 @@
 
 This document tracks what has been completed, what is in progress, and what remains for the StayOps MVP.
 
+Current-state rule: dated entries below are an implementation history. When an older entry says a later
+step was deferred, design-only, pending, or not implemented, the newest dated entry and the current code
+win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
+and the major mobile/admin operations modules are implemented and being hardened.
+
+## 2026-08-07 — Documentation consistency synchronization
+
+- Reconciled the live implementation with README, agent contracts, design/mobile-shell docs, Phase 14
+  planning/status, feature workflows, data model/RLS, and environment setup.
+- Current implementation is the baseline: warm-ivory/deep-navy mobile shell, implemented Phase 14
+  modules, live attendance/payroll/annual-leave/permission-override/complaint surfaces, and the current
+  environment-variable/scheduler contracts replace older future/deferred wording.
+- Historical dated build notes remain for provenance but are explicitly marked as superseded where they
+  would otherwise read as current status. Encoding-damaged sections/files were intentionally not repaired
+  in this pass.
+
+## 2026-08-07 — Complaint building names localized (admin + mobile)
+
+- The problem-room aggregation (`summarizeReviewsByPlace`) now takes a `locale` and returns a
+  localized `label` per building alongside the canonical `name`, using the same path as the calendar
+  (`getCanonicalPropertyName` → `localizePropertyName` + `dictionary.cleaning.buildingLabels`).
+- The admin problem-room table showed raw Beds24 names (`Okubo_A (B棟)`, `Okubo_C (kr)`); it now
+  renders the shared label. The admin external-review rows and the right-side review detail panel
+  are localized the same way.
+- The mobile problem-room board consumes the aggregation's `label` instead of re-mapping locally, so
+  both surfaces cannot drift apart again.
+- Verification completed: `npm run check:i18n` (19 tests), `npm test` (175 tests), `npm run lint`
+  (0 errors; 11 pre-existing warnings), and `npm run build` all pass.
+
 ## 2026-08-07 — Compact mobile task undo toast
 
 - Mobile task completion, deletion, and recurring-occurrence skip undo toasts keep their current
@@ -42,7 +71,7 @@ Use this together with:
 ## Current Build Stage
 
 ```txt
-Phase 13: QA and Internal Rollout — in progress (2026-06-04)
+Phase 13: QA and Internal Rollout — in progress; Phase 14 feature batch implemented (2026-08-07)
 ```
 
 - **영수증 정산(활동비·경비) 기획 (2026-08-05). 구현 착수 전.** 월 1회 A4 에 영수증을 붙이고

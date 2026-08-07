@@ -53,7 +53,8 @@ promoting their role or adding a brand-new dedicated column for a one-off need.
 part-time worker becoming a regular employee, or any role promotion/demotion, is a normal
 `memberships.role` change — already implemented at `/admin/users/[id]` (`updateMemberRole` server
 action, `src/app/admin/users/actions.ts`). That flow already has its own permission tiering
-(`owner`/`developer_super_admin` can assign any of the 6 roles; `office_admin` can assign anything
+(`owner`/`senior_managing_director`/`developer_super_admin` can assign any organization role;
+`office_admin` can assign anything
 except `owner`/`office_admin`; nobody can promote themselves) and needs no changes. This document is
 only about the narrower case: **role stays the same, but one person gets a specific feature-level
 exception.**
@@ -64,7 +65,7 @@ needs, not a migration/replacement of what already works.
 
 ## Goal
 
-Let `owner` or `developer_super_admin` grant a specific, named, **time-bound** exception to a
+Let `owner`, owner-equivalent `senior_managing_director`, or `developer_super_admin` grant a specific, named, **time-bound** exception to a
 specific user for a specific feature — without changing their role and without a new DB migration
 every time a new exception need comes up.
 
@@ -137,8 +138,9 @@ that already handles role/status changes.
 
 ## Open questions
 
-- Exact initial `permission_key` whitelist — needs a concrete first use case before locking the enum
-  down (an empty/speculative list isn't useful).
+- Initial `permission_key` whitelist is resolved and implemented in
+  `src/config/permission-overrides.ts`: `order_processor`, `maintenance_status_change`,
+  `property_room_manage`, and `can_generate_report`.
 - Should an override notify the affected user (in-app notification) when granted/revoked, the way
   other admin actions do? Not decided.
 - Should expired-but-unrevoked grants show up anywhere (e.g. a "recently expired" list) or just

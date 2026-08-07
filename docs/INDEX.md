@@ -11,6 +11,7 @@ Confirmed: Decision is currently accepted.
 Draft: Direction exists but needs more review before implementation.
 Future: Documented for later, not MVP.
 Living: Must be updated continuously.
+Historical: Retained for decision history but superseded by a newer document or the current implementation.
 ```
 
 ## Start Here
@@ -22,7 +23,7 @@ Living: Must be updated continuously.
 | [Decision Log](./planning/01-decision-log.md) | Living | Confirmed decisions |
 | [Project Workflow](./planning/04-project-workflow.md) | Confirmed | How the project is run |
 | [AI Collaboration Rules](./planning/05-ai-collaboration-rules.md) | Confirmed | Rules for Codex/Claude/Cursor/other AI |
-| [Implementation Plan](./engineering/06-implementation-plan.md) | Draft | Phase-based build plan |
+| [Implementation Plan](./engineering/06-implementation-plan.md) | Living | Phase-based build history and current delivery state |
 
 ## Planning Docs
 
@@ -38,7 +39,7 @@ Living: Must be updated continuously.
 | [QA Checklist Announcement Images](./planning/07-qa-checklist-announcement-images.md) | Living | Historical QA checklist for announcement-image rollout |
 | [QA Checklist](./planning/13-qa-checklist.md) | Living | Full system QA and release-readiness checklist |
 | [Rollout Guide](./planning/14-rollout-guide.md) | Living | Internal rollout sequence and operational checks |
-| [Feature Batch Plan](./planning/15-feature-batch-plan.md) | Draft | Upcoming feature batch scoping and implementation order |
+| [Feature Batch Plan](./planning/15-feature-batch-plan.md) | Historical | Implemented feature-batch scope and delivery history |
 | [Admin Dashboard Workflow](./planning/16-admin-dashboard-workflow.md) | Living | Active workflow board for dashboard planning and implementation |
 
 ## Product Docs
@@ -59,69 +60,68 @@ Living: Must be updated continuously.
 | [Announcement Workflow](./product/11-announcement-workflow.md) | Confirmed | Announcements and comments |
 | [Recurring Work Scheduler](./product/12-recurring-work-scheduler.md) | Confirmed | Periodic work management |
 | [Inventory Future Module](./product/13-inventory-future-module.md) | Future | Inventory later |
-| [Notification Design](./product/14-notification-design.md) | Draft | Notification triggers |
+| [Notification Design](./product/14-notification-design.md) | Living | Implemented and planned notification triggers |
 | [Reservation Calendar](./product/15-reservation-calendar.md) | Confirmed | Beds24 calendar requirements |
 | [Mobile Navigation](./product/16-mobile-navigation.md) | Confirmed | Mobile tabs and home layout |
 | [User Profile and Directory](./product/17-user-profile-directory.md) | Confirmed | Profile and user directory |
-| [Todo / Task Workflow](./product/18-todo-task-workflow.md) | Draft | CS follow-up and operational task memory |
-| [Linen Defect Workflow](./product/19-linen-defect-workflow.md) | Draft | Property-scoped linen defect registration workflow |
-| [Internal Board Workflow](./product/20-internal-board-workflow.md) | Draft | Shared all-user internal posting workflow |
-| [Attendance / Payroll Workflow](./product/21-attendance-payroll-workflow.md) | Draft | PWA attendance, QR/GPS proof, and later payroll rules |
-| [Staff Suggestions Workflow](./product/22-staff-suggestions-workflow.md) | Draft | Structured staff suggestion and feedback workflow |
-| [Board Workflow](./product/23-board-workflow.md) | Draft | Free internal board for all active members |
-| [Project Workflow](./product/23-project-workflow.md) | Draft | Project boards and section-based task coordination |
-| [Attendance Workflow](./product/24-attendance-workflow.md) | Draft | Attendance mobile UX and screen-level behavior |
+| [Todo / Task Workflow](./product/18-todo-task-workflow.md) | Living | Implemented CS follow-up and operational task memory |
+| [Linen Defect Workflow](./product/19-linen-defect-workflow.md) | Living | Implemented property-scoped linen defect workflow |
+| [Internal Board Workflow](./product/20-internal-board-workflow.md) | Historical | Early concept superseded by the current Board Workflow |
+| [Attendance / Payroll Workflow](./product/21-attendance-payroll-workflow.md) | Living | Implemented PWA attendance and hourly gross-pay operations |
+| [Staff Suggestions Workflow](./product/22-staff-suggestions-workflow.md) | Living | Implemented staff suggestion and feedback workflow |
+| [Board Workflow](./product/23-board-workflow.md) | Living | Implemented free internal board for active members |
+| [Project Workflow](./product/23-project-workflow.md) | Living | Implemented project boards and task coordination |
+| [Attendance Workflow](./product/24-attendance-workflow.md) | Living | Implemented attendance mobile UX and screen behavior |
 | [Bug Report Workflow](./product/25-bug-report-workflow.md) | Living | StayOps product/system issue reporting workflow (1차 구현 2026-06-25) |
 | [Complaint Workflow](./product/25-complaint-workflow.md) | Living | Customer complaint intake and tracking workflow (모바일 1차 구현) |
+| [Annual Leave Workflow](./product/26-annual-leave-workflow.md) | Living | Annual-leave request, approval, balance, calendar, document, and export workflow |
+| [Permission Override Workflow](./product/27-permission-override-workflow.md) | Living | Time-bound per-user feature permission exceptions |
+| [Admin Todoist Console](./product/28-admin-todoist-console.md) | Living | Desktop Todoist/task operations console |
+| [Expense Receipt Workflow](./product/29-expense-receipt-workflow.md) | Draft | Transportation-adjacent expense receipt planning |
 
 ## Design Docs
 
 | Document | Status | Purpose |
 |---|---:|---|
-| [Design Direction](./design/00-design-direction.md) | Confirmed | Pure-white base + selective Liquid Glass + readability |
+| [Design Direction](./design/00-design-direction.md) | Confirmed | Warm ivory + deep navy + selective Liquid Glass + readability |
 | [Google Stitch Handoff](./design/01-stitch-handoff.md) | Confirmed | How to pass Stitch designs |
-| [Stitch Screen List](./design/02-stitch-screen-list.md) | Draft | First Stitch screens and prompts |
+| [Stitch Screen List](./design/02-stitch-screen-list.md) | Historical | Historical Stitch tracker; current code and design contracts govern |
 
 ## Engineering Docs
 
 | Document | Status | Purpose |
 |---|---:|---|
 | [Technical Options](./engineering/00-technical-options.md) | Confirmed | Selected MVP stack and alternatives |
-| [Beds24 Integration](./engineering/01-beds24-integration.md) | Draft | Webhook integration design |
+| [Beds24 Integration](./engineering/01-beds24-integration.md) | Living | Implemented webhook and reconciliation integration |
 | [Platform Architecture](./engineering/02-platform-architecture.md) | Confirmed | PWA/admin/backend architecture |
 | [Deployment Strategy](./engineering/03-deployment-strategy.md) | Confirmed | Vercel/PWA/internal deployment |
-| [Data Model](./engineering/04-data-model.md) | Draft | Supabase/PostgreSQL schema draft |
-| [RLS Permissions](./engineering/05-rls-permissions.md) | Draft | Supabase RLS policy direction |
-| [Implementation Plan](./engineering/06-implementation-plan.md) | Draft | Development phases |
-| [Environment Setup](./engineering/07-environment-setup.md) | Draft | Environment variables and service setup |
-| [Linen Defect Technical Design](./engineering/08-linen-defect-technical-design.md) | Draft | Schema, RLS, and action design for linen defects |
-| [Todo / Task Technical Design](./engineering/09-todo-task-technical-design.md) | Draft | Private task, sharing, and calendar technical design |
-| [Internal Board Technical Design](./engineering/10-internal-board-technical-design.md) | Draft | Schema and moderation design for internal board posts |
-| [Attendance / Payroll Technical Design](./engineering/11-attendance-payroll-technical-design.md) | Draft | Phased attendance and payroll technical design |
-| [Staff Suggestions Technical Design](./engineering/12-staff-suggestions-technical-design.md) | Draft | Visibility-aware suggestion box technical design |
-| [Bug Report Technical Design](./engineering/13-bug-report-technical-design.md) | Draft | Schema, RLS, actions, and notification design for bug reports |
+| [Data Model](./engineering/04-data-model.md) | Living | Implemented Supabase/PostgreSQL schema contract |
+| [RLS Permissions](./engineering/05-rls-permissions.md) | Living | Implemented RLS and server-side permission contract |
+| [Implementation Plan](./engineering/06-implementation-plan.md) | Living | Development phases and delivery history |
+| [Environment Setup](./engineering/07-environment-setup.md) | Living | Environment variables and service setup |
+| [Linen Defect Technical Design](./engineering/08-linen-defect-technical-design.md) | Living | Implemented linen schema, RLS, and action design |
+| [Todo / Task Technical Design](./engineering/09-todo-task-technical-design.md) | Living | Implemented task, sharing, recurrence, and calendar design |
+| [Internal Board Technical Design](./engineering/10-internal-board-technical-design.md) | Historical | Early internal-board design superseded by the current board implementation |
+| [Attendance / Payroll Technical Design](./engineering/11-attendance-payroll-technical-design.md) | Living | Implemented attendance and hourly gross-pay technical design |
+| [Staff Suggestions Technical Design](./engineering/12-staff-suggestions-technical-design.md) | Living | Implemented visibility-aware suggestion technical design |
+| [Bug Report Technical Design](./engineering/13-bug-report-technical-design.md) | Living | Implemented bug-report schema, RLS, actions, and notification design |
 
-## Implementation Readiness Checklist
+## Current Delivery Checklist
 
-Before coding begins:
-
-- [ ] First Stitch screens created or at least Mobile Home and Cleaning Timer created
-- [ ] Data model reviewed
-- [ ] RLS permission draft reviewed
-- [x] Supabase project decision confirmed
-- [ ] Vercel account/deployment owner confirmed
-- [ ] Environment variable names drafted
-- [x] i18n key strategy confirmed
-- [x] Theme token strategy confirmed (light-mode-only; dark mode deferred until post-launch)
+- [x] Core mobile and admin surfaces implemented
+- [x] Data model and feature-specific RLS documented
+- [x] Supabase project direction confirmed
+- [x] Environment variable names documented
+- [x] i18n key strategy and hardcoded-string guard established
+- [x] Light-mode-only warm-ivory theme contract established
+- [ ] Complete physical-device/browser E2E and rollout checks tracked in `planning/13-qa-checklist.md`
+- [ ] Verify migration history and required secrets separately for each deployment environment
 
 ## Open Decisions To Resolve Soon
 
-- Which PDF export library to use
-- Exact Supabase project setup ownership
-- Exact Vercel project/account ownership
-- Beds24 webhook event details
-- Whether CS Staff can export cleaning records by default
-- How hard delete should handle records with attachments
+- Expense receipt export template and OCR rollout details (`product/29-expense-receipt-workflow.md`)
+- Remaining physical-device QA and production rollout checks (`planning/13-qa-checklist.md`)
+- Any future dark-mode or native-app direction requires a new explicit decision
 
 ## Maintenance Rule
 

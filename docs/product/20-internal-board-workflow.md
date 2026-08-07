@@ -1,6 +1,11 @@
 # Internal Board Workflow
 
-Status: Draft
+Status: Historical concept draft — superseded by the implemented contract in
+`docs/product/23-board-workflow.md`.
+
+The live board includes reads, pins, comments, reactions, mentions, attachments, notifications, and
+moderation. Any "deferred" or open-question language below records the early concept only and must not
+be used as the current product contract.
 
 ## Purpose
 
@@ -159,7 +164,7 @@ Recommended first rules:
 - Users can edit/delete their own posts.
 - Admin-capable roles can moderate all posts.
 
-## Deferred Features
+## Deferred Features (historical; most are now implemented)
 
 Good later additions:
 

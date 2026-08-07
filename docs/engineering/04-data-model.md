@@ -24,7 +24,7 @@ The model must support:
 - Personal todo / shared task inbox (approved post-MVP batch)
 - Internal board (approved post-MVP batch)
 - Staff suggestions / feedback (approved post-MVP batch)
-- Attendance / clock-in-out + hourly payroll (Steps 1–14 implemented; admin web dashboard deferred)
+- Attendance / clock-in/out + hourly payroll (mobile and admin implementation live)
 
 ## Core Principles
 
@@ -142,14 +142,14 @@ by the role check and never need the flag; it is toggled per-user by owner/offic
 management for the few part-timers who work in a management capacity. See
 `docs/engineering/05-rls-permissions.md` and `docs/product/18-todo-task-workflow.md` (2026-06-13).
 
-`bottom_nav_tabs` stores the user's customized mobile bottom-bar tabs (ordered ids, max 4 enforced in app logic). Added in `supabase/migrations/202606080001_profile_bottom_nav.sql`. Selectable ids match the mobile side-menu nav items (`home`, `calendar`, `cleaning`, `requests`, `announcements`, `notifications`, `directory`).
+`bottom_nav_tabs` stores the user's customized mobile bottom-bar tabs (ordered ids, max 4 enforced in app logic). Added in `supabase/migrations/202606080001_profile_bottom_nav.sql`. The selectable pool is the current `mobileSidebarNavigation`: `home`, `calendar`, `cleaning`, `tasks`, `requests`, `attendance`, `announcements`, `board`, `suggestions`, `complaints`, `linen-return`, and `directory`. Unknown/stale ids are ignored by the resolver.
 
 `hire_date` (migration `202607060001`) is self-entered by the employee from the "hire date missing"
 screen (`src/components/attendance/leave-exception.tsx`, `missing` variant → `setAnnualLeaveBaselineAction`
 in `src/app/mobile/attendance/leave/actions.ts`). It is the basis for annual-leave accrual — see
-`annual_leave_baselines` below and `docs/product/26-annual-leave-workflow.md`. There is no admin
-edit UI for it yet (planned per that doc, not built); salary-based-only exclusion of hourly staff is
-also not yet enforced at this layer.
+`annual_leave_baselines` below and `docs/product/26-annual-leave-workflow.md`. Admins can edit the
+hire date and grant baseline from the leave balance drawer; salary-based targeting is additionally
+enforced by the current leave workflow gates.
 
 Language values:
 
@@ -942,9 +942,10 @@ updated_at timestamptz
 
 # Post-MVP Feature Batch Tables (approved 2026-06-09)
 
-The tables below back the approved post-MVP batch. Full column types, enums, indexes, and RLS detail live in the per-feature technical-design docs (`docs/engineering/08`–`12`); the definitions here are the canonical inventory. The three `linen_*` tables (migration `202606100002_linen_returns.sql`) and the three task tables
-(`tasks` / `task_participants` / `task_updates`, migration `202606100003_todo_tasks.sql`) are
-**implemented**; the rest are not implemented yet.
+The tables below back the implemented post-MVP batch. Full column types, enums, indexes, and RLS detail
+live in the per-feature technical-design docs (`docs/engineering/08`–`12`) and migrations; the
+definitions here are the canonical inventory. Linen, tasks/projects, suggestions, board, and
+attendance/payroll tables are implemented.
 
 ## linen_items
 
@@ -1175,7 +1176,7 @@ Permissions: 전체 활성 멤버 (part_time_staff 포함) → SELECT·INSERT. �
 
 ## staff_suggestions
 
-Structured feedback thread with one required recipient, optional referenced users, recipient-owned status, and participant comments. **Schema implemented (Step 1, 2026-06-16) — migration `supabase/migrations/202606160001_staff_suggestions.sql`.** Server actions / queries / notifications are NOT wired yet (later steps). See `docs/engineering/12-staff-suggestions-technical-design.md`.
+Structured feedback thread with one required recipient, optional referenced users, recipient-owned status, and participant comments. **Fully wired**: schema, server actions, participant-scoped queries, comments, status flow, images, and notifications are implemented. See `docs/engineering/12-staff-suggestions-technical-design.md`.
 
 ```txt
 id uuid primary key default gen_random_uuid()
@@ -1235,16 +1236,18 @@ CHECK constraints: `coalesce(array_length(image_urls,1),0) <= 5` (max 5 photos) 
 
 Visibility helper: `public.can_view_staff_suggestion(target_suggestion_id uuid)` — `SECURITY DEFINER`, returns true if `auth.uid()` is the author, the recipient, or a referenced user (used by the three SELECT policies; bypasses RLS to avoid recursion).
 
-Permissions note: read access is limited to author + recipient + referenced users (+ platform admin). Only the recipient changes status. Referenced users can comment but cannot change status or edit the main suggestion. The author edits/deletes the main suggestion only while `submitted`; comment edit/delete is always comment-author only. These mutation rules are enforced in server actions (later steps); RLS currently grants read-only to participants and routes all writes through the service role.
+Permissions note: read access is limited to author + recipient + referenced users (+ platform admin). Only the recipient changes status. Referenced users can comment but cannot change status or edit the main suggestion. The author edits/deletes the main suggestion only while `submitted`; comment edit/delete is comment-author only. These rules are enforced by the implemented service-role server actions; participant reads remain RLS-scoped.
 
 ## customer_complaints / complaint_comments / external_reviews / review_translations
 
-`customer_complaints`와 `complaint_comments`는 수동 컴플레인 도메인으로 이미 구현되어 있다
-(migration `202606290001_customer_complaints.sql`). `external_reviews`는 Beds24 외부 리뷰 수집을 위해
-다음 구현 단계에서 추가할 계획이다. 외부 리뷰는 수동 컴플레인과 별도 레코드이며, 자동 티켓 생성하지 않는다.
+`customer_complaints`와 `complaint_comments`는 수동 컴플레인 도메인으로 구현되어 있다
+(migration `202606290001_customer_complaints.sql`). `external_reviews`와 `review_translations`도
+Beds24 수집·DeepL 온디맨드 번역용으로 구현되어 있다(migration `202608050001_external_reviews.sql`,
+예약 식별자 보강 `202608060001_external_reviews_source_reservation.sql`). 외부 리뷰는 수동
+컴플레인과 별도 레코드이며 사용자가 명시적으로 전환할 때만 연결된다.
 
 ```txt
-external_reviews (planned)
+external_reviews (implemented)
   id uuid primary key default gen_random_uuid()
   organization_id uuid not null references organizations(id) on delete cascade
   provider text not null                         -- airbnb | booking
@@ -1278,7 +1281,7 @@ external_reviews (planned)
   unique (organization_id, provider, external_review_id)
 ```
 
-Planned indexes: `(organization_id, provider, reviewed_at desc)`,
+Implemented indexes: `(organization_id, provider, reviewed_at desc)`,
 `(organization_id, risk_level, rating_value asc, reviewed_at desc)`,
 `(organization_id, property_id, room_id, reviewed_at desc)`, and a partial index for unlinked risky
 reviews. `customer_complaints` will gain an optional one-to-one external review link/snapshot only
@@ -1329,7 +1332,7 @@ matters more than usual because both Beds24 review endpoints are Beta/Alpha. Ful
 `docs/product/25-complaint-workflow.md`.
 
 ```txt
-review_translations (planned)
+review_translations (implemented)
   id uuid primary key default gen_random_uuid()
   organization_id uuid not null references organizations(id) on delete cascade
   external_review_id uuid not null references external_reviews(id) on delete cascade
@@ -1350,7 +1353,7 @@ reused only while `source_text_hash` equals the current source-review text hash;
 requires a fresh on-demand translation. Translation usage/cost telemetry belongs in a separate
 server-only sync/usage log, not in this user-facing record.
 
-### Period rating summaries (planned query contract)
+### Period rating summaries (implemented derived query contract)
 
 Building/room rating summaries do **not** add a source-of-truth table in v1. The server aggregates
 `external_reviews` directly by `organization_id`, `provider`, and `reviewed_at` range:
@@ -1501,8 +1504,8 @@ queue + `isAttendancePayrollAdmin` gate) and `src/app/admin/attendance/actions.t
 in-review, owner+`attendance_payroll_admin` only). **Approve** updates the linked `attendance_sessions`
 row with admin-confirmed final values (review_state → `approved_correction`, open→completed when both
 ends present) and writes an `attendance_session_audits` row (`correction_apply`, before/after). **Reject**
-(comment required) updates only the request row (no session change). The review-queue **UI is in the web
-dashboard (deferred)**; this is the backend.
+(comment required) updates only the request row (no session change). The review-queue UI is live in the
+web dashboard.
 
 **Step 8 (2026-06-17):** **manual admin management** (`src/app/admin/attendance/actions.ts`:
 `createManualAttendanceSession` / `updateAttendanceSessionAdmin` / `invalidateAttendanceSession` /
@@ -1513,7 +1516,7 @@ edits clock-in/out times+sites+review_state; invalidate sets `status='invalid'` 
 (recomputes `status` from the session's own clock-in/out, clears the `invalidated_*` fields, resets
 `review_state`, blocked on a conflicting open session). Every action requires a reason and writes an
 `attendance_session_audits` row (`manual_create` / `manual_update` / `invalidate` / `restore`,
-before/after). No admin web UI beyond the queue panel's restore relabel (deferred otherwise).
+before/after). The admin queue and manual-management surfaces use these actions.
 
 **Step 10 (2026-06-18):** **hourly expected-pay** reads `attendance_sessions` + `attendance_breaks` +
 `hourly_rate_history` + `employment_type_history` (effective-date resolution) via `src/lib/attendance-pay.ts`
@@ -1522,9 +1525,8 @@ rounded to 10 yen; no writes, no finalization. `attendance_pay_allowances` (impl
 a separate date-based allowance layer (`daily_fixed` / `hourly_extra`) without changing base hourly-rate
 history; `expectedGross` in the pay view now means base wage + allowance (rounded once at the monthly
 layer).
-New self screen `/mobile/attendance/pay`. The employment/rate
-**management** writes (Step 9) are still pending (deferred web dashboard); a dev route
-`/api/dev/attendance/seed-pay` seeds `employment_type_history` / `hourly_rate_history` for testing.
+New self screen `/mobile/attendance/pay`. Employment/rate management writes are implemented in the
+admin wages console; a dev route `/api/dev/attendance/seed-pay` remains for local testing.
 
 **Step 11 (2026-06-18):** **monthly finalization** writes `attendance_month_snapshots`
 (`finalizeAttendanceMonth` / `reopenAttendanceMonth`, owner+`attendance_payroll_admin`). Eligibility
@@ -1534,21 +1536,21 @@ sessions or an existing finalized snapshot remain. Finalize inserts `status='fin
 finalized_by/at, supersedes_snapshot_id); prior non-superseded rows → `superseded` (history preserved).
 Reopen flips `finalized` → `reopened` (expected pay resumes). Finalize/reopen are audited in the generic
 `audit_logs` table (`attendance_month_finalize` / `attendance_month_reopen`, reason in metadata) — no
-schema change. The worker self pay view reflects the finalized snapshot; admin finalize/reopen UI is
-deferred (web dashboard).
+schema change. The worker self pay view reflects the finalized snapshot; the admin payroll console
+exposes finalize/reopen.
 
 **Step 12 (2026-06-18):** **payroll-totals data layer** (`src/lib/attendance-payroll-totals.ts`,
 `getPayrollTotals(org, ym)`) reads `attendance_month_snapshots` (finalized total) + recomputed expected
 pay per hourly worker + `attendance_sessions`/`attendance_sites` (site rollup by clock-in site). Returns
-finalized vs expected labor totals, unfinalized worker count, and per-site totals. **No writes, no UI**
-(dashboard deferred); owner/`attendance_payroll_admin` gate enforced by the caller.
+finalized vs expected labor totals, unfinalized worker count, and per-site totals. The query is read-only
+and surfaced in the privileged dashboard; owner/`attendance_payroll_admin` gate is enforced by the caller.
 
 **Step 13 (2026-06-18):** **finalized-only export** (`src/lib/attendance-export.ts` `runPayrollExport` +
 `exportMonthlyPayroll` / `exportUserPayroll`) reads `attendance_month_snapshots` (status='finalized'
 only) + `profiles` (names), serializes a structured CSV (interim, until the operator Excel template), and
 writes an `attendance_export_logs` row (organization_id, target_month, export_scope monthly_bulk/single_user,
-user_id, snapshot_ids[], exported_by_user_id, meta). owner/`attendance_payroll_admin` only. No export UI
-(deferred); a dev route `/api/dev/attendance/export` streams the CSV for testing.
+user_id, snapshot_ids[], exported_by_user_id, meta). owner/`attendance_payroll_admin` only. The admin
+console also offers localized Excel and print-to-PDF reports; a dev route streams the legacy CSV path.
 
 **Step 14 (2026-06-18):** **notifications** use the shared `notifications` table + new `attendance_activity`
 enum value (migration `202606180001`). New table `attendance_open_session_reminders` (migration
@@ -1571,10 +1573,9 @@ status/method/reason unions + constants live in `src/lib/attendance.ts`.
 
 ## annual_leave_baselines
 
-**Phase 1 backend only (implemented 2026-07-06), migration `202607060001_annual_leave_hire_date_baseline.sql`.**
-Scope is intentionally narrow — only `profiles.hire_date` (see above) + this baseline table. The
-request-submission / approval / e-signature / document-generation workflow in
-`docs/product/26-annual-leave-workflow.md` is still a planning draft and is NOT implemented.
+**Phase 1 foundation (implemented 2026-07-06), migration
+`202607060001_annual_leave_hire_date_baseline.sql`.** This table began as the hire-date/baseline slice;
+the later request, approval, calendar, document, and export workflow is now implemented.
 
 One row per user: the employee's self-entered "as of today" starting balance for the two pools
 tracked by `src/lib/annual-leave.ts` (`computeAnnualLeaveSummary`) — 유급 휴가 (base) and 특별휴가
@@ -1601,20 +1602,17 @@ re-save. Reads: `getMyAnnualLeaveSummary` (`src/lib/annual-leave-server.ts`) ret
 `hire_date` or this row is missing, which routes the mobile screen to the "hire date missing"
 self-entry form instead of the balance view.
 
-Not yet implemented (as of this table alone): usage deduction from real submitted/approved leave
-requests, an admin edit UI for `hire_date` or this baseline, and enforcement that only salary-based
-(non-hourly) employees see this feature. `annual_leave_requests` below adds the request side —
-`usedDays`/`specialUsedDays` are still not wired into `computeAnnualLeaveSummary` calls yet (the
-requests exist and are readable, but the balance screen doesn't subtract approved usage from them
-yet, since there's no approval action to produce an "approved" row in the first place).
+Implemented follow-up: approved usage is deducted from the correct leave pools; admin hire-date/grant
+editing is available in the leave balance view; and current workflow gates exclude hourly/part-time
+membership paths according to the documented salary-based rule.
 
 ## annual_leave_requests
 
 **Phase 2 backend. Stage 1 (request submission/cancellation, implemented 2026-07-06) and stage 2
 (admin approval review, implemented 2026-07-07) are both live** — migration
 `202607060002_annual_leave_requests.sql` (no new migration was needed for stage 2; it reuses the
-approval/reject columns already defined here). Only document output (PDF/print replicating the paper
-form, stage 3) remains NOT implemented — see `docs/product/26-annual-leave-workflow.md`.
+approval/reject columns already defined here). Document numbering, printable 休暇届 output, calendar,
+ledger, and exports are also implemented; see `docs/product/26-annual-leave-workflow.md`.
 
 Confirmed policy this schema encodes:
 
@@ -1642,7 +1640,7 @@ image_urls text[] not null default '{}'     -- optional, max 5
 status text not null default 'requested'    -- draft | requested | approved | rejected | cancelled
 submitted_at timestamptz              -- null while draft
 approved_by_user_id uuid references profiles(id) on delete set null
-approved_role text                    -- department_head | senior_managing_director (stage 2, unused yet)
+approved_role text                    -- department_head | senior_managing_director; drives the printed stamp box
 approved_at timestamptz
 rejected_by_user_id uuid references profiles(id) on delete set null
 rejected_reason text
@@ -1701,13 +1699,12 @@ hardcoded July-2026 mock calendar.
 
 ## membership_permission_overrides
 
-**Schema designed only (2026-07-09, migration `202607090002_membership_permission_overrides.sql`);
-the feature (admin UI + grant/revoke server actions) is NOT implemented yet.** See
+**Implemented (schema 2026-07-09; UI/actions/enforcement completed 2026-07-13).** See
 `docs/product/27-permission-override-workflow.md`.
 
-Purpose: let `owner` / `developer_super_admin` grant one specific person a specific, named,
+Purpose: let `owner` / `senior_managing_director` / `developer_super_admin` grant one specific person a specific, named,
 **time-bound** feature exception **without** changing their role and without a new migration per
-exception type. This is additive to — not a replacement for — the six-role model and the three
+exception type. This is additive to — not a replacement for — the seven-role model and the three
 existing per-feature flags (`memberships.attendance_payroll_admin`, `memberships.leave_approver_role`,
 `profiles.can_generate_report`), none of which this migration touches.
 
@@ -1726,9 +1723,9 @@ created_at timestamptz not null default now()
 ```
 
 Design notes:
-- `permission_key` is intentionally free `text` with **no CHECK/enum** — the whitelist is an open
-  question (see doc 27) and will be enforced in application code once a concrete first use case locks
-  it down, so new keys never require a migration. It can never be `"role"`; role changes stay on the
+- `permission_key` is `text` at the DB layer, while the closed application whitelist lives in
+  `src/config/permission-overrides.ts`: `order_processor`, `maintenance_status_change`,
+  `property_room_manage`, and `can_generate_report`. It can never be `"role"`; role changes stay on the
   existing role-change flow (`updateMemberRole`).
 - `expires_at` is `not null` — no permanent/indefinite grants through this system by policy.
 - No `updated_at` (revoke is a one-shot write of `revoked_at`/`revoked_by_user_id`); no `set_updated_at`
@@ -1739,9 +1736,8 @@ Design notes:
 
 New SECURITY DEFINER helper `has_permission_override(org, user, key) → boolean` (same style as
 `has_org_role`/`is_platform_admin`): true iff an **active** row exists (`revoked_at is null AND
-expires_at > now()`). It is **created but not wired into any other table's RLS** — a prepared building
-block. Each feature adopts it later by adding `OR has_permission_override(...)` next to its existing
-`has_org_role(...)` check; that adoption is out of scope for this migration.
+expires_at > now()`). Migration `202607130004_permission_override_enforcement.sql` wires it into
+orders, maintenance, and property/room RLS; `can_generate_report` is enforced in application code.
 
 Indexes: partial `(organization_id, user_id, permission_key) where revoked_at is null` (helper hot
 path) + `(organization_id, user_id)` (admin browse). RLS: read-only, owner/platform-admin only — see
@@ -1749,7 +1745,9 @@ path) + `(organization_id, user_id)` (admin browse). RLS: read-only, owner/platf
 
 ## Storage buckets — batch note
 
-Linen/board/todo image uploads reuse the existing 5-file client-compressed pattern. The linen tech-design proposes a dedicated `linen-images` bucket as an alternative to reusing `request-images`; pick one at implementation and keep org-id in the storage path (decision pending — see `docs/engineering/08`).
+Linen/board/todo image uploads reuse the existing client-compressed pattern. Linen uses the existing
+`request-images` bucket under the `linen-returns/` path; the earlier dedicated `linen-images` option was
+not adopted. Board file attachments use their documented private attachment path/bucket contract.
 
 ## Initial RLS Direction
 

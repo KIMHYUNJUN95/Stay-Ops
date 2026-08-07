@@ -11,8 +11,8 @@ RLS policies must protect organization data and enforce key permission rules.
 Implementation note:
 
 - Initial RLS helper functions and starter policies are drafted in `supabase/migrations/202605090001_initial_foundation.sql`.
-- These policies cover only foundation tables for the first Supabase connection pass.
-- Feature-specific RLS policies must be added with the feature migrations, not hidden only in application UI.
+- This document covers the foundation and the implemented feature-specific policies.
+- Feature-specific authorization belongs in migrations/RLS plus server actions where applicable, never only in UI visibility.
 
 ## 1. Organization Isolation
 
@@ -575,7 +575,7 @@ Important:
 
 # Post-MVP Feature Batch RLS (approved 2026-06-09)
 
-All tables below follow the standard org-isolation base: a row is accessible only when the user has an active membership in `row.organization_id`, with platform-admin bypass. The three `linen_*` tables are **implemented** (migration `202606100002_linen_returns.sql`); the rest are not implemented yet. Full detail in `docs/engineering/08`–`12`.
+All tables below follow the standard org-isolation base: a row is accessible only when the user has an active membership in `row.organization_id`, with platform-admin bypass. Linen, tasks/projects, suggestions, board, and attendance/payroll are implemented. Full detail lives in `docs/engineering/08`–`12` and later migrations.
 
 ## linen_items
 
@@ -685,7 +685,7 @@ Per-occurrence state for recurring tasks (migration `202607300001_task_occurrenc
   the business rules below. `grant select, insert, update, delete ... to authenticated` is present but
   inert for writes without a policy; `grant all ... to service_role` lets the service role bypass RLS.
 
-Business rules to enforce in those server actions (not yet implemented):
+Business rules enforced by the implemented server actions:
 
 - Create: any active org member; recipient required, same org, `<> author` (DB also checks this).
 - Update / delete main suggestion by author: own row only while `status = 'submitted'`.
@@ -701,7 +701,7 @@ Business rules to enforce in those server actions (not yet implemented):
 액션 쓰기 경계를 사용한다. 수동 컴플레인 작성·상태·댓글 권한은
 `docs/product/25-complaint-workflow.md`의 역할 계약을 따른다.
 
-외부 리뷰 구현 시 `external_reviews`에는 다음 정책을 추가한다.
+구현된 `external_reviews` / `review_translations` 정책은 다음과 같다.
 
 - SELECT: `is_platform_admin()` 또는 `has_active_membership(organization_id)`.
 - INSERT / UPDATE / DELETE: authenticated 직접 정책을 만들지 않는다. Beds24 동기화 서버 경로만
@@ -775,7 +775,7 @@ member, org-wide for org owner / `attendance_payroll_admin` / platform admin. Th
 privilege helper as payroll, but a fully separate dataset** from `attendance_month_snapshots`. Reuses
 the shared `set_updated_at()` trigger.
 
-**Annual leave — Phase 1 backend only (2026-07-06, migration `202607060001`).** `annual_leave_baselines`
+**Annual leave — Phase 1 historical slice (2026-07-06, migration `202607060001`; later phases implemented).** `annual_leave_baselines`
 is **read-only RLS, no write policies** — identical shape to transport reimbursement above: own row
 for any active member, org-wide for org owner / `attendance_payroll_admin` / platform admin. All
 writes go through `setAnnualLeaveBaselineAction` (`src/app/mobile/attendance/leave/actions.ts`,
@@ -783,15 +783,15 @@ service-role), which also sets `profiles.hire_date`. This migration deliberately
 request/approval table — that workflow is still a planning draft (see
 `docs/product/26-annual-leave-workflow.md`).
 
-**Annual leave — Phase 2, stage 1 (2026-07-06, migration `202607060002`).** `annual_leave_requests` is
+**Annual leave — Phase 2, stage 1 historical slice (2026-07-06, migration `202607060002`; approval/doc stages implemented later).** `annual_leave_requests` is
 **read-only RLS, no write policies** — own row for any active member, org-wide for a NEW privilege
 helper `is_leave_approver(org)` (checks `memberships.leave_approver_role is not null`, same shape as
 `can_manage_attendance_payroll` but keyed off a role-enum column instead of a boolean, since the
 future printed document needs to know which stamp box — 부서장/대표 vs 전무 — an approval fills).
-All writes go through `submitLeaveRequestAction` / `cancelLeaveRequestAction`
-(`src/app/mobile/attendance/leave/actions.ts`, service-role). There is deliberately no approve/reject
-write path yet — `is_leave_approver` exists so approvers can already READ the queue once stage 2
-adds the UI, but nothing can act on it yet. Storage policies mirror the transport-reimbursement
+Initial writes went through `submitLeaveRequestAction` / `cancelLeaveRequestAction`
+(`src/app/mobile/attendance/leave/actions.ts`, service-role). Later admin actions added approve,
+reject, revoke, proxy/self creation, balance management, documents, and exports while preserving the
+same service-role and approver gates. Storage policies mirror the transport-reimbursement
 5-part-path pattern, scaled to this table's 4-part path
 (`{org}/annual-leave-requests/{request_id}/{file}`), open to all active members including
 `part_time_staff` (same precedent as attendance-corrections/transport uploads) even though this
@@ -804,32 +804,31 @@ employee's approved leave (including the viewer's own), but pending/rejected/dra
 private (visible only via the existing self-or-approver policy). Combined with that policy, the net
 effect is: own rows (any status) + approver/admin rows (any status) + everyone's approved rows.
 
-**Membership permission overrides — schema only (2026-07-09, migration `202607090002`).**
+**Membership permission overrides — implemented (schema 2026-07-09; UI/actions/enforcement 2026-07-13).**
 `membership_permission_overrides` is **read-only RLS, no write policies** (same service-role write
 boundary as attendance/transport/annual-leave above). Single SELECT policy
 `membership_permission_overrides_owner_admin_select`: `has_org_role(org, ['owner'])` OR
-`is_platform_admin()` — i.e. **only `owner` / `developer_super_admin` may read overrides**.
+`is_platform_admin()` — i.e. `owner`, owner-equivalent `senior_managing_director`, and
+`developer_super_admin` may read overrides.
 `office_admin` cannot (unlike role changes, where it has partial authority). A self-view policy is an
 open question in `docs/product/27-permission-override-workflow.md` and is deliberately NOT added yet.
-INSERT/UPDATE/DELETE have no policies, so all grant/revoke goes through a future service-role server
-action (`service_role` bypasses RLS). A DB CHECK `granted_by_user_id <> user_id` blocks self-grant at
+INSERT/UPDATE/DELETE have no policies, so all grant/revoke goes through the implemented service-role server
+actions (`service_role` bypasses RLS). A DB CHECK `granted_by_user_id <> user_id` blocks self-grant at
 the DB level (double defense).
 
 A new SECURITY DEFINER helper `has_permission_override(org, user, key)` (same shape as `has_org_role` /
 `is_leave_approver`) returns true iff an active grant exists (`revoked_at is null AND expires_at >
-now()`). It is **created but intentionally not referenced by any other table's policy** — a prepared
-building block. Feature adoption (adding `OR has_permission_override(...)` to a given table's existing
-`has_org_role(...)` policy) is out of scope for this migration and happens per-feature later. The
-feature UI and grant/revoke server actions are not implemented yet.
+now()`). Migration `202607130004_permission_override_enforcement.sql` references it from order,
+maintenance, and property/room policies. The report-generation override is enforced in application
+code. Grant/revoke/list UI is live on `/admin/users/[id]`.
 
-**Step 2 (2026-06-17) — site/QR write path.** Site master + QR lifecycle writes go through the
+**Step 2 (2026-06-17) — site/QR write path (later admin UI implemented).** Site master + QR lifecycle writes go through the
 service-role helpers in `src/lib/attendance-sites.ts` (create/update/activate site, issue/reissue/revoke
 QR; QR issuance is atomic via `issue_attendance_qr`, migration `202606170002`). These helpers are
-**caller-agnostic and do not check the caller** — **owner-only enforcement is deferred to the future
-web-dashboard server actions** (which must verify `role === 'owner'` server-side before calling them;
-site master is owner-only per decision-log 2026-06-17). Until that dashboard exists, the only caller is
-the **dev-only** `GET /api/dev/attendance/temp-qr` tool, gated to local development (NODE_ENV
-development + `ENABLE_LOCAL_DEV_TOOLS` + local/LAN host), used to provision a test site + QR.
+caller-agnostic and do not check the caller; the live admin settings actions enforce owner-equivalent/
+platform-admin authorization before calling them. The dev-only `GET /api/dev/attendance/temp-qr`
+tool remains separately gated to local development (`NODE_ENV=development`,
+`ENABLE_LOCAL_DEV_TOOLS=true`, and local/LAN host).
 
 **Step 3 (2026-06-17) — worker clock-in/out write path.** `submitAttendanceScan`
 (`src/app/mobile/attendance/actions.ts`, service-role) is the first authoritative session writer: it
@@ -877,16 +876,15 @@ rows; admins read org-wide via the privileged SELECT policies. No org-wide UI ye
 service-role) all **enforce `isAttendancePayrollAdmin` server-side** before any write, require a
 mandatory reason, and write `attendance_session_audits`. Create validates the target is an active org
 member + sites belong to the org. Invalidate sets `status='invalid'` (no hard delete) — preserving the
-"invalidate / supersede, never erase" rule. Site-master management stays owner-only (not broadened). No
-admin web UI in the app (deferred to the web dashboard).
+"invalidate / supersede, never erase" rule. Site-master management stays owner-equivalent/platform-admin
+only. The admin review and manual-management UI is live under `/admin/attendance/*`.
 
 **Step 10 (2026-06-18) — hourly pay self-view.** `src/lib/attendance-pay.ts` (`getMonthlyPayView`) reads
 sessions + breaks + the user's own `hourly_rate_history` / `employment_type_history` and is **strictly
 self-scoped** (pins `user_id` to the authenticated user + org; no client target). It produces EXPECTED
-pay only (no writes, no finalization). Org-wide compensation visibility remains restricted (not part of
-this step); other users' rate/history/pay never load. Employment/rate **management** writes (Step 9) are
-deferred (web dashboard); a dev-only seed route (`/api/dev/attendance/seed-pay`, gated like seed-login)
-exists for local testing.
+pay only (no writes, no finalization). Org-wide compensation visibility remains restricted; other
+users' rate/history/pay never load for ordinary workers. Employment/rate management is implemented in
+the privileged admin wages console; the dev-only seed route remains for local testing.
 
 **Implemented — attendance allowances (2026-07-10, migration `202607100001`).**
 `attendance_pay_allowances` follows the same payroll-sensitive boundary: no direct authenticated writes,
@@ -903,22 +901,23 @@ reopened first.
 reopen requires a reason. They write `attendance_month_snapshots` and an `audit_logs` row each. The
 worker pay self-view reads the current `finalized` snapshot via `getMonthlyPayView` (still self-scoped to
 the authenticated user). `attendance_month_snapshots` RLS stays read-only (own pay rows or privileged
-admin, from Step 1); writes go through the privileged actions only. No admin UI in the app (deferred).
+admin, from Step 1); writes go through the privileged actions only. The admin payroll UI exposes
+finalize/reopen with these same gates.
 
 **Step 12 (2026-06-18) — org-wide payroll totals.** `getPayrollTotals(org, ym)`
 (`src/lib/attendance-payroll-totals.ts`) reads ORG-WIDE compensation (finalized snapshots + every hourly
 worker's expected pay + site rollup). It is **caller-agnostic and the caller MUST gate it with
 `isAttendancePayrollAdmin`** (owner / `attendance_payroll_admin`) — same pattern as the review queue; the
 `can_manage_attendance_payroll` SELECT RLS on `attendance_month_snapshots` is the backstop. Regular users
-and hourly workers never reach org-wide totals (they only see their own pay). Read-only; no writes, no
-UI (the totals dashboard is in the deferred web dashboard).
+and hourly workers never reach org-wide totals (they only see their own pay). Read-only; no writes;
+the totals are surfaced in the privileged admin attendance/payroll console.
 
 **Step 13 (2026-06-18) — finalized-only export.** `runPayrollExport` (`src/lib/attendance-export.ts`,
 service-role) **enforces `isAttendancePayrollAdmin` itself** before reading any finalized snapshot, then
 writes an `attendance_export_logs` audit row. Export is **finalized data only**; regular users / hourly
 workers can never export. The server actions (`exportMonthlyPayroll` / `exportUserPayroll`) and the
-dev-only route (`/api/dev/attendance/export`, dev-gated AND privilege-gated) both go through it. No
-export UI in the app (deferred web dashboard).
+dev-only route (`/api/dev/attendance/export`, dev-gated AND privilege-gated) both go through it. The
+admin console additionally exposes localized Excel and print-to-PDF exports.
 
 **Step 14 (2026-06-18) — notifications + reminder.** Admin attendance alerts (`attendance_activity`) target
 **owner / `attendance_payroll_admin` only** — `getAttendancePayrollAdminUserIds` resolves the recipients
@@ -1176,4 +1175,3 @@ of the RLS/permission-relevant pieces:
 **새 RPC 를 만들 때**: 쓰기 함수는 생성 직후 반드시
 `revoke execute … from public, anon, authenticated` + `grant execute … to service_role` 을 함께
 넣을 것. 기본값이 PUBLIC 이라 아무것도 안 하면 열린 채로 배포된다.
-

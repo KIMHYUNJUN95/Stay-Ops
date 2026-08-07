@@ -46,7 +46,7 @@ Home   Calendar   [ ✎ 편집 (center FAB) ]   Requests   Announcements
 - **Cleaning** is not a default bottom tab but can be pinned via the editor; it is also always reachable from the side menu (`/mobile/cleaning`).
 - Profile and user directory remain accessible from the top-right profile button / side menu rather than the bottom bar (Directory may also be pinned).
 - **Todoist** (`투두이스트` / `Todoist` / `Todoist`, id `tasks`, `/mobile/tasks`) is a side-menu entry + pinnable bottom-bar candidate. Internal chip-tab views (Today default · Tomorrow · Inbox(관리함) · **프로젝트** · **지시(받은/보낸)** · Completed(완료/기록) · Calendar); quick add + detailed create (`/new`), task detail (`/[id]`), core edit (`/[id]/edit`). Personal-by-default with shared participant tasks; task calendar is separate from the reservation calendar. 프로젝트 탭은 기능 구현 완료(2026-06-15, 첫 슬라이스); 마이그레이션 `202606150002_projects.sql` 적용 필요. User-facing naming is `Todoist`; route id remains `tasks`. See `docs/product/18-todo-task-workflow.md` and `docs/product/23-project-workflow.md`.
-- **Suggestions / Feedback Box** (`제안함` / `提案箱` / `Suggestions`, id `suggestions`, `/mobile/suggestions`, `Inbox` icon) is a side-menu entry + pinnable bottom-bar candidate. Screens: list (`보낸/받은/참조` segments + status filter pills), compose (`/new`), and a **role-aware** detail (`/[id]`) — recipient gets the bottom status-change sheet → hold-reason / completion-note sheets, every participant gets the comment composer; the old `/referenced` route now redirects to the list. **Fully wired and shippable as of 2026-06-16 (Steps 1–8):** schema + create + list + participant-only detail + comments + recipient-only status workflow + notifications, all localized ko/ja/en. Two migrations need applying (`202606160001` + `202606160003`). Suggestion notifications use the `suggestion_activity` type and deep-link to the suggestion; they surface once the (separately-deferred) `/mobile/notifications` mockup screen is re-wired. See `docs/product/22-staff-suggestions-workflow.md`.
+- **Suggestions / Feedback Box** (`제안함` / `提案箱` / `Suggestions`, id `suggestions`, `/mobile/suggestions`, `Inbox` icon) is a side-menu entry + pinnable bottom-bar candidate. Screens: list (`보낸/받은/참조` segments + status filter pills), compose (`/new`), and a **role-aware** detail (`/[id]`) — recipient gets the bottom status-change sheet → hold-reason / completion-note sheets, every participant gets the comment composer; the old `/referenced` route now redirects to the list. **Fully wired and shippable as of 2026-06-16 (Steps 1–8):** schema + create + list + participant-only detail + comments + recipient-only status workflow + notifications, all localized ko/ja/en. Suggestion notifications use the `suggestion_activity` type, deep-link to the suggestion, and render in the live `/mobile/notifications` bell feed. See `docs/product/22-staff-suggestions-workflow.md`.
 - **Attendance / 근태** (`근태` / `勤怠` / `Attendance`, id `attendance`, `/mobile/attendance`, `Clock` icon) is a side-menu entry + pinnable bottom-bar candidate. Screens: home ring-hero clock (`/mobile/attendance`, states 출근 전/근무 중/휴게 중), GPS+QR capture (`/mobile/attendance/capture?mode=in|out`), correction request + status (`/mobile/attendance/correction`), **own history (`/mobile/attendance/history`, Step 5)**, and **own monthly pay (`/mobile/attendance/pay`, Step 10)**. **Now functional (Steps 3–10, 2026-06-17/18):** real GPS+QR clock-in/out, break start/end (clock-out blocked while on break), self-scoped history, correction/exception requests, and a self hourly **expected-pay** screen. Admin review + correction approval + manual session management are already server-backed, and the active dashboard rebuild now treats their admin UI as a first-class module. The home shows 이력 + 급여 shortcut entry rows in all three states (idle / open / break), placed below the primary action buttons. (2026-06-23) Wi-Fi stays `준비중`. The design's own 5-tab bottom bar is intentionally dropped in favor of the app's global bottom nav. Finalization / dashboard / export remain dashboard work rather than mobile-primary work. See `docs/product/24-attendance-workflow.md`, `docs/product/21-attendance-payroll-workflow.md`, and `docs/product/05-admin-web-ia.md`.
 - **Linen Return** (`린넨 반품` / `リネン返却` / `Linen Return`, id `linen-return`, `/mobile/linen-return`) is a side-menu entry, not a default bottom tab. It can be pinned via the bottom-bar editor (it is part of the customizable pool). Building-first flow: building picker → building list → create / detail / ledger. See `docs/product/19-linen-defect-workflow.md`.
 - **Complaints & Reviews** (`컴플레인` / `クレーム` / `Complaints`, id `complaints`, `/mobile/complaints`) is a
@@ -59,7 +59,7 @@ Home   Calendar   [ ✎ 편집 (center FAB) ]   Requests   Announcements
     platform / open-resolved / building-room filters and create entry unchanged. External reviews
     (implemented 2026-08-05) apply client-side platform and problem-only chip filters plus a building
     chip derived from the fetched reviews themselves (no separate property lookup); a review-date range
-    filter is **not yet implemented** and is deferred alongside the period-rating-summary UI below. Sort
+    filter is implemented through `from`/`to` query parameters and shared range controls. Sort
     order (risk → lower source rating → newest) comes from `listExternalReviews` and is not
     re-sorted client-side.
   - `/mobile/complaints/new`: manual complaint registration remains available only to the existing
@@ -80,9 +80,8 @@ Home   Calendar   [ ✎ 편집 (center FAB) ]   Requests   Announcements
     runs from the list. Converting a review into a manual complaint opens the canonical `BottomSheet`
     with a title/description form; the button is gated by the same write roles as manual complaint
     creation and the server re-checks the role and the review's organization.
-  - The external-review view's period rating summaries by building/room (`summarizeReviewsByPlace`)
-    are **not yet surfaced on mobile** — the library function exists and is used by the admin console,
-    but the mobile screen only lists individual reviews for now. This is deferred, not dropped.
+  - The external-review view surfaces period rating summaries by building/room in the mobile
+    `?view=rooms` board, using the same `summarizeReviewsByPlace` function as the admin console.
   - Any active organization member may read external reviews. Only existing complaint-write roles can
     create a linked manual complaint; this is not automatic even for risky ratings. The mobile screen
     uses the existing shared sheet/edge-swipe/scroll contracts — no new bottom-sheet shell.
@@ -214,7 +213,7 @@ Home includes (top → bottom):
 3. **Quick clock-in hero** — static "출근 전 / 대기" card with a 출근 button and
    `GPS+QR` / `Wi-Fi 준비중` method chips. The card now reflects the **real attendance state**
    (idle vs working vs on-break) from the current open session and still opens `/mobile/attendance`.
-   (Clock-in/out backend is deferred; this is a navigation entry only for now.)
+   (The shortcut reflects the real attendance state and opens the implemented QR/GPS attendance flow.)
 4. **Important announcement** — only the latest important announcement, links to its detail.
 5. **오늘 현황** — today check-in / check-out counts. **Each count card is tappable**:
    it opens a bottom sheet listing that day's reservations (guest name · localized
@@ -394,7 +393,7 @@ Includes:
 All mobile screens share one shell rendered by `MobileShell`:
 
 ```txt
-[two-line hamburger]  Stay Ops wordmark  [Profile]
+[three-line hamburger]  Stay Ops wordmark  [Notifications] [Profile]
 ```
 
 Implementation: `src/components/shell/mobile-shell.tsx`.
@@ -403,11 +402,11 @@ Current rules:
 
 - **Base surface**: the mobile shell, sidebar, bottom bar, and page background use a warm **ivory** `bg-background` base; cards/sheets stay white (`bg-surface`). The brand accent (`--primary`) is deep ink **navy/indigo** (teal/green retired). The shell itself is not a full-screen glass surface.
 - **Left**: a hamburger menu button (3-line SVG with a shorter middle line) opens the mobile side menu. `aria-label` uses `dictionary.common.menu`.
-- **Layout**: the header is a 3-part `justify-between` row — left menu button / centered wordmark / right profile button.
+- **Layout**: the header is a 3-part `justify-between` row — left menu button / centered wordmark / right notification-and-profile group.
 - **Center**: the `Stay Ops` wordmark (20px, `text-foreground`, `white-space: nowrap`) uses the shared `.wordmark` class (serif italic — Noto Serif, defined in `src/app/globals.css` and loaded in `src/app/layout.tsx`).
-- **Top chrome surface**: the header bar is flat/borderless — no capsule outline, ring, glass blur, or shadow. Only the two circular buttons (menu / profile) and the centered wordmark sit on the plain white background.
-- **Buttons**: both the left menu and right profile buttons are 38px circles with `bg-muted text-muted-foreground` (hover darkens via `color-mix`). The menu icon is a 3-line SVG with a shorter middle line; the profile icon is a person SVG.
-- **Right**: the profile button links to `/account?mode=mobile`. `aria-label` uses `dictionary.onboarding.profileTitle`.
+- **Top chrome surface**: the header bar is flat/borderless — no capsule outline, ring, glass blur, or shadow. Menu, notification, profile controls and the centered wordmark sit over the shared ivory chrome.
+- **Buttons**: the menu button is a 38px muted circle; notification and profile controls use the same 38px touch target and muted icon color. The menu icon is a 3-line SVG with a shorter middle line; the profile icon is a person SVG.
+- **Right**: the notification bell links to `/mobile/notifications` and can show the unread badge; the profile button links to `/account?mode=mobile`. Accessible labels use the shared dictionary.
 - **Scroll behavior**: the top chrome hides when users scroll down and returns when users scroll up — and it now **fully slides away**, mirroring the bottom tab bar. **Overlay model (2026-06-22):** the top bar is an **absolutely positioned overlay** (`absolute inset-x-0 top-[env(safe-area-inset-top)] z-30 h-16`) that slides up off-screen (`-translate-y-[calc(100%+env(safe-area-inset-top))]`) on scroll-down and back on scroll-up, exactly like the bottom bar's slide. Previously the bar was an **in-flow `h-16` block** whose inner content merely faded while the 64px slot stayed occupied, leaving a blank band at the top while scrolling (the reported bug). With the overlay model the content reclaims that space. The scroll container carries a **constant** `pt-[84px]` (64px header + ~20px breathing room) so content clears the overlay at rest and simply scrolls under where the header was — the padding never toggles, so there is no reflow/snap jump (an earlier `pt-5`/`pt-0` toggle shifted content 20px while `scrollTop` stayed put and was removed 2026-06-22). The pull-to-refresh indicator and gradient curtain are offset to `top-16` so they sit below the overlay header. Hide/show is **debounced via accumulated-delta thresholds** (`updateVisibility`): the header only hides after ≥**64px** of intentional downward scroll and only returns after ≥**36px** of upward scroll (raised from 28/12 on 2026-06-22 to stop touch-jitter flicker), with per-tick deltas of ≤4px filtered on **both** directions so iOS momentum micro-oscillation never feeds the accumulators. Scrolling to the very top (`scrollTop ≤ 8px`) always snaps the header visible.
 - **Layout height**: the outer shell frame uses the live viewport height (`h-dvh`), while the centered max-width wrapper and inner safe-area column inherit that height with `h-full`. Earlier attempts that bound multiple nested containers to viewport units (`h-svh` everywhere, then mixed viewport units) caused real iPhone Safari / standalone gaps under the bottom bar and floating sidebar floors. New shell-height work should keep **one viewport-bound outer frame** and let nested shell boxes inherit from it.
 - **Native standalone touch contract (2026-06-22)**: global rules in `src/app/globals.css` keep the installed PWA feeling native — `-webkit-tap-highlight-color: transparent` (no grey tap-flash), `-webkit-touch-callout: none` + `user-select: none` on UI chrome (buttons / links / labels / `.tabbar` / `.wordmark`; body text and inputs stay selectable), `html, body { overscroll-behavior: none }` (no document rubber-band), and `@media (pointer: coarse) { input/textarea/select { font-size: 16px } }` so iOS never zoom-snaps on focus (oversized fields opt out with `data-keep-font-size`). When adding chrome, don't reintroduce tap-highlight or callouts; new inputs need ≥16px on touch. Tappable controls also get `touch-action: manipulation` (instant taps, no double-tap zoom) and `html` gets `text-size-adjust: 100%` (no iOS landscape text inflation).
@@ -480,7 +479,7 @@ Current rules:
 - **Bottom navigation**: a bottom-attached `bg-surface` bar (`.tabbar` in `src/app/globals.css`) with rounded top corners (`border-radius: 22px 22px 0 0`) and a soft top shadow. Layout is four tabs split 2 / 2 around a raised central FAB. Active color `var(--primary)`, inactive `var(--muted-foreground)`. The bottom bar renders the user's customized tabs via `resolveBottomNavItems(session.user.bottomNavTabs)`, split left/right around the center FAB. The center FAB is a 52px **squircle** (rounded square, `border-radius: 17px`) with a navy gradient (`linear-gradient(160deg, hsl(223 50% 42%), hsl(223 54% 22%))`), raised above the bar (`margin-top: -26px`, 4px ivory border + shadow) per the "Bottom Bar (Squircle Edit)" design, labelled `dictionary.common.editBottomBar` ("하단바 편집") with an **app-grid icon** (2×2 squares); tapping it opens the bottom-bar editor sheet (`createOpen` state) where the user toggles which features (max 4) appear. Each toggle tile (`.add-tile`, `border-radius: 16px`) draws its border with an **inset `box-shadow`** (selected → `inset 0 0 0 2px var(--primary)`, unselected → `inset 0 0 0 1px var(--border)`), not `outline` — `outline` does not follow the tile's rounded corners on mobile WebKit and left the borders looking broken. Edits persist to `profiles.bottom_nav_tabs` on close. `env(safe-area-inset-bottom)` padding handles the iOS home indicator.
 - **Accessibility**: the `title` prop on `MobileShell` is used as `aria-label` on `<main>`. It is not rendered visually in the header. Page content provides its own visual hierarchy.
 - **Appearance prop**: `appearance` remains accepted for compatibility but currently does not change shell visuals. Do not rely on it for page tinting.
-- `ModeSwitcher` and `Bell` icon are not part of the shell header. (There is no theme switcher: the app is light-mode-only; dark mode is deferred until post-launch.)
+- `ModeSwitcher` is not part of the shell header. The notification `Bell` is part of the current header; there is no theme switcher because the app is light-mode-only.
 - **Browser chrome tint (theme-color)**: iOS Safari status bar / URL toolbar are tinted via `viewport.themeColor` in `src/app/layout.tsx`. It is declared for **both** `light` and `dark` schemes with the **same ivory `#f7f4ee`**, so that the top status bar and bottom URL toolbar stay unified with the app's ivory chrome even when iOS is in dark mode (a single themeColor is ignored in dark mode, falling back to black system chrome). This forces the light design in both schemes and is not a design change. safe-area handling in `mobile-shell.tsx` is unaffected. (In-app browsers like KakaoTalk/Instagram ignore theme-color and are out of scope.)
 - **Color scheme lock (2026-06-22)**: `viewport.colorScheme = "light"` in `src/app/layout.tsx` (renders as `<meta name="color-scheme" content="light">`). Without this, iOS Safari in OS dark mode treats the page as dark-mode-capable and paints the canvas + system chrome dark — even when `themeColor` is set to ivory — which became most visible after the sidebar opened (the dim scrim made Safari's chrome sampling commit to black for the status bar + URL toolbar). Locking the page to the light scheme suppresses the dark-mode fallback so the ivory chrome holds in both light and dark device modes, with or without the sidebar scrim. Not a design change — the app's surfaces remain identical.
 - **PWA manifest chrome (2026-06-22)**: `public/manifest.webmanifest` `theme_color` / `background_color` were stale pre-rebrand values (`theme_color: #00796f` teal, `background_color: #fbfcfc` near-white). Both corrected to ivory `#f7f4ee` to match the `viewport.themeColor` and the ivory canvas. In **installed / standalone** PWA mode (Add to Home Screen) the manifest — not the in-page meta — drives the OS status-bar tint and the launch splash background, so the stale teal would have surfaced there. The teal value also violated the "teal/green retired" brand rule. **Note:** in regular in-browser Safari (URL bar visible) the system chrome is governed by the in-page `themeColor` + `colorScheme` meta above, not the manifest; the manifest only takes effect once the app is installed to the home screen.
@@ -637,13 +636,14 @@ attendance capture result sheet also uses the shared bottom-sheet / drag-dismiss
 - Header visual style is shared across all `MobileShell` pages.
 - Announcement pages (`/mobile/announcements`, `/mobile/announcements/[id]`) and popup modal follow the same top-header and surface hierarchy rule with no page-level header overrides.
 
-## 2026-05-28 Mobile Shell Interaction Update
+## 2026-05-28 Mobile Shell Interaction Update (historical, superseded)
 
-- The top menu icon is now a custom two-line hamburger icon with a shorter bottom line.
-- The menu opens a 78%-width left side menu with slide animation, main-screen push, and right-side dim overlay.
+- This section records the 2026-05-28 shell and is superseded by "Global Mobile Shell (current contract)" above.
+- The current menu icon is three lines with a shorter middle line.
+- The current menu opens as a full-screen slide-in surface.
 - The top header is scroll-aware: scroll down hides it, scroll up restores it.
-- The bottom tab bar is a floating liquid-glass capsule overlay, not a full-width rectangular footer.
-- The mobile base background is pure white. Liquid Glass is partial and should not be applied to every shell surface.
+- The current bottom tab bar is bottom-attached, solid ivory, and rounded only at the top, with a raised center squircle FAB.
+- The current mobile base is warm ivory with cream-white surfaces. Liquid Glass remains selective.
 
 ## 2026-05-22 Calendar Slice Update
 
@@ -667,7 +667,7 @@ attendance capture result sheet also uses the shared bottom-sheet / drag-dismiss
 
 - `/mobile/calendar` Map tab is no longer placeholder behavior.
 - Property filter chips are hidden in Map mode and shown only in Calendar/Lists modes.
-- The global shell contract remains fixed: `[two-line hamburger] StayOps [Profile]`, scroll-aware top chrome, slide-out side menu, and floating capsule bottom tabs.
+- The global shell contract remains fixed: `[three-line hamburger] Stay Ops [Notifications + Profile]`, scroll-aware top chrome, full-screen slide-in menu, and bottom-attached rounded tabs.
 
 ## 2026-06-08 Side Menu Design Update — Teal Minimal
 
@@ -692,17 +692,17 @@ attendance capture result sheet also uses the shared bottom-sheet / drag-dismiss
 - All 14 mobile pages that render `MobileShell` now fetch and pass `badges={navBadges}`.
 - Reuses existing i18n (`common.account`, `common.menu`, `common.logout`, `roles.*`) — no new strings.
 
-## Post-MVP Feature Batch — Navigation (planned, not implemented)
+## Post-MVP Feature Batch — Navigation (implemented)
 
-The five approved batch features (2026-06-09) currently have **no mobile nav home**. Before each feature ships, its entry point must be added to `src/config/navigation.ts` and reflected here. Planned placement (to confirm per feature during build):
+The five approved batch features have mobile entry points in `src/config/navigation.ts` and are eligible for the customizable bottom bar where appropriate:
 
-- **Linen Defect:** dedicated **side-menu entry**. Mobile IA direction is `building picker -> building-specific return list -> create/detail -> ledger/statistics`. It is **not** a default bottom tab, but should be eligible for the user-customizable bottom-bar pool when implemented.
+- **Linen Defect:** dedicated side-menu entry and customizable-bottom-bar candidate; building picker → building list → create/detail → ledger/statistics.
 - **Personal Todo / Task Inbox:** dedicated side-menu entry and a candidate for the customizable bottom-tab pool (`customizableBottomNavItems`). Implemented (2026-06-10, hardened through 2026-06-13). Internal mobile IA: `Today / Tomorrow / Inbox(관리함) / 프로젝트 / 지시(받은·보낸) / Completed(완료/기록) / Calendar` (seven tabs). Completed tab groups finished tasks by Tokyo date and provides a daily report (업무일지) generator — free, template-based, no LLM. Task calendar stays visually distinct from the reservation Calendar tab.
-- **Staff Suggestions:** side-menu entry.
-- **Internal Board:** side-menu entry; candidate for the customizable bottom-tab pool.
-- **Attendance:** dedicated clock-in/out surface (likely Home quick-action + side-menu entry); QR/GPS flow is PWA-specific.
+- **Staff Suggestions:** side-menu entry and customizable-bottom-bar candidate.
+- **Internal Board:** side-menu entry and customizable-bottom-bar candidate.
+- **Attendance:** Home quick action, side-menu entry, and customizable-bottom-bar candidate; QR/GPS capture remains PWA-specific.
 
-When any of these is added to the bottom-tab pool or side menu, also update the side-menu badge table and `getMobileNavBadges()` if the feature carries an unprocessed count. New nav labels require ko/ja/en i18n keys.
+Future navigation additions must also update the side-menu badge table and `getMobileNavBadges()` when the feature carries an unprocessed count. New nav labels require ko/ja/en i18n keys.
 
 ## 2026-08-03 하단 탭 재탭 — 화면 리셋
 

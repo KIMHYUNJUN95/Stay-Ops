@@ -285,14 +285,10 @@ Editing (as built):
 - i18n: `mobile.filterScopeMineRequest`, `mobile.deliveryCalendar.*`, and order-detail
   `actionEditDelivery / editDeliveryTitle / editDeliveryBody / successEditDelivery` (ko/ja/en).
 
-Admin web (deferred):
+Admin web (implemented):
 
-- The delivery calendar is currently **mobile only** (the requester-facing surface). An equivalent
-  view on the **admin web** (`/admin/orders` or `/admin/calendar`) was historically deferred while the
-  mobile-first slice shipped. The current dashboard rebuild now treats the admin order surface as active
-  scope again; use `docs/product/05-admin-web-ia.md` as the dashboard source of truth. The
-  delivery-date edit already works on the admin order detail (shared `OrderActionBar`); only the older
-  documentation timing is obsolete.
+- `/admin/orders` includes the implemented 배송 예정 캘린더 view and delivery-date actions. Mobile and
+  admin read the same order delivery fields; there is no separate calendar-entry table or sync layer.
 
 ## Admin Surface
 

@@ -101,7 +101,7 @@ Completion rule:
 For `/mobile/*`, treat `src/components/shell/mobile-shell.tsx` as a global contract.
 
 - Keep the scroll-aware top chrome behavior.
-- Keep the two-line hamburger menu trigger pattern (shorter bottom line).
+- Keep the three-line hamburger menu trigger pattern (shorter middle line).
 - Keep the left slide-out menu behavior.
 - Keep the flat **ivory** bottom tab bar with center FAB (rounded top corners, `border-radius: 22px 22px 0 0`). The FAB opens the bottom-bar editor sheet where the user can pick up to 4 tabs. Tabs persist to `profiles.bottom_nav_tabs`.
 - Keep the warm **ivory** chrome base: page/shell background (`bg-background`), sidebar, and bottom tab bar are ivory; **cards/sheets stay white** (`bg-surface`) so they lift off the canvas. The brand accent is **deep ink navy/indigo** (`--primary`), not teal/green — do not reintroduce teal/green as the brand color. Liquid Glass accents stay selective (floating sheets, cards, chips, overlays); the global background and tab bar remain solid.

@@ -70,7 +70,7 @@ Key confirmed decisions:
 - Supabase Auth/PostgreSQL/Storage/RLS
 - Vercel deployment
 - Korean/Japanese/English from the first implementation
-- Pure-white operational UI with selective Apple-inspired Liquid Glass accents and strong readability
+- Warm-ivory operational UI, deep navy accent, selective Apple-inspired Liquid Glass surfaces, and strong readability
 - Light mode only (dark mode deferred until post-launch; removed 2026-06-08)
 - Beds24 webhook integration
 - Mobile and admin web in one product
@@ -115,9 +115,9 @@ All assistants must treat the project workflow as an implementation contract, no
 ### Mandatory Mobile Design Consistency (Hard Rule)
 
 - This rule is mandatory and non-optional.
-- Any change to `/mobile/*` must preserve one coherent mobile system: pure-white shell/background, strong readability, and selective Apple-style Liquid Glass accents.
+- Any change to `/mobile/*` must preserve one coherent mobile system: warm-ivory canvas/chrome, cream-white content surfaces, strong readability, and selective Apple-style Liquid Glass accents.
 - Liquid Glass is not a full-screen treatment. Use it for floating navigation, bottom sheets, overlays, cards, chips, or other surfaces where translucency improves perceived quality without reducing clarity.
-- `MobileShell` is the shared behavior baseline: scroll-aware top chrome, two-line hamburger menu trigger with a shorter bottom line, 78% slide-out side menu, and the current flat white bottom tab bar with center FAB.
+- `MobileShell` is the shared behavior baseline: scroll-aware top chrome, three-line hamburger menu trigger with a shorter middle line, full-screen slide-in side menu, notification bell, and the current warm-ivory bottom-attached tab bar with center FAB.
 - Top bar, bottom tab bar, and bottom-sheet behavior must stay unified across the app unless an explicit documented design decision says otherwise.
 - Bottom sheets must use the shared iPhone-style dismissal pattern: drag down from the top touch area / handle, or tap the empty scrim area to dismiss.
 - Mixed visual quality between mobile tabs is not acceptable. If consistency is not achieved, the task is incomplete.

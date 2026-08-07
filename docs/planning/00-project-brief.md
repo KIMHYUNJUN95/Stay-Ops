@@ -145,7 +145,9 @@ Highest-frequency mobile workflows for the first version:
 - Create order/supply requests
 - Read announcements
 
-Attendance and clock-in/out were originally excluded but are now an approved post-MVP feature batch item (scope change confirmed 2026-06-09; see `docs/planning/01-decision-log.md`). Attendance capture is buildable; payroll calculation is deferred until wage rules are defined.
+Attendance and clock-in/out were originally excluded, then approved on 2026-06-09, and are now
+implemented with the defined hourly gross-pay workflow across mobile and admin. Taxes/deductions and
+salaried payroll accounting remain out of scope.
 
 Cleaning staff assignment is also not part of the first scope because the company already uses a separate system for cleaning personnel assignment.
 

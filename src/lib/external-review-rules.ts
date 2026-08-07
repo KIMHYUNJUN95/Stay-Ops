@@ -129,3 +129,31 @@ export function parseReviewBreakdown(
     };
   });
 }
+
+/**
+ * 객실이 비어 있는 리뷰에 무슨 문구를 보여줄지 고른다.
+ *
+ * **예약은 연결됐는데 객실이 없다 = 한 예약이 여러 객실에 걸친 경우다.** 그 외의 조합에서는
+ * 객실이 비지 않는다(예약을 찾으면 객실도 같이 확정되고, 못 찾으면 예약 링크도 비어 있다).
+ * 그래서 별도 조회 없이 행 자체로 판별된다.
+ *
+ * 왜 문구를 나누는가: 원인이 다르기 때문이다. 「객실 정보 없음」은 «우리가 못 가져왔다»로 읽혀
+ * 담당자가 없는 수집 버그를 찾게 만든다. 실제로는 게스트가 한 예약으로 방을 여러 개 잡았고,
+ * Beds24 는 그걸 `masterId` 로 묶인 하위 예약들로 쪼개지만 **리뷰는 묶음 전체에 달려서** 어느
+ * 방인지가 Beds24 에도 없다. 하나를 고르면 없는 문제를 다른 방에 씌우게 되므로 비워 두는 것이
+ * 맞고, 화면은 «모른다» 가 아니라 «방이 여럿이다» 라고 말해야 한다.
+ */
+export function isMultiRoomReservationReview(review: {
+  roomId: string | null;
+  reservationId: string | null;
+}): boolean {
+  return review.roomId === null && review.reservationId !== null;
+}
+
+/** 객실 라벨이 없을 때 대신 보여줄 문구. 네 군데(모바일 목록·상세, 어드민 목록·상세)가 같아야 한다. */
+export function reviewRoomFallbackLabel(
+  review: { roomId: string | null; reservationId: string | null },
+  copy: { noRoom: string; roomMultiBooking: string },
+): string {
+  return isMultiRoomReservationReview(review) ? copy.roomMultiBooking : copy.noRoom;
+}

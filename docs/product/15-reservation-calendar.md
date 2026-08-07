@@ -634,15 +634,15 @@ The mobile calendar's **Map** tab is now an operational building-access hub.
 
 ## 2026-05-27 Mobile Calendar selective Liquid Glass update
 
-- `/mobile/calendar` now follows the shared mobile visual family: pure-white shell/background with selective Apple-style Liquid Glass accents.
-- Shell-level behavior is provided by `MobileShell`: scroll-aware top chrome, 78% slide-out side menu, and floating liquid-glass capsule bottom navigation. The `appearance` prop should not be used as a shell tint contract.
+- `/mobile/calendar` follows the shared mobile visual family: warm-ivory shell/chrome, cream-white surfaces, deep navy accent, and selective Apple-style Liquid Glass accents.
+- Shell-level behavior is provided by `MobileShell`: scroll-aware top chrome, a full-screen left slide-in menu, and the solid warm-ivory bottom-attached tab bar with a raised center FAB. The `appearance` prop should not be used as a shell tint contract.
 - Scope is visual-only (no data/query/permission logic changes):
   - top segmented mode switch and selected-building card
   - overview month frame + date rail surfaces
   - list cards and operational summary cards
   - reservation detail / empty-room / map-access bottom sheets
 - Shared surface rules applied:
-  - pure-white base with selective translucent white layers
+  - warm-ivory base with selective translucent cream-white layers
   - thin bright border
   - soft depth shadow + subtle inset highlight
   - readable blur level with preserved text contrast
