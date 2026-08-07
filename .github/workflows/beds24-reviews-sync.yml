@@ -57,26 +57,64 @@ jobs:
           WEBHOOK_SECRET: ${{ secrets.BEDS24_WEBHOOK_SECRET }}
           FULL: ${{ inputs.full }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           if [ -z "${WEBHOOK_SECRET}" ]; then
             echo "::error::BEDS24_WEBHOOK_SECRET repository secret is not set — add it in repo Settings → Secrets → Actions."
             exit 1
           fi
-          url="${SYNC_URL}"
-          if [ "${FULL}" = "true" ]; then
-            url="${SYNC_URL}?full=1"
-          fi
-          code=$(curl -sS -o /tmp/reviews-sync.json -w '%{http_code}' \
-            -X POST "${url}" \
-            -H "x-beds24-webhook-secret: ${WEBHOOK_SECRET}" \
-            --max-time 300)
-          echo "HTTP ${code}"
-          cat /tmp/reviews-sync.json || true
-          echo
-          # 200 = all organizations synced, 202 = sync paused by BEDS24_SYNC_PAUSED,
-          # 207 = partial (one organization failed, the rest went through).
-          # Anything else (403/404/5xx) is a real failure worth a red run.
-          case "${code}" in
-            200|202|207) echo "reviews sync ok" ;;
-            *) echo "::error::reviews sync failed with HTTP ${code}"; exit 1 ;;
-          esac
+
+          # WHY THIS LOOPS (2026-08-07)
+          # ---------------------------
+          # One cycle calls Beds24 once per target (~71 targets, measured 126s). Vercel Hobby caps a
+          # function at 60s, so the single-shot version returned 504 FUNCTION_INVOCATION_TIMEOUT on
+          # every scheduled run and not one review was ever collected by the cron. The endpoint now
+          # processes a slice per call and reports where to resume; we keep calling until it says
+          # done. Total Beds24 calls are unchanged, so credit spend is identical.
+          org=""
+          offset=0
+          upserted_total=0
+          requests_total=0
+          # Safety stop: 71 targets / 12 per call ≈ 6 calls. 40 leaves generous headroom while still
+          # refusing to spin forever if the endpoint ever stops advancing the cursor.
+          for step in $(seq 1 40); do
+            url="${SYNC_URL}?offset=${offset}"
+            if [ -n "${org}" ]; then url="${url}&organizationId=${org}"; fi
+            if [ "${FULL}" = "true" ]; then url="${url}&full=1"; fi
+
+            code=$(curl -sS -o /tmp/reviews-sync.json -w '%{http_code}' \
+              -X POST "${url}" \
+              -H "x-beds24-webhook-secret: ${WEBHOOK_SECRET}" \
+              --max-time 120)
+            echo "step ${step}: HTTP ${code} (offset=${offset} org=${org:-first})"
+            cat /tmp/reviews-sync.json || true
+            echo
+
+            # 202 = paused by BEDS24_SYNC_PAUSED — nothing to do, and not an error.
+            if [ "${code}" = "202" ]; then echo "sync paused"; exit 0; fi
+            if [ "${code}" != "200" ] && [ "${code}" != "207" ]; then
+              echo "::error::reviews sync failed with HTTP ${code} at offset ${offset}"
+              exit 1
+            fi
+
+            upserted_total=$(( upserted_total + $(jq -r '.upserted // 0' /tmp/reviews-sync.json) ))
+            requests_total=$(( requests_total + $(jq -r '.requests // 0' /tmp/reviews-sync.json) ))
+
+            # A 207 means this organization blew up; the body still points at the next one, so the
+            # loop keeps going and the run ends red at the bottom.
+            if [ "${code}" = "207" ]; then failed=1; fi
+
+            if [ "$(jq -r '.done' /tmp/reviews-sync.json)" = "true" ]; then
+              echo "reviews sync complete — upserted=${upserted_total} beds24Requests=${requests_total}"
+              if [ "${failed:-0}" = "1" ]; then
+                echo "::error::one or more organizations failed"
+                exit 1
+              fi
+              exit 0
+            fi
+
+            org=$(jq -r '.nextOrganizationId // empty' /tmp/reviews-sync.json)
+            offset=$(jq -r '.nextOffset // 0' /tmp/reviews-sync.json)
+          done
+
+          echo "::error::reviews sync did not finish within the step budget — cursor may not be advancing"
+          exit 1

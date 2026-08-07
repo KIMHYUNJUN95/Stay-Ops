@@ -155,6 +155,11 @@ Phase 13: QA and Internal Rollout — in progress (2026-06-04)
     `parseReviewBreakdown()` 하나로 모바일 상세와 공유),
     **비공개 피드백은 점선+warn 톤으로 공개 리뷰와 분리**, OTA 답글 읽기 전용. 번역은 텍스트가 있는
     리뷰에만 노출하고 캐시가 있으면 DeepL을 부르지 않으며, 번역본을 보여줄 때 `자동 번역`을 명시한다.
+  - **조각내어 이어받기 (2026-08-07 — 그 전까지 크론이 한 번도 성공한 적 없음)** — 한 주기가 실측
+    126초라 Vercel Hobby 60초 상한에 걸려 예정 실행이 매번 `504` 로 죽고 있었다. 라우트가
+    `?offset&limit`(기본 12) 로 조각만 처리하고 `nextOffset`/`done` 을 반환, 워크플로가 `done` 까지
+    반복 호출한다. 대상 정렬을 `id` 로 고정해 이어받기가 어긋나지 않게 했다. **총 호출 수 = 대상 수
+    로 동일해 크레딧은 늘지 않는다.** 아직 남은 일: 수집 결과 기록 + 장기 미수집 알림.
   - **수집 트리거** `/api/beds24/reviews-sync`(프로덕션) + `/api/dev/beds24/sync-reviews`(로컬).
     인증은 `/api/beds24/reconcile`과 동일 규약(`CRON_SECRET` → `BEDS24_WEBHOOK_SECRET` 폴백,
     미설정 404 / 불일치 403), `BEDS24_SYNC_PAUSED` 시 인증 이전에 202. 조직 단위 격리 실행이라 한

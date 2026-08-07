@@ -69,10 +69,19 @@ async function handle(request: NextRequest) {
     return NextResponse.json({ error: "invalid_since_days" }, { status: 400 });
   }
 
+  // 프로덕션과 같은 조각내기를 로컬에서 리허설할 수 있게 열어 둔다. 넘기지 않으면 종전대로
+  // 전량을 한 번에 돈다(로컬엔 60초 상한이 없다).
+  const rawOffset = Number(request.nextUrl.searchParams.get("offset") ?? "0");
+  const rawLimit = request.nextUrl.searchParams.get("limit");
+  const offset = Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+  const limit = rawLimit !== null && Number.isInteger(Number(rawLimit)) ? Number(rawLimit) : undefined;
+
   try {
     const result = await syncOrganizationReviews({
       organizationId,
       sinceDays: sinceDays ?? undefined,
+      offset,
+      limit,
     });
 
     return NextResponse.json({ ok: true, organizationId, sinceDays: sinceDays ?? 90, ...result });

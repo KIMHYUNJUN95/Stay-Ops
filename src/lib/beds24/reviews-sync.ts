@@ -293,6 +293,16 @@ export type ReviewSyncResult = {
    * 데이터가 불완전하다는 사실을 조용히 감추지 않기 위해 남긴다.
    */
   truncatedTargets: string[];
+  /** 이 조직의 전체 대상 수. 호출부가 진행률·남은 조각을 계산한다. */
+  totalTargets: number;
+  /**
+   * 다음 호출이 시작할 대상 인덱스. `null` 이면 이 조직은 끝났다.
+   *
+   * 60초 함수 상한 때문에 한 번에 전부 돌 수 없어(실측 126초) 조각내어 이어받는다.
+   * 크레딧이 바닥나 중단된 경우에도 **처리하지 못한 첫 대상**을 가리키므로, 다음 주기가
+   * 정확히 그 지점부터 이어받아 건너뛰는 대상이 생기지 않는다.
+   */
+  nextOffset: number | null;
 };
 
 type SyncTarget =
@@ -311,9 +321,15 @@ export async function syncOrganizationReviews(input: {
   organizationId: string;
   /** 초기 도입/복구용. 기본 90일. */
   sinceDays?: number;
+  /** 이번 호출이 처리할 첫 대상 인덱스 (이어받기용). */
+  offset?: number;
+  /** 이번 호출이 처리할 최대 대상 수. 없으면 전량 — 로컬/스크립트 전용. */
+  limit?: number;
 }): Promise<ReviewSyncResult> {
   const { organizationId } = input;
   const sinceDays = input.sinceDays ?? 90;
+  const offset = Math.max(0, input.offset ?? 0);
+  const limit = input.limit && input.limit > 0 ? input.limit : null;
   const skipped: string[] = [];
   const result: ReviewSyncResult = {
     upserted: 0,
@@ -322,6 +338,8 @@ export async function syncOrganizationReviews(input: {
     creditsRemaining: null,
     stoppedEarly: false,
     truncatedTargets: [],
+    totalTargets: 0,
+    nextOffset: null,
   };
 
   const env = getOptionalBeds24ApiEnv();
@@ -345,10 +363,15 @@ export async function syncOrganizationReviews(input: {
   const db = untyped(service as unknown as SupabaseClient<unknown>);
 
   // 연동 키가 있는 대상만 호출한다.
+  //
+  // **정렬은 필수다.** 대상 목록을 조각내어 이어받으므로(`offset`), 호출마다 순서가 흔들리면
+  // 어떤 대상은 두 번 돌고 어떤 대상은 영영 안 돈다 — 조용한 누락이 된다. PostgREST 는 정렬을
+  // 지정하지 않으면 순서를 보장하지 않으므로 `id` 로 고정한다.
   const { data: propertyRows } = await db
     .from("properties")
     .select("id, name, external_property_id")
-    .eq("organization_id", organizationId);
+    .eq("organization_id", organizationId)
+    .order("id", { ascending: true });
   const properties = (propertyRows ?? []) as {
     id: string;
     name: string;
@@ -358,7 +381,8 @@ export async function syncOrganizationReviews(input: {
   const { data: roomRows } = await db
     .from("rooms")
     .select("id, room_label, property_id, external_room_id, external_minimum_stay, status")
-    .eq("organization_id", organizationId);
+    .eq("organization_id", organizationId)
+    .order("id", { ascending: true });
   const rooms = (roomRows ?? []) as {
     id: string;
     room_label: string;
@@ -409,6 +433,14 @@ export async function syncOrganizationReviews(input: {
 
   if (targets.length === 0) {
     skipped.push("reviews-sync:no-linked-units");
+    return result;
+  }
+
+  result.totalTargets = targets.length;
+
+  // 이번 호출이 맡을 조각. `offset` 이 끝을 넘어서면 할 일이 없다(= 이 조직 완료).
+  const slice = limit === null ? targets.slice(offset) : targets.slice(offset, offset + limit);
+  if (slice.length === 0) {
     return result;
   }
 
@@ -470,13 +502,18 @@ export async function syncOrganizationReviews(input: {
   }
   const roomIdByKey = new Map(rooms.map((r) => [`${r.property_id}::${r.room_label}`, r.id]));
 
-  for (const target of targets) {
+  // 조각 안에서 몇 번째까지 실제로 처리했는지. 크레딧 부족으로 중단하면 이 값이 그대로
+  // 다음 호출의 시작점이 되어, 못 돈 대상이 조용히 건너뛰어지지 않는다.
+  let processedInSlice = 0;
+
+  for (const target of slice) {
     if (result.creditsRemaining !== null && result.creditsRemaining < MIN_REMAINING_CREDITS) {
       // 남은 대상은 다음 주기가 이어받는다. 예약 웹훅 처리보다 우선하지 않는다.
       result.stoppedEarly = true;
       skipped.push("reviews-sync:low-credits");
       break;
     }
+    processedInSlice += 1;
 
     let url =
       target.provider === "airbnb"
@@ -585,6 +622,11 @@ export async function syncOrganizationReviews(input: {
       url = target.provider === "airbnb" ? "" : (page.nextPage ?? "");
     }
   }
+
+  // 이 조직에 아직 남은 대상이 있으면 그 인덱스를 돌려준다. 호출부(라우트 → 워크플로)가
+  // `nextOffset` 이 null 이 될 때까지 반복해 부르면 전량이 정확히 한 번씩 처리된다.
+  const consumed = offset + processedInSlice;
+  result.nextOffset = consumed < targets.length ? consumed : null;
 
   return result;
 }
