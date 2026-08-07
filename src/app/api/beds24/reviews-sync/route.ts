@@ -205,6 +205,8 @@ async function handle(request: NextRequest) {
       stoppedEarly: result.stoppedEarly,
       skipped: result.skipped,
       truncatedTargets: result.truncatedTargets,
+      // 휴면으로 빼둔 룸타입. 조용히 줄면 «수집이 되고 있다»는 착각을 만든다.
+      dormantTargets: result.dormantTargets,
       nextOrganizationId,
       nextOffset,
     },

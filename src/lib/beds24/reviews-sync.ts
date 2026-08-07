@@ -50,6 +50,7 @@ import {
   type ReviewProvider,
 } from "@/lib/external-review-rules";
 import { isExcludedOperationalProperty } from "@/lib/room-label-normalization";
+import { isInactiveBeds24Room } from "@/lib/rooms";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
 type TokenState = { ok: true; token: string } | { ok: false; skipped: string };
@@ -302,6 +303,11 @@ export type ReviewSyncResult = {
    * 데이터가 불완전하다는 사실을 조용히 감추지 않기 위해 남긴다.
    */
   truncatedTargets: string[];
+  /**
+   * 휴면으로 판단해 이번 주기에 부르지 않은 룸타입. 조용히 빼면 «수집이 되고 있다»는 착각을
+   * 만들므로 반드시 드러낸다 — `truncatedTargets` 와 같은 이유다.
+   */
+  dormantTargets: string[];
   /** 이 조직의 전체 대상 수. 호출부가 진행률·남은 조각을 계산한다. */
   totalTargets: number;
   /**
@@ -347,6 +353,7 @@ export async function syncOrganizationReviews(input: {
     creditsRemaining: null,
     stoppedEarly: false,
     truncatedTargets: [],
+    dormantTargets: [],
     totalTargets: 0,
     nextOffset: null,
   };
@@ -403,6 +410,58 @@ export async function syncOrganizationReviews(input: {
 
   const propertyById = new Map(properties.map((p) => [p.id, p]));
 
+  /**
+   * 휴면 룸타입 제외 (2026-08-07).
+   *
+   * **문제:** 같은 물리 객실을 두 어카운트가 번갈아 쓰는 구조라 항상 절반이 비활성이다. 비활성
+   * 어카운트는 예약이 안 들어오니 새 리뷰도 안 생기는데, 매 주기 부르느라 크레딧의 약 30%가
+   * 낭비되고 있었다(실측: 64개 룸타입 중 21개).
+   *
+   * **왜 «마지막 리뷰가 오래됨» 하나로는 안 되는가:** 폴링을 끊으면 새 리뷰를 볼 방법이 없어
+   * 한 번 빠진 대상은 영원히 돌아오지 못한다. 실제로 `Arakicho A / 701` 은 **활성인데도**
+   * Airbnb 리뷰가 314일째 없다(예약이 Booking 쪽으로만 들어온다). 이런 방을 빼면 나중에
+   * Airbnb 리뷰가 달려도 영영 못 가져온다.
+   *
+   * **그래서 두 조건을 AND 로 건다:** 비활성 어카운트(`minStay >= 50`) **이면서** 최근
+   * `DORMANT_AFTER_DAYS` 안에 리뷰가 하나도 없을 때만 뺀다. `external_minimum_stay` 는
+   * **웹훅**이 갱신하므로 리뷰 폴링과 무관하다 — 어카운트가 다시 활성화되면 그 즉시 대상에
+   * 복귀한다. 이것이 진짜 자기 교정이다.
+   *
+   * 리뷰 이력이 아예 없는 방을 따로 지키지 않는 이유: 그런 방이 «비활성» 이기까지 하면 예약이
+   * 안 들어와 리뷰가 생길 수 없고, 활성화되는 순간 웹훅이 minStay 를 되돌려 대상에 복귀한다.
+   */
+  const DORMANT_AFTER_DAYS = 90;
+  const dormantCutoff = new Date(Date.now() - DORMANT_AFTER_DAYS * 864e5).toISOString();
+  const roomIdsWithRecentReview = new Set<string>();
+  for (let offset = 0; ; offset += 1000) {
+    const { data: recent, error } = await db
+      .from("external_reviews")
+      .select("room_id")
+      .eq("organization_id", organizationId)
+      .eq("provider", "airbnb")
+      .gte("reviewed_at", dormantCutoff)
+      .range(offset, offset + 999);
+    if (error) {
+      // 판단 근거를 못 얻으면 **아무것도 빼지 않는다.** 조회 실패로 수집이 조용히 줄어드는
+      // 것이 이 최적화로 아끼는 크레딧보다 훨씬 비싸다.
+      skipped.push(`reviews-sync:dormant-probe-${error.code ?? "failed"}`);
+      roomIdsWithRecentReview.clear();
+      break;
+    }
+    const rows = (recent ?? []) as { room_id: string | null }[];
+    for (const row of rows) if (row.room_id) roomIdsWithRecentReview.add(row.room_id);
+    if (rows.length < 1000) break;
+  }
+  const dormantProbeOk = !skipped.some((s) => s.startsWith("reviews-sync:dormant-probe"));
+  /** 같은 external_room_id 에 매핑된 우리 객실 행 전부 — 그중 하나라도 최근 리뷰가 있으면 살아 있다. */
+  const roomRowsByExternalId = new Map<string, string[]>();
+  for (const room of rooms) {
+    if (!room.external_room_id) continue;
+    const list = roomRowsByExternalId.get(room.external_room_id) ?? [];
+    list.push(room.id);
+    roomRowsByExternalId.set(room.external_room_id, list);
+  }
+
   const targets: SyncTarget[] = [];
   const seenRoomIds = new Set<string>();
   for (const room of rooms) {
@@ -420,6 +479,16 @@ export async function syncOrganizationReviews(input: {
     // 같은 Beds24 룸타입에 여러 객실 행이 매핑돼 있으면 응답이 동일하므로 한 번만 호출한다.
     if (seenRoomIds.has(room.external_room_id)) continue;
     seenRoomIds.add(room.external_room_id);
+
+    // 휴면 판정 — 위 DORMANT_AFTER_DAYS 주석 참고. 조회가 실패했으면 아무것도 빼지 않는다.
+    if (dormantProbeOk && room.external_minimum_stay !== null) {
+      const mappedRoomIds = roomRowsByExternalId.get(room.external_room_id) ?? [];
+      const hasRecentReview = mappedRoomIds.some((id) => roomIdsWithRecentReview.has(id));
+      if (isInactiveBeds24Room(room.external_minimum_stay) && !hasRecentReview) {
+        result.dormantTargets.push(`${property.name} / ${room.room_label}`);
+        continue;
+      }
+    }
     targets.push({
       provider: "airbnb",
       externalId: room.external_room_id,
