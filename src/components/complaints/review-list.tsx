@@ -253,8 +253,8 @@ export function ReviewList({
                       : "—"}
                   </span>
                   <span className="sep">·</span>
-                  <span className={review.roomLabel ? undefined : "is-dim"}>
-                    {review.roomLabel ?? t.noRoom}
+                  <span className={review.displayRoomLabel ? undefined : "is-dim"}>
+                    {review.displayRoomLabel ?? t.noRoom}
                   </span>
                   <span className="sep">·</span>
                   <span className="mono">{formatShortDate(review.reviewedAt, locale)}</span>

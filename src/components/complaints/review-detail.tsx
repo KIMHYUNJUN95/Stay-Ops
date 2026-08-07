@@ -312,8 +312,8 @@ export function ReviewDetail({
         </div>
         <div className="cx-kvrow">
           <span className="cx-kvrow__k">{t.metaRoom}</span>
-          <span className={`cx-kvrow__v${review.roomLabel ? "" : " is-dim"}`}>
-            {review.roomLabel ?? t.noRoom}
+          <span className={`cx-kvrow__v${review.displayRoomLabel ? "" : " is-dim"}`}>
+            {review.displayRoomLabel ?? t.noRoom}
           </span>
         </div>
         <div className="cx-kvrow">

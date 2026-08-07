@@ -537,7 +537,7 @@ export function ComplaintsConsole({
                     <div className="cxmeta">
                       <span>
                         {review.propertyName ?? "—"}
-                        {review.roomLabel ? ` · ${review.roomLabel}` : ` · ${copy.noRoom}`}
+                        {review.displayRoomLabel ? ` · ${review.displayRoomLabel}` : ` · ${copy.noRoom}`}
                       </span>
                       <span className="cxdot" />
                       <span>{(review.reviewedAt ?? "").slice(0, 10)}</span>

@@ -222,7 +222,7 @@ export function ReviewDetailPanel({
           <div className="pblock">
             <div className="pblock__t">{copy.contextTitle}</div>
             <Kv label={labels.building}>{review.propertyName ?? "—"}</Kv>
-            <Kv label={labels.room}>{review.roomLabel ?? copy.noRoom}</Kv>
+            <Kv label={labels.room}>{review.displayRoomLabel ?? copy.noRoom}</Kv>
             {/* 제공자가 쓰는 예약 번호를 그대로 보여 준다 — 운영자가 OTA 익스트라넷에서 검색할 수
                 있는 값이라야 의미가 있다. 우리 예약 행의 uuid는 노출하지 않는다. */}
             <Kv label={labels.reservation}>

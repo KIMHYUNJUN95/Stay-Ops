@@ -63,7 +63,14 @@ export type ExternalReview = {
   propertyId: string | null;
   propertyName: string | null;
   roomId: string | null;
+  /** Beds24 원본 라벨 (`303#`, `501_2` …). 매칭·집계 키로만 쓴다. */
   roomLabel: string | null;
+  /**
+   * 화면에 보여 주는 객실명. 캘린더·청소와 **같은 정규화**를 거친다
+   * (`getCanonicalRoomLabel` → `getDisplayRoomLabel`) — `303#` 의 `#` 이나 아라키초 `_2`
+   * 접미사 같은 운영 표기가 사용자 화면까지 새어 나가지 않게 한다.
+   */
+  displayRoomLabel: string | null;
   /** 우리 `reservations` 행의 uuid. 사람이 읽을 값이 아니므로 화면에 그대로 노출하지 않는다. */
   reservationId: string | null;
   /** 제공자가 쓰는 예약 식별자 (Airbnb 확인 코드 / Booking.com bookingId). 화면에는 이 값을 보여 준다. */
@@ -130,6 +137,22 @@ type ReviewRow = {
   private_feedback?: string | null;
 };
 
+/**
+ * 원본 객실 라벨 → 화면용 라벨. 캘린더·청소가 쓰는 것과 같은 두 단계다.
+ *
+ * Beds24 원본에는 `303#` 처럼 채널 구분용 `#` 이나 아라키초 `501_2` 같은 리스팅 접미사가 붙어
+ * 있다. 이건 운영 식별자이지 사용자에게 보여 줄 이름이 아니다. 정규화에 실패하면 원본을 그대로
+ * 돌려준다 — 이름이 사라지는 것보다 낫다.
+ */
+function toDisplayRoomLabel(propertyName: string | null, roomLabel: string | null): string | null {
+  if (!roomLabel) return null;
+  if (!propertyName) return roomLabel;
+  const canonicalProperty = getCanonicalPropertyName(propertyName);
+  const canonicalRoom = getCanonicalRoomLabel(canonicalProperty, roomLabel);
+  if (!canonicalRoom) return roomLabel;
+  return getDisplayRoomLabel(canonicalProperty, canonicalRoom) || canonicalRoom;
+}
+
 function mapReview(row: ReviewRow): ExternalReview {
   return {
     id: row.id,
@@ -145,6 +168,7 @@ function mapReview(row: ReviewRow): ExternalReview {
     propertyName: row.property_name,
     roomId: row.room_id,
     roomLabel: row.room_label,
+    displayRoomLabel: toDisplayRoomLabel(row.property_name, row.room_label),
     reservationId: row.reservation_id,
     sourceReservationId: row.source_reservation_id,
     guestDisplayName: row.guest_display_name,
