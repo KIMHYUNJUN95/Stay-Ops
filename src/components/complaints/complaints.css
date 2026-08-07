@@ -2785,3 +2785,156 @@ details[open] > .cx-bldcard__sum .cx-bldcard__chev {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   수동 컴플레인 상세 S6 (v2)
+   문맥 카드는 S3 리뷰 상세와 **같은 `cx-kvcard`** 를 쓴다 — 두 상세가 다른 모양이면
+   같은 사건을 두고 다른 화면처럼 읽힌다.
+   ══════════════════════════════════════════════════════════════ */
+.cx-mdetail__t {
+  margin: 0 0 11px;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.32;
+  text-wrap: pretty;
+}
+.cx-mdetail__status {
+  margin-bottom: 14px;
+}
+.cx-mdetail__status .cx-statuschip {
+  font-size: 11.5px;
+  padding: 5px 11px;
+}
+.cx-ratingv {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.cx-ratingv .ic {
+  color: var(--star);
+  font-size: 14px;
+}
+.cx-ratingv i {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--faint);
+}
+.cx-mdetail__body {
+  margin: 0 0 13px;
+  font-size: 13.5px;
+  line-height: 1.66;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+}
+
+/* 사진 — 4열 고정. 목록에서 몇 장인지 한눈에 보이는 편이 스크롤보다 낫다. */
+.cx-shots {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.cx-shots .cx-shot {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  overflow: hidden;
+  padding: 0;
+  background: var(--cx-surface);
+  cursor: pointer;
+}
+.cx-shots .cx-shot__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cx-shots .cx-shot__z {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: rgba(15, 20, 28, 0.55);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cx-shots .cx-shot__z svg {
+  width: 10px;
+  height: 10px;
+}
+
+.cx-sechead--log {
+  margin-top: 18px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.cx-logcount {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--cx-muted);
+  background: var(--cx-surface);
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+.cx-cmtlist {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 8px;
+}
+
+/* 댓글 입력창 — 권한이 없으면 아예 렌더하지 않는다(비활성 입력은 «고장»으로 읽힌다).
+   하단 탭바 위에 붙여 두어 긴 스레드에서도 항상 손에 닿는다. */
+.cx-composer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 0 12px;
+  background: linear-gradient(to top, var(--bg) 78%, transparent);
+}
+.cx-composer__in {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  padding: 0 14px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+}
+.cx-composer__in:focus {
+  border-color: var(--cx-primary);
+}
+.cx-composer__send {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: var(--cx-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.cx-composer__send svg {
+  width: 18px;
+  height: 18px;
+}
+.cx-composer__send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

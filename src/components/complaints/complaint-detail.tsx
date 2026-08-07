@@ -7,6 +7,7 @@ import "./complaints.css";
 import { CIc, CxIcon } from "./cx-icons";
 import { PlatformSource, StarPips, PLATFORMS, ratingMax } from "./cx-platform";
 import { getDictionary } from "@/lib/i18n";
+import { getCanonicalPropertyName, localizePropertyName } from "@/lib/room-label-normalization";
 import type { Complaint, ComplaintComment } from "@/lib/complaints";
 import {
   resolveComplaintAction,
@@ -85,6 +86,7 @@ export function ComplaintDetail({
 }) {
   const dict = getDictionary(locale);
   const t = dict.complaints;
+  const buildingLabels = dict.cleaning.buildingLabels;
   const c = complaint;
   const [done, setDone] = useState(c.status === "resolved");
   const [lightbox, setLightbox] = useState<{ src: string; caption: string } | null>(null);
@@ -118,75 +120,70 @@ export function ComplaintDetail({
   }
 
   return (
-    <div className="cx cx-detail">
+    <div className="cx cx-detail cx-mdetail">
       <div className="cx-dsrc-row">
         <PlatformSource plat={c.platform} dict={dict} />
         <span className="time mono">
-          {new Intl.DateTimeFormat(locale, { month: "long", day: "numeric" }).format(
-            new Date(c.createdAt),
-          )}
+          {new Intl.DateTimeFormat(locale, {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          }).format(new Date(c.createdAt))}
         </span>
       </div>
 
-      <h2 className="cx-dtitle">{c.title}</h2>
+      <h2 className="cx-mdetail__t">{c.title}</h2>
 
-      <div className="cx-dstatus">
-        <span className={`cx-spill ${done ? "resolved" : "open"}`}>
-          <span className="d" />
+      {/* 상태는 칩 하나로만 — v1 의 점(dot)과 병기하지 않는다. */}
+      <div className="cx-mdetail__status">
+        <span className={done ? "cx-statuschip is-resolved" : "cx-statuschip is-open"}>
           {done ? t.statusDone : t.statusOpen}
         </span>
       </div>
 
-      {/* Meta block — 값 없는 행 숨김 */}
-      <div className="cx-meta">
+      {/* 문맥 — S3 리뷰 상세와 같은 kv 카드를 쓴다. 두 상세가 다른 모양이면 같은 사건을 두고
+          다른 화면처럼 읽힌다. 값이 없는 행은 숨긴다 — 리뷰와 달리 사용자가 직접 넣는 값이라
+          «수집 누락»과 «실제 부재»를 구분할 필요가 없다. */}
+      <div className="cx-kvcard">
         {c.propertyName && (
-          <div className="cx-meta__row">
-            <span className="cx-meta__l">
-              <CIc>{CxIcon.building}</CIc>
-              {t.metaBuilding}
+          <div className="cx-kvrow">
+            <span className="cx-kvrow__k">{t.metaBuilding}</span>
+            <span className="cx-kvrow__v">
+              {localizePropertyName(getCanonicalPropertyName(c.propertyName), buildingLabels)}
             </span>
-            <span className="cx-meta__v">{c.propertyName}</span>
           </div>
         )}
         {c.roomLabel && (
-          <div className="cx-meta__row">
-            <span className="cx-meta__l">
-              <CIc>{CxIcon.door}</CIc>
-              {t.metaRoom}
-            </span>
-            <span className="cx-meta__v">{c.roomLabel}</span>
+          <div className="cx-kvrow">
+            <span className="cx-kvrow__k">{t.metaRoom}</span>
+            <span className="cx-kvrow__v">{c.roomLabel}</span>
           </div>
         )}
         {c.guestName && (
-          <div className="cx-meta__row">
-            <span className="cx-meta__l">
-              <CIc>{CxIcon.person}</CIc>
-              {t.metaGuest}
-            </span>
-            <span className="cx-meta__v">
-              {c.guestName} ·{" "}
-              {c.platform === "direct" ? t.platformDirect : PLATFORMS[c.platform].name}
-            </span>
+          <div className="cx-kvrow">
+            <span className="cx-kvrow__k">{t.metaGuest}</span>
+            <span className="cx-kvrow__v">{c.guestName}</span>
           </div>
         )}
         {max > 0 && c.rating != null && (
-          <div className="cx-meta__row">
-            <span className="cx-meta__l">
+          <div className="cx-kvrow">
+            <span className="cx-kvrow__k">{t.metaRating}</span>
+            <span className="cx-kvrow__v cx-ratingv">
               <CIc>{CxIcon.star}</CIc>
-              {t.metaRating}
-            </span>
-            <span className="cx-meta__v rate-v">
-              <StarPips plat={c.platform} rating={c.rating} />
-              <span>{t.ratingOf(c.rating.toFixed(1), max)}</span>
+              <span className="mono">
+                {c.rating.toFixed(1)} <i>/ {max}</i>
+              </span>
             </span>
           </div>
         )}
       </div>
 
-      {c.description && <div className="cx-dbody">{c.description}</div>}
+      {c.description && <p className="cx-mdetail__body">{c.description}</p>}
 
       {c.imageUrls.length > 0 && (
-        <div className="cx-dgrid">
+        <div className="cx-shots">
           {c.imageUrls.map((url, i) => {
             const caption = url.split("/").pop() ?? String(i + 1);
             return (
@@ -196,6 +193,7 @@ export function ComplaintDetail({
                 className="cx-shot"
                 onClick={() => setLightbox({ src: url, caption })}
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={url} alt={caption} className="cx-shot__img" />
                 <span className="cx-shot__z">{CxIcon.zoom}</span>
               </button>
@@ -207,7 +205,7 @@ export function ComplaintDetail({
       {canChangeStatus && (
         <button
           type="button"
-          className={`cx-prim-btn${done ? " done-state" : ""}`}
+          className={done ? "cx-prim-btn done-state" : "cx-prim-btn"}
           onClick={handleStatusToggle}
           disabled={isPending}
         >
@@ -216,39 +214,42 @@ export function ComplaintDetail({
         </button>
       )}
 
-      <div className="cx-divider" />
-
-      <div className="cx-clabel">
-        {t.logTitle} <span className="n">{comments.length}</span>
+      <div className="cx-sechead cx-sechead--log">
+        <span>{t.logTitle}</span>
+        <span className="cx-logcount">{comments.length}</span>
       </div>
 
-      {comments.map((cm) => {
-        const initial = cm.authorName.slice(0, 1) || "?";
-        const ownerStyle = isOwnerRole(cm.authorRole);
-        return (
-          <div key={cm.id} className="cx-cmt">
-            <span className={`cx-cmt__av ${ownerStyle ? "p" : "n"}`}>{initial}</span>
-            <div className="cx-cmt__b">
-              <div className="cx-cmt__h">
-                <span className="cx-cmt__n">{cm.authorName}</span>
-                <span className={`cx-role-pill${ownerStyle ? "" : " ref"}`}>
-                  {ownerStyle ? t.roleOwner : t.roleRef}
-                </span>
-                <span className="cx-cmt__t">{formatCommentTime(cm.createdAt, locale)}</span>
-              </div>
-              <div className="cx-cmt__body">{cm.content}</div>
-              {cm.imageUrls.length > 0 && (
-                <div className="cx-cmt__imgs">
-                  {cm.imageUrls.map((url, i) => (
-                    <img key={i} src={url} alt="" className="cx-cmt__img" />
-                  ))}
+      <div className="cx-cmtlist">
+        {comments.map((cm) => {
+          const initial = cm.authorName.slice(0, 1) || "?";
+          const ownerStyle = isOwnerRole(cm.authorRole);
+          return (
+            <div key={cm.id} className="cx-cmt">
+              <span className={ownerStyle ? "cx-cmt__av p" : "cx-cmt__av n"}>{initial}</span>
+              <div className="cx-cmt__b">
+                <div className="cx-cmt__h">
+                  <span className="cx-cmt__n">{cm.authorName}</span>
+                  <span className={ownerStyle ? "cx-role-pill" : "cx-role-pill ref"}>
+                    {ownerStyle ? t.roleOwner : t.roleRef}
+                  </span>
+                  <span className="cx-cmt__t mono">{formatCommentTime(cm.createdAt, locale)}</span>
                 </div>
-              )}
+                <div className="cx-cmt__body">{cm.content}</div>
+                {cm.imageUrls.length > 0 && (
+                  <div className="cx-cmt__imgs">
+                    {cm.imageUrls.map((url, i) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={i} src={url} alt="" className="cx-cmt__img" />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
 
+      {/* 댓글 권한이 없으면(파트타임) 입력창 자체가 사라진다 — 비활성 입력창은 «고장»으로 읽힌다. */}
       {canComment && (
         <div className="cx-composer">
           <input
@@ -268,12 +269,12 @@ export function ComplaintDetail({
             className="cx-composer__send"
             onClick={handleComment}
             disabled={isPending || !commentText.trim()}
+            aria-label={t.commentPlaceholder}
           >
             {CxIcon.send}
           </button>
         </div>
       )}
-
       {lightbox && (
         <Lightbox
           src={lightbox.src}
