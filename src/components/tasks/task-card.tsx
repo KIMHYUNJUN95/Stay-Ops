@@ -24,6 +24,7 @@ import type { TaskRecord } from "@/lib/tasks";
 import {
   formatCustomWeekdays,
   isStandardRecurrence,
+  nextRecurringOccurrence,
   recurringOccurrencesInRange,
 } from "@/lib/tasks-recurrence";
 import { cn } from "@/lib/utils";
@@ -168,9 +169,29 @@ export function TaskCard({
   const done = occurrence ? occurrence.done : task.status === "completed";
   const selected = selectMode && !!selectedIds?.has(task.id);
   const dueDate = tokyoDateOf(task.dueAt);
-  // Occurrence rows render for a specific (today/tomorrow) date, so the row anchor's past-ness
-  // doesn't make them "overdue" — recurring overdue is its own grouped backlog.
-  const overdue = !occurrence && !done && !!dueDate && dueDate < today;
+  /**
+   * 반복 업무를 «작업 원본» 행으로 그리는 화면(관리함·지시 등)인가.
+   *
+   * 오늘/내일 탭은 반복을 회차 행으로 그려 `occurrence` 가 들어오지만, 관리함은 원본 행으로
+   * 그린다. 그때 `dueAt` 은 **마감일이 아니라 앵커**(「7/30부터 평일마다」의 시작점)라 늘 과거에
+   * 있다. 이걸 마감일처럼 다루면 반복 업무가 전부 지연으로 보인다 — 2026-08-07 관리함에서
+   * 실제로 그랬고, 어드민 콘솔(`helpers.ts` `isOverdue`)과 이 화면의 탭 분류
+   * (`tasks-workspace.tsx` `isOverdue`)는 둘 다 반복을 제외하고 있었는데 카드만 자체 계산을
+   * 하고 있었다.
+   */
+  const recurringRow = !occurrence && isStandardRecurrence(task.recurrenceRule);
+  // 반복은 앵커 대신 **다음 회차**를 보여 준다. 날짜를 통째로 지우면 반복 칩(「평일」)만 남아
+  // «언제 하는 일인지»가 사라진다.
+  const nextOccurrenceDate = recurringRow
+    ? nextRecurringOccurrence(task.recurrenceRule, dueDate ?? task.scheduledDate ?? null, today)
+    : null;
+  /**
+   * 지연 판정에서 반복을 뺀다. 반복에도 **진짜 밀린 회차**는 있지만, 그건 회차 상태
+   * (`task_occurrence_state`)를 알아야 셀 수 있어 카드가 판단할 수 없다. 오늘 탭의 「지연」
+   * backlog 가 「N일 밀림」 + 가져오기/건너뛰기까지 이미 담당한다 — 여기서 흉내 내면 근거 없는
+   * 숫자만 하나 더 생긴다.
+   */
+  const overdue = !occurrence && !recurringRow && !done && !!dueDate && dueDate < today;
 
   // One swipe action (today / tomorrow), revealed at a fixed width sized to its single button.
   const swipeOpen = 74;
@@ -337,6 +358,25 @@ export function TaskCard({
 
   const dateChip = (() => {
     if (!showDate) return null;
+    // 반복 원본 행: 앵커(과거 고정)가 아니라 다음 회차를 보여 준다.
+    if (recurringRow)
+      return nextOccurrenceDate ? (
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold",
+            nextOccurrenceDate === today
+              ? "bg-primary/10 text-primary"
+              : "bg-slate-100 text-slate-600",
+          )}
+        >
+          <CalendarDays className="size-3" aria-hidden="true" />
+          {/* 완료 토스트가 쓰는 `nextLabel`("다음: {date}")을 그대로 재사용한다 — 같은 개념
+              (다음 회차)을 두 문구로 두면 화면마다 다르게 읽힌다. */}
+          {nextOccurrenceDate === today
+            ? copy.todayLabel
+            : copy.nextLabel.replace("{date}", shortDate(nextOccurrenceDate))}
+        </span>
+      ) : null;
     if (overdue && dueDate)
       return (
         <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-600">

@@ -639,6 +639,19 @@ As-built (2026-07-30, occurrence model — **supersedes** the 2026-06-16 roll-fo
   - **삭제** (`skipOverdueOccurrences`) — marks the outstanding overdue occurrences `skipped` (kept
     forever, never re-appears). The series continues.
   One-off overdue tasks keep the existing bulk 오늘로 가져오기 / 지난 미완료 삭제 prompt (author-scoped).
+- **반복 업무는 «원본 행»으로 그려질 때 지연 배지를 달지 않는다 (2026-08-07 수정).**
+  반복 업무의 `due_at` 은 마감일이 아니라 **앵커**다 — 「7/29부터 평일마다」의 시작점이라 고정된 채
+  과거에 남는다. 오늘/내일 탭은 반복을 회차 행으로 그려서(`occurrence` prop) 문제가 없었지만,
+  **관리함은 원본 행으로 그린다.** `TaskCard` 가 지연을 자체 계산하면서 반복을 빼지 않아, 관리함의
+  반복 업무가 **전부** 「7/29 지연」으로 보였다(실측 9건 중 7건). 어드민 콘솔
+  (`admin/tasks/helpers.ts` `isOverdue`)과 이 화면의 탭 분류(`tasks-workspace.tsx` `isOverdue`)는
+  **둘 다 이미 반복을 제외**하고 있었다 — 카드만 자기 규칙을 갖고 있었던 것이다.
+  - 반복 원본 행은 앵커 대신 **다음 회차**를 보여 준다(`nextRecurringOccurrence`). 날짜를 통째로
+    지우면 반복 칩(「평일」)만 남아 «언제 하는 일인지»가 사라진다. 문구는 완료 토스트가 쓰는
+    `nextLabel`("다음: {date}")을 재사용한다 — 같은 개념을 두 문구로 두지 않는다.
+  - **카드는 «진짜 밀린 회차»를 세지 않는다.** 그건 `task_occurrence_state` 를 알아야 하는데 카드에
+    없다. 위의 「N일 밀림」 그룹이 액션까지 포함해 이미 담당하므로, 카드에서 흉내 내면 근거 없는
+    숫자만 하나 더 생긴다.
 - **Calendar/list previews are virtual** — the month grid, agenda, day sheet, and now the 오늘/내일
   lists expand each recurring task across its occurrence dates from the rule for display; tapping a
   virtual occurrence acts on the one real series row, and its checkbox completes **that date's**

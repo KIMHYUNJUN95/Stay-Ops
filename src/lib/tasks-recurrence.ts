@@ -239,6 +239,27 @@ export function isResolvedOccurrenceState(state: OccurrenceState | undefined): b
  * Empty for non-standard rules or when nothing is overdue. Never auto-expires — a date stays here
  * until it is completed, skipped, or moved (see decision log 2026-07-30).
  */
+/**
+ * `from`(포함) 이후 첫 회차. 반복이 아니거나 앵커가 없으면 null.
+ *
+ * **반복 업무의 `dueAt` 은 마감일이 아니라 앵커다** — 「7/30부터 평일마다」의 시작점이라 고정된
+ * 채로 과거에 남는다. 이걸 마감일처럼 오늘과 비교하면 반복 업무가 전부 «지연»으로 보인다
+ * (2026-08-07 관리함에서 실제로 그랬다). 목록에서 반복 업무에 날짜를 보여줄 거라면 앵커가 아니라
+ * **다음 회차**여야 한다.
+ *
+ * 창을 400일로 끊는다: 「평일」이면 첫 회차가 며칠 안에 나오고, 그보다 성긴 규칙(연 단위)이라도
+ * 400일이면 반드시 하나는 걸린다. 무한 루프 대신 명시적 상한을 두는 것이 안전하다.
+ */
+export function nextRecurringOccurrence(
+  rule: string | null,
+  anchor: string | null,
+  from: string,
+): string | null {
+  if (!anchor || !isStandardRecurrence(rule)) return null;
+  const [occurrence] = recurringOccurrencesInRange(rule, anchor, from, ymdShift(from, 400));
+  return occurrence ?? null;
+}
+
 export function outstandingOverdueOccurrences(
   rule: string | null,
   anchor: string | null,
