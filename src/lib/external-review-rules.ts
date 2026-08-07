@@ -54,8 +54,24 @@ export function calcRiskLevel(
 
 export type ReviewBreakdownRow = { key: string; label: string; value: string };
 
-/** Booking.com `scoring{}`이 주는 고정 항목. 값이 없으면 «—»로 자리만 남긴다. */
-const BOOKING_SCORING_KEYS = ["clean", "facilities", "location", "services", "staff", "value"] as const;
+/**
+ * Booking.com `scoring{}` 이 실제로 주는 항목 (2026-08-07 실측, 리뷰 253건 전수 조사).
+ *
+ * 기획 초안에 있던 `services` 는 **payload 에 존재하지 않는다** — 253건 전부에 없어 상세에
+ * 빈 줄만 만들고 있었다. 반대로 `comfort` 는 245건에 값이 있는데 목록에 없어 읽히지 않고
+ * 버려지고 있었다. 실측 키로 맞춘다.
+ *
+ * 순서는 화면 표시 순서다. 값이 없는 항목은 «—»로 자리만 남긴다 — 항목이 사라지면 그 리뷰만
+ * 줄 수가 달라져 비교가 어려워진다.
+ */
+export const BOOKING_SCORING_KEYS = [
+  "clean",
+  "comfort",
+  "facilities",
+  "location",
+  "staff",
+  "value",
+] as const;
 
 /** 사전에 없는 항목은 최소한 읽을 수 있게만 만든다 (`check_in` → `Check In`). */
 function humanizeKey(key: string): string {

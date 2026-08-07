@@ -1465,3 +1465,58 @@ textarea.cx-fld {
 .cx-upthumb__img {
   cursor: pointer;
 }
+
+/* ── 외부 리뷰 목록 페이저 ──
+   리뷰가 2,000건을 넘어 한 화면에 다 두면 스크롤이 끝나지 않는다. 20건씩 끊고 앞뒤로만
+   이동한다 — 모바일에서 페이지 번호를 여럿 늘어놓아 봐야 누르기 어렵다. */
+.cx .cx-pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 4px 4px;
+}
+.cx .cx-pager__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--cx-line, var(--border));
+  background: var(--cx-surface, var(--surface));
+  color: var(--cx-ink, var(--foreground));
+  font-size: 12.5px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.cx .cx-pager__btn .ic {
+  width: 15px;
+  height: 15px;
+}
+/* 끝 페이지에서는 사라지지 않고 눌리지 않는 상태로 남는다 — 버튼이 없어지면 레이아웃이 튄다. */
+.cx .cx-pager__btn.is-off {
+  opacity: 0.38;
+  pointer-events: none;
+}
+.cx .cx-pager__pos {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--cx-muted, var(--muted-foreground));
+}
+.cx .cx-pager__pos b {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--cx-ink, var(--foreground));
+}
+.cx .cx-pager__total {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cx-faint, var(--muted-foreground));
+}

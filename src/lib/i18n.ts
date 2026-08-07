@@ -2436,11 +2436,17 @@ const FALLBACK_DICTIONARY = {
     breakdownTitle: "Sub-scores",
     breakdownSource: "As provided",
     // Display labels for the provider-supplied sub-score keys. Booking.com sends
-    // `scoring{clean, facilities, location, services, staff, value}`; Airbnb sends
+    // `scoring{clean, comfort, facilities, location, staff, value}`; Airbnb sends
     // `category_ratings[].category`. Only the label is localized — the stored
     // `rating_breakdown` keeps the platform's own keys and structure.
+    //
+    // `services` is kept here on purpose even though Booking.com never sends it (0/253 measured
+    // 2026-08-07): unknown keys fall back to humanize(), so a label costs nothing and is ready
+    // if the provider ever adds it. It is simply absent from BOOKING_SCORING_KEYS, so no empty
+    // row is rendered for it.
     breakdownLabels: {
       clean: "Cleanliness",
+      comfort: "Comfort",
       cleanliness: "Cleanliness",
       facilities: "Facilities",
       location: "Location",
@@ -2541,6 +2547,9 @@ const FALLBACK_DICTIONARY = {
     ratingOf: (val: string, max: number) => `${val} / ${max}`,
     // Mobile — external review list/detail (2026-08-05)
     allBuildings: "All buildings",
+    pagerPrev: "Previous",
+    pagerNext: "Next",
+    pagerTotal: "{n} total",
     translateAction: "View translation",
     originalAction: "View original",
     translating: "Translating…",
@@ -7166,6 +7175,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       breakdownSource: "출처 제공",
       breakdownLabels: {
         clean: "청결",
+        comfort: "쾌적함",
         cleanliness: "청결",
         facilities: "시설",
         location: "위치",
@@ -7259,6 +7269,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       ratingOf: (val: string, max: number) => `${val} / ${max}`,
       // 모바일 — 외부 리뷰 목록/상세 (2026-08-05)
       allBuildings: "전체 건물",
+      pagerPrev: "이전",
+      pagerNext: "다음",
+      pagerTotal: "총 {n}건",
       translateAction: "번역 보기",
       originalAction: "원문 보기",
       translating: "번역 중…",
@@ -11813,6 +11826,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       breakdownSource: "提供元の値",
       breakdownLabels: {
         clean: "清潔さ",
+        comfort: "快適さ",
         cleanliness: "清潔さ",
         facilities: "設備",
         location: "立地",
@@ -11906,6 +11920,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       ratingOf: (val: string, max: number) => `${val} / ${max}`,
       // モバイル — 外部レビュー一覧・詳細 (2026-08-05)
       allBuildings: "すべての建物",
+      pagerPrev: "前へ",
+      pagerNext: "次へ",
+      pagerTotal: "全{n}件",
       translateAction: "翻訳を見る",
       originalAction: "原文を見る",
       translating: "翻訳中…",

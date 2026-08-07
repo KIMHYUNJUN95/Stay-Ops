@@ -1297,7 +1297,10 @@ endpoint offers no score or date filter anyway.
 
 `rating_breakdown` deliberately preserves provider-specific dimensions rather than fabricating a
 cross-provider schema: Airbnb stores `category_ratings[]`, Booking.com stores
-`scoring{clean, facilities, location, services, staff, value}`. Booking.com positive/negative text is
+`scoring{clean, comfort, facilities, location, staff, value}` — measured 2026-08-07 across all 253
+stored reviews. The planned `services` key **does not exist** in the payload (0/253) while `comfort`
+does (245/253) and was being dropped; both were corrected and the stored breakdowns backfilled from
+`raw_payload`. Booking.com positive/negative text is
 independently nullable; both may be absent for a valid score-only review.
 
 **Reservation linkage (corrected 2026-08-06, migration `202608060001_external_reviews_source_reservation.sql`).**

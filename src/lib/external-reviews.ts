@@ -23,7 +23,10 @@ import {
   getCanonicalPropertyName,
   getCanonicalRoomLabel,
   getDisplayRoomLabel,
+  isExcludedOperationalProperty,
+  localizePropertyName,
 } from "@/lib/room-label-normalization";
+import { getDictionary } from "@/lib/i18n";
 import type { Database } from "@/types/database";
 
 // The generated Database type does not line up with postgrest's select-string inference for
@@ -165,11 +168,23 @@ export type ReviewListFilter = {
   provider?: ReviewProvider;
   riskOnly?: boolean;
   propertyId?: string;
+  /**
+   * 여러 건물을 한 번에 거를 때. 같은 건물이 Beds24 원본 표기만 다르게 여러 `properties` 행으로
+   * 들어와 있어(예: `Okubo_A (B棟)`), 화면의 건물 칩 하나가 실제로는 여러 property_id 에 대응한다.
+   */
+  propertyIds?: string[];
   roomId?: string;
   /** 포함 (YYYY-MM-DD) */
   from?: string;
   /** 포함 (YYYY-MM-DD) */
   to?: string;
+};
+
+/** 목록 한 페이지 + 전체 건수. 건수를 함께 주지 않으면 «몇 페이지인지»를 화면이 알 수 없다. */
+export type ExternalReviewPage = {
+  rows: ExternalReview[];
+  /** 필터를 적용한 전체 건수(페이지 크기와 무관). */
+  total: number;
 };
 
 /**
@@ -179,6 +194,24 @@ export type ReviewListFilter = {
  * 하지 않는다 (Airbnb 3점과 Booking 3점은 같은 의미가 아니다). 같은 위험도 안에서는
  * 각 플랫폼 척도로 정규화해 메모리에서 다시 정렬한다.
  */
+function applyReviewFilter<T>(query: T, filter: ReviewListFilter): T {
+  // supabase-js 의 빌더는 체이닝마다 같은 타입을 돌려주므로 제네릭으로 받아 그대로 넘긴다.
+  let q = query as never as {
+    eq: (c: string, v: unknown) => typeof q;
+    in: (c: string, v: unknown[]) => typeof q;
+    gte: (c: string, v: unknown) => typeof q;
+    lte: (c: string, v: unknown) => typeof q;
+  };
+  if (filter.provider) q = q.eq("provider", filter.provider);
+  if (filter.riskOnly) q = q.eq("risk_level", "risk");
+  if (filter.propertyId) q = q.eq("property_id", filter.propertyId);
+  if (filter.propertyIds?.length) q = q.in("property_id", filter.propertyIds);
+  if (filter.roomId) q = q.eq("room_id", filter.roomId);
+  if (filter.from) q = q.gte("reviewed_at", `${filter.from}T00:00:00Z`);
+  if (filter.to) q = q.lte("reviewed_at", `${filter.to}T23:59:59Z`);
+  return q as never as T;
+}
+
 export async function listExternalReviews(input: {
   session: AppSession;
   filter?: ReviewListFilter;
@@ -188,17 +221,10 @@ export async function listExternalReviews(input: {
   const organizationId = requireOrg(session);
 
   const supabase = await getSupabaseServerClient();
-  let query = untyped(supabase)
-    .from("external_reviews")
-    .select(REVIEW_COLS)
-    .eq("organization_id", organizationId);
-
-  if (filter.provider) query = query.eq("provider", filter.provider);
-  if (filter.riskOnly) query = query.eq("risk_level", "risk");
-  if (filter.propertyId) query = query.eq("property_id", filter.propertyId);
-  if (filter.roomId) query = query.eq("room_id", filter.roomId);
-  if (filter.from) query = query.gte("reviewed_at", `${filter.from}T00:00:00Z`);
-  if (filter.to) query = query.lte("reviewed_at", `${filter.to}T23:59:59Z`);
+  const query = applyReviewFilter(
+    untyped(supabase).from("external_reviews").select(REVIEW_COLS).eq("organization_id", organizationId),
+    filter,
+  );
 
   const { data, error } = await query
     .order("reviewed_at", { ascending: false })
@@ -209,6 +235,102 @@ export async function listExternalReviews(input: {
   // 최신 리뷰 우선(reviewed_at desc). 위험도·낮은 점수는 별도 `문제만` 토글과 `문제 객실` 뷰가 맡는다.
   // 날짜가 없는 리뷰(reviewed_at null)는 빈 문자열로 취급돼 맨 뒤로 간다.
   return rows.sort((a, b) => (b.reviewedAt ?? "").localeCompare(a.reviewedAt ?? ""));
+}
+
+/**
+ * 외부 리뷰 목록 **한 페이지**.
+ *
+ * `listExternalReviews` 는 `.limit(500)` 으로 잘라 왔다. 조직 리뷰가 2,464건인 지금, 모바일
+ * 목록은 **최신 500건만** 받고 나머지는 화면에 존재하지도 않았다 — 게다가 건물·플랫폼 필터가
+ * 클라이언트 쪽이라 그 500건 안에서만 걸러졌다. 조용한 누락이다.
+ *
+ * 그래서 목록은 **서버에서 필터·정렬·페이지**를 끝내고 한 페이지만 내려보낸다. 전체 건수를 함께
+ * 주어야 화면이 «몇 페이지인지»를 알 수 있으므로 `count: "exact"` 를 쓴다.
+ *
+ * 정렬은 `reviewed_at desc` 하나뿐이다. 페이지를 나누는 이상 정렬이 DB 밖에서 바뀌면 페이지
+ * 경계가 어긋나므로, 메모리 재정렬은 하지 않는다.
+ */
+export async function listExternalReviewPage(input: {
+  session: AppSession;
+  filter?: ReviewListFilter;
+  page?: number;
+  pageSize?: number;
+}): Promise<ExternalReviewPage> {
+  const { session, filter = {} } = input;
+  const organizationId = requireOrg(session);
+  const pageSize = Math.min(Math.max(input.pageSize ?? 20, 1), 100);
+  const page = Math.max(input.page ?? 1, 1);
+  const from = (page - 1) * pageSize;
+
+  const supabase = await getSupabaseServerClient();
+  const query = applyReviewFilter(
+    untyped(supabase)
+      .from("external_reviews")
+      .select(REVIEW_COLS, { count: "exact" })
+      .eq("organization_id", organizationId),
+    filter,
+  );
+
+  const { data, error, count } = await query
+    .order("reviewed_at", { ascending: false, nullsFirst: false })
+    // 같은 `reviewed_at` 이 여러 건일 때 페이지마다 순서가 흔들리면 어떤 리뷰는 두 페이지에
+    // 나오고 어떤 리뷰는 어디에도 안 나온다. id 를 2차 정렬로 두어 순서를 고정한다.
+    .order("id", { ascending: false })
+    .range(from, from + pageSize - 1);
+  if (error) throw error;
+
+  return {
+    rows: ((data ?? []) as unknown as ReviewRow[]).map(mapReview),
+    total: count ?? 0,
+  };
+}
+
+/** 건물 필터 칩 하나. 표시는 현지화된 라벨, 필터는 그 건물에 속한 property_id 전부. */
+export type ReviewBuildingOption = {
+  /** 정규화 건물명 — URL 에 실리는 값. 원본 표기가 바뀌어도 링크가 깨지지 않는다. */
+  value: string;
+  label: string;
+  propertyIds: string[];
+};
+
+/**
+ * 건물 필터 칩 목록.
+ *
+ * **현재 페이지의 리뷰에서 뽑지 않는다.** 그러면 2페이지로 넘어갈 때 칩이 사라졌다 나타난다.
+ * 조직의 건물 마스터에서 만들어 페이지와 무관하게 고정한다.
+ *
+ * 같은 건물이 Beds24 원본 표기만 다르게 여러 행으로 들어와 있어(`Okubo_A (B棟)` 등) 정규화
+ * 이름으로 묶고, 칩 하나가 그 그룹의 property_id 전부를 필터로 넘긴다.
+ */
+export async function listReviewBuildingOptions(input: {
+  session: AppSession;
+  locale: string;
+}): Promise<ReviewBuildingOption[]> {
+  const organizationId = requireOrg(input.session);
+  const supabase = await getSupabaseServerClient();
+  const { data, error } = await untyped(supabase)
+    .from("properties")
+    .select("id, name")
+    .eq("organization_id", organizationId);
+  if (error) throw error;
+
+  const buildingLabels = getDictionary(input.locale).cleaning.buildingLabels;
+  const grouped = new Map<string, ReviewBuildingOption>();
+  for (const row of (data ?? []) as { id: string; name: string }[]) {
+    if (!row.name || isExcludedOperationalProperty(row.name)) continue;
+    const canonical = getCanonicalPropertyName(row.name);
+    const existing = grouped.get(canonical);
+    if (existing) existing.propertyIds.push(row.id);
+    else {
+      grouped.set(canonical, {
+        value: canonical,
+        label: localizePropertyName(canonical, buildingLabels),
+        propertyIds: [row.id],
+      });
+    }
+  }
+
+  return [...grouped.values()].sort((a, b) => a.label.localeCompare(b.label, input.locale));
 }
 
 /** 외부 리뷰 상세. 목록과 달리 비공개 피드백을 포함한다. */

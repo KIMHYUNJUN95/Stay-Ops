@@ -1,13 +1,17 @@
-"use client";
-
-import { useMemo, useState } from "react";
 import Link from "next/link";
 import "./complaints.css";
 import { CIc, CxIcon } from "./cx-icons";
 import { PlatformSource, RatingPill, PLATFORMS } from "./cx-platform";
 import { getDictionary } from "@/lib/i18n";
 import { getCanonicalPropertyName, localizePropertyName } from "@/lib/room-label-normalization";
-import type { ExternalReview, ReviewProvider } from "@/lib/external-reviews";
+import type {
+  ExternalReview,
+  ReviewBuildingOption,
+  ReviewProvider,
+} from "@/lib/external-reviews";
+
+/** 한 페이지에 보여줄 리뷰 수. 카드가 본문을 전량 노출해 세로가 길어 20건이 상한선이다. */
+export const REVIEW_PAGE_SIZE = 20;
 
 const PROVIDERS: ("all" | ReviewProvider)[] = ["all", "airbnb", "booking"];
 
@@ -16,49 +20,57 @@ function formatDate(iso: string | null, locale: string): string {
   return new Intl.DateTimeFormat(locale, { month: "long", day: "numeric" }).format(new Date(iso));
 }
 
-// External Reviews — Screen 1 (read-only list). See docs/product/25-complaint-workflow.md.
-// Sort order (risk -> lower score -> newest) comes from `listExternalReviews`; this component
-// only applies client-side chip filters, mirroring ComplaintList's pattern.
-export function ReviewList({ locale, reviews }: { locale: string; reviews: ExternalReview[] }) {
+type Props = {
+  locale: string;
+  reviews: ExternalReview[];
+  /** 필터 적용 후 전체 건수 — 페이지 수 계산용. */
+  total: number;
+  page: number;
+  buildings: ReviewBuildingOption[];
+  provider: "all" | ReviewProvider;
+  riskOnly: boolean;
+  building: string;
+};
+
+/**
+ * External Reviews — Screen 1 (read-only list).
+ *
+ * **서버 컴포넌트다.** 필터·페이지가 전부 쿼리스트링이라 클라이언트 상태가 필요 없고, 그래서
+ * 이 화면은 클라이언트 번들에서 통째로 빠진다. 예전에는 서버가 최신 500건을 내려보내고
+ * 클라이언트가 걸렀는데, 리뷰 2,400건 중 나머지는 화면에 존재하지도 않았다.
+ *
+ * See docs/product/25-complaint-workflow.md.
+ */
+export function ReviewList({
+  locale,
+  reviews,
+  total,
+  page,
+  buildings,
+  provider,
+  riskOnly,
+  building,
+}: Props) {
   const dict = getDictionary(locale);
   const t = dict.complaints;
-  const [provider, setProvider] = useState<"all" | ReviewProvider>("all");
-  const [riskOnly, setRiskOnly] = useState(false);
-  const [building, setBuilding] = useState<string>("all");
-
-  /**
-   * 건물명은 Beds24 원본(`Arakicho A`, `Okubo_A (B棟)` …)이 그대로 들어온다. 이건 운영자용
-   * 식별자이지 사용자에게 보여줄 이름이 아니다 — 캘린더·청소가 쓰는 것과 같은 경로로
-   * (정규화 → 로케일 라벨) 바꿔서 ko/ja/en 어디서든 읽히게 한다.
-   *
-   * 필터 값은 **정규화 이름**으로 잡는다. 같은 건물이 원본 표기만 다르게 여러 개 들어와도
-   * 칩이 쪼개지지 않는다. 객실 라벨은 건드리지 않는다.
-   */
   const buildingLabels = dict.cleaning.buildingLabels;
 
-  const buildings = useMemo(() => {
-    const byCanonical = new Map<string, string>();
-    for (const review of reviews) {
-      if (!review.propertyName) continue;
-      const canonical = getCanonicalPropertyName(review.propertyName);
-      if (!byCanonical.has(canonical)) {
-        byCanonical.set(canonical, localizePropertyName(canonical, buildingLabels));
-      }
-    }
-    return Array.from(byCanonical, ([value, label]) => ({ value, label })).sort((a, b) =>
-      a.label.localeCompare(b.label, locale),
-    );
-  }, [reviews, buildingLabels, locale]);
+  const totalPages = Math.max(Math.ceil(total / REVIEW_PAGE_SIZE), 1);
+  const currentPage = Math.min(page, totalPages);
 
-  const rows = reviews.filter((review) => {
-    if (provider !== "all" && review.provider !== provider) return false;
-    if (riskOnly && review.riskLevel !== "risk") return false;
-    if (building !== "all") {
-      if (!review.propertyName) return false;
-      if (getCanonicalPropertyName(review.propertyName) !== building) return false;
+  /** 컨트롤을 누르면 페이지는 항상 1로 돌아간다 — 3페이지에서 필터를 바꾸면 빈 화면이 된다. */
+  function hrefWith(patch: Record<string, string | null>, keepPage = false): string {
+    const params = new URLSearchParams({ view: "reviews" });
+    if (provider !== "all") params.set("provider", provider);
+    if (riskOnly) params.set("risk", "1");
+    if (building !== "all") params.set("building", building);
+    if (keepPage && currentPage > 1) params.set("page", String(currentPage));
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === null) params.delete(key);
+      else params.set(key, value);
     }
-    return true;
-  });
+    return `/mobile/complaints?${params.toString()}`;
+  }
 
   return (
     <div className="cx">
@@ -69,67 +81,56 @@ export function ReviewList({ locale, reviews }: { locale: string; reviews: Exter
       <div className="cx-fchips">
         {PROVIDERS.map((p) => {
           const on = provider === p;
-          if (p === "all") {
-            return (
-              <button
-                key={p}
-                type="button"
-                className={`cx-fchip${on ? " on" : ""}`}
-                onClick={() => setProvider("all")}
-              >
-                {t.filterAll}
-              </button>
-            );
-          }
-          const def = PLATFORMS[p];
+          const href = hrefWith({ provider: p === "all" ? null : p, page: null });
           return (
-            <button
-              key={p}
-              type="button"
-              className={`cx-fchip${on ? " on" : ""}`}
-              onClick={() => setProvider(p)}
-            >
-              <span className="d" style={{ background: def.solid }} />
-              {def.name}
-            </button>
+            <Link key={p} href={href} className={`cx-fchip${on ? " on" : ""}`} scroll={false}>
+              {p === "all" ? (
+                t.filterAll
+              ) : (
+                <>
+                  <span className="d" style={{ background: PLATFORMS[p].solid }} />
+                  {PLATFORMS[p].name}
+                </>
+              )}
+            </Link>
           );
         })}
-        <button
-          type="button"
+        <Link
+          href={hrefWith({ risk: riskOnly ? null : "1", page: null })}
           className={`cx-fchip${riskOnly ? " on" : ""}`}
-          onClick={() => setRiskOnly((v) => !v)}
+          scroll={false}
         >
           {t.riskOnly}
-        </button>
+        </Link>
       </div>
 
       {buildings.length > 1 && (
         <div className="cx-fchips">
-          <button
-            type="button"
+          <Link
+            href={hrefWith({ building: null, page: null })}
             className={`cx-fchip${building === "all" ? " on" : ""}`}
-            onClick={() => setBuilding("all")}
+            scroll={false}
           >
             {t.allBuildings}
-          </button>
+          </Link>
           {buildings.map((item) => (
-            <button
+            <Link
               key={item.value}
-              type="button"
+              href={hrefWith({ building: item.value, page: null })}
               className={`cx-fchip${building === item.value ? " on" : ""}`}
-              onClick={() => setBuilding(item.value)}
+              scroll={false}
             >
               {item.label}
-            </button>
+            </Link>
           ))}
         </div>
       )}
 
       <div className="cx-list">
-        {rows.length === 0 ? (
+        {reviews.length === 0 ? (
           <div className="cx-empty">{t.reviewsEmptyTitle}</div>
         ) : (
-          rows.map((review) => {
+          reviews.map((review) => {
             const hasBody = Boolean(
               review.reviewText || review.positiveReviewText || review.negativeReviewText,
             );
@@ -184,6 +185,45 @@ export function ReviewList({ locale, reviews }: { locale: string; reviews: Exter
           })
         )}
       </div>
+
+      {/* 페이지 컨트롤. 전체가 한 페이지에 들어가면 그리지 않는다. */}
+      {totalPages > 1 && (
+        <nav className="cx-pager" aria-label={t.viewReviews}>
+          {currentPage > 1 ? (
+            <Link
+              className="cx-pager__btn"
+              href={hrefWith({ page: currentPage - 1 === 1 ? null : String(currentPage - 1) })}
+            >
+              <CIc>{CxIcon.chevL}</CIc>
+              {t.pagerPrev}
+            </Link>
+          ) : (
+            <span className="cx-pager__btn is-off">
+              <CIc>{CxIcon.chevL}</CIc>
+              {t.pagerPrev}
+            </span>
+          )}
+
+          <span className="cx-pager__pos">
+            <b className="mono">{currentPage}</b>
+            <span className="sep">/</span>
+            <span className="mono">{totalPages}</span>
+            <span className="cx-pager__total">{t.pagerTotal.replace("{n}", String(total))}</span>
+          </span>
+
+          {currentPage < totalPages ? (
+            <Link className="cx-pager__btn" href={hrefWith({ page: String(currentPage + 1) })}>
+              {t.pagerNext}
+              <CIc>{CxIcon.chevR}</CIc>
+            </Link>
+          ) : (
+            <span className="cx-pager__btn is-off">
+              {t.pagerNext}
+              <CIc>{CxIcon.chevR}</CIc>
+            </span>
+          )}
+        </nav>
+      )}
     </div>
   );
 }

@@ -43,7 +43,12 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOptionalBeds24ApiEnv } from "@/lib/env";
-import { calcRiskLevel, REVIEW_SCALE, type ReviewProvider } from "@/lib/external-review-rules";
+import {
+  BOOKING_SCORING_KEYS,
+  calcRiskLevel,
+  REVIEW_SCALE,
+  type ReviewProvider,
+} from "@/lib/external-review-rules";
 import { isExcludedOperationalProperty } from "@/lib/room-label-normalization";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
@@ -249,7 +254,11 @@ export function parseBookingReview(payload: unknown): ParsedReview | null {
 
   const rating = num(scoring.review_score);
   const breakdown: Record<string, number> = {};
-  for (const key of ["clean", "facilities", "location", "services", "staff", "value"]) {
+  // 실제 payload 키 (2026-08-07 실측, booking 리뷰 253건 전수):
+  //   clean / staff / value / comfort / location / facilities / review_score
+  // 기획서에 적혀 있던 `services` 는 **존재하지 않는다** — 253건 전부에 없어 화면에 빈 줄만
+  // 만들고 있었다. 반대로 `comfort` 는 245건에 값이 있는데 읽지 않아 통째로 버려지고 있었다.
+  for (const key of BOOKING_SCORING_KEYS) {
     const value = num(scoring[key]);
     if (value !== null) breakdown[key] = value;
   }

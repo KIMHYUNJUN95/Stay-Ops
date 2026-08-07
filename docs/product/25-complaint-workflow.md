@@ -197,8 +197,13 @@ linked_complaint_id, created_at, updated_at
   Booking.com은 `reservation_id`(Beds24 bookingId)를 담는다. 화면에 보여 주는 «예약 ID»가 이 값이다.
   `reservation_id`(uuid)는 로컬 예약 행으로의 링크이며 사람이 읽을 값이 아니라 노출하지 않는다.
 - `rating_breakdown`은 제공된 플랫폼별 세부 점수의 원본 구조다. 값이 없을 수 있으며, 공통 스키마로
-  정규화하지 않는다. Airbnb는 `category_ratings[]`, Booking.com은 `scoring{clean, facilities, location,
-  services, staff, value}` 구조를 그대로 담는다.
+  정규화하지 않는다. Airbnb는 `category_ratings[]`, Booking.com은
+  `scoring{clean, comfort, facilities, location, staff, value}` 구조를 그대로 담는다.
+- **Booking.com 세부 점수 키 정정 (2026-08-07, 리뷰 253건 전수 실측).** 기획 초안의
+  `services` 는 **payload 에 존재하지 않는다**(0/253) — 상세에서 항상 빈 줄로 보이던 원인이다.
+  반대로 `comfort`(쾌적함)는 **245/253 건에 값이 있는데** 수집 키 목록에 없어 통째로 버려지고
+  있었다. 실측 키로 맞추고, 이미 수집된 245건은 `raw_payload` 에서 되살렸다(Beds24 재호출 없음,
+  `scripts/dev/backfill-booking-comfort-score.js`).
 - `review_text`, `positive_review_text`, `negative_review_text`는 모두 nullable이다. 특히 Booking.com은
   긍정·부정 본문 없이 점수만 제공할 수 있다.
 - `headline`은 Booking.com `content.headline`(리뷰 제목)이다. Airbnb에는 대응 필드가 없어 항상 null이다.
