@@ -2491,6 +2491,7 @@ const FALLBACK_DICTIONARY = {
     riskRuleBooking: "Booking.com 7.0 or lower is a problem — server-computed",
     privateFeedbackTitle: "Private feedback",
     noPermission: "You do not have permission to log a complaint. Read-only access.",
+    roomsNoneInPeriod: "No reviews in this period",
     sortRatio: "Highest problem rate",
     // List
     pageTitle: "Complaints",
@@ -7227,6 +7228,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       riskRuleBooking: "Booking.com 7.0점 이하는 문제 — 서버 계산값",
       privateFeedbackTitle: "비공개 피드백",
       noPermission: "등록 권한이 없습니다. 리뷰 열람만 가능합니다.",
+      roomsNoneInPeriod: "이 기간 리뷰 없음",
       rangeTitle: "기간 선택",
       rangeHintStart: "시작일을 선택하세요",
       rangeHintEnd: "종료일을 선택하세요",
@@ -11887,6 +11889,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       riskRuleBooking: "Booking.com 7.0点以下は問題 — サーバー計算値",
       privateFeedbackTitle: "非公開フィードバック",
       noPermission: "登録権限がありません。レビューの閲覧のみ可能です。",
+      roomsNoneInPeriod: "この期間のレビューなし",
       riskOnly: "問題のみ",
       linkedShort: "変換済み",
       notLinkedShort: "未変換",

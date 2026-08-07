@@ -2246,3 +2246,247 @@ textarea.cx-fld {
   line-height: 1.45;
   color: var(--cx-muted);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   문제 객실 S4 (모바일 신규)
+   데스크톱 8열 표는 390px 에 성립하지 않는다. 건물 카드 + 객실 아코디언으로 바꾸고,
+   플랫폼 행은 `모노그램 / 평균 / 리뷰 / 문제` 4열 그리드로 정렬해 EN 라벨에서도
+   열이 흔들리지 않게 한다.
+   ══════════════════════════════════════════════════════════════ */
+.cx-rooms .cx-sortnote {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--cx-muted);
+  white-space: nowrap;
+}
+.cx-note--tight {
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  background: transparent;
+}
+.cx-note--tight span {
+  font-size: 10.5px;
+}
+
+.cx-bldcard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 22px -18px rgba(20, 28, 40, 0.4);
+}
+.cx-bldcard__h {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 13px 10px;
+}
+.cx-bldcard__hb {
+  flex: 1;
+  min-width: 0;
+}
+.cx-bldcard__n {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cx-tag {
+  flex: 0 0 auto;
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--cx-surface);
+  color: var(--cx-muted);
+}
+.cx-bldcard__s {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--cx-muted);
+  margin-top: 3px;
+}
+.cx-bldcard__r {
+  flex: 0 0 auto;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cx-bldcard__b {
+  padding: 11px 13px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 문제 비율 막대 — 25% 이상 붉게, 10% 이상 앰버, 그 아래 초록 */
+.cx-bar {
+  display: block;
+  height: 5px;
+  background: var(--cx-surface);
+  margin: 0 13px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.cx-bar--wide {
+  margin: 0 13px;
+}
+.cx-bar__f {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+}
+.cx-bar__f.is-bad {
+  background: var(--bad);
+}
+.cx-bar__f.is-warn {
+  background: var(--open);
+}
+.cx-bar__f.is-ok {
+  background: var(--done);
+}
+.cx-bar__f.is-none {
+  background: transparent;
+}
+.is-bad {
+  color: var(--bad);
+}
+.cx-rooms .is-warn {
+  color: var(--open);
+}
+.cx-rooms .is-ok {
+  color: var(--done);
+}
+.cx-rooms .is-none {
+  color: var(--faint);
+}
+
+/* 객실 블록 — 비율이 높은 방은 배경까지 붉게 해서 스캔에서 먼저 걸리게 한다 */
+.cx-roomblk {
+  padding: 0 2px;
+}
+.cx-roomblk.is-hot {
+  padding: 11px 12px;
+  border-radius: 13px;
+  background: var(--bad-bg);
+  border: 1px solid color-mix(in oklab, var(--bad) 18%, var(--line));
+}
+.cx-roomblk__h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.cx-roomblk__n {
+  font-size: 13px;
+  font-weight: 800;
+}
+.cx-roomblk__r {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cx-roomblk .cx-bar {
+  margin: 0 0 9px;
+}
+
+/* 플랫폼 4열 그리드 */
+.cx-pgrid {
+  display: grid;
+  grid-template-columns: 20px 1fr auto auto;
+  gap: 6px 8px;
+  align-items: center;
+}
+.cx-pgrid__hd {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+  text-align: right;
+}
+.cx-pgrid__hd:nth-child(2) {
+  text-align: left;
+}
+.cx-mono {
+  width: 20px;
+  height: 20px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
+}
+.cx-pgrid__avg {
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cx-pgrid__avg i {
+  font-style: normal;
+  color: var(--faint);
+  font-size: 10px;
+}
+.cx-pgrid__n {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cx-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cx-pgrid__risk {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--bad);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cx-pgrid__none {
+  grid-column: 2 / -1;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--faint);
+}
+
+.cx-unmapped {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 11px;
+  background: var(--cx-surface);
+}
+.cx-unmapped .ic {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--cx-muted);
+}
+.cx-unmapped span {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--cx-muted);
+}
+.cx-unmapped__s {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  color: var(--faint) !important;
+}
+.cx-unrated {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--faint);
+  text-wrap: pretty;
+}

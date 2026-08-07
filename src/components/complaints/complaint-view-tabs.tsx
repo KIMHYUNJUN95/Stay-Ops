@@ -2,7 +2,7 @@ import Link from "next/link";
 import "./complaints.css";
 import type { Dictionary } from "@/lib/i18n";
 
-export type ComplaintsView = "manual" | "reviews";
+export type ComplaintsView = "manual" | "reviews" | "rooms";
 
 /**
  * Manual complaints and external reviews are separated before any filtering — the two are
@@ -25,6 +25,9 @@ export function ComplaintViewTabs({ view, dict }: { view: ComplaintsView; dict: 
           className={view === "reviews" ? "on" : undefined}
         >
           {t.viewReviews}
+        </Link>
+        <Link href="/mobile/complaints?view=rooms" className={view === "rooms" ? "on" : undefined}>
+          {t.viewRooms}
         </Link>
       </div>
     </div>

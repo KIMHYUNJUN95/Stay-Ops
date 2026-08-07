@@ -7,6 +7,7 @@ import {
   REVIEW_PAGE_SIZE,
   RANGE_PRESET_DAYS,
 } from "@/components/complaints/review-list";
+import { ReviewRoomsBoard } from "@/components/complaints/review-rooms-board";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
@@ -14,9 +15,40 @@ import { getDictionary } from "@/lib/i18n";
 import { listComplaints, canWriteComplaint } from "@/lib/complaints";
 import {
   listExternalReviewPage,
+  summarizeReviewsByPlace,
   type ReviewListFilter,
   type ReviewProvider,
 } from "@/lib/external-reviews";
+
+// 세션 쿠키를 읽어 어차피 동적이지만, «지금»(기본 기간 계산)에 의존하므로 명시한다.
+export const dynamic = "force-dynamic";
+
+/**
+ * 문제 객실 뷰의 기본 기간 — 최근 90일(오늘 포함).
+ *
+ * **컴포넌트 밖에 두는 이유:** 렌더 본문에서 `Date.now()` 를 부르면 «순수하지 않은 호출»로
+ * 걸린다. 어드민 컴플레인 페이지의 `defaultRange()` 도 같은 이유로 모듈 스코프에 있다.
+ */
+function defaultRoomsRange(): { from: string; to: string } {
+  const now = new Date();
+  return {
+    to: now.toISOString().slice(0, 10),
+    from: new Date(now.getTime() - 89 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+  };
+}
+
+/** 프리셋과 정확히 맞을 때만 기간 칩에 «90일» 처럼 일수로 표기한다. */
+function matchPresetDays(from: string | null, to: string | null): number | null {
+  if (!from || !to) return null;
+  const end = new Date(`${to}T00:00:00Z`).getTime();
+  const today = new Date().toISOString().slice(0, 10);
+  if (to !== today) return null;
+  return (
+    RANGE_PRESET_DAYS.find(
+      (days) => from === new Date(end - (days - 1) * 864e5).toISOString().slice(0, 10),
+    ) ?? null
+  );
+}
 
 type PageProps = {
   searchParams: Promise<{
@@ -53,19 +85,49 @@ export default async function MobileComplaintsPage({ searchParams }: PageProps) 
     redirect("/mobile/unavailable");
   }
 
-  const view = params.view === "reviews" ? "reviews" : "manual";
+  const view =
+    params.view === "reviews" || params.view === "rooms" ? params.view : "manual";
   const locale = session.user.preferredLanguage;
   const dict = getDictionary(locale);
   const navBadges = await getMobileNavBadges();
+
+  const isDate = (v?: string) => Boolean(v && /^\d{4}-\d{2}-\d{2}$/.test(v));
+  const from = isDate(params.from) ? params.from! : null;
+  const to = isDate(params.to) ? params.to! : null;
+
+  const rangeDays = matchPresetDays(from, to);
+
+  if (view === "rooms") {
+    // 집계는 어드민과 같은 함수를 쓴다 — 화면별 집계를 만들면 두 화면의 숫자가 갈라진다.
+    // 기간을 지정하지 않으면 최근 90일. 문제 객실은 «지금 문제인 방»을 보는 화면이라
+    // 전 기간 합계는 오히려 현재 상태를 가린다(외부 리뷰 목록의 기본값과 다른 이유다).
+    const fallback = defaultRoomsRange();
+    const rangeFrom = from ?? fallback.from;
+    const rangeTo = to ?? fallback.to;
+    const summaries = await summarizeReviewsByPlace({
+      session,
+      from: rangeFrom,
+      to: rangeTo,
+    });
+    return (
+      <MobileShell activeItem="complaints" badges={navBadges} title={dict.complaints.pageTitle}>
+        <ComplaintViewTabs view={view} dict={dict} />
+        <ReviewRoomsBoard
+          locale={locale}
+          summaries={summaries}
+          from={rangeFrom}
+          to={rangeTo}
+          rangeDays={rangeDays ?? (from ? null : 90)}
+        />
+      </MobileShell>
+    );
+  }
 
   if (view === "reviews") {
     const provider: ReviewProvider | undefined =
       params.provider === "airbnb" || params.provider === "booking" ? params.provider : undefined;
     const riskOnly = params.risk === "1";
     const page = Math.max(Number(params.page ?? "1") || 1, 1);
-    const isDate = (v?: string) => Boolean(v && /^\d{4}-\d{2}-\d{2}$/.test(v));
-    const from = isDate(params.from) ? params.from! : null;
-    const to = isDate(params.to) ? params.to! : null;
 
     const filter: ReviewListFilter = {
       provider,
@@ -87,18 +149,6 @@ export default async function MobileComplaintsPage({ searchParams }: PageProps) 
             pageSize: 1,
           }),
     ]);
-
-    /** 기간 칩에 «90일» 처럼 보여주기 위한 역산. 프리셋과 정확히 맞을 때만 일수로 표기한다. */
-    const rangeDays =
-      from && to
-        ? RANGE_PRESET_DAYS.find(
-            (days) =>
-              from ===
-                new Date(new Date(`${to}T00:00:00Z`).getTime() - (days - 1) * 864e5)
-                  .toISOString()
-                  .slice(0, 10) && to === new Date().toISOString().slice(0, 10),
-          ) ?? null
-        : null;
 
     return (
       <MobileShell activeItem="complaints" badges={navBadges} title={dict.complaints.pageTitle}>
