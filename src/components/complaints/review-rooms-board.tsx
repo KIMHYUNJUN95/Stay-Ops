@@ -8,16 +8,28 @@ import { getDictionary, type Locale } from "@/lib/i18n";
 import { getCanonicalPropertyName, localizePropertyName } from "@/lib/room-label-normalization";
 import type { BuildingSummary, PlaceSummary, PlatformStat } from "@/lib/external-reviews";
 
+/**
+ * `PlaceSummary.riskRatio` 는 **이미 퍼센트 단위(0~100)** 다 — 분수가 아니다.
+ * 어드민 콘솔도 `ratio.toFixed(1)}%` 로 그대로 쓴다. 여기서 다시 100을 곱하면 `2220%` 가 된다.
+ */
+const RATIO_BAD = 25;
+const RATIO_WARN = 10;
+
 /** 25% 이상은 붉게, 10% 이상은 앰버, 그 아래는 초록. 목업 «문제 비율 막대» 기준. */
 function ratioTone(ratio: number | null): "bad" | "warn" | "ok" | "none" {
   if (ratio === null) return "none";
-  if (ratio >= 0.25) return "bad";
-  if (ratio >= 0.1) return "warn";
+  if (ratio >= RATIO_BAD) return "bad";
+  if (ratio >= RATIO_WARN) return "warn";
   return "ok";
 }
 
 function fmtRatio(ratio: number | null): string {
-  return ratio === null ? "—" : `${Math.round(ratio * 100)}%`;
+  return ratio === null ? "—" : `${Math.round(ratio)}%`;
+}
+
+/** 막대 너비(%). 비율이 100을 넘을 일은 없지만 데이터가 이상해도 막대가 넘치지 않게 잠근다. */
+function barWidth(ratio: number | null): string {
+  return `${Math.min(100, Math.max(0, ratio ?? 0))}%`;
 }
 
 type Props = {
@@ -110,22 +122,25 @@ export function ReviewRoomsBoard({ locale, summaries, from, to, rangeDays }: Pro
     place,
     propertyId,
     highlight,
+    name,
   }: {
     place: PlaceSummary;
     propertyId: string | null;
     highlight: boolean;
+    /** 표시용 이름. 독채는 «건물 = 객실» 이라 원본 건물명 대신 현지화한 건물 라벨을 넘긴다. */
+    name: string;
   }) {
     const tone = ratioTone(place.riskRatio);
     return (
       <div className={`cx-roomblk${highlight ? " is-hot" : ""}`}>
         <div className="cx-roomblk__h">
-          <span className="cx-roomblk__n">{place.name}</span>
+          <span className="cx-roomblk__n">{name}</span>
           <span className={`cx-roomblk__r mono is-${tone}`}>{fmtRatio(place.riskRatio)}</span>
         </div>
         <span className="cx-bar">
           <span
             className={`cx-bar__f is-${tone}`}
-            style={{ width: `${Math.round((place.riskRatio ?? 0) * 100)}%` }}
+            style={{ width: barWidth(place.riskRatio) }}
           />
         </span>
         <div className="cx-pgrid">
@@ -216,7 +231,7 @@ export function ReviewRoomsBoard({ locale, summaries, from, to, rangeDays }: Pro
                     <span className="cx-bar cx-bar--wide">
                       <span
                         className={`cx-bar__f is-${tone}`}
-                        style={{ width: `${Math.round((building.riskRatio ?? 0) * 100)}%` }}
+                        style={{ width: barWidth(building.riskRatio) }}
                       />
                     </span>
 
@@ -227,6 +242,7 @@ export function ReviewRoomsBoard({ locale, summaries, from, to, rangeDays }: Pro
                           place={building}
                           propertyId={building.propertyId}
                           highlight={tone === "bad"}
+                          name={label}
                         />
                       ) : (
                         building.rooms.map((room) => (
@@ -235,15 +251,18 @@ export function ReviewRoomsBoard({ locale, summaries, from, to, rangeDays }: Pro
                             place={room}
                             propertyId={building.propertyId}
                             highlight={ratioTone(room.riskRatio) === "bad"}
+                            name={room.name}
                           />
                         ))
                       )}
 
                       {building.unmappedCount > 0 && (
                         <div className="cx-unmapped">
-                          <CIc>{CxIcon.link}</CIc>
-                          <span>{t.unmapped.replace("{n}", String(building.unmappedCount))}</span>
-                          <span className="cx-unmapped__s">{t.unmappedNote}</span>
+                          <div className="cx-unmapped__h">
+                            <CIc>{CxIcon.link}</CIc>
+                            <span>{t.unmapped.replace("{n}", String(building.unmappedCount))}</span>
+                          </div>
+                          <p className="cx-unmapped__s">{t.unmappedNote}</p>
                         </div>
                       )}
                       {building.unratedCount > 0 && (
