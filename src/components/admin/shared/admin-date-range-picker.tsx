@@ -158,6 +158,16 @@ export function AdminDateRangePicker({
     ),
   );
 
+  /**
+   * 이 달의 `dayIndex`(0-based) 칸이 구간 띠를 갖는지. 달 밖이면 false 라, 기간이 이웃 달로
+   * 이어져도 격자 끝은 «끊긴 것»으로 보고 둥글게 막는다.
+   */
+  function hasBand(dayIndex: number): boolean {
+    if (dayIndex < 0 || dayIndex >= days || !draftFrom || !draftTo) return false;
+    const val = `${calendarMonth}-${String(dayIndex + 1).padStart(2, "0")}`;
+    return val >= draftFrom && val <= draftTo;
+  }
+
   return (
     <div className={`dpick${open ? " open" : ""}`} ref={rootRef}>
       <button
@@ -225,12 +235,22 @@ export function AdminDateRangePicker({
               const inRange = Boolean(draftFrom && draftTo && val > draftFrom && val < draftTo);
               const isSingle = isFrom && !draftTo;
               const isToday = val === todayKey;
+              // 띠가 «끊기는» 자리는 둥글게 막는다: 주 경계(토→일), 달 첫날이 주중이라 앞이
+              // 빈칸인 자리, 기간이 다음 달로 이어져 격자 끝에서 잘리는 자리.
+              // `gridIndex` 는 앞의 빈칸(`cald--pad`)까지 센 값이라 `% 7` 이 그대로 요일이 된다.
+              const gridIndex = firstDow + i;
+              const isBand = inRange || (isFrom && Boolean(draftTo)) || isTo;
+              const capLeft = gridIndex % 7 === 0 || !hasBand(i - 1);
+              const capRight = gridIndex % 7 === 6 || !hasBand(i + 1);
               const cls = [
                 "cald",
                 isFrom ? "is-from" : "",
                 isTo ? "is-to" : "",
                 isSingle ? "is-single" : "",
                 inRange ? "is-range" : "",
+                isBand ? "is-band" : "",
+                isBand && capLeft ? "is-capl" : "",
+                isBand && capRight ? "is-capr" : "",
                 isToday ? "is-today" : "",
               ]
                 .filter(Boolean)

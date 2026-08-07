@@ -111,6 +111,13 @@ function DeliveryPickerField({
   const days = daysInMonth(cal.y, cal.m);
   const firstDow = new Date(cal.y, cal.m, 1).getDay();
 
+  /** 이 달의 `dayIndex`(0-based) 칸이 구간 띠를 갖는지. 달 밖이면 false — 격자 끝은 끊긴 것으로 본다. */
+  function hasBand(dayIndex: number): boolean {
+    if (dayIndex < 0 || dayIndex >= days || !start || !end) return false;
+    const val = iso(cal.y, cal.m, dayIndex + 1);
+    return val >= start && val <= end;
+  }
+
   function pick(val: string) {
     if (mode === "point") {
       onDateChange(val);
@@ -194,7 +201,13 @@ function DeliveryPickerField({
                   const isFrom = val === start;
                   const isTo = val === end;
                   const inRange = Boolean(start && end && val > start && val < end);
-                  cls = ["cald", isFrom ? "is-from" : "", isTo ? "is-to" : "", isFrom && !end ? "is-single" : "", inRange ? "is-range" : "", val === todayKey ? "is-today" : ""]
+                  // 띠 마감은 AdminDateRangePicker 와 같은 규칙이다 — 이웃 칸에 띠가 닿지 않는
+                  // 쪽(주 경계·달 첫칸·격자 끝)만 둥글게 막는다.
+                  const gridIndex = firstDow + i;
+                  const isBand = inRange || (isFrom && Boolean(end)) || isTo;
+                  const capLeft = gridIndex % 7 === 0 || !hasBand(i - 1);
+                  const capRight = gridIndex % 7 === 6 || !hasBand(i + 1);
+                  cls = ["cald", isFrom ? "is-from" : "", isTo ? "is-to" : "", isFrom && !end ? "is-single" : "", inRange ? "is-range" : "", isBand ? "is-band" : "", isBand && capLeft ? "is-capl" : "", isBand && capRight ? "is-capr" : "", val === todayKey ? "is-today" : ""]
                     .filter(Boolean)
                     .join(" ");
                 } else {

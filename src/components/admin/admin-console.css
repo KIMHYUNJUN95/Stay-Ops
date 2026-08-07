@@ -1950,11 +1950,24 @@
 .adm .cald.is-today { color:var(--adm-primary); font-weight:900; }
 .adm .cald.is-today::after { content:""; position:absolute; bottom:5px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:999px; background:var(--adm-primary); }
 .adm .cald.is-range { background:var(--primary-soft); border-radius:0; color:var(--primary-ink); }
-.adm .cald.is-from, .adm .cald.is-to { background:var(--adm-primary); color:#fff; font-weight:800; }
-.adm .cald.is-from { border-radius:9px 0 0 9px; }
-.adm .cald.is-to { border-radius:0 9px 9px 0; }
-.adm .cald.is-from.is-single { border-radius:9px; }
-.adm .cald.is-from.is-to { border-radius:9px; }
+.adm .cald.is-from, .adm .cald.is-to { background:var(--adm-primary); color:#fff; font-weight:800; border-radius:0; }
+/* ── 선택 구간 띠(`is-band`)의 마감 ──
+   문제 두 가지를 같이 푼다.
+   (1) 격자에 `gap:2px` 가 있어 띠가 하루마다 2px씩 끊겨 점선처럼 보였다. 좌우 2px `box-shadow` 로
+       그 틈을 띠 색으로 메운다. **의도적으로 가상요소 대신 box-shadow 를 쓴다** — `::before` +
+       `z-index:-1` 은 `.calpop` 이 쌓임 맥락일 때만 동작하는데, 발주 처리 모달은 같은 `.calpop` 을
+       `position:static` 인라인으로 쓰기 때문에 그쪽에서 띠가 카드 배경 밑으로 사라진다.
+       box-shadow 는 쌓임 맥락과 무관하게 «배경 바로 바깥»에 그려진다.
+   (2) 띠가 끊기는 쪽 모서리가 각졌다. 이웃 칸에 띠가 닿지 않는 쪽(주 경계·달 첫칸·격자 끝)에만
+       컴포넌트가 `is-capl` / `is-capr` 를 붙이고, 그쪽만 둥글게 막는다.
+   반지름 9px 은 `.cald` 와 같은 값이다 — 콘솔의 모서리 언어를 따른다. */
+.adm .cald.is-band { border-radius:0; }
+.adm .cald.is-band.is-capl { border-top-left-radius:9px; border-bottom-left-radius:9px; }
+.adm .cald.is-band.is-capr { border-top-right-radius:9px; border-bottom-right-radius:9px; }
+.adm .cald.is-band:not(.is-capl) { box-shadow:-2px 0 0 var(--primary-soft); }
+.adm .cald.is-band:not(.is-capr) { box-shadow:2px 0 0 var(--primary-soft); }
+.adm .cald.is-band:not(.is-capl):not(.is-capr) { box-shadow:-2px 0 0 var(--primary-soft), 2px 0 0 var(--primary-soft); }
+.adm .cald.is-from.is-single, .adm .cald.is-from.is-to { border-radius:9px; }
 .adm .cald.is-today.is-from::after, .adm .cald.is-today.is-to::after { background:#fff; }
 .adm .calpop__foot { display:flex; align-items:center; gap:8px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line-soft); }
 .adm .calpop__quick { height:32px; padding:0 12px; border-radius:9px; border:1px solid var(--line); background:var(--card); font-size:12px; font-weight:800; color:var(--adm-primary); cursor:pointer; }
