@@ -43,6 +43,11 @@ export type LeaveBucket = {
 };
 
 export type LeaveBucketState = LeaveBucket & { remaining: number; expired: boolean };
+export type LeaveUsageEvent = {
+  date: string;
+  amount: number;
+  pool: "base" | "bonus";
+};
 
 export type AnnualLeaveSummary = {
   /** "유급 휴가" pool remaining — baseline + base-schedule grants only. */
@@ -62,12 +67,17 @@ export type AnnualLeaveSummary = {
 
 function addMonthsUTC(iso: string, months: number): string {
   const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1 + months, d)).toISOString().slice(0, 10);
+  const target = new Date(Date.UTC(y, m - 1 + months, 1));
+  const targetYear = target.getUTCFullYear();
+  const targetMonth = target.getUTCMonth();
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(targetYear, targetMonth, Math.min(d, lastDay))).toISOString().slice(0, 10);
 }
 
 function addYearsUTC(iso: string, years: number): string {
   const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y + years, m - 1, d)).toISOString().slice(0, 10);
+  const lastDay = new Date(Date.UTC(y + years, m, 0)).getUTCDate();
+  return new Date(Date.UTC(y + years, m - 1, Math.min(d, lastDay))).toISOString().slice(0, 10);
 }
 
 function compareISO(a: string, b: string): number {
@@ -145,27 +155,62 @@ export function computeAnnualLeaveSummary(params: {
   bonusBaselineAmount?: number;
   usedDays?: number;
   specialUsedDays?: number;
+  usageEvents?: LeaveUsageEvent[];
   asOf: string;
 }): AnnualLeaveSummary {
-  const { hireDate, baselineDate, baselineAmount, bonusBaselineAmount = 0, usedDays = 0, specialUsedDays = 0, asOf } =
-    params;
+  const {
+    hireDate,
+    baselineDate,
+    baselineAmount,
+    bonusBaselineAmount = 0,
+    usedDays = 0,
+    specialUsedDays = 0,
+    usageEvents = [],
+    asOf,
+  } = params;
   const buckets = buildLeaveBuckets({ hireDate, baselineDate, baselineAmount, bonusBaselineAmount, asOf });
 
-  function applyUsage(pool: LeaveBucket[], usage: number): LeaveBucketState[] {
-    let unassignedUsage = usage;
-    return pool.map((b) => {
-      const consumed = Math.min(b.amount, Math.max(0, unassignedUsage));
-      unassignedUsage -= consumed;
-      const expired = b.expiresOn !== null && compareISO(b.expiresOn, asOf) < 0;
-      return { ...b, remaining: expired ? 0 : b.amount - consumed, expired };
+  function applyUsage(pool: LeaveBucket[], events: LeaveUsageEvent[]): LeaveBucketState[] {
+    const remaining = new Map(pool.map((bucket) => [bucket.id, bucket.amount]));
+    for (const event of events.sort((a, b) => compareISO(a.date, b.date))) {
+      if (compareISO(event.date, asOf) > 0) continue;
+      let unassigned = Math.max(0, event.amount);
+      const effectiveDate = event.date;
+      for (const bucket of pool) {
+        if (unassigned <= 0) break;
+        if (compareISO(bucket.grantedOn, effectiveDate) > 0) continue;
+        if (bucket.expiresOn !== null && compareISO(bucket.expiresOn, effectiveDate) < 0) continue;
+        const available = remaining.get(bucket.id) ?? 0;
+        const consumed = Math.min(available, unassigned);
+        remaining.set(bucket.id, available - consumed);
+        unassigned -= consumed;
+      }
+    }
+    return pool.map((bucket) => {
+      const expired = bucket.expiresOn !== null && compareISO(bucket.expiresOn, asOf) < 0;
+      return { ...bucket, remaining: expired ? 0 : (remaining.get(bucket.id) ?? 0), expired };
     });
   }
 
   const basePool = buckets.filter((b) => b.kind !== "bonus");
   const bonusPool = buckets.filter((b) => b.kind === "bonus");
-  const stated = [...applyUsage(basePool, usedDays), ...applyUsage(bonusPool, specialUsedDays)].sort((a, b) =>
-    compareISO(a.grantedOn, b.grantedOn),
-  );
+  const normalizedEvents = [
+    ...usageEvents.filter((event) => Number.isFinite(event.amount) && event.amount > 0),
+    ...(usedDays > 0 ? [{ date: asOf, amount: usedDays, pool: "base" as const }] : []),
+    ...(specialUsedDays > 0
+      ? [{ date: asOf, amount: specialUsedDays, pool: "bonus" as const }]
+      : []),
+  ];
+  const stated = [
+    ...applyUsage(
+      basePool,
+      normalizedEvents.filter((event) => event.pool === "base"),
+    ),
+    ...applyUsage(
+      bonusPool,
+      normalizedEvents.filter((event) => event.pool === "bonus"),
+    ),
+  ].sort((a, b) => compareISO(a.grantedOn, b.grantedOn));
 
   const baseRemaining = stated.filter((b) => b.kind !== "bonus").reduce((sum, b) => sum + b.remaining, 0);
   const bonusRemaining = stated.filter((b) => b.kind === "bonus").reduce((sum, b) => sum + b.remaining, 0);

@@ -5,7 +5,13 @@
 
 import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
-import { computeAnnualLeaveSummary, tokyoToday, type AnnualLeaveSummary } from "@/lib/annual-leave";
+import { getRpcClient } from "@/lib/supabase/rpc";
+import {
+  computeAnnualLeaveSummary,
+  tokyoToday,
+  type AnnualLeaveSummary,
+  type LeaveUsageEvent,
+} from "@/lib/annual-leave";
 
 type Service = ReturnType<typeof getSupabaseServiceClient>;
 
@@ -22,7 +28,7 @@ export async function getAnnualLeaveBaseline(
   organizationId: string,
   userId: string,
 ): Promise<AnnualLeaveBaselineRow | null> {
-  const [{ data: profileResult }, { data: baselineResult }] = await Promise.all([
+  const [profileQuery, baselineQuery] = await Promise.all([
     service.from("profiles").select("hire_date").eq("id", userId).maybeSingle(),
     service
       .from("annual_leave_baselines")
@@ -31,6 +37,10 @@ export async function getAnnualLeaveBaseline(
       .eq("user_id", userId)
       .maybeSingle(),
   ]);
+  if (profileQuery.error) throw profileQuery.error;
+  if (baselineQuery.error) throw baselineQuery.error;
+  const profileResult = profileQuery.data;
+  const baselineResult = baselineQuery.data;
   const profile = profileResult as { hire_date: string | null } | null;
   const baseline = baselineResult as { base_amount: number; bonus_amount: number; baseline_date: string } | null;
 
@@ -45,8 +55,8 @@ export async function getAnnualLeaveBaseline(
 }
 
 /**
- * Self-service upsert: sets hire_date on the profile and writes the balance baseline as of today.
- * Overwrites any prior baseline (the employee is expected to do this once at setup).
+ * Sets hire_date and the balance baseline atomically. Self-service callers may create the baseline
+ * once; approver-gated admin callers explicitly opt into overwrite.
  *
  * **검증이 여기 있는 이유 (2026-08-03).** 이 함수는 service-role 클라이언트로 쓰므로 RLS 가
  * 아무것도 막지 않는다. 상한·자격 검사가 관리자 경로(`saveEmployeeLeaveBaseline`)에만 있어서,
@@ -64,6 +74,7 @@ export async function setAnnualLeaveBaselineForUser(
   organizationId: string,
   userId: string,
   input: { hireDate: string; baseAmount: number; bonusAmount?: number },
+  options: { allowOverwrite?: boolean } = {},
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.hireDate)) return { ok: false, error: "invalid_dates" };
   if (!Number.isFinite(input.baseAmount) || input.baseAmount < 0 || input.baseAmount > MAX_LEAVE_GRANT) {
@@ -75,35 +86,30 @@ export async function setAnnualLeaveBaselineForUser(
   }
 
   // 활성 멤버십 + 시급직 제외. 조직 스코프로 조회하므로 남의 조직 사용자에게는 쓸 수 없다.
-  const { data: memData } = await service
+  const { data: memData, error: memberError } = await service
     .from("memberships")
     .select("status, role")
     .eq("organization_id", organizationId)
     .eq("user_id", userId)
     .maybeSingle();
+  if (memberError) return { ok: false, error: "membership_lookup_failed" };
   const membership = memData as { status: string; role: string } | null;
   if (!membership || membership.status !== "active") return { ok: false, error: "target_not_found" };
   if (membership.role === LEAVE_HOURLY_ROLE) return { ok: false, error: "hourly_excluded" };
 
   const baselineDate = tokyoToday();
 
-  const { error: profileError } = await service
-    .from("profiles")
-    .update({ hire_date: input.hireDate } as never)
-    .eq("id", userId);
-  if (profileError) return { ok: false, error: "profile_update_failed" };
-
-  const { error: baselineError } = await service.from("annual_leave_baselines").upsert(
-    {
-      organization_id: organizationId,
-      user_id: userId,
-      base_amount: input.baseAmount,
-      bonus_amount: input.bonusAmount ?? 0,
-      baseline_date: baselineDate,
-    } as never,
-    { onConflict: "organization_id,user_id" },
-  );
-  if (baselineError) return { ok: false, error: "baseline_upsert_failed" };
+  const { data, error } = await getRpcClient(service).rpc<string>("set_annual_leave_baseline_atomic", {
+    p_organization_id: organizationId,
+    p_user_id: userId,
+    p_hire_date: input.hireDate,
+    p_base_amount: input.baseAmount,
+    p_bonus_amount: bonus,
+    p_baseline_date: baselineDate,
+    p_allow_overwrite: options.allowOverwrite ?? false,
+  });
+  if (error) return { ok: false, error: "baseline_update_failed" };
+  if (data !== "ok") return { ok: false, error: data || "baseline_update_failed" };
 
   return { ok: true };
 }
@@ -118,19 +124,41 @@ export async function sumApprovedLeaveUsage(
   organizationId: string,
   userId: string,
 ): Promise<{ base: number; bonus: number }> {
-  const { data } = await service
+  const events = await getApprovedLeaveUsageEvents(service, organizationId, userId);
+  return events.reduce(
+    (sum, event) => {
+      sum[event.pool] += event.amount;
+      return sum;
+    },
+    { base: 0, bonus: 0 },
+  );
+}
+
+export async function getApprovedLeaveUsageEvents(
+  service: Service,
+  organizationId: string,
+  userId: string,
+): Promise<LeaveUsageEvent[]> {
+  const { data, error } = await service
     .from("annual_leave_requests")
-    .select("leave_type, days_count")
+    .select("leave_type, start_date, days_count")
     .eq("organization_id", organizationId)
     .eq("user_id", userId)
     .eq("status", "approved");
-  let base = 0;
-  let bonus = 0;
-  for (const r of (data ?? []) as { leave_type: string; days_count: number }[]) {
-    if (r.leave_type === "paid") base += Number(r.days_count);
-    else if (r.leave_type === "special") bonus += Number(r.days_count);
+  if (error) throw new Error(`annual_leave_usage_read_failed:${error.message}`);
+  const events: LeaveUsageEvent[] = [];
+  for (const row of (data ?? []) as {
+    leave_type: string;
+    start_date: string;
+    days_count: number;
+  }[]) {
+    if (row.leave_type === "paid") {
+      events.push({ date: row.start_date, amount: Number(row.days_count), pool: "base" });
+    } else if (row.leave_type === "special") {
+      events.push({ date: row.start_date, amount: Number(row.days_count), pool: "bonus" });
+    }
   }
-  return { base, bonus };
+  return events;
 }
 
 /** Reads the baseline and computes today's summary, with approved usage deducted. Null = not set up. */
@@ -142,14 +170,13 @@ export async function getMyAnnualLeaveSummary(
   const baseline = await getAnnualLeaveBaseline(service, organizationId, userId);
   if (!baseline) return null;
 
-  const usage = await sumApprovedLeaveUsage(service, organizationId, userId);
+  const usageEvents = await getApprovedLeaveUsageEvents(service, organizationId, userId);
   return computeAnnualLeaveSummary({
     hireDate: baseline.hireDate,
     baselineDate: baseline.baselineDate,
     baselineAmount: baseline.baseAmount,
     bonusBaselineAmount: baseline.bonusAmount,
-    usedDays: usage.base,
-    specialUsedDays: usage.bonus,
+    usageEvents,
     asOf: tokyoToday(),
   });
 }

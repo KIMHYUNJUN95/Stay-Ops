@@ -60,12 +60,10 @@ export type SubmitLeaveRequestResult = { ok: true; id: string } | { ok: false; e
 export async function submitLeaveRequestAction(input: {
   /** Set when continuing an existing draft — updates that row instead of creating a new one. */
   requestId?: string;
-  applicantName: string;
   leaveType: string;
   startDate: string;
   endDate: string;
   durationUnit: string;
-  daysCount: number;
   reason: string;
   emergencyContact: string;
   asDraft?: boolean;
@@ -81,18 +79,34 @@ export async function submitLeaveRequestAction(input: {
     return { ok: false, error: "invalid_dates" };
   }
   if (input.endDate < input.startDate) return { ok: false, error: "invalid_date_range" };
-  if (!Number.isFinite(input.daysCount) || input.daysCount <= 0) return { ok: false, error: "invalid_days_count" };
   if (!input.asDraft && !input.reason.trim()) return { ok: false, error: "missing_reason" };
   if (!input.asDraft && !input.emergencyContact.trim()) return { ok: false, error: "missing_emergency_contact" };
 
   const service = getSupabaseServiceClient();
+  const [{ data: membership, error: membershipError }, { data: profile, error: profileError }] =
+    await Promise.all([
+      service
+        .from("memberships")
+        .select("status, role")
+        .eq("organization_id", session.organization.id)
+        .eq("user_id", session.user.id)
+        .maybeSingle(),
+      service.from("profiles").select("name").eq("id", session.user.id).maybeSingle(),
+    ]);
+  if (membershipError || profileError) return { ok: false, error: "lookup_failed" };
+  const member = membership as { status: string; role: string } | null;
+  const profileName = (profile as { name: string } | null)?.name?.trim();
+  if (!member || member.status !== "active" || member.role === "part_time_staff") {
+    return { ok: false, error: "not_eligible" };
+  }
+  if (!profileName) return { ok: false, error: "profile_not_found" };
+
   const requestInput = {
-    applicantName: input.applicantName,
+    applicantName: profileName,
     leaveType: input.leaveType as LeaveRequestType,
     startDate: input.startDate,
     endDate: input.endDate,
     durationUnit: input.durationUnit as LeaveDurationUnit,
-    daysCount: input.daysCount,
     reason: input.reason,
     emergencyContact: input.emergencyContact,
     asDraft: input.asDraft,

@@ -5,6 +5,7 @@
 
 import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import { normalizeLeaveRequestPeriod } from "@/lib/annual-leave-request-normalization";
 
 type Service = ReturnType<typeof getSupabaseServiceClient>;
 
@@ -68,7 +69,6 @@ export type CreateLeaveRequestInput = {
   startDate: string;
   endDate: string;
   durationUnit: LeaveDurationUnit;
-  daysCount: number;
   reason: string;
   emergencyContact: string;
   imageUrls?: string[];
@@ -81,6 +81,8 @@ export async function createLeaveRequest(
   userId: string,
   input: CreateLeaveRequestInput,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const normalized = normalizeLeaveRequestPeriod(input);
+  if (!normalized) return { ok: false, error: "invalid_dates" };
   const status: LeaveRequestStatus = input.asDraft ? "draft" : "requested";
   const { data, error } = await service
     .from("annual_leave_requests")
@@ -89,10 +91,10 @@ export async function createLeaveRequest(
       user_id: userId,
       applicant_name: input.applicantName,
       leave_type: input.leaveType,
-      start_date: input.startDate,
-      end_date: input.endDate,
-      duration_unit: input.durationUnit,
-      days_count: input.daysCount,
+      start_date: normalized.startDate,
+      end_date: normalized.endDate,
+      duration_unit: normalized.durationUnit,
+      days_count: normalized.daysCount,
       reason: input.reason,
       emergency_contact: input.emergencyContact,
       image_urls: input.imageUrls ?? [],
@@ -118,27 +120,30 @@ export async function updateDraftLeaveRequest(
   requestId: string,
   input: CreateLeaveRequestInput,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  const { data: existing } = await service
+  const normalized = normalizeLeaveRequestPeriod(input);
+  if (!normalized) return { ok: false, error: "invalid_dates" };
+
+  const { data: existing, error: existingError } = await service
     .from("annual_leave_requests")
     .select("status")
     .eq("id", requestId)
     .eq("organization_id", organizationId)
     .eq("user_id", userId)
     .maybeSingle();
-  if ((existing as { status: string } | null)?.status !== "draft") {
+  if (existingError || (existing as { status: string } | null)?.status !== "draft") {
     return { ok: false, error: "not_editable" };
   }
 
   const status: LeaveRequestStatus = input.asDraft ? "draft" : "requested";
-  const { error } = await service
+  const { data, error } = await service
     .from("annual_leave_requests")
     .update({
       applicant_name: input.applicantName,
       leave_type: input.leaveType,
-      start_date: input.startDate,
-      end_date: input.endDate,
-      duration_unit: input.durationUnit,
-      days_count: input.daysCount,
+      start_date: normalized.startDate,
+      end_date: normalized.endDate,
+      duration_unit: normalized.durationUnit,
+      days_count: normalized.daysCount,
       reason: input.reason,
       emergency_contact: input.emergencyContact,
       image_urls: input.imageUrls ?? [],
@@ -147,9 +152,12 @@ export async function updateDraftLeaveRequest(
     } as never)
     .eq("id", requestId)
     .eq("organization_id", organizationId)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .eq("status", "draft")
+    .select("id")
+    .maybeSingle();
 
-  if (error) return { ok: false, error: "update_failed" };
+  if (error || !data) return { ok: false, error: "update_failed" };
   return { ok: true, id: requestId };
 }
 

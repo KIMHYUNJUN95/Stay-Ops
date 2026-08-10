@@ -14,10 +14,15 @@ import {
   LEAVE_HOURLY_ROLE,
   MAX_LEAVE_BONUS,
   MAX_LEAVE_GRANT,
+  getApprovedLeaveUsageEvents,
   setAnnualLeaveBaselineForUser,
-  sumApprovedLeaveUsage,
 } from "@/lib/annual-leave-server";
-import { computeAnnualLeaveSummary, getScheduledGrants, tokyoToday } from "@/lib/annual-leave";
+import {
+  computeAnnualLeaveSummary,
+  getScheduledGrants,
+  tokyoToday,
+  type LeaveUsageEvent,
+} from "@/lib/annual-leave";
 
 const BEREAVEMENT_DAYS = 3;
 
@@ -116,14 +121,13 @@ export async function getApplicantLeaveSummary(
     };
   }
 
-  const usage = await sumApprovedLeaveUsage(service, organizationId, userId);
+  const usageEvents = await getApprovedLeaveUsageEvents(service, organizationId, userId);
   const summary = computeAnnualLeaveSummary({
     hireDate: baseline.hireDate,
     baselineDate: baseline.baselineDate,
     baselineAmount: baseline.baseAmount,
     bonusBaselineAmount: baseline.bonusAmount,
-    usedDays: usage.base,
-    specialUsedDays: usage.bonus,
+    usageEvents,
     asOf: tokyoToday(),
   });
 
@@ -211,7 +215,7 @@ export async function listAdminLeaveBalances(session: AppSession): Promise<Admin
   const roleByUser = new Map(members.map((m) => [m.user_id, m.role]));
   const devIds = await platformAdminIdSet(service, userIds);
 
-  const [{ data: profData }, { data: baseData }, { data: reqData }] = await Promise.all([
+  const [profileResult, baselineResult, requestResult] = await Promise.all([
     service.from("profiles").select("id, name, hire_date").in("id", userIds),
     service
       .from("annual_leave_baselines")
@@ -220,11 +224,18 @@ export async function listAdminLeaveBalances(session: AppSession): Promise<Admin
       .in("user_id", userIds),
     service
       .from("annual_leave_requests")
-      .select("user_id, leave_type, days_count")
+      .select("user_id, leave_type, start_date, days_count")
       .eq("organization_id", organizationId)
       .eq("status", "approved")
       .in("user_id", userIds),
   ]);
+
+  if (profileResult.error) throw profileResult.error;
+  if (baselineResult.error) throw baselineResult.error;
+  if (requestResult.error) throw requestResult.error;
+  const profData = profileResult.data;
+  const baseData = baselineResult.data;
+  const reqData = requestResult.data;
 
   const profiles = new Map(
     ((profData ?? []) as { id: string; name: string; hire_date: string | null }[]).map((p) => [p.id, p]),
@@ -242,11 +253,22 @@ export async function listAdminLeaveBalances(session: AppSession): Promise<Admin
 
   // Approved usage per user, split by pool: 유급(paid) → base, 특별(special) → bonus.
   const usage = new Map<string, { base: number; bonus: number }>();
-  for (const r of (reqData ?? []) as { user_id: string; leave_type: string; days_count: number }[]) {
+  const usageEvents = new Map<string, LeaveUsageEvent[]>();
+  for (const r of (reqData ?? []) as {
+    user_id: string;
+    leave_type: string;
+    start_date: string;
+    days_count: number;
+  }[]) {
     const u = usage.get(r.user_id) ?? { base: 0, bonus: 0 };
-    if (r.leave_type === "paid") u.base += Number(r.days_count);
-    else if (r.leave_type === "special") u.bonus += Number(r.days_count);
+    const amount = Number(r.days_count);
+    if (r.leave_type === "paid") u.base += amount;
+    else if (r.leave_type === "special") u.bonus += amount;
+    else continue;
     usage.set(r.user_id, u);
+    const events = usageEvents.get(r.user_id) ?? [];
+    events.push({ date: r.start_date, amount, pool: r.leave_type === "paid" ? "base" : "bonus" });
+    usageEvents.set(r.user_id, events);
   }
 
   const rows: AdminLeaveBalanceRow[] = userIds.map((userId) => {
@@ -272,8 +294,7 @@ export async function listAdminLeaveBalances(session: AppSession): Promise<Admin
         baselineDate: baseline.baseline_date,
         baselineAmount: Number(baseline.base_amount),
         bonusBaselineAmount: Number(baseline.bonus_amount),
-        usedDays: used.base,
-        specialUsedDays: used.bonus,
+        usageEvents: usageEvents.get(userId) ?? [],
         asOf: today,
       });
       // grant reconciles as remaining + used, so "remaining / grant" always adds up in the UI.
@@ -353,7 +374,7 @@ export async function saveEmployeeLeaveBaseline(
     hireDate: input.hireDate,
     baseAmount: input.grant,
     bonusAmount: input.bonus,
-  });
+  }, { allowOverwrite: true });
 }
 
 // Default approver role assigned when a member is toggled on. `is_leave_approver()` only checks for a
@@ -827,7 +848,6 @@ export async function createAdminLeaveRequest(
     startDate: normalized.startDate,
     endDate: normalized.endDate,
     durationUnit: normalized.durationUnit,
-    daysCount: normalized.daysCount,
     reason: input.reason,
     emergencyContact: input.emergencyContact,
     asDraft: false,

@@ -92,6 +92,7 @@ export type TransportItemRow = {
 
 export type LinkedTransportCandidate = {
   type: "attendance" | "cleaning";
+  sourceId: string;
   date: string; // 'YYYY-MM-DD'
   attendanceSessionId?: string;
   propertyId?: string;
@@ -303,28 +304,32 @@ export async function getLinkedTransportCandidates(
   // 1) Attendance sessions in the month.
   const attRes = await service
     .from("attendance_sessions")
-    .select("id, operating_date, clock_in_site_id")
+    .select("id, operating_date, clock_in_site_id, status")
     .eq("organization_id", organizationId)
     .eq("user_id", userId)
     .gte("operating_date", first)
     .lte("operating_date", last)
+    .neq("status", "invalid")
     .order("operating_date", { ascending: true });
+  if (attRes.error) throw attRes.error;
   const attRows = (attRes.data ?? []) as {
     id: string;
     operating_date: string;
     clock_in_site_id: string | null;
+    status: string;
   }[];
 
   const siteIds = Array.from(
     new Set(attRows.map((r) => r.clock_in_site_id).filter(Boolean) as string[]),
   );
   const siteNames = new Map<string, string>();
-  if (siteIds.length > 0) {
+    if (siteIds.length > 0) {
     const sitesRes = await service
       .from("attendance_sites")
       .select("id, name")
       .eq("organization_id", organizationId)
       .in("id", siteIds);
+    if (sitesRes.error) throw sitesRes.error;
     for (const s of (sitesRes.data ?? []) as { id: string; name: string }[]) {
       siteNames.set(s.id, s.name);
     }
@@ -335,6 +340,7 @@ export async function getLinkedTransportCandidates(
       (row.clock_in_site_id ? siteNames.get(row.clock_in_site_id) : null) ?? "";
     candidates.push({
       type: "attendance",
+      sourceId: row.id,
       date: row.operating_date,
       attendanceSessionId: row.id,
       buildingLabel,
@@ -353,6 +359,7 @@ export async function getLinkedTransportCandidates(
     .gte("cleaning_date", first)
     .lte("cleaning_date", last)
     .order("cleaning_date", { ascending: true });
+  if (cleanRes.error) throw cleanRes.error;
   const cleanRows = (cleanRes.data ?? []) as {
     id: string;
     cleaning_date: string;
@@ -369,6 +376,7 @@ export async function getLinkedTransportCandidates(
       .select("room_label, property_id")
       .eq("organization_id", organizationId)
       .in("room_label", roomLabels);
+    if (roomsRes.error) throw roomsRes.error;
     const roomRows = (roomsRes.data ?? []) as { room_label: string; property_id: string }[];
     for (const r of roomRows) {
       if (!roomByLabel.has(r.room_label)) roomByLabel.set(r.room_label, { propertyId: r.property_id });
@@ -380,6 +388,7 @@ export async function getLinkedTransportCandidates(
         .select("id, name, display_name_ko")
         .eq("organization_id", organizationId)
         .in("id", propertyIds);
+      if (propRes.error) throw propRes.error;
       for (const p of (propRes.data ?? []) as {
         id: string;
         name: string;
@@ -404,6 +413,7 @@ export async function getLinkedTransportCandidates(
     if (row.task_label) workContext.taskLabel = row.task_label;
     candidates.push({
       type: "cleaning",
+      sourceId: row.id,
       date: row.cleaning_date,
       propertyId,
       buildingLabel,

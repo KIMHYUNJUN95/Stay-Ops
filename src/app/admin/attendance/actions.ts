@@ -14,6 +14,8 @@
 // finalization, dashboard actions, and exports too.
 
 import { revalidatePath } from "next/cache";
+import type { Json } from "@/types/database";
+import { getRpcClient } from "@/lib/supabase/rpc";
 import {
   createNotification,
 } from "@/lib/notifications/create";
@@ -151,8 +153,11 @@ export async function setCorrectionInReview(requestId: string): Promise<ReviewAc
     .from("attendance_correction_requests")
     .update({ status: "in_review", reviewed_by_user_id: session.user.id } as never)
     .eq("id", requestId)
-    .eq("status", "requested");
+    .eq("status", "requested")
+    .select("id")
+    .maybeSingle();
   if (upd.error) return { ok: false, reason: "error" };
+  if (!upd.data) return { ok: false, reason: "invalid" };
 
   revalidateSelfView();
   return { ok: true };
@@ -188,18 +193,6 @@ export async function approveCorrectionRequest(
     return { ok: false, reason: "invalid" };
   }
 
-  if (request.status === "requested") {
-    const claim = await service
-      .from("attendance_correction_requests")
-      .update({ status: "in_review", reviewed_by_user_id: actorId } as never)
-      .eq("id", request.id)
-      .eq("organization_id", organizationId)
-      .eq("status", "requested")
-      .select("id")
-      .maybeSingle();
-    if (claim.error || !claim.data) return { ok: false, reason: "invalid" };
-  }
-
   // Final authoritative values: admin override, else the requester's proposal.
   const finalInAt = input.finalClockInAt ?? request.desired_clock_in_at;
   const finalOutAt = input.finalClockOutAt ?? request.desired_clock_out_at;
@@ -207,7 +200,11 @@ export async function approveCorrectionRequest(
     input.finalClockInSiteId ?? input.finalSiteId ?? request.desired_clock_in_site_id;
   const finalClockOutSiteId =
     input.finalClockOutSiteId ?? input.finalSiteId ?? request.desired_clock_out_site_id;
-  const nowIso = new Date().toISOString();
+  let appliedSessionId: string | null = request.session_id;
+  let createAppliedSession = false;
+  let auditAction = "correction_apply";
+  let auditBefore: Record<string, Json | undefined> = {};
+  let sessionValues: Record<string, Json | undefined> = {};
 
   if (request.session_id) {
     const siteIdsToValidate = Array.from(
@@ -232,7 +229,7 @@ export async function approveCorrectionRequest(
     const s = sRes.data as AttendanceSessionRow | null;
     if (!s) return { ok: false, reason: "not_found" };
 
-    const update: Record<string, unknown> = { review_state: "approved_correction" };
+    const update: Record<string, Json | undefined> = { review_state: "approved_correction" };
     if (finalInAt != null) update.clock_in_at = finalInAt;
     if (finalOutAt != null) update.clock_out_at = finalOutAt;
     if (finalClockInSiteId != null) update.clock_in_site_id = finalClockInSiteId;
@@ -254,15 +251,6 @@ export async function approveCorrectionRequest(
     }
     if (crossesTokyoMidnight(resultingIn, resultingOut)) update.review_state = "review_required";
 
-    const updRes = await service
-      .from("attendance_sessions")
-      .update(update as never)
-      .eq("id", s.id)
-      .eq("organization_id", organizationId)
-      .in("review_state", ["normal", "review_required", "pending_correction", "approved_correction"]);
-    if (updRes.error) return { ok: false, reason: "error" };
-
-    // Audit the authoritative change.
     const before = {
       clock_in_at: s.clock_in_at,
       clock_out_at: s.clock_out_at,
@@ -271,15 +259,8 @@ export async function approveCorrectionRequest(
       status: s.status,
       review_state: s.review_state,
     };
-    await service.from("attendance_session_audits").insert({
-      organization_id: organizationId,
-      session_id: s.id,
-      actor_user_id: actorId,
-      action_type: "correction_apply",
-      reason: input.comment?.trim() ? input.comment.trim() : "Correction request approved",
-      before_json: before,
-      after_json: update,
-    } as never);
+    auditBefore = before;
+    sessionValues = update;
   } else {
     if (!finalInAt || !finalOutAt || !finalClockInSiteId) {
       return { ok: false, reason: "invalid" };
@@ -317,46 +298,35 @@ export async function approveCorrectionRequest(
       clock_out_method: "manual",
       manual_created: true,
       manual_created_by_user_id: actorId,
-      manual_created_reason: input.comment?.trim()
-        ? input.comment.trim()
-        : "Correction request approved",
+      manual_created_reason:
+        input.comment?.trim() ||
+        getDictionary(session.user.preferredLanguage).admin.attendanceConsole.auditReasonCorrectionApproved,
     };
-    const ins = (await service
-      .from("attendance_sessions")
-      .insert(insertFields as never)
-      .select("id")
-      .single()) as { data: { id: string } | null; error: { message: string } | null };
-    if (ins.error || !ins.data) return { ok: false, reason: "error" };
-
-    await service.from("attendance_session_audits").insert({
-      organization_id: organizationId,
-      session_id: ins.data.id,
-      actor_user_id: actorId,
-      action_type: "manual_create",
-      reason: input.comment?.trim()
-        ? input.comment.trim()
-        : "Session created from approved correction request",
-      before_json: {},
-      after_json: insertFields,
-    } as never);
+    appliedSessionId = null;
+    createAppliedSession = true;
+    auditAction = "manual_create";
+    sessionValues = insertFields;
   }
 
-  const upd = await service
-    .from("attendance_correction_requests")
-    .update({
-      status: "approved",
-      review_comment: input.comment?.trim() ? input.comment.trim() : null,
-      reviewed_by_user_id: actorId,
-      reviewed_at: nowIso,
-    } as never)
-    .eq("id", request.id)
-    .eq("organization_id", organizationId)
-    .eq("status", "in_review")
-    .eq("reviewed_by_user_id", actorId)
-    .select("id")
-    .maybeSingle();
-  if (upd.error) return { ok: false, reason: "error" };
-  if (!upd.data) return { ok: false, reason: "invalid" };
+  const correctionReason =
+    input.comment?.trim() ||
+    getDictionary(session.user.preferredLanguage).admin.attendanceConsole.auditReasonCorrectionApproved;
+  const { data: atomicSessionId, error: atomicError } = await getRpcClient(service).rpc<string>(
+    "approve_attendance_correction_atomic",
+    {
+      p_organization_id: organizationId,
+      p_request_id: request.id,
+      p_actor_user_id: actorId,
+      p_comment: correctionReason,
+      p_session_id: appliedSessionId,
+      p_create_session: createAppliedSession,
+      p_action_type: auditAction,
+      p_before_json: auditBefore,
+      p_session_values: sessionValues,
+    },
+  );
+  if (atomicError) return { ok: false, reason: "error" };
+  if (!atomicSessionId) return { ok: false, reason: "invalid" };
 
   await createNotification(service, {
     organizationId,
@@ -371,7 +341,7 @@ export async function approveCorrectionRequest(
       subjectUserId: request.requested_by_user_id,
       subjectName: await getProfileName(service, request.requested_by_user_id),
       correctionId: request.id,
-      sessionId: request.session_id,
+      sessionId: atomicSessionId,
     },
   });
 
@@ -499,6 +469,7 @@ export type UpdateManualSessionInput = {
   clockInSiteId?: string | null;
   clockOutSiteId?: string | null;
   reviewState?: AttendanceReviewState;
+  breakMinutes?: number;
 };
 
 function isHhmm(v: string): boolean {
@@ -590,6 +561,7 @@ export async function createManualAttendanceSession(
     .eq("user_id", input.userId)
     .eq("status", "active")
     .maybeSingle();
+  if (member.error) return { ok: false, reason: "error" };
   if (!member.data) return { ok: false, reason: "target_invalid" };
 
   // Location: either a registered work-site or a free-text manual location; at least one is required.
@@ -647,23 +619,17 @@ export async function createManualAttendanceSession(
     manual_created_reason: input.reason.trim(),
   };
 
-  const ins = (await service
-    .from("attendance_sessions")
-    .insert(insertFields as never)
-    .select("id")
-    .single()) as { data: { id: string } | null; error: { message: string } | null };
-  if (ins.error || !ins.data) return { ok: false, reason: "error" };
-  const sessionId = ins.data.id;
-
-  await service.from("attendance_session_audits").insert({
-    organization_id: organizationId,
-    session_id: sessionId,
-    actor_user_id: actorId,
-    action_type: "manual_create",
-    reason: input.reason.trim(),
-    before_json: {},
-    after_json: insertFields,
-  } as never);
+  const { data: sessionId, error: createError } = await getRpcClient(service).rpc<string>(
+    "create_attendance_session_with_audit",
+    {
+      p_organization_id: organizationId,
+      p_actor_user_id: actorId,
+      p_action_type: "manual_create",
+      p_reason: input.reason.trim(),
+      p_values: insertFields,
+    },
+  );
+  if (createError || !sessionId) return { ok: false, reason: "error" };
 
   revalidateSelfView();
   return { ok: true, id: sessionId };
@@ -736,6 +702,12 @@ export async function updateAttendanceSessionAdmin(
     if (!ATTENDANCE_REVIEW_STATES.includes(input.reviewState)) return { ok: false, reason: "invalid" };
     update.review_state = input.reviewState;
   }
+  if (input.breakMinutes !== undefined) {
+    if (!Number.isInteger(input.breakMinutes) || input.breakMinutes < 0) {
+      return { ok: false, reason: "invalid" };
+    }
+    update.break_total_minutes = input.breakMinutes;
+  }
 
   if (Object.keys(update).length === 0) return { ok: false, reason: "invalid" };
 
@@ -751,8 +723,26 @@ export async function updateAttendanceSessionAdmin(
     const resultingOut = clockOutChanged ? (update.clock_out_at as string | null) : s.clock_out_at;
     if (!validClockOrder(resultingIn, resultingOut)) return { ok: false, reason: "invalid" };
     if (resultingIn && resultingOut) update.status = "completed";
-    else if (s.status === "completed" && !resultingOut) update.status = "open";
+    else if (resultingIn && !resultingOut) update.status = "open";
+    else return { ok: false, reason: "invalid" };
     if (crossesTokyoMidnight(resultingIn, resultingOut)) update.review_state = "review_required";
+  }
+
+  let existingBreakMinutes = 0;
+  if (input.breakMinutes !== undefined) {
+    const breakResult = await service
+      .from("attendance_breaks")
+      .select("started_at, ended_at")
+      .eq("organization_id", organizationId)
+      .eq("session_id", s.id);
+    if (breakResult.error) return { ok: false, reason: "error" };
+    existingBreakMinutes = ((breakResult.data ?? []) as {
+      started_at: string;
+      ended_at: string | null;
+    }[]).reduce((sum, item) => {
+      if (!item.ended_at) return sum;
+      return sum + Math.max(0, Math.floor((Date.parse(item.ended_at) - Date.parse(item.started_at)) / 60_000));
+    }, 0);
   }
 
   const before = {
@@ -762,24 +752,22 @@ export async function updateAttendanceSessionAdmin(
     clock_out_site_id: s.clock_out_site_id,
     status: s.status,
     review_state: s.review_state,
+    ...(input.breakMinutes !== undefined ? { break_total_minutes: existingBreakMinutes } : {}),
   };
 
-  const updRes = await service
-    .from("attendance_sessions")
-    .update(update as never)
-    .eq("id", s.id)
-    .eq("organization_id", organizationId);
-  if (updRes.error) return { ok: false, reason: "error" };
-
-  await service.from("attendance_session_audits").insert({
-    organization_id: organizationId,
-    session_id: s.id,
-    actor_user_id: actorId,
-    action_type: "manual_update",
-    reason: input.reason.trim(),
-    before_json: before,
-    after_json: update,
-  } as never);
+  const { data: updated, error: updateError } = await getRpcClient(service).rpc<boolean>(
+    "mutate_attendance_session_with_audit",
+    {
+      p_organization_id: organizationId,
+      p_session_id: s.id,
+      p_actor_user_id: actorId,
+      p_action_type: "manual_update",
+      p_reason: input.reason.trim(),
+      p_before_json: before,
+      p_changes: update as never,
+    },
+  );
+  if (updateError || !updated) return { ok: false, reason: "error" };
 
   revalidateSelfView();
   return { ok: true };
@@ -822,22 +810,19 @@ export async function invalidateAttendanceSession(
     invalidated_reason: reason.trim(),
   };
 
-  const updRes = await service
-    .from("attendance_sessions")
-    .update(after as never)
-    .eq("id", s.id)
-    .eq("organization_id", organizationId);
-  if (updRes.error) return { ok: false, reason: "error" };
-
-  await service.from("attendance_session_audits").insert({
-    organization_id: organizationId,
-    session_id: s.id,
-    actor_user_id: actorId,
-    action_type: "invalidate",
-    reason: reason.trim(),
-    before_json: before,
-    after_json: after,
-  } as never);
+  const { data: updated, error: updateError } = await getRpcClient(service).rpc<boolean>(
+    "mutate_attendance_session_with_audit",
+    {
+      p_organization_id: organizationId,
+      p_session_id: s.id,
+      p_actor_user_id: actorId,
+      p_action_type: "invalidate",
+      p_reason: reason.trim(),
+      p_before_json: before,
+      p_changes: after,
+    },
+  );
+  if (updateError || !updated) return { ok: false, reason: "error" };
 
   revalidateSelfView();
   return { ok: true };
@@ -896,22 +881,19 @@ export async function restoreAttendanceSession(
     invalidated_reason: null,
   };
 
-  const updRes = await service
-    .from("attendance_sessions")
-    .update(after as never)
-    .eq("id", s.id)
-    .eq("organization_id", organizationId);
-  if (updRes.error) return { ok: false, reason: "error" };
-
-  await service.from("attendance_session_audits").insert({
-    organization_id: organizationId,
-    session_id: s.id,
-    actor_user_id: actorId,
-    action_type: "restore",
-    reason: reason.trim(),
-    before_json: before,
-    after_json: after,
-  } as never);
+  const { data: updated, error: updateError } = await getRpcClient(service).rpc<boolean>(
+    "mutate_attendance_session_with_audit",
+    {
+      p_organization_id: organizationId,
+      p_session_id: s.id,
+      p_actor_user_id: actorId,
+      p_action_type: "restore",
+      p_reason: reason.trim(),
+      p_before_json: before,
+      p_changes: after,
+    },
+  );
+  if (updateError || !updated) return { ok: false, reason: "error" };
 
   revalidateSelfView();
   return { ok: true };
@@ -929,7 +911,14 @@ export type FinalizeResult =
   | { ok: true; id: string }
   | {
       ok: false;
-      reason: "forbidden" | "invalid" | "target_invalid" | "blocked" | "not_hourly" | "error";
+      reason:
+        | "forbidden"
+        | "invalid"
+        | "month_not_closed"
+        | "target_invalid"
+        | "blocked"
+        | "not_hourly"
+        | "error";
       blockers?: FinalizationBlockers;
     };
 
@@ -955,89 +944,53 @@ export async function finalizeAttendanceMonth(input: {
     return { ok: false, reason: "forbidden" };
   }
   if (!/^\d{4}-\d{2}$/.test(input.ym)) return { ok: false, reason: "invalid" };
+  const currentTokyoMonth = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+  }).format(new Date());
+  if (input.ym >= currentTokyoMonth) return { ok: false, reason: "month_not_closed" };
 
   const member = await service
     .from("memberships")
-    .select("id")
+    .select("id, status")
     .eq("organization_id", organizationId)
     .eq("user_id", input.userId)
-    .eq("status", "active")
     .maybeSingle();
+  if (member.error) return { ok: false, reason: "error" };
   if (!member.data) return { ok: false, reason: "target_invalid" };
 
-  const elig = await getFinalizationEligibility(organizationId, input.userId, input.ym);
-  if (!elig.eligible) return { ok: false, reason: "blocked", blockers: elig.blockers };
-
-  const pay = await getMonthlyPayView(organizationId, input.userId, input.ym);
+  let elig: Awaited<ReturnType<typeof getFinalizationEligibility>>;
+  let pay: Awaited<ReturnType<typeof getMonthlyPayView>>;
+  try {
+    elig = await getFinalizationEligibility(organizationId, input.userId, input.ym);
+    if (!elig.eligible) return { ok: false, reason: "blocked", blockers: elig.blockers };
+    pay = await getMonthlyPayView(organizationId, input.userId, input.ym);
+  } catch (error) {
+    console.error("[finalizeAttendanceMonth] required payroll read failed", error);
+    return { ok: false, reason: "error" };
+  }
   if (!pay.hourlyEligible) return { ok: false, reason: "not_hourly" };
 
   const firstDay = monthFirstDay(input.ym);
 
-  // History preservation: read prior rows first to capture the supersedes link,
-  // then INSERT the new snapshot before marking old rows superseded.
-  // This order ensures the "current finalized copy" is never lost: if the insert
-  // fails, the old snapshot stays intact; the supersede only runs after a
-  // successful insert.
-  const priorRes = await service
-    .from("attendance_month_snapshots")
-    .select("id, status")
-    .eq("organization_id", organizationId)
-    .eq("user_id", input.userId)
-    .eq("target_month", firstDay)
-    .neq("status", "superseded")
-    .order("created_at", { ascending: false });
-  const priorRows = (priorRes.data ?? []) as { id: string; status: string }[];
-  const supersedesId = priorRows[0]?.id ?? null;
-
-  const nowIso = new Date().toISOString();
-  const ins = (await service
-    .from("attendance_month_snapshots")
-    .insert({
-      organization_id: organizationId,
-      user_id: input.userId,
-      target_month: firstDay,
-      status: "finalized",
-      total_paid_minutes: pay.totalPaidMinutes,
-      gross_amount: pay.expectedGross,
-      rate_breakdown: pay.rateSegments,
-      allowance_breakdown: pay.allowances,
-      finalized_by_user_id: actorId,
-      finalized_at: nowIso,
-      supersedes_snapshot_id: supersedesId,
-    } as never)
-    .select("id")
-    .single()) as { data: { id: string } | null; error: { message: string } | null };
-  if (ins.error || !ins.data) return { ok: false, reason: "error" };
-
-  // Supersede old rows only after a confirmed successful insert.
-  if (priorRows.length > 0) {
-    await service
-      .from("attendance_month_snapshots")
-      .update({ status: "superseded" } as never)
-      .eq("organization_id", organizationId)
-      .eq("user_id", input.userId)
-      .eq("target_month", firstDay)
-      .neq("status", "superseded")
-      .neq("id", ins.data.id);
-  }
-
-  await service.from("audit_logs").insert({
-    organization_id: organizationId,
-    actor_user_id: actorId,
-    action: "attendance_month_finalize",
-    target_type: "attendance_month_snapshot",
-    target_id: ins.data.id,
-    metadata: {
-      user_id: input.userId,
-      target_month: firstDay,
-      gross_amount: pay.expectedGross,
-      total_paid_minutes: pay.totalPaidMinutes,
-      supersedes_snapshot_id: supersedesId,
+  const { data: snapshotId, error: finalizeError } = await getRpcClient(service).rpc<string>(
+    "finalize_attendance_month_atomic",
+    {
+      p_organization_id: organizationId,
+      p_user_id: input.userId,
+      p_target_month: firstDay,
+      p_actor_user_id: actorId,
+      p_total_paid_minutes: pay.totalPaidMinutes,
+      p_gross_amount: pay.expectedGross,
+      p_rate_breakdown: pay.rateSegments,
+      p_allowance_breakdown: pay.allowances,
     },
-  } as never);
+  );
+  if (finalizeError || !snapshotId) return { ok: false, reason: "error" };
 
   revalidatePay();
-  return { ok: true, id: ins.data.id };
+  return { ok: true, id: snapshotId };
 }
 
 /** Reopen a finalized user-month (privileged). Reason required; prior history preserved. */
@@ -1062,31 +1015,19 @@ export async function reopenAttendanceMonth(input: {
 
   // Flip the finalized row to `reopened` (kept as history; no `finalized` row remains → expected pay
   // resumes). A later finalize will supersede it.
-  const updRes = await service
-    .from("attendance_month_snapshots")
-    .update({ status: "reopened" } as never)
-    .eq("id", (snap as AttendanceMonthSnapshotRow).id)
-    .eq("organization_id", organizationId)
-    .eq("user_id", input.userId)
-    .eq("target_month", monthFirstDay(input.ym))
-    .eq("status", "finalized")
-    .select("id")
-    .maybeSingle();
-  if (updRes.error) return { ok: false, reason: "error" };
-  if (!updRes.data) return { ok: false, reason: "not_finalized" };
-
-  await service.from("audit_logs").insert({
-    organization_id: organizationId,
-    actor_user_id: actorId,
-    action: "attendance_month_reopen",
-    target_type: "attendance_month_snapshot",
-    target_id: (snap as AttendanceMonthSnapshotRow).id,
-    metadata: {
-      user_id: input.userId,
-      target_month: monthFirstDay(input.ym),
-      reason: input.reason.trim(),
+  const { data: reopened, error: reopenError } = await getRpcClient(service).rpc<boolean>(
+    "reopen_attendance_month_atomic",
+    {
+      p_organization_id: organizationId,
+      p_user_id: input.userId,
+      p_target_month: monthFirstDay(input.ym),
+      p_snapshot_id: (snap as AttendanceMonthSnapshotRow).id,
+      p_actor_user_id: actorId,
+      p_reason: input.reason.trim(),
     },
-  } as never);
+  );
+  if (reopenError) return { ok: false, reason: "error" };
+  if (!reopened) return { ok: false, reason: "not_finalized" };
 
   revalidatePay();
   return { ok: true };
@@ -1717,6 +1658,7 @@ export async function setHourlyRate(input: {
   if (!member.data) return { ok: false, reason: "target_invalid" };
 
   // Current employment type — block on salaried.
+  if (member.error) return { ok: false, reason: "error" };
   const emp = await service
     .from("employment_type_history")
     .select("employment_type, effective_from, effective_to")
@@ -1727,13 +1669,11 @@ export async function setHourlyRate(input: {
     .order("effective_from", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (emp.error) return { ok: false, reason: "error" };
   const empType = (emp.data as { employment_type: string } | null)?.employment_type ?? null;
   if (empType === "salaried") return { ok: false, reason: "salaried_member" };
 
   // Compute close date = effective_from - 1 day
-  const fromDate = new Date(`${input.effectiveFrom}T00:00:00Z`);
-  const closeDate = new Date(fromDate.getTime() - 86400000);
-  const closeIso = closeDate.toISOString().slice(0, 10);
 
   // The existing open period (effective_to = null) is either:
   // - already active (its effective_from is before the new change) → close it the day
@@ -1743,67 +1683,23 @@ export async function setHourlyRate(input: {
   //   BEFORE that row's own effective_from and violate the `effective_to >= effective_from`
   //   check constraint. In that case the pending row is superseded outright (deleted)
   //   rather than "closed" with an invalid date.
-  const openRes = await service
-    .from("hourly_rate_history")
-    .select("id, effective_from")
-    .eq("organization_id", organizationId)
-    .eq("user_id", input.userId)
-    .is("effective_to", null);
-  if (openRes.error) return { ok: false, reason: "error" };
-  const openRows = (openRes.data ?? []) as { id: string; effective_from: string }[];
-
-  const pendingIds = openRows
-    .filter((r) => r.effective_from >= input.effectiveFrom)
-    .map((r) => r.id);
-  const activeIds = openRows
-    .filter((r) => r.effective_from < input.effectiveFrom)
-    .map((r) => r.id);
-
-  if (pendingIds.length > 0) {
-    const delRes = await service
-      .from("hourly_rate_history")
-      .delete()
-      .in("id", pendingIds);
-    if (delRes.error) return { ok: false, reason: "error" };
-  }
-  if (activeIds.length > 0) {
-    const closeRes = await service
-      .from("hourly_rate_history")
-      .update({ effective_to: closeIso } as never)
-      .in("id", activeIds);
-    if (closeRes.error) return { ok: false, reason: "error" };
-  }
-
-  const ins = (await service
-    .from("hourly_rate_history")
-    .insert({
-      organization_id: organizationId,
-      user_id: input.userId,
-      hourly_rate: input.hourlyRate,
-      effective_from: input.effectiveFrom,
-      effective_to: null,
-      created_by_user_id: actorId,
-    } as never)
-    .select("id")
-    .single()) as { data: { id: string } | null; error: { message: string } | null };
-  if (ins.error || !ins.data) return { ok: false, reason: "error" };
-
-  await service.from("audit_logs").insert({
-    organization_id: organizationId,
-    actor_user_id: actorId,
-    action: "hourly_rate_set",
-    target_type: "hourly_rate_history",
-    target_id: ins.data.id,
-    metadata: {
-      user_id: input.userId,
-      hourly_rate: input.hourlyRate,
-      effective_from: input.effectiveFrom,
-      note: input.note?.trim() ? input.note.trim() : null,
+  const { data: historyId, error: historyError } = await getRpcClient(service).rpc<string>(
+    "set_attendance_history_atomic",
+    {
+      p_organization_id: organizationId,
+      p_user_id: input.userId,
+      p_actor_user_id: actorId,
+      p_kind: "hourly_rate",
+      p_effective_from: input.effectiveFrom,
+      p_hourly_rate: input.hourlyRate,
+      p_employment_type: null,
+      p_note: input.note?.trim() || null,
     },
-  } as never);
+  );
+  if (historyError || !historyId) return { ok: false, reason: "error" };
 
   revalidatePath("/mobile/attendance/pay");
-  return { ok: true, id: ins.data.id };
+  return { ok: true, id: historyId };
 }
 
 // ── Employment-type management (시급 ↔ 정규직) ────────────────────────────────
@@ -1859,6 +1755,7 @@ export async function setEmploymentType(input: {
     .eq("user_id", input.userId)
     .eq("status", "active")
     .maybeSingle();
+  if (member.error) return { ok: false, reason: "error" };
   if (!member.data) return { ok: false, reason: "target_invalid" };
 
   // Current active type — block a redundant same-type change (null = never set, so any type is a change).
@@ -1872,66 +1769,28 @@ export async function setEmploymentType(input: {
     .order("effective_from", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (cur.error) return { ok: false, reason: "error" };
   const curType = (cur.data as { employment_type: string } | null)?.employment_type ?? null;
   if (curType === input.employmentType) return { ok: false, reason: "no_change" };
 
-  const fromDate = new Date(`${input.effectiveFrom}T00:00:00Z`);
-  const closeIso = new Date(fromDate.getTime() - 86400000).toISOString().slice(0, 10);
-
-  const openRes = await service
-    .from("employment_type_history")
-    .select("id, effective_from")
-    .eq("organization_id", organizationId)
-    .eq("user_id", input.userId)
-    .is("effective_to", null);
-  if (openRes.error) return { ok: false, reason: "error" };
-  const openRows = (openRes.data ?? []) as { id: string; effective_from: string }[];
-  const pendingIds = openRows.filter((r) => r.effective_from >= input.effectiveFrom).map((r) => r.id);
-  const activeIds = openRows.filter((r) => r.effective_from < input.effectiveFrom).map((r) => r.id);
-
-  if (pendingIds.length > 0) {
-    const del = await service.from("employment_type_history").delete().in("id", pendingIds);
-    if (del.error) return { ok: false, reason: "error" };
-  }
-  if (activeIds.length > 0) {
-    const close = await service
-      .from("employment_type_history")
-      .update({ effective_to: closeIso } as never)
-      .in("id", activeIds);
-    if (close.error) return { ok: false, reason: "error" };
-  }
-
-  const ins = (await service
-    .from("employment_type_history")
-    .insert({
-      organization_id: organizationId,
-      user_id: input.userId,
-      employment_type: input.employmentType,
-      effective_from: input.effectiveFrom,
-      effective_to: null,
-      created_by_user_id: actorId,
-    } as never)
-    .select("id")
-    .single()) as { data: { id: string } | null; error: { message: string } | null };
-  if (ins.error || !ins.data) return { ok: false, reason: "error" };
-
-  await service.from("audit_logs").insert({
-    organization_id: organizationId,
-    actor_user_id: actorId,
-    action: "employment_type_set",
-    target_type: "employment_type_history",
-    target_id: ins.data.id,
-    metadata: {
-      user_id: input.userId,
-      employment_type: input.employmentType,
-      effective_from: input.effectiveFrom,
-      note: input.note?.trim() ? input.note.trim() : null,
+  const { data: historyId, error: historyError } = await getRpcClient(service).rpc<string>(
+    "set_attendance_history_atomic",
+    {
+      p_organization_id: organizationId,
+      p_user_id: input.userId,
+      p_actor_user_id: actorId,
+      p_kind: "employment_type",
+      p_effective_from: input.effectiveFrom,
+      p_hourly_rate: null,
+      p_employment_type: input.employmentType,
+      p_note: input.note?.trim() || null,
     },
-  } as never);
+  );
+  if (historyError || !historyId) return { ok: false, reason: "error" };
 
   revalidatePath("/mobile/attendance/pay");
   revalidatePath("/admin/attendance/wages");
-  return { ok: true, id: ins.data.id };
+  return { ok: true, id: historyId };
 }
 
 // ── Attendance allowance (추가수당) management ──────────────────────────────────

@@ -47,6 +47,7 @@ export type Database = {
           approved_at?: string | null;
           approved_by_user_id?: string | null;
           approved_role?: string | null;
+          balance_override_reason?: string | null;
           cancelled_at?: string | null;
           cancelled_by_user_id?: string | null;
           cancelled_reason?: string | null;
@@ -75,6 +76,7 @@ export type Database = {
           approved_at: string | null;
           approved_by_user_id: string | null;
           approved_role: string | null;
+          balance_override_reason: string | null;
           cancelled_at: string | null;
           cancelled_by_user_id: string | null;
           cancelled_reason: string | null;
@@ -103,6 +105,7 @@ export type Database = {
           approved_at?: string | null;
           approved_by_user_id?: string | null;
           approved_role?: string | null;
+          balance_override_reason?: string | null;
           cancelled_at?: string | null;
           cancelled_by_user_id?: string | null;
           cancelled_reason?: string | null;
@@ -2891,6 +2894,43 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      approve_attendance_correction_atomic: {
+        Args: {
+          p_action_type: string;
+          p_actor_user_id: string;
+          p_before_json: Json;
+          p_comment: string;
+          p_create_session: boolean;
+          p_organization_id: string;
+          p_request_id: string;
+          p_session_id: string | null;
+          p_session_values: Json;
+        };
+        Returns: string;
+      };
+      create_attendance_session_with_audit: {
+        Args: {
+          p_action_type: string;
+          p_actor_user_id: string;
+          p_organization_id: string;
+          p_reason: string;
+          p_values: Json;
+        };
+        Returns: string;
+      };
+      finalize_attendance_month_atomic: {
+        Args: {
+          p_actor_user_id: string;
+          p_allowance_breakdown: Json;
+          p_gross_amount: number;
+          p_organization_id: string;
+          p_rate_breakdown: Json;
+          p_target_month: string;
+          p_total_paid_minutes: number;
+          p_user_id: string;
+        };
+        Returns: string;
+      };
       join_organization_with_invite_code: {
         Args: { p_user_id: string; p_code: string };
         Returns: Array<{
@@ -2898,6 +2938,54 @@ export type Database = {
           role: Database["public"]["Enums"]["organization_role"];
           status: string;
         }>;
+      };
+      mutate_attendance_session_with_audit: {
+        Args: {
+          p_action_type: string;
+          p_actor_user_id: string;
+          p_before_json: Json;
+          p_changes: Json;
+          p_organization_id: string;
+          p_reason: string;
+          p_session_id: string;
+        };
+        Returns: boolean;
+      };
+      reopen_attendance_month_atomic: {
+        Args: {
+          p_actor_user_id: string;
+          p_organization_id: string;
+          p_reason: string;
+          p_snapshot_id: string;
+          p_target_month: string;
+          p_user_id: string;
+        };
+        Returns: boolean;
+      };
+      set_annual_leave_baseline_atomic: {
+        Args: {
+          p_allow_overwrite?: boolean;
+          p_base_amount: number;
+          p_baseline_date: string;
+          p_bonus_amount: number;
+          p_hire_date: string;
+          p_organization_id: string;
+          p_user_id: string;
+        };
+        Returns: string;
+      };
+      set_attendance_history_atomic: {
+        Args: {
+          p_actor_user_id: string;
+          p_effective_from: string;
+          p_employment_type?: string | null;
+          p_hourly_rate?: number | null;
+          p_kind: string;
+          p_note?: string | null;
+          p_organization_id: string;
+          p_user_id: string;
+        };
+        Returns: string;
       };
     };
     Enums: {

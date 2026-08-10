@@ -22,6 +22,11 @@ export function paidSecondsForSession(
   return Math.max(0, Math.floor(gross) - closedBreakSec);
 }
 
+/** Aggregate a Tokyo operating day's recognized seconds before applying the one-minute floor. */
+export function aggregatePaidSecondsToMinutes(seconds: number[]): number {
+  return Math.floor(seconds.reduce((sum, value) => sum + Math.max(0, value), 0) / 60);
+}
+
 /** Round a yen amount up to the nearest 10-yen ceiling. e.g. 93 -> 100, 100 -> 100. */
 export function roundToNearest10(yen: number): number {
   return Math.ceil(yen / 10) * 10;

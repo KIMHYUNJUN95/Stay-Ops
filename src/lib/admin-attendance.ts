@@ -804,16 +804,12 @@ export async function getAdminAttendancePayroll(
   const rows: AdminPayrollRow[] = await Promise.all(
     members.map(async (m) => {
       const [pay, elig, snapshot] = await Promise.all([
-        getMonthlyPayView(session.organization.id, m.user_id, ym, localeTag).catch(() => null),
-        getFinalizationEligibility(session.organization.id, m.user_id, ym).catch(() => null),
-        getCurrentFinalizedSnapshot(service, session.organization.id, m.user_id, ym).catch(
-          () => null,
-        ),
+        getMonthlyPayView(session.organization.id, m.user_id, ym, localeTag),
+        getFinalizationEligibility(session.organization.id, m.user_id, ym),
+        getCurrentFinalizedSnapshot(service, session.organization.id, m.user_id, ym),
       ]);
 
-      const employment: AdminPayrollEmployment = !pay
-        ? "none"
-        : pay.salariedOnly
+      const employment: AdminPayrollEmployment = pay.salariedOnly
           ? "salaried"
           : pay.hourlyEligible
             ? pay.days.some((d) => d.employmentType === "salaried")
@@ -821,12 +817,17 @@ export async function getAdminAttendancePayroll(
               : "hourly"
             : "none";
 
-      const primaryRate = pay && pay.rateSegments.length > 0 ? pay.rateSegments[0].rate : 0;
+      const primaryRate = pay.rateSegments.length > 0 ? pay.rateSegments[0].rate : 0;
       const finalized = Boolean(snapshot);
-      const finalizedAtLabel = pay?.finalization?.finalizedAtLabel ?? null;
-      const effectivePaidMinutes = pay?.finalization?.paidMinutes ?? pay?.totalPaidMinutes ?? 0;
-      const effectiveGross = pay?.finalization?.gross ?? pay?.expectedGross ?? 0;
-      const workDays = pay ? pay.days.filter((d) => d.paidMinutes > 0).length : 0;
+      const finalizedAtLabel = pay.finalization?.finalizedAtLabel ?? null;
+      const effectivePaidMinutes = pay.finalization?.paidMinutes ?? pay.totalPaidMinutes;
+      const effectiveGross = pay.finalization?.gross ?? pay.expectedGross;
+      const workDays = pay.days.filter((d) => d.paidMinutes > 0).length;
+      const currentTokyoMonth = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Tokyo",
+        year: "numeric",
+        month: "2-digit",
+      }).format(new Date());
 
       return {
         userId: m.user_id,
@@ -838,21 +839,16 @@ export async function getAdminAttendancePayroll(
         workDays,
         primaryRate,
         expectedGross: effectiveGross,
-        allowanceTotal: pay?.allowanceTotal ?? 0,
-        allowanceRegularTotal: pay?.allowanceRegularTotal ?? 0,
-        allowanceSpecialTotal: pay?.allowanceSpecialTotal ?? 0,
-        baseGross: effectiveGross - (pay?.allowanceTotal ?? 0),
+        allowanceTotal: pay.allowanceTotal,
+        allowanceRegularTotal: pay.allowanceRegularTotal,
+        allowanceSpecialTotal: pay.allowanceSpecialTotal,
+        baseGross: effectiveGross - pay.allowanceTotal,
         transportApproved: transportByUser.get(m.user_id) ?? 0,
-        excludedCount: pay?.excludedCount ?? 0,
+        excludedCount: pay.excludedCount,
         finalized,
         finalizedAtLabel,
-        finalizationEligible: elig?.eligible ?? false,
-        blockers: elig?.blockers ?? {
-          reviewRequired: 0,
-          pendingCorrections: 0,
-          openSessions: 0,
-          alreadyFinalized: finalized,
-        },
+        finalizationEligible: ym < currentTokyoMonth && elig.eligible,
+        blockers: elig.blockers,
       };
     }),
   );

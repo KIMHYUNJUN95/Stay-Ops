@@ -217,7 +217,8 @@ this stage reuses the approval/reject columns already added by `202607060002_ann
 - **Historical stage-2 gaps (later status noted):**
   - Branch/building filter and queue export: excluded.
   - Approved usage feedback was not part of this dated slice; it is now wired through
-    `sumApprovedLeaveUsage`, so mobile/admin balances agree.
+    dated `getApprovedLeaveUsageEvents`, so mobile/admin balances agree and usage is allocated against
+    the buckets that were valid on each request date.
   - No notification is sent to the applicant on approve/reject in this slice.
 
 ### Admin sub-tabs — historical design pass (2026-07-08; later backend-wired)
@@ -431,9 +432,28 @@ pattern applied to other admin lists).
 Approval review (stage 2), the team calendar / balance / approver sub-tabs, and 문서 (休暇届, stage 3 —
 AL-YYYY-MM-NNN number on approval + form generated from the approved request) are all implemented and
 backend-wired (2026-07-08). Approved usage feeds both the admin balance view and — as of 2026-07-09 — the
-**mobile** self-summary + the request-modal preview, via the shared `sumApprovedLeaveUsage` helper
+**mobile** self-summary + the request-modal preview, via the shared dated usage-event helper
 (`annual-leave-server.ts`), so mobile and admin balances always agree. The document-number migration
 `202607080001` has been applied to production. Remaining follow-up work, in no fixed order: applicant
 notification on approve/reject (**deferred** to the end-of-development notification redesign);
 hourly-staff exclusion by real
 `employment_type` rather than membership role; and a dedicated PDF export template beyond browser print.
+
+## 2026-08-10 연차 데이터 무결성 보강 규칙
+
+이번 보강은 기존 휴가 종류와 파트타임 제외 정책을 바꾸지 않는다. 신청·승인·잔여 계산에서
+클라이언트 입력이나 누적 합계 때문에 잔여량이 틀어지는 문제를 차단한다.
+
+- 모바일 신청자는 서버가 로그인 프로필에서 확정한다. 클라이언트가 보낸 이름은 저장 기준으로
+  사용하지 않는다.
+- 휴가 종류·기간·종일/반차에 따른 종료일과 차감 일수는 모바일과 어드민이 같은 서버 정규화 함수를
+  사용한다. 클라이언트 `daysCount`는 신뢰하지 않는다.
+- 직원 본인의 입사일/초기 잔여 설정은 기준 행이 없는 경우 **한 번만** 허용한다. 이후 변경은 기존
+  연차 결재자 관리 경로에서만 가능하며, 프로필 입사일과 기준 잔여 행은 한 트랜잭션으로 저장한다.
+- 잔여 계산은 승인 사용량 총합만 받지 않고 각 승인 요청의 사용 시작일과 일수를 시간순으로 적용한다.
+  만료된 버킷을 만료 후 사용분이 소비하는 오류를 허용하지 않는다.
+- 월말 입사일의 자동 부여일은 대상 월의 마지막 날짜로 보정한다. 예: 8월 31일 + 6개월은 다음 해
+  2월 말이다.
+- 잔여를 초과하는 승인에는 명시적인 초과 승인 사유가 필요하며 요청 행에 감사 가능한 형태로 남긴다.
+- 승인 상태 변경은 영향 행이 실제로 1건 갱신됐는지 확인한다. 동시 승인에서 0건 갱신을 성공으로
+  돌려주지 않는다.

@@ -36,9 +36,10 @@ const LEAVE_PATH = "/admin/attendance/leave";
 
 export async function approveLeaveRequestAction(
   requestId: string,
+  overrideReason?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await requireAdminPageSession({ nextPath: LEAVE_PATH });
-  const result = await approveLeaveRequestForApprover(session, requestId);
+  const result = await approveLeaveRequestForApprover(session, requestId, overrideReason);
   if (result.ok) revalidatePath(LEAVE_PATH);
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }

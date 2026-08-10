@@ -178,6 +178,8 @@ function errLabel(reason: string | undefined, lc: Lc): string {
     case "not_requested":
     case "not_approved":
       return lc.errNotRequested;
+    case "override_reason_required":
+      return lc.errOverrideReasonRequired;
     case "reject_failed":
       return lc.errRejectFailed;
     case "cancel_failed":
@@ -746,7 +748,7 @@ function LeavePanel({
 }) {
   const [pending, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
-  const [modal, setModal] = useState<"reject" | "cancel" | null>(null);
+  const [modal, setModal] = useState<"reject" | "cancel" | "override" | null>(null);
   const [detail, setDetail] = useState<LeaveApprovalDetail | null>(null);
   const [status, setStatus] = useState<LeaveQueueItem["status"]>(item.status);
   const panelRef = useAdminPanelA11y<HTMLElement>(onClose, { disabled: modal !== null });
@@ -763,10 +765,10 @@ function LeavePanel({
 
   const pill = statusPill(status, lc);
 
-  function submitApprove() {
+  function submitApprove(overrideReason?: string) {
     setErr(null);
     startTransition(async () => {
-      const res = await approveLeaveRequestAction(item.id);
+      const res = await approveLeaveRequestAction(item.id, overrideReason?.trim() || undefined);
       if (res.ok) {
         setStatus("approved");
         onResolved(lc.actionDoneApprove, item.id, "approved");
@@ -1055,7 +1057,16 @@ function LeavePanel({
               type="button"
               className="btn btn--ok"
               style={{ flex: 1.4 }}
-              onClick={submitApprove}
+              onClick={() => {
+                if (
+                  detail?.balancePool !== undefined &&
+                  detail.balancePool !== "none" &&
+                  (detail.balanceAfter === null || detail.balanceAfter < 0)
+                ) {
+                  setModal("override");
+                }
+                else submitApprove();
+              }}
               disabled={pending}
             >
               <Ic>
@@ -1109,6 +1120,20 @@ function LeavePanel({
           errorText={err}
           danger
           onConfirm={submitCancel}
+          onCancel={() => setModal(null)}
+        />
+      ) : null}
+
+      {modal === "override" ? (
+        <AdminReasonModal
+          title={lc.overrideApprovalTitle}
+          description={lc.overrideApprovalDescription}
+          placeholder={lc.overrideApprovalPlaceholder}
+          confirmLabel={pending ? lc.actionApproving : lc.panelBtnApprove}
+          cancelLabel={lc.dialogCancel}
+          pending={pending}
+          errorText={err}
+          onConfirm={submitApprove}
           onCancel={() => setModal(null)}
         />
       ) : null}

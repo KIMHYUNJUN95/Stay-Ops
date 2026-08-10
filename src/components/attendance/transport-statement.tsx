@@ -285,6 +285,7 @@ function AddItemSheet({
   organizationId,
   reportId,
   monthKey,
+  linkedCandidates,
   onClose,
   onCreated,
 }: {
@@ -293,12 +294,17 @@ function AddItemSheet({
   organizationId: string;
   reportId: string;
   monthKey: string;
+  linkedCandidates: LinkedTransportCandidate[];
   onClose: () => void;
   onCreated: (item: TransportItem) => void;
 }) {
   const t = dict.transport;
   const [inputMode, setInputMode] = useState<"linked" | "manual">("manual");
-  const [usageDate, setUsageDate] = useState(getTodayTokyo());
+  const [linkedSourceKey, setLinkedSourceKey] = useState("");
+  const [usageDate, setUsageDate] = useState(() => {
+    const today = getTodayTokyo();
+    return today.startsWith(monthKey) ? today : `${monthKey}-01`;
+  });
   const [showCal, setShowCal] = useState(false);
   const [amount, setAmount] = useState("");
   const [building, setBuilding] = useState("");
@@ -326,6 +332,10 @@ function AddItemSheet({
   async function handleSubmit() {
     const amountNum = parseInt(amount.replace(/[^\d]/g, ""), 10);
     if (!amountNum || amountNum <= 0) return;
+    const linkedCandidate = linkedCandidates.find(
+      (candidate) => `${candidate.type}:${candidate.sourceId}` === linkedSourceKey,
+    );
+    if (inputMode === "linked" && !linkedCandidate) return;
     setPending(true);
     try {
       const result = await createTransportItemAction({
@@ -333,6 +343,8 @@ function AddItemSheet({
         usageDate,
         amountYen: amountNum,
         entryMode: inputMode,
+        linkedSourceType: linkedCandidate?.type,
+        linkedSourceId: linkedCandidate?.sourceId,
         buildingLabel: building.trim() || undefined,
         memo: memo.trim() || null,
       });
@@ -354,9 +366,9 @@ function AddItemSheet({
       }
       onCreated({
         id: itemId,
-        date: usageDate,
-        building: building.trim(),
-        context: "",
+        date: linkedCandidate?.date ?? usageDate,
+        building: linkedCandidate?.buildingLabel ?? building.trim(),
+        context: linkedCandidate?.contextSummary ?? "",
         amount: amountNum,
         receiptCount,
         mode: inputMode,
@@ -403,6 +415,7 @@ function AddItemSheet({
               type="button"
               className="trn-tf-in trn-tf-btn"
               onClick={() => setShowCal(true)}
+              disabled={inputMode === "linked"}
             >
               <span className="trn-date-val">{fmtDateFull(usageDate, localeTag)}</span>
               <CalIcon />
@@ -424,6 +437,40 @@ function AddItemSheet({
           </div>
         </div>
 
+        {inputMode === "linked" ? (
+          <div className="trn-tf">
+            <div className="trn-tf-l">{t.fieldLinkedSource}</div>
+            <div className="trn-tf-in">
+              <select
+                className="trn-input"
+                value={linkedSourceKey}
+                onChange={(event) => {
+                  const key = event.target.value;
+                  setLinkedSourceKey(key);
+                  const candidate = linkedCandidates.find(
+                    (item) => `${item.type}:${item.sourceId}` === key,
+                  );
+                  if (candidate) {
+                    setUsageDate(candidate.date);
+                    setBuilding(candidate.buildingLabel);
+                  }
+                }}
+                aria-label={t.fieldLinkedSource}
+              >
+                <option value="">{t.fieldLinkedSourcePlaceholder}</option>
+                {linkedCandidates.map((candidate) => (
+                  <option
+                    key={`${candidate.type}:${candidate.sourceId}`}
+                    value={`${candidate.type}:${candidate.sourceId}`}
+                  >
+                    {fmtDateFull(candidate.date, localeTag)} · {candidate.contextSummary}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        ) : null}
+
         <div className="trn-tf">
           <div className="trn-tf-l">{t.fieldBuilding}</div>
           <div className="trn-bld-wrap" ref={buildingWrapRef}>
@@ -432,6 +479,7 @@ function AddItemSheet({
               className="trn-bld-trigger"
               data-open={showBuildingList ? "true" : undefined}
               onClick={() => setShowBuildingList((v) => !v)}
+              disabled={inputMode === "linked"}
               aria-label={t.fieldBuilding}
             >
               {building ? (
@@ -968,6 +1016,7 @@ export function TransportStatement({
   organizationId,
   report,
   initialItems,
+  linkedCandidates,
   monthKey,
   monthLabel,
 }: Props) {
@@ -1158,6 +1207,7 @@ export function TransportStatement({
           organizationId={organizationId}
           reportId={report.id}
           monthKey={monthKey}
+          linkedCandidates={linkedCandidates}
           onClose={() => setShowAddSheet(false)}
           onCreated={(item) => {
             setItems((prev) => [...prev, item]);

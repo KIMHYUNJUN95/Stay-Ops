@@ -9,6 +9,26 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-08-10 — Attendance, payroll, leave, and transport integrity hardening
+
+- Payroll now fails closed on query errors and missing effective rates, aggregates recognized seconds per
+  Tokyo operating date before minute conversion, and only finalizes closed months.
+- Open breaks and incomplete clock pairs block finalization. Admin manual correction can replace the total
+  break duration, and session/break/audit writes are transactional.
+- Correction approval, session mutation, month finalize/reopen, and rate/employment-history replacement
+  use service-role-only transactional RPCs from migration
+  `20260810042830_attendance_integrity_hardening.sql`.
+- Annual-leave request names and day counts are server-derived. Employee baseline setup is one-time;
+  approver edits are explicit overwrites. Usage is allocated by request date, month-end accrual dates clamp
+  correctly, and over-balance approval requires a persisted reason.
+- Linked transport items must select a real org-scoped attendance or cleaning record. Server validation
+  and a database trigger enforce source ownership, report month, usage date, and property scope.
+- GPS fixes above `ATTENDANCE_MAX_GPS_ACCURACY_METERS` are rejected. GitHub Actions now invokes the
+  existing attendance reminder endpoint daily at 18:30 Asia/Tokyo.
+- Verification: `npm test` passes 14 files / 182 tests, `npm run lint` passes with 0 errors and 11
+  pre-existing warnings, TypeScript passes, and `npm run build` passes. Local Supabase DB lint could not
+  run because the local Postgres stack was not running; the migration still requires deployment.
+
 ## 2026-08-07 — Documentation consistency synchronization
 
 - Reconciled the live implementation with README, agent contracts, design/mobile-shell docs, Phase 14

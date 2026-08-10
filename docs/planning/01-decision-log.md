@@ -2,6 +2,19 @@
 
 This file records important project decisions.
 
+## 2026-08-10 근태·급여·연차 데이터 무결성 우선 보강
+
+일본 법정 가산임금·법정 휴게·파트타임 연차 기준은 별도 정책 작업으로 남기고, 현재 제품 정책
+안에서 발생하는 0원 마감, 현재 월 조기 마감, 부분 저장, 열린 휴게 누락, 클라이언트 연차 일수 변조,
+만료 버킷 오계산을 먼저 차단한다.
+
+- 돈과 잔여량에 영향을 주는 조회는 fail-closed로 통일한다.
+- 본 기록과 필수 감사 기록은 DB 트랜잭션 단위로 저장한다.
+- 월 마감은 종료 월만 허용하고 시급 이력 공백을 차단한다.
+- 연차 본인 기준값 입력은 1회 초기화로 제한하고 이후 변경은 결재자 경로로만 허용한다.
+- 교통비 linked 문맥은 서버가 원본 근태에서 재구성한다.
+- 근태 리마인더는 기존 Vercel 두 슬롯을 건드리지 않고 GitHub Actions로 호출한다.
+
 ## 2026-08-07 Mobile recurring-task detail delete parity
 
 - A mobile task detail opened from a concrete recurring occurrence must offer the same two choices as the admin console occurrence row: skip only that date or delete the whole series.

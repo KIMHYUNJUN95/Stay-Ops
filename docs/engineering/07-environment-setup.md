@@ -541,3 +541,11 @@ Run the commands after Supabase API authentication is available through `npx sup
   - `src/app/api/beds24/webhook/route.ts`
   - `src/app/api/beds24/reconcile/route.ts`
   - admin reservation calendar sync status chip
+## Attendance integrity settings (2026-08-10)
+
+- `ATTENDANCE_MAX_GPS_ACCURACY_METERS` controls the maximum accepted browser geolocation accuracy;
+  default is `100` meters when unset.
+- `.github/workflows/attendance-reminders.yml` invokes `/api/attendance/reminders` at `09:30 UTC`
+  (`18:30 Asia/Tokyo`). Add a GitHub Actions repository secret named `CRON_SECRET` matching production.
+- Apply `supabase/migrations/20260810042830_attendance_integrity_hardening.sql` before deploying the
+  corresponding server actions, because they call its service-role-only RPC functions.

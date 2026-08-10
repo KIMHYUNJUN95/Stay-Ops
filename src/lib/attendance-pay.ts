@@ -19,6 +19,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { resolveLocale, type Locale } from "@/lib/i18n";
 import {
   allowanceCalculatedExact,
+  aggregatePaidSecondsToMinutes,
   dailyGrossExact,
   paidSecondsForSession,
   resolveEffective,
@@ -53,6 +54,7 @@ export type PayExcludeReason =
   | "invalid"
   | "review_required"
   | "pending_correction"
+  | "missing_rate"
   | null;
 
 export type PayDaySessionView = {
@@ -211,6 +213,7 @@ async function loadClosedBreakSeconds(
     .from("attendance_breaks")
     .select("session_id, started_at, ended_at")
     .in("session_id", sessionIds);
+  if (res.error) throw new Error(`attendance_breaks_read_failed:${res.error.message}`);
   for (const r of (res.data ?? []) as {
     session_id: string;
     started_at: string;
@@ -238,6 +241,7 @@ async function loadCorrectionStatuses(
     .eq("requested_by_user_id", userId)
     .in("session_id", sessionIds)
     .order("created_at", { ascending: false });
+  if (res.error) throw new Error(`attendance_corrections_read_failed:${res.error.message}`);
   for (const r of (res.data ?? []) as {
     session_id: string | null;
     status: string;
@@ -305,6 +309,16 @@ export async function getMonthlyPayView(
       .maybeSingle(),
   ]);
 
+  for (const [name, result] of [
+    ["sessions", sessRes],
+    ["rates", rateRes],
+    ["employment", empRes],
+    ["allowances", allowRes],
+    ["snapshot", finalizedRow],
+  ] as const) {
+    if (result.error) throw new Error(`attendance_${name}_read_failed:${result.error.message}`);
+  }
+
   const sessions = (sessRes.data ?? []) as AttendanceSessionRow[];
   const rateRows = (rateRes.data ?? []) as {
     hourly_rate: number;
@@ -369,39 +383,62 @@ export async function getMonthlyPayView(
     let dayPaidMinutes = 0;
     let dayGrossExact = 0;
     const sessionViews: PayDaySessionView[] = [];
-
-    for (const s of byDate.get(date)!) {
+    const sessionCalculations = byDate.get(date)!.map((s) => {
       const breakTotalSec = breakSecs.get(s.id) ?? 0;
-      const reason = excludeReasonFor(s, correctionStatuses.get(s.id) ?? null);
-      const usable = reason === null;
+      let reason = excludeReasonFor(s, correctionStatuses.get(s.id) ?? null);
+      if (isHourly && reason === null && dayRate == null) reason = "missing_rate";
+      const included = isHourly && reason === null && dayRate != null;
+      const paidSeconds =
+        included && s.clock_in_at && s.clock_out_at
+          ? paidSecondsForSession(s.clock_in_at, s.clock_out_at, breakTotalSec)
+          : 0;
+      if (isHourly && reason !== null) excludedCount += 1;
+      return { s, breakTotalSec, reason, included, paidSeconds };
+    });
 
-      let paidMinutes = 0;
-      let grossExact = 0;
-      // Pay only applies to hourly days with a known rate and a usable session.
-      if (isHourly && usable && dayRate != null && s.clock_in_at && s.clock_out_at) {
-        const paidSec = paidSecondsForSession(s.clock_in_at, s.clock_out_at, breakTotalSec);
-        paidMinutes = Math.floor(paidSec / 60);
-        grossExact = dailyGrossExact(paidMinutes, dayRate);
-        dayPaidMinutes += paidMinutes;
-        dayGrossExact += grossExact;
-        const seg = segments.get(dayRate) ?? { paidMinutes: 0, gross: 0 };
-        seg.paidMinutes += paidMinutes;
-        seg.gross += grossExact;
-        segments.set(dayRate, seg);
-      } else if (isHourly && !usable) {
-        excludedCount += 1;
-      }
+    // Convert to one-minute units after aggregating all recognized seconds for the date. Flooring each
+    // session independently loses almost one minute every time a worker clocks out and back in.
+    dayPaidMinutes = aggregatePaidSecondsToMinutes(
+      sessionCalculations.map((calculation) => calculation.paidSeconds),
+    );
+    const includedIndexes = sessionCalculations
+      .map((calculation, index) => (calculation.included ? index : -1))
+      .filter((index) => index >= 0);
+    const allocatedMinutes = new Map<number, number>();
+    let allocatedTotal = 0;
+    for (const index of includedIndexes) {
+      const minutes = Math.floor(sessionCalculations[index].paidSeconds / 60);
+      allocatedMinutes.set(index, minutes);
+      allocatedTotal += minutes;
+    }
+    const lastIncludedIndex = includedIndexes.at(-1);
+    if (lastIncludedIndex !== undefined && dayPaidMinutes > allocatedTotal) {
+      allocatedMinutes.set(
+        lastIncludedIndex,
+        (allocatedMinutes.get(lastIncludedIndex) ?? 0) + dayPaidMinutes - allocatedTotal,
+      );
+    }
 
+    sessionCalculations.forEach((calculation, index) => {
+      const paidMinutes = allocatedMinutes.get(index) ?? 0;
+      const grossExact = dayRate != null ? dailyGrossExact(paidMinutes, dayRate) : 0;
+      dayGrossExact += grossExact;
       sessionViews.push({
-        sessionId: s.id,
-        clockInLabel: tokyoTimeLabel(s.clock_in_at, locale),
-        clockOutLabel: tokyoTimeLabel(s.clock_out_at, locale),
-        breakTotalSec,
+        sessionId: calculation.s.id,
+        clockInLabel: tokyoTimeLabel(calculation.s.clock_in_at, locale),
+        clockOutLabel: tokyoTimeLabel(calculation.s.clock_out_at, locale),
+        breakTotalSec: calculation.breakTotalSec,
         paidMinutes,
         dailyGrossExact: grossExact,
-        included: isHourly && usable && dayRate != null,
-        excludeReason: reason,
+        included: calculation.included,
+        excludeReason: calculation.reason,
       });
+    });
+    if (isHourly && dayRate != null && dayPaidMinutes > 0) {
+      const seg = segments.get(dayRate) ?? { paidMinutes: 0, gross: 0 };
+      seg.paidMinutes += dayPaidMinutes;
+      seg.gross += dayGrossExact;
+      segments.set(dayRate, seg);
     }
 
     // Attendance allowances apply only to hourly days that have recognized paid work. daily_fixed pays

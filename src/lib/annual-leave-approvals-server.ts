@@ -422,6 +422,7 @@ async function assignLeaveDocumentNumber(
 export async function approveLeaveRequestForApprover(
   session: AppSession,
   requestId: string,
+  overrideReason?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const service = getSupabaseServiceClient();
   const organizationId = session.organization.id;
@@ -433,28 +434,48 @@ export async function approveLeaveRequestForApprover(
   );
   if (!isApprover) return { ok: false, error: "forbidden" };
 
-  const { data: existing } = await service
+  const { data: existing, error: existingError } = await service
     .from("annual_leave_requests")
-    .select("status")
+    .select("status, user_id, leave_type, days_count")
     .eq("id", requestId)
     .eq("organization_id", organizationId)
     .maybeSingle();
-  const row = existing as { status: string } | null;
+  if (existingError) return { ok: false, error: "approve_failed" };
+  const row = existing as {
+    status: string;
+    user_id: string;
+    leave_type: string;
+    days_count: number;
+  } | null;
   if (!row) return { ok: false, error: "not_found" };
   if (row.status !== "requested") return { ok: false, error: "not_requested" };
 
-  const { error } = await service
+  const pool = poolForType(row.leave_type as LeaveType);
+  let requiresOverride = false;
+  if (pool !== "none") {
+    const remaining = await poolRemainingFor(service, organizationId, row.user_id, pool);
+    requiresOverride = remaining === null || remaining - Number(row.days_count) < 0;
+  }
+  const normalizedOverrideReason = overrideReason?.trim() ?? "";
+  if (requiresOverride && !normalizedOverrideReason) {
+    return { ok: false, error: "override_reason_required" };
+  }
+
+  const { data: updated, error } = await service
     .from("annual_leave_requests")
     .update({
       status: "approved",
       approved_by_user_id: session.user.id,
       approved_role: approverRole,
       approved_at: new Date().toISOString(),
+      balance_override_reason: requiresOverride ? normalizedOverrideReason : null,
     } as never)
     .eq("id", requestId)
     .eq("organization_id", organizationId)
-    .eq("status", "requested");
-  if (error) return { ok: false, error: "approve_failed" };
+    .eq("status", "requested")
+    .select("id")
+    .maybeSingle();
+  if (error || !updated) return { ok: false, error: "approve_failed" };
 
   // Assign the 休暇届 document number (best-effort — never blocks the approval).
   await assignLeaveDocumentNumber(service, organizationId, requestId);
@@ -473,17 +494,18 @@ export async function rejectLeaveRequestForApprover(
   const { isApprover } = await getLeaveApproverRole(service, organizationId, session.user.id);
   if (!isApprover) return { ok: false, error: "forbidden" };
 
-  const { data: existing } = await service
+  const { data: existing, error: existingError } = await service
     .from("annual_leave_requests")
     .select("status")
     .eq("id", requestId)
     .eq("organization_id", organizationId)
     .maybeSingle();
+  if (existingError) return { ok: false, error: "reject_failed" };
   const row = existing as { status: string } | null;
   if (!row) return { ok: false, error: "not_found" };
   if (row.status !== "requested") return { ok: false, error: "not_requested" };
 
-  const { error } = await service
+  const { data: updated, error } = await service
     .from("annual_leave_requests")
     .update({
       status: "rejected",
@@ -493,8 +515,10 @@ export async function rejectLeaveRequestForApprover(
     } as never)
     .eq("id", requestId)
     .eq("organization_id", organizationId)
-    .eq("status", "requested");
-  if (error) return { ok: false, error: "reject_failed" };
+    .eq("status", "requested")
+    .select("id")
+    .maybeSingle();
+  if (error || !updated) return { ok: false, error: "reject_failed" };
 
   return { ok: true };
 }
@@ -516,17 +540,18 @@ export async function cancelApprovedLeaveForApprover(
   const { isApprover } = await getLeaveApproverRole(service, organizationId, session.user.id);
   if (!isApprover) return { ok: false, error: "forbidden" };
 
-  const { data: existing } = await service
+  const { data: existing, error: existingError } = await service
     .from("annual_leave_requests")
     .select("status")
     .eq("id", requestId)
     .eq("organization_id", organizationId)
     .maybeSingle();
+  if (existingError) return { ok: false, error: "cancel_failed" };
   const row = existing as { status: string } | null;
   if (!row) return { ok: false, error: "not_found" };
   if (row.status !== "approved") return { ok: false, error: "not_approved" };
 
-  const { error } = await service
+  const { data: updated, error } = await service
     .from("annual_leave_requests")
     .update({
       status: "cancelled",
@@ -536,8 +561,10 @@ export async function cancelApprovedLeaveForApprover(
     } as never)
     .eq("id", requestId)
     .eq("organization_id", organizationId)
-    .eq("status", "approved");
-  if (error) return { ok: false, error: "cancel_failed" };
+    .eq("status", "approved")
+    .select("id")
+    .maybeSingle();
+  if (error || !updated) return { ok: false, error: "cancel_failed" };
 
   return { ok: true };
 }

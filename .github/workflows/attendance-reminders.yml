@@ -1,0 +1,38 @@
+name: Attendance reminders
+
+on:
+  schedule:
+    # 18:30 Asia/Tokyo every day.
+    - cron: "30 9 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: attendance-reminders
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger attendance reminders
+        env:
+          REMINDER_URL: https://stay-ops-two.vercel.app/api/attendance/reminders
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::CRON_SECRET repository secret is not set."
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/attendance-reminders.json -w '%{http_code}' \
+            -X POST "${REMINDER_URL}" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            --max-time 120)
+          echo "HTTP ${code}"
+          cat /tmp/attendance-reminders.json || true
+          echo
+          if [ "${code}" != "200" ]; then
+            echo "::error::attendance reminders failed with HTTP ${code}"
+            exit 1
+          fi

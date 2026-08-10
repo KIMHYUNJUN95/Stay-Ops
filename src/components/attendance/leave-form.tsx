@@ -68,7 +68,6 @@ export function LeaveForm({
   const isUnpaid = selType === "other";
   const half = dur !== "full" && !isBereavement;
   const rangeDays = diffDaysISO(startDate, endDate);
-  const daysCount = half ? 0.5 : rangeDays;
 
   async function submit(asDraft: boolean) {
     const hasReason = reason.trim().length > 0;
@@ -81,12 +80,10 @@ export function LeaveForm({
     setBusy(asDraft ? "draft" : "submit");
     const result = await submitLeaveRequestAction({
       requestId: draft?.id,
-      applicantName: userName,
       leaveType: selType,
       startDate,
       endDate,
       durationUnit: half ? dur : "full",
-      daysCount,
       reason,
       emergencyContact: emergency,
       asDraft,

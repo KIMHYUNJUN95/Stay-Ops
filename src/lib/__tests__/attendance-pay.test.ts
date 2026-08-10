@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  aggregatePaidSecondsToMinutes,
   dailyGrossExact,
   paidSecondsForSession,
   reconcileDailyPaysToTotal,
@@ -8,6 +9,11 @@ import {
 } from "../attendance-pay-calculation";
 
 describe("attendance hourly pay calculation", () => {
+  it("floors paid time after aggregating all sessions on the operating date", () => {
+    expect(aggregatePaidSecondsToMinutes([35, 35])).toBe(1);
+    expect(aggregatePaidSecondsToMinutes([59, 59])).toBe(1);
+  });
+
   it("uses the rate effective on the Tokyo operating date boundary", () => {
     const rates = [
       { hourly_rate: 1200, effective_from: "2026-06-01", effective_to: "2026-06-14" },

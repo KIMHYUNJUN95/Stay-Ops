@@ -99,6 +99,7 @@ export const ATTENDANCE_ACTION_TYPES: readonly AttendanceActionType[] = [
 export type AttendanceFailureReason =
   | "gps_denied"
   | "gps_unavailable"
+  | "gps_inaccurate"
   | "outside_radius"
   | "qr_invalid"
   | "qr_scan_failed"
@@ -111,6 +112,7 @@ export type AttendanceFailureReason =
 export const ATTENDANCE_FAILURE_REASONS: readonly AttendanceFailureReason[] = [
   "gps_denied",
   "gps_unavailable",
+  "gps_inaccurate",
   "outside_radius",
   "qr_invalid",
   "qr_scan_failed",

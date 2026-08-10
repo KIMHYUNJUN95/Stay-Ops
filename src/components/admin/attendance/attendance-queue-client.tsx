@@ -1073,6 +1073,9 @@ function SessionPanel({
   const [editOpen, setEditOpen] = useState(false);
   const [editClockIn, setEditClockIn] = useState(item.clockInLabel ?? "");
   const [editClockOut, setEditClockOut] = useState(item.clockOutLabel ?? "");
+  const [editBreakMinutes, setEditBreakMinutes] = useState(
+    String(Math.floor(item.breakTotalSec / 60)),
+  );
   const [editReason, setEditReason] = useState("");
   const [auditState, setAuditState] = useState<{ key: string; entries: SessionAuditEntry[] }>({
     key: "",
@@ -1112,6 +1115,7 @@ function SessionPanel({
     setModal(null);
     setEditClockIn(item.clockInLabel ?? "");
     setEditClockOut(item.clockOutLabel ?? "");
+    setEditBreakMinutes(String(Math.floor(item.breakTotalSec / 60)));
     setEditReason("");
     setEditOpen(true);
   }
@@ -1126,14 +1130,32 @@ function SessionPanel({
       reason: string;
       clockInTime?: string | null;
       clockOutTime?: string | null;
+      breakMinutes?: number;
     } = { sessionId: item.sessionId, reason: editReason.trim() };
 
     const baseIn = item.clockInLabel ?? "";
     const baseOut = item.clockOutLabel ?? "";
     if (editClockIn !== baseIn && editClockIn.trim() !== "") input.clockInTime = editClockIn;
     if (editClockOut !== baseOut) input.clockOutTime = editClockOut.trim() === "" ? null : editClockOut;
+    const parsedBreakMinutes = Number(editBreakMinutes);
+    if (!Number.isInteger(parsedBreakMinutes) || parsedBreakMinutes < 0) {
+      setErr(c.actionInvalidTime);
+      return;
+    }
+    const baseBreakMinutes = Math.floor(item.breakTotalSec / 60);
+    if (
+      Number.isInteger(parsedBreakMinutes) &&
+      parsedBreakMinutes >= 0 &&
+      parsedBreakMinutes !== baseBreakMinutes
+    ) {
+      input.breakMinutes = parsedBreakMinutes;
+    }
 
-    if (input.clockInTime === undefined && input.clockOutTime === undefined) {
+    if (
+      input.clockInTime === undefined &&
+      input.clockOutTime === undefined &&
+      input.breakMinutes === undefined
+    ) {
       setErr(c.actionNoChanges);
       return;
     }
@@ -1150,6 +1172,8 @@ function SessionPanel({
           ...item,
           clockInLabel: nextIn,
           clockOutLabel: nextOut,
+          breakTotalSec:
+            input.breakMinutes !== undefined ? input.breakMinutes * 60 : item.breakTotalSec,
           // An invalid session stays invalid after a manual edit (server keeps it invalid); the admin
           // still has to run "복구 및 완료 처리" — which is now unblocked since both ends are present.
           status:
@@ -1493,6 +1517,18 @@ function SessionPanel({
                       value={editClockIn}
                       onChange={setEditClockIn}
                       ariaLabel={c.panelEditFieldClockIn}
+                    />
+                  </div>
+                  <div>
+                    <div className="wfield__l">{c.panelEditFieldBreakMinutes}</div>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      className="wfield__input"
+                      value={editBreakMinutes}
+                      onChange={(event) => setEditBreakMinutes(event.target.value)}
+                      aria-label={c.panelEditFieldBreakMinutes}
                     />
                   </div>
                   <div>

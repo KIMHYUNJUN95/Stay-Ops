@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { computeAnnualLeaveSummary, getScheduledGrants } from "../annual-leave";
 
 describe("annual-leave accrual schedule", () => {
+  it("clamps month-end hire dates instead of rolling into the following month", () => {
+    const grants = getScheduledGrants("2024-08-31", "2026-04-01").filter(
+      (grant) => grant.kind === "base",
+    );
+    expect(grants[0].date).toBe("2025-02-28");
+    expect(grants[1].date).toBe("2026-02-28");
+  });
+
   it("grants 10/11/12 days at 6/18/30 months, then +2/year up to the 20-day cap", () => {
     const grants = getScheduledGrants("2020-01-15", "2027-06-01").filter((g) => g.kind === "base");
     expect(grants.slice(0, 7).map((g) => g.amount)).toEqual([10, 11, 12, 14, 16, 18, 20]);
@@ -128,5 +136,30 @@ describe("computeAnnualLeaveSummary", () => {
     });
     expect(summary.baseRemaining).toBe(10);
     expect(summary.bonusRemaining).toBe(2);
+  });
+
+  it("deducts dated usage from buckets that were valid on the usage date", () => {
+    const summary = computeAnnualLeaveSummary({
+      hireDate: "2020-01-15",
+      baselineDate: "2022-08-01",
+      baselineAmount: 0,
+      usageEvents: [{ date: "2024-01-01", amount: 5, pool: "base" }],
+      asOf: "2025-07-16",
+    });
+    const laterGrant = summary.buckets.find(
+      (bucket) => bucket.kind === "base" && bucket.grantedOn === "2024-07-15",
+    );
+    expect(laterGrant?.remaining).toBe(16);
+  });
+
+  it("does not deduct an approved future leave before its start date", () => {
+    const summary = computeAnnualLeaveSummary({
+      hireDate: "2020-01-15",
+      baselineDate: "2026-01-01",
+      baselineAmount: 5,
+      usageEvents: [{ date: "2026-09-01", amount: 2, pool: "base" }],
+      asOf: "2026-08-10",
+    });
+    expect(summary.baseRemaining).toBe(25);
   });
 });

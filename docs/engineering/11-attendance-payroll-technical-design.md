@@ -1723,3 +1723,25 @@ Important:
 - transportation reimbursement is now planned as a later attendance/payroll-adjacent module: per-user
   monthly ledger, mandatory photo evidence per item, linked + manual entry, clean Excel export, and
   separate totals from wages
+
+## Integrity hardening contract (2026-08-10)
+
+Migration `20260810042830_attendance_integrity_hardening.sql` is the additive integrity layer for the
+existing attendance/leave schema. It must not rewrite prior migrations.
+
+- service-role-only RPCs group attendance session mutation + audit, monthly snapshot finalization + audit,
+  rate/employment interval replacement + audit, and annual-leave baseline/profile writes into transactions;
+  `PUBLIC`, `anon`, and `authenticated` execute are revoked explicitly.
+- payroll/finalization loaders throw typed data-access errors instead of converting Supabase errors to
+  empty arrays. UI aggregators may catch the error for rendering, but the finalize action must fail closed.
+- finalization blockers include incomplete clock pairs, unresolved non-invalid review rows, pending
+  corrections, abandoned/open sessions, open breaks, and missing effective hourly-rate coverage.
+- finalized target months must be strictly earlier than the current Tokyo month. Historical organization
+  members remain valid finalization targets even when their membership is inactive.
+- annual-leave usage is passed to the pure bucket engine as dated events. Allocation occurs at each event
+  date against buckets valid on that date; expiry is then evaluated at the requested `asOf` date.
+- transport `linked` items are resolved from the authenticated user's org-scoped attendance candidate on
+  the server. Client-supplied linked labels/property/session context is not authoritative. Every item date
+  must belong to its report month.
+- attendance reminders use a GitHub Actions schedule because the two Vercel Hobby cron slots remain
+  occupied. The workflow calls the existing CRON-secret endpoint and does not create a second evaluator.

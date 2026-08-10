@@ -154,6 +154,7 @@ export function AttendancePay({
     if (r === "invalid") return copy.statusInvalid;
     if (r === "review_required") return copy.statusReviewRequired;
     if (r === "pending_correction") return copy.statusPendingCorrection;
+    if (r === "missing_rate") return copy.excludeMissingRate;
     return copy.excludeDefault;
   }
 

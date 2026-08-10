@@ -401,6 +401,8 @@ function PayrollPanel({
     b.reviewRequired > 0 ||
     b.pendingCorrections > 0 ||
     b.openSessions > 0 ||
+    b.openBreaks > 0 ||
+    b.missingRates > 0 ||
     b.alreadyFinalized;
   const blockerHref = (f: "review" | "corr") =>
     `/admin/attendance/queue?ym=${ym}&filter=${f}&q=${encodeURIComponent(row.userName)}`;
@@ -421,6 +423,8 @@ function PayrollPanel({
         setErr(c.payActionBlocked);
       } else if (res.reason === "not_hourly") {
         setErr(c.payActionNotHourly);
+      } else if (res.reason === "month_not_closed") {
+        setErr(c.payActionMonthOpen);
       } else {
         setErr(c.actionFailed);
       }
@@ -447,7 +451,9 @@ function PayrollPanel({
               row.employment !== "salaried" &&
               b.reviewRequired === 0 &&
               b.pendingCorrections === 0 &&
-              b.openSessions === 0,
+              b.openSessions === 0 &&
+              b.openBreaks === 0 &&
+              b.missingRates === 0,
             blockers: { ...row.blockers, alreadyFinalized: false },
           },
           c.payActionDoneReopen,
@@ -723,7 +729,7 @@ function PayrollPanel({
                     </span>
                   </Link>
                 ) : null}
-                {b.openSessions > 0 ? (
+                {b.openSessions + b.openBreaks > 0 ? (
                   <Link
                     className="errbar is-warn errbar--link"
                     style={{ margin: 0 }}
@@ -736,7 +742,9 @@ function PayrollPanel({
                       </Ic>
                     </span>
                     <div>
-                      <div className="errbar__t">{c.payPanelBlockerOpen(b.openSessions)}</div>
+                      <div className="errbar__t">
+                        {c.payPanelBlockerOpen(b.openSessions + b.openBreaks)}
+                      </div>
                     </div>
                     <span className="errbar__a">
                       <Ic>
@@ -744,6 +752,18 @@ function PayrollPanel({
                       </Ic>
                     </span>
                   </Link>
+                ) : null}
+                {b.missingRates > 0 ? (
+                  <div className="errbar is-warn" style={{ margin: 0 }}>
+                    <span className="errbar__ic">
+                      <Ic>
+                        <AlertTriangle />
+                      </Ic>
+                    </span>
+                    <div>
+                      <div className="errbar__t">{c.payPanelBlockerRate(b.missingRates)}</div>
+                    </div>
+                  </div>
                 ) : null}
                 {b.alreadyFinalized ? (
                   <div className="locknote">

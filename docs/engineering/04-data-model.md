@@ -1803,3 +1803,18 @@ Constraints / behavior:
 
 대기 큐(`getAdminAttendanceCorrections`)와 마감 판정(`getFinalizationEligibility`)은
 `requested|in_review` 만 세므로 `cancelled` 는 두 곳에서 자동으로 빠진다 — 별도 인덱스 불필요.
+## 2026-08-10 integrity migration
+
+`20260810042830_attendance_integrity_hardening.sql` adds the following current contracts:
+
+- `annual_leave_requests.balance_override_reason` stores the required reason for an approval that
+  exceeds the calculated available pool.
+- `attendance_attempt_logs.failure_reason` additionally accepts `gps_inaccurate`.
+- `transport_reimbursement_items` has a validation trigger: item/report org and user must match, usage
+  date must belong to the report month, and linked attendance/cleaning sources must belong to that user,
+  organization, and date.
+- Transactional functions atomically maintain attendance session changes and audit rows, correction
+  approval and session application, month finalization/reopen and audit rows, rate/employment intervals,
+  and annual-leave profile/baseline writes.
+- Total-break admin correction is represented by replacing a session's break rows inside the same
+  transaction as the session audit. Open break rows therefore have an explicit resolution path.

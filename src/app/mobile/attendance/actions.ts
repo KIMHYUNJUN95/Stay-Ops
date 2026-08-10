@@ -244,6 +244,10 @@ export async function submitAttendanceScan(
       .eq("session_id", openSession.id)
       .is("ended_at", null)
       .maybeSingle();
+    if (openBreakRes.error) {
+      await logAttempt({ success: false, failureReason: null, resolvedSiteId: site.id });
+      return { ok: false, reason: "error", siteName: localizedSiteName(site, locale) };
+    }
     if (openBreakRes.data) {
       await logAttempt({ success: false, failureReason: "open_break_blocks_clock_out", resolvedSiteId: site.id });
       return { ok: false, reason: "open_break", siteName: localizedSiteName(site, locale) };
@@ -257,6 +261,16 @@ export async function submitAttendanceScan(
       failureReason: input.gpsError === "denied" ? "gps_denied" : "gps_unavailable",
       resolvedSiteId: site.id,
     });
+    return { ok: false, reason: "gps", siteName: localizedSiteName(site, locale) };
+  }
+
+  const configuredMaxAccuracy = Number(process.env.ATTENDANCE_MAX_GPS_ACCURACY_METERS ?? "100");
+  const maxAccuracy =
+    Number.isFinite(configuredMaxAccuracy) && configuredMaxAccuracy > 0
+      ? configuredMaxAccuracy
+      : 100;
+  if (input.accuracy == null || !Number.isFinite(input.accuracy) || input.accuracy > maxAccuracy) {
+    await logAttempt({ success: false, failureReason: "gps_inaccurate", resolvedSiteId: site.id });
     return { ok: false, reason: "gps", siteName: localizedSiteName(site, locale) };
   }
 
@@ -341,8 +355,10 @@ export async function submitAttendanceScan(
       clock_out_device_info: deviceInfo,
     } as never)
     .eq("id", open.id)
-    .eq("status", "open");
-  if (updateRes.error) {
+    .eq("status", "open")
+    .select("id")
+    .maybeSingle();
+  if (updateRes.error || !updateRes.data) {
     await logAttempt({ success: false, failureReason: null, resolvedSiteId: site.id });
     return { ok: false, reason: "error", siteName: localizedSiteName(site, locale) };
   }
@@ -420,6 +436,7 @@ export async function startBreak(): Promise<BreakActionResult> {
     .eq("session_id", sessionId)
     .is("ended_at", null)
     .maybeSingle();
+  if (openBreakRes.error) return { ok: false, reason: "error" };
   if (openBreakRes.data) return { ok: false, reason: "already_on_break" };
 
   const ins = await (async () => {
@@ -468,8 +485,11 @@ export async function endBreak(): Promise<BreakActionResult> {
     .from("attendance_breaks")
     .update({ ended_at: new Date().toISOString() } as never)
     .eq("id", openBreak.id)
-    .is("ended_at", null);
+    .is("ended_at", null)
+    .select("id")
+    .maybeSingle();
   if (upd.error) return { ok: false, reason: "error" };
+  if (!upd.data) return { ok: false, reason: "no_open_break" };
 
   revalidatePath("/mobile/attendance");
   return { ok: true };

@@ -12,6 +12,7 @@ import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import {
   getOrCreateTransportReport,
+  getLinkedTransportCandidates,
   getTransportReport,
   syncReportTotalAmount,
   type TransportEntryMode,
@@ -56,6 +57,8 @@ export type CreateTransportItemInput = {
   usageDate: string; // 'YYYY-MM-DD'
   amountYen: number;
   entryMode: TransportEntryMode;
+  linkedSourceType?: "attendance" | "cleaning";
+  linkedSourceId?: string;
   attendanceSessionId?: string | null;
   propertyId?: string | null;
   buildingLabel?: string;
@@ -79,6 +82,9 @@ export async function createTransportItemAction(
   const targetMonthDate = monthKeyToFirstDay(input.targetMonth);
   if (!targetMonthDate) return { ok: false, error: "invalid_month" };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.usageDate)) return { ok: false, error: "invalid_date" };
+  if (input.usageDate.slice(0, 7) !== input.targetMonth) {
+    return { ok: false, error: "date_outside_month" };
+  }
   if (!Number.isInteger(input.amountYen) || input.amountYen <= 0) {
     return { ok: false, error: "invalid_amount" };
   }
@@ -89,9 +95,42 @@ export async function createTransportItemAction(
   const report = await getOrCreateTransportReport(service, organizationId, userId, targetMonthDate);
   if (!EDITABLE_STATUSES.has(report.status)) return { ok: false, error: "report_not_editable" };
 
+  let usageDate = input.usageDate;
+  let attendanceSessionId: string | null = null;
+  let propertyId: string | null = null;
   const workContext: Record<string, string> = {};
-  if (input.buildingLabel?.trim()) workContext.buildingLabel = input.buildingLabel.trim();
-  if (input.contextSummary?.trim()) workContext.contextSummary = input.contextSummary.trim();
+  if (input.entryMode === "linked") {
+    if (!input.linkedSourceId || !input.linkedSourceType) {
+      return { ok: false, error: "linked_source_required" };
+    }
+    let linkedCandidates;
+    try {
+      linkedCandidates = await getLinkedTransportCandidates(
+        service,
+        organizationId,
+        userId,
+        targetMonthDate,
+      );
+    } catch {
+      return { ok: false, error: "linked_source_lookup_failed" };
+    }
+    const linked = linkedCandidates.find(
+      (candidate) =>
+        candidate.type === input.linkedSourceType && candidate.sourceId === input.linkedSourceId,
+    );
+    if (!linked) return { ok: false, error: "linked_source_invalid" };
+    usageDate = linked.date;
+    attendanceSessionId = linked.attendanceSessionId ?? null;
+    propertyId = linked.propertyId ?? null;
+    Object.assign(workContext, linked.workContext, {
+      contextSummary: linked.contextSummary,
+      linkedSourceType: linked.type,
+      linkedSourceId: linked.sourceId,
+    });
+  } else {
+    if (input.buildingLabel?.trim()) workContext.buildingLabel = input.buildingLabel.trim();
+    if (input.contextSummary?.trim()) workContext.contextSummary = input.contextSummary.trim();
+  }
 
   const ins = await untyped(service)
     .from("transport_reimbursement_items")
@@ -99,11 +138,11 @@ export async function createTransportItemAction(
       organization_id: organizationId,
       report_id: report.id,
       user_id: userId,
-      usage_date: input.usageDate,
+      usage_date: usageDate,
       amount_yen: input.amountYen,
       entry_mode: input.entryMode,
-      attendance_session_id: input.attendanceSessionId ?? null,
-      property_id: input.propertyId ?? null,
+      attendance_session_id: attendanceSessionId,
+      property_id: propertyId,
       work_context: workContext,
       memo: input.memo?.trim() ? input.memo.trim() : null,
     })
@@ -384,6 +423,7 @@ export async function submitTransportReportAction(
     .select("id")
     .eq("report_id", report.id)
     .eq("organization_id", organizationId);
+  if (itemsRes.error) return { ok: false, error: "items_lookup_failed" };
   const itemIds = ((itemsRes.data ?? []) as { id: string }[]).map((r) => r.id);
   if (itemIds.length === 0) return { ok: false, error: "no_items" };
 
@@ -393,6 +433,7 @@ export async function submitTransportReportAction(
     .select("item_id")
     .in("item_id", itemIds)
     .eq("organization_id", organizationId);
+  if (imgRes.error) return { ok: false, error: "images_lookup_failed" };
   const withImage = new Set(
     ((imgRes.data ?? []) as { item_id: string }[]).map((r) => r.item_id),
   );
@@ -404,8 +445,11 @@ export async function submitTransportReportAction(
     .update({ status: "submitted", submitted_at: new Date().toISOString() })
     .eq("id", report.id)
     .eq("organization_id", organizationId)
-    .eq("user_id", userId);
-  if (upd.error) return { ok: false, error: "submit_failed" };
+    .eq("user_id", userId)
+    .in("status", Array.from(EDITABLE_STATUSES))
+    .select("id")
+    .maybeSingle();
+  if (upd.error || !upd.data) return { ok: false, error: "submit_failed" };
 
   revalidatePath(TRANSPORT_PATH);
   return { ok: true };
