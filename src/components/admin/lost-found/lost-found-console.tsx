@@ -105,11 +105,25 @@ export function LostFoundConsole({ locale, items, loadError }: LostFoundConsoleP
     setSelectedId(null);
   }
 
+  /** 여기 `router.refresh()` 는 「새로고침」 버튼 그 자체다 — 아래 규칙의 예외로 남겨 둔다. */
   function handleSync() {
     router.refresh();
     showToast(t.tSynced);
   }
 
+  /**
+   * 액션 뒤에 `router.refresh()` 를 부르지 않는다.
+   *
+   * 여기서 부르는 액션은 **전부 서버에서 `revalidateItem()`**(= `/admin/lost-found` +
+   * `/mobile/requests/lost-found/{id}` 재검증)을 호출한다. 서버 액션이 경로를 재검증하면 그
+   * 응답에 갱신된 RSC 페이로드가 함께 오므로 화면은 이미 새로 그려진다. 거기에
+   * `router.refresh()` 를 더하면 **같은 데이터를 한 번 더 받아오는 두 번째 왕복**이 될 뿐이다
+   * (2026-08-11 제거).
+   *
+   * 새 액션을 추가할 때는 그 액션이 `revalidateItem()` 을 호출하는지 확인한다. 호출하지 않는다면
+   * `router.refresh()` 를 붙이는 대신 **액션 쪽에 재검증을 추가하는 것이 맞다** — 그래야 이 화면과
+   * 모바일 상세가 함께 갱신된다.
+   */
   function handleConfirmAction(kind: LFActionKind, id: string, payload: LFActionPayload) {
     startTransition(async () => {
       if (kind === "delete") {
@@ -121,7 +135,6 @@ export function LostFoundConsole({ locale, items, loadError }: LostFoundConsoleP
         setConfirm(null);
         setSelectedId(null);
         showToast(t.tDel);
-        router.refresh();
         return;
       }
 
@@ -139,7 +152,6 @@ export function LostFoundConsole({ locale, items, loadError }: LostFoundConsoleP
         setConfirm(null);
         setSelectedId(null);
         showToast(t.tReturn);
-        router.refresh();
         return;
       }
 
@@ -152,7 +164,6 @@ export function LostFoundConsole({ locale, items, loadError }: LostFoundConsoleP
         setConfirm(null);
         setSelectedId(null);
         showToast(t.tDispose);
-        router.refresh();
         return;
       }
 
@@ -168,7 +179,6 @@ export function LostFoundConsole({ locale, items, loadError }: LostFoundConsoleP
         }
         setConfirm(null);
         showToast(t.tExtend);
-        router.refresh();
         return;
       }
 
@@ -181,7 +191,6 @@ export function LostFoundConsole({ locale, items, loadError }: LostFoundConsoleP
         setConfirm(null);
         setSelectedId(null);
         showToast(t.tRestore);
-        router.refresh();
         return;
       }
 
@@ -197,7 +206,6 @@ export function LostFoundConsole({ locale, items, loadError }: LostFoundConsoleP
       }
       setConfirm(null);
       showToast(t.tCorrect);
-      router.refresh();
     });
   }
 

@@ -89,11 +89,21 @@ export function MaintenanceConsole({ locale, reports, loadError }: MaintenanceCo
     setSelectedId(null);
   }
 
+  /** 여기 `router.refresh()` 는 「새로고침」 버튼 그 자체다 — 아래 규칙의 예외로 남겨 둔다. */
   function handleSync() {
     router.refresh();
     showToast(t.tSynced);
   }
 
+  /**
+   * 액션 뒤에 `router.refresh()` 를 부르지 않는다 — `applyMaintenanceException` ·
+   * `deleteMaintenanceReportById` 가 **서버에서 이미 `/admin/maintenance` 를 재검증**한다.
+   * 서버 액션이 경로를 재검증하면 그 응답에 갱신된 RSC 페이로드가 함께 오므로, 추가 호출은
+   * 같은 데이터를 한 번 더 받아오는 두 번째 왕복이 될 뿐이다 (2026-08-11 제거).
+   *
+   * 새 액션을 붙일 때는 그 액션이 재검증하는지 먼저 확인한다. 안 한다면 여기서 새로고침하는
+   * 대신 **액션 쪽에 재검증을 추가하는 것이 맞다.**
+   */
   function handleConfirmException(kind: MaintExceptionKind, id: string, memo: string) {
     startTransition(async () => {
       if (kind === "del") {
@@ -105,7 +115,6 @@ export function MaintenanceConsole({ locale, reports, loadError }: MaintenanceCo
         setConfirm(null);
         setSelectedId(null);
         showToast(t.tDel);
-        router.refresh();
         return;
       }
 
@@ -116,7 +125,6 @@ export function MaintenanceConsole({ locale, reports, loadError }: MaintenanceCo
       }
       setConfirm(null);
       showToast(kind === "force" ? t.tForce : t.tVoid);
-      router.refresh();
     });
   }
 
