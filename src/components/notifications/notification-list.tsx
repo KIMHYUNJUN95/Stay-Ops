@@ -338,7 +338,6 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
     startTransition(async () => {
       optimisticMarkAllRead();
       await markAllNotificationsRead();
-      router.refresh();
     });
   }
 
@@ -356,7 +355,6 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
       const result = await deleteNotifications(ids);
       if (result.ok) {
         exitSelectMode();
-        router.refresh();
       }
     });
   }

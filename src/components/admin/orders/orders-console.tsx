@@ -112,6 +112,22 @@ export function OrdersConsole({ locale, orders, loadError, todayKey }: OrdersCon
     showToast(t.tSynced);
   }
 
+  /**
+   * `router.refresh()` 는 **여기서 섞여 있다** — 액션마다 다르므로 일괄 제거하면 안 된다.
+   *
+   * 서버 액션이 `revalidatePath` 로 이 라우트를 재검증하면 응답에 갱신된 RSC 페이로드가 함께
+   * 오므로 추가 새로고침은 두 번째 왕복일 뿐이다. 하지만 이 화면이 부르는 액션 중 일부는
+   * **모바일 경로만** 재검증한다.
+   *
+   *   reject / reopen / correct / edit → `revalidateOrders()` 가 /admin/orders 포함  ⇒ 제거함
+   *   updateOrderRequestStatus         → /mobile/requests · /mobile/notifications 만  ⇒ 유지
+   *   updateOrderDeliveryDate          → 같음                                        ⇒ 유지
+   *   deleteOrderRequest               → 재검증 자체가 없음                          ⇒ 유지
+   *
+   * 유지 쪽을 지우면 **처리 후 이 목록이 갱신되지 않는다.** 더 깔끔한 해법은 그 액션들이
+   * `/admin/orders` 도 재검증하게 만드는 것이지만, 모바일 요청 흐름과 공유하는 액션이라 영향
+   * 범위가 넓어 별도 작업으로 남긴다. (2026-08-11)
+   */
   function handleConfirmAction(kind: OrdActionKind, id: string, payload: OrdActionPayload) {
     startTransition(async () => {
       if (kind === "approve") {
@@ -135,7 +151,6 @@ export function OrdersConsole({ locale, orders, loadError, todayKey }: OrdersCon
         setConfirm(null);
         setSelectedId(null);
         showToast(t.tReject);
-        router.refresh();
         return;
       }
 
@@ -184,7 +199,6 @@ export function OrdersConsole({ locale, orders, loadError, todayKey }: OrdersCon
         }
         setConfirm(null);
         showToast(t.tReopen);
-        router.refresh();
         return;
       }
 
@@ -200,7 +214,6 @@ export function OrdersConsole({ locale, orders, loadError, todayKey }: OrdersCon
         }
         setConfirm(null);
         showToast(t.tCorrect);
-        router.refresh();
         return;
       }
 
@@ -218,7 +231,6 @@ export function OrdersConsole({ locale, orders, loadError, todayKey }: OrdersCon
         }
         setConfirm(null);
         showToast(t.tEdit);
-        router.refresh();
         return;
       }
 

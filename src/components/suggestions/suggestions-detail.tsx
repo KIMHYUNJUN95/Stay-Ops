@@ -15,7 +15,6 @@ import type { CSSProperties } from "react";
 import { useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   deleteStaffSuggestion,
   updateStaffSuggestionStatus,
@@ -86,7 +85,6 @@ export function SuggestionsDetail({
   viewerUserId: string;
   copy: SgCopy;
 }) {
-  const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [reasonOpen, setReasonOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
@@ -141,7 +139,6 @@ export function SuggestionsDetail({
       setSheetOpen(false);
       setReasonOpen(false);
       setCompleteOpen(false);
-      router.refresh();
     });
   }
   const statusDrag = useSheetDragDismiss({ shown: sheetOpen, onDismiss: () => setSheetOpen(false) });

@@ -8,7 +8,6 @@
  */
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   deleteStaffSuggestionComment,
   updateStaffSuggestionComment,
@@ -63,7 +62,6 @@ export function SuggestionCommentItem({
   hydrated: boolean;
   copy: Dictionary["mobile"]["suggestions"];
 }) {
-  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(comment.body ?? "");
   const [confirming, setConfirming] = useState(false);
@@ -92,7 +90,6 @@ export function SuggestionCommentItem({
         return;
       }
       setEditing(false);
-      router.refresh();
     });
   }
 
@@ -106,7 +103,6 @@ export function SuggestionCommentItem({
         setError(copy.errors.save_failed);
         return;
       }
-      router.refresh();
     });
   }
 

@@ -9,7 +9,6 @@
  */
 
 import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { createStaffSuggestionComment } from "@/app/mobile/suggestions/actions";
 import {
   compressImageFile,
@@ -32,7 +31,6 @@ export function SuggestionCommentComposer({
   organizationId: string;
   copy: Dictionary["mobile"]["suggestions"];
 }) {
-  const router = useRouter();
   const [text, setText] = useState("");
   const [photos, setPhotos] = useState<PreviewItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +100,6 @@ export function SuggestionCommentComposer({
       for (const p of photos) URL.revokeObjectURL(p.previewUrl);
       setText("");
       setPhotos([]);
-      router.refresh();
     });
   }
 
