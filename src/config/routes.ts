@@ -72,7 +72,7 @@ export const routeAccess = [
   {
     path: "/mobile/complaints",
     mode: "mobile",
-    label: "컴플레인",
+    label: "게스트 피드백",
     roles: allRoles,
   },
   {

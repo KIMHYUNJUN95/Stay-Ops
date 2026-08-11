@@ -9,7 +9,10 @@ export const localizedNavigationLabels = {
     attendance: { ko: "근태", ja: "勤怠", en: "Attendance" },
     calendar: { ko: "예약 캘린더", ja: "予約カレンダー", en: "Calendar" },
     cleaning: { ko: "청소", ja: "清掃", en: "Cleaning" },
-    complaints: { ko: "컴플레인", ja: "クレーム", en: "Complaints" },
+    // 이 화면은 수동 컴플레인뿐 아니라 Airbnb·Booking 리뷰(좋은 평 포함)와 문제 객실 집계를
+    // 함께 다룬다. 「컴플레인」은 그중 하나만 가리켜 이름이 좁았다 (2026-08-11).
+    // 어드민 사이드바는 폭이 넉넉해 풀네임을 쓴다 — 모바일은 아래 축약형.
+    complaints: { ko: "게스트 피드백", ja: "ゲストフィードバック", en: "Guest Feedback" },
     dashboard: { ko: "대시보드", ja: "ダッシュボード", en: "Dashboard" },
     linenReturn: { ko: "린넨 반품", ja: "リネン返却", en: "Linen Return" },
     lostFound: { ko: "분실물", ja: "遺失物", en: "Lost & Found" },
@@ -32,7 +35,18 @@ export const localizedNavigationLabels = {
     requests: { ko: "요청", ja: "リクエスト", en: "Requests" },
     suggestions: { ko: "제안함", ja: "提案箱", en: "Suggestions" },
     attendance: { ko: "근태", ja: "勤怠", en: "Attendance" },
-    complaints: { ko: "컴플레인", ja: "クレーム", en: "Complaints" },
+    complaints: { ko: "게스트 피드백", ja: "ゲストフィードバック", en: "Guest Feedback" },
+    /**
+     * 하단 탭바 **전용** 축약형 (`NavigationItem.shortLabel`).
+     *
+     * 탭은 10.5px 글자에 폭이 ~72px뿐이라 풀네임이 줄바꿈돼 탭바 높이를 밀어낸다. 기존 탭 라벨
+     * 최장이 `スタッフ一覧`(6자)이라 일본어도 6자 이내로 맞춘다.
+     *
+     * **사이드 메뉴와 화면 제목은 풀네임을 쓴다.** 2026-08-11까지 이 축약형이 `complaints`
+     * 자리에 있어, 폭이 넉넉한 사이드 메뉴에서도 「피드백」으로 나왔다 — 좁은 자리의 제약이
+     * 넓은 자리의 이름까지 깎고 있었다.
+     */
+    complaintsShort: { ko: "피드백", ja: "ゲストの声", en: "Feedback" },
   },
   utility: {
     notifications: { ko: "알림", ja: "通知", en: "Notifications" },
@@ -2391,7 +2405,9 @@ const FALLBACK_DICTIONARY = {
   },
   complaints: {
     // Admin console (/admin/complaints)
-    adminTitle: "Complaints",
+    // Feature name is "Guest Feedback" (2026-08-11) — it covers reviews, not just complaints.
+    // The word "complaint" stays for the manual-complaint entity itself.
+    adminTitle: "Guest Feedback",
     adminSubtitle: "Manual complaints and Airbnb / Booking.com external reviews in one console",
     viewManual: "Manual complaints",
     viewReviews: "External reviews",
@@ -2501,8 +2517,8 @@ const FALLBACK_DICTIONARY = {
     deleteLinkedNote: "The linked external review is not deleted — it returns to the unlinked state.",
     sortRatio: "Highest problem rate",
     // List
-    pageTitle: "Complaints",
-    listTitle: "Complaints",
+    pageTitle: "Guest Feedback",
+    listTitle: "Guest Feedback",
     filterAll: "All",
     segOpen: "Open",
     segDone: "Resolved",
@@ -7157,7 +7173,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     },
     complaints: {
       // 어드민 콘솔 (/admin/complaints)
-      adminTitle: "컴플레인",
+      adminTitle: "게스트 피드백",
       adminSubtitle: "수동 컴플레인과 Airbnb · Booking.com 외부 리뷰를 함께 검토합니다",
       viewManual: "수동 컴플레인",
       viewReviews: "외부 리뷰",
@@ -7252,8 +7268,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       rangePrevMonth: "이전 달",
       rangeNextMonth: "다음 달",
       sortRatio: "문제 비율 높은 순",
-      pageTitle: "컴플레인",
-      listTitle: "컴플레인",
+      pageTitle: "게스트 피드백",
+      listTitle: "게스트 피드백",
       filterAll: "전체",
       segOpen: "미처리",
       segDone: "처리완료",
@@ -11831,7 +11847,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     },
     complaints: {
       // 管理コンソール (/admin/complaints)
-      adminTitle: "クレーム",
+      adminTitle: "ゲストフィードバック",
       adminSubtitle: "手動クレームとAirbnb・Booking.comの外部レビューをまとめて確認します",
       viewManual: "手動クレーム",
       viewReviews: "外部レビュー",
@@ -11926,8 +11942,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       rangePrevMonth: "前の月",
       rangeNextMonth: "次の月",
       sortRatio: "問題比率が高い順",
-      pageTitle: "クレーム",
-      listTitle: "クレーム",
+      pageTitle: "ゲストフィードバック",
+      listTitle: "ゲストフィードバック",
       filterAll: "すべて",
       segOpen: "未対応",
       segDone: "対応済み",

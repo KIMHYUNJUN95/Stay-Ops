@@ -38,6 +38,15 @@ export type NavigationIcon = ComponentType<SVGProps<SVGSVGElement>>;
 export type NavigationItem = {
   id: string;
   label: LocalizedText;
+  /**
+   * 하단 탭바 **전용** 축약 라벨. 없으면 `label` 을 쓴다.
+   *
+   * 탭은 10.5px 글자에 폭이 ~72px뿐이라 긴 이름이 줄바꿈돼 탭바 높이를 밀어낸다. 그렇다고
+   * 축약형을 `label` 자체로 두면 **폭이 넉넉한 사이드 메뉴까지** 줄어든 이름을 쓰게 된다 —
+   * 실제로 「게스트 피드백」이 사이드 메뉴에서도 「피드백」으로 나오고 있었다(2026-08-11).
+   * 좁은 자리의 제약이 넓은 자리의 이름을 깎지 않도록 둘을 분리한다.
+   */
+  shortLabel?: LocalizedText;
   href: string;
   icon: NavigationIcon;
   allowedRoles?: readonly Role[];
@@ -137,6 +146,7 @@ const mobileNavAttendance = {
 const mobileNavComplaints = {
   id: "complaints",
   label: localizedNavigationLabels.mobile.complaints,
+  shortLabel: localizedNavigationLabels.mobile.complaintsShort,
   href: "/mobile/complaints",
   icon: MessageSquareWarning,
 } as const satisfies NavigationItem;
@@ -365,4 +375,15 @@ export function getNavigationLabel(item: NavigationItem, locale: Locale) {
   }
   console.warn(`[navigation] missing localized label for "${item.id}"`);
   return item.id;
+}
+
+/**
+ * 하단 탭바용 라벨 — 축약형이 있으면 그것, 없으면 정식 이름.
+ *
+ * **탭바에서만 쓴다.** 사이드 메뉴·탭 편집 시트·화면 제목은 `getNavigationLabel` 이다. 탭 폭이
+ * 좁다는 이유로 다른 자리의 이름까지 줄이면 안 된다.
+ */
+export function getNavigationTabLabel(item: NavigationItem, locale: Locale) {
+  const short = item.shortLabel ? getLocalizedText(item.shortLabel, locale) : "";
+  return short || getNavigationLabel(item, locale);
 }

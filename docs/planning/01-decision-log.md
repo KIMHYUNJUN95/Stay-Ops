@@ -2,6 +2,20 @@
 
 This file records important project decisions.
 
+## 2026-08-11 컴플레인 → 게스트 피드백 개명 (표시명 한정)
+
+이 모듈은 수동 컴플레인 외에 Airbnb·Booking.com 외부 리뷰 전체(좋은 평 포함)와 문제 객실 집계를
+함께 다룬다. 「컴플레인」은 세 뷰 중 하나만 가리켜 기능 이름으로는 좁았다.
+
+- 기능 표시명은 `게스트 피드백` / `ゲストフィードバック` / `Guest Feedback`로 통일한다.
+- 모바일 내비게이션 라벨만 축약형(`피드백` / `ゲストの声` / `Feedback`)을 쓴다. 하단 탭 라벨은
+  10.5px · 폭 ~72px이라 풀네임이 줄바꿈돼 탭바 높이를 밀어낸다. 일본어는 기존 최장 탭 라벨
+  (`スタッフ一覧`, 6자) 이내로 맞춘다.
+- **라우트·내비 id·DB 테이블·i18n 네임스페이스는 바꾸지 않는다.** 북마크와 저장된
+  `profiles.bottom_nav_tabs` 값이 깨지지 않아야 한다.
+- 컴플레인 **엔티티**를 가리키는 문구(`수동 컴플레인`, `컴플레인 등록/삭제/전환`)는 그대로 둔다.
+  개명 대상은 기능 이름 하나다.
+
 ## 2026-08-07 Mobile recurring-task detail delete parity
 
 - A mobile task detail opened from a concrete recurring occurrence must offer the same two choices as the admin console occurrence row: skip only that date or delete the whole series.

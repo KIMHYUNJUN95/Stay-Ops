@@ -881,11 +881,19 @@ Management Console" → Current Implementation Note.
 - 이미지 확인
 - deep link
 
-### Complaints
+### Guest Feedback (게스트 피드백)
 
-컴플레인은 사무실/CS 중심의 **수동 컴플레인 + Beds24 외부 리뷰** 통합 검토 모듈이다. 외부 리뷰와
+게스트 피드백은 사무실/CS 중심의 **수동 컴플레인 + Beds24 외부 리뷰** 통합 검토 모듈이다. 외부 리뷰와
 내부 처리 티켓은 구분한다. 낮은 평점 리뷰를 자동 티켓으로 만들지 않고, 검토자가 필요할 때만 수동
 컴플레인으로 전환·연결한다.
+
+> **`컴플레인` → `게스트 피드백` 개명 (2026-08-11).** 이 모듈은 좋은 평을 포함한 Airbnb ·
+> Booking.com 리뷰 전체와 문제 객실 집계까지 다루는데, 「컴플레인」은 세 뷰 중 하나만 가리켰다.
+> 사이드바 라벨은 `게스트 피드백` / `ゲストフィードバック` / `Guest Feedback` (모바일 탭바만
+> 폭 때문에 축약형 — `docs/product/16-mobile-navigation.md`). **바뀐 것은 표시명뿐이다**:
+> 라우트 `/admin/complaints`, 내비 id `complaints`, 테이블 `customer_complaints`, 그리고
+> 컴플레인 **엔티티**를 가리키는 문구(`수동 컴플레인`, `컴플레인 등록`, `컴플레인으로 전환`)는
+> 그대로 둔다.
 
 `/admin/complaints` (계획)은 공용 어드민 콘솔 패턴을 사용한다.
 

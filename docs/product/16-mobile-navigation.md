@@ -49,10 +49,20 @@ Home   Calendar   [ ✎ 편집 (center FAB) ]   Requests   Announcements
 - **Suggestions / Feedback Box** (`제안함` / `提案箱` / `Suggestions`, id `suggestions`, `/mobile/suggestions`, `Inbox` icon) is a side-menu entry + pinnable bottom-bar candidate. Screens: list (`보낸/받은/참조` segments + status filter pills), compose (`/new`), and a **role-aware** detail (`/[id]`) — recipient gets the bottom status-change sheet → hold-reason / completion-note sheets, every participant gets the comment composer; the old `/referenced` route now redirects to the list. **Fully wired and shippable as of 2026-06-16 (Steps 1–8):** schema + create + list + participant-only detail + comments + recipient-only status workflow + notifications, all localized ko/ja/en. Suggestion notifications use the `suggestion_activity` type, deep-link to the suggestion, and render in the live `/mobile/notifications` bell feed. See `docs/product/22-staff-suggestions-workflow.md`.
 - **Attendance / 근태** (`근태` / `勤怠` / `Attendance`, id `attendance`, `/mobile/attendance`, `Clock` icon) is a side-menu entry + pinnable bottom-bar candidate. Screens: home ring-hero clock (`/mobile/attendance`, states 출근 전/근무 중/휴게 중), GPS+QR capture (`/mobile/attendance/capture?mode=in|out`), correction request + status (`/mobile/attendance/correction`), **own history (`/mobile/attendance/history`, Step 5)**, and **own monthly pay (`/mobile/attendance/pay`, Step 10)**. **Now functional (Steps 3–10, 2026-06-17/18):** real GPS+QR clock-in/out, break start/end (clock-out blocked while on break), self-scoped history, correction/exception requests, and a self hourly **expected-pay** screen. Admin review + correction approval + manual session management are already server-backed, and the active dashboard rebuild now treats their admin UI as a first-class module. The home shows 이력 + 급여 shortcut entry rows in all three states (idle / open / break), placed below the primary action buttons. (2026-06-23) Wi-Fi stays `준비중`. The design's own 5-tab bottom bar is intentionally dropped in favor of the app's global bottom nav. Finalization / dashboard / export remain dashboard work rather than mobile-primary work. See `docs/product/24-attendance-workflow.md`, `docs/product/21-attendance-payroll-workflow.md`, and `docs/product/05-admin-web-ia.md`.
 - **Linen Return** (`린넨 반품` / `リネン返却` / `Linen Return`, id `linen-return`, `/mobile/linen-return`) is a side-menu entry, not a default bottom tab. It can be pinned via the bottom-bar editor (it is part of the customizable pool). Building-first flow: building picker → building list → create / detail / ledger. See `docs/product/19-linen-defect-workflow.md`.
-- **Complaints & Reviews** (`컴플레인` / `クレーム` / `Complaints`, id `complaints`, `/mobile/complaints`) is a
+- **Guest Feedback** (nav label `피드백` / `ゲストの声` / `Feedback`; screen title `게스트 피드백` /
+  `ゲストフィードバック` / `Guest Feedback`, id `complaints`, `/mobile/complaints`) is a
   side-menu entry and a pinnable bottom-bar candidate, not a default tab. The existing mobile manual
   complaint flow is redesigned as one entry point with two distinct data views: **수동 컴플레인** and
   **외부 리뷰**. It does not add a feature-specific header, tab bar, or navigation shell.
+  - **Renamed from `컴플레인` on 2026-08-11.** The screen collects Airbnb / Booking.com reviews —
+    including good ones — plus the problem-room rollup, so "complaint" named only one of its three
+    views. Route id, path, and the `customer_complaints` table are unchanged: this is a display-name
+    change only, so bookmarks and persisted `profiles.bottom_nav_tabs` values keep working.
+  - **The nav label is deliberately shorter than the screen title.** Bottom-tab labels render at
+    10.5px in a ~72px column, so `게스트 피드백` / `ゲストフィードバック` would wrap and push the tab
+    bar taller. The Japanese nav label stays within the 6-character ceiling set by the longest
+    existing tab label (`スタッフ一覧`). "수동 컴플레인" and every other complaint-entity string
+    (등록 / 삭제 / 전환) keeps the word complaint — the entity did not get renamed, the feature did.
   - `/mobile/complaints`: the two views are separated before filtering via a `?view=manual|reviews`
     tab switch rendered above the list content (`ComplaintViewTabs`, plain `<Link>` tabs — no client
     state, so only the active view's data is fetched). Manual complaints keep their existing

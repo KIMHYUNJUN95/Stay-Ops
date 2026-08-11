@@ -13,6 +13,7 @@ import {
   MAX_BOTTOM_NAV_TABS,
   customizableBottomNavItems,
   getNavigationLabel,
+  getNavigationTabLabel,
   mobileNavBugs,
   mobileSidebarNavigation,
   resolveBottomNavItems,
@@ -538,7 +539,8 @@ export function MobileShell({
         }}
       >
         <span className="ico">{LAUNCHER_META[item.id]?.icon ?? FALLBACK_ICON}</span>
-        <span className="lbl">{getNavigationLabel(item, locale)}</span>
+        {/* 탭바만 축약형을 쓴다 — 사이드 메뉴·편집 시트는 정식 이름 그대로. */}
+        <span className="lbl">{getNavigationTabLabel(item, locale)}</span>
       </Link>
     );
   };

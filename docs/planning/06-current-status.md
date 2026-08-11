@@ -20,6 +20,20 @@ and the major mobile/admin operations modules are implemented and being hardened
   would otherwise read as current status. Encoding-damaged sections/files were intentionally not repaired
   in this pass.
 
+## 2026-08-11 — "Complaints" renamed to "Guest Feedback"
+
+- The feature is now `게스트 피드백` / `ゲストフィードバック` / `Guest Feedback` on both the admin
+  sidebar and the mobile screen title, because the module also carries every Airbnb / Booking.com
+  review (good ones included) and the problem-room rollup.
+- Mobile navigation uses a shorter label (`피드백` / `ゲストの声` / `Feedback`): bottom-tab labels
+  render at 10.5px in a ~72px column, so the full name would wrap and grow the tab bar.
+- Display name only. Routes (`/admin/complaints`, `/mobile/complaints`), the `complaints` nav id, the
+  `customer_complaints` table, and the `dictionary.complaints` namespace are untouched, so bookmarks
+  and saved `profiles.bottom_nav_tabs` values keep working. Complaint-entity copy (수동 컴플레인,
+  컴플레인 등록/삭제/전환) is unchanged.
+- Verification completed: `npm run check:i18n` (19 tests), `npm test` (182 tests), `npm run lint`
+  (0 errors; 11 pre-existing warnings), and `npm run build` all pass.
+
 ## 2026-08-07 — Complaint building names localized (admin + mobile)
 
 - The problem-room aggregation (`summarizeReviewsByPlace`) now takes a `locale` and returns a
