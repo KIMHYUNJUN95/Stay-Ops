@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -156,10 +165,42 @@ export function TasksWorkspace({
   const [view, setView] = useState<View>(initialView);
   /** 지시 탭 안의 받은/보낸 세그먼트. */
   const [instrTab, setInstrTab] = useState<"recv" | "sent">("recv");
-  const [hiddenTaskIds, setHiddenTaskIds] = useState<Set<string>>(() => new Set());
-  const visibleTasks = useMemo(
-    () => (hiddenTaskIds.size ? allTasks.filter((t) => !hiddenTaskIds.has(t.id)) : allTasks),
-    [allTasks, hiddenTaskIds],
+  /**
+   * 완료 토글의 낙관적 반영 — **일회성과 반복이 같은 방식을 쓴다.**
+   *
+   * 완료를 누르면 서버가 끝나기 전에 목록에서 사라져야 한다. 그러지 않으면 «세션 조회 → 상태
+   * 기록 → 로그 insert → revalidatePath 3개 → 페이지 전체 RSC 재렌더» 왕복이 끝날 때까지 아무
+   * 반응이 없다. 2026-08-07 실측에서 **반복 회차만 그 대기를 그대로 겪고 있었다** — 일회성은
+   * 수동으로 행을 숨기고 있었지만 반복에는 그 처리가 없었다(관리함 9건 중 7건이 반복이라 사실상
+   * 대부분의 완료가 느리게 느껴졌다).
+   *
+   * 두 경로 모두 `useOptimistic` 으로 통일한다. 직접 만든 «숨김 집합 + try/finally 원복» 은
+   * 되돌리기를 손으로 관리해야 하는데, `useOptimistic` 은 트랜지션이 끝나 새 props 가 도착하면
+   * 스스로 버려진다 — 실패해도 행이 저절로 제자리로 돌아온다.
+   */
+  const [visibleTasks, hideTasksOptimistically] = useOptimistic(
+    allTasks,
+    (tasks: TaskRecord[], removedIds: readonly string[]) => {
+      const gone = new Set(removedIds);
+      return tasks.filter((t) => !gone.has(t.id));
+    },
+  );
+  /**
+   * 반복은 행이 아니라 **회차**가 완료된다. 완료된 회차는 상태 행이 생기는 순간 목록에서 빠지므로
+   * (`openOccursOn`), 낙관적으로 상태를 하나 얹으면 일회성과 똑같이 즉시 사라진다.
+   */
+  const [visibleOccurrenceStates, resolveOccurrenceOptimistically] = useOptimistic(
+    occurrenceStates,
+    (states: OccurrenceStateRecord[], done: { taskId: string; occurrenceDate: string }) => [
+      ...states,
+      {
+        taskId: done.taskId,
+        occurrenceDate: done.occurrenceDate,
+        state: "completed" as const,
+        completedByUserId: currentUserId,
+        movedToDate: null,
+      },
+    ],
   );
   // 오늘/내일/관리함/캘린더/기록은 **내 일정**이다. 내가 보낸 지시는 대상자의 일정이므로 빼고,
   // "지시 › 보낸 지시"에서만 진행 상황을 본다(관리 콘솔 `myOwn` 과 같은 규칙 — @/lib/task-directives).
@@ -283,18 +324,11 @@ export function TasksWorkspace({
   const performDelete = useCallback(
     (ids: string[]) => {
       if (ids.length === 0) return;
-      setHiddenTaskIds((prev) => {
-        const next = new Set(prev);
-        ids.forEach((id) => next.add(id));
-        return next;
-      });
       startDelete(async () => {
+        // 완료와 같은 낙관적 경로를 쓴다. 남의 작업을 같이 골랐다면 서버가 그것만 남겨서 돌려주고,
+        // 새 props 가 도착하면서 낙관적 값이 버려져 그 행은 제자리로 돌아온다.
+        hideTasksOptimistically(ids);
         const { deletedIds } = await deleteTasksInList(ids);
-        setHiddenTaskIds((prev) => {
-          const next = new Set(prev);
-          ids.forEach((id) => next.delete(id));
-          return next;
-        });
         // 실제로 지워진 것만 되돌릴 수 있다 — 남의 작업을 같이 골랐어도 그건 안 지워진다.
         showDeleteUndo(deletedIds);
       });
@@ -302,7 +336,7 @@ export function TasksWorkspace({
       setSelectMode(false);
       setSelectedIds(new Set());
     },
-    [showDeleteUndo],
+    [hideTasksOptimistically, showDeleteUndo],
   );
 
   /**
@@ -312,8 +346,9 @@ export function TasksWorkspace({
    * 흔하므로, 반복 카드를 회차로 보고 있을 때는 삭제 대신 무엇을 지울지 먼저 묻는다(`recurDelete` 시트).
    * 건너뛴 회차는 `task_occurrence_state` 에 `skipped` 로 남고 반복 자체는 예정대로 계속된다.
    *
-   * 낙관적 숨김은 하지 않는다 — 반복 회차 동작은 완료 토글과 마찬가지로 revalidate 후 목록이 다시
-   * 그려지는 방식을 따른다(행이 아니라 회차라 `hiddenTaskIds` 로는 단위가 맞지 않는다).
+   * 여기서는 낙관적 반영을 하지 않는다. 완료(`runStatus`)와 달리 **무엇이 지워질지 시트에서
+   * 고른 뒤에야 정해지고**(이 회차만 / 전체), 「전체 삭제」는 되돌리기 토스트가 따로 붙는다.
+   * 서버 응답을 보고 그리는 편이 맞다.
    */
   const [recurDelete, setRecurDelete] = useState<{ task: TaskRecord; date: string } | null>(null);
   /** YYYY-MM-DD → "7/30 (목)". UTC 로 고정해 Tokyo 날짜 문자열이 하루 밀리지 않게 한다. */
@@ -368,28 +403,28 @@ export function TasksWorkspace({
   const [undoTask, setUndoTask] = useState<TaskRecord | null>(null);
   const [undoOcc, setUndoOcc] = useState<string | null>(null); // 반복 완료 undo 시 회차 날짜
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Optimistically hide the row, then run the server action; revalidatePath refreshes the list with
-  // the new status and we clear the hidden id. Completing shows an undo toast; reopening (in the
-  // 완료/기록 tab, or via undo) is itself the correction, so it shows none.
+  /**
+   * 완료/되돌리기 실행. 완료는 **누른 즉시** 목록에서 빠지고, 서버 왕복은 그 뒤에 따라온다.
+   *
+   * 낙관적 갱신은 트랜지션 **안에서 먼저** 부른다 — 그래야 React 가 새 props 가 도착할 때까지
+   * 그 값을 유지하고, 실패하면 자동으로 되돌린다. 되돌리기(reopen)에는 낙관적 처리를 하지 않는다:
+   * 행이 다시 나타나야 하는데 그건 서버 데이터가 와야 알 수 있고, 실행 취소는 이미 토스트라는
+   * 즉각적인 피드백을 갖고 있다.
+   */
   const runStatus = useCallback(
     (task: TaskRecord, complete: boolean, occurrenceDate?: string) => {
-    // 반복 회차 행은 완료해도 목록에서 숨기지 않는다(occurrence 상태로 done 표시). 일회성만 낙관적 숨김.
-    if (!occurrenceDate) setHiddenTaskIds((prev) => new Set(prev).add(task.id));
-    startComplete(async () => {
-      try {
-        if (complete) await completeTask(task.id, occurrenceDate);
-        else await reopenTask(task.id, occurrenceDate);
-      } finally {
-        // Always un-hide: on success revalidatePath re-renders with the new status; on failure the
-        // row reappears in its original place instead of silently vanishing until a refresh.
-        setHiddenTaskIds((prev) => {
-          const next = new Set(prev);
-          next.delete(task.id);
-          return next;
-        });
-      }
-    });
-  }, []);
+      startComplete(async () => {
+        if (complete) {
+          if (occurrenceDate) resolveOccurrenceOptimistically({ taskId: task.id, occurrenceDate });
+          else hideTasksOptimistically([task.id]);
+          await completeTask(task.id, occurrenceDate);
+        } else {
+          await reopenTask(task.id, occurrenceDate);
+        }
+      });
+    },
+    [hideTasksOptimistically, resolveOccurrenceOptimistically],
+  );
   const handleCompleteToggle = useCallback(
     (task: TaskRecord, occurrence?: { date: string; done: boolean }) => {
       const complete = occurrence ? !occurrence.done : task.status !== "completed";
@@ -477,13 +512,13 @@ export function TasksWorkspace({
   // 반복 회차 상태(2026-07-30): taskId → (date → state). 완료/지연 판정에 사용.
   const occByTask = useMemo(() => {
     const m = new Map<string, Map<string, OccurrenceState>>();
-    for (const s of occurrenceStates) {
+    for (const s of visibleOccurrenceStates) {
       const inner = m.get(s.taskId) ?? new Map<string, OccurrenceState>();
       inner.set(s.occurrenceDate, s.state);
       m.set(s.taskId, inner);
     }
     return m;
-  }, [occurrenceStates]);
+  }, [visibleOccurrenceStates]);
   const occStateOf = useCallback(
     (taskId: string, date: string): OccurrenceState | undefined => occByTask.get(taskId)?.get(date),
     [occByTask],

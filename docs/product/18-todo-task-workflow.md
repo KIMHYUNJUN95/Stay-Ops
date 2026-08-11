@@ -639,6 +639,19 @@ As-built (2026-07-30, occurrence model — **supersedes** the 2026-06-16 roll-fo
   - **삭제** (`skipOverdueOccurrences`) — marks the outstanding overdue occurrences `skipped` (kept
     forever, never re-appears). The series continues.
   One-off overdue tasks keep the existing bulk 오늘로 가져오기 / 지난 미완료 삭제 prompt (author-scoped).
+- **완료 토글은 누른 즉시 반영된다 — 일회성·반복 같은 방식 (2026-08-11).**
+  완료를 누르면 서버 왕복(세션 조회 → 상태 기록 → 로그 insert → `revalidatePath` 3개 → 페이지
+  전체 RSC 재렌더)이 끝나야 목록이 갱신된다. 그동안 아무 반응이 없으면 «눌렀나?» 하고 다시
+  누르게 된다.
+  - 그런데 낙관적 처리가 **일회성에만** 있었다(`if (!occurrenceDate)`). 관리함은 반복 업무가
+    대부분(실측 9건 중 7건)이라 사실상 대다수의 완료가 그 대기를 겪고 있었다.
+  - 두 경로를 `useOptimistic` 으로 통일했다. 일회성은 행을 즉시 빼고, 반복은 **회차 상태를
+    낙관적으로 «완료»로 얹어** 같은 결과(행이 즉시 사라짐)를 만든다.
+  - 직접 만든 «숨김 집합 + try/finally 원복»을 걷어냈다. 되돌리기를 손으로 관리하다 보니 한쪽
+    경로가 빠졌던 것이고, `useOptimistic` 은 새 props 가 도착하면 스스로 버려져 실패 시에도
+    행이 저절로 제자리로 돌아온다. **삭제(단건·일괄)도 같은 경로를 쓴다.**
+  - **되돌리기(reopen)에는 낙관적 처리를 넣지 않는다.** 행이 다시 나타날 자리는 서버 데이터가
+    와야 알 수 있고, 실행 취소는 이미 토스트라는 즉각 피드백을 갖고 있다.
 - **반복 업무는 «원본 행»으로 그려질 때 지연 배지를 달지 않는다 (2026-08-07 수정).**
   반복 업무의 `due_at` 은 마감일이 아니라 **앵커**다 — 「7/29부터 평일마다」의 시작점이라 고정된 채
   과거에 남는다. 오늘/내일 탭은 반복을 회차 행으로 그려서(`occurrence` prop) 문제가 없었지만,
