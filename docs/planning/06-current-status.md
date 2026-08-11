@@ -17,7 +17,7 @@ and the major mobile/admin operations modules are implemented and being hardened
   break duration, and session/break/audit writes are transactional.
 - Correction approval, session mutation, month finalize/reopen, and rate/employment-history replacement
   use service-role-only transactional RPCs from migration
-  `20260810042830_attendance_integrity_hardening.sql`.
+  `20260811012820_attendance_integrity_hardening.sql`.
 - Annual-leave request names and day counts are server-derived. Employee baseline setup is one-time;
   approver edits are explicit overwrites. Usage is allocated by request date, month-end accrual dates clamp
   correctly, and over-balance approval requires a persisted reason.
@@ -26,8 +26,9 @@ and the major mobile/admin operations modules are implemented and being hardened
 - GPS fixes above `ATTENDANCE_MAX_GPS_ACCURACY_METERS` are rejected. GitHub Actions now invokes the
   existing attendance reminder endpoint daily at 18:30 Asia/Tokyo.
 - Verification: `npm test` passes 14 files / 182 tests, `npm run lint` passes with 0 errors and 11
-  pre-existing warnings, TypeScript passes, and `npm run build` passes. Local Supabase DB lint could not
-  run because the local Postgres stack was not running; the migration still requires deployment.
+  pre-existing warnings, TypeScript passes, and `npm run build` passes. The integrity migration was applied
+  to the linked Supabase project on 2026-08-11 and verified for its column, trigger, seven RPC functions,
+  and service-role-only execute permissions.
 
 ## 2026-08-07 — Documentation consistency synchronization
 

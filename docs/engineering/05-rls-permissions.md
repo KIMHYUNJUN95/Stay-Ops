@@ -1177,7 +1177,7 @@ of the RLS/permission-relevant pieces:
 넣을 것. 기본값이 PUBLIC 이라 아무것도 안 하면 열린 채로 배포된다.
 ## 2026-08-10 transactional mutation boundary
 
-The functions added by `20260810042830_attendance_integrity_hardening.sql` are `security invoker` and
+The functions added by `20260811012820_attendance_integrity_hardening.sql` are `security invoker` and
 service-role-only. Execute is revoked from `PUBLIC`, `anon`, and `authenticated`; the existing server
 actions still perform organization and role authorization before invoking them. These functions do not
 broaden direct client write access. The transport validation trigger is an invariant backstop and applies

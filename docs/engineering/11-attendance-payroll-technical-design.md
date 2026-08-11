@@ -1726,7 +1726,7 @@ Important:
 
 ## Integrity hardening contract (2026-08-10)
 
-Migration `20260810042830_attendance_integrity_hardening.sql` is the additive integrity layer for the
+Migration `20260811012820_attendance_integrity_hardening.sql` is the additive integrity layer for the
 existing attendance/leave schema. It must not rewrite prior migrations.
 
 - service-role-only RPCs group attendance session mutation + audit, monthly snapshot finalization + audit,

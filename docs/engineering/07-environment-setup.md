@@ -547,5 +547,6 @@ Run the commands after Supabase API authentication is available through `npx sup
   default is `100` meters when unset.
 - `.github/workflows/attendance-reminders.yml` invokes `/api/attendance/reminders` at `09:30 UTC`
   (`18:30 Asia/Tokyo`). Add a GitHub Actions repository secret named `CRON_SECRET` matching production.
-- Apply `supabase/migrations/20260810042830_attendance_integrity_hardening.sql` before deploying the
-  corresponding server actions, because they call its service-role-only RPC functions.
+- `supabase/migrations/20260811012820_attendance_integrity_hardening.sql` was applied to the linked
+  Supabase project on 2026-08-11. Apply it before deploying the corresponding server actions in any other
+  environment, because they call its service-role-only RPC functions.

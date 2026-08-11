@@ -1805,7 +1805,7 @@ Constraints / behavior:
 `requested|in_review` 만 세므로 `cancelled` 는 두 곳에서 자동으로 빠진다 — 별도 인덱스 불필요.
 ## 2026-08-10 integrity migration
 
-`20260810042830_attendance_integrity_hardening.sql` adds the following current contracts:
+`20260811012820_attendance_integrity_hardening.sql` adds the following current contracts:
 
 - `annual_leave_requests.balance_override_reason` stores the required reason for an approval that
   exceeds the calculated available pool.
