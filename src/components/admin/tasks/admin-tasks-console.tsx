@@ -1920,26 +1920,6 @@ export function AdminTasksConsole({
     ));
   };
 
-  const listView = (arr: TaskRecord[], label: string, ctx: AddDraft["ctx"], emptyIcon: ReactNode, emT: string, emS: string) => {
-    const items = filtered(arr).sort((a, b) => prioSort(a, b) || dateSort(a, b));
-    if (items.length === 0 && !add)
-      return hasActiveFilter ? (
-        <EmptyState icon={<Search size={26} />} t={dict.emFilter} s={dict.emFilterS} />
-      ) : (
-        <EmptyState icon={emptyIcon} t={emT} s={emS} ctx={ctx} />
-      );
-    return Section({
-      title: label,
-      n: items.length,
-      children: (
-        <>
-          {items.map((t) => renderRow(t))}
-          {InlineAddSlot({ ctx })}
-        </>
-      ),
-    });
-  };
-
   // 내일 — 일회성(내일 기준일) + 반복(내일 회차, 미완료). 반복은 occurrence 행으로 렌더.
   const tomorrowView = () => {
     const tm = addDays(today, 1);

@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import "./complaints.css";
 import { CIc, CxIcon } from "./cx-icons";
-import { PlatformSource, StarPips, PLATFORMS, ratingMax } from "./cx-platform";
+import { PlatformSource, ratingMax } from "./cx-platform";
 import { getDictionary } from "@/lib/i18n";
 import { getCanonicalPropertyName, localizePropertyName } from "@/lib/room-label-normalization";
 import type { Complaint, ComplaintComment } from "@/lib/complaints";
