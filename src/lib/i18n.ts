@@ -4765,7 +4765,10 @@ const FALLBACK_DICTIONARY = {
     deleteConfirmCta: "Delete",
     shareCopied: "Link copied",
     shareFailed: "Couldn't share",
-    editTodo: "Post editing is coming soon.",
+    // Edit screen (Page 4). The header title and its save button — the compose screen's
+    // `composeTitle`/`publish` would read as "writing a new post" while editing an old one.
+    editTitle: "Edit post",
+    submitEdit: "Save changes",
     // Mention sheet (옵션 E — bottom sheet + search, 2026-06-25)
     mentionSearchPlaceholder: "Search by name",
     mentionAll: "Everyone",
@@ -9470,7 +9473,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       deleteConfirmCta: "삭제",
       shareCopied: "링크를 복사했어요",
       shareFailed: "공유에 실패했어요",
-      editTodo: "글 수정 기능은 곧 제공될 예정이에요.",
+      editTitle: "글 수정",
+      submitEdit: "수정 완료",
       // 멘션 시트 (옵션 E — 바텀시트 + 검색, 2026-06-25)
       mentionSearchPlaceholder: "이름 검색",
       mentionAll: "전체",
@@ -14143,7 +14147,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       deleteConfirmCta: "削除",
       shareCopied: "リンクをコピーしました",
       shareFailed: "共有できませんでした",
-      editTodo: "投稿の編集機能は近日提供予定です。",
+      editTitle: "投稿を編集",
+      submitEdit: "更新する",
       // メンションシート (オプション E — ボトムシート + 検索, 2026-06-25)
       mentionSearchPlaceholder: "名前を検索",
       mentionAll: "全員",

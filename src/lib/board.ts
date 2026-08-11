@@ -21,8 +21,17 @@ function fileExt(file: File): string {
   return file.type.split("/")[1] ?? "bin";
 }
 
+/**
+ * 게시글 사진·첨부 상한.
+ *
+ * 작성 폼 · 수정 폼 · 클라이언트 검증 · 서버 액션이 **같은 값**을 봐야 한다. 2026-08-07 글 수정
+ * 화면을 붙이면서 `5` 리터럴이 이미 네 군데에 흩어져 있는 것을 발견해 여기로 모았다.
+ */
+export const BOARD_MAX_IMAGES = 5;
+export const BOARD_MAX_FILES = 5;
+
 export function validateBoardImageList(files: File[]): string | null {
-  if (files.length > 5) return "too_many_photos";
+  if (files.length > BOARD_MAX_IMAGES) return "too_many_photos";
   for (const f of files) {
     if (!f.type.startsWith("image/")) return "invalid_image_type";
     if (f.size > 10 * 1024 * 1024) return "image_too_large";
@@ -31,7 +40,7 @@ export function validateBoardImageList(files: File[]): string | null {
 }
 
 export function validateBoardFileList(files: File[]): string | null {
-  if (files.length > 5) return "too_many_files";
+  if (files.length > BOARD_MAX_FILES) return "too_many_files";
   for (const f of files) {
     if (!ALLOWED_FILE_MIME.has(f.type)) return "invalid_file_type";
     if (f.size > 20 * 1024 * 1024) return "file_too_large";

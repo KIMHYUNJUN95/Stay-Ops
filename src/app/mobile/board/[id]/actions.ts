@@ -12,8 +12,10 @@ import {
   searchMentionableMembers,
   validateMentionTargets,
 } from "@/lib/board-queries";
-import type { AvatarColor } from "@/components/board/board-types";
-import type { Database } from "@/types/database";
+import { isOrgTopAdmin } from "@/config/roles";
+import { BOARD_MAX_FILES, BOARD_MAX_IMAGES } from "@/lib/board";
+import type { AvatarColor, FileAttachment } from "@/components/board/board-types";
+import type { Database, Json } from "@/types/database";
 
 // The mention-sheet client component imports this type from the same module it calls
 // (`searchMentions`). A `export type { ... }` re-export is stripped by Turbopack's "use server"
@@ -367,6 +369,10 @@ type UpdateBoardPostInput = {
   title?: string | null;
   content?: string;
   tags?: string[];
+  /** 최종 사진 목록(남길 기존 URL + 새로 업로드한 URL). 생략하면 손대지 않는다. */
+  imageUrls?: string[];
+  /** 최종 첨부 목록. 생략하면 손대지 않는다. */
+  fileAttachments?: FileAttachment[];
   isPinned?: boolean;
 };
 
@@ -390,6 +396,22 @@ export async function updateBoardPost(
     patch.content = c;
   }
   if (input.tags !== undefined) patch.tags = input.tags;
+  // 작성과 같은 상한을 **서버에서 다시** 건다. 폼이 막고 있더라도 액션은 폼을 신뢰하지 않는다.
+  if (input.imageUrls !== undefined) {
+    if (input.imageUrls.length > BOARD_MAX_IMAGES) return { error: "too_many_photos" };
+    patch.image_urls = input.imageUrls;
+  }
+  if (input.fileAttachments !== undefined) {
+    if (input.fileAttachments.length > BOARD_MAX_FILES) return { error: "too_many_files" };
+    patch.file_attachments = input.fileAttachments as unknown as Json;
+  }
+  if (input.isPinned !== undefined) {
+    // **고정 권한은 작성 경로와 같아야 한다.** `createBoardPost` 는 owner/전무/office_admin 에게만
+    // 고정을 허용하는데 여기엔 그 검사가 없어서, 일반 직원이 자기 글을 수정하며 상단 고정을 할 수
+    // 있었다(2026-08-07 발견). 같은 상태를 바꾸는 두 경로가 다른 권한을 갖고 있으면 안 된다.
+    const canPin = isOrgTopAdmin(session.user.role) || session.user.role === "office_admin";
+    if (!canPin && input.isPinned !== post.is_pinned) return { error: "forbidden" };
+  }
   if (input.isPinned !== undefined) {
     if (input.isPinned) {
       patch.is_pinned = true;
