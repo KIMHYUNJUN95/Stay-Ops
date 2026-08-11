@@ -5,6 +5,7 @@
 // 디자인: Claude Design "StayOps 투두 (admin)" 이식. CSS: admin-tasks-console.css (.adm 스코프).
 // 서버 액션(@/app/admin/tasks/actions)이 모든 쓰기를 처리하고, revalidatePath + router.refresh() 로 갱신한다.
 // See docs/product/28-admin-todoist-console.md.
+import Image from "next/image";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import Link from "next/link";
@@ -3646,8 +3647,7 @@ export function AdminTasksConsole({
                     className="ph ph--btn"
                     onClick={() => setLightbox({ urls: t.imageUrls, index: i })}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={url} alt="" />
+                    <Image src={url} alt="" width={96} height={96} />
                   </button>
                 ))}
               </div>
@@ -3685,8 +3685,7 @@ export function AdminTasksConsole({
                               className="log-thumb"
                               onClick={() => setLightbox({ urls: u.imageUrls, index: i })}
                             >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={url} alt="" />
+                              <Image src={url} alt="" width={64} height={64} />
                             </button>
                           ))}
                         </div>

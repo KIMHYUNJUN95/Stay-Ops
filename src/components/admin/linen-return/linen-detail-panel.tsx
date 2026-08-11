@@ -8,6 +8,7 @@
 // 사진은 기존 업로드 계약(compressImageFile → uploadRequestImages, 기능당 5장)을 그대로 쓴다.
 // See docs/product/19-linen-defect-workflow.md → "Record Management Contract".
 
+import Image from "next/image";
 import { useRef, useState } from "react";
 import {
   Building2,
@@ -535,8 +536,7 @@ export function LinenDetailPanel({
                   <div className="pgal">
                     {draft.photos.map((url) => (
                       <div className="pshot" key={url}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img alt="" src={url} />
+                        <Image alt="" src={url} fill sizes="200px" />
                         <button
                           className="pshot__x"
                           disabled={busy}
@@ -661,8 +661,7 @@ export function LinenDetailPanel({
                   <div className="pgal">
                     {record.photos.map((url) => (
                       <a className="pshot" href={url} key={url} rel="noreferrer" target="_blank">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img alt="" src={url} />
+                        <Image alt="" src={url} fill sizes="200px" />
                       </a>
                     ))}
                   </div>

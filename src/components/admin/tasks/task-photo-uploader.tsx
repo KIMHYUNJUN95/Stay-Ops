@@ -13,6 +13,7 @@
  * - `uploadRequestImages` from the shared request-image-upload helper.
  */
 
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2, X } from "lucide-react";
 import {
@@ -227,9 +228,9 @@ export function TaskPhotoUploader({
         <div className="tphoto__grid">
           {value.map((url) => (
             <div className="tphoto__thumb" key={url}>
-              {/* Public storage URLs, not part of the Next.js image domain allowlist — plain img */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img alt="" className="tphoto__img" src={url} />
+              {/* `request-images` 는 next.config 의 remotePatterns 에 있다 — 예전 주석의
+                  「허용 목록에 없다」는 사실과 다르다(2026-08-11 확인). */}
+              <Image alt="" className="tphoto__img" src={url} width={64} height={64} />
               <button
                 aria-label={copy.remove}
                 className="tphoto__remove"

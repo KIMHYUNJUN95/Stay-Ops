@@ -3,6 +3,7 @@
 // Admin 수리·점검 console — 우측 상세 패널. Read-centric: 처리(확인·상태 변경·메모)는 현장 모바일이
 // 담당하고, 여기서는 기록 열람 + 관리자 예외 개입(강제 완료 / 무효 / 삭제)만 한다.
 // Mirrors maint-views.js panel().
+import Image from "next/image";
 import {
   Ban,
   BedDouble,
@@ -116,8 +117,7 @@ export function MaintenanceDetailPanel({
               <div className="pgal">
                 {report.photos.map((url) => (
                   <a className="pshot" href={url} key={url} rel="noreferrer" target="_blank">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img alt="" src={url} />
+                    <Image alt="" src={url} fill sizes="200px" />
                   </a>
                 ))}
               </div>
@@ -192,8 +192,7 @@ export function MaintenanceDetailPanel({
                 <div className="pgal pgal--res">
                   {report.resolutionPhotos.map((url) => (
                     <a className="pshot pshot--res" href={url} key={url} rel="noreferrer" target="_blank">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img alt="" src={url} />
+                      <Image alt="" src={url} fill sizes="200px" />
                     </a>
                   ))}
                 </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition, type ChangeEvent } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import {
@@ -263,9 +264,12 @@ export function ComplaintCreate({
         <div className="cx-upgrid">
           {uploadedImages.map((url, index) => (
             <div key={url} className="cx-upthumb">
-              <img
+              {/* `.cx-upthumb` 이 relative + aspect-ratio:1 이라 `fill` 이 그대로 맞는다. */}
+              <Image
                 src={url}
                 alt=""
+                fill
+                sizes="33vw"
                 className="cx-upthumb__img"
                 onClick={() => setLightboxIndex(index)}
               />

@@ -3,6 +3,7 @@
 // Admin 분실물 console — 우측 상세 패널. 진행(active) 항목은 반환/폐기/보관연장 액션 존을, 종결
 // (반환·폐기) 항목은 처리 이력을 보여준다. 예외 개입(상태 정정/삭제)은 항상 하단에 노출.
 // Mirrors maintenance-detail-panel.tsx.
+import Image from "next/image";
 import {
   ArchiveRestore,
   Camera,
@@ -108,8 +109,7 @@ export function LostFoundDetailPanel({ item, t, adminRestoreLabel, locale, onClo
               <div className="pgal">
                 {item.photos.map((url) => (
                   <a className="pshot" href={url} key={url} rel="noreferrer" target="_blank">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img alt="" src={url} />
+                    <Image alt="" src={url} fill sizes="200px" />
                   </a>
                 ))}
               </div>
@@ -338,8 +338,7 @@ export function LostFoundDetailPanel({ item, t, adminRestoreLabel, locale, onClo
                 <div className="pgal pgal--res">
                   {item.handlingPhotos.map((url) => (
                     <a className="pshot pshot--res" href={url} key={url} rel="noreferrer" target="_blank">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img alt="" src={url} />
+                      <Image alt="" src={url} fill sizes="200px" />
                     </a>
                   ))}
                 </div>

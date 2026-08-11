@@ -4,6 +4,7 @@
 // 이미지는 제출 시 브라우저에서 Storage 로 직접 업로드(Server Action body 제한 우회) 후 URL 만 액션에 전달.
 // Ported from the Claude Design handoff (announce-views.js → formModal).
 // See docs/product/11-announcement-workflow.md → Composer / Edit Flow.
+import Image from "next/image";
 import { startTransition, useMemo, useRef, useState, useTransition } from "react";
 import {
   Clock,
@@ -356,8 +357,7 @@ export function AnnouncementFormModal({
             <div className="imgslots">
               {existingImages.map((url) => (
                 <div className="imgslot" key={url}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img alt="" src={url} />
+                  <Image alt="" src={url} width={74} height={74} />
                   <button
                     type="button"
                     className="imgslot__x"

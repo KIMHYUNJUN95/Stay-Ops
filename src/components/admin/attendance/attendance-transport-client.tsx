@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   AlertTriangle,
@@ -931,8 +932,7 @@ function TransportItemRow({
                 onClick={() => onOpenImage(u)}
                 aria-label={c.trPanelEvidenceCount(item.imageCount)}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={u} alt="" loading="lazy" />
+                <Image src={u} alt="" width={34} height={34} />
               </button>
             ))}
             {extra > 0 ? (

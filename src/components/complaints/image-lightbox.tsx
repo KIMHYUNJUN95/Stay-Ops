@@ -178,6 +178,9 @@ export function ImageLightbox({ images, startIndex, onClose, labels }: Props) {
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
+        {/* 라이트박스는 **원본 해상도**로 본다(결정 로그 2026-06-22) — 축소 사본을 내려받으면
+            «크게 봐서 확인한다» 는 목적이 깨진다. 핀치 줌도 원본이어야 의미가 있다. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={images[index]}
           alt=""

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import {
   Ban,
@@ -1877,8 +1878,7 @@ function CorrectionPanel({
                     onClick={() => setLightboxIndex(i)}
                     aria-label={c.trPanelEvidenceCount(photos.length)}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={url} alt="" loading="lazy" />
+                    <Image src={url} alt="" width={34} height={34} />
                   </button>
                 ))}
               </div>

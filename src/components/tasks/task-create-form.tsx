@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import Image from "next/image";
 import { CalendarDays, ChevronDown, ChevronRight, Clock, Megaphone, Repeat, Share2, Users, X } from "lucide-react";
 import { createTask } from "@/app/mobile/tasks/new/actions";
 import { updateTaskCore } from "@/app/mobile/tasks/[id]/actions";
@@ -662,8 +663,7 @@ export function TaskCreateForm({
                       className="relative size-20 shrink-0 overflow-hidden rounded-xl border border-border bg-muted/20"
                       key={i}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img alt="" aria-hidden="true" className="size-full object-cover" src={url} />
+                      <Image alt="" aria-hidden="true" className="object-cover" fill sizes="80px" src={url} />
                       <button
                         aria-label={imgCopy.remove}
                         className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-black/60 text-white"

@@ -3,6 +3,7 @@
 // Admin 공지 관리 콘솔 — 우측 상세 패널. 공지 전문 + 첨부 + 읽음 요약 + 권한 zone(작성 ↔ 운영).
 // Ported from the Claude Design handoff (announce-views.js → panel). Mirrors the shared
 // .panel/.pblock/.kv slide-over contract. See docs/product/11-announcement-workflow.md.
+import Image from "next/image";
 import { Fragment } from "react";
 import {
   Archive,
@@ -196,8 +197,7 @@ export function AnnouncementDetailPanel({
                     key={url}
                     onClick={() => onOpenImage(url)}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img alt="" src={url} />
+                    <Image alt="" src={url} fill sizes="200px" />
                     <span className="ashot__ic">
                       <Ic>
                         <ImageIcon aria-hidden="true" />

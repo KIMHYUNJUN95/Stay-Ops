@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import "./complaints.css";
 import { CIc, CxIcon } from "./cx-icons";
@@ -58,6 +59,9 @@ function Lightbox({
       </div>
       <div className="cx-lightbox__stage" onClick={onClose}>
         <div className="cx-lightbox__img">
+          {/* 라이트박스는 **원본 해상도**로 본다(결정 로그 2026-06-22). `next/image` 로 바꾸면
+              뷰포트에 맞춰 축소된 사본이 내려와 «크게 봐서 확인한다» 는 목적이 깨진다. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={src} alt={caption} />
         </div>
       </div>
@@ -193,8 +197,8 @@ export function ComplaintDetail({
                 className="cx-shot"
                 onClick={() => setLightbox({ src: url, caption })}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt={caption} className="cx-shot__img" />
+                {/* `.cx-shot` 이 relative + aspect-ratio:1 이라 `fill` 이 그대로 맞는다. */}
+                <Image src={url} alt={caption} fill sizes="33vw" className="cx-shot__img" />
                 <span className="cx-shot__z">{CxIcon.zoom}</span>
               </button>
             );
@@ -238,8 +242,8 @@ export function ComplaintDetail({
                 {cm.imageUrls.length > 0 && (
                   <div className="cx-cmt__imgs">
                     {cm.imageUrls.map((url, i) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img key={i} src={url} alt="" className="cx-cmt__img" />
+                      // `.cx-cmt__img` 이 64×64 고정이라 치수를 그대로 넘긴다.
+                      <Image key={i} src={url} alt="" width={64} height={64} className="cx-cmt__img" />
                     ))}
                   </div>
                 )}

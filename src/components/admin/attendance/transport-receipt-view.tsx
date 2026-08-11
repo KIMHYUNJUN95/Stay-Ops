@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, ExternalLink, ImageOff, Receipt, X } from "lucide-react";
 import type { AdminReceiptItem, AdminTransportReceiptsView } from "@/lib/admin-attendance";
@@ -157,11 +158,12 @@ export function TransportReceiptView({
                 }}
               >
                 <div style={{ position: "relative", aspectRatio: "3 / 4", background: "var(--surface2)" }}>
-                  <img
+                  <Image
                     src={cell.url}
                     alt=""
-                    loading="lazy"
-                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    fill
+                    sizes="180px"
+                    style={{ objectFit: "cover" }}
                   />
                   {cell.photoCount > 1 ? (
                     <span

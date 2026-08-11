@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useBodyScrollLock } from "@/components/shell/use-body-scroll-lock";
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
@@ -112,8 +113,7 @@ export function PhotoGallery({
             )}
             key={i}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img alt="" aria-hidden="true" className="size-full object-cover" loading="lazy" decoding="async" src={url} />
+            <Image alt="" aria-hidden="true" className="object-cover" fill sizes="72px" src={url} />
             {overflow > 0 && i === MAX_THUMBS - 1 ? (
               <span className="absolute inset-0 flex items-center justify-center bg-slate-950/55 text-[13px] font-extrabold text-white backdrop-blur-[1px]">
                 +{overflow}
@@ -162,13 +162,12 @@ export function PhotoGallery({
                       onClick={() => openLightbox(i)}
                       type="button"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <Image
                         alt=""
                         aria-hidden="true"
-                        className="size-full object-cover transition-transform duration-300 group-active:scale-105"
-                        decoding="async"
-                        loading="lazy"
+                        className="object-cover transition-transform duration-300 group-active:scale-105"
+                        fill
+                        sizes="33vw"
                         src={url}
                       />
                       <span className="absolute bottom-1.5 right-1.5 flex size-5 items-center justify-center rounded-full bg-slate-950/55 text-[10px] font-bold text-white backdrop-blur-[2px]">

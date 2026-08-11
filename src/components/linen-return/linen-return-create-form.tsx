@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -376,11 +377,12 @@ export function LinenReturnCreateForm({
             <ul className="mb-3 grid grid-cols-4 gap-2">
               {keptPhotos.map((url) => (
                 <li className="relative" key={url}>
-                  {/* 저장된 원격 사진 미리보기 — next/image 최적화 대상이 아니라 <img> 를 쓴다. */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  {/* `request-images` 는 remotePatterns 에 등록돼 있다 — 예전 주석은 사실과 달랐다. */}
+                  <Image
                     alt=""
-                    className="aspect-square w-full rounded-xl border border-border object-cover"
+                    className="rounded-xl border border-border object-cover"
+                    fill
+                    sizes="25vw"
                     src={url}
                   />
                   <button

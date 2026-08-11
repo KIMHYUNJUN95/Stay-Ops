@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { BugStatusBadge } from "@/components/bugs/bug-status-badge";
@@ -137,13 +138,14 @@ export function BugDetailClient({ copy, bug, viewerIsAuthor, isReviewer }: Props
                 {bug.imageUrls.map((url, idx) => (
                   <div
                     key={url}
-                    className="overflow-hidden rounded-[10px] border border-[hsl(40_18%_85%)]"
+                    className="relative h-[116px] overflow-hidden rounded-[10px] border border-[hsl(40_18%_85%)]"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                    <Image
                       src={url}
                       alt={`${copy.screenshotAlt} ${idx + 1}`}
-                      className="h-[116px] w-full object-cover"
+                      fill
+                      sizes="50vw"
+                      className="object-cover"
                     />
                   </div>
                 ))}
