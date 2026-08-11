@@ -1018,8 +1018,9 @@ export function RequestsFilterView({
             >
               <span
                 className={cn(
-                  "absolute top-0.5 size-[18px] rounded-full bg-white shadow-[0_2px_5px_rgba(15,23,42,0.28)] transition-[left] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]",
-                  scopeFilter === "mine" ? "left-[18px]" : "left-0.5",
+                  // `left` 대신 `transform` — 레이아웃 리플로우 없이 컴포지터에서 처리된다.
+                  "absolute left-0.5 top-0.5 size-[18px] rounded-full bg-white shadow-[0_2px_5px_rgba(15,23,42,0.28)] transition-transform duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]",
+                  scopeFilter === "mine" ? "translate-x-4" : "translate-x-0",
                 )}
               />
             </span>

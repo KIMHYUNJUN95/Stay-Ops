@@ -110,8 +110,11 @@ export function LinenLedgerView({
       {/* Mode switch */}
       <div className="relative mb-3.5 flex rounded-[13px] bg-slate-50 p-1">
         <span
-          className="absolute bottom-1 top-1 w-[calc(50%-6px)] rounded-[10px] bg-surface shadow-[0_2px_6px_rgba(20,32,43,0.12)] transition-[left] duration-300"
-          style={{ left: mode === "records" ? "4px" : "calc(50% + 2px)" }}
+          // `left` 대신 `transform` — 레이아웃 리플로우 없이 컴포지터에서 처리된다.
+          // 폭이 `calc(50%-6px)` 로 고정이라 이동량은 «자기 폭 + 4px» 로 정확히 떨어진다
+          // (4px → calc(50%+2px) = 50%-2px 이동 = (50%-6px) + 4px).
+          className="absolute bottom-1 left-1 top-1 w-[calc(50%-6px)] rounded-[10px] bg-surface shadow-[0_2px_6px_rgba(20,32,43,0.12)] transition-transform duration-300"
+          style={{ transform: mode === "records" ? "translateX(0)" : "translateX(calc(100% + 4px))" }}
         />
         {(["records", "aggregate"] as const).map((m) => (
           <button

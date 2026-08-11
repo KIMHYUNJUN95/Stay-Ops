@@ -65,8 +65,10 @@ export function GenderSegmented({
       {thumb ? (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute top-1 bottom-1 z-[1] rounded-[9px] bg-surface shadow-[0_2px_6px_rgba(20,40,38,0.12)] transition-[left,width] duration-[260ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
-          style={{ left: thumb.left, width: thumb.width }}
+          // `language-segmented` 와 같은 규칙 — 위치는 `transform`, 폭은 트랜지션 없이 그대로.
+          // 세그먼트가 `flex-1` 이라 폭은 애초에 변하지 않는다.
+          className="pointer-events-none absolute bottom-1 left-0 top-1 z-[1] rounded-[9px] bg-surface shadow-[0_2px_6px_rgba(20,40,38,0.12)] transition-transform duration-[260ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+          style={{ transform: `translateX(${thumb.left}px)`, width: thumb.width }}
         />
       ) : null}
       {options.map((option) => {

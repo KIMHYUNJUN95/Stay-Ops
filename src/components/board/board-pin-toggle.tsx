@@ -36,8 +36,10 @@ export function BoardPinToggle({
       >
         <span
           className={cn(
-            "absolute top-[3px] size-[21px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2)] transition-[left] duration-150",
-            checked ? "left-[22px]" : "left-[3px]",
+            // `left` 이 아니라 `transform` 으로 움직인다 — `left` 는 레이아웃 속성이라 매 프레임
+            // 리플로우가 걸리고, `transform` 은 컴포지터만으로 끝나 저사양 기기에서 차이가 크다.
+            "absolute left-[3px] top-[3px] size-[21px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2)] transition-transform duration-150",
+            checked ? "translate-x-[19px]" : "translate-x-0",
           )}
         />
       </button>

@@ -318,8 +318,11 @@ function ProgressHeader({ step }: { step: number }) {
       </div>
       <div className="h-[5px] overflow-hidden rounded-full bg-muted">
         <i
-          className="block h-full rounded-full transition-[width] duration-300"
-          style={{ width: `${pct}%`, background: GRADIENT }}
+          // 폭을 100% 로 두고 `scaleX` 로 줄인다 — `width` 애니메이션은 매 프레임 리플로우를
+          // 부르지만 `transform` 은 컴포지터에서 끝난다. 왼쪽 기준으로 늘어나야 하므로
+          // `origin-left` 가 필수다.
+          className="block h-full w-full origin-left rounded-full transition-transform duration-300"
+          style={{ transform: `scaleX(${pct / 100})`, background: GRADIENT }}
         />
       </div>
     </header>

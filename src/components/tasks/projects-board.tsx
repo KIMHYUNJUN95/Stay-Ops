@@ -201,8 +201,9 @@ export function ProjectsBoard({
                       >
                         <span
                           className={cn(
-                            "absolute top-[3px] size-[21px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2)] transition-[left]",
-                            shareOn ? "left-[22px]" : "left-[3px]",
+                            // `left` 대신 `transform` — 레이아웃 리플로우 없이 컴포지터에서 처리된다.
+                            "absolute left-[3px] top-[3px] size-[21px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2)] transition-transform",
+                            shareOn ? "translate-x-[19px]" : "translate-x-0",
                           )}
                         />
                       </button>

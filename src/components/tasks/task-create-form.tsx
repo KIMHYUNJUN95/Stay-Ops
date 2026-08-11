@@ -529,8 +529,9 @@ export function TaskCreateForm({
               >
                 <span
                   className={cn(
-                    "absolute top-[3px] size-5 rounded-full bg-white shadow-sm transition-[left]",
-                    directive ? "left-[21px]" : "left-[3px]",
+                    // `left` 대신 `transform` — 레이아웃 리플로우 없이 컴포지터에서 처리된다.
+                    "absolute left-[3px] top-[3px] size-5 rounded-full bg-white shadow-sm transition-transform",
+                    directive ? "translate-x-[18px]" : "translate-x-0",
                   )}
                 />
               </span>

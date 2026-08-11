@@ -81,8 +81,13 @@ export function LanguageSegmented({
       <input type="hidden" name={name} value={value} />
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute top-1 bottom-1 z-[1] rounded-[9px] bg-surface shadow-[0_2px_6px_rgba(20,40,38,0.12)] transition-[left,width] duration-[260ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
-        style={{ left: thumb.left, width: thumb.width }}
+        // 위치는 `left` 가 아니라 `transform` 으로 옮긴다 — `left` 는 레이아웃 속성이라 매 프레임
+        // 리플로우를 부르고, `transform` 은 컴포지터에서 끝난다. 세그먼트가 `flex-1` 이라 폭은
+        // 항상 같으므로 `width` 는 트랜지션 없이 그대로 적용하면 된다(원래도 변한 적이 없다).
+        // `left-0` + `translateX(offsetLeft)` 는 기존 `left: offsetLeft` 와 같은 자리다 —
+        // 둘 다 위치 기준 조상의 패딩 박스가 원점이다.
+        className="pointer-events-none absolute bottom-1 left-0 top-1 z-[1] rounded-[9px] bg-surface shadow-[0_2px_6px_rgba(20,40,38,0.12)] transition-transform duration-[260ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+        style={{ transform: `translateX(${thumb.left}px)`, width: thumb.width }}
       />
       {options.map((option) => {
         const isActive = option.code === value;
