@@ -194,7 +194,6 @@ export function CleaningConsole({
       if (res.ok) {
         showToast(`${t.tDone} · ${roomLabel}`);
         setModalTask(null);
-        router.refresh();
       } else {
         showToast(t.tDoneFailed);
       }

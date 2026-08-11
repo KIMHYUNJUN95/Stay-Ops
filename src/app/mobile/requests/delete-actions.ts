@@ -1,8 +1,21 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { isOrgTopAdmin, type Role } from "@/config/roles";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+
+/**
+ * 삭제 후 갱신돼야 하는 화면들.
+ *
+ * 이 액션들은 **모바일 요청 목록과 어드민 콘솔 양쪽에서** 호출된다. 재검증이 없어서 두 화면 모두
+ * 클라이언트가 `router.refresh()` 로 때우고 있었는데, 그러면 (a) 왕복이 한 번 더 들고 (b) 호출한
+ * 화면만 갱신되고 다른 쪽은 낡은 채로 남는다. 서버가 재검증하는 편이 옳다 (2026-08-11).
+ */
+function revalidateAfterDelete(kind: "lost-found" | "maintenance" | "orders") {
+  revalidatePath("/mobile/requests");
+  revalidatePath(kind === "lost-found" ? "/admin/lost-found" : kind === "maintenance" ? "/admin/maintenance" : "/admin/orders");
+}
 
 type DeleteResult = { ok: true } | { ok: false; error: "unauthorized" | "not_found" | "delete_failed" };
 
@@ -79,6 +92,7 @@ export async function deleteLostItem(id: string): Promise<DeleteResult> {
     }
     return { ok: false, error: "delete_failed" };
   }
+  revalidateAfterDelete("lost-found");
   return { ok: true };
 }
 
@@ -117,6 +131,7 @@ export async function deleteMaintenanceReport(id: string): Promise<DeleteResult>
     }
     return { ok: false, error: "delete_failed" };
   }
+  revalidateAfterDelete("maintenance");
   return { ok: true };
 }
 
@@ -163,5 +178,6 @@ export async function deleteOrderRequest(id: string): Promise<DeleteResult> {
     }
     return { ok: false, error: "delete_failed" };
   }
+  revalidateAfterDelete("orders");
   return { ok: true };
 }

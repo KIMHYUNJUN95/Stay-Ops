@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/admin-session";
 import {
   getAdminCleaningHistory,
@@ -320,6 +321,10 @@ export async function forceCompleteCleaningSession(
       .eq("id", input.sessionId)
       .eq("organization_id", organizationId);
     if (error) return { ok: false, reason: "error" };
+    // 강제 완료는 어드민 콘솔과 모바일 청소 화면 양쪽에 반영돼야 한다. 재검증이 없어서
+    // 콘솔이 `router.refresh()` 로 때우고 있었다 — 그러면 모바일은 낡은 채로 남는다.
+    revalidatePath("/admin/cleaning");
+    revalidatePath("/mobile/cleaning");
     return { ok: true };
   }
 
@@ -337,5 +342,9 @@ export async function forceCompleteCleaningSession(
     completed_by_admin: session.user.id,
   } as never);
   if (error) return { ok: false, reason: "error" };
+  // 강제 완료는 어드민 콘솔과 모바일 청소 화면 양쪽에 반영돼야 한다. 재검증이 없어서
+  // 콘솔이 `router.refresh()` 로 때우고 있었다 — 그러면 모바일은 낡은 채로 남는다.
+  revalidatePath("/admin/cleaning");
+  revalidatePath("/mobile/cleaning");
   return { ok: true };
 }

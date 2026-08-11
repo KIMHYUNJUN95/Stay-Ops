@@ -120,13 +120,14 @@ export function OrdersConsole({ locale, orders, loadError, todayKey }: OrdersCon
    * **모바일 경로만** 재검증한다.
    *
    *   reject / reopen / correct / edit → `revalidateOrders()` 가 /admin/orders 포함  ⇒ 제거함
+   *   deleteOrderRequest               → 재검증을 **추가**해 제거함(아래)             ⇒ 제거함
    *   updateOrderRequestStatus         → /mobile/requests · /mobile/notifications 만  ⇒ 유지
    *   updateOrderDeliveryDate          → 같음                                        ⇒ 유지
-   *   deleteOrderRequest               → 재검증 자체가 없음                          ⇒ 유지
    *
-   * 유지 쪽을 지우면 **처리 후 이 목록이 갱신되지 않는다.** 더 깔끔한 해법은 그 액션들이
-   * `/admin/orders` 도 재검증하게 만드는 것이지만, 모바일 요청 흐름과 공유하는 액션이라 영향
-   * 범위가 넓어 별도 작업으로 남긴다. (2026-08-11)
+   * 유지 쪽을 지우면 **처리 후 이 목록이 갱신되지 않는다.** 옳은 해법은 그 액션들이
+   * `/admin/orders` 도 재검증하게 만드는 것인데, 삭제 액션에는 그렇게 했고
+   * (`delete-actions.ts` → `revalidateAfterDelete`), 나머지 둘은 모바일 요청 흐름과 공유하는
+   * 상태 전이 액션이라 영향 범위가 넓어 별도 작업으로 남긴다. (2026-08-11)
    */
   function handleConfirmAction(kind: OrdActionKind, id: string, payload: OrdActionPayload) {
     startTransition(async () => {
@@ -243,7 +244,6 @@ export function OrdersConsole({ locale, orders, loadError, todayKey }: OrdersCon
       setConfirm(null);
       setSelectedId(null);
       showToast(t.tDel);
-      router.refresh();
     });
   }
 

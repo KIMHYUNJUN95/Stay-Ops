@@ -76,8 +76,11 @@ export function BoardDetailClient({
   const [mentionedUsers, setMentionedUsers] = useState<MentionableMember[]>([]);
   const [mentionAll, setMentionAll] = useState(false);
 
-  // useOptimistic re-bases on `post.reactions` after each router.refresh(), so the optimistic toggle
-  // is reconciled with the server instead of going permanently stale (the old useState mirror bug).
+  // 낙관적 반응은 **새 props 가 도착할 때** `post.reactions` 를 기준으로 다시 잡힌다. 서버 액션이
+  // `revalidateBoard()` 로 이 경로를 재검증하므로 그 props 가 응답과 함께 온다 — 예전에는 여기에
+  // `router.refresh()` 를 더해 두고 그걸 근거로 삼았는데, 같은 데이터를 한 번 더 받는 두 번째
+  // 왕복이었을 뿐이다(2026-08-11 제거). `useState` 로 거울을 두던 옛 버그로 돌아가지 않게 하는
+  // 것은 이 재기준화이지 새로고침이 아니다.
   const [reactions, applyOptimisticToggle] = useOptimistic(
     post.reactions,
     (state, emoji: string) =>
@@ -112,14 +115,12 @@ export function BoardDetailClient({
     startTransition(async () => {
       applyOptimisticToggle(emoji);
       await toggleBoardReaction(post.id, emoji);
-      router.refresh();
     });
   }
 
   function onDeleteComment(commentId: string) {
     startTransition(async () => {
       await deleteBoardComment(commentId);
-      router.refresh();
     });
   }
 
@@ -183,7 +184,6 @@ export function BoardDetailClient({
       // 멘션 상태 초기화
       setMentionedUsers([]);
       setMentionAll(false);
-      router.refresh();
     });
   }
 
@@ -192,7 +192,6 @@ export function BoardDetailClient({
     startTransition(async () => {
       if (post.isPinned) await unpinBoardPost(post.id);
       else await pinBoardPost(post.id);
-      router.refresh();
     });
   }
 

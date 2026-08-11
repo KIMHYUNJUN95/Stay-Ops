@@ -574,7 +574,6 @@ export function RequestsFilterView({
       }
       setDeleteTarget(null);
       setDeleteError(null);
-      router.refresh();
     });
   }
   // ─────────────────────────────────────────────────────────────────────────
