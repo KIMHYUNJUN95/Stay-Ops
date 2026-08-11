@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useOptimistic,
@@ -638,7 +639,13 @@ export function TasksWorkspace({
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  const q = search.trim().toLowerCase();
+  /**
+   * 목록 필터에는 **지연된** 검색어를 쓴다 — 어드민 콘솔(`admin-tasks-console`)과 같은 이유다.
+   * 이 컴포넌트도 큰 트리 하나라 검색어가 바뀌면 목록 전체가 다시 그려진다. `useDeferredValue`
+   * 를 끼우면 입력창은 즉시 반응하고 무거운 목록만 낮은 우선순위로 따라온다. 로직은 그대로고
+   * 스케줄링만 달라진다.
+   */
+  const q = useDeferredValue(search).trim().toLowerCase();
   const hasSearch = q.length > 0;
   const hasDate = dateMode === "single" ? !!dateFrom : !!dateFrom || !!dateTo;
   const filterActive = hasSearch || hasDate;

@@ -6,7 +6,16 @@
 // 서버 액션(@/app/admin/tasks/actions)이 모든 쓰기를 처리하고, revalidatePath + router.refresh() 로 갱신한다.
 // See docs/product/28-admin-todoist-console.md.
 import Image from "next/image";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -851,10 +860,24 @@ export function AdminTasksConsole({
   const recvOpen = personalTasks.filter((t) => recvInstr(t, meId) && isActive(t)).length;
   const sentOpen = personalTasks.filter((t) => sentInstr(t, meId) && isActive(t)).length;
 
+  /**
+   * 목록 필터에는 **지연된** 검색어를 쓴다.
+   *
+   * 이 컴포넌트는 4,500줄짜리 트리 하나이고 `useState` 가 44개인데 `useMemo` 는 6개뿐이라,
+   * `q` 가 바뀌면 사실상 화면 전체가 다시 그려진다 — 한 글자 칠 때마다 전 작업 행·캘린더·팝오버가
+   * 재렌더된다. `useDeferredValue` 를 끼우면 **입력창은 즉시** 반응하고 무거운 목록만 한 박자
+   * 뒤에 낮은 우선순위로 따라온다.
+   *
+   * 로직은 하나도 바뀌지 않는다 — 스케줄링만 달라진다. 입력값(`q`)은 입력창과 «필터 켜짐» 표시에
+   * 그대로 쓰고, 필터 계산만 `deferredQuery` 를 본다.
+   */
+  const deferredQuery = useDeferredValue(q);
   const matches = useCallback(
     (t: TaskRecord) =>
-      matchQuery(t, q, nameOf) && matchPrio(t, prioFilter) && matchDate(t, dateFilter, today),
-    [q, nameOf, prioFilter, dateFilter, today],
+      matchQuery(t, deferredQuery, nameOf) &&
+      matchPrio(t, prioFilter) &&
+      matchDate(t, dateFilter, today),
+    [deferredQuery, nameOf, prioFilter, dateFilter, today],
   );
   const filtered = useCallback(
     (arr: TaskRecord[]) => arr.filter(matches),
@@ -2320,12 +2343,12 @@ export function AdminTasksConsole({
     for (const r of data.completions) {
       const task = tasks.find((t) => t.id === r.taskId);
       if (!task) continue;
-      if (!(matchQuery(task, q, nameOf) && matchPrio(task, prioFilter))) continue;
+      if (!(matchQuery(task, deferredQuery, nameOf) && matchPrio(task, prioFilter))) continue;
       rows.push({ task, day: r.day, byUserId: r.byUserId });
     }
     // 현장 활동(청소·유지보수·린넨·주문에서 본인이 완료 처리한 것). 투두가 아니라 작업 속성이
     // 없으므로 검색·우선순위 필터가 걸려 있으면 감춘다 — 남겨 두면 필터가 안 먹는 것처럼 보인다.
-    const fieldVisible = q.trim() || prioFilter ? [] : data.fieldActivities;
+    const fieldVisible = deferredQuery.trim() || prioFilter ? [] : data.fieldActivities;
     if (rows.length === 0 && fieldVisible.length === 0)
       return <EmptyState icon={<CheckCircle2 size={26} />} t={dict.emCompleted} s={dict.emCompletedS} />;
     const byDay = new Map<string, CmpRow[]>();
