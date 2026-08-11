@@ -64,7 +64,9 @@ export function BugDetailClient({ copy, bug, viewerIsAuthor, isReviewer }: Props
   }
 
   return (
-    <div className="-mx-5 -mb-8 -mt-[84px] flex h-[100dvh] flex-col bg-background">
+    // 바텀탭을 띄우는 화면이라 셸의 하단 여백은 `pb-[124px]` 다. `-mb-8` 로는 92px 이 남아
+    // 콘텐츠 아래로 빈 공간이 스크롤된다(2026-08-07 수정). 목록 화면과 같은 이유.
+    <div className="-mx-5 -mb-[124px] -mt-[84px] flex h-[100dvh] flex-col bg-background">
       {/* MobileShell chrome 84px 영역 확보 */}
       <div className="h-[84px] shrink-0" aria-hidden="true" />
 

@@ -29,7 +29,11 @@ export function BugsListClient({ copy, reports, isReviewer }: Props) {
   const sectionLabel = isReviewer ? copy.listHeadingAll : copy.listHeadingMine;
 
   return (
-    <div className="-mx-5 -mb-8 -mt-[84px] flex h-[100dvh] flex-col bg-background">
+    // 음수 여백은 셸의 패딩과 **정확히** 같아야 한다. 이 화면은 바텀탭을 띄우므로 셸의 하단
+    // 여백이 `pb-8`(32px)이 아니라 `pb-[124px]` 이다 — `-mb-8` 만 쓰면 92px 이 남아 콘텐츠
+    // 아래로 빈 공간이 스크롤된다(2026-08-07 수정). 바텀탭을 숨기는 화면(게시판 상세)만
+    // `-mb-8` 이 맞다.
+    <div className="-mx-5 -mb-[124px] -mt-[84px] flex h-[100dvh] flex-col bg-background">
       {/* MobileShell chrome 84px 영역 확보 */}
       <div className="h-[84px] shrink-0" aria-hidden="true" />
 

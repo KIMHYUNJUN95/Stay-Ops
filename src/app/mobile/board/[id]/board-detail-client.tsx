@@ -249,6 +249,14 @@ export function BoardDetailClient({
   // inside the parent's `relative` keeps the detail flush with the MobileShell body.
   return (
     <div className="-mx-5 -mb-8 -mt-[84px] flex h-[100dvh] flex-col bg-background">
+      {/* MobileShell chrome 84px 영역 확보.
+          위 `-mt-[84px]` 은 셸의 `pt-[84px]` 을 취소하는데, **그 여백은 장식이 아니라 떠 있는
+          (absolute, h-16) 상단 바를 피하는 자리**다. 취소만 하고 다시 확보하지 않으면 첫 84px 이
+          상단 바 뒤로 들어간다 — 작성자 행(아바타 40 + 여백 12 ≈ 52px)이 통째로 가려져 「⋯」
+          메뉴에 닿을 수 없었다(2026-08-07). 버그 신고 화면 두 곳은 처음부터 이 스페이서를 갖고
+          있었고, 여기만 빠져 있었다. */}
+      <div className="h-[84px] shrink-0" aria-hidden="true" />
+
       <div
         className={overlayOpen ? "flex-1 overflow-hidden" : "flex-1 overflow-y-auto"}
         style={overlayOpen ? { touchAction: "none", overscrollBehavior: "none" } : undefined}
