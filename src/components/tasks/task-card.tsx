@@ -27,22 +27,10 @@ import {
   nextRecurringOccurrence,
 } from "@/lib/tasks-recurrence";
 import { cn } from "@/lib/utils";
+import { tokyoDateOf, ymdShift } from "@/lib/tokyo-date";
 
-// `@/lib/tasks` 는 서버 전용 모듈(supabase/server)을 끌어오므로 클라이언트 컴포넌트에서 값으로
-// 가져올 수 없다. 날짜 유틸만 여기 둔다.
-function tokyoDateOf(iso: string | null): string | null {
-  if (!iso) return null;
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(iso));
-}
-function shiftYmd(ymd: string, days: number): string {
-  const base = new Date(`${ymd}T00:00:00Z`).getTime();
-  return new Date(base + days * 86_400_000).toISOString().slice(0, 10);
-}
+// 날짜 유틸은 순수 모듈 `@/lib/tokyo-date` 가 정본이다(서버·클라이언트 공용).
+const shiftYmd = ymdShift;
 
 type Copy = Dictionary["tasks"];
 

@@ -641,7 +641,13 @@ As-built (2026-07-30, occurrence model — **supersedes** the 2026-06-16 roll-fo
       still open it doubles as the make-up, so no copy is made. When today is not an occurrence
       (weekly / monthly / yearly), or today's occurrence is already `completed`/`skipped`/`moved`,
       the copy IS created — otherwise the missed work would silently vanish. The predicate is the
-      shared `hasOpenOccurrenceOn()` in `src/lib/task-occurrences.ts`.
+      shared `backlogCoveredByOccurrenceOn()` in `src/lib/task-predicates.ts`. **Today's occurrence
+      counts as covering the backlog even when it is already `completed`** — these recurring chores
+      do not accumulate (you don't do three days of stock checks three times), so doing it once today
+      settles the missed days. The first implementation gated on "still open" and therefore created a
+      duplicate whenever the user had already finished today's occurrence (2026-08-25, user-reported).
+      Only a `skipped` today-occurrence still produces a copy: the user said "not the scheduled one",
+      so pulling the backlog in means they do want one task today.
     - The carry-over copy is anchored by **`due_at` only** (`scheduled_date: null`, `all_day: true`)
       — the single-date model every other one-off uses. It was previously created `scheduled_date`-
       only, and since both the mobile and console overdue predicates read `due_at`, an unfinished

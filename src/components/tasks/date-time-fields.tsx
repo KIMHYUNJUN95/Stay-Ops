@@ -4,15 +4,12 @@ import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Dictionary } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { tokyoToday } from "@/lib/tokyo-date";
 
 type Copy = Dictionary["tasks"];
 
-const TZ = "Asia/Tokyo";
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
-function tokyoToday(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
-}
 
 // ── Inline month calendar (full-width card; never overflows the form padding) ──────────────
 export function MiniCalendar({

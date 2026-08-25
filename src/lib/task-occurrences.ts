@@ -2,7 +2,7 @@ import "server-only";
 
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { TaskRecord } from "@/lib/tasks";
-import { isRecurringOccurrenceDate, type OccurrenceState } from "@/lib/tasks-recurrence";
+import type { OccurrenceState } from "@/lib/tasks-recurrence";
 import type { Database } from "@/types/database";
 
 /**
@@ -121,26 +121,6 @@ export async function occurrenceStatesForTask(
 }
 
 /* ── 「오늘로 가져오기」 보충 사본 (2026-08-25) ──────────────────────────────────── */
-
-/**
- * `date` 에 아직 «열려 있는» 회차가 있는가 — 규칙상 실제 회차이면서 아직 아무 상태도 기록되지 않은 날짜.
- *
- * 밀린 회차 계산 범위는 `[anchor, 어제]` 라서 **오늘 회차는 손대지 않는다**. 매일/평일/사용자지정요일처럼
- * 오늘도 회차가 있는 규칙이면 「오늘로 가져오기」가 사본을 무조건 만들 때 오늘 목록에 같은 제목이 2건
- * 뜬다. 이미 떠 있는 오늘 회차 하나가 보충분을 겸하므로, 그럴 때는 사본을 만들지 않는다.
- *
- * 반대로 오늘 회차가 이미 완료/건너뜀/이동으로 해소됐다면 false 를 돌려 사본을 만들게 한다 — 그러지
- * 않으면 밀린 일이 조용히 증발한다.
- */
-export function hasOpenOccurrenceOn(args: {
-  rule: string | null;
-  anchor: string | null;
-  date: string;
-  resolvedDates: ReadonlySet<string>;
-}): boolean {
-  if (!isRecurringOccurrenceDate(args.rule, args.anchor, args.date)) return false;
-  return !args.resolvedDates.has(args.date);
-}
 
 /**
  * 밀린 회차의 보충용 **일회성 사본** 1건을 만든다 — 제목·컨텍스트만 복사한 실행자 개인 작업이며

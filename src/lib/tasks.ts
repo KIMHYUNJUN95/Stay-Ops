@@ -1,4 +1,4 @@
-import { getCleaningOperatingDateKey } from "@/lib/cleaning";
+import { tokyoDateOf, tokyoToday, ymdShift } from "@/lib/tokyo-date";
 import {
   getCanonicalPropertyName,
   getCanonicalRoomLabel,
@@ -129,21 +129,15 @@ function isMissingTable(message: string): boolean {
 
 type ProfileName = { id: string; name: string };
 
-/** Tokyo operating date (YYYY-MM-DD) used as "today" for task date logic. */
-export function tokyoToday(): string {
-  return getCleaningOperatingDateKey();
-}
-
-/** Tokyo calendar date (YYYY-MM-DD) of a timestamptz value. */
-export function tokyoDateOf(iso: string | null): string | null {
-  if (!iso) return null;
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(iso));
-}
+/**
+ * Tokyo 날짜 유틸은 `@/lib/tokyo-date`(순수 모듈)가 정본이다 — 서버·클라이언트가 같은 구현을 본다.
+ * 서버 쪽 호출부를 그대로 두려고 여기서 재수출한다.
+ *
+ * 예전에는 `tokyoToday()` 가 `getCleaningOperatingDateKey()` 를 거쳤다. 결과는 지금도 동일하지만
+ * (둘 다 컷오버 없는 도쿄 달력 날짜), 청소 모듈에 운영일 컷오버가 생기면 투두가 조용히 따라가게
+ * 되는 우연한 결합이었다. 명시적으로 끊는다.
+ */
+export { tokyoDateOf, tokyoToday, ymdShift };
 
 /** The single date a task is anchored to for list/calendar grouping (due wins over scheduled). */
 export function taskAnchorDate(task: TaskRecord): string | null {
@@ -184,11 +178,6 @@ type StandardRecurrenceRule = (typeof STANDARD_RECURRENCE_RULES)[number];
 
 function formatYmd(year: number, month: number, day: number): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-export function ymdShift(ymd: string, days: number): string {
-  const [year, month, day] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
 function ymdDiffDays(from: string, to: string): number {

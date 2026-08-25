@@ -7,6 +7,8 @@
  * are computed on the fly (here) for calendar previews rather than stored as rows.
  */
 
+import { ymdShift } from "@/lib/tokyo-date";
+
 // MUST stay in sync with `STANDARD_RECURRENCE_RULES` in `@/lib/tasks` (the server-only twin).
 // A rule present in one but not the other silently diverges the two code paths — e.g. an overdue
 // `yearly` task would roll forward via tasks.ts but be **hard-deleted** by the dismiss/reschedule
@@ -99,11 +101,6 @@ function nextWeekdayOccurrence(weekdays: readonly number[], fromDate: string, st
 
 function formatYmd(year: number, month: number, day: number): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-function ymdShift(ymd: string, days: number): string {
-  const [year, month, day] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
 function daysInMonth(year: number, month: number): number {

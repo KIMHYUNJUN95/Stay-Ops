@@ -1,36 +1,38 @@
-// Admin Todoist 콘솔 — 클라이언트 안전 헬퍼(날짜/술어/포맷/아바타).
-// @/lib/tasks 는 server-only 이므로 여기서 Tokyo 날짜 계산·술어·라벨을 독립 정의한다.
+// Admin Todoist 콘솔 — 클라이언트 안전 헬퍼(포맷/아바타/라벨).
+//
+// **날짜 유틸과 날짜·회차 술어는 여기서 정의하지 않는다.** 예전에는 «@/lib/tasks 가 server-only라»는
+// 이유로 이 파일이 독립 구현을 갖고 있었고, 모바일 워크스페이스도 같은 것을 인라인으로 또 갖고
+// 있었다 — 그 쌍둥이가 갈리면서 실제 사고를 냈다(결정 로그 2026-07-30 · 2026-08-25).
+// 이제 순수 모듈 `@/lib/tokyo-date` 와 `@/lib/task-predicates` 가 정본이고, 여기서는 콘솔이 쓰던
+// 이름으로 얇게 별칭만 준다(호출부 4900줄을 건드리지 않으려고 이름을 유지한다).
 // 라벨은 전부 getAdminTasksDictionary(locale) 를 통해 다국어로만 렌더한다(하드코딩 금지).
 import type { Locale } from "@/lib/i18n";
 import type { TaskRecord } from "@/lib/tasks";
 import {
   formatCustomWeekdays,
   formatWeekday,
-  isStandardRecurrence,
-  outstandingOverdueOccurrences,
   parseCustomWeekdays,
-  recurringOccurrencesInRange,
   WEEKDAY_ORDER,
 } from "@/lib/tasks-recurrence";
 import type { AdminTasksDictionary } from "@/lib/admin-tasks-i18n";
 import { partsOf } from "@/lib/task-directives";
+import {
+  anchorDateOf,
+  dueDateOf as sharedDueDateOf,
+  isActiveTask,
+  isOverdueOneOff,
+  isTodayOneOff,
+  isTomorrowOneOff,
+  occursOn as sharedOccursOn,
+  overdueOccurrenceDatesOf,
+  prioSort as sharedPrioSort,
+} from "@/lib/task-predicates";
+import { tokyoDateOf as sharedTokyoDateOf, tokyoToday as sharedTokyoToday, ymdShift } from "@/lib/tokyo-date";
 
-const TZ = "Asia/Tokyo";
-
-// ── Tokyo 운영 날짜 ────────────────────────────────────────────────────────────
-export function tokyoToday(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
-}
-export function tokyoDateOf(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
-}
-export function addDays(ymd: string, n: number): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
-}
+// ── Tokyo 운영 날짜 — `@/lib/tokyo-date` 재수출 ────────────────────────────────
+export const tokyoToday = sharedTokyoToday;
+export const tokyoDateOf = sharedTokyoDateOf;
+export const addDays = ymdShift;
 function parseYmdUTC(ymd: string): Date {
   const [y, m, d] = ymd.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d));
@@ -86,67 +88,30 @@ export function isSharedTask(t: TaskRecord): boolean {
 }
 // `cancelled` 는 DB CHECK 에 있는 정식 상태다(`202606100003_todo_tasks.sql`). 여기서만 빠져 있어
 // 취소된 작업이 콘솔의 관리함·오늘·캘린더에 계속 떠 있었다 — 서버 정본과 모바일에 맞춘다.
-export function isActive(t: TaskRecord): boolean {
-  return t.status !== "completed" && t.status !== "cancelled";
-}
-export function dueDateOf(t: TaskRecord): string | null {
-  return tokyoDateOf(t.dueAt);
-}
-// 마감(due) 우선, 없으면 예정일(scheduledDate).
-export function dateOf(t: TaskRecord): string | null {
-  return tokyoDateOf(t.dueAt) ?? t.scheduledDate ?? null;
-}
-// 날짜 버킷 술어(오늘/내일/지연)는 이제 **일회성 전용**이다. 반복(표준)은 완료해도 롤포워드하지 않고
-// 각 회차가 독립적이므로(2026-07-30), 회차 기준으로 뷰에서 occursOn/occurrence 상태로 따로 처리한다.
-export function isOverdue(t: TaskRecord, today: string): boolean {
-  if (isStandardRecurrence(t.recurrenceRule)) return false;
-  const d = dueDateOf(t);
-  return isActive(t) && !!d && d < today;
-}
-export function isTodayTask(t: TaskRecord, today: string): boolean {
-  if (isStandardRecurrence(t.recurrenceRule)) return false;
-  return (
-    isActive(t) && !isOverdue(t, today) && (t.scheduledDate === today || dueDateOf(t) === today)
-  );
-}
-export function isTomorrowTask(t: TaskRecord, today: string): boolean {
-  if (isStandardRecurrence(t.recurrenceRule)) return false;
-  const tm = addDays(today, 1);
-  return isActive(t) && (t.scheduledDate === tm || dueDateOf(t) === tm);
-}
+export const isActive = isActiveTask;
+export const dueDateOf = sharedDueDateOf;
+/** 마감(due) 우선, 없으면 예정일 — 공유 `anchorDateOf` 의 콘솔 이름. */
+export const dateOf = anchorDateOf;
+// 날짜 버킷 술어(오늘/내일/지연)는 **일회성 전용**이다. 반복(표준)은 완료해도 롤포워드하지 않고
+// 각 회차가 독립적이므로(2026-07-30), 회차 기준으로 occursOn/회차 상태로 따로 처리한다.
+export const isOverdue = isOverdueOneOff;
+export const isTodayTask = isTodayOneOff;
+export const isTomorrowTask = isTomorrowOneOff;
 
 // ── 반복 회차(occurrence) 헬퍼 (2026-07-30) ──────────────────────────────────────
 /** 표준 반복의 앵커(마감/예정, 고정). 회차 계산의 시작점. */
-export function recurrenceAnchor(t: TaskRecord): string | null {
-  return dateOf(t);
-}
+export const recurrenceAnchor = anchorDateOf;
 /** 이 작업이 `ymd`에 걸리는가 — 반복은 규칙으로, 비반복은 앵커 하루. */
-export function occursOn(t: TaskRecord, ymd: string): boolean {
-  const a = dateOf(t);
-  if (!a) return false;
-  if (isStandardRecurrence(t.recurrenceRule))
-    return recurringOccurrencesInRange(t.recurrenceRule, a, ymd, ymd).length > 0;
-  return a === ymd;
-}
+export const occursOn = sharedOccursOn;
 /** 미해결 지연 회차 날짜들(과거 · 상태 없음). `resolved`는 해당 작업의 회차상태 보유 날짜 집합. */
-export function overdueOccurrenceDates(
-  t: TaskRecord,
-  today: string,
-  resolved: ReadonlySet<string>,
-): string[] {
-  if (!isStandardRecurrence(t.recurrenceRule)) return [];
-  return outstandingOverdueOccurrences(t.recurrenceRule, dateOf(t), today, resolved);
-}
+export const overdueOccurrenceDates = overdueOccurrenceDatesOf;
 export function completedDateOf(t: TaskRecord): string | null {
   return tokyoDateOf(t.completedAt);
 }
 
 // ── 정렬 ────────────────────────────────────────────────────────────────────────
 // 우선순위 사다리(2026-07-30, Todoist P1~P4): urgent(1) > important(2) > medium(3) > normal(4=기본).
-const PRIO_ORD: Record<string, number> = { urgent: 0, important: 1, medium: 2, normal: 3 };
-export function prioSort(a: TaskRecord, b: TaskRecord): number {
-  return (PRIO_ORD[a.priority] ?? 3) - (PRIO_ORD[b.priority] ?? 3);
-}
+export const prioSort = sharedPrioSort;
 export function dateSort(a: TaskRecord, b: TaskRecord): number {
   return (dateOf(a) ?? "9999-99-99").localeCompare(dateOf(b) ?? "9999-99-99");
 }

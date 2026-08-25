@@ -36,12 +36,13 @@ import {
   clearOccurrenceState,
   completeOccurrence,
   createCarryOverTask,
-  hasOpenOccurrenceOn,
+  occurrenceStatesForTask,
   moveOccurrences,
   resolvedOccurrenceDates,
   setOccurrenceOrders,
   skipOccurrences,
 } from "@/lib/task-occurrences";
+import { backlogCoveredByOccurrenceOn } from "@/lib/task-predicates";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { cleanupRemovedTaskImages, sanitizeTaskImageUrls } from "@/lib/task-images";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -507,16 +508,22 @@ export async function carryConsoleOverdueToToday(taskId: string): Promise<TaskAc
   if (!isStandardRecurrence(task.recurrenceRule)) return { ok: true };
   const today = tokyoToday();
   const anchor = recurringAnchorDate(task);
-  const resolvedDates = await resolvedOccurrenceDates(task.id);
-  const dates = outstandingOverdueOccurrences(task.recurrenceRule, anchor, today, resolvedDates);
+  // 상태 «종류»까지 필요하다 — 오늘 회차가 완료인지 건너뜀인지에 따라 보충 사본 여부가 갈린다.
+  const states = await occurrenceStatesForTask(task.id);
+  const dates = outstandingOverdueOccurrences(
+    task.recurrenceRule,
+    anchor,
+    today,
+    new Set(states.keys()),
+  );
   if (dates.length === 0) return { ok: true };
-  // 오늘 회차가 아직 열려 있으면 그 회차가 보충분을 겸한다 — 사본을 또 만들면 오늘 목록에 같은 제목이
-  // 2건 뜬다(2026-08-25 수정). 모바일 `carryOverdueToToday` 와 같은 판정을 공유한다.
-  const carryNeeded = !hasOpenOccurrenceOn({
+  // 오늘 회차가 밀린 몫을 덮으면 사본을 만들지 않는다(완료한 경우 포함 — 2026-08-25 사용자 제보).
+  // 모바일 `carryOverdueToToday` 와 같은 판정을 공유한다.
+  const carryNeeded = !backlogCoveredByOccurrenceOn({
     rule: task.recurrenceRule,
     anchor,
     date: today,
-    resolvedDates,
+    state: states.get(today),
   });
   await moveOccurrences({
     taskId: task.id,

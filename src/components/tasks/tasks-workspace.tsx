@@ -66,6 +66,18 @@ import { repeatLabel, TaskCard } from "@/components/tasks/task-card";
 import { ReorderableTaskList } from "@/components/tasks/reorderable-task-list";
 import { ReportSheet } from "@/components/tasks/report-sheet";
 import { TaskToast } from "@/components/tasks/task-toast";
+import {
+  anchorDateOf,
+  dueDateOf,
+  isActiveTask as isActive,
+  isOpenOccurrenceOn,
+  isOverdueOneOff,
+  isTodayOneOff,
+  isTomorrowOneOff,
+  overdueOccurrenceDatesOf,
+  prioSort,
+} from "@/lib/task-predicates";
+import { ymdShift } from "@/lib/tokyo-date";
 import { ProjectsBoard } from "@/components/tasks/projects-board";
 import { MiniCalendar } from "@/components/tasks/date-time-fields";
 import type { FieldActivityRecord } from "@/lib/field-activity";
@@ -82,7 +94,6 @@ import { myOwn, recvInstr, sentInstr } from "@/lib/task-directives";
 import {
   isStandardRecurrence,
   type OccurrenceState,
-  outstandingOverdueOccurrences,
   recurringOccurrencesInRange,
 } from "@/lib/tasks-recurrence";
 import { cn } from "@/lib/utils";
@@ -97,28 +108,8 @@ type View =
   | "completed"
   | "calendar";
 
-function tokyoDateOf(iso: string | null): string | null {
-  if (!iso) return null;
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(iso));
-}
-// 우선순위 사다리(2026-07-30, Todoist P1~P4): urgent > important > medium > normal(기본).
-// 콘솔 `src/components/admin/tasks/helpers.ts` 의 PRIO_ORD 와 반드시 같아야 한다 — `medium` 이
-// 빠져 있으면 폴백(3)으로 떨어져 normal 과 동점이 되고, 같은 작업이 두 화면에서 다르게 줄 선다.
-const PRIO_ORD: Record<string, number> = { urgent: 0, important: 1, medium: 2, normal: 3 };
-
 function stopSheetTouch(e: React.TouchEvent) {
   e.stopPropagation();
-}
-
-// Shift a YYYY-MM-DD (Tokyo) date string by `n` days, returning the same format.
-function ymdShift(ymd: string, n: number): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
 // 반복 회차 카드 리스트(오늘/내일 뷰) — 각 카드는 그 날짜의 회차로 완료 처리(행 status 아님).
@@ -584,8 +575,6 @@ export function TasksWorkspace({
   const toastVisible = !!(
     moveNotice || skipUndo || undoTask || deletedUndoIds?.length || carryNotice
   );
-  const isActive = (t: TaskRecord) => t.status !== "completed" && t.status !== "cancelled";
-  const dueDateOf = (t: TaskRecord) => tokyoDateOf(t.dueAt);
   // 반복 회차 상태(2026-07-30): taskId → (date → state). 완료/지연 판정에 사용.
   const occByTask = useMemo(() => {
     const m = new Map<string, Map<string, OccurrenceState>>();
@@ -622,48 +611,16 @@ export function TasksWorkspace({
     (taskId: string): Set<string> => new Set(occByTask.get(taskId)?.keys() ?? []),
     [occByTask],
   );
-  const anchor = (t: TaskRecord) => dueDateOf(t) ?? t.scheduledDate ?? null;
-  // 반복은 규칙으로 회차 계산, 비반복은 앵커 하루.
-  const occursOn = (t: TaskRecord, ymd: string) => {
-    const a = anchor(t);
-    if (!a) return false;
-    if (isStandardRecurrence(t.recurrenceRule))
-      return recurringOccurrencesInRange(t.recurrenceRule, a, ymd, ymd).length > 0;
-    return a === ymd;
-  };
-  // 이 날짜에 미완료 반복 회차가 떠야 하는가(완료 회차 제외).
-  // 상태 행이 있으면 그 회차는 **해결된 것**이다 — completed(완료) · skipped(건너뜀) · moved(가져옴).
-  // 예전엔 completed 만 걸러서, 건너뛴 회차가 그대로 목록에 남았을 것이다(2026-07-30 회차 건너뛰기
-  // 도입 시 발견). `outstandingOverdueOccurrences` 의 "행이 있으면 해결" 규약과도 이제 일치한다.
-  const openOccursOn = (t: TaskRecord, ymd: string) =>
-    isActive(t) &&
-    isStandardRecurrence(t.recurrenceRule) &&
-    occursOn(t, ymd) &&
-    !occStateOf(t.id, ymd);
-  // 미해결 지연 회차 날짜들(과거·상태 없음).
+  // 날짜·회차 술어는 전부 `@/lib/task-predicates` 가 정본이다. 예전에는 이 자리에 인라인으로
+  // 재구현돼 있었고 콘솔(`admin/tasks/helpers.ts`)에도 같은 것이 따로 있었다 — 그 쌍둥이가 갈리면서
+  // 실제 사고를 냈다(결정 로그 2026-07-30 · 2026-08-25). 여기서는 `today` 를 묶은 얇은 래퍼만 둔다.
+  const anchor = anchorDateOf;
+  const openOccursOn = (t: TaskRecord, ymd: string) => isOpenOccurrenceOn(t, ymd, occStateOf);
   const overdueOccDates = (t: TaskRecord) =>
-    isStandardRecurrence(t.recurrenceRule)
-      ? outstandingOverdueOccurrences(t.recurrenceRule, anchor(t), today, resolvedDatesFor(t.id))
-      : [];
-  // 날짜 버킷 술어는 일회성 전용(반복 제외). 반복은 위 occurrence 헬퍼로 따로 처리.
-  const isOverdue = (t: TaskRecord) =>
-    isActive(t) &&
-    !isStandardRecurrence(t.recurrenceRule) &&
-    !!dueDateOf(t) &&
-    dueDateOf(t)! < today;
-  const isToday = (t: TaskRecord) =>
-    isActive(t) &&
-    !isStandardRecurrence(t.recurrenceRule) &&
-    !isOverdue(t) &&
-    (t.scheduledDate === today || dueDateOf(t) === today);
-  // Tomorrow tab: active tasks anchored to tomorrow (scheduled or due). Future-dated, so never
-  // overdue. Mirrors isToday so a task can't fall through the IA between the two day tabs.
-  const isTomorrow = (t: TaskRecord) =>
-    isActive(t) &&
-    !isStandardRecurrence(t.recurrenceRule) &&
-    (t.scheduledDate === tomorrowDate || dueDateOf(t) === tomorrowDate);
-  const prioSort = (a: TaskRecord, b: TaskRecord) =>
-    (PRIO_ORD[a.priority] ?? 3) - (PRIO_ORD[b.priority] ?? 3);
+    overdueOccurrenceDatesOf(t, today, resolvedDatesFor(t.id));
+  const isOverdue = (t: TaskRecord) => isOverdueOneOff(t, today);
+  const isToday = (t: TaskRecord) => isTodayOneOff(t, today);
+  const isTomorrow = (t: TaskRecord) => isTomorrowOneOff(t, today);
   /** 하루 안의 정렬 — 시간이 있는 항목이 먼저(빠른 시각 순), 없으면 우선순위. 콘솔 `tasksOn` 과 동일. */
   const timeThenPrio = (a: TaskRecord, b: TaskRecord) =>
     (a.timeLabel ?? "99").localeCompare(b.timeLabel ?? "99") || prioSort(a, b);

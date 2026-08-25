@@ -30,6 +30,7 @@ import {
   WEEKDAY_ORDER,
 } from "@/lib/tasks-recurrence";
 import { cn } from "@/lib/utils";
+import { tokyoToday, ymdShift } from "@/lib/tokyo-date";
 
 type Copy = Dictionary["tasks"];
 
@@ -41,13 +42,8 @@ const DURATIONS = [15, 30, 60, 120] as const;
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
-function tokyoToday(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
-}
-function addDays(ymd: string, n: number): string {
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
-}
+// 날짜 유틸은 순수 모듈 `@/lib/tokyo-date` 가 정본이다(서버·클라이언트 공용).
+const addDays = ymdShift;
 function dowOf(ymd: string): number {
   const [y, m, d] = ymd.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();

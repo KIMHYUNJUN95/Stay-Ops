@@ -2,6 +2,61 @@
 
 This file records important project decisions.
 
+## 2026-08-25 (2) 투두 순수 모듈 분리 — 쌍둥이 술어를 한 곳으로, 테스트를 걸 수 있는 자리로
+
+구조 점검에서 확인한 최우선 부채. 「이 작업이 오늘 목록에 뜨는가 / 지연인가 / 이 날짜에 회차가
+있는가」를 정하는 술어가 **두 화면에 각자 구현**돼 있었다 — 콘솔은 `admin/tasks/helpers.ts` 에
+export 로, 모바일은 `tasks-workspace.tsx` 안에 인라인 화살표 함수로. 의미는 같고 코드는 별개였다.
+
+더 아래 층인 Tokyo 날짜 유틸(`tokyoToday`/`tokyoDateOf`/`ymdShift`)은 **투두 기능 안에서만 일곱 벌**
+재구현돼 있었다: `tasks.ts` · `tasks-recurrence.ts` · `admin/tasks/helpers.ts` ·
+`tasks-workspace.tsx` · `task-card.tsx` · `task-schedule-sheet.tsx` · `date-time-fields.tsx`.
+근본 원인은 정본이던 `@/lib/tasks` 가 supabase/session 을 끌어오는 **서버 전용 모듈**이라 클라이언트가
+값으로 가져올 수 없었던 것이다.
+
+**결정.** 순수 모듈 둘을 신설한다.
+- `src/lib/tokyo-date.ts` — `tokyoToday` / `tokyoDateOf` / `ymdShift` / `isYmd`.
+- `src/lib/task-predicates.ts` — `anchorDateOf` / `occursOn` / `isOverdueOneOff` /
+  `isTodayOneOff` / `isTomorrowOneOff` / `isOpenOccurrenceOn` / `overdueOccurrenceDatesOf` /
+  `prioRank` / `prioSort` / `backlogCoveredByOccurrenceOn`.
+
+두 모듈 모두 서버 import 가 없어 서버·클라이언트가 같은 구현을 본다. `@/lib/tasks` 는 날짜 유틸을
+재수출만 하고, `admin/tasks/helpers.ts` 는 콘솔이 쓰던 이름으로 얇은 별칭만 준다(4900줄 콘솔 파일을
+건드리지 않으려고 이름을 유지했다). 재구현 7곳 중 6곳이 사라졌고, 남은 하나는 정본이다.
+
+**계약: `today` 는 항상 인자로 받는다.** 모듈이 스스로 «지금»을 읽으면 서버 렌더 시점과 클라이언트
+시점이 갈리고, 그 차이가 자정 근처에서 하루 오차로 나타난다.
+
+**부수 효과 — `tokyoToday()` 가 청소 모듈을 거치지 않는다.** 예전에는 `getCleaningOperatingDateKey()`
+를 호출했다. 결과는 지금도 동일하지만(둘 다 컷오버 없는 도쿄 달력 날짜), 청소에 운영일 컷오버가
+생기면 투두가 조용히 따라가게 되는 우연한 결합이었다. 명시적으로 끊었다.
+
+**테스트를 걸 수 있게 된 것이 본질이다.** 화면 컴포넌트 안에 있는 동안에는 이 술어들에 테스트를
+걸 방법이 없었다. `src/lib/__tests__/task-predicates.test.ts` 27건을 신설했고, 실제로 그 자리에서
+아래 결함 하나를 회귀 가드로 고정했다.
+
+### 같은 날 발견된 결함 — 오늘 회차를 완료한 뒤 「오늘로 가져오기」가 중복을 만들었다
+
+사용자 제보. 오늘 회차를 **이미 완료한** 상태에서 밀린 것을 당기면 보충 사본이 생겨, 오늘 목록에
+같은 제목이 또 떴다. 원인은 직전에 도입한 `hasOpenOccurrenceOn` 이 「오늘 회차가 **열려 있을 때만**」
+사본을 생략했기 때문이다 — 완료된 경우엔 만들었다.
+
+그 판단은 같은 결정의 근거와 모순이었다. 사본을 생략하기로 한 이유가 **이 반복 업무들은 누적되지
+않는다**(3일치 재고 확인을 세 번 하지 않는다)였으므로, 오늘 이미 했든 아직 안 했든 **오늘 한 번으로
+밀린 몫이 덮인다.**
+
+→ `backlogCoveredByOccurrenceOn` 으로 교체하고 상태별로 명시한다:
+| 오늘 회차 상태 | 덮는가 | 사본 |
+| --- | --- | --- |
+| 없음(열림) | 덮는다 | 안 만듦 |
+| `completed` | 덮는다 (**수정된 갈래**) | 안 만듦 |
+| `moved` | 덮는다 | 안 만듦 |
+| `skipped` | 덮지 않는다 | 만듦 |
+| 오늘이 회차 아님 | 덮지 않는다 | 만듦 |
+
+`skipped` 만 사본을 만든다 — 오늘 회차를 «안 한다»고 명시한 상태에서 밀린 것을 당겼다면 오늘 할 일이
+하나 필요하다는 뜻이다.
+
 ## 2026-08-25 투두 회귀 5건 — 반복 앵커 보호 · 중복 생성 차단 · 완료 정확성
 
 사용자 제보에서 출발한 전수 점검으로 투두에서 서로 다른 결함 5건을 확인하고 한 사이클에 고쳤다.

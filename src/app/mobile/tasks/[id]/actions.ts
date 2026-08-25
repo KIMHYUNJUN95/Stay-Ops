@@ -25,17 +25,19 @@ import {
   isRecurringOccurrenceDate,
   isStandardRecurrence,
   outstandingOverdueOccurrences,
+  type OccurrenceState,
 } from "@/lib/tasks-recurrence";
 import {
   clearOccurrenceState,
   completeOccurrence,
   createCarryOverTask,
-  hasOpenOccurrenceOn,
+  occurrenceStatesForTask,
   moveOccurrences,
   resolvedOccurrenceDates,
   setOccurrenceOrders,
   skipOccurrences,
 } from "@/lib/task-occurrences";
+import { backlogCoveredByOccurrenceOn } from "@/lib/task-predicates";
 import { cleanupRemovedTaskImages, sanitizeTaskImageUrls } from "@/lib/task-images";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -172,16 +174,17 @@ export async function dismissOverdueTasks(taskIds: string[]) {
  */
 async function outstandingOverdueForTask(
   task: TaskDetail,
-): Promise<{ anchor: string; dates: string[]; resolved: Set<string> }> {
+): Promise<{ anchor: string; dates: string[]; states: Map<string, OccurrenceState> }> {
   const anchor = recurringAnchorDate(task);
-  const resolved = await resolvedOccurrenceDates(task.id);
+  // 상태 «종류»까지 필요하다 — 오늘 회차가 완료인지 건너뜀인지에 따라 보충 사본 여부가 갈린다.
+  const states = await occurrenceStatesForTask(task.id);
   const dates = outstandingOverdueOccurrences(
     task.recurrenceRule,
     anchor,
     tokyoToday(),
-    resolved,
+    new Set(states.keys()),
   );
-  return { anchor, dates, resolved };
+  return { anchor, dates, states };
 }
 
 export async function skipOverdueOccurrences(taskId: string) {
@@ -258,15 +261,16 @@ export async function carryOverdueToToday(taskId: string): Promise<CarryOutcome 
   const { session, task } = await requireSessionAndTask(id);
   if (!isStandardRecurrence(task.recurrenceRule)) return null;
   const today = tokyoToday();
-  const { anchor, dates, resolved } = await outstandingOverdueForTask(task);
+  const { anchor, dates, states } = await outstandingOverdueForTask(task);
   if (dates.length === 0) return null;
-  // 오늘 회차가 아직 열려 있으면 그 회차가 보충분을 겸한다 — 사본을 또 만들면 오늘 목록에 같은 제목이
-  // 2건 뜬다(2026-08-25 수정). 밀린 회차의 `moved` 기록은 어느 쪽이든 그대로 수행한다.
-  const carryNeeded = !hasOpenOccurrenceOn({
+  // 오늘 회차가 밀린 몫을 덮으면 사본을 만들지 않는다 — 또 만들면 오늘 목록에 같은 제목이 2건 뜬다.
+  // 「오늘 것을 이미 완료한 경우」도 덮는 쪽이다(2026-08-25 사용자 제보). 밀린 회차의 `moved`
+  // 기록은 어느 쪽이든 그대로 수행한다.
+  const carryNeeded = !backlogCoveredByOccurrenceOn({
     rule: task.recurrenceRule,
     anchor,
     date: today,
-    resolvedDates: resolved,
+    state: states.get(today),
   });
   await moveOccurrences({
     taskId: id,

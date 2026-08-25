@@ -551,6 +551,18 @@ write). See `docs/planning/01-decision-log.md` → "2026-07-30 롤포워드 폐�
 - **Pure helpers** (`src/lib/tasks-recurrence.ts`, client+server): `outstandingOverdueOccurrences(rule,
   anchor, today, resolvedDates)` = rule occurrences in `[anchor, today)` with no state; `OccurrenceState`
   type; `isResolvedOccurrenceState`. Twin-safe (server `tasks.ts` and both UIs import from here).
+- **Pure modules (client-safe, 2026-08-25).** `@/lib/tasks` pulls in supabase/session, so client
+  components could never import it by value — which is why Tokyo date helpers had been re-implemented
+  **seven times** inside the tasks feature and the date/occurrence predicates existed twice (console
+  `helpers.ts` vs. mobile inline). Both now have one home:
+  - `src/lib/tokyo-date.ts` — `tokyoToday` / `tokyoDateOf` / `ymdShift` / `isYmd`. `@/lib/tasks`
+    re-exports these; `admin/tasks/helpers.ts` aliases them under its existing names.
+  - `src/lib/task-predicates.ts` — `anchorDateOf`, `occursOn`, `isOverdueOneOff`, `isTodayOneOff`,
+    `isTomorrowOneOff`, `isOpenOccurrenceOn`, `overdueOccurrenceDatesOf`, `prioRank`/`prioSort`,
+    `backlogCoveredByOccurrenceOn`. **`today` is always a parameter** — a module that reads "now"
+    itself drifts between server render and client, showing up as an off-by-one-day near midnight.
+  - Tested in `src/lib/__tests__/task-predicates.test.ts` (27 cases). Being testable is the point:
+    while these lived inside screen components there was no way to assert on them.
 - **Mutations** (`src/lib/task-occurrences.ts`, service-role): `completeOccurrence` /
   `clearOccurrenceState` / `skipOccurrences` / `moveOccurrences` / `resolvedOccurrenceDates`. Shared by
   mobile + console actions (no twin drift). Added 2026-08-25:
@@ -558,7 +570,9 @@ write). See `docs/planning/01-decision-log.md` → "2026-07-30 롤포워드 폐�
     that answers both "which dates are resolved" and "is this one *completed*" —
     `resolvedOccurrenceDates` only answers the former, and the detail page was otherwise pulling the
     org-wide `getOccurrenceStates()` (400 days, whole organization) to check a single date.
-  - `hasOpenOccurrenceOn({rule, anchor, date, resolvedDates})` — gate for the carry-over copy.
+  - (`hasOpenOccurrenceOn` was replaced on 2026-08-25 by `backlogCoveredByOccurrenceOn` in
+    `task-predicates.ts` — it gated on "today's occurrence is still *open*", so completing today's
+    occurrence first made the carry create a duplicate. See the decision log.)
   - `createCarryOverTask({task, organizationId, userId, date})` — the make-up one-off + its author
     participant row. Mobile and console previously held copy-pasted twins of this insert block.
 - **Loader**: `getOccurrenceStates(session)` (RLS-scoped, ~400-day window) → `OccurrenceStateRecord[]`;
