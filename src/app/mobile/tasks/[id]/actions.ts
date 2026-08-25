@@ -29,6 +29,8 @@ import {
 import {
   clearOccurrenceState,
   completeOccurrence,
+  createCarryOverTask,
+  hasOpenOccurrenceOn,
   moveOccurrences,
   resolvedOccurrenceDates,
   setOccurrenceOrders,
@@ -170,7 +172,7 @@ export async function dismissOverdueTasks(taskIds: string[]) {
  */
 async function outstandingOverdueForTask(
   task: TaskDetail,
-): Promise<{ anchor: string; dates: string[] }> {
+): Promise<{ anchor: string; dates: string[]; resolved: Set<string> }> {
   const anchor = recurringAnchorDate(task);
   const resolved = await resolvedOccurrenceDates(task.id);
   const dates = outstandingOverdueOccurrences(
@@ -179,7 +181,7 @@ async function outstandingOverdueForTask(
     tokyoToday(),
     resolved,
   );
-  return { anchor, dates };
+  return { anchor, dates, resolved };
 }
 
 export async function skipOverdueOccurrences(taskId: string) {
@@ -249,48 +251,31 @@ export async function carryOverdueToToday(taskId: string) {
   const { session, task } = await requireSessionAndTask(id);
   if (!isStandardRecurrence(task.recurrenceRule)) return;
   const today = tokyoToday();
-  const { dates } = await outstandingOverdueForTask(task);
+  const { anchor, dates, resolved } = await outstandingOverdueForTask(task);
   if (dates.length === 0) return;
+  // 오늘 회차가 아직 열려 있으면 그 회차가 보충분을 겸한다 — 사본을 또 만들면 오늘 목록에 같은 제목이
+  // 2건 뜬다(2026-08-25 수정). 밀린 회차의 `moved` 기록은 어느 쪽이든 그대로 수행한다.
+  const carryNeeded = !hasOpenOccurrenceOn({
+    rule: task.recurrenceRule,
+    anchor,
+    date: today,
+    resolvedDates: resolved,
+  });
   await moveOccurrences({
     taskId: id,
     organizationId: session.organization.id,
     dates,
     movedTo: today,
   });
-  // Carry-over: a personal one-off make-up for the actor, due today. Copies the essentials; not
-  // recurring, not shared (the actor is doing the missed work now). Needs an author participant row
-  // so RLS lets the actor read it.
-  const supabase = getSupabaseServiceClient();
-  const carryId = crypto.randomUUID();
-  await supabase.from("tasks").insert({
-    id: carryId,
-    organization_id: session.organization.id,
-    created_by_user_id: session.user.id,
-    title: task.title,
-    description: task.description ?? null,
-    scheduled_date: today,
-    due_at: null,
-    all_day: true,
-    priority: task.priority,
-    status: "open",
-    is_inbox: false,
-    is_shared: false,
-    recurrence_rule: null,
-    recurrence_series_id: null,
-    recurrence_instance_date: null,
-    tags: task.tags,
-    property_id: task.resolvedContext?.propertyId ?? null,
-    room_id: task.resolvedContext?.roomId ?? null,
-    reservation_id: task.resolvedContext?.reservationId ?? null,
-    guest_name: task.resolvedContext?.guestName ?? null,
-  } as never);
-  await supabase.from("task_participants").insert({
-    task_id: carryId,
-    user_id: session.user.id,
-    role: "author",
-    is_first_recipient: false,
-    added_by_user_id: null,
-  } as never);
+  // Carry-over: a personal one-off make-up for the actor, due today (see createCarryOverTask).
+  if (carryNeeded) {
+    await createCarryOverTask({
+      task,
+      organizationId: session.organization.id,
+      userId: session.user.id,
+      date: today,
+    });
+  }
   revalidatePath("/mobile/tasks");
   revalidatePath(detailPath(id));
 }
@@ -450,17 +435,20 @@ function listPathForView(formData: FormData, error?: string): string {
 }
 
 // Fields to anchor a task to `date` (Tokyo YYYY-MM-DD) via due_at, preserving any time-of-day.
-// Clears scheduled_date so due_at is the single anchor; keeps a recurring task's instance date in sync.
+// Clears scheduled_date so due_at is the single anchor.
+//
+// **`recurrence_instance_date` 는 여기서 절대 건드리지 않는다.** 반복 시리즈의 앵커는 고정이고
+// (2026-07-30 롤포워드 폐지), 밀린 회차는 앵커부터 계산되므로 앵커를 옮기면 지연 백로그가 통째로
+// 사라진다. 호출부(이동 액션)가 반복 업무를 아예 거절하므로 여기까지 오지도 않는다. 앵커를 바꾸는
+// 정당한 경로는 사용자가 명시적으로 날짜를 고치는 편집(`updateTaskCore`)뿐이다.
 function anchorToDate(task: TaskDetail, date: string): Database["public"]["Tables"]["tasks"]["Update"] {
   const dueAt = new Date(`${date}T${task.timeLabel ?? "00:00"}:00+09:00`).toISOString();
-  const update: Database["public"]["Tables"]["tasks"]["Update"] = {
+  return {
     due_at: dueAt,
     all_day: !task.timeLabel,
     scheduled_date: null,
     is_inbox: false,
   };
-  if (task.recurrenceSeriesId) update.recurrence_instance_date = date;
-  return update;
 }
 
 // "To today" swipe action: anchor the task to the Tokyo operating date and pull it
@@ -469,7 +457,14 @@ export async function moveTaskToToday(formData: FormData) {
   const id = cleanText(formData.get("taskId"));
   const { task } = await requireSessionAndTask(id);
   const today = tokyoToday();
-  // 반복 작업인데 그 날짜에 이미 회차가 있으면 이동을 거절하고 안내로 돌려보낸다(2026-07-30).
+  // 반복 업무는 이 이동을 아예 거절한다(2026-08-25). 이동은 `due_at`(=시리즈 앵커)을 다시 쓰는데,
+  // 반복 앵커는 «고정»이 계약이고(2026-07-30 롤포워드 폐지) 밀린 회차는 앵커부터 계산되므로,
+  // 앵커를 오늘로 당기는 순간 시리즈 위상이 바뀌고 쌓여 있던 지연 백로그가 통째로 사라진다.
+  // 반복은 날짜 단위 처리(회차 건너뛰기 / 오늘로 가져오기)로 다룬다.
+  if (isStandardRecurrence(task.recurrenceRule)) {
+    redirect(listPathForView(formData, "recurring_series"));
+  }
+  // 위 가드가 반복을 먼저 걸러내므로 실질적으로 도달하지 않지만, 방어적으로 남겨 둔다(2026-07-30).
   if (!canMoveRecurringTo(task.recurrenceRule, taskAnchorDate(task), today)) {
     redirect(listPathForView(formData, "duplicate_occurrence"));
   }
@@ -487,7 +482,10 @@ export async function moveTaskToTomorrow(formData: FormData) {
   const id = cleanText(formData.get("taskId"));
   const { task } = await requireSessionAndTask(id);
   const tomorrow = ymdShift(tokyoToday(), 1);
-  // 반복 작업인데 그 날짜에 이미 회차가 있으면 이동을 거절하고 안내로 돌려보낸다(2026-07-30).
+  // `moveTaskToToday` 와 같은 이유로 반복 업무는 거절한다 — 고정 앵커 계약 + 지연 백로그 소실.
+  if (isStandardRecurrence(task.recurrenceRule)) {
+    redirect(listPathForView(formData, "recurring_series"));
+  }
   if (!canMoveRecurringTo(task.recurrenceRule, taskAnchorDate(task), tomorrow)) {
     redirect(listPathForView(formData, "duplicate_occurrence"));
   }

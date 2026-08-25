@@ -222,6 +222,39 @@ body:lang(ja) {
     var(--font-noto-kr), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* ── Floating toast dock (mobile) ─────────────────────────────────────────────
+   토스트가 앉는 높이를 한 곳에서 계산한다. 예전에는 호출부마다 `bottom-[92px]` 를 하드코딩했는데,
+   그 값은 `env(safe-area-inset-bottom)` 을 무시한다. 탭바는 아래 패딩이 `max(16px, safe)` 라
+   홈 인디케이터가 있는 기기에서 더 두꺼워지고, 중앙 스퀘어클 버튼은 탭바 위로 26px 더 솟는다.
+   그래서 노치 기기에서는 토스트가 탭바에 붙거나 스퀘어클과 겹쳤다.
+
+   --tabbar-h = 위 패딩 12 + 탭 항목(아이콘 22 + gap 4 + 라벨 13) + 아래 패딩 max(16, safe).
+   도크는 거기에 스퀘어클 돌출 26px + 숨 쉴 여백 14px 을 더한다. */
+:root {
+  --tabbar-h: calc(51px + max(16px, env(safe-area-inset-bottom, 0px)));
+}
+.toast-dock {
+  bottom: calc(var(--tabbar-h) + 40px);
+}
+@keyframes toast-pop {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+.toast-pop {
+  animation: toast-pop var(--dur-base, 240ms) var(--ease-out, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast-pop {
+    animation: none;
+  }
+}
+
 /* Bottom tab bar — center action ("추가") button design (shared by all mobile pages). */
 .tabbar {
   display: flex;

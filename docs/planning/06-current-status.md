@@ -20,6 +20,43 @@ and the major mobile/admin operations modules are implemented and being hardened
   would otherwise read as current status. Encoding-damaged sections/files were intentionally not repaired
   in this pass.
 
+## 2026-08-25 — 투두(Todoist) 회귀 5건 수정
+
+사용자 제보에서 시작한 전수 점검. 성격이 다른 결함 5건을 한 사이클에 고쳤다. 상세 근거는
+`docs/planning/01-decision-log.md` → 2026-08-25.
+
+- **[데이터 손실]** 「오늘로/내일로 이동」이 반복 시리즈 앵커(`recurrence_instance_date`)를 다시 써서
+  반복 위상을 바꾸고 **쌓인 지연 백로그를 소멸**시켰다. 표준 반복 업무는 이제 네 이동 액션 모두에서
+  `recurring_series` 로 거절되고, UI(모바일 스와이프 · 콘솔 행 메뉴)에서도 항목이 사라진다. 앵커를
+  바꾸는 유일한 경로는 사용자의 명시적 편집이다 — 2026-07-30 「고정 앵커」 계약의 복원.
+- **[중복 생성]** 「오늘로 가져오기」가 오늘 회차와 중복되는 사본을 만들었다. 오늘 회차가 아직 열려
+  있으면 사본을 만들지 않는다. 사본은 `due_at` 앵커로 교체 — 기존 `scheduled_date` 방식은 다음 날
+  오늘·지연·내일 어디에도 안 떴다.
+- **[중복 생성]** 추가 버튼 더블 탭으로 작업이 2건 생성됐다(빠른 추가 · 상세 폼 · 콘솔 인라인 추가
+  전부). 세 경로에 동기 ref 잠금 + 전송 중 버튼 비활성화.
+- **[오동작]** 반복 업무를 상세에서 완료하면 앵커 회차가 완료되고 목록의 오늘 것은 남았다. 회차
+  날짜를 전달하도록 고치고, 회차 컨텍스트 없이 열린 반복 상세는 완료 버튼을 숨긴다.
+- **[반응성]** 콘솔 체크박스 완료에 낙관적 갱신을 이식하고(모바일과 동일 모델), `revalidatePath` 와
+  중복이던 `router.refresh()` 를 제거해 왕복을 2회 → 1회로 줄였다.
+
+이어서 모바일 **실행 취소 토스트와 반복 지연 카드를 다시 디자인**했다(사용자 승인 2026-08-25).
+토스트 네 곳이 각자 `bottom-[92px]` 를 하드코딩해 `env(safe-area-inset-bottom)` 을 무시하고 있어,
+홈 인디케이터 기기에서 탭바 중앙 스퀘어클과 겹쳤다 — `--tabbar-h` / `.toast-dock` 으로 높이를 한 곳에서
+계산하고, 마크업 4벌을 공용 `TaskToast` 로 통합했다(아이콘 칩 + 메시지 + 36px 실행 취소 알약, 닫기 X
+제거, 토스트 표시 중 FAB 후퇴). 지연 카드는 전폭 액션 구조로 교체. 계약은
+`docs/product/16-mobile-navigation.md` → "2026-08-25 떠 있는 토스트".
+
+공유 헬퍼 3개를 `src/lib/task-occurrences.ts` 에 신설해 모바일·콘솔의 복붙 쌍둥이를 통합했다
+(`hasOpenOccurrenceOn` / `createCarryOverTask` / `occurrenceStatesForTask`).
+
+검증: `npm run lint` · `npm run build` · `npx vitest run src/lib/__tests__/`(175건) 모두 통과.
+수동 QA(모바일 실기기 · 콘솔 브라우저)는 미실시.
+
+**미착수로 남긴 항목:** (a) 콘솔에서 관리자가 남의 반복 백로그를 당기면 사본이 관리자 앞으로 생겨
+담당 직원에게 안 보인다(권한 정책 판단 필요) (b) 모바일 `today` 가 서버 렌더 시점 값이라 PWA 를 켠
+채 JST 자정을 넘기면 stale (c) 이번 수정 이전에 만들어진 carry 사본은 여전히 `due_at` 이 비어 화면에
+묻혀 있다 — 백필 검토 필요.
+
 ## 2026-08-11 — "Complaints" renamed to "Guest Feedback"
 
 - The feature is now `게스트 피드백` / `ゲストフィードバック` / `Guest Feedback` on both the admin

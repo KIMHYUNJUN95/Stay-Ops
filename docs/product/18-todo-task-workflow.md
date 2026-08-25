@@ -633,12 +633,35 @@ As-built (2026-07-30, occurrence model — **supersedes** the 2026-06-16 roll-fo
   passed with no recorded state is **overdue** and stays so (연차·연휴·업무 사정으로 며칠 밀려도 사라지지
   않는다). Overdue occurrences of a recurring task are collapsed into **one grouped item per task**
   ("○○ · N일 밀림") in the Today tab's overdue area, with two actions:
-  - **오늘로 가져오기** (`carryOverdueToToday`) — marks the outstanding overdue occurrences `moved`
-    and creates a **carry-over one-off** task dated today (a personal make-up for the actor). The
-    recurring series continues on its schedule.
+  - **오늘로 가져오기** (`carryOverdueToToday`) — marks the outstanding overdue occurrences `moved`.
+    The recurring series continues on its schedule.
+    - **A carry-over one-off is created ONLY when today has no still-open occurrence (2026-08-25).**
+      Under a daily / weekdays / `custom:` rule today usually *is* an occurrence, and the old
+      unconditional copy put the same title in the Today list twice. When today's occurrence is
+      still open it doubles as the make-up, so no copy is made. When today is not an occurrence
+      (weekly / monthly / yearly), or today's occurrence is already `completed`/`skipped`/`moved`,
+      the copy IS created — otherwise the missed work would silently vanish. The predicate is the
+      shared `hasOpenOccurrenceOn()` in `src/lib/task-occurrences.ts`.
+    - The carry-over copy is anchored by **`due_at` only** (`scheduled_date: null`, `all_day: true`)
+      — the single-date model every other one-off uses. It was previously created `scheduled_date`-
+      only, and since both the mobile and console overdue predicates read `due_at`, an unfinished
+      copy fell out of 오늘·지연·내일 the next day and survived only in 관리함 (2026-08-25 fix).
+    - Creation lives in the shared `createCarryOverTask()` (`src/lib/task-occurrences.ts`); mobile
+      and console previously carried copy-pasted twins of the same insert block.
   - **삭제** (`skipOverdueOccurrences`) — marks the outstanding overdue occurrences `skipped` (kept
     forever, never re-appears). The series continues.
   One-off overdue tasks keep the existing bulk 오늘로 가져오기 / 지난 미완료 삭제 prompt (author-scoped).
+- **반복 업무는 「오늘로/내일로 이동」의 대상이 아니다 (2026-08-25).** Those actions re-anchor a task
+  through `due_at`, and for a recurring row that is the **series anchor**. Re-anchoring shifted the
+  whole rule's phase (weekly-Monday silently became weekly-Wednesday) and, because overdue
+  occurrences are computed from the anchor forward, **wiped the accumulated backlog**. That
+  contradicts the fixed-anchor contract below, so all four actions (`moveTaskToToday`,
+  `moveTaskToTomorrow`, `moveConsoleToToday`, `moveConsoleToTomorrow`) now reject a standard
+  recurring task with the error code **`recurring_series`**, and `recurrence_instance_date` is no
+  longer written by any move path. The mobile swipe and the console row menu hide the action for
+  recurring tasks; the rejection copy points at the two supported routes — edit the recurrence rule,
+  or skip just this occurrence. **The only legitimate way to move a series anchor is an explicit
+  user edit** (`updateTaskCore` / `updateConsoleTaskCore`).
 - **완료 토글은 누른 즉시 반영된다 — 일회성·반복 같은 방식 (2026-08-11).**
   완료를 누르면 서버 왕복(세션 조회 → 상태 기록 → 로그 insert → `revalidatePath` 3개 → 페이지
   전체 RSC 재렌더)이 끝나야 목록이 갱신된다. 그동안 아무 반응이 없으면 «눌렀나?» 하고 다시
@@ -647,6 +670,12 @@ As-built (2026-07-30, occurrence model — **supersedes** the 2026-06-16 roll-fo
     대부분(실측 9건 중 7건)이라 사실상 대다수의 완료가 그 대기를 겪고 있었다.
   - 두 경로를 `useOptimistic` 으로 통일했다. 일회성은 행을 즉시 빼고, 반복은 **회차 상태를
     낙관적으로 «완료»로 얹어** 같은 결과(행이 즉시 사라짐)를 만든다.
+  - **관리자 콘솔도 같은 모델로 이식했다 (2026-08-25).** 콘솔의 체크박스는 낙관적 처리가 전혀 없어
+    서버 왕복이 끝나야 반응했고, 게다가 `run()` 이 `revalidatePath` 로 이미 갱신된 화면을
+    `router.refresh()` 로 한 번 더 돌려 **왕복이 2회**였다. 콘솔의 모든 쓰기 액션이
+    `revalidatePath(CONSOLE_PATH)` 를 호출함을 전수 확인하고 그 `router.refresh()` 를 제거했다.
+  - 되돌리기(reopen)에는 양쪽 모두 낙관적 처리를 하지 않는다 — 행이 다시 나타나야 하는데 그건 서버
+    데이터가 와야 알 수 있고, 실행 취소는 이미 토스트라는 즉각적 피드백을 갖고 있다.
   - 직접 만든 «숨김 집합 + try/finally 원복»을 걷어냈다. 되돌리기를 손으로 관리하다 보니 한쪽
     경로가 빠졌던 것이고, `useOptimistic` 은 새 props 가 도착하면 스스로 버려져 실패 시에도
     행이 저절로 제자리로 돌아온다. **삭제(단건·일괄)도 같은 경로를 쓴다.**
@@ -941,6 +970,39 @@ The Quick Add ↔ Detailed Create distinction is made explicit in the interactio
   context link's **"예약 보기"** action, which navigates to the reservation calendar — a back-navigation
   no longer wipes what was typed. The draft is cleared on a successful save and on an explicit
   back-to-list; newly attached (not-yet-uploaded) photos are the one field a round-trip does not keep.
+
+- **Double-submit guard (2026-08-25).** Neither the quick-add sheet nor the detailed form nor the
+  console's inline add had an in-flight lock, and the create actions mint a fresh `crypto.randomUUID()`
+  with no idempotency key or unique constraint — so a fast double tap created **two tasks**.
+  - Quick-add sheet: a `useFormStatus`-based wrapper disables all three submit buttons (보관함 / 오늘 /
+    내일) while the action is in flight. The shared `SubmitButton` was not reused here because its
+    `Button` base styling (`h-11 rounded-xl shadow-glass`, blur on `secondary`) breaks this sheet's
+    flat look; the reason is recorded at the component.
+  - Detailed create/edit form: the button's `disabled={isPending}` only engaged **after** the photo
+    upload `await`, leaving the whole upload window tappable. A ref-based lock is now taken
+    synchronously at the top of `handleSubmit` (a state flag re-renders too late to stop the second
+    tap) and released on every early-return path — missing-title, `time_needs_date`,
+    `repeat_needs_date`, and upload failure — so a rejected submit never leaves the form stuck.
+  - Console inline add: same synchronous ref lock, released in both the success and error callbacks,
+    plus a pending-disabled save button. The Enter-to-save path shares the guarded function.
+- **Recurring completion from the detail screen (2026-08-25).** The detail view's complete button
+  called `completeTask(task.id)` **without an occurrence date**, so the server fell back to the
+  series anchor (`recurringAnchorDate`) and marked a *past* occurrence complete while today's stayed
+  open in the list. Its label was also driven by `task.status`, which for a recurring row is
+  permanently `open`, so the button always read 완료. The page now passes the occurrence date, and
+  `done` reads that occurrence's recorded state for recurring tasks. When the detail is opened
+  **without** occurrence context (a series row tapped from 관리함, no `?occurrence=`), the complete
+  button is **hidden** and replaced with guidance to open the task from 오늘 / 내일 / 캘린더 —
+  silently completing the anchor is the very bug being fixed. Occurrence state for the page comes
+  from the task-scoped `occurrenceStatesForTask()`; the org-wide `getOccurrenceStates()` would read
+  400 days of organization data to answer one date.
+
+- **반복 지연 카드 리디자인 (2026-08-25).** 밀린 반복 묶음 행(`recOverdueGroup`)은 제목 오른쪽에
+  좁은 알약 두 개(`px-3 py-1.5`, 높이 ~28px)를 끼워 넣은 구조라 제목이 잘리고 탭 타깃이 작았다.
+  지연 배너와 같은 문법으로 다시 짰다 — **아이콘 칩 + 제목 + 「N일 밀림」 배지 한 줄, 그 아래 전폭
+  액션 두 개**(h-10 `rounded-[14px]`, 오늘로 가져오기=primary / 삭제=ghost). 아이콘은 `Repeat` 인데,
+  이 카드는 바로 위 **일회성** 지연 배너와 나란히 놓이므로 둘을 구분하는 유일한 단서다. 토스트
+  표준은 `docs/product/16-mobile-navigation.md` → "2026-08-25 떠 있는 토스트".
 
 ## Task Cards
 

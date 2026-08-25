@@ -117,7 +117,7 @@ Status: **Implemented (2026-07-27).** 이 문서는 대시보드(어드민 웹) 
 
 | 뷰 | 내용 | 비고 |
 | --- | --- | --- |
-| 오늘 | 지연(overdue) + 오늘 기준일 작업 + **반복은 오늘 회차** | 반복(2026-07-30 회차 모델): 완료해도 롤포워드 안 함, 오늘 회차가 독립 표시. 지연은 일회성=기존 배너, **반복=작업별 1건 "N일 밀림" + [오늘로 가져오기]/[삭제]** |
+| 오늘 | 지연(overdue) + 오늘 기준일 작업 + **반복은 오늘 회차** | 반복(2026-07-30 회차 모델): 완료해도 롤포워드 안 함, 오늘 회차가 독립 표시. 지연은 일회성=기존 배너, **반복=작업별 1건 "N일 밀림" + [오늘로 가져오기]/[삭제]**. [오늘로 가져오기]는 **오늘 회차가 이미 열려 있으면 사본을 만들지 않는다**(2026-08-25, 18 문서 참조) |
 | 내일 | 내일 기준일 작업 | |
 | 관리함 | **프로젝트 밖 모든 활성 작업**(날짜 무관) | Todoist Inbox 모델. 오늘/내일은 이 집합의 필터. **드래그 재정렬**(호버 시 왼쪽 그립, `reorderConsoleTasks`→`sort_order`) — 랭크된 작업 위, 미랭크는 최신순(새 작업 top). 검색/필터 중엔 비활성 |
 | 프로젝트 | 프로젝트+섹션별 작업 | 프로젝트 작업은 이 뷰에만. 상단 배너에 멤버 요약(owner 포함 dedup 카운트) + **owner 전용 "프로젝트 삭제"**(confirm→cascade) |
@@ -255,6 +255,28 @@ Status: **Implemented (2026-07-27).** 이 문서는 대시보드(어드민 웹) 
     net(완료−재개)으로 집계한 완료 이력. **완료·기록 탭이 이걸 소스로 쓴다** — 반복 완료는 행이
     `open` 으로 롤포워드되어 `status=completed` 가 아니므로, 로그를 봐야 보고서(같은 소스)와 목록이 일치한다.
     렌더 시 각 record 를 `tasks` 에서 조회해 행으로 그리고, 반복 이력 행은 `forceDone`(완료 표시 + 체크박스 토글 금지).
+### 2026-08-25 회귀 수정 (모바일과 동일 계약)
+
+세부 근거와 전체 맥락은 `docs/planning/01-decision-log.md` → 2026-08-25 항목, 동작 정의는
+`docs/product/18-todo-task-workflow.md`. 콘솔에 해당하는 부분만 요약한다.
+
+- **행 메뉴의 「오늘로 이동」/「내일로 이동」은 표준 반복 업무에 노출되지 않는다.** 그 액션은
+  `due_at`(=시리즈 앵커)을 다시 써서 반복 위상을 바꾸고 지연 백로그를 소멸시켰다. 서버
+  (`moveConsoleToToday` / `moveConsoleToTomorrow`)도 `recurring_series` 로 거절하며,
+  `recurrence_instance_date` 는 어떤 이동 경로에서도 더 이상 기록하지 않는다. 기존
+  `occursOn(t, today)` 기반 분기는 일회성 작업에만 남는다. 거절 문구는
+  `admin-tasks-i18n.ts` 의 `errRecurringSeries`(ko/ja/en).
+- **체크박스 완료가 낙관적 갱신을 탄다.** 모바일 `tasks-workspace.tsx` 와 같은 `useOptimistic`
+  모델 — 일회성은 행을 즉시 제거, 반복은 회차 상태를 낙관적으로 «완료»로 얹는다. 되돌리기
+  (reopen)는 낙관적 처리 대상이 아니다(실행 취소 토스트가 즉각 피드백).
+- **`run()` 의 `router.refresh()` 를 제거했다.** `src/app/admin/tasks/actions.ts` 의 모든 쓰기
+  액션이 `revalidatePath(CONSOLE_PATH)` 를 호출함을 전수 확인했으므로 중복 왕복이었다. 읽기 전용
+  (`getConsoleTaskDetail` 등)과 목록을 건드리지 않는 보고서 액션만 revalidate 가 없다.
+  `run()` 밖에서 자체 `startTransition` 을 쓰는 일괄 삭제·지난 정리 2곳은 아직 그대로다.
+- **인라인 추가 더블 제출 차단.** `saveInlineAdd` 는 동기 ref 잠금을 쓰고(state 는 리렌더가 늦어
+  첫 두 탭을 못 막는다) 성공·실패 양쪽 콜백에서 해제한다. 저장 버튼은 전송 중 비활성.
+  Enter-to-save 도 같은 함수를 타므로 함께 보호된다.
+
 - **서버 액션** — `src/app/admin/tasks/actions.ts` (모두 `{ok:true,id?}|{ok:false,error}` 반환):
   `createConsoleTask` · `setConsoleTaskStatus`/`toggleConsoleComplete`(반복은 `occurrenceDate` 인자로
   회차 완료 → `task_occurrence_state`, 롤포워드 없음) · `carryConsoleOverdueToToday`/`skipConsoleOverdue`

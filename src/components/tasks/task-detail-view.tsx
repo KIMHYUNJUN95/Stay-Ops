@@ -119,6 +119,7 @@ function prioLabel(p: string, copy: Copy): string {
 export function TaskDetailView({
   buildingLabels,
   canEditCore,
+  completedOccurrenceDate,
   copy,
   currentUserId,
   imgCopy,
@@ -130,6 +131,8 @@ export function TaskDetailView({
 }: {
   buildingLabels: Record<string, string>;
   canEditCore: boolean;
+  /** 이 회차가 "완료"로 기록돼 있을 때만 그 날짜(해결 여부와 무관한 `occurrenceDate`와 짝을 이룸). */
+  completedOccurrenceDate: string | null;
   copy: Copy;
   currentUserId: string;
   imgCopy: Dictionary["requestImages"];
@@ -175,7 +178,17 @@ export function TaskDetailView({
     };
   }, [menuOpen]);
 
-  const done = task.status === "completed";
+  const isRecurring = isStandardRecurrence(task.recurrenceRule);
+  // 반복 업무는 행 `status` 가 영원히 "open"(2026-07-30 회차 모델) 이라 완료 여부는 그 회차의 기록을
+  // 본다. 일회성은 기존대로 행 status.
+  const done = isRecurring ? !!completedOccurrenceDate : task.status === "completed";
+  // 완료/되돌리기가 대상으로 삼을 회차 날짜. 열려 있으면 `occurrenceDate`, 이미 완료면
+  // `completedOccurrenceDate` — 상세 페이지가 어느 한쪽만 채워서 내려준다.
+  const actionOccurrenceDate = occurrenceDate ?? completedOccurrenceDate ?? undefined;
+  // 상세가 회차 컨텍스트 없이(관리함의 시리즈 행 등, `?occurrence=` 없이) 열린 반복 업무는 어느
+  // 날짜를 완료하는지 알 수 없어 앵커로 폴백해 버리면 사용자가 모르는 과거 회차가 완료돼 버린다
+  // (수정 2). 그 경우 완료 버튼 대신 안내만 보여준다.
+  const hasOccurrenceContext = !isRecurring || !!occurrenceDate || !!completedOccurrenceDate;
   const existingParticipantIds = task.participants.map((p) => p.userId);
   const shareableForMore = users.filter((u) => !existingParticipantIds.includes(u.id));
   const canChooseRecurringDelete =
@@ -396,35 +409,43 @@ export function TaskDetailView({
           </div>
         ) : null}
 
-        {/* Complete / reopen — any participant may toggle their shared task's completion. */}
-        <button
-          className={cn(
-            "mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[14px] font-extrabold transition-colors disabled:opacity-60",
-            done
-              ? "border border-border bg-surface text-foreground active:bg-slate-50"
-              : "bg-primary text-primary-foreground active:opacity-90",
-          )}
-          disabled={isTogglingStatus}
-          onClick={() =>
-            startStatusTransition(async () => {
-              if (done) await reopenTask(task.id);
-              else await completeTask(task.id);
-            })
-          }
-          type="button"
-        >
-          {done ? (
-            <>
-              <RotateCcw className="size-4" aria-hidden="true" />
-              {copy.reopen}
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="size-4" aria-hidden="true" />
-              {copy.complete}
-            </>
-          )}
-        </button>
+        {/* Complete / reopen — any participant may toggle their shared task's completion.
+            반복 업무인데 회차 컨텍스트가 없으면(관리함의 시리즈 행 등) 어떤 날짜를 완료하는지 알 수
+            없으므로 버튼 대신 안내만 보여준다 — 앵커로 조용히 폴백하지 않는다(수정 2). */}
+        {hasOccurrenceContext ? (
+          <button
+            className={cn(
+              "mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[14px] font-extrabold transition-colors disabled:opacity-60",
+              done
+                ? "border border-border bg-surface text-foreground active:bg-slate-50"
+                : "bg-primary text-primary-foreground active:opacity-90",
+            )}
+            disabled={isTogglingStatus}
+            onClick={() =>
+              startStatusTransition(async () => {
+                if (done) await reopenTask(task.id, actionOccurrenceDate);
+                else await completeTask(task.id, actionOccurrenceDate);
+              })
+            }
+            type="button"
+          >
+            {done ? (
+              <>
+                <RotateCcw className="size-4" aria-hidden="true" />
+                {copy.reopen}
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="size-4" aria-hidden="true" />
+                {copy.complete}
+              </>
+            )}
+          </button>
+        ) : (
+          <p className="mt-4 flex h-12 w-full items-center justify-center rounded-2xl border border-dashed border-border px-4 text-center text-[12.5px] font-semibold text-muted-foreground">
+            {copy.completeNeedsOccurrence}
+          </p>
+        )}
       </div>
 
       {/* Linked context */}

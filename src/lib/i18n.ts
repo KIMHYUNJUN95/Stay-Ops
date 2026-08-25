@@ -2761,6 +2761,8 @@ const FALLBACK_DICTIONARY = {
     repeatPickDays: "Custom",
     repeatPickDaysHint: "Pick the days to repeat on",
     moveDuplicateOccurrence: "That date already has this recurring task.",
+    moveRejectedRecurringSeries:
+      "Recurring tasks can't be rescheduled by swipe. Edit the repeat rule, or skip just this occurrence.",
     repeatHint:
       "A real task is generated for each repeat date. The latest occurrence's repeat rule continues the series.",
     swipeToday: "To today",
@@ -2911,6 +2913,7 @@ const FALLBACK_DICTIONARY = {
     updatePlaceholder: "Leave an update…",
     complete: "Complete",
     reopen: "Reopen",
+    completeNeedsOccurrence: "Open this from Today, Tomorrow, or Calendar to complete a specific date.",
     completedToast: "Marked complete",
     nextLabel: "Next: {date}",
     deletedToast: "Task deleted",
@@ -7508,6 +7511,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       repeatPickDays: "사용자 지정",
       repeatPickDaysHint: "반복할 요일을 선택하세요",
       moveDuplicateOccurrence: "그 날짜에는 이미 같은 반복 작업이 있습니다.",
+      moveRejectedRecurringSeries:
+        "반복 업무는 스와이프로 일정을 옮길 수 없습니다. 반복 설정을 수정하거나 이 회차만 건너뛰세요.",
       repeatHint:
         "반복 날짜마다 실제 작업이 생성됩니다. 가장 최근 발생 작업의 반복 규칙이 다음 일정을 이어갑니다.",
       swipeToday: "오늘로",
@@ -7658,6 +7663,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       updatePlaceholder: "업데이트 남기기…",
       complete: "완료",
       reopen: "다시 열기",
+      completeNeedsOccurrence: "오늘·내일·캘린더에서 열어야 특정 날짜를 완료할 수 있어요",
       completedToast: "완료했습니다",
       nextLabel: "다음: {date}",
       deletedToast: "작업을 삭제했습니다",
@@ -12182,6 +12188,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       repeatPickDays: "カスタム",
       repeatPickDaysHint: "繰り返す曜日を選択してください",
       moveDuplicateOccurrence: "その日付には同じ繰り返しタスクが既にあります。",
+      moveRejectedRecurringSeries:
+        "繰り返しタスクはスワイプで日付を移動できません。繰り返し設定を編集するか、この回だけスキップしてください。",
       repeatHint:
         "繰り返し日ごとに実際のタスク行が生成されます。最新の発生タスクの繰り返し設定が次回へ引き継がれます。",
       swipeToday: "今日へ",
@@ -12332,6 +12340,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       updatePlaceholder: "更新を残す…",
       complete: "完了",
       reopen: "再開",
+      completeNeedsOccurrence: "今日・明日・カレンダーから開くと、その日付を完了にできます",
       completedToast: "完了しました",
       nextLabel: "次回: {date}",
       deletedToast: "タスクを削除しました",

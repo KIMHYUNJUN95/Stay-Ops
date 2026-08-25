@@ -1,6 +1,8 @@
 import "server-only";
 
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import type { TaskRecord } from "@/lib/tasks";
+import { isRecurringOccurrenceDate, type OccurrenceState } from "@/lib/tasks-recurrence";
 import type { Database } from "@/types/database";
 
 /**
@@ -96,6 +98,99 @@ export async function resolvedOccurrenceDates(taskId: string): Promise<Set<strin
     .select("occurrence_date")
     .eq("task_id", taskId);
   return new Set(((data ?? []) as Array<{ occurrence_date: string }>).map((r) => r.occurrence_date));
+}
+
+/**
+ * 한 작업의 회차 상태 전체 — `occurrence_date` → state.
+ *
+ * `resolvedOccurrenceDates` 는 «행이 있는가»만 답하므로 완료와 건너뜀/이동을 구분하지 못한다. 상세
+ * 화면은 그 구분이 필요한데(완료 버튼 라벨), 조직 전체 회차 상태를 끌어오는 `getOccurrenceStates`
+ * 를 쓰면 날짜 한 건을 알려고 400일치 org 데이터를 읽게 된다. 작업 하나로 좁힌 조회를 두고,
+ * 호출부가 이 한 번의 결과에서 «해결된 날짜 집합»과 «완료 여부»를 함께 뽑아 쓴다.
+ */
+export async function occurrenceStatesForTask(
+  taskId: string,
+): Promise<Map<string, OccurrenceState>> {
+  const supabase = getSupabaseServiceClient();
+  const { data } = await supabase
+    .from("task_occurrence_state")
+    .select("occurrence_date, state")
+    .eq("task_id", taskId);
+  const rows = (data ?? []) as Array<{ occurrence_date: string; state: string }>;
+  return new Map(rows.map((r) => [r.occurrence_date, r.state as OccurrenceState]));
+}
+
+/* ── 「오늘로 가져오기」 보충 사본 (2026-08-25) ──────────────────────────────────── */
+
+/**
+ * `date` 에 아직 «열려 있는» 회차가 있는가 — 규칙상 실제 회차이면서 아직 아무 상태도 기록되지 않은 날짜.
+ *
+ * 밀린 회차 계산 범위는 `[anchor, 어제]` 라서 **오늘 회차는 손대지 않는다**. 매일/평일/사용자지정요일처럼
+ * 오늘도 회차가 있는 규칙이면 「오늘로 가져오기」가 사본을 무조건 만들 때 오늘 목록에 같은 제목이 2건
+ * 뜬다. 이미 떠 있는 오늘 회차 하나가 보충분을 겸하므로, 그럴 때는 사본을 만들지 않는다.
+ *
+ * 반대로 오늘 회차가 이미 완료/건너뜀/이동으로 해소됐다면 false 를 돌려 사본을 만들게 한다 — 그러지
+ * 않으면 밀린 일이 조용히 증발한다.
+ */
+export function hasOpenOccurrenceOn(args: {
+  rule: string | null;
+  anchor: string | null;
+  date: string;
+  resolvedDates: ReadonlySet<string>;
+}): boolean {
+  if (!isRecurringOccurrenceDate(args.rule, args.anchor, args.date)) return false;
+  return !args.resolvedDates.has(args.date);
+}
+
+/**
+ * 밀린 회차의 보충용 **일회성 사본** 1건을 만든다 — 제목·컨텍스트만 복사한 실행자 개인 작업이며
+ * 반복도, 공유도 아니다. RLS 가 읽을 수 있도록 author 참여자 행을 함께 넣는다.
+ *
+ * 날짜는 `due_at` 하나로만 앵커한다(단일 날짜 모델). 지연 판정이 모바일·콘솔 양쪽 모두 `due_at` 만
+ * 보기 때문에, `scheduled_date` 로 만들면 그날 못 끝냈을 때 오늘·지연·내일 어디에도 안 뜨고 관리함에만
+ * 남는다(2026-08-25 수정).
+ *
+ * 모바일과 콘솔이 이 블록을 통째로 복붙해 갖고 있었다 — 쌍둥이가 어긋나는 것이 이 도메인의 반복된
+ * 실패 모드라 한 곳으로 모은다.
+ */
+export async function createCarryOverTask(args: {
+  task: TaskRecord;
+  organizationId: string;
+  userId: string;
+  date: string;
+}): Promise<void> {
+  const { task } = args;
+  const supabase = getSupabaseServiceClient();
+  const carryId = crypto.randomUUID();
+  await supabase.from("tasks").insert({
+    id: carryId,
+    organization_id: args.organizationId,
+    created_by_user_id: args.userId,
+    title: task.title,
+    description: task.description ?? null,
+    scheduled_date: null,
+    due_at: new Date(`${args.date}T00:00:00+09:00`).toISOString(),
+    all_day: true,
+    priority: task.priority,
+    status: "open",
+    is_inbox: false,
+    is_shared: false,
+    recurrence_rule: null,
+    recurrence_series_id: null,
+    recurrence_instance_date: null,
+    tags: task.tags,
+    property_id: task.resolvedContext?.propertyId ?? null,
+    room_id: task.resolvedContext?.roomId ?? null,
+    reservation_id: task.resolvedContext?.reservationId ?? null,
+    guest_name: task.resolvedContext?.guestName ?? null,
+  } as never);
+  await supabase.from("task_participants").insert({
+    task_id: carryId,
+    user_id: args.userId,
+    role: "author",
+    is_first_recipient: false,
+    added_by_user_id: null,
+  } as never);
 }
 
 /* ── 회차별 수동 순서 (task_occurrence_order, 2026-07-30) ─────────────────────────

@@ -25,7 +25,6 @@ import {
   formatCustomWeekdays,
   isStandardRecurrence,
   nextRecurringOccurrence,
-  recurringOccurrencesInRange,
 } from "@/lib/tasks-recurrence";
 import { cn } from "@/lib/utils";
 
@@ -225,12 +224,14 @@ export function TaskCard({
   // 콘솔의 「오늘로/내일로 이동」 메뉴도 같은 이유로 감춘다(2026-08-03).
   const swipeTarget = swipeAction === "tomorrow" ? shiftYmd(today, 1) : today;
   const anchorDate = tokyoDateOf(task.dueAt) ?? task.scheduledDate ?? null;
-  const alreadyOnTarget = anchorDate
-    ? isStandardRecurrence(task.recurrenceRule)
-      ? recurringOccurrencesInRange(task.recurrenceRule, anchorDate, swipeTarget, swipeTarget).length > 0
-      : anchorDate === swipeTarget
-    : false;
-  const canSwipe = swipe && !done && !selectMode && !alreadyOnTarget;
+  // 2026-08-25: 표준 반복 업무는 오늘/내일 스와이프 자체를 내주지 않는다. `moveTaskToToday` /
+  // `moveTaskToTomorrow` 가 `recurrence_instance_date`(고정 앵커, 2026-07-30 롤포워드 폐지)를 다시
+  // 쓰기 때문에, 이동을 허용하면 그 순간 시리즈 전체의 반복 위상이 바뀌면서 밀린 회차 백로그가
+  // 통째로 사라진다. 서버가 표준 반복을 `recurring_series` 로 거절하므로, 위 alreadyOnTarget 중복
+  // 방지는 이제 일회성 작업에만 남긴다(반복은 아래에서 이미 스와이프가 꺼진다).
+  const isRecurringTask = isStandardRecurrence(task.recurrenceRule);
+  const alreadyOnTarget = !isRecurringTask && anchorDate ? anchorDate === swipeTarget : false;
+  const canSwipe = swipe && !done && !selectMode && !isRecurringTask && !alreadyOnTarget;
 
   // Long-press → context menu. A 480ms hold with little movement fires; a drag/scroll cancels it.
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

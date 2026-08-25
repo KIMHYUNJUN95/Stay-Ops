@@ -124,6 +124,9 @@ export function TaskCreateForm({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(serverError);
   const [isPending, startTransition] = useTransition();
+  // 업로드 대기 중 표시용 — `isPending` 은 업로드 `await` 가 끝난 뒤 `startTransition` 이 불릴 때만
+  // 켜져서, 그 사이(사진 있음 + 느린 회선)에 버튼이 살아 있어 두 번 눌릴 수 있었다.
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ── In-progress draft persistence ──────────────────────────────────────────
   // Tapping "예약 보기" navigates to the calendar (router.push) and a back-navigation remounts this
@@ -134,6 +137,10 @@ export function TaskCreateForm({
   const draftKey = `taskDraft:${mode}:${taskId ?? "new"}`;
   const hydratedRef = useRef(false);
   const submittedRef = useRef(false);
+  // 재진입(더블탭) 차단 전용 — `submittedRef` 는 초안 저장 억제 용도로 이미 쓰이고 있어 이름을
+  // 나눈다. ref 는 리렌더 없이 즉시(동기) 반영되므로, `isPending`/`isSubmitting` 같은 state 로는
+  // 못 막는 "같은 이벤트 루프 안의 연속 두 번째 탭"까지 막는다.
+  const submitLockRef = useRef(false);
 
   const clearDraft = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -244,22 +251,37 @@ export function TaskCreateForm({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // 동기 재진입 가드 — 사진 업로드 await 가 끝나기 전까지 `isPending` 이 켜지지 않아, 그 사이
+    // 두 번째 탭이 여기까지 다시 들어올 수 있었다. ref 는 리렌더를 기다리지 않으므로 첫 두 탭도 막는다.
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
+    setIsSubmitting(true);
     setError(null);
     const form = formRef.current;
-    if (!form) return;
+    if (!form) {
+      submitLockRef.current = false;
+      setIsSubmitting(false);
+      return;
+    }
     const formData = new FormData(form);
     const title = String(formData.get("title") ?? "").trim();
     if (!title) {
       setError(copy.errors.missing_title);
+      submitLockRef.current = false;
+      setIsSubmitting(false);
       return;
     }
     // A specific time / repeat needs a date anchor — block submission instead of silently dropping it.
     if (time && !date) {
       setError(copy.errors.time_needs_date);
+      submitLockRef.current = false;
+      setIsSubmitting(false);
       return;
     }
     if (repeat && !date) {
       setError(copy.errors.repeat_needs_date);
+      submitLockRef.current = false;
+      setIsSubmitting(false);
       return;
     }
     // Single-date model (A안): the one date maps to due_at; scheduled stays empty.
@@ -295,6 +317,8 @@ export function TaskCreateForm({
           for (const url of imageUrls) formData.append("imageUrls", url);
         } catch {
           setError(copy.errors.save_failed);
+          submitLockRef.current = false;
+          setIsSubmitting(false);
           return;
         }
       }
@@ -318,6 +342,8 @@ export function TaskCreateForm({
       for (const url of imageUrls) formData.append("imageUrls", url);
     } catch {
       setError(copy.errors.save_failed);
+      submitLockRef.current = false;
+      setIsSubmitting(false);
       return;
     }
     submittedRef.current = true;
@@ -390,7 +416,7 @@ export function TaskCreateForm({
         </p>
         <button
           className="shrink-0 rounded-xl bg-primary px-4 py-2 text-[14px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-50"
-          disabled={isPending}
+          disabled={isPending || isSubmitting}
           type="submit"
         >
           {copy.save}

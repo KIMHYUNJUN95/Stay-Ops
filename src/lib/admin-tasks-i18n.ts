@@ -322,6 +322,8 @@ export type AdminTasksDictionary = {
   errInvalidDate: string;
   errEmpty: string;
   errDuplicateOccurrence: string;
+  // 반복 업무는 고정 앵커라 「오늘로 이동」류가 시리즈를 옮기지 못한다(2026-08-25).
+  errRecurringSeries: string;
   tCreated: string;
   tUpdated: string;
   tCompleted: string;
@@ -453,6 +455,7 @@ const ko: AdminTasksDictionary = {
   errRepeatNeedsDate: "반복을 설정하려면 날짜를 먼저 선택해 주세요.", errNotFound: "작업을 찾을 수 없습니다.",
   errInvalidDate: "날짜 형식이 올바르지 않습니다.", errEmpty: "내용을 입력해 주세요.",
   errDuplicateOccurrence: "그 날짜에는 이미 같은 반복 작업이 있습니다.",
+  errRecurringSeries: "반복 업무는 일정을 옮길 수 없습니다. 반복 설정을 수정하거나 이 회차만 건너뛰세요.",
   tCreated: "작업을 추가했습니다.", tUpdated: "작업을 수정했습니다.", tCompleted: "완료 처리했습니다.", tReopened: "다시 열었습니다.",
   tShared: "공유했습니다.", tInstructed: "지시를 보냈습니다.", tDeleted: "삭제했습니다.", tMoved: "이동했습니다.",
   tRescheduled: "일정을 변경했습니다.", tNoteAdded: "노트를 추가했습니다.", tProjectCreated: "프로젝트를 만들었습니다.", tReminded: "리마인드를 보냈습니다.",
@@ -562,6 +565,7 @@ const ja: AdminTasksDictionary = {
   errRepeatNeedsDate: "繰り返しを設定するには先に日付を選択してください。", errNotFound: "タスクが見つかりません。",
   errInvalidDate: "日付の形式が正しくありません。", errEmpty: "内容を入力してください。",
   errDuplicateOccurrence: "その日付には同じ繰り返しタスクが既にあります。",
+  errRecurringSeries: "繰り返しタスクの日程は移動できません。繰り返し設定を編集するか、この回だけスキップしてください。",
   tCreated: "タスクを追加しました。", tUpdated: "タスクを更新しました。", tCompleted: "完了しました。", tReopened: "再度開きました。",
   tShared: "共有しました。", tInstructed: "指示を送りました。", tDeleted: "削除しました。", tMoved: "移動しました。",
   tRescheduled: "日程を変更しました。", tNoteAdded: "ノートを追加しました。", tProjectCreated: "プロジェクトを作成しました。", tReminded: "リマインドを送りました。",
@@ -671,6 +675,7 @@ const en: AdminTasksDictionary = {
   errRepeatNeedsDate: "Pick a date before setting a repeat.", errNotFound: "Task not found.",
   errInvalidDate: "That date isn't valid.", errEmpty: "Enter some content.",
   errDuplicateOccurrence: "That date already has this recurring task.",
+  errRecurringSeries: "Recurring tasks can't be rescheduled this way. Edit the recurrence rule instead, or skip just this occurrence.",
   tCreated: "Task added.", tUpdated: "Task updated.", tCompleted: "Marked complete.", tReopened: "Reopened.",
   tShared: "Shared.", tInstructed: "Directive sent.", tDeleted: "Deleted.", tMoved: "Moved.",
   tRescheduled: "Rescheduled.", tNoteAdded: "Note added.", tProjectCreated: "Project created.", tReminded: "Reminder sent.",

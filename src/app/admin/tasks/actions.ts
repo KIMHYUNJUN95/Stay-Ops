@@ -35,6 +35,8 @@ import {
 import {
   clearOccurrenceState,
   completeOccurrence,
+  createCarryOverTask,
+  hasOpenOccurrenceOn,
   moveOccurrences,
   resolvedOccurrenceDates,
   setOccurrenceOrders,
@@ -501,43 +503,28 @@ export async function carryConsoleOverdueToToday(taskId: string): Promise<TaskAc
   const resolvedDates = await resolvedOccurrenceDates(task.id);
   const dates = outstandingOverdueOccurrences(task.recurrenceRule, anchor, today, resolvedDates);
   if (dates.length === 0) return { ok: true };
+  // 오늘 회차가 아직 열려 있으면 그 회차가 보충분을 겸한다 — 사본을 또 만들면 오늘 목록에 같은 제목이
+  // 2건 뜬다(2026-08-25 수정). 모바일 `carryOverdueToToday` 와 같은 판정을 공유한다.
+  const carryNeeded = !hasOpenOccurrenceOn({
+    rule: task.recurrenceRule,
+    anchor,
+    date: today,
+    resolvedDates,
+  });
   await moveOccurrences({
     taskId: task.id,
     organizationId: session.organization.id,
     dates,
     movedTo: today,
   });
-  const supabase = getSupabaseServiceClient();
-  const carryId = crypto.randomUUID();
-  await supabase.from("tasks").insert({
-    id: carryId,
-    organization_id: session.organization.id,
-    created_by_user_id: session.user.id,
-    title: task.title,
-    description: task.description ?? null,
-    scheduled_date: today,
-    due_at: null,
-    all_day: true,
-    priority: task.priority,
-    status: "open",
-    is_inbox: false,
-    is_shared: false,
-    recurrence_rule: null,
-    recurrence_series_id: null,
-    recurrence_instance_date: null,
-    tags: task.tags,
-    property_id: task.resolvedContext?.propertyId ?? null,
-    room_id: task.resolvedContext?.roomId ?? null,
-    reservation_id: task.resolvedContext?.reservationId ?? null,
-    guest_name: task.resolvedContext?.guestName ?? null,
-  } as never);
-  await supabase.from("task_participants").insert({
-    task_id: carryId,
-    user_id: session.user.id,
-    role: "author",
-    is_first_recipient: false,
-    added_by_user_id: null,
-  } as never);
+  if (carryNeeded) {
+    await createCarryOverTask({
+      task,
+      organizationId: session.organization.id,
+      userId: session.user.id,
+      date: today,
+    });
+  }
   revalidatePath(CONSOLE_PATH);
   return { ok: true };
 }
@@ -1217,13 +1204,20 @@ export async function moveConsoleToToday(taskId: string): Promise<TaskActionResu
   if (!resolved) return { ok: false, error: "not_found" };
   const { session, task } = resolved;
   const today = tokyoToday();
-  // 반복 작업인데 오늘에 이미 회차가 있으면 옮기지 않는다 — 사용자에겐 같은 일을 두 번 놓는 것으로
-  // 보이고, 실제로도 아무것도 바뀌지 않는다.
+  // 반복 업무는 이 이동을 아예 거절한다(2026-08-25). 이동은 `due_at`(=시리즈 앵커)을 다시 쓰는데,
+  // 반복 앵커는 «고정»이 계약이고(2026-07-30 롤포워드 폐지) 밀린 회차는 앵커부터 계산되므로,
+  // 앵커를 오늘로 당기는 순간 시리즈 위상이 바뀌고 쌓여 있던 지연 백로그가 통째로 사라진다.
+  // 반복은 날짜 단위 처리(회차 건너뛰기 / 오늘로 가져오기)로 다룬다.
+  if (isStandardRecurrence(task.recurrenceRule)) {
+    return { ok: false, error: "recurring_series" };
+  }
+  // 위 가드가 반복을 먼저 걸러내므로 실질적으로 도달하지 않지만, 방어적으로 남겨 둔다(2026-07-30).
   if (!canMoveRecurringTo(task.recurrenceRule, taskAnchorDate(task), today)) {
     return { ok: false, error: "duplicate_occurrence" };
   }
   const supabase = getSupabaseServiceClient();
   // Anchor to the Tokyo operating date via due_at, preserving any time-of-day; pull out of Inbox.
+  // `recurrence_instance_date` 는 건드리지 않는다 — 위 주석의 고정 앵커 계약.
   const dueAt = new Date(`${today}T${task.timeLabel ?? "00:00"}:00+09:00`).toISOString();
   const update: Database["public"]["Tables"]["tasks"]["Update"] = {
     due_at: dueAt,
@@ -1231,7 +1225,6 @@ export async function moveConsoleToToday(taskId: string): Promise<TaskActionResu
     scheduled_date: null,
     is_inbox: false,
   };
-  if (task.recurrenceSeriesId) update.recurrence_instance_date = today;
   const { error } = await supabase
     .from("tasks")
     .update(update as never)
@@ -1248,6 +1241,10 @@ export async function moveConsoleToTomorrow(taskId: string): Promise<TaskActionR
   if (!resolved) return { ok: false, error: "not_found" };
   const { session, task } = resolved;
   const tomorrow = ymdShift(tokyoToday(), 1);
+  // `moveConsoleToToday` 와 같은 이유로 반복 업무는 거절한다 — 고정 앵커 계약 + 지연 백로그 소실.
+  if (isStandardRecurrence(task.recurrenceRule)) {
+    return { ok: false, error: "recurring_series" };
+  }
   if (!canMoveRecurringTo(task.recurrenceRule, taskAnchorDate(task), tomorrow)) {
     return { ok: false, error: "duplicate_occurrence" };
   }
@@ -1259,7 +1256,6 @@ export async function moveConsoleToTomorrow(taskId: string): Promise<TaskActionR
     scheduled_date: null,
     is_inbox: false,
   };
-  if (task.recurrenceSeriesId) update.recurrence_instance_date = tomorrow;
   const { error } = await supabase
     .from("tasks")
     .update(update as never)

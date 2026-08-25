@@ -11,7 +11,7 @@ import {
   useSyncExternalStore,
   useTransition,
 } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, useFormStatus } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -30,7 +30,6 @@ import {
   Megaphone,
   Plus,
   Repeat,
-  RotateCcw,
   Search,
   SearchX,
   SkipForward,
@@ -66,6 +65,7 @@ import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import { repeatLabel, TaskCard } from "@/components/tasks/task-card";
 import { ReorderableTaskList } from "@/components/tasks/reorderable-task-list";
 import { ReportSheet } from "@/components/tasks/report-sheet";
+import { TaskToast } from "@/components/tasks/task-toast";
 import { ProjectsBoard } from "@/components/tasks/projects-board";
 import { MiniCalendar } from "@/components/tasks/date-time-fields";
 import type { FieldActivityRecord } from "@/lib/field-activity";
@@ -124,6 +124,74 @@ function ymdShift(ymd: string, n: number): string {
 // 반복 회차 카드 리스트(오늘/내일 뷰) — 각 카드는 그 날짜의 회차로 완료 처리(행 status 아님).
 // viewBody(거대 IIFE) 밖으로 빼서 컴포넌트 크기를 낮추고(React Compiler 최적화 유지) 오늘·내일에서
 // 동일하게 재사용한다.
+
+/**
+ * 빠른 추가 시트의 제출 버튼 3개(보관함/오늘/내일) — 전송 중에는 셋 다 잠근다.
+ *
+ * 서버(`quickCreateTask` 등)에는 멱등 키도 유니크 제약도 없어, 전송 중 재탭을 막는 유일한 방어선이
+ * 클라이언트 쪽 disable 뿐이다. `useFormStatus` 는 `<form>` **안쪽**에서만 값을 읽을 수 있어 이
+ * 하위 컴포넌트로 분리했다.
+ *
+ * 공용 `SubmitButton`(`@/components/ui/submit-button`)을 쓰지 않은 이유: 그 컴포넌트는 `Button`의
+ * 베이스 클래스(`h-11 rounded-xl shadow-glass` 등, `secondary` variant는 `backdrop-blur-xl`까지)를
+ * 강제한다. 이 시트의 버튼은 `h-12/h-11 rounded-2xl` 에 그림자·블러 없는 flat 스타일이라 그대로
+ * 쓰면 시각이 깨진다. 대신 같은 `useFormStatus` 패턴을 셋이 공유하는 로컬 버전으로 둔다.
+ */
+function QuickAddSubmitButtons({
+  copy,
+  detailHref,
+  quickTitle,
+}: {
+  copy: Copy;
+  detailHref: string;
+  quickTitle: string;
+}) {
+  const { pending } = useFormStatus();
+  const disabled = pending || !quickTitle.trim();
+  return (
+    <>
+      <div className="flex gap-2.5">
+        {/* Full organized create — carries any typed title across so the capture isn't lost. */}
+        <Link
+          className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground"
+          href={detailHref}
+        >
+          <Pencil className="size-4" aria-hidden="true" />
+          {copy.quickAddDetailed}
+        </Link>
+        <button
+          className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-primary text-[13.5px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-40"
+          disabled={disabled}
+          type="submit"
+        >
+          <Inbox className="size-4" aria-hidden="true" />
+          {copy.quickAddSave}
+        </button>
+      </div>
+      {/* 오늘/내일 탭에 바로 추가 — scheduled_date = today/tomorrow(Tokyo), 해당 탭으로 이동 */}
+      <div className="flex gap-2.5">
+        <button
+          className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground transition-colors active:bg-slate-50 disabled:opacity-40"
+          disabled={disabled}
+          formAction={quickCreateTodayTask}
+          type="submit"
+        >
+          <Sun className="size-4 text-amber-400" aria-hidden="true" />
+          {copy.quickAddToday}
+        </button>
+        <button
+          className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground transition-colors active:bg-slate-50 disabled:opacity-40"
+          disabled={disabled}
+          formAction={quickCreateTomorrowTask}
+          type="submit"
+        >
+          <Sunrise className="size-4 text-sky-500" aria-hidden="true" />
+          {copy.quickAddTomorrow}
+        </button>
+      </div>
+    </>
+  );
+}
 
 export function TasksWorkspace({
   buildingLabels,
@@ -508,6 +576,8 @@ export function TasksWorkspace({
   // Memoized: as a plain render const it flows into occurrence helpers in a way the React Compiler
   // couldn't reconcile with their manual memoization (bailed the whole component).
   const tomorrowDate = useMemo(() => ymdShift(today, 1), [today]);
+  // 떠 있는 토스트가 하나라도 있는가 — 아래 FAB 를 잠시 물러나게 하는 데 쓴다.
+  const toastVisible = !!(moveNotice || skipUndo || undoTask || deletedUndoIds?.length);
   const isActive = (t: TaskRecord) => t.status !== "completed" && t.status !== "cancelled";
   const dueDateOf = (t: TaskRecord) => tokyoDateOf(t.dueAt);
   // 반복 회차 상태(2026-07-30): taskId → (date → state). 완료/지연 판정에 사용.
@@ -960,33 +1030,45 @@ export function TasksWorkspace({
         startOverdue(async () => {
           await skipOverdueOccurrences(id);
         });
+      // 반복 지연 backlog 카드. 예전에는 제목 오른쪽에 좁은 알약 두 개를 끼워 넣어, 제목이 잘리고
+      // 버튼은 손가락으로 누르기 애매했다(px-3 py-1.5 = 약 28px 높이). 지연 배너와 같은 문법으로
+      // 다시 짠다 — 아이콘 칩 + 제목/밀림 배지 한 줄, 그 아래 전폭 액션 두 개.
       const recOverdueGroup = (t: TaskRecord) => (
         <div
           key={`od-${t.id}`}
-          className="flex items-center gap-2 rounded-2xl border border-border bg-surface px-3.5 py-3"
+          className="rounded-[18px] border border-border bg-surface p-3 shadow-[0_10px_28px_-24px_rgba(15,23,42,0.5)]"
         >
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[14px] font-bold text-foreground">{t.title}</p>
-            <p className="mt-0.5 text-[11.5px] font-semibold text-rose-600">
-              {copy.odDaysBehind.replace("{n}", String(overdueOccDates(t).length))}
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-[11px] bg-rose-50 text-rose-500">
+              <Repeat className="size-4" strokeWidth={2.2} aria-hidden="true" />
+            </span>
+            <p className="min-w-0 flex-1 truncate text-[14px] font-extrabold tracking-[-0.01em] text-foreground">
+              {t.title}
             </p>
+            <span className="shrink-0 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-extrabold text-rose-600">
+              {copy.odDaysBehind.replace("{n}", String(overdueOccDates(t).length))}
+            </span>
           </div>
-          <button
-            className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-[12px] font-bold text-primary-foreground disabled:opacity-50"
-            disabled={overduePending}
-            onClick={() => carryRec(t.id)}
-            type="button"
-          >
-            {copy.odCarry}
-          </button>
-          <button
-            className="shrink-0 rounded-full border border-border px-3 py-1.5 text-[12px] font-bold text-muted-foreground disabled:opacity-50"
-            disabled={overduePending}
-            onClick={() => skipRec(t.id)}
-            type="button"
-          >
-            {copy.odSkip}
-          </button>
+          <div className="mt-2.5 flex gap-2">
+            <button
+              className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[14px] bg-primary px-3 text-[13px] font-bold text-primary-foreground shadow-[0_10px_22px_-12px_hsl(var(--primary-hsl)/0.65)] transition-transform active:scale-[0.97] disabled:opacity-50"
+              disabled={overduePending}
+              onClick={() => carryRec(t.id)}
+              type="button"
+            >
+              <Sun className="size-4 shrink-0" strokeWidth={2.2} aria-hidden="true" />
+              {copy.odCarry}
+            </button>
+            <button
+              className="inline-flex h-10 flex-none items-center justify-center gap-1.5 rounded-[14px] border border-border bg-background px-3.5 text-[13px] font-bold text-muted-foreground transition-colors active:bg-muted/50 disabled:opacity-50"
+              disabled={overduePending}
+              onClick={() => skipRec(t.id)}
+              type="button"
+            >
+              <Trash2 className="size-4 shrink-0" strokeWidth={2.2} aria-hidden="true" />
+              {copy.odSkip}
+            </button>
+          </div>
         </div>
       );
       return (
@@ -2117,8 +2199,15 @@ export function TasksWorkspace({
       {hydrated && !selectMode && view !== "projects"
         ? createPortal(
             <button
+              aria-hidden={toastVisible}
               aria-label={copy.quickAddTitle}
-              className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-30 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_16px_30px_-10px_hsl(var(--primary-hsl)/0.5)] transition-transform active:scale-[0.93]"
+              className={cn(
+                "fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-30 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_16px_30px_-10px_hsl(var(--primary-hsl)/0.5)]",
+                "transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.93] motion-reduce:transition-none",
+                // 토스트는 이 FAB 와 같은 자리를 지난다. 겹쳐 그리면(토스트가 z 상위) FAB 가 잘린
+                // 채로 비쳐 지저분하다. 토스트가 떠 있는 4~6초 동안만 물러나게 한다.
+                toastVisible && "pointer-events-none scale-90 opacity-0",
+              )}
               onClick={openQuick}
               type="button"
             >
@@ -2172,49 +2261,15 @@ export function TasksWorkspace({
                     required
                     value={quickTitle}
                   />
-                  <div className="flex gap-2.5">
-                    {/* Full organized create — carries any typed title across so the capture isn't lost. */}
-                    <Link
-                      className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground"
-                      href={
-                        quickTitle.trim()
-                          ? `/mobile/tasks/new?title=${encodeURIComponent(quickTitle.trim())}`
-                          : "/mobile/tasks/new"
-                      }
-                    >
-                      <Pencil className="size-4" aria-hidden="true" />
-                      {copy.quickAddDetailed}
-                    </Link>
-                    <button
-                      className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-primary text-[13.5px] font-extrabold text-primary-foreground transition-opacity disabled:opacity-40"
-                      disabled={!quickTitle.trim()}
-                      type="submit"
-                    >
-                      <Inbox className="size-4" aria-hidden="true" />
-                      {copy.quickAddSave}
-                    </button>
-                  </div>
-                  {/* 오늘/내일 탭에 바로 추가 — scheduled_date = today/tomorrow(Tokyo), 해당 탭으로 이동 */}
-                  <div className="flex gap-2.5">
-                    <button
-                      className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground transition-colors active:bg-slate-50 disabled:opacity-40"
-                      disabled={!quickTitle.trim()}
-                      formAction={quickCreateTodayTask}
-                      type="submit"
-                    >
-                      <Sun className="size-4 text-amber-400" aria-hidden="true" />
-                      {copy.quickAddToday}
-                    </button>
-                    <button
-                      className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground transition-colors active:bg-slate-50 disabled:opacity-40"
-                      disabled={!quickTitle.trim()}
-                      formAction={quickCreateTomorrowTask}
-                      type="submit"
-                    >
-                      <Sunrise className="size-4 text-sky-500" aria-hidden="true" />
-                      {copy.quickAddTomorrow}
-                    </button>
-                  </div>
+                  <QuickAddSubmitButtons
+                    copy={copy}
+                    detailHref={
+                      quickTitle.trim()
+                        ? `/mobile/tasks/new?title=${encodeURIComponent(quickTitle.trim())}`
+                        : "/mobile/tasks/new"
+                    }
+                    quickTitle={quickTitle}
+                  />
                 </form>
               </div>
             </div>,
@@ -2360,17 +2415,20 @@ export function TasksWorkspace({
         </BottomSheet>
       ) : null}
 
-      {/* 이동 거절 안내 — 반복 작업을 이미 회차가 있는 날짜로 옮기려 했을 때. */}
-      {moveNotice && hydrated
-        ? createPortal(
-            <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-4">
-              <div className="pointer-events-auto max-w-[420px] rounded-[18px] bg-slate-900 px-4 py-2.5 text-[13px] font-bold tracking-[-0.01em] text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
-                {copy.moveDuplicateOccurrence}
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+      {/* 이동 거절 안내 — 반복 작업을 옮기려 했을 때. 서버가 돌려주는 에러 코드별로 문구가 다르다:
+          `recurring_series` = 표준 반복은 애초에 스와이프를 못 연다(카드가 이미 막지만, 콘솔 등
+          다른 경로로 온 값도 대비), `duplicate_occurrence` = 그 날짜에 이미 회차가 있는 레거시
+          케이스. 모르는 값은 더 흔한 duplicate 문구로 안전하게 폴백한다. */}
+      {moveNotice && hydrated ? (
+        <TaskToast
+          icon={Repeat}
+          message={
+            moveNotice === "recurring_series"
+              ? copy.moveRejectedRecurringSeries
+              : copy.moveDuplicateOccurrence
+          }
+        />
+      ) : null}
 
       {/* 반복 삭제 선택 시트 — "이 날짜만 건너뛰기" vs "반복 전체 삭제".
           두 선택지를 같은 크기의 행으로 놓아 "고르는 화면"으로 읽히게 하고, 되돌릴 수 없는 쪽만
@@ -2434,69 +2492,24 @@ export function TasksWorkspace({
       ) : null}
 
       {/* 회차 건너뛰기 되돌리기 토스트 — skipped 는 영구 상태라 실행 취소 경로가 반드시 필요하다. */}
-      {skipUndo && hydrated
-        ? createPortal(
-            <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-3">
-              <div className="pointer-events-auto flex max-w-[420px] items-center gap-1.5 rounded-[18px] bg-slate-900 py-2 pl-3 pr-1.5 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
-                <span className="whitespace-nowrap text-[12px] font-bold tracking-[-0.01em]">
-                  {copy.recurSkippedToastMobile}
-                </span>
-                <button
-                  className="ml-0.5 inline-flex flex-none items-center gap-1 rounded-xl px-2 py-1 text-[12px] font-extrabold text-rose-300 transition-colors active:bg-white/10"
-                  onClick={undoSkipOccurrence}
-                  type="button"
-                >
-                  <RotateCcw className="size-3" aria-hidden="true" />
-                  {copy.undo}
-                </button>
-                <button
-                  className="inline-flex size-7 flex-none items-center justify-center rounded-xl text-slate-400 transition-colors active:bg-white/10"
-                  onClick={() => setSkipUndo(null)}
-                  type="button"
-                  aria-label={copy.undo}
-                >
-                  <X className="size-3.5" aria-hidden="true" />
-                </button>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+      {skipUndo && hydrated ? (
+        <TaskToast
+          action={{ label: copy.undo, onAction: undoSkipOccurrence }}
+          icon={SkipForward}
+          message={copy.recurSkippedToastMobile}
+          tone="danger"
+        />
+      ) : null}
 
       {/* Undo toast — floats above the tab bar after a complete (status-circle) or a delete. */}
-      {(undoTask || deletedUndoIds?.length) && hydrated
-        ? createPortal(
-            <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[80] flex justify-center px-3">
-              <div className="pointer-events-auto flex max-w-[420px] items-center gap-1.5 rounded-[18px] bg-slate-900 py-2 pl-3 pr-1.5 text-white shadow-[0_16px_40px_-14px_rgba(20,16,10,0.55)]">
-                <div className="min-w-0">
-                  <span className="whitespace-nowrap text-[12px] font-bold tracking-[-0.01em]">
-                    {undoTask ? copy.completedToast : copy.deletedToast}
-                  </span>
-                </div>
-                <button
-                  className="ml-0.5 inline-flex flex-none items-center gap-1 rounded-xl px-2 py-1 text-[12px] font-extrabold text-rose-300 transition-colors active:bg-white/10"
-                  onClick={undoTask ? handleUndo : handleRestore}
-                  type="button"
-                >
-                  <RotateCcw className="size-3" aria-hidden="true" />
-                  {copy.undo}
-                </button>
-                <button
-                  className="inline-flex size-7 flex-none items-center justify-center rounded-xl text-slate-400 transition-colors active:bg-white/10"
-                  onClick={() => {
-                    setUndoTask(null);
-                    setDeletedUndoIds(null);
-                  }}
-                  type="button"
-                  aria-label={copy.undo}
-                >
-                  <X className="size-3.5" aria-hidden="true" />
-                </button>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+      {(undoTask || deletedUndoIds?.length) && hydrated ? (
+        <TaskToast
+          action={{ label: copy.undo, onAction: undoTask ? handleUndo : handleRestore }}
+          icon={undoTask ? CheckCircle2 : Trash2}
+          message={undoTask ? copy.completedToast : copy.deletedToast}
+          tone={undoTask ? "neutral" : "danger"}
+        />
+      ) : null}
 
       {/* AI daily-report sheet (완료/기록 tab). Permission is enforced server-side; a non-staff tap
           surfaces the "권한 없음" popup inside the sheet. */}

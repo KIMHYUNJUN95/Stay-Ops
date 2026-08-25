@@ -796,3 +796,37 @@ Future navigation additions must also update the side-menu badge table and `getM
   변환할 때는 이 점을 감안한다.
 - 유지하기로 한 `<img>` 에는 **이유를 주석으로 남기고** `eslint-disable` 을 붙인다. 경고만 남겨
   두면 «아직 안 바꾼 것»과 «바꾸면 안 되는 것»이 구분되지 않는다.
+
+## 2026-08-25 떠 있는 토스트 — 도크 높이와 공용 `TaskToast`
+
+떠 있는 토스트(실행 취소 · 안내)는 **탭바 위 고정 도크**에 앉는다. 높이를 호출부에서 직접 쓰지 않는다.
+
+- **`--tabbar-h` (globals.css)** = `calc(51px + max(16px, env(safe-area-inset-bottom, 0px)))`
+  — 위 패딩 12 + 탭 항목(아이콘 22 + gap 4 + 라벨 13) + 아래 패딩 `max(16px, safe)`.
+- **`.toast-dock`** = `bottom: calc(var(--tabbar-h) + 40px)`. 40px 은 중앙 스퀘어클이 탭바 위로
+  솟는 26px + 숨 쉴 여백 14px 이다.
+
+**왜 상수를 못 쓰나.** 투두의 토스트 네 곳이 각자 `bottom-[92px]` 를 하드코딩하고 있었는데, 그 값은
+`env(safe-area-inset-bottom)` 을 모른다. 홈 인디케이터가 있는 기기에서는 탭바가 두꺼워져 92px 가
+스퀘어클 버튼과 겹쳤다. **새 토스트를 만들 때 픽셀 값을 직접 쓰지 말고 `.toast-dock` 을 쓴다.**
+
+### 시각 표준
+
+`src/components/tasks/task-toast.tsx` 가 정본이다(모바일 투두). 다른 화면에 토스트를 새로 만들 때
+이 형태를 따른다.
+
+- 표면: `rounded-[20px]`, `bg-slate-900/95` + `backdrop-blur-xl`, `border-white/10` 1px,
+  `shadow-[0_22px_50px_-20px_rgba(15,23,42,0.85)]`. 아이보리 캔버스와 대비되는 어두운 알약이다.
+- 구성: **아이콘 칩(32px) · 메시지 · 행동 하나**. 칩은 무슨 일이 일어났는지 글자를 읽기 전에
+  알려준다(완료=체크, 삭제·건너뛰기=`tone="danger"` 로즈 톤).
+- 행동은 36px 알약(`bg-white/12`)이다. 예전의 rose-300 **글자** 버튼은 탭 타깃이 작고 붉은 글자가
+  「오류」로 읽혔다.
+- **닫기(X) 버튼은 두지 않는다.** 토스트는 스스로 사라지고(4~6초), 실행 취소라는 진짜 행동이 이미
+  있다. BottomSheet 의 X 금지와 같은 판단이다.
+- 등장은 아래에서 14px + 페이드(`.toast-pop`, `prefers-reduced-motion` 존중).
+
+### 떠 있는 FAB 와의 관계
+
+토스트는 우측 하단 FAB(`bottom-[calc(6rem+env(safe-area-inset-bottom))]`)와 같은 자리를 지난다.
+겹쳐 그리면 FAB 가 잘린 채 비쳐 지저분하므로, **토스트가 떠 있는 동안 FAB 는 페이드·축소로 물러난다**
+(`pointer-events-none scale-90 opacity-0`). 투두 워크스페이스의 `toastVisible` 참고.

@@ -553,7 +553,14 @@ write). See `docs/planning/01-decision-log.md` → "2026-07-30 롤포워드 폐�
   type; `isResolvedOccurrenceState`. Twin-safe (server `tasks.ts` and both UIs import from here).
 - **Mutations** (`src/lib/task-occurrences.ts`, service-role): `completeOccurrence` /
   `clearOccurrenceState` / `skipOccurrences` / `moveOccurrences` / `resolvedOccurrenceDates`. Shared by
-  mobile + console actions (no twin drift).
+  mobile + console actions (no twin drift). Added 2026-08-25:
+  - `occurrenceStatesForTask(taskId)` → `Map<occurrence_date, OccurrenceState>`. One task-scoped read
+    that answers both "which dates are resolved" and "is this one *completed*" —
+    `resolvedOccurrenceDates` only answers the former, and the detail page was otherwise pulling the
+    org-wide `getOccurrenceStates()` (400 days, whole organization) to check a single date.
+  - `hasOpenOccurrenceOn({rule, anchor, date, resolvedDates})` — gate for the carry-over copy.
+  - `createCarryOverTask({task, organizationId, userId, date})` — the make-up one-off + its author
+    participant row. Mobile and console previously held copy-pasted twins of this insert block.
 - **Loader**: `getOccurrenceStates(session)` (RLS-scoped, ~400-day window) → `OccurrenceStateRecord[]`;
   wired into `getAdminTasksData` (console) and the mobile `page.tsx`, passed to the workspace/console as
   `occurrenceStates`.
@@ -562,9 +569,18 @@ write). See `docs/planning/01-decision-log.md` → "2026-07-30 롤포워드 폐�
   `open`) + still log `task_updates` completed/reopened (so 완료탭/보고서 aggregation is unchanged);
   one-off → existing `status`/`completed_at`. `carryOverdueToToday`/`skipOverdueOccurrences` (mobile) and
   `carryConsoleOverdueToToday`/`skipConsoleOverdue` (console) recompute the outstanding overdue set
-  server-side; carry marks them `moved` + inserts a one-off carry-over task (author participant row for
-  RLS visibility); skip marks them `skipped`. `isOverdueOwned` and the console date predicates
+  server-side; carry marks them `moved` and inserts a one-off carry-over task via
+  `createCarryOverTask` — **only when today has no still-open occurrence** (2026-08-25; otherwise
+  today's own occurrence doubles as the make-up and the copy was a visible duplicate). The copy is
+  anchored by `due_at` alone, not `scheduled_date`, because both overdue predicates read `due_at`.
+  Skip marks them `skipped`. `isOverdueOwned` and the console date predicates
   (`isOverdue`/`isTodayTask`/`isTomorrowTask`) now **exclude standard-recurring** (handled per-occurrence).
+  **Move actions never touch `recurrence_instance_date` (2026-08-25).** `moveTaskToToday` /
+  `moveTaskToTomorrow` / `moveConsoleToToday` / `moveConsoleToTomorrow` reject a standard-recurring
+  task with `recurring_series`; writing the anchor there re-phased the whole rule and erased the
+  overdue backlog (which is computed forward from the anchor). `anchorToDate` and the console's two
+  inline duplicates of that line were removed. Only an explicit user edit (`updateTaskCore` /
+  `updateConsoleTaskCore`) may move a series anchor.
 - **UI**: 오늘/내일/캘린더/day-sheet expand recurring via `occursOn`; each occurrence's done state =
   `task_occurrence_state`; the row checkbox threads `occurrenceDate` (`TaskCard.occurrence` prop on
   mobile, `renderRow(t, { occurrence })` on console). Overdue recurring = one grouped row per task

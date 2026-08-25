@@ -12,6 +12,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useOptimistic,
   useRef,
   useState,
   useTransition,
@@ -117,7 +118,7 @@ import {
 } from "@/lib/daily-report";
 import type { Locale } from "@/lib/i18n";
 import type { ProjectDetailData } from "@/lib/projects";
-import type { TaskDetail, TaskRecord } from "@/lib/tasks";
+import type { OccurrenceStateRecord, TaskDetail, TaskRecord } from "@/lib/tasks";
 import { AdminToast, useAdminToast } from "@/components/admin/shared/admin-toast";
 import { ImageLightbox } from "@/components/shell/image-lightbox";
 import {
@@ -353,6 +354,8 @@ export function AdminTasksConsole({
   const [panelOn, setPanelOn] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [add, setAdd] = useState<AddDraft | null>(null);
+  // 인라인 추가 저장의 동기 재진입 가드 — `saveInlineAdd` 참고.
+  const addSavingRef = useRef(false);
   const [pop, setPop] = useState<Pop>(null);
   const popAnchorRef = useRef<HTMLDivElement>(null);
   const [instrTab, setInstrTab] = useState<"recv" | "sent">("recv");
@@ -422,17 +425,44 @@ export function AdminTasksConsole({
   const nameOf = useCallback((id: string) => nameMap.get(id) ?? "", [nameMap]);
   const roleOf = useCallback((id: string) => roleMap.get(id) ?? "", [roleMap]);
 
-  const tasks = data.tasks;
+  /**
+   * 완료 토글의 낙관적 반영 — 모바일 `tasks-workspace.tsx`(2026-08-11 결정)와 같은 모델을 콘솔에
+   * 이식한다. 체크박스를 누르면 `toggleConsoleComplete` → `revalidatePath` → 페이지 재렌더 왕복이
+   * 끝나기 전에 목록에서 먼저 빠져야 한다. 되돌리기(reopen)는 낙관적으로 다루지 않는다 — 행이
+   * 다시 나타나려면 서버 데이터가 와야 하고, 실행 취소 토스트가 이미 즉각 피드백을 준다.
+   */
+  const [visibleTasks, hideTasksOptimistically] = useOptimistic(
+    data.tasks,
+    (list: TaskRecord[], removedIds: readonly string[]) => {
+      const gone = new Set(removedIds);
+      return list.filter((t) => !gone.has(t.id));
+    },
+  );
+  // 반복은 행이 아니라 **회차**가 완료된다 — 상태 행을 하나 얹으면 `openOccursOn` 이 즉시 걸러 준다.
+  const [visibleOccurrenceStates, resolveOccurrenceOptimistically] = useOptimistic(
+    data.occurrenceStates,
+    (states: OccurrenceStateRecord[], done: { taskId: string; occurrenceDate: string }) => [
+      ...states,
+      {
+        taskId: done.taskId,
+        occurrenceDate: done.occurrenceDate,
+        state: "completed" as const,
+        completedByUserId: meId,
+        movedToDate: null,
+      },
+    ],
+  );
+  const tasks = visibleTasks;
   // 관리함/오늘/내일/공유함/지시/캘린더 등 메인 뷰는 **프로젝트에 속하지 않은** 작업만 다룬다
   // (Todoist 모델: 관리함 = 프로젝트 밖 모든 활성 작업, 오늘/내일은 그 필터). 프로젝트 작업은
   // 프로젝트 뷰에만. `tasks`(전체)는 완료·기록/프로젝트/상세 조회에만 쓴다. 모바일 page.tsx 와 동일 분리.
-  const personalTasks = useMemo(() => data.tasks.filter((t) => !t.projectId), [data.tasks]);
+  const personalTasks = useMemo(() => tasks.filter((t) => !t.projectId), [tasks]);
   const projById = useMemo(() => new Map(data.projects.map((p) => [p.id, p])), [data.projects]);
 
   // 반복 회차 상태(2026-07-30) — taskId → (occurrenceDate → state). 회차 완료 여부/지연 판정에 사용.
   const occByTask = useMemo(() => {
     const m = new Map<string, Map<string, OccurrenceState>>();
-    for (const s of data.occurrenceStates) {
+    for (const s of visibleOccurrenceStates) {
       let inner = m.get(s.taskId);
       if (!inner) {
         inner = new Map();
@@ -441,7 +471,7 @@ export function AdminTasksConsole({
       inner.set(s.occurrenceDate, s.state);
     }
     return m;
-  }, [data.occurrenceStates]);
+  }, [visibleOccurrenceStates]);
   // 반복 회차의 날짜별 수동 순서: `${taskId}|${date}` → sort_order (2026-07-30 B안).
   const occOrderMap = useMemo(() => {
     const m = new Map<string, number>();
@@ -529,6 +559,7 @@ export function AdminTasksConsole({
         invalid_project: dict.errNotFound,
         empty: dict.errEmpty,
         duplicate_occurrence: dict.errDuplicateOccurrence,
+        recurring_series: dict.errRecurringSeries,
       };
       return map[code] ?? dict.errGeneric;
     },
@@ -537,21 +568,25 @@ export function AdminTasksConsole({
   const run = useCallback(
     (
       fn: () => Promise<TaskActionResult>,
-      opts?: { toast?: string; after?: () => void; onError?: () => void },
+      opts?: { toast?: string; after?: () => void; onError?: () => void; optimistic?: () => void },
     ) => {
       startTransition(async () => {
+        // 낙관적 반영은 서버 호출 **전에** — 실패하면 새 props 도착과 함께 자동으로 원복된다
+        // (모바일 tasks-workspace.tsx 와 같은 useOptimistic 규칙).
+        opts?.optimistic?.();
         const res = await fn();
         if (res.ok) {
           if (opts?.toast) showToast(opts.toast);
           opts?.after?.();
-          router.refresh();
+          // revalidatePath(CONSOLE_PATH) 를 모든 액션이 성공 경로에서 호출하므로(actions.ts 전수
+          // 확인, 2026-08-25) router.refresh() 는 같은 갱신을 한 번 더 도는 중복 왕복이었다.
         } else {
           opts?.onError?.();
           showToast(errMsg(res.error));
         }
       });
     },
-    [errMsg, router, showToast],
+    [errMsg, showToast],
   );
 
 
@@ -698,11 +733,17 @@ export function AdminTasksConsole({
       const occDate = occ?.date;
       const isDone = occ ? occ.done : t.status === "completed";
       if (isDone) {
+        // Reopen: no optimistic update — the row must wait for fresh server data to reappear, and
+        // the undo toast already gives instant feedback (same call as mobile).
         run(() => toggleConsoleComplete(t.id, false, occDate), { toast: dict.tReopened });
         return;
       }
       const sub = occ ? undefined : recurringNextLabel(t);
       run(() => toggleConsoleComplete(t.id, true, occDate), {
+        optimistic: () =>
+          occDate
+            ? resolveOccurrenceOptimistically({ taskId: t.id, occurrenceDate: occDate })
+            : hideTasksOptimistically([t.id]),
         after: () =>
           showUndo(
             dict.tCompleted,
@@ -712,7 +753,7 @@ export function AdminTasksConsole({
           ),
       });
     },
-    [run, dict, recurringNextLabel, showUndo],
+    [run, dict, recurringNextLabel, showUndo, hideTasksOptimistically, resolveOccurrenceOptimistically],
   );
   // Immediate (soft) delete + undo toast — replaces the confirm modal for single-task delete.
   const deleteWithUndo = useCallback(
@@ -1200,6 +1241,11 @@ export function AdminTasksConsole({
   };
   const saveInlineAdd = () => {
     if (!add || !add.title.trim()) return;
+    // Synchronous re-entrancy guard: a ref (not `pending`) because `isPending` only flips after a
+    // re-render, which doesn't happen fast enough to block a second Enter/click fired within the
+    // same tick — that was exactly how one tap created two tasks (2026-08-25).
+    if (addSavingRef.current) return;
+    addSavingRef.current = true;
     const draft = add;
     const photos = addPhotos;
     // The task id is minted here so the photos can be uploaded to their final
@@ -1233,8 +1279,12 @@ export function AdminTasksConsole({
       {
         toast: draft.targets.length > 0 ? dict.tInstructed : dict.tCreated,
         after: () => {
+          addSavingRef.current = false;
           setAdd(null);
           setAddPhotos([]);
+        },
+        onError: () => {
+          addSavingRef.current = false;
         },
       },
     );
@@ -1374,7 +1424,7 @@ export function AdminTasksConsole({
               이 목록에서 사라진다. 그래서 대상을 필수로 건다. */}
           <button
             className="btn btn--pri btn--sm"
-            disabled={!add.title.trim() || (add.ctx === "instr" && add.targets.length === 0)}
+            disabled={!add.title.trim() || (add.ctx === "instr" && add.targets.length === 0) || pending}
             onClick={saveInlineAdd}
           >
             {add.ctx === "instr" ? dict.iaSendInstrCta : dict.iaSave}
@@ -4237,30 +4287,36 @@ export function AdminTasksConsole({
             다를 수 있고(예: 평일 반복, 앵커 7/30, 오늘 8/3), 그때 이미 오늘 회차가 있는데도
             「오늘로 이동」이 떴다. 서버는 `canMoveRecurringTo` 로 막으므로 데이터는 안전했지만,
             눌러도 실패만 하는 메뉴였다(2026-08-03).
-            오늘·내일 양쪽에 회차가 있는 반복(평일 등)은 옮길 곳이 없으므로 항목을 아예 감춘다. */}
-        {!occursOn(t, today) ? (
-          <button
-            className="mitem"
-            onClick={() => {
-              close();
-              run(() => moveConsoleToToday(t.id), { toast: dict.tMoved });
-            }}
-          >
-            <Sun size={15} />
-            {dict.mMoveToday}
-          </button>
-        ) : !occursOn(t, addDays(today, 1)) ? (
-          <button
-            className="mitem"
-            onClick={() => {
-              close();
-              run(() => moveConsoleToTomorrow(t.id), { toast: dict.tMoved });
-            }}
-          >
-            <Sunrise size={15} />
-            {dict.mMoveTomorrow}
-          </button>
-        ) : null}
+            오늘·내일 양쪽에 회차가 있는 반복(평일 등)은 옮길 곳이 없으므로 항목을 아예 감춘다.
+            표준 반복은 애초에 이 메뉴를 띄우지 않는다(2026-08-25) — `moveConsoleToToday`/
+            `moveConsoleToTomorrow` 는 `recurrence_instance_date` 를 다시 써서 시리즈 전체의 반복
+            위상을 옮기고, 그 순간 밀린 회차 backlog 가 통째로 사라진다. 반복 업무는 고정 앵커여야
+            한다(docs/planning/01-decision-log.md 2026-07-30 롤포워드 폐지). 일정을 바꾸려면
+            편집(반복 규칙/날짜)이나 회차 건너뛰기를 쓴다. */}
+        {!isStandardRecurrence(t.recurrenceRule) &&
+          (!occursOn(t, today) ? (
+            <button
+              className="mitem"
+              onClick={() => {
+                close();
+                run(() => moveConsoleToToday(t.id), { toast: dict.tMoved });
+              }}
+            >
+              <Sun size={15} />
+              {dict.mMoveToday}
+            </button>
+          ) : !occursOn(t, addDays(today, 1)) ? (
+            <button
+              className="mitem"
+              onClick={() => {
+                close();
+                run(() => moveConsoleToTomorrow(t.id), { toast: dict.tMoved });
+              }}
+            >
+              <Sunrise size={15} />
+              {dict.mMoveTomorrow}
+            </button>
+          ) : null)}
         {/* "관리함으로" = 프로젝트에서 빼기. 비프로젝트 작업은 이미 관리함이라 프로젝트 작업에만 노출. */}
         {t.projectId && (
           <button
