@@ -31,6 +31,8 @@ export type AdminTasksDictionary = {
   overdueClear: string;
   odDaysBehind: string; // 반복 지연 묶음 "{n}일 밀림"
   odCarry: string; // 오늘로 가져오기
+  odCarriedToOccurrence: string; // 오늘 회차가 이미 열려 있어 사본을 안 만든 경우
+  odCarriedToNewTask: string; // 보충용 일회성을 새로 만든 경우
   odSkip: string; // (지연 회차) 삭제
   inboxNote: string;
   // priority / status / repeat / duration
@@ -376,6 +378,7 @@ const ko: AdminTasksDictionary = {
   overdueTitle: "지난(지연) 작업 {n}건", overdueSub: "마감이 지난 작업입니다. 오늘로 옮기거나 정리하세요.",
   overdueReschedule: "일정 변경", overdueClear: "지난 미완료 삭제",
   odDaysBehind: "{n}일 밀림", odCarry: "오늘로 가져오기", odSkip: "삭제",
+  odCarriedToOccurrence: "밀린 {n}건을 오늘 회차로 정리했습니다", odCarriedToNewTask: "밀린 {n}건을 오늘 할 일로 만들었습니다",
   inboxNote: "프로젝트 밖의 모든 작업이 여기 모입니다. 날짜를 정하면 오늘·캘린더에도 함께 표시됩니다.",
   prioNormal: "우선순위 4", prioImportant: "우선순위 2", prioUrgent: "우선순위 1", prioMedium: "우선순위 3",
   stOpen: "대기", stInProgress: "진행 중", stCompleted: "완료", stOverdue: "지연",
@@ -486,6 +489,7 @@ const ja: AdminTasksDictionary = {
   overdueTitle: "過ぎた(遅延)タスク {n}件", overdueSub: "締切を過ぎたタスクです。今日に移すか整理してください。",
   overdueReschedule: "日程変更", overdueClear: "過去の未完了を削除",
   odDaysBehind: "{n}日 遅延", odCarry: "今日に持ってくる", odSkip: "削除",
+  odCarriedToOccurrence: "遅れていた{n}件を今日の回にまとめました", odCarriedToNewTask: "遅れていた{n}件を今日のタスクにしました",
   inboxNote: "プロジェクト外のすべてのタスクがここに集まります。日付を決めると今日・カレンダーにも表示されます。",
   prioNormal: "優先度 4", prioImportant: "優先度 2", prioUrgent: "優先度 1", prioMedium: "優先度 3",
   stOpen: "待機", stInProgress: "進行中", stCompleted: "完了", stOverdue: "遅延",
@@ -596,6 +600,7 @@ const en: AdminTasksDictionary = {
   overdueTitle: "{n} overdue task(s)", overdueSub: "Past their due date. Move them to today or clear them out.",
   overdueReschedule: "Reschedule", overdueClear: "Clear past unfinished",
   odDaysBehind: "{n} days behind", odCarry: "Bring to today", odSkip: "Delete",
+  odCarriedToOccurrence: "Cleared {n} overdue — today's occurrence covers it.", odCarriedToNewTask: "Moved {n} overdue into a make-up task for today.",
   inboxNote: "Every task outside a project lives here. Give it a date and it also shows in Today · Calendar.",
   prioNormal: "Priority 4", prioImportant: "Priority 2", prioUrgent: "Priority 1", prioMedium: "Priority 3",
   stOpen: "Open", stInProgress: "In progress", stCompleted: "Done", stOverdue: "Overdue",

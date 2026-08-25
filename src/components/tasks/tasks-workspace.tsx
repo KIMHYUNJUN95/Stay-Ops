@@ -432,6 +432,10 @@ export function TasksWorkspace({
     [locale],
   );
   const [, startSkip] = useTransition();
+  // 「오늘로 가져오기」 결과 안내. 오늘 회차가 이미 열려 있으면 새로 생기는 항목이 없어서,
+  // 지연 카드만 조용히 사라지고 «눌렀는데 아무 일도 없다»로 보였다(2026-08-25).
+  const [carryNotice, setCarryNotice] = useState<string | null>(null);
+  const carryNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [skipUndo, setSkipUndo] = useState<{ taskId: string; date: string } | null>(null);
   const skipUndoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runSkipOccurrence = useCallback(
@@ -577,7 +581,9 @@ export function TasksWorkspace({
   // couldn't reconcile with their manual memoization (bailed the whole component).
   const tomorrowDate = useMemo(() => ymdShift(today, 1), [today]);
   // 떠 있는 토스트가 하나라도 있는가 — 아래 FAB 를 잠시 물러나게 하는 데 쓴다.
-  const toastVisible = !!(moveNotice || skipUndo || undoTask || deletedUndoIds?.length);
+  const toastVisible = !!(
+    moveNotice || skipUndo || undoTask || deletedUndoIds?.length || carryNotice
+  );
   const isActive = (t: TaskRecord) => t.status !== "completed" && t.status !== "cancelled";
   const dueDateOf = (t: TaskRecord) => tokyoDateOf(t.dueAt);
   // 반복 회차 상태(2026-07-30): taskId → (date → state). 완료/지연 판정에 사용.
@@ -1024,7 +1030,12 @@ export function TasksWorkspace({
       // 반복 지연 backlog(작업별 1건): 오늘로 가져오기 / 삭제(skip). 서버가 revalidate.
       const carryRec = (id: string) =>
         startOverdue(async () => {
-          await carryOverdueToToday(id);
+          const res = await carryOverdueToToday(id);
+          if (!res) return;
+          const template = res.carried ? copy.odCarriedToNewTask : copy.odCarriedToOccurrence;
+          if (carryNoticeTimer.current) clearTimeout(carryNoticeTimer.current);
+          setCarryNotice(template.replace("{n}", String(res.moved)));
+          carryNoticeTimer.current = setTimeout(() => setCarryNotice(null), 4000);
         });
       const skipRec = (id: string) =>
         startOverdue(async () => {
@@ -2419,6 +2430,8 @@ export function TasksWorkspace({
           `recurring_series` = 표준 반복은 애초에 스와이프를 못 연다(카드가 이미 막지만, 콘솔 등
           다른 경로로 온 값도 대비), `duplicate_occurrence` = 그 날짜에 이미 회차가 있는 레거시
           케이스. 모르는 값은 더 흔한 duplicate 문구로 안전하게 폴백한다. */}
+      {carryNotice && hydrated ? <TaskToast icon={Sun} message={carryNotice} /> : null}
+
       {moveNotice && hydrated ? (
         <TaskToast
           icon={Repeat}

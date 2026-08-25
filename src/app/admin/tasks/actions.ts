@@ -47,7 +47,14 @@ import { cleanupRemovedTaskImages, sanitizeTaskImageUrls } from "@/lib/task-imag
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
 
-export type TaskActionResult = { ok: true; id?: string } | { ok: false; error: string };
+export type TaskActionResult =
+  | {
+      ok: true;
+      id?: string;
+      /** 「오늘로 가져오기」 결과 — 호출부가 무슨 일이 일어났는지 토스트로 말하는 데 쓴다. */
+      carry?: { moved: number; carried: boolean };
+    }
+  | { ok: false; error: string };
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentAppSession>>>;
 
@@ -526,7 +533,7 @@ export async function carryConsoleOverdueToToday(taskId: string): Promise<TaskAc
     });
   }
   revalidatePath(CONSOLE_PATH);
-  return { ok: true };
+  return { ok: true, carry: { moved: dates.length, carried: carryNeeded } };
 }
 
 // ── 4. Edit core (author only) ─────────────────────────────────────────────────

@@ -245,14 +245,21 @@ export async function unskipOccurrenceOn(taskId: string, occurrenceDate: string)
   revalidatePath(detailPath(id));
 }
 
-export async function carryOverdueToToday(taskId: string) {
+/**
+ * 결과를 돌려준다 — 호출부가 «무슨 일이 일어났는지» 토스트로 말할 수 있어야 하기 때문이다.
+ * 오늘 회차가 이미 열려 있으면 새로 생기는 항목이 없어서, 예전에는 눌러도 화면상 아무 일도
+ * 일어나지 않는 것처럼 보였다(지연 카드만 조용히 사라졌다).
+ */
+export type CarryOutcome = { moved: number; carried: boolean };
+
+export async function carryOverdueToToday(taskId: string): Promise<CarryOutcome | null> {
   const id = String(taskId ?? "").trim();
-  if (!id) return;
+  if (!id) return null;
   const { session, task } = await requireSessionAndTask(id);
-  if (!isStandardRecurrence(task.recurrenceRule)) return;
+  if (!isStandardRecurrence(task.recurrenceRule)) return null;
   const today = tokyoToday();
   const { anchor, dates, resolved } = await outstandingOverdueForTask(task);
-  if (dates.length === 0) return;
+  if (dates.length === 0) return null;
   // 오늘 회차가 아직 열려 있으면 그 회차가 보충분을 겸한다 — 사본을 또 만들면 오늘 목록에 같은 제목이
   // 2건 뜬다(2026-08-25 수정). 밀린 회차의 `moved` 기록은 어느 쪽이든 그대로 수행한다.
   const carryNeeded = !hasOpenOccurrenceOn({
@@ -278,6 +285,7 @@ export async function carryOverdueToToday(taskId: string) {
   }
   revalidatePath("/mobile/tasks");
   revalidatePath(detailPath(id));
+  return { moved: dates.length, carried: carryNeeded };
 }
 
 function otherParticipantIds(task: TaskDetail, actorUserId: string): string[] {

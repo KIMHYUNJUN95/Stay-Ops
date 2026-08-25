@@ -568,7 +568,13 @@ export function AdminTasksConsole({
   const run = useCallback(
     (
       fn: () => Promise<TaskActionResult>,
-      opts?: { toast?: string; after?: () => void; onError?: () => void; optimistic?: () => void },
+      opts?: {
+        toast?: string;
+        /** 성공 결과를 받는다 — 「오늘로 가져오기」처럼 결과에 따라 문구가 갈리는 경우가 있다. */
+        after?: (res: Extract<TaskActionResult, { ok: true }>) => void;
+        onError?: () => void;
+        optimistic?: () => void;
+      },
     ) => {
       startTransition(async () => {
         // 낙관적 반영은 서버 호출 **전에** — 실패하면 새 props 도착과 함께 자동으로 원복된다
@@ -577,7 +583,7 @@ export function AdminTasksConsole({
         const res = await fn();
         if (res.ok) {
           if (opts?.toast) showToast(opts.toast);
-          opts?.after?.();
+          opts?.after?.(res);
           // revalidatePath(CONSOLE_PATH) 를 모든 액션이 성공 경로에서 호출하므로(actions.ts 전수
           // 확인, 2026-08-25) router.refresh() 는 같은 갱신을 한 번 더 도는 중복 왕복이었다.
         } else {
@@ -1749,7 +1755,15 @@ export function AdminTasksConsole({
           className="od-b"
           onClick={(e) => {
             e.stopPropagation();
-            run(() => carryConsoleOverdueToToday(t.id), { toast: dict.tMoved });
+            // 오늘 회차가 이미 열려 있으면 새로 생기는 항목이 없다 — 무슨 일이 일어났는지
+            // 결과로 판별해 문구를 고른다(모바일 `carryRec` 과 같은 규칙).
+            run(() => carryConsoleOverdueToToday(t.id), {
+              after: (res) => {
+                if (!res.carry) return;
+                const tpl = res.carry.carried ? dict.odCarriedToNewTask : dict.odCarriedToOccurrence;
+                showToast(tpl.replace("{n}", String(res.carry.moved)));
+              },
+            });
           }}
         >
           {dict.odCarry}

@@ -52,10 +52,14 @@ and the major mobile/admin operations modules are implemented and being hardened
 검증: `npm run lint` · `npm run build` · `npx vitest run src/lib/__tests__/`(175건) 모두 통과.
 수동 QA(모바일 실기기 · 콘솔 브라우저)는 미실시.
 
+「오늘로 가져오기」 결과 토스트도 붙였다 — 사본을 만들지 않는 갈래에서는 화면에 새로 생기는
+항목이 없어 «눌렀는데 아무 일도 없다»로 보였다. 기존 데이터 백필도 실행했다: 해당 행 5건 중
+**열려 있던 1건**만 `due_at` 앵커로 옮겼고(나머지 4건은 완료 상태라 가리는 것이 없다), 상세는
+결정 로그 2026-08-25 항목에 남겼다.
+
 **미착수로 남긴 항목:** (a) 콘솔에서 관리자가 남의 반복 백로그를 당기면 사본이 관리자 앞으로 생겨
 담당 직원에게 안 보인다(권한 정책 판단 필요) (b) 모바일 `today` 가 서버 렌더 시점 값이라 PWA 를 켠
-채 JST 자정을 넘기면 stale (c) 이번 수정 이전에 만들어진 carry 사본은 여전히 `due_at` 이 비어 화면에
-묻혀 있다 — 백필 검토 필요.
+채 JST 자정을 넘기면 stale.
 
 ## 2026-08-11 — "Complaints" renamed to "Guest Feedback"
 

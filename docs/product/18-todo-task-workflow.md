@@ -648,6 +648,11 @@ As-built (2026-07-30, occurrence model — **supersedes** the 2026-06-16 roll-fo
       copy fell out of 오늘·지연·내일 the next day and survived only in 관리함 (2026-08-25 fix).
     - Creation lives in the shared `createCarryOverTask()` (`src/lib/task-occurrences.ts`); mobile
       and console previously carried copy-pasted twins of the same insert block.
+    - **Both actions return the outcome** (`{moved, carried}`) and the caller says which of the two
+      things happened — "밀린 {n}건을 오늘 회차로 정리했습니다" when today's own occurrence absorbed
+      them, "밀린 {n}건을 오늘 할 일로 만들었습니다" when a make-up task was created. Without this the
+      no-copy branch looked like a dead button: the overdue card just vanished and nothing new
+      appeared. Copy: `odCarriedToOccurrence` / `odCarriedToNewTask` (ko/ja/en in both dictionaries).
   - **삭제** (`skipOverdueOccurrences`) — marks the outstanding overdue occurrences `skipped` (kept
     forever, never re-appears). The series continues.
   One-off overdue tasks keep the existing bulk 오늘로 가져오기 / 지난 미완료 삭제 prompt (author-scoped).
