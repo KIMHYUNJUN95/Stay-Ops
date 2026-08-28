@@ -2,6 +2,71 @@
 
 This file records important project decisions.
 
+## 2026-08-28 투두 구조 부채 정리 — 배치 조회 · 목록 창 · 쓰기 타입 검사
+
+구조 점검 ③④⑤⑥ 실행(①은 2026-08-25 항목, ②·⑦·⑧은 아래 「남긴 것」 참고).
+
+**④ N+1 두 곳.** `bulkDeleteConsoleTasks` 가 id 마다 `getTaskDetail` 을 불러, 200건 선택 시 한 번의
+클릭이 수백 쿼리가 됐다(건당 tasks + task_updates + 참여자 + 컨텍스트). `getTasksByIds(session, ids)`
+를 신설해 배치 한 번으로 바꿨다 — `hydrate` 가 애초에 배치라 건수와 무관하게 쿼리 수가 고정이다.
+RLS 스코프라 «건드려도 되는 행인가» 증명은 그대로 유지된다.
+순서 저장 네 곳(모바일·콘솔 × 목록·날짜)은 인덱스마다 UPDATE 를 병렬로 쏘고 있었다(상한 500).
+`setTaskSortOrders` 를 `setOccurrenceOrders` 옆에 두고 **현재 값을 한 번 읽어 바뀐 행만** 쓴다.
+드래그 한 번에 실제로 위치가 바뀌는 행은 대개 몇 개뿐이다.
+
+**③ 목록 로드에 창을 걸었다.** `getVisibleTasks` 는 조건이 하나도 없어 조직의 모든 미삭제 작업을
+매 로드마다 실어 날랐다(모바일·콘솔 공용). 실측 71건 중 62건(87%)이 완료 상태이고 완료 작업은
+영원히 빠지지 않는다 — 하루 ~3건 페이스라 목록 무게가 완료 이력에 비례해 늘고 있었다.
+**살아 있는 작업(open/in_progress)은 아무리 오래돼도 전부 가져온다** — 지연 영구 유지가 계약이라
+(2026-07-30) 여기서 자르면 밀린 일이 증발한다. 창은 «끝난» 작업에만 건다: 180일.
+완료 로그(`getTaskCompletions`, 120일)보다 넓어야 완료·기록 탭이 «기록은 있는데 행이 없는» 상태에
+빠지지 않는다. `completed_at` 이 빈 레거시 행 대비로 `created_at` 도 함께 본다.
+적용 시점 실측: 71건 전부 유지, 누락 0건 — 미래 대비 장치로만 작동한다.
+
+**⑤ 쓰기 페이로드가 타입 검사를 받지 못하고 있었다.** 투두 기능에서만 `as never` 가 83곳이었다.
+원인을 추적하니 **`src/types/database.ts` 가 손으로 유지되면서 각 테이블에 `Relationships` 가
+빠져 있었다** — 그래서 `Database` 가 `@supabase/supabase-js` v2 의 `GenericSchema` 를 만족하지
+못하고 `.insert()`/`.update()` 인자 타입이 `never` 로 무너진다. 클라이언트에 제네릭은 제대로 붙어
+있었으므로, 원인은 클라이언트가 아니라 타입 파일이었다.
+`src/lib/db-write.ts` 에 `insertRow` / `insertRows` / `updateRow` / `upsertRow` / `upsertRows` 를
+두어 **거짓말을 한 곳에 가뒀다** — 인자는 진짜 `Insert`/`Update` 타입으로 검사받고 `never` 캐스트는
+헬퍼 안에서만 일어난다. 투두 4개 파일의 75곳을 전환했고, 전환 직후 검사기가 실수 4건을 즉시
+잡았다(배열을 단건 헬퍼로 넘긴 3곳, 테이블명 오기 1곳).
+
+**⑥ 조직 스코프 일관성.** service-role 쓰기 50곳을 전수 확인한 결과 **실제 구멍은 없다** — 모든
+단건 쓰기가 `getTaskDetail`(org 스코프 + RLS) 선행 조회를 거치고 검증된 id 만 쓴다. 다만
+`deleteTasksInList` 만 쌍둥이인 `restoreTasksInList` 와 달리 `.eq("organization_id")` 가 없어
+방어 수준이 달랐다. 맞췄다. `task_participants` 는 컬럼 자체가 없어 org 필터를 걸 수 없다.
+
+### 타입 재생성이 드러낸 투두 밖 결함 2건 (미수정, 별도 과제)
+
+`Relationships` 를 갖춘 정본 타입을 생성해 끼워 보니 전체 코드베이스에서 에러가 **16건**뿐이었다.
+그중 둘은 캐스트 문제가 아니라 **실제 결함**이다.
+
+1. **`attendance-finalization.ts:117` 및 `mobile/attendance/actions.ts:633` — 존재하지 않는 컬럼.**
+   `attendance_correction_requests` 를 `.eq("target_month", …)` 로 거르는데 그 테이블에 그런 컬럼이
+   없다(실제 컬럼 확인함). PostgREST 가 에러를 돌려주므로 `data` 는 null 이 되고, 세션 없는 정정
+   요청 건수가 **조용히 0으로 집계**된다.
+2. **`notifications/create.ts:425` — DB enum 에 없는 값.** `bug_report_activity` 로 알림을 만드는데
+   `notification_type` enum 에는 그 값이 없다(11개 확인: order_processed · task_shared ·
+   task_updated · task_completed · task_due_soon · task_overdue · project_shared ·
+   suggestion_activity · attendance_activity · board_activity · announcement_activity).
+   그 경로는 **실행 시 실패**한다. `display.ts` 의 대응 분기도 죽은 코드다.
+
+둘 다 근태·알림 기능이라 이번 투두 범위 밖이고, 고치려면 그 기능의 의도를 알아야 한다(컬럼을
+추가할지 조건을 뺄지 / enum 값을 추가하는 마이그레이션을 넣을지). **타입 재생성은 이 둘을 먼저
+정리한 뒤 별도 작업으로 진행한다** — 지금 끼우면 두 결함을 캐스트로 덮게 되고, 그건 방금 찾아낸
+것을 다시 숨기는 최악의 선택이다.
+
+### 남긴 것
+
+- **② 컴포넌트 분해** — 4918줄 콘솔 / 2496줄 워크스페이스. 함수 호출로 렌더해 리마운트 버그는
+  없지만 메모이제이션 경계가 없다. 한 번에 쪼개지 않고 만질 때마다 하나씩 파일로 뺀다.
+- **⑦ `tasks` RLS 가 org 로 자르지 않는다** — 정책이 `is_task_participant(id)` 기반이라 org 격리가
+  애플리케이션 쿼리에만 의존한다.
+- **⑧ 콘솔 조망 범위** — RLS 상 콘솔도 본인 참여 작업만 본다. 관리자가 팀 전체 업무 부하를 볼
+  화면이 없다. 제품 결정이 필요해 ⑦과 함께 보류.
+
 ## 2026-08-25 (2) 투두 순수 모듈 분리 — 쌍둥이 술어를 한 곳으로, 테스트를 걸 수 있는 자리로
 
 구조 점검에서 확인한 최우선 부채. 「이 작업이 오늘 목록에 뜨는가 / 지연인가 / 이 날짜에 회차가

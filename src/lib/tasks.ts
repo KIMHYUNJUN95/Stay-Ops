@@ -619,16 +619,76 @@ async function hydrate(rows: TaskRow[]): Promise<TaskRecord[]> {
 }
 
 /** All tasks visible to the current user (RLS-scoped to participant membership). */
+/**
+ * 오래된 «끝난» 작업을 목록 로드에서 잘라내는 창(일). 완료 로그(`getTaskCompletions`, 120일)보다
+ * 넉넉해야 한다 — 완료·기록 탭은 로그의 각 기록을 이 목록에서 찾아 행으로 그리므로, 창이 로그보다
+ * 좁으면 기록은 있는데 행이 없는 상태가 된다.
+ */
+const FINISHED_TASK_WINDOW_DAYS = 180;
+
+/**
+ * 이 조직에서 사용자가 볼 수 있는 작업(RLS 스코프).
+ *
+ * **살아 있는 작업(open/in_progress)은 아무리 오래돼도 전부 가져온다** — 지연은 영구 유지가 계약이라
+ * (2026-07-30) 여기서 자르면 밀린 일이 화면에서 증발한다. 창을 거는 대상은 «끝난» 작업뿐이다.
+ *
+ * 예전에는 조건이 하나도 없어 조직의 모든 미삭제 작업을 매 로드마다 실어 날랐다. 이 조직은 실측
+ * 71건 중 62건(87%)이 완료 상태이고 완료 작업은 영원히 빠지지 않는다 — 하루 ~3건 생성 페이스라
+ * 목록 무게가 사실상 완료 이력에 비례해 늘고 있었다. 모바일과 콘솔이 둘 다 이 함수를 쓴다.
+ *
+ * 안전장치로 `created_at` 도 함께 본다: `completed_at` 이 비어 있는 레거시 완료 행이 있어도 최근에
+ * 만들어졌다면 남는다.
+ */
 export async function getVisibleTasks(session: AppSession): Promise<TaskRecord[]> {
   const supabase = await getSupabaseServerClient();
+  const since = new Date(
+    `${ymdShift(tokyoToday(), -FINISHED_TASK_WINDOW_DAYS)}T00:00:00+09:00`,
+  ).toISOString();
   const { data, error } = await supabase
     .from("tasks")
     .select(TASK_SELECT)
     .eq("organization_id", session.organization.id)
     .is("deleted_at", null) // soft-delete: hide deleted tasks (undo restores them)
+    .or(
+      [
+        "status.eq.open",
+        "status.eq.in_progress",
+        `completed_at.gte.${since}`,
+        `created_at.gte.${since}`,
+      ].join(","),
+    )
     .order("created_at", { ascending: false });
   if (error) {
     if (isMissingTable(error.message ?? "")) return [];
+    throw new Error(error.message);
+  }
+  return hydrate((data ?? []) as TaskRow[]);
+}
+
+/**
+ * 여러 id 를 **한 번에** 읽는다(RLS 스코프) — 일괄 작업이 id 마다 `getTaskDetail` 을 부르지 않도록.
+ *
+ * `getTaskDetail` 은 한 건당 tasks + task_updates + 참여자 + 컨텍스트를 읽는다. 콘솔의 일괄 삭제는
+ * 최대 200건을 그렇게 돌려서 한 번의 클릭이 수백 쿼리로 번졌다. `hydrate` 는 애초에 배치 조회라
+ * 여기서는 건수와 무관하게 쿼리 수가 고정이다.
+ *
+ * 반환은 RLS 가 읽도록 허용한 것만 담긴다 — 결과에 없는 id 는 «권한 없음 또는 없음»이므로,
+ * 호출부가 그걸 그대로 실패로 보고하면 된다. 조직 스코프도 함께 건다.
+ */
+export async function getTasksByIds(session: AppSession, ids: string[]): Promise<TaskRecord[]> {
+  const unique = [...new Set(ids.map((v) => String(v ?? "").trim()).filter(Boolean))];
+  if (unique.length === 0) return [];
+  const supabase = await getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("tasks")
+    .select(TASK_SELECT)
+    .in("id", unique)
+    .eq("organization_id", session.organization.id)
+    .is("deleted_at", null);
+  if (error) {
+    if (isMissingTable(error.message ?? "")) return [];
+    // 잘못된 UUID 하나로 일괄 작업 전체가 500 나지 않게 한다(`getTaskDetail` 과 같은 판단).
+    if (error.code === "22P02") return [];
     throw new Error(error.message);
   }
   return hydrate((data ?? []) as TaskRow[]);

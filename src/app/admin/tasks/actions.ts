@@ -13,6 +13,7 @@ import { getProjectDetail, type ProjectDetailData } from "@/lib/projects";
 import {
   getShareableUsers,
   getTaskDetail,
+  getTasksByIds,
   getVisibleTasks,
   normalizeTaskDateTime,
   resolveRecurrenceRule,
@@ -40,6 +41,7 @@ import {
   moveOccurrences,
   resolvedOccurrenceDates,
   setOccurrenceOrders,
+  setTaskSortOrders,
   skipOccurrences,
 } from "@/lib/task-occurrences";
 import { backlogCoveredByOccurrenceOn } from "@/lib/task-predicates";
@@ -47,6 +49,7 @@ import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { cleanupRemovedTaskImages, sanitizeTaskImageUrls } from "@/lib/task-images";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
+import { insertRow, insertRows, updateRow } from "@/lib/db-write";
 
 export type TaskActionResult =
   | {
@@ -253,7 +256,7 @@ export async function createConsoleTask(input: {
     section_id: linkedSectionId,
     ...normalizeContext(input.context),
   };
-  const { error } = await supabase.from("tasks").insert(insert as never);
+  const { error } = await supabase.from("tasks").insert(insertRow("tasks", insert));
   if (error) return { ok: false, error: "save_failed" };
 
   // The author row MUST carry the same keys as the participant rows so PostgREST does not fill an
@@ -276,19 +279,19 @@ export async function createConsoleTask(input: {
   ];
   const { error: pError } = await supabase
     .from("task_participants")
-    .insert(participantRows as never);
+    .insert(insertRows("task_participants", participantRows));
   if (pError) {
     await supabase.from("tasks").delete().eq("id", id);
     return { ok: false, error: "save_failed" };
   }
 
   if (shareIds.length > 0) {
-    await supabase.from("task_updates").insert({
+    await supabase.from("task_updates").insert(insertRow("task_updates", {
       task_id: id,
       created_by_user_id: session.user.id,
       update_type: "system_shared",
       body: null,
-    } as never);
+    }));
     await notify(
       id,
       shareIds,
@@ -326,19 +329,19 @@ async function completeInternal(session: Session, task: TaskDetail, occurrenceDa
   } else {
     await supabase
       .from("tasks")
-      .update({
+      .update(updateRow("tasks", {
         status: "completed",
         completed_at: new Date().toISOString(),
         completed_by_user_id: session.user.id,
-      } as never)
+      }))
       .eq("id", task.id)
       .eq("organization_id", session.organization.id);
   }
-  await supabase.from("task_updates").insert({
+  await supabase.from("task_updates").insert(insertRow("task_updates", {
     task_id: task.id,
     created_by_user_id: session.user.id,
     update_type: "completed",
-  } as never);
+  }));
   await notify(
     task.id,
     otherParticipantIds(task, session.user.id),
@@ -361,19 +364,19 @@ async function reopenInternal(session: Session, task: TaskDetail, occurrenceDate
   } else {
     await supabase
       .from("tasks")
-      .update({
+      .update(updateRow("tasks", {
         status: "open",
         completed_at: null,
         completed_by_user_id: null,
-      } as never)
+      }))
       .eq("id", task.id)
       .eq("organization_id", session.organization.id);
   }
-  await supabase.from("task_updates").insert({
+  await supabase.from("task_updates").insert(insertRow("task_updates", {
     task_id: task.id,
     created_by_user_id: session.user.id,
     update_type: "reopened",
-  } as never);
+  }));
 }
 
 // ── 2. Status ───────────────────────────────────────────────────────────────
@@ -401,19 +404,19 @@ export async function setConsoleTaskStatus(
   const supabase = getSupabaseServiceClient();
   await supabase
     .from("tasks")
-    .update({
+    .update(updateRow("tasks", {
       status,
       completed_at: null,
       completed_by_user_id: null,
-    } as never)
+    }))
     .eq("id", task.id)
     .eq("organization_id", session.organization.id);
-  await supabase.from("task_updates").insert({
+  await supabase.from("task_updates").insert(insertRow("task_updates", {
     task_id: task.id,
     created_by_user_id: session.user.id,
     // Clearing a completed task back to open reads as a reopen; other transitions are status changes.
     update_type: task.status === "completed" && status === "open" ? "reopened" : "status_changed",
-  } as never);
+  }));
   revalidatePath(CONSOLE_PATH);
   return { ok: true };
 }
@@ -621,17 +624,17 @@ export async function updateConsoleTaskCore(input: {
     : [];
   const { error } = await supabase
     .from("tasks")
-    .update(update as never)
+    .update(updateRow("tasks", update))
     .eq("id", task.id)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "save_failed" };
   // Only after the DB no longer references them, hard-delete the detached files.
   await cleanupRemovedTaskImages(supabase, removedImageUrls, session.organization.id);
-  await supabase.from("task_updates").insert({
+  await supabase.from("task_updates").insert(insertRow("task_updates", {
     task_id: task.id,
     created_by_user_id: session.user.id,
     update_type: "system_edited",
-  } as never);
+  }));
   await notify(
     task.id,
     otherParticipantIds(task, session.user.id),
@@ -671,7 +674,7 @@ export async function rescheduleConsoleTask(
     const supabase = getSupabaseServiceClient();
     const { error } = await supabase
       .from("tasks")
-      .update({
+      .update(updateRow("tasks", {
         due_at: null,
         scheduled_date: null,
         all_day: true,
@@ -681,7 +684,7 @@ export async function rescheduleConsoleTask(
         recurrence_rule: null,
         recurrence_series_id: null,
         recurrence_instance_date: null,
-      } as never)
+      }))
       .eq("id", task.id)
       .eq("organization_id", session.organization.id);
     if (error) return { ok: false, error: "save_failed" };
@@ -712,7 +715,7 @@ export async function rescheduleConsoleTask(
   };
   const { error } = await supabase
     .from("tasks")
-    .update(update as never)
+    .update(updateRow("tasks", update))
     .eq("id", task.id)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "save_failed" };
@@ -760,11 +763,11 @@ export async function rescheduleConsoleOverdue(
     targets.map((t) =>
       supabase
         .from("tasks")
-        .update({
+        .update(updateRow("tasks", {
           due_at: new Date(`${date}T${t.timeLabel || "00:00"}:00+09:00`).toISOString(),
           scheduled_date: null,
           is_inbox: false,
-        } as never)
+        }))
         .eq("id", t.id)
         .eq("organization_id", session.organization.id),
     ),
@@ -793,7 +796,7 @@ export async function dismissConsoleOverdue(taskIds: string[]): Promise<OverdueB
   const supabase = getSupabaseServiceClient();
   const { error } = await supabase
     .from("tasks")
-    .update({ deleted_at: new Date().toISOString() } as never)
+    .update(updateRow("tasks", { deleted_at: new Date().toISOString() }))
     .in("id", ids)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "delete_failed" };
@@ -854,13 +857,13 @@ export async function shareConsoleTask(
         added_by_user_id: session.user.id,
       }),
     );
-    const { error: pError } = await supabase.from("task_participants").insert(rows as never);
+    const { error: pError } = await supabase.from("task_participants").insert(insertRows("task_participants", rows));
     if (pError) return { ok: false, error: "save_failed" };
-    await supabase.from("task_updates").insert({
+    await supabase.from("task_updates").insert(insertRow("task_updates", {
       task_id: task.id,
       created_by_user_id: session.user.id,
       update_type: "system_shared",
-    } as never);
+    }));
   }
 
   /**
@@ -871,13 +874,13 @@ export async function shareConsoleTask(
     const isShared = desired.size > 0;
     await supabase
       .from("tasks")
-      .update({ is_shared: isShared, is_directive: asDirective && isShared } as never)
+      .update(updateRow("tasks", { is_shared: isShared, is_directive: asDirective && isShared }))
       .eq("id", task.id)
       .eq("organization_id", session.organization.id);
   } else if (toAdd.length > 0) {
     await supabase
       .from("tasks")
-      .update({ is_shared: true } as never)
+      .update(updateRow("tasks", { is_shared: true }))
       .eq("id", task.id)
       .eq("organization_id", session.organization.id);
   }
@@ -913,13 +916,13 @@ export async function addConsoleNote(
   if (!text && photos.length === 0) return { ok: false, error: "empty" };
 
   const supabase = getSupabaseServiceClient();
-  await supabase.from("task_updates").insert({
+  await supabase.from("task_updates").insert(insertRow("task_updates", {
     task_id: task.id,
     created_by_user_id: session.user.id,
     update_type: "note",
     body: text || null,
     image_urls: photos,
-  } as never);
+  }));
   await notify(
     task.id,
     otherParticipantIds(task, session.user.id),
@@ -945,7 +948,7 @@ export async function deleteConsoleTask(taskId: string): Promise<TaskActionResul
   const supabase = getSupabaseServiceClient();
   const { error } = await supabase
     .from("tasks")
-    .update({ deleted_at: new Date().toISOString() } as never)
+    .update(updateRow("tasks", { deleted_at: new Date().toISOString() }))
     .eq("id", task.id)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "delete_failed" };
@@ -972,7 +975,7 @@ export async function restoreConsoleTask(taskId: string): Promise<TaskActionResu
   if (row.created_by_user_id !== session.user.id) return { ok: false, error: "forbidden" };
   const { error } = await supabase
     .from("tasks")
-    .update({ deleted_at: null } as never)
+    .update(updateRow("tasks", { deleted_at: null }))
     .eq("id", id)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "save_failed" };
@@ -990,7 +993,7 @@ export async function leaveConsoleTask(taskId: string): Promise<TaskActionResult
   if (task.createdByUserId === session.user.id) {
     const { error } = await supabase
       .from("tasks")
-      .update({ deleted_at: new Date().toISOString() } as never)
+      .update(updateRow("tasks", { deleted_at: new Date().toISOString() }))
       .eq("id", task.id)
       .eq("organization_id", session.organization.id);
     if (error) return { ok: false, error: "delete_failed" };
@@ -1010,7 +1013,7 @@ export async function leaveConsoleTask(taskId: string): Promise<TaskActionResult
   if (remainingNonAuthor === 0) {
     await supabase
       .from("tasks")
-      .update({ is_shared: false, is_directive: false } as never)
+      .update(updateRow("tasks", { is_shared: false, is_directive: false }))
       .eq("id", task.id)
       .eq("organization_id", session.organization.id);
   }
@@ -1034,16 +1037,10 @@ export async function reorderConsoleTasks(orderedIds: string[]): Promise<TaskAct
     new Set((orderedIds ?? []).map((s) => String(s).trim()).filter(Boolean)),
   ).slice(0, 500);
   if (ids.length === 0) return { ok: true };
-  const supabase = getSupabaseServiceClient();
-  await Promise.all(
-    ids.map((id, index) =>
-      supabase
-        .from("tasks")
-        .update({ sort_order: index } as never)
-        .eq("id", id)
-        .eq("organization_id", session.organization.id),
-    ),
-  );
+  await setTaskSortOrders({
+    organizationId: session.organization.id,
+    positions: new Map(ids.map((id, index) => [id, index])),
+  });
   revalidatePath(CONSOLE_PATH);
   return { ok: true };
 }
@@ -1071,7 +1068,6 @@ export async function reorderConsoleDateTasks(
     .slice(0, 500);
   if (clean.length === 0) return { ok: true };
 
-  const supabase = getSupabaseServiceClient();
   const recurringPositions = new Map<string, number>();
   const oneOffUpdates: { taskId: string; index: number }[] = [];
   clean.forEach((it, index) => {
@@ -1080,15 +1076,10 @@ export async function reorderConsoleDateTasks(
   });
 
   const [, orderOk] = await Promise.all([
-    Promise.all(
-      oneOffUpdates.map((it) =>
-        supabase
-          .from("tasks")
-          .update({ sort_order: it.index } as never)
-          .eq("id", it.taskId)
-          .eq("organization_id", session.organization.id),
-      ),
-    ),
+    setTaskSortOrders({
+      organizationId: session.organization.id,
+      positions: new Map(oneOffUpdates.map((it) => [it.taskId, it.index])),
+    }),
     setOccurrenceOrders({
       organizationId: session.organization.id,
       occurrenceDate: date,
@@ -1110,8 +1101,7 @@ export type BulkDeleteResult =
 export async function bulkDeleteConsoleTasks(taskIds: string[]): Promise<BulkDeleteResult> {
   const session = await resolveSession();
   if (!session) return { ok: false, error: "auth" };
-  // 상한 200 — 모바일 `bulkDeleteTasks` 와 동일. 아래에서 id 마다 `getTaskDetail` 을 병렬로 부르므로
-  // "전체 선택" 후 삭제가 무제한이면 한 번의 클릭이 수백 건의 쿼리로 번진다.
+  // 상한 200 — 모바일 `deleteTasksInList` 와 동일.
   const ids = [...new Set((taskIds ?? []).map((v) => String(v ?? "").trim()).filter(Boolean))].slice(
     0,
     200,
@@ -1122,11 +1112,13 @@ export async function bulkDeleteConsoleTasks(taskIds: string[]): Promise<BulkDel
   const leftIds: string[] = [];
   const failedIds: string[] = [];
 
-  // getTaskDetail is RLS-scoped, so this both loads authorship and proves the caller may touch the
-  // row at all. Ids that resolve to nothing are reported as failures rather than silently dropped.
-  const resolved = await Promise.all(
-    ids.map(async (id) => ({ id, task: await getTaskDetail(session, id).catch(() => null) })),
-  );
+  // 배치 조회 한 번. 예전에는 id 마다 `getTaskDetail` 을 불러서, 200건 선택 시 한 번의 클릭이
+  // 수백 쿼리로 번졌다(건당 tasks + task_updates + 참여자 + 컨텍스트). `getTasksByIds` 는 RLS
+  // 스코프라 여기서도 «이 사용자가 건드려도 되는 행인가»를 그대로 증명한다 — 결과에 없는 id 는
+  // 조용히 버리지 않고 실패로 보고한다(2026-08-28).
+  const found = await getTasksByIds(session, ids);
+  const byId = new Map(found.map((t) => [t.id, t]));
+  const resolved = ids.map((id) => ({ id, task: byId.get(id) ?? null }));
 
   const supabase = getSupabaseServiceClient();
   const now = new Date().toISOString();
@@ -1144,7 +1136,7 @@ export async function bulkDeleteConsoleTasks(taskIds: string[]): Promise<BulkDel
   if (mine.length) {
     const { error } = await supabase
       .from("tasks")
-      .update({ deleted_at: now } as never)
+      .update(updateRow("tasks", { deleted_at: now }))
       .in("id", mine)
       .eq("organization_id", session.organization.id);
     if (error) failedIds.push(...mine);
@@ -1174,7 +1166,7 @@ export async function bulkDeleteConsoleTasks(taskIds: string[]): Promise<BulkDel
       if (orphaned.length) {
         await supabase
           .from("tasks")
-          .update({ is_shared: false, is_directive: false } as never)
+          .update(updateRow("tasks", { is_shared: false, is_directive: false }))
           .in("id", orphaned)
           .eq("organization_id", session.organization.id);
       }
@@ -1204,7 +1196,7 @@ export async function restoreConsoleTasks(taskIds: string[]): Promise<TaskAction
   if (!own.length) return { ok: false, error: "forbidden" };
   const { error } = await supabase
     .from("tasks")
-    .update({ deleted_at: null } as never)
+    .update(updateRow("tasks", { deleted_at: null }))
     .in("id", own)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "save_failed" };
@@ -1241,7 +1233,7 @@ export async function moveConsoleToToday(taskId: string): Promise<TaskActionResu
   };
   const { error } = await supabase
     .from("tasks")
-    .update(update as never)
+    .update(updateRow("tasks", update))
     .eq("id", task.id)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "save_failed" };
@@ -1272,7 +1264,7 @@ export async function moveConsoleToTomorrow(taskId: string): Promise<TaskActionR
   };
   const { error } = await supabase
     .from("tasks")
-    .update(update as never)
+    .update(updateRow("tasks", update))
     .eq("id", task.id)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "save_failed" };
@@ -1289,7 +1281,7 @@ export async function moveConsoleToInbox(taskId: string): Promise<TaskActionResu
   // (날짜/시간/반복 유지). is_inbox 는 뷰를 가르지 않으므로 건드리지 않는다(날짜 있는 작업의 crumb 오표시 방지).
   const { error } = await supabase
     .from("tasks")
-    .update({ project_id: null, section_id: null } as never)
+    .update(updateRow("tasks", { project_id: null, section_id: null }))
     .eq("id", task.id)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "save_failed" };
@@ -1322,7 +1314,7 @@ export async function createConsoleProject(
     description: null,
     is_shared: inviteIds.length > 0,
   };
-  const { error } = await supabase.from("projects").insert(insert as never);
+  const { error } = await supabase.from("projects").insert(insertRow("projects", insert));
   if (error) return { ok: false, error: "save_failed" };
 
   const participantRows: Database["public"]["Tables"]["project_participants"]["Insert"][] = [
@@ -1343,7 +1335,7 @@ export async function createConsoleProject(
   ];
   const { error: pError } = await supabase
     .from("project_participants")
-    .insert(participantRows as never);
+    .insert(insertRows("project_participants", participantRows));
   if (pError) {
     await supabase.from("projects").delete().eq("id", id);
     return { ok: false, error: "save_failed" };
@@ -1449,7 +1441,7 @@ export async function addConsoleProjectSection(
   const supabase = getSupabaseServiceClient();
   const { error } = await supabase
     .from("project_sections")
-    .insert({ project_id: r.id, title: name, sort_order: nextOrder } as never);
+    .insert(insertRow("project_sections", { project_id: r.id, title: name, sort_order: nextOrder }));
   if (error) return { ok: false, error: "save_failed" };
   revalidatePath(CONSOLE_PATH);
   return { ok: true };
@@ -1468,7 +1460,7 @@ export async function renameConsoleProjectSection(
   const supabase = getSupabaseServiceClient();
   const { error } = await supabase
     .from("project_sections")
-    .update({ title: name } as never)
+    .update(updateRow("project_sections", { title: name }))
     .eq("id", sectionId)
     .eq("project_id", r.id);
   if (error) return { ok: false, error: "save_failed" };
@@ -1488,7 +1480,7 @@ export async function deleteConsoleProjectSection(
   // deleted_at 을 필터)한 뒤 섹션 행을 제거한다 — 모바일과 동일.
   await supabase
     .from("tasks")
-    .update({ deleted_at: new Date().toISOString() } as never)
+    .update(updateRow("tasks", { deleted_at: new Date().toISOString() }))
     .eq("project_id", r.id)
     .eq("section_id", sectionId);
   const { error } = await supabase
@@ -1523,9 +1515,9 @@ export async function inviteConsoleProjectMembers(
       added_by_user_id: r.session.user.id,
     }),
   );
-  const { error } = await supabase.from("project_participants").insert(rows as never);
+  const { error } = await supabase.from("project_participants").insert(insertRows("project_participants", rows));
   if (error) return { ok: false, error: "save_failed" };
-  await supabase.from("projects").update({ is_shared: true } as never).eq("id", r.id);
+  await supabase.from("projects").update(updateRow("projects", { is_shared: true })).eq("id", r.id);
   await notifyProjectMembers(supabase, {
     organizationId: r.session.organization.id,
     projectId: r.id,
@@ -1562,7 +1554,7 @@ export async function removeConsoleProjectMember(
     (m) => m.role !== "owner" && m.userId !== userId,
   ).length;
   if (remaining === 0) {
-    await supabase.from("projects").update({ is_shared: false } as never).eq("id", r.id);
+    await supabase.from("projects").update(updateRow("projects", { is_shared: false })).eq("id", r.id);
   }
   revalidatePath(CONSOLE_PATH);
   return { ok: true };

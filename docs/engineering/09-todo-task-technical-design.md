@@ -551,6 +551,25 @@ write). See `docs/planning/01-decision-log.md` → "2026-07-30 롤포워드 폐�
 - **Pure helpers** (`src/lib/tasks-recurrence.ts`, client+server): `outstandingOverdueOccurrences(rule,
   anchor, today, resolvedDates)` = rule occurrences in `[anchor, today)` with no state; `OccurrenceState`
   type; `isResolvedOccurrenceState`. Twin-safe (server `tasks.ts` and both UIs import from here).
+- **Write payloads are type-checked through `src/lib/db-write.ts` (2026-08-28).** The hand-maintained
+  `src/types/database.ts` omits `Relationships` on every table, so `Database` fails
+  `@supabase/supabase-js`'s `GenericSchema` and `.insert()`/`.update()` argument types collapse to
+  `never` — which is why 83 `as never` casts had accumulated in the tasks feature, silently disabling
+  column-name and type checking on every write. `insertRow` / `insertRows` / `updateRow` /
+  `upsertRow` / `upsertRows` take the table name plus a value typed as that table's real
+  `Insert`/`Update`, and confine the `never` cast to one file. **Regenerating the types is the proper
+  fix**, but it surfaces two genuine defects outside this feature first — see the decision log,
+  2026-08-28.
+- **Batch reads for bulk actions (2026-08-28).** `getTasksByIds(session, ids)` — one RLS-scoped
+  select + `hydrate` (batched), so query count is fixed regardless of id count. `bulkDeleteConsoleTasks`
+  previously called `getTaskDetail` per id, turning a 200-item delete into hundreds of queries.
+- **`getVisibleTasks` bounds finished tasks to 180 days (2026-08-28).** Active work
+  (`open`/`in_progress`) is never bounded — overdue must persist forever (2026-07-30). The window only
+  drops completed/cancelled rows older than 180 days, which must stay wider than the 120-day
+  completion log or the 완료·기록 tab would show records whose task row was dropped. `created_at` is
+  checked alongside `completed_at` to protect legacy rows with a null `completed_at`.
+- **`setTaskSortOrders` writes only changed rows (2026-08-28).** Lives beside `setOccurrenceOrders` in
+  `task-occurrences.ts`; the four reorder actions previously fired one UPDATE per index (cap 500).
 - **Pure modules (client-safe, 2026-08-25).** `@/lib/tasks` pulls in supabase/session, so client
   components could never import it by value — which is why Tokyo date helpers had been re-implemented
   **seven times** inside the tasks feature and the date/occurrence predicates existed twice (console

@@ -15,6 +15,7 @@ import {
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
+import { insertRow, insertRows } from "@/lib/db-write";
 
 function cleanText(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
@@ -57,15 +58,15 @@ export async function quickCreateTask(formData: FormData) {
     is_inbox: true,
     is_shared: false,
   };
-  const { error } = await supabase.from("tasks").insert(insert as never);
+  const { error } = await supabase.from("tasks").insert(insertRow("tasks", insert));
   if (error) {
     redirect("/mobile/tasks?view=inbox&error=save_failed");
   }
-  const { error: pError } = await supabase.from("task_participants").insert({
+  const { error: pError } = await supabase.from("task_participants").insert(insertRow("task_participants", {
     task_id: id,
     user_id: session.user.id,
     role: "author",
-  } as never);
+  }));
   if (pError) {
     await supabase.from("tasks").delete().eq("id", id);
     redirect("/mobile/tasks?view=inbox&error=save_failed");
@@ -104,15 +105,15 @@ export async function quickCreateTodayTask(formData: FormData) {
     is_inbox: false,
     is_shared: false,
   };
-  const { error } = await supabase.from("tasks").insert(insert as never);
+  const { error } = await supabase.from("tasks").insert(insertRow("tasks", insert));
   if (error) {
     redirect("/mobile/tasks?view=today&error=save_failed");
   }
-  const { error: pError } = await supabase.from("task_participants").insert({
+  const { error: pError } = await supabase.from("task_participants").insert(insertRow("task_participants", {
     task_id: id,
     user_id: session.user.id,
     role: "author",
-  } as never);
+  }));
   if (pError) {
     await supabase.from("tasks").delete().eq("id", id);
     redirect("/mobile/tasks?view=today&error=save_failed");
@@ -153,15 +154,15 @@ export async function quickCreateTomorrowTask(formData: FormData) {
     is_inbox: false,
     is_shared: false,
   };
-  const { error } = await supabase.from("tasks").insert(insert as never);
+  const { error } = await supabase.from("tasks").insert(insertRow("tasks", insert));
   if (error) {
     redirect("/mobile/tasks?view=tomorrow&error=save_failed");
   }
-  const { error: pError } = await supabase.from("task_participants").insert({
+  const { error: pError } = await supabase.from("task_participants").insert(insertRow("task_participants", {
     task_id: id,
     user_id: session.user.id,
     role: "author",
-  } as never);
+  }));
   if (pError) {
     await supabase.from("tasks").delete().eq("id", id);
     redirect("/mobile/tasks?view=tomorrow&error=save_failed");
@@ -295,7 +296,7 @@ export async function createTask(formData: FormData) {
     project_id: linkedProjectId,
     section_id: linkedSectionId,
   };
-  const { error } = await supabase.from("tasks").insert(insert as never);
+  const { error } = await supabase.from("tasks").insert(insertRow("tasks", insert));
   if (error) {
     redirect("/mobile/tasks/new?error=save_failed");
   }
@@ -320,19 +321,19 @@ export async function createTask(formData: FormData) {
       added_by_user_id: session.user.id,
     })),
   ];
-  const { error: pError } = await supabase.from("task_participants").insert(participantRows as never);
+  const { error: pError } = await supabase.from("task_participants").insert(insertRows("task_participants", participantRows));
   if (pError) {
     await supabase.from("tasks").delete().eq("id", id);
     redirect("/mobile/tasks/new?error=save_failed");
   }
 
   if (shareIds.length > 0) {
-    await supabase.from("task_updates").insert({
+    await supabase.from("task_updates").insert(insertRow("task_updates", {
       task_id: id,
       created_by_user_id: session.user.id,
       update_type: "system_shared",
       body: null,
-    } as never);
+    }));
     await notifyTaskParticipants(supabase, {
       organizationId: session.organization.id,
       taskId: id,

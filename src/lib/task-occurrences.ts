@@ -4,6 +4,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { TaskRecord } from "@/lib/tasks";
 import type { OccurrenceState } from "@/lib/tasks-recurrence";
 import type { Database } from "@/types/database";
+import { insertRow, updateRow, upsertRow, upsertRows } from "@/lib/db-write";
 
 /**
  * Server-only mutations for `task_occurrence_state` — the per-occurrence completion/skip/move state
@@ -34,7 +35,7 @@ export async function completeOccurrence(args: {
   };
   await supabase
     .from("task_occurrence_state")
-    .upsert(row as never, { onConflict: "task_id,occurrence_date" });
+    .upsert(upsertRow("task_occurrence_state", row), { onConflict: "task_id,occurrence_date" });
 }
 
 /** Remove an occurrence's recorded state (used to reopen/undo a completed occurrence). */
@@ -65,7 +66,7 @@ export async function skipOccurrences(args: {
   }));
   await supabase
     .from("task_occurrence_state")
-    .upsert(rows as never, { onConflict: "task_id,occurrence_date" });
+    .upsert(upsertRows("task_occurrence_state", rows), { onConflict: "task_id,occurrence_date" });
 }
 
 /** Resolve overdue occurrence dates as moved to `movedTo` ("오늘로 가져오기"). */
@@ -87,7 +88,7 @@ export async function moveOccurrences(args: {
   }));
   await supabase
     .from("task_occurrence_state")
-    .upsert(rows as never, { onConflict: "task_id,occurrence_date" });
+    .upsert(upsertRows("task_occurrence_state", rows), { onConflict: "task_id,occurrence_date" });
 }
 
 /** Occurrence dates that already carry a state row for a task (used to compute what's still open). */
@@ -142,7 +143,7 @@ export async function createCarryOverTask(args: {
   const { task } = args;
   const supabase = getSupabaseServiceClient();
   const carryId = crypto.randomUUID();
-  await supabase.from("tasks").insert({
+  await supabase.from("tasks").insert(insertRow("tasks", {
     id: carryId,
     organization_id: args.organizationId,
     created_by_user_id: args.userId,
@@ -163,14 +164,14 @@ export async function createCarryOverTask(args: {
     room_id: task.resolvedContext?.roomId ?? null,
     reservation_id: task.resolvedContext?.reservationId ?? null,
     guest_name: task.resolvedContext?.guestName ?? null,
-  } as never);
-  await supabase.from("task_participants").insert({
+  }));
+  await supabase.from("task_participants").insert(insertRow("task_participants", {
     task_id: carryId,
     user_id: args.userId,
     role: "author",
     is_first_recipient: false,
     added_by_user_id: null,
-  } as never);
+  }));
 }
 
 /* ── 회차별 수동 순서 (task_occurrence_order, 2026-07-30) ─────────────────────────
@@ -182,6 +183,54 @@ export async function createCarryOverTask(args: {
    사라진다. 마이그레이션 주석 참고. */
 
 type OccurrenceOrderInsert = Database["public"]["Tables"]["task_occurrence_order"]["Insert"];
+
+/**
+ * 일회성 작업의 `tasks.sort_order` 를 **바뀐 행만** 쓴다.
+ *
+ * 네 곳(모바일·콘솔 × 목록·날짜)이 각자 «인덱스마다 UPDATE 한 방»을 병렬로 쏘고 있었다. 상한이
+ * 500이라 한 번의 드래그가 최대 500개의 UPDATE 가 될 수 있었고, 실제로는 드래그 한 번에 위치가
+ * 바뀌는 행이 몇 개뿐인 경우가 대부분이다.
+ *
+ * 먼저 현재 값을 한 번 읽고 **다른 행만** 갱신한다. 읽기 1 + 쓰기 N(변경분). 목록 맨 위로 끌어올려
+ * 아래가 전부 밀리는 최악의 경우에도 예전과 같고, 흔한 경우엔 한두 건으로 접힌다.
+ *
+ * `sort_order` 는 작업당 하나뿐인 전역 값이라(사용자별이 아니다) 날짜별 위치는 여기에 담을 수 없다 —
+ * 반복 회차는 아래 `setOccurrenceOrders` 가 따로 든다.
+ */
+export async function setTaskSortOrders(args: {
+  organizationId: string;
+  /** taskId → 그 목록에서의 인덱스 */
+  positions: ReadonlyMap<string, number>;
+}): Promise<void> {
+  if (args.positions.size === 0) return;
+  const supabase = getSupabaseServiceClient();
+  const ids = [...args.positions.keys()];
+  const { data } = await supabase
+    .from("tasks")
+    .select("id, sort_order")
+    .in("id", ids)
+    .eq("organization_id", args.organizationId);
+  const current = new Map(
+    ((data ?? []) as Array<{ id: string; sort_order: number | null }>).map((r) => [
+      r.id,
+      r.sort_order,
+    ]),
+  );
+  // 조회에 없는 id(다른 조직·삭제됨)는 건너뛴다 — 예전 코드는 그런 id 에도 UPDATE 를 쏘고 있었다.
+  const changed = [...args.positions].filter(
+    ([id, index]) => current.has(id) && current.get(id) !== index,
+  );
+  if (changed.length === 0) return;
+  await Promise.all(
+    changed.map(([id, index]) =>
+      supabase
+        .from("tasks")
+        .update(updateRow("tasks", { sort_order: index }))
+        .eq("id", id)
+        .eq("organization_id", args.organizationId),
+    ),
+  );
+}
 
 /**
  * 한 날짜 목록의 반복 회차 위치를 통째로 다시 쓴다.
@@ -205,7 +254,7 @@ export async function setOccurrenceOrders(args: {
   }));
   const { error } = await supabase
     .from("task_occurrence_order")
-    .upsert(rows as never, { onConflict: "task_id,occurrence_date" });
+    .upsert(upsertRows("task_occurrence_order", rows), { onConflict: "task_id,occurrence_date" });
   if (error) {
     // 초기 구현이 결과를 버려, 테이블 미적용 상태에서 저장이 조용히 실패했다 — 화면은 낙관적으로
     // 바뀌고 새로고침하면 되돌아가는데 아무 단서가 없었다(2026-07-30). 최소한 로그는 남긴다.
