@@ -267,6 +267,14 @@ const STATUS_SEGMENTS = [
   labelKey: "stOpen" | "stInProgress" | "stCompleted";
 }[];
 
+/** 컨텍스트 칩 아이콘 — 상태에 의존하지 않는 상수라 모듈 스코프에 둔다(렌더마다 재생성 방지). */
+const CTX_IC: Record<string, ReactNode> = {
+  building: <Building2 size={14} />,
+  bed: <BedDouble size={14} />,
+  ticket: <Ticket size={14} />,
+  guest: <UserRound size={14} />,
+};
+
 export function AdminTasksConsole({
   locale,
   data,
@@ -955,12 +963,6 @@ export function AdminTasksConsole({
     return fill(dict.andMore, { name: nameOf(list[0]), n: list.length - 1 });
   };
 
-  const CTX_IC: Record<string, ReactNode> = {
-    building: <Building2 size={14} />,
-    bed: <BedDouble size={14} />,
-    ticket: <Ticket size={14} />,
-    guest: <UserRound size={14} />,
-  };
   const ctxKey: Record<string, string> = {
     building: dict.ctxBuilding,
     bed: dict.ctxBed,

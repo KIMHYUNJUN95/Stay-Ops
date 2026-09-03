@@ -20,6 +20,21 @@ and the major mobile/admin operations modules are implemented and being hardened
   would otherwise read as current status. Encoding-damaged sections/files were intentionally not repaired
   in this pass.
 
+## 2026-09-03 (3) — React Compiler 활성화
+
+구조 점검 ②(대형 컴포넌트의 메모이제이션 경계 부재)를 손으로 쪼개려다, **코드가 켜져 있다고 전제한
+React Compiler 가 실제로는 꺼져 있었다는 것**을 발견했다(`tasks-workspace.tsx` 의 여러 주석이 그
+전제로 쓰여 있다). 수동 분해 대신 컴파일러를 켰다 — 90개 넘는 state 에 결합된 4900줄 컴포넌트를
+손으로 분리하는 것보다 훨씬 안전하고 효과가 크다.
+
+`next.config.ts` → `reactCompiler: true`. 검증: 앱 전체 **536/536 컴포넌트 컴파일 성공**, 호환 불가
+라이브러리 없음, 프로덕션 빌드 통과. 되돌리려면 그 한 줄을 지우면 된다.
+
+파일 크기 자체는 그대로다. 성능 이유가 사라졌으므로 앞으로 큰 패널은 **가독성 목적으로만, 만질 때
+하나씩** 분리한다.
+
+**런타임 수동 QA 미실시** — 컴파일러 활성화는 빌드 파이프라인 변경이라 실기기 확인을 권한다.
+
 ## 2026-09-03 (2) — DB 타입 재생성 + 투두 RLS 조직 스코프
 
 - **콘솔 조망 범위 확정:** 관리자 콘솔은 «본인 참여 업무만» 유지(사용자 결정). 코드 변경 없음.
