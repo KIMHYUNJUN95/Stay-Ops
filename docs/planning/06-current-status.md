@@ -20,6 +20,23 @@ and the major mobile/admin operations modules are implemented and being hardened
   would otherwise read as current status. Encoding-damaged sections/files were intentionally not repaired
   in this pass.
 
+## 2026-09-03 — 미적용 마이그레이션 2건 적용 + 알림 enum 누락 복구
+
+투두 구조 점검에서 타입을 재생성해 보다가 발견한 근태·알림 결함의 원인을 추적한 결과, 코드가 아니라
+**마이그레이션 미적용**이었다. 상세는 `docs/planning/01-decision-log.md` → 2026-09-03.
+
+- `202606180003_attendance_session_fixes` (6/18자) 미적용 → `target_month` 컬럼 부재로 **세션 없는
+  정정 요청 생성이 실패**하고 월 마감 판정이 그 건수를 항상 0으로 집계했다.
+- `202607030003_attendance_finalized_snapshot_unique` (7/03자) 미적용 → 동시 마감 시 확정 스냅샷
+  중복 가능.
+- `notification_type` enum 에 `bug_report_activity` 누락 → 버그리포트 알림이 조용히 전부 실패했다.
+  `202609030001_bug_report_notification_type.sql` 신설·적용.
+
+적용 전 데이터 영향 0건 실측 후 진행. 적용 후 객체 생성 및 enum 12개 확인.
+
+**교훈:** `supabase/migrations` 에 파일이 있는 것과 원격에 적용된 것은 다르다. 두 건 모두 2개월 이상
+방치됐고 실패가 조용해서(에러 삼킴/null 결과) 드러나지 않았다. 생성 타입과 주기적으로 대조할 것.
+
 ## 2026-08-25 — 투두(Todoist) 회귀 5건 수정
 
 사용자 제보에서 시작한 전수 점검. 성격이 다른 결함 5건을 한 사이클에 고쳤다. 상세 근거는

@@ -2945,7 +2945,6 @@ export type Database = {
         | "announcement_activity"
         | "attendance_activity"
         | "board_activity"
-        // Added by bug-reports migration (database-engineer); kept in sync here until types regen.
         | "bug_report_activity";
       organization_role:
         | "cs_staff"

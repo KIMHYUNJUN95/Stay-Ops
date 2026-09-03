@@ -2,6 +2,59 @@
 
 This file records important project decisions.
 
+## 2026-09-03 미적용 마이그레이션 2건 + 누락 enum 1건 — 근태·알림 실기능 복구
+
+2026-08-28 에 타입 재생성으로 드러난 «투두 밖 결함 2건»의 원인을 끝까지 추적한 결과, 코드 버그가
+아니라 **마이그레이션이 원격 DB 에 적용되지 않은 것**이었다. 로컬 112개 / 원격 94개를 이름 기준으로
+대조하고, 후보마다 DB 에 실제 객체가 있는지 확인해 판정했다(파일명 규칙이 CLI 생성분과 섞여 있어
+버전 번호로는 대조가 안 된다).
+
+### 1. `202606180003_attendance_session_fixes` 미적용 (6/18자, 2개월 반 방치)
+
+`attendance_correction_requests.target_month` 컬럼이 없었다. 영향이 처음 본 것보다 컸다:
+- **정정 요청 생성 자체가 실패한다.** `mobile/attendance/actions.ts` 의 insert 페이로드가
+  `target_month` 를 담고 있어 PostgREST 가 «없는 컬럼»으로 거절한다. 세션 없는 예외 정정 요청
+  기능이 통째로 동작하지 않았다.
+- **월 마감 판정이 조용히 틀린다.** `attendance-finalization.ts` 의 세션 없는 정정 건수 조회가
+  에러로 `data: null` 을 받아 항상 0건으로 집계됐다 — 막아야 할 마감이 열렸다.
+- 같은 파일의 `attendance_open_session_reminders` org 스코프 unique 제약도 함께 빠져 있었다.
+
+### 2. `202607030003_attendance_finalized_snapshot_unique` 미적용 (7/03자)
+
+`attendance_month_snapshots_one_finalized_idx` 부재. 동시 마감이 겹치면 org/user/월당 확정 스냅샷이
+중복 생성될 수 있었다 — 그 마이그레이션이 막으려던 바로 그 상황이다.
+
+**적용 전 데이터 영향 실측: 0.** 중복 확정 스냅샷 0쌍(마이그레이션의 UPDATE 가 건드릴 행 없음),
+세션 없는 정정 0건(새 컬럼은 전부 NULL 로 시작), 리마인더 0건(제약 교체 시 충돌 없음). 둘 다
+실질 additive 로 확인하고 적용했다. 적용 후 4개 객체 생성 확인, 확정 스냅샷 2건 그대로.
+
+### 3. `notification_type` enum 에 `bug_report_activity` 누락
+
+`notifications/create.ts` 는 버그리포트 슬라이스 출시 이후 줄곧 이 타입으로 알림을 만들고 있었고,
+주석에는 «버그리포트 마이그레이션이 값을 추가한다»고 적혀 있었다. **실제로는 추가되지 않았다** —
+`202606250004_bug_reports.sql` 은 테이블만 만들고 `alter type ... add value` 가 없다. 형제 기능은
+전부 갖고 있다(task_shared/updated/completed · task_due_soon/overdue · suggestion_activity ·
+announcement_activity · attendance_activity · board_activity).
+
+`createNotification` 이 에러를 로그만 남기고 삼키므로 **동작 자체는 성공하고 알림만 안 갔다** —
+버그 신고자는 상태 변경 통지를 한 번도 못 받았고, 리뷰어는 신규 신고 팬아웃을 못 받았다.
+`display.ts` 의 대응 분기도 도달 불가능한 죽은 코드였다.
+
+→ `202609030001_bug_report_notification_type.sql` 신설·적용. enum 12개로 정상화. 이 결함을 가리고
+있던 `as Database[...]["notification_type"]` 캐스트와 «곧 적용될 것» 주석도 함께 제거했다.
+
+**주의: Postgres enum 값은 한 번 추가하면 쉽게 제거할 수 없다.** 되돌리려면 타입을 다시 만들어야
+하므로 의도적으로 단방향 변경이다(형제 마이그레이션들과 동일). 그리고 이 적용으로 **버그리포트
+알림이 실제로 나가기 시작한다** — 원치 않으면 enum 을 되돌리는 게 아니라 코드 경로를 제거해야 한다.
+
+### 배운 것
+
+`supabase/migrations` 에 파일이 있다는 것이 «적용됐다»는 뜻이 아니다. 이번 두 건은 각각 2개월 반,
+2개월 동안 «코드는 새 스키마를 전제하고 DB 는 옛 스키마인» 상태로 방치됐고, 두 경우 모두 실패가
+조용해서(에러 삼킴 / null 결과) 아무도 눈치채지 못했다. **타입 재생성이 이걸 드러낸 유일한 수단이었다** —
+손으로 유지하는 `src/types/database.ts` 가 코드의 기대를 그대로 반영하고 있어서, 코드와 타입은
+일치하고 DB 만 어긋나 있었기 때문이다. 정기적으로 생성 타입과 대조할 필요가 있다.
+
 ## 2026-08-28 투두 구조 부채 정리 — 배치 조회 · 목록 창 · 쓰기 타입 검사
 
 구조 점검 ③④⑤⑥ 실행(①은 2026-08-25 항목, ②·⑦·⑧은 아래 「남긴 것」 참고).

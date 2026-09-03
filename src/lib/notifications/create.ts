@@ -367,9 +367,7 @@ export async function notifyBugReportCreated(params: {
     await createNotification(service, {
       organizationId: params.organizationId,
       recipientUserId,
-      // `bug_report_activity` is added by the bug-reports migration (database-engineer); the
-      // generated Database enum here will catch up after that migration is applied + types regen.
-      type: "bug_report_activity" as Database["public"]["Enums"]["notification_type"],
+      type: "bug_report_activity",
       href: `/mobile/bugs/${params.reportId}`,
       sourceType: "bug_report",
       sourceId: params.reportId,

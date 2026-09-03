@@ -1,0 +1,22 @@
+-- Bug report notifications: add the missing `bug_report_activity` enum value (2026-09-03).
+--
+-- `src/lib/notifications/create.ts` has been creating notifications with type
+-- `bug_report_activity` since the bug-reports slice shipped, and a code comment there says the
+-- value "is added by the bug-reports migration". It never was — `202606250004_bug_reports.sql`
+-- creates the tables but no `alter type ... add value`, unlike every sibling feature
+-- (task_shared/updated/completed, task_due_soon/overdue, suggestion_activity,
+-- announcement_activity, attendance_activity, board_activity all have one).
+--
+-- Effect of the gap: the insert failed the enum check, `createNotification` logged and swallowed
+-- the error, and the action itself still succeeded. So bug reporters never got a status-change
+-- notification and reviewers never got the new-report fan-out — silently, with only a
+-- console.error. The dead branch in `notifications/display.ts` was unreachable for the same reason.
+--
+-- Found on 2026-09-03 by regenerating the Supabase types: the generated `notification_type` union
+-- did not contain the value the code was passing. See docs/planning/01-decision-log.md.
+--
+-- `add value if not exists` is additive and safe to re-run. Note that Postgres enum values cannot
+-- be dropped once added — reverting means recreating the type, so this is intentionally a one-way
+-- change, exactly like the sibling migrations above.
+
+alter type public.notification_type add value if not exists 'bug_report_activity';
