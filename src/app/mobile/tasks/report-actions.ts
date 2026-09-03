@@ -294,8 +294,7 @@ export async function sendDailyReportToSlack(
           // 일지는 테이블 행이 아니므로 비우고, 날짜는 metadata 로 옮긴다.
           target_id: null,
           metadata: { date: day, character_count: text.length } as Json,
-          // 저장소 관례 — 생성 타입이 좁아 `as never` 로 넘긴다(`admin/settings/attendance` 동일).
-        } as never);
+        });
       // 삼키지 않고 남긴다. 감사 기록이 조용히 실패하면 "누가 회사 채널에 무엇을 보냈는가" 가
       // 영영 남지 않는다.
       if (audit.error) console.warn("[report] audit write failed:", audit.error.message);

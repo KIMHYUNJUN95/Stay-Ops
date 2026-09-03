@@ -483,7 +483,7 @@ export async function updateComplaint(input: {
   if (existing.created_by_user_id !== session.user.id) throw new Error("forbidden");
   if (existing.status !== "open") throw new Error("not_editable");
 
-  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  const update: Database["public"]["Tables"]["customer_complaints"]["Update"] = { updated_at: new Date().toISOString() };
   if (patch.platform !== undefined) update.platform = validatePlatform(patch.platform);
   if (patch.title !== undefined) update.title = validateTitle(patch.title);
   if (patch.description !== undefined) update.description = normalizeOptional(patch.description);
@@ -548,7 +548,7 @@ async function setComplaintStatus(
   if (existing.status === status) return;
 
   const now = new Date().toISOString();
-  const update: Record<string, unknown> = { status, updated_at: now };
+  const update: Database["public"]["Tables"]["customer_complaints"]["Update"] = { status, updated_at: now };
   if (status === "resolved") {
     update.resolved_at = now;
     update.resolved_by_user_id = session.user.id;

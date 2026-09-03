@@ -130,7 +130,7 @@ export async function updateMaintenanceHandling(
 
   const { data: updated, error } = await supabase
     .from("maintenance_reports")
-    .update(update as never)
+    .update(update)
     .eq("id", reportId)
     .eq("organization_id", session.organization.id)
     .select("id");

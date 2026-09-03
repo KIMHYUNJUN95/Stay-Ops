@@ -238,7 +238,7 @@ export async function createBugReport(input: {
     status: "submitted" satisfies BugStatus,
   };
 
-  const { error } = await service.from("bug_reports").insert(insert as never);
+  const { error } = await service.from("bug_reports").insert(insert);
   if (error) throw new Error("save_failed");
 
   await notifyBugReportCreated({
@@ -295,7 +295,7 @@ export async function updateBugReport(input: {
       description,
       image_urls: input.imageUrls,
       updated_at: new Date().toISOString(),
-    } as never)
+    })
     .eq("id", input.id)
     .eq("organization_id", organizationId);
   if (error) throw new Error("save_failed");
@@ -348,7 +348,7 @@ export async function updateBugReportStatus(input: {
   if (existing.status === status) return;
 
   const now = new Date().toISOString();
-  const patch: Record<string, unknown> = {
+  const patch: Database["public"]["Tables"]["bug_reports"]["Update"] = {
     status,
     updated_at: now,
   };
@@ -367,7 +367,7 @@ export async function updateBugReportStatus(input: {
   const service = getSupabaseServiceClient();
   const { error } = await service
     .from("bug_reports")
-    .update(patch as never)
+    .update(patch)
     .eq("id", id)
     .eq("organization_id", organizationId);
   if (error) throw new Error("save_failed");

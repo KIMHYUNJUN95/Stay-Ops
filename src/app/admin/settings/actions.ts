@@ -105,7 +105,7 @@ export async function createOrganization(formData: FormData) {
   const service = getSupabaseServiceClient();
   const { data, error } = await service
     .from("organizations")
-    .insert({ name, slug } as never)
+    .insert({ name, slug })
     .select("id, name, slug, status, created_at, updated_at")
     .single();
 
@@ -126,7 +126,7 @@ export async function createOrganization(formData: FormData) {
 
     const { error: membershipError } = await service
       .from("memberships")
-      .upsert(membership as never, { onConflict: "organization_id,user_id" });
+      .upsert(membership, { onConflict: "organization_id,user_id" });
 
     if (membershipError) {
       redirect("/admin/settings/organization?error=save_failed");
@@ -156,7 +156,7 @@ export async function updateOrganization(formData: FormData) {
   // Name only — slug is left fixed because it can be referenced by links/caches (see org settings UI).
   const { error } = await getSupabaseServiceClient()
     .from("organizations")
-    .update({ name } as never)
+    .update({ name })
     .eq("id", organizationId);
 
   if (error) {
@@ -270,7 +270,7 @@ export async function createInviteCode(formData: FormData) {
 
   const { error } = await getSupabaseServiceClient()
     .from("invite_codes")
-    .insert(invite as never);
+    .insert(invite);
 
   if (error) {
     redirect("/admin/users/invites?error=save_failed");
@@ -299,7 +299,7 @@ export async function deactivateInviteCode(formData: FormData) {
 
   const { error } = await getSupabaseServiceClient()
     .from("invite_codes")
-    .update({ is_active: false } as never)
+    .update({ is_active: false })
     .eq("id", inviteCodeId)
     // Org-scope the write like activate/delete do — canManageInvites only proves the caller may
     // manage THIS org's invites, not that the given code belongs to it, so without this an invite
@@ -333,7 +333,7 @@ export async function activateInviteCode(formData: FormData) {
 
   const { error } = await getSupabaseServiceClient()
     .from("invite_codes")
-    .update({ is_active: true } as never)
+    .update({ is_active: true })
     .eq("id", inviteCodeId)
     .eq("organization_id", organizationId);
 

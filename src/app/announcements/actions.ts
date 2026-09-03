@@ -186,7 +186,7 @@ export async function createAnnouncementComment(formData: FormData) {
       content,
       organization_id: announcement.organization_id,
       user_id: userId,
-    } as never);
+    });
 
   if (error) {
     redirectWithQuery(returnTo, "error=comment_failed");
@@ -245,7 +245,7 @@ export async function updateAnnouncementComment(formData: FormData) {
 
   const { error } = await getSupabaseServiceClient()
     .from("announcement_comments")
-    .update({ content } as never)
+    .update({ content })
     .eq("id", comment.id)
     .eq("user_id", userId)
     .is("deleted_at", null);
@@ -306,7 +306,7 @@ export async function deleteAnnouncementComment(formData: FormData) {
 
   const { error } = await getSupabaseServiceClient()
     .from("announcement_comments")
-    .update({ deleted_at: new Date().toISOString() } as never)
+    .update({ deleted_at: new Date().toISOString() })
     .eq("id", comment.id)
     .eq("user_id", userId)
     .is("deleted_at", null);

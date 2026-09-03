@@ -43,7 +43,6 @@ import { cleanupRemovedTaskImages, sanitizeTaskImageUrls } from "@/lib/task-imag
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
-import { insertRow, insertRows, updateRow } from "@/lib/db-write";
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentAppSession>>>;
 
@@ -134,7 +133,7 @@ export async function rescheduleOverdueTo(targetDate: string, taskIds: string[])
     const dueAt = new Date(`${targetDate}T${t.timeLabel || "00:00"}:00+09:00`).toISOString();
     await supabase
       .from("tasks")
-      .update(updateRow("tasks", { due_at: dueAt }))
+      .update({ due_at: dueAt })
       .eq("id", t.id)
       .eq("organization_id", orgId);
   }
@@ -158,7 +157,7 @@ export async function dismissOverdueTasks(taskIds: string[]) {
   for (const t of overdue) {
     await supabase
       .from("tasks")
-      .update(updateRow("tasks", { deleted_at: new Date().toISOString() }))
+      .update({ deleted_at: new Date().toISOString() })
       .eq("id", t.id)
       .eq("organization_id", orgId);
   }
@@ -399,17 +398,17 @@ export async function updateTaskCore(formData: FormData) {
   };
   // Files the author detached in this edit (server-truth previous set minus the new set).
   const removedImageUrls = task.imageUrls.filter((u) => !imageUrls.includes(u));
-  const { error } = await supabase.from("tasks").update(updateRow("tasks", update)).eq("id", id);
+  const { error } = await supabase.from("tasks").update(update).eq("id", id);
   if (error) {
     redirect(detailPath(id, "save_failed"));
   }
   // Only after the DB no longer references them, hard-delete the detached files.
   await cleanupRemovedTaskImages(supabase, removedImageUrls, session.organization.id);
-  await supabase.from("task_updates").insert(insertRow("task_updates", {
+  await supabase.from("task_updates").insert({
     task_id: id,
     created_by_user_id: session.user.id,
     update_type: "system_edited",
-  }));
+  });
   await notify(
     id,
     otherParticipantIds(task, session.user.id),
@@ -427,7 +426,7 @@ async function setInbox(formData: FormData, isInbox: boolean) {
   const id = cleanText(formData.get("taskId"));
   await requireSessionAndTask(id);
   const supabase = getSupabaseServiceClient();
-  await supabase.from("tasks").update(updateRow("tasks", { is_inbox: isInbox })).eq("id", id);
+  await supabase.from("tasks").update({ is_inbox: isInbox }).eq("id", id);
   redirect(detailPath(id));
 }
 export async function moveTaskToInbox(formData: FormData) {
@@ -485,7 +484,7 @@ export async function moveTaskToToday(formData: FormData) {
   const supabase = getSupabaseServiceClient();
   await supabase
     .from("tasks")
-    .update(updateRow("tasks", anchorToDate(task, today)))
+    .update(anchorToDate(task, today))
     .eq("id", id);
   redirect(listPathForView(formData));
 }
@@ -506,7 +505,7 @@ export async function moveTaskToTomorrow(formData: FormData) {
   const supabase = getSupabaseServiceClient();
   await supabase
     .from("tasks")
-    .update(updateRow("tasks", anchorToDate(task, tomorrow)))
+    .update(anchorToDate(task, tomorrow))
     .eq("id", id);
   redirect(listPathForView(formData));
 }
@@ -535,11 +534,11 @@ export async function completeTask(taskId: string, occurrenceDate?: string) {
       occurrenceDate: occ,
       userId: session.user.id,
     });
-    await supabase.from("task_updates").insert(insertRow("task_updates", {
+    await supabase.from("task_updates").insert({
       task_id: id,
       created_by_user_id: session.user.id,
       update_type: "completed",
-    }));
+    });
     await notify(
       id,
       otherParticipantIds(task, session.user.id),
@@ -558,17 +557,17 @@ export async function completeTask(taskId: string, occurrenceDate?: string) {
 
   await supabase
     .from("tasks")
-    .update(updateRow("tasks", {
+    .update({
       status: "completed",
       completed_at: new Date().toISOString(),
       completed_by_user_id: session.user.id,
-    }))
+    })
     .eq("id", id);
-  await supabase.from("task_updates").insert(insertRow("task_updates", {
+  await supabase.from("task_updates").insert({
     task_id: id,
     created_by_user_id: session.user.id,
     update_type: "completed",
-  }));
+  });
   await notify(
     id,
     otherParticipantIds(task, session.user.id),
@@ -598,11 +597,11 @@ export async function reopenTask(taskId: string, occurrenceDate?: string) {
   if (isStandardRecurrence(task.recurrenceRule)) {
     const occ = String(occurrenceDate ?? "").trim() || recurringAnchorDate(task);
     await clearOccurrenceState(id, occ);
-    await supabase.from("task_updates").insert(insertRow("task_updates", {
+    await supabase.from("task_updates").insert({
       task_id: id,
       created_by_user_id: session.user.id,
       update_type: "reopened",
-    }));
+    });
     revalidatePath("/mobile/tasks");
     revalidatePath(detailPath(id));
     revalidateProjectPath(task.projectId);
@@ -611,17 +610,17 @@ export async function reopenTask(taskId: string, occurrenceDate?: string) {
 
   await supabase
     .from("tasks")
-    .update(updateRow("tasks", {
+    .update({
       status: "open",
       completed_at: null,
       completed_by_user_id: null,
-    }))
+    })
     .eq("id", id);
-  await supabase.from("task_updates").insert(insertRow("task_updates", {
+  await supabase.from("task_updates").insert({
     task_id: id,
     created_by_user_id: session.user.id,
     update_type: "reopened",
-  }));
+  });
   revalidatePath("/mobile/tasks");
   revalidatePath(detailPath(id));
   revalidateProjectPath(task.projectId);
@@ -642,18 +641,18 @@ export async function setTaskProgress(taskId: string, inProgress: boolean) {
   const supabase = getSupabaseServiceClient();
   await supabase
     .from("tasks")
-    .update(updateRow("tasks", {
+    .update({
       status: inProgress ? "in_progress" : "open",
       completed_at: null,
       completed_by_user_id: null,
-    }))
+    })
     .eq("id", id);
-  await supabase.from("task_updates").insert(insertRow("task_updates", {
+  await supabase.from("task_updates").insert({
     task_id: id,
     created_by_user_id: session.user.id,
     update_type: "status_changed",
     body: inProgress ? "in_progress" : "open",
-  }));
+  });
   revalidatePath("/mobile/tasks");
   revalidatePath(detailPath(id));
   revalidateProjectPath(task.projectId);
@@ -700,16 +699,16 @@ export async function shareTaskWithUsers(formData: FormData) {
   // Fail-safe: if the participant rows do not land, do NOT mark the task shared,
   // do NOT write the system_shared log, and do NOT emit notifications — otherwise
   // the task would show a false shared state for a share that never happened.
-  const { error: pError } = await supabase.from("task_participants").insert(insertRows("task_participants", rows));
+  const { error: pError } = await supabase.from("task_participants").insert(rows);
   if (pError) {
     redirect(detailPath(id, "save_failed"));
   }
-  await supabase.from("tasks").update(updateRow("tasks", { is_shared: true })).eq("id", id);
-  await supabase.from("task_updates").insert(insertRow("task_updates", {
+  await supabase.from("tasks").update({ is_shared: true }).eq("id", id);
+  await supabase.from("task_updates").insert({
     task_id: id,
     created_by_user_id: session.user.id,
     update_type: "system_shared",
-  }));
+  });
   await notify(
     id,
     newIds,
@@ -735,7 +734,7 @@ export async function removeTaskParticipant(formData: FormData) {
   if (isAuthor && removingSelf) {
     await supabase
       .from("tasks")
-      .update(updateRow("tasks", { deleted_at: new Date().toISOString() }))
+      .update({ deleted_at: new Date().toISOString() })
       .eq("id", id)
       .eq("organization_id", session.organization.id);
     redirect(`/mobile/tasks?deleted=${id}`);
@@ -761,7 +760,7 @@ export async function removeTaskParticipant(formData: FormData) {
     (p) => p.role !== "author" && p.userId !== targetUserId,
   ).length;
   if (remainingNonAuthor === 0) {
-    await supabase.from("tasks").update(updateRow("tasks", { is_shared: false })).eq("id", id);
+    await supabase.from("tasks").update({ is_shared: false }).eq("id", id);
   }
 
   // A participant who removed themselves no longer sees the task.
@@ -780,7 +779,7 @@ export async function deleteTask(formData: FormData) {
   const supabase = getSupabaseServiceClient();
   const { error } = await supabase
     .from("tasks")
-    .update(updateRow("tasks", { deleted_at: new Date().toISOString() }))
+    .update({ deleted_at: new Date().toISOString() })
     .eq("id", id)
     .eq("organization_id", session.organization.id);
   if (error) {
@@ -808,7 +807,7 @@ export async function restoreTask(taskId: string): Promise<{ ok: boolean }> {
   if (!row || row.created_by_user_id !== session.user.id) return { ok: false };
   const { error } = await supabase
     .from("tasks")
-    .update(updateRow("tasks", { deleted_at: null }))
+    .update({ deleted_at: null })
     .eq("id", id)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false };
@@ -836,7 +835,7 @@ export async function deleteTasksInList(taskIds: string[]): Promise<{ deletedIds
   // "실행 취소" 가 지우지도 않은 작업을 되살리려 하면 안 된다(콘솔 `bulkDeleteConsoleTasks` 와 동일).
   const { data } = await supabase
     .from("tasks")
-    .update(updateRow("tasks", { deleted_at: new Date().toISOString() }))
+    .update({ deleted_at: new Date().toISOString() })
     .in("id", ids)
     .eq("created_by_user_id", session.user.id)
     // 조직 스코프도 함께 건다 — 작성자 조건만으로도 실무상 안전하지만, 쌍둥이인
@@ -858,7 +857,7 @@ export async function restoreTasksInList(taskIds: string[]): Promise<void> {
   const supabase = getSupabaseServiceClient();
   await supabase
     .from("tasks")
-    .update(updateRow("tasks", { deleted_at: null }))
+    .update({ deleted_at: null })
     .in("id", ids)
     .eq("created_by_user_id", session.user.id)
     .eq("organization_id", session.organization.id);
@@ -959,13 +958,13 @@ export async function addTaskUpdate(formData: FormData) {
     redirect(detailPath(id));
   }
   const supabase = getSupabaseServiceClient();
-  await supabase.from("task_updates").insert(insertRow("task_updates", {
+  await supabase.from("task_updates").insert({
     task_id: id,
     created_by_user_id: session.user.id,
     update_type: "note",
     body: body || null,
     image_urls: imageUrls,
-  }));
+  });
   await notify(
     id,
     otherParticipantIds(task, session.user.id),

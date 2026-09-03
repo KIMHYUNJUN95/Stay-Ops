@@ -381,7 +381,7 @@ export async function createAnnouncement(formData: FormData) {
   const service = getSupabaseServiceClient();
   const { error } = await service
     .from("announcements")
-    .insert(announcement as never);
+    .insert(announcement);
 
   if (error) {
     await cleanupSubmittedAnnouncementImages(imageUrls, organizationId, announcementId);
@@ -436,7 +436,7 @@ export async function updateAnnouncementStatus(formData: FormData) {
       archived_at: nextStatus === "archived" ? now : null,
       published_at: nextStatus === "published" ? now : announcement.published_at,
       status: nextStatus,
-    } as never)
+    })
     .eq("id", announcementId);
 
   if (error) {
@@ -636,7 +636,7 @@ export async function saveAnnouncementConsole(
         target_roles: targetScope === "roles" ? targetRoles : [],
         target_scope: targetScope,
         title,
-      } as never)
+      })
       .eq("id", announcementId);
 
     if (error) return { ok: false, error: "save_failed" };
@@ -690,7 +690,7 @@ export async function saveAnnouncementConsole(
     target_roles: targetScope === "roles" ? targetRoles : [],
     target_scope: targetScope,
     title,
-  } as never);
+  });
 
   if (error) {
     await cleanupSubmittedAnnouncementImages(imageUrls, organizationId, announcementId);
@@ -739,7 +739,7 @@ export async function setAnnouncementStatusConsole(
       published_at:
         nextStatus === "published" ? now : announcement.published_at,
       status: nextStatus,
-    } as never)
+    })
     .eq("id", announcementId);
 
   if (error) return { ok: false, error: "save_failed" };

@@ -155,7 +155,7 @@ export async function rememberTrustedDevice(params: {
         .update({
           last_used_at: new Date().toISOString(),
           expires_at: expiresAt.toISOString(),
-        } as never)
+        })
         .eq("id", device.id);
       writeCookie(jar, existingRaw, expiresAt);
       return;
@@ -165,7 +165,7 @@ export async function rememberTrustedDevice(params: {
       // 기기 주인이 바뀌었다 → 이전 자격증명을 끊는다.
       await service
         .from("attendance_trusted_devices")
-        .update({ revoked_at: new Date().toISOString() } as never)
+        .update({ revoked_at: new Date().toISOString() })
         .eq("id", device.id);
     }
   }
@@ -177,7 +177,7 @@ export async function rememberTrustedDevice(params: {
     token_hash: hashToken(token),
     device_label: deviceLabelFrom(params.userAgent),
     expires_at: expiresAt.toISOString(),
-  } as never);
+  });
   // 기억에 실패해도 打刻 자체는 이미 성공했다 — 다음 번에 다시 시도된다.
   if (error) return;
 
@@ -205,7 +205,7 @@ export async function forgetTrustedDevice(): Promise<void> {
   try {
     await getSupabaseServiceClient()
       .from("attendance_trusted_devices")
-      .update({ revoked_at: new Date().toISOString() } as never)
+      .update({ revoked_at: new Date().toISOString() })
       .eq("token_hash", hashToken(raw))
       .is("revoked_at", null);
   } catch {
@@ -266,7 +266,7 @@ export async function revokeTrustedDevice(
 ): Promise<boolean> {
   const { error } = await getSupabaseServiceClient()
     .from("attendance_trusted_devices")
-    .update({ revoked_at: new Date().toISOString() } as never)
+    .update({ revoked_at: new Date().toISOString() })
     .eq("id", deviceId)
     .eq("organization_id", organizationId)
     .is("revoked_at", null);

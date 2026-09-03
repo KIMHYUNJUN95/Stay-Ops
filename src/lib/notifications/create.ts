@@ -338,7 +338,7 @@ export async function notifyBugReportCreated(params: {
     .select("user_id")
     .eq("organization_id", params.organizationId)
     .eq("status", "active")
-    .in("role", BUG_REPORT_REVIEWER_ROLES as unknown as string[]);
+    .in("role", BUG_REPORT_REVIEWER_ROLES);
   if (error) {
     console.error("[notifications] bug report reviewers failed", {
       reportId: params.reportId,
@@ -455,7 +455,7 @@ export async function createNotification(
       source_id: input.sourceId,
       dedupe_key: input.dedupeKey,
       payload: input.payload,
-    } as never)
+    })
     .select("id")
     .single();
 

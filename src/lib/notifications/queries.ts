@@ -74,7 +74,7 @@ export async function markNotificationRead(
 ): Promise<boolean> {
   const { data, error } = await supabase
     .from("notifications")
-    .update({ read_at: new Date().toISOString() } as never)
+    .update({ read_at: new Date().toISOString() })
     .eq("id", notificationId)
     .eq("recipient_user_id", scope.userId)
     .eq("organization_id", scope.organizationId)
@@ -125,7 +125,7 @@ export async function markAllNotificationsRead(
 ) {
   const { error } = await supabase
     .from("notifications")
-    .update({ read_at: new Date().toISOString() } as never)
+    .update({ read_at: new Date().toISOString() })
     .eq("recipient_user_id", scope.userId)
     .eq("organization_id", scope.organizationId)
     .is("read_at", null);

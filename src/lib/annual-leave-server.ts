@@ -89,7 +89,7 @@ export async function setAnnualLeaveBaselineForUser(
 
   const { error: profileError } = await service
     .from("profiles")
-    .update({ hire_date: input.hireDate } as never)
+    .update({ hire_date: input.hireDate })
     .eq("id", userId);
   if (profileError) return { ok: false, error: "profile_update_failed" };
 
@@ -100,7 +100,7 @@ export async function setAnnualLeaveBaselineForUser(
       base_amount: input.baseAmount,
       bonus_amount: input.bonusAmount ?? 0,
       baseline_date: baselineDate,
-    } as never,
+    },
     { onConflict: "organization_id,user_id" },
   );
   if (baselineError) return { ok: false, error: "baseline_upsert_failed" };

@@ -65,7 +65,7 @@ export async function createBoardPost(
     allow_comments: allowComments,
   };
 
-  const { error } = await service.from("board_posts").insert(insertData as never);
+  const { error } = await service.from("board_posts").insert(insertData);
   if (error) return { error: "save_failed" };
 
   revalidatePath("/mobile/board");

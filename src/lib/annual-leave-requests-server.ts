@@ -98,7 +98,7 @@ export async function createLeaveRequest(
       image_urls: input.imageUrls ?? [],
       status,
       submitted_at: input.asDraft ? null : new Date().toISOString(),
-    } as never)
+    })
     .select("id")
     .single();
 
@@ -144,7 +144,7 @@ export async function updateDraftLeaveRequest(
       image_urls: input.imageUrls ?? [],
       status,
       submitted_at: input.asDraft ? null : new Date().toISOString(),
-    } as never)
+    })
     .eq("id", requestId)
     .eq("organization_id", organizationId)
     .eq("user_id", userId);
@@ -209,7 +209,7 @@ export async function cancelLeaveRequest(
       status: "cancelled",
       cancelled_at: new Date().toISOString(),
       cancelled_by_user_id: userId,
-    } as never)
+    })
     .eq("id", requestId)
     .eq("organization_id", organizationId)
     .eq("user_id", userId);

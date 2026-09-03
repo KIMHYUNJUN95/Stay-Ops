@@ -409,7 +409,7 @@ async function assignLeaveDocumentNumber(
     const candidate = `${prefix}${String(lastNnn + 1).padStart(3, "0")}`;
     const { error } = await service
       .from("annual_leave_requests")
-      .update({ document_number: candidate } as never)
+      .update({ document_number: candidate })
       .eq("id", requestId)
       .eq("organization_id", organizationId)
       .is("document_number", null);
@@ -450,7 +450,7 @@ export async function approveLeaveRequestForApprover(
       approved_by_user_id: session.user.id,
       approved_role: approverRole,
       approved_at: new Date().toISOString(),
-    } as never)
+    })
     .eq("id", requestId)
     .eq("organization_id", organizationId)
     .eq("status", "requested");
@@ -490,7 +490,7 @@ export async function rejectLeaveRequestForApprover(
       rejected_by_user_id: session.user.id,
       rejected_reason: reason ?? "",
       rejected_at: new Date().toISOString(),
-    } as never)
+    })
     .eq("id", requestId)
     .eq("organization_id", organizationId)
     .eq("status", "requested");
@@ -533,7 +533,7 @@ export async function cancelApprovedLeaveForApprover(
       cancelled_by_user_id: session.user.id,
       cancelled_reason: reason ?? "",
       cancelled_at: new Date().toISOString(),
-    } as never)
+    })
     .eq("id", requestId)
     .eq("organization_id", organizationId)
     .eq("status", "approved");

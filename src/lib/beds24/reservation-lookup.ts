@@ -95,7 +95,7 @@ export async function cancelReservationRowsByOriginalBookingId(params: {
       {
         status: "cancelled",
         raw_payload: params.rawPayload,
-      } as never,
+      },
     )
     .in("id", reservationIds)
     .select("id");
@@ -149,7 +149,7 @@ export async function cleanupActiveRowsForCancelledBooking(params: {
       {
         status: "cancelled",
         raw_payload: params.rawPayload,
-      } as never,
+      },
     )
     .in("id", reservationIds)
     .select("id");
@@ -215,7 +215,7 @@ export async function finalizeCancelledBookingConsistency(params: {
         {
           status: "cancelled",
           raw_payload: params.rawPayload,
-        } as never,
+        },
       )
       .in(
         "id",

@@ -301,7 +301,7 @@ async function upsertReservationByBookingIdentity(params: {
   if (existing?.id) {
     const updateResult = await params.supabase
       .from("reservations")
-      .update(reservationFields as never)
+      .update(reservationFields)
       .eq("id", existing.id)
       .select("id")
       .single();
@@ -322,7 +322,7 @@ async function upsertReservationByBookingIdentity(params: {
         source: params.source,
         source_reservation_id: storedReservationId,
         ...reservationFields,
-      } as never,
+      },
       { onConflict: "organization_id,source,source_reservation_id" },
     )
     .select("id")

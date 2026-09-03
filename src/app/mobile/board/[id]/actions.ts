@@ -71,7 +71,7 @@ export async function markBoardPostRead(postId: string): Promise<ActionResult> {
 
   const service = getSupabaseServiceClient();
   await service.from("board_post_reads").upsert(
-    { post_id: postId, user_id: session.user.id, read_at: new Date().toISOString() } as never,
+    { post_id: postId, user_id: session.user.id, read_at: new Date().toISOString() },
     { ignoreDuplicates: true, onConflict: "post_id,user_id" },
   );
   revalidatePath("/mobile/board");
@@ -131,7 +131,7 @@ export async function addBoardComment(
       image_urls: imageUrls,
       mentioned_user_ids: validatedMentions,
       mention_all: mentionAll,
-    } as never)
+    })
     .select("id")
     .single();
   if (error) return { error: "save_failed" };
@@ -278,7 +278,7 @@ export async function deleteBoardComment(commentId: string): Promise<ActionResul
 
   const { error: delError } = await service
     .from("board_comments")
-    .update({ deleted_at: new Date().toISOString() } as never)
+    .update({ deleted_at: new Date().toISOString() })
     .eq("id", commentId);
   if (delError) return { error: "save_failed" };
 
@@ -316,7 +316,7 @@ export async function toggleBoardReaction(postId: string, emoji: string): Promis
     // upsert + ignoreDuplicates makes a concurrent double-tap idempotent instead of a PK violation.
     const { error } = await service
       .from("board_reactions")
-      .upsert({ post_id: postId, user_id: session.user.id, emoji } as never, {
+      .upsert({ post_id: postId, user_id: session.user.id, emoji }, {
         ignoreDuplicates: true,
         onConflict: "post_id,user_id,emoji",
       });
@@ -349,7 +349,7 @@ async function setPinned(postId: string, pinned: boolean): Promise<ActionResult>
     : { is_pinned: false, pinned_at: null, pinned_by_user_id: null };
   const { error } = await service
     .from("board_posts")
-    .update(patch as never)
+    .update(patch)
     .eq("id", postId);
   if (error) return { error: "save_failed" };
 
@@ -427,7 +427,7 @@ export async function updateBoardPost(
   const service = getSupabaseServiceClient();
   const { error } = await service
     .from("board_posts")
-    .update(patch as never)
+    .update(patch)
     .eq("id", postId);
   if (error) return { error: "save_failed" };
 
@@ -450,7 +450,7 @@ export async function deleteBoardPost(postId: string): Promise<ActionResult> {
   const service = getSupabaseServiceClient();
   const { error } = await service
     .from("board_posts")
-    .update({ deleted_at: new Date().toISOString() } as never)
+    .update({ deleted_at: new Date().toISOString() })
     .eq("id", postId);
   if (error) return { error: "save_failed" };
 

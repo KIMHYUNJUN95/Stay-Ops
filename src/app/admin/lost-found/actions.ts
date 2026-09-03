@@ -18,6 +18,7 @@ import {
 } from "@/lib/lost-found-constants";
 import { appendAdminRestoreMemo } from "@/lib/lost-found-memo";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/database";
 
 type LostActionResult =
   | { ok: true }
@@ -89,7 +90,7 @@ export async function returnLostItem(input: {
       handled_at: new Date().toISOString(),
       handled_by: session.user.id,
       handled_by_admin: true,
-    } as never)
+    })
     .eq("id", input.itemId)
     .eq("organization_id", session.organization.id)
     .select("id");
@@ -120,7 +121,7 @@ export async function disposeLostItem(input: {
       handled_at: new Date().toISOString(),
       handled_by: session.user.id,
       handled_by_admin: true,
-    } as never)
+    })
     .eq("id", input.itemId)
     .eq("organization_id", session.organization.id)
     .select("id");
@@ -157,7 +158,9 @@ export async function extendLostItemStorage(input: {
 
   // 폐기예정 건을 연장하면 다시 보관중으로 되돌린다(종결 아님). 그 외 상태는 유지.
   const currentStatus = (existing as { status: string }).status;
-  const nextStatus = currentStatus === "disposal_scheduled" ? "stored" : currentStatus;
+  // `currentStatus` 는 그 행에서 읽은 값이라 항상 유효한 상태다(TS 가 좁히지 못할 뿐).
+  const nextStatus = (currentStatus === "disposal_scheduled" ? "stored" : currentStatus) as
+    Database["public"]["Tables"]["lost_items"]["Row"]["status"];
 
   const { data: updated, error } = await supabase
     .from("lost_items")
@@ -165,7 +168,7 @@ export async function extendLostItemStorage(input: {
       hold_until: input.dueDate,
       hold_reason: reason || null,
       status: nextStatus,
-    } as never)
+    })
     .eq("id", input.itemId)
     .eq("organization_id", session.organization.id)
     .select("id");
@@ -210,7 +213,7 @@ export async function correctLostItemStatus(input: {
     .update({
       status: input.status,
       handling_memo: memo || null,
-    } as never)
+    })
     .eq("id", input.itemId)
     .eq("organization_id", session.organization.id)
     .select("id");
@@ -264,7 +267,7 @@ export async function restoreLostItem(input: {
       handled_by: null,
       handled_by_admin: false,
       handling_memo: memo,
-    } as never)
+    })
     .eq("id", input.itemId)
     .eq("organization_id", session.organization.id)
     .select("id");

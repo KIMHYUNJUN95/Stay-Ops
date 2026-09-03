@@ -8,6 +8,9 @@ import type { ActiveRoomCatalogItem } from "@/lib/rooms";
 import type { AppSession } from "@/lib/session";
 import type { Database } from "@/types/database";
 
+/** memberships.role 이 쓰는 DB enum. `.in("role", …)` 에 넘기려면 이 타입이어야 한다. */
+type OrganizationRole = Database["public"]["Enums"]["organization_role"];
+
 export type CleaningSessionRow =
   Database["public"]["Tables"]["cleaning_sessions"]["Row"];
 
@@ -213,9 +216,9 @@ export async function getCleaningStaffOptions(
   // the organization_role DB enum, which never stores that value — passing it through `.in()` makes
   // Postgres reject the whole query (invalid enum input), silently emptying this list. Filter it out
   // before querying (same pattern as orgAdminWebRoles in admin/announcements/[id]/page.tsx).
-  const queryableRoles = (cleaningMobileAccessRoles as readonly string[]).filter(
+  const queryableRoles = cleaningMobileAccessRoles.filter(
     (role) => role !== "developer_super_admin",
-  );
+  ) as OrganizationRole[];
   const { data: membershipData, error } = await supabase
     .from("memberships")
     .select("user_id, role, status")

@@ -25,7 +25,7 @@ import { resolveRequestLocation } from "@/lib/request-location";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import type { Json } from "@/types/database";
+import type { Database, Json } from "@/types/database";
 
 // Excel / PDF 내보내기 for 주문·비품. Replaced the old CSV download on 2026-07-14 — the client sends
 // only the current filter values and this action re-queries the list server-side, so the file always
@@ -235,7 +235,7 @@ export async function rejectOrder(input: {
       delivery_date: null,
       delivery_start_date: null,
       delivery_end_date: null,
-    } as never)
+    })
     .eq("id", input.orderId)
     .eq("organization_id", session.organization.id)
     .select("id");
@@ -275,7 +275,7 @@ export async function reopenOrder(input: {
       delivery_start_date: null,
       delivery_end_date: null,
       admin_memo: null,
-    } as never)
+    })
     .eq("id", input.orderId)
     .eq("organization_id", session.organization.id)
     .select("id");
@@ -302,7 +302,7 @@ export async function correctOrderStatus(input: {
     return { ok: false, reason: "invalid" };
   }
 
-  const updatePayload: Record<string, unknown> = { status: input.status };
+  const updatePayload: Database["public"]["Tables"]["order_requests"]["Update"] = { status: input.status };
   if (input.status === "requested" || input.status === "approved") {
     updatePayload.delivery_date = null;
     updatePayload.delivery_start_date = null;
@@ -318,7 +318,7 @@ export async function correctOrderStatus(input: {
   const supabase = await getSupabaseServerClient();
   const { data: updated, error } = await supabase
     .from("order_requests")
-    .update(updatePayload as never)
+    .update(updatePayload)
     .eq("id", input.orderId)
     .eq("organization_id", session.organization.id)
     .select("id");
@@ -393,7 +393,7 @@ export async function editOrder(input: {
       urgency: input.urgency,
       reason: input.reason.trim(),
       items: nextItems as unknown as Json,
-    } as never)
+    })
     .eq("id", input.orderId)
     .eq("organization_id", session.organization.id)
     .select("id");

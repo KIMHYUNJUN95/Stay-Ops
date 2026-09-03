@@ -617,7 +617,7 @@ export async function backfillBeds24Reservations(
       const chunk = prepared.slice(offset, offset + CHUNK_SIZE);
       const upsertResult = await supabase
         .from("reservations")
-        .upsert(chunk.map((item) => item.row) as never, {
+        .upsert(chunk.map((item) => item.row), {
           onConflict: "organization_id,source,source_reservation_id",
         });
 
@@ -795,7 +795,7 @@ export async function recoverReservationsRoomLabels(
         // No conflict — update room_label and source_reservation_id atomically.
         const updateResult = await supabase
           .from("reservations")
-          .update({ room_label: expectedRoomLabel, source_reservation_id: correctedSourceId } as never)
+          .update({ room_label: expectedRoomLabel, source_reservation_id: correctedSourceId })
           .eq("id", res.id);
         if (updateResult.error) {
           errors.push(`Failed to update reservation ${res.id}: ${updateResult.error.message}`);
@@ -880,7 +880,7 @@ export async function recoverReservationRoomLabelById(
 
   const updateResult = await supabase
     .from("reservations")
-    .update({ room_label: expectedRoomLabel, source_reservation_id: correctedSourceId } as never)
+    .update({ room_label: expectedRoomLabel, source_reservation_id: correctedSourceId })
     .eq("id", reservation.id);
 
   if (updateResult.error) {

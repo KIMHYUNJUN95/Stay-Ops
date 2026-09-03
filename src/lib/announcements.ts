@@ -286,7 +286,7 @@ export async function ensureAnnouncementRead(
       organization_id: announcement.organization_id,
       read_at: readAt,
       user_id: userId,
-    } as never,
+    },
     {
       ignoreDuplicates: true,
       onConflict: "announcement_id,user_id",

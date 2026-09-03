@@ -400,7 +400,7 @@ export async function syncBeds24InventoryMinimumStay(
         {
           external_minimum_stay: minimumStay,
           status,
-        } as never,
+        },
       )
       .eq("organization_id", organizationId)
       .eq("external_provider", "beds24")

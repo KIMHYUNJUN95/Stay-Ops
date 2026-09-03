@@ -18,6 +18,7 @@ import { randomBytes } from "node:crypto";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { AttendanceSiteRow, AttendanceQrTokenRow } from "@/lib/attendance";
 import { ATTENDANCE_DEFAULT_RADIUS_METERS } from "@/lib/attendance";
+import type { Database } from "@/types/database";
 
 // The project's database.ts omits Relationships, so service.rpc() is not typed. This provides just
 // enough typing for the one RPC we call (mirrors src/app/onboarding/actions.ts).
@@ -139,7 +140,7 @@ export async function createAttendanceSite(
       property_id: input.propertyId ?? null,
       wifi_ssids: input.wifiSsids ?? [],
       is_active: input.isActive ?? true,
-    } as never)
+    })
     .select("*")
     .single();
   if (error) {
@@ -153,7 +154,7 @@ export async function updateAttendanceSite(
   siteId: string,
   patch: UpdateAttendanceSitePatch,
 ): Promise<AttendanceSiteRow> {
-  const update: Record<string, unknown> = {};
+  const update: Database["public"]["Tables"]["attendance_sites"]["Update"] = {};
   if (patch.name !== undefined) update.name = patch.name;
   if (patch.printName !== undefined) update.print_name = patch.printName || null;
   if (patch.latitude !== undefined) update.latitude = patch.latitude;
@@ -165,7 +166,7 @@ export async function updateAttendanceSite(
 
   const { data, error } = await getSupabaseServiceClient()
     .from("attendance_sites")
-    .update(update as never)
+    .update(update)
     .eq("organization_id", organizationId)
     .eq("id", siteId)
     .select("*")
@@ -213,7 +214,7 @@ export async function issueAttendanceQr(params: {
 export async function revokeAttendanceQr(organizationId: string, siteId: string): Promise<void> {
   const { error } = await getSupabaseServiceClient()
     .from("attendance_qr_tokens")
-    .update({ is_active: false, revoked_at: new Date().toISOString() } as never)
+    .update({ is_active: false, revoked_at: new Date().toISOString() })
     .eq("organization_id", organizationId)
     .eq("site_id", siteId)
     .eq("is_active", true);

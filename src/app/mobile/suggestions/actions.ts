@@ -120,7 +120,7 @@ export async function createStaffSuggestion(formData: FormData) {
     room_label: roomLabel,
     image_urls: imageUrls,
   };
-  const { error } = await supabase.from("staff_suggestions").insert(insert as never);
+  const { error } = await supabase.from("staff_suggestions").insert(insert);
   if (error) {
     redirect(`${NEW}?error=save_failed`);
   }
@@ -134,7 +134,7 @@ export async function createStaffSuggestion(formData: FormData) {
       }));
     const { error: refError } = await supabase
       .from("staff_suggestion_references")
-      .insert(referenceRows as never);
+      .insert(referenceRows);
     if (refError) {
       // Roll back the parent so we never leave a suggestion with a partial reference set.
       await supabase.from("staff_suggestions").delete().eq("id", id);
@@ -417,7 +417,7 @@ export async function createStaffSuggestionComment(
   };
   const { data: inserted, error } = await supabase
     .from("staff_suggestion_comments")
-    .insert(insert as never)
+    .insert(insert)
     .select("id")
     .single();
   if (error) return { ok: false, error: "save_failed" };
@@ -474,7 +474,7 @@ export async function updateStaffSuggestionComment(
 
   const { error } = await supabase
     .from("staff_suggestion_comments")
-    .update({ body: body || null, image_urls: imageUrls } as never)
+    .update({ body: body || null, image_urls: imageUrls })
     .eq("id", commentId)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "save_failed" };
@@ -578,13 +578,13 @@ export async function updateStaffSuggestionStatus(
 
   // Persist the note that the target status requires; leave the other note untouched (it is hidden
   // by the detail UI unless its status is active).
-  const updatePayload: Record<string, unknown> = { status: targetStatus };
+  const updatePayload: Database["public"]["Tables"]["staff_suggestions"]["Update"] = { status: targetStatus };
   if (targetStatus === "on_hold") updatePayload.hold_reason = holdReason;
   if (targetStatus === "completed") updatePayload.completion_note = completionNote;
 
   const { error } = await supabase
     .from("staff_suggestions")
-    .update(updatePayload as never)
+    .update(updatePayload)
     .eq("id", suggestionId)
     .eq("organization_id", session.organization.id);
   if (error) return { ok: false, error: "save_failed" };
@@ -595,7 +595,7 @@ export async function updateStaffSuggestionStatus(
     suggestion_id: suggestionId,
     actor_user_id: session.user.id,
     status: targetStatus,
-  } as never);
+  });
 
   // Notify the author and referenced users (the acting recipient is skipped).
   const { data: refRows } = await supabase

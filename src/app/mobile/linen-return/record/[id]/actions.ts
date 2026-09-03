@@ -145,7 +145,7 @@ export async function updateLinenReturnRecord(formData: FormData) {
   };
   const { error: headerError } = await supabase
     .from("linen_return_records")
-    .update(headerUpdate as never)
+    .update(headerUpdate)
     .eq("id", recordId)
     .eq("organization_id", session.organization.id);
   if (headerError) {
@@ -170,7 +170,7 @@ export async function updateLinenReturnRecord(formData: FormData) {
     }));
   const { error: insertError } = await supabase
     .from("linen_return_record_items")
-    .insert(lineInserts as never);
+    .insert(lineInserts);
   if (insertError) {
     redirect(editPath(recordId, building, "save_failed"));
   }

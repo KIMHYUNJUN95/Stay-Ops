@@ -20,6 +20,18 @@ and the major mobile/admin operations modules are implemented and being hardened
   would otherwise read as current status. Encoding-damaged sections/files were intentionally not repaired
   in this pass.
 
+## 2026-09-03 (2) — DB 타입 재생성 + 투두 RLS 조직 스코프
+
+- **콘솔 조망 범위 확정:** 관리자 콘솔은 «본인 참여 업무만» 유지(사용자 결정). 코드 변경 없음.
+- **투두 RLS 에 조직 스코프 추가** (`202609030002`). SELECT/UPDATE/DELETE + 회차 테이블 2개.
+  가시성 변화 없음(활성 사용자 4명 전원 83/0/0/0 동일), 플랫폼 관리자 경로 유지.
+- **`src/types/database.ts` 재생성.** 손유지 파일에 `Relationships` 가 없어 supabase-js 의 스키마
+  제약을 못 만족하고 쓰기 인자 타입이 `never` 로 무너져 있던 것을 근본 해결. 코드베이스 전체에서
+  `as never` 187곳 제거, 우회 헬퍼 `db-write.ts` 삭제. select 상수를 문자열 리터럴로 바꿔 조회 결과도
+  타입이 잡힌다. **66개 테이블 전체의 쓰기가 컬럼명·타입 검사를 받는다.**
+
+검증: lint / build / vitest 202건 통과. 65개 파일 변경.
+
 ## 2026-09-03 — 미적용 마이그레이션 2건 적용 + 알림 enum 누락 복구
 
 투두 구조 점검에서 타입을 재생성해 보다가 발견한 근태·알림 결함의 원인을 추적한 결과, 코드가 아니라

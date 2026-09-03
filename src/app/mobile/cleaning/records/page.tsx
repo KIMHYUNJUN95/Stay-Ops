@@ -9,6 +9,7 @@ import {
   isCleaningTaskKey,
 } from "@/lib/cleaning";
 import { getDictionary } from "@/lib/i18n";
+import type { Database } from "@/types/database";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getOrgMemberOptions } from "@/lib/org-members";
@@ -61,7 +62,11 @@ export default async function CleaningRecordsPage({ searchParams }: PageProps) {
     ? params.month!
     : getCleaningOperatingDateKey().slice(0, 7);
   const { start, end } = monthBounds(monthKey);
-  const statusFilter = CLEANING_STATUSES.has(params.status ?? "") ? params.status : undefined;
+  // `Set.has` 는 타입을 좁혀주지 못한다 — 런타임 검증은 이 줄이 이미 하고 있으므로 결과에만
+  // 상태 유니온을 부여한다(임의 `?status=` 값은 여기서 undefined 로 떨어진다).
+  const statusFilter = (
+    CLEANING_STATUSES.has(params.status ?? "") ? params.status : undefined
+  ) as Database["public"]["Tables"]["cleaning_sessions"]["Row"]["status"] | undefined;
   // Staff filter only honored for manager/office roles; regular users are RLS-scoped to their own.
   const staffFilter = canViewOthers && params.staff ? params.staff : undefined;
 
@@ -82,7 +87,7 @@ export default async function CleaningRecordsPage({ searchParams }: PageProps) {
       {
         startDate: start,
         endDate: end,
-        status: statusFilter as never,
+        status: statusFilter,
         staffUserId: staffFilter,
         propertyName: buildingFilter,
       },

@@ -85,7 +85,7 @@ export async function createProject(formData: FormData) {
     description,
     is_shared: inviteIds.length > 0,
   };
-  const { error } = await supabase.from("projects").insert(insert as never);
+  const { error } = await supabase.from("projects").insert(insert);
   if (error) {
     redirect(`${PROJECTS_PATH}&error=save_failed`);
   }
@@ -110,7 +110,7 @@ export async function createProject(formData: FormData) {
   ];
   const { error: pError } = await supabase
     .from("project_participants")
-    .insert(participantRows as never);
+    .insert(participantRows);
   if (pError) {
     await supabase.from("projects").delete().eq("id", id);
     redirect(`${PROJECTS_PATH}&error=save_failed`);
@@ -165,7 +165,7 @@ export async function addProjectSection(formData: FormData) {
     project_id: id,
     title,
     sort_order: nextOrder,
-  } as never);
+  });
   redirect(detailPath(id));
 }
 
@@ -183,7 +183,7 @@ export async function renameProjectSection(formData: FormData) {
   const supabase = getSupabaseServiceClient();
   await supabase
     .from("project_sections")
-    .update({ title } as never)
+    .update({ title })
     .eq("id", sectionId)
     .eq("project_id", id);
   redirect(detailPath(id));
@@ -201,7 +201,7 @@ export async function deleteProjectSection(formData: FormData) {
   // the deletion policy — reads filter deleted_at) before dropping the section.
   await supabase
     .from("tasks")
-    .update({ deleted_at: new Date().toISOString() } as never)
+    .update({ deleted_at: new Date().toISOString() })
     .eq("project_id", id)
     .eq("section_id", sectionId);
   await supabase.from("project_sections").delete().eq("id", sectionId).eq("project_id", id);
@@ -225,7 +225,7 @@ export async function reorderProjectSections(projectId: string, orderedIds: stri
     ids.map((sectionId, index) =>
       supabase
         .from("project_sections")
-        .update({ sort_order: index } as never)
+        .update({ sort_order: index })
         .eq("id", sectionId)
         .eq("project_id", id),
     ),
@@ -259,11 +259,11 @@ export async function inviteProjectMembers(formData: FormData) {
       added_by_user_id: session.user.id,
     }),
   );
-  const { error } = await supabase.from("project_participants").insert(rows as never);
+  const { error } = await supabase.from("project_participants").insert(rows);
   if (error) {
     redirect(detailPath(id, "save_failed"));
   }
-  await supabase.from("projects").update({ is_shared: true } as never).eq("id", id);
+  await supabase.from("projects").update({ is_shared: true }).eq("id", id);
   await notifyProjectMembers(supabase, {
     organizationId: session.organization.id,
     projectId: id,
@@ -296,7 +296,7 @@ export async function removeProjectMember(formData: FormData) {
     (m) => m.role !== "owner" && m.userId !== targetUserId,
   ).length;
   if (remainingMembers === 0) {
-    await supabase.from("projects").update({ is_shared: false } as never).eq("id", id);
+    await supabase.from("projects").update({ is_shared: false }).eq("id", id);
   }
   redirect(detailPath(id));
 }
@@ -318,7 +318,7 @@ export async function leaveProject(formData: FormData) {
     (m) => m.role !== "owner" && m.userId !== session.user.id,
   ).length;
   if (remainingMembers === 0) {
-    await supabase.from("projects").update({ is_shared: false } as never).eq("id", id);
+    await supabase.from("projects").update({ is_shared: false }).eq("id", id);
   }
   redirect(PROJECTS_PATH);
 }

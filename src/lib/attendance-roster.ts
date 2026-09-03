@@ -6,16 +6,8 @@ import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { AttendanceReviewState, AttendanceSessionRow } from "@/lib/attendance";
 
-const ROSTER_SESSION_SELECT = [
-  "id",
-  "user_id",
-  "clock_in_at",
-  "clock_out_at",
-  "clock_in_site_id",
-  "clock_out_site_id",
-  "review_state",
-  "invalidated_at",
-].join(", ");
+// 문자열 리터럴이어야 타입 수준 파싱이 된다(배열 join 은 GenericStringError 로 떨어진다).
+const ROSTER_SESSION_SELECT = "id, user_id, clock_in_at, clock_out_at, clock_in_site_id, clock_out_site_id, review_state, invalidated_at" as const;
 
 /**
  * Roster DISPLAY keys. These are NOT the DB enum — `needs_review` is the roster's own label for a

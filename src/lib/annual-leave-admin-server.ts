@@ -460,7 +460,7 @@ export async function setLeaveApprover(input: {
 
   const { error } = await service
     .from("memberships")
-    .update({ leave_approver_role: input.isApprover ? DEFAULT_APPROVER_ROLE : null } as never)
+    .update({ leave_approver_role: input.isApprover ? DEFAULT_APPROVER_ROLE : null })
     .eq("organization_id", organizationId)
     .eq("user_id", input.userId);
   if (error) return { ok: false, error: "update_failed" };

@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       employment_type: type,
       effective_from: EFFECTIVE_FROM,
       created_by_user_id: userId,
-    } as never);
+    });
     if (empIns.error) throw new Error(empIns.error.message);
 
     if (type === "hourly") {
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
         hourly_rate: hourlyRate,
         effective_from: EFFECTIVE_FROM,
         created_by_user_id: userId,
-      } as never);
+      });
       if (rateIns.error) throw new Error(rateIns.error.message);
     }
 

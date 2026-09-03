@@ -172,7 +172,7 @@ export async function updateOrderRequestStatus(
     return { ok: false, error: "invalid_transition" };
   }
 
-  const updatePayload: Record<string, unknown> = { status: input.targetStatus };
+  const updatePayload: Database["public"]["Tables"]["order_requests"]["Update"] = { status: input.targetStatus };
   if (input.targetStatus === "ordered") {
     const mode = input.deliveryMode ?? "exact";
     if (mode === "range" && input.deliveryStartDate && input.deliveryEndDate) {
@@ -198,7 +198,7 @@ export async function updateOrderRequestStatus(
 
   const { data: updatedRows, error: updateError } = await supabase
     .from("order_requests")
-    .update(updatePayload as never)
+    .update(updatePayload)
     .eq("id", input.orderId)
     .eq("organization_id", session.organization.id)
     // Guard against a lost update: only transition from the status we validated against. If another
@@ -305,7 +305,7 @@ export async function updateOrderDeliveryDate(
   // Delivery date is only meaningful once the order has been processed.
   if (current.status !== "ordered") return { ok: false, error: "invalid_transition" };
 
-  const updatePayload: Record<string, unknown> =
+  const updatePayload: Database["public"]["Tables"]["order_requests"]["Update"] =
     mode === "range" && input.deliveryStartDate && input.deliveryEndDate
       ? {
           delivery_date: input.deliveryStartDate,
@@ -316,7 +316,7 @@ export async function updateOrderDeliveryDate(
 
   const { data: updatedRows, error: updateError } = await supabase
     .from("order_requests")
-    .update(updatePayload as never)
+    .update(updatePayload)
     .eq("id", input.orderId)
     .eq("organization_id", session.organization.id)
     // Only edit while still in the status we validated (ordered); 0 rows → it changed under us.

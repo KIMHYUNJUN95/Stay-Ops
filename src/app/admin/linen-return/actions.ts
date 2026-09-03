@@ -121,7 +121,7 @@ async function writeAudit(params: {
       target_type: "linen_return_record",
       target_id: params.recordId,
       metadata: params.metadata,
-    } as never);
+    });
   } catch {
     // 감사 기록 실패가 이미 성공한 업무 처리를 되돌리지는 않는다 — 조용히 무시하지 않고 로그만 남긴다.
     console.error("[linen-return] audit log write failed", params.action, params.recordId);
@@ -185,7 +185,7 @@ export async function updateAdminLinenRecord(input: {
   };
   const { error: headerError } = await supabase
     .from("linen_return_records")
-    .update(headerUpdate as never)
+    .update(headerUpdate)
     .eq("id", record.id)
     .eq("organization_id", session.organization.id);
   if (headerError) return { ok: false, reason: "error" };
@@ -212,7 +212,7 @@ export async function updateAdminLinenRecord(input: {
   );
   const { error: insertError } = await supabase
     .from("linen_return_record_items")
-    .insert(inserts as never);
+    .insert(inserts);
   if (insertError) return { ok: false, reason: "error" };
 
   await writeAudit({

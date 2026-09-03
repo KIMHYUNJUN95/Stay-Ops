@@ -111,7 +111,7 @@ export async function grantMemberOverride(input: {
       granted_by_user_id: input.grantedByUserId,
       reason,
       expires_at: expiresIso,
-    } as never)
+    })
     .select("id, created_at")
     .single();
   if (error || !data) return { ok: false, error: "insert_failed" };
@@ -142,7 +142,7 @@ export async function revokeMemberOverride(input: {
     .update({
       revoked_at: new Date().toISOString(),
       revoked_by_user_id: input.revokedByUserId,
-    } as never)
+    })
     .eq("id", input.overrideId)
     .eq("organization_id", input.organizationId)
     .is("revoked_at", null);

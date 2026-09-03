@@ -157,7 +157,7 @@ export async function submitAttendanceScan(
       longitude: input.longitude,
       accuracy_meters: input.accuracy,
       device_info: deviceInfo,
-    } as never);
+    });
   }
 
   // 1) QR token must be present and resolve to an active token in THIS org.
@@ -218,7 +218,7 @@ export async function submitAttendanceScan(
   if (input.mode === "in" && openSession && openSession.operating_date !== tokyoDate(new Date().toISOString())) {
     const abandoned = await service
       .from("attendance_sessions")
-      .update({ status: "abandoned", abandoned_at: new Date().toISOString() } as never)
+      .update({ status: "abandoned", abandoned_at: new Date().toISOString() })
       .eq("id", openSession.id)
       .eq("status", "open"); // 동시 요청이 먼저 닫았으면 아무것도 하지 않는다.
     // 전환에 실패해도 출근을 막지 않는다 — 아래 insert 가 유니크 위반으로 걸러 준다.
@@ -293,7 +293,7 @@ export async function submitAttendanceScan(
         clock_in_longitude: input.longitude,
         clock_in_accuracy_meters: input.accuracy,
         clock_in_device_info: deviceInfo,
-      } as never)
+      })
       .select("id")
       .single();
     if (insertRes.error) {
@@ -339,7 +339,7 @@ export async function submitAttendanceScan(
       clock_out_longitude: input.longitude,
       clock_out_accuracy_meters: input.accuracy,
       clock_out_device_info: deviceInfo,
-    } as never)
+    })
     .eq("id", open.id)
     .eq("status", "open");
   if (updateRes.error) {
@@ -428,7 +428,7 @@ export async function startBreak(): Promise<BreakActionResult> {
         organization_id: session.organization.id,
         session_id: sessionId,
         started_at: new Date().toISOString(),
-      } as never);
+      });
     } catch {
       return null;
     }
@@ -466,7 +466,7 @@ export async function endBreak(): Promise<BreakActionResult> {
 
   const upd = await service
     .from("attendance_breaks")
-    .update({ ended_at: new Date().toISOString() } as never)
+    .update({ ended_at: new Date().toISOString() })
     .eq("id", openBreak.id)
     .is("ended_at", null);
   if (upd.error) return { ok: false, reason: "error" };
@@ -540,7 +540,7 @@ export async function cancelAttendanceCorrectionRequest(
   const service = getSupabaseServiceClient();
   const { data, error } = await service
     .from("attendance_correction_requests")
-    .update({ status: "cancelled", cancelled_at: new Date().toISOString() } as never)
+    .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
     .eq("id", id)
     .eq("organization_id", session.organization.id)
     .eq("requested_by_user_id", session.user.id)
@@ -650,7 +650,7 @@ export async function createAttendanceCorrectionRequest(
         reviewed_at: null,
         reviewed_by_user_id: null,
         updated_at: submittedAt,
-      } as never)
+      })
       .eq("id", existing.id)
       .eq("organization_id", organizationId)
       .eq("requested_by_user_id", userId)
@@ -672,7 +672,7 @@ export async function createAttendanceCorrectionRequest(
         requested_by_user_id: userId,
         status: "requested",
         ...payload,
-      } as never)
+      })
       .select("id")
       .single()) as { data: { id: string } | null; error: { message: string } | null };
     if (ins.error || !ins.data) return { ok: false, reason: "error" };
@@ -746,7 +746,7 @@ export async function respondOpenSessionReminder(
         operating_date: today,
         response,
         responded_at: new Date().toISOString(),
-      } as never,
+      },
       { onConflict: "organization_id,user_id,operating_date" },
     );
   if (up.error) return { ok: false, reason: "error" };

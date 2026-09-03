@@ -31,14 +31,8 @@ import type {
 } from "@/lib/attendance";
 
 const TZ = "Asia/Tokyo";
-const PAY_SESSION_SELECT = [
-  "id",
-  "operating_date",
-  "clock_in_at",
-  "clock_out_at",
-  "status",
-  "review_state",
-].join(", ");
+// 문자열 리터럴이어야 타입 수준 파싱이 된다(배열 join 은 GenericStringError 로 떨어진다).
+const PAY_SESSION_SELECT = "id, operating_date, clock_in_at, clock_out_at, status, review_state" as const;
 
 // ── Pure calculation helpers (reusable for finalization) ─────────────────────────
 

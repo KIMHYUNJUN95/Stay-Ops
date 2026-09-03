@@ -31,13 +31,13 @@ export async function deleteAccount(): Promise<never> {
       profile_photo_url: null,
       birth_date: null,
       deleted_at: new Date().toISOString(),
-    } as never)
+    })
     .eq("id", user.id);
 
   // Remove from all org memberships so the user no longer appears in rosters.
   await service
     .from("memberships")
-    .update({ status: "removed" } as never)
+    .update({ status: "removed" })
     .eq("user_id", user.id);
 
   // Hard-delete the auth user — this frees the email for re-registration.
@@ -97,7 +97,7 @@ export async function updateAccountProfile(formData: FormData) {
       ...(birthDate ? { birth_date: birthDate } : {}),
       phone_number: phoneNumber,
       preferred_language: preferredLanguage,
-    } as never)
+    })
     .eq("id", user.id);
 
   if (error) {
@@ -135,7 +135,7 @@ export async function updateBottomNavTabs(
 
   const { error } = await getSupabaseServiceClient()
     .from("profiles")
-    .update({ bottom_nav_tabs: sanitized } as never)
+    .update({ bottom_nav_tabs: sanitized })
     .eq("id", user.id);
 
   if (error) {

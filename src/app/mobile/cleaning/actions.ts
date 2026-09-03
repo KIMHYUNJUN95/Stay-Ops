@@ -88,7 +88,7 @@ export async function startCleaningSession(formData: FormData) {
 
   const { error } = await supabase
     .from("cleaning_sessions")
-    .insert(insert as never);
+    .insert(insert);
 
   if (error) {
     redirectWithError(error.code === "23505" ? "already_active" : "start_failed");
@@ -154,7 +154,7 @@ export async function cancelCleaningSession(formData: FormData) {
       completed_at: cancelledAt.toISOString(),
       duration_seconds: durationSeconds,
       status: "cancelled",
-    } as never)
+    })
     .eq("id", sessionId)
     .eq("status", "in_progress");
 
@@ -214,7 +214,7 @@ export async function completeCleaningSession(formData: FormData) {
 
   const { error: updateError } = await supabase
     .from("cleaning_sessions")
-    .update(update as never)
+    .update(update)
     .eq("id", activeSession.id)
     .eq("status", "in_progress");
 

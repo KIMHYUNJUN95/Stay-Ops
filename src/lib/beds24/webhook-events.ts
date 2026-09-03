@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/database";
+import type { Database, Json } from "@/types/database";
 import type { ProcessWebhookBookingResult } from "@/lib/beds24/process-webhook-booking";
 import type { Beds24ReservationsBackfillResult } from "@/lib/beds24/reservations-backfill";
 
@@ -52,11 +52,12 @@ export async function recordBeds24WebhookEvent(params: {
       succeeded_count: succeeded,
       failed_count: failed,
       modes,
-      booking_summary: bookingSummary as never,
-      raw_payload: rawPayload as never,
+      booking_summary: bookingSummary,
+      // 웹훅 원문은 임의 구조라 `unknown` 으로 들고 다니다가 저장 시점에만 Json 으로 좁힌다.
+      raw_payload: rawPayload as Json,
       content_type: params.contentType ?? null,
       error_message: params.errorMessage ?? null,
-    } as never);
+    });
   } catch (error) {
     console.error("[beds24/webhook-events] failed to record webhook event", error);
   }
@@ -95,11 +96,12 @@ export async function recordBeds24WebhookRejection(params: {
       succeeded_count: 0,
       failed_count: 0,
       modes: [params.reason],
-      booking_summary: [] as never,
-      raw_payload: rawPayload as never,
+      booking_summary: [],
+      // 웹훅 원문은 임의 구조라 `unknown` 으로 들고 다니다가 저장 시점에만 Json 으로 좁힌다.
+      raw_payload: rawPayload as Json,
       content_type: params.contentType ?? null,
       error_message: params.reason,
-    } as never);
+    });
   } catch (error) {
     console.error("[beds24/webhook-events] failed to record webhook rejection", error);
   }
@@ -138,9 +140,9 @@ export async function recordBeds24ReconciliationEvent(params: {
       succeeded_count: result.upsertedRows,
       failed_count: result.skippedRows,
       modes,
-      booking_summary: bookingSummary as never,
+      booking_summary: bookingSummary,
       error_message: params.errorMessage ?? null,
-    } as never);
+    });
   } catch (error) {
     console.error("[beds24/webhook-events] failed to record reconciliation event", error);
   }

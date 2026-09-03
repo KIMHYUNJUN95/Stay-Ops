@@ -208,7 +208,7 @@ export async function runPayrollExport(
       snapshot_ids: snapshotIds,
       exported_by_user_id: actorId,
       meta: { ym: params.ym, row_count: rows.length, filename, format: "csv" },
-    } as never)
+    })
     .select("id")
     .single()) as { data: { id: string } | null; error: { message: string } | null };
   if (ins.error || !ins.data) return { ok: false, reason: "error" };

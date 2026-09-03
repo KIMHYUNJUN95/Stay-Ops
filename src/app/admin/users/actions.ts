@@ -112,7 +112,7 @@ export async function setMemberRole(membershipId: string, role: string): Promise
   }
   const { error } = await getSupabaseServiceClient()
     .from("memberships")
-    .update({ role: role as OrganizationRole } as never)
+    .update({ role: role as OrganizationRole })
     .eq("id", membershipId);
   if (error) return { ok: false, error: "save_failed" };
   revalidateMember(membershipId);
@@ -130,7 +130,7 @@ export async function setMemberStatus(membershipId: string, status: string): Pro
   const service = getSupabaseServiceClient();
   const { error } = await service
     .from("memberships")
-    .update({ status: status as MembershipStatus } as never)
+    .update({ status: status as MembershipStatus })
     .eq("id", membershipId);
   if (error) return { ok: false, error: "save_failed" };
 
@@ -171,7 +171,7 @@ export async function setMemberTeam(membershipId: string, teamId: string | null)
 
   const { error } = await service
     .from("memberships")
-    .update({ team_id: teamId } as never)
+    .update({ team_id: teamId })
     .eq("id", membershipId);
   if (error) return { ok: false, error: "save_failed" };
   revalidateMember(membershipId);
@@ -186,7 +186,7 @@ export async function setMemberReportAccess(membershipId: string, grant: boolean
   }
   const { error } = await getSupabaseServiceClient()
     .from("profiles")
-    .update({ can_generate_report: grant } as never)
+    .update({ can_generate_report: grant })
     .eq("id", ctx.membership.user_id);
   if (error) return { ok: false, error: "save_failed" };
   revalidateMember(membershipId);
@@ -201,7 +201,7 @@ export async function setMemberPayrollAdmin(membershipId: string, grant: boolean
   }
   const { error } = await getSupabaseServiceClient()
     .from("memberships")
-    .update({ attendance_payroll_admin: grant } as never)
+    .update({ attendance_payroll_admin: grant })
     .eq("id", membershipId);
   if (error) return { ok: false, error: "save_failed" };
   revalidateMember(membershipId);
@@ -279,7 +279,7 @@ export async function setMemberManageUsers(membershipId: string, grant: boolean)
   if (!isDeveloper(ctx.actorRole)) return { ok: false, error: "forbidden" };
   const { error } = await getSupabaseServiceClient()
     .from("memberships")
-    .update({ manage_users: grant } as never)
+    .update({ manage_users: grant })
     .eq("id", membershipId);
   if (error) return { ok: false, error: "save_failed" };
   revalidateMember(membershipId);
@@ -309,13 +309,13 @@ export async function assignDeveloper(membershipId: string, grant: boolean): Pro
   if (existing) {
     const { error } = await service
       .from("platform_admins")
-      .update({ is_active: grant } as never)
+      .update({ is_active: grant })
       .eq("user_id", ctx.membership.user_id);
     if (error) return { ok: false, error: "save_failed" };
   } else if (grant) {
     const { error } = await service
       .from("platform_admins")
-      .insert({ user_id: ctx.membership.user_id, role: "developer_super_admin", is_active: true } as never);
+      .insert({ user_id: ctx.membership.user_id, role: "developer_super_admin", is_active: true });
     if (error) return { ok: false, error: "save_failed" };
   }
   revalidateMember(membershipId);

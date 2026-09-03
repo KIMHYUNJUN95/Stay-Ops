@@ -117,7 +117,7 @@ export async function createOrderRequest(formData: FormData) {
   const supabase = await getSupabaseServerClient();
   const { data: created, error } = await supabase
     .from("order_requests")
-    .insert(insert as never)
+    .insert(insert)
     .select("id")
     .single();
   const createdId = (created as { id: string } | null)?.id ?? null;

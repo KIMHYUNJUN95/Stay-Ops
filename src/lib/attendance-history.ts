@@ -67,19 +67,8 @@ export type AttendanceTodaySummary = {
 };
 
 const TZ = "Asia/Tokyo";
-const HISTORY_SESSION_SELECT = [
-  "id",
-  "operating_date",
-  "status",
-  "review_state",
-  "manual_created",
-  "clock_in_at",
-  "clock_in_site_id",
-  "clock_in_method",
-  "clock_out_at",
-  "clock_out_site_id",
-  "clock_out_method",
-].join(", ");
+// 문자열 리터럴이어야 타입 수준 파싱이 된다(배열 join 은 GenericStringError 로 떨어진다).
+const HISTORY_SESSION_SELECT = "id, operating_date, status, review_state, manual_created, clock_in_at, clock_in_site_id, clock_in_method, clock_out_at, clock_out_site_id, clock_out_method" as const;
 
 function tokyoDateKey(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", {

@@ -149,7 +149,7 @@ export async function updateLostItemHandling(
 
   const { data: updated, error } = await supabase
     .from("lost_items")
-    .update(update as never)
+    .update(update)
     .eq("id", itemId)
     .eq("organization_id", session.organization.id)
     .select("id");

@@ -87,6 +87,7 @@ import {
   type TransportReportItem,
   type TransportReportLabels,
 } from "@/lib/attendance-transport-report";
+import type { Database } from "@/types/database";
 
 export type ReviewActionResult =
   | { ok: true }
@@ -149,7 +150,7 @@ export async function setCorrectionInReview(requestId: string): Promise<ReviewAc
 
   const upd = await service
     .from("attendance_correction_requests")
-    .update({ status: "in_review", reviewed_by_user_id: session.user.id } as never)
+    .update({ status: "in_review", reviewed_by_user_id: session.user.id })
     .eq("id", requestId)
     .eq("status", "requested");
   if (upd.error) return { ok: false, reason: "error" };
@@ -191,7 +192,7 @@ export async function approveCorrectionRequest(
   if (request.status === "requested") {
     const claim = await service
       .from("attendance_correction_requests")
-      .update({ status: "in_review", reviewed_by_user_id: actorId } as never)
+      .update({ status: "in_review", reviewed_by_user_id: actorId })
       .eq("id", request.id)
       .eq("organization_id", organizationId)
       .eq("status", "requested")
@@ -232,7 +233,7 @@ export async function approveCorrectionRequest(
     const s = sRes.data as AttendanceSessionRow | null;
     if (!s) return { ok: false, reason: "not_found" };
 
-    const update: Record<string, unknown> = { review_state: "approved_correction" };
+    const update: Database["public"]["Tables"]["attendance_sessions"]["Update"] = { review_state: "approved_correction" };
     if (finalInAt != null) update.clock_in_at = finalInAt;
     if (finalOutAt != null) update.clock_out_at = finalOutAt;
     if (finalClockInSiteId != null) update.clock_in_site_id = finalClockInSiteId;
@@ -256,7 +257,7 @@ export async function approveCorrectionRequest(
 
     const updRes = await service
       .from("attendance_sessions")
-      .update(update as never)
+      .update(update)
       .eq("id", s.id)
       .eq("organization_id", organizationId)
       .in("review_state", ["normal", "review_required", "pending_correction", "approved_correction"]);
@@ -279,7 +280,7 @@ export async function approveCorrectionRequest(
       reason: input.comment?.trim() ? input.comment.trim() : "Correction request approved",
       before_json: before,
       after_json: update,
-    } as never);
+    });
   } else {
     if (!finalInAt || !finalOutAt || !finalClockInSiteId) {
       return { ok: false, reason: "invalid" };
@@ -323,7 +324,7 @@ export async function approveCorrectionRequest(
     };
     const ins = (await service
       .from("attendance_sessions")
-      .insert(insertFields as never)
+      .insert(insertFields)
       .select("id")
       .single()) as { data: { id: string } | null; error: { message: string } | null };
     if (ins.error || !ins.data) return { ok: false, reason: "error" };
@@ -338,7 +339,7 @@ export async function approveCorrectionRequest(
         : "Session created from approved correction request",
       before_json: {},
       after_json: insertFields,
-    } as never);
+    });
   }
 
   const upd = await service
@@ -348,7 +349,7 @@ export async function approveCorrectionRequest(
       review_comment: input.comment?.trim() ? input.comment.trim() : null,
       reviewed_by_user_id: actorId,
       reviewed_at: nowIso,
-    } as never)
+    })
     .eq("id", request.id)
     .eq("organization_id", organizationId)
     .eq("status", "in_review")
@@ -417,7 +418,7 @@ export async function rejectCorrectionRequest(
       review_comment: comment.trim(),
       reviewed_by_user_id: session.user.id,
       reviewed_at: new Date().toISOString(),
-    } as never)
+    })
     .eq("id", requestId)
     .eq("organization_id", organizationId);
   const upd =
@@ -649,7 +650,7 @@ export async function createManualAttendanceSession(
 
   const ins = (await service
     .from("attendance_sessions")
-    .insert(insertFields as never)
+    .insert(insertFields)
     .select("id")
     .single()) as { data: { id: string } | null; error: { message: string } | null };
   if (ins.error || !ins.data) return { ok: false, reason: "error" };
@@ -663,7 +664,7 @@ export async function createManualAttendanceSession(
     reason: input.reason.trim(),
     before_json: {},
     after_json: insertFields,
-  } as never);
+  });
 
   revalidateSelfView();
   return { ok: true, id: sessionId };
@@ -695,7 +696,7 @@ export async function updateAttendanceSessionAdmin(
     return { ok: false, reason: "finalized_locked" };
   }
 
-  const update: Record<string, unknown> = {};
+  const update: Database["public"]["Tables"]["attendance_sessions"]["Update"] = {};
 
   if (input.clockInTime !== undefined) {
     if (input.clockInTime === null) {
@@ -766,7 +767,7 @@ export async function updateAttendanceSessionAdmin(
 
   const updRes = await service
     .from("attendance_sessions")
-    .update(update as never)
+    .update(update)
     .eq("id", s.id)
     .eq("organization_id", organizationId);
   if (updRes.error) return { ok: false, reason: "error" };
@@ -779,7 +780,7 @@ export async function updateAttendanceSessionAdmin(
     reason: input.reason.trim(),
     before_json: before,
     after_json: update,
-  } as never);
+  });
 
   revalidateSelfView();
   return { ok: true };
@@ -824,7 +825,7 @@ export async function invalidateAttendanceSession(
 
   const updRes = await service
     .from("attendance_sessions")
-    .update(after as never)
+    .update(after)
     .eq("id", s.id)
     .eq("organization_id", organizationId);
   if (updRes.error) return { ok: false, reason: "error" };
@@ -837,7 +838,7 @@ export async function invalidateAttendanceSession(
     reason: reason.trim(),
     before_json: before,
     after_json: after,
-  } as never);
+  });
 
   revalidateSelfView();
   return { ok: true };
@@ -898,7 +899,7 @@ export async function restoreAttendanceSession(
 
   const updRes = await service
     .from("attendance_sessions")
-    .update(after as never)
+    .update(after)
     .eq("id", s.id)
     .eq("organization_id", organizationId);
   if (updRes.error) return { ok: false, reason: "error" };
@@ -911,7 +912,7 @@ export async function restoreAttendanceSession(
     reason: reason.trim(),
     before_json: before,
     after_json: after,
-  } as never);
+  });
 
   revalidateSelfView();
   return { ok: true };
@@ -1004,7 +1005,7 @@ export async function finalizeAttendanceMonth(input: {
       finalized_by_user_id: actorId,
       finalized_at: nowIso,
       supersedes_snapshot_id: supersedesId,
-    } as never)
+    })
     .select("id")
     .single()) as { data: { id: string } | null; error: { message: string } | null };
   if (ins.error || !ins.data) return { ok: false, reason: "error" };
@@ -1013,7 +1014,7 @@ export async function finalizeAttendanceMonth(input: {
   if (priorRows.length > 0) {
     await service
       .from("attendance_month_snapshots")
-      .update({ status: "superseded" } as never)
+      .update({ status: "superseded" })
       .eq("organization_id", organizationId)
       .eq("user_id", input.userId)
       .eq("target_month", firstDay)
@@ -1034,7 +1035,7 @@ export async function finalizeAttendanceMonth(input: {
       total_paid_minutes: pay.totalPaidMinutes,
       supersedes_snapshot_id: supersedesId,
     },
-  } as never);
+  });
 
   revalidatePay();
   return { ok: true, id: ins.data.id };
@@ -1064,7 +1065,7 @@ export async function reopenAttendanceMonth(input: {
   // resumes). A later finalize will supersede it.
   const updRes = await service
     .from("attendance_month_snapshots")
-    .update({ status: "reopened" } as never)
+    .update({ status: "reopened" })
     .eq("id", (snap as AttendanceMonthSnapshotRow).id)
     .eq("organization_id", organizationId)
     .eq("user_id", input.userId)
@@ -1086,7 +1087,7 @@ export async function reopenAttendanceMonth(input: {
       target_month: monthFirstDay(input.ym),
       reason: input.reason.trim(),
     },
-  } as never);
+  });
 
   revalidatePay();
   return { ok: true };
@@ -1604,7 +1605,7 @@ export async function setTransportReportReview(input: {
 
   const targetStatus = TRANSPORT_ACTION_TARGET[input.action];
   const nowIso = new Date().toISOString();
-  const update: Record<string, unknown> = { status: targetStatus };
+  const update: Database["public"]["Tables"]["transport_reimbursement_reports"]["Update"] = { status: targetStatus };
   if (input.action === "reopen") {
     // Back in the queue: clear the prior decision so it reads as freshly pending.
     update.reviewed_by_user_id = null;
@@ -1618,7 +1619,7 @@ export async function setTransportReportReview(input: {
 
   const upd = await service
     .from("transport_reimbursement_reports")
-    .update(update as never)
+    .update(update)
     .eq("id", input.reportId)
     .eq("organization_id", organizationId)
     .in("status", TRANSPORT_ACTION_VALID_FROM[input.action])
@@ -1769,7 +1770,7 @@ export async function setHourlyRate(input: {
   if (activeIds.length > 0) {
     const closeRes = await service
       .from("hourly_rate_history")
-      .update({ effective_to: closeIso } as never)
+      .update({ effective_to: closeIso })
       .in("id", activeIds);
     if (closeRes.error) return { ok: false, reason: "error" };
   }
@@ -1783,7 +1784,7 @@ export async function setHourlyRate(input: {
       effective_from: input.effectiveFrom,
       effective_to: null,
       created_by_user_id: actorId,
-    } as never)
+    })
     .select("id")
     .single()) as { data: { id: string } | null; error: { message: string } | null };
   if (ins.error || !ins.data) return { ok: false, reason: "error" };
@@ -1800,7 +1801,7 @@ export async function setHourlyRate(input: {
       effective_from: input.effectiveFrom,
       note: input.note?.trim() ? input.note.trim() : null,
     },
-  } as never);
+  });
 
   revalidatePath("/mobile/attendance/pay");
   return { ok: true, id: ins.data.id };
@@ -1896,7 +1897,7 @@ export async function setEmploymentType(input: {
   if (activeIds.length > 0) {
     const close = await service
       .from("employment_type_history")
-      .update({ effective_to: closeIso } as never)
+      .update({ effective_to: closeIso })
       .in("id", activeIds);
     if (close.error) return { ok: false, reason: "error" };
   }
@@ -1910,7 +1911,7 @@ export async function setEmploymentType(input: {
       effective_from: input.effectiveFrom,
       effective_to: null,
       created_by_user_id: actorId,
-    } as never)
+    })
     .select("id")
     .single()) as { data: { id: string } | null; error: { message: string } | null };
   if (ins.error || !ins.data) return { ok: false, reason: "error" };
@@ -1927,7 +1928,7 @@ export async function setEmploymentType(input: {
       effective_from: input.effectiveFrom,
       note: input.note?.trim() ? input.note.trim() : null,
     },
-  } as never);
+  });
 
   revalidatePath("/mobile/attendance/pay");
   revalidatePath("/admin/attendance/wages");
@@ -2044,7 +2045,7 @@ export async function createAttendanceAllowance(input: {
       memo: input.memo?.trim() ? input.memo.trim() : null,
       status: "active",
       created_by_user_id: actorId,
-    } as never)
+    })
     .select("id")
     .single()) as { data: { id: string } | null; error: { message: string } | null };
   if (ins.error || !ins.data) return { ok: false, reason: "error" };
@@ -2062,7 +2063,7 @@ export async function createAttendanceAllowance(input: {
       amount_yen: amountYen,
       category: input.category,
     },
-  } as never);
+  });
 
   revalidatePath("/admin/attendance/wages");
   revalidatePath("/admin/attendance/payroll");
@@ -2111,7 +2112,7 @@ export async function cancelAttendanceAllowance(input: {
       cancelled_by_user_id: actorId,
       cancelled_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    } as never)
+    })
     .eq("organization_id", organizationId)
     .eq("id", input.id)
     .eq("status", "active");
@@ -2128,7 +2129,7 @@ export async function cancelAttendanceAllowance(input: {
       target_user_id: row.target_user_id,
       reason: input.reason?.trim() ? input.reason.trim() : null,
     },
-  } as never);
+  });
 
   revalidatePath("/admin/attendance/wages");
   revalidatePath("/admin/attendance/payroll");

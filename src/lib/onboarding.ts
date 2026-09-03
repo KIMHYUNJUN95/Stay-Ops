@@ -260,6 +260,6 @@ export async function setLastUsedOrganization(
   const service = getSupabaseServiceClient();
   await service
     .from("profiles")
-    .update({ last_used_organization_id: organizationId } as never)
+    .update({ last_used_organization_id: organizationId })
     .eq("id", userId);
 }

@@ -141,7 +141,7 @@ async function upsertPropertyByExternalId(
     if (name) patch.name = name;
     const updateResult = await supabase
       .from("properties")
-      .update(patch as never)
+      .update(patch)
       .eq("id", existingProperty.id)
       .select("id")
       .single();
@@ -180,7 +180,7 @@ async function upsertPropertyByExternalId(
           status: "active",
           external_provider: "beds24",
           external_property_id: externalPropertyId,
-        } as never,
+        },
       )
       .eq("id", existingProperty.id)
       .select("id")
@@ -203,7 +203,7 @@ async function upsertPropertyByExternalId(
         status: "active",
         external_provider: "beds24",
         external_property_id: externalPropertyId,
-      } as never,
+      },
     )
     .select("id")
     .single();
@@ -231,7 +231,7 @@ async function upsertPropertyByName(
         status: "active",
         external_provider: "beds24",
         external_property_id: externalPropertyId,
-      } as never,
+      },
       { onConflict: "organization_id,name" },
     )
     .select("id")
@@ -291,7 +291,7 @@ async function upsertRoom(
         external_provider: "beds24",
         external_room_id: externalRoomId,
         external_minimum_stay: minimumStay,
-      } as never,
+      },
       { onConflict: "organization_id,room_label" },
     )
     .select("id")

@@ -51,7 +51,7 @@ export async function updateMaintenanceStatus(formData: FormData) {
   // 없는 사용자(예: 남의 신고를 건드리는 staff)에게도 "변경됨"이라고 응답하게 된다 — 실제 버그였다.
   const { data: updated, error } = await supabase
     .from("maintenance_reports")
-    .update({ status: newStatus } as never)
+    .update({ status: newStatus })
     .eq("id", reportId)
     .eq("organization_id", session.organization.id)
     .select("id");
@@ -108,7 +108,7 @@ export async function applyMaintenanceException(input: {
       completed_by: session.user.id,
       completed_by_admin: true,
       resolution_memo: memo || null,
-    } as never)
+    })
     .eq("id", input.reportId)
     .eq("organization_id", session.organization.id)
     .select("id");

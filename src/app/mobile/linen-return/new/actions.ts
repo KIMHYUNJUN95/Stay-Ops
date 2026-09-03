@@ -161,7 +161,7 @@ export async function createLinenReturnRecord(formData: FormData) {
       };
       const { error: updateLineError } = await supabase
         .from("linen_return_record_items")
-        .update(lineUpdate as never)
+        .update(lineUpdate)
         .eq("id", existing.id);
       if (updateLineError) {
         redirect(newPath(building, "save_failed"));
@@ -186,7 +186,7 @@ export async function createLinenReturnRecord(formData: FormData) {
     if (newLineInserts.length > 0) {
       const { error: insertNewLinesError } = await supabase
         .from("linen_return_record_items")
-        .insert(newLineInserts as never);
+        .insert(newLineInserts);
       if (insertNewLinesError) {
         redirect(newPath(building, "save_failed"));
       }
@@ -198,7 +198,7 @@ export async function createLinenReturnRecord(formData: FormData) {
     };
     const { error: updateRecordError } = await supabase
       .from("linen_return_records")
-      .update(headerUpdate as never)
+      .update(headerUpdate)
       .eq("id", targetRecord.id)
       .eq("organization_id", session.organization.id);
     if (updateRecordError) {
@@ -222,7 +222,7 @@ export async function createLinenReturnRecord(formData: FormData) {
 
   const { error: recordError } = await supabase
     .from("linen_return_records")
-    .insert(recordInsert as never);
+    .insert(recordInsert);
   if (recordError) {
     redirect(newPath(building, "save_failed"));
   }
@@ -237,7 +237,7 @@ export async function createLinenReturnRecord(formData: FormData) {
 
   const { error: linesError } = await supabase
     .from("linen_return_record_items")
-    .insert(lineInserts as never);
+    .insert(lineInserts);
   if (linesError) {
     // Roll back the orphan header so a failed save leaves no partial record.
     await supabase.from("linen_return_records").delete().eq("id", recordId);

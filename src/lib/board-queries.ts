@@ -521,7 +521,7 @@ export async function ensureBoardPostRead(session: AppSession, postId: string): 
   try {
     const service = getSupabaseServiceClient();
     await service.from("board_post_reads").upsert(
-      { post_id: postId, user_id: session.user.id, read_at: new Date().toISOString() } as never,
+      { post_id: postId, user_id: session.user.id, read_at: new Date().toISOString() },
       { ignoreDuplicates: true, onConflict: "post_id,user_id" },
     );
   } catch {

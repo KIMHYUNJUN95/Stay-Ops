@@ -20,38 +20,12 @@ type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
 type ParticipantRow = Database["public"]["Tables"]["task_participants"]["Row"];
 type UpdateRow = Database["public"]["Tables"]["task_updates"]["Row"];
 
-const TASK_SELECT = [
-  "id",
-  "organization_id",
-  "created_by_user_id",
-  "title",
-  "description",
-  "scheduled_date",
-  "due_at",
-  "all_day",
-  "time_label",
-  "duration_minutes",
-  "priority",
-  "sort_order",
-  "status",
-  "project_id",
-  "section_id",
-  "is_inbox",
-  "is_directive",
-  "recurrence_rule",
-  "recurrence_series_id",
-  "recurrence_instance_date",
-  "tags",
-  "image_urls",
-  "completed_at",
-  "completed_by_user_id",
-  "created_at",
-  "updated_at",
-  "property_id",
-  "room_id",
-  "reservation_id",
-  "guest_name",
-].join(", ");
+/**
+ * 조회할 컬럼 목록. **문자열 리터럴이어야 한다** — 배열을 `.join()` 하면 타입 수준에서 파싱할 수
+ * 없어 `.select()` 결과가 `GenericStringError` 로 떨어지고, 호출부가 캐스트로 때우게 된다.
+ * 리터럴로 두면 PostgREST 타입 파서가 행 모양을 직접 만들어 준다.
+ */
+const TASK_SELECT = "id, organization_id, created_by_user_id, title, description, scheduled_date, due_at, all_day, time_label, duration_minutes, priority, sort_order, status, project_id, section_id, is_inbox, is_directive, recurrence_rule, recurrence_series_id, recurrence_instance_date, tags, image_urls, completed_at, completed_by_user_id, created_at, updated_at, property_id, room_id, reservation_id, guest_name" as const;
 
 export type TaskParticipant = {
   userId: string;

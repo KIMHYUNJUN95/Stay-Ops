@@ -317,7 +317,7 @@ export async function forceCompleteCleaningSession(
         duration_seconds: durationSeconds,
         notes: input.note || null,
         completed_by_admin: session.user.id,
-      } as never)
+      })
       .eq("id", input.sessionId)
       .eq("organization_id", organizationId);
     if (error) return { ok: false, reason: "error" };
@@ -340,7 +340,7 @@ export async function forceCompleteCleaningSession(
     duration_seconds: durationSeconds,
     notes: input.note || null,
     completed_by_admin: session.user.id,
-  } as never);
+  });
   if (error) return { ok: false, reason: "error" };
   // 강제 완료는 어드민 콘솔과 모바일 청소 화면 양쪽에 반영돼야 한다. 재검증이 없어서
   // 콘솔이 `router.refresh()` 로 때우고 있었다 — 그러면 모바일은 낡은 채로 남는다.

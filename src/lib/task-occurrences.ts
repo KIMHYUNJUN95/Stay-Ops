@@ -4,7 +4,6 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { TaskRecord } from "@/lib/tasks";
 import type { OccurrenceState } from "@/lib/tasks-recurrence";
 import type { Database } from "@/types/database";
-import { insertRow, updateRow, upsertRow, upsertRows } from "@/lib/db-write";
 
 /**
  * Server-only mutations for `task_occurrence_state` — the per-occurrence completion/skip/move state
@@ -35,7 +34,7 @@ export async function completeOccurrence(args: {
   };
   await supabase
     .from("task_occurrence_state")
-    .upsert(upsertRow("task_occurrence_state", row), { onConflict: "task_id,occurrence_date" });
+    .upsert(row, { onConflict: "task_id,occurrence_date" });
 }
 
 /** Remove an occurrence's recorded state (used to reopen/undo a completed occurrence). */
@@ -66,7 +65,7 @@ export async function skipOccurrences(args: {
   }));
   await supabase
     .from("task_occurrence_state")
-    .upsert(upsertRows("task_occurrence_state", rows), { onConflict: "task_id,occurrence_date" });
+    .upsert(rows, { onConflict: "task_id,occurrence_date" });
 }
 
 /** Resolve overdue occurrence dates as moved to `movedTo` ("오늘로 가져오기"). */
@@ -88,7 +87,7 @@ export async function moveOccurrences(args: {
   }));
   await supabase
     .from("task_occurrence_state")
-    .upsert(upsertRows("task_occurrence_state", rows), { onConflict: "task_id,occurrence_date" });
+    .upsert(rows, { onConflict: "task_id,occurrence_date" });
 }
 
 /** Occurrence dates that already carry a state row for a task (used to compute what's still open). */
@@ -143,7 +142,7 @@ export async function createCarryOverTask(args: {
   const { task } = args;
   const supabase = getSupabaseServiceClient();
   const carryId = crypto.randomUUID();
-  await supabase.from("tasks").insert(insertRow("tasks", {
+  await supabase.from("tasks").insert({
     id: carryId,
     organization_id: args.organizationId,
     created_by_user_id: args.userId,
@@ -164,14 +163,14 @@ export async function createCarryOverTask(args: {
     room_id: task.resolvedContext?.roomId ?? null,
     reservation_id: task.resolvedContext?.reservationId ?? null,
     guest_name: task.resolvedContext?.guestName ?? null,
-  }));
-  await supabase.from("task_participants").insert(insertRow("task_participants", {
+  });
+  await supabase.from("task_participants").insert({
     task_id: carryId,
     user_id: args.userId,
     role: "author",
     is_first_recipient: false,
     added_by_user_id: null,
-  }));
+  });
 }
 
 /* ── 회차별 수동 순서 (task_occurrence_order, 2026-07-30) ─────────────────────────
@@ -225,7 +224,7 @@ export async function setTaskSortOrders(args: {
     changed.map(([id, index]) =>
       supabase
         .from("tasks")
-        .update(updateRow("tasks", { sort_order: index }))
+        .update({ sort_order: index })
         .eq("id", id)
         .eq("organization_id", args.organizationId),
     ),
@@ -254,7 +253,7 @@ export async function setOccurrenceOrders(args: {
   }));
   const { error } = await supabase
     .from("task_occurrence_order")
-    .upsert(upsertRows("task_occurrence_order", rows), { onConflict: "task_id,occurrence_date" });
+    .upsert(rows, { onConflict: "task_id,occurrence_date" });
   if (error) {
     // 초기 구현이 결과를 버려, 테이블 미적용 상태에서 저장이 조용히 실패했다 — 화면은 낙관적으로
     // 바뀌고 새로고침하면 되돌아가는데 아무 단서가 없었다(2026-07-30). 최소한 로그는 남긴다.

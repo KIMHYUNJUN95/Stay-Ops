@@ -194,7 +194,7 @@ export async function completeProfile(formData: FormData) {
     preferred_language: preferredLanguage,
   };
 
-  const { error } = await service.from("profiles").upsert(profile as never);
+  const { error } = await service.from("profiles").upsert(profile);
 
   if (error) {
     if (
@@ -263,7 +263,7 @@ export async function claimFirstPlatformAdmin() {
 
   const { error } = await service
     .from("platform_admins")
-    .insert(platformAdmin as never);
+    .insert(platformAdmin);
 
   if (error) {
     redirect("/onboarding?error=platform_admin_failed");
@@ -348,7 +348,7 @@ export async function submitOnboardingProfile(input: {
     preferred_language: lang,
   };
 
-  const { error } = await service.from("profiles").upsert(profile as never);
+  const { error } = await service.from("profiles").upsert(profile);
   if (error) {
     if (
       error.code === "23505" ||

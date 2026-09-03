@@ -551,15 +551,12 @@ write). See `docs/planning/01-decision-log.md` → "2026-07-30 롤포워드 폐�
 - **Pure helpers** (`src/lib/tasks-recurrence.ts`, client+server): `outstandingOverdueOccurrences(rule,
   anchor, today, resolvedDates)` = rule occurrences in `[anchor, today)` with no state; `OccurrenceState`
   type; `isResolvedOccurrenceState`. Twin-safe (server `tasks.ts` and both UIs import from here).
-- **Write payloads are type-checked through `src/lib/db-write.ts` (2026-08-28).** The hand-maintained
-  `src/types/database.ts` omits `Relationships` on every table, so `Database` fails
-  `@supabase/supabase-js`'s `GenericSchema` and `.insert()`/`.update()` argument types collapse to
-  `never` — which is why 83 `as never` casts had accumulated in the tasks feature, silently disabling
-  column-name and type checking on every write. `insertRow` / `insertRows` / `updateRow` /
-  `upsertRow` / `upsertRows` take the table name plus a value typed as that table's real
-  `Insert`/`Update`, and confine the `never` cast to one file. **Regenerating the types is the proper
-  fix**, but it surfaces two genuine defects outside this feature first — see the decision log,
-  2026-08-28.
+- **Write payloads are type-checked natively (2026-09-03).** `src/types/database.ts` was regenerated
+  with `Relationships`, so `Database` now satisfies `@supabase/supabase-js`'s `GenericSchema` and
+  `.insert({...})` / `.update({...})` type-check without a cast. The 2026-08-28 stopgap
+  (`src/lib/db-write.ts`) is deleted and its 79 call sites reverted. `TASK_SELECT` is a string
+  literal (`as const`) rather than a joined array, so `.select()` results are typed too — the old
+  `as TaskRow[]` casts are gone. See the decision log, 2026-09-03 (2).
 - **Batch reads for bulk actions (2026-08-28).** `getTasksByIds(session, ids)` — one RLS-scoped
   select + `hydrate` (batched), so query count is fixed regardless of id count. `bulkDeleteConsoleTasks`
   previously called `getTaskDetail` per id, turning a 200-item delete into hundreds of queries.

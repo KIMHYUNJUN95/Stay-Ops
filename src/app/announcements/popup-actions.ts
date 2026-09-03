@@ -27,7 +27,7 @@ export async function dismissPopupForWeek(
         hide_until: hideUntil,
         organization_id: organizationId,
         user_id: user.id,
-      } as never,
+      },
       { onConflict: "announcement_id,user_id" },
     );
 }

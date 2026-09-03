@@ -8,11 +8,8 @@ import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { AttendanceSessionRow } from "@/lib/attendance";
 
-const OPEN_SESSION_SELECT = [
-  "id",
-  "clock_in_at",
-  "clock_in_site_id",
-].join(", ");
+// 문자열 리터럴이어야 타입 수준 파싱이 된다(배열 join 은 GenericStringError 로 떨어진다).
+const OPEN_SESSION_SELECT = "id, clock_in_at, clock_in_site_id" as const;
 
 export type OpenAttendanceSession = {
   id: string;

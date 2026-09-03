@@ -146,7 +146,7 @@ async function writeTrustedDeviceAudit(
         target_type: "attendance_trusted_device",
         target_id: deviceId,
         metadata: {},
-      } as never);
+      });
   } catch {
     console.error("[attendance] trusted-device revoke audit failed", deviceId);
   }
@@ -220,7 +220,7 @@ async function writeSiteAudit(
         target_type: "attendance_site",
         target_id: siteId,
         metadata: {},
-      } as never);
+      });
   } catch {
     console.error("[attendance] site audit failed", action, siteId);
   }
