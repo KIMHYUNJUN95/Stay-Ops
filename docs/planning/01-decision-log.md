@@ -2,6 +2,48 @@
 
 This file records important project decisions.
 
+## 2026-09-04 (2) 로그인 실패 문구가 통째로 삼켜지던 버그
+
+**증상(사용자 제보).** 이메일 로그인을 하면 아무 안내 없이 초기 로그인 화면만 반복해서 뜬다.
+
+**원인 — 미들웨어가 앱 자신의 `error` 파라미터를 Supabase 콜백으로 오인했다.**
+
+`middleware.ts` 의 `supabaseCallbackParams` 는 `code` / `error` / `error_code` / `error_description`
+중 **하나라도** 있으면 그 요청을 «엉뚱한 경로로 떨어진 Supabase 콜백» 으로 보고 `/auth/callback` 으로
+돌려보낸다. OAuth 결과가 사이트 루트 등으로 잘못 떨어지는 경우를 구제하려는 장치다.
+
+그런데 **`/auth/login` 은 `?error=` 를 자기 것으로 쓴다.** 로그인 실패는 `signInWithEmailPassword`
+이 `/auth/login?view=email&next=…&error=invalid_credentials` 로 되돌린다. 그 URL 이 콜백으로 오인돼:
+
+```
+POST /auth/login        303  →  /auth/login?view=email&error=invalid_credentials
+GET  /auth/login        307  →  /auth/callback?...      (미들웨어가 가로챔)
+GET  /auth/callback     307  →  /auth/login             (code 가 없으니 되돌려보냄)
+GET  /auth/login        200      ← error 파라미터를 잃은 «깨끗한» 초기 화면
+```
+
+결과적으로 **모든 로그인 에러 문구가 사라졌다** — invalid_credentials · missing_email ·
+missing_password · email_already_exists · rate_limit · email_not_confirmed 전부. 사용자는 비밀번호가
+틀려도 이유를 알 방법이 없었고, 화면만 되돌아오니 «접속이 안 된다» 로 인식했다.
+
+**수정.** `/auth/login` 에서는 판정 기준을 좁힌다 — 진짜 Supabase 콜백은 `code`(성공) 또는
+`error_description`/`error_code`(실패)를 **반드시 함께** 싣는다. 앱이 스스로 붙이는 것은 `error`
+하나뿐이므로 그 둘로 가른다. 다른 경로의 콜백 구제 동작은 그대로다.
+
+**검증(프로덕션 빌드 실행).**
+
+| URL | 수정 전 | 수정 후 |
+| --- | --- | --- |
+| `?view=email&error=invalid_credentials` | `/auth/callback` 으로 끌려감 | 「이메일 또는 비밀번호가 올바르지 않습니다」 |
+| `?view=email&error=missing_password` | 〃 | 「비밀번호를 입력해 주세요」 |
+| `?view=email&mode=signup&error=email_already_exists` | 〃 | 「이미 사용 중인 이메일입니다…」 |
+| `?error=server_error&error_description=…` | `/auth/callback` | `/auth/callback` (의도 보존) |
+
+**이번 세션 변경과 무관한 기존 버그다** — `middleware.ts` 의 마지막 수정은 Beds24 연동 커밋
+(`1a86c44`)이었다. 함께 조사한 로그인 실패 자체(오늘 비밀번호 시도 5회 전부
+`400 invalid_credentials`)와 안드로이드 에뮬레이터의 Google 계정 추가 실패는 코드 밖 사안이었고,
+그 조사 과정에서 이 버그가 드러났다.
+
 ## 2026-09-04 RLS 성능·노출 정리 + 스모크 테스트
 
 「지금 문제점」 실측에서 나온 항목을 추천 순서대로 처리했다.

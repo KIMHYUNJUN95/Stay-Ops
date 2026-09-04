@@ -20,6 +20,18 @@ and the major mobile/admin operations modules are implemented and being hardened
   would otherwise read as current status. Encoding-damaged sections/files were intentionally not repaired
   in this pass.
 
+## 2026-09-04 (2) — 로그인 실패 문구가 삼켜지던 버그 수정
+
+미들웨어가 `/auth/login?...&error=…`(앱 자신의 에러 파라미터)를 Supabase 콜백으로 오인해
+`/auth/callback` 으로 가로챘고, 거기엔 `code` 가 없어 다시 로그인으로 튕기면서 **에러 파라미터가
+사라졌다.** 그 결과 모든 로그인 에러 문구가 표시되지 않았고, 사용자는 비밀번호가 틀려도 이유를 알
+수 없이 초기 화면만 반복해서 봤다.
+
+`/auth/login` 에서는 `code` / `error_description` / `error_code` 로만 콜백을 판정하도록 좁혔다.
+다른 경로의 콜백 구제 동작은 그대로다. 프로덕션 빌드로 4개 URL 검증 완료.
+
+**기존 버그다**(`middleware.ts` 최종 수정은 Beds24 커밋 `1a86c44`).
+
 ## 2026-09-04 — RLS 성능·노출 정리
 
 - **스모크 테스트:** 프로덕션 빌드 부팅·렌더·미들웨어 정상, 에러 0건. React Compiler 활성화가 기본
