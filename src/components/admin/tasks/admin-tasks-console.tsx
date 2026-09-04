@@ -197,6 +197,11 @@ type AddDraft = {
   context?: TaskContextValue;
 };
 
+/** 낙관적 목록 조작 — 완료/삭제로 **빼거나**, 새로 만든 작업을 **끼워 넣거나**. */
+type TaskOptimisticAction =
+  | { kind: "remove"; ids: readonly string[] }
+  | { kind: "add"; task: TaskRecord };
+
 type Anchor = { x: number; y: number; aTop: number };
 type SchedulePop = {
   kind: "schedule";
@@ -361,7 +366,6 @@ export function AdminTasksConsole({
   const [noteDraft, setNoteDraft] = useState("");
   const [add, setAdd] = useState<AddDraft | null>(null);
   // 인라인 추가 저장의 동기 재진입 가드 — `saveInlineAdd` 참고.
-  const addSavingRef = useRef(false);
   /**
    * 인라인 추가의 **텍스트 입력은 비제어(uncontrolled)** 다 — 값은 이 참조가 들고 화면은 DOM 이 맡는다.
    *
@@ -465,11 +469,14 @@ export function AdminTasksConsole({
    * 끝나기 전에 목록에서 먼저 빠져야 한다. 되돌리기(reopen)는 낙관적으로 다루지 않는다 — 행이
    * 다시 나타나려면 서버 데이터가 와야 하고, 실행 취소 토스트가 이미 즉각 피드백을 준다.
    */
-  const [visibleTasks, hideTasksOptimistically] = useOptimistic(
+  const [visibleTasks, applyTaskOptimistic] = useOptimistic(
     data.tasks,
-    (list: TaskRecord[], removedIds: readonly string[]) => {
-      const gone = new Set(removedIds);
-      return list.filter((t) => !gone.has(t.id));
+    (list: TaskRecord[], action: TaskOptimisticAction) => {
+      if (action.kind === "remove") {
+        const gone = new Set(action.ids);
+        return list.filter((t) => !gone.has(t.id));
+      }
+      return [action.task, ...list];
     },
   );
   // 반복은 행이 아니라 **회차**가 완료된다 — 상태 행을 하나 얹으면 `openOccursOn` 이 즉시 걸러 준다.
@@ -783,7 +790,7 @@ export function AdminTasksConsole({
         optimistic: () =>
           occDate
             ? resolveOccurrenceOptimistically({ taskId: t.id, occurrenceDate: occDate })
-            : hideTasksOptimistically([t.id]),
+            : applyTaskOptimistic({ kind: "remove", ids: [t.id] }),
         after: () =>
           showUndo(
             dict.tCompleted,
@@ -793,7 +800,7 @@ export function AdminTasksConsole({
           ),
       });
     },
-    [run, dict, recurringNextLabel, showUndo, hideTasksOptimistically, resolveOccurrenceOptimistically],
+    [run, dict, recurringNextLabel, showUndo, applyTaskOptimistic, resolveOccurrenceOptimistically],
   );
   // Immediate (soft) delete + undo toast — replaces the confirm modal for single-task delete.
   const deleteWithUndo = useCallback(
@@ -1273,11 +1280,6 @@ export function AdminTasksConsole({
   };
   const saveInlineAdd = () => {
     if (!add || !addTextRef.current.title.trim()) return;
-    // Synchronous re-entrancy guard: a ref (not `pending`) because `isPending` only flips after a
-    // re-render, which doesn't happen fast enough to block a second Enter/click fired within the
-    // same tick — that was exactly how one tap created two tasks (2026-08-25).
-    if (addSavingRef.current) return;
-    addSavingRef.current = true;
     const draft = add;
     const text = { ...addTextRef.current }; // 비제어 입력의 현재 값(제출 시점 스냅샷)
     const photos = addPhotos;
@@ -1286,6 +1288,69 @@ export function AdminTasksConsole({
     // form uses. If the insert then fails the objects are orphaned, which is the accepted trade
     // (an orphan file beats a row referencing an upload that never happened).
     const newTaskId = crypto.randomUUID();
+
+    // ── 입력을 **즉시** 비운다 ──────────────────────────────────────────────────
+    // 서버 왕복(삽입 → `revalidatePath` → 페이지 데이터 7종 재조회 → RSC 재렌더)을 기다렸다가
+    // 비우면, 연속 추가에서 다음 제목을 바로 칠 수 없다. 실패하면 `onError` 에서 되돌린다.
+    //
+    // **이것이 이제 중복 제출 가드다.** 예전에는 `addSavingRef` 로 재진입을 막았는데(2026-08-25,
+    // 한 번 탭에 두 건이 만들어지던 문제), 입력을 **동기적으로** 비우면 같은 틱의 두 번째 호출은
+    // 맨 위 `!title.trim()` 에서 걸린다 — 더 강한 보장이면서 연속 추가를 막지 않는다.
+    resetAddText(true);
+    setAddPhotos([]);
+    setAdd((prev) =>
+      prev
+        ? {
+            ...prev,
+            time: "",
+            dur: null,
+            repeat: "none",
+            prio: "normal",
+            tags: [],
+            context: undefined,
+            targets: prev.ctx === "instr" ? prev.targets : [],
+          }
+        : prev,
+    );
+
+    // 낙관적으로 목록에 얹을 행. 서버가 만들 값과 같은 규칙으로 조립한다(단일 날짜 모델: `due_at`).
+    const nowIso = new Date().toISOString();
+    const optimisticTask: TaskRecord = {
+      id: newTaskId,
+      organizationId,
+      createdByUserId: meId,
+      authorName: data.me.name,
+      title: text.title.trim(),
+      description: text.desc || null,
+      scheduledDate: null,
+      dueAt: draft.date
+        ? new Date(`${draft.date}T${draft.time || "00:00"}:00+09:00`).toISOString()
+        : null,
+      allDay: !draft.time,
+      timeLabel: draft.time || null,
+      durationMinutes: draft.time ? draft.dur : null,
+      priority: draft.prio,
+      sortOrder: null,
+      status: "open",
+      projectId: draft.ctx === "project" ? projectId : null,
+      sectionId: draft.ctx === "project" ? draft.sectionId : null,
+      isInbox: draft.ctx === "inbox",
+      isShared: draft.targets.length > 0,
+      isDirective: draft.targets.length > 0,
+      recurrenceRule: draft.repeat === "none" ? null : draft.repeat,
+      recurrenceSeriesId: null,
+      recurrenceInstanceDate: null,
+      tags: [...draft.tags, text.tagInput.trim().replace(/^#/, "")].filter(Boolean).slice(0, 10),
+      imageUrls: [],
+      completedAt: null,
+      completedByUserId: null,
+      completedByName: "",
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      participants: [],
+      resolvedContext: null,
+    };
+
     run(
       async () => {
         const imageUrls = photos.length
@@ -1310,37 +1375,19 @@ export function AdminTasksConsole({
         });
       },
       {
+        // 목록에도 즉시 얹는다 — 서버 응답이 오면 새 props 가 이 값을 대체한다(실패 시 자동 원복).
+        optimistic: () => applyTaskOptimistic({ kind: "add", task: optimisticTask }),
         toast: draft.targets.length > 0 ? dict.tInstructed : dict.tCreated,
-        after: () => {
-          addSavingRef.current = false;
-          setAddPhotos([]);
-          // 저장해도 폼을 닫지 않는다 — 한 건 넣고 곧바로 다음 건을 치는 흐름이 기본이다(Todoist 동일).
-          // 새로 만든 작업은 목록에 추가되고 이 폼은 그 아래에 그대로 남는다. 닫으려면 «취소».
-          //
-          // **어디에 넣을지**(탭·프로젝트·섹션·날짜)는 유지하고 **무엇을 넣을지**(제목·설명·태그·
-          // 시간·반복·우선순위·사진·연결)는 비운다. 앞 작업의 시간이나 반복이 다음 작업에 묻어가면
-          // 조용히 잘못된 일정이 생긴다.
-          //
-          // 지시(`instr`) 탭에서만 대상자를 남긴다 — 그 탭은 대상이 없으면 저장 자체가 안 되고,
-          // 같은 사람에게 여러 건을 연달아 보내는 것이 그 화면의 본래 쓰임이다.
-          setAdd((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  time: "",
-                  dur: null,
-                  repeat: "none",
-                  prio: "normal",
-                  tags: [],
-                  context: undefined,
-                  targets: prev.ctx === "instr" ? prev.targets : [],
-                }
-              : prev,
-          );
-          resetAddText(true); // 텍스트 비우고 커서를 제목으로 — 리마운트가 없으므로 직접 돌려준다
-        },
         onError: () => {
-          addSavingRef.current = false;
+          // 저장에 실패했으면 사용자가 친 글을 돌려준다 — 가장 아까운 것은 본문이다.
+          // 칩(시간·반복·우선순위·태그)까지 되살리지는 않는다. 드문 경로이고, 되살리면 어느 시점
+          // 값인지 모호해진다.
+          addTextRef.current = text;
+          if (addTitleEl.current) addTitleEl.current.value = text.title;
+          if (addDescEl.current) addDescEl.current.value = text.desc;
+          if (addTagEl.current) addTagEl.current.value = text.tagInput;
+          setAddHasTitle(text.title.trim().length > 0);
+          setAddPhotos(photos);
         },
       },
     );
@@ -1492,7 +1539,9 @@ export function AdminTasksConsole({
               이 목록에서 사라진다. 그래서 대상을 필수로 건다. */}
           <button
             className="btn btn--pri btn--sm"
-            disabled={!addHasTitle || (add.ctx === "instr" && add.targets.length === 0) || pending}
+            // `pending` 으로 막지 않는다 — 저장은 이미 배경에서 돌고 입력은 비워졌으므로, 다음 건을
+            // 바로 칠 수 있어야 한다. 중복 제출은 「비워진 입력 + 빈 제목 가드」가 막는다.
+            disabled={!addHasTitle || (add.ctx === "instr" && add.targets.length === 0)}
             onClick={saveInlineAdd}
           >
             {add.ctx === "instr" ? dict.iaSendInstrCta : dict.iaSave}
