@@ -559,6 +559,35 @@ export function TasksWorkspace({
     });
     return () => cancelAnimationFrame(raf);
   }, [router, searchParams]);
+  /**
+   * 빠른 추가 성공(`?created=1`) 처리 — **입력을 비우고 시트를 열어 둔다.**
+   *
+   * 서버 액션이 `redirect("/mobile/tasks?view=…&created=1")` 로 끝나는데, 같은 라우트라 소프트
+   * 내비게이션이 일어나고 `TasksWorkspace` 는 언마운트되지 않는다. 그래서 **시트도 입력도 그대로
+   * 남아 있었다** — 방금 등록한 제목이 칸에 남아 그대로 한 번 더 누르면 같은 작업이 또 만들어진다.
+   * `created` 파라미터는 타입 선언에만 있고 **아무도 소비하지 않았다**(2026-09-04 발견).
+   *
+   * 비우되 **닫지는 않는다** — 한 건 넣고 곧바로 다음 건을 치는 흐름을 관리자 콘솔 인라인 추가와
+   * 맞춘다. 닫으려면 스크림 탭 · 아래로 드래그 · Esc(기존 경로 그대로).
+   */
+  const processedCreated = useRef<string | null>(null);
+  useEffect(() => {
+    if (searchParams.get("created") !== "1") return;
+    const key = searchParams.toString();
+    if (processedCreated.current === key) return;
+    processedCreated.current = key;
+    const raf = requestAnimationFrame(() => {
+      if (quickInputEl.current) quickInputEl.current.value = "";
+      setQuickSeed("");
+      setHasQuickTitle(false);
+      if (quickMounted) quickInputEl.current?.focus();
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete("created");
+      const query = next.toString();
+      router.replace(`/mobile/tasks${query ? `?${query}` : ""}`, { scroll: false });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [router, searchParams, quickMounted]);
   useEffect(() => {
     const id = searchParams.get("deleted");
     if (!id || processedDelete.current === id) return;
