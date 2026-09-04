@@ -2,6 +2,53 @@
 
 This file records important project decisions.
 
+## 2026-09-04 RLS 성능·노출 정리 + 스모크 테스트
+
+「지금 문제점」 실측에서 나온 항목을 추천 순서대로 처리했다.
+
+### 1. 런타임 스모크 테스트 (React Compiler 활성화 직후 최소 확인)
+
+프로덕션 빌드로 서버를 띄워 확인: 부팅 정상(`Ready in 240ms`), `/auth/login` · `/offline` 200,
+보호 라우트(`/` · `/mobile/tasks` · `/admin/tasks`)는 307 로 로그인 리다이렉트(미들웨어 정상),
+서버 로그 에러 0건. **컴파일러가 부팅·렌더·미들웨어를 깨지 않았다.**
+대화형 플로우(완료 토글·스와이프·시트)는 여전히 실기기 확인이 필요하다.
+
+### 2. `auth_rls_initplan` — 투두 5개 테이블 9개 정책
+
+정책 안에서 `auth.uid()` 를 그냥 부르면 Postgres 가 **행마다** 재평가한다. `(select auth.uid())` 로
+감싸면 InitPlan 이 되어 쿼리당 한 번이다. 인자가 없어 행에 무관한 `is_platform_admin()` 도 함께
+감쌌다. **행 값을 인자로 받는** `has_active_membership(organization_id)` /
+`is_task_participant(id)` 등은 감싸면 상관 서브쿼리가 되어 손해이므로 그대로 뒀다.
+
+`202609040001_task_rls_initplan.sql`. 검증: 감싼 부분을 되돌려 정규화한 식이 적용 전 원문과
+**아홉 개 모두 문자열 단위로 일치** — 권한은 전혀 바뀌지 않았다.
+
+DB 전체로는 111건이 잡히지만 한 번에 모든 정책을 다시 쓰는 것은 «접근 권한을 잃는» 실패 모드가
+있어 위험하다. 나머지는 그 기능을 만질 때 이 파일을 레시피로 삼아 옮긴다. 현재 규모(작업 71건 ·
+사용자 4명)에서 체감 차이는 없고, 행 수에 비례해 벌어지는 비용을 미리 잡아 두는 것이다.
+
+### 3. `has_permission_override` — 비로그인·타 조직 조회가 열려 있었다
+
+`202608030002` 는 RLS 판정 헬퍼를 일부러 노출된 채로 두면서 근거를 «판정 전용이라 `auth.uid()`
+없이 부르면 아무것도 돌려주지 않는다» 로 적었다. 아홉 개 헬퍼를 하나씩 확인해 보니 **여덟 개는
+그 말이 맞고, `has_permission_override` 만 틀렸다** — 이 함수만 `target_user_id` 를 **인자로**
+받는다. 즉 로그인하지 않은 호출자가 `/rest/v1/rpc/has_permission_override` 에 UUID 를 넣어
+«그 사람에게 이 권한 오버라이드가 걸려 있는가» 를 확인할 수 있었다.
+
+**EXECUTE 회수가 아니라 함수 가드로 막았다.** 이 함수는 `properties` / `rooms` 의 **ALL 정책**에서도
+쓰여서, `anon` 에게서 EXECUTE 를 뺏으면 정책 평가가 «false» 가 아니라 **권한 에러**로 끝난다.
+함수 안에 두 줄을 넣으면 기존 경로는 그대로 두고 노출만 닫힌다:
+`auth.uid() is not null` (다른 헬퍼와 같은 규약) + `has_active_membership(target_organization_id)`
+(로그인 사용자의 **타 조직 훑기**도 함께 차단).
+
+`202609040002_permission_override_caller_guard.sql`. 검증: 비로그인 호출 false, 인증 컨텍스트에서는
+`auth.uid()` 보임 · 멤버십 가드 통과 · 없는 키에 false — RLS 경로 영향 없음.
+
+### 남은 것 — 대시보드 설정 (코드로 못 바꿈)
+
+**유출 비밀번호 보호가 꺼져 있다.** Supabase Auth 가 HaveIBeenPwned 대조로 유출된 비밀번호를 막는
+기능이다. Dashboard → Authentication → Policies 에서 토글 하나. 운영 제품이므로 켜 두기를 권한다.
+
 ## 2026-09-03 (3) React Compiler 활성화 — ② 컴포넌트 부채의 실제 해법
 
 구조 점검 ②(4918줄 콘솔 / 2496줄 워크스페이스, 메모이제이션 경계 없음)를 손으로 쪼개려다

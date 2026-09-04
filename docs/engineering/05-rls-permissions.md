@@ -1175,3 +1175,32 @@ of the RLS/permission-relevant pieces:
 **새 RPC 를 만들 때**: 쓰기 함수는 생성 직후 반드시
 `revoke execute … from public, anon, authenticated` + `grant execute … to service_role` 을 함께
 넣을 것. 기본값이 PUBLIC 이라 아무것도 안 하면 열린 채로 배포된다.
+
+
+## 2026-09-04 RLS 작성 규칙 두 가지 (실측으로 확인된 함정)
+
+### 1. 정책 안의 `auth.uid()` 는 `(select auth.uid())` 로 감싼다
+
+그냥 쓰면 Postgres 가 **행마다** 재평가한다. 서브쿼리로 감싸면 InitPlan 이 되어 쿼리당 한 번이다.
+결과는 같으므로 권한은 바뀌지 않는다. 인자가 없어 행에 무관한 헬퍼(`is_platform_admin()`)도 같다.
+
+**행 값을 인자로 받는 헬퍼는 감싸지 않는다** — `has_active_membership(organization_id)`,
+`is_task_participant(id)` 등은 감싸면 상관 서브쿼리가 되어 오히려 손해다.
+
+적용 예시는 `supabase/migrations/202609040001_task_rls_initplan.sql`. 투두 5개 테이블만 적용했고,
+DB 전체로는 아직 ~100건이 남아 있다(해당 기능을 만질 때 같은 방식으로 옮긴다).
+
+### 2. `SECURITY DEFINER` 판정 헬퍼는 «`auth.uid()` 로 잠근다» 를 지켜야 한다
+
+이 헬퍼들은 PostgREST 의 `/rest/v1/rpc/<fn>` 로 **로그인 없이도 호출 가능**하다. 그래도 괜찮은
+이유는 내부에서 `auth.uid()` 를 읽어 비로그인 호출에 아무것도 돌려주지 않기 때문이다
+(`202608030002` 의 판단).
+
+**그 규약을 깨는 헬퍼를 만들면 안 된다.** `has_permission_override` 는 대상 사용자를 `auth.uid()`
+가 아니라 **인자로** 받아서, 비로그인 호출자가 임의 사용자의 권한 설정을 조회할 수 있었다
+(2026-09-04 수정, `202609040002`).
+
+새 판정 헬퍼를 추가할 때 확인할 것:
+- 「누구에 대한 판정인가」를 인자로 받는가? 받는다면 `auth.uid()` 검사와 조직 멤버십 검사를 함께 넣어라.
+- ALL/SELECT 정책에서 쓰이는가? 그렇다면 **EXECUTE 회수는 답이 아니다** — 정책 평가가 false 가
+  아니라 권한 에러로 끝난다. 함수 안에서 막아라.

@@ -20,6 +20,20 @@ and the major mobile/admin operations modules are implemented and being hardened
   would otherwise read as current status. Encoding-damaged sections/files were intentionally not repaired
   in this pass.
 
+## 2026-09-04 — RLS 성능·노출 정리
+
+- **스모크 테스트:** 프로덕션 빌드 부팅·렌더·미들웨어 정상, 에러 0건. React Compiler 활성화가 기본
+  동작을 깨지 않았음을 확인(대화형 플로우는 실기기 확인 필요).
+- **`auth_rls_initplan`** — 투두 5개 테이블 9개 정책을 `(select auth.uid())` 로 감쌌다
+  (`202609040001`). 정규화 대조로 권한 무변경 확인. DB 전체 111건 중 투두분만 처리 — 나머지는 해당
+  기능을 만질 때 같은 레시피로.
+- **`has_permission_override` 노출 차단** (`202609040002`). 이 헬퍼만 `target_user_id` 를 인자로
+  받아 **비로그인 호출자도 임의 사용자의 권한 오버라이드를 조회**할 수 있었다. ALL 정책에서 쓰이므로
+  EXECUTE 회수 대신 함수 가드(로그인 + 조직 멤버십)로 막았다. 타 조직 훑기도 함께 차단.
+
+**남은 대시보드 작업:** 유출 비밀번호 보호(HaveIBeenPwned 대조)가 꺼져 있다 — Supabase Dashboard
+토글 하나. 코드로는 못 바꾼다.
+
 ## 2026-09-03 (3) — React Compiler 활성화
 
 구조 점검 ②(대형 컴포넌트의 메모이제이션 경계 부재)를 손으로 쪼개려다, **코드가 켜져 있다고 전제한
