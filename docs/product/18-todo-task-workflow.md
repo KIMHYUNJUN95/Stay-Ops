@@ -1015,6 +1015,18 @@ The Quick Add ↔ Detailed Create distinction is made explicit in the interactio
   이 카드는 바로 위 **일회성** 지연 배너와 나란히 놓이므로 둘을 구분하는 유일한 단서다. 토스트
   표준은 `docs/product/16-mobile-navigation.md` → "2026-08-25 떠 있는 토스트".
 
+- **텍스트 입력이 큰 트리를 다시 그리지 않게 한다 (2026-09-04, 성능 계약).** 빠른 추가 시트의 제목은
+  제어 입력이라 **한 글자마다 `TasksWorkspace`(2500줄) 전체가 다시 그려졌다.** 폼 제출은 이미
+  `name="title"` 로 **DOM 에서 직접** 값을 읽으므로(서버 액션의 `formData.get("title")`), 애초에
+  상태로 들고 있을 이유가 없었다. 비제어로 바꾸고, 화면이 실제로 알아야 하는 「비었는가」 하나만
+  상태로 둔다(버튼 활성화). 시트를 닫았다 열면 입력이 유지되던 동작은 **닫을 때 한 번** 값을
+  `quickSeed` 에 담아 유지한다 — 렌더 중에 ref 를 읽지 않으므로 `react-hooks/refs` 규칙도 지킨다.
+  - 검색창은 예외가 아니라 **다른 완화책**을 쓴다: `useDeferredValue` 로 무거운 목록 계산만 뒤로
+    미룬다(2026-08). 입력 자체는 즉시 반응한다.
+  - 관리자 콘솔 인라인 추가도 같은 이유로 같은 처리를 했다(`28-admin-todoist-console.md`).
+  - **React Compiler 로는 못 줄이는 종류다.** 상태가 바뀌면 그 상태를 읽는 트리는 다시 그려야 한다.
+    새 입력을 큰 컴포넌트에 넣을 때는 「상태를 아예 건드리지 않는」 쪽을 먼저 검토할 것.
+
 ## Task Cards
 
 For readability, default list cards should prioritize:

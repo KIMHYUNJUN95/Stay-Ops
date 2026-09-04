@@ -130,22 +130,26 @@ function stopSheetTouch(e: React.TouchEvent) {
  */
 function QuickAddSubmitButtons({
   copy,
-  detailHref,
-  quickTitle,
+  hasTitle,
+  onDetailClick,
 }: {
   copy: Copy;
-  detailHref: string;
-  quickTitle: string;
+  /** 제목이 비어 있지 않은가. 값 자체가 아니라 **불리언**만 받는다 — 타자마다 부모가 다시 그려지지
+   *  않게 하려고 입력을 비제어로 두었기 때문이다(아래 `quickTitleValue` 주석 참고). */
+  hasTitle: boolean;
+  /** 「자세히」로 넘어갈 때 입력값을 실어 보낸다. 값은 클릭 시점에 참조에서 읽는다. */
+  onDetailClick: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const { pending } = useFormStatus();
-  const disabled = pending || !quickTitle.trim();
+  const disabled = pending || !hasTitle;
   return (
     <>
       <div className="flex gap-2.5">
         {/* Full organized create — carries any typed title across so the capture isn't lost. */}
         <Link
           className="inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface text-[13.5px] font-bold text-foreground"
-          href={detailHref}
+          href="/mobile/tasks/new"
+          onClick={onDetailClick}
         >
           <Pencil className="size-4" aria-hidden="true" />
           {copy.quickAddDetailed}
@@ -274,13 +278,29 @@ export function TasksWorkspace({
   // Split mount vs. visibility so the sheet can play a slide/fade-OUT before unmounting.
   const [quickMounted, setQuickMounted] = useState(false); // present in the DOM
   const [quickShown, setQuickShown] = useState(false); // drives the in/out transition
-  const [quickTitle, setQuickTitle] = useState("");
+  /**
+   * 빠른 추가 제목은 **비제어 입력**이다 — 값은 이 참조가 들고 화면은 DOM 이 맡는다.
+   *
+   * 제어 입력으로 두면 한 글자마다 이 컴포넌트(2500줄)가 통째로 다시 그려진다. 폼 제출은 이미
+   * `name="title"` 로 **DOM 에서 직접** 값을 읽으므로(서버 액션의 `formData.get("title")`),
+   * 상태로 들고 있을 이유가 애초에 없었다. 화면이 알아야 하는 것은 「비었는가」 하나뿐이다.
+   * 관리자 콘솔 인라인 추가와 같은 판단(2026-09-04).
+   *
+   * 시트를 닫았다 열면 입력이 유지되던 기존 동작은 그대로다 — **닫을 때 한 번** 값을 `quickSeed` 에
+   * 담아 두고 다음에 열릴 때 `defaultValue` 로 되살린다. 타자마다가 아니라 닫을 때 한 번이라 비용이
+   * 없고, 렌더 중에 참조를 읽지 않으므로 `react-hooks/refs` 규칙도 지킨다.
+   */
+  const quickInputEl = useRef<HTMLInputElement | null>(null);
+  const [hasQuickTitle, setHasQuickTitle] = useState(false);
+  const [quickSeed, setQuickSeed] = useState("");
   const openQuick = useCallback(() => {
     setQuickMounted(true);
     // Double rAF: let the element mount at translate-y-full, then flip to 0 so it animates.
     requestAnimationFrame(() => requestAnimationFrame(() => setQuickShown(true)));
   }, []);
   const closeQuick = useCallback(() => {
+    // 언마운트 전에 입력값을 담아 둔다 — 다시 열 때 `defaultValue` 로 복원된다.
+    setQuickSeed(quickInputEl.current?.value ?? "");
     setQuickShown(false);
     setTimeout(() => setQuickMounted(false), 380); // must match the sheet transition duration
   }, []);
@@ -2223,20 +2243,26 @@ export function TasksWorkspace({
                   <input
                     autoFocus
                     className="h-12 w-full rounded-2xl border border-border bg-muted px-4 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary"
+                    defaultValue={quickSeed}
                     name="title"
-                    onChange={(e) => setQuickTitle(e.target.value)}
+                    onChange={(e) => {
+                      // 「비었다↔찼다」가 뒤집힐 때만 상태를 건드린다 — 버튼 활성화에만 쓰인다.
+                      const filled = e.target.value.trim().length > 0;
+                      if (filled !== hasQuickTitle) setHasQuickTitle(filled);
+                    }}
                     placeholder={copy.quickAddPlaceholder}
+                    ref={quickInputEl}
                     required
-                    value={quickTitle}
                   />
                   <QuickAddSubmitButtons
                     copy={copy}
-                    detailHref={
-                      quickTitle.trim()
-                        ? `/mobile/tasks/new?title=${encodeURIComponent(quickTitle.trim())}`
-                        : "/mobile/tasks/new"
-                    }
-                    quickTitle={quickTitle}
+                    hasTitle={hasQuickTitle}
+                    onDetailClick={(e) => {
+                      const typed = (quickInputEl.current?.value ?? "").trim();
+                      if (!typed) return; // 빈 입력이면 기본 href 그대로
+                      e.preventDefault();
+                      router.push(`/mobile/tasks/new?title=${encodeURIComponent(typed)}`);
+                    }}
                   />
                 </form>
               </div>
