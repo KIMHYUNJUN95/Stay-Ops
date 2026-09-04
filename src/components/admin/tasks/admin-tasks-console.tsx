@@ -364,6 +364,9 @@ export function AdminTasksConsole({
   const [add, setAdd] = useState<AddDraft | null>(null);
   // 인라인 추가 저장의 동기 재진입 가드 — `saveInlineAdd` 참고.
   const addSavingRef = useRef(false);
+  // 연속 추가에서 다음 입력으로 커서를 돌려주기 위한 참조. `autoFocus` 는 마운트 시 한 번만 걸리는데,
+  // 저장 후에도 폼이 **열린 채로 남으므로**(연속 추가) 리마운트가 없어 다시 발동하지 않는다.
+  const addTitleRef = useRef<HTMLInputElement | null>(null);
   const [pop, setPop] = useState<Pop>(null);
   const popAnchorRef = useRef<HTMLDivElement>(null);
   const [instrTab, setInstrTab] = useState<"recv" | "sent">("recv");
@@ -1288,8 +1291,35 @@ export function AdminTasksConsole({
         toast: draft.targets.length > 0 ? dict.tInstructed : dict.tCreated,
         after: () => {
           addSavingRef.current = false;
-          setAdd(null);
           setAddPhotos([]);
+          // 저장해도 폼을 닫지 않는다 — 한 건 넣고 곧바로 다음 건을 치는 흐름이 기본이다(Todoist 동일).
+          // 새로 만든 작업은 목록에 추가되고 이 폼은 그 아래에 그대로 남는다. 닫으려면 «취소».
+          //
+          // **어디에 넣을지**(탭·프로젝트·섹션·날짜)는 유지하고 **무엇을 넣을지**(제목·설명·태그·
+          // 시간·반복·우선순위·사진·연결)는 비운다. 앞 작업의 시간이나 반복이 다음 작업에 묻어가면
+          // 조용히 잘못된 일정이 생긴다.
+          //
+          // 지시(`instr`) 탭에서만 대상자를 남긴다 — 그 탭은 대상이 없으면 저장 자체가 안 되고,
+          // 같은 사람에게 여러 건을 연달아 보내는 것이 그 화면의 본래 쓰임이다.
+          setAdd((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  title: "",
+                  desc: "",
+                  time: "",
+                  dur: null,
+                  repeat: "none",
+                  prio: "normal",
+                  tags: [],
+                  tagInput: "",
+                  context: undefined,
+                  targets: prev.ctx === "instr" ? prev.targets : [],
+                }
+              : prev,
+          );
+          // 리마운트가 없으므로 커서를 직접 돌려준다. 렌더 후로 미뤄야 새 값이 반영된 뒤에 잡힌다.
+          requestAnimationFrame(() => addTitleRef.current?.focus());
         },
         onError: () => {
           addSavingRef.current = false;
@@ -1322,6 +1352,7 @@ export function AdminTasksConsole({
           <input
             className="iadd__title"
             autoFocus
+            ref={addTitleRef}
             placeholder={dict.iaTitle}
             value={add.title}
             onChange={(e) => setAdd({ ...add, title: e.target.value })}
