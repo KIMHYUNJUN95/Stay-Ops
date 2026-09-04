@@ -17,6 +17,8 @@ import {
 } from "@/lib/tasks";
 
 type PageProps = {
+  // `created` 는 서버 액션의 성공 리다이렉트가 싣는 값이고, 소비는 **클라이언트**에서 한다
+  // (`TasksWorkspace` 가 `useSearchParams` 로 읽어 빠른 추가 입력을 비우고 URL 에서 털어낸다).
   searchParams: Promise<{ view?: string; created?: string; moveError?: string }>;
 };
 

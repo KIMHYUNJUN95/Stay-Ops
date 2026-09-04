@@ -22,6 +22,7 @@ import type { LostItemStatus, LostReturnMethod } from "@/lib/lost-found-constant
 import { BOARD_ORDER, LOST_STATUS, locationLabel } from "./lost-found-console-data";
 import { CATEGORY_ICON, STATUS_ICON, copyOf, localeTagOf, type LFCopy } from "./lost-found-console-shared";
 import type { LFActionKind } from "./lost-found-detail-panel";
+import { tokyoToday } from "@/lib/tokyo-date";
 
 export type LFActionPayload = {
   memo?: string;
@@ -131,7 +132,10 @@ export function LostFoundActionModal({
   const [dueDate, setDueDate] = useState(addDaysISO(item.dueDate, 14));
   const [status, setStatus] = useState<LostItemStatus>(item.status === "returned" || item.status === "disposed" ? "registered" : item.status);
 
-  const tomorrowKey = addDaysISO(new Date().toISOString().slice(0, 10), 1);
+  // `new Date().toISOString()` 은 **UTC** 날짜다 — JST 00:00~09:00 사이에는 도쿄 기준 어제가 나와
+  // 보관 연장 마감의 하한(`min`)이 하루 이르게 열렸다. 이 저장소의 업무 날짜는 전부 도쿄 기준이다
+  // (CLAUDE.md → Tokyo timezone). 순수 모듈의 `tokyoToday()` 를 쓴다.
+  const tomorrowKey = addDaysISO(tokyoToday(), 1);
 
   function handleConfirm() {
     if (kind === "return") {
