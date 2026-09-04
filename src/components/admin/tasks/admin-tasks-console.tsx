@@ -184,8 +184,8 @@ type AddDraft = {
   ctx: "today" | "tomorrow" | "inbox" | "project" | "day" | "instr";
   sectionId: string | null;
   onDate: string; // for "day"/day-anchored adds
-  title: string;
-  desc: string;
+  // 제목·설명·태그 입력 버퍼는 **여기 없다.** 비제어 입력이라 `addTextRef` 가 들고 있다
+  // (한 글자마다 이 4900줄 컴포넌트를 다시 그리지 않기 위해 — 2026-09-04).
   date: string;
   time: string;
   dur: number | null;
@@ -193,8 +193,6 @@ type AddDraft = {
   prio: string;
   targets: string[];
   tags: string[];
-  /** 태그 입력 버퍼 — 커밋 전 문자열이라 `tags` 와 분리해 둔다. */
-  tagInput: string;
   /** 연결된 건물/객실/예약/게스트. 미연결이면 undefined. */
   context?: TaskContextValue;
 };
@@ -364,9 +362,34 @@ export function AdminTasksConsole({
   const [add, setAdd] = useState<AddDraft | null>(null);
   // 인라인 추가 저장의 동기 재진입 가드 — `saveInlineAdd` 참고.
   const addSavingRef = useRef(false);
-  // 연속 추가에서 다음 입력으로 커서를 돌려주기 위한 참조. `autoFocus` 는 마운트 시 한 번만 걸리는데,
-  // 저장 후에도 폼이 **열린 채로 남으므로**(연속 추가) 리마운트가 없어 다시 발동하지 않는다.
-  const addTitleRef = useRef<HTMLInputElement | null>(null);
+  /**
+   * 인라인 추가의 **텍스트 입력은 비제어(uncontrolled)** 다 — 값은 이 참조가 들고 화면은 DOM 이 맡는다.
+   *
+   * 제어 입력으로 두면 한 글자마다 `setAdd` 가 돌고, `add` 는 이 컴포넌트(4900줄)의 state 라
+   * **매 타자에 콘솔 전체가 다시 그려진다** — 작업 목록·캘린더·사이드바·팝오버까지 전부. 저장 후에도
+   * 폼이 열린 채 남게 되면서(연속 추가) 그 비용이 «타자가 밀린다» 로 드러났다(2026-09-04 제보).
+   *
+   * 참조에 쓰면 렌더가 아예 일어나지 않는다. 화면이 실제로 알아야 하는 것은 「제목이 비었는가」
+   * 하나뿐이라 그것만 상태로 두고, **비었다↔찼다가 뒤집힐 때만** 갱신한다(타자마다가 아니라 한 번).
+   *
+   * React Compiler 도 이건 못 줄인다 — 상태가 바뀌면 그 상태를 읽는 트리는 다시 그려야 하고,
+   * 이 콘솔은 목록을 `Section({…})` / `renderRow(t)` 처럼 **함수 호출**로 그려서 그 사이에
+   * 메모이제이션 경계가 생기지 않는다. 애초에 상태를 건드리지 않는 것이 유일한 해법이다.
+   */
+  const addTextRef = useRef({ title: "", desc: "", tagInput: "" });
+  const addTitleEl = useRef<HTMLInputElement | null>(null);
+  const addDescEl = useRef<HTMLTextAreaElement | null>(null);
+  const addTagEl = useRef<HTMLInputElement | null>(null);
+  const [addHasTitle, setAddHasTitle] = useState(false);
+  /** 비제어 입력을 비우고 커서를 제목으로 돌린다(연속 추가 / 폼 열기). */
+  const resetAddText = useCallback((focus: boolean) => {
+    addTextRef.current = { title: "", desc: "", tagInput: "" };
+    if (addTitleEl.current) addTitleEl.current.value = "";
+    if (addDescEl.current) addDescEl.current.value = "";
+    if (addTagEl.current) addTagEl.current.value = "";
+    setAddHasTitle(false);
+    if (focus) requestAnimationFrame(() => addTitleEl.current?.focus());
+  }, []);
   const [pop, setPop] = useState<Pop>(null);
   const popAnchorRef = useRef<HTMLDivElement>(null);
   const [instrTab, setInstrTab] = useState<"recv" | "sent">("recv");
@@ -1236,8 +1259,6 @@ export function AdminTasksConsole({
       ctx,
       sectionId,
       onDate,
-      title: "",
-      desc: "",
       date,
       time: "",
       dur: null,
@@ -1245,19 +1266,20 @@ export function AdminTasksConsole({
       prio: "normal",
       targets: [],
       tags: [],
-      tagInput: "",
       context: undefined,
     });
     setAddPhotos([]);
+    resetAddText(false); // 취소로 닫았을 때 참조에 남은 이전 입력을 버린다(DOM 은 새로 마운트된다)
   };
   const saveInlineAdd = () => {
-    if (!add || !add.title.trim()) return;
+    if (!add || !addTextRef.current.title.trim()) return;
     // Synchronous re-entrancy guard: a ref (not `pending`) because `isPending` only flips after a
     // re-render, which doesn't happen fast enough to block a second Enter/click fired within the
     // same tick — that was exactly how one tap created two tasks (2026-08-25).
     if (addSavingRef.current) return;
     addSavingRef.current = true;
     const draft = add;
+    const text = { ...addTextRef.current }; // 비제어 입력의 현재 값(제출 시점 스냅샷)
     const photos = addPhotos;
     // The task id is minted here so the photos can be uploaded to their final
     // `${organizationId}/task-images/${id}/` path BEFORE the row exists — the same order the mobile
@@ -1270,15 +1292,15 @@ export function AdminTasksConsole({
           ? await uploadPendingTaskPhotos({ pending: photos, organizationId, taskId: newTaskId })
           : [];
         return createConsoleTask({
-          title: draft.title,
-          desc: draft.desc,
+          title: text.title,
+          desc: text.desc,
           date: draft.date,
           time: draft.time,
           durationMinutes: draft.dur,
           repeat: draft.repeat,
           priority: draft.prio,
           // 커밋 안 된 입력 버퍼도 마지막 태그로 인정한다(Enter 없이 바로 저장하는 흐름).
-          tags: [...draft.tags, draft.tagInput.trim().replace(/^#/, "")].filter(Boolean).slice(0, 10),
+          tags: [...draft.tags, text.tagInput.trim().replace(/^#/, "")].filter(Boolean).slice(0, 10),
           projectId: draft.ctx === "project" ? projectId : null,
           sectionId: draft.ctx === "project" ? draft.sectionId : null,
           targetUserIds: draft.targets,
@@ -1305,21 +1327,17 @@ export function AdminTasksConsole({
             prev
               ? {
                   ...prev,
-                  title: "",
-                  desc: "",
                   time: "",
                   dur: null,
                   repeat: "none",
                   prio: "normal",
                   tags: [],
-                  tagInput: "",
                   context: undefined,
                   targets: prev.ctx === "instr" ? prev.targets : [],
                 }
               : prev,
           );
-          // 리마운트가 없으므로 커서를 직접 돌려준다. 렌더 후로 미뤄야 새 값이 반영된 뒤에 잡힌다.
-          requestAnimationFrame(() => addTitleRef.current?.focus());
+          resetAddText(true); // 텍스트 비우고 커서를 제목으로 — 리마운트가 없으므로 직접 돌려준다
         },
         onError: () => {
           addSavingRef.current = false;
@@ -1352,10 +1370,15 @@ export function AdminTasksConsole({
           <input
             className="iadd__title"
             autoFocus
-            ref={addTitleRef}
+            ref={addTitleEl}
+            defaultValue=""
             placeholder={dict.iaTitle}
-            value={add.title}
-            onChange={(e) => setAdd({ ...add, title: e.target.value })}
+            onChange={(e) => {
+              addTextRef.current.title = e.target.value;
+              // 「비었다↔찼다」가 뒤집힐 때만 상태를 건드린다 — 저장 버튼 활성화에만 쓰인다.
+              const filled = e.target.value.trim().length > 0;
+              if (filled !== addHasTitle) setAddHasTitle(filled);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") saveInlineAdd();
             }}
@@ -1364,8 +1387,11 @@ export function AdminTasksConsole({
             className="iadd__desc"
             placeholder={dict.iaDesc}
             rows={1}
-            value={add.desc}
-            onChange={(e) => setAdd({ ...add, desc: e.target.value })}
+            ref={addDescEl}
+            defaultValue=""
+            onChange={(e) => {
+              addTextRef.current.desc = e.target.value;
+            }}
           />
         </div>
         <div className="iadd__chips">
@@ -1430,19 +1456,22 @@ export function AdminTasksConsole({
             {add.tags.length < 10 && (
               <input
                 className="iadd__taginput"
-                value={add.tagInput}
+                ref={addTagEl}
+                defaultValue=""
                 placeholder={dict.dpTagAdd}
-                onChange={(e) => setAdd({ ...add, tagInput: e.target.value })}
+                onChange={(e) => {
+                  addTextRef.current.tagInput = e.target.value;
+                }}
                 onKeyDown={(e) => {
+                  const buf = addTextRef.current.tagInput;
                   if (e.key === "Enter" || e.key === ",") {
                     e.preventDefault();
-                    const tag = add.tagInput.trim().replace(/^#/, "");
-                    if (!tag || add.tags.includes(tag)) {
-                      setAdd({ ...add, tagInput: "" });
-                      return;
-                    }
-                    setAdd({ ...add, tags: [...add.tags, tag], tagInput: "" });
-                  } else if (e.key === "Backspace" && !add.tagInput && add.tags.length) {
+                    const tag = buf.trim().replace(/^#/, "");
+                    addTextRef.current.tagInput = "";
+                    if (addTagEl.current) addTagEl.current.value = "";
+                    if (!tag || add.tags.includes(tag)) return;
+                    setAdd({ ...add, tags: [...add.tags, tag] });
+                  } else if (e.key === "Backspace" && !buf && add.tags.length) {
                     setAdd({ ...add, tags: add.tags.slice(0, -1) });
                   }
                 }}
@@ -1463,7 +1492,7 @@ export function AdminTasksConsole({
               이 목록에서 사라진다. 그래서 대상을 필수로 건다. */}
           <button
             className="btn btn--pri btn--sm"
-            disabled={!add.title.trim() || (add.ctx === "instr" && add.targets.length === 0) || pending}
+            disabled={!addHasTitle || (add.ctx === "instr" && add.targets.length === 0) || pending}
             onClick={saveInlineAdd}
           >
             {add.ctx === "instr" ? dict.iaSendInstrCta : dict.iaSave}
