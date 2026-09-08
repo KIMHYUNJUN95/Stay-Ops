@@ -926,10 +926,11 @@ export function AdminTasksConsole({
   const overdueList = personalTasks.filter((t) => isOverdue(t, today) && myOwn(t, meId));
   // 관리함 = 프로젝트 밖 모든 활성 작업(날짜 무관).
   const inboxCount = personalTasks.filter((t) => isActive(t) && myOwn(t, meId)).length;
-  // 반복 회차 포함: 오늘 미완료 회차 + 반복 지연 backlog(작업별 1건) + 내일 미완료 회차.
-  const recTodayCount = personalTasks.filter((t) => myOwn(t, meId) && openOccursOn(t, today)).length;
-  const recOverdueCount = personalTasks.filter(
-    (t) => myOwn(t, meId) && overdueOccurrenceDates(t, today, resolvedDatesFor(t.id)).length > 0,
+  // 반복은 **오늘 목록에 한 줄**이다(2026-09-08) — 오늘 회차든 밀린 것이든. 그러므로 탭 카운트도
+  // 목록과 같은 술어(`showsOnTodayList`)로 한 번만 센다. 예전에는 「오늘 회차」와 「지연 backlog」를
+  // 따로 세어 더했는데, 둘 다 가진 작업이 **2로 계상**됐다(지금 규칙에서는 한 줄인데도).
+  const recTodayCount = personalTasks.filter(
+    (t) => myOwn(t, meId) && showsOnTodayList(t, today, occState, resolvedDatesFor(t.id)),
   ).length;
   const recTomorrowCount = personalTasks.filter(
     (t) => myOwn(t, meId) && openOccursOn(t, addDays(today, 1)),
@@ -937,8 +938,7 @@ export function AdminTasksConsole({
   const todayCount =
     personalTasks.filter((t) => isTodayTask(t, today) && myOwn(t, meId)).length +
     overdueList.length +
-    recTodayCount +
-    recOverdueCount;
+    recTodayCount;
   const tomorrowCount =
     personalTasks.filter((t) => isTomorrowTask(t, today) && myOwn(t, meId)).length + recTomorrowCount;
   const sharedCount = personalTasks.filter(
@@ -3308,7 +3308,9 @@ export function AdminTasksConsole({
         <div className="tsubnav__tabs">
           {(
             [
-              ["today", dict.vToday, <Sun key="i" size={15} />, todayCount, overdueList.length > 0 || recOverdueCount > 0],
+              // 「주의」 점은 **지연 섹션에 뭔가 있을 때**만 — 그 섹션은 이제 일회성 전용이다
+              // (2026-09-08). 반복 밀림은 오늘 줄의 배지로 보이므로 여기서 또 알릴 필요가 없다.
+              ["today", dict.vToday, <Sun key="i" size={15} />, todayCount, overdueList.length > 0],
               ["tomorrow", dict.vTomorrow, <Sunrise key="i" size={15} />, tomorrowCount, false],
               ["inbox", dict.vInbox, <Inbox key="i" size={15} />, inboxCount, false],
               ["instr", dict.vInstr, <Megaphone key="i" size={15} />, recvOpen + sentOpen, recvOpen > 0],

@@ -905,8 +905,8 @@ export function TasksWorkspace({
 
   // Per-tab counts (same base lists as each view).
   const tabCounts: Record<View, number> = {
-    // 목록의 **줄 수**와 맞춘다: 반복 지연 backlog 와 오늘 회차를 동시에 가진 작업은 두 줄로
-    // 렌더되므로 2로 세야 한다(콘솔 `todayCount` 와 같은 섹션별 합산 — 한 번의 filter 로 세면 1).
+    // 목록의 **줄 수**와 맞춘다. 2026-09-08 부터 반복은 (오늘 회차든 밀린 것이든) 한 줄이므로
+    // `todayRecBase` 가 곧 줄 수다 — 예전의 «두 줄» 보정은 더 이상 필요 없다.
     today:
       todayOverdueBase.length +
       todayBase.length +
