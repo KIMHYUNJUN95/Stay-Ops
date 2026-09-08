@@ -1,6 +1,12 @@
 import { AdminShell } from "@/components/shell/admin-shell";
 import { ComplaintsConsole } from "@/components/admin/complaints/complaints-console";
-import { canModerateComplaints, canWriteComplaint, listComplaints } from "@/lib/complaints";
+import {
+  canModerateComplaints,
+  canWriteComplaint,
+  getComplaint,
+  listComplaints,
+  type Complaint,
+} from "@/lib/complaints";
 import {
   listComplaintPickerPlaces,
   listComplaintPickerReservations,
@@ -31,6 +37,8 @@ type SearchParams = {
   risk?: string;
   /** 상세 패널을 여는 외부 리뷰 id. */
   review?: string;
+  /** 상세 패널을 여는 수동 컴플레인 id (`review` 와 같은 방식, 2026-09-08). */
+  complaint?: string;
   /** "1"이면 저장된 번역을 원문 대신 보여준다. */
   tr?: string;
 };
@@ -89,6 +97,9 @@ export default async function AdminComplaintsPage({
 
   // 상세 패널은 ?review=<id> 쿼리로만 연다 — 콘솔의 나머지 상태와 같은 서버 렌더 한 번으로 끝난다.
   const reviewId = params.review?.trim() || null;
+  // 수동 컴플레인 상세도 같은 규약으로 연다 — 새 라우트를 파지 않는다(콘솔 공유 계약).
+  const complaintId = params.complaint?.trim() || null;
+  let selectedComplaint: Complaint | null = null;
   let selectedReview: ExternalReviewDetail | null = null;
   let translations: Partial<Record<TranslationPart, string>> = {};
   const showTranslation = params.tr === "1";
@@ -100,6 +111,10 @@ export default async function AdminComplaintsPage({
         targetLocale: session.user.preferredLanguage,
       });
     }
+  }
+
+  if (complaintId) {
+    selectedComplaint = await getComplaint({ session, id: complaintId });
   }
 
   return (
@@ -122,6 +137,7 @@ export default async function AdminComplaintsPage({
         reviews={reviews}
         summaries={summaries}
         selectedReview={selectedReview}
+        selectedComplaint={selectedComplaint}
         showTranslation={showTranslation}
         translations={translations}
         canConvert={canWrite}

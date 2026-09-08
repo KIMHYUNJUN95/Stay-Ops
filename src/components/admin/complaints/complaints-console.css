@@ -180,6 +180,44 @@
   flex: 1;
   min-width: 0;
 }
+/* 행 본문이 상세 패널로 가는 링크가 됐다(2026-09-08). 링크 기본 스타일을 지우고 행 전체가
+   눌리는 것처럼 보이게 한다 — 삭제 버튼은 링크 밖에 있어 중첩되지 않는다. */
+.adm .cxmain--link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 10px;
+  transition: background-color var(--dur-fast, 0.12s) ease;
+}
+.adm .cxmain--link:hover {
+  background: var(--surface2);
+}
+.adm .cxmain--link:focus-visible {
+  outline: 2px solid var(--adm-primary);
+  outline-offset: 2px;
+}
+
+/* 컴플레인 첨부 사진 — 정사각 썸네일 그리드. 원본은 새 탭에서 연다(콘솔에 라이트박스 없음). */
+.adm .cxshots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.adm .cxshot {
+  display: block;
+  width: 96px;
+  height: 96px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+.adm .cxshot__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 .adm .cxtop {
   display: flex;
   align-items: center;

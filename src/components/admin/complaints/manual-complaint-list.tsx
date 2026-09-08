@@ -6,6 +6,7 @@
 // 다시 검증하므로 UI 게이트는 노출 판단용일 뿐이다.
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { ShieldAlert, Trash2, X } from "lucide-react";
 import { deleteComplaintAction } from "@/app/admin/complaints/actions";
 import type { Complaint } from "@/lib/complaints";
@@ -28,9 +29,17 @@ type Props = {
   currentUserId: string;
   canModerate: boolean;
   labels: ManualComplaintLabels;
+  /** 행을 눌렀을 때 열 상세 패널 주소(`?complaint=<id>`). */
+  detailHref: (complaintId: string) => string;
 };
 
-export function ManualComplaintList({ complaints, currentUserId, canModerate, labels }: Props) {
+export function ManualComplaintList({
+  complaints,
+  currentUserId,
+  canModerate,
+  labels,
+  detailHref,
+}: Props) {
   const [target, setTarget] = useState<Complaint | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -60,7 +69,8 @@ export function ManualComplaintList({ complaints, currentUserId, canModerate, la
         const canDelete = canModerate || complaint.createdByUserId === currentUserId;
         return (
           <div className="cxrow" key={complaint.id}>
-            <div className="cxmain">
+            {/* 본문만 링크로 감싼다 — 삭제 버튼을 링크 안에 넣으면 중첩 인터랙티브가 된다. */}
+            <Link href={detailHref(complaint.id)} className="cxmain cxmain--link">
               <div className="cxtop">
                 <span className="cxttl">{complaint.title}</span>
                 <span className={complaint.status === "open" ? "rchip review" : "rchip done"}>
@@ -78,7 +88,7 @@ export function ManualComplaintList({ complaints, currentUserId, canModerate, la
                 <span className="cxdot" />
                 <span>{complaint.authorName}</span>
               </div>
-            </div>
+            </Link>
             {canDelete ? (
               <button
                 type="button"

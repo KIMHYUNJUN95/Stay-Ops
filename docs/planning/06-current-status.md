@@ -20,6 +20,25 @@ and the major mobile/admin operations modules are implemented and being hardened
   would otherwise read as current status. Encoding-damaged sections/files were intentionally not repaired
   in this pass.
 
+## 2026-09-08 (2) — 수동 컴플레인 상세 패널 신설
+
+**증상.** 외부 리뷰 상세의 「연결된 컴플레인」을 눌러도 수동 컴플레인 **목록 전체**로만 갔다. 어느
+것이 그 컴플레인인지 알 수 없다. 더 근본적으로는 **수동 컴플레인의 본문·사진·평점·게스트를 콘솔에서
+볼 방법이 아예 없었다** — 목록 행은 제목·상태·건물·날짜·작성자만 보여 주고 클릭도 되지 않았다.
+
+**새 라우트가 아니라 패널로 구현했다.** 문서는 `/admin/complaints/[id]` 라우트를 가정했지만, 이
+콘솔은 상태를 전부 쿼리스트링으로 들고 서버 렌더 한 번으로 끝낸다(`?review=<id>` 와 동일). 라우트를
+새로 파면 같은 콘솔 안에 화면 전환 방식이 두 가지가 생겨 「하나의 운영 콘솔」 계약을 깬다
+(CLAUDE.md §4). `ReviewDetailPanel` 과 **같은 `.panel` 프리미티브·오버레이**를 그대로 쓴다.
+
+- `?complaint=<id>` → `ComplaintDetailPanel`(서버 컴포넌트). 본문·첨부 사진·평점·건물/객실/예약
+  참조·게스트·등록자·등록일·처리일.
+- 목록 행 본문이 그 패널로 가는 링크가 됐다. **삭제 버튼은 링크 밖**에 둔다(중첩 인터랙티브 금지).
+- 사진은 96px 썸네일 그리드, 원본은 새 탭. 콘솔에 라이트박스 프리미티브가 없어 새로 만들면 모바일과
+  두 벌이 되므로 만들지 않았다.
+- 신규 i18n 5개(`noDescription` · `photosTitle` · `authorLabel` · `createdAtLabel` ·
+  `resolvedAtLabel`) ko/ja/en. 나머지 라벨은 기존 키 재사용.
+
 ## 2026-09-04 (2) — 로그인 실패 문구가 삼켜지던 버그 수정
 
 미들웨어가 `/auth/login?...&error=…`(앱 자신의 에러 파라미터)를 Supabase 콜백으로 오인해
@@ -358,6 +377,9 @@ Phase 13: QA and Internal Rollout — in progress; Phase 14 feature batch implem
   - **아직 안 한 것:** 어드민 컴플레인 단건 상세 라우트(`/admin/complaints/[id]`)가 없어 "연결된
     컴플레인으로 이동"이 목록까지만 간다. 모바일 외부 리뷰의 날짜 범위 필터와 기간 평점 요약
     (`summarizeReviewsByPlace` 연결)은 deferred.
+    ~~어드민 컴플레인 단건 상세 라우트(`/admin/complaints/[id]`)가 없어 "연결된 컴플레인으로 이동"이
+    목록까지만 간다.~~ → **2026-09-08 해결.** 다만 **라우트가 아니라 `?complaint=<id>` 패널**로
+    구현했다(아래 항목 참고).
     ~~마이그레이션은 원격 Supabase에 아직 미적용.~~ → **2026-09-08 확인: 적용 완료**
     (`external_reviews` 30컬럼 · `source_reservation_id` 포함 · 실데이터 2,608건). 이 줄은 작성
     시점의 상태였고 이후 적용됐는데 갱신되지 않았다.

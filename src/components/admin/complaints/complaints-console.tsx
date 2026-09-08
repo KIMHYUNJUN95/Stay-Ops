@@ -4,6 +4,7 @@ import { DateRangeFormField } from "@/components/admin/shared/date-range-form-fi
 import { ReviewDetailPanel, type ReviewPanelLabels } from "@/components/admin/complaints/review-detail-panel";
 import { ReviewDetailOverlay } from "@/components/admin/complaints/review-detail-overlay";
 import { ManualComplaintList } from "@/components/admin/complaints/manual-complaint-list";
+import { ComplaintDetailPanel } from "@/components/admin/complaints/complaint-detail-panel";
 import { ComplaintCreateLauncher } from "@/components/admin/complaints/complaint-create-launcher";
 import type { PlacePickRow, ReservationPickRow } from "@/lib/complaint-reservations";
 import type { Complaint } from "@/lib/complaints";
@@ -50,6 +51,8 @@ type Props = {
   reviews: ExternalReview[];
   summaries: BuildingSummary[];
   selectedReview: ExternalReviewDetail | null;
+  /** `?complaint=<id>` 로 연 수동 컴플레인. 리뷰 패널과 같은 오버레이·프리미티브를 쓴다. */
+  selectedComplaint: Complaint | null;
   showTranslation: boolean;
   translations: Partial<Record<TranslationPart, string>>;
   canConvert: boolean;
@@ -171,6 +174,7 @@ export function ComplaintsConsole({
   reviews,
   summaries,
   selectedReview,
+  selectedComplaint,
   showTranslation,
   translations,
   canConvert,
@@ -211,8 +215,13 @@ export function ComplaintsConsole({
     ? `/admin/complaints${queryOf({ ...viewBase, review: selectedReview.id, tr: "1" })}`
     : closeHref;
   const convertRedirectTo = selectedReview ? reviewHref(selectedReview.id) : closeHref;
-  // 아직 어드민에 컴플레인 단건 상세가 없어, 연결된 컴플레인으로는 수동 컴플레인 목록으로 보낸다.
-  const linkedComplaintHref = `/admin/complaints${queryOf({ ...base, view: "manual" })}`;
+  // 연결된 컴플레인은 그 **단건**을 연다. 예전에는 상세가 없어 수동 목록 전체로 보냈고, 사용자는
+  // 어느 것이 그 컴플레인인지 알 수 없었다(2026-09-08).
+  const complaintHref = (complaintId: string) =>
+    `/admin/complaints${queryOf({ ...base, view: "manual", complaint: complaintId })}`;
+  const linkedComplaintHref = selectedReview?.linkedComplaintId
+    ? complaintHref(selectedReview.linkedComplaintId)
+    : null;
 
   return (
     <>
@@ -633,6 +642,7 @@ export function ComplaintsConsole({
               complaints={complaints}
               currentUserId={currentUserId}
               canModerate={canModerate}
+              detailHref={complaintHref}
               labels={{
                 statusOpen: copy.statusOpen,
                 statusDone: copy.statusDone,
@@ -663,6 +673,18 @@ export function ComplaintsConsole({
             canConvert={canConvert}
             convertRedirectTo={convertRedirectTo}
             linkedComplaintHref={linkedComplaintHref}
+          />
+        </ReviewDetailOverlay>
+      ) : null}
+
+      {selectedComplaint ? (
+        <ReviewDetailOverlay closeHref={closeHref}>
+          <ComplaintDetailPanel
+            complaint={selectedComplaint}
+            copy={copy}
+            buildingLabels={buildingLabels}
+            labels={panelLabels}
+            closeHref={closeHref}
           />
         </ReviewDetailOverlay>
       ) : null}
