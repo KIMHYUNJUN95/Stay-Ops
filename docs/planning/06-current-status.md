@@ -354,7 +354,16 @@ Phase 13: QA and Internal Rollout — in progress; Phase 14 feature batch implem
     126초라 Vercel Hobby 60초 상한에 걸려 예정 실행이 매번 `504` 로 죽고 있었다. 라우트가
     `?offset&limit`(기본 12) 로 조각만 처리하고 `nextOffset`/`done` 을 반환, 워크플로가 `done` 까지
     반복 호출한다. 대상 정렬을 `id` 로 고정해 이어받기가 어긋나지 않게 했다. **총 호출 수 = 대상 수
-    로 동일해 크레딧은 늘지 않는다.** 아직 남은 일: 수집 결과 기록 + 장기 미수집 알림.
+    로 동일해 크레딧은 늘지 않는다.**
+    ~~아직 남은 일: 수집 결과 기록 + 장기 미수집 알림.~~
+    → **2026-09-08 재확인.** 「장기 미수집 알림」은 **이미 구현·배선돼 있다** —
+    `/api/beds24/reviews-sync/health` 가 `max(external_reviews.updated_at)` 로 2일 이상 정체를
+    감지해 Slack 으로 알리고, reconcile 워크플로(하루 4회)가 그것을 호출한다. 「수집 결과」도
+    워크플로가 조각마다 `upserted`/`requests` 를 누적해 로그에 남기고 실패 시 빨간불을 낸다.
+    실측: 리뷰 2,608건, 마지막 갱신 5.4시간 전, 최근 2일간 1,916건 갱신 — 정상 동작 중.
+    **남은 것은 「실행 이력 테이블」뿐이고, 새 스키마를 만들 만한 가치가 있는지는 미정이다.**
+    실제로 났던 사고(전면 무성공 정체)는 health 가 이미 덮는다. 덮지 못하는 것은 `dormantTargets`
+    가 시간에 걸쳐 조용히 줄어드는 경우인데, 그건 관측 개선이지 버그가 아니다.
   - **수집 트리거** `/api/beds24/reviews-sync`(프로덕션) + `/api/dev/beds24/sync-reviews`(로컬).
     인증은 `/api/beds24/reconcile`과 동일 규약(`CRON_SECRET` → `BEDS24_WEBHOOK_SECRET` 폴백,
     미설정 404 / 불일치 403), `BEDS24_SYNC_PAUSED` 시 인증 이전에 202. 조직 단위 격리 실행이라 한
