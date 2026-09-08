@@ -48,6 +48,7 @@ import { backlogCoveredByOccurrenceOn } from "@/lib/task-predicates";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { cleanupRemovedTaskImages, sanitizeTaskImageUrls } from "@/lib/task-images";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import { mustWrite } from "@/lib/db-write-guard";
 import type { Database } from "@/types/database";
 
 export type TaskActionResult =
@@ -1477,11 +1478,18 @@ export async function deleteConsoleProjectSection(
   const supabase = getSupabaseServiceClient();
   // 스펙: 섹션을 지우면 그 안의 작업도 지운다. 삭제 정책에 맞춰 **소프트 삭제**(reads 가
   // deleted_at 을 필터)한 뒤 섹션 행을 제거한다 — 모바일과 동일.
-  await supabase
-    .from("tasks")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("project_id", r.id)
-    .eq("section_id", sectionId);
+  // 하위 작업 정리가 실패했는데 섹션만 지우면, 그 작업들은 **없는 섹션을 가리킨 채 남는다**
+  // (project_id 는 있고 section_id 는 죽은 값) — 어느 목록에도 안 뜨고 되돌릴 단서도 없다.
+  // 섹션 삭제 앞에서 반드시 확인한다(2026-09-08).
+  const cleared = await mustWrite(
+    "section delete: soft-delete child tasks",
+    supabase
+      .from("tasks")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("project_id", r.id)
+      .eq("section_id", sectionId),
+  );
+  if (!cleared) return { ok: false, error: "delete_failed" };
   const { error } = await supabase
     .from("project_sections")
     .delete()

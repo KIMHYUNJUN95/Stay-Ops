@@ -2763,6 +2763,7 @@ const FALLBACK_DICTIONARY = {
     repeatPickDays: "Custom",
     repeatPickDaysHint: "Pick the days to repeat on",
     moveDuplicateOccurrence: "That date already has this recurring task.",
+    moveSaveFailed: "Could not move the task. Please try again.",
     moveRejectedRecurringSeries:
       "Recurring tasks can't be rescheduled by swipe. Edit the repeat rule, or skip just this occurrence.",
     repeatHint:
@@ -3851,6 +3852,8 @@ const FALLBACK_DICTIONARY = {
       phone_invalid: "Please enter a valid phone number (7–15 digits).",
       phone_duplicate:
         "This phone number is already registered. Use a different number or sign in with the existing account.",
+      delete_failed:
+        "Could not delete your account. Nothing was changed — please try again.",
       profile_failed: "Profile update failed. Please try again.",
       profile_required: "Please complete your profile first.",
       platform_admin_exists: "An admin account already exists.",
@@ -7515,6 +7518,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       repeatPickDays: "사용자 지정",
       repeatPickDaysHint: "반복할 요일을 선택하세요",
       moveDuplicateOccurrence: "그 날짜에는 이미 같은 반복 작업이 있습니다.",
+      moveSaveFailed: "작업을 옮기지 못했습니다. 다시 시도해 주세요.",
       moveRejectedRecurringSeries:
         "반복 업무는 스와이프로 일정을 옮길 수 없습니다. 반복 설정을 수정하거나 이 회차만 건너뛰세요.",
       repeatHint:
@@ -8585,6 +8589,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         phone_duplicate:
           "이미 등록된 전화번호입니다. 다른 번호를 사용하거나 기존 계정으로 로그인해 주세요.",
         platform_admin_exists: "이미 플랫폼 관리자가 있습니다.",
+        delete_failed:
+          "계정을 삭제하지 못했습니다. 변경된 것은 없으니 다시 시도해 주세요.",
         profile_failed: "프로필을 저장하지 못했습니다. 다시 시도해 주세요.",
         profile_required: "먼저 프로필을 완성해주세요.",
         platform_admin_failed: "관리자 등록에 실패했습니다. 다시 시도해 주세요.",
@@ -12194,6 +12200,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       repeatPickDays: "カスタム",
       repeatPickDaysHint: "繰り返す曜日を選択してください",
       moveDuplicateOccurrence: "その日付には同じ繰り返しタスクが既にあります。",
+      moveSaveFailed: "タスクを移動できませんでした。もう一度お試しください。",
       moveRejectedRecurringSeries:
         "繰り返しタスクはスワイプで日付を移動できません。繰り返し設定を編集するか、この回だけスキップしてください。",
       repeatHint:
@@ -13264,6 +13271,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         phone_duplicate:
           "この電話番号はすでに登録されています。別の番号を使うか、既存アカウントでログインしてください。",
         platform_admin_exists: "すでに管理者が存在します。",
+        delete_failed:
+          "アカウントを削除できませんでした。変更は行われていません。もう一度お試しください。",
         profile_failed: "プロフィールを保存できませんでした。もう一度お試しください。",
         profile_required: "まずプロフィールを完成させてください。",
         platform_admin_failed: "管理者登録に失敗しました。もう一度お試しください。",

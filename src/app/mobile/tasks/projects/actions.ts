@@ -7,6 +7,7 @@ import { getProjectDetail, type ProjectDetailData } from "@/lib/projects";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getShareableUsers } from "@/lib/tasks";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import { bestEffortWrite, mustWrite } from "@/lib/db-write-guard";
 import type { Database } from "@/types/database";
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentAppSession>>>;
@@ -161,11 +162,15 @@ export async function addProjectSection(formData: FormData) {
     0,
   );
   const supabase = getSupabaseServiceClient();
-  await supabase.from("project_sections").insert({
-    project_id: id,
-    title,
-    sort_order: nextOrder,
-  });
+  const added = await mustWrite(
+    "project section: insert",
+    supabase.from("project_sections").insert({
+      project_id: id,
+      title,
+      sort_order: nextOrder,
+    }),
+  );
+  if (!added) redirect(detailPath(id, "save_failed"));
   redirect(detailPath(id));
 }
 
@@ -181,11 +186,11 @@ export async function renameProjectSection(formData: FormData) {
     redirect(detailPath(id, "missing_title"));
   }
   const supabase = getSupabaseServiceClient();
-  await supabase
-    .from("project_sections")
-    .update({ title })
-    .eq("id", sectionId)
-    .eq("project_id", id);
+  const renamed = await mustWrite(
+    "project section: rename",
+    supabase.from("project_sections").update({ title }).eq("id", sectionId).eq("project_id", id),
+  );
+  if (!renamed) redirect(detailPath(id, "save_failed"));
   redirect(detailPath(id));
 }
 
@@ -199,11 +204,17 @@ export async function deleteProjectSection(formData: FormData) {
   const supabase = getSupabaseServiceClient();
   // Spec: deleting a section also deletes its tasks. Soft-delete them (consistent with the rest of
   // the deletion policy — reads filter deleted_at) before dropping the section.
-  await supabase
-    .from("tasks")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("project_id", id)
-    .eq("section_id", sectionId);
+  // 하위 작업 정리가 실패했는데 섹션만 지우면 그 작업들은 **없는 섹션을 가리킨 채 남는다** —
+  // 어느 목록에도 안 뜨고 되돌릴 단서도 없다. 콘솔 `deleteConsoleProjectSection` 과 같은 판단.
+  const cleared = await mustWrite(
+    "section delete: soft-delete child tasks",
+    supabase
+      .from("tasks")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("project_id", id)
+      .eq("section_id", sectionId),
+  );
+  if (!cleared) redirect(detailPath(id, "save_failed"));
   await supabase.from("project_sections").delete().eq("id", sectionId).eq("project_id", id);
   redirect(detailPath(id));
 }
@@ -296,7 +307,10 @@ export async function removeProjectMember(formData: FormData) {
     (m) => m.role !== "owner" && m.userId !== targetUserId,
   ).length;
   if (remainingMembers === 0) {
-    await supabase.from("projects").update({ is_shared: false }).eq("id", id);
+    await bestEffortWrite(
+      "project: clear is_shared after last member left",
+      supabase.from("projects").update({ is_shared: false }).eq("id", id),
+    );
   }
   redirect(detailPath(id));
 }
@@ -318,7 +332,10 @@ export async function leaveProject(formData: FormData) {
     (m) => m.role !== "owner" && m.userId !== session.user.id,
   ).length;
   if (remainingMembers === 0) {
-    await supabase.from("projects").update({ is_shared: false }).eq("id", id);
+    await bestEffortWrite(
+      "project: clear is_shared after last member left",
+      supabase.from("projects").update({ is_shared: false }).eq("id", id),
+    );
   }
   redirect(PROJECTS_PATH);
 }

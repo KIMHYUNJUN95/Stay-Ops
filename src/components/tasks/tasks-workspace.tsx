@@ -15,6 +15,7 @@ import { createPortal, useFormStatus } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  AlertTriangle,
   Archive,
   Bell,
   CalendarDays,
@@ -2446,11 +2447,14 @@ export function TasksWorkspace({
 
       {moveNotice && hydrated ? (
         <TaskToast
-          icon={Repeat}
+          icon={moveNotice === "save_failed" ? AlertTriangle : Repeat}
+          tone={moveNotice === "save_failed" ? "danger" : "neutral"}
           message={
-            moveNotice === "recurring_series"
-              ? copy.moveRejectedRecurringSeries
-              : copy.moveDuplicateOccurrence
+            moveNotice === "save_failed"
+              ? copy.moveSaveFailed
+              : moveNotice === "recurring_series"
+                ? copy.moveRejectedRecurringSeries
+                : copy.moveDuplicateOccurrence
           }
         />
       ) : null}

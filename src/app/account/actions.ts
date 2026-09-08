@@ -7,6 +7,7 @@ import { isLocale } from "@/lib/i18n";
 import { isProfileGender, isValidBirthDate, isValidPhone } from "@/lib/onboarding";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import { mustWrite } from "@/lib/db-write-guard";
 
 export async function deleteAccount(): Promise<never> {
   const supabase = await getSupabaseServerClient();
@@ -23,25 +24,40 @@ export async function deleteAccount(): Promise<never> {
   // Tombstone the profile: clear PII, mark as deleted.
   // The row is kept so operational records (attendance, cleaning, tasks)
   // retain their user_id FK and display "탈퇴한 사용자" instead of breaking.
-  await service
-    .from("profiles")
-    .update({
-      name: "",
-      phone_number: "",
-      profile_photo_url: null,
-      birth_date: null,
-      deleted_at: new Date().toISOString(),
-    })
-    .eq("id", user.id);
+  //
+  // **두 쓰기는 반드시 성공해야 한다.** 아래 `deleteUser` 는 되돌릴 수 없고, 그러고 나면 본인도
+  // 다시 로그인해 재시도할 수 없다. 예전에는 결과를 받지 않아, 묘비 처리가 실패해도 그대로
+  // 계정을 지웠다 — **개인정보(이름·전화·사진·생년월일)가 남고 조직 명단에도 계속 보이는데
+  // 복구 경로가 없는** 상태가 된다(2026-09-08 전수 점검에서 발견).
+  const tombstoned = await mustWrite(
+    "account delete: profile tombstone",
+    service
+      .from("profiles")
+      .update({
+        name: "",
+        phone_number: "",
+        profile_photo_url: null,
+        birth_date: null,
+        deleted_at: new Date().toISOString(),
+      })
+      .eq("id", user.id),
+  );
+  if (!tombstoned) {
+    redirect("/account?error=delete_failed");
+  }
 
   // Remove from all org memberships so the user no longer appears in rosters.
-  await service
-    .from("memberships")
-    .update({ status: "removed" })
-    .eq("user_id", user.id);
+  const removed = await mustWrite(
+    "account delete: membership removal",
+    service.from("memberships").update({ status: "removed" }).eq("user_id", user.id),
+  );
+  if (!removed) {
+    redirect("/account?error=delete_failed");
+  }
 
   // Hard-delete the auth user — this frees the email for re-registration.
   // The profiles row survives because we removed the ON DELETE CASCADE FK.
+  // 여기까지 왔다면 위 두 쓰기가 성공했다 — 이제 되돌릴 수 없는 단계로 넘어가도 안전하다.
   await service.auth.admin.deleteUser(user.id);
 
   redirect("/auth/login");

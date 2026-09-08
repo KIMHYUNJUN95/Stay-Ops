@@ -42,6 +42,7 @@ import { backlogCoveredByOccurrenceOn } from "@/lib/task-predicates";
 import { cleanupRemovedTaskImages, sanitizeTaskImageUrls } from "@/lib/task-images";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import { bestEffortWrite, mustWrite } from "@/lib/db-write-guard";
 import type { Database } from "@/types/database";
 
 type Session = NonNullable<Awaited<ReturnType<typeof getCurrentAppSession>>>;
@@ -426,8 +427,11 @@ async function setInbox(formData: FormData, isInbox: boolean) {
   const id = cleanText(formData.get("taskId"));
   await requireSessionAndTask(id);
   const supabase = getSupabaseServiceClient();
-  await supabase.from("tasks").update({ is_inbox: isInbox }).eq("id", id);
-  redirect(detailPath(id));
+  const moved = await mustWrite(
+    "task: toggle inbox",
+    supabase.from("tasks").update({ is_inbox: isInbox }).eq("id", id),
+  );
+  redirect(moved ? detailPath(id) : detailPath(id, "save_failed"));
 }
 export async function moveTaskToInbox(formData: FormData) {
   await setInbox(formData, true);
@@ -482,11 +486,12 @@ export async function moveTaskToToday(formData: FormData) {
     redirect(listPathForView(formData, "duplicate_occurrence"));
   }
   const supabase = getSupabaseServiceClient();
-  await supabase
-    .from("tasks")
-    .update(anchorToDate(task, today))
-    .eq("id", id);
-  redirect(listPathForView(formData));
+  // 실패하면 스와이프해도 카드가 안 움직인다 — 조용히 목록으로 돌려보내면 「앱이 고장났다」로 읽힌다.
+  const moved = await mustWrite(
+    "task: move to today",
+    supabase.from("tasks").update(anchorToDate(task, today)).eq("id", id),
+  );
+  redirect(listPathForView(formData, moved ? undefined : "save_failed"));
 }
 
 // "To tomorrow" swipe action (Today tab): defer the task to the Tokyo next operating date and pull
@@ -503,11 +508,12 @@ export async function moveTaskToTomorrow(formData: FormData) {
     redirect(listPathForView(formData, "duplicate_occurrence"));
   }
   const supabase = getSupabaseServiceClient();
-  await supabase
-    .from("tasks")
-    .update(anchorToDate(task, tomorrow))
-    .eq("id", id);
-  redirect(listPathForView(formData));
+  // 실패하면 스와이프해도 카드가 안 움직인다 — 조용히 목록으로 돌려보내면 「앱이 고장났다」로 읽힌다.
+  const moved = await mustWrite(
+    "task: move to tomorrow",
+    supabase.from("tasks").update(anchorToDate(task, tomorrow)).eq("id", id),
+  );
+  redirect(listPathForView(formData, moved ? undefined : "save_failed"));
 }
 
 // The occurrence date a recurring complete/reopen targets when the caller passes none: the task's
@@ -732,12 +738,17 @@ export async function removeTaskParticipant(formData: FormData) {
 
   // Author leaving = full task deletion for everyone (soft delete → undoable).
   if (isAuthor && removingSelf) {
-    await supabase
-      .from("tasks")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", id)
-      .eq("organization_id", session.organization.id);
-    redirect(`/mobile/tasks?deleted=${id}`);
+    // 실패했는데 `?deleted=` 로 보내면 「삭제했습니다 · 실행 취소」 토스트가 뜬다 — 지워지지도
+    // 않은 작업을 되살리라고 권하는 셈이다(2026-09-08).
+    const deleted = await mustWrite(
+      "task: author leave = soft delete",
+      supabase
+        .from("tasks")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("organization_id", session.organization.id),
+    );
+    redirect(deleted ? `/mobile/tasks?deleted=${id}` : detailPath(id, "save_failed"));
   }
 
   // Only the author may remove others; anyone may remove themselves.
@@ -760,7 +771,10 @@ export async function removeTaskParticipant(formData: FormData) {
     (p) => p.role !== "author" && p.userId !== targetUserId,
   ).length;
   if (remainingNonAuthor === 0) {
-    await supabase.from("tasks").update({ is_shared: false }).eq("id", id);
+    await bestEffortWrite(
+      "task: clear is_shared after last participant left",
+      supabase.from("tasks").update({ is_shared: false }).eq("id", id),
+    );
   }
 
   // A participant who removed themselves no longer sees the task.
