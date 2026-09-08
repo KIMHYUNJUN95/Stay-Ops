@@ -142,6 +142,11 @@ export function showsOnTodayList(
   resolvedDates: ReadonlySet<string>,
 ): boolean {
   if (!isStandardRecurrence(t.recurrenceRule) || !isActiveTask(t)) return false;
+  // **오늘 회차가 이미 해결됐으면 뜨지 않는다** — 완료/건너뜀/이동 전부. 밀린 회차가 남아 있어도
+  // 마찬가지다: 오늘 몫을 끝낸 일이 미완료 상태로 다시 목록에 서면 «완료했는데 또 있다» 가 된다
+  // (2026-09-08 제보). 완료가 밀린 회차를 흡수하므로 정상 흐름에서는 그 배지도 곧 사라지지만,
+  // 이 판정은 흡수 여부와 무관하게 지켜져야 하는 불변식이다.
+  if (occursOn(t, today) && stateOf(t.id, today)) return false;
   if (isOpenOccurrenceOn(t, today, stateOf)) return true;
   return overdueOccurrenceDatesOf(t, today, resolvedDates).length > 0;
 }

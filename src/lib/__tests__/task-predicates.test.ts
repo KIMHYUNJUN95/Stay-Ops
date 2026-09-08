@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { TaskRecord } from "@/lib/tasks";
 import {
   anchorDateOf,
+  showsOnTodayList,
   backlogCoveredByOccurrenceOn,
   isOpenOccurrenceOn,
   isOverdueOneOff,
@@ -180,6 +181,43 @@ describe("backlogCoveredByOccurrenceOn — 보충 사본을 만들 것인가", (
     expect(
       backlogCoveredByOccurrenceOn({ rule, anchor: null, date: TODAY, state: undefined }),
     ).toBe(false);
+  });
+});
+
+describe("showsOnTodayList — 오늘 목록에 뜨는가", () => {
+  const rule = "weekdays";
+  const rec = task({ dueAt: dueOn("2026-08-20"), recurrenceRule: rule }); // 평일, 앵커 8/20
+  const noState = () => undefined;
+
+  it("오늘 회차가 열려 있으면 뜬다", () => {
+    expect(showsOnTodayList(rec, TODAY, noState, new Set())).toBe(true);
+  });
+
+  it("밀린 회차가 있으면 오늘이 회차가 아니어도 뜬다", () => {
+    // 주 1회(월요일 앵커)를 화요일에 본다 — 오늘은 회차가 아니지만 밀린 게 있다.
+    const weekly = task({ dueAt: dueOn("2026-08-03"), recurrenceRule: "weekly" });
+    expect(showsOnTodayList(weekly, TODAY, noState, new Set())).toBe(true);
+  });
+
+  it("오늘 회차를 완료했으면 밀린 게 남아 있어도 뜨지 않는다", () => {
+    // 회귀 가드(2026-09-08 제보): 오늘 몫을 끝냈는데 밀림만 보고 목록에 세우면
+    // 「완료·기록에도 있고 오늘에도 있는」 중복이 된다.
+    const doneToday = (_id: string, d: string) => (d === TODAY ? ("completed" as const) : undefined);
+    expect(showsOnTodayList(rec, TODAY, doneToday, new Set())).toBe(false);
+  });
+
+  it("오늘 회차를 건너뛰었어도 뜨지 않는다", () => {
+    const skippedToday = (_id: string, d: string) => (d === TODAY ? ("skipped" as const) : undefined);
+    expect(showsOnTodayList(rec, TODAY, skippedToday, new Set())).toBe(false);
+  });
+
+  it("완료·취소된 작업은 뜨지 않는다", () => {
+    const cancelled = task({ ...rec, status: "cancelled" } as Partial<TaskRecord>);
+    expect(showsOnTodayList(cancelled, TODAY, noState, new Set())).toBe(false);
+  });
+
+  it("비반복은 대상이 아니다", () => {
+    expect(showsOnTodayList(task({ dueAt: dueOn(TODAY) }), TODAY, noState, new Set())).toBe(false);
   });
 });
 
