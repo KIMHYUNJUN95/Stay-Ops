@@ -357,7 +357,10 @@ Phase 13: QA and Internal Rollout — in progress; Phase 14 feature batch implem
     필요하면 rules 모듈에서** 가져올 것 — tsc는 통과하고 build만 깨지는 유형이라 주의.
   - **아직 안 한 것:** 어드민 컴플레인 단건 상세 라우트(`/admin/complaints/[id]`)가 없어 "연결된
     컴플레인으로 이동"이 목록까지만 간다. 모바일 외부 리뷰의 날짜 범위 필터와 기간 평점 요약
-    (`summarizeReviewsByPlace` 연결)은 deferred. **마이그레이션은 원격 Supabase에 아직 미적용.**
+    (`summarizeReviewsByPlace` 연결)은 deferred.
+    ~~마이그레이션은 원격 Supabase에 아직 미적용.~~ → **2026-09-08 확인: 적용 완료**
+    (`external_reviews` 30컬럼 · `source_reservation_id` 포함 · 실데이터 2,608건). 이 줄은 작성
+    시점의 상태였고 이후 적용됐는데 갱신되지 않았다.
   - 검증: `npx tsc --noEmit` 0, `npm run lint` **0 errors**, `npm run build` 통과
     (`/admin/complaints`, `/mobile/complaints/reviews/[id]`, `/api/beds24/reviews-sync`,
     `/api/dev/beds24/sync-reviews` 생성 확인), `vitest src/lib/__tests__` 166 passed.
