@@ -6,6 +6,7 @@ import type { Locale } from "@/lib/i18n";
 import type { OrderRequestStatus as OrderStatus } from "@/lib/order-requests";
 import { cn } from "@/lib/utils";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
+import { tokyoToday } from "@/lib/tokyo-date";
 
 /**
  * Order delivery calendar — a bottom sheet with a large month grid of supply-order deliveries.
@@ -44,15 +45,6 @@ type Copy = {
 const pad = (n: number) => String(n).padStart(2, "0");
 
 // Tokyo "today" as YYYY-MM-DD (client-only popup, so a live Date is fine).
-function tokyoToday(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: "Asia/Tokyo",
-  }).format(new Date());
-}
-
 // A day belongs to an order's delivery window. Range takes priority (delivery_date mirrors the start).
 function dayMatches(order: DeliveryCalendarOrder, iso: string): boolean {
   if (order.deliveryStartDate && order.deliveryEndDate) {

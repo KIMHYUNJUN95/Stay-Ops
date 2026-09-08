@@ -19,17 +19,9 @@ import {
 } from "@/lib/notifications/create";
 import { getAttendancePayrollAdminUserIds } from "@/lib/attendance-review";
 import { isPastReminderTimeTokyo } from "@/lib/attendance-sessions";
+import { tokyoToday } from "@/lib/tokyo-date";
 
 type Service = SupabaseClient<Database>;
-
-function tokyoToday(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
 
 export async function runAttendanceReminders(
   service: Service,

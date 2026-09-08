@@ -21,6 +21,7 @@ import type {
 } from "@/lib/annual-leave-admin-server";
 import type { LeaveType, LeaveDurationUnit } from "@/lib/annual-leave-approvals-server";
 import type { Dictionary, Locale } from "@/lib/i18n";
+import { tokyoToday } from "@/lib/tokyo-date";
 
 type Lc = Dictionary["admin"]["leaveConsole"];
 
@@ -62,15 +63,6 @@ function calcDays(start: string, end: string, dur: LeaveDurationUnit): number {
   if (!start || !end || start > end) return 0;
   const n = diffDaysInclusive(start, end);
   return (dur === "am" || dur === "pm") && n === 1 ? 0.5 : n;
-}
-
-function tokyoToday(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
 }
 
 function initialOf(name: string): string {

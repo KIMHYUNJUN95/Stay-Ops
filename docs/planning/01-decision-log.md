@@ -2,6 +2,46 @@
 
 This file records important project decisions.
 
+## 2026-09-08 전체 점검 후속 — RLS 조직 스코프 확대 · Tokyo 날짜 유틸 통합
+
+전 기능(모바일 + 대시보드) 점검에서 나온 항목을 추천 순서대로 처리한다.
+
+### ② 프로젝트·직원제안 RLS 에 조직 스코프 추가
+
+2026-09-03 에 투두에서 고친 것과 **같은 계약 누락**이 남아 있었다. `projects` ·
+`staff_suggestions` · 그 하위 3개 테이블의 SELECT 정책이 참여자 여부만 보고 `organization_id` 를
+보지 않았다 — 조직 격리가 애플리케이션 쿼리에만 의존한다는 뜻이다.
+
+`202609080001_project_suggestion_rls_org_scope.sql`. `organization_id` 컬럼이 있는 5개 테이블에
+`has_active_membership(organization_id)` 를 AND 로 더했다. `project_participants` /
+`project_sections` 는 그 컬럼이 없고 `project_id` 로 스코프되므로 `is_project_participant` 가 이미
+올바른 관문이다 — 조직 조건을 걸 자리가 없어 InitPlan 만 적용했다.
+
+**검증의 한계를 명시한다.** 투두 때는 사용자별 가시 행 수를 적용 전후로 비교해 동일함을 실측했다.
+이 두 기능은 **현재 데이터가 0건**이라(프로젝트 0 · 제안 0) 같은 실측이 불가능하다. 대신 구조로
+보장한다: 조건을 AND 로 좁히기만 했고, 좁히는 조건은 「그 행의 조직에 활성 멤버인가」 하나다.
+참여자인데 그 조직 멤버가 아닌 행은 애플리케이션이 만들 수 없다(참여자 추가가 전부 org 스코프
+조회를 거친다). **데이터가 쌓인 뒤 첫 QA 때 프로젝트·제안 목록을 눈으로 확인할 것.**
+
+### ④ 부분 — 같은 정책들에 InitPlan 적용
+
+정책을 어차피 다시 쓰므로 `(select auth.uid())` / `(select is_platform_admin())` 감싸기를 함께
+적용했다(7개 정책). DB 전체로는 아직 ~90건이 남아 있고, 해당 기능을 만질 때 같은 레시피로 옮긴다.
+
+### ③ Tokyo 날짜 유틸 — 6벌 → 1벌
+
+`tokyoToday()` 가 정본(`@/lib/tokyo-date`) 외에 **다섯 곳에 더** 재구현돼 있었다:
+`lib/annual-leave.ts`(export, 8곳이 사용) · `order-delivery-calendar.tsx` ·
+`leave-request-modal.tsx` · `leave-queue-client.tsx`(`tokyoTodayStr` 이라는 다른 이름) ·
+`lib/notifications/attendance-reminders.ts`.
+
+다섯 구현을 대조해 **의미상 동일함을 확인한 뒤**(숨은 발산 없음) 정본으로 통합했다.
+`annual-leave.ts` 는 8곳이 그 경로로 import 하므로 **재수출**로 바꿔 호출부를 건드리지 않았다
+(투두의 `@/lib/tasks` 와 같은 처리). `tokyoTodayStr` 은 호출부까지 이름을 맞췄다.
+
+이제 `tokyoToday` / `tokyoDateOf` / `ymdShift` 모두 코드베이스에 **정의가 하나씩만** 존재한다.
+이 저장소가 반복해서 당한 「쌍둥이 어긋남」의 마지막 잔재였다.
+
 ## 2026-09-04 (2) 로그인 실패 문구가 통째로 삼켜지던 버그
 
 **증상(사용자 제보).** 이메일 로그인을 하면 아무 안내 없이 초기 로그인 화면만 반복해서 뜬다.

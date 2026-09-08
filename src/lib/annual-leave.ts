@@ -187,6 +187,8 @@ export function computeAnnualLeaveSummary(params: {
   };
 }
 
-export function tokyoToday(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
-}
+/**
+ * Tokyo 오늘 — 정본은 순수 모듈 `@/lib/tokyo-date` 다. 연차 모듈이 이 이름으로 8곳에 퍼져 있어
+ * 호출부를 건드리지 않으려고 여기서 재수출한다(투두 `@/lib/tasks` 와 같은 처리, 2026-09-08).
+ */
+export { tokyoToday } from "@/lib/tokyo-date";

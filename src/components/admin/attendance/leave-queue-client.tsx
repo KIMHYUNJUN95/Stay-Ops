@@ -51,6 +51,7 @@ import { LeaveTeamCalendar } from "./leave-team-calendar";
 import { LeaveBalanceView } from "./leave-balance-view";
 import { LeaveDocumentsView } from "./leave-documents-view";
 import { LeaveLedgerView } from "./leave-ledger-view";
+import { tokyoToday } from "@/lib/tokyo-date";
 
 type Lc = Dictionary["admin"]["leaveConsole"];
 
@@ -137,10 +138,6 @@ function barPct(value: number, total: number): string {
 }
 
 /** Tokyo "today" as YYYY-MM-DD — matches the server's operational-date convention. */
-function tokyoTodayStr(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
-}
-
 /** Pending requests starting within 5 days get a left-edge urgency indicator (row.urgent CSS). */
 function isUrgent(item: LeaveQueueItem, today: string): boolean {
   if (item.status !== "requested") return false;
@@ -373,7 +370,7 @@ export function LeaveQueueClient({
   }, [items, statusGroup, typeFilter, nameQuery, sortBy, locale]);
 
   const localeTag = localeTagOf(locale);
-  const today = tokyoTodayStr();
+  const today = tokyoToday();
 
   function changeStatusGroup(g: LeaveStatusGroup) {
     setStatusGroup(g);
