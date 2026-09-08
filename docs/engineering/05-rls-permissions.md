@@ -1187,8 +1187,10 @@ of the RLS/permission-relevant pieces:
 **행 값을 인자로 받는 헬퍼는 감싸지 않는다** — `has_active_membership(organization_id)`,
 `is_task_participant(id)` 등은 감싸면 상관 서브쿼리가 되어 오히려 손해다.
 
-적용 예시는 `supabase/migrations/202609040001_task_rls_initplan.sql`. 투두 5개 테이블만 적용했고,
-DB 전체로는 아직 ~100건이 남아 있다(해당 기능을 만질 때 같은 방식으로 옮긴다).
+**2026-09-08 기준 DB 전체에 적용 완료**(132개 중 127개 — 나머지 5개는 `auth.uid()` 를 쓰지 않는다).
+`supabase/migrations/202609080002_rls_initplan_sweep.sql` 이 자기 정의를 읽어 재작성하는 DO 블록이라
+여러 번 실행해도 안전하다. **새 정책을 만들 때는 처음부터 감싸서 쓸 것** — 그러지 않으면 다음 스윕
+때까지 행별 재평가가 남는다.
 
 ### 2. `SECURITY DEFINER` 판정 헬퍼는 «`auth.uid()` 로 잠근다» 를 지켜야 한다
 
