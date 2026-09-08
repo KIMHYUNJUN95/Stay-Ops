@@ -1037,6 +1037,18 @@ The Quick Add ↔ Detailed Create distinction is made explicit in the interactio
   - **React Compiler 로는 못 줄이는 종류다.** 상태가 바뀌면 그 상태를 읽는 트리는 다시 그려야 한다.
     새 입력을 큰 컴포넌트에 넣을 때는 「상태를 아예 건드리지 않는」 쪽을 먼저 검토할 것.
 
+- **Tokyo 운영일은 클라이언트에서 살아 있다 (2026-09-08).** `today` 는 서버가 prop 으로 주지만
+  **초기값으로만** 쓰고, 이후에는 1분 간격 + focus/visibilitychange 로 다시 계산한다. PWA 를 켠 채
+  두면 `TasksWorkspace` 가 언마운트되지 않아 서버 렌더 시점의 날짜가 그대로 남고, JST 자정을 넘기면
+  **「오늘」 탭이 어제를 보여 주고 지연 판정도 하루 밀린다.** 관리자 콘솔이 쓰던 방식을 그대로 이식했다.
+  - 초기값은 반드시 서버 값이어야 한다 — 첫 렌더에서 클라이언트가 스스로 계산하면 하이드레이션이
+    어긋난다. 갱신은 마운트 후에만 일어난다.
+  - **캘린더·청소에는 같은 처리를 하지 않았다.** 그쪽은 서버가 `today` 기준으로 **데이터 범위까지
+    가져온다** — `today` 만 클라이언트에서 바꾸면 「오늘 표시」와 실제 데이터가 어긋난다
+    (`mobile-calendar-view.tsx` 의 «never recompute on client» 주석이 그 뜻이다). 투두는 목록 전체가
+    이미 클라이언트에 있고 `today` 는 분류에만 쓰이므로 다시 계산하는 것이 완전하다. 날짜 이동은
+    서버 요청이라 어차피 스스로 바로잡힌다.
+
 ## Task Cards
 
 For readability, default list cards should prioritize:

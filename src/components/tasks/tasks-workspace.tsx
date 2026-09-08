@@ -78,7 +78,7 @@ import {
   overdueOccurrenceDatesOf,
   prioSort,
 } from "@/lib/task-predicates";
-import { ymdShift } from "@/lib/tokyo-date";
+import { tokyoToday, ymdShift } from "@/lib/tokyo-date";
 import { ProjectsBoard } from "@/components/tasks/projects-board";
 import { MiniCalendar } from "@/components/tasks/date-time-fields";
 import type { FieldActivityRecord } from "@/lib/field-activity";
@@ -204,7 +204,7 @@ export function TasksWorkspace({
   projects,
   shareableUsers,
   tasks: allTasks,
-  today,
+  today: initialToday,
 }: {
   buildingLabels: Record<string, string>;
   /** 완료 로그(task_updates net). 완료·기록 탭과 그 배지의 유일한 기준 — @/lib/tasks 주석 참고. */
@@ -225,8 +225,36 @@ export function TasksWorkspace({
   projects: ProjectSummary[];
   shareableUsers: ShareableUser[];
   tasks: TaskRecord[];
+  /**
+   * 서버 렌더 시점의 Tokyo 운영일. **이 값을 그대로 쓰지 않는다** — 아래에서 상태의 초기값으로만
+   * 쓰고, 이후에는 클라이언트가 직접 계산한 값이 정본이다(자정 넘김 대응).
+   */
   today: string;
 }) {
+  /**
+   * Tokyo 운영일 — **서버 prop 을 초기값으로만 쓰고 이후에는 클라이언트가 갱신한다.**
+   *
+   * PWA 를 켠 채 두면 이 컴포넌트가 언마운트되지 않으므로, 서버 렌더 시점의 날짜가 그대로 남는다.
+   * JST 자정을 넘기면 「오늘」 탭이 어제를 보여 주고 지연 판정도 하루 밀린다(2026-09-08 수정).
+   *
+   * 초기값은 반드시 **서버가 준 값**이어야 한다 — 첫 렌더에서 클라이언트가 스스로 계산하면 서버
+   * 마크업과 어긋나 하이드레이션 불일치가 난다. 갱신은 마운트 후에만 일어난다.
+   * 관리자 콘솔(`admin-tasks-console.tsx`)이 같은 방식을 쓴다.
+   */
+  const [today, setToday] = useState(initialToday);
+  useEffect(() => {
+    const check = () => setToday((prev) => (tokyoToday() !== prev ? tokyoToday() : prev));
+    check(); // 마운트 시 한 번 — 서버 렌더와 지금 사이에 자정을 넘겼을 수 있다
+    const id = setInterval(check, 60_000);
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, []);
+
   const [view, setView] = useState<View>(initialView);
   /** 지시 탭 안의 받은/보낸 세그먼트. */
   const [instrTab, setInstrTab] = useState<"recv" | "sent">("recv");
