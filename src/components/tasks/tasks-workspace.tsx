@@ -128,6 +128,11 @@ function stopSheetTouch(e: React.TouchEvent) {
  * 강제한다. 이 시트의 버튼은 `h-12/h-11 rounded-2xl` 에 그림자·블러 없는 flat 스타일이라 그대로
  * 쓰면 시각이 깨진다. 대신 같은 `useFormStatus` 패턴을 셋이 공유하는 로컬 버전으로 둔다.
  */
+/** 만든 순서(오래된 것 먼저). 새 작업이 목록 **아래**, 추가하는 자리 가까이에 붙게 한다. */
+const oldestFirst = (a: TaskRecord, b: TaskRecord) => a.createdAt.localeCompare(b.createdAt);
+/** 우선순위 먼저, 같으면 만든 순서. */
+const byPriorityThenOldest = (a: TaskRecord, b: TaskRecord) => prioSort(a, b) || oldestFirst(a, b);
+
 function QuickAddSubmitButtons({
   copy,
   hasTitle,
@@ -719,20 +724,22 @@ export function TasksWorkspace({
   const orderSort = (a: TaskRecord, b: TaskRecord) => {
     const ao = a.sortOrder;
     const bo = b.sortOrder;
-    if (ao != null && bo != null) return ao !== bo ? ao - bo : prioSort(a, b);
+    if (ao != null && bo != null) return ao !== bo ? ao - bo : byPriorityThenOldest(a, b);
     if (ao != null) return -1;
     if (bo != null) return 1;
-    return prioSort(a, b);
+    return byPriorityThenOldest(a, b);
   };
-  // Inbox ordering: manual drag (sort_order) wins; unranked fall back to **newest-first** so a freshly
-  // created task still lands on top until the user drags it. (Today uses prio fallback via orderSort.)
+  // 수동 순서가 없으면 **만든 순서(오래된 것 먼저)** — 새 작업이 목록 아래에 붙는다(2026-09-09).
+  // 예전에는 「새 작업이 위로」였는데, 목록 데이터가 `created_at desc` 로 오는 것을 그대로 둔
+  // 결과였다. 정작 추가하는 자리는 아래(빠른 추가 시트·인라인 추가)라 방금 만든 것이 시야 밖으로
+  // 튀었다. 관리자 콘솔도 같은 규칙을 쓴다.
   const inboxOrderSort = (a: TaskRecord, b: TaskRecord) => {
     const ao = a.sortOrder;
     const bo = b.sortOrder;
-    if (ao != null && bo != null) return ao !== bo ? ao - bo : b.createdAt.localeCompare(a.createdAt);
+    if (ao != null && bo != null) return ao !== bo ? ao - bo : oldestFirst(a, b);
     if (ao != null) return -1;
     if (bo != null) return 1;
-    return b.createdAt.localeCompare(a.createdAt);
+    return oldestFirst(a, b);
   };
 
   // --- First-slice search / filter: title + author text, and anchor-date single/range.

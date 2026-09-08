@@ -269,6 +269,11 @@ const STATUS_SEGMENTS = [
   labelKey: "stOpen" | "stInProgress" | "stCompleted";
 }[];
 
+/** 만든 순서(오래된 것 먼저). 새 작업이 목록 **아래**, 추가 입력창 바로 위에 붙게 한다(2026-09-09). */
+const oldestFirst = (a: TaskRecord, b: TaskRecord) => a.createdAt.localeCompare(b.createdAt);
+/** 우선순위 먼저, 같으면 만든 순서. 날짜 목록의 기본 정렬. */
+const byPriorityThenOldest = (a: TaskRecord, b: TaskRecord) => prioSort(a, b) || oldestFirst(a, b);
+
 /** 컨텍스트 칩 아이콘 — 상태에 의존하지 않는 상수라 모듈 스코프에 둔다(렌더마다 재생성 방지). */
 const CTX_IC: Record<string, ReactNode> = {
   building: <Building2 size={14} />,
@@ -530,10 +535,14 @@ export function AdminTasksConsole({
       [...arr].sort((a, b) => {
         const ao = dateOrderOf(a, date);
         const bo = dateOrderOf(b, date);
-        if (ao != null && bo != null) return ao !== bo ? ao - bo : prioSort(a, b);
+        // 수동 순서가 없는 항목은 **만든 순서대로(오래된 것 먼저)** — 새로 추가한 작업이 목록
+        // **아래**, 즉 추가 입력창 바로 위에 붙는다(2026-09-09). 예전에는 목록 데이터가
+        // `created_at desc` 로 와서 새 작업이 맨 위로 튀었는데, 정작 추가 입력창은 아래에 있어
+        // 「방금 만든 게 어디 갔지」가 됐다. 우선순위는 그대로 먼저 본다.
+        if (ao != null && bo != null) return ao !== bo ? ao - bo : byPriorityThenOldest(a, b);
         if (ao != null) return -1;
         if (bo != null) return 1;
-        return prioSort(a, b);
+        return byPriorityThenOldest(a, b);
       }),
     [dateOrderOf],
   );
@@ -2111,10 +2120,11 @@ export function AdminTasksConsole({
     const ranked = base.slice().sort((a, b) => {
       const ao = a.sortOrder;
       const bo = b.sortOrder;
-      if (ao != null && bo != null) return ao !== bo ? ao - bo : b.createdAt.localeCompare(a.createdAt);
+      // 날짜 목록과 같은 규칙 — 새 작업은 아래(추가 입력창 바로 위)에 붙는다(2026-09-09).
+      if (ao != null && bo != null) return ao !== bo ? ao - bo : oldestFirst(a, b);
       if (ao != null) return -1;
       if (bo != null) return 1;
-      return b.createdAt.localeCompare(a.createdAt);
+      return oldestFirst(a, b);
     });
     const items = inboxOrder
       ? inboxOrder
