@@ -16,6 +16,7 @@ import { isOrgTopAdmin } from "@/config/roles";
 import { BOARD_MAX_FILES, BOARD_MAX_IMAGES } from "@/lib/board";
 import type { AvatarColor, FileAttachment } from "@/components/board/board-types";
 import type { Database, Json } from "@/types/database";
+import { bestEffortWrite } from "@/lib/db-write-guard";
 
 // The mention-sheet client component imports this type from the same module it calls
 // (`searchMentions`). A `export type { ... }` re-export is stripped by Turbopack's "use server"
@@ -70,9 +71,12 @@ export async function markBoardPostRead(postId: string): Promise<ActionResult> {
   if (!post) return { error: "not_found" };
 
   const service = getSupabaseServiceClient();
-  await service.from("board_post_reads").upsert(
-    { post_id: postId, user_id: session.user.id, read_at: new Date().toISOString() },
-    { ignoreDuplicates: true, onConflict: "post_id,user_id" },
+  await bestEffortWrite(
+    "board_post_reads: upsert",
+    service.from("board_post_reads").upsert(
+      { post_id: postId, user_id: session.user.id, read_at: new Date().toISOString() },
+      { ignoreDuplicates: true, onConflict: "post_id,user_id" },
+    )
   );
   revalidatePath("/mobile/board");
   return { ok: true };

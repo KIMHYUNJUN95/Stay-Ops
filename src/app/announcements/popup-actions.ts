@@ -1,6 +1,7 @@
 "use server";
 
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { bestEffortWrite } from "@/lib/db-write-guard";
 
 const HIDE_FOR_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -19,7 +20,9 @@ export async function dismissPopupForWeek(
 
   const hideUntil = new Date(Date.now() + HIDE_FOR_WEEK_MS).toISOString();
 
-  await supabase
+  await bestEffortWrite(
+    "announcement_popup_dismissals: upsert",
+    supabase
     .from("announcement_popup_dismissals")
     .upsert(
       {
@@ -29,5 +32,6 @@ export async function dismissPopupForWeek(
         user_id: user.id,
       },
       { onConflict: "announcement_id,user_id" },
-    );
+    )
+  );
 }

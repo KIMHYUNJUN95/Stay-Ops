@@ -15,6 +15,7 @@ import {
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
+import { bestEffortWrite } from "@/lib/db-write-guard";
 
 function cleanText(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
@@ -327,12 +328,15 @@ export async function createTask(formData: FormData) {
   }
 
   if (shareIds.length > 0) {
-    await supabase.from("task_updates").insert({
-      task_id: id,
-      created_by_user_id: session.user.id,
-      update_type: "system_shared",
-      body: null,
-    });
+    await bestEffortWrite(
+      "task_updates: insert",
+      supabase.from("task_updates").insert({
+          task_id: id,
+          created_by_user_id: session.user.id,
+          update_type: "system_shared",
+          body: null,
+        })
+    );
     await notifyTaskParticipants(supabase, {
       organizationId: session.organization.id,
       taskId: id,

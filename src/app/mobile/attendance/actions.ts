@@ -20,6 +20,7 @@ import {
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getAttendancePayrollAdminUserIds } from "@/lib/attendance-review";
 import { notifyAttendanceAdmins } from "@/lib/notifications/create";
+import { bestEffortWrite } from "@/lib/db-write-guard";
 import {
   ATTENDANCE_CORRECTION_PENDING_STATUSES,
   ATTENDANCE_CORRECTION_REASONS,
@@ -145,19 +146,22 @@ export async function submitAttendanceScan(
     failureReason: AttendanceFailureReason | null;
     resolvedSiteId: string | null;
   }) {
-    await service.from("attendance_attempt_logs").insert({
-      organization_id: organizationId,
-      user_id: userId,
-      action_type: actionType,
-      method: "gps_qr",
-      success: args.success,
-      failure_reason: args.failureReason,
-      resolved_site_id: args.resolvedSiteId,
-      latitude: input.latitude,
-      longitude: input.longitude,
-      accuracy_meters: input.accuracy,
-      device_info: deviceInfo,
-    });
+    await bestEffortWrite(
+      "attendance_attempt_logs: insert",
+      service.from("attendance_attempt_logs").insert({
+          organization_id: organizationId,
+          user_id: userId,
+          action_type: actionType,
+          method: "gps_qr",
+          success: args.success,
+          failure_reason: args.failureReason,
+          resolved_site_id: args.resolvedSiteId,
+          latitude: input.latitude,
+          longitude: input.longitude,
+          accuracy_meters: input.accuracy,
+          device_info: deviceInfo,
+        })
+    );
   }
 
   // 1) QR token must be present and resolve to an active token in THIS org.

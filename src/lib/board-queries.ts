@@ -20,6 +20,7 @@ import type {
 import { getDictionary } from "@/lib/i18n";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { bestEffortWrite } from "@/lib/db-write-guard";
 
 export type MentionableMember = {
   id: string;
@@ -520,9 +521,12 @@ export async function getActiveOrgMemberIds(session: AppSession): Promise<string
 export async function ensureBoardPostRead(session: AppSession, postId: string): Promise<void> {
   try {
     const service = getSupabaseServiceClient();
-    await service.from("board_post_reads").upsert(
-      { post_id: postId, user_id: session.user.id, read_at: new Date().toISOString() },
-      { ignoreDuplicates: true, onConflict: "post_id,user_id" },
+    await bestEffortWrite(
+      "board_post_reads: upsert",
+      service.from("board_post_reads").upsert(
+        { post_id: postId, user_id: session.user.id, read_at: new Date().toISOString() },
+        { ignoreDuplicates: true, onConflict: "post_id,user_id" },
+      )
     );
   } catch {
     // best-effort; a missing read row only means the badge stays one higher

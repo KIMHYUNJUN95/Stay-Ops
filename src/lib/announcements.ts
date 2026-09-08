@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { AppSession } from "@/lib/session";
 import type { Database } from "@/types/database";
 import type { OrganizationRole } from "@/config/roles";
+import { bestEffortWrite } from "@/lib/db-write-guard";
 
 type OrgRoleMap = Map<string, OrganizationRole>;
 
@@ -280,17 +281,20 @@ export async function ensureAnnouncementRead(
   const service = getSupabaseServiceClient();
   const readAt = new Date().toISOString();
 
-  await service.from("announcement_reads").upsert(
-    {
-      announcement_id: announcement.id,
-      organization_id: announcement.organization_id,
-      read_at: readAt,
-      user_id: userId,
-    },
-    {
-      ignoreDuplicates: true,
-      onConflict: "announcement_id,user_id",
-    },
+  await bestEffortWrite(
+    "announcement_reads: upsert",
+    service.from("announcement_reads").upsert(
+      {
+        announcement_id: announcement.id,
+        organization_id: announcement.organization_id,
+        read_at: readAt,
+        user_id: userId,
+      },
+      {
+        ignoreDuplicates: true,
+        onConflict: "announcement_id,user_id",
+      },
+    )
   );
 
   return (await getAnnouncementReadAt(announcement.id, userId)) ?? readAt;

@@ -48,7 +48,7 @@ import { backlogCoveredByOccurrenceOn } from "@/lib/task-predicates";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { cleanupRemovedTaskImages, sanitizeTaskImageUrls } from "@/lib/task-images";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
-import { mustWrite } from "@/lib/db-write-guard";
+import { bestEffortWrite, mustWrite } from "@/lib/db-write-guard";
 import type { Database } from "@/types/database";
 
 export type TaskActionResult =
@@ -286,12 +286,15 @@ export async function createConsoleTask(input: {
   }
 
   if (shareIds.length > 0) {
-    await supabase.from("task_updates").insert({
-      task_id: id,
-      created_by_user_id: session.user.id,
-      update_type: "system_shared",
-      body: null,
-    });
+    await bestEffortWrite(
+      "task_updates: insert",
+      supabase.from("task_updates").insert({
+          task_id: id,
+          created_by_user_id: session.user.id,
+          update_type: "system_shared",
+          body: null,
+        })
+    );
     await notify(
       id,
       shareIds,
@@ -337,11 +340,14 @@ async function completeInternal(session: Session, task: TaskDetail, occurrenceDa
       .eq("id", task.id)
       .eq("organization_id", session.organization.id);
   }
-  await supabase.from("task_updates").insert({
-    task_id: task.id,
-    created_by_user_id: session.user.id,
-    update_type: "completed",
-  });
+  await bestEffortWrite(
+    "task_updates: insert",
+    supabase.from("task_updates").insert({
+        task_id: task.id,
+        created_by_user_id: session.user.id,
+        update_type: "completed",
+      })
+  );
   await notify(
     task.id,
     otherParticipantIds(task, session.user.id),
@@ -372,11 +378,14 @@ async function reopenInternal(session: Session, task: TaskDetail, occurrenceDate
       .eq("id", task.id)
       .eq("organization_id", session.organization.id);
   }
-  await supabase.from("task_updates").insert({
-    task_id: task.id,
-    created_by_user_id: session.user.id,
-    update_type: "reopened",
-  });
+  await bestEffortWrite(
+    "task_updates: insert",
+    supabase.from("task_updates").insert({
+        task_id: task.id,
+        created_by_user_id: session.user.id,
+        update_type: "reopened",
+      })
+  );
 }
 
 // ── 2. Status ───────────────────────────────────────────────────────────────
@@ -411,12 +420,15 @@ export async function setConsoleTaskStatus(
     })
     .eq("id", task.id)
     .eq("organization_id", session.organization.id);
-  await supabase.from("task_updates").insert({
-    task_id: task.id,
-    created_by_user_id: session.user.id,
-    // Clearing a completed task back to open reads as a reopen; other transitions are status changes.
-    update_type: task.status === "completed" && status === "open" ? "reopened" : "status_changed",
-  });
+  await bestEffortWrite(
+    "task_updates: insert",
+    supabase.from("task_updates").insert({
+        task_id: task.id,
+        created_by_user_id: session.user.id,
+        // Clearing a completed task back to open reads as a reopen; other transitions are status changes.
+        update_type: task.status === "completed" && status === "open" ? "reopened" : "status_changed",
+      })
+  );
   revalidatePath(CONSOLE_PATH);
   return { ok: true };
 }
@@ -630,11 +642,14 @@ export async function updateConsoleTaskCore(input: {
   if (error) return { ok: false, error: "save_failed" };
   // Only after the DB no longer references them, hard-delete the detached files.
   await cleanupRemovedTaskImages(supabase, removedImageUrls, session.organization.id);
-  await supabase.from("task_updates").insert({
-    task_id: task.id,
-    created_by_user_id: session.user.id,
-    update_type: "system_edited",
-  });
+  await bestEffortWrite(
+    "task_updates: insert",
+    supabase.from("task_updates").insert({
+        task_id: task.id,
+        created_by_user_id: session.user.id,
+        update_type: "system_edited",
+      })
+  );
   await notify(
     task.id,
     otherParticipantIds(task, session.user.id),
@@ -859,11 +874,14 @@ export async function shareConsoleTask(
     );
     const { error: pError } = await supabase.from("task_participants").insert(rows);
     if (pError) return { ok: false, error: "save_failed" };
-    await supabase.from("task_updates").insert({
-      task_id: task.id,
-      created_by_user_id: session.user.id,
-      update_type: "system_shared",
-    });
+    await bestEffortWrite(
+      "task_updates: insert",
+      supabase.from("task_updates").insert({
+          task_id: task.id,
+          created_by_user_id: session.user.id,
+          update_type: "system_shared",
+        })
+    );
   }
 
   /**
@@ -916,13 +934,16 @@ export async function addConsoleNote(
   if (!text && photos.length === 0) return { ok: false, error: "empty" };
 
   const supabase = getSupabaseServiceClient();
-  await supabase.from("task_updates").insert({
-    task_id: task.id,
-    created_by_user_id: session.user.id,
-    update_type: "note",
-    body: text || null,
-    image_urls: photos,
-  });
+  await bestEffortWrite(
+    "task_updates: insert",
+    supabase.from("task_updates").insert({
+        task_id: task.id,
+        created_by_user_id: session.user.id,
+        update_type: "note",
+        body: text || null,
+        image_urls: photos,
+      })
+  );
   await notify(
     task.id,
     otherParticipantIds(task, session.user.id),

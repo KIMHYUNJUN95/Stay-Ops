@@ -405,11 +405,14 @@ export async function updateTaskCore(formData: FormData) {
   }
   // Only after the DB no longer references them, hard-delete the detached files.
   await cleanupRemovedTaskImages(supabase, removedImageUrls, session.organization.id);
-  await supabase.from("task_updates").insert({
-    task_id: id,
-    created_by_user_id: session.user.id,
-    update_type: "system_edited",
-  });
+  await bestEffortWrite(
+    "task_updates: insert",
+    supabase.from("task_updates").insert({
+        task_id: id,
+        created_by_user_id: session.user.id,
+        update_type: "system_edited",
+      })
+  );
   await notify(
     id,
     otherParticipantIds(task, session.user.id),
@@ -540,11 +543,14 @@ export async function completeTask(taskId: string, occurrenceDate?: string) {
       occurrenceDate: occ,
       userId: session.user.id,
     });
-    await supabase.from("task_updates").insert({
-      task_id: id,
-      created_by_user_id: session.user.id,
-      update_type: "completed",
-    });
+    await bestEffortWrite(
+      "task_updates: insert",
+      supabase.from("task_updates").insert({
+          task_id: id,
+          created_by_user_id: session.user.id,
+          update_type: "completed",
+        })
+    );
     await notify(
       id,
       otherParticipantIds(task, session.user.id),
@@ -569,11 +575,14 @@ export async function completeTask(taskId: string, occurrenceDate?: string) {
       completed_by_user_id: session.user.id,
     })
     .eq("id", id);
-  await supabase.from("task_updates").insert({
-    task_id: id,
-    created_by_user_id: session.user.id,
-    update_type: "completed",
-  });
+  await bestEffortWrite(
+    "task_updates: insert",
+    supabase.from("task_updates").insert({
+        task_id: id,
+        created_by_user_id: session.user.id,
+        update_type: "completed",
+      })
+  );
   await notify(
     id,
     otherParticipantIds(task, session.user.id),
@@ -603,11 +612,14 @@ export async function reopenTask(taskId: string, occurrenceDate?: string) {
   if (isStandardRecurrence(task.recurrenceRule)) {
     const occ = String(occurrenceDate ?? "").trim() || recurringAnchorDate(task);
     await clearOccurrenceState(id, occ);
-    await supabase.from("task_updates").insert({
-      task_id: id,
-      created_by_user_id: session.user.id,
-      update_type: "reopened",
-    });
+    await bestEffortWrite(
+      "task_updates: insert",
+      supabase.from("task_updates").insert({
+          task_id: id,
+          created_by_user_id: session.user.id,
+          update_type: "reopened",
+        })
+    );
     revalidatePath("/mobile/tasks");
     revalidatePath(detailPath(id));
     revalidateProjectPath(task.projectId);
@@ -622,11 +634,14 @@ export async function reopenTask(taskId: string, occurrenceDate?: string) {
       completed_by_user_id: null,
     })
     .eq("id", id);
-  await supabase.from("task_updates").insert({
-    task_id: id,
-    created_by_user_id: session.user.id,
-    update_type: "reopened",
-  });
+  await bestEffortWrite(
+    "task_updates: insert",
+    supabase.from("task_updates").insert({
+        task_id: id,
+        created_by_user_id: session.user.id,
+        update_type: "reopened",
+      })
+  );
   revalidatePath("/mobile/tasks");
   revalidatePath(detailPath(id));
   revalidateProjectPath(task.projectId);
@@ -653,12 +668,15 @@ export async function setTaskProgress(taskId: string, inProgress: boolean) {
       completed_by_user_id: null,
     })
     .eq("id", id);
-  await supabase.from("task_updates").insert({
-    task_id: id,
-    created_by_user_id: session.user.id,
-    update_type: "status_changed",
-    body: inProgress ? "in_progress" : "open",
-  });
+  await bestEffortWrite(
+    "task_updates: insert",
+    supabase.from("task_updates").insert({
+        task_id: id,
+        created_by_user_id: session.user.id,
+        update_type: "status_changed",
+        body: inProgress ? "in_progress" : "open",
+      })
+  );
   revalidatePath("/mobile/tasks");
   revalidatePath(detailPath(id));
   revalidateProjectPath(task.projectId);
@@ -710,11 +728,14 @@ export async function shareTaskWithUsers(formData: FormData) {
     redirect(detailPath(id, "save_failed"));
   }
   await supabase.from("tasks").update({ is_shared: true }).eq("id", id);
-  await supabase.from("task_updates").insert({
-    task_id: id,
-    created_by_user_id: session.user.id,
-    update_type: "system_shared",
-  });
+  await bestEffortWrite(
+    "task_updates: insert",
+    supabase.from("task_updates").insert({
+        task_id: id,
+        created_by_user_id: session.user.id,
+        update_type: "system_shared",
+      })
+  );
   await notify(
     id,
     newIds,
@@ -972,13 +993,16 @@ export async function addTaskUpdate(formData: FormData) {
     redirect(detailPath(id));
   }
   const supabase = getSupabaseServiceClient();
-  await supabase.from("task_updates").insert({
-    task_id: id,
-    created_by_user_id: session.user.id,
-    update_type: "note",
-    body: body || null,
-    image_urls: imageUrls,
-  });
+  await bestEffortWrite(
+    "task_updates: insert",
+    supabase.from("task_updates").insert({
+        task_id: id,
+        created_by_user_id: session.user.id,
+        update_type: "note",
+        body: body || null,
+        image_urls: imageUrls,
+      })
+  );
   await notify(
     id,
     otherParticipantIds(task, session.user.id),

@@ -88,6 +88,7 @@ import {
   type TransportReportLabels,
 } from "@/lib/attendance-transport-report";
 import type { Database } from "@/types/database";
+import { bestEffortWrite } from "@/lib/db-write-guard";
 
 export type ReviewActionResult =
   | { ok: true }
@@ -272,15 +273,18 @@ export async function approveCorrectionRequest(
       status: s.status,
       review_state: s.review_state,
     };
-    await service.from("attendance_session_audits").insert({
-      organization_id: organizationId,
-      session_id: s.id,
-      actor_user_id: actorId,
-      action_type: "correction_apply",
-      reason: input.comment?.trim() ? input.comment.trim() : "Correction request approved",
-      before_json: before,
-      after_json: update,
-    });
+    await bestEffortWrite(
+      "attendance_session_audits: insert",
+      service.from("attendance_session_audits").insert({
+          organization_id: organizationId,
+          session_id: s.id,
+          actor_user_id: actorId,
+          action_type: "correction_apply",
+          reason: input.comment?.trim() ? input.comment.trim() : "Correction request approved",
+          before_json: before,
+          after_json: update,
+        })
+    );
   } else {
     if (!finalInAt || !finalOutAt || !finalClockInSiteId) {
       return { ok: false, reason: "invalid" };
@@ -329,17 +333,20 @@ export async function approveCorrectionRequest(
       .single()) as { data: { id: string } | null; error: { message: string } | null };
     if (ins.error || !ins.data) return { ok: false, reason: "error" };
 
-    await service.from("attendance_session_audits").insert({
-      organization_id: organizationId,
-      session_id: ins.data.id,
-      actor_user_id: actorId,
-      action_type: "manual_create",
-      reason: input.comment?.trim()
-        ? input.comment.trim()
-        : "Session created from approved correction request",
-      before_json: {},
-      after_json: insertFields,
-    });
+    await bestEffortWrite(
+      "attendance_session_audits: insert",
+      service.from("attendance_session_audits").insert({
+          organization_id: organizationId,
+          session_id: ins.data.id,
+          actor_user_id: actorId,
+          action_type: "manual_create",
+          reason: input.comment?.trim()
+          ? input.comment.trim()
+          : "Session created from approved correction request",
+          before_json: {},
+          after_json: insertFields,
+        })
+    );
   }
 
   const upd = await service
@@ -656,15 +663,18 @@ export async function createManualAttendanceSession(
   if (ins.error || !ins.data) return { ok: false, reason: "error" };
   const sessionId = ins.data.id;
 
-  await service.from("attendance_session_audits").insert({
-    organization_id: organizationId,
-    session_id: sessionId,
-    actor_user_id: actorId,
-    action_type: "manual_create",
-    reason: input.reason.trim(),
-    before_json: {},
-    after_json: insertFields,
-  });
+  await bestEffortWrite(
+    "attendance_session_audits: insert",
+    service.from("attendance_session_audits").insert({
+        organization_id: organizationId,
+        session_id: sessionId,
+        actor_user_id: actorId,
+        action_type: "manual_create",
+        reason: input.reason.trim(),
+        before_json: {},
+        after_json: insertFields,
+      })
+  );
 
   revalidateSelfView();
   return { ok: true, id: sessionId };
@@ -772,15 +782,18 @@ export async function updateAttendanceSessionAdmin(
     .eq("organization_id", organizationId);
   if (updRes.error) return { ok: false, reason: "error" };
 
-  await service.from("attendance_session_audits").insert({
-    organization_id: organizationId,
-    session_id: s.id,
-    actor_user_id: actorId,
-    action_type: "manual_update",
-    reason: input.reason.trim(),
-    before_json: before,
-    after_json: update,
-  });
+  await bestEffortWrite(
+    "attendance_session_audits: insert",
+    service.from("attendance_session_audits").insert({
+        organization_id: organizationId,
+        session_id: s.id,
+        actor_user_id: actorId,
+        action_type: "manual_update",
+        reason: input.reason.trim(),
+        before_json: before,
+        after_json: update,
+      })
+  );
 
   revalidateSelfView();
   return { ok: true };
@@ -830,15 +843,18 @@ export async function invalidateAttendanceSession(
     .eq("organization_id", organizationId);
   if (updRes.error) return { ok: false, reason: "error" };
 
-  await service.from("attendance_session_audits").insert({
-    organization_id: organizationId,
-    session_id: s.id,
-    actor_user_id: actorId,
-    action_type: "invalidate",
-    reason: reason.trim(),
-    before_json: before,
-    after_json: after,
-  });
+  await bestEffortWrite(
+    "attendance_session_audits: insert",
+    service.from("attendance_session_audits").insert({
+        organization_id: organizationId,
+        session_id: s.id,
+        actor_user_id: actorId,
+        action_type: "invalidate",
+        reason: reason.trim(),
+        before_json: before,
+        after_json: after,
+      })
+  );
 
   revalidateSelfView();
   return { ok: true };
@@ -904,15 +920,18 @@ export async function restoreAttendanceSession(
     .eq("organization_id", organizationId);
   if (updRes.error) return { ok: false, reason: "error" };
 
-  await service.from("attendance_session_audits").insert({
-    organization_id: organizationId,
-    session_id: s.id,
-    actor_user_id: actorId,
-    action_type: "restore",
-    reason: reason.trim(),
-    before_json: before,
-    after_json: after,
-  });
+  await bestEffortWrite(
+    "attendance_session_audits: insert",
+    service.from("attendance_session_audits").insert({
+        organization_id: organizationId,
+        session_id: s.id,
+        actor_user_id: actorId,
+        action_type: "restore",
+        reason: reason.trim(),
+        before_json: before,
+        after_json: after,
+      })
+  );
 
   revalidateSelfView();
   return { ok: true };
@@ -1022,20 +1041,23 @@ export async function finalizeAttendanceMonth(input: {
       .neq("id", ins.data.id);
   }
 
-  await service.from("audit_logs").insert({
-    organization_id: organizationId,
-    actor_user_id: actorId,
-    action: "attendance_month_finalize",
-    target_type: "attendance_month_snapshot",
-    target_id: ins.data.id,
-    metadata: {
-      user_id: input.userId,
-      target_month: firstDay,
-      gross_amount: pay.expectedGross,
-      total_paid_minutes: pay.totalPaidMinutes,
-      supersedes_snapshot_id: supersedesId,
-    },
-  });
+  await bestEffortWrite(
+    "audit_logs: insert",
+    service.from("audit_logs").insert({
+        organization_id: organizationId,
+        actor_user_id: actorId,
+        action: "attendance_month_finalize",
+        target_type: "attendance_month_snapshot",
+        target_id: ins.data.id,
+        metadata: {
+          user_id: input.userId,
+          target_month: firstDay,
+          gross_amount: pay.expectedGross,
+          total_paid_minutes: pay.totalPaidMinutes,
+          supersedes_snapshot_id: supersedesId,
+        },
+      })
+  );
 
   revalidatePay();
   return { ok: true, id: ins.data.id };
@@ -1076,18 +1098,21 @@ export async function reopenAttendanceMonth(input: {
   if (updRes.error) return { ok: false, reason: "error" };
   if (!updRes.data) return { ok: false, reason: "not_finalized" };
 
-  await service.from("audit_logs").insert({
-    organization_id: organizationId,
-    actor_user_id: actorId,
-    action: "attendance_month_reopen",
-    target_type: "attendance_month_snapshot",
-    target_id: (snap as AttendanceMonthSnapshotRow).id,
-    metadata: {
-      user_id: input.userId,
-      target_month: monthFirstDay(input.ym),
-      reason: input.reason.trim(),
-    },
-  });
+  await bestEffortWrite(
+    "audit_logs: insert",
+    service.from("audit_logs").insert({
+        organization_id: organizationId,
+        actor_user_id: actorId,
+        action: "attendance_month_reopen",
+        target_type: "attendance_month_snapshot",
+        target_id: (snap as AttendanceMonthSnapshotRow).id,
+        metadata: {
+          user_id: input.userId,
+          target_month: monthFirstDay(input.ym),
+          reason: input.reason.trim(),
+        },
+      })
+  );
 
   revalidatePay();
   return { ok: true };
@@ -1789,19 +1814,22 @@ export async function setHourlyRate(input: {
     .single()) as { data: { id: string } | null; error: { message: string } | null };
   if (ins.error || !ins.data) return { ok: false, reason: "error" };
 
-  await service.from("audit_logs").insert({
-    organization_id: organizationId,
-    actor_user_id: actorId,
-    action: "hourly_rate_set",
-    target_type: "hourly_rate_history",
-    target_id: ins.data.id,
-    metadata: {
-      user_id: input.userId,
-      hourly_rate: input.hourlyRate,
-      effective_from: input.effectiveFrom,
-      note: input.note?.trim() ? input.note.trim() : null,
-    },
-  });
+  await bestEffortWrite(
+    "audit_logs: insert",
+    service.from("audit_logs").insert({
+        organization_id: organizationId,
+        actor_user_id: actorId,
+        action: "hourly_rate_set",
+        target_type: "hourly_rate_history",
+        target_id: ins.data.id,
+        metadata: {
+          user_id: input.userId,
+          hourly_rate: input.hourlyRate,
+          effective_from: input.effectiveFrom,
+          note: input.note?.trim() ? input.note.trim() : null,
+        },
+      })
+  );
 
   revalidatePath("/mobile/attendance/pay");
   return { ok: true, id: ins.data.id };
@@ -1916,19 +1944,22 @@ export async function setEmploymentType(input: {
     .single()) as { data: { id: string } | null; error: { message: string } | null };
   if (ins.error || !ins.data) return { ok: false, reason: "error" };
 
-  await service.from("audit_logs").insert({
-    organization_id: organizationId,
-    actor_user_id: actorId,
-    action: "employment_type_set",
-    target_type: "employment_type_history",
-    target_id: ins.data.id,
-    metadata: {
-      user_id: input.userId,
-      employment_type: input.employmentType,
-      effective_from: input.effectiveFrom,
-      note: input.note?.trim() ? input.note.trim() : null,
-    },
-  });
+  await bestEffortWrite(
+    "audit_logs: insert",
+    service.from("audit_logs").insert({
+        organization_id: organizationId,
+        actor_user_id: actorId,
+        action: "employment_type_set",
+        target_type: "employment_type_history",
+        target_id: ins.data.id,
+        metadata: {
+          user_id: input.userId,
+          employment_type: input.employmentType,
+          effective_from: input.effectiveFrom,
+          note: input.note?.trim() ? input.note.trim() : null,
+        },
+      })
+  );
 
   revalidatePath("/mobile/attendance/pay");
   revalidatePath("/admin/attendance/wages");
@@ -2050,20 +2081,23 @@ export async function createAttendanceAllowance(input: {
     .single()) as { data: { id: string } | null; error: { message: string } | null };
   if (ins.error || !ins.data) return { ok: false, reason: "error" };
 
-  await service.from("audit_logs").insert({
-    organization_id: organizationId,
-    actor_user_id: actorId,
-    action: "attendance_allowance_created",
-    target_type: "attendance_pay_allowances",
-    target_id: ins.data.id,
-    metadata: {
-      target_date: input.targetDate,
-      target_user_id: input.targetUserId,
-      allowance_type: input.allowanceType,
-      amount_yen: amountYen,
-      category: input.category,
-    },
-  });
+  await bestEffortWrite(
+    "audit_logs: insert",
+    service.from("audit_logs").insert({
+        organization_id: organizationId,
+        actor_user_id: actorId,
+        action: "attendance_allowance_created",
+        target_type: "attendance_pay_allowances",
+        target_id: ins.data.id,
+        metadata: {
+          target_date: input.targetDate,
+          target_user_id: input.targetUserId,
+          allowance_type: input.allowanceType,
+          amount_yen: amountYen,
+          category: input.category,
+        },
+      })
+  );
 
   revalidatePath("/admin/attendance/wages");
   revalidatePath("/admin/attendance/payroll");
@@ -2118,18 +2152,21 @@ export async function cancelAttendanceAllowance(input: {
     .eq("status", "active");
   if (upd.error) return { ok: false, reason: "error" };
 
-  await service.from("audit_logs").insert({
-    organization_id: organizationId,
-    actor_user_id: actorId,
-    action: "attendance_allowance_cancelled",
-    target_type: "attendance_pay_allowances",
-    target_id: input.id,
-    metadata: {
-      target_date: row.target_date,
-      target_user_id: row.target_user_id,
-      reason: input.reason?.trim() ? input.reason.trim() : null,
-    },
-  });
+  await bestEffortWrite(
+    "audit_logs: insert",
+    service.from("audit_logs").insert({
+        organization_id: organizationId,
+        actor_user_id: actorId,
+        action: "attendance_allowance_cancelled",
+        target_type: "attendance_pay_allowances",
+        target_id: input.id,
+        metadata: {
+          target_date: row.target_date,
+          target_user_id: row.target_user_id,
+          reason: input.reason?.trim() ? input.reason.trim() : null,
+        },
+      })
+  );
 
   revalidatePath("/admin/attendance/wages");
   revalidatePath("/admin/attendance/payroll");

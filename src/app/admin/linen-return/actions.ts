@@ -36,6 +36,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { Database } from "@/types/database";
 import type { Json } from "@/types/database";
+import { bestEffortWrite } from "@/lib/db-write-guard";
 
 type RecordRow = Database["public"]["Tables"]["linen_return_records"]["Row"];
 type ItemRow = Database["public"]["Tables"]["linen_items"]["Row"];
@@ -114,14 +115,17 @@ async function writeAudit(params: {
 }) {
   try {
     const service = getSupabaseServiceClient();
-    await service.from("audit_logs").insert({
-      organization_id: params.organizationId,
-      actor_user_id: params.actorId,
-      action: params.action,
-      target_type: "linen_return_record",
-      target_id: params.recordId,
-      metadata: params.metadata,
-    });
+    await bestEffortWrite(
+      "audit_logs: insert",
+      service.from("audit_logs").insert({
+          organization_id: params.organizationId,
+          actor_user_id: params.actorId,
+          action: params.action,
+          target_type: "linen_return_record",
+          target_id: params.recordId,
+          metadata: params.metadata,
+        })
+    );
   } catch {
     // 감사 기록 실패가 이미 성공한 업무 처리를 되돌리지는 않는다 — 조용히 무시하지 않고 로그만 남긴다.
     console.error("[linen-return] audit log write failed", params.action, params.recordId);

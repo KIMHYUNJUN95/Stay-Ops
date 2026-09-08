@@ -93,11 +93,18 @@ await» 는 쓰지 않는다.
 문구가 나왔다(모르는 값이 duplicate 로 폴백). `moveSaveFailed` 를 ko/ja/en 신설하고 danger 톤 +
 경고 아이콘으로 가른다.
 
-### 남은 것
+### 후속 (2026-09-08 같은 날)
 
-부수 기록 성격의 ~99곳은 그대로 두었다. 그것들을 `bestEffortWrite` 로 옮기는 일은 언제든 안전하게
-할 수 있지만(동작 불변, 로그만 추가), 한 번에 하면 리뷰가 불가능한 크기라 **해당 기능을 만질 때
-함께** 옮긴다.
+부수 기록 성격의 쓰기 **37곳을 `bestEffortWrite` 로 옮겼다.** 동작은 그대로이고(실패해도 진행)
+경고 로그만 붙으므로 회귀 위험이 없어, 「기능을 만질 때 함께」 대신 한 번에 처리했다.
+대상은 감사·로그·읽음·알림 계열로 한정했다: `audit_logs` · `attendance_session_audits` ·
+`task_updates` · `beds24_webhook_events` · `attendance_attempt_logs` · `board_post_reads` ·
+`announcement_popup_dismissals` · `announcement_reads` · `notifications`.
+
+결과 미수신 쓰기 **101 → 64건.** 남은 64건은 `tasks`(19) · `task_participants`(7) ·
+`project_participants`(6) 등 **주 데이터**다. 이쪽은 실패 시 무엇을 해야 하는지가 경로마다 다르므로
+(중단? 에러 리다이렉트? 롤백?) 기계적으로 옮길 수 없다 — 되돌릴 수 없는 후속이 따르는 12곳은 위에서
+이미 `mustWrite` 로 처리했고, 나머지는 그 기능을 만질 때 판단해서 옮긴다.
 
 ## 2026-09-08 전체 점검 후속 — RLS 조직 스코프 확대 · Tokyo 날짜 유틸 통합
 
