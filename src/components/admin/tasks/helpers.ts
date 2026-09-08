@@ -25,6 +25,7 @@ import {
   isTomorrowOneOff,
   occursOn as sharedOccursOn,
   overdueOccurrenceDatesOf,
+  showsOnTodayList as sharedShowsOnTodayList,
   prioSort as sharedPrioSort,
 } from "@/lib/task-predicates";
 import { tokyoDateOf as sharedTokyoDateOf, tokyoToday as sharedTokyoToday, ymdShift } from "@/lib/tokyo-date";
@@ -105,6 +106,8 @@ export const recurrenceAnchor = anchorDateOf;
 export const occursOn = sharedOccursOn;
 /** 미해결 지연 회차 날짜들(과거 · 상태 없음). `resolved`는 해당 작업의 회차상태 보유 날짜 집합. */
 export const overdueOccurrenceDates = overdueOccurrenceDatesOf;
+/** 반복이 오늘 목록에 떠야 하는가 — 오늘 회차이거나 밀린 회차가 있으면(2026-09-08). */
+export const showsOnTodayList = sharedShowsOnTodayList;
 export function completedDateOf(t: TaskRecord): string | null {
   return tokyoDateOf(t.completedAt);
 }

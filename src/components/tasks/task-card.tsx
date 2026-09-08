@@ -98,6 +98,7 @@ export function TaskCard({
   onToggleSelect,
   onLongPress,
   swipeAction = "today",
+  behindDays,
   swipeReturnView,
   locale,
   reorderable = false,
@@ -135,6 +136,11 @@ export function TaskCard({
   // it to tomorrow (Today tab). `swipeReturnView` is posted with the action so the server redirect
   // keeps the user on the tab they swiped from.
   swipeAction?: "today" | "tomorrow";
+  /**
+   * 반복 작업이 밀린 회차 수. 0/undefined 면 배지를 달지 않는다(2026-09-08).
+   * 밀린 회차를 지연 섹션에 따로 세우지 않고 **오늘 카드의 배지로만** 보여 준다.
+   */
+  behindDays?: number;
   swipeReturnView?: string;
   // Drag-reorder (Today view): shows a dedicated grip handle. The handle owns its own pointer
   // gesture and stops propagation, so it never triggers tap / long-press / swipe on the card body.
@@ -521,6 +527,13 @@ export function TaskCard({
               <span className={chip}>
                 <Repeat2 className="size-3" aria-hidden="true" />
                 {repeatLabel(task.recurrenceRule, copy, locale)}
+              </span>
+            ) : null}
+            {behindDays ? (
+              // 「N일 밀림」 — 반복이 밀렸다는 사실은 여기에만 남는다(지연 섹션에는 안 뜬다).
+              // 완료하면 서버가 밀린 회차를 흡수하므로 배지도 함께 사라진다.
+              <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-extrabold text-rose-600">
+                {copy.odDaysBehind.replace("{n}", String(behindDays))}
               </span>
             ) : null}
             {task.tags.slice(0, 2).map((tg) => (

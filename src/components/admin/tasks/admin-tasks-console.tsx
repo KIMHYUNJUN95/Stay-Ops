@@ -68,7 +68,6 @@ import {
   addConsoleNote,
   addConsoleProjectSection,
   bulkDeleteConsoleTasks,
-  carryConsoleOverdueToToday,
   createConsoleProject,
   createConsoleTask,
   deleteConsoleProject,
@@ -96,7 +95,6 @@ import {
   restoreConsoleTasks,
   setConsoleTaskStatus,
   shareConsoleTask,
-  skipConsoleOverdue,
   toggleConsoleComplete,
   updateConsoleTaskCore,
   type TaskActionResult,
@@ -145,6 +143,7 @@ import {
   matchQuery,
   myOwn,
   overdueOccurrenceDates,
+  showsOnTodayList,
   partsOf,
   prioLabel,
   prioSort,
@@ -1016,6 +1015,8 @@ export function AdminTasksConsole({
       reorder?: boolean;
       // 지연 일괄 처리 대상 선택. 전역 선택모드와 같은 `.tpick` 체크박스를 쓰되 집합만 다르다.
       pick?: { on: boolean; toggle: () => void };
+      /** 반복 작업이 밀린 회차 수. 0/undefined 면 배지를 달지 않는다(2026-09-08). */
+      behindDays?: number;
     },
   ) => {
     const occ = opts?.occurrence;
@@ -1174,6 +1175,14 @@ export function AdminTasksConsole({
             </span>
           )}
         </div>
+        {opts?.behindDays ? (
+          // 반복이 밀렸다는 사실은 **오늘 줄에 배지로만** 남는다 — 지연 섹션에 따로 세우지 않는다
+          // (2026-09-08). 완료하면 서버가 밀린 회차를 흡수해 배지도 사라진다.
+          <span className="pill pill--danger">
+            <span className="d" />
+            {fill(dict.odDaysBehind, { n: String(opts.behindDays) })}
+          </span>
+        ) : null}
         {overdue ? (
           <span className="pill pill--danger">
             <span className="d" />
@@ -1855,66 +1864,35 @@ export function AdminTasksConsole({
 
   // ── VIEWS ────────────────────────────────────────────────────────────────────────────
   // 반복 지연 backlog 묶음 행(작업별 1건 · N일 밀림 · [오늘로 가져오기]/[삭제]).
-  const renderOverdueGroup = (t: TaskRecord, days: number) => (
-    <div key={`od-${t.id}`} className="odgroup">
-      <button className="odgroup__b" onClick={() => openTask(t.id)}>
-        <span className="odgroup__t">{t.title}</span>
-        <span className="odgroup__n">{fill(dict.odDaysBehind, { n: days })}</span>
-      </button>
-      <div className="odgroup__acts">
-        <button
-          className="od-b"
-          onClick={(e) => {
-            e.stopPropagation();
-            // 오늘 회차가 이미 열려 있으면 새로 생기는 항목이 없다 — 무슨 일이 일어났는지
-            // 결과로 판별해 문구를 고른다(모바일 `carryRec` 과 같은 규칙).
-            run(() => carryConsoleOverdueToToday(t.id), {
-              after: (res) => {
-                if (!res.carry) return;
-                const tpl = res.carry.carried ? dict.odCarriedToNewTask : dict.odCarriedToOccurrence;
-                showToast(tpl.replace("{n}", String(res.carry.moved)));
-              },
-            });
-          }}
-        >
-          {dict.odCarry}
-        </button>
-        <button
-          className="od-b od-b--ghost"
-          onClick={(e) => {
-            e.stopPropagation();
-            run(() => skipConsoleOverdue(t.id), { toast: dict.tDeleted });
-          }}
-        >
-          {dict.odSkip}
-        </button>
-      </div>
-    </div>
-  );
-
   const todayView = () => {
     const odOne = filtered(overdueList).sort((a, b) => dateSort(a, b) || prioSort(a, b));
-    // 반복 지연 backlog — 작업별 1건.
+    // 반복은 지연 섹션에 세우지 않는다(2026-09-08) — 아래 `recBehind` 로 오늘 줄의 배지가 된다.
+    // 아래 주석의 «네 갈래» 필터 통일 규칙은 그대로 유효하다.
+    // (구) 반복 지연 backlog — 작업별 1건.
     // 필터는 네 갈래(지연/오늘 일회성, 지연/오늘 반복) 모두 `filtered()` 로 통일한다(2026-07-31).
     // 전에는 반복 행만 matchQuery/matchPrio 로 걸러 날짜 필터를 빠져나갔고, "날짜 없음"을 걸면
     // 일회성만 사라지고 반복 회차는 남아 필터 결과가 조건과 모순됐다. 모바일도 네 갈래 전부
     // 같은 `applyFilter` 를 통과시킨다.
-    const recOverdue = filtered(
-      personalTasks.filter((t) => myOwn(t, meId) && isStandardRecurrence(t.recurrenceRule)),
-    )
-      .map((t) => ({ t, days: overdueOccurrenceDates(t, today, resolvedDatesFor(t.id)).length }))
-      .filter((x) => x.days > 0)
-      .sort((a, b) => prioSort(a.t, b.t));
-    // 오늘 회차 — 일회성(today) + 반복(openOccursOn today = 활성 · 미해결 회차).
+    /** taskId → 밀린 회차 수. 오늘 줄의 「N일 밀림」 배지에 쓴다. */
+    const recBehind = new Map<string, number>(
+      personalTasks
+        .filter((t) => myOwn(t, meId) && isStandardRecurrence(t.recurrenceRule))
+        .map((t) => [t.id, overdueOccurrenceDates(t, today, resolvedDatesFor(t.id)).length])
+        .filter(([, days]) => (days as number) > 0) as [string, number][],
+    );
+    // 오늘 회차 — 일회성(today) + 반복. 반복은 **오늘 회차이거나 밀린 회차가 있으면** 뜬다
+    // (2026-09-08). 밀린 것을 지연 섹션에 따로 세우지 않고 여기 한 줄로 모은다.
     const tdRec = filtered(
-      personalTasks.filter((t) => myOwn(t, meId) && openOccursOn(t, today)),
+      personalTasks.filter(
+        (t) => myOwn(t, meId) && showsOnTodayList(t, today, occState, resolvedDatesFor(t.id)),
+      ),
     );
     // 정렬은 renderDateList 가 회차 순서까지 합쳐 처리한다(여기서 미리 정렬하지 않는다).
     const td = [
       ...filtered(personalTasks.filter((t) => isTodayTask(t, today) && myOwn(t, meId))),
       ...tdRec,
     ];
-    const overdueCount = odOne.length + recOverdue.length;
+    const overdueCount = odOne.length;
     /* 지연 일괄 처리 대상 선택 — 서버가 "내가 만든 · 일회성 · 진짜 지연"만 처리하므로, 남의 공유
        작업은 애초에 담을 수 없게 한다(담아 봐야 서버가 조용히 버려 개수만 거짓이 된다).
        전역 선택모드가 켜져 있으면 그쪽에 자리를 내준다. */
@@ -2009,7 +1987,6 @@ export function AdminTasksConsole({
                         : undefined,
                     ),
                   )}
-                  {recOverdue.map(({ t, days }) => renderOverdueGroup(t, days))}
                 </>
               ),
             })}
@@ -2020,7 +1997,7 @@ export function AdminTasksConsole({
           n: td.length,
           children: (
             <>
-              {renderDateList(td, today)}
+              {renderDateList(td, today, recBehind)}
               {InlineAddSlot({ ctx: "today" })}
             </>
           ),
@@ -2034,7 +2011,7 @@ export function AdminTasksConsole({
    * 저장은 `reorderConsoleDateTasks` 가 일회성/반복으로 나눠 쓴다. 드래그 방식은 관리함과 동일한
    * HTML5 draggable 이라 콘솔 안에서 조작 감각이 갈리지 않는다.
    */
-  const renderDateList = (arr: TaskRecord[], date: string) => {
+  const renderDateList = (arr: TaskRecord[], date: string, behind?: Map<string, number>) => {
     const ranked = sortByDateOrder(arr, date);
     const pending = dateOrder && dateOrder.date === date ? dateOrder.ids : null;
     const items = pending
@@ -2089,7 +2066,11 @@ export function AdminTasksConsole({
         onDragEnd={canDrag ? () => { setDragId(null); setOverId(null); } : undefined}
       >
         {isStandardRecurrence(t.recurrenceRule)
-          ? renderRow(t, { occurrence: { date, done: false }, reorder: canDrag })
+          ? renderRow(t, {
+              occurrence: { date, done: false },
+              reorder: canDrag,
+              behindDays: behind?.get(t.id),
+            })
           : renderRow(t, { reorder: canDrag })}
       </div>
     ));

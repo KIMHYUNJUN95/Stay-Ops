@@ -24,21 +24,16 @@ import {
   canMoveRecurringTo,
   isRecurringOccurrenceDate,
   isStandardRecurrence,
-  outstandingOverdueOccurrences,
-  type OccurrenceState,
 } from "@/lib/tasks-recurrence";
 import {
+  absorbEarlierOccurrences,
   clearOccurrenceState,
   completeOccurrence,
-  createCarryOverTask,
-  occurrenceStatesForTask,
-  moveOccurrences,
   resolvedOccurrenceDates,
   setOccurrenceOrders,
   setTaskSortOrders,
   skipOccurrences,
 } from "@/lib/task-occurrences";
-import { backlogCoveredByOccurrenceOn } from "@/lib/task-predicates";
 import { cleanupRemovedTaskImages, sanitizeTaskImageUrls } from "@/lib/task-images";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -166,41 +161,6 @@ export async function dismissOverdueTasks(taskIds: string[]) {
 }
 
 /**
- * Recurring overdue backlog resolution (2026-07-30). Both operate per recurring task and recompute
- * the still-open overdue occurrences server-side (never trust a client list).
- *
- * skipOverdueOccurrences — "삭제": mark every outstanding overdue occurrence `skipped`. Kept forever,
- * never re-appears as overdue; the series continues on its schedule.
- * carryOverdueToToday — "오늘로 가져오기": mark them `moved` and create one carry-over one-off task
- * dated today (a personal make-up for the actor) so the missed work is actionable now.
- */
-async function outstandingOverdueForTask(
-  task: TaskDetail,
-): Promise<{ anchor: string; dates: string[]; states: Map<string, OccurrenceState> }> {
-  const anchor = recurringAnchorDate(task);
-  // 상태 «종류»까지 필요하다 — 오늘 회차가 완료인지 건너뜀인지에 따라 보충 사본 여부가 갈린다.
-  const states = await occurrenceStatesForTask(task.id);
-  const dates = outstandingOverdueOccurrences(
-    task.recurrenceRule,
-    anchor,
-    tokyoToday(),
-    new Set(states.keys()),
-  );
-  return { anchor, dates, states };
-}
-
-export async function skipOverdueOccurrences(taskId: string) {
-  const id = String(taskId ?? "").trim();
-  if (!id) return;
-  const { session, task } = await requireSessionAndTask(id);
-  if (!isStandardRecurrence(task.recurrenceRule)) return;
-  const { dates } = await outstandingOverdueForTask(task);
-  await skipOccurrences({ taskId: id, organizationId: session.organization.id, dates });
-  revalidatePath("/mobile/tasks");
-  revalidatePath(detailPath(id));
-}
-
-/**
  * 반복 작업의 **한 회차만** 건너뛰기 / 되돌리기 (2026-07-30).
  *
  * 목록에서 반복 카드를 삭제하면 시리즈 전체(`tasks` 행)가 사라져, "오늘만 못 한다"를 표현할 방법이
@@ -256,43 +216,6 @@ export async function unskipOccurrenceOn(taskId: string, occurrenceDate: string)
  * 일어나지 않는 것처럼 보였다(지연 카드만 조용히 사라졌다).
  */
 export type CarryOutcome = { moved: number; carried: boolean };
-
-export async function carryOverdueToToday(taskId: string): Promise<CarryOutcome | null> {
-  const id = String(taskId ?? "").trim();
-  if (!id) return null;
-  const { session, task } = await requireSessionAndTask(id);
-  if (!isStandardRecurrence(task.recurrenceRule)) return null;
-  const today = tokyoToday();
-  const { anchor, dates, states } = await outstandingOverdueForTask(task);
-  if (dates.length === 0) return null;
-  // 오늘 회차가 밀린 몫을 덮으면 사본을 만들지 않는다 — 또 만들면 오늘 목록에 같은 제목이 2건 뜬다.
-  // 「오늘 것을 이미 완료한 경우」도 덮는 쪽이다(2026-08-25 사용자 제보). 밀린 회차의 `moved`
-  // 기록은 어느 쪽이든 그대로 수행한다.
-  const carryNeeded = !backlogCoveredByOccurrenceOn({
-    rule: task.recurrenceRule,
-    anchor,
-    date: today,
-    state: states.get(today),
-  });
-  await moveOccurrences({
-    taskId: id,
-    organizationId: session.organization.id,
-    dates,
-    movedTo: today,
-  });
-  // Carry-over: a personal one-off make-up for the actor, due today (see createCarryOverTask).
-  if (carryNeeded) {
-    await createCarryOverTask({
-      task,
-      organizationId: session.organization.id,
-      userId: session.user.id,
-      date: today,
-    });
-  }
-  revalidatePath("/mobile/tasks");
-  revalidatePath(detailPath(id));
-  return { moved: dates.length, carried: carryNeeded };
-}
 
 function otherParticipantIds(task: TaskDetail, actorUserId: string): string[] {
   return task.participants.map((p) => p.userId).filter((uid) => uid !== actorUserId);
@@ -542,6 +465,14 @@ export async function completeTask(taskId: string, occurrenceDate?: string) {
       organizationId: session.organization.id,
       occurrenceDate: occ,
       userId: session.user.id,
+    });
+    // 밀린 회차는 이 완료가 흡수한다 — 콘솔 `completeInternal` 과 같은 규칙(2026-09-08).
+    await absorbEarlierOccurrences({
+      taskId: id,
+      organizationId: session.organization.id,
+      rule: task.recurrenceRule,
+      anchor: taskAnchorDate(task),
+      completedDate: occ,
     });
     await bestEffortWrite(
       "task_updates: insert",

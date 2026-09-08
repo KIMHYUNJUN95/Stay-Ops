@@ -47,7 +47,6 @@ import {
   quickCreateTomorrowTask,
 } from "@/app/mobile/tasks/new/actions";
 import {
-  carryOverdueToToday,
   completeTask,
   deleteTasksInList,
   dismissOverdueTasks,
@@ -57,7 +56,6 @@ import {
   rescheduleOverdueTo,
   restoreTasksInList,
   skipOccurrenceOn,
-  skipOverdueOccurrences,
   unskipOccurrenceOn,
 } from "@/app/mobile/tasks/[id]/actions";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
@@ -76,6 +74,7 @@ import {
   isTodayOneOff,
   isTomorrowOneOff,
   overdueOccurrenceDatesOf,
+  showsOnTodayList,
   prioSort,
 } from "@/lib/task-predicates";
 import { tokyoToday, ymdShift } from "@/lib/tokyo-date";
@@ -472,10 +471,6 @@ export function TasksWorkspace({
     [locale],
   );
   const [, startSkip] = useTransition();
-  // 「오늘로 가져오기」 결과 안내. 오늘 회차가 이미 열려 있으면 새로 생기는 항목이 없어서,
-  // 지연 카드만 조용히 사라지고 «눌렀는데 아무 일도 없다»로 보였다(2026-08-25).
-  const [carryNotice, setCarryNotice] = useState<string | null>(null);
-  const carryNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [skipUndo, setSkipUndo] = useState<{ taskId: string; date: string } | null>(null);
   const skipUndoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runSkipOccurrence = useCallback(
@@ -651,7 +646,7 @@ export function TasksWorkspace({
   const tomorrowDate = useMemo(() => ymdShift(today, 1), [today]);
   // 떠 있는 토스트가 하나라도 있는가 — 아래 FAB 를 잠시 물러나게 하는 데 쓴다.
   const toastVisible = !!(
-    moveNotice || skipUndo || undoTask || deletedUndoIds?.length || carryNotice
+    moveNotice || skipUndo || undoTask || deletedUndoIds?.length
   );
   // 반복 회차 상태(2026-07-30): taskId → (date → state). 완료/지연 판정에 사용.
   const occByTask = useMemo(() => {
@@ -862,9 +857,17 @@ export function TasksWorkspace({
   // 관리함까지 포함한 83건을 말하는 상태였다(2026-07-31 수정).
   const todayOverdueBase = tasks.filter(isOverdue);
   const todayBase = tasks.filter(isToday);
-  // 반복 회차: 오늘 미완료 회차 + 반복 지연 backlog(작업별 1건).
-  const todayRecBase = tasks.filter((t) => openOccursOn(t, today));
-  const todayRecOverdueBase = tasks.filter((t) => overdueOccDates(t).length > 0);
+  // 반복 회차: **오늘 회차이거나 밀린 회차가 있으면** 오늘 목록에 뜬다(2026-09-08).
+  // 밀린 것을 지연 섹션에 따로 세우지 않고 여기 한 줄로 모으고, 「N일 밀림」은 카드 배지가 된다.
+  const todayRecBase = tasks.filter((t) =>
+    showsOnTodayList(t, today, occStateOf, resolvedDatesFor(t.id)),
+  );
+  /** taskId → 밀린 회차 수. 오늘 카드의 배지에 쓴다(0이면 배지 없음). */
+  const behindByTask = new Map<string, number>(
+    todayRecBase
+      .map((t) => [t.id, overdueOccDates(t).length] as [string, number])
+      .filter(([, n]) => n > 0),
+  );
   const tomorrowBase = tasks.filter(isTomorrow);
   const tomorrowRecBase = tasks.filter((t) => openOccursOn(t, tomorrowDate));
   const inboxBase = tasks.filter((t) => isActive(t));
@@ -907,8 +910,7 @@ export function TasksWorkspace({
     today:
       todayOverdueBase.length +
       todayBase.length +
-      todayRecBase.length +
-      todayRecOverdueBase.length,
+      todayRecBase.length,
     tomorrow: tomorrowBase.length + tomorrowRecBase.length,
     // Archive = every active todo in one management list.
     inbox: inboxBase.length,
@@ -1006,15 +1008,13 @@ export function TasksWorkspace({
       if (
         !todayOverdueBase.length &&
         !todayBase.length &&
-        !todayRecBase.length &&
-        !todayRecOverdueBase.length
+        !todayRecBase.length
       )
         return emptyState(Sun, copy.todayEmptyTitle, copy.todayEmptySub);
       const over = applyFilter(todayOverdueBase).sort(orderSort);
       const todays = applyFilter(todayBase).sort(orderSort);
       const recToday = applyFilter(todayRecBase).sort(orderSort);
-      const recOverdue = applyFilter(todayRecOverdueBase).sort(orderSort);
-      if (!over.length && !todays.length && !recToday.length && !recOverdue.length)
+      if (!over.length && !todays.length && !recToday.length)
         return noMatchState();
       // Drag-reorder is offered only on the plain Today list — disabled while a search/date filter
       // is active (the list is a subset) or in multi-select mode (the card body owns the tap).
@@ -1062,61 +1062,6 @@ export function TasksWorkspace({
           setOverdueSelectMode(false);
           setOverdueSelection(new Set());
         });
-      // 반복 지연 backlog(작업별 1건): 오늘로 가져오기 / 삭제(skip). 서버가 revalidate.
-      const carryRec = (id: string) =>
-        startOverdue(async () => {
-          const res = await carryOverdueToToday(id);
-          if (!res) return;
-          const template = res.carried ? copy.odCarriedToNewTask : copy.odCarriedToOccurrence;
-          if (carryNoticeTimer.current) clearTimeout(carryNoticeTimer.current);
-          setCarryNotice(template.replace("{n}", String(res.moved)));
-          carryNoticeTimer.current = setTimeout(() => setCarryNotice(null), 4000);
-        });
-      const skipRec = (id: string) =>
-        startOverdue(async () => {
-          await skipOverdueOccurrences(id);
-        });
-      // 반복 지연 backlog 카드. 예전에는 제목 오른쪽에 좁은 알약 두 개를 끼워 넣어, 제목이 잘리고
-      // 버튼은 손가락으로 누르기 애매했다(px-3 py-1.5 = 약 28px 높이). 지연 배너와 같은 문법으로
-      // 다시 짠다 — 아이콘 칩 + 제목/밀림 배지 한 줄, 그 아래 전폭 액션 두 개.
-      const recOverdueGroup = (t: TaskRecord) => (
-        <div
-          key={`od-${t.id}`}
-          className="rounded-[18px] border border-border bg-surface p-3 shadow-[0_10px_28px_-24px_rgba(15,23,42,0.5)]"
-        >
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-[11px] bg-rose-50 text-rose-500">
-              <Repeat className="size-4" strokeWidth={2.2} aria-hidden="true" />
-            </span>
-            <p className="min-w-0 flex-1 truncate text-[14px] font-extrabold tracking-[-0.01em] text-foreground">
-              {t.title}
-            </p>
-            <span className="shrink-0 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-extrabold text-rose-600">
-              {copy.odDaysBehind.replace("{n}", String(overdueOccDates(t).length))}
-            </span>
-          </div>
-          <div className="mt-2.5 flex gap-2">
-            <button
-              className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[14px] bg-primary px-3 text-[13px] font-bold text-primary-foreground shadow-[0_10px_22px_-12px_hsl(var(--primary-hsl)/0.65)] transition-transform active:scale-[0.97] disabled:opacity-50"
-              disabled={overduePending}
-              onClick={() => carryRec(t.id)}
-              type="button"
-            >
-              <Sun className="size-4 shrink-0" strokeWidth={2.2} aria-hidden="true" />
-              {copy.odCarry}
-            </button>
-            <button
-              className="inline-flex h-10 flex-none items-center justify-center gap-1.5 rounded-[14px] border border-border bg-background px-3.5 text-[13px] font-bold text-muted-foreground transition-colors active:bg-muted/50 disabled:opacity-50"
-              disabled={overduePending}
-              onClick={() => skipRec(t.id)}
-              type="button"
-            >
-              <Trash2 className="size-4 shrink-0" strokeWidth={2.2} aria-hidden="true" />
-              {copy.odSkip}
-            </button>
-          </div>
-        </div>
-      );
       return (
         <>
           {ownedOverdue > 0 && !filterActive && !selectMode ? (
@@ -1227,14 +1172,8 @@ export function TasksWorkspace({
               />
             </>
           ) : null}
-          {recOverdue.length > 0 ? (
-            <div className={over.length ? "mt-4" : ""}>
-              {over.length === 0 ? sectionHead(copy.secOverdue, recOverdue.length) : null}
-              <div className="flex flex-col gap-2">{recOverdue.map(recOverdueGroup)}</div>
-            </div>
-          ) : null}
           {(todays.length > 0 || recToday.length > 0) ? (
-            <div className={over.length || recOverdue.length ? "mt-4" : ""}>
+            <div className={over.length ? "mt-4" : ""}>
               {sectionHead(copy.secToday, todays.length + recToday.length)}
               {/* 일회성과 반복 회차를 **하나의 순서 공간**으로 합쳐 렌더한다(2026-07-30 B안).
                   전에는 두 목록으로 갈라 반복 카드에만 드래그 핸들이 없었다. */}
@@ -1244,6 +1183,7 @@ export function TasksWorkspace({
                 items={mergeByDateOrder(todays, recToday, today)}
                 occurrenceDate={today}
                 onPersistDate={reorderDateTasks}
+                behindByTask={behindByTask}
               />
             </div>
           ) : null}
@@ -2471,8 +2411,6 @@ export function TasksWorkspace({
           `recurring_series` = 표준 반복은 애초에 스와이프를 못 연다(카드가 이미 막지만, 콘솔 등
           다른 경로로 온 값도 대비), `duplicate_occurrence` = 그 날짜에 이미 회차가 있는 레거시
           케이스. 모르는 값은 더 흔한 duplicate 문구로 안전하게 폴백한다. */}
-      {carryNotice && hydrated ? <TaskToast icon={Sun} message={carryNotice} /> : null}
-
       {moveNotice && hydrated ? (
         <TaskToast
           icon={moveNotice === "save_failed" ? AlertTriangle : Repeat}

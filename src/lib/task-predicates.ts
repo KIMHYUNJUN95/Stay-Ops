@@ -121,6 +121,31 @@ export function overdueOccurrenceDatesOf(
   return outstandingOverdueOccurrences(t.recurrenceRule, anchorDateOf(t), today, resolvedDates);
 }
 
+/**
+ * 이 반복 작업이 **오늘 목록에 떠야 하는가** (2026-09-08).
+ *
+ * 오늘이 회차거나, **밀린 회차가 남아 있으면** 뜬다. 후자가 이번에 추가된 규칙이다.
+ *
+ * 예전에는 밀린 회차를 지연 섹션에 «작업별 1건» 으로 따로 세웠는데, 평일 반복은 하루만 밀려도
+ * 전부 거기 쏟아져 **진짜 지연(일회성)이 묻혔다** — 실측 화면에서 지연 9건 중 8건이 「1일 밀림」
+ * 반복이었고, 정작 2주 밀린 일회성 하나가 그 사이에 파묻혀 있었다. 게다가 오늘도 회차인 반복은
+ * 지연·오늘 **두 줄**로 나타났다.
+ *
+ * 이제 반복은 어느 경우든 **오늘 한 줄**이고, 밀렸다는 사실은 `overdueOccurrenceDatesOf` 로 센
+ * 「N일 밀림」 배지로 붙는다. 완료하면 서버가 밀린 회차까지 흡수하므로 배지도 함께 사라진다
+ * (`absorbEarlierOccurrences`).
+ */
+export function showsOnTodayList(
+  t: TaskRecord,
+  today: string,
+  stateOf: (taskId: string, date: string) => OccurrenceState | undefined,
+  resolvedDates: ReadonlySet<string>,
+): boolean {
+  if (!isStandardRecurrence(t.recurrenceRule) || !isActiveTask(t)) return false;
+  if (isOpenOccurrenceOn(t, today, stateOf)) return true;
+  return overdueOccurrenceDatesOf(t, today, resolvedDates).length > 0;
+}
+
 /* ── 정렬 ────────────────────────────────────────────────────────────────────────
    우선순위 사다리(2026-07-30, Todoist P1~P4). `medium` 이 빠지면 폴백(3)으로 떨어져 normal 과
    동점이 되고, 같은 작업이 두 화면에서 다르게 줄 선다 — 실제로 두 파일에 복사돼 있던 표다. */

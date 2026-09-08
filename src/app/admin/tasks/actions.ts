@@ -30,21 +30,16 @@ import {
 import {
   canMoveRecurringTo,
   isStandardRecurrence,
-  outstandingOverdueOccurrences,
   recurringOccurrencesInRange,
 } from "@/lib/tasks-recurrence";
 import {
   clearOccurrenceState,
+  absorbEarlierOccurrences,
   completeOccurrence,
-  createCarryOverTask,
-  occurrenceStatesForTask,
-  moveOccurrences,
-  resolvedOccurrenceDates,
   setOccurrenceOrders,
   setTaskSortOrders,
   skipOccurrences,
 } from "@/lib/task-occurrences";
-import { backlogCoveredByOccurrenceOn } from "@/lib/task-predicates";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { cleanupRemovedTaskImages, sanitizeTaskImageUrls } from "@/lib/task-images";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -329,6 +324,14 @@ async function completeInternal(session: Session, task: TaskDetail, occurrenceDa
       occurrenceDate: occ,
       userId: session.user.id,
     });
+    // 밀린 회차는 이 완료가 흡수한다 — 오늘 줄의 「N일 밀림」 배지가 함께 사라진다(2026-09-08).
+    await absorbEarlierOccurrences({
+      taskId: task.id,
+      organizationId: session.organization.id,
+      rule: task.recurrenceRule,
+      anchor: taskAnchorDate(task),
+      completedDate: occ,
+    });
   } else {
     await supabase
       .from("tasks")
@@ -452,19 +455,6 @@ export async function toggleConsoleComplete(
 }
 
 // ── Recurring overdue backlog resolution (2026-07-30, mirrors the mobile actions) ────────────
-export async function skipConsoleOverdue(taskId: string): Promise<TaskActionResult> {
-  const resolved = await resolveTask(taskId);
-  if (!resolved) return { ok: false, error: "not_found" };
-  const { session, task } = resolved;
-  if (!isStandardRecurrence(task.recurrenceRule)) return { ok: true };
-  const anchor = recurringAnchorDate(task);
-  const resolvedDates = await resolvedOccurrenceDates(task.id);
-  const dates = outstandingOverdueOccurrences(task.recurrenceRule, anchor, tokyoToday(), resolvedDates);
-  await skipOccurrences({ taskId: task.id, organizationId: session.organization.id, dates });
-  revalidatePath(CONSOLE_PATH);
-  return { ok: true };
-}
-
 /**
  * 반복 작업의 **한 회차만** 건너뛰기 / 되돌리기 (2026-07-30) — 모바일 `skipOccurrenceOn` 과 같은 규칙.
  *
@@ -514,48 +504,6 @@ export async function unskipConsoleOccurrence(
   await clearOccurrenceState(task.id, date);
   revalidatePath(CONSOLE_PATH);
   return { ok: true };
-}
-
-export async function carryConsoleOverdueToToday(taskId: string): Promise<TaskActionResult> {
-  const resolved = await resolveTask(taskId);
-  if (!resolved) return { ok: false, error: "not_found" };
-  const { session, task } = resolved;
-  if (!isStandardRecurrence(task.recurrenceRule)) return { ok: true };
-  const today = tokyoToday();
-  const anchor = recurringAnchorDate(task);
-  // 상태 «종류»까지 필요하다 — 오늘 회차가 완료인지 건너뜀인지에 따라 보충 사본 여부가 갈린다.
-  const states = await occurrenceStatesForTask(task.id);
-  const dates = outstandingOverdueOccurrences(
-    task.recurrenceRule,
-    anchor,
-    today,
-    new Set(states.keys()),
-  );
-  if (dates.length === 0) return { ok: true };
-  // 오늘 회차가 밀린 몫을 덮으면 사본을 만들지 않는다(완료한 경우 포함 — 2026-08-25 사용자 제보).
-  // 모바일 `carryOverdueToToday` 와 같은 판정을 공유한다.
-  const carryNeeded = !backlogCoveredByOccurrenceOn({
-    rule: task.recurrenceRule,
-    anchor,
-    date: today,
-    state: states.get(today),
-  });
-  await moveOccurrences({
-    taskId: task.id,
-    organizationId: session.organization.id,
-    dates,
-    movedTo: today,
-  });
-  if (carryNeeded) {
-    await createCarryOverTask({
-      task,
-      organizationId: session.organization.id,
-      userId: session.user.id,
-      date: today,
-    });
-  }
-  revalidatePath(CONSOLE_PATH);
-  return { ok: true, carry: { moved: dates.length, carried: carryNeeded } };
 }
 
 // ── 4. Edit core (author only) ─────────────────────────────────────────────────

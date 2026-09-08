@@ -633,35 +633,21 @@ As-built (2026-07-30, occurrence model — **supersedes** the 2026-06-16 roll-fo
   passed with no recorded state is **overdue** and stays so (연차·연휴·업무 사정으로 며칠 밀려도 사라지지
   않는다). Overdue occurrences of a recurring task are collapsed into **one grouped item per task**
   ("○○ · N일 밀림") in the Today tab's overdue area, with two actions:
-  - **오늘로 가져오기** (`carryOverdueToToday`) — marks the outstanding overdue occurrences `moved`.
-    The recurring series continues on its schedule.
-    - **A carry-over one-off is created ONLY when today has no still-open occurrence (2026-08-25).**
-      Under a daily / weekdays / `custom:` rule today usually *is* an occurrence, and the old
-      unconditional copy put the same title in the Today list twice. When today's occurrence is
-      still open it doubles as the make-up, so no copy is made. When today is not an occurrence
-      (weekly / monthly / yearly), or today's occurrence is already `completed`/`skipped`/`moved`,
-      the copy IS created — otherwise the missed work would silently vanish. The predicate is the
-      shared `backlogCoveredByOccurrenceOn()` in `src/lib/task-predicates.ts`. **Today's occurrence
-      counts as covering the backlog even when it is already `completed`** — these recurring chores
-      do not accumulate (you don't do three days of stock checks three times), so doing it once today
-      settles the missed days. The first implementation gated on "still open" and therefore created a
-      duplicate whenever the user had already finished today's occurrence (2026-08-25, user-reported).
-      Only a `skipped` today-occurrence still produces a copy: the user said "not the scheduled one",
-      so pulling the backlog in means they do want one task today.
-    - The carry-over copy is anchored by **`due_at` only** (`scheduled_date: null`, `all_day: true`)
-      — the single-date model every other one-off uses. It was previously created `scheduled_date`-
-      only, and since both the mobile and console overdue predicates read `due_at`, an unfinished
-      copy fell out of 오늘·지연·내일 the next day and survived only in 관리함 (2026-08-25 fix).
-    - Creation lives in the shared `createCarryOverTask()` (`src/lib/task-occurrences.ts`); mobile
-      and console previously carried copy-pasted twins of the same insert block.
-    - **Both actions return the outcome** (`{moved, carried}`) and the caller says which of the two
-      things happened — "밀린 {n}건을 오늘 회차로 정리했습니다" when today's own occurrence absorbed
-      them, "밀린 {n}건을 오늘 할 일로 만들었습니다" when a make-up task was created. Without this the
-      no-copy branch looked like a dead button: the overdue card just vanished and nothing new
-      appeared. Copy: `odCarriedToOccurrence` / `odCarriedToNewTask` (ko/ja/en in both dictionaries).
-  - **삭제** (`skipOverdueOccurrences`) — marks the outstanding overdue occurrences `skipped` (kept
-    forever, never re-appears). The series continues.
+  - **(2026-09-08 폐기)** 예전에는 「오늘로 가져오기」/「삭제」 2택을 지연 섹션에 두었다. 지금은
+    반복이 지연 섹션에 뜨지 않으므로 그 두 액션도 없다 — 아래 「반복 지연은 오늘 줄의 배지」 참고.
   One-off overdue tasks keep the existing bulk 오늘로 가져오기 / 지난 미완료 삭제 prompt (author-scoped).
+- **반복 지연은 지연 섹션이 아니라 「오늘 줄의 배지」다 (2026-09-08).**
+  반복이 **오늘 회차이거나 밀린 회차가 있으면** 오늘 목록에 **한 줄**로 뜬다(`showsOnTodayList`).
+  오늘이 회차가 아닌 반복(주간 등)이 밀린 경우도 오늘로 끌어온다. 밀렸다는 사실은 그 줄의
+  **「N일 밀림」 배지**(`odDaysBehind`)로 남는다.
+  - **왜 바꿨나.** 평일 반복은 하루만 밀려도 전부 지연 섹션에 쏟아진다 — 실측 화면에서 지연 9건 중
+    8건이 「1일 밀림」 반복이었고, 정작 2주 밀린 일회성 하나가 그 사이에 묻혀 있었다. 게다가 오늘도
+    회차인 반복은 지연·오늘 두 줄로 나타났다. 지연 섹션은 이제 **일회성만** 담아 신호가 산다.
+  - **완료가 곧 해소다.** 오늘 것을 완료하면 서버가 그보다 앞선 미해결 회차를 `moved` 로 함께
+    처리하고(`absorbEarlierOccurrences`) 배지도 사라진다. 이 반복 업무들은 누적되지 않기 때문이다
+    (3일치 재고 확인을 세 번 하지 않는다). `moved_to_date` 에 어느 완료가 흡수했는지 남는다.
+  - **완료한 날짜보다 앞선 것만** 흡수한다 — 캘린더에서 과거 회차를 직접 완료할 때 뒤의 미해결
+    회차까지 쓸어버리면 안 된다.
 - **반복 업무는 「오늘로/내일로 이동」의 대상이 아니다 (2026-08-25).** Those actions re-anchor a task
   through `due_at`, and for a recurring row that is the **series anchor**. Re-anchoring shifted the
   whole rule's phase (weekly-Monday silently became weekly-Wednesday) and, because overdue

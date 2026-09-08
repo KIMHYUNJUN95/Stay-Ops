@@ -2,7 +2,10 @@ import "server-only";
 
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { TaskRecord } from "@/lib/tasks";
-import type { OccurrenceState } from "@/lib/tasks-recurrence";
+import {
+  outstandingOverdueOccurrences,
+  type OccurrenceState,
+} from "@/lib/tasks-recurrence";
 import type { Database } from "@/types/database";
 
 /**
@@ -118,6 +121,45 @@ export async function occurrenceStatesForTask(
     .eq("task_id", taskId);
   const rows = (data ?? []) as Array<{ occurrence_date: string; state: string }>;
   return new Map(rows.map((r) => [r.occurrence_date, r.state as OccurrenceState]));
+}
+
+/**
+ * 반복 회차 하나를 완료할 때, **그보다 앞선 미해결 회차를 함께 해소한다**(2026-09-08).
+ *
+ * 이 반복 업무들은 누적되지 않는다 — 3일치 재고 확인을 세 번 하지 않는다. 오늘 한 번 하면 밀린
+ * 몫도 끝난 것이다. 그래서 밀린 회차를 지연 섹션에 따로 세우지 않고 **오늘 줄에 「N일 밀림」 배지**
+ * 로만 보여 주기로 했고(결정 로그 2026-09-08), 그 배지는 완료와 함께 사라져야 한다.
+ *
+ * 상태는 `skipped` 가 아니라 **`moved`** 를 쓴다 — `moved_to_date` 에 「어느 날짜의 완료가
+ * 흡수했는가」가 남아, 나중에 «그날 왜 안 했지» 를 되짚을 수 있다. `skipped` 는 사용자가 명시적으로
+ * 건너뛴 것을 뜻하므로 의미가 다르다.
+ *
+ * **완료한 날짜보다 앞선 것만** 건드린다. 캘린더에서 과거 회차를 직접 완료하는 경우, 그보다 뒤의
+ * 미해결 회차까지 쓸어버리면 안 된다.
+ */
+export async function absorbEarlierOccurrences(args: {
+  taskId: string;
+  organizationId: string;
+  rule: string | null;
+  anchor: string | null;
+  /** 방금 완료한 회차 날짜. 이 날짜 **미만**의 미해결 회차가 대상이다. */
+  completedDate: string;
+}): Promise<number> {
+  const states = await occurrenceStatesForTask(args.taskId);
+  const dates = outstandingOverdueOccurrences(
+    args.rule,
+    args.anchor,
+    args.completedDate, // "오늘"을 완료일로 두면 `[anchor, 완료일)` 이 대상이 된다
+    new Set(states.keys()),
+  );
+  if (dates.length === 0) return 0;
+  await moveOccurrences({
+    taskId: args.taskId,
+    organizationId: args.organizationId,
+    dates,
+    movedTo: args.completedDate,
+  });
+  return dates.length;
 }
 
 /* ── 「오늘로 가져오기」 보충 사본 (2026-08-25) ──────────────────────────────────── */
