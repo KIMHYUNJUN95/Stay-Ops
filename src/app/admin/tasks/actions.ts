@@ -35,6 +35,8 @@ import {
 import {
   clearOccurrenceState,
   absorbEarlierOccurrences,
+  releaseAbsorbedOccurrences,
+  resolveCompletionOccurrence,
   completeOccurrence,
   setOccurrenceOrders,
   setTaskSortOrders,
@@ -317,7 +319,14 @@ function recurringAnchorDate(task: TaskDetail): string {
 async function completeInternal(session: Session, task: TaskDetail, occurrenceDate?: string) {
   const supabase = getSupabaseServiceClient();
   if (isStandardRecurrence(task.recurrenceRule)) {
-    const occ = String(occurrenceDate ?? "").trim() || recurringAnchorDate(task);
+    // 화면이 넘긴 날짜가 규칙상 회차가 아니면(월수금 반복을 화요일에 보는 경우) 가장 오래된
+    // 미해결 회차로 정산한다 — 실제로 하는 일은 「밀린 그날 몫」이다(2026-09-08).
+    const occ = await resolveCompletionOccurrence({
+      taskId: task.id,
+      rule: task.recurrenceRule,
+      anchor: taskAnchorDate(task),
+      requested: String(occurrenceDate ?? "").trim() || recurringAnchorDate(task),
+    });
     await completeOccurrence({
       taskId: task.id,
       organizationId: session.organization.id,
@@ -370,6 +379,8 @@ async function reopenInternal(session: Session, task: TaskDetail, occurrenceDate
   if (isStandardRecurrence(task.recurrenceRule)) {
     const occ = String(occurrenceDate ?? "").trim() || recurringAnchorDate(task);
     await clearOccurrenceState(task.id, occ);
+    // 그 완료가 흡수했던 밀린 회차도 되살린다 — 아니면 취소해도 밀림 배지가 안 돌아온다.
+    await releaseAbsorbedOccurrences(task.id, occ);
   } else {
     await supabase
       .from("tasks")

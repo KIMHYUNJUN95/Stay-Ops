@@ -221,6 +221,34 @@ describe("showsOnTodayList — 오늘 목록에 뜨는가", () => {
   });
 });
 
+describe("월수금 반복을 화요일에 볼 때 (2026-09-08 사용자 확인 요청)", () => {
+  // custom:1,3,5 = 월·수·금. TODAY(2026-08-25)는 화요일이다.
+  const mwf = task({ dueAt: dueOn("2026-08-03"), recurrenceRule: "custom:1,3,5" }); // 앵커 = 월
+  const noState = () => undefined;
+
+  it("오늘은 회차가 아니다", () => {
+    expect(occursOn(mwf, TODAY)).toBe(false);
+  });
+
+  it("밀린 회차가 있으면 오늘(화)에도 끌어와 뜬다", () => {
+    expect(showsOnTodayList(mwf, TODAY, noState, new Set())).toBe(true);
+  });
+
+  it("밀린 게 없으면 뜨지 않는다 — 화요일은 원래 쉬는 날이다", () => {
+    const all = new Set(overdueOccurrenceDatesOf(mwf, TODAY, new Set()));
+    expect(showsOnTodayList(mwf, TODAY, noState, all)).toBe(false);
+  });
+
+  it("밀린 회차는 전부 월·수·금이다 — 화요일이 섞이지 않는다", () => {
+    const dates = overdueOccurrenceDatesOf(mwf, TODAY, new Set());
+    expect(dates.length).toBeGreaterThan(0);
+    for (const d of dates) {
+      const dow = new Date(`${d}T00:00:00Z`).getUTCDay(); // 1=월 3=수 5=금
+      expect([1, 3, 5]).toContain(dow);
+    }
+  });
+});
+
 describe("prioRank — 두 화면의 정렬이 갈리지 않아야 한다", () => {
   it("urgent > important > medium > normal", () => {
     expect(prioRank("urgent")).toBeLessThan(prioRank("important"));

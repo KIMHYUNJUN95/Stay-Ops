@@ -27,6 +27,8 @@ import {
 } from "@/lib/tasks-recurrence";
 import {
   absorbEarlierOccurrences,
+  releaseAbsorbedOccurrences,
+  resolveCompletionOccurrence,
   clearOccurrenceState,
   completeOccurrence,
   resolvedOccurrenceDates,
@@ -459,7 +461,13 @@ export async function completeTask(taskId: string, occurrenceDate?: string) {
   const supabase = getSupabaseServiceClient();
 
   if (isStandardRecurrence(task.recurrenceRule)) {
-    const occ = String(occurrenceDate ?? "").trim() || recurringAnchorDate(task);
+    // 콘솔 `completeInternal` 과 같은 규칙 — 회차가 아닌 날짜면 가장 오래된 미해결 회차로 정산.
+    const occ = await resolveCompletionOccurrence({
+      taskId: id,
+      rule: task.recurrenceRule,
+      anchor: taskAnchorDate(task),
+      requested: String(occurrenceDate ?? "").trim() || recurringAnchorDate(task),
+    });
     await completeOccurrence({
       taskId: id,
       organizationId: session.organization.id,
@@ -543,6 +551,8 @@ export async function reopenTask(taskId: string, occurrenceDate?: string) {
   if (isStandardRecurrence(task.recurrenceRule)) {
     const occ = String(occurrenceDate ?? "").trim() || recurringAnchorDate(task);
     await clearOccurrenceState(id, occ);
+    // 그 완료가 흡수했던 밀린 회차도 되살린다 — 콘솔 `reopenInternal` 과 같은 규칙.
+    await releaseAbsorbedOccurrences(id, occ);
     await bestEffortWrite(
       "task_updates: insert",
       supabase.from("task_updates").insert({

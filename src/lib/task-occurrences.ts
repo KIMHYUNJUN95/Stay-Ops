@@ -3,6 +3,7 @@ import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import type { TaskRecord } from "@/lib/tasks";
 import {
+  isRecurringOccurrenceDate,
   outstandingOverdueOccurrences,
   type OccurrenceState,
 } from "@/lib/tasks-recurrence";
@@ -121,6 +122,59 @@ export async function occurrenceStatesForTask(
     .eq("task_id", taskId);
   const rows = (data ?? []) as Array<{ occurrence_date: string; state: string }>;
   return new Map(rows.map((r) => [r.occurrence_date, r.state as OccurrenceState]));
+}
+
+/**
+ * 이 완료가 **실제로 정산하는 회차 날짜**를 정한다 (2026-09-08).
+ *
+ * 문제. 반복은 밀린 회차가 있으면 **오늘이 회차가 아니어도** 오늘 목록에 뜬다(월·수·금 반복을
+ * 화요일에 보는 경우). 그런데 카드는 «오늘» 을 회차 날짜로 넘기므로, 그대로 저장하면 **규칙에 없는
+ * 화요일에 상태 행이 생긴다.** 실제로 그런 행이 만들어졌다(일매출 변동 시트작업 / 2026-09-08 화).
+ *
+ * 그 행은 회차 계산에서 무시되므로 목록은 맞게 보이지만, 두 가지가 어긋난다:
+ *   1. 상세 화면은 `isRecurringOccurrenceDate` 로 회차를 검증하므로 그 날짜를 **유효하지 않다고**
+ *      보고 완료 버튼을 감춘다.
+ *   2. «어느 회차를 했는가» 가 기록에 남지 않는다 — 실제로 한 일은 **월요일 몫**이다.
+ *
+ * 그래서 요청받은 날짜가 회차가 아니면 **가장 오래된 미해결 회차**로 바꾼다. 화요일에 하는 일은
+ * 「밀린 월요일 것」이지 「화요일 것」이 아니다. 밀린 것도 없으면 그대로 둔다(호출부의 기존 폴백).
+ */
+export async function resolveCompletionOccurrence(args: {
+  taskId: string;
+  rule: string | null;
+  anchor: string | null;
+  /** 화면이 넘긴 회차 날짜(대개 «오늘»). */
+  requested: string;
+}): Promise<string> {
+  if (isRecurringOccurrenceDate(args.rule, args.anchor, args.requested)) return args.requested;
+  const states = await occurrenceStatesForTask(args.taskId);
+  const [oldest] = outstandingOverdueOccurrences(
+    args.rule,
+    args.anchor,
+    args.requested,
+    new Set(states.keys()),
+  );
+  return oldest ?? args.requested;
+}
+
+/**
+ * 완료를 되돌릴 때, **그 완료가 흡수했던 회차를 함께 되살린다** (2026-09-08).
+ *
+ * `absorbEarlierOccurrences` 가 밀린 회차를 `moved_to_date = <완료일>` 로 적어 두므로, 그 완료일을
+ * 가리키는 `moved` 행만 정확히 지우면 된다. 이게 없으면 완료를 취소해도 **밀림 배지가 돌아오지
+ * 않아**, 되돌리기가 반쪽이 된다(사용자는 「취소했는데 밀린 게 사라졌다」를 보게 된다).
+ */
+export async function releaseAbsorbedOccurrences(
+  taskId: string,
+  completedDate: string,
+): Promise<void> {
+  const supabase = getSupabaseServiceClient();
+  await supabase
+    .from("task_occurrence_state")
+    .delete()
+    .eq("task_id", taskId)
+    .eq("state", "moved")
+    .eq("moved_to_date", completedDate);
 }
 
 /**

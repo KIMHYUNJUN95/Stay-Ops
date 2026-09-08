@@ -648,6 +648,13 @@ As-built (2026-07-30, occurrence model — **supersedes** the 2026-06-16 roll-fo
     (3일치 재고 확인을 세 번 하지 않는다). `moved_to_date` 에 어느 완료가 흡수했는지 남는다.
   - **완료한 날짜보다 앞선 것만** 흡수한다 — 캘린더에서 과거 회차를 직접 완료할 때 뒤의 미해결
     회차까지 쓸어버리면 안 된다.
+  - **오늘이 회차가 아닌 경우**(월·수·금 반복을 화요일에 보는 경우) 완료는 **가장 오래된 미해결
+    회차**로 정산된다(`resolveCompletionOccurrence`). 화요일에 하는 일은 「밀린 월요일 것」이지
+    「화요일 것」이 아니다 — 그대로 저장하면 **규칙에 없는 날짜에 상태 행**이 생겨, 상세 화면이
+    그 회차를 무효로 보고 완료 버튼을 감춘다.
+  - **되돌리기는 흡수한 것까지 되살린다**(`releaseAbsorbedOccurrences`). 완료가
+    `moved_to_date = <완료일>` 로 흡수하므로 그 완료일을 가리키는 `moved` 행을 함께 지운다.
+    없으면 취소해도 밀림 배지가 돌아오지 않아 되돌리기가 반쪽이 된다.
 - **반복 업무는 「오늘로/내일로 이동」의 대상이 아니다 (2026-08-25).** Those actions re-anchor a task
   through `due_at`, and for a recurring row that is the **series anchor**. Re-anchoring shifted the
   whole rule's phase (weekly-Monday silently became weekly-Wednesday) and, because overdue
