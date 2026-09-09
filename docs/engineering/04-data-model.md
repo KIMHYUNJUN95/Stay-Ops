@@ -1811,7 +1811,8 @@ Constraints / behavior:
 외부 채용 사이트(haru-recruit / Firebase)에서 넘어온 지원서를 보관·심사한다. 도메인 계약은
 `docs/product/30-recruit-workflow.md`.
 
-새 enum `job_application_status`: `pending | screening | interview | hired | rejected`.
+새 enum `job_application_status`: `pending | screening | interview`.
+(최초에는 `hired`/`rejected` 가 있었으나 2026-09-09 제거 — `202609090003`.)
 
 주요 컬럼:
 
@@ -1825,7 +1826,6 @@ Constraints / behavior:
 - 이력서 — `resume_file_name`, `resume_source_url`(**서버 전용**, 토큰 포함 Firebase URL),
   `resume_path`(비공개 버킷 `recruit-resumes` 경로)
 - 심사 — `status`, `status_changed_at`, `status_changed_by_user_id`, `review_note`
-- 입사 연결 — `invite_code_id`, `hired_user_id`, `hired_at`
 - 시각 — `applied_at`(원본 접수 시각, 판독 불가 시 NULL), `imported_at`
 - `raw_payload jsonb` — **서버 전용** 원문 사본
 
@@ -1837,3 +1837,17 @@ Constraints / behavior:
 - 인덱스: 최근 지원 순 / 상태별 / `pending` 부분 인덱스 / 이력서 미복사 부분 인덱스
 - 새 스토리지 버킷 `recruit-resumes` 는 **비공개**(`public = false`). 다른 첨부 버킷과 다르다 —
   이력서는 개인정보 문서라 서명 URL 로만 연다
+
+### 2026-09-09 후속 — 합격·불합격 제거
+
+마이그레이션 `202609090003_job_application_status_triage_only.sql` (원격 적용 완료).
+
+- enum 에서 `hired` / `rejected` 제거 → `pending | screening | interview`
+- 컬럼 `invite_code_id` / `hired_user_id` / `hired_at` **삭제**. `hired` 가 없으면 채워질 수 없는
+  자리다(194건 전부 null 이었다)
+- enum 값은 제거가 불가능해 새 타입으로 갈아 끼운다. **부분 인덱스(`where status = 'pending'`)를
+  먼저 내려야 한다** — 술어가 타입 변경 중 재해석되지 못해 실패한다
+
+버킷 `recruit-resumes` 의 허용 형식은 `202609090002` 에서 넓혔다(.hwp/.heic/.xlsx 가 실제로 들어와
+거부됐다). 목록에 없는 형식은 코드가 `application/octet-stream` 으로 낮춰 저장한다.
+

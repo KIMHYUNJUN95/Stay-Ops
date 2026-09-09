@@ -2277,12 +2277,9 @@ export type Database = {
           external_id: string
           gender: string | null
           has_industry_exp: string | null
-          hired_at: string | null
-          hired_user_id: string | null
           id: string
           imported_at: string
           industry_tasks: string[]
-          invite_code_id: string | null
           job_external_id: string | null
           job_title: string | null
           kakao_id: string | null
@@ -2321,12 +2318,9 @@ export type Database = {
           external_id: string
           gender?: string | null
           has_industry_exp?: string | null
-          hired_at?: string | null
-          hired_user_id?: string | null
           id?: string
           imported_at?: string
           industry_tasks?: string[]
-          invite_code_id?: string | null
           job_external_id?: string | null
           job_title?: string | null
           kakao_id?: string | null
@@ -2365,12 +2359,9 @@ export type Database = {
           external_id?: string
           gender?: string | null
           has_industry_exp?: string | null
-          hired_at?: string | null
-          hired_user_id?: string | null
           id?: string
           imported_at?: string
           industry_tasks?: string[]
-          invite_code_id?: string | null
           job_external_id?: string | null
           job_title?: string | null
           kakao_id?: string | null
@@ -2396,20 +2387,6 @@ export type Database = {
           work_days?: string[]
         }
         Relationships: [
-          {
-            foreignKeyName: "job_applications_hired_user_id_fkey"
-            columns: ["hired_user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_applications_invite_code_id_fkey"
-            columns: ["invite_code_id"]
-            isOneToOne: false
-            referencedRelation: "invite_codes"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "job_applications_organization_id_fkey"
             columns: ["organization_id"]
@@ -4731,12 +4708,7 @@ export type Database = {
       announcement_target_scope: "everyone" | "roles"
       app_language: "ko" | "ja" | "en"
       cleaning_status: "in_progress" | "completed" | "cancelled"
-      job_application_status:
-        | "pending"
-        | "screening"
-        | "interview"
-        | "hired"
-        | "rejected"
+      job_application_status: "pending" | "screening" | "interview"
       lost_item_category:
         | "electronics"
         | "wallet"
@@ -4946,13 +4918,7 @@ export const Constants = {
       announcement_target_scope: ["everyone", "roles"],
       app_language: ["ko", "ja", "en"],
       cleaning_status: ["in_progress", "completed", "cancelled"],
-      job_application_status: [
-        "pending",
-        "screening",
-        "interview",
-        "hired",
-        "rejected",
-      ],
+      job_application_status: ["pending", "screening", "interview"],
       lost_item_category: [
         "electronics",
         "wallet",
