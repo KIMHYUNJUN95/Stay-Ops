@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeApplication, toIsoTimestamp } from "@/lib/recruit/payload";
+import { fileNameFromStorageUrl, normalizeApplication, toIsoTimestamp } from "@/lib/recruit/payload";
 
 // 채용 사이트(haru-recruit) 실제 지원서 문서의 모양. ApplicationPage 의 제출 객체를 그대로 옮겼다.
 const REAL_DOC = {
@@ -134,5 +134,39 @@ describe("toIsoTimestamp", () => {
     expect(toIsoTimestamp(undefined)).toBeNull();
     expect(toIsoTimestamp("어제")).toBeNull();
     expect(toIsoTimestamp({})).toBeNull();
+  });
+});
+
+describe("fileNameFromStorageUrl", () => {
+  it("첨부 URL 에서 원래 파일명을 되살린다", () => {
+    // 구 폼은 resumeFileName 을 저장하지 않았다. 업로드 경로에서 되살린다.
+    const url =
+      "https://firebasestorage.googleapis.com/v0/b/haru-recruit.firebasestorage.app/o/" +
+      "resumes%2F1771454517895_%EA%B0%84%EB%8B%A8%EC%9D%B4%EB%A0%A5%EC%84%9C.xlsx?alt=media&token=x";
+    expect(fileNameFromStorageUrl(url)).toBe("간단이력서.xlsx");
+  });
+
+  it("파일명이 없는 문서는 URL 에서 채운다", () => {
+    const url = "https://firebasestorage.googleapis.com/v0/b/b/o/resumes%2F1785742174839_resume.pdf?alt=media";
+    const result = normalizeApplication({
+      source: "applicants",
+      externalId: "old-2",
+      document: { name: "홍길동", resume_url: url },
+    })!;
+    expect(result.resumeFileName).toBe("resume.pdf");
+  });
+
+  it("문서에 파일명이 있으면 그쪽을 우선한다", () => {
+    const result = normalizeApplication({
+      source: "applications",
+      externalId: "d",
+      document: { name: "홍길동", resumeUrl: "https://x/o/resumes%2F1_a.pdf", resumeFileName: "내이력서.pdf" },
+    })!;
+    expect(result.resumeFileName).toBe("내이력서.pdf");
+  });
+
+  it("URL 이 없으면 null", () => {
+    expect(fileNameFromStorageUrl(null)).toBeNull();
+    expect(fileNameFromStorageUrl("https://example.com/nope")).toBeNull();
   });
 });

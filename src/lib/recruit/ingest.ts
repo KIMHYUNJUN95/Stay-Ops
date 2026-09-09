@@ -47,13 +47,16 @@ export async function resolveRecruitOrganizationId(): Promise<string | null> {
   return data[0].id;
 }
 
-/** 저장 파일명 — 경로 조작과 낯선 문자를 걸러낸다. 확장자는 살린다(열람 시 뷰어가 고른다). */
-function safeFileName(name: string | null): string {
-  const fallback = "resume";
-  if (!name) return fallback;
-  const base = name.split(/[\\/]/).pop() ?? fallback;
-  const cleaned = base.replace(/[^A-Za-z0-9가-힣._-]/g, "_").replace(/^\.+/, "");
-  return cleaned.length > 0 ? cleaned.slice(0, 120) : fallback;
+/**
+ * 저장 경로에 쓸 파일명.
+ *
+ * **ASCII 만 쓴다.** Supabase Storage 의 오브젝트 키는 한글을 거부한다 — 백필에서 `이력서.pdf` 가
+ * `Invalid key` 로 튕겼다. 원래 파일명은 `resume_file_name` 컬럼에 그대로 남아 있고 화면·내려받기
+ * 이름은 그쪽을 쓰므로, 경로는 `resume.{확장자}` 로 단순하게 둔다.
+ */
+function storageFileName(name: string | null): string {
+  const ext = /\.([A-Za-z0-9]{1,8})$/.exec(name ?? "")?.[1]?.toLowerCase();
+  return ext ? `resume.${ext}` : "resume";
 }
 
 /**
@@ -80,13 +83,19 @@ async function copyResumeToStorage(args: {
     }
     const contentType = response.headers.get("content-type") ?? "application/octet-stream";
     const body = new Uint8Array(await response.arrayBuffer());
-    const path = `${args.organizationId}/${args.applicationId}/${safeFileName(args.fileName)}`;
+    const path = `${args.organizationId}/${args.applicationId}/${storageFileName(args.fileName)}`;
 
     const supabase = getSupabaseServiceClient();
-    const { error } = await supabase.storage.from(RESUME_BUCKET).upload(path, body, {
-      contentType,
-      upsert: true,
-    });
+    const upload = (type: string) =>
+      supabase.storage.from(RESUME_BUCKET).upload(path, body, { contentType: type, upsert: true });
+
+    let { error } = await upload(contentType);
+    if (error && /mime type/i.test(error.message)) {
+      // 지원자는 무엇이든 낸다 — 한글(.hwp), 아이폰 사진(.heic), 엑셀이 실제로 들어왔다. 버킷 목록에
+      // 없는 형식이면 octet-stream 으로 낮춰 저장한다. **접수를 잃는 것보다 낫다.** 이렇게 저장하면
+      // 브라우저가 실행 대신 내려받으므로 html/svg 가 섞여 들어와도 위험하지 않다.
+      ({ error } = await upload("application/octet-stream"));
+    }
     if (error) {
       console.warn(`[recruit/ingest] resume upload failed for ${args.applicationId}:`, error.message);
       return null;

@@ -94,6 +94,29 @@ export function toIsoTimestamp(value: unknown): string | null {
 }
 
 /**
+ * 첨부 URL 에서 원래 파일명을 되살린다.
+ *
+ * 현재 폼은 `resumeFileName` 을 함께 저장하지만 **구 폼은 저장하지 않았다** — 백필한 89건 중
+ * 대부분이 파일명 없이 들어왔다. 업로드 경로가 `resumes/{timestamp}_{원본파일명}` 이라 URL 에서
+ * 되살릴 수 있다. 화면에 「resume」 대신 「간단이력서-홍길동.xlsx」 가 뜨는 차이다.
+ */
+export function fileNameFromStorageUrl(url: string | null): string | null {
+  if (!url) return null;
+  const match = /\/o\/([^?]+)/.exec(url);
+  if (!match) return null;
+  let object: string;
+  try {
+    object = decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+  const base = object.split("/").pop() ?? "";
+  // `{timestamp}_` 접두사는 업로드가 붙인 것이라 떼어낸다.
+  const stripped = base.replace(/^\d{10,}_/, "").trim();
+  return stripped.length > 0 ? stripped : null;
+}
+
+/**
  * 지원자 이름. 채용 사이트 폼은 `name` 을 필수로 받지만, 구 폼 문서나 손상된 문서가 섞일 수 있다.
  * 이름이 없으면 행을 만들 수 없다(NOT NULL) — 호출부가 이 null 을 보고 거부한다.
  */
@@ -108,6 +131,8 @@ export function normalizeApplication(args: {
 }): NormalizedApplication | null {
   const doc = args.document;
   const name = applicantName(doc);
+  // 구 폼은 `resume_url`, 현재 폼은 `resumeUrl`.
+  const resumeUrl = text(doc.resumeUrl) ?? text(doc.resume_url);
   const externalId = args.externalId.trim();
   if (!name || !externalId) return null;
 
@@ -138,9 +163,9 @@ export function normalizeApplication(args: {
     // 폼의 `source`(지원 경로)다. 컬렉션 이름을 담는 `source` 컬럼과 다르다.
     sourceChannel: text(doc.source),
     motivation: text(doc.motivation),
-    resumeFileName: text(doc.resumeFileName) ?? text(doc.resume_file_name),
-    // 구 폼은 `resume_url`, 현재 폼은 `resumeUrl`.
-    resumeSourceUrl: text(doc.resumeUrl) ?? text(doc.resume_url),
+    resumeSourceUrl: resumeUrl,
+    resumeFileName:
+      text(doc.resumeFileName) ?? text(doc.resume_file_name) ?? fileNameFromStorageUrl(resumeUrl),
     appliedAt: toIsoTimestamp(doc.createdAt) ?? toIsoTimestamp(doc.appliedAt),
     rawPayload: doc,
   };

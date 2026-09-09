@@ -119,6 +119,27 @@ Firestore Timestamp 는 전송 형태가 세 가지다(ISO 문자열 / `{_second
 `resume_source_url` 이 남아 있고 `resume_path` 가 비어 있는 행은 재시도 대상이다
 (`job_applications_resume_pending_idx`).
 
+## 5-1. 백필 (2026-09-09 실행 완료)
+
+기존 지원서 **194건**(`applications` 150 + 레거시 `applicants` 44, 2025-11-25 ~ 2026-09-08)을
+`POST /api/dev/recruit/backfill` 로 옮겼다. 로컬 전용·일회성 경로이며, 변환은 웹훅과 **같은
+`ingestJobApplication`** 을 쓴다 — 백필이 자기만의 변환을 갖게 두면 두 경로가 어긋난다.
+
+실제 데이터가 두 가지를 알려줬고, 둘 다 고쳤다.
+
+- **허용 형식이 현실과 달랐다.** 이력서 89건 중 4건이 거부됐다: `.hwp`(한글), `.heic`(아이폰
+  사진), `.xlsx`. pdf/jpg/docx 만 상정한 첫 목록이 틀렸다. 목록을 넓히고
+  (`202609090002_recruit_resume_mime_widen.sql`), **목록에 없는 형식은 `application/octet-stream`
+  으로 낮춰 저장**한다 — 접수를 잃는 것보다 낫고, 그렇게 저장하면 브라우저가 실행 대신 내려받으므로
+  html/svg 가 섞여 들어와도 위험하지 않다. (html·svg 를 목록에 넣지 않는 이유이기도 하다.)
+- **Supabase Storage 키는 한글을 거부한다.** `이력서.pdf` 가 `Invalid key` 로 튕겼다. 저장 경로는
+  `resume.{확장자}` 로 ASCII 만 쓰고, 원래 파일명은 `resume_file_name` 컬럼이 갖는다.
+
+덧붙여 **구 폼은 파일명을 저장하지 않았다.** 업로드 경로가 `resumes/{timestamp}_{원본파일명}` 이라
+URL 에서 되살린다(`fileNameFromStorageUrl`). 화면에 「resume」 대신 원래 이름이 뜬다.
+
+최종: 194건 전부 수신, 이력서 89건 전부 복사, 실패 0건.
+
 ## 6. 심사 상태
 
 | 코드값 | 뜻 |
@@ -156,7 +177,19 @@ Firestore Timestamp 는 전송 형태가 세 가지다(ISO 문자열 / `{_second
 3. 합격 → 입사 — 초대코드 발급 + 프로필 초안(`name`·`age`·`phone`) + 이력서 삭제 연동
 4. 채용 사이트 — `onApplicationCreated` 에 전송 추가 + 기존 지원서 백필용 HTTP 함수
 
-### 채용 사이트 쪽 미결 사항
+### 채용 사이트 쪽 미결 사항 — **Firestore 가 공개 읽기 상태다 (2026-09-09 확인)**
+
+**어드민 페이지가 Firebase Auth 를 쓰지 않는다.** 비밀번호가 `AdminPage.tsx` 에 상수로 박혀 있고
+브라우저에서 문자열 비교만 한다. 로그인한 사용자가 없으니 그 화면이 동작하려면 **Firestore 규칙이
+공개 읽기를 허용**해야 하고, 실제로 인증 없는 REST 호출이 200 을 돌려준다(확인함).
+
+즉 지원자의 **이름·전화번호·주소·국적·비자 종류/만료·카카오 ID·이력서 파일**이 URL 만 알면 열린다.
+API 키도 번들에 들어 있다.
+
+백필이 끝났으므로 **규칙을 잠글 수 있다**: `applications`/`applicants` 는 `create` 만 허용하고
+`read` 는 전면 차단. 지원 폼은 그대로 동작하고, 목록 열람은 StayOps 콘솔(2단계)이 대신한다.
+
+그 밖에:
 
 - **Slack 웹훅 URL 이 `functions/index.js` 에 하드코딩**되어 있다. StayOps 시크릿을 추가하는 김에
   함께 환경변수로 옮기는 것을 권한다.
