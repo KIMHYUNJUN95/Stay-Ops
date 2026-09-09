@@ -1808,6 +1808,9 @@ export function TasksWorkspace({
                       </span>
                       <span className="h-px flex-1 bg-border" />
                     </button>
+                    {/* 미래 날짜는 **미리보기**다 — 아직 할 수 없는 일이라 완료 토글을 주지 않는다
+                        (2026-09-09). 눌리면 그날이 왔을 때 목록에서 사라져, 아무도 안 했는데 기록만
+                        「완료」로 남는다. 그날 오늘 탭에서 처리한다. */}
                     <div className="flex flex-col gap-2">
                       {byDay.get(k)!.map((t) => (
                         <TaskCard
@@ -1815,6 +1818,7 @@ export function TasksWorkspace({
                           task={t}
                           swipe={false}
                           {...cardProps}
+                          {...(k > today ? { onCompleteToggle: undefined } : null)}
                           {...(isStandardRecurrence(t.recurrenceRule) && !occStateOf(t.id, k)
                             ? { occurrence: { date: k, done: false } }
                             : null)}
@@ -1896,12 +1900,14 @@ export function TasksWorkspace({
             </div>
           ) : (
             <div className="-mx-1 flex max-h-[56vh] flex-col gap-2 overflow-y-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {/* 미래 날짜 시트도 미리보기 — 완료 토글을 주지 않는다(2026-09-09, 위와 같은 이유). */}
               {list.map((t) => (
                 <TaskCard
                   key={t.id}
                   task={t}
                   swipe={false}
                   {...cardProps}
+                  {...(iso > today ? { onCompleteToggle: undefined } : null)}
                   {...(isStandardRecurrence(t.recurrenceRule) && !occStateOf(t.id, iso)
                     ? { occurrence: { date: iso, done: false } }
                     : null)}

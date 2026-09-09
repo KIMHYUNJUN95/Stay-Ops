@@ -29,6 +29,7 @@ export type AdminTasksDictionary = {
   overdueSub: string;
   overdueReschedule: string;
   overdueClear: string;
+  previewOnlyHint: string; // 다가오는 일정에서 완료 불가 안내(툴팁)
   odDaysBehind: string; // 반복 지연 묶음 "{n}일 밀림"
   inboxNote: string;
   // priority / status / repeat / duration
@@ -373,7 +374,7 @@ const ko: AdminTasksDictionary = {
   secOverdue: "지연", secToday: "오늘",
   overdueTitle: "지난(지연) 작업 {n}건", overdueSub: "마감이 지난 작업입니다. 오늘로 옮기거나 정리하세요.",
   overdueReschedule: "일정 변경", overdueClear: "지난 미완료 삭제",
-  odDaysBehind: "{n}일 밀림",
+  odDaysBehind: "{n}일 밀림", previewOnlyHint: "다가오는 일정에서는 완료할 수 없습니다. 그날 「오늘」에서 처리하세요.",
   inboxNote: "프로젝트 밖의 모든 작업이 여기 모입니다. 날짜를 정하면 오늘·캘린더에도 함께 표시됩니다.",
   prioNormal: "우선순위 4", prioImportant: "우선순위 2", prioUrgent: "우선순위 1", prioMedium: "우선순위 3",
   stOpen: "대기", stInProgress: "진행 중", stCompleted: "완료", stOverdue: "지연",
@@ -483,7 +484,7 @@ const ja: AdminTasksDictionary = {
   secOverdue: "遅延", secToday: "今日",
   overdueTitle: "過ぎた(遅延)タスク {n}件", overdueSub: "締切を過ぎたタスクです。今日に移すか整理してください。",
   overdueReschedule: "日程変更", overdueClear: "過去の未完了を削除",
-  odDaysBehind: "{n}日 遅延",
+  odDaysBehind: "{n}日 遅延", previewOnlyHint: "予定リストでは完了にできません。当日「今日」で処理してください。",
   inboxNote: "プロジェクト外のすべてのタスクがここに集まります。日付を決めると今日・カレンダーにも表示されます。",
   prioNormal: "優先度 4", prioImportant: "優先度 2", prioUrgent: "優先度 1", prioMedium: "優先度 3",
   stOpen: "待機", stInProgress: "進行中", stCompleted: "完了", stOverdue: "遅延",
@@ -593,7 +594,7 @@ const en: AdminTasksDictionary = {
   secOverdue: "Overdue", secToday: "Today",
   overdueTitle: "{n} overdue task(s)", overdueSub: "Past their due date. Move them to today or clear them out.",
   overdueReschedule: "Reschedule", overdueClear: "Clear past unfinished",
-  odDaysBehind: "{n} days behind",
+  odDaysBehind: "{n} days behind", previewOnlyHint: "Upcoming items can't be completed here — do it on the day, from Today.",
   inboxNote: "Every task outside a project lives here. Give it a date and it also shows in Today · Calendar.",
   prioNormal: "Priority 4", prioImportant: "Priority 2", prioUrgent: "Priority 1", prioMedium: "Priority 3",
   stOpen: "Open", stInProgress: "In progress", stCompleted: "Done", stOverdue: "Overdue",

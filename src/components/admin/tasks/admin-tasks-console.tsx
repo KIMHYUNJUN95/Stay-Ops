@@ -1026,6 +1026,12 @@ export function AdminTasksConsole({
       pick?: { on: boolean; toggle: () => void };
       /** 반복 작업이 밀린 회차 수. 0/undefined 면 배지를 달지 않는다(2026-09-08). */
       behindDays?: number;
+      /**
+       * 완료 토글을 막는다 — **미리보기 목록**(다가오는 일정)에서 쓴다(2026-09-09).
+       * 미래 회차는 아직 할 수 없는 일이다. 눌리면 그날이 왔을 때 목록에서 사라져, 아무도 안 했는데
+       * 기록만 「완료」로 남는다.
+       */
+      previewOnly?: boolean;
     },
   ) => {
     const occ = opts?.occurrence;
@@ -1110,9 +1116,13 @@ export function AdminTasksConsole({
           </button>
         ) : (
           <button
-            className={`tchk ${pcls} ${done ? "is-done" : ""}`}
+            className={`tchk ${pcls} ${done ? "is-done" : ""} ${opts?.previewOnly ? "is-preview" : ""}`}
+            disabled={opts?.previewOnly}
+            title={opts?.previewOnly ? dict.previewOnlyHint : undefined}
             onClick={(e) => {
               e.stopPropagation();
+              // 미리보기(다가오는 일정)에서는 완료할 수 없다 — 미래 회차는 아직 할 수 없는 일이다.
+              if (opts?.previewOnly) return;
               // 반복 완료 이력은 이미 다음 회차로 넘어가 있어 되돌릴 대상이 아님 → 토글 금지.
               if (opts?.forceDone && !realDone) return;
               toggleComplete(t, occ);
@@ -2752,7 +2762,12 @@ export function AdminTasksConsole({
                     <b>{dd === today ? dict.today : fmtLong(dd, locale)}</b>
                     <span>{fill(dict.taskWord, { n: agByDay.get(dd)!.length })}</span>
                   </div>
-                  <div className="tlist">{agByDay.get(dd)!.map((t) => renderRow(t, { hideDate: true }))}</div>
+                  <div className="tlist">
+                    {/* 다가오는 일정 = **미리보기**. 미래 회차는 여기서 완료할 수 없다(2026-09-09).
+                        그날 오늘 탭에서 처리한다. 예전에는 체크가 눌렸는데, 회차 날짜를 넘기지 않아
+                        서버가 **시리즈 앵커**로 폴백해 엉뚱한 과거 회차를 완료 처리하고 있었다. */}
+                    {agByDay.get(dd)!.map((t) => renderRow(t, { hideDate: true, previewOnly: true }))}
+                  </div>
                 </div>
               ))
           )}
@@ -4557,6 +4572,9 @@ export function AdminTasksConsole({
   function DaySheet() {
     if (!daySheet) return null;
     const iso = daySheet;
+    // 미래 날짜면 **미리보기**다 — 아직 할 수 없는 일을 완료 처리할 수 없게 한다(2026-09-09).
+    // 오늘·과거는 그대로 완료할 수 있다.
+    const isFutureDay = iso > today;
     const list = personalTasks
       .filter(
         (t) =>
@@ -4583,7 +4601,9 @@ export function AdminTasksConsole({
             </div>
             <div style={{ padding: "8px 14px 4px", maxHeight: "52vh", overflowY: "auto" }}>
               {list.length > 0 ? (
-                <div className="tlist">{list.map((t) => renderRow(t, { hideDate: true }))}</div>
+                <div className="tlist">
+                  {list.map((t) => renderRow(t, { hideDate: true, previewOnly: isFutureDay }))}
+                </div>
               ) : (
                 <div className="tempty__s" style={{ padding: 24, textAlign: "center" }}>
                   {dict.calDayEmpty}
