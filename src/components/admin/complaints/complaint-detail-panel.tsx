@@ -86,7 +86,7 @@ export function ComplaintDetailPanel({
           </div>
         </div>
 
-        <div className="panel__b">
+        <div className="panel__body">
           <div className="cxbody">
             {complaint.description ? (
               <p className="cxbodypart__b">{complaint.description}</p>

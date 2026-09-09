@@ -24,6 +24,8 @@ type AdminDateRangePickerProps = {
   localeTag: string;
   ariaLabel: string;
   labels: AdminDateRangePickerLabels;
+  /** `from`/`to` 가 비었을 때 트리거에 남는 문구(예: 「전체 기간」). 없으면 대시만 보인다. */
+  emptyLabel?: string;
 };
 
 function parseDateKey(key: string): Date {
@@ -70,6 +72,18 @@ function daysInMonthKey(monthKey: string): number {
   const [year, month] = monthKey.split("-").map(Number);
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
+/**
+ * 달력을 열 달. `from` 이 비어 있으면 **이번 달**이다.
+ *
+ * 「기간 없음(전체)」은 정당한 상태다 — 채용 지원서 콘솔이 기본값으로 쓴다. 그런데 예전에는
+ * `from.slice(0, 7)` 이 빈 문자열을 그대로 넘겨 `new Date("-01T00:00:00+09:00")` 가 되고,
+ * 첫 요일을 구하는 Intl 호출이 **RangeError: Invalid time value** 로 화면 전체를 죽였다
+ * (2026-09-09). 다른 화면은 전부 기본 기간이 있어 드러나지 않았을 뿐이다.
+ */
+function calendarMonthOf(from: string): string {
+  return from ? from.slice(0, 7) : formatDateKey(new Date()).slice(0, 7);
+}
+
 function thisMonthRange(): { from: string; to: string } {
   const todayKey = formatDateKey(new Date());
   const monthKey = todayKey.slice(0, 7);
@@ -87,12 +101,13 @@ export function AdminDateRangePicker({
   localeTag,
   ariaLabel,
   labels,
+  emptyLabel,
 }: AdminDateRangePickerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const [calendarMonth, setCalendarMonth] = useState(from.slice(0, 7));
+  const [calendarMonth, setCalendarMonth] = useState(calendarMonthOf(from));
   const [draftFrom, setDraftFrom] = useState<string | null>(from || null);
   const [draftTo, setDraftTo] = useState<string | null>(to || null);
 
@@ -124,7 +139,7 @@ export function AdminDateRangePicker({
     }
     // Opens to the trigger's current month for orientation, but starts with no range highlighted —
     // the applied from/to only shows as blue once the user actually picks days in this session.
-    setCalendarMonth(from.slice(0, 7));
+    setCalendarMonth(calendarMonthOf(from));
     setDraftFrom(null);
     setDraftTo(null);
     setOpen(true);
@@ -182,9 +197,15 @@ export function AdminDateRangePicker({
         <span className="ic">
           <CalendarDays />
         </span>
-        <span className="v">{from ? dateLabel(from, localeTag) : ""}</span>
-        <span className="dash">–</span>
-        <span className="v">{to ? dateLabel(to, localeTag) : ""}</span>
+        {from || to || !emptyLabel ? (
+          <>
+            <span className="v">{from ? dateLabel(from, localeTag) : ""}</span>
+            <span className="dash">–</span>
+            <span className="v">{to ? dateLabel(to, localeTag) : ""}</span>
+          </>
+        ) : (
+          <span className="v">{emptyLabel}</span>
+        )}
         <span className="ic dd__chev">
           <ChevronDown />
         </span>

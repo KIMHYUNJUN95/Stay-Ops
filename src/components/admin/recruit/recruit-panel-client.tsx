@@ -95,6 +95,55 @@ export function RecruitContactBlock({
   );
 }
 
+/**
+ * 검토 메모 — 패널 **본문** 안. 면접 단계에서 「왜 멈췄는지」를 남기는 자리이고, 다음에 같은
+ * 사람이 재지원하면 이력 블록에 그대로 뜬다.
+ */
+export function RecruitNoteBlock({
+  application,
+  copy,
+}: {
+  application: ApplicationDetail;
+  copy: Dictionary["recruit"];
+}) {
+  const router = useRouter();
+  const { toast, showToast, dismiss } = useAdminToast();
+  const [note, setNote] = useState(application.reviewNote ?? "");
+  const [pending, startTransition] = useTransition();
+
+  function persistNote() {
+    startTransition(async () => {
+      const result = await saveApplicationNote(application.id, note);
+      showToast(result.ok ? copy.noteSaved : copy.actionFailed);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  return (
+    <div className="pblock">
+      <div className="pblock__t">{copy.sectionNote}</div>
+      <textarea
+        className="rcnoteedit"
+        value={note}
+        onChange={(event) => setNote(event.target.value)}
+        placeholder={copy.notePlaceholder}
+        maxLength={2000}
+      />
+      <div className="rcfile__acts" style={{ marginTop: 8 }}>
+        <button
+          type="button"
+          className="btn btn--subtle btn--sm"
+          onClick={persistNote}
+          disabled={pending || note === (application.reviewNote ?? "")}
+        >
+          {copy.noteSave}
+        </button>
+      </div>
+      {toast ? <AdminToast message={toast.message} onDismiss={dismiss} /> : null}
+    </div>
+  );
+}
+
 export function RecruitPanelActions({
   application,
   copy,
@@ -106,7 +155,6 @@ export function RecruitPanelActions({
 }) {
   const router = useRouter();
   const { toast, showToast, dismiss } = useAdminToast();
-  const [note, setNote] = useState(application.reviewNote ?? "");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -119,14 +167,6 @@ export function RecruitPanelActions({
     startTransition(async () => {
       const result = await setApplicationStatus([application.id], target);
       showToast(result.ok ? copy.statusChanged : copy.actionFailed);
-      if (result.ok) router.refresh();
-    });
-  }
-
-  function persistNote() {
-    startTransition(async () => {
-      const result = await saveApplicationNote(application.id, note);
-      showToast(result.ok ? copy.noteSaved : copy.actionFailed);
       if (result.ok) router.refresh();
     });
   }
@@ -147,27 +187,6 @@ export function RecruitPanelActions({
 
   return (
     <>
-      <div className="pblock">
-        <div className="pblock__t">{copy.sectionNote}</div>
-        <textarea
-          className="rcnoteedit"
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          placeholder={copy.notePlaceholder}
-          maxLength={2000}
-        />
-        <div className="rcfile__acts" style={{ marginTop: 8 }}>
-          <button
-            type="button"
-            className="btn btn--subtle btn--sm"
-            onClick={persistNote}
-            disabled={pending || note === (application.reviewNote ?? "")}
-          >
-            {copy.noteSave}
-          </button>
-        </div>
-      </div>
-
       {/* 주 버튼 자리는 항상 오른쪽 끝, 파괴적 액션은 항상 왼쪽 끝 — 위치가 바뀌지 않아야
           반복 처리 시 오조작이 없다. 되돌리기는 여기(상세)에만 있고 벌크에는 없다. */}
       <div className="rcbar">

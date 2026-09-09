@@ -3,7 +3,7 @@ import { FileText, Info, X } from "lucide-react";
 import type { Dictionary } from "@/lib/i18n";
 import type { ApplicationDetail, ApplicationHistoryRow } from "@/lib/recruit/applications";
 import { JOB_APPLICATION_STATUSES, resumeKindOf } from "@/lib/recruit/status";
-import { RecruitPanelActions, RecruitContactBlock } from "./recruit-panel-client";
+import { RecruitContactBlock, RecruitNoteBlock, RecruitPanelActions } from "./recruit-panel-client";
 
 /**
  * 지원서 상세 패널 — 서버 컴포넌트. 디자인 「StayOps Recruiting Console」 1b·1c·1f 구현.
@@ -111,7 +111,7 @@ export function ApplicationDetailPanel({ application, history, resumeUrl, copy, 
           </div>
         </div>
 
-        <div className="panel__b">
+        <div className="panel__body">
           {application.isLegacyForm && (
             <div className="rcinfo">
               <Info size={14} aria-hidden="true" />
@@ -306,8 +306,13 @@ export function ApplicationDetailPanel({ application, history, resumeUrl, copy, 
           )}
 
           <RecruitContactBlock application={application} copy={copy} />
-          <RecruitPanelActions application={application} copy={copy} closeHref={closeHref} />
+          <RecruitNoteBlock application={application} copy={copy} />
         </div>
+
+        {/* 액션 바는 본문 **밖**이다 — 안에 두면 내용과 함께 스크롤돼, 긴 지원 동기를 읽는 동안
+            「서류검토로 진행」이 화면 밖으로 밀려난다. `.panel` 이 세로 flex 라 여기 두면 바닥에
+            고정된다. */}
+        <RecruitPanelActions application={application} copy={copy} closeHref={closeHref} />
       </aside>
     </>
   );

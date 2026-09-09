@@ -266,6 +266,7 @@ export function RecruitConsole({
           onChange={(from, to) => pushFilter({ from: from || null, to: to || null })}
           localeTag={localeTag}
           ariaLabel={sharedCopy.pickRange}
+          emptyLabel={copy.exportRangeAll}
           labels={{
             prevMonth: sharedCopy.datePrevMonth,
             nextMonth: sharedCopy.dateNextMonth,
