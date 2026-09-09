@@ -440,17 +440,33 @@
 }
 .adm .rcnoteedit:focus-visible { outline: 2px solid var(--adm-primary); outline-offset: 1px; }
 
-/* 패널 하단 액션 바 — 주 버튼은 항상 오른쪽 끝, 파괴적 액션은 왼쪽 끝. */
+/* 패널 하단 액션 바 — 주 버튼은 항상 오른쪽 끝, 파괴적 액션은 항상 왼쪽 끝.
+ *
+ * **버튼은 줄어들지 않는다.** flex 기본값(flex-shrink: 1)이면 패널 폭(436px)에서 셋이 서로를
+ * 밀어내 「삭제」가 세로로 쪼개진다(2026-09-09 실제로 그랬다). 버튼은 내용 너비로 고정하고,
+ * 양보는 가운데 안내 문구가 한다 — 없어도 조작에 지장이 없는 유일한 요소다. 그래도 모자라면
+ * 줄바꿈해 아래로 흐른다(3개국어에서 라벨이 더 길어질 수 있다). */
 .adm .rcbar {
   flex: 0 0 auto;
-  padding: 14px 24px;
+  padding: 14px 18px;
   border-top: 1px solid var(--line);
   background: var(--card2);
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 9px;
 }
-.adm .rcbar__note { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--adm-muted); }
+.adm .rcbar .btn { flex: 0 0 auto; white-space: nowrap; }
+.adm .rcbar__note {
+  flex: 1 1 120px;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--adm-muted);
+}
 .adm .rcbar__cta { min-width: 150px; justify-content: center; }
 
 @media (max-width: 1180px) {
