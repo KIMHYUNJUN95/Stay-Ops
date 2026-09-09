@@ -887,3 +887,19 @@ scope = 일회성(오늘 + 지연) + 오늘 미완료 반복 회차 + 반복 지
 적용: `src/components/admin/tasks/admin-tasks-console.tsx` (`completedView`),
 `src/components/tasks/tasks-workspace.tsx` (`completionRows` — 완료 탭 배지 카운트도 같은 배열을
 쓰므로 함께 맞는다).
+
+## 공유함 판정을 한 곳으로 (2026-09-09)
+
+**공유함 = 참여자가 있고 지시가 아닌 작업.** 지시(`is_directive`)도 참여자가 붙으므로
+「참여자가 있다」만으로 판정하면 지시가 공유로 새어 든다 — 지시는 「지시 › 받은/보낸」이 담당한다.
+
+**증상.** 공유함 탭은 비어 있는데 오른쪽 레일의 「공유함」 카드에는 상대가 1명으로 잡혔다. 같은
+판정식이 콘솔에 세 번 복사돼 있었고, 그중 **레일 카드만** 지시 제외 조건을 빠뜨리고 있었다
+(`isActive(t) && isSharedTask(t)`). 그래서 보낸 지시의 대상자가 공유 상대로 집계됐다.
+
+술어를 `src/lib/task-directives.ts` 의 `plainShared(t, meId)` 한 곳으로 옮기고, 콘솔의 세 곳
+(탭 카운트 · 공유함 뷰 · 레일 카드)이 모두 그것을 쓴다. `isSharedTask` 도 같은 파일로 옮겨
+`helpers.ts` 는 재수출만 한다 — 지시 술어들과 같은 처리다.
+
+> 이 저장소는 판정을 여러 곳에 복사해 뒀다가 정의가 갈린 사고를 이미 겪었다(반복 규칙 이중화).
+> 새 화면에서 「공유인가」를 물을 때는 `plainShared` 를 쓴다.

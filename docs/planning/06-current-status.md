@@ -4506,3 +4506,16 @@ PC 회원가입 시 생년월일 휠이 마우스로 조작되지 않던 문제�
 
 문서: `docs/product/18-todo-task-workflow.md`, `docs/product/28-admin-todoist-console.md`(12.7 절
 정정 + 신설 절), `docs/planning/01-decision-log.md`
+
+## 2026-09-09 (5차) — 공유함 레일이 보낸 지시를 공유로 세던 문제
+
+공유함 탭은 비어 있는데 오른쪽 레일의 「공유함」 카드에는 상대가 1명으로 떴다. 같은 판정식이
+콘솔에 세 번 복사돼 있었고 레일 카드만 지시 제외 조건이 빠져 있었다.
+
+- `src/lib/task-directives.ts` — `plainShared(t, meId)` 신설(= 참여자 있음 && 보낸 지시 아님 &&
+  받은 지시 아님). `isSharedTask` 도 이 파일로 이동, `helpers.ts` 는 재수출만
+- `src/components/admin/tasks/admin-tasks-console.tsx` — 탭 카운트 · 공유함 뷰 · 레일 카드
+  세 곳이 모두 `plainShared` 를 쓴다
+
+`npm run lint` / `npm run build` / `vitest` 239건 통과.
+문서: `docs/product/28-admin-todoist-console.md`

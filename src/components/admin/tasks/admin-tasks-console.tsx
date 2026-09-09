@@ -143,6 +143,7 @@ import {
   matchQuery,
   myOwn,
   overdueOccurrenceDates,
+  plainShared,
   showsOnTodayList,
   partsOf,
   prioLabel,
@@ -951,7 +952,7 @@ export function AdminTasksConsole({
   const tomorrowCount =
     personalTasks.filter((t) => isTomorrowTask(t, today) && myOwn(t, meId)).length + recTomorrowCount;
   const sharedCount = personalTasks.filter(
-    (t) => isActive(t) && isSharedTask(t) && !sentInstr(t, meId) && !recvInstr(t, meId),
+    (t) => isActive(t) && plainShared(t, meId),
   ).length;
   const recvOpen = personalTasks.filter((t) => recvInstr(t, meId) && isActive(t)).length;
   const sentOpen = personalTasks.filter((t) => sentInstr(t, meId) && isActive(t)).length;
@@ -2205,7 +2206,7 @@ export function AdminTasksConsole({
 
   const sharedView = () => {
     const all = filtered(
-      personalTasks.filter((t) => isActive(t) && isSharedTask(t) && !sentInstr(t, meId) && !recvInstr(t, meId)),
+      personalTasks.filter((t) => isActive(t) && plainShared(t, meId)),
     );
     const received = all.filter((t) => !isMine(t, meId)).sort((a, b) => prioSort(a, b) || dateSort(a, b));
     const sent = all.filter((t) => isMine(t, meId)).sort((a, b) => prioSort(a, b) || dateSort(a, b));
@@ -3059,7 +3060,7 @@ export function AdminTasksConsole({
       .sort(dateSort)
       .slice(0, 4);
     const byMember = new Map<string, number>();
-    for (const t of personalTasks.filter((t) => isActive(t) && isSharedTask(t)))
+    for (const t of personalTasks.filter((t) => isActive(t) && plainShared(t, meId)))
       for (const id of [t.createdByUserId, ...partsOf(t)]) if (id !== meId) byMember.set(id, (byMember.get(id) ?? 0) + 1);
     const mem = Array.from(byMember.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4);
     const sent = personalTasks

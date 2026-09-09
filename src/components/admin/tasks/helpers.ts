@@ -81,12 +81,15 @@ export function fill(tpl: string, vars: Record<string, string | number>): string
 // ── 술어(meId 기준) ────────────────────────────────────────────────────────────
 // 지시 관련 술어는 모바일(`tasks-workspace.tsx`)도 같은 규칙을 써야 하므로 `@/lib/task-directives`
 // 한 곳에 두고 여기서는 재수출만 한다. 여기에 다시 정의하면 두 화면의 지시 판정이 갈라진다.
-export { isMine, myOwn, recvInstr, sentInstr } from "@/lib/task-directives";
+export {
+  isMine,
+  isSharedTask,
+  myOwn,
+  plainShared,
+  recvInstr,
+  sentInstr,
+} from "@/lib/task-directives";
 export { partsOf };
-
-export function isSharedTask(t: TaskRecord): boolean {
-  return t.isShared || partsOf(t).length > 0;
-}
 // `cancelled` 는 DB CHECK 에 있는 정식 상태다(`202606100003_todo_tasks.sql`). 여기서만 빠져 있어
 // 취소된 작업이 콘솔의 관리함·오늘·캘린더에 계속 떠 있었다 — 서버 정본과 모바일에 맞춘다.
 export const isActive = isActiveTask;

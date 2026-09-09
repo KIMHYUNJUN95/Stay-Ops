@@ -42,3 +42,23 @@ export function recvInstr(t: TaskRecord, meId: string): boolean {
 export function myOwn(t: TaskRecord, meId: string): boolean {
   return !sentInstr(t, meId);
 }
+
+/** 참여자가 한 명이라도 붙어 있는 작업(공유 여부의 원자 판정 — 지시도 여기에 걸린다). */
+export function isSharedTask(t: TaskRecord): boolean {
+  return t.isShared || partsOf(t).length > 0;
+}
+
+/**
+ * **공유함에 들어가는 «순수 공유»** — 지시는 공유가 아니다.
+ *
+ * 지시(`is_directive`)도 참여자가 붙으므로 `isSharedTask` 는 참이 된다. 그래서 공유함은
+ * 「참여자가 있다」가 아니라 「참여자가 있고 지시가 아니다」로 판정해야 한다. 지시는 「지시 ›
+ * 받은/보낸」이 담당한다.
+ *
+ * 2026-09-09: 같은 식이 콘솔에 세 번 복사돼 있었고 그중 **오른쪽 레일의 공유함 카드만** 지시 제외를
+ * 빠뜨려서, 보낸 지시의 대상자가 공유 상대로 집계됐다(공유함 탭은 비어 있는데 레일에는 1명).
+ * 술어를 여기 한 곳에 둔다 — 이 저장소는 판정을 복사해 뒀다가 정의가 갈린 사고를 이미 겪었다.
+ */
+export function plainShared(t: TaskRecord, meId: string): boolean {
+  return isSharedTask(t) && !sentInstr(t, meId) && !recvInstr(t, meId);
+}
