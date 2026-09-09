@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { fetchFirestoreCollection, resolveFirestoreProjectId } from "@/lib/recruit/firestore";
 import { ingestJobApplication } from "@/lib/recruit/ingest";
 import type { RecruitSource } from "@/lib/recruit/payload";
 
@@ -43,82 +44,14 @@ function ensureDevOnly(request: NextRequest) {
   return null;
 }
 
-/**
- * Firestore REST 의 값 표현을 평범한 JS 값으로 편다.
- *
- * REST 는 모든 값을 타입 태그로 감싼다(`{stringValue: "김"}`). 문서를 그대로 `raw_payload` 에
- * 넣으면 나중에 원문을 읽을 때마다 이 껍데기를 벗겨야 하고, Cloud Function 이 보내는 모양(평범한
- * JS 객체)과도 달라진다 — **두 경로가 같은 모양을 만들어야** 변환 코드가 하나로 유지된다.
- */
-function decodeValue(value: unknown): unknown {
-  if (!value || typeof value !== "object") return null;
-  const v = value as Record<string, unknown>;
-  if ("nullValue" in v) return null;
-  if ("stringValue" in v) return v.stringValue;
-  if ("booleanValue" in v) return v.booleanValue;
-  if ("integerValue" in v) return Number(v.integerValue);
-  if ("doubleValue" in v) return v.doubleValue;
-  if ("timestampValue" in v) return v.timestampValue;
-  if ("arrayValue" in v) {
-    const inner = (v.arrayValue as { values?: unknown[] } | undefined)?.values ?? [];
-    return inner.map(decodeValue);
-  }
-  if ("mapValue" in v) {
-    const fields = (v.mapValue as { fields?: Record<string, unknown> } | undefined)?.fields ?? {};
-    return decodeFields(fields);
-  }
-  return null;
-}
-
-function decodeFields(fields: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(fields)) out[key] = decodeValue(value);
-  return out;
-}
-
-type FirestoreDoc = { name?: string; fields?: Record<string, unknown> };
-
-async function fetchCollection(args: {
-  projectId: string;
-  apiKey: string;
-  collection: string;
-}): Promise<{ docId: string; document: Record<string, unknown> }[]> {
-  const out: { docId: string; document: Record<string, unknown> }[] = [];
-  let pageToken: string | undefined;
-
-  do {
-    const url = new URL(
-      `https://firestore.googleapis.com/v1/projects/${args.projectId}/databases/(default)/documents/${args.collection}`,
-    );
-    url.searchParams.set("pageSize", "300");
-    url.searchParams.set("key", args.apiKey);
-    if (pageToken) url.searchParams.set("pageToken", pageToken);
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`firestore ${args.collection} read failed: ${response.status}`);
-    }
-    const body = (await response.json()) as { documents?: FirestoreDoc[]; nextPageToken?: string };
-    for (const doc of body.documents ?? []) {
-      const docId = doc.name?.split("/").pop();
-      if (!docId) continue;
-      out.push({ docId, document: decodeFields(doc.fields ?? {}) });
-    }
-    pageToken = body.nextPageToken;
-  } while (pageToken);
-
-  return out;
-}
-
 export async function POST(request: NextRequest) {
   const blocked = ensureDevOnly(request);
   if (blocked) return blocked;
 
-  const projectId = process.env.RECRUIT_FIRESTORE_PROJECT_ID?.trim();
-  const apiKey = process.env.RECRUIT_FIRESTORE_API_KEY?.trim();
-  if (!projectId || !apiKey) {
-    return NextResponse.json({ error: "firestore_not_configured" }, { status: 400 });
-  }
+  // 읽기 자체는 `src/lib/recruit/firestore.ts` 가 한다 — 주기 동기화(`/api/recruit/sync`)와 **같은
+  // 코드**다. 공개 읽기 규칙이라 API 키는 없어도 되고, 있으면 붙는다.
+  const projectId = resolveFirestoreProjectId();
+  const apiKey = process.env.RECRUIT_FIRESTORE_API_KEY?.trim() || null;
 
   const summary: Record<string, unknown> = {};
   let created = 0;
@@ -128,7 +61,7 @@ export async function POST(request: NextRequest) {
   for (const collection of COLLECTIONS) {
     let docs: { docId: string; document: Record<string, unknown> }[];
     try {
-      docs = await fetchCollection({ projectId, apiKey, collection });
+      docs = await fetchFirestoreCollection({ projectId, apiKey, collection });
     } catch (error) {
       // 구 컬렉션이 아예 없을 수 있다. 한쪽이 없다고 전체를 멈추지 않는다.
       console.warn(`[dev/recruit-backfill] ${collection} skipped:`, error);

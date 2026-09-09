@@ -2,8 +2,8 @@
 
 외부 채용 사이트에 들어온 지원서를 StayOps 로 받아 **읽고 분류하는** 흐름.
 
-- 상태: 수신 + 콘솔 + 실시간 갱신 구현 완료 — 2026-09-09
-  (남은 것: Vercel `RECRUIT_WEBHOOK_SECRET` 설정, 채용 사이트 함수에 전송 추가 — §9)
+- 상태: **자동 연동 동작 중** — 2026-09-09. 수신 + 콘솔 + 실시간 갱신 + 당겨오기(pull) 완료.
+  사용자 설정 작업 없음(§2-1). 남은 것은 §9 「아직 열려 있는 것」.
 - 관련 코드: `src/lib/recruit/*`, `src/app/api/recruit/applications/route.ts`,
   `src/app/admin/recruit/*`, `src/components/admin/recruit/*`
 - 관련 테이블: `job_applications`, 버킷 `recruit-resumes`
@@ -32,27 +32,66 @@
 하던 일을 빼앗지 않는다.
 
 ```txt
-[haru-recruit]  지원 폼 → Firestore applications/{docId}
-                       └─ Cloud Function onApplicationCreated
-                            ├→ Slack 알림            (기존)
-                            └→ StayOps 수신 웹훅      (추가)
+[haru-recruit]  지원 폼 → Firestore applications/{docId}   (브라우저가 직접 쓴다)
 
-[StayOps]       job_applications 에 보관
+[StayOps]       주기 동기화가 Firestore 를 읽어 job_applications 에 보관
                 → /admin/recruit 에서 읽고 분류
                 (채용 확정은 전화·면접으로 오프라인)
 ```
 
 **상태를 Firestore 로 되돌려 쓰지 않는다.** 원본을 두 곳에서 쓰면 반드시 어긋난다.
 
-### 왜 밀어넣기(push)인가
+### 왜 당겨오기(pull)인가 — 2026-09-09 정정
 
-StayOps 가 Firestore 를 읽어오는 방식도 가능하지만, 그러면 StayOps 가 Firebase 서비스 계정 키를
-들고 있어야 한다. 채용 사이트에는 **이미 지원서 생성 시점에 도는 Cloud Function 이 있어**, 거기에
-호출 한 곳을 더하는 편이 훨씬 작고 안전하다. 이 방식에서 StayOps 는 Firebase 자격증명이 전혀
-필요 없다.
+**이 문서는 원래 push 를 전제했다. 그 전제가 틀렸다.**
 
-**브라우저에서 호출하지 않는다.** 공유 시크릿이 번들에 노출되기 때문이다(채용 사이트의 Firebase
-설정이 그렇듯 클라이언트 번들은 전부 공개된다). 반드시 함수에서만 호출한다.
+초안은 「채용 사이트에 이미 지원서 생성 시점에 도는 Cloud Function(`onApplicationCreated`)이 있으니
+호출 한 곳만 더하면 된다」고 적었다. 저장소(`KIMHYUNJUN95/haru-job-web`)를 실제로 확인한 결과:
+
+- **`functions/` 디렉터리가 없다.** `firebase.json` 에도 hosting 두 개뿐, functions 설정이 없다.
+- 지원서는 **브라우저가 직접 Firestore 에 쓴다** — `ApplicationPage.tsx:99`,
+  `addDoc(collection(db, 'applications'), …)`.
+- Slack 알림도 Cloud Function 이 아니라 브라우저 `fetch` 다(`src/utils/slack.ts`).
+
+즉 **밀어넣을 주체가 존재하지 않았다.** 새로 만들려면 Firebase Cloud Functions 이고, 그건 **Blaze
+요금제(카드 등록)** 를 요구해 「무료」 조건과 충돌한다. 그래서 방향을 뒤집었다 — StayOps 가 Firestore
+를 **당겨온다**(§2-1).
+
+**브라우저에서 StayOps 로 직접 보내지 않는다.** 공유 시크릿이 번들에 노출되고(클라이언트 번들은
+전부 공개), 시크릿을 빼면 공개 수신구가 된다. 수신 경로는 `resumeUrl` 을 서버가 내려받으므로
+**임의 URL 을 밀어넣을 수 있는 입구를 열면 SSRF** 가 된다.
+
+## 2-1. 당겨오기 — `POST /api/recruit/sync`
+
+```txt
+[GitHub Actions]  5분마다        ──┐
+[콘솔을 열 때]     즉시 1회        ├─→ POST /api/recruit/sync
+[GitHub Actions]  하루 1회 전량   ──┘        │
+                                            ↓ Firestore REST 읽기(인증 없음)
+                                     ingestJobApplication  ← 웹훅·백필과 같은 코드
+                                            ↓
+                                     job_applications
+                                            ↓ Realtime
+                                     /admin/recruit 화면 갱신 (§8-2)
+```
+
+- **시크릿이 없다.** 이 경로는 외부 입력을 받지 않는다 — 하는 일이 「공개 Firestore 를 읽어 우리 DB
+  에 넣는다」로 고정이라 호출자가 데이터를 위조할 수 없다. 그래서 Vercel 환경변수도, GitHub 저장소
+  시크릿도 필요 없다.
+- 남는 위험은 **남용**(반복 호출로 Firestore 무료 읽기 5만/일 소진)이고, `recruit_sync_state` 의
+  마지막 실행 시각으로 **60초 창**을 둔다. 창 안의 재호출은 Firestore 를 읽지 않고 돌아간다.
+- **최신분은 50건만 읽는다**(`orderBy=createdAt desc`). 매번 전량(194건)을 읽으면 5분 주기 기준
+  하루 5만 건을 넘겨 무료 한도를 태운다.
+- **정렬 조회는 `createdAt` 이 없는 문서를 못 본다**(Firestore 규칙). 구 폼 문서가 그렇다. 그래서
+  **하루 1회 정렬 없이 전량을 훑어** 그 사이로 빠진 것을 줍는다(`?mode=full`).
+- **읽기에 실패하면 502 를 낸다.** Firestore 규칙을 잠그면 이 경로는 죽는다. 조용히 0건을 돌려주면
+  「어제부터 지원서가 안 들어온다」를 아무도 눈치채지 못한다. 502 면 GitHub Actions 가 빨간불이 되고
+  메일이 간다. 마지막 실행·성공·결과는 `recruit_sync_state` 에도 남는다.
+- **지연은 5~15분.** GitHub 예약 크론은 부하에 따라 밀린다. 다만 **콘솔을 여는 순간에도 한 번**
+  부르므로(`recruit-live-refresh.tsx`), 담당자가 화면을 열었을 때는 언제나 최신이다.
+
+나중에 Blaze 로 전환해 Cloud Function 을 붙이면 그대로 얹으면 된다. 수신은 재전송에 안전하므로
+(유니크 + 지원자 정보만 갱신) 두 경로가 겹쳐도 중복이 생기지 않고, 폴링은 안전망으로 남길 수 있다.
 
 ## 3. 수신 계약
 
@@ -297,16 +336,26 @@ Excel·PDF 를 공용 `<AdminExportButtons>` + `buildAdminTable*` 로 낸다(CLA
 1. ~~`job_applications` 테이블 + RLS + 수신 웹훅 + 기존 194건 백필~~ — 2026-09-09 완료
 2. ~~`/admin/recruit` 콘솔 — 목록·상세·상태 분류·삭제~~ — 2026-09-09 완료 (§8-1)
 3. ~~콘솔 실시간 갱신~~ — 2026-09-09 완료 (§8-2)
-4. **Vercel 에 `RECRUIT_WEBHOOK_SECRET` 설정 + 재배포** — 미설정이라 수신이 503 으로 거부된다
-   (프로덕션에서 확인). 이걸 하기 전에는 실시간 갱신도 갱신할 데이터가 없다.
-5. 채용 사이트 — `onApplicationCreated` 에 전송 추가 (백필은 2026-09-09 완료)
+4. ~~자동 연동 — 당겨오기 경로 + GitHub Actions 5분 주기~~ — 2026-09-09 완료 (§2-1)
+
+### 아직 열려 있는 것
+
+- **Firestore 공개 읽기.** 지원자의 이름·전화·주소·국적·비자·카카오 ID·이력서가 URL 만 알면 열린다
+  (2026-09-09 재확인, 키 없는 REST 호출이 200). 잠그는 것이 맞지만, **잠그면 당겨오기가 죽는다**
+  (그때는 서비스 계정 키 + Vercel 환경변수가 필요해진다). 지금은 노출이 이미 존재하는 상태를
+  유지하고 있을 뿐이며, 잠글 때 pull 경로를 함께 옮겨야 한다.
+- **`RECRUIT_WEBHOOK_SECRET` 미설정.** push 경로(`/api/recruit/applications`)는 여전히 503 이다.
+  당겨오기가 그 자리를 대신하므로 **지금 당장은 막히지 않는다.** 나중에 Cloud Function 을 붙일 때
+  설정한다.
+- **Slack 웹훅 URL 이 채용 사이트 클라이언트 번들에** 들어 있다(`VITE_SLACK_WEBHOOK_URL`).
+  누구나 그 워크스페이스로 메시지를 보낼 수 있다. 이 저장소 밖 문제라 손대지 않았다.
 
 > Vercel Deployment Protection(Vercel Authentication)은 **끄지 않아도 된다.** Standard Protection 은
-> 프로덕션 도메인을 제외하고 프리뷰 배포만 막는다. 프로덕션에서 웹훅 경로가 401 이 아니라 우리
-> 라우트의 503 을 돌려주는 것으로 확인했다(2026-09-09). 끄면 프리뷰 배포가 전부 공개된다.
+> 프로덕션 도메인을 제외하고 프리뷰 배포만 막는다. 프로덕션에서 API 경로가 401 이 아니라 우리
+> 라우트의 응답을 돌려주는 것으로 확인했다(2026-09-09). 끄면 프리뷰 배포가 전부 공개된다.
 >
-> 프로덕션 도메인은 `stay-ops-two.vercel.app` 이다. `07-environment-setup.md` 에 남아 있는
-> `stayops.vercel.app` 은 낡은 값이다.
+> 프로덕션 도메인은 `stay-ops-two.vercel.app` 이다. `07-environment-setup.md` 에 남아 있던
+> `stayops.vercel.app` 은 낡은 값이라 정정했다.
 
 ### 채용 사이트 쪽 미결 사항 — **Firestore 가 공개 읽기 상태다 (2026-09-09 확인)**
 

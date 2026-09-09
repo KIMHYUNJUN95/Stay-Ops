@@ -39,11 +39,25 @@ and the major mobile/admin operations modules are implemented and being hardened
   RLS 를 통과해야 하므로 권한 없는 세션은 신호조차 못 받는다.
   (마이그레이션 `202609090004_enable_job_applications_realtime.sql`, 원격 적용 완료.)
 
-**남은 것 — 둘 다 StayOps 저장소 밖이고, 이게 없으면 지원서가 아예 들어오지 않는다.**
+- **자동 연동 — 당겨오기(pull).** `POST /api/recruit/sync` + GitHub Actions
+  (`.github/workflows/recruit-sync.yml`, 5분 주기 + 하루 1회 전량 훑기) + 콘솔을 여는 순간 1회.
+  마이그레이션 `202609090005_recruit_sync_state.sql`(원격 적용 완료)이 60초 스로틀·마지막 결과를
+  들고 있다. **환경변수·시크릿 설정이 필요 없다** — 외부 입력을 받지 않는 경로라 위조가 불가능하다.
 
-1. **Vercel 에 `RECRUIT_WEBHOOK_SECRET` 설정 + 재배포.** 미설정이라 수신이 503 `not_configured` 로
-   거부된다(프로덕션에서 실제 확인). `RECRUIT_ORGANIZATION_ID` 는 조직이 1개라 불필요.
-2. **채용 사이트 Cloud Function `onApplicationCreated` 에 전송 호출 추가.**
+**계획이 뒤집힌 이유 — 문서 전제가 틀렸다.** 「채용 사이트에 이미 `onApplicationCreated` Cloud
+Function 이 돈다」는 전제로 push 를 설계했으나, 저장소(`KIMHYUNJUN95/haru-job-web`)를 확인하니
+**함수가 존재하지 않는다**(`functions/` 없음, `firebase.json` 은 hosting 만). 지원서는 브라우저가
+Firestore 에 직접 쓰고(`ApplicationPage.tsx:99`), Slack 알림도 브라우저 fetch 다. 함수를 새로
+만들려면 Blaze(카드 등록)가 필요해 「무료」 조건과 충돌하므로 pull 로 뒤집었다.
+
+**아직 열려 있는 것.**
+
+1. **Firestore 가 공개 읽기 상태다.** 지원자 개인정보가 URL 만 알면 열린다(2026-09-09 재확인, 키
+   없는 REST 호출이 200). 잠그는 것이 맞지만 **잠그면 당겨오기가 죽는다** — 그때는 서비스 계정 키 +
+   Vercel 환경변수가 필요해진다. 잠글 때 pull 경로를 함께 옮겨야 한다.
+2. `RECRUIT_WEBHOOK_SECRET` 미설정 — push 경로(`/api/recruit/applications`)는 여전히 503 이다.
+   당겨오기가 대신하므로 지금 막히는 것은 없다. Cloud Function 을 붙일 때 설정한다.
+3. Slack 웹훅 URL 이 채용 사이트 클라이언트 번들에 들어 있다(`VITE_SLACK_WEBHOOK_URL`).
 
 Vercel Deployment Protection 은 **끄지 않는다.** Standard Protection 은 프리뷰만 막고 프로덕션
 도메인은 통과시킨다(웹훅이 401 이 아닌 503 을 돌려주는 것으로 확인). 프로덕션 도메인은

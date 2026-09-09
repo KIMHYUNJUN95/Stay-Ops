@@ -3425,6 +3425,30 @@ export type Database = {
           },
         ]
       }
+      recruit_sync_state: {
+        Row: {
+          id: boolean
+          last_result: Json | null
+          last_run_at: string | null
+          last_success_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          last_result?: Json | null
+          last_run_at?: string | null
+          last_success_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          last_result?: Json | null
+          last_run_at?: string | null
+          last_success_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       reservation_internal_notes: {
         Row: {
           created_at: string

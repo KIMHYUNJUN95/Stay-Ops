@@ -222,7 +222,15 @@ Usage:
 - `RECRUIT_ORGANIZATION_ID`: 지원서가 속할 조직. 생략하면 유일한 조직을 쓰고, 조직이 둘 이상이면
   추측하지 않고 거부한다. **현재 조직은 1개라 설정 불필요**(2026-09-09 확인).
 
-**프로덕션 상태 (2026-09-09):** `RECRUIT_WEBHOOK_SECRET` 이 **아직 설정되지 않았다.**
+**자동 연동은 환경변수 없이 돈다 (2026-09-09).** 채용 사이트에 Cloud Function 이 없다는 것이
+확인되어(저장소에 `functions/` 자체가 없다) push 대신 **당겨오기**로 간다:
+`POST /api/recruit/sync` + GitHub Actions `.github/workflows/recruit-sync.yml`(5분 주기 + 하루 1회
+전량). 이 경로는 **시크릿이 없다** — 외부 입력을 받지 않아 위조가 불가능하고, 남용은
+`recruit_sync_state` 의 60초 창으로 막는다. Firestore 는 공개 읽기라 API 키도 필요 없다
+(`RECRUIT_FIRESTORE_PROJECT_ID` 미설정 시 `haru-recruit` 를 쓴다).
+
+**프로덕션 상태 (2026-09-09):** 아래 push 경로용 `RECRUIT_WEBHOOK_SECRET` 은 **아직 설정되지 않았다.**
+당겨오기가 그 자리를 대신하므로 지금 당장 막히는 것은 없다. 나중에 Cloud Function 을 붙일 때 설정한다.
 `POST https://stay-ops-two.vercel.app/api/recruit/applications` 가 503 `not_configured` 를 돌려준다.
 Vercel Settings → Environment Variables 에 Production 으로 넣고 **재배포**해야 반영된다(빌드 시점
 env 를 쓴다). 같은 값을 채용 사이트 Cloud Functions 의 환경변수에도 넣는다.

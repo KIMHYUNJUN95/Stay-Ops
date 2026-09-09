@@ -2,6 +2,42 @@
 
 This file records important project decisions.
 
+## 2026-09-09 (5) 채용 자동 연동을 push 에서 pull 로 — 전제가 틀렸다
+
+**전제 검증.** 「채용 사이트에 이미 `onApplicationCreated` Cloud Function 이 돌고 있으니 호출 한
+줄만 더하면 된다」는 `30-recruit-workflow.md` 의 전제를 저장소로 확인했다
+(`KIMHYUNJUN95/haru-job-web` 클론). **사실이 아니었다.**
+
+- `functions/` 디렉터리가 없고 `firebase.json` 에도 functions 설정이 없다 — hosting 두 개뿐.
+- 지원서는 **브라우저가 Firestore 에 직접 쓴다**(`ApplicationPage.tsx:99`, `addDoc`).
+- Slack 알림도 함수가 아니라 브라우저 `fetch` 다(`src/utils/slack.ts`).
+
+즉 밀어넣을 주체가 애초에 없었다. 만들려면 Firebase Cloud Functions 인데 **Blaze 요금제(카드
+등록)** 가 필요해, 사용자가 명시한 「무료로」와 충돌한다.
+
+**결정(사용자 선택).** 방향을 뒤집어 StayOps 가 Firestore 를 **당겨온다**.
+
+- `POST /api/recruit/sync` + GitHub Actions(5분 주기 + 하루 1회 전량). 변환은
+  `ingestJobApplication` — 웹훅·백필과 **같은 코드**다.
+- **시크릿을 두지 않았다.** 외부 입력을 받지 않아(하는 일이 「공개 Firestore 를 읽어 우리 DB 에
+  넣는다」로 고정) 호출자가 데이터를 위조할 수 없다. 그래서 Vercel 환경변수도 GitHub 시크릿도
+  필요 없고, **사용자 설정 작업이 0회**가 됐다 — 이게 이 안을 고른 결정적 이유다.
+- 남는 위험인 **남용**(Firestore 무료 읽기 5만/일 소진)은 `recruit_sync_state` 의 60초 창으로 막고,
+  최신분 조회는 50건으로 묶는다. 매번 전량(194건)을 읽으면 5분 주기로 한도를 넘긴다.
+- 정렬 조회는 `createdAt` 없는 구 문서를 못 보므로 **하루 1회 정렬 없는 전량 훑기**로 줍는다.
+- **읽기 실패는 502.** Firestore 규칙을 잠그면 이 경로는 죽는데, 조용히 0건을 돌려주면 아무도
+  모른다. 502 여야 Actions 가 빨간불이 되고 메일이 간다.
+
+**브라우저에서 StayOps 로 직접 보내는 안은 기각했다.** 시크릿이 번들에 노출되고, 빼면 공개
+수신구가 된다. 수신 경로가 `resumeUrl` 을 서버에서 내려받으므로 임의 URL 입구는 곧 SSRF 다.
+
+**남은 노출(미해결, 이 저장소 밖).** Firestore 가 여전히 공개 읽기다 — 잠그는 것이 맞지만 잠그면
+당겨오기가 죽는다(서비스 계정 키 + Vercel 환경변수가 필요해진다). 잠글 때 pull 경로를 함께 옮겨야
+한다. Slack 웹훅 URL 이 채용 사이트 번들에 들어 있는 것도 그대로다.
+
+Status: Confirmed (2026-09-09). 마이그레이션 `202609090005_recruit_sync_state.sql` 원격 적용 완료.
+문서: `docs/product/30-recruit-workflow.md` §2·§2-1·§9, `docs/engineering/07-environment-setup.md`.
+
 ## 2026-09-09 (4) 채용 콘솔 실시간 갱신 — 신호는 Realtime, 데이터는 서버 렌더
 
 **사용자 요구.** 「채용 사이트에서 지원하면 이 프로젝트 웹에서도 자동으로 연동돼서 실시간으로

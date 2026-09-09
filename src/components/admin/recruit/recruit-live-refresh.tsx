@@ -33,6 +33,17 @@ export function RecruitLiveRefresh({ organizationId }: { organizationId: string 
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRefreshRef = useRef(false);
 
+  /**
+   * 콘솔을 여는 순간 한 번 당겨온다.
+   *
+   * 주기 동기화는 5분마다 돌지만, 담당자가 화면을 여는 그 순간만큼은 「방금 들어온 것까지」 보이는
+   * 편이 낫다. 서버가 60초 창으로 스로틀하므로 여러 명이 동시에 열어도 Firestore 를 반복해서
+   * 읽지 않는다. 실패해도 화면은 그대로 뜬다 — 이건 부수 갱신이지 렌더 조건이 아니다.
+   */
+  useEffect(() => {
+    void fetch("/api/recruit/sync", { method: "POST", keepalive: true }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
 
