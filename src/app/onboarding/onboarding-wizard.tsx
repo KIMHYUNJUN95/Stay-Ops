@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { signOut } from "@/app/auth/actions";
 import {
   joinWithInviteCode,
@@ -69,6 +69,7 @@ export type OnboardingStepsCopy = {
   phoneHint: string;
   phoneCountrySheetTitle: string;
   phoneDuplicateHelp: string;
+  backCta: string;
 };
 
 export type OnboardingJoinCopy = {
@@ -213,6 +214,14 @@ function ChevronDownIcon() {
   );
 }
 
+function ChevronLeftIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-[15px]" aria-hidden="true">
+      <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function ShieldIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="size-[12px]" aria-hidden="true">
@@ -304,13 +313,41 @@ function ChecklistRow({
   );
 }
 
-/** Progress header — numbered count + bar. No back chevron (swipe / OS back is the shared pattern). */
-function ProgressHeader({ step }: { step: number }) {
+/**
+ * Progress header — numbered count + bar, with a back control in the left slot.
+ *
+ * 원래는 뒤로 버튼이 없었다(스와이프 / OS 백이 공통 패턴). 하지만 PC 에는 엣지 스와이프가 없어
+ * 브라우저 뒤로가기 말고는 되돌아갈 방법이 없었다(2026-09-09). 좌측 112px 슬롯은 이미 비워져
+ * 있었으므로 거기에 넣는다 — 모바일에도 함께 노출한다.
+ *
+ * 이동은 `history.back()` 이다. 위저드가 단계마다 `pushState` 하므로 popstate 로 이전 단계가
+ * 복원되고, 브라우저 뒤로가기와 완전히 같은 경로를 탄다.
+ */
+function ProgressHeader({
+  step,
+  backLabel,
+  onBack,
+}: {
+  step: number;
+  backLabel?: string;
+  onBack?: () => void;
+}) {
   const pct = Math.round((step / TOTAL_STEPS) * 100);
   return (
     <header className="flex-none px-[26px] pb-[10px] pt-1">
       <div className="flex h-[44px] items-center justify-between">
-        <span className="w-[112px]" />
+        <span className="flex w-[112px] items-center">
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              className="-ml-2 inline-flex h-9 items-center gap-1 rounded-[10px] px-2 text-[12.5px] font-extrabold text-muted-foreground transition-colors hover:bg-black/[0.04] hover:text-foreground"
+            >
+              <ChevronLeftIcon />
+              {backLabel}
+            </button>
+          ) : null}
+        </span>
         <span className="text-[12.5px] font-extrabold tabular-nums text-muted-foreground">
           <b className="text-foreground">{step}</b> / {TOTAL_STEPS}
         </span>
@@ -388,22 +425,56 @@ const WHEEL_H = 200;
 const ITEM_H = 42;
 const WHEEL_PAD = (WHEEL_H - ITEM_H) / 2;
 
-/** iOS-style scroll-snap wheel column. */
+/**
+ * 스크롤 스냅 휠 컬럼 (연/월/일).
+ *
+ * 원래는 iOS 손가락 스크롤만 상정한 컴포넌트였다 — 항목이 클릭되지 않는 `<div>` 이고, 스크롤바는
+ * 숨겨져 있고, 키보드 진입점도 없었다. PC 로 회원가입한 사용자가 "생년월일이 마우스 휠로 안 움직이고
+ * 클릭으로만 된다"고 제보한 지점이다(2026-09-09). 그래서 데스크톱 입력 수단 네 가지를 명시적으로
+ * 붙였다.
+ *
+ * - **휠**: 네이티브 스크롤에 맡기지 않고 `wheel` 을 직접 받아 칸 단위로 움직인다. 스냅 스크롤 +
+ *   110ms 후 `scrollTop` 보정과 네이티브 관성 스크롤이 서로 밀어내던 문제가 사라진다. React 의
+ *   `onWheel` 은 루트에 passive 로 붙어 `preventDefault` 가 먹지 않으므로 네이티브 리스너를 쓴다.
+ * - **클릭**: 항목을 눌러 바로 선택.
+ * - **키보드**: ↑↓ 한 칸, PageUp/PageDown 다섯 칸, Home/End 양끝, Enter 는 상위로(`onEnter`).
+ * - **숫자 타이핑**: `199` → 1990 으로 점프. 연도 87개를 한 칸씩 굴리지 않아도 된다.
+ *
+ * 터치 스크롤은 그대로 네이티브다 — `wheel` 만 가로챈다.
+ */
+
+/** 휠 한 칸으로 치는 스크롤 거리(px). 크롬 마우스 노치 100px ≒ 두 칸. */
+const WHEEL_STEP_PX = 50;
+/** 한 번의 wheel 이벤트가 움직일 수 있는 최대 칸수 — 트랙패드 관성으로 튀는 것을 막는다. */
+const WHEEL_MAX_STEPS = 4;
+
 function Wheel({
   values,
   value,
   onChange,
   format,
+  ariaLabel,
+  autoFocus,
+  onEnter,
 }: {
   values: number[];
   value: number;
   onChange: (v: number) => void;
   format?: (v: number) => string;
+  ariaLabel: string;
+  autoFocus?: boolean;
+  onEnter?: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const settle = useRef<number | undefined>(undefined);
+  const wheelAcc = useRef(0);
+  const typeBuf = useRef("");
+  const typeTimer = useRef<number | undefined>(undefined);
+  const listId = useId();
   const idx = Math.max(0, values.indexOf(value));
   const [active, setActive] = useState(idx);
+
+  const labelOf = (v: number) => (format ? format(v) : String(v));
 
   // Snap to the bound value on mount and whenever it changes externally (e.g. day clamp).
   useEffect(() => {
@@ -413,6 +484,65 @@ function Wheel({
     if (Math.abs(el.scrollTop - target) > 2) el.scrollTop = target;
     setActive(idx);
   }, [idx]);
+
+  useEffect(() => {
+    if (!autoFocus) return;
+    ref.current?.focus({ preventScroll: true });
+  }, [autoFocus]);
+
+  const commit = useCallback(
+    (i: number) => {
+      const clamped = Math.min(values.length - 1, Math.max(0, i));
+      setActive(clamped);
+      const el = ref.current;
+      if (el) el.scrollTop = clamped * ITEM_H;
+      const next = values[clamped];
+      if (next !== undefined && next !== value) onChange(next);
+    },
+    [onChange, value, values],
+  );
+
+  // 네이티브 wheel 리스너는 한 번만 붙이고, 최신 commit/active 는 ref 로 흘려보낸다
+  // (use-sheet-drag-dismiss 와 같은 방식 — 매 렌더 재바인딩을 피한다).
+  const commitRef = useRef(commit);
+  const activeRef = useRef(active);
+  useEffect(() => {
+    commitRef.current = commit;
+  }, [commit]);
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      e.preventDefault();
+      // deltaMode: 0 = px, 1 = 줄(파이어폭스), 2 = 페이지.
+      const px =
+        e.deltaMode === 1
+          ? e.deltaY * ITEM_H
+          : e.deltaMode === 2
+            ? e.deltaY * WHEEL_H
+            : e.deltaY;
+      wheelAcc.current += px;
+      const raw = Math.trunc(wheelAcc.current / WHEEL_STEP_PX);
+      if (!raw) return;
+      wheelAcc.current -= raw * WHEEL_STEP_PX;
+      const steps = Math.max(-WHEEL_MAX_STEPS, Math.min(WHEEL_MAX_STEPS, raw));
+      commitRef.current(activeRef.current + steps);
+    }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  useEffect(
+    () => () => {
+      window.clearTimeout(settle.current);
+      window.clearTimeout(typeTimer.current);
+    },
+    [],
+  );
 
   function onScroll() {
     const el = ref.current;
@@ -429,36 +559,88 @@ function Wheel({
     }, 110);
   }
 
+  function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const step = (delta: number) => {
+      e.preventDefault();
+      commit(active + delta);
+    };
+    if (e.key === "ArrowUp") return step(-1);
+    if (e.key === "ArrowDown") return step(1);
+    if (e.key === "PageUp") return step(-5);
+    if (e.key === "PageDown") return step(5);
+    if (e.key === "Home") {
+      e.preventDefault();
+      return commit(0);
+    }
+    if (e.key === "End") {
+      e.preventDefault();
+      return commit(values.length - 1);
+    }
+    if (e.key === "Enter" && onEnter) {
+      e.preventDefault();
+      return onEnter();
+    }
+    if (!/^[0-9]$/.test(e.key)) return;
+
+    // 숫자 타이핑 점프. 이어 친 숫자로 먼저 찾고, 없으면 방금 친 한 글자로 다시 시작한다
+    // (1995 를 치다 오타가 나도 막다른 골목에 빠지지 않게).
+    e.preventDefault();
+    window.clearTimeout(typeTimer.current);
+    typeBuf.current += e.key;
+    let hit = values.findIndex((v) => labelOf(v).startsWith(typeBuf.current));
+    if (hit < 0) {
+      typeBuf.current = e.key;
+      hit = values.findIndex((v) => labelOf(v).startsWith(typeBuf.current));
+    }
+    if (hit >= 0) commit(hit);
+    typeTimer.current = window.setTimeout(() => {
+      typeBuf.current = "";
+    }, 900);
+  }
+
   return (
     <div
-      ref={ref}
-      onScroll={onScroll}
-      className="flex-1 snap-y snap-mandatory overflow-y-auto text-center [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      style={{
-        height: WHEEL_H,
-        WebkitMaskImage:
-          "linear-gradient(180deg, transparent, #000 32%, #000 68%, transparent)",
-        maskImage:
-          "linear-gradient(180deg, transparent, #000 32%, #000 68%, transparent)",
-      }}
+      className="relative flex-1 rounded-[12px] transition-shadow focus-within:ring-[3px] focus-within:ring-primary/25"
+      style={{ height: WHEEL_H }}
     >
-      <div style={{ height: WHEEL_PAD }} />
-      {values.map((v, i) => (
-        <div
-          key={v}
-          className={`snap-center text-[17px] tabular-nums ${
-            i === active
-              ? "font-extrabold text-foreground"
-              : Math.abs(i - active) === 1
-                ? "font-semibold text-muted-foreground"
-                : "font-semibold text-[hsl(222_10%_62%)]"
-          }`}
-          style={{ height: ITEM_H, lineHeight: `${ITEM_H}px` }}
-        >
-          {format ? format(v) : v}
-        </div>
-      ))}
-      <div style={{ height: WHEEL_PAD }} />
+      <div
+        ref={ref}
+        onScroll={onScroll}
+        onKeyDown={onKeyDown}
+        tabIndex={0}
+        role="listbox"
+        aria-label={ariaLabel}
+        aria-activedescendant={`${listId}-${active}`}
+        className="h-full snap-y snap-mandatory overflow-y-auto text-center outline-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{
+          WebkitMaskImage:
+            "linear-gradient(180deg, transparent, #000 32%, #000 68%, transparent)",
+          maskImage:
+            "linear-gradient(180deg, transparent, #000 32%, #000 68%, transparent)",
+        }}
+      >
+        <div style={{ height: WHEEL_PAD }} />
+        {values.map((v, i) => (
+          <div
+            key={v}
+            id={`${listId}-${i}`}
+            role="option"
+            aria-selected={i === active}
+            onClick={() => commit(i)}
+            className={`cursor-pointer snap-center text-[17px] tabular-nums ${
+              i === active
+                ? "font-extrabold text-foreground"
+                : Math.abs(i - active) === 1
+                  ? "font-semibold text-muted-foreground"
+                  : "font-semibold text-[hsl(222_10%_62%)]"
+            }`}
+            style={{ height: ITEM_H, lineHeight: `${ITEM_H}px` }}
+          >
+            {format ? format(v) : v}
+          </div>
+        ))}
+        <div style={{ height: WHEEL_PAD }} />
+      </div>
     </div>
   );
 }
@@ -468,12 +650,15 @@ type DateParts = { year: number; month: number; day: number };
 function BirthDateSheet({
   title,
   confirmLabel,
+  labels,
   initial,
   onConfirm,
   onClose,
 }: {
   title: string;
   confirmLabel: string;
+  /** 각 컬럼의 스크린리더 이름 — 연 / 월 / 일. */
+  labels: { year: string; month: string; day: string };
   initial: DateParts;
   onConfirm: (parts: DateParts) => void;
   onClose: () => void;
@@ -507,30 +692,56 @@ function BirthDateSheet({
         </p>
       }
     >
-      {({ close }) => (
-        <div>
-          <div className="relative flex gap-[6px]" style={{ height: WHEEL_H }}>
-            <div
-              className="pointer-events-none absolute inset-x-0 top-1/2 h-[42px] -translate-y-1/2 rounded-[12px]"
-              style={{ background: PRIMARY_SOFT }}
-            />
-            <Wheel values={years} value={year} onChange={pickYear} />
-            <Wheel values={months} value={month} onChange={pickMonth} format={pad2} />
-            <Wheel values={days} value={day} onChange={setDay} format={pad2} />
+      {({ close }) => {
+        // 휠에서 Enter 를 눌러도 확인으로 이어진다 — PC 에서는 여기까지 와서 마우스를 다시 잡는 게
+        // 가장 번거로운 지점이다.
+        const confirm = () => {
+          onConfirm({ year, month, day });
+          close();
+        };
+        return (
+          <div>
+            <div className="relative flex gap-[6px]" style={{ height: WHEEL_H }}>
+              <div
+                className="pointer-events-none absolute inset-x-0 top-1/2 h-[42px] -translate-y-1/2 rounded-[12px]"
+                style={{ background: PRIMARY_SOFT }}
+              />
+              <Wheel
+                values={years}
+                value={year}
+                onChange={pickYear}
+                ariaLabel={labels.year}
+                onEnter={confirm}
+                autoFocus
+              />
+              <Wheel
+                values={months}
+                value={month}
+                onChange={pickMonth}
+                format={pad2}
+                ariaLabel={labels.month}
+                onEnter={confirm}
+              />
+              <Wheel
+                values={days}
+                value={day}
+                onChange={setDay}
+                format={pad2}
+                ariaLabel={labels.day}
+                onEnter={confirm}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={confirm}
+              className="mt-[14px] flex h-[54px] w-full items-center justify-center rounded-[15px] text-[15.5px] font-extrabold tracking-[-0.01em] text-white"
+              style={{ background: GRADIENT, boxShadow: SHADOW }}
+            >
+              {confirmLabel}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              onConfirm({ year, month, day });
-              close();
-            }}
-            className="mt-[14px] flex h-[54px] w-full items-center justify-center rounded-[15px] text-[15.5px] font-extrabold tracking-[-0.01em] text-white"
-            style={{ background: GRADIENT, boxShadow: SHADOW }}
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      )}
+        );
+      }}
     </BottomSheet>
   );
 }
@@ -764,6 +975,7 @@ export function OnboardingWizard({
     ? initialPhoneDigits.slice(inferredCountry.dial.replace(/\D/g, "").length)
     : "";
   const [step, setStep] = useState(initialStep);
+  const [depth, setDepth] = useState(0);
   const [name, setName] = useState(profile.initialName ?? "");
   const [dob, setDob] = useState<DateParts | null>(() => {
     const birth = profile.initialBirthDate?.trim();
@@ -875,20 +1087,30 @@ export function OnboardingWizard({
     }
   }
 
+  // 히스토리 깊이를 state 에 함께 실어 둔다. 뒤로 버튼은 **위저드 안에 돌아갈 단계가 있을 때만**
+  // 보여야 한다 — 깊이 0(진입 지점)에서 뒤로를 누르면 앱을 벗어나 이전 사이트로 나가버린다.
+  // 재가입(`initialStep = 5`)처럼 중간에서 시작하는 경우가 있어 step 값만으로는 판단할 수 없다.
   useEffect(() => {
-    window.history.replaceState({ obStep: initialStep }, "");
+    window.history.replaceState({ obStep: initialStep, obDepth: 0 }, "");
     const onPop = (e: PopStateEvent) => {
       const s =
         e.state && typeof e.state.obStep === "number" ? e.state.obStep : initialStep;
       setStep(s);
+      setDepth(e.state && typeof e.state.obDepth === "number" ? e.state.obDepth : 0);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [initialStep]);
 
   function goTo(next: number) {
-    window.history.pushState({ obStep: next }, "");
+    const nextDepth = depth + 1;
+    window.history.pushState({ obStep: next, obDepth: nextDepth }, "");
+    setDepth(nextDepth);
     setStep(next);
+  }
+
+  function goBack() {
+    window.history.back();
   }
 
   const birthDate = dob ? `${dob.year}-${pad2(dob.month)}-${pad2(dob.day)}` : "";
@@ -913,7 +1135,7 @@ export function OnboardingWizard({
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
-        <ProgressHeader step={5} />
+        <ProgressHeader step={5} backLabel={steps.backCta} onBack={depth > 0 ? goBack : undefined} />
         {showExitLink ? (
           <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
         ) : null}
@@ -991,7 +1213,7 @@ export function OnboardingWizard({
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
-        <ProgressHeader step={5} />
+        <ProgressHeader step={5} backLabel={steps.backCta} onBack={depth > 0 ? goBack : undefined} />
         {showExitLink ? (
           <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
         ) : null}
@@ -1108,7 +1330,7 @@ export function OnboardingWizard({
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
-        <ProgressHeader step={5} />
+        <ProgressHeader step={5} backLabel={steps.backCta} onBack={depth > 0 ? goBack : undefined} />
         {showExitLink ? (
           <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
         ) : null}
@@ -1178,7 +1400,7 @@ export function OnboardingWizard({
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
-        <ProgressHeader step={5} />
+        <ProgressHeader step={5} backLabel={steps.backCta} onBack={depth > 0 ? goBack : undefined} />
         {showExitLink ? (
           <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
         ) : null}
@@ -1204,6 +1426,11 @@ export function OnboardingWizard({
                     setInviteStatus("idle");
                     setInviteErrorKey(null);
                   }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" || !inviteCode.trim() || verifying) return;
+                  e.preventDefault();
+                  void verifyInvite();
                 }}
                 placeholder={join.codePlaceholder}
                 autoCapitalize="characters"
@@ -1284,7 +1511,7 @@ export function OnboardingWizard({
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
-        <ProgressHeader step={4} />
+        <ProgressHeader step={4} backLabel={steps.backCta} onBack={depth > 0 ? goBack : undefined} />
         {showExitLink ? (
           <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
         ) : null}
@@ -1329,6 +1556,11 @@ export function OnboardingWizard({
                     if (phoneErrorKey) {
                       setPhoneErrorKey(null);
                     }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" || !phoneValid) return;
+                    e.preventDefault();
+                    goTo(5);
                   }}
                   placeholder={steps.phoneInputPlaceholder}
                   className="h-[54px] flex-1 rounded-[14px] border border-border bg-surface px-[15px] text-[16px] font-semibold text-foreground outline-none transition-colors placeholder:font-medium placeholder:text-[hsl(222_10%_62%)] focus:border-primary focus:ring-[3.5px] focus:ring-primary/15"
@@ -1390,7 +1622,7 @@ export function OnboardingWizard({
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
-        <ProgressHeader step={2} />
+        <ProgressHeader step={2} backLabel={steps.backCta} onBack={depth > 0 ? goBack : undefined} />
         {showExitLink ? (
           <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
         ) : null}
@@ -1444,6 +1676,11 @@ export function OnboardingWizard({
           <BirthDateSheet
             title={steps.dobSheetTitle}
             confirmLabel={steps.dobConfirm}
+            labels={{
+              year: steps.dobYearLabel,
+              month: steps.dobMonthLabel,
+              day: steps.dobDayLabel,
+            }}
             initial={dob ?? { year: 2000, month: 1, day: 1 }}
             onConfirm={(parts) => setDob(parts)}
             onClose={() => setDobSheet(false)}
@@ -1460,7 +1697,7 @@ export function OnboardingWizard({
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
-        <ProgressHeader step={3} />
+        <ProgressHeader step={3} backLabel={steps.backCta} onBack={depth > 0 ? goBack : undefined} />
         {showExitLink ? (
           <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
         ) : null}
@@ -1518,7 +1755,7 @@ export function OnboardingWizard({
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
-        <ProgressHeader step={1} />
+        <ProgressHeader step={1} backLabel={steps.backCta} onBack={depth > 0 ? goBack : undefined} />
         {showExitLink ? (
           <div className="flex justify-end px-[26px] pb-1">{exitAction}</div>
         ) : null}
@@ -1544,6 +1781,13 @@ export function OnboardingWizard({
                   autoComplete="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  // 단독 <input> 이라 폼 제출이 없다 — PC 에서 Enter 로 넘어가지 못하고 매번
+                  // 하단 버튼을 마우스로 눌러야 했다(2026-09-09).
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" || !isGood) return;
+                    e.preventDefault();
+                    goTo(2);
+                  }}
                   className={`h-[54px] w-full rounded-[14px] border bg-surface px-[15px] pr-[46px] text-[16px] font-semibold text-foreground outline-none transition-colors placeholder:font-medium placeholder:text-[hsl(222_10%_62%)] focus:ring-[3.5px] focus:ring-primary/15 ${
                     isGood ? "border-[hsl(146_50%_32%)]" : "border-border focus:border-primary"
                   }`}

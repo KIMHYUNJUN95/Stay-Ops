@@ -269,3 +269,17 @@
 .adm .toast .ic svg { width: 17px; height: 17px; }
 .adm .toast--ok .ic { color: hsl(146 60% 62%); }
 .adm .toast--danger .ic { color: hsl(4 80% 72%); }
+
+/* ===================================================================
+   INVITE CREATE FORM — 조직·역할만 노출하고 나머지는 접힌 "세부 설정"으로
+   =================================================================== */
+.adm .invf__toggle { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px 0 6px; border: none; border-radius: 10px; background: transparent; font: inherit; font-size: 12.5px; font-weight: 800; color: var(--ui-muted-fg); cursor: pointer; transition: background-color 0.12s, color 0.12s; }
+.adm .invf__toggle:hover { background: color-mix(in srgb, var(--ui-surface) 80%, var(--ui-bg)); color: var(--ui-fg); }
+.adm .invf__toggle svg { transition: transform 0.16s; transform: rotate(-90deg); }
+.adm .invf__toggle.is-open svg { transform: none; }
+.adm .invf__adv { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: 14px; border: 1px solid var(--ui-border); background: color-mix(in srgb, var(--ui-surface) 55%, var(--ui-bg)); }
+.adm .invf__row { display: flex; flex-direction: column; gap: 6px; }
+.adm .invf__label { font-size: 12px; font-weight: 700; color: var(--ui-muted-fg); }
+.adm .invf__code { display: flex; align-items: center; gap: 8px; }
+.adm .invf__code .ui-input { flex: 1; min-width: 0; letter-spacing: 0.04em; }
+.adm .invf__regen { flex: 0 0 auto; width: 40px; padding: 0; height: 40px; }

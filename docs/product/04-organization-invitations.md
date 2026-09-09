@@ -288,13 +288,32 @@ created_at
 updated_at
 ```
 
-Required settings when creating an invite code:
+Required settings when creating an invite code (**updated 2026-09-09**):
 
-- Code name
-- Default role category
-- Expiration date
-- Maximum number of uses
-- Active/inactive status
+- Default role category — **the only value an admin must choose**, besides the organization
+- Code name, expiration date, maximum uses — **auto-generated**, overridable in the form's collapsed
+  "Advanced" section
+- Active/inactive status — always starts active; toggled from the list afterwards
+
+폼에서 손으로 채우는 항목이 6개였을 때, 다른 역할로 한 명을 초대하려면 매번 코드 문자열을 새로
+지어내야 했다. 그래서 실제 운영에서는 처음 만든 파트타임 코드 하나만 계속 재사용됐고,
+어드민 콘솔이 필요한 사람까지 `part_time_staff` 로 가입해 `/admin` 이 열리지 않았다.
+
+Auto-generation rules (`src/lib/invite-code-gen.ts` — 클라이언트 폼과 서버 액션이 공유):
+
+| Field | Generated value |
+| --- | --- |
+| `code` | `HARU-K7M2QP` — 조직 slug(없으면 이름) 앞 6자 + 랜덤 6자. `0 O 1 I L` 제외 |
+| `name` | `사무직 초대 09-09` — 역할 라벨 + 도쿄 기준 생성일 (ko/ja/en) |
+| `expires_at` | 도쿄 기준 오늘 + 30일 |
+| `max_uses` | 10 |
+
+- 첫 코드는 **서버가** 생성한다 (클라이언트 랜덤은 하이드레이션을 깬다).
+- `invite_codes.code` 는 전역 unique — 자동 코드 충돌은 최대 5회 조용히 재시도, 수동 입력 코드
+  충돌은 `duplicate_code` 로 알린다.
+- 서버 액션의 필수 검증은 조직 + 역할뿐이다. 나머지가 비어 오면 같은 규칙으로 채운다.
+
+UI 세부는 `docs/product/05-admin-web-ia.md` → 사용자 관리 참조.
 
 Example:
 
@@ -467,3 +486,43 @@ Device-aware behavior:
 - Should part-time staff require admin approval after using a code?
 - Should one user be allowed to belong to multiple organizations?
 - Should staff accounts be allowed to use personal email addresses?
+
+## Onboarding Wizard — Desktop Input (2026-09-09)
+
+회원가입 위저드(`src/app/onboarding/onboarding-wizard.tsx`)는 모바일 우선으로 만들어졌지만
+**PC 로 가입하는 경로가 실제로 쓰인다.** 데스크톱 입력 수단이 빠져 있어 다음을 보강했다.
+
+### 생년월일 휠 (`Wheel`)
+
+원래는 iOS 손가락 스크롤 전용이었다 — 항목이 클릭되지 않는 `<div>`, 숨겨진 스크롤바, 키보드 진입점
+없음. 마우스 휠은 네이티브 스크롤에만 의존했는데 `scroll-snap-mandatory` + 110ms 후 `scrollTop`
+보정과 관성 스크롤이 서로 밀어냈다. 이제 네 가지 입력을 명시적으로 받는다.
+
+| 입력 | 동작 |
+| --- | --- |
+| 마우스 휠 | `wheel` 을 직접 받아 칸 단위 이동 (50px = 1칸, 이벤트당 최대 4칸). React 의 `onWheel` 은 passive 라 `preventDefault` 가 안 먹으므로 **네이티브 리스너**를 쓴다 |
+| 클릭 | 항목을 눌러 즉시 선택 |
+| 키보드 | ↑↓ 1칸 · PageUp/PageDown 5칸 · Home/End 양끝 · Enter 는 확인 |
+| 숫자 타이핑 | `199` → 1990 점프. 연도 87개를 한 칸씩 굴리지 않아도 된다 |
+
+`role="listbox"` / `role="option"` / `aria-activedescendant` 를 붙였고, 컬럼은 `tabIndex=0`
+이며 포커스 링은 마스크에 가려지지 않도록 **바깥 래퍼**가 `focus-within:ring` 으로 그린다.
+시트를 열면 연도 컬럼에 포커스가 간다. 터치 스크롤은 그대로 네이티브다.
+
+### Enter 로 다음 단계
+
+이름·전화번호·초대코드 입력은 `<form>` 밖의 단독 `<input>` 이라 Enter 가 아무 일도 하지 않았다.
+각 입력에 `onKeyDown` 을 붙여 **유효할 때만** 다음으로 넘어간다(초대코드는 검증 실행).
+
+### 뒤로 버튼
+
+"back chevron 없음 — 스와이프 / OS 백이 공통 패턴"이 원래 결정이었으나, PC 에는 엣지 스와이프가
+없다. `ProgressHeader` 좌측에 이미 비어 있던 112px 슬롯에 뒤로 버튼을 넣었고 **모바일에도 함께
+노출**한다. 동작은 `history.back()` — 위저드가 단계마다 `pushState` 하므로 브라우저 뒤로가기와
+완전히 같은 경로를 탄다.
+
+버튼은 **위저드 안에 돌아갈 단계가 있을 때만** 보인다. 히스토리 state 에 `obDepth` 를 함께 실어
+판단한다 — 재가입(`initialStep = 5`)처럼 중간에서 시작하는 경우가 있어 step 값만으로는 진입
+지점인지 알 수 없고, 깊이 0 에서 뒤로를 누르면 앱 밖으로 나가버린다.
+
+새 i18n 키: `onboarding.steps.backCta` (ko `뒤로` / ja `戻る` / en `Back`).

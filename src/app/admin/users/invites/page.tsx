@@ -8,13 +8,18 @@ import {
 import { InviteCopyButton } from "@/components/admin/users/invite-copy-button";
 import { InviteDeleteButton } from "@/components/admin/users/invite-delete-button";
 import { AdminShell } from "@/components/shell/admin-shell";
-import { DdFormSelect } from "@/components/admin/shared/dd-form-select";
-import { DateFormField } from "@/components/admin/shared/date-form-field";
+import { InviteCreateForm } from "@/components/admin/users/invite-create-form";
 import { UsersSectionTabs } from "@/components/admin/users/users-section-tabs";
 import "@/components/admin/users-console.css";
 import type { OrganizationRole } from "@/config/roles";
 import { officeAdminAssignableRoles } from "@/config/roles";
 import { getDictionary } from "@/lib/i18n";
+import {
+  DEFAULT_INVITE_MAX_USES,
+  defaultInviteExpiry,
+  generateInviteCode,
+} from "@/lib/invite-code-gen";
+import { tokyoToday } from "@/lib/tokyo-date";
 import { requireAdminSession } from "@/lib/admin-session";
 import { actorCanOpenUserManagement } from "@/lib/user-management-access";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -133,6 +138,13 @@ export default async function AdminUsersInvitesPage({ searchParams }: PageProps)
       : { data: [] };
   const inviteCodes = (inviteData ?? []) as InviteCodeRow[];
 
+  // 초대코드의 첫 랜덤값은 서버가 정한다 — 클라이언트가 첫 렌더에서 새로 뽑으면 SSR 결과와
+  // 어긋나 하이드레이션이 깨진다. 이후 재생성은 사용자가 조직을 바꾸거나 ↻ 를 누를 때만 일어난다.
+  const today = tokyoToday();
+  const defaultCode = generateInviteCode(
+    organizations[0]?.slug || organizations[0]?.name || "",
+  );
+
   const created = firstParam(params.created) === "1";
   const deactivated = firstParam(params.deactivated) === "1";
   const activated = firstParam(params.activated) === "1";
@@ -167,68 +179,40 @@ export default async function AdminUsersInvitesPage({ searchParams }: PageProps)
             </div>
           )}
 
-          <form
+          <InviteCreateForm
             action={createInviteCode}
-            style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 12 }}
-          >
-            <DdFormSelect
-              name="organizationId"
-              placeholder={settings.organization}
-              ariaLabel={settings.organization}
-              options={organizations.map((organization) => ({
-                value: organization.id,
-                label: organization.name,
-              }))}
-            />
-            <input
-              className="ui-input"
-              name="name"
-              placeholder={settings.inviteCodeName}
-              required
-            />
-            <input
-              className="ui-input"
-              name="code"
-              placeholder={settings.inviteCode}
-              required
-              spellCheck={false}
-            />
-            <DdFormSelect
-              name="defaultRole"
-              defaultValue={selectableDefaultRoles[0]}
-              ariaLabel={settings.create}
-              options={selectableDefaultRoles.map((role) => ({
-                value: role,
-                label: dictionary.roles[role],
-              }))}
-            />
-            <DateFormField
-              name="expiresAt"
-              localeTag={session.user.preferredLanguage}
-              ariaLabel={tabs.datePlaceholder}
-              placeholder={tabs.datePlaceholder}
-              labels={{
-                prevMonth: tabs.datePrev,
-                nextMonth: tabs.dateNext,
-                today: tabs.dateToday,
-              }}
-            />
-            <input
-              className="ui-input"
-              min={1}
-              name="maxUses"
-              placeholder={settings.maxUses}
-              required
-              type="number"
-            />
-            <button
-              className="ui-btn ui-btn--primary fw-black"
-              disabled={organizations.length === 0}
-              type="submit"
-            >
-              {settings.create}
-            </button>
-          </form>
+            organizations={organizations.map((organization) => ({
+              id: organization.id,
+              name: organization.name,
+              codeSource: organization.slug || organization.name,
+            }))}
+            roles={selectableDefaultRoles.map((role) => ({
+              value: role,
+              label: dictionary.roles[role],
+            }))}
+            today={today}
+            defaultExpiresAt={defaultInviteExpiry(today)}
+            defaultCode={defaultCode}
+            defaultMaxUses={DEFAULT_INVITE_MAX_USES}
+            localeTag={session.user.preferredLanguage}
+            copy={{
+              organization: settings.organization,
+              role: settings.inviteRole,
+              autoHint: settings.inviteAutoHint,
+              advanced: settings.inviteAdvanced,
+              regenerate: settings.inviteRegenerate,
+              autoName: settings.inviteAutoName,
+              nameLabel: settings.inviteCodeName,
+              codeLabel: settings.inviteCode,
+              expiresLabel: settings.expiresAt,
+              maxUsesLabel: settings.maxUses,
+              submit: settings.create,
+              datePlaceholder: tabs.datePlaceholder,
+              datePrev: tabs.datePrev,
+              dateNext: tabs.dateNext,
+              dateToday: tabs.dateToday,
+            }}
+          />
         </section>
 
         <section className="ui-card p5">

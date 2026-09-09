@@ -4348,3 +4348,40 @@ service-role 로만 호출하므로 동작 변화 없음. Supabase security advi
 
 RLS 판정 헬퍼(`is_task_participant` 등)는 정책 안에서 호출자 역할로 실행되므로 회수하면 정책이
 깨진다 — 의도된 노출로 남긴다.
+
+## 2026-09-09 — 초대코드 생성 폼 자동화
+
+「초대코드로 가입했는데 컴퓨터로 접속해도 어드민 대시보드가 안 뜬다」 제보 조사 결과, 코드 문제가
+아니라 조직의 유일한 초대코드가 `part_time_staff` 였던 것이 원인이었다(파트타임은
+`adminWebRoles` 에서 제외된 유일한 역할). 재발 방지로 초대코드 생성 폼을 손봤다.
+
+- 폼 입력은 **조직 + 역할 2개**로 축소. 이름·코드·만료일(오늘+30일)·최대 사용 횟수(10)는 자동 생성
+- 접힌 "세부 설정"에서 네 값 모두 덮어쓰기 가능, 코드는 ↻ 재생성
+- 코드 충돌 시 자동 코드는 최대 5회 재시도, 수동 코드는 `duplicate_code` 안내
+
+신규: `src/lib/invite-code-gen.ts`, `src/components/admin/users/invite-create-form.tsx`.
+수정: `src/app/admin/users/invites/page.tsx`, `src/app/admin/settings/actions.ts`,
+`src/lib/i18n.ts`(ko/ja/en 6키), `src/components/admin/users-console.css`.
+`npm run lint` / `npm run build` / `vitest`(222건) 통과.
+
+기존 데이터는 그대로다 — 이미 파트타임으로 가입한 계정을 어드민에 넣으려면 사용자 관리에서 역할을
+바꾸거나, 사무직 초대코드를 새로 발급해 재가입시켜야 한다.
+
+## 2026-09-09 — 온보딩 위저드 데스크톱 입력 보강
+
+PC 회원가입 시 생년월일 휠이 마우스로 조작되지 않던 문제와, 같은 화면에서 발견한 데스크톱 불편
+두 가지를 함께 처리했다.
+
+- **생년월일 휠**: 마우스 휠(네이티브 리스너, 50px = 1칸) · 항목 클릭 · 키보드(↑↓ · PageUp/Down ·
+  Home/End · Enter) · 숫자 타이핑 점프(`199` → 1990). `role="listbox"` + 포커스 링 추가,
+  시트를 열면 연도 컬럼에 포커스
+- **Enter 로 다음 단계**: 이름 · 전화번호 · 초대코드(검증 실행). 셋 다 폼 밖 단독 `<input>` 이라
+  Enter 가 무반응이었다
+- **뒤로 버튼**: `ProgressHeader` 좌측 빈 슬롯에 추가, 모바일에도 노출. `history.back()` 기반이고
+  히스토리 state 의 `obDepth` 로 진입 지점에서는 숨긴다
+
+수정: `src/app/onboarding/onboarding-wizard.tsx`, `src/app/onboarding/page.tsx`,
+`src/lib/i18n.ts`(`onboarding.steps.backCta` ko/ja/en).
+문서: `docs/product/04-organization-invitations.md`(초대코드 자동 생성 절 정정 + 데스크톱 입력 절 신설).
+
+`npm run lint` / `npm run build` / `vitest`(226건) 통과. 실제 브라우저 조작 확인은 아직 안 했다.

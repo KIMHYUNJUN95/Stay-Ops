@@ -3,6 +3,14 @@
 import { redirect } from "next/navigation";
 import type { OrganizationRole, Role } from "@/config/roles";
 import { officeAdminAssignableRoles } from "@/config/roles";
+import { getDictionary, isLocale, type Locale } from "@/lib/i18n";
+import {
+  DEFAULT_INVITE_MAX_USES,
+  buildInviteName,
+  defaultInviteExpiry,
+  generateInviteCode,
+} from "@/lib/invite-code-gen";
+import { isYmd, tokyoToday } from "@/lib/tokyo-date";
 import { actorCanManageUsersInOrg } from "@/lib/user-management-access";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -73,6 +81,18 @@ async function getCurrentRole(userId: string): Promise<Role | null> {
 
   const membership = membershipResult as { role: Role } | null;
   return membership?.role ?? null;
+}
+
+/** 자동 생성되는 초대코드 이름을 만든 사람의 표시 언어로 쓰기 위한 조회. */
+async function getActorLocale(userId: string): Promise<Locale> {
+  const { data } = await getSupabaseServiceClient()
+    .from("profiles")
+    .select("preferred_language")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const preferred = (data as { preferred_language: string } | null)?.preferred_language;
+  return isLocale(preferred) ? preferred : "ko";
 }
 
 // Invite-code management is gated the same way as /admin/users: developer, or the org-scoped
@@ -223,20 +243,17 @@ export async function createInviteCode(formData: FormData) {
   }
 
   const organizationId = String(formData.get("organizationId") ?? "");
-  const code = normalizeInviteCode(String(formData.get("code") ?? ""));
-  const name = String(formData.get("name") ?? "").trim();
   const defaultRole = String(formData.get("defaultRole") ?? "") as OrganizationRole;
-  const expiresAt = String(formData.get("expiresAt") ?? "");
-  const maxUses = Number(formData.get("maxUses") ?? 1);
+  // 이름 / 코드 / 만료일 / 최대 사용 횟수는 폼에서 비워 보낼 수 있다. 비면 여기서 자동으로 채운다
+  // (2026-09-09) — 폼은 조직과 역할만 고르게 바뀌었고, "세부 설정"을 펼쳤을 때만 이 값들이 온다.
+  const rawCode = String(formData.get("code") ?? "").trim();
+  const rawName = String(formData.get("name") ?? "").trim();
+  const rawExpiresAt = String(formData.get("expiresAt") ?? "").trim();
+  const rawMaxUses = String(formData.get("maxUses") ?? "").trim();
 
   if (
     !organizationId ||
-    !code ||
-    !name ||
-    !(inviteDefaultRoles as readonly OrganizationRole[]).includes(defaultRole) ||
-    !expiresAt ||
-    !Number.isInteger(maxUses) ||
-    maxUses < 1
+    !(inviteDefaultRoles as readonly OrganizationRole[]).includes(defaultRole)
   ) {
     redirect("/admin/users/invites?error=invalid_invite");
   }
@@ -258,25 +275,75 @@ export async function createInviteCode(formData: FormData) {
     redirect("/admin/users/invites?error=invalid_invite");
   }
 
-  const invite: InviteInsert = {
-    code,
-    created_by_user_id: userId,
-    default_role: defaultRole,
-    expires_at: dateToExpiry(expiresAt),
-    max_uses: maxUses,
-    name,
-    organization_id: organizationId,
-  };
+  const service = getSupabaseServiceClient();
 
-  const { error } = await getSupabaseServiceClient()
-    .from("invite_codes")
-    .insert(invite);
+  // 코드 앞자리(HARU-…)와 자동 이름의 역할 라벨을 만들려면 조직과 작성자 언어가 필요하다.
+  const { data: organizationResult } = await service
+    .from("organizations")
+    .select("name, slug")
+    .eq("id", organizationId)
+    .maybeSingle();
+  const organization = organizationResult as Pick<
+    OrganizationRow,
+    "name" | "slug"
+  > | null;
 
-  if (error) {
+  if (!organization) {
+    redirect("/admin/users/invites?error=invalid_invite");
+  }
+
+  const today = tokyoToday();
+  const expiresAt = isYmd(rawExpiresAt) ? rawExpiresAt : defaultInviteExpiry(today);
+  const parsedMaxUses = Number(rawMaxUses);
+  const maxUses =
+    Number.isInteger(parsedMaxUses) && parsedMaxUses >= 1
+      ? parsedMaxUses
+      : DEFAULT_INVITE_MAX_USES;
+
+  const dictionary = getDictionary(await getActorLocale(userId));
+  const name =
+    rawName ||
+    buildInviteName(
+      dictionary.admin.settings.inviteAutoName,
+      dictionary.roles[defaultRole],
+      today,
+    );
+
+  const codeSource = organization.slug || organization.name;
+  const isAutoCode = !rawCode;
+
+  // `invite_codes.code` 는 전역 unique 다. 자동 생성 코드가 부딪히면 조용히 다시 뽑고, 사용자가
+  // 직접 넣은 코드가 부딪히면 그 사실을 알려준다 — 말없이 다른 코드로 바꿔치기하면 안 된다.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const code = isAutoCode
+      ? generateInviteCode(codeSource)
+      : normalizeInviteCode(rawCode);
+
+    const invite: InviteInsert = {
+      code,
+      created_by_user_id: userId,
+      default_role: defaultRole,
+      expires_at: dateToExpiry(expiresAt),
+      max_uses: maxUses,
+      name,
+      organization_id: organizationId,
+    };
+
+    const { error } = await service.from("invite_codes").insert(invite);
+
+    if (!error) {
+      redirect("/admin/users/invites?created=1");
+    }
+
+    if (error.code === "23505") {
+      if (isAutoCode) continue;
+      redirect("/admin/users/invites?error=duplicate_code");
+    }
+
     redirect("/admin/users/invites?error=save_failed");
   }
 
-  redirect("/admin/users/invites?created=1");
+  redirect("/admin/users/invites?error=save_failed");
 }
 
 export async function deactivateInviteCode(formData: FormData) {

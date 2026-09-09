@@ -147,6 +147,7 @@ export default async function OnboardingPage({
           phoneHint: o.steps.phoneHint,
           phoneCountrySheetTitle: o.steps.phoneCountrySheetTitle,
           phoneDuplicateHelp: o.phoneDuplicateHelp,
+          backCta: o.steps.backCta,
         }}
         countries={o.countries}
         join={{
@@ -272,6 +273,7 @@ export default async function OnboardingPage({
           phoneHint: o.steps.phoneHint,
           phoneCountrySheetTitle: o.steps.phoneCountrySheetTitle,
           phoneDuplicateHelp: o.phoneDuplicateHelp,
+          backCta: o.steps.backCta,
         }}
         countries={o.countries}
         join={{
