@@ -33,7 +33,11 @@
   --done-bg: hsl(146 44% 92%);
   --red: #c0362c;
   --red-bg: #fbeae8;
-  --sg-font: "Geist", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
+  /* 다른 폰트 토큰과 같은 스택을 쓴다. 리터럴 "Noto Sans KR" 은 웹폰트 자체는 맞히지만
+     next/font 가 만든 metric 보정 폴백("Noto Sans KR Fallback")을 놓쳐 로딩 중 레이아웃이
+     한 번 튄다. 일본어(가나·한자)도 빠져 있어 KR 자형이나 시스템 글꼴로 떨어졌다. */
+  --sg-font: "Geist", var(--font-noto-kr), var(--font-noto-jp), ui-sans-serif, system-ui,
+    sans-serif;
 
   position: relative;
   font-family: var(--sg-font);
