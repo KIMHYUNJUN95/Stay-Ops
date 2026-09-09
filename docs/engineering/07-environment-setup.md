@@ -84,8 +84,11 @@ Examples:
 
 ```txt
 http://localhost:3000
-https://stayops.vercel.app
+https://stay-ops-two.vercel.app
 ```
+
+프로덕션 도메인은 `stay-ops-two.vercel.app` 이다(2026-09-09 확인). 예전 문서에 있던
+`stayops.vercel.app` 은 이 프로젝트에 연결된 적이 없다.
 
 Usage:
 
@@ -217,7 +220,16 @@ Usage:
   거부한다(503).** 개인정보가 들어오는 입구라 기본값이 거부다. 값은 채용 사이트의 Cloud Functions
   쪽에도 같은 값으로 넣는다 — **클라이언트 번들에는 절대 넣지 않는다.**
 - `RECRUIT_ORGANIZATION_ID`: 지원서가 속할 조직. 생략하면 유일한 조직을 쓰고, 조직이 둘 이상이면
-  추측하지 않고 거부한다.
+  추측하지 않고 거부한다. **현재 조직은 1개라 설정 불필요**(2026-09-09 확인).
+
+**프로덕션 상태 (2026-09-09):** `RECRUIT_WEBHOOK_SECRET` 이 **아직 설정되지 않았다.**
+`POST https://stay-ops-two.vercel.app/api/recruit/applications` 가 503 `not_configured` 를 돌려준다.
+Vercel Settings → Environment Variables 에 Production 으로 넣고 **재배포**해야 반영된다(빌드 시점
+env 를 쓴다). 같은 값을 채용 사이트 Cloud Functions 의 환경변수에도 넣는다.
+
+**Vercel Deployment Protection 은 이 경로를 막지 않는다.** Standard Protection
+(`ssoProtection.deploymentType = all_except_custom_domains`)은 프리뷰 배포만 막고 프로덕션
+도메인은 통과시킨다 — 위 503 이 401 이 아닌 것으로 확인했다. 웹훅 때문에 이 보호를 끄지 말 것.
   - requires `ENABLE_LOCAL_DEV_TOOLS=true`
   - requires localhost access
   - requires the same `BEDS24_WEBHOOK_SECRET` value in `x-beds24-webhook-secret`

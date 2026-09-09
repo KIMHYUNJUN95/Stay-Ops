@@ -20,6 +20,39 @@ and the major mobile/admin operations modules are implemented and being hardened
   would otherwise read as current status. Encoding-damaged sections/files were intentionally not repaired
   in this pass.
 
+## 2026-09-09 — 채용(Recruit) 모듈: 수신 · 콘솔 · 실시간 갱신
+
+외부 채용 사이트(haru-recruit / Firebase)의 지원서를 StayOps 로 받아 읽고 분류하는 흐름.
+도메인 계약은 `docs/product/30-recruit-workflow.md`.
+
+**구현 완료 (StayOps 쪽).**
+
+- `job_applications` + 비공개 버킷 `recruit-resumes` + RLS(owner / 전무 / office_admin /
+  platform_admin 만 읽기) + 수신 웹훅 `POST /api/recruit/applications`
+  (마이그레이션 `202609090001` ~ `202609090003`, 전부 원격 적용 완료).
+- 기존 지원서 **194건 백필 완료** (이력서 89건 전부 비공개 버킷으로 복사, 실패 0건).
+- `/admin/recruit` 콘솔 — 표 + 신호 칩, 상세 패널, 상태 분류(`pending`/`screening`/`interview`),
+  연락처 기본 마스킹, 재지원 이력(전화번호 일치), Excel·PDF 내보내기(연락처 제외).
+- **실시간 갱신** — `RecruitLiveRefresh`(`recruit-live-refresh.tsx`)가 Supabase Realtime 신호를 받아
+  `router.refresh()` 한다. 캘린더와 같은 패턴. **행 데이터는 웹소켓으로 보내지 않는다** — 신호만
+  받고 서버 렌더를 다시 받아, 화면 값은 언제나 마스킹·권한 검사를 통과한 서버 결과다. 구독도 select
+  RLS 를 통과해야 하므로 권한 없는 세션은 신호조차 못 받는다.
+  (마이그레이션 `202609090004_enable_job_applications_realtime.sql`, 원격 적용 완료.)
+
+**남은 것 — 둘 다 StayOps 저장소 밖이고, 이게 없으면 지원서가 아예 들어오지 않는다.**
+
+1. **Vercel 에 `RECRUIT_WEBHOOK_SECRET` 설정 + 재배포.** 미설정이라 수신이 503 `not_configured` 로
+   거부된다(프로덕션에서 실제 확인). `RECRUIT_ORGANIZATION_ID` 는 조직이 1개라 불필요.
+2. **채용 사이트 Cloud Function `onApplicationCreated` 에 전송 호출 추가.**
+
+Vercel Deployment Protection 은 **끄지 않는다.** Standard Protection 은 프리뷰만 막고 프로덕션
+도메인은 통과시킨다(웹훅이 401 이 아닌 503 을 돌려주는 것으로 확인). 프로덕션 도메인은
+`stay-ops-two.vercel.app` — 문서에 있던 `stayops.vercel.app` 은 낡은 값이라 정정했다.
+
+**곁다리로 발견(미수정).** `mobile-calendar-live-view.tsx` 가 `reservation_internal_notes` 도
+구독하는데 그 테이블은 `supabase_realtime` publication 에 없다 — **그 구독은 조용히 죽어 있다.**
+내부 메모 변경은 실시간으로 반영되지 않는다.
+
 ## 2026-09-08 (2) — 수동 컴플레인 상세 패널 신설
 
 **증상.** 외부 리뷰 상세의 「연결된 컴플레인」을 눌러도 수동 컴플레인 **목록 전체**로만 갔다. 어느

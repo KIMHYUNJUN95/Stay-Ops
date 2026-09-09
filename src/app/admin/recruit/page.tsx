@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { ApplicationDetailPanel } from "@/components/admin/recruit/application-detail-panel";
 import { RecruitConsole } from "@/components/admin/recruit/recruit-console";
+import { RecruitLiveRefresh } from "@/components/admin/recruit/recruit-live-refresh";
 import "@/components/admin/recruit/recruit-console.css";
 import { requireAdminPageSession } from "@/lib/admin-page-auth";
 import { getDictionary, type Locale } from "@/lib/i18n";
@@ -92,6 +93,8 @@ export default async function AdminRecruitPage({
 
   return (
     <AdminShell activeItem="recruit" title={dictionary.recruit.title}>
+      {/* 채용 사이트에서 지원서가 들어오면 새로고침 없이 이 화면이 갱신된다. */}
+      <RecruitLiveRefresh organizationId={session.organization.id} />
       <RecruitConsole
         copy={dictionary.recruit}
         sharedCopy={dictionary.admin.shared}

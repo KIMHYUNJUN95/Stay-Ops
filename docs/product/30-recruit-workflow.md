@@ -2,7 +2,8 @@
 
 외부 채용 사이트에 들어온 지원서를 StayOps 로 받아 **읽고 분류하는** 흐름.
 
-- 상태: 수신 + 콘솔 구현 완료 — 2026-09-09 (남은 것: 채용 사이트 함수에 전송 추가)
+- 상태: 수신 + 콘솔 + 실시간 갱신 구현 완료 — 2026-09-09
+  (남은 것: Vercel `RECRUIT_WEBHOOK_SECRET` 설정, 채용 사이트 함수에 전송 추가 — §9)
 - 관련 코드: `src/lib/recruit/*`, `src/app/api/recruit/applications/route.ts`,
   `src/app/admin/recruit/*`, `src/components/admin/recruit/*`
 - 관련 테이블: `job_applications`, 버킷 `recruit-resumes`
@@ -257,11 +258,55 @@ Excel·PDF 를 공용 `<AdminExportButtons>` + `buildAdminTable*` 로 낸다(CLA
 - **공고·고용형태 필터는 대부분 비어 있다.** 194건 중 **177건이 `job_title` 없이** 들어왔다(구 폼과
   초기 지원서). 필터 선택지는 실제로 존재하는 값만 만들고, 목록에서는 「구 폼 미수집」으로 표시한다.
 
+## 8-2. 실시간 갱신 (2026-09-09 구현)
+
+「지원이 들어오면 자동으로 보인다」는 두 층이다. 둘 다 있어야 성립한다.
+
+```txt
+① 데이터가 들어온다   Cloud Function → 웹훅 → job_applications      (수 초)
+② 화면이 갱신된다     job_applications 변경 → Realtime 신호 → 콘솔  (250ms 디바운스)
+```
+
+②를 `RecruitLiveRefresh`(`src/components/admin/recruit/recruit-live-refresh.tsx`)가 맡는다. 모바일
+캘린더(`mobile-calendar-live-view.tsx`)와 **같은 패턴**이다 — 새 방식을 만들지 않는다.
+
+- **신호만 받고 행 데이터는 쓰지 않는다.** 지원서에는 이름·전화·주소·비자가 함께 들어 있다. 이걸
+  웹소켓으로 흘리면 화면의 마스킹·권한 검사를 우회한 사본이 브라우저에 생긴다. 신호를 받으면
+  `router.refresh()` 로 **서버 렌더를 다시 받는다** — 화면에 뜨는 값은 언제나 서버가 거른 결과다.
+- **구독도 RLS 를 통과해야 한다.** select 정책이 owner / 전무 / office_admin / platform_admin 으로
+  DB 레벨에서 막혀 있어(§7), 권한 없는 세션은 구독해도 신호조차 받지 못한다.
+- **250ms 디바운스.** 벌크 상태 전환은 행을 한 번에 여러 개 바꾼다. 디바운스가 없으면 그 수만큼
+  서버 렌더가 돈다.
+- **숨겨진 탭은 미룬다.** 보이지 않는 화면을 위해 서버 렌더를 돌리는 건 낭비다. 탭이 다시 보일 때
+  한 번만 갱신한다.
+- **비용은 늘지 않는다.** 폴링이 아니라 이미 열려 있는 웹소켓 신호라 Vercel 함수 호출이 늘지 않고,
+  Supabase Realtime 은 Free 플랜에 포함이다.
+- **알려진 한계 — 삭제는 신호가 오지 않는다.** RLS 가 걸린 테이블에서 realtime 이 DELETE 를
+  필터링하려면 `replica identity full` 이 필요하고, 그러면 지워진 행 전체가 WAL 로 나간다. 삭제는
+  드물고 수동이라 개인정보를 더 흘리는 쪽을 택하지 않았다. 지운 사람 화면에서는 서버 액션이
+  갱신하므로 즉시 사라진다.
+
+`event: "*"` 라서 다른 담당자의 상태 전환도 같이 반영된다. 194건을 둘이 나눠 훑을 때 같은 지원서를
+두 번 여는 일이 줄어든다.
+
+전제: 테이블이 `supabase_realtime` publication 에 있어야 한다
+(`202609090004_enable_job_applications_realtime.sql`, 원격 적용 완료).
+
 ## 9. 남은 단계
 
 1. ~~`job_applications` 테이블 + RLS + 수신 웹훅 + 기존 194건 백필~~ — 2026-09-09 완료
 2. ~~`/admin/recruit` 콘솔 — 목록·상세·상태 분류·삭제~~ — 2026-09-09 완료 (§8-1)
-3. 채용 사이트 — `onApplicationCreated` 에 전송 추가 (백필은 2026-09-09 완료)
+3. ~~콘솔 실시간 갱신~~ — 2026-09-09 완료 (§8-2)
+4. **Vercel 에 `RECRUIT_WEBHOOK_SECRET` 설정 + 재배포** — 미설정이라 수신이 503 으로 거부된다
+   (프로덕션에서 확인). 이걸 하기 전에는 실시간 갱신도 갱신할 데이터가 없다.
+5. 채용 사이트 — `onApplicationCreated` 에 전송 추가 (백필은 2026-09-09 완료)
+
+> Vercel Deployment Protection(Vercel Authentication)은 **끄지 않아도 된다.** Standard Protection 은
+> 프로덕션 도메인을 제외하고 프리뷰 배포만 막는다. 프로덕션에서 웹훅 경로가 401 이 아니라 우리
+> 라우트의 503 을 돌려주는 것으로 확인했다(2026-09-09). 끄면 프리뷰 배포가 전부 공개된다.
+>
+> 프로덕션 도메인은 `stay-ops-two.vercel.app` 이다. `07-environment-setup.md` 에 남아 있는
+> `stayops.vercel.app` 은 낡은 값이다.
 
 ### 채용 사이트 쪽 미결 사항 — **Firestore 가 공개 읽기 상태다 (2026-09-09 확인)**
 

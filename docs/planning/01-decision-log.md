@@ -2,6 +2,37 @@
 
 This file records important project decisions.
 
+## 2026-09-09 (4) 채용 콘솔 실시간 갱신 — 신호는 Realtime, 데이터는 서버 렌더
+
+**사용자 요구.** 「채용 사이트에서 지원하면 이 프로젝트 웹에서도 자동으로 연동돼서 실시간으로
+데이터를 볼 수 있어야 한다. 무료로.」
+
+**진단.** 「실시간」이 두 층인데 둘 다 비어 있었다. ① 채용 사이트 Cloud Function 에 전송 코드가
+없다 ② Vercel `RECRUIT_WEBHOOK_SECRET` 미설정이라 수신이 503 으로 거부된다(프로덕션에서 확인)
+③ `/admin/recruit` 는 `force-dynamic` 이라 새로고침하면 최신이지만 열어 둔 채로는 안 바뀐다.
+①②는 이 저장소 밖이라 사용자 작업으로 남기고, ③을 구현했다.
+
+**결정.** 모바일 캘린더가 이미 쓰는 Supabase Realtime 패턴을 그대로 쓴다
+(`mobile-calendar-live-view.tsx` → `recruit-live-refresh.tsx`). 새 방식을 만들지 않는다.
+
+- **행 데이터를 웹소켓으로 보내지 않는다.** 지원서에는 이름·전화·주소·비자가 함께 있다. 변경이
+  있었다는 **신호만** 받고 `router.refresh()` 로 서버 렌더를 다시 받는다 — 화면 값은 언제나
+  마스킹·권한 검사를 통과한 서버 결과다. 구독 자체도 select RLS(owner/전무/office_admin/
+  platform_admin)를 통과해야 해서, 권한 없는 세션은 신호조차 못 받는다.
+- **폴링을 택하지 않았다.** 「무료로」가 조건이다. 폴링은 콘솔을 열어 둔 시간에 비례해 Vercel 함수
+  호출이 늘지만, Realtime 은 이미 열린 웹소켓 신호라 호출이 늘지 않고 Supabase Free 에 포함된다.
+- **DELETE 는 배달하지 않는다.** RLS 테이블에서 realtime 이 DELETE 를 필터링하려면
+  `replica identity full` 이 필요하고, 그러면 지워진 행 전체가 WAL 로 나간다. 삭제는 드물고 수동이라
+  개인정보를 더 흘리는 쪽을 택하지 않았다.
+
+**부수 확인.** Vercel Deployment Protection 은 끄지 않아도 된다. Standard Protection 은 프리뷰만
+막고 프로덕션 도메인은 통과시킨다(웹훅이 401 이 아니라 우리 라우트의 503 을 돌려주는 것으로 확인).
+프로덕션 도메인은 `stay-ops-two.vercel.app` — 문서에 있던 `stayops.vercel.app` 은 낡은 값이었다.
+
+Status: Confirmed (2026-09-09). 마이그레이션 `202609090004_enable_job_applications_realtime.sql`
+원격 적용 완료. 문서: `docs/product/30-recruit-workflow.md` §8-2, `docs/engineering/04-data-model.md`,
+`docs/engineering/07-environment-setup.md`.
+
 ## 2026-09-08 (4) 반복 지연을 「지연 섹션」에서 빼고 오늘 줄의 배지로 — 2026-07-30 모델 수정
 
 **사용자 제보.** 반복 업무가 밀리면 지연 섹션에 뜨고, 오늘도 회차면 오늘에도 떠서 **같은 작업이 두

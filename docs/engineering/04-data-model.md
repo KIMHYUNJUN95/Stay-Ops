@@ -1851,3 +1851,16 @@ Constraints / behavior:
 버킷 `recruit-resumes` 의 허용 형식은 `202609090002` 에서 넓혔다(.hwp/.heic/.xlsx 가 실제로 들어와
 거부됐다). 목록에 없는 형식은 코드가 `application/octet-stream` 으로 낮춰 저장한다.
 
+### 2026-09-09 후속 — Realtime 활성화
+
+마이그레이션 `202609090004_enable_job_applications_realtime.sql` (원격 적용 완료).
+
+- 이 테이블은 `supabase_realtime` publication 에 들어 있다(`reservations` 에 이은 두 번째).
+- 콘솔은 **신호만** 받고 행 데이터는 쓰지 않는다 — 갱신은 서버 렌더를 다시 받는다
+  (`src/components/admin/recruit/recruit-live-refresh.tsx`).
+- select RLS 가 그대로 적용되므로 owner / 전무 / office_admin / platform_admin 이 아닌 세션은
+  구독해도 아무 신호를 받지 못한다.
+- **DELETE 는 배달되지 않는다.** RLS 가 걸린 테이블에서 realtime 이 DELETE 를 필터링하려면
+  `replica identity full` 이 필요한데, 그러면 지워진 행 전체가 WAL 로 나간다. 삭제는 드물고
+  수동이라 개인정보를 더 흘리는 쪽을 택하지 않았다.
+
