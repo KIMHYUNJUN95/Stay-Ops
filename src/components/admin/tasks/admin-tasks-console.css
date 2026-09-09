@@ -193,10 +193,14 @@
 .adm .tchk { width: 24px; height: 24px; margin-top: 1px; border-radius: 999px; border: 2px solid var(--faint); background: transparent; color: #fff; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; transition: all 0.14s; }
 .adm .tchk svg { width: 14px; height: 14px; opacity: 0; transform: scale(0.6); transition: all 0.14s; }
 .adm .tchk:hover { border-color: var(--adm-primary); }
-/* 미리보기 목록(다가오는 일정·미래 날짜 시트)의 체크박스 — 누를 수 없다(2026-09-09).
-   숨기지 않고 흐리게 두는 이유: 오늘·과거 행과 정렬이 어긋나지 않게 하려고. */
-.adm .tchk.is-preview { opacity: 0.35; cursor: default; }
-.adm .tchk.is-preview:hover { border-color: var(--faint); }
+/* 미리보기 행(다가오는 일정·미래 날짜 시트)의 **점 마커** — 체크박스 자리를 대신한다(2026-09-09).
+   못 누르는 체크박스를 흐리게 두면 「고장난 버튼」으로 읽혀 점으로 바꿨다. 자리(24px)는 그대로
+   지켜 오늘·과거 행과 왼쪽 정렬이 어긋나지 않는다. 색은 우선순위를 그대로 따른다. */
+.adm .tdot { width: 24px; height: 24px; margin-top: 1px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.adm .tdot::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--faint); }
+.adm .tdot.p-important::before { background: var(--flag-warn); }
+.adm .tdot.p-urgent::before { background: var(--flag-urgent); }
+.adm .tdot.p-medium::before { background: var(--flag-medium); }
 .adm .tchk:hover svg { opacity: 0.5; transform: scale(1); }
 .adm .tchk.p-important { border-color: var(--flag-warn); }
 .adm .tchk.p-important:hover { background: color-mix(in oklab, var(--flag-warn) 14%, transparent); }

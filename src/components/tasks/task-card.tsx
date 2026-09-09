@@ -105,6 +105,7 @@ export function TaskCard({
   reordering = false,
   onReorderHandleDown,
   onCompleteToggle,
+  preview = false,
   occurrence,
   detailReturnView,
 }: {
@@ -152,6 +153,10 @@ export function TaskCard({
   // (stops propagation) so it never starts the card's tap / long-press / swipe. Active → complete,
   // completed → reopen. Omit to render the circle as a static indicator (e.g. calendar day sheet).
   onCompleteToggle?: (task: TaskRecord, occurrence?: { date: string; done: boolean }) => void;
+  // 미래 날짜의 미리보기 행(다가오는 일정 · 미래 날짜 시트). 완료 토글을 주지 않을 뿐 아니라
+  // **동그라미 자체를 점 마커로 바꾼다**(2026-09-09) — 못 누르는 체크박스를 남겨 두면 고장난
+  // 버튼으로 보인다. 점은 자리(22px)를 그대로 지켜 오늘·과거 행과 정렬이 어긋나지 않는다.
+  preview?: boolean;
   // Recurring occurrence row (2026-07-30): completion/done state is per this date, not the row's
   // `status` (which stays open). When set, the checkbox toggles this occurrence.
   occurrence?: { date: string; done: boolean };
@@ -449,7 +454,17 @@ export function TaskCard({
         >
           {selected ? <Check className="size-3.5" strokeWidth={3} aria-hidden="true" /> : null}
         </button>
-      ) : onCompleteToggle ? (
+      ) : preview && !done ? (
+        <span
+          className={cn(
+            "mt-0.5 flex size-[22px] shrink-0 items-center justify-center",
+            PRIO_RING[task.priority] ?? PRIO_RING.normal,
+          )}
+          aria-hidden="true"
+        >
+          <span className="size-[7px] rounded-full bg-current opacity-70" />
+        </span>
+      ) : onCompleteToggle && !preview ? (
         <button
           aria-label={done ? copy.reopen : copy.complete}
           className={cn(

@@ -1114,15 +1114,16 @@ export function AdminTasksConsole({
           >
             <Check size={13} />
           </button>
+        ) : opts?.previewOnly && !done ? (
+          // 미리보기 행(다가오는 일정 · 미래 날짜 시트)은 **점 마커**로 그린다(2026-09-09).
+          // 못 누르는 체크박스를 남겨 두면 고장난 버튼으로 보인다. 24px 자리는 그대로 지켜
+          // 오늘·과거 행과 정렬이 어긋나지 않게 한다.
+          <span className={`tdot ${pcls}`} title={dict.previewOnlyHint} aria-hidden="true" />
         ) : (
           <button
-            className={`tchk ${pcls} ${done ? "is-done" : ""} ${opts?.previewOnly ? "is-preview" : ""}`}
-            disabled={opts?.previewOnly}
-            title={opts?.previewOnly ? dict.previewOnlyHint : undefined}
+            className={`tchk ${pcls} ${done ? "is-done" : ""}`}
             onClick={(e) => {
               e.stopPropagation();
-              // 미리보기(다가오는 일정)에서는 완료할 수 없다 — 미래 회차는 아직 할 수 없는 일이다.
-              if (opts?.previewOnly) return;
               // 반복 완료 이력은 이미 다음 회차로 넘어가 있어 되돌릴 대상이 아님 → 토글 금지.
               if (opts?.forceDone && !realDone) return;
               toggleComplete(t, occ);
