@@ -198,6 +198,26 @@ Usage:
   bearer header (Beds24 paths also accept `BEDS24_WEBHOOK_SECRET` where documented). An unset reminder
   secret returns 404; invalid/missing caller credentials return 403.
 - Existing Beds24-linked properties can be backfilled locally through `POST /api/dev/beds24/backfill-inventory`
+
+## Recruit (채용 지원서 수신)
+
+외부 채용 사이트(haru-recruit / Firebase)가 지원서를 밀어넣는 경로. 계약은
+`docs/product/30-recruit-workflow.md`.
+
+Variables:
+
+```txt
+RECRUIT_WEBHOOK_SECRET=
+RECRUIT_ORGANIZATION_ID=
+```
+
+Usage:
+
+- `RECRUIT_WEBHOOK_SECRET`: `POST /api/recruit/applications` 의 공유 시크릿. **미설정이면 수신을
+  거부한다(503).** 개인정보가 들어오는 입구라 기본값이 거부다. 값은 채용 사이트의 Cloud Functions
+  쪽에도 같은 값으로 넣는다 — **클라이언트 번들에는 절대 넣지 않는다.**
+- `RECRUIT_ORGANIZATION_ID`: 지원서가 속할 조직. 생략하면 유일한 조직을 쓰고, 조직이 둘 이상이면
+  추측하지 않고 거부한다.
   - requires `ENABLE_LOCAL_DEV_TOOLS=true`
   - requires localhost access
   - requires the same `BEDS24_WEBHOOK_SECRET` value in `x-beds24-webhook-secret`

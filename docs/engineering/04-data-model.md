@@ -1803,3 +1803,37 @@ Constraints / behavior:
 
 대기 큐(`getAdminAttendanceCorrections`)와 마감 판정(`getFinalizationEligibility`)은
 `requested|in_review` 만 세므로 `cancelled` 는 두 곳에서 자동으로 빠진다 — 별도 인덱스 불필요.
+
+## 2026-09-09 `job_applications` — 채용 지원서 수신
+
+마이그레이션 `202609090001_job_applications.sql` (원격 적용 완료).
+
+외부 채용 사이트(haru-recruit / Firebase)에서 넘어온 지원서를 보관·심사한다. 도메인 계약은
+`docs/product/30-recruit-workflow.md`.
+
+새 enum `job_application_status`: `pending | screening | interview | hired | rejected`.
+
+주요 컬럼:
+
+- 원본 식별 — `source`(`applications` | `applicants`, Firestore 컬렉션 이름), `external_id`(문서 ID)
+- 공고 — `job_external_id`, `job_title`, `employment_type`, `applied_position`
+- 지원자 — `applicant_name`(NOT NULL), `age`, `gender`, `phone`, `kakao_id`, `address`,
+  `commute_time`, `uniform_size`
+- 체류 — `nationality`, `visa_type`, `visa_period`
+- 조건 — `work_days text[]`, `days_per_week`, `duration`, `start_date`
+- 경험 — `has_industry_exp`, `industry_tasks text[]`, `source_channel`(지원 경로), `motivation`
+- 이력서 — `resume_file_name`, `resume_source_url`(**서버 전용**, 토큰 포함 Firebase URL),
+  `resume_path`(비공개 버킷 `recruit-resumes` 경로)
+- 심사 — `status`, `status_changed_at`, `status_changed_by_user_id`, `review_note`
+- 입사 연결 — `invite_code_id`, `hired_user_id`, `hired_at`
+- 시각 — `applied_at`(원본 접수 시각, 판독 불가 시 NULL), `imported_at`
+- `raw_payload jsonb` — **서버 전용** 원문 사본
+
+Constraints / behavior:
+
+- unique on `(organization_id, source, external_id)` — 재전송·백필 재실행이 중복을 만들지 않는다
+- 수신 경로는 **지원자 정보 컬럼만** 갱신한다. 심사 상태·메모·합격 연결은 덮지 않는다
+- `applied_at` 은 nullable — 접수 시각을 지어내지 않는다
+- 인덱스: 최근 지원 순 / 상태별 / `pending` 부분 인덱스 / 이력서 미복사 부분 인덱스
+- 새 스토리지 버킷 `recruit-resumes` 는 **비공개**(`public = false`). 다른 첨부 버킷과 다르다 —
+  이력서는 개인정보 문서라 서명 URL 로만 연다

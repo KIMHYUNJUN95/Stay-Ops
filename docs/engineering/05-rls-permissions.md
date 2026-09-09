@@ -1206,3 +1206,20 @@ of the RLS/permission-relevant pieces:
 - 「누구에 대한 판정인가」를 인자로 받는가? 받는다면 `auth.uid()` 검사와 조직 멤버십 검사를 함께 넣어라.
 - ALL/SELECT 정책에서 쓰이는가? 그렇다면 **EXECUTE 회수는 답이 아니다** — 정책 평가가 false 가
   아니라 권한 에러로 끝난다. 함수 안에서 막아라.
+
+## job_applications (2026-09-09)
+
+채용 지원서. 마이그레이션 `202609090001_job_applications.sql`.
+
+- SELECT: `has_org_role(organization_id, ['owner','senior_managing_director','office_admin'])`
+  또는 활성 platform admin. **어드민 웹 접근 가능 전 역할에 열지 않는다** — `field_manager`·`staff`
+  는 제외다. 지원서는 이름·연락처·주소·비자 정보가 함께 담긴 민감 개인정보다.
+- INSERT / UPDATE / DELETE 정책 **없음**. 수신 웹훅과 심사 서버 액션이 service-role 로 조직을
+  재확인한 뒤 쓴다(`external_reviews` 와 같은 방식). `authenticated` 에는 `select` grant 만 있다.
+- `auth.uid()` 와 `platform_admins` 조회는 `(select ...)` 로 감싸 InitPlan 으로 만든다
+  (`auth_rls_initplan`). `has_org_role(organization_id, ...)` 는 행 값을 인자로 받으므로 감싸지 않는다.
+
+스토리지 버킷 `recruit-resumes` 는 `public = false` 이고 `storage.objects` 에 authenticated 정책을
+두지 않는다. 업로드는 서버가 service-role 로만 하고(RLS 우회), 열람은 서버가 만든 서명 URL 로만
+한다.
+

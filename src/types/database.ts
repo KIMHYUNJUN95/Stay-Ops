@@ -2262,6 +2262,170 @@ export type Database = {
           },
         ]
       }
+      job_applications: {
+        Row: {
+          address: string | null
+          age: string | null
+          applicant_name: string
+          applied_at: string | null
+          applied_position: string | null
+          commute_time: string | null
+          created_at: string
+          days_per_week: string | null
+          duration: string | null
+          employment_type: string | null
+          external_id: string
+          gender: string | null
+          has_industry_exp: string | null
+          hired_at: string | null
+          hired_user_id: string | null
+          id: string
+          imported_at: string
+          industry_tasks: string[]
+          invite_code_id: string | null
+          job_external_id: string | null
+          job_title: string | null
+          kakao_id: string | null
+          motivation: string | null
+          nationality: string | null
+          organization_id: string
+          phone: string | null
+          raw_payload: Json
+          resume_file_name: string | null
+          resume_path: string | null
+          resume_source_url: string | null
+          review_note: string | null
+          source: string
+          source_channel: string | null
+          start_date: string | null
+          status: Database["public"]["Enums"]["job_application_status"]
+          status_changed_at: string | null
+          status_changed_by_user_id: string | null
+          uniform_size: string | null
+          updated_at: string
+          visa_period: string | null
+          visa_type: string | null
+          work_days: string[]
+        }
+        Insert: {
+          address?: string | null
+          age?: string | null
+          applicant_name: string
+          applied_at?: string | null
+          applied_position?: string | null
+          commute_time?: string | null
+          created_at?: string
+          days_per_week?: string | null
+          duration?: string | null
+          employment_type?: string | null
+          external_id: string
+          gender?: string | null
+          has_industry_exp?: string | null
+          hired_at?: string | null
+          hired_user_id?: string | null
+          id?: string
+          imported_at?: string
+          industry_tasks?: string[]
+          invite_code_id?: string | null
+          job_external_id?: string | null
+          job_title?: string | null
+          kakao_id?: string | null
+          motivation?: string | null
+          nationality?: string | null
+          organization_id: string
+          phone?: string | null
+          raw_payload?: Json
+          resume_file_name?: string | null
+          resume_path?: string | null
+          resume_source_url?: string | null
+          review_note?: string | null
+          source?: string
+          source_channel?: string | null
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["job_application_status"]
+          status_changed_at?: string | null
+          status_changed_by_user_id?: string | null
+          uniform_size?: string | null
+          updated_at?: string
+          visa_period?: string | null
+          visa_type?: string | null
+          work_days?: string[]
+        }
+        Update: {
+          address?: string | null
+          age?: string | null
+          applicant_name?: string
+          applied_at?: string | null
+          applied_position?: string | null
+          commute_time?: string | null
+          created_at?: string
+          days_per_week?: string | null
+          duration?: string | null
+          employment_type?: string | null
+          external_id?: string
+          gender?: string | null
+          has_industry_exp?: string | null
+          hired_at?: string | null
+          hired_user_id?: string | null
+          id?: string
+          imported_at?: string
+          industry_tasks?: string[]
+          invite_code_id?: string | null
+          job_external_id?: string | null
+          job_title?: string | null
+          kakao_id?: string | null
+          motivation?: string | null
+          nationality?: string | null
+          organization_id?: string
+          phone?: string | null
+          raw_payload?: Json
+          resume_file_name?: string | null
+          resume_path?: string | null
+          resume_source_url?: string | null
+          review_note?: string | null
+          source?: string
+          source_channel?: string | null
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["job_application_status"]
+          status_changed_at?: string | null
+          status_changed_by_user_id?: string | null
+          uniform_size?: string | null
+          updated_at?: string
+          visa_period?: string | null
+          visa_type?: string | null
+          work_days?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_applications_hired_user_id_fkey"
+            columns: ["hired_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_applications_invite_code_id_fkey"
+            columns: ["invite_code_id"]
+            isOneToOne: false
+            referencedRelation: "invite_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_applications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_applications_status_changed_by_user_id_fkey"
+            columns: ["status_changed_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       linen_items: {
         Row: {
           building_name: string | null
@@ -4567,6 +4731,12 @@ export type Database = {
       announcement_target_scope: "everyone" | "roles"
       app_language: "ko" | "ja" | "en"
       cleaning_status: "in_progress" | "completed" | "cancelled"
+      job_application_status:
+        | "pending"
+        | "screening"
+        | "interview"
+        | "hired"
+        | "rejected"
       lost_item_category:
         | "electronics"
         | "wallet"
@@ -4776,6 +4946,13 @@ export const Constants = {
       announcement_target_scope: ["everyone", "roles"],
       app_language: ["ko", "ja", "en"],
       cleaning_status: ["in_progress", "completed", "cancelled"],
+      job_application_status: [
+        "pending",
+        "screening",
+        "interview",
+        "hired",
+        "rejected",
+      ],
       lost_item_category: [
         "electronics",
         "wallet",
