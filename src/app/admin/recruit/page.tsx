@@ -1,0 +1,117 @@
+import { redirect } from "next/navigation";
+import { AdminShell } from "@/components/shell/admin-shell";
+import { ApplicationDetailPanel } from "@/components/admin/recruit/application-detail-panel";
+import { RecruitConsole } from "@/components/admin/recruit/recruit-console";
+import "@/components/admin/recruit/recruit-console.css";
+import { requireAdminPageSession } from "@/lib/admin-page-auth";
+import { getDictionary, type Locale } from "@/lib/i18n";
+import {
+  canReadJobApplications,
+  getJobApplication,
+  listApplicationFacets,
+  listApplicationHistory,
+  listJobApplications,
+  signResumeUrl,
+  summarizeJobApplications,
+  type ApplicationFilter,
+  type JobApplicationStatus,
+} from "@/lib/recruit/applications";
+
+/**
+ * 채용 지원서 콘솔 — 외부 채용 사이트에서 넘어온 지원서를 읽고 분류한다.
+ *
+ * 필터·상세는 전부 쿼리스트링이라 서버 렌더 한 번으로 끝난다(컴플레인 콘솔과 같은 방식).
+ *
+ * 도메인 계약: docs/product/30-recruit-workflow.md
+ */
+export const dynamic = "force-dynamic";
+
+type SearchParams = {
+  status?: string;
+  job?: string;
+  employment?: string;
+  from?: string;
+  to?: string;
+  resume?: string;
+  q?: string;
+  /** 상세 패널을 여는 지원서 id. */
+  application?: string;
+};
+
+const LOCALE_TAGS: Record<Locale, string> = { ko: "ko-KR", ja: "ja-JP", en: "en-US" };
+
+function readStatus(value: string | undefined): JobApplicationStatus | "all" {
+  if (value === "all" || value === "screening" || value === "interview") return value;
+  // 기본은 「접수」다 — 이 화면에 들어오는 이유가 처리 대기 건을 보기 위해서다.
+  return "pending";
+}
+
+export default async function AdminRecruitPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const session = await requireAdminPageSession({ nextPath: "/admin/recruit" });
+  // 지원서는 민감 개인정보라 어드민 웹 접근 권한만으로는 부족하다. 역할이 아니면 대시보드로.
+  if (!canReadJobApplications(session.user.role)) redirect("/admin");
+
+  const params = await searchParams;
+  const dictionary = getDictionary(session.user.preferredLanguage);
+
+  const filter: ApplicationFilter = {
+    status: readStatus(params.status),
+    jobTitle: params.job?.trim() || null,
+    employmentType: params.employment?.trim() || null,
+    from: params.from?.trim() || null,
+    to: params.to?.trim() || null,
+    withResumeOnly: params.resume === "1",
+    query: params.q?.trim() || null,
+  };
+
+  const [rows, summary, facets] = await Promise.all([
+    listJobApplications({ session, filter }),
+    summarizeJobApplications(session),
+    listApplicationFacets(session),
+  ]);
+
+  const applicationId = params.application?.trim() || null;
+  const application = applicationId ? await getJobApplication({ session, id: applicationId }) : null;
+  const [history, resumeUrl] = application
+    ? await Promise.all([
+        listApplicationHistory({ session, id: application.id, phone: application.phone }),
+        signResumeUrl(application.resumePath),
+      ])
+    : [[], null];
+
+  // 패널을 닫으면 필터는 그대로 두고 `application` 만 뺀다.
+  const closeParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (key !== "application" && typeof value === "string" && value) closeParams.set(key, value);
+  }
+  const closeHref = `/admin/recruit${closeParams.size > 0 ? `?${closeParams.toString()}` : ""}`;
+
+  return (
+    <AdminShell activeItem="recruit" title={dictionary.recruit.title}>
+      <RecruitConsole
+        copy={dictionary.recruit}
+        sharedCopy={dictionary.admin.shared}
+        locale={session.user.preferredLanguage}
+        localeTag={LOCALE_TAGS[session.user.preferredLanguage] ?? "ko-KR"}
+        rows={rows}
+        summary={summary}
+        facets={facets}
+        filter={filter}
+        selectedId={application?.id ?? null}
+      />
+      {application && (
+        <ApplicationDetailPanel
+          application={application}
+          history={history}
+          resumeUrl={resumeUrl}
+          copy={dictionary.recruit}
+          closeHref={closeHref}
+        />
+      )}
+    </AdminShell>
+  );
+}

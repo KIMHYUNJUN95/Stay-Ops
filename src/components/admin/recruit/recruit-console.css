@@ -1,0 +1,459 @@
+/*
+ * 채용 콘솔 (/admin/recruit) — 디자인 「StayOps Recruiting Console」(2026-09-09) 구현.
+ *
+ * **변수는 전부 `--rc-*`.** `.adm` 스코프가 클래스는 막아 주지만 CSS 변수는 상속되므로, globals 의
+ * Tailwind 토큰과 같은 이름을 여기서 재정의하면 `.adm` 안의 공용 컴포넌트가 조용히 다른 색이 된다
+ * (`admin-console.css` 머리말의 2026-08-03 사고). 색·반경·그림자는 `admin-console.css` 의
+ * `--bg`/`--card`/`--adm-primary` 등을 **그대로 참조**하고 새 값을 만들지 않는다.
+ *
+ * 도메인 계약: docs/product/30-recruit-workflow.md
+ */
+
+.adm .rc {
+  --rc-row-grid: minmax(210px, 1.3fr) 186px minmax(210px, 1.2fr) 122px 104px 132px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── 요약 카드 ─────────────────────────────────────────────────────────── */
+.adm .rc__kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.adm .rckpi {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.adm .rckpi__k { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; color: var(--adm-muted); }
+.adm .rckpi__v {
+  font-family: var(--serif);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.adm .rckpi__v--pri { color: var(--primary-ink); }
+.adm .rckpi__v--warn { color: var(--warn); }
+.adm .rckpi__unit { font-size: 16px; color: var(--faint); }
+.adm .rckpi__s { font-size: 11.5px; color: var(--adm-muted); }
+
+/* ── 필터 줄 ───────────────────────────────────────────────────────────── */
+.adm .rc__filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.adm .rcseg {
+  display: flex;
+  gap: 3px;
+  padding: 4px;
+  background: var(--bg2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-pill);
+}
+.adm .rcseg__b {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 13px;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--adm-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.adm .rcseg__b.on { background: var(--adm-primary); color: #fff; }
+.adm .rcseg__n { font-family: var(--mono); opacity: 0.75; }
+.adm .rcseg__b:not(.on) .rcseg__n { opacity: 1; }
+.adm .rc__spacer { margin-left: auto; }
+
+/* ── 표 ────────────────────────────────────────────────────────────────── */
+.adm .rctbl {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+.adm .rctbl__h,
+.adm .rcrow {
+  display: grid;
+  grid-template-columns: 34px var(--rc-row-grid);
+  gap: 14px;
+  align-items: start;
+}
+.adm .rctbl__h {
+  padding: 11px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card2);
+  align-items: center;
+}
+.adm .rctbl__h span {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--adm-muted);
+}
+.adm .rctbl__h .rccol--end { text-align: right; }
+.adm .rcrow {
+  width: 100%;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--line-soft);
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.adm .rcrow:last-of-type { border-bottom: none; }
+.adm .rcrow:hover { background: var(--card2); }
+.adm .rcrow.on { background: var(--primary-soft); }
+.adm .rcrow__name { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.adm .rcrow__nm { font-size: 13.5px; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; }
+.adm .rcrow__meta { font-size: 11.5px; color: var(--adm-muted); white-space: nowrap; }
+.adm .rcrow__cell { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.adm .rcrow__main { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+.adm .rcrow__sub { font-size: 11px; color: var(--faint); }
+.adm .rcrow__mono { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--ink-soft); padding-top: 1px; }
+.adm .rcrow__mono--soft { color: var(--adm-muted); font-weight: 400; }
+.adm .rcrow__end { display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
+.adm .rcrow__chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.adm .rcemp {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  background: var(--bg2);
+  color: var(--adm-muted);
+  align-self: flex-start;
+  white-space: nowrap;
+}
+
+/* 행 hover 시 나타나는 전진 버튼 — 자리는 항상 잡아 두어 표가 흔들리지 않게 한다. */
+.adm .rcadv {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 9px;
+  background: var(--adm-primary);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.adm .rcrow:hover .rcadv,
+.adm .rcadv:focus-visible { opacity: 1; pointer-events: auto; }
+
+/* ── 신호 칩 ───────────────────────────────────────────────────────────── */
+.adm .rcchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+  background: var(--bg2);
+  color: var(--adm-muted);
+}
+.adm .rcchip--good { background: var(--done-bg); color: var(--done); }
+.adm .rcchip--info { background: var(--info-bg); color: var(--info); }
+.adm .rcchip--warn { background: var(--warn-bg); color: var(--warn); }
+.adm .rcchip--danger { background: var(--danger-bg); color: var(--danger); }
+
+.adm .rcstat {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--open-bg);
+  color: var(--open);
+  white-space: nowrap;
+  /* 3개국어 폭 계약: 「書類選考」/「Screening」이 들어가도 배지가 흔들리지 않는다. */
+  min-width: 66px;
+  text-align: center;
+}
+.adm .rcstat--screening { background: var(--info-bg); color: var(--info); }
+.adm .rcstat--interview { background: var(--warn-bg); color: var(--warn); }
+
+/* ── 선택 체크박스 · 벌크 바 ───────────────────────────────────────────── */
+.adm .rcsel {
+  width: 17px;
+  height: 17px;
+  margin-top: 3px;
+  border-radius: 5px;
+  border: 1.5px solid var(--line);
+  background: var(--bg2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.adm .rcsel.on { background: var(--adm-primary); border-color: var(--adm-primary); }
+.adm .rcsel svg { width: 11px; height: 11px; opacity: 0; }
+.adm .rcsel.on svg { opacity: 1; }
+.adm .rcbulk {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  background: var(--adm-primary);
+  border-radius: 12px;
+  padding: 11px 14px;
+  color: #fff;
+}
+.adm .rcbulk__n { font-size: 12px; font-weight: 700; }
+.adm .rcbulk__cta {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 13px;
+  border: none;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--primary-ink);
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.adm .rcbulk__ghost {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 13px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: transparent;
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* ── 페이저 ────────────────────────────────────────────────────────────── */
+.adm .rcpager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  background: var(--card2);
+}
+.adm .rcpager__t { font-size: 11.5px; color: var(--adm-muted); }
+.adm .rcpager__t b { font-family: var(--mono); font-weight: 500; color: var(--ink-soft); }
+.adm .rcpager__b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.adm .rcpager__b:disabled { color: var(--faint); cursor: default; }
+
+/* ── 빈 상태 ───────────────────────────────────────────────────────────── */
+.adm .rcempty {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: 44px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 13px;
+  text-align: center;
+}
+.adm .rcempty__ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  background: var(--bg2);
+  color: var(--faint);
+}
+.adm .rcempty__t { font-size: 14.5px; font-weight: 800; }
+.adm .rcempty__s { font-size: 12.5px; line-height: 1.7; color: var(--adm-muted); max-width: 460px; text-wrap: pretty; }
+.adm .rcempty__acts { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; justify-content: center; }
+
+/* 걸려 있는 조건을 하나씩 떼어낼 수 있는 칩. */
+.adm .rcactive {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 11px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: var(--open-bg);
+  color: var(--open);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ── 상세 패널 (공용 .panel 위에 얹는 것만) ────────────────────────────── */
+.adm .rcsteps { display: flex; align-items: center; gap: 0; }
+.adm .rcsteps__s { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--faint); }
+.adm .rcsteps__s.on { color: var(--adm-primary); font-weight: 800; }
+.adm .rcsteps__dot { width: 8px; height: 8px; border-radius: var(--r-pill); border: 1.5px solid currentColor; }
+.adm .rcsteps__s.on .rcsteps__dot { background: var(--adm-primary); border-color: var(--adm-primary); }
+.adm .rcsteps__line { flex: 1; height: 1px; background: var(--line); margin: 0 8px; }
+
+.adm .rckv { display: grid; grid-template-columns: 104px 1fr; gap: 8px 14px; font-size: 12.5px; }
+.adm .rckv__k { color: var(--adm-muted); }
+.adm .rckv__v { color: var(--ink-soft); font-weight: 600; }
+.adm .rckv__v--mono { font-family: var(--mono); font-weight: 500; }
+.adm .rckv__v--none { color: var(--faint); font-weight: 400; display: flex; align-items: center; gap: 8px; }
+
+.adm .rcdays { display: flex; flex-wrap: wrap; gap: 4px; }
+.adm .rcday {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: var(--bg2);
+  color: var(--faint);
+}
+.adm .rcday.on { background: var(--open-bg); color: var(--open); font-weight: 800; }
+
+.adm .rcnote {
+  background: var(--card2);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 13px 14px;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+  white-space: pre-wrap;
+}
+
+.adm .rcinfo {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  background: var(--bg2);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+.adm .rcinfo svg { flex: 0 0 auto; margin-top: 1px; color: var(--adm-muted); }
+
+/* 첨부 */
+.adm .rcfile {
+  display: flex;
+  gap: 13px;
+  align-items: center;
+  background: var(--card2);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 12px 13px;
+}
+.adm .rcfile__b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.adm .rcfile__n { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm .rcfile__m { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--adm-muted); flex-wrap: wrap; }
+.adm .rcext {
+  font-family: var(--mono);
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--info-bg);
+  color: var(--info);
+  text-transform: uppercase;
+}
+.adm .rcext--plain { background: var(--warn-bg); color: var(--warn); }
+.adm .rcfile__acts { display: flex; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
+.adm .rcnofile {
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--card2);
+}
+.adm .rcnofile__t { display: flex; align-items: center; gap: 9px; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+.adm .rcnofile__t svg { color: var(--faint); }
+.adm .rcnofile__s { font-size: 11.5px; line-height: 1.65; color: var(--adm-muted); }
+
+/* 지원 이력 */
+.adm .rchist { display: flex; flex-direction: column; gap: 10px; }
+.adm .rchist__row { display: flex; gap: 11px; }
+.adm .rchist__dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: var(--r-pill); border: 1.5px solid var(--faint); margin-top: 5px; }
+.adm .rchist__dot.on { background: var(--adm-primary); border-color: var(--adm-primary); }
+.adm .rchist__b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.adm .rchist__h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adm .rchist__d { font-family: var(--mono); font-size: 11.5px; font-weight: 600; color: var(--ink-soft); }
+.adm .rchist__s { font-size: 11.5px; color: var(--adm-muted); }
+.adm .rchist__note {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  background: var(--card);
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+}
+
+/* 메모 입력 */
+.adm .rcnoteedit {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  padding: 11px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink);
+}
+.adm .rcnoteedit:focus-visible { outline: 2px solid var(--adm-primary); outline-offset: 1px; }
+
+/* 패널 하단 액션 바 — 주 버튼은 항상 오른쪽 끝, 파괴적 액션은 왼쪽 끝. */
+.adm .rcbar {
+  flex: 0 0 auto;
+  padding: 14px 24px;
+  border-top: 1px solid var(--line);
+  background: var(--card2);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.adm .rcbar__note { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--adm-muted); }
+.adm .rcbar__cta { min-width: 150px; justify-content: center; }
+
+@media (max-width: 1180px) {
+  .adm .rc { --rc-row-grid: minmax(180px, 1.4fr) 150px minmax(150px, 1fr) 104px 92px 120px; }
+  .adm .rc__kpis { grid-template-columns: repeat(2, 1fr); }
+}

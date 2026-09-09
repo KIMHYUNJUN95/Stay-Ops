@@ -21,6 +21,7 @@ import {
   Sparkles,
   SprayCan,
   Undo2,
+  UserSearch,
   Users,
   Wrench,
 } from "lucide-react";
@@ -298,6 +299,12 @@ export const adminNavigation = [
     icon: MessageSquareWarning,
   },
   {
+    id: "recruit",
+    label: localizedNavigationLabels.admin.recruit,
+    href: "/admin/recruit",
+    icon: UserSearch,
+  },
+  {
     id: "announcements",
     label: localizedNavigationLabels.admin.announcements,
     href: "/admin/announcements",
@@ -343,6 +350,8 @@ export const adminNavGroupOf: Record<string, AdminNavGroupKey> = {
   "linen-return": "operations",
   orders: "operations",
   complaints: "operations",
+  // 채용은 사람을 다루므로 「인력」 묶음이다 — 근태·사용자와 같은 자리.
+  recruit: "people",
   // 인력
   attendance: "people",
   users: "people",
