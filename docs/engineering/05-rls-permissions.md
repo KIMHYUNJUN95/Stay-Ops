@@ -666,6 +666,22 @@ Per-occurrence state for recurring tasks (migration `202607300001_task_occurrenc
   completed/skipped/moved writes go through the task server actions, which enforce
   org-scoping + participant checks. No direct client insert/update.
 
+## 투두 계열의 `is_platform_admin()` 예외 — 앱에서 다시 좁힌다 (2026-09-09)
+
+`tasks` / `task_participants` / `task_updates` / `task_occurrence_*` / `projects` 계열의 select
+정책은 모두 `is_platform_admin()` 를 OR 로 달고 있다. 조직 간 운영·복구를 위해 **유지한다.**
+
+다만 투두는 **개인 업무 공간**이다(`docs/product/18-todo-task-workflow.md` → "2026-09-09 투두
+가시 범위"). 2026-09-09, 이 예외 때문에 플랫폼 관리자 계정 하나가 조직 전원의 개인 투두를 자기
+「오늘」 목록에서 보고 있었다 — 앱 쿼리가 참여자 조건을 RLS 에만 맡기고 있었기 때문이다.
+
+**정책은 바꾸지 않았다.** 대신 투두 화면이 쓰는 읽기 경로를 `src/lib/tasks.ts` 의
+`getTaskScope(session)` 로 다시 좁혔다(조직 격리와 같은 원칙 — 서버에서 강제, UI 필터에 의존하지
+않음). 적용 함수 표는 `docs/engineering/09-todo-task-technical-design.md` → "가시 범위 게이트".
+
+> 새 투두 읽기 경로를 추가할 때는 그 게이트를 함께 통과시킨다. RLS 만으로는 관리자 계정에서
+> 막히지 않는다.
+
 ## board_posts
 
 - Read: all active org members.

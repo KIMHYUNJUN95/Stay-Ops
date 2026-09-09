@@ -4385,3 +4385,26 @@ PC 회원가입 시 생년월일 휠이 마우스로 조작되지 않던 문제�
 문서: `docs/product/04-organization-invitations.md`(초대코드 자동 생성 절 정정 + 데스크톱 입력 절 신설).
 
 `npm run lint` / `npm run build` / `vitest`(226건) 통과. 실제 브라우저 조작 확인은 아직 안 했다.
+
+## 2026-09-09 (3차) — 투두 가시 범위를 앱에서 강제
+
+콘솔 「오늘」에 다른 사용자의 개인 투두가 섞여 보이던 문제. 원인은 가시 범위 판정을 RLS 에만
+맡긴 것 — `tasks` select 정책의 `is_platform_admin()` 예외가 참여자 조건을 건너뛴다.
+
+- `src/lib/tasks.ts` — `getTaskScope(session)` 추가(`react.cache` 로 요청당 1회).
+  `taskIds` = 내 `task_participants` ∪ 내 프로젝트의 작업, `projectIds` = 내 `project_participants`
+- 적용: `getVisibleTasks` · `getTasksByIds` · `getOccurrenceStates` · `getOccurrenceOrders` ·
+  `getTaskCompletions`(session 인자 추가) · `getTaskDetail`(범위 밖 → `null`) ·
+  `getProjectTasks`(비참여 → `[]`)
+- `src/lib/projects.ts` — `getVisibleProjects` 필터, `getProjectDetail` 범위 밖 → `null`
+- 호출부 2곳 시그니처 갱신: `src/lib/admin-tasks.ts`, `src/app/mobile/tasks/page.tsx`
+
+모바일과 콘솔이 같은 함수를 쓰므로 두 화면이 함께 닫혔다. **RLS 정책은 바꾸지 않았다** —
+관리자 예외는 조직 간 운영용으로 유지하고 앱 경계에서 이중 방어한다.
+
+적용 전 실측(Supabase): 작성자 참여자 행이 없는 작업 0건 / 소유자 참여자 행이 없는 프로젝트 0건 —
+본인 작업이 본인에게서 사라질 위험 없음. `npm run lint` / `npm run build` 통과.
+
+문서: `docs/product/18-todo-task-workflow.md`, `docs/product/28-admin-todoist-console.md`,
+`docs/engineering/09-todo-task-technical-design.md`, `docs/engineering/05-rls-permissions.md`,
+`docs/planning/01-decision-log.md`

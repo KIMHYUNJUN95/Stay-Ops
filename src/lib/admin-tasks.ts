@@ -40,8 +40,8 @@ export type AdminTasksData = {
  * 완료 집계는 콘솔의 완료·기록 탭과 모바일의 완료·기록/업무일지가 **같은 숫자를 보여야** 하므로
  * 특히 갈라지면 안 된다. 그래서 위임만 하고 콘솔이 쓰는 모양으로 좁힌다(2026-07-31).
  */
-async function getCompletionRecords(): Promise<CompletionRecord[]> {
-  const rows = await getTaskCompletions();
+async function getCompletionRecords(session: AppSession): Promise<CompletionRecord[]> {
+  const rows = await getTaskCompletions(session);
   return rows.map((r) => ({ taskId: r.taskId, day: r.day, byUserId: r.byUserId }));
 }
 
@@ -71,7 +71,7 @@ export async function getAdminTasksData(session: AppSession): Promise<AdminTasks
       getVisibleTasks(session),
       getVisibleProjects(session),
       getShareableUsers(session),
-      getCompletionRecords(),
+      getCompletionRecords(session),
       // 모바일 완료·기록과 **같은 함수**를 쓴다 — 두 화면이 같은 줄을 보여야 한다.
       getFieldActivities({
         organizationId: session.organization.id,

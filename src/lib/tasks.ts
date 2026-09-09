@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { tokyoDateOf, tokyoToday, ymdShift } from "@/lib/tokyo-date";
 import {
   getCanonicalPropertyName,
@@ -592,6 +594,60 @@ async function hydrate(rows: TaskRow[]): Promise<TaskRecord[]> {
   });
 }
 
+// ── 개인 투두 가시 범위 ───────────────────────────────────────────────────────
+
+/** 뷰어가 볼 수 있는 작업 id / 프로젝트 id 집합. */
+export type TaskScope = { taskIds: Set<string>; projectIds: Set<string> };
+
+/**
+ * **투두는 개인 공간이다(2026-09-09 확정).**
+ *
+ * 남의 작업이 내 화면에 들어오는 경로는 셋뿐이다 — 공유받은 작업, 받은 지시, 내가 속한 프로젝트의
+ * 작업. 셋 다 결국 «참여자 행이 있는가»로 판정된다(`task_participants` / `project_participants`).
+ *
+ * 원래 이 판정은 **RLS 에만** 맡겨져 있었다. 그런데 `tasks` 의 select 정책은
+ * `is_platform_admin()` 이면 참여자 조건을 통째로 건너뛴다(`202609030002_task_rls_org_scope.sql`).
+ * 그래서 플랫폼 관리자 계정 하나가 조직 전원의 개인 투두를 자기 「오늘」 목록에서 보고 있었다 —
+ * 남이 만든 작업이라 행 앞에 「작성자 →」 접두사까지 붙은 채로.
+ *
+ * 정책의 관리자 예외는 **그대로 둔다**(조직 간 운영·복구용). 대신 투두 화면이 쓰는 읽기 경로를
+ * 여기서 다시 좁힌다 — 조직 격리와 같은 원칙(서버에서 강제, UI 필터에 의존하지 않음)이다.
+ *
+ * `cache()` 로 요청당 1회만 계산한다. 한 페이지 로드가 목록/회차/완료로그를 병렬로 읽으므로
+ * 매번 다시 조회하면 같은 쿼리가 서너 번 나간다.
+ */
+const loadTaskScope = cache(
+  async (userId: string, organizationId: string): Promise<TaskScope> => {
+    const supabase = await getSupabaseServerClient();
+    const [partRes, projRes] = await Promise.all([
+      supabase.from("task_participants").select("task_id").eq("user_id", userId),
+      supabase.from("project_participants").select("project_id").eq("user_id", userId),
+    ]);
+    const taskIds = new Set<string>();
+    for (const r of (partRes.data ?? []) as Array<{ task_id: string }>) taskIds.add(r.task_id);
+    const projectIds = new Set<string>();
+    for (const r of (projRes.data ?? []) as Array<{ project_id: string }>) {
+      projectIds.add(r.project_id);
+    }
+    // 프로젝트 작업은 작업별 참여자 없이 프로젝트 소속만으로 보인다 — 그 id 들도 범위에 넣어야
+    // 회차/완료 로그 필터가 프로젝트 작업을 잘라내지 않는다.
+    if (projectIds.size > 0) {
+      const { data } = await supabase
+        .from("tasks")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .in("project_id", Array.from(projectIds));
+      for (const r of (data ?? []) as Array<{ id: string }>) taskIds.add(r.id);
+    }
+    return { taskIds, projectIds };
+  },
+);
+
+/** 세션 뷰어의 투두 가시 범위(요청당 메모이즈). */
+export function getTaskScope(session: AppSession): Promise<TaskScope> {
+  return loadTaskScope(session.user.id, session.organization.id);
+}
+
 /** All tasks visible to the current user (RLS-scoped to participant membership). */
 /**
  * 오래된 «끝난» 작업을 목록 로드에서 잘라내는 창(일). 완료 로그(`getTaskCompletions`, 120일)보다
@@ -615,6 +671,7 @@ const FINISHED_TASK_WINDOW_DAYS = 180;
  */
 export async function getVisibleTasks(session: AppSession): Promise<TaskRecord[]> {
   const supabase = await getSupabaseServerClient();
+  const scope = await getTaskScope(session);
   const since = new Date(
     `${ymdShift(tokyoToday(), -FINISHED_TASK_WINDOW_DAYS)}T00:00:00+09:00`,
   ).toISOString();
@@ -636,7 +693,8 @@ export async function getVisibleTasks(session: AppSession): Promise<TaskRecord[]
     if (isMissingTable(error.message ?? "")) return [];
     throw new Error(error.message);
   }
-  return hydrate((data ?? []) as TaskRow[]);
+  // 참여 범위로 다시 좁힌다 — RLS 의 플랫폼 관리자 예외가 남의 개인 투두를 통과시키기 때문이다.
+  return hydrate(((data ?? []) as TaskRow[]).filter((r) => scope.taskIds.has(r.id)));
 }
 
 /**
@@ -653,6 +711,7 @@ export async function getTasksByIds(session: AppSession, ids: string[]): Promise
   const unique = [...new Set(ids.map((v) => String(v ?? "").trim()).filter(Boolean))];
   if (unique.length === 0) return [];
   const supabase = await getSupabaseServerClient();
+  const scope = await getTaskScope(session);
   const { data, error } = await supabase
     .from("tasks")
     .select(TASK_SELECT)
@@ -665,7 +724,7 @@ export async function getTasksByIds(session: AppSession, ids: string[]): Promise
     if (error.code === "22P02") return [];
     throw new Error(error.message);
   }
-  return hydrate((data ?? []) as TaskRow[]);
+  return hydrate(((data ?? []) as TaskRow[]).filter((r) => scope.taskIds.has(r.id)));
 }
 
 /** One recurring occurrence's recorded state (completed/skipped/moved). See `task_occurrence_state`. */
@@ -686,6 +745,7 @@ export type OccurrenceStateRecord = {
  */
 export async function getOccurrenceStates(session: AppSession): Promise<OccurrenceStateRecord[]> {
   const supabase = await getSupabaseServerClient();
+  const scope = await getTaskScope(session);
   const since = ymdShift(tokyoToday(), -400);
   const { data, error } = await supabase
     .from("task_occurrence_state")
@@ -703,13 +763,15 @@ export async function getOccurrenceStates(session: AppSession): Promise<Occurren
     completed_by_user_id: string | null;
     moved_to_date: string | null;
   };
-  return ((data ?? []) as Row[]).map((r) => ({
-    taskId: r.task_id,
-    occurrenceDate: r.occurrence_date,
-    state: r.state as OccurrenceState,
-    completedByUserId: r.completed_by_user_id,
-    movedToDate: r.moved_to_date,
-  }));
+  return ((data ?? []) as Row[])
+    .filter((r) => scope.taskIds.has(r.task_id))
+    .map((r) => ({
+      taskId: r.task_id,
+      occurrenceDate: r.occurrence_date,
+      state: r.state as OccurrenceState,
+      completedByUserId: r.completed_by_user_id,
+      movedToDate: r.moved_to_date,
+    }));
 }
 
 /**
@@ -732,11 +794,13 @@ export type TaskCompletionRecord = {
  * 완료·기록 화면은 모바일·콘솔 모두 이 함수를 기준으로 그린다.
  *
  * (task, Tokyo 날짜)별 net = completed − reopened 라 같은 날의 실행 취소는 서로 상쇄된다.
- * `task_updates` 에는 organization_id 가 없고 RLS 가 참가자 범위를 강제하므로 org 필터는 두지 않는다.
+ * `task_updates` 에는 organization_id 가 없어 org 필터를 걸 자리가 없다 — 대신 `getTaskScope` 의
+ * 참여 범위로 좁힌다(RLS 의 플랫폼 관리자 예외가 남의 완료 이력까지 통과시키기 때문).
  * 최근 ~120일만 읽는다(그 이전 기록은 어느 화면도 렌더하지 않는다).
  */
-export async function getTaskCompletions(): Promise<TaskCompletionRecord[]> {
+export async function getTaskCompletions(session: AppSession): Promise<TaskCompletionRecord[]> {
   const supabase = await getSupabaseServerClient();
+  const scope = await getTaskScope(session);
   const sinceIso = new Date(`${ymdShift(tokyoToday(), -120)}T00:00:00+09:00`).toISOString();
   const { data, error } = await supabase
     .from("task_updates")
@@ -754,6 +818,7 @@ export async function getTaskCompletions(): Promise<TaskCompletionRecord[]> {
   // key = `${taskId}|${day}`
   const net = new Map<string, { net: number; by: string | null; at: string }>();
   for (const r of (data ?? []) as Row[]) {
+    if (!scope.taskIds.has(r.task_id)) continue;
     const day = tokyoDateOf(r.created_at);
     if (!day) continue;
     const key = `${r.task_id}|${day}`;
@@ -791,6 +856,7 @@ export type OccurrenceOrderRecord = {
  */
 export async function getOccurrenceOrders(session: AppSession): Promise<OccurrenceOrderRecord[]> {
   const supabase = await getSupabaseServerClient();
+  const scope = await getTaskScope(session);
   const since = ymdShift(tokyoToday(), -400);
   const { data, error } = await supabase
     .from("task_occurrence_order")
@@ -799,11 +865,13 @@ export async function getOccurrenceOrders(session: AppSession): Promise<Occurren
     .gte("occurrence_date", since);
   if (error) return [];
   type Row = { task_id: string; occurrence_date: string; sort_order: number };
-  return ((data ?? []) as Row[]).map((r) => ({
-    taskId: r.task_id,
-    occurrenceDate: r.occurrence_date,
-    sortOrder: r.sort_order,
-  }));
+  return ((data ?? []) as Row[])
+    .filter((r) => scope.taskIds.has(r.task_id))
+    .map((r) => ({
+      taskId: r.task_id,
+      occurrenceDate: r.occurrence_date,
+      sortOrder: r.sort_order,
+    }));
 }
 
 /** All tasks belonging to a project (RLS-scoped: viewer must be a project participant). */
@@ -812,6 +880,9 @@ export async function getProjectTasks(
   projectId: string,
 ): Promise<TaskRecord[]> {
   const supabase = await getSupabaseServerClient();
+  // 프로젝트 비참여자에게는 아무것도 주지 않는다(플랫폼 관리자 포함) — 투두는 개인 공간이다.
+  const scope = await getTaskScope(session);
+  if (!scope.projectIds.has(projectId)) return [];
   const { data, error } = await supabase
     .from("tasks")
     .select(TASK_SELECT)
@@ -832,6 +903,9 @@ export async function getTaskDetail(
   id: string,
 ): Promise<TaskDetail | null> {
   const supabase = await getSupabaseServerClient();
+  // 범위 밖 작업은 «없음»으로 답한다 — URL 로 남의 작업 id 를 찍어 넣어도 상세가 열리지 않는다.
+  const scope = await getTaskScope(session);
+  if (!scope.taskIds.has(id)) return null;
   const { data, error } = await supabase
     .from("tasks")
     .select(TASK_SELECT)

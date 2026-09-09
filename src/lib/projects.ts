@@ -1,6 +1,6 @@
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { getProjectTasks, type TaskRecord } from "@/lib/tasks";
+import { getProjectTasks, getTaskScope, type TaskRecord } from "@/lib/tasks";
 import type { Database } from "@/types/database";
 
 type ProjectRow = Database["public"]["Tables"]["projects"]["Row"];
@@ -89,9 +89,16 @@ function buildMembers(
     });
 }
 
-/** Projects the current user belongs to (RLS-scoped to project membership). */
+/**
+ * Projects the current user belongs to.
+ *
+ * 참여 판정은 `getTaskScope` 하나로 모은다 — RLS 의 `is_platform_admin()` 예외가 조직 전체
+ * 프로젝트를 통과시키므로, 투두와 같은 규칙으로 앱에서 다시 좁힌다(2026-09-09).
+ */
 export async function getVisibleProjects(session: AppSession): Promise<ProjectSummary[]> {
   const supabase = await getSupabaseServerClient();
+  const scope = await getTaskScope(session);
+  if (scope.projectIds.size === 0) return [];
   const { data, error } = await supabase
     .from("projects")
     .select("*")
@@ -102,7 +109,7 @@ export async function getVisibleProjects(session: AppSession): Promise<ProjectSu
     if (isMissingTable(error.message ?? "")) return [];
     throw new Error(error.message);
   }
-  const projects = (data ?? []) as ProjectRow[];
+  const projects = ((data ?? []) as ProjectRow[]).filter((p) => scope.projectIds.has(p.id));
   if (projects.length === 0) return [];
   const projectIds = projects.map((p) => p.id);
 
@@ -167,6 +174,9 @@ export async function getProjectDetail(
   projectId: string,
 ): Promise<ProjectDetailData | null> {
   const supabase = await getSupabaseServerClient();
+  // 비참여 프로젝트는 «없음» — id 를 알아도 열리지 않는다(getTaskDetail 과 같은 판단).
+  const scope = await getTaskScope(session);
+  if (!scope.projectIds.has(projectId)) return null;
   const { data, error } = await supabase
     .from("projects")
     .select("*")

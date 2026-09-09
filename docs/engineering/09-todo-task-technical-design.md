@@ -394,6 +394,43 @@ Not required as core first-slice search (still deferred):
 - priority search
 - tag search
 
+## 가시 범위 게이트 (as-built 2026-09-09)
+
+**투두 읽기 경로는 RLS 만 믿지 않는다.** `tasks` 의 select 정책
+(`202609030002_task_rls_org_scope.sql`)은 `is_platform_admin()` 이면 참여자 조건을 통째로
+건너뛴다. 그 예외는 조직 간 운영·복구용으로 필요하지만, 투두 화면에 그대로 노출되면 플랫폼
+관리자 계정이 조직 전원의 개인 투두를 자기 「오늘」 목록에서 보게 된다(2026-09-09 실제 발생).
+
+`src/lib/tasks.ts` 의 `getTaskScope(session)` 이 뷰어의 가시 범위를 계산한다.
+
+```ts
+type TaskScope = { taskIds: Set<string>; projectIds: Set<string> };
+```
+
+- `taskIds` = `task_participants` 의 내 행 ∪ 내가 속한 프로젝트에 달린 작업 id
+- `projectIds` = `project_participants` 의 내 행
+- `react.cache` 로 **요청당 1회**만 계산한다 — 한 페이지 로드가 목록/회차/완료 로그를 병렬로
+  읽으므로 매번 다시 조회하면 같은 쿼리가 서너 번 나간다.
+
+적용 지점(모바일·콘솔이 같은 함수를 공유하므로 두 화면이 함께 닫힌다):
+
+| 함수 | 게이트 |
+| --- | --- |
+| `getVisibleTasks` | 결과를 `scope.taskIds` 로 필터 |
+| `getTasksByIds` | 같음 |
+| `getOccurrenceStates` / `getOccurrenceOrders` | `task_id` 를 `scope.taskIds` 로 필터 |
+| `getTaskCompletions(session)` | `task_id` 를 `scope.taskIds` 로 필터 (인자 추가) |
+| `getTaskDetail` | 범위 밖이면 `null` (= 없음) |
+| `getProjectTasks` | 비참여 프로젝트면 `[]` |
+| `getVisibleProjects` / `getProjectDetail` (`src/lib/projects.ts`) | `scope.projectIds` 로 필터 / `null` |
+
+**전제.** 모든 생성 경로가 작성자 참여자 행을 함께 넣는다(모바일 4개 + 콘솔 1개 + 반복 회차
+인스턴스). 적용 전 실측: 작성자 참여자 행이 없는 작업 0건 / 소유자 참여자 행이 없는 프로젝트 0건.
+이 전제가 깨지면 **본인 작업이 본인에게 안 보이게** 되므로, 새 생성 경로를 추가할 때 참여자 행을
+빠뜨리지 않는다.
+
+**RLS 정책은 바꾸지 않았다.** 관리자 예외는 그대로 두고 앱 경계에서 이중으로 막는 방식이다.
+
 ## RLS Direction
 
 ### `tasks`
@@ -401,6 +438,7 @@ Not required as core first-slice search (still deferred):
 Read:
 
 - current user must be an active participant in `task_participants`
+- 앱 쪽에서 `getTaskScope` 로 한 번 더 좁힌다 — 위 "가시 범위 게이트" 참고
 
 Insert:
 

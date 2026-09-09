@@ -74,7 +74,7 @@ export default async function MobileTasksPage({ searchParams }: PageProps) {
     getMobileNavBadges(),
     getOccurrenceStates(session),
     getOccurrenceOrders(session),
-    getTaskCompletions(),
+    getTaskCompletions(session),
     getFieldActivities({
       organizationId: session.organization.id,
       userId: session.user.id,
