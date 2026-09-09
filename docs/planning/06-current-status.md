@@ -4408,3 +4408,21 @@ PC 회원가입 시 생년월일 휠이 마우스로 조작되지 않던 문제�
 문서: `docs/product/18-todo-task-workflow.md`, `docs/product/28-admin-todoist-console.md`,
 `docs/engineering/09-todo-task-technical-design.md`, `docs/engineering/05-rls-permissions.md`,
 `docs/planning/01-decision-log.md`
+
+## 2026-09-09 (4차) — 완료·기록에서 보낸 지시 제외
+
+지시 대상자의 완료가 지시자의 완료·기록에 찍히던 문제. `myOwn`(보낸 지시는 대상자의 일정)이
+오늘·내일·관리함·캘린더에는 적용돼 있었으나 완료·기록만 빠져 있었다.
+
+- `src/components/admin/tasks/admin-tasks-console.tsx` — `completedView` 에서
+  `sentInstr(task, meId) && r.byUserId !== meId` 인 행 제외
+- `src/components/tasks/tasks-workspace.tsx` — `completionRows` 에 같은 필터
+  (완료 탭 배지 카운트도 같은 배열을 쓰므로 함께 맞는다)
+
+공유(공동 작업)의 팀 완료 표시는 유지, 내가 직접 완료한 보낸 지시도 유지.
+2026-07-29 "완료·기록은 팀 완료 표시" 결정을 **지시에 한해** 부분 철회했다(문서에 병기).
+
+`npm run lint` / `npm run build` / `vitest` 239건 통과.
+
+문서: `docs/product/18-todo-task-workflow.md`, `docs/product/28-admin-todoist-console.md`(12.7 절
+정정 + 신설 절), `docs/planning/01-decision-log.md`

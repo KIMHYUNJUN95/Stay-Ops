@@ -2500,6 +2500,11 @@ export function AdminTasksConsole({
     for (const r of data.completions) {
       const task = tasks.find((t) => t.id === r.taskId);
       if (!task) continue;
+      // 내가 **보낸** 지시를 대상자가 완료한 것은 내 기록이 아니다(2026-09-09) — 나는 지시자이고
+      // 작업자는 그 사람이다. 진행 상황은 「지시 › 보낸 지시」에서 본다. 오늘/내일/관리함/캘린더가
+      // 이미 `myOwn` 으로 보낸 지시를 빼고 있었는데 완료·기록만 빠져 있었다.
+      // 내가 직접 완료한 경우는 남긴다 — 그건 내가 한 일이다.
+      if (sentInstr(task, meId) && r.byUserId !== meId) continue;
       if (!(matchQuery(task, deferredQuery, nameOf) && matchPrio(task, prioFilter))) continue;
       rows.push({ task, day: r.day, byUserId: r.byUserId });
     }

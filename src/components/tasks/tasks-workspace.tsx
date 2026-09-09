@@ -908,7 +908,13 @@ export function TasksWorkspace({
   for (const t of projectCompletedTasks) completedTaskById.set(t.id, t);
   const completionRows = completions
     .map((c) => ({ completion: c, task: completedTaskById.get(c.taskId) }))
-    .filter((r): r is { completion: TaskCompletionRecord; task: TaskRecord } => !!r.task);
+    .filter((r): r is { completion: TaskCompletionRecord; task: TaskRecord } => !!r.task)
+    // 내가 **보낸** 지시를 대상자가 완료한 것은 내 기록이 아니다(2026-09-09) — 나는 지시자이고
+    // 작업자는 그 사람이다. 진행 상황은 「지시 › 보낸 지시」에서 본다. 다른 목록은 이미 `myOwn` 으로
+    // 보낸 지시를 빼고 있었는데 완료·기록만 빠져 있었다. 내가 직접 완료한 건은 남긴다.
+    .filter(
+      (r) => !(sentInstr(r.task, currentUserId) && r.completion.byUserId !== currentUserId),
+    );
 
   // Per-tab counts (same base lists as each view).
   const tabCounts: Record<View, number> = {
