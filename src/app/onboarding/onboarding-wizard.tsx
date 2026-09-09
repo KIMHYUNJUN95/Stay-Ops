@@ -761,7 +761,7 @@ function DateCell({
 }) {
   return (
     <div className={grow ? "flex-[1.4]" : "flex-1"}>
-      <div className="mb-[6px] text-center text-[11px] font-extrabold uppercase tracking-[0.05em] text-[hsl(222_10%_62%)]">
+      <div className="mb-[6px] text-center text-[11px] font-extrabold uppercase tracking-[0.05em] t-eyebrow text-[hsl(222_10%_62%)]">
         {label}
       </div>
       <button
@@ -1132,6 +1132,7 @@ export function OnboardingWizard({
   if (step >= 9) {
     return (
       <main
+        lang={profile.locale}
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
@@ -1166,6 +1167,7 @@ export function OnboardingWizard({
       : success.bodyNoTeam;
     return (
       <main
+        lang={profile.locale}
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
@@ -1175,10 +1177,10 @@ export function OnboardingWizard({
             <span className="mb-5 flex size-[76px] items-center justify-center rounded-[24px] bg-[hsl(146_44%_92%)] text-[hsl(146_50%_32%)]">
               <CheckIcon />
             </span>
-            <p className="mb-[9px] text-[11px] font-extrabold uppercase tracking-[0.13em] text-muted-foreground">
+            <p className="mb-[9px] text-[11px] font-extrabold uppercase tracking-[0.13em] t-eyebrow text-muted-foreground">
               {success.eyebrow}
             </p>
-            <h1 className="whitespace-pre-line text-[23px] font-black leading-[1.2] tracking-[-0.03em]">
+            <h1 className="whitespace-pre-line text-[23px] font-black leading-[1.2] tracking-[-0.03em] t-display">
               {success.welcomePrefix}
               {name.trim()}
               {success.welcomeSuffix}
@@ -1210,6 +1212,7 @@ export function OnboardingWizard({
     const phoneDisplay = `${selectedCountry.dial} ${nationalDigits}`;
     return (
       <main
+        lang={profile.locale}
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
@@ -1219,7 +1222,7 @@ export function OnboardingWizard({
         ) : null}
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
           <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
-            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em]">
+            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em] t-display">
               {review.title}
             </h1>
             <p className="mt-[10px] text-[13.5px] font-semibold leading-[1.55] text-muted-foreground">
@@ -1327,6 +1330,7 @@ export function OnboardingWizard({
     const roleLabel = join.roleCategories[preview.roleCategory] ?? preview.roleCategory;
     return (
       <main
+        lang={profile.locale}
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
@@ -1336,10 +1340,10 @@ export function OnboardingWizard({
         ) : null}
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
           <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
-            <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
+            <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] t-eyebrow text-primary">
               {join.confirmEyebrow}
             </p>
-            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em]">
+            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em] t-display">
               {join.confirmTitle}
             </h1>
             <p className="mt-[10px] text-[13.5px] font-semibold leading-[1.55] text-muted-foreground">
@@ -1365,7 +1369,7 @@ export function OnboardingWizard({
                 </div>
               </div>
               <div className="bg-surface px-[18px] py-[15px]">
-                <div className="text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
+                <div className="text-[10.5px] font-extrabold uppercase tracking-[0.06em] t-eyebrow text-muted-foreground">
                   {join.roleLabel}
                 </div>
                 <div className="mt-2 text-[16px] font-extrabold tracking-[-0.01em]">
@@ -1397,6 +1401,7 @@ export function OnboardingWizard({
     const verifying = inviteStatus === "verifying";
     return (
       <main
+        lang={profile.locale}
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
@@ -1406,10 +1411,10 @@ export function OnboardingWizard({
         ) : null}
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
           <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
-            <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
+            <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] t-eyebrow text-primary">
               {join.inviteEyebrow}
             </p>
-            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em]">
+            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em] t-display">
               {join.inviteTitle}
             </h1>
             <p className="mt-[10px] text-[13.5px] font-semibold leading-[1.55] text-muted-foreground">
@@ -1508,6 +1513,7 @@ export function OnboardingWizard({
   if (step === 4) {
     return (
       <main
+        lang={profile.locale}
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
@@ -1517,10 +1523,10 @@ export function OnboardingWizard({
         ) : null}
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
           <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
-            <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
+            <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] t-eyebrow text-primary">
               {steps.basicsEyebrow}
             </p>
-            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em]">
+            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em] t-display">
               {steps.phoneTitle}
             </h1>
             <p className="mt-[10px] text-[13.5px] font-semibold leading-[1.55] text-muted-foreground">
@@ -1619,6 +1625,7 @@ export function OnboardingWizard({
   if (step === 2) {
     return (
       <main
+        lang={profile.locale}
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
@@ -1628,10 +1635,10 @@ export function OnboardingWizard({
         ) : null}
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
           <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
-            <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
+            <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] t-eyebrow text-primary">
               {steps.basicsEyebrow}
             </p>
-            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em]">
+            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em] t-display">
               {steps.dobTitle}
             </h1>
             <p className="mt-[10px] text-[13.5px] font-semibold leading-[1.55] text-muted-foreground">
@@ -1694,6 +1701,7 @@ export function OnboardingWizard({
   if (step === 3) {
     return (
       <main
+        lang={profile.locale}
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
@@ -1703,10 +1711,10 @@ export function OnboardingWizard({
         ) : null}
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
           <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
-            <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
+            <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] t-eyebrow text-primary">
               {steps.basicsEyebrow}
             </p>
-            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em]">
+            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em] t-display">
               {steps.genderTitle}
             </h1>
             <p className="mt-[10px] text-[13.5px] font-semibold leading-[1.55] text-muted-foreground">
@@ -1752,6 +1760,7 @@ export function OnboardingWizard({
     const isGood = name.trim().length > 0;
     return (
       <main
+        lang={profile.locale}
         className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
         style={{ background: IVORY_BG }}
       >
@@ -1761,10 +1770,10 @@ export function OnboardingWizard({
         ) : null}
         <section className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-[26px]">
           <div className="flex-1 overflow-y-auto pt-2 px-1 -mx-1">
-            <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] text-primary">
+            <p className="mb-[10px] mt-[14px] text-[12px] font-extrabold uppercase tracking-[0.04em] t-eyebrow text-primary">
               {steps.basicsEyebrow}
             </p>
-            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em]">
+            <h1 className="whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em] t-display">
               {steps.nameTitle}
             </h1>
             <p className="mt-[10px] text-[13.5px] font-semibold leading-[1.55] text-muted-foreground">
@@ -1818,6 +1827,7 @@ export function OnboardingWizard({
   // ── Step 0 · Intro ───────────────────────────────────────────────────────────
   return (
     <main
+      lang={profile.locale}
       className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] text-foreground"
       style={{ background: IVORY_BG }}
     >
@@ -1829,7 +1839,7 @@ export function OnboardingWizard({
           {/* Logo slot intentionally empty (a brand logo is added later). */}
           <div className="size-14" aria-hidden="true" />
 
-          <h1 className="mt-[6px] whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em]">
+          <h1 className="mt-[6px] whitespace-pre-line text-[25px] font-black leading-[1.18] tracking-[-0.03em] t-display">
             {intro.title}
           </h1>
           <p className="mt-[10px] text-[13.5px] font-semibold leading-[1.55] text-muted-foreground">

@@ -41,7 +41,10 @@ export function AuthFrame({
   ];
 
   return (
-    <div className="authx">
+    // 표시 언어를 여기서 명시한다. `<html lang>` 은 세션·쿠키 기준이라, 로그아웃 상태에서 `?lang=`
+    // 로만 언어를 바꾼 첫 방문에는 실제 화면 언어와 어긋난다. auth-console.css 의 CJK 자간 보정이
+    // `:lang()` 으로 걸리므로 이 값이 맞아야 한다(가장 가까운 lang 조상이 이긴다).
+    <div className="authx" lang={locale}>
       <div className="auth">
         <aside className="auth-brand">
           <div className="auth-brand__deco a" />

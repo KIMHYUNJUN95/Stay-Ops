@@ -34,7 +34,9 @@
   --violet-bg: hsl(265 44% 95%);
   --danger: hsl(4 62% 46%);
   --danger-bg: hsl(6 70% 95%);
-  --mono: "Geist Mono", ui-monospace, monospace;
+  /* 한글·가나 글리프가 없는 스택으로 끝나면 CJK 가 시스템 글꼴로 떨어진다.
+     예: 연차 이력의 `3일` 에서 숫자만 Geist Mono, `일` 은 굴림체(2026-09-09 제보). */
+  --mono: "Geist Mono", var(--font-noto-kr), var(--font-noto-jp), ui-monospace, monospace;
 
   color: var(--ink);
 }
@@ -1157,3 +1159,30 @@
 }
 .lv-sheet .dpick__mcell.sel { background: var(--att-primary); border-color: var(--att-primary); color: #fff; }
 .lv-sheet .dpick__mcell:disabled { color: var(--faint); cursor: default; opacity: 0.5; }
+
+/* ── CJK 자간 보정 (2026-09-09) ───────────────────────────────────────────────
+   한글·가나는 이미 정사각 자간으로 설계된 글자라, 라틴 기준 letter-spacing 을 그대로 씌우면
+   「운 영」처럼 흩어져 보인다. 그래서 CJK 에서는 자간만 0 으로 되돌린다.
+
+   `text-transform: uppercase` 는 일부러 건드리지 않는다 — 한글에는 아무 효과가 없고, 같은
+   규칙을 쓰는 라틴 전용 라벨의 대문자 표시를 잃지 않기 위해서다(회원가입 화면은 문구가 순수
+   한글이라 거기서만 uppercase 도 함께 끈다).
+
+   판정 기준은 `<html lang>` 이며 세션 → stayops_locale 쿠키 → Accept-Language 순으로 정해진다.
+   docs/design/00-design-direction.md → "Typography — CJK Rules" */
+:lang(ko) .lv .slabel,
+:lang(ja) .lv .slabel,
+:lang(ko) .lv .exwrap__ey,
+:lang(ja) .lv .exwrap__ey,
+:lang(ko) .lv-sheet .dpick__sumk,
+:lang(ja) .lv-sheet .dpick__sumk {
+  letter-spacing: 0;
+}
+
+/* CJK 자간 보정 (2차) — uppercase 없이 자간만 걸려 있던 라벨·표 머리글.
+   숫자 표시(`__v` `__amt` `score` 등)와 라틴 전용(초대코드 입력·워드마크·일본어 서식
+   `.jp__*`)은 제외했다 — 그쪽 자간은 의도된 것이다. */
+:lang(ko) .lv .pagehead__crumb,
+:lang(ja) .lv .pagehead__crumb {
+  letter-spacing: 0;
+}

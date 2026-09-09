@@ -4386,6 +4386,53 @@ PC 회원가입 시 생년월일 휠이 마우스로 조작되지 않던 문제�
 
 `npm run lint` / `npm run build` / `vitest`(226건) 통과. 실제 브라우저 조작 확인은 아직 안 했다.
 
+## 2026-09-09 — 회원가입·로그인 한글 타이포 보정
+
+「회원가입 글씨체가 어색하다」 제보 처리. 세 가지였다.
+
+- **폰트 토큰**: `--font-sans` / `--font-mono` 에 Noto Sans KR/JP 추가. `font-sans` 유틸을 쓴 6곳
+  (회원가입 초대코드 placeholder, 린넨 반품 단위 라벨 등)에서 한글이 시스템 글꼴로 떨어지던 문제
+- **CJK 자간**: `.t-eyebrow` / `.t-display` 공용 유틸 신설. 온보딩 위저드 제목 9곳·아이브로우 9곳,
+  로그인 화면 6개 셀렉터에 적용. `:lang(ko)`/`:lang(ja)` 에서만 걸리고 영어 화면은 그대로
+- **`<html lang>`**: 세션 → `stayops_locale` 쿠키 → Accept-Language → ko. 로그아웃 상태에서 항상
+  "ko" 로 선언되던 접근성 버그를 함께 해소. `?lang=` 구간은 `.authx` / 온보딩 `<main>` 의
+  자체 `lang` 이 덮는다
+
+수정: `src/app/globals.css`, `src/app/layout.tsx`, `src/app/onboarding/onboarding-wizard.tsx`,
+`src/app/auth/login/auth-frame.tsx`, `src/app/auth/login/auth-console.css`.
+문서: `docs/design/00-design-direction.md` → "Typography — CJK Rules".
+
+`npm run lint` / `npm run build` 통과. 서빙되는 CSS 에서 규칙 반영과 `<html lang>` /
+`.authx lang` 동작을 실측 확인했다(`?lang=ja` → `html lang="ko"` · `.authx lang="ja"`).
+
+**남은 것**: Noto Sans KR/JP 가 `preload: false` 라 캐시 없는 첫 방문에서 한글이 잠깐 시스템
+글꼴로 보인다. 전 라우트 선로딩과의 교환이라 별도 결정 대기.
+
+## 2026-09-09 (2차) — 한글 타이포 보정 앱 전체 확대
+
+「다른 폰트도 어색한 게 없냐」는 확인 요청으로 전수 조사. 회원가입 화면에서 고친 것과 같은 결함이
+앱 전반에 있었다.
+
+- **손으로 쓴 CSS 47개 규칙 / 13개 파일** — 어드민 사이드바(`운영`·`인력`·`정보`), 테이블 헤더,
+  근태 라벨, 제안·컴플레인·모바일 홈 등. 각 파일 끝에 `:lang()` 오버라이드 co-locate
+- **Tailwind 인라인 124곳** — `globals.css` 의 `.uppercase[class*="tracking-[0."]` 한 벌로 처리
+- **폰트 토큰** — `--mono` 6곳 통일(그중 5곳에 CJK 없었음), `--font` 정의를 공지 콘솔에서
+  `admin-console.css` `.adm` 으로 이동 + `.att` 에도 추가, `--hm-mono` / `--att-mono` 폴백 보강
+
+`text-transform` 은 앱 전체 규칙에서 건드리지 않았다 — 한글에 효과가 없고 라틴 라벨의 대문자만
+잃기 때문이다.
+
+수정 파일 14개(CSS 13 + globals). `npm run lint` / `npm run build` / `vitest` 239건 통과.
+**프로덕션 빌드 산출물에서 47개 규칙 + 브로드 규칙 반영을 직접 확인했다.**
+(dev 서버는 globals.css 청크가 stale 이라 재시작 필요 — 코드 문제 아님.)
+
+**2차 스윕**: 1차가 `uppercase` 가 붙은 규칙만 잡았기에, 자간만 걸린 규칙을 다시 훑어 21곳
+추가 보정(양수 12 · 음수 9). 숫자 표시·일본어 입사서식(`.jp__*`)·라틴 전용(초대코드·워드마크)과
++0.02em 이하 17곳은 **의도적으로 제외**했다 — 그쪽 자간은 맞게 쓰인 것이다.
+프로덕션 산출물에서 21곳 적용과 제외 6곳 미변경을 각각 확인했다.
+
+여전히 남은 것: Noto Sans KR/JP `preload: false` 로 인한 첫 진입 글꼴 전환.
+
 ## 2026-09-09 (3차) — 투두 가시 범위를 앱에서 강제
 
 콘솔 「오늘」에 다른 사용자의 개인 투두가 섞여 보이던 문제. 원인은 가시 범위 판정을 RLS 에만

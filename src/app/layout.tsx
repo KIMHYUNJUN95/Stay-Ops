@@ -6,10 +6,12 @@ import {
   Noto_Sans_KR,
   Noto_Serif,
 } from "next/font/google";
+import { cookies, headers } from "next/headers";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { KeyboardInsetSync } from "@/components/pwa/keyboard-inset-sync";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { SplashScreen } from "@/components/pwa/splash-screen";
+import { inferLocaleFromAcceptLanguage, isLocale } from "@/lib/i18n";
 import { getCurrentAppSession } from "@/lib/session";
 import "./globals.css";
 
@@ -92,16 +94,37 @@ export const viewport: Viewport = {
   ],
 };
 
+const LOCALE_COOKIE = "stayops_locale";
+
+/**
+ * `<html lang>` — 세션 → `stayops_locale` 쿠키 → Accept-Language → "ko".
+ *
+ * 예전에는 세션이 없으면 무조건 "ko" 였다. 로그인·회원가입은 로그아웃 상태에서 보는 화면이라,
+ * 일본어/영어로 보고 있어도 문서 언어는 한국어라고 선언돼 있었다 — 스크린리더가 영어 문장을
+ * 한국어 음성으로 읽고, `:lang()` 으로 거는 CJK 자간 보정도 엉뚱하게 걸린다.
+ *
+ * `?lang=` 쿼리는 레이아웃에서 읽을 수 없다(레이아웃에는 searchParams 가 없다). 그래서 로그인·
+ * 온보딩 화면은 자기 루트 엘리먼트에 lang 을 한 번 더 달아 그 구간을 메운다.
+ */
+async function resolveDocumentLocale(session: Awaited<ReturnType<typeof getCurrentAppSession>>) {
+  if (session?.user.preferredLanguage) return session.user.preferredLanguage;
+  const cookieLocale = (await cookies()).get(LOCALE_COOKIE)?.value ?? "";
+  if (isLocale(cookieLocale)) return cookieLocale;
+  const acceptLanguage = (await headers()).get("accept-language") ?? "";
+  return inferLocaleFromAcceptLanguage(acceptLanguage);
+}
+
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   const session = await getCurrentAppSession();
+  const documentLocale = await resolveDocumentLocale(session);
 
   return (
     <html
-      lang={session?.user.preferredLanguage ?? "ko"}
+      lang={documentLocale}
       className={`${geistSans.variable} ${geistMono.variable} ${notoSansKr.variable} ${notoSansJp.variable} ${notoSerif.variable} h-full antialiased`}
       suppressHydrationWarning
     >

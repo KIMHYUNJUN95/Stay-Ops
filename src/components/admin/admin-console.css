@@ -52,7 +52,10 @@
   --danger: hsl(4 62% 46%);
   --danger-bg: hsl(6 70% 95.5%);
   --serif: "Noto Serif", Georgia, serif;
-  --mono: "Geist Mono", ui-monospace, var(--font-noto-kr), var(--font-noto-jp), monospace;
+  /* `--font` 는 오랫동안 announcements-console.css 에서만 정의됐다. 그 값에는 Geist 도 Noto 도
+     없어서, 같은 단위 라벨이 공지 페이지에서만 시스템 글꼴로 보였다. 정의를 콘솔 기반으로 옮긴다. */
+  --font: "Geist", var(--font-noto-kr), var(--font-noto-jp), ui-sans-serif, system-ui, sans-serif;
+  --mono: "Geist Mono", var(--font-noto-kr), var(--font-noto-jp), ui-monospace, monospace;
   --r-card: 16px;
   --r-pill: 999px;
   --sh-card: 0 18px 44px -34px rgba(20, 32, 43, 0.5);
@@ -2422,3 +2425,46 @@
 .adm .rptile__s { font-size: 11.5px; font-weight: 700; color: var(--adm-muted); font-variant-numeric: tabular-nums; }
 .adm .rptile__go { font-size: 16px; color: var(--faint); flex: 0 0 auto; transition: transform 0.14s, color 0.14s; }
 .adm .rptile:hover .rptile__go { transform: translateX(2px); color: var(--adm-muted); }
+
+/* ── CJK 자간 보정 (2026-09-09) ───────────────────────────────────────────────
+   한글·가나는 이미 정사각 자간으로 설계된 글자라, 라틴 기준 letter-spacing 을 그대로 씌우면
+   「운 영」처럼 흩어져 보인다. 그래서 CJK 에서는 자간만 0 으로 되돌린다.
+
+   `text-transform: uppercase` 는 일부러 건드리지 않는다 — 한글에는 아무 효과가 없고, 같은
+   규칙을 쓰는 라틴 전용 라벨의 대문자 표시를 잃지 않기 위해서다(회원가입 화면은 문구가 순수
+   한글이라 거기서만 uppercase 도 함께 끈다).
+
+   판정 기준은 `<html lang>` 이며 세션 → stayops_locale 쿠키 → Accept-Language 순으로 정해진다.
+   docs/design/00-design-direction.md → "Typography — CJK Rules" */
+:lang(ko) .adm .side__role,
+:lang(ja) .adm .side__role,
+:lang(ko) .adm .navgrp__t,
+:lang(ja) .adm .navgrp__t,
+:lang(ko) .adm .tbl th,
+:lang(ja) .adm .tbl th,
+:lang(ko) .adm .secthead__t,
+:lang(ja) .adm .secthead__t,
+:lang(ko) .adm .panel__kicker,
+:lang(ja) .adm .panel__kicker,
+:lang(ko) .adm .pblock__t,
+:lang(ja) .adm .pblock__t {
+  letter-spacing: 0;
+}
+
+/* CJK 자간 보정 (2차) — uppercase 없이 자간만 걸려 있던 라벨·표 머리글.
+   숫자 표시(`__v` `__amt` `score` 등)와 라틴 전용(초대코드 입력·워드마크·일본어 서식
+   `.jp__*`)은 제외했다 — 그쪽 자간은 의도된 것이다. */
+:lang(ko) .adm .qtbl th,
+:lang(ja) .adm .qtbl th,
+:lang(ko) .adm .modal__kicker,
+:lang(ja) .adm .modal__kicker,
+:lang(ko) .adm .wfield__l,
+:lang(ja) .adm .wfield__l,
+:lang(ko) .adm .reason__q,
+:lang(ja) .adm .reason__q,
+:lang(ko) .adm .ttwd,
+:lang(ja) .adm .ttwd,
+:lang(ko) .adm .balrow__k,
+:lang(ja) .adm .balrow__k {
+  letter-spacing: 0;
+}

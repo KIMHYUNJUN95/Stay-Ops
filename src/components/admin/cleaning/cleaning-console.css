@@ -190,3 +190,18 @@
   margin-top: 1px;
   color: var(--adm-primary);
 }
+
+/* ── CJK 자간 보정 (2026-09-09) ───────────────────────────────────────────────
+   한글·가나는 이미 정사각 자간으로 설계된 글자라, 라틴 기준 letter-spacing 을 그대로 씌우면
+   「운 영」처럼 흩어져 보인다. 그래서 CJK 에서는 자간만 0 으로 되돌린다.
+
+   `text-transform: uppercase` 는 일부러 건드리지 않는다 — 한글에는 아무 효과가 없고, 같은
+   규칙을 쓰는 라틴 전용 라벨의 대문자 표시를 잃지 않기 위해서다(회원가입 화면은 문구가 순수
+   한글이라 거기서만 uppercase 도 함께 끈다).
+
+   판정 기준은 `<html lang>` 이며 세션 → stayops_locale 쿠키 → Accept-Language 순으로 정해진다.
+   docs/design/00-design-direction.md → "Typography — CJK Rules" */
+:lang(ko) .adm .timenode__lbl,
+:lang(ja) .adm .timenode__lbl {
+  letter-spacing: 0;
+}

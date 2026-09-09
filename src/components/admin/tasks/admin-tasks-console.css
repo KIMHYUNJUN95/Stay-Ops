@@ -1181,3 +1181,32 @@
 /* 참여자가 연 공유 피커에서 기존 참여자 행 — 부르기만 되고 빼기는 안 되므로 잠근 상태로 보인다. */
 .adm .urow:disabled { cursor: default; opacity: 0.55; }
 .adm .urow:disabled:hover { background: transparent; }
+
+/* ── CJK 자간 보정 (2026-09-09) ───────────────────────────────────────────────
+   한글·가나는 이미 정사각 자간으로 설계된 글자라, 라틴 기준 letter-spacing 을 그대로 씌우면
+   「운 영」처럼 흩어져 보인다. 그래서 CJK 에서는 자간만 0 으로 되돌린다.
+
+   `text-transform: uppercase` 는 일부러 건드리지 않는다 — 한글에는 아무 효과가 없고, 같은
+   규칙을 쓰는 라틴 전용 라벨의 대문자 표시를 잃지 않기 위해서다(회원가입 화면은 문구가 순수
+   한글이라 거기서만 uppercase 도 함께 끈다).
+
+   판정 기준은 `<html lang>` 이며 세션 → stayops_locale 쿠키 → Accept-Language 순으로 정해진다.
+   docs/design/00-design-direction.md → "Typography — CJK Rules" */
+:lang(ko) .adm .tsubnav__lbl,
+:lang(ja) .adm .tsubnav__lbl,
+:lang(ko) .adm .sech__t,
+:lang(ja) .adm .sech__t,
+:lang(ko) .adm .dp__crumb,
+:lang(ja) .adm .dp__crumb,
+:lang(ko) .adm .dsec__t,
+:lang(ja) .adm .dsec__t,
+:lang(ko) .adm .ctxrow__k,
+:lang(ja) .adm .ctxrow__k,
+:lang(ko) .adm .dur-lbl,
+:lang(ja) .adm .dur-lbl,
+:lang(ko) .adm .pjbanner__t,
+:lang(ja) .adm .pjbanner__t,
+:lang(ko) .adm .ctxp__seclabel,
+:lang(ja) .adm .ctxp__seclabel {
+  letter-spacing: 0;
+}

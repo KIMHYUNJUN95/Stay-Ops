@@ -32,7 +32,9 @@
   --danger: hsl(4 62% 46%);
   --danger-bg: hsl(6 70% 95.5%);
   --serif: "Noto Serif", Georgia, serif;
-  --mono: "Geist Mono", ui-monospace, monospace;
+  /* 한글·가나 글리프가 없는 스택으로 끝나면 CJK 가 시스템 글꼴로 떨어진다.
+     예: 연차 이력의 `3일` 에서 숫자만 Geist Mono, `일` 은 굴림체(2026-09-09 제보). */
+  --mono: "Geist Mono", var(--font-noto-kr), var(--font-noto-jp), ui-monospace, monospace;
   --sh-pop: 0 24px 60px -24px rgba(20, 32, 43, 0.45);
 
   color: var(--ink);
@@ -768,4 +770,30 @@
   .authx .auth-brand {
     display: none;
   }
+}
+
+/* ── CJK 자간 보정 ────────────────────────────────────────────────────────────
+   이 화면은 라틴 타이포 핸드오프("Stay Ari Admin Console")를 그대로 옮겨 왔다. 한글·가나는 이미
+   정사각 자간이라, 아이브로우의 +0.1~0.12em 은 「팀  참  여」처럼 흩어져 보이고 제목의 -0.03em 은
+   답답해 보인다. uppercase 도 한글에는 효과가 없으면서 섞인 라틴만 대문자로 만든다.
+   (2026-09-09 「회원가입 글씨체가 어색하다」 제보.)
+
+   `.authx` 루트가 표시 언어를 lang 으로 들고 있어 로그아웃 상태에서도 정확히 걸린다. */
+:lang(ko) .authx .auth-brand__role,
+:lang(ja) .authx .auth-brand__role,
+:lang(ko) .authx .auth-eyebrow,
+:lang(ja) .authx .auth-eyebrow,
+:lang(ko) .authx .scard__ey,
+:lang(ja) .authx .scard__ey {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+:lang(ko) .authx .auth-brand__head,
+:lang(ja) .authx .auth-brand__head,
+:lang(ko) .authx .auth-title,
+:lang(ja) .authx .auth-title,
+:lang(ko) .authx .scard__t,
+:lang(ja) .authx .scard__t {
+  letter-spacing: -0.005em;
 }

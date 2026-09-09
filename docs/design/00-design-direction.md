@@ -150,6 +150,95 @@ Important interpretation for StayOps:
 - Use solid or lightly translucent surfaces behind important text.
 - Avoid low contrast glass panels for critical data.
 
+### Typography — CJK Rules (2026-09-09)
+
+폰트 스택은 **Geist(라틴·숫자) → Noto Sans KR / JP(한글·가나)** 이고 `src/app/layout.tsx` 에서
+로드한다. 일본어 페이지는 KR/JP 순서를 뒤집어 한자가 JP 자형으로 나오게 한다
+(`:lang(ja) body`, `src/app/globals.css`).
+
+**1. `--font-sans` / `--font-mono` 토큰에도 CJK 를 넣는다.**
+Tailwind 의 `font-sans` / `font-mono` 유틸은 `body` 의 스택을 덮어쓴다. 토큰에 Noto 가 빠져 있으면
+그 유틸을 쓴 곳만 한글이 시스템 글꼴(윈도우 맑은 고딕)로 떨어져, **같은 화면 안에서 글씨체가 달라
+보인다.** 회원가입 초대코드 입력의 `placeholder:font-sans` 가 실제로 그랬다. 두 토큰은 항상
+`body` 스택과 같은 순서를 유지한다.
+
+**2. 한글·가나에는 letter-spacing 을 걸지 않는다.**
+한글과 가나는 이미 정사각 자간으로 설계됐다. 라틴 기준 자간을 그대로 씌우면 넓힌 쪽은
+「설 정  완 료」처럼 흩어지고 좁힌 쪽은 답답해진다. `text-transform: uppercase` 도 한글에는 효과가
+없으면서 같은 줄에 섞인 라틴만 대문자로 만들어 글자 높이를 어긋나게 한다.
+
+공용 유틸 두 개가 `globals.css` 에 있다. 라틴 기준 자간은 클래스에 그대로 두고, CJK 일 때만 덮는다.
+
+| 클래스 | 라틴 | ko / ja |
+| --- | --- | --- |
+| `.t-eyebrow` | 원래 값 (`uppercase` + `tracking-[0.04~0.13em]`) | `letter-spacing: 0` · `text-transform: none` |
+| `.t-display` | 원래 값 (`tracking-[-0.03em]`) | `letter-spacing: -0.005em` |
+
+Tailwind 유틸리티는 `@layer utilities` 안에 있고 이 규칙들은 레이어 밖이라 특이도와 무관하게
+이긴다. 로그인 화면은 `.authx` 스코프로 `auth-console.css` 끝에 같은 보정을 둔다.
+
+**3. `lang` 은 화면 언어와 반드시 일치해야 한다.**
+위 보정이 `:lang()` 으로 걸리기 때문이다. `<html lang>` 은 **세션 → `stayops_locale` 쿠키 →
+Accept-Language → `ko`** 로 정한다(`layout.tsx`). 다만 레이아웃은 `searchParams` 를 읽을 수 없어
+`?lang=` 로만 언어를 바꾼 로그아웃 첫 방문은 커버하지 못한다. 그래서 **로그인(`.authx`)과 온보딩
+위저드(`<main>`)는 자기 루트에 `lang` 을 한 번 더 단다** — `:lang()` 은 가장 가까운 `lang` 조상을
+따르므로 이 값이 이긴다.
+
+**4. 앱 전체 적용 (2026-09-09 2차).**
+회원가입·로그인만 고친 뒤 전수 조사를 돌렸더니 같은 결함이 앱 전반에 있었다. 세 갈래로 처리했다.
+
+| 갈래 | 범위 | 처리 |
+| --- | --- | --- |
+| 손으로 쓴 CSS | 13개 파일 · 47개 규칙 | 각 파일 끝에 `:lang(ko)/:lang(ja)` 오버라이드를 **함께 둔다**(선택자가 바뀔 때 같이 눈에 띄도록) |
+| Tailwind 인라인 | 124곳 | `globals.css` 의 속성 선택자 한 벌로 덮는다 |
+| 폰트 토큰 | `--mono` 6곳 · `--font` · `--hm-mono` · `--att-mono` | CJK 폴백 추가 |
+
+Tailwind 쪽은 클래스를 124번 다는 대신 **결함의 형태 자체**를 선택자로 쓴다.
+
+```css
+:lang(ko) .uppercase[class*="tracking-[0."] { letter-spacing: 0; }
+```
+
+`uppercase` 와 **양수** 자간을 함께 가진 요소만 걸린다(음수는 `tracking-[-0.` 이라 안 걸린다).
+담기는 문구를 전수 확인한 결과 전부 i18n 값이고 하드코딩된 라틴 라벨은 0건이었다.
+
+**`text-transform` 은 앱 전체 규칙에서는 건드리지 않는다.** 한글에는 어차피 효과가 없고,
+같은 규칙을 공유하는 라틴 전용 라벨의 대문자 표시를 잃지 않기 위해서다. 회원가입 화면만 예외로
+`uppercase` 도 함께 끄는데, 그 문구들이 순수 한글임을 확인했기 때문이다.
+
+**`--mono` 는 6곳에 따로 정의돼 있었고 그중 한 곳만 CJK 를 포함했다.** 숫자 전용이라 문제없어
+보이지만 실제로는 한글이 섞여 든다 — 연차 이력의 `3일` 은 숫자만 Geist Mono 이고 `일` 은
+시스템 고정폭이었다. 여섯 정의를 하나의 스택으로 통일했다.
+
+**`--font` 는 `announcements-console.css` 에서만 정의됐고 그 값에 Geist 도 Noto 도 없었다.**
+`var(--font)` 를 쓰는 파일은 6개인데 정의가 한 곳뿐이라, 같은 단위 라벨이 공지 페이지에서만
+시스템 글꼴로 보였다(다른 페이지에서는 변수가 없어 body 글꼴을 상속해 «우연히» 맞았다).
+정의를 `admin-console.css` 의 `.adm` 으로 옮기고 `.att` 에도 같은 값을 뒀다.
+
+**문제없음을 확인한 것**: `--serif`(`Noto Serif`)는 워드마크와 채용 KPI 숫자에만 쓰여 한글이
+지나가지 않는다.
+
+**5. 2차 스윕 — 자간만 걸린 규칙 (2026-09-09).**
+1차는 `uppercase` 가 붙은 규칙만 잡았다. `uppercase` 없이 자간만 걸린 규칙과 손으로 쓴 CSS 의
+강한 음수 자간을 다시 훑어 **21곳**을 더 보정했다(양수 12 · 음수 9).
+
+**의도적으로 제외한 것 — 자간이 맞게 쓰인 자리다.**
+
+| 제외 | 이유 |
+| --- | --- |
+| 숫자 표시 (`__v` `__amt` `score` `count b` `timer` `stat-v` `balcard__big` `tpick__display`) | 숫자는 좁은 자간이 오히려 정렬돼 보인다 |
+| 일본어 서식 `.jp__*` (입사 서류 A4) | 일본어 공식 서식은 字間을 의도적으로 벌린다 |
+| 초대코드 입력 · `.wordmark` | 라틴 전용 |
+| +0.01 ~ +0.02em (17곳) | 12px 기준 0.24px 이하 — 눈에 띄지 않아 손대지 않는다 |
+
+기준은 **한글이 실려 자간이 눈에 띄는가**이지 "자간이 걸려 있는가"가 아니다. 전자만 고친다.
+
+**6. 남겨 둔 것 — 첫 진입 폰트 전환.**
+`Noto Sans KR/JP` 는 `preload: false` 다(초기 로딩 경로에서 큰 CJK 폰트를 빼려는 의도). 그래서
+캐시가 없는 첫 방문에서는 한글이 잠깐 시스템 글꼴로 보이다 바뀐다. 회원가입은 대개 첫 화면이라 이
+전환이 가장 잘 보이는 자리지만, `preload: true` 로 바꾸면 **모든 라우트**가 CJK 폰트를 선로딩하게
+되므로 교환이 크다. 바꾸려면 별도 결정이 필요하다.
+
 ### Admin Dashboard Shared UI Contract
 
 The admin dashboard uses one operations-console design system. The current implementation baseline is

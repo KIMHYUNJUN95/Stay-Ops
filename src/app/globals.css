@@ -203,8 +203,14 @@ summary,
   --color-board-pin-bg: var(--board-pin-bg);
   --color-destructive: var(--destructive);
   --color-destructive-bg: var(--destructive-bg);
-  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  /* CJK 폰트를 반드시 함께 싣는다. 예전에는 Geist 뒤가 곧바로 ui-sans-serif 라,
+     `font-sans` / `font-mono` 유틸을 쓴 곳만 한글이 Noto Sans KR 이 아니라 시스템 글꼴(윈도우
+     맑은 고딕)로 떨어져 같은 화면 안에서 글씨체가 달라 보였다 — 회원가입 초대코드 입력의
+     `placeholder:font-sans` 가 그 예다(2026-09-09 제보). body 스택과 순서를 맞춘다. */
+  --font-sans: "Geist", "Geist Fallback", var(--font-noto-kr), var(--font-noto-jp),
+    ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", var(--font-noto-kr),
+    var(--font-noto-jp), ui-monospace, monospace;
 }
 
 body {
@@ -220,6 +226,55 @@ body {
 body:lang(ja) {
   font-family: var(--font-geist-sans), "Geist", var(--font-noto-jp),
     var(--font-noto-kr), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── CJK 자간 ─────────────────────────────────────────────────────────────────
+   한글과 가나는 이미 정사각 자간으로 설계된 글자다. 라틴 기준으로 잡은 letter-spacing 을 그대로
+   씌우면 넓힌 쪽은 「설 정  완 료」처럼 흩어져 보이고, 좁힌 쪽은 답답해진다. 회원가입·로그인
+   화면이 라틴 타이포 핸드오프를 그대로 옮겨 왔던 탓에 한국어에서 어색하게 읽혔다(2026-09-09 제보).
+
+   `text-transform: uppercase` 도 한글·가나에는 아무 효과가 없으면서 같은 줄에 섞인 라틴만 대문자로
+   바꿔 글자 높이를 어긋나게 만든다. 그래서 CJK 에서는 함께 끈다.
+
+   판정은 `:lang()` 이다. 다만 `<html lang>` 은 세션·쿠키 기준이라 `?lang=` 로만 언어를 바꾼 첫
+   방문에서는 한 박자 늦는다 — 로그인·온보딩은 자기 루트 엘리먼트에 `lang` 을 직접 달아 그 구간을
+   메운다(가장 가까운 `lang` 조상이 이긴다).
+
+   Tailwind 유틸리티(`tracking-*`)는 `@layer utilities` 안에 있고 이 규칙은 레이어 밖이라,
+   특이도와 무관하게 여기가 이긴다. */
+:lang(ko) .t-eyebrow,
+:lang(ja) .t-eyebrow {
+  letter-spacing: 0;
+  text-transform: none;
+}
+:lang(ko) .t-display,
+:lang(ja) .t-display {
+  /* 완전히 0 으로 두면 큰 제목이 헐거워 보인다. 눈에 걸리지 않을 만큼만 남긴다. */
+  letter-spacing: -0.005em;
+}
+
+/* Tailwind 로 직접 쓴 자리(124곳)까지 한 번에 덮는다.
+
+   `.t-eyebrow` 를 124곳에 손으로 다는 대신, **결함의 형태 자체**를 고른다 — `uppercase` 와
+   양수 자간(`tracking-[0.…]`)을 함께 가진 요소. 음수는 `tracking-[-0.` 이라 이 선택자에 걸리지
+   않는다. 담기는 문구를 전수 확인한 결과 전부 i18n 값이라(하드코딩된 라틴 라벨 0건) 한국어 UI
+   에서는 한글이 들어온다.
+
+   여기서도 `text-transform` 은 건드리지 않는다 — 위 CJK 자간 보정과 같은 이유다. */
+:lang(ko) .uppercase[class*="tracking-[0."],
+:lang(ja) .uppercase[class*="tracking-[0."] {
+  letter-spacing: 0;
+}
+
+/* 큰 제목의 강한 음수 자간(-0.03em 이상)도 한글에서는 답답해 보인다. -0.01/-0.02em 은
+   한글에서도 거의 티가 나지 않아 그대로 둔다. */
+:lang(ko) [class*="tracking-[-0.03"],
+:lang(ja) [class*="tracking-[-0.03"],
+:lang(ko) [class*="tracking-[-0.04"],
+:lang(ja) [class*="tracking-[-0.04"],
+:lang(ko) [class*="tracking-[-0.05"],
+:lang(ja) [class*="tracking-[-0.05"] {
+  letter-spacing: -0.005em;
 }
 
 /* ── Floating toast dock (mobile) ─────────────────────────────────────────────

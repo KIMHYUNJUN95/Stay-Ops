@@ -9,11 +9,12 @@
  * 이미지 뷰어. See docs/product/11-announcement-workflow.md → "Admin Dashboard Management Console".
  */
 
-/* Token shim — --violet / --font are not in admin-console.css. */
+/* Token shim — --violet 은 admin-console.css 에 없다.
+   (`--font` 는 2026-09-09 에 admin-console.css `.adm` 으로 옮겼다. 여기 있던 값에는
+   Geist 도 Noto 도 없어서 공지 페이지에서만 글꼴이 달라 보였다.) */
 .adm {
   --violet: #6b5aa8;
   --violet-bg: #efeaf9;
-  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 /* view bar: tabs + spacer + 권한 legend + 새 공지 */

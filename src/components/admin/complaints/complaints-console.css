@@ -817,3 +817,11 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/* CJK 자간 보정 (2차) — uppercase 없이 자간만 걸려 있던 라벨·표 머리글.
+   숫자 표시(`__v` `__amt` `score` 등)와 라틴 전용(초대코드 입력·워드마크·일본어 서식
+   `.jp__*`)은 제외했다 — 그쪽 자간은 의도된 것이다. */
+:lang(ko) .adm .cxtbl th.cxgrp,
+:lang(ja) .adm .cxtbl th.cxgrp {
+  letter-spacing: 0;
+}

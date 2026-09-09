@@ -19,7 +19,7 @@
   --hm-primary-soft: color-mix(in oklab, hsl(223 46% 32%) 8%, hsl(44 52% 98.5%));
   --hm-warn: hsl(35 80% 38%);
   --hm-warn-bg: hsl(38 82% 92%);
-  --hm-mono: "Geist Mono", ui-monospace, monospace;
+  --hm-mono: "Geist Mono", var(--font-noto-kr), var(--font-noto-jp), ui-monospace, monospace;
   color: var(--hm-ink);
 }
 .hm .ic {
@@ -734,4 +734,28 @@
   font-size: 12px;
   font-weight: 800;
   color: var(--hm-primary);
+}
+
+/* ── CJK 자간 보정 (2026-09-09) ───────────────────────────────────────────────
+   한글·가나는 이미 정사각 자간으로 설계된 글자라, 라틴 기준 letter-spacing 을 그대로 씌우면
+   「운 영」처럼 흩어져 보인다. 그래서 CJK 에서는 자간만 0 으로 되돌린다.
+
+   `text-transform: uppercase` 는 일부러 건드리지 않는다 — 한글에는 아무 효과가 없고, 같은
+   규칙을 쓰는 라틴 전용 라벨의 대문자 표시를 잃지 않기 위해서다(회원가입 화면은 문구가 순수
+   한글이라 거기서만 uppercase 도 함께 끈다).
+
+   판정 기준은 `<html lang>` 이며 세션 → stayops_locale 쿠키 → Accept-Language 순으로 정해진다.
+   docs/design/00-design-direction.md → "Typography — CJK Rules" */
+:lang(ko) .hm__cio-src,
+:lang(ja) .hm__cio-src,
+:lang(ko) .hm__task-rk,
+:lang(ja) .hm__task-rk {
+  letter-spacing: 0;
+}
+
+/* CJK 자간 보정 (2차) — 한글 제목의 강한 음수 자간(-0.03em 이하)을 완화한다.
+   같은 값이라도 숫자 표시에는 그대로 둔다. */
+:lang(ko) .hm__greet-n,
+:lang(ja) .hm__greet-n {
+  letter-spacing: -0.005em;
 }
