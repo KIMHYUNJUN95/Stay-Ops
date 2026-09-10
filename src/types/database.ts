@@ -2883,7 +2883,6 @@ export type Database = {
           id: string
           joined_at: string | null
           leave_approver_role: string | null
-          manage_users: boolean
           organization_id: string
           role: Database["public"]["Enums"]["organization_role"]
           status: Database["public"]["Enums"]["membership_status"]
@@ -2897,7 +2896,6 @@ export type Database = {
           id?: string
           joined_at?: string | null
           leave_approver_role?: string | null
-          manage_users?: boolean
           organization_id: string
           role: Database["public"]["Enums"]["organization_role"]
           status?: Database["public"]["Enums"]["membership_status"]
@@ -2911,7 +2909,6 @@ export type Database = {
           id?: string
           joined_at?: string | null
           leave_approver_role?: string | null
-          manage_users?: boolean
           organization_id?: string
           role?: Database["public"]["Enums"]["organization_role"]
           status?: Database["public"]["Enums"]["membership_status"]

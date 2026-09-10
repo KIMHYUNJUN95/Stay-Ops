@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { hasPermissionOverride } from "@/lib/permission-overrides-server";
 import { Ticket } from "lucide-react";
 import {
   activateInviteCode,
@@ -67,18 +68,22 @@ async function getManageableOrganizations(
     return (data ?? []) as OrganizationRow[];
   }
 
-  // Orgs where the actor may create invites = orgs holding delegated `manage_users` (developers are
-  // handled above and see all). Matches the action gate `actorCanManageUsersInOrg`, so the org picker,
-  // page access, and the server action all agree.
+  // 초대를 만들 수 있는 조직 = `user.manage` 를 위임받은 조직(개발자는 위에서 처리되어 전부 본다).
+  // 액션 게이트 `actorCanManageUsersInOrg` 와 같은 판정을 써야 조직 선택기·페이지 접근·서버 액션이
+  // 서로 어긋나지 않는다. 2026-09-10 에 위임 수단이 `manage_users` 불리언에서 권한 키로 바뀌었다.
   const { data: membershipData } = await service
     .from("memberships")
     .select("organization_id")
     .eq("user_id", userId)
-    .eq("status", "active")
-    .eq("manage_users", true);
+    .eq("status", "active");
 
   const memberships = (membershipData ?? []) as MembershipRow[];
-  const organizationIds = memberships.map((membership) => membership.organization_id);
+  const organizationIds: string[] = [];
+  for (const membership of memberships) {
+    if (await hasPermissionOverride(membership.organization_id, userId, "user.manage")) {
+      organizationIds.push(membership.organization_id);
+    }
+  }
 
   if (organizationIds.length === 0) {
     return [];

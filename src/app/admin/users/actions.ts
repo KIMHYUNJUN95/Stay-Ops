@@ -277,18 +277,46 @@ export async function revokePermissionOverrideAction(input: {
 }
 
 /**
- * Delegate/revoke `manage_users` (access to this screen). Developer-only — a delegate can USE the
- * screen but cannot re-delegate. See the 2026-07-13 decision log entry.
+ * 이 화면에 대한 접근을 개인에게 위임/회수한다. 개발자 전용 — 위임받은 사람은 화면을 쓸 수는
+ * 있어도 다시 위임하지는 못한다(2026-07-13 결정).
+ *
+ * **저장 위치가 바뀌었다(2026-09-10).** `memberships.manage_users` 불리언 → 권한 키 `user.manage`
+ * 개인 부여. 불리언은 누가 언제 왜 줬는지가 남지 않았다 — 권한 부여는 부여자·사유·회수를 함께
+ * 남기고, 사이드바·페이지 게이트가 같은 키를 본다.
  */
 export async function setMemberManageUsers(membershipId: string, grant: boolean): Promise<ActionResult> {
   const ctx = await resolveActor(membershipId);
   if ("error" in ctx) return { ok: false, error: ctx.error };
   if (!isDeveloper(ctx.actorRole)) return { ok: false, error: "forbidden" };
-  const { error } = await getSupabaseServiceClient()
-    .from("memberships")
-    .update({ manage_users: grant })
-    .eq("id", membershipId);
-  if (error) return { ok: false, error: "save_failed" };
+
+  if (grant) {
+    const result = await grantMemberOverride({
+      organizationId: ctx.membership.organization_id,
+      userId: ctx.membership.user_id,
+      permissionKey: "user.manage",
+      effect: "grant",
+      grantedByUserId: ctx.actorUserId,
+      // 이 경로는 사유 입력란이 없다(개발자 토글). 출처를 남겨 권한 카드에서 구분되게 한다.
+      reason: "user management delegation",
+      expiresAt: null,
+      targetRole: ctx.membership.role as Role,
+    });
+    // 이미 위임돼 있으면 성공으로 본다 — 토글이 「켜짐」을 표현하는 것이 목적이다.
+    if (!result.ok && result.error !== "already_assigned") {
+      return { ok: false, error: result.error };
+    }
+  } else {
+    const { error } = await getSupabaseServiceClient()
+      .from("membership_permission_overrides")
+      .update({ revoked_at: new Date().toISOString(), revoked_by_user_id: ctx.actorUserId })
+      .eq("organization_id", ctx.membership.organization_id)
+      .eq("user_id", ctx.membership.user_id)
+      .eq("permission_key", "user.manage")
+      .eq("effect", "grant")
+      .is("revoked_at", null);
+    if (error) return { ok: false, error: "save_failed" };
+  }
+
   revalidateMember(membershipId);
   return { ok: true };
 }
