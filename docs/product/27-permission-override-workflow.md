@@ -1,5 +1,20 @@
 # Permission Override / 사용자별 권한 예외 부여
 
+> **이 문서는 권한 아키텍처로 일반화된다 (2026-09-10 방향 확정, 구현 대기).**
+> 사용자 지시: 「모든 기능을 역할 기반으로도, 개개인 특정으로도 세분화할 수 있게 설계 자체를
+> 그렇게 해야 한다.」 아래에 적힌 것은 **개인 부여(grant)** 한 방향뿐이고, 앞으로는
+> **차단(deny)** 과 **역할 기본 부여**가 같은 모델 안에 들어온다.
+>
+> 바뀌는 것 둘:
+> - **「모든 부여에 기한 필수, 무기한 없음」**(아래 Goal 절)은 폐기가 아니라 **키별 정책**이 된다.
+>   기존 예외성 권한은 그대로 기한 필수이고, 상시 업무 지정(채용 담당자 등)만 무기한을 허용한다.
+> - `permission_key` 화이트리스트(`src/config/permission-overrides.ts`)는 권한 레지스트리
+>   (`src/config/capabilities.ts`)로 흡수된다.
+>
+> 표 `membership_permission_overrides` 는 유지하고 `effect`(grant/deny) 컬럼이 추가된다.
+> 2026-09-10 기준 **부여 이력 0행**이라 데이터 이전이 없다.
+> 설계: `docs/engineering/14-permission-architecture.md`.
+
 Status: **UI + grant/revoke/list backend + enforcement all implemented (2026-07-13, migration
 `202607130004_permission_override_enforcement.sql`).** All four whitelisted keys (RLS for
 `order_processor`/`maintenance_status_change`/`property_room_manage`, app-code gate for

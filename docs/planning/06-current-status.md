@@ -20,6 +20,34 @@ and the major mobile/admin operations modules are implemented and being hardened
   would otherwise read as current status. Encoding-damaged sections/files were intentionally not repaired
   in this pass.
 
+## 2026-09-10 — 권한 아키텍처 재구성 (설계 확정 대기)
+
+사용자 지시로 **권한 모델 자체를 다시 세운다.** 역할 기반과 개인 지정을 하나의 모델에 담고,
+차단(deny)까지 포함한다. 채용 기능 개발은 이 작업 동안 **보류**.
+
+- 설계 문서 신설: `docs/engineering/14-permission-architecture.md`
+- 결정 로그: 2026-09-10 (2)
+- 핵심: 권한의 단위를 역할 배열 → **권한 키(capability)**. 기능 코드는 역할을 모르고
+  `can(session, "job_application.read")` 만 묻는다.
+  판정식 `NOT denied AND (granted OR role ∈ cap.roles OR platform bypass)` — **차단이 최우선**.
+- 관리 위치: `/admin/users/[id]` 「권한 예외」 카드를 「권한」 카드로 확장(부여·차단·최종 유효 권한).
+- 드리프트 방지: 역할표는 `src/config/capabilities.ts` 한 곳, 마이그레이션이 `capability_roles` 를
+  거기서 채우고, 일치 테스트가 갈라짐을 잡는다. RLS 는 `has_capability(org, user, key)` 만 부른다.
+
+**지금 하는 이유(실측 2026-09-10):** `membership_permission_overrides` **0행**,
+`can_generate_report` **0명**, `attendance_payroll_admin` **0명** — 이전할 데이터가 없다.
+
+**현재 상태 실측.** 정책 145개 중 31개가 `has_org_role` 로 역할 배열을 직접 들고 있고, 개인 예외를
+반영하는 정책은 4개. 사이드바는 14개 메뉴를 **모두에게 무조건** 렌더한다
+(`NavigationItem.allowedRoles` 는 선언만 되고 배선되지 않은 죽은 필드) — `field_manager`·`staff`
+에게 「채용」 메뉴가 보이고 누르면 `/admin` 으로 튕긴다. 데이터 유출은 없다(서버 3중 게이트).
+
+**이행 단계.** 1) 설계 문서 ← **현재 여기** 2) 토대 3) 관리 UI 4) 사이드바 5) 기능 전환.
+2~4단계는 권한 무변경, 5단계만 실제 권한이 움직인다.
+
+**미결(설계 확정에 필요).** 채용 권한의 `roles` 값 · 현재 `office_admin` 1명 처리 ·
+읽기/쓰기 키 분리 여부. (14번 문서 §10)
+
 ## 2026-09-09 — 채용(Recruit) 모듈: 수신 · 콘솔 · 실시간 갱신
 
 외부 채용 사이트(haru-recruit / Firebase)의 지원서를 StayOps 로 받아 읽고 분류하는 흐름.

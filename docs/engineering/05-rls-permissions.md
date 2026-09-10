@@ -6,6 +6,15 @@ This document defines the initial Supabase Row Level Security direction for Stay
 
 RLS policies must protect organization data and enforce key permission rules.
 
+> **권한 모델 재구성 진행 중 (2026-09-10).** 「누가 이 기능을 쓸 수 있는가」의 정의를 역할 배열에서
+> **권한 키(capability)** 로 옮기는 설계가 확정 대기 중이다. 정책이 역할 배열을 직접 들지 않고
+> `has_capability(org, user, '<key>')` 를 부르는 형태가 된다. 이 문서의 역할 기반 서술은 전환이
+> 끝날 때까지 유효하며, 기능별로 하나씩 옮긴다.
+> 설계: `docs/engineering/14-permission-architecture.md`.
+>
+> 실측(2026-09-10): 정책 145개 중 31개가 `has_org_role` 로 역할 배열을 직접 들고 있고, 개인 예외를
+> 반영하는 정책은 4개다.
+
 ## Core Rules
 
 Implementation note:
