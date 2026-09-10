@@ -208,6 +208,17 @@
   cursor: pointer;
   flex: 0 0 auto;
 }
+/* 누를 수 있는 면적을 넓힌다 — 보이는 상자는 그대로 17px.
+   17px 는 접근성 권장(24px)에도 못 미치는데, 이 표는 **행 전체가 상세로 가는 버튼**이라 빗나가면
+   화면이 바뀐다. 「고르려다 이동」이 반복되면 선택 자체를 포기하게 된다.
+   여백은 셀(34px) 과 행 안쪽 여백(좌 18px · 상하 13px) 안에서만 늘려 지원자 이름을 침범하지
+   않는다. 결과 ≈ 47 × 41px. 벌크 바의 장식용 `span.rcsel` 에는 걸지 않는다. */
+.adm button.rcsel { position: relative; }
+.adm button.rcsel::before {
+  content: "";
+  position: absolute;
+  inset: -12px -14px -12px -16px;
+}
 .adm .rcsel.on { background: var(--adm-primary); border-color: var(--adm-primary); }
 .adm .rcsel svg { width: 11px; height: 11px; opacity: 0; }
 .adm .rcsel.on svg { opacity: 1; }
