@@ -86,13 +86,21 @@ export const CAPABILITIES = {
   },
 
   /**
-   * 채용 지원서 — **지정된 개인만**(2026-09-10 사용자 요구: 「사무직이든 현장직이든 지정된 소수」).
+   * 채용 지원서 — **대표·전무 + 지정된 개인**(2026-09-10 사용자 결정).
    *
-   * `roles` 의 최종 값은 전환 시점(5단계)에 확정한다 — 지금은 아무도 이 키를 쓰지 않으므로
-   * 실제 권한에 영향이 없다. 현재 채용 콘솔은 여전히 `canReadJobApplications(role)` 로 돈다.
+   * 요구는 「사무직이든 현장직이든 지정된 소수」였다. 그래서 직군으로는 아무도 받지 않고
+   * `office_admin` 자동 열람도 없앴다. 대표·전무만 남긴 이유는 **잠기지 않기 위해서**다 —
+   * 지정 목록이 비면 아무도 못 보게 되고, 담당자를 지정할 사람도 그 화면을 봐야 할 때가 있다.
+   *
+   * 읽기·심사·삭제를 나눈 이유(실무 기준):
+   * - 담당자에게는 **열람 + 심사**가 한 세트다. 훑고 분류하는 것이 이 콘솔이 하는 일 전부다.
+   * - **삭제는 기본으로 주지 않는다.** 하드 삭제이고 이력서 파일까지 지운다 — 되돌릴 수 없는
+   *   개인정보 파기다. 필요하면 개인 부여로 열 수 있게 두되, 담당자라고 자동으로 갖지는 않는다.
+   *
+   * 차단은 켜지 않는다. 역할로 받는 사람이 대표·전무뿐인데 그 둘은 차단 면역이라 뺄 대상이 없다.
    */
   "job_application.read": {
-    roles: [],
+    roles: ["owner", "senior_managing_director"],
     individualGrant: true,
     individualDeny: false,
     requiresExpiry: false,
@@ -100,7 +108,7 @@ export const CAPABILITIES = {
     systemOnly: false,
   },
   "job_application.triage": {
-    roles: [],
+    roles: ["owner", "senior_managing_director"],
     individualGrant: true,
     individualDeny: false,
     requiresExpiry: false,
@@ -108,7 +116,7 @@ export const CAPABILITIES = {
     systemOnly: false,
   },
   "job_application.delete": {
-    roles: [],
+    roles: ["owner", "senior_managing_director"],
     individualGrant: true,
     individualDeny: false,
     requiresExpiry: false,

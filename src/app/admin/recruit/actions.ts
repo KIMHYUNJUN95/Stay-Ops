@@ -13,7 +13,9 @@ import {
 import { bestEffortWrite, mustWrite } from "@/lib/db-write-guard";
 import { getDictionary } from "@/lib/i18n";
 import {
+  canDeleteJobApplications,
   canReadJobApplications,
+  canTriageJobApplications,
   JOB_APPLICATION_STATUSES,
   type JobApplicationStatus,
 } from "@/lib/recruit/applications";
@@ -39,9 +41,34 @@ function isStatus(value: string): value is JobApplicationStatus {
   return (JOB_APPLICATION_STATUSES as readonly string[]).includes(value);
 }
 
+/** 열람 권한. 목록·상세·내보내기가 쓴다. */
 async function requireRecruitSession() {
   const session = await requireAdminSession();
-  if (!canReadJobApplications(session.user.role)) return null;
+  if (!canReadJobApplications(session)) return null;
+  return session;
+}
+
+/**
+ * 심사(상태 변경·검토 메모) 권한.
+ *
+ * 열람과 나눠 둔 이유: 「보기만 되는 담당자」가 실무적으로 성립한다. 열람만 가진 사람이 상태를
+ * 바꾸면 다른 사람의 분류 작업을 덮어쓴다.
+ */
+async function requireTriageSession() {
+  const session = await requireAdminSession();
+  if (!canTriageJobApplications(session)) return null;
+  return session;
+}
+
+/**
+ * 삭제 권한.
+ *
+ * 하드 삭제이고 이력서 파일까지 지운다 — 되돌릴 수 없는 개인정보 파기라 담당자라고 자동으로
+ * 갖지 않는다(기본은 대표·전무, 필요하면 개인 부여).
+ */
+async function requireDeleteSession() {
+  const session = await requireAdminSession();
+  if (!canDeleteJobApplications(session)) return null;
   return session;
 }
 
@@ -55,7 +82,7 @@ export async function setApplicationStatus(
   ids: string[],
   status: string,
 ): Promise<RecruitActionResult> {
-  const session = await requireRecruitSession();
+  const session = await requireTriageSession();
   if (!session) return { ok: false, error: "forbidden" };
   if (!isStatus(status)) return { ok: false, error: "invalid" };
 
@@ -83,7 +110,7 @@ export async function setApplicationStatus(
 
 /** 검토 메모. 면접 단계에서 「왜 멈췄는지」를 남기는 자리다 — 재지원 이력에 그대로 보인다. */
 export async function saveApplicationNote(id: string, note: string): Promise<RecruitActionResult> {
-  const session = await requireRecruitSession();
+  const session = await requireTriageSession();
   if (!session) return { ok: false, error: "forbidden" };
   const target = id.trim();
   if (!target) return { ok: false, error: "invalid" };
@@ -113,7 +140,7 @@ export async function saveApplicationNote(id: string, note: string): Promise<Rec
  * 반대 순서에서 파일 삭제만 실패하면 아무도 접근할 수 없는 파일이 스토리지에 남을 뿐이다.
  */
 export async function deleteApplication(id: string): Promise<RecruitActionResult> {
-  const session = await requireRecruitSession();
+  const session = await requireDeleteSession();
   if (!session) return { ok: false, error: "forbidden" };
   const target = id.trim();
   if (!target) return { ok: false, error: "invalid" };

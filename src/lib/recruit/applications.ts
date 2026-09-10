@@ -27,14 +27,32 @@ export {
   type JobApplicationStatus,
 } from "@/lib/recruit/status";
 
-/** 지원서는 민감 개인정보다 — 어드민 웹에 들어올 수 있는 전 역할에 열지 않는다. */
-export function canReadJobApplications(role: AppSession["user"]["role"]): boolean {
-  return (
-    role === "owner" ||
-    role === "senior_managing_director" ||
-    role === "office_admin" ||
-    role === "developer_super_admin"
-  );
+/**
+ * 지원서는 민감 개인정보다 — 어드민 웹에 들어올 수 있는 전 역할에 열지 않는다.
+ *
+ * **역할이 아니라 권한 키로 판정한다**(2026-09-10). 요구가 「사무직이든 현장직이든 지정된 소수」라
+ * 직군으로는 표현할 수 없었다. 누가 이 권한을 갖는지는 `src/config/capabilities.ts` 한 곳에만
+ * 있고, 부여·회수는 `/admin/users/[id]` 권한 카드에서 한다.
+ *
+ * 유효 권한은 서버가 세션을 만들 때 계산해 실어 둔다(`AppSession.capabilities`).
+ */
+export function canReadJobApplications(session: AppSession): boolean {
+  return session.capabilities.includes("job_application.read");
+}
+
+/** 심사 상태 변경 · 검토 메모. 열람과 나눈다 — 「보기만 되는 담당자」가 성립한다. */
+export function canTriageJobApplications(session: AppSession): boolean {
+  return session.capabilities.includes("job_application.triage");
+}
+
+/**
+ * 지원서 삭제.
+ *
+ * **담당자라고 자동으로 갖지 않는다.** 하드 삭제이고 이력서 파일까지 지운다 — 되돌릴 수 없는
+ * 개인정보 파기다. 필요하면 개인 부여로 연다.
+ */
+export function canDeleteJobApplications(session: AppSession): boolean {
+  return session.capabilities.includes("job_application.delete");
 }
 
 export type ApplicationListRow = {
@@ -204,7 +222,7 @@ export async function listJobApplications(args: {
   session: AppSession;
   filter: ApplicationFilter;
 }): Promise<ApplicationListRow[]> {
-  if (!canReadJobApplications(args.session.user.role)) return [];
+  if (!canReadJobApplications(args.session)) return [];
   const organizationId = args.session.organization.id;
   const supabase = getSupabaseServiceClient();
 
@@ -250,7 +268,7 @@ export async function summarizeJobApplications(session: AppSession): Promise<App
     visaAttention: 0,
     byStatus: { pending: 0, screening: 0, interview: 0 },
   };
-  if (!canReadJobApplications(session.user.role)) return empty;
+  if (!canReadJobApplications(session)) return empty;
 
   const supabase = getSupabaseServiceClient();
   const { data, error } = await supabase
@@ -285,7 +303,7 @@ export async function listApplicationFacets(session: AppSession): Promise<{
   jobTitles: string[];
   employmentTypes: string[];
 }> {
-  if (!canReadJobApplications(session.user.role)) return { jobTitles: [], employmentTypes: [] };
+  if (!canReadJobApplications(session)) return { jobTitles: [], employmentTypes: [] };
   const supabase = getSupabaseServiceClient();
   const { data, error } = await supabase
     .from("job_applications")
@@ -309,7 +327,7 @@ export async function getJobApplication(args: {
   session: AppSession;
   id: string;
 }): Promise<ApplicationDetail | null> {
-  if (!canReadJobApplications(args.session.user.role)) return null;
+  if (!canReadJobApplications(args.session)) return null;
   const supabase = getSupabaseServiceClient();
   const { data, error } = await supabase
     .from("job_applications")
@@ -354,7 +372,7 @@ export async function listApplicationHistory(args: {
   id: string;
   phone: string | null;
 }): Promise<ApplicationHistoryRow[]> {
-  if (!args.phone || !canReadJobApplications(args.session.user.role)) return [];
+  if (!args.phone || !canReadJobApplications(args.session)) return [];
   const supabase = getSupabaseServiceClient();
   const { data, error } = await supabase
     .from("job_applications")

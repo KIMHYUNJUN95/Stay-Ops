@@ -214,8 +214,28 @@ URL 에서 되살린다(`fileNameFromStorageUrl`). 화면에 「resume」 대신
 
 ## 7. 권한
 
-열람은 **`owner` / `senior_managing_director`(전무) / `office_admin`** 만. 지원서는 민감 개인정보라
-어드민 웹에 들어올 수 있는 전 역할(`field_manager`·`staff` 포함)에게 열지 않는다.
+**2026-09-10 변경 — 역할이 아니라 개인 지정이다.**
+
+열람은 **대표(`owner`) · 전무 · 개발자**, 그리고 **개인 지정을 받은 사람**만. 사용자 요구가
+「사무직이든 현장직이든 지정된 소수 몇 명만」이라 직군으로는 표현할 수 없었다 — `office_admin`
+자동 열람은 없앴다.
+
+| 권한 키 | 역할 기본 | 뜻 |
+| --- | --- | --- |
+| `job_application.read` | 대표·전무 | 목록·상세 열람 |
+| `job_application.triage` | 대표·전무 | 심사 상태 변경 · 검토 메모 |
+| `job_application.delete` | 대표·전무 | 삭제 |
+
+- 그 외에는 **개인 부여로만** 열린다. `/admin/users/[사용자]` 「권한」 카드에서 넣고 뺀다.
+- **담당자에게는 열람 + 심사가 한 세트**다. 훑고 분류하는 것이 이 콘솔이 하는 일 전부다.
+- **삭제는 기본으로 주지 않는다.** 하드 삭제이고 이력서 파일까지 지운다 — 되돌릴 수 없는
+  개인정보 파기다. 필요하면 개인 부여로 연다.
+- 사이드바의 「채용」 메뉴도 같은 권한 키로 걸러진다 — 권한이 없으면 메뉴가 아예 보이지 않는다.
+
+RLS 정책도 역할 배열이 아니라 `has_capability(org, uid, 'job_application.read')` 를 부른다
+(`202609100002`). 권한 모델 전체는 `docs/engineering/14-permission-architecture.md`.
+
+이전 규칙(2026-09-09~09-10): `owner` / 전무 / `office_admin` 역할이면 자동 열람.
 
 쓰기는 service-role 전용이다. 수신 웹훅과 심사 서버 액션이 조직을 재확인한 뒤 쓴다
 (`external_reviews` 와 같은 방식). `authenticated` 에는 `select` 만 있다.

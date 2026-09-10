@@ -313,6 +313,8 @@ export const adminNavigation = [
   },
   {
     id: "recruit",
+    // 지원서는 민감 개인정보다 — 대표·전무 + 지정된 개인만 본다(2026-09-10 결정).
+    capability: "job_application.read",
     label: localizedNavigationLabels.admin.recruit,
     href: "/admin/recruit",
     icon: UserSearch,

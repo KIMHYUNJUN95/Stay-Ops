@@ -108,20 +108,33 @@ describe("판정식", () => {
   });
 
   it("역할이 비어 있는 키는 개인 지정으로만 열린다", () => {
+    // `user.manage` — 조직 역할로는 아무도 받지 않고(개발자만 통과), 개인 부여로만 열린다.
     for (const role of organizationRoles) {
       expect(
-        evaluateCapability({ capability: "job_application.read", role, granted: false, denied: false }),
+        evaluateCapability({ capability: "user.manage", role, granted: false, denied: false }),
         `${role}`,
       ).toBe(false);
     }
     expect(
       evaluateCapability({
-        capability: "job_application.read",
+        capability: "user.manage",
         role: "field_manager",
         granted: true,
         denied: false,
       }),
     ).toBe(true);
+  });
+
+  it("채용 열람은 대표·전무 + 지정된 개인만", () => {
+    const capability = "job_application.read" as const;
+    for (const role of ["owner", "senior_managing_director"] as const) {
+      expect(evaluateCapability({ capability, role, granted: false, denied: false }), role).toBe(true);
+    }
+    // 사무직 자동 열람은 없앴다 — 지정된 사람만 본다(2026-09-10 결정).
+    for (const role of ["office_admin", "cs_staff", "field_manager", "staff", "part_time_staff"] as const) {
+      expect(evaluateCapability({ capability, role, granted: false, denied: false }), role).toBe(false);
+      expect(evaluateCapability({ capability, role, granted: true, denied: false }), `${role} granted`).toBe(true);
+    }
   });
 
   it("개인 부여를 허용하지 않는 키는 부여 행이 있어도 열리지 않는다", () => {
@@ -147,6 +160,31 @@ describe("판정식", () => {
         denied: false,
       });
       expect(smd, `${capability}`).toBe(owner);
+    }
+  });
+  it("개발자는 모든 권한을 갖는다", () => {
+    // 사용자 결정(2026-09-10): 「개발자는 모든 권한이 당연히 전부 있어야 한다.」
+    // 새 권한 키를 추가하면서 platformBypass 를 빠뜨리면 여기서 걸린다.
+    for (const capability of CAPABILITY_KEYS) {
+      expect(
+        evaluateCapability({
+          capability,
+          role: "developer_super_admin",
+          granted: false,
+          denied: false,
+        }),
+        `${capability}`,
+      ).toBe(true);
+      // 차단으로도 개발자를 잠글 수 없다 — 마지막 복구 수단이다.
+      expect(
+        evaluateCapability({
+          capability,
+          role: "developer_super_admin",
+          granted: false,
+          denied: true,
+        }),
+        `${capability} (denied)`,
+      ).toBe(true);
     }
   });
 });

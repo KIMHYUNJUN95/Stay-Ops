@@ -54,7 +54,7 @@ export default async function AdminRecruitPage({
 }) {
   const session = await requireAdminPageSession({ nextPath: "/admin/recruit" });
   // 지원서는 민감 개인정보라 어드민 웹 접근 권한만으로는 부족하다. 역할이 아니면 대시보드로.
-  if (!canReadJobApplications(session.user.role)) redirect("/admin");
+  if (!canReadJobApplications(session)) redirect("/admin");
 
   const params = await searchParams;
   const dictionary = getDictionary(session.user.preferredLanguage);
