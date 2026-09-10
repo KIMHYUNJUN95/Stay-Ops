@@ -28,15 +28,26 @@ const geistMono = Geist_Mono({
 // CJK body fonts — match the design handoff's Korean/Japanese weight (incl. 900/black).
 // Geist has no CJK glyphs, so Hangul/Kana previously fell back to a system font with
 // no true black weight. preload:false keeps these large fonts off the critical path.
+//
+// **600 을 반드시 포함한다 (2026-09-10).** 실측하니 600(semibold)이 코드베이스에서 가장 많이 쓰는
+// 굵기인데(CSS 264곳 + `font-semibold` 412곳) 로드 목록에 없었다. 없는 굵기는 브라우저가 합성하거나
+// 700 으로 스냅해서, **한글만 유독 뭉개지거나 라틴보다 굵게** 보였다. 라틴은 Geist 가 그 굵기를
+// 갖고 있어 차이가 더 드러났다.
+//
+// 굵기를 늘리면 파일이 늘지만 preload:false 라 초기 경로에는 실리지 않는다. 반대로 없는 굵기는
+// 모든 화면에서 계속 잘못 그려진다 — 교환이 명확하다.
+//
+// 두 목록은 **같아야 한다.** 공용 상수로 묶고 싶지만 next/font 는 인자를 빌드 타임에 정적으로
+// 읽어서 변수·전개를 받지 않는다("Unexpected spread"). 그래서 값을 두 번 적는다.
 const notoSansKr = Noto_Sans_KR({
   variable: "--font-noto-kr",
-  weight: ["400", "500", "700", "800", "900"],
+  weight: ["400", "500", "600", "700", "800", "900"],
   preload: false,
 });
 
 const notoSansJp = Noto_Sans_JP({
   variable: "--font-noto-jp",
-  weight: ["400", "500", "700", "800", "900"],
+  weight: ["400", "500", "600", "700", "800", "900"],
   preload: false,
 });
 

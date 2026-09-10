@@ -625,62 +625,56 @@ export function UserDetailClient({
             세 가지를 함께 보여준다: 최종 유효 권한 · 역할로 받은 것 · 개인 지정.
             부여와 차단이 겹치면 사람은 결과를 암산하지 못한다 — 화면이 판정식을 대신 계산해야
             실수가 없다(docs/engineering/14-permission-architecture.md §7).
-            시각 품질은 전체 완료 후 조정한다.
           */}
-          <div className="permsec" style={{ marginTop: 16 }}>
+          <div className="permsec">
             <div className="permsec__t">{c.permEffectiveTitle}</div>
-            <div className="chint" style={{ marginBottom: 8 }}>{c.permEffectiveHint}</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <div className="permsec__hint">{c.permEffectiveHint}</div>
+            <div className="permsec__body">
               {effectiveCapabilities.length > 0 ? (
                 effectiveCapabilities.map((key) => (
-                  <span className="ui-badge ui-badge--blue" key={key}>
+                  <span className="capchip capchip--on" key={key}>
                     {capLabel(key)}
                   </span>
                 ))
               ) : (
-                <span className="chint">{c.permNone}</span>
+                <span className="permsec__none">{c.permNone}</span>
               )}
             </div>
           </div>
 
-          <div className="permsec" style={{ marginTop: 16 }}>
+          <div className="permsec">
             <div className="permsec__t">{c.permRoleTitle}</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+            <div className="permsec__body">
               {roleCapabilities.length > 0 ? (
                 roleCapabilities.map((key) => {
                   const cap = capById.get(key);
                   const denied = overrides.some((o) => o.key === key && o.effect === "deny");
                   return (
-                    <span
-                      className={`ui-badge ui-badge--${denied ? "muted" : "green"}`}
-                      key={key}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-                    >
+                    <span className={`capchip ${denied ? "capchip--off" : "capchip--role"}`} key={key}>
                       {capLabel(key)}
-                      {cap?.canDeny && !denied && !member.isSelf ? (
+                      {cap?.canDeny && !denied && !member.isSelf && canBeDeniedRole ? (
                         <button
                           type="button"
-                          className="revbtn"
+                          className="capchip__x"
                           onClick={() => doDeny(key)}
                           title={c.permDenyBtn}
+                          aria-label={`${capLabel(key)} — ${c.permDenyBtn}`}
                         >
-                          {c.permDenyBtn}
+                          ×
                         </button>
                       ) : null}
                     </span>
                   );
                 })
               ) : (
-                <span className="chint">{c.permNone}</span>
+                <span className="permsec__none">{c.permNone}</span>
               )}
             </div>
-            {!canBeDeniedRole ? (
-              <div className="chint" style={{ marginTop: 6 }}>{c.permDenyImmune}</div>
-            ) : null}
+            {!canBeDeniedRole ? <div className="permsec__note">{c.permDenyImmune}</div> : null}
           </div>
 
           {!member.isSelf && formOpen ? (
-            <div style={{ marginTop: 16 }}>
+            <div className="permsec">
               <div className="grant">
                 <div className="grant__t">{c.grantTitle}</div>
                 <div className="gfield">
@@ -769,14 +763,15 @@ export function UserDetailClient({
           ) : null}
 
           {overrides.length > 0 ? (
-            <div className="ovlist" style={{ marginTop: 16 }}>
-              <div className="permsec__t" style={{ marginBottom: 8 }}>{c.permIndividualTitle}</div>
+            <div className="permsec">
+              <div className="permsec__t">{c.permIndividualTitle}</div>
+              <div className="ovlist">
               {overrides.map((o) => {
                 const meta = c.keys[o.key];
                 return (
                   <div className="ov" key={o.id}>
                     <div className="ov__top">
-                      <span className={`ui-badge ui-badge--${o.effect === "deny" ? "red" : "green"}`}>
+                      <span className={`ov__eff ov__eff--${o.effect}`}>
                         {o.effect === "deny" ? c.permDenyBadge : c.permGrantBadge}
                       </span>
                       <span className="ov__key">{o.key}</span>
@@ -832,16 +827,19 @@ export function UserDetailClient({
                   </div>
                 );
               })}
+              </div>
             </div>
           ) : (
-            <div className="ovempty">
+            <div className="permsec">
+              <div className="ovempty">
               <span className="ovempty__ic">
                 <span className="ic">
                   <ShieldCheck />
                 </span>
               </span>
-              <div className="ovempty__t">{c.permEmptyTitle}</div>
-              <div className="ovempty__s">{c.permEmptyBody}</div>
+                <div className="ovempty__t">{c.permEmptyTitle}</div>
+                <div className="ovempty__s">{c.permEmptyBody}</div>
+              </div>
             </div>
           )}
         </section>

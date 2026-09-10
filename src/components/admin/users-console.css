@@ -246,6 +246,36 @@
 .adm .ovempty__t { font-size: 14px; font-weight: 700; color: var(--ui-fg); }
 .adm .ovempty__s { font-size: 13px; font-weight: 500; color: var(--ui-muted-fg); margin-top: 5px; max-width: 320px; line-height: 1.5; }
 
+/* ── 권한 카드 섹션 (2026-09-10) ─────────────────────────────────────────────
+   카드가 세 가지를 세로로 쌓는다: 최종 유효 권한 · 역할로 받은 권한 · 개인 지정.
+   구분선으로만 나눈다 — 카드 안에 카드를 또 그리면 이 콘솔의 다른 상세 패널과 밀도가 어긋난다.
+
+   타이포는 이 파일의 기존 단계를 그대로 쓴다: 섹션 라벨 12px/800(muted), 설명 11.5px/500,
+   본문 칩 12px/700. 새 크기를 만들지 않는다. */
+.adm .permsec { border-top: 1px solid var(--ui-border); padding-top: 14px; margin-top: 14px; }
+.adm .permsec--lead { border-top: none; padding-top: 0; }
+.adm .permsec__t { font-size: 12px; font-weight: 800; color: var(--ui-muted-fg); letter-spacing: 0.01em; }
+.adm .permsec__hint { font-size: 11.5px; font-weight: 500; color: color-mix(in srgb, var(--ui-muted-fg) 80%, transparent); line-height: 1.5; margin-top: 3px; }
+.adm .permsec__body { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 9px; }
+.adm .permsec__none { font-size: 12.5px; font-weight: 500; color: color-mix(in srgb, var(--ui-muted-fg) 80%, transparent); }
+.adm .permsec__note { font-size: 11.5px; font-weight: 500; color: color-mix(in srgb, var(--ui-muted-fg) 80%, transparent); margin-top: 7px; }
+
+/* 권한 칩 — 한 줄에 여러 개가 늘어서므로 배지보다 조금 크고 눌러도 되는 크기로 둔다. */
+.adm .capchip { display: inline-flex; align-items: center; gap: 6px; height: 27px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1; border: 1px solid var(--ui-border); background: var(--ui-surface); color: var(--ui-fg); white-space: nowrap; }
+/* 최종 유효 권한 — 카드에서 가장 먼저 읽혀야 하는 값이라 유일하게 채운 색을 쓴다. */
+.adm .capchip--on { border-color: color-mix(in srgb, var(--ui-primary) 26%, var(--ui-border)); background: color-mix(in srgb, var(--ui-primary) 10%, transparent); color: var(--ui-primary); }
+/* 역할로 받은 것 — 사실 진술이라 테두리만. */
+.adm .capchip--role { color: var(--ui-fg); }
+/* 차단된 것 — 지워진 상태로 읽히게 한다. */
+.adm .capchip--off { color: color-mix(in srgb, var(--ui-muted-fg) 85%, transparent); background: color-mix(in srgb, var(--ui-muted) 40%, transparent); text-decoration: line-through; text-decoration-thickness: 1px; }
+.adm .capchip__x { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; margin-right: -3px; border: none; border-radius: 999px; background: color-mix(in srgb, var(--ui-destructive) 12%, transparent); color: var(--ui-destructive); font-size: 11px; font-weight: 800; line-height: 1; cursor: pointer; }
+.adm .capchip__x:hover { background: color-mix(in srgb, var(--ui-destructive) 22%, transparent); }
+
+/* 개인 지정 행의 방향 배지 — 부여/차단을 색으로 먼저 구분한다. */
+.adm .ov__eff { flex: 0 0 auto; display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.02em; }
+.adm .ov__eff--grant { background: color-mix(in srgb, var(--ui-primary) 12%, transparent); color: var(--ui-primary); }
+.adm .ov__eff--deny { background: var(--ui-destructive-bg); color: var(--ui-destructive); }
+
 /* grant form (inline) */
 .adm .grant { border: 1px solid var(--ui-border); border-radius: 12px; background: color-mix(in srgb, var(--ui-muted) 32%, var(--ui-surface)); padding: 14px; margin-bottom: 14px; }
 .adm .grant__t { font-size: 13px; font-weight: 900; color: var(--ui-fg); margin-bottom: 12px; }
@@ -305,6 +335,10 @@
    숫자 표시(`__v` `__amt` `score` 등)와 라틴 전용(초대코드 입력·워드마크·일본어 서식
    `.jp__*`)은 제외했다 — 그쪽 자간은 의도된 것이다. */
 :lang(ko) .adm .urow__self,
-:lang(ja) .adm .urow__self {
+:lang(ja) .adm .urow__self,
+:lang(ko) .adm .permsec__t,
+:lang(ja) .adm .permsec__t,
+:lang(ko) .adm .ov__eff,
+:lang(ja) .adm .ov__eff {
   letter-spacing: 0;
 }
