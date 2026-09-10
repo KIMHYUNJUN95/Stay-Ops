@@ -39,6 +39,9 @@ and the major mobile/admin operations modules are implemented and being hardened
   RLS 를 통과해야 하므로 권한 없는 세션은 신호조차 못 받는다.
   (마이그레이션 `202609090004_enable_job_applications_realtime.sql`, 원격 적용 완료.)
 
+- **비용 최적화 (2026-09-10).** 조건 조회(`runQuery` + `createdAt > last_success_at`, 10분 겹침)로
+  바꿔 Firestore 읽기가 **하루 15,000건(무료 한도의 30%) → 약 300건(0.6%)** 으로 떨어졌다.
+  새 지원서가 없으면 0건을 읽는다. 하루 1회 전량 훑기는 `createdAt` 없는 구 문서용으로 유지.
 - **자동 연동 — 당겨오기(pull).** `POST /api/recruit/sync` + GitHub Actions
   (`.github/workflows/recruit-sync.yml`, 5분 주기 + 하루 1회 전량 훑기) + 콘솔을 여는 순간 1회.
   마이그레이션 `202609090005_recruit_sync_state.sql`(원격 적용 완료)이 60초 스로틀·마지막 결과를

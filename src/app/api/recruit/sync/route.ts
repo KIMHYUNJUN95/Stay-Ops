@@ -1,5 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { fetchFirestoreCollection, type FirestoreRecord } from "@/lib/recruit/firestore";
+import {
+  fetchFirestoreCollection,
+  fetchFirestoreCollectionSince,
+  type FirestoreRecord,
+} from "@/lib/recruit/firestore";
 import { ingestJobApplication } from "@/lib/recruit/ingest";
 import type { RecruitSource } from "@/lib/recruit/payload";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -23,8 +27,12 @@ import type { Json } from "@/types/database";
  * **Firestore 를 읽지 않고** 돌아간다.
  *
  * 모드:
- *   POST /api/recruit/sync           최신분만 (기본, 5분 주기 · 콘솔 열 때)
- *   POST /api/recruit/sync?mode=full 전량 훑기 (하루 1회) — 정렬 조회에서 빠지는 구 문서까지 줍는다
+ *   POST /api/recruit/sync           마지막 성공 이후에 생긴 것만 (기본, 5분 주기 · 콘솔 열 때)
+ *   POST /api/recruit/sync?mode=full 전량 훑기 (하루 1회) — 조건 조회에서 빠지는 구 문서까지 줍는다
+ *
+ * **평소에는 거의 아무것도 읽지 않는다.** 처음에는 5분마다 최신 50건을 통째로 다시 읽었는데,
+ * 지원이 하루 한두 건이라 그 중 99% 는 「이미 갖고 있는 걸 또 읽어 또 덮어쓰는」 일이었다
+ * (하루 14,400건 = Firestore 무료 읽기의 30%). 조건 조회로 바꿔 새 문서가 없으면 0건이 온다.
  *
  * 도메인 계약: docs/product/30-recruit-workflow.md
  */
@@ -32,7 +40,13 @@ import type { Json } from "@/types/database";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/** 최신분 조회에서 한 번에 볼 문서 수. 지원은 하루 한 자릿수라 넉넉하다. */
+/**
+ * 한 번에 가져올 문서 수 상한.
+ *
+ * 평소 경로는 조건 조회라 실제로는 0~1건이 온다. 이 값은 「기준 시각이 한참 뒤로 밀려 있을 때」
+ * (오래 멈춰 있었거나 첫 실행) 한 번에 다 삼키지 않기 위한 안전판이다. 넘치는 분량은 다음 실행이
+ * 이어받고, 하루 1회 전량 훑기가 최종 안전망이다.
+ */
 const RECENT_LIMIT = 50;
 
 /**
@@ -43,11 +57,23 @@ const RECENT_LIMIT = 50;
  */
 const THROTTLE_SECONDS = 60;
 
+/**
+ * 조건 조회의 기준 시각을 이만큼 앞으로 당긴다.
+ *
+ * 기준은 우리 서버의 마지막 성공 시각이고 `createdAt` 은 Firestore 서버가 찍는다 — 시계가 정확히
+ * 같지 않고, 동기화가 도는 중에 저장된 문서도 있다. 딱 잘라 보면 그런 문서를 영원히 놓친다.
+ * 겹침이 있으면 같은 문서를 한두 번 더 읽을 뿐이고(수신은 재전송에 안전하다), 지원이 하루 한두
+ * 건이라 그 비용은 사실상 0이다.
+ */
+const SINCE_OVERLAP_MINUTES = 10;
+
 type SyncSummary = {
   mode: "recent" | "full";
   created: number;
   updated: number;
   read: number;
+  /** 조건 조회의 기준 시각. 없으면 조건 없이 읽었다는 뜻이다(첫 실행 또는 전량 훑기). */
+  since?: string;
   failed: { source: string; docId: string; error: string }[];
 };
 
@@ -58,13 +84,13 @@ async function readState() {
   const supabase = getSupabaseServiceClient();
   const { data, error } = await supabase
     .from("recruit_sync_state")
-    .select("last_run_at")
+    .select("last_run_at, last_success_at")
     .eq("id", true)
     .maybeSingle();
   // 읽기 실패는 「스로틀 없음」으로 흘러가므로 조용하면 안 된다. 처음 배포에서 grant 누락으로
   // 이 자리가 계속 실패했고, 오류를 삼키고 있어 스로틀이 안 걸리는 것을 늦게 알아챘다.
   if (error) console.warn("[recruit/sync] state read failed:", error.message);
-  return data?.last_run_at ?? null;
+  return { lastRunAt: data?.last_run_at ?? null, lastSuccessAt: data?.last_success_at ?? null };
 }
 
 async function writeState(args: { ok: boolean; result: Json }) {
@@ -101,7 +127,7 @@ export async function POST(request: NextRequest) {
   const mode = request.nextUrl.searchParams.get("mode") === "full" ? "full" : "recent";
   const apiKey = process.env.RECRUIT_FIRESTORE_API_KEY?.trim() || null;
 
-  const lastRunAt = await readState();
+  const { lastRunAt, lastSuccessAt } = await readState();
   if (lastRunAt) {
     const elapsed = (Date.now() - new Date(lastRunAt).getTime()) / 1000;
     // 전량 훑기는 하루 1회라 창을 적용하지 않는다 — 최신분 호출에 밀려 영원히 건너뛰면 안 된다.
@@ -127,7 +153,23 @@ export async function POST(request: NextRequest) {
         // 구 컬렉션이 사라졌을 수 있다. 한쪽이 없다고 전체를 실패로 만들지 않는다.
         console.warn("[recruit/sync] legacy collection skipped:", error);
       }
+    } else if (lastSuccessAt) {
+      // 평소 경로. 마지막 성공 이후에 생긴 것만 읽으므로, 새 지원서가 없으면 0건이 온다.
+      const since = new Date(
+        new Date(lastSuccessAt).getTime() - SINCE_OVERLAP_MINUTES * 60_000,
+      ).toISOString();
+      const fresh = await fetchFirestoreCollectionSince({
+        collection: "applications",
+        since,
+        apiKey,
+        limit: RECENT_LIMIT,
+      });
+      summary.since = since;
+      summary.read += fresh.length;
+      await ingestAll(fresh, "applications", summary);
     } else {
+      // 성공 이력이 없다(첫 실행, 또는 상태 기록이 계속 실패 중). 기준 시각이 없으므로 최신
+      // N건을 통째로 본다 — 조건 없이 읽는 유일한 경우다.
       const recent = await fetchFirestoreCollection({
         collection: "applications",
         apiKey,

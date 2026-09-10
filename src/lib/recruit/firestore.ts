@@ -110,3 +110,68 @@ export async function fetchFirestoreCollection(args: {
 
   return out;
 }
+
+/**
+ * 어떤 시각 이후에 생긴 문서만 읽는다.
+ *
+ * **왜 필요한가.** 목록 조회는 조건을 걸 수 없어 매번 최신 N건을 통째로 다시 읽는다. 지원은
+ * 하루 한두 건인데 5분마다 50건을 읽으면 하루 14,400건 — Firestore 무료 읽기(5만/일)의 30% 를
+ * 「이미 갖고 있는 걸 또 읽는 데」 쓴다. 조건 조회는 새 문서가 없으면 **0건을 반환**한다
+ * (빈 결과도 최소 1건으로 과금되므로 하루 288건 남짓으로 떨어진다).
+ *
+ * **겹치는 구간을 둔다.** 기준 시각은 우리 서버의 마지막 성공 시각이고 `createdAt` 은 Firestore
+ * 서버가 찍는다 — 두 시계가 정확히 같지 않다. 동기화가 도는 **중에** 저장된 문서도 있다. 딱
+ * 잘라 그 시각 이후만 보면 그런 문서가 영원히 안 잡힌다. 겹침이 있으면 같은 문서를 한두 번 더
+ * 읽을 뿐이고(수신은 재전송에 안전하다), 놓치는 것보다 언제나 낫다.
+ *
+ * `createdAt` 이 없는 문서는 조건 조회에 **잡히지 않는다**(Firestore 규칙). 구 폼 문서가 그렇고,
+ * 하루 1회 전량 훑기가 그것을 줍는다.
+ */
+export async function fetchFirestoreCollectionSince(args: {
+  collection: string;
+  /** 이 시각(ISO)보다 뒤에 생긴 문서만. 겹침 여유는 호출부가 이미 빼서 넘긴다. */
+  since: string;
+  projectId?: string;
+  apiKey?: string | null;
+  limit?: number;
+}): Promise<FirestoreRecord[]> {
+  const projectId = args.projectId ?? resolveFirestoreProjectId();
+  const url = new URL(
+    `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
+  );
+  if (args.apiKey) url.searchParams.set("key", args.apiKey);
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: args.collection }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: "createdAt" },
+            op: "GREATER_THAN",
+            value: { timestampValue: args.since },
+          },
+        },
+        orderBy: [{ field: { fieldPath: "createdAt" }, direction: "ASCENDING" }],
+        limit: args.limit ?? 50,
+      },
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`firestore ${args.collection} query failed: ${response.status}`);
+  }
+
+  // 결과가 없으면 `[{ readTime }]` 하나가 온다 — `document` 가 없는 항목은 건너뛴다.
+  const body = (await response.json()) as { document?: FirestoreDoc }[];
+  const out: FirestoreRecord[] = [];
+  for (const entry of body) {
+    const doc = entry.document;
+    const docId = doc?.name?.split("/").pop();
+    if (!doc || !docId) continue;
+    out.push({ docId, document: decodeFields(doc.fields ?? {}) });
+  }
+  return out;
+}
