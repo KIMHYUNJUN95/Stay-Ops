@@ -63,6 +63,21 @@ describe("capability registry", () => {
     // 권한 관리 권한 자체가 그렇다 — 개인 지정으로 뺏고 줄 수 있으면 잠금 사고가 난다.
     expect(assignableCapabilities()).not.toContain("permission.manage");
   });
+
+  it("사용자 관리 위임은 개발자만 줄 수 있다", () => {
+    // 위임받은 사람이 다시 위임하면 권한이 무한히 번진다(2026-07-13 결정). 권한 카드가 이 규칙을
+    // 잃지 않도록 못박는다 — 예전에는 개발자 전용 드롭다운이 그 역할을 했다.
+    expect(CAPABILITIES["user.manage"].developerOnly).toBe(true);
+  });
+
+  it("개발자 전용 키는 개인 부여가 가능해야 의미가 있다", () => {
+    for (const capability of CAPABILITY_KEYS) {
+      const policy = CAPABILITIES[capability];
+      if (!policy.developerOnly) continue;
+      expect(policy.individualGrant || policy.individualDeny, `${capability}`).toBe(true);
+      expect(policy.systemOnly, `${capability}`).toBe(false);
+    }
+  });
 });
 
 describe("판정식", () => {

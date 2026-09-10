@@ -114,6 +114,7 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
       canGrant: capabilityPolicy(key).individualGrant,
       canDeny: capabilityPolicy(key).individualDeny,
       requiresExpiry: capabilityPolicy(key).requiresExpiry,
+      developerOnly: capabilityPolicy(key).developerOnly,
     }),
   );
 
@@ -133,8 +134,6 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
     payrollAdmin: membership.attendance_payroll_admin ?? false,
     leaveApprover: membership.leave_approver_role != null,
     isDeveloper: memberIsDeveloper,
-    // 위임 여부는 이제 권한 부여로 표현된다(레거시 `manage_users` 불리언은 더 이상 읽지 않는다).
-    manageUsers: effectiveCapabilities.includes("user.manage"),
     teamId: membership.team_id ?? null,
   };
 

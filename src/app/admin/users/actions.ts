@@ -11,7 +11,11 @@ import {
   revokeMemberOverride,
   type MemberOverride,
 } from "@/lib/permission-overrides-server";
-import type { CapabilityEffect } from "@/config/capabilities";
+import {
+  capabilityPolicy,
+  isCapability,
+  type CapabilityEffect,
+} from "@/config/capabilities";
 import { actorCanManageUsersInOrg, isDeveloper } from "@/lib/user-management-access";
 import type { Database } from "@/types/database";
 
@@ -241,6 +245,15 @@ export async function grantPermissionOverrideAction(input: {
     return { ok: false, error: "forbidden" };
   }
   if (ctx.membership.user_id === ctx.actorUserId) return { ok: false, error: "self_grant_blocked" };
+  // 개발자만 줄 수 있는 키가 있다 — 사용자 관리 위임이 그렇다. 위임받은 사람이 다시 위임하면
+  // 권한이 무한히 번진다(2026-07-13 결정). 화면도 그 키를 숨기지만, 막는 것은 여기다.
+  if (
+    isCapability(input.permissionKey) &&
+    capabilityPolicy(input.permissionKey).developerOnly &&
+    !isDeveloper(ctx.actorRole)
+  ) {
+    return { ok: false, error: "forbidden" };
+  }
   const result = await grantMemberOverride({
     organizationId: ctx.membership.organization_id,
     userId: ctx.membership.user_id,
@@ -266,6 +279,21 @@ export async function revokePermissionOverrideAction(input: {
   if (!(await canManagePermissions(ctx.actorUserId, ctx.actorRole, ctx.membership))) {
     return { ok: false, error: "forbidden" };
   }
+  // 줄 수 있는 사람만 뺄 수 있다. 부여만 개발자 전용으로 막고 회수를 열어 두면, 대표가 개발자의
+  // 위임을 되돌린 뒤 자기가 다시 줄 수는 없는 어긋난 상태가 된다.
+  {
+    const service = getSupabaseServiceClient();
+    const { data } = await service
+      .from("membership_permission_overrides")
+      .select("permission_key")
+      .eq("id", input.overrideId)
+      .eq("organization_id", ctx.membership.organization_id)
+      .maybeSingle();
+    const key = (data as { permission_key: string } | null)?.permission_key;
+    if (key && isCapability(key) && capabilityPolicy(key).developerOnly && !isDeveloper(ctx.actorRole)) {
+      return { ok: false, error: "forbidden" };
+    }
+  }
   const result = await revokeMemberOverride({
     overrideId: input.overrideId,
     organizationId: ctx.membership.organization_id,
@@ -273,51 +301,6 @@ export async function revokePermissionOverrideAction(input: {
   });
   if (!result.ok) return { ok: false, error: result.error };
   revalidateMember(input.membershipId);
-  return { ok: true };
-}
-
-/**
- * 이 화면에 대한 접근을 개인에게 위임/회수한다. 개발자 전용 — 위임받은 사람은 화면을 쓸 수는
- * 있어도 다시 위임하지는 못한다(2026-07-13 결정).
- *
- * **저장 위치가 바뀌었다(2026-09-10).** `memberships.manage_users` 불리언 → 권한 키 `user.manage`
- * 개인 부여. 불리언은 누가 언제 왜 줬는지가 남지 않았다 — 권한 부여는 부여자·사유·회수를 함께
- * 남기고, 사이드바·페이지 게이트가 같은 키를 본다.
- */
-export async function setMemberManageUsers(membershipId: string, grant: boolean): Promise<ActionResult> {
-  const ctx = await resolveActor(membershipId);
-  if ("error" in ctx) return { ok: false, error: ctx.error };
-  if (!isDeveloper(ctx.actorRole)) return { ok: false, error: "forbidden" };
-
-  if (grant) {
-    const result = await grantMemberOverride({
-      organizationId: ctx.membership.organization_id,
-      userId: ctx.membership.user_id,
-      permissionKey: "user.manage",
-      effect: "grant",
-      grantedByUserId: ctx.actorUserId,
-      // 이 경로는 사유 입력란이 없다(개발자 토글). 출처를 남겨 권한 카드에서 구분되게 한다.
-      reason: "user management delegation",
-      expiresAt: null,
-      targetRole: ctx.membership.role as Role,
-    });
-    // 이미 위임돼 있으면 성공으로 본다 — 토글이 「켜짐」을 표현하는 것이 목적이다.
-    if (!result.ok && result.error !== "already_assigned") {
-      return { ok: false, error: result.error };
-    }
-  } else {
-    const { error } = await getSupabaseServiceClient()
-      .from("membership_permission_overrides")
-      .update({ revoked_at: new Date().toISOString(), revoked_by_user_id: ctx.actorUserId })
-      .eq("organization_id", ctx.membership.organization_id)
-      .eq("user_id", ctx.membership.user_id)
-      .eq("permission_key", "user.manage")
-      .eq("effect", "grant")
-      .is("revoked_at", null);
-    if (error) return { ok: false, error: "save_failed" };
-  }
-
-  revalidateMember(membershipId);
   return { ok: true };
 }
 

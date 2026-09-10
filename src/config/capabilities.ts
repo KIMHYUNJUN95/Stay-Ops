@@ -61,6 +61,16 @@ export type CapabilityPolicy = {
    * 잠금 상태가 만들어진다.
    */
   systemOnly: boolean;
+  /**
+   * **개발자만 부여·회수할 수 있는 키.**
+   *
+   * 판정에는 영향이 없다(누가 가지는가가 아니라 **누가 줄 수 있는가**의 규칙이다). 그래서 SQL 로
+   * 내리지 않고 서버 액션과 관리 화면에서만 본다.
+   *
+   * 사용자 관리 위임이 그렇다: 위임받은 사람이 다시 위임하면 권한이 무한히 번진다
+   * (2026-07-13 결정 — 「위임자는 재위임하지 못한다」).
+   */
+  developerOnly: boolean;
 };
 
 /**
@@ -83,6 +93,7 @@ export const CAPABILITIES = {
     requiresExpiry: true,
     platformBypass: true,
     systemOnly: true,
+    developerOnly: false,
   },
 
   /**
@@ -106,6 +117,7 @@ export const CAPABILITIES = {
     requiresExpiry: false,
     platformBypass: true,
     systemOnly: false,
+    developerOnly: false,
   },
   "job_application.triage": {
     roles: ["owner", "senior_managing_director"],
@@ -114,6 +126,7 @@ export const CAPABILITIES = {
     requiresExpiry: false,
     platformBypass: true,
     systemOnly: false,
+    developerOnly: false,
   },
   "job_application.delete": {
     roles: ["owner", "senior_managing_director"],
@@ -122,6 +135,7 @@ export const CAPABILITIES = {
     requiresExpiry: false,
     platformBypass: true,
     systemOnly: false,
+    developerOnly: false,
   },
 
   /**
@@ -142,6 +156,8 @@ export const CAPABILITIES = {
     requiresExpiry: false,
     platformBypass: true,
     systemOnly: false,
+    // 위임받은 사람이 다시 위임하면 권한이 무한히 번진다(2026-07-13 결정).
+    developerOnly: true,
   },
 
   /**
@@ -163,6 +179,7 @@ export const CAPABILITIES = {
     requiresExpiry: true,
     platformBypass: true,
     systemOnly: false,
+    developerOnly: false,
   },
 
   /** `maintenance_reports` UPDATE 정책. */
@@ -180,6 +197,7 @@ export const CAPABILITIES = {
     requiresExpiry: true,
     platformBypass: true,
     systemOnly: false,
+    developerOnly: false,
   },
 
   /**
@@ -195,6 +213,7 @@ export const CAPABILITIES = {
     requiresExpiry: true,
     platformBypass: true,
     systemOnly: false,
+    developerOnly: false,
   },
 
   /**
@@ -216,6 +235,7 @@ export const CAPABILITIES = {
     requiresExpiry: true,
     platformBypass: true,
     systemOnly: false,
+    developerOnly: false,
   },
 } as const satisfies Record<string, CapabilityPolicy>;
 

@@ -26,7 +26,6 @@ import {
   grantPermissionOverrideAction,
   revokePermissionOverrideAction,
   setMemberLeaveApprover,
-  setMemberManageUsers,
   setMemberPayrollAdmin,
   setMemberReportAccess,
   setMemberRole,
@@ -50,7 +49,6 @@ export type UserDetailVM = {
   payrollAdmin: boolean;
   leaveApprover: boolean;
   isDeveloper: boolean;
-  manageUsers: boolean;
   teamId: string | null;
 };
 
@@ -74,6 +72,8 @@ export type AssignableCapability = {
   canGrant: boolean;
   canDeny: boolean;
   requiresExpiry: boolean;
+  /** 개발자만 줄 수 있는 키(사용자 관리 위임). 판정이 아니라 부여 자격의 규칙이다. */
+  developerOnly: boolean;
 };
 
 export function UserDetailClient({
@@ -128,7 +128,9 @@ export function UserDetailClient({
   // 부여 목록은 **레지스트리가 정한 것**만 낸다. 사전에 라벨이 남아 있어도 개인 부여가 불가능한
   // 키는 뜨면 안 된다(권한 관리 권한 자체 등).
   const keyOptions: AdmOption[] = assignableCapabilities
-    .filter((cap) => cap.canGrant)
+    // 개발자만 줄 수 있는 키(사용자 관리 위임)는 개발자에게만 보인다. 막는 것은 서버지만,
+    // 누를 수 없는 항목을 목록에 두지 않는다.
+    .filter((cap) => cap.canGrant && (!cap.developerOnly || isDeveloperViewer))
     .map((cap) => ({
       value: cap.key,
       key: cap.key,
@@ -157,7 +159,6 @@ export function UserDetailClient({
     payroll: member.payrollAdmin ? "grant" : "revoke",
     approver: member.leaveApprover ? "grant" : "revoke",
     developer: member.isDeveloper ? "grant" : "revoke",
-    manageUsers: member.manageUsers ? "grant" : "revoke",
     team: member.teamId ?? "",
   };
   const [committed, setCommitted] = useState(initial);
@@ -256,7 +257,7 @@ export function UserDetailClient({
           res = await assignDeveloper(mid, value === "grant");
           break;
         default:
-          res = await setMemberManageUsers(mid, value === "grant");
+          return;
       }
       if (res.ok) {
         setCommitted((prev) => ({ ...prev, [field]: value }));
@@ -502,26 +503,9 @@ export function UserDetailClient({
                 {c.savePermission}
               </button>
             </div>
-            <div className="roleform" style={{ alignItems: "stretch" }}>
-              <span style={{ flex: 1, display: "flex", alignItems: "center", gap: 10 }}>
-                <span className="umeta__role" style={{ fontWeight: 800, color: "var(--ui-fg)" }}>
-                  {c.manageUsersLabel}
-                </span>
-              </span>
-              <AdmDropdown
-                options={permOptions}
-                value={draft.manageUsers}
-                onChange={(value) => setDraft((prev) => ({ ...prev, manageUsers: value }))}
-                ariaLabel={c.manageUsersLabel}
-              />
-              <button
-                type="button"
-                className={`ui-btn ui-btn--primary fw-black h10${draft.manageUsers !== committed.manageUsers ? "" : " dim"}`}
-                onClick={() => commit("manageUsers", c.toastManageUsers)}
-              >
-                {c.savePermission}
-              </button>
-            </div>
+            {/* 사용자 관리 위임은 아래 「권한」 카드에서 다룬다 — 같은 데이터를 쓰는 컨트롤이
+                두 개면 나중에 한쪽만 고쳐져 갈라진다. 여기 남는 것은 조직 권한이 아니라 플랫폼
+                등급인 「개발자 지정」뿐이다. */}
             <p className="chint">{c.devMgmtHint}</p>
           </div>
         </section>
