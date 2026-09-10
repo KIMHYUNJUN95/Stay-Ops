@@ -71,6 +71,8 @@ export async function POST(request: NextRequest) {
 
     let collectionCreated = 0;
     let collectionUpdated = 0;
+    // 지워진 지원서는 되살리지 않는다 — 백필도 같은 규칙을 탄다.
+    let collectionSkipped = 0;
     for (const doc of docs) {
       const result = await ingestJobApplication({
         source: collection,
@@ -78,7 +80,8 @@ export async function POST(request: NextRequest) {
         document: doc.document,
       });
       if (result.ok) {
-        if (result.created) collectionCreated += 1;
+        if ("skipped" in result) collectionSkipped += 1;
+        else if (result.created) collectionCreated += 1;
         else collectionUpdated += 1;
       } else {
         failed.push({ source: collection, docId: doc.docId, error: result.error });
@@ -90,6 +93,7 @@ export async function POST(request: NextRequest) {
       read: docs.length,
       created: collectionCreated,
       updated: collectionUpdated,
+      skippedDeleted: collectionSkipped,
     };
   }
 

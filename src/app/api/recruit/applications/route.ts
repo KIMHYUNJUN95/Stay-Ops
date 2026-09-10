@@ -102,6 +102,8 @@ export async function POST(request: NextRequest) {
 
   let created = 0;
   let updated = 0;
+  // 지워진 지원서는 되살리지 않는다. 재전송이 와도 마찬가지다.
+  let skippedDeleted = 0;
   const failed: { docId: string; error: string }[] = [];
 
   for (const item of items) {
@@ -111,7 +113,8 @@ export async function POST(request: NextRequest) {
       document: item.document,
     });
     if (result.ok) {
-      if (result.created) created += 1;
+      if ("skipped" in result) skippedDeleted += 1;
+      else if (result.created) created += 1;
       else updated += 1;
     } else {
       failed.push({ docId: item.docId, error: result.error });
@@ -123,5 +126,8 @@ export async function POST(request: NextRequest) {
   if (failed.length > 0) {
     console.error("[recruit/webhook] some items failed:", failed);
   }
-  return NextResponse.json({ ok: failed.length === 0, created, updated, failed }, { status: 200 });
+  return NextResponse.json(
+    { ok: failed.length === 0, created, updated, skippedDeleted, failed },
+    { status: 200 },
+  );
 }

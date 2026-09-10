@@ -2418,6 +2418,38 @@ export type Database = {
           },
         ]
       }
+      job_application_deletions: {
+        Row: {
+          deleted_at: string
+          deleted_by_user_id: string | null
+          external_id: string
+          organization_id: string
+          source: string
+        }
+        Insert: {
+          deleted_at?: string
+          deleted_by_user_id?: string | null
+          external_id: string
+          organization_id: string
+          source: string
+        }
+        Update: {
+          deleted_at?: string
+          deleted_by_user_id?: string | null
+          external_id?: string
+          organization_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_application_deletions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       linen_items: {
         Row: {
           building_name: string | null

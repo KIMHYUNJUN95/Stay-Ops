@@ -148,12 +148,30 @@ export async function deleteApplication(id: string): Promise<RecruitActionResult
   const supabase = getSupabaseServiceClient();
   const { data: row, error: lookupError } = await supabase
     .from("job_applications")
-    .select("id, resume_path")
+    .select("id, resume_path, source, external_id")
     .eq("organization_id", session.organization.id)
     .eq("id", target)
     .maybeSingle();
   if (lookupError) return { ok: false, error: "failed" };
   if (!row) return { ok: false, error: "not_found" };
+
+  // **삭제 기록을 먼저 남긴다.**
+  //
+  // StayOps 는 Firestore 를 읽기만 하므로 원본 문서는 그대로 남는다. 기록이 없으면 하루 1회 도는
+  // 전량 훑기가 다시 읽어 넣고 이력서까지 다시 복사한다 — 지운 개인정보가 되돌아온다.
+  //
+  // 순서가 중요하다. 기록을 먼저 남기므로, 행 삭제가 실패해도 「지웠다고 했는데 되살아나는」 상태는
+  // 생기지 않는다. 반대 순서에서 기록만 실패하면 조용히 되살아난다.
+  const tombstoned = await mustWrite(
+    "job_application_deletions: insert",
+    supabase.from("job_application_deletions").upsert({
+      organization_id: session.organization.id,
+      source: row.source,
+      external_id: row.external_id,
+      deleted_by_user_id: session.user.id,
+    }),
+  );
+  if (!tombstoned) return { ok: false, error: "failed" };
 
   const deleted = await mustWrite(
     "job_applications: delete",

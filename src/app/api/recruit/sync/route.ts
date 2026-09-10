@@ -72,6 +72,8 @@ type SyncSummary = {
   created: number;
   updated: number;
   read: number;
+  /** 지워진 지원서라 다시 넣지 않은 건수. */
+  skippedDeleted: number;
   /** 조건 조회의 기준 시각. 없으면 조건 없이 읽었다는 뜻이다(첫 실행 또는 전량 훑기). */
   since?: string;
   failed: { source: string; docId: string; error: string }[];
@@ -115,7 +117,10 @@ async function ingestAll(records: FirestoreRecord[], source: RecruitSource, summ
       document: record.document,
     });
     if (result.ok) {
-      if (result.created) summary.created += 1;
+      // 지운 지원서는 다시 넣지 않는다. 조용히 넘기지 말고 세어 둔다 — 「왜 안 들어오지」를
+      // 나중에 되짚을 수 있어야 한다.
+      if ("skipped" in result) summary.skippedDeleted += 1;
+      else if (result.created) summary.created += 1;
       else summary.updated += 1;
     } else {
       summary.failed.push({ source, docId: record.docId, error: result.error });
@@ -136,7 +141,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const summary: SyncSummary = { mode, created: 0, updated: 0, read: 0, failed: [] };
+  const summary: SyncSummary = { mode, created: 0, updated: 0, read: 0, skippedDeleted: 0, failed: [] };
 
   try {
     if (mode === "full") {

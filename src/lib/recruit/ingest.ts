@@ -19,6 +19,8 @@ export const RESUME_BUCKET = "recruit-resumes";
 
 export type IngestResult =
   | { ok: true; id: string; created: boolean; resumeStored: boolean }
+  /** 이 조직에서 지운 지원서다. 다시 넣지 않는다(§ 삭제 기록). */
+  | { ok: true; skipped: "deleted" }
   | { ok: false; error: "invalid_payload" | "no_organization" | "write_failed" };
 
 /**
@@ -152,6 +154,26 @@ export async function ingestJobApplication(args: {
   if (!organizationId) return { ok: false, error: "no_organization" };
 
   const supabase = getSupabaseServiceClient();
+
+  // **지운 지원서는 되살리지 않는다.**
+  //
+  // StayOps 는 Firestore 를 읽기만 하므로 콘솔에서 지워도 원본 문서는 남는다. 그대로 두면 하루
+  // 1회 전량 훑기가 다시 읽어 넣고, 이력서 파일까지 다시 복사된다 — 지운 개인정보가 되돌아온다.
+  // 「지웠다」는 StayOps 쪽 정보라 여기서 본다. 수신 경로가 이 함수 하나로 모여 있어서 전량
+  // 훑기·재전송·나중에 붙일 Cloud Function 이 모두 함께 막힌다.
+  const { data: tombstone, error: tombstoneError } = await supabase
+    .from("job_application_deletions")
+    .select("external_id")
+    .eq("organization_id", organizationId)
+    .eq("source", input.source)
+    .eq("external_id", input.externalId)
+    .maybeSingle();
+  if (tombstoneError) {
+    // 삭제 기록을 못 읽으면 **넣지 않는다.** 되살아나는 쪽이 조용히 잘못되기 때문이다.
+    console.error("[recruit/ingest] deletion lookup failed:", tombstoneError.message);
+    return { ok: false, error: "write_failed" };
+  }
+  if (tombstone) return { ok: true, skipped: "deleted" };
 
   const { data: existing, error: lookupError } = await supabase
     .from("job_applications")
