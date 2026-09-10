@@ -23,6 +23,14 @@ function sqlQuote(value: string): string {
 }
 
 export function buildCapabilityRolesSeedSql(): string {
+  const policyRows: string[] = [];
+  for (const capability of CAPABILITY_KEYS) {
+    const policy = CAPABILITIES[capability];
+    policyRows.push(
+      `  (${sqlQuote(capability)}, ${policy.individualGrant}, ${policy.individualDeny}, ${policy.platformBypass})`,
+    );
+  }
+
   const rows: string[] = [];
   for (const capability of CAPABILITY_KEYS) {
     for (const role of CAPABILITIES[capability].roles) {
@@ -44,6 +52,17 @@ export function buildCapabilityRolesSeedSql(): string {
     lines.push("insert into public.capability_roles (capability, role) values");
     lines.push(`${rows.join(",\n")};`);
   }
+
+  // 키별 정책도 DB 로 내린다. 이게 없으면 `has_capability` 가 「부여 가능한가 · 차단 가능한가 ·
+  // 개발자가 통과하는가」를 모른 채 판정해서, 앱과 SQL 이 서로 다른 답을 낸다
+  // (2026-09-10 감사에서 실제로 갈려 있었다: individualDeny=false 인 키에 deny 를 넣으면
+  //  앱은 무시하는데 SQL 은 막았다).
+  lines.push("");
+  lines.push("delete from public.capability_policies;");
+  lines.push(
+    "insert into public.capability_policies (capability, individual_grant, individual_deny, platform_bypass) values",
+  );
+  lines.push(`${policyRows.join(",\n")};`);
 
   lines.push(SEED_END);
   return lines.join("\n");

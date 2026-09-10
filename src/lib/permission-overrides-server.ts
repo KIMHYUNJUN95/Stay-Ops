@@ -75,9 +75,21 @@ export async function listMemberOverrides(
 }
 
 /**
- * True if the user currently holds an ACTIVE (not revoked, not expired) override for `key` in the org.
- * App-side counterpart of the SQL `has_permission_override()` used in RLS — for features gated in
- * server code rather than RLS (e.g. the mobile daily-report action).
+ * 이 사용자가 해당 키의 **활성 개인 부여**를 갖고 있는가.
+ *
+ * RLS 가 아니라 서버 코드로 막는 기능이 쓴다(모바일 업무일지, 발주·수리 상태 변경 등).
+ * SQL 쪽 대응은 `has_permission_override()`.
+ *
+ * **두 가지를 반드시 지킨다(2026-09-10 감사에서 둘 다 깨져 있었다):**
+ *
+ * 1. `effect = 'grant'` 로 좁힌다. 좁히지 않으면 **차단(deny) 행이 오히려 권한을 준다** —
+ *    「빼라」가 「줘라」로 뒤집히는, 가능한 실패 중 가장 나쁜 것이다.
+ * 2. 만료 필터를 SQL 이 아니라 여기서 한다. `gt("expires_at", …)` 는 **NULL 행(무기한)을
+ *    제외**해 버린다. 무기한 부여를 허용한 뒤로 그 필터는 곧 「상시 지정은 인식되지 않는다」가
+ *    된다 — 실제로 사용자 관리 위임(무기한)이 이 때문에 통하지 않고 있었다.
+ *
+ * 이 함수는 **부여 여부만** 본다. 역할 기본 부여·차단·키별 정책까지 포함한 최종 판정은
+ * `resolveCapabilities`(앱) / `has_capability`(SQL) 다.
  */
 export async function hasPermissionOverride(
   organizationId: string,
@@ -87,15 +99,16 @@ export async function hasPermissionOverride(
   const service = getSupabaseServiceClient();
   const { data } = await service
     .from("membership_permission_overrides")
-    .select("id")
+    .select("expires_at")
     .eq("organization_id", organizationId)
     .eq("user_id", userId)
     .eq("permission_key", key)
-    .is("revoked_at", null)
-    .gt("expires_at", new Date().toISOString())
-    .limit(1)
-    .maybeSingle();
-  return Boolean(data);
+    .eq("effect", "grant")
+    .is("revoked_at", null);
+  const now = Date.now();
+  return (data ?? []).some(
+    (row) => !row.expires_at || new Date(row.expires_at).getTime() > now,
+  );
 }
 
 /**

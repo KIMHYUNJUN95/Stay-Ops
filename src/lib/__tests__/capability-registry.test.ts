@@ -187,4 +187,17 @@ describe("판정식", () => {
       ).toBe(true);
     }
   });
+  it("통과가 꺼진 키에서도 개발자는 일반 규칙으로 판정된다", () => {
+    // 예전에는 `return policy.platformBypass` 라 통과가 꺼진 키에서 개발자가 개인 부여를 갖고도
+    // 거부됐다. SQL 은 흘려보내고 있어 둘의 답이 갈렸다(2026-09-10 감사).
+    // 지금은 모든 키가 통과 true 라 이 테스트는 회귀 가드다.
+    for (const capability of CAPABILITY_KEYS) {
+      const policy = CAPABILITIES[capability];
+      if (policy.platformBypass) continue;
+      expect(
+        evaluateCapability({ capability, role: "developer_super_admin", granted: true, denied: false }),
+        `${capability}`,
+      ).toBe(policy.individualGrant);
+    }
+  });
 });

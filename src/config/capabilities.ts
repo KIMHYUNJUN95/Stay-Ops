@@ -280,7 +280,10 @@ export function evaluateCapability(args: {
 
   if (args.denied && policy.individualDeny && canBeDenied(args.role)) return false;
 
-  if (args.role === "developer_super_admin") return policy.platformBypass;
+  // 통과가 켜져 있으면 즉시 허용하고, **꺼져 있으면 일반 규칙으로 흘려보낸다.** 예전에는
+  // `return policy.platformBypass` 라 통과가 꺼진 키에서 개발자가 개인 부여를 갖고도 거부됐다 —
+  // SQL 은 흘려보내고 있어 둘의 답이 갈렸다(2026-09-10 감사).
+  if (args.role === "developer_super_admin" && policy.platformBypass) return true;
 
   if (args.granted && policy.individualGrant) return true;
 

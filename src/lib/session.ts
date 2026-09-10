@@ -1,5 +1,9 @@
 import { cache } from "react";
-import type { Capability } from "@/config/capabilities";
+import {
+  CAPABILITY_KEYS,
+  evaluateCapability,
+  type Capability,
+} from "@/config/capabilities";
 import { defaultBottomNavTabIds } from "@/config/navigation";
 import type { AppMode } from "@/config/routes";
 import { defaultsToAdminSurface } from "@/config/roles";
@@ -198,7 +202,10 @@ export const getCurrentAppSession = cache(
     // 유효 권한 — 역할 부여 + 개인 부여 − 개인 차단. 클라이언트가 스스로 계산하지 않도록 서버가
     // 한 번 계산해 실어 보낸다(`docs/engineering/14-permission-architecture.md` §5).
     //
-    // 조직 맥락이 없으면(플랫폼 전용 세션) 조직 스코프 권한이 성립하지 않으므로 비운다.
+    // 조직 멤버십이 없으면(플랫폼 전용 계정) 개인 부여·차단이 붙을 자리가 없다. 그렇다고 비워 두면
+    // **개발자에게 사이드바 메뉴가 사라진다** — 권한 통과는 역할만으로 성립하기 때문이다.
+    // 그래서 그 경우에도 역할 기준으로 계산한다(부여·차단 없음).
+    //
     // 실패해도 세션을 깨뜨리지 않는다 — 빈 목록은 「권한 없음」이고, 잘못 열어 주는 것보다 낫다.
     const capabilities = membership
       ? await resolveCapabilities({
@@ -206,7 +213,9 @@ export const getCurrentAppSession = cache(
           userId: user.id,
           role,
         })
-      : [];
+      : CAPABILITY_KEYS.filter((capability) =>
+          evaluateCapability({ capability, role, granted: false, denied: false }),
+        );
 
     // Applied from the concurrent read above; any error falls back to defaults rather than
     // breaking the session (the columns may not exist on un-migrated projects).

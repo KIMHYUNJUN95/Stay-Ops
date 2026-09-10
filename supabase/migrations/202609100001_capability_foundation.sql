@@ -25,6 +25,26 @@ create table if not exists public.capability_roles (
 
 alter table public.capability_roles enable row level security;
 
+-- 키별 정책의 DB 사본. 역할표와 같은 이유로 존재한다 — `has_capability` 가 SQL 안에서
+-- 「개인 부여가 가능한 키인가 · 차단이 가능한 키인가 · 개발자가 통과하는가」를 알아야 앱과 같은
+-- 답을 낸다. 이것이 없으면 판정이 갈린다(2026-09-10 감사에서 실제로 갈려 있었다).
+create table if not exists public.capability_policies (
+  capability text primary key,
+  individual_grant boolean not null,
+  individual_deny boolean not null,
+  platform_bypass boolean not null
+);
+
+alter table public.capability_policies enable row level security;
+
+drop policy if exists "capability policies: readable by members" on public.capability_policies;
+create policy "capability policies: readable by members"
+  on public.capability_policies for select
+  using ((select auth.uid()) is not null);
+
+grant select on public.capability_policies to authenticated;
+grant all on public.capability_policies to service_role;
+
 -- 조직 데이터가 아니라 **설정표**다. 로그인한 사용자는 읽을 수 있어야 has_capability() 가 그
 -- 사용자의 권한으로 동작한다. 쓰기는 마이그레이션(서비스 역할)만 한다.
 drop policy if exists "capability roles: readable by members" on public.capability_roles;
@@ -65,6 +85,18 @@ insert into public.capability_roles (capability, role) values
   ('can_generate_report', 'cs_staff'::organization_role),
   ('can_generate_report', 'field_manager'::organization_role),
   ('can_generate_report', 'staff'::organization_role);
+
+delete from public.capability_policies;
+insert into public.capability_policies (capability, individual_grant, individual_deny, platform_bypass) values
+  ('permission.manage', false, false, true),
+  ('job_application.read', true, false, true),
+  ('job_application.triage', true, false, true),
+  ('job_application.delete', true, false, true),
+  ('user.manage', true, false, true),
+  ('order_processor', true, true, true),
+  ('maintenance_status_change', true, true, true),
+  ('property_room_manage', true, false, true),
+  ('can_generate_report', true, true, true);
 -- <<< generated
 
 -- ---------------------------------------------------------------------------
@@ -152,6 +184,17 @@ as $$
         limit 1
       ) as role
   ),
+  policy as (
+    -- 키별 정책. 없는 키는 「개인 지정 불가 · 개발자 통과」로 본다 — 레지스트리에 없는 문자열이
+    -- 부여 행으로 들어와도 그것만으로 권한이 열리지 않게 한다.
+    select
+      coalesce((select cp.individual_grant from public.capability_policies cp
+                where cp.capability = target_capability), false) as individual_grant,
+      coalesce((select cp.individual_deny from public.capability_policies cp
+                where cp.capability = target_capability), false) as individual_deny,
+      coalesce((select cp.platform_bypass from public.capability_policies cp
+                where cp.capability = target_capability), true) as platform_bypass
+  ),
   effects as (
     select
       bool_or(o.effect = 'grant') as granted,
@@ -164,15 +207,18 @@ as $$
       and (o.expires_at is null or o.expires_at > now())
   )
   select
+    -- 차단이 최우선. 단 **차단이 허용된 키에서만** 적용되고, 차단 면역 역할에는 걸리지 않는다.
+    -- (앱의 evaluateCapability 와 같은 순서·같은 조건이어야 한다.)
     not (
       coalesce((select denied from effects), false)
+      and (select individual_deny from policy)
       and coalesce((select role from me), 'staff'::organization_role)
           not in ('owner', 'senior_managing_director')
       and not coalesce((select is_platform from me), false)
     )
     and (
-      coalesce((select is_platform from me), false)
-      or coalesce((select granted from effects), false)
+      (coalesce((select is_platform from me), false) and (select platform_bypass from policy))
+      or (coalesce((select granted from effects), false) and (select individual_grant from policy))
       or exists (
         -- 전무(senior_managing_director)는 owner 와 동등하다. DB 헬퍼 has_org_role 이 이미
         -- 「목록에 owner 가 있으면 전무도 통과」로 동작하므로 여기서도 같아야 한다 — 다르면 같은
