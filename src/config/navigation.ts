@@ -26,7 +26,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
-import type { Role } from "@/config/roles";
+import type { Capability } from "@/config/capabilities";
 import {
   getLocalizedText,
   localizedNavigationLabels,
@@ -50,7 +50,20 @@ export type NavigationItem = {
   shortLabel?: LocalizedText;
   href: string;
   icon: NavigationIcon;
-  allowedRoles?: readonly Role[];
+  /**
+   * 이 메뉴를 보려면 필요한 권한 키.
+   *
+   * 없으면 어드민 웹에 들어올 수 있는 전원에게 보인다 — 대부분의 페이지가 그렇다(별도 게이트가
+   * 없으므로 숨기면 오히려 틀린다).
+   *
+   * **역할 배열을 여기 적지 않는다.** 적는 순간 「누가 이 기능을 쓸 수 있는가」의 정의가 페이지
+   * 게이트와 내비 두 곳이 되고, 반드시 갈라진다. 권한 키만 참조한다
+   * (`docs/engineering/14-permission-architecture.md`).
+   *
+   * 필터는 UX일 뿐 보안이 아니다. `AdminShell` 은 클라이언트 컴포넌트라 메뉴 목록 자체는 번들에
+   * 들어 있고, 실제 차단은 페이지·서버 액션·RLS 가 한다.
+   */
+  capability?: Capability;
 };
 
 const mobileNavHome = {
@@ -324,6 +337,9 @@ export const adminNavigation = [
   },
   {
     id: "users",
+    // 원래부터 「지정된 개인만」인 화면이다(기본은 플랫폼 개발자, 개발자가 개인에게 위임).
+    // 2026-09-10 이전에는 전원에게 메뉴가 보이고 누르면 튕겼다.
+    capability: "user.manage",
     label: localizedNavigationLabels.admin.users,
     href: "/admin/users",
     icon: Users,
@@ -376,6 +392,16 @@ export const utilityNavigation = [
     icon: Bell,
   },
 ] as const satisfies readonly NavigationItem[];
+
+/**
+ * 메뉴에 걸린 권한 키.
+ *
+ * `as const satisfies` 로 굳힌 배열은 항목마다 리터럴 타입이라 `item.capability` 를 직접 읽으면
+ * 그 속성이 없는 항목에서 타입 에러가 난다. 넓은 타입으로 한 번 받아 읽는다.
+ */
+export function navigationCapability(item: NavigationItem): Capability | undefined {
+  return item.capability;
+}
 
 export function getNavigationLabel(item: NavigationItem, locale: Locale) {
   const label = getLocalizedText(item.label, locale);

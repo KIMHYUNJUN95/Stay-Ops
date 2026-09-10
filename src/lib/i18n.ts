@@ -1725,6 +1725,10 @@ const FALLBACK_DICTIONARY = {
             label: "Job applications — delete",
             desc: "Delete applications and their resume files",
           },
+          "user.manage": {
+            label: "User management",
+            desc: "Open the user management screen and change roles",
+          },
         } as Record<string, { label: string; desc: string }>,
       },
     },
@@ -6678,6 +6682,10 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
               label: "채용 지원서 삭제",
               desc: "지원서와 이력서 파일 삭제",
             },
+            "user.manage": {
+              label: "사용자 관리",
+              desc: "사용자 관리 화면 접근 · 역할 변경",
+            },
           },
         },
       },
@@ -11505,6 +11513,10 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
             "job_application.delete": {
               label: "応募書類の削除",
               desc: "応募書類と履歴書ファイルの削除",
+            },
+            "user.manage": {
+              label: "ユーザー管理",
+              desc: "ユーザー管理画面へのアクセス · ロール変更",
             },
           },
         },

@@ -10,6 +10,7 @@ import {
   adminNavGroupOf,
   adminNavGroupOrder,
   getNavigationLabel,
+  navigationCapability,
   type AdminNavGroupKey,
 } from "@/config/navigation";
 import { getDictionary } from "@/lib/i18n";
@@ -28,6 +29,7 @@ export function AdminShell({ activeItem, children, mobileHref = "/mobile", title
   }
 
   const role = session.user.role;
+  const capabilities = session.capabilities ?? [];
   const locale = session.user.preferredLanguage;
   const dictionary = getDictionary(locale);
   const c = dictionary.admin.console;
@@ -68,9 +70,16 @@ export function AdminShell({ activeItem, children, mobileHref = "/mobile", title
 
           <div className="side__scroll">
             {adminNavGroupOrder.map((groupKey) => {
-              const items = adminNavigation.filter(
-                (item) => (adminNavGroupOf[item.id] ?? "operations") === groupKey,
-              );
+              const items = adminNavigation.filter((item) => {
+                if ((adminNavGroupOf[item.id] ?? "operations") !== groupKey) return false;
+                // 권한 키가 붙은 메뉴는 그 권한을 가진 사람에게만 보인다. 판정은 서버가 이미
+                // 끝냈고(`session.capabilities`) 여기서는 목록을 볼 뿐이다 — 클라이언트가 다시
+                // 계산하면 그 순간 규칙이 두 벌이 된다.
+                //
+                // 이건 UX 다. 실제 차단은 페이지·서버 액션·RLS 가 한다.
+                const capability = navigationCapability(item);
+                return !capability || capabilities.includes(capability);
+              });
               if (items.length === 0) return null;
               return (
                 <div className="navgrp" key={groupKey}>

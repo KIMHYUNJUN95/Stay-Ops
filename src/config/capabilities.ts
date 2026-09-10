@@ -117,6 +117,26 @@ export const CAPABILITIES = {
   },
 
   /**
+   * 사용자 관리 화면(`/admin/users`) — **지정된 개인만**.
+   *
+   * 원래부터 그런 권한이었다: 기본은 플랫폼 개발자뿐이고, 개발자가 개인에게 위임한다
+   * (2026-07-13 모델). 위임은 지금까지 `memberships.manage_users` 불리언이었는데, 감사 기록이
+   * 없고 관리 화면도 따로였다 — 이 레지스트리가 대체한다. 2026-09-10 기준 그 플래그 보유자는
+   * **0명**이라 이전할 데이터가 없다.
+   *
+   * `roles: []` 라서 어떤 역할도 기본으로 받지 않는다. 개발자는 `platformBypass` 로 통과한다 —
+   * 그래서 위임 목록이 비어도 잠기지 않는다.
+   */
+  "user.manage": {
+    roles: [],
+    individualGrant: true,
+    individualDeny: false,
+    requiresExpiry: false,
+    platformBypass: true,
+    systemOnly: false,
+  },
+
+  /**
    * ## 기존 오버라이드 키 4개
    *
    * **이름을 바꾸지 않는다.** RLS 정책과 앱 코드가 이 문자열 그대로를 검사하고 있어

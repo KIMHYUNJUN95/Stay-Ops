@@ -20,7 +20,7 @@ and the major mobile/admin operations modules are implemented and being hardened
   would otherwise read as current status. Encoding-damaged sections/files were intentionally not repaired
   in this pass.
 
-## 2026-09-10 — 권한 아키텍처 재구성 (3단계 관리 UI 완료)
+## 2026-09-10 — 권한 아키텍처 재구성 (4단계 사이드바까지 완료)
 
 사용자 지시로 **권한 모델 자체를 다시 세운다.** 역할 기반과 개인 지정을 하나의 모델에 담고,
 차단(deny)까지 포함한다. 채용 기능 개발은 이 작업 동안 **보류**.
@@ -42,7 +42,7 @@ and the major mobile/admin operations modules are implemented and being hardened
 (`NavigationItem.allowedRoles` 는 선언만 되고 배선되지 않은 죽은 필드) — `field_manager`·`staff`
 에게 「채용」 메뉴가 보이고 누르면 `/admin` 으로 튕긴다. 데이터 유출은 없다(서버 3중 게이트).
 
-**이행 단계.** ~~1) 설계 문서~~ ~~2) 토대~~ ~~3) 관리 UI~~ **4) 사이드바 ← 현재 여기** 5) 기능 전환.
+**이행 단계.** ~~1) 설계 문서~~ ~~2) 토대~~ ~~3) 관리 UI~~ ~~4) 사이드바~~ **5) 기능 전환 ← 현재 여기**.
 2~4단계는 권한 무변경, 5단계만 실제 권한이 움직인다.
 
 **2단계 완료 (2026-09-10).** `capabilities.ts`(레지스트리·판정식) · `capabilities-server.ts`(리졸버) ·
@@ -64,6 +64,13 @@ ko/ja/en 동시(권한 키 라벨 3종 + UI 문구 11종). 시각 품질은 전�
 초안 `has_capability` 는 그러지 않았다 — 같은 권한이 앱에서는 열리고 RLS 에서는 막히는 상태가 될
 뻔했다. 양쪽에 동등 규칙을 넣고 전 키를 검증하는 테스트를 추가했다.
 vitest 252건 통과.
+
+**4단계 완료 (2026-09-10).** `NavigationItem.allowedRoles`(죽은 필드)를 `capability` 로 바꾸고
+`admin-shell` 이 세션의 유효 권한으로 메뉴를 거른다. admin 페이지 14개의 게이트를 전수 확인해
+**대부분은 숨기지 않는다**(추가 게이트가 없으므로 숨기면 오히려 틀린다). 첫 적용은
+`/admin/users` — 위임 플래그 보유자 0명이라 실제로는 개발자만 열 수 있는데 메뉴는 전원에게
+보이고 있었다. 적용 후 실측: 개발자 겸 owner 보임, 사무직 안 보임. 페이지 게이트
+(`actorCanOpenUserManagement`)도 같은 키를 인정하게 해 판정이 두 벌이 되지 않게 했다.
 
 **미결(설계 확정에 필요).** 채용 권한의 `roles` 값 · 현재 `office_admin` 1명 처리 ·
 읽기/쓰기 키 분리 여부. (14번 문서 §10)
