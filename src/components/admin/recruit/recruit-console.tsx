@@ -129,9 +129,22 @@ export function RecruitConsole({
     });
   }
 
+  /**
+   * 내보낼 대상 — **선택이 있으면 선택한 것만.**
+   *
+   * 목록에서 몇 건만 골라 넘기는 일이 실제 업무다(면접 후보를 뽑아 공유하는 등). 선택이 없으면
+   * 지금 필터에 걸린 전부를 낸다.
+   *
+   * 목록은 이미 필터를 통과한 행이므로 여기서 다시 서버에 묻지 않는다.
+   */
+  const exportRows = useMemo(
+    () => (picked.length > 0 ? rows.filter((row) => picked.includes(row.id)) : rows),
+    [rows, picked],
+  );
+
   const exportPayload = useMemo(
     () => ({
-      rows: rows.map<RecruitExportRow>((row) => ({
+      rows: exportRows.map<RecruitExportRow>((row) => ({
         appliedAt: row.appliedAt ? row.appliedAt.slice(0, 10) : "—",
         name: row.name,
         age: row.age ?? "—",
@@ -149,10 +162,16 @@ export function RecruitConsole({
         resume: row.hasResume ? "O" : "—",
         status: row.status,
       })),
+      // 파일 제목에도 「선택분」임을 남긴다. 1건짜리 파일에 「전체 기간」이 찍혀 있으면 나중에
+      // 그 파일을 받은 사람이 전수로 오해한다.
       rangeLabel:
-        filter.from && filter.to ? `${filter.from} ~ ${filter.to}` : copy.exportRangeAll,
+        picked.length > 0
+          ? copy.exportSelected.replace("{n}", String(picked.length))
+          : filter.from && filter.to
+            ? `${filter.from} ~ ${filter.to}`
+            : copy.exportRangeAll,
     }),
-    [rows, filter.from, filter.to, copy],
+    [exportRows, picked.length, filter.from, filter.to, copy],
   );
 
   const statusTabs: { key: JobApplicationStatus | "all"; label: string; count: number }[] = [
@@ -192,7 +211,7 @@ export function RecruitConsole({
           onExportXls={() => exportRecruitWorkbook(exportPayload)}
           onExportPdf={() => exportRecruitReport(exportPayload)}
           onToast={showToast}
-          disabled={rows.length === 0}
+          disabled={exportRows.length === 0}
           labels={sharedCopy}
         />
       </div>
@@ -313,6 +332,9 @@ export function RecruitConsole({
             <Check strokeWidth={3} />
           </span>
           <span className="rcbulk__n">{copy.bulkSelected.replace("{n}", String(picked.length))}</span>
+          <span className="rcbulk__hint">
+            {copy.exportSelectedHint.replace("{n}", String(picked.length))}
+          </span>
           <span className="rc__spacer" />
           <button type="button" className="rcbulk__cta" onClick={advancePicked} disabled={pending}>
             {copy.advanceTo.screening}
