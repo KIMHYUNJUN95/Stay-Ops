@@ -58,7 +58,28 @@ can = NOT denied AND (granted OR role ∈ cap.roles OR (platform_admin AND cap.p
 
 **채용 기능 개발은 이 작업 동안 보류**(사용자 지시).
 
-Status: 설계 확정 대기 (2026-09-10). 문서: `docs/engineering/14-permission-architecture.md` 신설,
+**2단계(토대) 구현 완료 (2026-09-10).** 권한은 하나도 바뀌지 않았다 — 아직 어떤 정책도
+`has_capability()` 를 부르지 않고, 앱 코드도 기존 역할 술어를 그대로 쓴다.
+
+- `src/config/capabilities.ts` — 레지스트리 + 순수 판정식 `evaluateCapability`
+- `supabase/migrations/202609100001_capability_foundation.sql`(원격 적용 완료) —
+  `capability_roles` 표 + `membership_permission_overrides.effect`(grant/deny) +
+  `expires_at` NULL 허용 + 활성 행 부분 유니크 인덱스 + `has_capability()` 함수
+- `src/lib/capabilities-server.ts` — 서버 리졸버(`react.cache`, 요청당 1회 조회)
+- `AppSession.capabilities` — 서버가 계산해 실어 보낸다
+- `src/lib/__tests__/capability-registry.test.ts` — 12건. 시드↔레지스트리 일치 + 판정식
+
+**앱↔SQL 대조를 실측했다.** 실제 사용자 3명에게 임시 부여·차단 행을 넣고 `has_capability()` 결과가
+`evaluateCapability` 와 같은지 확인했다: 파트타임 + 개인 부여 → 열림, 사무직 + 차단 → 닫힘,
+owner + 차단 → **여전히 열림**(면역). 확인 후 임시 행은 삭제(잔여 0행).
+
+**구현 중 잡은 결함 하나.** `has_capability()` 초안이 `is_platform_admin()` 을 썼는데 그 함수는
+**호출자**(`auth.uid()`)를 본다. 이 함수는 인자로 받은 **대상자**를 판정해야 한다 — 관리 화면이
+「이 사람의 최종 유효 권한」을 미리 보여줄 때 남의 권한을 묻기 때문이다. `platform_admins` 를 직접
+보도록 고쳤다.
+
+Status: 2단계 완료, 3단계(관리 UI) 대기 (2026-09-10).
+문서: `docs/engineering/14-permission-architecture.md` 신설,
 `05-rls-permissions.md`·`27-permission-override-workflow.md` 에 전환 예고 추가.
 미결: 채용 권한의 `roles` 값, 현재 `office_admin` 1명 처리, 읽기/쓰기 키 분리 여부(14번 문서 §10).
 

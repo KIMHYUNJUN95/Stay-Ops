@@ -1,0 +1,169 @@
+-- 권한 아키텍처 토대 (2026-09-10).
+--
+-- 「누가 이 기능을 쓸 수 있는가」의 단위를 역할 배열에서 **권한 키(capability)** 로 옮긴다.
+-- 설계: docs/engineering/14-permission-architecture.md
+--
+-- 이 마이그레이션은 **어떤 권한도 바꾸지 않는다.** 아직 아무 정책도 has_capability() 를 부르지
+-- 않고, 앱 코드도 기존 역할 술어를 그대로 쓴다. 순수하게 토대만 놓는다.
+--
+-- 지금 하는 이유: 2026-09-10 실측 기준 membership_permission_overrides 0행,
+-- can_generate_report 0명, attendance_payroll_admin 0명 — 이전할 데이터가 없어 키 이름과 스키마를
+-- 자유롭게 정할 수 있다.
+
+-- ---------------------------------------------------------------------------
+-- 1. capability_roles — 역할↔권한 매핑의 DB 쪽 사본
+-- ---------------------------------------------------------------------------
+--
+-- 원본은 src/config/capabilities.ts 다. RLS 는 SQL 안에서 판정해야 하므로 DB 에도 사본이 필요하고,
+-- 그 사본은 **코드가 생성한다**(아래 생성 구간). 손으로 적으면 정의가 두 벌이 되고, 이 저장소는
+-- 판정식이 갈라지는 사고를 반복해서 겪었다.
+create table if not exists public.capability_roles (
+  capability text not null,
+  role organization_role not null,
+  primary key (capability, role)
+);
+
+alter table public.capability_roles enable row level security;
+
+-- 조직 데이터가 아니라 **설정표**다. 로그인한 사용자는 읽을 수 있어야 has_capability() 가 그
+-- 사용자의 권한으로 동작한다. 쓰기는 마이그레이션(서비스 역할)만 한다.
+drop policy if exists "capability roles: readable by members" on public.capability_roles;
+create policy "capability roles: readable by members"
+  on public.capability_roles for select
+  using ((select auth.uid()) is not null);
+
+grant select on public.capability_roles to authenticated;
+grant all on public.capability_roles to service_role;
+
+-- >>> generated: capability_roles seed (do not edit by hand)
+-- 원본: src/config/capabilities.ts. 손으로 고치지 않는다 —
+-- src/lib/__tests__/capability-registry.test.ts 가 붙여넣을 내용을 출력한다.
+delete from public.capability_roles;
+insert into public.capability_roles (capability, role) values
+  ('permission.manage', 'owner'::organization_role),
+  ('permission.manage', 'senior_managing_director'::organization_role),
+  ('order.process', 'owner'::organization_role),
+  ('order.process', 'senior_managing_director'::organization_role),
+  ('order.process', 'office_admin'::organization_role);
+-- <<< generated
+
+-- ---------------------------------------------------------------------------
+-- 2. membership_permission_overrides — 차단(deny)과 무기한 부여를 받아들인다
+-- ---------------------------------------------------------------------------
+--
+-- 기존 표를 그대로 쓴다. 부여자·사유·회수·조직 격리·자기부여 금지가 이미 있다.
+--
+-- effect: 지금까지는 「더하기」만 가능했다. 「사무직인데 이 사람만 제외」를 표현하려면 역할을
+--   강등하는 수밖에 없었고, 그러면 그 사람의 다른 권한까지 함께 사라졌다.
+alter table public.membership_permission_overrides
+  add column if not exists effect text not null default 'grant';
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.membership_permission_overrides'::regclass
+      and conname = 'membership_permission_overrides_effect_check'
+  ) then
+    alter table public.membership_permission_overrides
+      add constraint membership_permission_overrides_effect_check
+      check (effect in ('grant', 'deny'));
+  end if;
+end
+$$;
+
+-- expires_at NULL 허용 = 무기한.
+--
+-- 「모든 부여는 시한부」(27-permission-override-workflow.md) 를 폐기하는 것이 아니라 **키별 정책**
+-- 으로 일반화한 것이다. 일시적 예외는 여전히 기한이 필수이고(레지스트리의 requiresExpiry),
+-- 상시 업무 지정만 무기한을 허용한다 — 상시 업무에 기한을 걸면 어느 날 조용히 만료돼 담당자가
+-- 일을 못 하게 된다. 기한 필수 여부는 **서버가 레지스트리를 보고** 판단한다.
+alter table public.membership_permission_overrides
+  alter column expires_at drop not null;
+
+-- 같은 사람에게 같은 키의 같은 방향 부여가 중복되지 않게 한다(활성 행 기준).
+-- grant 와 deny 가 동시에 있는 것은 막지 않는다 — 판정식이 deny 우선으로 해소한다.
+create unique index if not exists membership_permission_overrides_active_uniq
+  on public.membership_permission_overrides (organization_id, user_id, permission_key, effect)
+  where revoked_at is null;
+
+-- ---------------------------------------------------------------------------
+-- 3. has_capability() — 앱과 같은 판정식
+-- ---------------------------------------------------------------------------
+--
+--   can = NOT denied
+--     AND ( granted OR role ∈ capability_roles OR (platform_admin AND bypass) )
+--
+-- **차단이 최우선이다.** 개인 부여보다도 앞선다 — 「빼라」가 「줘라」보다 강해야 판단이 갈릴 때
+-- 안전한 쪽으로 실패한다.
+--
+-- 차단 면역: owner / senior_managing_director / 플랫폼 관리자. 소유자를 잠그면 되돌릴 사람이 없다.
+--
+-- platformBypass 는 현재 모든 키에서 true 라 SQL 에서는 상수로 둔다. 키별로 달라지면 그 값도
+-- capability_roles 옆에 시드해야 한다(그때 이 주석을 갱신할 것).
+create or replace function public.has_capability(
+  target_organization_id uuid,
+  target_user_id uuid,
+  target_capability text
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with me as (
+    select
+      -- `is_platform_admin()` 은 **호출자**(auth.uid())를 본다. 이 함수는 인자로 받은 **대상자**를
+      -- 판정해야 한다 — 관리 화면이 「이 사람의 최종 유효 권한」을 미리 보여줄 때 남의 권한을
+      -- 물어보기 때문이다. 그래서 표를 직접 본다.
+      exists (
+        select 1
+        from public.platform_admins pa
+        where pa.user_id = target_user_id
+          and pa.is_active = true
+      ) as is_platform,
+      (
+        select m.role
+        from public.memberships m
+        where m.organization_id = target_organization_id
+          and m.user_id = target_user_id
+          and m.status = 'active'
+        limit 1
+      ) as role
+  ),
+  effects as (
+    select
+      bool_or(o.effect = 'grant') as granted,
+      bool_or(o.effect = 'deny') as denied
+    from public.membership_permission_overrides o
+    where o.organization_id = target_organization_id
+      and o.user_id = target_user_id
+      and o.permission_key = target_capability
+      and o.revoked_at is null
+      and (o.expires_at is null or o.expires_at > now())
+  )
+  select
+    not (
+      coalesce((select denied from effects), false)
+      and coalesce((select role from me), 'staff'::organization_role)
+          not in ('owner', 'senior_managing_director')
+      and not coalesce((select is_platform from me), false)
+    )
+    and (
+      coalesce((select is_platform from me), false)
+      or coalesce((select granted from effects), false)
+      or exists (
+        select 1
+        from public.capability_roles cr
+        where cr.capability = target_capability
+          and cr.role = (select role from me)
+      )
+    );
+$$;
+
+comment on function public.has_capability(uuid, uuid, text) is
+  '권한 키 판정. 앱 쪽 evaluateCapability(src/config/capabilities.ts)와 같은 규칙. 차단 우선.';
+
+revoke all on function public.has_capability(uuid, uuid, text) from public;
+grant execute on function public.has_capability(uuid, uuid, text) to authenticated, service_role;

@@ -1,8 +1,10 @@
 import { cache } from "react";
+import type { Capability } from "@/config/capabilities";
 import { defaultBottomNavTabIds } from "@/config/navigation";
 import type { AppMode } from "@/config/routes";
 import { defaultsToAdminSurface } from "@/config/roles";
 import type { Role } from "@/config/roles";
+import { resolveCapabilities } from "@/lib/capabilities-server";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import type { ProfileGender } from "@/lib/onboarding";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -31,6 +33,15 @@ export type SessionUser = {
 export type AppSession = {
   organization: OrganizationSummary;
   user: SessionUser;
+  /**
+   * 이 사용자가 **지금 실제로 가진** 권한 키(역할 부여 + 개인 부여 − 개인 차단).
+   *
+   * 서버가 한 번 계산해 실어 보낸다. 클라이언트(사이드바 등)는 스스로 계산하지 않고 이 목록만
+   * 본다 — 계산이 두 벌이면 반드시 갈라진다.
+   *
+   * 설계: `docs/engineering/14-permission-architecture.md` §5
+   */
+  capabilities: readonly Capability[];
 };
 
 export function hasOrganizationContext(session: AppSession) {
@@ -77,6 +88,7 @@ export const mockSession: AppSession = {
     bottomNavTabs: [...defaultBottomNavTabIds],
     canGenerateReport: true,
   },
+  capabilities: [],
 };
 
 function isMissingEnvError(error: unknown) {
@@ -183,6 +195,19 @@ export const getCurrentAppSession = cache(
     const role = (platformAdmin?.role ?? membership?.role) as Role;
     const dictionary = getDictionary(profile.preferred_language);
 
+    // 유효 권한 — 역할 부여 + 개인 부여 − 개인 차단. 클라이언트가 스스로 계산하지 않도록 서버가
+    // 한 번 계산해 실어 보낸다(`docs/engineering/14-permission-architecture.md` §5).
+    //
+    // 조직 맥락이 없으면(플랫폼 전용 세션) 조직 스코프 권한이 성립하지 않으므로 비운다.
+    // 실패해도 세션을 깨뜨리지 않는다 — 빈 목록은 「권한 없음」이고, 잘못 열어 주는 것보다 낫다.
+    const capabilities = membership
+      ? await resolveCapabilities({
+          organizationId: membership.organization_id,
+          userId: user.id,
+          role,
+        })
+      : [];
+
     // Applied from the concurrent read above; any error falls back to defaults rather than
     // breaking the session (the columns may not exist on un-migrated projects).
     let bottomNavTabs: string[] = [...defaultBottomNavTabIds];
@@ -218,6 +243,7 @@ export const getCurrentAppSession = cache(
         bottomNavTabs,
         canGenerateReport,
       },
+      capabilities,
     };
   } catch (error) {
     if (isMissingEnvError(error) || isAuthError(error)) {

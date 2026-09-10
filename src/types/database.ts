@@ -1701,6 +1701,21 @@ export type Database = {
           },
         ]
       }
+      capability_roles: {
+        Row: {
+          capability: string
+          role: Database["public"]["Enums"]["organization_role"]
+        }
+        Insert: {
+          capability: string
+          role: Database["public"]["Enums"]["organization_role"]
+        }
+        Update: {
+          capability?: string
+          role?: Database["public"]["Enums"]["organization_role"]
+        }
+        Relationships: []
+      }
       cleaning_sessions: {
         Row: {
           cleaning_date: string
@@ -2793,7 +2808,8 @@ export type Database = {
       membership_permission_overrides: {
         Row: {
           created_at: string
-          expires_at: string
+          effect: string
+          expires_at: string | null
           granted_by_user_id: string | null
           id: string
           organization_id: string
@@ -2805,7 +2821,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          expires_at: string
+          effect?: string
+          expires_at?: string | null
           granted_by_user_id?: string | null
           id?: string
           organization_id: string
@@ -2817,7 +2834,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          expires_at?: string
+          effect?: string
+          expires_at?: string | null
           granted_by_user_id?: string | null
           id?: string
           organization_id?: string

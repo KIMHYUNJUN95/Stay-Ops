@@ -1,0 +1,137 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+
+import {
+  CAPABILITIES,
+  CAPABILITY_KEYS,
+  assignableCapabilities,
+  canBeDenied,
+  evaluateCapability,
+} from "@/config/capabilities";
+import { organizationRoles } from "@/config/roles";
+import {
+  buildCapabilityRolesSeedSql,
+  extractCapabilityRolesSeedSql,
+} from "@/lib/capability-seed";
+
+const SEED_MIGRATION_PATH = "supabase/migrations/202609100001_capability_foundation.sql";
+
+/**
+ * 권한 설계가 실패하는 방식은 언제나 **두 벌이 갈라지는 것**이다.
+ *
+ * 역할표는 `src/config/capabilities.ts` 한 곳에 있지만, RLS 가 SQL 안에서 판정해야 하므로 DB 에도
+ * 사본이 필요하다. 이 테스트가 그 사본이 원본과 같은지 지킨다 — 레지스트리만 고치고 마이그레이션을
+ * 안 고치면 여기서 깨지고, **붙여넣을 SQL 을 그대로 출력해 준다.**
+ *
+ * 설계: `docs/engineering/14-permission-architecture.md`
+ */
+describe("capability registry", () => {
+  it("마이그레이션 시드가 레지스트리와 일치한다", () => {
+    const file = readFileSync(SEED_MIGRATION_PATH, "utf8");
+    const current = extractCapabilityRolesSeedSql(file);
+
+    expect(current, `${SEED_MIGRATION_PATH} 에서 생성 구간 경계를 찾지 못했다`).not.toBeNull();
+
+    const expected = buildCapabilityRolesSeedSql();
+    if (current?.trim() !== expected.trim()) {
+      throw new Error(
+        `capability_roles 시드가 레지스트리와 다르다.\n` +
+          `${SEED_MIGRATION_PATH} 의 생성 구간을 아래로 교체할 것:\n\n${expected}\n`,
+      );
+    }
+  });
+
+  it("모든 키의 역할이 실재하는 조직 역할이다", () => {
+    for (const capability of CAPABILITY_KEYS) {
+      for (const role of CAPABILITIES[capability].roles) {
+        expect(organizationRoles as readonly string[]).toContain(role);
+      }
+    }
+  });
+
+  it("역할 부여가 없는 키에는 차단을 켜지 않는다", () => {
+    // 뺄 것이 없는데 차단을 허용하면 관리 화면에 의미 없는 조작이 생긴다.
+    for (const capability of CAPABILITY_KEYS) {
+      const policy = CAPABILITIES[capability];
+      if (policy.roles.length === 0) {
+        expect(policy.individualDeny, `${capability}`).toBe(false);
+      }
+    }
+  });
+
+  it("개인 지정이 불가능한 키는 관리 화면 목록에 뜨지 않는다", () => {
+    // 권한 관리 권한 자체가 그렇다 — 개인 지정으로 뺏고 줄 수 있으면 잠금 사고가 난다.
+    expect(assignableCapabilities()).not.toContain("permission.manage");
+  });
+});
+
+describe("판정식", () => {
+  const base = { capability: "order.process" as const, granted: false, denied: false };
+
+  it("역할로 부여된다", () => {
+    expect(evaluateCapability({ ...base, role: "office_admin" })).toBe(true);
+    expect(evaluateCapability({ ...base, role: "staff" })).toBe(false);
+  });
+
+  it("개인 부여가 역할 없음을 이긴다", () => {
+    expect(evaluateCapability({ ...base, role: "staff", granted: true })).toBe(true);
+  });
+
+  it("차단이 역할 부여를 이긴다", () => {
+    expect(evaluateCapability({ ...base, role: "office_admin", denied: true })).toBe(false);
+  });
+
+  it("차단이 개인 부여도 이긴다", () => {
+    // 「빼라」가 「줘라」보다 강해야 판단이 갈릴 때 안전한 쪽으로 실패한다.
+    expect(
+      evaluateCapability({ ...base, role: "staff", granted: true, denied: true }),
+    ).toBe(false);
+  });
+
+  it("owner·전무·개발자는 차단되지 않는다", () => {
+    // 소유자를 잠그면 되돌릴 사람이 없다.
+    for (const role of ["owner", "senior_managing_director", "developer_super_admin"] as const) {
+      expect(canBeDenied(role)).toBe(false);
+      expect(evaluateCapability({ ...base, role, denied: true })).toBe(true);
+    }
+  });
+
+  it("차단을 허용하지 않는 키에서는 차단 행이 무시된다", () => {
+    expect(
+      evaluateCapability({
+        capability: "job_application.read",
+        role: "staff",
+        granted: true,
+        denied: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("역할이 비어 있는 키는 개인 지정으로만 열린다", () => {
+    for (const role of organizationRoles) {
+      expect(
+        evaluateCapability({ capability: "job_application.read", role, granted: false, denied: false }),
+        `${role}`,
+      ).toBe(false);
+    }
+    expect(
+      evaluateCapability({
+        capability: "job_application.read",
+        role: "field_manager",
+        granted: true,
+        denied: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("개인 부여를 허용하지 않는 키는 부여 행이 있어도 열리지 않는다", () => {
+    expect(
+      evaluateCapability({
+        capability: "permission.manage",
+        role: "staff",
+        granted: true,
+        denied: false,
+      }),
+    ).toBe(false);
+  });
+});

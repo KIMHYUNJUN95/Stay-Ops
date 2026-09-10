@@ -20,7 +20,7 @@ and the major mobile/admin operations modules are implemented and being hardened
   would otherwise read as current status. Encoding-damaged sections/files were intentionally not repaired
   in this pass.
 
-## 2026-09-10 — 권한 아키텍처 재구성 (설계 확정 대기)
+## 2026-09-10 — 권한 아키텍처 재구성 (2단계 토대 완료)
 
 사용자 지시로 **권한 모델 자체를 다시 세운다.** 역할 기반과 개인 지정을 하나의 모델에 담고,
 차단(deny)까지 포함한다. 채용 기능 개발은 이 작업 동안 **보류**.
@@ -42,8 +42,14 @@ and the major mobile/admin operations modules are implemented and being hardened
 (`NavigationItem.allowedRoles` 는 선언만 되고 배선되지 않은 죽은 필드) — `field_manager`·`staff`
 에게 「채용」 메뉴가 보이고 누르면 `/admin` 으로 튕긴다. 데이터 유출은 없다(서버 3중 게이트).
 
-**이행 단계.** 1) 설계 문서 ← **현재 여기** 2) 토대 3) 관리 UI 4) 사이드바 5) 기능 전환.
+**이행 단계.** ~~1) 설계 문서~~ ~~2) 토대~~ **3) 관리 UI ← 현재 여기** 4) 사이드바 5) 기능 전환.
 2~4단계는 권한 무변경, 5단계만 실제 권한이 움직인다.
+
+**2단계 완료 (2026-09-10).** `capabilities.ts`(레지스트리·판정식) · `capabilities-server.ts`(리졸버) ·
+`202609100001_capability_foundation.sql`(원격 적용: `capability_roles` · `effect` 컬럼 ·
+`expires_at` NULL 허용 · `has_capability()`) · `AppSession.capabilities` · 테스트 12건.
+앱↔SQL 판정 일치를 실제 사용자 3명 + 임시 부여·차단 행으로 대조 확인(확인 후 삭제, 잔여 0행).
+`npm run lint` · `npm run build` · vitest 251건 통과.
 
 **미결(설계 확정에 필요).** 채용 권한의 `roles` 값 · 현재 `office_admin` 1명 처리 ·
 읽기/쓰기 키 분리 여부. (14번 문서 §10)

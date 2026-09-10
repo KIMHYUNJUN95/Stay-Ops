@@ -1,6 +1,11 @@
 # 권한 아키텍처 — 역할과 개인 지정을 하나의 모델로
 
-- 상태: **설계 확정 대기** — 2026-09-10 작성. 구현 전 단계
+- 상태: **2단계(토대) 구현 완료** — 2026-09-10. 권한은 아직 하나도 바뀌지 않았다(§8).
+  다음은 3단계(관리 UI).
+- 구현된 것: `src/config/capabilities.ts`(레지스트리·판정식) · `src/lib/capabilities-server.ts`
+  (서버 리졸버) · `src/lib/capability-seed.ts`(시드 생성) ·
+  `supabase/migrations/202609100001_capability_foundation.sql`(원격 적용 완료) ·
+  `AppSession.capabilities` · `src/lib/__tests__/capability-registry.test.ts`(12건)
 - 사용자 방향 지시(2026-09-10): 「앞으로도 모든 기능은 역할 기반으로 나눠 쓰는 기능도 필요하지만,
   개개인을 특정해 권한을 세분화할 수 있도록도 설계해야 한다. 채용 기능만 중요한 게 아니라 설계
   자체를 그렇게 해야 한다. 차단 모델도 넣고, 사용자 기능에서 관리할 수 있어야 한다.」
@@ -294,8 +299,8 @@ using (has_capability(organization_id, (select auth.uid()), 'job_application.rea
 
 | 단계 | 내용 | 권한이 바뀌는가 |
 | --- | --- | --- |
-| **1. 설계 문서** | 이 문서 + `05-rls-permissions.md`·`27-permission-override-workflow.md` 갱신 + 결정 로그 | 아니오 |
-| **2. 토대** | 레지스트리 · 서버 리졸버 · `has_capability` · `capability_roles` · 세션 적재 · 일치 테스트 | **아니오** |
+| ~~**1. 설계 문서**~~ | 완료 2026-09-10 | 아니오 |
+| ~~**2. 토대**~~ | 완료 2026-09-10 — 레지스트리 · 서버 리졸버 · `has_capability` · `capability_roles` · 세션 적재 · 일치 테스트 | **아니오** |
 | **3. 관리 UI** | `/admin/users/[id]` 권한 카드(부여·차단·유효 권한) + i18n 3개 국어 | 아니오 |
 | **4. 사이드바** | `NavigationItem.capability` 배선 + 필터 | 메뉴 노출만 |
 | **5. 기능 전환** | 채용 → 사용자 관리 → 설정 → 급여 → … **한 번에 하나씩** | 예 |
