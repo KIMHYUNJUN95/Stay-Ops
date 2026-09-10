@@ -107,6 +107,37 @@ function wrappedLineCount(text: string, columnWidth: number): number {
     .reduce((sum, segment) => sum + Math.max(1, Math.ceil(displayWidth(segment) / usable)), 0);
 }
 
+/** 선언 너비에 더해 주는 좌우 여백. 글자가 테두리에 닿아 붙어 보이는 것을 막는다. */
+const FIT_PADDING = 2;
+
+/**
+ * 한 열이 넓어질 수 있는 상한.
+ *
+ * 자유 입력 칸(지원 동기 등)이 한 줄 길다고 열 하나가 화면을 다 먹으면 표를 못 읽는다.
+ * 상한을 넘는 값은 여전히 잘려 보이지만, 그건 셀을 눌러 보는 편이 낫다.
+ */
+const FIT_MAX_WIDTH = 42;
+
+/**
+ * 열 너비를 내용에 맞춘다 — **선언 너비는 최소값**이고, 그보다 좁아지지 않는다.
+ *
+ * 왜 필요한가: 열 너비가 고정이라 「객실 클리닝 스태프」·「체류 자격 만료 D-38」처럼 선언 너비보다
+ * 긴 값이 잘려 보였다(2026-09-10 채용 지원서 내보내기에서 확인). 한글·가나는 라틴의 두 배 폭이라
+ * 문자 수로만 잡으면 특히 자주 넘친다 — `displayWidth` 가 그 폭을 센다.
+ *
+ * `wrap` 열은 건드리지 않는다. 그 열의 선언 너비는 **줄바꿈 기준**이기도 해서(`dataRowHeight`),
+ * 넓히면 행 높이 계산이 함께 어긋난다.
+ */
+function fittedWidth(column: AdminTableColumn, rows: AdminTableExportRow[]): number {
+  if (column.wrap) return column.width;
+  let widest = displayWidth(column.label);
+  for (const row of rows) {
+    const value = row[column.key];
+    if (value) widest = Math.max(widest, displayWidth(value));
+  }
+  return Math.min(Math.max(column.width, widest + FIT_PADDING), FIT_MAX_WIDTH);
+}
+
 /** 이 행에서 가장 많이 줄바꿈되는 `wrap` 열에 맞춘 행 높이. */
 function dataRowHeight(row: AdminTableExportRow, columns: AdminTableColumn[]): number {
   let lines = 1;
@@ -143,7 +174,10 @@ function addSheet(wb: ExcelJS.Workbook, sheet: AdminTableSheet, input: AdminTabl
 
   ws.properties.defaultRowHeight = 18;
   const lastCol = sheet.columns.length + 1; // +1 for the auto No. column
-  ws.columns = [{ width: NO_COLUMN_WIDTH }, ...sheet.columns.map((c) => ({ width: c.width }))];
+  ws.columns = [
+    { width: NO_COLUMN_WIDTH },
+    ...sheet.columns.map((c) => ({ width: fittedWidth(c, sheet.rows) })),
+  ];
 
   // ── Title ──
   ws.mergeCells(1, 1, 1, lastCol);

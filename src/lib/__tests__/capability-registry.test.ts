@@ -6,6 +6,7 @@ import {
   CAPABILITY_KEYS,
   assignableCapabilities,
   canBeDenied,
+  capabilityPolicy,
   evaluateCapability,
 } from "@/config/capabilities";
 import { organizationRoles } from "@/config/roles";
@@ -72,7 +73,8 @@ describe("capability registry", () => {
 
   it("개발자 전용 키는 개인 부여가 가능해야 의미가 있다", () => {
     for (const capability of CAPABILITY_KEYS) {
-      const policy = CAPABILITIES[capability];
+      // 리터럴 유니온을 그대로 좁히면 뒤 조건이 never 로 좁혀진다 — 넓은 타입으로 읽는다.
+      const policy = capabilityPolicy(capability);
       if (!policy.developerOnly) continue;
       expect(policy.individualGrant || policy.individualDeny, `${capability}`).toBe(true);
       expect(policy.systemOnly, `${capability}`).toBe(false);

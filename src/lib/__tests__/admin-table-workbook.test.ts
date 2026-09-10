@@ -58,3 +58,33 @@ describe("buildAdminTableWorkbookBase64 row heights", () => {
     expect(sheet.getRow(3).height).toBe(18);
   });
 });
+
+describe("buildAdminTableWorkbookBase64 column widths", () => {
+  /**
+   * 2026-09-10: 열 너비가 선언값으로 고정돼 있어서 그보다 긴 값이 잘려 보였다(채용 지원서
+   * 내보내기에서 확인 — 「객실 클리닝 스태프」·「체류 자격 만료 D-384」). 한글·가나는 라틴의
+   * 두 배 폭이라 문자 수로만 잡으면 특히 자주 넘친다.
+   *
+   * 선언 너비는 **최소값**이다 — 자동 맞춤이 열을 좁히는 일은 없어야 한다.
+   */
+  it("선언 너비보다 긴 값이 있으면 그만큼 넓어진다", async () => {
+    const sheet = await buildSheet([{ building: "STAY ARI 사무직·현장직 정사원", note: NOTE_ONE_LINE }]);
+    const width = sheet.getColumn(2).width ?? 0;
+    expect(width).toBeGreaterThan(15);
+  });
+
+  it("짧은 값만 있으면 선언 너비를 유지한다", async () => {
+    const sheet = await buildSheet([{ building: "B동", note: NOTE_ONE_LINE }]);
+    expect(sheet.getColumn(2).width).toBe(15);
+  });
+
+  it("wrap 열은 넓히지 않는다 — 그 너비가 곧 줄바꿈 기준이다", async () => {
+    const sheet = await buildSheet([{ building: "B동", note: NOTE_THREE_LINES }]);
+    expect(sheet.getColumn(3).width).toBe(34);
+  });
+
+  it("한 칸이 아무리 길어도 상한을 넘지 않는다", async () => {
+    const sheet = await buildSheet([{ building: "가".repeat(80), note: NOTE_ONE_LINE }]);
+    expect(sheet.getColumn(2).width).toBe(42);
+  });
+});
