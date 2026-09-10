@@ -66,7 +66,7 @@ describe("capability registry", () => {
 });
 
 describe("판정식", () => {
-  const base = { capability: "order.process" as const, granted: false, denied: false };
+  const base = { capability: "order_processor" as const, granted: false, denied: false };
 
   it("역할로 부여된다", () => {
     expect(evaluateCapability({ ...base, role: "office_admin" })).toBe(true);
@@ -133,5 +133,20 @@ describe("판정식", () => {
         denied: false,
       }),
     ).toBe(false);
+  });
+
+  it("전무는 owner 가 가진 것을 모두 가진다", () => {
+    // DB 헬퍼 has_org_role 이 「owner 가 목록에 있으면 전무도 통과」로 동작한다. 앱이 다르면
+    // 같은 권한이 앱에서는 열리고 RLS 에서는 막히는(또는 그 반대) 상태가 된다.
+    for (const capability of CAPABILITY_KEYS) {
+      const owner = evaluateCapability({ capability, role: "owner", granted: false, denied: false });
+      const smd = evaluateCapability({
+        capability,
+        role: "senior_managing_director",
+        granted: false,
+        denied: false,
+      });
+      expect(smd, `${capability}`).toBe(owner);
+    }
   });
 });

@@ -117,12 +117,72 @@ export const CAPABILITIES = {
   },
 
   /**
-   * 발주 처리 — 역할로 묶어 쓰되 개인 예외가 양방향으로 가능한 예.
+   * ## 기존 오버라이드 키 4개
    *
-   * 기존 오버라이드 키 `order_processor` 가 이 자리로 온다(전환은 5단계).
+   * **이름을 바꾸지 않는다.** RLS 정책과 앱 코드가 이 문자열 그대로를 검사하고 있어
+   * (`has_permission_override(org, uid, 'order_processor')` 등), 이름을 바꾸면 그 정책들을 함께
+   * 고쳐야 한다. 5단계에서 기능을 옮길 때 정리한다.
+   *
+   * `roles` 는 **각 기능의 현재 RLS 정책에서 그대로 옮겨 적은 값**이다(2026-09-10 실측). 관리
+   * 화면이 「역할로 받은 권한」을 보여줄 때 사실과 달라지면 안 되기 때문이다.
    */
-  "order.process": {
-    roles: ["owner", "senior_managing_director", "office_admin"],
+
+  /** `order_requests` UPDATE 정책. 본인이 올린 건은 역할과 무관하게 수정 가능(행 단위라 여기 없다). */
+  order_processor: {
+    roles: ["owner", "senior_managing_director", "office_admin", "cs_staff", "field_manager"],
+    individualGrant: true,
+    individualDeny: true,
+    requiresExpiry: true,
+    platformBypass: true,
+    systemOnly: false,
+  },
+
+  /** `maintenance_reports` UPDATE 정책. */
+  maintenance_status_change: {
+    roles: [
+      "owner",
+      "senior_managing_director",
+      "office_admin",
+      "cs_staff",
+      "field_manager",
+      "staff",
+    ],
+    individualGrant: true,
+    individualDeny: true,
+    requiresExpiry: true,
+    platformBypass: true,
+    systemOnly: false,
+  },
+
+  /**
+   * `properties` / `rooms` 쓰기.
+   *
+   * 역할로는 아무도 받지 않는다 — 현재 정책이 **오버라이드 보유자와 플랫폼 관리자에게만** 쓰기를
+   * 연다. 원래부터 「지정된 개인만」인 권한이다.
+   */
+  property_room_manage: {
+    roles: [],
+    individualGrant: true,
+    individualDeny: false,
+    requiresExpiry: true,
+    platformBypass: true,
+    systemOnly: false,
+  },
+
+  /**
+   * 일일 업무일지 생성. RLS 가 아니라 앱 게이트다(`canGenerateDailyReport`).
+   *
+   * 파트타임을 제외한 전 역할이 기본으로 갖고, 관리 업무를 겸하는 파트타이머에게 개인 부여한다.
+   */
+  can_generate_report: {
+    roles: [
+      "owner",
+      "senior_managing_director",
+      "office_admin",
+      "cs_staff",
+      "field_manager",
+      "staff",
+    ],
     individualGrant: true,
     individualDeny: true,
     requiresExpiry: true,
@@ -196,5 +256,19 @@ export function evaluateCapability(args: {
 
   if (args.granted && policy.individualGrant) return true;
 
-  return (policy.roles as readonly string[]).includes(args.role);
+  return roleHasCapability(args.role, policy.roles);
+}
+
+/**
+ * 역할이 이 권한을 기본으로 갖는가.
+ *
+ * **전무(`senior_managing_director`)는 `owner` 와 동등**하다(`isOrgTopAdmin`, 마이그레이션
+ * 202607130003). DB 헬퍼 `has_org_role` 이 이미 「목록에 owner 가 있으면 전무도 통과」로 동작하므로,
+ * 여기서도 같아야 한다 — 다르면 같은 권한이 앱에서는 열리고 RLS 에서는 막히는(또는 그 반대) 상태가
+ * 된다. 레지스트리에 owner 만 적고 전무를 빠뜨려도 전무가 조용히 권한을 잃지 않는다.
+ */
+function roleHasCapability(role: Role, roles: readonly OrganizationRole[]): boolean {
+  const list = roles as readonly string[];
+  if (list.includes(role)) return true;
+  return role === "senior_managing_director" && list.includes("owner");
 }

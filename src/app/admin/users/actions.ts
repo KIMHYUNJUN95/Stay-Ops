@@ -11,6 +11,7 @@ import {
   revokeMemberOverride,
   type MemberOverride,
 } from "@/lib/permission-overrides-server";
+import type { CapabilityEffect } from "@/config/capabilities";
 import { actorCanManageUsersInOrg, isDeveloper } from "@/lib/user-management-access";
 import type { Database } from "@/types/database";
 
@@ -228,7 +229,10 @@ export async function setMemberLeaveApprover(membershipId: string, grant: boolea
 export async function grantPermissionOverrideAction(input: {
   membershipId: string;
   permissionKey: string;
-  expiresAt: string;
+  /** 생략하면 부여. 차단은 명시해야 한다. */
+  effect?: CapabilityEffect;
+  /** 비우면 무기한 — 키가 기한을 요구하면 서버가 거부한다. */
+  expiresAt?: string | null;
   reason: string;
 }): Promise<{ ok: boolean; error?: string; override?: MemberOverride }> {
   const ctx = await resolveActor(input.membershipId);
@@ -241,9 +245,12 @@ export async function grantPermissionOverrideAction(input: {
     organizationId: ctx.membership.organization_id,
     userId: ctx.membership.user_id,
     permissionKey: input.permissionKey,
+    effect: input.effect === "deny" ? "deny" : "grant",
     grantedByUserId: ctx.actorUserId,
     reason: input.reason,
-    expiresAt: input.expiresAt,
+    expiresAt: input.expiresAt ?? null,
+    // 차단 면역 판정에 대상자의 역할이 필요하다(owner·전무는 잠글 수 없다).
+    targetRole: ctx.membership.role as Role,
   });
   if (!result.ok) return { ok: false, error: result.error };
   revalidateMember(input.membershipId);

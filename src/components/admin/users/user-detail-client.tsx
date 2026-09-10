@@ -59,10 +59,21 @@ export type TeamOption = { id: string; kind: string; name: string };
 export type Override = {
   id: string;
   key: string;
+  /** 부여인지 차단인지. 차단이 부여를 이긴다. */
+  effect: "grant" | "deny";
   by: string;
   granted: string; // ISO
-  expires: string; // ISO / datetime-local
+  /** `null` 이면 무기한(상시 지정). */
+  expires: string | null;
   reason: string;
+};
+
+/** 이 대상자에게 걸 수 있는 조작 — 서버가 레지스트리를 보고 정해서 내려준다. */
+export type AssignableCapability = {
+  key: string;
+  canGrant: boolean;
+  canDeny: boolean;
+  requiresExpiry: boolean;
 };
 
 export function UserDetailClient({
@@ -72,6 +83,9 @@ export function UserDetailClient({
   isDeveloperViewer = false,
   currentUserName,
   initialOverrides = [],
+  roleCapabilities = [],
+  effectiveCapabilities = [],
+  assignableCapabilities = [],
   teams = [],
 }: {
   member: UserDetailVM;
@@ -81,6 +95,11 @@ export function UserDetailClient({
   isDeveloperViewer?: boolean;
   currentUserName: string;
   initialOverrides?: Override[];
+  /** 역할만으로 받는 권한(개인 지정 제외). */
+  roleCapabilities?: readonly string[];
+  /** 역할 + 부여 − 차단을 합친 최종 결과. 서버가 계산한다. */
+  effectiveCapabilities?: readonly string[];
+  assignableCapabilities?: readonly AssignableCapability[];
   teams?: TeamOption[];
 }) {
   const router = useRouter();
@@ -105,12 +124,22 @@ export function UserDetailClient({
     { value: "grant", label: c.grant },
     { value: "revoke", label: c.revoke },
   ];
-  const keyOptions: AdmOption[] = Object.entries(c.keys).map(([key, meta]) => ({
-    value: key,
-    key,
-    label: meta.label,
-    desc: meta.desc,
-  }));
+  const capLabel = (key: string) => c.keys[key]?.label ?? key;
+  // 부여 목록은 **레지스트리가 정한 것**만 낸다. 사전에 라벨이 남아 있어도 개인 부여가 불가능한
+  // 키는 뜨면 안 된다(권한 관리 권한 자체 등).
+  const keyOptions: AdmOption[] = assignableCapabilities
+    .filter((cap) => cap.canGrant)
+    .map((cap) => ({
+      value: cap.key,
+      key: cap.key,
+      label: capLabel(cap.key),
+      desc: c.keys[cap.key]?.desc ?? "",
+    }));
+  const capById = new Map(assignableCapabilities.map((cap) => [cap.key, cap]));
+  // owner·전무는 잠글 수 없다(잠금 방지). 서버도 같은 규칙으로 거부하지만, 누를 수 없는 버튼을
+  // 보여 주지 않는 편이 낫다.
+  const canBeDeniedRole =
+    member.role !== "owner" && member.role !== "senior_managing_director" && !member.isDeveloper;
   // Team (현장/사무실 소속). Phase 1: one team per kind, so label each by its kind. Sub-teams (later)
   // will need the team name too.
   const teamLabel = (kind: string) => (kind === "field" ? c.teamFieldOption : c.teamOfficeOption);
@@ -137,6 +166,9 @@ export function UserDetailClient({
   const [overrides, setOverrides] = useState<Override[]>(initialOverrides);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState({ key: "", expires: "", reason: "" });
+  const selectedCap = form.key ? capById.get(form.key) : undefined;
+  // 기한은 키 정책이 정한다 — 일시적 예외는 필수, 상시 업무 지정은 무기한 허용.
+  const expiryRequired = selectedCap?.requiresExpiry ?? true;
   // Expiry is picked as separate date + time (custom pickers, not the native datetime-local); combined
   // into form.expires only when both are set.
   const [expDate, setExpDate] = useState("");
@@ -261,7 +293,11 @@ export function UserDetailClient({
     );
   }
 
-  function expBadge(iso: string) {
+  function expBadge(iso: string | null) {
+    // 무기한(상시 업무 지정). 기한이 필수인 키에서는 서버가 이 상태를 만들지 못하게 막는다.
+    if (!iso) {
+      return <span className="ui-badge ui-badge--muted">{c.permNoExpiry}</span>;
+    }
     const days = Math.ceil((new Date(iso).getTime() - nowMs) / 86_400_000);
     const tone = days < 0 ? "muted" : days <= 2 ? "amber" : "blue";
     const tail =
@@ -276,7 +312,7 @@ export function UserDetailClient({
     );
   }
 
-  const formValid = form.key && form.expires && form.reason.trim();
+  const formValid = Boolean(form.key) && Boolean(form.reason.trim()) && (!expiryRequired || Boolean(form.expires));
 
   function submitGrant() {
     if (!formValid) return;
@@ -284,7 +320,8 @@ export function UserDetailClient({
       const res = await grantPermissionOverrideAction({
         membershipId: member.membershipId,
         permissionKey: form.key,
-        expiresAt: form.expires,
+        effect: "grant",
+        expiresAt: form.expires || null,
         reason: form.reason.trim(),
       });
       if (res.ok && res.override) {
@@ -292,6 +329,33 @@ export function UserDetailClient({
         resetGrantForm();
         setFormOpen(false);
         showToast(c.toastGranted);
+        router.refresh();
+      } else {
+        showToast(errMsg(res.error), "danger");
+      }
+    });
+  }
+
+  /**
+   * 역할로 받은 권한을 이 사람에게서만 뺀다.
+   *
+   * 사유는 필수라 부여 폼과 같은 값을 요구해야 하지만, 목록에서 바로 누르는 조작이라 폼을 열지
+   * 않는다. 지금은 사전 문구로 최소 사유를 자동으로 남긴다(하드코딩 금지 — no-hardcoded-i18n
+   * 가드가 잡는다). 사유 입력 UX 는 품질 조정 단계에서 붙인다.
+   */
+  function doDeny(key: string) {
+    startTransition(async () => {
+      const res = await grantPermissionOverrideAction({
+        membershipId: member.membershipId,
+        permissionKey: key,
+        effect: "deny",
+        expiresAt: null,
+        reason: `${capLabel(key)} · ${c.permDenyBtn}`,
+      });
+      if (res.ok && res.override) {
+        setOverrides((prev) => [{ ...res.override!, by: currentUserName }, ...prev]);
+        showToast(c.toastGranted);
+        router.refresh();
       } else {
         showToast(errMsg(res.error), "danger");
       }
@@ -305,6 +369,7 @@ export function UserDetailClient({
         setOverrides((prev) => prev.filter((o) => o.id !== id));
         setRevoking(null);
         showToast(c.toastRevoked, "danger");
+        router.refresh();
       } else {
         showToast(errMsg(res.error), "danger");
       }
@@ -556,6 +621,64 @@ export function UserDetailClient({
             </div>
           </div>
 
+          {/*
+            세 가지를 함께 보여준다: 최종 유효 권한 · 역할로 받은 것 · 개인 지정.
+            부여와 차단이 겹치면 사람은 결과를 암산하지 못한다 — 화면이 판정식을 대신 계산해야
+            실수가 없다(docs/engineering/14-permission-architecture.md §7).
+            시각 품질은 전체 완료 후 조정한다.
+          */}
+          <div className="permsec" style={{ marginTop: 16 }}>
+            <div className="permsec__t">{c.permEffectiveTitle}</div>
+            <div className="chint" style={{ marginBottom: 8 }}>{c.permEffectiveHint}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {effectiveCapabilities.length > 0 ? (
+                effectiveCapabilities.map((key) => (
+                  <span className="ui-badge ui-badge--blue" key={key}>
+                    {capLabel(key)}
+                  </span>
+                ))
+              ) : (
+                <span className="chint">{c.permNone}</span>
+              )}
+            </div>
+          </div>
+
+          <div className="permsec" style={{ marginTop: 16 }}>
+            <div className="permsec__t">{c.permRoleTitle}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+              {roleCapabilities.length > 0 ? (
+                roleCapabilities.map((key) => {
+                  const cap = capById.get(key);
+                  const denied = overrides.some((o) => o.key === key && o.effect === "deny");
+                  return (
+                    <span
+                      className={`ui-badge ui-badge--${denied ? "muted" : "green"}`}
+                      key={key}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                    >
+                      {capLabel(key)}
+                      {cap?.canDeny && !denied && !member.isSelf ? (
+                        <button
+                          type="button"
+                          className="revbtn"
+                          onClick={() => doDeny(key)}
+                          title={c.permDenyBtn}
+                        >
+                          {c.permDenyBtn}
+                        </button>
+                      ) : null}
+                    </span>
+                  );
+                })
+              ) : (
+                <span className="chint">{c.permNone}</span>
+              )}
+            </div>
+            {!canBeDeniedRole ? (
+              <div className="chint" style={{ marginTop: 6 }}>{c.permDenyImmune}</div>
+            ) : null}
+          </div>
+
           {!member.isSelf && formOpen ? (
             <div style={{ marginTop: 16 }}>
               <div className="grant">
@@ -578,7 +701,7 @@ export function UserDetailClient({
                 <div className="gfield">
                   <label className="gfield__l">
                     {c.fieldExpires}
-                    <span className="req">*</span>
+                    {expiryRequired ? <span className="req">*</span> : null}
                   </label>
                   <div style={{ display: "flex", gap: 8 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -602,7 +725,7 @@ export function UserDetailClient({
                     <span className="ic">
                       <Info />
                     </span>
-                    {c.fieldExpiresHint}
+                    {expiryRequired ? c.fieldExpiresHint : c.permExpiryOptional}
                   </span>
                 </div>
                 <div className="gfield">
@@ -647,11 +770,15 @@ export function UserDetailClient({
 
           {overrides.length > 0 ? (
             <div className="ovlist" style={{ marginTop: 16 }}>
+              <div className="permsec__t" style={{ marginBottom: 8 }}>{c.permIndividualTitle}</div>
               {overrides.map((o) => {
                 const meta = c.keys[o.key];
                 return (
                   <div className="ov" key={o.id}>
                     <div className="ov__top">
+                      <span className={`ui-badge ui-badge--${o.effect === "deny" ? "red" : "green"}`}>
+                        {o.effect === "deny" ? c.permDenyBadge : c.permGrantBadge}
+                      </span>
                       <span className="ov__key">{o.key}</span>
                       <span className="ov__keylabel">{meta?.label ?? ""}</span>
                       <span className="ov__act">

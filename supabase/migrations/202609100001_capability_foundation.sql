@@ -42,9 +42,23 @@ delete from public.capability_roles;
 insert into public.capability_roles (capability, role) values
   ('permission.manage', 'owner'::organization_role),
   ('permission.manage', 'senior_managing_director'::organization_role),
-  ('order.process', 'owner'::organization_role),
-  ('order.process', 'senior_managing_director'::organization_role),
-  ('order.process', 'office_admin'::organization_role);
+  ('order_processor', 'owner'::organization_role),
+  ('order_processor', 'senior_managing_director'::organization_role),
+  ('order_processor', 'office_admin'::organization_role),
+  ('order_processor', 'cs_staff'::organization_role),
+  ('order_processor', 'field_manager'::organization_role),
+  ('maintenance_status_change', 'owner'::organization_role),
+  ('maintenance_status_change', 'senior_managing_director'::organization_role),
+  ('maintenance_status_change', 'office_admin'::organization_role),
+  ('maintenance_status_change', 'cs_staff'::organization_role),
+  ('maintenance_status_change', 'field_manager'::organization_role),
+  ('maintenance_status_change', 'staff'::organization_role),
+  ('can_generate_report', 'owner'::organization_role),
+  ('can_generate_report', 'senior_managing_director'::organization_role),
+  ('can_generate_report', 'office_admin'::organization_role),
+  ('can_generate_report', 'cs_staff'::organization_role),
+  ('can_generate_report', 'field_manager'::organization_role),
+  ('can_generate_report', 'staff'::organization_role);
 -- <<< generated
 
 -- ---------------------------------------------------------------------------
@@ -154,10 +168,16 @@ as $$
       coalesce((select is_platform from me), false)
       or coalesce((select granted from effects), false)
       or exists (
+        -- 전무(senior_managing_director)는 owner 와 동등하다. DB 헬퍼 has_org_role 이 이미
+        -- 「목록에 owner 가 있으면 전무도 통과」로 동작하므로 여기서도 같아야 한다 — 다르면 같은
+        -- 권한이 앱에서는 열리고 RLS 에서는 막히는 상태가 된다. 앱 쪽 roleHasCapability 와 대응.
         select 1
         from public.capability_roles cr
         where cr.capability = target_capability
-          and cr.role = (select role from me)
+          and (
+            cr.role = (select role from me)
+            or ((select role from me) = 'senior_managing_director' and cr.role = 'owner')
+          )
       )
     );
 $$;

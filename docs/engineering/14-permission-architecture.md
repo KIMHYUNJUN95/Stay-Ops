@@ -1,11 +1,12 @@
 # 권한 아키텍처 — 역할과 개인 지정을 하나의 모델로
 
-- 상태: **2단계(토대) 구현 완료** — 2026-09-10. 권한은 아직 하나도 바뀌지 않았다(§8).
-  다음은 3단계(관리 UI).
+- 상태: **3단계(관리 UI)까지 구현 완료** — 2026-09-10. 권한은 아직 하나도 바뀌지 않았다(§8).
+  다음은 4단계(사이드바).
 - 구현된 것: `src/config/capabilities.ts`(레지스트리·판정식) · `src/lib/capabilities-server.ts`
   (서버 리졸버) · `src/lib/capability-seed.ts`(시드 생성) ·
   `supabase/migrations/202609100001_capability_foundation.sql`(원격 적용 완료) ·
-  `AppSession.capabilities` · `src/lib/__tests__/capability-registry.test.ts`(12건)
+  `AppSession.capabilities` · `/admin/users/[id]` 권한 카드 ·
+  `src/lib/__tests__/capability-registry.test.ts`(13건)
 - 사용자 방향 지시(2026-09-10): 「앞으로도 모든 기능은 역할 기반으로 나눠 쓰는 기능도 필요하지만,
   개개인을 특정해 권한을 세분화할 수 있도록도 설계해야 한다. 채용 기능만 중요한 게 아니라 설계
   자체를 그렇게 해야 한다. 차단 모델도 넣고, 사용자 기능에서 관리할 수 있어야 한다.」
@@ -116,18 +117,42 @@ TypeScript 쪽 역할표를 고쳐도 SQL 쪽은 따라오지 않는다. **이 �
 
 ## 3. 모델
 
+### 3-0. 기존 오버라이드 키 4개는 이름을 유지한다
+
+`order_processor` · `maintenance_status_change` · `property_room_manage` · `can_generate_report` 는
+RLS 정책과 앱 코드가 **그 문자열 그대로**를 검사하고 있다. 이름을 바꾸면 그 정책들을 함께 고쳐야
+하므로 레지스트리에 원래 이름으로 넣었다. 5단계에서 기능을 옮길 때 정리한다.
+
+이 키들의 `roles` 는 **각 기능의 현재 RLS 정책에서 그대로 옮겨 적은 값**이다(2026-09-10 실측).
+관리 화면이 「역할로 받은 권한」을 보여줄 때 사실과 달라지면 안 되기 때문이다.
+`property_room_manage` 만 `roles: []` 인데, 현재 정책이 오버라이드 보유자와 플랫폼 관리자에게만
+쓰기를 열어 원래부터 「지정된 개인만」인 권한이기 때문이다.
+
+### 3-0-1. 전무는 owner 와 동등하다
+
+DB 헬퍼 `has_org_role` 이 「목록에 `owner` 가 있으면 `senior_managing_director` 도 통과」로 동작한다
+(마이그레이션 202607130003). **판정식도 같아야 한다** — 다르면 같은 권한이 앱에서는 열리고 RLS
+에서는 막히는 상태가 된다. `evaluateCapability`(앱)와 `has_capability`(SQL) 양쪽에 같은 동등 규칙을
+넣었고, 테스트가 「전무는 owner 가 가진 것을 모두 가진다」를 전 키에 대해 검증한다.
+
 ### 3-1. 권한 키(capability)
 
 권한의 단위. `도메인.동작` 형태의 문자열이다.
 
+현재 레지스트리(2026-09-10):
+
 ```txt
-job_application.read      지원서 열람
-job_application.triage    지원서 심사 상태 변경
-job_application.delete    지원서 삭제
-order.process             발주 상태 처리
-user.manage               사용자 관리
-payroll.view              급여 열람
+permission.manage           권한 관리 (systemOnly — 개인 지정 불가)
+job_application.read        지원서 열람
+job_application.triage      지원서 심사 상태 변경
+job_application.delete      지원서 삭제
+order_processor             발주 상태 처리          ← 기존 키, 이름 유지(§3-0)
+maintenance_status_change   수리 상태 변경          ← 기존 키
+property_room_manage        건물·객실 관리          ← 기존 키
+can_generate_report         일일 업무일지 생성      ← 기존 키
 ```
+
+앞으로 추가될 것(5단계에서 해당 기능을 옮길 때): `user.manage` · `payroll.view` 등.
 
 읽기와 쓰기를 나누는 이유: 「보기만 되는 사람」과 「처리까지 되는 사람」이 실제로 다르다. 지금은
 채용에서 볼 수 있으면 삭제까지 된다.
@@ -142,8 +167,8 @@ payroll.view              급여 열람
   requiresExpiry: false,      // 상시 업무 → 무기한 지정 허용
   platformBypass: true,
 },
-"order.process": {
-  roles: ["owner", "senior_managing_director", "office_admin"],
+order_processor: {
+  roles: ["owner", "senior_managing_director", "office_admin", "cs_staff", "field_manager"],
   individualGrant: true,
   individualDeny: true,       // 「사무직인데 이 사람만 제외」
   requiresExpiry: true,       // 기존 시한부 정책 유지
@@ -158,6 +183,7 @@ payroll.view              급여 열람
 | `individualDeny` | 역할로 받은 것을 개인에게서 뺄 수 있는가 |
 | `requiresExpiry` | 부여에 기한이 반드시 필요한가 |
 | `platformBypass` | 플랫폼 개발자(`developer_super_admin`)가 통과하는가 |
+| `systemOnly` | 관리 화면에 **노출조차 하지 않는다**(권한 관리 자체) |
 
 **기존 결정과의 관계.** `27-permission-override-workflow.md` 는 「모든 부여에 기한 필수, 무기한
 없음」을 확정 결정으로 적고 있다. 이 설계는 그것을 **키별 정책으로 일반화**한다 — 기존 예외성
@@ -289,6 +315,18 @@ using (has_capability(organization_id, (select auth.uid()), 'job_application.rea
 
 관리 권한: `owner` · `senior_managing_director` · `developer_super_admin`(현재와 동일).
 
+### 구현 메모 (2026-09-10)
+
+- 부여 드롭다운은 **레지스트리가 정한 것만** 낸다. i18n 사전에 라벨이 남아 있어도 개인 부여가
+  불가능한 키는 뜨지 않는다.
+- 기한 필드의 필수 표시가 **키 정책을 따른다**(`requiresExpiry`). 비우면 무기한이고, 기한이 필요한
+  키에서 비우면 서버가 거부한다.
+- 차단 버튼은 「역할로 받은 권한」 칩 옆에 붙는다 — 뺄 대상이 눈앞에 있어야 조작이 자연스럽다.
+  owner·전무·개발자에게는 버튼이 뜨지 않고, 서버도 같은 규칙으로 거부한다(이중 방어).
+- 부여·차단·회수 후 `router.refresh()` 로 **최종 유효 권한을 서버가 다시 계산**한다. 클라이언트가
+  판정식을 흉내 내면 그 순간 계산이 두 벌이 된다.
+- 시각 품질(레이아웃·간격·칩 스타일)은 **전체 완료 후 조정**한다(사용자 지시 2026-09-10).
+
 **다국어는 처음부터 셋 다.** 권한 키의 라벨·설명, 부여/차단/회수 문구, 사유 입력, 만료 표시,
 빈 상태를 `ko`/`ja`/`en` 로 함께 만든다(CLAUDE.md §2). 라벨은 기존
 `admin.users.console.keys` 네임스페이스를 확장한다.
@@ -301,7 +339,7 @@ using (has_capability(organization_id, (select auth.uid()), 'job_application.rea
 | --- | --- | --- |
 | ~~**1. 설계 문서**~~ | 완료 2026-09-10 | 아니오 |
 | ~~**2. 토대**~~ | 완료 2026-09-10 — 레지스트리 · 서버 리졸버 · `has_capability` · `capability_roles` · 세션 적재 · 일치 테스트 | **아니오** |
-| **3. 관리 UI** | `/admin/users/[id]` 권한 카드(부여·차단·유효 권한) + i18n 3개 국어 | 아니오 |
+| ~~**3. 관리 UI**~~ | 완료 2026-09-10 — `/admin/users/[id]` 권한 카드(부여·차단·유효 권한) + i18n 3개 국어 | 아니오 |
 | **4. 사이드바** | `NavigationItem.capability` 배선 + 필터 | 메뉴 노출만 |
 | **5. 기능 전환** | 채용 → 사용자 관리 → 설정 → 급여 → … **한 번에 하나씩** | 예 |
 

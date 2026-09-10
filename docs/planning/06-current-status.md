@@ -20,7 +20,7 @@ and the major mobile/admin operations modules are implemented and being hardened
   would otherwise read as current status. Encoding-damaged sections/files were intentionally not repaired
   in this pass.
 
-## 2026-09-10 — 권한 아키텍처 재구성 (2단계 토대 완료)
+## 2026-09-10 — 권한 아키텍처 재구성 (3단계 관리 UI 완료)
 
 사용자 지시로 **권한 모델 자체를 다시 세운다.** 역할 기반과 개인 지정을 하나의 모델에 담고,
 차단(deny)까지 포함한다. 채용 기능 개발은 이 작업 동안 **보류**.
@@ -42,7 +42,7 @@ and the major mobile/admin operations modules are implemented and being hardened
 (`NavigationItem.allowedRoles` 는 선언만 되고 배선되지 않은 죽은 필드) — `field_manager`·`staff`
 에게 「채용」 메뉴가 보이고 누르면 `/admin` 으로 튕긴다. 데이터 유출은 없다(서버 3중 게이트).
 
-**이행 단계.** ~~1) 설계 문서~~ ~~2) 토대~~ **3) 관리 UI ← 현재 여기** 4) 사이드바 5) 기능 전환.
+**이행 단계.** ~~1) 설계 문서~~ ~~2) 토대~~ ~~3) 관리 UI~~ **4) 사이드바 ← 현재 여기** 5) 기능 전환.
 2~4단계는 권한 무변경, 5단계만 실제 권한이 움직인다.
 
 **2단계 완료 (2026-09-10).** `capabilities.ts`(레지스트리·판정식) · `capabilities-server.ts`(리졸버) ·
@@ -50,6 +50,20 @@ and the major mobile/admin operations modules are implemented and being hardened
 `expires_at` NULL 허용 · `has_capability()`) · `AppSession.capabilities` · 테스트 12건.
 앱↔SQL 판정 일치를 실제 사용자 3명 + 임시 부여·차단 행으로 대조 확인(확인 후 삭제, 잔여 0행).
 `npm run lint` · `npm run build` · vitest 251건 통과.
+
+**3단계 완료 (2026-09-10).** `/admin/users/[id]` 「권한 예외」 카드를 **「권한」 카드**로 확장했다 —
+최종 유효 권한 · 역할로 받은 권한(+제외 버튼) · 개인 지정(부여/차단 배지). 부여 드롭다운은
+레지스트리가 정한 것만 내고, 기한 필수 여부도 키 정책을 따른다(비우면 무기한). 신규 i18n
+ko/ja/en 동시(권한 키 라벨 3종 + UI 문구 11종). 시각 품질은 전체 완료 후 조정(사용자 지시).
+
+**기존 키 4개를 레지스트리에 흡수하며 실측 반영.** `order_processor`·`maintenance_status_change`·
+`property_room_manage`·`can_generate_report` 는 RLS·앱 코드가 그 문자열을 그대로 검사하므로 이름을
+유지했고, `roles` 는 각 기능의 현재 RLS 정책에서 그대로 옮겼다.
+
+**함정 하나를 잡았다.** DB 헬퍼 `has_org_role` 은 「목록에 owner 가 있으면 전무도 통과」로 동작하는데
+초안 `has_capability` 는 그러지 않았다 — 같은 권한이 앱에서는 열리고 RLS 에서는 막히는 상태가 될
+뻔했다. 양쪽에 동등 규칙을 넣고 전 키를 검증하는 테스트를 추가했다.
+vitest 252건 통과.
 
 **미결(설계 확정에 필요).** 채용 권한의 `roles` 값 · 현재 `office_admin` 1명 처리 ·
 읽기/쓰기 키 분리 여부. (14번 문서 §10)
