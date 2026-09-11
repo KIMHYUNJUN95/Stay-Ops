@@ -16,6 +16,7 @@ import { getMobileNavBadges } from "@/lib/nav-badges";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { getDictionary, type Locale } from "@/lib/i18n";
+import { getDisplayRoomLabel } from "@/lib/room-label-normalization";
 import {
   getOrderRequestById,
   type OrderRequestItem,
@@ -295,7 +296,9 @@ export default async function MobileOrderRequestDetailPage({
             <div className="min-w-0">
               <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">{copy.locationTitle}</p>
               <p className="mt-0.5 font-bold text-foreground">{order.building_name}</p>
-              <p className="text-sm text-muted-foreground">{order.room_label}</p>
+              <p className="text-sm text-muted-foreground">
+                {getDisplayRoomLabel(order.building_name ?? "", order.room_label)}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3 p-4">

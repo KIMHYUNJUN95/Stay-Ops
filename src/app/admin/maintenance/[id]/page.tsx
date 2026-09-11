@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import { getMaintenanceReportById, maintenanceStatuses, type MaintenanceStatus } from "@/lib/maintenance-reports";
 import { requireAdminSession } from "@/lib/admin-session";
-import { localizePropertyName } from "@/lib/room-label-normalization";
+import { getDisplayRoomLabel, localizePropertyName } from "@/lib/room-label-normalization";
 
 const statusBadgeClass: Record<MaintenanceStatus, string> = {
   open: "border-blue-200 bg-blue-50 text-blue-700",
@@ -119,7 +119,9 @@ export default async function AdminMaintenanceDetailPage({
             ) : null}
             <div className="flex items-start justify-between gap-3 text-sm">
               <dt className="font-semibold text-muted-foreground">{copy.room}</dt>
-              <dd className="font-black">{report.room_label}</dd>
+              <dd className="font-black">
+                {getDisplayRoomLabel(report.property_name ?? "", report.room_label)}
+              </dd>
             </div>
             <div className="flex items-start justify-between gap-3 text-sm">
               <dt className="font-semibold text-muted-foreground">{copy.reporter}</dt>
