@@ -830,3 +830,15 @@ Future navigation additions must also update the side-menu badge table and `getM
 토스트는 우측 하단 FAB(`bottom-[calc(6rem+env(safe-area-inset-bottom))]`)와 같은 자리를 지난다.
 겹쳐 그리면 FAB 가 잘린 채 비쳐 지저분하므로, **토스트가 떠 있는 동안 FAB 는 페이드·축소로 물러난다**
 (`pointer-events-none scale-90 opacity-0`). 투두 워크스페이스의 `toastVisible` 참고.
+
+## 스크롤바는 감춘다 (2026-09-11)
+
+모바일 셸의 본문 스크롤러는 스크롤바를 그리지 않는다
+(`[scrollbar-width:none] [&::-webkit-scrollbar]:hidden`).
+
+실제 기기에서는 쉴 때 보이지 않는 오버레이 스크롤바지만, 데스크톱 브라우저와 어드민의 아이폰 모양
+미리보기에서는 **항상 자리를 차지하는 막대**가 생긴다. 폭 390px 중 15px 을 먹고, 기기처럼 보이지도
+않는다.
+
+같은 파일의 **측면 메뉴 스크롤러는 원래부터 이렇게 하고 있었다** — 본문만 빠져 있던 것을 맞춘 것이다.
+스크롤 동작(스크롤 인지 상단 크롬 · 당겨서 새로고침 · overscroll 격리)은 그대로다.

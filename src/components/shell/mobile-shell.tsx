@@ -831,6 +831,11 @@ export function MobileShell({
             <div
               className={cn(
                 "h-full overflow-y-auto overscroll-y-contain bg-background px-5 pt-[84px] text-foreground",
+                // 스크롤바를 숨긴다. 실제 기기에서는 쉴 때 보이지 않는 오버레이 스크롤바인데,
+                // 데스크톱(그리고 어드민의 아이폰 모양 미리보기)에서는 항상 자리를 차지하는 막대가
+                // 생겨 폭 390px 중 15px 을 먹고 기기처럼 보이지도 않는다.
+                // 같은 파일의 측면 메뉴 스크롤러가 이미 이렇게 하고 있다 — 그쪽에 맞춘다.
+                "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
                 hideBottomNav ? "pb-8" : "pb-[124px]",
               )}
               onScroll={handleContentScroll}
