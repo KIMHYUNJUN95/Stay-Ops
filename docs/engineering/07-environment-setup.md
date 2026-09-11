@@ -222,6 +222,35 @@ Usage:
 - `RECRUIT_ORGANIZATION_ID`: 지원서가 속할 조직. 생략하면 유일한 조직을 쓰고, 조직이 둘 이상이면
   추측하지 않고 거부한다. **현재 조직은 1개라 설정 불필요**(2026-09-09 확인).
 
+### Firestore 서비스 계정 (2026-09-11 — 공개 읽기를 잠글 때 필요)
+
+```txt
+RECRUIT_FIRESTORE_SERVICE_ACCOUNT=
+```
+
+채용 사이트 Firestore 는 **인증 없이 읽힌다** — 어드민이 Firebase Auth 를 쓰지 않아(비밀번호가
+번들 안 상수) 규칙이 공개 읽기를 허용해야 그 화면이 동작하기 때문이다. 그 결과 지원자 이름·전화·
+주소·국적·비자·이력서가 URL 만 알면 열린다. 그 URL 은 숨겨진 값이 아니다 — `projectId` 와 컬렉션
+이름이 사이트 번들에 문자열로 들어 있고, 개발자도구 Network 탭에도 그대로 보인다.
+
+규칙을 잠그면 그 노출이 닫히는 대신 **StayOps 의 당겨오기도 함께 죽는다.** 그래서 서비스 계정으로
+읽는 경로를 먼저 깔아 둔다.
+
+- 값은 **서비스 계정 JSON 통째로** 넣는다(Firebase 콘솔 → 프로젝트 설정 → 서비스 계정 → 새 비공개
+  키 생성). `client_email` 과 `private_key` 만 쓴다.
+- 이메일·키를 따로 넣고 싶으면 `RECRUIT_FIRESTORE_CLIENT_EMAIL` /
+  `RECRUIT_FIRESTORE_PRIVATE_KEY` 도 받는다. 줄바꿈이 `\n` 리터럴로 저장돼도 코드가 되돌린다.
+- **미설정이면 예전처럼 인증 없이 읽는다.** 그래서 이 코드를 배포하는 것만으로는 아무것도 바뀌지
+  않는다 — 키를 넣고 규칙을 잠그는 순간 넘어간다(무중단).
+- 지금 어느 쪽으로 읽고 있는지는 `POST /api/recruit/sync` 응답의 **`auth`** 로 확인한다:
+  `anonymous` / `service_account`.
+- 권한은 **읽기만** 요청한다(`datastore` 스코프). Firestore 쓰기는 채용 사이트가 한다.
+
+**전환 순서(무중단).** ① 이 코드 배포 → ② 서비스 계정 키를 Vercel 에 넣고 재배포 →
+`auth: "service_account"` 확인 → ③ Firestore 규칙 잠그기 → 동기화가 계속 도는지 확인.
+②를 건너뛰고 ③을 하면 지원서 수신이 멈춘다(GitHub Actions 가 502 로 빨간불이 되므로 드러나긴 한다).
+
+
 **자동 연동은 환경변수 없이 돈다 (2026-09-09).** 채용 사이트에 Cloud Function 이 없다는 것이
 확인되어(저장소에 `functions/` 자체가 없다) push 대신 **당겨오기**로 간다:
 `POST /api/recruit/sync` + GitHub Actions `.github/workflows/recruit-sync.yml`(5분 주기 + 하루 1회

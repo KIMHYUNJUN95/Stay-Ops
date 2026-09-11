@@ -4,6 +4,7 @@ import {
   fetchFirestoreCollectionSince,
   type FirestoreRecord,
 } from "@/lib/recruit/firestore";
+import { hasFirestoreServiceAccount } from "@/lib/recruit/firestore-auth";
 import { ingestJobApplication } from "@/lib/recruit/ingest";
 import type { RecruitSource } from "@/lib/recruit/payload";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -74,6 +75,14 @@ type SyncSummary = {
   read: number;
   /** 지워진 지원서라 다시 넣지 않은 건수. */
   skippedDeleted: number;
+  /**
+   * Firestore 를 어떤 자격으로 읽었는가.
+   *
+   * 규칙을 잠그는 전환에서 이 값이 유일한 확인 수단이다 — 키를 넣기 전에는 `anonymous`,
+   * 넣은 뒤에는 `service_account` 여야 한다. 이걸 보지 않으면 「잠갔는데 왜 되지?」(아직 공개)나
+   * 「키를 넣었는데 왜 안 되지?」(형식 오류)를 구분할 수 없다.
+   */
+  auth: "service_account" | "anonymous";
   /** 조건 조회의 기준 시각. 없으면 조건 없이 읽었다는 뜻이다(첫 실행 또는 전량 훑기). */
   since?: string;
   failed: { source: string; docId: string; error: string }[];
@@ -141,7 +150,15 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const summary: SyncSummary = { mode, created: 0, updated: 0, read: 0, skippedDeleted: 0, failed: [] };
+  const summary: SyncSummary = {
+    mode,
+    created: 0,
+    updated: 0,
+    read: 0,
+    skippedDeleted: 0,
+    auth: hasFirestoreServiceAccount() ? "service_account" : "anonymous",
+    failed: [],
+  };
 
   try {
     if (mode === "full") {

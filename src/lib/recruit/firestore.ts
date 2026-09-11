@@ -1,4 +1,5 @@
 import "server-only";
+import { getFirestoreAccessToken } from "@/lib/recruit/firestore-auth";
 
 /**
  * 채용 사이트 Firestore 읽기 (2026-09-09).
@@ -6,10 +7,17 @@ import "server-only";
  * 백필(`/api/dev/recruit/backfill`)과 주기 동기화(`/api/recruit/sync`)가 **같은 코드로** 읽는다.
  * 두 경로가 각자 읽으면 한쪽만 고쳐지는 날이 온다.
  *
- * **인증 없이 읽는다.** 채용 사이트 어드민이 Firebase Auth 없이 클라이언트에서 직접 읽고 있어
- * (비밀번호는 번들 안 상수) 규칙이 공개 읽기를 허용한다 — 2026-09-09 에 키 없는 REST 호출이 200 을
- * 돌려주는 것으로 확인했다. 이 상태 자체가 개인정보 노출이므로 규칙을 잠그는 것이 맞고, **잠그면 이
- * 경로는 죽는다.** 죽는다는 사실이 보이도록 호출부가 결과를 기록한다(`recruit_sync_state`).
+ * **인증은 있으면 쓰고, 없으면 안 쓴다 (2026-09-11).** 채용 사이트의 Firestore 는 오랫동안 인증 없이
+ * 읽혔다 — 어드민이 Firebase Auth 를 쓰지 않아(비밀번호가 번들 안 상수) 규칙이 공개 읽기를 허용해야
+ * 그 화면이 동작하기 때문이다. 그 상태는 지원자 개인정보가 URL 만 알면 열린다는 뜻이라 규칙을 잠그는
+ * 것이 맞고, 잠그면 이 경로도 함께 죽는다.
+ *
+ * 그래서 서비스 계정 토큰이 있으면 붙이고 없으면 그대로 보낸다(`firestore-auth.ts`). 이 순서 덕분에
+ * **잠그기 전에 배포해 둘 수 있다** — 배포만으로는 아무것도 바뀌지 않고, 키를 넣고 규칙을 잠그는
+ * 순간 자연스럽게 넘어간다. 무중단 전환의 핵심이다.
+ *
+ * 읽기에 실패하면 호출부가 502 를 내고 결과를 기록한다(`recruit_sync_state`) — 조용히 0건이 되면
+ * 「어제부터 지원서가 안 들어온다」를 아무도 눈치채지 못한다.
  *
  * 도메인 계약: docs/product/30-recruit-workflow.md
  */
@@ -19,6 +27,12 @@ const DEFAULT_PROJECT_ID = "haru-recruit";
 
 export function resolveFirestoreProjectId(): string {
   return process.env.RECRUIT_FIRESTORE_PROJECT_ID?.trim() || DEFAULT_PROJECT_ID;
+}
+
+/** 서비스 계정이 설정돼 있으면 인증 헤더를, 없으면 빈 객체를 준다(기존 동작). */
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await getFirestoreAccessToken();
+  return token ? { authorization: `Bearer ${token}` } : {};
 }
 
 /**
@@ -95,7 +109,7 @@ export async function fetchFirestoreCollection(args: {
     if (args.apiKey) url.searchParams.set("key", args.apiKey);
     if (pageToken) url.searchParams.set("pageToken", pageToken);
 
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetch(url, { cache: "no-store", headers: await authHeaders() });
     if (!response.ok) {
       throw new Error(`firestore ${args.collection} read failed: ${response.status}`);
     }
@@ -143,7 +157,7 @@ export async function fetchFirestoreCollectionSince(args: {
 
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(await authHeaders()) },
     cache: "no-store",
     body: JSON.stringify({
       structuredQuery: {
