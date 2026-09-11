@@ -56,8 +56,16 @@ async function handle(request: NextRequest) {
 
   try {
     const supabase = getSupabaseServiceClient();
+    // `?propertyId=343112` 또는 `?propertyId=343112,280663` — 지정하면 그 건물만 동기화한다.
+    // 새 건물 하나를 채우려다 다른 건물까지 건드리지 않기 위해서다.
+    const propertyIdsParam = request.nextUrl.searchParams.get("propertyId");
+    const externalPropertyIds = propertyIdsParam
+      ? propertyIdsParam.split(",").map((id) => id.trim()).filter(Boolean)
+      : undefined;
+
     const result = await backfillBeds24RoomMaster(supabase, {
       organizationId: organizationIdParam ?? undefined,
+      externalPropertyIds,
     });
 
     return NextResponse.json({

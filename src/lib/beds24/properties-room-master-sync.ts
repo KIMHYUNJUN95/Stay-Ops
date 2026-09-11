@@ -221,7 +221,7 @@ async function getTargetOrganizationIds(
 
 export async function backfillBeds24RoomMaster(
   supabase: SupabaseClient<Database>,
-  options?: { organizationId?: string },
+  options?: { organizationId?: string; externalPropertyIds?: string[] },
 ): Promise<Beds24RoomMasterBackfillResult> {
   const fetched = await fetchBeds24PropertySnapshot();
   if (!fetched.snapshot) {
@@ -233,13 +233,33 @@ export async function backfillBeds24RoomMaster(
     };
   }
 
+  // 건물을 지정하면 그것만 동기화한다.
+  //
+  // 새 건물 하나가 열렸을 때 전 건물을 훑으면 **의도하지 않은 변경이 함께 나간다** — 다른 건물의
+  // 이름이 Beds24 쪽 값으로 덮이거나 객실이 늘어난다. 실제로 2026-09-11 에 스테이아리 한 곳만
+  // 채우려는데 Arakicho A 객실이 하나 함께 늘어나는 상황이 있었다. 「이 건물만」이라고 말할 수
+  // 있어야 한다.
+  const only = options?.externalPropertyIds?.map((id) => id.trim()).filter(Boolean);
+  const snapshot = only?.length
+    ? fetched.snapshot.filter((property) => only.includes(String(property.externalPropertyId)))
+    : fetched.snapshot;
+
+  if (only?.length && snapshot.length === 0) {
+    return {
+      organizations: [],
+      skipped: [...fetched.skipped, `master-sync:no-match:${only.join(",")}`],
+      snapshotProperties: 0,
+      snapshotRooms: 0,
+    };
+  }
+
   const targetOrgIds = await getTargetOrganizationIds(supabase, options?.organizationId);
   const organizations: Beds24RoomMasterBackfillOrgResult[] = [];
 
   for (const organizationId of targetOrgIds) {
     const result = await syncBeds24PropertyRoomSnapshotForOrganization(
       organizationId,
-      fetched.snapshot,
+      snapshot,
       supabase,
     );
 
@@ -253,8 +273,10 @@ export async function backfillBeds24RoomMaster(
     });
   }
 
-  const snapshotProperties = fetched.snapshot.length;
-  const snapshotRooms = fetched.snapshot.reduce((sum, property) => sum + property.rooms.length, 0);
+  // 실제로 동기화한 범위를 보고한다. 필터를 걸었는데 전체 개수를 돌려주면 「26개 중 몇 개가
+  // 들어갔나」를 확인할 수 없다.
+  const snapshotProperties = snapshot.length;
+  const snapshotRooms = snapshot.reduce((sum, property) => sum + property.rooms.length, 0);
 
   return {
     organizations,

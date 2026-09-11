@@ -719,32 +719,46 @@ export async function recoverReservationsRoomLabels(
   // 2. Fetch existing reservations to check for mapping mismatch.
   // Do not filter by source = "beds24": real rows are stored with channel names
   // such as Booking.com / Airbnb, so historical broken rows would be skipped.
-  let resQuery = supabase
-    .from("reservations")
-    .select("id, organization_id, source, source_reservation_id, room_label, raw_payload")
-    .not("raw_payload", "is", null);
-
-  if (organizationId) {
-    resQuery = resQuery.eq("organization_id", organizationId);
-  }
-
-  const resResult = await resQuery;
-  if (resResult.error) {
-    return { processed: 0, recovered: 0, errors: [resResult.error.message] };
-  }
-
-  let processed = 0;
-  let recovered = 0;
-  const errors: string[] = [];
-
-  const reservationRows = (resResult.data ?? []) as Array<{
+  //
+  // **페이지로 끝까지 읽는다.** PostgREST 는 상한을 주지 않으면 **1,000행**만 돌려준다 — 조용히,
+  // 오류 없이. 예약이 3,505건인 상태에서 복구를 돌렸더니 앞의 1,000건만 보고 나머지는 손도 대지
+  // 못했다(2026-09-11, 스테이아리 건물 데이터를 채우다 발견). 복구는 「고칠 게 없다」와 「보지
+  // 못했다」가 겉보기에 같아서, 상한에 걸린 줄 모르고 넘어가기 쉽다.
+  const PAGE = 1000;
+  const reservationRows: Array<{
     id: string;
     organization_id: string;
     source: string;
     source_reservation_id: string;
     room_label: string;
     raw_payload: unknown;
-  }>;
+  }> = [];
+
+  for (let offset = 0; ; offset += PAGE) {
+    let resQuery = supabase
+      .from("reservations")
+      .select("id, organization_id, source, source_reservation_id, room_label, raw_payload")
+      .not("raw_payload", "is", null)
+      // 페이지를 넘기려면 순서가 안정적이어야 한다. 정렬이 없으면 같은 행을 두 번 보거나 건너뛴다.
+      .order("id", { ascending: true })
+      .range(offset, offset + PAGE - 1);
+
+    if (organizationId) {
+      resQuery = resQuery.eq("organization_id", organizationId);
+    }
+
+    const page = await resQuery;
+    if (page.error) {
+      return { processed: 0, recovered: 0, errors: [page.error.message] };
+    }
+    const rows = (page.data ?? []) as typeof reservationRows;
+    reservationRows.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+
+  let processed = 0;
+  let recovered = 0;
+  const errors: string[] = [];
   for (const res of reservationRows) {
     processed++;
     const raw = asRecord(res.raw_payload);
@@ -776,12 +790,29 @@ export async function recoverReservationsRoomLabels(
 
       if (conflictRow) {
         // A properly-labeled row already exists — delete the stale (unknown) row.
+        const keptId = (conflictRow as { id: string }).id;
         console.warn("[beds24/recovery] dedup: deleting stale (unknown) row in favor of resolved row", {
           staleId: res.id,
-          keptId: (conflictRow as { id: string }).id,
+          keptId,
           originalId,
           correctedSourceId,
         });
+
+        // **지우기 전에 리뷰를 옮긴다.** `external_reviews.reservation_id` 의 FK 는 `SET NULL` 이라
+        // 그냥 지우면 오류 없이 리뷰의 예약 연결만 끊긴다 — 같은 예약의 살아있는 행이 바로 옆에
+        // 있는데도. 2026-09-11 스테이아리 정리에서 실제로 2건이 걸렸다.
+        const reviewResult = await supabase
+          .from("external_reviews")
+          .update({ reservation_id: keptId })
+          .eq("reservation_id", res.id);
+        if (reviewResult.error) {
+          // 옮기지 못했으면 지우지 않는다. 중복 한 행보다 끊긴 리뷰가 나쁘다.
+          errors.push(
+            `Failed to move reviews off stale reservation ${res.id}: ${reviewResult.error.message}`,
+          );
+          continue;
+        }
+
         const deleteResult = await supabase
           .from("reservations")
           .delete()
