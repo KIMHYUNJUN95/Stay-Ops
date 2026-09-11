@@ -22,7 +22,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
  * 번만 간다. 이 저장소는 세션 워터폴로 첫 바이트가 늦어지는 문제를 이미 겪었다.
  */
 
-type ActiveOverride = { permission_key: string; effect: CapabilityEffect };
+export type ActiveOverride = { permission_key: string; effect: CapabilityEffect };
 
 /** 한 사용자의 활성 개인 부여·차단(회수 안 됐고, 기한이 있으면 아직 안 지난 것). */
 const loadActiveOverrides = cache(
@@ -59,6 +59,33 @@ type CapabilityInput = {
 };
 
 /**
+ * 이미 읽어 둔 부여·차단 행으로 권한을 계산한다 — **조회를 하지 않는다.**
+ *
+ * 세션 조립부가 쓴다. 거기서는 이 행들을 프로필·멤버십과 **같은 배치로 미리 읽어** 두므로,
+ * 여기서 또 조회하면 요청마다 왕복이 한 번 늘어난다(2026-09-11 성능 점검에서 실제로 그랬다).
+ */
+export function computeCapabilities(
+  role: Role,
+  overrides: readonly ActiveOverride[],
+): Capability[] {
+  const granted = new Set(overrides.filter((o) => o.effect === "grant").map((o) => o.permission_key));
+  const denied = new Set(overrides.filter((o) => o.effect === "deny").map((o) => o.permission_key));
+  return CAPABILITY_KEYS.filter((capability) =>
+    evaluateCapability({
+      capability,
+      role,
+      granted: granted.has(capability),
+      denied: denied.has(capability),
+    }),
+  );
+}
+
+/** 활성 부여·차단인지(회수 안 됨 · 기한 안 지남) 판정한다. 세션 조립부와 공유한다. */
+export function isActiveOverrideRow(row: { expires_at: string | null }, now = Date.now()): boolean {
+  return !row.expires_at || new Date(row.expires_at).getTime() > now;
+}
+
+/**
  * 이 사용자가 **지금 실제로 가진** 권한 키 전체.
  *
  * 세션에 실어 클라이언트로 보낸다. 클라이언트가 스스로 계산하지 않게 하는 것이 목적이다 —
@@ -67,21 +94,7 @@ type CapabilityInput = {
 export const resolveCapabilities = cache(
   async (input: CapabilityInput): Promise<Capability[]> => {
     const overrides = await loadActiveOverrides(input.organizationId, input.userId);
-    const granted = new Set(
-      overrides.filter((o) => o.effect === "grant").map((o) => o.permission_key),
-    );
-    const denied = new Set(
-      overrides.filter((o) => o.effect === "deny").map((o) => o.permission_key),
-    );
-
-    return CAPABILITY_KEYS.filter((capability) =>
-      evaluateCapability({
-        capability,
-        role: input.role,
-        granted: granted.has(capability),
-        denied: denied.has(capability),
-      }),
-    );
+    return computeCapabilities(input.role, overrides);
   },
 );
 

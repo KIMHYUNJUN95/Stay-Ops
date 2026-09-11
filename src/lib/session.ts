@@ -1,14 +1,10 @@
 import { cache } from "react";
-import {
-  CAPABILITY_KEYS,
-  evaluateCapability,
-  type Capability,
-} from "@/config/capabilities";
+import type { Capability, CapabilityEffect } from "@/config/capabilities";
 import { defaultBottomNavTabIds } from "@/config/navigation";
 import type { AppMode } from "@/config/routes";
 import { defaultsToAdminSurface } from "@/config/roles";
 import type { Role } from "@/config/roles";
-import { resolveCapabilities } from "@/lib/capabilities-server";
+import { computeCapabilities, isActiveOverrideRow } from "@/lib/capabilities-server";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import type { ProfileGender } from "@/lib/onboarding";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -55,6 +51,15 @@ export function hasOrganizationContext(session: AppSession) {
 type ActiveMembership = {
   organization_id: string;
   role: Role;
+  /** 임베드로 함께 읽는다 — 별도 왕복을 없애려는 것이다. */
+  organizations: { id: string; name: string } | null;
+};
+
+type OverrideRow = {
+  organization_id: string;
+  permission_key: string;
+  effect: string;
+  expires_at: string | null;
 };
 
 type CurrentProfile = {
@@ -125,11 +130,17 @@ export const getCurrentAppSession = cache(
       return null;
     }
 
-    // These four reads only depend on user.id, so run them concurrently instead of as a
-    // sequential waterfall — this is the shared critical path for every mobile AND admin render,
-    // so collapsing ~4 serial round-trips into one batch is the biggest TTFB win on cold start.
-    // (organizations still follows because it needs the resolved membership.organization_id.)
-    const [profileRes, platformAdminRes, membershipRes, navRes] = await Promise.all([
+    // 이 읽기들은 `user.id` 에만 의존하므로 **한 배치로** 돈다. 모바일·어드민 모든 렌더가 지나는
+    // 공통 경로라, 직렬 왕복을 줄이는 것이 첫 바이트에 가장 크게 듣는다.
+    //
+    // 2026-09-11 성능 점검에서 뒤따르던 두 단을 마저 접었다:
+    // - **조직**은 멤버십에 임베드한다(`organizations(id, name)`). 예전에는 멤버십을 받은 뒤에야
+    //   조직을 물어서 한 왕복이 더 들었다.
+    // - **개인 부여·차단**은 조직을 몰라도 `user_id` 로 읽을 수 있다. 조직 필터는 아래에서 한다.
+    //   권한을 세션에 실으면서 요청마다 왕복이 하나 늘어나 있었다(내가 얹은 것이다).
+    //
+    // 결과: `인증 → [5개 병렬]` 두 단. 예전에는 `인증 → [4개 병렬] → 조직 → 권한` 네 단이었다.
+    const [profileRes, platformAdminRes, membershipRes, navRes, overrideRes] = await Promise.all([
       supabase
         .from("profiles")
         .select("id, name, birth_date, gender, phone_number, preferred_language")
@@ -143,7 +154,7 @@ export const getCurrentAppSession = cache(
         .maybeSingle(),
       supabase
         .from("memberships")
-        .select("organization_id, role")
+        .select("organization_id, role, organizations(id, name)")
         .eq("user_id", user.id)
         .eq("status", "active")
         .order("joined_at", { ascending: true, nullsFirst: false })
@@ -156,6 +167,12 @@ export const getCurrentAppSession = cache(
         .select("bottom_nav_tabs, can_generate_report")
         .eq("id", user.id)
         .maybeSingle(),
+      // 조직을 몰라도 읽을 수 있다(사용자당 조직이 한둘이라 행이 적다). 조직 필터는 아래에서.
+      supabase
+        .from("membership_permission_overrides")
+        .select("organization_id, permission_key, effect, expires_at")
+        .eq("user_id", user.id)
+        .is("revoked_at", null),
     ]);
 
     let profile = profileRes.data as CurrentProfile | null;
@@ -186,15 +203,8 @@ export const getCurrentAppSession = cache(
       return null;
     }
 
-    const organization =
-      membership &&
-      ((
-        await supabase
-          .from("organizations")
-          .select("id, name")
-          .eq("id", membership.organization_id)
-          .maybeSingle()
-      ).data as CurrentOrganization | null);
+    // 멤버십에 임베드해 함께 읽어 둔 조직. 별도 왕복이 없다.
+    const organization = (membership?.organizations ?? null) as CurrentOrganization | null;
 
     const role = (platformAdmin?.role ?? membership?.role) as Role;
     const dictionary = getDictionary(profile.preferred_language);
@@ -207,15 +217,18 @@ export const getCurrentAppSession = cache(
     // 그래서 그 경우에도 역할 기준으로 계산한다(부여·차단 없음).
     //
     // 실패해도 세션을 깨뜨리지 않는다 — 빈 목록은 「권한 없음」이고, 잘못 열어 주는 것보다 낫다.
-    const capabilities = membership
-      ? await resolveCapabilities({
-          organizationId: membership.organization_id,
-          userId: user.id,
-          role,
-        })
-      : CAPABILITY_KEYS.filter((capability) =>
-          evaluateCapability({ capability, role, granted: false, denied: false }),
-        );
+    //
+    // 행은 위 배치에서 이미 읽었다. 조직 스코프와 만료 판정만 여기서 한다.
+    const activeOverrides = ((overrideRes.data ?? []) as OverrideRow[])
+      .filter((row) => !membership || row.organization_id === membership.organization_id)
+      .filter((row) => isActiveOverrideRow(row))
+      // DB 의 text 컬럼이라 값이 무엇이든 올 수 있다. 모르는 값은 부여로 보지 않는다 —
+      // 「차단이 오히려 권한을 주던」 실패(2026-09-10 감사 ①)와 같은 방향의 실수를 막는다.
+      .map((row) => ({
+        permission_key: row.permission_key,
+        effect: (row.effect === "deny" ? "deny" : "grant") as CapabilityEffect,
+      }));
+    const capabilities = computeCapabilities(role, activeOverrides);
 
     // Applied from the concurrent read above; any error falls back to defaults rather than
     // breaking the session (the columns may not exist on un-migrated projects).
