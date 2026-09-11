@@ -5,7 +5,7 @@ import type { JobApplicationStatus } from "@/lib/recruit/status";
 import { parseVisaExpiry, visaAlertOf, visaDaysLeft, type VisaAlert } from "@/lib/recruit/visa-expiry";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
-import { tokyoToday } from "@/lib/tokyo-date";
+import { tokyoDayEndExclusive, tokyoDayStart, tokyoToday } from "@/lib/tokyo-date";
 
 /**
  * 채용 콘솔이 읽는 것들.
@@ -245,9 +245,12 @@ export async function listJobApplications(args: {
   if (args.filter.status !== "all") query = query.eq("status", args.filter.status);
   if (args.filter.jobTitle) query = query.eq("job_title", args.filter.jobTitle);
   if (args.filter.employmentType) query = query.eq("employment_type", args.filter.employmentType);
-  if (args.filter.from) query = query.gte("applied_at", `${args.filter.from}T00:00:00Z`);
-  // `to` 는 그날을 포함해야 한다 — 다음 날 0시 미만으로 받는다.
-  if (args.filter.to) query = query.lt("applied_at", `${args.filter.to}T23:59:59.999Z`);
+  // **도쿄 경계로 자른다.** `T00:00:00Z` 는 UTC 자정이라 9시간 밀린다 — 시작일 오전 0~9시(도쿄)에
+  // 들어온 지원서가 빠지고, 종료일 다음 날 새벽 것이 섞인다. 같은 결함이 외부 리뷰 필터에도
+  // 있었고 거기서는 실제로 건수가 틀렸다(2026-09-11).
+  if (args.filter.from) query = query.gte("applied_at", tokyoDayStart(args.filter.from));
+  // `to` 는 그날을 포함해야 한다 — 다음 날 0시(도쿄) 미만으로 받는다.
+  if (args.filter.to) query = query.lt("applied_at", tokyoDayEndExclusive(args.filter.to));
   if (args.filter.withResumeOnly) query = query.not("resume_source_url", "is", null);
   if (args.filter.query) {
     const escaped = args.filter.query.replace(/[%,]/g, "");

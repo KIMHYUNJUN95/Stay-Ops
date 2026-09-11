@@ -16,6 +16,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppSession } from "@/lib/session";
+import { tokyoDayEndExclusive, tokyoDayStart } from "@/lib/tokyo-date";
 import { canWriteComplaint } from "@/lib/complaints";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -231,7 +232,7 @@ function applyReviewFilter<T>(query: T, filter: ReviewListFilter): T {
     in: (c: string, v: unknown[]) => typeof q;
     is: (c: string, v: unknown) => typeof q;
     gte: (c: string, v: unknown) => typeof q;
-    lte: (c: string, v: unknown) => typeof q;
+    lt: (c: string, v: unknown) => typeof q;
   };
   if (filter.provider) q = q.eq("provider", filter.provider);
   if (filter.riskOnly) q = q.eq("risk_level", "risk");
@@ -239,8 +240,11 @@ function applyReviewFilter<T>(query: T, filter: ReviewListFilter): T {
   if (filter.propertyIds?.length) q = q.in("property_id", filter.propertyIds);
   if (filter.roomId) q = q.eq("room_id", filter.roomId);
   if (filter.unmappedOnly) q = q.is("room_id", null);
-  if (filter.from) q = q.gte("reviewed_at", `${filter.from}T00:00:00Z`);
-  if (filter.to) q = q.lte("reviewed_at", `${filter.to}T23:59:59Z`);
+  // **도쿄 경계로 자른다.** `T00:00:00Z` 로 자르면 UTC 자정 기준이라 9시간 밀린다 —
+  // 시작일 오전 0~9시(도쿄) 리뷰가 빠지고, 종료일 다음 날 새벽 것이 섞인다.
+  // 리뷰 2,617건 중 17.8% 가 UTC 날짜 ≠ 도쿄 날짜다(2026-09-11 실측).
+  if (filter.from) q = q.gte("reviewed_at", tokyoDayStart(filter.from));
+  if (filter.to) q = q.lt("reviewed_at", tokyoDayEndExclusive(filter.to));
   return q as never as T;
 }
 

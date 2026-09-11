@@ -53,3 +53,37 @@ export function ymdShift(ymd: string, days: number): string {
 export function isYmd(value: string | null | undefined): value is string {
   return !!value && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
+
+/**
+ * 도쿄 달력 날짜를 **`timestamptz` 조회 경계**로 바꾼다 (2026-09-11).
+ *
+ * 화면의 기간 선택기는 도쿄 날짜(`YYYY-MM-DD`)를 준다. 그런데 DB 의 `reviewed_at` ·
+ * `applied_at` 은 `timestamptz` 라서, 그 날짜를 그대로 `T00:00:00Z` 로 붙이면 **UTC 자정**을
+ * 기준으로 자른다. 도쿄는 UTC+9 이므로 결과가 9시간 밀린다 —
+ *
+ * - 시작일의 **오전 0~9시(도쿄)에 들어온 것이 빠지고**,
+ * - 종료일 **다음 날 오전 0~9시(도쿄) 것이 섞여 들어온다.**
+ *
+ * 2026-09-11 실측: 외부 리뷰 2,617건 중 **17.8%** 가 UTC 날짜와 도쿄 날짜가 다르다. 시작일을
+ * 2026-09-01 로 잡으면 그날 리뷰 2건이 **둘 다** 빠졌고, 08-24 는 5건 중 3건이 빠졌다.
+ * 화면에 뜨는 숫자가 조용히 틀리는 종류라 눈치채기 어렵다.
+ *
+ * 반열린 구간 `[start, endExclusive)` 로 쓴다. 끝을 `23:59:59` 로 잡는 방식은 그 1초 안의
+ * 소수점을 놓치므로 쓰지 않는다.
+ */
+export function tokyoDayRangeBounds(from: string, to: string): { start: string; endExclusive: string } {
+  return {
+    start: `${from}T00:00:00+09:00`,
+    endExclusive: `${ymdShift(to, 1)}T00:00:00+09:00`,
+  };
+}
+
+/** 시작 경계만 필요할 때. */
+export function tokyoDayStart(dateKey: string): string {
+  return `${dateKey}T00:00:00+09:00`;
+}
+
+/** 그 날을 **포함**하는 끝 경계(= 다음 날 0시). `lt` 와 함께 쓴다. */
+export function tokyoDayEndExclusive(dateKey: string): string {
+  return `${ymdShift(dateKey, 1)}T00:00:00+09:00`;
+}

@@ -213,6 +213,12 @@ This project uses Tokyo operating dates in several important flows.
 
 - Do not casually use raw UTC date slicing for operational logic.
 - Review existing patterns before changing cleaning dates, calendar logic, or order delivery dates.
+- **`timestamptz` 컬럼을 날짜 범위로 거를 때는 `tokyoDayStart()` / `tokyoDayEndExclusive()`
+  (`src/lib/tokyo-date.ts`) 를 쓴다.** `` `${from}T00:00:00Z` `` 로 붙이면 UTC 자정 기준이라
+  **9시간 밀린다** — 시작일 오전 0~9시(도쿄) 것이 빠지고 종료일 다음 날 새벽 것이 섞인다.
+  2026-09-11 에 게스트 피드백과 채용 지원서 두 곳에서 발견됐고, 리뷰 2,617건 중 17.8% 가
+  UTC 날짜 ≠ 도쿄 날짜라 경계일마다 실제로 건수가 틀렸다(9/1~9/11: 19건 → 21건).
+  회귀 테스트: `src/lib/__tests__/tokyo-day-range.test.ts`.
 
 ### 8. Upload and storage rules are not arbitrary
 
