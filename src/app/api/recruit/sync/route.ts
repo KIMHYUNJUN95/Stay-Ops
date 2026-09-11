@@ -4,7 +4,11 @@ import {
   fetchFirestoreCollectionSince,
   type FirestoreRecord,
 } from "@/lib/recruit/firestore";
-import { hasFirestoreServiceAccount } from "@/lib/recruit/firestore-auth";
+import {
+  firestoreAuthState,
+  hasFirestoreServiceAccount,
+  type FirestoreAuthState,
+} from "@/lib/recruit/firestore-auth";
 import { ingestJobApplication } from "@/lib/recruit/ingest";
 import type { RecruitSource } from "@/lib/recruit/payload";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -83,6 +87,8 @@ type SyncSummary = {
    * 「키를 넣었는데 왜 안 되지?」(형식 오류)를 구분할 수 없다.
    */
   auth: "service_account" | "anonymous";
+  /** 인증이 안 걸렸을 때 왜인지 — 미설정인지, 값이 깨졌는지. 값 자체는 노출하지 않는다. */
+  authState: FirestoreAuthState;
   /** 조건 조회의 기준 시각. 없으면 조건 없이 읽었다는 뜻이다(첫 실행 또는 전량 훑기). */
   since?: string;
   failed: { source: string; docId: string; error: string }[];
@@ -157,6 +163,7 @@ export async function POST(request: NextRequest) {
     read: 0,
     skippedDeleted: 0,
     auth: hasFirestoreServiceAccount() ? "service_account" : "anonymous",
+    authState: firestoreAuthState(),
     failed: [],
   };
 

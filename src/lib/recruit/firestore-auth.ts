@@ -76,6 +76,37 @@ function readServiceAccount(): ServiceAccount | null {
   return null;
 }
 
+/**
+ * 자격증명 상태 — **「없음」과 「있지만 못 씀」을 구분한다.**
+ *
+ * 처음에는 둘 다 `anonymous` 로 보고했다. 그래서 키를 넣고도 전환이 안 될 때 「환경변수를 안
+ * 넣었나」와 「값이 깨졌나」를 구분할 수 없었다(2026-09-11 전환에서 실제로 막혔다).
+ * 값 자체는 절대 노출하지 않는다 — 상태만 말한다.
+ */
+export type FirestoreAuthState =
+  | "not_configured"
+  | "invalid_json"
+  | "missing_fields"
+  | "configured";
+
+export function firestoreAuthState(): FirestoreAuthState {
+  const raw = process.env.RECRUIT_FIRESTORE_SERVICE_ACCOUNT?.trim();
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as { client_email?: string; private_key?: string };
+      return parsed.client_email && parsed.private_key ? "configured" : "missing_fields";
+    } catch {
+      return "invalid_json";
+    }
+  }
+  const clientEmail = process.env.RECRUIT_FIRESTORE_CLIENT_EMAIL?.trim();
+  const privateKey = process.env.RECRUIT_FIRESTORE_PRIVATE_KEY?.trim();
+  if (clientEmail || privateKey) {
+    return clientEmail && privateKey ? "configured" : "missing_fields";
+  }
+  return "not_configured";
+}
+
 /** 자격증명이 설정돼 있는가. 호출부가 「인증 모드인지」를 로그에 남길 때 쓴다. */
 export function hasFirestoreServiceAccount(): boolean {
   return readServiceAccount() !== null;
