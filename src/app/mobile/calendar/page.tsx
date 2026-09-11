@@ -490,6 +490,36 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
             }, {}),
           ).map(([property, labels]) => [property, [...new Set(labels)].sort()]),
         );
+  // Beds24 캘린더 블락. 예약이 아니라 인벤토리 오버라이드라 별도 테이블에서 온다.
+  // 방 축은 예약과 같은 표시 라벨을 쓴다 — 어긋나면 그릴 행이 없다.
+  const roomBlocksResult = await supabase
+    .from("room_blocks")
+    .select("id, property_name, room_label, start_date, end_date")
+    .eq("organization_id", session.organization.id)
+    .lt("start_date", operationalWindowEnd)
+    .gte("end_date", operationalMonthStart)
+    .order("start_date", { ascending: true });
+  if (roomBlocksResult.error) {
+    console.error("[mobile/calendar] room block read failed", roomBlocksResult.error);
+  }
+  const roomBlocks = (roomBlocksResult.data ?? [])
+    .filter(
+      (row) =>
+        !isExcludedOperationalProperty(row.property_name) &&
+        !isExcludedOperationalRoom(row.property_name, row.room_label),
+    )
+    .map((row) => {
+      const propertyName = getCanonicalPropertyName(row.property_name);
+      const canonicalRoomLabel =
+        getCanonicalRoomLabel(propertyName, row.room_label) || row.room_label.trim();
+      return {
+        endDate: row.end_date,
+        id: row.id,
+        roomLabel: getDisplayRoomLabel(propertyName, canonicalRoomLabel) || canonicalRoomLabel,
+        startDate: row.start_date,
+      };
+    });
+
   let canonicalRoomMasterRooms =
     roomCatalog === undefined
       ? roomMasterRooms
@@ -597,6 +627,7 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
           mapNoAccessData: dictionary.mobile.calendarMapNoAccessData,
           noFilterResults: dictionary.mobile.noFilterResults,
           noEmptyRooms: dictionary.mobile.calendarNoEmptyRooms,
+          blockedRoom: dictionary.admin.calendar.blockedRoom,
           internalNote: dictionary.admin.calendar.internalNote,
           internalNoteEmpty: dictionary.admin.calendar.opsNotePlaceholder,
           opsNote: dictionary.admin.calendar.opsNote,
@@ -619,6 +650,7 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
         locale={session.user.preferredLanguage}
         organizationId={session.organization.id}
         reservations={reservations}
+        roomBlocks={roomBlocks}
         roomMasterRooms={canonicalRoomMasterRooms}
         roomSourceDebug={roomSourceDebug}
         selectedMonth={selectedMonth}

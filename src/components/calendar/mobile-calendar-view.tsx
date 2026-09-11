@@ -112,6 +112,7 @@ type MobileCalendarViewProps = {
     mapNoAccessData: string;
     noFilterResults: string;
     noEmptyRooms: string;
+    blockedRoom: string;
     internalNote: string;
     internalNoteEmpty: string;
     opsNote: string;
@@ -135,6 +136,8 @@ type MobileCalendarViewProps = {
   buildingInfos: PropertyMapMeta[];
   locale: Locale;
   reservations: CalendarReservationItem[];
+  /** Beds24 캘린더 블락. 예약과 별개 통로로 들어온다(인벤토리 오버라이드). */
+  roomBlocks: CalendarRoomBlock[];
   // When populated with room labels from the room master table, Empty today switches
   // to an authoritative count. Leave undefined while the rooms table does not exist.
   roomMasterRooms?: string[];
@@ -176,6 +179,24 @@ type ReservationBarLayout = ReservationBarBounds & {
   item: CalendarReservationItem;
   laneIndex: number;
 };
+
+/**
+ * Beds24 캘린더에서 막아 둔 구간 (2026-09-11).
+ * `startDate`~`endDate` 는 **막힌 밤의 범위이며 양끝 포함**이다. 예약과 겹칠 수 있다.
+ */
+export type CalendarRoomBlock = {
+  endDate: string;
+  id: string;
+  roomLabel: string;
+  startDate: string;
+};
+
+/** 막힌 마지막 밤 다음 날 = 같은 구간을 예약으로 봤을 때의 체크아웃 날짜. */
+function blockCheckOutDate(endDate: string) {
+  const next = parseDate(endDate);
+  next.setDate(next.getDate() + 1);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
+}
 
 function computeReservationBarBounds(
   item: CalendarReservationItem,
@@ -376,6 +397,7 @@ export function MobileCalendarView({
   propertyOptions,
   propertyLabelMap,
   reservations,
+  roomBlocks,
   roomMasterRooms,
   propertyRoomsMap,
   roomSourceDebug,
@@ -521,6 +543,27 @@ export function MobileCalendarView({
     }
     return layouts;
   }, [byRoom, dates.length, rangeEndExclusive, rangeStart, rooms]);
+
+  // 블락을 방별로 모아 둔다. 예약 막대와 같은 계산기를 쓰되(눈금이 어긋나면 안 된다) 막힌
+  // 마지막 밤 다음 날을 체크아웃으로 넘긴다 — 블락은 양끝 포함, 예약은 체크아웃 제외이기 때문.
+  const blockBarsByRoom = useMemo(() => {
+    const map = new Map<string, Array<{ block: CalendarRoomBlock; leftPx: number; widthPx: number }>>();
+    for (const block of roomBlocks) {
+      const checkOutDate = blockCheckOutDate(block.endDate);
+      if (block.startDate >= rangeEndExclusive || checkOutDate <= rangeStart) continue;
+      const bounds = computeReservationBarBounds(
+        { checkInDate: block.startDate, checkOutDate } as CalendarReservationItem,
+        rangeStart,
+        rangeEndExclusive,
+        dates.length,
+      );
+      const bucket = map.get(block.roomLabel);
+      const entry = { block, leftPx: bounds.leftPx, widthPx: bounds.widthPx };
+      if (bucket) bucket.push(entry);
+      else map.set(block.roomLabel, [entry]);
+    }
+    return map;
+  }, [dates.length, rangeEndExclusive, rangeStart, roomBlocks]);
 
   const calendarBodyHeight = useMemo(
     () =>
@@ -1060,6 +1103,22 @@ export function MobileCalendarView({
                           key={room}
                           style={{ height: `${rowHeight}px` }}
                         >
+                          {(blockBarsByRoom.get(room) ?? []).map((entry) => (
+                            <div
+                              aria-label={copy.blockedRoom}
+                              className="absolute z-[15] flex items-center justify-center overflow-hidden rounded-[9px] border border-dashed border-slate-500/45 bg-[repeating-linear-gradient(135deg,rgba(100,116,139,0.18)_0,rgba(100,116,139,0.18)_5px,rgba(100,116,139,0.05)_5px,rgba(100,116,139,0.05)_10px)] px-1 text-[11px] font-bold text-slate-600"
+                              key={entry.block.id}
+                              style={{
+                                left: `${entry.leftPx + 3}px`,
+                                width: `${Math.max(12, entry.widthPx - 6)}px`,
+                                top: `${CALENDAR_BAR_TOP}px`,
+                                height: `${CALENDAR_BAR_HEIGHT}px`,
+                              }}
+                              title={copy.blockedRoom}
+                            >
+                              {entry.widthPx >= 58 ? copy.blockedRoom : null}
+                            </div>
+                          ))}
                           {layout?.bars
                             .toSorted((a, b) => a.laneIndex - b.laneIndex)
                             .map((bar) => {

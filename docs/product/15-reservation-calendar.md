@@ -1098,3 +1098,39 @@ frozen regardless of the above logic fixes.
 - The day column is now `calc((256mm - var(--label-width)) / <dateCount>)`, so the label column plus
   all day columns always fit within one A4 landscape page for any month length (28–31 days). Reservation
   bars stay aligned because they already position off the shared `--day-width` variable.
+
+## 차단(블락) 표시 (2026-09-11)
+
+### 무엇을 보여주나
+
+Beds24 캘린더에서 막아 둔 객실·날짜를 **회색 빗금 띠**로 그린다. 라벨은 `차단 / ブロック /
+Blocked`. 어드민 월간 캘린더(`/admin/calendar`)와 모바일 캘린더(`/mobile/calendar`) 둘 다에서
+같은 모양으로 보인다.
+
+띠가 덮는 범위는 **막힌 밤**이다 — 9/23~9/26 이면 23·24·25·26 네 밤이고, 예약 막대와 눈금이
+정확히 맞는다(체크인 9/23 · 체크아웃 9/27 인 예약과 같은 자리).
+
+### 예약 막대 아래에 깔린다
+
+차단과 예약은 **겹칠 수 있다.** 채널 판매를 막아 두고 그 자리에 수기 예약을 넣는 운영이 실제로
+쓰이기 때문이다(2026-09-23 O202·O203). 겹칠 때는 예약이 위로 올라온다 — 손님 이름이 먼저 보여야
+한다.
+
+색이 아니라 빗금으로 구분하는 이유: 채널 색(에어비앤비·부킹)을 하나 더 쓰면 「또 다른 채널」로
+읽힌다.
+
+### 보이지 않는 것
+
+**끝이 열린 차단은 그리지 않는다.** 조회 창 끝까지 이어지는 blackout 은 차단이 아니라 아직
+판매를 안 연 기간인 경우가 많다(2026-09-11 기준 여러 건물이 2027-03-01 부터 그런 모양이었다).
+그것까지 그리면 해당 달이 통째로 빗금이 되어 진짜 차단이 묻힌다.
+
+판매 기간을 열면 자연히 사라지는 값이므로 운영 화면에서는 제외한다. 판단 기준과 근거는
+`docs/engineering/01-beds24-integration.md` → 「캘린더 블락(차단)을 가져온다」.
+
+### 신선도
+
+블락은 웹훅이 없다 — 예약이 아니라 인벤토리 오버라이드라서 Beds24 가 이벤트를 보내지 않는다.
+**6시간마다 도는 정합성 작업이 유일한 입구다**(`beds24-reconcile.yml`). 즉 Beds24 에서 막은 직후
+우리 캘린더에 즉시 반영되지는 않고, 최대 6시간 뒤에 맞춰진다. 예약은 종전대로 웹훅으로 즉시
+들어온다.

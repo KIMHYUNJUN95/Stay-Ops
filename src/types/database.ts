@@ -3664,6 +3664,59 @@ export type Database = {
           },
         ]
       }
+      room_blocks: {
+        Row: {
+          created_at: string
+          end_date: string
+          external_room_id: string | null
+          id: string
+          organization_id: string
+          override_kind: string
+          property_name: string
+          room_label: string
+          source: string
+          start_date: string
+          synced_at: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          external_room_id?: string | null
+          id?: string
+          organization_id: string
+          override_kind?: string
+          property_name: string
+          room_label: string
+          source?: string
+          start_date: string
+          synced_at?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          external_room_id?: string | null
+          id?: string
+          organization_id?: string
+          override_kind?: string
+          property_name?: string
+          room_label?: string
+          source?: string
+          start_date?: string
+          synced_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_blocks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rooms: {
         Row: {
           created_at: string

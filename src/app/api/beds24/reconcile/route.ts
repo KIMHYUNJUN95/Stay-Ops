@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { backfillBeds24Reservations } from "@/lib/beds24/reservations-backfill";
 import { isBeds24SyncPaused } from "@/lib/beds24/sync-control";
+import { syncBeds24RoomBlocks, type RoomBlockSyncResult } from "@/lib/beds24/room-blocks-sync";
 import { recordBeds24ReconciliationEvent } from "@/lib/beds24/webhook-events";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
@@ -75,6 +76,22 @@ async function handle(request: NextRequest) {
       organizationId: organizationIdParam ?? undefined,
     });
 
+    // 캘린더 블락도 같은 주기로 맞춘다. 블락은 웹훅이 아예 없어서(예약이 아니라 인벤토리
+    // 오버라이드다) **이 경로가 유일한 입구다** — 예약처럼 「웹훅이 주 경로, 여기는 안전망」이
+    // 아니라 여기서 안 가져오면 영영 안 들어온다.
+    //
+    // 예약 정합성과 성패를 묶지 않는다. 블락을 못 읽었다고 예약 결과까지 실패로 보고하면
+    // 워크플로가 빨간불이 되어 「예약이 안 들어온다」는 진짜 신호가 묻힌다.
+    let roomBlocks: RoomBlockSyncResult | null = null;
+    try {
+      roomBlocks = await syncBeds24RoomBlocks(supabase, {
+        organizationId: organizationIdParam ?? undefined,
+      });
+    } catch (error) {
+      console.error("[beds24/reconcile] room block sync failed", error);
+      roomBlocks = null;
+    }
+
     const httpStatus = result.partial ? 207 : 200;
     await recordBeds24ReconciliationEvent({
       supabase,
@@ -88,6 +105,7 @@ async function handle(request: NextRequest) {
         ok: !result.partial,
         mode: result.partial ? "partial_failure" : result.fetchedRows > 0 ? "success" : "no_data",
         ...result,
+        roomBlocks,
       },
       { status: httpStatus },
     );

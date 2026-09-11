@@ -93,6 +93,18 @@ export type AdminReservationConsoleProps = {
     roomLabel: string;
     status: ReservationStatus;
   }>;
+  /**
+   * Beds24 캘린더에서 막아 둔 구간. `startDate`~`endDate` 는 **막힌 밤의 범위이며 양끝 포함**이다.
+   * 예약과 겹칠 수 있다 — 채널 판매를 막아 두고 그 자리에 수기 예약을 넣는 운영이 실제로 쓰인다.
+   */
+  roomBlocks: Array<{
+    endDate: string;
+    id: string;
+    propertyName: string;
+    roomKey: string;
+    roomLabel: string;
+    startDate: string;
+  }>;
   roomRows: Array<{
     displayRoomLabel: string;
     key: string;
@@ -308,6 +320,7 @@ export function AdminReservationConsole({
   propertyOptions,
   reservationNotes: initialReservationNotes,
   reservations,
+  roomBlocks,
   roomRows,
   selectedMonth,
   selectedProperty,
@@ -368,6 +381,14 @@ export function AdminReservationConsole({
     const bucket = reservationsByRoom.get(reservation.roomKey);
     if (bucket) bucket.push(reservation);
     else reservationsByRoom.set(reservation.roomKey, [reservation]);
+  }
+
+  const blocksByRoom = new Map<string, AdminReservationConsoleProps["roomBlocks"]>();
+  for (const block of roomBlocks) {
+    if (selectedProperty && block.propertyName !== selectedProperty) continue;
+    const bucket = blocksByRoom.get(block.roomKey);
+    if (bucket) bucket.push(block);
+    else blocksByRoom.set(block.roomKey, [block]);
   }
 
   const activeReservations = reservations.filter((reservation) => {
@@ -824,6 +845,59 @@ export function AdminReservationConsole({
                                     );
                                   })}
 
+                                  {(blocksByRoom.get(room.key) ?? [])
+                                    .filter(
+                                      (block) =>
+                                        block.startDate < `${nextMonth}-01` &&
+                                        block.endDate >= `${selectedMonth}-01`,
+                                    )
+                                    .map((block) => {
+                                      // 블락은 「밤」의 범위이고 양끝을 포함한다. 예약 막대와 눈금을
+                                      // 맞추려면 체크인 S · 체크아웃 E+1 인 예약과 같게 놓아야 한다 —
+                                      // 그래서 끝을 하루 밀어 계산한다.
+                                      const exclusiveEnd = new Date(`${block.endDate}T00:00:00Z`);
+                                      exclusiveEnd.setUTCDate(exclusiveEnd.getUTCDate() + 1);
+                                      const endExclusive = exclusiveEnd.toISOString().slice(0, 10);
+
+                                      const startsBeforeMonth = block.startDate < `${selectedMonth}-01`;
+                                      const endsAfterMonth = endExclusive >= `${nextMonth}-01`;
+                                      const startUnit = startsBeforeMonth
+                                        ? 0
+                                        : Number(block.startDate.slice(8)) - 1 + 0.5;
+                                      const endUnit = endsAfterMonth
+                                        ? dates.length
+                                        : Number(endExclusive.slice(8)) - 1 + 0.5;
+                                      const span = Math.max(0.75, endUnit - startUnit);
+                                      return (
+                                        <div
+                                          aria-label={copy.blockedRoom}
+                                          className={[
+                                            "admcal__block",
+                                            startsBeforeMonth ? "is-clamped-left" : "",
+                                            endsAfterMonth ? "is-clamped-right" : "",
+                                          ]
+                                            .filter(Boolean)
+                                            .join(" ")}
+                                          key={block.id}
+                                          style={
+                                            {
+                                              left: `calc(${startUnit} * var(--admcal-day-width) + 3px)`,
+                                              width: `calc(${span} * var(--admcal-day-width) - 6px)`,
+                                            } as CSSProperties
+                                          }
+                                          title={`${copy.blockedRoom} · ${formatDateRangeShort(
+                                            block.startDate,
+                                            endExclusive,
+                                            uiLocale,
+                                          )}`}
+                                        >
+                                          {span >= 1.4 ? (
+                                            <span className="admcal__block-text">{copy.blockedRoom}</span>
+                                          ) : null}
+                                        </div>
+                                      );
+                                    })}
+
                                   {roomReservations.map((reservation) => {
                                     const checkInDay = Number(reservation.checkInDate.slice(8));
                                     const checkOutDay = Number(reservation.checkOutDate.slice(8));
@@ -893,6 +967,13 @@ export function AdminReservationConsole({
             </div>
 
             <div className="admcal__legend">
+              <div className="admcal__legend-group">
+                <span className="admcal__legend-label">{copy.blockedRoom}</span>
+                <span className="admcal__legend-item">
+                  <span className="admcal__legend-block" aria-hidden="true" />
+                  {copy.legendBlocked}
+                </span>
+              </div>
               <div className="admcal__legend-group">
                 <span className="admcal__legend-label">{copy.legendChannels}</span>
                 {(["airbnb", "booking", "manual"] as ReservationChannel[]).map((channel) => (

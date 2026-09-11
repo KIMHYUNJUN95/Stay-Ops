@@ -44,6 +44,7 @@ export default async function AdminCalendarPage({ searchParams }: PageProps) {
         propertyOptions={data.propertyOptions}
         reservationNotes={data.reservationNotes}
         reservations={data.reservations}
+        roomBlocks={data.roomBlocks}
         roomRows={data.roomRows}
         selectedMonth={data.selectedMonth}
         selectedProperty={data.selectedProperty}

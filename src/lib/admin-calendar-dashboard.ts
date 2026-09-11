@@ -56,6 +56,22 @@ export type AdminCalendarReservation = {
   status: ReservationStatus;
 };
 
+/**
+ * Beds24 캘린더에서 막아 둔 구간 (2026-09-11).
+ *
+ * 예약이 아니라 인벤토리 오버라이드(`override: "blackout"`)라서 별도 테이블에서 온다.
+ * `startDate`~`endDate` 는 **막힌 밤의 범위이며 양끝을 포함한다** — 9/23~9/26 이면 네 밤이다.
+ * 예약과 겹칠 수 있다(채널 판매를 막고 수기 예약을 넣는 운영이 실제로 쓰인다).
+ */
+export type AdminCalendarRoomBlock = {
+  endDate: string;
+  id: string;
+  propertyName: string;
+  roomKey: string;
+  roomLabel: string;
+  startDate: string;
+};
+
 export type AdminCalendarRoomAxisRow = {
   displayRoomLabel: string;
   key: string;
@@ -230,7 +246,7 @@ export async function getAdminCalendarDashboardData(
   const operationalWindowEnd = `${shiftMonth(currentMonth, 2)}-01`;
 
   const supabase = await getSupabaseServerClient();
-  const [roomCatalog, buildingInfos, reservationsResult] = await Promise.all([
+  const [roomCatalog, buildingInfos, reservationsResult, roomBlocksResult] = await Promise.all([
     getActiveRoomCatalog(session.organization.id, supabase),
     listPropertyMapMeta(session),
     supabase
@@ -244,6 +260,14 @@ export async function getAdminCalendarDashboardData(
       .neq("status", "cancelled")
       .neq("status", "no_show")
       .order("check_in_date", { ascending: true }),
+    supabase
+      .from("room_blocks")
+      .select("id, property_name, room_label, start_date, end_date")
+      .eq("organization_id", session.organization.id)
+      // 「이 창에 걸치는」 구간. 창 밖에서 시작해 안으로 들어오는 블락도 잡아야 한다.
+      .lt("start_date", operationalWindowEnd)
+      .gte("end_date", operationalWindowStart)
+      .order("start_date", { ascending: true }),
   ]);
 
   if (reservationsResult.error) {
@@ -311,6 +335,33 @@ export async function getAdminCalendarDashboardData(
     });
   }
 
+  // 블락을 캘린더 행에 붙인다. 방 이름은 예약과 같은 축(`건물::표시방이름`)으로 맞춘다 —
+  // 안 맞으면 그릴 행이 없으므로 조용히 버린다(로그만 남기는 편이 캘린더를 깨뜨리는 것보다 낫다).
+  const roomBlocks: AdminCalendarRoomBlock[] = [];
+  if (roomBlocksResult.error) {
+    console.error("[admin-calendar] room block read failed", roomBlocksResult.error);
+  } else {
+    for (const row of roomBlocksResult.data ?? []) {
+      if (isExcludedOperationalProperty(row.property_name)) continue;
+      if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
+      const propertyName = getCanonicalPropertyName(row.property_name);
+      const canonicalRoomKey =
+        getCanonicalRoomLabel(propertyName, row.room_label) || row.room_label.trim();
+      const displayRoomLabel =
+        getDisplayRoomLabel(propertyName, canonicalRoomKey) || canonicalRoomKey;
+      const roomKey = toRoomAxisKey(propertyName, displayRoomLabel);
+      if (!roomRowsByKey.has(roomKey)) continue;
+      roomBlocks.push({
+        endDate: row.end_date,
+        id: row.id,
+        propertyName,
+        roomKey,
+        roomLabel: displayRoomLabel,
+        startDate: row.start_date,
+      });
+    }
+  }
+
   const filteredBuildingInfos = buildingInfos.filter(
     (item) => !isExcludedOperationalProperty(item.canonicalName),
   );
@@ -344,6 +395,7 @@ export async function getAdminCalendarDashboardData(
     propertyOptions,
     reservationNotes,
     reservations,
+    roomBlocks,
     roomRows,
     selectedMonth,
     selectedProperty: effectiveSelectedProperty,

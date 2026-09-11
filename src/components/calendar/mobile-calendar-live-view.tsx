@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { MobileCalendarView, type CalendarReservationItem } from "@/components/calendar/mobile-calendar-view";
+import { MobileCalendarView, type CalendarReservationItem, type CalendarRoomBlock } from "@/components/calendar/mobile-calendar-view";
 import type { PropertyMapMeta } from "@/lib/property-map-links";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { Locale } from "@/lib/i18n";
@@ -58,6 +58,7 @@ type MobileCalendarLiveViewProps = {
     mapNoAccessData: string;
     noFilterResults: string;
     noEmptyRooms: string;
+    blockedRoom: string;
     internalNote: string;
     internalNoteEmpty: string;
     opsNote: string;
@@ -83,6 +84,7 @@ type MobileCalendarLiveViewProps = {
   propertyOptions: string[];
   propertyRoomsMap?: Record<string, string[]>;
   reservations: CalendarReservationItem[];
+  roomBlocks: CalendarRoomBlock[];
   roomMasterRooms?: string[];
   roomSourceDebug?: {
     activeRoomLabels: string[];
