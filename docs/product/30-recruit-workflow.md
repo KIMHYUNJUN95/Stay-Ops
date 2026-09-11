@@ -409,15 +409,42 @@ Excel·PDF 를 공용 `<AdminExportButtons>` + `buildAdminTable*` 로 낸다(CLA
 
 ### 아직 열려 있는 것
 
-- **Firestore 공개 읽기.** 지원자의 이름·전화·주소·국적·비자·카카오 ID·이력서가 URL 만 알면 열린다
-  (2026-09-09 재확인, 키 없는 REST 호출이 200). 잠그는 것이 맞지만, **잠그면 당겨오기가 죽는다**
-  (그때는 서비스 계정 키 + Vercel 환경변수가 필요해진다). 지금은 노출이 이미 존재하는 상태를
-  유지하고 있을 뿐이며, 잠글 때 pull 경로를 함께 옮겨야 한다.
-- **`RECRUIT_WEBHOOK_SECRET` 미설정.** push 경로(`/api/recruit/applications`)는 여전히 503 이다.
-  당겨오기가 그 자리를 대신하므로 **지금 당장은 막히지 않는다.** 나중에 Cloud Function 을 붙일 때
-  설정한다.
 - **Slack 웹훅 URL 이 채용 사이트 클라이언트 번들에** 들어 있다(`VITE_SLACK_WEBHOOK_URL`).
   누구나 그 워크스페이스로 메시지를 보낼 수 있다. 이 저장소 밖 문제라 손대지 않았다.
+- **`RECRUIT_WEBHOOK_SECRET` 미설정.** push 경로(`/api/recruit/applications`)는 여전히 503 이다.
+  당겨오기가 그 자리를 대신하므로 **지금 당장은 막히지 않는다.**
+
+### 닫힌 것 — Firestore 공개 읽기 (2026-09-11)
+
+**몇 달간 지원자 개인정보가 인증 없이 열려 있었다.** 이름·전화·주소·나이·성별·카카오 ID·국적·
+비자 종류/기간·지원 동기·이력서 링크가, URL 만 알면 누구나 REST 로 받을 수 있었다(키 없는 호출이
+200 을 돌려주는 것으로 확인). 그 URL 은 숨겨진 값이 아니다 — `projectId` 와 컬렉션 이름이 사이트
+번들에 문자열로 들어 있고 개발자도구 Network 탭에도 그대로 보인다. 공개된 Firestore 는 자동
+스캐너가 훑는 흔한 설정 실수이기도 하다.
+
+원인은 채용 사이트 어드민이 **Firebase Auth 를 쓰지 않는다**는 것이다. 비밀번호가 `AdminPage.tsx`
+에 상수로 박혀 브라우저에서 문자열 비교만 한다 — 로그인한 사용자가 없으니 그 화면이 목록을 보려면
+규칙이 공개 읽기를 허용해야 했다. 즉 그 비밀번호는 **화면만 가리고 데이터는 가리지 못했다.**
+
+**전환은 무중단으로 했다.**
+
+1. StayOps 가 서비스 계정으로도 읽을 수 있게 만든다(`firestore-auth.ts`). 자격증명이 없으면
+   예전처럼 인증 없이 읽으므로 **배포만으로는 아무것도 바뀌지 않는다.**
+2. Vercel 에 `RECRUIT_FIRESTORE_SERVICE_ACCOUNT` 를 넣고 재배포 → 동기화 응답의 `auth` 가
+   `service_account` 로 바뀌는 것을 확인.
+3. Firestore 규칙을 잠근다 — `applications`/`applicants` 는 `create` 만 허용, 읽기·수정·삭제 차단.
+   `chat_rooms` 는 건드리지 않았다(채팅은 이번 변경 대상이 아니다).
+
+**적용 후 실측(2026-09-11).** 인증 없는 `applications`·`applicants` 읽기 **403**(이전 200),
+StayOps 전량 훑기 **196건 정상**(`auth: service_account`).
+
+**바뀐 기능은 하나다 — 채용 사이트 어드민의 지원서 목록이 더 이상 안 뜬다.** 그 일은 StayOps
+콘솔이 이미 더 잘한다(심사 상태·검토 메모·재지원 이력·내보내기·권한 제어). 지원 폼 제출은
+그대로이고(쓰기 허용) 채팅도 그대로다.
+
+**서비스 계정 키가 이제 운영 의존성이다.** 키를 폐기하거나 교체하면 동기화가 멈춘다 — 동기화
+응답의 `authState`(`not_configured` / `invalid_json` / `missing_fields` / `configured`)가 원인을
+구분해 준다. 설정은 `docs/engineering/07-environment-setup.md`.
 
 > Vercel Deployment Protection(Vercel Authentication)은 **끄지 않아도 된다.** Standard Protection 은
 > 프로덕션 도메인을 제외하고 프리뷰 배포만 막는다. 프로덕션에서 API 경로가 401 이 아니라 우리
