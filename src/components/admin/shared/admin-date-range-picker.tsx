@@ -8,6 +8,7 @@
 // or rendered behind the sidebar.
 import { useEffect, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { shiftMonthKey } from "./admin-month-key";
 
 export type AdminDateRangePickerLabels = {
   prevMonth: string;
@@ -42,11 +43,6 @@ function formatDateKey(date: Date): string {
   const month = parts.find((p) => p.type === "month")?.value ?? "01";
   const day = parts.find((p) => p.type === "day")?.value ?? "01";
   return `${year}-${month}-${day}`;
-}
-function shiftMonthKey(monthKey: string, delta: number): string {
-  const date = parseDateKey(`${monthKey}-01`);
-  date.setUTCMonth(date.getUTCMonth() + delta);
-  return formatDateKey(date).slice(0, 7);
 }
 function monthLabel(monthKey: string, localeTag: string): string {
   return new Intl.DateTimeFormat(localeTag, {

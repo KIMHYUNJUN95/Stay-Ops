@@ -164,6 +164,11 @@ Every date control in `/admin/*` is one of exactly three shared primitives in
   restyle one, restyle all three.**
 - `AdminMonthPicker` stays a *month* control (payroll / commute / wages). Do not silently convert a
   month selector into a range picker, or vice versa.
+- **월 이동은 `shiftMonthKey()` (`src/components/admin/shared/admin-month-key.ts`) 하나만 쓴다.**
+  `Date` 로 달을 더하지 말 것 — 이 콘솔의 날짜 키는 도쿄 기준이고, 도쿄 1일 00시는 UTC 로 전달
+  말일이라 `setUTCMonth(+1)` 이 없는 날짜를 만들어 JS 가 굴려버린다. 2026-09-11 까지 범위 피커의
+  화살표가 3·5·7·10·12월에서 **제자리였고** prev 는 한 달씩 건너뛰었다. 회귀 테스트:
+  `src/lib/__tests__/admin-month-key.test.ts`.
 
 #### 4b. Excel + PDF export — one control, one template (ABSOLUTE, 2026-07-14)
 

@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { shiftMonthKey } from "./admin-month-key";
 
 export type AdminMonthPickerLabels = {
   prevMonth: string;
@@ -25,13 +26,6 @@ type AdminMonthPickerProps = {
   labels: AdminMonthPickerLabels;
 };
 
-function shiftYm(ym: string, delta: number): string {
-  const [y, m] = ym.split("-").map(Number);
-  const total = y * 12 + (m - 1) + delta;
-  const ny = Math.floor(total / 12);
-  const nm = (total % 12) + 1;
-  return `${ny}-${String(nm).padStart(2, "0")}`;
-}
 
 export function AdminMonthPicker({
   ym,
@@ -109,7 +103,7 @@ export function AdminMonthPicker({
         type="button"
         className="chipbtn amp__arw"
         aria-label={labels.prevMonth}
-        onClick={() => go(shiftYm(ym, -1))}
+        onClick={() => go(shiftMonthKey(ym, -1))}
       >
         <span className="ic">
           <ChevronLeft />
@@ -129,7 +123,7 @@ export function AdminMonthPicker({
         type="button"
         className="chipbtn amp__arw"
         aria-label={labels.nextMonth}
-        onClick={() => go(shiftYm(ym, 1))}
+        onClick={() => go(shiftMonthKey(ym, 1))}
       >
         <span className="ic">
           <ChevronRight />
