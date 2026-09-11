@@ -19,6 +19,7 @@ import type {
   ApplicationListRow,
   ApplicationSummary,
 } from "@/lib/recruit/applications";
+import { filterApplicationsBySearch } from "@/lib/recruit/search";
 import { nextStatusOf, type JobApplicationStatus } from "@/lib/recruit/status";
 
 /**
@@ -85,11 +86,27 @@ export function RecruitConsole({
     router.push(`/admin/recruit?${params.toString()}`);
   }
 
+  /**
+   * 검색어는 **브라우저에만 있다.** 다른 필터처럼 쿼리스트링에 넣지 않는다.
+   *
+   * 넣으면 글자마다 서버를 다시 타고, 그 사이 목록은 이전 결과에 머문다. 특히 글자를 **지울 때**
+   * 손에 있는 건 이미 좁혀진 목록뿐이라 응답이 올 때까지 넓어지지 않는다 — 「한 글자만 쳐도 바로,
+   * 지우면 바로 전체」가 안 되던 원인이다. 목록은 탭 기준 전량이 이미 와 있으므로
+   * (`page.tsx` 가 `query: null` 로 부른다) 여기서 거르면 즉시 끝난다.
+   *
+   * 링크로 들어온 `?q=` 는 초기값으로만 받는다.
+   */
+  const [query, setQuery] = useState(filter.query ?? "");
+
+  const visibleRows = useMemo(() => filterApplicationsBySearch(rows, query), [rows, query]);
+
+  // 검색 결과가 줄면 보고 있던 페이지가 사라진다. 마지막 페이지로 당긴다.
+  const lastPage = Math.max(0, Math.ceil(visibleRows.length / PAGE_SIZE) - 1);
+  const safePage = Math.min(page, lastPage);
   const pageRows = useMemo(
-    () => rows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE),
-    [rows, page],
+    () => visibleRows.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE),
+    [visibleRows, safePage],
   );
-  const lastPage = Math.max(0, Math.ceil(rows.length / PAGE_SIZE) - 1);
 
   function togglePick(id: string) {
     setPicked((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
@@ -138,8 +155,8 @@ export function RecruitConsole({
    * 목록은 이미 필터를 통과한 행이므로 여기서 다시 서버에 묻지 않는다.
    */
   const exportRows = useMemo(
-    () => (picked.length > 0 ? rows.filter((row) => picked.includes(row.id)) : rows),
-    [rows, picked],
+    () => (picked.length > 0 ? rows.filter((row) => picked.includes(row.id)) : visibleRows),
+    [rows, visibleRows, picked],
   );
 
   const exportPayload = useMemo(
@@ -182,10 +199,19 @@ export function RecruitConsole({
   ];
 
   /** 빈 상태에서 하나씩 떼어낼 수 있도록, 지금 걸린 조건을 사람이 읽을 문장으로 모은다. */
-  const activeFilters: { label: string; clear: Record<string, string | null> }[] = [];
+  const activeFilters: {
+    label: string;
+    /** 쿼리스트링 필터는 URL 을 고쳐 지운다. */
+    clear?: Record<string, string | null>;
+    /** 검색어는 URL 에 없으므로 로컬 상태를 지운다. */
+    onClear?: () => void;
+  }[] = [];
   if (filter.status !== "all") {
     activeFilters.push({ label: copy.status[filter.status], clear: { status: "all" } });
   }
+  // 검색 결과가 0건일 때 「무엇 때문에 비었는지」가 보여야 한다. 검색어는 URL 에 없으므로
+  // 다른 칩들과 달리 로컬 상태를 지우는 칩으로 넣는다.
+  if (query.trim()) activeFilters.push({ label: query.trim(), onClear: () => setQuery("") });
   if (filter.jobTitle) activeFilters.push({ label: filter.jobTitle, clear: { job: null } });
   if (filter.employmentType) {
     activeFilters.push({ label: filter.employmentType, clear: { employment: null } });
@@ -196,7 +222,7 @@ export function RecruitConsole({
   if (filter.withResumeOnly) {
     activeFilters.push({ label: copy.filterResumeOnly, clear: { resume: null } });
   }
-  if (filter.query) activeFilters.push({ label: filter.query, clear: { q: null } });
+
 
   return (
     <div className="rc">
@@ -306,21 +332,21 @@ export function RecruitConsole({
           {copy.filterResumeOnly}
         </button>
 
-        <form
-          className="rc__spacer"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const value = new FormData(event.currentTarget).get("q");
-            pushFilter({ q: typeof value === "string" && value.trim() ? value.trim() : null });
-          }}
-        >
+        {/* 제출이 없다. 타이핑이 곧 검색이다 — Enter 로 페이지가 새로 뜨지 않도록 막아만 둔다. */}
+        <form className="rc__spacer" onSubmit={(event) => event.preventDefault()} role="search">
           <span className="qsearch qsearch--inline">
             <Search size={15} aria-hidden="true" />
             <input
               name="q"
-              defaultValue={filter.query ?? ""}
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(0);
+              }}
               placeholder={copy.searchPlaceholder}
               aria-label={copy.searchPlaceholder}
+              autoComplete="off"
+              type="search"
             />
           </span>
         </form>
@@ -345,7 +371,7 @@ export function RecruitConsole({
         </div>
       )}
 
-      {rows.length === 0 ? (
+      {visibleRows.length === 0 ? (
         <div className="rcempty">
           <span className="rcempty__ic" aria-hidden="true">
             <Search size={22} />
@@ -363,7 +389,10 @@ export function RecruitConsole({
                     key={item.label}
                     type="button"
                     className="rcactive"
-                    onClick={() => pushFilter(item.clear)}
+                    onClick={() => {
+                      if (item.onClear) item.onClear();
+                      else if (item.clear) pushFilter(item.clear);
+                    }}
                   >
                     {item.label} ✕
                   </button>
@@ -494,17 +523,17 @@ export function RecruitConsole({
           <div className="rcpager">
             <span className="rcpager__t">
               <b>
-                {page * PAGE_SIZE + 1}–{Math.min(rows.length, (page + 1) * PAGE_SIZE)}
+                {safePage * PAGE_SIZE + 1}–{Math.min(visibleRows.length, (safePage + 1) * PAGE_SIZE)}
               </b>{" "}
-              / {rows.length}
+              / {visibleRows.length}
             </span>
             <span className="rc__spacer" />
             <button
               type="button"
               className="rcpager__b"
               aria-label={copy.prevPage}
-              disabled={page === 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={safePage === 0}
+              onClick={() => setPage(Math.max(0, safePage - 1))}
             >
               <ChevronLeft size={13} aria-hidden="true" />
             </button>
@@ -512,8 +541,8 @@ export function RecruitConsole({
               type="button"
               className="rcpager__b"
               aria-label={copy.nextPage}
-              disabled={page >= lastPage}
-              onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
+              disabled={safePage >= lastPage}
+              onClick={() => setPage(Math.min(lastPage, safePage + 1))}
             >
               <ChevronRight size={13} aria-hidden="true" />
             </button>

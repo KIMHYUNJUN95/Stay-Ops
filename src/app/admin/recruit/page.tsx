@@ -70,7 +70,13 @@ export default async function AdminRecruitPage({
   };
 
   const [rows, summary, facets] = await Promise.all([
-    listJobApplications({ session, filter }),
+    // **검색어(`q`)는 서버에서 거르지 않는다.** 목록은 탭 기준 전량을 내려보내고 검색은
+    // 브라우저에서 즉시 건다(`recruit-console.tsx`).
+    //
+    // 서버에서 거르면 글자를 지울 때 목록을 넓힐 수가 없다 — 손에 있는 건 이미 좁혀진 결과뿐이라
+    // 서버 왕복이 끝나야 한다. 「한 글자만 쳐도 바로, 지우면 바로 전체」가 안 되는 원인이 이것이다.
+    // `q` 는 링크로 들어왔을 때 검색창의 초기값으로만 쓴다.
+    listJobApplications({ session, filter: { ...filter, query: null } }),
     summarizeJobApplications(session),
     listApplicationFacets(session),
   ]);

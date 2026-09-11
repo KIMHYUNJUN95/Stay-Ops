@@ -76,6 +76,15 @@ export type ApplicationListRow = {
   visaDaysLeft: number | null;
   /** 같은 전화번호로 접수된 다른 지원서 수(0이면 재지원 아님). */
   repeatCount: number;
+  /**
+   * 전화번호 **뒤 4자리만**. 목록 검색이 뒷자리로 찾는 방식이라 그 4자리만 내려보낸다
+   * (`recruit-panel-client.tsx` 의 마스킹과 같은 계약 — 화면에도 뒷자리만 보인다).
+   *
+   * 전체 번호를 목록에 싣지 않는 이유: 검색은 클라이언트에서 즉시 걸러야 해서 매칭 재료가
+   * 브라우저에 있어야 하는데, 그렇다고 지원자 200명의 전화번호를 통째로 페이지에 실을 이유는
+   * 없다. 뒷자리 4개면 문서에 적힌 검색 방식을 그대로 지원한다.
+   */
+  phoneTail: string | null;
 };
 
 export type ApplicationDetail = ApplicationListRow & {
@@ -168,7 +177,9 @@ function readIndustryExp(raw: string | null): boolean {
 function toListRow(record: ListRecord, today: string, repeatCounts: Map<string, number>): ApplicationListRow {
   const expiry = parseVisaExpiry(record.visa_period);
   const daysLeft = visaDaysLeft(expiry, today);
+  const phoneDigits = (record.phone ?? "").replace(/\D/g, "");
   return {
+    phoneTail: phoneDigits.length >= 4 ? phoneDigits.slice(-4) : null,
     id: record.id,
     name: record.applicant_name,
     age: record.age,
