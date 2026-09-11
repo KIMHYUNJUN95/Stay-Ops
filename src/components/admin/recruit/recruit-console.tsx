@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronLeft, ChevronRight, MoveRight, Search } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, MoveRight, Search, X } from "lucide-react";
 import { AdmDropdown } from "@/components/admin/shared/adm-dropdown";
 import { AdminDateRangePicker } from "@/components/admin/shared/admin-date-range-picker";
 import { AdminExportButtons } from "@/components/admin/shared/admin-export-buttons";
@@ -70,6 +70,7 @@ export function RecruitConsole({
   const { toast, showToast, dismiss } = useAdminToast();
   const [picked, setPicked] = useState<string[]>([]);
   const [page, setPage] = useState(0);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
 
   /** 필터는 전부 쿼리스트링이다 — 서버 렌더 한 번으로 끝나고, 링크로 공유된다. */
@@ -337,6 +338,7 @@ export function RecruitConsole({
           <span className="qsearch qsearch--inline">
             <Search size={15} aria-hidden="true" />
             <input
+              ref={searchRef}
               name="q"
               value={query}
               onChange={(event) => {
@@ -346,8 +348,26 @@ export function RecruitConsole({
               placeholder={copy.searchPlaceholder}
               aria-label={copy.searchPlaceholder}
               autoComplete="off"
-              type="search"
+              /* `type="text"`: 브라우저가 그리는 검색 지우기 버튼이 아래 공용 버튼과 겹쳐 보인다. */
+              type="text"
             />
+            {query ? (
+              // 지운 뒤 바로 다시 칠 수 있게 포커스를 돌려준다(공용 드롭다운 검색과 같은 동작).
+              <button
+                type="button"
+                className="qsearch__clear"
+                aria-label={copy.searchClear}
+                onClick={() => {
+                  setQuery("");
+                  setPage(0);
+                  searchRef.current?.focus();
+                }}
+              >
+                <span className="ic">
+                  <X aria-hidden="true" />
+                </span>
+              </button>
+            ) : null}
           </span>
         </form>
       </div>
