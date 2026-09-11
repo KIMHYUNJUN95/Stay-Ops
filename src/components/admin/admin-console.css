@@ -486,9 +486,10 @@
   font-size: 12.5px;
   font-weight: 700;
   text-decoration: none;
-  /* 2026-09-11 에 <a> 에서 <button> 으로 바뀌었다(미리보기를 띄운다). 버튼은 폰트를 상속하지
-     않고 기본 여백·커서가 달라서 그대로 두면 이 칩만 다른 글꼴로 보인다. */
-  font-family: inherit;
+  /* 2026-09-11 에 <a> 에서 <button> 으로 바뀌었다(미리보기를 띄운다).
+     폰트는 따로 지정하지 않는다 — Tailwind preflight 가 `button { font: inherit }` 를 이미 걸어
+     둔다(빌드 CSS 에서 확인). 버튼에 font-family 를 다시 적을 필요가 없다.
+     커서만 명시한다: <a href> 는 기본이 pointer 지만 <button> 은 아니다. */
   cursor: pointer;
 }
 .adm .top__mobbtn:hover {
@@ -2568,7 +2569,6 @@
   border: 1px solid rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
-  font-family: inherit;
   font-size: 12.5px;
   font-weight: 700;
   cursor: pointer;
