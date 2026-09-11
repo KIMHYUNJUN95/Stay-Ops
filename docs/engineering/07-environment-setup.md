@@ -610,3 +610,50 @@ Run the commands after Supabase API authentication is available through `npx sup
   - `src/app/api/beds24/webhook/route.ts`
   - `src/app/api/beds24/reconcile/route.ts`
   - admin reservation calendar sync status chip
+
+## `next/image` 원격 호스트 허용 목록 (2026-09-11)
+
+### 왜 신경 써야 하나
+
+`next/image` 는 허용 목록에 없는 원격 주소를 만나면 **렌더 중에 던진다.** 사진만 안 보이는 게
+아니라 **화면 전체가 안 뜨고** 에러 경계(「문제가 발생했어요」)가 대신 뜬다. 사진 한 장이 페이지를
+죽이는 구조라, 새 이미지 화면을 붙일 때 반드시 같이 확인해야 한다.
+
+브라우저 콘솔에 원인은 정확히 찍힌다:
+
+    hostname "<ref>.supabase.co" is not configured under images in your `next.config.js`
+
+### Supabase 주소는 두 갈래다
+
+| 갈래 | 경로 | 언제 |
+| --- | --- | --- |
+| 공개 버킷 | `/storage/v1/object/public/<bucket>/**` | `getPublicUrl()` |
+| 서명 URL | `/storage/v1/object/sign/<bucket>/**` | `createSignedUrl(s)()` — 비공개 파일 |
+
+**버킷 이름이 맞아도 경로가 다르면 걸린다.** 2026-09-11 에 근태 → 교통비 영수증이 그렇게 막혀
+있었다. 영수증은 `request-images` 버킷을 쓰고 그 버킷은 허용 목록에 있었지만, 영수증만 비공개라
+서명 URL(`/object/sign/...`)로 열리는데 목록에는 `public` 만 있었다. 버킷이 맞으니 원인이 눈에
+잘 안 띄었다.
+
+그래서 `next.config.ts` 는 버킷마다 **public / sign 을 짝으로** 둔다. 새 버킷을 추가할 때도 둘 다
+넣는다 — 한쪽만 넣으면 그 화면은 나중에 비공개로 바뀌는 순간 통째로 죽는다.
+
+### 호스트는 환경변수에서 뽑는다
+
+프로젝트 ref 를 문자열로 박아 두면 프로젝트를 옮길 때 이미지가 **조용히 전부** 깨진다.
+`NEXT_PUBLIC_SUPABASE_URL` 에서 호스트를 뽑고 지금 값을 대비책으로 둔다. `next.config` 는 Next 가
+`.env*` 를 읽은 뒤에 평가되므로 로컬·Vercel 양쪽에서 값이 들어온다.
+
+### 확인 방법
+
+설정을 고쳤으면 **개발 서버를 다시 켜야** 한다(`next.config` 는 기동 시에만 읽는다). 확인은 이미지
+최적화 엔드포인트를 직접 때려보는 것이 빠르다:
+
+```bash
+curl -o /dev/null -w '%{http_code}\n' \
+  "http://localhost:3000/_next/image?url=<URL-encoded 이미지 주소>&w=640&q=75"
+# 200 이면 허용, 400 이면 목록에 없음
+```
+
+2026-09-11 실측: 영수증 서명 URL `200 image/jpeg`, 목록에 없는 `recruit-resumes` 와 외부 도메인은
+각각 `400` — 허용 범위는 필요한 만큼만 열려 있다.

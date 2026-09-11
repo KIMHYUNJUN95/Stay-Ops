@@ -1,5 +1,22 @@
 import type { NextConfig } from "next";
 
+/**
+ * Supabase Storage 호스트.
+ *
+ * 예전에는 프로젝트 ref 를 문자열로 박아 뒀다. 프로젝트를 옮기면 이미지가 **조용히 전부** 깨지는
+ * 종류의 고정값이라, 이미 있는 환경변수에서 뽑고 지금 값을 대비책으로 둔다. `next.config` 는
+ * Next 가 `.env*` 를 읽은 뒤에 평가되므로 로컬·Vercel 양쪽에서 값이 들어온다.
+ */
+const SUPABASE_HOSTNAME = (() => {
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!raw) return "sspdgzkytkpmquqsfaup.supabase.co";
+  try {
+    return new URL(raw).hostname;
+  } catch {
+    return "sspdgzkytkpmquqsfaup.supabase.co";
+  }
+})();
+
 const nextConfig: NextConfig = {
   // React Compiler — 자동 메모이제이션.
   //
@@ -18,15 +35,41 @@ const nextConfig: NextConfig = {
   // run) so the app can be opened on a phone over any network, not just same-WiFi.
   allowedDevOrigins: ["172.20.50.244", "10.255.255.254", "192.168.1.112", "*.trycloudflare.com"],
   images: {
+    /**
+     * `next/image` 는 허용 목록에 없는 원격 주소를 만나면 **렌더 중에 던진다.** 화면이 안 뜨고
+     * 에러 경계가 대신 뜨므로, 사진 한 장이 페이지 전체를 죽인다. 실제로 근태 → 교통비 영수증이
+     * 그렇게 막혀 있었다(2026-09-11).
+     *
+     * Supabase Storage 의 주소는 **두 갈래**다. 공개 버킷은 `/object/public/...`, 비공개 파일의
+     * 서명 URL(`createSignedUrl`)은 `/object/sign/...` 이다. 영수증은 비공개라 서명 URL 인데
+     * 허용 목록에는 `public` 만 있었다 — 버킷 이름(`request-images`)은 맞는데 **경로가 달라서**
+     * 걸린 것이라 원인이 눈에 잘 안 띄었다.
+     *
+     * 그래서 두 갈래를 **짝으로** 둔다. 새 버킷을 추가할 때도 public/sign 을 같이 넣어야 한다 —
+     * 한쪽만 넣으면 그 화면은 나중에 비공개로 바뀌는 순간 통째로 죽는다.
+     */
     remotePatterns: [
+      // 공지 이미지 — 공개 버킷.
       {
-        hostname: "sspdgzkytkpmquqsfaup.supabase.co",
+        hostname: SUPABASE_HOSTNAME,
         pathname: "/storage/v1/object/public/announcement-images/**",
         protocol: "https",
       },
       {
-        hostname: "sspdgzkytkpmquqsfaup.supabase.co",
+        hostname: SUPABASE_HOSTNAME,
+        pathname: "/storage/v1/object/sign/announcement-images/**",
+        protocol: "https",
+      },
+      // 요청 이미지 — 청소·정비·분실물·게시판 사진과 **교통비 영수증**이 같은 버킷을 쓴다.
+      // 영수증은 서명 URL 로만 열린다.
+      {
+        hostname: SUPABASE_HOSTNAME,
         pathname: "/storage/v1/object/public/request-images/**",
+        protocol: "https",
+      },
+      {
+        hostname: SUPABASE_HOSTNAME,
+        pathname: "/storage/v1/object/sign/request-images/**",
         protocol: "https",
       },
     ],
