@@ -281,6 +281,8 @@ function AddItemSheet({
   monthKey,
   destinations,
   recentAmounts,
+  linkedCandidates,
+  usedDates,
   onClose,
   onCreated,
 }: {
@@ -291,6 +293,9 @@ function AddItemSheet({
   monthKey: string;
   destinations: TransportDestination[];
   recentAmounts: Record<string, { amountYen: number; usageDate: string }>;
+  linkedCandidates: LinkedTransportCandidate[];
+  /** 이미 교통비를 넣은 날짜 — 같은 날 두 번 넣는 실수를 눈에 띄게 한다. */
+  usedDates: Set<string>;
   onClose: () => void;
   onCreated: (item: TransportItem) => void;
 }) {
@@ -307,6 +312,12 @@ function AddItemSheet({
   const [pending, setPending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const buildingWrapRef = useRef<HTMLDivElement>(null);
+
+  // 자동 연결에서 고른 근무 기록. **고르지 않으면 `linked` 로 저장하지 않는다** —
+  // 예전에는 버튼만 눌러도 `entry_mode: 'linked'` 로 찍혀서, 연결된 것이 없는데 연결됐다고
+  // 적힌 행이 남았다(29건 전부 `attendance_session_id` 가 null 이었다).
+  const [linkedKey, setLinkedKey] = useState<string | null>(null);
+  const linked = linkedCandidates.find((c) => c.key === linkedKey) ?? null;
 
   const destination = destinations.find((d) => d.key === destinationKey) ?? null;
   const needsMemo = transportDestinationRequiresMemo(destinationKey);
@@ -326,12 +337,15 @@ function AddItemSheet({
   // 기타는 메모가 없으면 보낼 수 없다. 서버도 같은 판정을 한 번 더 한다 —
   // 화면만 막으면 다른 경로로 들어온 요청이 그대로 통과한다.
   const memoMissing = needsMemo && memo.trim().length === 0;
-  const canSubmit = Boolean(parseInt(amount.replace(/[^\d]/g, ""), 10)) && !memoMissing && !pending;
+  // 자동 연결을 골랐으면 근무 기록을 실제로 하나 집어야 한다.
+  const linkMissing = inputMode === "linked" && !linked;
+  const canSubmit =
+    Boolean(parseInt(amount.replace(/[^\d]/g, ""), 10)) && !memoMissing && !linkMissing && !pending;
 
   async function handleSubmit() {
     const amountNum = parseInt(amount.replace(/[^\d]/g, ""), 10);
     if (!amountNum || amountNum <= 0) return;
-    if (memoMissing) return;
+    if (memoMissing || linkMissing) return;
     setPending(true);
     try {
       const result = await createTransportItemAction({
@@ -339,9 +353,11 @@ function AddItemSheet({
         usageDate,
         amountYen: amountNum,
         entryMode: inputMode,
-        propertyId: destination?.propertyId ?? null,
-        destinationKey: destinationKey || undefined,
-        buildingLabel: destination?.label || undefined,
+        attendanceSessionId: linked?.attendanceSessionId ?? null,
+        propertyId: linked?.propertyId ?? destination?.propertyId ?? null,
+        destinationKey: linked?.propertyId ?? (destinationKey || undefined),
+        buildingLabel: linked?.buildingLabel || destination?.label || undefined,
+        contextSummary: linked?.contextSummary || undefined,
         memo: memo.trim() || null,
       });
       if (!result.ok) {
@@ -363,8 +379,8 @@ function AddItemSheet({
       onCreated({
         id: itemId,
         date: usageDate,
-        building: destination?.label ?? "",
-        context: "",
+        building: linked?.buildingLabel || destination?.label || "",
+        context: linked?.contextSummary ?? "",
         amount: amountNum,
         receiptCount,
         mode: inputMode,
@@ -557,6 +573,50 @@ function AddItemSheet({
             </button>
           </div>
         </div>
+
+        {/*
+          자동 연결 — 그 달의 **실제 근무 기록**(출퇴근 · 청소)을 보여주고 하나를 고르게 한다.
+          고르면 날짜·건물이 채워지고 `attendance_session_id` 로 근태와 이어진다. 「출근 안 한 날
+          교통비」가 자연히 걸러지는 것이 이 모드의 값어치다.
+
+          고르기 전에는 저장이 잠긴다 — 예전에는 버튼만 눌러도 `linked` 로 찍혀서 연결된 것이
+          없는데 연결됐다고 적힌 행이 남았다.
+        */}
+        {inputMode === "linked" ? (
+          <div className="trn-tf">
+            <div className="trn-tf-l">{t.linkPickLabel}</div>
+            {linkedCandidates.length === 0 ? (
+              <div className="trn-link-empty">{t.linkNoCandidates}</div>
+            ) : (
+              <div className="trn-link-list">
+                {linkedCandidates.map((candidate) => (
+                  <button
+                    key={candidate.key}
+                    type="button"
+                    className={`trn-link-opt${linkedKey === candidate.key ? " on" : ""}`}
+                    onClick={() => {
+                      setLinkedKey(candidate.key);
+                      setUsageDate(candidate.date);
+                      if (candidate.propertyId) setDestinationKey(candidate.propertyId);
+                      const known = candidate.propertyId
+                        ? recentAmounts[candidate.propertyId]
+                        : undefined;
+                      if (known && !amount.trim()) setAmount(String(known.amountYen));
+                    }}
+                  >
+                    <span className="trn-link-d">{shortDateLabel(candidate.date)}</span>
+                    <span className="trn-link-c">
+                      {candidate.contextSummary || candidate.buildingLabel || "—"}
+                    </span>
+                    {usedDates.has(candidate.date) ? (
+                      <span className="trn-link-used">{t.linkAlreadyAdded}</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         <button
           type="button"
@@ -1001,6 +1061,7 @@ export function TransportStatement({
   monthLabel,
   destinations,
   recentAmounts,
+  linkedCandidates,
 }: Props) {
   const dict = getDictionary(locale);
   const t = dict.transport;
@@ -1191,6 +1252,8 @@ export function TransportStatement({
           monthKey={monthKey}
           destinations={destinations}
           recentAmounts={recentAmounts}
+          linkedCandidates={linkedCandidates}
+          usedDates={new Set(items.map((i) => i.date))}
           onClose={() => setShowAddSheet(false)}
           onCreated={(item) => {
             setItems((prev) => [...prev, item]);

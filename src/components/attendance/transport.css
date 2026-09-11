@@ -1121,3 +1121,73 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/*
+ * 자동 연결 — 그 달의 실제 근무 기록 목록 (2026-09-11).
+ *
+ * 목록이 길어질 수 있어(한 달 30일치) 안에서만 스크롤한다. 시트 전체가 늘어나면 저장 버튼이
+ * 화면 밖으로 밀려 「왜 저장이 안 되지」가 된다.
+ */
+.trn-link-list {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px;
+}
+
+.trn-link-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 11px;
+  background: var(--surface, #fff);
+  text-align: left;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--foreground, #0f172a);
+  cursor: pointer;
+}
+
+.trn-link-opt.on {
+  border-color: var(--primary, #1f3a5f);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary, #1f3a5f) 16%, transparent);
+}
+
+.trn-link-d {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground, #64748b);
+}
+
+.trn-link-c {
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 같은 날 이미 교통비를 넣었다는 표시. 막지는 않는다 — 하루 두 번 이동하는 날이 있다. */
+.trn-link-used {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface2, #f1f5f9);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted-foreground, #64748b);
+}
+
+.trn-link-empty {
+  padding: 12px;
+  border: 1px dashed var(--border, #e2e8f0);
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground, #64748b);
+  text-align: center;
+}

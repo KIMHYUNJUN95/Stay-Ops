@@ -88,6 +88,13 @@ export async function createTransportItemAction(
   if (input.entryMode !== "linked" && input.entryMode !== "manual") {
     return { ok: false, error: "invalid_entry_mode" };
   }
+  // `linked` 는 **실제로 무언가에 이어져 있어야** 한다. 예전에는 입력 방식 버튼만 눌러도
+  // `entry_mode: 'linked'` 로 찍혀서, 연결된 것이 없는데 연결됐다고 적힌 행이 남았다
+  // (기존 29건 전부 `attendance_session_id` 가 null 이었다). 근태 세션이나 건물 중 하나는 있어야
+  // 한다 — 청소 기록에서 온 후보는 세션 id 가 없고 건물만 있다.
+  if (input.entryMode === "linked" && !input.attendanceSessionId && !input.propertyId) {
+    return { ok: false, error: "link_target_required" };
+  }
   // 기타는 메모가 있어야 한다. 화면에서도 막지만 여기서 한 번 더 본다 —
   // 화면만 막으면 다른 경로로 들어온 요청이 그대로 통과한다.
   if (

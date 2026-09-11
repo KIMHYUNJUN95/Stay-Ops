@@ -91,6 +91,8 @@ export type TransportItemRow = {
 };
 
 export type LinkedTransportCandidate = {
+  /** React 키이자 「이미 고른 후보」 판정용. 근태는 세션 id, 청소는 날짜+건물로 유일하다. */
+  key: string;
   type: "attendance" | "cleaning";
   date: string; // 'YYYY-MM-DD'
   attendanceSessionId?: string;
@@ -319,14 +321,22 @@ export async function getLinkedTransportCandidates(
     new Set(attRows.map((r) => r.clock_in_site_id).filter(Boolean) as string[]),
   );
   const siteNames = new Map<string, string>();
+  // 근무지에는 건물 FK 가 있다. 이것을 같이 들고 와야 교통비 항목이 `property_id` 를 채울 수 있고,
+  // 그래야 「이 사람이 이 건물에 넣었던 금액」 기억이 자동 연결에서도 동작한다.
+  const siteProperties = new Map<string, string>();
   if (siteIds.length > 0) {
     const sitesRes = await service
       .from("attendance_sites")
-      .select("id, name")
+      .select("id, name, property_id")
       .eq("organization_id", organizationId)
       .in("id", siteIds);
-    for (const s of (sitesRes.data ?? []) as { id: string; name: string }[]) {
+    for (const s of (sitesRes.data ?? []) as {
+      id: string;
+      name: string;
+      property_id: string | null;
+    }[]) {
       siteNames.set(s.id, s.name);
+      if (s.property_id) siteProperties.set(s.id, s.property_id);
     }
   }
 
@@ -334,9 +344,11 @@ export async function getLinkedTransportCandidates(
     const buildingLabel =
       (row.clock_in_site_id ? siteNames.get(row.clock_in_site_id) : null) ?? "";
     candidates.push({
+      key: `attendance:${row.id}`,
       type: "attendance",
       date: row.operating_date,
       attendanceSessionId: row.id,
+      propertyId: row.clock_in_site_id ? siteProperties.get(row.clock_in_site_id) : undefined,
       buildingLabel,
       contextSummary: buildingLabel,
       workContext: buildingLabel ? { buildingLabel } : {},
@@ -403,6 +415,7 @@ export async function getLinkedTransportCandidates(
     if (displayRoomLabel) workContext.roomLabel = displayRoomLabel;
     if (row.task_label) workContext.taskLabel = row.task_label;
     candidates.push({
+      key: `cleaning:${row.id}`,
       type: "cleaning",
       date: row.cleaning_date,
       propertyId,
