@@ -587,6 +587,13 @@ export/reporting refinements are handled in the technical roadmap.
 건물이 늘면 목록이 따라온다 — 코드를 고칠 필요가 없다. 사노가 빠지는 기준은 캘린더와 같다
 (`isExcludedOperationalProperty`).
 
+**이름도 캘린더와 같아야 한다.** `properties.name` 은 Beds24 원본(`Arakicho A`, `Okubo_A (B棟)`)
+이라 그대로 보여주면 캘린더는 한국어인데 교통비만 영어가 된다. 반드시
+`getCanonicalPropertyName()` 으로 정규화한 뒤 `localizePropertyName()` 에 넘긴다 — 정규화를
+빼먹으면 매핑이 하나도 안 걸려 원본이 그대로 나온다. 회귀 테스트로 잠가 두었다.
+
+매핑이 없는 건물(STAY ARI 등)은 원본 이름을 쓴다 — 이것도 캘린더와 같은 동작이다.
+
 저장은 `property_id` + `work_context.destinationKey` 로 한다. 표시 라벨(`buildingLabel`)도 같이
 남기지만 **키로 쓰지 않는다.**
 

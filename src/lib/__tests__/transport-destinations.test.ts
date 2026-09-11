@@ -6,7 +6,10 @@ import {
   transportDestinationRequiresMemo,
   type TransportDestination,
 } from "@/lib/transport-destinations";
-import { getCanonicalPropertyName } from "@/lib/room-label-normalization";
+import {
+  getCanonicalPropertyName,
+  localizePropertyName,
+} from "@/lib/room-label-normalization";
 
 /**
  * 출근지 키와 메모 필수 판정 (2026-09-11).
@@ -74,5 +77,49 @@ describe("matchDestinationByLabel", () => {
     expect(match("스카이")).toBeNull();
     expect(match("")).toBeNull();
     expect(match("   ")).toBeNull();
+  });
+});
+
+/**
+ * 교통비 출근지 목록의 이름이 **캘린더와 같아야 한다** (2026-09-11).
+ *
+ * 목록을 만들 때 정규화를 빼먹어 Beds24 원본(`Arakicho A`)이 그대로 보였다 — 캘린더는 한국어인데
+ * 교통비만 영어로 나왔다. `localizePropertyName` 은 정규화된 이름을 받아야 라벨을 찾는다.
+ */
+describe("출근지 라벨 = 캘린더 라벨", () => {
+  // Beds24 에서 실제로 내려오는 이름 그대로.
+  const beds24Names = [
+    ["Arakicho A", "아라키초A"],
+    ["Arakicho B", "아라키초B"],
+    ["Kabukicho", "가부키초"],
+    ["Takadanobaba", "다카다노바바"],
+    ["Okubo_A (B棟)", "오쿠보A"],
+    ["Okubo_B (A棟)", "오쿠보B"],
+    ["Okubo_C (kr)", "오쿠보C"],
+  ] as const;
+
+  it("정규화를 거치면 한국어 라벨이 나온다", () => {
+    const labels = {
+      arakicho_a: "아라키초A",
+      arakicho_b: "아라키초B",
+      kabukicho: "가부키초",
+      takadanobaba: "다카다노바바",
+      okubo_a: "오쿠보A",
+      okubo_b: "오쿠보B",
+      okubo_c: "오쿠보C",
+    };
+    for (const [raw, expected] of beds24Names) {
+      expect(localizePropertyName(getCanonicalPropertyName(raw), labels)).toBe(expected);
+    }
+  });
+
+  it("정규화를 빼먹으면 원본이 그대로 나온다 — 이게 버그였다", () => {
+    const labels = { arakicho_a: "아라키초A" };
+    expect(localizePropertyName("Arakicho A", labels)).toBe("Arakicho A");
+  });
+
+  it("매핑이 없는 건물은 원본 이름을 쓴다 — 캘린더와 같은 동작", () => {
+    expect(getCanonicalPropertyName("STAY ARI Apartment Hotel")).toBe("STAY ARI Apartment Hotel");
+    expect(localizePropertyName("STAY ARI Apartment Hotel", {})).toBe("STAY ARI Apartment Hotel");
   });
 });

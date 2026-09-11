@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Dictionary } from "@/lib/i18n";
 import {
+  getCanonicalPropertyName,
   isExcludedOperationalProperty,
   localizePropertyName,
 } from "@/lib/room-label-normalization";
@@ -43,7 +44,10 @@ export async function listTransportDestinations(
     .filter((row) => !isExcludedOperationalProperty(row.name))
     .map<TransportDestination>((row) => ({
       key: row.id,
-      label: localizePropertyName(row.name, buildingLabels),
+      // **정규화를 먼저 거쳐야 한다.** `localizePropertyName` 은 정규화된 이름(`아라키초A`)을
+      // 받아 로케일 라벨을 찾는다. Beds24 원본(`Arakicho A`)을 그대로 넘기면 매핑이 하나도
+      // 안 걸려 원본이 그대로 보인다 — 캘린더는 한국어인데 교통비만 영어로 나왔다.
+      label: localizePropertyName(getCanonicalPropertyName(row.name), buildingLabels),
       propertyId: row.id,
       kind: "property",
     }))
