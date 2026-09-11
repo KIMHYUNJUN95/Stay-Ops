@@ -794,11 +794,13 @@ export function MobileCalendarView({
 
             return (
               <Link
-                className="group block"
+                // `h-full` 이 없으면 그리드 칸은 늘어나도 그 안의 카드는 내용 높이에 머문다 —
+                // 같은 줄에서 이름이 두 줄인 카드만 커 보이던 원인이다(STAY ARI Apartment Hotel).
+                className="group block h-full"
                 href={getPropertyCalendarHref(property)}
                 key={property}
               >
-                <Card className="relative overflow-hidden rounded-[22px] border border-border bg-surface p-3 text-center shadow-[0_16px_30px_-26px_rgba(34,40,60,0.4)] transition-transform duration-200 group-active:scale-[0.98]">
+                <Card className="relative flex h-full flex-col overflow-hidden rounded-[22px] border border-border bg-surface p-3 text-center shadow-[0_16px_30px_-26px_rgba(34,40,60,0.4)] transition-transform duration-200 group-active:scale-[0.98]">
                   <div className="relative flex flex-col items-center">
                     <div className="relative flex size-14 items-center justify-center">
                       <div
@@ -815,9 +817,21 @@ export function MobileCalendarView({
                         <Icon className="size-6" strokeWidth={1.8} aria-hidden="true" />
                       </div>
                     </div>
-                    <p className="mt-2 text-[13px] font-black text-foreground">
-                      {propertyLabelMap[property] ?? property}
-                    </p>
+                    {/*
+                      이름 자리를 **두 줄로 고정한다.** 건물 이름 길이는 제각각이고(짧은 「가부키초」
+                      부터 긴 「STAY ARI Apartment Hotel」까지) 앞으로도 그럴 텐데, 줄 수에 따라
+                      카드 높이가 달라지면 격자가 들쭉날쭉해진다. 한 줄짜리 이름은 아래쪽 여백으로
+                      남고 두 줄짜리는 꽉 찬다 — 어느 쪽이든 카드 크기는 같다.
+
+                      `break-keep` 은 한국어 단어가 음절 단위로 쪼개지는 것을 막는다.
+                    */}
+                    <div className="mt-2 flex min-h-[2.5em] items-center justify-center">
+                      {/* 자리를 잡는 쪽(바깥)과 글을 다루는 쪽(안쪽)을 나눈다 — `text-balance` 와
+                          `break-keep` 은 글 상자에 걸려야 먹는다. */}
+                      <p className="break-keep text-balance text-[13px] font-black leading-[1.25] text-foreground">
+                        {propertyLabelMap[property] ?? property}
+                      </p>
+                    </div>
                     <p className="mt-0.5 text-[11px] font-bold text-slate-400">
                       {isHouse ? copy.calendarBuildingHouseLabel : copy.calendarBuildingHotelLabel}
                     </p>
