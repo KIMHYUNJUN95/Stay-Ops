@@ -11,6 +11,10 @@ import {
   getTransportItems,
   getLinkedTransportCandidates,
 } from "@/lib/transport-reimbursement";
+import {
+  getRecentTransportAmounts,
+  listTransportDestinations,
+} from "@/lib/transport-destinations-server";
 
 // Tokyo 현재 월을 'YYYY-MM' 형식으로 반환.
 function getCurrentTokyoMonth(): string {
@@ -55,9 +59,11 @@ export default async function MobileTransportPage({
     getOrCreateTransportReport(service, organizationId, userId, targetMonthDate),
   ]);
 
-  const [items, linkedCandidates] = await Promise.all([
+  const [items, linkedCandidates, destinations, recentAmounts] = await Promise.all([
     getTransportItems(service, report.id),
     getLinkedTransportCandidates(service, organizationId, userId, targetMonthDate),
+    listTransportDestinations(service, organizationId, dict),
+    getRecentTransportAmounts(service, organizationId, userId),
   ]);
 
   const monthLabel = new Intl.DateTimeFormat(localeTag, {
@@ -79,6 +85,8 @@ export default async function MobileTransportPage({
         linkedCandidates={linkedCandidates}
         monthKey={monthKey}
         monthLabel={monthLabel}
+        destinations={destinations}
+        recentAmounts={recentAmounts}
       />
     </MobileShell>
   );

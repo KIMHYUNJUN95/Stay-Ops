@@ -12,6 +12,8 @@ export type TransportReportItem = {
   userName: string;
   usageDate: string; // 'YYYY-MM-DD'
   buildingLabel: string;
+  /** 「기타」는 건물이 아니라 사유가 유일한 근거다 — 대장에 함께 나가야 한다. */
+  memo: string;
   statusLabel: string;
   amountYen: number;
 };
@@ -26,6 +28,7 @@ export type TransportReportLabels = {
   colStaff: string;
   colDate: string;
   colBuilding: string;
+  colMemo: string;
   colStatus: string;
   colAmount: string;
   totalLabel: string;
@@ -60,15 +63,18 @@ export function buildTransportReportHtml(
         <td class=c>${esc(item.userName)}</td>
         <td class=c>${dateLabel(item.usageDate)}</td>
         <td class=c>${esc(item.buildingLabel || "—")}</td>
+        <td class=c>${esc(item.memo || "—")}</td>
         <td class=c>${esc(item.statusLabel)}</td>
         <td class=c money strong>${yen(item.amountYen)}</td>
       </tr>`;
     })
     .join("");
 
+  // 셀 수가 머리글과 같아야 한다 — 메모 열을 넣으며 하나 늘었다(2026-09-11).
   const totalRow = `<tr class=tot>
     <td class=c></td>
     <td class=c>${esc(labels.totalLabel)}</td>
+    <td class=c></td>
     <td class=c></td>
     <td class=c></td>
     <td class=c></td>
@@ -123,6 +129,7 @@ export function buildTransportReportHtml(
           <th>${esc(labels.colStaff)}</th>
           <th>${esc(labels.colDate)}</th>
           <th>${esc(labels.colBuilding)}</th>
+          <th>${esc(labels.colMemo)}</th>
           <th>${esc(labels.colStatus)}</th>
           <th class=money>${esc(labels.colAmount)}</th>
         </tr>

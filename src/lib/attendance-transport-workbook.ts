@@ -22,9 +22,12 @@ export type TransportWorkbookItem = {
   buildingLabel: string;
   statusLabel: string;
   amountYen: number;
+  /** 「기타」 항목은 메모가 필수다 — 건물이 아니면 사유가 유일한 근거라 대장에 함께 나가야 한다. */
+  memo: string;
 };
 
 export type TransportWorkbookLabels = {
+  colMemo: string;
   title: string;
   monthLabel: string;
   orgName: string;
@@ -69,13 +72,14 @@ export async function buildTransportWorkbookBase64(
     { width: 6 }, // No
     { width: 24 }, // staff
     { width: 12 }, // date
-    { width: 28 }, // building
+    { width: 24 }, // destination (building / office / other)
+    { width: 30 }, // memo
     { width: 14 }, // status
     { width: 18, numFmt: "¥#,##0" }, // amount
   ];
   ws.columns = cols.map((c) => ({ width: c.width }));
   const LAST = cols.length;
-  const AMOUNT_COL = 6;
+  const AMOUNT_COL = 7;
 
   // ── Title ──
   ws.mergeCells(1, 1, 1, LAST);
@@ -93,6 +97,7 @@ export async function buildTransportWorkbookBase64(
     labels.colStaff,
     labels.colDate,
     labels.colBuilding,
+    labels.colMemo,
     labels.colStatus,
     labels.colAmount,
   ];
@@ -119,6 +124,7 @@ export async function buildTransportWorkbookBase64(
       item?.userName ?? "",
       item ? dateLabel(item.usageDate) : "",
       item ? item.buildingLabel || "—" : "",
+      item ? item.memo || "—" : "",
       item?.statusLabel ?? "",
       item ? item.amountYen : "",
     ];
@@ -138,7 +144,12 @@ export async function buildTransportWorkbookBase64(
   const total = ws.getRow(totalRowIdx);
   total.height = 20;
   total.getCell(2).value = labels.totalLabel;
-  total.getCell(AMOUNT_COL).value = { formula: `SUM(F${firstDataRow}:F${lastDataRow})` };
+  // 열 글자를 박아 두면 컬럼을 하나 끼울 때 합계가 엉뚱한 열을 더한다 — 실제로 메모 열을 넣으며
+  // 금액이 F→G 로 밀렸다(2026-09-11). `AMOUNT_COL` 에서 글자를 만들어 쓴다.
+  const amountColLetter = String.fromCharCode("A".charCodeAt(0) + AMOUNT_COL - 1);
+  total.getCell(AMOUNT_COL).value = {
+    formula: `SUM(${amountColLetter}${firstDataRow}:${amountColLetter}${lastDataRow})`,
+  };
   total.getCell(AMOUNT_COL).numFmt = "¥#,##0";
   for (let ci = 1; ci <= LAST; ci++) {
     const cell = total.getCell(ci);

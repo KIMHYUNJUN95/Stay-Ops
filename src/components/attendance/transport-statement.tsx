@@ -7,6 +7,10 @@ import "./transport.css";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { CalendarPanel } from "./transport-date-sheet";
 import { getDictionary, type Dictionary } from "@/lib/i18n";
+import {
+  transportDestinationRequiresMemo,
+  type TransportDestination,
+} from "@/lib/transport-destinations";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { compressImageFile } from "@/components/announcements/announcement-image-uploader";
 import {
@@ -44,6 +48,10 @@ type Props = {
   linkedCandidates: LinkedTransportCandidate[];
   monthKey: string;   // 'YYYY-MM'
   monthLabel: string;
+  /** 출근지 목록 — 캘린더와 같은 건물 집합 + 사무실 + 기타. 서버가 내려준다. */
+  destinations: TransportDestination[];
+  /** 출근지별로 이 사용자가 마지막에 넣은 금액. 입력칸을 미리 채우는 데 쓴다. */
+  recentAmounts: Record<string, { amountYen: number; usageDate: string }>;
 };
 
 function mapItemRow(row: TransportItemRow): TransportItem {
@@ -265,26 +273,14 @@ function ItemBadge({ item, dict }: { item: TransportItem; dict: Dictionary }) {
   return <span className="trn-mn">{t.badgeManual(item.receiptCount)}</span>;
 }
 
-// 실제 운영 건물 키(고정 순서). 표시 라벨은 i18n(dict.transport.buildings)에서 로케일별로 가져온다.
-// 하드코딩된 한국어 문자열 대신 키만 보유 → 다국어 지원.
-const BUILDING_KEYS = [
-  "arakichoA",
-  "arakichoB",
-  "kabukicho",
-  "takadanobaba",
-  "okuboA",
-  "okuboB",
-  "okuboC",
-  "sky",
-  "office",
-] as const;
-
 function AddItemSheet({
   dict,
   localeTag,
   organizationId,
   reportId,
   monthKey,
+  destinations,
+  recentAmounts,
   onClose,
   onCreated,
 }: {
@@ -293,6 +289,8 @@ function AddItemSheet({
   organizationId: string;
   reportId: string;
   monthKey: string;
+  destinations: TransportDestination[];
+  recentAmounts: Record<string, { amountYen: number; usageDate: string }>;
   onClose: () => void;
   onCreated: (item: TransportItem) => void;
 }) {
@@ -301,7 +299,8 @@ function AddItemSheet({
   const [usageDate, setUsageDate] = useState(getTodayTokyo());
   const [showCal, setShowCal] = useState(false);
   const [amount, setAmount] = useState("");
-  const [building, setBuilding] = useState("");
+  // 라벨이 아니라 **키**를 들고 있는다. 라벨은 로케일마다 달라서 저장·기억의 키가 될 수 없다.
+  const [destinationKey, setDestinationKey] = useState("");
   const [showBuildingList, setShowBuildingList] = useState(false);
   const [memo, setMemo] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -309,8 +308,9 @@ function AddItemSheet({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const buildingWrapRef = useRef<HTMLDivElement>(null);
 
-  // 표시 라벨은 로케일별 i18n에서 — 컴포넌트에 건물명 하드코딩 없음.
-  const buildingOptions = BUILDING_KEYS.map((k) => t.buildings[k]);
+  const destination = destinations.find((d) => d.key === destinationKey) ?? null;
+  const needsMemo = transportDestinationRequiresMemo(destinationKey);
+  const recent = destinationKey ? recentAmounts[destinationKey] : undefined;
 
   useEffect(() => {
     if (!showBuildingList) return;
@@ -323,9 +323,15 @@ function AddItemSheet({
     return () => document.removeEventListener("mousedown", onOutside);
   }, [showBuildingList]);
 
+  // 기타는 메모가 없으면 보낼 수 없다. 서버도 같은 판정을 한 번 더 한다 —
+  // 화면만 막으면 다른 경로로 들어온 요청이 그대로 통과한다.
+  const memoMissing = needsMemo && memo.trim().length === 0;
+  const canSubmit = Boolean(parseInt(amount.replace(/[^\d]/g, ""), 10)) && !memoMissing && !pending;
+
   async function handleSubmit() {
     const amountNum = parseInt(amount.replace(/[^\d]/g, ""), 10);
     if (!amountNum || amountNum <= 0) return;
+    if (memoMissing) return;
     setPending(true);
     try {
       const result = await createTransportItemAction({
@@ -333,7 +339,9 @@ function AddItemSheet({
         usageDate,
         amountYen: amountNum,
         entryMode: inputMode,
-        buildingLabel: building.trim() || undefined,
+        propertyId: destination?.propertyId ?? null,
+        destinationKey: destinationKey || undefined,
+        buildingLabel: destination?.label || undefined,
         memo: memo.trim() || null,
       });
       if (!result.ok) {
@@ -355,7 +363,7 @@ function AddItemSheet({
       onCreated({
         id: itemId,
         date: usageDate,
-        building: building.trim(),
+        building: destination?.label ?? "",
         context: "",
         amount: amountNum,
         receiptCount,
@@ -421,6 +429,15 @@ function AddItemSheet({
               />
               <span className="trn-un">{t.amountUnit}</span>
             </div>
+            {/*
+              금액을 미리 채웠으면 **언제 것인지 같이 보여준다.** 근거 없이 숫자만 들어가 있으면
+              확인 없이 넘기게 되고, 운임이 바뀐 날에 틀린 값이 그대로 확정된다.
+            */}
+            {recent && amount === String(recent.amountYen) ? (
+              <div className="trn-prefill">
+                {t.destinationSameAs.replace("{date}", shortDateLabel(recent.usageDate))}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -434,8 +451,8 @@ function AddItemSheet({
               onClick={() => setShowBuildingList((v) => !v)}
               aria-label={t.fieldBuilding}
             >
-              {building ? (
-                <span className="trn-bld-val">{building}</span>
+              {destination ? (
+                <span className="trn-bld-val">{destination.label}</span>
               ) : (
                 <span className="trn-bld-ph">{t.fieldBuildingPlaceholder}</span>
               )}
@@ -443,17 +460,21 @@ function AddItemSheet({
             </button>
             {showBuildingList && (
               <div className="trn-bld-list">
-                {buildingOptions.map((b) => (
+                {destinations.map((d) => (
                   <button
-                    key={b}
+                    key={d.key}
                     type="button"
                     className="trn-bld-opt"
                     onClick={() => {
-                      setBuilding(b);
+                      setDestinationKey(d.key);
                       setShowBuildingList(false);
+                      // 지난번 금액을 미리 채운다. **이미 친 값은 건드리지 않는다** —
+                      // 오늘 금액을 먼저 입력한 사람의 값을 덮으면 그게 더 나쁜 실수다.
+                      const known = recentAmounts[d.key];
+                      if (known && !amount.trim()) setAmount(String(known.amountYen));
                     }}
                   >
-                    {b}
+                    {d.label}
                   </button>
                 ))}
               </div>
@@ -495,7 +516,10 @@ function AddItemSheet({
         </div>
 
         <div className="trn-tf">
-          <div className="trn-tf-l">{t.fieldMemo}</div>
+          <div className="trn-tf-l">
+            {t.fieldMemo}
+            {needsMemo ? <span className="trn-req" aria-hidden="true"> *</span> : null}
+          </div>
           <div className="trn-tf-in">
             <input
               className="trn-input"
@@ -503,7 +527,12 @@ function AddItemSheet({
               onChange={(e) => setMemo(e.target.value)}
               placeholder={t.fieldMemoPlaceholder}
               aria-label={t.fieldMemo}
+              required={needsMemo}
             />
+            {/* 기타는 어디에 왜 썼는지가 없으면 나중에 정산할 수 없다. */}
+            {memoMissing ? (
+              <div className="trn-err">{t.destinationOtherMemoRequired}</div>
+            ) : null}
           </div>
         </div>
 
@@ -533,7 +562,7 @@ function AddItemSheet({
           type="button"
           className="trn-add-submit"
           onClick={handleSubmit}
-          disabled={pending}
+          disabled={!canSubmit}
         >
           {pending ? <span className="trn-spin" /> : null}
           {t.addSheetSubmit}
@@ -970,6 +999,8 @@ export function TransportStatement({
   initialItems,
   monthKey,
   monthLabel,
+  destinations,
+  recentAmounts,
 }: Props) {
   const dict = getDictionary(locale);
   const t = dict.transport;
@@ -1158,6 +1189,8 @@ export function TransportStatement({
           organizationId={organizationId}
           reportId={report.id}
           monthKey={monthKey}
+          destinations={destinations}
+          recentAmounts={recentAmounts}
           onClose={() => setShowAddSheet(false)}
           onCreated={(item) => {
             setItems((prev) => [...prev, item]);

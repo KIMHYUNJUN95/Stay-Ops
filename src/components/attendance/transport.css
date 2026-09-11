@@ -1088,3 +1088,36 @@
 :lang(ja) .trn-rk {
   letter-spacing: 0;
 }
+
+/*
+ * 출근지·메모 보조 표시 (2026-09-11).
+ *
+ * 「기타」는 메모가 없으면 저장되지 않는다. 버튼만 흐려 두면 왜 못 누르는지 모르므로,
+ * 필수 표시(*)와 사유를 같이 보여준다.
+ *
+ * 금액을 지난번 값으로 미리 채웠을 때는 **언제 것인지** 밝힌다. 근거 없이 숫자만 들어가 있으면
+ * 확인 없이 넘기게 되고, 운임이 바뀐 날에 틀린 값이 그대로 확정된다.
+ */
+.trn-req {
+  color: var(--danger, #dc2626);
+  font-weight: 900;
+}
+
+.trn-err {
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--danger, #dc2626);
+}
+
+.trn-prefill {
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted-foreground, #64748b);
+}
+
+.trn-add-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

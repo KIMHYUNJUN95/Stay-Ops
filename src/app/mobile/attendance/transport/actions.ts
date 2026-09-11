@@ -10,6 +10,7 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import { transportDestinationRequiresMemo } from "@/lib/transport-destinations";
 import {
   getOrCreateTransportReport,
   getTransportReport,
@@ -58,6 +59,8 @@ export type CreateTransportItemInput = {
   entryMode: TransportEntryMode;
   attendanceSessionId?: string | null;
   propertyId?: string | null;
+  /** 안 흔들리는 출근지 키. 건물이면 `property_id` 와 같고, 사무실·기타는 고정값. */
+  destinationKey?: string;
   buildingLabel?: string;
   contextSummary?: string;
   memo?: string | null;
@@ -85,11 +88,22 @@ export async function createTransportItemAction(
   if (input.entryMode !== "linked" && input.entryMode !== "manual") {
     return { ok: false, error: "invalid_entry_mode" };
   }
+  // 기타는 메모가 있어야 한다. 화면에서도 막지만 여기서 한 번 더 본다 —
+  // 화면만 막으면 다른 경로로 들어온 요청이 그대로 통과한다.
+  if (
+    input.destinationKey &&
+    transportDestinationRequiresMemo(input.destinationKey) &&
+    !input.memo?.trim()
+  ) {
+    return { ok: false, error: "memo_required" };
+  }
 
   const report = await getOrCreateTransportReport(service, organizationId, userId, targetMonthDate);
   if (!EDITABLE_STATUSES.has(report.status)) return { ok: false, error: "report_not_editable" };
 
   const workContext: Record<string, string> = {};
+  // 라벨은 **표시용**이다(로케일마다 다르다). 기억·집계의 키는 `destinationKey` 다.
+  if (input.destinationKey?.trim()) workContext.destinationKey = input.destinationKey.trim();
   if (input.buildingLabel?.trim()) workContext.buildingLabel = input.buildingLabel.trim();
   if (input.contextSummary?.trim()) workContext.contextSummary = input.contextSummary.trim();
 

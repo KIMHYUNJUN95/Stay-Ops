@@ -2238,6 +2238,8 @@ type TransportExportItem = {
   userName: string;
   usageDate: string;
   buildingLabel: string;
+  /** 「기타」는 건물이 아니라 사유가 유일한 근거다 — 대장에 함께 나가야 한다. */
+  memo: string;
   statusLabel: string;
   amountYen: number;
 };
@@ -2296,6 +2298,7 @@ async function buildTransportExportItems(
           userName: row.userName,
           usageDate: item.usageDate,
           buildingLabel: wc.buildingLabel ?? "",
+          memo: item.memo ?? "",
           statusLabel: transportStatusLabel(row.status, c),
           amountYen: item.amountYen,
         });
@@ -2352,6 +2355,7 @@ export async function exportMonthlyTransportWorkbook(ym: string): Promise<Transp
     colStaff: c.payColStaff,
     colDate: c.trExportColDate,
     colBuilding: c.trExportColBuilding,
+    colMemo: c.trExportColMemo,
     colStatus: c.trColStatus,
     colAmount: c.trExportColAmount,
     totalLabel: c.payExportTotal,
@@ -2360,6 +2364,7 @@ export async function exportMonthlyTransportWorkbook(ym: string): Promise<Transp
     userName: it.userName,
     usageDate: it.usageDate,
     buildingLabel: it.buildingLabel,
+    memo: it.memo,
     statusLabel: it.statusLabel,
     amountYen: it.amountYen,
   }));
@@ -2398,6 +2403,7 @@ export async function exportMonthlyTransportReport(ym: string): Promise<Transpor
     colStaff: c.payColStaff,
     colDate: c.trExportColDate,
     colBuilding: c.trExportColBuilding,
+    colMemo: c.trExportColMemo,
     colStatus: c.trColStatus,
     colAmount: c.trExportColAmount,
     totalLabel: c.payExportTotal,
@@ -2406,6 +2412,7 @@ export async function exportMonthlyTransportReport(ym: string): Promise<Transpor
     userName: it.userName,
     usageDate: it.usageDate,
     buildingLabel: it.buildingLabel,
+    memo: it.memo,
     statusLabel: it.statusLabel,
     amountYen: it.amountYen,
   }));
