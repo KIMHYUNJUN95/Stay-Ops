@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ExternalLink, X } from "lucide-react";
+import { BatteryFull, ExternalLink, Wifi, X } from "lucide-react";
 
 /**
  * 모바일 미리보기 — 어드민 콘솔 안에서 실제 모바일 앱을 아이폰 모양 프레임으로 본다.
@@ -24,18 +24,37 @@ import { ExternalLink, X } from "lucide-react";
 /** 아이폰 15 의 논리 해상도. 기기 선택을 두지 않는다 — 고르는 게 늘면 미리보기가 도구가 된다. */
 const SCREEN_W = 390;
 const SCREEN_H = 844;
-/** 아일랜드가 놓이는 상단 띠. 실제 기기의 상태바 자리와 비슷한 높이. */
-const STATUS_H = 44;
+/** 상태바 — 시계·아일랜드·신호가 놓인다. 실제 기기와 같은 높이. */
+const STATUS_H = 54;
+/** 홈 인디케이터 띠. */
+const HOME_H = 24;
 /** 베젤 두께. */
-const BEZEL = 12;
+const BEZEL = 13;
+
+/**
+ * 상태바·홈 인디케이터는 **화면 안**에 있다(실제 기기와 같다). 앱은 그 사이를 쓴다.
+ *
+ * 화면 위에 겹치지 않는 이유는 파일 상단 주석 참고 — iframe 안에서는 safe-area-inset 이 0 이라
+ * 겹치면 앱 헤더·탭바와 부딪힌다.
+ */
+const APP_H = SCREEN_H - STATUS_H - HOME_H;
 
 const FRAME_W = SCREEN_W + BEZEL * 2;
-const FRAME_H = SCREEN_H + STATUS_H + BEZEL * 2 + 22; // 22 = 홈 인디케이터 띠
+const FRAME_H = SCREEN_H + BEZEL * 2;
 
 /** 위아래 여백 48px 을 남기고 들어갈 만큼만. 키우지는 않는다 — 확대하면 글자가 뭉갠다. */
 function fitScale(): number {
   if (typeof window === "undefined") return 1;
   return Math.min(1, (window.innerHeight - 48) / FRAME_H);
+}
+
+/** 상태바 시계. 실제 기기처럼 지금 시각을 보여 준다 — 고정값이면 그 자리만 가짜로 보인다. */
+function clockText(): string {
+  return new Date().toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 export type MobilePreviewLabels = {
@@ -61,7 +80,14 @@ export function MobilePreview({
    * 를 부르면 첫 프레임이 100% 로 그려졌다가 줄어들어 한 번 튄다.
    */
   const [scale, setScale] = useState(fitScale);
+  const [clock, setClock] = useState(clockText);
   const closeRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    // 분이 바뀌는 것만 보이면 되므로 20초면 충분하다.
+    const timer = setInterval(() => setClock(clockText()), 20_000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const onResize = () => setScale(fitScale());
@@ -102,17 +128,38 @@ export function MobilePreview({
           onClick={(event) => event.stopPropagation()}
         >
           <div className="mprev__frame" style={{ width: FRAME_W, height: FRAME_H }}>
-            <div className="mprev__status" style={{ height: STATUS_H }}>
-              <span className="mprev__island" aria-hidden="true" />
-            </div>
-            <iframe
-              className="mprev__screen"
-              style={{ width: SCREEN_W, height: SCREEN_H }}
-              src={href}
-              title={labels.title}
-            />
-            <div className="mprev__home" aria-hidden="true">
-              <span />
+            {/* 측면 버튼 — 몸체 윤곽만 잡아 준다. */}
+            <span className="mprev__btn mprev__btn--silent" aria-hidden="true" />
+            <span className="mprev__btn mprev__btn--volup" aria-hidden="true" />
+            <span className="mprev__btn mprev__btn--voldown" aria-hidden="true" />
+            <span className="mprev__btn mprev__btn--power" aria-hidden="true" />
+
+            <div className="mprev__screen" style={{ width: SCREEN_W, height: SCREEN_H }}>
+              <div className="mprev__status" style={{ height: STATUS_H }}>
+                <span className="mprev__time">{clock}</span>
+                <span className="mprev__island" aria-hidden="true" />
+                <span className="mprev__ind" aria-hidden="true">
+                  <svg viewBox="0 0 18 12" className="mprev__bars">
+                    <rect x="0" y="8" width="3" height="4" rx="1" />
+                    <rect x="5" y="5.5" width="3" height="6.5" rx="1" />
+                    <rect x="10" y="3" width="3" height="9" rx="1" />
+                    <rect x="15" y="0.5" width="3" height="11.5" rx="1" />
+                  </svg>
+                  <Wifi />
+                  <BatteryFull />
+                </span>
+              </div>
+
+              <iframe
+                className="mprev__app"
+                style={{ width: SCREEN_W, height: APP_H }}
+                src={href}
+                title={labels.title}
+              />
+
+              <div className="mprev__home" style={{ height: HOME_H }} aria-hidden="true">
+                <span />
+              </div>
             </div>
           </div>
 
