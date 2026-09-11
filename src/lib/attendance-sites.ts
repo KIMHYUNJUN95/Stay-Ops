@@ -16,6 +16,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import { isExcludedOperationalProperty } from "@/lib/room-label-normalization";
 import type { AttendanceSiteRow, AttendanceQrTokenRow } from "@/lib/attendance";
 import { ATTENDANCE_DEFAULT_RADIUS_METERS } from "@/lib/attendance";
 import type { Database } from "@/types/database";
@@ -367,3 +368,38 @@ export async function deleteAttendanceSite(
 }
 
 // 활성/비활성 전환은 위쪽의 기존 `setAttendanceSiteActive()` 를 그대로 쓴다.
+
+/**
+ * 근무지에 연결할 **건물 선택지** (2026-09-11).
+ *
+ * `attendance_sites.property_id` 는 처음부터 있었고 `createAttendanceSite` ·
+ * `updateAttendanceSite` 도 받도록 돼 있었지만, **설정 화면에 고를 칸이 없었다.** 그래서 근무지
+ * 9곳 전부 비어 있었고, 교통비 자동 연결이 그 FK 를 따라가려 하자 아무것도 이어지지 않았다.
+ *
+ * 근무지 이름과 건물 이름은 따로 관리돼 어긋난다 — 근무지는 `아라키초A`, 건물은 Beds24 원본인
+ * `Arakicho A` 다. 「스카이」처럼 **건물이 개명됐는데 근무지 이름은 그대로**인 경우도 있다
+ * (STAY ARI 의 오픈 전 이름). 이름으로 맞추는 것은 임시방편이고, FK 로 묶어야 이름이 달라도
+ * 정확히 이어진다.
+ *
+ * 사노는 운영 대상이 아니라 뺀다(캘린더와 같은 기준).
+ */
+export type AttendanceSitePropertyOption = { id: string; label: string };
+
+export async function listAttendanceSiteProperties(
+  organizationId: string,
+): Promise<AttendanceSitePropertyOption[]> {
+  const supabase = getSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from("properties")
+    .select("id, name")
+    .eq("organization_id", organizationId)
+    .order("name", { ascending: true });
+  if (error) {
+    console.error("[attendance-sites] property option read failed", error.message);
+    return [];
+  }
+  return (data ?? [])
+    .filter((row) => !isExcludedOperationalProperty(row.name))
+    .map((row) => ({ id: row.id, label: row.name }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}

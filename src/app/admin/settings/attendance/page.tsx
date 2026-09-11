@@ -27,6 +27,7 @@ import {
   attendanceSiteHasHistory,
   getAttendanceSiteQrOverview,
   getQrTokenHistory,
+  listAttendanceSiteProperties,
 } from "@/lib/attendance-sites";
 import { listTrustedDevices } from "@/lib/attendance-trusted-device";
 import { getDictionary } from "@/lib/i18n";
@@ -94,11 +95,13 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
   const qrSvg = qrValue ? await QRCode.toString(qrValue, { type: "svg", margin: 1, width: 256 }) : null;
   const qrLinkState = qrValue ? attendanceQrLinkState(qrValue) : null;
 
-  const [history, trustedDevices, siteHasHistory] = await Promise.all([
+  const [history, trustedDevices, siteHasHistory, propertyOptions] = await Promise.all([
     selectedSite ? getQrTokenHistory(organizationId, selectedSite.id) : Promise.resolve([]),
     listTrustedDevices(organizationId),
     // 기록이 있으면 DB(FK restrict)가 삭제를 막는다 → 삭제 버튼 대신 비활성화만 노출한다.
     selectedSite ? attendanceSiteHasHistory(organizationId, selectedSite.id) : Promise.resolve(false),
+    // 근무지를 어느 건물로 볼지 고르게 한다. 캘린더·교통비와 같은 건물 집합을 쓴다.
+    listAttendanceSiteProperties(organizationId),
   ]);
 
   const saved = firstParam(params.saved) === "1";
@@ -270,6 +273,32 @@ export default async function AdminAttendanceSettingsPage({ searchParams }: Page
                     placeholder={selectedSite?.name ?? ""}
                   />
                   <p className="fld__hint">{settings.attendancePrintNameHint}</p>
+                </div>
+                {/*
+                  근무지를 어느 **건물**로 볼지. 이 연결이 없으면 교통비 자동 연결이 건물을 못 찾고
+                  이름으로 더듬어야 한다 — 근무지 이름(`아라키초A`)과 건물 이름(Beds24 원본
+                  `Arakicho A`)은 따로 관리돼 어긋나고, 「스카이」처럼 건물이 개명됐는데 근무지
+                  이름만 남은 경우도 있다.
+
+                  사무실처럼 **건물이 아닌 근무지**는 비워 둔다.
+                */}
+                <div className="fld" style={{ marginTop: 11 }}>
+                  <label className="fld__l" htmlFor="site-property">
+                    {settings.attendanceSiteProperty}
+                  </label>
+                  <select
+                    defaultValue={selectedSite?.property_id ?? ""}
+                    id="site-property"
+                    name="propertyId"
+                  >
+                    <option value="">{settings.attendanceSitePropertyNone}</option>
+                    {propertyOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="fld__hint">{settings.attendanceSitePropertyHint}</p>
                 </div>
                 <div
                   style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 11 }}

@@ -1490,6 +1490,10 @@ const FALLBACK_DICTIONARY = {
       attendancePrintName: "Print name (English)",
       attendancePrintNameHint:
         "Shown on the printed QR you put on the wall. Leave it empty to use the site name.",
+      attendanceSiteProperty: "Building",
+      attendanceSitePropertyNone: "Not a building (e.g. office)",
+      attendanceSitePropertyHint:
+        "Links this site to a building so transport auto-link can resolve it. Leave empty for the office.",
       attendanceSiteDeactivateHint:
         "Staff cannot clock in or out at an inactive site. Existing records are kept.",
       attendanceSiteInUseHint:
@@ -6464,6 +6468,10 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         attendancePrintName: "인쇄용 이름 (영문)",
         attendancePrintNameHint:
           "벽에 붙이는 QR에 표기됩니다. 비워두면 현장 이름을 그대로 씁니다.",
+        attendanceSiteProperty: "건물",
+        attendanceSitePropertyNone: "건물 아님 (사무실 등)",
+        attendanceSitePropertyHint:
+          "이 근무지가 어느 건물인지 연결합니다. 교통비 자동 연결이 이 값을 따라갑니다. 사무실처럼 건물이 아니면 비워 두세요.",
         attendanceSiteDeactivateHint:
           "비활성 현장에서는 출퇴근을 찍을 수 없습니다. 기존 기록은 그대로 보존됩니다.",
         attendanceSiteInUseHint:
@@ -11310,6 +11318,10 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         attendancePrintName: "印刷用の名称（英語）",
         attendancePrintNameHint:
           "壁に貼るQRに表示されます。空欄の場合は現場名をそのまま使います。",
+        attendanceSiteProperty: "建物",
+        attendanceSitePropertyNone: "建物ではない（事務所など）",
+        attendanceSitePropertyHint:
+          "この勤務地がどの建物かを紐づけます。交通費の自動連携がこの値を使います。事務所など建物でない場合は空欄に。",
         attendanceSiteDeactivateHint:
           "無効な現場では出退勤を打てません。既存の記録はそのまま残ります。",
         attendanceSiteInUseHint:

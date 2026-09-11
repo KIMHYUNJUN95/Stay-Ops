@@ -42,6 +42,8 @@ export async function saveAttendanceSiteSettings(formData: FormData) {
   const longitude = parseNumberField(parseText(formData, "longitude"));
   const radius = parseNumberField(parseText(formData, "radius"));
   const printName = parseText(formData, "printName");
+  // 빈 값은 「건물 아님」(사무실 등)이다 — null 로 저장해 연결을 끊는다.
+  const propertyId = parseText(formData, "propertyId") || null;
 
   if (!name || latitude == null || longitude == null) {
     redirect(`/admin/settings/attendance?site=${encodeURIComponent(siteId)}&error=invalid_coordinates`);
@@ -61,6 +63,7 @@ export async function saveAttendanceSiteSettings(formData: FormData) {
           latitude,
           longitude,
           allowedRadiusMeters: radius,
+          propertyId,
         })
       : await createAttendanceSite({
           organizationId,
@@ -68,6 +71,7 @@ export async function saveAttendanceSiteSettings(formData: FormData) {
           latitude,
           longitude,
           allowedRadiusMeters: radius,
+          propertyId,
           isActive: true,
         });
     redirect(`/admin/settings/attendance?site=${site.id}&saved=1`);
