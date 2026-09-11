@@ -8,6 +8,7 @@ import { computeCapabilities, isActiveOverrideRow } from "@/lib/capabilities-ser
 import { getDictionary, type Locale } from "@/lib/i18n";
 import type { ProfileGender } from "@/lib/onboarding";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
 export type OrganizationSummary = {
   id: string;
@@ -167,8 +168,17 @@ export const getCurrentAppSession = cache(
         .select("bottom_nav_tabs, can_generate_report")
         .eq("id", user.id)
         .maybeSingle(),
-      // 조직을 몰라도 읽을 수 있다(사용자당 조직이 한둘이라 행이 적다). 조직 필터는 아래에서.
-      supabase
+      // 개인 부여·차단. 조직을 몰라도 읽을 수 있다(사용자당 조직이 한둘이라 행이 적다) —
+      // 조직 필터는 아래에서 한다.
+      //
+      // **service-role 로 읽어야 한다.** 이 표에는 RLS 정책이 하나도 없고 RLS 는 켜져 있다 —
+      // 즉 `authenticated` 로 읽으면 조용히 **0행**이 온다. 사용자 클라이언트로 읽었다가 개인
+      // 부여가 통째로 무시돼, 권한을 받은 사람에게 메뉴가 안 뜨고 페이지도 막혔다
+      // (2026-09-11 회귀 — 세션 워터폴을 접으면서 클라이언트를 잘못 바꿨다).
+      //
+      // 부여 자체는 서버 액션이 권한을 확인하고 쓰므로, 여기서 service-role 로 읽는 것은
+      // 「내 세션의 내 권한을 계산한다」는 용도에 한정된다.
+      getSupabaseServiceClient()
         .from("membership_permission_overrides")
         .select("organization_id, permission_key, effect, expires_at")
         .eq("user_id", user.id)
