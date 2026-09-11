@@ -47,6 +47,7 @@ import {
   type PropertyMapMeta,
 } from "@/lib/property-map-links";
 import { getDictionary, type Locale } from "@/lib/i18n";
+import { collectBlockedRooms } from "@/lib/room-blocks";
 import { localizePropertyName } from "@/lib/room-label-normalization";
 import type { Database } from "@/types/database";
 import "./admin-reservation-console.css";
@@ -390,6 +391,10 @@ export function AdminReservationConsole({
     if (bucket) bucket.push(block);
     else blocksByRoom.set(block.roomKey, [block]);
   }
+
+  // 오늘 막혀 있는 방. 「예약은 없지만 팔 수 없는」 상태를 공실과 구분하는 데 쓴다 —
+  // 판매만 막아 두는 운영이 실제로 있어서, 그걸 「빈 객실」로 보여주면 잘못된 판단을 부른다.
+  const blockedRoomKeysToday = collectBlockedRooms(roomBlocks, today, (block) => block.roomKey);
 
   const activeReservations = reservations.filter((reservation) => {
     if (selectedProperty && reservation.propertyName !== selectedProperty) return false;
@@ -1127,6 +1132,7 @@ export function AdminReservationConsole({
                   <FragmentRows
                     group={group}
                     groupRows={groupRows}
+                    blockedRoomKeysToday={blockedRoomKeysToday}
                     inHouseToday={inHouseToday}
                     localizedPropertyName={localizedPropertyName}
                     onRoomClick={openRoomPanel}
@@ -1873,6 +1879,7 @@ function RoomPanel({
 
 function FragmentRows({
   copy,
+  blockedRoomKeysToday,
   group,
   groupRows,
   inHouseToday,
@@ -1882,6 +1889,7 @@ function FragmentRows({
   today,
   uiLocale,
 }: {
+  blockedRoomKeysToday: Set<string>;
   copy: ReturnType<typeof getDictionary>["admin"]["calendar"];
   group: {
     blocked: AdminReservationConsoleProps["blockedProperties"][number] | null;
@@ -1940,6 +1948,11 @@ function FragmentRows({
           if (currentGuest) {
             statusClass = "pill pill--done";
             statusText = copy.statusOccupied;
+          } else if (blockedRoomKeysToday.has(room.key)) {
+            // 물리적으로는 비어 있지만 팔 수 없다. 「빈 객실」보다 「차단」이 더 구체적인
+            // 정보라 이쪽을 보여준다. 투숙 중이면 손님이 먼저다.
+            statusClass = "pill pill--muted";
+            statusText = copy.blockedRoom;
           } else if (hasDeparture) {
             statusClass = "pill pill--warn";
             statusText = copy.statusCleaningDue;

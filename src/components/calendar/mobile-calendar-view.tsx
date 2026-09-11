@@ -25,6 +25,7 @@ import {
   PlaneLanding,
   PlaneTakeoff,
 } from "lucide-react";
+import { collectBlockedRooms } from "@/lib/room-blocks";
 import { type PropertyMapMeta, getPropertyAddress } from "@/lib/property-map-links";
 import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
@@ -606,6 +607,18 @@ export function MobileCalendarView({
     const occupiedRoomSet = new Set(stayingToday.map((item) => item.roomLabel));
     return rooms.filter((room) => !occupiedRoomSet.has(room));
   }, [rooms, stayingToday]);
+
+  /**
+   * 기준일에 막혀 있는 방.
+   *
+   * **「오늘 빈 객실」 수에서 빼지는 않는다.** 그 숫자는 「물리적으로 비어 있는 방」이고 블락은
+   * 판매만 막은 것이라 방 자체는 비어 있다 — 빼면 청소·점검 인원이 보는 숫자가 달라진다.
+   * 대신 목록에서 「차단」으로 표시해, 팔 수 있는 방으로 착각하지 않게 한다.
+   */
+  const blockedRoomsAtReference = useMemo(
+    () => collectBlockedRooms(roomBlocks, listReferenceDate, (block) => block.roomLabel),
+    [listReferenceDate, roomBlocks],
+  );
 
   // Auto-scroll: bring today (and the day before) into view on first entry per month/property.
   // Uses a Set so each selectedMonth+selectedProperty combo scrolls at most once per session.
@@ -1611,8 +1624,16 @@ export function MobileCalendarView({
           <div className="-mx-1 max-h-[60vh] space-y-1 overflow-y-auto px-1 pb-2 pt-1 text-sm">
             {emptyRoomLabels.length > 0 ? (
               emptyRoomLabels.map((roomLabel) => (
-                <div className="rounded-xl bg-background px-3 py-3" key={roomLabel}>
+                <div
+                  className="flex items-center justify-between gap-2 rounded-xl bg-background px-3 py-3"
+                  key={roomLabel}
+                >
                   <p className="font-semibold">{roomLabel}</p>
+                  {blockedRoomsAtReference.has(roomLabel) ? (
+                    <span className="shrink-0 rounded-full border border-dashed border-slate-400/70 bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                      {copy.blockedRoom}
+                    </span>
+                  ) : null}
                 </div>
               ))
             ) : (
