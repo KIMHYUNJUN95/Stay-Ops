@@ -1099,6 +1099,8 @@
 .adm .ctxp__roomcell.on .ctxp__roomlabel { color: var(--primary-ink); }
 .adm .ctxp__roomstatus { font-size: 9px; font-weight: 700; color: var(--faint); }
 .adm .ctxp__roomstatus.occ { color: var(--danger); }
+/* 차단: 팔 수 없지만 손님은 없다. 투숙(빨강)과 공실(흐림) 사이의 중간 톤. */
+.adm .ctxp__roomstatus.blk { color: #64748b; }
 .adm .ctxp__roomcheck { position: absolute; top: 3px; right: 3px; width: 13px; height: 13px; border-radius: 999px; background: var(--adm-primary); color: #fff; display: flex; align-items: center; justify-content: center; }
 
 .adm .ctxp__loading { display: flex; align-items: center; justify-content: center; padding: 26px 0; }

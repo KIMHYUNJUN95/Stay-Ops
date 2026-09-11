@@ -149,6 +149,7 @@ export type AdminTasksDictionary = {
   cpCancel: string;
   cpOccupied: string;
   cpVacant: string;
+  cpBlocked: string;
   cpNightsUnit: string;
   cpChannelDirect: string;
   cpLive: string;
@@ -399,7 +400,7 @@ const ko: AdminTasksDictionary = {
   phCount: "{n}/{max}", phRemove: "사진 삭제", phTooMany: "최대 {max}장까지 첨부할 수 있습니다",
   phInvalidType: "이미지 파일만 첨부할 수 있습니다", phTooLarge: "파일 용량은 {max}MB 이하만 가능합니다",
   phUploading: "업로드 중…",
-  cpTitle: "예약 연결", cpHintBuilding: "건물을 선택하세요", cpHintRoom: "객실을 선택하면 해당 기간 예약이 표시됩니다", cpBuildings: "건물", cpRooms: "객실", cpReservations: "예약", cpSearch: "게스트명 또는 예약번호 검색", cpSearchClear: "지우기", cpSearchEmpty: "검색 결과가 없습니다", cpSearchEmptySub: "게스트명이나 예약번호로 다시 검색해보세요", cpNoBuilding: "등록된 건물이 없습니다", cpNoRooms: "등록된 객실이 없습니다", cpNoReservation: "이 기간에는 예약이 없습니다", cpGuest: "게스트", cpLoading: "불러오는 중", cpBack: "뒤로", cpClear: "연결 해제", cpApply: "적용", cpCancel: "취소", cpOccupied: "투숙 중", cpVacant: "공실", cpNightsUnit: "박", cpChannelDirect: "직접 예약", cpLive: "체류중", cpRoomsUnit: "실", cpTodayGuests: "오늘 투숙", cpRoomSuffix: "호", cpBookingId: "예약번호", dpShare: "공유",
+  cpTitle: "예약 연결", cpHintBuilding: "건물을 선택하세요", cpHintRoom: "객실을 선택하면 해당 기간 예약이 표시됩니다", cpBuildings: "건물", cpRooms: "객실", cpReservations: "예약", cpSearch: "게스트명 또는 예약번호 검색", cpSearchClear: "지우기", cpSearchEmpty: "검색 결과가 없습니다", cpSearchEmptySub: "게스트명이나 예약번호로 다시 검색해보세요", cpNoBuilding: "등록된 건물이 없습니다", cpNoRooms: "등록된 객실이 없습니다", cpNoReservation: "이 기간에는 예약이 없습니다", cpGuest: "게스트", cpLoading: "불러오는 중", cpBack: "뒤로", cpClear: "연결 해제", cpApply: "적용", cpCancel: "취소", cpOccupied: "투숙 중", cpVacant: "공실", cpBlocked: "차단", cpNightsUnit: "박", cpChannelDirect: "직접 예약", cpLive: "체류중", cpRoomsUnit: "실", cpTodayGuests: "오늘 투숙", cpRoomSuffix: "호", cpBookingId: "예약번호", dpShare: "공유",
   dpDelete: "삭제", dpUnshareDelete: "공유 해제·삭제", dpAuthorOnly: "원문은 작성자({name})만 수정할 수 있습니다",
   dpLeave: "나만 빠지기", dpMobileDetail: "모바일 상세",
   ctxBuilding: "건물", ctxBed: "객실", ctxTicket: "예약", ctxGuest: "게스트",
@@ -509,7 +510,7 @@ const ja: AdminTasksDictionary = {
   phCount: "{n}/{max}", phRemove: "写真を削除", phTooMany: "最大{max}枚まで添付できます",
   phInvalidType: "画像ファイルのみ添付できます", phTooLarge: "ファイルサイズは{max}MB以下のみ可能です",
   phUploading: "アップロード中…",
-  cpTitle: "予約リンク", cpHintBuilding: "建物を選択してください", cpHintRoom: "客室を選択すると該当期間の予約が表示されます", cpBuildings: "建物", cpRooms: "客室", cpReservations: "予約", cpSearch: "ゲスト名または予約番号で検索", cpSearchClear: "クリア", cpSearchEmpty: "検索結果がありません", cpSearchEmptySub: "ゲスト名や予約番号で再検索してください", cpNoBuilding: "登録された建物がありません", cpNoRooms: "登録された客室がありません", cpNoReservation: "この期間に予約はありません", cpGuest: "ゲスト", cpLoading: "読み込み中", cpBack: "戻る", cpClear: "リンク解除", cpApply: "適用", cpCancel: "キャンセル", cpOccupied: "滞在中", cpVacant: "空室", cpNightsUnit: "泊", cpChannelDirect: "直接予約", cpLive: "滞在中", cpRoomsUnit: "室", cpTodayGuests: "本日の宿泊", cpRoomSuffix: "号", cpBookingId: "予約番号", dpShare: "共有",
+  cpTitle: "予約リンク", cpHintBuilding: "建物を選択してください", cpHintRoom: "客室を選択すると該当期間の予約が表示されます", cpBuildings: "建物", cpRooms: "客室", cpReservations: "予約", cpSearch: "ゲスト名または予約番号で検索", cpSearchClear: "クリア", cpSearchEmpty: "検索結果がありません", cpSearchEmptySub: "ゲスト名や予約番号で再検索してください", cpNoBuilding: "登録された建物がありません", cpNoRooms: "登録された客室がありません", cpNoReservation: "この期間に予約はありません", cpGuest: "ゲスト", cpLoading: "読み込み中", cpBack: "戻る", cpClear: "リンク解除", cpApply: "適用", cpCancel: "キャンセル", cpOccupied: "滞在中", cpVacant: "空室", cpBlocked: "ブロック", cpNightsUnit: "泊", cpChannelDirect: "直接予約", cpLive: "滞在中", cpRoomsUnit: "室", cpTodayGuests: "本日の宿泊", cpRoomSuffix: "号", cpBookingId: "予約番号", dpShare: "共有",
   dpDelete: "削除", dpUnshareDelete: "共有解除・削除", dpAuthorOnly: "本文は作成者({name})のみ編集できます",
   dpLeave: "自分だけ抜ける", dpMobileDetail: "モバイル詳細",
   ctxBuilding: "建物", ctxBed: "部屋", ctxTicket: "予約", ctxGuest: "ゲスト",
@@ -619,7 +620,7 @@ const en: AdminTasksDictionary = {
   phCount: "{n}/{max}", phRemove: "Remove photo", phTooMany: "Up to {max} photos",
   phInvalidType: "Image files only", phTooLarge: "Files must be {max}MB or smaller",
   phUploading: "Uploading…",
-  cpTitle: "Link reservation", cpHintBuilding: "Pick a building", cpHintRoom: "Pick a room to see its reservations", cpBuildings: "Buildings", cpRooms: "Rooms", cpReservations: "Reservations", cpSearch: "Search guest or booking id", cpSearchClear: "Clear", cpSearchEmpty: "No results", cpSearchEmptySub: "Try a guest name or booking id", cpNoBuilding: "No buildings registered", cpNoRooms: "No rooms registered", cpNoReservation: "No reservations in this period", cpGuest: "Guest", cpLoading: "Loading", cpBack: "Back", cpClear: "Unlink", cpApply: "Apply", cpCancel: "Cancel", cpOccupied: "Occupied", cpVacant: "Vacant", cpNightsUnit: "n", cpChannelDirect: "Direct booking", cpLive: "Staying", cpRoomsUnit: "rooms", cpTodayGuests: "Guests today", cpRoomSuffix: "", cpBookingId: "Booking id", dpShare: "Share",
+  cpTitle: "Link reservation", cpHintBuilding: "Pick a building", cpHintRoom: "Pick a room to see its reservations", cpBuildings: "Buildings", cpRooms: "Rooms", cpReservations: "Reservations", cpSearch: "Search guest or booking id", cpSearchClear: "Clear", cpSearchEmpty: "No results", cpSearchEmptySub: "Try a guest name or booking id", cpNoBuilding: "No buildings registered", cpNoRooms: "No rooms registered", cpNoReservation: "No reservations in this period", cpGuest: "Guest", cpLoading: "Loading", cpBack: "Back", cpClear: "Unlink", cpApply: "Apply", cpCancel: "Cancel", cpOccupied: "Occupied", cpVacant: "Vacant", cpBlocked: "Blocked", cpNightsUnit: "n", cpChannelDirect: "Direct booking", cpLive: "Staying", cpRoomsUnit: "rooms", cpTodayGuests: "Guests today", cpRoomSuffix: "", cpBookingId: "Booking id", dpShare: "Share",
   dpDelete: "Delete", dpUnshareDelete: "Unshare · delete", dpAuthorOnly: "Only the author ({name}) can edit the content",
   dpLeave: "Leave (me only)", dpMobileDetail: "Mobile detail",
   ctxBuilding: "Building", ctxBed: "Room", ctxTicket: "Reservation", ctxGuest: "Guest",

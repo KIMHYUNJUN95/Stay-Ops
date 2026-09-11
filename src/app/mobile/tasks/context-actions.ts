@@ -1,8 +1,10 @@
 "use server";
 
 import { getDictionary } from "@/lib/i18n";
+import { collectBlockedRooms } from "@/lib/room-blocks";
 import {
   getCanonicalPropertyName,
+  getCanonicalRoomLabel,
   getDisplayRoomLabel,
   isExcludedOperationalProperty,
   isExcludedOperationalRoom,
@@ -37,6 +39,13 @@ export type PickerRoom = {
   /** properties.id UUID of the owning building. */
   propertyId: string | null;
   occupied: boolean;
+  /**
+   * Beds24 캘린더에서 오늘 판매가 막혀 있는가.
+   *
+   * `occupied` 와 별개다 — 판매만 막고 예약은 안 넣는 운영이 자주 쓰여서, 그 방은 손님이 없는데도
+   * 팔 수 없다. 둘을 하나로 합치면 「손님이 있다」와 「팔 수 없다」가 섞인다.
+   */
+  blocked: boolean;
 };
 
 export type RoomReservation = {
@@ -104,6 +113,38 @@ async function loadLiveTodayRows(
     .gt("check_out_date", todayYmd)
     .not("status", "in", "(cancelled,no_show)");
   return (res.data as LiveResolveRow[] | null) ?? [];
+}
+
+/** 오늘 막혀 있는 방(표시 라벨 기준). 블락 구간은 양끝을 포함한다 — `blockCoversDate` 참고. */
+async function loadBlockedRoomLabels(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  orgId: string,
+  todayYmd: string,
+): Promise<Set<string>> {
+  const res = await supabase
+    .from("room_blocks")
+    .select("property_name, room_label, start_date, end_date")
+    .eq("organization_id", orgId)
+    .lte("start_date", todayYmd)
+    .gte("end_date", todayYmd);
+  if (res.error) {
+    // 블락을 못 읽었다고 객실 선택 자체를 막지는 않는다. 차단 표시만 빠진다.
+    console.error("[tasks/context] room block read failed", res.error);
+    return new Set();
+  }
+  return collectBlockedRooms(
+    (res.data ?? []).map((row) => {
+      const canonProp = getCanonicalPropertyName(row.property_name);
+      const canonical = getCanonicalRoomLabel(canonProp, row.room_label) || row.room_label.trim();
+      return {
+        endDate: row.end_date,
+        startDate: row.start_date,
+        label: getDisplayRoomLabel(canonProp, canonical) || canonical,
+      };
+    }),
+    todayYmd,
+    (block) => block.label,
+  );
 }
 
 /**
@@ -204,7 +245,10 @@ export async function fetchPickerRooms(propertyId: string): Promise<PickerRoom[]
   // Occupancy: today's live reservations resolved to display labels.
   const lookups = buildPropertyRoomLookups(catalog);
   const globalExternalRoomToCanonical = buildGlobalExternalRoomToCanonical(catalog);
-  const liveRows = await loadLiveTodayRows(supabase, orgId, todayYmd);
+  const [liveRows, blockedLabels] = await Promise.all([
+    loadLiveTodayRows(supabase, orgId, todayYmd),
+    loadBlockedRoomLabels(supabase, orgId, todayYmd),
+  ]);
   const occupied = new Set<string>();
   for (const row of liveRows) {
     if (getCanonicalPropertyName(row.property_name) !== canonProp) continue;
@@ -224,6 +268,7 @@ export async function fetchPickerRooms(propertyId: string): Promise<PickerRoom[]
       roomId: rep.roomId,
       propertyId: rep.propertyId,
       occupied: occupied.has(label),
+      blocked: blockedLabels.has(label),
     }));
 }
 
@@ -521,7 +566,7 @@ async function fetchLegacyRooms(
   propertyName: string,
 ): Promise<PickerRoom[]> {
   const todayYmd = tokyoYmd();
-  const [roomsRes, liveRows] = await Promise.all([
+  const [roomsRes, liveRows, blockedLabels] = await Promise.all([
     supabase
       .from("rooms")
       .select("id, property_id, room_label, properties!inner(name)")
@@ -530,6 +575,7 @@ async function fetchLegacyRooms(
       .eq("properties.name", propertyName)
       .order("room_label"),
     loadLiveTodayRows(supabase, orgId, todayYmd),
+    loadBlockedRoomLabels(supabase, orgId, todayYmd),
   ]);
   const rooms = (roomsRes.data as LegacyRoomRow[] | null) ?? [];
   const occupied = new Set(
@@ -540,5 +586,6 @@ async function fetchLegacyRooms(
     roomId: r.id,
     propertyId: r.property_id,
     occupied: occupied.has(r.room_label),
+    blocked: blockedLabels.has(r.room_label),
   }));
 }

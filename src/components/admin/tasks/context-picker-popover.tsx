@@ -73,6 +73,7 @@ export type ContextPickerCopy = {
   cancel: string;
   occupied: string;
   vacant: string;
+  blocked: string;
   nightsUnit: string;
   channelDirect: string;
   live: string;
@@ -159,8 +160,15 @@ function RoomCell({
         </span>
       ) : null}
       <span className="ctxp__roomlabel">{room.label}</span>
-      <span className={`ctxp__roomstatus ${room.occupied ? "occ" : ""}`}>
-        {room.occupied ? copy.occupied : copy.vacant}
+      {/*
+        투숙이 차단보다 우선이다. 판매를 막아 둔 방에 손님이 들어와 있는 경우가 있는데
+        (수기 예약), 작업을 배정하는 사람에게는 「손님이 있다」가 먼저 알아야 할 사실이다.
+        손님이 없는데 막혀 있으면 「공실」이 아니라 「차단」으로 보여준다.
+      */}
+      <span
+        className={`ctxp__roomstatus ${room.occupied ? "occ" : room.blocked ? "blk" : ""}`}
+      >
+        {room.occupied ? copy.occupied : room.blocked ? copy.blocked : copy.vacant}
       </span>
     </button>
   );

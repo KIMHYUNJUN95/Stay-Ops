@@ -207,10 +207,19 @@ function RoomCell({
       <span
         className={cn(
           "text-[9.5px] font-bold",
-          room.occupied ? "text-rose-600" : "text-muted-foreground/50",
+          // 투숙 > 차단 > 공실. 막아 둔 방에 수기 예약이 들어와 있으면 손님이 먼저다.
+          room.occupied
+            ? "text-rose-600"
+            : room.blocked
+              ? "text-slate-500"
+              : "text-muted-foreground/50",
         )}
       >
-        {room.occupied ? copy.contextPickerOccupied : copy.contextPickerVacant}
+        {room.occupied
+          ? copy.contextPickerOccupied
+          : room.blocked
+            ? copy.contextPickerBlocked
+            : copy.contextPickerVacant}
       </span>
     </button>
   );
