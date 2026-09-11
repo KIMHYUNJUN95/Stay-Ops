@@ -486,6 +486,10 @@
   font-size: 12.5px;
   font-weight: 700;
   text-decoration: none;
+  /* 2026-09-11 에 <a> 에서 <button> 으로 바뀌었다(미리보기를 띄운다). 버튼은 폰트를 상속하지
+     않고 기본 여백·커서가 달라서 그대로 두면 이 칩만 다른 글꼴로 보인다. */
+  font-family: inherit;
+  cursor: pointer;
 }
 .adm .top__mobbtn:hover {
   background: var(--adm-surface);
@@ -2468,3 +2472,72 @@
 :lang(ja) .adm .balrow__k {
   letter-spacing: 0;
 }
+
+/* ── 모바일 미리보기 (2026-09-11) ────────────────────────────────────────────
+   어드민 안에서 실제 모바일 앱을 아이폰 모양으로 본다. 안에 든 것은 iframe 이라 진짜 앱이다.
+
+   다이내믹 아일랜드·홈 인디케이터는 **화면 위가 아니라 프레임 쪽**에 있다. iframe 안에서는
+   safe-area-inset 이 0 이라 화면 위에 겹치면 앱 헤더와 부딪힌다 — 모바일 셸은 공용 계약이라
+   미리보기 때문에 실제 레이아웃을 건드릴 수 없다(mobile-preview.tsx 주석 참고). */
+.adm .mprev {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(16, 20, 30, 0.62);
+  backdrop-filter: blur(3px);
+}
+.adm .mprev__stage { display: flex; flex-direction: column; align-items: center; gap: 14px; transform-origin: center; }
+
+/* 기기 몸체 — 어두운 베젤 + 바깥 테두리 하이라이트로 금속 느낌만 낸다. */
+.adm .mprev__frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 56px;
+  background: #0d0f14;
+  padding: 12px;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.1),
+    0 30px 90px rgba(0, 0, 0, 0.45);
+}
+
+/* 상태바 띠 — 아일랜드가 여기 놓이고, 앱은 그 아래에서 시작한다. */
+.adm .mprev__status { display: flex; align-items: center; justify-content: center; width: 100%; flex: 0 0 auto; }
+.adm .mprev__island { width: 118px; height: 33px; border-radius: 999px; background: #000; }
+
+.adm .mprev__screen {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 30px;
+  background: #fff;
+  /* 실제 기기처럼 화면만 딱 잘린다. */
+  overflow: hidden;
+}
+
+.adm .mprev__home { height: 22px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.adm .mprev__home span { width: 134px; height: 5px; border-radius: 999px; background: rgba(255, 255, 255, 0.55); }
+
+/* 프레임 밖 조작 — 기기 안에 버튼을 넣으면 앱의 일부처럼 보인다. */
+.adm .mprev__bar { display: flex; align-items: center; gap: 8px; }
+.adm .mprev__act {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+.adm .mprev__act:hover { background: rgba(255, 255, 255, 0.18); }
+.adm .mprev__act .ic { display: inline-flex; }
+.adm .mprev__act .ic svg { width: 14px; height: 14px; }

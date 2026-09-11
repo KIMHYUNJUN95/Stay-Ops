@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
+
 import Link from "next/link";
 import { ChevronDown, Search, Settings, Smartphone } from "lucide-react";
+import { MobilePreview } from "@/components/shell/mobile-preview";
 import "@/components/admin/admin-console.css";
 import { NotificationBell } from "@/components/admin/notification-bell";
 import { useSession } from "@/components/providers/session-provider";
@@ -24,6 +27,8 @@ type AdminShellProps = {
 
 export function AdminShell({ activeItem, children, mobileHref = "/mobile", title }: AdminShellProps) {
   const { session } = useSession();
+  // 훅은 조기 반환보다 앞에 와야 한다(세션이 없으면 아래에서 null 을 돌려준다).
+  const [previewOpen, setPreviewOpen] = useState(false);
   if (!session) {
     return null;
   }
@@ -116,10 +121,17 @@ export function AdminShell({ activeItem, children, mobileHref = "/mobile", title
               <kbd>⌘K</kbd>
             </div>
             <div className="top__actions">
-              <Link className="top__mobbtn" href={mobileHref}>
+              {/* 전체 화면으로 넘어가는 대신 아이폰 모양 프레임으로 띄운다 — 어드민에서 일하는
+                  중에 보는 것이라 화면을 떠나지 않는 편이 낫다. 전체 화면으로 가는 길은
+                  미리보기 안의 「새 탭에서 열기」로 남겨 뒀다. */}
+              <button
+                type="button"
+                className="top__mobbtn"
+                onClick={() => setPreviewOpen(true)}
+              >
                 <span className="ic"><Smartphone /></span>
                 {c.mobileView}
-              </Link>
+              </button>
               <NotificationBell
                 labels={{
                   title: c.notifications,
@@ -142,6 +154,18 @@ export function AdminShell({ activeItem, children, mobileHref = "/mobile", title
           </div>
         </section>
       </div>
+
+      {previewOpen && (
+        <MobilePreview
+          href={mobileHref}
+          labels={{
+            title: c.mobilePreviewTitle,
+            openNewTab: c.mobilePreviewOpen,
+            close: c.mobilePreviewClose,
+          }}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
     </main>
   );
 }
