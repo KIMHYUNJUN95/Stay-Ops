@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { BatteryFull, ExternalLink, Wifi, X } from "lucide-react";
+import { BatteryFull, Wifi, X } from "lucide-react";
 
 /**
  * 모바일 미리보기 — 어드민 콘솔 안에서 실제 모바일 앱을 아이폰 모양 프레임으로 본다.
@@ -59,7 +59,6 @@ function clockText(): string {
 
 export type MobilePreviewLabels = {
   title: string;
-  openNewTab: string;
   close: string;
 };
 
@@ -163,13 +162,9 @@ export function MobilePreview({
             </div>
           </div>
 
+          {/* 「새 탭에서 열기」는 두지 않는다 — 미리보기가 전체 화면보다 편하다는 것이 확인됐고
+              (2026-09-11 사용자), 같은 목적지로 가는 길이 둘이면 하나는 안 쓰인다. */}
           <div className="mprev__bar">
-            <a className="mprev__act" href={href} target="_blank" rel="noreferrer">
-              <span className="ic">
-                <ExternalLink />
-              </span>
-              {labels.openNewTab}
-            </a>
             <button ref={closeRef} type="button" className="mprev__act" onClick={onClose}>
               <span className="ic">
                 <X />

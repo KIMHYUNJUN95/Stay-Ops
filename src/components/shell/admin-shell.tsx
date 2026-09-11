@@ -160,7 +160,6 @@ export function AdminShell({ activeItem, children, mobileHref = "/mobile", title
           href={mobileHref}
           labels={{
             title: c.mobilePreviewTitle,
-            openNewTab: c.mobilePreviewOpen,
             close: c.mobilePreviewClose,
           }}
           onClose={() => setPreviewOpen(false)}
