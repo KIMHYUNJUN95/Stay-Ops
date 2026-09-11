@@ -28,7 +28,9 @@ function isKabukicho(propertyName: string) {
 
 function isTakadanobaba(propertyName: string) {
   const key = normalizeKey(propertyName);
-  return hasAny(key, ["다카다노바바", "takadanobaba", "高田馬場"]);
+  // `타카다노바바`(ㅌ) 도 같은 곳이다 — 高田馬場 의 한글 표기가 사람마다 갈린다. 교통비 기록에
+  // 실제로 두 표기가 섞여 있었다(2026-09-11). 별칭을 받아 주면 같은 건물로 모인다.
+  return hasAny(key, ["다카다노바바", "타카다노바바", "takadanobaba", "高田馬場"]);
 }
 
 function isSano(propertyName: string) {

@@ -7,7 +7,9 @@ import "./transport.css";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { CalendarPanel } from "./transport-date-sheet";
 import { getDictionary, type Dictionary } from "@/lib/i18n";
+import { getCanonicalPropertyName } from "@/lib/room-label-normalization";
 import {
+  matchDestinationByLabel,
   transportDestinationRequiresMemo,
   type TransportDestination,
 } from "@/lib/transport-destinations";
@@ -597,10 +599,17 @@ function AddItemSheet({
                     onClick={() => {
                       setLinkedKey(candidate.key);
                       setUsageDate(candidate.date);
-                      if (candidate.propertyId) setDestinationKey(candidate.propertyId);
-                      const known = candidate.propertyId
-                        ? recentAmounts[candidate.propertyId]
-                        : undefined;
+                      // 건물 FK 가 있으면 그것으로, 없으면 이름으로 맞춘다. 근무지의 FK 가
+                      // 비어 있는 상태에서도 「사무실」 같은 출근지가 제대로 잡혀야 한다.
+                      const matched = candidate.propertyId
+                        ? (destinations.find((d) => d.key === candidate.propertyId) ?? null)
+                        : matchDestinationByLabel(
+                            destinations,
+                            candidate.buildingLabel,
+                            getCanonicalPropertyName,
+                          );
+                      if (matched) setDestinationKey(matched.key);
+                      const known = matched ? recentAmounts[matched.key] : undefined;
                       if (known && !amount.trim()) setAmount(String(known.amountYen));
                     }}
                   >

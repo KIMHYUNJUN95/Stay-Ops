@@ -47,3 +47,33 @@ export type TransportDestination = {
 export function transportDestinationRequiresMemo(key: string): boolean {
   return key === TRANSPORT_OTHER_KEY;
 }
+
+/**
+ * 근무 기록의 **건물 이름**으로 출근지를 찾는다 — `property_id` 가 없을 때의 대비책 (2026-09-11).
+ *
+ * 자동 연결은 원래 근무지(`attendance_sites`)의 건물 FK 를 따라간다. 그런데 실제로는 **모든
+ * 근무지의 `property_id` 가 비어 있어서**(2026-09-11 확인) 무엇도 이어지지 않았다 — 근무 기록을
+ * 골라도 건물 칸이 그대로 비어 있었다.
+ *
+ * FK 를 채우는 것이 정답이지만, 그건 운영 데이터 정리다. 그 사이에도 화면은 동작해야 하므로
+ * 이름으로 맞춰 본다. 「사무실」처럼 **애초에 건물이 아닌 근무지**는 FK 가 채워져도 여전히
+ * 이름으로만 이어지므로, 이 대비책은 정리 뒤에도 쓸모가 남는다.
+ *
+ * 표기 차이(`다카다노바바` / `타카다노바바`)는 정규화 함수가 흡수한다. 못 찾으면 `null` —
+ * 엉뚱한 건물을 고르느니 비워 두는 편이 낫다.
+ */
+export function matchDestinationByLabel(
+  destinations: readonly TransportDestination[],
+  label: string,
+  canonicalize: (name: string) => string,
+): TransportDestination | null {
+  const wanted = label.trim();
+  if (!wanted) return null;
+
+  const exact = destinations.find((d) => d.label === wanted);
+  if (exact) return exact;
+
+  const canonicalWanted = canonicalize(wanted);
+  const canonical = destinations.find((d) => canonicalize(d.label) === canonicalWanted);
+  return canonical ?? null;
+}
