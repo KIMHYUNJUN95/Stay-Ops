@@ -253,7 +253,7 @@ RECRUIT_FIRESTORE_SERVICE_ACCOUNT=
 
 **자동 연동은 환경변수 없이 돈다 (2026-09-09).** 채용 사이트에 Cloud Function 이 없다는 것이
 확인되어(저장소에 `functions/` 자체가 없다) push 대신 **당겨오기**로 간다:
-`POST /api/recruit/sync` + GitHub Actions `.github/workflows/recruit-sync.yml`(5분 주기 + 하루 1회
+`POST /api/recruit/sync` + GitHub Actions `.github/workflows/recruit-sync.yml`(주기 실행 + 하루 1회
 전량). 이 경로는 **시크릿이 없다** — 외부 입력을 받지 않아 위조가 불가능하고, 남용은
 `recruit_sync_state` 의 60초 창으로 막는다. Firestore 는 공개 읽기라 API 키도 필요 없다
 (`RECRUIT_FIRESTORE_PROJECT_ID` 미설정 시 `haru-recruit` 를 쓴다).
