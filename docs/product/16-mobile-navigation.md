@@ -107,27 +107,49 @@ Implementation note:
 - The initial mobile shell is implemented in `src/components/shell/mobile-shell.tsx`.
 - Any future mobile screen should reuse this navigation contract instead of redefining tabs locally.
 - Navigation labels are localized through `src/lib/i18n.ts` and `src/config/navigation.ts`.
-- **Back navigation = edge swipe (2026-06-15).** Mobile screens no longer render a top-left back
-  button. Going back is an **iOS-style left-edge swipe** handled once in `MobileShell` on `<main>`
-  (`handleSwipeStart` / `handleSwipeMove` / `handleSwipeEnd` / `handleSwipeCancel`). **Drag feedback
-  (simple):** a drag starting within ~30px of the left edge fades in a **soft left-edge gradient
-  shadow + a small chevron hint** — the screen itself does NOT move. Intensity tracks the drag
-  (near-full ~90px); releasing past ~64px commits `router.back()`, otherwise the gradient fades back
-  out. Quick flicks still fire via a fallback fling detector; right-edge swipe → `router.forward()`. Removed the per-screen back arrows from detail/create/edit/list screens
-  (linen-return, requests detail for maintenance / lost & found / orders, announcements detail, task
-  detail / create / edit, project detail) and the order-create footer "back". New mobile screens should
-  rely on the edge-swipe instead of adding a back button. Kept: workflow-return buttons that target a
-  specific origin and double as the only escape in an error state (e.g. maintenance / lost & found
-  "청소로 돌아가기" → `/mobile/cleaning`), and non-back chevrons (calendar month nav, photo carousel,
-  date pickers). Admin web keeps its back buttons (no touch swipe on desktop).
-  **Edge-back never strands (2026-06-22):** the commit calls `goBack()`, not raw `router.back()` —
-  when `window.history.length <= 1` (e.g. the installed standalone app cold-launched straight onto a
-  deep screen, where there is no browser back button) it falls back to `router.push("/mobile")` so the
-  gesture is never a dead end.
+- **Back navigation = 기기·브라우저의 네이티브 제스처 (2026-09-11 정정).** 모바일 화면은 좌상단
+  뒤로가기 버튼을 그리지 않는다. 뒤로 가기는 **OS·브라우저가 제공하는 엣지 스와이프**가 담당한다.
+
+  **⚠️ 이 절은 2026-09-11 에 사실과 맞췄다.** 아래 「과거 서술」 참고 — 오랫동안 「MobileShell 이
+  엣지 스와이프를 직접 처리한다」고 적혀 있었으나 **그 코드는 존재하지 않는다.**
+
+  뒤로가기 버튼을 없앤 결정(2026-06-15)은 유지된다. 근거가 「우리가 구현한 엣지 스와이프」에서
+  「기기가 기본 제공하는 제스처」로 바뀔 뿐이다. 제거 대상이었던 화면도 그대로다:
+  linen-return · requests 상세(수리 / 분실물 / 주문) · 공지 상세 · 작업 상세/생성/편집 · 프로젝트
+  상세, 주문 생성 푸터의 「뒤로」. 새 모바일 화면도 뒤로가기 버튼을 두지 않는다.
+
+  **남긴 것:** 특정 출발점으로 돌아가는 워크플로 버튼(오류 상태의 유일한 탈출구이기도 하다 —
+  예: 수리 / 분실물의 「청소로 돌아가기」 → `/mobile/cleaning`), 그리고 뒤로가기가 아닌 chevron
+  (캘린더 월 이동, 사진 캐러셀, 날짜 선택기). 어드민 웹은 뒤로가기 버튼을 유지한다(데스크톱에는
+  터치 스와이프가 없다).
+
+  **직접 구현하지 않는다.** 네이티브 제스처 위에 자체 구현을 얹으면 **두 번 뒤로 가거나** 가로
+  스크롤과 싸운다 — 실제로 겪었다(`mobile-calendar-view.tsx` 주석: 「왼쪽 가장자리에서 시작한
+  가로 스크롤이 `router.back()` 을 발동시키곤 했다」). 제거된 것도 그 때문으로 보인다.
+
+  **확인되지 않은 경우 — 홈 화면에 설치한 standalone.** 브라우저 탭에서 네이티브 제스처가 도는
+  것은 확인했다(사용자, 2026-09-11). `manifest.webmanifest` 의 `display: standalone` 으로 설치하면
+  브라우저 UI 가 사라지는데, 그 상태에서도 제스처가 도는지는 **확인하지 않았다.** 안 된다면 그
+  경우에만 뒤로 갈 수단이 없다 — 실측 후 이 줄을 갱신할 것.
+
+  <details><summary>과거 서술 (2026-06-15 ~ 2026-09-11, 코드에 없음)</summary>
+
+  「`MobileShell` 이 `<main>` 에서 `handleSwipeStart` / `handleSwipeMove` / `handleSwipeEnd` /
+  `handleSwipeCancel` 로 처리하고, 왼쪽 ~30px 에서 시작한 드래그가 좌측 그라데이션 그림자와 chevron
+  힌트를 띄우며, ~64px 을 넘겨 놓으면 `router.back()`, 오른쪽 엣지는 `router.forward()`. 2026-06-22
+  에 `goBack()` 이 `window.history.length <= 1` 이면 `router.push("/mobile")` 로 대신한다」고
+  적혀 있었다.
+
+  2026-09-11 전수 확인 결과 `handleSwipe*` · `edgeDx` · `edgeRawDxRef` · 셸의 `goBack` 중
+  **어느 것도 코드에 없다.** 같은 시기에 적힌 PTR 관련 서술(`ptrEligibleRef` 등)은 지금도 유효하다 —
+  엣지 백 부분만 제거되고 문서가 남은 것이다.
+
+  </details>
+
   **Touch-gesture render throttle (2026-06-22):** the visual state updates from `touchmove` — the
-  pull-to-refresh pull distance and the live edge-back `edgeDx` — are **coalesced to one `setState`
-  per animation frame** (rAF), while the underlying refs (`pullDistanceRef`, `edgeRawDxRef`) still
-  update synchronously on every sample. This stops a full subtree re-render firing at the device's
+  pull-to-refresh pull distance — are **coalesced to one `setState` per animation frame** (rAF),
+  while the underlying ref (`pullDistanceRef`) still updates synchronously on every sample.
+  (원문은 엣지 백의 `edgeDx` / `edgeRawDxRef` 도 함께 적었으나, 그 구현은 코드에 없다 — 위 참고.) This stops a full subtree re-render firing at the device's
   ~120Hz touch rate, keeping scroll / pull / edge-drag smooth on high-refresh-rate devices; thresholds
   and spring-back behavior are unchanged.
   **PTR start-at-top gate (2026-06-22):** pull-to-refresh only arms when the gesture **started at the
