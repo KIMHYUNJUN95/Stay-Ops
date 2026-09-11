@@ -84,41 +84,52 @@ export function MobilePreview({
     };
   }, [onClose]);
 
+  // `.adm` 으로 감싼다. 포털은 `document.body` 로 나가는데 이 콘솔의 스타일과 토큰은 전부
+  // `.adm` 아래로 스코프돼 있어(admin-console.css), 감싸지 않으면 **CSS 가 하나도 적용되지 않는다** —
+  // 프레임도 배율도 없이 날것으로 그려진다. 같은 이유로 다른 포털(cleaning-live-card)도 그렇게 한다.
   return createPortal(
-    <div className="mprev" role="dialog" aria-modal="true" aria-label={labels.title} onClick={onClose}>
+    <div className="adm">
       <div
-        className="mprev__stage"
-        style={{ transform: `scale(${scale})` }}
-        onClick={(event) => event.stopPropagation()}
+        className="mprev"
+        role="dialog"
+        aria-modal="true"
+        aria-label={labels.title}
+        onClick={onClose}
       >
-        <div className="mprev__frame" style={{ width: FRAME_W, height: FRAME_H }}>
-          <div className="mprev__status" style={{ height: STATUS_H }}>
-            <span className="mprev__island" aria-hidden="true" />
+        <div
+          className="mprev__stage"
+          style={{ transform: `scale(${scale})` }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="mprev__frame" style={{ width: FRAME_W, height: FRAME_H }}>
+            <div className="mprev__status" style={{ height: STATUS_H }}>
+              <span className="mprev__island" aria-hidden="true" />
+            </div>
+            <iframe
+              className="mprev__screen"
+              style={{ width: SCREEN_W, height: SCREEN_H }}
+              src={href}
+              title={labels.title}
+            />
+            <div className="mprev__home" aria-hidden="true">
+              <span />
+            </div>
           </div>
-          <iframe
-            className="mprev__screen"
-            style={{ width: SCREEN_W, height: SCREEN_H }}
-            src={href}
-            title={labels.title}
-          />
-          <div className="mprev__home" aria-hidden="true">
-            <span />
-          </div>
-        </div>
 
-        <div className="mprev__bar">
-          <a className="mprev__act" href={href} target="_blank" rel="noreferrer">
-            <span className="ic">
-              <ExternalLink />
-            </span>
-            {labels.openNewTab}
-          </a>
-          <button ref={closeRef} type="button" className="mprev__act" onClick={onClose}>
-            <span className="ic">
-              <X />
-            </span>
-            {labels.close}
-          </button>
+          <div className="mprev__bar">
+            <a className="mprev__act" href={href} target="_blank" rel="noreferrer">
+              <span className="ic">
+                <ExternalLink />
+              </span>
+              {labels.openNewTab}
+            </a>
+            <button ref={closeRef} type="button" className="mprev__act" onClick={onClose}>
+              <span className="ic">
+                <X />
+              </span>
+              {labels.close}
+            </button>
+          </div>
         </div>
       </div>
     </div>,
