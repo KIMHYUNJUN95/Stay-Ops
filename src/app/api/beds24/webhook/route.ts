@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { extractBeds24WebhookBookingCandidates } from "@/lib/beds24/booking-payload";
 import { processBeds24WebhookBooking } from "@/lib/beds24/process-webhook-booking";
+import { processBeds24PriceWebhook } from "@/lib/beds24/price-webhook";
 import { isBeds24SyncPaused } from "@/lib/beds24/sync-control";
 import {
   recordBeds24WebhookEvent,
@@ -75,6 +76,20 @@ export async function POST(request: NextRequest) {
 
   const supabase = getSupabaseServiceClient();
   const bookingPayloads = extractBeds24WebhookBookingCandidates(body);
+
+  // 예약이 없는 배달 중 **가격 변경 웹훅**을 먼저 걸러낸다 (2026-09-17).
+  //
+  // Beds24 는 가격 변경을 같은 엔드포인트로 보내는데 실린 것은 `roomId` 와 `action` 뿐이다.
+  // 이걸 「알 수 없는 배달」로 처리하면 (1) 에러 로그가 쌓이고 (2) **요금 표가 갱신되지 않아**
+  // 판매 캘린더가 없는 가격을 보여준다.
+  // 저쪽도 같은 이유로 `priceWebhook` 을 따로 둔다.
+  if (bookingPayloads.length === 0) {
+    const priceResult = await processBeds24PriceWebhook({ body, supabase });
+    if (priceResult.handled) {
+      console.log("[beds24/webhook] price delivery", priceResult);
+      return NextResponse.json({ ok: true, accepted: true, price: priceResult }, { status: 200 });
+    }
+  }
 
   // No booking could be extracted (unparseable body or unrecognized envelope).
   // NEVER drop this silently: persist the raw body so the shape is debuggable and

@@ -1,0 +1,68 @@
+name: Beds24 rates sync
+
+# WHY THIS EXISTS
+# ---------------
+# 판매 캘린더의 가격·최소숙박·재고는 `room_daily_rates` 에서 온다. 그 표가 낡으면 화면은
+# **없는 가격을 보여주는 화면**이 된다 — 그대로 가격을 고치면 엉뚱한 값에서 출발한다.
+#
+# Beds24 는 가격 변경을 웹훅으로도 보낼 수 있고 우리 엔드포인트도 그걸 받을 준비가 돼 있다
+# (`src/lib/beds24/price-webhook.ts`). 그런데 2026-09-17 실측 결과, 두 달간 들어온 웹훅
+# **20,157건이 전부 예약**이고 가격은 0건이었다 — Beds24 의 「予約Webhook」 칸에만 우리 URL 이
+# 등록돼 있기 때문이다.
+#
+# 저쪽 프로젝트도 웹훅 하나에 기대지 않는다: `priceWebhook`(즉시)과
+# `scheduledBeds24PriceSync`(**15분마다 전체 동기화**)를 함께 돌린다.
+# 이 워크플로가 그 두 번째 축이다.
+#
+# CADENCE
+# -------
+# GitHub Actions 의 schedule 은 **정시에 안 온다.** 이 저장소에서 `*/5` 로 걸어 둔 작업이 실제로
+# 40분~3시간 40분 뒤에 돈 적이 있다(recruit-sync 실측). 그래서 15분으로 적어 두되 실제로는
+# 그보다 늦게 도는 것을 전제한다 — 동기화가 멱등하므로 늦거나 겹쳐도 해가 없다.
+#
+# 가격이 방금 바뀐 것을 즉시 반영해야 하면 웹훅 경로가 필요하다. Beds24 설정에서 가격/재고
+# 트리거에 우리 URL 을 등록하면 켜진다.
+#
+# SETUP (one-time): repository secret `BEDS24_WEBHOOK_SECRET`
+#   (GitHub → repo Settings → Secrets and variables → Actions)
+#   값은 Vercel 프로덕션의 BEDS24_WEBHOOK_SECRET 과 같아야 한다.
+
+on:
+  schedule:
+    # :07 / :22 / :37 / :52 — 정각을 피해 다른 작업과 겹치지 않게 둔다.
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: beds24-rates-sync
+  # 앞 실행이 아직 돌고 있으면 새로 시작하지 않는다. 겹쳐도 멱등하지만 Beds24 크레딧을
+  # 두 배로 쓸 이유가 없다.
+  cancel-in-progress: false
+
+jobs:
+  rates-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Beds24 rates sync
+        env:
+          RATES_URL: https://stay-ops-two.vercel.app/api/beds24/rates-sync
+          WEBHOOK_SECRET: ${{ secrets.BEDS24_WEBHOOK_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK_SECRET}" ]; then
+            echo "::error::BEDS24_WEBHOOK_SECRET repository secret is not set — add it in repo Settings → Secrets → Actions."
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/rates-sync.json -w '%{http_code}' \
+            -X POST "${RATES_URL}" \
+            -H "x-beds24-webhook-secret: ${WEBHOOK_SECRET}" \
+            --max-time 120)
+          echo "HTTP ${code}"
+          cat /tmp/rates-sync.json || true
+          echo
+          # 202 = 동기화 일시정지 상태(BEDS24_SYNC_PAUSED). 실패가 아니다.
+          if [ "${code}" != "200" ] && [ "${code}" != "202" ]; then
+            echo "::error::rates sync failed with HTTP ${code}"
+            exit 1
+          fi
