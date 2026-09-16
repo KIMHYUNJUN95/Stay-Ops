@@ -61,6 +61,12 @@ export type Beds24ReservationsBackfillResult = {
   skippedReasons: BackfillSkippedReason[];
 };
 
+/**
+ * 이름이 지워진 예약의 자리표시. 방 이름을 못 찾을 때와 같은 표기를 쓴다 — 화면에서 「값이 없다」는
+ * 뜻으로 이미 통용되는 말이라 새 표기를 만들 이유가 없다.
+ */
+const UNKNOWN_GUEST_NAME = "(unknown)";
+
 let cachedBeds24AccessToken: { token: string; expiresAt: number } | null = null;
 
 function asRecord(value: unknown): JsonRecord | null {
@@ -154,24 +160,26 @@ function buildModifiedSinceUrls(baseUrl: string, sinceIso: string) {
   ];
 }
 
+/**
+ * 창 훑기 URL — **형식은 하나뿐이다** (2026-09-16).
+ *
+ * 예전에는 파라미터 이름을 모르니 여러 형식을 차례로 시도하고 「행이 나오면 그 형식이 맞다」고
+ * 판단했다. 그 판단이 **「0건」과 「형식이 안 통함」을 같은 것으로 본다.**
+ *
+ * 2022년 1분기(실제로 예약이 0건인 구간)를 훑다가 드러났다 — 첫 형식이 정직하게 0건을 냈는데
+ * 「안 통하나 보다」 하고 다음 형식(`from`/`to`)으로 넘어갔고, Beds24 는 **모르는 파라미터를
+ * 무시**하고 기본 목록 1,315건을 돌려줬다. 엉뚱한 구간의 데이터를 그 구간의 결과로 받은 셈이다.
+ *
+ * `arrivalTo` / `departureFrom` / `arrivalFrom` 이 실제로 동작하는 것은 확인했다(2026-09-16 실측).
+ * 추측용 폴백은 득보다 실이 크므로 없앤다. **형식이 틀리면 0건이 아니라 오류로 드러나야 한다.**
+ *
+ * 취소분을 따로 부르는 것은 남긴다 — 창 훑기는 기본 조회에서 취소를 빼는 경우가 있다.
+ * (증분 경로는 `modifiedFrom` 하나로 취소까지 잡으므로 이 함수를 쓰지 않는다.)
+ */
 function buildBookingsUrls(baseUrl: string, from: string, toExclusive: string, status?: "cancelled") {
   const normalizedBase = baseUrl.replace(/\/$/, "");
-  const variants =
-    status === "cancelled"
-      ? [
-          `arrivalTo=${toExclusive}&departureFrom=${from}&status=cancelled`,
-          `from=${from}&to=${toExclusive}&status=cancelled`,
-          `dateFrom=${from}&dateTo=${toExclusive}&status=cancelled`,
-          `start=${from}&end=${toExclusive}&status=cancelled`,
-        ]
-      : [
-          `arrivalTo=${toExclusive}&departureFrom=${from}`,
-          `arrivalTo=${toExclusive}&departureFrom=${from}&status=confirmed`,
-          `from=${from}&to=${toExclusive}`,
-          `dateFrom=${from}&dateTo=${toExclusive}`,
-          `start=${from}&end=${toExclusive}`,
-        ];
-  return variants.map((query) => `${normalizedBase}/bookings?${query}`);
+  const query = `arrivalTo=${toExclusive}&departureFrom=${from}${status === "cancelled" ? "&status=cancelled" : ""}`;
+  return [`${normalizedBase}/bookings?${query}`];
 }
 
 async function resolveBeds24AccessToken(): Promise<Beds24AccessTokenState> {
@@ -599,12 +607,26 @@ export async function backfillBeds24Reservations(
     );
     const status = resolveReservationStatusFromBeds24Record(row);
 
-    if (!sourceReservationId || !checkInDate || !checkOutDate || !guestName) {
+    /**
+     * **이름이 없다고 예약을 버리지 않는다** (2026-09-16).
+     *
+     * 오래된 예약은 OTA 가 개인정보 보관기간이 지나면 이름을 지운다 — 2022년 예약을 받아 보면
+     * `firstName: ""`, `lastName: ""` 이다. 그런데 `guest_name` 이 필수라 **189건이 통째로
+     * 거부됐다.** 날짜·건물·금액은 멀쩡한데도.
+     *
+     * 이름이 없는 것은 **실제 숙박이 없었다는 뜻이 아니다.** 그 예약은 매출을 냈고 객실을
+     * 차지했다. 버리면 매출과 가동률이 조용히 낮아진다 — 안 보이는 것보다 나쁘다.
+     *
+     * 그래서 자리를 채우고 살린다. 방 이름을 못 찾을 때와 같은 표기를 쓴다.
+     * 정말로 못 쓰는 것(식별자·날짜 없음)만 버린다.
+     */
+    const resolvedGuestName = guestName ?? UNKNOWN_GUEST_NAME;
+
+    if (!sourceReservationId || !checkInDate || !checkOutDate) {
       const missing = [
         !sourceReservationId && "sourceReservationId",
         !checkInDate && "checkInDate",
         !checkOutDate && "checkOutDate",
-        !guestName && "guestName",
       ].filter(Boolean);
       console.warn("[beds24/backfill] skip:missing_required_fields", {
         sourceReservationId,
@@ -647,7 +669,7 @@ export async function backfillBeds24Reservations(
       propertyExternalId,
       propertyName: resolvedPropertyName,
       roomLabel: roomLabel ?? "",
-      guestName,
+      guestName: resolvedGuestName,
       checkInDate,
       checkOutDate,
       status,
