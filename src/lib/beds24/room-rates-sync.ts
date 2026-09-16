@@ -19,6 +19,23 @@ import type { Database } from "@/types/database";
  * 값이 같은 날이 이어지면 한 덩어리로 온다(2026-09-17 실측: 59구간 중 26구간이 이틀 이상).
  * **여기서 날짜 단위로 펼친다** — 캘린더 격자가 날짜 칸으로 그려지기 때문이다.
  *
+ * ## `includeLinkedPrices` 가 있어야 값이 다 온다
+ *
+ * `includePrices=true` 만 붙이면 **그 유닛에 직접 박아 둔 값만** 온다. Beds24 에서 가격은
+ * 연결(link)로 퍼지는데 — 같은 물리적 방의 다른 유닛, 그리고 채널별 파생가 — 그 연결분은
+ * 별도 파라미터를 켜야 나온다. 저쪽 원본은 처음부터 둘 다 보낸다.
+ *
+ * 2026-09-17 실측(오쿠보C · 10/1):
+ *
+ * ```
+ * includeLinkedPrices 없이   648399(판매 중) p1=—            450096 p1=79000 p2=— p3=—
+ * includeLinkedPrices 켜고   648399(판매 중) p1=79000        450096 p1=79000 p2=116920 p3=102700
+ * ```
+ *
+ * 없이 받으면 두 가지가 동시에 빈다 — **파생가로 파는 유닛의 가격 전부**(오쿠보C 는 10/1 에
+ * 판매 유닛이 450096 → 648399 로 바뀌어서 그날부터 화면이 통째로 비었다), 그리고 **모든 방의
+ * price2(부킹닷컴)·price3(대체가)** — 33,306행 전부 비어 있었다.
+ *
  * ## 읽기 전용이다
  *
  * 이 모듈은 **Beds24 에 쓰지 않는다.** 병행 기간에는 쓰기를 켜지 않는다는 전체 원칙 그대로다
@@ -63,6 +80,43 @@ function readInt(record: JsonRecord, key: string): number | null {
     if (Number.isFinite(parsed)) return parsed;
   }
   return null;
+}
+
+/**
+ * Beds24 캘린더 응답의 쪽 수 상한. 한 건물 12개월이 여기까지 갈 일은 없지만, 없으면 응답이
+ * 이상할 때 무한히 돈다.
+ */
+const CALENDAR_MAX_PAGES = 20;
+
+class CalendarHttpError extends Error {
+  constructor(readonly status: number) {
+    super(`calendar http ${status}`);
+  }
+}
+
+/**
+ * `pages.nextPageExists` 를 따라 **끝까지** 읽는다.
+ *
+ * 저쪽 프로젝트는 이 처리가 가격 조회에만 빠져 있었고, 「잘린 뒤쪽은 조용히 사라져 영구
+ * 미동기화」가 됐다고 주석에 적어 두었다. 우리는 건물 단위로 나눠 부르므로 아직 한 쪽에
+ * 들어오지만, 객실이 늘면 같은 자리에서 같은 식으로 조용히 끊긴다.
+ */
+async function fetchCalendarPages(
+  firstUrl: string,
+  headers: Record<string, string>,
+): Promise<JsonRecord[]> {
+  const pages: JsonRecord[] = [];
+  let url: string | null = firstUrl;
+  while (url && pages.length < CALENDAR_MAX_PAGES) {
+    const response: Response = await fetch(url, { headers, cache: "no-store" });
+    if (!response.ok) throw new CalendarHttpError(response.status);
+    const root = asRecord(await response.json());
+    if (!root) break;
+    pages.push(root);
+    const paging = asRecord(root.pages);
+    url = paging?.nextPageExists === true ? readString(paging, ["nextPageLink"]) : null;
+  }
+  return pages;
 }
 
 /**
@@ -201,25 +255,30 @@ export async function syncBeds24RoomRates(
     const url =
       `${base}/inventory/rooms/calendar?propertyId=${encodeURIComponent(externalPropertyId)}` +
       `&startDate=${window.from}&endDate=${window.to}` +
-      `&includePrices=true&includeNumAvail=true&includeMinStay=true&includeMaxStay=true` +
+      `&includePrices=true&includeLinkedPrices=true` +
+      `&includeNumAvail=true&includeMinStay=true&includeMaxStay=true` +
       `&includeOverride=true`;
 
     // 건물 하나가 실패해도 **나머지 여덟 곳은 갱신된다.** 실패한 건물은 `skipped` 로 남아
     // 다음 주기에 다시 시도된다 — 전부 upsert 라 재시도가 안전하다.
-    let root: JsonRecord | null = null;
+    let pages: JsonRecord[];
     try {
-      const response = await fetch(url, { headers, cache: "no-store" });
-      if (!response.ok) {
-        skipped.push(`room-rates:calendar-${externalPropertyId}-http-${response.status}`);
+      pages = await fetchCalendarPages(url, headers);
+    } catch (error) {
+      if (error instanceof CalendarHttpError) {
+        skipped.push(`room-rates:calendar-${externalPropertyId}-http-${error.status}`);
         continue;
       }
-      root = asRecord(await response.json());
-    } catch (error) {
       console.error("[beds24/rates] calendar fetch failed", { externalPropertyId, error });
       skipped.push(`room-rates:calendar-${externalPropertyId}-request-error`);
       continue;
     }
-    const data = Array.isArray(root?.data) ? root.data : [];
+    if (pages.length >= CALENDAR_MAX_PAGES) {
+      // 조용히 넘기지 않는다 — 다음 쪽이 남아 있으면 그 날짜들은 옛 값으로 굳는다.
+      console.warn("[beds24/rates] calendar paging hit the cap", { externalPropertyId });
+      skipped.push(`room-rates:calendar-${externalPropertyId}-paging-capped`);
+    }
+    const data = pages.flatMap((page) => (Array.isArray(page.data) ? page.data : []));
 
     for (const roomValue of data) {
       const room = asRecord(roomValue);
