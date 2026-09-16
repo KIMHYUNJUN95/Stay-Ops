@@ -146,7 +146,15 @@ export function getCanonicalRoomLabel(propertyName: string, roomLabel: string) {
  * Beds24 행이라 여기서 합치면 안 된다). 표시용으로 떼는 것은 `stripBuildingCodePrefix` 가 맡는다.
  */
 function stripArakichoDisplaySuffix(internalKey: string): string {
-  return internalKey.replace(/_\d+$/, "");
+  // `_N` 이 **여러 번** 붙을 수 있다: `401_2_2` → `401` (2026-09-16).
+  //
+  // Beds24 는 아라키초A 401호의 두 번째 유닛을 `401_2` 라고 부르는데, 그 라벨은 이미
+  // **다카다노바바 556719** 가 쓰고 있었다 — `rooms` 의 유니크는 건물별이 아니라 **조직 전체**다
+  // (`stripBuildingCodePrefix` 주석의 그 제약). 그래서 동기화가 `_2` 를 한 번 더 붙였다.
+  //
+  // 저장값은 그대로 두고 여기서 뗀다. 이 파일의 다른 규칙과 같은 방침이다 — 라벨을 바꾸면
+  // 청소 기록·예약 매칭이 끊긴다.
+  return internalKey.replace(/(?:_\d+)+$/, "");
 }
 
 /**

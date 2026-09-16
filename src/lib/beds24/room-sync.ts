@@ -5,9 +5,9 @@
 //   - Property upsert key: prefer (organization_id, external_provider, external_property_id)
 //     when an external property ID is present. Fall back to (organization_id, name) only
 //     for payloads that do not include a Beds24 property ID.
-//   - Room upsert key: (organization_id, room_label) - the stable cross-table join key.
-//     Beds24 room ID (external_room_id) can rotate over the year for the same physical room;
-//     upsert on room_label keeps the row stable while external_room_id is updated.
+//   - Room identity key: (organization_id, external_provider, external_room_id).
+//     같은 이름의 방 둘이 들어오면 라벨로 맞추던 예전 방식이 한쪽을 조용히 덮어썼다
+//     (2026-09-17 아라키초A 401호). 라벨이 겹치면 `_2` 를 붙여 각자 행을 갖는다.
 //   - Failure policy: property/room sync failures are logged but do not block reservation upsert.
 //   - inactive rooms are stored with status='inactive' (not omitted) for traceability.
 //
@@ -25,6 +25,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { BEDS24_INACTIVE_MIN_STAY_THRESHOLD } from "@/lib/rooms";
+import { roomLabelCandidates } from "@/lib/beds24/room-label-candidates";
 
 type RawPayload = Record<string, unknown>;
 
@@ -266,9 +267,64 @@ async function upsertProperty(
   return upsertPropertyByName(organizationId, name, externalPropertyId, supabase);
 }
 
-// Upsert a Beds24 room by (organization_id, room_label).
-// On conflict (same org + room_label), updates external_room_id, external_minimum_stay, and status.
-// This handles the rotating room ID scenario: room_label stays stable; external fields rotate.
+/**
+ * 같은 이름의 방이 이미 있으면 `_2`, `_3` … 을 붙여 비어 있는 라벨을 찾는다.
+ *
+ * 접미사는 우리가 발명한 규칙이 아니라 **Beds24 가 이미 쓰는 규칙**이다 — 아라키초A 의 듀얼
+ * 유닛이 `201` / `201_2`, `501` / `501_2` 로 내려온다. 표시 계층이 `_N` 을 떼므로
+ * (`getDisplayRoomLabel`) 두 유닛은 캘린더에서 한 행으로 합쳐진다.
+ */
+async function findFreeRoomLabel(
+  organizationId: string,
+  desiredLabel: string,
+  selfRoomUuid: string | null,
+  supabase: SupabaseClient<Database>,
+): Promise<string | null> {
+  for (const candidate of roomLabelCandidates(desiredLabel)) {
+    const existing = await supabase
+      .from("rooms")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("room_label", candidate)
+      .maybeSingle();
+
+    if (existing.error) {
+      console.error("[beds24/sync] room label probe failed", { candidate, error: existing.error });
+      return null;
+    }
+    const holder = (existing.data as { id: string } | null)?.id ?? null;
+    if (!holder || holder === selfRoomUuid) return candidate;
+  }
+
+  console.error("[beds24/sync] no free room label", { desiredLabel });
+  return null;
+}
+
+/**
+ * Beds24 방 하나를 `rooms` 에 반영한다. **기준은 `external_room_id` 다.**
+ *
+ * ## 왜 라벨로 맞추지 않는가 (2026-09-17)
+ *
+ * 예전에는 `onConflict: "organization_id,room_label"` 로 upsert 했다. 그런데 `rooms` 에는
+ * `UNIQUE (organization_id, room_label)` 이 걸려 있고, Beds24 가 **같은 이름의 방 둘**을
+ * 내려주면 두 번째 upsert 가 **첫 번째 행을 덮어썼다** — 에러도 없고 `skipped` 에도 안 남아
+ * 방 하나가 조용히 증발했다.
+ *
+ * 실제로 아라키초A 401호가 그랬다: Beds24 에 `440617` 과 `515300` 두 유닛이 있는데 우리 표에는
+ * 하나뿐이었고, `515300` 으로 들어온 예약 78건이 방을 못 찾아 `room_label = "(unknown)"` 으로
+ * 쌓였다. 더 나쁜 것은 **어느 쪽이 살아남는지가 Beds24 의 응답 순서에 달려 있었다는 점**이다 —
+ * 순서가 바뀌면 주 유닛의 예약이 `(unknown)` 이 되기 시작한다.
+ *
+ * 이제 `external_room_id` 로 기존 행을 찾고, 라벨이 겹치면 `_2` 를 붙여 **두 방이 각자의 행을
+ * 갖는다.** 라벨 유니크 제약은 그대로 지킨다.
+ *
+ * ## 회전하는 roomId 는 어떻게 되는가
+ *
+ * 예전 주석이 말하던 「roomId 가 회전해도 라벨은 그대로」는 **이제 반대로 처리된다** —
+ * roomId 가 바뀌면 새 방으로 들어온다. 그편이 안전하다: 우리 예약 데이터는 `raw_payload.roomId`
+ * 로 방을 찾으므로, **roomId 가 곧 정체성**이다. 라벨을 정체성으로 삼으면 서로 다른 유닛이
+ * 한 행에 겹쳐 앉는다.
+ */
 async function upsertRoom(
   organizationId: string,
   propertyId: string,
@@ -278,35 +334,116 @@ async function upsertRoom(
   supabase: SupabaseClient<Database>,
 ): Promise<string | null> {
   const status = classifyBeds24Room(minimumStay);
+  const shared = {
+    organization_id: organizationId,
+    property_id: propertyId,
+    status,
+    external_provider: "beds24" as const,
+    external_room_id: externalRoomId,
+    external_minimum_stay: minimumStay,
+  };
 
-  const result = await supabase
+  // external_room_id 가 없는 방은 예전처럼 라벨로 맞출 수밖에 없다(구분할 다른 값이 없다).
+  if (!externalRoomId) {
+    const result = await supabase
+      .from("rooms")
+      .upsert(
+        { ...shared, name: roomLabel, room_label: roomLabel },
+        { onConflict: "organization_id,room_label" },
+      )
+      .select("id")
+      .single();
+    if (result.error) {
+      console.error("[beds24/sync] room upsert failed (no external id)", {
+        roomLabel,
+        error: result.error,
+      });
+      return null;
+    }
+    return (result.data as { id: string } | null)?.id ?? null;
+  }
+
+  const existing = await supabase
     .from("rooms")
-    .upsert(
-      {
-        organization_id: organizationId,
-        property_id: propertyId,
-        name: roomLabel,
-        room_label: roomLabel,
-        status,
-        external_provider: "beds24",
-        external_room_id: externalRoomId,
-        external_minimum_stay: minimumStay,
-      },
-      { onConflict: "organization_id,room_label" },
-    )
+    .select("id, room_label")
+    .eq("organization_id", organizationId)
+    .eq("external_provider", "beds24")
+    .eq("external_room_id", externalRoomId)
+    .maybeSingle();
+
+  if (existing.error) {
+    console.error("[beds24/sync] room lookup failed", { externalRoomId, error: existing.error });
+    return null;
+  }
+
+  const existingRow = existing.data as { id: string; room_label: string } | null;
+  // 이미 있는 방이면 **라벨을 함부로 바꾸지 않는다.** 청소 기록·교통비 등 다른 표가 라벨로
+  // 붙어 있어서, Beds24 쪽 이름이 흔들릴 때마다 따라가면 그 연결이 끊긴다.
+  const targetLabel = existingRow
+    ? existingRow.room_label
+    : await findFreeRoomLabel(organizationId, roomLabel, null, supabase);
+
+  if (!targetLabel) return null;
+
+  if (existingRow) {
+    // **이미 있는 방에는 minStay 를 덮어쓰지 않는다** (2026-09-16 사고).
+    //
+    // `/properties` 의 `roomTypes[].minStay` 는 방의 **기본 설정값**이고, 활성/비활성을 가르는
+    // 값은 `GET /inventory/rooms` 에서 오는 **기간별 값**이다(`inventory-sync.ts`). 여기서
+    // 기본값으로 덮으면 은퇴한 유닛(minStay 50/99)이 전부 `1` 이 되어 **되살아난다** —
+    // 실제로 한 번 돌렸다가 비활성 24개가 전부 활성이 됐다.
+    //
+    // minStay 와 status 의 주인은 inventory-sync 다. 이 동기화는 **방의 존재와 소속만** 맞춘다.
+    const identity = {
+      organization_id: shared.organization_id,
+      property_id: shared.property_id,
+      external_provider: shared.external_provider,
+      external_room_id: shared.external_room_id,
+    };
+    const updated = await supabase
+      .from("rooms")
+      .update({ ...identity, name: targetLabel, room_label: targetLabel })
+      .eq("id", existingRow.id)
+      .select("id")
+      .single();
+    if (updated.error) {
+      console.error("[beds24/sync] room update failed", {
+        externalRoomId,
+        roomLabel: targetLabel,
+        error: updated.error,
+      });
+      return null;
+    }
+    return (updated.data as { id: string } | null)?.id ?? null;
+  }
+
+  if (targetLabel !== roomLabel) {
+    // 조용히 넘어가지 않는다. 새 유닛이 접미사를 받았다는 사실은 사람이 알아야 한다.
+    console.warn(
+      `[beds24/sync] room label "${roomLabel}" already taken -> storing ${externalRoomId} as "${targetLabel}"`,
+    );
+  }
+
+  const inserted = await supabase
+    .from("rooms")
+    .insert({ ...shared, name: targetLabel, room_label: targetLabel })
     .select("id")
     .single();
 
-  if (result.error) {
-    console.error("[beds24/sync] room upsert failed", { roomLabel, externalRoomId, minimumStay, error: result.error });
+  if (inserted.error) {
+    console.error("[beds24/sync] room insert failed", {
+      externalRoomId,
+      roomLabel: targetLabel,
+      error: inserted.error,
+    });
     return null;
   }
 
   if (status === "inactive") {
-    console.log(`[beds24/sync] room "${roomLabel}" stored as inactive (min_stay=${minimumStay ?? "null"})`);
+    console.log(`[beds24/sync] room "${targetLabel}" stored as inactive (min_stay=${minimumStay ?? "null"})`);
   }
 
-  return (result.data as { id: string } | null)?.id ?? null;
+  return (inserted.data as { id: string } | null)?.id ?? null;
 }
 
 export type Beds24SyncResult = {
