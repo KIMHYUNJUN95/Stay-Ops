@@ -2,10 +2,13 @@ import {
   BedDouble,
   Bell,
   BellRing,
+  BookText,
   Building2,
   ListChecks,
   CalendarCheck2,
+  CalendarCog,
   CalendarDays,
+  CircleDollarSign,
   ClipboardCheck,
   Clock,
   Gauge,
@@ -20,10 +23,12 @@ import {
   Settings,
   Sparkles,
   SprayCan,
+  TrendingUp,
   Undo2,
   UserSearch,
   Users,
   Wrench,
+  Zap,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import type { Capability } from "@/config/capabilities";
@@ -352,14 +357,63 @@ export const adminNavigation = [
     href: "/admin/settings",
     icon: Settings,
   },
+
+  // ── 운영 관리자 ──────────────────────────────────────────────────────────
+  //
+  // STAY ARI Manager 에서 가져오는 5개 화면. **다섯 개가 나란히 놓인 독립 메뉴**이고,
+  // 캘린더 안의 탭이 아니다 — 캘린더는 파는 곳이고 지표는 본 결과라 하는 일도 위험도 다르다
+  // (docs/product/32-ops-admin-area.md → 「지표를 캘린더 안에 넣지 않는다」).
+  //
+  // 전부 같은 키 하나(`ops_admin.access`)로 열린다. 권한이 없으면 메뉴가 통째로 안 보인다.
+  {
+    id: "ops-calendar",
+    capability: "ops_admin.access",
+    label: localizedNavigationLabels.admin.opsCalendar,
+    href: "/admin/ops/calendar",
+    icon: CalendarCog,
+  },
+  {
+    id: "ops-occupancy",
+    capability: "ops_admin.access",
+    label: localizedNavigationLabels.admin.opsOccupancy,
+    href: "/admin/ops/occupancy",
+    icon: TrendingUp,
+  },
+  {
+    id: "ops-revenue",
+    capability: "ops_admin.access",
+    label: localizedNavigationLabels.admin.opsRevenue,
+    href: "/admin/ops/revenue",
+    icon: CircleDollarSign,
+  },
+  {
+    id: "ops-ledger",
+    capability: "ops_admin.access",
+    label: localizedNavigationLabels.admin.opsLedger,
+    href: "/admin/ops/ledger",
+    icon: BookText,
+  },
+  {
+    id: "ops-automation",
+    capability: "ops_admin.access",
+    label: localizedNavigationLabels.admin.opsAutomation,
+    href: "/admin/ops/automation",
+    icon: Zap,
+  },
 ] as const satisfies readonly NavigationItem[];
 
 // Desktop console sidebar grouping — matches the design handoff: 운영 / 인력 / 정보.
 // Maps each admin nav id to a group bucket; ids not listed fall under "operations".
 // See docs/product/05-admin-web-ia.md → "Primary Navigation".
-export type AdminNavGroupKey = "operations" | "people" | "info";
+export type AdminNavGroupKey = "operations" | "people" | "info" | "ops";
 
 export const adminNavGroupOf: Record<string, AdminNavGroupKey> = {
+  // 운영 관리자 — 가격·매출을 다루는 소수만 본다. 권한이 없으면 묶음째 사라진다.
+  "ops-calendar": "ops",
+  "ops-occupancy": "ops",
+  "ops-revenue": "ops",
+  "ops-ledger": "ops",
+  "ops-automation": "ops",
   // 운영
   dashboard: "operations",
   cleaning: "operations",
@@ -380,10 +434,13 @@ export const adminNavGroupOf: Record<string, AdminNavGroupKey> = {
   settings: "info",
 };
 
+// 운영 관리자는 **맨 아래**다. 매일 쓰는 화면이 위에 있어야 하고, 이쪽은 들어오는 사람이
+// 몇 명뿐이라 위에 두면 대부분의 사용자에게 빈 자리만 남는다.
 export const adminNavGroupOrder: readonly AdminNavGroupKey[] = [
   "operations",
   "people",
   "info",
+  "ops",
 ];
 
 export const utilityNavigation = [

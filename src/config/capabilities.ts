@@ -237,6 +237,34 @@ export const CAPABILITIES = {
     systemOnly: false,
     developerOnly: false,
   },
+
+  /**
+   * 운영 관리자 영역(`/admin/ops/*`) — 가격·재고를 다루는 사무실 소수.
+   *
+   * **키 하나가 영역 전체를 연다**(2026-09-16 확정). 캘린더 쓰기 · 가동률 · 매출 · 전표 · 자동화를
+   * 기능별로 쪼개지 않는다 — 들어오는 사람이 몇 명뿐이라 쪼개 봐야 관리 부담만 늘고, 「가격은
+   * 되는데 재고는 안 되는」 상태가 실제 업무에 없다. 나중에 쪼개야 하면 키를 추가하면 된다.
+   *
+   * 여기서 바꾼 가격은 **에어비앤비·부킹닷컴에 그대로 나간다.** 우리 DB 가 틀어지는 것과는 급이
+   * 다르다 — 그래서 역할로는 대표·전무만 받고, 나머지는 **개인 지정**으로만 연다.
+   * 현장 직원은 역할로는 절대 들어오지 못한다.
+   *
+   * `requiresExpiry: false` — 가격을 다루는 사람은 그 일을 계속 한다. 기한을 걸면 어느 날 조용히
+   * 만료돼 그날 가격을 못 고친다(채용 담당자와 같은 이유).
+   *
+   * 차단은 켜지 않는다. 역할로 받는 사람이 대표·전무뿐인데 그 둘은 차단 면역이라 뺄 대상이 없다.
+   *
+   * 도메인 계약: docs/product/32-ops-admin-area.md
+   */
+  "ops_admin.access": {
+    roles: ["owner", "senior_managing_director"],
+    individualGrant: true,
+    individualDeny: false,
+    requiresExpiry: false,
+    platformBypass: true,
+    systemOnly: false,
+    developerOnly: false,
+  },
 } as const satisfies Record<string, CapabilityPolicy>;
 
 export type Capability = keyof typeof CAPABILITIES;

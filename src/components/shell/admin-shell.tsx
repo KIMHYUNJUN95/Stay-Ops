@@ -47,6 +47,7 @@ export function AdminShell({ activeItem, children, mobileHref = "/mobile", title
     operations: c.navGroupOps,
     people: c.navGroupPeople,
     info: c.navGroupInfo,
+    ops: c.navGroupOpsAdmin,
   };
 
   return (

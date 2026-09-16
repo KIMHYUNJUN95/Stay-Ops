@@ -84,7 +84,9 @@ insert into public.capability_roles (capability, role) values
   ('can_generate_report', 'office_admin'::organization_role),
   ('can_generate_report', 'cs_staff'::organization_role),
   ('can_generate_report', 'field_manager'::organization_role),
-  ('can_generate_report', 'staff'::organization_role);
+  ('can_generate_report', 'staff'::organization_role),
+  ('ops_admin.access', 'owner'::organization_role),
+  ('ops_admin.access', 'senior_managing_director'::organization_role);
 
 delete from public.capability_policies;
 insert into public.capability_policies (capability, individual_grant, individual_deny, platform_bypass) values
@@ -96,7 +98,8 @@ insert into public.capability_policies (capability, individual_grant, individual
   ('order_processor', true, true, true),
   ('maintenance_status_change', true, true, true),
   ('property_room_manage', true, false, true),
-  ('can_generate_report', true, true, true);
+  ('can_generate_report', true, true, true),
+  ('ops_admin.access', true, false, true);
 -- <<< generated
 
 -- ---------------------------------------------------------------------------
