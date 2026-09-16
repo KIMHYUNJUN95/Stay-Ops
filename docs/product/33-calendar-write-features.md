@@ -14,9 +14,36 @@
 저쪽이 쓰는 엔드포인트는 둘이다.
 
 ```
-POST /inventory/rooms/calendar   가격 · 최소/최대 숙박일 · 재고(numAvail) · 차단(override)
-POST /bookings                   예약 생성 · 수정
+POST /inventory/rooms/calendar   가격 · 최소 숙박일
+POST /bookings                   예약 생성 · 수정 · 취소
 ```
+
+### 저쪽 서버 함수는 7개가 전부다 (2026-09-16 실측)
+
+`BuildingCalendar.jsx` 가 부르는 API 를 전부 세어 보면 이렇다.
+
+| 함수 | 하는 일 | Beds24 |
+| --- | --- | --- |
+| `getCachedPrices` | 가격·minStay·numAvail·override 읽기 | 읽기 |
+| **`setRoomPrices`** | 가격 쓰기 (큐) | `/inventory/rooms/calendar` |
+| **`setMinStay`** | 최소 숙박일 쓰기 | `/inventory/rooms/calendar` |
+| `createBooking` | 예약 생성 | `/bookings` |
+| `updateBooking` | 예약 수정 | `/bookings` |
+| `cancelBooking` | 예약 취소 | `/bookings` |
+| `getPriceJobStatus` · `triggerPriceJobNow` | 작업 큐 조회·즉시 실행 | — |
+
+**`numAvail`(재고)과 `override: blackout`(차단)을 쓰는 경로는 없다.** 둘 다 **읽기만** 한다.
+
+그럼 저쪽에서 「블록」은 어떻게 만드는가 — **예약으로 만든다.** `createBooking` 으로 만든
+예약이 곧 블록이고, 해제는 `cancelBooking` 이다. `isAppCreatedBlockEntry` ·
+`isBulkDeletableBlockEntry` 가 있는 이유가 이것이다 — **앱이 만든 블록(예약)과 사람이 Beds24
+화면에서 직접 건 blackout 을 구분**해야 하기 때문이다. 후자는 앱이 지울 방법이 없다.
+
+> **우리가 취할 태도.** blackout 쓰기는 Beds24 가 지원하므로 나중에 열 수 있지만,
+> **1차 이전에서는 저쪽과 똑같이 「블록 = 예약」으로 간다.** 이유는 두 가지다 —
+> ① 저쪽 데이터와 개념이 어긋나면 병행 기간에 두 화면이 다른 소리를 한다.
+> ② StayOps 는 이미 blackout 을 **읽어서** 표시하고 있다([15](15-reservation-calendar.md)).
+> 읽기는 blackout, 쓰기는 예약 — 이 비대칭을 화면에서 숨기지 말고 범례로 구분해 보여준다.
 
 **잘못 쓰면 채널에 그대로 나간다.** 가격을 0 으로 쓰면 0 원에 팔리고, 재고를 열면 팔리면 안 되는
 방이 팔린다. 우리 DB 가 틀어지는 것과는 급이 다르다.
@@ -149,6 +176,21 @@ StayOps 에도 같은 개념이 있다(`BEDS24_INACTIVE_MIN_STAY_THRESHOLD = 50`
 퍼센트는 **칸마다 현재가가 기준**이라 결과 금액이 칸마다 다르다. 프리셋 버튼:
 `-20 · -10 · -5 · +5 · +10 · +20 · +30`.
 
+> **모드 토글은 두지 않는다** (2026-09-16 확정). 저쪽은 `adjustMode` 로 `direct` / `percent` 를
+> 갈라 놓았지만, **둘은 같은 값을 정하는 두 가지 방법일 뿐**이라 한 화면에서 같이 쓴다.
+>
+> ```
+> 현재 평균 ¥26,100  →  변경 ¥30,000  (+15%)
+> [-20%][-10%][-5%][+5%][+10%][+20%][+30%][± %]
+> ```
+>
+> 금액을 직접 쓰면 **% 배지가 계산되어 바뀌고**, 퍼센트를 누르면 **금액이 계산되어 채워진다.**
+> 어느 쪽으로 넣든 결과는 한 곳에 모이므로 모드를 고를 이유가 없다. 퍼센트일 때는 칸마다
+> 결과가 다르므로 「변경」을 **범위**로 표시한다(`¥35,600 ~ ¥55,800`).
+>
+> 서버로 보낼 때는 저쪽과 같이 `adjustMode` 를 그대로 기록한다 — 이력에 「퍼센트로 바꿨다」가
+> 남아야 한다. **화면에서만 합치고 데이터는 구분한다.**
+
 ### 선택은 「객실 × 날짜」 조합이다
 
 `selectedCells` 는 **room-date 쌍의 목록**이다(cartesian product). 「201호의 9/20」과
@@ -161,6 +203,223 @@ StayOps 에도 같은 개념이 있다(`BEDS24_INACTIVE_MIN_STAY_THRESHOLD = 50`
 가격 변경 시 **칸 단위로** 기록한다 — 날짜 · 객실 · 이전가 · 새 가격, 그리고 **누가 바꿨는지**
 (이름·이메일). 저쪽의 `price_change_logs` 에 해당한다. 화면에도 이력이 보인다
 (`PriceChangeHistory.jsx`).
+
+## 요금이 우리 표로 들어오는 두 경로 (2026-09-17 구현)
+
+### ① 백필 — 어제 ~ **+12개월**
+
+저쪽과 **같은 창**이다 (`tokyoNow.add(12, "month")` — `functions/index.js` 2859 · 3252 · 6789행).
+그 안에서 Beds24 가 설정된 만큼 돌려준다. 2026-09-17 실측으로 **2027-04 까지 97.8%** 가 차 있고
+그 뒤는 아직 가격을 안 넣은 구간이라 비어 있다.
+
+```
+BEDS24_WEBHOOK_SECRET=… bash scripts/dev/beds24-backfill-rates.sh
+```
+
+**과거는 가져올 수 없다.** `GET /inventory/rooms/calendar` 는 **오늘 이후만** 준다 —
+2025-06 · 2026-01 을 요청해도 0구간이고, 오늘 이전을 포함해 요청하면 **오늘부터** 잘라서 준다
+(2026-09-17 실측). 과거 매출은 가격표가 아니라 **예약의 실제 금액**으로 계산한다.
+
+우리 표는 `upsert` 만 하고 지우지 않으므로 **오늘부터 이력이 저절로 쌓인다.**
+
+### ② 웹훅 — 가격이 바뀌면 그때
+
+**저쪽은 가격 변경을 전부 웹훅으로 받는다**(`exports.priceWebhook`). 백필만으로는 Beds24 화면에서
+가격을 바꾼 순간부터 우리 표가 틀린 값을 들고 있게 되고, 판매 캘린더가 **없는 가격을 보여주는
+화면**이 된다.
+
+배달은 **예약 웹훅과 같은 엔드포인트**로 오고 예약이 들어 있지 않다.
+
+```
+V1(GET)  ?roomId=440617&action=PRICE_CHANGE&propId=176430
+V2(POST) {"roomId":440617,"action":"PRICE_CHANGE","propId":176430}
+```
+
+`src/lib/beds24/price-webhook.ts` 가 처리한다.
+
+| | |
+| --- | --- |
+| 판정 | `roomId` 가 있고 `action` 이 `PRICE_CHANGE`·`SYNC_ROOM`·**없음** — 저쪽과 같은 집합 |
+| 모르는 방 | **Beds24 를 부르지 않고 끝낸다.** 남의 계정 웹훅으로 크레딧을 쓰지 않는다 |
+| 범위 | 그 **건물** 전체를 다시 가져온다 — `/inventory/rooms/calendar` 가 건물 단위로 응답하므로 어차피 다 온다 |
+| 디바운스 | **건물별 60초.** 일괄 변경이면 웹훅이 객실 수만큼 쏟아진다 |
+
+**디바운스는 건물별이어야 한다.** 조직 전체로 재면 아라키초A 를 방금 동기화한 탓에 가부키초
+웹훅이 통째로 버려진다 — 여러 건물의 가격을 함께 바꾸면 실제로 그렇게 된다.
+
+> **쓰기를 켤 때 할 일.** 우리가 Beds24 에 가격을 쓰면 Beds24 가 웹훅을 되돌려 보낸다.
+> 지금은 쓰지 않아 문제가 없지만, 그때는 「우리가 만든 변경인가」 판정이 필요하다.
+> 그때까지는 디바운스가 그 역할을 겸한다.
+
+**2026-09-17 실측 — 가격 웹훅은 우리에게 오지 않고 있다.**
+
+| | |
+| --- | --- |
+| 2026-07-22 ~ 09-16 배달 | **20,157건, 전부 예약** |
+| 가격 배달 | **0건** |
+
+Beds24 설정 화면의 그 칸은 **「予約Webhook」**(예약 웹훅)이고, 거기 우리 URL 을 포함해 3개가
+등록돼 있다. 저쪽의 첫 번째 URL 이름도 `beds24**booking**webhook` 이다 — 저쪽 `priceWebhook` 은
+**별개 함수라 URL 이 다르고 그 칸에 없다.** 즉 가격 트리거는 다른 곳에 등록돼 있다.
+
+**토큰 권한 문제가 아니다.** 웹훅은 Beds24 → 우리 방향이라 우리 API 토큰과 무관하다
+(그 토큰으로 요금 33,306행을 방금 가져왔다).
+
+### ③ 주기 동기화 — 웹훅에 기대지 않는다
+
+**저쪽도 둘 다 돌린다.** 아키텍처 문서 기준:
+
+```
+priceWebhook                onRequest      가격/재고 변경 수신
+scheduledBeds24PriceSync    every 15 min   전체 가격 캐시 동기화   ← 이것도 있다
+```
+
+우리도 같은 두 번째 축을 둔다.
+
+| | |
+| --- | --- |
+| 라우트 | `/api/beds24/rates-sync` (`CRON_SECRET` 또는 Beds24 웹훅 시크릿) |
+| 트리거 | `.github/workflows/beds24-rates-sync.yml` — 매시 `:07 :22 :37 :52` |
+| 멱등 | `(room_id, stay_date)` upsert. 겹쳐 돌아도 행이 안 늘고, 지우지 않아 과거는 이력으로 남는다 |
+
+> **GitHub Actions 는 정시에 안 온다.** 이 저장소에서 `*/5` 가 실제로 40분~3시간 40분 뒤에 돈
+> 적이 있다. 15분으로 적어 두되 그보다 늦는 것을 전제한다 — 멱등이라 늦거나 겹쳐도 해가 없다.
+> **즉시 반영이 필요하면 웹훅 경로를 켜야 한다.**
+
+**건물 하나가 실패해도 나머지는 갱신된다.** 각 건물 요청을 따로 감싸 `skipped` 에 남기고 넘어간다
+— 2026-09-17 에 일시적 `fetch failed` 하나가 전체 실행을 500 으로 죽이는 것을 실제로 겪었다.
+
+## 1박 갭 감지 — 이 기능이 업무 시간을 줄인다 (2026-09-16 정밀 확인)
+
+> **사용자 확인:** 「재고·최소숙박은 내 업무 시간을 굉장히 단축시켜주는 기능이다. 1박 갭 감지가
+> 중요하다.」 → 원본 `getCheckInGapInfo` · `gapCellSet` 을 줄 단위로 읽어 아래에 옮겼다.
+> **이 규칙은 임의로 단순화하지 않는다.**
+
+### 무엇을 찾는가
+
+**「하루만 비어 있는데 최소 2박이라 아무도 살 수 없는 날」.**
+
+```
+11/20        11/21         11/22
+예약 있음  │  비어 있음  │  예약 있음
+           └ 팔 수 있는 밤은 1박
+             그런데 minStay = 2
+             → 아무도 못 산다. 이 밤은 그냥 버려진다
+```
+
+객실 90개 × 12개월을 눈으로 훑어 이런 날을 찾는 것이 원래 업무였다. **자동으로 찾아서 한 번에
+`1박`으로 바꾸는 것**이 이 기능의 전부다.
+
+### 판정식 (원본 그대로)
+
+```js
+availableNightsFromDate =
+    nextDateStatus === "blocked"   ? 1
+  : nextDateStatus === "available" ? 2
+  : 0;
+
+isSegmentEntry = (previousDateStatus === "blocked" || previousDateStatus === "past");
+
+isOneNightMinStayGap =
+  availableNightsFromDate === 1 && cellMinStay === 2 && isSegmentEntry;
+```
+
+세 조건이 **전부** 맞아야 한다.
+
+| 조건 | 뜻 | 왜 필요한가 |
+| --- | --- | --- |
+| `availableNightsFromDate === 1` | **내일이 막혀 있다** | 이틀 이상 이어지면 2박으로 팔 수 있다 |
+| `cellMinStay === 2` | 그 칸의 최소 숙박일이 **정확히 2** | 1이면 이미 팔린다. 3 이상은 다른 정책이다 |
+| `isSegmentEntry` | **어제가 막혀 있거나 과거다** | 구간의 **첫날**만 센다. 안 그러면 같은 공실을 여러 번 센다 |
+
+### 「막혀 있다 / 팔 수 있다」의 정의
+
+`available`(팔 수 있다)이 되려면 **다섯 가지가 전부** 참이어야 한다.
+
+| # | 검사 | 아니면 |
+| --- | --- | --- |
+| 1 | `minStay` 를 숫자로 읽을 수 있다 | `unknown` — **갭으로 세지 않는다** |
+| 2 | `override !== "blackout"` | `blocked` (price_blackout) |
+| 3 | `1 ≤ minStay < INACTIVE_MINSTAY_THRESHOLD` | `blocked` (inactive_room) |
+| 4 | `numAvail > 0` | `blocked` (numavail_zero) |
+| 5 | 그 날짜에 예약·블록이 없다 | `blocked` (reservation_or_block) |
+
+**1번이 중요하다.** 가격 데이터가 아직 안 온 칸은 `unknown` 이 되고, `unknown` 은
+`availableNightsFromDate = 0` 이라 갭이 되지 않는다. **모르는 것을 갭이라고 하지 않는다** —
+잘못 감지해서 minStay 를 바꾸면 실제로 팔리면 안 되는 방이 팔린다.
+
+3번의 `INACTIVE_MINSTAY_THRESHOLD` 는 StayOps 의 `BEDS24_INACTIVE_MIN_STAY_THRESHOLD = 50`
+과 같은 개념이다 — **기준을 맞춘다.**
+
+### 객실 하나에 roomId 가 여럿일 때 (듀얼 객실)
+
+여기가 가장 까다롭다. 같은 「201호」가 Beds24 에서 두 계정으로 존재할 수 있다.
+
+- **오늘 날짜**: 팔 수 있는 유닛들 중 `pickPreferredRoomInfo` 로 하나를 고른다
+- **어제·내일 날짜**: `getDualRoomPhysicalStatus` 를 쓴다 — **roomId 가 바뀌어도 같은 방으로 본다**
+
+원본 주석이 이유를 적어 놨다:
+
+> *"For dual-account rooms, physical continuity matters more than keeping the same Beds24 roomId.
+> If the sellable roomId changes on the next date, the room should still be treated as continuously
+> sellable for gap detection."*
+
+**물리적으로 같은 방이면 이어진 것이다.** 이걸 안 하면 유닛이 바뀌는 날마다 가짜 갭이 쏟아진다.
+
+듀얼 객실에는 검사가 둘 더 붙는다 — `roomId` 가 없는 예약(`generic_reservation_without_roomid`)과
+`roomId` 가 없는 블록이 그 날짜에 걸리면 **어느 유닛인지 몰라도 막힌 것으로 본다.** 안전 쪽이다.
+
+### 감지 범위와 제외
+
+- **예약이 하나도 없는 객실은 통째로 건너뛴다** (`roomAllReservationsMap[room].length === 0`).
+  예약이 없으면 갭이라는 개념 자체가 없다
+- **과거 날짜도 감지 대상에는 들어간다.** 다만 「자동 선택」 버튼이 **자기가 과거를 걸러낸다**
+- 이미 예약이 찬 칸은 `isGap` 이 아니다 (`!isFullyOccupied && gapCellSet.has(...)`)
+- 성능: 화면 범위 전체를 `gapInfoByCellKey` 에 미리 계산해 O(1) 조회한다.
+  90객실 × 30일 = 2,700칸을 매 렌더마다 재계산하면 안 된다
+
+### 구현 (2026-09-17)
+
+| | |
+| --- | --- |
+| 판정식 | `src/lib/ops-gap-detection.ts` — **순수 모듈** |
+| 회귀 테스트 | `src/lib/__tests__/ops-gap-detection.test.ts` (14건) |
+| 데이터 | `room_daily_rates` (`min_stay` · `num_avail` · `override_kind`) |
+| 화면 | 판매 캘린더 격자 — 갭 칸 빨간 테두리 + 최소숙박 `2` 빨간색 + 상단 개수 배지 |
+
+저쪽과 다르게 한 것 하나 — **점유 판정에 예약·블락을 함께 본다.** `numAvail` 은 요금 동기화
+시점의 값이라 그 뒤에 들어온 예약을 모른다(예약은 웹훅으로 실시간, 요금은 주기 동기화).
+그 틈으로 이미 팔린 밤이 갭으로 잡히면 minStay 를 1로 바꿔 놓고 「왜 안 팔리지」가 된다.
+
+듀얼 유닛은 **날짜별로** 판단한다. `rooms.status` 는 `inventory-sync` 가 읽은 **오늘 하루의
+스냅샷**이라 「10월 3일에 이 유닛이 팔렸는가」에는 답하지 못한다. 한 행에 유닛이 여럿이면
+그 날짜에 **팔 수 있는 유닛**의 값을 쓴다(저쪽 `pickPreferredRoomInfo(sellableInfos)` 와 같다).
+
+창의 **하루 바깥까지** 요금을 읽는다. 판정이 어제·내일을 보는데 가장자리에서 데이터가 끊기면
+실제 갭을 「모른다」로 흘려보낸다.
+
+### 고치는 방법
+
+| 버튼 | 값 | 언제 |
+| --- | --- | --- |
+| **1박으로** | `minStay = 1` | **이게 본래 목적이다.** 버려지던 하루를 판다 |
+| 2박으로 | `minStay = 2` | 되돌리기 |
+| 직접 입력 | 3 ~ 30 | 성수기·장기 정책 |
+
+`POST /setMinStay` 로 `cells: [{roomName, date, dateKey, roomId, minStay}]` 를 보낸다.
+서버가 roomId 별로 묶어 `calendar: [{from, to, minStay}]` 로 Beds24 에 쓴다.
+**가격과 같은 큐를 탈 수 있다** — 응답에 `queued: true` + `jobId` 가 오면 워커가 처리한다.
+
+### 원본에 있던 함정 — 고쳐서 가져온다
+
+원본 주석에 실패 기록이 남아 있다. **같은 자리를 밟지 않는다.**
+
+| 원본에서 있었던 일 | 우리가 할 것 |
+| --- | --- |
+| 롤백이 `catch` 에만 있었다. `fetch` 는 `.catch` 로, 타임아웃은 `Promise.race` 로 resolve 되어 **catch 에 도달하지 않았다.** 서버가 실패해도 낙관적 minStay 가 화면과 캐시에 남아 건물을 바꿨다 와도 되살아났다 | **실패 경로를 하나로 모으고** 낙관적 패치를 반드시 되돌린다 |
+| 「최신 서버에서 재조회」라는 주석만 있고 **실제 재조회가 없었다.** 화면이 낙관적 값만 보고 있었다 | 쓰기 직후 **되읽어 대조한다** (「쓰기 안전장치」 ③과 같은 원칙) |
+| 롤백 백업으로 `roomPrices` 와 `priceCache` **전체를 `structuredClone`** 했다. 수 MB 가 되어 적용 직후 메인 스레드가 멈칫했다 | **바뀌는 칸의 이전 `m` 값만** 백업한다 |
+| 타임아웃 180초 → 실패로 처리하지만 **Beds24 에는 적용됐을 수 있다** | 「타임아웃 — 반영됐을 수 있음」을 **실패와 구분해서** 보여준다 |
 
 ### 그 밖의 기능
 
@@ -175,6 +434,48 @@ StayOps 에도 같은 개념이 있다(`BEDS24_INACTIVE_MIN_STAY_THRESHOLD = 50`
 | **가격 인사이트** | 분석·제안 (읽기) |
 | **취소된 예약 보기** | 토글. 기본 꺼짐. 켜면 취소 예약이 흐릿하게 같이 보인다 |
 | **예약 취소** | 예약 상세에서 취소. **Beds24 에도 취소가 반영된다** |
+
+## 뷰 모드 두 가지 — 월간 / 30일 (2026-09-16 확인)
+
+저쪽 캘린더에는 격자의 **가로축을 정하는 토글**이 하나 더 있다(`viewMode`). 지금까지 못 보고
+있었는데, 실제로는 이쪽이 **평소에 쓰는 모드**다.
+
+| | `monthly` (월간) | `rolling` (30일) |
+| --- | --- | --- |
+| 버튼 표시 | `Monthly` | `30-Day View` |
+| 가로축 | 그 달 **1일 ~ 말일** | **시작일부터 30일** |
+| 시작일 | 달의 1일 | **어제** (오늘 − 1일) |
+| 이동 | 이전 달 / 다음 달 | **± 30일** |
+| Today | 이번 달로 | **시작일을 다시 「어제」로** |
+
+**핵심은 「어제부터 30일」이다.** 오늘을 왼쪽 끝에 붙이지 않고 **하루만 뒤로 물려서** 시작한다 —
+어제 체크아웃이 왼쪽 끝에 걸려 보이고, 그 오른쪽이 오늘 이후 한 달이다. 월간 뷰는 달이 바뀔 때
+「오늘」이 격자 오른쪽 끝에 처박히는데, 30일 뷰는 **언제 열어도 오늘이 항상 왼쪽 근처**다.
+
+원본 그대로:
+
+```js
+// rolling: rollingStartDate 부터 30일
+for (let i = 0; i < 30; i++) days.push(start.add(i, 'day'));
+
+// Today / 모드 전환 시
+const yesterday = new Date();
+yesterday.setDate(yesterday.getDate() - 1);
+setRollingStartDate(yesterday);
+```
+
+**날짜 점프 검색도 이 모드로 떨어진다.** 날짜를 입력해 이동하면(`applyDateSearch`) **무조건
+`rolling` 로 전환하고 그 날짜를 시작일로 잡는다.** 「2026-12-24 를 보자」가 곧 「12/24 부터
+30일을 보자」다. 그리고 그 검색의 **Today 버튼은 도쿄 기준 오늘**을 넣는다
+(`Intl.DateTimeFormat` / `Asia/Tokyo`) — StayOps 의 도쿄 운영일 규칙과 이미 같다.
+
+### 우리는 이렇게 가져온다
+
+- **두 모드 전부 가져온다.** 기본값은 **30일 뷰**로 둔다 — 열자마자 오늘이 보여야 한다.
+- 30일 뷰의 시작일 계산은 **도쿄 기준 어제**다. 브라우저 로컬 시간으로 `setDate(-1)` 하지 않는다
+  (저쪽은 로컬 기준이라 밤에 열면 하루 어긋날 수 있다 — **이건 고쳐서 가져온다**).
+- 이동 단위는 ±30일. **월 단위로 바꾸지 않는다** — 바꾸면 오늘이 다시 격자 끝으로 밀린다.
+- 월간 뷰의 월 이동은 StayOps 의 `shiftMonthKey()` 를 쓴다 (CLAUDE.md 4a).
 
 ## 선택과 조작 — 저쪽 실제 설계 (2026-09-16 재확인)
 

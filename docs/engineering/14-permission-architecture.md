@@ -172,9 +172,16 @@ order_processor             발주 상태 처리          ← 기존 키, 이름
 maintenance_status_change   수리 상태 변경          ← 기존 키
 property_room_manage        건물·객실 관리          ← 기존 키
 can_generate_report         일일 업무일지 생성      ← 기존 키
+ops_admin.access            운영 관리자 영역 전체    ← 2026-09-17 추가
 ```
 
-앞으로 추가될 것(5단계에서 해당 기능을 옮길 때): `user.manage` · `payroll.view` 등.
+**`ops_admin.access` 는 「영역 하나 = 키 하나」의 첫 사례다.** 그 안의 다섯 화면(판매 캘린더 ·
+가동률 · 매출 · 전표 · 자동화)을 기능별로 쪼개지 않는다 — 들어오는 사람이 사무실 직원 몇 명뿐이고,
+들어왔으면 전부 쓴다. 쪼개 봐야 관리 부담만 늘고 「가격은 되는데 재고는 안 되는」 상태가 실제
+업무에 없다. 나중에 쪼개야 하면 키를 추가하면 되고, **기능 코드는 `src/lib/ops-admin.ts` 만 본다**
+(docs/product/32-ops-admin-area.md).
+
+앞으로 추가될 것(5단계에서 해당 기능을 옮길 때): `payroll.view` 등.
 
 읽기와 쓰기를 나누는 이유: 「보기만 되는 사람」과 「처리까지 되는 사람」이 실제로 다르다. 지금은
 채용에서 볼 수 있으면 삭제까지 된다.

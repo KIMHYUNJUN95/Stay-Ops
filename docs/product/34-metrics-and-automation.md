@@ -30,13 +30,21 @@
 
 ### 화면
 
-| 화면 | 저쪽 원본 | 내용 |
-| --- | --- | --- |
-| 가동률 | `OccupancyRateDashboard` | 기간·건물별 점유율 |
-| 국가별 | `CountryOccupancyDashboard` | 게스트 국가 분포 |
-| 객실 성과 | `RoomPerformanceDashboard` (1,099줄) | 객실별 매출·ADR·RevPAR |
-| 매출 | `RevenueDashboard.jsx` (3,198줄) | 기간·건물·채널별 매출 |
-| 판매 기록 | `SalesLogDashboard` (1,551줄) · `SalesLog` | 일별 판매 로그 |
+| 화면 | 저쪽 원본 | 저쪽 경로 | 내용 |
+| --- | --- | --- | --- |
+| 가동률 | `OccupancyRateDashboard` | `/occupancy-rate` | 기간·건물별 점유율 |
+| 국가별 | `CountryOccupancyDashboard` | `/country` | 게스트 국가 분포 |
+| 객실 성과 | `RoomPerformanceDashboard` (1,099줄) | `/room-performance` | 객실별 매출·ADR·RevPAR |
+| 매출 | `RevenueDashboard.jsx` (3,198줄) | `/revenue` | 기간·건물·채널별 매출 |
+| 매출 분석 | `SalesLogDashboard` (1,551줄) | `/sales-log` | 과거 추이·예측 |
+| **전표** | `SalesLog` | `/daily-log` | **일별 매출 전표 + 날짜별 메모** |
+
+**전표는 별개의 화면이다** (2026-09-16 확정). 매출 화면의 탭이 아니고, 캘린더의 탭은 더더욱
+아니다 → [32-ops-admin-area.md](32-ops-admin-area.md) 「지표를 캘린더 안에 넣지 않는다」.
+
+저쪽 `SalesLog` 는 `sales_logs`(날짜 문서) 와 `salesLogMemos`(날짜별 메모) 두 컬렉션을 **월 단위로**
+읽어 하루씩 늘어놓는다. 메모는 **사람이 직접 쓴다** — 이 영역에서 읽기 전용이 아닌 유일한 지표
+화면이다. 건물 제외 규칙이 따로 있다(다이쿄초·사노시·오쿠보A동 제외 — 매출 분석 기준 통일).
 
 ## 데이터 정합성 — 확인 완료 (2026-09-16)
 

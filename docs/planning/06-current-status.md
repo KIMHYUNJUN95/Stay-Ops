@@ -4641,3 +4641,241 @@ PC 회원가입 시 생년월일 휠이 마우스로 조작되지 않던 문제�
 
 `npm run lint` / `npm run build` / `vitest` 239건 통과.
 문서: `docs/product/28-admin-todoist-console.md`
+
+## 2026-09-17 — 운영 관리자 영역 골격 (UI 먼저)
+
+STAY ARI Manager 이전의 첫 코드. 기획·디자인은 끝났고(31~34 + Claude Design 6개 화면)
+**UI 부터 넣는다** — 데이터 쓰기는 병행 기간이 끝날 때까지 켜지 않는다.
+
+- `src/config/capabilities.ts` — `ops_admin.access` 추가. **영역 하나 = 키 하나**.
+  다섯 화면을 기능별로 쪼개지 않는다(32-ops-admin-area.md)
+- `supabase/migrations/202609100001_capability_foundation.sql` — 생성 구간 재생성
+  (`capability-registry.test.ts` 가 이 파일을 검사한다)
+- `supabase/migrations/202609170001_ops_admin_capability.sql` — **이미 적용된 DB 를 위한 보충**.
+  0001 은 다시 돌지 않으므로 새 키의 행만 upsert 한다
+- `src/lib/ops-admin.ts` — `canAccessOpsAdmin` · 화면 목록 · `opsNavId`
+- `src/app/admin/ops/ops-page-session.ts` — 다섯 화면이 쓰는 문 하나
+- `src/config/navigation.ts` — 사이드바 묶음 `ops` 신설(**맨 아래**). 5개 항목 전부
+  `capability: "ops_admin.access"` → 권한 없으면 묶음째 사라진다
+- `src/lib/ops-calendar.ts` — 판매 캘린더 읽기 계층. **어제부터 30일** 롤링 창 + 월간.
+  기존 `/admin/calendar` 의 3개월 제한은 여기에 없다
+- `src/components/admin/ops/ops-calendar-grid.tsx` — 객실당 트랙 3줄(가격·최소숙박·예약).
+  예약 막대는 **체크인 칸 가운데 → 체크아웃 칸 가운데**
+- `src/components/admin/ops/ops-console.css` — `.ops` 스코프. 색은 `.adm` 의 것을 그대로 쓰고
+  이 영역만의 값만 `--ops-*`
+- `src/lib/i18n.ts` — `opsAdmin` 네임스페이스 ko/ja/en + 사이드바 라벨 5개 + 묶음 라벨
+
+**가격은 아직 없다.** Beds24 의 `price` / `minStay` / `numAvail` 을 한 번도 가져온 적이 없어
+위 두 트랙이 비어 있고, 화면이 그 사실을 상단에 적는다. 빈칸을 0원처럼 두면 잘못된 가격표가 된다.
+
+`npm run lint` / `npm run build` / `tsc --noEmit` / `capability-registry.test.ts` 통과.
+문서: `docs/product/32-ops-admin-area.md`, `docs/engineering/14-permission-architecture.md`
+
+## 2026-09-17 (2차) — 룸 매핑 대조 (저쪽 프로젝트 ↔ 우리)
+
+가격을 쓰기 시작하면 매핑이 틀린 만큼 엉뚱한 방의 가격이 바뀐다. roomId 단위로 전수 비교했다.
+전체 기록: `docs/engineering/15-room-mapping-parity.md`
+
+**일치**: 아라키초B(8) · 가부키초(20) · 스테이아리(26) · 오쿠보(1/1/3) · 비활성 기준 minStay ≥ 50
+· 아라키초A 501호 대표 유닛(502229)
+
+**사용자 결정 4건**
+1. 다카다노바바 객실명은 `2`~`9` **그대로 둔다** (저쪽은 `201호`~`901호`. 우리 값이 Beds24 원본이고
+   예약 2,265건 전부가 그 값이다)
+2. **사노를 판매 캘린더에 넣는다** — 예약 338건, 2027-05-03 까지 잡혀 있는 파는 건물이다.
+   기존 청소·예약 캘린더의 제외는 그대로 둔다
+3. 가부키초 803호 가격은 **624198**(우리 DB 활성)에 쓴다. 저쪽 하드코딩은 `648398` 을 가리키는데
+   우리 DB 에서는 inactive(99)다 → **저쪽 `PREFERRED_DUAL_ROOM_IDS` 를 그대로 옮기지 않는다**
+4. 다카다노바바 `401_2`(556719)는 **계속 숨긴다**
+
+**코드**
+- `src/lib/rooms.ts` — `getActiveRoomCatalog` 에 `includeNonOperationalProperties` 옵션.
+  객실 단위 제외(`isExcludedOperationalRoom`)는 이 옵션과 무관하게 계속 걸린다
+- `src/lib/ops-calendar.ts` — 건물 단위 제외를 걸지 않는다(사노 포함)
+
+**열린 항목** — 아라키초A 401호의 두 번째 유닛 `515300` 이 우리 `rooms` 에 없다.
+다른 10개 방은 전부 쌍이 있다. 폐쇄된 유닛인지 동기화가 놓친 것인지 Beds24 확인 필요.
+
+`npm run lint` / `tsc --noEmit` 통과.
+
+## 2026-09-17 (3차) — 방 마스터 동기화가 방을 조용히 덮어쓰던 버그
+
+아라키초A 401호의 두 번째 유닛(`515300`)이 우리 `rooms` 에 없었다. 사용자 확인 결과
+**Beds24 에 살아 있는 같은 객실**이었다 — 우리가 놓친 것이다.
+
+**원인.** `upsertRoom` 이 `onConflict: "organization_id,room_label"` 로 upsert 했다.
+`rooms` 에는 `UNIQUE (organization_id, room_label)` 이 걸려 있어, Beds24 가 **같은 이름의 방 둘**을
+내려주면 두 번째가 첫 번째 행을 UPDATE 해 버린다 — 에러도 `skipped` 도 없이 **방 하나가 증발한다.**
+다른 듀얼 유닛은 Beds24 가 이름을 구분해 줘서(`201` / `201_2`) 살아남았고, 401호만 둘 다 같은
+이름이라 충돌했다.
+
+**더 위험했던 점** — 어느 쪽이 행을 차지할지가 Beds24 응답 순서에 달려 있었다. 순서가 바뀌면
+주 유닛(`440617`, 2027-01-11 까지 예약)으로 들어오는 새 예약이 `(unknown)` 이 되기 시작한다.
+
+**피해** — `515300` 예약 78건이 `room_label = "(unknown)"` 로 쌓였다. 전체 DB 에서 `(unknown)` 은
+이 roomId 하나뿐이다.
+
+**고친 것**
+- `src/lib/beds24/room-sync.ts` — `upsertRoom` 의 기준을 **`external_room_id`** 로.
+  ① ext id 로 찾아 update(라벨 유지) ② 없으면 라벨이 겹칠 때 `_2` 를 붙여 insert.
+  접미사를 받으면 `console.warn` — 조용히 넘어가면 안 되는 사건이다
+- `src/lib/beds24/room-label-candidates.ts` — 후보 생성만 순수 모듈로 분리(테스트용)
+- `src/lib/__tests__/beds24-room-label-candidates.test.ts` — 회귀 테스트
+- `src/lib/i18n.ts` — `opsAdmin.calendar.weekDaysFromSunday` / `monthTag` 를 사전으로 이동
+  (`no-hardcoded-i18n` 가드가 컴포넌트의 요일 리터럴을 잡았다). 일요일 시작이라
+  `recruit.weekDays`(월요일 시작)를 재사용하면 하루 밀린다
+
+**남은 두 단계** (아직 안 함)
+1. 방 마스터 동기화 1회 — 22행이 되면 원인 확정 + `515300` 이 실제 minStay 와 함께 들어온다
+2. 예약 78건의 `room_label` 을 `(unknown)` → `401_2` 로 보정
+
+`npm run lint` / `npm run build` / `vitest` 322건 통과.
+문서: `docs/engineering/15-room-mapping-parity.md`
+
+## 2026-09-17 (4차) — 방 동기화 실행 · 401호 복구 · minStay 덮어쓰기 사고
+
+**결과: 아라키초A 21행 → 22행.** `515300` 이 생겼고 **라벨 충돌이 원인이었음이 확정**됐다.
+전체 기록: `docs/engineering/15-room-mapping-parity.md` ⑤
+
+- `515300` → `401_2_2` · inactive · minStay **99**. 다른 두 번째 유닛(`201_2`·`501_2` 도 99)과
+  똑같다 — Beds24 에 살아 있지만 **판매하지 않는 유닛**이다
+- 예약 78건의 `room_label` · `source_reservation_id` 를 `(unknown)` → `401_2` 로 보정.
+  **전체 DB 에 `(unknown)` 0건**
+
+**왜 `401_2_2` 인가** — Beds24 는 `401_2` 라고 부르는데 그 라벨을 **다카다노바바 `556719`** 가
+이미 쓰고 있었다. 라벨 유니크는 건물별이 아니라 **조직 전체**다. 저장값은 두고 표시 계층에서
+뗀다 — `stripArakichoDisplaySuffix` 가 `(?:_\d+)+$` 를 제거해 `401` 로 보인다.
+
+### 같이 터진 사고 — 방 마스터 동기화가 minStay 를 덮어썼다
+
+동기화 직후 **비활성 24개가 전부 활성**이 됐다. `GET /properties` 의 `roomTypes[].minStay` 는
+방의 **기본 설정값**이고, 활성/비활성을 가르는 값은 `GET /inventory/rooms/calendar` 의
+**기간별 값**이다(`inventory-sync.ts`). 기본값이 덮으면서 은퇴 유닛이 되살아났다.
+
+**원래 있던 버그다** — 예전 코드도 같은 필드를 썼다. 동기화를 안 돌려서 안 드러났을 뿐이다.
+
+- 복구: 인벤토리 동기화 재실행 → 91객실 제자리 (아라키초A 11 active / 11 inactive)
+- 예방: `upsertRoom` 이 **기존 방에는 `external_minimum_stay`·`status` 를 안 쓴다.**
+  그 두 필드의 주인은 `inventory-sync` 이고, 방 마스터 동기화는 **방의 존재와 소속만** 맞춘다
+- **방 마스터 동기화를 돌리면 인벤토리 동기화도 함께 돌린다**
+
+**코드**
+- `src/lib/beds24/room-sync.ts` — 기존 방 업데이트에서 minStay/status 제외
+- `src/lib/room-label-normalization.ts` — `_N` 이 여러 번 붙어도 전부 뗀다
+- `src/lib/__tests__/room-label-display.test.ts` — `401_2_2` → `401` 회귀 테스트
+- `.env` — `ENABLE_LOCAL_DEV_TOOLS=true` (dev 라우트 게이트)
+
+`npm run lint` / `npm run build` / `vitest` 322건 통과.
+
+## 2026-09-17 (5차) — 가격 저장소 (`room_daily_rates`)
+
+판매 캘린더의 세 트랙 중 두 줄이 비어 있던 원인. StayOps 는 Beds24 에서 **예약만** 가져오고
+가격·최소숙박·재고는 한 번도 저장한 적이 없었다.
+
+**Beds24 응답 실측 (2026-09-17)** — `GET /inventory/rooms/calendar`
+
+```json
+{"from":"2026-09-23","to":"2026-09-24","numAvail":0,"minStay":2,"maxStay":50,
+ "override":"none","price1":23671}
+```
+
+- **날짜별이 아니라 구간별**로 온다 (59구간 중 26구간이 이틀 이상) → 동기화가 날짜로 펼친다
+- **`price1` 만 온다.** `price2`/`price3` 는 이 계정에 설정된 적이 없어 응답에 안 나타난다.
+  표에는 세 칸을 다 두었다 — 나중에 쓰기 시작해도 표를 안 바꾸려고
+- `numAvail: 0` 은 예약이 차 있어도 0 이라 공실 판단에 못 쓴다. 블락은 `override='blackout'`
+  하나로만 본다 (`room_blocks` 와 같은 규칙)
+
+**새로 만든 것**
+- `supabase/migrations/202609170002_room_daily_rates.sql` — 객실 × 날짜, `unique(room_id, stay_date)`
+- `src/lib/beds24/room-rates-sync.ts` — 구간 → 날짜 펼치기, 1000행씩 청크 upsert.
+  토큰은 `access-token.ts` 의 공용 캐시를 쓴다(모듈마다 따로 두면 갱신이 여러 번 일어난다)
+- `src/app/api/dev/beds24/backfill-rates/route.ts` + `scripts/dev/beds24-backfill-rates.sh`
+- `src/types/database.ts` — `room_daily_rates` 타입
+
+**백필 결과** — 어제 ~ +12개월, **33,306행** (91객실 × 366일), 7,774구간, 30초.
+매칭 안 된 roomId **0개**(401호 수정 덕분). price1 20,320행 · blackout 4,616행.
+
+**화면** — `ops-calendar.ts` 가 창 범위의 요금을 한 번에 집어 오고 격자가 `42.7K` 형식으로
+그린다. 값이 없으면 회색 대시 — **0원이 아니라 「안 판다」**는 뜻이다. 「가격 없음」 안내는
+요금이 하나도 없을 때만 뜬다.
+
+`npm run lint` / `npm run build` / `vitest` 322건 통과.
+문서: `docs/product/32-ops-admin-area.md`
+
+## 2026-09-17 (6차) — 1박 갭 감지
+
+「하루만 비어 있는데 최소 2박이라 아무도 살 수 없는 날」을 자동으로 찾는다. 사용자가 업무 시간을
+크게 줄여준다고 한 기능이다.
+
+- `src/lib/ops-gap-detection.ts` — **순수 모듈**. 저쪽 `getCheckInGapInfo` 를 줄 단위로 옮겼다.
+  판정식이 곧 돈이라 테스트로 고정한다
+- `src/lib/__tests__/ops-gap-detection.test.ts` — 14건. 「minStay 를 못 읽으면 unknown」
+  「구간의 첫날만 센다」 「내일을 모르면 갭 아님」 등 각 조건을 개별로 고정
+- `src/lib/ops-calendar.ts` — 창 ±1일까지 요금을 읽고 갭을 계산해 `gapCells` 로 내려보낸다
+- 격자 — 갭 칸 빨간 테두리 + 최소숙박 `2` 빨간색. **라벨은 안 얹는다**(가격을 가린다)
+- 상단 `1박 갭 [N]` 배지 — 0건이면 안 뜬다
+
+**저쪽과 다르게 한 것** — 점유 판정에 **예약·블락을 함께 본다.** `numAvail` 은 요금 동기화
+시점의 값이라 그 뒤 예약을 모른다. 그 틈으로 이미 팔린 밤이 갭으로 잡히면 minStay 를 1로 바꿔
+놓고 「왜 안 팔리지」가 된다.
+
+**듀얼 유닛은 날짜별로 판단한다.** `rooms.status` 는 `inventory-sync` 가 읽은 **오늘 하루의
+스냅샷**이라 특정 날짜의 판매 가능 여부에는 답하지 못한다. 한 행에 유닛이 여럿이면 그 날짜에
+팔 수 있는 유닛의 값을 쓴다.
+
+실측(2026-09-15 ~ 10-20, 5주): 갭 **10건 / 8객실**.
+
+`npm run lint` / `npm run build` / `vitest` 336건 통과.
+문서: `docs/product/33-calendar-write-features.md`
+
+## 2026-09-17 (7차) — 가격 변경 웹훅
+
+사용자 확인: 「저쪽은 가격설정이 되어있는 달까지 자동으로 전부 가져오고, 가격이 바뀌면 전부
+웹훅 기준이다.」
+
+**범위는 이미 같았다** — 저쪽도 `tokyoNow.add(12, "month")` 다(`functions/index.js` 2859·3252·6789).
+빠져 있던 것은 **웹훅**이다. 우리 웹훅은 예약만 처리해서 가격 배달이 「no_booking_candidates」로
+버려지고 있었다 — 에러 로그만 쌓이고 요금 표는 갱신되지 않는다.
+
+- `src/lib/beds24/price-webhook.ts` — 저쪽 `exports.priceWebhook` 을 옮겼다.
+  `roomId` + `action`(`PRICE_CHANGE`·`SYNC_ROOM`·없음) 판정, 모르는 방이면 **Beds24 를 부르지
+  않고 끝낸다**, 그 건물만 재동기화, **건물별 60초 디바운스**
+- `src/app/api/beds24/webhook/route.ts` — 예약이 없는 배달에서 가격 신호를 먼저 걸러낸다
+- `src/lib/beds24/room-rates-sync.ts` — `externalPropertyIds` 옵션(건물 한정)
+- `src/lib/__tests__/beds24-price-webhook.test.ts` — 모양 판정 6건
+
+**디바운스는 건물별이어야 한다.** 처음에 조직 전체로 짰다가 고쳤다 — 아라키초A 를 방금
+동기화하면 가부키초 웹훅이 통째로 버려진다.
+
+실측: 아라키초A 웹훅 → 8,052행 재동기화 / 즉시 재요청 → `debounced` /
+가부키초 웹훅 → 7,320행(막히지 않음) / 모르는 roomId → Beds24 호출 없이 종료.
+
+**미확인** — Beds24 계정에서 우리 엔드포인트로 가격 웹훅이 오도록 등록돼 있는지.
+저쪽은 자기 함수 URL 로 받고 있다.
+
+`npm run lint` / `npm run build` / `vitest` 344건 통과.
+
+## 2026-09-17 (8차) — 요금 주기 동기화 (웹훅만으로는 안 된다)
+
+**실측으로 확인** — 2026-07-22 ~ 09-16 웹훅 배달 **20,157건이 전부 예약**이고 가격은 **0건**.
+Beds24 설정의 그 칸은 **「予約Webhook」**(예약 웹훅)이고 저쪽 URL 이름도 `beds24bookingwebhook`
+이다. 저쪽 `priceWebhook` 은 별개 함수라 URL 이 다르고 그 칸에 없다 — 가격 트리거는 다른 곳이다.
+**토큰 문제가 아니다** (웹훅은 Beds24 → 우리 방향).
+
+**저쪽도 웹훅 하나에 기대지 않는다**: `priceWebhook`(즉시) + `scheduledBeds24PriceSync`
+(**15분마다 전체**). 우리도 두 번째 축을 붙였다.
+
+- `src/app/api/beds24/rates-sync/route.ts` — 프로덕션 라우트. `reconcile` 과 같은 인증
+  (`CRON_SECRET` 또는 Beds24 웹훅 시크릿), `maxDuration = 60`
+- `.github/workflows/beds24-rates-sync.yml` — 매시 `:07 :22 :37 :52`.
+  GH Actions 는 정시에 안 오지만(이 저장소 실측 40분~3시간 40분 지연) 멱등이라 무해하다
+- `src/lib/beds24/room-rates-sync.ts` — **건물별 오류 격리.** 각 건물 요청을 try/catch 로 감싸
+  `skipped` 에 남기고 넘어간다. 일시적 `fetch failed` 하나가 전체 실행을 500 으로 죽이는 것을
+  실제로 겪었다(첫 호출 실패 → 재시도 성공)
+
+실측: 33,306행 / 9건물 / `skipped: []`. 시크릿 없이 호출 → 403.
+
+**남은 것** — Beds24 에서 가격/재고 트리거에 우리 URL 을 등록하면 즉시 반영까지 켜진다.
+지금은 주기 동기화가 그 사이를 메운다.
+
+`npm run lint` / `npm run build` / `vitest` 344건 통과.
