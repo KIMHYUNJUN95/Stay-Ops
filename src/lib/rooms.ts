@@ -260,9 +260,25 @@ export async function getActiveRoomCatalogServer(
   return getActiveRoomCatalog(organizationId, supabase);
 }
 
+export type ActiveRoomCatalogOptions = {
+  /**
+   * 현장 운영에서 빠진 건물(`isExcludedOperationalProperty` — 현재 **사노**)도 포함한다.
+   *
+   * 청소·예약 캘린더가 사노를 빼는 것은 **현장 운영 기준**이다. 그런데 사노는 예약 338건에
+   * 2027-05-03 까지 잡혀 있는 **파는 건물**이라, 판매 캘린더에서 빠지면 그 방은 가격을 고칠
+   * 방법이 없어진다(2026-09-17 사용자 결정). 저쪽 프로젝트도 캘린더에는 사노를 두고 매출에서만
+   * 뺀다.
+   *
+   * **객실 단위 제외(`isExcludedOperationalRoom`)는 이 옵션과 무관하게 계속 적용된다** —
+   * 다카다노바바 `401_2` 는 숨긴 채로 둔다(같은 날 결정).
+   */
+  includeNonOperationalProperties?: boolean;
+};
+
 export async function getActiveRoomCatalog(
   organizationId: string,
   supabase: SupabaseClient<Database>,
+  options: ActiveRoomCatalogOptions = {},
 ): Promise<ActiveRoomCatalogItem[] | undefined> {
   const result = await supabase
     .from("rooms")
@@ -301,7 +317,7 @@ export async function getActiveRoomCatalog(
       }
       const property = Array.isArray(row.properties) ? row.properties[0] : row.properties;
       const propertyName = getCanonicalPropertyName(property?.name?.trim() || "Unknown");
-      if (isExcludedOperationalProperty(propertyName)) {
+      if (!options.includeNonOperationalProperties && isExcludedOperationalProperty(propertyName)) {
         return false;
       }
       if (isExcludedOperationalRoom(propertyName, row.room_label)) {

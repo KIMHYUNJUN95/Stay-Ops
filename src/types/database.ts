@@ -3738,6 +3738,72 @@ export type Database = {
           },
         ]
       }
+      room_daily_rates: {
+        Row: {
+          created_at: string
+          id: string
+          max_stay: number | null
+          min_stay: number | null
+          num_avail: number | null
+          organization_id: string
+          override_kind: string | null
+          price1: number | null
+          price2: number | null
+          price3: number | null
+          room_id: string
+          stay_date: string
+          synced_at: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          max_stay?: number | null
+          min_stay?: number | null
+          num_avail?: number | null
+          organization_id: string
+          override_kind?: string | null
+          price1?: number | null
+          price2?: number | null
+          price3?: number | null
+          room_id: string
+          stay_date: string
+          synced_at?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          max_stay?: number | null
+          min_stay?: number | null
+          num_avail?: number | null
+          organization_id?: string
+          override_kind?: string | null
+          price1?: number | null
+          price2?: number | null
+          price3?: number | null
+          room_id?: string
+          stay_date?: string
+          synced_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_daily_rates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "room_daily_rates_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rooms: {
         Row: {
           created_at: string
