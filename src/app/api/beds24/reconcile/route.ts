@@ -103,7 +103,14 @@ async function handle(request: NextRequest) {
     return NextResponse.json(
       {
         ok: !result.partial,
-        mode: result.partial ? "partial_failure" : result.fetchedRows > 0 ? "success" : "no_data",
+        // 증분에서 0건은 **정상**이다(바뀐 게 없는 날). 창 훑기에서 0건이라야 이상 신호다.
+        mode: result.partial
+          ? "partial_failure"
+          : result.fetchedRows > 0
+            ? "success"
+            : result.incremental
+              ? "no_changes"
+              : "no_data",
         ...result,
         roomBlocks,
       },
@@ -117,6 +124,7 @@ async function handle(request: NextRequest) {
       httpStatus: 500,
       result: {
         attempted: true,
+        incremental: false,
         endpointTried: null,
         from: "",
         toExclusive: "",

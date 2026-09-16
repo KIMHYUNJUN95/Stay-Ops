@@ -1362,6 +1362,27 @@ export type Database = {
           },
         ]
       }
+      beds24_sync_state: {
+        Row: {
+          id: boolean
+          last_full_sweep_at: string | null
+          last_modified_cursor: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          last_full_sweep_at?: string | null
+          last_modified_cursor?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          last_full_sweep_at?: string | null
+          last_modified_cursor?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       beds24_webhook_events: {
         Row: {
           booking_summary: Json

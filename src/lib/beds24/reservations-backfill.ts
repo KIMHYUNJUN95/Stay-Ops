@@ -40,6 +40,13 @@ export type BackfillSkippedReason = {
 
 export type Beds24ReservationsBackfillResult = {
   attempted: boolean;
+  /**
+   * 「지난번 이후 바뀐 것만」으로 돌았는가.
+   *
+   * 증분에서 **0건은 정상**이다(조용한 날). 창 훑기에서 0건은 이상 신호다. 둘을 구분하지 않으면
+   * 정상인 실행이 매번 「데이터 없음」으로 보고돼 워크플로 로그가 늑대소년이 된다.
+   */
+  incremental: boolean;
   endpointTried: string | null;
   from: string;
   toExclusive: string;
@@ -116,6 +123,35 @@ function getOperationalWindow() {
   const from = `${currentJstMonth}-01`;
   const toExclusive = new Date(Date.UTC(year, month + 2, 1)).toISOString().slice(0, 10);
   return { from, toExclusive };
+}
+
+/**
+ * 커서를 뒤로 물리는 여유 (2026-09-16).
+ *
+ * 기준 시각은 **우리 서버가 기록한 시각**이고 `modifiedTime` 은 **Beds24 가 찍는다** — 두 시계가
+ * 정확히 같지 않다. 게다가 우리가 수집하는 **중에** 수정된 예약도 있다. 딱 잘라 그 시각 이후만
+ * 보면 그런 예약이 영원히 안 잡힌다.
+ *
+ * 겹치면 같은 예약을 한두 번 더 읽을 뿐이고(수신은 재전송에 안전하다 — 유니크 키 upsert),
+ * 놓치는 것보다 언제나 낫다. 채용 동기화에서 같은 이유로 같은 장치를 썼다.
+ */
+const MODIFIED_CURSOR_OVERLAP_MINUTES = 30;
+
+/**
+ * 「지난번 이후 바뀐 것만」 URL.
+ *
+ * 날짜 창과 달리 **기간 제한이 없다** — 2022년 예약이 오늘 취소돼도 잡힌다. 창 방식으로는
+ * 창 밖의 변경을 영원히 못 본다.
+ *
+ * 취소분을 따로 부르지 않는다. 취소도 수정이라 `modifiedFrom` 에 그대로 걸린다.
+ */
+function buildModifiedSinceUrls(baseUrl: string, sinceIso: string) {
+  const normalizedBase = baseUrl.replace(/\/$/, "");
+  const since = encodeURIComponent(sinceIso);
+  return [
+    `${normalizedBase}/bookings?modifiedFrom=${since}&includeInvoiceItems=false`,
+    `${normalizedBase}/bookings?modifiedFrom=${since}`,
+  ];
 }
 
 function buildBookingsUrls(baseUrl: string, from: string, toExclusive: string, status?: "cancelled") {
@@ -344,6 +380,75 @@ async function fetchBeds24Bookings(from: string, toExclusive: string) {
   };
 }
 
+/**
+ * 커서를 읽는다. 없으면 `null` — 호출부가 창 훑기로 떨어진다.
+ *
+ * 커서가 없을 수 있는 경우: 첫 실행, 또는 커서가 깨진 경우.
+ */
+async function readModifiedCursor(supabase: SupabaseClient<Database>): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("beds24_sync_state")
+    .select("last_modified_cursor")
+    .eq("id", true)
+    .maybeSingle();
+  if (error) {
+    console.error("[beds24/reconcile] cursor read failed", error.message);
+    return null;
+  }
+  return (data as { last_modified_cursor: string | null } | null)?.last_modified_cursor ?? null;
+}
+
+/**
+ * 커서를 옮긴다. **수집이 성공했을 때만** 부른다.
+ *
+ * 실패했는데 옮기면 그 사이의 변경을 영원히 건너뛴다 — 조용히 빠지는 종류라 제일 나쁘다.
+ */
+async function writeModifiedCursor(
+  supabase: SupabaseClient<Database>,
+  cursorIso: string,
+  fullSweep: boolean,
+): Promise<void> {
+  const patch: Database["public"]["Tables"]["beds24_sync_state"]["Update"] = {
+    last_modified_cursor: cursorIso,
+    updated_at: new Date().toISOString(),
+    ...(fullSweep ? { last_full_sweep_at: new Date().toISOString() } : {}),
+  };
+  const { error } = await supabase.from("beds24_sync_state").update(patch).eq("id", true);
+  if (error) console.error("[beds24/reconcile] cursor write failed", error.message);
+}
+
+/** 겹침 여유를 뺀 기준 시각. */
+function cursorWithOverlap(cursorIso: string): string {
+  const base = new Date(cursorIso).getTime();
+  const shifted = new Date(base - MODIFIED_CURSOR_OVERLAP_MINUTES * 60_000);
+  // Beds24 는 `YYYY-MM-DDTHH:MM:SS` 를 받는다. 밀리초·Z 를 붙이면 거절당한다.
+  return shifted.toISOString().slice(0, 19);
+}
+
+async function fetchBeds24BookingsModifiedSince(sinceIso: string) {
+  const env = getOptionalBeds24ApiEnv();
+  if (!env) {
+    return {
+      endpointTried: null,
+      rows: [] as JsonRecord[],
+      partial: false,
+      failedPageUrl: null,
+      skippedReason: "reservations:missing-env",
+    };
+  }
+  const tokenState = await resolveBeds24AccessToken();
+  if (!tokenState.ok) {
+    return {
+      endpointTried: null,
+      rows: [] as JsonRecord[],
+      partial: false,
+      failedPageUrl: null,
+      skippedReason: tokenState.skipped,
+    };
+  }
+  return fetchBookingsVariant(buildModifiedSinceUrls(env.baseUrl, sinceIso), tokenState.token);
+}
+
 function isIsoDate(value: string | undefined): value is string {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
@@ -355,12 +460,59 @@ export async function backfillBeds24Reservations(
   // Default window = current + next operational month (used by the daily reconcile cron and webhooks).
   // A one-time wide catch-up (e.g. the dev backfill route) may override both bounds to pull far-future
   // reservations the narrow window would never reach. Both bounds must be provided together.
+  const explicitFrom = isIsoDate(options?.from) ? options.from : null;
+  const explicitTo = isIsoDate(options?.toExclusive) ? options.toExclusive : null;
+  const explicitWindow = explicitFrom !== null && explicitTo !== null;
   const { from, toExclusive } =
-    isIsoDate(options?.from) && isIsoDate(options?.toExclusive)
-      ? { from: options.from, toExclusive: options.toExclusive }
+    explicitFrom !== null && explicitTo !== null
+      ? { from: explicitFrom, toExclusive: explicitTo }
       : getOperationalWindow();
 
-  const { endpointTried, rows, skippedReason, partial, failedPageUrl } = await fetchBeds24Bookings(from, toExclusive);
+  /**
+   * **기본은 「지난번 이후 바뀐 것만」이다** (2026-09-16).
+   *
+   * 예전에는 날짜 창(당월 + 2개월)만 훑었다. 그런데 예약 웹훅은 날짜와 무관하게 들어와서 창 밖
+   * 예약이 이미 223건 쌓여 있었고(가장 먼 것 2027-05-03), 그것들은 **안전망 밖**이었다 — 웹훅을
+   * 한 번 놓치면 영영 안 들어온다. 2026-09-11 에 크리스마스 예약 3건이 그렇게 빠져 있었다.
+   *
+   * 창을 넓히는 대신 **질문을 바꿨다.** `modifiedFrom` 은 기간 제한이 없어서 2022년 예약이 오늘
+   * 취소돼도 잡히고, 바뀐 게 없으면 거의 공짜다(실측: 24시간치 34건, 요청 비용 1).
+   *
+   * 창 훑기는 **대비책으로 남는다**:
+   *  · 커서가 없을 때(첫 실행·커서 손상)
+   *  · 호출부가 기간을 명시했을 때(일회성 넓은 백필)
+   */
+  const cursor = explicitWindow ? null : await readModifiedCursor(supabase);
+  const useIncremental = cursor !== null;
+  // 커서는 **수집을 시작하기 전** 시각으로 잡는다. 수집하는 동안 바뀐 것은 다음 번에 잡혀야 한다.
+  const runStartedAt = new Date().toISOString();
+
+  const fetched = useIncremental
+    ? await fetchBeds24BookingsModifiedSince(cursorWithOverlap(cursor))
+    : await fetchBeds24Bookings(from, toExclusive);
+  const { endpointTried, rows, skippedReason, partial, failedPageUrl } = fetched;
+
+  // 바뀐 것이 없으면 정상이다 — 커서만 옮기고 끝낸다. 창 방식에서는 「0건 = 이상」이었지만
+  // 증분에서는 「0건 = 조용한 날」이라, 이것을 실패로 보고하면 매번 빨간불이 된다.
+  if (useIncremental && !partial && rows.length === 0 && skippedReason === "reservations:no-bookings") {
+    await writeModifiedCursor(supabase, runStartedAt, false);
+    return {
+      attempted: true,
+      incremental: true,
+      endpointTried,
+      from,
+      toExclusive,
+      partial: false,
+      failedPageUrl: null,
+      fetchedRows: 0,
+      upsertedRows: 0,
+      cancelledUpsertedRows: 0,
+      skippedRows: 0,
+      recoveredRows: 0,
+      skipped: [],
+      skippedReasons: [],
+    };
+  }
   if (rows.length === 0 || partial) {
     const skipReasons = [skippedReason ?? "reservations:no-bookings"];
     if (partial) {
@@ -368,6 +520,7 @@ export async function backfillBeds24Reservations(
     }
     return {
       attempted: skippedReason !== "reservations:missing-env",
+      incremental: useIncremental,
       endpointTried,
       from,
       toExclusive,
@@ -667,8 +820,17 @@ export async function backfillBeds24Reservations(
     }
   }
 
+  // **여기까지 왔으면 성공이다 — 그때만 커서를 옮긴다.**
+  // 실패했는데 옮기면 그 사이의 변경을 영원히 건너뛴다. 조용히 빠지는 종류라 제일 나쁘다.
+  // 기간을 명시한 일회성 백필은 커서를 건드리지 않는다 — 그건 과거를 메우는 작업이지
+  // 「어디까지 봤는가」를 앞당기는 작업이 아니다.
+  if (!explicitWindow) {
+    await writeModifiedCursor(supabase, runStartedAt, !useIncremental);
+  }
+
   return {
     attempted: true,
+    incremental: useIncremental,
     endpointTried,
     from,
     toExclusive,
