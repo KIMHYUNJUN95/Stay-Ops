@@ -22,6 +22,13 @@ export const localizedNavigationLabels = {
     recurringWork: { ko: "투두이스트", ja: "Todoist", en: "Todoist" },
     settings: { ko: "설정", ja: "設定", en: "Settings" },
     users: { ko: "사용자", ja: "ユーザー", en: "Users" },
+    // 운영 관리자 5개 메뉴. 기존 「예약 캘린더」(읽기)와 이름이 겹치지 않게 「판매 캘린더」로
+    // 둔다 — 사이드바에 캘린더가 둘 보이는데 이름이 같으면 어느 쪽이 쓰기인지 알 수 없다.
+    opsCalendar: { ko: "판매 캘린더", ja: "販売カレンダー", en: "Sales Calendar" },
+    opsOccupancy: { ko: "가동률", ja: "稼働率", en: "Occupancy" },
+    opsRevenue: { ko: "매출", ja: "売上", en: "Revenue" },
+    opsLedger: { ko: "전표", ja: "日次伝票", en: "Daily Ledger" },
+    opsAutomation: { ko: "자동화", ja: "自動化", en: "Automation" },
   },
   mobile: {
     announcements: { ko: "공지", ja: "お知らせ", en: "Announcements" },
@@ -55,6 +62,53 @@ export const localizedNavigationLabels = {
 } satisfies Record<string, Record<string, LocalizedText>>;
 
 const FALLBACK_DICTIONARY = {
+  /*
+   * 운영 관리자 영역 (/admin/ops/*). 가격·매출을 다루는 사무실 소수만 들어온다.
+   * 여기서 바꾼 가격은 에어비앤비·부킹닷컴에 그대로 나간다.
+   * docs/product/32-ops-admin-area.md · 33-calendar-write-features.md
+   */
+  opsAdmin: {
+    areaName: "Revenue Ops",
+    calendar: {
+      title: "Sales Calendar",
+      subtitle: "Prices, minimum stay, inventory and blocks",
+      viewRolling: "30 days",
+      viewMonthly: "Monthly",
+      prev: "Prev",
+      next: "Next",
+      today: "Today",
+      roomsHeader: "ROOM",
+      allProperties: "All",
+      // 일요일(0)부터다 — Date.getUTCDay() 의 인덱스와 그대로 맞춘다.
+      // recruit.weekDays 는 월요일부터라 재사용하면 하루씩 밀린다.
+      weekDaysFromSunday: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"],
+      // 30일 뷰가 달을 넘어갈 때 경계 칸에 붙는 아주 작은 표시.
+      monthTag: "M{month}",
+      actionPrice: "Edit prices",
+      actionMinStay: "Minimum stay",
+      actionInventory: "Inventory · Block",
+      vacantOnly: "Vacant only",
+      showCancelled: "Show cancelled",
+      hintCreate: "Click an empty cell to set check-in, click again for check-out",
+      legendDirect: "Direct · Manual",
+      legendBlock: "Block",
+      legendCancelled: "Cancelled",
+      blockLabel: "BLOCK",
+      // 1박 갭 — 팔 수 있는 밤이 하루인데 최소 2박이라 아무도 못 사는 날.
+      gapLabel: "1-night gaps",
+      roomCount: "{count} rooms",
+      // 아직 Beds24 가격을 가져온 적이 없다. 숨기지 않고 화면에 적는다.
+      priceMissingTitle: "Prices are not loaded yet",
+      priceMissingBody:
+        "Reservations and blocks are live. Price and minimum stay still come from Beds24 and have never been imported — the top two tracks stay empty until then. An empty cell is not a price of zero.",
+      emptyTitle: "No rooms to show",
+      emptyBody: "No active rooms were found for this building.",
+    },
+    // 아직 만들지 않은 화면. 메뉴는 보이되 무엇을 기다리는지 말해 준다.
+    soonTitle: "Not built yet",
+    soonBody: "This screen is part of the STAY ARI Manager migration and is still being built.",
+  },
+
   // 채용 지원서 콘솔 (/admin/recruit). 외부 채용 사이트에서 넘어온 지원서를 읽고 분류한다.
   // 합격·불합격은 없다 — 채용 확정은 오프라인에서 이뤄진다(docs/product/30-recruit-workflow.md §6).
   recruit: {
@@ -220,6 +274,7 @@ const FALLBACK_DICTIONARY = {
       navGroupOps: "Operations",
       navGroupPeople: "People",
       navGroupInfo: "Information",
+      navGroupOpsAdmin: "Revenue Ops",
       notifications: "Notifications",
       account: "Account",
       orgSwitch: "Switch organization",
@@ -5058,6 +5113,42 @@ function mergeDictionary<T extends Record<string, unknown>>(base: T, override: D
 
 const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> = {
   ko: {
+  opsAdmin: {
+    areaName: "운영 관리자",
+    calendar: {
+      title: "판매 캘린더",
+      subtitle: "가격 · 최소 숙박일 · 재고 · 블락",
+      viewRolling: "30일",
+      viewMonthly: "월간",
+      prev: "이전",
+      next: "다음",
+      today: "오늘",
+      roomsHeader: "객실",
+      allProperties: "전체",
+      weekDaysFromSunday: ["일", "월", "화", "수", "목", "금", "토"],
+      monthTag: "{month}월",
+      actionPrice: "가격 수정",
+      actionMinStay: "최소 숙박일",
+      actionInventory: "재고 · Block",
+      vacantOnly: "빈 방만",
+      showCancelled: "취소 보기",
+      hintCreate: "빈 칸 클릭 → 체크인, 한 번 더 누르면 체크아웃",
+      legendDirect: "직접 · 수기",
+      legendBlock: "Block",
+      legendCancelled: "취소됨",
+      blockLabel: "BLOCK",
+      gapLabel: "1박 갭",
+      roomCount: "객실 {count}",
+      priceMissingTitle: "가격은 아직 들어오지 않았습니다",
+      priceMissingBody:
+        "예약과 블락은 실제 데이터입니다. 가격과 최소 숙박일은 Beds24 에서 가져와야 하는데 아직 한 번도 가져온 적이 없어 위 두 줄이 비어 있습니다. 빈칸은 0원이 아닙니다.",
+      emptyTitle: "보여줄 객실이 없습니다",
+      emptyBody: "이 건물에서 운영 중인 객실을 찾지 못했습니다.",
+    },
+    soonTitle: "아직 만들지 않았습니다",
+    soonBody: "STAY ARI Manager 이전 작업에 포함된 화면입니다. 준비되면 여기에 들어옵니다.",
+  },
+
   recruit: {
     title: "채용 지원서",
     weekDays: ["월", "화", "수", "목", "금", "토", "일"],
@@ -5216,6 +5307,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         navGroupOps: "운영",
         navGroupPeople: "인력",
         navGroupInfo: "정보",
+        navGroupOpsAdmin: "운영 관리자",
         notifications: "알림",
         account: "계정",
         orgSwitch: "조직 전환",
@@ -9905,6 +9997,42 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     },
   },
   ja: {
+  opsAdmin: {
+    areaName: "運営管理者",
+    calendar: {
+      title: "販売カレンダー",
+      subtitle: "料金 · 最低宿泊日数 · 在庫 · ブロック",
+      viewRolling: "30日",
+      viewMonthly: "月間",
+      prev: "前へ",
+      next: "次へ",
+      today: "今日",
+      roomsHeader: "客室",
+      allProperties: "すべて",
+      weekDaysFromSunday: ["日", "月", "火", "水", "木", "金", "土"],
+      monthTag: "{month}月",
+      actionPrice: "料金を変更",
+      actionMinStay: "最低宿泊日数",
+      actionInventory: "在庫 · Block",
+      vacantOnly: "空室のみ",
+      showCancelled: "キャンセルを表示",
+      hintCreate: "空きマスをクリックでチェックイン、もう一度でチェックアウト",
+      legendDirect: "直接 · 手動",
+      legendBlock: "Block",
+      legendCancelled: "キャンセル",
+      blockLabel: "BLOCK",
+      gapLabel: "1泊ギャップ",
+      roomCount: "客室 {count}",
+      priceMissingTitle: "料金はまだ取り込まれていません",
+      priceMissingBody:
+        "予約とブロックは実データです。料金と最低宿泊日数は Beds24 から取得する必要がありますが、まだ一度も取り込んでいないため上の2行は空です。空欄は0円ではありません。",
+      emptyTitle: "表示できる客室がありません",
+      emptyBody: "この建物で稼働中の客室が見つかりませんでした。",
+    },
+    soonTitle: "まだ作成していません",
+    soonBody: "STAY ARI Manager 移行に含まれる画面です。準備ができ次第ここに入ります。",
+  },
+
   recruit: {
     title: "採用応募",
     weekDays: ["月", "火", "水", "木", "金", "土", "日"],
@@ -10063,6 +10191,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         navGroupOps: "運営",
         navGroupPeople: "人員",
         navGroupInfo: "情報",
+        navGroupOpsAdmin: "運営管理者",
         notifications: "通知",
         account: "アカウント",
         orgSwitch: "組織を切り替え",

@@ -1,0 +1,520 @@
+/*
+ * 운영 관리자 영역 (/admin/ops/*) — 판매 캘린더 격자와 그 주변.
+ *
+ * 전부 `.ops` 아래로 스코프한다. `.adm` 이 이미 콘솔 팔레트(--card / --line / --adm-primary …)를
+ * 정의하고 있으므로 **색을 다시 정의하지 않는다** — 여기서 재정의하면 같은 콘솔 안에서 두 벌이
+ * 되고, 이 저장소는 그 사고를 이미 겪었다(admin-console.css 머리말 참고).
+ *
+ * 이 영역만의 값은 `--ops-*` 접두어를 쓴다.
+ *
+ * 설계: docs/product/33-calendar-write-features.md
+ *       디자인 시안: Claude Design 프로젝트 「StayOps 운영 관리자 영역」 2·3번 화면
+ */
+
+.ops {
+  /* 판매 채널 — 배경 · 테두리 · 글자 세 개가 한 쌍이다. */
+  --ops-abnb: hsl(348 60% 34%);
+  --ops-abnb-bg: hsl(348 68% 88%);
+  --ops-abnb-line: hsl(348 52% 76%);
+  --ops-bkng: hsl(219 62% 30%);
+  --ops-bkng-bg: hsl(219 64% 88%);
+  --ops-bkng-line: hsl(219 50% 76%);
+  --ops-dir: hsl(146 52% 21%);
+  --ops-dir-bg: hsl(146 42% 85%);
+  --ops-dir-line: hsl(146 34% 70%);
+  /* 격자 한 트랙의 높이. 객실이 많은 건물에서 줄여 한 화면에 담는다. */
+  --ops-track: 21px;
+  --ops-roomcol: 88px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+/* ── 상단 줄 ─────────────────────────────────────────────────────────── */
+
+.ops__bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.ops__spacer { flex: 1 1 auto; }
+
+.ops__meta {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+/* 건물 세그먼트 — 좁으면 가로 스크롤한다. 건물이 9곳이라 줄바꿈되면 격자가 밀린다. */
+.ops__props {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  overflow-x: auto;
+  max-width: 100%;
+  scrollbar-width: none;
+}
+.ops__props::-webkit-scrollbar { display: none; }
+
+.ops__prop {
+  padding: 6px 12px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--adm-muted);
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+.ops__prop.on {
+  background: var(--adm-primary);
+  color: #fff;
+  box-shadow: 0 2px 6px -2px color-mix(in oklab, var(--adm-primary) 50%, transparent);
+}
+
+.ops__seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--line);
+}
+.ops__segbtn {
+  padding: 5px 11px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--adm-muted);
+  white-space: nowrap;
+}
+.ops__segbtn.on {
+  background: var(--card);
+  color: var(--adm-primary);
+  box-shadow: 0 1px 3px -1px rgb(20 32 43 / 0.35);
+}
+
+.ops__nav {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card);
+}
+.ops__nav > * {
+  height: 31px;
+  padding: 0 11px;
+  display: flex;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.ops__nav > * + * { border-left: 1px solid var(--line-soft); }
+
+.ops__range {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 33px;
+  min-width: 150px;
+  padding: 0 13px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.ops__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 33px;
+  padding: 0 13px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+.ops__btn.on {
+  background: var(--adm-primary);
+  border-color: var(--adm-primary);
+  color: #fff;
+}
+.ops__btn.quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--adm-muted);
+  padding: 0 9px;
+}
+
+.ops__div {
+  width: 1px;
+  height: 19px;
+  background: var(--line);
+  margin: 0 5px;
+}
+
+/* ── 범례 · 안내 줄 ──────────────────────────────────────────────────── */
+
+.ops__hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--adm-muted);
+  padding: 0 2px;
+}
+
+.ops__lg {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.ops__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9px;
+  background: currentColor;
+}
+.ops__hatch {
+  width: 14px;
+  height: 8px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(
+    135deg,
+    hsl(222 12% 52% / 0.5) 0 4px,
+    transparent 4px 8px
+  );
+}
+
+/* ── 가격 없음 안내 ─────────────────────────────────────────────────── */
+/*
+ * StayOps 에는 아직 가격 저장소가 없다. **빈칸을 0원처럼 보이게 두지 않는다** —
+ * 그 순간 화면이 잘못된 가격표가 된다.
+ */
+.ops__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  background: var(--warn-bg);
+  border: 1px solid color-mix(in oklab, var(--warn) 28%, transparent);
+  color: color-mix(in oklab, var(--warn) 78%, var(--ink));
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+.ops__notice strong { font-weight: 800; }
+
+/* ── 격자 ───────────────────────────────────────────────────────────── */
+
+.opsg {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  overflow: hidden;
+  box-shadow: 0 18px 44px -34px rgb(20 32 43 / 0.5);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.opsg__head {
+  display: flex;
+  background: var(--card2);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+
+.opsg__corner {
+  width: var(--ops-roomcol);
+  flex: 0 0 var(--ops-roomcol);
+  border-right: 1px solid var(--line);
+  display: flex;
+  align-items: flex-end;
+  padding: 0 11px 6px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--faint);
+  letter-spacing: 0.04em;
+}
+
+.opsg__day {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  padding: 6px 0 5px;
+  line-height: 1.3;
+  position: relative;
+}
+.opsg__dn {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.opsg__dw {
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--faint);
+  margin-top: 1px;
+}
+/* 주말 = 금·토·일 (사내 요금 기준). */
+.opsg__day.we .opsg__dn,
+.opsg__day.we .opsg__dw { color: var(--danger); }
+.opsg__day.today { background: var(--adm-primary); border-radius: 8px 8px 0 0; }
+.opsg__day.today .opsg__dn,
+.opsg__day.today .opsg__dw { color: #fff; }
+/* 달이 바뀌는 칸 — 30일 뷰는 달을 넘어가므로 경계가 보여야 한다. */
+.opsg__day.m1 { box-shadow: inset 1px 0 0 var(--adm-primary); }
+.opsg__mtag {
+  position: absolute;
+  top: -1px;
+  left: 2px;
+  font-size: 7.5px;
+  font-weight: 800;
+  color: var(--adm-primary);
+  letter-spacing: 0.02em;
+}
+
+.opsg__scroll { overflow: auto; min-height: 0; }
+
+.opsg__group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--adm-muted);
+  position: sticky;
+  left: 0;
+}
+.opsg__gcount { color: var(--faint); font-weight: 600; }
+
+.opsg__row { display: flex; }
+.opsg__row + .opsg__row { border-top: 1px solid hsl(40 26% 93%); }
+
+.opsg__label {
+  width: var(--ops-roomcol);
+  flex: 0 0 var(--ops-roomcol);
+  border-right: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  padding: 0 11px;
+  background: var(--card);
+  position: sticky;
+  left: 0;
+  z-index: 3;
+}
+.opsg__rn {
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.opsg__tracks {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.opsg__track {
+  display: flex;
+  height: var(--ops-track);
+  position: relative;
+}
+
+.opsg__cell {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.opsg__cell.we { background: hsl(20 30% 97.5%); }
+.opsg__cell.past { opacity: 0.42; }
+.opsg__cell.m1 { box-shadow: inset 1px 0 0 color-mix(in oklab, var(--adm-primary) 28%, transparent); }
+
+.opsg__price {
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: var(--ink-soft);
+}
+/* 값이 아직 없는 칸. 0원처럼 보이면 안 되므로 회색 점선 대시를 쓴다. */
+.opsg__price.none { color: hsl(40 14% 80%); font-weight: 500; }
+
+.opsg__min {
+  font-size: 9px;
+  font-weight: 500;
+  color: hsl(222 8% 76%);
+  font-variant-numeric: tabular-nums;
+}
+
+.opsg__plus {
+  color: hsl(40 14% 82%);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/*
+ * 예약 막대 — **체크인 날짜 칸의 가운데에서 시작해 체크아웃 날짜 칸의 가운데에서 끝난다.**
+ * 같은 날 나가는 예약과 들어오는 예약이 그 칸 가운데에서 만나야 하루에 둘이 보인다.
+ * 위치는 인라인 style 로 온다(`left` / `width` 는 데이터라 CSS 로 못 쓴다).
+ */
+.opsg__bar {
+  position: absolute;
+  height: 16px;
+  top: 2.5px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+}
+.opsg__bar.airbnb {
+  background: var(--ops-abnb-bg);
+  color: var(--ops-abnb);
+  box-shadow: inset 0 0 0 1px var(--ops-abnb-line);
+}
+.opsg__bar.booking {
+  background: var(--ops-bkng-bg);
+  color: var(--ops-bkng);
+  box-shadow: inset 0 0 0 1px var(--ops-bkng-line);
+}
+.opsg__bar.manual {
+  background: var(--ops-dir-bg);
+  color: var(--ops-dir);
+  box-shadow: inset 0 0 0 1px var(--ops-dir-line);
+}
+/* 취소는 진하게 하지 않는다 — 살아있는 예약과 섞이면 안 된다. */
+.opsg__bar.cancelled {
+  background: hsl(40 14% 93%);
+  color: var(--faint);
+  box-shadow: inset 0 0 0 1px var(--line);
+  text-decoration: line-through;
+}
+
+/* 「차단」이 아니라 영어 BLOCK 으로 쓴다(사용자 지정, 2026-09-16). */
+.opsg__block {
+  position: absolute;
+  height: 16px;
+  top: 2.5px;
+  border-radius: 8px;
+  background: repeating-linear-gradient(
+    135deg,
+    hsl(222 12% 52% / 0.34) 0 5px,
+    hsl(222 12% 52% / 0.12) 5px 10px
+  );
+  box-shadow: inset 0 0 0 1px hsl(222 10% 68%);
+  font-size: 8px;
+  font-weight: 800;
+  color: hsl(222 16% 34%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.03em;
+  overflow: hidden;
+}
+
+/* ── 빈 상태 ────────────────────────────────────────────────────────── */
+
+.ops__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 64px 24px;
+  text-align: center;
+}
+.ops__empty h2 { font-size: 15px; font-weight: 800; letter-spacing: -0.02em; }
+.ops__empty p {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--adm-muted);
+  line-height: 1.6;
+  max-width: 420px;
+}
+
+/* ── 1박 갭 ──────────────────────────────────────────────────────────── */
+/*
+ * 「하루만 비어 있는데 최소 2박이라 아무도 살 수 없는 날」.
+ * 라벨을 얹지 않는다 — 가격 숫자를 가린다(2026-09-16 사용자 지적).
+ * 빨간 테두리 + 최소숙박 트랙의 빨간 `2` 만으로 읽힌다.
+ */
+.opsg__gap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: hsl(4 72% 56% / 0.1);
+  border: 1.5px solid var(--danger);
+  border-radius: 6px;
+}
+
+/* 갭 칸의 최소 숙박일 — 문제의 원인이라 여기만 빨갛게. */
+.opsg__cell.gap .opsg__min {
+  color: var(--danger);
+  font-weight: 900;
+}
+
+.ops__gapbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 33px;
+  padding: 0 13px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 800;
+  border: 1px solid color-mix(in oklab, var(--danger) 35%, transparent);
+  background: var(--danger-bg);
+  color: var(--danger);
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.ops__gapn {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: var(--r-pill);
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
