@@ -419,6 +419,8 @@
     padding 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms,
     margin 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms,
     opacity 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms,
+    background-color 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms,
+    border-color 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms,
     box-shadow 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -458,9 +460,34 @@
 /* ── ② 아이콘 중심을 전부 32px 에 맞춘다 ─────────────────────────────── */
 /* 앱 마크 38px → 13 + 19 = 32 */
 .adm .side__brand { padding-left: 13px; padding-right: 13px; }
-/* 조직 로고 30px → 상자를 로고 크기로 줄인다. 17 + 15 = 32 */
+/*
+ * 조직 로고 30px → 상자를 로고 크기로 줄인다. 17 + 15 = 32
+ *
+ * **접었을 때는 테두리와 바탕을 지운다.** 로고는 30×30 인데 상하 패딩 9px 와 테두리가 남으면
+ * 30×48 짜리 세로 알약이 되어, 정사각 로고를 감싼 모양이 어색해진다. 게다가 접힌 상태에서
+ * 그 테두리는 **묶어 줄 글자가 없어 역할이 없다** — 조직 이름과 역할이 보일 때 비로소
+ * 「이 둘이 한 버튼」이라는 뜻이 생긴다.
+ *
+ * 패딩은 그대로 둔다. 없애면 줄 높이가 48 → 30 으로 줄어 **아래 메뉴가 통째로 올라간다.**
+ * 보이지 않는 여백이라 남겨도 해가 없다.
+ */
 .adm .orgsw { margin-left: 17px; margin-right: 17px; }
-.adm .orgsw__btn { padding-left: 0; padding-right: 0; }
+.adm .orgsw__btn {
+  padding-left: 0;
+  padding-right: 0;
+  background-color: transparent;
+  border-color: transparent;
+}
+.adm .side:hover .orgsw__btn,
+.adm .side:focus-within .orgsw__btn {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: var(--nav-line);
+}
+/* 이 규칙이 `.orgsw__btn:hover` 보다 뒤에 있어 **버튼 자체의 반응을 덮는다.** 되살린다. */
+.adm .side:hover .orgsw__btn:hover,
+.adm .side:focus-within .orgsw__btn:hover {
+  background-color: rgba(255, 255, 255, 0.09);
+}
 /* 메뉴 아이콘 18px → 23 + 9 = 32 */
 .adm .side__scroll { padding-left: 0; padding-right: 0; }
 .adm .navi { padding-left: 23px; padding-right: 23px; }
