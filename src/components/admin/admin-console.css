@@ -102,7 +102,8 @@
    게다가 그 화면은 눌러앉아 가격을 조정하는 곳이라 그동안 메뉴를 쓸 일이 거의 없다.
    반대로 청소·채용처럼 들락날락하는 화면에서는 사이드바가 제값을 한다.
 
-   그래서 **없애지 않고 접는다.** 접은 뒤에는 **마우스를 올리면 저절로 펼쳐진다.**
+   그래서 **기본은 아이콘만 보이는 레일**이고, **마우스를 올리면 저절로 펼쳐진다.**
+   늘 펼쳐 두고 싶은 사람은 핀 버튼으로 고정한다(`data-adm-side="wide"`, 기기에 기억된다).
 
    ## 펼침은 본문을 밀지 않는다
 
@@ -118,27 +119,29 @@
 
    ## 상태는 뿌리 속성 하나
 
-   `data-adm-side="rail"`. 보이는 것은 전부 CSS 가 판단하므로 React 가 이 값을 모르고,
-   따라서 hydration 이 어긋날 여지가 없다.
+   `data-adm-side="wide"` 가 **있을 때만** 펼쳐 고정이다. 없는 것이 기본(레일)이라, 스크립트가
+   못 돌았거나 localStorage 가 막힌 브라우저에서도 기본 동작이 나온다.
+   보이는 것은 전부 CSS 가 판단하므로 React 가 이 값을 모르고, hydration 이 어긋날 여지가 없다.
    ───────────────────────────────────────────────────────────────────────── */
 
+/* **기본이 레일이다.** 펼쳐 고정한 사람만 `data-adm-side="wide"` 를 갖는다. */
 .adm { --adm-side-w: 248px; }
-:root[data-adm-side="rail"] .adm { --adm-side-w: 64px; }
+:root:not([data-adm-side="wide"]) .adm { --adm-side-w: 64px; }
 
 /* 레일은 64px 자리를 지키고, 펼쳐진 폭만 본문 위로 넘친다(격자 칸은 그대로 있다). */
-:root[data-adm-side="rail"] .adm .side {
+:root:not([data-adm-side="wide"]) .adm .side {
   width: var(--adm-side-w);
   overflow: hidden;
   z-index: 30;
   transition: width 0s 150ms, box-shadow 0s 150ms;
 }
-:root[data-adm-side="rail"] .adm .side:hover,
-:root[data-adm-side="rail"] .adm .side:focus-within {
+:root:not([data-adm-side="wide"]) .adm .side:hover,
+:root:not([data-adm-side="wide"]) .adm .side:focus-within {
   width: 248px;
   box-shadow: 14px 0 44px -18px rgba(20, 32, 43, 0.55);
 }
 /* `overflow-y: auto` 는 가로도 auto 로 만든다 — 레일에서 가로 스크롤바가 생기는 것을 막는다. */
-:root[data-adm-side="rail"] .adm .side__scroll { overflow-x: hidden; }
+:root:not([data-adm-side="wide"]) .adm .side__scroll { overflow-x: hidden; }
 
 /*
  * 글자는 **폭과 같은 순간에** 나타난다.
@@ -146,41 +149,41 @@
  * `display:none` 은 지연시킬 수 없어서 폭보다 먼저 튀어나오고, 그 150ms 동안 잘린 글자가
  * 보인다. 그래서 투명도로 다루고 같은 지연을 준다.
  */
-:root[data-adm-side="rail"] .adm .side__wm,
-:root[data-adm-side="rail"] .adm .side__role,
-:root[data-adm-side="rail"] .adm .orgsw__nm,
-:root[data-adm-side="rail"] .adm .orgsw__mt,
-:root[data-adm-side="rail"] .adm .orgsw__chev,
-:root[data-adm-side="rail"] .adm .navgrp__t,
-:root[data-adm-side="rail"] .adm .navi__t {
+:root:not([data-adm-side="wide"]) .adm .side__wm,
+:root:not([data-adm-side="wide"]) .adm .side__role,
+:root:not([data-adm-side="wide"]) .adm .orgsw__nm,
+:root:not([data-adm-side="wide"]) .adm .orgsw__mt,
+:root:not([data-adm-side="wide"]) .adm .orgsw__chev,
+:root:not([data-adm-side="wide"]) .adm .navgrp__t,
+:root:not([data-adm-side="wide"]) .adm .navi__t {
   opacity: 0;
   transition: opacity 0s 150ms;
 }
-:root[data-adm-side="rail"] .adm .side:hover .side__wm,
-:root[data-adm-side="rail"] .adm .side:hover .side__role,
-:root[data-adm-side="rail"] .adm .side:hover .orgsw__nm,
-:root[data-adm-side="rail"] .adm .side:hover .orgsw__mt,
-:root[data-adm-side="rail"] .adm .side:hover .orgsw__chev,
-:root[data-adm-side="rail"] .adm .side:hover .navgrp__t,
-:root[data-adm-side="rail"] .adm .side:hover .navi__t,
-:root[data-adm-side="rail"] .adm .side:focus-within .side__wm,
-:root[data-adm-side="rail"] .adm .side:focus-within .side__role,
-:root[data-adm-side="rail"] .adm .side:focus-within .orgsw__nm,
-:root[data-adm-side="rail"] .adm .side:focus-within .orgsw__mt,
-:root[data-adm-side="rail"] .adm .side:focus-within .orgsw__chev,
-:root[data-adm-side="rail"] .adm .side:focus-within .navgrp__t,
-:root[data-adm-side="rail"] .adm .side:focus-within .navi__t {
+:root:not([data-adm-side="wide"]) .adm .side:hover .side__wm,
+:root:not([data-adm-side="wide"]) .adm .side:hover .side__role,
+:root:not([data-adm-side="wide"]) .adm .side:hover .orgsw__nm,
+:root:not([data-adm-side="wide"]) .adm .side:hover .orgsw__mt,
+:root:not([data-adm-side="wide"]) .adm .side:hover .orgsw__chev,
+:root:not([data-adm-side="wide"]) .adm .side:hover .navgrp__t,
+:root:not([data-adm-side="wide"]) .adm .side:hover .navi__t,
+:root:not([data-adm-side="wide"]) .adm .side:focus-within .side__wm,
+:root:not([data-adm-side="wide"]) .adm .side:focus-within .side__role,
+:root:not([data-adm-side="wide"]) .adm .side:focus-within .orgsw__nm,
+:root:not([data-adm-side="wide"]) .adm .side:focus-within .orgsw__mt,
+:root:not([data-adm-side="wide"]) .adm .side:focus-within .orgsw__chev,
+:root:not([data-adm-side="wide"]) .adm .side:focus-within .navgrp__t,
+:root:not([data-adm-side="wide"]) .adm .side:focus-within .navi__t {
   opacity: 1;
 }
 
 /* 그룹 제목이 투명해지는 자리에 가는 선이 묶음을 표시한다. */
-:root[data-adm-side="rail"] .adm .navgrp + .navgrp {
+:root:not([data-adm-side="wide"]) .adm .navgrp + .navgrp {
   border-top: 1px solid color-mix(in oklab, var(--nav-ink) 12%, transparent);
   padding-top: 10px;
   transition: border-color 0s 150ms, padding-top 0s 150ms;
 }
-:root[data-adm-side="rail"] .adm .side:hover .navgrp + .navgrp,
-:root[data-adm-side="rail"] .adm .side:focus-within .navgrp + .navgrp {
+:root:not([data-adm-side="wide"]) .adm .side:hover .navgrp + .navgrp,
+:root:not([data-adm-side="wide"]) .adm .side:focus-within .navgrp + .navgrp {
   border-top-color: transparent;
   padding-top: 0;
 }
@@ -208,13 +211,13 @@
 }
 .adm .side__fold .ic { font-size: 16px; }
 /* 레일에서는 펼쳐지기 전까지 숨는다 — 26px 버튼이 아이콘 줄과 겹쳐 보이면 안 된다. */
-:root[data-adm-side="rail"] .adm .side__fold {
+:root:not([data-adm-side="wide"]) .adm .side__fold {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0s 150ms;
 }
-:root[data-adm-side="rail"] .adm .side:hover .side__fold,
-:root[data-adm-side="rail"] .adm .side:focus-within .side__fold {
+:root:not([data-adm-side="wide"]) .adm .side:hover .side__fold,
+:root:not([data-adm-side="wide"]) .adm .side:focus-within .side__fold {
   opacity: 1;
   pointer-events: auto;
 }
