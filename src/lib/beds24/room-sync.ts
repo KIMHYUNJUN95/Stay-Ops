@@ -332,6 +332,7 @@ async function upsertRoom(
   externalRoomId: string | null,
   minimumStay: number | null,
   supabase: SupabaseClient<Database>,
+  priceSourceRoomId: string | null = null,
 ): Promise<string | null> {
   const status = classifyBeds24Room(minimumStay);
   const shared = {
@@ -341,6 +342,7 @@ async function upsertRoom(
     external_provider: "beds24" as const,
     external_room_id: externalRoomId,
     external_minimum_stay: minimumStay,
+    external_price_source_room_id: priceSourceRoomId,
   };
 
   // external_room_id 가 없는 방은 예전처럼 라벨로 맞출 수밖에 없다(구분할 다른 값이 없다).
@@ -394,11 +396,15 @@ async function upsertRoom(
     // 실제로 한 번 돌렸다가 비활성 24개가 전부 활성이 됐다.
     //
     // minStay 와 status 의 주인은 inventory-sync 다. 이 동기화는 **방의 존재와 소속만** 맞춘다.
+    //
+    // 가격 소스 연결은 여기서 갱신한다 — `/properties?includePriceRules=true` 가 유일한
+    // 출처이고, 이게 낡으면 **엉뚱한 유닛에 가격을 쓰는데 Beds24 는 성공이라 답한다.**
     const identity = {
       organization_id: shared.organization_id,
       property_id: shared.property_id,
       external_provider: shared.external_provider,
       external_room_id: shared.external_room_id,
+      external_price_source_room_id: shared.external_price_source_room_id,
     };
     const updated = await supabase
       .from("rooms")
@@ -460,6 +466,11 @@ export type Beds24PropertyRoomSnapshot = {
     externalRoomId: string;
     minimumStay: number | null;
     roomLabel: string;
+    /**
+     * 가격을 써야 할 다른 유닛의 Beds24 roomId. 자기가 소스면 `null`.
+     * `priceRules[].priceLinking.roomId` 에서 온다 — `properties-room-master-sync.ts` 참고.
+     */
+    priceSourceRoomId?: string | null;
   }>;
 };
 
@@ -573,6 +584,7 @@ export async function syncBeds24PropertyRoomSnapshotForOrganization(
         room.externalRoomId,
         room.minimumStay,
         supabase,
+        room.priceSourceRoomId ?? null,
       );
 
       if (!roomId) {

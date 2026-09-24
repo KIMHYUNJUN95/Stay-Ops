@@ -1362,6 +1362,91 @@ export type Database = {
           },
         ]
       }
+      beds24_price_jobs: {
+        Row: {
+          attempt_count: number
+          completed_at: string | null
+          created_at: string
+          error: string | null
+          failed_room_ids: string[]
+          id: string
+          job_type: string
+          organization_id: string
+          processed_count: number
+          property_id: string | null
+          requested_by: string | null
+          requested_by_name: string | null
+          results: Json
+          room_updates: Json
+          started_at: string | null
+          status: string
+          total_count: number
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          failed_room_ids?: string[]
+          id?: string
+          job_type: string
+          organization_id: string
+          processed_count?: number
+          property_id?: string | null
+          requested_by?: string | null
+          requested_by_name?: string | null
+          results?: Json
+          room_updates: Json
+          started_at?: string | null
+          status?: string
+          total_count?: number
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          failed_room_ids?: string[]
+          id?: string
+          job_type?: string
+          organization_id?: string
+          processed_count?: number
+          property_id?: string | null
+          requested_by?: string | null
+          requested_by_name?: string | null
+          results?: Json
+          room_updates?: Json
+          started_at?: string | null
+          status?: string
+          total_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "beds24_price_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "beds24_price_jobs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "beds24_price_jobs_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       beds24_sync_state: {
         Row: {
           id: boolean
@@ -3808,6 +3893,7 @@ export type Database = {
         Row: {
           created_at: string
           external_minimum_stay: number | null
+          external_price_source_room_id: string | null
           external_provider: string | null
           external_room_id: string | null
           floor: string | null
@@ -3823,6 +3909,7 @@ export type Database = {
         Insert: {
           created_at?: string
           external_minimum_stay?: number | null
+          external_price_source_room_id?: string | null
           external_provider?: string | null
           external_room_id?: string | null
           floor?: string | null
@@ -3838,6 +3925,7 @@ export type Database = {
         Update: {
           created_at?: string
           external_minimum_stay?: number | null
+          external_price_source_room_id?: string | null
           external_provider?: string | null
           external_room_id?: string | null
           floor?: string | null

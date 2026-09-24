@@ -115,6 +115,45 @@ async function resolveBeds24AccessToken(): Promise<Beds24AccessTokenState> {
   }
 }
 
+/**
+ * 그 방의 **가격 소스**(메인) Beds24 roomId. 자기가 소스면 `null`.
+ *
+ * Beds24 에서 가격은 요금제(priceRule)의 연결로 퍼진다. `priceLinking.roomId` 가 채워져
+ * 있으면 **그 방의 가격은 저기서 온다**는 뜻이고, 가격을 쓸 때도 거기에 써야 한다.
+ *
+ * ```
+ * 450096 오쿠보 2-1 (메인)  priceRules[0].priceLinking.roomId = null
+ * 496532 1-13-1-2           priceRules[0].priceLinking.roomId = 450096
+ * 648399 OkuboCC            priceRules[0].priceLinking.roomId = 450096
+ * ```
+ *
+ * 저쪽은 이 표를 코드에 24줄로 박아 두었다(`BEDS24_PRICE_SOURCE_ROOM_ID`). 2026-09-24 에
+ * 이 규칙으로 파생한 결과와 대조해 **24/24 일치**를 확인했으므로 박아 두지 않고 동기화한다 —
+ * 박아 두면 Beds24 설정이 바뀌는 날부터 조용히 틀린 유닛에 쓴다.
+ *
+ * 요금제가 여럿이면 **가장 먼저 나오는 연결**을 쓴다(실측상 전부 하나뿐이고, 여럿이면
+ * 경고를 남긴다).
+ */
+function readPriceSourceRoomId(room: JsonRecord, externalRoomId: string): string | null {
+  const rules = Array.isArray(room.priceRules) ? room.priceRules : [];
+  const linked = new Set<string>();
+  for (const ruleValue of rules) {
+    const rule = asRecord(ruleValue);
+    const linking = rule ? asRecord(rule.priceLinking) : null;
+    const roomId = linking ? readString(linking, ["roomId"]) : null;
+    // 자기 자신을 가리키는 연결은 연결이 아니다.
+    if (roomId && roomId !== externalRoomId) linked.add(roomId);
+  }
+  if (linked.size === 0) return null;
+  if (linked.size > 1) {
+    console.warn("[beds24/master-sync] multiple price links; using the first", {
+      externalRoomId,
+      linked: [...linked],
+    });
+  }
+  return [...linked][0];
+}
+
 async function fetchBeds24PropertySnapshot(): Promise<
   { skipped: string[]; snapshot: Beds24PropertyRoomSnapshot[] } | { skipped: string[]; snapshot: null }
 > {
@@ -128,7 +167,9 @@ async function fetchBeds24PropertySnapshot(): Promise<
     return { skipped: [tokenState.skipped], snapshot: null };
   }
 
-  const propertiesUrl = `${env.baseUrl.replace(/\/$/, "")}/properties?includeAllRooms=true`;
+  // `includePriceRules` 가 있어야 가격 소스 연결이 온다 — 아래 `readPriceSourceRoomId` 참고.
+  const propertiesUrl =
+    `${env.baseUrl.replace(/\/$/, "")}/properties?includeAllRooms=true&includePriceRules=true`;
   try {
     const response = await fetch(propertiesUrl, {
       headers: {
@@ -182,7 +223,12 @@ async function fetchBeds24PropertySnapshot(): Promise<
           continue;
         }
 
-        rooms.push({ externalRoomId, minimumStay, roomLabel });
+        rooms.push({
+          externalRoomId,
+          minimumStay,
+          priceSourceRoomId: readPriceSourceRoomId(room, externalRoomId),
+          roomLabel,
+        });
       }
 
       snapshot.push({
