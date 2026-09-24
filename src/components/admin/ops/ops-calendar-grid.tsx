@@ -68,6 +68,7 @@ type Copy = {
   skippedSold: string;
   selectionEmpty: string;
   selectHint: string;
+  scopeRoomsHint: string;
 } & PanelCopy;
 
 /**
@@ -328,6 +329,7 @@ export function OpsCalendarGrid({
       day.startsMonth ? "m1" : "",
       roomKey && gapCells.has(`${roomKey}|${day.date}`) ? "gap" : "",
       roomKey && selectedKeys.has(selectionCellKey(roomKey, day.date)) ? "sel" : "",
+      editMode && roomKey && canSelect(roomKey, day.date) ? "pick" : "",
       // 선택 모드에서 **팔린 밤**은 고를 수 없다는 것이 보여야 한다.
       editMode && roomKey && soldCells.has(selectionCellKey(roomKey, day.date)) ? "sold" : "",
     ]
@@ -383,6 +385,15 @@ export function OpsCalendarGrid({
   const chip = (on: boolean, extra = "") =>
     `opsg__chip${on ? " on" : ""}${extra ? ` ${extra}` : ""}`;
 
+  /**
+   * 객실 칩은 **건물이 하나로 좁혀졌을 때만** 늘어놓는다.
+   *
+   * 「전체」에서는 객실이 91개다 — 칩으로 깔면 화면을 덮고 격자가 밀려난다. 저쪽 원본도
+   * 가격 모드에서는 건물 하나를 강제한다(`portfolioPriceBuilding`). 건물을 안 고른 상태에서는
+   * 격자에서 **객실명을 눌러** 행을 고르면 된다 — 그쪽이 더 직접적이기도 하다.
+   */
+  const showRoomChips = new Set(rooms.map((room) => room.propertyName)).size === 1;
+
   return (
     <div className="opsg">
       {/* ── 선택 모드 ────────────────────────────────────────────────────
@@ -411,18 +422,22 @@ export function OpsCalendarGrid({
             >
               {copy.scopeAll}
             </button>
-            {rooms.map((room) => (
-              <button
-                className={chip(scope.roomKeys.includes(room.key), "mini")}
-                key={`sc-${room.key}`}
-                onClick={() =>
-                  applyScope({ ...scope, roomKeys: toggleInList(scope.roomKeys, room.key) })
-                }
-                type="button"
-              >
-                {room.displayRoomLabel}
-              </button>
-            ))}
+            {showRoomChips ? (
+              rooms.map((room) => (
+                <button
+                  className={chip(scope.roomKeys.includes(room.key), "mini")}
+                  key={`sc-${room.key}`}
+                  onClick={() =>
+                    applyScope({ ...scope, roomKeys: toggleInList(scope.roomKeys, room.key) })
+                  }
+                  type="button"
+                >
+                  {room.displayRoomLabel}
+                </button>
+              ))
+            ) : (
+              <span className="opsg__ahint">{copy.scopeRoomsHint}</span>
+            )}
 
             <span className="opsg__adiv" />
 
@@ -498,27 +513,34 @@ export function OpsCalendarGrid({
               </button>
             ))}
 
-            <span className="opsg__spacer" />
-
-            <span className="opsg__count">
-              {selection.length > 0
-                ? `${copy.selectedCount.replace("{count}", String(selection.length))} · ${copy.selectedRooms.replace("{count}", String(selectedRoomCount))}`
-                : copy.selectionEmpty}
-            </span>
-            {/* 조용히 빼지 않는다 — 안 그러면 「42칸 고쳤다」고 믿는데 5칸은 안 바뀐다. */}
-            {skipped > 0 && (
-              <span className="opsg__skip">
-                {copy.skippedSold.replace("{count}", String(skipped))}
-              </span>
-            )}
-            {selection.length > 0 && (
-              <button className="opsg__clear" onClick={clearSelection} type="button">
-                {copy.scopeClear}
-              </button>
-            )}
           </>
         )}
       </div>
+
+      {/* 선택 현황 — 편집 바와 **한 줄로 붙여** 세로를 아낀다. 격자가 한 화면에 들어가야
+          쓸 수 있는 화면이고, 이 위로 줄이 하나 늘 때마다 객실 한 줄이 밀려난다. */}
+      {editMode && (
+        <div className="opsg__state">
+          <span className={`opsg__count${selection.length > 0 ? " on" : ""}`}>
+            {selection.length > 0
+              ? `${copy.selectedCount.replace("{count}", String(selection.length))} · ${copy.selectedRooms.replace("{count}", String(selectedRoomCount))}`
+              : copy.selectionEmpty}
+          </span>
+          {/* 조용히 빼지 않는다 — 안 그러면 「42칸 고쳤다」고 믿는데 5칸은 안 바뀐다. */}
+          {skipped > 0 && (
+            <span className="opsg__skip">
+              {copy.skippedSold.replace("{count}", String(skipped))}
+            </span>
+          )}
+          <span className="opsg__spacer" />
+          <span className="opsg__ahint">{copy.selectHint}</span>
+          {selection.length > 0 && (
+            <button className="opsg__clear" onClick={clearSelection} type="button">
+              {copy.scopeClear}
+            </button>
+          )}
+        </div>
+      )}
 
       {editMode && selection.length > 0 && (
         <OpsPricePanel
@@ -535,8 +557,6 @@ export function OpsCalendarGrid({
           }
         />
       )}
-
-      {editMode && <div className="opsg__hint">{copy.selectHint}</div>}
 
       <div className="opsg__head">
         <div className="opsg__corner">{copy.roomsHeader}</div>
@@ -657,7 +677,7 @@ export function OpsCalendarGrid({
                     <div className="opsg__track">
                       {days.map((day) => (
                         <div className={cellClass(day)} key={`r-${day.date}`}>
-                          {!occupied.has(day.date) && day.date >= today && (
+                          {!editMode && !occupied.has(day.date) && day.date >= today && (
                             <span className="opsg__plus">+</span>
                           )}
                         </div>

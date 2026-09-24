@@ -519,72 +519,107 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   선택 모드 (가격 수정)
+/* ═════════════════════════════════════════════════════════════════════════
+   선택 모드 · 조작 패널
 
-   평소에는 읽는 화면이다. 「가격 수정」을 누를 때만 칸이 선택 대상이 되고, 그 사실이
-   한눈에 보여야 한다 — 읽으려다 실수로 바꾸는 일을 막는 것이 이 구분의 목적이다.
-   ───────────────────────────────────────────────────────────────────────── */
+   평소에는 읽는 화면이다. 「가격 수정」을 눌러야 칸이 선택 대상이 된다 — 읽으려다 실수로
+   바꾸는 일을 막는 것이 이 구분의 목적이다.
+
+   ## 치수는 한 벌만 쓴다
+
+   상단 줄(`.ops__prop` 31px · `.ops__segbtn` 33px)보다 한 단계 작은 **28 / 24** 두 급으로만
+   쓴다. 같은 줄에 20·22·24·26px 이 섞이면 무엇이 같은 급인지 읽히지 않는다.
+
+     --ops-ctl   28px   누르면 무슨 일이 일어나는 것 (버튼 · 입력)
+     --ops-chip  24px   고르기만 하는 것 (칩 · 프리셋)
+
+   ## 세로를 아낀다
+
+   격자가 한 화면에 들어가야 쓸 수 있는 화면이다. 이 위로 줄이 하나 늘 때마다 객실 한 줄이
+   밀려나므로, 안내는 오른쪽 여백에 붙이고 빈 줄은 아예 그리지 않는다.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+.ops {
+  --ops-ctl: 28px;
+  --ops-chip: 24px;
+}
+
+/* ── 편집 바 ─────────────────────────────────────────────────────────── */
 
 .opsg__edit {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 5px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--line);
+  padding: 7px 10px 6px;
   background: var(--surface2);
+  /* **줄바꿈하지 않는다.** 칩이 늘어나도 격자를 아래로 밀지 않고 가로로 스크롤한다. */
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
+.opsg__edit::-webkit-scrollbar { height: 5px; }
+.opsg__edit::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
 
 .opsg__editbtn {
-  height: 26px;
-  padding: 0 12px;
+  /* 가로 스크롤에 휩쓸리면 **모드를 끄는 방법이 화면에서 사라진다.** 왼쪽에 고정한다. */
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  box-shadow: 6px 0 6px -6px hsl(20 14% 60% / 0.35);
+  height: var(--ops-ctl);
+  padding: 0 13px;
   border: 1px solid var(--adm-primary);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--card);
   color: var(--adm-primary);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: -0.01em;
+  white-space: nowrap;
   cursor: pointer;
   flex: 0 0 auto;
 }
+.opsg__editbtn:hover { background: color-mix(in oklab, var(--adm-primary) 8%, var(--card)); }
 .opsg__editbtn.on {
   background: var(--adm-primary);
+  border-color: var(--adm-primary);
   color: #fff;
 }
 
-/* 축 이름. 칩보다 약하게 둬야 칩이 먼저 읽힌다. */
+/* 축 이름. 칩보다 약해야 칩이 먼저 읽힌다. */
 .opsg__axis {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--faint);
-  margin-left: 4px;
+  margin-left: 5px;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 .opsg__adiv {
   width: 1px;
   height: 16px;
   background: var(--line);
-  margin: 0 3px;
+  margin: 0 4px;
+  flex: 0 0 auto;
 }
-.opsg__spacer { flex: 1 1 auto; }
 
 .opsg__chip {
-  height: 22px;
-  padding: 0 9px;
+  height: var(--ops-chip);
+  padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 7px;
   background: var(--card);
-  color: var(--ink);
+  color: var(--ink-soft);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: -0.01em;
+  white-space: nowrap;
   cursor: pointer;
   flex: 0 0 auto;
 }
-.opsg__chip.mini { padding: 0 6px; font-size: 10.5px; font-weight: 600; }
+.opsg__chip:hover { background: var(--adm-surface); }
+.opsg__chip.mini { padding: 0 7px; font-size: 10.5px; min-width: 24px; }
 /* 켜진 칩은 네이비 바탕이라 글자가 반드시 흰색이어야 한다.
    `.mini` 가 뒤에 오면 색을 덮으므로 **`.on` 을 마지막에 둔다.** */
 .opsg__chip.on {
@@ -593,12 +628,28 @@
   color: #fff;
 }
 
+/* ── 선택 현황 줄 ────────────────────────────────────────────────────── */
+
+.opsg__state {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px 6px;
+  border-bottom: 1px solid var(--line);
+  /* 편집 바와 **같은 바탕**이다. 색을 나누면 관련 없는 두 줄로 읽힌다. */
+  background: var(--surface2);
+  overflow: hidden;
+}
+.opsg__state .opsg__spacer { flex: 1 1 auto; }
+
 .opsg__count {
   font-size: 11px;
   font-weight: 700;
-  color: var(--soft);
+  color: var(--faint);
   white-space: nowrap;
 }
+.opsg__count.on { color: var(--adm-primary); font-weight: 800; }
+
 /* 빠진 칸 수. 「42칸 고쳤다」고 믿는데 5칸이 안 바뀌는 일을 막는 표시라 눈에 띄어야 한다. */
 .opsg__skip {
   font-size: 10.5px;
@@ -609,6 +660,17 @@
   padding: 2px 7px;
   white-space: nowrap;
 }
+
+/* 곁들이는 안내. 줄을 새로 만들지 않고 오른쪽 여백에 붙인다. */
+.opsg__ahint {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .opsg__clear {
   height: 22px;
   padding: 0 9px;
@@ -618,24 +680,20 @@
   color: var(--soft);
   font-size: 10.5px;
   font-weight: 700;
+  white-space: nowrap;
   cursor: pointer;
+  flex: 0 0 auto;
 }
+.opsg__clear:hover { background: var(--adm-surface); }
 
-/* 선택 모드 안내. 드래그·행·열을 쓸 수 있다는 것을 모르면 칩만 쓰게 된다. */
-.opsg .opsg__hint {
-  padding: 5px 10px;
-  font-size: 10.5px;
-  font-weight: 600;
-  color: var(--faint);
-  border-bottom: 1px solid var(--line-soft);
-}
+/* ── 격자 안의 선택 표시 ─────────────────────────────────────────────── */
 
 /* 고른 칸. 가격 글자를 덮지 않게 **바탕과 테두리로만** 표시한다. */
 .opsg__cell.sel {
-  background: color-mix(in oklab, var(--adm-primary) 13%, transparent);
+  background: color-mix(in oklab, var(--adm-primary) 14%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--adm-primary) 45%, transparent);
 }
-.opsg__cell.sel.we { background: color-mix(in oklab, var(--adm-primary) 15%, transparent); }
+.opsg__cell.sel.we { background: color-mix(in oklab, var(--adm-primary) 16%, transparent); }
 
 /* 팔린 밤은 고를 수 없다. 빗금으로 「여기는 대상이 아니다」를 말한다. */
 .opsg__cell.sold {
@@ -647,7 +705,6 @@
   );
 }
 
-/* 누를 수 있는 머리글·라벨. 선택 모드에서만 손가락 커서가 된다. */
 .opsg__day.pick,
 .opsg__label.pick { cursor: pointer; }
 .opsg__day.pick:hover { background: color-mix(in oklab, var(--adm-primary) 9%, transparent); }
@@ -655,69 +712,89 @@
 
 /* 선택 모드에서는 칸 안의 글자가 드래그로 잡히면 안 된다. */
 .opsg__edit ~ .opsg__scroll .opsg__cell { user-select: none; }
+/* 고를 수 있는 칸이라는 것이 손끝에 먼저 와야 한다.
+   **실제로 고를 수 있는 칸에만** 붙인다 — 예약 트랙 칸에까지 붙이면 커서가 거짓말을 한다. */
+.opsg__cell.pick { cursor: cell; }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   조작 패널 (가격 · 최소숙박)
+/* 접수됐지만 아직 Beds24 에 반영 안 된 값. 점선 밑줄로 「진행 중」을 말한다. */
+.opsg__price.pend {
+  color: var(--adm-primary);
+  font-weight: 800;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
 
-   **모드 토글이 없다.** 금액과 퍼센트는 같은 값을 정하는 두 방법이라 한 줄에 둔다.
-   잘못 쓰면 채널에 그대로 나가므로 「현재 → 변경」이 항상 보이고, 적용 전에 한 번 더 묻는다.
-   ───────────────────────────────────────────────────────────────────────── */
+/* ═══ 조작 패널 ══════════════════════════════════════════════════════════
+   **모드 토글이 없다.** 금액과 퍼센트는 같은 값을 정하는 두 방법이라 한 덩어리로 묶는다.
+   잘못 쓰면 채널에 그대로 나가므로 「현재 → 변경」이 항상 보인다.
+   ════════════════════════════════════════════════════════════════════════ */
 
 .opsp {
   border-bottom: 1px solid var(--line);
-  background: color-mix(in oklab, var(--adm-primary) 4%, var(--card));
+  background: color-mix(in oklab, var(--adm-primary) 5%, var(--card));
 }
 .opsp__row {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 8px 10px;
+  gap: 7px;
+  padding: 7px 10px;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
-.opsp__notes { padding-top: 0; gap: 8px; }
-.opsp__notes:empty { display: none; }
-
-.opsp__title {
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: var(--adm-primary);
-  margin-right: 2px;
-}
+.opsp__notes { padding-top: 0; }
 .opsp__spacer { flex: 1 1 auto; }
 
-.opsp__field {
+/* 입력 둘을 한 덩어리로. 떨어져 있으면 서로 다른 기능처럼 보인다. */
+.opsp__inputs {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.opsp__field input {
-  width: 78px;
-  height: 26px;
-  padding: 0 8px;
+  height: var(--ops-ctl);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--card);
-  font-size: 12px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.opsp__inputs:focus-within { border-color: var(--adm-primary); }
+.opsp__in {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 9px;
+  gap: 3px;
+}
+.opsp__in.pct { border-left: 1px solid var(--line); }
+.opsp__in input {
+  width: 66px;
+  border: 0;
+  background: transparent;
+  font-size: 12.5px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
-.opsp__field input:focus {
-  outline: none;
-  border-color: var(--adm-primary);
+.opsp__in.pct input { width: 44px; text-align: right; }
+.opsp__in input:focus { outline: none; }
+.opsp__in input::placeholder { font-weight: 600; color: var(--faint); }
+.opsp__unit {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--faint);
 }
 
-.opsp__preset {
-  height: 24px;
-  padding: 0 8px;
+/* 프리셋 — 붙여서 한 덩어리로 둔다. 일곱 개가 흩어지면 줄을 다 먹는다. */
+.opsp__presets {
+  display: flex;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 7px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.opsp__preset {
+  height: var(--ops-chip);
+  min-width: 34px;
+  padding: 0 6px;
+  border: 0;
   background: var(--card);
   color: var(--soft);
   font-size: 10.5px;
@@ -725,61 +802,65 @@
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
-.opsp__preset.on {
-  background: var(--adm-primary);
-  border-color: var(--adm-primary);
-  color: #fff;
-}
+.opsp__preset + .opsp__preset { border-left: 1px solid var(--line); }
+.opsp__preset:hover { background: var(--adm-surface); }
+.opsp__preset.on { background: var(--adm-primary); color: #fff; }
 
-/* 「현재 → 변경」. 이 줄이 안 보이면 무엇을 바꾸는지 모르고 누르게 된다. */
+/* 「현재 → 변경」. 이 패널에서 가장 중요한 줄이다. */
 .opsp__sum {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 12px;
+  gap: 6px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  flex: 0 0 auto;
 }
-.opsp__lbl {
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.opsp__arrow { color: var(--faint); }
-.opsp__new { color: var(--adm-primary); }
+.opsp__cur { font-size: 12px; font-weight: 700; color: var(--soft); }
+.opsp__arrow { font-size: 12px; color: var(--faint); }
+.opsp__new { font-size: 13.5px; font-weight: 800; color: var(--adm-primary); }
 
-.opsp__go {
-  height: 26px;
+/* 두 버튼은 **같은 크기**다 — 하나가 커 보이면 그쪽이 기본값처럼 읽힌다. */
+.opsp__acts {
+  display: flex;
+  gap: 5px;
+  flex: 0 0 auto;
+  /* 입력·프리셋이 길어져 가로로 밀려도 **적용은 항상 손이 닿아야 한다.** */
+  position: sticky;
+  right: 0;
+  padding-left: 7px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in oklab, var(--adm-primary) 5%, var(--card)) 7px
+  );
+}
+.opsp__go,
+.opsp__cancel {
+  height: var(--ops-ctl);
+  min-width: 68px;
   padding: 0 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.opsp__go {
   border: 1px solid var(--adm-primary);
-  border-radius: 7px;
   background: var(--card);
   color: var(--adm-primary);
-  font-size: 11.5px;
-  font-weight: 800;
-  cursor: pointer;
 }
 .opsp__go.on { background: var(--adm-primary); color: #fff; }
-.opsp__go:disabled { opacity: 0.4; cursor: default; }
+.opsp__go:disabled { opacity: 0.38; cursor: default; }
 .opsp__cancel {
-  height: 26px;
-  padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 7px;
   background: var(--card);
   color: var(--soft);
-  font-size: 11.5px;
-  font-weight: 700;
-  cursor: pointer;
 }
 
 /* 확인 한 줄. **채널에 나간다**는 사실을 여기서 말한다. */
 .opsp__confirm {
-  padding: 0 10px 8px;
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--adm-primary);
 }
 
@@ -789,33 +870,28 @@
   font-weight: 800;
   border-radius: 5px;
   padding: 2px 7px;
+  white-space: nowrap;
 }
 .opsp__warn {
   color: var(--danger);
   background: color-mix(in oklab, var(--danger) 10%, transparent);
 }
 .opsp__skip { color: var(--soft); background: var(--surface2); }
-.opsp__msg { font-size: 10.5px; font-weight: 700; color: var(--soft); }
+.opsp__msg { font-size: 10.5px; font-weight: 700; color: var(--soft); white-space: nowrap; }
 
 /* 1박 갭 — 이 버튼이 이 기능의 목적이다. 찾아만 주고 못 고치면 일이 한 단계 는다. */
-.opsp__gaptext { font-size: 10.5px; font-weight: 700; color: var(--danger); }
+.opsp__gaptext { font-size: 10.5px; font-weight: 700; color: var(--danger); white-space: nowrap; }
 .opsp__gapgo {
-  height: 24px;
-  padding: 0 11px;
+  height: var(--ops-chip);
+  padding: 0 12px;
   border: 1px solid var(--danger);
-  border-radius: 6px;
+  border-radius: 7px;
   background: var(--danger);
   color: #fff;
   font-size: 11px;
   font-weight: 800;
+  white-space: nowrap;
   cursor: pointer;
+  flex: 0 0 auto;
 }
 .opsp__gapgo:disabled { opacity: 0.45; cursor: default; }
-
-/* 접수됐지만 아직 Beds24 에 반영 안 된 값. 점선 밑줄로 「진행 중」을 말한다. */
-.opsg__price.pend {
-  color: var(--adm-primary);
-  font-weight: 800;
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
-}

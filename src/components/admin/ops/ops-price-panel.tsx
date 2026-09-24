@@ -220,131 +220,140 @@ export function OpsPricePanel({
   return (
     <div className="opsp">
       <div className="opsp__row">
-        <span className="opsp__title">{copy.panelTitle}</span>
+        {/* 입력 둘을 **한 덩어리**로 묶는다. 같은 값을 정하는 두 방법이라 떨어져 있으면
+            서로 다른 기능처럼 보인다. */}
+        <div className="opsp__inputs">
+          <label className="opsp__in">
+            <span className="opsp__unit">¥</span>
+            <input
+              aria-label={copy.panelAmount}
+              inputMode="numeric"
+              onChange={(event) => onAmount(event.target.value)}
+              placeholder={copy.panelAmount}
+              value={amountText}
+            />
+          </label>
+          <label className="opsp__in pct">
+            <input
+              aria-label={copy.panelPercent}
+              inputMode="numeric"
+              onChange={(event) => {
+                const value = Number.parseInt(event.target.value.replace(/[^\d-]/g, ""), 10);
+                if (Number.isFinite(value)) onPercent(value);
+                else {
+                  setPercentText(event.target.value);
+                  setInput(null);
+                }
+              }}
+              placeholder={copy.panelPercent}
+              value={percentText}
+            />
+            <span className="opsp__unit">%</span>
+          </label>
+        </div>
 
-        {/* 금액과 퍼센트를 **한 줄에** 둔다. 둘은 같은 값을 정하는 두 방법이다. */}
-        <label className="opsp__field">
-          <span>{copy.panelAmount}</span>
-          <input
-            inputMode="numeric"
-            onChange={(event) => onAmount(event.target.value)}
-            placeholder="¥"
-            value={amountText}
-          />
-        </label>
-        <label className="opsp__field">
-          <span>{copy.panelPercent}</span>
-          <input
-            inputMode="numeric"
-            onChange={(event) => {
-              const value = Number.parseInt(event.target.value.replace(/[^\d-]/g, ""), 10);
-              if (Number.isFinite(value)) onPercent(value);
-              else {
-                setPercentText(event.target.value);
-                setInput(null);
-              }
-            }}
-            placeholder="%"
-            value={percentText}
-          />
-        </label>
-
-        {PERCENT_PRESETS.map((preset) => (
-          <button
-            className={`opsp__preset${input?.kind === "percent" && input.percent === preset ? " on" : ""}`}
-            key={preset}
-            onClick={() => onPercent(preset)}
-            type="button"
-          >
-            {preset > 0 ? `+${preset}%` : `${preset}%`}
-          </button>
-        ))}
+        <div className="opsp__presets">
+          {PERCENT_PRESETS.map((preset) => (
+            <button
+              className={`opsp__preset${input?.kind === "percent" && input.percent === preset ? " on" : ""}`}
+              key={preset}
+              onClick={() => onPercent(preset)}
+              type="button"
+            >
+              {preset > 0 ? `+${preset}` : preset}
+            </button>
+          ))}
+        </div>
 
         <span className="opsp__spacer" />
 
-        {/* 현재 → 변경. 퍼센트는 칸마다 결과가 달라 **범위**로 보여준다. */}
+        {/* 「현재 → 변경」. 이 줄이 이 패널에서 가장 중요하다 — 무엇을 바꾸는지 모르고
+            누르는 일을 막는 것이 확인 단계의 전부다. 퍼센트는 칸마다 결과가 달라 범위로 쓴다. */}
         <span className="opsp__sum">
-          <span className="opsp__lbl">{copy.panelCurrent}</span>
-          <strong>{yen(preview.currentAverage)}</strong>
-          {input && preview.rows.length > 0 && (
-            <>
-              <span className="opsp__arrow">→</span>
-              <span className="opsp__lbl">{copy.panelNext}</span>
-              <strong className="opsp__new">
-                {preview.newMin === preview.newMax
-                  ? yen(preview.newMin)
-                  : `${yen(preview.newMin)} ~ ${yen(preview.newMax)}`}
-              </strong>
-            </>
-          )}
+          <span className="opsp__cur">{yen(preview.currentAverage)}</span>
+          <span className="opsp__arrow">→</span>
+          <strong className="opsp__new">
+            {input && preview.rows.length > 0
+              ? preview.newMin === preview.newMax
+                ? yen(preview.newMin)
+                : `${yen(preview.newMin)} ~ ${yen(preview.newMax)}`
+              : "—"}
+          </strong>
         </span>
 
         {confirming ? (
-          <>
-            <button className="opsp__go on" disabled={pending} onClick={apply} type="button">
-              {copy.panelConfirm}
-            </button>
+          <div className="opsp__acts">
             <button className="opsp__cancel" onClick={() => setConfirming(false)} type="button">
               {copy.panelCancel}
             </button>
-          </>
+            <button className="opsp__go on" disabled={pending} onClick={apply} type="button">
+              {copy.panelConfirm}
+            </button>
+          </div>
         ) : (
-          <button
-            className="opsp__go"
-            disabled={!input || preview.changedCount === 0 || pending}
-            onClick={() => setConfirming(true)}
-            type="button"
-          >
-            {copy.panelApply}
-          </button>
-        )}
-      </div>
-
-      {/* 확인 단계 — **무엇이 몇 칸 바뀌는지** 말하고 한 번 더 묻는다. */}
-      {confirming && (
-        <div className="opsp__confirm">
-          {copy.panelConfirmBody
-            .replace("{count}", String(preview.changedCount))
-            .replace("{rooms}", String(roomCount))}
-        </div>
-      )}
-
-      <div className="opsp__row opsp__notes">
-        {input && preview.changedCount === 0 && (
-          <span className="opsp__warn">{copy.panelNoChange}</span>
-        )}
-        {preview.skippedNoPrice > 0 && (
-          <span className="opsp__skip">
-            {copy.panelSkippedNoPrice.replace("{count}", String(preview.skippedNoPrice))}
-          </span>
-        )}
-        {warnings.map((warning) => (
-          <span className="opsp__warn" key={warning}>
-            {warningText(warning)}
-          </span>
-        ))}
-
-        {/* 1박 갭이 선택에 들어 있으면 그 자리에서 고칠 수 있어야 한다 —
-            찾아만 주고 못 고치면 오히려 일이 한 단계 는다. */}
-        {gapCells.length > 0 && (
-          <>
-            <span className="opsp__spacer" />
-            <span className="opsp__gaptext">
-              {copy.gapActionBody.replace("{count}", String(gapCells.length))}
-            </span>
+          <div className="opsp__acts">
             <button
-              className="opsp__gapgo"
-              disabled={pending}
-              onClick={applyOneNight}
+              className="opsp__go"
+              disabled={!input || preview.changedCount === 0 || pending}
+              onClick={() => setConfirming(true)}
               type="button"
             >
-              {copy.gapAction}
+              {copy.panelApply}
             </button>
-          </>
+          </div>
         )}
-
-        {message && <span className="opsp__msg">{message}</span>}
       </div>
+
+      {/* 아래 줄은 **할 말이 있을 때만** 뜬다. 빈 줄이 자리만 차지하면 격자가 밀린다. */}
+      {(confirming ||
+        message ||
+        warnings.length > 0 ||
+        gapCells.length > 0 ||
+        preview.skippedNoPrice > 0 ||
+        (input !== null && preview.changedCount === 0)) && (
+        <div className="opsp__row opsp__notes">
+          {confirming && (
+            <span className="opsp__confirm">
+              {copy.panelConfirmBody
+                .replace("{count}", String(preview.changedCount))
+                .replace("{rooms}", String(roomCount))}
+            </span>
+          )}
+          {input !== null && preview.changedCount === 0 && (
+            <span className="opsp__warn">{copy.panelNoChange}</span>
+          )}
+          {preview.skippedNoPrice > 0 && (
+            <span className="opsp__skip">
+              {copy.panelSkippedNoPrice.replace("{count}", String(preview.skippedNoPrice))}
+            </span>
+          )}
+          {warnings.map((warning) => (
+            <span className="opsp__warn" key={warning}>
+              {warningText(warning)}
+            </span>
+          ))}
+          {message && <span className="opsp__msg">{message}</span>}
+
+          {/* 1박 갭이 선택에 들어 있으면 그 자리에서 고칠 수 있어야 한다 —
+              찾아만 주고 못 고치면 오히려 일이 한 단계 는다. */}
+          {gapCells.length > 0 && (
+            <>
+              <span className="opsp__spacer" />
+              <span className="opsp__gaptext">
+                {copy.gapActionBody.replace("{count}", String(gapCells.length))}
+              </span>
+              <button
+                className="opsp__gapgo"
+                disabled={pending}
+                onClick={applyOneNight}
+                type="button"
+              >
+                {copy.gapAction}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
