@@ -17,9 +17,15 @@ import {
 } from "@/lib/ops-price-adjustment";
 
 /**
- * 가격·최소숙박 조작 패널.
+ * 가격·최소숙박 조작 패널 — **격자 오른쪽 세로 카드**.
  *
  * 도메인 계약: docs/product/33-calendar-write-features.md 「조정 방식 두 가지」
+ * 시안: Claude Design 「StayOps 운영 관리자 영역」 `3-select.dc.html`
+ *
+ * ## 왜 옆인가
+ *
+ * 위에 가로로 두면 그만큼 격자가 아래로 밀린다. **가격을 고칠 때야말로 객실을 아래까지 길게
+ * 봐야 한다.** 옆에 두면 세로를 0 먹고, 대신 숫자·제외 목록·설명을 세로로 쌓을 수 있다.
  *
  * ## 모드 토글이 없다
  *
@@ -48,6 +54,12 @@ export type PanelCopy = {
   panelConfirmBody: string;
   panelNoChange: string;
   panelIdle: string;
+  panelHint: string;
+  /** 「다음 · {count}칸 확인」 — 확인 단계로 넘어가는 버튼. */
+  panelGo: string;
+  panelTarget: string;
+  panelExcluded: string;
+  panelChannelNote: string;
   panelQueued: string;
   panelDone: string;
   panelFailed: string;
@@ -65,6 +77,9 @@ export type PanelCopy = {
   gapActionBody: string;
   minStayTitle: string;
 };
+
+/** 패널 머리말에 뜨는 「무엇을 고치는가」. */
+export type PanelScopeSummary = { rooms: string; dates: string };
 
 export type PanelCell = {
   roomKey: string;
@@ -99,13 +114,19 @@ function errorText(copy: PanelCopy, code: PriceChangeError): string {
 
 export function OpsPricePanel({
   cells,
+  clearLabel,
   copy,
   onApplied,
+  onClear,
+  scopeSummary,
 }: {
   cells: PanelCell[];
+  clearLabel: string;
   copy: PanelCopy;
   /** 접수되면 화면이 낙관적으로 새 값을 그린다. */
   onApplied: (applied: { roomKey: string; date: string; price: number }[]) => void;
+  onClear: () => void;
+  scopeSummary: PanelScopeSummary | null;
 }) {
   const [input, setInput] = useState<AdjustmentInput | null>(null);
   const [amountText, setAmountText] = useState("");
@@ -134,6 +155,11 @@ export function OpsPricePanel({
   );
   const gapCells = useMemo(() => cells.filter((cell) => cell.isGap), [cells]);
   const roomCount = new Set(preview.rows.map((row) => row.roomKey)).size;
+  /** 현재 평균 대비 몇 %인가. 금액을 직접 썼을 때 배지로 보여준다. */
+  const deltaPercent =
+    input && preview.rows.length > 0
+      ? percentFromAmount(preview.currentAverage, preview.newAverage)
+      : null;
 
   /** 금액을 쓰면 % 배지가 따라온다 — 모드 토글을 없앤 대가다. */
   const onAmount = (text: string) => {
@@ -177,12 +203,9 @@ export function OpsPricePanel({
     if (!input) return;
     // **서버 응답을 기다리기 전에 화면부터 바꾼다.** 왕복 동안 옛 값이 보이면 사람은
     // 「안 됐나?」 하고 다시 누른다(저쪽도 같은 이유로 낙관적 표시를 앞으로 당겼다).
-    const applied = preview.rows.map((row) => ({
-      date: row.date,
-      price: row.newPrice,
-      roomKey: row.roomKey,
-    }));
-    onApplied(applied);
+    onApplied(
+      preview.rows.map((row) => ({ date: row.date, price: row.newPrice, roomKey: row.roomKey })),
+    );
     setMessage(copy.panelQueued);
     setConfirming(false);
     startTransition(async () => {
@@ -217,16 +240,65 @@ export function OpsPricePanel({
   const warningText = (warning: string) =>
     warning === "zero" ? copy.warnZero : warning === "huge_drop" ? copy.warnDrop : copy.warnRise;
 
+  const hasSelection = preview.rows.length > 0;
+
   return (
-    <div className="opsp">
-      <div className="opsp__row">
-        {/* 입력 둘을 **한 덩어리**로 묶는다. 같은 값을 정하는 두 방법이라 떨어져 있으면
-            서로 다른 기능처럼 보인다. */}
+    <aside className="opsp">
+      <div className="opsp__head">
+        <div className="opsp__title">{copy.panelTitle}</div>
+        {/* **무엇을 고치는가**를 먼저 적는다. 「9칸」만으로는 어느 방 어느 날인지 모른 채
+            적용하게 되는데, 가격은 채널로 그대로 나간다. */}
+        <div className="opsp__target">
+          {scopeSummary ? (
+            <>
+              {scopeSummary.rooms}
+              <br />
+              {scopeSummary.dates}
+            </>
+          ) : (
+            copy.panelIdle
+          )}
+        </div>
+      </div>
+
+      <div className="opsp__body">
+        {/* 현재 평균 → 변경. 이 상자가 패널에서 가장 크다 — 무엇을 바꾸는지 모르고 누르는
+            일을 막는 것이 확인 단계의 전부다. */}
+        <div>
+          <div className="opsp__box">
+            <div className="opsp__cur">
+              <div className="opsp__lbl">{copy.panelCurrent}</div>
+              <div className="opsp__curv">{hasSelection ? yen(preview.currentAverage) : "—"}</div>
+            </div>
+            <div className="opsp__nx">
+              <div className="opsp__lbl">
+                {copy.panelNext}
+                {deltaPercent !== null && (
+                  <span className={`opsp__delta${deltaPercent < 0 ? " dn" : ""}`}>
+                    {deltaPercent > 0 ? `+${deltaPercent}%` : `${deltaPercent}%`}
+                  </span>
+                )}
+              </div>
+              {/* 퍼센트는 칸마다 결과가 달라 **범위**로 쓴다. */}
+              <div className="opsp__nxv">
+                {input && hasSelection
+                  ? preview.newMin === preview.newMax
+                    ? yen(preview.newMin)
+                    : `${yen(preview.newMin)} ~ ${yen(preview.newMax)}`
+                  : "—"}
+              </div>
+            </div>
+          </div>
+          <div className="opsp__hint">{copy.panelHint}</div>
+        </div>
+
+        {/* 금액과 퍼센트는 같은 값을 정하는 **두 가지 방법**이라 한 덩어리로 둔다. */}
         <div className="opsp__inputs">
           <label className="opsp__in">
             <span className="opsp__unit">¥</span>
             <input
               aria-label={copy.panelAmount}
+              disabled={!hasSelection}
               inputMode="numeric"
               onChange={(event) => onAmount(event.target.value)}
               placeholder={copy.panelAmount}
@@ -236,6 +308,7 @@ export function OpsPricePanel({
           <label className="opsp__in pct">
             <input
               aria-label={copy.panelPercent}
+              disabled={!hasSelection}
               inputMode="numeric"
               onChange={(event) => {
                 const value = Number.parseInt(event.target.value.replace(/[^\d-]/g, ""), 10);
@@ -255,51 +328,47 @@ export function OpsPricePanel({
         <div className="opsp__presets">
           {PERCENT_PRESETS.map((preset) => (
             <button
-              className={`opsp__preset${input?.kind === "percent" && input.percent === preset ? " on" : ""}`}
+              className={`opsp__preset${preset > 0 ? " up" : " dn"}${
+                input?.kind === "percent" && input.percent === preset ? " on" : ""
+              }`}
+              disabled={!hasSelection}
               key={preset}
               onClick={() => onPercent(preset)}
               type="button"
             >
-              {preset > 0 ? `+${preset}` : preset}
+              {preset > 0 ? `+${preset}%` : `${preset}%`}
             </button>
           ))}
         </div>
 
-        <span className="opsp__div" />
+        {/* 빠진 칸은 **개수가 아니라 이유**를 적는다 — 「아, 502호가 블록이었지」가 되어야 한다. */}
+        {preview.skippedNoPrice > 0 && (
+          <div className="opsp__note warn">
+            <span className="opsp__dot" />
+            <span>{copy.panelExcluded.replace("{count}", String(preview.skippedNoPrice))}</span>
+          </div>
+        )}
 
-        {/* 「현재 → 변경」. 이 줄이 이 패널에서 가장 중요하다 — 무엇을 바꾸는지 모르고
-            누르는 일을 막는 것이 확인 단계의 전부다. 퍼센트는 칸마다 결과가 달라 범위로 쓴다.
+        {input !== null && preview.changedCount === 0 && (
+          <div className="opsp__note warn">
+            <span className="opsp__dot" />
+            <span>{copy.panelNoChange}</span>
+          </div>
+        )}
+        {warnings.map((warning) => (
+          <div className="opsp__note danger" key={warning}>
+            <span className="opsp__dot" />
+            <span>{warningText(warning)}</span>
+          </div>
+        ))}
 
-            **입력 바로 옆에 둔다.** 오른쪽 끝으로 밀면 화면이 넓을수록 멀어져서, 금액을 치고
-            결과를 보려면 눈이 화면을 가로질러야 한다. */}
-        <span className="opsp__sum">
-          {preview.rows.length === 0 ? (
-            /* 고른 칸이 없어도 **줄은 남는다.** 사라졌다 나타나면 그 아래 격자가 들썩인다. */
-            <span className="opsp__idle">{copy.panelIdle}</span>
-          ) : (
-            <>
-              <span className="opsp__cur">{yen(preview.currentAverage)}</span>
-              <span className="opsp__arrow">→</span>
-              <strong className="opsp__new">
-                {input
-                  ? preview.newMin === preview.newMax
-                    ? yen(preview.newMin)
-                    : `${yen(preview.newMin)} ~ ${yen(preview.newMax)}`
-                  : "—"}
-              </strong>
-            </>
-          )}
-        </span>
-
-        {/* 1박 갭이 선택에 들어 있으면 그 자리에서 고칠 수 있어야 한다 — 찾아만 주고 못 고치면
-            오히려 일이 한 단계 는다. **첫 줄에 둔다**: 아래 줄이면 갭 칸을 고를 때마다 줄이
-            새로 생겨 격자가 밀린다. */}
+        {/* 1박 갭이 선택에 들어 있으면 그 자리에서 고칠 수 있어야 한다 —
+            찾아만 주고 못 고치면 오히려 일이 한 단계 는다. */}
         {gapCells.length > 0 && (
           <button
             className="opsp__gapgo"
             disabled={pending}
             onClick={applyOneNight}
-            title={copy.gapActionBody.replace("{count}", String(gapCells.length))}
             type="button"
           >
             {copy.gapAction}
@@ -307,58 +376,46 @@ export function OpsPricePanel({
           </button>
         )}
 
+        <div className="opsp__grow" />
+
+        {message && <div className="opsp__msg">{message}</div>}
+        {/* 채널 규칙을 화면에 적어 둔다 — 「왜 부킹닷컴은 안 바뀌지?」가 나오지 않게. */}
+        <div className="opsp__channel">{copy.panelChannelNote}</div>
+      </div>
+
+      <div className="opsp__foot">
         {confirming ? (
-          <div className="opsp__acts">
-            <button className="opsp__cancel" onClick={() => setConfirming(false)} type="button">
+          <>
+            <button className="opsp__btn" onClick={() => setConfirming(false)} type="button">
               {copy.panelCancel}
             </button>
-            <button className="opsp__go on" disabled={pending} onClick={apply} type="button">
-              {copy.panelConfirm}
+            <button className="opsp__btn go" disabled={pending} onClick={apply} type="button">
+              {copy.panelConfirmBody
+                .replace("{count}", String(preview.changedCount))
+                .replace("{rooms}", String(roomCount))}
             </button>
-          </div>
+          </>
         ) : (
-          <div className="opsp__acts">
+          <>
             <button
-              className="opsp__go"
+              className="opsp__btn"
+              disabled={!hasSelection}
+              onClick={onClear}
+              type="button"
+            >
+              {clearLabel}
+            </button>
+            <button
+              className="opsp__btn go"
               disabled={!input || preview.changedCount === 0 || pending}
               onClick={() => setConfirming(true)}
               type="button"
             >
-              {copy.panelApply}
+              {copy.panelGo.replace("{count}", String(preview.changedCount))}
             </button>
-          </div>
+          </>
         )}
       </div>
-
-      {/*
-        아래 줄은 **값을 치거나 누른 뒤에만** 뜬다.
-        칸을 고르는 동안 줄이 생겼다 사라지면 그 아래 격자가 위아래로 들썩여서, 고르는 내내
-        눈이 따라다녀야 한다. 그래서 선택 상태(갭 개수 · 가격 없는 칸 수)로는 열지 않는다 —
-        갭 버튼은 첫 줄로 올렸고, **실제로 몇 칸이 바뀌는지는 확인 단계가 말해 준다.**
-      */}
-      {(confirming ||
-        message ||
-        warnings.length > 0 ||
-        (input !== null && preview.changedCount === 0)) && (
-        <div className="opsp__row opsp__notes">
-          {confirming && (
-            <span className="opsp__confirm">
-              {copy.panelConfirmBody
-                .replace("{count}", String(preview.changedCount))
-                .replace("{rooms}", String(roomCount))}
-            </span>
-          )}
-          {input !== null && preview.changedCount === 0 && (
-            <span className="opsp__warn">{copy.panelNoChange}</span>
-          )}
-          {warnings.map((warning) => (
-            <span className="opsp__warn" key={warning}>
-              {warningText(warning)}
-            </span>
-          ))}
-          {message && <span className="opsp__msg">{message}</span>}
-        </div>
-      )}
-    </div>
+    </aside>
   );
 }

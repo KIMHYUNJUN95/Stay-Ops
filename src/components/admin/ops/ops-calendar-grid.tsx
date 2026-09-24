@@ -64,8 +64,7 @@ type Copy = {
   scopeWeekday: string;
   scopeClear: string;
   selectedCount: string;
-  selectedRooms: string;
-  selectionEmpty: string;
+  andMore: string;
   selectHint: string;
 } & PanelCopy;
 
@@ -211,10 +210,6 @@ export function OpsCalendarGrid({
   const weeks = useMemo(() => buildSelectableWeeks(dates, today), [dates, today]);
   const selectedKeys = useMemo(
     () => new Set(selection.map((cell) => selectionCellKey(cell.roomKey, cell.date))),
-    [selection],
-  );
-  const selectedRoomCount = useMemo(
-    () => new Set(selection.map((cell) => cell.roomKey)).size,
     [selection],
   );
 
@@ -414,10 +409,50 @@ export function OpsCalendarGrid({
   const allRoomsInScope =
     roomKeys.length > 0 && roomKeys.every((key) => scope.roomKeys.includes(key));
 
+  /**
+   * 패널 머리말에 뜨는 **무엇을 고쳤는가**.
+   *
+   * 「아라키초A · 402 · 501 · 502 / 11/20 → 11/22」. 숫자만 보여주면(「9칸」) 정작 **어느 방
+   * 어느 날**인지 모른 채 적용하게 된다 — 가격은 채널로 그대로 나간다.
+   *
+   * 객실이 많으면 앞의 넷만 적고 나머지는 개수로 줄인다. 날짜는 처음과 끝만 쓴다.
+   */
+  const scopeSummary = (() => {
+    if (selection.length === 0) return null;
+    const labelByKey = new Map(rooms.map((room) => [room.key, room.displayRoomLabel]));
+    const selectedRooms = [...new Set(selection.map((cell) => cell.roomKey))];
+    const properties = [
+      ...new Set(
+        selectedRooms.map((key) => rooms.find((room) => room.key === key)?.propertyName ?? ""),
+      ),
+    ].filter(Boolean);
+    const labels = selectedRooms.map((key) => labelByKey.get(key) ?? key);
+    const shown = labels.slice(0, 4).join(" · ");
+    const roomText =
+      labels.length > 4
+        ? `${shown} ${copy.andMore.replace("{count}", String(labels.length - 4))}`
+        : shown;
+    const selectedDates = [...new Set(selection.map((cell) => cell.date))].sort();
+    const short = (date: string) => date.slice(5).replace("-", "/");
+    const first = selectedDates[0];
+    const last = selectedDates[selectedDates.length - 1];
+    return {
+      dates: first === last ? short(first) : `${short(first)} → ${short(last)}`,
+      rooms: [properties.length === 1 ? properties[0] : "", roomText].filter(Boolean).join(" · "),
+    };
+  })();
+
   return (
-    /* 편집 모드를 뿌리에 표시한다. 형제 선택자(`.opsg__edit ~ …`)로 흉내 내면 마크업 순서가
-       바뀌는 날 조용히 깨진다. */
-    <div className={`opsg${editMode ? " is-edit" : ""}`}>
+    /*
+     * 편집 모드를 뿌리에 표시한다. 형제 선택자로 흉내 내면 마크업 순서가 바뀌는 날 조용히 깨진다.
+     *
+     * ## 조작 패널은 **격자 오른쪽**이다 (2026-09-24, 시안 3-select)
+     *
+     * 위에 가로로 두면 그만큼 격자가 아래로 밀리는데, **가격을 고칠 때야말로 객실을 아래까지
+     * 길게 봐야 한다.** 옆에 두면 세로를 0 먹고, 대신 숫자·제외 목록·설명을 세로로 쌓을 수
+     * 있다. 가격은 틀리면 채널로 그대로 나가므로 크게 보이는 편이 낫다.
+     */
+    <div className={`opsw${editMode ? " is-edit" : ""}`}>
       {/* ── 선택 모드 ────────────────────────────────────────────────────
           평소에는 읽는 화면이다. 「가격 수정」을 눌러야 칸이 선택 대상이 된다 —
           저쪽도 `priceMode` 토글로 갈라 놓았다. 읽기만 하려다 실수로 바꾸는 일을 막는다. */}
@@ -531,43 +566,9 @@ export function OpsCalendarGrid({
         )}
       </div>
 
-      {/* 선택 현황 — 편집 바와 **한 줄로 붙여** 세로를 아낀다. 격자가 한 화면에 들어가야
-          쓸 수 있는 화면이고, 이 위로 줄이 하나 늘 때마다 객실 한 줄이 밀려난다. */}
-      {editMode && (
-        <div className="opsg__state">
-          <span className={`opsg__count${selection.length > 0 ? " on" : ""}`}>
-            {selection.length > 0
-              ? `${copy.selectedCount.replace("{count}", String(selection.length))} · ${copy.selectedRooms.replace("{count}", String(selectedRoomCount))}`
-              : copy.selectionEmpty}
-          </span>
-          <span className="opsg__spacer" />
-          <span className="opsg__ahint">{copy.selectHint}</span>
-          {selection.length > 0 && (
-            <button className="opsg__clear" onClick={clearSelection} type="button">
-              {copy.scopeClear}
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* 선택이 비어도 **자리를 지킨다.** 고를 때마다 줄이 생겼다 사라지면 그 아래 격자가
-          위아래로 들썩여서, 칸을 고르는 동안 눈이 따라다녀야 한다. */}
-      {editMode && (
-        <OpsPricePanel
-          cells={panelCells}
-          copy={copy}
-          onApplied={(applied) =>
-            setPendingPrices((previous) => {
-              const next = new Map(previous);
-              for (const item of applied) {
-                next.set(selectionCellKey(item.roomKey, item.date), item.price);
-              }
-              return next;
-            })
-          }
-        />
-      )}
-
+      {/* 격자와 패널이 나란히 선다. 격자가 남는 폭을 전부 갖고, 패널은 고정 폭이다. */}
+      <div className="opsw__body">
+      <div className="opsg">
       <div className="opsg__head">
         <div className="opsg__corner">{copy.roomsHeader}</div>
         {days.map((day) => (
@@ -739,6 +740,27 @@ export function OpsCalendarGrid({
             })}
           </div>
         ))}
+      </div>
+      </div>
+
+      {editMode && (
+        <OpsPricePanel
+          cells={panelCells}
+          clearLabel={copy.scopeClear}
+          copy={copy}
+          onApplied={(applied) =>
+            setPendingPrices((previous) => {
+              const next = new Map(previous);
+              for (const item of applied) {
+                next.set(selectionCellKey(item.roomKey, item.date), item.price);
+              }
+              return next;
+            })
+          }
+          onClear={clearSelection}
+          scopeSummary={scopeSummary}
+        />
+      )}
       </div>
     </div>
   );

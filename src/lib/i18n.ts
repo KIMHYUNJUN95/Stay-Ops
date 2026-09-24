@@ -114,8 +114,8 @@ const FALLBACK_DICTIONARY = {
       scopeWeekday: "Mon-Thu",
       scopeClear: "Clear",
       selectedCount: "{count} cells",
-      selectedRooms: "{count} rooms",
-      selectionEmpty: "Pick rooms, weeks or days - or drag across the grid",
+      // 객실이 많을 때 뒤를 줄인다 — 머리말이 길어지면 정작 숫자가 안 읽힌다.
+      andMore: "+{count}",
       selectHint: "Drag to select. Click a room name or date header for the whole row or column",
       // ── 조작 패널 (4단계) ─────────────────────────────────────────────
       panelTitle: "Change prices",
@@ -130,6 +130,13 @@ const FALLBACK_DICTIONARY = {
       panelNoChange: "Nothing changes with this value",
       // 고른 칸이 없을 때. 줄은 남기고 무엇을 해야 하는지만 말한다.
       panelIdle: "Pick cells on the grid",
+      // ── 오른쪽 패널 (시안 3-select) ────────────────────────────────────
+      panelHint: "Type an amount, or tap a percentage below",
+      panelGo: "Next · confirm {count}",
+      panelTarget: "Target",
+      // 개수가 아니라 **이유**를 적는다 — 「아, 그 칸은 가격이 없었지」가 되어야 한다.
+      panelExcluded: "{count} cells excluded — no current price to work from",
+      panelChannelNote: "Airbnb price only. Beds24 derives the Booking.com price itself.",
       panelQueued: "Queued - applying to Beds24",
       panelDone: "Applied",
       panelFailed: "Failed: {error}",
@@ -5214,8 +5221,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       scopeWeekday: "평일·월~목",
       scopeClear: "해제",
       selectedCount: "{count}칸",
-      selectedRooms: "{count}객실",
-      selectionEmpty: "객실·기간·요일을 고르거나 격자를 드래그하세요",
+      // 객실이 많을 때 뒤를 줄인다 — 머리말이 길어지면 정작 숫자가 안 읽힌다.
+      andMore: "외 {count}",
       selectHint: "드래그로 선택 · 객실명이나 날짜를 누르면 그 줄 전체",
       // ── 조작 패널 (4단계) ─────────────────────────────────────────────
       panelTitle: "가격 변경",
@@ -5230,6 +5237,13 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       panelNoChange: "이 값으로는 바뀌는 칸이 없습니다",
       // 고른 칸이 없을 때. 줄은 남기고 무엇을 해야 하는지만 말한다.
       panelIdle: "격자에서 칸을 고르세요",
+      // ── 오른쪽 패널 (시안 3-select) ────────────────────────────────────
+      panelHint: "금액을 직접 쓰거나, 아래 퍼센트를 누르세요",
+      panelGo: "다음 · {count}칸 확인",
+      panelTarget: "대상",
+      // 개수가 아니라 **이유**를 적는다 — 「아, 그 칸은 가격이 없었지」가 되어야 한다.
+      panelExcluded: "{count}칸 자동 제외 — 기준이 될 현재 가격이 없습니다",
+      panelChannelNote: "에어비앤비 가격만 씁니다. 부킹닷컴은 Beds24 가 자동으로 맞춥니다.",
       panelQueued: "접수됨 — Beds24 에 반영 중",
       panelDone: "반영 완료",
       panelFailed: "실패: {error}",
@@ -10157,8 +10171,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       scopeWeekday: "平日・月〜木",
       scopeClear: "解除",
       selectedCount: "{count}セル",
-      selectedRooms: "{count}室",
-      selectionEmpty: "客室・期間・曜日を選ぶか、グリッドをドラッグしてください",
+      // 객실이 많을 때 뒤를 줄인다 — 머리말이 길어지면 정작 숫자가 안 읽힌다.
+      andMore: "他{count}",
       selectHint: "ドラッグで選択・客室名や日付で行・列を一括",
       // ── 조작 패널 (4단계) ─────────────────────────────────────────────
       panelTitle: "料金変更",
@@ -10173,6 +10187,13 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       panelNoChange: "この値では変わるセルがありません",
       // 고른 칸이 없을 때. 줄은 남기고 무엇을 해야 하는지만 말한다.
       panelIdle: "グリッドでセルを選んでください",
+      // ── 오른쪽 패널 (시안 3-select) ────────────────────────────────────
+      panelHint: "金額を直接入力するか、下のパーセントを押してください",
+      panelGo: "次へ・{count}セル確認",
+      panelTarget: "対象",
+      // 개수가 아니라 **이유**를 적는다 — 「아, 그 칸은 가격이 없었지」가 되어야 한다.
+      panelExcluded: "{count}セル自動除外 — 基準となる現在料金がありません",
+      panelChannelNote: "Airbnb料金のみ設定します。Booking.comはBeds24が自動で調整します。",
       panelQueued: "受付済み — Beds24へ反映中",
       panelDone: "反映完了",
       panelFailed: "失敗: {error}",
