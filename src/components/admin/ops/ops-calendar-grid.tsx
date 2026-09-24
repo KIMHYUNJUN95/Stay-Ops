@@ -154,11 +154,23 @@ export function OpsCalendarGrid({
   // 그리면 2,700칸짜리 화면에서 쓸 수 없다.
   const [editMode, setEditMode] = useState(false);
   const [scope, setScope] = useState<OpsSelectionScope>(EMPTY_SCOPE);
-  const [selection, setSelection] = useState<OpsSelectionCell[]>([]);
+  /**
+   * 고른 칸과 **직전 축이 기여한 칸**을 한 덩어리로 든다.
+   *
+   * 둘을 따로 두면 안 된다 — 전에는 축 키를 `useRef` 에 넣고 `setSelection` 업데이터 **안에서**
+   * 갱신했는데, React 는 업데이터를 **두 번 부른다**(StrictMode · 동시성 렌더). 두 번째 호출
+   * 때는 ref 가 이미 새 값이라 걷어낼 대상을 못 찾고, **객실 체크를 풀어도 그 칸이 그대로
+   * 남았다.**
+   *
+   * 한 state 로 두면 업데이터가 순수해져 몇 번을 불려도 같은 결과가 나온다.
+   */
+  const [selectionState, setSelectionState] = useState<{
+    cells: OpsSelectionCell[];
+    scopeKeys: Set<string>;
+  }>({ cells: [], scopeKeys: new Set() });
+  const selection = selectionState.cells;
   /** 팔려 있어서 선택에서 빠진 칸 수. **조용히 빼지 않는다.** */
   const [skipped, setSkipped] = useState(0);
-  // 직전 축이 기여한 칸. 축을 바꿀 때 **이것만** 걷어내고 직접 찍은 칸은 살린다.
-  const scopeKeysRef = useRef<Set<string>>(new Set());
   // 드래그: 누른 칸과 「더하는 중인가 빼는 중인가」. 누른 칸의 상태가 방향을 정한다.
   const dragRef = useRef<{ adding: boolean } | null>(null);
   const [dateAnchor, setDateAnchor] = useState<string | null>(null);
@@ -219,22 +231,21 @@ export function OpsCalendarGrid({
       scope: next,
       today,
     });
-    setSelection((previous) => {
+    // **순수 업데이터다.** 부수효과를 넣으면 두 번째 호출 때 어긋난다(위 주석 참고).
+    setSelectionState((previous) => {
       const applied = applyScopeToSelection({
         nextScopeCells: built.cells,
-        previous,
-        previousScopeKeys: scopeKeysRef.current,
+        previous: previous.cells,
+        previousScopeKeys: previous.scopeKeys,
       });
-      scopeKeysRef.current = applied.scopeKeys;
-      return applied.selection;
+      return { cells: applied.selection, scopeKeys: applied.scopeKeys };
     });
     setSkipped(built.skipped);
   };
 
   const clearSelection = () => {
     setScope(EMPTY_SCOPE);
-    scopeKeysRef.current = new Set();
-    setSelection([]);
+    setSelectionState({ cells: [], scopeKeys: new Set() });
     setSkipped(0);
     setDateAnchor(null);
   };
@@ -246,14 +257,17 @@ export function OpsCalendarGrid({
   const touchCell = (roomKey: string, date: string, adding: boolean) => {
     if (!canSelect(roomKey, date)) return;
     const key = selectionCellKey(roomKey, date);
-    setSelection((previous) => {
-      const has = previous.some(
+    setSelectionState((previous) => {
+      const has = previous.cells.some(
         (cell) => selectionCellKey(cell.roomKey, cell.date) === key,
       );
       if (adding === has) return previous;
-      return adding
-        ? [...previous, { date, roomKey }]
-        : previous.filter((cell) => selectionCellKey(cell.roomKey, cell.date) !== key);
+      return {
+        ...previous,
+        cells: adding
+          ? [...previous.cells, { date, roomKey }]
+          : previous.cells.filter((cell) => selectionCellKey(cell.roomKey, cell.date) !== key),
+      };
     });
   };
 
@@ -262,7 +276,10 @@ export function OpsCalendarGrid({
     const selectable = cells.filter((cell) => canSelect(cell.roomKey, cell.date));
     if (selectable.length === 0) return;
     setSkipped(cells.length - selectable.length);
-    setSelection((previous) => toggleCellGroup(previous, selectable));
+    setSelectionState((previous) => ({
+      ...previous,
+      cells: toggleCellGroup(previous.cells, selectable),
+    }));
   };
 
   /**

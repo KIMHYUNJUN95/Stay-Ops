@@ -224,3 +224,62 @@ describe("toggleCellGroup", () => {
     expect(toggleCellGroup(group, [])).toHaveLength(2);
   });
 });
+
+/**
+ * 축을 껐다 켜는 왕복.
+ *
+ * 2026-09-24 회귀 — 객실 체크를 풀어도 그 칸이 선택에 남아 있었다. 판정식은 멀쩡했고
+ * **부르는 쪽**이 축 키를 `useRef` 에 넣고 state 업데이터 **안에서** 갱신한 것이 원인이다.
+ * React 는 업데이터를 두 번 부르므로, 두 번째 호출 때는 ref 가 이미 새 값이라 걷어낼 대상을
+ * 못 찾는다.
+ *
+ * 그래서 여기서는 **같은 입력으로 두 번 불러도 결과가 같은지**를 고정한다 — 업데이터가
+ * 순수해야 한다는 요구를 테스트가 대신 말해 준다.
+ */
+describe("축 왕복 (2026-09-24 회귀)", () => {
+  const cell = (roomKey: string, date: string): OpsSelectionCell => ({ date, roomKey });
+
+  it("축을 끄면 그 축이 넣은 칸이 **사라진다**", () => {
+    const fromScope = [cell("201", "2026-10-01"), cell("201", "2026-10-02")];
+    const scopeKeys = new Set(fromScope.map((c) => selectionCellKey(c.roomKey, c.date)));
+
+    const off = applyScopeToSelection({
+      nextScopeCells: [],
+      previous: fromScope,
+      previousScopeKeys: scopeKeys,
+    });
+    expect(off.selection).toEqual([]);
+    expect([...off.scopeKeys]).toEqual([]);
+  });
+
+  it("**같은 입력으로 두 번 불러도 같다** — 업데이터가 순수해야 한다", () => {
+    const fromScope = [cell("201", "2026-10-01")];
+    const scopeKeys = new Set(fromScope.map((c) => selectionCellKey(c.roomKey, c.date)));
+    const args = { nextScopeCells: [], previous: fromScope, previousScopeKeys: scopeKeys };
+
+    expect(applyScopeToSelection(args)).toEqual(applyScopeToSelection(args));
+  });
+
+  it("껐다 켜면 다시 들어온다", () => {
+    const scoped = [cell("201", "2026-10-01")];
+    const keys = new Set(scoped.map((c) => selectionCellKey(c.roomKey, c.date)));
+    const off = applyScopeToSelection({ nextScopeCells: [], previous: scoped, previousScopeKeys: keys });
+    const on = applyScopeToSelection({
+      nextScopeCells: scoped,
+      previous: off.selection,
+      previousScopeKeys: off.scopeKeys,
+    });
+    expect(on.selection).toEqual(scoped);
+  });
+
+  it("축을 꺼도 **직접 찍은 칸**은 남는다", () => {
+    const manual = cell("202", "2026-10-09");
+    const scoped = cell("201", "2026-10-01");
+    const off = applyScopeToSelection({
+      nextScopeCells: [],
+      previous: [scoped, manual],
+      previousScopeKeys: new Set([selectionCellKey("201", "2026-10-01")]),
+    });
+    expect(off.selection).toEqual([manual]);
+  });
+});
