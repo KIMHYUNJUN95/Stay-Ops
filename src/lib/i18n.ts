@@ -322,9 +322,6 @@ const FALLBACK_DICTIONARY = {
     },
     console: {
       brandRole: "Operations Console",
-      // 기본은 아이콘 레일(올리면 펼쳐짐). 이 버튼은 **펼쳐 고정**을 켜고 끈다.
-      // 상태는 CSS 만 알고 React 는 모르므로 라벨도 한쪽으로 못 박지 않는다.
-      sideToggle: "Pin menu open",
       crumbOps: "Operations",
       headerToday: "Today's operations",
       searchPlaceholder: "Search rooms · staff · requests · reservations",
@@ -5415,9 +5412,6 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       },
       console: {
         brandRole: "운영 콘솔",
-        // 기본은 아이콘 레일(올리면 펼쳐짐). 이 버튼은 **펼쳐 고정**을 켜고 끈다.
-        // 상태는 CSS 만 알고 React 는 모르므로 라벨도 한쪽으로 못 박지 않는다.
-        sideToggle: "메뉴 고정 · 해제",
         crumbOps: "운영",
         headerToday: "오늘의 운영 현황",
         searchPlaceholder: "객실 · 직원 · 요청 · 예약 검색",
@@ -10359,9 +10353,6 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       },
       console: {
         brandRole: "運営コンソール",
-        // 기본은 아이콘 레일(올리면 펼쳐짐). 이 버튼은 **펼쳐 고정**을 켜고 끈다.
-        // 상태는 CSS 만 알고 React 는 모르므로 라벨도 한쪽으로 못 박지 않는다.
-        sideToggle: "メニューを固定・解除",
         crumbOps: "運営",
         headerToday: "本日の運営状況",
         searchPlaceholder: "客室 · スタッフ · リクエスト · 予約を検索",

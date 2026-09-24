@@ -95,192 +95,6 @@
   height: 100dvh;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   사이드바 — 기본은 아이콘 레일, 올리면 펼쳐진다 (2026-09-24)
-
-   판매 캘린더는 객실 90개 × 30일이 가로로 깔리는 화면이라 **248px 가 날짜 약 5일치**다.
-   눌러앉아 가격을 조정하는 동안 메뉴를 쓸 일도 거의 없다. 반대로 청소·채용처럼 들락날락하는
-   화면에서는 사이드바가 제값을 한다 — 그래서 없애지 않고, 기본을 레일로 두고 **올리면
-   펼친다.** 늘 펼쳐 두고 싶으면 핀 버튼으로 고정한다(기기에 기억된다).
-
-   ## 펼침은 본문을 밀지 않는다
-
-   레일은 격자에서 64px 자리를 계속 차지하고 펼쳐진 폭만 **본문 위로 떠오른다.** 밀어내면
-   마우스가 왼쪽을 스칠 때마다 격자 2,700칸이 다시 배치된다.
-
-   ## 세 가지를 반드시 같이 처리해야 한다
-
-   1. **글자가 줄바꿈하면 안 된다.** 64px 안에서 「게스트 피드백」이 네 줄이 되면 행 높이가
-      폭발한다. 투명하게만 만들고 자리를 두면 이게 그대로 일어난다 → `nowrap` + `min-width: 0`.
-   2. **아이콘 중심이 한 줄에 서야 한다.** 앱 마크 38px · 조직 로고 30px · 메뉴 아이콘 18px 로
-      크기가 다르므로 왼쪽만 맞추면 중심이 37·37·31 로 갈린다. 레일에서는 **여백으로 중심을
-      전부 32px 에 맞춘다.**
-   3. **그 여백이 같이 움직여야 한다.** 폭만 애니메이션하고 여백이 즉시 튀면 아이콘이 먼저
-      점프하고 상자가 뒤따라온다. 여백·여백·투명도에 **같은 곡선과 같은 지연**을 준다.
-   ───────────────────────────────────────────────────────────────────────── */
-
-/* **기본이 레일이다.** 펼쳐 고정한 사람만 `data-adm-side="wide"` 를 갖는다 —
-   속성이 없는 쪽이 기본이라, 인라인 스크립트가 못 돌아도 기본 동작이 그대로 나온다. */
-.adm { --adm-side-w: 248px; }
-:root:not([data-adm-side="wide"]) .adm { --adm-side-w: 64px; }
-
-/* 움직이는 모든 것이 같은 곡선·같은 지연을 쓴다. 지연이 없으면 마우스가 지나가기만 해도
-   펼쳐지고, 나갈 때도 같은 지연이 걸려 메뉴로 비스듬히 가는 동안 접히지 않는다. */
-:root:not([data-adm-side="wide"]) .adm .side,
-:root:not([data-adm-side="wide"]) .adm .side__brand,
-:root:not([data-adm-side="wide"]) .adm .orgsw,
-:root:not([data-adm-side="wide"]) .adm .orgsw__btn,
-:root:not([data-adm-side="wide"]) .adm .side__scroll,
-:root:not([data-adm-side="wide"]) .adm .navi,
-:root:not([data-adm-side="wide"]) .adm .side__wm,
-:root:not([data-adm-side="wide"]) .adm .side__role,
-:root:not([data-adm-side="wide"]) .adm .orgsw__nm,
-:root:not([data-adm-side="wide"]) .adm .orgsw__mt,
-:root:not([data-adm-side="wide"]) .adm .orgsw__chev,
-:root:not([data-adm-side="wide"]) .adm .navgrp__t,
-:root:not([data-adm-side="wide"]) .adm .navi__t,
-:root:not([data-adm-side="wide"]) .adm .side__fold {
-  transition:
-    width 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms,
-    padding 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms,
-    margin 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms,
-    opacity 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms,
-    box-shadow 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms;
-}
-@media (prefers-reduced-motion: reduce) {
-  :root:not([data-adm-side="wide"]) .adm .side,
-  :root:not([data-adm-side="wide"]) .adm .side * { transition-duration: 0s; }
-}
-
-/* 레일은 64px 자리를 지키고, 펼쳐진 폭만 본문 위로 넘친다(격자 칸은 그대로 있다). */
-:root:not([data-adm-side="wide"]) .adm .side {
-  width: var(--adm-side-w);
-  overflow: hidden;
-  z-index: 30;
-}
-:root:not([data-adm-side="wide"]) .adm .side:hover,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within {
-  width: 248px;
-  box-shadow: 14px 0 44px -18px rgba(20, 32, 43, 0.55);
-}
-/* `overflow-y: auto` 는 가로도 auto 로 만든다 — 레일에서 가로 스크롤바가 생기는 것을 막는다. */
-:root:not([data-adm-side="wide"]) .adm .side__scroll { overflow-x: hidden; }
-
-/* ── ① 글자가 줄바꿈하지 않게 ─────────────────────────────────────────── */
-:root:not([data-adm-side="wide"]) .adm .side__wm,
-:root:not([data-adm-side="wide"]) .adm .side__role,
-:root:not([data-adm-side="wide"]) .adm .orgsw__nm,
-:root:not([data-adm-side="wide"]) .adm .orgsw__mt,
-:root:not([data-adm-side="wide"]) .adm .navi__t {
-  white-space: nowrap;
-  /* `min-width: auto` 면 글자 폭만큼 버텨서 아이콘을 밀어낸다. */
-  min-width: 0;
-  overflow: hidden;
-}
-:root:not([data-adm-side="wide"]) .adm .side__brand,
-:root:not([data-adm-side="wide"]) .adm .orgsw__btn,
-:root:not([data-adm-side="wide"]) .adm .navi { overflow: hidden; }
-
-/* ── ② 아이콘 중심을 전부 32px 에 맞춘다 ─────────────────────────────── */
-/* 앱 마크 38px → 13 + 19 = 32 */
-:root:not([data-adm-side="wide"]) .adm .side__brand { padding-left: 13px; padding-right: 13px; }
-/* 조직 로고 30px → 상자를 로고 크기로 줄인다. 17 + 15 = 32 */
-:root:not([data-adm-side="wide"]) .adm .orgsw { margin-left: 17px; margin-right: 17px; }
-:root:not([data-adm-side="wide"]) .adm .orgsw__btn { padding-left: 0; padding-right: 0; }
-/* 메뉴 아이콘 18px → 23 + 9 = 32 */
-:root:not([data-adm-side="wide"]) .adm .side__scroll { padding-left: 0; padding-right: 0; }
-:root:not([data-adm-side="wide"]) .adm .navi { padding-left: 23px; padding-right: 23px; }
-/* 활성 표시 막대는 `.navi` 바깥(-12px)에 있다. 레일에서는 사이드바 밖으로 나가므로 붙인다. */
-:root:not([data-adm-side="wide"]) .adm .navi.on::before { left: 0; }
-
-:root:not([data-adm-side="wide"]) .adm .side:hover .side__brand,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .side__brand {
-  padding-left: 18px;
-  padding-right: 18px;
-}
-:root:not([data-adm-side="wide"]) .adm .side:hover .orgsw,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .orgsw {
-  margin-left: 12px;
-  margin-right: 12px;
-}
-:root:not([data-adm-side="wide"]) .adm .side:hover .orgsw__btn,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .orgsw__btn {
-  padding-left: 10px;
-  padding-right: 10px;
-}
-:root:not([data-adm-side="wide"]) .adm .side:hover .side__scroll,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .side__scroll {
-  padding-left: 12px;
-  padding-right: 12px;
-}
-:root:not([data-adm-side="wide"]) .adm .side:hover .navi,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .navi {
-  padding-left: 10px;
-  padding-right: 10px;
-}
-:root:not([data-adm-side="wide"]) .adm .side:hover .navi.on::before,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .navi.on::before { left: -12px; }
-
-/* ── ③ 글자는 투명도로만 다룬다 ──────────────────────────────────────── */
-/*
- * `display: none` 은 지연시킬 수 없어서 폭보다 먼저 사라지고 나타난다. 게다가 그룹 제목은
- * 높이를 가지므로 없애면 **세로가 통째로 출렁인다.** 투명도로 두면 높이가 유지돼 아이콘이
- * 제자리에 있고, 그 빈 줄이 묶음 사이 간격 노릇도 한다.
- */
-:root:not([data-adm-side="wide"]) .adm .side__wm,
-:root:not([data-adm-side="wide"]) .adm .side__role,
-:root:not([data-adm-side="wide"]) .adm .orgsw__nm,
-:root:not([data-adm-side="wide"]) .adm .orgsw__mt,
-:root:not([data-adm-side="wide"]) .adm .orgsw__chev,
-:root:not([data-adm-side="wide"]) .adm .navgrp__t,
-:root:not([data-adm-side="wide"]) .adm .navi__t,
-:root:not([data-adm-side="wide"]) .adm .side__fold { opacity: 0; }
-
-:root:not([data-adm-side="wide"]) .adm .side:hover .side__wm,
-:root:not([data-adm-side="wide"]) .adm .side:hover .side__role,
-:root:not([data-adm-side="wide"]) .adm .side:hover .orgsw__nm,
-:root:not([data-adm-side="wide"]) .adm .side:hover .orgsw__mt,
-:root:not([data-adm-side="wide"]) .adm .side:hover .orgsw__chev,
-:root:not([data-adm-side="wide"]) .adm .side:hover .navgrp__t,
-:root:not([data-adm-side="wide"]) .adm .side:hover .navi__t,
-:root:not([data-adm-side="wide"]) .adm .side:hover .side__fold,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .side__wm,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .side__role,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .orgsw__nm,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .orgsw__mt,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .orgsw__chev,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .navgrp__t,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .navi__t,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .side__fold { opacity: 1; }
-
-/* 핀 버튼은 레일에서 손이 닿지 않아야 한다(투명해도 클릭은 잡힌다). */
-:root:not([data-adm-side="wide"]) .adm .side__fold { pointer-events: none; }
-:root:not([data-adm-side="wide"]) .adm .side:hover .side__fold,
-:root:not([data-adm-side="wide"]) .adm .side:focus-within .side__fold { pointer-events: auto; }
-
-/* 펼쳐 고정 / 해제 버튼. */
-.adm .side__fold {
-  position: absolute;
-  top: 18px;
-  right: 12px;
-  width: 26px;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: color-mix(in oklab, var(--nav-ink) 62%, transparent);
-  cursor: pointer;
-  z-index: 2;
-}
-.adm .side__fold:hover {
-  background: color-mix(in oklab, var(--nav-ink) 12%, transparent);
-  color: var(--nav-ink);
-}
-.adm .side__fold .ic { font-size: 16px; }
-
 /* ── sidebar ── */
 .adm .side {
   background: linear-gradient(178deg, var(--nav), var(--nav2));
@@ -555,6 +369,161 @@
   color: var(--nav-muted);
   margin-top: 1px;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   사이드바 — 기본은 아이콘 레일, 올리면 펼쳐진다 (2026-09-24)
+
+   판매 캘린더는 객실 90개 × 30일이 가로로 깔리는 화면이라 **248px 가 날짜 약 5일치**다.
+   눌러앉아 가격을 조정하는 동안 메뉴를 쓸 일도 거의 없다. 반대로 청소·채용처럼 들락날락하는
+   화면에서는 사이드바가 제값을 한다 — 그래서 없애지 않고, 기본을 레일로 두고 **올리면
+   펼친다.**
+
+   조작은 **커서뿐이다.** 접기/펴기 버튼을 두지 않으므로 상태를 저장할 것도, 그리기 전에
+   복원할 것도 없다 — 규칙이 CSS 안에서 끝난다.
+
+   ## 펼침은 본문을 밀지 않는다
+
+   레일은 격자에서 64px 자리를 계속 차지하고 펼쳐진 폭만 **본문 위로 떠오른다.** 밀어내면
+   마우스가 왼쪽을 스칠 때마다 격자 2,700칸이 다시 배치된다.
+
+   ## 세 가지를 반드시 같이 처리해야 한다
+
+   1. **글자가 줄바꿈하면 안 된다.** 64px 안에서 「게스트 피드백」이 네 줄이 되면 행 높이가
+      폭발한다. 투명하게만 만들고 자리를 두면 이게 그대로 일어난다 → `nowrap` + `min-width: 0`.
+   2. **아이콘 중심이 한 줄에 서야 한다.** 앱 마크 38px · 조직 로고 30px · 메뉴 아이콘 18px 로
+      크기가 다르므로 왼쪽만 맞추면 중심이 37·37·31 로 갈린다. 레일에서는 **여백으로 중심을
+      전부 32px 에 맞춘다.**
+   3. **그 여백이 같이 움직여야 한다.** 폭만 애니메이션하고 여백이 즉시 튀면 아이콘이 먼저
+      점프하고 상자가 뒤따라온다. 여백·여백·투명도에 **같은 곡선과 같은 지연**을 준다.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.adm { --adm-side-w: 64px; }
+
+/* 움직이는 모든 것이 같은 곡선·같은 지연을 쓴다. 지연이 없으면 마우스가 지나가기만 해도
+   펼쳐지고, 나갈 때도 같은 지연이 걸려 메뉴로 비스듬히 가는 동안 접히지 않는다. */
+.adm .side,
+.adm .side__brand,
+.adm .orgsw,
+.adm .orgsw__btn,
+.adm .side__scroll,
+.adm .navi,
+.adm .side__wm,
+.adm .side__role,
+.adm .orgsw__nm,
+.adm .orgsw__mt,
+.adm .orgsw__chev,
+.adm .navgrp__t,
+.adm .navi__t {
+  transition:
+    width 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms,
+    padding 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms,
+    margin 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms,
+    opacity 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms,
+    box-shadow 170ms cubic-bezier(0.4, 0, 0.2, 1) 120ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .adm .side,
+  .adm .side * { transition-duration: 0s; }
+}
+
+/* 레일은 64px 자리를 지키고, 펼쳐진 폭만 본문 위로 넘친다(격자 칸은 그대로 있다). */
+.adm .side {
+  width: var(--adm-side-w);
+  overflow: hidden;
+  z-index: 30;
+}
+.adm .side:hover,
+.adm .side:focus-within {
+  width: 248px;
+  box-shadow: 14px 0 44px -18px rgba(20, 32, 43, 0.55);
+}
+/* `overflow-y: auto` 는 가로도 auto 로 만든다 — 레일에서 가로 스크롤바가 생기는 것을 막는다. */
+.adm .side__scroll { overflow-x: hidden; }
+
+/* ── ① 글자가 줄바꿈하지 않게 ─────────────────────────────────────────── */
+.adm .side__wm,
+.adm .side__role,
+.adm .orgsw__nm,
+.adm .orgsw__mt,
+.adm .navi__t {
+  white-space: nowrap;
+  /* `min-width: auto` 면 글자 폭만큼 버텨서 아이콘을 밀어낸다. */
+  min-width: 0;
+  overflow: hidden;
+}
+.adm .side__brand,
+.adm .orgsw__btn,
+.adm .navi { overflow: hidden; }
+
+/* ── ② 아이콘 중심을 전부 32px 에 맞춘다 ─────────────────────────────── */
+/* 앱 마크 38px → 13 + 19 = 32 */
+.adm .side__brand { padding-left: 13px; padding-right: 13px; }
+/* 조직 로고 30px → 상자를 로고 크기로 줄인다. 17 + 15 = 32 */
+.adm .orgsw { margin-left: 17px; margin-right: 17px; }
+.adm .orgsw__btn { padding-left: 0; padding-right: 0; }
+/* 메뉴 아이콘 18px → 23 + 9 = 32 */
+.adm .side__scroll { padding-left: 0; padding-right: 0; }
+.adm .navi { padding-left: 23px; padding-right: 23px; }
+/* 활성 표시 막대는 `.navi` 바깥(-12px)에 있다. 레일에서는 사이드바 밖으로 나가므로 붙인다. */
+.adm .navi.on::before { left: 0; }
+
+.adm .side:hover .side__brand,
+.adm .side:focus-within .side__brand {
+  padding-left: 18px;
+  padding-right: 18px;
+}
+.adm .side:hover .orgsw,
+.adm .side:focus-within .orgsw {
+  margin-left: 12px;
+  margin-right: 12px;
+}
+.adm .side:hover .orgsw__btn,
+.adm .side:focus-within .orgsw__btn {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.adm .side:hover .side__scroll,
+.adm .side:focus-within .side__scroll {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+.adm .side:hover .navi,
+.adm .side:focus-within .navi {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.adm .side:hover .navi.on::before,
+.adm .side:focus-within .navi.on::before { left: -12px; }
+
+/* ── ③ 글자는 투명도로만 다룬다 ──────────────────────────────────────── */
+/*
+ * `display: none` 은 지연시킬 수 없어서 폭보다 먼저 사라지고 나타난다. 게다가 그룹 제목은
+ * 높이를 가지므로 없애면 **세로가 통째로 출렁인다.** 투명도로 두면 높이가 유지돼 아이콘이
+ * 제자리에 있고, 그 빈 줄이 묶음 사이 간격 노릇도 한다.
+ */
+.adm .side__wm,
+.adm .side__role,
+.adm .orgsw__nm,
+.adm .orgsw__mt,
+.adm .orgsw__chev,
+.adm .navgrp__t,
+.adm .navi__t { opacity: 0; }
+
+.adm .side:hover .side__wm,
+.adm .side:hover .side__role,
+.adm .side:hover .orgsw__nm,
+.adm .side:hover .orgsw__mt,
+.adm .side:hover .orgsw__chev,
+.adm .side:hover .navgrp__t,
+.adm .side:hover .navi__t,
+.adm .side:focus-within .side__wm,
+.adm .side:focus-within .side__role,
+.adm .side:focus-within .orgsw__nm,
+.adm .side:focus-within .orgsw__mt,
+.adm .side:focus-within .orgsw__chev,
+.adm .side:focus-within .navgrp__t,
+.adm .side:focus-within .navi__t,
+.adm .side:focus-within .navi__t { opacity: 1; }
 
 /* ── main column ── */
 .adm .main {

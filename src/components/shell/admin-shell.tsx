@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import Link from "next/link";
-import { ChevronDown, PanelLeft, Search, Settings, Smartphone } from "lucide-react";
+import { ChevronDown, Search, Settings, Smartphone } from "lucide-react";
 import { MobilePreview } from "@/components/shell/mobile-preview";
 import "@/components/admin/admin-console.css";
 import { NotificationBell } from "@/components/admin/notification-bell";
@@ -54,28 +54,12 @@ export function AdminShell({ activeItem, children, mobileHref = "/mobile", title
     <main className="adm">
       <div className="app">
         {/*
-         * 사이드바를 **펼쳐 고정**한 사람에게만 그 상태를 그리기 전에 적용한다.
+         * ── Sidebar (warm espresso rail) ──
          *
-         * 기본은 아이콘 레일(마우스를 올리면 펼쳐진다)이고, 그건 속성 없이 CSS 가 낸다.
-         * 그래서 **이 스크립트가 못 돌아도 기본 동작은 나온다** — 고정해 둔 사람만
-         * 한 번 펼쳐지는 것을 놓친다.
-         *
-         * `useEffect` 로 읽으면 서버가 그린 화면이 먼저 칠해지고 그다음 바뀐다. admin 은
-         * 페이지 이동마다 서버 렌더라 **화면을 옮길 때마다 레이아웃이 한 번씩 튄다.**
-         * 이 스크립트는 사이드바 마크업보다 앞서 파싱되므로 튀는 순간이 없다.
-         *
-         * 상태는 뿌리 속성 하나에만 두고 **보이는 것은 전부 CSS 가 판단한다** —
-         * 그래서 hydration 불일치가 생길 여지 자체가 없다(React 는 이 값을 모른다).
+         * 평소에는 **아이콘만** 보이고 커서를 올리면 펼쳐진다. 조작 수단은 커서뿐이라
+         * 접기/펴기 버튼도, 저장할 상태도 없다 — 규칙이 전부 CSS 안에서 끝난다
+         * (admin-console.css 「사이드바 — 기본은 아이콘 레일」).
          */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "try{if(localStorage.getItem('stayops.adm.side')==='wide')" +
-              "document.documentElement.setAttribute('data-adm-side','wide')}catch(e){}",
-          }}
-        />
-
-        {/* ── Sidebar (warm espresso rail) ── */}
         <aside className="side">
           <Link className="side__brand" href="/admin">
             <span className="side__mark" aria-hidden="true" />
@@ -84,29 +68,6 @@ export function AdminShell({ activeItem, children, mobileHref = "/mobile", title
               <span className="side__role" style={{ display: "block" }}>{c.brandRole}</span>
             </span>
           </Link>
-
-          {/* 펼쳐 고정 / 해제. 기기에 기억된다.
-              기본은 아이콘만 남는 레일이고 **마우스를 올릴 때만** 펼쳐진다. 메뉴를 자주 쓰는
-              사람은 여기서 고정해 늘 펼쳐 둘 수 있다. */}
-          <button
-            aria-label={c.sideToggle}
-            className="side__fold"
-            onClick={() => {
-              const root = document.documentElement;
-              const pinned = root.getAttribute("data-adm-side") === "wide";
-              if (pinned) root.removeAttribute("data-adm-side");
-              else root.setAttribute("data-adm-side", "wide");
-              try {
-                localStorage.setItem("stayops.adm.side", pinned ? "rail" : "wide");
-              } catch {
-                // 저장이 막힌 브라우저(사생활 보호 모드 등)에서도 고정 자체는 된다.
-              }
-            }}
-            title={c.sideToggle}
-            type="button"
-          >
-            <span className="ic"><PanelLeft /></span>
-          </button>
 
           <div className="orgsw">
             <Link className="orgsw__btn" href="/admin/settings/organization" aria-label={c.orgSwitch}>
