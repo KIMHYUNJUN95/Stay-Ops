@@ -3,6 +3,7 @@ import { FileText, Info, X } from "lucide-react";
 import type { Dictionary } from "@/lib/i18n";
 import type { ApplicationDetail, ApplicationHistoryRow } from "@/lib/recruit/applications";
 import { JOB_APPLICATION_STATUSES, resumeKindOf } from "@/lib/recruit/status";
+import { ApplicationPrintSheet, RecruitPrintButton } from "./application-print-sheet";
 import { RecruitContactBlock, RecruitNoteBlock, RecruitPanelActions } from "./recruit-panel-client";
 
 /**
@@ -76,6 +77,9 @@ export function ApplicationDetailPanel({ application, history, resumeUrl, copy, 
         <div className="panel__h">
           <div className="panel__top">
             <span className="panel__kicker">{copy.detailAria}</span>
+            {/* 인쇄는 상태를 바꾸지 않는 보조 동작이라 하단 액션 바에 두지 않는다 — 그 바의
+                왼쪽(파괴)·오른쪽(진행) 자리는 반복 처리 중 오조작을 막으려고 고정돼 있다. */}
+            <RecruitPrintButton copy={copy} />
             <Link href={closeHref} className="panel__x" aria-label={copy.close} data-panel-close>
               <X />
             </Link>
@@ -314,6 +318,10 @@ export function ApplicationDetailPanel({ application, history, resumeUrl, copy, 
             고정된다. */}
         <RecruitPanelActions application={application} copy={copy} closeHref={closeHref} />
       </aside>
+
+      {/* 화면에서는 숨어 있고 인쇄할 때만 나타나는 A4 지원서 한 장(`recruit-console.css` 의
+          `@media print`). 休暇届 서식과 같은 방식이다. */}
+      <ApplicationPrintSheet application={application} copy={copy} />
     </>
   );
 }

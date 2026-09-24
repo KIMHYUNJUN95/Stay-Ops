@@ -228,6 +228,10 @@ Permissions · Invite Codes · Attendance Sites/QR 등)은 위 3개 그룹의 �
 - `useAdminPanelA11y`
 - `AdminExportButtons` — 콘솔의 **유일한** 내보내기 컨트롤 (아래 참조)
 - `admin-format` utilities for workbook download, yen formatting, and shared transport status pills
+- `.panel__tool` (2026-09-24) — 우측 상세 패널 헤더의 **보조 동작** 버튼 자리(닫기 왼쪽).
+  상태를 바꾸지 않는 동작만 여기 둔다. 하단 액션 바의 왼쪽(파괴)·오른쪽(진행) 자리는 반복 처리 중
+  오조작을 막으려고 고정돼 있어, 성격이 다른 버튼을 끼우면 그 고정이 깨진다. 첫 사용처는 채용
+  콘솔의 「인쇄」이고, 다른 콘솔 패널도 같은 자리를 그대로 쓴다.
 
 같은 역할의 월/일자/시간 선택, 드롭다운, 사유 입력 모달, 우측 패널 동작을 기능별 폴더에 다시 만들지
 않는다. 필요한 차이가 있으면 `src/components/admin/shared`의 프리미티브를 확장하거나 명시적인 디자인

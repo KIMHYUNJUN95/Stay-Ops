@@ -4879,3 +4879,24 @@ Beds24 설정의 그 칸은 **「予約Webhook」**(예약 웹훅)이고 저쪽 
 지금은 주기 동기화가 그 사이를 메운다.
 
 `npm run lint` / `npm run build` / `vitest` 344건 통과.
+
+## 2026-09-24 — 채용: 지원서 인쇄 (A4 한 장)
+
+예전 채용 사이트 관리자 포털에 있던 인쇄 기능을 StayOps 로 되살렸다.
+
+- `src/components/admin/recruit/application-print-sheet.tsx` — 화면에서 숨어 있는 A4 시트
+  `#rcSheet` + 헤더의 「인쇄」 버튼(`window.print()`)
+- `src/components/admin/recruit/recruit-console.css` — `@media print` 로 시트만 남긴다.
+  `admin-console.css` 의 전역 `body * { visibility:hidden }` 를 id 선택자로 되돌리고,
+  `position:fixed` 로 패널의 `overflow`·`transform` 밖으로 꺼낸다(休暇届 과 같은 처리)
+- `src/components/admin/admin-console.css` — `.panel__tool` 신설(패널 헤더 보조 동작 자리,
+  공용 프리미티브)
+- `src/lib/i18n.ts` — 9개 키 추가, ko/ja/en
+
+**연락처는 인쇄물에 포함한다.** Excel·PDF 내보내기(연락처 제외)와 판단이 갈리는 지점이라
+문서에 근거를 남겼다. 이력서 첨부는 인쇄에 포함하지 않는다(별도 파일, 형식 제각각).
+
+`npm run lint` / `npm run build` / `vitest` 354건 통과. 실제 인쇄 미리보기 육안 확인은 아직 안 했다.
+
+문서: `docs/product/30-recruit-workflow.md`(지원서 인쇄 절 신설),
+`docs/product/05-admin-web-ia.md`(`.panel__tool`), `docs/planning/01-decision-log.md`

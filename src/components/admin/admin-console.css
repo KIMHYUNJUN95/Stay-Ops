@@ -1166,6 +1166,34 @@
   text-transform: uppercase;
   color: var(--adm-muted);
 }
+/* 패널 헤더의 보조 동작(인쇄 등) — 닫기 버튼 왼쪽에 붙는다. 상태를 바꾸지 않는 동작만 여기 둔다:
+   하단 액션 바의 왼쪽(파괴)·오른쪽(진행) 자리는 반복 처리 중 오조작을 막으려고 고정돼 있고,
+   거기에 성격이 다른 버튼을 끼우면 그 고정이 깨진다. `.panel` 프리미티브의 일부이므로 다른
+   콘솔 패널도 그대로 쓴다(CLAUDE.md §4). */
+.adm .panel__tool {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.adm .panel__tool:hover {
+  background: var(--adm-surface);
+  color: var(--ink);
+}
+/* 보조 동작 버튼이 있으면 닫기 버튼은 그 옆에 붙는다(밀어내기는 이미 `.panel__tool` 이 한다). */
+.adm .panel__tool ~ .panel__x {
+  margin-left: 0;
+}
+
 .adm .panel__x {
   margin-left: auto;
   width: 34px;

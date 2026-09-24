@@ -540,3 +540,162 @@
     animation: none;
   }
 }
+
+/* ── 지원서 인쇄 (A4 한 장) ─────────────────────────────────────────────────
+ *
+ * 화면에서는 완전히 숨어 있고, 인쇄할 때만 이 시트 하나만 남는다. `休暇届`
+ * (`admin-console.css` 의 `@media print` + `#docSheet`)와 같은 방식이다 — 새 라우트를 만들지
+ * 않으므로 「인쇄」를 눌러도 패널이 닫히거나 목록 상태를 잃지 않는다.
+ *
+ * **`admin-console.css` 의 print 블록이 `body * { visibility:hidden }` 을 이미 걸어 둔다.**
+ * `.adm` 스코프가 아니라 전역이므로 이 페이지에도 적용된다. `#rcSheet` 를 id 선택자로 다시
+ * 보이게 하는 이유다(`#rcSheet` 는 0-1-0-0, `body *` 는 0-0-0-1 이라 !important 가 필요 없다).
+ *
+ * 색은 지정하지 않고 검정 본문 + 회색 라벨만 쓴다 — 종이에 아이보리 배경을 인쇄하지 않는다.
+ * 도메인 계약: docs/product/30-recruit-workflow.md → 지원서 인쇄
+ */
+.rcps {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 15mm;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  #rcSheet,
+  #rcSheet * {
+    visibility: visible;
+  }
+
+  /* 패널 안에 있던 시트를 페이지 원점으로 꺼낸다 — 안 그러면 패널의 `overflow`·`transform` 에
+     갇혀 한 귀퉁이만 인쇄된다(休暇届 에서 이미 겪은 것). */
+  #rcSheet {
+    display: block;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    color: #111;
+    font-size: 10.5pt;
+    line-height: 1.5;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .rcps__h {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12mm;
+    padding-bottom: 3mm;
+    border-bottom: 1.4pt solid #111;
+  }
+
+  .rcps__title {
+    margin: 0;
+    font-size: 17pt;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+
+  .rcps__name {
+    margin: 1.5mm 0 0;
+    font-size: 13pt;
+    font-weight: 700;
+  }
+
+  .rcps__meta {
+    display: flex;
+    gap: 7mm;
+    margin: 0;
+    text-align: right;
+  }
+
+  .rcps__meta div {
+    margin: 0;
+  }
+
+  .rcps__meta dt {
+    margin: 0;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #666;
+  }
+
+  .rcps__meta dd {
+    margin: 0.6mm 0 0;
+    font-size: 10pt;
+    font-weight: 700;
+  }
+
+  /* 섹션은 페이지 경계에서 쪼개지 않는다 — 제목만 남고 내용이 넘어가면 종이로 읽을 수 없다. */
+  .rcps__sec {
+    margin-top: 5mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .rcps__st {
+    margin: 0 0 2mm;
+    padding-bottom: 1mm;
+    border-bottom: 0.7pt solid #bbb;
+    font-size: 9.5pt;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: #444;
+  }
+
+  .rcps__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.8mm 8mm;
+  }
+
+  .rcps__f {
+    display: flex;
+    align-items: baseline;
+    gap: 4mm;
+    min-height: 6mm;
+    border-bottom: 0.5pt dotted #ccc;
+  }
+
+  .rcps__f--wide {
+    grid-column: 1 / -1;
+  }
+
+  .rcps__k {
+    flex: 0 0 32mm;
+    font-size: 9pt;
+    font-weight: 700;
+    color: #666;
+  }
+
+  .rcps__v {
+    flex: 1;
+    font-size: 10.5pt;
+    font-weight: 600;
+    word-break: break-word;
+  }
+
+  /* 지원 동기·검토 메모는 문장이라 줄바꿈을 원문 그대로 살린다. */
+  .rcps__p {
+    margin: 0;
+    padding: 2mm 0;
+    white-space: pre-wrap;
+    font-size: 10pt;
+    line-height: 1.6;
+    word-break: break-word;
+  }
+}
