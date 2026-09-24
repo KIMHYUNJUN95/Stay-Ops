@@ -1,0 +1,60 @@
+name: Beds24 price job worker
+
+# WHY THIS EXISTS
+# ---------------
+# 가격·최소숙박 수정은 화면에서 Beds24 로 바로 쏘지 않는다. `beds24_price_jobs` 에 접수만 하고
+# 워커가 처리한다 — Beds24 V2 의 5분 크레딧이 계정 단위라 즉시 순차 POST 하면 예약 동기화와
+# 다투고 429 가 나기 때문이다. **모바일에서 특히 중요하다**: 화면을 꺼도 서버가 끝낸다.
+#
+# 접수 직후에도 워커를 한 번 부른다(그쪽이 정상 경로다). 이 크론은 **안전망**이다 —
+# 그 호출이 실패했거나(네트워크·배포 중), 작업이 여럿 쌓였거나, 크레딧 쿨다운에 막혀
+# 미뤄졌을 때 이어받는다.
+#
+# CADENCE
+# -------
+# GitHub Actions 의 schedule 은 정시에 안 온다(이 저장소에서 `*/5` 가 실제로 40분~3시간 40분
+# 뒤에 돈 적이 있다). 그래서 이 크론에 **사람이 기다리는 반영**을 기대면 안 된다 — 즉시성은
+# 접수 직후 호출이 책임지고, 여기는 놓친 것을 줍는 역할이다.
+#
+# SETUP (one-time): repository secret `BEDS24_WEBHOOK_SECRET`
+#   `beds24-reconcile.yml` · `beds24-rates-sync.yml` 과 같은 값을 쓴다.
+
+on:
+  schedule:
+    # :03 / :13 / :23 / :33 / :43 / :53 — 요금 동기화(:07 …)와 겹치지 않게 둔다.
+    - cron: "3,13,23,33,43,53 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: beds24-price-job-worker
+  # 앞 실행이 아직 돌고 있으면 새로 시작하지 않는다. 워커 자체도 락으로 직렬화하지만,
+  # 크레딧을 두 배로 쓸 이유가 없다.
+  cancel-in-progress: false
+
+jobs:
+  price-job-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Drain Beds24 price job queue
+        env:
+          WORKER_URL: https://stay-ops-two.vercel.app/api/beds24/price-jobs/worker
+          WEBHOOK_SECRET: ${{ secrets.BEDS24_WEBHOOK_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK_SECRET}" ]; then
+            echo "::error::BEDS24_WEBHOOK_SECRET repository secret is not set — add it in repo Settings → Secrets → Actions."
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/price-job-worker.json -w '%{http_code}' \
+            -X POST "${WORKER_URL}" \
+            -H "x-beds24-webhook-secret: ${WEBHOOK_SECRET}" \
+            --max-time 120)
+          echo "HTTP ${code}"
+          cat /tmp/price-job-worker.json || true
+          echo
+          # 202 = 동기화 일시정지 상태(BEDS24_SYNC_PAUSED). 실패가 아니다.
+          if [ "${code}" != "200" ] && [ "${code}" != "202" ]; then
+            echo "::error::price job worker failed with HTTP ${code}"
+            exit 1
+          fi

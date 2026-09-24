@@ -1,6 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { hasPendingPriceJobs } from "@/lib/beds24/price-job-queue";
 import { buildRoomRatesWindow, syncBeds24RoomRates } from "@/lib/beds24/room-rates-sync";
 import { isBeds24SyncPaused } from "@/lib/beds24/sync-control";
+import {
+  acquireBeds24Lock,
+  getBeds24Cooldown,
+  RATES_SYNC_LOCK,
+  RATES_SYNC_LOCK_TTL_MS,
+  releaseBeds24Lock,
+} from "@/lib/beds24/sync-locks";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
 /**
@@ -62,9 +70,42 @@ async function handle(request: NextRequest) {
   }
 
   const window = buildRoomRatesWindow();
+  let lockId: string | null = null;
 
   try {
     const supabase = getSupabaseServiceClient();
+
+    // 크레딧은 계정 단위다 — 쓰기가 429 를 맞았으면 읽기도 쉬어야 한도가 풀린다.
+    const cooldown = await getBeds24Cooldown(supabase);
+    if (cooldown.active) {
+      return NextResponse.json(
+        { cooldownRemainingSec: cooldown.remainingSec, ok: true, skipped: "cooldown" },
+        { status: 202 },
+      );
+    }
+
+    // **쓰기 작업에 양보한다.** 저쪽이 실제로 겪은 사고다 — 작업이 POST 후 검증 재시도를
+    // 도는 사이 주기 동기화가 Beds24 에서 옛 가격을 읽어 캐시를 덮었고, 「Beds24 가
+    // 되돌렸다」는 허위 이력까지 남겼다. 우리 표가 되돌아가면 사람은 반영이 안 된 줄 알고
+    // 한 번 더 바꾼다.
+    if (await hasPendingPriceJobs(supabase)) {
+      return NextResponse.json(
+        { ok: true, skipped: "yielded_to_price_job" },
+        { status: 202 },
+      );
+    }
+
+    const lock = await acquireBeds24Lock(
+      supabase,
+      RATES_SYNC_LOCK,
+      "rates-sync",
+      RATES_SYNC_LOCK_TTL_MS,
+    );
+    if (!lock.acquired) {
+      return NextResponse.json({ ok: true, skipped: "lock_busy" }, { status: 202 });
+    }
+    lockId = lock.lockId;
+
     const organizationsResult = await supabase.from("organizations").select("id");
     if (organizationsResult.error) throw new Error(organizationsResult.error.message);
 
@@ -86,6 +127,10 @@ async function handle(request: NextRequest) {
   } catch (error) {
     console.error("[beds24/rates-sync] failed", error);
     return NextResponse.json({ ok: false, error: "rates_sync_failed" }, { status: 500 });
+  } finally {
+    if (lockId) {
+      await releaseBeds24Lock(getSupabaseServiceClient(), RATES_SYNC_LOCK, lockId);
+    }
   }
 }
 

@@ -1,0 +1,188 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  validateCalendarDateValues,
+  type CalendarDateValues,
+} from "@/lib/beds24/calendar-write-payload";
+import type { PriceJobRoomUpdate } from "@/lib/beds24/price-job-merge";
+import {
+  resolveMinStayWriteRoomId,
+  resolvePriceWriteRoomIds,
+  type WriteTargetUnit,
+} from "@/lib/beds24/write-target-room";
+import type { Database } from "@/types/database";
+
+/**
+ * 작업 큐에 넣는 쪽.
+ *
+ * 도메인 계약: docs/product/33-calendar-write-features.md 「작업 큐」
+ * 원본: STAY ARI Manager `functions/index.js` — `setRoomPrices`, `setMinStay`
+ *
+ * **여기서 대상 유닛이 정해진다.** 가격은 소스 유닛으로, 최소숙박은 그 날짜에 운영 중인
+ * 유닛으로 간다(`write-target-room.ts`). 화면은 「어느 객실·어느 날짜」만 말하고,
+ * 「어느 Beds24 유닛」은 서버가 정한다 — 화면이 정하면 규칙이 두 군데가 된다.
+ */
+
+type Client = SupabaseClient<Database>;
+
+/** 화면에서 올라오는 요청 단위 — 캘린더 한 칸. */
+export type PriceJobCellRequest = {
+  /** 우리 `rooms.id` 가 아니라 **캘린더 행**이다. 한 행 뒤에 유닛이 여럿일 수 있다. */
+  roomIds: string[];
+  roomLabel: string | null;
+  stayDate: string;
+  values: CalendarDateValues;
+};
+
+export type EnqueueResult =
+  | { ok: false; error: string }
+  | { ok: true; jobId: string; targetRooms: number; skippedDates: string[] };
+
+type RoomUnitRow = {
+  id: string;
+  external_room_id: string | null;
+  external_price_source_room_id: string | null;
+  property_id: string;
+};
+
+/**
+ * 칸 목록을 Beds24 유닛별 작업으로 바꿔 큐에 넣는다.
+ *
+ * 최소숙박은 **날짜마다** 대상 유닛이 달라질 수 있다 — 오쿠보C 는 10/1 에 판매 유닛이
+ * 바뀐다. 그래서 날짜 단위로 판정한다.
+ */
+export async function enqueueBeds24PriceJob(args: {
+  supabase: Client;
+  organizationId: string;
+  jobType: "price" | "min_stay";
+  cells: PriceJobCellRequest[];
+  requestedBy: string | null;
+  requestedByName: string | null;
+}): Promise<EnqueueResult> {
+  if (args.cells.length === 0) return { error: "바꿀 칸이 없습니다", ok: false };
+
+  // **큐에 넣기 전에 막는다.** 숫자가 아닌 값이 통과하면 Beds24 가 가격을 지운다.
+  for (const cell of args.cells) {
+    const invalid = validateCalendarDateValues({ [cell.stayDate]: cell.values });
+    if (invalid) return { error: invalid, ok: false };
+  }
+
+  const allRoomIds = [...new Set(args.cells.flatMap((cell) => cell.roomIds))];
+  const unitsResult = await args.supabase
+    .from("rooms")
+    .select("id, external_room_id, external_price_source_room_id, property_id")
+    .eq("organization_id", args.organizationId)
+    .in("id", allRoomIds);
+  if (unitsResult.error) return { error: "객실을 읽지 못했습니다", ok: false };
+
+  const unitByRoomId = new Map<string, RoomUnitRow>();
+  for (const row of (unitsResult.data ?? []) as RoomUnitRow[]) unitByRoomId.set(row.id, row);
+
+  // 그 날짜의 minStay 를 알아야 「운영 중인 유닛」을 고를 수 있다.
+  const stayDates = [...new Set(args.cells.map((cell) => cell.stayDate))];
+  const ratesResult = await args.supabase
+    .from("room_daily_rates")
+    .select("room_id, stay_date, min_stay")
+    .eq("organization_id", args.organizationId)
+    .in("room_id", allRoomIds)
+    .in("stay_date", stayDates);
+  const minStayByKey = new Map<string, number | null>();
+  for (const row of (ratesResult.data ?? []) as Array<{
+    room_id: string;
+    stay_date: string;
+    min_stay: number | null;
+  }>) {
+    minStayByKey.set(`${row.room_id}|${row.stay_date}`, row.min_stay);
+  }
+
+  const datesByExternalRoom = new Map<string, Record<string, CalendarDateValues>>();
+  const labelByExternalRoom = new Map<string, string | null>();
+  const propertyIds = new Set<string>();
+  const skippedDates: string[] = [];
+
+  for (const cell of args.cells) {
+    const units: WriteTargetUnit[] = cell.roomIds
+      .map((roomId) => unitByRoomId.get(roomId))
+      .filter((row): row is RoomUnitRow => !!row && !!row.external_room_id)
+      .map((row) => ({
+        externalPriceSourceRoomId: row.external_price_source_room_id,
+        externalRoomId: String(row.external_room_id),
+        id: row.id,
+        minStay: minStayByKey.get(`${row.id}|${cell.stayDate}`) ?? null,
+      }));
+    if (units.length === 0) {
+      skippedDates.push(cell.stayDate);
+      continue;
+    }
+    for (const roomId of cell.roomIds) {
+      const property = unitByRoomId.get(roomId)?.property_id;
+      if (property) propertyIds.add(property);
+    }
+
+    const targets =
+      args.jobType === "price"
+        ? resolvePriceWriteRoomIds(units)
+        : [resolveMinStayWriteRoomId(units)].filter((value): value is string => value !== null);
+
+    if (targets.length === 0) {
+      // 운영 중인 유닛이 없는 날짜다. **조용히 넘기지 않고** 몇 개가 빠졌는지 알려준다.
+      skippedDates.push(cell.stayDate);
+      continue;
+    }
+
+    for (const externalRoomId of targets) {
+      const dates = datesByExternalRoom.get(externalRoomId) ?? {};
+      dates[cell.stayDate] = cell.values;
+      datesByExternalRoom.set(externalRoomId, dates);
+      if (cell.roomLabel) labelByExternalRoom.set(externalRoomId, cell.roomLabel);
+    }
+  }
+
+  if (datesByExternalRoom.size === 0) {
+    return { error: "쓸 수 있는 객실이 없습니다 (그 날짜에 운영 중인 유닛 없음)", ok: false };
+  }
+
+  const roomUpdates: PriceJobRoomUpdate[] = [...datesByExternalRoom].map(
+    ([externalRoomId, dates]) => ({
+      dates,
+      externalRoomId,
+      roomLabel: labelByExternalRoom.get(externalRoomId) ?? null,
+    }),
+  );
+
+  const inserted = await args.supabase
+    .from("beds24_price_jobs")
+    .insert({
+      job_type: args.jobType,
+      organization_id: args.organizationId,
+      // 건물이 하나일 때만 기록한다 — 합치기가 건물 단위라 섞인 작업은 합치지 않는다.
+      property_id: propertyIds.size === 1 ? [...propertyIds][0] : null,
+      requested_by: args.requestedBy,
+      requested_by_name: args.requestedByName,
+      room_updates: roomUpdates as never,
+      total_count: roomUpdates.length,
+    })
+    .select("id")
+    .single();
+  if (inserted.error) {
+    console.error("[beds24/price-job] 큐 적재 실패", inserted.error);
+    return { error: "작업을 접수하지 못했습니다", ok: false };
+  }
+
+  return {
+    jobId: (inserted.data as { id: string }).id,
+    ok: true,
+    skippedDates,
+    targetRooms: roomUpdates.length,
+  };
+}
+
+/** 아직 안 끝난 작업이 있는가. 요금 동기화가 양보할지 판단할 때 쓴다. */
+export async function hasPendingPriceJobs(supabase: Client): Promise<boolean> {
+  const result = await supabase
+    .from("beds24_price_jobs")
+    .select("id")
+    .in("status", ["queued", "processing"])
+    .limit(1)
+    .maybeSingle();
+  return !result.error && !!result.data;
+}

@@ -1447,6 +1447,36 @@ export type Database = {
           },
         ]
       }
+      beds24_sync_locks: {
+        Row: {
+          expires_at: string
+          locked_at: string
+          locked_by: string | null
+          metadata: Json
+          name: string
+          reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          expires_at: string
+          locked_at?: string
+          locked_by?: string | null
+          metadata?: Json
+          name: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          expires_at?: string
+          locked_at?: string
+          locked_by?: string | null
+          metadata?: Json
+          name?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       beds24_sync_state: {
         Row: {
           id: boolean
