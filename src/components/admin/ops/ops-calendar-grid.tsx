@@ -8,6 +8,7 @@ import type {
   OpsCalendarRate,
   OpsCalendarRoom,
 } from "@/lib/ops-calendar";
+import { OpsPricePanel, type PanelCopy, type PanelCell } from "@/components/admin/ops/ops-price-panel";
 import {
   applyScopeToSelection,
   buildScopeCells,
@@ -67,7 +68,7 @@ type Copy = {
   skippedSold: string;
   selectionEmpty: string;
   selectHint: string;
-};
+} & PanelCopy;
 
 /**
  * 격자 칸의 가격 표기 — `42659` → `42.7K`.
@@ -161,6 +162,13 @@ export function OpsCalendarGrid({
   // 드래그: 누른 칸과 「더하는 중인가 빼는 중인가」. 누른 칸의 상태가 방향을 정한다.
   const dragRef = useRef<{ adding: boolean } | null>(null);
   const [dateAnchor, setDateAnchor] = useState<string | null>(null);
+  /**
+   * 접수했지만 아직 Beds24 에 반영되지 않은 값.
+   *
+   * 서버 응답을 기다리는 동안 옛 값이 보이면 사람은 「안 됐나?」 하고 다시 누른다.
+   * 다음 서버 렌더가 실제 값을 들고 오면 자연히 덮인다.
+   */
+  const [pendingPrices, setPendingPrices] = useState<Map<string, number>>(new Map());
 
   const dates = useMemo(() => days.map((day) => day.date), [days]);
   const roomKeys = useMemo(() => rooms.map((room) => room.key), [rooms]);
@@ -350,6 +358,28 @@ export function OpsCalendarGrid({
     };
   };
 
+  /**
+   * 선택된 칸을 패널이 쓰는 모양으로 바꾼다.
+   *
+   * `roomIds` 가 비어 있으면 **Beds24 에 대응하는 유닛이 없는 행**이라 고칠 수 없다.
+   * 보내 봐야 서버가 걸러내므로 여기서 뺀다.
+   */
+  const panelCells: PanelCell[] = selection
+    .map((cell) => {
+      const room = rooms.find((candidate) => candidate.key === cell.roomKey);
+      if (!room || room.roomIds.length === 0) return null;
+      const key = selectionCellKey(cell.roomKey, cell.date);
+      return {
+        date: cell.date,
+        isGap: gapCells.has(`${cell.roomKey}|${cell.date}`),
+        price: pendingPrices.get(key) ?? rates.get(key)?.price ?? null,
+        roomIds: room.roomIds,
+        roomKey: cell.roomKey,
+        roomLabel: room.displayRoomLabel,
+      };
+    })
+    .filter((cell): cell is PanelCell => cell !== null);
+
   const chip = (on: boolean, extra = "") =>
     `opsg__chip${on ? " on" : ""}${extra ? ` ${extra}` : ""}`;
 
@@ -490,6 +520,22 @@ export function OpsCalendarGrid({
         )}
       </div>
 
+      {editMode && selection.length > 0 && (
+        <OpsPricePanel
+          cells={panelCells}
+          copy={copy}
+          onApplied={(applied) =>
+            setPendingPrices((previous) => {
+              const next = new Map(previous);
+              for (const item of applied) {
+                next.set(selectionCellKey(item.roomKey, item.date), item.price);
+              }
+              return next;
+            })
+          }
+        />
+      )}
+
       {editMode && <div className="opsg__hint">{copy.selectHint}</div>}
 
       <div className="opsg__head">
@@ -573,14 +619,19 @@ export function OpsCalendarGrid({
                     {/* 가격. 값이 없으면 대시 — **0원이 아니다.** */}
                     <div className="opsg__track">
                       {days.map((day) => {
-                        const price = rates.get(`${room.key}|${day.date}`)?.price ?? null;
+                        const cellKey = selectionCellKey(room.key, day.date);
+                        const pendingPrice = pendingPrices.get(cellKey);
+                        const price =
+                          pendingPrice ?? rates.get(`${room.key}|${day.date}`)?.price ?? null;
                         return (
                           <div
                             className={cellClass(day, room.key)}
                             key={`p-${day.date}`}
                             {...cellHandlers(room.key, day.date)}
                           >
-                            <span className={`opsg__price${price === null ? " none" : ""}`}>
+                            <span
+                              className={`opsg__price${price === null ? " none" : ""}${pendingPrice === undefined ? "" : " pend"}`}
+                            >
                               {price === null ? "–" : formatPrice(price)}
                             </span>
                           </div>

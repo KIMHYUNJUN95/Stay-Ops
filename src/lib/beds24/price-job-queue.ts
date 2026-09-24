@@ -33,8 +33,15 @@ export type PriceJobCellRequest = {
   values: CalendarDateValues;
 };
 
+/** 문구가 아니라 **코드**다. 화면이 사전에서 골라 보여준다. */
+export type EnqueueError =
+  | "no_cells"
+  | "invalid_values"
+  | "no_writable_room"
+  | "enqueue_failed";
+
 export type EnqueueResult =
-  | { ok: false; error: string }
+  | { ok: false; error: EnqueueError }
   | { ok: true; jobId: string; targetRooms: number; skippedDates: string[] };
 
 type RoomUnitRow = {
@@ -58,12 +65,16 @@ export async function enqueueBeds24PriceJob(args: {
   requestedBy: string | null;
   requestedByName: string | null;
 }): Promise<EnqueueResult> {
-  if (args.cells.length === 0) return { error: "바꿀 칸이 없습니다", ok: false };
+  if (args.cells.length === 0) return { error: "no_cells", ok: false };
 
   // **큐에 넣기 전에 막는다.** 숫자가 아닌 값이 통과하면 Beds24 가 가격을 지운다.
   for (const cell of args.cells) {
     const invalid = validateCalendarDateValues({ [cell.stayDate]: cell.values });
-    if (invalid) return { error: invalid, ok: false };
+    if (invalid) {
+      // 사유는 로그에만 남긴다 — 화면에는 번역된 문구가 나가야 한다.
+      console.warn("[beds24/price-job] 입력 거부", { reason: invalid });
+      return { error: "invalid_values", ok: false };
+    }
   }
 
   const allRoomIds = [...new Set(args.cells.flatMap((cell) => cell.roomIds))];
@@ -72,7 +83,7 @@ export async function enqueueBeds24PriceJob(args: {
     .select("id, external_room_id, external_price_source_room_id, property_id")
     .eq("organization_id", args.organizationId)
     .in("id", allRoomIds);
-  if (unitsResult.error) return { error: "객실을 읽지 못했습니다", ok: false };
+  if (unitsResult.error) return { error: "enqueue_failed", ok: false };
 
   const unitByRoomId = new Map<string, RoomUnitRow>();
   for (const row of (unitsResult.data ?? []) as RoomUnitRow[]) unitByRoomId.set(row.id, row);
@@ -138,7 +149,7 @@ export async function enqueueBeds24PriceJob(args: {
   }
 
   if (datesByExternalRoom.size === 0) {
-    return { error: "쓸 수 있는 객실이 없습니다 (그 날짜에 운영 중인 유닛 없음)", ok: false };
+    return { error: "no_writable_room", ok: false };
   }
 
   const roomUpdates: PriceJobRoomUpdate[] = [...datesByExternalRoom].map(
@@ -165,7 +176,7 @@ export async function enqueueBeds24PriceJob(args: {
     .single();
   if (inserted.error) {
     console.error("[beds24/price-job] 큐 적재 실패", inserted.error);
-    return { error: "작업을 접수하지 못했습니다", ok: false };
+    return { error: "enqueue_failed", ok: false };
   }
 
   return {

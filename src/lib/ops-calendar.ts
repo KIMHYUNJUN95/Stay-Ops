@@ -140,6 +140,14 @@ export type OpsCalendarRoom = {
   displayRoomLabel: string;
   key: string;
   propertyName: string;
+  /**
+   * 이 행 뒤에 있는 우리 `rooms.id` 전부. **한 행에 Beds24 유닛이 여럿일 수 있다.**
+   *
+   * 쓰기에서 필요하다 — 가격은 소스 유닛으로, 최소숙박은 그 날짜에 운영 중인 유닛으로
+   * 가는데, 그 판정을 하려면 후보를 전부 넘겨야 한다(`price-job-queue.ts`).
+   * 비어 있으면 그 행은 **고칠 수 없다**(Beds24 에 대응하는 유닛이 없다는 뜻).
+   */
+  roomIds: string[];
 };
 
 /**
@@ -327,6 +335,7 @@ export async function getOpsCalendarData(
       displayRoomLabel: entry.displayRoomLabel,
       key,
       propertyName: entry.propertyName,
+      roomIds: [],
     });
   }
 
@@ -353,7 +362,9 @@ export async function getOpsCalendarData(
       getDisplayRoomLabel(propertyName, canonicalRoomKey) || canonicalRoomKey;
     const roomKey = toRoomAxisKey(propertyName, displayRoomLabel);
 
-    roomsByKey.set(roomKey, { displayRoomLabel, key: roomKey, propertyName });
+    if (!roomsByKey.has(roomKey)) {
+      roomsByKey.set(roomKey, { displayRoomLabel, key: roomKey, propertyName, roomIds: [] });
+    }
     bars.push({
       channel: toChannel(row.source),
       checkIn: row.check_in_date,
@@ -409,6 +420,12 @@ export async function getOpsCalendarData(
       const displayRoomLabel = getDisplayRoomLabel(propertyName, canonical) || canonical;
       roomKeyByUuid.set(row.id, toRoomAxisKey(propertyName, displayRoomLabel));
     }
+  }
+
+  // 쓰기에 필요하다 — 한 행 뒤의 유닛 후보 전부를 행에 달아 둔다.
+  for (const [roomUuid, roomKey] of roomKeyByUuid) {
+    const room = roomsByKey.get(roomKey);
+    if (room && !room.roomIds.includes(roomUuid)) room.roomIds.push(roomUuid);
   }
 
   // 창의 **하루 바깥까지** 읽는다. 갭 판정이 어제·내일을 보기 때문에, 가장자리에서 데이터가
