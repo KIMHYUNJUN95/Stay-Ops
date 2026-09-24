@@ -813,7 +813,6 @@
   scrollbar-width: thin;
 }
 .opsp__notes { padding-top: 0; }
-.opsp__spacer { flex: 1 1 auto; }
 
 /* 입력 둘을 한 덩어리로. 떨어져 있으면 서로 다른 기능처럼 보인다. */
 .opsp__inputs {
@@ -891,19 +890,15 @@
 .opsp__new { font-size: 13.5px; font-weight: 800; color: var(--adm-primary); }
 
 /* 두 버튼은 **같은 크기**다 — 하나가 커 보이면 그쪽이 기본값처럼 읽힌다. */
-.opsp__acts {
-  display: flex;
-  gap: 5px;
+.opsp__acts { display: flex; gap: 5px; flex: 0 0 auto; }
+
+/* 입력 · 결과 · 적용을 갈라 주는 가는 선. 셋이 붙어 있어야 눈이 한 번에 훑는다. */
+.opsp__div {
+  width: 1px;
+  height: 18px;
+  background: var(--line);
+  margin: 0 4px;
   flex: 0 0 auto;
-  /* 입력·프리셋이 길어져 가로로 밀려도 **적용은 항상 손이 닿아야 한다.** */
-  position: sticky;
-  right: 0;
-  padding-left: 7px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    color-mix(in oklab, var(--adm-primary) 5%, var(--card)) 7px
-  );
 }
 .opsp__go,
 .opsp__cancel {

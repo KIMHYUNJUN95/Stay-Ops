@@ -265,10 +265,13 @@ export function OpsPricePanel({
           ))}
         </div>
 
-        <span className="opsp__spacer" />
+        <span className="opsp__div" />
 
         {/* 「현재 → 변경」. 이 줄이 이 패널에서 가장 중요하다 — 무엇을 바꾸는지 모르고
-            누르는 일을 막는 것이 확인 단계의 전부다. 퍼센트는 칸마다 결과가 달라 범위로 쓴다. */}
+            누르는 일을 막는 것이 확인 단계의 전부다. 퍼센트는 칸마다 결과가 달라 범위로 쓴다.
+
+            **입력 바로 옆에 둔다.** 오른쪽 끝으로 밀면 화면이 넓을수록 멀어져서, 금액을 치고
+            결과를 보려면 눈이 화면을 가로질러야 한다. */}
         <span className="opsp__sum">
           <span className="opsp__cur">{yen(preview.currentAverage)}</span>
           <span className="opsp__arrow">→</span>
@@ -338,7 +341,7 @@ export function OpsPricePanel({
               찾아만 주고 못 고치면 오히려 일이 한 단계 는다. */}
           {gapCells.length > 0 && (
             <>
-              <span className="opsp__spacer" />
+              <span className="opsp__div" />
               <span className="opsp__gaptext">
                 {copy.gapActionBody.replace("{count}", String(gapCells.length))}
               </span>
