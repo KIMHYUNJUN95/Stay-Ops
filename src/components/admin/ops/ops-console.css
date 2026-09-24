@@ -578,12 +578,19 @@
 
 /* ── 편집 바 ─────────────────────────────────────────────────────────── */
 
+/*
+ * 평소에는 **버튼 하나만** 놓인 줄이다.
+ *
+ * 전에는 이 줄이 격자 카드 **안**에 있어서 `--surface2` 바탕이 머리띠처럼 읽혔다. 패널을
+ * 옆으로 빼면서 카드 밖으로 나왔는데, 페이지 바탕과 색이 비슷해 **희미한 빈 상자**로 보였다.
+ * 편집 모드일 때만 카드가 된다(시안의 `.scope` 블록과 같다).
+ */
 .opsg__edit {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 7px 10px 6px;
-  background: var(--surface2);
+  padding: 0;
+  background: transparent;
   /* 객실 칩을 없앤 뒤로는 평소에 한 줄에 들어간다. 좁은 화면에서만 가로로 스크롤한다 —
      **줄바꿈은 하지 않는다.** 줄이 하나 늘 때마다 격자에서 객실 한 줄이 밀려난다.
      스크롤바는 숨긴다 — 넘칠 때만 생기는 막대가 **줄 높이를 바꿔 격자를 밀어낸다**
@@ -592,13 +599,20 @@
   scrollbar-width: none;
 }
 .opsg__edit::-webkit-scrollbar { display: none; }
+.opsw.is-edit .opsg__editbtn { box-shadow: 6px 0 6px -6px hsl(20 14% 60% / 0.35); }
+.opsw.is-edit .opsg__edit {
+  padding: 7px 10px 6px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: 0 10px 26px -24px rgb(20 32 43 / 0.6);
+}
 
 .opsg__editbtn {
   /* 가로 스크롤에 휩쓸리면 **모드를 끄는 방법이 화면에서 사라진다.** 왼쪽에 고정한다. */
   position: sticky;
   left: 0;
   z-index: 2;
-  box-shadow: 6px 0 6px -6px hsl(20 14% 60% / 0.35);
   height: var(--ops-ctl);
   padding: 0 13px;
   border: 1px solid var(--adm-primary);
@@ -774,6 +788,15 @@
   flex: 0 0 302px;
   display: flex;
   flex-direction: column;
+  /*
+   * **내용 높이만큼만 선다.**
+   *
+   * 늘리면 격자 높이(객실 90개 = 화면 끝까지)를 따라가고, 바닥에 붙은 「다음 · N칸 확인」이
+   * 프리셋에서 한참 아래로 떨어진다 — 값을 누르고 적용하려면 마우스가 화면을 세로로
+   * 가로질러야 한다. 시안은 객실 11개짜리라 이 차이가 안 보였다.
+   */
+  align-self: flex-start;
+  max-height: 100%;
   min-height: 0;
   background: var(--card);
   border: 1px solid var(--line);
@@ -802,6 +825,7 @@
   gap: 12px;
   padding: 13px 15px;
 }
+/* 패널이 화면 높이에 닿았을 때만 쓰인다(내용이 짧으면 0). */
 .opsp__grow { flex: 1 1 auto; }
 
 /* 현재 → 변경. 패널에서 가장 큰 요소다. */
