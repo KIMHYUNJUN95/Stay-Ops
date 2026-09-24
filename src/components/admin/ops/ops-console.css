@@ -1041,3 +1041,18 @@
   background: color-mix(in oklab, var(--adm-primary) 70%, transparent);
   pointer-events: none;
 }
+
+/* 동기화 신선도. 오래됐으면 눈에 띄어야 한다 — 몇 시간 된 가격으로 퍼센트를 조정하면
+   그대로 채널에 나간다. */
+.ops__meta { display: inline-flex; align-items: center; gap: 7px; }
+.ops__dot2 {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--faint);
+}
+.ops__meta.stale {
+  color: var(--danger);
+  font-weight: 700;
+}
+.ops__meta.stale .ops__dot2 { background: var(--danger); }

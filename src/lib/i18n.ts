@@ -97,6 +97,12 @@ const FALLBACK_DICTIONARY = {
       // 1박 갭 — 팔 수 있는 밤이 하루인데 최소 2박이라 아무도 못 사는 날.
       gapLabel: "1-night gaps",
       roomCount: "{count} rooms",
+      // 동기화 신선도. 얼마나 오래된 값인지 모른 채 가격을 조정하는 것이 제일 위험하다.
+      syncedJustNow: "synced just now",
+      syncedMinutes: "synced {n}m ago",
+      syncedHours: "synced {n}h ago",
+      syncedNever: "prices not loaded",
+      syncedStale: "may be out of date",
       // 아직 Beds24 가격을 가져온 적이 없다. 숨기지 않고 화면에 적는다.
       priceMissingTitle: "Prices are not loaded yet",
       priceMissingBody:
@@ -5214,6 +5220,12 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       blockLabel: "BLOCK",
       gapLabel: "1박 갭",
       roomCount: "객실 {count}",
+      // 동기화 신선도. 얼마나 오래된 값인지 모른 채 가격을 조정하는 것이 제일 위험하다.
+      syncedJustNow: "방금 동기화",
+      syncedMinutes: "{n}분 전 동기화",
+      syncedHours: "{n}시간 전 동기화",
+      syncedNever: "요금 없음",
+      syncedStale: "오래됐을 수 있음",
       priceMissingTitle: "가격은 아직 들어오지 않았습니다",
       priceMissingBody:
         "예약과 블락은 실제 데이터입니다. 가격과 최소 숙박일은 Beds24 에서 가져와야 하는데 아직 한 번도 가져온 적이 없어 위 두 줄이 비어 있습니다. 빈칸은 0원이 아닙니다.",
@@ -10173,6 +10185,12 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       blockLabel: "BLOCK",
       gapLabel: "1泊ギャップ",
       roomCount: "客室 {count}",
+      // 동기화 신선도. 얼마나 오래된 값인지 모른 채 가격을 조정하는 것이 제일 위험하다.
+      syncedJustNow: "たった今同期",
+      syncedMinutes: "{n}分前に同期",
+      syncedHours: "{n}時間前に同期",
+      syncedNever: "料金なし",
+      syncedStale: "古い可能性",
       priceMissingTitle: "料金はまだ取り込まれていません",
       priceMissingBody:
         "予約とブロックは実データです。料金と最低宿泊日数は Beds24 から取得する必要がありますが、まだ一度も取り込んでいないため上の2行は空です。空欄は0円ではありません。",

@@ -1,10 +1,13 @@
+import { after } from "next/server";
 import Link from "next/link";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { OpsCalendarGrid } from "@/components/admin/ops/ops-calendar-grid";
 import { OpsCalendarJump } from "@/components/admin/ops/ops-calendar-jump";
 import { AdminMonthPicker } from "@/components/admin/shared/admin-month-picker";
 import "@/components/admin/ops/ops-console.css";
+import { refreshOpsCalendarRates } from "@/lib/beds24/rates-refresh";
 import { getDictionary } from "@/lib/i18n";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getOpsCalendarData, OPS_CALENDAR_ROLLING_DAYS } from "@/lib/ops-calendar";
 import { opsNavId } from "@/lib/ops-admin";
 import { requireOpsAdminPage } from "../ops-page-session";
@@ -71,6 +74,53 @@ export default async function OpsCalendarPage({
   const showCancelled = params.cancelled === "1";
   const isRolling = data.mode === "rolling";
 
+  /*
+   * **보고 있는 창이 낡았으면 그 자리에서 당겨 온다.**
+   *
+   * 주기 동기화(GitHub Actions)가 15분으로 걸려 있는데 실제 간격이 3~5시간이다. 그 사이
+   * Beds24 화면에서 가격을 바꾸면 우리 화면은 몇 시간째 옛 값이고, **그 값을 기준으로
+   * 퍼센트 조정을 하게 된다.**
+   *
+   * `after()` 라 **응답을 보낸 뒤에** 돈다 — 화면이 느려지지 않는다. 이번 화면은 여전히 옛
+   * 값이지만 다음 화면은 맞고, 그동안 얼마나 오래됐는지는 위에 적어 둔다.
+   *
+   * 보이는 창 + 고른 건물만 당긴다. 9건물 × 12개월은 30초에 크레딧도 그만큼 쓴다 —
+   * 화면을 열 때마다 할 일이 아니다.
+   */
+  /**
+   * 「방금 / N분 전 / N시간 전 동기화」.
+   *
+   * 분 단위로만 적는다 — 초까지 적으면 새로고침마다 숫자가 달라져 **값이 바뀐 것처럼**
+   * 보인다.
+   */
+  const syncedLabel = (() => {
+    const minutes = data.ratesAgeMinutes;
+    if (minutes === null) return copy.syncedNever;
+    if (minutes < 1) return copy.syncedJustNow;
+    if (minutes < 60) return copy.syncedMinutes.replace("{n}", String(minutes));
+    return copy.syncedHours.replace("{n}", String(Math.floor(minutes / 60)));
+  })();
+  // 저쪽 주기(15분)와 같은 기준. 넘으면 빨갛게 적는다.
+  const staleRates = data.ratesAgeMinutes === null || data.ratesAgeMinutes > 15;
+
+  const lastVisibleDate = data.days.at(-1)?.date;
+  if (lastVisibleDate) {
+    const externalPropertyIds = data.selectedProperty
+      ? data.propertyExternalIds[data.selectedProperty]
+        ? [data.propertyExternalIds[data.selectedProperty]]
+        : undefined
+      : undefined;
+    after(async () => {
+      await refreshOpsCalendarRates({
+        externalPropertyIds,
+        organizationId: session.organization.id,
+        supabase: getSupabaseServiceClient(),
+        syncedAt: data.ratesSyncedAt,
+        window: { from: data.days[0].date, to: lastVisibleDate },
+      });
+    });
+  }
+
   const hrefWith = (next: Partial<SearchParams>) => {
     const query = new URLSearchParams();
     const merged: SearchParams = {
@@ -130,8 +180,16 @@ export default async function OpsCalendarPage({
             ))}
           </div>
           <div className="ops__spacer" />
-          <div className="ops__meta">
+          {/*
+            **얼마나 오래된 값인지 적는다.**
+
+            이 화면에서 제일 위험한 것이 「몇 시간 된 가격인지 모른 채 퍼센트 조정」이다.
+            시안에도 같은 자리에 있다(`객실 22 · 판매중 20 · 동기화 3분 전`).
+          */}
+          <div className={`ops__meta${staleRates ? " stale" : ""}`}>
             {copy.roomCount.replace("{count}", String(data.roomTotal))}
+            <span className="ops__dot2" />
+            {syncedLabel}
           </div>
         </div>
 

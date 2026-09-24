@@ -476,6 +476,33 @@ export async function getOpsCalendarData(
   }
 
   /*
+   * ── 이 창의 요금이 얼마나 오래됐나 ───────────────────────────────────
+   *
+   * **가장 오래된 값**이 기준이다. 한 칸이라도 낡았으면 그 화면은 낡은 것이다 — 평균이나
+   * 최신값으로 재면 「3분 전」이라고 적어 놓고 실제로는 5시간 된 칸을 보여주게 된다.
+   *
+   * 얼마나 오래된 값인지 모르는 채로 가격을 조정하는 것이 이 화면에서 제일 위험하다.
+   */
+  const freshness = await supabase
+    .from("room_daily_rates")
+    .select("synced_at")
+    .eq("organization_id", session.organization.id)
+    .gte("stay_date", window.start)
+    .lt("stay_date", window.endExclusive)
+    .order("synced_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const ratesSyncedAt = (freshness.data as { synced_at: string } | null)?.synced_at ?? null;
+  /**
+   * 몇 분 전 값인가. **여기서 센다** — 화면은 렌더 중에 시계를 읽으면 안 된다
+   * (React 컴파일러가 막는다). 분 단위로만 센다: 초까지 재면 새로고침마다 숫자가 달라져
+   * **값이 바뀐 것처럼** 보인다.
+   */
+  const ratesAgeMinutes = ratesSyncedAt
+    ? Math.max(0, Math.floor((Date.now() - new Date(ratesSyncedAt).getTime()) / 60_000))
+    : null;
+
+  /*
    * ── 가격 변경 이력 ───────────────────────────────────────────────────
    *
    * 가격이 이상하면 제일 먼저 나오는 질문이 「누가 언제 얼마에서 얼마로 바꿨나」다.
@@ -571,6 +598,26 @@ export async function getOpsCalendarData(
   const propertyOptions = sortBuildings([
     ...new Set(allRooms.map((room) => room.propertyName)),
   ]);
+  /*
+   * 표시 이름 → Beds24 `propertyId`.
+   *
+   * 건물 하나만 당겨 오려면 필요하다 — 우리 이름(`아라키초A`)과 Beds24 이름(`Arakicho A`)이
+   * 달라서 이름으로는 못 찾는다.
+   */
+  const propertyIdResult = await supabase
+    .from("properties")
+    .select("name, external_property_id")
+    .eq("organization_id", session.organization.id)
+    .not("external_property_id", "is", null);
+  const propertyExternalIds: Record<string, string> = {};
+  for (const row of (propertyIdResult.data ?? []) as Array<{
+    name: string;
+    external_property_id: string;
+  }>) {
+    propertyExternalIds[getCanonicalPropertyName(row.name.trim())] = String(
+      row.external_property_id,
+    );
+  }
   const selectedProperty =
     filters.property && propertyOptions.includes(filters.property) ? filters.property : null;
   const rooms = selectedProperty
@@ -587,10 +634,15 @@ export async function getOpsCalendarData(
     gapCells: new Set([...gapCells].filter((key) => visibleRoomKeys.has(key.split("|")[0]))),
     /** `객실라벨|YYYY-MM-DD` → 그 칸의 변경 이력(최신순). */
     history,
+    /** 이 창에서 **가장 오래된** 요금 동기화가 몇 분 전인가. `null` 이면 요금이 아예 없다. */
+    ratesAgeMinutes,
+    /** 이 창에서 **가장 오래된** 요금 동기화 시각. `null` 이면 요금이 아예 없다. */
+    ratesSyncedAt,
     rates,
     days,
     mode,
     month,
+    propertyExternalIds,
     propertyOptions,
     rooms,
     roomTotal: allRooms.length,
