@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import Link from "next/link";
-import { ChevronDown, Search, Settings, Smartphone } from "lucide-react";
+import { ChevronDown, PanelLeft, Search, Settings, Smartphone } from "lucide-react";
 import { MobilePreview } from "@/components/shell/mobile-preview";
 import "@/components/admin/admin-console.css";
 import { NotificationBell } from "@/components/admin/notification-bell";
@@ -53,6 +53,25 @@ export function AdminShell({ activeItem, children, mobileHref = "/mobile", title
   return (
     <main className="adm">
       <div className="app">
+        {/*
+         * 사이드바 접힘 상태를 **그리기 전에** 적용한다.
+         *
+         * React 상태로 들고 `useEffect` 에서 localStorage 를 읽으면, 서버가 그린 펼친
+         * 사이드바가 먼저 칠해지고 그다음 줄어든다 — admin 은 페이지 이동마다 서버 렌더라
+         * **화면을 옮길 때마다 레이아웃이 한 번씩 튄다.**
+         *
+         * 이 스크립트는 사이드바 마크업보다 앞서 파싱되므로 튀는 순간이 없다. 상태는 뿌리
+         * 속성 하나(`data-adm-side`)에만 두고 **보이는 것은 전부 CSS 가 판단한다** —
+         * 그래서 hydration 불일치가 생길 여지 자체가 없다(React 는 이 값을 모른다).
+         */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(localStorage.getItem('stayops.adm.side')==='rail')" +
+              "document.documentElement.setAttribute('data-adm-side','rail')}catch(e){}",
+          }}
+        />
+
         {/* ── Sidebar (warm espresso rail) ── */}
         <aside className="side">
           <Link className="side__brand" href="/admin">
@@ -62,6 +81,28 @@ export function AdminShell({ activeItem, children, mobileHref = "/mobile", title
               <span className="side__role" style={{ display: "block" }}>{c.brandRole}</span>
             </span>
           </Link>
+
+          {/* 접기/펴기. 기기에 기억된다 — 자주 이동하는 사람은 펴 두고, 판매 캘린더처럼
+              가로로 빽빽한 화면을 오래 보는 사람은 접어 둔다. */}
+          <button
+            aria-label={c.sideToggle}
+            className="side__fold"
+            onClick={() => {
+              const root = document.documentElement;
+              const rail = root.getAttribute("data-adm-side") === "rail";
+              if (rail) root.removeAttribute("data-adm-side");
+              else root.setAttribute("data-adm-side", "rail");
+              try {
+                localStorage.setItem("stayops.adm.side", rail ? "wide" : "rail");
+              } catch {
+                // 저장이 막힌 브라우저(사생활 보호 모드 등)에서도 접는 것 자체는 된다.
+              }
+            }}
+            title={c.sideToggle}
+            type="button"
+          >
+            <span className="ic"><PanelLeft /></span>
+          </button>
 
           <div className="orgsw">
             <Link className="orgsw__btn" href="/admin/settings/organization" aria-label={c.orgSwitch}>
@@ -95,11 +136,14 @@ export function AdminShell({ activeItem, children, mobileHref = "/mobile", title
                     return (
                       <Link
                         className={`navi${item.id === activeItem ? " on" : ""}`}
+                        // 접힌 상태에서 이름은 CSS 가 이 값으로 띄운다. 별도 툴팁 컴포넌트를
+                        // 두면 상태가 두 벌이 되고, 접힘 여부를 React 가 알아야 해진다.
+                        data-label={getNavigationLabel(item, locale)}
                         href={item.href}
                         key={item.id}
                       >
                         <span className="ic"><Icon /></span>
-                        <span>{getNavigationLabel(item, locale)}</span>
+                        <span className="navi__t">{getNavigationLabel(item, locale)}</span>
                       </Link>
                     );
                   })}
