@@ -334,6 +334,8 @@
   font-weight: 800;
   letter-spacing: -0.02em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .opsg__tracks {
@@ -552,7 +554,8 @@
   gap: 5px;
   padding: 7px 10px 6px;
   background: var(--surface2);
-  /* **줄바꿈하지 않는다.** 칩이 늘어나도 격자를 아래로 밀지 않고 가로로 스크롤한다. */
+  /* 객실 칩을 없앤 뒤로는 평소에 한 줄에 들어간다. 좁은 화면에서만 가로로 스크롤한다 —
+     **줄바꿈은 하지 않는다.** 줄이 하나 늘 때마다 격자에서 객실 한 줄이 밀려난다. */
   overflow-x: auto;
   scrollbar-width: thin;
 }
@@ -596,6 +599,23 @@
   white-space: nowrap;
   flex: 0 0 auto;
 }
+/* 객실 축에 고른 개수. 칩을 없앤 대신 「몇 개 골랐나」는 남아야 한다. */
+.opsg__acount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: var(--ops-chip);
+  padding: 0 6px;
+  border-radius: 7px;
+  background: var(--adm-primary);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
 .opsg__adiv {
   width: 1px;
   height: 16px;
@@ -710,8 +730,29 @@
 .opsg__day.pick:hover { background: color-mix(in oklab, var(--adm-primary) 9%, transparent); }
 .opsg__label.pick:hover { background: color-mix(in oklab, var(--adm-primary) 7%, var(--card)); }
 
+/* 격자 왼쪽 객실명이 **객실 축 그 자체**다. 26개를 위에 한 번 더 늘어놓지 않는다. */
+.opsg__label.pick { gap: 6px; padding-left: 9px; }
+.opsg__rbox {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  border: 1.5px solid var(--line-strong, var(--line));
+  border-radius: 3px;
+  background: var(--card);
+}
+.opsg__label.on { background: color-mix(in oklab, var(--adm-primary) 11%, var(--card)); }
+.opsg__label.on .opsg__rbox {
+  border-color: var(--adm-primary);
+  background: var(--adm-primary);
+  box-shadow: inset 0 0 0 1.5px var(--card);
+}
+.opsg__label.on .opsg__rn { color: var(--adm-primary); }
+
 /* 선택 모드에서는 칸 안의 글자가 드래그로 잡히면 안 된다. */
-.opsg__edit ~ .opsg__scroll .opsg__cell { user-select: none; }
+.opsg.is-edit .opsg__cell { user-select: none; }
+
+/* 객실명 칸에 네모가 들어가는 만큼 넓힌다 — 안 넓히면 「ファミリー」 같은 이름이 잘린다. */
+.opsg.is-edit { --ops-roomcol: 112px; }
 /* 고를 수 있는 칸이라는 것이 손끝에 먼저 와야 한다.
    **실제로 고를 수 있는 칸에만** 붙인다 — 예약 트랙 칸에까지 붙이면 커서가 거짓말을 한다. */
 .opsg__cell.pick { cursor: cell; }

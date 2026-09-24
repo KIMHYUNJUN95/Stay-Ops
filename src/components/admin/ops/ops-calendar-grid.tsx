@@ -68,7 +68,6 @@ type Copy = {
   skippedSold: string;
   selectionEmpty: string;
   selectHint: string;
-  scopeRoomsHint: string;
 } & PanelCopy;
 
 /**
@@ -266,8 +265,15 @@ export function OpsCalendarGrid({
     setSelection((previous) => toggleCellGroup(previous, selectable));
   };
 
+  /**
+   * 객실명 클릭 = **객실 축 토글.**
+   *
+   * 그 행을 통째로 잡는 게 아니라 축에 넣고 뺀다 — 그래야 기간·요일과 곱해진다.
+   * 「주말」을 켜 둔 채 201호를 누르면 **201호의 주말만** 잡혀야지, 30일 전부가 잡히면
+   * 축을 켜 둔 의미가 없다.
+   */
   const toggleRoomRow = (roomKey: string) =>
-    toggleGroup(dates.map((date) => ({ date, roomKey })));
+    applyScope({ ...scope, roomKeys: toggleInList(scope.roomKeys, roomKey) });
 
   /** 날짜 머리글: 그 열 전체. Shift 를 누르면 직전 열부터 **범위**로 잡는다. */
   const toggleDateColumn = (date: string, withRange: boolean) => {
@@ -392,10 +398,13 @@ export function OpsCalendarGrid({
    * 가격 모드에서는 건물 하나를 강제한다(`portfolioPriceBuilding`). 건물을 안 고른 상태에서는
    * 격자에서 **객실명을 눌러** 행을 고르면 된다 — 그쪽이 더 직접적이기도 하다.
    */
-  const showRoomChips = new Set(rooms.map((room) => room.propertyName)).size === 1;
+  const allRoomsInScope =
+    roomKeys.length > 0 && roomKeys.every((key) => scope.roomKeys.includes(key));
 
   return (
-    <div className="opsg">
+    /* 편집 모드를 뿌리에 표시한다. 형제 선택자(`.opsg__edit ~ …`)로 흉내 내면 마크업 순서가
+       바뀌는 날 조용히 깨진다. */
+    <div className={`opsg${editMode ? " is-edit" : ""}`}>
       {/* ── 선택 모드 ────────────────────────────────────────────────────
           평소에는 읽는 화면이다. 「가격 수정」을 눌러야 칸이 선택 대상이 된다 —
           저쪽도 `priceMode` 토글로 갈라 놓았다. 읽기만 하려다 실수로 바꾸는 일을 막는다. */}
@@ -413,30 +422,22 @@ export function OpsCalendarGrid({
 
         {editMode && (
           <>
-            {/* 객실 축 */}
+            {/* 객실 축 — **칩으로 늘어놓지 않는다.**
+                객실이 26개인 건물에서 칩을 깔면 가로로 넘쳐 오른쪽 축이 잘린다. 격자 왼쪽에
+                이미 객실이 전부 있고 거기가 눈이 가 있는 자리라, **객실명 자체를 축으로 쓴다.**
+                여기 남는 것은 「전부 / 해제」 하나뿐이다. */}
             <span className="opsg__axis">{copy.scopeRooms}</span>
             <button
-              className={chip(scope.roomKeys.length === 0)}
-              onClick={() => applyScope({ ...scope, roomKeys: [] })}
+              className={chip(allRoomsInScope)}
+              onClick={() =>
+                applyScope({ ...scope, roomKeys: allRoomsInScope ? [] : roomKeys })
+              }
               type="button"
             >
               {copy.scopeAll}
             </button>
-            {showRoomChips ? (
-              rooms.map((room) => (
-                <button
-                  className={chip(scope.roomKeys.includes(room.key), "mini")}
-                  key={`sc-${room.key}`}
-                  onClick={() =>
-                    applyScope({ ...scope, roomKeys: toggleInList(scope.roomKeys, room.key) })
-                  }
-                  type="button"
-                >
-                  {room.displayRoomLabel}
-                </button>
-              ))
-            ) : (
-              <span className="opsg__ahint">{copy.scopeRoomsHint}</span>
+            {scope.roomKeys.length > 0 && !allRoomsInScope && (
+              <span className="opsg__acount">{scope.roomKeys.length}</span>
             )}
 
             <span className="opsg__adiv" />
@@ -630,9 +631,14 @@ export function OpsCalendarGrid({
               return (
                 <div className="opsg__row" key={room.key}>
                   <div
-                    className={`opsg__label${editMode ? " pick" : ""}`}
+                    className={`opsg__label${editMode ? " pick" : ""}${
+                      editMode && scope.roomKeys.includes(room.key) ? " on" : ""
+                    }`}
                     onClick={editMode ? () => toggleRoomRow(room.key) : undefined}
                   >
+                    {/* 선택 모드에서만 나오는 네모. 누를 수 있다는 것과 켜졌다는 것을
+                        한 번에 말한다 — 객실명만으로는 눌러도 되는지 알 수 없다. */}
+                    {editMode && <span className="opsg__rbox" />}
                     <span className="opsg__rn">{room.displayRoomLabel}</span>
                   </div>
                   <div className="opsg__tracks">

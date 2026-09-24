@@ -113,8 +113,6 @@ const FALLBACK_DICTIONARY = {
       scopeWeekend: "Fri-Sun",
       scopeWeekday: "Mon-Thu",
       scopeClear: "Clear",
-      // 건물을 고르기 전에는 객실 칩을 늘어놓지 않는다 — 91개가 화면을 덮는다.
-      scopeRoomsHint: "Pick a building to choose rooms",
       selectedCount: "{count} cells",
       selectedRooms: "{count} rooms",
       // 조용히 빼지 않는다 — 몇 칸이 팔려서 빠졌는지 말해 준다.
@@ -5213,8 +5211,6 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       scopeWeekend: "주말·금~일",
       scopeWeekday: "평일·월~목",
       scopeClear: "해제",
-      // 건물을 고르기 전에는 객실 칩을 늘어놓지 않는다 — 91개가 화면을 덮는다.
-      scopeRoomsHint: "건물을 고르면 객실을 하나씩 고를 수 있습니다",
       selectedCount: "{count}칸",
       selectedRooms: "{count}객실",
       // 조용히 빼지 않는다 — 몇 칸이 팔려서 빠졌는지 말해 준다.
@@ -10156,8 +10152,6 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       scopeWeekend: "週末・金〜日",
       scopeWeekday: "平日・月〜木",
       scopeClear: "解除",
-      // 건물을 고르기 전에는 객실 칩을 늘어놓지 않는다 — 91개가 화면을 덮는다.
-      scopeRoomsHint: "建物を選ぶと客室を個別に選べます",
       selectedCount: "{count}セル",
       selectedRooms: "{count}室",
       // 조용히 빼지 않는다 — 몇 칸이 팔려서 빠졌는지 말해 준다.
