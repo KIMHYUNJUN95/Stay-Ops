@@ -322,8 +322,9 @@ const FALLBACK_DICTIONARY = {
     },
     console: {
       brandRole: "Operations Console",
-      // 사이드바 접기/펴기. 기기에 기억된다.
-      sideToggle: "Collapse menu",
+      // 버튼 하나가 접기와 펴기를 겸한다. 상태는 CSS 만 알고 React 는 모르므로
+      // 라벨도 한쪽으로 못 박지 않는다.
+      sideToggle: "Toggle menu",
       crumbOps: "Operations",
       headerToday: "Today's operations",
       searchPlaceholder: "Search rooms · staff · requests · reservations",
@@ -5414,8 +5415,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       },
       console: {
         brandRole: "운영 콘솔",
-        // 사이드바 접기/펴기. 기기에 기억된다.
-        sideToggle: "메뉴 접기",
+        // 버튼 하나가 접기와 펴기를 겸한다. 상태는 CSS 만 알고 React 는 모르므로
+        // 라벨도 한쪽으로 못 박지 않는다.
+        sideToggle: "메뉴 접기 · 펴기",
         crumbOps: "운영",
         headerToday: "오늘의 운영 현황",
         searchPlaceholder: "객실 · 직원 · 요청 · 예약 검색",
@@ -10357,8 +10359,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       },
       console: {
         brandRole: "運営コンソール",
-        // 사이드바 접기/펴기. 기기에 기억된다.
-        sideToggle: "メニューを折りたたむ",
+        // 버튼 하나가 접기와 펴기를 겸한다. 상태는 CSS 만 알고 React 는 모르므로
+        // 라벨도 한쪽으로 못 박지 않는다.
+        sideToggle: "メニューの開閉",
         crumbOps: "運営",
         headerToday: "本日の運営状況",
         searchPlaceholder: "客室 · スタッフ · リクエスト · 予約を検索",

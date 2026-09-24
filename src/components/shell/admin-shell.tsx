@@ -82,8 +82,9 @@ export function AdminShell({ activeItem, children, mobileHref = "/mobile", title
             </span>
           </Link>
 
-          {/* 접기/펴기. 기기에 기억된다 — 자주 이동하는 사람은 펴 두고, 판매 캘린더처럼
-              가로로 빽빽한 화면을 오래 보는 사람은 접어 둔다. */}
+          {/* 접기/펴기. 기기에 기억된다.
+              접어 두면 아이콘만 남고 **마우스를 올릴 때만** 이름이 펼쳐진다 — 자주 이동하는
+              사람은 펴 두고, 판매 캘린더처럼 가로로 빽빽한 화면을 오래 보는 사람은 접어 둔다. */}
           <button
             aria-label={c.sideToggle}
             className="side__fold"
@@ -136,9 +137,6 @@ export function AdminShell({ activeItem, children, mobileHref = "/mobile", title
                     return (
                       <Link
                         className={`navi${item.id === activeItem ? " on" : ""}`}
-                        // 접힌 상태에서 이름은 CSS 가 이 값으로 띄운다. 별도 툴팁 컴포넌트를
-                        // 두면 상태가 두 벌이 되고, 접힘 여부를 React 가 알아야 해진다.
-                        data-label={getNavigationLabel(item, locale)}
                         href={item.href}
                         key={item.id}
                       >
