@@ -12,11 +12,8 @@ import {
   resolveReservationCanonicalRoomLabel,
 } from "@/lib/rooms";
 import { sortBuildings, toJstDateString } from "@/lib/admin-calendar-dashboard";
-import {
-  detectOneNightGaps,
-  isActiveUnitMinStay,
-  type OpsGapCellInput,
-} from "@/lib/ops-gap-detection";
+import { detectOneNightGaps, type OpsGapCellInput } from "@/lib/ops-gap-detection";
+import { mergeOpsRateUnits, type OpsMergedRate } from "@/lib/ops-rate-merge";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
@@ -109,7 +106,15 @@ type RoomRow = {
 
 type RateRow = Pick<
   Database["public"]["Tables"]["room_daily_rates"]["Row"],
-  "room_id" | "stay_date" | "price1" | "min_stay" | "max_stay" | "num_avail" | "override_kind"
+  | "room_id"
+  | "stay_date"
+  | "price1"
+  | "price2"
+  | "price3"
+  | "min_stay"
+  | "max_stay"
+  | "num_avail"
+  | "override_kind"
 >;
 
 export type OpsCalendarChannel = "airbnb" | "booking" | "manual";
@@ -163,14 +168,8 @@ export type OpsCalendarBlock = {
 };
 
 /** 한 칸의 요금·재고. 값이 없으면 `null` 이고, 그건 0 이 아니다. */
-export type OpsCalendarRate = {
-  maxStay: number | null;
-  minStay: number | null;
-  numAvail: number | null;
-  overrideKind: string | null;
-  /** 에어비앤비 가격(엔). 이 계정은 `price1` 만 쓴다 — `price2`/`price3` 는 설정된 적이 없다. */
-  price: number | null;
-};
+/** 한 칸의 최종 값. 유닛 병합 규칙은 `src/lib/ops-rate-merge.ts` 에 있다. */
+export type OpsCalendarRate = OpsMergedRate;
 
 export type OpsCalendarViewMode = "rolling" | "monthly";
 
@@ -423,7 +422,9 @@ export async function getOpsCalendarData(
     const ratesResult = await readAllPages<RateRow>((from, to) =>
       supabase
         .from("room_daily_rates")
-        .select("room_id, stay_date, price1, min_stay, max_stay, num_avail, override_kind")
+        .select(
+          "room_id, stay_date, price1, price2, price3, min_stay, max_stay, num_avail, override_kind",
+        )
         .eq("organization_id", session.organization.id)
         .in("room_id", [...roomKeyByUuid.keys()])
         .gte("stay_date", rateFrom)
@@ -435,43 +436,22 @@ export async function getOpsCalendarData(
     if (ratesResult.error) {
       console.error("[ops-calendar] rate read failed", ratesResult.error);
     } else {
+      const unitsByCell = new Map<string, RateRow[]>();
       for (const row of ratesResult.data) {
         const roomKey = roomKeyByUuid.get(row.room_id);
         if (!roomKey) continue;
         const cellKey = `${roomKey}|${row.stay_date}`;
-        const incoming: OpsCalendarRate = {
-          maxStay: row.max_stay,
-          minStay: row.min_stay,
-          numAvail: row.num_avail,
-          overrideKind: row.override_kind,
-          price: row.price1,
-        };
-        // 같은 행에 유닛이 여럿이면 **그 날짜에 운영 중인 유닛**이 이긴다 —
-        // 저쪽 `getActiveUnitInfosForDate` → `pickPreferredRoomInfo` 와 같은 규칙이다.
-        //
-        // 판정은 **`minStay` 만** 본다. `numAvail`·`blackout` 을 섞으면 예약이 찬 날마다
-        // 두 유닛이 모두 「막힘」이 되어 승부가 삽입 순서로 갈리고, 그때 비활성 유닛의 값
-        // (minStay 99 / 50)이 화면으로 올라온다 — 2026-09-17 에 실제로 그랬다.
-        const existing = rates.get(cellKey);
-        if (!existing) {
-          rates.set(cellKey, incoming);
-        } else {
-          const existingActive = isActiveUnitMinStay(existing.minStay);
-          const incomingActive = isActiveUnitMinStay(incoming.minStay);
-          const replace = incomingActive !== existingActive
-            ? incomingActive
-            : existing.price === null && incoming.price !== null;
-          if (replace) rates.set(cellKey, incoming);
-        }
+        const bucket = unitsByCell.get(cellKey);
+        if (bucket) bucket.push(row);
+        else unitsByCell.set(cellKey, [row]);
+      }
+      // 유닛 병합 규칙은 순수 모듈에 있다 — 두 번 틀렸고 둘 다 화면에서는 「안 파는 날」처럼
+      // 보여 눈으로 못 잡는다(`src/lib/ops-rate-merge.ts`).
+      for (const [cellKey, units] of unitsByCell) {
+        const merged = mergeOpsRateUnits(units);
+        if (merged) rates.set(cellKey, merged);
       }
     }
-  }
-
-  // 그 날짜에 **운영 중인 유닛이 하나도 없으면** 칸을 비운다. 비활성 유닛의 `minStay 99` 를
-  // 보여주는 것은 정보가 아니라 **오답**이다 — 저쪽도 그런 칸은 빈 칸으로 둔다
-  // (`EMPTY_PRICE_CELL`). 화면에는 `–` 로 나가고, 갭 판정에서는 `unknown` 이 되어 제외된다.
-  for (const [cellKey, rate] of [...rates]) {
-    if (!isActiveUnitMinStay(rate.minStay)) rates.delete(cellKey);
   }
 
   // ── 1박 갭 감지 ───────────────────────────────────────────────────────
