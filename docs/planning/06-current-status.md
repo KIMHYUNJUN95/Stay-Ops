@@ -4900,3 +4900,25 @@ Beds24 설정의 그 칸은 **「予約Webhook」**(예약 웹훅)이고 저쪽 
 
 문서: `docs/product/30-recruit-workflow.md`(지원서 인쇄 절 신설),
 `docs/product/05-admin-web-ia.md`(`.panel__tool`), `docs/planning/01-decision-log.md`
+
+## 2026-09-24 (2차) — 채용 사이트 어드민·실시간 상담 폐지
+
+별도 저장소(`KIMHYUNJUN95/haru-job-web`) 작업. 커밋 `24c9d99`, **−1,406줄**, 호스팅 배포 완료.
+
+- 삭제: `AdminPage.tsx`(451줄) · `components/Chat/*` · `hooks/useChat.ts` · `utils/slack.ts` ·
+  `admin.html`(구 정적 어드민 630줄)
+- `/admin` 라우트, 푸터 `Admin` 링크, 랜딩의 채팅 배선(상태·핸들러·CTA 카드·플로팅 버튼) 제거
+- 운영 번들 해시가 로컬 빌드와 일치함을 확인(`index-DqAKsU8G.js`). 호스팅 사이트 둘
+  (`stayari.web.app` · `haru-recruit.web.app`)이 같은 번들을 서빙하는 복제본이라 둘 다 나간다.
+
+**부수 효과 — Slack 웹훅 URL 번들 노출이 해소됐다.** 그 URL 을 쓰던 곳이 채팅 하나뿐이었다.
+
+**폐지 전 보존.** 문의 3건 내보냄, 미답변 0건(2건은 폼만 제출, 1건은 종결된 대화). 개인정보가
+담겨 저장소 밖에 보관했다.
+
+### 남은 것
+
+- **Firestore 규칙 배포 대기.** `chat_rooms` 는 아직 인증 없이 읽힌다(실측 200). 규칙 파일은
+  작성해 뒀고(`haru-job-react/firestore.rules`), WSL 쪽 firebase 토큰이 만료돼 배포가 막혀 있다.
+- **방문자 카운터가 이미 죽어 있다**(`siteStats` 403). 이번 규칙에서 일부러 열지 않았다 —
+  `docs/product/30-recruit-workflow.md` 참고.
