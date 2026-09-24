@@ -65,7 +65,6 @@ type Copy = {
   scopeClear: string;
   selectedCount: string;
   selectedRooms: string;
-  skippedSold: string;
   selectionEmpty: string;
   selectHint: string;
 } & PanelCopy;
@@ -169,8 +168,6 @@ export function OpsCalendarGrid({
     scopeKeys: Set<string>;
   }>({ cells: [], scopeKeys: new Set() });
   const selection = selectionState.cells;
-  /** 팔려 있어서 선택에서 빠진 칸 수. **조용히 빼지 않는다.** */
-  const [skipped, setSkipped] = useState(0);
   // 드래그: 누른 칸과 「더하는 중인가 빼는 중인가」. 누른 칸의 상태가 방향을 정한다.
   const dragRef = useRef<{ adding: boolean } | null>(null);
   const [dateAnchor, setDateAnchor] = useState<string | null>(null);
@@ -224,6 +221,8 @@ export function OpsCalendarGrid({
   /** 축을 바꾼다 — 곧바로 선택에 반영하되 직접 찍은 칸은 보존한다. */
   const applyScope = (next: OpsSelectionScope) => {
     setScope(next);
+    // 팔린 칸은 여기서 빠진다. 개수를 따로 알리지 않는다 — 격자에서 빗금으로 이미 보이고,
+    // **고른 칸 수**가 무엇이 바뀔지를 정확히 말해 준다.
     const built = buildScopeCells({
       dates,
       occupancyAt,
@@ -240,13 +239,11 @@ export function OpsCalendarGrid({
       });
       return { cells: applied.selection, scopeKeys: applied.scopeKeys };
     });
-    setSkipped(built.skipped);
   };
 
   const clearSelection = () => {
     setScope(EMPTY_SCOPE);
     setSelectionState({ cells: [], scopeKeys: new Set() });
-    setSkipped(0);
     setDateAnchor(null);
   };
 
@@ -275,7 +272,6 @@ export function OpsCalendarGrid({
   const toggleGroup = (cells: OpsSelectionCell[]) => {
     const selectable = cells.filter((cell) => canSelect(cell.roomKey, cell.date));
     if (selectable.length === 0) return;
-    setSkipped(cells.length - selectable.length);
     setSelectionState((previous) => ({
       ...previous,
       cells: toggleCellGroup(previous.cells, selectable),
@@ -544,12 +540,6 @@ export function OpsCalendarGrid({
               ? `${copy.selectedCount.replace("{count}", String(selection.length))} · ${copy.selectedRooms.replace("{count}", String(selectedRoomCount))}`
               : copy.selectionEmpty}
           </span>
-          {/* 조용히 빼지 않는다 — 안 그러면 「42칸 고쳤다」고 믿는데 5칸은 안 바뀐다. */}
-          {skipped > 0 && (
-            <span className="opsg__skip">
-              {copy.skippedSold.replace("{count}", String(skipped))}
-            </span>
-          )}
           <span className="opsg__spacer" />
           <span className="opsg__ahint">{copy.selectHint}</span>
           {selection.length > 0 && (
@@ -560,7 +550,9 @@ export function OpsCalendarGrid({
         </div>
       )}
 
-      {editMode && selection.length > 0 && (
+      {/* 선택이 비어도 **자리를 지킨다.** 고를 때마다 줄이 생겼다 사라지면 그 아래 격자가
+          위아래로 들썩여서, 칸을 고르는 동안 눈이 따라다녀야 한다. */}
+      {editMode && (
         <OpsPricePanel
           cells={panelCells}
           copy={copy}

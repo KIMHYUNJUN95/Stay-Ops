@@ -115,8 +115,6 @@ const FALLBACK_DICTIONARY = {
       scopeClear: "Clear",
       selectedCount: "{count} cells",
       selectedRooms: "{count} rooms",
-      // 조용히 빼지 않는다 — 몇 칸이 팔려서 빠졌는지 말해 준다.
-      skippedSold: "{count} sold cells excluded",
       selectionEmpty: "Pick rooms, weeks or days - or drag across the grid",
       selectHint: "Drag to select. Click a room name or date header for the whole row or column",
       // ── 조작 패널 (4단계) ─────────────────────────────────────────────
@@ -129,9 +127,9 @@ const FALLBACK_DICTIONARY = {
       panelCancel: "Cancel",
       panelConfirm: "Confirm",
       panelConfirmBody: "{count} cells across {rooms} rooms will change. This goes out to the channels.",
-      // 현재 가격이 없으면 퍼센트의 기준이 없다. 조용히 빼지 않는다.
-      panelSkippedNoPrice: "{count} cells have no current price and are excluded",
       panelNoChange: "Nothing changes with this value",
+      // 고른 칸이 없을 때. 줄은 남기고 무엇을 해야 하는지만 말한다.
+      panelIdle: "Pick cells on the grid",
       panelQueued: "Queued - applying to Beds24",
       panelDone: "Applied",
       panelFailed: "Failed: {error}",
@@ -5217,8 +5215,6 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       scopeClear: "해제",
       selectedCount: "{count}칸",
       selectedRooms: "{count}객실",
-      // 조용히 빼지 않는다 — 몇 칸이 팔려서 빠졌는지 말해 준다.
-      skippedSold: "판매된 {count}칸 제외",
       selectionEmpty: "객실·기간·요일을 고르거나 격자를 드래그하세요",
       selectHint: "드래그로 선택 · 객실명이나 날짜를 누르면 그 줄 전체",
       // ── 조작 패널 (4단계) ─────────────────────────────────────────────
@@ -5231,9 +5227,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       panelCancel: "취소",
       panelConfirm: "확인",
       panelConfirmBody: "{rooms}개 객실 {count}칸이 바뀝니다. 채널에 그대로 나갑니다.",
-      // 현재 가격이 없으면 퍼센트의 기준이 없다. 조용히 빼지 않는다.
-      panelSkippedNoPrice: "현재 가격이 없는 {count}칸 제외",
       panelNoChange: "이 값으로는 바뀌는 칸이 없습니다",
+      // 고른 칸이 없을 때. 줄은 남기고 무엇을 해야 하는지만 말한다.
+      panelIdle: "격자에서 칸을 고르세요",
       panelQueued: "접수됨 — Beds24 에 반영 중",
       panelDone: "반영 완료",
       panelFailed: "실패: {error}",
@@ -10162,8 +10158,6 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       scopeClear: "解除",
       selectedCount: "{count}セル",
       selectedRooms: "{count}室",
-      // 조용히 빼지 않는다 — 몇 칸이 팔려서 빠졌는지 말해 준다.
-      skippedSold: "販売済み{count}セルを除外",
       selectionEmpty: "客室・期間・曜日を選ぶか、グリッドをドラッグしてください",
       selectHint: "ドラッグで選択・客室名や日付で行・列を一括",
       // ── 조작 패널 (4단계) ─────────────────────────────────────────────
@@ -10176,9 +10170,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       panelCancel: "キャンセル",
       panelConfirm: "確認",
       panelConfirmBody: "{rooms}室{count}セルが変わります。チャネルにそのまま反映されます。",
-      // 현재 가격이 없으면 퍼센트의 기준이 없다. 조용히 빼지 않는다.
-      panelSkippedNoPrice: "現在料金がない{count}セルを除外",
       panelNoChange: "この値では変わるセルがありません",
+      // 고른 칸이 없을 때. 줄은 남기고 무엇을 해야 하는지만 말한다.
+      panelIdle: "グリッドでセルを選んでください",
       panelQueued: "受付済み — Beds24へ反映中",
       panelDone: "反映完了",
       panelFailed: "失敗: {error}",

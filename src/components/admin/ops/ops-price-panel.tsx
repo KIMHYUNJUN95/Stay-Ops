@@ -46,8 +46,8 @@ export type PanelCopy = {
   panelCancel: string;
   panelConfirm: string;
   panelConfirmBody: string;
-  panelSkippedNoPrice: string;
   panelNoChange: string;
+  panelIdle: string;
   panelQueued: string;
   panelDone: string;
   panelFailed: string;
@@ -273,16 +273,39 @@ export function OpsPricePanel({
             **입력 바로 옆에 둔다.** 오른쪽 끝으로 밀면 화면이 넓을수록 멀어져서, 금액을 치고
             결과를 보려면 눈이 화면을 가로질러야 한다. */}
         <span className="opsp__sum">
-          <span className="opsp__cur">{yen(preview.currentAverage)}</span>
-          <span className="opsp__arrow">→</span>
-          <strong className="opsp__new">
-            {input && preview.rows.length > 0
-              ? preview.newMin === preview.newMax
-                ? yen(preview.newMin)
-                : `${yen(preview.newMin)} ~ ${yen(preview.newMax)}`
-              : "—"}
-          </strong>
+          {preview.rows.length === 0 ? (
+            /* 고른 칸이 없어도 **줄은 남는다.** 사라졌다 나타나면 그 아래 격자가 들썩인다. */
+            <span className="opsp__idle">{copy.panelIdle}</span>
+          ) : (
+            <>
+              <span className="opsp__cur">{yen(preview.currentAverage)}</span>
+              <span className="opsp__arrow">→</span>
+              <strong className="opsp__new">
+                {input
+                  ? preview.newMin === preview.newMax
+                    ? yen(preview.newMin)
+                    : `${yen(preview.newMin)} ~ ${yen(preview.newMax)}`
+                  : "—"}
+              </strong>
+            </>
+          )}
         </span>
+
+        {/* 1박 갭이 선택에 들어 있으면 그 자리에서 고칠 수 있어야 한다 — 찾아만 주고 못 고치면
+            오히려 일이 한 단계 는다. **첫 줄에 둔다**: 아래 줄이면 갭 칸을 고를 때마다 줄이
+            새로 생겨 격자가 밀린다. */}
+        {gapCells.length > 0 && (
+          <button
+            className="opsp__gapgo"
+            disabled={pending}
+            onClick={applyOneNight}
+            title={copy.gapActionBody.replace("{count}", String(gapCells.length))}
+            type="button"
+          >
+            {copy.gapAction}
+            <span className="opsp__gapn">{gapCells.length}</span>
+          </button>
+        )}
 
         {confirming ? (
           <div className="opsp__acts">
@@ -307,12 +330,15 @@ export function OpsPricePanel({
         )}
       </div>
 
-      {/* 아래 줄은 **할 말이 있을 때만** 뜬다. 빈 줄이 자리만 차지하면 격자가 밀린다. */}
+      {/*
+        아래 줄은 **값을 치거나 누른 뒤에만** 뜬다.
+        칸을 고르는 동안 줄이 생겼다 사라지면 그 아래 격자가 위아래로 들썩여서, 고르는 내내
+        눈이 따라다녀야 한다. 그래서 선택 상태(갭 개수 · 가격 없는 칸 수)로는 열지 않는다 —
+        갭 버튼은 첫 줄로 올렸고, **실제로 몇 칸이 바뀌는지는 확인 단계가 말해 준다.**
+      */}
       {(confirming ||
         message ||
         warnings.length > 0 ||
-        gapCells.length > 0 ||
-        preview.skippedNoPrice > 0 ||
         (input !== null && preview.changedCount === 0)) && (
         <div className="opsp__row opsp__notes">
           {confirming && (
@@ -325,36 +351,12 @@ export function OpsPricePanel({
           {input !== null && preview.changedCount === 0 && (
             <span className="opsp__warn">{copy.panelNoChange}</span>
           )}
-          {preview.skippedNoPrice > 0 && (
-            <span className="opsp__skip">
-              {copy.panelSkippedNoPrice.replace("{count}", String(preview.skippedNoPrice))}
-            </span>
-          )}
           {warnings.map((warning) => (
             <span className="opsp__warn" key={warning}>
               {warningText(warning)}
             </span>
           ))}
           {message && <span className="opsp__msg">{message}</span>}
-
-          {/* 1박 갭이 선택에 들어 있으면 그 자리에서 고칠 수 있어야 한다 —
-              찾아만 주고 못 고치면 오히려 일이 한 단계 는다. */}
-          {gapCells.length > 0 && (
-            <>
-              <span className="opsp__div" />
-              <span className="opsp__gaptext">
-                {copy.gapActionBody.replace("{count}", String(gapCells.length))}
-              </span>
-              <button
-                className="opsp__gapgo"
-                disabled={pending}
-                onClick={applyOneNight}
-                type="button"
-              >
-                {copy.gapAction}
-              </button>
-            </>
-          )}
         </div>
       )}
     </div>
