@@ -19,6 +19,12 @@ export type AdminDatePickerLabels = {
 type InlineDatePickerProps = {
   value: string;
   onChange: (value: string) => void;
+  /**
+   * 방아쇠에 **값 대신** 보여줄 글자. 고른 날짜가 곧 다른 뜻을 갖는 화면을 위한 것이다 —
+   * 판매 캘린더는 고른 날이 30일 창의 **시작일**이라 방아쇠에 `09/23 → 10/22` 가 떠야 한다.
+   * 주지 않으면 지금처럼 값을 그대로 보여준다.
+   */
+  display?: string;
   min?: string;
   max?: string;
   /** Read-only display (e.g. an end date the form derives itself). The popover never opens. */
@@ -113,6 +119,7 @@ function buildCalendarCells(
 function InlineDatePicker({
   value,
   onChange,
+  display,
   min,
   max,
   disabled = false,
@@ -181,7 +188,7 @@ function InlineDatePicker({
           setOpen((current) => !current);
         }}
       >
-        <span className={value ? undefined : "adp__ph"}>{value || placeholder || ""}</span>
+        <span className={value ? undefined : "adp__ph"}>{display || value || placeholder || ""}</span>
         <CalendarDays className="adp__trigger-ic" aria-hidden="true" />
       </button>
       {open ? (

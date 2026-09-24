@@ -308,6 +308,10 @@ const FALLBACK_DICTIONARY = {
       datePrevMonth: "Previous month",
       dateNextMonth: "Next month",
       dateThisMonth: "This month",
+      // 연 이동 — 공용 `AdminMonthPicker` 가 쓴다. 문구는 기능 네임스페이스가 아니라
+      // 여기 있어야 한다(CLAUDE.md §4b).
+      datePrevYear: "Previous year",
+      dateNextYear: "Next year",
       dateToday: "Today",
       // 날짜 단위 이동 — `AdminDatePicker` 의 nav 변형이 쓴다(청소 현황·근무표 공용).
       datePrevDay: "Previous day",
@@ -5400,6 +5404,10 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         datePrevMonth: "이전 달",
         dateNextMonth: "다음 달",
         dateThisMonth: "이번 달",
+        // 연 이동 — 공용 `AdminMonthPicker` 가 쓴다. 문구는 기능 네임스페이스가 아니라
+        // 여기 있어야 한다(CLAUDE.md §4b).
+        datePrevYear: "이전 해",
+        dateNextYear: "다음 해",
         dateToday: "오늘",
         datePrevDay: "이전 날",
         dateNextDay: "다음 날",
@@ -10341,6 +10349,10 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         datePrevMonth: "前月",
         dateNextMonth: "翌月",
         dateThisMonth: "今月",
+        // 연 이동 — 공용 `AdminMonthPicker` 가 쓴다. 문구는 기능 네임스페이스가 아니라
+        // 여기 있어야 한다(CLAUDE.md §4b).
+        datePrevYear: "前年",
+        dateNextYear: "翌年",
         dateToday: "今日",
         datePrevDay: "前の日",
         dateNextDay: "次の日",

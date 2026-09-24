@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { OpsCalendarGrid } from "@/components/admin/ops/ops-calendar-grid";
+import { OpsCalendarJump } from "@/components/admin/ops/ops-calendar-jump";
+import { AdminMonthPicker } from "@/components/admin/shared/admin-month-picker";
 import "@/components/admin/ops/ops-console.css";
 import { getDictionary } from "@/lib/i18n";
 import { getOpsCalendarData, OPS_CALENDAR_ROLLING_DAYS } from "@/lib/ops-calendar";
@@ -23,7 +25,13 @@ export const dynamic = "force-dynamic";
 type SearchParams = {
   /** `rolling`(기본) | `monthly` */
   mode?: string;
-  month?: string;
+  /**
+   * 월간 뷰의 대상 달(`YYYY-MM`).
+   *
+   * 이름이 `ym` 인 이유 — 공용 `AdminMonthPicker` 가 이 키로 이동한다. 우리만 `month` 로
+   * 두면 그 컴포넌트를 못 쓰고 달력을 또 만들게 된다(CLAUDE.md §4a).
+   */
+  ym?: string;
   property?: string;
   /** 30일 뷰의 시작일. 없으면 도쿄 기준 어제. */
   start?: string;
@@ -50,10 +58,11 @@ export default async function OpsCalendarPage({
   const params = await searchParams;
   const dictionary = getDictionary(session.user.preferredLanguage);
   const copy = dictionary.opsAdmin.calendar;
+  const localeTag = { en: "en-US", ja: "ja-JP", ko: "ko-KR" }[session.user.preferredLanguage];
 
   const data = await getOpsCalendarData(session, {
     mode: params.mode,
-    month: params.month,
+    month: params.ym,
     property: params.property,
     start: params.start,
     showCancelled: params.cancelled === "1",
@@ -66,7 +75,7 @@ export default async function OpsCalendarPage({
     const query = new URLSearchParams();
     const merged: SearchParams = {
       mode: data.mode,
-      month: data.mode === "monthly" ? data.month : undefined,
+      ym: data.mode === "monthly" ? data.month : undefined,
       property: data.selectedProperty ?? undefined,
       start: data.mode === "rolling" ? data.start : undefined,
       cancelled: showCancelled ? "1" : undefined,
@@ -82,14 +91,14 @@ export default async function OpsCalendarPage({
   // 격자 끝으로 밀린다.
   const prevHref = isRolling
     ? hrefWith({ start: addDays(data.start, -OPS_CALENDAR_ROLLING_DAYS) })
-    : hrefWith({ month: shiftMonth(data.month, -1) });
+    : hrefWith({ ym: shiftMonth(data.month, -1) });
   const nextHref = isRolling
     ? hrefWith({ start: addDays(data.start, OPS_CALENDAR_ROLLING_DAYS) })
-    : hrefWith({ month: shiftMonth(data.month, 1) });
+    : hrefWith({ ym: shiftMonth(data.month, 1) });
   // 「오늘」은 30일 뷰에서 시작일을 다시 **어제**로 돌린다(저쪽 `goToRollingToday` 와 같다).
   const todayHref = isRolling
     ? hrefWith({ start: addDays(data.today, -1) })
-    : hrefWith({ month: data.today.slice(0, 7) });
+    : hrefWith({ ym: data.today.slice(0, 7) });
 
   const first = data.days.at(0);
   const last = data.days.at(-1);
@@ -130,7 +139,7 @@ export default async function OpsCalendarPage({
           <div className="ops__seg">
             <Link
               className={`ops__segbtn${isRolling ? " on" : ""}`}
-              href={hrefWith({ mode: "rolling", month: undefined, start: undefined })}
+              href={hrefWith({ mode: "rolling", start: undefined, ym: undefined })}
             >
               {copy.viewRolling}
             </Link>
@@ -141,12 +150,59 @@ export default async function OpsCalendarPage({
               {copy.viewMonthly}
             </Link>
           </div>
-          <div className="ops__nav">
-            <Link href={prevHref}>‹</Link>
-            <Link href={todayHref}>{copy.today}</Link>
-            <Link href={nextHref}>›</Link>
-          </div>
-          <span className="ops__range">{rangeLabel}</span>
+          {/*
+            화살표는 30일(또는 한 달)씩 옮긴다. **먼 날짜로 가려면 여러 번 눌러야 하므로**
+            라벨 자체를 달력으로 만든다 — 2027년 4월 가격을 보려면 일곱 번 누르던 것이 한 번이
+            된다. 달력은 콘솔 **공용 프리미티브**를 그대로 쓴다(CLAUDE.md §4a):
+            30일 뷰는 **날짜**를 고르므로 `AdminDatePicker`, 월간 뷰는 **달**을 고르므로
+            `AdminMonthPicker`. 월 선택기는 화살표를 스스로 들고 있어 그쪽에서는 겹치지 않게
+            우리 화살표를 접는다.
+          */}
+          {isRolling ? (
+            <>
+              <div className="ops__nav">
+                <Link href={prevHref}>‹</Link>
+                <Link href={todayHref}>{copy.today}</Link>
+                <Link href={nextHref}>›</Link>
+              </div>
+              <OpsCalendarJump
+                ariaLabel={dictionary.admin.shared.dateSelect}
+                display={rangeLabel}
+                labels={{
+                  nextMonth: dictionary.admin.shared.dateNextMonth,
+                  prevMonth: dictionary.admin.shared.datePrevMonth,
+                  today: dictionary.admin.shared.dateToday,
+                }}
+                localeTag={localeTag}
+                params={{
+                  cancelled: showCancelled ? "1" : undefined,
+                  mode: data.mode,
+                  property: data.selectedProperty ?? undefined,
+                }}
+                start={data.start}
+              />
+            </>
+          ) : (
+            <>
+              <AdminMonthPicker
+                basePath="/admin/ops/calendar"
+                labels={{
+                  nextMonth: dictionary.admin.shared.dateNextMonth,
+                  nextYear: dictionary.admin.shared.dateNextYear,
+                  open: dictionary.admin.shared.dateSelect,
+                  prevMonth: dictionary.admin.shared.datePrevMonth,
+                  prevYear: dictionary.admin.shared.datePrevYear,
+                  thisMonth: dictionary.admin.shared.dateThisMonth,
+                }}
+                localeTag={localeTag}
+                preserveQueryKeys={["mode", "property", "cancelled"]}
+                ym={data.month}
+              />
+              <Link className="ops__btn" href={todayHref}>
+                {copy.today}
+              </Link>
+            </>
+          )}
           <div className="ops__div" />
           <Link
             className={`ops__btn${showCancelled ? " on" : ""}`}

@@ -118,21 +118,31 @@
 }
 .ops__nav > * + * { border-left: 1px solid var(--line-soft); }
 
-.ops__range {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+/*
+ * 가로축 라벨이 곧 **달력 방아쇠**다.
+ *
+ * 달력 자체는 콘솔 공용 프리미티브(`.adp` / `.amp`)를 그대로 쓴다 — 이 콘솔에 달력은 하나뿐이다
+ * (CLAUDE.md §4a). 여기서는 **툴바에 맞는 크기만** 준다: 공용 방아쇠는 폼 안에서 쓰라고
+ * `width: 100%` 라 그대로 두면 툴바에서 가로로 늘어난다.
+ */
+.ops .adp { flex: 0 0 auto; }
+.ops .adp .adp__trigger {
+  width: auto;
   height: 33px;
   min-width: 150px;
   padding: 0 13px;
   border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--card);
+  justify-content: center;
+  gap: 8px;
   font-size: 13px;
   font-weight: 900;
   letter-spacing: -0.01em;
   white-space: nowrap;
 }
+/* 월 선택기는 화살표까지 들고 오므로 높이만 이 툴바에 맞춘다. */
+.ops .amp { flex: 0 0 auto; }
+.ops .amp .amp__label { height: 33px; min-width: 132px; border-radius: 10px; }
+.ops .amp .amp__arw { height: 33px; }
 
 .ops__btn {
   display: inline-flex;
