@@ -6,6 +6,7 @@ import {
   toLinkedUnitExpectation,
   type CalendarReadSegment,
 } from "@/lib/beds24/price-write-verification";
+import { resolveCooldownSeconds, shouldCooldownForCredit } from "@/lib/beds24/sync-locks";
 
 /**
  * 쓴 값 되읽기 대조.
@@ -142,5 +143,43 @@ describe("toLinkedUnitExpectation", () => {
 
   it("가격을 안 바꾼 날짜는 검증 대상에서 빠진다", () => {
     expect(toLinkedUnitExpectation({ "2026-10-01": { m: 1 } })).toEqual({});
+  });
+});
+
+/**
+ * 쉬는 시간 계산(`resolveCooldownSeconds`).
+ *
+ * 너무 짧으면 바로 또 429 를 맞고, 너무 길면 그동안 아무것도 못 한다.
+ */
+describe("resolveCooldownSeconds", () => {
+  it("Beds24 가 알려준 리셋 + 2초", () => {
+    // 기준 시각을 저쪽이 찍고 우리가 재므로 시계가 다르다 — 여유를 둔다.
+    expect(resolveCooldownSeconds(30)).toBe(32);
+  });
+
+  it("안 알려주면 기본값", () => {
+    expect(resolveCooldownSeconds(null)).toBe(60);
+    expect(resolveCooldownSeconds(null, 30)).toBe(30);
+  });
+
+  it("위아래로 가둔다 — 너무 짧으면 바로 또 맞는다", () => {
+    expect(resolveCooldownSeconds(1)).toBe(15);
+    expect(resolveCooldownSeconds(9999)).toBe(300);
+  });
+
+  it("0이나 음수는 값이 없는 것으로 본다", () => {
+    expect(resolveCooldownSeconds(0)).toBe(60);
+    expect(resolveCooldownSeconds(-5)).toBe(60);
+  });
+});
+
+describe("shouldCooldownForCredit", () => {
+  it("바닥나기 **전에** 멈춘다", () => {
+    expect(shouldCooldownForCredit({ remaining: 9, resetInSec: null })).toBe(true);
+    expect(shouldCooldownForCredit({ remaining: 10, resetInSec: null })).toBe(false);
+  });
+
+  it("헤더가 없으면 쉬지 않는다 — 모른다고 멈추면 아무것도 못 한다", () => {
+    expect(shouldCooldownForCredit({ remaining: null, resetInSec: null })).toBe(false);
   });
 });

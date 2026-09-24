@@ -1024,3 +1024,20 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/*
+ * 사람이 손댄 칸 표시.
+ *
+ * 점 하나다 — 가격 숫자를 가리면 안 되고, 30px 칸에 더 넣을 자리도 없다. 자세한 것(누가
+ * 언제 얼마에서 얼마로)은 올렸을 때 뜬다.
+ */
+.opsg__hdot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--adm-primary) 70%, transparent);
+  pointer-events: none;
+}

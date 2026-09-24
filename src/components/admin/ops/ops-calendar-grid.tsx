@@ -10,6 +10,12 @@ import type {
 } from "@/lib/ops-calendar";
 import { OpsPricePanel, type PanelCopy, type PanelCell } from "@/components/admin/ops/ops-price-panel";
 import {
+  describeCellHistory,
+  historyCellKey,
+  type CellHistory,
+  type HistoryCopy,
+} from "@/lib/ops-price-history";
+import {
   applyScopeToSelection,
   buildScopeCells,
   buildSelectableWeeks,
@@ -66,7 +72,8 @@ type Copy = {
   selectedCount: string;
   andMore: string;
   selectHint: string;
-} & PanelCopy;
+} & PanelCopy &
+  HistoryCopy & { historyMore: string };
 
 /**
  * 격자 칸의 가격 표기 — `42659` → `42.7K`.
@@ -134,6 +141,7 @@ export function OpsCalendarGrid({
   copy,
   days,
   gapCells,
+  history,
   rates,
   rooms,
   today,
@@ -144,6 +152,8 @@ export function OpsCalendarGrid({
   days: OpsCalendarDay[];
   /** `roomKey|YYYY-MM-DD` — 1박 갭인 칸. */
   gapCells: Set<string>;
+  /** `객실라벨|YYYY-MM-DD` — 그 칸의 가격 변경 이력(최신순). */
+  history: Map<string, CellHistory>;
   rates: Map<string, OpsCalendarRate>;
   rooms: OpsCalendarRoom[];
   today: string;
@@ -659,10 +669,27 @@ export function OpsCalendarGrid({
                         const pendingPrice = pendingPrices.get(cellKey);
                         const price =
                           pendingPrice ?? rates.get(`${room.key}|${day.date}`)?.price ?? null;
+                        // 「누가 언제 얼마에서 얼마로」. 값이 이상할 때 제일 먼저 찾는 정보다.
+                        const cellHistory = history.get(
+                          historyCellKey(room.displayRoomLabel, day.date),
+                        );
                         return (
                           <div
                             className={cellClass(day, room.key)}
                             key={`p-${day.date}`}
+                            title={
+                              cellHistory
+                                ? describeCellHistory(cellHistory, {
+                                    change: copy.change,
+                                    cleared: copy.cleared,
+                                    minStay: copy.minStay,
+                                    more: copy.historyMore,
+                                    percentSuffix: copy.percentSuffix,
+                                    set: copy.set,
+                                    unknownUser: copy.unknownUser,
+                                  })
+                                : undefined
+                            }
                             {...cellHandlers(room.key, day.date)}
                           >
                             <span
@@ -670,6 +697,8 @@ export function OpsCalendarGrid({
                             >
                               {price === null ? "–" : formatPrice(price)}
                             </span>
+                            {/* 사람이 손댄 칸이라는 표시. 점 하나면 격자를 어지럽히지 않는다. */}
+                            {cellHistory && <span className="opsg__hdot" />}
                           </div>
                         );
                       })}

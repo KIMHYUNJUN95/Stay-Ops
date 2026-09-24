@@ -63,7 +63,7 @@ type Client = SupabaseClient<Database>;
 type JobRow = Database["public"]["Tables"]["beds24_price_jobs"]["Row"];
 
 export type PriceJobOutcome =
-  | { ran: false; reason: "cooldown" | "lock_busy" | "empty" }
+  | { ran: false; reason: "cooldown" | "lock_busy" | "lock_error" | "empty" }
   | {
       ran: true;
       jobId: string;
@@ -331,7 +331,11 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
     JOB_LOCK_OWNER,
     PRICE_JOB_LOCK_TTL_MS,
   );
-  if (!lock.acquired) return { ran: false, reason: "lock_busy" };
+  if (!lock.acquired) {
+    // **확인을 못 한 것과 남이 들고 있는 것을 구별한다.** 뭉치면 「왜 안 도는지」를 엉뚱한
+    // 곳에서 찾게 된다.
+    return { ran: false, reason: lock.reason === "error" ? "lock_error" : "lock_busy" };
+  }
 
   try {
     await recoverStuckJobs(supabase);
@@ -355,6 +359,41 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
 
     const updateByRoomId = new Map(roomUpdates.map((update) => [update.externalRoomId, update]));
     const targetRoomIds = [...updateByRoomId.keys()];
+
+    /*
+     * **쓰기 전에 현재 값을 읽어 둔다.** 이력의 「이전 값」이고, 쓴 뒤에는 영영 알 수 없다.
+     *
+     * 우리 표가 Beds24 보다 뒤처져 있을 수 있지만 그게 **화면이 보여준 값**이고, 사람이
+     * 「얼마에서 바꿨다」고 기억하는 것도 그 값이다.
+     */
+    const beforeByCell = new Map<string, { price1: number | null; minStay: number | null }>();
+    {
+      const roomUuids = targetRoomIds
+        .map((externalRoomId) => roomIdByExternal.get(externalRoomId))
+        .filter((value): value is string => !!value);
+      const stayDates = [
+        ...new Set(roomUpdates.flatMap((update) => Object.keys(update.dates ?? {}))),
+      ];
+      if (roomUuids.length > 0 && stayDates.length > 0) {
+        const before = await supabase
+          .from("room_daily_rates")
+          .select("room_id, stay_date, price1, min_stay")
+          .eq("organization_id", job.organization_id)
+          .in("room_id", roomUuids)
+          .in("stay_date", stayDates);
+        for (const rowValue of (before.data ?? []) as Array<{
+          room_id: string;
+          stay_date: string;
+          price1: number | null;
+          min_stay: number | null;
+        }>) {
+          beforeByCell.set(`${rowValue.room_id}|${rowValue.stay_date}`, {
+            minStay: rowValue.min_stay,
+            price1: rowValue.price1,
+          });
+        }
+      }
+    }
 
     for (let index = 0; index < targetRoomIds.length; index += WRITE_BATCH_SIZE) {
       const chunk = targetRoomIds.slice(index, index + WRITE_BATCH_SIZE);
@@ -418,8 +457,19 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
         const error = errors.get(externalRoomId) ?? null;
         results.push({ error, externalRoomId, success: !error });
         if (!error) {
+          const dates = updateByRoomId.get(externalRoomId)?.dates ?? {};
+          // **이력이 먼저다.** 로컬 반영이 끝나면 이전 값을 읽을 수 없다.
+          await writeChangeLogs({
+            beforeByCell,
+            dates,
+            externalRoomId,
+            job,
+            roomIdByExternal,
+            roomLabel: updateByRoomId.get(externalRoomId)?.roomLabel ?? null,
+            supabase,
+          });
           await patchLocalRates({
-            dates: updateByRoomId.get(externalRoomId)?.dates ?? {},
+            dates,
             externalRoomId,
             organizationId: job.organization_id,
             roomIdByExternal,
@@ -467,6 +517,66 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
     };
   } finally {
     await releaseBeds24Lock(supabase, PRICE_JOB_LOCK, lock.lockId);
+  }
+}
+
+/**
+ * 바꾼 칸을 **한 칸씩** 이력에 남긴다.
+ *
+ * 도메인 계약: docs/product/33-calendar-write-features.md 「이력을 남긴다」
+ *
+ * **검증을 통과한 것만 적는다.** Beds24 가 안 받아들인 값을 「바꿨다」고 적으면 이력이
+ * 거짓말을 하고, 그건 이력이 없는 것보다 나쁘다.
+ *
+ * 값이 그대로인 칸은 건너뛴다 — 같은 값을 다시 보낸 것까지 남기면 진짜 변경이 묻힌다.
+ */
+async function writeChangeLogs(args: {
+  beforeByCell: Map<string, { price1: number | null; minStay: number | null }>;
+  dates: Record<string, CalendarDateValues>;
+  externalRoomId: string;
+  job: JobRow;
+  roomIdByExternal: Map<string, string>;
+  roomLabel: string | null;
+  supabase: Client;
+}): Promise<void> {
+  const roomId = args.roomIdByExternal.get(args.externalRoomId) ?? null;
+  const rows: Database["public"]["Tables"]["price_change_logs"]["Insert"][] = [];
+
+  for (const [stayDate, values] of Object.entries(args.dates)) {
+    const before = roomId ? args.beforeByCell.get(`${roomId}|${stayDate}`) : undefined;
+    const shared = {
+      adjust_mode: args.job.adjust_mode,
+      changed_by: args.job.requested_by,
+      changed_by_name: args.job.requested_by_name,
+      external_room_id: args.externalRoomId,
+      job_id: args.job.id,
+      organization_id: args.job.organization_id,
+      percent_value: args.job.percent_value,
+      room_id: roomId,
+      room_label: args.roomLabel,
+      stay_date: stayDate,
+    };
+
+    if (values.p1 !== undefined) {
+      const newValue = values.p1 === "REMOVE" ? null : values.p1;
+      const oldValue = before?.price1 ?? null;
+      if (oldValue !== newValue) {
+        rows.push({ ...shared, field: "price1", new_value: newValue, old_value: oldValue });
+      }
+    }
+    if (values.m !== undefined) {
+      const oldValue = before?.minStay ?? null;
+      if (oldValue !== values.m) {
+        rows.push({ ...shared, field: "min_stay", new_value: values.m, old_value: oldValue });
+      }
+    }
+  }
+
+  if (rows.length === 0) return;
+  const result = await args.supabase.from("price_change_logs").insert(rows);
+  if (result.error) {
+    // 이력을 못 남겼다고 **작업을 실패로 만들지는 않는다** — 값은 이미 Beds24 에 들어갔다.
+    console.error("[beds24/price-job] 이력 기록 실패", { error: result.error, job: args.job.id });
   }
 }
 

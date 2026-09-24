@@ -255,6 +255,7 @@ export default async function OpsCalendarPage({
           copy={copy}
           days={data.days}
           gapCells={data.gapCells}
+          history={data.history}
           rates={data.rates}
           rooms={data.rooms}
           today={data.today}

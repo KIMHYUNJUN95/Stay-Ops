@@ -64,6 +64,9 @@ export async function enqueueBeds24PriceJob(args: {
   cells: PriceJobCellRequest[];
   requestedBy: string | null;
   requestedByName: string | null;
+  /** 이력에 「퍼센트로 바꿨다」가 남아야 한다. 화면에서만 합치고 데이터는 구분한다. */
+  adjustMode?: "amount" | "percent" | "min_stay";
+  percentValue?: number | null;
 }): Promise<EnqueueResult> {
   if (args.cells.length === 0) return { error: "no_cells", ok: false };
 
@@ -163,10 +166,12 @@ export async function enqueueBeds24PriceJob(args: {
   const inserted = await args.supabase
     .from("beds24_price_jobs")
     .insert({
+      adjust_mode: args.adjustMode ?? null,
       job_type: args.jobType,
       organization_id: args.organizationId,
       // 건물이 하나일 때만 기록한다 — 합치기가 건물 단위라 섞인 작업은 합치지 않는다.
       property_id: propertyIds.size === 1 ? [...propertyIds][0] : null,
+      percent_value: args.percentValue ?? null,
       requested_by: args.requestedBy,
       requested_by_name: args.requestedByName,
       room_updates: roomUpdates as never,

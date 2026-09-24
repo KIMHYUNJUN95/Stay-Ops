@@ -102,7 +102,11 @@ async function handle(request: NextRequest) {
       RATES_SYNC_LOCK_TTL_MS,
     );
     if (!lock.acquired) {
-      return NextResponse.json({ ok: true, skipped: "lock_busy" }, { status: 202 });
+      // 남이 들고 있는 것과 **확인조차 못 한 것**을 구별해 남긴다.
+      return NextResponse.json(
+        { ok: true, skipped: lock.reason === "error" ? "lock_error" : "lock_busy" },
+        { status: 202 },
+      );
     }
     lockId = lock.lockId;
 

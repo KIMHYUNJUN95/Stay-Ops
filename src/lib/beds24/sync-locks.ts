@@ -62,12 +62,22 @@ type Client = SupabaseClient<Database>;
  * 경쟁은 **DB 가 판정한다** — `expires_at > now()` 인 행이 있으면 upsert 가 막히도록
  * 조건부 갱신을 쓴다. 두 인스턴스가 동시에 시도해도 하나만 지나간다.
  */
+export type LockResult =
+  | { acquired: true; lockId: string }
+  /**
+   * `busy` 는 남이 들고 있다는 뜻이고, `error` 는 **확인조차 못 했다**는 뜻이다.
+   *
+   * 둘을 뭉치면 DB 가 한 번 흔들렸을 때 로그에 「락 점유 중」이라고 남아, **작업이 왜 안
+   * 도는지 영영 엉뚱한 곳을 보게 된다**(2026-09-24 실제로 그랬다).
+   */
+  | { acquired: false; lockId: null; reason: "busy" | "error" };
+
 export async function acquireBeds24Lock(
   supabase: Client,
   name: string,
   lockedBy: string,
   ttlMs: number,
-): Promise<{ acquired: boolean; lockId: string | null }> {
+): Promise<LockResult> {
   const lockId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const nowIso = new Date().toISOString();
   const expiresAt = new Date(Date.now() + ttlMs).toISOString();
@@ -81,9 +91,9 @@ export async function acquireBeds24Lock(
     .maybeSingle();
   if (existing.error) {
     console.error("[beds24/lock] read failed", { error: existing.error, name });
-    return { acquired: false, lockId: null };
+    return { acquired: false, lockId: null, reason: "error" };
   }
-  if (existing.data) return { acquired: false, lockId: null };
+  if (existing.data) return { acquired: false, lockId: null, reason: "busy" };
 
   const claimed = await supabase
     .from("beds24_sync_locks")
@@ -102,11 +112,12 @@ export async function acquireBeds24Lock(
     .single();
   if (claimed.error) {
     console.error("[beds24/lock] claim failed", { error: claimed.error, name });
-    return { acquired: false, lockId: null };
+    return { acquired: false, lockId: null, reason: "error" };
   }
   // 같은 순간 둘이 upsert 하면 나중 것이 이긴다. **내 lockId 가 남았을 때만 내 락이다.**
   const stored = (claimed.data as { metadata: { lockId?: string } | null }).metadata;
-  if (stored?.lockId !== lockId) return { acquired: false, lockId: null };
+  // 같은 순간 둘이 잡으면 나중 것이 남는다. 내 것이 아니면 남이 가져간 것이다.
+  if (stored?.lockId !== lockId) return { acquired: false, lockId: null, reason: "busy" };
   return { acquired: true, lockId };
 }
 

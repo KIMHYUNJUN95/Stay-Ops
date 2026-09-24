@@ -1364,6 +1364,7 @@ export type Database = {
       }
       beds24_price_jobs: {
         Row: {
+          adjust_mode: string | null
           attempt_count: number
           completed_at: string | null
           created_at: string
@@ -1372,6 +1373,7 @@ export type Database = {
           id: string
           job_type: string
           organization_id: string
+          percent_value: number | null
           processed_count: number
           property_id: string | null
           requested_by: string | null
@@ -1384,6 +1386,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          adjust_mode?: string | null
           attempt_count?: number
           completed_at?: string | null
           created_at?: string
@@ -1392,6 +1395,7 @@ export type Database = {
           id?: string
           job_type: string
           organization_id: string
+          percent_value?: number | null
           processed_count?: number
           property_id?: string | null
           requested_by?: string | null
@@ -1404,6 +1408,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          adjust_mode?: string | null
           attempt_count?: number
           completed_at?: string | null
           created_at?: string
@@ -1412,6 +1417,7 @@ export type Database = {
           id?: string
           job_type?: string
           organization_id?: string
+          percent_value?: number | null
           processed_count?: number
           property_id?: string | null
           requested_by?: string | null
@@ -3298,6 +3304,82 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      price_change_logs: {
+        Row: {
+          adjust_mode: string | null
+          changed_by: string | null
+          changed_by_name: string | null
+          created_at: string
+          external_room_id: string
+          field: string
+          id: string
+          job_id: string | null
+          new_value: number | null
+          old_value: number | null
+          organization_id: string
+          percent_value: number | null
+          room_id: string | null
+          room_label: string | null
+          stay_date: string
+        }
+        Insert: {
+          adjust_mode?: string | null
+          changed_by?: string | null
+          changed_by_name?: string | null
+          created_at?: string
+          external_room_id: string
+          field: string
+          id?: string
+          job_id?: string | null
+          new_value?: number | null
+          old_value?: number | null
+          organization_id: string
+          percent_value?: number | null
+          room_id?: string | null
+          room_label?: string | null
+          stay_date: string
+        }
+        Update: {
+          adjust_mode?: string | null
+          changed_by?: string | null
+          changed_by_name?: string | null
+          created_at?: string
+          external_room_id?: string
+          field?: string
+          id?: string
+          job_id?: string | null
+          new_value?: number | null
+          old_value?: number | null
+          organization_id?: string
+          percent_value?: number | null
+          room_id?: string | null
+          room_label?: string | null
+          stay_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_change_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_change_logs_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_change_logs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "beds24_price_jobs"
             referencedColumns: ["id"]
           },
         ]

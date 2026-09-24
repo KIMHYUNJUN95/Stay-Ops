@@ -13,6 +13,10 @@ import {
 } from "@/lib/rooms";
 import { sortBuildings, toJstDateString } from "@/lib/admin-calendar-dashboard";
 import { detectOneNightGaps, type OpsGapCellInput } from "@/lib/ops-gap-detection";
+import {
+  buildHistoryByCell,
+  type PriceHistoryRow,
+} from "@/lib/ops-price-history";
 import { mergeOpsRateUnits, type OpsMergedRate } from "@/lib/ops-rate-merge";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -471,6 +475,58 @@ export async function getOpsCalendarData(
     }
   }
 
+  /*
+   * ── 가격 변경 이력 ───────────────────────────────────────────────────
+   *
+   * 가격이 이상하면 제일 먼저 나오는 질문이 「누가 언제 얼마에서 얼마로 바꿨나」다.
+   * 창 범위만 읽는다 — 화면에 없는 칸의 이력은 보여줄 자리도 없다.
+   *
+   * **객실은 `room_label` 로 잇는다.** 가격은 소스 유닛, 최소숙박은 그날 운영 중인 유닛으로
+   * 가서 `room_id` 가 서로 다를 수 있는데, 사람이 보는 행은 하나다.
+   */
+  const historyResult = await readAllPages<{
+    room_label: string | null;
+    stay_date: string;
+    field: string;
+    old_value: number | null;
+    new_value: number | null;
+    created_at: string;
+    changed_by_name: string | null;
+    adjust_mode: string | null;
+    percent_value: number | null;
+  }>((from, to) =>
+    supabase
+      .from("price_change_logs")
+      .select(
+        "room_label, stay_date, field, old_value, new_value, created_at, changed_by_name, adjust_mode, percent_value",
+      )
+      .eq("organization_id", session.organization.id)
+      .gte("stay_date", window.start)
+      .lt("stay_date", window.endExclusive)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  if (historyResult.error) {
+    console.error("[ops-calendar] price history read failed", historyResult.error);
+  }
+  const historyRows: PriceHistoryRow[] = [];
+  for (const row of historyResult.data) {
+    if (!row.room_label) continue;
+    historyRows.push({
+      at: row.created_at,
+      by: row.changed_by_name,
+      field: row.field,
+      mode: row.adjust_mode,
+      newValue: row.new_value,
+      oldValue: row.old_value,
+      percent: row.percent_value,
+      roomLabel: row.room_label,
+      stayDate: row.stay_date,
+    });
+  }
+  const history = buildHistoryByCell(historyRows);
+
   // ── 1박 갭 감지 ───────────────────────────────────────────────────────
   //
   // 「하루만 비어 있는데 최소 2박이라 아무도 살 수 없는 날」. 판정식은 순수 모듈에 있다
@@ -529,6 +585,8 @@ export async function getOpsCalendarData(
     hasRates: rates.size > 0,
     /** `roomKey|YYYY-MM-DD` — 1박 갭인 칸. */
     gapCells: new Set([...gapCells].filter((key) => visibleRoomKeys.has(key.split("|")[0]))),
+    /** `객실라벨|YYYY-MM-DD` → 그 칸의 변경 이력(최신순). */
+    history,
     rates,
     days,
     mode,

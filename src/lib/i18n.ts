@@ -137,6 +137,15 @@ const FALLBACK_DICTIONARY = {
       // 개수가 아니라 **이유**를 적는다 — 「아, 그 칸은 가격이 없었지」가 되어야 한다.
       panelExcluded: "{count} cells excluded — no current price to work from",
       panelChannelNote: "Airbnb price only. Beds24 derives the Booking.com price itself.",
+      // ── 가격 변경 이력 (칸에 올리면 뜬다) ─────────────────────────────
+      change: "{from} → {to}",
+      // 값이 없던 칸. 0에서 올렸다고 하면 거짓말이다.
+      set: "set to {to}",
+      cleared: "{from} cleared",
+      minStay: "{n} nights",
+      percentSuffix: "({n}%)",
+      unknownUser: "(unknown)",
+      historyMore: "+{count} more",
       panelQueued: "Queued - applying to Beds24",
       panelDone: "Applied",
       panelFailed: "Failed: {error}",
@@ -5244,6 +5253,15 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       // 개수가 아니라 **이유**를 적는다 — 「아, 그 칸은 가격이 없었지」가 되어야 한다.
       panelExcluded: "{count}칸 자동 제외 — 기준이 될 현재 가격이 없습니다",
       panelChannelNote: "에어비앤비 가격만 씁니다. 부킹닷컴은 Beds24 가 자동으로 맞춥니다.",
+      // ── 가격 변경 이력 (칸에 올리면 뜬다) ─────────────────────────────
+      change: "{from} → {to}",
+      // 값이 없던 칸. 0에서 올렸다고 하면 거짓말이다.
+      set: "{to} 로 설정",
+      cleared: "{from} 삭제",
+      minStay: "{n}박",
+      percentSuffix: "({n}%)",
+      unknownUser: "(알 수 없음)",
+      historyMore: "외 {count}건",
       panelQueued: "접수됨 — Beds24 에 반영 중",
       panelDone: "반영 완료",
       panelFailed: "실패: {error}",
@@ -10194,6 +10212,15 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       // 개수가 아니라 **이유**를 적는다 — 「아, 그 칸은 가격이 없었지」가 되어야 한다.
       panelExcluded: "{count}セル自動除外 — 基準となる現在料金がありません",
       panelChannelNote: "Airbnb料金のみ設定します。Booking.comはBeds24が自動で調整します。",
+      // ── 가격 변경 이력 (칸에 올리면 뜬다) ─────────────────────────────
+      change: "{from} → {to}",
+      // 값이 없던 칸. 0에서 올렸다고 하면 거짓말이다.
+      set: "{to} に設定",
+      cleared: "{from} 削除",
+      minStay: "{n}泊",
+      percentSuffix: "({n}%)",
+      unknownUser: "(不明)",
+      historyMore: "他{count}件",
       panelQueued: "受付済み — Beds24へ反映中",
       panelDone: "反映完了",
       panelFailed: "失敗: {error}",

@@ -106,8 +106,10 @@ export async function submitPriceChange(args: {
 
   const supabase = getSupabaseServiceClient();
   const queued = await enqueueBeds24PriceJob({
+    adjustMode: args.input.kind,
     cells: requests,
     jobType: "price",
+    percentValue: args.input.kind === "percent" ? args.input.percent : null,
     organizationId: session.organization.id,
     requestedBy: session.user.id,
     requestedByName: session.user.name,
@@ -146,6 +148,7 @@ export async function submitMinStayChange(args: {
 
   const supabase = getSupabaseServiceClient();
   const queued = await enqueueBeds24PriceJob({
+    adjustMode: "min_stay",
     cells: args.cells.map((cell) => ({
       roomIds: cell.roomIds,
       roomLabel: cell.roomLabel,
