@@ -1,3 +1,6 @@
+"use client";
+
+import { useMemo, useRef, useState } from "react";
 import type {
   OpsCalendarBar,
   OpsCalendarBlock,
@@ -5,6 +8,21 @@ import type {
   OpsCalendarRate,
   OpsCalendarRoom,
 } from "@/lib/ops-calendar";
+import {
+  applyScopeToSelection,
+  buildScopeCells,
+  buildSelectableWeeks,
+  EMPTY_SCOPE,
+  isPriceEditBlocked,
+  selectionCellKey,
+  toggleCellGroup,
+  toggleInList,
+  toggleWeekdayPreset,
+  WEEKDAY_WEEKDAYS,
+  WEEKEND_WEEKDAYS,
+  type OpsSelectionCell,
+  type OpsSelectionScope,
+} from "@/lib/ops-calendar-selection";
 
 /**
  * 판매 캘린더 격자.
@@ -35,6 +53,20 @@ type Copy = {
   roomsHeader: string;
   /** 일요일(0)부터. `Date.getUTCDay()` 인덱스와 그대로 맞춘다. */
   weekDaysFromSunday: readonly string[];
+  editMode: string;
+  editModeExit: string;
+  scopeRooms: string;
+  scopeWeeks: string;
+  scopeDays: string;
+  scopeAll: string;
+  scopeWeekend: string;
+  scopeWeekday: string;
+  scopeClear: string;
+  selectedCount: string;
+  selectedRooms: string;
+  skippedSold: string;
+  selectionEmpty: string;
+  selectHint: string;
 };
 
 /**
@@ -117,6 +149,135 @@ export function OpsCalendarGrid({
   rooms: OpsCalendarRoom[];
   today: string;
 }) {
+  // 선택 상태는 전부 여기 있다. 서버로 왕복하지 않는다 — 칸 하나 찍을 때마다 격자를 다시
+  // 그리면 2,700칸짜리 화면에서 쓸 수 없다.
+  const [editMode, setEditMode] = useState(false);
+  const [scope, setScope] = useState<OpsSelectionScope>(EMPTY_SCOPE);
+  const [selection, setSelection] = useState<OpsSelectionCell[]>([]);
+  /** 팔려 있어서 선택에서 빠진 칸 수. **조용히 빼지 않는다.** */
+  const [skipped, setSkipped] = useState(0);
+  // 직전 축이 기여한 칸. 축을 바꿀 때 **이것만** 걷어내고 직접 찍은 칸은 살린다.
+  const scopeKeysRef = useRef<Set<string>>(new Set());
+  // 드래그: 누른 칸과 「더하는 중인가 빼는 중인가」. 누른 칸의 상태가 방향을 정한다.
+  const dragRef = useRef<{ adding: boolean } | null>(null);
+  const [dateAnchor, setDateAnchor] = useState<string | null>(null);
+
+  const dates = useMemo(() => days.map((day) => day.date), [days]);
+  const roomKeys = useMemo(() => rooms.map((room) => room.key), [rooms]);
+
+  /**
+   * 그 칸이 **팔려 있는가**. 가격 수정에서 막히는 유일한 조건이다.
+   *
+   * blackout·재고 블록·취소된 예약은 막지 않는다 — 차단해 둔 날도 가격은 미리 정해 둘 수
+   * 있고, 취소된 예약은 이미 없는 예약이다(저쪽 `isCellPriceBlocked` 와 같다).
+   */
+  const soldCells = useMemo(() => {
+    const sold = new Set<string>();
+    for (const bar of bars) {
+      if (bar.isCancelled) continue;
+      for (const date of dates) {
+        if (date >= bar.checkIn && date < bar.checkOut) {
+          sold.add(selectionCellKey(bar.roomKey, date));
+        }
+      }
+    }
+    return sold;
+  }, [bars, dates]);
+
+  const occupancyAt = useMemo(
+    () => (roomKey: string, date: string) => ({
+      hasBlockingReservation: soldCells.has(selectionCellKey(roomKey, date)),
+    }),
+    [soldCells],
+  );
+
+  const weeks = useMemo(() => buildSelectableWeeks(dates, today), [dates, today]);
+  const selectedKeys = useMemo(
+    () => new Set(selection.map((cell) => selectionCellKey(cell.roomKey, cell.date))),
+    [selection],
+  );
+  const selectedRoomCount = useMemo(
+    () => new Set(selection.map((cell) => cell.roomKey)).size,
+    [selection],
+  );
+
+  /** 축을 바꾼다 — 곧바로 선택에 반영하되 직접 찍은 칸은 보존한다. */
+  const applyScope = (next: OpsSelectionScope) => {
+    setScope(next);
+    const built = buildScopeCells({
+      dates,
+      occupancyAt,
+      roomKeys,
+      scope: next,
+      today,
+    });
+    setSelection((previous) => {
+      const applied = applyScopeToSelection({
+        nextScopeCells: built.cells,
+        previous,
+        previousScopeKeys: scopeKeysRef.current,
+      });
+      scopeKeysRef.current = applied.scopeKeys;
+      return applied.selection;
+    });
+    setSkipped(built.skipped);
+  };
+
+  const clearSelection = () => {
+    setScope(EMPTY_SCOPE);
+    scopeKeysRef.current = new Set();
+    setSelection([]);
+    setSkipped(0);
+    setDateAnchor(null);
+  };
+
+  const canSelect = (roomKey: string, date: string) =>
+    date >= today && !isPriceEditBlocked(occupancyAt(roomKey, date));
+
+  /** 칸 하나를 켜거나 끈다. 드래그 중이면 누른 칸이 정한 방향을 따른다. */
+  const touchCell = (roomKey: string, date: string, adding: boolean) => {
+    if (!canSelect(roomKey, date)) return;
+    const key = selectionCellKey(roomKey, date);
+    setSelection((previous) => {
+      const has = previous.some(
+        (cell) => selectionCellKey(cell.roomKey, cell.date) === key,
+      );
+      if (adding === has) return previous;
+      return adding
+        ? [...previous, { date, roomKey }]
+        : previous.filter((cell) => selectionCellKey(cell.roomKey, cell.date) !== key);
+    });
+  };
+
+  /** 한 줄(객실) 또는 한 열(날짜)을 통째로. 전부 골라져 있으면 해제된다. */
+  const toggleGroup = (cells: OpsSelectionCell[]) => {
+    const selectable = cells.filter((cell) => canSelect(cell.roomKey, cell.date));
+    if (selectable.length === 0) return;
+    setSkipped(cells.length - selectable.length);
+    setSelection((previous) => toggleCellGroup(previous, selectable));
+  };
+
+  const toggleRoomRow = (roomKey: string) =>
+    toggleGroup(dates.map((date) => ({ date, roomKey })));
+
+  /** 날짜 머리글: 그 열 전체. Shift 를 누르면 직전 열부터 **범위**로 잡는다. */
+  const toggleDateColumn = (date: string, withRange: boolean) => {
+    const targetDates =
+      withRange && dateAnchor
+        ? dates.filter(
+            (candidate) =>
+              candidate >= (dateAnchor < date ? dateAnchor : date) &&
+              candidate <= (dateAnchor < date ? date : dateAnchor),
+          )
+        : [date];
+    setDateAnchor(date);
+    toggleGroup(
+      targetDates.flatMap((targetDate) =>
+        roomKeys.map((roomKey) => ({ date: targetDate, roomKey })),
+      ),
+    );
+  };
+
   if (rooms.length === 0) {
     return (
       <div className="opsg">
@@ -158,12 +319,179 @@ export function OpsCalendarGrid({
       day.date < today ? "past" : "",
       day.startsMonth ? "m1" : "",
       roomKey && gapCells.has(`${roomKey}|${day.date}`) ? "gap" : "",
+      roomKey && selectedKeys.has(selectionCellKey(roomKey, day.date)) ? "sel" : "",
+      // 선택 모드에서 **팔린 밤**은 고를 수 없다는 것이 보여야 한다.
+      editMode && roomKey && soldCells.has(selectionCellKey(roomKey, day.date)) ? "sold" : "",
     ]
       .filter(Boolean)
       .join(" ");
 
+  /**
+   * 선택 모드에서 칸에 붙는 마우스 핸들러.
+   *
+   * 누른 칸의 현재 상태가 **드래그 방향**을 정한다 — 꺼진 칸에서 시작하면 지나가는 칸을
+   * 켜고, 켜진 칸에서 시작하면 끈다. 방향을 매 칸 다시 판단하면 드래그가 깜빡인다.
+   */
+  const cellHandlers = (roomKey: string, date: string) => {
+    if (!editMode || !canSelect(roomKey, date)) return {};
+    return {
+      onMouseDown: (event: React.MouseEvent) => {
+        event.preventDefault();
+        const adding = !selectedKeys.has(selectionCellKey(roomKey, date));
+        dragRef.current = { adding };
+        touchCell(roomKey, date, adding);
+      },
+      onMouseEnter: () => {
+        if (dragRef.current) touchCell(roomKey, date, dragRef.current.adding);
+      },
+      onMouseUp: () => {
+        dragRef.current = null;
+      },
+    };
+  };
+
+  const chip = (on: boolean, extra = "") =>
+    `opsg__chip${on ? " on" : ""}${extra ? ` ${extra}` : ""}`;
+
   return (
     <div className="opsg">
+      {/* ── 선택 모드 ────────────────────────────────────────────────────
+          평소에는 읽는 화면이다. 「가격 수정」을 눌러야 칸이 선택 대상이 된다 —
+          저쪽도 `priceMode` 토글로 갈라 놓았다. 읽기만 하려다 실수로 바꾸는 일을 막는다. */}
+      <div className="opsg__edit">
+        <button
+          className={`opsg__editbtn${editMode ? " on" : ""}`}
+          onClick={() => {
+            if (editMode) clearSelection();
+            setEditMode(!editMode);
+          }}
+          type="button"
+        >
+          {editMode ? copy.editModeExit : copy.editMode}
+        </button>
+
+        {editMode && (
+          <>
+            {/* 객실 축 */}
+            <span className="opsg__axis">{copy.scopeRooms}</span>
+            <button
+              className={chip(scope.roomKeys.length === 0)}
+              onClick={() => applyScope({ ...scope, roomKeys: [] })}
+              type="button"
+            >
+              {copy.scopeAll}
+            </button>
+            {rooms.map((room) => (
+              <button
+                className={chip(scope.roomKeys.includes(room.key), "mini")}
+                key={`sc-${room.key}`}
+                onClick={() =>
+                  applyScope({ ...scope, roomKeys: toggleInList(scope.roomKeys, room.key) })
+                }
+                type="button"
+              >
+                {room.displayRoomLabel}
+              </button>
+            ))}
+
+            <span className="opsg__adiv" />
+
+            {/* 기간 축 — **주 단위다.** 요금은 주말가/평일가로 주 단위로 움직인다. */}
+            <span className="opsg__axis">{copy.scopeWeeks}</span>
+            <button
+              className={chip(scope.weekStarts.length === 0)}
+              onClick={() => applyScope({ ...scope, weekStarts: [] })}
+              type="button"
+            >
+              {copy.scopeAll}
+            </button>
+            {weeks.map((week) => (
+              <button
+                className={chip(scope.weekStarts.includes(week.start), "mini")}
+                key={week.start}
+                onClick={() =>
+                  applyScope({
+                    ...scope,
+                    weekStarts: toggleInList(scope.weekStarts, week.start),
+                  })
+                }
+                type="button"
+              >
+                {`${Number(week.start.slice(5, 7))}/${Number(week.start.slice(8, 10))}`}
+                –{`${Number(week.end.slice(5, 7))}/${Number(week.end.slice(8, 10))}`}
+              </button>
+            ))}
+
+            <span className="opsg__adiv" />
+
+            {/* 요일 축 — **사내 주말은 금·토·일이다.** 토·일이 아니다. */}
+            <span className="opsg__axis">{copy.scopeDays}</span>
+            <button
+              className={chip(scope.weekdays.length === 0)}
+              onClick={() => applyScope({ ...scope, weekdays: [] })}
+              type="button"
+            >
+              {copy.scopeAll}
+            </button>
+            <button
+              className={chip(
+                scope.weekdays.length === 3 && WEEKEND_WEEKDAYS.every((d) => scope.weekdays.includes(d)),
+              )}
+              onClick={() =>
+                applyScope({ ...scope, weekdays: toggleWeekdayPreset(scope.weekdays, WEEKEND_WEEKDAYS) })
+              }
+              type="button"
+            >
+              {copy.scopeWeekend}
+            </button>
+            <button
+              className={chip(
+                scope.weekdays.length === 4 && WEEKDAY_WEEKDAYS.every((d) => scope.weekdays.includes(d)),
+              )}
+              onClick={() =>
+                applyScope({ ...scope, weekdays: toggleWeekdayPreset(scope.weekdays, WEEKDAY_WEEKDAYS) })
+              }
+              type="button"
+            >
+              {copy.scopeWeekday}
+            </button>
+            {[1, 2, 3, 4, 5, 6, 0].map((weekday) => (
+              <button
+                className={chip(scope.weekdays.includes(weekday), "mini")}
+                key={`dow-${weekday}`}
+                onClick={() =>
+                  applyScope({ ...scope, weekdays: toggleInList(scope.weekdays, weekday) })
+                }
+                type="button"
+              >
+                {weekdays[weekday]}
+              </button>
+            ))}
+
+            <span className="opsg__spacer" />
+
+            <span className="opsg__count">
+              {selection.length > 0
+                ? `${copy.selectedCount.replace("{count}", String(selection.length))} · ${copy.selectedRooms.replace("{count}", String(selectedRoomCount))}`
+                : copy.selectionEmpty}
+            </span>
+            {/* 조용히 빼지 않는다 — 안 그러면 「42칸 고쳤다」고 믿는데 5칸은 안 바뀐다. */}
+            {skipped > 0 && (
+              <span className="opsg__skip">
+                {copy.skippedSold.replace("{count}", String(skipped))}
+              </span>
+            )}
+            {selection.length > 0 && (
+              <button className="opsg__clear" onClick={clearSelection} type="button">
+                {copy.scopeClear}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {editMode && <div className="opsg__hint">{copy.selectHint}</div>}
+
       <div className="opsg__head">
         <div className="opsg__corner">{copy.roomsHeader}</div>
         {days.map((day) => (
@@ -173,10 +501,17 @@ export function OpsCalendarGrid({
               day.isWeekend ? "we" : "",
               day.isToday ? "today" : "",
               day.startsMonth ? "m1" : "",
+              editMode && day.date >= today ? "pick" : "",
             ]
               .filter(Boolean)
               .join(" ")}
             key={day.date}
+            // 열 전체. Shift 를 누르면 직전에 누른 날짜부터 **범위**로 잡는다.
+            onClick={
+              editMode && day.date >= today
+                ? (event) => toggleDateColumn(day.date, event.shiftKey)
+                : undefined
+            }
           >
             {day.startsMonth && (
               <span className="opsg__mtag">
@@ -189,7 +524,17 @@ export function OpsCalendarGrid({
         ))}
       </div>
 
-      <div className="opsg__scroll">
+      {/* 드래그를 칸 밖에서 놓아도 끝나야 한다. 안 그러면 마우스를 뗀 뒤에도 지나가는
+          칸이 계속 선택된다. */}
+      <div
+        className="opsg__scroll"
+        onMouseLeave={() => {
+          dragRef.current = null;
+        }}
+        onMouseUp={() => {
+          dragRef.current = null;
+        }}
+      >
         {roomsByProperty.map((group) => (
           <div key={group.property}>
             <div className="opsg__group">
@@ -218,7 +563,10 @@ export function OpsCalendarGrid({
 
               return (
                 <div className="opsg__row" key={room.key}>
-                  <div className="opsg__label">
+                  <div
+                    className={`opsg__label${editMode ? " pick" : ""}`}
+                    onClick={editMode ? () => toggleRoomRow(room.key) : undefined}
+                  >
                     <span className="opsg__rn">{room.displayRoomLabel}</span>
                   </div>
                   <div className="opsg__tracks">
@@ -227,7 +575,11 @@ export function OpsCalendarGrid({
                       {days.map((day) => {
                         const price = rates.get(`${room.key}|${day.date}`)?.price ?? null;
                         return (
-                          <div className={cellClass(day)} key={`p-${day.date}`}>
+                          <div
+                            className={cellClass(day, room.key)}
+                            key={`p-${day.date}`}
+                            {...cellHandlers(room.key, day.date)}
+                          >
                             <span className={`opsg__price${price === null ? " none" : ""}`}>
                               {price === null ? "–" : formatPrice(price)}
                             </span>
@@ -240,7 +592,11 @@ export function OpsCalendarGrid({
                       {days.map((day) => {
                         const minStay = rates.get(`${room.key}|${day.date}`)?.minStay ?? null;
                         return (
-                          <div className={cellClass(day, room.key)} key={`m-${day.date}`}>
+                          <div
+                            className={cellClass(day, room.key)}
+                            key={`m-${day.date}`}
+                            {...cellHandlers(room.key, day.date)}
+                          >
                             <span className="opsg__min">{minStay ?? ""}</span>
                           </div>
                         );
