@@ -297,7 +297,27 @@
   letter-spacing: 0.02em;
 }
 
-.opsg__scroll { overflow: auto; min-height: 0; }
+/*
+ * 격자 스크롤. 가로·세로 둘 다 길어서 **스크롤바가 있다는 사실 자체는 필요하다** —
+ * 객실 90개·30일이 창 밖으로 나가는 화면이라 「더 있다」를 숨기면 안 된다.
+ * 다만 기본 스크롤바는 두껍고 화살표까지 달려 격자 한 칸(30px대)과 싸우므로 얇게 깎는다.
+ * 콘솔의 `.atp__col` 과 같은 규격이다.
+ */
+.opsg__scroll {
+  overflow: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--ink) 20%, transparent) transparent;
+}
+.opsg__scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.opsg__scroll::-webkit-scrollbar-track { background: transparent; }
+.opsg__scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--ink) 18%, transparent);
+  border-radius: 5px;
+}
+.opsg__scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--ink) 30%, transparent);
+}
 
 .opsg__group {
   display: flex;
