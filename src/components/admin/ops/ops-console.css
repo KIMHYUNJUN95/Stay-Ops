@@ -1056,3 +1056,187 @@
   font-weight: 700;
 }
 .ops__meta.stale .ops__dot2 { background: var(--danger); }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * 최소 숙박일 모드
+ * 시안: Claude Design 「StayOps 운영 관리자 영역」 `6-minstay.dc.html`
+ *
+ * 가격 모드와 **같은 자리**를 쓴다. 다른 것은 패널 안쪽뿐이다 — 격자·축·선택 규칙이 같은데
+ * 껍데기까지 달라지면 두 화면을 따로 익혀야 한다.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/* 지금 무슨 모드인지. 버튼이 아니라 **상태 표시**라 누를 수 없게 생겼다. */
+.opsg__modepill {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: var(--ops-ctl);
+  padding: 0 14px;
+  border-radius: 8px;
+  background: var(--adm-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  box-shadow: 0 3px 9px -3px color-mix(in oklab, var(--adm-primary) 60%, transparent);
+}
+.opsg__modepill.ms { background: var(--danger); box-shadow: 0 3px 9px -3px hsl(4 62% 46% / 0.6); }
+.opsg__modedot { width: 6px; height: 6px; border-radius: 9px; background: #fff; }
+
+/* 갭 일괄 선택. 개수가 곧 설득이라 배지를 버튼 안에 넣는다. */
+.opsg__gapsel {
+  display: inline-flex;
+  align-items: center;
+  height: var(--ops-ctl);
+  padding: 0 12px;
+  border: 1px solid color-mix(in oklab, var(--danger) 35%, transparent);
+  border-radius: 8px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.opsg__gapsel:hover { background: color-mix(in oklab, var(--danger) 10%, var(--card)); }
+.opsg__gapseln {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 7px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 갭 개수를 크게 적는다 — 눈에 안 띄는 손실이라 숫자가 작으면 손이 안 간다. */
+.opsms__box {
+  padding: 12px 13px;
+  border: 1px solid color-mix(in oklab, var(--danger) 35%, transparent);
+  border-radius: 13px;
+  background: var(--danger-bg);
+}
+.opsms__num { display: flex; align-items: baseline; gap: 7px; }
+.opsms__num strong {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  color: var(--danger);
+  font-variant-numeric: tabular-nums;
+}
+.opsms__num span { font-size: 14px; font-weight: 800; color: var(--danger); }
+.opsms__desc {
+  margin-top: 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: hsl(4 40% 32%);
+}
+
+.opsms__acts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.opsms__act,
+.opsms__custom {
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface2);
+  color: var(--soft);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-align: center;
+  cursor: pointer;
+}
+.opsms__act.on,
+.opsms__custom.on {
+  border-color: var(--adm-primary);
+  background: var(--adm-primary);
+  color: #fff;
+  box-shadow: 0 4px 12px -5px color-mix(in oklab, var(--adm-primary) 70%, transparent);
+}
+/* 직접 입력은 **자주 쓰는 값이 아니다.** 점선으로 한 단계 물러나 보이게 한다. */
+.opsms__custom {
+  min-width: 0;
+  border-style: dashed;
+  color: var(--faint);
+  font-weight: 700;
+  cursor: text;
+}
+.opsms__custom::-webkit-outer-spin-button,
+.opsms__custom::-webkit-inner-spin-button { appearance: none; margin: 0; }
+.opsms__custom { appearance: textfield; }
+
+/* 갭 목록 — 「무엇과 무엇 사이에 낀 하루인가」까지 적어야 격자를 다시 안 본다. */
+.opsms__tbl {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  overflow: hidden;
+}
+.opsms__trw {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  font-size: 10.5px;
+}
+.opsms__trw + .opsms__trw { border-top: 1px solid var(--line-soft); }
+.opsms__rm { flex: 0 0 38px; font-weight: 800; letter-spacing: -0.02em; }
+.opsms__dt {
+  flex: 0 0 38px;
+  color: var(--muted);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.opsms__ctx { flex: 1; display: flex; align-items: center; gap: 3px; justify-content: flex-end; }
+.opsms__arrow { color: var(--faint); font-size: 8px; }
+.opsms__pill {
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.opsms__pill.airbnb { background: var(--ops-abnb-bg); color: var(--ops-abnb); }
+.opsms__pill.booking { background: var(--ops-bkng-bg); color: var(--ops-bkng); }
+.opsms__pill.manual { background: var(--ops-dir-bg); color: var(--ops-dir); }
+.opsms__pill.block { background: hsl(222 12% 88%); color: hsl(222 16% 36%); }
+.opsms__pill.none { background: var(--surface2); color: var(--faint); }
+.opsms__pill.gap { background: var(--danger); color: #fff; }
+
+.opsms__empty {
+  padding: 14px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+  text-align: center;
+}
+
+/* 「왜 이건 갭이 아니지?」가 반드시 나온다. 규칙을 숨기면 그때마다 코드를 열어야 한다. */
+.opsms__rule {
+  padding: 9px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 11px;
+  background: var(--surface2);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.opsms__rule strong { color: var(--soft); }
+.opsms__rulenote { display: block; margin-top: 3px; color: var(--faint); }

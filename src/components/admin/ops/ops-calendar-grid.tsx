@@ -8,7 +8,12 @@ import type {
   OpsCalendarRate,
   OpsCalendarRoom,
 } from "@/lib/ops-calendar";
+import {
+  OpsMinStayPanel,
+  type MinStayPanelCopy,
+} from "@/components/admin/ops/ops-minstay-panel";
 import { OpsPricePanel, type PanelCopy, type PanelCell } from "@/components/admin/ops/ops-price-panel";
+import { buildGapContext } from "@/lib/ops-gap-context";
 import {
   describeCellHistory,
   historyCellKey,
@@ -72,7 +77,10 @@ type Copy = {
   selectedCount: string;
   andMore: string;
   selectHint: string;
+  minStayMode: string;
+  gapSelectAll: string;
 } & PanelCopy &
+  MinStayPanelCopy &
   HistoryCopy & { historyMore: string };
 
 /**
@@ -160,7 +168,16 @@ export function OpsCalendarGrid({
 }) {
   // 선택 상태는 전부 여기 있다. 서버로 왕복하지 않는다 — 칸 하나 찍을 때마다 격자를 다시
   // 그리면 2,700칸짜리 화면에서 쓸 수 없다.
-  const [editMode, setEditMode] = useState(false);
+  /**
+   * 편집 모드는 **둘로 갈린다.**
+   *
+   * 가격과 최소 숙박일은 같은 격자를 쓰지만 묻는 것이 다르다 — 가격은 「얼마로?」이고 칸마다
+   * 다른 값을 계산하지만, 최소 숙박일은 「몇 박으로?」 하나를 고른 칸 전부에 넣는다.
+   * 한 패널에 둘을 넣으면 **어느 쪽을 고치는 중인지 모르는 채로 적용**하게 된다. 가격은
+   * 틀리면 채널로 그대로 나간다.
+   */
+  const [mode, setMode] = useState<"off" | "price" | "minstay">("off");
+  const editMode = mode !== "off";
   const [scope, setScope] = useState<OpsSelectionScope>(EMPTY_SCOPE);
   /**
    * 고른 칸과 **직전 축이 기여한 칸**을 한 덩어리로 든다.
@@ -254,6 +271,47 @@ export function OpsCalendarGrid({
 
   const canSelect = (roomKey: string, date: string) =>
     date >= today && !isPriceEditBlocked(occupancyAt(roomKey, date));
+
+  /**
+   * 지금 화면에서 **고를 수 있는** 갭 칸.
+   *
+   * `gapCells` 에는 과거 날짜도 들어 있다(격자에 표시는 한다 — 「어제 이 밤을 버렸다」는
+   * 정보다). 하지만 과거의 최소 숙박일을 고쳐 봐야 팔 수 없으므로 자동 선택에서는 뺀다.
+   */
+  const selectableGapCells = useMemo(() => {
+    const cells: OpsSelectionCell[] = [];
+    for (const key of gapCells) {
+      const separator = key.indexOf("|");
+      if (separator < 0) continue;
+      const roomKey = key.slice(0, separator);
+      const date = key.slice(separator + 1);
+      if (!roomKeys.includes(roomKey)) continue;
+      if (!canSelect(roomKey, date)) continue;
+      cells.push({ date, roomKey });
+    }
+    return cells;
+  }, [gapCells, roomKeys, today, rates, bars, blocks]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * 갭만 고른다. **축 선택은 비운다** — 축으로 고른 것이 아니므로 축을 다시 누를 때 이 칸들이
+   * 걷혀서는 안 된다(축이 기여한 칸만 걷는 규칙이다).
+   */
+  const selectAllGaps = () => {
+    setScope(EMPTY_SCOPE);
+    setDateAnchor(null);
+    setSelectionState({ cells: selectableGapCells, scopeKeys: new Set() });
+  };
+
+  const gapContext = useMemo(
+    () =>
+      buildGapContext({
+        bars,
+        blocks,
+        gapCells,
+        roomLabels: new Map(rooms.map((room) => [room.key, room.displayRoomLabel])),
+      }),
+    [bars, blocks, gapCells, rooms],
+  );
 
   /** 칸 하나를 켜거나 끈다. 드래그 중이면 누른 칸이 정한 방향을 따른다. */
   const touchCell = (roomKey: string, date: string, adding: boolean) => {
@@ -467,16 +525,50 @@ export function OpsCalendarGrid({
           평소에는 읽는 화면이다. 「가격 수정」을 눌러야 칸이 선택 대상이 된다 —
           저쪽도 `priceMode` 토글로 갈라 놓았다. 읽기만 하려다 실수로 바꾸는 일을 막는다. */}
       <div className="opsg__edit">
-        <button
-          className={`opsg__editbtn${editMode ? " on" : ""}`}
-          onClick={() => {
-            if (editMode) clearSelection();
-            setEditMode(!editMode);
-          }}
-          type="button"
-        >
-          {editMode ? copy.editModeExit : copy.editMode}
-        </button>
+        {mode === "off" ? (
+          <>
+            <button
+              className="opsg__editbtn"
+              onClick={() => setMode("price")}
+              type="button"
+            >
+              {copy.editMode}
+            </button>
+            <button
+              className="opsg__editbtn"
+              onClick={() => setMode("minstay")}
+              type="button"
+            >
+              {copy.minStayMode}
+            </button>
+          </>
+        ) : (
+          <>
+            <span className={`opsg__modepill${mode === "minstay" ? " ms" : ""}`}>
+              <span className="opsg__modedot" />
+              {mode === "minstay" ? copy.minStayMode : copy.editMode}
+            </span>
+            <button
+              className="opsg__editbtn"
+              onClick={() => {
+                clearSelection();
+                setMode("off");
+              }}
+              type="button"
+            >
+              {copy.editModeExit}
+            </button>
+          </>
+        )}
+
+        {/* 갭은 눈에 안 띄는 손실이라 **찾아 주는 것만으로는 부족하다** — 한 번에 고를 수
+            있어야 손이 간다. 격자에서 6칸을 하나씩 찾아 누르게 하면 그냥 안 한다. */}
+        {mode === "minstay" && selectableGapCells.length > 0 && (
+          <button className="opsg__gapsel" onClick={selectAllGaps} type="button">
+            {copy.gapSelectAll}
+            <span className="opsg__gapseln">{selectableGapCells.length}</span>
+          </button>
+        )}
 
         {editMode && (
           <>
@@ -707,6 +799,8 @@ export function OpsCalendarGrid({
                     <div className="opsg__track">
                       {days.map((day) => {
                         const minStay = rates.get(`${room.key}|${day.date}`)?.minStay ?? null;
+                        // 갭 칸에서는 이 값이 **원인**이다 — `.opsg__cell.gap .opsg__min` 이
+                        // 붉게 세운다. 칸이 이미 `gap` 클래스를 들고 있어 여기서 또 붙이지 않는다.
                         return (
                           <div
                             className={cellClass(day, room.key)}
@@ -772,7 +866,17 @@ export function OpsCalendarGrid({
       </div>
       </div>
 
-      {editMode && (
+      {mode === "minstay" && (
+        <OpsMinStayPanel
+          cells={panelCells}
+          copy={copy}
+          gapContext={gapContext}
+          onClear={clearSelection}
+          scopeSummary={scopeSummary}
+        />
+      )}
+
+      {mode === "price" && (
         <OpsPricePanel
           cells={panelCells}
           clearLabel={copy.scopeClear}
