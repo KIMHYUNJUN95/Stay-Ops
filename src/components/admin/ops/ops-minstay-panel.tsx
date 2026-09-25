@@ -49,7 +49,8 @@ export type MinStayPanelCopy = {
   msNeighborNone: string;
   msNeighborBlock: string;
   msNight: string;
-  panelCancel: string;
+  /** 선택을 비우는 버튼. 가격 패널과 **같은 라벨**을 쓴다 — 같은 동작이다. */
+  scopeClear: string;
   errForbidden: string;
   errNoCells: string;
   errBadMinStay: string;
@@ -265,7 +266,7 @@ export function OpsMinStayPanel({
           onClick={onClear}
           type="button"
         >
-          {copy.panelCancel}
+          {copy.scopeClear}
         </button>
         <button
           className="opsp__btn go"
