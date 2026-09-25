@@ -4922,3 +4922,22 @@ Beds24 설정의 그 칸은 **「予約Webhook」**(예약 웹훅)이고 저쪽 
   작성해 뒀고(`haru-job-react/firestore.rules`), WSL 쪽 firebase 토큰이 만료돼 배포가 막혀 있다.
 - **방문자 카운터가 이미 죽어 있다**(`siteStats` 403). 이번 규칙에서 일부러 열지 않았다 —
   `docs/product/30-recruit-workflow.md` 참고.
+
+## 2026-09-25 — Beds24 API 토큰 재발급
+
+Beds24 관리 화면에서 토큰이 실수로 삭제됐다. **증상이 조용한 게 이 사고의 핵심이다** —
+`rates-sync` 는 `200` 을 돌려주면서 `skipped: ["room-rates:refresh-token-invalid"]` 만 남기고,
+판매 캘린더는 마지막으로 성공한 시점의 요금을 그대로 띄운다. 화면 어디에도 실패가 안 뜬다.
+
+진단하며 걸렸던 함정 하나: 재발급 뒤에도 계속 `401` 이 나서 IP 화이트리스트를 의심했는데,
+`.env` 값의 해시를 떠 보니 **삭제된 그 토큰을 다시 넣은 것**이었다. 값을 눈으로 비교하지 말고
+해시로 비교할 것. `/authentication/details` 는 잘못된 토큰에도 `200` + `validToken: false` 를
+주므로 HTTP 상태코드만 보면 안 된다.
+
+- 재발급 절차·검증·주의사항(특히 **IP 화이트리스트는 비운다**)은
+  `docs/engineering/07-environment-setup.md` → 「Beds24 토큰 재발급 (rotation)」 에 정리했다.
+- 도구 둘 추가: `scripts/dev/beds24-redeem-invite-code.mjs` (초대코드 → 리프레시 토큰 교환 + `.env`
+  기록), `scripts/dev/beds24-push-token-to-vercel.mjs` (Vercel production 주입). 둘 다 토큰 값을
+  출력하지 않고, 교환 쪽은 실제 발급이 되는 것을 확인한 뒤에만 `.env` 를 건드린다.
+- 복구 확인: 건물 9 · 객실 91 전부 매칭, `rows 33,306` · `unmatchedRoomIds []` · `skipped []`.
+- `BEDS24_WEBHOOK_SECRET` 은 무관하다. GitHub Actions 4개 워크플로는 그 시크릿만 쓴다.

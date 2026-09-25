@@ -56,3 +56,6 @@ next-env.d.ts
 # Backup files
 *.bak
 .handoff/
+
+# Beds24 invite code — 1회용, 교환 즉시 폐기됨 (scripts/dev/beds24-redeem-invite-code.mjs)
+.beds24-invite-code

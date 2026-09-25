@@ -202,6 +202,47 @@ Usage:
   secret returns 404; invalid/missing caller credentials return 403.
 - Existing Beds24-linked properties can be backfilled locally through `POST /api/dev/beds24/backfill-inventory`
 
+### Beds24 토큰 재발급 (rotation)
+
+Beds24 관리 화면에서 토큰을 지우면 **그 리프레시 토큰은 되살릴 수 없다.** 증상은 조용하다 —
+`/api/beds24/rates-sync` 가 `200` 을 주면서 `skipped: ["room-rates:refresh-token-invalid"]` 만 남기고,
+판매 캘린더는 **마지막으로 성공한 시점의 요금을 계속 보여준다.** 실패가 화면에 안 뜨므로
+요금이 안 바뀐다는 신고가 먼저 들어온다.
+
+**발급 절차** — Beds24 `設定 → Marketplace → API`:
+
+1. `ALL` 열 `すべて選択` (7줄 전부). 최종 스코프는
+   `all:bookings+all:bookings-personal+all:bookings-financial+all:inventory+all:properties+all:accounts+all:channels`.
+2. `Select which properties` → `このアカウントに登録された施設のみ`.
+3. **`IP address whitelist` 는 반드시 비운다.** Vercel 은 송신 IP 가 고정이 아니라, 한 줄이라도
+   넣으면 프로덕션이 전부 `401 Token not valid` 로 떨어진다. 발급된 토큰의
+   `/authentication/details` 응답에서 `whiteListOnly: false` 로 검증할 수 있다.
+4. **`Generate invite code`** (❌ `Generate long life token` 아님 — 우리 앱은 리프레시 토큰 구조다).
+   나오는 초대코드는 172자 base64 라 리프레시 토큰과 생김새가 같지만 **다른 물건**이고,
+   **1회용에 수 분 내 만료**된다.
+
+**교환·주입**:
+
+```bash
+# 초대코드를 .beds24-invite-code 에 한 줄로 저장한 뒤 (gitignore 됨)
+node scripts/dev/beds24-redeem-invite-code.mjs   # → .env 의 BEDS24_API_REFRESH_TOKEN 갱신, 코드 파일 폐기
+node scripts/dev/beds24-push-token-to-vercel.mjs # → Vercel production 갱신 (vercel login 필요)
+```
+
+두 스크립트 모두 토큰 값을 stdout 에 찍지 않는다 — 길이와 스코프만 보고한다. 교환 스크립트는
+`/authentication/token` + `/authentication/details` 로 **실제 발급이 되는 것을 확인한 뒤에만**
+`.env` 를 건드린다.
+
+**검증** (로컬 dev 서버 재시작 후):
+
+```bash
+curl -sX POST localhost:3000/api/beds24/rates-sync -H "authorization: Bearer $BEDS24_WEBHOOK_SECRET"
+# 기대: skipped: [] · matchedRooms 91 · unmatchedRoomIds []
+```
+
+`BEDS24_WEBHOOK_SECRET` 은 이 절차와 **무관하다.** GitHub Actions 의 4개 워크플로는 그 시크릿만
+쓰므로 토큰 교체 시 건드리지 않는다. 갱신 대상은 로컬 `.env` 와 Vercel 프로덕션 두 곳뿐이다.
+
 ## Recruit (채용 지원서 수신)
 
 외부 채용 사이트(haru-recruit / Firebase)가 지원서를 밀어넣는 경로. 계약은
