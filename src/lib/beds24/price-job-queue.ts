@@ -5,7 +5,7 @@ import {
 } from "@/lib/beds24/calendar-write-payload";
 import type { PriceJobRoomUpdate } from "@/lib/beds24/price-job-merge";
 import {
-  resolveMinStayWriteRoomId,
+  resolveMinStayWriteRoomIds,
   resolvePriceWriteRoomIds,
   type WriteTargetUnit,
 } from "@/lib/beds24/write-target-room";
@@ -49,6 +49,8 @@ type RoomUnitRow = {
   external_room_id: string | null;
   external_price_source_room_id: string | null;
   property_id: string;
+  /** 활성 유닛이 둘 이상일 때 여기에만 쓰라는 예외 지정. 보통 `null`. */
+  preferred_min_stay_room_id: string | null;
 };
 
 /**
@@ -83,7 +85,9 @@ export async function enqueueBeds24PriceJob(args: {
   const allRoomIds = [...new Set(args.cells.flatMap((cell) => cell.roomIds))];
   const unitsResult = await args.supabase
     .from("rooms")
-    .select("id, external_room_id, external_price_source_room_id, property_id")
+    .select(
+      "id, external_room_id, external_price_source_room_id, property_id, preferred_min_stay_room_id",
+    )
     .eq("organization_id", args.organizationId)
     .in("id", allRoomIds);
   if (unitsResult.error) return { error: "enqueue_failed", ok: false };
@@ -127,6 +131,12 @@ export async function enqueueBeds24PriceJob(args: {
       skippedDates.push(cell.stayDate);
       continue;
     }
+    // 보통 비어 있다. 특정 유닛에만 써야 하는 예외가 있을 때만 값이 들어온다
+    // (`rooms.preferred_min_stay_room_id`). 그 유닛이 **활성일 때만** 적용된다.
+    const preferredOverride =
+      cell.roomIds
+        .map((roomId) => unitByRoomId.get(roomId)?.preferred_min_stay_room_id ?? null)
+        .find((value) => value !== null) ?? null;
     for (const roomId of cell.roomIds) {
       const property = unitByRoomId.get(roomId)?.property_id;
       if (property) propertyIds.add(property);
@@ -135,7 +145,7 @@ export async function enqueueBeds24PriceJob(args: {
     const targets =
       args.jobType === "price"
         ? resolvePriceWriteRoomIds(units)
-        : [resolveMinStayWriteRoomId(units)].filter((value): value is string => value !== null);
+        : resolveMinStayWriteRoomIds(units, preferredOverride);
 
     if (targets.length === 0) {
       // 운영 중인 유닛이 없는 날짜다. **조용히 넘기지 않고** 몇 개가 빠졌는지 알려준다.

@@ -4056,6 +4056,7 @@ export type Database = {
           id: string
           name: string
           organization_id: string
+          preferred_min_stay_room_id: string | null
           property_id: string
           room_label: string
           status: Database["public"]["Enums"]["room_status"]
@@ -4072,6 +4073,7 @@ export type Database = {
           id?: string
           name: string
           organization_id: string
+          preferred_min_stay_room_id?: string | null
           property_id: string
           room_label: string
           status?: Database["public"]["Enums"]["room_status"]
@@ -4088,6 +4090,7 @@ export type Database = {
           id?: string
           name?: string
           organization_id?: string
+          preferred_min_stay_room_id?: string | null
           property_id?: string
           room_label?: string
           status?: Database["public"]["Enums"]["room_status"]
