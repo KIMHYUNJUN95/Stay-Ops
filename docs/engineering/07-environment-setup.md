@@ -191,6 +191,7 @@ CRON_SECRET=
 Usage:
 
 - `BEDS24_WEBHOOK_SECRET`: verify incoming webhook requests if supported/configured
+- `BEDS24_PRICE_WEBHOOK_FORWARD_URL`: 선택. 받은 Beds24 배달을 그대로 넘길 주소(줄바꿈/쉼표로 여러 개). **미설정이 기본이고 그때는 아무 데도 넘기지 않는다.** 전환기에만 쓴다 — 아래 「Beds24 재고(가격) 웹훅 전환」 참고
 - `BEDS24_API_BASE_URL`: Beds24 API base URL
 - `BEDS24_API_TOKEN`: short-lived Beds24 access token for direct inventory/property calls
 - `BEDS24_API_REFRESH_TOKEN`: long-lived Beds24 refresh token used to mint access tokens when `BEDS24_API_TOKEN` is unset or expired
@@ -242,6 +243,41 @@ curl -sX POST localhost:3000/api/beds24/rates-sync -H "authorization: Bearer $BE
 
 `BEDS24_WEBHOOK_SECRET` 은 이 절차와 **무관하다.** GitHub Actions 의 4개 워크플로는 그 시크릿만
 쓰므로 토큰 교체 시 건드리지 않는다. 갱신 대상은 로컬 `.env` 와 Vercel 프로덕션 두 곳뿐이다.
+
+### Beds24 재고(가격) 웹훅 전환
+
+가격 변경 알림의 설정 지점은 Beds24 웹 화면 `設定 → Marketplace → API → Webhooks` 의
+**`Inventory Webhooks`** 다. API 로는 보이지도 고칠 수도 없다.
+
+**URL 칸이 프로퍼티당 한 줄만 받는다.** 예약 웹훅 칸은 `\r\n` 으로 여러 개를 받지만 여기는
+안 된다. 그래서 가격 알림은 주인이 하나고, 지금 그 자리는 저쪽 프로젝트(Firebase
+`priceWebhook`)가 갖고 있다.
+
+**현재 상태: 아무것도 바꾸지 않았다.** 코드는 준비돼 있고 `BEDS24_PRICE_WEBHOOK_FORWARD_URL`
+이 비어 있어 전달은 꺼져 있다. 배포해도 저쪽에 영향이 없다.
+
+#### 전환일에 할 일
+
+1. Vercel 프로덕션에 `BEDS24_PRICE_WEBHOOK_FORWARD_URL` = 저쪽 `priceWebhook` 주소를 넣고
+   재배포한다. (**순서 중요** — Beds24 를 먼저 바꾸면 그 사이 배달이 저쪽에 안 간다.)
+2. Beds24 `Inventory Webhooks` 에서 **9개 건물 각각** 드롭다운을 바꿔가며 URL 을
+   `https://<도메인>/api/beds24/webhook` 로 교체한다.
+3. 시크릿은 **`カスタムヘッダー` 칸**에 `x-beds24-webhook-secret: <값>` 으로 넣는다.
+   `?secret=` 은 쓰지 않는다 — `GET` 배달이면 Beds24 가 `?roomId=…` 를 URL 에 붙이므로
+   질의 문자열이 엉킬 수 있다. 라우트는 헤더·`Authorization` 베어러·`?secret=` 셋 다 받는다.
+4. 각 객실의 `同期する` 체크가 켜져 있는지 확인한다.
+5. 확인: `beds24_webhook_events` 에 `roomId` 가 실린 행이 들어오는지, 저쪽 로그에도 계속
+   배달이 찍히는지 **둘 다** 본다.
+
+#### 저쪽을 정리할 때
+
+`BEDS24_PRICE_WEBHOOK_FORWARD_URL` 을 **지우고 재배포**하면 끝이다. 코드 수정도, Beds24 설정
+변경도 없다.
+
+#### 되돌리기
+
+Beds24 URL 을 저쪽 주소로 되돌리면 즉시 원상복구된다. 그 사이 놓친 요금은 주기 동기화
+(`/api/beds24/rates-sync`, 15분)가 메운다 — 웹훅은 「즉시」를 위한 것이지 유일한 경로가 아니다.
 
 ## Recruit (채용 지원서 수신)
 

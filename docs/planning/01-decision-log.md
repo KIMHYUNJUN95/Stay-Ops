@@ -6276,3 +6276,34 @@ Firebase 프로젝트 자체.
 4. Firebase 프로젝트 정리
 
 당장 급한 것은 1단계뿐이고, 그것도 공고 수정이 잦아질 때의 이야기다(현재 공고 1건).
+
+## 2026-09-25 — 저쪽 프로젝트 정리 방식: 「만들어 두고 한 번에 전환」
+
+STAY ARI Manager(Firebase)를 기능별로 조금씩 깎지 않는다. **전부 만들어 둔 뒤 한 번에 끊는다.**
+기능을 하나씩 옮기면 중간 상태가 계속 생기고, 그 상태마다 「이건 어느 쪽이 맞나」를 사람이
+판단해야 한다.
+
+따라오는 원칙 셋:
+
+1. **모든 새 연동은 기본값 `off`.** 배포해도 아무 데도 나가지 않고 Beds24 설정도 건드리지
+   않는다. 전환일에 환경변수만 켠다. 특히 슬랙·구글 시트·Notion 은 그냥 켜면 **같은 리포트가
+   매일 두 번** 나가 현장에 혼란이 온다. `off` / `shadow`(테스트 채널·시트) / `live` 3단으로
+   둔다 — `BEDS24_SYNC_PAUSED` 와 같은 패턴이다.
+2. **쓰기는 한쪽만.** 읽기는 양쪽이 해도 된다. 저쪽도 `setRoomPrices`·`setMinStay`·
+   `scheduledPriceJobWorker`(1분마다)를 갖고 있어, 같은 Beds24 계정에 양쪽이 쓰면 마지막에 쓴
+   쪽이 이기고 누가 마지막인지 아무도 모른다. **가격·minStay·예약 쓰기는 우리 쪽에서만.**
+3. **Beds24 크레딧은 계정 단위 5분 예산이다.** 우리 `api_cooldown` 락은 우리 프로세스끼리만
+   안다 — 저쪽이 얼마나 쓰는지 모른다. 저쪽이 도는 주기(`scheduledPriceJobWorker` 1분,
+   `refreshHomeDashboardSummary` 5분, `scheduledBeds24PriceSync` 15분, `scheduledBeds24Sync`
+   매시)를 감안해, 우리 스케줄을 새로 붙일 때마다 `x-five-min-limit-remaining` 을 재본다.
+
+### 가격 웹훅의 주인은 우리가 받는다
+
+Beds24 재고(가격) 웹훅 URL 칸은 **프로퍼티당 한 줄만** 받는다(예약 웹훅 칸은 `\r\n` 으로 3개를
+받고 있다 — 2026-09-25 실측). 주인이 하나뿐이므로, **없어질 쪽이 쥐고 있으면 저쪽을 내리는 날
+가격 웹훅이 같이 죽는다.** 우리가 받고 저쪽으로 넘겨주면 정리가 환경변수 하나로 끝난다.
+
+`BEDS24_PRICE_WEBHOOK_FORWARD_URL`(미설정 = 꺼짐)로 구현했고, **지금은 Beds24 설정을 바꾸지
+않았다.** 절차는 `docs/engineering/07-environment-setup.md` → 「Beds24 재고(가격) 웹훅 전환」.
+
+관련: `docs/product/33-calendar-write-features.md` → 「② 웹훅」

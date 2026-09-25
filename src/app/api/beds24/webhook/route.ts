@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import { extractBeds24WebhookBookingCandidates } from "@/lib/beds24/booking-payload";
 import { processBeds24WebhookBooking } from "@/lib/beds24/process-webhook-booking";
 import { processBeds24PriceWebhook } from "@/lib/beds24/price-webhook";
@@ -7,7 +7,49 @@ import {
   recordBeds24WebhookEvent,
   recordBeds24WebhookRejection,
 } from "@/lib/beds24/webhook-events";
+import { forwardBeds24Delivery, parseForwardTargets } from "@/lib/beds24/webhook-forward";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+
+/**
+ * 받은 배달을 다른 수신처로 넘긴다 — **기본 꺼짐**.
+ *
+ * 전환일에 Beds24 재고 웹훅의 주인을 우리로 가져오면서 저쪽 프로젝트를 계속 살려두기 위한
+ * 스위치다. 설계·근거는 `src/lib/beds24/webhook-forward.ts`.
+ *
+ * `after()` 로 **응답을 보낸 뒤에** 돈다. 저쪽이 느리거나 죽어도 Beds24 에게는 이미 2xx 를
+ * 준 뒤라 재배달이 일어나지 않는다.
+ */
+function scheduleForward(args: {
+  request: NextRequest;
+  method: "GET" | "POST";
+  rawBody?: string;
+  contentType?: string | null;
+}) {
+  const targets = parseForwardTargets(process.env.BEDS24_PRICE_WEBHOOK_FORWARD_URL);
+  if (targets.length === 0) return;
+
+  // `after()` 밖에서 미리 읽어 둔다 — 응답 후에는 요청 객체를 건드릴 수 없다.
+  const search = new URLSearchParams(args.request.nextUrl.searchParams);
+
+  after(async () => {
+    const outcomes = await forwardBeds24Delivery({
+      targets,
+      method: args.method,
+      search,
+      rawBody: args.rawBody,
+      contentType: args.contentType,
+    });
+    const failed = outcomes.filter((outcome) => !outcome.ok);
+    if (failed.length > 0) {
+      // 주소는 남기지 않는다(경로에 토큰이 들어 있을 수 있다) — 몇 건 실패했는지만 남긴다.
+      console.warn("[beds24/webhook] forward failed", {
+        total: outcomes.length,
+        failed: failed.length,
+        statuses: failed.map((outcome) => outcome.status ?? outcome.error),
+      });
+    }
+  });
+}
 
 function resolveWebhookSecret(request: NextRequest) {
   const fromHeader = request.headers.get("x-beds24-webhook-secret");
@@ -57,22 +99,75 @@ function parseWebhookBody(raw: string): { body: unknown; parsed: boolean } {
   return { body: trimmed, parsed: false };
 }
 
+function isAuthorized(request: NextRequest): boolean {
+  const requiredSecret = process.env.BEDS24_WEBHOOK_SECRET?.trim();
+  if (!requiredSecret) return true;
+  const provided = resolveWebhookSecret(request);
+  return Boolean(provided) && provided === requiredSecret;
+}
+
+/**
+ * **재고(가격) 웹훅의 V1 배달** — `GET ?roomId=…&action=…&propId=…`.
+ *
+ * Beds24 는 재고 웹훅을 `GET` + 질의 파라미터로도 보낸다(저쪽 원본 `functions/index.js`
+ * → `priceWebhook`: `const data = method === "GET" ? req.query : req.body`). 여기가 없으면
+ * 그런 배달은 **405 로 떨어지고, Beds24 는 실패를 화면에 알려주지 않는다** — 가격 알림이
+ * 통째로 사라진 것을 아무도 모른 채 요금이 주기 동기화로만 갱신된다(즉시 → 15분).
+ *
+ * 예약은 `GET` 으로 오지 않는다. 그래서 여기서는 **가격 배달만** 처리하고, 나머지는
+ * 원문을 남긴 뒤 2xx 로 받아준다(재배달 폭주 방지 — `POST` 쪽과 같은 원칙).
+ */
+export async function GET(request: NextRequest) {
+  if (isBeds24SyncPaused()) {
+    return NextResponse.json({ ok: true, paused: true }, { status: 202 });
+  }
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+  }
+
+  // 질의 파라미터가 곧 페이로드다. 우리 시크릿은 배달 내용이 아니므로 뺀다.
+  const body: Record<string, string> = {};
+  for (const [key, value] of request.nextUrl.searchParams) {
+    if (key.toLowerCase() === "secret") continue;
+    body[key] = value;
+  }
+
+  scheduleForward({ request, method: "GET" });
+
+  const supabase = getSupabaseServiceClient();
+  const priceResult = await processBeds24PriceWebhook({ body, supabase });
+  if (priceResult.handled) {
+    console.log("[beds24/webhook] price delivery (GET)", priceResult);
+    return NextResponse.json({ ok: true, accepted: true, price: priceResult }, { status: 200 });
+  }
+
+  console.warn("[beds24/webhook] GET delivery was not a price signal", { keys: Object.keys(body) });
+  await recordBeds24WebhookRejection({
+    supabase,
+    httpStatus: 200,
+    reason: `get_not_price_delivery:${priceResult.reason}`,
+    rawBody: body,
+    contentType: null,
+  });
+  return NextResponse.json(
+    { ok: true, accepted: true, processed: 0, note: priceResult.reason },
+    { status: 200 },
+  );
+}
+
 export async function POST(request: NextRequest) {
   if (isBeds24SyncPaused()) {
     return NextResponse.json({ ok: true, paused: true }, { status: 202 });
   }
-
-  const requiredSecret = process.env.BEDS24_WEBHOOK_SECRET?.trim();
-  if (requiredSecret) {
-    const provided = resolveWebhookSecret(request);
-    if (!provided || provided !== requiredSecret) {
-      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-    }
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
   const contentType = request.headers.get("content-type");
   const rawText = await request.text();
   const { body } = parseWebhookBody(rawText);
+
+  scheduleForward({ request, method: "POST", rawBody: rawText, contentType });
 
   const supabase = getSupabaseServiceClient();
   const bookingPayloads = extractBeds24WebhookBookingCandidates(body);
