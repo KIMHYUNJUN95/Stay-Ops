@@ -32,18 +32,45 @@ POST /bookings                   예약 생성 · 수정 · 취소
 | `cancelBooking` | 예약 취소 | `/bookings` |
 | `getPriceJobStatus` · `triggerPriceJobNow` | 작업 큐 조회·즉시 실행 | — |
 
-**`numAvail`(재고)과 `override: blackout`(차단)을 쓰는 경로는 없다.** 둘 다 **읽기만** 한다.
+> **정정 (2026-09-25).** 이 표는 `BuildingCalendar.jsx` 가 **부르는 함수 이름**만 센 것이라,
+> 그 함수 안에서 갈라지는 것을 놓쳤다. 아래가 실제 동작이다.
 
-그럼 저쪽에서 「블록」은 어떻게 만드는가 — **예약으로 만든다.** `createBooking` 으로 만든
-예약이 곧 블록이고, 해제는 `cancelBooking` 이다. `isAppCreatedBlockEntry` ·
-`isBulkDeletableBlockEntry` 가 있는 이유가 이것이다 — **앱이 만든 블록(예약)과 사람이 Beds24
-화면에서 직접 건 blackout 을 구분**해야 하기 때문이다. 후자는 앱이 지울 방법이 없다.
+**블록은 예약이 아니다 — `override: blackout` 이다.**
 
-> **우리가 취할 태도.** blackout 쓰기는 Beds24 가 지원하므로 나중에 열 수 있지만,
-> **1차 이전에서는 저쪽과 똑같이 「블록 = 예약」으로 간다.** 이유는 두 가지다 —
-> ① 저쪽 데이터와 개념이 어긋나면 병행 기간에 두 화면이 다른 소리를 한다.
-> ② StayOps 는 이미 blackout 을 **읽어서** 표시하고 있다([15](15-reservation-calendar.md)).
-> 읽기는 blackout, 쓰기는 예약 — 이 비대칭을 화면에서 숨기지 말고 범례로 구분해 보여준다.
+`createBooking` 은 이름과 달리 `isBlock` 이면 **예약을 만들지 않는다**
+(`functions/index.js:7923`):
+
+```js
+if (isBlock) {
+    restoreNumAvailByDate = await getStoredNumAvailSnapshotForBlock(...);
+    await createBeds24BlackoutOverride({ roomId, arrival, departure });   // ← POST /inventory/rooms/calendar
+    newBookingId = getInventoryOverrideBlockDocId(roomId, arrival, departure);
+} else {
+    ... POST /bookings ...
+}
+```
+
+해제(`cancelBooking:8246`)도 `/bookings` 가 아니라 `override: "none"` 이다. 즉 저쪽은
+**`numAvail` 과 `override` 를 둘 다 쓴다.**
+
+#### 저쪽 블록의 실제 규칙
+
+| | |
+| --- | --- |
+| Beds24 | `POST /inventory/rooms/calendar`, `override: blackout`, `from=체크인` `to=체크아웃−1` (`getInventoryOverrideEndDate`) — **숙박일 기준**이라 우리 읽기 규칙과 같다 |
+| 로컬 행 | `inventory-blackout:<roomId>:<arrival>:<departure>` 라는 합성 id 의 **가짜 예약 행**, `status: blackout`, `isInventoryOverrideBlock: true` |
+| **numAvail 스냅샷** | 막기 **전에** 저장했다가 해제할 때 복원한다(`preBlockNumAvailByDate`). blackout 을 걸면 Beds24 가 재고를 건드리므로, 그냥 `override: none` 만 돌리면 **막기 전 재고로 안 돌아간다** |
+| 보상 롤백 | Beds24 는 성공했는데 로컬 저장이 실패하면 **blackout 을 되돌린다.** 안 그러면 「화면엔 아무것도 없는데 방은 판매 정지」인 고아 블록이 남고, UI 로 손댈 방법이 없다 |
+| 일괄 | 같은 날짜 구간의 세그먼트를 묶어 POST 1회 — 듀얼 ID 객실은 모든 roomId 가 같은 구간이라 왕복이 1회로 준다 |
+
+`isAppCreatedBlockEntry` · `isBulkDeletableBlockEntry` 가 있는 이유는 **앱이 만든 블록과 사람이
+Beds24 화면에서 직접 건 blackout 을 구분**하기 위해서다. 후자는 복원할 `numAvail` 스냅샷이
+없으므로 앱이 함부로 해제하면 재고를 잘못된 값으로 되돌린다.
+
+> **우리가 취할 태도 (2026-09-25 결정).** 저쪽과 **똑같이 blackout override 로** 간다.
+> StayOps 는 이미 blackout 을 **읽어서** 표시하고 있으므로([15](15-reservation-calendar.md))
+> 읽기·쓰기가 대칭이 되고, 저쪽이 이미 걸어둔 블록도 우리 화면에서 해제할 수 있다.
+> 「블록 = 예약」으로 갔으면 우리가 만든 블록이 우리 캘린더에 예약 줄로 보였을 것이다.
 
 **잘못 쓰면 채널에 그대로 나간다.** 가격을 0 으로 쓰면 0 원에 팔리고, 재고를 열면 팔리면 안 되는
 방이 팔린다. 우리 DB 가 틀어지는 것과는 급이 다르다.

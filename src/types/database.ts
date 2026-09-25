@@ -3882,6 +3882,50 @@ export type Database = {
           },
         ]
       }
+      room_block_snapshots: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          end_date: string
+          external_room_id: string
+          id: string
+          organization_id: string
+          pre_block_num_avail: Json
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          end_date: string
+          external_room_id: string
+          id?: string
+          organization_id: string
+          pre_block_num_avail?: Json
+          start_date: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          end_date?: string
+          external_room_id?: string
+          id?: string
+          organization_id?: string
+          pre_block_num_avail?: Json
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_block_snapshots_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       room_blocks: {
         Row: {
           created_at: string
