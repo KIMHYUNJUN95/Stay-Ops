@@ -305,6 +305,16 @@ export default async function OpsCalendarPage({
             <span className="ops__hatch" />
             {copy.legendBlock}
           </span>
+          {/* 최소숙박은 **2박이 기본**이라 범례에 안 적는다 — 예외 둘만 적는다.
+              12,412칸이 2박이고 1박은 388칸뿐이다(2026-09-25 실측). */}
+          <span className="ops__lg ops__lgms">
+            <span className="ops__msk one">1</span>
+            {copy.legendOneNight}
+          </span>
+          <span className="ops__lg ops__lgms">
+            <span className="ops__msk many">3</span>
+            {copy.legendLongStay}
+          </span>
         </div>
 
         <OpsCalendarGrid

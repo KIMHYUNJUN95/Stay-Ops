@@ -9,6 +9,7 @@ import { getOnboardingState } from "@/lib/onboarding";
 import { listPropertyMapMeta } from "@/lib/property-operation-info";
 import { listReservationInternalNotes } from "@/lib/reservation-internal-notes";
 import {
+  CALENDAR_BUILDING_ORDER,
   getCanonicalPropertyName,
   getCanonicalRoomLabel,
   getDisplayRoomLabel,
@@ -174,17 +175,9 @@ type MobileCalendarPageProps = {
   }>;
 };
 
-// i18n-ignore-start: canonical building-name domain keys (room-label normalization), not UI copy.
-const BUILDING_DISPLAY_ORDER = [
-  "아라키초A",
-  "아라키초B",
-  "가부키초",
-  "다카다노바바",
-  "오쿠보A",
-  "오쿠보B",
-  "오쿠보C",
-];
-// i18n-ignore-end
+// 건물 순서는 어드민 캘린더와 **같은 목록**을 쓴다 — 두 화면이 다른 순서로 보이면
+// 같은 건물을 찾는 데 매번 다시 훑어야 한다.
+const BUILDING_DISPLAY_ORDER = CALENDAR_BUILDING_ORDER;
 
 function normalizePropertyParam(value: string | undefined): string | null {
   if (!value) return null;

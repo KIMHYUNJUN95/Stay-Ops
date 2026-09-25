@@ -92,6 +92,9 @@ const FALLBACK_DICTIONARY = {
       hintCreate: "Click an empty cell to set check-in, click again for check-out",
       legendDirect: "Direct · Manual",
       legendBlock: "Block",
+      // 최소숙박 — 2박이 기본이라 예외만 범례에 적는다.
+      legendOneNight: "1-night OK",
+      legendLongStay: "3+ nights",
       legendCancelled: "Cancelled",
       blockLabel: "BLOCK",
       // 1박 갭 — 팔 수 있는 밤이 하루인데 최소 2박이라 아무도 못 사는 날.
@@ -5240,6 +5243,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       hintCreate: "빈 칸 클릭 → 체크인, 한 번 더 누르면 체크아웃",
       legendDirect: "직접 · 수기",
       legendBlock: "Block",
+      // 최소숙박 — 2박이 기본이라 예외만 범례에 적는다.
+      legendOneNight: "1박 가능",
+      legendLongStay: "3박 이상",
       legendCancelled: "취소됨",
       blockLabel: "BLOCK",
       gapLabel: "1박 갭",
@@ -10229,6 +10235,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       hintCreate: "空きマスをクリックでチェックイン、もう一度でチェックアウト",
       legendDirect: "直接 · 手動",
       legendBlock: "Block",
+      // 최소숙박 — 2박이 기본이라 예외만 범례에 적는다.
+      legendOneNight: "1泊可",
+      legendLongStay: "3泊以上",
       legendCancelled: "キャンセル",
       blockLabel: "BLOCK",
       gapLabel: "1泊ギャップ",

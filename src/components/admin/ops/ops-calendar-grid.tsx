@@ -795,15 +795,25 @@ export function OpsCalendarGrid({
                         );
                       })}
                     </div>
-                    {/* 최소 숙박일. 아주 흐리게 — 가격을 읽는 데 방해가 되면 안 된다. */}
-                    <div className="opsg__track">
+                    {/* 최소 숙박일. **가격보다 얇게** 간다 — 이 줄이 두꺼우면 한 객실이
+                        차지하는 세로가 늘어 화면에 담기는 객실 수가 줄고, 정작 중요한 가격이
+                        멀어진다. 숫자는 작아도 색으로 구분되므로 읽힌다. */}
+                    <div className="opsg__track min">
                       {days.map((day) => {
                         const minStay = rates.get(`${room.key}|${day.date}`)?.minStay ?? null;
                         // 갭 칸에서는 이 값이 **원인**이다 — `.opsg__cell.gap .opsg__min` 이
                         // 붉게 세운다. 칸이 이미 `gap` 클래스를 들고 있어 여기서 또 붙이지 않는다.
+                        //
+                        // **2박이 기본이라 조용히 둔다.** 실측(2026-09-25) 기준 Beds24 의
+                        // 12,412칸이 2박이고 1박은 388칸뿐이다. 기본값을 강조하면 격자가
+                        // 통째로 시끄러워지고, 정작 찾아야 할 예외가 안 보인다.
+                        // **구분은 글자 굵기가 아니라 칸 바탕색으로 한다.** 2,700칸을 굵게
+                        // 하면 격자가 통째로 복잡해진다 — 저쪽 캘린더도 옅은 바탕으로 가른다.
+                        const minTone =
+                          minStay === 1 ? " ms1" : minStay !== null && minStay >= 3 ? " ms3" : "";
                         return (
                           <div
-                            className={cellClass(day, room.key)}
+                            className={`${cellClass(day, room.key)}${minTone}`}
                             key={`m-${day.date}`}
                             {...cellHandlers(room.key, day.date)}
                           >

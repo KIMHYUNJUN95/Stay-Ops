@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { PROPERTY_MAP_META } from "@/lib/property-map-links";
 import {
+  CALENDAR_BUILDING_ORDER,
+  getCanonicalPropertyName,
   getCanonicalRoomLabel,
   getDisplayRoomLabel,
   getDisplaySessionRoomLabel,
@@ -84,5 +87,49 @@ describe("getDisplaySessionRoomLabel — 건물명은 남기고 방 번호만 �
 
   it("건물명만 있는 오쿠보 라벨은 그대로다", () => {
     expect(getDisplaySessionRoomLabel("오쿠보A")).toBe("오쿠보A");
+  });
+});
+
+/**
+ * 캘린더 건물 순서.
+ *
+ * 계약: `CALENDAR_BUILDING_ORDER` (`src/lib/room-label-normalization.ts`)
+ *
+ * **목록에 없는 건물은 조용히 가나다순으로 뒤에 붙는다.** 전에 스테이아리와 사노가
+ * 그래서 오쿠보 뒤로 밀려 있었다 — 아무도 에러를 보지 못했다. 건물이 늘 때 여기서 잡는다.
+ */
+describe("CALENDAR_BUILDING_ORDER", () => {
+  it("지도 메타에 있는 건물이 하나도 빠지지 않는다", () => {
+    const missing = PROPERTY_MAP_META.map((meta) => meta.canonicalName).filter(
+      (name) => !CALENDAR_BUILDING_ORDER.includes(name),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it("정규화가 돌려주는 이름이 전부 목록에 있다", () => {
+    // `getCanonicalPropertyName` 이 매핑하는 8개 + 매핑 없이 통과하는 스테이아리.
+    const canonical = [
+      "Arakicho A",
+      "Arakicho B",
+      "Kabukicho",
+      "Takadanobaba",
+      "Okubo_A (B棟)",
+      "Okubo_B (A棟)",
+      "Okubo_C (kr)",
+      "Sano",
+      "STAY ARI Apartment Hotel",
+    ].map((name) => getCanonicalPropertyName(name));
+    const missing = canonical.filter((name) => !CALENDAR_BUILDING_ORDER.includes(name));
+    expect(missing).toEqual([]);
+  });
+
+  it("스테이아리는 가부키초 바로 뒤, 사노는 맨 뒤다 (2026-09-25 사용자 확인)", () => {
+    const order = [...CALENDAR_BUILDING_ORDER];
+    expect(order[order.indexOf("가부키초") + 1]).toBe("STAY ARI Apartment Hotel");
+    expect(order[order.length - 1]).toBe("사노");
+  });
+
+  it("중복이 없다 — 중복이면 indexOf 가 앞엣것만 보고 뒤는 죽은 줄이 된다", () => {
+    expect(new Set(CALENDAR_BUILDING_ORDER).size).toBe(CALENDAR_BUILDING_ORDER.length);
   });
 });

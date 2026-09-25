@@ -37,7 +37,10 @@
   --ops-dir-bg: hsl(146 42% 85%);
   --ops-dir-line: hsl(146 34% 70%);
   /* 격자 한 트랙의 높이. 객실이 많은 건물에서 줄여 한 화면에 담는다. */
-  --ops-track: 21px;
+  --ops-track: 25px;
+  /* 최소숙박 줄은 **더 얇다.** 숫자 하나뿐이라 자리가 덜 필요하고, 줄인 만큼 한 화면에
+     객실이 더 들어온다. 세 줄 높이가 같으면 어느 줄이 중요한지 안 보인다. */
+  --ops-track-min: 19px;
   --ops-roomcol: 88px;
   display: flex;
   flex-direction: column;
@@ -311,6 +314,7 @@
   margin-top: 1px;
 }
 /* 주말 = 금·토·일 (사내 요금 기준). */
+.opsg__day.we { background: hsl(352 62% 96%); }
 .opsg__day.we .opsg__dn,
 .opsg__day.we .opsg__dw { color: var(--danger); }
 .opsg__day.today { background: var(--adm-primary); border-radius: 8px 8px 0 0; }
@@ -390,6 +394,7 @@
   height: var(--ops-track);
   position: relative;
 }
+.opsg__track.min { height: var(--ops-track-min); }
 
 .opsg__cell {
   flex: 1 1 0;
@@ -399,24 +404,66 @@
   justify-content: center;
   position: relative;
 }
-.opsg__cell.we { background: hsl(20 30% 97.5%); }
+/*
+ * 주말(금·토·일) 열. **티나야 한다** — 요금을 볼 때 「주말이 어디부터인가」가 먼저 잡혀야
+ * 하고, 주말은 가격 정책이 다르다. 기존 값(97.5% 명도)은 사실상 안 보였다(2026-09-25).
+ * 저쪽 캘린더처럼 옅은 장밋빛으로 열 전체를 물들인다.
+ */
+/*
+ * 주말(금·토·일) 열. **바꾸는 것은 배경뿐이다** — 글자 크기·굵기·색은 평일과 같다.
+ * 주말은 가격 정책이 다르므로 「어디부터 주말인가」가 먼저 잡혀야 하는데, 숫자까지 다르게
+ * 하면 값을 비교할 때 방해가 된다(2026-09-25 사용자 지적).
+ */
+.opsg__cell.we { background: hsl(352 62% 96%); }
 .opsg__cell.past { opacity: 0.42; }
 .opsg__cell.m1 { box-shadow: inset 1px 0 0 color-mix(in oklab, var(--adm-primary) 28%, transparent); }
 
+/*
+ * 최소숙박 값 구분 — **칸 바탕색**으로 한다 (2026-09-25).
+ *
+ * 기본값은 2박이다(실측 12,412칸 대 1박 388칸). 기본값을 칠하면 격자 전체가 시끄러워지고
+ * 정작 찾아야 할 예외가 묻히므로 **예외만** 칠한다. 글자를 굵게 하는 방식은 써보니
+ * 복잡해 보였다 — 저쪽 캘린더도 옅은 바탕으로 가른다.
+ *
+ *   1박    더 열어둔 것   → 옅은 초록 (팔 수 있게 연 상태)
+ *   3박+   더 닫아둔 것   → 옅은 앰버 (반대 방향의 예외)
+ *
+ * 선택(`.sel`)·빗금(`.sold`) 규칙이 파일 뒤쪽에 있어 그쪽이 이긴다 — 고르는 동안에는
+ * 선택 표시가 먼저 보여야 한다.
+ */
+/* 주말 배경보다 **뒤에** 정의해 이긴다 — 주말이라고 1박 표시가 묻히면 안 된다. */
+.opsg__cell.ms1 { background: hsl(146 48% 88%); }
+.opsg__cell.ms1 .opsg__min { color: hsl(146 60% 24%); font-weight: 600; }
+.opsg__cell.ms3 { background: hsl(38 80% 93%); }
+.opsg__cell.ms3 .opsg__min { color: var(--warn); font-weight: 500; }
+
+/*
+ * 가격은 **이 격자의 주인공**이다. 사람이 여기를 보려고 화면을 연다.
+ * 10px/600/ink-soft 는 옆 칸의 최소숙박과 무게가 비슷해 한눈에 구분되지 않았다
+ * (2026-09-25 사용자 지적). 크기·굵기·대비를 모두 한 단계 올린다.
+ */
 .opsg__price {
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 11.5px;
+  /* Geist 는 가변 폰트라 350 처럼 **중간값도 그대로 나온다.** 300 은 살짝 가늘어
+     숫자가 물러 보였다 — 굵어 보이지 않을 만큼만 올린다(2026-09-25). */
+  font-weight: 350;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.03em;
-  color: var(--ink-soft);
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
 /* 값이 아직 없는 칸. 0원처럼 보이면 안 되므로 회색 점선 대시를 쓴다. */
-.opsg__price.none { color: hsl(40 14% 80%); font-weight: 500; }
+.opsg__price.none { color: hsl(40 14% 80%); font-weight: 300; }
 
+/*
+ * 최소숙박. **가격을 읽는 데 방해가 되면 안 되지만, 값끼리는 한눈에 갈려야 한다.**
+ *
+ * 기본값(2박)은 조용한 회색 그대로 두고 — 실측으로 12,412칸이 2박이다 — 예외만 색 있는
+ * 알약으로 세운다. 전부에 알약을 씌우면 2,700칸이 통째로 시끄러워져 예외가 도로 묻힌다.
+ */
 .opsg__min {
-  font-size: 9px;
-  font-weight: 500;
-  color: hsl(222 8% 76%);
+  font-size: 9.5px;
+  font-weight: 300;
+  color: hsl(222 10% 62%);
   font-variant-numeric: tabular-nums;
 }
 
@@ -433,11 +480,12 @@
  */
 .opsg__bar {
   position: absolute;
-  height: 16px;
-  top: 2.5px;
-  border-radius: 8px;
-  font-size: 9px;
-  font-weight: 700;
+  /* 손님 이름이 읽혀야 한다 — 막대가 작으면 이름이 잘려 「누구 예약인지」를 알 수 없다. */
+  height: 19px;
+  top: 3px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 500;
   display: flex;
   align-items: center;
   padding: 0 6px;
@@ -471,9 +519,9 @@
 /* 「차단」이 아니라 영어 BLOCK 으로 쓴다(사용자 지정, 2026-09-16). */
 .opsg__block {
   position: absolute;
-  height: 16px;
-  top: 2.5px;
-  border-radius: 8px;
+  height: 19px;
+  top: 3px;
+  border-radius: 9px;
   background: repeating-linear-gradient(
     135deg,
     hsl(222 12% 52% / 0.34) 0 5px,
@@ -1254,3 +1302,56 @@
 }
 .opsms__rule strong { color: var(--soft); }
 .opsms__rulenote { display: block; margin-top: 3px; color: var(--faint); }
+
+/*
+ * 최소숙박 값 구분 (2026-09-25)
+ *
+ * **2박이 기본이다.** 실측으로 Beds24 의 12,412칸이 2박이고 1박은 388칸뿐이라,
+ * 기본값을 강조하면 격자가 통째로 시끄러워지고 정작 찾아야 할 예외가 묻힌다.
+ * 그래서 `2` 는 지금처럼 아주 흐리게 두고 **예외만** 세운다.
+ *
+ *   1박    더 열어둔 것   → 강조색(네이비). 의도적으로 연 상태다
+ *   3박+   더 닫아둔 것   → 경고색(앰버). 반대 방향의 예외다
+ *
+ * 갭 칸의 빨강(`.opsg__cell.gap .opsg__min`)과는 겹치지 않는다 — 갭은 정의상 minStay 가
+ * 정확히 2 인 칸이라 여기 규칙이 붙지 않는다.
+ */
+.opsg__min.one,
+.opsg__min.many {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 13px;
+  height: 12px;
+  padding: 0 3px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+/* 1박 = **더 열어둔 것.** 의도적으로 연 상태라 강조색으로 세운다. */
+.opsg__min.one {
+  background: color-mix(in oklab, var(--adm-primary) 14%, transparent);
+  color: var(--adm-primary);
+}
+/* 3박+ = **더 닫아둔 것.** 반대 방향의 예외라 색도 반대편을 쓴다. */
+.opsg__min.many {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+/* 범례의 최소숙박 표본. 격자의 숫자와 **같은 색·같은 굵기**여야 대조가 된다. */
+.ops__lgms { color: var(--faint); }
+.ops__msk {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 13px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ops__msk.one { background: hsl(146 48% 88%); color: hsl(146 60% 24%); }
+.ops__msk.many { background: hsl(38 80% 93%); color: var(--warn); }

@@ -74,6 +74,30 @@ export function localizePropertyName(
   return (key ? buildingLabels[key] : undefined) ?? canonicalPropertyName;
 }
 
+/**
+ * 캘린더 세로축의 **건물 순서**. 가나다순이 아니라 **운영 순서**다.
+ *
+ * 전에는 두 캘린더가 각자 목록을 들고 있었고(어드민은 `PROPERTY_MAP_META` 에서 파생,
+ * 모바일은 파일 안에 리터럴), **둘 다 스테이아리와 사노가 빠져 있었다.** 목록에 없는
+ * 건물은 `localeCompare` 로 뒤에 붙으므로 스테이아리가 오쿠보 뒤로 밀려 있었다.
+ * 현장 기준으로는 **가부키초 바로 뒤**가 맞고 **사노가 맨 뒤**다(2026-09-25 사용자 확인).
+ *
+ * `PROPERTY_MAP_META` 는 지도 링크가 있는 7개뿐이라 순서의 근거가 될 수 없다 —
+ * 그래서 여기에 전부 적는다. 건물이 늘면 여기에 넣어야 하고, 빠뜨리면
+ * `room-label-normalization.test.ts` 가 잡는다.
+ */
+export const CALENDAR_BUILDING_ORDER: readonly string[] = [
+  "아라키초A",
+  "아라키초B",
+  "가부키초",
+  "STAY ARI Apartment Hotel",
+  "다카다노바바",
+  "오쿠보A",
+  "오쿠보B",
+  "오쿠보C",
+  "사노",
+];
+
 export function getCanonicalPropertyName(propertyName: string) {
   if (isArakichoA(propertyName)) return "아라키초A";
   if (isArakichoB(propertyName)) return "아라키초B";

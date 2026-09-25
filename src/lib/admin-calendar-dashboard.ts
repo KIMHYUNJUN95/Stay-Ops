@@ -3,9 +3,9 @@ import { normalizeReservationSource } from "@/lib/beds24/source-normalization";
 import { readBeds24BookingId } from "@/lib/beds24/reservation-status";
 import { isBeds24SyncPaused } from "@/lib/beds24/sync-control";
 import { listPropertyMapMeta } from "@/lib/property-operation-info";
-import { PROPERTY_MAP_META } from "@/lib/property-map-links";
 import { listReservationInternalNotes } from "@/lib/reservation-internal-notes";
 import {
+  CALENDAR_BUILDING_ORDER,
   getCanonicalPropertyName,
   getCanonicalRoomLabel,
   getDisplayRoomLabel,
@@ -80,7 +80,8 @@ export type AdminCalendarRoomAxisRow = {
 
 // Building display order = canonical property order from the shared property map (single source of
 // truth; avoids hardcoded / encoding-fragile building-name literals).
-const BUILDING_DISPLAY_ORDER: string[] = PROPERTY_MAP_META.map((meta) => meta.canonicalName);
+// 순서의 근거는 `CALENDAR_BUILDING_ORDER` 하나다 — 어드민·모바일 캘린더가 같이 쓴다.
+const BUILDING_DISPLAY_ORDER: readonly string[] = CALENDAR_BUILDING_ORDER;
 
 const ROOM_AXIS_SEPARATOR = "::";
 
