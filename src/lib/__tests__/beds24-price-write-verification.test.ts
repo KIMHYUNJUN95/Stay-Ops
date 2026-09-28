@@ -77,6 +77,31 @@ describe("diffCalendarReadback", () => {
     expect(mismatches).toEqual([]);
   });
 
+  it("「1박으로」 뒤 **그 날짜 줄이 빠져 있으면** 1박이다 — Beds24 가 기본값 줄을 생략한다", () => {
+    // 저쪽 3e44564 실측. 예전에는 「모른다」로 봐서 반영됐는데도 실패로 끝났다.
+    const mismatches = diffCalendarReadback({
+      expected: { "2026-10-04": { m: 1 } },
+      segments: [{ from: "2026-10-01", to: "2026-10-03", minStay: 2 }],
+    });
+    expect(mismatches).toEqual([]);
+  });
+
+  it("줄이 빠진 날을 2박으로 기대했다면 틀린 것이다", () => {
+    const mismatches = diffCalendarReadback({
+      expected: { "2026-10-04": { m: 2 } },
+      segments: [{ from: "2026-10-01", to: "2026-10-03", minStay: 2 }],
+    });
+    expect(mismatches[0]).toMatchObject({ actual: 1, expected: 2, field: "minStay" });
+  });
+
+  it("그 방의 응답이 **통째로 비었으면** 모른다 — 읽기 실패일 수 있다", () => {
+    const mismatches = diffCalendarReadback({
+      expected: { "2026-10-04": { m: 1 } },
+      segments: [],
+    });
+    expect(mismatches[0]).toMatchObject({ actual: null, expected: 1, field: "minStay" });
+  });
+
   it("최소숙박이 안 바뀌었으면 잡는다", () => {
     const mismatches = diffCalendarReadback({
       expected: { "2026-10-01": { m: 1 } },
@@ -110,13 +135,15 @@ describe("diffCalendarReadback", () => {
     expect(stillThere[0]).toMatchObject({ expected: null, field: "price1" });
   });
 
-  it("그 날짜 구간이 아예 없으면 불일치다 — 「모른다」를 성공이라 하지 않는다", () => {
+  it("그 날짜 구간이 없으면 가격은 「모른다」, 최소숙박은 1박 — 둘 다 기대와 다르면 불일치다", () => {
+    // 가격은 빈 값을 성공이라 하지 않는다. 최소숙박은 줄이 빠진 것이 곧 1박이다(저쪽 3e44564) —
+    // 2박을 기대했다면 여전히 틀린 것이다.
     const mismatches = diffCalendarReadback({
       expected: { "2026-12-25": { p1: 99000, m: 2 } },
       segments: SEGMENTS,
     });
     expect(mismatches).toHaveLength(2);
-    expect(mismatches.map((m) => m.actual)).toEqual([null, null]);
+    expect(mismatches.map((m) => m.actual)).toEqual([null, 1]);
   });
 
   it("여러 날짜를 한 번에 본다", () => {

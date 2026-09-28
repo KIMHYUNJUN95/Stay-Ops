@@ -91,8 +91,16 @@ export function diffCalendarReadback(args: {
 
     if (values.m !== undefined) {
       const expected = normalizeBeds24MinStay(values.m);
-      // 그 날짜 구간 자체가 없으면 「모른다」다 — 1 로 정규화하면 못 쓴 것을 썼다고 하게 된다.
-      const actual = entry ? normalizeBeds24MinStay(entry.minStay) : null;
+      /*
+       * **그 날짜 줄이 없으면 1박이다.** Beds24 는 minStay 1 을 빈칸으로 저장하고, 다른 설정이
+       * 없으면 그 날짜 줄 자체를 빼고 돌려준다(저쪽 2026-09-25 `3e44564` 실측). 예전에는 줄이
+       * 없으면 「모른다」로 봐서 「1박으로」가 Beds24 에는 들어갔는데도 재시도 끝에 실패로
+       * 끝났다 — 화면은 그 실패를 보고 값을 되돌렸다.
+       *
+       * 다만 **그 방의 응답이 통째로 비었으면** 읽기 자체가 안 된 것일 수 있다 — 그때만 「모른다」.
+       */
+      const actual =
+        entry || args.segments.length > 0 ? normalizeBeds24MinStay(entry?.minStay) : null;
       if (actual !== expected) {
         mismatches.push({ actual, date, expected, field: "minStay" });
       }
