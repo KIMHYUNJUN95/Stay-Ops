@@ -468,16 +468,39 @@
 }
 
 /* 빈 칸의 `+`. **버튼이다** — 누르면 그 방·그 날짜로 수동 예약 모달이 열린다. */
+/*
+ * **누르는 자리는 칸 전체다.** 글리프 크기만 히트 영역이면 11px 짜리 과녁을 맞혀야 해서
+ * 실제로 못 누른다(2026-09-28 지적). 글자는 그대로 작게 두고 `inset: 0` 으로 칸을 덮는다.
+ *
+ * 평소에는 거의 안 보이게 두고 **칸에 올렸을 때** 드러낸다 — 빈 칸마다 진한 `+` 가 박혀
+ * 있으면 격자가 시끄러워지고, 정작 봐야 할 가격과 예약이 묻힌다.
+ */
 .opsg__plus {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: none;
   padding: 0;
   cursor: pointer;
   color: hsl(40 14% 82%);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
+  line-height: 1;
+  border-radius: 7px;
 }
-.opsg__plus:hover { color: var(--adm-primary); }
+.opsg__plus:hover {
+  color: var(--adm-primary);
+  background: color-mix(in oklab, var(--adm-primary) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--adm-primary) 35%, transparent);
+}
+.opsg__plus:focus-visible {
+  outline: none;
+  color: var(--adm-primary);
+  box-shadow: inset 0 0 0 2px var(--adm-primary);
+}
 
 /*
  * 예약 막대 — **체크인 날짜 칸의 가운데에서 시작해 체크아웃 날짜 칸의 가운데에서 끝난다.**
