@@ -241,3 +241,54 @@ export function toggleCellGroup(
     ? removeCells(selection, cells)
     : addCells(selection, cells).selection;
 }
+
+/**
+ * 고른 칸을 **방별 연속 구간**으로 묶는다.
+ *
+ * 블록(차단)은 칸 단위가 아니라 **구간 단위로 쓴다** — Beds24 의
+ * `POST /inventory/rooms/calendar` 가 `{from, to, override}` 를 받기 때문이다. 칸 하나씩
+ * 보내면 왕복이 칸 수만큼 늘고, 크레딧은 계정 단위 5분 예산이라 그만큼 다른 동기화를 밀어낸다.
+ *
+ * **끊긴 구간은 나눠야 한다.** 10/1·10/2·10/5 를 골랐으면 `10/1~10/2` 와 `10/5~10/5` 두
+ * 구간이다. 하나로 묶어 `10/1~10/5` 를 보내면 **고르지도 않은 10/3·10/4 가 같이 막힌다** —
+ * 팔리고 있던 밤이 조용히 판매 정지된다.
+ *
+ * 방마다 따로 묶는다. 같은 날짜라도 방이 다르면 다른 구간이다.
+ */
+export type OpsBlockRange = { roomKey: string; startDate: string; endDate: string };
+
+export function groupSelectionIntoRanges(cells: OpsSelectionCell[]): OpsBlockRange[] {
+  const byRoom = new Map<string, string[]>();
+  for (const cell of cells) {
+    const list = byRoom.get(cell.roomKey);
+    if (list) list.push(cell.date);
+    else byRoom.set(cell.roomKey, [cell.date]);
+  }
+
+  const ranges: OpsBlockRange[] = [];
+  // 방 순서를 고정한다 — 순서가 매번 다르면 「무엇이 바뀌었나」를 볼 때 diff 가 흔들린다.
+  for (const roomKey of [...byRoom.keys()].sort()) {
+    const dates = [...new Set(byRoom.get(roomKey) ?? [])].sort();
+    let start = dates[0];
+    let previous = dates[0];
+    for (let index = 1; index < dates.length; index += 1) {
+      const date = dates[index];
+      if (date === nextDay(previous)) {
+        previous = date;
+        continue;
+      }
+      ranges.push({ endDate: previous, roomKey, startDate: start });
+      start = date;
+      previous = date;
+    }
+    if (start) ranges.push({ endDate: previous, roomKey, startDate: start });
+  }
+  return ranges;
+}
+
+/** `YYYY-MM-DD` 다음 날. 시간대에 안 흔들리도록 UTC 정오로 고정한다. */
+function nextDay(date: string): string {
+  const at = new Date(`${date}T12:00:00Z`);
+  at.setUTCDate(at.getUTCDate() + 1);
+  return at.toISOString().slice(0, 10);
+}

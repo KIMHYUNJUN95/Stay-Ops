@@ -8,6 +8,7 @@ import type {
   OpsCalendarRate,
   OpsCalendarRoom,
 } from "@/lib/ops-calendar";
+import { OpsBlockPanel, type BlockPanelCopy } from "@/components/admin/ops/ops-block-panel";
 import {
   OpsMinStayPanel,
   type MinStayPanelCopy,
@@ -78,9 +79,11 @@ type Copy = {
   andMore: string;
   selectHint: string;
   minStayMode: string;
+  blockMode: string;
   gapSelectAll: string;
 } & PanelCopy &
   MinStayPanelCopy &
+  BlockPanelCopy &
   HistoryCopy & { historyMore: string };
 
 /**
@@ -176,7 +179,7 @@ export function OpsCalendarGrid({
    * 한 패널에 둘을 넣으면 **어느 쪽을 고치는 중인지 모르는 채로 적용**하게 된다. 가격은
    * 틀리면 채널로 그대로 나간다.
    */
-  const [mode, setMode] = useState<"off" | "price" | "minstay">("off");
+  const [mode, setMode] = useState<"off" | "price" | "minstay" | "block">("off");
   const editMode = mode !== "off";
   const [scope, setScope] = useState<OpsSelectionScope>(EMPTY_SCOPE);
   /**
@@ -541,12 +544,25 @@ export function OpsCalendarGrid({
             >
               {copy.minStayMode}
             </button>
+            <button
+              className="opsg__editbtn"
+              onClick={() => setMode("block")}
+              type="button"
+            >
+              {copy.blockMode}
+            </button>
           </>
         ) : (
           <>
-            <span className={`opsg__modepill${mode === "minstay" ? " ms" : ""}`}>
+            <span
+              className={`opsg__modepill${mode === "minstay" ? " ms" : ""}${mode === "block" ? " bk" : ""}`}
+            >
               <span className="opsg__modedot" />
-              {mode === "minstay" ? copy.minStayMode : copy.editMode}
+              {mode === "minstay"
+                ? copy.minStayMode
+                : mode === "block"
+                  ? copy.blockMode
+                  : copy.editMode}
             </span>
             <button
               className="opsg__editbtn"
@@ -875,6 +891,20 @@ export function OpsCalendarGrid({
         ))}
       </div>
       </div>
+
+      {mode === "block" && (
+        <OpsBlockPanel
+          cells={panelCells.map((cell) => ({
+            date: cell.date,
+            roomIds: cell.roomIds,
+            roomKey: cell.roomKey,
+            roomLabel: cell.roomLabel,
+          }))}
+          copy={copy}
+          onClear={clearSelection}
+          scopeSummary={scopeSummary}
+        />
+      )}
 
       {mode === "minstay" && (
         <OpsMinStayPanel

@@ -168,6 +168,32 @@ const FALLBACK_DICTIONARY = {
       minStayTitle: "Minimum stay",
       // 최소 숙박일 모드 — 시안 `6-minstay.dc.html`.
       minStayMode: "Minimum stay",
+      // 차단(블록) — 시안 없음. 최소숙박 패널과 같은 구조로 간다.
+      blockMode: "Block",
+      bkTitle: "Block",
+      bkBody:
+        "Blocked nights stop selling on every channel. Existing reservations are untouched — this only closes what is still on sale.",
+      bkApply: "Block",
+      bkRelease: "Release",
+      bkConfirmBlock: "Block {ranges} range(s) · {nights} night(s)",
+      bkConfirmRelease: "Release {ranges} range(s) · {nights} night(s)",
+      bkSummary: "{ranges} range(s) · {nights} night(s)",
+      bkEmptyTitle: "Pick cells on the grid",
+      bkEmptyBody: "Nothing selected.",
+      bkPending: "Sending to Beds24...",
+      bkDoneBlock: "Blocked",
+      bkDoneRelease: "Released",
+      bkFailed: "Failed - {error}",
+      bkNote:
+        "Written straight to Beds24 and read back to confirm. Broken date runs are sent as separate ranges.",
+      errBkCooldown: "Beds24 credits are cooling down. Try again shortly.",
+      errBkUnavailable: "Could not reach Beds24. Nothing was changed.",
+      errBkRejected: "Beds24 rejected the request.",
+      errBkVerify: "Beds24 reported success but the read-back does not match. Nothing is confirmed.",
+      errBkRolledBack: "Saving failed, so the Beds24 change was rolled back. Try again.",
+      errBkNotRolledBack:
+        "Saving failed AND the rollback failed. The room may still be blocked in Beds24 - please check there.",
+      errBkUnknownRoom: "That room could not be resolved.",
       gapSelectAll: "Select all 1-night gaps",
       msGapCount: "cells with a 1-night gap",
       msGapBody:
@@ -5317,6 +5343,32 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       minStayTitle: "최소 숙박일",
       // 최소 숙박일 모드 — 시안 `6-minstay.dc.html`.
       minStayMode: "최소 숙박일",
+      // 차단(블록) — 시안 없음. 최소숙박 패널과 같은 구조로 간다.
+      blockMode: "차단",
+      bkTitle: "차단",
+      bkBody:
+        "차단한 밤은 모든 채널에서 판매가 멈춥니다. 이미 들어온 예약은 건드리지 않습니다 — 아직 팔고 있는 것만 닫습니다.",
+      bkApply: "차단",
+      bkRelease: "해제",
+      bkConfirmBlock: "{ranges}구간 · {nights}박 차단",
+      bkConfirmRelease: "{ranges}구간 · {nights}박 해제",
+      bkSummary: "{ranges}구간 · {nights}박",
+      bkEmptyTitle: "격자에서 칸을 고르세요",
+      bkEmptyBody: "고른 칸이 없습니다.",
+      bkPending: "Beds24 에 보내는 중…",
+      bkDoneBlock: "차단했습니다",
+      bkDoneRelease: "해제했습니다",
+      bkFailed: "실패 — {error}",
+      bkNote:
+        "Beds24 에 바로 쓰고 되읽어 확인합니다. 날짜가 끊기면 구간을 나눠 보냅니다 — 고르지 않은 날은 막히지 않습니다.",
+      errBkCooldown: "Beds24 크레딧이 쉬는 중입니다. 잠시 후 다시 시도하세요.",
+      errBkUnavailable: "Beds24 에 닿지 못했습니다. 아무것도 바뀌지 않았습니다.",
+      errBkRejected: "Beds24 가 요청을 거부했습니다.",
+      errBkVerify: "Beds24 는 성공이라고 했지만 되읽은 값이 다릅니다. 반영을 확인하지 못했습니다.",
+      errBkRolledBack: "저장에 실패해서 Beds24 쪽을 되돌렸습니다. 다시 시도해 주세요.",
+      errBkNotRolledBack:
+        "저장도 실패하고 되돌리기도 실패했습니다. Beds24 에 차단이 남아 있을 수 있으니 직접 확인해 주세요.",
+      errBkUnknownRoom: "그 객실을 찾지 못했습니다.",
       gapSelectAll: "1박 갭 자동 선택",
       msGapCount: "칸의 1박 갭",
       msGapBody:
@@ -10309,6 +10361,32 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       minStayTitle: "最低宿泊日数",
       // 最低宿泊日数モード — デザイン `6-minstay.dc.html`。
       minStayMode: "最低宿泊日数",
+      // 차단(블록) — 시안 없음. 최소숙박 패널과 같은 구조로 간다.
+      blockMode: "ブロック",
+      bkTitle: "ブロック",
+      bkBody:
+        "ブロックした夜は全チャネルで販売が止まります。既存の予約には触れません — まだ販売中のものだけを閉じます。",
+      bkApply: "ブロック",
+      bkRelease: "解除",
+      bkConfirmBlock: "{ranges}区間 · {nights}泊をブロック",
+      bkConfirmRelease: "{ranges}区間 · {nights}泊を解除",
+      bkSummary: "{ranges}区間 · {nights}泊",
+      bkEmptyTitle: "グリッドでセルを選んでください",
+      bkEmptyBody: "選択中のセルがありません。",
+      bkPending: "Beds24 に送信中…",
+      bkDoneBlock: "ブロックしました",
+      bkDoneRelease: "解除しました",
+      bkFailed: "失敗 — {error}",
+      bkNote:
+        "Beds24 に直接書き込み、読み戻して確認します。日付が途切れる場合は区間を分けて送ります。",
+      errBkCooldown: "Beds24 のクレジットが回復待ちです。しばらくしてから再試行してください。",
+      errBkUnavailable: "Beds24 に接続できませんでした。何も変更されていません。",
+      errBkRejected: "Beds24 がリクエストを拒否しました。",
+      errBkVerify: "Beds24 は成功と返しましたが、読み戻した値が一致しません。反映を確認できていません。",
+      errBkRolledBack: "保存に失敗したため Beds24 側を巻き戻しました。もう一度お試しください。",
+      errBkNotRolledBack:
+        "保存も巻き戻しも失敗しました。Beds24 にブロックが残っている可能性があるため直接ご確認ください。",
+      errBkUnknownRoom: "その客室を特定できませんでした。",
       gapSelectAll: "1泊ギャップを一括選択",
       msGapCount: "セルの1泊ギャップ",
       msGapBody:

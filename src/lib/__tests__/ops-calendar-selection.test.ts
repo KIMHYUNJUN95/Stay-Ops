@@ -5,6 +5,7 @@ import {
   buildScopeCells,
   buildSelectableWeeks,
   EMPTY_SCOPE,
+  groupSelectionIntoRanges,
   isPriceEditBlocked,
   selectionCellKey,
   toggleCellGroup,
@@ -281,5 +282,79 @@ describe("축 왕복 (2026-09-24 회귀)", () => {
       previousScopeKeys: new Set([selectionCellKey("201", "2026-10-01")]),
     });
     expect(off.selection).toEqual([manual]);
+  });
+});
+
+/**
+ * 고른 칸 → 방별 연속 구간.
+ *
+ * 계약: `groupSelectionIntoRanges` (`src/lib/ops-calendar-selection.ts`)
+ *
+ * **끊긴 구간을 하나로 묶으면 고르지도 않은 날이 같이 막힌다** — 팔리고 있던 밤이
+ * 조용히 판매 정지된다. 눈으로는 절대 못 잡으므로 테스트로 고정한다.
+ */
+describe("groupSelectionIntoRanges", () => {
+  const cell = (roomKey: string, date: string) => ({ date, roomKey });
+
+  it("이어진 날짜는 한 구간으로 묶는다", () => {
+    expect(
+      groupSelectionIntoRanges([
+        cell("A", "2026-10-01"),
+        cell("A", "2026-10-02"),
+        cell("A", "2026-10-03"),
+      ]),
+    ).toEqual([{ endDate: "2026-10-03", roomKey: "A", startDate: "2026-10-01" }]);
+  });
+
+  it("끊기면 나눈다 — 고르지 않은 날이 끼면 안 된다", () => {
+    expect(
+      groupSelectionIntoRanges([
+        cell("A", "2026-10-01"),
+        cell("A", "2026-10-02"),
+        cell("A", "2026-10-05"),
+      ]),
+    ).toEqual([
+      { endDate: "2026-10-02", roomKey: "A", startDate: "2026-10-01" },
+      { endDate: "2026-10-05", roomKey: "A", startDate: "2026-10-05" },
+    ]);
+  });
+
+  it("방이 다르면 같은 날짜라도 다른 구간이다", () => {
+    expect(
+      groupSelectionIntoRanges([cell("B", "2026-10-01"), cell("A", "2026-10-01")]),
+    ).toEqual([
+      { endDate: "2026-10-01", roomKey: "A", startDate: "2026-10-01" },
+      { endDate: "2026-10-01", roomKey: "B", startDate: "2026-10-01" },
+    ]);
+  });
+
+  it("고른 순서가 뒤죽박죽이어도 결과는 같다", () => {
+    expect(
+      groupSelectionIntoRanges([
+        cell("A", "2026-10-03"),
+        cell("A", "2026-10-01"),
+        cell("A", "2026-10-02"),
+      ]),
+    ).toEqual([{ endDate: "2026-10-03", roomKey: "A", startDate: "2026-10-01" }]);
+  });
+
+  it("같은 칸이 두 번 들어와도 한 번만 센다", () => {
+    expect(
+      groupSelectionIntoRanges([cell("A", "2026-10-01"), cell("A", "2026-10-01")]),
+    ).toEqual([{ endDate: "2026-10-01", roomKey: "A", startDate: "2026-10-01" }]);
+  });
+
+  it("달을 넘어가도 이어진 것으로 본다", () => {
+    expect(
+      groupSelectionIntoRanges([
+        cell("A", "2026-10-30"),
+        cell("A", "2026-10-31"),
+        cell("A", "2026-11-01"),
+      ]),
+    ).toEqual([{ endDate: "2026-11-01", roomKey: "A", startDate: "2026-10-30" }]);
+  });
+
+  it("빈 선택은 빈 배열", () => {
+    expect(groupSelectionIntoRanges([])).toEqual([]);
   });
 });

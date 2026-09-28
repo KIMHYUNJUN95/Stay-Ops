@@ -4,6 +4,12 @@ import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/admin-session";
 import { enqueueBeds24PriceJob, type PriceJobCellRequest } from "@/lib/beds24/price-job-queue";
 import { runNextPriceJob } from "@/lib/beds24/price-job-worker";
+import {
+  clearRoomBlock,
+  createRoomBlock,
+  type BlockWriteFailure,
+} from "@/lib/beds24/block-write";
+import { groupSelectionIntoRanges } from "@/lib/ops-calendar-selection";
 import { canAccessOpsAdmin } from "@/lib/ops-admin";
 import {
   buildAdjustmentPreview,
@@ -225,4 +231,113 @@ export async function getPriceJobStatus(jobId: string): Promise<PriceJobStatus |
     status: row.status,
     totalCount: row.total_count,
   };
+}
+
+/**
+ * 블록(차단) 걸기·해제.
+ *
+ * 도메인 계약: `docs/product/33-calendar-write-features.md` → 「저쪽 블록의 실제 규칙」
+ * 쓰기 계층: `src/lib/beds24/block-write.ts` (되읽기 검증 · 보상 롤백)
+ *
+ * ## 가격·최소숙박과 달리 **큐에 넣지 않는다**
+ *
+ * 가격은 수천 칸을 한 번에 바꾸므로 큐·배치가 필요하다. 블록은 방 몇 개 × 밤 며칠이고,
+ * 무엇보다 **사람이 화면 앞에서 결과를 기다린다** — 「막혔나 안 막혔나」를 모른 채 넘어가면
+ * 그 자리에서 초과예약이 난다. 저쪽도 동기로 한다.
+ *
+ * ## 모든 유닛에 건다
+ *
+ * 최소숙박과 달리 **활성 유닛만 고르지 않는다.** 막는 것은 「그 물리적 방을 팔지 않는다」는
+ * 뜻이고, 잠긴 유닛에 `override: blackout` 을 걸어도 잠금(minStay)은 그대로라 부작용이 없다.
+ * 오히려 한 유닛만 막으면 나머지 listing 으로 그 방이 팔린다.
+ */
+export type BlockChangeError = BlockWriteFailure | "forbidden" | "no_cells" | "unknown_room";
+
+export type BlockChangeResult =
+  | { ok: false; error: BlockChangeError; detail?: string }
+  | { ok: true; ranges: number; nights: number };
+
+export type BlockChangeCell = { roomKey: string; roomLabel: string; roomIds: string[]; date: string };
+
+/** 한 번에 처리하는 구간 수. 실수로 격자 전체를 고르고 누르는 것을 서버에서도 막는다. */
+const MAX_BLOCK_RANGES = 60;
+
+type BlockRoomRow = {
+  id: string;
+  external_room_id: string | null;
+  room_label: string;
+  properties: { name: string } | { name: string }[] | null;
+};
+
+async function runBlockChange(
+  args: { cells: BlockChangeCell[] },
+  mode: "block" | "unblock",
+): Promise<BlockChangeResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+  if (args.cells.length === 0) return { error: "no_cells", ok: false };
+
+  const ranges = groupSelectionIntoRanges(
+    args.cells.map((cell) => ({ date: cell.date, roomKey: cell.roomKey })),
+  );
+  if (ranges.length === 0) return { error: "no_cells", ok: false };
+  if (ranges.length > MAX_BLOCK_RANGES) {
+    return { detail: `${ranges.length}`, error: "no_cells", ok: false };
+  }
+
+  // 화면이 보낸 `roomIds` 는 우리 `rooms.id` 다. Beds24 roomId 는 **서버가 찾는다** —
+  // 클라이언트가 외부 식별자를 들고 다니면 조작된 값이 그대로 Beds24 로 나간다.
+  const roomIdsByKey = new Map<string, string[]>();
+  for (const cell of args.cells) roomIdsByKey.set(cell.roomKey, cell.roomIds);
+  const allRoomIds = [...new Set(args.cells.flatMap((cell) => cell.roomIds))];
+
+  const supabase = getSupabaseServiceClient();
+  const roomsResult = await supabase
+    .from("rooms")
+    .select("id, external_room_id, room_label, properties(name)")
+    .eq("organization_id", session.organization.id)
+    .in("id", allRoomIds);
+  if (roomsResult.error) return { error: "unknown_room", ok: false };
+
+  const unitById = new Map<string, BlockRoomRow>();
+  for (const row of (roomsResult.data ?? []) as BlockRoomRow[]) unitById.set(row.id, row);
+
+  let nights = 0;
+  for (const range of ranges) {
+    const units = (roomIdsByKey.get(range.roomKey) ?? [])
+      .map((id) => unitById.get(id))
+      .filter((row): row is BlockRoomRow => !!row && !!row.external_room_id);
+    if (units.length === 0) return { error: "unknown_room", ok: false };
+
+    const property = Array.isArray(units[0].properties) ? units[0].properties[0] : units[0].properties;
+    const shared = {
+      externalRoomIds: units.map((unit) => String(unit.external_room_id)),
+      organizationId: session.organization.id,
+      propertyName: property?.name ?? "",
+      range: { endDate: range.endDate, startDate: range.startDate },
+      roomLabel: units[0].room_label,
+      supabase,
+    };
+
+    const result =
+      mode === "block"
+        ? await createRoomBlock({ ...shared, actorUserId: session.user.id })
+        : await clearRoomBlock(shared);
+
+    // **첫 실패에서 멈춘다.** 이어서 더 쓰면 「어디까지 됐는지」를 사람이 알 수 없다.
+    // 이미 성공한 구간은 되읽기로 검증된 상태라 그대로 두어도 안전하다.
+    if (!result.ok) return { detail: result.detail, error: result.reason, ok: false };
+    nights += result.nights;
+  }
+
+  revalidatePath(CONSOLE_PATH);
+  return { nights, ok: true, ranges: ranges.length };
+}
+
+export async function submitRoomBlock(args: { cells: BlockChangeCell[] }): Promise<BlockChangeResult> {
+  return runBlockChange(args, "block");
+}
+
+export async function submitRoomUnblock(args: { cells: BlockChangeCell[] }): Promise<BlockChangeResult> {
+  return runBlockChange(args, "unblock");
 }
