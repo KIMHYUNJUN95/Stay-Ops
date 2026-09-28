@@ -6307,3 +6307,22 @@ Beds24 재고(가격) 웹훅 URL 칸은 **프로퍼티당 한 줄만** 받는다
 않았다.** 절차는 `docs/engineering/07-environment-setup.md` → 「Beds24 재고(가격) 웹훅 전환」.
 
 관련: `docs/product/33-calendar-write-features.md` → 「② 웹훅」
+
+## 2026-09-28 — 손님 국가는 전화번호로 채운다 (`libphonenumber-js` 추가)
+
+**Airbnb 는 국가를 거의 주지 않는다.** 체크인 6월 이후 Airbnb 1,460건 중 709건이 국가 없이
+들어온다. 대신 전화번호는 100% 이고 전부 국가번호가 붙은 국제 형식(`+` 만 빠짐)이다. 국가별 점유·
+분포를 옮길 때 이게 비어 있으면 Airbnb 손님 절반이 `Unknown` 이 된다(저쪽 화면이 그렇다).
+
+- **채널이 준 국가가 먼저, 없으면 전화번호의 국가번호**(`resolveGuestCountry`, `src/lib/guest-country.ts`).
+  번호로 채운 것은 `source: "phone"` 으로 가른다 — 전화번호의 나라와 국적은 다를 수 있으므로 화면은
+  「전화번호로 추정」이라고 적고, 지표는 둘을 나눠 셀 수 있게 한다.
+- **`libphonenumber-js` 를 의존성으로 추가했다**(사용자 승인). `+1` 은 미국·캐나다·카리브해가 같이
+  써서 지역번호까지 봐야 하는데, 그 표를 직접 관리하지 않는다. 서버에서만 쓴다. `min` 메타데이터를
+  명시적으로 넘긴다 — tsx 가 기본 진입점의 JSON 을 `{default}` 로 감싸 깨지는 것을 피한다.
+- 실측: Airbnb 국가 미상 **709 → 0건**. 남은 미상은 전화번호 없이 만든 수기 예약(32)과 API 예약(29).
+- 추정은 **유효한 번호일 때만**(`isValid`) 하고, 0 으로 시작하는 국내 번호는 모른다고 둔다.
+
+관련: `docs/product/33-calendar-write-features.md` → 「예약 상세」,
+`docs/product/34-metrics-and-automation.md` → 「국가 — 전화번호로 채운다」
+
