@@ -14,11 +14,7 @@ import {
   type MinStayPanelCopy,
 } from "@/components/admin/ops/ops-minstay-panel";
 import { OpsPricePanel, type PanelCopy, type PanelCell } from "@/components/admin/ops/ops-price-panel";
-import {
-  assignBarLanes,
-  buildBarOverflowSegments,
-  type BarOverflowSegment,
-} from "@/lib/ops-bar-lanes";
+import { assignBarLanes } from "@/lib/ops-bar-lanes";
 import { buildGapContext } from "@/lib/ops-gap-context";
 import {
   describeCellHistory,
@@ -322,33 +318,22 @@ export function OpsCalendarGrid({
    * 실측(2026-09-28)으로 취소가 걸린 방-밤의 20%가 2건 이상, 최대 5건이다.
    * 그래서 층을 나누고 그만큼 트랙을 키운다(저쪽 `cancelledBarLaneMap` 과 같다).
    */
-  const barLanes = useMemo(() => {
-    if (!showCancelled) return null;
-    const laneBars = bars
-      .filter((bar) => bar.isCancelled)
-      .map((bar) => ({
-        checkIn: bar.checkIn,
-        checkOut: bar.checkOut,
-        id: bar.id,
-        roomKey: bar.roomKey,
-      }));
-    const lanes = assignBarLanes(laneBars);
-    return { lanes, segments: buildBarOverflowSegments(laneBars, lanes) };
-  }, [bars, showCancelled]);
-
-  const overflowByRoom = useMemo(() => {
-    const map = new Map<string, BarOverflowSegment[]>();
-    for (const segment of barLanes?.segments ?? []) {
-      const list = map.get(segment.roomKey);
-      if (list) list.push(segment);
-      else map.set(segment.roomKey, [segment]);
-    }
-    return map;
-  }, [barLanes]);
-
-  /** 눌러서 펼친 `+N` 배지. 한 번에 하나만 연다 — 여럿이 열리면 격자를 가린다. */
-  const [openOverflow, setOpenOverflow] = useState<BarOverflowSegment | null>(null);
-  const barById = useMemo(() => new Map(bars.map((bar) => [bar.id, bar])), [bars]);
+  const barLanes = useMemo(
+    () =>
+      showCancelled
+        ? assignBarLanes(
+            bars
+              .filter((bar) => bar.isCancelled)
+              .map((bar) => ({
+                checkIn: bar.checkIn,
+                checkOut: bar.checkOut,
+                id: bar.id,
+                roomKey: bar.roomKey,
+              })),
+          )
+        : null,
+    [bars, showCancelled],
+  );
 
   const gapContext = useMemo(
     () =>
@@ -787,6 +772,7 @@ export function OpsCalendarGrid({
               const allRoomBars = barsByRoom.get(room.key) ?? [];
               // **켜면 취소만, 끄면 일반만.** 둘을 같이 그리면 같은 밤에 겹쳐 못 읽는다.
               const roomBars = allRoomBars.filter((bar) => bar.isCancelled === showCancelled);
+              const laneCount = barLanes?.laneCountByRoom.get(room.key) ?? 1;
               const roomBlocks = blocksByRoom.get(room.key) ?? [];
               const occupied = new Set<string>();
               // 점유는 **항상** 일반 예약으로만 센다 — 「취소만 보기」를 켜도 팔린 밤은 팔린 밤이다.
@@ -886,8 +872,11 @@ export function OpsCalendarGrid({
                         );
                       })}
                     </div>
-                    {/* 예약 · BLOCK */}
-                    <div className="opsg__track">
+                    {/* 예약 · BLOCK. 「취소만 보기」에서는 층 수만큼 키운다. */}
+                    <div
+                      className="opsg__track"
+                      style={laneCount > 1 ? { height: `calc(var(--ops-track) + ${(laneCount - 1) * 18}px)` } : undefined}
+                    >
                       {days.map((day) => (
                         <div className={cellClass(day)} key={`r-${day.date}`}>
                           {!editMode && !occupied.has(day.date) && day.date >= today && (
@@ -916,34 +905,16 @@ export function OpsCalendarGrid({
                           />
                         ) : null,
                       )}
-                      {/* 가려진 취소 막대는 `+N` 으로 접는다. 눌러야 내역이 보이지만
-                          격자는 조용하고 높이도 그대로다. */}
-                      {(overflowByRoom.get(room.key) ?? []).map((segment) => {
-                        const geometry = blockGeometry(days, segment.startDate, segment.endDate);
-                        if (!geometry) return null;
-                        return (
-                          <button
-                            className="opsg__more"
-                            key={`o-${segment.startDate}`}
-                            onClick={() => setOpenOverflow(segment)}
-                            style={geometry}
-                            type="button"
-                          >
-                            +{segment.count}
-                          </button>
-                        );
-                      })}
                       {roomBars.map((bar) => {
                         const geometry = barGeometry(days, bar.checkIn, bar.checkOut);
                         if (!geometry) return null;
-                        // **0층만 그린다.** 가려진 막대는 `+N` 배지로 접는다 — 저쪽처럼
-                        // 층으로 쌓으면 트랙이 세 배가 되고 줄이 늘어져 오히려 못 읽는다.
-                        if ((barLanes?.lanes.laneById.get(bar.id) ?? 0) > 0) return null;
+                        // 층이 있으면 그만큼 내려 그린다. 층 0 은 평소 자리 그대로다.
+                        const lane = barLanes?.laneById.get(bar.id) ?? 0;
                         return (
                           <div
                             className={`opsg__bar ${bar.channel}${bar.isCancelled ? " cancelled" : ""}`}
                             key={bar.id}
-                            style={geometry}
+                            style={lane > 0 ? { ...geometry, top: `calc(3px + ${lane * 18}px)` } : geometry}
                             title={`${bar.guestName} · ${bar.checkIn} → ${bar.checkOut}`}
                           >
                             {bar.guestName}
@@ -959,39 +930,6 @@ export function OpsCalendarGrid({
         ))}
       </div>
       </div>
-
-      {/* `+N` 내역. **격자 위에 띄우지 않고 화면 가운데에 세운다** — 격자 안에 붙이면
-          오른쪽 끝 방에서 잘리고, 스크롤을 따라다니게 만들면 그게 또 일이다. */}
-      {openOverflow && (
-        <div className="opsov" onClick={() => setOpenOverflow(null)} role="presentation">
-          <div className="opsov__card" onClick={(event) => event.stopPropagation()} role="presentation">
-            <div className="opsov__head">
-              <span className="opsov__rm">{openOverflow.roomKey.split("__").pop()}</span>
-              <span className="opsov__dt">
-                {openOverflow.startDate.slice(5)} → {openOverflow.endDate.slice(5)}
-              </span>
-              <button className="opsov__x" onClick={() => setOpenOverflow(null)} type="button">
-                ✕
-              </button>
-            </div>
-            <ul className="opsov__list">
-              {openOverflow.barIds
-                .map((id) => barById.get(id))
-                .filter((bar): bar is OpsCalendarBar => !!bar)
-                .sort((a, b) => a.checkIn.localeCompare(b.checkIn))
-                .map((bar) => (
-                  <li key={bar.id}>
-                    <span className={`opsov__ch ${bar.channel}`} />
-                    <span className="opsov__nm">{bar.guestName}</span>
-                    <span className="opsov__rg">
-                      {bar.checkIn.slice(5)} → {bar.checkOut.slice(5)}
-                    </span>
-                  </li>
-                ))}
-            </ul>
-          </div>
-        </div>
-      )}
 
       {mode === "block" && (
         <OpsBlockPanel
