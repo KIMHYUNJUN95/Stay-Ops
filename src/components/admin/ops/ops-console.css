@@ -1687,3 +1687,6 @@
 /* 막대는 누를 수 있다 — 평소에는 손가락 커서, 편집 모드에서는 선택이 우선이라 그대로 둔다. */
 .opsg__bar { cursor: pointer; }
 .opsw.is-edit .opsg__bar { cursor: inherit; }
+
+/* 날짜가 잘못됐을 때 그 자리에 적는다 — 버튼만 흐려 두면 왜 안 되는지 알 수 없다. */
+.opsmb__bad { margin-left: 8px; color: var(--danger); font-weight: 700; }

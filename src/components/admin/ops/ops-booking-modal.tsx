@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { submitManualBooking, type ManualBookingResult } from "@/app/admin/ops/calendar/actions";
-import { AdminDatePicker } from "@/components/admin/shared/admin-date-picker";
+import { AdminDateRangePicker } from "@/components/admin/shared/admin-date-range-picker";
 import { MAX_STAY_NIGHTS, stayNights, validateManualBooking } from "@/lib/ops-manual-booking";
 
 /**
@@ -73,7 +73,9 @@ export type BookingModalCopy = {
   mbErrCooldown: string;
   datePrev: string;
   dateNext: string;
-  dateToday: string;
+  dateThisMonth: string;
+  dateReset: string;
+  dateApply: string;
 };
 
 export type BookingModalRoom = {
@@ -185,15 +187,10 @@ export function OpsBookingModal({
     setPercent(0);
   };
 
-  const changeArrival = (next: string) => {
-    setArrival(next);
-    // 체크인이 체크아웃을 넘어서면 체크아웃을 끌고 간다 — 사람이 두 번 고치게 하지 않는다.
-    if (departure <= next) setDeparture(nextDay(next));
-    dropBase();
-  };
-
-  const changeDeparture = (next: string) => {
-    setDeparture(next);
+  const changeStay = (from: string, to: string) => {
+    setArrival(from);
+    // 같은 날을 두 번 고르면 0박이다 — 체크아웃을 다음 날로 밀어 최소 1박을 만든다.
+    setDeparture(to > from ? to : nextDay(from));
     dropBase();
   };
 
@@ -255,31 +252,36 @@ export function OpsBookingModal({
         </div>
 
         <div className="opsmb__body">
-          <div className="opsmb__grid2">
-            <label className="opsmb__field">
-              <span className="opsmb__lbl">{copy.mbCheckIn}</span>
-              <AdminDatePicker
-                ariaLabel={copy.mbCheckIn}
-                labels={{ nextMonth: copy.dateNext, prevMonth: copy.datePrev, today: copy.dateToday }}
-                localeTag={localeTag}
-                min={today}
-                onChange={changeArrival}
-                value={arrival}
-              />
-            </label>
-            <label className="opsmb__field">
-              <span className="opsmb__lbl">{copy.mbCheckOut}</span>
-              <AdminDatePicker
-                ariaLabel={copy.mbCheckOut}
-                labels={{ nextMonth: copy.dateNext, prevMonth: copy.datePrev, today: copy.dateToday }}
-                localeTag={localeTag}
-                min={nextDay(arrival)}
-                onChange={changeDeparture}
-                value={departure}
-              />
-            </label>
+          {/* **숙박은 기간이다.** 공용 범위 피커를 쓴다(CLAUDE.md §4a) — 첫 클릭이 체크인,
+              둘째 클릭이 체크아웃이라 「날짜를 고르면 이어서 체크아웃을 고른다」가 그대로 된다.
+              단일 날짜 피커 둘로 만들면 두 번째 칸을 따로 열어야 한다는 걸 아무도 모른다. */}
+          <div className="opsmb__field">
+            <span className="opsmb__lbl">
+              {copy.mbCheckIn} → {copy.mbCheckOut}
+            </span>
+            <AdminDateRangePicker
+              ariaLabel={`${copy.mbCheckIn} → ${copy.mbCheckOut}`}
+              from={arrival}
+              labels={{
+                apply: copy.dateApply,
+                nextMonth: copy.dateNext,
+                prevMonth: copy.datePrev,
+                reset: copy.dateReset,
+                thisMonth: copy.dateThisMonth,
+              }}
+              localeTag={localeTag}
+              onChange={changeStay}
+              to={departure}
+            />
           </div>
-          <div className="opsmb__nights">{copy.mbNights.replace("{n}", String(nights.length))}</div>
+          <div className="opsmb__nights">
+            {copy.mbNights.replace("{n}", String(nights.length))}
+            {/* 같은 날을 두 번 고르면 0박이다. 버튼만 흐려 두면 왜 안 되는지 알 수 없다. */}
+            {localInvalid === "bad_dates" && <span className="opsmb__bad">{copy.mbErrBadDates}</span>}
+            {localInvalid === "past_arrival" && (
+              <span className="opsmb__bad">{copy.mbErrPastArrival}</span>
+            )}
+          </div>
 
           {/* 그 방·그 기간의 밤별 요금. 총액을 손으로 계산하게 하면 아무도 안 쓴다. */}
           <div className="opsmb__rates">

@@ -178,6 +178,9 @@ const FALLBACK_DICTIONARY = {
       datePrev: "Previous month",
       dateNext: "Next month",
       dateToday: "Today",
+      dateThisMonth: "This month",
+      dateReset: "Reset",
+      dateApply: "Apply",
       // 예약 상세 · 취소 — 되돌릴 수 없으므로 무엇이 취소되는지 화면에 적는다.
       rcTitle: "Room",
       rcNights: "{n} night(s)",
@@ -5421,6 +5424,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       datePrev: "이전 달",
       dateNext: "다음 달",
       dateToday: "오늘",
+      dateThisMonth: "이번 달",
+      dateReset: "초기화",
+      dateApply: "적용",
       // 예약 상세 · 취소 — 되돌릴 수 없으므로 무엇이 취소되는지 화면에 적는다.
       rcTitle: "객실",
       rcNights: "{n}박",
@@ -10507,6 +10513,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       datePrev: "前の月",
       dateNext: "次の月",
       dateToday: "今日",
+      dateThisMonth: "今月",
+      dateReset: "リセット",
+      dateApply: "適用",
       // 予約詳細・キャンセル — 取り消せないため、何がキャンセルされるかを画面に書く。
       rcTitle: "客室",
       rcNights: "{n}泊",
