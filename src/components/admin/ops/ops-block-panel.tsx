@@ -26,10 +26,21 @@ import { groupSelectionIntoRanges } from "@/lib/ops-calendar-selection";
  * 때문이다(`groupSelectionIntoRanges`). 구간 수를 보여주지 않으면 10/1·10/2·10/5 를 고른
  * 사람이 「10/1~10/5 를 막았다」고 오해한다.
  *
- * ## 한 번 더 묻는다
+ * ## 막을 때만 한 번 더 묻는다
  *
- * 되돌릴 수는 있지만(해제), 되돌리기 전까지는 **팔 수 있는 밤이 안 팔린다.** 무엇이 몇 구간
- * 몇 박 바뀌는지 보여주고 확인을 받는다.
+ * 막는 순간 그 방이 **채널에서 내려간다** — 되돌리기 전까지 팔 수 있는 밤이 안 팔린다. 그래서
+ * 무엇이 몇 구간 몇 박 바뀌는지 보여주고 확인을 받는다.
+ *
+ * ## 「선택 해제」와 「차단 해제」는 다른 버튼이다 (2026-09-28)
+ *
+ * 예전에는 하단에 「해제」 하나가 있었고, 그게 **Beds24 차단 해제**였다. 선택을 비우는 버튼으로
+ * 읽혀 누르면 「Beds24 에 보내는 중」이 떴다(사용자 지적 — 막혀 있지 않은 날이라 바뀐 것은
+ * 없었다). 그래서 둘을 가른다 —
+ *
+ * - 하단 **「선택 해제」** — 화면의 선택만 비운다. 아무 데도 안 보낸다.
+ * - **「차단 해제」** — 고른 칸 중 **실제로 막혀 있는 밤이 있을 때만** 본문에 나타나고,
+ *   **그 밤들만** 푼다. 막혀 있지 않은 날에 `override: none` 을 쓰는 헛쓰기가 없다.
+ *   푸는 것은 다시 파는 쪽이라 확인 없이 바로 한다.
  */
 
 export type BlockPanelCopy = {
@@ -37,8 +48,9 @@ export type BlockPanelCopy = {
   bkBody: string;
   bkApply: string;
   bkRelease: string;
+  bkBlockedNote: string;
+  scopeClear: string;
   bkConfirmBlock: string;
-  bkConfirmRelease: string;
   bkSummary: string;
   bkEmptyTitle: string;
   bkEmptyBody: string;
@@ -48,7 +60,6 @@ export type BlockPanelCopy = {
   bkFailed: string;
   bkNote: string;
   panelCancel: string;
-  scopeClear: string;
   errForbidden: string;
   errNoCells: string;
   /** Beds24 왕복이 실패한 경우. 사유별로 사람이 할 일이 다르다. */
@@ -89,17 +100,20 @@ function errorText(copy: BlockPanelCopy, error: BlockChangeError): string {
 }
 
 export function OpsBlockPanel({
+  blockedKeys,
   cells,
   copy,
   onClear,
   scopeSummary,
 }: {
+  /** 지금 막혀 있는 칸(`roomKey|date`). 「차단 해제」는 이 칸들에만 간다. */
+  blockedKeys: ReadonlySet<string>;
   cells: BlockChangeCell[];
   copy: BlockPanelCopy;
   onClear: () => void;
   scopeSummary: { rooms: string; dates: string } | null;
 }) {
-  const [confirming, setConfirming] = useState<"block" | "release" | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -108,13 +122,22 @@ export function OpsBlockPanel({
     [cells],
   );
 
+  const blockedCells = useMemo(
+    () => cells.filter((cell) => blockedKeys.has(`${cell.roomKey}|${cell.date}`)),
+    [blockedKeys, cells],
+  );
+
   const run = (mode: "block" | "release") => {
-    if (cells.length === 0) return;
+    // 푸는 것은 **막혀 있는 밤만** 보낸다.
+    const targets = mode === "release" ? blockedCells : cells;
+    if (targets.length === 0) return;
     setMessage(copy.bkPending);
-    setConfirming(null);
+    setConfirming(false);
     startTransition(async () => {
       const result =
-        mode === "block" ? await submitRoomBlock({ cells }) : await submitRoomUnblock({ cells });
+        mode === "block"
+          ? await submitRoomBlock({ cells: targets })
+          : await submitRoomUnblock({ cells: targets });
       if (result.ok) {
         setMessage(mode === "block" ? copy.bkDoneBlock : copy.bkDoneRelease);
         onClear();
@@ -154,7 +177,8 @@ export function OpsBlockPanel({
             <ul className="opsbk__list">
               {ranges.slice(0, 8).map((range) => (
                 <li key={`${range.roomKey}|${range.startDate}`}>
-                  <span className="opsbk__rm">{range.roomKey.split("__").pop()}</span>
+                  {/* 행 키는 `건물::방` 이다 — 그대로 보이면 내부 키가 드러난다. */}
+                  <span className="opsbk__rm">{range.roomKey.replace("::", " ")}</span>
                   <span className="opsbk__dt">
                     {range.startDate.slice(5)} → {range.endDate.slice(5)}
                   </span>
@@ -165,6 +189,21 @@ export function OpsBlockPanel({
           </div>
         ) : (
           <div className="opsbk__empty">{copy.bkEmptyBody}</div>
+        )}
+
+        {/* 이미 막힌 밤이 섞여 있을 때만 — 그 밤들만 푼다. */}
+        {blockedCells.length > 0 && !confirming && (
+          <div className="opsbk__release">
+            <span>{copy.bkBlockedNote.replace("{nights}", String(blockedCells.length))}</span>
+            <button
+              className="opsp__btn"
+              disabled={pending}
+              onClick={() => run("release")}
+              type="button"
+            >
+              {copy.bkRelease}
+            </button>
+          </div>
         )}
 
         {/* 막는다는 것이 무슨 뜻인지 화면에 적는다 — 「왜 예약이 안 들어오지?」가 안 나오게. */}
@@ -179,34 +218,39 @@ export function OpsBlockPanel({
       <div className="opsp__foot">
         {confirming ? (
           <>
-            <button className="opsp__btn" onClick={() => setConfirming(null)} type="button">
+            <button className="opsp__btn" onClick={() => setConfirming(false)} type="button">
               {copy.panelCancel}
             </button>
             <button
-              className={`opsp__btn go${confirming === "block" ? " danger" : ""}`}
+              className="opsp__btn go danger"
               disabled={pending}
-              onClick={() => run(confirming)}
+              onClick={() => run("block")}
               type="button"
             >
-              {(confirming === "block" ? copy.bkConfirmBlock : copy.bkConfirmRelease)
+              {copy.bkConfirmBlock
                 .replace("{ranges}", String(ranges.length))
                 .replace("{nights}", String(cells.length))}
             </button>
           </>
         ) : (
           <>
+            {/* 화면의 선택만 비운다 — Beds24 에는 아무것도 안 보낸다. */}
             <button
               className="opsp__btn"
               disabled={!hasSelection || pending}
-              onClick={() => setConfirming("release")}
+              onClick={() => {
+                setMessage(null);
+                onClear();
+              }}
+              title="Esc"
               type="button"
             >
-              {copy.bkRelease}
+              {copy.scopeClear}
             </button>
             <button
               className="opsp__btn go danger"
               disabled={!hasSelection || pending}
-              onClick={() => setConfirming("block")}
+              onClick={() => setConfirming(true)}
               type="button"
             >
               {copy.bkApply}
@@ -214,11 +258,6 @@ export function OpsBlockPanel({
           </>
         )}
       </div>
-      {hasSelection && !confirming && (
-        <button className="opsbk__clear" onClick={onClear} title="Esc" type="button">
-          {copy.scopeClear}
-        </button>
-      )}
     </aside>
   );
 }

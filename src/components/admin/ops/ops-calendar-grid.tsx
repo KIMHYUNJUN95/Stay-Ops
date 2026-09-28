@@ -596,6 +596,15 @@ export function OpsCalendarGrid({
     if (list) list.push(block);
     else blocksByRoom.set(block.roomKey, [block]);
   }
+  /** 지금 막혀 있는 칸(`roomKey|date`). 블록은 양끝을 포함한다. 「차단 해제」가 이 칸만 푼다. */
+  const blockedCellKeys = new Set<string>();
+  for (const block of blocks) {
+    for (const date of dates) {
+      if (date >= block.startDate && date <= block.endDate) {
+        blockedCellKeys.add(selectionCellKey(block.roomKey, date));
+      }
+    }
+  }
 
   // 건물이 바뀌는 자리에 묶음 머리글을 넣는다. 건물 하나만 골랐어도 「객실 N」이 보여야
   // 격자가 전부인지 잘린 것인지 알 수 있다.
@@ -1336,6 +1345,7 @@ export function OpsCalendarGrid({
 
       {mode === "block" && (
         <OpsBlockPanel
+          blockedKeys={blockedCellKeys}
           cells={panelCells.map((cell) => ({
             date: cell.date,
             roomIds: cell.roomIds,
