@@ -879,7 +879,11 @@ export function OpsCalendarGrid({
                     >
                       {days.map((day) => (
                         <div className={cellClass(day)} key={`r-${day.date}`}>
-                          {!editMode && !occupied.has(day.date) && day.date >= today && (
+                          {/* **「취소만 보기」에서는 숨긴다.** 그 모드에서는 일반 예약 막대가
+                              안 보여서 **팔린 밤도 빈칸처럼** 보이는데, 거기에 `+` 가 뜨면
+                              이미 찬 방에 수기 예약을 넣으려 하게 된다. 지난 일을 보는
+                              화면이지 예약을 만드는 화면이 아니다. */}
+                          {!editMode && !showCancelled && !occupied.has(day.date) && day.date >= today && (
                             <span className="opsg__plus">+</span>
                           )}
                         </div>
