@@ -12,7 +12,11 @@ import {
   resolveReservationCanonicalRoomLabel,
 } from "@/lib/rooms";
 import { sortBuildings, toJstDateString } from "@/lib/admin-calendar-dashboard";
-import { detectOneNightGaps, type OpsGapCellInput } from "@/lib/ops-gap-detection";
+import {
+  detectOneNightGaps,
+  isActiveUnitMinStay,
+  type OpsGapCellInput,
+} from "@/lib/ops-gap-detection";
 import {
   buildHistoryByCell,
   type PriceHistoryRow,
@@ -20,6 +24,7 @@ import {
 import { mergeOpsRateUnits, type OpsMergedRate } from "@/lib/ops-rate-merge";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 
 /**
@@ -270,6 +275,146 @@ function sortRooms(rooms: OpsCalendarRoom[]): OpsCalendarRoom[] {
   });
 }
 
+/**
+ * 예약 한 건 → 캘린더의 **객실 행**.
+ *
+ * 격자와 수동 예약의 겹침 검사가 **같은 함수**를 쓴다 — 둘이 다르게 매칭하면 격자에는 빈
+ * 칸인데 서버는 막거나, 그 반대로 격자에는 찬 칸에 예약이 들어간다.
+ */
+function makeReservationRoomAxis(roomCatalog: Awaited<ReturnType<typeof getActiveRoomCatalog>>) {
+  const lookups = buildPropertyRoomLookups(roomCatalog ?? []);
+  const globalExternalRoomToCanonical = buildGlobalExternalRoomToCanonical(roomCatalog ?? []);
+  return (row: Pick<ReservationRow, "property_name" | "raw_payload" | "room_label">) => {
+    const propertyName = getCanonicalPropertyName(row.property_name);
+    const resolved = resolveReservationCanonicalRoomLabel(
+      {
+        property_name: row.property_name,
+        raw_payload: row.raw_payload,
+        room_label: row.room_label,
+      },
+      { globalExternalRoomToCanonical, isAuthoritative: roomCatalog !== undefined, lookups },
+    );
+    const canonicalRoomKey =
+      resolved ?? getCanonicalRoomLabel(propertyName, row.room_label) ?? row.room_label.trim();
+    const displayRoomLabel =
+      getDisplayRoomLabel(propertyName, canonicalRoomKey) || canonicalRoomKey;
+    return { displayRoomLabel, propertyName, roomKey: toRoomAxisKey(propertyName, displayRoomLabel) };
+  };
+}
+
+/** 블록 한 건 → 객실 행 키. 블록은 우리 표에 사람이 읽는 이름으로 들어 있다. */
+function blockRoomAxisKey(row: Pick<BlockRow, "property_name" | "room_label">): string {
+  const propertyName = getCanonicalPropertyName(row.property_name);
+  const canonicalRoomKey =
+    getCanonicalRoomLabel(propertyName, row.room_label) || row.room_label.trim();
+  const displayRoomLabel = getDisplayRoomLabel(propertyName, canonicalRoomKey) || canonicalRoomKey;
+  return toRoomAxisKey(propertyName, displayRoomLabel);
+}
+
+/**
+ * 한 객실 행에서 **팔 수 없는 밤**(`from` 이상 `toExclusive` 미만).
+ *
+ * 수동 예약 패널의 날짜 피커가 회색으로 칠할 날, 그리고 서버가 만들기 직전에 겹침을 막는
+ * 근거다. 두 가지를 합친다 —
+ *
+ * - **이미 찬 밤**: 살아 있는 예약(취소·노쇼 제외) 또는 블록.
+ * - **파는 유닛이 없는 밤**: 그 행의 유닛이 하나도 활성(`1 ≤ minStay < 50`)이 아니다. 만들어도
+ *   Beds24 가 받지 않거나 잠긴 유닛에 붙는다 — 서버가 어차피 거절하는 밤이다. 요금 행이
+ *   없는 밤도 여기에 든다(모르는 밤은 팔 수 있다고 하지 않는다).
+ *
+ * `booked` 와 `unsellable` 을 나눠 돌려준다 — 겹침 검사는 앞의 것만 본다(뒤의 것은 유닛 결정이
+ * 더 자세한 사유와 함께 막는다).
+ */
+export async function readOpsRoomUnavailableNights(args: {
+  organizationId: string;
+  supabase: SupabaseClient<Database>;
+  roomKey: string;
+  /** 이 행의 우리 `rooms.id`. 호출부가 조직 소속을 확인한 값이어야 한다. */
+  roomIds: string[];
+  from: string;
+  toExclusive: string;
+}): Promise<{ booked: string[]; unsellable: string[] }> {
+  const { organizationId, supabase } = args;
+  const [roomCatalog, reservationsResult, blocksResult, ratesResult] = await Promise.all([
+    getActiveRoomCatalog(organizationId, supabase, { includeNonOperationalProperties: true }),
+    readAllPages<ReservationRow>((from, to) =>
+      supabase
+        .from("reservations")
+        .select(
+          "id, check_in_date, check_out_date, guest_name, property_name, raw_payload, room_label, source, status",
+        )
+        .eq("organization_id", organizationId)
+        .lt("check_in_date", args.toExclusive)
+        // 체크아웃 날은 밤이 아니다 — `from` 에 나가는 손님은 겹치지 않는다.
+        .gt("check_out_date", args.from)
+        .order("check_in_date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+    readAllPages<BlockRow>((from, to) =>
+      supabase
+        .from("room_blocks")
+        .select("id, property_name, room_label, start_date, end_date")
+        .eq("organization_id", organizationId)
+        .lt("start_date", args.toExclusive)
+        .gte("end_date", args.from)
+        .order("start_date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+    args.roomIds.length === 0
+      ? Promise.resolve({ data: [] as Array<Pick<RateRow, "room_id" | "stay_date" | "min_stay">>, error: null })
+      : readAllPages<Pick<RateRow, "room_id" | "stay_date" | "min_stay">>((from, to) =>
+          supabase
+            .from("room_daily_rates")
+            .select("room_id, stay_date, min_stay")
+            .eq("organization_id", organizationId)
+            .in("room_id", args.roomIds)
+            .gte("stay_date", args.from)
+            .lt("stay_date", args.toExclusive)
+            .order("room_id", { ascending: true })
+            .order("stay_date", { ascending: true })
+            .range(from, to),
+        ),
+  ]);
+  // 모르면 막는다 — 읽기에 실패했는데 「비어 있다」고 하면 그대로 초과예약이 된다.
+  if (reservationsResult.error) throw new Error(reservationsResult.error.message);
+  if (blocksResult.error) throw new Error(blocksResult.error.message);
+  if (ratesResult.error) throw new Error(ratesResult.error.message);
+
+  const nights: string[] = [];
+  for (let cursor = args.from; cursor < args.toExclusive; cursor = addDays(cursor, 1)) {
+    nights.push(cursor);
+  }
+
+  const booked = new Set<string>();
+  const reservationRoomAxis = makeReservationRoomAxis(roomCatalog);
+  for (const row of reservationsResult.data) {
+    if (row.status === "cancelled" || row.status === "no_show") continue;
+    if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
+    if (reservationRoomAxis(row).roomKey !== args.roomKey) continue;
+    for (const night of nights) {
+      if (night >= row.check_in_date && night < row.check_out_date) booked.add(night);
+    }
+  }
+  for (const row of blocksResult.data) {
+    if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
+    if (blockRoomAxisKey(row) !== args.roomKey) continue;
+    // 블록은 양끝을 포함한다.
+    for (const night of nights) {
+      if (night >= row.start_date && night <= row.end_date) booked.add(night);
+    }
+  }
+
+  const activeNights = new Set<string>();
+  for (const row of ratesResult.data) {
+    if (isActiveUnitMinStay(row.min_stay)) activeNights.add(row.stay_date);
+  }
+  const unsellable = nights.filter((night) => !booked.has(night) && !activeNights.has(night));
+
+  return { booked: nights.filter((night) => booked.has(night)), unsellable };
+}
+
 export async function getOpsCalendarData(
   session: AppSession,
   filters: {
@@ -329,8 +474,7 @@ export async function getOpsCalendarData(
 
   if (reservationsResult.error) throw new Error(reservationsResult.error.message);
 
-  const lookups = buildPropertyRoomLookups(roomCatalog ?? []);
-  const globalExternalRoomToCanonical = buildGlobalExternalRoomToCanonical(roomCatalog ?? []);
+  const reservationRoomAxis = makeReservationRoomAxis(roomCatalog);
   const roomsByKey = new Map<string, OpsCalendarRoom>();
 
   for (const entry of roomCatalog ?? []) {
@@ -351,20 +495,7 @@ export async function getOpsCalendarData(
     const isCancelled = row.status === "cancelled" || row.status === "no_show";
     if (isCancelled && !filters.showCancelled) continue;
 
-    const propertyName = getCanonicalPropertyName(row.property_name);
-    const resolved = resolveReservationCanonicalRoomLabel(
-      {
-        property_name: row.property_name,
-        raw_payload: row.raw_payload,
-        room_label: row.room_label,
-      },
-      { globalExternalRoomToCanonical, isAuthoritative: roomCatalog !== undefined, lookups },
-    );
-    const canonicalRoomKey =
-      resolved ?? getCanonicalRoomLabel(propertyName, row.room_label) ?? row.room_label.trim();
-    const displayRoomLabel =
-      getDisplayRoomLabel(propertyName, canonicalRoomKey) || canonicalRoomKey;
-    const roomKey = toRoomAxisKey(propertyName, displayRoomLabel);
+    const { displayRoomLabel, propertyName, roomKey } = reservationRoomAxis(row);
 
     if (!roomsByKey.has(roomKey)) {
       roomsByKey.set(roomKey, { displayRoomLabel, key: roomKey, propertyName, roomIds: [] });
@@ -386,12 +517,7 @@ export async function getOpsCalendarData(
   } else {
     for (const row of blocksResult.data) {
       if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
-      const propertyName = getCanonicalPropertyName(row.property_name);
-      const canonicalRoomKey =
-        getCanonicalRoomLabel(propertyName, row.room_label) || row.room_label.trim();
-      const displayRoomLabel =
-        getDisplayRoomLabel(propertyName, canonicalRoomKey) || canonicalRoomKey;
-      const roomKey = toRoomAxisKey(propertyName, displayRoomLabel);
+      const roomKey = blockRoomAxisKey(row);
       // 그릴 행이 없으면 조용히 버린다 — 캘린더를 깨뜨리는 것보다 낫다.
       if (!roomsByKey.has(roomKey)) continue;
       blocks.push({ endDate: row.end_date, id: row.id, roomKey, startDate: row.start_date });

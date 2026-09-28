@@ -467,7 +467,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 빈 칸의 `+`. **버튼이다** — 누르면 그 방·그 날짜로 수동 예약 모달이 열린다. */
+/* 빈 칸의 `+`. **버튼이다** — 누르면 그 날이 체크인으로 찍히고, 이어서 체크아웃을 고른다. */
 /*
  * **누르는 자리는 칸 전체다.** 글리프 크기만 히트 영역이면 11px 짜리 과녁을 맞혀야 해서
  * 실제로 못 누른다(2026-09-28 지적). 글자는 그대로 작게 두고 `inset: 0` 으로 칸을 덮는다.
@@ -1279,34 +1279,31 @@
 }
 .opsms__trw {
   display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 9px;
-  font-size: 10.5px;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 10px;
+  font-size: 11px;
 }
 .opsms__trw + .opsms__trw { border-top: 1px solid var(--line-soft); }
-.opsms__rm { flex: 0 0 38px; font-weight: 800; letter-spacing: -0.02em; }
-.opsms__dt {
-  flex: 0 0 38px;
+/* 건물 → 방 → 날짜. 건물은 흐리게, 방이 주인공이다. */
+.opsms__bld {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--muted);
+  font-weight: 700;
+}
+.opsms__rm { flex: 0 0 auto; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); }
+.opsms__dt {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--soft);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.opsms__ctx { flex: 1; display: flex; align-items: center; gap: 3px; justify-content: flex-end; }
-.opsms__arrow { color: var(--faint); font-size: 8px; }
-.opsms__pill {
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 8px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-.opsms__pill.airbnb { background: var(--ops-abnb-bg); color: var(--ops-abnb); }
-.opsms__pill.booking { background: var(--ops-bkng-bg); color: var(--ops-bkng); }
-.opsms__pill.manual { background: var(--ops-dir-bg); color: var(--ops-dir); }
-.opsms__pill.block { background: hsl(222 12% 88%); color: hsl(222 16% 36%); }
-.opsms__pill.none { background: var(--surface2); color: var(--faint); }
-.opsms__pill.gap { background: var(--danger); color: #fff; }
+.opsms__wd { margin-left: 4px; color: var(--muted); font-weight: 600; }
 
 .opsms__empty {
   padding: 14px 12px;
@@ -1480,213 +1477,519 @@
  * 날짜는 공용 `AdminDatePicker` 를 쓴다(CLAUDE.md §4a — 콘솔에 달력은 하나뿐이다).
  * ──────────────────────────────────────────────────────────────────────── */
 
-.opsmb {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgb(15 23 42 / 0.4);
-}
-.opsmb__card {
-  width: 100%;
-  max-width: 420px;
-  max-height: 88vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  box-shadow: 0 28px 70px -32px rgb(20 32 43 / 0.75);
-  overflow: hidden;
-}
-.opsmb__head {
-  display: flex;
-  align-items: baseline;
-  gap: 9px;
-  padding: 15px 17px 13px;
-  border-bottom: 1px solid var(--line-soft);
-}
-.opsmb__title { font-size: 15px; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); }
-.opsmb__room { font-size: 11.5px; font-weight: 600; color: var(--muted); }
-.opsmb__x {
-  margin-left: auto;
-  border: none;
-  background: none;
-  color: var(--faint);
-  font-size: 12px;
-  cursor: pointer;
-}
-.opsmb__x:hover { color: var(--soft); }
 
-.opsmb__body {
-  padding: 14px 17px;
-  display: flex;
-  flex-direction: column;
-  gap: 11px;
-  overflow-y: auto;
-}
-.opsmb__grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.opsmb__field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.opsmb__lbl {
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.opsmb__input {
-  width: 100%;
-  padding: 9px 11px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--card);
-  color: var(--ink);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-.opsmb__input:focus {
-  outline: none;
-  border-color: var(--adm-primary);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--adm-primary) 16%, transparent);
-}
-.opsmb__ta { resize: none; font-weight: 500; }
-.opsmb__hint { font-size: 10px; font-weight: 600; color: var(--faint); }
-.opsmb__nights {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--soft);
-  font-variant-numeric: tabular-nums;
-}
 
-/* 밤별 요금 — 총액을 손으로 계산하게 하면 아무도 안 쓴다. */
-.opsmb__rates {
-  padding: 11px 12px;
-  border: 1px solid var(--line-soft);
-  border-radius: 13px;
-  background: var(--surface2);
-}
-.opsmb__ratehead {
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--faint);
-  margin-bottom: 7px;
-}
-.opsmb__rateempty { font-size: 11px; font-weight: 600; color: var(--faint); }
-.opsmb__ratelist {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  max-height: 124px;
-  overflow-y: auto;
-}
-.opsmb__ratelist li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 0;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-.opsmb__rdate { flex: 0 0 38px; color: var(--muted); font-weight: 700; }
-.opsmb__rval { flex: 1; text-align: right; font-weight: 600; color: var(--ink); }
-.opsmb__rval.alt { color: var(--ops-bkng); }
-/* 모르는 밤이 있으면 합계는 추정치다 — 자동 채우기를 막는 근거를 화면에도 적는다. */
-.opsmb__warn {
-  margin-top: 7px;
-  padding: 7px 9px;
-  border-radius: 9px;
-  background: var(--warn-bg);
-  color: color-mix(in oklab, var(--warn) 82%, var(--ink));
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.5;
-}
-.opsmb__usebtns { display: flex; gap: 6px; margin-top: 9px; }
-.opsmb__use {
-  flex: 1;
-  min-width: 0;
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: var(--card);
-  color: var(--soft);
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.opsmb__use.on { border-color: var(--adm-primary); background: var(--adm-primary); color: #fff; }
-.opsmb__use:disabled { opacity: 0.45; cursor: not-allowed; }
 
-.opsmb__pct { display: flex; align-items: center; gap: 5px; margin-top: 9px; flex-wrap: wrap; }
-.opsmb__pctbtn {
-  height: 25px;
-  padding: 0 8px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--card);
-  color: var(--muted);
-  font-size: 10.5px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-}
-.opsmb__pctbtn.on { border-color: var(--adm-primary); background: var(--adm-primary); color: #fff; }
 
-.opsmb__msg { font-size: 11px; font-weight: 700; color: var(--danger); line-height: 1.5; }
 
-.opsmb__foot {
-  display: flex;
-  gap: 8px;
-  padding: 12px 17px;
-  border-top: 1px solid var(--line-soft);
-}
 
-/* 예약 상세 — 수동 예약 모달과 **같은 껍데기**를 쓴다. 안쪽만 다르다. */
-.opsrc { max-width: 360px; }
-.opsrc__tag {
-  padding: 2px 7px;
-  border-radius: 6px;
-  background: var(--surface2);
-  color: var(--muted);
-  font-size: 9.5px;
-  font-weight: 800;
-}
-.opsrc__rows { margin: 0; display: flex; flex-direction: column; gap: 8px; }
-.opsrc__rows > div { display: flex; align-items: baseline; gap: 10px; }
-.opsrc__rows dt {
-  flex: 0 0 66px;
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.opsrc__rows dd { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--ink); }
-.opsrc__rows dd.num { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-/* 되돌릴 수 없다는 것을 **버튼 옆이 아니라 본문에** 적는다 — 버튼 라벨은 짧아서 안 읽힌다. */
-.opsrc__warn {
-  padding: 10px 11px;
-  border: 1px solid color-mix(in oklab, var(--danger) 30%, transparent);
-  border-radius: 11px;
-  background: var(--danger-bg);
-  color: color-mix(in oklab, var(--danger) 85%, var(--ink));
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.55;
-}
 /* 막대는 누를 수 있다 — 평소에는 손가락 커서, 편집 모드에서는 선택이 우선이라 그대로 둔다. */
 .opsg__bar { cursor: pointer; }
 .opsw.is-edit .opsg__bar { cursor: inherit; }
 
-/* 날짜가 잘못됐을 때 그 자리에 적는다 — 버튼만 흐려 두면 왜 안 되는지 알 수 없다. */
-.opsmb__bad { margin-left: 8px; color: var(--danger); font-weight: 700; }
+/* ── 수동 예약: 격자에서 기간 고르기 ─────────────────────────────────
+ * `+` 가 체크인, 이어서 누른 날이 체크아웃이다(저쪽 `handleDateCellClick`). 그 사이는
+ * 실제 예약 막대와 **같은 자리·모양**으로 미리 칠한다 — 드래그로 끄는 것처럼 보이게.
+ */
+/* 기간 레이어 — 그 방의 예약 줄 전체를 덮고 포인터 좌표로 날짜를 잡는다. 칸 경계·막대·빗금
+   위를 지나도 끊기지 않는다(칸마다 hover 를 걸면 격자 전체가 다시 그려져 끊겼다). */
+.opsg__draftlayer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.opsg__draftlayer:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--adm-primary) 40%, transparent);
+  border-radius: 7px;
+}
+/* 고르는 중에는 그 방의 막대가 클릭을 가로채지 않는다 — 다음 손님이 들어오는 날도
+   칸의 왼쪽 절반을 눌러 체크아웃으로 고를 수 있어야 한다. */
+.opsg__row.drafting .opsg__bar,
+.opsg__row.drafting .opsg__block {
+  pointer-events: none;
+}
+.opsg__draft {
+  position: absolute;
+  top: 3px;
+  height: 19px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--adm-primary);
+  background: color-mix(in oklab, var(--adm-primary) 14%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--adm-primary) 55%, transparent);
+  pointer-events: none;
+  /* 끝이 칸 단위로 뚝뚝 점프하지 않고 늘어나게 — 짧게 둬야 포인터에 늦게 따라오지 않는다. */
+  transition: width 110ms cubic-bezier(0.2, 0, 0, 1);
+}
+/* 체크아웃이 잡히면 한 단계 진하게 — 「이대로 놓으면 이렇게 된다」. */
+.opsg__draft.has-out {
+  color: #fff;
+  background: var(--adm-primary);
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .opsg__draft { transition: none; }
+}
+.opsg__draftnote {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 6px 0 11px;
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--adm-primary) 9%, var(--card));
+  color: var(--adm-primary);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.opsg__draftx {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in oklab, var(--adm-primary) 30%, transparent);
+  border-radius: 7px;
+  background: var(--card);
+  color: var(--soft);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ── 수동 예약 패널 ─────────────────────────────────────────────────
+ * 껍데기는 콘솔 공용 `.panel` / `.fld` 다(CLAUDE.md §4). 여기는 안쪽만.
+ */
+.opsbk__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.opsbk__row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.opsbk__row2 .fld input { min-width: 0; width: 100%; }
+.opsbk__nights {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--soft);
+  font-variant-numeric: tabular-nums;
+}
+/* 버튼만 흐려 두면 왜 안 되는지 알 수 없다 — 그 자리에 적는다. */
+.opsbk__nights em {
+  margin-left: 8px;
+  font-style: normal;
+  color: var(--danger);
+}
+.opsbk__hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* 금액 입력 — 통화 기호를 칸 안에 붙인다. 입력칸이 이 영역의 주인공이다. */
+.opsbk__money {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.opsbk__money > span {
+  position: absolute;
+  left: 13px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--muted);
+  pointer-events: none;
+}
+.adm .fld .opsbk__money input {
+  width: 100%;
+  padding-left: 30px;
+  font-size: 17px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.opsbk__fill {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: -6px;
+}
+/* 채널별 합계 — 고르는 카드. 라벨이 위, 금액이 아래라 **어느 쪽이 무엇인지** 바로 읽힌다. */
+.opsbk__opts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.opsbk__opt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+  padding: 9px 12px 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 11px;
+  background: var(--card);
+  text-align: left;
+  cursor: pointer;
+}
+.opsbk__opt:hover:not(:disabled) { border-color: color-mix(in oklab, var(--adm-primary) 45%, var(--line)); }
+.opsbk__opt:disabled { cursor: not-allowed; opacity: 0.5; }
+.opsbk__opt.on {
+  border-color: var(--adm-primary);
+  background: color-mix(in oklab, var(--adm-primary) 7%, var(--card));
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--adm-primary) 12%, transparent);
+}
+.opsbk__optl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--soft);
+}
+/* 채널 색 점 — 격자 막대 색과 같다. 격자에서 본 색으로 찾는다. */
+.opsbk__optl::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.opsbk__opt.airbnb .opsbk__optl::before { background: var(--ops-abnb); }
+.opsbk__opt.booking .opsbk__optl::before { background: var(--ops-bkng); }
+.opsbk__optv {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.opsbk__pct { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.opsbk__pctl { margin-right: 3px; font-size: 11px; font-weight: 800; color: var(--muted); }
+.opsbk__pctbtn {
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--soft);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.opsbk__pctbtn.on { border-color: var(--adm-primary); background: var(--adm-primary); color: #fff; }
+
+/* 모르는 밤이 있으면 그 채널 합계는 추정치다 — 카드를 막은 이유를 적는다. */
+.opsbk__warn {
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--warn-bg);
+  color: color-mix(in oklab, var(--warn) 82%, var(--ink));
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+/* 밤별 내역 — 2박 이상일 때만, 접어서. 열 이름을 반드시 단다. */
+.opsbk__nightly summary {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+}
+.opsbk__nightly table {
+  width: 100%;
+  margin-top: 6px;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.opsbk__nightly th {
+  padding: 4px 0;
+  text-align: right;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+.opsbk__nightly td {
+  padding: 4px 0;
+  text-align: right;
+  font-weight: 600;
+  color: var(--ink);
+}
+.opsbk__nightly th:first-child,
+.opsbk__nightly td:first-child {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.opsbk__msg {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--danger);
+  line-height: 1.5;
+}
+
+/* ── 쓰기 반영 중 ─────────────────────────────────────────────────────
+ * 흐린 값 = 접수됐고 Beds24 에 가는 중. 반영이 끝나고 서버 데이터가 오면 진한 값으로 바뀐다.
+ * 가격(`.opsg__price.pend`)과 같은 표현을 최소 숙박일에도 쓴다.
+ */
+/* 갭 칸의 붉은 값(`.opsg__cell.gap .opsg__min`)보다 앞서야 한다 — 「1박으로」를 누른 칸이 바로
+   그 갭 칸이다. 그래서 칸 클래스까지 붙여 우선순위를 올린다. */
+.opsg__cell .opsg__min.pend {
+  color: var(--adm-primary);
+  font-weight: 800;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.opsg__jobnote {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--adm-primary) 8%, var(--card));
+  color: var(--adm-primary);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.opsg__jobspin {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in oklab, var(--adm-primary) 25%, transparent);
+  border-top-color: var(--adm-primary);
+  animation: opsg-spin 0.8s linear infinite;
+}
+@keyframes opsg-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .opsg__jobspin { animation: none; }
+}
+
+/* ── 예약 상세 패널 ──────────────────────────────────────────────────
+ * 껍데기는 콘솔 공용 `.panel` 이다(CLAUDE.md §4). 여기는 안쪽만. `ops-reservation-panel.tsx`.
+ */
+.opsrp__name {
+  margin-top: 10px;
+  font-size: 21px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.opsrp__where { margin-top: 2px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.opsrp__chan,
+.opsrp__tag {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  font-weight: 800;
+  background: var(--adm-surface);
+  color: var(--soft);
+}
+.opsrp__chan.airbnb { background: var(--ops-abnb-bg); color: var(--ops-abnb); }
+.opsrp__chan.booking { background: var(--ops-bkng-bg); color: var(--ops-bkng); }
+.opsrp__chan.manual { background: var(--ops-dir-bg); color: var(--ops-dir); }
+.opsrp__tag.cancelled { background: var(--danger-bg); color: var(--danger); }
+
+.opsrp__body { display: flex; flex-direction: column; gap: 18px; }
+.opsrp__sec { display: flex; flex-direction: column; gap: 9px; }
+.opsrp__h {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* 체크인 ── N박 ── 체크아웃 */
+.opsrp__stay {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--adm-surface);
+}
+.opsrp__node { display: flex; flex-direction: column; gap: 1px; }
+.opsrp__node strong { font-size: 16px; font-weight: 900; color: var(--ink); font-variant-numeric: tabular-nums; }
+.opsrp__nl { font-size: 10.5px; font-weight: 800; color: var(--muted); }
+.opsrp__wd { font-size: 11.5px; font-weight: 700; color: var(--soft); }
+.opsrp__line {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  border-top: 1.5px dashed var(--line);
+}
+.opsrp__line span {
+  margin-top: -9px;
+  padding: 0 8px;
+  background: var(--adm-surface);
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--adm-primary);
+}
+
+/* 이름 ─ 값. 값이 없는 줄은 아예 안 그린다. */
+.opsrp__kv { margin: 0; display: flex; flex-direction: column; }
+.opsrp__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.opsrp__row:last-child { border-bottom: none; }
+.opsrp__row dt { flex: 0 0 104px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.opsrp__row dd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.opsrp__val { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.opsrp__copy {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  margin-top: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--card);
+  color: var(--muted);
+  cursor: pointer;
+}
+.opsrp__copy:hover { color: var(--ink); background: var(--adm-surface); }
+.opsrp__copy.on { color: var(--done); border-color: color-mix(in oklab, var(--done) 40%, var(--line)); }
+.opsrp__copy svg { width: 13px; height: 13px; }
+
+/* 금액 — 총액이 주인공. */
+.opsrp__money {
+  padding: 12px 14px 6px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+}
+.opsrp__total { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.opsrp__total span { font-size: 12px; font-weight: 800; color: var(--muted); }
+.opsrp__total strong {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.opsrp__note { margin: 0; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.opsrp__pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.opsrp__msgbox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--adm-surface);
+}
+.opsrp__msgbox.note { background: var(--warn-bg); }
+.opsrp__ml { font-size: 11px; font-weight: 800; color: var(--muted); }
+.opsrp__more summary {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--soft);
+  cursor: pointer;
+}
+.opsrp__more .opsrp__pre {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--adm-surface);
+}
+
+.opsrp__loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.opsrp__spin {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--adm-primary);
+  animation: opsg-spin 0.8s linear infinite;
+}
+.opsrp__err { margin: 0; font-size: 12px; font-weight: 700; color: var(--danger); line-height: 1.5; }
+
+/* 되돌릴 수 없다는 것을 **버튼 옆이 아니라 본문에** 적는다 — 버튼 라벨은 짧아서 안 읽힌다. */
+.opsrp__warn {
+  padding: 11px 12px;
+  border: 1px solid color-mix(in oklab, var(--danger) 30%, transparent);
+  border-radius: 11px;
+  background: var(--danger-bg);
+  color: color-mix(in oklab, var(--danger) 85%, var(--ink));
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+.adm .panel__foot .opsrp__danger {
+  background: var(--danger);
+  color: #fff;
+  border-color: transparent;
+}
+.adm .panel__foot .opsrp__danger:hover { filter: brightness(1.06); }
+/* 전화번호로 추정한 국가 — 채널이 준 값과 구별한다. */
+.opsrp__est {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--adm-surface);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type {
   OpsCalendarBar,
   OpsCalendarBlock,
@@ -15,16 +16,22 @@ import {
 } from "@/components/admin/ops/ops-minstay-panel";
 import { OpsPricePanel, type PanelCopy, type PanelCell } from "@/components/admin/ops/ops-price-panel";
 import { stayNights } from "@/lib/ops-manual-booking";
+import { OpsBookingDraft } from "@/components/admin/ops/ops-booking-draft";
+import {
+  watchOpsWriteJob,
+  type OpsWriteKind,
+  type RunOpsWrite,
+} from "@/components/admin/ops/ops-write-tracker";
 import { assignBarLanes } from "@/lib/ops-bar-lanes";
 import {
-  OpsReservationCard,
+  OpsReservationPanel,
   type ReservationCardCopy,
-} from "@/components/admin/ops/ops-reservation-card";
+} from "@/components/admin/ops/ops-reservation-panel";
 import {
-  OpsBookingModal,
-  type BookingModalCopy,
-  type BookingModalRoom,
-} from "@/components/admin/ops/ops-booking-modal";
+  OpsBookingPanel,
+  type BookingPanelCopy,
+  type BookingPanelRoom,
+} from "@/components/admin/ops/ops-booking-panel";
 import { buildGapContext } from "@/lib/ops-gap-context";
 import {
   describeCellHistory,
@@ -96,7 +103,7 @@ type Copy = {
 } & PanelCopy &
   MinStayPanelCopy &
   BlockPanelCopy &
-  BookingModalCopy &
+  BookingPanelCopy & { mbPickCheckout: string } &
   ReservationCardCopy &
   HistoryCopy & { historyMore: string };
 
@@ -108,6 +115,21 @@ type Copy = {
  */
 function formatPrice(value: number): string {
   return `${(value / 1000).toFixed(1).replace(/\.0$/, "")}K`;
+}
+
+/** 낙관적으로 먼저 그린 값. `token` 이 어느 쓰기에서 왔는지 가른다. */
+type PendingValue = { value: number; token: number };
+
+/** 그 쓰기들에서 온 흐린 값을 거둔다. */
+function dropTokens(map: Map<string, PendingValue>, tokens: Set<number>): Map<string, PendingValue> {
+  const next = new Map<string, PendingValue>();
+  for (const [key, entry] of map) if (!tokens.has(entry.token)) next.set(key, entry);
+  return next;
+}
+
+/** `2026-10-20` → `10/20`. */
+function shortDate(date: string): string {
+  return date.slice(5).replace("-", "/");
 }
 
 /** 가로축에서 `date` 가 몇 번째 칸인가. 창 밖이면 `null`. */
@@ -225,13 +247,116 @@ export function OpsCalendarGrid({
    * 접수했지만 아직 Beds24 에 반영되지 않은 값.
    *
    * 서버 응답을 기다리는 동안 옛 값이 보이면 사람은 「안 됐나?」 하고 다시 누른다.
-   * 다음 서버 렌더가 실제 값을 들고 오면 자연히 덮인다.
+   * **반영이 끝나고 서버 데이터를 다시 받으면** 거둔다(`runWrite`). 예전에는 「다음 서버 렌더가
+   * 덮는다」고 봤지만 표시가 `pending ?? 서버값` 순이라 덮이지 않았고, 서버 렌더도 반영 전에
+   * 끝나서 새로고침 전까지 옛 값이었다(2026-09-28).
    */
-  const [pendingPrices, setPendingPrices] = useState<Map<string, number>>(new Map());
-  /** 수동 예약 모달. 빈 칸의 `+` 로 연다 — 그 방·그 날짜가 곧 초기값이다. */
-  const [booking, setBooking] = useState<{ room: BookingModalRoom; date: string } | null>(null);
+  const [pendingPrices, setPendingPrices] = useState<Map<string, PendingValue>>(new Map());
+  /** 최소 숙박일도 같다 — 예전에는 가격만 먼저 그려서 「1박으로」가 새로고침 전까지 안 보였다. */
+  const [pendingMinStay, setPendingMinStay] = useState<Map<string, PendingValue>>(new Map());
+  /** 반영이 끝난 쓰기. **서버 데이터가 새로 도착하면** 이들의 흐린 값을 거둔다. */
+  const [settledTokens, setSettledTokens] = useState<Set<number>>(new Set());
+  /** 아직 Beds24 에 반영 중인 쓰기 수. 패널을 닫아도 진행 중인 것을 알 수 있게 툴바에 띄운다. */
+  const [writesInFlight, setWritesInFlight] = useState(0);
+  const writeTokenRef = useRef(0);
+  const router = useRouter();
+  const [, startRefresh] = useTransition();
+
+  /*
+   * 서버 데이터(`rates`)가 새로 오면 **끝난 쓰기의 흐린 값만** 거둔다. 아직 반영 중인 것은
+   * 남긴다 — 접수 직후의 재렌더는 반영 전 값을 들고 오므로, 거기서 거두면 옛 값으로 튄다.
+   *
+   * 효과가 아니라 렌더 중에 비교한다(React 의 「이전 렌더 값 저장」 패턴) — 효과로 하면 옛 값이
+   * 한 프레임 보였다가 바뀐다.
+   */
+  const [seenRates, setSeenRates] = useState(rates);
+  if (seenRates !== rates) {
+    setSeenRates(rates);
+    if (settledTokens.size > 0) {
+      setPendingPrices(dropTokens(pendingPrices, settledTokens));
+      setPendingMinStay(dropTokens(pendingMinStay, settledTokens));
+      setSettledTokens(new Set());
+    }
+  }
+
+  const setPendingOf = (kind: OpsWriteKind) =>
+    kind === "price" ? setPendingPrices : setPendingMinStay;
+
+  /**
+   * 가격·최소숙박 쓰기 한 번. 흐린 값 → 접수 → 반영 대기 → 서버 데이터 다시 받기.
+   * 흐름과 이유는 `ops-write-tracker.ts`.
+   */
+  const runWrite: RunOpsWrite = async (kind, values, submit) => {
+    writeTokenRef.current += 1;
+    const token = writeTokenRef.current;
+    const setPending = setPendingOf(kind);
+    // **서버 응답을 기다리기 전에 화면부터 바꾼다.** 왕복 동안 옛 값이 보이면 사람은
+    // 「안 됐나?」 하고 다시 누른다.
+    setPending((previous) => {
+      const next = new Map(previous);
+      for (const item of values) next.set(item.key, { token, value: item.value });
+      return next;
+    });
+
+    const result = await submit();
+    if (!result.ok) {
+      // 접수조차 안 됐다 — 흐린 값을 거두고 원래 값으로 돌아간다.
+      setPending((previous) => dropTokens(previous, new Set([token])));
+      return { result, settled: null };
+    }
+
+    setWritesInFlight((count) => count + 1);
+    const settled = watchOpsWriteJob(result.jobId).then((outcome) => {
+      setWritesInFlight((count) => Math.max(0, count - 1));
+      if (outcome === "failed") {
+        // 하나도 안 들어갔다 — 바로 되돌린다.
+        setPending((previous) => dropTokens(previous, new Set([token])));
+      } else {
+        // 완료·일부 실패·시간 초과 모두 **실제 값으로** 맞춘다. 일부만 들어갔으면 들어간 칸만
+        // 새 값이 보이는 게 정확하다.
+        setSettledTokens((previous) => new Set(previous).add(token));
+      }
+      // 새로고침 없이 **서버 데이터만** 다시 받는다 — 스크롤·선택·열린 패널은 그대로다.
+      startRefresh(() => router.refresh());
+      return outcome;
+    });
+    return { result, settled };
+  };
+  /**
+   * 수동 예약 — **격자에서 기간을 먼저 고른다**(저쪽 `handleDateCellClick`).
+   *
+   * 빈 칸의 `+` 가 체크인이고(`bookingDraft`), 이어서 누르거나 끌어서 놓은 날이 체크아웃이다.
+   * 그 사이의 미리보기는 `OpsBookingDraft` 가 **자기 안에서만** 그린다 — 여기서 포인터를 들고
+   * 있으면 움직일 때마다 격자 전체가 다시 그려져 끊긴다. 체크아웃이 정해져야 패널이 열린다.
+   */
+  const [bookingDraft, setBookingDraft] = useState<{ room: BookingPanelRoom; checkIn: string } | null>(
+    null,
+  );
+  const [booking, setBooking] = useState<{
+    room: BookingPanelRoom;
+    checkIn: string;
+    checkOut: string;
+  } | null>(null);
+  /** 편집 모드·「취소만 보기」에서는 예약을 만들지 않는다 — 고르던 것도 거기서는 안 보인다. */
+  const activeDraft = !editMode && !showCancelled ? bookingDraft : null;
+  const cancelDraft = () => setBookingDraft(null);
+
+  // 고르는 중에만 Esc 로 무른다. 패널이 열려 있으면 패널의 Esc 가 먼저다(그때는 draft 가 없다).
+  useEffect(() => {
+    if (!activeDraft) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setBookingDraft(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [activeDraft]);
   /** 예약 상세. 막대를 누르면 뜬다 — **취소는 여기서만** 한다. */
-  const [openBar, setOpenBar] = useState<{ bar: OpsCalendarBar; roomLabel: string } | null>(null);
+  const [openBar, setOpenBar] = useState<{
+    bar: OpsCalendarBar;
+    roomLabel: string;
+    propertyName: string;
+  } | null>(null);
 
   const dates = useMemo(() => days.map((day) => day.date), [days]);
   const roomKeys = useMemo(() => rooms.map((room) => room.key), [rooms]);
@@ -358,7 +483,9 @@ export function OpsCalendarGrid({
         bars,
         blocks,
         gapCells,
+        propertyNames: new Map(rooms.map((room) => [room.key, room.propertyName])),
         roomLabels: new Map(rooms.map((room) => [room.key, room.displayRoomLabel])),
+        roomOrder: new Map(rooms.map((room, index) => [room.key, index])),
       }),
     [bars, blocks, gapCells, rooms],
   );
@@ -506,7 +633,7 @@ export function OpsCalendarGrid({
       return {
         date: cell.date,
         isGap: gapCells.has(`${cell.roomKey}|${cell.date}`),
-        price: pendingPrices.get(key) ?? rates.get(key)?.price ?? null,
+        price: pendingPrices.get(key)?.value ?? rates.get(key)?.price ?? null,
         roomIds: room.roomIds,
         roomKey: cell.roomKey,
         roomLabel: room.displayRoomLabel,
@@ -537,26 +664,37 @@ export function OpsCalendarGrid({
    */
   const scopeSummary = (() => {
     if (selection.length === 0) return null;
-    const labelByKey = new Map(rooms.map((room) => [room.key, room.displayRoomLabel]));
-    const selectedRooms = [...new Set(selection.map((cell) => cell.roomKey))];
-    const properties = [
-      ...new Set(
-        selectedRooms.map((key) => rooms.find((room) => room.key === key)?.propertyName ?? ""),
-      ),
-    ].filter(Boolean);
-    const labels = selectedRooms.map((key) => labelByKey.get(key) ?? key);
-    const shown = labels.slice(0, 4).join(" · ");
+    // **건물별로 묶어 적는다** — 「502 · 107」만으로는 어느 건물인지 모른다(2026-09-28 지적).
+    // 격자 순서(건물 순서 포함)를 따른다: 「아라키초A 502 · 오쿠보B 107」.
+    const selectedKeys = new Set(selection.map((cell) => cell.roomKey));
+    const byProperty = new Map<string, string[]>();
+    for (const room of rooms) {
+      if (!selectedKeys.has(room.key)) continue;
+      const list = byProperty.get(room.propertyName);
+      if (list) list.push(room.displayRoomLabel);
+      else byProperty.set(room.propertyName, [room.displayRoomLabel]);
+    }
+    const ROOM_LIMIT = 4;
+    let shownCount = 0;
+    const parts: string[] = [];
+    for (const [property, labels] of byProperty) {
+      if (shownCount >= ROOM_LIMIT) break;
+      const take = labels.slice(0, ROOM_LIMIT - shownCount);
+      shownCount += take.length;
+      parts.push(`${property} ${take.join(" · ")}`);
+    }
+    const totalRooms = selectedKeys.size;
     const roomText =
-      labels.length > 4
-        ? `${shown} ${copy.andMore.replace("{count}", String(labels.length - 4))}`
-        : shown;
+      totalRooms > shownCount
+        ? `${parts.join(" / ")} ${copy.andMore.replace("{count}", String(totalRooms - shownCount))}`
+        : parts.join(" / ");
     const selectedDates = [...new Set(selection.map((cell) => cell.date))].sort();
     const short = (date: string) => date.slice(5).replace("-", "/");
     const first = selectedDates[0];
     const last = selectedDates[selectedDates.length - 1];
     return {
       dates: first === last ? short(first) : `${short(first)} → ${short(last)}`,
-      rooms: [properties.length === 1 ? properties[0] : "", roomText].filter(Boolean).join(" · "),
+      rooms: roomText,
     };
   })();
 
@@ -598,6 +736,17 @@ export function OpsCalendarGrid({
             >
               {copy.blockMode}
             </button>
+            {/* 체크인만 찍힌 상태. 무엇을 기다리는지 적어 둔다 — 격자만 보면 「왜 칠해지지?」가 된다. */}
+            {activeDraft && (
+              <span className="opsg__draftnote" role="status">
+                {copy.mbPickCheckout
+                  .replace("{room}", activeDraft.room.label)
+                  .replace("{date}", shortDate(activeDraft.checkIn))}
+                <button className="opsg__draftx" onClick={cancelDraft} type="button">
+                  {copy.mbCancel}
+                </button>
+              </span>
+            )}
           </>
         ) : (
           <>
@@ -622,6 +771,14 @@ export function OpsCalendarGrid({
               {copy.editModeExit}
             </button>
           </>
+        )}
+
+        {/* 반영 중인 쓰기. 패널을 닫았거나 다른 칸을 고르는 중에도 「아직 가는 중」임을 안다. */}
+        {writesInFlight > 0 && (
+          <span className="opsg__jobnote" role="status">
+            <span className="opsg__jobspin" aria-hidden />
+            {copy.msQueued}
+          </span>
         )}
 
         {/* 갭은 눈에 안 띄는 손실이라 **찾아 주는 것만으로는 부족하다** — 한 번에 고를 수
@@ -807,8 +964,26 @@ export function OpsCalendarGrid({
                 }
               }
 
+              const bookingRoom: BookingPanelRoom = {
+                key: room.key,
+                label: room.displayRoomLabel,
+                propertyName: room.propertyName,
+                roomIds: room.roomIds,
+              };
+              const drafting = activeDraft?.room.key === room.key ? activeDraft : null;
+              // 빈 칸의 `+`. **「취소만 보기」에서는 숨긴다** — 그 모드에서는 일반 막대가 안 보여
+              // 팔린 밤도 빈칸처럼 보이는데, 거기에 `+` 가 뜨면 이미 찬 방에 예약을 넣으려 하게 된다.
+              // **팔 수 없는 밤**은 예약도 못 만든다 — 찬 밤(예약·블록)과, 파는 유닛이 없는 밤
+              // (요금 칸이 비어 있다 = 활성 유닛 0, `mergeOpsRateUnits`). 서버와 패널 피커가
+              // 같은 두 가지를 막는다 — 여기만 느슨하면 격자에서 끈 기간이 패널에서 막힌다.
+              const nightTaken = (date: string) =>
+                occupied.has(date) || !rates.get(`${room.key}|${date}`);
+              const canStart = (date: string) =>
+                !editMode && !showCancelled && !nightTaken(date) && date >= today;
+              const startDraft = (date: string) => setBookingDraft({ checkIn: date, room: bookingRoom });
+
               return (
-                <div className="opsg__row" key={room.key}>
+                <div className={`opsg__row${drafting ? " drafting" : ""}`} key={room.key}>
                   <div
                     className={`opsg__label${editMode ? " pick" : ""}${
                       editMode && scope.roomKeys.includes(room.key) ? " on" : ""
@@ -825,7 +1000,10 @@ export function OpsCalendarGrid({
                     <div className="opsg__track">
                       {days.map((day) => {
                         const cellKey = selectionCellKey(room.key, day.date);
-                        const pendingPrice = pendingPrices.get(cellKey);
+                        const pendingEntry = pendingPrices.get(cellKey);
+                        const pendingPrice = pendingEntry?.value;
+                        // 반영이 확인된 값은 **바로 진하게** — 데이터 다시 받기를 기다리지 않는다.
+                        const pricePending = !!pendingEntry && !settledTokens.has(pendingEntry.token);
                         const price =
                           pendingPrice ?? rates.get(`${room.key}|${day.date}`)?.price ?? null;
                         // 「누가 언제 얼마에서 얼마로」. 값이 이상할 때 제일 먼저 찾는 정보다.
@@ -852,7 +1030,7 @@ export function OpsCalendarGrid({
                             {...cellHandlers(room.key, day.date)}
                           >
                             <span
-                              className={`opsg__price${price === null ? " none" : ""}${pendingPrice === undefined ? "" : " pend"}`}
+                              className={`opsg__price${price === null ? " none" : ""}${pricePending ? " pend" : ""}`}
                             >
                               {price === null ? "–" : formatPrice(price)}
                             </span>
@@ -867,7 +1045,9 @@ export function OpsCalendarGrid({
                         멀어진다. 숫자는 작아도 색으로 구분되므로 읽힌다. */}
                     <div className="opsg__track min">
                       {days.map((day) => {
-                        const minStay = rates.get(`${room.key}|${day.date}`)?.minStay ?? null;
+                        const pendingMin = pendingMinStay.get(selectionCellKey(room.key, day.date));
+                        const minStay =
+                          pendingMin?.value ?? rates.get(`${room.key}|${day.date}`)?.minStay ?? null;
                         // 갭 칸에서는 이 값이 **원인**이다 — `.opsg__cell.gap .opsg__min` 이
                         // 붉게 세운다. 칸이 이미 `gap` 클래스를 들고 있어 여기서 또 붙이지 않는다.
                         //
@@ -884,7 +1064,13 @@ export function OpsCalendarGrid({
                             key={`m-${day.date}`}
                             {...cellHandlers(room.key, day.date)}
                           >
-                            <span className="opsg__min">{minStay ?? ""}</span>
+                            <span
+                              className={`opsg__min${
+                                pendingMin && !settledTokens.has(pendingMin.token) ? " pend" : ""
+                              }`}
+                            >
+                              {minStay ?? ""}
+                            </span>
                           </div>
                         );
                       })}
@@ -896,24 +1082,22 @@ export function OpsCalendarGrid({
                     >
                       {days.map((day) => (
                         <div className={cellClass(day)} key={`r-${day.date}`}>
-                          {/* **「취소만 보기」에서는 숨긴다.** 그 모드에서는 일반 예약 막대가
-                              안 보여서 **팔린 밤도 빈칸처럼** 보이는데, 거기에 `+` 가 뜨면
-                              이미 찬 방에 수기 예약을 넣으려 하게 된다. 지난 일을 보는
-                              화면이지 예약을 만드는 화면이 아니다. */}
-                          {!editMode && !showCancelled && !occupied.has(day.date) && day.date >= today && (
+                          {/* 고르는 중인 줄에는 `+` 를 안 그린다 — 위에 기간 레이어가 덮인다. */}
+                          {!drafting && canStart(day.date) && (
                             <button
                               className="opsg__plus"
-                              onClick={() =>
-                                setBooking({
-                                  date: day.date,
-                                  room: {
-                                    key: room.key,
-                                    label: room.displayRoomLabel,
-                                    propertyName: room.propertyName,
-                                    roomIds: room.roomIds,
-                                  },
-                                })
-                              }
+                              // **누르는 순간** 체크인을 찍는다 — 그래야 누른 채 끌어서 기간을
+                              // 잡을 수 있다. 떼기만 하면 클릭 두 번 방식으로 이어진다.
+                              onClick={(event) => {
+                                // 키보드(Enter/Space)는 포인터 이벤트가 없다 — 여기서 찍는다.
+                                if (event.detail === 0) startDraft(day.date);
+                              }}
+                              onPointerDown={(event) => {
+                                if (event.button !== 0) return;
+                                // 끄는 동안 글자가 선택되거나 포커스가 튀지 않게.
+                                event.preventDefault();
+                                startDraft(day.date);
+                              }}
                               type="button"
                             >
                               +
@@ -921,6 +1105,25 @@ export function OpsCalendarGrid({
                           )}
                         </div>
                       ))}
+                      {drafting && (
+                        <OpsBookingDraft
+                          checkIn={drafting.checkIn}
+                          checkInLabel={copy.mbCheckIn}
+                          dates={dates}
+                          geometry={(from, to) => barGeometry(days, from, to)}
+                          isOccupied={nightTaken}
+                          key={drafting.checkIn}
+                          nightsLabel={copy.mbNights}
+                          onCancel={cancelDraft}
+                          onCommit={(checkOut) => {
+                            setBooking({ checkIn: drafting.checkIn, checkOut, room: bookingRoom });
+                            cancelDraft();
+                          }}
+                          onRestart={(date) => {
+                            if (canStart(date)) startDraft(date);
+                          }}
+                        />
+                      )}
                       {roomBlocks.map((block) => {
                         const geometry = blockGeometry(days, block.startDate, block.endDate);
                         if (!geometry) return null;
@@ -956,7 +1159,15 @@ export function OpsCalendarGrid({
                               // 드래그 선택이 끊긴다.
                               editMode
                                 ? undefined
-                                : () => setOpenBar({ bar, roomLabel: room.displayRoomLabel })
+                                : () => {
+                                    // 막대를 눌렀다 = 상세를 보겠다는 뜻이다. 고르던 기간은 버린다(저쪽과 같다).
+                                    cancelDraft();
+                                    setOpenBar({
+                                      bar,
+                                      propertyName: room.propertyName,
+                                      roomLabel: room.displayRoomLabel,
+                                    });
+                                  }
                             }
                             style={lane > 0 ? { ...geometry, top: `calc(3px + ${lane * 18}px)` } : geometry}
                             title={`${bar.guestName} · ${bar.checkIn} → ${bar.checkOut}`}
@@ -976,8 +1187,11 @@ export function OpsCalendarGrid({
       </div>
 
       {openBar && (
-        <OpsReservationCard
+        <OpsReservationPanel
           bar={openBar.bar}
+          key={openBar.bar.id}
+          localeTag={copy.localeTag}
+          propertyName={openBar.propertyName}
           copy={copy}
           nights={
             stayNights(openBar.bar.checkIn, openBar.bar.checkOut).length
@@ -988,7 +1202,9 @@ export function OpsCalendarGrid({
       )}
 
       {booking && (
-        <OpsBookingModal
+        <OpsBookingPanel
+          checkIn={booking.checkIn}
+          checkOut={booking.checkOut}
           copy={copy}
           localeTag={copy.localeTag}
           onClose={() => setBooking(null)}
@@ -997,7 +1213,6 @@ export function OpsCalendarGrid({
             return { airbnb: rate?.price ?? null, booking: rate?.bookingPrice ?? null };
           }}
           room={booking.room}
-          startDate={booking.date}
           today={today}
         />
       )}
@@ -1022,6 +1237,7 @@ export function OpsCalendarGrid({
           copy={copy}
           gapContext={gapContext}
           onClear={clearSelection}
+          runWrite={runWrite}
           scopeSummary={scopeSummary}
         />
       )}
@@ -1031,16 +1247,8 @@ export function OpsCalendarGrid({
           cells={panelCells}
           clearLabel={copy.scopeClear}
           copy={copy}
-          onApplied={(applied) =>
-            setPendingPrices((previous) => {
-              const next = new Map(previous);
-              for (const item of applied) {
-                next.set(selectionCellKey(item.roomKey, item.date), item.price);
-              }
-              return next;
-            })
-          }
           onClear={clearSelection}
+          runWrite={runWrite}
           scopeSummary={scopeSummary}
         />
       )}

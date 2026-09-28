@@ -1,0 +1,593 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Check, X } from "lucide-react";
+import {
+  loadRoomAvailability,
+  submitManualBooking,
+  type ManualBookingResult,
+} from "@/app/admin/ops/calendar/actions";
+import { shiftMonthKey } from "@/components/admin/shared/admin-month-key";
+import { AdminDateRangePicker } from "@/components/admin/shared/admin-date-range-picker";
+import { useAdminPanelA11y } from "@/components/admin/shared/use-admin-panel-a11y";
+import { MAX_STAY_NIGHTS, stayNights, validateManualBooking } from "@/lib/ops-manual-booking";
+
+/**
+ * 수동 예약 생성 — **오른쪽 사이드 패널.**
+ *
+ * 도메인 계약: `docs/product/33-calendar-write-features.md` → 「수동 예약 생성」
+ * 원본: STAY ARI Manager `BuildingCalendar.jsx` → `ManualBookingModal`
+ *
+ * ## 왜 패널인가 (2026-09-28)
+ *
+ * 처음에는 중앙 모달이었다. 콘솔의 입력·상세는 전부 공용 `.panel` 프리미티브(오른쪽 패널)를
+ * 쓰는데 이것만 가운데 떠 있어 다른 화면과 따로 놀았다(사용자 지적, CLAUDE.md §4).
+ * 패널이면 **격자에서 고른 막대가 가려지지 않는다** — 무엇을 만들고 있는지 옆에 그대로 보인다.
+ *
+ * ## 날짜는 격자에서 이미 골라서 온다
+ *
+ * `+` 를 누르면 체크인, 이어서 누른 날이 체크아웃이다(저쪽 `handleDateCellClick`).
+ * 패널의 범위 피커는 **고치는 용도**다 — 창 밖으로 넘어가는 숙박도 여기서 늘린다.
+ *
+ * ## 피커에서는 **팔 수 있는 날만** 고른다 (2026-09-28)
+ *
+ * 이미 예약·블록이 있는 밤, 파는 유닛이 없는 밤은 회색으로 막는다. 체크인을 찍은 뒤에는
+ * **그 밤들을 넘어가는 체크아웃**도 막는다(격자와 같은 규칙). 격자가 들고 있는 예약은 화면
+ * 창뿐이라, 피커가 여는 달마다 `loadRoomAvailability` 로 읽는다 — 아직 모르는 날도 막는다
+ * (모르는 날을 열어 두면 그대로 초과예약이 된다). 서버가 만들기 직전에 한 번 더 막는다.
+ *
+ * ## 금액은 **총액**이다
+ *
+ * 1박 단가가 아니다. Beds24 예약 한 건에 붙는 값이 총액이라 그대로 맞춘다(저쪽 라벨도
+ * `Total Price`). 그래서 숙박 일수가 바뀌면 고른 기준가를 지운다 — 일수가 달라지면 그 금액은
+ * 더 이상 그 숙박의 값이 아니다.
+ *
+ * ## 요금으로 채우기
+ *
+ * 총액을 손으로 계산하게 하면 아무도 안 쓴다. **채널별 합계를 고르는 카드 두 장**으로
+ * 보여준다. 예전에는 밤별 표와 버튼에 **같은 숫자가 두 번** 나오고 표에 열 이름이 없어서
+ * 어느 쪽이 에어비앤비인지 읽을 수 없었다(2026-09-28 지적). 밤별 내역은 2박 이상일 때만
+ * 접어서 둔다 — 1박이면 합계가 곧 그 밤이다.
+ *
+ * 요금을 모르는 밤이 하나라도 있으면 그 채널의 합계는 **추정치**라 고를 수 없다 — 모르는 값을
+ * 뺀 숫자를 「제안」으로 내밀면 그게 그대로 청구된다. 채널마다 따로 판정한다.
+ *
+ * ## 차단은 여기서 안 만든다
+ *
+ * 저쪽은 손님 이름에 `blackout` / `room block` 이 들어가면 차단을 만들었다. 화면 어디에도
+ * 안 적힌 매직 문자열이라 **뺐다**(2026-09-28 사용자 확인). 차단은 전용 모드에서 한다.
+ */
+
+export type BookingPanelCopy = {
+  mbTitle: string;
+  mbCheckIn: string;
+  mbCheckOut: string;
+  mbNights: string;
+  mbGuest: string;
+  mbGuestPlaceholder: string;
+  mbTotal: string;
+  mbTotalPlaceholder: string;
+  mbTotalHint: string;
+  mbFillFrom: string;
+  mbAirbnb: string;
+  mbBooking: string;
+  mbAdults: string;
+  mbChildren: string;
+  mbEmail: string;
+  mbPhone: string;
+  mbComments: string;
+  mbCommentsPlaceholder: string;
+  mbRates: string;
+  mbRatesPartial: string;
+  mbAdjust: string;
+  mbCancel: string;
+  mbClose: string;
+  mbSubmit: string;
+  mbPending: string;
+  mbDone: string;
+  /** 「{dates} 는 다른 유닛이 판매 중입니다」 — 날짜를 반드시 같이 적는다. */
+  mbErrUnitChanges: string;
+  mbErrNoActiveUnit: string;
+  mbErrNoRoom: string;
+  mbErrNoGuestName: string;
+  mbErrBadDates: string;
+  mbErrPastArrival: string;
+  mbErrBadPrice: string;
+  mbErrBadOccupancy: string;
+  mbErrStayTooLong: string;
+  mbErrForbidden: string;
+  mbErrBeds24: string;
+  mbErrCooldown: string;
+  mbErrOccupied: string;
+  /** 패널 안에서 쓴다 — 예약·블록뿐 아니라 판매 중지 밤도 포함하므로 문구가 더 넓다. */
+  mbErrNightsTaken: string;
+  mbAvailHint: string;
+  mbAvailFailed: string;
+  datePrev: string;
+  dateNext: string;
+  dateThisMonth: string;
+  dateReset: string;
+  dateApply: string;
+};
+
+export type BookingPanelRoom = {
+  key: string;
+  label: string;
+  propertyName: string;
+  roomIds: string[];
+};
+
+/** 밤별 요금. `null` 이면 **모르는 것**이지 0원이 아니다. */
+export type BookingPanelRate = { airbnb: number | null; booking: number | null };
+
+type Channel = "airbnb" | "booking";
+
+const PERCENT_PRESETS = [-10, -5, 0, 5, 10];
+
+function errorText(copy: BookingPanelCopy, result: Extract<ManualBookingResult, { ok: false }>) {
+  const dates = (result.conflictDates ?? []).map((date) => date.slice(5)).join(", ");
+  switch (result.error) {
+    case "unit_changes":
+      return copy.mbErrUnitChanges.replace("{dates}", dates);
+    case "no_active_unit":
+      return copy.mbErrNoActiveUnit.replace("{dates}", dates);
+    case "occupied":
+      return copy.mbErrOccupied.replace("{dates}", dates);
+    case "no_room":
+      return copy.mbErrNoRoom;
+    case "no_guest_name":
+      return copy.mbErrNoGuestName;
+    case "bad_dates":
+      return copy.mbErrBadDates;
+    case "past_arrival":
+      return copy.mbErrPastArrival;
+    case "bad_price":
+      return copy.mbErrBadPrice;
+    case "bad_occupancy":
+      return copy.mbErrBadOccupancy;
+    case "stay_too_long":
+      return copy.mbErrStayTooLong.replace("{max}", String(MAX_STAY_NIGHTS));
+    case "forbidden":
+      return copy.mbErrForbidden;
+    case "cooldown":
+      return copy.mbErrCooldown;
+    default:
+      return copy.mbErrBeds24;
+  }
+}
+
+export function OpsBookingPanel({
+  checkIn,
+  checkOut,
+  copy,
+  localeTag,
+  onClose,
+  rateAt,
+  room,
+  today,
+}: {
+  checkIn: string;
+  checkOut: string;
+  copy: BookingPanelCopy;
+  localeTag: string;
+  onClose: () => void;
+  /** 그 방 그 밤의 요금. 격자가 이미 들고 있는 값을 그대로 넘긴다. */
+  rateAt: (date: string) => BookingPanelRate;
+  room: BookingPanelRoom;
+  today: string;
+}) {
+  const [arrival, setArrival] = useState(checkIn);
+  const [departure, setDeparture] = useState(checkOut);
+  const [guestName, setGuestName] = useState("");
+  const [totalPrice, setTotalPrice] = useState("");
+  const [numAdult, setNumAdult] = useState(1);
+  const [numChild, setNumChild] = useState(0);
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [comments, setComments] = useState("");
+  const [basePrice, setBasePrice] = useState<{ value: number; channel: Channel } | null>(null);
+  const [percent, setPercent] = useState(0);
+  const [message, setMessage] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  // Esc · 포커스 · 스크롤 잠금은 콘솔 패널 공용 훅이 한다. 보내는 중에는 닫히지 않는다.
+  const panelRef = useAdminPanelA11y<HTMLElement>(onClose, { disabled: pending });
+
+  const nights = useMemo(() => stayNights(arrival, departure), [arrival, departure]);
+
+  /**
+   * 밤별 판매 가능 여부. **없는 키는 아직 모르는 것**이고, 모르면 막는다.
+   * 피커가 달을 넘길 때마다 그 달과 다음 달을 읽는다(한 번 읽은 달은 다시 안 읽는다).
+   */
+  const [nightState, setNightState] = useState<Map<string, "free" | "taken">>(new Map());
+  const [availFailed, setAvailFailed] = useState(false);
+  const requestedMonths = useRef(new Set<string>());
+
+  const loadMonths = (monthKey: string) => {
+    const months = [monthKey, shiftMonthKey(monthKey, 1)].filter(
+      (month) => !requestedMonths.current.has(month),
+    );
+    if (months.length === 0) return;
+    for (const month of months) requestedMonths.current.add(month);
+    const from = `${months[0]}-01`;
+    const toExclusive = `${shiftMonthKey(months[months.length - 1], 1)}-01`;
+    void loadRoomAvailability({ from, roomIds: room.roomIds, roomKey: room.key, toExclusive }).then(
+      (result) => {
+        if (!result.ok) {
+          // 다시 열 때 재시도할 수 있게 표시를 거둔다. 그동안은 막힌 채로 둔다.
+          for (const month of months) requestedMonths.current.delete(month);
+          setAvailFailed(true);
+          return;
+        }
+        const taken = new Set([...result.booked, ...result.unsellable]);
+        setNightState((previous) => {
+          const next = new Map(previous);
+          for (const night of stayNights(from, toExclusive)) {
+            next.set(night, taken.has(night) ? "taken" : "free");
+          }
+          return next;
+        });
+      },
+    );
+  };
+
+  // 격자에서 고른 숙박이 걸친 달부터 읽어 둔다 — 피커를 열기 전에 이미 회색이 맞아 있게.
+  useEffect(() => {
+    loadMonths(checkIn.slice(0, 7));
+    if (checkOut.slice(0, 7) !== checkIn.slice(0, 7)) loadMonths(checkOut.slice(0, 7));
+    // 패널이 열릴 때 한 번만 — 이후는 피커의 달 이동이 부른다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const nightTaken = (night: string) => nightState.get(night) !== "free";
+  const isDateDisabled = (date: string, pendingFrom: string | null) => {
+    if (pendingFrom && date > pendingFrom) {
+      // 체크아웃 후보: 그 사이의 밤이 **전부** 팔 수 있어야 한다. 체크아웃 날 자체는 밤이 아니다.
+      const between = stayNights(pendingFrom, date);
+      return between.length > MAX_STAY_NIGHTS || between.some(nightTaken);
+    }
+    return date < today || nightTaken(date);
+  };
+  /** 지금 잡힌 숙박에 막힌 밤이 끼었나 — 읽기가 늦게 도착해 드러날 수 있다. */
+  const takenInStay = nights.filter((night) => nightState.get(night) === "taken");
+
+  const rates = useMemo(() => {
+    const rows = nights.map((night) => ({ night, ...rateAt(night) }));
+    const sum = (channel: Channel) => {
+      const known = rows.filter((row) => row[channel] !== null);
+      return {
+        // 모르는 밤이 하나라도 있으면 **추정치**다 — 자동 채우기를 막는 근거가 된다.
+        partial: known.length !== rows.length,
+        total: known.reduce((acc, row) => acc + (row[channel] ?? 0), 0),
+      };
+    };
+    return { airbnb: sum("airbnb"), booking: sum("booking"), rows };
+  }, [nights, rateAt]);
+
+  const changeStay = (from: string, to: string) => {
+    setArrival(from);
+    // 같은 날을 두 번 고르면 0박이다 — 체크아웃을 다음 날로 밀어 최소 1박을 만든다.
+    setDeparture(to > from ? to : nextDay(from));
+    // 숙박이 바뀌면 기준가를 버린다. 효과로 지우지 않고 날짜를 바꾸는 자리에서 지운다 —
+    // 무엇이 언제 지워지는지가 코드에 그대로 보인다.
+    setBasePrice(null);
+    setPercent(0);
+  };
+
+  const applyBase = (channel: Channel) => {
+    const value = rates[channel].total;
+    setBasePrice({ channel, value });
+    setPercent(0);
+    setTotalPrice(String(value));
+  };
+
+  const applyPercent = (next: number) => {
+    setPercent(next);
+    if (basePrice) setTotalPrice(String(Math.round(basePrice.value * (1 + next / 100))));
+  };
+
+  const parsedPrice = totalPrice.trim() === "" ? null : Number(totalPrice);
+  const input = {
+    arrival,
+    departure,
+    guestName,
+    numAdult,
+    numChild,
+    roomKey: room.key,
+    totalPrice: parsedPrice,
+  };
+  const localInvalid = validateManualBooking(input, today);
+
+  const submit = () => {
+    setMessage(copy.mbPending);
+    startTransition(async () => {
+      const result = await submitManualBooking({
+        comments,
+        guestEmail,
+        guestPhone,
+        input,
+        roomIds: room.roomIds,
+      });
+      if (result.ok) {
+        setMessage(copy.mbDone);
+        onClose();
+        return;
+      }
+      setMessage(errorText(copy, result));
+    });
+  };
+
+  const money = (value: number) => `¥${value.toLocaleString()}`;
+  const channelLabel = (channel: Channel) => (channel === "airbnb" ? copy.mbAirbnb : copy.mbBooking);
+  const anyPartial = rates.airbnb.partial || rates.booking.partial;
+
+  return (
+    <>
+      <div className="panel-scrim" onClick={pending ? undefined : onClose} />
+      <aside
+        aria-label={copy.mbTitle}
+        aria-modal="true"
+        className="panel opsbk"
+        ref={panelRef}
+        role="dialog"
+        tabIndex={-1}
+      >
+        <div className="panel__h">
+          <div className="panel__top">
+            <span className="panel__kicker">{copy.mbTitle}</span>
+            <button
+              aria-label={copy.mbClose}
+              className="panel__x"
+              disabled={pending}
+              onClick={onClose}
+              type="button"
+            >
+              <X />
+            </button>
+          </div>
+          <div className="panel__title">
+            <span className="panel__room">{room.label}</span>
+            <span className="panel__sub">{room.propertyName}</span>
+          </div>
+        </div>
+
+        <div className="panel__body opsbk__body">
+          {/* **숙박은 기간이다.** 격자에서 고른 값이 들어와 있고, 여기서는 고친다.
+              공용 범위 피커를 쓴다(CLAUDE.md §4a). */}
+          <div className="fld">
+            <span className="fld__l">
+              {copy.mbCheckIn} → {copy.mbCheckOut}
+            </span>
+            <AdminDateRangePicker
+              ariaLabel={`${copy.mbCheckIn} → ${copy.mbCheckOut}`}
+              from={arrival}
+              labels={{
+                apply: copy.dateApply,
+                nextMonth: copy.dateNext,
+                prevMonth: copy.datePrev,
+                reset: copy.dateReset,
+                thisMonth: copy.dateThisMonth,
+              }}
+              isDateDisabled={isDateDisabled}
+              localeTag={localeTag}
+              onChange={changeStay}
+              onMonthChange={loadMonths}
+              to={departure}
+            />
+            <span className="opsbk__nights">
+              {copy.mbNights.replace("{n}", String(nights.length))}
+              {/* 버튼만 흐려 두면 왜 안 되는지 알 수 없다 — 그 자리에 적는다. */}
+              {localInvalid === "bad_dates" && <em>{copy.mbErrBadDates}</em>}
+              {localInvalid === "past_arrival" && <em>{copy.mbErrPastArrival}</em>}
+              {takenInStay.length > 0 && (
+                <em>
+                  {copy.mbErrNightsTaken.replace(
+                    "{dates}",
+                    takenInStay.map((night) => night.slice(5).replace("-", "/")).join(", "),
+                  )}
+                </em>
+              )}
+            </span>
+            <span className="opsbk__hint">{availFailed ? copy.mbAvailFailed : copy.mbAvailHint}</span>
+          </div>
+
+          <div className="fld">
+            <label className="fld__l" htmlFor="opsbk-guest">
+              {copy.mbGuest} <span className="req">*</span>
+            </label>
+            <input
+              id="opsbk-guest"
+              onChange={(event) => setGuestName(event.target.value)}
+              placeholder={copy.mbGuestPlaceholder}
+              type="text"
+              value={guestName}
+            />
+          </div>
+
+          {/* ── 금액 ─────────────────────────────────────────────────
+              입력칸이 주인공이고, 카드 두 장은 그걸 채우는 **바로가기**다. */}
+          <div className="fld">
+            <label className="fld__l" htmlFor="opsbk-total">
+              {copy.mbTotal} <span className="req">*</span>
+            </label>
+            <div className="opsbk__money">
+              <span aria-hidden>¥</span>
+              <input
+                id="opsbk-total"
+                inputMode="numeric"
+                min={0}
+                onChange={(event) => {
+                  setTotalPrice(event.target.value);
+                  setBasePrice(null);
+                  setPercent(0);
+                }}
+                placeholder={copy.mbTotalPlaceholder}
+                type="number"
+                value={totalPrice}
+              />
+            </div>
+            <span className="opsbk__hint">{copy.mbTotalHint}</span>
+          </div>
+
+          {nights.length > 0 && (
+            <div className="opsbk__fill">
+              <span className="fld__l">{copy.mbFillFrom}</span>
+              <div className="opsbk__opts">
+                {(["airbnb", "booking"] as const).map((channel) => {
+                  const sum = rates[channel];
+                  const disabled = sum.partial || sum.total <= 0;
+                  return (
+                    <button
+                      aria-pressed={basePrice?.channel === channel}
+                      className={`opsbk__opt ${channel}${basePrice?.channel === channel ? " on" : ""}`}
+                      disabled={disabled}
+                      key={channel}
+                      onClick={() => applyBase(channel)}
+                      type="button"
+                    >
+                      <span className="opsbk__optl">{channelLabel(channel)}</span>
+                      <span className="opsbk__optv">{disabled ? "—" : money(sum.total)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {basePrice && (
+                <div className="opsbk__pct">
+                  <span className="opsbk__pctl">{copy.mbAdjust}</span>
+                  {PERCENT_PRESETS.map((preset) => (
+                    <button
+                      className={`opsbk__pctbtn${percent === preset ? " on" : ""}`}
+                      key={preset}
+                      onClick={() => applyPercent(preset)}
+                      type="button"
+                    >
+                      {preset > 0 ? `+${preset}` : preset}%
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {anyPartial && <div className="opsbk__warn">{copy.mbRatesPartial}</div>}
+
+              {/* 밤별 내역은 **2박 이상일 때만**, 접어서. 1박이면 합계가 곧 그 밤이다. */}
+              {nights.length > 1 && (
+                <details className="opsbk__nightly">
+                  <summary>
+                    {copy.mbRates} · {copy.mbNights.replace("{n}", String(nights.length))}
+                  </summary>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th />
+                        <th>{copy.mbAirbnb}</th>
+                        <th>{copy.mbBooking}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rates.rows.map((row) => (
+                        <tr key={row.night}>
+                          <td>{row.night.slice(5).replace("-", "/")}</td>
+                          <td>{row.airbnb === null ? "—" : money(row.airbnb)}</td>
+                          <td>{row.booking === null ? "—" : money(row.booking)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </details>
+              )}
+            </div>
+          )}
+
+          <div className="opsbk__row2">
+            <div className="fld">
+              <label className="fld__l" htmlFor="opsbk-adults">
+                {copy.mbAdults}
+              </label>
+              <input
+                id="opsbk-adults"
+                min={1}
+                onChange={(event) => setNumAdult(Number(event.target.value))}
+                type="number"
+                value={numAdult}
+              />
+            </div>
+            <div className="fld">
+              <label className="fld__l" htmlFor="opsbk-children">
+                {copy.mbChildren}
+              </label>
+              <input
+                id="opsbk-children"
+                min={0}
+                onChange={(event) => setNumChild(Number(event.target.value))}
+                type="number"
+                value={numChild}
+              />
+            </div>
+          </div>
+
+          <div className="opsbk__row2">
+            <div className="fld">
+              <label className="fld__l" htmlFor="opsbk-email">
+                {copy.mbEmail}
+              </label>
+              <input
+                id="opsbk-email"
+                onChange={(event) => setGuestEmail(event.target.value)}
+                type="email"
+                value={guestEmail}
+              />
+            </div>
+            <div className="fld">
+              <label className="fld__l" htmlFor="opsbk-phone">
+                {copy.mbPhone}
+              </label>
+              <input
+                id="opsbk-phone"
+                onChange={(event) => setGuestPhone(event.target.value)}
+                type="tel"
+                value={guestPhone}
+              />
+            </div>
+          </div>
+
+          <div className="fld">
+            <label className="fld__l" htmlFor="opsbk-comments">
+              {copy.mbComments}
+            </label>
+            <textarea
+              id="opsbk-comments"
+              onChange={(event) => setComments(event.target.value)}
+              placeholder={copy.mbCommentsPlaceholder}
+              rows={2}
+              value={comments}
+            />
+          </div>
+
+          {message && <p className="opsbk__msg">{message}</p>}
+        </div>
+
+        <div className="panel__foot">
+          <button className="btn btn--subtle" disabled={pending} onClick={onClose} type="button">
+            {copy.mbCancel}
+          </button>
+          <button
+            className="btn btn--pri"
+            disabled={!!localInvalid || takenInStay.length > 0 || pending}
+            onClick={submit}
+            type="button"
+          >
+            <Check aria-hidden="true" />
+            {copy.mbSubmit}
+          </button>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+/** `YYYY-MM-DD` 다음 날. 시간대에 안 흔들리도록 UTC 정오로 고정한다. */
+function nextDay(date: string): string {
+  const at = new Date(`${date}T12:00:00Z`);
+  at.setUTCDate(at.getUTCDate() + 1);
+  return at.toISOString().slice(0, 10);
+}

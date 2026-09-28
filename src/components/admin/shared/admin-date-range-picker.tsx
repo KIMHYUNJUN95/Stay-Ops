@@ -27,6 +27,18 @@ type AdminDateRangePickerProps = {
   labels: AdminDateRangePickerLabels;
   /** `from`/`to` 가 비었을 때 트리거에 남는 문구(예: 「전체 기간」). 없으면 대시만 보인다. */
   emptyLabel?: string;
+  /**
+   * 고를 수 없는 날(회색·클릭 불가). `pendingFrom` 은 **시작을 찍고 끝을 기다리는 중**일 때의
+   * 시작일이다 — 끝으로 고를 수 있는 날과 시작으로 고를 수 있는 날이 다를 때 쓴다(수동 예약:
+   * 팔린 밤을 넘어가는 체크아웃은 막는다).
+   *
+   * 이 값을 주면 범위가 **제약된 것**으로 본다 — 시작보다 앞을 누르면 앞뒤를 바꾸지 않고 그 날부터
+   * 다시 고르고(바꾸면 막힌 밤을 낄 수 있다), 「이번 달」 바로가기를 숨긴다(한 달 통째는 제약을
+   * 무시한다).
+   */
+  isDateDisabled?: (dateKey: string, pendingFrom: string | null) => boolean;
+  /** 달력이 보여 주는 달이 바뀔 때(열 때 포함). 그 달의 데이터를 늦게 읽는 화면이 쓴다. */
+  onMonthChange?: (monthKey: string) => void;
 };
 
 function parseDateKey(key: string): Date {
@@ -98,6 +110,8 @@ export function AdminDateRangePicker({
   ariaLabel,
   labels,
   emptyLabel,
+  isDateDisabled,
+  onMonthChange,
 }: AdminDateRangePickerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -136,13 +150,26 @@ export function AdminDateRangePicker({
     // Opens to the trigger's current month for orientation, but starts with no range highlighted —
     // the applied from/to only shows as blue once the user actually picks days in this session.
     setCalendarMonth(calendarMonthOf(from));
+    onMonthChange?.(calendarMonthOf(from));
     setDraftFrom(null);
     setDraftTo(null);
     setOpen(true);
   }
 
+  function showMonth(monthKey: string) {
+    setCalendarMonth(monthKey);
+    onMonthChange?.(monthKey);
+  }
+
+  const constrained = Boolean(isDateDisabled);
+  /** 끝을 기다리는 중이면 그 시작일. */
+  const pendingFrom = draftFrom && !draftTo ? draftFrom : null;
+
   function pick(dateKey: string) {
     if (!draftFrom || (draftFrom && draftTo)) {
+      setDraftFrom(dateKey);
+      setDraftTo(null);
+    } else if (dateKey <= draftFrom && constrained) {
       setDraftFrom(dateKey);
       setDraftTo(null);
     } else if (dateKey < draftFrom) {
@@ -219,7 +246,7 @@ export function AdminDateRangePicker({
               type="button"
               className="calpop__nav"
               aria-label={labels.prevMonth}
-              onClick={() => setCalendarMonth((m) => shiftMonthKey(m, -1))}
+              onClick={() => showMonth(shiftMonthKey(calendarMonth, -1))}
             >
               <ChevronLeft aria-hidden="true" />
             </button>
@@ -228,7 +255,7 @@ export function AdminDateRangePicker({
               type="button"
               className="calpop__nav"
               aria-label={labels.nextMonth}
-              onClick={() => setCalendarMonth((m) => shiftMonthKey(m, 1))}
+              onClick={() => showMonth(shiftMonthKey(calendarMonth, 1))}
             >
               <ChevronRight aria-hidden="true" />
             </button>
@@ -252,6 +279,7 @@ export function AdminDateRangePicker({
               const inRange = Boolean(draftFrom && draftTo && val > draftFrom && val < draftTo);
               const isSingle = isFrom && !draftTo;
               const isToday = val === todayKey;
+              const isOff = isDateDisabled ? isDateDisabled(val, pendingFrom) : false;
               // 띠가 «끊기는» 자리는 둥글게 막는다: 주 경계(토→일), 달 첫날이 주중이라 앞이
               // 빈칸인 자리, 기간이 다음 달로 이어져 격자 끝에서 잘리는 자리.
               // `gridIndex` 는 앞의 빈칸(`cald--pad`)까지 센 값이라 `% 7` 이 그대로 요일이 된다.
@@ -269,29 +297,32 @@ export function AdminDateRangePicker({
                 isBand && capLeft ? "is-capl" : "",
                 isBand && capRight ? "is-capr" : "",
                 isToday ? "is-today" : "",
+                isOff ? "is-off" : "",
               ]
                 .filter(Boolean)
                 .join(" ");
               return (
-                <button type="button" key={val} className={cls} onClick={() => pick(val)}>
+                <button type="button" key={val} className={cls} disabled={isOff} onClick={() => pick(val)}>
                   {day}
                 </button>
               );
             })}
           </div>
           <div className="calpop__foot">
-            <button
-              type="button"
-              className="calpop__quick"
-              onClick={() => {
-                const range = thisMonthRange();
-                setDraftFrom(range.from);
-                setDraftTo(range.to);
-                setCalendarMonth(range.from.slice(0, 7));
-              }}
-            >
-              {labels.thisMonth}
-            </button>
+            {constrained ? null : (
+              <button
+                type="button"
+                className="calpop__quick"
+                onClick={() => {
+                  const range = thisMonthRange();
+                  setDraftFrom(range.from);
+                  setDraftTo(range.to);
+                  setCalendarMonth(range.from.slice(0, 7));
+                }}
+              >
+                {labels.thisMonth}
+              </button>
+            )}
             <span style={{ flex: 1 }} />
             <button
               type="button"

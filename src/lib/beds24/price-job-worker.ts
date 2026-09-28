@@ -359,6 +359,8 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
 
     const updateByRoomId = new Map(roomUpdates.map((update) => [update.externalRoomId, update]));
     const targetRoomIds = [...updateByRoomId.keys()];
+    /** 연결 유닛 전파 확인은 **완료를 기록한 뒤에** 한다(아래 참고). 여기 모아 둔다. */
+    const acceptedForLinkCheck: string[] = [];
 
     /*
      * **쓰기 전에 현재 값을 읽어 둔다.** 이력의 「이전 값」이고, 쓴 뒤에는 영영 알 수 없다.
@@ -453,10 +455,13 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
       }
       const errors = await verifyWrites({ expectationByRoomId, includeLinkedPrices: false });
 
-      for (const externalRoomId of accepted) {
-        const error = errors.get(externalRoomId) ?? null;
-        results.push({ error, externalRoomId, success: !error });
-        if (!error) {
+      // 방마다 이력 → 로컬 반영. **방끼리는 동시에** 한다 — 서로 다른 행이라 순서가 없고,
+      // 차례로 기다리면 방 수만큼 「반영 완료」가 늦어진다(화면이 이걸 기다린다, 2026-09-28).
+      await Promise.all(
+        accepted.map(async (externalRoomId) => {
+          const error = errors.get(externalRoomId) ?? null;
+          results.push({ error, externalRoomId, success: !error });
+          if (error) return;
           const dates = updateByRoomId.get(externalRoomId)?.dates ?? {};
           // **이력이 먼저다.** 로컬 반영이 끝나면 이전 값을 읽을 수 없다.
           await writeChangeLogs({
@@ -475,15 +480,9 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
             roomIdByExternal,
             supabase,
           });
-        }
-      }
-
-      // 연결 유닛까지 퍼졌는지도 본다. **안 퍼졌다고 작업을 실패로 만들지는 않는다** —
-      // 소스 쓰기는 성공했고 Beds24 의 전파가 늦은 것일 수 있다. 크게 남기고,
-      // **그 유닛의 로컬 값은 건드리지 않아** 다음 동기화가 실제 값으로 채우게 둔다.
-      if (job.job_type === "price") {
-        await warnUnpropagatedLinks(supabase, job.organization_id, accepted, updateByRoomId);
-      }
+        }),
+      );
+      acceptedForLinkCheck.push(...accepted);
     }
 
     const failed = results.filter((item) => !item.success);
@@ -502,9 +501,24 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
       status,
       total_count: targetRoomIds.length,
     };
-    await supabase.from("beds24_price_jobs").update(completion).eq("id", job.id);
-    for (const siblingId of coalescedJobIds) {
-      await supabase.from("beds24_price_jobs").update(completion).eq("id", siblingId);
+    // 흡수한 형제 작업까지 **한 번에** 끝낸다 — 화면은 자기 jobId 의 완료를 기다린다.
+    await supabase
+      .from("beds24_price_jobs")
+      .update(completion)
+      .in("id", [job.id, ...coalescedJobIds]);
+
+    /*
+     * 연결 유닛까지 퍼졌는지는 **완료를 기록한 뒤에** 본다. 안 퍼졌다고 작업을 실패로 만들지
+     * 않는 **경고용**이고(소스 쓰기는 성공했고 Beds24 의 전파가 늦은 것일 수 있다), 되읽기에
+     * 재시도까지 있어 몇 초가 든다. 예전에는 이걸 끝내야 완료로 적어서 화면의 「반영 완료」가
+     * 그만큼 늦었다(2026-09-28). 그 유닛의 로컬 값은 건드리지 않아 다음 동기화가 채운다.
+     */
+    if (job.job_type === "price" && acceptedForLinkCheck.length > 0) {
+      try {
+        await warnUnpropagatedLinks(supabase, job.organization_id, acceptedForLinkCheck, updateByRoomId);
+      } catch (error) {
+        console.error("[beds24/price-job] 링크 전파 확인 실패(작업은 이미 완료)", error);
+      }
     }
 
     return {

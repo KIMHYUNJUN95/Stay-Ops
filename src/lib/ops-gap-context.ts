@@ -37,6 +37,8 @@ export type GapNeighbor = { kind: OpsCalendarChannel | "block" | "none" };
 export type GapContextEntry = {
   roomKey: string;
   roomLabel: string;
+  /** 건물. 방 번호만으로는 어느 건물인지 모른다 — 여러 건물의 갭을 한 번에 고른다. */
+  propertyName: string;
   date: string;
   before: GapNeighbor;
   after: GapNeighbor;
@@ -64,6 +66,10 @@ export function buildGapContext(args: {
   bars: readonly OpsCalendarBar[];
   blocks: readonly OpsCalendarBlock[];
   roomLabels: ReadonlyMap<string, string>;
+  /** 행 키 → 건물. 없으면 빈 문자열. */
+  propertyNames?: ReadonlyMap<string, string>;
+  /** 행 키 → 격자에서의 순서. 주면 **격자와 같은 순서**로 정렬한다(건물 순서 포함). */
+  roomOrder?: ReadonlyMap<string, number>;
 }): GapContextEntry[] {
   const barsByRoom = new Map<string, OpsCalendarBar[]>();
   for (const bar of args.bars) {
@@ -92,6 +98,7 @@ export function buildGapContext(args: {
     entries.push({
       roomKey,
       roomLabel: args.roomLabels.get(roomKey) ?? roomKey,
+      propertyName: args.propertyNames?.get(roomKey) ?? "",
       date,
       before: neighborAt(roomBars, roomBlocks, { checkOut: date, blockDate: shiftDay(date, -1) }),
       after: neighborAt(roomBars, roomBlocks, {
@@ -101,11 +108,17 @@ export function buildGapContext(args: {
     });
   }
 
-  return entries.sort((a, b) =>
-    a.roomLabel === b.roomLabel
+  const order = args.roomOrder;
+  return entries.sort((a, b) => {
+    if (a.roomKey === b.roomKey) return a.date.localeCompare(b.date);
+    if (order) {
+      const byGrid = (order.get(a.roomKey) ?? Infinity) - (order.get(b.roomKey) ?? Infinity);
+      if (byGrid !== 0 && Number.isFinite(byGrid)) return byGrid;
+    }
+    return a.roomLabel === b.roomLabel
       ? a.date.localeCompare(b.date)
-      : a.roomLabel.localeCompare(b.roomLabel, "ko"),
-  );
+      : a.roomLabel.localeCompare(b.roomLabel, "ko");
+  });
 }
 
 function neighborAt(

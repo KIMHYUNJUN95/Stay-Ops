@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  checkoutCandidates,
+  resolveDraftCheckout,
+  MAX_STAY_NIGHTS,
   readBeds24CancelTargetId,
   resolveStayUnit,
   splitGuestName,
@@ -225,5 +228,59 @@ describe("readBeds24CancelTargetId", () => {
     expect(readBeds24CancelTargetId(null)).toBeNull();
     expect(readBeds24CancelTargetId({})).toBeNull();
     expect(readBeds24CancelTargetId([{ id: 1 }])).toBeNull();
+  });
+});
+
+describe("checkoutCandidates — 격자에서 두 번째로 누를 수 있는 날", () => {
+  const dates = ["2026-10-10", "2026-10-11", "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15"];
+  const occupiedOn = (...taken: string[]) => (date: string) => taken.includes(date);
+
+  it("체크인 다음 날부터 고를 수 있다 — 0박은 없다", () => {
+    const got = checkoutCandidates("2026-10-11", dates, occupiedOn());
+    expect([...got]).toEqual(["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15"]);
+  });
+
+  it("팔린 밤의 날짜까지는 체크아웃으로 고를 수 있고, 그 너머는 못 간다", () => {
+    // 10/13 밤에 다음 손님이 들어온다 — 10/13 아침에 나가는 것은 된다.
+    const got = checkoutCandidates("2026-10-11", dates, occupiedOn("2026-10-13", "2026-10-14"));
+    expect([...got]).toEqual(["2026-10-12", "2026-10-13"]);
+  });
+
+  it("바로 다음 밤이 팔렸어도 1박은 된다", () => {
+    const got = checkoutCandidates("2026-10-11", dates, occupiedOn("2026-10-12"));
+    expect([...got]).toEqual(["2026-10-12"]);
+  });
+
+  it("체크인 밤 자체가 팔렸으면 아무것도 못 고른다", () => {
+    expect(checkoutCandidates("2026-10-11", dates, occupiedOn("2026-10-11")).size).toBe(0);
+  });
+
+  it("최대 숙박일수를 넘지 않는다", () => {
+    const long = Array.from({ length: MAX_STAY_NIGHTS + 10 }, (_, index) =>
+      new Date(Date.UTC(2026, 9, 1 + index, 12)).toISOString().slice(0, 10),
+    );
+    const got = checkoutCandidates(long[0], long, occupiedOn());
+    expect(got.size).toBe(MAX_STAY_NIGHTS);
+  });
+});
+
+describe("resolveDraftCheckout — 끌고 있는 막대의 끝", () => {
+  const candidates = new Set(["2026-10-12", "2026-10-13"]); // 10/13 밤이 팔렸다
+
+  it("유효한 날은 그대로", () => {
+    expect(resolveDraftCheckout("2026-10-11", "2026-10-12", candidates)).toBe("2026-10-12");
+  });
+
+  it("팔린 밤 너머로 끌면 벽 앞에서 멈춘다", () => {
+    expect(resolveDraftCheckout("2026-10-11", "2026-10-20", candidates)).toBe("2026-10-13");
+  });
+
+  it("체크인 이하를 가리키면 아직 기간이 없다", () => {
+    expect(resolveDraftCheckout("2026-10-11", "2026-10-11", candidates)).toBeNull();
+    expect(resolveDraftCheckout("2026-10-11", "2026-10-05", candidates)).toBeNull();
+  });
+
+  it("고를 수 있는 날이 없으면 없다", () => {
+    expect(resolveDraftCheckout("2026-10-11", "2026-10-12", new Set())).toBeNull();
   });
 });

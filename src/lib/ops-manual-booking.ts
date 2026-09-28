@@ -84,6 +84,64 @@ export function stayNights(arrival: string, departure: string): string[] {
   return nights;
 }
 
+/**
+ * 격자에서 체크인을 찍은 뒤 **체크아웃으로 누를 수 있는 날짜들.**
+ *
+ * 저쪽(`handleDateCellClick`)과 같은 흐름이다 — 첫 클릭이 체크인, 두 번째 클릭이 체크아웃이고
+ * 그 사이는 막대처럼 미리 칠해진다. 저쪽은 두 번째 클릭에서 겹침을 검사하고 `alert` 로
+ * 튕겨냈지만, 우리는 **처음부터 누를 수 있는 날만 누르게** 한다. 튕겨내면 처음부터 다시
+ * 골라야 한다.
+ *
+ * - 체크아웃은 체크인 **다음 날부터**다(0박은 없다).
+ * - 이미 팔린 밤을 **넘어갈 수 없다.** 다만 그 밤의 날짜 자체는 체크아웃으로 고를 수 있다 —
+ *   다음 손님이 들어오는 날 아침에 나가는 것은 정상이다.
+ * - `MAX_STAY_NIGHTS` 를 넘지 않는다.
+ *
+ * `dates` 는 화면에 보이는 연속 날짜다(정렬됨). 창 밖 체크아웃은 패널의 날짜 피커로 고친다.
+ */
+export function checkoutCandidates(
+  checkIn: string,
+  dates: readonly string[],
+  isOccupied: (date: string) => boolean,
+): Set<string> {
+  const candidates = new Set<string>();
+  if (isOccupied(checkIn)) return candidates;
+  let nights = 0;
+  for (const date of dates) {
+    if (date <= checkIn) continue;
+    nights += 1;
+    if (nights > MAX_STAY_NIGHTS) break;
+    candidates.add(date);
+    // 이 날 밤이 팔렸으면 여기서 나가야 한다 — 그 너머는 팔린 밤을 끼게 된다.
+    if (isOccupied(date)) break;
+  }
+  return candidates;
+}
+
+/**
+ * 포인터가 가리키는 날 → **실제로 잡힐 체크아웃.**
+ *
+ * 누를 수 없는 날을 가리켜도 미리보기가 사라지지 않게 **가장 가까운 유효한 날로 당긴다** —
+ * 팔린 밤 너머로 끌면 막대가 그 벽 앞에서 멈춘다. 끊기지 않고 따라오는 느낌이 여기서 나온다.
+ * 미리보기와 확정이 같은 함수를 쓰므로 **보이는 그대로 잡힌다.**
+ *
+ * 체크인 이하를 가리키면 `null` — 아직 기간이 없다(1박짜리 자리표시만 보인다).
+ */
+export function resolveDraftCheckout(
+  checkIn: string,
+  pointed: string,
+  candidates: ReadonlySet<string>,
+): string | null {
+  if (pointed <= checkIn || candidates.size === 0) return null;
+  if (candidates.has(pointed)) return pointed;
+  let last: string | null = null;
+  for (const date of candidates) {
+    if (date > pointed) break;
+    last = date;
+  }
+  return last;
+}
+
 export type StayUnitResult =
   | { ok: true; externalRoomId: string }
   /** `conflictDates` 는 **팔 유닛이 없는 밤**이다. 화면이 「며칠~며칠이 문제」라고 적는다. */

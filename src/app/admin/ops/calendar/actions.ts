@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { requireAdminSession } from "@/lib/admin-session";
 import { enqueueBeds24PriceJob, type PriceJobCellRequest } from "@/lib/beds24/price-job-queue";
 import { runNextPriceJob } from "@/lib/beds24/price-job-worker";
@@ -29,6 +30,8 @@ import {
 } from "@/lib/beds24/block-write";
 import { groupSelectionIntoRanges } from "@/lib/ops-calendar-selection";
 import { canAccessOpsAdmin } from "@/lib/ops-admin";
+import { readOpsRoomUnavailableNights } from "@/lib/ops-calendar";
+import { buildOpsReservationDetail, type OpsReservationDetail } from "@/lib/ops-reservation-detail";
 import {
   buildAdjustmentPreview,
   type AdjustmentInput,
@@ -141,8 +144,13 @@ export async function submitPriceChange(args: {
   });
   if (!queued.ok) return { error: queued.error, ok: false };
 
-  void kickWorker();
-  revalidatePath(CONSOLE_PATH);
+  // **응답 뒤에 워커를 돌린다**(`after`) — `void` 로 흘려 두면 배포 환경은 응답과 함께 함수를
+  // 멈춰서, 다음 크론(실측 수십 분 지연)까지 반영이 밀렸다(2026-09-28).
+  //
+  // `revalidatePath` 는 **하지 않는다.** 이 시점엔 접수만 했고 바뀐 데이터가 없는데, 하면 응답에
+  // 페이지 전체 재렌더가 실려 「저장」 응답만 느려진다. 반영 뒤에 화면이 스스로 다시 받는다
+  // (`ops-write-tracker.ts`).
+  after(kickWorker);
   return {
     cells: preview.rows.length,
     jobId: queued.jobId,
@@ -187,8 +195,13 @@ export async function submitMinStayChange(args: {
   });
   if (!queued.ok) return { error: queued.error, ok: false };
 
-  void kickWorker();
-  revalidatePath(CONSOLE_PATH);
+  // **응답 뒤에 워커를 돌린다**(`after`) — `void` 로 흘려 두면 배포 환경은 응답과 함께 함수를
+  // 멈춰서, 다음 크론(실측 수십 분 지연)까지 반영이 밀렸다(2026-09-28).
+  //
+  // `revalidatePath` 는 **하지 않는다.** 이 시점엔 접수만 했고 바뀐 데이터가 없는데, 하면 응답에
+  // 페이지 전체 재렌더가 실려 「저장」 응답만 느려진다. 반영 뒤에 화면이 스스로 다시 받는다
+  // (`ops-write-tracker.ts`).
+  after(kickWorker);
   return {
     cells: args.cells.length,
     jobId: queued.jobId,
@@ -199,14 +212,25 @@ export async function submitMinStayChange(args: {
 }
 
 /**
- * 접수 직후 워커를 깨운다 — **기다리지 않는다.**
+ * 접수 직후 워커를 깨운다 — **응답은 기다리지 않는다**(`after` 로 부른다).
  *
- * 사람이 방금 누른 것은 몇 초 안에 나가야 하는데, 여기서 끝까지 기다리면 응답이 그만큼
- * 늦어진다. 실패해도 조용히 넘긴다 — 크론이 안전망이다.
+ * 사람이 방금 누른 것은 몇 초 안에 나가야 한다. 큐에 **앞선 작업이 있으면** 하나만 돌고 끝나면
+ * 방금 넣은 것이 다음 크론까지 밀리므로, 큐가 빌 때까지(시간 예산 안에서) 이어서 돈다.
+ * 실패해도 조용히 넘긴다 — 크론이 안전망이다.
  */
+const KICK_MAX_JOBS = 5;
+const KICK_BUDGET_MS = 50_000;
+
 async function kickWorker(): Promise<void> {
+  const supabase = getSupabaseServiceClient();
+  const startedAt = Date.now();
   try {
-    await runNextPriceJob(getSupabaseServiceClient());
+    for (let index = 0; index < KICK_MAX_JOBS; index += 1) {
+      if (Date.now() - startedAt > KICK_BUDGET_MS) break;
+      const outcome = await runNextPriceJob(supabase);
+      // 비었거나, 쿨다운이거나, 남이 돌고 있으면(그쪽이 이어서 처리한다) 멈춘다.
+      if (!outcome.ran) break;
+    }
   } catch (error) {
     // 크론이 안전망이므로 여기서 실패해도 작업은 남아 있다.
     console.error("[ops/calendar] worker kick failed; cron will pick it up", error);
@@ -390,11 +414,69 @@ export type ManualBookingResult =
         /** 숙박 중간에 파는 유닛이 갈린다 — `conflictDates` 에 갈리는 밤이 담긴다. */
         | "unit_changes"
         /** 그 밤에 파는 유닛이 하나도 없다. */
-        | "no_active_unit";
+        | "no_active_unit"
+        /** 이미 예약·블록이 있는 밤이 끼어 있다 — `conflictDates` 에 그 밤이 담긴다. */
+        | "occupied";
       /** 유닛이 갈리거나 팔 수 없는 밤. 화면이 날짜를 적어 준다. */
       conflictDates?: string[];
       detail?: string;
     };
+
+export type RoomAvailabilityResult =
+  | { ok: true; booked: string[]; unsellable: string[] }
+  | { ok: false; error: "forbidden" | "bad_range" | "read_failed" };
+
+/** 한 번에 읽는 최대 기간. 피커는 한 달씩 넘기므로 두 달이면 충분하다. */
+const AVAILABILITY_MAX_DAYS = 62;
+
+/**
+ * 수동 예약 패널의 날짜 피커가 **팔 수 없는 밤**을 회색으로 칠하려고 부른다.
+ *
+ * 격자가 가진 예약은 화면 창(30일·한 달)뿐이라, 피커로 다음 달을 넘기면 모른다. 그래서
+ * 피커가 여는 달마다 여기서 읽는다. 겹침 검사와 **같은 함수**다.
+ */
+export async function loadRoomAvailability(args: {
+  roomKey: string;
+  roomIds: string[];
+  from: string;
+  toExclusive: string;
+}): Promise<RoomAvailabilityResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+  if (!datePattern.test(args.from) || !datePattern.test(args.toExclusive)) {
+    return { error: "bad_range", ok: false };
+  }
+  if (args.toExclusive <= args.from || stayNights(args.from, args.toExclusive).length > AVAILABILITY_MAX_DAYS) {
+    return { error: "bad_range", ok: false };
+  }
+
+  const supabase = getSupabaseServiceClient();
+  // 넘어온 유닛이 **이 조직의 것인지** 확인한다 — 서비스 키로 읽으므로 RLS 가 막아 주지 않는다.
+  const ownedResult = await supabase
+    .from("rooms")
+    .select("id")
+    .eq("organization_id", session.organization.id)
+    .in("id", args.roomIds);
+  if (ownedResult.error) return { error: "read_failed", ok: false };
+  const roomIds = (ownedResult.data ?? []).map((row) => row.id as string);
+
+  try {
+    const result = await readOpsRoomUnavailableNights({
+      from: args.from,
+      organizationId: session.organization.id,
+      roomIds,
+      roomKey: args.roomKey,
+      supabase,
+      toExclusive: args.toExclusive,
+    });
+    return { ...result, ok: true };
+  } catch (error) {
+    console.error("[ops-calendar] availability read failed", error);
+    return { error: "read_failed", ok: false };
+  }
+}
 
 export async function submitManualBooking(args: {
   input: ManualBookingInput;
@@ -454,6 +536,27 @@ export async function submitManualBooking(args: {
       .filter((unit) => isActiveUnitMinStay(minStayByKey.get(`${unit.id}|${night}`) ?? null))
       .map((unit) => String(unit.external_room_id));
     activeByNight.set(night, active);
+  }
+
+  // **겹침은 서버가 한 번 더 막는다.** 패널이 회색으로 칠해 두지만 화면은 몇 초 전의 사정이다
+  // — 그 사이에 채널 예약이 들어올 수 있고, Beds24 는 수기 예약의 겹침을 막아 주지 않는다.
+  // 격자와 **같은 매칭**(`readOpsRoomUnavailableNights`)으로 본다.
+  let unavailable: Awaited<ReturnType<typeof readOpsRoomUnavailableNights>>;
+  try {
+    unavailable = await readOpsRoomUnavailableNights({
+      from: args.input.arrival,
+      organizationId: session.organization.id,
+      roomIds: units.map((unit) => unit.id),
+      roomKey: args.input.roomKey,
+      supabase,
+      toExclusive: args.input.departure,
+    });
+  } catch (error) {
+    // 확인을 못 했으면 만들지 않는다 — 「비어 있을 것이다」로 보내면 그대로 초과예약이다.
+    return { detail: (error as Error).message, error: "beds24_failed", ok: false };
+  }
+  if (unavailable.booked.length > 0) {
+    return { conflictDates: unavailable.booked, error: "occupied", ok: false };
   }
 
   const resolved = resolveStayUnit(activeByNight);
@@ -531,6 +634,33 @@ export async function submitManualBooking(args: {
  *    그걸로 부르면 엉뚱한 예약이 취소되거나 조용히 아무 일도 안 일어난다
  *    (`readBeds24CancelTargetId`).
  */
+/**
+ * 예약 상세 패널이 연다 — 막대를 누르면 **그 한 건만** 읽는다.
+ *
+ * 격자의 막대는 이름·날짜·채널만 들고 있다. 전부를 격자에 실으면 30일 창의 예약 수백 건
+ * 원본이 매번 오가므로, 누른 것만 여기서 읽는다.
+ *
+ * **원본을 통째로 돌려주지 않는다** — 결제 토큰이 들어 있다. 이름을 지정한 필드만
+ * (`buildOpsReservationDetail`).
+ */
+export async function loadReservationDetail(
+  reservationId: string,
+): Promise<{ ok: true; detail: OpsReservationDetail } | { ok: false; error: "forbidden" | "not_found" }> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+
+  const result = await getSupabaseServiceClient()
+    .from("reservations")
+    .select("id, status, guest_name, check_in_date, check_out_date, property_name, room_label, raw_payload")
+    // service-role 로 읽으므로 **조직을 직접 건다** — RLS 가 막아 주지 않는다.
+    .eq("organization_id", session.organization.id)
+    .eq("id", reservationId)
+    .maybeSingle();
+  if (result.error || !result.data) return { error: "not_found", ok: false };
+
+  return { detail: buildOpsReservationDetail(result.data), ok: true };
+}
+
 export type CancelReservationResult =
   | { ok: true }
   | {

@@ -3,7 +3,12 @@
 import { useMemo, useState, useTransition } from "react";
 import { submitMinStayChange } from "@/app/admin/ops/calendar/actions";
 import type { PriceChangeError } from "@/app/admin/ops/calendar/actions";
-import type { GapContextEntry, GapNeighbor } from "@/lib/ops-gap-context";
+import type { GapContextEntry } from "@/lib/ops-gap-context";
+import {
+  outcomeText,
+  type OpsWriteOutcomeCopy,
+  type RunOpsWrite,
+} from "@/components/admin/ops/ops-write-tracker";
 
 /**
  * 최소 숙박일 패널 — 격자 오른쪽 세로 카드.
@@ -28,7 +33,7 @@ import type { GapContextEntry, GapNeighbor } from "@/lib/ops-gap-context";
  * 「왜 이건 갭이 아니지?」가 반드시 나온다. 규칙을 숨기면 그때마다 코드를 열어야 한다.
  */
 
-export type MinStayPanelCopy = {
+export type MinStayPanelCopy = OpsWriteOutcomeCopy & {
   minStayTitle: string;
   msGapCount: string;
   msGapBody: string;
@@ -46,9 +51,8 @@ export type MinStayPanelCopy = {
   msQueued: string;
   msDone: string;
   msFailed: string;
-  msNeighborNone: string;
-  msNeighborBlock: string;
-  msNight: string;
+  /** 요일 표기에 쓴다. */
+  localeTag: string;
   /** 선택을 비우는 버튼. 가격 패널과 **같은 라벨**을 쓴다 — 같은 동작이다. */
   scopeClear: string;
   errForbidden: string;
@@ -84,24 +88,16 @@ function errorText(copy: MinStayPanelCopy, error: PriceChangeError): string {
 }
 
 /** `2026-12-03` → `12/3`. 목록이 좁아서 연도는 뺀다 — 창이 1년을 넘지 않는다. */
+/** 요일 — 도쿄 기준. 주말 갭인지가 가격 판단에 바로 걸린다. */
+function weekdayLabel(date: string, localeTag: string): string {
+  return new Intl.DateTimeFormat(localeTag, { timeZone: "Asia/Tokyo", weekday: "short" }).format(
+    new Date(`${date}T12:00:00+09:00`),
+  );
+}
+
 function shortDate(date: string): string {
   const [, month, day] = date.split("-");
   return `${Number(month)}/${Number(day)}`;
-}
-
-function neighborLabel(copy: MinStayPanelCopy, neighbor: GapNeighbor): string {
-  switch (neighbor.kind) {
-    case "airbnb":
-      return "Airbnb";
-    case "booking":
-      return "Booking";
-    case "manual":
-      return "Direct";
-    case "block":
-      return copy.msNeighborBlock;
-    default:
-      return copy.msNeighborNone;
-  }
 }
 
 export function OpsMinStayPanel({
@@ -109,12 +105,15 @@ export function OpsMinStayPanel({
   copy,
   gapContext,
   onClear,
+  runWrite,
   scopeSummary,
 }: {
   cells: MinStayPanelCell[];
   copy: MinStayPanelCopy;
   gapContext: GapContextEntry[];
   onClear: () => void;
+  /** 격자가 흐린 값 → 접수 → 반영 대기 → 데이터 다시 받기를 맡는다(`ops-write-tracker.ts`). */
+  runWrite: RunOpsWrite;
   scopeSummary: { rooms: string; dates: string } | null;
 }) {
   const [nights, setNights] = useState<number>(1);
@@ -136,19 +135,30 @@ export function OpsMinStayPanel({
   const apply = () => {
     if (cells.length === 0) return;
     setMessage(copy.msQueued);
+    const targets = cells;
+    const value = nights;
     startTransition(async () => {
-      const result = await submitMinStayChange({
-        cells: cells.map((cell) => ({
-          date: cell.date,
-          roomIds: cell.roomIds,
-          roomKey: cell.roomKey,
-          roomLabel: cell.roomLabel,
-        })),
-        minStay: nights,
-      });
-      setMessage(
-        result.ok ? copy.msDone : copy.msFailed.replace("{error}", errorText(copy, result.error)),
+      const { result, settled } = await runWrite(
+        "minStay",
+        targets.map((cell) => ({ key: `${cell.roomKey}|${cell.date}`, value })),
+        () =>
+          submitMinStayChange({
+            cells: targets.map((cell) => ({
+              date: cell.date,
+              roomIds: cell.roomIds,
+              roomKey: cell.roomKey,
+              roomLabel: cell.roomLabel,
+            })),
+            minStay: value,
+          }),
       );
+      if (!result.ok) {
+        setMessage(copy.msFailed.replace("{error}", errorText(copy, result.error)));
+        return;
+      }
+      // 「반영했습니다」는 **Beds24 에 실제로 들어간 뒤에**. 예전에는 접수만 되면 바로 그렇게
+      // 말했는데 그때는 아직 큐에 있을 뿐이었다(2026-09-28).
+      void settled?.then((outcome) => setMessage(outcomeText(copy.msDone, copy, outcome)));
     });
   };
 
@@ -223,19 +233,15 @@ export function OpsMinStayPanel({
         {rows.length > 0 ? (
           <div className="opsms__tbl">
             {rows.map((entry) => (
+              // **어느 건물 · 어느 방 · 어느 날**만 적는다. 앞뒤 예약의 채널 칩을 달았었는데
+              // 최소 숙박일을 정하는 데는 필요 없고, 「Airbnb ▸ 1박 ▸ Airbnb」가 플랫폼이 두 번
+              // 찍힌 것처럼 읽혔다(2026-09-28 지적). 건물이 없으면 방 번호만으로는 모른다.
               <div className="opsms__trw" key={`${entry.roomKey}|${entry.date}`}>
+                <span className="opsms__bld">{entry.propertyName}</span>
                 <span className="opsms__rm">{entry.roomLabel}</span>
-                <span className="opsms__dt">{shortDate(entry.date)}</span>
-                <span className="opsms__ctx">
-                  <span className={`opsms__pill ${entry.before.kind}`}>
-                    {neighborLabel(copy, entry.before)}
-                  </span>
-                  <span className="opsms__arrow">▸</span>
-                  <span className="opsms__pill gap">{copy.msNight.replace("{n}", "1")}</span>
-                  <span className="opsms__arrow">▸</span>
-                  <span className={`opsms__pill ${entry.after.kind}`}>
-                    {neighborLabel(copy, entry.after)}
-                  </span>
+                <span className="opsms__dt">
+                  {shortDate(entry.date)}
+                  <span className="opsms__wd">{weekdayLabel(entry.date, copy.localeTag)}</span>
                 </span>
               </div>
             ))}

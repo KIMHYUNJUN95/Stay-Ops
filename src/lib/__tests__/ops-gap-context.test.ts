@@ -58,6 +58,7 @@ describe("buildGapContext", () => {
       {
         roomKey: "402",
         roomLabel: "402호",
+        propertyName: "",
         date: "2026-12-03",
         before: { kind: "booking" },
         after: { kind: "airbnb" },
@@ -141,5 +142,30 @@ describe("buildGapContext", () => {
       roomLabels: labels,
     });
     expect(entries[0]?.roomLabel).toBe("999");
+  });
+
+  it("건물을 달고, 주면 격자 순서대로 정렬한다 — 방 번호만으로는 어느 건물인지 모른다", () => {
+    const entries = buildGapContext({
+      gapCells: new Set(["B::107|2026-11-21", "A::502|2026-11-24"]),
+      bars: [],
+      blocks: [],
+      propertyNames: new Map([
+        ["A::502", "아라키초A"],
+        ["B::107", "오쿠보B"],
+      ]),
+      roomLabels: new Map([
+        ["A::502", "502"],
+        ["B::107", "107"],
+      ]),
+      // 격자에서는 아라키초A 가 먼저다 — 방 번호 순(107 < 502)이 아니라 이 순서를 따라야 한다.
+      roomOrder: new Map([
+        ["A::502", 0],
+        ["B::107", 1],
+      ]),
+    });
+    expect(entries.map((entry) => [entry.propertyName, entry.roomLabel])).toEqual([
+      ["아라키초A", "502"],
+      ["오쿠보B", "107"],
+    ]);
   });
 });

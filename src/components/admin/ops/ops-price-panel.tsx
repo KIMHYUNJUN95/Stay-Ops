@@ -8,6 +8,12 @@ import {
 } from "@/app/admin/ops/calendar/actions";
 import type { PriceChangeError } from "@/app/admin/ops/calendar/actions";
 import {
+  outcomeText as writeOutcomeText,
+  type OpsWriteOutcome,
+  type OpsWriteOutcomeCopy,
+  type RunOpsWrite,
+} from "@/components/admin/ops/ops-write-tracker";
+import {
   amountFromPercent,
   buildAdjustmentPreview,
   findAdjustmentWarnings,
@@ -42,7 +48,7 @@ import {
  * 된다. 막지는 않되 **무엇이 몇 칸 바뀌는지 보여주고 한 번 더 묻는다.**
  */
 
-export type PanelCopy = {
+export type PanelCopy = OpsWriteOutcomeCopy & {
   panelTitle: string;
   panelAmount: string;
   panelPercent: string;
@@ -116,16 +122,16 @@ export function OpsPricePanel({
   cells,
   clearLabel,
   copy,
-  onApplied,
   onClear,
+  runWrite,
   scopeSummary,
 }: {
   cells: PanelCell[];
   clearLabel: string;
   copy: PanelCopy;
-  /** 접수되면 화면이 낙관적으로 새 값을 그린다. */
-  onApplied: (applied: { roomKey: string; date: string; price: number }[]) => void;
   onClear: () => void;
+  /** 격자가 흐린 값 → 접수 → 반영 대기 → 데이터 다시 받기를 맡는다(`ops-write-tracker.ts`). */
+  runWrite: RunOpsWrite;
   scopeSummary: PanelScopeSummary | null;
 }) {
   const [input, setInput] = useState<AdjustmentInput | null>(null);
@@ -199,21 +205,34 @@ export function OpsPricePanel({
       roomLabel: cell.roomLabel,
     }));
 
+  /**
+   * 「반영 완료」는 **Beds24 에 실제로 들어간 뒤에** 띄운다. 예전에는 접수만 되면 바로 「반영
+   * 완료」라고 했는데, 그때는 아직 큐에 있을 뿐이었다(2026-09-28).
+   */
+  const reportSettled = (settled: Promise<OpsWriteOutcome> | null) => {
+    void settled?.then((outcome) => setMessage(writeOutcomeText(copy.panelDone, copy, outcome)));
+  };
+
   const apply = () => {
     if (!input) return;
-    // **서버 응답을 기다리기 전에 화면부터 바꾼다.** 왕복 동안 옛 값이 보이면 사람은
-    // 「안 됐나?」 하고 다시 누른다(저쪽도 같은 이유로 낙관적 표시를 앞으로 당겼다).
-    onApplied(
-      preview.rows.map((row) => ({ date: row.date, price: row.newPrice, roomKey: row.roomKey })),
-    );
+    const rows = preview.rows;
+    const cellsToSend = toRequestCells();
+    const sentInput = input;
     setMessage(copy.panelQueued);
     setConfirming(false);
     startTransition(async () => {
-      const result = await submitPriceChange({ cells: toRequestCells(), input });
-      setMessage(
-        result.ok ? copy.panelDone : copy.panelFailed.replace("{error}", errorText(copy, result.error)),
+      // 흐린 새 값은 격자가 **보내기 전에** 그린다(저쪽도 같은 이유로 낙관적 표시를 앞으로 당겼다).
+      const { result, settled } = await runWrite(
+        "price",
+        rows.map((row) => ({ key: `${row.roomKey}|${row.date}`, value: row.newPrice })),
+        () => submitPriceChange({ cells: cellsToSend, input: sentInput }),
       );
-      if (result.ok) reset();
+      if (!result.ok) {
+        setMessage(copy.panelFailed.replace("{error}", errorText(copy, result.error)));
+        return;
+      }
+      reset();
+      reportSettled(settled);
     });
   };
 
@@ -221,19 +240,27 @@ export function OpsPricePanel({
   const applyOneNight = () => {
     if (gapCells.length === 0) return;
     setMessage(copy.panelQueued);
+    const targets = gapCells;
     startTransition(async () => {
-      const result = await submitMinStayChange({
-        cells: gapCells.map((cell) => ({
-          date: cell.date,
-          roomIds: cell.roomIds,
-          roomKey: cell.roomKey,
-          roomLabel: cell.roomLabel,
-        })),
-        minStay: 1,
-      });
-      setMessage(
-        result.ok ? copy.panelDone : copy.panelFailed.replace("{error}", errorText(copy, result.error)),
+      const { result, settled } = await runWrite(
+        "minStay",
+        targets.map((cell) => ({ key: `${cell.roomKey}|${cell.date}`, value: 1 })),
+        () =>
+          submitMinStayChange({
+            cells: targets.map((cell) => ({
+              date: cell.date,
+              roomIds: cell.roomIds,
+              roomKey: cell.roomKey,
+              roomLabel: cell.roomLabel,
+            })),
+            minStay: 1,
+          }),
       );
+      if (!result.ok) {
+        setMessage(copy.panelFailed.replace("{error}", errorText(copy, result.error)));
+        return;
+      }
+      reportSettled(settled);
     });
   };
 

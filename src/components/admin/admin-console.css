@@ -2199,7 +2199,9 @@
 .adm .calpop__grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
 .adm .cald { height:34px; border:none; background:none; border-radius:9px; font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--ink-soft); position:relative; cursor:pointer; }
 .adm .cald--pad { pointer-events:none; }
-.adm .cald:hover:not(.cald--pad) { background:var(--card2); color:var(--ink); }
+.adm .cald:hover:not(.cald--pad):not(.is-off) { background:var(--card2); color:var(--ink); }
+/* 고를 수 없는 날(`isDateDisabled`). 흐리게 + 가로줄 — 색만 흐리면 「오늘 아닌 날」과 헷갈린다. */
+.adm .cald.is-off { color:var(--faint); opacity:.45; text-decoration:line-through; text-decoration-thickness:1px; cursor:not-allowed; }
 .adm .cald.is-today { color:var(--adm-primary); font-weight:900; }
 .adm .cald.is-today::after { content:""; position:absolute; bottom:5px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:999px; background:var(--adm-primary); }
 .adm .cald.is-range { background:var(--primary-soft); border-radius:0; color:var(--primary-ink); }
