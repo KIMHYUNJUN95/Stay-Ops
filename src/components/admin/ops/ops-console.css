@@ -1627,3 +1627,40 @@
   padding: 12px 17px;
   border-top: 1px solid var(--line-soft);
 }
+
+/* 예약 상세 — 수동 예약 모달과 **같은 껍데기**를 쓴다. 안쪽만 다르다. */
+.opsrc { max-width: 360px; }
+.opsrc__tag {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--surface2);
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 800;
+}
+.opsrc__rows { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.opsrc__rows > div { display: flex; align-items: baseline; gap: 10px; }
+.opsrc__rows dt {
+  flex: 0 0 66px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.opsrc__rows dd { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.opsrc__rows dd.num { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+/* 되돌릴 수 없다는 것을 **버튼 옆이 아니라 본문에** 적는다 — 버튼 라벨은 짧아서 안 읽힌다. */
+.opsrc__warn {
+  padding: 10px 11px;
+  border: 1px solid color-mix(in oklab, var(--danger) 30%, transparent);
+  border-radius: 11px;
+  background: var(--danger-bg);
+  color: color-mix(in oklab, var(--danger) 85%, var(--ink));
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+/* 막대는 누를 수 있다 — 평소에는 손가락 커서, 편집 모드에서는 선택이 우선이라 그대로 둔다. */
+.opsg__bar { cursor: pointer; }
+.opsw.is-edit .opsg__bar { cursor: inherit; }

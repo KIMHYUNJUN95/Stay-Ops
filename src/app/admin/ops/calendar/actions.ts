@@ -4,11 +4,16 @@ import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/admin-session";
 import { enqueueBeds24PriceJob, type PriceJobCellRequest } from "@/lib/beds24/price-job-queue";
 import { runNextPriceJob } from "@/lib/beds24/price-job-worker";
-import { Beds24HttpError, postBeds24Booking } from "@/lib/beds24/calendar-client";
+import {
+  Beds24HttpError,
+  postBeds24Booking,
+  postBeds24BookingCancel,
+} from "@/lib/beds24/calendar-client";
 import { processBeds24WebhookBooking } from "@/lib/beds24/process-webhook-booking";
 import { activateBeds24Cooldown } from "@/lib/beds24/sync-locks";
 import { isActiveUnitMinStay } from "@/lib/ops-gap-detection";
 import {
+  readBeds24CancelTargetId,
   resolveStayUnit,
   splitGuestName,
   stayNights,
@@ -509,4 +514,84 @@ export async function submitManualBooking(args: {
 
   revalidatePath(CONSOLE_PATH);
   return { bookingId: created.bookingId, ok: true };
+}
+
+/**
+ * 예약 취소.
+ *
+ * 도메인 계약: `docs/product/33-calendar-write-features.md` → 「예약 취소」
+ * 원본: `BuildingCalendar.jsx`(확인창) + `functions/index.js` → `cancelBooking`
+ *
+ * **되돌릴 수 없다.** 채널에도 그대로 나가고, Beds24 에서 다시 `confirmed` 로 돌려도 손님에게
+ * 간 취소 통지는 취소되지 않는다. 화면이 확인 단계를 두고, 서버는 그 위에 두 가지를 더 본다 —
+ *
+ * 1. **이미 취소된 예약은 다시 취소하지 않는다.** 같은 요청을 두 번 보내면 Beds24 에
+ *    「Cancelled by User」 주석만 덧씌워진다.
+ * 2. **예약번호가 숫자일 때만 부른다.** 우리 표의 `apiReference` 는 채널 예약코드라,
+ *    그걸로 부르면 엉뚱한 예약이 취소되거나 조용히 아무 일도 안 일어난다
+ *    (`readBeds24CancelTargetId`).
+ */
+export type CancelReservationResult =
+  | { ok: true }
+  | {
+      ok: false;
+      error:
+        | "forbidden"
+        | "not_found"
+        | "already_cancelled"
+        | "no_booking_id"
+        | "beds24_failed"
+        | "cooldown";
+      detail?: string;
+    };
+
+export async function submitReservationCancel(args: {
+  /** 우리 `reservations.id`. Beds24 예약번호는 **서버가 찾는다.** */
+  reservationId: string;
+  reason?: string | null;
+}): Promise<CancelReservationResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+
+  const supabase = getSupabaseServiceClient();
+  const found = await supabase
+    .from("reservations")
+    .select("id, status, raw_payload")
+    .eq("organization_id", session.organization.id)
+    .eq("id", args.reservationId)
+    .maybeSingle();
+  if (found.error || !found.data) return { error: "not_found", ok: false };
+
+  const row = found.data as { id: string; status: string; raw_payload: unknown };
+  if (row.status === "cancelled") return { error: "already_cancelled", ok: false };
+
+  const bookingId = readBeds24CancelTargetId(row.raw_payload);
+  if (!bookingId) return { error: "no_booking_id", ok: false };
+
+  let result: Awaited<ReturnType<typeof postBeds24BookingCancel>>;
+  try {
+    result = await postBeds24BookingCancel({ bookingId, reason: args.reason });
+  } catch (error) {
+    if (error instanceof Beds24HttpError && error.isRateLimit) {
+      await activateBeds24Cooldown(supabase, { reason: "rate_limit", resetInSec: error.resetInSec });
+      return { error: "cooldown", ok: false };
+    }
+    return {
+      detail: error instanceof Error ? error.message : "unknown",
+      error: "beds24_failed",
+      ok: false,
+    };
+  }
+  if ("skipped" in result) return { detail: result.skipped, error: "beds24_failed", ok: false };
+  if (!result.ok) return { detail: result.error, error: "beds24_failed", ok: false };
+
+  // Beds24 가 받아들였으므로 화면을 바로 바꾼다. 웹훅이 오면 같은 값으로 덮인다.
+  await supabase
+    .from("reservations")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("organization_id", session.organization.id)
+    .eq("id", row.id);
+
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
 }

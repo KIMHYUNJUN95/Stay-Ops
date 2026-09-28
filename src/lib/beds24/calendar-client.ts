@@ -316,3 +316,59 @@ export async function postBeds24Booking(
   }
   return { bookingId: String(bookingId), ok: true, raw: created };
 }
+
+/**
+ * 예약을 취소한다 — `POST /bookings` 에 `status: "cancelled"`.
+ *
+ * **되돌릴 수 없다.** 채널에도 그대로 나가고, Beds24 에서 다시 `confirmed` 로 바꿔도 손님에게
+ * 간 취소 통지는 취소되지 않는다. 그래서 부르는 쪽이 확인 단계를 둔다.
+ *
+ * 저쪽은 사유를 받으면 `comments` 에 `"Cancelled: {사유}"` 로 적고, 없으면
+ * `"Cancelled by User"` 를 넣는다. 같은 규칙을 쓴다 — Beds24 화면에서 두 시스템의 취소가
+ * 같은 모양으로 보여야 병행 기간에 헷갈리지 않는다.
+ */
+export async function postBeds24BookingCancel(args: {
+  bookingId: string;
+  reason?: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string } | { skipped: string }> {
+  const resolved = await resolveBase();
+  if ("skipped" in resolved) return resolved;
+
+  const reason = args.reason?.trim();
+  const response = await fetch(`${resolved.base}/bookings`, {
+    body: JSON.stringify([
+      {
+        comments: reason ? `Cancelled: ${reason}` : "Cancelled by User",
+        id: Number(args.bookingId),
+        status: "cancelled",
+      },
+    ]),
+    cache: "no-store",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+      token: resolved.token,
+    },
+    method: "POST",
+  });
+  const credit = readCreditSignal(response.headers);
+  if (!response.ok) {
+    throw new Beds24HttpError(response.status, credit.resetInSec, response.status === 429);
+  }
+
+  const body = (await response.json()) as unknown;
+  const root = asRecord(body);
+  const rows = Array.isArray(body) ? body : Array.isArray(root?.data) ? root.data : null;
+  const row = asRecord(rows?.[0]);
+  if (!row) return { error: "unexpected_response", ok: false };
+
+  const errors = Array.isArray(row.errors) ? row.errors : [];
+  if (row.success === false || errors.length > 0) {
+    const detail = errors
+      .map((entry) => asRecord(entry)?.message)
+      .filter((message): message is string => typeof message === "string")
+      .join(", ");
+    return { error: detail || "rejected", ok: false };
+  }
+  return { ok: true };
+}

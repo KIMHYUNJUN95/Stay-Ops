@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  readBeds24CancelTargetId,
   resolveStayUnit,
   splitGuestName,
   stayNights,
@@ -191,5 +192,38 @@ describe("splitGuestName", () => {
       firstName: "Lee",
       lastName: "Seon hee",
     });
+  });
+});
+
+/**
+ * 취소 대상 예약번호.
+ *
+ * `readBeds24BookingId` 는 `apiReference` 를 먼저 봐서 **채널 예약코드**를 돌려준다.
+ * 그 값으로 취소를 부르면 엉뚱한 예약이 취소되거나 조용히 아무 일도 안 일어난다.
+ */
+describe("readBeds24CancelTargetId", () => {
+  it("bookId 를 먼저 본다", () => {
+    expect(readBeds24CancelTargetId({ bookId: "5722782894", id: 999 })).toBe("5722782894");
+  });
+
+  it("bookId 가 없으면 숫자 id 를 쓴다 — 우리 데이터의 실제 모양", () => {
+    expect(readBeds24CancelTargetId({ apiReference: "HMZEYJJX5W", id: "92553068" })).toBe(
+      "92553068",
+    );
+  });
+
+  it("숫자를 숫자로 받아도 된다", () => {
+    expect(readBeds24CancelTargetId({ id: 92553068 })).toBe("92553068");
+  });
+
+  it("**채널 예약코드는 절대 쓰지 않는다**", () => {
+    expect(readBeds24CancelTargetId({ apiReference: "HMZEYJJX5W" })).toBeNull();
+    expect(readBeds24CancelTargetId({ id: "HMZEYJJX5W" })).toBeNull();
+  });
+
+  it("없으면 null — 모르는 값으로 취소를 시도하지 않는다", () => {
+    expect(readBeds24CancelTargetId(null)).toBeNull();
+    expect(readBeds24CancelTargetId({})).toBeNull();
+    expect(readBeds24CancelTargetId([{ id: 1 }])).toBeNull();
   });
 });

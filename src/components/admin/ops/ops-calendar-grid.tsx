@@ -14,7 +14,12 @@ import {
   type MinStayPanelCopy,
 } from "@/components/admin/ops/ops-minstay-panel";
 import { OpsPricePanel, type PanelCopy, type PanelCell } from "@/components/admin/ops/ops-price-panel";
+import { stayNights } from "@/lib/ops-manual-booking";
 import { assignBarLanes } from "@/lib/ops-bar-lanes";
+import {
+  OpsReservationCard,
+  type ReservationCardCopy,
+} from "@/components/admin/ops/ops-reservation-card";
 import {
   OpsBookingModal,
   type BookingModalCopy,
@@ -92,6 +97,7 @@ type Copy = {
   MinStayPanelCopy &
   BlockPanelCopy &
   BookingModalCopy &
+  ReservationCardCopy &
   HistoryCopy & { historyMore: string };
 
 /**
@@ -224,6 +230,8 @@ export function OpsCalendarGrid({
   const [pendingPrices, setPendingPrices] = useState<Map<string, number>>(new Map());
   /** 수동 예약 모달. 빈 칸의 `+` 로 연다 — 그 방·그 날짜가 곧 초기값이다. */
   const [booking, setBooking] = useState<{ room: BookingModalRoom; date: string } | null>(null);
+  /** 예약 상세. 막대를 누르면 뜬다 — **취소는 여기서만** 한다. */
+  const [openBar, setOpenBar] = useState<{ bar: OpsCalendarBar; roomLabel: string } | null>(null);
 
   const dates = useMemo(() => days.map((day) => day.date), [days]);
   const roomKeys = useMemo(() => rooms.map((room) => room.key), [rooms]);
@@ -943,6 +951,13 @@ export function OpsCalendarGrid({
                           <div
                             className={`opsg__bar ${bar.channel}${bar.isCancelled ? " cancelled" : ""}`}
                             key={bar.id}
+                            onClick={
+                              // 편집 모드에서는 칸 선택이 먼저다 — 막대를 누르다 상세가 뜨면
+                              // 드래그 선택이 끊긴다.
+                              editMode
+                                ? undefined
+                                : () => setOpenBar({ bar, roomLabel: room.displayRoomLabel })
+                            }
                             style={lane > 0 ? { ...geometry, top: `calc(3px + ${lane * 18}px)` } : geometry}
                             title={`${bar.guestName} · ${bar.checkIn} → ${bar.checkOut}`}
                           >
@@ -959,6 +974,18 @@ export function OpsCalendarGrid({
         ))}
       </div>
       </div>
+
+      {openBar && (
+        <OpsReservationCard
+          bar={openBar.bar}
+          copy={copy}
+          nights={
+            stayNights(openBar.bar.checkIn, openBar.bar.checkOut).length
+          }
+          onClose={() => setOpenBar(null)}
+          roomLabel={openBar.roomLabel}
+        />
+      )}
 
       {booking && (
         <OpsBookingModal

@@ -126,3 +126,29 @@ export function splitGuestName(guestName: string): { firstName: string; lastName
   const [first, ...rest] = trimmed.split(" ");
   return { firstName: first, lastName: rest.join(" ") || "." };
 }
+
+/**
+ * 취소에 쓸 **Beds24 예약번호**를 꺼낸다.
+ *
+ * `readBeds24BookingId`(`reservation-status.ts`)를 쓰면 안 된다 — 그쪽은 `apiReference` 를
+ * 먼저 보므로 **채널 예약코드**(`HMZEYJJX5W` 같은 것)를 돌려준다. 그 값으로 `POST /bookings`
+ * 를 부르면 **엉뚱한 예약이 취소되거나** 조용히 아무 일도 안 일어난다.
+ *
+ * Beds24 예약번호는 **숫자**다(`92553068`). 숫자가 아니면 취소하지 않는다 — 모르는 값으로
+ * 취소를 시도하는 것보다 「못 찾았다」고 멈추는 편이 안전하다.
+ */
+export function readBeds24CancelTargetId(rawPayload: unknown): string | null {
+  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) return null;
+  const record = rawPayload as Record<string, unknown>;
+  for (const key of ["bookId", "book_id", "id", "bookingId", "booking_id"]) {
+    const value = record[key];
+    const text =
+      typeof value === "number" && Number.isFinite(value)
+        ? String(value)
+        : typeof value === "string"
+          ? value.trim()
+          : "";
+    if (/^\d+$/.test(text)) return text;
+  }
+  return null;
+}
