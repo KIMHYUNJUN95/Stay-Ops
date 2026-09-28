@@ -215,7 +215,7 @@ export function OpsBlockPanel({
         )}
       </div>
       {hasSelection && !confirming && (
-        <button className="opsbk__clear" onClick={onClear} type="button">
+        <button className="opsbk__clear" onClick={onClear} title="Esc" type="button">
           {copy.scopeClear}
         </button>
       )}

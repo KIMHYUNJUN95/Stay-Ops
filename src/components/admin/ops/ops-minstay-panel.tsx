@@ -270,6 +270,7 @@ export function OpsMinStayPanel({
           className="opsp__btn"
           disabled={cells.length === 0}
           onClick={onClear}
+          title="Esc"
           type="button"
         >
           {copy.scopeClear}

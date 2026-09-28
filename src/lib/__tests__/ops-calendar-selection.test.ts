@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyDragRect,
   applyScopeToSelection,
   areAllSelected,
   buildScopeCells,
@@ -356,5 +357,84 @@ describe("groupSelectionIntoRanges", () => {
 
   it("빈 선택은 빈 배열", () => {
     expect(groupSelectionIntoRanges([])).toEqual([]);
+  });
+});
+
+describe("applyDragRect — 드래그는 두 모서리로 정한다", () => {
+  const roomKeys = ["A", "B", "C"];
+  const dates = ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"];
+  const all = () => true;
+  const keys = (cells: { roomKey: string; date: string }[]) =>
+    cells.map((cell) => `${cell.roomKey}${cell.date.slice(-1)}`).sort();
+
+  it("누른 칸부터 지금 칸까지 사각형 전부 — 지나간 경로와 무관하다", () => {
+    const got = applyDragRect({
+      adding: true,
+      anchor: { col: 0, row: 0 },
+      base: [],
+      canSelect: all,
+      current: { col: 2, row: 1 },
+      dates,
+      roomKeys,
+    });
+    expect(keys(got)).toEqual(["A1", "A2", "A3", "B1", "B2", "B3"]);
+  });
+
+  it("거꾸로 끌어도 같다", () => {
+    const got = applyDragRect({
+      adding: true,
+      anchor: { col: 2, row: 1 },
+      base: [],
+      canSelect: all,
+      current: { col: 0, row: 0 },
+      dates,
+      roomKeys,
+    });
+    expect(got).toHaveLength(6);
+  });
+
+  it("사각형을 줄이면 빠졌던 칸이 원래대로 — 드래그 전 선택에서 매번 다시 계산한다", () => {
+    const base = [{ date: "2026-10-04", roomKey: "C" }];
+    const got = applyDragRect({
+      adding: true,
+      anchor: { col: 0, row: 0 },
+      base,
+      canSelect: all,
+      current: { col: 0, row: 0 },
+      dates,
+      roomKeys,
+    });
+    expect(keys(got)).toEqual(["A1", "C4"]);
+  });
+
+  it("빼는 드래그는 사각형 안의 칸만 뺀다", () => {
+    const base = [
+      { date: "2026-10-01", roomKey: "A" },
+      { date: "2026-10-02", roomKey: "A" },
+      { date: "2026-10-04", roomKey: "C" },
+    ];
+    const got = applyDragRect({
+      adding: false,
+      anchor: { col: 0, row: 0 },
+      base,
+      canSelect: all,
+      current: { col: 1, row: 0 },
+      dates,
+      roomKeys,
+    });
+    expect(keys(got)).toEqual(["C4"]);
+  });
+
+  it("고를 수 없는 칸(과거·팔린 밤)은 사각형 안이어도 건드리지 않는다", () => {
+    const got = applyDragRect({
+      adding: true,
+      anchor: { col: 0, row: 0 },
+      base: [],
+      canSelect: (roomKey, date) => !(roomKey === "A" && date === "2026-10-02"),
+      current: { col: 1, row: 0 },
+      dates,
+      roomKeys,
+    });
+    expect(keys(got)).toEqual(["A1"]);
   });
 });

@@ -292,3 +292,49 @@ function nextDay(date: string): string {
   at.setUTCDate(at.getUTCDate() + 1);
   return at.toISOString().slice(0, 10);
 }
+
+/**
+ * 드래그 선택 — **누른 칸부터 지금 칸까지의 사각형**을 `base` 에 더하거나 뺀다.
+ *
+ * 예전에는 칸마다 `mouseenter` 로 지나간 칸만 켰다(붓질). 마우스를 빨리 움직이면 브라우저가
+ * 중간 칸의 이벤트를 건너뛰어 **칸이 빠졌고**, 예약 막대 줄·칸 경계를 지나면 끊겼다
+ * (2026-09-28 지적). 스프레드시트처럼 두 모서리로 범위를 정하면 **지나간 경로와 무관하게**
+ * 결과가 정해진다 — 빠지는 칸이 없다.
+ *
+ * - `base` 는 드래그를 시작하기 **전의** 선택이다. 매번 거기서 다시 계산하므로 사각형을 줄이면
+ *   빠졌던 칸이 원래대로 돌아온다(누적되지 않는다).
+ * - 고를 수 없는 칸(과거·팔린 밤)은 사각형 안에 있어도 건드리지 않는다.
+ * - `adding` 은 **누른 칸**이 정한다 — 이미 골라진 칸에서 시작하면 빼는 드래그다.
+ */
+export function applyDragRect(args: {
+  base: readonly OpsSelectionCell[];
+  roomKeys: readonly string[];
+  dates: readonly string[];
+  anchor: { row: number; col: number };
+  current: { row: number; col: number };
+  adding: boolean;
+  canSelect: (roomKey: string, date: string) => boolean;
+}): OpsSelectionCell[] {
+  const rowFrom = Math.max(0, Math.min(args.anchor.row, args.current.row));
+  const rowTo = Math.min(args.roomKeys.length - 1, Math.max(args.anchor.row, args.current.row));
+  const colFrom = Math.max(0, Math.min(args.anchor.col, args.current.col));
+  const colTo = Math.min(args.dates.length - 1, Math.max(args.anchor.col, args.current.col));
+
+  const rect = new Map<string, OpsSelectionCell>();
+  for (let row = rowFrom; row <= rowTo; row += 1) {
+    const roomKey = args.roomKeys[row];
+    for (let col = colFrom; col <= colTo; col += 1) {
+      const date = args.dates[col];
+      if (!args.canSelect(roomKey, date)) continue;
+      rect.set(selectionCellKey(roomKey, date), { date, roomKey });
+    }
+  }
+
+  if (!args.adding) {
+    return args.base.filter((cell) => !rect.has(selectionCellKey(cell.roomKey, cell.date)));
+  }
+  const next = [...args.base];
+  const had = new Set(args.base.map((cell) => selectionCellKey(cell.roomKey, cell.date)));
+  for (const [key, cell] of rect) if (!had.has(key)) next.push(cell);
+  return next;
+}

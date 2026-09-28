@@ -40,6 +40,7 @@ import {
   type HistoryCopy,
 } from "@/lib/ops-price-history";
 import {
+  applyDragRect,
   applyScopeToSelection,
   buildScopeCells,
   buildSelectableWeeks,
@@ -240,8 +241,30 @@ export function OpsCalendarGrid({
     scopeKeys: Set<string>;
   }>({ cells: [], scopeKeys: new Set() });
   const selection = selectionState.cells;
-  // 드래그: 누른 칸과 「더하는 중인가 빼는 중인가」. 누른 칸의 상태가 방향을 정한다.
-  const dragRef = useRef<{ adding: boolean } | null>(null);
+  /**
+   * 드래그 선택 — **누른 칸과 지금 칸, 두 모서리로 사각형**을 정한다(`applyDragRect`).
+   * `base` 는 누르기 전의 선택, `adding` 은 누른 칸이 정한 방향이다. 포인터 좌표는 자동 스크롤이
+   * 같은 자리를 다시 재려고 들고 있는다.
+   */
+  const dragRef = useRef<{
+    anchor: { row: number; col: number };
+    current: { row: number; col: number };
+    adding: boolean;
+    base: OpsSelectionCell[];
+    pointerId: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  /** Shift+클릭의 기준점 — 직전에 누른 칸. */
+  const lastAnchorRef = useRef<{ row: number; col: number } | null>(null);
+  const autoScrollRef = useRef<number | null>(null);
+  // 화면을 떠나면 자동 스크롤을 멈춘다. 조기 반환보다 **앞에** 둬야 한다(훅 순서).
+  useEffect(
+    () => () => {
+      if (autoScrollRef.current !== null) cancelAnimationFrame(autoScrollRef.current);
+    },
+    [],
+  );
   const [dateAnchor, setDateAnchor] = useState<string | null>(null);
   /**
    * 접수했지만 아직 Beds24 에 반영되지 않은 값.
@@ -422,6 +445,27 @@ export function OpsCalendarGrid({
     setDateAnchor(null);
   };
 
+  /*
+   * **Esc = 선택 해제**(편집 모드에서만). 패널의 「선택 해제」와 같다.
+   *
+   * 입력칸에 커서가 있으면 건드리지 않는다 — 금액을 적다가 Esc 를 눌렀는데 고른 칸이 통째로
+   * 날아가면 안 된다. 사이드 패널(예약 상세 등)이 열려 있으면 그쪽 Esc 가 먼저다.
+   */
+  const hasSelection = selection.length > 0;
+  useEffect(() => {
+    if (!editMode || !hasSelection) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true'], [role='dialog']")) return;
+      setScope(EMPTY_SCOPE);
+      setSelectionState({ cells: [], scopeKeys: new Set() });
+      setDateAnchor(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [editMode, hasSelection]);
+
   const canSelect = (roomKey: string, date: string) =>
     date >= today && !isPriceEditBlocked(occupancyAt(roomKey, date));
 
@@ -489,24 +533,6 @@ export function OpsCalendarGrid({
       }),
     [bars, blocks, gapCells, rooms],
   );
-
-  /** 칸 하나를 켜거나 끈다. 드래그 중이면 누른 칸이 정한 방향을 따른다. */
-  const touchCell = (roomKey: string, date: string, adding: boolean) => {
-    if (!canSelect(roomKey, date)) return;
-    const key = selectionCellKey(roomKey, date);
-    setSelectionState((previous) => {
-      const has = previous.cells.some(
-        (cell) => selectionCellKey(cell.roomKey, cell.date) === key,
-      );
-      if (adding === has) return previous;
-      return {
-        ...previous,
-        cells: adding
-          ? [...previous.cells, { date, roomKey }]
-          : previous.cells.filter((cell) => selectionCellKey(cell.roomKey, cell.date) !== key),
-      };
-    });
-  };
 
   /** 한 줄(객실) 또는 한 열(날짜)을 통째로. 전부 골라져 있으면 해제된다. */
   const toggleGroup = (cells: OpsSelectionCell[]) => {
@@ -601,23 +627,120 @@ export function OpsCalendarGrid({
    * 누른 칸의 현재 상태가 **드래그 방향**을 정한다 — 꺼진 칸에서 시작하면 지나가는 칸을
    * 켜고, 켜진 칸에서 시작하면 끈다. 방향을 매 칸 다시 판단하면 드래그가 깜빡인다.
    */
-  const cellHandlers = (roomKey: string, date: string) => {
-    if (!editMode || !canSelect(roomKey, date)) return {};
-    return {
-      onMouseDown: (event: React.MouseEvent) => {
-        event.preventDefault();
-        const adding = !selectedKeys.has(selectionCellKey(roomKey, date));
-        dragRef.current = { adding };
-        touchCell(roomKey, date, adding);
-      },
-      onMouseEnter: () => {
-        if (dragRef.current) touchCell(roomKey, date, dragRef.current.adding);
-      },
-      onMouseUp: () => {
-        dragRef.current = null;
-      },
-    };
+  /**
+   * 포인터 아래의 **(행, 열)**. 칸이 아니라 좌표로 잰다 — 예약 막대·빗금·칸 경계 위에서도
+   * 끊기지 않는다. 행은 가장 가까운 `[data-ops-row]`, 열은 그 행의 트랙 폭을 날짜 수로 나눠 잡는다.
+   * 행 밖(건물 머리글 등)이면 `null` — 호출부가 직전 값을 유지한다.
+   */
+  const hitTest = (clientX: number, clientY: number): { row: number; col: number } | null => {
+    const element = document.elementFromPoint(clientX, clientY);
+    const rowElement = element?.closest<HTMLElement>("[data-ops-row]");
+    const roomKey = rowElement?.dataset.opsRow;
+    if (!rowElement || !roomKey) return null;
+    const row = roomKeys.indexOf(roomKey);
+    const tracks = rowElement.querySelector<HTMLElement>(".opsg__tracks");
+    if (row < 0 || !tracks || dates.length === 0) return null;
+    const rect = tracks.getBoundingClientRect();
+    const col = Math.floor(((clientX - rect.left) / rect.width) * dates.length);
+    return { col: Math.min(dates.length - 1, Math.max(0, col)), row };
   };
+
+  /** 모서리가 **바뀔 때만** 다시 계산한다 — 칸 안에서 움직이는 동안은 다시 그리지 않는다. */
+  const dragTo = (hit: { row: number; col: number }) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    if (drag.current.row === hit.row && drag.current.col === hit.col) return;
+    drag.current = hit;
+    const next = applyDragRect({
+      adding: drag.adding,
+      anchor: drag.anchor,
+      base: drag.base,
+      canSelect,
+      current: hit,
+      dates,
+      roomKeys,
+    });
+    setSelectionState((previous) => ({ ...previous, cells: next }));
+  };
+
+  /** 화면 위·아래 끝에 가면 저절로 스크롤한다 — 끝까지 끌어서 아래 객실을 잡을 수 있게. */
+  const stopAutoScroll = () => {
+    if (autoScrollRef.current !== null) cancelAnimationFrame(autoScrollRef.current);
+    autoScrollRef.current = null;
+  };
+  const runAutoScroll = () => {
+    const drag = dragRef.current;
+    if (!drag) return stopAutoScroll();
+    const EDGE = 56;
+    const speed =
+      drag.y < EDGE ? -Math.ceil((EDGE - drag.y) / 4) : drag.y > window.innerHeight - EDGE
+        ? Math.ceil((drag.y - (window.innerHeight - EDGE)) / 4)
+        : 0;
+    if (speed !== 0) {
+      window.scrollBy(0, speed);
+      const hit = hitTest(drag.x, drag.y);
+      if (hit) dragTo(hit);
+    }
+    autoScrollRef.current = requestAnimationFrame(runAutoScroll);
+  };
+
+  const endDrag = (event?: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (event && drag && event.currentTarget.hasPointerCapture(drag.pointerId)) {
+      event.currentTarget.releasePointerCapture(drag.pointerId);
+    }
+    dragRef.current = null;
+    stopAutoScroll();
+  };
+
+  /** 편집 모드의 격자 포인터 처리. 스크롤 영역 **한 곳**에서 받는다(칸마다 걸지 않는다). */
+  const gridPointerHandlers = editMode
+    ? {
+        onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => {
+          if (event.button !== 0 || event.pointerType === "touch") return;
+          // 칸 영역에서 누른 것만 — 객실명(객실 축 토글)·건물 머리글은 제 클릭을 그대로 받는다.
+          if (!(event.target as HTMLElement).closest(".opsg__tracks")) return;
+          const hit = hitTest(event.clientX, event.clientY);
+          if (!hit) return;
+          // 글자 선택·포커스 이동을 막아야 끌 때 화면이 파랗게 칠해지지 않는다.
+          event.preventDefault();
+          const shiftFrom = event.shiftKey ? lastAnchorRef.current : null;
+          const anchor = shiftFrom ?? hit;
+          const anchorKey = selectionCellKey(roomKeys[anchor.row], dates[anchor.col]);
+          // Shift 범위는 늘 더한다. 그 밖에는 누른 칸이 골라져 있으면 빼는 드래그다.
+          const adding = shiftFrom ? true : !selectedKeys.has(anchorKey);
+          event.currentTarget.setPointerCapture(event.pointerId);
+          dragRef.current = {
+            adding,
+            anchor,
+            base: selection,
+            // 첫 계산이 반드시 돌도록 불가능한 자리로 둔다.
+            current: { col: -1, row: -1 },
+            pointerId: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+          };
+          if (!shiftFrom) lastAnchorRef.current = hit;
+          dragTo(hit);
+          stopAutoScroll();
+          autoScrollRef.current = requestAnimationFrame(runAutoScroll);
+        },
+        onPointerMove: (event: React.PointerEvent<HTMLDivElement>) => {
+          const drag = dragRef.current;
+          if (!drag || event.pointerId !== drag.pointerId) return;
+          drag.x = event.clientX;
+          drag.y = event.clientY;
+          const hit = hitTest(event.clientX, event.clientY);
+          if (hit) dragTo(hit);
+        },
+        onPointerUp: endDrag,
+        onPointerCancel: endDrag,
+        onLostPointerCapture: () => {
+          dragRef.current = null;
+          stopAutoScroll();
+        },
+      }
+    : {};
 
   /**
    * 선택된 칸을 패널이 쓰는 모양으로 바꾼다.
@@ -923,17 +1046,9 @@ export function OpsCalendarGrid({
         ))}
       </div>
 
-      {/* 드래그를 칸 밖에서 놓아도 끝나야 한다. 안 그러면 마우스를 뗀 뒤에도 지나가는
-          칸이 계속 선택된다. */}
-      <div
-        className="opsg__scroll"
-        onMouseLeave={() => {
-          dragRef.current = null;
-        }}
-        onMouseUp={() => {
-          dragRef.current = null;
-        }}
-      >
+      {/* 편집 모드의 드래그는 여기 **한 곳**에서 받는다. 포인터를 붙잡아(capture) 격자 밖에서
+          놓아도 끝나고, 밖으로 나갔다 들어와도 끊기지 않는다. */}
+      <div className="opsg__scroll" {...gridPointerHandlers}>
         {roomsByProperty.map((group) => (
           <div key={group.property}>
             <div className="opsg__group">
@@ -983,7 +1098,11 @@ export function OpsCalendarGrid({
               const startDraft = (date: string) => setBookingDraft({ checkIn: date, room: bookingRoom });
 
               return (
-                <div className={`opsg__row${drafting ? " drafting" : ""}`} key={room.key}>
+                <div
+                  className={`opsg__row${drafting ? " drafting" : ""}`}
+                  data-ops-row={room.key}
+                  key={room.key}
+                >
                   <div
                     className={`opsg__label${editMode ? " pick" : ""}${
                       editMode && scope.roomKeys.includes(room.key) ? " on" : ""
@@ -1027,7 +1146,6 @@ export function OpsCalendarGrid({
                                   })
                                 : undefined
                             }
-                            {...cellHandlers(room.key, day.date)}
                           >
                             <span
                               className={`opsg__price${price === null ? " none" : ""}${pricePending ? " pend" : ""}`}
@@ -1062,7 +1180,6 @@ export function OpsCalendarGrid({
                           <div
                             className={`${cellClass(day, room.key)}${minTone}`}
                             key={`m-${day.date}`}
-                            {...cellHandlers(room.key, day.date)}
                           >
                             <span
                               className={`opsg__min${

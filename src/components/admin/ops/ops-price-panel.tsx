@@ -427,7 +427,13 @@ export function OpsPricePanel({
             <button
               className="opsp__btn"
               disabled={!hasSelection}
-              onClick={onClear}
+              // 적어 둔 금액도 같이 비운다 — 남겨 두면 다음에 고른 칸에 그 값이 그대로 걸린다.
+              onClick={() => {
+                reset();
+                setMessage(null);
+                onClear();
+              }}
+              title="Esc"
               type="button"
             >
               {clearLabel}

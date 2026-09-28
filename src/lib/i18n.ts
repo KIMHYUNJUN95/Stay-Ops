@@ -123,7 +123,7 @@ const FALLBACK_DICTIONARY = {
       scopeAll: "All",
       scopeWeekend: "Fri-Sun",
       scopeWeekday: "Mon-Thu",
-      scopeClear: "Clear",
+      scopeClear: "Clear selection",
       selectedCount: "{count} cells",
       // 객실이 많을 때 뒤를 줄인다 — 머리말이 길어지면 정작 숫자가 안 읽힌다.
       andMore: "+{count}",
@@ -5413,7 +5413,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       scopeAll: "전체",
       scopeWeekend: "주말·금~일",
       scopeWeekday: "평일·월~목",
-      scopeClear: "해제",
+      scopeClear: "선택 해제",
       selectedCount: "{count}칸",
       // 객실이 많을 때 뒤를 줄인다 — 머리말이 길어지면 정작 숫자가 안 읽힌다.
       andMore: "외 {count}",
@@ -10546,7 +10546,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       scopeAll: "すべて",
       scopeWeekend: "週末・金〜日",
       scopeWeekday: "平日・月〜木",
-      scopeClear: "解除",
+      scopeClear: "選択解除",
       selectedCount: "{count}セル",
       // 객실이 많을 때 뒤를 줄인다 — 머리말이 길어지면 정작 숫자가 안 읽힌다.
       andMore: "他{count}",
