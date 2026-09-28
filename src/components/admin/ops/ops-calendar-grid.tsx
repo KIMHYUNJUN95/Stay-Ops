@@ -15,6 +15,11 @@ import {
 } from "@/components/admin/ops/ops-minstay-panel";
 import { OpsPricePanel, type PanelCopy, type PanelCell } from "@/components/admin/ops/ops-price-panel";
 import { assignBarLanes } from "@/lib/ops-bar-lanes";
+import {
+  OpsBookingModal,
+  type BookingModalCopy,
+  type BookingModalRoom,
+} from "@/components/admin/ops/ops-booking-modal";
 import { buildGapContext } from "@/lib/ops-gap-context";
 import {
   describeCellHistory,
@@ -81,10 +86,12 @@ type Copy = {
   selectHint: string;
   minStayMode: string;
   blockMode: string;
+  localeTag: string;
   gapSelectAll: string;
 } & PanelCopy &
   MinStayPanelCopy &
   BlockPanelCopy &
+  BookingModalCopy &
   HistoryCopy & { historyMore: string };
 
 /**
@@ -215,6 +222,8 @@ export function OpsCalendarGrid({
    * 다음 서버 렌더가 실제 값을 들고 오면 자연히 덮인다.
    */
   const [pendingPrices, setPendingPrices] = useState<Map<string, number>>(new Map());
+  /** 수동 예약 모달. 빈 칸의 `+` 로 연다 — 그 방·그 날짜가 곧 초기값이다. */
+  const [booking, setBooking] = useState<{ room: BookingModalRoom; date: string } | null>(null);
 
   const dates = useMemo(() => days.map((day) => day.date), [days]);
   const roomKeys = useMemo(() => rooms.map((room) => room.key), [rooms]);
@@ -884,7 +893,23 @@ export function OpsCalendarGrid({
                               이미 찬 방에 수기 예약을 넣으려 하게 된다. 지난 일을 보는
                               화면이지 예약을 만드는 화면이 아니다. */}
                           {!editMode && !showCancelled && !occupied.has(day.date) && day.date >= today && (
-                            <span className="opsg__plus">+</span>
+                            <button
+                              className="opsg__plus"
+                              onClick={() =>
+                                setBooking({
+                                  date: day.date,
+                                  room: {
+                                    key: room.key,
+                                    label: room.displayRoomLabel,
+                                    propertyName: room.propertyName,
+                                    roomIds: room.roomIds,
+                                  },
+                                })
+                              }
+                              type="button"
+                            >
+                              +
+                            </button>
                           )}
                         </div>
                       ))}
@@ -934,6 +959,21 @@ export function OpsCalendarGrid({
         ))}
       </div>
       </div>
+
+      {booking && (
+        <OpsBookingModal
+          copy={copy}
+          localeTag={copy.localeTag}
+          onClose={() => setBooking(null)}
+          rateAt={(date) => {
+            const rate = rates.get(`${booking.room.key}|${date}`);
+            return { airbnb: rate?.price ?? null, booking: rate?.bookingPrice ?? null };
+          }}
+          room={booking.room}
+          startDate={booking.date}
+          today={today}
+        />
+      )}
 
       {mode === "block" && (
         <OpsBlockPanel

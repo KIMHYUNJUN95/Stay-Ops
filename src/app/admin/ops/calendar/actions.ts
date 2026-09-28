@@ -4,6 +4,19 @@ import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/admin-session";
 import { enqueueBeds24PriceJob, type PriceJobCellRequest } from "@/lib/beds24/price-job-queue";
 import { runNextPriceJob } from "@/lib/beds24/price-job-worker";
+import { Beds24HttpError, postBeds24Booking } from "@/lib/beds24/calendar-client";
+import { processBeds24WebhookBooking } from "@/lib/beds24/process-webhook-booking";
+import { activateBeds24Cooldown } from "@/lib/beds24/sync-locks";
+import { isActiveUnitMinStay } from "@/lib/ops-gap-detection";
+import {
+  resolveStayUnit,
+  splitGuestName,
+  stayNights,
+  validateManualBooking,
+  type ManualBookingError,
+  type ManualBookingInput,
+} from "@/lib/ops-manual-booking";
+import { toJstDateString } from "@/lib/admin-calendar-dashboard";
 import {
   clearRoomBlock,
   createRoomBlock,
@@ -340,4 +353,160 @@ export async function submitRoomBlock(args: { cells: BlockChangeCell[] }): Promi
 
 export async function submitRoomUnblock(args: { cells: BlockChangeCell[] }): Promise<BlockChangeResult> {
   return runBlockChange(args, "unblock");
+}
+
+/**
+ * 수동 예약 생성.
+ *
+ * 도메인 계약: `docs/product/33-calendar-write-features.md` → 「수동 예약 생성」
+ * 규칙: `src/lib/ops-manual-booking.ts` (순수 · 테스트로 고정)
+ *
+ * ## 저쪽과 다르게 한 것 하나
+ *
+ * 저쪽은 **손님 이름에 `blackout` / `room block` 이 들어가면 차단을 만든다.** 화면 어디에도
+ * 안 적힌 매직 문자열이라 빼기로 했다(2026-09-28 사용자 확인). 우리는 차단 전용 모드가
+ * 따로 있고, 그쪽은 되읽기 검증·재고 스냅샷·보상 롤백까지 갖췄다. 여기서는 **예약만** 만든다.
+ *
+ * ## 예약은 roomId 하나에 붙는다
+ *
+ * 숙박 전체에서 살아 있는 유닛을 하나 고른다. 중간에 갈리면 **거부하고 갈리는 날짜를
+ * 돌려준다** — 저쪽도 거부하지만 「안 된다」만 말해서, 사람이 무엇을 고쳐야 할지 몰랐다.
+ */
+export type ManualBookingResult =
+  | { ok: true; bookingId: string }
+  | {
+      ok: false;
+      error:
+        | ManualBookingError
+        | "forbidden"
+        | "unknown_room"
+        | "beds24_failed"
+        | "cooldown"
+        /** 숙박 중간에 파는 유닛이 갈린다 — `conflictDates` 에 갈리는 밤이 담긴다. */
+        | "unit_changes"
+        /** 그 밤에 파는 유닛이 하나도 없다. */
+        | "no_active_unit";
+      /** 유닛이 갈리거나 팔 수 없는 밤. 화면이 날짜를 적어 준다. */
+      conflictDates?: string[];
+      detail?: string;
+    };
+
+export async function submitManualBooking(args: {
+  input: ManualBookingInput;
+  /** 그 캘린더 행 뒤의 우리 `rooms.id` 전부. Beds24 roomId 는 서버가 찾는다. */
+  roomIds: string[];
+  guestEmail: string;
+  guestPhone: string;
+  comments: string;
+}): Promise<ManualBookingResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+
+  const today = toJstDateString(new Date());
+  const invalid = validateManualBooking(args.input, today);
+  if (invalid) return { error: invalid, ok: false };
+
+  const nights = stayNights(args.input.arrival, args.input.departure);
+  const supabase = getSupabaseServiceClient();
+
+  const unitsResult = await supabase
+    .from("rooms")
+    .select("id, external_room_id, properties(external_property_id)")
+    .eq("organization_id", session.organization.id)
+    .in("id", args.roomIds);
+  if (unitsResult.error) return { error: "unknown_room", ok: false };
+
+  type UnitRow = {
+    id: string;
+    external_room_id: string | null;
+    properties: { external_property_id: string | null } | { external_property_id: string | null }[] | null;
+  };
+  const units = ((unitsResult.data ?? []) as unknown as UnitRow[]).filter(
+    (row) => !!row.external_room_id,
+  );
+  if (units.length === 0) return { error: "unknown_room", ok: false };
+
+  // 밤마다 **그때 살아 있는** 유닛을 센다. `rooms.status` 는 오늘 하루의 스냅샷이라
+  // 「10월 3일에 이 유닛이 팔렸나」에는 답하지 못한다.
+  const ratesResult = await supabase
+    .from("room_daily_rates")
+    .select("room_id, stay_date, min_stay")
+    .eq("organization_id", session.organization.id)
+    .in("room_id", units.map((unit) => unit.id))
+    .in("stay_date", nights);
+  const minStayByKey = new Map<string, number | null>();
+  for (const row of (ratesResult.data ?? []) as Array<{
+    room_id: string;
+    stay_date: string;
+    min_stay: number | null;
+  }>) {
+    minStayByKey.set(`${row.room_id}|${row.stay_date}`, row.min_stay);
+  }
+
+  const activeByNight = new Map<string, string[]>();
+  for (const night of nights) {
+    const active = units
+      .filter((unit) => isActiveUnitMinStay(minStayByKey.get(`${unit.id}|${night}`) ?? null))
+      .map((unit) => String(unit.external_room_id));
+    activeByNight.set(night, active);
+  }
+
+  const resolved = resolveStayUnit(activeByNight);
+  if (!resolved.ok) {
+    return { conflictDates: resolved.conflictDates, error: resolved.reason, ok: false };
+  }
+
+  const target = units.find((unit) => String(unit.external_room_id) === resolved.externalRoomId);
+  const property = Array.isArray(target?.properties) ? target?.properties[0] : target?.properties;
+  const propertyId = Number(property?.external_property_id ?? "");
+  if (!target || !Number.isInteger(propertyId)) return { error: "unknown_room", ok: false };
+
+  const { firstName, lastName } = splitGuestName(args.input.guestName);
+  let created: Awaited<ReturnType<typeof postBeds24Booking>>;
+  try {
+    created = await postBeds24Booking({
+      apiSource: "Direct",
+      arrival: args.input.arrival,
+      comments: args.comments.trim(),
+      departure: args.input.departure,
+      email: args.guestEmail.trim(),
+      firstName,
+      lastName,
+      numAdult: args.input.numAdult,
+      numChild: args.input.numChild,
+      phone: args.guestPhone.trim(),
+      price: args.input.totalPrice ?? 0,
+      propertyId,
+      roomId: Number(resolved.externalRoomId),
+    });
+  } catch (error) {
+    if (error instanceof Beds24HttpError && error.isRateLimit) {
+      await activateBeds24Cooldown(supabase, { reason: "rate_limit", resetInSec: error.resetInSec });
+      return { error: "cooldown", ok: false };
+    }
+    return {
+      detail: error instanceof Error ? error.message : "unknown",
+      error: "beds24_failed",
+      ok: false,
+    };
+  }
+
+  if ("skipped" in created) return { detail: created.skipped, error: "beds24_failed", ok: false };
+  if (!created.ok) return { detail: created.error, error: "beds24_failed", ok: false };
+
+  // **웹훅을 기다리지 않는다.** 방금 만든 예약이 화면에 안 보이면 사람은 또 만든다.
+  // 예약 웹훅과 **같은 처리기**를 태워 형식이 갈리지 않게 한다.
+  try {
+    await processBeds24WebhookBooking({
+      organizationIdDefault: session.organization.id,
+      payload: created.raw,
+      supabase,
+    });
+  } catch (error) {
+    // 만들어진 것은 사실이다. 우리 표에 늦게 들어올 뿐이라 실패로 돌리지 않는다.
+    console.error("[ops/manual-booking] local upsert failed", error);
+  }
+
+  revalidatePath(CONSOLE_PATH);
+  return { bookingId: created.bookingId, ok: true };
 }

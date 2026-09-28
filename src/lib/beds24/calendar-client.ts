@@ -240,3 +240,79 @@ export async function postBeds24Calendar(
     }),
   };
 }
+
+/** `POST /bookings` 로 만든 예약. `id` 는 Beds24 예약번호다. */
+export type BookingCreateResult =
+  | { ok: true; bookingId: string; raw: JsonRecord }
+  | { ok: false; error: string };
+
+export type BookingCreatePayload = {
+  propertyId: number;
+  roomId: number;
+  arrival: string;
+  departure: string;
+  firstName: string;
+  lastName: string;
+  numAdult: number;
+  numChild: number;
+  email: string;
+  phone: string;
+  comments: string;
+  /** 채널 이름이 아니라 **출처 표기**다. 저쪽은 `"Direct"` 를 쓴다. */
+  apiSource: string;
+  price: number;
+};
+
+/**
+ * 예약을 만든다.
+ *
+ * **응답이 성공이어도 만들어졌다는 뜻은 아니다** — 가격 쓰기와 같다. `errors` 배열이 비어
+ * 있고 새 id 가 돌아왔을 때만 성공으로 본다. 부르는 쪽은 그 id 로 다시 읽어 확인한다.
+ *
+ * 저쪽은 `guestName` 을 한 덩어리로 받아 서버에서 쪼갰다. 우리는 **쪼개서 보낸다** —
+ * `splitGuestName` 이 순수 함수라 테스트로 고정돼 있다.
+ */
+export async function postBeds24Booking(
+  payload: BookingCreatePayload,
+): Promise<BookingCreateResult | { skipped: string }> {
+  const resolved = await resolveBase();
+  if ("skipped" in resolved) return resolved;
+
+  const response = await fetch(`${resolved.base}/bookings`, {
+    body: JSON.stringify([payload]),
+    cache: "no-store",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+      token: resolved.token,
+    },
+    method: "POST",
+  });
+  const credit = readCreditSignal(response.headers);
+  if (!response.ok) {
+    throw new Beds24HttpError(response.status, credit.resetInSec, response.status === 429);
+  }
+
+  const body = (await response.json()) as unknown;
+  const root = asRecord(body);
+  const rows = Array.isArray(body) ? body : Array.isArray(root?.data) ? root.data : null;
+  const row = asRecord(rows?.[0]);
+  if (!row) return { error: "unexpected_response", ok: false };
+
+  const errors = Array.isArray(row.errors) ? row.errors : [];
+  if (row.success === false || errors.length > 0) {
+    const detail = errors
+      .map((entry) => asRecord(entry)?.message)
+      .filter((message): message is string => typeof message === "string")
+      .join(", ");
+    return { error: detail || "rejected", ok: false };
+  }
+
+  // V2 는 만든 예약을 `new` 아래에 돌려준다. 옛 응답은 평평하게 오므로 둘 다 본다.
+  const created = asRecord(row.new) ?? row;
+  const bookingId = created.id;
+  if (typeof bookingId !== "number" && typeof bookingId !== "string") {
+    return { error: "missing_booking_id", ok: false };
+  }
+  return { bookingId: String(bookingId), ok: true, raw: created };
+}

@@ -467,11 +467,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 빈 칸의 `+`. **버튼이다** — 누르면 그 방·그 날짜로 수동 예약 모달이 열린다. */
 .opsg__plus {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
   color: hsl(40 14% 82%);
   font-size: 11px;
   font-weight: 600;
 }
+.opsg__plus:hover { color: var(--adm-primary); }
 
 /*
  * 예약 막대 — **체크인 날짜 칸의 가운데에서 시작해 체크아웃 날짜 칸의 가운데에서 끝난다.**
@@ -1443,3 +1449,181 @@
   cursor: pointer;
 }
 .opsbk__clear:hover { color: var(--soft); }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * 수동 예약 생성 모달 (2026-09-28)
+ *
+ * 격자 위에 띄우지 않고 화면 가운데에 세운다 — 오른쪽 끝 방에서 열면 잘린다.
+ * 날짜는 공용 `AdminDatePicker` 를 쓴다(CLAUDE.md §4a — 콘솔에 달력은 하나뿐이다).
+ * ──────────────────────────────────────────────────────────────────────── */
+
+.opsmb {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgb(15 23 42 / 0.4);
+}
+.opsmb__card {
+  width: 100%;
+  max-width: 420px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 28px 70px -32px rgb(20 32 43 / 0.75);
+  overflow: hidden;
+}
+.opsmb__head {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 15px 17px 13px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.opsmb__title { font-size: 15px; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); }
+.opsmb__room { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.opsmb__x {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: var(--faint);
+  font-size: 12px;
+  cursor: pointer;
+}
+.opsmb__x:hover { color: var(--soft); }
+
+.opsmb__body {
+  padding: 14px 17px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  overflow-y: auto;
+}
+.opsmb__grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.opsmb__field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.opsmb__lbl {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.opsmb__input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.opsmb__input:focus {
+  outline: none;
+  border-color: var(--adm-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--adm-primary) 16%, transparent);
+}
+.opsmb__ta { resize: none; font-weight: 500; }
+.opsmb__hint { font-size: 10px; font-weight: 600; color: var(--faint); }
+.opsmb__nights {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 밤별 요금 — 총액을 손으로 계산하게 하면 아무도 안 쓴다. */
+.opsmb__rates {
+  padding: 11px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 13px;
+  background: var(--surface2);
+}
+.opsmb__ratehead {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 7px;
+}
+.opsmb__rateempty { font-size: 11px; font-weight: 600; color: var(--faint); }
+.opsmb__ratelist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 124px;
+  overflow-y: auto;
+}
+.opsmb__ratelist li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.opsmb__rdate { flex: 0 0 38px; color: var(--muted); font-weight: 700; }
+.opsmb__rval { flex: 1; text-align: right; font-weight: 600; color: var(--ink); }
+.opsmb__rval.alt { color: var(--ops-bkng); }
+/* 모르는 밤이 있으면 합계는 추정치다 — 자동 채우기를 막는 근거를 화면에도 적는다. */
+.opsmb__warn {
+  margin-top: 7px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: var(--warn-bg);
+  color: color-mix(in oklab, var(--warn) 82%, var(--ink));
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.opsmb__usebtns { display: flex; gap: 6px; margin-top: 9px; }
+.opsmb__use {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--soft);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.opsmb__use.on { border-color: var(--adm-primary); background: var(--adm-primary); color: #fff; }
+.opsmb__use:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.opsmb__pct { display: flex; align-items: center; gap: 5px; margin-top: 9px; flex-wrap: wrap; }
+.opsmb__pctbtn {
+  height: 25px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.opsmb__pctbtn.on { border-color: var(--adm-primary); background: var(--adm-primary); color: #fff; }
+
+.opsmb__msg { font-size: 11px; font-weight: 700; color: var(--danger); line-height: 1.5; }
+
+.opsmb__foot {
+  display: flex;
+  gap: 8px;
+  padding: 12px 17px;
+  border-top: 1px solid var(--line-soft);
+}
