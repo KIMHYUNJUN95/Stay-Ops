@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignBarLanes, type LaneBar } from "@/lib/ops-bar-lanes";
+import { assignBarLanes, buildBarOverflowSegments, type LaneBar } from "@/lib/ops-bar-lanes";
 
 /**
  * 예약 막대 층 배치.
@@ -111,5 +111,76 @@ describe("assignBarLanes", () => {
     const result = assignBarLanes([]);
     expect(result.laneById.size).toBe(0);
     expect(result.laneCountByRoom.size).toBe(0);
+  });
+});
+
+/**
+ * 가려진 막대를 `+N` 으로 접기.
+ *
+ * 저쪽처럼 전부 쌓아 그리면 트랙이 세 배가 되고 줄이 늘어져 오히려 읽기 힘들다
+ * (2026-09-28 사용자 지적). 0층만 그리고 나머지는 숫자로 남긴다.
+ */
+describe("buildBarOverflowSegments", () => {
+  const segmentsOf = (bars: LaneBar[]) => buildBarOverflowSegments(bars, assignBarLanes(bars));
+
+  it("겹치는 게 없으면 배지도 없다", () => {
+    expect(
+      segmentsOf([bar("a", "2026-10-01", "2026-10-03"), bar("b", "2026-10-05", "2026-10-07")]),
+    ).toEqual([]);
+  });
+
+  it("가려진 막대가 덮는 밤에 배지가 선다", () => {
+    // b 가 1층으로 밀린다. 덮는 밤은 10/03 · 10/04 두 밤(10/05 는 나가는 날).
+    const segments = segmentsOf([
+      bar("a", "2026-10-01", "2026-10-05"),
+      bar("b", "2026-10-03", "2026-10-05"),
+    ]);
+    expect(segments).toHaveLength(1);
+    expect(segments[0]).toMatchObject({
+      count: 1,
+      endDate: "2026-10-04",
+      roomKey: "A",
+      startDate: "2026-10-03",
+    });
+    // 눌렀을 때는 **0층까지 포함해** 그 자리의 전부를 보여준다.
+    expect(new Set(segments[0].barIds)).toEqual(new Set(["a", "b"]));
+  });
+
+  it("가려진 게 둘이면 +2", () => {
+    const segments = segmentsOf([
+      bar("a", "2026-10-01", "2026-10-10"),
+      bar("b", "2026-10-01", "2026-10-10"),
+      bar("c", "2026-10-01", "2026-10-10"),
+    ]);
+    expect(segments).toHaveLength(1);
+    expect(segments[0].count).toBe(2);
+    expect(segments[0].barIds).toHaveLength(3);
+  });
+
+  it("밤이 끊기면 배지를 나눈다 — 이어진 밤은 하나로 묶는다", () => {
+    const segments = segmentsOf([
+      bar("base", "2026-10-01", "2026-10-20"),
+      bar("x", "2026-10-02", "2026-10-04"),
+      bar("y", "2026-10-10", "2026-10-12"),
+    ]);
+    expect(segments.map((s) => `${s.startDate}~${s.endDate}`)).toEqual([
+      "2026-10-02~2026-10-03",
+      "2026-10-10~2026-10-11",
+    ]);
+  });
+
+  it("방마다 따로 센다", () => {
+    const segments = segmentsOf([
+      bar("a1", "2026-10-01", "2026-10-05", "A"),
+      bar("a2", "2026-10-01", "2026-10-05", "A"),
+      bar("b1", "2026-10-01", "2026-10-05", "B"),
+    ]);
+    expect(segments.map((s) => s.roomKey)).toEqual(["A"]);
+  });
+
+  it("맞닿기만 하면 가려지지 않는다 — 배지도 없다", () => {
+    expect(
+      segmentsOf([bar("a", "2026-10-01", "2026-10-03"), bar("b", "2026-10-03", "2026-10-05")]),
+    ).toEqual([]);
   });
 });
