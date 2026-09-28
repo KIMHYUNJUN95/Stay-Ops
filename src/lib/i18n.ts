@@ -88,7 +88,9 @@ const FALLBACK_DICTIONARY = {
       actionMinStay: "Minimum stay",
       actionInventory: "Inventory · Block",
       vacantOnly: "Vacant only",
+      // 켜면 **취소만** 보인다(일반 예약은 사라진다) — 저쪽과 같다. 켠 뒤 라벨이 그 사실을 말한다.
       showCancelled: "Show cancelled",
+      showCancelledOn: "Cancelled only",
       hintCreate: "Click an empty cell to set check-in, click again for check-out",
       legendDirect: "Direct · Manual",
       legendBlock: "Block",
@@ -5265,7 +5267,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       actionMinStay: "최소 숙박일",
       actionInventory: "재고 · Block",
       vacantOnly: "빈 방만",
+      // 켜면 **취소만** 보인다(일반 예약은 사라진다) — 저쪽과 같다. 켠 뒤 라벨이 그 사실을 말한다.
       showCancelled: "취소 보기",
+      showCancelledOn: "취소만 보는 중",
       hintCreate: "빈 칸 클릭 → 체크인, 한 번 더 누르면 체크아웃",
       legendDirect: "직접 · 수기",
       legendBlock: "Block",
@@ -10283,7 +10287,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       actionMinStay: "最低宿泊日数",
       actionInventory: "在庫 · Block",
       vacantOnly: "空室のみ",
+      // 켜면 **취소만** 보인다(일반 예약은 사라진다) — 저쪽과 같다. 켠 뒤 라벨이 그 사실을 말한다.
       showCancelled: "キャンセルを表示",
+      showCancelledOn: "キャンセルのみ表示中",
       hintCreate: "空きマスをクリックでチェックイン、もう一度でチェックアウト",
       legendDirect: "直接 · 手動",
       legendBlock: "Block",

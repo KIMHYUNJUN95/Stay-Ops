@@ -14,6 +14,7 @@ import {
   type MinStayPanelCopy,
 } from "@/components/admin/ops/ops-minstay-panel";
 import { OpsPricePanel, type PanelCopy, type PanelCell } from "@/components/admin/ops/ops-price-panel";
+import { assignBarLanes } from "@/lib/ops-bar-lanes";
 import { buildGapContext } from "@/lib/ops-gap-context";
 import {
   describeCellHistory,
@@ -155,6 +156,7 @@ export function OpsCalendarGrid({
   history,
   rates,
   rooms,
+  showCancelled,
   today,
 }: {
   bars: OpsCalendarBar[];
@@ -167,6 +169,12 @@ export function OpsCalendarGrid({
   history: Map<string, CellHistory>;
   rates: Map<string, OpsCalendarRate>;
   rooms: OpsCalendarRoom[];
+  /**
+   * **「취소만 보기」다.** 켜면 일반 예약이 사라지고 취소된 것만 남는다 — 저쪽과 같다
+   * (`isCancelled === showCancelled`). 겹쳐 그리면 못 읽기 때문이다.
+   * 점유·갭 판정은 이 값과 **무관하게** 항상 취소를 뺀다.
+   */
+  showCancelled: boolean;
   today: string;
 }) {
   // 선택 상태는 전부 여기 있다. 서버로 왕복하지 않는다 — 칸 하나 찍을 때마다 격자를 다시
@@ -304,6 +312,28 @@ export function OpsCalendarGrid({
     setDateAnchor(null);
     setSelectionState({ cells: selectableGapCells, scopeKeys: new Set() });
   };
+
+  /**
+   * 취소 막대는 **같은 밤에 여러 건이 겹친다.** 한 줄에 그리면 서로 덮어 못 읽는다 —
+   * 실측(2026-09-28)으로 취소가 걸린 방-밤의 20%가 2건 이상, 최대 5건이다.
+   * 그래서 층을 나누고 그만큼 트랙을 키운다(저쪽 `cancelledBarLaneMap` 과 같다).
+   */
+  const barLanes = useMemo(
+    () =>
+      showCancelled
+        ? assignBarLanes(
+            bars
+              .filter((bar) => bar.isCancelled)
+              .map((bar) => ({
+                checkIn: bar.checkIn,
+                checkOut: bar.checkOut,
+                id: bar.id,
+                roomKey: bar.roomKey,
+              })),
+          )
+        : null,
+    [bars, showCancelled],
+  );
 
   const gapContext = useMemo(
     () =>
@@ -739,10 +769,14 @@ export function OpsCalendarGrid({
               </span>
             </div>
             {group.rooms.map((room) => {
-              const roomBars = barsByRoom.get(room.key) ?? [];
+              const allRoomBars = barsByRoom.get(room.key) ?? [];
+              // **켜면 취소만, 끄면 일반만.** 둘을 같이 그리면 같은 밤에 겹쳐 못 읽는다.
+              const roomBars = allRoomBars.filter((bar) => bar.isCancelled === showCancelled);
+              const laneCount = barLanes?.laneCountByRoom.get(room.key) ?? 1;
               const roomBlocks = blocksByRoom.get(room.key) ?? [];
               const occupied = new Set<string>();
-              for (const bar of roomBars) {
+              // 점유는 **항상** 일반 예약으로만 센다 — 「취소만 보기」를 켜도 팔린 밤은 팔린 밤이다.
+              for (const bar of allRoomBars) {
                 if (bar.isCancelled) continue;
                 for (const day of days) {
                   if (day.date >= bar.checkIn && day.date < bar.checkOut) occupied.add(day.date);
@@ -838,8 +872,11 @@ export function OpsCalendarGrid({
                         );
                       })}
                     </div>
-                    {/* 예약 · BLOCK */}
-                    <div className="opsg__track">
+                    {/* 예약 · BLOCK. 「취소만 보기」에서는 층 수만큼 키운다. */}
+                    <div
+                      className="opsg__track"
+                      style={laneCount > 1 ? { height: `calc(var(--ops-track) + ${(laneCount - 1) * 18}px)` } : undefined}
+                    >
                       {days.map((day) => (
                         <div className={cellClass(day)} key={`r-${day.date}`}>
                           {!editMode && !occupied.has(day.date) && day.date >= today && (
@@ -871,11 +908,13 @@ export function OpsCalendarGrid({
                       {roomBars.map((bar) => {
                         const geometry = barGeometry(days, bar.checkIn, bar.checkOut);
                         if (!geometry) return null;
+                        // 층이 있으면 그만큼 내려 그린다. 층 0 은 평소 자리 그대로다.
+                        const lane = barLanes?.laneById.get(bar.id) ?? 0;
                         return (
                           <div
                             className={`opsg__bar ${bar.channel}${bar.isCancelled ? " cancelled" : ""}`}
                             key={bar.id}
-                            style={geometry}
+                            style={lane > 0 ? { ...geometry, top: `calc(3px + ${lane * 18}px)` } : geometry}
                             title={`${bar.guestName} · ${bar.checkIn} → ${bar.checkOut}`}
                           >
                             {bar.guestName}

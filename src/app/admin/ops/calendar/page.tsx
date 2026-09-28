@@ -266,7 +266,9 @@ export default async function OpsCalendarPage({
             className={`ops__btn${showCancelled ? " on" : ""}`}
             href={hrefWith({ cancelled: showCancelled ? undefined : "1" })}
           >
-            {copy.showCancelled}
+            {/* 켠 뒤에는 **무엇이 보이는 중인지**를 적는다 — 「취소 보기」인 채로 두면
+                일반 예약이 왜 사라졌는지 알 수 없다. 저쪽도 켜면 「Cancelled Only」로 바뀐다. */}
+            {showCancelled ? copy.showCancelledOn : copy.showCancelled}
           </Link>
           {/* 1박 갭 — 있을 때만 뜬다. 0건이면 빈 배지가 자리만 차지한다. */}
           {data.gapCells.size > 0 && (
@@ -326,6 +328,7 @@ export default async function OpsCalendarPage({
           history={data.history}
           rates={data.rates}
           rooms={data.rooms}
+          showCancelled={showCancelled}
           today={data.today}
         />
       </div>
