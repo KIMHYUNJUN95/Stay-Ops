@@ -49,6 +49,7 @@ import {
 import { activateBeds24Cooldown, getBeds24Cooldown } from "@/lib/beds24/sync-locks";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
+import { signalBeds24Change } from "@/lib/beds24/live-signal";
 
 type Client = SupabaseClient<Database>;
 
@@ -281,6 +282,7 @@ export async function createRoomBlock(args: {
     supabase: args.supabase,
   });
 
+  await signalBeds24Change(args.organizationId, "blocks");
   return { ok: true, nights: nights.length, roomIds };
 }
 
@@ -413,6 +415,7 @@ export async function clearRoomBlock(args: {
     supabase: args.supabase,
   });
 
+  await signalBeds24Change(args.organizationId, "blocks");
   return { ok: true, nights: nights.length, roomIds };
 }
 

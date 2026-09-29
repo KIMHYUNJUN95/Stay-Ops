@@ -48,6 +48,7 @@ import {
   type AdjustmentCellInput,
 } from "@/lib/ops-price-adjustment";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import { signalBeds24Change } from "@/lib/beds24/live-signal";
 
 /**
  * 판매 캘린더의 **쓰기**.
@@ -931,6 +932,7 @@ export async function submitReservationCancel(args: {
     .update({ status: "cancelled", updated_at: new Date().toISOString() })
     .eq("organization_id", session.organization.id)
     .eq("id", row.id);
+  await signalBeds24Change(session.organization.id, "reservations");
 
   revalidatePath(CONSOLE_PATH);
   return { ok: true };

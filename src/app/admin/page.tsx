@@ -6,6 +6,7 @@ import { getDictionary } from "@/lib/i18n";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession } from "@/lib/session";
 import { getAdminDashboard } from "@/lib/admin-dashboard";
+import { Beds24LiveRefresh } from "@/components/shared/beds24-live-refresh";
 
 // Admin operations console — desktop dashboard home. Top-priority blocks wired to
 // real domain data (cleaning / requests / attendance / announcements / tasks /
@@ -30,6 +31,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <AdminShell activeItem="dashboard" title={dictionary.admin.console.headerToday}>
+      {session.organization ? <Beds24LiveRefresh organizationId={session.organization.id} /> : null}
       <DashboardHome data={data} c={dictionary.admin.console} locale={localeTag} />
     </AdminShell>
   );

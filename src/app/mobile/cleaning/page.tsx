@@ -41,6 +41,7 @@ import {
 import type { ActiveRoomCatalogItem } from "@/lib/rooms";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
+import { Beds24LiveRefresh } from "@/components/shared/beds24-live-refresh";
 
 type MobileCleaningPageProps = {
   searchParams: Promise<{
@@ -620,6 +621,7 @@ export default async function MobileCleaningPage({
 
   return (
     <MobileShell activeItem="cleaning" appearance="cleaning" badges={navBadges} title={copy.mobileTitle}>
+      <Beds24LiveRefresh organizationId={session.organization.id} />
       <div className="space-y-5">
         <Card className={`${CLEANING_PANEL} relative overflow-hidden p-4`}>
           <div

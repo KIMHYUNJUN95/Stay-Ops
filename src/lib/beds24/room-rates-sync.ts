@@ -3,6 +3,7 @@ import { resolveBeds24AccessToken } from "@/lib/beds24/access-token";
 import { getOptionalBeds24ApiEnv } from "@/lib/env";
 import { detectExternalPriceChanges } from "@/lib/beds24/external-price-changes";
 import type { Database } from "@/types/database";
+import { signalBeds24Change } from "@/lib/beds24/live-signal";
 
 /**
  * Beds24 객실 × 날짜별 요금·재고를 `room_daily_rates` 로 가져온다.
@@ -421,6 +422,8 @@ export async function syncBeds24RoomRates(
   if (unmatched.size > 0) {
     console.warn("[beds24/rates] rooms missing from master", [...unmatched]);
   }
+
+  if (written > 0) await signalBeds24Change(organizationId, "rates");
 
   return {
     rows: written,

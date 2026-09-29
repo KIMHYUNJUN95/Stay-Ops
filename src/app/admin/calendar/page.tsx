@@ -1,4 +1,5 @@
 import { AdminReservationConsole } from "@/components/admin/calendar/admin-reservation-console";
+import { Beds24LiveRefresh } from "@/components/shared/beds24-live-refresh";
 import { AdminShell } from "@/components/shell/admin-shell";
 import {
   buildMonthLabel,
@@ -31,6 +32,7 @@ export default async function AdminCalendarPage({ searchParams }: PageProps) {
       mobileHref={buildMobileCalendarHref(data.selectedMonth, data.selectedProperty)}
       title={buildMonthLabel(data.selectedMonth, data.locale)}
     >
+      <Beds24LiveRefresh organizationId={session.organization.id} />
       <AdminReservationConsole
         beds24SyncPaused={data.beds24SyncPaused}
         blockedProperties={[]}

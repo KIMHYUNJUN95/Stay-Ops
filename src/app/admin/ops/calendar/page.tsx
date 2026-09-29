@@ -11,6 +11,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getOpsCalendarData, OPS_CALENDAR_ROLLING_DAYS } from "@/lib/ops-calendar";
 import { opsNavId } from "@/lib/ops-admin";
 import { requireOpsAdminPage } from "../ops-page-session";
+import { Beds24LiveRefresh } from "@/components/shared/beds24-live-refresh";
 
 /**
  * 판매 캘린더 — 운영 관리자 영역의 핵심 화면.
@@ -160,6 +161,7 @@ export default async function OpsCalendarPage({
 
   return (
     <AdminShell activeItem={opsNavId("calendar")} title={copy.title}>
+      <Beds24LiveRefresh organizationId={session.organization.id} />
       <div className="ops">
         <div className="ops__bar">
           <div className="ops__props">

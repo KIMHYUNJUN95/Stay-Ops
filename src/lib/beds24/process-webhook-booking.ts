@@ -19,6 +19,7 @@ import { resolveReservationStatusFromBeds24Record } from "@/lib/beds24/reservati
 import { extractBeds24RoomSyncFields, syncBeds24PropertyAndRoom } from "@/lib/beds24/room-sync";
 import { normalizeReservationSource } from "@/lib/beds24/source-normalization";
 import type { Database } from "@/types/database";
+import { signalBeds24Change } from "@/lib/beds24/live-signal";
 
 export type ProcessWebhookBookingResult =
   | {
@@ -562,6 +563,9 @@ export async function processBeds24WebhookBooking(params: {
     keepReservationId: saved.id,
     keepStoredReservationId: toStoredReservationId(sourceReservationId, storedRoomLabel),
   });
+
+  // 열려 있는 캘린더·홈·청소 화면이 새로고침 없이 다시 읽는다(`src/lib/beds24-live.ts`).
+  await signalBeds24Change(organizationId, "reservations");
 
   return {
     ok: true,

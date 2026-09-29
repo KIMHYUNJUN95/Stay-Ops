@@ -6,6 +6,7 @@ import { MobileCalendarView, type CalendarReservationItem, type CalendarRoomBloc
 import type { PropertyMapMeta } from "@/lib/property-map-links";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { Locale } from "@/lib/i18n";
+import { BEDS24_LIVE_EVENT, beds24LiveTopic } from "@/lib/beds24-live";
 
 type MobileCalendarLiveViewProps = {
   copy: {
@@ -145,6 +146,15 @@ export function MobileCalendarLiveView(props: MobileCalendarLiveViewProps) {
       })
       .subscribe();
 
+    // 차단·요금 등 Beds24 쪽 변경 — 서버가 동기화 뒤 보내는 신호(`src/lib/beds24-live.ts`).
+    // 예약 변경도 이 신호가 오지만 위 구독과 같은 `scheduleRefresh` 라 한 번만 다시 읽는다.
+    const beds24Channel = supabase
+      .channel(beds24LiveTopic(props.organizationId))
+      .on("broadcast", { event: BEDS24_LIVE_EVENT }, () => {
+        scheduleRefresh();
+      })
+      .subscribe();
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible" && pendingRefreshRef.current) {
         scheduleRefresh();
@@ -159,6 +169,7 @@ export function MobileCalendarLiveView(props: MobileCalendarLiveViewProps) {
         clearTimeout(refreshTimeoutRef.current);
       }
       void supabase.removeChannel(channel);
+      void supabase.removeChannel(beds24Channel);
     };
   }, [channelName, props.organizationId, router]);
 

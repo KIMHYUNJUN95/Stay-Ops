@@ -30,6 +30,7 @@ import {
   shouldCooldownForCredit,
 } from "@/lib/beds24/sync-locks";
 import type { Database } from "@/types/database";
+import { signalBeds24Change } from "@/lib/beds24/live-signal";
 
 /**
  * 가격·최소숙박 작업 워커.
@@ -530,6 +531,11 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
       } catch (error) {
         console.error("[beds24/price-job] 연결 가격 로컬 반영 실패(작업은 이미 완료)", error);
       }
+    }
+
+    // 쓴 사람 화면은 작업 추적으로 이미 바뀐다 — 이건 **다른 사람**이 보고 있는 화면용이다.
+    if (results.some((item) => item.success)) {
+      await signalBeds24Change(job.organization_id, "rates");
     }
 
     return {

@@ -41,6 +41,7 @@ import {
 import { getCurrentAppSession, hasOrganizationContext, type AppSession } from "@/lib/session";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import "@/components/mobile/home-screen.css";
+import { Beds24LiveRefresh } from "@/components/shared/beds24-live-refresh";
 
 type QuickActionItem = {
   colorClass: "a" | "b" | "c" | "d";
@@ -483,6 +484,7 @@ export default async function MobileHomePage() {
 
   return (
     <MobileShell activeItem="home" badges={navBadges} title={m.homeTitle}>
+      <Beds24LiveRefresh organizationId={session.organization.id} />
       <div className="hm pb-2">
         {/* Greeting — renders immediately with the shell (no data reads). */}
         <div className="hm__greet">

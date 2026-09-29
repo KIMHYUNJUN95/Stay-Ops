@@ -6,6 +6,7 @@ import { requireAdminPageSession } from "@/lib/admin-page-auth";
 import { canForceCompleteCleaning, getCleaningOperatingDateKey } from "@/lib/cleaning";
 import { getDictionary } from "@/lib/i18n";
 import { getActiveRoomCatalogServer } from "@/lib/rooms";
+import { Beds24LiveRefresh } from "@/components/shared/beds24-live-refresh";
 
 // Admin · Cleaning — 오늘 현황 (real-time board) / 기록 (filterable history) console. Real
 // cleaning_sessions + reservation data (see src/lib/admin-cleaning.ts) as of 2026-07-14 — replaces
@@ -41,6 +42,7 @@ export default async function AdminCleaningPage({
 
   return (
     <AdminShell activeItem="cleaning" title={dictionary.cleaning.adminTitle}>
+      <Beds24LiveRefresh organizationId={session.organization.id} />
       <CleaningConsole
         locale={locale}
         viewDate={viewDate}

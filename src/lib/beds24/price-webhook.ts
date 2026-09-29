@@ -82,6 +82,23 @@ function readString(record: JsonRecord, keys: string[]): string | null {
   return null;
 }
 
+/** 같은 초의 배달 경합 창 — 잠금을 잡고 이만큼 뒤에 아직 내 것인지 다시 본다. */
+const RUN_LOCK_SETTLE_MS = 150;
+
+/**
+ * 「지금 읽기」 잠금. `acquireBeds24Lock` 은 읽고-쓰고-되읽는 방식이라 **정말 같은 순간**의 두
+ * 요청이 둘 다 자기 것으로 볼 수 있다. 잠깐 뒤 한 번 더 확인해 늦게 쓴 쪽만 남긴다.
+ * 잡았으면 lockId, 못 잡았으면 `null`.
+ */
+async function claimRunLock(supabase: SupabaseClient<Database>, name: string): Promise<string | null> {
+  const lock = await acquireBeds24Lock(supabase, name, "price-webhook", TRAILING_LOCK_TTL_MS);
+  if (!lock.acquired) return null;
+  await new Promise((resolve) => setTimeout(resolve, RUN_LOCK_SETTLE_MS));
+  const current = await supabase.from("beds24_sync_locks").select("metadata").eq("name", name).maybeSingle();
+  const stored = (current.data as { metadata: { lockId?: string } | null } | null)?.metadata;
+  return stored?.lockId === lock.lockId ? lock.lockId : null;
+}
+
 export type PriceWebhookSignal = {
   action: string | null;
   externalPropertyId: string | null;
@@ -213,19 +230,20 @@ export async function processBeds24PriceWebhook(args: {
         .maybeSingle()
     : { data: null };
   const lastSyncedAt = (freshResult.data as { synced_at: string } | null)?.synced_at ?? null;
-  if (lastSyncedAt && Date.now() - new Date(lastSyncedAt).getTime() < PRICE_WEBHOOK_DEBOUNCE_MS) {
-    // 창 안이다. **버리지 않는다** — 창이 끝나면 한 번 더 읽도록 예약한다(건물별로 하나만).
+  const organizationId = row.organization_id;
+  const supabase = args.supabase;
+
+  /**
+   * 창이 끝나면 한 번 더 읽도록 예약한다(건물별로 하나만). 이미 누가 예약했으면 그걸로 충분하다.
+   * `baseMs` 는 창이 시작된 시각 — 마지막 동기화 시각, 또는 남이 지금 읽고 있으면 지금.
+   */
+  const scheduleTrailing = async (baseMs: number): Promise<PriceWebhookResult> => {
     const lockName = `price-webhook-trailing:${externalPropertyId}`;
-    const lock = await acquireBeds24Lock(args.supabase, lockName, "price-webhook", TRAILING_LOCK_TTL_MS);
+    const lock = await acquireBeds24Lock(supabase, lockName, "price-webhook", TRAILING_LOCK_TTL_MS);
     if (!lock.acquired) {
       return { handled: true, skipped: true, reason: "debounced", externalPropertyId };
     }
-    const organizationId = row.organization_id;
-    const supabase = args.supabase;
-    const waitMs = Math.max(
-      0,
-      new Date(lastSyncedAt).getTime() + PRICE_WEBHOOK_DEBOUNCE_MS - Date.now() + 1_000,
-    );
+    const waitMs = Math.max(0, baseMs + PRICE_WEBHOOK_DEBOUNCE_MS - Date.now() + 1_000);
     return {
       externalPropertyId,
       handled: true,
@@ -243,15 +261,35 @@ export async function processBeds24PriceWebhook(args: {
         });
       },
     };
+  };
+
+  if (lastSyncedAt && Date.now() - new Date(lastSyncedAt).getTime() < PRICE_WEBHOOK_DEBOUNCE_MS) {
+    // 창 안이다. **버리지 않는다** — 창이 끝나면 한 번 더 읽는다.
+    return scheduleTrailing(new Date(lastSyncedAt).getTime());
   }
 
-  const { rates: result } = await refreshProperty(args.supabase, row.organization_id, externalPropertyId);
+  /*
+   * 지금 읽는다 — 단, **건물당 하나만.** Beds24 는 한 번의 변경에 배달을 여러 건 같은 초에
+   * 보낸다(2026-09-29 실측: 343112 에 5건, 176430 에 2건이 같은 초). 그때는 전부 `synced_at` 이
+   * 오래됐다고 보고 각자 12개월을 다시 읽었다. 이제 하나만 읽고, 나머지는 「창이 끝나면 한 번 더」
+   * 로 돌린다 — 읽는 도중에 들어온 변경을 그 읽기가 못 봤을 수 있기 때문이다.
+   */
+  const runLockName = `price-webhook-run:${externalPropertyId}`;
+  const runLock = await claimRunLock(supabase, runLockName);
+  if (!runLock) return scheduleTrailing(Date.now());
+
+  let result: Awaited<ReturnType<typeof refreshProperty>>["rates"];
+  try {
+    ({ rates: result } = await refreshProperty(supabase, organizationId, externalPropertyId));
+  } finally {
+    await releaseBeds24Lock(supabase, runLockName, runLock);
+  }
 
   return {
     handled: true,
     skipped: false,
     externalPropertyId,
-    organizationId: row.organization_id,
+    organizationId,
     rows: result.rows,
   };
 }

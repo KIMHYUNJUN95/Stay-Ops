@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOptionalBeds24ApiEnv } from "@/lib/env";
 import type { Database } from "@/types/database";
+import { signalBeds24Change } from "@/lib/beds24/live-signal";
 
 /**
  * Beds24 캘린더 「블락」을 가져온다 (2026-09-11).
@@ -352,6 +353,10 @@ export async function syncBeds24RoomBlocks(
       result.blocks = 0;
     }
   }
+
+  const touchedOrganizations = new Set(rows.map((row) => row.organization_id));
+  if (options?.organizationId) touchedOrganizations.add(options.organizationId);
+  if (result.removed > 0 || result.blocks > 0) await signalBeds24Change(touchedOrganizations, "blocks");
 
   return result;
 }

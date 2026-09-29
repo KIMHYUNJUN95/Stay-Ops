@@ -8,6 +8,7 @@ import {
 import { extractBeds24BookingCandidates } from "@/lib/beds24/booking-payload";
 import { normalizeReservationSource } from "@/lib/beds24/source-normalization";
 import type { Database } from "@/types/database";
+import { signalBeds24Change } from "@/lib/beds24/live-signal";
 
 type JsonRecord = Record<string, unknown>;
 type ReservationStatus = Database["public"]["Enums"]["reservation_status"];
@@ -848,6 +849,13 @@ export async function backfillBeds24Reservations(
   // 「어디까지 봤는가」를 앞당기는 작업이 아니다.
   if (!explicitWindow) {
     await writeModifiedCursor(supabase, runStartedAt, !useIncremental);
+  }
+
+  if (!dryRun && upsertedRows + recoveredRows > 0) {
+    await signalBeds24Change(
+      [options?.organizationId, ...prepared.map((item) => item.row.organization_id)],
+      "reservations",
+    );
   }
 
   return {

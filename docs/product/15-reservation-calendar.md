@@ -973,6 +973,12 @@ When Beds24 sends a Japanese property name (e.g. `"荒木町A"`) in the reservat
 - Mobile calendar now listens to Supabase Realtime changes on `public.reservations` for the active organization and refreshes the screen automatically when reservation rows change.
 - Backfill is retained only for dev/manual recovery, not as the normal user-visible freshness mechanism.
 - Realtime prerequisite: `public.reservations` must be present in the `supabase_realtime` publication.
+- **2026-09-29 — 차단·요금도 실시간.** 모바일 캘린더는 위 예약 구독에 더해 Beds24 실시간 신호
+  (`beds24-live:<조직>` broadcast)도 듣는다. 차단 막대(`room_blocks`)가 웹훅으로 바뀌어도 새로고침 없이
+  다시 그린다. 같은 신호를 어드민 예약 캘린더·판매 캘린더·대시보드·청소(모바일/어드민)·모바일 홈도
+  듣는다. 계약: `docs/product/33-calendar-write-features.md` → 「화면도 웹훅 기준으로」.
+- 참고: 같은 구독 안의 `reservation_internal_notes` 변경 알림은 그 표가 `supabase_realtime` 에 없어
+  실제로는 오지 않는다(2026-09-29 확인). 내부 메모는 저장한 화면에서 직접 갱신된다.
 
 ### Cancellation visibility policy (verified)
 
