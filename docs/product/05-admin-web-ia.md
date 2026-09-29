@@ -77,6 +77,10 @@
   게이팅·언어 선택)은 그대로 보존했다. 파일: `src/app/auth/login/auth-frame.tsx`,
   `auth-console.css`(.authx), 재스타일된 `email-*-form.tsx`/`google-button.tsx`/`page.tsx`.
   i18n는 `auth.console`(ko/ja/en) 추가. 모바일/태블릿은 좁은 폭에서 브랜드 패널을 숨기고 폼만 노출한다.
+  - **언어 선택은 폭에 따라 갈린다**(2026-09-29). 데스크톱 폭(>1080px, 브랜드 패널이 보이는 폭)에서는
+    우측 상단 언어 pill 아래로 대시보드 `.dd` 와 같은 모양의 드롭다운(`.langdd__menu`, 바깥 클릭·Esc 닫힘)을
+    펼친다. 그 이하 폭(모바일 진입)은 기존 모바일 `BottomSheet` 계약을 유지한다.
+    파일: `src/app/auth/login/language-sheet.tsx`.
 
 ## Surface Boundary
 

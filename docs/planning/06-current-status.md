@@ -11,8 +11,10 @@ and the major mobile/admin operations modules are implemented and being hardened
 
 ## 2026-09-29 — 로그인 화면 초대코드 안내 문구
 
-- `/auth/login` 하단 안내(`auth.login.inviteNote`)의 코드 문의처를 「매니저」→「개발자」로 변경
+- `/auth/login` 하단 안내(`entry.inviteNote`)의 코드 문의처를 「매니저」→「개발자」로 변경
   (ko/ja/en 동시). 온보딩 화면의 초대코드 힌트 문구는 그대로.
+- 로그인 화면 언어 선택: 데스크톱 폭(>1080px)에서는 모바일 하단 시트 대신 대시보드식 드롭다운으로
+  펼친다. 좁은 폭은 `BottomSheet` 유지. (`05-admin-web-ia.md` → Admin Login)
 
 ## 2026-08-07 — Documentation consistency synchronization
 

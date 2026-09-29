@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { setLocaleCookie } from "@/app/auth/actions";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
@@ -57,8 +57,13 @@ type LanguageSheetProps = {
   view?: string;
 };
 
+// 데스크톱 콘솔 폭(브랜드 패널이 보이는 폭, auth-console.css 의 1080px 분기와 같다)에서는
+// 관리자 대시보드의 `.dd` 드롭다운처럼 버튼 아래로 펼친다. 그보다 좁으면 모바일 BottomSheet 계약.
+const DESKTOP_QUERY = "(min-width: 1081px)";
+
 export function LanguageSheet({ locale, next, view }: LanguageSheetProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<null | "menu" | "sheet">(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const current = OPTIONS.find((o) => o.code === locale) ?? OPTIONS[0];
 
@@ -75,12 +80,37 @@ export function LanguageSheet({ locale, next, view }: LanguageSheetProps) {
     }
   }
 
+  useEffect(() => {
+    if (open !== "menu") return;
+    function onDocClick(event: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(null);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(null);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  function toggle() {
+    if (open) {
+      setOpen(null);
+      return;
+    }
+    setOpen(window.matchMedia(DESKTOP_QUERY).matches ? "menu" : "sheet");
+  }
+
   return (
-    <>
+    <div className="langdd" ref={rootRef}>
       <button
         type="button"
-        onClick={() => setOpen(true)}
-        aria-haspopup="dialog"
+        onClick={toggle}
+        aria-haspopup={open === "menu" ? "listbox" : "dialog"}
+        aria-expanded={open !== null}
         aria-label={SHEET_TITLE}
         className="langpill"
       >
@@ -93,8 +123,40 @@ export function LanguageSheet({ locale, next, view }: LanguageSheetProps) {
         </span>
       </button>
 
-      {open && (
-        <BottomSheet onClose={() => setOpen(false)} ariaLabel={SHEET_TITLE}>
+      {open === "menu" && (
+        <div className="langdd__menu" role="listbox" aria-label={SHEET_TITLE}>
+          {OPTIONS.map((o) => {
+            const active = o.code === locale;
+            return (
+              <button
+                key={o.code}
+                type="button"
+                role="option"
+                aria-selected={active}
+                className={`langdd__opt${active ? " on" : ""}`}
+                onClick={() => {
+                  setOpen(null);
+                  select(o.code);
+                }}
+              >
+                <span className="langdd__flag">{o.flag}</span>
+                <span className="langdd__k">
+                  <b>{o.name}</b>
+                  <small>{o.roman}</small>
+                </span>
+                {active && (
+                  <span className="langdd__chk">
+                    <CheckIcon />
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {open === "sheet" && (
+        <BottomSheet onClose={() => setOpen(null)} ariaLabel={SHEET_TITLE}>
           {({ close }) => (
             <div className="pt-1">
               <p className="mb-[14px] text-center text-[15px] font-extrabold text-foreground">
@@ -140,6 +202,6 @@ export function LanguageSheet({ locale, next, view }: LanguageSheetProps) {
           )}
         </BottomSheet>
       )}
-    </>
+    </div>
   );
 }
