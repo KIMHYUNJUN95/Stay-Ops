@@ -22,6 +22,7 @@ import {
   type PriceHistoryRow,
 } from "@/lib/ops-price-history";
 import { mergeOpsRateUnits, type OpsMergedRate } from "@/lib/ops-rate-merge";
+import { buildBlockRanges } from "@/lib/ops-block-ranges";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -318,7 +319,7 @@ function blockRoomAxisKey(row: Pick<BlockRow, "property_name" | "room_label">): 
  * 수동 예약 패널의 날짜 피커가 회색으로 칠할 날, 그리고 서버가 만들기 직전에 겹침을 막는
  * 근거다. 두 가지를 합친다 —
  *
- * - **이미 찬 밤**: 살아 있는 예약(취소·노쇼 제외) 또는 블록.
+ * - **이미 찬 밤**: 살아 있는 예약(취소·노쇼 제외) 또는 블록(`room_blocks` + 요금 표의 blackout — 12개월).
  * - **파는 유닛이 없는 밤**: 그 행의 유닛이 하나도 활성(`1 ≤ minStay < 50`)이 아니다. 만들어도
  *   Beds24 가 받지 않거나 잠긴 유닛에 붙는다 — 서버가 어차피 거절하는 밤이다. 요금 행이
  *   없는 밤도 여기에 든다(모르는 밤은 팔 수 있다고 하지 않는다).
@@ -366,11 +367,14 @@ export async function readOpsRoomUnavailableNights(args: {
         .range(from, to),
     ),
     args.roomIds.length === 0
-      ? Promise.resolve({ data: [] as Array<Pick<RateRow, "room_id" | "stay_date" | "min_stay">>, error: null })
-      : readAllPages<Pick<RateRow, "room_id" | "stay_date" | "min_stay">>((from, to) =>
+      ? Promise.resolve({
+          data: [] as Array<Pick<RateRow, "room_id" | "stay_date" | "min_stay" | "override_kind">>,
+          error: null,
+        })
+      : readAllPages<Pick<RateRow, "room_id" | "stay_date" | "min_stay" | "override_kind">>((from, to) =>
           supabase
             .from("room_daily_rates")
-            .select("room_id, stay_date, min_stay")
+            .select("room_id, stay_date, min_stay, override_kind")
             .eq("organization_id", organizationId)
             .in("room_id", args.roomIds)
             .gte("stay_date", args.from)
@@ -412,7 +416,13 @@ export async function readOpsRoomUnavailableNights(args: {
 
   const activeNights = new Set<string>();
   for (const row of ratesResult.data) {
-    if (isActiveUnitMinStay(row.min_stay)) activeNights.add(row.stay_date);
+    if (!isActiveUnitMinStay(row.min_stay)) continue;
+    activeNights.add(row.stay_date);
+    // **Beds24 에서 막아 둔 밤도 찬 밤이다** — 격자의 BLOCK 막대와 같은 기준(운영 중 유닛의
+    // blackout). `room_blocks` 는 3개월 창뿐이라 그 너머 차단을 여기서 잡는다(2026-09-29).
+    if ((row.override_kind ?? "").toLowerCase() === "blackout" && nights.includes(row.stay_date)) {
+      booked.add(row.stay_date);
+    }
   }
   const unsellable = nights.filter((night) => !booked.has(night) && !activeNights.has(night));
 
@@ -515,7 +525,7 @@ export async function getOpsCalendarData(
     });
   }
 
-  const blocks: OpsCalendarBlock[] = [];
+  let blocks: OpsCalendarBlock[] = [];
   if (blocksResult.error) {
     console.error("[ops-calendar] room block read failed", blocksResult.error);
   } else {
@@ -691,6 +701,36 @@ export async function getOpsCalendarData(
   //
   // 점유 여부는 **예약·블락에서 직접** 본다. `numAvail` 은 요금 동기화 시점의 값이라 그 뒤에
   // 들어온 예약을 모른다(예약은 웹훅으로 실시간, 요금은 주기 동기화).
+  /*
+   * ── BLOCK 막대는 **12개월 전부** (2026-09-29) ─────────────────────────
+   *
+   * `room_blocks` 는 현장 예약 캘린더용 동기화라 **이번 달 + 2개월**만 채운다. 그 너머의 Beds24
+   * 차단은 빈 칸처럼 보였다. 이미 읽은 요금 칸의 `overrideKind`(운영 중 유닛 기준 — `ops-rate-merge`)와
+   * `room_blocks`(앱이 방금 건 차단은 요금 표보다 먼저 들어간다)를 **합쳐** 구간으로 다시 묶는다.
+   * 끝이 열린 「판매 전」 차단도 숨기지 않는다(사용자 결정 — 전부 보이게).
+   */
+  {
+    const fromRoomBlocks = new Set<string>();
+    for (const block of blocks) {
+      for (const day of days) {
+        if (day.date >= block.startDate && day.date <= block.endDate) {
+          fromRoomBlocks.add(`${block.roomKey}|${day.date}`);
+        }
+      }
+    }
+    blocks = buildBlockRanges({
+      dates: days.map((day) => day.date),
+      // **요금 칸이 있으면 그게 정답이다** — 걸고 풀 때 바로 고쳐 두므로(`block-write.ts`
+      // `patchLocalOverride`) 가장 최신이다. `room_blocks` 는 요금 칸이 없는 날에만 쓴다: 구간의
+      // 일부만 풀면 `room_blocks` 의 원래 행이 남아, 합집합이면 푼 날도 막힌 채 보인다.
+      isBlocked: (roomKey, date) => {
+        const rate = rates.get(`${roomKey}|${date}`);
+        return rate ? rate.overrideKind === "blackout" : fromRoomBlocks.has(`${roomKey}|${date}`);
+      },
+      roomKeys: [...roomsByKey.keys()],
+    });
+  }
+
   const occupiedCells = new Set<string>();
   for (const bar of bars) {
     if (bar.isCancelled) continue;

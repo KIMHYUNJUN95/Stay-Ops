@@ -272,6 +272,15 @@ export async function createRoomBlock(args: {
     { onConflict: "organization_id,source,property_name,room_label,start_date" },
   );
 
+  // 판매 캘린더의 BLOCK 막대는 요금 표의 `override_kind` 로도 그린다(12개월). 바로 맞춰 둔다.
+  await patchLocalOverride({
+    externalRoomIds: roomIds,
+    kind: "blackout",
+    nights,
+    organizationId: args.organizationId,
+    supabase: args.supabase,
+  });
+
   return { ok: true, nights: nights.length, roomIds };
 }
 
@@ -395,5 +404,50 @@ export async function clearRoomBlock(args: {
     .eq("room_label", args.roomLabel)
     .eq("start_date", args.range.startDate);
 
+  // 요금 표가 아직 `blackout` 이면 판매 캘린더가 **푼 차단을 계속 그린다**(요금 동기화까지 몇 시간).
+  await patchLocalOverride({
+    externalRoomIds: roomIds,
+    kind: "none",
+    nights,
+    organizationId: args.organizationId,
+    supabase: args.supabase,
+  });
+
   return { ok: true, nights: nights.length, roomIds };
 }
+
+/**
+ * 우리 요금 표(`room_daily_rates`)의 `override_kind` 를 되읽기로 **검증된 값**으로 맞춘다.
+ *
+ * 판매 캘린더는 12개월 BLOCK 막대를 이 칸으로 그린다(2026-09-29 — `ops-block-ranges.ts`). 요금
+ * 동기화는 GitHub Actions 라 실측 몇 시간 간격이어서, 안 고치면 걸고 푼 것이 그만큼 늦게 보인다.
+ * **있는 행만** 고친다 — 없는 날에 행을 만들면 가격·최소숙박이 비어 「안 파는 날」로 보인다.
+ * 실패해도 Beds24 에는 이미 들어갔다(다음 동기화가 맞춘다).
+ */
+async function patchLocalOverride(args: {
+  supabase: Client;
+  organizationId: string;
+  externalRoomIds: string[];
+  nights: string[];
+  kind: "blackout" | "none";
+}): Promise<void> {
+  try {
+    const units = await args.supabase
+      .from("rooms")
+      .select("id")
+      .eq("organization_id", args.organizationId)
+      .in("external_room_id", args.externalRoomIds);
+    const roomIds = ((units.data ?? []) as Array<{ id: string }>).map((row) => row.id);
+    if (roomIds.length === 0 || args.nights.length === 0) return;
+    const result = await args.supabase
+      .from("room_daily_rates")
+      .update({ override_kind: args.kind } as never)
+      .eq("organization_id", args.organizationId)
+      .in("room_id", roomIds)
+      .in("stay_date", args.nights);
+    if (result.error) console.error("[beds24/block] 로컬 override 반영 실패", result.error);
+  } catch (error) {
+    console.error("[beds24/block] 로컬 override 반영 실패", error);
+  }
+}
+
