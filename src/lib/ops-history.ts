@@ -58,7 +58,8 @@ export type ChangeLogRow = {
   property_name: string | null;
 };
 
-export type ChangeField = "price" | "minStay";
+/** `block` 은 값이 1 = 차단 · 0 = 열림(`price_change_logs.field = 'blackout'`). */
+export type ChangeField = "price" | "minStay" | "block";
 
 /** 값의 범위 — 전부 같으면 `min === max`. 모르는 값만 있었으면 `null`. */
 export type ValueRange = { min: number; max: number } | null;
@@ -71,7 +72,10 @@ export type ChangeFieldSummary = {
 };
 
 export type ChangeGroup = {
-  /** `job_id`, 없으면(Beds24 동기화가 잡은 변경) `beds24:<시각>` — 한 번의 동기화 = 한 개입. */
+  /**
+   * `job_id`, 없으면 `<adjust_mode>:<시각>` — Beds24 동기화가 잡은 변경(`beds24:`)은 한 번의 동기화, 우리 앱
+   * 차단(`block:`)은 한 번 누른 것이 한 줄이다(차단은 큐 작업이 아니라 `job_id` 가 없다).
+   */
   id: string;
   /** 그 수정의 가장 이른 칸 시각. */
   at: string;
@@ -98,7 +102,8 @@ export type ChangeCell = {
 
 export const CHANGE_GROUP_CELL_LIMIT = 400;
 
-const fieldOf = (field: string): ChangeField => (field === "min_stay" ? "minStay" : "price");
+const fieldOf = (field: string): ChangeField =>
+  field === "min_stay" ? "minStay" : field === "blackout" ? "block" : "price";
 
 function widen(range: ValueRange, value: number | null): ValueRange {
   if (value === null) return range;
@@ -118,9 +123,14 @@ const roomName = (row: Pick<ChangeLogRow, "property_name" | "room_label">) =>
 /** 칸 이력 → 수정 단위. 최신 수정이 먼저. 입력 순서에 기대지 않는다. */
 export function groupChangeRows(rows: readonly ChangeLogRow[]): ChangeGroup[] {
   const groups = new Map<string, ChangeGroup>();
+  // 같은 방의 유닛 둘(가부키초 `203#`·`K203`)이 같이 바뀌면 두 줄로 온다 — 이름을 맞춘 뒤엔 한 칸이다.
+  const seen = new Set<string>();
   const sorted = [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at));
   for (const row of sorted) {
-    const id = row.job_id ?? `beds24:${row.created_at}`;
+    const id = row.job_id ?? `${row.adjust_mode ?? "beds24"}:${row.created_at}`;
+    const cellKey = [id, row.property_name, row.room_label, row.stay_date, row.field, row.old_value, row.new_value].join("|");
+    if (seen.has(cellKey)) continue;
+    seen.add(cellKey);
     let group = groups.get(id);
     if (!group) {
       group = {

@@ -56,6 +56,8 @@ export type HistoryPanelCopy = {
   hsKindMinStay: string;
   hsKindBlock: string;
   hsKindUnblock: string;
+  hsBlockOn: string;
+  hsBlockOff: string;
   hsStatusQueued: string;
   hsStatusProcessing: string;
   hsStatusSucceeded: string;
@@ -77,9 +79,16 @@ const POLL_MS = 4_000;
 const yen = (value: number) => `¥${value.toLocaleString("ja-JP")}`;
 const shortDate = (date: string) => `${date.slice(5, 7)}/${date.slice(8, 10)}`;
 
+/** 한 값 — 가격 ¥, 최소숙박 N박, 차단 1 = 차단 · 0 = 열림. */
+function formatValue(value: number, field: ChangeField, copy: HistoryPanelCopy): string {
+  if (field === "minStay") return copy.minStay.replace("{n}", String(value));
+  if (field === "block") return value === 1 ? copy.hsBlockOn : copy.hsBlockOff;
+  return yen(value);
+}
+
 function formatRange(range: ValueRange, field: ChangeField, copy: HistoryPanelCopy): string {
   if (!range) return "—";
-  const one = (value: number) => (field === "minStay" ? copy.minStay.replace("{n}", String(value)) : yen(value));
+  const one = (value: number) => formatValue(value, field, copy);
   return range.min === range.max ? one(range.min) : `${one(range.min)}~${one(range.max)}`;
 }
 
@@ -107,6 +116,9 @@ function roomsText(rooms: string[], copy: HistoryPanelCopy): string {
   return rooms.length > shown.length ? `${text} · ${copy.hsRooms.replace("{n}", String(rooms.length))}` : text;
 }
 
+const kindOf = (field: ChangeField, copy: HistoryPanelCopy) =>
+  field === "minStay" ? copy.hsKindMinStay : field === "block" ? copy.hsKindBlock : copy.hsKindPrice;
+
 /**
  * 펼친 칸 표 — 방(번호순)마다, 이어진 날짜가 같은 값이면 한 줄(`collapseCellRuns`).
  * 건물이 하나뿐인 수정이면 건물 이름을 줄마다 되풀이하지 않는다(머리 줄에 이미 있다).
@@ -114,8 +126,7 @@ function roomsText(rooms: string[], copy: HistoryPanelCopy): string {
 function CellRunsTable({ copy, group }: { copy: HistoryPanelCopy; group: ChangeGroup }) {
   const runs = collapseCellRuns(group.cells);
   const singleProperty = new Set(runs.map((run) => run.property)).size <= 1;
-  const show = (value: number | null, field: ChangeField) =>
-    value === null ? "—" : field === "minStay" ? copy.minStay.replace("{n}", String(value)) : yen(value);
+  const show = (value: number | null, field: ChangeField) => (value === null ? "—" : formatValue(value, field, copy));
   const multiField = group.fields.length > 1;
   return (
     <table className="opshs__cells">
@@ -126,7 +137,7 @@ function CellRunsTable({ copy, group }: { copy: HistoryPanelCopy; group: ChangeG
               {singleProperty ? run.room : [run.property, run.room].filter(Boolean).join(" ")}
               {multiField && (
                 <span className={`opshs__cellkind is-${run.field}`}>
-                  {run.field === "minStay" ? copy.hsKindMinStay : copy.hsKindPrice}
+                  {kindOf(run.field, copy)}
                 </span>
               )}
             </th>
@@ -349,9 +360,7 @@ export function OpsHistoryPanel({ copy, onClose }: { copy: HistoryPanelCopy; onC
                       </div>
                       {group.fields.map((summary) => (
                         <div className="opshs__change" key={summary.field}>
-                          <span className={`opshs__kind is-${summary.field}`}>
-                            {summary.field === "minStay" ? copy.hsKindMinStay : copy.hsKindPrice}
-                          </span>
+                          <span className={`opshs__kind is-${summary.field}`}>{kindOf(summary.field, copy)}</span>
                           <span className="opshs__from">{formatRange(summary.from, summary.field, copy)}</span>
                           <span aria-hidden="true" className="opshs__arrow">→</span>
                           <strong>{formatRange(summary.to, summary.field, copy)}</strong>

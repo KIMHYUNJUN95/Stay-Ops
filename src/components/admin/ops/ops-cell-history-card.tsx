@@ -24,6 +24,9 @@ export type CellHistoryCardCopy = {
   hcMinStay: string;
   hcHistory: string;
   hcCount: string;
+  hcBlock: string;
+  hcBlockOn: string;
+  hcBlockOff: string;
   minStay: string;
   historyMore: string;
   unknownUser: string;
@@ -115,14 +118,24 @@ export function OpsCellHistoryCard({
         {history.entries.map((entry, index) => {
           const view = viewHistoryEntry(entry);
           const show = (value: number | null) =>
-            value === null ? "—" : view.field === "minStay" ? nights(value) : yen(value);
-          const arrow = view.direction === "up" ? "▲" : view.direction === "down" ? "▼" : null;
+            value === null
+              ? "—"
+              : view.field === "minStay"
+                ? nights(value)
+                : view.field === "block"
+                  ? value === 1
+                    ? copy.hcBlockOn
+                    : copy.hcBlockOff
+                  : yen(value);
+          // 차단은 증감 줄이 없다(상태다).
+          const arrow =
+            view.field === "block" ? null : view.direction === "up" ? "▲" : view.direction === "down" ? "▼" : null;
           return (
             <li className={`opshc__item ${view.direction}${index === 0 ? " latest" : ""}`} key={`${entry.at}-${index}`}>
               <span aria-hidden="true" className="opshc__dot" />
               <div className="opshc__row">
-                <span className={`opshc__kind ${view.field}`}>
-                  {view.field === "minStay" ? copy.hcMinStay : copy.hcPrice}
+                <span className={`opshc__kind is-${view.field}`}>
+                  {view.field === "minStay" ? copy.hcMinStay : view.field === "block" ? copy.hcBlock : copy.hcPrice}
                 </span>
                 <span className="opshc__vals">
                   <span className="opshc__from">{show(view.from)}</span>

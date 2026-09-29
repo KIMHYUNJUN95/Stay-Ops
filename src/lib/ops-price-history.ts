@@ -49,8 +49,13 @@ export type CellHistory = {
  */
 export function buildHistoryByCell(rows: PriceHistoryRow[]): Map<string, CellHistory> {
   const byCell = new Map<string, CellHistory>();
+  // 한 행 뒤의 유닛 둘(가부키초 `203#`·`K203`)이 같은 변경을 두 줄로 남길 수 있다 — 한 번으로 센다.
+  const seen = new Set<string>();
   for (const row of rows) {
     const key = historyCellKey(row.roomLabel, row.stayDate);
+    const entryKey = [key, row.at, row.field, row.oldValue, row.newValue].join("|");
+    if (seen.has(entryKey)) continue;
+    seen.add(entryKey);
     const bucket = byCell.get(key) ?? { entries: [], total: 0 };
     bucket.total += 1;
     bucket.entries.push(row);
@@ -143,7 +148,8 @@ export function describeCellHistory(history: CellHistory, copy: HistoryCopy & { 
 export type HistoryEntryView = {
   when: string;
   by: string | null;
-  field: "price" | "minStay";
+  /** `block` 은 값이 1 = 차단 · 0 = 열림. */
+  field: "price" | "minStay" | "block";
   from: number | null;
   to: number | null;
   delta: number | null;
@@ -155,9 +161,10 @@ export type HistoryEntryView = {
 };
 
 export function viewHistoryEntry(entry: PriceHistoryEntry): HistoryEntryView {
-  const field = entry.field === "min_stay" ? "minStay" : "price";
+  const field = entry.field === "min_stay" ? "minStay" : entry.field === "blackout" ? "block" : "price";
   const { oldValue: from, newValue: to } = entry;
-  const delta = from !== null && to !== null ? to - from : null;
+  // 차단은 상태라 증감이 없다 — 「열림 → 차단」만 말한다.
+  const delta = field !== "block" && from !== null && to !== null ? to - from : null;
   const direction: HistoryEntryView["direction"] =
     from === null && to !== null
       ? "set"
@@ -177,6 +184,10 @@ export function viewHistoryEntry(entry: PriceHistoryEntry): HistoryEntryView {
     field,
     from,
     fromBeds24: entry.mode === "beds24",
+    // 차단은 방향만(차단 = up, 해제 = down) — 색을 가격과 같은 짝으로 쓴다.
+    ...(field === "block" && from !== null && to !== null && from !== to
+      ? { direction: to === 1 ? ("up" as const) : ("down" as const) }
+      : {}),
     percent,
     to,
     when: formatHistoryWhen(entry.at),

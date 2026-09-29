@@ -2258,7 +2258,8 @@
   font-weight: 800;
   color: var(--muted);
 }
-.opshc__kind.minStay { color: hsl(146 40% 30%); }
+.opshc__kind.is-minStay { color: hsl(146 40% 30%); }
+.opshc__kind.is-block { color: var(--soft); }
 .opshc__vals {
   display: inline-flex;
   align-items: baseline;

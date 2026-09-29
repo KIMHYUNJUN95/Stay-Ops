@@ -213,7 +213,7 @@ export function OpsCalendarGrid({
   days: OpsCalendarDay[];
   /** `roomKey|YYYY-MM-DD` — 1박 갭인 칸. */
   gapCells: Set<string>;
-  /** `객실라벨|YYYY-MM-DD` — 그 칸의 가격 변경 이력(최신순). */
+  /** `행키|YYYY-MM-DD` — 그 칸의 가격·최소숙박·차단 변경 이력(최신순). 행키 = `건물::표시 라벨`. */
   history: Map<string, CellHistory>;
   /** 최근 7일 Beds24 전송 실패 + 멈춘 대기 작업 수 — 「이력」 버튼에 빨간 숫자로. */
   historyAlerts: number;
@@ -1296,7 +1296,7 @@ export function OpsCalendarGrid({
                           pendingPrice ?? rates.get(`${room.key}|${day.date}`)?.price ?? null;
                         // 「누가 언제 얼마에서 얼마로」. 값이 이상할 때 제일 먼저 찾는 정보다.
                         const cellHistory = history.get(
-                          historyCellKey(room.displayRoomLabel, day.date),
+                          historyCellKey(room.key, day.date),
                         );
                         return (
                           <div
@@ -1337,7 +1337,7 @@ export function OpsCalendarGrid({
                         const minTone =
                           minStay === 1 ? " ms1" : minStay !== null && minStay >= 3 ? " ms3" : "";
                         // 같은 칸의 이력(가격·최소숙박이 한 목록이다) — 가격 줄과 같은 카드를 띄운다.
-                        const minHistory = history.get(historyCellKey(room.displayRoomLabel, day.date));
+                        const minHistory = history.get(historyCellKey(room.key, day.date));
                         return (
                           <div
                             className={`${cellClass(day, room.key)}${minTone}`}

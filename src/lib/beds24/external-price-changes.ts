@@ -48,3 +48,79 @@ export function detectExternalPriceChanges(args: {
   }
   return changes;
 }
+
+// ───────────────── 최소숙박 · 차단까지 (2026-09-29, 사용자 요청) ─────────────────
+
+/** 우리 표의 이전 값 — `roomId|YYYY-MM-DD` 마다. */
+export type RateSnapshot = { price1: number | null; minStay: number | null; override: string | null };
+
+export type ExternalRateChange = {
+  roomId: string;
+  stayDate: string;
+  /** `blackout` 은 1 = 차단, 0 = 열림. */
+  field: "price1" | "min_stay" | "blackout";
+  oldValue: number;
+  newValue: number;
+};
+
+/** 판매 중인 유닛의 최소숙박 — 50 이상은 잠근 유닛(`isActiveUnitMinStay` 와 같은 기준). */
+const isActiveMinStay = (value: number | null): value is number => value !== null && value >= 1 && value < 50;
+const isBlackout = (override: string | null) => override === "blackout";
+
+/**
+ * Beds24 에서 바뀐 가격 · 최소숙박 · 차단. **순수하다.**
+ *
+ * - **가격**: 위 `detectExternalPriceChanges` 와 같다(소스 유닛 `price1` 만 — 링크 슬롯은 따라 바뀐다).
+ * - **최소숙박**: 모든 유닛, 단 **이전·이후 둘 다 판매 중 값(1~49)** 일 때만. 50 으로 잠그거나 푸는 것은
+ *   유닛 교체라 운영 변경이 아니다.
+ * - **차단**: 모든 유닛, `override` 가 blackout ↔ 그 밖으로 바뀐 것. 잠긴 유닛(최소숙박 50+)은 뺀다 — 안
+ *   파는 유닛의 차단은 소음이다.
+ * - 공통: 이전 값을 알 때만, 오늘 이후만. **우리 앱이 쓴 값은 안 잡힌다** — 워커·차단 쓰기가 우리 표를 먼저
+ *   고쳐 두므로 동기화 때는 같은 값이다.
+ * - 같은 방의 유닛 둘(가부키초 `203#`·`K203`)이 같이 바뀌면 둘 다 잡힌다 — 화면이 한 칸으로 합친다
+ *   (`groupChangeRows`).
+ */
+export function detectExternalRateChanges(args: {
+  before: ReadonlyMap<string, RateSnapshot>;
+  after: ReadonlyArray<{
+    room_id: string;
+    stay_date: string;
+    price1: number | null;
+    min_stay: number | null;
+    override_kind: string | null;
+  }>;
+  sourceRoomIds: ReadonlySet<string>;
+  today: string;
+}): ExternalRateChange[] {
+  const changes: ExternalRateChange[] = [];
+  for (const row of args.after) {
+    if (row.stay_date < args.today) continue;
+    const previous = args.before.get(`${row.room_id}|${row.stay_date}`);
+    if (!previous) continue;
+    const base = { roomId: row.room_id, stayDate: row.stay_date };
+
+    if (
+      args.sourceRoomIds.has(row.room_id) &&
+      previous.price1 !== null &&
+      row.price1 !== null &&
+      previous.price1 !== row.price1
+    ) {
+      changes.push({ ...base, field: "price1", newValue: row.price1, oldValue: previous.price1 });
+    }
+
+    if (isActiveMinStay(previous.minStay) && isActiveMinStay(row.min_stay) && previous.minStay !== row.min_stay) {
+      changes.push({ ...base, field: "min_stay", newValue: row.min_stay, oldValue: previous.minStay });
+    }
+
+    const selling = isActiveMinStay(row.min_stay) || isActiveMinStay(previous.minStay);
+    if (selling && isBlackout(previous.override) !== isBlackout(row.override_kind)) {
+      changes.push({
+        ...base,
+        field: "blackout",
+        newValue: isBlackout(row.override_kind) ? 1 : 0,
+        oldValue: isBlackout(previous.override) ? 1 : 0,
+      });
+    }
+  }
+  return changes;
+}

@@ -693,11 +693,12 @@ export async function getOpsCalendarData(
     changed_by_name: string | null;
     adjust_mode: string | null;
     percent_value: number | null;
+    room_id: string | null;
   }>((from, to) =>
     supabase
       .from("price_change_logs")
       .select(
-        "room_label, stay_date, field, old_value, new_value, created_at, changed_by_name, adjust_mode, percent_value",
+        "room_id, room_label, stay_date, field, old_value, new_value, created_at, changed_by_name, adjust_mode, percent_value",
       )
       .eq("organization_id", session.organization.id)
       .gte("stay_date", window.start)
@@ -711,7 +712,13 @@ export async function getOpsCalendarData(
   }
   const historyRows: PriceHistoryRow[] = [];
   for (const row of historyResult.data) {
-    if (!row.room_label) continue;
+    /*
+     * **행 키(건물::표시 라벨)로 붙인다**(2026-09-29). 예전에는 로그에 적힌 라벨 그대로 붙여, Beds24 유닛
+     * 라벨로 남은 줄(STAY ARI `O302` · 가부키초 `203#`)이 격자의 「302」·「203」 칸을 못 찾았고, 건물이
+     * 달라도 번호가 같으면 섞일 수 있었다. 방을 모르는 줄은 건너뛴다.
+     */
+    const roomKey = row.room_id ? roomKeyByUuid.get(row.room_id) : undefined;
+    if (!roomKey) continue;
     historyRows.push({
       at: row.created_at,
       by: row.changed_by_name,
@@ -720,7 +727,7 @@ export async function getOpsCalendarData(
       newValue: row.new_value,
       oldValue: row.old_value,
       percent: row.percent_value,
-      roomLabel: row.room_label,
+      roomLabel: roomKey,
       stayDate: row.stay_date,
     });
   }

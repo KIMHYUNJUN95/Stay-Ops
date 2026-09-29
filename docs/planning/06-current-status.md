@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-09-29 — 로그인 화면 초대코드 안내 문구
+
+- `/auth/login` 하단 안내(`auth.login.inviteNote`)의 코드 문의처를 「매니저」→「개발자」로 변경
+  (ko/ja/en 동시). 온보딩 화면의 초대코드 힌트 문구는 그대로.
+
 ## 2026-08-07 — Documentation consistency synchronization
 
 - Reconciled the live implementation with README, agent contracts, design/mobile-shell docs, Phase 14
@@ -5494,5 +5499,11 @@ build 통과. **라이브 수정은 아직 안 해 봤다 — 사용자 확인 �
 「지금 보내기」가 반응 없던 것: 워커 잠금이 15분 고아로 남아(개발 서버 Supabase 연결 끊김으로 해제 실패) 모든 깨우기가
 조용히 멈췄다. 고아 잠금 회수(1분 넘게 잡혔는데 처리 중 작업이 없으면) + 「지금 보내기」가 첫 결과를 기다려 사람 말로
 보여준다(`hsSendResult` ko/ja/en).
+
+**후속 — Beds24 에서 바꾼 최소숙박 · 차단도 변경 이력에.** 요금 동기화가 가격만이 아니라 최소숙박(판매 중 값 1~49
+사이 변경만)·차단(blackout ↔ 열림)도 이전 값과 비교해 `price_change_logs`(「Beds24」)에 남긴다
+(`detectExternalRateChanges`, 테스트 6건). 우리 앱 차단도 같은 표에 남긴다(`field = 'blackout'`, 1/0). 마이그레이션
+`202609290002`(운영 적용). 칸 호버 이력이 로그 라벨 그대로 칸을 찾아 STAY ARI·가부키초 Beds24 변경이 안 뜨던 것 →
+`room_id` 로 행 키에 붙인다. 테스트 669개 · lint · build 통과.
 
 **캘린더 이식 잔여**: 모바일.

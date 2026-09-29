@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveBeds24AccessToken } from "@/lib/beds24/access-token";
 import { getOptionalBeds24ApiEnv } from "@/lib/env";
-import { detectExternalPriceChanges } from "@/lib/beds24/external-price-changes";
+import { detectExternalRateChanges, type RateSnapshot } from "@/lib/beds24/external-price-changes";
 import type { Database } from "@/types/database";
 import { signalBeds24Change } from "@/lib/beds24/live-signal";
 
@@ -58,7 +58,7 @@ export type RoomRatesSyncResult = {
   properties: number;
   skipped: string[];
   window: { from: string; to: string };
-  /** Beds24 쪽에서 바뀌어 가격 이력에 남긴 칸 수(`external-price-changes.ts`). */
+  /** Beds24 쪽에서 바뀌어 이력에 남긴 칸 수 — 가격 · 최소숙박 · 차단(`external-price-changes.ts`). */
   externalPriceChanges: number;
 };
 
@@ -337,33 +337,46 @@ export async function syncBeds24RoomRates(
   }
 
   /*
-   * ── Beds24 쪽에서 바뀐 가격을 이력에 남긴다 (2026-09-29) ────────────────
+   * ── Beds24 쪽에서 바뀐 가격 · 최소숙박 · 차단을 이력에 남긴다 (2026-09-29) ────────────────
    *
-   * 덮기 **전에** 우리 표의 지금 `price1` 을 읽어 둔다(소스 유닛만). 가격 웹훅은 가격 없이 「바뀌었다」
-   * 신호만 주므로 비교해야 무엇이 바뀌었는지 안다. 가격 개입 전환이 이 이력을 쓴다.
+   * 덮기 **전에** 우리 표의 지금 값을 읽어 둔다. 재고 웹훅은 값 없이 「바뀌었다」 신호만 주므로 비교해야
+   * 무엇이 바뀌었는지 안다. 가격 개입 전환은 이 중 `price1` 만 쓰고, 판매 캘린더 「이력」은 전부 보여준다.
    * 읽기에 실패하면 이력만 건너뛴다 — 요금 갱신은 막지 않는다.
    */
-  const before = new Map<string, number | null>();
-  const writtenSourceIds = [...new Set(rows.map((row) => row.room_id).filter((id) => sourceRoomIds.has(id)))];
-  let beforeReadOk = writtenSourceIds.length > 0;
+  // 가격은 소스 유닛만 보지만 최소숙박·차단은 **모든 유닛**을 본다(2026-09-29) — 그래서 쓴 유닛 전부를 읽는다.
+  const before = new Map<string, RateSnapshot>();
+  const writtenRoomIds = [...new Set(rows.map((row) => row.room_id))];
+  let beforeReadOk = writtenRoomIds.length > 0;
   for (let offset = 0; beforeReadOk; offset += 1000) {
     const page = await supabase
       .from("room_daily_rates")
-      .select("room_id, stay_date, price1")
+      .select("room_id, stay_date, price1, min_stay, override_kind")
       .eq("organization_id", organizationId)
-      .in("room_id", writtenSourceIds)
+      .in("room_id", writtenRoomIds)
       .gte("stay_date", window.from)
       .lte("stay_date", window.to)
       .order("room_id", { ascending: true })
       .order("stay_date", { ascending: true })
       .range(offset, offset + 999);
     if (page.error) {
-      console.error("[beds24/rates] before-read failed; skipping external price log", page.error);
+      console.error("[beds24/rates] before-read failed; skipping external change log", page.error);
       beforeReadOk = false;
       break;
     }
-    const data = (page.data ?? []) as Array<{ room_id: string; stay_date: string; price1: number | null }>;
-    for (const row of data) before.set(`${row.room_id}|${row.stay_date}`, row.price1);
+    const data = (page.data ?? []) as Array<{
+      room_id: string;
+      stay_date: string;
+      price1: number | null;
+      min_stay: number | null;
+      override_kind: string | null;
+    }>;
+    for (const row of data) {
+      before.set(`${row.room_id}|${row.stay_date}`, {
+        minStay: row.min_stay,
+        override: row.override_kind,
+        price1: row.price1,
+      });
+    }
     if (data.length < 1000) break;
   }
 
@@ -390,7 +403,7 @@ export async function syncBeds24RoomRates(
   let externalPriceChanges = 0;
   if (beforeReadOk && !upsertFailed) {
     const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const changes = detectExternalPriceChanges({ after: rows, before, sourceRoomIds, today });
+    const changes = detectExternalRateChanges({ after: rows, before, sourceRoomIds, today });
     for (let index = 0; index < changes.length; index += CHUNK) {
       const logRows = changes.slice(index, index + CHUNK).map((change) => ({
         // 한 번의 동기화에서 잡힌 변경은 **같은 시각**으로 남긴다 — 가격 개입 판정이 이걸 한 번의
@@ -400,7 +413,7 @@ export async function syncBeds24RoomRates(
         changed_by_name: "Beds24",
         created_at: syncedAt,
         external_room_id: unitById.get(change.roomId)?.externalRoomId ?? null,
-        field: "price1",
+        field: change.field,
         job_id: null,
         new_value: change.newValue,
         old_value: change.oldValue,
@@ -412,7 +425,7 @@ export async function syncBeds24RoomRates(
       }));
       const inserted = await supabase.from("price_change_logs").insert(logRows as never);
       if (inserted.error) {
-        console.error("[beds24/rates] external price log failed", inserted.error);
+        console.error("[beds24/rates] external change log failed", inserted.error);
         break;
       }
       externalPriceChanges += logRows.length;

@@ -320,6 +320,19 @@ type BlockRoomRow = {
   properties: { name: string } | { name: string }[] | null;
 };
 
+/** `YYYY-MM-DD` 양끝 포함 — 차단 구간의 밤들. */
+function eachNightInclusive(startDate: string, endDate: string): string[] {
+  const nights: string[] = [];
+  const cursor = new Date(`${startDate}T12:00:00Z`);
+  for (let guard = 0; guard < 400; guard += 1) {
+    const date = cursor.toISOString().slice(0, 10);
+    if (date > endDate) break;
+    nights.push(date);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return nights;
+}
+
 async function runBlockChange(
   args: { cells: BlockChangeCell[] },
   mode: "block" | "unblock",
@@ -354,6 +367,8 @@ async function runBlockChange(
   for (const row of (roomsResult.data ?? []) as BlockRoomRow[]) unitById.set(row.id, row);
 
   let nights = 0;
+  // 한 번 누른 것은 **같은 시각**으로 남긴다 — 변경 이력이 이 시각으로 한 줄로 묶는다(`groupChangeRows`).
+  const actedAt = new Date().toISOString();
   for (const range of ranges) {
     const units = (roomIdsByKey.get(range.roomKey) ?? [])
       .map((id) => unitById.get(id))
@@ -374,6 +389,29 @@ async function runBlockChange(
       mode === "block"
         ? await createRoomBlock({ ...shared, actorUserId: session.user.id })
         : await clearRoomBlock(shared);
+
+    // 변경 이력 — 가격·최소숙박과 같은 표(`price_change_logs.field = 'blackout'`, 1 = 차단 · 0 = 열림).
+    // 방당 **유닛 하나**만 적는다 — 유닛이 둘인 방도 화면에서는 한 칸이다.
+    if (result.ok) {
+      const historyRows = eachNightInclusive(range.startDate, range.endDate).map((date) => ({
+        adjust_mode: "block",
+        changed_by: session.user.id,
+        changed_by_name: session.user.name ?? null,
+        created_at: actedAt,
+        external_room_id: String(units[0].external_room_id),
+        field: "blackout",
+        job_id: null,
+        new_value: mode === "block" ? 1 : 0,
+        old_value: mode === "block" ? 0 : 1,
+        organization_id: session.organization.id,
+        percent_value: null,
+        room_id: units[0].id,
+        room_label: units[0].room_label,
+        stay_date: date,
+      }));
+      const logged = await supabase.from("price_change_logs").insert(historyRows as never);
+      if (logged.error) console.error("[ops/calendar] block history log failed", logged.error);
+    }
 
     // 성공이든 실패든 **구간마다** 남긴다 — 「이력 → Beds24 전송」 탭(`beds24_block_logs`).
     await recordBlockLog(supabase, {

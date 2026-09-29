@@ -1885,3 +1885,15 @@ Constraints / behavior:
 
 인덱스 `(organization_id, created_at desc)`. 쓰기는 `recordBlockLog()`(`src/lib/beds24/block-log.ts`) —
 던지지 않는다(로그 실패가 이미 반영된 차단을 실패로 만들면 안 된다).
+
+## 2026-09-29 `price_change_logs.field` — `blackout` 추가
+
+마이그레이션: `supabase/migrations/202609290002_price_change_logs_blackout.sql` (운영 적용 2026-09-29).
+허용 값 `price1 · price2 · price3 · min_stay` 에 **`blackout`** 추가 — 판매 캘린더 「이력 → 변경 이력」이 가격·최소숙박·
+차단을 한 이력으로 보여준다. 차단은 상태라 `old_value`/`new_value` 가 **1 = 차단, 0 = 열림**.
+
+| `adjust_mode` | 누가 남기나 |
+| --- | --- |
+| `amount` · `percent` · `min_stay` | 우리 앱 가격·최소숙박 작업(워커, `job_id` 있음) |
+| `block` | 우리 앱 차단·해제(서버 액션, `job_id` 없음 — 같은 시각으로 묶는다) |
+| `beds24` | Beds24 에서 바뀐 것을 요금 동기화가 이전 값과 비교해 잡은 것(가격 `price1` · 최소숙박 · 차단) |
