@@ -258,7 +258,8 @@ export function buildOpsCalendarDays(args: {
   return days;
 }
 
-function toChannel(source: string | null | undefined): OpsCalendarChannel {
+/** 예약 출처 → 격자의 채널 칸. 예약 수정이 「채널 예약인가」를 가를 때도 쓴다. */
+export function opsChannelOf(source: string | null | undefined): OpsCalendarChannel {
   const normalized = normalizeReservationSource(source);
   if (normalized === "Airbnb") return "airbnb";
   if (normalized === "Booking.com") return "booking";
@@ -333,6 +334,8 @@ export async function readOpsRoomUnavailableNights(args: {
   roomIds: string[];
   from: string;
   toExclusive: string;
+  /** 이 예약은 세지 않는다 — 예약 수정에서 **자기 자신과 겹친다**고 막으면 안 된다. */
+  excludeReservationId?: string;
 }): Promise<{ booked: string[]; unsellable: string[] }> {
   const { organizationId, supabase } = args;
   const [roomCatalog, reservationsResult, blocksResult, ratesResult] = await Promise.all([
@@ -391,6 +394,7 @@ export async function readOpsRoomUnavailableNights(args: {
   const reservationRoomAxis = makeReservationRoomAxis(roomCatalog);
   for (const row of reservationsResult.data) {
     if (row.status === "cancelled" || row.status === "no_show") continue;
+    if (row.id === args.excludeReservationId) continue;
     if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
     if (reservationRoomAxis(row).roomKey !== args.roomKey) continue;
     for (const night of nights) {
@@ -501,7 +505,7 @@ export async function getOpsCalendarData(
       roomsByKey.set(roomKey, { displayRoomLabel, key: roomKey, propertyName, roomIds: [] });
     }
     bars.push({
-      channel: toChannel(row.source),
+      channel: opsChannelOf(row.source),
       checkIn: row.check_in_date,
       checkOut: row.check_out_date,
       guestName: row.guest_name,

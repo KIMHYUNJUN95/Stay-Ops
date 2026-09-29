@@ -2003,3 +2003,23 @@
   -webkit-user-select: none;
 }
 
+/* 예약 수정 — 채널 예약이 날짜·금액을 못 바꾸는 이유, 저장 완료 표시. */
+.opsrp__lock {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--adm-surface);
+  color: var(--soft);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+.opsrp__ok { margin: 0; font-size: 12px; font-weight: 700; color: var(--done); line-height: 1.5; }
+/* 채널 예약의 총액을 고칠 때 — 손님 청구액은 안 바뀐다는 것을 칸 바로 아래에. */
+.opsrp__warnline {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: color-mix(in oklab, var(--warn) 82%, var(--ink));
+}
+

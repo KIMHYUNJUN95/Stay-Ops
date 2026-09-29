@@ -1,13 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Check, X } from "lucide-react";
-import {
-  loadRoomAvailability,
-  submitManualBooking,
-  type ManualBookingResult,
-} from "@/app/admin/ops/calendar/actions";
-import { shiftMonthKey } from "@/components/admin/shared/admin-month-key";
+import { submitManualBooking, type ManualBookingResult } from "@/app/admin/ops/calendar/actions";
+import { useRoomAvailability } from "@/components/admin/ops/use-room-availability";
 import { AdminDateRangePicker } from "@/components/admin/shared/admin-date-range-picker";
 import { useAdminPanelA11y } from "@/components/admin/shared/use-admin-panel-a11y";
 import { MAX_STAY_NIGHTS, stayNights, validateManualBooking } from "@/lib/ops-manual-booking";
@@ -194,61 +190,18 @@ export function OpsBookingPanel({
 
   const nights = useMemo(() => stayNights(arrival, departure), [arrival, departure]);
 
-  /**
-   * 밤별 판매 가능 여부. **없는 키는 아직 모르는 것**이고, 모르면 막는다.
-   * 피커가 달을 넘길 때마다 그 달과 다음 달을 읽는다(한 번 읽은 달은 다시 안 읽는다).
-   */
-  const [nightState, setNightState] = useState<Map<string, "free" | "taken">>(new Map());
-  const [availFailed, setAvailFailed] = useState(false);
-  const requestedMonths = useRef(new Set<string>());
-
-  const loadMonths = (monthKey: string) => {
-    const months = [monthKey, shiftMonthKey(monthKey, 1)].filter(
-      (month) => !requestedMonths.current.has(month),
-    );
-    if (months.length === 0) return;
-    for (const month of months) requestedMonths.current.add(month);
-    const from = `${months[0]}-01`;
-    const toExclusive = `${shiftMonthKey(months[months.length - 1], 1)}-01`;
-    void loadRoomAvailability({ from, roomIds: room.roomIds, roomKey: room.key, toExclusive }).then(
-      (result) => {
-        if (!result.ok) {
-          // 다시 열 때 재시도할 수 있게 표시를 거둔다. 그동안은 막힌 채로 둔다.
-          for (const month of months) requestedMonths.current.delete(month);
-          setAvailFailed(true);
-          return;
-        }
-        const taken = new Set([...result.booked, ...result.unsellable]);
-        setNightState((previous) => {
-          const next = new Map(previous);
-          for (const night of stayNights(from, toExclusive)) {
-            next.set(night, taken.has(night) ? "taken" : "free");
-          }
-          return next;
-        });
-      },
-    );
-  };
-
-  // 격자에서 고른 숙박이 걸친 달부터 읽어 둔다 — 피커를 열기 전에 이미 회색이 맞아 있게.
-  useEffect(() => {
-    loadMonths(checkIn.slice(0, 7));
-    if (checkOut.slice(0, 7) !== checkIn.slice(0, 7)) loadMonths(checkOut.slice(0, 7));
-    // 패널이 열릴 때 한 번만 — 이후는 피커의 달 이동이 부른다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const nightTaken = (night: string) => nightState.get(night) !== "free";
-  const isDateDisabled = (date: string, pendingFrom: string | null) => {
-    if (pendingFrom && date > pendingFrom) {
-      // 체크아웃 후보: 그 사이의 밤이 **전부** 팔 수 있어야 한다. 체크아웃 날 자체는 밤이 아니다.
-      const between = stayNights(pendingFrom, date);
-      return between.length > MAX_STAY_NIGHTS || between.some(nightTaken);
-    }
-    return date < today || nightTaken(date);
-  };
+  // 팔 수 있는 밤 — 격자에서 고른 숙박이 걸친 달부터 읽어 둔다(`use-room-availability.ts`).
+  const availability = useRoomAvailability({
+    roomIds: room.roomIds,
+    roomKey: room.key,
+    seedMonths: [checkIn.slice(0, 7), checkOut.slice(0, 7)],
+    today,
+  });
+  const isDateDisabled = availability.isDateDisabled;
+  const loadMonths = availability.loadMonths;
+  const availFailed = availability.failed;
   /** 지금 잡힌 숙박에 막힌 밤이 끼었나 — 읽기가 늦게 도착해 드러날 수 있다. */
-  const takenInStay = nights.filter((night) => nightState.get(night) === "taken");
+  const takenInStay = availability.takenIn(nights);
 
   const rates = useMemo(() => {
     const rows = nights.map((night) => ({ night, ...rateAt(night) }));

@@ -7,7 +7,12 @@ import {
   submitReservationCancel,
   type CancelReservationResult,
 } from "@/app/admin/ops/calendar/actions";
+import { useRouter } from "next/navigation";
 import { useAdminPanelA11y } from "@/components/admin/shared/use-admin-panel-a11y";
+import {
+  OpsReservationEditForm,
+  type ReservationEditCopy,
+} from "@/components/admin/ops/ops-reservation-edit";
 import type { OpsCalendarBar } from "@/lib/ops-calendar";
 import type { OpsReservationDetail } from "@/lib/ops-reservation-detail";
 
@@ -42,7 +47,9 @@ import type { OpsReservationDetail } from "@/lib/ops-reservation-detail";
  * 다시 눌러 봐야 주석만 덧씌워진다. 「취소만 보기」에서 열면 상세만 보인다.
  */
 
-export type ReservationCardCopy = {
+export type ReservationCardCopy = ReservationEditCopy & {
+  reEdit: string;
+  reSaved: string;
   rcTitle: string;
   rcNights: string;
   rcChannel: string;
@@ -185,7 +192,10 @@ export function OpsReservationPanel({
   nights,
   onClose,
   propertyName,
+  roomIds,
+  roomKey,
   roomLabel,
+  today,
 }: {
   bar: OpsCalendarBar;
   copy: ReservationCardCopy;
@@ -193,8 +203,17 @@ export function OpsReservationPanel({
   nights: number;
   onClose: () => void;
   propertyName: string;
+  /** 예약 수정의 겹침 검사가 쓴다 — 그 행의 우리 `rooms.id`. */
+  roomIds: string[];
+  roomKey: string;
   roomLabel: string;
+  today: string;
 }) {
+  const router = useRouter();
+  /** 보기 / 고치기. 고치는 동안은 본문·하단을 편집 폼이 차지한다. */
+  const [editing, setEditing] = useState(false);
+  /** 고친 뒤 상세를 다시 읽게 하는 신호. */
+  const [reloadKey, setReloadKey] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -209,7 +228,7 @@ export function OpsReservationPanel({
     if (confirming) cancelBoxRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [confirming]);
   // Esc · 포커스 · 스크롤 잠금은 콘솔 패널 공용 훅이 한다. 취소를 보내는 중에는 닫히지 않는다.
-  const panelRef = useAdminPanelA11y<HTMLElement>(onClose, { disabled: pending });
+  const panelRef = useAdminPanelA11y<HTMLElement>(onClose, { disabled: pending || editing });
 
   // 누른 한 건만 읽는다. 머리글은 격자 값으로 먼저 그려 두었으므로 기다리는 동안도 비지 않는다.
   useEffect(() => {
@@ -222,7 +241,7 @@ export function OpsReservationPanel({
     return () => {
       alive = false;
     };
-  }, [bar.id]);
+  }, [bar.id, reloadKey]);
 
   const cancel = () => {
     setMessage(copy.rcPending);
@@ -318,6 +337,27 @@ export function OpsReservationPanel({
           </div>
         </div>
 
+        {editing && detail ? (
+          <OpsReservationEditForm
+            channel={bar.channel}
+            copy={copy}
+            detail={detail}
+            localeTag={localeTag}
+            onDiscard={() => setEditing(false)}
+            onSaved={() => {
+              setEditing(false);
+              setMessage(copy.reSaved);
+              // 상세는 다시 읽고, 격자(막대 이름·날짜)는 서버 데이터만 다시 받는다.
+              setReloadKey((key) => key + 1);
+              router.refresh();
+            }}
+            reservationId={bar.id}
+            roomIds={roomIds}
+            roomKey={roomKey}
+            today={today}
+          />
+        ) : (
+        <>
         <div className="panel__body opsrp__body">
           {/* ── 숙박 ── 격자 값만으로 그린다. 읽기를 기다리지 않는다. */}
           <section className="opsrp__sec">
@@ -498,7 +538,9 @@ export function OpsReservationPanel({
             </section>
           )}
 
-          {message && <p className="opsrp__err">{message}</p>}
+          {message && (
+            <p className={message === copy.reSaved ? "opsrp__ok" : "opsrp__err"}>{message}</p>
+          )}
         </div>
 
         <div className="panel__foot">
@@ -513,18 +555,35 @@ export function OpsReservationPanel({
             </>
           ) : (
             <>
-              <button className="btn btn--subtle" onClick={onClose} type="button">
-                {copy.rcClose}
-              </button>
-              {/* 이미 취소된 예약에는 버튼이 없다 — 다시 눌러야 주석만 덧씌워진다. */}
-              {!bar.isCancelled && (
-                <button className="btn btn--danger-ghost" onClick={() => setConfirming(true)} type="button">
-                  {copy.rcCancel}
+              {/* 취소된 예약은 고치지도, 다시 취소하지도 않는다 — 닫기만. */}
+              {bar.isCancelled ? (
+                <button className="btn btn--subtle" onClick={onClose} type="button">
+                  {copy.rcClose}
                 </button>
+              ) : (
+                <>
+                  <button
+                    className="btn btn--subtle"
+                    // 원래 값이 있어야 무엇이 바뀌었는지 안다 — 상세를 읽은 뒤에만.
+                    disabled={!detail}
+                    onClick={() => {
+                      setMessage(null);
+                      setEditing(true);
+                    }}
+                    type="button"
+                  >
+                    {copy.reEdit}
+                  </button>
+                  <button className="btn btn--danger-ghost" onClick={() => setConfirming(true)} type="button">
+                    {copy.rcCancel}
+                  </button>
+                </>
               )}
             </>
           )}
         </div>
+        </>
+        )}
       </aside>
     </>
   );

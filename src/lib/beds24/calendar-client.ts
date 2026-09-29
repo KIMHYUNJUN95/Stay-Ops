@@ -372,3 +372,73 @@ export async function postBeds24BookingCancel(args: {
   }
   return { ok: true };
 }
+
+/**
+ * 예약을 고친다 — `POST /bookings` 에 `id` + **바뀐 필드만**(`buildBeds24BookingUpdate`).
+ *
+ * 취소와 같은 응답 규칙이다: `errors` 가 비어 있어야 성공. 성공해도 **무엇이 들어갔는지는
+ * 되읽어야 안다** — 부르는 쪽이 `fetchBeds24BookingById` 로 다시 읽어 우리 표를 맞춘다.
+ */
+export async function postBeds24BookingUpdate(
+  payload: Record<string, unknown>,
+): Promise<{ ok: true } | { ok: false; error: string } | { skipped: string }> {
+  const resolved = await resolveBase();
+  if ("skipped" in resolved) return resolved;
+
+  const response = await fetch(`${resolved.base}/bookings`, {
+    body: JSON.stringify([payload]),
+    cache: "no-store",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+      token: resolved.token,
+    },
+    method: "POST",
+  });
+  const credit = readCreditSignal(response.headers);
+  if (!response.ok) {
+    throw new Beds24HttpError(response.status, credit.resetInSec, response.status === 429);
+  }
+
+  const body = (await response.json()) as unknown;
+  const root = asRecord(body);
+  const rows = Array.isArray(body) ? body : Array.isArray(root?.data) ? root.data : null;
+  const row = asRecord(rows?.[0]);
+  if (!row) return { error: "unexpected_response", ok: false };
+
+  const errors = Array.isArray(row.errors) ? row.errors : [];
+  if (row.success === false || errors.length > 0) {
+    const detail = errors
+      .map((entry) => asRecord(entry)?.message)
+      .filter((message): message is string => typeof message === "string")
+      .join(", ");
+    return { error: detail || "rejected", ok: false };
+  }
+  return { ok: true };
+}
+
+/**
+ * 예약 한 건을 Beds24 예약번호로 읽는다. 수정 직후 우리 표를 맞추는 데 쓴다 —
+ * 웹훅을 기다리면 방금 고친 것이 화면에 안 보여 사람은 한 번 더 고친다.
+ */
+export async function fetchBeds24BookingById(
+  bookingId: string,
+): Promise<{ ok: true; booking: JsonRecord } | { ok: false; error: string } | { skipped: string }> {
+  const resolved = await resolveBase();
+  if ("skipped" in resolved) return resolved;
+
+  const response = await fetch(`${resolved.base}/bookings?id=${encodeURIComponent(bookingId)}`, {
+    cache: "no-store",
+    headers: { accept: "application/json", token: resolved.token },
+  });
+  const credit = readCreditSignal(response.headers);
+  if (!response.ok) {
+    throw new Beds24HttpError(response.status, credit.resetInSec, response.status === 429);
+  }
+  const body = (await response.json()) as unknown;
+  const root = asRecord(body);
+  const rows = Array.isArray(body) ? body : Array.isArray(root?.data) ? root.data : null;
+  const booking = asRecord(rows?.[0]);
+  if (!booking || String(booking.id ?? "") !== bookingId) return { error: "not_found", ok: false };
+  return { booking, ok: true };
+}

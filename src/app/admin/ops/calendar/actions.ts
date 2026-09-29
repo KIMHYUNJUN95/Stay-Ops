@@ -7,8 +7,10 @@ import { enqueueBeds24PriceJob, type PriceJobCellRequest } from "@/lib/beds24/pr
 import { runNextPriceJob } from "@/lib/beds24/price-job-worker";
 import {
   Beds24HttpError,
+  fetchBeds24BookingById,
   postBeds24Booking,
   postBeds24BookingCancel,
+  postBeds24BookingUpdate,
 } from "@/lib/beds24/calendar-client";
 import { processBeds24WebhookBooking } from "@/lib/beds24/process-webhook-booking";
 import { activateBeds24Cooldown } from "@/lib/beds24/sync-locks";
@@ -30,7 +32,15 @@ import {
 } from "@/lib/beds24/block-write";
 import { groupSelectionIntoRanges } from "@/lib/ops-calendar-selection";
 import { canAccessOpsAdmin } from "@/lib/ops-admin";
-import { readOpsRoomUnavailableNights } from "@/lib/ops-calendar";
+import { opsChannelOf, readOpsRoomUnavailableNights } from "@/lib/ops-calendar";
+import {
+  addedNights,
+  buildBeds24BookingUpdate,
+  validateBookingEdit,
+  type BookingEditChanges,
+  type BookingEditDraft,
+  type BookingEditError,
+} from "@/lib/ops-booking-edit";
 import { buildOpsReservationDetail, type OpsReservationDetail } from "@/lib/ops-reservation-detail";
 import {
   buildAdjustmentPreview,
@@ -91,9 +101,13 @@ async function requireOpsWriter() {
 /**
  * 가격 수정.
  *
- * **`p1`·`p3` 에 같은 값을 쓰고 `p2`(부킹닷컴)는 건드리지 않는다.** 부킹닷컴 가격은 Beds24 가
- * 에어비앤비 가격에서 규칙으로 파생시키므로, 우리가 직접 쓰면 그 규칙과 충돌한다
- * (저쪽이 `p1`·`p3` 만 쓰는 이유다).
+ * **`p1`(에어비앤비)만 쓴다.** 나머지 슬롯은 Beds24 가격 링크가 `p1` 에서 계산한다 —
+ * 2026-09-29 전수 실측: `p2` = Booking.com(×1.48 등), `p3` = 방마다 다르다(홈페이지 ×1 이 37개,
+ * **오쿠보C 는 Agoda ×1.3, 사노는 Booking.com ×1.65**), 39개 방 전부 **링크 슬롯**이다.
+ *
+ * 예전에는 저쪽을 따라 `p3` 에도 같은 값을 썼다(「p3 = 홈페이지 ×1」 전제). 링크 슬롯이라
+ * Beds24 가 무시해 피해는 없었지만, 누가 링크를 끊는 순간 **그 방의 Agoda·Booking.com 가격이
+ * 에어비앤비 가격으로 덮인다**(오쿠보C Agoda 23%, 사노 Booking.com 39% 싸짐). 보낼 이유가 없다.
  */
 export async function submitPriceChange(args: {
   cells: PriceChangeCell[];
@@ -127,8 +141,8 @@ export async function submitPriceChange(args: {
     roomIds: roomIdsByCell.get(`${row.roomKey}|${row.date}`) ?? [],
     roomLabel: row.roomLabel,
     stayDate: row.date,
-    // p1 = 에어비앤비, p3 = 대체가. p2 는 **넣지 않는다**(키가 없으면 Beds24 가 유지한다).
-    values: { p1: row.newPrice, p3: row.newPrice },
+    // p1 = 에어비앤비. 나머지는 **넣지 않는다**(키가 없으면 Beds24 가 유지하고, 링크가 계산한다).
+    values: { p1: row.newPrice },
   }));
 
   const supabase = getSupabaseServiceClient();
@@ -440,6 +454,8 @@ export async function loadRoomAvailability(args: {
   roomIds: string[];
   from: string;
   toExclusive: string;
+  /** 예약 수정에서 — 그 예약 자신은 「이미 찬 밤」으로 세지 않는다. */
+  excludeReservationId?: string;
 }): Promise<RoomAvailabilityResult> {
   const session = await requireOpsWriter();
   if (!session) return { error: "forbidden", ok: false };
@@ -464,6 +480,7 @@ export async function loadRoomAvailability(args: {
 
   try {
     const result = await readOpsRoomUnavailableNights({
+      excludeReservationId: args.excludeReservationId,
       from: args.from,
       organizationId: session.organization.id,
       roomIds,
@@ -659,6 +676,199 @@ export async function loadReservationDetail(
   if (result.error || !result.data) return { error: "not_found", ok: false };
 
   return { detail: buildOpsReservationDetail(result.data), ok: true };
+}
+
+export type ReservationEditResult =
+  | { ok: true }
+  | {
+      ok: false;
+      error:
+        | BookingEditError
+        | "forbidden"
+        | "not_found"
+        | "cancelled"
+        | "no_booking_id"
+        | "occupied"
+        | "no_active_unit"
+        | "beds24_failed"
+        | "cooldown";
+      /** 겹치거나 판매 유닛이 없는 밤. 화면이 날짜를 적어 준다. */
+      conflictDates?: string[];
+      detail?: string;
+    };
+
+/**
+ * 예약 수정.
+ *
+ * 도메인 계약: `docs/product/33-calendar-write-features.md` → 「예약 수정」
+ * 규칙: `src/lib/ops-booking-edit.ts` (순수 · 테스트로 고정)
+ * 원본: `functions/index.js` → `updateBooking`
+ *
+ * ## 저쪽보다 두 가지를 더 본다
+ *
+ * 저쪽은 날짜를 바꿔도 **아무것도 검사하지 않았다.** 우리는 **새로 묵게 되는 밤**만 골라
+ * (`addedNights`) —
+ *
+ * 1. 다른 예약·블록과 겹치는지 — 격자와 **같은 매칭**, 그 예약 자신은 뺀다.
+ * 2. 그 예약의 **유닛이 그 밤에 팔리고 있는지** — 예약은 roomId 하나에 붙어 있고 수정해도
+ *    유닛은 그대로다. 잠긴 유닛의 밤으로 늘리면 접어둔 listing 이 다시 열린다.
+ *
+ * 원래 값은 **화면이 아니라 DB 에서** 읽는다 — 화면이 보낸 「원래 값」을 믿으면 채널 예약의
+ * 잠금을 우회할 수 있다.
+ */
+export async function submitReservationEdit(args: {
+  reservationId: string;
+  /** 격자의 행 키와 그 행의 우리 `rooms.id` — 겹침 검사가 쓴다. */
+  roomKey: string;
+  roomIds: string[];
+  changes: BookingEditChanges;
+}): Promise<ReservationEditResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+
+  const supabase = getSupabaseServiceClient();
+  const found = await supabase
+    .from("reservations")
+    .select("id, status, source, guest_name, check_in_date, check_out_date, raw_payload")
+    .eq("organization_id", session.organization.id)
+    .eq("id", args.reservationId)
+    .maybeSingle();
+  if (found.error || !found.data) return { error: "not_found", ok: false };
+  const row = found.data as {
+    id: string;
+    status: string;
+    source: string;
+    guest_name: string;
+    check_in_date: string;
+    check_out_date: string;
+    raw_payload: unknown;
+  };
+  if (row.status === "cancelled" || row.status === "no_show") return { error: "cancelled", ok: false };
+
+  const bookingId = readBeds24CancelTargetId(row.raw_payload);
+  if (!bookingId) return { error: "no_booking_id", ok: false };
+
+  const raw =
+    row.raw_payload && typeof row.raw_payload === "object" && !Array.isArray(row.raw_payload)
+      ? (row.raw_payload as Record<string, unknown>)
+      : {};
+  const text = (key: string) => (typeof raw[key] === "string" ? (raw[key] as string) : "");
+  const num = (key: string) => {
+    const value = Number(raw[key]);
+    return Number.isFinite(value) ? value : null;
+  };
+  const original: BookingEditDraft = {
+    arrival: row.check_in_date,
+    departure: row.check_out_date,
+    email: text("email"),
+    guestName: row.guest_name,
+    notes: text("notes"),
+    numAdult: num("numAdult") ?? 1,
+    numChild: num("numChild") ?? 0,
+    phone: text("phone"),
+    totalPrice: num("price"),
+  };
+
+  // 화면이 보낸 것 중 **정말 바뀐 것만** 남긴다(원래 값은 DB 기준).
+  const changes: BookingEditChanges = {};
+  for (const [key, value] of Object.entries(args.changes) as Array<[keyof BookingEditDraft, unknown]>) {
+    const before = original[key];
+    const same =
+      typeof value === "string" && typeof before === "string" ? value.trim() === before.trim() : value === before;
+    if (!same) (changes as Record<string, unknown>)[key] = typeof value === "string" ? value.trim() : value;
+  }
+
+  const today = toJstDateString(new Date());
+  const invalid = validateBookingEdit({
+    changes,
+    channel: opsChannelOf(row.source),
+    original,
+    today,
+  });
+  if (invalid) return { error: invalid, ok: false };
+
+  const newNights = addedNights(original, changes).filter((night) => night >= today);
+  if (newNights.length > 0) {
+    const sorted = [...newNights].sort();
+    const toExclusive = (() => {
+      const at = new Date(`${sorted[sorted.length - 1]}T12:00:00Z`);
+      at.setUTCDate(at.getUTCDate() + 1);
+      return at.toISOString().slice(0, 10);
+    })();
+
+    let unavailable: Awaited<ReturnType<typeof readOpsRoomUnavailableNights>>;
+    try {
+      unavailable = await readOpsRoomUnavailableNights({
+        excludeReservationId: row.id,
+        from: sorted[0],
+        organizationId: session.organization.id,
+        roomIds: args.roomIds,
+        roomKey: args.roomKey,
+        supabase,
+        toExclusive,
+      });
+    } catch (error) {
+      // 확인을 못 했으면 보내지 않는다 — 「비어 있을 것이다」로 늘리면 그대로 초과예약이다.
+      return { detail: (error as Error).message, error: "beds24_failed", ok: false };
+    }
+    const newSet = new Set(newNights);
+    const clash = unavailable.booked.filter((night) => newSet.has(night));
+    if (clash.length > 0) return { conflictDates: clash, error: "occupied", ok: false };
+
+    // 예약이 붙은 **그 유닛**이 새 밤에 팔리고 있어야 한다.
+    const unitExternalId = String(raw.roomId ?? "");
+    const unit = await supabase
+      .from("rooms")
+      .select("id")
+      .eq("organization_id", session.organization.id)
+      .eq("external_room_id", unitExternalId)
+      .maybeSingle();
+    if (!unit.data) return { conflictDates: newNights, error: "no_active_unit", ok: false };
+    const rates = await supabase
+      .from("room_daily_rates")
+      .select("stay_date, min_stay")
+      .eq("organization_id", session.organization.id)
+      .eq("room_id", (unit.data as { id: string }).id)
+      .in("stay_date", newNights);
+    const active = new Set(
+      ((rates.data ?? []) as Array<{ stay_date: string; min_stay: number | null }>)
+        .filter((rate) => isActiveUnitMinStay(rate.min_stay))
+        .map((rate) => rate.stay_date),
+    );
+    const locked = newNights.filter((night) => !active.has(night));
+    if (locked.length > 0) return { conflictDates: locked, error: "no_active_unit", ok: false };
+  }
+
+  let posted: Awaited<ReturnType<typeof postBeds24BookingUpdate>>;
+  try {
+    posted = await postBeds24BookingUpdate(buildBeds24BookingUpdate(bookingId, changes));
+  } catch (error) {
+    if (error instanceof Beds24HttpError && error.isRateLimit) {
+      await activateBeds24Cooldown(supabase, { reason: "rate_limit", resetInSec: error.resetInSec });
+      return { error: "cooldown", ok: false };
+    }
+    return { detail: error instanceof Error ? error.message : "unknown", error: "beds24_failed", ok: false };
+  }
+  if ("skipped" in posted) return { detail: posted.skipped, error: "beds24_failed", ok: false };
+  if (!posted.ok) return { detail: posted.error, error: "beds24_failed", ok: false };
+
+  // **다시 읽어 우리 표를 맞춘다** — 예약 웹훅과 같은 처리기라 형식이 갈리지 않는다.
+  // 실패해도 Beds24 에는 들어갔으므로 실패로 돌리지 않는다(웹훅·정합성이 곧 맞춘다).
+  try {
+    const fetched = await fetchBeds24BookingById(bookingId);
+    if (!("skipped" in fetched) && fetched.ok) {
+      await processBeds24WebhookBooking({
+        organizationIdDefault: session.organization.id,
+        payload: fetched.booking,
+        supabase,
+      });
+    }
+  } catch (error) {
+    console.error("[ops/reservation-edit] local refresh failed", error);
+  }
+
+  revalidatePath(CONSOLE_PATH);
+  return { ok: true };
 }
 
 export type CancelReservationResult =

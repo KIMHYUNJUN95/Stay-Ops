@@ -379,6 +379,7 @@ export function OpsCalendarGrid({
     bar: OpsCalendarBar;
     roomLabel: string;
     propertyName: string;
+    roomIds: string[];
   } | null>(null);
 
   const dates = useMemo(() => days.map((day) => day.date), [days]);
@@ -1291,6 +1292,7 @@ export function OpsCalendarGrid({
                                     setOpenBar({
                                       bar,
                                       propertyName: room.propertyName,
+                                      roomIds: room.roomIds,
                                       roomLabel: room.displayRoomLabel,
                                     });
                                   }
@@ -1318,6 +1320,9 @@ export function OpsCalendarGrid({
           key={openBar.bar.id}
           localeTag={copy.localeTag}
           propertyName={openBar.propertyName}
+          roomIds={openBar.roomIds}
+          roomKey={openBar.bar.roomKey}
+          today={today}
           copy={copy}
           nights={
             stayNights(openBar.bar.checkIn, openBar.bar.checkOut).length
