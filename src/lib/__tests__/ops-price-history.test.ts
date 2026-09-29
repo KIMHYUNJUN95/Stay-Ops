@@ -7,6 +7,7 @@ import {
   HISTORY_PER_CELL,
   type HistoryCopy,
   type PriceHistoryRow,
+  viewHistoryEntry,
 } from "@/lib/ops-price-history";
 
 /**
@@ -128,5 +129,39 @@ describe("describeCellHistory", () => {
   it("다 보여줄 수 있으면 개수 줄이 없다", () => {
     const bucket = buildHistoryByCell([row()]).get(historyCellKey("201", "2026-10-14"))!;
     expect(describeCellHistory(bucket, COPY)).not.toContain("외");
+  });
+});
+
+describe("viewHistoryEntry", () => {
+  it("가격 인상 — 증감과 % 를 이전·이후 값으로 계산한다", () => {
+    expect(viewHistoryEntry(row({ newValue: 42000, oldValue: 38453 }))).toMatchObject({
+      by: "김현준",
+      delta: 3547,
+      direction: "up",
+      field: "price",
+      fromBeds24: false,
+      percent: 9.2,
+      when: "09-24 14:03",
+    });
+  });
+
+  it("가격 인하 · Beds24 에서 바뀐 줄", () => {
+    expect(
+      viewHistoryEntry(row({ by: "Beds24", mode: "beds24", newValue: 67000, oldValue: 77000 })),
+    ).toMatchObject({ delta: -10000, direction: "down", fromBeds24: true, percent: -13 });
+  });
+
+  it("최소숙박은 % 가 없다", () => {
+    expect(viewHistoryEntry(row({ field: "min_stay", mode: "min_stay", newValue: 1, oldValue: 2 }))).toMatchObject({
+      delta: -1,
+      direction: "down",
+      field: "minStay",
+      percent: null,
+    });
+  });
+
+  it("값이 없던 칸은 설정, 지운 칸은 삭제 — 증감은 없다", () => {
+    expect(viewHistoryEntry(row({ oldValue: null }))).toMatchObject({ delta: null, direction: "set", percent: null });
+    expect(viewHistoryEntry(row({ newValue: null }))).toMatchObject({ delta: null, direction: "cleared" });
   });
 });

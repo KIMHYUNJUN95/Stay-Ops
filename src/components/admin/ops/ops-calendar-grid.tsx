@@ -11,6 +11,7 @@ import type {
   OpsPriceConversion,
 } from "@/lib/ops-calendar";
 import { OpsPriceWinsPanel, type PriceWinsCopy } from "@/components/admin/ops/ops-price-wins-panel";
+import { OpsCellHistoryCard, type CellHistoryCardCopy } from "@/components/admin/ops/ops-cell-history-card";
 import { OpsBlockPanel, type BlockPanelCopy } from "@/components/admin/ops/ops-block-panel";
 import {
   OpsMinStayPanel,
@@ -36,7 +37,6 @@ import {
 } from "@/components/admin/ops/ops-booking-panel";
 import { buildGapContext } from "@/lib/ops-gap-context";
 import {
-  describeCellHistory,
   historyCellKey,
   type CellHistory,
   type HistoryCopy,
@@ -111,6 +111,7 @@ type Copy = {
   BookingPanelCopy & { mbPickCheckout: string } &
   ReservationCardCopy &
   HistoryCopy & { historyMore: string } &
+  CellHistoryCardCopy &
   PriceWinsCopy & { pwToggle: string; pwList: string; largeFirst: string; vacantToday: string };
 
 /**
@@ -411,6 +412,71 @@ export function OpsCalendarGrid({
     // 거른 뒤 정렬(저쪽과 같다).
     return (largeActive ? orderOpsLargeRoomsFirst(base) : base) as OpsCalendarRoom[];
   }, [largeActive, serverRooms, vacantActive, vacantKeys]);
+
+  /*
+   * 가격 이력 호버 카드(`ops-cell-history-card.tsx`). 브라우저 `title` 대신이다.
+   *
+   * - 스치듯 지나가는 칸마다 뜨지 않게 **잠깐 머물러야** 뜬다(`HOVER_DELAY_MS`). 한 번 뜬 뒤 옆
+   *   칸으로 옮기면 바로 바뀐다 — 줄을 따라 훑어보는 동작이 끊기지 않게.
+   * - 누르거나(드래그 시작) 스크롤하면 바로 닫는다 — 선택을 가리면 안 된다.
+   */
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [hoverCell, setHoverCell] = useState<{
+    anchor: DOMRect;
+    /** 카드를 붙일 `.ops` — 호버를 시작한 칸에서 찾는다(렌더 중 ref 를 읽지 않는다). */
+    container: HTMLElement;
+    date: string;
+    history: CellHistory;
+    room: OpsCalendarRoom;
+  } | null>(null);
+  const hoverOpenRef = useRef(false);
+  useEffect(() => {
+    hoverOpenRef.current = hoverCell !== null;
+  }, [hoverCell]);
+  const HOVER_DELAY_MS = 140;
+  const startHover = (
+    event: React.PointerEvent<HTMLDivElement>,
+    room: OpsCalendarRoom,
+    date: string,
+    cellHistory: CellHistory,
+  ) => {
+    if (event.pointerType !== "mouse" || event.buttons !== 0) return;
+    const anchor = event.currentTarget.getBoundingClientRect();
+    const container = event.currentTarget.closest<HTMLElement>(".ops");
+    if (!container) return;
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    const open = () => setHoverCell({ anchor, container, date, history: cellHistory, room });
+    if (hoverOpenRef.current) open();
+    else hoverTimerRef.current = setTimeout(open, HOVER_DELAY_MS);
+  };
+  const endHover = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = null;
+    // 옆 칸으로 옮기는 중이면 그 칸의 `startHover` 가 곧 바꾼다 — 한 프레임 기다려 깜빡임을 없앤다.
+    hoverTimerRef.current = setTimeout(() => setHoverCell(null), 60);
+  };
+  useEffect(() => {
+    if (!hoverCell) return;
+    const close = () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+      setHoverCell(null);
+    };
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("pointerdown", close, true);
+    window.addEventListener("keydown", close, true);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("pointerdown", close, true);
+      window.removeEventListener("keydown", close, true);
+    };
+  }, [hoverCell]);
+  useEffect(
+    () => () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    },
+    [],
+  );
   const [priceWinsOpen, setPriceWinsOpen] = useState(false);
   const conversionIds = useMemo(
     () => new Set(priceConversions.map((conversion) => conversion.reservationId)),
@@ -1220,19 +1286,10 @@ export function OpsCalendarGrid({
                           <div
                             className={cellClass(day, room.key)}
                             key={`p-${day.date}`}
-                            title={
-                              cellHistory
-                                ? describeCellHistory(cellHistory, {
-                                    change: copy.change,
-                                    cleared: copy.cleared,
-                                    minStay: copy.minStay,
-                                    more: copy.historyMore,
-                                    percentSuffix: copy.percentSuffix,
-                                    set: copy.set,
-                                    unknownUser: copy.unknownUser,
-                                  })
-                                : undefined
+                            onPointerEnter={
+                              cellHistory ? (event) => startHover(event, room, day.date, cellHistory) : undefined
                             }
+                            onPointerLeave={cellHistory ? endHover : undefined}
                           >
                             <span
                               className={`opsg__price${price === null ? " none" : ""}${pricePending ? " pend" : ""}`}
@@ -1263,10 +1320,16 @@ export function OpsCalendarGrid({
                         // 하면 격자가 통째로 복잡해진다 — 저쪽 캘린더도 옅은 바탕으로 가른다.
                         const minTone =
                           minStay === 1 ? " ms1" : minStay !== null && minStay >= 3 ? " ms3" : "";
+                        // 같은 칸의 이력(가격·최소숙박이 한 목록이다) — 가격 줄과 같은 카드를 띄운다.
+                        const minHistory = history.get(historyCellKey(room.displayRoomLabel, day.date));
                         return (
                           <div
                             className={`${cellClass(day, room.key)}${minTone}`}
                             key={`m-${day.date}`}
+                            onPointerEnter={
+                              minHistory ? (event) => startHover(event, room, day.date, minHistory) : undefined
+                            }
+                            onPointerLeave={minHistory ? endHover : undefined}
                           >
                             <span
                               className={`opsg__min${
@@ -1396,6 +1459,20 @@ export function OpsCalendarGrid({
         ))}
       </div>
       </div>
+
+      {hoverCell && (
+        <OpsCellHistoryCard
+          anchor={hoverCell.anchor}
+          container={hoverCell.container}
+          copy={copy}
+          currentMinStay={rates.get(`${hoverCell.room.key}|${hoverCell.date}`)?.minStay ?? null}
+          currentPrice={rates.get(`${hoverCell.room.key}|${hoverCell.date}`)?.price ?? null}
+          date={hoverCell.date}
+          history={hoverCell.history}
+          localeTag={copy.localeTag}
+          roomTitle={`${hoverCell.room.propertyName} ${hoverCell.room.displayRoomLabel}`}
+        />
+      )}
 
       {priceWinsOpen && (
         <OpsPriceWinsPanel

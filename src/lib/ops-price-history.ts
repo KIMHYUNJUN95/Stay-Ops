@@ -84,9 +84,13 @@ const yen = (value: number) => `¥${value.toLocaleString("ja-JP")}`;
  * 시각은 **도쿄 기준**이다 — 운영 날짜가 전부 도쿄다(CLAUDE.md §7). 브라우저 로컬로 찍으면
  * 해외에서 열었을 때 하루가 어긋난다.
  */
-export function describeHistoryEntry(entry: PriceHistoryEntry, copy: HistoryCopy): string {
-  // **자리를 직접 맞춘다.** 로케일에 맡기면 `sv-SE` 는 `24/09`, `ko-KR` 은 또 다르게 내놓아
-  // 같은 이력이 사람마다 다른 순서로 읽힌다. 시각 표기는 이력에서 정렬 기준이기도 하다.
+/**
+ * 「09-24 14:03」 — 도쿄 기준, 자리를 직접 맞춘다.
+ *
+ * 로케일에 맡기면 `sv-SE` 는 `24/09`, `ko-KR` 은 또 다르게 내놓아 같은 이력이 사람마다 다른
+ * 순서로 읽힌다. 시각 표기는 이력에서 정렬 기준이기도 하다.
+ */
+export function formatHistoryWhen(at: string): string {
   const parts = new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     hour: "2-digit",
@@ -94,9 +98,13 @@ export function describeHistoryEntry(entry: PriceHistoryEntry, copy: HistoryCopy
     minute: "2-digit",
     month: "2-digit",
     timeZone: "Asia/Tokyo",
-  }).formatToParts(new Date(entry.at));
+  }).formatToParts(new Date(at));
   const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
-  const when = `${part("month")}-${part("day")} ${part("hour")}:${part("minute")}`;
+  return `${part("month")}-${part("day")} ${part("hour")}:${part("minute")}`;
+}
+
+export function describeHistoryEntry(entry: PriceHistoryEntry, copy: HistoryCopy): string {
+  const when = formatHistoryWhen(entry.at);
 
   const value = (raw: number | null) =>
     raw === null ? null : entry.field === "min_stay" ? copy.minStay.replace("{n}", String(raw)) : yen(raw);
@@ -124,4 +132,53 @@ export function describeCellHistory(history: CellHistory, copy: HistoryCopy & { 
   const hidden = history.total - history.entries.length;
   if (hidden > 0) lines.push(copy.more.replace("{count}", String(hidden)));
   return lines.join("\n");
+}
+
+/**
+ * 호버 카드가 그리는 한 줄 — 문장 대신 **구조**로 넘긴다(증감 색·배지를 따로 그려야 한다).
+ *
+ * `delta`·`percent` 는 **이전·이후 값으로 계산한다.** 저장된 `percent_value` 는 「몇 % 올려라」
+ * 라는 요청이고, 실제 결과(반올림·링크)와 다를 수 있다. 둘 중 하나라도 모르면 `null`.
+ */
+export type HistoryEntryView = {
+  when: string;
+  by: string | null;
+  field: "price" | "minStay";
+  from: number | null;
+  to: number | null;
+  delta: number | null;
+  /** 가격만. 소수 1자리. */
+  percent: number | null;
+  direction: "up" | "down" | "flat" | "set" | "cleared";
+  /** Beds24 화면(또는 다른 앱)에서 바뀐 것을 동기화가 잡은 줄 — `adjust_mode = "beds24"`. */
+  fromBeds24: boolean;
+};
+
+export function viewHistoryEntry(entry: PriceHistoryEntry): HistoryEntryView {
+  const field = entry.field === "min_stay" ? "minStay" : "price";
+  const { oldValue: from, newValue: to } = entry;
+  const delta = from !== null && to !== null ? to - from : null;
+  const direction: HistoryEntryView["direction"] =
+    from === null && to !== null
+      ? "set"
+      : to === null && from !== null
+        ? "cleared"
+        : delta === null || delta === 0
+          ? "flat"
+          : delta > 0
+            ? "up"
+            : "down";
+  const percent =
+    field === "price" && delta !== null && from ? Math.round((delta / from) * 1000) / 10 : null;
+  return {
+    by: entry.by,
+    delta,
+    direction,
+    field,
+    from,
+    fromBeds24: entry.mode === "beds24",
+    percent,
+    to,
+    when: formatHistoryWhen(entry.at),
+  };
 }

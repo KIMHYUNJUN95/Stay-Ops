@@ -160,7 +160,6 @@ export function OpsPricePanel({
     [input, preview],
   );
   const gapCells = useMemo(() => cells.filter((cell) => cell.isGap), [cells]);
-  const roomCount = new Set(preview.rows.map((row) => row.roomKey)).size;
   /** 현재 평균 대비 몇 %인가. 금액을 직접 썼을 때 배지로 보여준다. */
   const deltaPercent =
     input && preview.rows.length > 0
@@ -416,10 +415,10 @@ export function OpsPricePanel({
             <button className="opsp__btn" onClick={() => setConfirming(false)} type="button">
               {copy.panelCancel}
             </button>
+            {/* 버튼은 짧게 — 「몇 칸 반영」만(2026-09-29 사용자 요청: 문장이 버튼에 두 줄로 차 거추장스러웠다).
+                채널 규칙은 바로 위 안내 줄이 이미 말한다. */}
             <button className="opsp__btn go" disabled={pending} onClick={apply} type="button">
-              {copy.panelConfirmBody
-                .replace("{count}", String(preview.changedCount))
-                .replace("{rooms}", String(roomCount))}
+              {copy.panelConfirmBody.replace("{count}", String(preview.changedCount))}
             </button>
           </>
         ) : (

@@ -2114,3 +2114,208 @@
 .opspw__empty { margin: 0; padding: 18px 4px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .opspw__note { margin: 0; font-size: 11px; font-weight: 600; line-height: 1.6; color: var(--muted); }
 
+
+/* ═════════════════════════════════════════════════════════════════════════
+ * 가격 이력 호버 카드 (`ops-cell-history-card.tsx`) — 2026-09-29
+ *
+ * 콘솔 팝오버 크롬(`.calpop`: 카드 바탕 · 1px 선 · `--sh-pop` · `ddIn`)을 그대로 쓴다. 새 색을
+ * 만들지 않는다 — 인상은 `--danger`, 인하는 Booking.com 남색(`--ops-bkng`), 가격 개입 목록
+ * (`.opspw__delta`)과 같은 짝이다. 읽기 전용이라 포인터를 받지 않는다.
+ * ═════════════════════════════════════════════════════════════════════════ */
+
+.ops { position: relative; }
+/* 이력이 있는 칸은 가리킬 수 있다는 것을 커서로도 말한다. */
+.opsg__cell:has(> .opsg__hdot) { cursor: help; }
+.opsw.is-edit .opsg__cell:has(> .opsg__hdot) { cursor: inherit; }
+
+.opshc {
+  position: absolute;
+  z-index: 80;
+  width: 268px;
+  max-width: calc(100vw - 16px);
+  padding: 12px 12px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--sh-pop), 0 1px 0 rgb(255 255 255 / 0.6) inset;
+  color: var(--ink);
+  pointer-events: none;
+  font-family: var(--font);
+}
+.opshc.is-below { animation: opshcIn 0.12s ease; }
+.opshc.is-above { animation: opshcUp 0.12s ease; }
+@keyframes opshcIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes opshcUp { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .opshc { animation: none !important; } }
+
+/* 머리 — 어느 칸인가 + 지금 값 */
+.opshc__head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.opshc__where { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.opshc__room {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--soft);
+}
+.opshc__date {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.opshc__now { display: flex; align-items: center; gap: 8px; }
+.opshc__nowlabel {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--adm-primary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.opshc__price {
+  font-size: 19px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.opshc__price.none { color: var(--faint); font-weight: 400; }
+.opshc__ms {
+  margin-left: auto;
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--card2);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 소제목 — 변경 이력 · N회 */
+.opshc__sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 9px 0 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.opshc__count { letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
+
+/* 타임라인 — 최신이 맨 위. 점과 세로선으로 순서를 말한다. */
+.opshc__list { position: relative; margin: 0; padding: 0; list-style: none; }
+.opshc__item {
+  position: relative;
+  padding: 0 0 9px 16px;
+}
+.opshc__item:last-child { padding-bottom: 0; }
+.opshc__item:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 0;
+  left: 3.5px;
+  width: 1px;
+  background: var(--line);
+}
+.opshc__dot {
+  position: absolute;
+  top: 5px;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1.5px var(--faint);
+}
+.opshc__item.latest .opshc__dot { background: var(--adm-primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.opshc__item.up .opshc__dot { --tone: var(--danger); }
+.opshc__item.down .opshc__dot { --tone: var(--ops-bkng); }
+.opshc__item.latest.up .opshc__dot { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-bg); }
+.opshc__item.latest.down .opshc__dot { background: var(--ops-bkng); box-shadow: 0 0 0 3px var(--ops-bkng-bg); }
+.opshc__item:not(.latest).up .opshc__dot,
+.opshc__item:not(.latest).down .opshc__dot { box-shadow: inset 0 0 0 1.5px var(--tone); }
+
+.opshc__row { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.opshc__kind {
+  flex: none;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
+}
+.opshc__kind.minStay { color: hsl(146 40% 30%); }
+.opshc__vals {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.opshc__from { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--muted) 45%, transparent); }
+.opshc__to-arrow { color: var(--faint); font-size: 11px; }
+.opshc__vals strong { font-weight: 750; color: var(--ink); }
+
+.opshc__chg {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--soft);
+}
+.opshc__item.up .opshc__chg { color: var(--danger); }
+.opshc__item.down .opshc__chg { color: var(--ops-bkng); }
+.opshc__chg em {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: color-mix(in oklab, currentColor 10%, transparent);
+  font-style: normal;
+  font-weight: 700;
+}
+
+.opshc__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.opshc__by { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-weight: 600; }
+/* Beds24 화면(또는 다른 앱)에서 바뀐 줄 — 사람이 아니라 동기화가 잡은 것이라 모양을 가른다. */
+.opshc__by.beds24 {
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.opshc__more {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px dashed var(--line);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+}
