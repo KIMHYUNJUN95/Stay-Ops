@@ -110,6 +110,65 @@ type ReservationRow = Pick<
   | "status"
 >;
 
+/**
+ * 예약 원본(`raw_payload`)에서 **이 화면이 읽는 키만** 받는다(2026-09-30 속도).
+ *
+ * 원본을 통째로 받으면 30일 창에 1.4MB, 가격 개입 판정 범위에 2.8MB 였다(실측) — 쓰는 것은 객실 매칭
+ * 키(`resolveReservationCanonicalRoomLabel`)와 예약 시각(`bookingTime`)뿐이다. PostgREST 의 JSON 경로
+ * 선택(`raw_payload->key`)으로 그 키만 받고, 받은 값으로 작은 `raw_payload` 를 다시 만든다 — 호출부는
+ * 그대로 `raw_payload` 를 읽는다. **매칭에 새 키를 쓰게 되면 여기에도 넣어야 한다.**
+ */
+const SLIM_PAYLOAD_KEYS = [
+  "roomId",
+  "room_id",
+  "unitId",
+  "unit_id",
+  "unitName",
+  "unit_name",
+  "roomName",
+  "room_name",
+  "roomLabel",
+  "unitLabel",
+  "unit_label",
+  "room_label",
+  "bookingTime",
+] as const;
+
+const RESERVATION_SELECT = [
+  "id, check_in_date, check_out_date, guest_name, property_name, room_label, source, status",
+  ...SLIM_PAYLOAD_KEYS.map((key) => `rp_${key}:raw_payload->${key}`),
+].join(", ");
+
+function toReservationRow(raw: Record<string, unknown>): ReservationRow {
+  const payload: Record<string, unknown> = {};
+  for (const key of SLIM_PAYLOAD_KEYS) {
+    const value = raw[`rp_${key}`];
+    if (value !== null && value !== undefined) payload[key] = value;
+  }
+  return {
+    check_in_date: raw.check_in_date as string,
+    check_out_date: raw.check_out_date as string,
+    guest_name: raw.guest_name as string,
+    id: raw.id as string,
+    property_name: raw.property_name as string,
+    raw_payload: payload as ReservationRow["raw_payload"],
+    room_label: raw.room_label as string,
+    source: raw.source as ReservationRow["source"],
+    status: raw.status as ReservationRow["status"],
+  };
+}
+
+/** JSON 경로 선택은 타입 추론이 안 된다 — 한 쪽의 모양을 직접 적는다. */
+type SlimReservationPage = PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>;
+
+/** 쪽을 나눠 읽은 결과를 예약 행으로(원본은 필요한 키만 — `RESERVATION_SELECT`). */
+function toReservationRows(result: {
+  data: Record<string, unknown>[];
+  error: { message: string } | null;
+}): { data: ReservationRow[]; error: { message: string } | null } {
+  return { data: result.data.map(toReservationRow), error: result.error };
+}
+
 type BlockRow = Pick<
   Database["public"]["Tables"]["room_blocks"]["Row"],
   "id" | "property_name" | "room_label" | "start_date" | "end_date"
@@ -373,20 +432,18 @@ export async function readOpsRoomUnavailableNights(args: {
   const { organizationId, supabase } = args;
   const [roomCatalog, reservationsResult, blocksResult, ratesResult] = await Promise.all([
     getActiveRoomCatalog(organizationId, supabase, { includeNonOperationalProperties: true }),
-    readAllPages<ReservationRow>((from, to) =>
+    readAllPages<Record<string, unknown>>((from, to) =>
       supabase
         .from("reservations")
-        .select(
-          "id, check_in_date, check_out_date, guest_name, property_name, raw_payload, room_label, source, status",
-        )
+        .select(RESERVATION_SELECT)
         .eq("organization_id", organizationId)
         .lt("check_in_date", args.toExclusive)
         // 체크아웃 날은 밤이 아니다 — `from` 에 나가는 손님은 겹치지 않는다.
         .gt("check_out_date", args.from)
         .order("check_in_date", { ascending: true })
         .order("id", { ascending: true })
-        .range(from, to),
-    ),
+        .range(from, to) as unknown as SlimReservationPage,
+    ).then(toReservationRows),
     readAllPages<BlockRow>((from, to) =>
       supabase
         .from("room_blocks")
@@ -484,6 +541,79 @@ export async function getOpsCalendarData(
   const days = buildOpsCalendarDays({ ...window, today });
 
   const supabase = await getSupabaseServerClient();
+  /*
+   * **서로 기다릴 필요 없는 조회는 한꺼번에 시작한다**(2026-09-30 속도). 예전에는 10개 가까운 조회가
+   * 하나씩 차례로 돌아 1.5초 넘게 쌓였다 — 건물을 옮길 때마다 전부 다시 돈다. 아래에서는 필요한
+   * 자리에서 결과만 기다린다. 요금은 객실 목록이, 판정용 예약은 90일 이력이 있어야 해서 그 둘만 뒤에 온다.
+   */
+  const allRoomsPromise = readAllPages<RoomRow>((from, to) =>
+    supabase
+      .from("rooms")
+      .select("id, room_label, properties(name)")
+      .eq("organization_id", session.organization.id)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  // Supabase 빌더는 `then` 이 불려야 요청을 보낸다 — `Promise.resolve` 로 감싸야 **지금** 시작한다.
+  const freshnessPromise = Promise.resolve(supabase
+    .from("room_daily_rates")
+    .select("synced_at")
+    .eq("organization_id", session.organization.id)
+    .gte("stay_date", window.start)
+    .lt("stay_date", window.endExclusive)
+    .order("synced_at", { ascending: true })
+    .limit(1)
+    .maybeSingle());
+  const historyPromise = readAllPages<{
+    room_label: string | null;
+    stay_date: string;
+    field: string;
+    old_value: number | null;
+    new_value: number | null;
+    created_at: string;
+    changed_by_name: string | null;
+    adjust_mode: string | null;
+    percent_value: number | null;
+    room_id: string | null;
+  }>((from, to) =>
+    supabase
+      .from("price_change_logs")
+      .select(
+        "room_id, room_label, stay_date, field, old_value, new_value, created_at, changed_by_name, adjust_mode, percent_value",
+      )
+      .eq("organization_id", session.organization.id)
+      .gte("stay_date", window.start)
+      .lt("stay_date", window.endExclusive)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  const since = new Date(Date.now() - OPS_PRICE_ATTRIBUTION_LOOKBACK_DAYS * 86_400_000).toISOString();
+  const attributionLogsPromise = readAllPages<{
+      id: string;
+      job_id: string | null;
+      room_id: string | null;
+      stay_date: string;
+      old_value: number | null;
+      new_value: number | null;
+      created_at: string;
+      changed_by_name: string | null;
+    }>((from, to) =>
+      supabase
+        .from("price_change_logs")
+        .select("id, job_id, room_id, stay_date, old_value, new_value, created_at, changed_by_name")
+        .eq("organization_id", session.organization.id)
+        .eq("field", "price1")
+        .gte("created_at", since)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
+  const propertyIdPromise = Promise.resolve(supabase
+    .from("properties")
+    .select("name, external_property_id")
+    .eq("organization_id", session.organization.id)
+    .not("external_property_id", "is", null));
   const [roomCatalog, reservationsResult, blocksResult] = await Promise.all([
     // 사노 포함. 객실 단위 제외(다카다노바바 401_2)는 카탈로그 안에서 그대로 걸린다.
     getActiveRoomCatalog(session.organization.id, supabase, {
@@ -491,19 +621,17 @@ export async function getOpsCalendarData(
     }),
     // 쪽을 나눠 읽으므로 **정렬이 유일해야 한다** — 같은 값이 여럿이면 쪽 경계에서 어떤 행은
     // 두 번, 어떤 행은 한 번도 안 온다. `id` 를 마지막 기준으로 붙여 순서를 못 박는다.
-    readAllPages<ReservationRow>((from, to) =>
+    readAllPages<Record<string, unknown>>((from, to) =>
       supabase
         .from("reservations")
-        .select(
-          "id, check_in_date, check_out_date, guest_name, property_name, raw_payload, room_label, source, status",
-        )
+        .select(RESERVATION_SELECT)
         .eq("organization_id", session.organization.id)
         .lt("check_in_date", window.endExclusive)
         .gte("check_out_date", window.start)
         .order("check_in_date", { ascending: true })
         .order("id", { ascending: true })
-        .range(from, to),
-    ),
+        .range(from, to) as unknown as SlimReservationPage,
+    ).then(toReservationRows),
     readAllPages<BlockRow>((from, to) =>
       supabase
         .from("room_blocks")
@@ -577,14 +705,7 @@ export async function getOpsCalendarData(
   // 2026-09-17 기준 우리 데이터에는 활성 유닛이 둘인 행이 **없지만**, Beds24 에서 유닛이
   // 교체되면 생긴다. 그때 가짜 갭이 쏟아지지 않게 처음부터 이렇게 짠다.
   const roomKeyByUuid = new Map<string, string>();
-  const allRoomsResult = await readAllPages<RoomRow>((from, to) =>
-    supabase
-      .from("rooms")
-      .select("id, room_label, properties(name)")
-      .eq("organization_id", session.organization.id)
-      .order("id", { ascending: true })
-      .range(from, to),
-  );
+  const allRoomsResult = await allRoomsPromise;
   if (allRoomsResult.error) {
     console.error("[ops-calendar] room read failed", allRoomsResult.error);
   } else {
@@ -609,7 +730,17 @@ export async function getOpsCalendarData(
   const rateFrom = addDays(window.start, -1);
   const rateToExclusive = addDays(window.endExclusive, 1);
   const rates = new Map<string, OpsCalendarRate>();
-  if (roomKeyByUuid.size > 0) {
+  /*
+   * 건물을 골랐으면 **그 건물 객실의 요금만** 읽는다(2026-09-30 속도). 전에는 건물 하나를 봐도 91실 전부
+   * (2,912행)를 읽고 마지막에 걸렀다. 건물 이름이 맞지 않으면(없는 건물) 전부 읽는다 — 화면이 전체로
+   * 떨어지므로.
+   */
+  const propertyPrefix = filters.property ? `${filters.property}${ROOM_AXIS_SEPARATOR}` : null;
+  const scopedRateRoomIds = [...roomKeyByUuid]
+    .filter(([, roomKey]) => !propertyPrefix || roomKey.startsWith(propertyPrefix))
+    .map(([roomUuid]) => roomUuid);
+  const rateRoomIds = scopedRateRoomIds.length > 0 ? scopedRateRoomIds : [...roomKeyByUuid.keys()];
+  if (rateRoomIds.length > 0) {
     // 객실 91 × 32일 = 2,912행. **한 번에 못 온다** — 쪽을 나눠 전부 읽는다.
     // `(room_id, stay_date)` 는 유니크라 정렬이 확정된다.
     const ratesResult = await readAllPages<RateRow>((from, to) =>
@@ -619,7 +750,7 @@ export async function getOpsCalendarData(
           "room_id, stay_date, price1, price2, price3, min_stay, max_stay, num_avail, override_kind",
         )
         .eq("organization_id", session.organization.id)
-        .in("room_id", [...roomKeyByUuid.keys()])
+        .in("room_id", rateRoomIds)
         .gte("stay_date", rateFrom)
         .lt("stay_date", rateToExclusive)
         .order("room_id", { ascending: true })
@@ -655,15 +786,7 @@ export async function getOpsCalendarData(
    *
    * 얼마나 오래된 값인지 모르는 채로 가격을 조정하는 것이 이 화면에서 제일 위험하다.
    */
-  const freshness = await supabase
-    .from("room_daily_rates")
-    .select("synced_at")
-    .eq("organization_id", session.organization.id)
-    .gte("stay_date", window.start)
-    .lt("stay_date", window.endExclusive)
-    .order("synced_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const freshness = await freshnessPromise;
   const ratesSyncedAt = (freshness.data as { synced_at: string } | null)?.synced_at ?? null;
   /**
    * 몇 분 전 값인가. **여기서 센다** — 화면은 렌더 중에 시계를 읽으면 안 된다
@@ -683,30 +806,7 @@ export async function getOpsCalendarData(
    * **객실은 `room_label` 로 잇는다.** 가격은 소스 유닛, 최소숙박은 그날 운영 중인 유닛으로
    * 가서 `room_id` 가 서로 다를 수 있는데, 사람이 보는 행은 하나다.
    */
-  const historyResult = await readAllPages<{
-    room_label: string | null;
-    stay_date: string;
-    field: string;
-    old_value: number | null;
-    new_value: number | null;
-    created_at: string;
-    changed_by_name: string | null;
-    adjust_mode: string | null;
-    percent_value: number | null;
-    room_id: string | null;
-  }>((from, to) =>
-    supabase
-      .from("price_change_logs")
-      .select(
-        "room_id, room_label, stay_date, field, old_value, new_value, created_at, changed_by_name, adjust_mode, percent_value",
-      )
-      .eq("organization_id", session.organization.id)
-      .gte("stay_date", window.start)
-      .lt("stay_date", window.endExclusive)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: true })
-      .range(from, to),
-  );
+  const historyResult = await historyPromise;
   if (historyResult.error) {
     console.error("[ops-calendar] price history read failed", historyResult.error);
   }
@@ -742,27 +842,7 @@ export async function getOpsCalendarData(
   // 나뉘었다. 우리는 **가격을 바꾼 시각 기준 최근 90일 전체**를 판정한다 — 창과 무관하다.
   const priceConversions: OpsPriceConversion[] = [];
   {
-    const since = new Date(Date.now() - OPS_PRICE_ATTRIBUTION_LOOKBACK_DAYS * 86_400_000).toISOString();
-    const logsResult = await readAllPages<{
-      id: string;
-      job_id: string | null;
-      room_id: string | null;
-      stay_date: string;
-      old_value: number | null;
-      new_value: number | null;
-      created_at: string;
-      changed_by_name: string | null;
-    }>((from, to) =>
-      supabase
-        .from("price_change_logs")
-        .select("id, job_id, room_id, stay_date, old_value, new_value, created_at, changed_by_name")
-        .eq("organization_id", session.organization.id)
-        .eq("field", "price1")
-        .gte("created_at", since)
-        .order("created_at", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to),
-    );
+    const logsResult = await attributionLogsPromise;
     if (logsResult.error) {
       console.error("[ops-calendar] price attribution log read failed", logsResult.error);
     }
@@ -800,19 +880,17 @@ export async function getOpsCalendarData(
     if (cells.length > 0) {
       const stayDates = cells.map((cell) => cell.stayDate).sort();
       // 바꾼 날짜를 덮는 확정 예약 전부 — 「그때 비어 있었나」를 재려면 창 밖 예약도 필요하다.
-      const bookingsResult = await readAllPages<ReservationRow>((from, to) =>
+      const bookingsResult = await readAllPages<Record<string, unknown>>((from, to) =>
         supabase
           .from("reservations")
-          .select(
-            "id, check_in_date, check_out_date, guest_name, property_name, raw_payload, room_label, source, status",
-          )
+          .select(RESERVATION_SELECT)
           .eq("organization_id", session.organization.id)
           .lte("check_in_date", stayDates[stayDates.length - 1])
           .gt("check_out_date", stayDates[0])
           .order("check_in_date", { ascending: true })
           .order("id", { ascending: true })
-          .range(from, to),
-      );
+          .range(from, to) as unknown as SlimReservationPage,
+      ).then(toReservationRows);
       if (bookingsResult.error) {
         console.error("[ops-calendar] price attribution booking read failed", bookingsResult.error);
       }
@@ -952,11 +1030,7 @@ export async function getOpsCalendarData(
    * 건물 하나만 당겨 오려면 필요하다 — 우리 이름(`아라키초A`)과 Beds24 이름(`Arakicho A`)이
    * 달라서 이름으로는 못 찾는다.
    */
-  const propertyIdResult = await supabase
-    .from("properties")
-    .select("name, external_property_id")
-    .eq("organization_id", session.organization.id)
-    .not("external_property_id", "is", null);
+  const propertyIdResult = await propertyIdPromise;
   const propertyExternalIds: Record<string, string> = {};
   for (const row of (propertyIdResult.data ?? []) as Array<{
     name: string;
@@ -972,6 +1046,11 @@ export async function getOpsCalendarData(
     ? allRooms.filter((room) => room.propertyName === selectedProperty)
     : allRooms;
   const visibleRoomKeys = new Set(rooms.map((room) => room.key));
+  // 화면으로 보내는 요금·이력도 **보이는 객실 것만**(2026-09-30 속도) — 건물 하나를 봐도 전 객실 것을
+  // 실어 보내던 것. 키는 둘 다 `행키|YYYY-MM-DD` 다.
+  const isVisibleCell = (cellKey: string) => visibleRoomKeys.has(cellKey.slice(0, cellKey.lastIndexOf("|")));
+  const visibleRates = new Map([...rates].filter(([cellKey]) => isVisibleCell(cellKey)));
+  const visibleHistory = new Map([...history].filter(([cellKey]) => isVisibleCell(cellKey)));
 
   return {
     bars: bars.filter((bar) => visibleRoomKeys.has(bar.roomKey)),
@@ -980,15 +1059,15 @@ export async function getOpsCalendarData(
     hasRates: rates.size > 0,
     /** `roomKey|YYYY-MM-DD` — 1박 갭인 칸. */
     gapCells: new Set([...gapCells].filter((key) => visibleRoomKeys.has(key.split("|")[0]))),
-    /** `객실라벨|YYYY-MM-DD` → 그 칸의 변경 이력(최신순). */
-    history,
+    /** `행키|YYYY-MM-DD` → 그 칸의 변경 이력(최신순). 보이는 객실만. */
+    history: visibleHistory,
     /** 가격 개입 전환(최근 90일, 최근 예약 먼저). 건물 필터를 따른다. */
     priceConversions: priceConversions.filter((conversion) => visibleRoomKeys.has(conversion.roomKey)),
     /** 이 창에서 **가장 오래된** 요금 동기화가 몇 분 전인가. `null` 이면 요금이 아예 없다. */
     ratesAgeMinutes,
     /** 이 창에서 **가장 오래된** 요금 동기화 시각. `null` 이면 요금이 아예 없다. */
     ratesSyncedAt,
-    rates,
+    rates: visibleRates,
     days,
     mode,
     month,

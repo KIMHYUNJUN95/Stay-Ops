@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { memo, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type {
   OpsCalendarBar,
@@ -190,6 +190,293 @@ function blockGeometry(days: OpsCalendarDay[], startDate: string, endDate: strin
     width: `calc(${((to - from + 1) / total) * 100}% - 2px)`,
   };
 }
+
+const NO_BARS: OpsCalendarBar[] = [];
+const NO_BLOCKS: OpsCalendarBlock[] = [];
+
+/** 행이 부르는 동작. **참조가 안 바뀌는** 한 객체(ref)로 넘겨 행 메모가 깨지지 않게 한다. */
+type GridRowActions = {
+  toggleRoomRow: (roomKey: string) => void;
+  startDraft: (room: BookingPanelRoom, date: string) => void;
+  cancelDraft: () => void;
+  commitDraft: (room: BookingPanelRoom, checkIn: string, checkOut: string) => void;
+  openBar: (bar: OpsCalendarBar, room: OpsCalendarRoom) => void;
+};
+
+type GridRowProps = {
+  room: OpsCalendarRoom;
+  days: OpsCalendarDay[];
+  dates: string[];
+  today: string;
+  copy: Copy;
+  editMode: boolean;
+  showCancelled: boolean;
+  priceWinsOnly: boolean;
+  /** 큰방 강조선(`ops-large-rooms.ts`). */
+  large: boolean;
+  /** 객실 축 선택에 이 행이 들어 있나. */
+  scopeOn: boolean;
+  rates: Map<string, OpsCalendarRate>;
+  history: Map<string, CellHistory>;
+  gapCells: Set<string>;
+  soldCells: Set<string>;
+  conversionIds: Set<string>;
+  allRoomBars: OpsCalendarBar[];
+  roomBlocks: OpsCalendarBlock[];
+  barLanes: ReturnType<typeof assignBarLanes> | null;
+  /** 이 행에서 고른 날짜들(`|` 로 이음). **문자열이라** 다른 행의 선택이 바뀌어도 이 행은 안 다시 그린다. */
+  selectedDates: string;
+  pendingPrices: Map<string, PendingValue>;
+  pendingMinStay: Map<string, PendingValue>;
+  settledTokens: Set<number>;
+  drafting: { room: BookingPanelRoom; checkIn: string } | null;
+  actions: { current: GridRowActions };
+};
+
+/**
+ * 격자의 객실 한 줄 — **메모된다**(2026-09-30 속도).
+ *
+ * 예전에는 버튼 하나·칸 하나를 눌러도 격자 전체(「전체」 보기 91실 × 32일 × 3줄 ≈ 9,000칸)를 다시
+ * 그렸다. 이제 행마다 바뀐 것만 다시 그린다 — 선택은 이 행의 날짜 문자열(`selectedDates`)로, 동작은
+ * 참조가 고정된 ref 로 받아 다른 행의 변화가 이 행의 메모를 깨지 않는다.
+ *
+ * 이력 호버는 칸마다 핸들러를 달지 않는다 — 이력이 있는 칸에 `data-hc` 만 붙이고 격자가 한 곳에서
+ * 받는다(`ops-cell-history-card.tsx`).
+ */
+const OpsGridRow = memo(function OpsGridRow({
+  actions,
+  allRoomBars,
+  barLanes,
+  conversionIds,
+  copy,
+  dates,
+  days,
+  drafting,
+  editMode,
+  gapCells,
+  history,
+  large,
+  pendingMinStay,
+  pendingPrices,
+  priceWinsOnly,
+  rates,
+  room,
+  roomBlocks,
+  scopeOn,
+  selectedDates,
+  settledTokens,
+  showCancelled,
+  soldCells,
+  today,
+}: GridRowProps) {
+  const selected = new Set(selectedDates ? selectedDates.split("|") : []);
+  // **켜면 취소만, 끄면 일반만.** 둘을 같이 그리면 같은 밤에 겹쳐 못 읽는다.
+  const roomBars = allRoomBars.filter((bar) => bar.isCancelled === showCancelled);
+  const laneCount = barLanes?.laneCountByRoom.get(room.key) ?? 1;
+  const occupied = new Set<string>();
+  // 점유는 **항상** 일반 예약으로만 센다 — 「취소만 보기」를 켜도 팔린 밤은 팔린 밤이다.
+  for (const bar of allRoomBars) {
+    if (bar.isCancelled) continue;
+    for (const day of days) {
+      if (day.date >= bar.checkIn && day.date < bar.checkOut) occupied.add(day.date);
+    }
+  }
+  for (const block of roomBlocks) {
+    for (const day of days) {
+      if (day.date >= block.startDate && day.date <= block.endDate) occupied.add(day.date);
+    }
+  }
+
+  const bookingRoom: BookingPanelRoom = {
+    key: room.key,
+    label: room.displayRoomLabel,
+    propertyName: room.propertyName,
+    roomIds: room.roomIds,
+  };
+  // **팔 수 없는 밤**은 예약도 못 만든다 — 찬 밤(예약·블록)과, 파는 유닛이 없는 밤
+  // (요금 칸이 비어 있다 = 활성 유닛 0, `mergeOpsRateUnits`). 서버와 패널 피커가
+  // 같은 두 가지를 막는다 — 여기만 느슨하면 격자에서 끈 기간이 패널에서 막힌다.
+  const nightTaken = (date: string) => occupied.has(date) || !rates.get(`${room.key}|${date}`);
+  // 빈 칸의 `+`. **「취소만 보기」에서는 숨긴다** — 그 모드에서는 일반 막대가 안 보여
+  // 팔린 밤도 빈칸처럼 보이는데, 거기에 `+` 가 뜨면 이미 찬 방에 예약을 넣으려 하게 된다.
+  const canStart = (date: string) => !editMode && !showCancelled && !nightTaken(date) && date >= today;
+  const startDraft = (date: string) => actions.current.startDraft(bookingRoom, date);
+
+  const cellClass = (day: OpsCalendarDay, withRoom: boolean) => {
+    const cellKey = selectionCellKey(room.key, day.date);
+    return [
+      "opsg__cell",
+      day.isWeekend ? "we" : "",
+      day.date < today ? "past" : "",
+      day.startsMonth ? "m1" : "",
+      withRoom && gapCells.has(`${room.key}|${day.date}`) ? "gap" : "",
+      withRoom && selected.has(day.date) ? "sel" : "",
+      // 가격 수정에서 고를 수 있는 칸(오늘 이후 · 안 팔린 밤) — `canSelect` 와 같은 기준.
+      editMode && withRoom && day.date >= today && !soldCells.has(cellKey) ? "pick" : "",
+      // 선택 모드에서 **팔린 밤**은 고를 수 없다는 것이 보여야 한다.
+      editMode && withRoom && soldCells.has(cellKey) ? "sold" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  };
+
+  return (
+    <div
+      className={`opsg__row${drafting ? " drafting" : ""}${large ? " large" : ""}`}
+      data-ops-row={room.key}
+    >
+      <div
+        className={`opsg__label${editMode ? " pick" : ""}${editMode && scopeOn ? " on" : ""}`}
+        onClick={editMode ? () => actions.current.toggleRoomRow(room.key) : undefined}
+      >
+        {/* 선택 모드에서만 나오는 네모. 누를 수 있다는 것과 켜졌다는 것을
+            한 번에 말한다 — 객실명만으로는 눌러도 되는지 알 수 없다. */}
+        {editMode && <span className="opsg__rbox" />}
+        <span className="opsg__rn">{room.displayRoomLabel}</span>
+      </div>
+      <div className="opsg__tracks">
+        {/* 가격. 값이 없으면 대시 — **0원이 아니다.** */}
+        <div className="opsg__track">
+          {days.map((day) => {
+            const cellKey = selectionCellKey(room.key, day.date);
+            const pendingEntry = pendingPrices.get(cellKey);
+            // 반영이 확인된 값은 **바로 진하게** — 데이터 다시 받기를 기다리지 않는다.
+            const pricePending = !!pendingEntry && !settledTokens.has(pendingEntry.token);
+            const price = pendingEntry?.value ?? rates.get(`${room.key}|${day.date}`)?.price ?? null;
+            // 「누가 언제 얼마에서 얼마로」. 값이 이상할 때 제일 먼저 찾는 정보다.
+            const hasHistory = history.has(historyCellKey(room.key, day.date));
+            return (
+              <div
+                className={cellClass(day, true)}
+                data-hc={hasHistory ? day.date : undefined}
+                key={`p-${day.date}`}
+              >
+                <span className={`opsg__price${price === null ? " none" : ""}${pricePending ? " pend" : ""}`}>
+                  {price === null ? "–" : formatPrice(price)}
+                </span>
+                {/* 사람이 손댄 칸이라는 표시. 점 하나면 격자를 어지럽히지 않는다. */}
+                {hasHistory && <span className="opsg__hdot" />}
+              </div>
+            );
+          })}
+        </div>
+        {/* 최소 숙박일. **가격보다 얇게** 간다 — 이 줄이 두꺼우면 한 객실이
+            차지하는 세로가 늘어 화면에 담기는 객실 수가 줄고, 정작 중요한 가격이
+            멀어진다. 숫자는 작아도 색으로 구분되므로 읽힌다. */}
+        <div className="opsg__track min">
+          {days.map((day) => {
+            const pendingMin = pendingMinStay.get(selectionCellKey(room.key, day.date));
+            const minStay = pendingMin?.value ?? rates.get(`${room.key}|${day.date}`)?.minStay ?? null;
+            // **2박이 기본이라 조용히 둔다.** 구분은 글자 굵기가 아니라 칸 바탕색으로 한다
+            // (실측 2026-09-25: 12,412칸이 2박, 1박은 388칸 — 기본값을 강조하면 예외가 안 보인다).
+            const minTone = minStay === 1 ? " ms1" : minStay !== null && minStay >= 3 ? " ms3" : "";
+            // 같은 칸의 이력(가격·최소숙박이 한 목록이다) — 가격 줄과 같은 카드를 띄운다.
+            const hasHistory = history.has(historyCellKey(room.key, day.date));
+            return (
+              <div
+                className={`${cellClass(day, true)}${minTone}`}
+                data-hc={hasHistory ? day.date : undefined}
+                key={`m-${day.date}`}
+              >
+                <span className={`opsg__min${pendingMin && !settledTokens.has(pendingMin.token) ? " pend" : ""}`}>
+                  {minStay ?? ""}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        {/* 예약 · BLOCK. 「취소만 보기」에서는 층 수만큼 키운다. */}
+        <div
+          className="opsg__track"
+          style={laneCount > 1 ? { height: `calc(var(--ops-track) + ${(laneCount - 1) * 18}px)` } : undefined}
+        >
+          {days.map((day) => (
+            <div className={cellClass(day, false)} key={`r-${day.date}`}>
+              {/* 고르는 중인 줄에는 `+` 를 안 그린다 — 위에 기간 레이어가 덮인다. */}
+              {!drafting && canStart(day.date) && (
+                <button
+                  className="opsg__plus"
+                  // **누르는 순간** 체크인을 찍는다 — 그래야 누른 채 끌어서 기간을
+                  // 잡을 수 있다. 떼기만 하면 클릭 두 번 방식으로 이어진다.
+                  onClick={(event) => {
+                    // 키보드(Enter/Space)는 포인터 이벤트가 없다 — 여기서 찍는다.
+                    if (event.detail === 0) startDraft(day.date);
+                  }}
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) return;
+                    // 끄는 동안 글자가 선택되거나 포커스가 튀지 않게.
+                    event.preventDefault();
+                    startDraft(day.date);
+                  }}
+                  type="button"
+                >
+                  +
+                </button>
+              )}
+            </div>
+          ))}
+          {drafting && (
+            <OpsBookingDraft
+              checkIn={drafting.checkIn}
+              checkInLabel={copy.mbCheckIn}
+              dates={dates}
+              geometry={(from, to) => barGeometry(days, from, to)}
+              isOccupied={nightTaken}
+              key={drafting.checkIn}
+              nightsLabel={copy.mbNights}
+              onCancel={() => actions.current.cancelDraft()}
+              onCommit={(checkOut) => actions.current.commitDraft(bookingRoom, drafting.checkIn, checkOut)}
+              onRestart={(date) => {
+                if (canStart(date)) startDraft(date);
+              }}
+            />
+          )}
+          {roomBlocks.map((block) => {
+            const geometry = blockGeometry(days, block.startDate, block.endDate);
+            if (!geometry) return null;
+            return (
+              <div className="opsg__block" key={block.id} style={geometry}>
+                {copy.blockLabel}
+              </div>
+            );
+          })}
+          {days.map((day, index) =>
+            gapCells.has(`${room.key}|${day.date}`) ? (
+              <div
+                className="opsg__gap"
+                key={`g-${day.date}`}
+                style={{
+                  left: `calc(${(index / days.length) * 100}% + 1px)`,
+                  width: `calc(${(1 / days.length) * 100}% - 2px)`,
+                }}
+              />
+            ) : null,
+          )}
+          {roomBars.map((bar) => {
+            const geometry = barGeometry(days, bar.checkIn, bar.checkOut);
+            if (!geometry) return null;
+            // 층이 있으면 그만큼 내려 그린다. 층 0 은 평소 자리 그대로다.
+            const lane = barLanes?.laneById.get(bar.id) ?? 0;
+            return (
+              <div
+                className={`opsg__bar ${bar.channel}${bar.isCancelled ? " cancelled" : ""}${
+                  priceWinsOnly && !showCancelled ? (conversionIds.has(bar.id) ? " pw-win" : " pw-dim") : ""
+                }`}
+                key={bar.id}
+                // 편집 모드에서는 칸 선택이 먼저다 — 막대를 누르다 상세가 뜨면 드래그 선택이 끊긴다.
+                onClick={editMode ? undefined : () => actions.current.openBar(bar, room)}
+                style={lane > 0 ? { ...geometry, top: `calc(3px + ${lane * 18}px)` } : geometry}
+                title={`${bar.guestName} · ${bar.checkIn} → ${bar.checkOut}`}
+              >
+                {bar.guestName}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+});
 
 export function OpsCalendarGrid({
   bars,
@@ -440,20 +727,34 @@ export function OpsCalendarGrid({
     hoverOpenRef.current = hoverCell !== null;
   }, [hoverCell]);
   const HOVER_DELAY_MS = 140;
-  const startHover = (
-    event: React.PointerEvent<HTMLDivElement>,
-    room: OpsCalendarRoom,
-    date: string,
-    cellHistory: CellHistory,
-  ) => {
+  /**
+   * 이력 호버는 **격자 한 곳에서** 받는다(2026-09-30 속도) — 칸마다 핸들러를 달면 수천 개가 매 렌더
+   * 새로 만들어진다. 이력이 있는 칸에는 행(`OpsGridRow`)이 `data-hc`(날짜)만 붙인다.
+   */
+  const hoverElementRef = useRef<HTMLElement | null>(null);
+  const onGridPointerOver = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== "mouse" || event.buttons !== 0) return;
-    const anchor = event.currentTarget.getBoundingClientRect();
-    const container = event.currentTarget.closest<HTMLElement>(".ops");
-    if (!container) return;
+    const cell = (event.target as HTMLElement).closest<HTMLElement>("[data-hc]");
+    if (!cell || cell === hoverElementRef.current) return;
+    const roomKey = cell.closest<HTMLElement>("[data-ops-row]")?.dataset.opsRow;
+    const date = cell.dataset.hc;
+    const room = roomKey ? rooms.find((candidate) => candidate.key === roomKey) : undefined;
+    const cellHistory = roomKey && date ? history.get(historyCellKey(roomKey, date)) : undefined;
+    const container = cell.closest<HTMLElement>(".ops");
+    if (!room || !date || !cellHistory || !container) return;
+    hoverElementRef.current = cell;
+    const anchor = cell.getBoundingClientRect();
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     const open = () => setHoverCell({ anchor, container, date, history: cellHistory, room });
     if (hoverOpenRef.current) open();
     else hoverTimerRef.current = setTimeout(open, HOVER_DELAY_MS);
+  };
+  const onGridPointerOut = (event: React.PointerEvent<HTMLDivElement>) => {
+    const from = (event.target as HTMLElement).closest<HTMLElement>("[data-hc]");
+    const to = (event.relatedTarget as HTMLElement | null)?.closest?.("[data-hc]") ?? null;
+    if (!from || from === to) return;
+    hoverElementRef.current = null;
+    endHover();
   };
   const endHover = () => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
@@ -466,6 +767,7 @@ export function OpsCalendarGrid({
     const close = () => {
       if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = null;
+      hoverElementRef.current = null;
       setHoverCell(null);
     };
     window.addEventListener("scroll", close, true);
@@ -686,6 +988,60 @@ export function OpsCalendarGrid({
     );
   };
 
+  // ── 행 메모용(`OpsGridRow`) — 데이터가 바뀔 때만 새로 만든다. 렌더마다 새 배열이면 행 메모가 늘 깨진다.
+  const barsByRoom = useMemo(() => {
+    const map = new Map<string, OpsCalendarBar[]>();
+    for (const bar of bars) {
+      const list = map.get(bar.roomKey);
+      if (list) list.push(bar);
+      else map.set(bar.roomKey, [bar]);
+    }
+    return map;
+  }, [bars]);
+  const blocksByRoom = useMemo(() => {
+    const map = new Map<string, OpsCalendarBlock[]>();
+    for (const block of blocks) {
+      const list = map.get(block.roomKey);
+      if (list) list.push(block);
+      else map.set(block.roomKey, [block]);
+    }
+    return map;
+  }, [blocks]);
+  /** 행마다 고른 날짜(`|` 로 이음) — 문자열이라 다른 행이 바뀌어도 그 행의 값은 같다. */
+  const selectedDatesByRoom = useMemo(() => {
+    const byRoom = new Map<string, string[]>();
+    for (const cell of selection) {
+      const list = byRoom.get(cell.roomKey);
+      if (list) list.push(cell.date);
+      else byRoom.set(cell.roomKey, [cell.date]);
+    }
+    return new Map([...byRoom].map(([roomKey, list]) => [roomKey, list.sort().join("|")]));
+  }, [selection]);
+  // 행이 부르는 동작 — **참조는 고정**, 내용은 매 렌더 최신으로(행 메모가 깨지지 않게).
+  const rowActions = useRef<GridRowActions>({
+    cancelDraft: () => undefined,
+    commitDraft: () => undefined,
+    openBar: () => undefined,
+    startDraft: () => undefined,
+    toggleRoomRow: () => undefined,
+  });
+  useEffect(() => {
+    rowActions.current = {
+      cancelDraft,
+      commitDraft: (room, checkIn, checkOut) => {
+        setBooking({ checkIn, checkOut, room });
+        cancelDraft();
+      },
+      openBar: (bar, room) => {
+        // 막대를 눌렀다 = 상세를 보겠다는 뜻이다. 고르던 기간은 버린다(저쪽과 같다).
+        cancelDraft();
+        setOpenBar({ bar, propertyName: room.propertyName, roomIds: room.roomIds, roomLabel: room.displayRoomLabel });
+      },
+      startDraft: (room, date) => setBookingDraft({ checkIn: date, room }),
+      toggleRoomRow,
+    };
+  });
+
   if (rooms.length === 0) {
     return (
       <div className="opsg">
@@ -698,18 +1054,6 @@ export function OpsCalendarGrid({
   }
 
   const weekdays = copy.weekDaysFromSunday;
-  const barsByRoom = new Map<string, OpsCalendarBar[]>();
-  for (const bar of bars) {
-    const list = barsByRoom.get(bar.roomKey);
-    if (list) list.push(bar);
-    else barsByRoom.set(bar.roomKey, [bar]);
-  }
-  const blocksByRoom = new Map<string, OpsCalendarBlock[]>();
-  for (const block of blocks) {
-    const list = blocksByRoom.get(block.roomKey);
-    if (list) list.push(block);
-    else blocksByRoom.set(block.roomKey, [block]);
-  }
   /** 지금 막혀 있는 칸(`roomKey|date`). 블록은 양끝을 포함한다. 「차단 해제」가 이 칸만 푼다. */
   const blockedCellKeys = new Set<string>();
   for (const block of blocks) {
@@ -729,20 +1073,6 @@ export function OpsCalendarGrid({
     else roomsByProperty.push({ property: room.propertyName, rooms: [room] });
   }
 
-  const cellClass = (day: OpsCalendarDay, roomKey?: string) =>
-    [
-      "opsg__cell",
-      day.isWeekend ? "we" : "",
-      day.date < today ? "past" : "",
-      day.startsMonth ? "m1" : "",
-      roomKey && gapCells.has(`${roomKey}|${day.date}`) ? "gap" : "",
-      roomKey && selectedKeys.has(selectionCellKey(roomKey, day.date)) ? "sel" : "",
-      editMode && roomKey && canSelect(roomKey, day.date) ? "pick" : "",
-      // 선택 모드에서 **팔린 밤**은 고를 수 없다는 것이 보여야 한다.
-      editMode && roomKey && soldCells.has(selectionCellKey(roomKey, day.date)) ? "sold" : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
 
   /**
    * 선택 모드에서 칸에 붙는 마우스 핸들러.
@@ -1215,7 +1545,12 @@ export function OpsCalendarGrid({
 
       {/* 편집 모드의 드래그는 여기 **한 곳**에서 받는다. 포인터를 붙잡아(capture) 격자 밖에서
           놓아도 끝나고, 밖으로 나갔다 들어와도 끊기지 않는다. */}
-      <div className="opsg__scroll" {...gridPointerHandlers}>
+      <div
+        className="opsg__scroll"
+        onPointerOut={onGridPointerOut}
+        onPointerOver={onGridPointerOver}
+        {...gridPointerHandlers}
+      >
         {roomsByProperty.map((group) => (
           <div key={group.property}>
             <div className="opsg__group">
@@ -1224,253 +1559,35 @@ export function OpsCalendarGrid({
                 · {copy.roomCount.replace("{count}", String(group.rooms.length))}
               </span>
             </div>
-            {group.rooms.map((room) => {
-              const allRoomBars = barsByRoom.get(room.key) ?? [];
-              // **켜면 취소만, 끄면 일반만.** 둘을 같이 그리면 같은 밤에 겹쳐 못 읽는다.
-              const roomBars = allRoomBars.filter((bar) => bar.isCancelled === showCancelled);
-              const laneCount = barLanes?.laneCountByRoom.get(room.key) ?? 1;
-              const roomBlocks = blocksByRoom.get(room.key) ?? [];
-              const occupied = new Set<string>();
-              // 점유는 **항상** 일반 예약으로만 센다 — 「취소만 보기」를 켜도 팔린 밤은 팔린 밤이다.
-              for (const bar of allRoomBars) {
-                if (bar.isCancelled) continue;
-                for (const day of days) {
-                  if (day.date >= bar.checkIn && day.date < bar.checkOut) occupied.add(day.date);
-                }
-              }
-              for (const block of roomBlocks) {
-                for (const day of days) {
-                  if (day.date >= block.startDate && day.date <= block.endDate) {
-                    occupied.add(day.date);
-                  }
-                }
-              }
-
-              const bookingRoom: BookingPanelRoom = {
-                key: room.key,
-                label: room.displayRoomLabel,
-                propertyName: room.propertyName,
-                roomIds: room.roomIds,
-              };
-              const drafting = activeDraft?.room.key === room.key ? activeDraft : null;
-              // 빈 칸의 `+`. **「취소만 보기」에서는 숨긴다** — 그 모드에서는 일반 막대가 안 보여
-              // 팔린 밤도 빈칸처럼 보이는데, 거기에 `+` 가 뜨면 이미 찬 방에 예약을 넣으려 하게 된다.
-              // **팔 수 없는 밤**은 예약도 못 만든다 — 찬 밤(예약·블록)과, 파는 유닛이 없는 밤
-              // (요금 칸이 비어 있다 = 활성 유닛 0, `mergeOpsRateUnits`). 서버와 패널 피커가
-              // 같은 두 가지를 막는다 — 여기만 느슨하면 격자에서 끈 기간이 패널에서 막힌다.
-              const nightTaken = (date: string) =>
-                occupied.has(date) || !rates.get(`${room.key}|${date}`);
-              const canStart = (date: string) =>
-                !editMode && !showCancelled && !nightTaken(date) && date >= today;
-              const startDraft = (date: string) => setBookingDraft({ checkIn: date, room: bookingRoom });
-
-              return (
-                <div
-                  className={`opsg__row${drafting ? " drafting" : ""}${
-                    largeActive && isOpsLargeRoom(room.propertyName, room.displayRoomLabel) ? " large" : ""
-                  }`}
-                  data-ops-row={room.key}
-                  key={room.key}
-                >
-                  <div
-                    className={`opsg__label${editMode ? " pick" : ""}${
-                      editMode && scope.roomKeys.includes(room.key) ? " on" : ""
-                    }`}
-                    onClick={editMode ? () => toggleRoomRow(room.key) : undefined}
-                  >
-                    {/* 선택 모드에서만 나오는 네모. 누를 수 있다는 것과 켜졌다는 것을
-                        한 번에 말한다 — 객실명만으로는 눌러도 되는지 알 수 없다. */}
-                    {editMode && <span className="opsg__rbox" />}
-                    <span className="opsg__rn">{room.displayRoomLabel}</span>
-                  </div>
-                  <div className="opsg__tracks">
-                    {/* 가격. 값이 없으면 대시 — **0원이 아니다.** */}
-                    <div className="opsg__track">
-                      {days.map((day) => {
-                        const cellKey = selectionCellKey(room.key, day.date);
-                        const pendingEntry = pendingPrices.get(cellKey);
-                        const pendingPrice = pendingEntry?.value;
-                        // 반영이 확인된 값은 **바로 진하게** — 데이터 다시 받기를 기다리지 않는다.
-                        const pricePending = !!pendingEntry && !settledTokens.has(pendingEntry.token);
-                        const price =
-                          pendingPrice ?? rates.get(`${room.key}|${day.date}`)?.price ?? null;
-                        // 「누가 언제 얼마에서 얼마로」. 값이 이상할 때 제일 먼저 찾는 정보다.
-                        const cellHistory = history.get(
-                          historyCellKey(room.key, day.date),
-                        );
-                        return (
-                          <div
-                            className={cellClass(day, room.key)}
-                            key={`p-${day.date}`}
-                            onPointerEnter={
-                              cellHistory ? (event) => startHover(event, room, day.date, cellHistory) : undefined
-                            }
-                            onPointerLeave={cellHistory ? endHover : undefined}
-                          >
-                            <span
-                              className={`opsg__price${price === null ? " none" : ""}${pricePending ? " pend" : ""}`}
-                            >
-                              {price === null ? "–" : formatPrice(price)}
-                            </span>
-                            {/* 사람이 손댄 칸이라는 표시. 점 하나면 격자를 어지럽히지 않는다. */}
-                            {cellHistory && <span className="opsg__hdot" />}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {/* 최소 숙박일. **가격보다 얇게** 간다 — 이 줄이 두꺼우면 한 객실이
-                        차지하는 세로가 늘어 화면에 담기는 객실 수가 줄고, 정작 중요한 가격이
-                        멀어진다. 숫자는 작아도 색으로 구분되므로 읽힌다. */}
-                    <div className="opsg__track min">
-                      {days.map((day) => {
-                        const pendingMin = pendingMinStay.get(selectionCellKey(room.key, day.date));
-                        const minStay =
-                          pendingMin?.value ?? rates.get(`${room.key}|${day.date}`)?.minStay ?? null;
-                        // 갭 칸에서는 이 값이 **원인**이다 — `.opsg__cell.gap .opsg__min` 이
-                        // 붉게 세운다. 칸이 이미 `gap` 클래스를 들고 있어 여기서 또 붙이지 않는다.
-                        //
-                        // **2박이 기본이라 조용히 둔다.** 실측(2026-09-25) 기준 Beds24 의
-                        // 12,412칸이 2박이고 1박은 388칸뿐이다. 기본값을 강조하면 격자가
-                        // 통째로 시끄러워지고, 정작 찾아야 할 예외가 안 보인다.
-                        // **구분은 글자 굵기가 아니라 칸 바탕색으로 한다.** 2,700칸을 굵게
-                        // 하면 격자가 통째로 복잡해진다 — 저쪽 캘린더도 옅은 바탕으로 가른다.
-                        const minTone =
-                          minStay === 1 ? " ms1" : minStay !== null && minStay >= 3 ? " ms3" : "";
-                        // 같은 칸의 이력(가격·최소숙박이 한 목록이다) — 가격 줄과 같은 카드를 띄운다.
-                        const minHistory = history.get(historyCellKey(room.key, day.date));
-                        return (
-                          <div
-                            className={`${cellClass(day, room.key)}${minTone}`}
-                            key={`m-${day.date}`}
-                            onPointerEnter={
-                              minHistory ? (event) => startHover(event, room, day.date, minHistory) : undefined
-                            }
-                            onPointerLeave={minHistory ? endHover : undefined}
-                          >
-                            <span
-                              className={`opsg__min${
-                                pendingMin && !settledTokens.has(pendingMin.token) ? " pend" : ""
-                              }`}
-                            >
-                              {minStay ?? ""}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {/* 예약 · BLOCK. 「취소만 보기」에서는 층 수만큼 키운다. */}
-                    <div
-                      className="opsg__track"
-                      style={laneCount > 1 ? { height: `calc(var(--ops-track) + ${(laneCount - 1) * 18}px)` } : undefined}
-                    >
-                      {days.map((day) => (
-                        <div className={cellClass(day)} key={`r-${day.date}`}>
-                          {/* 고르는 중인 줄에는 `+` 를 안 그린다 — 위에 기간 레이어가 덮인다. */}
-                          {!drafting && canStart(day.date) && (
-                            <button
-                              className="opsg__plus"
-                              // **누르는 순간** 체크인을 찍는다 — 그래야 누른 채 끌어서 기간을
-                              // 잡을 수 있다. 떼기만 하면 클릭 두 번 방식으로 이어진다.
-                              onClick={(event) => {
-                                // 키보드(Enter/Space)는 포인터 이벤트가 없다 — 여기서 찍는다.
-                                if (event.detail === 0) startDraft(day.date);
-                              }}
-                              onPointerDown={(event) => {
-                                if (event.button !== 0) return;
-                                // 끄는 동안 글자가 선택되거나 포커스가 튀지 않게.
-                                event.preventDefault();
-                                startDraft(day.date);
-                              }}
-                              type="button"
-                            >
-                              +
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                      {drafting && (
-                        <OpsBookingDraft
-                          checkIn={drafting.checkIn}
-                          checkInLabel={copy.mbCheckIn}
-                          dates={dates}
-                          geometry={(from, to) => barGeometry(days, from, to)}
-                          isOccupied={nightTaken}
-                          key={drafting.checkIn}
-                          nightsLabel={copy.mbNights}
-                          onCancel={cancelDraft}
-                          onCommit={(checkOut) => {
-                            setBooking({ checkIn: drafting.checkIn, checkOut, room: bookingRoom });
-                            cancelDraft();
-                          }}
-                          onRestart={(date) => {
-                            if (canStart(date)) startDraft(date);
-                          }}
-                        />
-                      )}
-                      {roomBlocks.map((block) => {
-                        const geometry = blockGeometry(days, block.startDate, block.endDate);
-                        if (!geometry) return null;
-                        return (
-                          <div className="opsg__block" key={block.id} style={geometry}>
-                            {copy.blockLabel}
-                          </div>
-                        );
-                      })}
-                      {days.map((day) =>
-                        gapCells.has(`${room.key}|${day.date}`) ? (
-                          <div
-                            className="opsg__gap"
-                            key={`g-${day.date}`}
-                            style={{
-                              left: `calc(${(days.indexOf(day) / days.length) * 100}% + 1px)`,
-                              width: `calc(${(1 / days.length) * 100}% - 2px)`,
-                            }}
-                          />
-                        ) : null,
-                      )}
-                      {roomBars.map((bar) => {
-                        const geometry = barGeometry(days, bar.checkIn, bar.checkOut);
-                        if (!geometry) return null;
-                        // 층이 있으면 그만큼 내려 그린다. 층 0 은 평소 자리 그대로다.
-                        const lane = barLanes?.laneById.get(bar.id) ?? 0;
-                        return (
-                          <div
-                            className={`opsg__bar ${bar.channel}${bar.isCancelled ? " cancelled" : ""}${
-                              priceWinsOnly && !showCancelled
-                                ? conversionIds.has(bar.id)
-                                  ? " pw-win"
-                                  : " pw-dim"
-                                : ""
-                            }`}
-                            key={bar.id}
-                            onClick={
-                              // 편집 모드에서는 칸 선택이 먼저다 — 막대를 누르다 상세가 뜨면
-                              // 드래그 선택이 끊긴다.
-                              editMode
-                                ? undefined
-                                : () => {
-                                    // 막대를 눌렀다 = 상세를 보겠다는 뜻이다. 고르던 기간은 버린다(저쪽과 같다).
-                                    cancelDraft();
-                                    setOpenBar({
-                                      bar,
-                                      propertyName: room.propertyName,
-                                      roomIds: room.roomIds,
-                                      roomLabel: room.displayRoomLabel,
-                                    });
-                                  }
-                            }
-                            style={lane > 0 ? { ...geometry, top: `calc(3px + ${lane * 18}px)` } : geometry}
-                            title={`${bar.guestName} · ${bar.checkIn} → ${bar.checkOut}`}
-                          >
-                            {bar.guestName}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {group.rooms.map((room) => (
+              <OpsGridRow
+                actions={rowActions}
+                allRoomBars={barsByRoom.get(room.key) ?? NO_BARS}
+                barLanes={barLanes}
+                conversionIds={conversionIds}
+                copy={copy}
+                dates={dates}
+                days={days}
+                drafting={activeDraft?.room.key === room.key ? activeDraft : null}
+                editMode={editMode}
+                gapCells={gapCells}
+                history={history}
+                key={room.key}
+                large={largeActive && isOpsLargeRoom(room.propertyName, room.displayRoomLabel)}
+                pendingMinStay={pendingMinStay}
+                pendingPrices={pendingPrices}
+                priceWinsOnly={priceWinsOnly}
+                rates={rates}
+                room={room}
+                roomBlocks={blocksByRoom.get(room.key) ?? NO_BLOCKS}
+                scopeOn={scope.roomKeys.includes(room.key)}
+                selectedDates={selectedDatesByRoom.get(room.key) ?? ""}
+                settledTokens={settledTokens}
+                showCancelled={showCancelled}
+                soldCells={soldCells}
+                today={today}
+              />
+            ))}
           </div>
         ))}
       </div>

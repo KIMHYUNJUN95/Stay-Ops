@@ -1,8 +1,8 @@
 import { after } from "next/server";
-import Link from "next/link";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { OpsCalendarGrid } from "@/components/admin/ops/ops-calendar-grid";
 import { OpsCalendarJump } from "@/components/admin/ops/ops-calendar-jump";
+import { OpsNavLink, OpsNavScope } from "@/components/admin/ops/ops-nav";
 import { AdminMonthPicker } from "@/components/admin/shared/admin-month-picker";
 import "@/components/admin/ops/ops-console.css";
 import { refreshOpsCalendarRates } from "@/lib/beds24/rates-refresh";
@@ -67,13 +67,18 @@ export default async function OpsCalendarPage({
   const copy = dictionary.opsAdmin.calendar;
   const localeTag = { en: "en-US", ja: "ja-JP", ko: "ko-KR" }[session.user.preferredLanguage];
 
-  const data = await getOpsCalendarData(session, {
-    mode: params.mode,
-    month: params.ym,
-    property: params.property,
-    start: params.start,
-    showCancelled: params.cancelled === "1",
-  });
+  // 「이력」 버튼의 빨간 숫자(최근 7일 전송 실패 + 멈춘 작업)도 **같이** 센다 — 달력 데이터를 다 받은
+  // 뒤에 따로 세면 그만큼 화면이 늦게 온다(2026-09-30 속도).
+  const [data, historyAlerts] = await Promise.all([
+    getOpsCalendarData(session, {
+      mode: params.mode,
+      month: params.ym,
+      property: params.property,
+      start: params.start,
+      showCancelled: params.cancelled === "1",
+    }),
+    countOpsHistoryAlerts(getSupabaseServiceClient(), session.organization.id),
+  ]);
 
   const showCancelled = params.cancelled === "1";
   const isRolling = data.mode === "rolling";
@@ -106,9 +111,6 @@ export default async function OpsCalendarPage({
   })();
   // 저쪽 주기(15분)와 같은 기준. 넘으면 빨갛게 적는다.
   const staleRates = data.ratesAgeMinutes === null || data.ratesAgeMinutes > 15;
-
-  // 「이력」 버튼의 빨간 숫자 — 최근 7일 전송 실패 + 멈춘 대기 작업(`ops-history-alerts.ts`).
-  const historyAlerts = await countOpsHistoryAlerts(getSupabaseServiceClient(), session.organization.id);
 
   const lastVisibleDate = data.days.at(-1)?.date;
   if (lastVisibleDate) {
@@ -172,23 +174,23 @@ export default async function OpsCalendarPage({
   return (
     <AdminShell activeItem={opsNavId("calendar")} title={copy.title}>
       <Beds24LiveRefresh organizationId={session.organization.id} />
-      <div className="ops">
+      <OpsNavScope>
         <div className="ops__bar">
           <div className="ops__props">
-            <Link
+            <OpsNavLink
               className={`ops__prop${data.selectedProperty ? "" : " on"}`}
               href={hrefWith({ property: undefined })}
             >
               {copy.allProperties}
-            </Link>
+            </OpsNavLink>
             {data.propertyOptions.map((name) => (
-              <Link
+              <OpsNavLink
                 className={`ops__prop${data.selectedProperty === name ? " on" : ""}`}
                 href={hrefWith({ property: name })}
                 key={name}
               >
                 {name}
-              </Link>
+              </OpsNavLink>
             ))}
           </div>
           <div className="ops__spacer" />
@@ -207,18 +209,18 @@ export default async function OpsCalendarPage({
 
         <div className="ops__bar">
           <div className="ops__seg">
-            <Link
+            <OpsNavLink
               className={`ops__segbtn${isRolling ? " on" : ""}`}
               href={hrefWith({ mode: "rolling", start: undefined, ym: undefined })}
             >
               {copy.viewRolling}
-            </Link>
-            <Link
+            </OpsNavLink>
+            <OpsNavLink
               className={`ops__segbtn${isRolling ? "" : " on"}`}
               href={hrefWith({ mode: "monthly", start: undefined })}
             >
               {copy.viewMonthly}
-            </Link>
+            </OpsNavLink>
           </div>
           {/*
             화살표는 30일(또는 한 달)씩 옮긴다. **먼 날짜로 가려면 여러 번 눌러야 하므로**
@@ -231,9 +233,9 @@ export default async function OpsCalendarPage({
           {isRolling ? (
             <>
               <div className="ops__nav">
-                <Link href={prevHref}>‹</Link>
-                <Link href={todayHref}>{copy.today}</Link>
-                <Link href={nextHref}>›</Link>
+                <OpsNavLink href={prevHref}>‹</OpsNavLink>
+                <OpsNavLink href={todayHref}>{copy.today}</OpsNavLink>
+                <OpsNavLink href={nextHref}>›</OpsNavLink>
               </div>
               <OpsCalendarJump
                 ariaLabel={dictionary.admin.shared.dateSelect}
@@ -268,20 +270,20 @@ export default async function OpsCalendarPage({
                 preserveQueryKeys={["mode", "property", "cancelled"]}
                 ym={data.month}
               />
-              <Link className="ops__btn" href={todayHref}>
+              <OpsNavLink className="ops__btn" href={todayHref}>
                 {copy.today}
-              </Link>
+              </OpsNavLink>
             </>
           )}
           <div className="ops__div" />
-          <Link
+          <OpsNavLink
             className={`ops__btn${showCancelled ? " on" : ""}`}
             href={hrefWith({ cancelled: showCancelled ? undefined : "1" })}
           >
             {/* 켠 뒤에는 **무엇이 보이는 중인지**를 적는다 — 「취소 보기」인 채로 두면
                 일반 예약이 왜 사라졌는지 알 수 없다. 저쪽도 켜면 「Cancelled Only」로 바뀐다. */}
             {showCancelled ? copy.showCancelledOn : copy.showCancelled}
-          </Link>
+          </OpsNavLink>
           {/* 1박 갭 — 있을 때만 뜬다. 0건이면 빈 배지가 자리만 차지한다. */}
           {data.gapCells.size > 0 && (
             <span className="ops__gapbtn">
@@ -345,7 +347,7 @@ export default async function OpsCalendarPage({
           showCancelled={showCancelled}
           today={data.today}
         />
-      </div>
+      </OpsNavScope>
     </AdminShell>
   );
 }

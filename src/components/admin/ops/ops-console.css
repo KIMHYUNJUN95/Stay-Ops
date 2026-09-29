@@ -2633,3 +2633,42 @@
   .opshs__loading,
   .opshs__sendnow svg.is-spin { animation: none; }
 }
+
+/* ── 이동 중(`ops-nav.tsx`) — 2026-09-30 ────────────────────────────────
+ * 건물 · 기간을 누르면 서버가 달력을 다시 만드는 1초 남짓 동안: 누른 링크에 로딩 점, 격자는 살짝
+ * 흐리게(0.08초 늦게 — 빨리 끝나는 이동에서 깜빡이지 않게), 맨 위에 가는 진행 줄.
+ */
+.ops.is-nav .opsw {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.15s ease 0.08s;
+}
+.ops__navspin {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-left: 6px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  vertical-align: -1px;
+  animation: opsNavSpin 0.7s linear infinite;
+}
+@keyframes opsNavSpin { to { transform: rotate(360deg); } }
+.ops.is-nav::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--adm-primary), transparent) no-repeat;
+  background-size: 40% 100%;
+  animation: opsNavBar 1s ease-in-out infinite;
+}
+@keyframes opsNavBar { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .ops__navspin,
+  .ops.is-nav::before { animation: none; }
+}
