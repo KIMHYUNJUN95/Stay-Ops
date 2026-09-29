@@ -253,8 +253,15 @@ curl -sX POST localhost:3000/api/beds24/rates-sync -H "authorization: Bearer $BE
 안 된다. 그래서 가격 알림은 주인이 하나고, 지금 그 자리는 저쪽 프로젝트(Firebase
 `priceWebhook`)가 갖고 있다.
 
-**현재 상태: 아무것도 바꾸지 않았다.** 코드는 준비돼 있고 `BEDS24_PRICE_WEBHOOK_FORWARD_URL`
-이 비어 있어 전달은 꺼져 있다. 배포해도 저쪽에 영향이 없다.
+**현재 상태 (2026-09-29): 전환 완료.** 9개 건물 전부 `https://stay-ops-two.vercel.app/api/beds24/webhook`
++ 커스텀 헤더 `x-beds24-webhook-secret` 로 바꿨다. 실측: 시크릿 없는 요청 403, 있는 요청 200,
+실제 배달(건물 343112, 01:35 UTC)이 들어와 9,516행을 다시 읽었다.
+
+**`BEDS24_PRICE_WEBHOOK_FORWARD_URL` 은 일부러 비워 둔다.** 저쪽 프로젝트를 곧 멈추므로 저쪽에
+넘길 이유가 없다(사용자 결정). 아래 「전환일에 할 일」 1번과 5번의 저쪽 확인은 건너뛰었다.
+
+**예약 웹훅의 저쪽 URL 은 아직 지우지 않는다** — 저쪽 자동화(시트·슬랙·노션)가 이쪽으로 옮겨질
+때까지 그 배달이 필요하다.
 
 **왜 옮기나 (2026-09-29 추가 이유).** 판매 캘린더의 「가격 개입 전환」이 Beds24 에서 바꾼 가격도 센다.
 우리는 요금 동기화 때 이전 값과 비교해 그 변경을 이력에 남기는데, 웹훅이 저쪽에 있으면 주기 동기화
@@ -286,7 +293,7 @@ curl -sX POST localhost:3000/api/beds24/rates-sync -H "authorization: Bearer $BE
 #### 되돌리기
 
 Beds24 URL 을 저쪽 주소로 되돌리면 즉시 원상복구된다. 그 사이 놓친 요금은 주기 동기화
-(`/api/beds24/rates-sync`, 15분)가 메운다 — 웹훅은 「즉시」를 위한 것이지 유일한 경로가 아니다.
+(`/api/beds24/rates-sync`, 15분 예정 · 실측 약 6시간)가 메운다 — 웹훅은 「즉시」를 위한 것이지 유일한 경로가 아니다.
 
 ## Recruit (채용 지원서 수신)
 

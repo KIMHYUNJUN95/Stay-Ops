@@ -11,6 +11,12 @@ import { forwardBeds24Delivery, parseForwardTargets } from "@/lib/beds24/webhook
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
 /**
+ * 가격 웹훅이 「창이 끝나면 한 번 더 읽기」(최대 20초 대기 + 건물 하나 동기화)를 응답 뒤에 돌린다.
+ * 그 시간이 이 안에 들어와야 한다.
+ */
+export const maxDuration = 60;
+
+/**
  * 받은 배달을 다른 수신처로 넘긴다 — **기본 꺼짐**.
  *
  * 전환일에 Beds24 재고 웹훅의 주인을 우리로 가져오면서 저쪽 프로젝트를 계속 살려두기 위한
@@ -49,6 +55,24 @@ function scheduleForward(args: {
       });
     }
   });
+}
+
+/**
+ * 응답 뒤에 할 일 — 가격 웹훅이 창 안에 몰려 「창이 끝나면 한 번 더 읽기」를 예약했으면 그걸
+ * `after()` 로 돌린다(`price-webhook.ts` 의 `PRICE_WEBHOOK_DEBOUNCE_MS`). Beds24 에는 바로 200 을
+ * 준다 — 늦게 주면 재배달이 온다. 응답에 함수는 싣지 않는다.
+ */
+function schedulePriceTrailing<T extends object>(result: T) {
+  if (!("trailing" in result) || typeof result.trailing !== "function") return result;
+  const { trailing, ...rest } = result as T & { trailing: () => Promise<void> };
+  after(async () => {
+    try {
+      await trailing();
+    } catch (error) {
+      console.error("[beds24/webhook] trailing price refresh failed", error);
+    }
+  });
+  return rest;
 }
 
 function resolveWebhookSecret(request: NextRequest) {
@@ -137,8 +161,9 @@ export async function GET(request: NextRequest) {
   const supabase = getSupabaseServiceClient();
   const priceResult = await processBeds24PriceWebhook({ body, supabase });
   if (priceResult.handled) {
-    console.log("[beds24/webhook] price delivery (GET)", priceResult);
-    return NextResponse.json({ ok: true, accepted: true, price: priceResult }, { status: 200 });
+    const price = schedulePriceTrailing(priceResult);
+    console.log("[beds24/webhook] price delivery (GET)", price);
+    return NextResponse.json({ ok: true, accepted: true, price }, { status: 200 });
   }
 
   console.warn("[beds24/webhook] GET delivery was not a price signal", { keys: Object.keys(body) });
@@ -181,8 +206,9 @@ export async function POST(request: NextRequest) {
   if (bookingPayloads.length === 0) {
     const priceResult = await processBeds24PriceWebhook({ body, supabase });
     if (priceResult.handled) {
-      console.log("[beds24/webhook] price delivery", priceResult);
-      return NextResponse.json({ ok: true, accepted: true, price: priceResult }, { status: 200 });
+      const price = schedulePriceTrailing(priceResult);
+      console.log("[beds24/webhook] price delivery", price);
+      return NextResponse.json({ ok: true, accepted: true, price }, { status: 200 });
     }
   }
 

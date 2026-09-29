@@ -26,18 +26,52 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { syncBeds24RoomRates } from "@/lib/beds24/room-rates-sync";
+import { syncBeds24RoomBlocks } from "@/lib/beds24/room-blocks-sync";
+import { acquireBeds24Lock, releaseBeds24Lock } from "@/lib/beds24/sync-locks";
 import type { Database } from "@/types/database";
 
 type JsonRecord = Record<string, unknown>;
 
 /**
- * 같은 건물에 대한 재동기화를 이 시간 안에는 다시 하지 않는다.
+ * 같은 건물에 대한 재동기화를 이 시간 안에는 **바로** 다시 하지 않는다.
  *
  * 가격을 일괄로 바꾸면 웹훅이 **객실 수만큼** 쏟아진다(저쪽도 `PRICE_WEBHOOK_INVALIDATION_
- * DEBOUNCE_MS` 로 합친다). 한 번의 동기화가 그 건물의 전 객실 · 12개월을 가져오므로 첫 배달
- * 하나면 충분하다.
+ * DEBOUNCE_MS` 로 합친다). 한 번의 동기화가 그 건물의 전 객실 · 12개월을 가져오므로 몰려온
+ * 배달은 하나로 합친다.
+ *
+ * ## 버리지 않고 「창이 끝날 때 한 번 더」 (2026-09-29)
+ *
+ * 예전(60초)에는 창 안의 배달을 **버렸다.** 그러면 창 안에 들어온 **마지막 변경**은 다음 주기
+ * 동기화(실측 약 6시간 뒤)까지 반영되지 않았다 — 실시간이 깨진다. 이제 창 안의 첫 배달이
+ * 「창이 끝나면 한 번 더 읽기」를 예약하고(건물별 락으로 하나만), 나머지는 그 예약에 얹힌다.
+ * 창을 20초로 줄인 이유: 몰려오는 배달은 몇 초 안에 끝나고, 응답 뒤에 기다리는 시간이 웹훅 함수의
+ * 최대 실행 시간(60초) 안에 들어와야 한다.
  */
-export const PRICE_WEBHOOK_DEBOUNCE_MS = 60_000;
+export const PRICE_WEBHOOK_DEBOUNCE_MS = 20_000;
+const TRAILING_LOCK_TTL_MS = 55_000;
+
+/**
+ * 한 건물을 다시 읽는다 — 요금(12개월: 가격 · 재고 · 최소숙박 · 차단)과 현장 예약 캘린더의 차단
+ * 막대(`room_blocks`, 3개월). 재고 웹훅은 이 둘을 다 바꾸는 신호라 같이 맞춘다.
+ */
+async function refreshProperty(
+  supabase: SupabaseClient<Database>,
+  organizationId: string,
+  externalPropertyId: string,
+) {
+  const rates = await syncBeds24RoomRates(organizationId, supabase, undefined, {
+    externalPropertyIds: [externalPropertyId],
+  });
+  // 차단 막대는 실패해도 요금 갱신을 되돌리지 않는다 — 6시간 정합성 크론이 안전망이다.
+  const blocks = await syncBeds24RoomBlocks(supabase, {
+    externalPropertyIds: [externalPropertyId],
+    organizationId,
+  }).catch((error) => {
+    console.error("[beds24/price-webhook] room block refresh failed", error);
+    return null;
+  });
+  return { blocks, rates };
+}
 
 function readString(record: JsonRecord, keys: string[]): string | null {
   for (const key of keys) {
@@ -80,7 +114,15 @@ export function extractPriceWebhookSignal(body: unknown): PriceWebhookSignal | n
 
 export type PriceWebhookResult =
   | { handled: false; reason: "not_a_price_delivery" | "unknown_room" }
-  | { handled: true; skipped: true; reason: "debounced"; externalPropertyId: string }
+  | {
+      handled: true;
+      skipped: true;
+      /** `debounced_trailing` = 창이 끝날 때 한 번 더 읽는 일을 **이 배달이** 예약했다. */
+      reason: "debounced" | "debounced_trailing";
+      externalPropertyId: string;
+      /** 응답 뒤에 돌릴 일(라우트가 `after()` 로 부른다). 없으면 이미 누가 예약했다. */
+      trailing?: () => Promise<void>;
+    }
   | {
       handled: true;
       skipped: false;
@@ -172,12 +214,38 @@ export async function processBeds24PriceWebhook(args: {
     : { data: null };
   const lastSyncedAt = (freshResult.data as { synced_at: string } | null)?.synced_at ?? null;
   if (lastSyncedAt && Date.now() - new Date(lastSyncedAt).getTime() < PRICE_WEBHOOK_DEBOUNCE_MS) {
-    return { handled: true, skipped: true, reason: "debounced", externalPropertyId };
+    // 창 안이다. **버리지 않는다** — 창이 끝나면 한 번 더 읽도록 예약한다(건물별로 하나만).
+    const lockName = `price-webhook-trailing:${externalPropertyId}`;
+    const lock = await acquireBeds24Lock(args.supabase, lockName, "price-webhook", TRAILING_LOCK_TTL_MS);
+    if (!lock.acquired) {
+      return { handled: true, skipped: true, reason: "debounced", externalPropertyId };
+    }
+    const organizationId = row.organization_id;
+    const supabase = args.supabase;
+    const waitMs = Math.max(
+      0,
+      new Date(lastSyncedAt).getTime() + PRICE_WEBHOOK_DEBOUNCE_MS - Date.now() + 1_000,
+    );
+    return {
+      externalPropertyId,
+      handled: true,
+      reason: "debounced_trailing",
+      skipped: true,
+      trailing: async () => {
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+        // **읽기 전에 락을 푼다.** 읽는 동안 들어온 배달이 또 한 번을 예약할 수 있어야 한다 —
+        // 쥔 채로 읽으면 그 배달은 「이미 예약됨」으로 버려지고, 읽기가 그 변경을 놓칠 수 있다.
+        await releaseBeds24Lock(supabase, lockName, lock.lockId);
+        const refreshed = await refreshProperty(supabase, organizationId, externalPropertyId);
+        console.log("[beds24/price-webhook] trailing refresh", {
+          externalPropertyId,
+          rows: refreshed.rates.rows,
+        });
+      },
+    };
   }
 
-  const result = await syncBeds24RoomRates(row.organization_id, args.supabase, undefined, {
-    externalPropertyIds: [externalPropertyId],
-  });
+  const { rates: result } = await refreshProperty(args.supabase, row.organization_id, externalPropertyId);
 
   return {
     handled: true,

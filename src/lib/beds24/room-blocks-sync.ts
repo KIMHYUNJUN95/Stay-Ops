@@ -130,7 +130,10 @@ type FetchOutcome = {
   skipped: string[];
 };
 
-async function fetchBlackoutSegments(window: { from: string; to: string }): Promise<FetchOutcome> {
+async function fetchBlackoutSegments(
+  window: { from: string; to: string },
+  onlyPropertyIds?: ReadonlySet<string>,
+): Promise<FetchOutcome> {
   const env = getOptionalBeds24ApiEnv();
   if (!env) return { blocks: [], properties: 0, openEndedSkipped: 0, skipped: ["room-blocks:missing-env"] };
 
@@ -143,21 +146,26 @@ async function fetchBlackoutSegments(window: { from: string; to: string }): Prom
   const headers = { accept: "application/json", token: tokenState.token };
 
   // 건물 목록을 먼저 받는다. 캘린더는 건물 단위로만 물어볼 수 있어서, 방을 하나씩 도는 것보다
-  // 요청 수가 훨씬 적다(= Beds24 크레딧을 덜 쓴다).
-  const propertiesResponse = await fetch(`${base}/properties?includeAllRooms=false`, {
-    headers,
-    cache: "no-store",
-  });
-  if (!propertiesResponse.ok) {
-    return {
-      blocks: [],
-      properties: 0,
-      openEndedSkipped: 0,
-      skipped: [`room-blocks:properties-http-${propertiesResponse.status}`],
-    };
+  // 요청 수가 훨씬 적다(= Beds24 크레딧을 덜 쓴다). **건물이 정해져 있으면(웹훅) 목록을 건너뛴다.**
+  let propertyRows: unknown[];
+  if (onlyPropertyIds && onlyPropertyIds.size > 0) {
+    propertyRows = [...onlyPropertyIds].map((id) => ({ id }));
+  } else {
+    const propertiesResponse = await fetch(`${base}/properties?includeAllRooms=false`, {
+      headers,
+      cache: "no-store",
+    });
+    if (!propertiesResponse.ok) {
+      return {
+        blocks: [],
+        properties: 0,
+        openEndedSkipped: 0,
+        skipped: [`room-blocks:properties-http-${propertiesResponse.status}`],
+      };
+    }
+    const propertiesRoot = asRecord(await propertiesResponse.json());
+    propertyRows = Array.isArray(propertiesRoot?.data) ? propertiesRoot.data : [];
   }
-  const propertiesRoot = asRecord(await propertiesResponse.json());
-  const propertyRows = Array.isArray(propertiesRoot?.data) ? propertiesRoot.data : [];
 
   const blocks: FetchedBlock[] = [];
   const skipped: string[] = [];
@@ -222,10 +230,21 @@ async function fetchBlackoutSegments(window: { from: string; to: string }): Prom
  */
 export async function syncBeds24RoomBlocks(
   supabase: SupabaseClient<Database>,
-  options?: { organizationId?: string; now?: Date },
+  options?: {
+    organizationId?: string;
+    now?: Date;
+    /**
+     * 이 건물만 — 재고 웹훅이 한 건물을 가리킬 때(2026-09-29). 지우고 다시 넣는 범위도 이 건물로
+     * 좁힌다. 없으면 전 건물(정합성 크론).
+     */
+    externalPropertyIds?: string[];
+  },
 ): Promise<RoomBlockSyncResult> {
   const window = buildRoomBlockWindow(options?.now);
-  const fetched = await fetchBlackoutSegments(window);
+  const only = options?.externalPropertyIds?.length
+    ? new Set(options.externalPropertyIds.map(String))
+    : undefined;
+  const fetched = await fetchBlackoutSegments(window, only);
 
   const result: RoomBlockSyncResult = {
     properties: fetched.properties,
@@ -240,7 +259,7 @@ export async function syncBeds24RoomBlocks(
   // 여기서 못 찾는 방은 애초에 우리 캘린더에 행이 없으므로 블락을 그릴 자리도 없다.
   let roomQuery = supabase
     .from("rooms")
-    .select("organization_id, external_room_id, room_label, properties(name)")
+    .select("organization_id, external_room_id, room_label, properties(name, external_property_id)")
     .eq("external_provider", "beds24")
     .not("external_room_id", "is", null);
   if (options?.organizationId) {
@@ -256,13 +275,21 @@ export async function syncBeds24RoomBlocks(
     organization_id: string;
     external_room_id: string | null;
     room_label: string;
-    properties: { name: string } | { name: string }[] | null;
+    properties:
+      | { name: string; external_property_id: string | null }
+      | { name: string; external_property_id: string | null }[]
+      | null;
   };
   const roomMap = new Map<string, { organizationId: string; propertyName: string; roomLabel: string }>();
+  /** 건물을 좁혔을 때 지울 범위 — `room_blocks` 는 건물 **이름**으로 저장돼 있다. */
+  const targetPropertyNames = new Set<string>();
   for (const row of (roomResult.data ?? []) as RoomRow[]) {
     if (!row.external_room_id) continue;
     const property = Array.isArray(row.properties) ? row.properties[0] : row.properties;
     if (!property?.name) continue;
+    if (only && property.external_property_id && only.has(String(property.external_property_id))) {
+      targetPropertyNames.add(property.name);
+    }
     roomMap.set(row.external_room_id, {
       organizationId: row.organization_id,
       propertyName: property.name,
@@ -305,6 +332,11 @@ export async function syncBeds24RoomBlocks(
     .lte("start_date", window.to);
   if (options?.organizationId) {
     deleteQuery = deleteQuery.eq("organization_id", options.organizationId);
+  }
+  if (only) {
+    // 건물을 좁혔는데 이름을 못 찾았으면 **아무것도 지우지 않는다** — 전 건물이 지워진다.
+    if (targetPropertyNames.size === 0) return result;
+    deleteQuery = deleteQuery.in("property_name", [...targetPropertyNames]);
   }
   const deleteResult = await deleteQuery.select("id");
   if (deleteResult.error) {
