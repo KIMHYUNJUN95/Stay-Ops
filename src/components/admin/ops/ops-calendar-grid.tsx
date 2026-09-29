@@ -58,6 +58,7 @@ import {
   type OpsSelectionScope,
 } from "@/lib/ops-calendar-selection";
 import { hasOpsLargeRooms, isOpsLargeRoom, orderOpsLargeRoomsFirst } from "@/lib/ops-large-rooms";
+import { opsVacantRoomKeys } from "@/lib/ops-vacant-today";
 
 /**
  * 판매 캘린더 격자.
@@ -110,7 +111,7 @@ type Copy = {
   BookingPanelCopy & { mbPickCheckout: string } &
   ReservationCardCopy &
   HistoryCopy & { historyMore: string } &
-  PriceWinsCopy & { pwToggle: string; pwList: string; largeFirst: string };
+  PriceWinsCopy & { pwToggle: string; pwList: string; largeFirst: string; vacantToday: string };
 
 /**
  * 격자 칸의 가격 표기 — `42659` → `42.7K`.
@@ -396,10 +397,20 @@ export function OpsCalendarGrid({
     [serverRooms],
   );
   const largeActive = hasLargeRooms && largeFirst;
-  const rooms = useMemo(
-    () => (largeActive ? orderOpsLargeRoomsFirst(serverRooms) : serverRooms) as OpsCalendarRoom[],
-    [largeActive, serverRooms],
+  // 오늘 빈방만 — 오늘 밤을 차지한 살아 있는 예약이 없는 방(`ops-vacant-today.ts`). 차단은 안 센다.
+  // 보는 기간에 오늘이 없으면 예약을 다 못 읽었으므로 판정하지 않는다(버튼도 숨긴다).
+  const [vacantOnly, setVacantOnly] = useState(false);
+  const todayInView = days.some((day) => day.date === today);
+  const vacantActive = vacantOnly && todayInView;
+  const vacantKeys = useMemo(
+    () => opsVacantRoomKeys({ bars, roomKeys: serverRooms.map((room) => room.key), today }),
+    [bars, serverRooms, today],
   );
+  const rooms = useMemo(() => {
+    const base = vacantActive ? serverRooms.filter((room) => vacantKeys.has(room.key)) : serverRooms;
+    // 거른 뒤 정렬(저쪽과 같다).
+    return (largeActive ? orderOpsLargeRoomsFirst(base) : base) as OpsCalendarRoom[];
+  }, [largeActive, serverRooms, vacantActive, vacantKeys]);
   const [priceWinsOpen, setPriceWinsOpen] = useState(false);
   const conversionIds = useMemo(
     () => new Set(priceConversions.map((conversion) => conversion.reservationId)),
@@ -912,6 +923,17 @@ export function OpsCalendarGrid({
             <button className="opsg__editbtn" onClick={() => setPriceWinsOpen(true)} type="button">
               {copy.pwList}
             </button>
+            {todayInView && (
+              <button
+                aria-pressed={vacantOnly}
+                className={`opsg__editbtn opsg__vacant${vacantOnly ? " on" : ""}`}
+                onClick={() => setVacantOnly((value) => !value)}
+                type="button"
+              >
+                {copy.vacantToday}
+                <span className="opsg__pwn">{vacantKeys.size}</span>
+              </button>
+            )}
             {hasLargeRooms && (
               <button
                 aria-pressed={largeFirst}
