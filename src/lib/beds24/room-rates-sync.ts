@@ -4,6 +4,7 @@ import { getOptionalBeds24ApiEnv } from "@/lib/env";
 import { detectExternalRateChanges, type RateSnapshot } from "@/lib/beds24/external-price-changes";
 import type { Database } from "@/types/database";
 import { signalBeds24Change } from "@/lib/beds24/live-signal";
+import { findRowsContradictingRecentWrites, type RecentWrite } from "@/lib/beds24/recent-write-guard";
 
 /**
  * Beds24 객실 × 날짜별 요금·재고를 `room_daily_rates` 로 가져온다.
@@ -130,6 +131,9 @@ async function fetchCalendarPages(
  * (docs/product/32-ops-admin-area.md 「기간도 분리한다」). 어제를 포함하는 이유는 30일 뷰의
  * 시작일이 어제이기 때문이다.
  */
+/** 이 시간 안에 우리 작업이 쓴 칸은 동기화 값과 어긋나면 다시 읽는다(`recent-write-guard.ts`). */
+const RECENT_WRITE_GUARD_MS = 60 * 60 * 1000;
+
 export function buildRoomRatesWindow(now = new Date()): { from: string; to: string } {
   const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   const year = jst.getUTCFullYear();
@@ -273,7 +277,10 @@ export async function syncBeds24RoomRates(
       `&startDate=${window.from}&endDate=${window.to}` +
       `&includePrices=true&includeLinkedPrices=true` +
       `&includeNumAvail=true&includeMinStay=true&includeMaxStay=true` +
-      `&includeOverride=true`;
+      `&includeOverride=true` +
+      // **매번 다른 주소로** 읽는다(2026-09-30) — 같은 주소에 옛 응답이 돌아온 정황이 있었다
+      // (`recent-write-guard.ts`). Beds24 는 모르는 파라미터를 무시한다(실측).
+      `&_ts=${Date.now()}`;
 
     // 건물 하나가 실패해도 **나머지 여덟 곳은 갱신된다.** 실패한 건물은 `skipped` 로 남아
     // 다음 주기에 다시 시도된다 — 전부 upsert 라 재시도가 안전하다.
@@ -333,6 +340,110 @@ export async function syncBeds24RoomRates(
           rows.push({ ...shared, stay_date: stayDate });
         }
       }
+    }
+  }
+
+  /*
+   * ── 우리가 방금 쓴 값을 옛 값으로 되돌리지 않는다 (2026-09-30) ─────────────────
+   *
+   * 받은 값이 최근 우리 작업(가격 `price1` · 최소숙박)이 쓴 값과 다르면 그 칸은 **객실 단위로 다시
+   * 읽어**(캐시 우회) 그 값을 쓴다. 다시 읽지 못하면 그 칸은 이번에 덮지 않는다. 판정: `recent-write-guard.ts`.
+   */
+  let recentWriteRechecked = 0;
+  let recentWriteKept = 0;
+  if (rows.length > 0) {
+    const guardSince = new Date(Date.now() - RECENT_WRITE_GUARD_MS).toISOString();
+    const roomIdsInRows = [...new Set(rows.map((row) => row.room_id))];
+    const writesResult = await supabase
+      .from("price_change_logs")
+      .select("room_id, stay_date, field, new_value, created_at")
+      .eq("organization_id", organizationId)
+      .not("job_id", "is", null)
+      .in("field", ["price1", "min_stay"])
+      .gte("created_at", guardSince)
+      .in("room_id", roomIdsInRows);
+    const writes: RecentWrite[] = [];
+    for (const row of (writesResult.data ?? []) as Array<{
+      room_id: string | null;
+      stay_date: string;
+      field: string;
+      new_value: number | null;
+      created_at: string;
+    }>) {
+      if (!row.room_id || row.new_value === null) continue;
+      writes.push({
+        at: row.created_at,
+        field: row.field === "min_stay" ? "min_stay" : "price1",
+        roomId: row.room_id,
+        stayDate: row.stay_date,
+        value: row.new_value,
+      });
+    }
+    const conflicts = findRowsContradictingRecentWrites(rows, writes);
+    if (conflicts.size > 0) {
+      const datesByRoom = new Map<string, string[]>();
+      for (const key of conflicts) {
+        const [roomId, date] = key.split("|");
+        datesByRoom.set(roomId, [...(datesByRoom.get(roomId) ?? []), date]);
+      }
+      const fresh = new Map<string, Omit<RateRow, "organization_id" | "room_id" | "stay_date" | "synced_at">>();
+      for (const [roomId, dates] of datesByRoom) {
+        const externalRoomId = unitById.get(roomId)?.externalRoomId;
+        if (!externalRoomId) continue;
+        const sorted = [...dates].sort();
+        const wanted = new Set(sorted);
+        const url =
+          `${base}/inventory/rooms/calendar?roomId=${encodeURIComponent(externalRoomId)}` +
+          `&startDate=${sorted[0]}&endDate=${sorted[sorted.length - 1]}` +
+          `&includePrices=true&includeLinkedPrices=true&includeNumAvail=true&includeMinStay=true` +
+          `&includeMaxStay=true&includeOverride=true&_ts=${Date.now()}`;
+        try {
+          const recheckPages = await fetchCalendarPages(url, headers);
+          for (const page of recheckPages) {
+            for (const roomValue of Array.isArray(page.data) ? page.data : []) {
+              const room = asRecord(roomValue);
+              for (const segmentValue of Array.isArray(room?.calendar) ? room.calendar : []) {
+                const segment = asRecord(segmentValue);
+                const from = segment ? readString(segment, ["from"]) : null;
+                const to = segment ? readString(segment, ["to"]) : null;
+                if (!segment || !from || !to) continue;
+                for (const stayDate of eachDate(from, to)) {
+                  if (!wanted.has(stayDate)) continue;
+                  fresh.set(`${roomId}|${stayDate}`, {
+                    max_stay: readInt(segment, "maxStay"),
+                    min_stay: readInt(segment, "minStay"),
+                    num_avail: readInt(segment, "numAvail"),
+                    override_kind: readString(segment, ["override"]),
+                    price1: readInt(segment, "price1"),
+                    price2: readInt(segment, "price2"),
+                    price3: readInt(segment, "price3"),
+                  });
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error("[beds24/rates] recent-write recheck failed", { externalRoomId, error });
+        }
+      }
+      for (let index = rows.length - 1; index >= 0; index -= 1) {
+        const key = `${rows[index].room_id}|${rows[index].stay_date}`;
+        if (!conflicts.has(key)) continue;
+        const values = fresh.get(key);
+        if (values) {
+          rows[index] = { ...rows[index], ...values };
+          recentWriteRechecked += 1;
+        } else {
+          // 다시 읽지 못했다 — 이번에는 덮지 않는다(우리 표의 지금 값 = 우리가 쓰고 확인한 값을 둔다).
+          rows.splice(index, 1);
+          recentWriteKept += 1;
+        }
+      }
+      console.warn("[beds24/rates] sync contradicted recent writes — rechecked", {
+        conflicts: conflicts.size,
+        kept: recentWriteKept,
+        rechecked: recentWriteRechecked,
+      });
     }
   }
 

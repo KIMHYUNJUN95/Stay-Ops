@@ -181,7 +181,9 @@ async function fetchBlackoutSegments(
 
     const url =
       `${base}/inventory/rooms/calendar?propertyId=${externalPropertyId}` +
-      `&startDate=${window.from}&endDate=${window.to}&includeNumAvail=true&includeOverride=true`;
+      `&startDate=${window.from}&endDate=${window.to}&includeNumAvail=true&includeOverride=true` +
+      // 매번 다른 주소로 — 같은 주소에 옛 응답이 돌아온 정황(2026-09-30, `recent-write-guard.ts`).
+      `&_ts=${Date.now()}`;
 
     const response = await fetch(url, { headers, cache: "no-store" });
     if (!response.ok) {

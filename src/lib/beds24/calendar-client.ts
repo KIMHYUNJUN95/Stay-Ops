@@ -94,6 +94,9 @@ function buildCalendarUrl(base: string, query: CalendarQuery): string {
   ] as const) {
     if (query[flag]) params.set(flag, "true");
   }
+  // 매번 다른 주소로 읽는다 — 같은 주소에 옛 응답이 돌아온 정황이 있었다(2026-09-30,
+  // `recent-write-guard.ts`). Beds24 는 모르는 파라미터를 무시한다(실측).
+  params.set("_ts", String(Date.now()));
   return `${base}/inventory/rooms/calendar?${params.toString()}`;
 }
 
