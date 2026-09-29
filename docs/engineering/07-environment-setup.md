@@ -256,6 +256,15 @@ curl -sX POST localhost:3000/api/beds24/rates-sync -H "authorization: Bearer $BE
 **현재 상태: 아무것도 바꾸지 않았다.** 코드는 준비돼 있고 `BEDS24_PRICE_WEBHOOK_FORWARD_URL`
 이 비어 있어 전달은 꺼져 있다. 배포해도 저쪽에 영향이 없다.
 
+**왜 옮기나 (2026-09-29 추가 이유).** 판매 캘린더의 「가격 개입 전환」이 Beds24 에서 바꾼 가격도 센다.
+우리는 요금 동기화 때 이전 값과 비교해 그 변경을 이력에 남기는데, 웹훅이 저쪽에 있으면 주기 동기화
+(실측 약 6시간 간격) 때에야 알아채 **바꾼 시각이 늦게 찍힌다.** 웹훅이 이쪽으로 오면 몇 초 안에
+잡힌다.
+
+**전달 주소는 Beds24 칸의 현재 값을 그대로 복사해 쓴다** — 저쪽 함수들은
+`us-central1-my-booking-app-3f0e7.cloudfunctions.net` 아래에 있지만, 추측한 주소로 넘기면 전환 순간
+저쪽 가격 알림이 조용히 끊긴다.
+
 #### 전환일에 할 일
 
 1. Vercel 프로덕션에 `BEDS24_PRICE_WEBHOOK_FORWARD_URL` = 저쪽 `priceWebhook` 주소를 넣고

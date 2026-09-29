@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveBeds24AccessToken } from "@/lib/beds24/access-token";
 import { getOptionalBeds24ApiEnv } from "@/lib/env";
+import { detectExternalPriceChanges } from "@/lib/beds24/external-price-changes";
 import type { Database } from "@/types/database";
 
 /**
@@ -56,6 +57,8 @@ export type RoomRatesSyncResult = {
   properties: number;
   skipped: string[];
   window: { from: string; to: string };
+  /** Beds24 쪽에서 바뀌어 가격 이력에 남긴 칸 수(`external-price-changes.ts`). */
+  externalPriceChanges: number;
 };
 
 function asRecord(value: unknown): JsonRecord | null {
@@ -191,6 +194,7 @@ export async function syncBeds24RoomRates(
     properties: 0,
     skipped: [],
     window,
+    externalPriceChanges: 0,
   };
 
   const env = getOptionalBeds24ApiEnv();
@@ -207,7 +211,7 @@ export async function syncBeds24RoomRates(
   // 않고** `unmatchedRoomIds` 에 남긴다 — 그게 곧 방 마스터가 뒤처졌다는 신호다.
   const roomsResult = await supabase
     .from("rooms")
-    .select("id, external_room_id")
+    .select("id, external_room_id, external_price_source_room_id, room_label")
     .eq("organization_id", organizationId)
     .eq("external_provider", "beds24")
     .not("external_room_id", "is", null);
@@ -215,8 +219,19 @@ export async function syncBeds24RoomRates(
     return { ...empty, skipped: [`room-rates:rooms-read-${roomsResult.error.code ?? "error"}`] };
   }
   const roomIdByExternal = new Map<string, string>();
-  for (const row of (roomsResult.data ?? []) as Array<{ id: string; external_room_id: string | null }>) {
-    if (row.external_room_id) roomIdByExternal.set(String(row.external_room_id), row.id);
+  /** 가격 소스(링크 없는) 유닛 — 외부 가격 변경은 여기서만 센다. */
+  const sourceRoomIds = new Set<string>();
+  const unitById = new Map<string, { externalRoomId: string; roomLabel: string }>();
+  for (const row of (roomsResult.data ?? []) as Array<{
+    id: string;
+    external_room_id: string | null;
+    external_price_source_room_id: string | null;
+    room_label: string;
+  }>) {
+    if (!row.external_room_id) continue;
+    roomIdByExternal.set(String(row.external_room_id), row.id);
+    unitById.set(row.id, { externalRoomId: String(row.external_room_id), roomLabel: row.room_label });
+    if (!row.external_price_source_room_id) sourceRoomIds.add(row.id);
   }
 
   // 네트워크 예외를 **던지지 않는다.** 이 함수는 크론이 돌리는 안전망이라, 한 번의 순간적인
@@ -320,9 +335,41 @@ export async function syncBeds24RoomRates(
     }
   }
 
+  /*
+   * ── Beds24 쪽에서 바뀐 가격을 이력에 남긴다 (2026-09-29) ────────────────
+   *
+   * 덮기 **전에** 우리 표의 지금 `price1` 을 읽어 둔다(소스 유닛만). 가격 웹훅은 가격 없이 「바뀌었다」
+   * 신호만 주므로 비교해야 무엇이 바뀌었는지 안다. 가격 개입 전환이 이 이력을 쓴다.
+   * 읽기에 실패하면 이력만 건너뛴다 — 요금 갱신은 막지 않는다.
+   */
+  const before = new Map<string, number | null>();
+  const writtenSourceIds = [...new Set(rows.map((row) => row.room_id).filter((id) => sourceRoomIds.has(id)))];
+  let beforeReadOk = writtenSourceIds.length > 0;
+  for (let offset = 0; beforeReadOk; offset += 1000) {
+    const page = await supabase
+      .from("room_daily_rates")
+      .select("room_id, stay_date, price1")
+      .eq("organization_id", organizationId)
+      .in("room_id", writtenSourceIds)
+      .gte("stay_date", window.from)
+      .lte("stay_date", window.to)
+      .order("room_id", { ascending: true })
+      .order("stay_date", { ascending: true })
+      .range(offset, offset + 999);
+    if (page.error) {
+      console.error("[beds24/rates] before-read failed; skipping external price log", page.error);
+      beforeReadOk = false;
+      break;
+    }
+    const data = (page.data ?? []) as Array<{ room_id: string; stay_date: string; price1: number | null }>;
+    for (const row of data) before.set(`${row.room_id}|${row.stay_date}`, row.price1);
+    if (data.length < 1000) break;
+  }
+
   // 한 번에 다 넣으면 요청이 너무 커진다(90객실 × 366일 ≈ 33,000행).
   const CHUNK = 1000;
   let written = 0;
+  let upsertFailed = false;
   for (let index = 0; index < rows.length; index += CHUNK) {
     const chunk = rows.slice(index, index + CHUNK);
     const result = await supabase
@@ -331,9 +378,44 @@ export async function syncBeds24RoomRates(
     if (result.error) {
       skipped.push(`room-rates:upsert-${result.error.code ?? "error"}`);
       console.error("[beds24/rates] upsert failed", { at: index, error: result.error });
+      upsertFailed = true;
       break;
     }
     written += chunk.length;
+  }
+
+  // 우리 표를 끝까지 갱신했을 때만 남긴다 — 반만 쓴 채 이력을 남기면 다음 동기화가 같은 변경을
+  // 또 잡는다.
+  let externalPriceChanges = 0;
+  if (beforeReadOk && !upsertFailed) {
+    const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const changes = detectExternalPriceChanges({ after: rows, before, sourceRoomIds, today });
+    for (let index = 0; index < changes.length; index += CHUNK) {
+      const logRows = changes.slice(index, index + CHUNK).map((change) => ({
+        // 한 번의 동기화에서 잡힌 변경은 **같은 시각**으로 남긴다 — 가격 개입 판정이 이걸 한 번의
+        // 개입으로 묶는다(`ops-calendar.ts`: `job_id` 가 없으면 시각으로 묶음).
+        adjust_mode: "beds24",
+        changed_by: null,
+        changed_by_name: "Beds24",
+        created_at: syncedAt,
+        external_room_id: unitById.get(change.roomId)?.externalRoomId ?? null,
+        field: "price1",
+        job_id: null,
+        new_value: change.newValue,
+        old_value: change.oldValue,
+        organization_id: organizationId,
+        percent_value: null,
+        room_id: change.roomId,
+        room_label: unitById.get(change.roomId)?.roomLabel ?? null,
+        stay_date: change.stayDate,
+      }));
+      const inserted = await supabase.from("price_change_logs").insert(logRows as never);
+      if (inserted.error) {
+        console.error("[beds24/rates] external price log failed", inserted.error);
+        break;
+      }
+      externalPriceChanges += logRows.length;
+    }
   }
 
   if (unmatched.size > 0) {
@@ -348,5 +430,6 @@ export async function syncBeds24RoomRates(
     properties,
     skipped,
     window,
+    externalPriceChanges,
   };
 }

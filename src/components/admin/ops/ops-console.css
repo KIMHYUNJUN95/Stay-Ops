@@ -2023,3 +2023,76 @@
   color: color-mix(in oklab, var(--warn) 82%, var(--ink));
 }
 
+/* ── 가격 개입 성공 ────────────────────────────────────────────────────
+ * 토글을 켜면 전환된 예약만 진하게, 나머지는 흐리게(목록에서 빼지는 않는다 — 저쪽과 같다).
+ */
+.opsg__editbtn.opsg__pw.on {
+  background: var(--adm-primary);
+  border-color: var(--adm-primary);
+  color: #fff;
+}
+.opsg__pwn {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--adm-primary) 12%, transparent);
+  font-size: 10.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.opsg__pw.on .opsg__pwn { background: rgb(255 255 255 / 0.24); }
+.opsg__bar.pw-dim { opacity: 0.12; }
+.opsg__bar.pw-win {
+  box-shadow: inset 0 0 0 1.5px var(--adm-primary), 0 0 0 2px color-mix(in oklab, var(--adm-primary) 25%, transparent);
+  font-weight: 800;
+}
+
+.opspw__head { margin-top: 10px; display: flex; align-items: baseline; gap: 10px; }
+.opspw__head strong { font-size: 22px; font-weight: 900; color: var(--ink); font-variant-numeric: tabular-nums; }
+.opspw__avg { font-size: 12.5px; font-weight: 700; color: var(--adm-primary); }
+.opspw__sub { margin-top: 3px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.opspw__body { display: flex; flex-direction: column; gap: 14px; }
+.opspw__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.opspw__row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border: none;
+  border-bottom: 1px solid var(--line-soft);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.opspw__row:hover { background: var(--adm-surface); }
+.opspw__main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.opspw__room { font-size: 13px; font-weight: 800; color: var(--ink); }
+.opspw__dates { margin-left: 6px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.opspw__guest {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--soft);
+}
+.opspw__chan { flex: 0 0 auto; padding: 1px 6px; border-radius: 5px; font-size: 10px; font-weight: 800; }
+.opspw__chan.airbnb { background: var(--ops-abnb-bg); color: var(--ops-abnb); }
+.opspw__chan.booking { background: var(--ops-bkng-bg); color: var(--ops-bkng); }
+.opspw__chan.manual { background: var(--ops-dir-bg); color: var(--ops-dir); }
+.opspw__price, .opspw__time { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; white-space: nowrap; }
+.opspw__delta { font-size: 12px; font-weight: 800; color: var(--soft); font-variant-numeric: tabular-nums; }
+.opspw__delta.down { color: var(--ops-bkng); }
+.opspw__delta.up { color: var(--danger); }
+.opspw__delta em { font-style: normal; font-weight: 700; }
+.opspw__time strong { font-size: 14px; font-weight: 900; color: var(--adm-primary); font-variant-numeric: tabular-nums; }
+.opspw__meta { font-size: 10.5px; font-weight: 600; color: var(--muted); }
+.opspw__empty { margin: 0; padding: 18px 4px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.opspw__note { margin: 0; font-size: 11px; font-weight: 600; line-height: 1.6; color: var(--muted); }
+

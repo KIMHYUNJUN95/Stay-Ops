@@ -23,6 +23,13 @@ import {
 } from "@/lib/ops-price-history";
 import { mergeOpsRateUnits, type OpsMergedRate } from "@/lib/ops-rate-merge";
 import { buildBlockRanges } from "@/lib/ops-block-ranges";
+import {
+  attributePriceConversions,
+  OPS_PRICE_ATTRIBUTION_LOOKBACK_DAYS,
+  PRICE_ATTRIBUTION_WINDOW_HOURS,
+  type AttributionCell,
+  type AttributionReservation,
+} from "@/lib/ops-price-attribution";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -167,6 +174,31 @@ export type OpsCalendarRoom = {
  * *가운데*에서 시작해 체크아웃 날짜 칸의 *가운데*에서 끝난다 — 같은 날 나가는 예약과 들어오는
  * 예약이 그 칸 가운데에서 만나야 하루에 둘이 보인다.
  */
+/**
+ * 가격 개입 전환 한 건 — 격자 토글(막대 강조)과 목록 패널이 같이 쓴다.
+ * 판정은 `ops-price-attribution.ts`. 표시용 값만 담는다(원본 예약 JSON 은 안 싣는다).
+ */
+export type OpsPriceConversion = {
+  reservationId: string;
+  roomKey: string;
+  roomLabel: string;
+  propertyName: string;
+  guestName: string;
+  channel: OpsCalendarChannel;
+  checkIn: string;
+  checkOut: string;
+  /** ISO(UTC). 화면이 도쿄로 바꾼다. */
+  appliedAt: string;
+  bookedAt: string;
+  hoursToBooking: number;
+  oldAverage: number | null;
+  newAverage: number | null;
+  delta: number | null;
+  percent: number | null;
+  nights: number;
+  changedBy: string | null;
+};
+
 export type OpsCalendarBar = {
   channel: OpsCalendarChannel;
   checkIn: string;
@@ -694,6 +726,145 @@ export async function getOpsCalendarData(
   }
   const history = buildHistoryByCell(historyRows);
 
+  // ── 가격 개입 전환 ────────────────────────────────────────────────────
+  //
+  // 「가격을 바꾼 뒤 48시간 안에 그 방·그 날짜로 들어온 예약」. 판정은 순수 모듈
+  // (`ops-price-attribution.ts`, 저쪽 `priceAttribution.js` 와 같은 규칙).
+  //
+  // 저쪽은 **캘린더에 보이는 기간의 숙박만** 봐서 목록이 두 화면(캘린더 · Price History)으로
+  // 나뉘었다. 우리는 **가격을 바꾼 시각 기준 최근 90일 전체**를 판정한다 — 창과 무관하다.
+  const priceConversions: OpsPriceConversion[] = [];
+  {
+    const since = new Date(Date.now() - OPS_PRICE_ATTRIBUTION_LOOKBACK_DAYS * 86_400_000).toISOString();
+    const logsResult = await readAllPages<{
+      id: string;
+      job_id: string | null;
+      room_id: string | null;
+      stay_date: string;
+      old_value: number | null;
+      new_value: number | null;
+      created_at: string;
+      changed_by_name: string | null;
+    }>((from, to) =>
+      supabase
+        .from("price_change_logs")
+        .select("id, job_id, room_id, stay_date, old_value, new_value, created_at, changed_by_name")
+        .eq("organization_id", session.organization.id)
+        .eq("field", "price1")
+        .gte("created_at", since)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
+    if (logsResult.error) {
+      console.error("[ops-calendar] price attribution log read failed", logsResult.error);
+    }
+    const cells: AttributionCell[] = [];
+    // 우리 작업이 쓴 칸(방·날짜·값 → 시각). 워커가 Beds24 에 쓰고 **우리 표를 고치기 전 몇 초 사이**에
+    // 요금 동기화가 돌면 같은 변경이 「Beds24」로 한 번 더 남는다 — 그건 우리 개입이다.
+    const jobWrites = new Map<string, number[]>();
+    for (const row of logsResult.data ?? []) {
+      if (!row.job_id || !row.room_id) continue;
+      const key = `${row.room_id}|${row.stay_date}|${row.new_value}`;
+      jobWrites.set(key, [...(jobWrites.get(key) ?? []), Date.parse(row.created_at)]);
+    }
+    const DUPLICATE_WINDOW_MS = 15 * 60 * 1000;
+    for (const row of logsResult.data ?? []) {
+      const roomKey = row.room_id ? roomKeyByUuid.get(row.room_id) : undefined;
+      if (!roomKey) continue;
+      if (!row.job_id) {
+        const ours = jobWrites.get(`${row.room_id}|${row.stay_date}|${row.new_value}`) ?? [];
+        const at = Date.parse(row.created_at);
+        if (ours.some((jobAt) => at >= jobAt && at - jobAt < DUPLICATE_WINDOW_MS)) continue;
+      }
+      cells.push({
+        appliedAtMs: Date.parse(row.created_at),
+        changedBy: row.changed_by_name,
+        // 우리 앱 변경은 작업(job) 단위, Beds24 쪽 변경은 **한 번의 동기화가 같은 시각으로 남긴다**
+        // (`room-rates-sync.ts`) — 시각으로 묶어 한 번의 개입으로 본다.
+        groupId: row.job_id ?? `beds24:${row.created_at}`,
+        newValue: row.new_value,
+        oldValue: row.old_value,
+        roomKey,
+        stayDate: row.stay_date,
+      });
+    }
+
+    if (cells.length > 0) {
+      const stayDates = cells.map((cell) => cell.stayDate).sort();
+      // 바꾼 날짜를 덮는 확정 예약 전부 — 「그때 비어 있었나」를 재려면 창 밖 예약도 필요하다.
+      const bookingsResult = await readAllPages<ReservationRow>((from, to) =>
+        supabase
+          .from("reservations")
+          .select(
+            "id, check_in_date, check_out_date, guest_name, property_name, raw_payload, room_label, source, status",
+          )
+          .eq("organization_id", session.organization.id)
+          .lte("check_in_date", stayDates[stayDates.length - 1])
+          .gt("check_out_date", stayDates[0])
+          .order("check_in_date", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      );
+      if (bookingsResult.error) {
+        console.error("[ops-calendar] price attribution booking read failed", bookingsResult.error);
+      }
+      const attributionBookings: AttributionReservation[] = [];
+      const shown = new Map<string, { row: ReservationRow; roomKey: string; propertyName: string; label: string }>();
+      for (const row of bookingsResult.data ?? []) {
+        if (row.status === "cancelled" || row.status === "no_show") continue;
+        if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
+        const axis = reservationRoomAxis(row);
+        const raw =
+          row.raw_payload && typeof row.raw_payload === "object" && !Array.isArray(row.raw_payload)
+            ? (row.raw_payload as Record<string, unknown>)
+            : {};
+        const bookedAt = typeof raw.bookingTime === "string" ? Date.parse(raw.bookingTime) : NaN;
+        attributionBookings.push({
+          checkIn: row.check_in_date,
+          checkOut: row.check_out_date,
+          createdAtMs: Number.isFinite(bookedAt) ? bookedAt : null,
+          id: row.id,
+          roomKey: axis.roomKey,
+        });
+        shown.set(row.id, {
+          label: axis.displayRoomLabel,
+          propertyName: axis.propertyName,
+          roomKey: axis.roomKey,
+          row,
+        });
+      }
+
+      for (const conversion of attributePriceConversions({
+        cells,
+        reservations: attributionBookings,
+        windowHours: PRICE_ATTRIBUTION_WINDOW_HOURS,
+      })) {
+        const booking = shown.get(conversion.reservationId);
+        if (!booking) continue;
+        priceConversions.push({
+          appliedAt: new Date(conversion.appliedAtMs).toISOString(),
+          bookedAt: new Date(conversion.bookingCreatedAtMs).toISOString(),
+          changedBy: conversion.changedBy,
+          channel: opsChannelOf(booking.row.source),
+          checkIn: booking.row.check_in_date,
+          checkOut: booking.row.check_out_date,
+          delta: conversion.delta,
+          guestName: booking.row.guest_name,
+          hoursToBooking: conversion.hoursToBooking,
+          newAverage: conversion.newAverage,
+          nights: conversion.nights.length,
+          oldAverage: conversion.oldAverage,
+          percent: conversion.percent,
+          propertyName: booking.propertyName,
+          reservationId: conversion.reservationId,
+          roomKey: booking.roomKey,
+          roomLabel: booking.label,
+        });
+      }
+    }
+  }
+
   // ── 1박 갭 감지 ───────────────────────────────────────────────────────
   //
   // 「하루만 비어 있는데 최소 2박이라 아무도 살 수 없는 날」. 판정식은 순수 모듈에 있다
@@ -804,6 +975,8 @@ export async function getOpsCalendarData(
     gapCells: new Set([...gapCells].filter((key) => visibleRoomKeys.has(key.split("|")[0]))),
     /** `객실라벨|YYYY-MM-DD` → 그 칸의 변경 이력(최신순). */
     history,
+    /** 가격 개입 전환(최근 90일, 최근 예약 먼저). 건물 필터를 따른다. */
+    priceConversions: priceConversions.filter((conversion) => visibleRoomKeys.has(conversion.roomKey)),
     /** 이 창에서 **가장 오래된** 요금 동기화가 몇 분 전인가. `null` 이면 요금이 아예 없다. */
     ratesAgeMinutes,
     /** 이 창에서 **가장 오래된** 요금 동기화 시각. `null` 이면 요금이 아예 없다. */

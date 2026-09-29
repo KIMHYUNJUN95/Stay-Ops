@@ -326,6 +326,7 @@ export default async function OpsCalendarPage({
           days={data.days}
           gapCells={data.gapCells}
           history={data.history}
+          priceConversions={data.priceConversions}
           rates={data.rates}
           rooms={data.rooms}
           showCancelled={showCancelled}

@@ -8,7 +8,9 @@ import type {
   OpsCalendarDay,
   OpsCalendarRate,
   OpsCalendarRoom,
+  OpsPriceConversion,
 } from "@/lib/ops-calendar";
+import { OpsPriceWinsPanel, type PriceWinsCopy } from "@/components/admin/ops/ops-price-wins-panel";
 import { OpsBlockPanel, type BlockPanelCopy } from "@/components/admin/ops/ops-block-panel";
 import {
   OpsMinStayPanel,
@@ -106,7 +108,8 @@ type Copy = {
   BlockPanelCopy &
   BookingPanelCopy & { mbPickCheckout: string } &
   ReservationCardCopy &
-  HistoryCopy & { historyMore: string };
+  HistoryCopy & { historyMore: string } &
+  PriceWinsCopy & { pwToggle: string; pwList: string };
 
 /**
  * 격자 칸의 가격 표기 — `42659` → `42.7K`.
@@ -190,11 +193,14 @@ export function OpsCalendarGrid({
   days,
   gapCells,
   history,
+  priceConversions,
   rates,
   rooms,
   showCancelled,
   today,
 }: {
+  /** 가격 개입 전환(최근 90일). 토글이 막대를 강조하고, 목록 패널이 보여준다. */
+  priceConversions: OpsPriceConversion[];
   bars: OpsCalendarBar[];
   blocks: OpsCalendarBlock[];
   copy: Copy;
@@ -375,6 +381,16 @@ export function OpsCalendarGrid({
     return () => document.removeEventListener("keydown", onKey);
   }, [activeDraft]);
   /** 예약 상세. 막대를 누르면 뜬다 — **취소는 여기서만** 한다. */
+  /**
+   * 가격 개입 성공만 진하게(저쪽 「Price Wins」). 나머지 막대는 흐리게 — **목록에서 빼지는 않는다**
+   * (어디에 섞여 있는지가 보여야 한다, 저쪽과 같다).
+   */
+  const [priceWinsOnly, setPriceWinsOnly] = useState(false);
+  const [priceWinsOpen, setPriceWinsOpen] = useState(false);
+  const conversionIds = useMemo(
+    () => new Set(priceConversions.map((conversion) => conversion.reservationId)),
+    [priceConversions],
+  );
   const [openBar, setOpenBar] = useState<{
     bar: OpsCalendarBar;
     roomLabel: string;
@@ -869,6 +885,19 @@ export function OpsCalendarGrid({
             >
               {copy.blockMode}
             </button>
+            {/* 가격 개입 성공 — 가격을 바꾸고 48시간 안에 그 방·그 날짜로 들어온 예약. */}
+            <button
+              aria-pressed={priceWinsOnly}
+              className={`opsg__editbtn opsg__pw${priceWinsOnly ? " on" : ""}`}
+              onClick={() => setPriceWinsOnly((value) => !value)}
+              type="button"
+            >
+              {copy.pwToggle}
+              <span className="opsg__pwn">{priceConversions.length}</span>
+            </button>
+            <button className="opsg__editbtn" onClick={() => setPriceWinsOpen(true)} type="button">
+              {copy.pwList}
+            </button>
             {/* 체크인만 찍힌 상태. 무엇을 기다리는지 적어 둔다 — 격자만 보면 「왜 칠해지지?」가 된다. */}
             {activeDraft && (
               <span className="opsg__draftnote" role="status">
@@ -1279,7 +1308,13 @@ export function OpsCalendarGrid({
                         const lane = barLanes?.laneById.get(bar.id) ?? 0;
                         return (
                           <div
-                            className={`opsg__bar ${bar.channel}${bar.isCancelled ? " cancelled" : ""}`}
+                            className={`opsg__bar ${bar.channel}${bar.isCancelled ? " cancelled" : ""}${
+                              priceWinsOnly && !showCancelled
+                                ? conversionIds.has(bar.id)
+                                  ? " pw-win"
+                                  : " pw-dim"
+                                : ""
+                            }`}
                             key={bar.id}
                             onClick={
                               // 편집 모드에서는 칸 선택이 먼저다 — 막대를 누르다 상세가 뜨면
@@ -1313,6 +1348,36 @@ export function OpsCalendarGrid({
         ))}
       </div>
       </div>
+
+      {priceWinsOpen && (
+        <OpsPriceWinsPanel
+          conversions={priceConversions}
+          copy={copy}
+          localeTag={copy.localeTag}
+          onClose={() => setPriceWinsOpen(false)}
+          onOpenReservation={(conversion) => {
+            // 목록에서 누르면 그 예약의 상세로 — 창 밖 숙박이라도 상세는 열린다.
+            setPriceWinsOpen(false);
+            setOpenBar({
+              bar: {
+                channel: conversion.channel,
+                checkIn: conversion.checkIn,
+                checkOut: conversion.checkOut,
+                guestName: conversion.guestName,
+                id: conversion.reservationId,
+                isCancelled: false,
+                roomKey: conversion.roomKey,
+              },
+              propertyName: conversion.propertyName,
+              roomIds: rooms.find((room) => room.key === conversion.roomKey)?.roomIds ?? [],
+              roomLabel: conversion.roomLabel,
+            });
+          }}
+          propertyName={
+            new Set(rooms.map((room) => room.propertyName)).size === 1 ? rooms[0]?.propertyName ?? null : null
+          }
+        />
+      )}
 
       {openBar && (
         <OpsReservationPanel
