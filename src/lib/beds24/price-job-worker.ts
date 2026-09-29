@@ -519,6 +519,17 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
       } catch (error) {
         console.error("[beds24/price-job] 링크 전파 확인 실패(작업은 이미 완료)", error);
       }
+      try {
+        await refreshLinkedLocalRates({
+          organizationId: job.organization_id,
+          roomIdByExternal,
+          sourceRoomIds: acceptedForLinkCheck,
+          supabase,
+          updateByRoomId,
+        });
+      } catch (error) {
+        console.error("[beds24/price-job] 연결 가격 로컬 반영 실패(작업은 이미 완료)", error);
+      }
     }
 
     return {
@@ -628,3 +639,96 @@ async function warnUnpropagatedLinks(
     console.error("[beds24/price-job] Daily Price 링크 미전파 의심", { error, externalRoomId });
   }
 }
+
+/**
+ * 가격을 쓴 뒤 **링크로 계산된 가격까지** 우리 표에 바로 맞춘다 (2026-09-29).
+ *
+ * 우리는 소스의 `p1` 만 쓴다. Booking.com(`p2`)·Agoda·홈페이지(`p3`)와 **실제로 파는 자식 유닛의
+ * `p1`** 은 Beds24 링크가 계산한다. 그 값을 우리 표에 넣는 것은 요금 동기화뿐인데, 그게
+ * GitHub Actions 라 실측 **약 6시간 간격**으로 돈다(15분 설정). 그동안 화면의 부킹닷컴 가격과
+ * 수동 예약 패널의 「부킹닷컴 합계」가 **옛 값**이었다.
+ *
+ * 그래서 쓴 날짜 구간을 `includeLinkedPrices` 로 한 번 더 읽어(소스 + 그 소스를 가리키는 유닛)
+ * `price1~3` 을 그대로 옮긴다. Beds24 가 준 값만 쓰므로 추측이 없다. 실패해도 작업은 이미
+ * 끝났다 — 다음 요금 동기화가 맞춘다.
+ */
+async function refreshLinkedLocalRates(args: {
+  supabase: Client;
+  organizationId: string;
+  sourceRoomIds: string[];
+  roomIdByExternal: Map<string, string>;
+  updateByRoomId: Map<string, PriceJobRoomUpdate>;
+}): Promise<void> {
+  const linked = await args.supabase
+    .from("rooms")
+    .select("external_room_id, external_price_source_room_id")
+    .eq("organization_id", args.organizationId)
+    .in("external_price_source_room_id", args.sourceRoomIds);
+  const sourceOf = new Map<string, string>();
+  for (const source of args.sourceRoomIds) sourceOf.set(source, source);
+  for (const row of (linked.data ?? []) as Array<{
+    external_room_id: string;
+    external_price_source_room_id: string;
+  }>) {
+    sourceOf.set(String(row.external_room_id), String(row.external_price_source_room_id));
+  }
+
+  const datesBySource = new Map<string, string[]>();
+  for (const source of args.sourceRoomIds) {
+    datesBySource.set(source, Object.keys(args.updateByRoomId.get(source)?.dates ?? {}));
+  }
+  const allDates = [...new Set([...datesBySource.values()].flat())].sort();
+  if (allDates.length === 0) return;
+
+  const roomIds = [...sourceOf.keys()];
+  const syncedAt = new Date().toISOString();
+  for (let index = 0; index < roomIds.length; index += VERIFY_BATCH_SIZE) {
+    const chunk = roomIds.slice(index, index + VERIFY_BATCH_SIZE);
+    const result = await fetchBeds24Calendar({
+      endDate: allDates[allDates.length - 1],
+      externalRoomIds: chunk,
+      includeLinkedPrices: true,
+      includePrices: true,
+      startDate: allDates[0],
+    });
+    if ("skipped" in result || result.truncated) return;
+
+    for (const externalRoomId of chunk) {
+      const roomId = args.roomIdByExternal.get(externalRoomId);
+      const source = sourceOf.get(externalRoomId);
+      if (!roomId || !source) continue;
+      const segments = result.roomsById.get(externalRoomId)?.calendar ?? [];
+      // 그 유닛의 소스가 **이번에 쓴 날짜만** — 다른 날은 건드리지 않는다.
+      for (const stayDate of datesBySource.get(source) ?? []) {
+        const segment = segments.find(
+          (entry) => String(entry.from ?? "") <= stayDate && String(entry.to ?? "") >= stayDate,
+        );
+        if (!segment) continue;
+        const read = (key: string) => {
+          const value = Number(segment[key]);
+          return segment[key] === undefined || segment[key] === null || !Number.isFinite(value) ? null : value;
+        };
+        const saved = await args.supabase.from("room_daily_rates").upsert(
+          {
+            organization_id: args.organizationId,
+            price1: read("price1"),
+            price2: read("price2"),
+            price3: read("price3"),
+            room_id: roomId,
+            stay_date: stayDate,
+            synced_at: syncedAt,
+          } as never,
+          { onConflict: "room_id,stay_date" },
+        );
+        if (saved.error) {
+          console.error("[beds24/price-job] 연결 가격 로컬 반영 실패", {
+            error: saved.error,
+            externalRoomId,
+            stayDate,
+          });
+        }
+      }
+    }
+  }
+}
+

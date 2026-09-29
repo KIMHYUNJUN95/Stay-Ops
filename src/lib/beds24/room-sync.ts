@@ -26,6 +26,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { BEDS24_INACTIVE_MIN_STAY_THRESHOLD } from "@/lib/rooms";
 import { roomLabelCandidates } from "@/lib/beds24/room-label-candidates";
+import { buildRoomIdentityUpdate } from "@/lib/beds24/room-identity";
 
 type RawPayload = Record<string, unknown>;
 
@@ -332,7 +333,17 @@ async function upsertRoom(
   externalRoomId: string | null,
   minimumStay: number | null,
   supabase: SupabaseClient<Database>,
-  priceSourceRoomId: string | null = null,
+  /**
+   * 가격 소스 연결. **`undefined` 는 「모른다」 — 저장된 값을 건드리지 않는다.**
+   *
+   * 예약 웹훅 경로는 방의 가격 규칙을 모른다(`/properties?includePriceRules=true` 만 안다).
+   * 예전에는 기본값이 `null` 이라 **웹훅이 올 때마다 그 유닛의 가격 링크를 지웠다**(2026-09-29
+   * 발견: Beds24 에는 링크가 있는데 우리 DB 에서 빠진 유닛 17개 — 전부 예약이 들어오는 판매
+   * 유닛). 링크가 지워지면 가격을 쓸 때 소스가 아니라 **그 유닛에 직접** 보내고, Beds24 는 링크
+   * 칸의 직접값을 무시해 되읽기가 실패로 끝났다.
+   * `null` 은 「소스가 없다(자기가 소스)」로, 방 마스터 동기화만 넘긴다.
+   */
+  priceSourceRoomId?: string | null,
 ): Promise<string | null> {
   const status = classifyBeds24Room(minimumStay);
   const shared = {
@@ -342,7 +353,7 @@ async function upsertRoom(
     external_provider: "beds24" as const,
     external_room_id: externalRoomId,
     external_minimum_stay: minimumStay,
-    external_price_source_room_id: priceSourceRoomId,
+    external_price_source_room_id: priceSourceRoomId ?? null,
   };
 
   // external_room_id 가 없는 방은 예전처럼 라벨로 맞출 수밖에 없다(구분할 다른 값이 없다).
@@ -399,13 +410,7 @@ async function upsertRoom(
     //
     // 가격 소스 연결은 여기서 갱신한다 — `/properties?includePriceRules=true` 가 유일한
     // 출처이고, 이게 낡으면 **엉뚱한 유닛에 가격을 쓰는데 Beds24 는 성공이라 답한다.**
-    const identity = {
-      organization_id: shared.organization_id,
-      property_id: shared.property_id,
-      external_provider: shared.external_provider,
-      external_room_id: shared.external_room_id,
-      external_price_source_room_id: shared.external_price_source_room_id,
-    };
+    const identity = buildRoomIdentityUpdate(shared, priceSourceRoomId);
     const updated = await supabase
       .from("rooms")
       .update({ ...identity, name: targetLabel, room_label: targetLabel })
