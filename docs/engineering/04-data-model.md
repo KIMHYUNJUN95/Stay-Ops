@@ -1864,3 +1864,24 @@ Constraints / behavior:
   `replica identity full` 이 필요한데, 그러면 지워진 행 전체가 WAL 로 나간다. 삭제는 드물고
   수동이라 개인정보를 더 흘리는 쪽을 택하지 않았다.
 
+
+## 2026-09-29 `beds24_block_logs` — Beds24 차단 전송 로그
+
+마이그레이션: `supabase/migrations/202609290001_beds24_block_logs.sql` (운영 적용 2026-09-29).
+판매 캘린더 「이력 → Beds24 전송」 탭이 읽는다(`docs/product/33-calendar-write-features.md` → 「이력 · 전송 로그」).
+
+가격·최소숙박은 `beds24_price_jobs` 가 작업마다 상태·객실별 결과를 남긴다. 차단은 큐 없이 바로 쓰고
+성공하면 `room_block_snapshots` 만 남아 **실패 기록이 없었다.** 서버 액션(`runBlockChange`)이 Beds24 에
+보낸 **구간 하나**(한 객실의 연속된 밤)마다 성공·실패를 한 줄 남긴다. 이력이라 고치지 않는다.
+
+| 컬럼 | 뜻 |
+| --- | --- |
+| `action` | `block` · `unblock` |
+| `status` | `succeeded` · `failed` |
+| `property_name` · `room_label` · `external_room_ids` | 어느 방(같은 물리 방의 모든 Beds24 유닛) |
+| `start_date` · `end_date` · `nights` | 막은 밤 범위(양끝 포함), 성공 시 밤 수 |
+| `reason` · `detail` | 실패 사유 코드(`block-write.ts`)와 세부 |
+| `requested_by` · `requested_by_name` | 누른 사람 |
+
+인덱스 `(organization_id, created_at desc)`. 쓰기는 `recordBlockLog()`(`src/lib/beds24/block-log.ts`) —
+던지지 않는다(로그 실패가 이미 반영된 차단을 실패로 만들면 안 된다).

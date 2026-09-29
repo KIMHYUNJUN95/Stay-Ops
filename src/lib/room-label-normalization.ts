@@ -63,6 +63,9 @@ export const CANONICAL_TO_BUILDING_KEY: Record<string, string> = {
   오쿠보A: "okubo_a",
   오쿠보B: "okubo_b",
   오쿠보C: "okubo_c",
+  // 2026-09-29 — 판매 캘린더 이력(건물 이름을 보는 사람 언어로)에서 빠져 있던 두 건물.
+  "STAY ARI Apartment Hotel": "stay_ari",
+  사노: "sano",
 };
 
 /** Converts a canonical property name to its locale-appropriate display label. */

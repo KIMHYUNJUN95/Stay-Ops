@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { requireAdminSession } from "@/lib/admin-session";
 import { enqueueBeds24PriceJob, type PriceJobCellRequest } from "@/lib/beds24/price-job-queue";
-import { runNextPriceJob } from "@/lib/beds24/price-job-worker";
 import {
   Beds24HttpError,
   fetchBeds24BookingById,
@@ -13,7 +12,7 @@ import {
   postBeds24BookingUpdate,
 } from "@/lib/beds24/calendar-client";
 import { processBeds24WebhookBooking } from "@/lib/beds24/process-webhook-booking";
-import { activateBeds24Cooldown } from "@/lib/beds24/sync-locks";
+import { activateBeds24Cooldown, getBeds24Cooldown } from "@/lib/beds24/sync-locks";
 import { isActiveUnitMinStay } from "@/lib/ops-gap-detection";
 import {
   readBeds24CancelTargetId,
@@ -49,6 +48,22 @@ import {
 } from "@/lib/ops-price-adjustment";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { signalBeds24Change } from "@/lib/beds24/live-signal";
+import { recordBlockLog } from "@/lib/beds24/block-log";
+import { kickPriceJobWorker } from "@/lib/beds24/price-job-kick";
+import { getDictionary, type Locale } from "@/lib/i18n";
+import {
+  buildBlockSendEntry,
+  buildJobSendEntry,
+  groupChangeRows,
+  opsRoomDisplayName,
+  mergeSendEntries,
+  type BlockLogRow,
+  type ChangeGroup,
+  type ChangeLogRow,
+  type PriceJobLogRow,
+  type SendEntry,
+} from "@/lib/ops-history";
+import { runNextPriceJob } from "@/lib/beds24/price-job-worker";
 
 /**
  * 판매 캘린더의 **쓰기**.
@@ -226,30 +241,9 @@ export async function submitMinStayChange(args: {
   };
 }
 
-/**
- * 접수 직후 워커를 깨운다 — **응답은 기다리지 않는다**(`after` 로 부른다).
- *
- * 사람이 방금 누른 것은 몇 초 안에 나가야 한다. 큐에 **앞선 작업이 있으면** 하나만 돌고 끝나면
- * 방금 넣은 것이 다음 크론까지 밀리므로, 큐가 빌 때까지(시간 예산 안에서) 이어서 돈다.
- * 실패해도 조용히 넘긴다 — 크론이 안전망이다.
- */
-const KICK_MAX_JOBS = 5;
-const KICK_BUDGET_MS = 50_000;
-
+/** 접수 직후 워커를 깨운다 — `src/lib/beds24/price-job-kick.ts`. */
 async function kickWorker(): Promise<void> {
-  const supabase = getSupabaseServiceClient();
-  const startedAt = Date.now();
-  try {
-    for (let index = 0; index < KICK_MAX_JOBS; index += 1) {
-      if (Date.now() - startedAt > KICK_BUDGET_MS) break;
-      const outcome = await runNextPriceJob(supabase);
-      // 비었거나, 쿨다운이거나, 남이 돌고 있으면(그쪽이 이어서 처리한다) 멈춘다.
-      if (!outcome.ran) break;
-    }
-  } catch (error) {
-    // 크론이 안전망이므로 여기서 실패해도 작업은 남아 있다.
-    console.error("[ops/calendar] worker kick failed; cron will pick it up", error);
-  }
+  await kickPriceJobWorker(getSupabaseServiceClient());
 }
 
 export type PriceJobStatus = {
@@ -380,6 +374,23 @@ async function runBlockChange(
       mode === "block"
         ? await createRoomBlock({ ...shared, actorUserId: session.user.id })
         : await clearRoomBlock(shared);
+
+    // 성공이든 실패든 **구간마다** 남긴다 — 「이력 → Beds24 전송」 탭(`beds24_block_logs`).
+    await recordBlockLog(supabase, {
+      action: mode,
+      detail: result.ok ? null : Array.isArray(result.detail) ? result.detail.join(", ") : (result.detail ?? null),
+      end_date: range.endDate,
+      external_room_ids: shared.externalRoomIds,
+      nights: result.ok ? result.nights : null,
+      organization_id: session.organization.id,
+      property_name: shared.propertyName || null,
+      reason: result.ok ? null : result.reason,
+      requested_by: session.user.id,
+      requested_by_name: session.user.name ?? null,
+      room_label: shared.roomLabel,
+      start_date: range.startDate,
+      status: result.ok ? "succeeded" : "failed",
+    });
 
     // **첫 실패에서 멈춘다.** 이어서 더 쓰면 「어디까지 됐는지」를 사람이 알 수 없다.
     // 이미 성공한 구간은 되읽기로 검증된 상태라 그대로 두어도 안전하다.
@@ -936,4 +947,205 @@ export async function submitReservationCancel(args: {
 
   revalidatePath(CONSOLE_PATH);
   return { ok: true };
+}
+
+// ───────────────────────── 이력 · 전송 로그 ─────────────────────────
+//
+// 판매 캘린더 「이력」 패널(`ops-history-panel.tsx`). 계약: `src/lib/ops-history.ts`.
+// service-role 로 읽으므로 **조직을 직접 건다** — RLS 가 막아 주지 않는다.
+
+/** 변경 이력은 7일씩 끊어 읽는다 — 한 번의 대량 수정이 칸 수천 개라 건수로 끊으면 한 수정이 잘린다. */
+const HISTORY_WINDOW_DAYS = 7;
+/** 한 창에서 읽을 칸 이력 상한. 넘으면 그 창은 잘렸다고 알린다. */
+const HISTORY_ROW_CAP = 20_000;
+const SEND_LOG_PAGE = 30;
+
+type RoomNameRow = {
+  id: string;
+  external_room_id: string | null;
+  room_label: string;
+  properties: { name: string } | { name: string }[] | null;
+};
+
+/**
+ * 우리 `rooms.id` · Beds24 roomId → 판매 캘린더와 같은 방 이름(`opsRoomDisplayName`). 건물은 보는 사람
+ * 언어로 — 언어는 **서버가 세션에서** 정한다(클라이언트가 넘기지 않는다).
+ */
+async function readRoomNames(session: { organization: { id: string }; user: { preferredLanguage: Locale } }) {
+  const buildingLabels = getDictionary(session.user.preferredLanguage).cleaning.buildingLabels as Record<string, string>;
+  const result = await getSupabaseServiceClient()
+    .from("rooms")
+    .select("id, external_room_id, room_label, properties(name)")
+    .eq("organization_id", session.organization.id);
+  const byId = new Map<string, { property: string | null; room: string }>();
+  const byExternal = new Map<string, string>();
+  for (const row of (result.data ?? []) as RoomNameRow[]) {
+    const property = Array.isArray(row.properties) ? row.properties[0] : row.properties;
+    const name = opsRoomDisplayName(property?.name, row.room_label, buildingLabels);
+    byId.set(row.id, name);
+    if (row.external_room_id) {
+      byExternal.set(String(row.external_room_id), [name.property, name.room].filter(Boolean).join(" "));
+    }
+  }
+  return { buildingLabels, byExternal, byId };
+}
+
+export type OpsChangeHistoryResult =
+  | { ok: true; groups: ChangeGroup[]; windowFrom: string; nextBefore: string | null; truncated: boolean }
+  | { ok: false; error: "forbidden" | "failed" };
+
+/** 변경 이력 — `before` 직전 7일. 처음엔 지금부터. */
+export async function loadOpsChangeHistory(args: { before?: string | null }): Promise<OpsChangeHistoryResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+  const supabase = getSupabaseServiceClient();
+  const before = args.before ? new Date(args.before) : new Date();
+  if (!Number.isFinite(before.getTime())) return { error: "failed", ok: false };
+  const from = new Date(before.getTime() - HISTORY_WINDOW_DAYS * 86_400_000);
+
+  type Row = {
+    job_id: string | null;
+    created_at: string;
+    adjust_mode: string | null;
+    changed_by_name: string | null;
+    field: string;
+    old_value: number | null;
+    new_value: number | null;
+    stay_date: string;
+    room_id: string | null;
+    room_label: string | null;
+  };
+  const rows: Row[] = [];
+  for (let offset = 0; offset < HISTORY_ROW_CAP; offset += 1000) {
+    const page = await supabase
+      .from("price_change_logs")
+      .select("job_id, created_at, adjust_mode, changed_by_name, field, old_value, new_value, stay_date, room_id, room_label")
+      .eq("organization_id", session.organization.id)
+      .gte("created_at", from.toISOString())
+      .lt("created_at", before.toISOString())
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(offset, offset + 999);
+    if (page.error) return { error: "failed", ok: false };
+    rows.push(...((page.data ?? []) as Row[]));
+    if ((page.data ?? []).length < 1000) break;
+  }
+
+  const [names, older] = await Promise.all([
+    readRoomNames(session),
+    supabase
+      .from("price_change_logs")
+      .select("id")
+      .eq("organization_id", session.organization.id)
+      .lt("created_at", from.toISOString())
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const groups = groupChangeRows(
+    rows.map((row): ChangeLogRow => {
+      const room = row.room_id ? names.byId.get(row.room_id) : undefined;
+      return {
+        adjust_mode: row.adjust_mode,
+        changed_by_name: row.changed_by_name,
+        created_at: row.created_at,
+        field: row.field,
+        job_id: row.job_id,
+        new_value: row.new_value,
+        old_value: row.old_value,
+        property_name: room?.property ?? null,
+        room_label: room?.room ?? row.room_label,
+        stay_date: row.stay_date,
+      };
+    }),
+  );
+  return {
+    groups,
+    nextBefore: older.data ? from.toISOString() : null,
+    ok: true,
+    truncated: rows.length >= HISTORY_ROW_CAP,
+    windowFrom: from.toISOString(),
+  };
+}
+
+export type OpsSendLogResult =
+  | { ok: true; entries: SendEntry[]; nextBefore: string | null }
+  | { ok: false; error: "forbidden" | "failed" };
+
+/** Beds24 전송 로그 — 가격·최소숙박 작업 + 차단, 최신 먼저 30줄씩. */
+export async function loadOpsSendLog(args: { before?: string | null }): Promise<OpsSendLogResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+  const supabase = getSupabaseServiceClient();
+  const before = args.before ?? new Date(Date.now() + 60_000).toISOString();
+
+  const [jobs, blocks, names] = await Promise.all([
+    supabase
+      .from("beds24_price_jobs")
+      .select("id, job_type, status, created_at, completed_at, requested_by_name, error, results, room_updates")
+      .eq("organization_id", session.organization.id)
+      .lt("created_at", before)
+      .order("created_at", { ascending: false })
+      .limit(SEND_LOG_PAGE),
+    supabase
+      .from("beds24_block_logs")
+      .select(
+        "id, action, status, created_at, requested_by_name, property_name, room_label, start_date, end_date, nights, reason, detail",
+      )
+      .eq("organization_id", session.organization.id)
+      .lt("created_at", before)
+      .order("created_at", { ascending: false })
+      .limit(SEND_LOG_PAGE),
+    readRoomNames(session),
+  ]);
+  if (jobs.error || blocks.error) return { error: "failed", ok: false };
+
+  const now = Date.now();
+  const merged = mergeSendEntries(
+    ((jobs.data ?? []) as PriceJobLogRow[]).map((job) => buildJobSendEntry(job, names.byExternal, now)),
+    ((blocks.data ?? []) as BlockLogRow[]).map((row) => {
+      const name = opsRoomDisplayName(row.property_name, row.room_label ?? "", names.buildingLabels);
+      return buildBlockSendEntry({ ...row, property_name: name.property, room_label: name.room || null });
+    }),
+    SEND_LOG_PAGE,
+  );
+  return { entries: merged.entries, nextBefore: merged.nextBefore, ok: true };
+}
+
+/**
+ * 「지금 보내기」 — 대기 중인 작업을 바로 처리한다(응답 뒤 `after()`).
+ *
+ * **실패한 작업을 다시 넣지는 않는다.** 실패는 대개 값·유닛 문제라 같은 것을 또 보내면 또 실패하고,
+ * 그 사이 누가 다른 값을 넣었을 수도 있다. 다시 하려면 캘린더에서 새로 고친다.
+ */
+export type SendPendingResult = {
+  ok: boolean;
+  /**
+   * 첫 작업의 결과 — 화면이 사람 말로 보여준다. 예전에는 응답 뒤에만 돌려 **아무 반응이 없는 것처럼**
+   * 보였다(잠금이 막혀 있어도 알 수 없었다, 2026-09-29).
+   */
+  outcome: "sent" | "empty" | "cooldown" | "lock_busy" | "lock_error" | "failed" | "forbidden";
+  cooldownSec?: number;
+};
+
+export async function sendPendingPriceJobs(): Promise<SendPendingResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { ok: false, outcome: "forbidden" };
+  const supabase = getSupabaseServiceClient();
+  try {
+    // 첫 작업은 **기다린다**(보통 몇 초) — 결과를 사람에게 돌려주려고. 남은 것은 응답 뒤에.
+    const first = await runNextPriceJob(supabase);
+    if (first.ran) {
+      after(kickWorker);
+      return { ok: true, outcome: "sent" };
+    }
+    if (first.reason === "cooldown") {
+      const cooldown = await getBeds24Cooldown(supabase);
+      return { cooldownSec: cooldown.remainingSec, ok: false, outcome: "cooldown" };
+    }
+    return { ok: first.reason === "empty", outcome: first.reason };
+  } catch (error) {
+    console.error("[ops/calendar] send now failed", error);
+    return { ok: false, outcome: "failed" };
+  }
 }

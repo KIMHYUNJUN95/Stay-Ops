@@ -12,6 +12,7 @@ import type {
 } from "@/lib/ops-calendar";
 import { OpsPriceWinsPanel, type PriceWinsCopy } from "@/components/admin/ops/ops-price-wins-panel";
 import { OpsCellHistoryCard, type CellHistoryCardCopy } from "@/components/admin/ops/ops-cell-history-card";
+import { OpsHistoryPanel, type HistoryPanelCopy } from "@/components/admin/ops/ops-history-panel";
 import { OpsBlockPanel, type BlockPanelCopy } from "@/components/admin/ops/ops-block-panel";
 import {
   OpsMinStayPanel,
@@ -112,6 +113,7 @@ type Copy = {
   ReservationCardCopy &
   HistoryCopy & { historyMore: string } &
   CellHistoryCardCopy &
+  HistoryPanelCopy & { hsButton: string; hsAlertTitle: string } &
   PriceWinsCopy & { pwToggle: string; pwList: string; largeFirst: string; vacantToday: string };
 
 /**
@@ -196,6 +198,7 @@ export function OpsCalendarGrid({
   days,
   gapCells,
   history,
+  historyAlerts,
   priceConversions,
   rates,
   rooms: serverRooms,
@@ -212,6 +215,8 @@ export function OpsCalendarGrid({
   gapCells: Set<string>;
   /** `객실라벨|YYYY-MM-DD` — 그 칸의 가격 변경 이력(최신순). */
   history: Map<string, CellHistory>;
+  /** 최근 7일 Beds24 전송 실패 + 멈춘 대기 작업 수 — 「이력」 버튼에 빨간 숫자로. */
+  historyAlerts: number;
   rates: Map<string, OpsCalendarRate>;
   rooms: OpsCalendarRoom[];
   /**
@@ -389,6 +394,7 @@ export function OpsCalendarGrid({
    * (어디에 섞여 있는지가 보여야 한다, 저쪽과 같다).
    */
   const [priceWinsOnly, setPriceWinsOnly] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   // 큰방 위쪽 정렬 — 기본 켜짐(저쪽과 같다). STAY ARI Apartment Hotel 에만 있다(`ops-large-rooms.ts`).
   // **그 건물 하나만 골랐을 때만** 켠다 — 「전체」에서는 토글도 정렬도 없다(2026-09-29 사용자 결정).
   // **이 한 목록을 격자 전체가 쓴다** — 드래그 선택·행 순서가 화면과 어긋나면 안 된다.
@@ -989,6 +995,16 @@ export function OpsCalendarGrid({
             <button className="opsg__editbtn" onClick={() => setPriceWinsOpen(true)} type="button">
               {copy.pwList}
             </button>
+            {/* 이력 · 전송 로그 — 변경 이력과 「Beds24 에 제대로 나갔나」. 실패·멈춘 작업이 있으면 숫자. */}
+            <button
+              className={`opsg__editbtn opsg__hist${historyAlerts > 0 ? " alert" : ""}`}
+              onClick={() => setHistoryOpen(true)}
+              title={historyAlerts > 0 ? copy.hsAlertTitle.replace("{n}", String(historyAlerts)) : undefined}
+              type="button"
+            >
+              {copy.hsButton}
+              {historyAlerts > 0 && <span className="opsg__histn">{historyAlerts}</span>}
+            </button>
             {todayInView && (
               <button
                 aria-pressed={vacantOnly}
@@ -1473,6 +1489,8 @@ export function OpsCalendarGrid({
           roomTitle={`${hoverCell.room.propertyName} ${hoverCell.room.displayRoomLabel}`}
         />
       )}
+
+      {historyOpen && <OpsHistoryPanel copy={copy} onClose={() => setHistoryOpen(false)} />}
 
       {priceWinsOpen && (
         <OpsPriceWinsPanel

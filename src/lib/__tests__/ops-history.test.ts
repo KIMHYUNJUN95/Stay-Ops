@@ -1,0 +1,211 @@
+import { describe, expect, it } from "vitest";
+import {
+  appendChangeGroups,
+  collapseCellRuns,
+  opsRoomDisplayName,
+  buildBlockSendEntry,
+  buildJobSendEntry,
+  groupChangeRows,
+  mergeSendEntries,
+  type ChangeLogRow,
+  type PriceJobLogRow,
+} from "@/lib/ops-history";
+
+/**
+ * 판매 캘린더 「이력」 패널.
+ *
+ * 계약: `src/lib/ops-history.ts` — 수정 한 번 = 한 줄, 보낸 것이 제대로 들어갔는지.
+ */
+const log = (over: Partial<ChangeLogRow> = {}): ChangeLogRow => ({
+  adjust_mode: "amount",
+  changed_by_name: "김현준",
+  created_at: "2026-09-29T05:11:18.000Z",
+  field: "price1",
+  job_id: "job1",
+  new_value: 39000,
+  old_value: 45000,
+  property_name: "아라키초A",
+  room_label: "201",
+  stay_date: "2026-11-03",
+  ...over,
+});
+
+describe("groupChangeRows", () => {
+  it("같은 작업의 칸들을 한 줄로 — 객실·기간·값 범위를 요약한다", () => {
+    const [group] = groupChangeRows([
+      log(),
+      log({ new_value: 39000, old_value: 47000, stay_date: "2026-11-05" }),
+      log({ room_label: "202", stay_date: "2026-11-04" }),
+    ]);
+    expect(group).toMatchObject({
+      cellCount: 3,
+      dateFrom: "2026-11-03",
+      dateTo: "2026-11-05",
+      id: "job1",
+      rooms: ["아라키초A 201", "아라키초A 202"],
+      source: "app",
+    });
+    expect(group.fields).toEqual([
+      { cells: 3, field: "price", from: { max: 47000, min: 45000 }, to: { max: 39000, min: 39000 } },
+    ]);
+  });
+
+  it("Beds24 에서 바뀐 것은 동기화 시각으로 묶고 출처를 가른다", () => {
+    const groups = groupChangeRows([
+      log({ adjust_mode: "beds24", changed_by_name: "Beds24", created_at: "2026-09-29T02:00:04Z", job_id: null }),
+      log({ created_at: "2026-09-29T05:00:00Z" }),
+    ]);
+    expect(groups.map((group) => [group.id, group.source])).toEqual([
+      ["job1", "app"],
+      ["beds24:2026-09-29T02:00:04Z", "beds24"],
+    ]);
+  });
+
+  it("가격과 최소숙박을 따로 요약한다", () => {
+    const [group] = groupChangeRows([log(), log({ field: "min_stay", new_value: 1, old_value: 2 })]);
+    expect(group.fields.map((item) => item.field)).toEqual(["price", "minStay"]);
+  });
+
+  it("쪽 경계에 걸쳐 갈라진 수정은 합친다", () => {
+    const first = groupChangeRows([log({ stay_date: "2026-11-03" })]);
+    const second = groupChangeRows([log({ new_value: 38000, room_label: "202", stay_date: "2026-11-09" })]);
+    const [merged] = appendChangeGroups(first, second);
+    expect(merged).toMatchObject({ cellCount: 2, dateTo: "2026-11-09", rooms: ["아라키초A 201", "아라키초A 202"] });
+    expect(merged.fields[0].to).toEqual({ max: 39000, min: 38000 });
+  });
+});
+
+const job = (over: Partial<PriceJobLogRow> = {}): PriceJobLogRow => ({
+  completed_at: "2026-09-29T05:11:18.424Z",
+  created_at: "2026-09-29T05:11:15.759Z",
+  error: null,
+  id: "j1",
+  job_type: "price",
+  requested_by_name: "김현준",
+  results: [
+    { error: null, externalRoomId: "383979", success: true },
+    { error: "verify mismatch 2027-02-13", externalRoomId: "383980", success: false },
+  ],
+  room_updates: [
+    { dates: { "2027-02-12": { p1: 41580 }, "2027-02-13": { p1: 41580 } }, externalRoomId: "383979", roomLabel: "202" },
+    { dates: { "2027-02-14": { p1: 43000 } }, externalRoomId: "383980", roomLabel: "203" },
+  ],
+  status: "partial_failed",
+  ...over,
+});
+
+describe("buildJobSendEntry", () => {
+  const names = new Map([["383979", "가부키초 K202"]]);
+  const NOW = Date.parse("2026-09-29T06:50:00Z");
+
+  it("객실·칸·기간·값과 객실별 실패를 뽑는다 — 모르는 방은 Beds24 라벨로", () => {
+    expect(buildJobSendEntry(job(), names, NOW)).toMatchObject({
+      cellCount: 3,
+      dateFrom: "2027-02-12",
+      dateTo: "2027-02-14",
+      failures: [{ error: "verify mismatch 2027-02-13", room: "203" }],
+      id: "job:j1",
+      kind: "price",
+      rooms: ["가부키초 K202", "203"],
+      status: "partial",
+      values: { max: 43000, min: 41580 },
+      waitingMinutes: null,
+    });
+  });
+
+  it("대기 중이면 몇 분째인지 센다 · 최소숙박은 m 값", () => {
+    const entry = buildJobSendEntry(
+      job({
+        completed_at: null,
+        created_at: "2026-09-29T06:28:14Z",
+        job_type: "min_stay",
+        results: [],
+        room_updates: [{ dates: { "2026-11-26": { m: 1 } }, externalRoomId: "585736", roomLabel: "301" }],
+        status: "queued",
+      }),
+      names,
+      NOW,
+    );
+    expect(entry).toMatchObject({ kind: "minStay", status: "queued", values: { max: 1, min: 1 }, waitingMinutes: 21 });
+  });
+});
+
+describe("buildBlockSendEntry · mergeSendEntries", () => {
+  const block = buildBlockSendEntry({
+    action: "block",
+    created_at: "2026-09-29T06:00:00Z",
+    detail: "401",
+    end_date: "2026-10-03",
+    id: "b1",
+    nights: null,
+    property_name: "아라키초A",
+    reason: "verify_mismatch",
+    requested_by_name: "김현준",
+    room_label: "401",
+    start_date: "2026-10-01",
+    status: "failed",
+  });
+
+  it("차단 실패는 사유 코드와 세부를 남기고, 밤 수는 양끝 포함으로 센다", () => {
+    expect(block).toMatchObject({ cellCount: 3, error: "verify_mismatch", kind: "block", status: "failed" });
+  });
+
+  it("시각순으로 합치고 다음 쪽 기준을 준다", () => {
+    const jobEntry = buildJobSendEntry(job(), new Map(), Date.now());
+    const merged = mergeSendEntries([jobEntry], [block], 1);
+    // 차단(06:00)이 작업(05:11)보다 최신이다.
+    expect(merged.entries.map((entry) => entry.id)).toEqual(["block:b1"]);
+    expect(merged.nextBefore).toBe(block.at);
+    expect(mergeSendEntries([jobEntry], [block], 10).nextBefore).toBeNull();
+  });
+});
+
+describe("collapseCellRuns", () => {
+  const cell = (room: string, date: string, from = 46200, to = 41580) => ({
+    date,
+    field: "price" as const,
+    from,
+    property: "가부키초",
+    room,
+    to,
+  });
+
+  it("한 방의 이어진 날짜가 같은 값이면 한 줄 — 방은 번호순", () => {
+    const runs = collapseCellRuns([
+      cell("K403", "2026-02-13"),
+      cell("K203", "2026-02-13"),
+      cell("K203", "2026-02-12"),
+      cell("K203", "2026-02-14"),
+      cell("K403", "2026-02-12"),
+    ]);
+    expect(runs.map((run) => [run.room, run.dateFrom, run.dateTo, run.nights])).toEqual([
+      ["K203", "2026-02-12", "2026-02-14", 3],
+      ["K403", "2026-02-12", "2026-02-13", 2],
+    ]);
+  });
+
+  it("값이 다르거나 날짜가 끊기면 가른다", () => {
+    const runs = collapseCellRuns([
+      cell("K203", "2026-02-12"),
+      cell("K203", "2026-02-13", 49500, 44550),
+      cell("K203", "2026-02-15"),
+    ]);
+    expect(runs.map((run) => run.nights)).toEqual([1, 1, 1]);
+  });
+});
+
+describe("opsRoomDisplayName", () => {
+  const labels = { kabukicho: "歌舞伎町", sano: "佐野" };
+
+  it("판매 캘린더 행과 같은 이름 — Beds24 유닛 라벨을 표시 라벨로, 건물은 보는 사람 언어로", () => {
+    // 가부키초는 유닛 둘(`203#` · `K203`)이 한 행 「203」이다.
+    expect(opsRoomDisplayName("Kabukicho", "203#", labels)).toEqual({ property: "歌舞伎町", room: "203" });
+    expect(opsRoomDisplayName("Kabukicho", "K203", labels).room).toBe("203");
+    expect(opsRoomDisplayName("STAY ARI Apartment Hotel", "O302", labels).room).toBe("302");
+    expect(opsRoomDisplayName("Sano", "別荘", labels).property).toBe("佐野");
+  });
+
+  it("건물을 모르면 방 라벨만", () => {
+    expect(opsRoomDisplayName(null, "301", labels)).toEqual({ property: null, room: "301" });
+  });
+});

@@ -1362,6 +1362,68 @@ export type Database = {
           },
         ]
       }
+      beds24_block_logs: {
+        Row: {
+          action: string
+          created_at: string
+          detail: string | null
+          end_date: string
+          external_room_ids: string[]
+          id: string
+          nights: number | null
+          organization_id: string
+          property_name: string | null
+          reason: string | null
+          requested_by: string | null
+          requested_by_name: string | null
+          room_label: string | null
+          start_date: string
+          status: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          detail?: string | null
+          end_date: string
+          external_room_ids?: string[]
+          id?: string
+          nights?: number | null
+          organization_id: string
+          property_name?: string | null
+          reason?: string | null
+          requested_by?: string | null
+          requested_by_name?: string | null
+          room_label?: string | null
+          start_date: string
+          status: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          detail?: string | null
+          end_date?: string
+          external_room_ids?: string[]
+          id?: string
+          nights?: number | null
+          organization_id?: string
+          property_name?: string | null
+          reason?: string | null
+          requested_by?: string | null
+          requested_by_name?: string | null
+          room_label?: string | null
+          start_date?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "beds24_block_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       beds24_price_jobs: {
         Row: {
           adjust_mode: string | null

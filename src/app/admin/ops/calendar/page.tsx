@@ -6,6 +6,9 @@ import { OpsCalendarJump } from "@/components/admin/ops/ops-calendar-jump";
 import { AdminMonthPicker } from "@/components/admin/shared/admin-month-picker";
 import "@/components/admin/ops/ops-console.css";
 import { refreshOpsCalendarRates } from "@/lib/beds24/rates-refresh";
+import { kickPriceJobWorker } from "@/lib/beds24/price-job-kick";
+import { hasPendingPriceJobs } from "@/lib/beds24/price-job-queue";
+import { countOpsHistoryAlerts } from "@/lib/beds24/ops-history-alerts";
 import { getDictionary } from "@/lib/i18n";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getOpsCalendarData, OPS_CALENDAR_ROLLING_DAYS } from "@/lib/ops-calendar";
@@ -104,6 +107,9 @@ export default async function OpsCalendarPage({
   // 저쪽 주기(15분)와 같은 기준. 넘으면 빨갛게 적는다.
   const staleRates = data.ratesAgeMinutes === null || data.ratesAgeMinutes > 15;
 
+  // 「이력」 버튼의 빨간 숫자 — 최근 7일 전송 실패 + 멈춘 대기 작업(`ops-history-alerts.ts`).
+  const historyAlerts = await countOpsHistoryAlerts(getSupabaseServiceClient(), session.organization.id);
+
   const lastVisibleDate = data.days.at(-1)?.date;
   if (lastVisibleDate) {
     const externalPropertyIds = data.selectedProperty
@@ -112,10 +118,14 @@ export default async function OpsCalendarPage({
         : undefined
       : undefined;
     after(async () => {
+      const supabase = getSupabaseServiceClient();
+      // 대기 중인 가격·최소숙박 작업이 있으면 먼저 보낸다 — 접수 직후 깨우기가 실패한 작업이
+      // 백업 크론(몇 시간 간격)까지 앉아 있지 않게(`price-job-kick.ts`).
+      if (await hasPendingPriceJobs(supabase)) await kickPriceJobWorker(supabase);
       await refreshOpsCalendarRates({
         externalPropertyIds,
         organizationId: session.organization.id,
-        supabase: getSupabaseServiceClient(),
+        supabase,
         syncedAt: data.ratesSyncedAt,
         window: { from: data.days[0].date, to: lastVisibleDate },
       });
@@ -328,6 +338,7 @@ export default async function OpsCalendarPage({
           days={data.days}
           gapCells={data.gapCells}
           history={data.history}
+          historyAlerts={historyAlerts}
           priceConversions={data.priceConversions}
           rates={data.rates}
           rooms={data.rooms}

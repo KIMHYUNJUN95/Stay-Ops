@@ -1248,3 +1248,10 @@ of the RLS/permission-relevant pieces:
 두지 않는다. 업로드는 서버가 service-role 로만 하고(RLS 우회), 열람은 서버가 만든 서명 URL 로만
 한다.
 
+
+## 2026-09-29 `beds24_block_logs`
+
+`beds24_price_jobs` 와 같은 규칙이다 — 조직 구성원(`has_active_membership`) · 플랫폼 관리자는 **읽기**,
+쓰기는 **서비스 롤만**(서버 액션이 운영 관리자 권한 `canAccessOpsAdmin` 을 확인한 뒤 남긴다).
+판매 캘린더 「이력」 패널의 서버 액션(`loadOpsChangeHistory` · `loadOpsSendLog` · `sendPendingPriceJobs`)은
+service-role 로 읽으므로 **조직을 쿼리에 직접 건다**(`organization_id = session.organization.id`).

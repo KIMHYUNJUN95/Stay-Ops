@@ -116,6 +116,50 @@ async function recoverStuckJobs(supabase: Client): Promise<number> {
   return rows.length;
 }
 
+/** 잠금을 잡은 워커는 몇 ms 안에 작업을 `processing` 으로 바꾼다. 이보다 오래 아무것도 안 잡고 있으면 죽은 것이다. */
+const ORPHAN_LOCK_GRACE_MS = 60_000;
+
+/**
+ * 고아 잠금 회수 — 잡은 워커가 죽어 잠금만 남은 경우.
+ *
+ * 2026-09-29 실측: 개발 서버에서 Supabase 연결이 끊겨(WSL 네트워크) 잠금 해제가 실패했고, 잠금 TTL
+ * (15분) 동안 「지금 보내기」와 캘린더 열기가 전부 「남이 돌고 있다」로 조용히 멈췄다. 운영에서도
+ * 함수가 중간에 죽으면 똑같다.
+ *
+ * **잡은 지 1분이 넘었고 `processing` 인 작업이 하나도 없을 때만** 회수한다 — 살아 있는 워커는 잡자마자
+ * 작업을 `processing` 으로 바꾸고 끝날 때까지 그대로 둔다. 회수는 **본 그 잠금일 때만**(lockId 비교) —
+ * 그 사이 누가 새로 잡았으면 건드리지 않는다.
+ */
+async function breakOrphanedWorkerLock(supabase: Client): Promise<boolean> {
+  const current = await supabase
+    .from("beds24_sync_locks")
+    .select("locked_at, metadata")
+    .eq("name", PRICE_JOB_LOCK)
+    .maybeSingle();
+  const row = current.data as { locked_at: string | null; metadata: { lockId?: string } | null } | null;
+  const lockId = row?.metadata?.lockId;
+  if (current.error || !row?.locked_at || !lockId) return false;
+  if (Date.now() - new Date(row.locked_at).getTime() < ORPHAN_LOCK_GRACE_MS) return false;
+
+  const processing = await supabase
+    .from("beds24_price_jobs")
+    .select("id")
+    .eq("status", "processing")
+    .limit(1)
+    .maybeSingle();
+  if (processing.error || processing.data) return false;
+
+  const released = await supabase
+    .from("beds24_sync_locks")
+    .update({ expires_at: new Date().toISOString() })
+    .eq("name", PRICE_JOB_LOCK)
+    .eq("metadata->>lockId", lockId)
+    .select("name");
+  const broke = !released.error && (released.data ?? []).length > 0;
+  if (broke) console.warn("[beds24/price-job] 고아 잠금 회수", { lockedAt: row.locked_at });
+  return broke;
+}
+
 /**
  * 가장 오래된 `queued` 하나를 **원자적으로** 가져온다.
  *
@@ -326,12 +370,16 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
     return { ran: false, reason: "cooldown" };
   }
 
-  const lock = await acquireBeds24Lock(
+  let lock = await acquireBeds24Lock(
     supabase,
     PRICE_JOB_LOCK,
     JOB_LOCK_OWNER,
     PRICE_JOB_LOCK_TTL_MS,
   );
+  // 잡은 워커가 **죽었는데** 잠금이 남았으면 회수하고 한 번 더 잡는다(`breakOrphanedWorkerLock`).
+  if (!lock.acquired && lock.reason === "busy" && (await breakOrphanedWorkerLock(supabase))) {
+    lock = await acquireBeds24Lock(supabase, PRICE_JOB_LOCK, JOB_LOCK_OWNER, PRICE_JOB_LOCK_TTL_MS);
+  }
   if (!lock.acquired) {
     // **확인을 못 한 것과 남이 들고 있는 것을 구별한다.** 뭉치면 「왜 안 도는지」를 엉뚱한
     // 곳에서 찾게 된다.
