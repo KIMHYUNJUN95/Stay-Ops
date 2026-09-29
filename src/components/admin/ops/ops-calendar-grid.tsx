@@ -57,6 +57,7 @@ import {
   type OpsSelectionCell,
   type OpsSelectionScope,
 } from "@/lib/ops-calendar-selection";
+import { hasOpsLargeRooms, isOpsLargeRoom, orderOpsLargeRoomsFirst } from "@/lib/ops-large-rooms";
 
 /**
  * 판매 캘린더 격자.
@@ -109,7 +110,7 @@ type Copy = {
   BookingPanelCopy & { mbPickCheckout: string } &
   ReservationCardCopy &
   HistoryCopy & { historyMore: string } &
-  PriceWinsCopy & { pwToggle: string; pwList: string };
+  PriceWinsCopy & { pwToggle: string; pwList: string; largeFirst: string };
 
 /**
  * 격자 칸의 가격 표기 — `42659` → `42.7K`.
@@ -195,7 +196,7 @@ export function OpsCalendarGrid({
   history,
   priceConversions,
   rates,
-  rooms,
+  rooms: serverRooms,
   showCancelled,
   today,
 }: {
@@ -386,6 +387,19 @@ export function OpsCalendarGrid({
    * (어디에 섞여 있는지가 보여야 한다, 저쪽과 같다).
    */
   const [priceWinsOnly, setPriceWinsOnly] = useState(false);
+  // 큰방 위쪽 정렬 — 기본 켜짐(저쪽과 같다). STAY ARI Apartment Hotel 에만 있다(`ops-large-rooms.ts`).
+  // **그 건물 하나만 골랐을 때만** 켠다 — 「전체」에서는 토글도 정렬도 없다(2026-09-29 사용자 결정).
+  // **이 한 목록을 격자 전체가 쓴다** — 드래그 선택·행 순서가 화면과 어긋나면 안 된다.
+  const [largeFirst, setLargeFirst] = useState(true);
+  const hasLargeRooms = useMemo(
+    () => new Set(serverRooms.map((room) => room.propertyName)).size === 1 && hasOpsLargeRooms(serverRooms),
+    [serverRooms],
+  );
+  const largeActive = hasLargeRooms && largeFirst;
+  const rooms = useMemo(
+    () => (largeActive ? orderOpsLargeRoomsFirst(serverRooms) : serverRooms) as OpsCalendarRoom[],
+    [largeActive, serverRooms],
+  );
   const [priceWinsOpen, setPriceWinsOpen] = useState(false);
   const conversionIds = useMemo(
     () => new Set(priceConversions.map((conversion) => conversion.reservationId)),
@@ -898,6 +912,16 @@ export function OpsCalendarGrid({
             <button className="opsg__editbtn" onClick={() => setPriceWinsOpen(true)} type="button">
               {copy.pwList}
             </button>
+            {hasLargeRooms && (
+              <button
+                aria-pressed={largeFirst}
+                className={`opsg__editbtn opsg__large${largeFirst ? " on" : ""}`}
+                onClick={() => setLargeFirst((value) => !value)}
+                type="button"
+              >
+                {copy.largeFirst}
+              </button>
+            )}
             {/* 체크인만 찍힌 상태. 무엇을 기다리는지 적어 둔다 — 격자만 보면 「왜 칠해지지?」가 된다. */}
             {activeDraft && (
               <span className="opsg__draftnote" role="status">
@@ -1138,7 +1162,9 @@ export function OpsCalendarGrid({
 
               return (
                 <div
-                  className={`opsg__row${drafting ? " drafting" : ""}`}
+                  className={`opsg__row${drafting ? " drafting" : ""}${
+                    largeActive && isOpsLargeRoom(room.propertyName, room.displayRoomLabel) ? " large" : ""
+                  }`}
                   data-ops-row={room.key}
                   key={room.key}
                 >

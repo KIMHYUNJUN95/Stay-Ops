@@ -2041,6 +2041,16 @@
   font-variant-numeric: tabular-nums;
 }
 .opsg__pw.on .opsg__pwn { background: rgb(255 255 255 / 0.24); }
+
+/* ── 큰방 위쪽 정렬 (STAY ARI Apartment Hotel) ─────────────────────────
+ * 켜면 큰방이 건물 묶음 맨 위에 모이고, 객실명 칸 왼쪽에 강조선이 붙어 묶음임을 드러낸다.
+ */
+.opsg__editbtn.opsg__large.on {
+  border-color: color-mix(in oklab, var(--adm-primary) 45%, transparent);
+  background: color-mix(in oklab, var(--adm-primary) 8%, transparent);
+  color: var(--adm-primary);
+}
+.opsg__row.large .opsg__label { box-shadow: inset 3px 0 0 var(--adm-primary); }
 .opsg__bar.pw-dim { opacity: 0.12; }
 .opsg__bar.pw-win {
   box-shadow: inset 0 0 0 1.5px var(--adm-primary), 0 0 0 2px color-mix(in oklab, var(--adm-primary) 25%, transparent);
