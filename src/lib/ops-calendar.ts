@@ -705,6 +705,8 @@ export async function getOpsCalendarData(
   // 2026-09-17 기준 우리 데이터에는 활성 유닛이 둘인 행이 **없지만**, Beds24 에서 유닛이
   // 교체되면 생긴다. 그때 가짜 갭이 쏟아지지 않게 처음부터 이렇게 짠다.
   const roomKeyByUuid = new Map<string, string>();
+  /** 우리 `rooms.id` → Beds24 유닛 이름(`802#` · `K802`). 유닛마다 최소숙박이 다를 때 화면이 적는다. */
+  const unitLabelById = new Map<string, string>();
   const allRoomsResult = await allRoomsPromise;
   if (allRoomsResult.error) {
     console.error("[ops-calendar] room read failed", allRoomsResult.error);
@@ -716,6 +718,7 @@ export async function getOpsCalendarData(
       const canonical = getCanonicalRoomLabel(propertyName, row.room_label) || row.room_label.trim();
       const displayRoomLabel = getDisplayRoomLabel(propertyName, canonical) || canonical;
       roomKeyByUuid.set(row.id, toRoomAxisKey(propertyName, displayRoomLabel));
+      unitLabelById.set(row.id, row.room_label);
     }
   }
 
@@ -765,9 +768,10 @@ export async function getOpsCalendarData(
         const roomKey = roomKeyByUuid.get(row.room_id);
         if (!roomKey) continue;
         const cellKey = `${roomKey}|${row.stay_date}`;
+        const unit = { ...row, label: unitLabelById.get(row.room_id) };
         const bucket = unitsByCell.get(cellKey);
-        if (bucket) bucket.push(row);
-        else unitsByCell.set(cellKey, [row]);
+        if (bucket) bucket.push(unit);
+        else unitsByCell.set(cellKey, [unit]);
       }
       // 유닛 병합 규칙은 순수 모듈에 있다 — 두 번 틀렸고 둘 다 화면에서는 「안 파는 날」처럼
       // 보여 눈으로 못 잡는다(`src/lib/ops-rate-merge.ts`).
@@ -1009,7 +1013,9 @@ export async function getOpsCalendarData(
       const rate = rates.get(`${roomKey}|${date}`);
       if (!rate) return null;
       return {
-        minStay: rate.minStay,
+        // **가장 긴 값**으로 본다(2026-09-30) — 운영 중 유닛 하나라도 2박이면 그 유닛의 채널은 1박을 못
+        // 판다. 짧은 값으로 보면 802#(1)·K802(2) 같은 칸이 갭에서 빠져, 「1박으로」가 K802 를 고치지 않는다.
+        minStay: rate.minStayMax ?? rate.minStay,
         numAvail: rate.numAvail,
         overrideKind: rate.overrideKind,
         occupied: occupiedCells.has(`${roomKey}|${date}`),

@@ -331,6 +331,11 @@ export default async function OpsCalendarPage({
             <span className="ops__msk many">3</span>
             {copy.legendLongStay}
           </span>
+          {/* 운영 중 유닛끼리 최소숙박이 다른 칸(2026-09-30) — 칸에는 짧은 값이 보이고 모서리 표시가 붙는다. */}
+          <span className="ops__lg ops__lgms">
+            <span className="ops__msk mixed">1</span>
+            {copy.legendMixed}
+          </span>
         </div>
 
         <OpsCalendarGrid

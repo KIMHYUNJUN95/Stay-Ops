@@ -2672,3 +2672,24 @@
   .ops__navspin,
   .ops.is-nav::before { animation: none; }
 }
+
+/* ── 유닛마다 최소숙박이 다른 칸(2026-09-30) ─────────────────────────────
+ * 칸에는 운영 중 유닛의 짧은 값이 보인다. 오른쪽 위 주황 삼각형이 「유닛마다 다름」을 알리고, 칸에 올리면
+ * 유닛별 값이 뜬다(`title`). 1박 갭 판정은 긴 값을 본다 — 「1박으로」가 두 유닛을 모두 맞춘다.
+ */
+.opsg__cell.mixed { position: relative; }
+.opsg__cell.mixed::after,
+.ops__msk.mixed::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  border-style: solid;
+  border-width: 0 6px 6px 0;
+  border-color: transparent var(--warn) transparent transparent;
+}
+.ops__msk.mixed {
+  position: relative;
+  background: hsl(146 48% 88%);
+  color: hsl(146 60% 24%);
+}

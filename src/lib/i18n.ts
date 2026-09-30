@@ -97,6 +97,8 @@ const FALLBACK_DICTIONARY = {
       // 최소숙박 — 2박이 기본이라 예외만 범례에 적는다.
       legendOneNight: "1-night OK",
       legendLongStay: "3+ nights",
+      legendMixed: "Differs by unit",
+      msMixed: "Min stay differs by Beds24 unit",
       legendCancelled: "Cancelled",
       blockLabel: "BLOCK",
       // 1박 갭 — 팔 수 있는 밤이 하루인데 최소 2박이라 아무도 못 사는 날.
@@ -5479,6 +5481,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       // 최소숙박 — 2박이 기본이라 예외만 범례에 적는다.
       legendOneNight: "1박 가능",
       legendLongStay: "3박 이상",
+      legendMixed: "유닛마다 다름",
+      msMixed: "Beds24 유닛마다 최소숙박이 다릅니다",
       legendCancelled: "취소됨",
       blockLabel: "BLOCK",
       gapLabel: "1박 갭",
@@ -10702,6 +10706,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       // 최소숙박 — 2박이 기본이라 예외만 범례에 적는다.
       legendOneNight: "1泊可",
       legendLongStay: "3泊以上",
+      legendMixed: "ユニットごとに異なる",
+      msMixed: "Beds24 のユニットごとに最低泊数が異なります",
       legendCancelled: "キャンセル",
       blockLabel: "BLOCK",
       gapLabel: "1泊ギャップ",

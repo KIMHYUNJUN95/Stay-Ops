@@ -114,7 +114,7 @@ type Copy = {
   HistoryCopy & { historyMore: string } &
   CellHistoryCardCopy &
   HistoryPanelCopy & { hsButton: string; hsAlertTitle: string } &
-  PriceWinsCopy & { pwToggle: string; pwList: string; largeFirst: string; vacantToday: string };
+  PriceWinsCopy & { pwToggle: string; pwList: string; largeFirst: string; vacantToday: string; msMixed: string };
 
 /**
  * 격자 칸의 가격 표기 — `42659` → `42.7K`.
@@ -366,7 +366,11 @@ const OpsGridRow = memo(function OpsGridRow({
         <div className="opsg__track min">
           {days.map((day) => {
             const pendingMin = pendingMinStay.get(selectionCellKey(room.key, day.date));
-            const minStay = pendingMin?.value ?? rates.get(`${room.key}|${day.date}`)?.minStay ?? null;
+            const rate = rates.get(`${room.key}|${day.date}`);
+            const minStay = pendingMin?.value ?? rate?.minStay ?? null;
+            // 운영 중 유닛끼리 최소숙박이 다르다(예: 802# 1박 · K802 2박) — 짧은 값을 보이되 모서리로 알리고
+            // 유닛별 값을 적는다. 방금 보낸 값이 흐리게 보이는 동안은 표시하지 않는다(보낸 값이 둘 다에 간다).
+            const mixed = !pendingMin && rate?.minStayByUnit ? rate.minStayByUnit : null;
             // **2박이 기본이라 조용히 둔다.** 구분은 글자 굵기가 아니라 칸 바탕색으로 한다
             // (실측 2026-09-25: 12,412칸이 2박, 1박은 388칸 — 기본값을 강조하면 예외가 안 보인다).
             const minTone = minStay === 1 ? " ms1" : minStay !== null && minStay >= 3 ? " ms3" : "";
@@ -374,9 +378,16 @@ const OpsGridRow = memo(function OpsGridRow({
             const hasHistory = history.has(historyCellKey(room.key, day.date));
             return (
               <div
-                className={`${cellClass(day, true)}${minTone}`}
+                className={`${cellClass(day, true)}${minTone}${mixed ? " mixed" : ""}`}
                 data-hc={hasHistory ? day.date : undefined}
                 key={`m-${day.date}`}
+                title={
+                  mixed
+                    ? `${copy.msMixed}: ${mixed
+                        .map((unit) => `${unit.label} ${copy.minStay.replace("{n}", String(unit.minStay))}`)
+                        .join(" · ")}`
+                    : undefined
+                }
               >
                 <span className={`opsg__min${pendingMin && !settledTokens.has(pendingMin.token) ? " pend" : ""}`}>
                   {minStay ?? ""}

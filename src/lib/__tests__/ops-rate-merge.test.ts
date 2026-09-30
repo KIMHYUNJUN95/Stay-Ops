@@ -115,3 +115,28 @@ describe("mergeOpsRateUnits", () => {
     expect(merged?.bookingPrice).toBeNull();
   });
 });
+
+describe("유닛마다 최소숙박이 다를 때 (2026-09-30 가부키초 802 10/1)", () => {
+  it("짧은 값을 보이되 긴 값과 유닛별 값을 함께 준다 — 어긋남을 숨기지 않는다", () => {
+    const merged = mergeOpsRateUnits([unit({ label: "802#", min_stay: 1 }), unit({ label: "K802", min_stay: 2 })]);
+    expect(merged).toMatchObject({
+      minStay: 1,
+      minStayByUnit: [
+        { label: "802#", minStay: 1 },
+        { label: "K802", minStay: 2 },
+      ],
+      minStayMax: 2,
+    });
+  });
+
+  it("같으면 유닛별 값은 없다", () => {
+    const merged = mergeOpsRateUnits([unit({ label: "802#", min_stay: 2 }), unit({ label: "K802", min_stay: 2 })]);
+    expect(merged?.minStayByUnit).toBeNull();
+    expect(merged?.minStayMax).toBe(2);
+  });
+
+  it("잠긴 유닛(50+)은 비교에 넣지 않는다", () => {
+    const merged = mergeOpsRateUnits([unit({ label: "802#", min_stay: 1 }), unit({ label: "K802", min_stay: 99 })]);
+    expect(merged).toMatchObject({ minStay: 1, minStayByUnit: null, minStayMax: 1 });
+  });
+});

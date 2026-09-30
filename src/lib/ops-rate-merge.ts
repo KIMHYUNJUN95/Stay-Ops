@@ -48,11 +48,23 @@ export type OpsRateUnit = {
   max_stay: number | null;
   num_avail: number | null;
   override_kind: string | null;
+  /** Beds24 유닛 이름(`802#` · `K802`). 유닛마다 최소숙박이 다를 때 화면이 어느 쪽인지 적는다. */
+  label?: string;
 };
 
 export type OpsMergedRate = {
   maxStay: number | null;
   minStay: number | null;
+  /**
+   * 운영 중 유닛들의 **가장 긴** 최소숙박(2026-09-30). 1박 갭 판정은 이것을 본다 — 한 유닛이라도 2박이면
+   * 그 유닛에 연결된 채널은 1박을 못 판다. 유닛이 하나면 `minStay` 와 같다.
+   */
+  minStayMax: number | null;
+  /**
+   * 운영 중 유닛끼리 최소숙박이 **다를 때만** 유닛별 값(아니면 `null`). 화면이 칸에 표시하고
+   * 「802# 1박 · K802 2박」처럼 알린다 — 짧은 값 하나만 보이면 어긋남이 숨는다(2026-09-30 가부키초 802 10/1).
+   */
+  minStayByUnit: Array<{ label: string; minStay: number }> | null;
   numAvail: number | null;
   overrideKind: string | null;
   /** 에어비앤비 가격(엔) = `price1`. 격자의 가격 트랙이 쓰는 값이다. */
@@ -83,11 +95,15 @@ export function mergeOpsRateUnits(units: OpsRateUnit[]): OpsMergedRate | null {
   // 최소숙박은 운영 중인 유닛 중 **가장 짧은 값** — 하나라도 1박에 팔면 그 칸은 1박이다
   // (저쪽 `getMinStayFromUnitInfos`).
   let minStay: number | null = null;
+  let minStayMax: number | null = null;
   let numAvail: number | null = null;
   let blackout = false;
   for (const unit of active) {
     if (unit.min_stay !== null && (minStay === null || unit.min_stay < minStay)) {
       minStay = unit.min_stay;
+    }
+    if (unit.min_stay !== null && (minStayMax === null || unit.min_stay > minStayMax)) {
+      minStayMax = unit.min_stay;
     }
     // 하나라도 팔 수 있으면 그 칸은 팔 수 있다.
     if (unit.num_avail !== null && (numAvail === null || unit.num_avail > numAvail)) {
@@ -97,6 +113,13 @@ export function mergeOpsRateUnits(units: OpsRateUnit[]): OpsMergedRate | null {
     if ((unit.override_kind ?? "").toLowerCase() === "blackout") blackout = true;
   }
 
+  const minStayByUnit =
+    minStay !== null && minStayMax !== null && minStay !== minStayMax
+      ? active
+          .filter((unit) => unit.min_stay !== null)
+          .map((unit, index) => ({ label: unit.label ?? `#${index + 1}`, minStay: unit.min_stay as number }))
+      : null;
+
   // 가격은 운영 중인 유닛 먼저, 그다음 그 행의 나머지 유닛.
   const priceOrder = [...active, ...units.filter((unit) => !active.includes(unit))];
 
@@ -105,6 +128,8 @@ export function mergeOpsRateUnits(units: OpsRateUnit[]): OpsMergedRate | null {
     bookingPrice: firstNonNull(priceOrder, (unit) => unit.price2),
     maxStay: active[0].max_stay,
     minStay,
+    minStayByUnit,
+    minStayMax,
     numAvail,
     overrideKind: blackout ? "blackout" : active[0].override_kind,
     price: firstNonNull(priceOrder, (unit) => unit.price1),
