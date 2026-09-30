@@ -2882,3 +2882,594 @@ button.ops__gapbtn:hover {
 }
 button.ops__gapbtn:active { transform: translateY(1px); }
 button.ops__gapbtn:focus-visible { outline: 2px solid var(--danger); outline-offset: 2px; }
+
+/* ── 매출 요약 (2026-09-30) ─────────────────────────────────────────────
+ * 툴바 버튼 + 가운데 큰 모달(min(1280px, 96vw) × 최대 92vh). `<body>` 로 포털하므로 `.ops` 밖이다 —
+ * `.adm.opsss-root` 로 감싸 콘솔 토큰(--card / --line / --adm-primary …)을 그대로 받는다. 색을 새로 만들지
+ * 않는다. 채널 색은 캘린더 범례(Airbnb 빨강 · Booking.com 파랑 · 직접 초록)와 같은 색상에 막대용으로 채도만
+ * 맞췄다(dataviz 검증기: 명도대 · 채도 · CVD 분리 · 대비 통과). 「기타」는 회색 + 이름이 식별을 맡는다.
+ *
+ * 숫자는 전부 **본문 글꼴 + tabular-nums** — 고정폭 글꼴은 쓰지 않는다(값싼 인상, 2026-09-30 사용자).
+ * 표는 `table-layout: fixed` 로 모달 폭에 **들어맞게** 짠다 — 가로 스크롤이 생기면 폭 배분이 틀린 것이다.
+ * 900px 아래에서는 건물 표가 카드로 쌓인다(가로 스크롤 대신).
+ */
+.opsg__editbtn.opsg__sales {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.opsg__btnic { width: 14px; height: 14px; flex: none; }
+
+.opsss-root {
+  --ss-abnb: #c13350;
+  --ss-bkng: #305fb5;
+  --ss-dir: #26854f;
+  --ss-oth: hsl(222 8% 62%);
+  --ss-hi: hsl(146 46% 36%);
+  --ss-mid: hsl(35 78% 46%);
+  --ss-lo: hsl(4 58% 52%);
+  --ss-radius: 14px;
+  --ss-shadow: 0 1px 2px rgb(20 32 43 / 0.04), 0 12px 28px -26px rgb(20 32 43 / 0.5);
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  /* 트랙을 화면 폭에 묶는다 — 안 묶으면 내용 폭만큼 모달이 화면 밖으로 밀린다. */
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: 2vh 2vw;
+  font-family: var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.opsss__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(15 23 32 / 0.46);
+  animation: opsssFade 0.16s ease both;
+}
+.opsss {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(1280px, 96vw);
+  min-width: 0;
+  max-height: 92vh;
+  max-height: 92dvh;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 30px 80px -30px rgb(15 23 32 / 0.55), 0 1px 0 rgb(255 255 255 / 0.7) inset;
+  overflow: hidden;
+  outline: none;
+  animation: opsssIn 0.16s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.opsss-root.is-closing .opsss__scrim { animation: opsssFadeOut 0.15s ease both; }
+.opsss-root.is-closing .opsss { animation: opsssOut 0.15s ease-in both; }
+@keyframes opsssFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes opsssFadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes opsssIn { from { opacity: 0; transform: translateY(6px) scale(0.975); } to { opacity: 1; transform: none; } }
+@keyframes opsssOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(4px) scale(0.98); } }
+
+/* ── 머리 ── */
+.opsss__head {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 18px 14px 24px;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+}
+.opsss__headmain { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1 1 auto; }
+.opsss__titlerow { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
+.opsss__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.opsss__range { font-size: 13px; font-weight: 700; color: var(--ink-soft); }
+.opsss__days {
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+  background: var(--primary-soft);
+  color: var(--adm-primary);
+  font-size: 11px;
+  font-weight: 800;
+}
+.opsss__chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.opsss__chip {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card2);
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.opsss__chip.all { border-style: dashed; color: var(--adm-muted); }
+.opsss__headtools { display: flex; align-items: center; gap: 6px; flex: none; }
+.opsss__basisbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.opsss__basisbtn svg { width: 14px; height: 14px; }
+.opsss__basisbtn:hover,
+.opsss__basisbtn.on { background: var(--primary-soft); border-color: color-mix(in oklab, var(--adm-primary) 30%, var(--line)); color: var(--adm-primary); }
+.opsss__x {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 10px;
+  background: var(--adm-surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.opsss__x:hover { background: var(--surface2); color: var(--ink); }
+.opsss__x svg { width: 16px; height: 16px; }
+.opsss__x:focus-visible,
+.opsss__basisbtn:focus-visible,
+.opsss__retry:focus-visible,
+.opsss__expand:focus-visible { outline: 2px solid var(--adm-primary); outline-offset: 2px; }
+
+/* 계산 기준 — 머리 아래로 떨어지는 작은 설명 상자 */
+.opsss__basis {
+  position: absolute;
+  top: calc(100% - 6px);
+  right: 18px;
+  z-index: 3;
+  width: min(520px, calc(100% - 36px));
+  padding: 12px 16px 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--sh-pop);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  animation: opsssIn 0.14s ease both;
+}
+.opsss__basis ul { margin: 0; padding-left: 17px; }
+.opsss__basis li + li { margin-top: 3px; }
+.opsss__basis p { margin: 8px 0 0; font-size: 11.5px; color: var(--faint); }
+
+.opsss__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 24px 22px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ── 위: 왼쪽 KPI(흐름 + 네 칸) · 오른쪽 채널 ── */
+.opsss__top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.06fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+.opsss__left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+.opsss__klabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--adm-muted);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.opsss__klabel svg { width: 14px; height: 14px; flex: none; opacity: 0.8; }
+.opsss__knote { font-size: 11px; font-weight: 600; color: var(--faint); line-height: 1.35; }
+.opsss__kval {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+/* 흐름 카드 — 총매출 → − 수수료 → = 순매출 */
+.opsss__flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  border-radius: var(--ss-radius);
+  overflow: hidden;
+  border: 1px solid var(--primary-ink);
+  box-shadow: 0 14px 30px -24px rgb(28 44 90 / 0.8);
+}
+.opsss__flowmain {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 18px 20px;
+  background: linear-gradient(150deg, var(--primary-lift) 0%, var(--adm-primary) 52%, var(--primary-ink) 100%);
+  color: #fff;
+}
+.opsss__flowmain .opsss__klabel { color: rgb(255 255 255 / 0.76); }
+.opsss__flowmain .opsss__knote { color: rgb(255 255 255 / 0.66); }
+.opsss__heroval {
+  font-size: 34px;
+  font-weight: 850;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+.opsss__flowsteps {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+}
+.opsss__flowstep {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 0;
+  padding: 11px 16px;
+}
+.opsss__flowstep + .opsss__flowstep { border-top: 1px solid var(--line-soft); }
+.opsss__flowstep.net { background: var(--primary-soft); }
+.opsss__op {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--adm-surface);
+  color: var(--ink-soft);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+}
+.opsss__flowstep.net .opsss__op { background: var(--adm-primary); color: #fff; }
+.opsss__flowtext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.opsss__flowval { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); white-space: nowrap; }
+.opsss__flowstep.net .opsss__flowval { color: var(--primary-ink); }
+
+/* 네 칸 — 가동률 · ADR · RevPAR · 빈방. 높이를 맞춘다. */
+.opsss__tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  flex: 1 1 auto;
+}
+.opsss__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 13px 14px 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--ss-radius);
+  box-shadow: var(--ss-shadow);
+}
+.opsss__tile.occ { align-items: flex-start; }
+.opsss__tiletext { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.opsss__tile .opsss__klabel { white-space: normal; line-height: 1.25; }
+.opsss__kfuture {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+.opsss__gauge { position: relative; display: grid; place-items: center; width: 64px; height: 64px; flex: none; }
+.opsss__gauge svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.opsss__gauge circle { fill: none; stroke-width: 6; }
+.opsss__gauge .track { stroke: var(--adm-surface); }
+.opsss__gauge .fill { stroke: var(--adm-primary); stroke-linecap: round; transition: stroke-dasharray 0.5s ease; }
+.opsss__gaugev { position: relative; font-size: 14px; font-weight: 850; letter-spacing: -0.03em; color: var(--ink); }
+
+/* ── 카드 ── */
+.opsss__card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 15px 18px 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--ss-radius);
+  box-shadow: var(--ss-shadow);
+}
+.opsss__cardhead { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.opsss__h3 { margin: 0; font-size: 13.5px; font-weight: 900; color: var(--ink); letter-spacing: -0.01em; }
+.opsss__legend { display: flex; flex-wrap: wrap; gap: 5px; }
+.opsss__lchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-pill);
+  background: var(--card2);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.opsss__lchip .opsss__sw { margin-right: 0; }
+.opsss__lpct { color: var(--faint); font-weight: 800; }
+.opsss__stack {
+  display: flex;
+  gap: 2px;
+  height: 22px;
+  border-radius: 7px;
+  overflow: hidden;
+}
+.opsss__seg {
+  display: grid;
+  place-items: center;
+  flex: 1 1 0;
+  min-width: 3px;
+  overflow: hidden;
+}
+.opsss__segpct { font-size: 10.5px; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
+.opsss__seg.airbnb, .opsss__sw.airbnb { background: var(--ss-abnb); }
+.opsss__seg.booking, .opsss__sw.booking { background: var(--ss-bkng); }
+.opsss__seg.direct, .opsss__sw.direct { background: var(--ss-dir); }
+.opsss__seg.other, .opsss__sw.other { background: var(--ss-oth); }
+.opsss__sw {
+  display: inline-block;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-right: 8px;
+  border-radius: 3px;
+}
+
+/* ── 표 ── */
+.opsss__table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.opsss__table th,
+.opsss__table td {
+  padding: 8px 8px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid var(--line-soft);
+}
+.opsss__table th:first-child,
+.opsss__table td:first-child { padding-left: 4px; text-align: left; }
+.opsss__table thead th {
+  position: sticky;
+  top: -18px; /* 몸통 위쪽 여백만큼 — 스크롤하면 머리글이 카드 위에 붙는다 */
+  z-index: 1;
+  padding-top: 4px;
+  background: var(--card);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--faint);
+  letter-spacing: 0.01em;
+  border-bottom-color: var(--line);
+}
+.opsss__table tbody th { font-weight: 800; color: var(--ink); }
+.opsss__table td { font-weight: 600; color: var(--ink-soft); }
+.opsss__table .dim { color: var(--faint); font-weight: 600; }
+.opsss__table .strong { font-weight: 800; color: var(--ink); }
+.opsss__table tbody tr { transition: background-color 0.12s ease; }
+.opsss__table tbody tr:hover { background: color-mix(in oklab, var(--adm-primary) 4%, transparent); }
+.opsss__table tfoot th,
+.opsss__table tfoot td {
+  border-bottom: none;
+  border-top: 1.5px solid var(--line);
+  font-weight: 800;
+  color: var(--ink);
+}
+.opsss__ellip { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.opsss__table .c-name { display: table-cell; }
+.opsss__chtable .c-name > * { vertical-align: middle; }
+.opsss__chtable .c-name { white-space: nowrap; }
+.opsss__chtable .c-name .opsss__ellip { display: inline-block; max-width: calc(100% - 20px); vertical-align: middle; }
+.opsss__chtable col.w-name { width: 22%; }
+.opsss__chtable col.w-small { width: 10.5%; }
+.opsss__chtable th,
+.opsss__chtable td { padding-left: 5px; padding-right: 5px; }
+/* 좁은 칸의 머리글(체크인 · チェックイン)은 잘리지 않고 줄을 바꾼다 — 값은 한 줄. */
+.opsss__table thead th { white-space: normal; line-height: 1.2; vertical-align: bottom; }
+
+/* 건물 표 — 폭 배분(합 100%). 이름 칸이 남는 폭을 먹고 나머지는 숫자 폭에 맞춘다. */
+.opsss__ptable col.w-pname { width: auto; }
+.opsss__ptable col.w-rooms { width: 5.5%; }
+.opsss__ptable col.w-occ { width: 12.5%; }
+.opsss__ptable col.w-n { width: 6.5%; }
+.opsss__ptable col.w-yen { width: 8.5%; }
+.opsss__ptable col.w-yen-l { width: 10.5%; }
+.opsss__occcell { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.opsss__minibar {
+  width: 48px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--adm-surface);
+  overflow: hidden;
+}
+.opsss__minibar span { display: block; height: 100%; border-radius: 3px; }
+.opsss__minibar.hi span { background: var(--ss-hi); }
+.opsss__minibar.mid span { background: var(--ss-mid); }
+.opsss__minibar.lo span { background: var(--ss-lo); }
+.opsss__gauge.hi .fill { stroke: var(--ss-hi); }
+.opsss__gauge.mid .fill { stroke: var(--ss-mid); }
+.opsss__gauge.lo .fill { stroke: var(--ss-lo); }
+
+/* 건물 줄 = 펼침 버튼. 객실 줄은 들여 쓰고 옅은 바탕. */
+.opsss__group.is-open .is-prop { background: color-mix(in oklab, var(--adm-primary) 5%, var(--card)); }
+.opsss__group.is-open .is-prop > * { border-bottom-color: var(--line); }
+.opsss__expand {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 6px 3px 2px;
+  margin: -3px 0;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: left;
+}
+.opsss__expand:hover { background: var(--adm-surface); }
+.opsss__chev { width: 14px; height: 14px; flex: none; color: var(--faint); transition: transform 0.16s ease; }
+.opsss__expand[aria-expanded="true"] .opsss__chev { transform: rotate(90deg); color: var(--adm-primary); }
+.opsss__table tr.is-room > * {
+  background: var(--card2);
+  font-size: 12px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  animation: opsssRoomIn 0.16s ease both;
+}
+.opsss__table tr.is-room th { padding-left: 29px; font-weight: 700; color: var(--ink-soft); }
+.opsss__roomname { display: block; overflow: hidden; text-overflow: ellipsis; }
+.opsss__offcat { margin-left: 2px; color: var(--faint); }
+@keyframes opsssRoomIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+
+/* ── 불러오는 중 · 오류 ── */
+.opsss__state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 64px 16px;
+  color: var(--adm-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+.opsss__state p { margin: 0; }
+.opsss__retry {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--adm-primary);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--adm-primary);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.opsss__top.sk { grid-template-rows: auto auto; }
+.opsss__top.sk .wide { grid-column: 1 / -1; }
+.opsss__flow.sk {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 20px;
+  min-height: 132px;
+  background: var(--card);
+  border-color: var(--line);
+  box-shadow: none;
+}
+.opsss__tile.sk { gap: 9px; min-height: 104px; }
+.opsss__card.sk { gap: 11px; padding-bottom: 16px; }
+.opsss__bone {
+  display: block;
+  height: 10px;
+  width: 100%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--adm-surface) 0%, var(--surface2) 50%, var(--adm-surface) 100%);
+  background-size: 200% 100%;
+  animation: opsssShimmer 1.2s ease-in-out infinite;
+}
+.opsss__bone.huge { height: 32px; width: 55%; }
+.opsss__bone.big { height: 22px; width: 70%; }
+.opsss__bone.w30 { width: 30%; }
+.opsss__bone.w40 { width: 40%; }
+.opsss__bone.w60 { width: 60%; }
+.opsss__bone.bar { height: 22px; }
+.opsss__bone.row { height: 16px; }
+@keyframes opsssShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.opsss__sronly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .opsss, .opsss__scrim, .opsss__basis, .opsss__bone, .opsss__table tr.is-room > *,
+  .opsss-root.is-closing .opsss, .opsss-root.is-closing .opsss__scrim { animation: none; }
+}
+
+/* ── 좁은 화면 ── */
+@media (max-width: 1100px) {
+  .opsss__top { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .opsss-root { padding: 10px 8px; }
+  .opsss { width: 100%; max-height: 96dvh; }
+  .opsss__head { padding: 14px 12px 12px 16px; flex-wrap: wrap; }
+  .opsss__body { padding: 14px 14px 18px; }
+  .opsss__tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .opsss__flow { grid-template-columns: minmax(0, 1fr); }
+  .opsss__heroval { font-size: 30px; }
+  .opsss__basisbtn { padding: 0 10px; }
+
+  /* 건물 표 → 카드. 각 칸이 「이름 값」 한 줄이 된다(data-label). */
+  .opsss__ptable, .opsss__ptable tbody, .opsss__ptable tfoot, .opsss__ptable tr, .opsss__ptable th, .opsss__ptable td { display: block; }
+  .opsss__ptable colgroup, .opsss__ptable thead { display: none; }
+  .opsss__ptable tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px 14px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .opsss__ptable tr > * { border: none !important; padding: 2px 0 !important; text-align: right; }
+  .opsss__ptable tr > .c-name { grid-column: 1 / -1; text-align: left; padding-bottom: 4px !important; }
+  .opsss__ptable td[data-label] { display: flex; justify-content: space-between; gap: 8px; }
+  .opsss__ptable td[data-label]::before {
+    content: attr(data-label);
+    color: var(--faint);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .opsss__ptable tr.is-room { padding-left: 18px; background: var(--card2); }
+  .opsss__ptable tr.is-room > * { background: none; }
+  .opsss__ptable tr.is-room > .c-rooms { display: none; }
+  .opsss__ptable tr.is-room th { padding-left: 0 !important; }
+  .opsss__ptable tfoot tr { border-top: 1.5px solid var(--line); border-bottom: none; }
+  /* 채널 표는 칸을 숨기므로 고정 폭 배분을 풀고 내용에 맞춘다. */
+  .opsss__chtable { table-layout: auto; }
+  .opsss__chtable col { width: auto !important; }
+  .opsss__chtable th:nth-child(5), .opsss__chtable td:nth-child(5) { display: none; }
+}
+@media (max-width: 480px) {
+  .opsss__tiles { gap: 8px; }
+  .opsss__kval { font-size: 19px; }
+  .opsss__heroval { font-size: 27px; }
+  .opsss__chtable th:nth-child(3), .opsss__chtable td:nth-child(3) { display: none; }
+}

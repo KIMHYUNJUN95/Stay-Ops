@@ -2,6 +2,16 @@
 
 This file records important project decisions.
 
+## 2026-09-30 매출 지표는 STAY ARI Manager 숫자를 그대로 재현한다 (착수 전 결정 1)
+
+지표(매출 · 수수료 · 가동률 · ADR · RevPAR · 빈방)는 저쪽 식을 **고치지 않고** 재현한다(사용자 결정). 차단한 밤은
+가동률 분모에 남고 빈방으로 세며, 노쇼 · 0원 예약은 점유로 세고, 취소 · 문의(request) · 차단(black)은 뺀다.
+저쪽 화면끼리 식이 다를 때(결정 2)는 쓰임이 가장 가까운 **건물 캘린더 분석 카드**(`BuildingCalendar.jsx`
+`calculateBuildingMetricsForRange` · `calculateCommissionSummary`)를 따른다. 첫 적용처는 판매 캘린더 「매출 요약」
+모달이고 식은 `src/lib/ops-sales-summary.ts` 한 곳에 둔다(저쪽 함수를 옮긴 무작위 대조 테스트로 고정).
+기존 `admin-dashboard.ts`(오늘 재실 — 노쇼 제외)는 다른 목적이라 그대로 둔다. 상세:
+`docs/product/34-metrics-and-automation.md` → 「매출 요약 모달 — 쓰는 식」.
+
 ## 2026-09-30 권한 예외 부여의 사유는 선택이다
 
 `/admin/users/[id]` 「권한 예외」 부여에서 사유를 비워도 저장된다(사용자 결정). 기존 「사유 필수」 규칙을 대체한다.

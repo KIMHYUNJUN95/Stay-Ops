@@ -1014,6 +1014,226 @@ export async function getOpsCalendarData(
 
 export type OpsCalendarData = Awaited<ReturnType<typeof getOpsCalendarData>>;
 
+/** 매출 요약이 원본(`raw_payload`)에서 읽는 키 — 금액·수수료·채널·원본 상태만(`SalesRawPayload`). */
+const SALES_PAYLOAD_KEYS = [
+  "status",
+  "price",
+  "amount",
+  "commission",
+  "invoiceItems",
+  "referer",
+  "referrer",
+  "channel",
+  "apiSource",
+  "subSource",
+  "source",
+] as const;
+
+const SALES_RESERVATION_SELECT = [
+  "id, check_in_date, check_out_date, guest_name, property_name, room_label, source, status",
+  ...SLIM_PAYLOAD_KEYS.map((key) => `rp_${key}:raw_payload->${key}`),
+  ...SALES_PAYLOAD_KEYS.map((key) => `sp_${key}:raw_payload->${key}`),
+].join(", ");
+
+/**
+ * 「매출 요약」의 입력 — **격자와 같은 객실 축 · 같은 차단 판정**으로, 요약에 필요한 것만 읽는다(2026-09-30).
+ *
+ * 격자 읽기(`getOpsCalendarData`)를 통째로 부르면 가격·이력·신선도·건물 id 까지 읽는다(요약에는 필요 없다).
+ * 여기서는 **서로 기다리지 않는 조회 넷을 한꺼번에** 시작한다 — 객실 목록 · 예약(매칭 키 + 금액 키만) ·
+ * `room_blocks` · 요금 표의 blackout 칸. 차단 판정은 격자와 같다(`isBlocked`): 운영 중 유닛의 요금 칸이
+ * 있으면 그 칸의 blackout, 없으면 `room_blocks`. 뒤의 경우를 가리려고 `room_blocks` 가 덮는 칸만 요금
+ * 표를 한 번 더 본다(대개 몇 줄).
+ *
+ * 순수 계산은 `ops-sales-summary.ts`. 반환 모양이 그 입력 그대로다.
+ */
+export async function readOpsSalesInputs(args: {
+  organizationId: string;
+  supabase: SupabaseClient<Database>;
+  window: { start: string; endExclusive: string };
+  properties: readonly string[];
+}) {
+  const { organizationId, supabase, window } = args;
+  const roomRowsPromise = fetchRoomCatalogRows(organizationId, supabase);
+  const reservationsPromise = readAllPages<Record<string, unknown>>((from, to) =>
+    supabase
+      .from("reservations")
+      .select(SALES_RESERVATION_SELECT)
+      .eq("organization_id", organizationId)
+      .lt("check_in_date", window.endExclusive)
+      // 창 첫날에 나가는 손님은 창 안에 밤이 없다 — 체크인 수에도 안 든다.
+      .gt("check_out_date", window.start)
+      .order("check_in_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to) as unknown as SlimReservationPage,
+  );
+  const blocksPromise = readAllPages<BlockRow>((from, to) =>
+    supabase
+      .from("room_blocks")
+      .select("id, property_name, room_label, start_date, end_date")
+      .eq("organization_id", organizationId)
+      .lt("start_date", window.endExclusive)
+      .gte("end_date", window.start)
+      .order("start_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  const blackoutPromise = readAllPages<Pick<RateRow, "room_id" | "stay_date" | "min_stay">>((from, to) =>
+    supabase
+      .from("room_daily_rates")
+      .select("room_id, stay_date, min_stay")
+      .eq("organization_id", organizationId)
+      .ilike("override_kind", "blackout")
+      .gte("stay_date", window.start)
+      .lt("stay_date", window.endExclusive)
+      .order("room_id", { ascending: true })
+      .order("stay_date", { ascending: true })
+      .range(from, to),
+  );
+
+  const roomRowsResult = await roomRowsPromise;
+  if (roomRowsResult.error) throw new Error(roomRowsResult.error.message);
+  const roomCatalog = buildActiveRoomCatalog(roomRowsResult.data, { includeNonOperationalProperties: true });
+  const { roomKeyByUuid } = mapRoomUnits(roomRowsResult.data);
+  const reservationRoomAxis = makeReservationRoomAxis(roomCatalog);
+
+  const catalogKeys = new Set<string>();
+  const propertyOfRoom = new Map<string, string>();
+  /** 행 키 → 캘린더 행에 보이는 이름(듀얼 유닛은 한 행 — 격자와 같은 `toRoomAxisKey`). */
+  const labelOfRoom = new Map<string, string>();
+  for (const entry of roomCatalog ?? []) {
+    const key = toRoomAxisKey(entry.propertyName, entry.displayRoomLabel);
+    catalogKeys.add(key);
+    propertyOfRoom.set(key, entry.propertyName);
+    labelOfRoom.set(key, entry.displayRoomLabel);
+  }
+
+  const [reservationsResult, blocksResult, blackoutResult] = await Promise.all([
+    reservationsPromise,
+    blocksPromise,
+    blackoutPromise,
+  ]);
+  if (reservationsResult.error) throw new Error(reservationsResult.error.message);
+  if (blocksResult.error) throw new Error(blocksResult.error.message);
+  if (blackoutResult.error) throw new Error(blackoutResult.error.message);
+
+  const reservations: Array<{
+    id: string;
+    roomKey: string;
+    propertyName: string;
+    checkIn: string;
+    checkOut: string;
+    status: string;
+    raw: Record<string, unknown>;
+  }> = [];
+  for (const raw of reservationsResult.data) {
+    const row = toReservationRow(raw);
+    if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
+    const { displayRoomLabel, propertyName, roomKey } = reservationRoomAxis(row);
+    const sales: Record<string, unknown> = {};
+    for (const key of SALES_PAYLOAD_KEYS) {
+      const value = raw[`sp_${key}`];
+      if (value !== null && value !== undefined) sales[key] = value;
+    }
+    // 목록 밖 방은 격자처럼 살아 있는 예약이 있을 때만 행이 된다(가동률에는 안 들어간다).
+    if (!propertyOfRoom.has(roomKey) && row.status !== "cancelled" && row.status !== "no_show") {
+      propertyOfRoom.set(roomKey, propertyName);
+      labelOfRoom.set(roomKey, displayRoomLabel);
+    }
+    reservations.push({
+      checkIn: row.check_in_date,
+      checkOut: row.check_out_date,
+      id: row.id,
+      propertyName,
+      raw: sales,
+      roomKey,
+      status: row.status,
+    });
+  }
+
+  // 건물 선택 — 격자와 같이 탭 순서, 없는 이름은 버리고 하나도 안 맞으면 전체.
+  const propertyOptions = sortBuildings([...new Set(propertyOfRoom.values())]);
+  const selected = resolveSelectedProperties(args.properties, propertyOptions);
+  const inView = (propertyName: string) => selected.length === 0 || selected.includes(propertyName);
+
+  // ── 차단 칸(격자 `isBlocked` 와 같은 규칙) ──
+  const blocked = new Set<string>();
+  for (const row of blackoutResult.data) {
+    if (!isActiveUnitMinStay(row.min_stay)) continue;
+    const roomKey = roomKeyByUuid.get(row.room_id);
+    if (roomKey && catalogKeys.has(roomKey) && inView(propertyOfRoom.get(roomKey) ?? "")) {
+      blocked.add(`${roomKey}|${row.stay_date}`);
+    }
+  }
+  const roomBlockCells = new Map<string, { roomKey: string; date: string }>();
+  for (const row of blocksResult.data) {
+    if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
+    const roomKey = blockRoomAxisKey(row);
+    if (!catalogKeys.has(roomKey) || !inView(propertyOfRoom.get(roomKey) ?? "")) continue;
+    for (let date = row.start_date < window.start ? window.start : row.start_date; date <= row.end_date && date < window.endExclusive; date = addDays(date, 1)) {
+      const cell = `${roomKey}|${date}`;
+      if (!blocked.has(cell)) roomBlockCells.set(cell, { date, roomKey });
+    }
+  }
+  if (roomBlockCells.size > 0) {
+    // `room_blocks` 가 덮는 칸 중 **운영 중 유닛의 요금 칸이 없는 것**만 차단이다(있으면 그 칸이 정답 —
+    // 위에서 blackout 이 아니었으니 풀린 칸이다).
+    const cellRoomKeys = new Set([...roomBlockCells.values()].map((cell) => cell.roomKey));
+    const unitIds = [...roomKeyByUuid].filter(([, key]) => cellRoomKeys.has(key)).map(([uuid]) => uuid);
+    const dates = [...roomBlockCells.values()].map((cell) => cell.date).sort();
+    const activeResult =
+      unitIds.length === 0
+        ? { data: [] as Array<Pick<RateRow, "room_id" | "stay_date" | "min_stay">>, error: null }
+        : await readAllPages<Pick<RateRow, "room_id" | "stay_date" | "min_stay">>((from, to) =>
+            supabase
+              .from("room_daily_rates")
+              .select("room_id, stay_date, min_stay")
+              .eq("organization_id", organizationId)
+              .in("room_id", unitIds)
+              .gte("stay_date", dates[0])
+              .lte("stay_date", dates[dates.length - 1])
+              .order("room_id", { ascending: true })
+              .order("stay_date", { ascending: true })
+              .range(from, to),
+          );
+    if (activeResult.error) throw new Error(activeResult.error.message);
+    const hasActiveRate = new Set<string>();
+    for (const row of activeResult.data) {
+      if (!isActiveUnitMinStay(row.min_stay)) continue;
+      const roomKey = roomKeyByUuid.get(row.room_id);
+      if (roomKey) hasActiveRate.add(`${roomKey}|${row.stay_date}`);
+    }
+    for (const cell of roomBlockCells.keys()) if (!hasActiveRate.has(cell)) blocked.add(cell);
+  }
+
+  // 캘린더 행 순서(건물 탭 순 → 객실 이름 숫자 순) — 격자의 `sortRooms` 그대로.
+  const rooms = sortRooms(
+    [...propertyOfRoom]
+      .filter(([, propertyName]) => inView(propertyName))
+      .map(([key, propertyName]) => ({
+        displayRoomLabel: labelOfRoom.get(key) ?? key,
+        key,
+        propertyName,
+        roomIds: [],
+      })),
+  ).map((room) => ({
+    inCatalog: catalogKeys.has(room.key),
+    key: room.key,
+    label: room.displayRoomLabel,
+    propertyName: room.propertyName,
+  }));
+  const properties = selected.length > 0 ? selected : propertyOptions;
+
+  return {
+    blocks: [...blocked].map((cell) => {
+      const [roomKey, date] = [cell.slice(0, cell.lastIndexOf("|")), cell.slice(cell.lastIndexOf("|") + 1)];
+      return { endDate: date, roomKey, startDate: date };
+    }),
+    properties,
+    reservations: reservations.filter((reservation) => inView(reservation.propertyName)),
+    rooms,
+  };
+}
+
 /**
  * 칸 하나의 가격·최소숙박·차단 변경 이력(최신순, 최대 `HISTORY_PER_CELL` 줄 + 전체 횟수).
  *

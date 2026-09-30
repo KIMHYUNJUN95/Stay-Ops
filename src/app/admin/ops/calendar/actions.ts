@@ -33,8 +33,11 @@ import {
 import { groupSelectionIntoRanges } from "@/lib/ops-calendar-selection";
 import { parsePropertyParam } from "@/lib/ops-calendar-properties";
 import { canAccessOpsAdmin } from "@/lib/ops-admin";
+import { getOpsSalesSummary } from "@/lib/ops-sales-summary-server";
+import type { OpsSalesSummary } from "@/lib/ops-sales-summary";
 import {
   getOpsPriceConversions,
+  OPS_CALENDAR_ROLLING_DAYS,
   opsChannelOf,
   readOpsCellHistory,
   readOpsRoomUnavailableNights,
@@ -1299,6 +1302,42 @@ export async function loadOpsPriceConversions(args: {
     return { conversions, ok: true };
   } catch (error) {
     console.error("[ops-calendar] price conversions read failed", error);
+    return { error: "failed", ok: false };
+  }
+}
+
+export type OpsSalesSummaryResult =
+  | { ok: false; error: "forbidden" | "bad_window" | "failed" }
+  | { ok: true; summary: OpsSalesSummary & { properties: string[] } };
+
+/**
+ * 「매출 요약」 모달 — **보고 있는 창 × 고른 건물**의 매출·수수료·가동률·ADR·빈방(2026-09-30).
+ *
+ * 창은 격자가 보고 있는 첫날과 일수로 받는다. 30일이면 30일 뷰, 아니면 그 달(월간 뷰 — 첫날이 1일이어야
+ * 한다). 서버가 창을 **다시 계산해** 받은 값과 맞지 않으면 거절한다 — 임의 범위를 읽는 통로가 아니다.
+ * 식은 `src/lib/ops-sales-summary.ts`(저쪽 건물 캘린더 그대로 — 34번 문서).
+ */
+export async function loadOpsSalesSummary(args: {
+  start: string;
+  days: number;
+  properties?: readonly string[] | null;
+}): Promise<OpsSalesSummaryResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+  const start = typeof args.start === "string" ? args.start : "";
+  const days = typeof args.days === "number" && Number.isInteger(args.days) ? args.days : 0;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || days < 1 || days > 31) return { error: "bad_window", ok: false };
+  const mode = days === OPS_CALENDAR_ROLLING_DAYS ? "rolling" : "monthly";
+  if (mode === "monthly" && !start.endsWith("-01")) return { error: "bad_window", ok: false };
+  const properties = parsePropertyParam(
+    Array.isArray(args.properties) ? args.properties.filter((name): name is string => typeof name === "string") : [],
+  );
+  try {
+    const summary = await getOpsSalesSummary(session, { mode, month: start.slice(0, 7), properties, start });
+    if (summary.start !== start || summary.days !== days) return { error: "bad_window", ok: false };
+    return { ok: true, summary };
+  } catch (error) {
+    console.error("[ops-calendar] sales summary read failed", error);
     return { error: "failed", ok: false };
   }
 }

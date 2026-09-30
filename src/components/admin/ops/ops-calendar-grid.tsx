@@ -22,6 +22,12 @@ import { loadOpsCellHistory, loadOpsPriceConversions } from "@/app/admin/ops/cal
 import { OpsPriceWinsPanel, type PriceWinsCopy } from "@/components/admin/ops/ops-price-wins-panel";
 import { OpsCellHistoryCard, type CellHistoryCardCopy } from "@/components/admin/ops/ops-cell-history-card";
 import { OpsHistoryPanel, type HistoryPanelCopy } from "@/components/admin/ops/ops-history-panel";
+import {
+  OpsSalesSummaryModal,
+  prefetchSalesSummary,
+  type SalesSummaryCopy,
+} from "@/components/admin/ops/ops-sales-summary-modal";
+import { ChartColumn } from "lucide-react";
 import { OpsBlockPanel, type BlockPanelCopy } from "@/components/admin/ops/ops-block-panel";
 import {
   OpsMinStayPanel,
@@ -122,6 +128,7 @@ type Copy = {
   HistoryCopy & { historyMore: string } &
   CellHistoryCardCopy &
   HistoryPanelCopy & { hsButton: string; hsAlertTitle: string } &
+  SalesSummaryCopy & { ssButton: string } &
   PriceWinsCopy & {
     pwToggle: string;
     pwList: string;
@@ -950,6 +957,8 @@ export function OpsCalendarGrid({
    */
   const [priceWinsOnly, setPriceWinsOnly] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  /** 「매출 요약」 모달 — 보고 있는 창 × 고른 건물(2026-09-30). */
+  const [salesOpen, setSalesOpen] = useState(false);
   // 큰방 위쪽 정렬 — 기본 켜짐(저쪽과 같다). STAY ARI Apartment Hotel 에만 있다(`ops-large-rooms.ts`).
   // **그 건물 하나만 골랐을 때만** 켠다 — 「전체」에서는 토글도 정렬도 없다(2026-09-29 사용자 결정).
   // **이 한 목록을 격자 전체가 쓴다** — 드래그 선택·행 순서가 화면과 어긋나면 안 된다.
@@ -1780,6 +1789,21 @@ export function OpsCalendarGrid({
               {copy.hsButton}
               {historyAlerts > 0 && <span className="opsg__histn">{historyAlerts}</span>}
             </button>
+            {/* 매출 요약 — 지금 보고 있는 기간 · 건물의 매출 · 수수료 · 가동률 · ADR · 빈방(가운데 모달). */}
+            {days.length > 0 && (
+              <button
+                aria-haspopup="dialog"
+                className="opsg__editbtn opsg__sales"
+                onClick={() => setSalesOpen(true)}
+                // 누르기 전에 미리 부른다 — 올리기·포커스에서 누르기까지의 틈이 곧 로딩 시간이다.
+                onFocus={() => void prefetchSalesSummary(rows, { days: days.length, properties, start: days[0].date })}
+                onPointerEnter={() => void prefetchSalesSummary(rows, { days: days.length, properties, start: days[0].date })}
+                type="button"
+              >
+                <ChartColumn aria-hidden="true" className="opsg__btnic" />
+                {copy.ssButton}
+              </button>
+            )}
             {todayInView && (
               <button
                 aria-pressed={vacantOnly}
@@ -2078,6 +2102,16 @@ export function OpsCalendarGrid({
         })()}
 
       {historyOpen && <OpsHistoryPanel copy={copy} onClose={() => setHistoryOpen(false)} />}
+      {salesOpen && days.length > 0 && (
+        <OpsSalesSummaryModal
+          copy={copy}
+          days={days.length}
+          onClose={() => setSalesOpen(false)}
+          properties={properties}
+          scope={rows}
+          start={days[0].date}
+        />
+      )}
 
       {priceWinsOpen && (
         <OpsPriceWinsPanel

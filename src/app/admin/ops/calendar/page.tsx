@@ -226,7 +226,9 @@ export default async function OpsCalendarPage({
           <div className={`ops__meta${staleRates ? " stale" : ""}`}>
             {copy.roomCount.replace("{count}", String(data.roomTotal))}
             <span className="ops__dot2" />
-            {syncedLabel}
+            {/* 「N시간 전 동기화」는 예약까지 늦는 것처럼 읽혔다(2026-09-30 사용자) — 무엇이 몇 시간 전인지
+                라벨에 적고, 기준(가장 오래된 칸 · 예약·차단은 실시간)은 마우스를 올리면 보인다. */}
+            <span title={copy.syncedHint}>{syncedLabel}</span>
             <Beds24LiveDot offLabel={copy.liveOff} onLabel={copy.liveOn} />
           </div>
         </div>
