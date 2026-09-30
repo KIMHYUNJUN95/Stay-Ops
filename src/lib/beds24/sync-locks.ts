@@ -116,7 +116,13 @@ export async function releaseBeds24Lock(
   }
 }
 
-export type CooldownState = { active: boolean; remainingSec: number; reason: string | null };
+export type CooldownState = {
+  active: boolean;
+  remainingSec: number;
+  reason: string | null;
+  /** 쉬는 시각의 끝(`expires_at`). 쉬고 있지 않으면 `null`. 이력 패널의 「몇 시 이후 재전송」에 쓴다. */
+  until: string | null;
+};
 
 /** 지금 Beds24 를 불러도 되는가. */
 export async function getBeds24Cooldown(supabase: Client): Promise<CooldownState> {
@@ -126,12 +132,13 @@ export async function getBeds24Cooldown(supabase: Client): Promise<CooldownState
     .eq("name", API_COOLDOWN)
     .maybeSingle();
   const row = result.data as { expires_at: string; reason: string | null } | null;
-  if (!row) return { active: false, reason: null, remainingSec: 0 };
+  if (!row) return { active: false, reason: null, remainingSec: 0, until: null };
   const remainingMs = new Date(row.expires_at).getTime() - Date.now();
   return {
     active: remainingMs > 0,
     reason: row.reason,
     remainingSec: remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0,
+    until: remainingMs > 0 ? row.expires_at : null,
   };
 }
 

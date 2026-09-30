@@ -30,6 +30,7 @@ import {
   type BlockWriteFailure,
 } from "@/lib/beds24/block-write";
 import { groupSelectionIntoRanges } from "@/lib/ops-calendar-selection";
+import { parsePropertyParam } from "@/lib/ops-calendar-properties";
 import { canAccessOpsAdmin } from "@/lib/ops-admin";
 import {
   getOpsPriceConversions,
@@ -1124,7 +1125,7 @@ export async function loadOpsSendLog(args: { before?: string | null }): Promise<
   const supabase = getSupabaseServiceClient();
   const before = args.before ?? new Date(Date.now() + 60_000).toISOString();
 
-  const [jobs, blocks, names] = await Promise.all([
+  const [jobs, blocks, names, cooldown] = await Promise.all([
     supabase
       .from("beds24_price_jobs")
       .select("id, job_type, status, created_at, completed_at, requested_by_name, error, results, room_updates")
@@ -1142,12 +1143,14 @@ export async function loadOpsSendLog(args: { before?: string | null }): Promise<
       .order("created_at", { ascending: false })
       .limit(SEND_LOG_PAGE),
     readRoomNames(session),
+    // 전역 쿨다운이 켜져 있으면 대기 작업은 「안 나감」이 아니라 「Beds24 한도 대기」다(`resolveSendWait`).
+    getBeds24Cooldown(supabase).catch(() => null),
   ]);
   if (jobs.error || blocks.error) return { error: "failed", ok: false };
 
   const now = Date.now();
   const merged = mergeSendEntries(
-    ((jobs.data ?? []) as PriceJobLogRow[]).map((job) => buildJobSendEntry(job, names.byExternal, now)),
+    ((jobs.data ?? []) as PriceJobLogRow[]).map((job) => buildJobSendEntry(job, names.byExternal, now, cooldown)),
     ((blocks.data ?? []) as BlockLogRow[]).map((row) => {
       const name = opsRoomDisplayName(row.property_name, row.room_label ?? "", names.buildingLabels);
       return buildBlockSendEntry({ ...row, property_name: name.property, room_label: name.room || null });
@@ -1245,15 +1248,20 @@ export type OpsPriceConversionsResult =
 /**
  * 가격 개입 전환(최근 90일) — 격자가 그린 뒤 따로 받는다(2026-09-30 속도).
  *
- * 창과 무관하고 판정이 가장 느린 단계라 페이지 렌더에서 뺐다. 건물을 고르면 그 건물 것만.
+ * 창과 무관하고 판정이 가장 느린 단계라 페이지 렌더에서 뺐다. 건물을 고르면 그 건물(들) 것만.
  */
-export async function loadOpsPriceConversions(args: { property?: string | null }): Promise<OpsPriceConversionsResult> {
+export async function loadOpsPriceConversions(args: {
+  /** 고른 건물(들). 빈 목록 = 전체(2026-09-30 다중 선택). */
+  properties?: readonly string[] | null;
+}): Promise<OpsPriceConversionsResult> {
   const session = await requireOpsWriter();
   if (!session) return { error: "forbidden", ok: false };
   try {
-    const conversions = await getOpsPriceConversions(session, {
-      property: typeof args.property === "string" && args.property ? args.property : undefined,
-    });
+    // 클라이언트가 보낸 값이라 모양부터 다시 거른다 — 문자열만, 공백 제거, 중복 제거.
+    const properties = parsePropertyParam(
+      Array.isArray(args.properties) ? args.properties.filter((name): name is string => typeof name === "string") : [],
+    );
+    const conversions = await getOpsPriceConversions(session, { properties });
     return { conversions, ok: true };
   } catch (error) {
     console.error("[ops-calendar] price conversions read failed", error);

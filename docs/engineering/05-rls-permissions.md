@@ -1270,3 +1270,17 @@ authenticated` + `grant execute … to service_role` 을 함께 넣었다 — �
 쓰기는 **서비스 롤만**(서버 액션이 운영 관리자 권한 `canAccessOpsAdmin` 을 확인한 뒤 남긴다).
 판매 캘린더 「이력」 패널의 서버 액션(`loadOpsChangeHistory` · `loadOpsSendLog` · `sendPendingPriceJobs`)은
 service-role 로 읽으므로 **조직을 쿼리에 직접 건다**(`organization_id = session.organization.id`).
+
+## 2026-09-30 `beds24_deferred_refreshes` · Beds24 틱 함수 — service_role 전용
+
+마이그레이션 `202609300003_beds24_deferred_refreshes.sql` · `202609300004_beds24_tick_cron.sql` (운영 미적용).
+
+- `beds24_deferred_refreshes`: RLS 켜고 **정책 없음** + `revoke all … from anon, authenticated` +
+  `grant all … to service_role`. `beds24_sync_state` 와 같은 방식이다 — 사용자 클라이언트가 읽을 이유가
+  없다. 조직 경계를 넘는 시스템 표라(건물 하나 = 조직 하나) 틱이 행에 적힌 `organization_id` 로 재조회를
+  돌린다. 그 재조회(`syncBeds24RoomRates` · `syncBeds24RoomBlocks`)는 모든 쿼리에 그 조직을 직접 건다.
+- `beds24_tick_token_ok(text)` · `beds24_tick_if_needed()`: `SECURITY DEFINER`(Vault 읽기) ·
+  `search_path = ''` · `revoke all … from public, anon, authenticated` + `grant execute … to service_role`.
+  토큰 대조 함수는 **값을 돌려주지 않고** 일치 여부만 돌려준다.
+- `/api/beds24/tick` 은 사람 세션이 아니라 토큰으로 연다 — Vault 토큰(pg_net 호출), 또는 워커와 같은
+  `CRON_SECRET` / `BEDS24_WEBHOOK_SECRET`. 토큰은 헤더로만 받는다(쿼리 문자열은 접근 로그에 남는다).

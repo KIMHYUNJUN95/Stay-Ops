@@ -1934,3 +1934,43 @@ r.synced_at < excluded.synced_at and r.organization_id = excluded.organization_i
 `src/lib/beds24/price-job-worker.ts` 의 `patchLocalRates`/`refreshLinkedLocalRates`(가격 작업 워커가 검증
 통과 값을 즉시 로컬에 반영할 때)는 일반 `upsert()` 를 쓰되 자기 쓰기 시각을 `synced_at` 으로 찍어 같은
 규약을 지킨다.
+
+## 2026-09-30 `beds24_deferred_refreshes` · Beds24 틱 함수 — 쿨다운이 풀리면 이어받기
+
+마이그레이션: `supabase/migrations/202609300003_beds24_deferred_refreshes.sql`,
+`supabase/migrations/202609300004_beds24_tick_cron.sql` (**운영 미적용** — 리드 검토 후 적용).
+계약: `docs/product/33-calendar-write-features.md` → 「쿨다운이 풀리면 1분 안에 이어서 보낸다 · 미뤄 둔 웹훅 재조회」.
+
+### `public.beds24_deferred_refreshes` — 미뤄 둔 건물 재조회
+
+가격·재고 웹훅이 쿨다운·가격 작업 대기 때문에 물러났거나, 읽다가 실패했을 때 「이 건물은 다시 읽어야
+한다」를 남긴다. **건물당 한 줄.**
+
+| 컬럼 | 타입 | 비고 |
+| --- | --- | --- |
+| `external_property_id` | `text` PK | Beds24 propId |
+| `organization_id` | `uuid` not null → `organizations(id)` on delete cascade | 재조회를 어느 조직으로 돌릴지 |
+| `reason` | `text` not null, check `cooldown` · `price_job` · `failed` | 마지막으로 남은 이유 |
+| `requested_at` | `timestamptz` not null default `now()` | 가장 최근 요청 시각. 읽기 **시작 시각 이하**일 때만 지운다 |
+| `attempts` | `integer` not null default 0 | 틱의 실패 횟수. 5 이상이면 틱이 더 안 부른다. 새 웹훅이 0 으로 되돌린다 |
+| `last_error` | `text` null | `room-rates:*` 실패 코드만(토큰·본문 없음) |
+| `updated_at` | `timestamptz` not null default `now()` | |
+
+인덱스: `(requested_at)` — 틱이 오래된 것부터 집는다. 쓰는 곳: `src/lib/beds24/price-webhook.ts`
+`refreshBeds24Property`(upsert · 성공 시 delete), `src/app/api/beds24/tick/route.ts`(attempts 증가).
+
+### 함수
+
+| 함수 | 시그니처 | 하는 일 |
+| --- | --- | --- |
+| `beds24_tick_token_ok` | `(p_token text) returns boolean` | Vault `beds24_tick_token` 과 SHA-256 다이제스트끼리 비교. 값은 돌려주지 않는다. 32자 미만은 거부 |
+| `beds24_tick_if_needed` | `() returns text` | 쿨다운(`beds24_sync_locks.api_cooldown`) · 틱 락(`beds24_tick`) · 대기 작업(`queued` 또는 15분 넘은 `processing`) · 재시도 한도 안의 미뤄 둔 재조회를 보고, 필요할 때만 `net.http_post` 로 `/api/beds24/tick` 호출. 반환 `cooldown`·`busy`·`idle`·`not_configured`·`fired` 가 `cron.job_run_details` 에 남는다 |
+
+둘 다 `SECURITY DEFINER` · `search_path = ''` (Vault 를 읽어야 해서). `revoke all … from public, anon,
+authenticated` + `grant execute … to service_role`. `auth.uid()` 판정 헬퍼가 아니다 — 호출자는 pg_cron
+(postgres)과 틱 라우트(service_role)뿐이다.
+
+pg_cron 잡 `beds24-tick` (`* * * * *`) → `select public.beds24_tick_if_needed()`. 확장: `pg_net`(이
+마이그레이션에서 활성화), `pg_cron`·`supabase_vault`·`pgcrypto`(기존). Vault 시크릿 `beds24_tick_token`
+(SQL 안에서 난수 생성) · `beds24_tick_url`. 판단 조건은 `src/lib/beds24/tick-plan.ts` `decideBeds24Tick`
+과 같게 유지한다(`src/lib/__tests__/beds24-tick-plan.test.ts` 가 이름·한도 일치를 검사).

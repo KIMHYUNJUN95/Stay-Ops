@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { AdminDatePicker } from "@/components/admin/shared/admin-date-picker";
+import { buildOpsCalendarHref, type OpsSearchParamValue } from "@/lib/ops-calendar-properties";
 
 /**
  * 판매 캘린더의 **날짜 점프** — 가로축 라벨을 눌러 달력에서 고른다.
@@ -28,8 +29,11 @@ export function OpsCalendarJump({
   display: string;
   labels: { prevMonth: string; nextMonth: string; today: string };
   localeTag: string;
-  /** 지금 걸려 있는 쿼리. 날짜만 갈아 끼우고 나머지(건물·모드·취소)는 그대로 둔다. */
-  params: Record<string, string | undefined>;
+  /**
+   * 지금 걸려 있는 쿼리. 날짜만 갈아 끼우고 나머지(건물·모드·취소)는 그대로 둔다. 건물은 여러 곳일 수
+   * 있어 배열이면 키를 반복한다(`buildOpsCalendarHref`).
+   */
+  params: Record<string, OpsSearchParamValue>;
   /** 30일 창의 시작일. */
   start: string;
 }) {
@@ -42,12 +46,8 @@ export function OpsCalendarJump({
       labels={labels}
       localeTag={localeTag}
       onChange={(picked) => {
-        const query = new URLSearchParams();
         // 고른 날이 **시작일**이다. 「그 날짜 기준으로 앞으로 30일」이 이 화면의 축이다.
-        for (const [key, value] of Object.entries({ ...params, month: undefined, start: picked })) {
-          if (value) query.set(key, value);
-        }
-        router.push(`/admin/ops/calendar?${query.toString()}`);
+        router.push(buildOpsCalendarHref({ ...params, month: undefined, start: picked }));
       }}
       value={start}
     />

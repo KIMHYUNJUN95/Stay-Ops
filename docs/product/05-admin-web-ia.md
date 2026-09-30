@@ -1247,6 +1247,28 @@ Management Console" → Current Implementation Note.
 다른 콘솔 로더들은 내부에서 `loadError` 플래그로 접어 화면을 유지한다. 위 셋도 같은 방식으로
 바꾸는 것이 낫지만, 우선 **떨어질 곳을 제대로 만들어 두는 것**을 먼저 했다.
 
+## 상단 예약 검색 (2026-09-30)
+
+어드민 상단 검색창은 **판매 캘린더 권한(`ops_admin.access`)이 있으면** 예약 검색이다 — 고객명 ·
+예약번호(Beds24 id · masterId · 채널 예약번호 `apiReference`) · 전화번호(`phone` · `mobile`)로 찾아
+**판매 캘린더의 예약 상세 사이드 패널**(`ops-reservation-panel.tsx`)을 연다. 권한이 없으면 예전 자리
+표시 입력 그대로다(열어 줄 패널이 없다). 「고객번호」라는 별도 개념은 데이터에 없어 전화번호·예약번호로 찾는다.
+
+- **이름 매칭**(`src/lib/guest-search.ts`, 테스트 `guest-search.test.ts`): 대소문자 · 악센트 · 전각 ·
+  **띄어쓰기 무시**, **성·이름 순서 무관**(`minsukim` = `Kim Minsu`, `민수김` = `김 민수`). DB 에서는 단어마다
+  앞뒤 글자 조각(ilike)으로 넓게 받고, 최종 판정은 서버 JS 가 한다.
+- **결과가 여럿이면(동명이인 등) 아래로 목록**이 펼쳐진다 — 이름 · 건물 · 객실 · 체크인→아웃 · 박수 · 연도 ·
+  채널 점, 취소는 취소선. 살아 있는 예약 먼저, 그다음 오늘과 가까운 순, 최대 20건. 하나뿐이면 Enter 로 바로 연다.
+- 판매 캘린더 위에서는 그 자리에서 패널을 연다(이벤트 `stayops:ops-open-reservation`). 다른 화면에서는
+  `/admin/ops/calendar?resv=<id>` 로 넘어가 열고, 주소에서 `resv` 는 바로 뗀다. 창 밖 숙박도 열린다.
+- 오른쪽 끝은 ⌘K 장식 대신 **검색 버튼**(Enter 모양, 입력 전에는 비활성) + 입력 중 지우기(X).
+  ⌘K / Ctrl+K 로 검색창에 포커스하는 단축키는 실제로 동작한다. ↑↓ 로 고르고 Esc 로 닫는다.
+- 서버 액션 `src/app/admin/ops/calendar/search-actions.ts`(service-role, 조직 필터 직접), 막대·객실 행
+  매핑은 격자와 같은 `resolveOpsReservationPlacements`(`ops-calendar.ts`). 문구는 `admin.console.search*`(ko/ja/en).
+- 컴포넌트 `src/components/shell/admin-guest-search.tsx`, 스타일 `admin-console.css` 의 `.gsearch*`.
+- 상단바(`.adm .top`)는 z-index 20 — 목록이 판매 캘린더의 붙는 날짜 머리(z 6) 아래로 깔리던 것을 고쳤다.
+  펼친 사이드바(z 30)보다는 낮다.
+
 ## 모바일 미리보기 (2026-09-11)
 
 상단 「모바일 보기」는 전체 화면으로 넘어가는 대신 **아이폰 모양 프레임**을 띄운다. 어드민에서

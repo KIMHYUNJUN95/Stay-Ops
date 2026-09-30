@@ -9,6 +9,24 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-09-30 (3) — 판매 캘린더 건물 여러 곳 함께 보기
+
+- 건물 탭에 체크 동그라미(hover/focus) · Ctrl/⌘/Shift + 클릭으로 여러 건물을 골라 위아래로 쌓아 본다(탭 순서).
+  그냥 클릭 = 그 건물만, 「전체」 = 선택 해제. 둘 이상이면 「건물 N곳 ×」 요약 칩. i18n `property*` ko/ja/en.
+- URL `property` 반복(`?property=A&property=B`), 단일은 예전 그대로. `selectedProperty` → `selectedProperties`,
+  요금·이력·신선도·가격 개입·실시간 신호 범위·`after()` 당김(고른 건물 중 id 없는 곳이 있으면 당기지 않음)까지
+  목록으로. 「객실 N」은 보이는 객실 수로. 공용 `AdminMonthPicker` 가 반복 쿼리 키를 전부 보존.
+- 새 파일: `src/lib/ops-calendar-properties.ts`(+테스트) · `src/components/admin/ops/ops-property-tabs.tsx`.
+  `OpsNavLink` 가 `title`/`aria-*`/`onClick` 을 넘기고, `useOpsNavigate()` 가 버튼 이동에도 같은 대기 표시를 쓴다.
+- 문서: `33-calendar-write-features.md` 「건물 여러 곳 함께 보기」 · `01-decision-log.md`.
+- **전송 로그 — Beds24 한도 대기 표시.** 429·크레딧 부족 쿨다운으로 `queued` 에 되돌린 작업은 워커가
+  `error` 에 `cooldown_rate_limit|low_credit@<재전송 시각>` 을 적고(`src/lib/beds24/price-job-wait.ts`, 다시 집을 때
+  지움), 전역 쿨다운이 켜져 있으면 사유 없는 대기도 같이 본다(`resolveSendWait`). 이력 패널은 빨간 「안 나감」 대신
+  주황 「Beds24 한도 대기」 + 「Beds24 요청 한도 초과 · 14:32 이후 자동 재전송」(지났으면 「곧 자동 재전송」)을 보이고,
+  탭 점·「이력」 버튼 알림 숫자에서 뺀다(`isSendStalled` · `countStalledJobs`). 재전송 시각에서 3분이 더 지나도 안
+  나가면 다시 「안 나감」. 마이그레이션 없음. i18n `hsStatusCooldown` · `hsWait*` ko/ja/en. 33번 「한도 대기는 이유와
+  재전송 시각을 보여 준다」(+ 「가격 웹훅이 다시 읽을 때도…」의 낡은 문장 정정).
+
 ## 2026-09-30 (2) — 판매 캘린더 디버깅: 락 원자화 · 요금 upsert 이중 방벽 · 무한 새로고침 · 그 밖의 정확성 수정
 
 - **Beds24 락 원자화.** `acquireBeds24Lock`/`releaseBeds24Lock`(`src/lib/beds24/sync-locks.ts`)이 「읽고 →
@@ -46,9 +64,16 @@ and the major mobile/admin operations modules are implemented and being hardened
 - 문서: `33-calendar-write-features.md`(신설 다수 절) · `04-data-model.md`(RPC 2종) ·
   `05-rls-permissions.md`(RPC EXECUTE 권한) · `15-reservation-calendar.md`(신호 범위 참고).
 
+## 2026-09-30 — 어드민 상단 예약 검색
+
+- 상단 검색창(판매 캘린더 권한자)에서 고객명 · 예약번호 · 전화번호로 예약을 찾아 예약 상세 사이드 패널을 연다.
+  이름은 띄어쓰기 · 성 순서 무관, 동명이인 등 여럿이면 아래 목록에서 고른다. 오른쪽 끝 ⌘K 장식 → 검색 버튼.
+  (`05-admin-web-ia.md` → 「상단 예약 검색」)
+
 ## 2026-09-30 — 판매 캘린더 차단 막대 검정
 
 - 판매 캘린더 BLOCK 막대를 옅은 회색 빗금 → 완전 검정 + 흰 라벨로. (`33-calendar-write-features.md`)
+- 30일 뷰의 달 경계: 1일 칸의 7.5px 글씨 → 날짜 머리 위 **달 줄**(2026년 9월 | 2026년 10월)로. 날짜를 가리지 않는다.
 
 ## 2026-09-30 — 모바일 미리보기 프레임 질감
 
@@ -5586,3 +5611,10 @@ STAY ARI 210 10/4 · 206 10/18)을 판매 캘린더 열 때의 요금 새로고�
 **「1박 갭 N」 버튼 (2026-09-30).** 누르면 최소 숙박일 모드 + 갭 칸 전부 선택 + 오른쪽 패널(`ops-gap-button.tsx`).
 
 **캘린더 이식 잔여**: 모바일.
+
+**Beds24 틱 — 쿨다운 뒤 1분 안에 이어받기 · 미뤄 둔 웹훅 재조회 (2026-09-30).** 쿨다운으로 `requeued` 된 가격 작업이
+GitHub 크론(실측 3~5시간)까지 앉아 있던 것, 쿨다운·대기 작업에 물러난 재고 웹훅 변경이 버려지던 것 → Supabase pg_cron
+매 분 `beds24_tick_if_needed()` 가 필요할 때만 pg_net 으로 `/api/beds24/tick` 호출(작업 우선, 없으면 미뤄 둔 건물
+재조회). 새 표 `beds24_deferred_refreshes`(service-role 전용), 토큰은 Vault(SQL 안에서 난수 생성, 새 env 없음).
+마이그레이션 `202609300003` · `202609300004` **운영 미적용**(리드 검토 대기). 33번 「쿨다운이 풀리면 1분 안에…」,
+04 · 05 · 07 엔지니어링 문서. tsc · vitest(745) · lint 통과.

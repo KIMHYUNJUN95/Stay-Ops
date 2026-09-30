@@ -94,6 +94,115 @@
   color: #fff;
   box-shadow: 0 2px 6px -2px color-mix(in oklab, var(--adm-primary) 50%, transparent);
 }
+.ops__prop:focus-visible,
+.ops__pck:focus-visible,
+.ops__psumx:focus-visible {
+  outline: 2px solid var(--adm-primary);
+  outline-offset: -2px;
+}
+
+/* ── 건물 다중 선택(2026-09-30) ─────────────────────────────────────────
+ * 건물 탭 하나 = `.ops__ptab`(알약) 안에 체크 동그라미(`.ops__pck`, 버튼)와 이름(`.ops__prop`, 링크).
+ * 알약 색은 바깥 `.ops__ptab` 가 쥐고, 안쪽 링크는 투명하다 — 동그라미와 이름이 한 덩어리로 보인다.
+ *
+ * 동그라미는 올리거나(hover) 포커스하면 **옆으로 펼쳐지며** 나타난다(폭 0 → 15px). 여러 곳을 고른
+ * 상태(`.multi`)에서는 고른 탭마다 늘 보인다 — 무엇이 함께 보이는지 탭 줄만으로 읽힌다.
+ * 링크 안에 버튼을 넣으면 HTML 이 깨지므로 둘은 형제다.
+ */
+.ops__ptab {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  border-radius: 9px;
+  color: var(--adm-muted);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.ops__ptab:hover:not(.on) { background: color-mix(in oklab, var(--adm-primary) 7%, transparent); color: var(--soft); }
+.ops__ptab.on {
+  background: var(--adm-primary);
+  color: #fff;
+  box-shadow: 0 2px 6px -2px color-mix(in oklab, var(--adm-primary) 50%, transparent);
+}
+.ops__ptab .ops__prop {
+  color: inherit;
+  transition: padding 0.15s ease;
+}
+.ops__pck {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 0;
+  height: 15px;
+  margin-left: 0;
+  padding: 0;
+  overflow: hidden;
+  opacity: 0;
+  border: 1.5px solid color-mix(in oklab, currentColor 55%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: width 0.15s ease, margin 0.15s ease, opacity 0.12s ease, background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+.ops__pckic { width: 9px; height: 9px; opacity: 0; transition: opacity 0.12s ease; }
+.ops__ptab:hover .ops__pck,
+.ops__ptab:focus-within .ops__pck,
+.ops__ptab.multi .ops__pck {
+  width: 15px;
+  margin-left: 9px;
+  opacity: 1;
+}
+.ops__ptab:hover .ops__prop,
+.ops__ptab:focus-within .ops__prop,
+.ops__ptab.multi .ops__prop { padding-left: 6px; }
+/* 안 고른 탭의 동그라미에 올리면 체크가 흐리게 비친다 — 「누르면 들어간다」. */
+.ops__pck:hover { border-color: currentColor; }
+.ops__pck:hover .ops__pckic { opacity: 0.45; }
+/* 고른 탭 = 남색 알약 위의 흰 동그라미 + 남색 체크. */
+.ops__pck[aria-pressed="true"] {
+  border-color: #fff;
+  background: #fff;
+  color: var(--adm-primary);
+}
+.ops__pck[aria-pressed="true"] .ops__pckic { opacity: 1; }
+.ops__pck[aria-pressed="true"]:hover { background: color-mix(in oklab, #fff 82%, var(--adm-primary)); }
+
+/* 탭 줄 뒤의 「건물 N곳 ×」 요약 — 상단 줄 컨트롤 급(28px, `--ops-ctl`). */
+.ops__psum {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  padding: 0 3px 0 10px;
+  border: 1px solid color-mix(in oklab, var(--adm-primary) 28%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--adm-primary) 8%, var(--card));
+  color: var(--adm-primary);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+.ops__psumx {
+  display: inline-grid;
+  grid-auto-flow: column;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  color: inherit;
+}
+.ops__psumx svg { width: 13px; height: 13px; }
+.ops__psumx .ops__navspin { margin-left: 2px; }
+.ops__psumx:hover { background: color-mix(in oklab, var(--adm-primary) 14%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .ops__ptab,
+  .ops__ptab .ops__prop,
+  .ops__pck,
+  .ops__pckic { transition: none; }
+}
 
 .ops__seg {
   display: inline-flex;
@@ -321,16 +430,46 @@
 .opsg__day.today .opsg__dn,
 .opsg__day.today .opsg__dw { color: #fff; }
 /* 달이 바뀌는 칸 — 30일 뷰는 달을 넘어가므로 경계가 보여야 한다. */
-.opsg__day.m1 { box-shadow: inset 1px 0 0 var(--adm-primary); }
-.opsg__mtag {
-  position: absolute;
-  top: -1px;
-  left: 2px;
-  font-size: 7.5px;
+.opsg__day.m1 { box-shadow: inset 2px 0 0 var(--adm-primary); }
+
+/* 날짜 머리 = 달 줄 + 날짜 줄. 방 이름 칸(`.opsg__corner`)은 두 줄 높이를 다 쓴다. */
+.opsg__heads {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.opsg__days { display: flex; }
+/*
+ * 달 줄(2026-09-30) — 이어진 같은 달을 한 칸으로 묶어 달 이름을 적는다. 예전에는 1일 칸에 7.5px
+ * 글씨·깃발을 얹었는데 작아서 안 보이거나 좁은 칸에서 날짜를 가렸다(사용자 지적).
+ * 칸 폭은 날짜 칸과 같은 `flex: 1 1 0` 비율(`flex-grow` = 날 수)이라 경계가 정확히 맞는다.
+ */
+.opsg__months {
+  display: flex;
+  height: 22px;
+  border-bottom: 1px solid var(--line);
+}
+/* **칸에는 여백을 주지 않는다** — `flex-basis: 0` 이어도 좌우 padding 은 비율 계산 전에 먼저 잡혀,
+   짧은 달(2일)이 날짜 칸보다 넓어지고 경계선이 몇 px 어긋났다(2026-09-30). 여백은 글씨(span)에. */
+.opsg__month {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.opsg__month span {
+  padding: 0 8px;
+  font-size: 11.5px;
   font-weight: 800;
   color: var(--adm-primary);
-  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
 }
+.opsg__month.m1 { box-shadow: inset 2px 0 0 var(--adm-primary); }
 
 /*
  * 격자 스크롤. 가로·세로 둘 다 길어서 **스크롤바가 있다는 사실 자체는 필요하다** —
@@ -416,7 +555,7 @@
  */
 .opsg__cell.we { background: hsl(352 62% 96%); }
 .opsg__cell.past { opacity: 0.42; }
-.opsg__cell.m1 { box-shadow: inset 1px 0 0 color-mix(in oklab, var(--adm-primary) 28%, transparent); }
+.opsg__cell.m1 { box-shadow: inset 1.5px 0 0 color-mix(in oklab, var(--adm-primary) 45%, transparent); }
 
 /*
  * 최소숙박 값 구분 — **칸 바탕색**으로 한다 (2026-09-25).
@@ -2454,6 +2593,18 @@
 .opshs__status.is-queued,
 .opshs__status.is-processing { background: var(--info-bg); color: var(--info); }
 .opshs__status.is-stuck { background: var(--danger); color: #fff; }
+/* Beds24 한도 대기(쿨다운) — 멈춘 게 아니라 알고 기다린다. 빨강이 아니라 주황. */
+.opshs__status.is-cooldown { background: var(--warn-bg); color: var(--warn); }
+.opshs__item.is-send.is-cooldown::before { background: var(--warn); }
+.opshs__wait {
+  margin: 6px 0 0;
+  padding: 6px 9px;
+  border-radius: 9px;
+  background: var(--warn-bg);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: color-mix(in oklab, var(--warn) 82%, var(--ink));
+}
 
 /* 실패 사유 */
 .opshs__errors {

@@ -80,9 +80,12 @@ export function AdminMonthPicker({
     setOpen(false);
     const next = new URLSearchParams();
     next.set("ym", targetYm);
+    // 반복 키(`?property=A&property=B`)도 **전부** 옮긴다 — 첫 값만 옮기면 다중 선택이 달을 넘길 때
+    // 하나로 줄어든다(2026-09-30). 값이 하나뿐인 키는 예전과 똑같다.
     for (const key of preserveQueryKeys) {
-      const value = searchParams.get(key);
-      if (value) next.set(key, value);
+      for (const value of searchParams.getAll(key)) {
+        if (value) next.append(key, value);
+      }
     }
     router.push(`${basePath}?${next.toString()}`);
   }

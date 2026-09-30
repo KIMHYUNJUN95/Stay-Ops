@@ -1,7 +1,17 @@
 "use client";
 
 import Link, { useLinkStatus } from "next/link";
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  useTransition,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 
 /**
  * 판매 캘린더의 이동(건물 · 30일/월간 · 앞뒤 · 오늘 · 취소 보기) — **누르는 순간 반응한다**(2026-09-30 속도).
@@ -35,11 +45,43 @@ function PendingMark() {
   return pending ? <span aria-hidden="true" className="ops__navspin" /> : null;
 }
 
-export function OpsNavLink({ children, className, href }: { children: ReactNode; className?: string; href: string }) {
+/** `title` · `aria-*` · `onClick` 같은 속성은 그대로 `<Link>` 로 넘긴다(건물 탭의 힌트·Ctrl+클릭). */
+type OpsNavLinkProps = Omit<ComponentProps<typeof Link>, "href" | "children"> & {
+  children: ReactNode;
+  href: string;
+};
+
+export function OpsNavLink({ children, href, ...rest }: OpsNavLinkProps) {
   return (
-    <Link className={className} href={href}>
+    <Link {...rest} href={href}>
       {children}
       <PendingMark />
     </Link>
   );
+}
+
+/**
+ * 링크가 아닌 곳(건물 탭의 체크 동그라미 · Ctrl/⌘+클릭)에서 이동할 때도 **같은 대기 표시**를 쓴다.
+ *
+ * `router.push` 를 전환(transition)으로 감싸면 새 화면이 올 때까지 `pending` 이 참이다 — 그동안 격자를
+ * 흐리게 하고 위쪽 막대를 돌린다(`OpsNavScope`). 어느 버튼이 눌렸는지는 부르는 쪽이 들고 있다.
+ */
+export function useOpsNavigate() {
+  const router = useRouter();
+  const bump = useContext(NavPendingContext);
+  const [pending, startTransition] = useTransition();
+  useEffect(() => {
+    if (!pending) return;
+    bump(1);
+    return () => bump(-1);
+  }, [bump, pending]);
+  const navigate = useCallback(
+    (href: string) => {
+      startTransition(() => {
+        router.push(href);
+      });
+    },
+    [router],
+  );
+  return { navigate, pending };
 }

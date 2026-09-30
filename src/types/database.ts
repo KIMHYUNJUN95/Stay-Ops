@@ -1424,6 +1424,44 @@ export type Database = {
           },
         ]
       }
+      beds24_deferred_refreshes: {
+        Row: {
+          attempts: number
+          external_property_id: string
+          last_error: string | null
+          organization_id: string
+          reason: string
+          requested_at: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          external_property_id: string
+          last_error?: string | null
+          organization_id: string
+          reason: string
+          requested_at?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          external_property_id?: string
+          last_error?: string | null
+          organization_id?: string
+          reason?: string
+          requested_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "beds24_deferred_refreshes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       beds24_price_jobs: {
         Row: {
           adjust_mode: string | null
@@ -5062,6 +5100,8 @@ export type Database = {
         Args: { p_lock_id: string; p_name: string }
         Returns: boolean
       }
+      beds24_tick_if_needed: { Args: never; Returns: string }
+      beds24_tick_token_ok: { Args: { p_token: string }; Returns: boolean }
       beds24_try_lock: {
         Args: {
           p_lock_id: string

@@ -4,6 +4,7 @@ import { OpsCalendarGrid } from "@/components/admin/ops/ops-calendar-grid";
 import { OpsCalendarJump } from "@/components/admin/ops/ops-calendar-jump";
 import { OpsNavLink, OpsNavScope } from "@/components/admin/ops/ops-nav";
 import { OpsGapButton } from "@/components/admin/ops/ops-gap-button";
+import { OpsPropertyTabs } from "@/components/admin/ops/ops-property-tabs";
 import { AdminMonthPicker } from "@/components/admin/shared/admin-month-picker";
 import { shiftMonthKey } from "@/components/admin/shared/admin-month-key";
 import "@/components/admin/ops/ops-console.css";
@@ -15,6 +16,11 @@ import { getDictionary } from "@/lib/i18n";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getOpsCalendarData, OPS_CALENDAR_ROLLING_DAYS } from "@/lib/ops-calendar";
 import { opsNavId } from "@/lib/ops-admin";
+import {
+  buildOpsCalendarHref,
+  parsePropertyParam,
+  togglePropertySelection,
+} from "@/lib/ops-calendar-properties";
 import { requireOpsAdminPage } from "../ops-page-session";
 import { Beds24LiveRefresh } from "@/components/shared/beds24-live-refresh";
 
@@ -41,7 +47,11 @@ type SearchParams = {
    * 두면 그 컴포넌트를 못 쓰고 달력을 또 만들게 된다(CLAUDE.md §4a).
    */
   ym?: string;
-  property?: string;
+  /**
+   * 고른 건물. **반복될 수 있다**(`?property=A&property=B`, 2026-09-30 다중 선택) — Next 는 반복 키를
+   * 배열로 준다. 하나면 예전과 같은 `?property=A`.
+   */
+  property?: string | string[];
   /** 30일 뷰의 시작일. 없으면 도쿄 기준 어제. */
   start?: string;
   cancelled?: string;
@@ -69,7 +79,7 @@ export default async function OpsCalendarPage({
     getOpsCalendarData(session, {
       mode: params.mode,
       month: params.ym,
-      property: params.property,
+      properties: parsePropertyParam(params.property),
       start: params.start,
       showCancelled: params.cancelled === "1",
     }),
@@ -111,12 +121,14 @@ export default async function OpsCalendarPage({
   const firstVisibleDate = data.days.at(0)?.date;
   const lastVisibleDate = data.days.at(-1)?.date;
   if (firstVisibleDate && lastVisibleDate) {
-    const selectedExternalId = data.selectedProperty
-      ? data.propertyExternalIds[data.selectedProperty]
-      : undefined;
-    // 신선도(`ratesSyncedAt`)는 **보이는 객실**로 잰다 — 당기는 범위도 똑같아야 한다. 건물을 골랐는데
-    // Beds24 id 가 없으면 전 건물을 당기게 되므로 당기지 않는다(당겨도 이 화면의 신선도는 그대로다).
-    const canRefresh = data.ratesRefreshable && (!data.selectedProperty || Boolean(selectedExternalId));
+    const selectedExternalIds = data.selectedProperties
+      .map((name) => data.propertyExternalIds[name])
+      .filter((id): id is string => Boolean(id));
+    // 신선도(`ratesSyncedAt`)는 **보이는 객실**로 잰다 — 당기는 범위도 똑같아야 한다. 고른 건물 중 **하나라도**
+    // Beds24 id 가 없으면 당기지 않는다 — 그 건물 객실은 당겨도 안 바뀌어 신선도가 그대로이고, 전 건물로
+    // 넓히면 「낡음 → 당김 → 신호 → 새로고침 → 낡음」 무한 루프가 다시 돈다(33번 문서).
+    const canRefresh =
+      data.ratesRefreshable && selectedExternalIds.length === data.selectedProperties.length;
     after(async () => {
       const supabase = getSupabaseServiceClient();
       // 대기 중인 가격·최소숙박 작업이 있으면 먼저 보낸다 — 접수 직후 깨우기가 실패한 작업이
@@ -124,7 +136,7 @@ export default async function OpsCalendarPage({
       if (await hasPendingPriceJobs(supabase)) await kickPriceJobWorker(supabase);
       if (!canRefresh) return;
       await refreshOpsCalendarRates({
-        externalPropertyIds: selectedExternalId ? [selectedExternalId] : undefined,
+        externalPropertyIds: selectedExternalIds.length > 0 ? selectedExternalIds : undefined,
         organizationId: session.organization.id,
         supabase,
         syncedAt: data.ratesSyncedAt,
@@ -133,21 +145,26 @@ export default async function OpsCalendarPage({
     });
   }
 
-  const hrefWith = (next: Partial<SearchParams>) => {
-    const query = new URLSearchParams();
-    const merged: SearchParams = {
+  // 건물이 여럿이면 `property` 를 **반복**해 싣는다(탭 순서). 빈 목록은 키 자체를 뺀다 = 전체.
+  const hrefWith = (next: Partial<SearchParams>) =>
+    buildOpsCalendarHref({
       mode: data.mode,
       ym: data.mode === "monthly" ? data.month : undefined,
-      property: data.selectedProperty ?? undefined,
+      property: data.selectedProperties,
       start: data.mode === "rolling" ? data.start : undefined,
       cancelled: showCancelled ? "1" : undefined,
       ...next,
-    };
-    for (const [key, value] of Object.entries(merged)) {
-      if (typeof value === "string" && value) query.set(key, value);
-    }
-    return `/admin/ops/calendar${query.size > 0 ? `?${query.toString()}` : ""}`;
-  };
+    });
+
+  const selectedSet = new Set(data.selectedProperties);
+  const propertyTabs = data.propertyOptions.map((name) => ({
+    href: hrefWith({ property: name }),
+    name,
+    selected: selectedSet.has(name),
+    toggleHref: hrefWith({
+      property: togglePropertySelection(data.selectedProperties, name, data.propertyOptions),
+    }),
+  }));
 
   // 30일 뷰는 ±30일, 월간 뷰는 ±1개월. **월 단위로 바꾸지 않는다** — 바꾸면 오늘이 다시
   // 격자 끝으로 밀린다.
@@ -178,29 +195,26 @@ export default async function OpsCalendarPage({
         organizationId={session.organization.id}
         scope={{
           from: firstVisibleDate ? addDays(firstVisibleDate, -1) : null,
-          propertyNames: data.selectedProperty ? [data.selectedProperty] : null,
+          propertyNames: data.selectedProperties.length > 0 ? data.selectedProperties : null,
           to: lastVisibleDate ? addDays(lastVisibleDate, 1) : null,
         }}
       />
       <OpsNavScope>
         <div className="ops__bar">
-          <div className="ops__props">
-            <OpsNavLink
-              className={`ops__prop${data.selectedProperty ? "" : " on"}`}
-              href={hrefWith({ property: undefined })}
-            >
-              {copy.allProperties}
-            </OpsNavLink>
-            {data.propertyOptions.map((name) => (
-              <OpsNavLink
-                className={`ops__prop${data.selectedProperty === name ? " on" : ""}`}
-                href={hrefWith({ property: name })}
-                key={name}
-              >
-                {name}
-              </OpsNavLink>
-            ))}
-          </div>
+          {/* 건물 탭 — 그냥 누르면 그 건물만, 체크 동그라미 · Ctrl/⌘ + 클릭은 여러 건물 함께(2026-09-30). */}
+          <OpsPropertyTabs
+            allHref={hrefWith({ property: undefined })}
+            copy={{
+              allProperties: copy.allProperties,
+              propertyAdd: copy.propertyAdd,
+              propertyClear: copy.propertyClear,
+              propertyGroupLabel: copy.propertyGroupLabel,
+              propertyRemove: copy.propertyRemove,
+              propertySelectedCount: copy.propertySelectedCount,
+              propertyTabHint: copy.propertyTabHint,
+            }}
+            tabs={propertyTabs}
+          />
           <div className="ops__spacer" />
           {/*
             **얼마나 오래된 값인지 적는다.**
@@ -257,7 +271,7 @@ export default async function OpsCalendarPage({
                 params={{
                   cancelled: showCancelled ? "1" : undefined,
                   mode: data.mode,
-                  property: data.selectedProperty ?? undefined,
+                  property: data.selectedProperties,
                 }}
                 start={data.start}
               />
@@ -349,7 +363,7 @@ export default async function OpsCalendarPage({
           copy={copy}
           days={data.days}
           historyAlerts={historyAlerts}
-          property={data.selectedProperty}
+          properties={data.selectedProperties}
           rows={data.rows}
           showCancelled={showCancelled}
           today={data.today}

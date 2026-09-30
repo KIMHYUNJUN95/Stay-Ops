@@ -7,6 +7,7 @@ import type {
   OpsCalendarDay,
   OpsCalendarRoom,
   OpsPriceConversion,
+  OpsReservationPlacement,
 } from "@/lib/ops-calendar";
 import {
   buildRowRateLookup,
@@ -66,6 +67,8 @@ import {
 import { hasOpsLargeRooms, isOpsLargeRoom, orderOpsLargeRoomsFirst } from "@/lib/ops-large-rooms";
 import { opsVacantRoomKeys } from "@/lib/ops-vacant-today";
 import { OPS_GAP_OPEN_EVENT } from "@/components/admin/ops/ops-gap-button";
+import { OPS_OPEN_RESERVATION_EVENT } from "@/components/shell/admin-guest-search";
+import { loadOpsReservationPlacement } from "@/app/admin/ops/calendar/search-actions";
 
 /**
  * 판매 캘린더 격자.
@@ -91,7 +94,6 @@ type Copy = {
   blockLabel: string;
   emptyBody: string;
   emptyTitle: string;
-  monthTag: string;
   roomCount: string;
   roomsHeader: string;
   /** 일요일(0)부터. `Date.getUTCDay()` 인덱스와 그대로 맞춘다. */
@@ -587,11 +589,36 @@ const OpsGridRow = memo(function OpsGridRow({
   );
 });
 
+
+/**
+ * 날짜 머리 위 **달 줄** — 이어진 같은 달 날짜를 한 칸으로 묶는다(2026-09-30).
+ * 날짜 칸에 달 이름을 얹으면 좁은 칸에서 날짜를 가린다(사용자 지적) — 줄을 따로 둔다.
+ */
+function monthSegments(days: OpsCalendarDay[]): { key: string; year: number; month: number; span: number }[] {
+  const segments: { key: string; year: number; month: number; span: number }[] = [];
+  for (const day of days) {
+    const key = day.date.slice(0, 7);
+    const last = segments[segments.length - 1];
+    if (last && last.key === key) last.span += 1;
+    else segments.push({ key, month: Number(key.slice(5, 7)), span: 1, year: Number(key.slice(0, 4)) });
+  }
+  return segments;
+}
+
+/** 로케일 달 이름. 폭이 넉넉하면 연도까지(2026년 10월 · 2026年10月 · Oct 2026). */
+function monthLabelOf(year: number, month: number, withYear: boolean, localeTag: string): string {
+  return new Intl.DateTimeFormat(localeTag, {
+    month: withYear ? "long" : "short",
+    timeZone: "UTC",
+    ...(withYear ? { year: "numeric" } : {}),
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
 export function OpsCalendarGrid({
   copy: copyProp,
   days: daysProp,
   historyAlerts,
-  property,
+  properties,
   rows,
   showCancelled,
   today,
@@ -600,8 +627,10 @@ export function OpsCalendarGrid({
   days: OpsCalendarDay[];
   /** 최근 7일 Beds24 전송 실패 + 멈춘 대기 작업 수 — 「이력」 버튼에 빨간 숫자로. */
   historyAlerts: number;
-  /** 고른 건물(없으면 전체). 가격 개입 목록을 그 건물 것만 받는 데 쓴다. */
-  property: string | null;
+  /**
+   * 고른 건물(탭 순서, 빈 목록 = 전체). 가격 개입 목록을 그 건물(들) 것만 받는 데 쓴다(2026-09-30 다중 선택).
+   */
+  properties: string[];
   /**
    * 보이는 객실의 행(격자 순서) — `ops-calendar-rows.ts`. 요금(날짜 순 배열)·이력이 있는 칸·갭·막대·
    * 블록을 행마다 묶고 내용 해시(`sig`)를 단다.
@@ -1067,25 +1096,30 @@ export function OpsCalendarGrid({
    * 동안에는 직전 목록을 그대로 쓴다 — 건물이 바뀐 경우만 「불러오는 중」이다(`null`).
    */
   const [conversionsState, setConversionsState] = useState<{
-    property: string | null;
+    propertyKey: string;
     list: OpsPriceConversion[];
   } | null>(null);
+  /**
+   * 고른 건물 목록을 **문자열 하나**로 — 서버가 새로고침마다 새 배열을 보내도 같은 선택이면 같은 값이라
+   * 목록이 「불러오는 중」으로 깜빡이지 않는다. 건물 이름에 줄바꿈은 없다.
+   */
+  const propertyKey = properties.join("\n");
   /** 가장 최근 요청 번호 — 늦게 도착한 옛 응답이 새 목록을 덮지 않게. 효과 안에서만 쓴다. */
   const conversionsRequestRef = useRef(0);
   useEffect(() => {
     conversionsRequestRef.current += 1;
     const requestId = conversionsRequestRef.current;
-    void loadOpsPriceConversions({ property }).then((result) => {
+    void loadOpsPriceConversions({ properties: propertyKey ? propertyKey.split("\n") : [] }).then((result) => {
       if (!result.ok || requestId !== conversionsRequestRef.current) return;
-      setConversionsState({ list: result.conversions, property });
+      setConversionsState({ list: result.conversions, propertyKey });
     });
-  }, [property, refreshGeneration]);
+  }, [propertyKey, refreshGeneration]);
   /** 보이는 객실 것만(건물 필터를 따른다). `null` = 아직 받는 중. */
   const priceConversions = useMemo(() => {
-    if (!conversionsState || conversionsState.property !== property) return null;
+    if (!conversionsState || conversionsState.propertyKey !== propertyKey) return null;
     const visible = new Set(serverRooms.map((room) => room.key));
     return conversionsState.list.filter((conversion) => visible.has(conversion.roomKey));
-  }, [conversionsState, property, serverRooms]);
+  }, [conversionsState, propertyKey, serverRooms]);
   const conversionIds = useMemo(
     () => new Set((priceConversions ?? []).map((conversion) => conversion.reservationId)),
     [priceConversions],
@@ -1096,6 +1130,32 @@ export function OpsCalendarGrid({
     propertyName: string;
     roomIds: string[];
   } | null>(null);
+
+  // 상단 검색(`AdminGuestSearch`)에서 고른 예약 — 이 화면 위에서는 이벤트로, 다른 화면에서
+  // 넘어왔으면 `?resv=` 로 받는다. 창 밖 숙박이라도 상세는 열린다(가격 성과 목록과 같다).
+  useEffect(() => {
+    function onOpen(event: Event) {
+      const placement = (event as CustomEvent<OpsReservationPlacement>).detail;
+      if (placement?.bar?.id) setOpenBar(placement);
+    }
+    window.addEventListener(OPS_OPEN_RESERVATION_EVENT, onOpen);
+
+    const url = new URL(window.location.href);
+    const reservationId = url.searchParams.get("resv");
+    if (reservationId) {
+      // 새로고침으로 다시 열리지 않게 주소에서는 바로 뗀다.
+      url.searchParams.delete("resv");
+      window.history.replaceState(window.history.state, "", url.toString());
+      void loadOpsReservationPlacement(reservationId).then((result) => {
+        // 취소 플래그를 두지 않는다 — 개발 모드의 이중 실행에서 첫 실행이 주소를 떼고 곧바로
+        // 정리되면, 두 번째 실행은 `resv` 를 못 봐서 패널이 영영 안 열린다.
+        if (result.ok) setOpenBar(result.placement);
+      });
+    }
+    return () => {
+      window.removeEventListener(OPS_OPEN_RESERVATION_EVENT, onOpen);
+    };
+  }, []);
 
   const roomKeys = useMemo(() => rooms.map((room) => room.key), [rooms]);
 
@@ -1898,6 +1958,19 @@ export function OpsCalendarGrid({
       <div className="opsg">
       <div className="opsg__head">
         <div className="opsg__corner">{copy.roomsHeader}</div>
+        <div className="opsg__heads">
+        <div className="opsg__months">
+          {monthSegments(days).map((segment, index) => (
+            <div
+              className={`opsg__month${index > 0 ? " m1" : ""}`}
+              key={segment.key}
+              style={{ flexGrow: segment.span }}
+            >
+              <span>{monthLabelOf(segment.year, segment.month, segment.span >= 4, copy.localeTag)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="opsg__days">
         {days.map((day) => (
           <div
             className={[
@@ -1917,15 +1990,12 @@ export function OpsCalendarGrid({
                 : undefined
             }
           >
-            {day.startsMonth && (
-              <span className="opsg__mtag">
-                {copy.monthTag.replace("{month}", String(Number(day.date.slice(5, 7))))}
-              </span>
-            )}
             <div className="opsg__dn">{day.day}</div>
             <div className="opsg__dw">{weekdays[day.weekday]}</div>
           </div>
         ))}
+        </div>
+        </div>
       </div>
 
       {/* 편집 모드의 드래그는 여기 **한 곳**에서 받는다. 포인터를 붙잡아(capture) 격자 밖에서
@@ -2034,7 +2104,12 @@ export function OpsCalendarGrid({
             });
           }}
           propertyName={
-            new Set(rooms.map((room) => room.propertyName)).size === 1 ? rooms[0]?.propertyName ?? null : null
+            // 여러 건물을 골랐으면 그 이름들을 잇는다(탭 순서). 전체면 「전체 건물」.
+            properties.length > 1
+              ? properties.join(" · ")
+              : new Set(rooms.map((room) => room.propertyName)).size === 1
+                ? rooms[0]?.propertyName ?? null
+                : null
           }
         />
       )}

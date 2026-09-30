@@ -5,13 +5,17 @@ import {
   opsRoomDisplayName,
   buildBlockSendEntry,
   buildJobSendEntry,
+  countStalledJobs,
   describeSendFailure,
+  isSendStalled,
+  resolveSendWait,
   groupChangeRows,
   localizeSendDetail,
   mergeSendEntries,
   type ChangeLogRow,
   type PriceJobLogRow,
 } from "@/lib/ops-history";
+import { encodePriceJobWait, parsePriceJobWait } from "@/lib/beds24/price-job-wait";
 
 /**
  * 판매 캘린더 「이력」 패널.
@@ -129,6 +133,84 @@ describe("buildJobSendEntry", () => {
       NOW,
     );
     expect(entry).toMatchObject({ kind: "minStay", status: "queued", values: { max: 1, min: 1 }, waitingMinutes: 21 });
+  });
+});
+
+describe("Beds24 한도 대기(쿨다운)", () => {
+  const NOW = Date.parse("2026-09-29T06:50:00Z");
+  const queued = (over: Partial<PriceJobLogRow> = {}) =>
+    job({ completed_at: null, created_at: "2026-09-29T06:30:00Z", results: [], status: "queued", ...over });
+
+  it("대기 사유 코드는 왕복한다 · 모르는 코드와 실패 요약은 대기 사유가 아니다", () => {
+    expect(parsePriceJobWait(encodePriceJobWait("rate_limit", "2026-09-29T06:52:00.000Z"))).toEqual({
+      reason: "rate_limit",
+      retryAt: "2026-09-29T06:52:00.000Z",
+    });
+    expect(parsePriceJobWait(encodePriceJobWait("low_credit", null))).toEqual({ reason: "low_credit", retryAt: null });
+    expect(parsePriceJobWait("cooldown_weird@2026-09-29T06:52:00Z")).toBeNull();
+    expect(parsePriceJobWait("383980:verify_mismatch")).toBeNull();
+    expect(parsePriceJobWait(null)).toBeNull();
+  });
+
+  it("워커가 적은 사유 → 한도 대기 + 재전송 시각, 「안 나감」도 빨간 사유 줄도 아니다", () => {
+    const entry = buildJobSendEntry(
+      queued({ error: encodePriceJobWait("rate_limit", "2026-09-29T06:52:30.000Z") }),
+      new Map(),
+      NOW,
+    );
+    expect(entry).toMatchObject({
+      error: null,
+      retryAt: "2026-09-29T06:52:30.000Z",
+      status: "queued",
+      waitReason: "rate_limit",
+      waitingMinutes: 20,
+    });
+    expect(isSendStalled(entry)).toBe(false);
+  });
+
+  it("재전송 시각이 지났으면 「곧」(retryAt null) — 멈춘 기준을 넘도록 안 나갔으면 다시 「안 나감」", () => {
+    const soon = buildJobSendEntry(
+      queued({ error: encodePriceJobWait("low_credit", "2026-09-29T06:49:00.000Z") }),
+      new Map(),
+      NOW,
+    );
+    expect(soon).toMatchObject({ retryAt: null, waitReason: "low_credit" });
+    expect(isSendStalled(soon)).toBe(false);
+
+    const stuck = buildJobSendEntry(
+      queued({ error: encodePriceJobWait("rate_limit", "2026-09-29T06:40:00.000Z") }),
+      new Map(),
+      NOW,
+    );
+    expect(stuck).toMatchObject({ error: null, retryAt: null, waitReason: null });
+    expect(isSendStalled(stuck)).toBe(true);
+  });
+
+  it("사유가 안 적힌 대기라도 전역 쿨다운이 켜져 있으면 한도 대기 — 사유 · 시각은 전역 것", () => {
+    const cooldown = { active: true, reason: "low_credit", until: "2026-09-29T06:53:00.000Z" };
+    const entry = buildJobSendEntry(queued(), new Map(), NOW, cooldown);
+    expect(entry).toMatchObject({ retryAt: "2026-09-29T06:53:00.000Z", waitReason: "low_credit" });
+    expect(isSendStalled(entry)).toBe(false);
+    // 쿨다운이 꺼져 있으면 그냥 오래된 대기 = 안 나감.
+    const plain = buildJobSendEntry(queued(), new Map(), NOW, { active: false, reason: null, until: null });
+    expect(plain.waitReason).toBeNull();
+    expect(isSendStalled(plain)).toBe(true);
+  });
+
+  it("대기가 아닌 작업(보내는 중 · 끝남)은 쿨다운이 켜져 있어도 한도 대기가 아니다", () => {
+    const cooldown = { active: true, reason: "rate_limit", until: "2026-09-29T06:53:00.000Z" };
+    expect(resolveSendWait({ error: null, status: "processing" }, cooldown, NOW)).toBeNull();
+    expect(buildJobSendEntry(job(), new Map(), NOW, cooldown).waitReason).toBeNull();
+  });
+
+  it("알림 숫자 — 한도 대기는 빼고 멈춘 대기 · 진행만 센다", () => {
+    const rows = [
+      { error: null, status: "processing" },
+      { error: null, status: "queued" },
+      { error: encodePriceJobWait("rate_limit", "2026-09-29T06:52:00.000Z"), status: "queued" },
+    ];
+    expect(countStalledJobs(rows, null, NOW)).toBe(2);
+    expect(countStalledJobs(rows, { active: true, reason: "rate_limit", until: "2026-09-29T06:52:00.000Z" }, NOW)).toBe(1);
   });
 });
 

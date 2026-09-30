@@ -2,6 +2,13 @@
 
 This file records important project decisions.
 
+## 2026-09-30 판매 캘린더의 건물 다중 선택은 `property` 쿼리를 반복한다
+
+여러 건물을 함께 볼 때 주소는 `?property=A&property=B`(탭 순서로 정렬, 중복 제거)이고, 하나면 예전 그대로
+`?property=A` 다 — 쉼표 구분 등 새 인코딩을 만들지 않는다(건물 이름에 공백·괄호·CJK 가 있어 구분자가 위험하다).
+공용 `AdminMonthPicker` 의 `preserveQueryKeys` 는 반복 키를 전부 옮긴다. 상세:
+`docs/product/33-calendar-write-features.md` → 「건물 여러 곳 함께 보기」.
+
 ## 2026-09-30 판매 캘린더는 행 단위 데이터를 보내고, 이력·가격 개입은 필요할 때 받는다
 
 격자 데이터는 칸 단위 Map 대신 **행 단위 + 내용 해시**로 보낸다 — 해시가 같은 행은 직전 객체를 재사용해 다시

@@ -16,6 +16,11 @@ name: Beds24 price job worker
 # 뒤에 돈 적이 있다). 그래서 이 크론에 **사람이 기다리는 반영**을 기대면 안 된다 — 즉시성은
 # 접수 직후 호출이 책임지고, 여기는 놓친 것을 줍는 역할이다.
 #
+# 쿨다운(429·크레딧 부족)이 풀린 뒤 이어받기는 2026-09-30 부터 **Supabase pg_cron 틱**이 한다 —
+# 매 분 `beds24_tick_if_needed()` 가 할 일이 있을 때만 `/api/beds24/tick` 을 부른다
+# (`supabase/migrations/202609300004_beds24_tick_cron.sql`). 이 워크플로는 그 틱까지 죽었을 때의
+# **마지막 안전망**으로 남긴다.
+#
 # SETUP (one-time): repository secret `BEDS24_WEBHOOK_SECRET`
 #   `beds24-reconcile.yml` · `beds24-rates-sync.yml` 과 같은 값을 쓴다.
 

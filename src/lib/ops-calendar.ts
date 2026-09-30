@@ -40,6 +40,7 @@ import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
+import { resolveSelectedProperties } from "@/lib/ops-calendar-properties";
 
 /**
  * 운영 관리자 「판매 캘린더」의 읽기 계층.
@@ -560,13 +561,13 @@ function mapRoomUnits(rows: RoomCatalogRow[]) {
 }
 
 /**
- * 건물을 골랐으면 **그 건물 객실의 유닛만**. 건물 이름이 맞지 않으면(없는 건물) 전부 — 화면이 전체로
- * 떨어지므로.
+ * 건물을 골랐으면 **그 건물(들) 객실의 유닛만**. 건물 이름이 하나도 맞지 않으면(없는 건물) 전부 — 화면이
+ * 전체로 떨어지므로. 여러 건물(2026-09-30 다중 선택)은 그중 하나에라도 속하면 넣는다.
  */
-function scopeRoomUuids(roomKeyByUuid: Map<string, string>, property: string | undefined): string[] {
-  const propertyPrefix = property ? `${property}${ROOM_AXIS_SEPARATOR}` : null;
+function scopeRoomUuids(roomKeyByUuid: Map<string, string>, properties: readonly string[] | undefined): string[] {
+  const prefixes = (properties ?? []).map((name) => `${name}${ROOM_AXIS_SEPARATOR}`);
   const scoped = [...roomKeyByUuid]
-    .filter(([, roomKey]) => !propertyPrefix || roomKey.startsWith(propertyPrefix))
+    .filter(([, roomKey]) => prefixes.length === 0 || prefixes.some((prefix) => roomKey.startsWith(prefix)))
     .map(([roomUuid]) => roomUuid);
   return scoped.length > 0 ? scoped : [...roomKeyByUuid.keys()];
 }
@@ -576,7 +577,8 @@ export async function getOpsCalendarData(
   filters: {
     mode?: string;
     month?: string;
-    property?: string;
+    /** 고른 건물(들). 빈 목록 = 전체. 없는 이름은 버린다(`resolveSelectedProperties`). */
+    properties?: readonly string[];
     start?: string;
     /** 취소된 예약도 함께 볼 것인가. 기본은 꺼짐 — 저쪽 `showCancelled` 와 같다. */
     showCancelled?: boolean;
@@ -660,7 +662,7 @@ export async function getOpsCalendarData(
    * 건물을 골랐으면 **그 건물 객실의 요금만** 읽는다(2026-09-30 속도). 전에는 건물 하나를 봐도 91실 전부
    * (2,912행)를 읽고 마지막에 걸렀다.
    */
-  const rateRoomIds = scopeRoomUuids(roomKeyByUuid, filters.property);
+  const rateRoomIds = scopeRoomUuids(roomKeyByUuid, filters.properties);
 
   /*
    * 신선도는 **이 화면이 그리는 객실 중 동기화가 다시 쓰는 유닛**만으로 잰다(2026-09-30). 예전에는 조직
@@ -946,11 +948,11 @@ export async function getOpsCalendarData(
       row.external_property_id,
     );
   }
-  const selectedProperty =
-    filters.property && propertyOptions.includes(filters.property) ? filters.property : null;
-  const rooms = selectedProperty
-    ? allRooms.filter((room) => room.propertyName === selectedProperty)
-    : allRooms;
+  // 탭 순서로 정렬된 고른 건물 — 빈 목록이면 전체. 격자는 `allRooms` 순서(= 탭 순서)를 그대로 따른다.
+  const selectedProperties = resolveSelectedProperties(filters.properties ?? [], propertyOptions);
+  const selectedSet = new Set(selectedProperties);
+  const rooms =
+    selectedProperties.length > 0 ? allRooms.filter((room) => selectedSet.has(room.propertyName)) : allRooms;
 
   /*
    * ── 화면으로 보내는 것은 **보이는 객실의 행**뿐이다(2026-09-30 속도) ──────────
@@ -1007,8 +1009,10 @@ export async function getOpsCalendarData(
     month,
     propertyExternalIds,
     propertyOptions,
-    roomTotal: allRooms.length,
-    selectedProperty,
+    /** **보이는** 객실 수(고른 건물만) — 오른쪽 위 「객실 N」. */
+    roomTotal: rooms.length,
+    /** 고른 건물(탭 순서). 빈 목록 = 전체. */
+    selectedProperties,
     start,
     today,
     window,
@@ -1075,7 +1079,7 @@ export async function readOpsCellHistory(args: {
  */
 export async function getOpsPriceConversions(
   session: AppSession,
-  filters: { property?: string },
+  filters: { properties?: readonly string[] },
 ): Promise<OpsPriceConversion[]> {
   const supabase = await getSupabaseServerClient();
   const since = new Date(Date.now() - OPS_PRICE_ATTRIBUTION_LOOKBACK_DAYS * 86_400_000).toISOString();
@@ -1149,9 +1153,10 @@ export async function getOpsPriceConversions(
    * 개입 묶음의 적용 시각은 **모든 객실의 칸**으로 정한다(한 작업이 여러 건물에 걸칠 수 있다) — 그래서
    * 로그는 조직 전체를 읽는다. 예약은 보이는 객실의 칸만 판정되므로 **그 칸들의 날짜**만 덮으면 된다.
    */
-  const scopedRoomKeys = filters.property
-    ? new Set(scopeRoomUuids(roomKeyByUuid, filters.property).map((roomUuid) => roomKeyByUuid.get(roomUuid)))
-    : null;
+  const scopedRoomKeys =
+    filters.properties && filters.properties.length > 0
+      ? new Set(scopeRoomUuids(roomKeyByUuid, filters.properties).map((roomUuid) => roomKeyByUuid.get(roomUuid)))
+      : null;
   const visibleCells = scopedRoomKeys ? cells.filter((cell) => scopedRoomKeys.has(cell.roomKey)) : cells;
   if (visibleCells.length === 0) return [];
 
@@ -1205,7 +1210,7 @@ export async function getOpsPriceConversions(
   })) {
     const booking = shown.get(conversion.reservationId);
     if (!booking) continue;
-    // 건물을 골랐으면 그 건물 객실 것만 보낸다 — 격자가 보이는 객실로 한 번 더 거른다.
+    // 건물을 골랐으면 그 건물(들) 객실 것만 보낸다 — 격자가 보이는 객실로 한 번 더 거른다.
     if (scopedRoomKeys && !scopedRoomKeys.has(booking.roomKey)) continue;
     priceConversions.push({
       appliedAt: new Date(conversion.appliedAtMs).toISOString(),
@@ -1228,4 +1233,54 @@ export async function getOpsPriceConversions(
     });
   }
   return priceConversions;
+}
+
+/** 캘린더 밖에서 예약 한 건을 열 때 — 상세 패널이 격자에서 연 것과 같은 값을 받게 한다. */
+export type OpsReservationPlacement = {
+  bar: OpsCalendarBar;
+  propertyName: string;
+  /** 그 행의 우리 `rooms.id` 전부 — 예약 수정의 겹침 검사가 쓴다. */
+  roomIds: string[];
+  roomLabel: string;
+};
+
+/**
+ * 예약 행 → 판매 캘린더의 막대 + 객실 행.
+ *
+ * 격자와 **같은 매핑**(`makeReservationRoomAxis` · `mapRoomUnits`)을 쓴다 — 검색에서 연 패널과
+ * 막대를 눌러 연 패널이 다른 방을 가리키면 수정이 엉뚱한 유닛에 붙는다.
+ */
+export async function resolveOpsReservationPlacements(
+  organizationId: string,
+  supabase: SupabaseClient<Database>,
+  rows: Pick<
+    ReservationRow,
+    "check_in_date" | "check_out_date" | "guest_name" | "id" | "property_name" | "raw_payload" | "room_label" | "source" | "status"
+  >[],
+): Promise<OpsReservationPlacement[]> {
+  if (rows.length === 0) return [];
+  const roomRowsResult = await fetchRoomCatalogRows(organizationId, supabase);
+  const roomCatalog = roomRowsResult.error
+    ? undefined
+    : buildActiveRoomCatalog(roomRowsResult.data, { includeNonOperationalProperties: true });
+  const reservationRoomAxis = makeReservationRoomAxis(roomCatalog);
+  const { roomKeyByUuid } = mapRoomUnits(roomRowsResult.error ? [] : roomRowsResult.data);
+
+  return rows.map((row) => {
+    const { displayRoomLabel, propertyName, roomKey } = reservationRoomAxis(row);
+    return {
+      bar: {
+        channel: opsChannelOf(row.source),
+        checkIn: row.check_in_date,
+        checkOut: row.check_out_date,
+        guestName: row.guest_name,
+        id: row.id,
+        isCancelled: row.status === "cancelled" || row.status === "no_show",
+        roomKey,
+      },
+      propertyName,
+      roomIds: [...roomKeyByUuid].filter(([, key]) => key === roomKey).map(([uuid]) => uuid),
+      roomLabel: displayRoomLabel,
+    };
+  });
 }

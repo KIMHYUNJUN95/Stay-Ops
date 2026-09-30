@@ -12,6 +12,7 @@ import {
   appendChangeGroups,
   collapseCellRuns,
   describeSendFailure,
+  isSendStalled,
   localizeSendDetail,
   SEND_STALL_MINUTES,
   type ChangeField,
@@ -33,6 +34,8 @@ import { formatHistoryWhen } from "@/lib/ops-price-history";
  * - **Beds24 전송**: 가격·최소숙박 작업과 차단 — 반영됨 · 일부 실패 · 실패 · 대기 · 보내는 중,
  *   실패한 객실과 사유. 대기가 `SEND_STALL_MINUTES` 를 넘으면 「안 나감」으로 빨갛게 세우고
  *   「지금 보내기」를 준다. 대기·진행 중인 줄이 있으면 몇 초마다 다시 읽는다.
+ *   Beds24 쿨다운(429 · 크레딧 부족)으로 기다리는 대기는 멈춘 게 아니라서 주황 「Beds24 한도 대기」와
+ *   사유 · 자동 재전송 시각으로 보여준다(`isSendStalled` 가 빼 준다).
  */
 
 export type HistoryPanelCopy = {
@@ -69,6 +72,12 @@ export type HistoryPanelCopy = {
   hsSendNow: string;
   hsSending: string;
   hsFinished: string;
+  /** Beds24 쿨다운(429 · 크레딧 부족) 대기 — 배지, 사유 둘, `{time}` 이후 재전송, 곧 재전송. */
+  hsStatusCooldown: string;
+  hsWaitRateLimit: string;
+  hsWaitLowCredit: string;
+  hsWaitRetryAt: string;
+  hsWaitRetrySoon: string;
   hsReasons: Record<string, string>;
   /** 가격·최소숙박 작업의 객실별 실패 코드 → 문구(`describeSendFailure`). `{n}` · `{status}` 자리표시. */
   hsFailures: Record<string, string>;
@@ -270,9 +279,8 @@ export function OpsHistoryPanel({ copy, onClose }: { copy: HistoryPanelCopy; onC
     return () => window.clearInterval(timer);
   }, [hasActive, loadSends, tab]);
 
-  const stalled = sends.data.entries.some(
-    (entry) => entry.waitingMinutes !== null && entry.waitingMinutes >= SEND_STALL_MINUTES,
-  );
+  // Beds24 한도 대기(`waitReason`)는 멈춘 게 아니다 — 빨간 띠 · 탭 점에 넣지 않는다.
+  const stalled = sends.data.entries.some(isSendStalled);
 
   // 첫 작업은 서버가 기다렸다 결과를 준다 — 반응이 없는 것처럼 보이면 사람은 계속 누른다.
   const sendNow = async () => {
@@ -441,12 +449,14 @@ export function OpsHistoryPanel({ copy, onClose }: { copy: HistoryPanelCopy; onC
               )}
               <ol className="opshs__list">
                 {sends.data.entries.map((entry) => {
-                  const stuck = entry.waitingMinutes !== null && entry.waitingMinutes >= SEND_STALL_MINUTES;
+                  const stuck = isSendStalled(entry);
+                  const cooling = entry.waitReason !== null;
+                  const flag = stuck ? " is-stuck" : cooling ? " is-cooldown" : "";
                   return (
-                    <li className={`opshs__item is-send is-${entry.status}${stuck ? " is-stuck" : ""}`} key={entry.id}>
+                    <li className={`opshs__item is-send is-${entry.status}${flag}`} key={entry.id}>
                       <div className="opshs__head">
-                        <span className={`opshs__status is-${entry.status}${stuck ? " is-stuck" : ""}`}>
-                          {statusLabel(entry)}
+                        <span className={`opshs__status is-${entry.status}${flag}`}>
+                          {cooling ? copy.hsStatusCooldown : statusLabel(entry)}
                           {entry.waitingMinutes !== null && entry.waitingMinutes > 0 && (
                             <em>{entry.waitingMinutes}′</em>
                           )}
@@ -471,6 +481,15 @@ export function OpsHistoryPanel({ copy, onClose }: { copy: HistoryPanelCopy; onC
                           </span>
                         )}
                       </div>
+                      {entry.waitReason && (
+                        <p className="opshs__wait">
+                          {entry.waitReason === "low_credit" ? copy.hsWaitLowCredit : copy.hsWaitRateLimit}
+                          {" · "}
+                          {entry.retryAt
+                            ? copy.hsWaitRetryAt.replace("{time}", formatHistoryWhen(entry.retryAt).slice(6))
+                            : copy.hsWaitRetrySoon}
+                        </p>
+                      )}
                       {(entry.error || entry.failures.length > 0) && (
                         <div className="opshs__errors">
                           {entry.error && (

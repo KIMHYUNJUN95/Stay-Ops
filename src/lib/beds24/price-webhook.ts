@@ -51,23 +51,54 @@ type JsonRecord = Record<string, unknown>;
 export const PRICE_WEBHOOK_DEBOUNCE_MS = 20_000;
 const TRAILING_LOCK_TTL_MS = 55_000;
 
+/** 건물당 「지금 읽기」는 하나만 — 웹훅과 틱(`/api/beds24/tick`)이 같은 락을 쓴다. */
+export function priceWebhookRunLockName(externalPropertyId: string) {
+  return `price-webhook-run:${externalPropertyId}`;
+}
+
 /**
  * 한 건물을 다시 읽는다 — 요금(12개월: 가격 · 재고 · 최소숙박 · 차단)과 현장 예약 캘린더의 차단
  * 막대(`room_blocks`, 3개월). 재고 웹훅은 이 둘을 다 바꾸는 신호라 같이 맞춘다.
  *
  * 다른 요금 경로(`rates-refresh.ts` · 주기 동기화)와 같은 규칙으로 **물러난다** — 쿨다운 중이면
- * 크레딧이 안 풀리고, 쓰기 작업이 돌고 있으면 그 되받이 웹훅일 가능성이 높다. 물러난 변경은
- * 다음 주기 동기화가 가져온다. 그래도 옛 값이 새 값을 덮지 못하는 것은
- * `upsert_room_daily_rates_if_newer` 가 보장한다.
+ * 크레딧이 안 풀리고, 쓰기 작업이 돌고 있으면 그 되받이 웹훅일 가능성이 높다. 그래도 옛 값이 새
+ * 값을 덮지 못하는 것은 `upsert_room_daily_rates_if_newer` 가 보장한다.
+ *
+ * ## 물러나면 적어 둔다 (2026-09-30)
+ *
+ * 예전에는 물러난 변경을 버렸다 — 다음 주기 동기화(실측 몇 시간 뒤)까지 화면이 Beds24 와 달랐다.
+ * 이제 `beds24_deferred_refreshes` 에 「이 건물은 다시 읽어야 한다」를 남기고, 틱
+ * (`/api/beds24/tick`)이 쿨다운·작업이 풀리면 이 함수를 다시 불러 읽는다. 읽기가 성공하면 지운다 —
+ * 단, 읽기를 **시작한 뒤에** 새로 적힌 요청은 남긴다 — 그 변경을 이 읽기가 못 봤을 수 있다.
+ *
+ * `source` — 웹훅에서 온 요청은 새 변경이므로 틱의 재시도 횟수를 0 으로 돌린다. 틱이 부를 때는
+ * 횟수를 틱이 센다.
  */
-async function refreshProperty(
+export async function refreshBeds24Property(
   supabase: SupabaseClient<Database>,
   organizationId: string,
   externalPropertyId: string,
-): Promise<{ yielded: "cooldown" | "price_job" } | { yielded: null; rows: number }> {
+  source: "webhook" | "tick",
+): Promise<
+  | { yielded: "cooldown" | "price_job" }
+  | { yielded: null; rows: number; skipped: string[] }
+> {
+  const startedAt = Date.now();
   const cooldown = await getBeds24Cooldown(supabase);
-  if (cooldown.active) return { yielded: "cooldown" };
-  if (await hasPendingPriceJobs(supabase)) return { yielded: "price_job" };
+  const yielded = cooldown.active
+    ? "cooldown"
+    : (await hasPendingPriceJobs(supabase))
+      ? "price_job"
+      : null;
+  if (yielded) {
+    await recordDeferredRefresh(supabase, {
+      externalPropertyId,
+      organizationId,
+      reason: yielded,
+      resetAttempts: source === "webhook",
+    });
+    return { yielded };
+  }
 
   const rates = await syncBeds24RoomRates(organizationId, supabase, undefined, {
     externalPropertyIds: [externalPropertyId],
@@ -79,11 +110,76 @@ async function refreshProperty(
   }).catch((error) => {
     console.error("[beds24/price-webhook] room block refresh failed", error);
   });
-  return { rows: rates.rows, yielded: null };
+
+  if (rates.skipped.length === 0) {
+    await clearDeferredRefresh(supabase, externalPropertyId, startedAt);
+  } else if (source === "webhook") {
+    // 읽다 실패했다(429 등). 버리지 않고 틱에게 넘긴다.
+    await recordDeferredRefresh(supabase, {
+      externalPropertyId,
+      lastError: rates.skipped.join(","),
+      organizationId,
+      reason: "failed",
+      resetAttempts: true,
+    });
+  }
+  return { rows: rates.rows, skipped: rates.skipped, yielded: null };
 }
 
-function describeRefresh(refreshed: Awaited<ReturnType<typeof refreshProperty>>) {
-  return refreshed.yielded ? { yielded: refreshed.yielded } : { rows: refreshed.rows };
+/** 건물 한 줄을 남긴다(있으면 갱신). 실패해도 던지지 않는다 — 다음 주기 동기화가 안전망이다. */
+async function recordDeferredRefresh(
+  supabase: SupabaseClient<Database>,
+  args: {
+    externalPropertyId: string;
+    organizationId: string;
+    reason: "cooldown" | "price_job" | "failed";
+    resetAttempts: boolean;
+    lastError?: string;
+  },
+): Promise<void> {
+  const nowIso = new Date().toISOString();
+  const result = await supabase.from("beds24_deferred_refreshes").upsert(
+    {
+      external_property_id: args.externalPropertyId,
+      organization_id: args.organizationId,
+      reason: args.reason,
+      requested_at: nowIso,
+      updated_at: nowIso,
+      ...(args.resetAttempts ? { attempts: 0 } : {}),
+      ...(args.lastError !== undefined ? { last_error: args.lastError } : {}),
+    },
+    { onConflict: "external_property_id" },
+  );
+  if (result.error) {
+    console.error("[beds24/price-webhook] deferred refresh record failed", {
+      code: result.error.code,
+      externalPropertyId: args.externalPropertyId,
+    });
+  }
+}
+
+async function clearDeferredRefresh(
+  supabase: SupabaseClient<Database>,
+  externalPropertyId: string,
+  refreshStartedAt: number,
+): Promise<void> {
+  const result = await supabase
+    .from("beds24_deferred_refreshes")
+    .delete()
+    .eq("external_property_id", externalPropertyId)
+    .lte("requested_at", new Date(refreshStartedAt).toISOString());
+  if (result.error) {
+    console.error("[beds24/price-webhook] deferred refresh clear failed", {
+      code: result.error.code,
+      externalPropertyId,
+    });
+  }
+}
+
+function describeRefresh(refreshed: Awaited<ReturnType<typeof refreshBeds24Property>>) {
+  return refreshed.yielded
+    ? { yielded: refreshed.yielded }
+    : { rows: refreshed.rows, skipped: refreshed.skipped };
 }
 
 function readString(record: JsonRecord, keys: string[]): string | null {
@@ -255,7 +351,7 @@ export async function processBeds24PriceWebhook(args: {
         // **읽기 전에 락을 푼다.** 읽는 동안 들어온 배달이 또 한 번을 예약할 수 있어야 한다 —
         // 쥔 채로 읽으면 그 배달은 「이미 예약됨」으로 버려지고, 읽기가 그 변경을 놓칠 수 있다.
         await releaseBeds24Lock(supabase, lockName, lock.lockId);
-        const refreshed = await refreshProperty(supabase, organizationId, externalPropertyId);
+        const refreshed = await refreshBeds24Property(supabase, organizationId, externalPropertyId, "webhook");
         console.log("[beds24/price-webhook] trailing refresh", {
           externalPropertyId,
           ...describeRefresh(refreshed),
@@ -275,7 +371,7 @@ export async function processBeds24PriceWebhook(args: {
    * 오래됐다고 보고 각자 12개월을 다시 읽었다. 이제 하나만 읽고, 나머지는 「창이 끝나면 한 번 더」
    * 로 돌린다 — 읽는 도중에 들어온 변경을 그 읽기가 못 봤을 수 있기 때문이다.
    */
-  const runLockName = `price-webhook-run:${externalPropertyId}`;
+  const runLockName = priceWebhookRunLockName(externalPropertyId);
   const runLock = await acquireBeds24Lock(supabase, runLockName, "price-webhook", TRAILING_LOCK_TTL_MS);
   if (!runLock.acquired) return scheduleTrailing(Date.now());
 
@@ -286,7 +382,7 @@ export async function processBeds24PriceWebhook(args: {
     organizationId,
     deferred: async () => {
       try {
-        const refreshed = await refreshProperty(supabase, organizationId, externalPropertyId);
+        const refreshed = await refreshBeds24Property(supabase, organizationId, externalPropertyId, "webhook");
         console.log("[beds24/price-webhook] refresh", {
           externalPropertyId,
           ...describeRefresh(refreshed),

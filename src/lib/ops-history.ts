@@ -11,6 +11,7 @@
  *   객실별 실패 사유를 보여준다.
  */
 
+import { parsePriceJobWait, toPriceJobWaitReason, type PriceJobWaitReason } from "@/lib/beds24/price-job-wait";
 import {
   getCanonicalPropertyName,
   getCanonicalRoomLabel,
@@ -295,6 +296,9 @@ export function appendChangeGroups(current: readonly ChangeGroup[], next: readon
 
 // ───────────────────────────── Beds24 전송 ─────────────────────────────
 
+/** 이보다 오래 대기 · 진행 중이면 멈춘 것으로 본다 — 접수 직후 깨우기는 몇 초 안에 끝난다. */
+export const SEND_STALL_MINUTES = 3;
+
 export type SendKind = "price" | "minStay" | "block" | "unblock";
 export type SendStatus = "queued" | "processing" | "succeeded" | "partial" | "failed";
 
@@ -324,10 +328,68 @@ export type SendEntry = {
   detail: string | null;
   /** 대기 · 진행 중이 이만큼 오래됐으면 「멈춘 것 같다」로 보여준다(분). */
   waitingMinutes: number | null;
+  /**
+   * Beds24 쿨다운(429 · 크레딧 부족) 때문에 기다리는 대기 작업이면 그 이유. 멈춘 게 아니라 **알고
+   * 기다리는** 것이라 「안 나감」으로 세우지 않고 알림 숫자에도 넣지 않는다(`isSendStalled`).
+   */
+  waitReason: PriceJobWaitReason | null;
+  /**
+   * 자동 재전송 예정 시각(쿨다운이 풀리는 시각). **이미 지났거나 모르면 `null`** — 화면은 「곧 자동 재전송」.
+   * 지났는지는 읽은 순간(`now`) 기준이다. 대기 줄이 있으면 패널이 몇 초마다 다시 읽는다.
+   */
+  retryAt: string | null;
 };
 
-/** 이보다 오래 대기 · 진행 중이면 멈춘 것으로 본다 — 접수 직후 깨우기는 몇 초 안에 끝난다. */
-export const SEND_STALL_MINUTES = 3;
+/**
+ * 전역 Beds24 쿨다운 한 장(`getBeds24Cooldown` 결과를 옮긴 것) — `loadOpsSendLog` 가 한 번 읽어 넘긴다.
+ * 이 모듈은 DB 를 읽지 않는다.
+ */
+export type SendCooldown = { active: boolean; until: string | null; reason: string | null };
+
+
+/**
+ * 대기 작업 하나가 **쿨다운 대기**인가. 순수하다.
+ *
+ * 1. 전역 쿨다운이 지금 켜져 있으면 대기 작업은 모두 그것 때문에 기다린다 — 사유 · 풀리는 시각은 전역 것.
+ * 2. 아니면 워커가 되돌리며 적은 사유(`error` = `cooldown_*@시각`, `encodePriceJobWait`)를 본다.
+ *    풀리는 시각이 지났어도 1분 틱이 곧 집으므로 「곧 자동 재전송」이다. 단 그 시각에서
+ *    `SEND_STALL_MINUTES` 가 더 지나도 안 나갔으면 **정말 멈춘 것**이라 대기로 봐 주지 않는다.
+ */
+export function resolveSendWait(
+  job: { status: string; error: string | null },
+  cooldown: SendCooldown | null,
+  now: number,
+): { waitReason: PriceJobWaitReason; retryAt: string | null } | null {
+  if (job.status !== "queued") return null;
+  const recorded = parsePriceJobWait(job.error);
+  const upcoming = (at: string | null) => (at && new Date(at).getTime() > now ? at : null);
+  if (cooldown?.active) {
+    return {
+      retryAt: upcoming(cooldown.until),
+      waitReason: cooldown.reason ? toPriceJobWaitReason(cooldown.reason) : (recorded?.reason ?? "rate_limit"),
+    };
+  }
+  if (!recorded) return null;
+  if (recorded.retryAt && now - new Date(recorded.retryAt).getTime() >= SEND_STALL_MINUTES * 60_000) return null;
+  return { retryAt: upcoming(recorded.retryAt), waitReason: recorded.reason };
+}
+
+/** 「안 나감」(빨간 띠 · 알림 숫자)인가 — 오래된 대기 · 진행 중이되 쿨다운 대기는 아니다. */
+export function isSendStalled(entry: Pick<SendEntry, "waitingMinutes" | "waitReason">): boolean {
+  return entry.waitReason === null && entry.waitingMinutes !== null && entry.waitingMinutes >= SEND_STALL_MINUTES;
+}
+
+/**
+ * 「이력」 버튼 알림 숫자의 「멈춘 작업」 몫 — `SEND_STALL_MINUTES` 보다 오래된 대기 · 진행 작업 중
+ * 쿨다운 대기(`resolveSendWait`)를 뺀 수. 행은 이미 오래된 것만 온다(`countOpsHistoryAlerts`).
+ */
+export function countStalledJobs(
+  rows: ReadonlyArray<{ status: string; error: string | null }>,
+  cooldown: SendCooldown | null,
+  now: number,
+): number {
+  return rows.filter((row) => !resolveSendWait(row, cooldown, now)).length;
+}
 
 export type PriceJobLogRow = {
   id: string;
@@ -385,6 +447,7 @@ export function buildJobSendEntry(
   job: PriceJobLogRow,
   roomNameByExternalId: ReadonlyMap<string, string>,
   now: number,
+  cooldown: SendCooldown | null = null,
 ): SendEntry {
   const kind: SendKind = job.job_type === "min_stay" ? "minStay" : "price";
   const updates = (Array.isArray(job.room_updates) ? job.room_updates : []) as RoomUpdateLike[];
@@ -430,6 +493,9 @@ export function buildJobSendEntry(
 
   const status = JOB_STATUS[job.status] ?? "failed";
   const waiting = status === "queued" || status === "processing";
+  const wait = resolveSendWait(job, cooldown, now);
+  // 대기 사유 코드는 실패가 아니다 — 빨간 사유 줄에 코드가 그대로 나오지 않게 뺀다.
+  const jobError = parsePriceJobWait(job.error) ? null : job.error;
   return {
     at: job.created_at,
     by: job.requested_by_name,
@@ -438,16 +504,18 @@ export function buildJobSendEntry(
     dateTo,
     detail: null,
     // `job.error` 는 객실별 실패를 이어 붙인 진단 문자열이다(Beds24 객실 번호 그대로) — 객실별 줄이 있으면 뺀다.
-    error: failures.length > 0 ? null : job.error,
+    error: failures.length > 0 ? null : jobError,
     failures,
     finishedAt: job.completed_at,
     id: `job:${job.id}`,
     kind,
+    retryAt: wait?.retryAt ?? null,
     rooms,
     source: "job",
     status,
     values,
     waitingMinutes: waiting ? Math.max(0, Math.floor((now - new Date(job.created_at).getTime()) / 60_000)) : null,
+    waitReason: wait?.waitReason ?? null,
   };
 }
 
@@ -531,11 +599,13 @@ export function buildBlockSendEntry(row: BlockLogRow): SendEntry {
     finishedAt: row.created_at,
     id: `block:${row.id}`,
     kind: row.action === "unblock" ? "unblock" : "block",
+    retryAt: null,
     rooms: [[row.property_name, row.room_label].filter(Boolean).join(" ") || "—"],
     source: "block",
     status: succeeded ? "succeeded" : "failed",
     values: null,
     waitingMinutes: null,
+    waitReason: null,
   };
 }
 

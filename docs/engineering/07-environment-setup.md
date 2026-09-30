@@ -295,6 +295,50 @@ curl -sX POST localhost:3000/api/beds24/rates-sync -H "authorization: Bearer $BE
 Beds24 URL 을 저쪽 주소로 되돌리면 즉시 원상복구된다. 그 사이 놓친 요금은 주기 동기화
 (`/api/beds24/rates-sync`, 15분 예정 · 실측 약 6시간)가 메운다 — 웹훅은 「즉시」를 위한 것이지 유일한 경로가 아니다.
 
+### Beds24 틱 (pg_cron + pg_net + Vault, 2026-09-30)
+
+쿨다운(429·크레딧 부족)이 풀린 뒤 대기 가격 작업과 미뤄 둔 웹훅 재조회를 **1분 안에** 이어받는다.
+계약: `docs/product/33-calendar-write-features.md` → 「쿨다운이 풀리면 1분 안에 이어서 보낸다 · 미뤄 둔 웹훅 재조회」.
+
+- 마이그레이션 `202609300003_beds24_deferred_refreshes.sql` · `202609300004_beds24_tick_cron.sql` 이 전부 만든다
+  — `pg_net` 활성화, Vault 시크릿 2개, 함수 2개, pg_cron 잡 `beds24-tick`(매 분). **새 환경변수는 없다.**
+- Vault `beds24_tick_token`: 마이그레이션이 SQL 안에서 난수(32바이트 hex)로 만든다. 값은 저장소·채팅·로그
+  어디에도 나오지 않는다. Vault `beds24_tick_url`: `https://stay-ops-two.vercel.app/api/beds24/tick`.
+- 배포 순서: 라우트(`src/app/api/beds24/tick/route.ts`)가 **먼저 배포된 뒤** 마이그레이션을 적용하는 편이
+  깔끔하다. 거꾸로 해도 그 사이 호출이 404 로 끝날 뿐 해는 없다.
+- `BEDS24_SYNC_PAUSED` 가 켜져 있으면 라우트는 202 로 아무것도 안 한다(워커와 같다).
+- GitHub Actions `beds24-price-job-worker.yml` 은 마지막 안전망으로 그대로 둔다.
+
+확인(값을 출력하지 않는 쿼리만 쓴다):
+
+```sql
+-- 최근 판단 결과: cooldown / busy / idle / not_configured / fired
+select start_time, status, return_message
+  from cron.job_run_details
+ where jobid = (select jobid from cron.job where jobname = 'beds24-tick')
+ order by start_time desc limit 20;
+
+-- 라우트가 돌려준 요약(몇 시간 보관)
+select created, status_code, left(content, 300) from net._http_response order by created desc limit 10;
+
+-- 미뤄 둔 재조회
+select external_property_id, reason, attempts, requested_at, last_error
+  from public.beds24_deferred_refreshes order by requested_at;
+```
+
+**토큰 교체** — 새 값을 SQL 안에서 만들어 바로 넣는다. `vault.decrypted_secrets` 를 select 하지 않는다:
+
+```sql
+select vault.update_secret(
+  (select id from vault.secrets where name = 'beds24_tick_token'),
+  encode(extensions.gen_random_bytes(32), 'hex')
+);
+```
+
+라우트는 매 요청 Vault 와 대조하므로 재배포가 필요 없다. 도메인이 바뀌면 같은 방식으로
+`beds24_tick_url` 을 `vault.update_secret(id, 'https://<새 도메인>/api/beds24/tick')` 로 고친다.
+잠시 끄려면 `select cron.unschedule('beds24-tick');`, 다시 켜려면 마이그레이션 ④의 `cron.schedule` 문을 다시 실행한다.
+
 ## Recruit (채용 지원서 수신)
 
 외부 채용 사이트(haru-recruit / Firebase)가 지원서를 밀어넣는 경로. 계약은

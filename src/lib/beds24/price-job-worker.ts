@@ -30,6 +30,7 @@ import {
   releaseBeds24Lock,
   shouldCooldownForCredit,
 } from "@/lib/beds24/sync-locks";
+import { encodePriceJobWait, type PriceJobWaitReason } from "@/lib/beds24/price-job-wait";
 import type { Database } from "@/types/database";
 import { signalBeds24Change } from "@/lib/beds24/live-signal";
 
@@ -252,7 +253,8 @@ async function claimNextJob(supabase: Client): Promise<JobRow | null> {
 
   const claimed = await supabase
     .from("beds24_price_jobs")
-    .update({ started_at: new Date().toISOString(), status: "processing" })
+    // 대기 사유(`encodePriceJobWait`)는 다시 집는 순간 지운다 — 이제 기다리는 게 아니다.
+    .update({ error: null, started_at: new Date().toISOString(), status: "processing" })
     .eq("id", (candidate.data as { id: string }).id)
     // **여기가 원자성의 핵심** — 아직 queued 일 때만 내 것이 된다.
     .eq("status", "queued")
@@ -313,7 +315,7 @@ async function absorbSiblingJobs(
   for (const row of inWindow) {
     const taken = await supabase
       .from("beds24_price_jobs")
-      .update({ started_at: new Date().toISOString(), status: "processing" })
+      .update({ error: null, started_at: new Date().toISOString(), status: "processing" })
       .eq("id", row.id)
       .eq("status", "queued")
       .select("id")
@@ -572,6 +574,15 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
     /** 쿨다운 때문에 못 보낸(또는 검증 못 한) 객실 — 실패가 아니라 다음 차례 몫이다. */
     const deferred: string[] = [];
     let cooledDown = false;
+    /** 마지막으로 켠 쿨다운 — 되돌린 작업에 「왜 · 언제까지」로 적는다(`encodePriceJobWait`). */
+    let waitReason: PriceJobWaitReason = "rate_limit";
+    let waitUntil: string | null = null;
+    const coolDown = async (args: Parameters<typeof activateBeds24Cooldown>[1]) => {
+      const seconds = await activateBeds24Cooldown(supabase, args);
+      waitReason = args.reason;
+      waitUntil = new Date(Date.now() + seconds * 1000).toISOString();
+      cooledDown = true;
+    };
 
     /*
      * **쓰기 전에 현재 값을 읽어 둔다.** 이력의 「이전 값」이고, 쓴 뒤에는 영영 알 수 없다.
@@ -624,11 +635,7 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
         written = await postBeds24Calendar(payload);
       } catch (error) {
         if (error instanceof Beds24HttpError && error.isRateLimit) {
-          await activateBeds24Cooldown(supabase, {
-            reason: "rate_limit",
-            resetInSec: error.resetInSec,
-          });
-          cooledDown = true;
+          await coolDown({ reason: "rate_limit", resetInSec: error.resetInSec });
           deferred.push(...chunk);
           continue;
         }
@@ -650,12 +657,7 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
 
       // 크레딧이 바닥나기 **전에** 쉰다. 이 배치의 되읽기까지만 하고 다음 배치는 다음 차례가 맡는다.
       if (shouldCooldownForCredit(written.credit, LOW_CREDIT_THRESHOLD)) {
-        await activateBeds24Cooldown(supabase, {
-          fallbackSec: 30,
-          reason: "low_credit",
-          resetInSec: written.credit.resetInSec,
-        });
-        cooledDown = true;
+        await coolDown({ fallbackSec: 30, reason: "low_credit", resetInSec: written.credit.resetInSec });
       }
 
       const accepted = written.items.filter((item) => item.accepted).map((item) => item.externalRoomId);
@@ -685,11 +687,7 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
       const verified = await verifyWrites({ expectationByRoomId, includeLinkedPrices: false });
       if (verified.rateLimit) {
         // 들어갔는지 모른다 — 실패로 적지 않고 다음 차례에 다시 보내 확인한다(같은 값이라 안전하다).
-        await activateBeds24Cooldown(supabase, {
-          reason: "rate_limit",
-          resetInSec: verified.rateLimit.resetInSec,
-        });
-        cooledDown = true;
+        await coolDown({ reason: "rate_limit", resetInSec: verified.rateLimit.resetInSec });
         deferred.push(...accepted);
         continue;
       }
@@ -742,7 +740,8 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
       await supabase
         .from("beds24_price_jobs")
         .update({
-          error: null,
+          // 대기 사유와 자동 재전송 예정 시각 — 이력 패널이 「안 나감」 대신 「Beds24 한도 대기」로 보여준다.
+          error: encodePriceJobWait(waitReason, waitUntil),
           failed_room_ids: failures.map((item) => item.externalRoomId),
           processed_count: allResults.length,
           results: allResults as never,
