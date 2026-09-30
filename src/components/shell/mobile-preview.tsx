@@ -28,7 +28,7 @@ const SCREEN_H = 844;
 const STATUS_H = 54;
 /** 홈 인디케이터 띠. */
 const HOME_H = 24;
-/** 베젤 두께. */
+/** 베젤 두께 — 바깥 티타늄 림 + 안쪽 검은 유리 베젤을 합친 값. 나눔은 CSS(.mprev__frame / __bezel). */
 const BEZEL = 13;
 
 /**
@@ -133,31 +133,36 @@ export function MobilePreview({
             <span className="mprev__btn mprev__btn--voldown" aria-hidden="true" />
             <span className="mprev__btn mprev__btn--power" aria-hidden="true" />
 
-            <div className="mprev__screen" style={{ width: SCREEN_W, height: SCREEN_H }}>
-              <div className="mprev__status" style={{ height: STATUS_H }}>
-                <span className="mprev__time">{clock}</span>
-                <span className="mprev__island" aria-hidden="true" />
-                <span className="mprev__ind" aria-hidden="true">
-                  <svg viewBox="0 0 18 12" className="mprev__bars">
-                    <rect x="0" y="8" width="3" height="4" rx="1" />
-                    <rect x="5" y="5.5" width="3" height="6.5" rx="1" />
-                    <rect x="10" y="3" width="3" height="9" rx="1" />
-                    <rect x="15" y="0.5" width="3" height="11.5" rx="1" />
-                  </svg>
-                  <Wifi />
-                  <BatteryFull />
-                </span>
-              </div>
+            {/* 실제 아이폰처럼 금속 림 안쪽에 검은 유리 베젤이 한 겹 더 있다. */}
+            <div className="mprev__bezel">
+              <div className="mprev__screen" style={{ width: SCREEN_W, height: SCREEN_H }}>
+                <div className="mprev__status" style={{ height: STATUS_H }}>
+                  <span className="mprev__time">{clock}</span>
+                  <span className="mprev__island" aria-hidden="true">
+                    <span className="mprev__lens" />
+                  </span>
+                  <span className="mprev__ind" aria-hidden="true">
+                    <svg viewBox="0 0 18 12" className="mprev__bars">
+                      <rect x="0" y="8" width="3" height="4" rx="1" />
+                      <rect x="5" y="5.5" width="3" height="6.5" rx="1" />
+                      <rect x="10" y="3" width="3" height="9" rx="1" />
+                      <rect x="15" y="0.5" width="3" height="11.5" rx="1" />
+                    </svg>
+                    <Wifi />
+                    <BatteryFull />
+                  </span>
+                </div>
 
-              <iframe
-                className="mprev__app"
-                style={{ width: SCREEN_W, height: APP_H }}
-                src={href}
-                title={labels.title}
-              />
+                <iframe
+                  className="mprev__app"
+                  style={{ width: SCREEN_W, height: APP_H }}
+                  src={href}
+                  title={labels.title}
+                />
 
-              <div className="mprev__home" style={{ height: HOME_H }} aria-hidden="true">
-                <span />
+                <div className="mprev__home" style={{ height: HOME_H }} aria-hidden="true">
+                  <span />
+                </div>
               </div>
             </div>
           </div>

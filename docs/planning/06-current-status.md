@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-09-30 — 모바일 미리보기 프레임 질감
+
+- 어드민 「모바일 보기」 아이폰 프레임을 티타늄 림 + 검은 유리 베젤 두 겹으로, 측면 버튼을 금속으로,
+  아일랜드에 카메라 렌즈 추가. 크기(BEZEL 13px)·iframe 구조는 그대로. (`05-admin-web-ia.md` → 모바일 미리보기)
+
 ## 2026-09-29 — 로그인 화면 초대코드 안내 문구
 
 - `/auth/login` 하단 안내(`entry.inviteNote`)의 코드 문의처를 「매니저」→「개발자」로 변경
