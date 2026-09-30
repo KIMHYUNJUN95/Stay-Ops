@@ -1,3 +1,4 @@
+import { Beds24LiveDot } from "@/components/shared/beds24-live-dot";
 import { after } from "next/server";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { OpsCalendarGrid } from "@/components/admin/ops/ops-calendar-grid";
@@ -226,6 +227,7 @@ export default async function OpsCalendarPage({
             {copy.roomCount.replace("{count}", String(data.roomTotal))}
             <span className="ops__dot2" />
             {syncedLabel}
+            <Beds24LiveDot offLabel={copy.liveOff} onLabel={copy.liveOn} />
           </div>
         </div>
 

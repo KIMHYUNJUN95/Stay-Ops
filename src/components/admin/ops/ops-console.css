@@ -1283,6 +1283,19 @@
   font-weight: 700;
 }
 .ops__meta.stale .ops__dot2 { background: var(--danger); }
+/* 실시간 연결 점(`beds24-live-dot.tsx`) — 초록 = 연결, 회색 = 끊김·재연결 중. */
+.ops__live {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--faint);
+  opacity: 0.6;
+}
+.ops__live.is-on {
+  background: #22a06b;
+  opacity: 1;
+  box-shadow: 0 0 0 3px rgb(34 160 107 / 0.16);
+}
 
 /* ────────────────────────────────────────────────────────────────────────
  * 최소 숙박일 모드

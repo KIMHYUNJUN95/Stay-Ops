@@ -9,6 +9,12 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-09-30 (4) — 실시간 신호 놓침 따라잡기 · 연결 상태 점
+
+- 다른 컴퓨터에서 Beds24 변경이 안 뜨던 것: 끊긴 동안의 브로드캐스트는 사라진다. `useBeds24LiveRefresh` 가
+  재구독 · `online` · 60초 넘게 가려졌던 탭 복귀 때 한 번 다시 읽는다. 판매 캘린더에 실시간 연결 점(초록/회색).
+  (`33-calendar-write-features.md` → 「실시간 신호를 놓쳐도 따라잡는다」)
+
 ## 2026-09-30 (3) — 판매 캘린더 건물 여러 곳 함께 보기
 
 - 건물 탭에 체크 동그라미(hover/focus) · Ctrl/⌘/Shift + 클릭으로 여러 건물을 골라 위아래로 쌓아 본다(탭 순서).

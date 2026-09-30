@@ -112,6 +112,8 @@ const FALLBACK_DICTIONARY = {
       propertyClear: "Clear selection and show all properties",
       // 동기화 신선도. 얼마나 오래된 값인지 모른 채 가격을 조정하는 것이 제일 위험하다.
       syncedJustNow: "synced just now",
+      liveOn: "Live updates connected",
+      liveOff: "Live updates disconnected — reconnecting",
       syncedMinutes: "synced {n}m ago",
       syncedHours: "synced {n}h ago",
       syncedNever: "prices not loaded",
@@ -5530,6 +5532,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       propertyClear: "선택을 풀고 전체 건물 보기",
       // 동기화 신선도. 얼마나 오래된 값인지 모른 채 가격을 조정하는 것이 제일 위험하다.
       syncedJustNow: "방금 동기화",
+      liveOn: "실시간 반영 연결됨",
+      liveOff: "실시간 반영 끊김 — 다시 연결 중",
       syncedMinutes: "{n}분 전 동기화",
       syncedHours: "{n}시간 전 동기화",
       syncedNever: "요금 없음",
@@ -10790,6 +10794,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       propertyClear: "選択を解除してすべての物件を表示",
       // 동기화 신선도. 얼마나 오래된 값인지 모른 채 가격을 조정하는 것이 제일 위험하다.
       syncedJustNow: "たった今同期",
+      liveOn: "リアルタイム反映に接続中",
+      liveOff: "リアルタイム反映が切断 — 再接続中",
       syncedMinutes: "{n}分前に同期",
       syncedHours: "{n}時間前に同期",
       syncedNever: "料金なし",
