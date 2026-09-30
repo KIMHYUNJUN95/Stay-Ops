@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 /**
  * Registers the service worker (production only) so the installed PWA is installable on Android
  * (Chrome's install prompt requires a SW with a fetch handler) and gets an offline fallback.
- * Dev is skipped so a cached SW never interferes with HMR. Renders nothing.
+ * Dev is skipped so a cached SW never interferes with HMR. A SW left over from an earlier prod run
+ * on the same origin is removed by the dev-only `/sw.js` kill switch (`public/sw-dev-reset.js`,
+ * rewired in `next.config.ts`). Renders nothing.
  */
 export function ServiceWorkerRegister() {
   const router = useRouter();

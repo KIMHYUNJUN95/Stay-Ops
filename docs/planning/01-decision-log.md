@@ -28,6 +28,13 @@ This file records important project decisions.
 바뀌지 않는다. 상세: `docs/product/33-calendar-write-features.md` → 「판매 캘린더가 스스로 무한 새로고침을
 돌던 것」.
 
+## 2026-09-28 개발 서버에서는 `/sw.js` 를 kill switch 로 바꿔 낸다
+
+같은 origin 에서 프로덕션 SW 가 남아 있으면 dev 서버가 무한 로딩에 걸린다. 사용자에게 매번
+「개발자도구 → Unregister」를 시키는 대신, dev 에서 `/sw.js` 를 스스로 해제하는
+`public/sw-dev-reset.js` 로 rewrite 한다. 페이지 JS 가 못 떠도 브라우저의 SW 업데이트 확인만으로
+치워진다. 프로덕션 SW·PWA-first 방향은 바뀌지 않는다.
+
 ## 2026-09-11 (2) 채용 Firestore 공개 읽기를 닫았다 — 무중단 전환
 
 **상태.** 몇 달간 지원자 196명의 이름·전화·주소·국적·비자·이력서가 **인증 없이** 읽혔다. 원인은

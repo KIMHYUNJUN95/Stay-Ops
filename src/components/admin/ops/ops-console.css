@@ -551,15 +551,12 @@
   height: 19px;
   top: 3px;
   border-radius: 9px;
-  background: repeating-linear-gradient(
-    135deg,
-    hsl(222 12% 52% / 0.34) 0 5px,
-    hsl(222 12% 52% / 0.12) 5px 10px
-  );
-  box-shadow: inset 0 0 0 1px hsl(222 10% 68%);
-  font-size: 8px;
+  /* 차단은 한눈에 보여야 한다 — 옅은 회색 빗금은 예약 막대 사이에서 묻혔다(2026-09-30 사용자).
+     완전 검정 막대 + 흰 라벨. */
+  background: #000;
+  font-size: 8.5px;
   font-weight: 800;
-  color: hsl(222 16% 34%);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;

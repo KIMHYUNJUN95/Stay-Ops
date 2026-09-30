@@ -46,6 +46,10 @@ and the major mobile/admin operations modules are implemented and being hardened
 - 문서: `33-calendar-write-features.md`(신설 다수 절) · `04-data-model.md`(RPC 2종) ·
   `05-rls-permissions.md`(RPC EXECUTE 권한) · `15-reservation-calendar.md`(신호 범위 참고).
 
+## 2026-09-30 — 판매 캘린더 차단 막대 검정
+
+- 판매 캘린더 BLOCK 막대를 옅은 회색 빗금 → 완전 검정 + 흰 라벨로. (`33-calendar-write-features.md`)
+
 ## 2026-09-30 — 모바일 미리보기 프레임 질감
 
 - 어드민 「모바일 보기」 아이폰 프레임을 티타늄 림 + 검은 유리 베젤 두 겹으로, 측면 버튼을 금속으로,
@@ -57,6 +61,17 @@ and the major mobile/admin operations modules are implemented and being hardened
   (ko/ja/en 동시). 온보딩 화면의 초대코드 힌트 문구는 그대로.
 - 로그인 화면 언어 선택: 데스크톱 폭(>1080px)에서는 모바일 하단 시트 대신 대시보드식 드롭다운으로
   펼친다. 좁은 폭은 `BottomSheet` 유지. (`05-admin-web-ia.md` → Admin Login)
+
+## 2026-09-28 — 개발 서버 무한 로딩(옛 서비스 워커) 차단
+
+- 증상: `.next` 를 지우고 `npm run dev` 를 다시 띄우면 일반 창은 무한 로딩, 시크릿 창은 정상.
+  서버 로그에 브라우저 요청이 아예 찍히지 않았다.
+- 원인: 예전 `npm start` 때 `localhost:3000` 에 깔린 프로덕션 SW(`public/sw.js`)가 남아 dev 요청을
+  가로채고, 사라진 청크를 가리키는 옛 캐시를 내줬다. SW 등록은 프로덕션 전용이라 dev 에서는 누구도
+  그것을 치우지 않았다.
+- 조치: dev 에서만 `next.config.ts` 가 `/sw.js` 를 `public/sw-dev-reset.js`(kill switch)로
+  rewrite(`beforeFiles`)한다. 브라우저의 SW 업데이트 확인이 이 파일을 받아 캐시 전부 삭제 →
+  자기 등록 해제 → 열린 탭 새로고침. 프로덕션 동작은 그대로.
 
 ## 2026-08-07 — Documentation consistency synchronization
 

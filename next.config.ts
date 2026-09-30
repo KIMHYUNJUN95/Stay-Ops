@@ -34,6 +34,15 @@ const nextConfig: NextConfig = {
   // `*.trycloudflare.com` covers Cloudflare quick tunnels (random subdomain each
   // run) so the app can be opened on a phone over any network, not just same-WiFi.
   allowedDevOrigins: ["172.20.50.244", "10.255.255.254", "192.168.1.112", "*.trycloudflare.com"],
+  /**
+   * 개발 서버에서는 `/sw.js` 를 스스로 해제하는 kill-switch 로 바꿔 낸다(`public/sw-dev-reset.js`).
+   * 같은 localhost 에서 전에 프로덕션으로 띄울 때 깔린 SW 가 dev 요청을 가로채 옛 캐시를 내주면
+   * 무한 로딩에 걸린다(2026-09-28). `beforeFiles` 라야 `public/sw.js` 보다 먼저 적용된다.
+   */
+  async rewrites() {
+    if (process.env.NODE_ENV === "production") return [];
+    return { beforeFiles: [{ source: "/sw.js", destination: "/sw-dev-reset.js" }] };
+  },
   images: {
     /**
      * `next/image` 는 허용 목록에 없는 원격 주소를 만나면 **렌더 중에 던진다.** 화면이 안 뜨고
