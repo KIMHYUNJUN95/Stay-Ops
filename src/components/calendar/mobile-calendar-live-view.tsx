@@ -6,7 +6,7 @@ import { MobileCalendarView, type CalendarReservationItem, type CalendarRoomBloc
 import type { PropertyMapMeta } from "@/lib/property-map-links";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { Locale } from "@/lib/i18n";
-import { BEDS24_LIVE_EVENT, beds24LiveTopic } from "@/lib/beds24-live";
+import { BEDS24_LIVE_CHANNEL_OPTIONS, BEDS24_LIVE_EVENT, beds24LiveTopic } from "@/lib/beds24-live";
 
 type MobileCalendarLiveViewProps = {
   copy: {
@@ -148,12 +148,17 @@ export function MobileCalendarLiveView(props: MobileCalendarLiveViewProps) {
 
     // 차단·요금 등 Beds24 쪽 변경 — 서버가 동기화 뒤 보내는 신호(`src/lib/beds24-live.ts`).
     // 예약 변경도 이 신호가 오지만 위 구독과 같은 `scheduleRefresh` 라 한 번만 다시 읽는다.
+    // private 채널 — 구독 전에 사용자 JWT 를 실시간 연결에 싣는다.
+    let disposed = false;
     const beds24Channel = supabase
-      .channel(beds24LiveTopic(props.organizationId))
+      .channel(beds24LiveTopic(props.organizationId), BEDS24_LIVE_CHANNEL_OPTIONS)
       .on("broadcast", { event: BEDS24_LIVE_EVENT }, () => {
         scheduleRefresh();
-      })
-      .subscribe();
+      });
+    const subscribeBeds24 = () => {
+      if (!disposed) beds24Channel.subscribe();
+    };
+    void supabase.realtime.setAuth().then(subscribeBeds24, subscribeBeds24);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible" && pendingRefreshRef.current) {
@@ -164,6 +169,7 @@ export function MobileCalendarLiveView(props: MobileCalendarLiveViewProps) {
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      disposed = true;
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (refreshTimeoutRef.current) {
         clearTimeout(refreshTimeoutRef.current);

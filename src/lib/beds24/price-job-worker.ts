@@ -241,11 +241,10 @@ async function breakOrphanedWorkerLock(supabase: Client): Promise<boolean> {
  *
  * 조건부 갱신이라 두 워커가 동시에 시도해도 하나만 가져간다 — 가져간 쪽만 행을 돌려받는다.
  */
-async function claimNextJob(supabase: Client): Promise<JobRow | null> {
-  const candidate = await supabase
-    .from("beds24_price_jobs")
-    .select("id")
-    .eq("status", "queued")
+async function claimNextJob(supabase: Client, organizationId?: string): Promise<JobRow | null> {
+  let candidateQuery = supabase.from("beds24_price_jobs").select("id").eq("status", "queued");
+  if (organizationId) candidateQuery = candidateQuery.eq("organization_id", organizationId);
+  const candidate = await candidateQuery
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -512,7 +511,11 @@ async function patchLocalRates(args: {
  * 로 되돌리고 그때까지의 결과를 `results` 에 둔다. 쿨다운이 풀린 뒤 다음 차례가 나머지만 보낸다
  * (`planPriceJobResume`).
  */
-export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome> {
+export async function runNextPriceJob(
+  supabase: Client,
+  /** `organizationId` — 「지금 보내기」처럼 사람이 누른 경로는 그 조직 작업만 집는다. 크론·킥은 생략(전역). */
+  options: { organizationId?: string } = {},
+): Promise<PriceJobOutcome> {
   const cooldown = await getBeds24Cooldown(supabase);
   if (cooldown.active) {
     console.log(`[beds24/price-job] 쿨다운 ${cooldown.remainingSec}초 남음 — 쉰다`);
@@ -538,7 +541,7 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
 
   try {
     await recoverStuckJobs(supabase);
-    const job = await claimNextJob(supabase);
+    const job = await claimNextJob(supabase, options.organizationId);
     if (!job) return { ran: false, reason: "empty" };
 
     // 우리 방 마스터에 있는 것만 로컬 반영 대상이다. **못 읽었으면 보내지 않는다** — 로컬 반영·

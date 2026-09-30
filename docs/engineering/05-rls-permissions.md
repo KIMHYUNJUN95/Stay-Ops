@@ -1266,6 +1266,8 @@ authenticated` + `grant execute … to service_role` 을 함께 넣었다 — �
 
 ## 2026-09-29 `beds24_block_logs`
 
+> 2026-09-30 이후 읽기는 `ops_admin.access` 보유자로 좁혀졌다 — 아래 「판매 캘린더 작업·이력 표」 참고.
+
 `beds24_price_jobs` 와 같은 규칙이다 — 조직 구성원(`has_active_membership`) · 플랫폼 관리자는 **읽기**,
 쓰기는 **서비스 롤만**(서버 액션이 운영 관리자 권한 `canAccessOpsAdmin` 을 확인한 뒤 남긴다).
 판매 캘린더 「이력」 패널의 서버 액션(`loadOpsChangeHistory` · `loadOpsSendLog` · `sendPendingPriceJobs`)은
@@ -1284,3 +1286,64 @@ service-role 로 읽으므로 **조직을 쿼리에 직접 건다**(`organizatio
   토큰 대조 함수는 **값을 돌려주지 않고** 일치 여부만 돌려준다.
 - `/api/beds24/tick` 은 사람 세션이 아니라 토큰으로 연다 — Vault 토큰(pg_net 호출), 또는 워커와 같은
   `CRON_SECRET` / `BEDS24_WEBHOOK_SECRET`. 토큰은 헤더로만 받는다(쿼리 문자열은 접근 로그에 남는다).
+
+## 2026-09-30 판매 캘린더 작업·이력 표 — 읽기도 `ops_admin.access`
+
+마이그레이션 `202609300007_ops_logs_capability_read.sql` (운영 미적용).
+
+대상: `beds24_price_jobs` · `price_change_logs` · `beds24_block_logs`.
+
+- **SELECT 전**: `has_active_membership(organization_id) OR is_platform_admin()` — 조직 구성원이면 누구나.
+  화면(`/admin/ops/*`)은 `ops_admin.access` 로만 열리는데 RLS 는 전원에게 열려 있어, 현장 직원 세션으로
+  REST 를 직접 치면 가격 작업 본문·변경자·차단 요청자가 읽혔다.
+- **SELECT 후**: `to authenticated using (organization_id = any ((select public.capability_organization_ids('ops_admin.access'))::uuid[])`.
+  정책 이름 `ops admins can read organization price jobs` / `… price logs` / `… block logs`.
+- **판정식은 `has_capability`** 그대로다(차단 우선 · `capability_roles` · 개인 부여/차단 · 만료/회수 ·
+  플랫폼 관리자 통과 · 전무 = 대표). 앱의 `canAccessOpsAdmin`(= `session.capabilities` 에 키가 있는가)과
+  같은 답이다. 역할 배열을 정책에 적지 않는다.
+- 새 헬퍼 `capability_organization_ids(text) returns uuid[]` — `SECURITY DEFINER` · `search_path = public` ·
+  `stable` · EXECUTE 는 `authenticated` 만. **대상자를 인자로 받지 않고 `auth.uid()` 만 본다**(RLS 작성 규칙 2).
+  호출자의 active 멤버십 중 `has_capability` 가 참인 조직만 돌려준다. 비로그인은 빈 배열.
+  - 두는 이유: `has_capability(organization_id, …)` 를 정책에 바로 쓰면 **행마다** 평가된다(SECURITY DEFINER
+    는 인라인되지 않는다). 판매 캘린더가 `price_change_logs` 를 창 전체로 읽으므로, 조직 목록을 InitPlan 으로
+    쿼리당 한 번 구한다(RLS 작성 규칙 1).
+  - 정책을 `to authenticated` 로 한정한 이유: EXECUTE 를 anon 에 주지 않았으므로 anon 에게 정책이 평가되면
+    false 가 아니라 권한 에러가 난다. 한정하면 anon 에는 적용되지 않는다.
+- 플랫폼 관리자: 멤버십이 있으면 헬퍼 목록에 들고(bypass), 없어도 기존 `platform admins can manage …` FOR ALL
+  정책으로 읽는다 — 이전과 같다.
+- INSERT / UPDATE / DELETE 정책은 **바꾸지 않았다**. 쓰기는 service-role.
+- 사용자 세션(RLS)으로 이 표를 읽는 곳은 `getOpsCalendarData`(`/admin/ops/calendar`, `requireOpsAdminPage`)와
+  `getOpsPriceConversions`(`loadOpsPriceConversions`, `requireOpsWriter`) 두 곳뿐이고 둘 다 이미
+  `canAccessOpsAdmin` 뒤에 있다. 나머지(이력 패널 · 작업 상태 · 워커 · 틱 · 웹훅)는 service-role. 세 표를
+  `postgres_changes` 로 구독하는 화면은 없다. 따라서 정당한 사용자의 동작은 바뀌지 않는다.
+- 검증 SQL 은 마이그레이션 파일 끝의 주석(정책 목록 · 사용자 시뮬레이션 · 실행 계획)을 쓴다.
+
+## 2026-09-30 Realtime `beds24-live:<조직>` — private 채널 (`realtime.messages`)
+
+- 마이그레이션: `supabase/migrations/202609300006_beds24_live_private_channel.sql`.
+- 정책 `beds24_live_members_receive` — `realtime.messages` **SELECT**, `to authenticated`:
+  `extension = 'broadcast'` 이고 `(select realtime.topic())` 가 `'beds24-live:' || <그 사용자가
+  `memberships.status = 'active'` 인 조직 id>` 와 같을 때만. `auth.uid()` 는 `(select auth.uid())` 로 감쌌다.
+- **INSERT 정책 없음** — 브라우저는 이 토픽으로 보낼 수 없다. 송신은 `signalBeds24Change`
+  (`src/lib/beds24/live-signal.ts`)가 service role JWT 로 `httpSend`(private) 해 RLS 를 우회한다.
+- 토픽을 uuid 로 캐스팅하지 않고 문자열로 비교한다 — 다른 private 토픽이 생겨도 캐스팅 에러로 그 구독까지
+  막지 않게.
+- 이 마이그레이션 전에는 `realtime.messages` 에 정책이 하나도 없었다(다른 정책을 건드리지 않음).
+  `calendar-reservations:*` · `recruit-applications:*` 는 public `postgres_changes` 구독이라 이 정책과 무관하고,
+  프로젝트 Realtime 「Allow public access」 설정도 바꾸지 않았다.
+- 배포 순서: 마이그레이션 **먼저**, 클라이언트(private 구독) 배포는 그 다음.
+
+## 2026-09-30 판매 캘린더 · Beds24 웹훅 — 조직 격리 보강 (감사 저위험 3건)
+
+- **행 키는 서버가 다시 계산한다.** `submitManualBooking` · `submitReservationEdit`
+  (`src/app/admin/ops/calendar/actions.ts`)는 화면이 보낸 `roomKey` 를 믿지 않는다. 넘어온 `rooms.id` 를
+  세션 조직으로 읽고 `resolveOpsRowRoomKey`(`src/lib/ops-room-key.ts`, 격자 `mapRoomUnits` 와 같은
+  `opsUnitRoomKey`)로 키를 다시 만든다. 조직 밖 id 가 하나라도 있거나, 유닛이 한 행으로 모이지 않거나,
+  화면 키와 다르면 거절(수동 예약 `unknown_room`, 예약 수정 `not_found`). 겹침 검사는 서버 키만 쓴다.
+- **「지금 보내기」는 호출 조직의 가격 작업만.** `runNextPriceJob(supabase, { organizationId })` →
+  `claimNextJob` 이 `organization_id` 로 거른다. 크론 · 틱 · 킥 경로는 인자 없이 전역(Beds24 계정 하나).
+- **웹훅 예약의 조직은 DB 매핑이 정한다.** `processBeds24WebhookBooking` 은 페이로드의
+  `organizationId`/`orgId` 등을 더 이상 읽지 않는다. `properties.external_property_id`(없으면
+  `rooms.external_room_id`, 둘 다 `external_provider = 'beds24'`) → `organization_id` 로 정하고
+  (`src/lib/beds24/webhook-organization.ts`), 매핑이 없거나 여러 조직으로 갈릴 때만 서버 기본값
+  (세션 조직 · `BEDS24_DEFAULT_ORGANIZATION_ID`)으로 떨어진다. 매핑에 세션 조직이 있으면 세션 조직.

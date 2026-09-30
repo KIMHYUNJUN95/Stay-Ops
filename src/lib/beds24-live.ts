@@ -56,6 +56,13 @@ export function beds24LiveScopesOverlap(
   return true;
 }
 
+/**
+ * 채널은 **private** 다(2026-09-30). 구독은 `realtime.messages` RLS 가 그 조직의 active 멤버만 허용하고
+ * (`supabase/migrations/202609300006_beds24_live_private_channel.sql`), 송신은 서버 service role 만 한다.
+ * 브라우저는 구독 **전에** `supabase.realtime.setAuth()` 를 기다려야 첫 join 에 사용자 JWT 가 실린다.
+ */
+export const BEDS24_LIVE_CHANNEL_OPTIONS = { config: { private: true } } as const;
+
 export function beds24LiveTopic(organizationId: string): string {
   return `beds24-live:${organizationId}`;
 }

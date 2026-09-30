@@ -41,6 +41,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { resolveSelectedProperties } from "@/lib/ops-calendar-properties";
+import { opsUnitRoomKey, ROOM_AXIS_SEPARATOR, toRoomAxisKey } from "@/lib/ops-room-key";
 
 /**
  * 운영 관리자 「판매 캘린더」의 읽기 계층.
@@ -301,12 +302,6 @@ export type OpsCalendarViewMode = "rolling" | "monthly";
 
 export const OPS_CALENDAR_ROLLING_DAYS = 30;
 
-const ROOM_AXIS_SEPARATOR = "::";
-
-function toRoomAxisKey(propertyName: string, displayRoomLabel: string) {
-  return `${propertyName}${ROOM_AXIS_SEPARATOR}${displayRoomLabel}`;
-}
-
 function addDays(date: string, days: number): string {
   const [y, m, d] = date.split("-").map(Number);
   const next = new Date(Date.UTC(y, m - 1, d + days));
@@ -547,11 +542,9 @@ function mapRoomUnits(rows: RoomCatalogRow[]) {
   const syncableRoomIds = new Set<string>();
   for (const row of rows) {
     const propertyRow = Array.isArray(row.properties) ? row.properties[0] : row.properties;
-    const propertyName = getCanonicalPropertyName(propertyRow?.name?.trim() || "Unknown");
-    if (isExcludedOperationalRoom(propertyName, row.room_label)) continue;
-    const canonical = getCanonicalRoomLabel(propertyName, row.room_label) || row.room_label.trim();
-    const displayRoomLabel = getDisplayRoomLabel(propertyName, canonical) || canonical;
-    roomKeyByUuid.set(row.id, toRoomAxisKey(propertyName, displayRoomLabel));
+    const roomKey = opsUnitRoomKey({ propertyName: propertyRow?.name, roomLabel: row.room_label });
+    if (!roomKey) continue;
+    roomKeyByUuid.set(row.id, roomKey);
     unitLabelById.set(row.id, row.room_label);
     if (row.status === "active" && row.external_provider === "beds24" && row.external_room_id) {
       syncableRoomIds.add(row.id);

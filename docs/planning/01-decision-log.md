@@ -2,6 +2,14 @@
 
 This file records important project decisions.
 
+## 2026-09-30 Beds24 실시간 신호 채널을 private 로 바꾼다
+
+`beds24-live:<조직>` 은 이제 private Realtime 채널이다. 받기는 `realtime.messages` RLS(그 조직 active 멤버만,
+broadcast 만)로, 보내기는 서버 service role 만 한다(브라우저 INSERT 정책 없음). 신호가 범위(건물·날짜)를 싣게
+되면서 「공개 채널·데이터 없음」(2026-09-29) 전제가 깨졌기 때문이다. 마이그레이션 `202609300006` 을 클라이언트
+배포보다 **먼저** 적용한다. 프로젝트 Realtime 「Allow public access」 설정은 그대로 둔다. 상세:
+`docs/product/33-calendar-write-features.md` → 「화면도 웹훅 기준으로」 · `docs/engineering/05-rls-permissions.md`.
+
 ## 2026-09-30 판매 캘린더의 건물 다중 선택은 `property` 쿼리를 반복한다
 
 여러 건물을 함께 볼 때 주소는 `?property=A&property=B`(탭 순서로 정렬, 중복 제거)이고, 하나면 예전 그대로
@@ -32,7 +40,7 @@ This file records important project decisions.
 (`Beds24LiveRefresh`/`useBeds24LiveRefresh`)이 `{ propertyNames, from, to }` 범위를 실을 수 있게 됐다. 겹치지
 않는 신호는 무시한다(`beds24LiveScopesOverlap`, 모르면 겹친다고 본다). 기존 호출처는 전부 범위 없이(=전체
 수신) 그대로 두고, 판매 캘린더만 신규로 범위를 건다 — 「신호는 공개 채널·데이터 없음」 원칙(2026-09-29)은
-바뀌지 않는다. 상세: `docs/product/33-calendar-write-features.md` → 「판매 캘린더가 스스로 무한 새로고침을
+바뀌지 않는다(→ 같은 날 private 채널로 전환, 위 항목). 상세: `docs/product/33-calendar-write-features.md` → 「판매 캘린더가 스스로 무한 새로고침을
 돌던 것」.
 
 ## 2026-09-28 개발 서버에서는 `/sw.js` 를 kill switch 로 바꿔 낸다
@@ -6366,3 +6374,11 @@ Beds24 재고(가격) 웹훅 URL 칸은 **프로퍼티당 한 줄만** 받는다
 관련: `docs/product/33-calendar-write-features.md` → 「예약 상세」,
 `docs/product/34-metrics-and-automation.md` → 「국가 — 전화번호로 채운다」
 
+## 2026-09-30 — 판매 캘린더 작업·이력 표 읽기를 `ops_admin.access` 로 좁힌다
+
+`beds24_price_jobs` · `price_change_logs` · `beds24_block_logs` 는 화면(`/admin/ops/*`)이 `ops_admin.access`
+로만 열리는데 SELECT RLS 는 조직 구성원 전원에게 열려 있었다. 가격 작업 본문 · 변경자 · 차단 요청자가 담긴
+표라 **RLS 도 같은 키로 판정한다**(사용자 승인). 판정식은 기존 `has_capability` 를 그대로 쓰고, 행마다
+평가하지 않도록 호출자의 권한 조직 목록을 한 번 구하는 `capability_organization_ids(text)` 를 추가했다.
+쓰기 정책은 그대로. 사용자 세션으로 읽는 두 경로는 이미 `canAccessOpsAdmin` 뒤라 정당한 사용자는 영향 없음.
+마이그레이션 `202609300007_ops_logs_capability_read.sql` · 상세: docs/engineering/05-rls-permissions.md.

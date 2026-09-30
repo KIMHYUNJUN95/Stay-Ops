@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
+  BEDS24_LIVE_CHANNEL_OPTIONS,
   BEDS24_LIVE_EVENT,
   beds24LiveScopesOverlap,
   beds24LiveTopic,
@@ -24,6 +25,8 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
  *   저장되지 않아서, 절전·와이파이 전환·오래 가려 둔 탭으로 연결이 끊긴 동안 온 신호는 사라진다.
  *   그래서 ① 끊겼다가 다시 구독되면 ② 네트워크가 돌아오면(`online`) ③ `CATCH_UP_HIDDEN_MS` 넘게
  *   가려졌던 탭이 다시 보이면 **한 번 다시 읽는다**(범위 판정 없이 — 무엇을 놓쳤는지 모른다).
+ * - **private 채널**이다 — 구독 전에 `realtime.setAuth()` 를 기다려 첫 join 에 사용자 JWT 를 싣는다.
+ *   토큰 갱신은 supabase-js 가 한다(`TOKEN_REFRESHED` → `setAuth`, heartbeat 마다 콜백으로 재확인).
  * - 연결 상태를 `BEDS24_LIVE_STATUS_EVENT` 로 알린다 — `Beds24LiveDot` 이 화면에 점으로 보여 준다.
  * - `router.refresh()` 는 서버 컴포넌트만 다시 받는다 — 열려 있는 패널·입력·선택 같은 클라이언트
  *   상태는 그대로 남는다.
@@ -98,9 +101,11 @@ export function useBeds24LiveRefresh(
     let wasDisconnected = false;
     let disposed = false;
     const channel = supabase
-      .channel(beds24LiveTopic(organizationId))
-      .on("broadcast", { event: BEDS24_LIVE_EVENT }, onSignal)
-      .subscribe((status) => {
+      .channel(beds24LiveTopic(organizationId), BEDS24_LIVE_CHANNEL_OPTIONS)
+      .on("broadcast", { event: BEDS24_LIVE_EVENT }, onSignal);
+    const subscribe = () => {
+      if (disposed) return;
+      channel.subscribe((status) => {
         if (status === "SUBSCRIBED") {
           // 처음 붙은 것이 아니라 **다시** 붙었다 — 끊긴 동안의 신호를 놓쳤을 수 있다.
           if (wasDisconnected) schedule();
@@ -113,6 +118,8 @@ export function useBeds24LiveRefresh(
           }
         }
       });
+    };
+    void supabase.realtime.setAuth().then(subscribe, subscribe);
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", onOnline);
 

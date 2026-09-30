@@ -538,12 +538,29 @@ V2(POST) {"roomId":440617,"action":"PRICE_CHANGE","propId":176430}
 
 - **표마다 postgres 변경 알림을 켜지 않는다.** 재고 웹훅 한 번에 요금 12개월(건물당 ~9,500행)을 다시
   써서 알림이 행 수만큼 쏟아진다. DB 설정(publication)도 바꾸지 않는다.
-- **공개 채널이다.** 채널 이름에 조직 UUID 가 들어가고 내용은 「바뀌었다」뿐이라, 알아도 얻는 데이터가
-  없다. 실제 값은 서버가 권한을 확인하고 읽는다.
+- ~~**공개 채널이다.**~~ → **2026-09-30 부터 private 채널이다.** 처음(9/29)엔 내용이 「바뀌었다」뿐이라
+  공개로 뒀지만, 9/30 에 신호가 범위(건물 이름·날짜)를 싣게 되면서 조직 UUID 만 알면 남의 조직 운영
+  움직임을 엿볼 수 있게 됐다. 그래서:
+  - **받기**: `realtime.messages` RLS 정책 `beds24_live_members_receive`
+    (`supabase/migrations/202609300006_beds24_live_private_channel.sql`) — `authenticated` 이고, 토픽이
+    `beds24-live:<그 사용자가 active 멤버인 조직>` 이고, `extension = 'broadcast'` 일 때만 SELECT.
+  - **보내기**: 브라우저용 INSERT 정책은 **없다**. 서버(`signalBeds24Change`)만 service role 로 보낸다 —
+    `realtime.setAuth()` 로 service role JWT 를 `Authorization` 에 싣고 `{ config: { private: true } }` 채널로
+    `httpSend` 한다(RLS 우회).
+  - **브라우저**: `BEDS24_LIVE_CHANNEL_OPTIONS`(`src/lib/beds24-live.ts`)로 private 구독. 구독 **전에**
+    `supabase.realtime.setAuth()` 를 기다려 첫 join 에 사용자 JWT 를 싣는다(`useBeds24LiveRefresh`,
+    `/mobile/calendar`). 토큰 갱신은 supabase-js 2.106 이 한다 — `TOKEN_REFRESHED` → `setAuth`, 그리고
+    heartbeat 마다 `accessToken` 콜백으로 재확인해 바뀌었으면 채널에 `access_token` 을 다시 보낸다.
+  - **배포 순서**: 마이그레이션 `202609300006` 을 **먼저** 적용하고 클라이언트를 배포한다. 거꾸로면 private
+    구독이 거부돼(`CHANNEL_ERROR` → 연결 점 끊김) 실시간 새로고침만 멈춘다 — 데이터·쓰기는 영향 없다.
+  - 프로젝트 Realtime 설정 「Allow public access」는 **바꾸지 않았다** — 다른 public 구독
+    (`calendar-reservations:*`, `recruit-applications:*` 의 postgres 변경 알림)은 그대로다.
+  - 실제 값은 여전히 서버가 권한을 확인하고 `router.refresh()` 로 읽는다. 회귀 테스트:
+    `src/lib/__tests__/beds24-live-channel.test.ts`.
 - **신호는 절대 실패를 만들지 않는다.** 보내기 실패는 경고 로그만 남기고, 화면은 다음 이동 때 맞는다.
   서비스 클라이언트는 호출할 때 불러온다(동기화 모듈을 테스트가 직접 import 하므로).
 - `router.refresh()` 는 서버 컴포넌트만 다시 받는다 — 열린 패널·입력·선택 같은 클라이언트 상태는 남는다.
-- 실측(2026-09-29): 익명 키로 구독한 클라이언트가 서비스 키 `httpSend` 신호를 받는 것을 확인했다.
+- 실측(2026-09-29): 익명 키로 구독한 클라이언트가 서비스 키 `httpSend` 신호를 받는 것을 확인했다. (공개 채널 시절 — private 전환 뒤에는 로그인 사용자 JWT 가 필요하다.)
 
 **2026-09-17 실측 — 가격 웹훅은 우리에게 오지 않고 있다.** (→ 2026-09-29 전환 완료, 07 문서 참고)
 
@@ -2523,3 +2540,13 @@ Supabase 브로드캐스트는 **저장되지 않는다** — 절전·와이파�
   끊김(자동 재연결 중). 툴팁 `liveOn` / `liveOff`(ko/ja/en).
 - 참고: 판매 캘린더는 보이는 건물·날짜와 겹치는 신호만 받는다(위 「판매 캘린더가 스스로 무한 새로고침을
   돌던 것」). 12월 칸을 바꿨는데 10월을 보는 화면이 새로고침하지 않는 것은 정상이다.
+
+## 서버가 행 키·조직을 다시 확인한다 (2026-09-30, 조직 격리 감사)
+
+- 수동 예약 · 예약 수정의 겹침 검사는 화면이 보낸 행 키가 아니라 **서버가 유닛 id 로 다시 계산한 행 키**
+  (`resolveOpsRowRoomKey`, `src/lib/ops-room-key.ts` — 격자와 같은 매핑)를 쓴다. 조직 밖 유닛 · 어긋난 키는
+  거절한다. 정상 화면 동작은 바뀌지 않는다. 테스트: `src/lib/__tests__/ops-room-key.test.ts`.
+- 「지금 보내기」는 **이 조직의 대기 작업만** 집는다(`runNextPriceJob` 의 `organizationId`). 이어서 깨우는
+  백그라운드 워커 · 틱 · 크론은 전과 같이 전역이다.
+- 수동 예약 · 수정 뒤 로컬 반영(웹훅과 같은 처리기)의 조직은 Beds24 건물/객실 → 조직 DB 매핑으로 정한다
+  (`src/lib/beds24/webhook-organization.ts`, 테스트 `beds24-webhook-organization.test.ts`).

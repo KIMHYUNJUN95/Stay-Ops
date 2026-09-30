@@ -14,6 +14,14 @@ and the major mobile/admin operations modules are implemented and being hardened
 - 다른 컴퓨터에서 Beds24 변경이 안 뜨던 것: 끊긴 동안의 브로드캐스트는 사라진다. `useBeds24LiveRefresh` 가
   재구독 · `online` · 60초 넘게 가려졌던 탭 복귀 때 한 번 다시 읽는다. 판매 캘린더에 실시간 연결 점(초록/회색).
   (`33-calendar-write-features.md` → 「실시간 신호를 놓쳐도 따라잡는다」)
+- 판매 캘린더 작업·이력 표(`beds24_price_jobs` · `price_change_logs` · `beds24_block_logs`) SELECT RLS 를 조직
+  구성원 전원 → `ops_admin.access` 보유자로 좁힘(`has_capability` 재사용 + 헬퍼 `capability_organization_ids`).
+  **마이그레이션 `202609300007_ops_logs_capability_read.sql` 적용 필요.** (`05-rls-permissions.md`)
+- Beds24 실시간 신호 채널 `beds24-live:<조직>` → **private**. 받기는 `realtime.messages` RLS(그 조직 active
+  멤버 · broadcast 만), 보내기는 서버 service role 만(INSERT 정책 없음). 브라우저는 구독 전 `realtime.setAuth()`.
+  **마이그레이션 `202609300006_beds24_live_private_channel.sql` 을 클라이언트 배포보다 먼저 적용 필요** — 거꾸로면
+  실시간 새로고침만 멈춘다. Realtime 「Allow public access」 설정은 그대로. (`33-calendar-write-features.md` →
+  「화면도 웹훅 기준으로」, `05-rls-permissions.md`)
 
 ## 2026-09-30 (3) — 판매 캘린더 건물 여러 곳 함께 보기
 
@@ -5624,3 +5632,9 @@ GitHub 크론(실측 3~5시간)까지 앉아 있던 것, 쿨다운·대기 작�
 재조회). 새 표 `beds24_deferred_refreshes`(service-role 전용), 토큰은 Vault(SQL 안에서 난수 생성, 새 env 없음).
 마이그레이션 `202609300003` · `202609300004` **운영 미적용**(리드 검토 대기). 33번 「쿨다운이 풀리면 1분 안에…」,
 04 · 05 · 07 엔지니어링 문서. tsc · vitest(745) · lint 통과.
+
+**판매 캘린더 조직 격리 보강 (2026-09-30, 감사 저위험 3건).** ① 수동 예약 · 예약 수정이 화면의 `roomKey` 대신 서버가
+유닛 id 로 다시 계산한 행 키로 겹침을 검사(조직 밖 유닛 · 어긋난 키 거절, `src/lib/ops-room-key.ts`) ② 「지금 보내기」는
+호출 조직의 가격 작업만 집음(`runNextPriceJob` 선택 인자 `organizationId`, 크론·틱·킥은 전역 그대로) ③ Beds24 웹훅 예약의
+조직을 페이로드가 아니라 건물/객실 → 조직 DB 매핑으로 정하고 매핑이 없을 때만 기본값(`webhook-organization.ts`).
+05 RLS 문서 · 33번 끝 절. tsc · vitest(776) · lint 통과.

@@ -20,6 +20,7 @@ import { extractBeds24RoomSyncFields, syncBeds24PropertyAndRoom } from "@/lib/be
 import { normalizeReservationSource } from "@/lib/beds24/source-normalization";
 import type { Database } from "@/types/database";
 import { signalBeds24Change } from "@/lib/beds24/live-signal";
+import { pickWebhookOrganizationId, readMappedOrganizationIds } from "@/lib/beds24/webhook-organization";
 
 export type ProcessWebhookBookingResult =
   | {
@@ -345,10 +346,15 @@ export async function processBeds24WebhookBooking(params: {
   const { payload, supabase } = params;
   const sanitizedPayload = sanitizeRawPayload(payload);
 
-  const organizationId =
-    readBeds24String(payload, ["organizationId", "organization_id", "orgId", "org_id"]) ??
-    params.organizationIdDefault ??
-    null;
+  const syncFields = extractBeds24RoomSyncFields(payload);
+  // 조직은 **우리 DB 매핑**이 정한다. 페이로드의 조직 id 는 믿지 않는다(`webhook-organization.ts`).
+  const organizationId = pickWebhookOrganizationId({
+    fallbackOrganizationId: params.organizationIdDefault,
+    mappedOrganizationIds: await readMappedOrganizationIds(supabase, {
+      externalPropertyId: syncFields.externalPropertyId,
+      externalRoomId: readBeds24ExternalRoomId(payload) ?? syncFields.externalRoomId,
+    }),
+  });
 
   const sourceReservationId = readBeds24String(payload, [
     "bookId",
@@ -424,7 +430,6 @@ export async function processBeds24WebhookBooking(params: {
     };
   }
 
-  const syncFields = extractBeds24RoomSyncFields(payload);
   const roomResolution = await resolveRoomLabel({
     supabase,
     organizationId,

@@ -5119,6 +5119,10 @@ export type Database = {
         Args: { target_suggestion_id: string }
         Returns: boolean
       }
+      capability_organization_ids: {
+        Args: { target_capability: string }
+        Returns: string[]
+      }
       create_attendance_session_with_audit: {
         Args: {
           p_action_type: string

@@ -181,6 +181,10 @@ ops_admin.access            운영 관리자 영역 전체    ← 2026-09-17 추
 업무에 없다. 나중에 쪼개야 하면 키를 추가하면 되고, **기능 코드는 `src/lib/ops-admin.ts` 만 본다**
 (docs/product/32-ops-admin-area.md).
 
+RLS 에서도 같은 키로 판정한다: `beds24_price_jobs` · `price_change_logs` · `beds24_block_logs` 의 SELECT 는
+`capability_organization_ids('ops_admin.access')`(= 호출자가 `has_capability` 참인 조직 목록)로 좁혀져 있다
+(2026-09-30, `202609300007`, docs/engineering/05-rls-permissions.md).
+
 앞으로 추가될 것(5단계에서 해당 기능을 옮길 때): `payroll.view` 등.
 
 읽기와 쓰기를 나누는 이유: 「보기만 되는 사람」과 「처리까지 되는 사람」이 실제로 다르다. 지금은

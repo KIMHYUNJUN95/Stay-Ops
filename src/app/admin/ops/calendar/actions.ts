@@ -23,6 +23,7 @@ import {
   type ManualBookingError,
   type ManualBookingInput,
 } from "@/lib/ops-manual-booking";
+import { resolveOpsRowRoomKey } from "@/lib/ops-room-key";
 import { toJstDateString } from "@/lib/admin-calendar-dashboard";
 import {
   clearRoomBlock,
@@ -573,19 +574,32 @@ export async function submitManualBooking(args: {
 
   const unitsResult = await supabase
     .from("rooms")
-    .select("id, external_room_id, properties(external_property_id)")
+    .select("id, room_label, external_room_id, properties(name, external_property_id)")
     .eq("organization_id", session.organization.id)
     .in("id", args.roomIds);
   if (unitsResult.error) return { error: "unknown_room", ok: false };
 
+  type UnitProperty = { name: string | null; external_property_id: string | null };
   type UnitRow = {
     id: string;
+    room_label: string;
     external_room_id: string | null;
-    properties: { external_property_id: string | null } | { external_property_id: string | null }[] | null;
+    properties: UnitProperty | UnitProperty[] | null;
   };
-  const units = ((unitsResult.data ?? []) as unknown as UnitRow[]).filter(
-    (row) => !!row.external_room_id,
-  );
+  const unitRows = (unitsResult.data ?? []) as unknown as UnitRow[];
+  // 행 키는 **서버가 다시 계산한다** — 화면이 보낸 키를 믿으면 다른 행의 빈 칸을 근거로
+  // 겹침 검사를 통과할 수 있다. 다른 조직 유닛이 섞였거나 키가 다르면 거절.
+  const row = resolveOpsRowRoomKey({
+    clientRoomKey: args.input.roomKey,
+    ownedUnits: unitRows.map((unit) => ({
+      id: unit.id,
+      propertyName: (Array.isArray(unit.properties) ? unit.properties[0] : unit.properties)?.name,
+      roomLabel: unit.room_label,
+    })),
+    requestedRoomIds: args.roomIds,
+  });
+  if (!row.ok) return { error: "unknown_room", ok: false };
+  const units = unitRows.filter((unit) => !!unit.external_room_id);
   if (units.length === 0) return { error: "unknown_room", ok: false };
 
   // 밤마다 **그때 살아 있는** 유닛을 센다. `rooms.status` 는 오늘 하루의 스냅샷이라
@@ -622,7 +636,7 @@ export async function submitManualBooking(args: {
       from: args.input.arrival,
       organizationId: session.organization.id,
       roomIds: units.map((unit) => unit.id),
-      roomKey: args.input.roomKey,
+      roomKey: row.roomKey,
       supabase,
       toExclusive: args.input.departure,
     });
@@ -854,14 +868,33 @@ export async function submitReservationEdit(args: {
       return at.toISOString().slice(0, 10);
     })();
 
+    const ownedResult = await supabase
+      .from("rooms")
+      .select("id, room_label, properties(name)")
+      .eq("organization_id", session.organization.id)
+      .in("id", args.roomIds);
+    if (ownedResult.error) return { detail: ownedResult.error.message, error: "beds24_failed", ok: false };
+    type OwnedRow = { id: string; room_label: string; properties: { name: string | null } | { name: string | null }[] | null };
+    // 행 키는 **서버가 다시 계산한다**(수동 예약과 같은 이유). 다른 조직 유닛·어긋난 키는 거절.
+    const axis = resolveOpsRowRoomKey({
+      clientRoomKey: args.roomKey,
+      ownedUnits: ((ownedResult.data ?? []) as unknown as OwnedRow[]).map((unit) => ({
+        id: unit.id,
+        propertyName: (Array.isArray(unit.properties) ? unit.properties[0] : unit.properties)?.name,
+        roomLabel: unit.room_label,
+      })),
+      requestedRoomIds: args.roomIds,
+    });
+    if (!axis.ok) return { error: "not_found", ok: false };
+
     let unavailable: Awaited<ReturnType<typeof readOpsRoomUnavailableNights>>;
     try {
       unavailable = await readOpsRoomUnavailableNights({
         excludeReservationId: row.id,
         from: sorted[0],
         organizationId: session.organization.id,
-        roomIds: args.roomIds,
-        roomKey: args.roomKey,
+        roomIds: axis.roomIds,
+        roomKey: axis.roomKey,
         supabase,
         toExclusive,
       });
@@ -1182,7 +1215,8 @@ export async function sendPendingPriceJobs(): Promise<SendPendingResult> {
   const supabase = getSupabaseServiceClient();
   try {
     // 첫 작업은 **기다린다**(보통 몇 초) — 결과를 사람에게 돌려주려고. 남은 것은 응답 뒤에.
-    const first = await runNextPriceJob(supabase);
+    // 이 버튼은 **호출한 조직의 작업만** 집는다. 뒤이은 `kickWorker` 는 전역 워커(계정 하나)다.
+    const first = await runNextPriceJob(supabase, { organizationId: session.organization.id });
     if (first.ran && first.status !== "requeued") {
       after(kickWorker);
       return { ok: true, outcome: "sent" };
