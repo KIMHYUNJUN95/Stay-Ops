@@ -346,6 +346,9 @@ Cancellation consistency rule (current implementation):
 - Cancellation handling is source-agnostic and must update all matching rows for:
   - exact original ID
   - `originalId::room::*` assignment-suffixed rows
+  - **narrowed to the cancelled Beds24 booking's own id (2026-10-01)** — rows whose `raw_payload` id differs are
+    group siblings (same channel reference, other room) and are never cancelled or deleted. See
+    "2026-10-01 Group (multi-room) bookings" below.
 - Sparse cancellation payloads may omit stay dates; if local rows already exist, cancellation should still succeed.
 - If no local row exists and the payload is too sparse to create a meaningful cancelled row, the webhook returns a non-error "no local row" outcome instead of polluting reservations with incomplete duplicates.
 
@@ -1051,8 +1054,27 @@ GET /bookings?modifiedFrom=2026-09-15T02:08:03
 | 잡힌 도착일 범위 | **2026-09-15 ~ 2027-03-30** ← 3개월 창을 훌쩍 넘는다 |
 | 3개월 창 방식 | 100건(첫 페이지), 요청 비용 1 |
 
-기간 제한이 없어서 **날짜와 무관하게** 잡히고, 바뀐 게 없으면 거의 공짜다. 취소분을 따로 부르지
-않아도 된다 — 취소도 수정이라 그대로 걸린다.
+기간 제한이 없어서 **날짜와 무관하게** 잡히고, 바뀐 게 없으면 거의 공짜다.
+
+**취소분은 따로 불러야 한다 (2026-10-01 정정).** 처음에는 「취소도 수정이라 그대로 걸린다」고 적었는데
+틀렸다. `status` 없이 `modifiedFrom` 만 주면 Beds24 는 **취소 예약을 빼고** 준다 — 같은 커서에서
+974건 중 취소 0건, `&status=cancelled` 를 붙이면 319건. 그래서 웹훅을 놓친 취소(API 로 만든 예약,
+referer `API` 에서 실제로 봤다 — 타카다노바바 6·7호실 2건이 우리 표에 confirmed 로 남아 있었다)는
+정합성에서도 영원히 안 잡혔다.
+
+증분 경로는 이제 두 번 묻는다(각각 페이지 끝까지):
+
+```
+GET /bookings?modifiedFrom=<커서−30분>&includeInvoiceItems=false   (활성분. 0건이면 옵션 없는 형식 한 번 더)
+GET /bookings?modifiedFrom=<커서−30분>&status=cancelled             (취소분)
+```
+
+두 결과는 창 훑기와 같은 `mergeBookingRows` 로 **Beds24 자기 id** 기준으로 합치고, 같은 예약이
+양쪽에 있으면 취소가 이긴다. 합친 뒤 반영은 기존 경로 그대로(취소 행 upsert + 활성 행 정리).
+**어느 한쪽이라도 실패(페이지 끊김·요청 오류)하면 전체를 partial 로 보고 커서를 옮기지 않는다** —
+활성분만 반영하고 커서를 옮기면 그 사이 취소가 다시 영원히 빠진다. 추가 비용은 조용한 날 요청 1회.
+코드: `buildModifiedSinceUrls` / `combineModifiedSinceResults` (`reservations-backfill.ts`),
+테스트 `beds24-incremental-cancelled.test.ts`.
 
 ### 동작
 
@@ -1138,4 +1160,58 @@ STAY ARI Manager 이전을 위해 2022년부터의 예약을 가져오다 발견
 `arrivalTo` / `departureFrom` / `arrivalFrom` 이 실제로 동작하는 것은 확인했으므로, **추측용
 폴백을 없애고 형식 하나만 쓴다.** 형식이 틀리면 0건이 아니라 **오류로 드러나야** 한다.
 
-> 증분 경로(`modifiedFrom`)는 이 함수를 쓰지 않는다 — 형식이 하나뿐이고 취소까지 함께 잡는다.
+> 증분 경로(`modifiedFrom`)는 이 함수를 쓰지 않는다 — `buildModifiedSinceUrls` 가 활성분·취소분(`status=cancelled`)을 따로 만든다.
+
+## 2026-10-01 Group (multi-room) bookings — room move = same Beds24 id
+
+**Incident.** Booking.com multi-room booking `5277809875` (one guest, rooms O309 + O305, 10/29→11/01) was split
+by Beds24 into two bookings: master `93328947` (O309) and child `93328948` (`masterId = 93328947`, O305). Both
+carry the same `apiReference`. Our storage key base is read `bookId → apiReference → … → id`, so both map to
+`5277809875::room::<label>`. Four places then treated "same channel reference" as "same booking":
+
+1. `dedupeBookingRecords()` (`booking-payload.ts`) — one response/webhook carrying both kept only the first.
+2. `mergeBookingRows()` (backfill active + cancelled merge) — same collapse.
+3. `deleteStaleRowsForSameBooking()` (webhook) — after upserting one room it deleted the other room's active row
+   as a "stale row of a room move". Whichever webhook came last won.
+4. `cancelReservationRowsByOriginalBookingId()` / `finalizeCancelledBookingConsistency()` — cancelling one room
+   cancelled (or deleted) every room of the group and overwrote their `raw_payload`.
+
+Prod had only `5277809875::room::O309`; the O305 child was missing from sales summary, occupancy, calendar bars
+and cleaning.
+
+**Rule.**
+
+- "Same booking" = same Beds24 own id (`readBeds24OwnBookingId()`: `bookId` → `book_id` → `id`, in
+  `src/lib/beds24/reservation-id.ts`). `apiReference` is a channel reference and is **not** a booking identity.
+- A room move is recognized only when the row's `raw_payload` id equals the incoming booking's id. Rows without an
+  id (legacy) keep the old behavior (`isSameBeds24Booking()` returns true when either side is unknown).
+- Each group booking gets its own row `<base>::room::<its room label>`.
+- Key collision (two different Beds24 bookings of one group on the same room label — e.g. both unresolved
+  `(unknown)`, or a multi-unit room type): the plain key stays with whoever holds it; the other is stored as
+  `<base>::room::<label>::bid::<beds24Id>` (`chooseStoredReservationId()`). A booking keeps its existing
+  `::bid::` row even if the plain key frees up later (row id stability for reviews/tasks). Backfill resolves
+  collisions deterministically: master (no `masterId`) first, then ascending Beds24 id.
+  `toOriginalReservationId()` still returns `<base>` for suffixed keys; review linkers (`split("::")[0]`) and
+  the ops search prefix match are unaffected.
+- Unique constraint is unchanged: `unique (organization_id, source, source_reservation_id)`
+  (`202605220001_reservations.sql`).
+
+**Paths changed.** `process-webhook-booking.ts` (key choice, stale cleanup, cancel), `reservation-lookup.ts`
+(`beds24BookingId` filter on every lookup/cancel/finalize), `reservations-backfill.ts` (merge by own id,
+collision-aware key with a bulk exact-key owner lookup, recovery relabel no longer deletes a sibling's row —
+`resolveRelabelTarget()`), `booking-payload.ts` (candidate dedupe by own id). Ops cancel
+(`submitReservationCancel`) already targets one Beds24 id per row and needed no change.
+
+**Audit / repair.** `scripts/dev/beds24-group-bookings-audit.ts` (read-only by default):
+
+```bash
+npx tsx scripts/dev/beds24-group-bookings-audit.ts            # dry run: yesterday-90d … today+365d (Tokyo)
+npx tsx scripts/dev/beds24-group-bookings-audit.ts --json
+npx tsx scripts/dev/beds24-group-bookings-audit.ts --apply    # DB only; re-runs the fixed backfill for the window
+```
+
+Two Beds24 list calls (active + cancelled, paginated). `--apply` never writes to Beds24; it calls
+`backfillBeds24Reservations()` with an explicit window (cursor untouched). Under `tsx` the live-refresh signal
+logs a `server-only` import error and is skipped — harmless.
+
+Tests: `src/lib/__tests__/beds24-group-bookings.test.ts`.

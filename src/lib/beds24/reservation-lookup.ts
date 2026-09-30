@@ -1,14 +1,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { toOriginalReservationId } from "@/lib/beds24/reservation-id";
+import { filterRowsOfSameBeds24Booking, toOriginalReservationId } from "@/lib/beds24/reservation-id";
 import type { Database } from "@/types/database";
 
-type ReservationLookupRow = {
+export type ReservationLookupRow = {
   id: string;
   source: string;
   source_reservation_id: string;
   status: Database["public"]["Enums"]["reservation_status"];
   room_label: string;
+  /** `raw_payload` 의 Beds24 자기 예약번호(`bookId` → `id`). 옛 행이면 `null`. */
+  bookingId: string | null;
 };
+
+type ReservationLookupDbRow = Omit<ReservationLookupRow, "bookingId"> & {
+  raw_book_id: string | null;
+  raw_id: string | null;
+};
+
+const LOOKUP_SELECT =
+  "id, source, source_reservation_id, status, room_label, raw_book_id:raw_payload->>bookId, raw_id:raw_payload->>id";
 
 const ACTIVE_STATUSES = new Set<Database["public"]["Enums"]["reservation_status"]>([
   "confirmed",
@@ -21,14 +31,19 @@ function isActiveReservationStatus(status: Database["public"]["Enums"]["reservat
 }
 
 /**
- * Finds reservation rows for the same Beds24 booking, regardless of channel source.
+ * Finds reservation rows sharing the same original (channel) id, regardless of channel source.
  * Matches exact original id and `originalId::room::*` suffix variants.
+ *
+ * **`beds24BookingId` 를 넘기면 그 Beds24 예약의 행만 돌려준다** (2026-10-01). 채널 번호
+ * (`apiReference`)가 같아도 Beds24 id 가 다르면 그룹(다객실) 예약의 **다른 방**이다 — 그 행을
+ * 「같은 예약의 옛 방」으로 보고 지우거나 취소하면 형제 예약이 통째로 사라진다
+ * (Booking.com 5277809875: O309·O305 두 방 중 O305 가 없어졌다).
  */
 export async function findReservationRowsByOriginalBookingId(
   supabase: SupabaseClient<Database>,
   organizationId: string,
   sourceReservationId: string,
-  options?: { activeOnly?: boolean },
+  options?: { activeOnly?: boolean; beds24BookingId?: string | null },
 ): Promise<ReservationLookupRow[]> {
   const originalId = toOriginalReservationId(sourceReservationId).trim();
   if (!originalId) return [];
@@ -37,12 +52,12 @@ export async function findReservationRowsByOriginalBookingId(
   const [exactResult, prefixedResult] = await Promise.all([
     supabase
       .from("reservations")
-      .select("id, source, source_reservation_id, status, room_label")
+      .select(LOOKUP_SELECT)
       .eq("organization_id", organizationId)
       .eq("source_reservation_id", originalId),
     supabase
       .from("reservations")
-      .select("id, source, source_reservation_id, status, room_label")
+      .select(LOOKUP_SELECT)
       .eq("organization_id", organizationId)
       .like("source_reservation_id", `${prefix}%`),
   ]);
@@ -55,11 +70,15 @@ export async function findReservationRowsByOriginalBookingId(
   }
 
   const byId = new Map<string, ReservationLookupRow>();
-  for (const row of [...(exactResult.data ?? []), ...(prefixedResult.data ?? [])] as ReservationLookupRow[]) {
-    byId.set(row.id, row);
+  for (const row of [
+    ...((exactResult.data ?? []) as unknown as ReservationLookupDbRow[]),
+    ...((prefixedResult.data ?? []) as unknown as ReservationLookupDbRow[]),
+  ]) {
+    const { raw_book_id, raw_id, ...rest } = row;
+    byId.set(row.id, { ...rest, bookingId: raw_book_id?.trim() || raw_id?.trim() || null });
   }
 
-  const rows = [...byId.values()];
+  const rows = filterRowsOfSameBeds24Booking([...byId.values()], options?.beds24BookingId);
   if (options?.activeOnly) {
     return rows.filter((row) => isActiveReservationStatus(row.status));
   }
@@ -70,6 +89,8 @@ export async function cancelReservationRowsByOriginalBookingId(params: {
   supabase: SupabaseClient<Database>;
   organizationId: string;
   sourceReservationId: string;
+  /** 취소된 Beds24 예약 자기 번호. 그룹 형제(같은 채널 번호, 다른 방)를 같이 취소하지 않게 한다. */
+  beds24BookingId: string | null;
   rawPayload: Database["public"]["Tables"]["reservations"]["Insert"]["raw_payload"];
 }) {
   const originalId = toOriginalReservationId(params.sourceReservationId).trim();
@@ -77,6 +98,7 @@ export async function cancelReservationRowsByOriginalBookingId(params: {
     params.supabase,
     params.organizationId,
     params.sourceReservationId,
+    { beds24BookingId: params.beds24BookingId },
   );
 
   if (matchedRows.length === 0) {
@@ -129,13 +151,14 @@ export async function cleanupActiveRowsForCancelledBooking(params: {
   supabase: SupabaseClient<Database>;
   organizationId: string;
   sourceReservationId: string;
+  beds24BookingId: string | null;
   rawPayload: Database["public"]["Tables"]["reservations"]["Insert"]["raw_payload"];
 }) {
   const activeRows = await findReservationRowsByOriginalBookingId(
     params.supabase,
     params.organizationId,
     params.sourceReservationId,
-    { activeOnly: true },
+    { activeOnly: true, beds24BookingId: params.beds24BookingId },
   );
 
   if (activeRows.length === 0) {
@@ -181,21 +204,25 @@ function pickPreferredCancelledRow(rows: ReservationLookupRow[], keepReservation
 
 /**
  * Post-cancel consistency pass: cancel any remaining active rows and remove stale
- * duplicate rows for the same original Beds24 booking id (unknown/room suffix variants).
+ * duplicate rows for the same Beds24 booking (unknown/room suffix variants).
+ * Group siblings (same channel id, different Beds24 id) are never touched.
  */
 export async function finalizeCancelledBookingConsistency(params: {
   supabase: SupabaseClient<Database>;
   organizationId: string;
   sourceReservationId: string;
+  beds24BookingId: string | null;
   rawPayload: Database["public"]["Tables"]["reservations"]["Insert"]["raw_payload"];
   keepReservationId?: string;
 }) {
   const originalId = toOriginalReservationId(params.sourceReservationId).trim();
+  const lookupOptions = { beds24BookingId: params.beds24BookingId };
 
   const activeCleanup = await cleanupActiveRowsForCancelledBooking({
     supabase: params.supabase,
     organizationId: params.organizationId,
     sourceReservationId: params.sourceReservationId,
+    beds24BookingId: params.beds24BookingId,
     rawPayload: params.rawPayload,
   });
 
@@ -203,6 +230,7 @@ export async function finalizeCancelledBookingConsistency(params: {
     params.supabase,
     params.organizationId,
     params.sourceReservationId,
+    lookupOptions,
   );
 
   let activeRows = allRows.filter((row) => isActiveReservationStatus(row.status));
@@ -230,6 +258,7 @@ export async function finalizeCancelledBookingConsistency(params: {
       params.supabase,
       params.organizationId,
       params.sourceReservationId,
+      lookupOptions,
     );
     activeRows = allRows.filter((row) => isActiveReservationStatus(row.status));
   }
@@ -282,7 +311,7 @@ export async function finalizeCancelledBookingConsistency(params: {
       params.supabase,
       params.organizationId,
       params.sourceReservationId,
-      { activeOnly: true },
+      { ...lookupOptions, activeOnly: true },
     )
   ).length;
 

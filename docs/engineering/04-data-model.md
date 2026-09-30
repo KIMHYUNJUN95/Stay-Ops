@@ -425,7 +425,7 @@ organization_id uuid not null references organizations(id)
 property_name text not null        -- free text from Beds24 payload, not a FK to properties
 room_label text not null           -- free text from Beds24 payload, not a FK to rooms
 source text not null               -- channel name: "Booking.com", "Airbnb", "Direct", etc.
-source_reservation_id text not null -- Beds24 booking ID (may include "::room::{label}" suffix for multi-room)
+source_reservation_id text not null -- "{channelRef}::room::{label}" (+ "::bid::{beds24Id}" only on same-room group collision)
 guest_name text not null
 guest_count integer
 check_in_date date not null        -- Beds24 firstNight date
@@ -452,6 +452,7 @@ Notes:
 - check_out_date uses exclusive semantics: guest checks out on check_out_date morning, not the night before.
 - Cancelled and no_show reservations are excluded from all calendar renders and counts.
 - source_reservation_id may encode room assignment as "{originalId}::room::{label}" to support multi-room bookings under the same unique constraint.
+- `{originalId}` is the channel reference (`apiReference` first), so a Beds24 **group** booking (one channel reference, one Beds24 booking per room linked by `masterId`) shares it across rooms. "Same booking" is decided only by the Beds24 own id in `raw_payload` (`bookId` → `id`), never by the key prefix. If two different Beds24 bookings of one group land on the same room label, the later one is stored as `"{originalId}::room::{label}::bid::{beds24Id}"` (2026-10-01). See `docs/engineering/01-beds24-integration.md` → "2026-10-01 Group (multi-room) bookings".
 - Realtime is enabled on this table (migration `202605260002_enable_reservations_realtime.sql`).
 
 ## beds24_webhook_events

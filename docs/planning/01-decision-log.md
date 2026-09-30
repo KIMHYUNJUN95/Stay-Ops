@@ -2,6 +2,22 @@
 
 This file records important project decisions.
 
+## 2026-10-01 증분 정합성은 취소분을 `status=cancelled` 로 따로 묻는다
+
+`GET /bookings?modifiedFrom=X` 는 status 없이 부르면 취소 예약을 돌려주지 않는다(실측 974건 중 0건 vs 319건).
+증분 경로는 활성분과 `modifiedFrom=X&status=cancelled` 를 둘 다 가져와 Beds24 자기 id 로 합치고(취소 우선),
+어느 한쪽이라도 실패하면 커서를 옮기지 않는다. 조용한 날 비용 +1 요청. 폴링 빈도는 그대로(일 1회 cron).
+상세: `docs/engineering/01-beds24-integration.md` → modifiedFrom 절.
+
+## 2026-10-01 예약 행의 「같은 예약」은 Beds24 자기 id 로만 판단한다 (방 이동 = 같은 id)
+
+`reservations.source_reservation_id` 의 base(`apiReference` 우선)는 채널 번호라 Beds24 그룹(다객실) 예약의 방들이
+공유한다. 따라서 방 이동·옛 행 정리·취소 매칭·중복 제거는 모두 `raw_payload` 의 Beds24 자기 id(`bookId` → `id`)가
+같을 때만 「같은 예약」으로 본다 — base 만 같고 id 가 다르면 그룹의 다른 방이라 각자 행을 가진다. 같은 base·같은
+방 라벨에 다른 id 가 겹치면 나중 것만 `<base>::room::<객실>::bid::<id>` 로 저장한다(평문 키는 먼저 가진 쪽이 유지,
+백필은 대표 예약→id 오름차순). id 가 없는 옛 행은 예전처럼 같은 예약으로 본다. 유니크 제약·키 base 규칙은 바꾸지
+않는다. 상세: `docs/engineering/01-beds24-integration.md` → 「2026-10-01 Group (multi-room) bookings」.
+
 ## 2026-09-30 매출 지표는 STAY ARI Manager 숫자를 그대로 재현한다 (착수 전 결정 1)
 
 지표(매출 · 수수료 · 가동률 · ADR · RevPAR · 빈방)는 저쪽 식을 **고치지 않고** 재현한다(사용자 결정). 차단한 밤은

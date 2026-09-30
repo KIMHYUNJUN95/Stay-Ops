@@ -1,3 +1,4 @@
+import { readBeds24OwnBookingId } from "@/lib/beds24/reservation-id";
 import {
   readBeds24BookingId,
   resolveReservationStatusFromBeds24Record,
@@ -99,12 +100,17 @@ function extractWithMatcher(
   return results;
 }
 
-/** Drop duplicate booking records (same booking id) surfaced from different envelope levels. */
+/**
+ * Drop duplicate booking records (same booking id) surfaced from different envelope levels.
+ *
+ * 같은 예약인지는 **Beds24 자기 번호**로 본다 (2026-10-01). `readBeds24BookingId` 는 채널 번호
+ * (`apiReference`)를 먼저 읽어서, 한 응답에 함께 온 그룹(다객실) 예약의 방들이 하나만 남았다.
+ */
 function dedupeBookingRecords(records: Beds24JsonRecord[]): Beds24JsonRecord[] {
   const seen = new Set<string>();
   const out: Beds24JsonRecord[] = [];
   for (const record of records) {
-    const id = readBeds24BookingId(record);
+    const id = readBeds24OwnBookingId(record) ?? readBeds24BookingId(record);
     const key = id ?? JSON.stringify(record);
     if (seen.has(key)) continue;
     seen.add(key);

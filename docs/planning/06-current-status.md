@@ -80,6 +80,42 @@ and the major mobile/admin operations modules are implemented and being hardened
 - 문서: `33-calendar-write-features.md`(신설 다수 절) · `04-data-model.md`(RPC 2종) ·
   `05-rls-permissions.md`(RPC EXECUTE 권한) · `15-reservation-calendar.md`(신호 범위 참고).
 
+## 2026-10-01 — 증분 정합성이 웹훅 놓친 취소를 못 잡던 버그
+
+- **증상.** Beds24 에서 취소된 타카다노바바 6호실(`93352958`, 10/17~10/20)·7호실(`93427726`, 11/03~11/09)이
+  우리 표에 confirmed 로 남아 있었다. 둘 다 API 로 만든 예약(referer `API`)이라 취소 웹훅이 오지 않았다.
+- **원인.** 일 1회 정합성의 증분 경로(`modifiedFrom=<커서>`)가 「취소도 수정이라 걸린다」고 가정했는데, Beds24 는
+  status 없이 부르면 취소를 빼고 준다(974건 중 0건 vs `&status=cancelled` 319건).
+- **수정.** 증분 경로가 `modifiedFrom=<커서>&status=cancelled` 도 페이지 끝까지 가져와 활성분과 Beds24 자기 id 로
+  합친다(취소 우선). 한쪽이라도 실패하면 partial → 커서 유지. 테스트 `beds24-incremental-cancelled.test.ts`.
+- 문서: `01-beds24-integration.md`(modifiedFrom 절 정정) · `01-decision-log.md`.
+
+## 2026-10-01 — Beds24 그룹(다객실) 예약이 한 행으로 합쳐지던 버그
+
+- **증상.** Booking.com 다객실 예약 `5277809875`(O309 + O305, 10/29→11/01)가 우리 표에 O309 한 행만 있었다.
+  O305(Beds24 `93328948`, `masterId 93328947`)가 매출 요약·가동률·캘린더 바·청소에서 전부 빠졌다.
+- **원인.** Beds24 는 그룹 예약을 방마다 따로 된 예약으로 쪼개고(`masterId` 로 묶음) 채널 번호
+  (`apiReference`)는 하나다. 우리 키 `<base>::room::<객실>` 의 base 가 `apiReference` 라 그룹의 방들이 같은
+  base 를 쓰는데, 네 곳이 「base 가 같다 = 같은 예약」으로 판단했다: ① 후보 추출 dedupe(`booking-payload.ts`)
+  ② 백필 활성/취소 병합 ③ 웹훅의 「방 이동 옛 행 삭제」 — 다른 방의 활성 행을 지웠다(마지막 웹훅 방만 남음)
+  ④ 취소 경로 — 한 방을 취소하면 그룹 전체를 취소·삭제하고 `raw_payload` 도 덮었다.
+- **수정.** 「같은 예약」은 **Beds24 자기 id(`raw_payload` 의 `bookId`/`id`)** 로만 판단한다. 방 이동은 같은
+  id 의 방이 바뀐 경우뿐. 그룹의 각 예약은 자기 행 `<base>::room::<자기 객실>` 을 갖고, 같은 방 라벨에 다른
+  예약이 겹칠 때만 `::bid::<id>` 를 붙인다. 웹훅·백필·복구(relabel)·취소 경로 모두 적용. 제약
+  `unique(organization_id, source, source_reservation_id)` 는 그대로. 테스트 `beds24-group-bookings.test.ts`.
+- **감사(드라이런, prod 읽기 전용).** `scripts/dev/beds24-group-bookings-audit.ts` — 2026-07-02~2027-10-01 에서
+  그룹 예약 45건(21그룹) 중 **11건이 우리 행 없음(활성 8건)**: O305 `93328948`, O207/O210 `92685448`/`92685449`
+  (12/25~1/1, 각 485,594), Ab302 `89328543`(1/1~1/6, 449,550), Ab202 `93620015`, 과거분 O206 `91907926` ·
+  302 `92836081` · 302# `91144937`, 취소 3건. 쓰기를 가로챈 시뮬레이션으로 고친 백필이 11건 모두 자기 키로
+  넣고 다른 예약 행을 덮지 않음을 확인. **`--apply` 는 아직 실행하지 않았다**(복구는 배포 후 사용자 확인).
+- 문서: `01-beds24-integration.md`(「2026-10-01 Group (multi-room) bookings」) · `04-data-model.md` ·
+  `01-decision-log.md`.
+
+## 2026-10-01 — 판매 캘린더 Esc 로 전부 끄기
+
+- 툴바 모드(가격 수정 · 최소 숙박일 · 차단) · 가격 개입 성공 · 목록 · 이력 · 매출 요약 · 오늘 빈방만을 Esc 한 번에 끈다.
+  고른 칸이 있으면 첫 Esc 는 선택 해제. (`33-calendar-write-features.md`)
+
 ## 2026-09-30 — 권한 예외 사유 선택화
 
 - `/admin/users/[id]` 권한 예외 부여에서 사유가 선택 항목이 됐다(빈 칸이어도 저장). 필수 표시(*) 제거, 안내 문구에 「선택」.

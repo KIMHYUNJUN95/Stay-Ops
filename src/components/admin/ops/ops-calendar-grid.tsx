@@ -1294,6 +1294,34 @@ export function OpsCalendarGrid({
     return () => document.removeEventListener("keydown", onKey);
   }, [editMode, hasSelection]);
 
+  /*
+   * **Esc = 켜 둔 것 전부 끄기**(2026-10-01 사용자 요청) — 가격 수정 · 최소 숙박일 · 차단 모드,
+   * 가격 개입 성공 강조, 목록 · 이력 · 매출 요약 패널, 오늘 빈방만.
+   *
+   * 단계를 둔다: 고른 칸이 있으면 위의 Esc 가 선택만 먼저 푼다(한 번 더 누르면 여기). 예약 상세 ·
+   * 예약 만들기 · 고르는 중인 예약은 그쪽 Esc 가 먼저다. 입력칸에 커서가 있으면 건드리지 않는다.
+   * 큰방 위쪽 정렬은 기본 켜짐인 보기 설정이라 끄지 않는다.
+   */
+  const anyToggleOn =
+    editMode || priceWinsOnly || priceWinsOpen || historyOpen || salesOpen || vacantOnly;
+  const escYields = (editMode && hasSelection) || Boolean(openBar) || Boolean(booking) || Boolean(activeDraft);
+  useEffect(() => {
+    if (!anyToggleOn || escYields) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      setMode("off");
+      setPriceWinsOnly(false);
+      setPriceWinsOpen(false);
+      setHistoryOpen(false);
+      setSalesOpen(false);
+      setVacantOnly(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [anyToggleOn, escYields]);
+
   const canSelect = (roomKey: string, date: string) =>
     date >= today && !isPriceEditBlocked(occupancyAt(roomKey, date));
 

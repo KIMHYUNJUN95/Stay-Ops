@@ -13,7 +13,12 @@ import {
   finalizeCancelledBookingConsistency,
   findReservationRowsByOriginalBookingId,
 } from "@/lib/beds24/reservation-lookup";
-import { toOriginalReservationId, toStoredReservationId } from "@/lib/beds24/reservation-id";
+import {
+  chooseStoredReservationId,
+  isSameBeds24Booking,
+  readBeds24OwnBookingId,
+  toOriginalReservationId,
+} from "@/lib/beds24/reservation-id";
 import { recoverReservationRoomLabelById } from "@/lib/beds24/reservations-backfill";
 import { resolveReservationStatusFromBeds24Record } from "@/lib/beds24/reservation-status";
 import { extractBeds24RoomSyncFields, syncBeds24PropertyAndRoom } from "@/lib/beds24/room-sync";
@@ -111,22 +116,39 @@ async function resolveRoomLabel(params: {
   };
 }
 
+/**
+ * 같은 Beds24 예약의 **옛 방** 행을 지운다 (방 이동·`(unknown)` 정리).
+ *
+ * 「같은 예약」은 Beds24 자기 예약번호로만 판단한다 (2026-10-01). 채널 번호(`apiReference`)만
+ * 같은 행은 그룹 예약의 다른 방이라 절대 지우지 않는다 — 예전엔 그걸 지워서 다객실 예약이 마지막
+ * 웹훅의 방 하나로 쪼그라들었다.
+ */
 async function deleteStaleRowsForSameBooking(params: {
   supabase: SupabaseClient<Database>;
   organizationId: string;
   originalId: string;
+  beds24BookingId: string | null;
   keepReservationId: string;
-  keepStoredReservationId: string;
 }) {
+  const keptRow = await params.supabase
+    .from("reservations")
+    .select("source_reservation_id")
+    .eq("id", params.keepReservationId)
+    .maybeSingle();
+  const keepStoredReservationId =
+    (keptRow.data as { source_reservation_id: string } | null)?.source_reservation_id ?? null;
+
   const relatedRows = await findReservationRowsByOriginalBookingId(
     params.supabase,
     params.organizationId,
     params.originalId,
+    { beds24BookingId: params.beds24BookingId },
   );
 
   for (const staleRow of relatedRows) {
     if (staleRow.id === params.keepReservationId) continue;
-    if (staleRow.source_reservation_id === params.keepStoredReservationId) continue;
+    if (keepStoredReservationId && staleRow.source_reservation_id === keepStoredReservationId) continue;
+    if (!isSameBeds24Booking(staleRow.bookingId, params.beds24BookingId)) continue;
 
     const isUnknownRow =
       staleRow.room_label === "(unknown)" || staleRow.source_reservation_id.includes("::room::(unknown)");
@@ -153,6 +175,7 @@ async function processCancelledWebhookBooking(params: {
   organizationId: string;
   sourceReservationId: string;
   originalReservationId: string;
+  beds24BookingId: string | null;
   source: string;
   sanitizedPayload: Database["public"]["Tables"]["reservations"]["Insert"]["raw_payload"];
   payload: Beds24JsonRecord;
@@ -171,6 +194,7 @@ async function processCancelledWebhookBooking(params: {
   const cancelledExisting = await cancelReservationRowsByOriginalBookingId({
     organizationId: params.organizationId,
     sourceReservationId: params.sourceReservationId,
+    beds24BookingId: params.beds24BookingId,
     supabase: params.supabase,
     rawPayload: params.sanitizedPayload,
   });
@@ -178,6 +202,7 @@ async function processCancelledWebhookBooking(params: {
   const finalized = await finalizeCancelledBookingConsistency({
     organizationId: params.organizationId,
     sourceReservationId: params.sourceReservationId,
+    beds24BookingId: params.beds24BookingId,
     supabase: params.supabase,
     rawPayload: params.sanitizedPayload,
   });
@@ -225,6 +250,7 @@ async function processCancelledWebhookBooking(params: {
     organizationId: params.organizationId,
     source: params.source,
     sourceReservationId: params.sourceReservationId,
+    beds24BookingId: params.beds24BookingId,
     storedRoomLabel: params.storedRoomLabel,
     propertyName: params.propertyName,
     guestName: params.guestName,
@@ -248,6 +274,7 @@ async function processCancelledWebhookBooking(params: {
   const postFinalized = await finalizeCancelledBookingConsistency({
     organizationId: params.organizationId,
     sourceReservationId: params.sourceReservationId,
+    beds24BookingId: params.beds24BookingId,
     supabase: params.supabase,
     rawPayload: params.sanitizedPayload,
     keepReservationId: saved.id,
@@ -271,6 +298,7 @@ async function upsertReservationByBookingIdentity(params: {
   organizationId: string;
   source: string;
   sourceReservationId: string;
+  beds24BookingId: string | null;
   storedRoomLabel: string;
   propertyName: string;
   guestName: string;
@@ -279,17 +307,26 @@ async function upsertReservationByBookingIdentity(params: {
   status: Database["public"]["Enums"]["reservation_status"];
   rawPayload: Database["public"]["Tables"]["reservations"]["Insert"]["raw_payload"];
 }) {
-  const storedReservationId = toStoredReservationId(params.sourceReservationId, params.storedRoomLabel);
+  // 같은 채널 번호의 행을 모두 보고 키를 고른다 — 같은 방을 **다른 Beds24 예약**(그룹 형제)이
+  // 이미 쓰고 있으면 덮어쓰지 않고 `::bid::` 꼬리표 키로 따로 저장한다(`chooseStoredReservationId`).
+  const siblingRows = await findReservationRowsByOriginalBookingId(
+    params.supabase,
+    params.organizationId,
+    params.sourceReservationId,
+  );
+  const storedReservationId = chooseStoredReservationId({
+    sourceReservationId: params.sourceReservationId,
+    roomLabel: params.storedRoomLabel,
+    bookingId: params.beds24BookingId,
+    existingRows: siblingRows,
+  });
 
-  const existingResult = await params.supabase
-    .from("reservations")
-    .select("id, source")
-    .eq("organization_id", params.organizationId)
-    .eq("source_reservation_id", storedReservationId)
-    .limit(1)
-    .maybeSingle();
-
-  const existing = existingResult.data as { id: string; source: string } | null;
+  const existing =
+    siblingRows.find(
+      (row) =>
+        row.source_reservation_id === storedReservationId &&
+        isSameBeds24Booking(row.bookingId, params.beds24BookingId),
+    ) ?? null;
   const reservationFields = {
     property_name: params.propertyName,
     room_label: params.storedRoomLabel,
@@ -409,6 +446,8 @@ export async function processBeds24WebhookBooking(params: {
   );
   const status = resolveReservationStatusFromBeds24Record(payload);
   const originalReservationId = sourceReservationId ? toOriginalReservationId(sourceReservationId) : null;
+  // 「같은 예약인가」의 기준. `sourceReservationId` 는 채널 번호라 그룹 예약의 방들이 공유한다.
+  const beds24BookingId = readBeds24OwnBookingId(payload);
 
   if (!organizationId || !sourceReservationId || !originalReservationId) {
     const missing = [
@@ -490,6 +529,7 @@ export async function processBeds24WebhookBooking(params: {
       organizationId,
       sourceReservationId,
       originalReservationId,
+      beds24BookingId,
       source,
       sanitizedPayload,
       payload,
@@ -533,6 +573,7 @@ export async function processBeds24WebhookBooking(params: {
     organizationId,
     source,
     sourceReservationId,
+    beds24BookingId,
     storedRoomLabel,
     propertyName,
     guestName,
@@ -565,8 +606,8 @@ export async function processBeds24WebhookBooking(params: {
     supabase,
     organizationId,
     originalId: originalReservationId,
+    beds24BookingId,
     keepReservationId: saved.id,
-    keepStoredReservationId: toStoredReservationId(sourceReservationId, storedRoomLabel),
   });
 
   // 열려 있는 캘린더·홈·청소 화면이 새로고침 없이 다시 읽는다(`src/lib/beds24-live.ts`).

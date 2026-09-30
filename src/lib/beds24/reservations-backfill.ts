@@ -1,6 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOptionalBeds24ApiEnv } from "@/lib/env";
-import { toOriginalReservationId, toStoredReservationId } from "@/lib/beds24/reservation-id";
+import {
+  chooseStoredReservationId,
+  isSameBeds24Booking,
+  readBeds24MasterId,
+  readBeds24OwnBookingId,
+  toOriginalReservationId,
+  toStoredReservationId,
+  type StoredReservationKeyCandidate,
+} from "@/lib/beds24/reservation-id";
 import {
   readBeds24BookingId,
   resolveReservationStatusFromBeds24Record,
@@ -20,6 +28,9 @@ type Beds24AccessTokenState =
 type BookingRow = {
   externalRoomId: string | null;
   sourceReservationId: string;
+  /** Beds24 자기 예약번호. 그룹(다객실) 예약은 채널 번호가 같아도 이 값이 방마다 다르다. */
+  beds24BookingId: string | null;
+  masterId: string | null;
   source: string;
   propertyExternalId: string | null;
   propertyName: string;
@@ -150,11 +161,16 @@ const MODIFIED_CURSOR_OVERLAP_MINUTES = 30;
  * 날짜 창과 달리 **기간 제한이 없다** — 2022년 예약이 오늘 취소돼도 잡힌다. 창 방식으로는
  * 창 밖의 변경을 영원히 못 본다.
  *
- * 취소분을 따로 부르지 않는다. 취소도 수정이라 `modifiedFrom` 에 그대로 걸린다.
+ * **취소분은 따로 불러야 한다** (2026-10-01 실측). `status` 없이 `modifiedFrom` 만 주면 Beds24 는
+ * 취소 예약을 빼고 준다(974건 중 취소 0건, 같은 커서에 `&status=cancelled` 는 319건). 웹훅을 놓친
+ * 취소(API 로 만든 예약에서 실제로 봤다)가 정합성에서도 영원히 안 잡혔다.
  */
-function buildModifiedSinceUrls(baseUrl: string, sinceIso: string) {
+export function buildModifiedSinceUrls(baseUrl: string, sinceIso: string, status?: "cancelled") {
   const normalizedBase = baseUrl.replace(/\/$/, "");
   const since = encodeURIComponent(sinceIso);
+  if (status === "cancelled") {
+    return [`${normalizedBase}/bookings?modifiedFrom=${since}&status=cancelled`];
+  }
   return [
     `${normalizedBase}/bookings?modifiedFrom=${since}&includeInvoiceItems=false`,
     `${normalizedBase}/bookings?modifiedFrom=${since}`,
@@ -175,7 +191,6 @@ function buildModifiedSinceUrls(baseUrl: string, sinceIso: string) {
  * 추측용 폴백은 득보다 실이 크므로 없앤다. **형식이 틀리면 0건이 아니라 오류로 드러나야 한다.**
  *
  * 취소분을 따로 부르는 것은 남긴다 — 창 훑기는 기본 조회에서 취소를 빼는 경우가 있다.
- * (증분 경로는 `modifiedFrom` 하나로 취소까지 잡으므로 이 함수를 쓰지 않는다.)
  */
 function buildBookingsUrls(baseUrl: string, from: string, toExclusive: string, status?: "cancelled") {
   const normalizedBase = baseUrl.replace(/\/$/, "");
@@ -230,10 +245,12 @@ type Beds24BookingsEnvelope = {
   } | null;
 };
 
-function mergeBookingRows(primary: JsonRecord[], secondary: JsonRecord[]) {
+export function mergeBookingRows(primary: JsonRecord[], secondary: JsonRecord[]) {
   const merged = new Map<string, JsonRecord>();
   for (const row of [...primary, ...secondary]) {
-    const id = readBeds24BookingId(row);
+    // Beds24 자기 번호로 합친다. `readBeds24BookingId` 는 채널 번호(`apiReference`)를 먼저 읽어서
+    // 그룹 예약의 방들이 하나로 합쳐졌다 (2026-10-01).
+    const id = readBeds24OwnBookingId(row) ?? readBeds24BookingId(row);
     if (!id) continue;
     const existing = merged.get(id);
     if (!existing) {
@@ -455,7 +472,101 @@ async function fetchBeds24BookingsModifiedSince(sinceIso: string) {
       skippedReason: tokenState.skipped,
     };
   }
-  return fetchBookingsVariant(buildModifiedSinceUrls(env.baseUrl, sinceIso), tokenState.token);
+  const activeResult = await fetchBookingsVariant(buildModifiedSinceUrls(env.baseUrl, sinceIso), tokenState.token);
+  const cancelledResult = await fetchBookingsVariant(
+    buildModifiedSinceUrls(env.baseUrl, sinceIso, "cancelled"),
+    tokenState.token,
+  );
+  return combineModifiedSinceResults(activeResult, cancelledResult);
+}
+
+type BookingsVariantResult = Awaited<ReturnType<typeof fetchBookingsVariant>>;
+
+/**
+ * 증분 경로의 활성분 + 취소분을 합친다.
+ *
+ * 창 훑기와 달리 **어느 한쪽이라도 실패하면(끊김·요청 오류) 전체를 partial 로 본다** — 커서가 그대로 남아야 다음 번에
+ * 같은 구간을 다시 묻는다. 한쪽만 반영하고 커서를 옮기면 그 사이 취소가 영원히 빠진다.
+ */
+export function combineModifiedSinceResults(active: BookingsVariantResult, cancelled: BookingsVariantResult) {
+  const isEmptyOk = (reason: string | null) => reason === null || reason === "reservations:no-bookings";
+  const failed = (result: BookingsVariantResult) => result.partial || !isEmptyOk(result.skippedReason);
+  const partial = failed(active) || failed(cancelled);
+  const rows = partial ? [] : mergeBookingRows(active.rows, cancelled.rows);
+  const skippedReason = partial
+    ? (failed(active) ? active.skippedReason : cancelled.skippedReason) ?? "reservations:partial-pagination-failed"
+    : rows.length > 0
+      ? null
+      : "reservations:no-bookings";
+  return {
+    endpointTried: cancelled.endpointTried ?? active.endpointTried,
+    rows,
+    partial,
+    failedPageUrl: active.failedPageUrl ?? cancelled.failedPageUrl,
+    skippedReason,
+  };
+}
+
+/** 대표 예약(masterId 없음) 먼저, 그다음 Beds24 번호 오름차순. 번호가 없으면 맨 뒤. */
+function compareBookingPriority(
+  a: { beds24BookingId: string | null; masterId: string | null },
+  b: { beds24BookingId: string | null; masterId: string | null },
+) {
+  const aChild = a.masterId ? 1 : 0;
+  const bChild = b.masterId ? 1 : 0;
+  if (aChild !== bChild) return aChild - bChild;
+  const aId = Number(a.beds24BookingId ?? Number.POSITIVE_INFINITY);
+  const bId = Number(b.beds24BookingId ?? Number.POSITIVE_INFINITY);
+  if (Number.isFinite(aId) && Number.isFinite(bId) && aId !== bId) return aId - bId;
+  return (a.beds24BookingId ?? "").localeCompare(b.beds24BookingId ?? "");
+}
+
+/**
+ * 후보 키(평문 · `::bid::`)를 **이미 쓰고 있는 행**과 그 행의 Beds24 번호를 읽는다.
+ * 반환: `조직:채널번호` → 그 채널 번호로 저장된 행들(후보 키에 해당하는 것만).
+ *
+ * 정확한 키 `in` 조회라 창 훑기 수천 건도 몇 번의 왕복으로 끝난다.
+ */
+async function readExistingKeyOwners(
+  supabase: SupabaseClient<Database>,
+  candidates: Array<{ organizationId: string; key: string }>,
+): Promise<Map<string, StoredReservationKeyCandidate[]>> {
+  const owners = new Map<string, StoredReservationKeyCandidate[]>();
+  const keysByOrg = new Map<string, Set<string>>();
+  for (const { organizationId, key } of candidates) {
+    const set = keysByOrg.get(organizationId) ?? new Set<string>();
+    set.add(key);
+    keysByOrg.set(organizationId, set);
+  }
+
+  const CHUNK = 150;
+  for (const [organizationId, keySet] of keysByOrg) {
+    const keys = [...keySet];
+    for (let offset = 0; offset < keys.length; offset += CHUNK) {
+      const result = await supabase
+        .from("reservations")
+        .select("source_reservation_id, raw_book_id:raw_payload->>bookId, raw_id:raw_payload->>id")
+        .eq("organization_id", organizationId)
+        .in("source_reservation_id", keys.slice(offset, offset + CHUNK));
+      if (result.error) {
+        throw new Error(`beds24 reservations backfill key owner query failed: ${result.error.message}`);
+      }
+      for (const row of (result.data ?? []) as unknown as Array<{
+        source_reservation_id: string;
+        raw_book_id: string | null;
+        raw_id: string | null;
+      }>) {
+        const mapKey = `${organizationId}:${toOriginalReservationId(row.source_reservation_id)}`;
+        const list = owners.get(mapKey) ?? [];
+        list.push({
+          source_reservation_id: row.source_reservation_id,
+          bookingId: row.raw_book_id?.trim() || row.raw_id?.trim() || null,
+        });
+        owners.set(mapKey, list);
+      }
+    }
+  }
+  return owners;
 }
 
 function isIsoDate(value: string | undefined): value is string {
@@ -666,6 +777,8 @@ export async function backfillBeds24Reservations(
     bookingRows.push({
       externalRoomId,
       sourceReservationId,
+      beds24BookingId: readBeds24OwnBookingId(row),
+      masterId: readBeds24MasterId(row),
       source,
       propertyExternalId,
       propertyName: resolvedPropertyName,
@@ -713,6 +826,7 @@ export async function backfillBeds24Reservations(
   };
   const preparedByKey = new Map<string, PreparedRow>();
 
+  const resolvedBookings: Array<{ organizationId: string; booking: BookingRow; finalRoomLabel: string }> = [];
   for (const booking of bookingRows) {
     const organizationId =
       (booking.propertyExternalId ? orgByExternalPropertyId.get(booking.propertyExternalId) : undefined) ??
@@ -762,7 +876,39 @@ export async function backfillBeds24Reservations(
       });
     }
 
-    const storedReservationId = toStoredReservationId(booking.sourceReservationId, finalRoomLabel);
+    resolvedBookings.push({ organizationId, booking, finalRoomLabel });
+  }
+
+  // 키 충돌 판정용 — 평문 키 / `::bid::` 키를 **이미 누가 쓰고 있는가** (2026-10-01).
+  // 같은 채널 번호·같은 방에 다른 Beds24 예약이 있을 때만 꼬리표 키로 나눈다(`chooseStoredReservationId`).
+  const existingKeyOwners = await readExistingKeyOwners(
+    supabase,
+    resolvedBookings.flatMap(({ organizationId, booking, finalRoomLabel }) => {
+      const keys = [toStoredReservationId(booking.sourceReservationId, finalRoomLabel)];
+      if (booking.beds24BookingId) {
+        keys.push(toStoredReservationId(booking.sourceReservationId, finalRoomLabel, booking.beds24BookingId));
+      }
+      return keys.map((key) => ({ organizationId, key }));
+    }),
+  );
+
+  // 대표 예약(masterId 없음)이 먼저, 그다음 번호 순 — 같은 방을 두 예약이 나눠 쓸 때 평문 키를
+  // 누가 갖는지가 실행마다 바뀌지 않게 한다.
+  resolvedBookings.sort((a, b) => compareBookingPriority(a.booking, b.booking));
+
+  for (const { organizationId, booking, finalRoomLabel } of resolvedBookings) {
+    const ownersKey = `${organizationId}:${toOriginalReservationId(booking.sourceReservationId)}`;
+    const owners = existingKeyOwners.get(ownersKey) ?? [];
+    const storedReservationId = chooseStoredReservationId({
+      sourceReservationId: booking.sourceReservationId,
+      roomLabel: finalRoomLabel,
+      bookingId: booking.beds24BookingId,
+      existingRows: owners,
+    });
+    if (!owners.some((row) => row.source_reservation_id === storedReservationId)) {
+      owners.push({ source_reservation_id: storedReservationId, bookingId: booking.beds24BookingId });
+      existingKeyOwners.set(ownersKey, owners);
+    }
     // Dedup on the table's unique key so one bulk statement never tries to affect the
     // same row twice (Postgres ON CONFLICT rejects that). Last write wins.
     preparedByKey.set(`${organizationId}:${booking.source}:${storedReservationId}`, {
@@ -876,6 +1022,66 @@ export async function backfillBeds24Reservations(
   };
 }
 
+/**
+ * 방 이름을 바로잡을 때 옮겨 갈 키를 고른다 (2026-10-01).
+ *
+ * 옮겨 갈 자리에 이미 행이 있으면 예전엔 무조건 「같은 예약의 중복」으로 보고 **지금 행을 지웠다.**
+ * 그 자리의 주인이 같은 채널 번호의 **다른 Beds24 예약**(그룹의 다른 방)이면 멀쩡한 예약이 사라진다.
+ * 이제는 같은 Beds24 예약일 때만 「중복」(`sameBookingRow`)이고, 아니면 `::bid::` 키로 비켜 간다.
+ *
+ * `source` 가 있으면 그 채널 행끼리만 본다(유니크 키가 채널을 포함한다). `null` 이면 채널 무관.
+ */
+async function resolveRelabelTarget(
+  supabase: SupabaseClient<Database>,
+  params: {
+    organizationId: string;
+    source: string | null;
+    reservationId: string;
+    originalId: string;
+    roomLabel: string;
+    bookingId: string | null;
+  },
+): Promise<{ correctedSourceId: string; sameBookingRow: { id: string } | null } | { error: string }> {
+  const plainKey = toStoredReservationId(params.originalId, params.roomLabel);
+  const keys = params.bookingId
+    ? [plainKey, toStoredReservationId(params.originalId, params.roomLabel, params.bookingId)]
+    : [plainKey];
+
+  let query = supabase
+    .from("reservations")
+    .select("id, source_reservation_id, raw_book_id:raw_payload->>bookId, raw_id:raw_payload->>id")
+    .eq("organization_id", params.organizationId)
+    .in("source_reservation_id", keys)
+    .neq("id", params.reservationId);
+  if (params.source !== null) query = query.eq("source", params.source);
+  const result = await query;
+  if (result.error) return { error: result.error.message };
+
+  const rows = ((result.data ?? []) as unknown as Array<{
+    id: string;
+    source_reservation_id: string;
+    raw_book_id: string | null;
+    raw_id: string | null;
+  }>).map((row) => ({
+    id: row.id,
+    source_reservation_id: row.source_reservation_id,
+    bookingId: row.raw_book_id?.trim() || row.raw_id?.trim() || null,
+  }));
+
+  const correctedSourceId = chooseStoredReservationId({
+    sourceReservationId: params.originalId,
+    roomLabel: params.roomLabel,
+    bookingId: params.bookingId,
+    existingRows: rows,
+  });
+  const sameBookingRow =
+    rows.find(
+      (row) =>
+        row.source_reservation_id === correctedSourceId && isSameBeds24Booking(row.bookingId, params.bookingId),
+    ) ?? null;
+  return { correctedSourceId, sameBookingRow };
+}
+
 export async function recoverReservationsRoomLabels(
   supabase: SupabaseClient<Database>,
   organizationId?: string,
@@ -968,21 +1174,24 @@ export async function recoverReservationsRoomLabels(
       // as "...::room::(unknown)", the next backfill/webhook will create a new "...::room::5F"
       // row instead of updating the existing one.
       const originalId = toOriginalReservationId(res.source_reservation_id);
-      const correctedSourceId = toStoredReservationId(originalId, expectedRoomLabel);
-
-      // Check whether a properly-labeled row already exists (dedup scenario:
-      // backfill already created "...::room::5F" before recovery ran).
-      const { data: conflictRow } = await supabase
-        .from("reservations")
-        .select("id")
-        .eq("organization_id", res.organization_id)
-        .eq("source", res.source)
-        .eq("source_reservation_id", correctedSourceId)
-        .maybeSingle();
+      const target = await resolveRelabelTarget(supabase, {
+        organizationId: res.organization_id,
+        source: res.source,
+        reservationId: res.id,
+        originalId,
+        roomLabel: expectedRoomLabel,
+        bookingId: readBeds24OwnBookingId(raw),
+      });
+      if ("error" in target) {
+        errors.push(`Failed to resolve relabel target for ${res.id}: ${target.error}`);
+        continue;
+      }
+      const correctedSourceId = target.correctedSourceId;
+      const conflictRow = target.sameBookingRow;
 
       if (conflictRow) {
-        // A properly-labeled row already exists — delete the stale (unknown) row.
-        const keptId = (conflictRow as { id: string }).id;
+        // A properly-labeled row of the SAME Beds24 booking already exists — delete the stale row.
+        const keptId = conflictRow.id;
         console.warn("[beds24/recovery] dedup: deleting stale (unknown) row in favor of resolved row", {
           staleId: res.id,
           keptId,
@@ -1077,20 +1286,22 @@ export async function recoverReservationRoomLabelById(
   }
 
   const originalId = toOriginalReservationId(reservation.source_reservation_id);
-  const correctedSourceId = toStoredReservationId(originalId, expectedRoomLabel);
-
-  const { data: conflictRow } = await supabase
-    .from("reservations")
-    .select("id")
-    .eq("organization_id", organizationId)
-    .eq("source_reservation_id", correctedSourceId)
-    .neq("id", reservation.id)
-    .maybeSingle();
+  const target = await resolveRelabelTarget(supabase, {
+    organizationId,
+    source: null,
+    reservationId: reservation.id,
+    originalId,
+    roomLabel: expectedRoomLabel,
+    bookingId: readBeds24OwnBookingId(raw),
+  });
+  if ("error" in target) return { recovered: false, roomLabel: null };
+  const correctedSourceId = target.correctedSourceId;
+  const conflictRow = target.sameBookingRow;
 
   if (conflictRow) {
     console.warn("[beds24/recovery] dedup: deleting stale row during single recovery", {
       staleId: reservation.id,
-      keptId: (conflictRow as { id: string }).id,
+      keptId: conflictRow.id,
       originalId,
       correctedSourceId,
     });
