@@ -313,7 +313,8 @@ export function UserDetailClient({
     );
   }
 
-  const formValid = Boolean(form.key) && Boolean(form.reason.trim()) && (!expiryRequired || Boolean(form.expires));
+  // 사유는 선택이다(2026-09-30 사용자) — 비워도 저장된다.
+  const formValid = Boolean(form.key) && (!expiryRequired || Boolean(form.expires));
 
   function submitGrant() {
     if (!formValid) return;
@@ -709,7 +710,6 @@ export function UserDetailClient({
                 <div className="gfield">
                   <label className="gfield__l">
                     {c.fieldReason}
-                    <span className="req">*</span>
                   </label>
                   <textarea
                     className="ui-textarea"
@@ -769,7 +769,7 @@ export function UserDetailClient({
                         </button>
                       </span>
                     </div>
-                    <div className="ov__reason">{o.reason}</div>
+                    {o.reason ? <div className="ov__reason">{o.reason}</div> : null}
                     <div className="ov__meta">
                       <span className="ov__m">
                         <span className="k">{c.ovExpiry}</span>

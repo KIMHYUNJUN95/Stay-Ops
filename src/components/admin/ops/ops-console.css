@@ -1603,7 +1603,21 @@
   color: var(--soft);
 }
 .opsbk__release span { flex: 1; min-width: 0; }
-.opsbk__release .opsp__btn { flex: 0 0 auto; }
+/* 기본 `.opsp__btn` 은 하단 버튼 줄용이라 가로 여백이 없다 — 여기서는 글자 폭만큼이라 좁아 보였다
+   (2026-09-30 사용자). 좌우 여백 · 한 줄 고정 · 위험색 테두리로 「이 줄의 행동」임을 보인다. */
+.opsbk__release .opsp__btn {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 14px;
+  white-space: nowrap;
+  border-color: color-mix(in oklab, var(--danger) 35%, var(--line));
+  background: var(--card);
+  color: var(--danger);
+  font-size: 12px;
+}
+.opsbk__release .opsp__btn:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--danger) 8%, var(--card));
+}
 
 .opsbk__note {
   padding: 9px 11px;

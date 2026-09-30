@@ -148,8 +148,8 @@ export async function grantMemberOverride(input: {
     return { ok: false, error: "deny_immune_role" };
   }
 
+  // 사유는 선택이다(2026-09-30 사용자 결정). 컬럼은 `not null` 이라 비우면 빈 문자열로 남는다.
   const reason = input.reason.trim();
-  if (!reason) return { ok: false, error: "reason_required" };
 
   let expiresIso: string | null = null;
   const raw = input.expiresAt?.trim();

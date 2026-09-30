@@ -2,6 +2,12 @@
 
 This file records important project decisions.
 
+## 2026-09-30 권한 예외 부여의 사유는 선택이다
+
+`/admin/users/[id]` 「권한 예외」 부여에서 사유를 비워도 저장된다(사용자 결정). 기존 「사유 필수」 규칙을 대체한다.
+부여·회수 감사 기록은 그대로 남고, 컬럼은 `not null` 을 유지해 빈 문자열로 저장한다. 상세:
+`docs/product/27-permission-override-workflow.md`.
+
 ## 2026-09-30 Beds24 실시간 신호 채널을 private 로 바꾼다
 
 `beds24-live:<조직>` 은 이제 private Realtime 채널이다. 받기는 `realtime.messages` RLS(그 조직 active 멤버만,

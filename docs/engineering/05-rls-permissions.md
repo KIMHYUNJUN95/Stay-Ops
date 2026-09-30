@@ -1347,3 +1347,17 @@ service-role 로 읽으므로 **조직을 쿼리에 직접 건다**(`organizatio
   `rooms.external_room_id`, 둘 다 `external_provider = 'beds24'`) → `organization_id` 로 정하고
   (`src/lib/beds24/webhook-organization.ts`), 매핑이 없거나 여러 조직으로 갈릴 때만 서버 기본값
   (세션 조직 · `BEDS24_DEFAULT_ORGANIZATION_ID`)으로 떨어진다. 매핑에 세션 조직이 있으면 세션 조직.
+
+## 2026-09-30 `has_capability` 는 자기 자신만 (마이그레이션 `202609300008_has_capability_self_only.sql`)
+
+`has_capability(org, user, key)` 는 SECURITY DEFINER 이고 `authenticated` 에 EXECUTE 가 있다. 대상 사용자를
+인자로 받아서, 로그인한 누구나 RPC 로 **다른 직원의 권한 보유 여부**를 조회할 수 있었다(위 RLS 작성 규칙 2 가
+경고하는 형태 — 데이터는 아니지만 권한 지도가 샌다).
+
+- 판정 본문은 그대로 두고 첫 조건만 더했다: `auth.uid() is null or target_user_id = auth.uid()`.
+  JWT 가 있는 호출에서 대상이 본인이 아니면 `false`. 서비스 롤(JWT 에 sub 없음)과 SQL 직접 실행은 예전과 같다.
+- 호출처는 전부 `auth.uid()` 를 넘기므로 동작 변화 없음: `job_applications` 읽기 정책,
+  `capability_organization_ids()`(판매 캘린더 로그 3표 읽기 정책). anon 은 원래 EXECUTE 가 없다.
+- 운영 검증(2026-09-30): 이수현 계정으로 본인 `ops_admin.access` = true, 대표 계정 대상 조회 = false,
+  `price_change_logs` 읽기 유지.
+- `src/types/database.ts` Functions 에 `has_capability` 타입이 빠져 있던 것을 추가했다.

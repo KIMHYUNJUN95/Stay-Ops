@@ -5150,6 +5150,14 @@ export type Database = {
         Args: { target_organization_id: string }
         Returns: boolean
       }
+      has_capability: {
+        Args: {
+          target_capability: string
+          target_organization_id: string
+          target_user_id: string
+        }
+        Returns: boolean
+      }
       has_org_role: {
         Args: {
           allowed_roles: Database["public"]["Enums"]["organization_role"][]

@@ -11,6 +11,8 @@ and the major mobile/admin operations modules are implemented and being hardened
 
 ## 2026-09-30 (4) — 실시간 신호 놓침 따라잡기 · 연결 상태 점
 
+- `has_capability` 가 로그인 사용자에게 자기 권한만 답한다(남의 권한 조회 차단, 마이그레이션 `202609300008`, 적용·검증 완료). DB 타입에 `has_capability` 추가.
+- 차단 패널 「차단 해제」 버튼: 좌우 여백 14px · 한 줄 고정 · 위험색 테두리(`.opsbk__release .opsp__btn`) — 글자 폭만큼 좁아 보이던 것.
 - 다른 컴퓨터에서 Beds24 변경이 안 뜨던 것: 끊긴 동안의 브로드캐스트는 사라진다. `useBeds24LiveRefresh` 가
   재구독 · `online` · 60초 넘게 가려졌던 탭 복귀 때 한 번 다시 읽는다. 판매 캘린더에 실시간 연결 점(초록/회색).
   (`33-calendar-write-features.md` → 「실시간 신호를 놓쳐도 따라잡는다」)
@@ -77,6 +79,10 @@ and the major mobile/admin operations modules are implemented and being hardened
   116~340ms(전체), 격자 데이터 509KB → 151KB. 브라우저 수동 확인은 아직.
 - 문서: `33-calendar-write-features.md`(신설 다수 절) · `04-data-model.md`(RPC 2종) ·
   `05-rls-permissions.md`(RPC EXECUTE 권한) · `15-reservation-calendar.md`(신호 범위 참고).
+
+## 2026-09-30 — 권한 예외 사유 선택화
+
+- `/admin/users/[id]` 권한 예외 부여에서 사유가 선택 항목이 됐다(빈 칸이어도 저장). 필수 표시(*) 제거, 안내 문구에 「선택」.
 
 ## 2026-09-30 — 어드민 상단 예약 검색
 
