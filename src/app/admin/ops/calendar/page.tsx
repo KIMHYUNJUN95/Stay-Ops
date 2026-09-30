@@ -3,6 +3,7 @@ import { AdminShell } from "@/components/shell/admin-shell";
 import { OpsCalendarGrid } from "@/components/admin/ops/ops-calendar-grid";
 import { OpsCalendarJump } from "@/components/admin/ops/ops-calendar-jump";
 import { OpsNavLink, OpsNavScope } from "@/components/admin/ops/ops-nav";
+import { OpsGapButton } from "@/components/admin/ops/ops-gap-button";
 import { AdminMonthPicker } from "@/components/admin/shared/admin-month-picker";
 import "@/components/admin/ops/ops-console.css";
 import { refreshOpsCalendarRates } from "@/lib/beds24/rates-refresh";
@@ -286,10 +287,7 @@ export default async function OpsCalendarPage({
           </OpsNavLink>
           {/* 1박 갭 — 있을 때만 뜬다. 0건이면 빈 배지가 자리만 차지한다. */}
           {data.gapCells.size > 0 && (
-            <span className="ops__gapbtn">
-              {copy.gapLabel}
-              <span className="ops__gapn">{data.gapCells.size}</span>
-            </span>
+            <OpsGapButton count={data.gapCells.size} hint={copy.gapOpenHint} label={copy.gapLabel} />
           )}
         </div>
 

@@ -60,6 +60,7 @@ import {
 } from "@/lib/ops-calendar-selection";
 import { hasOpsLargeRooms, isOpsLargeRoom, orderOpsLargeRoomsFirst } from "@/lib/ops-large-rooms";
 import { opsVacantRoomKeys } from "@/lib/ops-vacant-today";
+import { OPS_GAP_OPEN_EVENT } from "@/components/admin/ops/ops-gap-button";
 
 /**
  * 판매 캘린더 격자.
@@ -925,6 +926,34 @@ export function OpsCalendarGrid({
     setDateAnchor(null);
     setSelectionState({ cells: selectableGapCells, scopeKeys: new Set() });
   };
+
+  /*
+   * 도구줄 「1박 갭 N」을 누르면(`ops-gap-button.tsx`) — 최소 숙박일 모드로 들어가 갭 칸을 전부 고른다.
+   * 그러면 오른쪽 패널이 열려 「1박으로」까지 한 번에 간다(2026-09-30 사용자 요청). 첫 갭 칸이 화면에
+   * 보이도록 세로로 옮긴다.
+   */
+  const openGapsRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    openGapsRef.current = () => {
+      setMode("minstay");
+      selectAllGaps();
+      const first = selectableGapCells[0];
+      if (!first) return;
+      requestAnimationFrame(() => {
+        const row = document.querySelector<HTMLElement>(`[data-ops-row="${CSS.escape(first.roomKey)}"]`);
+        if (!row) return;
+        const top = row.getBoundingClientRect().top;
+        if (top < 120 || top > window.innerHeight - 80) {
+          window.scrollBy({ behavior: "smooth", top: top - window.innerHeight / 3 });
+        }
+      });
+    };
+  });
+  useEffect(() => {
+    const onOpen = () => openGapsRef.current();
+    window.addEventListener(OPS_GAP_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(OPS_GAP_OPEN_EVENT, onOpen);
+  }, []);
 
   /**
    * 취소 막대는 **같은 밤에 여러 건이 겹친다.** 한 줄에 그리면 서로 덮어 못 읽는다 —

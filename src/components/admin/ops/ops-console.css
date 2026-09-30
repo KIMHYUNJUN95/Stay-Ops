@@ -2693,3 +2693,16 @@
   background: hsl(146 48% 88%);
   color: hsl(146 60% 24%);
 }
+
+/* 「1박 갭 N」은 누르는 버튼이다(2026-09-30) — 누르면 갭 칸을 전부 골라 최소 숙박일 패널을 연다. */
+button.ops__gapbtn {
+  font-family: inherit;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+}
+button.ops__gapbtn:hover {
+  border-color: color-mix(in oklab, var(--danger) 60%, transparent);
+  background: color-mix(in oklab, var(--danger) 10%, var(--danger-bg));
+}
+button.ops__gapbtn:active { transform: translateY(1px); }
+button.ops__gapbtn:focus-visible { outline: 2px solid var(--danger); outline-offset: 2px; }
