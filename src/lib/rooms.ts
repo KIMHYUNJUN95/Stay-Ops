@@ -275,32 +275,67 @@ export type ActiveRoomCatalogOptions = {
   includeNonOperationalProperties?: boolean;
 };
 
+/** `rooms` 한 행 — 카탈로그 판정과 판매 캘린더(유닛 → 행 매핑)가 같이 쓰는 모양. */
+export type RoomCatalogRow = {
+  id: string;
+  property_id: string;
+  properties: { name: string } | { name: string }[] | null;
+  external_room_id: string | null;
+  room_label: string;
+  status: Database["public"]["Enums"]["room_status"];
+  external_provider: string | null;
+  external_minimum_stay: number | null;
+};
+
+const ROOM_CATALOG_SELECT =
+  "id, property_id, room_label, external_room_id, status, external_provider, external_minimum_stay, properties(name)";
+const ROOM_CATALOG_PAGE_SIZE = 1000;
+
+/**
+ * 조직의 `rooms` 전부(운영 종료 포함)를 읽는다. **판정은 하지 않는다** — `buildActiveRoomCatalog` 가 한다.
+ *
+ * 판매 캘린더는 같은 행으로 카탈로그와 「유닛 → 캘린더 행」 매핑을 둘 다 만든다 — 예전에는 `rooms` 를
+ * 두 번 읽었다(2026-09-30 속도). PostgREST 1,000행 제한에 걸리지 않게 쪽을 나눠 읽는다.
+ */
+export async function fetchRoomCatalogRows(
+  organizationId: string,
+  supabase: SupabaseClient<Database>,
+): Promise<{ data: RoomCatalogRow[]; error: { message: string } | null }> {
+  const rows: RoomCatalogRow[] = [];
+  for (let offset = 0; ; offset += ROOM_CATALOG_PAGE_SIZE) {
+    const page = await supabase
+      .from("rooms")
+      .select(ROOM_CATALOG_SELECT)
+      .eq("organization_id", organizationId)
+      .order("id", { ascending: true })
+      .range(offset, offset + ROOM_CATALOG_PAGE_SIZE - 1);
+    if (page.error) return { data: rows, error: page.error };
+    const batch = (page.data ?? []) as unknown as RoomCatalogRow[];
+    rows.push(...batch);
+    if (batch.length < ROOM_CATALOG_PAGE_SIZE) return { data: rows, error: null };
+  }
+}
+
 export async function getActiveRoomCatalog(
   organizationId: string,
   supabase: SupabaseClient<Database>,
   options: ActiveRoomCatalogOptions = {},
 ): Promise<ActiveRoomCatalogItem[] | undefined> {
-  const result = await supabase
-    .from("rooms")
-    .select("id, property_id, room_label, external_room_id, status, external_provider, external_minimum_stay, properties(name)")
-    .eq("organization_id", organizationId);
+  const result = await fetchRoomCatalogRows(organizationId, supabase);
 
   if (result.error) {
     console.error("[rooms] getActiveRoomLabels query error", result.error);
     return undefined;
   }
 
-  const rows = (result.data ?? []) as Array<{
-    id: string;
-    property_id: string;
-    properties: { name: string } | { name: string }[] | null;
-    external_room_id: string | null;
-    room_label: string;
-    status: Database["public"]["Enums"]["room_status"];
-    external_provider: string | null;
-    external_minimum_stay: number | null;
-  }>;
+  return buildActiveRoomCatalog(result.data, options);
+}
 
+/** 읽어 온 `rooms` 행 → 활성 객실 카탈로그. 행이 하나도 없으면 `undefined`(판정 전 상태). */
+export function buildActiveRoomCatalog(
+  rows: RoomCatalogRow[],
+  options: ActiveRoomCatalogOptions = {},
+): ActiveRoomCatalogItem[] | undefined {
   // A room row counts as "classified" (org has a usable room master) as soon as it exists.
   // minStay = null no longer disqualifies a beds24 room — unknown min-stay must not hide a
   // real room. Only an explicit >= 50 marks it inactive (applied in the active filter below).

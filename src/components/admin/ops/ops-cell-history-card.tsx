@@ -24,6 +24,7 @@ export type CellHistoryCardCopy = {
   hcMinStay: string;
   hcHistory: string;
   hcCount: string;
+  hcLoading: string;
   hcBlock: string;
   hcBlockOn: string;
   hcBlockOff: string;
@@ -56,11 +57,16 @@ export function OpsCellHistoryCard({
   currentMinStay: number | null;
   currentPrice: number | null;
   date: string;
-  history: CellHistory;
+  /**
+   * 그 칸의 이력. **`null` 이면 아직 받는 중이다** — 이력은 카드가 뜰 때 칸 하나 것만 서버에서 받는다
+   * (2026-09-30 속도). 머리(현재 가격·최소숙박)는 격자에 이미 있으므로 먼저 그린다.
+   */
+  history: CellHistory | null;
   localeTag: string;
   roomTitle: string;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const loaded = history !== null;
   const [place, setPlace] = useState<{ left: number; top: number; side: "below" | "above" } | null>(null);
 
   // 크기를 재야 뒤집을지 안다 — 첫 그림은 숨긴 채로 재고 바로 자리를 잡는다.
@@ -76,7 +82,8 @@ export function OpsCellHistoryCard({
       window.innerWidth - width - EDGE,
     );
     setPlace({ left: left - box.left, side: below ? "below" : "above", top: top - box.top });
-  }, [anchor, container]);
+    // 이력이 도착하면 카드 높이가 바뀐다 — 그때 한 번 더 자리를 잡는다(아래로 넘치면 위로 뒤집는다).
+  }, [anchor, container, loaded]);
 
   const [y, m, d] = date.split("-").map(Number);
   const dateLabel = new Intl.DateTimeFormat(localeTag, {
@@ -85,7 +92,7 @@ export function OpsCellHistoryCard({
     timeZone: "UTC",
     weekday: "short",
   }).format(new Date(Date.UTC(y, m - 1, d)));
-  const hidden = history.total - history.entries.length;
+  const hidden = history ? history.total - history.entries.length : 0;
   const nights = (n: number) => copy.minStay.replace("{n}", String(n));
 
   return createPortal(
@@ -111,11 +118,17 @@ export function OpsCellHistoryCard({
 
       <div className="opshc__sub">
         <span>{copy.hcHistory}</span>
-        <span className="opshc__count">{copy.hcCount.replace("{n}", String(history.total))}</span>
+        {history && <span className="opshc__count">{copy.hcCount.replace("{n}", String(history.total))}</span>}
       </div>
 
+      {!history && (
+        <div aria-live="polite" className="opshc__more">
+          {copy.hcLoading}
+        </div>
+      )}
+
       <ol className="opshc__list">
-        {history.entries.map((entry, index) => {
+        {(history?.entries ?? []).map((entry, index) => {
           const view = viewHistoryEntry(entry);
           const show = (value: number | null) =>
             value === null

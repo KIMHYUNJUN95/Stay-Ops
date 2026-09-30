@@ -31,6 +31,7 @@ export type PriceWinsCopy = {
   pwHours: string;
   pwBookedAt: string;
   pwEmpty: string;
+  pwLoading: string;
   pwScopeNote: string;
   rcClose: string;
 };
@@ -63,7 +64,11 @@ export function OpsPriceWinsPanel({
   onOpenReservation,
   propertyName,
 }: {
-  conversions: OpsPriceConversion[];
+  /**
+   * **`null` 이면 아직 받는 중이다** — 가격 개입 판정은 격자가 그린 뒤 서버 액션으로 따로 온다
+   * (2026-09-30 속도).
+   */
+  conversions: OpsPriceConversion[] | null;
   copy: PriceWinsCopy;
   localeTag: string;
   onClose: () => void;
@@ -72,9 +77,10 @@ export function OpsPriceWinsPanel({
   propertyName: string | null;
 }) {
   const panelRef = useAdminPanelA11y<HTMLElement>(onClose);
+  const list = conversions ?? [];
   const averageHours =
-    conversions.length > 0
-      ? Math.round((conversions.reduce((sum, row) => sum + row.hoursToBooking, 0) / conversions.length) * 10) / 10
+    list.length > 0
+      ? Math.round((list.reduce((sum, row) => sum + row.hoursToBooking, 0) / list.length) * 10) / 10
       : null;
 
   return (
@@ -96,7 +102,7 @@ export function OpsPriceWinsPanel({
             </button>
           </div>
           <div className="opspw__head">
-            <strong>{copy.pwCount.replace("{n}", String(conversions.length))}</strong>
+            <strong>{conversions ? copy.pwCount.replace("{n}", String(list.length)) : copy.pwLoading}</strong>
             {averageHours !== null && (
               <span className="opspw__avg">{copy.pwAverage.replace("{h}", String(averageHours))}</span>
             )}
@@ -110,11 +116,15 @@ export function OpsPriceWinsPanel({
         </div>
 
         <div className="panel__body opspw__body">
-          {conversions.length === 0 ? (
+          {conversions === null ? (
+            <p aria-live="polite" className="opspw__empty">
+              {copy.pwLoading}
+            </p>
+          ) : list.length === 0 ? (
             <p className="opspw__empty">{copy.pwEmpty}</p>
           ) : (
             <ul className="opspw__list">
-              {conversions.map((row) => {
+              {list.map((row) => {
                 const down = row.delta !== null && row.delta < 0;
                 const up = row.delta !== null && row.delta > 0;
                 return (

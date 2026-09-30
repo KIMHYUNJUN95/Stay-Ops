@@ -1,15 +1,23 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type {
   OpsCalendarBar,
-  OpsCalendarBlock,
   OpsCalendarDay,
-  OpsCalendarRate,
   OpsCalendarRoom,
   OpsPriceConversion,
 } from "@/lib/ops-calendar";
+import {
+  buildRowRateLookup,
+  dayFlagAt,
+  decodeRowRate,
+  reuseStableRows,
+  rowGapCellKeys,
+  sameOpsDays,
+  type OpsGridRowData,
+} from "@/lib/ops-calendar-rows";
+import { loadOpsCellHistory, loadOpsPriceConversions } from "@/app/admin/ops/calendar/actions";
 import { OpsPriceWinsPanel, type PriceWinsCopy } from "@/components/admin/ops/ops-price-wins-panel";
 import { OpsCellHistoryCard, type CellHistoryCardCopy } from "@/components/admin/ops/ops-cell-history-card";
 import { OpsHistoryPanel, type HistoryPanelCopy } from "@/components/admin/ops/ops-history-panel";
@@ -37,11 +45,7 @@ import {
   type BookingPanelRoom,
 } from "@/components/admin/ops/ops-booking-panel";
 import { buildGapContext } from "@/lib/ops-gap-context";
-import {
-  historyCellKey,
-  type CellHistory,
-  type HistoryCopy,
-} from "@/lib/ops-price-history";
+import type { CellHistory, HistoryCopy } from "@/lib/ops-price-history";
 import {
   applyDragRect,
   applyScopeToSelection,
@@ -49,6 +53,7 @@ import {
   buildSelectableWeeks,
   EMPTY_SCOPE,
   isPriceEditBlocked,
+  removeCells,
   selectionCellKey,
   toggleCellGroup,
   toggleInList,
@@ -115,7 +120,14 @@ type Copy = {
   HistoryCopy & { historyMore: string } &
   CellHistoryCardCopy &
   HistoryPanelCopy & { hsButton: string; hsAlertTitle: string } &
-  PriceWinsCopy & { pwToggle: string; pwList: string; largeFirst: string; vacantToday: string; msMixed: string };
+  PriceWinsCopy & {
+    pwToggle: string;
+    pwList: string;
+    largeFirst: string;
+    vacantToday: string;
+    vacantEmpty: string;
+    msMixed: string;
+  };
 
 /**
  * 격자 칸의 가격 표기 — `42659` → `42.7K`.
@@ -135,6 +147,65 @@ function dropTokens(map: Map<string, PendingValue>, tokens: Set<number>): Map<st
   const next = new Map<string, PendingValue>();
   for (const [key, entry] of map) if (!tokens.has(entry.token)) next.set(key, entry);
   return next;
+}
+
+/** 행에 내려주는 낙관값 — `token` 대신 **이미 반영이 끝났는가**(`pend`)로 바꿔 둔다. */
+type PendingCell = { value: number; pend: boolean };
+const EMPTY_ROW_PENDING: Map<string, PendingCell> = new Map();
+
+/**
+ * 전체 쓰기 상태를 **행별로** 쪼갠다.
+ *
+ * 안 바뀐 행은 **Map 참조까지 그대로** 돌려줘야 `React.memo`(`OpsGridRow`)가 그 행의 재렌더를
+ * 막는다 — 통째로 넘기면 칸 하나만 써도 「전체」 보기 9,000칸짜리 격자가 전부 다시 그려진다
+ * (2026-09-30 속도).
+ */
+function sliceRowPending(
+  pending: Map<string, PendingValue>,
+  settledTokens: Set<number>,
+  previous: Map<string, Map<string, PendingCell>>,
+): Map<string, Map<string, PendingCell>> {
+  const byRoom = new Map<string, Map<string, PendingCell>>();
+  for (const [key, entry] of pending) {
+    const separator = key.indexOf("|");
+    const roomKey = key.slice(0, separator);
+    const cell: PendingCell = { pend: !settledTokens.has(entry.token), value: entry.value };
+    const bucket = byRoom.get(roomKey);
+    if (bucket) bucket.set(key, cell);
+    else byRoom.set(roomKey, new Map([[key, cell]]));
+  }
+  const result = new Map<string, Map<string, PendingCell>>();
+  for (const [roomKey, bucket] of byRoom) {
+    const prevBucket = previous.get(roomKey);
+    result.set(roomKey, samePendingBucket(prevBucket, bucket) ? (prevBucket as Map<string, PendingCell>) : bucket);
+  }
+  return result;
+}
+
+function samePendingBucket(
+  a: Map<string, PendingCell> | undefined,
+  b: Map<string, PendingCell>,
+): boolean {
+  if (!a || a.size !== b.size) return false;
+  for (const [key, cell] of b) {
+    const existing = a.get(key);
+    if (!existing || existing.value !== cell.value || existing.pend !== cell.pend) return false;
+  }
+  return true;
+}
+
+/**
+ * `sliceRowPending` 이 돌려준 **바깥** Map 은 매번 새로 만들어진다 — 그래도 안 바뀐 방의
+ * **버킷 참조**는 그대로다. 그 버킷들이 전부 같으면(참조까지) 실제로는 바뀐 게 없는 것이다 —
+ * 그때는 `setState` 를 건너뛰어 쓸데없는 재렌더를 막는다.
+ */
+function sameRoomBuckets(
+  a: Map<string, Map<string, PendingCell>>,
+  b: Map<string, Map<string, PendingCell>>,
+): boolean {
+  if (a.size !== b.size) return false;
+  for (const [roomKey, bucket] of b) if (a.get(roomKey) !== bucket) return false;
+  return true;
 }
 
 /** `2026-10-20` → `10/20`. */
@@ -177,6 +248,17 @@ function barGeometry(days: OpsCalendarDay[], checkIn: string, checkOut: string) 
   };
 }
 
+/**
+ * 자동 스크롤 속도 — 화면 위·아래 `EDGE`px 안에 들어오면 가장자리에 가까울수록 빨라진다.
+ * 밖이면 0(=자동 스크롤 없음). 드래그 루프와 포인터 이동 핸들러가 같은 판정을 쓴다.
+ */
+const AUTO_SCROLL_EDGE = 56;
+function autoScrollSpeed(y: number): number {
+  if (y < AUTO_SCROLL_EDGE) return -Math.ceil((AUTO_SCROLL_EDGE - y) / 4);
+  if (y > window.innerHeight - AUTO_SCROLL_EDGE) return Math.ceil((y - (window.innerHeight - AUTO_SCROLL_EDGE)) / 4);
+  return 0;
+}
+
 /** BLOCK 은 **밤의 범위이며 양끝을 포함한다.** 9/23~9/26 이면 네 밤이다. */
 function blockGeometry(days: OpsCalendarDay[], startDate: string, endDate: string) {
   const total = days.length;
@@ -192,8 +274,6 @@ function blockGeometry(days: OpsCalendarDay[], startDate: string, endDate: strin
   };
 }
 
-const NO_BARS: OpsCalendarBar[] = [];
-const NO_BLOCKS: OpsCalendarBlock[] = [];
 
 /** 행이 부르는 동작. **참조가 안 바뀌는** 한 객체(ref)로 넘겨 행 메모가 깨지지 않게 한다. */
 type GridRowActions = {
@@ -205,9 +285,15 @@ type GridRowActions = {
 };
 
 type GridRowProps = {
-  room: OpsCalendarRoom;
+  /**
+   * 이 행의 데이터(`ops-calendar-rows.ts`) — 요금(날짜 순 배열)·이력 표시·갭·막대·블록. 내용이 같으면
+   * 새로고침 뒤에도 **직전 객체 그대로**라(`reuseStableRows`) 메모가 걸린다.
+   */
+  row: OpsGridRowData;
   days: OpsCalendarDay[];
   dates: string[];
+  /** 날짜 → 순번(`row` 배열의 인덱스). `dates` 와 함께 바뀐다. */
+  dayIndex: Map<string, number>;
   today: string;
   copy: Copy;
   editMode: boolean;
@@ -217,19 +303,13 @@ type GridRowProps = {
   large: boolean;
   /** 객실 축 선택에 이 행이 들어 있나. */
   scopeOn: boolean;
-  rates: Map<string, OpsCalendarRate>;
-  history: Map<string, CellHistory>;
-  gapCells: Set<string>;
-  soldCells: Set<string>;
-  conversionIds: Set<string>;
-  allRoomBars: OpsCalendarBar[];
-  roomBlocks: OpsCalendarBlock[];
-  barLanes: ReturnType<typeof assignBarLanes> | null;
+  /** 이 행의 가격 개입 성공 막대 id(`|` 로 이음). 「가격 개입 성공」을 켰을 때만 채운다. */
+  winIds: string;
   /** 이 행에서 고른 날짜들(`|` 로 이음). **문자열이라** 다른 행의 선택이 바뀌어도 이 행은 안 다시 그린다. */
   selectedDates: string;
-  pendingPrices: Map<string, PendingValue>;
-  pendingMinStay: Map<string, PendingValue>;
-  settledTokens: Set<number>;
+  /** 이 행 몫만 자른 낙관값(`sliceRowPending`) — 안 바뀐 행은 참조까지 같다. */
+  pendingPrices: Map<string, PendingCell>;
+  pendingMinStay: Map<string, PendingCell>;
   drafting: { room: BookingPanelRoom; checkIn: string } | null;
   actions: { current: GridRowActions };
 };
@@ -246,42 +326,58 @@ type GridRowProps = {
  */
 const OpsGridRow = memo(function OpsGridRow({
   actions,
-  allRoomBars,
-  barLanes,
-  conversionIds,
   copy,
   dates,
+  dayIndex,
   days,
   drafting,
   editMode,
-  gapCells,
-  history,
   large,
   pendingMinStay,
   pendingPrices,
   priceWinsOnly,
-  rates,
-  room,
-  roomBlocks,
+  row,
   scopeOn,
   selectedDates,
-  settledTokens,
   showCancelled,
-  soldCells,
   today,
+  winIds,
 }: GridRowProps) {
+  const { room } = row;
+  const allRoomBars = row.bars;
+  const roomBlocks = row.blocks;
   const selected = new Set(selectedDates ? selectedDates.split("|") : []);
+  const wins = new Set(winIds ? winIds.split("|") : []);
   // **켜면 취소만, 끄면 일반만.** 둘을 같이 그리면 같은 밤에 겹쳐 못 읽는다.
   const roomBars = allRoomBars.filter((bar) => bar.isCancelled === showCancelled);
+  /**
+   * 취소 막대는 **같은 밤에 여러 건이 겹친다.** 한 줄에 그리면 서로 덮어 못 읽는다 —
+   * 실측(2026-09-28)으로 취소가 걸린 방-밤의 20%가 2건 이상, 최대 5건이다.
+   * 그래서 층을 나누고 그만큼 트랙을 키운다(저쪽 `cancelledBarLaneMap` 과 같다). 층은 방마다 따로
+   * 세므로 행 안에서 센다.
+   */
+  const barLanes = showCancelled
+    ? assignBarLanes(
+        allRoomBars
+          .filter((bar) => bar.isCancelled)
+          .map((bar) => ({ checkIn: bar.checkIn, checkOut: bar.checkOut, id: bar.id, roomKey: bar.roomKey })),
+      )
+    : null;
   const laneCount = barLanes?.laneCountByRoom.get(room.key) ?? 1;
   const occupied = new Set<string>();
+  /** 팔린 밤(살아 있는 예약). 가격 수정에서 막히는 유일한 조건이다(블록은 막지 않는다). */
+  const sold = new Set<string>();
   // 점유는 **항상** 일반 예약으로만 센다 — 「취소만 보기」를 켜도 팔린 밤은 팔린 밤이다.
   for (const bar of allRoomBars) {
     if (bar.isCancelled) continue;
     for (const day of days) {
-      if (day.date >= bar.checkIn && day.date < bar.checkOut) occupied.add(day.date);
+      if (day.date >= bar.checkIn && day.date < bar.checkOut) {
+        occupied.add(day.date);
+        sold.add(day.date);
+      }
     }
   }
+  const rateAtIndex = (index: number) => decodeRowRate(row.rates, index);
   for (const block of roomBlocks) {
     for (const day of days) {
       if (day.date >= block.startDate && day.date <= block.endDate) occupied.add(day.date);
@@ -297,25 +393,25 @@ const OpsGridRow = memo(function OpsGridRow({
   // **팔 수 없는 밤**은 예약도 못 만든다 — 찬 밤(예약·블록)과, 파는 유닛이 없는 밤
   // (요금 칸이 비어 있다 = 활성 유닛 0, `mergeOpsRateUnits`). 서버와 패널 피커가
   // 같은 두 가지를 막는다 — 여기만 느슨하면 격자에서 끈 기간이 패널에서 막힌다.
-  const nightTaken = (date: string) => occupied.has(date) || !rates.get(`${room.key}|${date}`);
+  const nightTaken = (date: string) =>
+    occupied.has(date) || !dayFlagAt(row.rates.has, dayIndex.get(date) ?? -1);
   // 빈 칸의 `+`. **「취소만 보기」에서는 숨긴다** — 그 모드에서는 일반 막대가 안 보여
   // 팔린 밤도 빈칸처럼 보이는데, 거기에 `+` 가 뜨면 이미 찬 방에 예약을 넣으려 하게 된다.
   const canStart = (date: string) => !editMode && !showCancelled && !nightTaken(date) && date >= today;
   const startDraft = (date: string) => actions.current.startDraft(bookingRoom, date);
 
-  const cellClass = (day: OpsCalendarDay, withRoom: boolean) => {
-    const cellKey = selectionCellKey(room.key, day.date);
+  const cellClass = (day: OpsCalendarDay, index: number, withRoom: boolean) => {
     return [
       "opsg__cell",
       day.isWeekend ? "we" : "",
       day.date < today ? "past" : "",
       day.startsMonth ? "m1" : "",
-      withRoom && gapCells.has(`${room.key}|${day.date}`) ? "gap" : "",
+      withRoom && dayFlagAt(row.gap, index) ? "gap" : "",
       withRoom && selected.has(day.date) ? "sel" : "",
       // 가격 수정에서 고를 수 있는 칸(오늘 이후 · 안 팔린 밤) — `canSelect` 와 같은 기준.
-      editMode && withRoom && day.date >= today && !soldCells.has(cellKey) ? "pick" : "",
+      editMode && withRoom && day.date >= today && !sold.has(day.date) ? "pick" : "",
       // 선택 모드에서 **팔린 밤**은 고를 수 없다는 것이 보여야 한다.
-      editMode && withRoom && soldCells.has(cellKey) ? "sold" : "",
+      editMode && withRoom && sold.has(day.date) ? "sold" : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -338,17 +434,18 @@ const OpsGridRow = memo(function OpsGridRow({
       <div className="opsg__tracks">
         {/* 가격. 값이 없으면 대시 — **0원이 아니다.** */}
         <div className="opsg__track">
-          {days.map((day) => {
+          {days.map((day, index) => {
             const cellKey = selectionCellKey(room.key, day.date);
             const pendingEntry = pendingPrices.get(cellKey);
             // 반영이 확인된 값은 **바로 진하게** — 데이터 다시 받기를 기다리지 않는다.
-            const pricePending = !!pendingEntry && !settledTokens.has(pendingEntry.token);
-            const price = pendingEntry?.value ?? rates.get(`${room.key}|${day.date}`)?.price ?? null;
+            const pricePending = !!pendingEntry && pendingEntry.pend;
+            const price = pendingEntry?.value ?? row.rates.price[index] ?? null;
             // 「누가 언제 얼마에서 얼마로」. 값이 이상할 때 제일 먼저 찾는 정보다.
-            const hasHistory = history.has(historyCellKey(room.key, day.date));
+            // 목록은 호버 카드가 뜰 때 받는다 — 여기에는 「있다」만 온다.
+            const hasHistory = dayFlagAt(row.history, index);
             return (
               <div
-                className={cellClass(day, true)}
+                className={cellClass(day, index, true)}
                 data-hc={hasHistory ? day.date : undefined}
                 key={`p-${day.date}`}
               >
@@ -365,9 +462,9 @@ const OpsGridRow = memo(function OpsGridRow({
             차지하는 세로가 늘어 화면에 담기는 객실 수가 줄고, 정작 중요한 가격이
             멀어진다. 숫자는 작아도 색으로 구분되므로 읽힌다. */}
         <div className="opsg__track min">
-          {days.map((day) => {
+          {days.map((day, index) => {
             const pendingMin = pendingMinStay.get(selectionCellKey(room.key, day.date));
-            const rate = rates.get(`${room.key}|${day.date}`);
+            const rate = rateAtIndex(index);
             const minStay = pendingMin?.value ?? rate?.minStay ?? null;
             // 운영 중 유닛끼리 최소숙박이 다르다(예: 802# 1박 · K802 2박) — 짧은 값을 보이되 모서리로 알리고
             // 유닛별 값을 적는다. 방금 보낸 값이 흐리게 보이는 동안은 표시하지 않는다(보낸 값이 둘 다에 간다).
@@ -376,10 +473,10 @@ const OpsGridRow = memo(function OpsGridRow({
             // (실측 2026-09-25: 12,412칸이 2박, 1박은 388칸 — 기본값을 강조하면 예외가 안 보인다).
             const minTone = minStay === 1 ? " ms1" : minStay !== null && minStay >= 3 ? " ms3" : "";
             // 같은 칸의 이력(가격·최소숙박이 한 목록이다) — 가격 줄과 같은 카드를 띄운다.
-            const hasHistory = history.has(historyCellKey(room.key, day.date));
+            const hasHistory = dayFlagAt(row.history, index);
             return (
               <div
-                className={`${cellClass(day, true)}${minTone}${mixed ? " mixed" : ""}`}
+                className={`${cellClass(day, index, true)}${minTone}${mixed ? " mixed" : ""}`}
                 data-hc={hasHistory ? day.date : undefined}
                 key={`m-${day.date}`}
                 title={
@@ -390,7 +487,7 @@ const OpsGridRow = memo(function OpsGridRow({
                     : undefined
                 }
               >
-                <span className={`opsg__min${pendingMin && !settledTokens.has(pendingMin.token) ? " pend" : ""}`}>
+                <span className={`opsg__min${pendingMin?.pend ? " pend" : ""}`}>
                   {minStay ?? ""}
                 </span>
               </div>
@@ -402,8 +499,8 @@ const OpsGridRow = memo(function OpsGridRow({
           className="opsg__track"
           style={laneCount > 1 ? { height: `calc(var(--ops-track) + ${(laneCount - 1) * 18}px)` } : undefined}
         >
-          {days.map((day) => (
-            <div className={cellClass(day, false)} key={`r-${day.date}`}>
+          {days.map((day, index) => (
+            <div className={cellClass(day, index, false)} key={`r-${day.date}`}>
               {/* 고르는 중인 줄에는 `+` 를 안 그린다 — 위에 기간 레이어가 덮인다. */}
               {!drafting && canStart(day.date) && (
                 <button
@@ -453,7 +550,7 @@ const OpsGridRow = memo(function OpsGridRow({
             );
           })}
           {days.map((day, index) =>
-            gapCells.has(`${room.key}|${day.date}`) ? (
+            dayFlagAt(row.gap, index) ? (
               <div
                 className="opsg__gap"
                 key={`g-${day.date}`}
@@ -472,7 +569,7 @@ const OpsGridRow = memo(function OpsGridRow({
             return (
               <div
                 className={`opsg__bar ${bar.channel}${bar.isCancelled ? " cancelled" : ""}${
-                  priceWinsOnly && !showCancelled ? (conversionIds.has(bar.id) ? " pw-win" : " pw-dim") : ""
+                  priceWinsOnly && !showCancelled ? (wins.has(bar.id) ? " pw-win" : " pw-dim") : ""
                 }`}
                 key={bar.id}
                 // 편집 모드에서는 칸 선택이 먼저다 — 막대를 누르다 상세가 뜨면 드래그 선택이 끊긴다.
@@ -491,33 +588,25 @@ const OpsGridRow = memo(function OpsGridRow({
 });
 
 export function OpsCalendarGrid({
-  bars,
-  blocks,
-  copy,
-  days,
-  gapCells,
-  history,
+  copy: copyProp,
+  days: daysProp,
   historyAlerts,
-  priceConversions,
-  rates,
-  rooms: serverRooms,
+  property,
+  rows,
   showCancelled,
   today,
 }: {
-  /** 가격 개입 전환(최근 90일). 토글이 막대를 강조하고, 목록 패널이 보여준다. */
-  priceConversions: OpsPriceConversion[];
-  bars: OpsCalendarBar[];
-  blocks: OpsCalendarBlock[];
   copy: Copy;
   days: OpsCalendarDay[];
-  /** `roomKey|YYYY-MM-DD` — 1박 갭인 칸. */
-  gapCells: Set<string>;
-  /** `행키|YYYY-MM-DD` — 그 칸의 가격·최소숙박·차단 변경 이력(최신순). 행키 = `건물::표시 라벨`. */
-  history: Map<string, CellHistory>;
   /** 최근 7일 Beds24 전송 실패 + 멈춘 대기 작업 수 — 「이력」 버튼에 빨간 숫자로. */
   historyAlerts: number;
-  rates: Map<string, OpsCalendarRate>;
-  rooms: OpsCalendarRoom[];
+  /** 고른 건물(없으면 전체). 가격 개입 목록을 그 건물 것만 받는 데 쓴다. */
+  property: string | null;
+  /**
+   * 보이는 객실의 행(격자 순서) — `ops-calendar-rows.ts`. 요금(날짜 순 배열)·이력이 있는 칸·갭·막대·
+   * 블록을 행마다 묶고 내용 해시(`sig`)를 단다.
+   */
+  rows: OpsGridRowData[];
   /**
    * **「취소만 보기」다.** 켜면 일반 예약이 사라지고 취소된 것만 남는다 — 저쪽과 같다
    * (`isCancelled === showCancelled`). 겹쳐 그리면 못 읽기 때문이다.
@@ -526,6 +615,46 @@ export function OpsCalendarGrid({
   showCancelled: boolean;
   today: string;
 }) {
+  /*
+   * ── 새로고침이 와도 **안 바뀐 것은 참조를 유지한다**(2026-09-30 속도) ─────────────
+   *
+   * 라이브 신호·쓰기 반영·건물 전환으로 서버 데이터를 다시 받으면 모든 prop 이 새 객체로 온다.
+   * 그대로 넘기면 메모된 행(`OpsGridRow`)이 전부 다시 그려진다(「전체」 91행). 그래서:
+   *
+   * - 행: 내용 해시(`sig`)가 같으면 직전 객체를 그대로 쓴다(`reuseStableRows`).
+   * - 가로축(`days`)·문구(`copy`): 내용이 같으면 직전 것을 쓴다.
+   *
+   * 효과가 아니라 **렌더 중에 비교하고 다를 때만 setState** 한다(아래 `seenRows` — React 가 공식 지원하는
+   * 「이전 렌더 값 저장」 패턴. React Compiler 규칙상 렌더 중 ref 를 읽고 쓸 수 없다).
+   */
+  const [rowsState, setRowsState] = useState({ seen: rows, stable: rows });
+  let stableRows = rowsState.stable;
+  const rowsArrived = rowsState.seen !== rows;
+  if (rowsArrived) {
+    stableRows = reuseStableRows(rowsState.stable, rows);
+    setRowsState({ seen: rows, stable: stableRows });
+  }
+  const [stableDays, setStableDays] = useState(daysProp);
+  const days = sameOpsDays(stableDays, daysProp) ? stableDays : daysProp;
+  if (days !== stableDays) setStableDays(days);
+  const [copyState, setCopyState] = useState({ seen: copyProp, stable: copyProp });
+  let copy = copyState.stable;
+  if (copyState.seen !== copyProp) {
+    // 문구는 언어를 바꿀 때만 달라진다 — 받은 객체가 바뀔 때 한 번만 비교한다.
+    copy = JSON.stringify(copyProp) === JSON.stringify(copyState.stable) ? copyState.stable : copyProp;
+    setCopyState({ seen: copyProp, stable: copy });
+  }
+  const dates = useMemo(() => days.map((day) => day.date), [days]);
+  const dayIndex = useMemo(() => new Map(dates.map((date, index) => [date, index])), [dates]);
+  const serverRooms = useMemo(() => stableRows.map((row) => row.room), [stableRows]);
+  const rowsByKey = useMemo(() => new Map(stableRows.map((row) => [row.room.key, row])), [stableRows]);
+  const bars = useMemo(() => stableRows.flatMap((row) => row.bars), [stableRows]);
+  const blocks = useMemo(() => stableRows.flatMap((row) => row.blocks), [stableRows]);
+  /** `roomKey|YYYY-MM-DD` — 1박 갭인 칸(행 표시에서 되살린다). */
+  const gapCells = useMemo(() => rowGapCellKeys(stableRows, dates), [stableRows, dates]);
+  /** 행 밖(패널·호버 카드·예약 패널)에서 칸 요금을 읽는다. */
+  const rateAt = useMemo(() => buildRowRateLookup(stableRows, dates), [stableRows, dates]);
+
   // 선택 상태는 전부 여기 있다. 서버로 왕복하지 않는다 — 칸 하나 찍을 때마다 격자를 다시
   // 그리면 2,700칸짜리 화면에서 쓸 수 없다.
   /**
@@ -538,6 +667,13 @@ export function OpsCalendarGrid({
    */
   const [mode, setMode] = useState<"off" | "price" | "minstay" | "block">("off");
   const editMode = mode !== "off";
+  /** 지금 모드를 **비동기 콜백에서** 읽기 위한 ref — 클로저로 잡으면 저장 왕복 중 모드가
+   * 바뀌어도(예: 「1박 갭 N」 버튼) 옛 모드로 착각한다(아래 `removeSentCells`). 렌더 중이 아니라
+   * 효과에서 갱신한다(React Compiler 규칙 — 렌더 중 ref 변경 금지). */
+  const modeRef = useRef(mode);
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
   const [scope, setScope] = useState<OpsSelectionScope>(EMPTY_SCOPE);
   /**
    * 고른 칸과 **직전 축이 기여한 칸**을 한 덩어리로 든다.
@@ -568,8 +704,15 @@ export function OpsCalendarGrid({
     x: number;
     y: number;
   } | null>(null);
-  /** Shift+클릭의 기준점 — 직전에 누른 칸. */
-  const lastAnchorRef = useRef<{ row: number; col: number } | null>(null);
+  /**
+   * Shift+클릭의 기준점 — 직전에 누른 칸.
+   *
+   * **행·열 인덱스가 아니라 (객실키·날짜)로 저장한다.** 인덱스로 두면 그 사이 「오늘 빈방」
+   * 필터나 「큰방 위로」 정렬이 행 순서를 바꿨을 때 전혀 다른 칸을 기준점으로 삼는다. 쓸 때마다
+   * 지금의 `roomKeys`/`dates` 에서 다시 찾고, 못 찾으면(그 행·날짜가 화면에서 빠졌으면) 기준점이
+   * 없는 것으로 본다.
+   */
+  const lastAnchorRef = useRef<{ roomKey: string; date: string } | null>(null);
   const autoScrollRef = useRef<number | null>(null);
   // 화면을 떠나면 자동 스크롤을 멈춘다. 조기 반환보다 **앞에** 둬야 한다(훅 순서).
   useEffect(
@@ -598,20 +741,97 @@ export function OpsCalendarGrid({
   const router = useRouter();
   const [, startRefresh] = useTransition();
 
+  /**
+   * 위 쓰기 상태를 **행별로** 쪼갠다(2026-09-30 속도).
+   *
+   * `OpsGridRow` 는 자기 몫만 받는다 — 전체 `pendingPrices` Map 을 그대로 모든 행에 넘기면,
+   * 칸 하나만 써도 참조가 바뀌어 그 Map 을 참조하는 모든 행이 `React.memo` 를 지나 다시
+   * 그려진다. `sliceRowPending` 이 안 바뀐 행에는 **이전 Map 참조를 그대로** 돌려준다.
+   *
+   * **비교 기준(직전 결과)을 ref 가 아니라 state 로 든다** — React Compiler 규칙상 렌더 중에
+   * ref 를 읽거나 쓸 수 없다. 렌더 중 비교 후 다를 때만 `setState` 하는 것은 React 가 공식
+   * 지원하는 패턴이다(아래 `seenRates` 와 같다).
+   */
+  const [pendingPricesByRoom, setPendingPricesByRoom] = useState<Map<string, Map<string, PendingCell>>>(
+    new Map(),
+  );
+  const nextPendingPricesByRoom = sliceRowPending(pendingPrices, settledTokens, pendingPricesByRoom);
+  if (!sameRoomBuckets(pendingPricesByRoom, nextPendingPricesByRoom)) {
+    setPendingPricesByRoom(nextPendingPricesByRoom);
+  }
+  const [pendingMinStayByRoom, setPendingMinStayByRoom] = useState<Map<string, Map<string, PendingCell>>>(
+    new Map(),
+  );
+  const nextPendingMinStayByRoom = sliceRowPending(pendingMinStay, settledTokens, pendingMinStayByRoom);
+  if (!sameRoomBuckets(pendingMinStayByRoom, nextPendingMinStayByRoom)) {
+    setPendingMinStayByRoom(nextPendingMinStayByRoom);
+  }
+
+  /**
+   * 서버 데이터(`rows`)가 도착한 횟수(= 새로고침이 몇 번 왔는가). 흐린 값을 거둘 때 「이 쓰기가 반영된
+   * **뒤에** 나간 새로고침이 왔는가」를 가늠하는 데 쓴다(아래 참고). 비동기 콜백(쓰기 반영
+   * 확인)에서 **지금** 값을 읽어야 해서 ref 로도 들지만, ref 는 효과에서만 갱신한다.
+   */
+  const [refreshGeneration, setRefreshGeneration] = useState(0);
+  const refreshGenerationRef = useRef(refreshGeneration);
+  useEffect(() => {
+    refreshGenerationRef.current = refreshGeneration;
+  }, [refreshGeneration]);
+  /** 토큰 → 반영이 확인된 시점의 새로고침 세대. 그보다 **새 세대**가 와야 값이 달라도 믿는다.
+   * 렌더 중에 읽고 지워야 해서 ref 가 아니라 state 다. */
+  const [settleGenerations, setSettleGenerations] = useState<Map<number, number>>(new Map());
+
   /*
-   * 서버 데이터(`rates`)가 새로 오면 **끝난 쓰기의 흐린 값만** 거둔다. 아직 반영 중인 것은
+   * 서버 데이터(`rows`)가 새로 오면 **끝난 쓰기의 흐린 값만** 거둔다. 아직 반영 중인 것은
    * 남긴다 — 접수 직후의 재렌더는 반영 전 값을 들고 오므로, 거기서 거두면 옛 값으로 튄다.
+   *
+   * 여러 쓰기가 겹치면 **더 먼저 나간(그래서 아직 옛 값인) 새로고침**이 나중에 도착할 수
+   * 있다 — 그걸로 무작정 거두면 방금 반영된 값이 한 프레임 옛 값으로 튄다(2026-09-30). 그
+   * 칸의 서버 값이 보낸 값과 **실제로 같아졌을 때**, 또는 이 쓰기가 반영된 **뒤에 나간**
+   * 새로고침이 와서 지금 값이 확실히 최신일 때만 거둔다 — 후자가 없으면 값이 영영 안 맞는
+   * 예외적인 경우(반올림 등)에 흐린 채로 남는다.
    *
    * 효과가 아니라 렌더 중에 비교한다(React 의 「이전 렌더 값 저장」 패턴) — 효과로 하면 옛 값이
    * 한 프레임 보였다가 바뀐다.
    */
-  const [seenRates, setSeenRates] = useState(rates);
-  if (seenRates !== rates) {
-    setSeenRates(rates);
+  // 서버 데이터가 도착한 **횟수**로 센다(내용이 같아도 센다 — 「반영 뒤에 나간 새로고침이 왔다」는 뜻이다).
+  if (rowsArrived) {
+    const freshRate = buildRowRateLookup(
+      rows,
+      daysProp.map((day) => day.date),
+    );
+    const freshAt = (key: string) => {
+      const separator = key.indexOf("|");
+      return freshRate(key.slice(0, separator), key.slice(separator + 1));
+    };
+    const nextGeneration = refreshGeneration + 1;
+    setRefreshGeneration(nextGeneration);
     if (settledTokens.size > 0) {
-      setPendingPrices(dropTokens(pendingPrices, settledTokens));
-      setPendingMinStay(dropTokens(pendingMinStay, settledTokens));
-      setSettledTokens(new Set());
+      const ready = new Set<number>();
+      for (const token of settledTokens) {
+        const settleGeneration = settleGenerations.get(token);
+        if (settleGeneration !== undefined && nextGeneration > settleGeneration) ready.add(token);
+      }
+      for (const [key, entry] of pendingPrices) {
+        if (settledTokens.has(entry.token) && freshAt(key)?.price === entry.value) ready.add(entry.token);
+      }
+      for (const [key, entry] of pendingMinStay) {
+        if (settledTokens.has(entry.token) && freshAt(key)?.minStay === entry.value) ready.add(entry.token);
+      }
+      if (ready.size > 0) {
+        setPendingPrices(dropTokens(pendingPrices, ready));
+        setPendingMinStay(dropTokens(pendingMinStay, ready));
+        setSettledTokens((previous) => {
+          const next = new Set(previous);
+          for (const token of ready) next.delete(token);
+          return next;
+        });
+        setSettleGenerations((previous) => {
+          const next = new Map(previous);
+          for (const token of ready) next.delete(token);
+          return next;
+        });
+      }
     }
   }
 
@@ -650,6 +870,13 @@ export function OpsCalendarGrid({
       } else {
         // 완료·일부 실패·시간 초과 모두 **실제 값으로** 맞춘다. 일부만 들어갔으면 들어간 칸만
         // 새 값이 보이는 게 정확하다.
+        // 지금 세대를 적어 둔다 — 이보다 **새로운** 세대의 새로고침이 와야 값이 달라도 믿는다
+        // (먼저 나간 옛 새로고침이 늦게 도착해 값을 되돌리는 것을 막는다).
+        setSettleGenerations((previous) => {
+          const next = new Map(previous);
+          next.set(token, refreshGenerationRef.current);
+          return next;
+        });
         setSettledTokens((previous) => new Set(previous).add(token));
       }
       // 새로고침 없이 **서버 데이터만** 다시 받는다 — 스크롤·선택·열린 패널은 그대로다.
@@ -726,13 +953,17 @@ export function OpsCalendarGrid({
    * - 누르거나(드래그 시작) 스크롤하면 바로 닫는다 — 선택을 가리면 안 된다.
    */
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * **위치 정보만 상태로 든다.** `history`·`room`·가격은 그때그때 최신 값을 읽는다 — 카드가
+   * 뜬 채로 이력이 새로 들어오거나(다른 창에서 방금 고친 값) 낙관값이 반영되면(`pendingPrices`)
+   * 카드도 같이 바뀌어야 한다. 호버 시작 시점 스냅샷을 들고 있으면 그 순간 값에 멈춘다.
+   */
   const [hoverCell, setHoverCell] = useState<{
     anchor: DOMRect;
     /** 카드를 붙일 `.ops` — 호버를 시작한 칸에서 찾는다(렌더 중 ref 를 읽지 않는다). */
     container: HTMLElement;
     date: string;
-    history: CellHistory;
-    room: OpsCalendarRoom;
+    roomKey: string;
   } | null>(null);
   const hoverOpenRef = useRef(false);
   useEffect(() => {
@@ -750,14 +981,13 @@ export function OpsCalendarGrid({
     if (!cell || cell === hoverElementRef.current) return;
     const roomKey = cell.closest<HTMLElement>("[data-ops-row]")?.dataset.opsRow;
     const date = cell.dataset.hc;
-    const room = roomKey ? rooms.find((candidate) => candidate.key === roomKey) : undefined;
-    const cellHistory = roomKey && date ? history.get(historyCellKey(roomKey, date)) : undefined;
+    // `data-hc` 는 이력이 있는 칸에만 붙는다 — 실제로 보여줄 값은 렌더 때 다시 읽는다(아래 참고).
     const container = cell.closest<HTMLElement>(".ops");
-    if (!room || !date || !cellHistory || !container) return;
+    if (!roomKey || !date || !container) return;
     hoverElementRef.current = cell;
     const anchor = cell.getBoundingClientRect();
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    const open = () => setHoverCell({ anchor, container, date, history: cellHistory, room });
+    const open = () => setHoverCell({ anchor, container, date, roomKey });
     if (hoverOpenRef.current) open();
     else hoverTimerRef.current = setTimeout(open, HOVER_DELAY_MS);
   };
@@ -797,9 +1027,67 @@ export function OpsCalendarGrid({
     },
     [],
   );
+  /*
+   * ── 칸 이력은 **호버 카드가 뜰 때** 그 칸 것만 받는다(2026-09-30 속도) ────────────
+   *
+   * 페이지에는 「이력이 있는 칸」 표시만 온다. 받은 목록은 세션 동안 칸별로 들고 있다가, 서버 데이터가
+   * 새로 오면(`refreshGeneration`) **낡은 것으로 보고** 다시 받는다 — 다시 받는 동안에는 직전 목록을
+   * 그대로 보여 깜빡이지 않는다. `history: null` 은 「받아 보니 없다」다(카드를 안 띄운다).
+   */
+  const [historyCache, setHistoryCache] = useState<
+    Map<string, { generation: number; history: CellHistory | null }>
+  >(new Map());
+  /** 이미 보낸 요청(`세대|칸`) — 같은 칸을 두 번 보내지 않는다. 효과 안에서만 읽고 쓴다. */
+  const historyRequestsRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!hoverCell) return;
+    const cellKey = selectionCellKey(hoverCell.roomKey, hoverCell.date);
+    const cached = historyCache.get(cellKey);
+    if (cached && cached.generation === refreshGeneration) return;
+    const roomIds = serverRooms.find((room) => room.key === hoverCell.roomKey)?.roomIds ?? [];
+    if (roomIds.length === 0) return;
+    const requestKey = `${refreshGeneration}|${cellKey}`;
+    if (historyRequestsRef.current.has(requestKey)) return;
+    historyRequestsRef.current.add(requestKey);
+    const generation = refreshGeneration;
+    void loadOpsCellHistory({ date: hoverCell.date, roomIds }).then((result) => {
+      historyRequestsRef.current.delete(requestKey);
+      // 실패하면 남겨 두지 않는다 — 카드는 「불러오는 중」으로 남고, 다음 호버가 다시 받는다.
+      if (!result.ok) return;
+      setHistoryCache((previous) => new Map(previous).set(cellKey, { generation, history: result.history }));
+    });
+  }, [historyCache, hoverCell, refreshGeneration, serverRooms]);
+
   const [priceWinsOpen, setPriceWinsOpen] = useState(false);
+  /*
+   * ── 가격 개입 전환(최근 90일)은 **격자가 그린 뒤** 따로 받는다(2026-09-30 속도) ─────
+   *
+   * 90일 조직 전체 로그 + 예약 재조회라 페이지 렌더에서 가장 느린 단계였는데, 보는 창과 무관하다.
+   * 건물이 바뀌거나 서버 데이터가 새로 오면 다시 받는다(예전에도 렌더마다 다시 판정했다). 다시 받는
+   * 동안에는 직전 목록을 그대로 쓴다 — 건물이 바뀐 경우만 「불러오는 중」이다(`null`).
+   */
+  const [conversionsState, setConversionsState] = useState<{
+    property: string | null;
+    list: OpsPriceConversion[];
+  } | null>(null);
+  /** 가장 최근 요청 번호 — 늦게 도착한 옛 응답이 새 목록을 덮지 않게. 효과 안에서만 쓴다. */
+  const conversionsRequestRef = useRef(0);
+  useEffect(() => {
+    conversionsRequestRef.current += 1;
+    const requestId = conversionsRequestRef.current;
+    void loadOpsPriceConversions({ property }).then((result) => {
+      if (!result.ok || requestId !== conversionsRequestRef.current) return;
+      setConversionsState({ list: result.conversions, property });
+    });
+  }, [property, refreshGeneration]);
+  /** 보이는 객실 것만(건물 필터를 따른다). `null` = 아직 받는 중. */
+  const priceConversions = useMemo(() => {
+    if (!conversionsState || conversionsState.property !== property) return null;
+    const visible = new Set(serverRooms.map((room) => room.key));
+    return conversionsState.list.filter((conversion) => visible.has(conversion.roomKey));
+  }, [conversionsState, property, serverRooms]);
   const conversionIds = useMemo(
-    () => new Set(priceConversions.map((conversion) => conversion.reservationId)),
+    () => new Set((priceConversions ?? []).map((conversion) => conversion.reservationId)),
     [priceConversions],
   );
   const [openBar, setOpenBar] = useState<{
@@ -809,8 +1097,22 @@ export function OpsCalendarGrid({
     roomIds: string[];
   } | null>(null);
 
-  const dates = useMemo(() => days.map((day) => day.date), [days]);
   const roomKeys = useMemo(() => rooms.map((room) => room.key), [rooms]);
+
+  /*
+   * 「오늘 빈방」 등 필터가 새로고침 뒤에 방을 화면에서 지우면, 고른 칸에는 이제 안 보이는
+   * 방이 남을 수 있다. 그러면 요약(`scopeSummary`)은 그 방까지 세는데 실제로 보내는 칸
+   * (`panelCells`, 방을 못 찾으면 빠진다)은 그 방을 빼먹어 **숫자가 어긋난다.** 화면에서
+   * 사라진 방의 칸은 선택에서도 같이 뺀다 — 효과가 아니라 렌더 중에 비교한다(`seenRates` 와
+   * 같은 패턴. 효과에서 하면 한 프레임 어긋난 요약이 보였다가 바뀐다).
+   */
+  if (selectionState.cells.some((cell) => !roomKeys.includes(cell.roomKey))) {
+    const visible = new Set(roomKeys);
+    const pruned = selectionState.cells.filter((cell) => visible.has(cell.roomKey));
+    const prunedKeys = new Set(pruned.map((cell) => selectionCellKey(cell.roomKey, cell.date)));
+    const scopeKeys = new Set([...selectionState.scopeKeys].filter((key) => prunedKeys.has(key)));
+    setSelectionState({ cells: pruned, scopeKeys });
+  }
 
   /**
    * 그 칸이 **팔려 있는가**. 가격 수정에서 막히는 유일한 조건이다.
@@ -871,6 +1173,37 @@ export function OpsCalendarGrid({
     setScope(EMPTY_SCOPE);
     setSelectionState({ cells: [], scopeKeys: new Set() });
     setDateAnchor(null);
+    // 지운 선택을 가리키던 기준점도 같이 버린다 — 안 그러면 다음 Shift+클릭이 없는 칸을 가리킨다.
+    lastAnchorRef.current = null;
+  };
+
+  /**
+   * 쓰기가 끝난 뒤 **보낸 칸만** 선택에서 뺀다(2026-09-30 버그).
+   *
+   * 전에는 저장 뒤 `onClear()` 로 선택 전체를 비웠다 — 서버 왕복(수백 ms~수 초) 동안 사람이
+   * 이미 다음 칸을 골라 뒀으면 그것까지 같이 날아갔다. 여기서는 **보낸 칸만** 빼고, 아무것도
+   * 안 남으면 그때만 축까지 비운다.
+   *
+   * `expectMode` 로 그새 다른 모드로 넘어갔는지도 본다(예: 「1박 갭 N」 버튼 → 최소숙박 모드) —
+   * 이미 다른 선택이 화면에 떠 있는데 지난 쓰기가 그걸 건드리면 안 된다. **`modeRef` 로
+   * 읽는다** — 클로저로 잡은 `mode` 는 이 함수가 만들어진 렌더 시점에 멈춰 있다.
+   */
+  const removeSentCells = (sentCells: OpsSelectionCell[], expectMode: "price" | "minstay") => {
+    if (modeRef.current !== expectMode) return;
+    setSelectionState((previous) => {
+      const remaining = removeCells(previous.cells, sentCells);
+      if (remaining.length === previous.cells.length) return previous;
+      if (remaining.length === 0) {
+        // 값이 고정된 호출이라 여러 번 불려도(StrictMode 이중 렌더 등) 결과가 같다.
+        setScope(EMPTY_SCOPE);
+        setDateAnchor(null);
+        lastAnchorRef.current = null;
+        return { cells: [], scopeKeys: new Set() };
+      }
+      const remainingKeys = new Set(remaining.map((cell) => selectionCellKey(cell.roomKey, cell.date)));
+      const scopeKeys = new Set([...previous.scopeKeys].filter((key) => remainingKeys.has(key)));
+      return { cells: remaining, scopeKeys };
+    });
   };
 
   /*
@@ -886,9 +1219,7 @@ export function OpsCalendarGrid({
       if (event.key !== "Escape" || event.defaultPrevented) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable='true'], [role='dialog']")) return;
-      setScope(EMPTY_SCOPE);
-      setSelectionState({ cells: [], scopeKeys: new Set() });
-      setDateAnchor(null);
+      clearSelection();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -896,6 +1227,59 @@ export function OpsCalendarGrid({
 
   const canSelect = (roomKey: string, date: string) =>
     date >= today && !isPriceEditBlocked(occupancyAt(roomKey, date));
+
+  /**
+   * 선택 모드에서 칸에 붙는 마우스 핸들러.
+   *
+   * 누른 칸의 현재 상태가 **드래그 방향**을 정한다 — 꺼진 칸에서 시작하면 지나가는 칸을
+   * 켜고, 켜진 칸에서 시작하면 끈다. 방향을 매 칸 다시 판단하면 드래그가 깜빡인다.
+   */
+  /**
+   * 포인터 아래의 **(행, 열)**. 칸이 아니라 좌표로 잰다 — 예약 막대·빗금·칸 경계 위에서도
+   * 끊기지 않는다. 행은 가장 가까운 `[data-ops-row]`, 열은 그 행의 트랙 폭을 날짜 수로 나눠 잡는다.
+   * 행 밖(건물 머리글 등)이면 `null` — 호출부가 직전 값을 유지한다.
+   */
+  const hitTest = (clientX: number, clientY: number): { row: number; col: number } | null => {
+    const element = document.elementFromPoint(clientX, clientY);
+    const rowElement = element?.closest<HTMLElement>("[data-ops-row]");
+    const roomKey = rowElement?.dataset.opsRow;
+    if (!rowElement || !roomKey) return null;
+    const row = roomKeys.indexOf(roomKey);
+    const tracks = rowElement.querySelector<HTMLElement>(".opsg__tracks");
+    if (row < 0 || !tracks || dates.length === 0) return null;
+    const rect = tracks.getBoundingClientRect();
+    const col = Math.floor(((clientX - rect.left) / rect.width) * dates.length);
+    return { col: Math.min(dates.length - 1, Math.max(0, col)), row };
+  };
+
+  /** 모서리가 **바뀔 때만** 다시 계산한다 — 칸 안에서 움직이는 동안은 다시 그리지 않는다. */
+  const dragTo = (hit: { row: number; col: number }) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    if (drag.current.row === hit.row && drag.current.col === hit.col) return;
+    drag.current = hit;
+    const next = applyDragRect({
+      adding: drag.adding,
+      anchor: drag.anchor,
+      base: drag.base,
+      canSelect,
+      current: hit,
+      dates,
+      roomKeys,
+    });
+    setSelectionState((previous) => ({ ...previous, cells: next }));
+  };
+
+  // 자동 스크롤 루프는 드래그를 누른 순간의 `hitTest`·`dragTo` 를 그대로 들고 돈다
+  // (아래 `runAutoScroll`) — 드래그 도중 격자가 다시 그려져도(흐린 값 반영 등) **ref 로**
+  // 불러야 항상 최신 `roomKeys`·`dates`·`canSelect` 를 쓴다(2026-09-30 버그). **효과 안에서만**
+  // 갱신한다 — 렌더 중에 ref 를 바꾸면 안 된다(React Compiler 규칙).
+  const hitTestRef = useRef(hitTest);
+  const dragToRef = useRef(dragTo);
+  useEffect(() => {
+    hitTestRef.current = hitTest;
+    dragToRef.current = dragTo;
+  });
 
   /**
    * 지금 화면에서 **고를 수 있는** 갭 칸.
@@ -915,7 +1299,7 @@ export function OpsCalendarGrid({
       cells.push({ date, roomKey });
     }
     return cells;
-  }, [gapCells, roomKeys, today, rates, bars, blocks]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gapCells, roomKeys, today, soldCells]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * 갭만 고른다. **축 선택은 비운다** — 축으로 고른 것이 아니므로 축을 다시 누를 때 이 칸들이
@@ -935,10 +1319,17 @@ export function OpsCalendarGrid({
   const openGapsRef = useRef<() => void>(() => undefined);
   useEffect(() => {
     openGapsRef.current = () => {
+      // 갭이 하나도 없으면 아무것도 안 한다 — 모드를 바꾸고 선택을 비우면 방금 하던
+      // 작업(가격 선택 등)이 이유 없이 날아간다(2026-09-30 버그).
+      if (selectableGapCells.length === 0) return;
       setMode("minstay");
       selectAllGaps();
-      const first = selectableGapCells[0];
-      if (!first) return;
+      // 화면 맨 위 갭으로 스크롤한다. `selectableGapCells` 는 `Set` 을 돈 순서라 삽입 순서일
+      // 뿐이다 — 격자에 보이는 순서(행 순서 → 날짜)로 다시 정렬해야 「맨 위」가 맞는다.
+      const first = [...selectableGapCells].sort((a, b) => {
+        const byRow = roomKeys.indexOf(a.roomKey) - roomKeys.indexOf(b.roomKey);
+        return byRow !== 0 ? byRow : a.date.localeCompare(b.date);
+      })[0];
       requestAnimationFrame(() => {
         const row = document.querySelector<HTMLElement>(`[data-ops-row="${CSS.escape(first.roomKey)}"]`);
         if (!row) return;
@@ -954,28 +1345,6 @@ export function OpsCalendarGrid({
     window.addEventListener(OPS_GAP_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(OPS_GAP_OPEN_EVENT, onOpen);
   }, []);
-
-  /**
-   * 취소 막대는 **같은 밤에 여러 건이 겹친다.** 한 줄에 그리면 서로 덮어 못 읽는다 —
-   * 실측(2026-09-28)으로 취소가 걸린 방-밤의 20%가 2건 이상, 최대 5건이다.
-   * 그래서 층을 나누고 그만큼 트랙을 키운다(저쪽 `cancelledBarLaneMap` 과 같다).
-   */
-  const barLanes = useMemo(
-    () =>
-      showCancelled
-        ? assignBarLanes(
-            bars
-              .filter((bar) => bar.isCancelled)
-              .map((bar) => ({
-                checkIn: bar.checkIn,
-                checkOut: bar.checkOut,
-                id: bar.id,
-                roomKey: bar.roomKey,
-              })),
-          )
-        : null,
-    [bars, showCancelled],
-  );
 
   const gapContext = useMemo(
     () =>
@@ -1028,25 +1397,17 @@ export function OpsCalendarGrid({
     );
   };
 
-  // ── 행 메모용(`OpsGridRow`) — 데이터가 바뀔 때만 새로 만든다. 렌더마다 새 배열이면 행 메모가 늘 깨진다.
-  const barsByRoom = useMemo(() => {
-    const map = new Map<string, OpsCalendarBar[]>();
+  /** 행마다 가격 개입 성공 막대 id(`|` 로 이음) — 문자열이라 다른 행이 바뀌어도 그 행의 값은 같다. */
+  const winIdsByRoom = useMemo(() => {
+    const byRoom = new Map<string, string[]>();
     for (const bar of bars) {
-      const list = map.get(bar.roomKey);
-      if (list) list.push(bar);
-      else map.set(bar.roomKey, [bar]);
+      if (!conversionIds.has(bar.id)) continue;
+      const list = byRoom.get(bar.roomKey);
+      if (list) list.push(bar.id);
+      else byRoom.set(bar.roomKey, [bar.id]);
     }
-    return map;
-  }, [bars]);
-  const blocksByRoom = useMemo(() => {
-    const map = new Map<string, OpsCalendarBlock[]>();
-    for (const block of blocks) {
-      const list = map.get(block.roomKey);
-      if (list) list.push(block);
-      else map.set(block.roomKey, [block]);
-    }
-    return map;
-  }, [blocks]);
+    return new Map([...byRoom].map(([roomKey, list]) => [roomKey, list.join("|")]));
+  }, [bars, conversionIds]);
   /** 행마다 고른 날짜(`|` 로 이음) — 문자열이라 다른 행이 바뀌어도 그 행의 값은 같다. */
   const selectedDatesByRoom = useMemo(() => {
     const byRoom = new Map<string, string[]>();
@@ -1065,7 +1426,9 @@ export function OpsCalendarGrid({
     startDraft: () => undefined,
     toggleRoomRow: () => undefined,
   });
-  useEffect(() => {
+  // **패시브 효과가 아니라 레이아웃 효과다** — 패시브 효과는 브라우저 페인트 뒤에 돈다. 그 틈에
+  // 사람이 칸을 누르면(클릭은 동기) 행이 아직 **지난 렌더의** 동작을 들고 있어 엉뚱한 게 실행된다.
+  useLayoutEffect(() => {
     rowActions.current = {
       cancelDraft,
       commitDraft: (room, checkIn, checkOut) => {
@@ -1082,7 +1445,10 @@ export function OpsCalendarGrid({
     };
   });
 
-  if (rooms.length === 0) {
+  // **원래 객실이 없을 때만** 통째로 비운다. 「오늘 빈방」 필터가 다 걸러내 `rooms` 가 비어도
+  // `serverRooms` 는 있는 경우엔 툴바·열린 패널을 그대로 두고 격자 안에서만 빈 상태를 보인다
+  // (2026-09-30 버그 — 필터를 끌 수단인 툴바 자체가 사라졌었다).
+  if (serverRooms.length === 0) {
     return (
       <div className="opsg">
         <div className="ops__empty">
@@ -1106,74 +1472,39 @@ export function OpsCalendarGrid({
 
   // 건물이 바뀌는 자리에 묶음 머리글을 넣는다. 건물 하나만 골랐어도 「객실 N」이 보여야
   // 격자가 전부인지 잘린 것인지 알 수 있다.
-  const roomsByProperty: { property: string; rooms: OpsCalendarRoom[] }[] = [];
+  const roomsByProperty: { property: string; rows: OpsGridRowData[] }[] = [];
   for (const room of rooms) {
+    const row = rowsByKey.get(room.key);
+    if (!row) continue;
     const last = roomsByProperty.at(-1);
-    if (last && last.property === room.propertyName) last.rooms.push(room);
-    else roomsByProperty.push({ property: room.propertyName, rooms: [room] });
+    if (last && last.property === room.propertyName) last.rows.push(row);
+    else roomsByProperty.push({ property: room.propertyName, rows: [row] });
   }
 
-
-  /**
-   * 선택 모드에서 칸에 붙는 마우스 핸들러.
-   *
-   * 누른 칸의 현재 상태가 **드래그 방향**을 정한다 — 꺼진 칸에서 시작하면 지나가는 칸을
-   * 켜고, 켜진 칸에서 시작하면 끈다. 방향을 매 칸 다시 판단하면 드래그가 깜빡인다.
-   */
-  /**
-   * 포인터 아래의 **(행, 열)**. 칸이 아니라 좌표로 잰다 — 예약 막대·빗금·칸 경계 위에서도
-   * 끊기지 않는다. 행은 가장 가까운 `[data-ops-row]`, 열은 그 행의 트랙 폭을 날짜 수로 나눠 잡는다.
-   * 행 밖(건물 머리글 등)이면 `null` — 호출부가 직전 값을 유지한다.
-   */
-  const hitTest = (clientX: number, clientY: number): { row: number; col: number } | null => {
-    const element = document.elementFromPoint(clientX, clientY);
-    const rowElement = element?.closest<HTMLElement>("[data-ops-row]");
-    const roomKey = rowElement?.dataset.opsRow;
-    if (!rowElement || !roomKey) return null;
-    const row = roomKeys.indexOf(roomKey);
-    const tracks = rowElement.querySelector<HTMLElement>(".opsg__tracks");
-    if (row < 0 || !tracks || dates.length === 0) return null;
-    const rect = tracks.getBoundingClientRect();
-    const col = Math.floor(((clientX - rect.left) / rect.width) * dates.length);
-    return { col: Math.min(dates.length - 1, Math.max(0, col)), row };
-  };
-
-  /** 모서리가 **바뀔 때만** 다시 계산한다 — 칸 안에서 움직이는 동안은 다시 그리지 않는다. */
-  const dragTo = (hit: { row: number; col: number }) => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    if (drag.current.row === hit.row && drag.current.col === hit.col) return;
-    drag.current = hit;
-    const next = applyDragRect({
-      adding: drag.adding,
-      anchor: drag.anchor,
-      base: drag.base,
-      canSelect,
-      current: hit,
-      dates,
-      roomKeys,
-    });
-    setSelectionState((previous) => ({ ...previous, cells: next }));
-  };
 
   /** 화면 위·아래 끝에 가면 저절로 스크롤한다 — 끝까지 끌어서 아래 객실을 잡을 수 있게. */
   const stopAutoScroll = () => {
     if (autoScrollRef.current !== null) cancelAnimationFrame(autoScrollRef.current);
     autoScrollRef.current = null;
   };
+  /**
+   * 자동 스크롤 한 걸음. **속도가 0 이면 루프를 접는다** — 가장자리를 벗어났는데도 매 프레임
+   * 도는 것은 낭비다. 다시 가장자리에 닿으면 `onPointerMove` 가 새로 깨운다.
+   */
   const runAutoScroll = () => {
     const drag = dragRef.current;
-    if (!drag) return stopAutoScroll();
-    const EDGE = 56;
-    const speed =
-      drag.y < EDGE ? -Math.ceil((EDGE - drag.y) / 4) : drag.y > window.innerHeight - EDGE
-        ? Math.ceil((drag.y - (window.innerHeight - EDGE)) / 4)
-        : 0;
-    if (speed !== 0) {
-      window.scrollBy(0, speed);
-      const hit = hitTest(drag.x, drag.y);
-      if (hit) dragTo(hit);
+    if (!drag) {
+      stopAutoScroll();
+      return;
     }
+    const speed = autoScrollSpeed(drag.y);
+    if (speed === 0) {
+      autoScrollRef.current = null;
+      return;
+    }
+    window.scrollBy(0, speed);
+    const hit = hitTestRef.current(drag.x, drag.y);
+    if (hit) dragToRef.current(hit);
     autoScrollRef.current = requestAnimationFrame(runAutoScroll);
   };
 
@@ -1197,7 +1528,16 @@ export function OpsCalendarGrid({
           if (!hit) return;
           // 글자 선택·포커스 이동을 막아야 끌 때 화면이 파랗게 칠해지지 않는다.
           event.preventDefault();
-          const shiftFrom = event.shiftKey ? lastAnchorRef.current : null;
+          const anchorCell = lastAnchorRef.current;
+          // 저장해 둔 기준점을 **지금** 배열에서 다시 찾는다 — 못 찾으면 기준점이 없는 것으로 본다.
+          const resolvedAnchor = anchorCell
+            ? (() => {
+                const row = roomKeys.indexOf(anchorCell.roomKey);
+                const col = dates.indexOf(anchorCell.date);
+                return row === -1 || col === -1 ? null : { col, row };
+              })()
+            : null;
+          const shiftFrom = event.shiftKey ? resolvedAnchor : null;
           const anchor = shiftFrom ?? hit;
           const anchorKey = selectionCellKey(roomKeys[anchor.row], dates[anchor.col]);
           // Shift 범위는 늘 더한다. 그 밖에는 누른 칸이 골라져 있으면 빼는 드래그다.
@@ -1213,7 +1553,7 @@ export function OpsCalendarGrid({
             x: event.clientX,
             y: event.clientY,
           };
-          if (!shiftFrom) lastAnchorRef.current = hit;
+          if (!shiftFrom) lastAnchorRef.current = { date: dates[hit.col], roomKey: roomKeys[hit.row] };
           dragTo(hit);
           stopAutoScroll();
           autoScrollRef.current = requestAnimationFrame(runAutoScroll);
@@ -1225,6 +1565,10 @@ export function OpsCalendarGrid({
           drag.y = event.clientY;
           const hit = hitTest(event.clientX, event.clientY);
           if (hit) dragTo(hit);
+          // 가장자리에 새로 닿았는데 루프가 멈춰 있으면 깨운다 — 벗어났을 때 루프를 접어 뒀다.
+          if (autoScrollRef.current === null && autoScrollSpeed(drag.y) !== 0) {
+            autoScrollRef.current = requestAnimationFrame(runAutoScroll);
+          }
         },
         onPointerUp: endDrag,
         onPointerCancel: endDrag,
@@ -1249,7 +1593,7 @@ export function OpsCalendarGrid({
       return {
         date: cell.date,
         isGap: gapCells.has(`${cell.roomKey}|${cell.date}`),
-        price: pendingPrices.get(key)?.value ?? rates.get(key)?.price ?? null,
+        price: pendingPrices.get(key)?.value ?? rateAt(cell.roomKey, cell.date)?.price ?? null,
         roomIds: room.roomIds,
         roomKey: cell.roomKey,
         roomLabel: room.displayRoomLabel,
@@ -1360,7 +1704,8 @@ export function OpsCalendarGrid({
               type="button"
             >
               {copy.pwToggle}
-              <span className="opsg__pwn">{priceConversions.length}</span>
+              {/* 판정은 격자가 그린 뒤 따로 온다 — 그 사이에는 숫자 대신 말줄임. */}
+              <span className="opsg__pwn">{priceConversions ? priceConversions.length : "…"}</span>
             </button>
             <button className="opsg__editbtn" onClick={() => setPriceWinsOpen(true)} type="button">
               {copy.pwList}
@@ -1591,61 +1936,76 @@ export function OpsCalendarGrid({
         onPointerOver={onGridPointerOver}
         {...gridPointerHandlers}
       >
+        {rooms.length === 0 && (
+          <div className="ops__empty">
+            <p>{copy.vacantEmpty}</p>
+          </div>
+        )}
         {roomsByProperty.map((group) => (
           <div key={group.property}>
             <div className="opsg__group">
               {group.property}
               <span className="opsg__gcount">
-                · {copy.roomCount.replace("{count}", String(group.rooms.length))}
+                · {copy.roomCount.replace("{count}", String(group.rows.length))}
               </span>
             </div>
-            {group.rooms.map((room) => (
+            {group.rows.map((row) => {
+              const room = row.room;
+              return (
               <OpsGridRow
                 actions={rowActions}
-                allRoomBars={barsByRoom.get(room.key) ?? NO_BARS}
-                barLanes={barLanes}
-                conversionIds={conversionIds}
                 copy={copy}
                 dates={dates}
+                dayIndex={dayIndex}
                 days={days}
                 drafting={activeDraft?.room.key === room.key ? activeDraft : null}
                 editMode={editMode}
-                gapCells={gapCells}
-                history={history}
                 key={room.key}
                 large={largeActive && isOpsLargeRoom(room.propertyName, room.displayRoomLabel)}
-                pendingMinStay={pendingMinStay}
-                pendingPrices={pendingPrices}
+                pendingMinStay={pendingMinStayByRoom.get(room.key) ?? EMPTY_ROW_PENDING}
+                pendingPrices={pendingPricesByRoom.get(room.key) ?? EMPTY_ROW_PENDING}
                 priceWinsOnly={priceWinsOnly}
-                rates={rates}
-                room={room}
-                roomBlocks={blocksByRoom.get(room.key) ?? NO_BLOCKS}
+                row={row}
                 scopeOn={scope.roomKeys.includes(room.key)}
                 selectedDates={selectedDatesByRoom.get(room.key) ?? ""}
-                settledTokens={settledTokens}
                 showCancelled={showCancelled}
-                soldCells={soldCells}
                 today={today}
+                winIds={priceWinsOnly ? (winIdsByRoom.get(room.key) ?? "") : ""}
               />
-            ))}
+              );
+            })}
           </div>
         ))}
       </div>
       </div>
 
-      {hoverCell && (
-        <OpsCellHistoryCard
-          anchor={hoverCell.anchor}
-          container={hoverCell.container}
-          copy={copy}
-          currentMinStay={rates.get(`${hoverCell.room.key}|${hoverCell.date}`)?.minStay ?? null}
-          currentPrice={rates.get(`${hoverCell.room.key}|${hoverCell.date}`)?.price ?? null}
-          date={hoverCell.date}
-          history={hoverCell.history}
-          localeTag={copy.localeTag}
-          roomTitle={`${hoverCell.room.propertyName} ${hoverCell.room.displayRoomLabel}`}
-        />
-      )}
+      {hoverCell &&
+        (() => {
+          // **전부 지금 값으로 다시 읽는다** — 카드가 뜬 채로 낙관값이 반영되거나 이력이
+          // 새로 들어오면(다른 창에서 방금 고침) 스냅샷이 아니라 그 값을 보여줘야 한다.
+          const hoverRow = rowsByKey.get(hoverCell.roomKey);
+          const hoverRoom = rooms.find((candidate) => candidate.key === hoverCell.roomKey);
+          const cellKey = selectionCellKey(hoverCell.roomKey, hoverCell.date);
+          // 새로고침으로 그 칸의 「이력 있음」이 사라졌으면 닫는다(예전과 같다).
+          const flagged = hoverRow ? dayFlagAt(hoverRow.history, dayIndex.get(hoverCell.date) ?? -1) : false;
+          const cached = historyCache.get(cellKey);
+          // 받아 보니 이력이 없는 칸(`history: null`)은 띄우지 않는다. 아직 안 왔으면 「불러오는 중」.
+          if (!hoverRoom || !flagged || (cached && cached.history === null)) return null;
+          const rate = rateAt(hoverCell.roomKey, hoverCell.date);
+          return (
+            <OpsCellHistoryCard
+              anchor={hoverCell.anchor}
+              container={hoverCell.container}
+              copy={copy}
+              currentMinStay={pendingMinStay.get(cellKey)?.value ?? rate?.minStay ?? null}
+              currentPrice={pendingPrices.get(cellKey)?.value ?? rate?.price ?? null}
+              date={hoverCell.date}
+              history={cached?.history ?? null}
+              localeTag={copy.localeTag}
+              roomTitle={`${hoverRoom.propertyName} ${hoverRoom.displayRoomLabel}`}
+            />
+          );
+        })()}
 
       {historyOpen && <OpsHistoryPanel copy={copy} onClose={() => setHistoryOpen(false)} />}
 
@@ -1705,7 +2065,7 @@ export function OpsCalendarGrid({
           localeTag={copy.localeTag}
           onClose={() => setBooking(null)}
           rateAt={(date) => {
-            const rate = rates.get(`${booking.room.key}|${date}`);
+            const rate = rateAt(booking.room.key, date);
             return { airbnb: rate?.price ?? null, booking: rate?.bookingPrice ?? null };
           }}
           room={booking.room}
@@ -1733,6 +2093,7 @@ export function OpsCalendarGrid({
           cells={panelCells}
           copy={copy}
           gapContext={gapContext}
+          onApplied={(sent) => removeSentCells(sent, "minstay")}
           onClear={clearSelection}
           runWrite={runWrite}
           scopeSummary={scopeSummary}
@@ -1744,6 +2105,7 @@ export function OpsCalendarGrid({
           cells={panelCells}
           clearLabel={copy.scopeClear}
           copy={copy}
+          onApplied={(sent) => removeSentCells(sent, "price")}
           onClear={clearSelection}
           runWrite={runWrite}
           scopeSummary={scopeSummary}

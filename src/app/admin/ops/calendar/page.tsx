@@ -5,6 +5,7 @@ import { OpsCalendarJump } from "@/components/admin/ops/ops-calendar-jump";
 import { OpsNavLink, OpsNavScope } from "@/components/admin/ops/ops-nav";
 import { OpsGapButton } from "@/components/admin/ops/ops-gap-button";
 import { AdminMonthPicker } from "@/components/admin/shared/admin-month-picker";
+import { shiftMonthKey } from "@/components/admin/shared/admin-month-key";
 import "@/components/admin/ops/ops-console.css";
 import { refreshOpsCalendarRates } from "@/lib/beds24/rates-refresh";
 import { kickPriceJobWorker } from "@/lib/beds24/price-job-kick";
@@ -49,12 +50,6 @@ type SearchParams = {
 function addDays(date: string, days: number): string {
   const [y, m, d] = date.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
-}
-
-function shiftMonth(month: string, diff: number): string {
-  const [y, m] = month.split("-").map(Number);
-  const total = y * 12 + (m - 1) + diff;
-  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}`;
 }
 
 export default async function OpsCalendarPage({
@@ -113,24 +108,27 @@ export default async function OpsCalendarPage({
   // 저쪽 주기(15분)와 같은 기준. 넘으면 빨갛게 적는다.
   const staleRates = data.ratesAgeMinutes === null || data.ratesAgeMinutes > 15;
 
+  const firstVisibleDate = data.days.at(0)?.date;
   const lastVisibleDate = data.days.at(-1)?.date;
-  if (lastVisibleDate) {
-    const externalPropertyIds = data.selectedProperty
+  if (firstVisibleDate && lastVisibleDate) {
+    const selectedExternalId = data.selectedProperty
       ? data.propertyExternalIds[data.selectedProperty]
-        ? [data.propertyExternalIds[data.selectedProperty]]
-        : undefined
       : undefined;
+    // 신선도(`ratesSyncedAt`)는 **보이는 객실**로 잰다 — 당기는 범위도 똑같아야 한다. 건물을 골랐는데
+    // Beds24 id 가 없으면 전 건물을 당기게 되므로 당기지 않는다(당겨도 이 화면의 신선도는 그대로다).
+    const canRefresh = data.ratesRefreshable && (!data.selectedProperty || Boolean(selectedExternalId));
     after(async () => {
       const supabase = getSupabaseServiceClient();
       // 대기 중인 가격·최소숙박 작업이 있으면 먼저 보낸다 — 접수 직후 깨우기가 실패한 작업이
       // 백업 크론(몇 시간 간격)까지 앉아 있지 않게(`price-job-kick.ts`).
       if (await hasPendingPriceJobs(supabase)) await kickPriceJobWorker(supabase);
+      if (!canRefresh) return;
       await refreshOpsCalendarRates({
-        externalPropertyIds,
+        externalPropertyIds: selectedExternalId ? [selectedExternalId] : undefined,
         organizationId: session.organization.id,
         supabase,
         syncedAt: data.ratesSyncedAt,
-        window: { from: data.days[0].date, to: lastVisibleDate },
+        window: { from: firstVisibleDate, to: lastVisibleDate },
       });
     });
   }
@@ -155,10 +153,10 @@ export default async function OpsCalendarPage({
   // 격자 끝으로 밀린다.
   const prevHref = isRolling
     ? hrefWith({ start: addDays(data.start, -OPS_CALENDAR_ROLLING_DAYS) })
-    : hrefWith({ ym: shiftMonth(data.month, -1) });
+    : hrefWith({ ym: shiftMonthKey(data.month, -1) });
   const nextHref = isRolling
     ? hrefWith({ start: addDays(data.start, OPS_CALENDAR_ROLLING_DAYS) })
-    : hrefWith({ ym: shiftMonth(data.month, 1) });
+    : hrefWith({ ym: shiftMonthKey(data.month, 1) });
   // 「오늘」은 30일 뷰에서 시작일을 다시 **어제**로 돌린다(저쪽 `goToRollingToday` 와 같다).
   const todayHref = isRolling
     ? hrefWith({ start: addDays(data.today, -1) })
@@ -174,7 +172,16 @@ export default async function OpsCalendarPage({
 
   return (
     <AdminShell activeItem={opsNavId("calendar")} title={copy.title}>
-      <Beds24LiveRefresh organizationId={session.organization.id} />
+      {/* 이 화면이 그리는 건물·날짜(갭 판정용 앞뒤 하루 포함)에 닿는 신호만 받는다 — 다른 건물 동기화로
+          다시 읽지 않는다. */}
+      <Beds24LiveRefresh
+        organizationId={session.organization.id}
+        scope={{
+          from: firstVisibleDate ? addDays(firstVisibleDate, -1) : null,
+          propertyNames: data.selectedProperty ? [data.selectedProperty] : null,
+          to: lastVisibleDate ? addDays(lastVisibleDate, 1) : null,
+        }}
+      />
       <OpsNavScope>
         <div className="ops__bar">
           <div className="ops__props">
@@ -285,9 +292,9 @@ export default async function OpsCalendarPage({
                 일반 예약이 왜 사라졌는지 알 수 없다. 저쪽도 켜면 「Cancelled Only」로 바뀐다. */}
             {showCancelled ? copy.showCancelledOn : copy.showCancelled}
           </OpsNavLink>
-          {/* 1박 갭 — 있을 때만 뜬다. 0건이면 빈 배지가 자리만 차지한다. */}
-          {data.gapCells.size > 0 && (
-            <OpsGapButton count={data.gapCells.size} hint={copy.gapOpenHint} label={copy.gapLabel} />
+          {/* 1박 갭 — 고를 수 있는 칸(오늘 이후)이 있을 때만 뜬다. 지난 날짜 갭은 눌러도 골라지지 않는다. */}
+          {data.selectableGapCount > 0 && (
+            <OpsGapButton count={data.selectableGapCount} hint={copy.gapOpenHint} label={copy.gapLabel} />
           )}
         </div>
 
@@ -336,17 +343,14 @@ export default async function OpsCalendarPage({
           </span>
         </div>
 
+        {/* 격자에는 **행 단위** 데이터만 간다(`ops-calendar-rows.ts`) — 칸 이력 목록과 가격 개입 판정은
+            격자가 필요할 때 서버 액션으로 따로 받는다(2026-09-30 속도). */}
         <OpsCalendarGrid
-          bars={data.bars}
-          blocks={data.blocks}
           copy={copy}
           days={data.days}
-          gapCells={data.gapCells}
-          history={data.history}
           historyAlerts={historyAlerts}
-          priceConversions={data.priceConversions}
-          rates={data.rates}
-          rooms={data.rooms}
+          property={data.selectedProperty}
+          rows={data.rows}
           showCancelled={showCancelled}
           today={data.today}
         />

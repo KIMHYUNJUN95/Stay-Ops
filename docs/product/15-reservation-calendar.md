@@ -979,6 +979,11 @@ When Beds24 sends a Japanese property name (e.g. `"荒木町A"`) in the reservat
   듣는다. 계약: `docs/product/33-calendar-write-features.md` → 「화면도 웹훅 기준으로」.
 - 참고: 같은 구독 안의 `reservation_internal_notes` 변경 알림은 그 표가 `supabase_realtime` 에 없어
   실제로는 오지 않는다(2026-09-29 확인). 내부 메모는 저장한 화면에서 직접 갱신된다.
+- **2026-09-30 — 신호에 범위가 생겼다.** `signalBeds24Change` 가 `{ propertyNames?, from?, to? }` 범위를
+  실을 수 있고, 받는 쪽도 범위를 줄 수 있다(`beds24LiveScopesOverlap`, `src/lib/beds24-live.ts`) — 겹치지
+  않는 신호는 무시한다. 지금 이 범위를 실제로 거는 것은 판매 캘린더(`/admin/ops/calendar`)뿐이고, 이
+  모바일 예약 캘린더를 포함한 나머지 구독은 **범위 없이 그대로 전부** 받는다(바뀌지 않았다). 계기와 상세:
+  `docs/product/33-calendar-write-features.md` → 「판매 캘린더가 스스로 무한 새로고침을 돌던 것」.
 
 ### Cancellation visibility policy (verified)
 

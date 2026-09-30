@@ -104,6 +104,7 @@ export function OpsMinStayPanel({
   cells,
   copy,
   gapContext,
+  onApplied,
   onClear,
   runWrite,
   scopeSummary,
@@ -111,6 +112,9 @@ export function OpsMinStayPanel({
   cells: MinStayPanelCell[];
   copy: MinStayPanelCopy;
   gapContext: GapContextEntry[];
+  /** 쓰기가 반영된 **뒤** 보낸 칸만 선택에서 뺀다(2026-09-30 버그) — 전체를 비우는 `onClear`
+   * 와 달리, 왕복하는 동안 사람이 새로 고른 칸은 건드리지 않는다. */
+  onApplied: (sentCells: { roomKey: string; date: string }[]) => void;
   onClear: () => void;
   /** 격자가 흐린 값 → 접수 → 반영 대기 → 데이터 다시 받기를 맡는다(`ops-write-tracker.ts`). */
   runWrite: RunOpsWrite;
@@ -156,10 +160,10 @@ export function OpsMinStayPanel({
         setMessage(copy.msFailed.replace("{error}", errorText(copy, result.error)));
         return;
       }
-      // **보낸 칸은 선택에서 뺀다**(2026-09-30 버그) — 남겨 두면 다음에 한 칸을 눌렀을 때 앞서 저장한
-      // 칸까지 같이 잡혀 「5칸 저장」이 되고, 요약에서 새로 누른 객실이 「외 N」에 가려졌다.
-      onClear();
-            // 「반영했습니다」는 **Beds24 에 실제로 들어간 뒤에**. 예전에는 접수만 되면 바로 그렇게
+      // **보낸 칸만** 선택에서 뺀다(2026-09-30 버그) — 왕복하는 동안 새로 고른 칸까지
+      // 통째로 비우면 안 된다.
+      onApplied(targets.map((cell) => ({ date: cell.date, roomKey: cell.roomKey })));
+      // 「반영했습니다」는 **Beds24 에 실제로 들어간 뒤에**. 예전에는 접수만 되면 바로 그렇게
       // 말했는데 그때는 아직 큐에 있을 뿐이었다(2026-09-28).
       void settled?.then((outcome) => setMessage(outcomeText(copy.msDone, copy, outcome)));
     });

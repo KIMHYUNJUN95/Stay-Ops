@@ -109,13 +109,38 @@ export function diffCalendarReadback(args: {
   return mismatches;
 }
 
-/** 로그·작업 결과에 넣을 한 줄. 앞 세 건만 보여주고 나머지는 개수로 줄인다. */
-export function describeMismatches(mismatches: VerificationMismatch[]): string {
-  const sample = mismatches
-    .slice(0, 3)
-    .map((item) => `${item.date} ${item.field}: 기대=${item.expected}, 실제=${item.actual}`)
-    .join("; ");
-  return `Beds24 되읽기 불일치 ${mismatches.length}건: ${sample}`;
+/**
+ * 작업 결과(`beds24_price_jobs.results[].error`)에 남기는 **실패 코드**. 문구가 아니다 —
+ * 보는 사람 언어로 바꾸는 것은 이력 패널이 한다(`hsFailures`). Beds24 가 준 원문은 `params.detail` 에만.
+ */
+export type PriceJobFailureCode =
+  | "verify_mismatch"
+  | "verify_failed"
+  | "verify_truncated"
+  | "http_error"
+  | "beds24_unavailable"
+  | "bad_response"
+  | "room_rejected"
+  | "unknown";
+
+export type PriceJobFailure = {
+  error: PriceJobFailureCode;
+  params?: Record<string, string | number>;
+};
+
+/** 불일치 → 코드 + 개수 + 첫 건(날짜 · 항목 · 기대 · 실제). 값이 없으면 빈 문자열. */
+export function mismatchFailure(mismatches: VerificationMismatch[]): PriceJobFailure {
+  const first = mismatches[0];
+  return {
+    error: "verify_mismatch",
+    params: {
+      actual: first?.actual ?? "",
+      date: first?.date ?? "",
+      expected: first?.expected ?? "",
+      field: first?.field ?? "",
+      n: mismatches.length,
+    },
+  };
 }
 
 /**

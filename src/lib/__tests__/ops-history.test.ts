@@ -5,7 +5,9 @@ import {
   opsRoomDisplayName,
   buildBlockSendEntry,
   buildJobSendEntry,
+  describeSendFailure,
   groupChangeRows,
+  localizeSendDetail,
   mergeSendEntries,
   type ChangeLogRow,
   type PriceJobLogRow,
@@ -127,6 +129,84 @@ describe("buildJobSendEntry", () => {
       NOW,
     );
     expect(entry).toMatchObject({ kind: "minStay", status: "queued", values: { max: 1, min: 1 }, waitingMinutes: 21 });
+  });
+});
+
+describe("실패 코드 → 문구", () => {
+  const labels = {
+    http_error: "Beds24 오류 (HTTP {status})",
+    room_rejected: "Beds24 가 거부함",
+    verify_mismatch: "되읽기 불일치 {n}칸",
+    verify_failed: "Beds24 되읽기 실패",
+  };
+  const sample = "{date}: 보낸 값 {expected}, Beds24 값 {actual}";
+  const fmt = (value: number, field: "price" | "minStay") => (field === "minStay" ? `${value}박` : `¥${value}`);
+
+  it("작업 결과의 코드·값을 그대로 넘기고, 작업 전체 오류는 객실별 줄이 있으면 뺀다", () => {
+    const entry = buildJobSendEntry(
+      job({
+        error: "383980:verify_mismatch",
+        results: [
+          {
+            error: "verify_mismatch",
+            externalRoomId: "383980",
+            params: { actual: 41000, date: "2027-02-14", expected: 43000, field: "price1", n: 2 },
+            success: false,
+          },
+        ],
+      }),
+      new Map([["383980", "가부키초 203"]]),
+      Date.now(),
+    );
+    expect(entry.error).toBeNull();
+    expect(entry.failures).toEqual([
+      {
+        error: "verify_mismatch",
+        params: { actual: 41000, date: "2027-02-14", expected: 43000, field: "price1", n: 2 },
+        room: "가부키초 203",
+      },
+    ]);
+    expect(describeSendFailure(entry.failures[0], labels, sample, fmt)).toEqual({
+      detail: "02/14: 보낸 값 ¥43000, Beds24 값 ¥41000",
+      text: "되읽기 불일치 2칸",
+    });
+  });
+
+  it("최소숙박 불일치는 박 수로, 없는 값은 —", () => {
+    expect(
+      describeSendFailure(
+        { error: "verify_mismatch", params: { actual: "", date: "2026-11-26", expected: 2, field: "minStay", n: 1 } },
+        labels,
+        sample,
+        fmt,
+      ).detail,
+    ).toBe("11/26: 보낸 값 2박, Beds24 값 —");
+  });
+
+  it("자리표시를 채우고 Beds24 원문은 세부로만", () => {
+    expect(describeSendFailure({ error: "http_error", params: { status: 500 } }, labels, sample, fmt)).toEqual({
+      detail: null,
+      text: "Beds24 오류 (HTTP 500)",
+    });
+    expect(
+      describeSendFailure({ error: "room_rejected", params: { detail: "Invalid roomId" } }, labels, sample, fmt),
+    ).toEqual({ detail: "Invalid roomId", text: "Beds24 가 거부함" });
+  });
+
+  it("옛 작업의 한국어 문장(모르는 코드)은 그대로", () => {
+    const legacy = "Beds24 되읽기 불일치 1건: 2027-02-13 price1: 기대=41580, 실제=45000";
+    expect(describeSendFailure({ error: legacy, params: null }, labels, sample, fmt)).toEqual({
+      detail: null,
+      text: legacy,
+    });
+  });
+
+  it("차단 세부의 자리표시 없는 코드만 바꾼다", () => {
+    expect(localizeSendDetail("383979:room_rejected, 383980:Invalid date", labels)).toBe(
+      "383979: Beds24 가 거부함, 383980:Invalid date",
+    );
+    expect(localizeSendDetail("383979:3, 383980:1", labels)).toBe("383979:3, 383980:1");
+    expect(localizeSendDetail("beds24:missing-env", labels)).toBe("beds24:missing-env");
   });
 });
 

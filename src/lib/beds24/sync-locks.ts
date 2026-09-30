@@ -59,8 +59,9 @@ type Client = SupabaseClient<Database>;
 /**
  * 락을 잡는다. 만료됐거나 없으면 내 것이 된다.
  *
- * 경쟁은 **DB 가 판정한다** — `expires_at > now()` 인 행이 있으면 upsert 가 막히도록
- * 조건부 갱신을 쓴다. 두 인스턴스가 동시에 시도해도 하나만 지나간다.
+ * 경쟁은 **DB 가 한 문장으로 판정한다** — `beds24_try_lock`
+ * (`supabase/migrations/202609300001_beds24_lock_rpc.sql`) 이 만료된 행만 덮어쓴다. 예전의
+ * 「읽고 → upsert」 는 같은 순간의 두 인스턴스가 둘 다 잡았다고 믿었다.
  */
 export type LockResult =
   | { acquired: true; lockId: string }
@@ -79,50 +80,22 @@ export async function acquireBeds24Lock(
   ttlMs: number,
 ): Promise<LockResult> {
   const lockId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const nowIso = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + ttlMs).toISOString();
-
-  // 아직 살아 있는 락이 있으면 비켜난다.
-  const existing = await supabase
-    .from("beds24_sync_locks")
-    .select("name, expires_at")
-    .eq("name", name)
-    .gt("expires_at", nowIso)
-    .maybeSingle();
-  if (existing.error) {
-    console.error("[beds24/lock] read failed", { error: existing.error, name });
-    return { acquired: false, lockId: null, reason: "error" };
-  }
-  if (existing.data) return { acquired: false, lockId: null, reason: "busy" };
-
-  const claimed = await supabase
-    .from("beds24_sync_locks")
-    .upsert(
-      {
-        expires_at: expiresAt,
-        locked_at: nowIso,
-        locked_by: lockedBy,
-        metadata: { lockId },
-        name,
-        updated_at: nowIso,
-      },
-      { onConflict: "name" },
-    )
-    .select("metadata")
-    .single();
+  const claimed = await supabase.rpc("beds24_try_lock", {
+    p_lock_id: lockId,
+    p_locked_by: lockedBy,
+    p_name: name,
+    p_ttl_ms: Math.round(ttlMs),
+  });
   if (claimed.error) {
     console.error("[beds24/lock] claim failed", { error: claimed.error, name });
     return { acquired: false, lockId: null, reason: "error" };
   }
-  // 같은 순간 둘이 upsert 하면 나중 것이 이긴다. **내 lockId 가 남았을 때만 내 락이다.**
-  const stored = (claimed.data as { metadata: { lockId?: string } | null }).metadata;
-  // 같은 순간 둘이 잡으면 나중 것이 남는다. 내 것이 아니면 남이 가져간 것이다.
-  if (stored?.lockId !== lockId) return { acquired: false, lockId: null, reason: "busy" };
+  if (claimed.data !== true) return { acquired: false, lockId: null, reason: "busy" };
   return { acquired: true, lockId };
 }
 
 /**
- * 락을 놓는다 — **내 것일 때만**.
+ * 락을 놓는다 — **내 것일 때만**(한 문장의 조건부 갱신).
  *
  * 저쪽 주석: *"예전에는 소유 여부를 보지 않고 무조건 삭제해서, TTL 만료로 락을 뺏긴 job이
  * 뒤늦게 끝나며 후속 job의 락까지 지워버렸다."*
@@ -133,21 +106,14 @@ export async function releaseBeds24Lock(
   lockId: string | null,
 ): Promise<void> {
   if (!lockId) return;
-  const current = await supabase
-    .from("beds24_sync_locks")
-    .select("metadata")
-    .eq("name", name)
-    .maybeSingle();
-  const stored = (current.data as { metadata: { lockId?: string } | null } | null)?.metadata;
-  if (stored?.lockId && stored.lockId !== lockId) {
-    console.warn("[beds24/lock] release skipped — 소유자가 바뀌었다", { name });
+  const released = await supabase.rpc("beds24_release_lock", { p_lock_id: lockId, p_name: name });
+  if (released.error) {
+    console.error("[beds24/lock] release failed", { error: released.error, name });
     return;
   }
-  // 지우지 않고 만료시킨다 — 누가 언제 잡았었는지가 진단에 쓸모 있다.
-  await supabase
-    .from("beds24_sync_locks")
-    .update({ expires_at: new Date().toISOString() })
-    .eq("name", name);
+  if (released.data !== true) {
+    console.warn("[beds24/lock] release skipped — 소유자가 바뀌었다", { name });
+  }
 }
 
 export type CooldownState = { active: boolean; remainingSec: number; reason: string | null };

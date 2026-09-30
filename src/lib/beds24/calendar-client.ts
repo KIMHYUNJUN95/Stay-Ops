@@ -164,7 +164,9 @@ export type CalendarWritePayloadItem = { roomId: number; calendar: unknown[] };
 export type CalendarWriteItemResult = {
   externalRoomId: string;
   accepted: boolean;
+  /** Beds24 가 준 원문. 원문이 없으면 `errorCode` 와 같은 값. */
   error: string | null;
+  errorCode: "bad_response" | "room_rejected" | null;
 };
 
 export type CalendarWriteResult = {
@@ -214,12 +216,16 @@ export async function postBeds24Calendar(
   if (!rows || rows.length !== payload.length) {
     // 개수가 안 맞으면 어느 객실이 실패했는지 알 수 없다. 전부 실패로 본다 —
     // 성공으로 치면 반영 안 된 값이 「적용됨」으로 남는다.
-    const error = `Beds24 응답 형식이 예상과 다릅니다 (${rows?.length ?? "none"}/${payload.length})`;
+    console.warn("[beds24/calendar] unexpected write response", {
+      expected: payload.length,
+      got: rows?.length ?? null,
+    });
     return {
       credit,
       items: payload.map((item) => ({
         accepted: false,
-        error,
+        error: "bad_response",
+        errorCode: "bad_response" as const,
         externalRoomId: String(item.roomId),
       })),
     };
@@ -237,7 +243,8 @@ export async function postBeds24Calendar(
         .join("; ");
       return {
         accepted,
-        error: accepted ? null : message || "Beds24 객실별 실패",
+        error: accepted ? null : message || "room_rejected",
+        errorCode: accepted ? null : ("room_rejected" as const),
         externalRoomId: String(item.roomId),
       };
     }),

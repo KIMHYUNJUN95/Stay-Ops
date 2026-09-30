@@ -25,8 +25,9 @@ export async function kickPriceJobWorker(supabase: SupabaseClient<Database>): Pr
     for (let index = 0; index < KICK_MAX_JOBS; index += 1) {
       if (Date.now() - startedAt > KICK_BUDGET_MS) break;
       const outcome = await runNextPriceJob(supabase);
-      // 비었거나, 쿨다운이거나, 남이 돌고 있으면(그쪽이 이어서 처리한다) 멈춘다.
-      if (!outcome.ran) break;
+      // 비었거나, 쿨다운이거나, 남이 돌고 있으면(그쪽이 이어서 처리한다) 멈춘다. 쿨다운에 걸려
+      // 다시 대기로 돌린 작업(`requeued`)도 — 지금 다시 집어도 쿨다운이라 못 보낸다.
+      if (!outcome.ran || outcome.status === "requeued") break;
     }
   } catch (error) {
     console.error("[beds24/price-job] worker kick failed; cron will pick it up", error);

@@ -14,11 +14,12 @@ import {
   type PriceJobRoomUpdate,
 } from "@/lib/beds24/price-job-merge";
 import {
-  describeMismatches,
   diffCalendarReadback,
+  mismatchFailure,
   toLinkedUnitExpectation,
   type CalendarReadSegment,
   type ExpectedDateValues,
+  type PriceJobFailure,
 } from "@/lib/beds24/price-write-verification";
 import {
   acquireBeds24Lock,
@@ -68,7 +69,8 @@ export type PriceJobOutcome =
   | {
       ran: true;
       jobId: string;
-      status: "completed" | "partial_failed" | "failed";
+      /** `requeued` — 쿨다운에 걸려 못 보낸 객실이 남아 **다시 대기**로 돌렸다(`planPriceJobResume`). */
+      status: "completed" | "partial_failed" | "failed" | "requeued";
       coalescedJobIds: string[];
       succeeded: number;
       failed: number;
@@ -80,6 +82,66 @@ function asRoomUpdates(value: unknown): PriceJobRoomUpdate[] {
     const record = entry as PriceJobRoomUpdate | null;
     return !!record && typeof record.externalRoomId === "string" && !!record.dates;
   });
+}
+
+/**
+ * 객실 하나의 처리 결과 — `beds24_price_jobs.results[]`.
+ *
+ * `error` 는 **코드**다(`PriceJobFailureCode`) — 이력 패널이 보는 사람 언어로 바꾼다. 2026-09-30 전
+ * 행에는 한국어 문장이 들어 있고, 패널은 모르는 값을 그대로 보여준다.
+ */
+export type PriceJobRoomResult = {
+  externalRoomId: string;
+  success: boolean;
+  error: string | null;
+  params?: Record<string, string | number>;
+};
+
+function asRoomResults(value: unknown): PriceJobRoomResult[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is PriceJobRoomResult => {
+    const record = entry as PriceJobRoomResult | null;
+    return !!record && typeof record.externalRoomId === "string" && typeof record.success === "boolean";
+  });
+}
+
+const failedResult = (externalRoomId: string, failure: PriceJobFailure): PriceJobRoomResult => ({
+  externalRoomId,
+  success: false,
+  ...failure,
+});
+
+/**
+ * 쿨다운으로 멈췄다 **다시 도는** 작업에서 이미 끝낸 객실을 가려낸다 — 순수 함수.
+ *
+ * 쿨다운에 걸리면 못 보낸 객실을 실패로 만들지 않고 작업을 `queued` 로 되돌린다. 그때까지의 결과는
+ * `results` 에 남긴다(흡수한 형제 작업에도 같은 것을). 다음 차례에는 결과가 있는 객실을 건너뛰고
+ * 결과를 그대로 이어 붙인다 — 같은 값을 또 보내 크레딧을 쓰지 않게.
+ *
+ * **다만 새로 흡수된 작업(결과가 빈)이 건드리는 객실은 다시 보낸다.** 그 사이 누가 같은 객실을
+ * 새 값으로 고쳤으면 합친 값이 달라졌다.
+ */
+export function planPriceJobResume(
+  jobs: ReadonlyArray<{ roomUpdates: PriceJobRoomUpdate[]; results: unknown }>,
+): { carried: PriceJobRoomResult[]; skip: Set<string> } {
+  const fresh = new Set<string>();
+  const targets = new Set<string>();
+  const prior = new Map<string, PriceJobRoomResult>();
+  for (const job of jobs) {
+    for (const update of job.roomUpdates) targets.add(update.externalRoomId);
+    const results = asRoomResults(job.results);
+    if (results.length === 0) {
+      for (const update of job.roomUpdates) fresh.add(update.externalRoomId);
+      continue;
+    }
+    for (const result of results) {
+      if (!prior.has(result.externalRoomId)) prior.set(result.externalRoomId, result);
+    }
+  }
+  const carried = [...prior.values()].filter(
+    (result) => targets.has(result.externalRoomId) && !fresh.has(result.externalRoomId),
+  );
+  return { carried, skip: new Set(carried.map((result) => result.externalRoomId)) };
 }
 
 function toReadSegments(room: CalendarRoomData | undefined): CalendarReadSegment[] {
@@ -116,8 +178,25 @@ async function recoverStuckJobs(supabase: Client): Promise<number> {
   return rows.length;
 }
 
-/** 잠금을 잡은 워커는 몇 ms 안에 작업을 `processing` 으로 바꾼다. 이보다 오래 아무것도 안 잡고 있으면 죽은 것이다. */
+/** 살아 있는 워커는 이보다 자주 `locked_at` 을 갱신한다(`touchWorkerLock`). 이보다 오래 조용하면 죽은 것이다. */
 const ORPHAN_LOCK_GRACE_MS = 60_000;
+
+/**
+ * 잠금 심장 박동 — `locked_at` 을 지금으로. **내 잠금일 때만**(lockId 비교).
+ *
+ * 작업을 `completed` 로 적은 뒤에도 연결 유닛 확인·로컬 반영으로 몇 초~수십 초 잠금을 쥔다. 그 사이엔
+ * `processing` 작업이 없어서, 박동 없이는 회수기가 살아 있는 워커의 잠금을 깨고 두 번째 워커가
+ * 동시에 Beds24 를 부를 수 있었다.
+ */
+async function touchWorkerLock(supabase: Client, lockId: string): Promise<void> {
+  const nowIso = new Date().toISOString();
+  const result = await supabase
+    .from("beds24_sync_locks")
+    .update({ locked_at: nowIso, updated_at: nowIso })
+    .eq("name", PRICE_JOB_LOCK)
+    .eq("metadata->>lockId", lockId);
+  if (result.error) console.error("[beds24/price-job] lock heartbeat failed", result.error);
+}
 
 /**
  * 고아 잠금 회수 — 잡은 워커가 죽어 잠금만 남은 경우.
@@ -126,9 +205,9 @@ const ORPHAN_LOCK_GRACE_MS = 60_000;
  * (15분) 동안 「지금 보내기」와 캘린더 열기가 전부 「남이 돌고 있다」로 조용히 멈췄다. 운영에서도
  * 함수가 중간에 죽으면 똑같다.
  *
- * **잡은 지 1분이 넘었고 `processing` 인 작업이 하나도 없을 때만** 회수한다 — 살아 있는 워커는 잡자마자
- * 작업을 `processing` 으로 바꾸고 끝날 때까지 그대로 둔다. 회수는 **본 그 잠금일 때만**(lockId 비교) —
- * 그 사이 누가 새로 잡았으면 건드리지 않는다.
+ * **마지막 박동(`locked_at`)이 1분이 넘었고 `processing` 인 작업이 하나도 없을 때만** 회수한다 —
+ * 살아 있는 워커는 작업을 `processing` 으로 두거나, 작업을 끝낸 뒤 후처리 중이면 박동을 친다.
+ * 회수는 **본 그 잠금일 때만**(lockId 비교) — 그 사이 누가 새로 잡았으면 건드리지 않는다.
  */
 async function breakOrphanedWorkerLock(supabase: Client): Promise<boolean> {
   const current = await supabase
@@ -149,13 +228,9 @@ async function breakOrphanedWorkerLock(supabase: Client): Promise<boolean> {
     .maybeSingle();
   if (processing.error || processing.data) return false;
 
-  const released = await supabase
-    .from("beds24_sync_locks")
-    .update({ expires_at: new Date().toISOString() })
-    .eq("name", PRICE_JOB_LOCK)
-    .eq("metadata->>lockId", lockId)
-    .select("name");
-  const broke = !released.error && (released.data ?? []).length > 0;
+  // 만료 판정은 DB 시계(`beds24_try_lock`)라 해제도 DB 가 한다 — 앱 시계로 적으면 어긋난 만큼 계속 「점유 중」이다.
+  const released = await supabase.rpc("beds24_release_lock", { p_lock_id: lockId, p_name: PRICE_JOB_LOCK });
+  const broke = !released.error && released.data === true;
   if (broke) console.warn("[beds24/price-job] 고아 잠금 회수", { lockedAt: row.locked_at });
   return broke;
 }
@@ -197,30 +272,41 @@ async function claimNextJob(supabase: Client): Promise<JobRow | null> {
 async function absorbSiblingJobs(
   supabase: Client,
   job: JobRow,
-): Promise<{ roomUpdates: PriceJobRoomUpdate[]; coalescedJobIds: string[] }> {
+): Promise<{
+  roomUpdates: PriceJobRoomUpdate[];
+  coalescedJobIds: string[];
+  /** 이어 돌기 판단용(`planPriceJobResume`) — 이 작업과 흡수한 작업 각각의 객실·지난 결과. */
+  sources: Array<{ roomUpdates: PriceJobRoomUpdate[]; results: unknown }>;
+}> {
   const primary: MergeableJob = {
     createdAt: job.created_at,
     id: job.id,
     roomUpdates: asRoomUpdates(job.room_updates),
   };
-  if (!job.property_id) return { coalescedJobIds: [], roomUpdates: primary.roomUpdates };
+  const alone = {
+    coalescedJobIds: [],
+    roomUpdates: primary.roomUpdates,
+    sources: [{ results: job.results, roomUpdates: primary.roomUpdates }],
+  };
+  if (!job.property_id) return alone;
 
   const siblings = await supabase
     .from("beds24_price_jobs")
-    .select("id, created_at, room_updates")
+    .select("id, created_at, room_updates, results")
     .eq("status", "queued")
     .eq("organization_id", job.organization_id)
     .eq("property_id", job.property_id)
     .eq("job_type", job.job_type)
     .neq("id", job.id);
-  if (siblings.error) return { coalescedJobIds: [], roomUpdates: primary.roomUpdates };
+  if (siblings.error) return alone;
 
   const inWindow = ((siblings.data ?? []) as Array<{
     id: string;
     created_at: string;
     room_updates: unknown;
+    results: unknown;
   }>).filter((row) => isWithinCoalesceWindow(job.created_at, row.created_at));
-  if (inWindow.length === 0) return { coalescedJobIds: [], roomUpdates: primary.roomUpdates };
+  if (inWindow.length === 0) return alone;
 
   // 흡수한다고 표시해 둔다 — 다른 워커가 같은 것을 또 집지 않게.
   const coalescedJobIds: string[] = [];
@@ -235,55 +321,81 @@ async function absorbSiblingJobs(
     if (!taken.error && taken.data) coalescedJobIds.push(row.id);
   }
 
-  const merged = mergePriceJobRoomUpdates([
-    primary,
-    ...inWindow
-      .filter((row) => coalescedJobIds.includes(row.id))
-      .map((row) => ({
-        createdAt: row.created_at,
-        id: row.id,
-        roomUpdates: asRoomUpdates(row.room_updates),
-      })),
-  ]);
+  const absorbed = inWindow
+    .filter((row) => coalescedJobIds.includes(row.id))
+    .map((row) => ({
+      createdAt: row.created_at,
+      id: row.id,
+      results: row.results,
+      roomUpdates: asRoomUpdates(row.room_updates),
+    }));
+  const merged = mergePriceJobRoomUpdates([primary, ...absorbed]);
   if (coalescedJobIds.length > 0) {
     console.log("[beds24/price-job] 합치기", { absorbed: coalescedJobIds, primary: job.id });
   }
-  return { coalescedJobIds, roomUpdates: merged };
+  return {
+    coalescedJobIds,
+    roomUpdates: merged,
+    sources: [
+      ...alone.sources,
+      ...absorbed.map((row) => ({ results: row.results, roomUpdates: row.roomUpdates })),
+    ],
+  };
 }
+
+type VerifyOutcome = {
+  failures: Map<string, PriceJobFailure>;
+  /** 되읽기가 429 를 맞았다 — 부르는 쪽이 쿨다운을 켜고 멈춘다. 이때 `failures` 는 비어 있다. */
+  rateLimit: { resetInSec: number | null } | null;
+};
 
 /** 되읽기 — 안 맞으면 잠깐 쉬고 다시. 링크 전파에 시간이 걸린다. */
 async function verifyWrites(args: {
   expectationByRoomId: Map<string, Record<string, ExpectedDateValues>>;
   includeLinkedPrices: boolean;
-}): Promise<Map<string, string>> {
+}): Promise<VerifyOutcome> {
   const roomIds = [...args.expectationByRoomId.keys()];
   const allDates = roomIds.flatMap((roomId) =>
     Object.keys(args.expectationByRoomId.get(roomId) ?? {}),
   );
-  const errors = new Map<string, string>();
-  if (roomIds.length === 0 || allDates.length === 0) return errors;
+  const failures = new Map<string, PriceJobFailure>();
+  if (roomIds.length === 0 || allDates.length === 0) return { failures, rateLimit: null };
 
   const sorted = [...new Set(allDates)].sort();
   const startDate = sorted[0];
   const endDate = sorted[sorted.length - 1];
 
   for (let attempt = 1; attempt <= VERIFY_ATTEMPTS; attempt += 1) {
-    errors.clear();
+    failures.clear();
     const roomsById = new Map<string, CalendarRoomData>();
     let truncated = false;
 
     for (let index = 0; index < roomIds.length; index += VERIFY_BATCH_SIZE) {
       const chunk = roomIds.slice(index, index + VERIFY_BATCH_SIZE);
-      const result = await fetchBeds24Calendar({
-        endDate,
-        externalRoomIds: chunk,
-        includeLinkedPrices: args.includeLinkedPrices,
-        includeMinStay: true,
-        includePrices: true,
-        startDate,
-      });
+      let result;
+      try {
+        result = await fetchBeds24Calendar({
+          endDate,
+          externalRoomIds: chunk,
+          includeLinkedPrices: args.includeLinkedPrices,
+          includeMinStay: true,
+          includePrices: true,
+          startDate,
+        });
+      } catch (error) {
+        if (error instanceof Beds24HttpError && error.isRateLimit) {
+          return { failures: new Map(), rateLimit: { resetInSec: error.resetInSec } };
+        }
+        const detail = error instanceof Beds24HttpError
+          ? `HTTP ${error.status}`
+          : error instanceof Error ? error.message : "";
+        for (const roomId of chunk) failures.set(roomId, { error: "verify_failed", params: { detail } });
+        continue;
+      }
       if ("skipped" in result) {
-        for (const roomId of chunk) errors.set(roomId, `되읽기 실패: ${result.skipped}`);
+        for (const roomId of chunk) {
+          failures.set(roomId, { error: "verify_failed", params: { detail: result.skipped } });
+        }
         continue;
       }
       if (result.truncated) truncated = true;
@@ -292,24 +404,65 @@ async function verifyWrites(args: {
 
     // **잘린 응답으로는 「일치한다」를 증명할 수 없다.** 검증 실패로 다룬다.
     if (truncated) {
-      for (const roomId of roomIds) errors.set(roomId, "되읽기 응답이 잘렸습니다(쪽 넘김)");
-      return errors;
+      for (const roomId of roomIds) failures.set(roomId, { error: "verify_truncated" });
+      return { failures, rateLimit: null };
     }
 
     for (const roomId of roomIds) {
+      if (failures.has(roomId)) continue;
       const mismatches = diffCalendarReadback({
         expected: args.expectationByRoomId.get(roomId) ?? {},
         segments: toReadSegments(roomsById.get(roomId)),
       });
-      if (mismatches.length > 0) errors.set(roomId, describeMismatches(mismatches));
+      if (mismatches.length > 0) failures.set(roomId, mismatchFailure(mismatches));
     }
 
-    if (errors.size === 0) break;
+    if (failures.size === 0) break;
     if (attempt < VERIFY_ATTEMPTS) {
       await new Promise((resolve) => setTimeout(resolve, attempt * 500));
     }
   }
-  return errors;
+  return { failures, rateLimit: null };
+}
+
+/**
+ * 로컬 반영할 행을 **같은 열 모양끼리** 묶는다 — 순수 함수.
+ *
+ * 한 번의 upsert 에 열 모양이 다른 행을 섞으면 PostgREST 가 빠진 열을 `null` 로 채워 **안 보낸
+ * 값을 지운다**(가격만 바꾼 날의 최소숙박이 사라진다). 그래서 모양마다 한 번씩 보낸다 — 보통 한 번이다.
+ * `synced_at` 은 쓰는 시각이다: 요금 동기화는 자기가 시작한 뒤에 쓰인 행을 덮지 않는다.
+ */
+export function groupLocalRatePatches(args: {
+  organizationId: string;
+  roomIdByExternal: ReadonlyMap<string, string>;
+  updates: ReadonlyArray<{ externalRoomId: string; dates: Record<string, CalendarDateValues> }>;
+  syncedAt: string;
+}): Array<Array<Record<string, unknown>>> {
+  const groups = new Map<string, Array<Record<string, unknown>>>();
+  for (const update of args.updates) {
+    const roomId = args.roomIdByExternal.get(update.externalRoomId);
+    if (!roomId) continue;
+    for (const [stayDate, values] of Object.entries(update.dates)) {
+      const patch: Record<string, unknown> = {
+        organization_id: args.organizationId,
+        room_id: roomId,
+        stay_date: stayDate,
+        synced_at: args.syncedAt,
+      };
+      if (values.p1 !== undefined) patch.price1 = values.p1 === "REMOVE" ? null : values.p1;
+      if (values.p2 !== undefined) patch.price2 = values.p2 === "REMOVE" ? null : values.p2;
+      if (values.p3 !== undefined) patch.price3 = values.p3 === "REMOVE" ? null : values.p3;
+      if (values.m !== undefined) patch.min_stay = values.m;
+      if (values.mx !== undefined) patch.max_stay = values.mx;
+      if (values.na !== undefined) patch.num_avail = values.na;
+      if (values.ov !== undefined) patch.override_kind = values.ov || "none";
+      const shape = Object.keys(patch).sort().join(",");
+      const group = groups.get(shape) ?? [];
+      group.push(patch);
+      groups.set(shape, group);
+    }
+  }
+  return [...groups.values()];
 }
 
 /**
@@ -322,36 +475,23 @@ async function patchLocalRates(args: {
   supabase: Client;
   organizationId: string;
   roomIdByExternal: Map<string, string>;
-  externalRoomId: string;
-  dates: Record<string, CalendarDateValues>;
+  updates: Array<{ externalRoomId: string; dates: Record<string, CalendarDateValues> }>;
 }): Promise<void> {
-  const roomId = args.roomIdByExternal.get(args.externalRoomId);
-  if (!roomId) return;
-  const syncedAt = new Date().toISOString();
-
-  for (const [stayDate, values] of Object.entries(args.dates)) {
-    const patch: Record<string, unknown> = {
-      organization_id: args.organizationId,
-      room_id: roomId,
-      stay_date: stayDate,
-      synced_at: syncedAt,
-    };
-    if (values.p1 !== undefined) patch.price1 = values.p1 === "REMOVE" ? null : values.p1;
-    if (values.p2 !== undefined) patch.price2 = values.p2 === "REMOVE" ? null : values.p2;
-    if (values.p3 !== undefined) patch.price3 = values.p3 === "REMOVE" ? null : values.p3;
-    if (values.m !== undefined) patch.min_stay = values.m;
-    if (values.mx !== undefined) patch.max_stay = values.mx;
-    if (values.na !== undefined) patch.num_avail = values.na;
-    if (values.ov !== undefined) patch.override_kind = values.ov || "none";
-
+  const groups = groupLocalRatePatches({
+    organizationId: args.organizationId,
+    roomIdByExternal: args.roomIdByExternal,
+    syncedAt: new Date().toISOString(),
+    updates: args.updates,
+  });
+  for (const rows of groups) {
     const result = await args.supabase
       .from("room_daily_rates")
-      .upsert(patch as never, { onConflict: "room_id,stay_date" });
+      .upsert(rows as never, { onConflict: "room_id,stay_date" });
     if (result.error) {
       console.error("[beds24/price-job] 로컬 반영 실패", {
         error: result.error,
-        externalRoomId: args.externalRoomId,
-        stayDate,
+        externalRoomIds: args.updates.map((update) => update.externalRoomId),
+        rows: rows.length,
       });
     }
   }
@@ -362,6 +502,13 @@ async function patchLocalRates(args: {
  *
  * 아무것도 안 했으면 `ran: false` 와 이유를 돌려준다 — 크론이 이유를 로그로 남길 수 있어야
  * 「왜 안 도는가」를 사람이 알 수 있다.
+ *
+ * ## 쿨다운에 걸리면 멈추고 다시 대기로
+ *
+ * 429 를 맞았거나 크레딧이 바닥나 쿨다운을 켜면 **다음 배치를 보내지 않는다** — 계속 보내면
+ * 또 429 이고, 그 객실들은 영구 실패로 남았다(2026-09-30 전). 못 보낸 객실이 남으면 작업을 `queued`
+ * 로 되돌리고 그때까지의 결과를 `results` 에 둔다. 쿨다운이 풀린 뒤 다음 차례가 나머지만 보낸다
+ * (`planPriceJobResume`).
  */
 export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome> {
   const cooldown = await getBeds24Cooldown(supabase);
@@ -385,31 +532,46 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
     // 곳에서 찾게 된다.
     return { ran: false, reason: lock.reason === "error" ? "lock_error" : "lock_busy" };
   }
+  const lockId = lock.lockId;
 
   try {
     await recoverStuckJobs(supabase);
     const job = await claimNextJob(supabase);
     if (!job) return { ran: false, reason: "empty" };
 
-    const { coalescedJobIds, roomUpdates } = await absorbSiblingJobs(supabase, job);
-    const results: Array<{ externalRoomId: string; success: boolean; error: string | null }> = [];
-
-    // 우리 방 마스터에 있는 것만 로컬 반영 대상이다.
+    // 우리 방 마스터에 있는 것만 로컬 반영 대상이다. **못 읽었으면 보내지 않는다** — 로컬 반영·
+    // 이력이 조용히 빠진 채 「완료」가 된다. 흡수 전이라 이 작업 하나만 되돌리면 된다.
     const roomsResult = await supabase
       .from("rooms")
       .select("id, external_room_id")
       .eq("organization_id", job.organization_id)
       .eq("external_provider", "beds24")
       .not("external_room_id", "is", null);
+    if (roomsResult.error) {
+      await supabase
+        .from("beds24_price_jobs")
+        .update({ started_at: null, status: "queued" })
+        .eq("id", job.id);
+      throw new Error(`[beds24/price-job] rooms lookup failed: ${roomsResult.error.message}`);
+    }
     const roomIdByExternal = new Map<string, string>();
     for (const row of (roomsResult.data ?? []) as Array<{ id: string; external_room_id: string }>) {
       roomIdByExternal.set(String(row.external_room_id), row.id);
     }
 
+    const { coalescedJobIds, roomUpdates, sources } = await absorbSiblingJobs(supabase, job);
+    const jobIds = [job.id, ...coalescedJobIds];
+    const { carried, skip } = planPriceJobResume(sources);
+    const results: PriceJobRoomResult[] = [];
+
     const updateByRoomId = new Map(roomUpdates.map((update) => [update.externalRoomId, update]));
     const targetRoomIds = [...updateByRoomId.keys()];
+    const pendingRoomIds = targetRoomIds.filter((externalRoomId) => !skip.has(externalRoomId));
     /** 연결 유닛 전파 확인은 **완료를 기록한 뒤에** 한다(아래 참고). 여기 모아 둔다. */
     const acceptedForLinkCheck: string[] = [];
+    /** 쿨다운 때문에 못 보낸(또는 검증 못 한) 객실 — 실패가 아니라 다음 차례 몫이다. */
+    const deferred: string[] = [];
+    let cooledDown = false;
 
     /*
      * **쓰기 전에 현재 값을 읽어 둔다.** 이력의 「이전 값」이고, 쓴 뒤에는 영영 알 수 없다.
@@ -419,7 +581,7 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
      */
     const beforeByCell = new Map<string, { price1: number | null; minStay: number | null }>();
     {
-      const roomUuids = targetRoomIds
+      const roomUuids = pendingRoomIds
         .map((externalRoomId) => roomIdByExternal.get(externalRoomId))
         .filter((value): value is string => !!value);
       const stayDates = [
@@ -446,8 +608,12 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
       }
     }
 
-    for (let index = 0; index < targetRoomIds.length; index += WRITE_BATCH_SIZE) {
-      const chunk = targetRoomIds.slice(index, index + WRITE_BATCH_SIZE);
+    for (let index = 0; index < pendingRoomIds.length; index += WRITE_BATCH_SIZE) {
+      const chunk = pendingRoomIds.slice(index, index + WRITE_BATCH_SIZE);
+      if (cooledDown) {
+        deferred.push(...chunk);
+        continue;
+      }
       const payload = chunk.map((externalRoomId) => ({
         calendar: buildCalendarSegments(updateByRoomId.get(externalRoomId)?.dates ?? {}),
         roomId: Number.parseInt(externalRoomId, 10),
@@ -462,32 +628,46 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
             reason: "rate_limit",
             resetInSec: error.resetInSec,
           });
+          cooledDown = true;
+          deferred.push(...chunk);
+          continue;
         }
-        const message = error instanceof Error ? error.message : "알 수 없는 오류";
-        for (const externalRoomId of chunk) {
-          results.push({ error: message, externalRoomId, success: false });
-        }
+        const failure: PriceJobFailure =
+          error instanceof Beds24HttpError
+            ? { error: "http_error", params: { status: error.status } }
+            : { error: "unknown", params: { detail: error instanceof Error ? error.message : "" } };
+        for (const externalRoomId of chunk) results.push(failedResult(externalRoomId, failure));
         continue;
       }
       if ("skipped" in written) {
         for (const externalRoomId of chunk) {
-          results.push({ error: written.skipped, externalRoomId, success: false });
+          results.push(
+            failedResult(externalRoomId, { error: "beds24_unavailable", params: { detail: written.skipped } }),
+          );
         }
         continue;
       }
 
-      // 크레딧이 바닥나기 **전에** 쉰다. 다음 배치는 다음 주기가 맡는다.
+      // 크레딧이 바닥나기 **전에** 쉰다. 이 배치의 되읽기까지만 하고 다음 배치는 다음 차례가 맡는다.
       if (shouldCooldownForCredit(written.credit, LOW_CREDIT_THRESHOLD)) {
         await activateBeds24Cooldown(supabase, {
           fallbackSec: 30,
           reason: "low_credit",
           resetInSec: written.credit.resetInSec,
         });
+        cooledDown = true;
       }
 
       const accepted = written.items.filter((item) => item.accepted).map((item) => item.externalRoomId);
       for (const item of written.items) {
-        if (!item.accepted) results.push({ error: item.error, externalRoomId: item.externalRoomId, success: false });
+        if (item.accepted) continue;
+        const code = item.errorCode ?? "room_rejected";
+        results.push(
+          failedResult(item.externalRoomId, {
+            error: code,
+            params: item.error && item.error !== code ? { detail: item.error } : undefined,
+          }),
+        );
       }
       if (accepted.length === 0) continue;
 
@@ -502,51 +682,105 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
           (updateByRoomId.get(externalRoomId)?.dates ?? {}) as Record<string, ExpectedDateValues>,
         );
       }
-      const errors = await verifyWrites({ expectationByRoomId, includeLinkedPrices: false });
+      const verified = await verifyWrites({ expectationByRoomId, includeLinkedPrices: false });
+      if (verified.rateLimit) {
+        // 들어갔는지 모른다 — 실패로 적지 않고 다음 차례에 다시 보내 확인한다(같은 값이라 안전하다).
+        await activateBeds24Cooldown(supabase, {
+          reason: "rate_limit",
+          resetInSec: verified.rateLimit.resetInSec,
+        });
+        cooledDown = true;
+        deferred.push(...accepted);
+        continue;
+      }
 
-      // 방마다 이력 → 로컬 반영. **방끼리는 동시에** 한다 — 서로 다른 행이라 순서가 없고,
-      // 차례로 기다리면 방 수만큼 「반영 완료」가 늦어진다(화면이 이걸 기다린다, 2026-09-28).
+      const verifiedRoomIds: string[] = [];
+      for (const externalRoomId of accepted) {
+        const failure = verified.failures.get(externalRoomId);
+        if (failure) {
+          results.push(failedResult(externalRoomId, failure));
+        } else {
+          results.push({ error: null, externalRoomId, success: true });
+          verifiedRoomIds.push(externalRoomId);
+        }
+      }
+
+      // **이력이 먼저다.** 로컬 반영이 끝나면 이전 값을 읽을 수 없다. 방끼리는 동시에 —
+      // 서로 다른 행이라 순서가 없다(2026-09-28).
       await Promise.all(
-        accepted.map(async (externalRoomId) => {
-          const error = errors.get(externalRoomId) ?? null;
-          results.push({ error, externalRoomId, success: !error });
-          if (error) return;
-          const dates = updateByRoomId.get(externalRoomId)?.dates ?? {};
-          // **이력이 먼저다.** 로컬 반영이 끝나면 이전 값을 읽을 수 없다.
-          await writeChangeLogs({
+        verifiedRoomIds.map((externalRoomId) =>
+          writeChangeLogs({
             beforeByCell,
-            dates,
+            dates: updateByRoomId.get(externalRoomId)?.dates ?? {},
             externalRoomId,
             job,
             roomIdByExternal,
             roomLabel: updateByRoomId.get(externalRoomId)?.roomLabel ?? null,
             supabase,
-          });
-          await patchLocalRates({
-            dates,
-            externalRoomId,
-            organizationId: job.organization_id,
-            roomIdByExternal,
-            supabase,
-          });
-        }),
+          }),
+        ),
       );
+      await patchLocalRates({
+        organizationId: job.organization_id,
+        roomIdByExternal,
+        supabase,
+        updates: verifiedRoomIds.map((externalRoomId) => ({
+          dates: updateByRoomId.get(externalRoomId)?.dates ?? {},
+          externalRoomId,
+        })),
+      });
       acceptedForLinkCheck.push(...accepted);
+      await touchWorkerLock(supabase, lockId);
     }
 
-    const failed = results.filter((item) => !item.success);
-    const status = failed.length === 0
+    const allResults = [...carried, ...results];
+    const failures = allResults.filter((item) => !item.success);
+    const anySucceeded = results.some((item) => item.success);
+
+    if (deferred.length > 0) {
+      // 흡수한 형제까지 **같이** 되돌린다 — 다음 차례에 다시 합쳐지고, 같은 결과를 보고 끝낸 객실을 건너뛴다.
+      await supabase
+        .from("beds24_price_jobs")
+        .update({
+          error: null,
+          failed_room_ids: failures.map((item) => item.externalRoomId),
+          processed_count: allResults.length,
+          results: allResults as never,
+          started_at: null,
+          status: "queued",
+          total_count: targetRoomIds.length,
+        })
+        .in("id", jobIds);
+      console.warn("[beds24/price-job] 쿨다운 — 남은 객실은 다음 차례로", {
+        deferred: deferred.length,
+        jobId: job.id,
+      });
+      if (anySucceeded) await signalBeds24Change(job.organization_id, "rates");
+      return {
+        coalescedJobIds,
+        failed: failures.length,
+        jobId: job.id,
+        ran: true,
+        status: "requeued",
+        succeeded: allResults.length - failures.length,
+      };
+    }
+
+    const status = failures.length === 0
       ? "completed"
-      : failed.length === results.length
+      : failures.length === allResults.length
         ? "failed"
         : "partial_failed";
 
     const completion = {
       completed_at: new Date().toISOString(),
-      error: failed.length > 0 ? failed.map((item) => `${item.externalRoomId}: ${item.error}`).join(" / ") : null,
-      failed_room_ids: failed.map((item) => item.externalRoomId),
-      processed_count: results.length,
-      results: results as never,
+      // 진단용 요약 — 코드만(문구 아님). 화면은 `results` 를 보고 객실별로 번역한다.
+      error: failures.length > 0
+        ? failures.map((item) => `${item.externalRoomId}:${item.error ?? "unknown"}`).join(", ")
+        : null,
+      failed_room_ids: failures.map((item) => item.externalRoomId),
+      processed_count: allResults.length,
+      results: allResults as never,
       status,
       total_count: targetRoomIds.length,
     };
@@ -554,22 +788,33 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
     await supabase
       .from("beds24_price_jobs")
       .update(completion)
-      .in("id", [job.id, ...coalescedJobIds]);
+      .in("id", jobIds);
 
     /*
      * 연결 유닛까지 퍼졌는지는 **완료를 기록한 뒤에** 본다. 안 퍼졌다고 작업을 실패로 만들지
      * 않는 **경고용**이고(소스 쓰기는 성공했고 Beds24 의 전파가 늦은 것일 수 있다), 되읽기에
      * 재시도까지 있어 몇 초가 든다. 예전에는 이걸 끝내야 완료로 적어서 화면의 「반영 완료」가
      * 그만큼 늦었다(2026-09-28). 그 유닛의 로컬 값은 건드리지 않아 다음 동기화가 채운다.
+     *
+     * 쿨다운을 켰으면 건너뛴다 — 둘 다 Beds24 를 읽는다. 로컬 값은 다음 요금 동기화가 맞춘다.
+     * 이 사이엔 `processing` 작업이 없으므로 **박동을 쳐서** 회수기가 잠금을 깨지 않게 한다.
      */
-    if (job.job_type === "price" && acceptedForLinkCheck.length > 0) {
+    if (job.job_type === "price" && acceptedForLinkCheck.length > 0 && !cooledDown) {
+      await touchWorkerLock(supabase, lockId);
+      let rateLimited = false;
       try {
-        await warnUnpropagatedLinks(supabase, job.organization_id, acceptedForLinkCheck, updateByRoomId);
+        rateLimited = await warnUnpropagatedLinks(
+          supabase,
+          job.organization_id,
+          acceptedForLinkCheck,
+          updateByRoomId,
+        );
       } catch (error) {
         console.error("[beds24/price-job] 링크 전파 확인 실패(작업은 이미 완료)", error);
       }
+      await touchWorkerLock(supabase, lockId);
       try {
-        await refreshLinkedLocalRates({
+        if (!rateLimited) await refreshLinkedLocalRates({
           organizationId: job.organization_id,
           roomIdByExternal,
           sourceRoomIds: acceptedForLinkCheck,
@@ -582,20 +827,20 @@ export async function runNextPriceJob(supabase: Client): Promise<PriceJobOutcome
     }
 
     // 쓴 사람 화면은 작업 추적으로 이미 바뀐다 — 이건 **다른 사람**이 보고 있는 화면용이다.
-    if (results.some((item) => item.success)) {
+    if (anySucceeded) {
       await signalBeds24Change(job.organization_id, "rates");
     }
 
     return {
       coalescedJobIds,
-      failed: failed.length,
+      failed: failures.length,
       jobId: job.id,
       ran: true,
       status,
-      succeeded: results.length - failed.length,
+      succeeded: allResults.length - failures.length,
     };
   } finally {
-    await releaseBeds24Lock(supabase, PRICE_JOB_LOCK, lock.lockId);
+    await releaseBeds24Lock(supabase, PRICE_JOB_LOCK, lockId);
   }
 }
 
@@ -659,13 +904,13 @@ async function writeChangeLogs(args: {
   }
 }
 
-/** 연결 유닛에 가격이 퍼졌는지 확인하고, 안 퍼졌으면 크게 남긴다. */
+/** 연결 유닛에 가격이 퍼졌는지 확인하고, 안 퍼졌으면 크게 남긴다. 429 를 맞았으면 쿨다운을 켜고 `true`. */
 async function warnUnpropagatedLinks(
   supabase: Client,
   organizationId: string,
   sourceRoomIds: string[],
   updateByRoomId: Map<string, PriceJobRoomUpdate>,
-): Promise<void> {
+): Promise<boolean> {
   const linked = await supabase
     .from("rooms")
     .select("external_room_id, external_price_source_room_id")
@@ -675,7 +920,7 @@ async function warnUnpropagatedLinks(
     external_room_id: string;
     external_price_source_room_id: string;
   }>;
-  if (rows.length === 0) return;
+  if (rows.length === 0) return false;
 
   const expectationByRoomId = new Map<string, Record<string, ExpectedDateValues>>();
   for (const row of rows) {
@@ -686,12 +931,17 @@ async function warnUnpropagatedLinks(
       expectationByRoomId.set(String(row.external_room_id), expectation);
     }
   }
-  if (expectationByRoomId.size === 0) return;
+  if (expectationByRoomId.size === 0) return false;
 
-  const errors = await verifyWrites({ expectationByRoomId, includeLinkedPrices: true });
-  for (const [externalRoomId, error] of errors) {
-    console.error("[beds24/price-job] Daily Price 링크 미전파 의심", { error, externalRoomId });
+  const verified = await verifyWrites({ expectationByRoomId, includeLinkedPrices: true });
+  if (verified.rateLimit) {
+    await activateBeds24Cooldown(supabase, { reason: "rate_limit", resetInSec: verified.rateLimit.resetInSec });
+    return true;
   }
+  for (const [externalRoomId, failure] of verified.failures) {
+    console.error("[beds24/price-job] Daily Price 링크 미전파 의심", { externalRoomId, failure });
+  }
+  return false;
 }
 
 /**
@@ -735,18 +985,31 @@ async function refreshLinkedLocalRates(args: {
   if (allDates.length === 0) return;
 
   const roomIds = [...sourceOf.keys()];
-  const syncedAt = new Date().toISOString();
   for (let index = 0; index < roomIds.length; index += VERIFY_BATCH_SIZE) {
     const chunk = roomIds.slice(index, index + VERIFY_BATCH_SIZE);
-    const result = await fetchBeds24Calendar({
-      endDate: allDates[allDates.length - 1],
-      externalRoomIds: chunk,
-      includeLinkedPrices: true,
-      includePrices: true,
-      startDate: allDates[0],
-    });
+    let result;
+    try {
+      result = await fetchBeds24Calendar({
+        endDate: allDates[allDates.length - 1],
+        externalRoomIds: chunk,
+        includeLinkedPrices: true,
+        includePrices: true,
+        startDate: allDates[0],
+      });
+    } catch (error) {
+      if (error instanceof Beds24HttpError && error.isRateLimit) {
+        await activateBeds24Cooldown(args.supabase, { reason: "rate_limit", resetInSec: error.resetInSec });
+        return;
+      }
+      throw error;
+    }
     if ("skipped" in result || result.truncated) return;
 
+    const read = (segment: Record<string, unknown>, key: string) => {
+      const value = Number(segment[key]);
+      return segment[key] === undefined || segment[key] === null || !Number.isFinite(value) ? null : value;
+    };
+    const rows: Array<Record<string, unknown>> = [];
     for (const externalRoomId of chunk) {
       const roomId = args.roomIdByExternal.get(externalRoomId);
       const source = sourceOf.get(externalRoomId);
@@ -758,31 +1021,30 @@ async function refreshLinkedLocalRates(args: {
           (entry) => String(entry.from ?? "") <= stayDate && String(entry.to ?? "") >= stayDate,
         );
         if (!segment) continue;
-        const read = (key: string) => {
-          const value = Number(segment[key]);
-          return segment[key] === undefined || segment[key] === null || !Number.isFinite(value) ? null : value;
-        };
-        const saved = await args.supabase.from("room_daily_rates").upsert(
-          {
-            organization_id: args.organizationId,
-            price1: read("price1"),
-            price2: read("price2"),
-            price3: read("price3"),
-            room_id: roomId,
-            stay_date: stayDate,
-            synced_at: syncedAt,
-          } as never,
-          { onConflict: "room_id,stay_date" },
-        );
-        if (saved.error) {
-          console.error("[beds24/price-job] 연결 가격 로컬 반영 실패", {
-            error: saved.error,
-            externalRoomId,
-            stayDate,
-          });
-        }
+        rows.push({
+          organization_id: args.organizationId,
+          price1: read(segment, "price1"),
+          price2: read(segment, "price2"),
+          price3: read(segment, "price3"),
+          room_id: roomId,
+          stay_date: stayDate,
+        });
       }
+    }
+    if (rows.length === 0) continue;
+    // 쓰는 시각 — 요금 동기화는 자기가 시작한 뒤에 쓰인 행을 덮지 않는다.
+    const syncedAt = new Date().toISOString();
+    const saved = await args.supabase
+      .from("room_daily_rates")
+      .upsert(rows.map((row) => ({ ...row, synced_at: syncedAt })) as never, {
+        onConflict: "room_id,stay_date",
+      });
+    if (saved.error) {
+      console.error("[beds24/price-job] 연결 가격 로컬 반영 실패", {
+        error: saved.error,
+        externalRoomIds: chunk,
+        rows: rows.length,
+      });
     }
   }
 }
-

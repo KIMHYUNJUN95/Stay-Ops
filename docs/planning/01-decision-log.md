@@ -2,6 +2,32 @@
 
 This file records important project decisions.
 
+## 2026-09-30 판매 캘린더는 행 단위 데이터를 보내고, 이력·가격 개입은 필요할 때 받는다
+
+격자 데이터는 칸 단위 Map 대신 **행 단위 + 내용 해시**로 보낸다 — 해시가 같은 행은 직전 객체를 재사용해 다시
+그리지 않는다. 칸의 가격 이력(호버 카드)과 가격 개입 전환 목록은 페이지 렌더에서 빼고 서버 액션으로 필요할 때
+받는다(짧은 「불러오는 중」 허용). 행 가상화·`content-visibility` 는 드래그·sticky·갭 스크롤 위험 때문에 보류.
+상세: `docs/product/33-calendar-write-features.md` → 「판매 캘린더 속도 — 행 단위 데이터 · 이력/가격 개입 지연 로드」.
+
+## 2026-09-30 Beds24 락·요금 쓰기 경쟁은 DB 함수 한 문장으로 판정한다
+
+애플리케이션 레벨 「읽고 → upsert」 락(`acquireBeds24Lock`)과 방금 쓴 값 보호(`recent-write-guard`)만으로는
+동시 인스턴스·동시 동기화 경쟁을 완전히 막지 못했다(가부키초 803 사고, 9/30). 앞으로 이런 경쟁은 **DB
+함수 한 문장**(`beds24_try_lock`/`beds24_release_lock`, `upsert_room_daily_rates_if_newer`)으로 판정하고,
+시각은 전부 DB `now()`/컬럼 비교로 잰다 — 앱 시계·읽고 쓰는 두 단계에 기대지 않는다. 두 RPC 모두 생성
+시점부터 `service_role` 전용(`revoke … from public, anon, authenticated`). 상세:
+`docs/product/33-calendar-write-features.md` · `docs/engineering/04-data-model.md` ·
+`docs/engineering/05-rls-permissions.md`.
+
+## 2026-09-30 Beds24 실시간 신호에 범위(scope)를 둘 수 있게 한다
+
+판매 캘린더의 신선도 판정 범위를 좁히면서, 신호(`signalBeds24Change`)와 구독
+(`Beds24LiveRefresh`/`useBeds24LiveRefresh`)이 `{ propertyNames, from, to }` 범위를 실을 수 있게 됐다. 겹치지
+않는 신호는 무시한다(`beds24LiveScopesOverlap`, 모르면 겹친다고 본다). 기존 호출처는 전부 범위 없이(=전체
+수신) 그대로 두고, 판매 캘린더만 신규로 범위를 건다 — 「신호는 공개 채널·데이터 없음」 원칙(2026-09-29)은
+바뀌지 않는다. 상세: `docs/product/33-calendar-write-features.md` → 「판매 캘린더가 스스로 무한 새로고침을
+돌던 것」.
+
 ## 2026-09-11 (2) 채용 Firestore 공개 읽기를 닫았다 — 무중단 전환
 
 **상태.** 몇 달간 지원자 196명의 이름·전화·주소·국적·비자·이력서가 **인증 없이** 읽혔다. 원인은

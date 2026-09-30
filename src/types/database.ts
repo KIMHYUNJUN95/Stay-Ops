@@ -5058,6 +5058,19 @@ export type Database = {
         }
         Returns: string
       }
+      beds24_release_lock: {
+        Args: { p_lock_id: string; p_name: string }
+        Returns: boolean
+      }
+      beds24_try_lock: {
+        Args: {
+          p_lock_id: string
+          p_locked_by: string
+          p_name: string
+          p_ttl_ms: number
+        }
+        Returns: boolean
+      }
       can_manage_attendance_payroll: {
         Args: { target_organization_id: string }
         Returns: boolean
@@ -5221,6 +5234,10 @@ export type Database = {
           p_title: string
         }
         Returns: string[]
+      }
+      upsert_room_daily_rates_if_newer: {
+        Args: { p_rows: Json }
+        Returns: { written_room_id: string; written_stay_date: string }[]
       }
     }
     Enums: {

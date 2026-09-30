@@ -313,9 +313,12 @@ export type SendEntry = {
   dateTo: string | null;
   /** 보낸 값의 범위 — 가격(엔) 또는 최소숙박(박). 차단은 `null`. */
   values: ValueRange;
-  /** 객실별 실패. */
-  failures: Array<{ room: string; error: string }>;
-  /** 작업 전체의 오류, 또는 차단 실패 사유 코드. */
+  /**
+   * 객실별 실패. `error` 는 실패 코드(`PriceJobFailureCode`)이고 `params` 가 그 값들이다 —
+   * 화면이 `describeSendFailure` 로 번역한다. 2026-09-30 전 작업은 한국어 문장이 그대로 온다(`params: null`).
+   */
+  failures: Array<{ room: string; error: string; params: Record<string, string | number> | null }>;
+  /** 차단 실패 사유 코드. 가격·최소숙박 작업은 객실별 실패가 있으면 `null`(같은 내용을 두 번 보이지 않게). */
   error: string | null;
   /** 차단 실패의 세부. */
   detail: string | null;
@@ -362,7 +365,16 @@ const JOB_STATUS: Record<string, SendStatus> = {
 };
 
 type RoomUpdateLike = { externalRoomId?: unknown; roomLabel?: unknown; dates?: unknown };
-type ResultLike = { externalRoomId?: unknown; success?: unknown; error?: unknown };
+type ResultLike = { externalRoomId?: unknown; success?: unknown; error?: unknown; params?: unknown };
+
+function asParams(value: unknown): Record<string, string | number> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const out: Record<string, string | number> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (typeof raw === "string" || typeof raw === "number") out[key] = raw;
+  }
+  return out;
+}
 
 /**
  * 가격·최소숙박 작업 한 건 → 한 줄.
@@ -411,6 +423,7 @@ export function buildJobSendEntry(
       const externalRoomId = String(result.externalRoomId ?? "");
       return {
         error: typeof result.error === "string" && result.error ? result.error : "—",
+        params: asParams(result.params),
         room: nameOf(externalRoomId, labelByExternal.get(externalRoomId)),
       };
     });
@@ -424,7 +437,8 @@ export function buildJobSendEntry(
     dateFrom,
     dateTo,
     detail: null,
-    error: job.error,
+    // `job.error` 는 객실별 실패를 이어 붙인 진단 문자열이다(Beds24 객실 번호 그대로) — 객실별 줄이 있으면 뺀다.
+    error: failures.length > 0 ? null : job.error,
     failures,
     finishedAt: job.completed_at,
     id: `job:${job.id}`,
@@ -435,6 +449,65 @@ export function buildJobSendEntry(
     values,
     waitingMinutes: waiting ? Math.max(0, Math.floor((now - new Date(job.created_at).getTime()) / 60_000)) : null,
   };
+}
+
+/** `{n}` 같은 자리표시를 값으로. 없는 값의 자리는 그대로 둔다. */
+function fillTemplate(template: string, params: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (whole, key: string) =>
+    params[key] === undefined ? whole : String(params[key]),
+  );
+}
+
+/**
+ * 객실별 실패 한 줄 → 보는 사람 언어. **순수하다.**
+ *
+ * `labels` 는 코드 → 문구(`hsFailures`), `sampleTemplate` 은 되읽기 불일치 첫 건 문구(`hsFailSample`,
+ * `{date}` · `{expected}` · `{actual}`). 모르는 코드(옛 작업의 한국어 문장)는 그대로 보여준다.
+ * Beds24 가 준 원문은 `detail` 로만 — 번역하지 않는다.
+ */
+export function describeSendFailure(
+  failure: { error: string; params: Record<string, string | number> | null },
+  labels: Readonly<Record<string, string>>,
+  sampleTemplate: string,
+  formatValue: (value: number, field: "price" | "minStay") => string,
+): { text: string; detail: string | null } {
+  const label = labels[failure.error];
+  if (!label) return { detail: null, text: failure.error };
+  const params = failure.params ?? {};
+  const text = fillTemplate(label, params);
+  if (failure.error === "verify_mismatch" && typeof params.date === "string" && params.date) {
+    const field = params.field === "minStay" ? "minStay" : "price";
+    const show = (value: string | number | undefined) =>
+      typeof value === "number" ? formatValue(value, field) : "—";
+    const date = `${params.date.slice(5, 7)}/${params.date.slice(8, 10)}`;
+    return {
+      detail: fillTemplate(sampleTemplate, { actual: show(params.actual), date, expected: show(params.expected) }),
+      text,
+    };
+  }
+  const detail = params.detail;
+  return { detail: detail === undefined || detail === "" ? null : String(detail), text };
+}
+
+/**
+ * 차단 실패 세부(`beds24_block_logs.detail`) — `객실번호:코드, …` 에서 **자리표시 없는 코드**만
+ * 문구로 바꾼다(`room_rejected` · `bad_response`). 나머지(숫자 · Beds24 원문)는 그대로다.
+ */
+export function localizeSendDetail(detail: string, labels: Readonly<Record<string, string>>): string {
+  const plain = (code: string) => {
+    const label = labels[code];
+    return label && !label.includes("{") ? label : null;
+  };
+  return detail
+    .split(", ")
+    .map((part) => {
+      const whole = plain(part);
+      if (whole) return whole;
+      const cut = part.indexOf(":");
+      const label = cut > 0 ? plain(part.slice(cut + 1)) : null;
+      return label ? `${part.slice(0, cut)}: ${label}` : part;
+    })
+    .join(", ");
 }
 
 function nightsBetween(startDate: string, endDate: string): number {

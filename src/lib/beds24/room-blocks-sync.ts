@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getOptionalBeds24ApiEnv } from "@/lib/env";
 import type { Database } from "@/types/database";
 import { signalBeds24Change } from "@/lib/beds24/live-signal";
+import { tokyoDateOf } from "@/lib/tokyo-date";
 
 /**
  * Beds24 캘린더 「블락」을 가져온다 (2026-09-11).
@@ -107,9 +108,9 @@ async function resolveBeds24AccessToken(): Promise<Beds24AccessTokenState> {
 
 /** 예약 백필과 같은 운영 창을 쓴다 — 당월 1일부터 2개월 뒤 1일 전날까지. */
 export function buildRoomBlockWindow(now = new Date()): { from: string; to: string } {
-  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const year = jst.getUTCFullYear();
-  const month = jst.getUTCMonth();
+  const [year, monthNumber] = (tokyoDateOf(now.toISOString()) as string).split("-").map(Number);
+  const month = monthNumber - 1;
+  // 도쿄 달력의 연·월을 받은 뒤의 UTC 는 시간대가 아니라 달력 계산용이다.
   const from = new Date(Date.UTC(year, month, 1));
   // 2개월 뒤 1일의 전날 = 창의 마지막 날(포함).
   const to = new Date(Date.UTC(year, month + 3, 0));
@@ -129,18 +130,74 @@ type FetchOutcome = {
   properties: number;
   openEndedSkipped: number;
   skipped: string[];
+  /** 끝까지 읽은 건물(Beds24 `propertyId`). 지우고 다시 넣는 범위는 **이 건물들로만** 한정한다. */
+  fetchedPropertyIds: string[];
 };
+
+export type BlockIdentity = {
+  organization_id: string;
+  property_name: string;
+  external_room_id: string | null;
+  start_date: string;
+  end_date: string;
+};
+
+/** 지운 것과 넣은 것 중 **한쪽에만 있는** 블락 — **순수 함수**. 비면 아무것도 안 바뀌었다. */
+export function diffBlockSets(
+  removed: ReadonlyArray<BlockIdentity>,
+  inserted: ReadonlyArray<BlockIdentity>,
+): BlockIdentity[] {
+  const keyOf = (block: BlockIdentity) =>
+    [block.organization_id, block.property_name, block.external_room_id ?? "", block.start_date, block.end_date].join("|");
+  const removedKeys = new Set(removed.map(keyOf));
+  const insertedKeys = new Set(inserted.map(keyOf));
+  return [
+    ...removed.filter((block) => !insertedKeys.has(keyOf(block))),
+    ...inserted.filter((block) => !removedKeys.has(keyOf(block))),
+  ];
+}
+
+/** 캘린더 응답 쪽 수 상한 — `room-rates-sync.ts` 와 같다. 넘으면 그 건물은 못 읽은 것으로 본다. */
+const CALENDAR_MAX_PAGES = 20;
+
+/**
+ * 지워도 되는 건물 이름 — **순수 함수**.
+ *
+ * 창 안의 블락을 지우고 다시 넣으므로, 끝까지 읽지 못한 건물을 지우면 그 건물의 차단 표시가 다시
+ * 들어오지 않고 사라진다. 끝까지 읽은 건물의 이름만 돌려준다. 좁힌 건물(`only`)이 있으면 그 안에서만.
+ */
+export function resolveBlockDeleteScope(args: {
+  fetchedPropertyIds: ReadonlyArray<string>;
+  propertyNameByExternalId: ReadonlyMap<string, string>;
+  only?: ReadonlySet<string>;
+}): string[] {
+  const names = new Set<string>();
+  for (const id of args.fetchedPropertyIds) {
+    if (args.only && !args.only.has(id)) continue;
+    const name = args.propertyNameByExternalId.get(id);
+    if (name) names.add(name);
+  }
+  return [...names];
+}
 
 async function fetchBlackoutSegments(
   window: { from: string; to: string },
   onlyPropertyIds?: ReadonlySet<string>,
 ): Promise<FetchOutcome> {
   const env = getOptionalBeds24ApiEnv();
-  if (!env) return { blocks: [], properties: 0, openEndedSkipped: 0, skipped: ["room-blocks:missing-env"] };
+  if (!env) {
+    return {
+      blocks: [],
+      fetchedPropertyIds: [],
+      openEndedSkipped: 0,
+      properties: 0,
+      skipped: ["room-blocks:missing-env"],
+    };
+  }
 
   const tokenState = await resolveBeds24AccessToken();
   if (!tokenState.ok) {
-    return { blocks: [], properties: 0, openEndedSkipped: 0, skipped: [tokenState.skipped] };
+    return { blocks: [], fetchedPropertyIds: [], openEndedSkipped: 0, properties: 0, skipped: [tokenState.skipped] };
   }
 
   const base = env.baseUrl.replace(/\/$/, "");
@@ -159,8 +216,9 @@ async function fetchBlackoutSegments(
     if (!propertiesResponse.ok) {
       return {
         blocks: [],
-        properties: 0,
+        fetchedPropertyIds: [],
         openEndedSkipped: 0,
+        properties: 0,
         skipped: [`room-blocks:properties-http-${propertiesResponse.status}`],
       };
     }
@@ -170,6 +228,7 @@ async function fetchBlackoutSegments(
 
   const blocks: FetchedBlock[] = [];
   const skipped: string[] = [];
+  const fetchedPropertyIds: string[] = [];
   let openEndedSkipped = 0;
   let properties = 0;
 
@@ -185,14 +244,40 @@ async function fetchBlackoutSegments(
       // 매번 다른 주소로 — 같은 주소에 옛 응답이 돌아온 정황(2026-09-30, `recent-write-guard.ts`).
       `&_ts=${Date.now()}`;
 
-    const response = await fetch(url, { headers, cache: "no-store" });
-    if (!response.ok) {
-      skipped.push(`room-blocks:calendar-${externalPropertyId}-http-${response.status}`);
+    // `pages.nextPageExists` 를 끝까지 따라간다. 도중에 실패하거나 상한에 걸리면 **그 건물 전체를**
+    // 못 읽은 것으로 본다 — 반만 읽고 지우면 뒤쪽 블락이 사라진다.
+    const rooms: unknown[] = [];
+    let nextUrl: string | null = url;
+    let pageCount = 0;
+    let failure: string | null = null;
+    try {
+      while (nextUrl) {
+        if (pageCount >= CALENDAR_MAX_PAGES) {
+          failure = "paging-capped";
+          break;
+        }
+        const response: Response = await fetch(nextUrl, { headers, cache: "no-store" });
+        if (!response.ok) {
+          failure = `http-${response.status}`;
+          break;
+        }
+        const root = asRecord(await response.json());
+        pageCount++;
+        if (Array.isArray(root?.data)) rooms.push(...root.data);
+        const paging = root ? asRecord(root.pages) : null;
+        nextUrl = paging?.nextPageExists === true ? readString(paging, ["nextPageLink"]) : null;
+        if (paging?.nextPageExists === true && !nextUrl) failure = "paging-no-link";
+      }
+    } catch (error) {
+      console.error("[beds24/room-blocks] calendar fetch failed", { externalPropertyId, error });
+      failure = "request-error";
+    }
+    if (failure) {
+      skipped.push(`room-blocks:calendar-${externalPropertyId}-${failure}`);
       continue;
     }
+    fetchedPropertyIds.push(externalPropertyId);
 
-    const root = asRecord(await response.json());
-    const rooms = Array.isArray(root?.data) ? root.data : [];
     for (const roomValue of rooms) {
       const room = asRecord(roomValue);
       if (!room) continue;
@@ -221,7 +306,7 @@ async function fetchBlackoutSegments(
     }
   }
 
-  return { blocks, properties, openEndedSkipped, skipped };
+  return { blocks, fetchedPropertyIds, properties, openEndedSkipped, skipped };
 }
 
 /**
@@ -284,14 +369,14 @@ export async function syncBeds24RoomBlocks(
       | null;
   };
   const roomMap = new Map<string, { organizationId: string; propertyName: string; roomLabel: string }>();
-  /** 건물을 좁혔을 때 지울 범위 — `room_blocks` 는 건물 **이름**으로 저장돼 있다. */
-  const targetPropertyNames = new Set<string>();
+  /** 지울 범위를 정할 때 쓴다 — `room_blocks` 는 건물 **이름**으로 저장돼 있다. */
+  const propertyNameByExternalId = new Map<string, string>();
   for (const row of (roomResult.data ?? []) as RoomRow[]) {
     if (!row.external_room_id) continue;
     const property = Array.isArray(row.properties) ? row.properties[0] : row.properties;
     if (!property?.name) continue;
-    if (only && property.external_property_id && only.has(String(property.external_property_id))) {
-      targetPropertyNames.add(property.name);
+    if (property.external_property_id) {
+      propertyNameByExternalId.set(String(property.external_property_id), property.name);
     }
     roomMap.set(row.external_room_id, {
       organizationId: row.organization_id,
@@ -300,6 +385,13 @@ export async function syncBeds24RoomBlocks(
     });
   }
 
+  const deletePropertyNames = resolveBlockDeleteScope({
+    fetchedPropertyIds: fetched.fetchedPropertyIds,
+    only,
+    propertyNameByExternalId,
+  });
+  const deletable = new Set(deletePropertyNames);
+
   const rows: Database["public"]["Tables"]["room_blocks"]["Insert"][] = [];
   for (const block of fetched.blocks) {
     const room = roomMap.get(block.externalRoomId);
@@ -307,6 +399,8 @@ export async function syncBeds24RoomBlocks(
       result.unresolvedRooms++;
       continue;
     }
+    // 지우지 않는 건물에 넣으면 같은 블락이 겹겹이 쌓인다.
+    if (!deletable.has(room.propertyName)) continue;
     rows.push({
       organization_id: room.organizationId,
       source: "beds24",
@@ -321,27 +415,24 @@ export async function syncBeds24RoomBlocks(
   }
   result.blocks = rows.length;
 
-  // Beds24 를 못 읽었으면(토큰·HTTP 실패) 기존 블락을 지우지 않는다. 빈 결과와 「못 읽음」을
-  // 구분하지 않으면 장애 한 번에 캘린더의 차단 표시가 통째로 사라진다.
-  if (fetched.skipped.length > 0 && rows.length === 0) {
-    return result;
-  }
+  // 끝까지 읽은 건물만 지우고 다시 넣는다. 못 읽은 건물(토큰·HTTP·쪽 넘김 실패)의 기존 블락은
+  // 그대로 둔다 — 빈 결과와 「못 읽음」을 구분하지 않으면 장애 한 번에 차단 표시가 사라진다.
+  // 이름을 하나도 못 찾았으면 **아무것도 지우지 않는다**(조건 없이 지우면 전 건물이 지워진다).
+  if (deletePropertyNames.length === 0) return result;
 
   let deleteQuery = supabase
     .from("room_blocks")
     .delete()
     .eq("source", "beds24")
     .gte("start_date", window.from)
-    .lte("start_date", window.to);
+    .lte("start_date", window.to)
+    .in("property_name", deletePropertyNames);
   if (options?.organizationId) {
     deleteQuery = deleteQuery.eq("organization_id", options.organizationId);
   }
-  if (only) {
-    // 건물을 좁혔는데 이름을 못 찾았으면 **아무것도 지우지 않는다** — 전 건물이 지워진다.
-    if (targetPropertyNames.size === 0) return result;
-    deleteQuery = deleteQuery.in("property_name", [...targetPropertyNames]);
-  }
-  const deleteResult = await deleteQuery.select("id");
+  const deleteResult = await deleteQuery.select(
+    "organization_id, property_name, external_room_id, start_date, end_date",
+  );
   if (deleteResult.error) {
     result.skipped.push(`room-blocks:delete-${deleteResult.error.message}`);
     return result;
@@ -356,9 +447,19 @@ export async function syncBeds24RoomBlocks(
     }
   }
 
-  const touchedOrganizations = new Set(rows.map((row) => row.organization_id));
-  if (options?.organizationId) touchedOrganizations.add(options.organizationId);
-  if (result.removed > 0 || result.blocks > 0) await signalBeds24Change(touchedOrganizations, "blocks");
+  // 지우고 다시 넣으므로 행 수로는 바뀌었는지 모른다. **구간이 달라진 블락이 있을 때만** 알린다 —
+  // 매번 알리면 열려 있는 화면이 동기화마다 괜히 다시 읽는다.
+  const changed = diffBlockSets(
+    (deleteResult.data ?? []) as BlockIdentity[],
+    result.blocks > 0 ? (rows as BlockIdentity[]) : [],
+  );
+  if (changed.length > 0) {
+    await signalBeds24Change(new Set(changed.map((block) => block.organization_id)), "blocks", {
+      from: changed.reduce((min, block) => (block.start_date < min ? block.start_date : min), changed[0].start_date),
+      propertyNames: [...new Set(changed.map((block) => block.property_name))],
+      to: changed.reduce((max, block) => (block.end_date > max ? block.end_date : max), changed[0].end_date),
+    });
+  }
 
   return result;
 }

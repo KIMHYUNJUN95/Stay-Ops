@@ -11,6 +11,8 @@ import { useAdminPanelA11y } from "@/components/admin/shared/use-admin-panel-a11
 import {
   appendChangeGroups,
   collapseCellRuns,
+  describeSendFailure,
+  localizeSendDetail,
   SEND_STALL_MINUTES,
   type ChangeField,
   type ChangeGroup,
@@ -68,6 +70,10 @@ export type HistoryPanelCopy = {
   hsSending: string;
   hsFinished: string;
   hsReasons: Record<string, string>;
+  /** 가격·최소숙박 작업의 객실별 실패 코드 → 문구(`describeSendFailure`). `{n}` · `{status}` 자리표시. */
+  hsFailures: Record<string, string>;
+  /** 되읽기 불일치 첫 건 — `{date}` · `{expected}` · `{actual}`. */
+  hsFailSample: string;
   /** 「지금 보내기」 결과 — `sent` · `empty` · `cooldown`({n}초) · `lock_busy` · `lock_error` · `failed` · `forbidden`. */
   hsSendResult: Record<string, string>;
   minStay: string;
@@ -470,15 +476,30 @@ export function OpsHistoryPanel({ copy, onClose }: { copy: HistoryPanelCopy; onC
                           {entry.error && (
                             <div className="opshs__err">
                               {copy.hsReasons[entry.error] ?? entry.error}
-                              {entry.detail && <span className="opshs__errdetail">{entry.detail}</span>}
+                              {entry.detail && (
+                                <span className="opshs__errdetail">
+                                  {localizeSendDetail(entry.detail, copy.hsFailures)}
+                                </span>
+                              )}
                             </div>
                           )}
-                          {entry.failures.map((failure, index) => (
-                            <div className="opshs__err" key={`${failure.room}-${index}`}>
-                              <b>{failure.room}</b>
-                              <span className="opshs__errdetail">{failure.error}</span>
-                            </div>
-                          ))}
+                          {entry.failures.map((failure, index) => {
+                            const described = describeSendFailure(
+                              failure,
+                              copy.hsFailures,
+                              copy.hsFailSample,
+                              (value, field) => formatValue(value, field, copy),
+                            );
+                            return (
+                              <div className="opshs__err" key={`${failure.room}-${index}`}>
+                                <b>{failure.room}</b>
+                                <span>{described.text}</span>
+                                {described.detail && (
+                                  <span className="opshs__errdetail">{described.detail}</span>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </li>

@@ -1897,3 +1897,40 @@ Constraints / behavior:
 | `amount` · `percent` · `min_stay` | 우리 앱 가격·최소숙박 작업(워커, `job_id` 있음) |
 | `block` | 우리 앱 차단·해제(서버 액션, `job_id` 없음 — 같은 시각으로 묶는다) |
 | `beds24` | Beds24 에서 바뀐 것을 요금 동기화가 이전 값과 비교해 잡은 것(가격 `price1` · 최소숙박 · 차단) |
+
+## 2026-09-30 `beds24_try_lock` / `beds24_release_lock` — 락을 DB 가 한 문장으로 판정
+
+마이그레이션: `supabase/migrations/202609300001_beds24_lock_rpc.sql` (운영 적용 2026-09-30).
+계약: `docs/product/33-calendar-write-features.md` → 「Beds24 락이 「읽고 → upsert」 경쟁을 지던 것」.
+
+`beds24_sync_locks`(`202609240002_beds24_sync_locks.sql`)를 잡고 놓던 예전 방식은 **읽고 → upsert** 두
+단계였다 — 두 인스턴스가 같은 순간 읽으면 둘 다 「비어 있다」로 보고 둘 다 락을 잡았다고 믿었다.
+
+| 함수 | 시그니처 | 하는 일 |
+| --- | --- | --- |
+| `beds24_try_lock` | `(p_name text, p_locked_by text, p_ttl_ms integer, p_lock_id text) returns boolean` | `insert … on conflict (name) do update … where l.expires_at <= now()` — 만료된 행만 덮어쓴다. 시각은 전부 DB `now()` |
+| `beds24_release_lock` | `(p_name text, p_lock_id text) returns boolean` | 그 `lock_id`(metadata 안)일 때만 `expires_at = now()` 로 만료시킨다. 지우지 않는다 — 진단에 쓸모 있다 |
+
+둘 다 `language sql`, `SECURITY INVOKER`(정의자 권한이 필요 없다 — 호출자가 이미 service_role). **호출자는
+service_role 뿐이다**: `revoke all … from public, anon, authenticated` 후 `grant execute … to service_role`.
+호출부: `src/lib/beds24/sync-locks.ts` → `acquireBeds24Lock`/`releaseBeds24Lock`. 워커의 심장 박동
+(`touchWorkerLock`)과 고아 잠금 회수(`breakOrphanedWorkerLock`)도 `beds24_release_lock` 을 그대로 쓴다.
+
+## 2026-09-30 `upsert_room_daily_rates_if_newer` — 요금 동기화가 더 새 값을 못 덮게
+
+마이그레이션: `supabase/migrations/202609300002_room_daily_rates_upsert_if_newer.sql` (운영 적용 2026-09-30).
+대상 테이블: `room_daily_rates`(`202609170002_room_daily_rates.sql`). 계약:
+`docs/product/33-calendar-write-features.md` → 「요금 upsert 가 DB 에서 한 번 더 「더 새 값」을 지킨다」.
+
+`upsert_room_daily_rates_if_newer(p_rows jsonb) returns table (written_room_id uuid, written_stay_date date)`
+— `p_rows` 는 `(organization_id, room_id, stay_date, price1, price2, price3, min_stay, max_stay, num_avail,
+override_kind, synced_at)` 레코드 배열(jsonb). `on conflict (room_id, stay_date) do update … where
+r.synced_at < excluded.synced_at and r.organization_id = excluded.organization_id` — 기존 행의
+`synced_at` 이 이번 값보다 **크면**(그 사이 다른 쓰기가 더 나중에 반영됐으면) 그 칸은 건너뛴다. **실제로
+쓴 `(room_id, stay_date)` 만 반환**한다 — 호출부가 건너뛴 칸을 「Beds24 가 바꿨다」로 잘못 남기지 않게.
+
+호출자는 service_role 뿐(`revoke … from public, anon, authenticated` / `grant execute … to service_role`).
+`language sql`, `SECURITY INVOKER`. 호출부: `src/lib/beds24/room-rates-sync.ts`(요금 동기화) ·
+`src/lib/beds24/price-job-worker.ts` 의 `patchLocalRates`/`refreshLinkedLocalRates`(가격 작업 워커가 검증
+통과 값을 즉시 로컬에 반영할 때)는 일반 `upsert()` 를 쓰되 자기 쓰기 시각을 `synced_at` 으로 찍어 같은
+규약을 지킨다.

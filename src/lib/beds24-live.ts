@@ -11,9 +11,50 @@
  * 다시 쓰므로 알림이 행 수만큼 쏟아진다.
  */
 
+import { getCanonicalPropertyName } from "@/lib/room-label-normalization";
+
 export const BEDS24_LIVE_EVENT = "changed";
 
 export type Beds24LiveKind = "reservations" | "rates" | "blocks";
+
+/**
+ * 신호가 **어디를** 바꿨는지 / 화면이 **어디를** 보여주는지. 둘 다 선택이다 — 없는 쪽은 「전부」다.
+ *
+ * - `propertyNames`: 우리 건물 이름(표시 이름이든 DB 이름이든 — 비교 전에 정규화한다). 빈 배열도 「전부」.
+ * - `from` · `to`: `YYYY-MM-DD`, **양끝 포함**. 한쪽만 있으면 그쪽만 막힌 구간이다.
+ *
+ * 걸러내기일 뿐 속도 제한이 아니다 — 겹치는 신호는 전부 그대로 새로고침으로 간다.
+ */
+export type Beds24LiveScope = {
+  propertyNames?: string[] | null;
+  from?: string | null;
+  to?: string | null;
+};
+
+export type Beds24LivePayload = {
+  at: number;
+  kind: Beds24LiveKind;
+  scope?: Beds24LiveScope | null;
+};
+
+/** 신호 범위와 화면 범위가 겹치는가. 어느 쪽이든 모르면 겹친다고 본다(놓치는 것보다 한 번 더 읽는 게 낫다). */
+export function beds24LiveScopesOverlap(
+  signal: Beds24LiveScope | null | undefined,
+  view: Beds24LiveScope | null | undefined,
+): boolean {
+  if (!signal || !view) return true;
+
+  const signalProperties = signal.propertyNames?.filter(Boolean) ?? [];
+  const viewProperties = view.propertyNames?.filter(Boolean) ?? [];
+  if (signalProperties.length > 0 && viewProperties.length > 0) {
+    const wanted = new Set(viewProperties.map(getCanonicalPropertyName));
+    if (!signalProperties.some((name) => wanted.has(getCanonicalPropertyName(name)))) return false;
+  }
+
+  if (signal.from && view.to && signal.from > view.to) return false;
+  if (signal.to && view.from && signal.to < view.from) return false;
+  return true;
+}
 
 export function beds24LiveTopic(organizationId: string): string {
   return `beds24-live:${organizationId}`;

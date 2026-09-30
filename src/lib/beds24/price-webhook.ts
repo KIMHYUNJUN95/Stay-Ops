@@ -27,7 +27,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { syncBeds24RoomRates } from "@/lib/beds24/room-rates-sync";
 import { syncBeds24RoomBlocks } from "@/lib/beds24/room-blocks-sync";
-import { acquireBeds24Lock, releaseBeds24Lock } from "@/lib/beds24/sync-locks";
+import { hasPendingPriceJobs } from "@/lib/beds24/price-job-queue";
+import { acquireBeds24Lock, getBeds24Cooldown, releaseBeds24Lock } from "@/lib/beds24/sync-locks";
 import type { Database } from "@/types/database";
 
 type JsonRecord = Record<string, unknown>;
@@ -53,24 +54,36 @@ const TRAILING_LOCK_TTL_MS = 55_000;
 /**
  * 한 건물을 다시 읽는다 — 요금(12개월: 가격 · 재고 · 최소숙박 · 차단)과 현장 예약 캘린더의 차단
  * 막대(`room_blocks`, 3개월). 재고 웹훅은 이 둘을 다 바꾸는 신호라 같이 맞춘다.
+ *
+ * 다른 요금 경로(`rates-refresh.ts` · 주기 동기화)와 같은 규칙으로 **물러난다** — 쿨다운 중이면
+ * 크레딧이 안 풀리고, 쓰기 작업이 돌고 있으면 그 되받이 웹훅일 가능성이 높다. 물러난 변경은
+ * 다음 주기 동기화가 가져온다. 그래도 옛 값이 새 값을 덮지 못하는 것은
+ * `upsert_room_daily_rates_if_newer` 가 보장한다.
  */
 async function refreshProperty(
   supabase: SupabaseClient<Database>,
   organizationId: string,
   externalPropertyId: string,
-) {
+): Promise<{ yielded: "cooldown" | "price_job" } | { yielded: null; rows: number }> {
+  const cooldown = await getBeds24Cooldown(supabase);
+  if (cooldown.active) return { yielded: "cooldown" };
+  if (await hasPendingPriceJobs(supabase)) return { yielded: "price_job" };
+
   const rates = await syncBeds24RoomRates(organizationId, supabase, undefined, {
     externalPropertyIds: [externalPropertyId],
   });
   // 차단 막대는 실패해도 요금 갱신을 되돌리지 않는다 — 6시간 정합성 크론이 안전망이다.
-  const blocks = await syncBeds24RoomBlocks(supabase, {
+  await syncBeds24RoomBlocks(supabase, {
     externalPropertyIds: [externalPropertyId],
     organizationId,
   }).catch((error) => {
     console.error("[beds24/price-webhook] room block refresh failed", error);
-    return null;
   });
-  return { blocks, rates };
+  return { rows: rates.rows, yielded: null };
+}
+
+function describeRefresh(refreshed: Awaited<ReturnType<typeof refreshProperty>>) {
+  return refreshed.yielded ? { yielded: refreshed.yielded } : { rows: refreshed.rows };
 }
 
 function readString(record: JsonRecord, keys: string[]): string | null {
@@ -82,22 +95,6 @@ function readString(record: JsonRecord, keys: string[]): string | null {
   return null;
 }
 
-/** 같은 초의 배달 경합 창 — 잠금을 잡고 이만큼 뒤에 아직 내 것인지 다시 본다. */
-const RUN_LOCK_SETTLE_MS = 150;
-
-/**
- * 「지금 읽기」 잠금. `acquireBeds24Lock` 은 읽고-쓰고-되읽는 방식이라 **정말 같은 순간**의 두
- * 요청이 둘 다 자기 것으로 볼 수 있다. 잠깐 뒤 한 번 더 확인해 늦게 쓴 쪽만 남긴다.
- * 잡았으면 lockId, 못 잡았으면 `null`.
- */
-async function claimRunLock(supabase: SupabaseClient<Database>, name: string): Promise<string | null> {
-  const lock = await acquireBeds24Lock(supabase, name, "price-webhook", TRAILING_LOCK_TTL_MS);
-  if (!lock.acquired) return null;
-  await new Promise((resolve) => setTimeout(resolve, RUN_LOCK_SETTLE_MS));
-  const current = await supabase.from("beds24_sync_locks").select("metadata").eq("name", name).maybeSingle();
-  const stored = (current.data as { metadata: { lockId?: string } | null } | null)?.metadata;
-  return stored?.lockId === lock.lockId ? lock.lockId : null;
-}
 
 export type PriceWebhookSignal = {
   action: string | null;
@@ -138,14 +135,18 @@ export type PriceWebhookResult =
       reason: "debounced" | "debounced_trailing";
       externalPropertyId: string;
       /** 응답 뒤에 돌릴 일(라우트가 `after()` 로 부른다). 없으면 이미 누가 예약했다. */
-      trailing?: () => Promise<void>;
+      deferred?: () => Promise<void>;
     }
   | {
       handled: true;
       skipped: false;
       externalPropertyId: string;
       organizationId: string;
-      rows: number;
+      /**
+       * 건물 다시 읽기 — **응답 뒤에** 돈다(라우트가 `after()` 로 부른다). 12개월 읽기를 기다렸다
+       * 응답하면 Beds24 가 늦은 응답을 실패로 보고 재배달한다.
+       */
+      deferred: () => Promise<void>;
     };
 
 /**
@@ -249,7 +250,7 @@ export async function processBeds24PriceWebhook(args: {
       handled: true,
       reason: "debounced_trailing",
       skipped: true,
-      trailing: async () => {
+      deferred: async () => {
         await new Promise((resolve) => setTimeout(resolve, waitMs));
         // **읽기 전에 락을 푼다.** 읽는 동안 들어온 배달이 또 한 번을 예약할 수 있어야 한다 —
         // 쥔 채로 읽으면 그 배달은 「이미 예약됨」으로 버려지고, 읽기가 그 변경을 놓칠 수 있다.
@@ -257,7 +258,7 @@ export async function processBeds24PriceWebhook(args: {
         const refreshed = await refreshProperty(supabase, organizationId, externalPropertyId);
         console.log("[beds24/price-webhook] trailing refresh", {
           externalPropertyId,
-          rows: refreshed.rates.rows,
+          ...describeRefresh(refreshed),
         });
       },
     };
@@ -275,21 +276,24 @@ export async function processBeds24PriceWebhook(args: {
    * 로 돌린다 — 읽는 도중에 들어온 변경을 그 읽기가 못 봤을 수 있기 때문이다.
    */
   const runLockName = `price-webhook-run:${externalPropertyId}`;
-  const runLock = await claimRunLock(supabase, runLockName);
-  if (!runLock) return scheduleTrailing(Date.now());
-
-  let result: Awaited<ReturnType<typeof refreshProperty>>["rates"];
-  try {
-    ({ rates: result } = await refreshProperty(supabase, organizationId, externalPropertyId));
-  } finally {
-    await releaseBeds24Lock(supabase, runLockName, runLock);
-  }
+  const runLock = await acquireBeds24Lock(supabase, runLockName, "price-webhook", TRAILING_LOCK_TTL_MS);
+  if (!runLock.acquired) return scheduleTrailing(Date.now());
 
   return {
     handled: true,
     skipped: false,
     externalPropertyId,
     organizationId,
-    rows: result.rows,
+    deferred: async () => {
+      try {
+        const refreshed = await refreshProperty(supabase, organizationId, externalPropertyId);
+        console.log("[beds24/price-webhook] refresh", {
+          externalPropertyId,
+          ...describeRefresh(refreshed),
+        });
+      } finally {
+        await releaseBeds24Lock(supabase, runLockName, runLock.lockId);
+      }
+    },
   };
 }

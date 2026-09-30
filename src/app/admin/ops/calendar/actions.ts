@@ -31,7 +31,14 @@ import {
 } from "@/lib/beds24/block-write";
 import { groupSelectionIntoRanges } from "@/lib/ops-calendar-selection";
 import { canAccessOpsAdmin } from "@/lib/ops-admin";
-import { opsChannelOf, readOpsRoomUnavailableNights } from "@/lib/ops-calendar";
+import {
+  getOpsPriceConversions,
+  opsChannelOf,
+  readOpsCellHistory,
+  readOpsRoomUnavailableNights,
+  type OpsPriceConversion,
+} from "@/lib/ops-calendar";
+import type { CellHistory } from "@/lib/ops-price-history";
 import {
   addedNights,
   buildBeds24BookingUpdate,
@@ -1173,11 +1180,12 @@ export async function sendPendingPriceJobs(): Promise<SendPendingResult> {
   try {
     // 첫 작업은 **기다린다**(보통 몇 초) — 결과를 사람에게 돌려주려고. 남은 것은 응답 뒤에.
     const first = await runNextPriceJob(supabase);
-    if (first.ran) {
+    if (first.ran && first.status !== "requeued") {
       after(kickWorker);
       return { ok: true, outcome: "sent" };
     }
-    if (first.reason === "cooldown") {
+    // `requeued` — 보내던 중 쿨다운에 걸려 남은 객실을 다시 대기로 돌렸다. 「보냄」이 아니다.
+    if (first.ran || first.reason === "cooldown") {
       const cooldown = await getBeds24Cooldown(supabase);
       return { cooldownSec: cooldown.remainingSec, ok: false, outcome: "cooldown" };
     }
@@ -1185,5 +1193,70 @@ export async function sendPendingPriceJobs(): Promise<SendPendingResult> {
   } catch (error) {
     console.error("[ops/calendar] send now failed", error);
     return { ok: false, outcome: "failed" };
+  }
+}
+
+export type OpsCellHistoryResult =
+  | { ok: true; history: CellHistory | null }
+  | { ok: false; error: "forbidden" | "bad_request" | "failed" };
+
+/** 한 행 뒤의 유닛은 많아야 몇 개다 — 넉넉히 잡되 끝은 둔다. */
+const CELL_HISTORY_MAX_ROOM_IDS = 20;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * 칸 하나의 변경 이력 — 가격 칸 호버 카드가 뜰 때 부른다(2026-09-30 속도).
+ *
+ * 예전에는 창 전체 이력을 페이지와 함께 보냈다. 이제 페이지는 「이력이 있는 칸」 표시만 싣고, 목록은
+ * 그 칸을 볼 때만 여기서 받는다. 조회는 **세션의 조직으로** 거른다 — 넘어온 유닛 id 가 다른 조직의
+ * 것이면 아무것도 나오지 않는다(서비스 키라 RLS 가 막아 주지 않으므로 조직 조건이 곧 경계다).
+ */
+export async function loadOpsCellHistory(args: { roomIds: string[]; date: string }): Promise<OpsCellHistoryResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+  if (
+    !Array.isArray(args.roomIds) ||
+    args.roomIds.length === 0 ||
+    args.roomIds.length > CELL_HISTORY_MAX_ROOM_IDS ||
+    !args.roomIds.every((id) => typeof id === "string" && UUID_PATTERN.test(id)) ||
+    typeof args.date !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(args.date)
+  ) {
+    return { error: "bad_request", ok: false };
+  }
+  try {
+    const history = await readOpsCellHistory({
+      date: args.date,
+      organizationId: session.organization.id,
+      roomIds: args.roomIds,
+      supabase: getSupabaseServiceClient(),
+    });
+    return { history, ok: true };
+  } catch (error) {
+    console.error("[ops-calendar] cell history read failed", error);
+    return { error: "failed", ok: false };
+  }
+}
+
+export type OpsPriceConversionsResult =
+  | { ok: true; conversions: OpsPriceConversion[] }
+  | { ok: false; error: "forbidden" | "failed" };
+
+/**
+ * 가격 개입 전환(최근 90일) — 격자가 그린 뒤 따로 받는다(2026-09-30 속도).
+ *
+ * 창과 무관하고 판정이 가장 느린 단계라 페이지 렌더에서 뺐다. 건물을 고르면 그 건물 것만.
+ */
+export async function loadOpsPriceConversions(args: { property?: string | null }): Promise<OpsPriceConversionsResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+  try {
+    const conversions = await getOpsPriceConversions(session, {
+      property: typeof args.property === "string" && args.property ? args.property : undefined,
+    });
+    return { conversions, ok: true };
+  } catch (error) {
+    console.error("[ops-calendar] price conversions read failed", error);
+    return { error: "failed", ok: false };
   }
 }

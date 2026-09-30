@@ -2,8 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveBeds24AccessToken } from "@/lib/beds24/access-token";
 import { getOptionalBeds24ApiEnv } from "@/lib/env";
 import { detectExternalRateChanges, type RateSnapshot } from "@/lib/beds24/external-price-changes";
-import type { Database } from "@/types/database";
+import type { Database, Json } from "@/types/database";
 import { signalBeds24Change } from "@/lib/beds24/live-signal";
+import { tokyoDateOf, ymdShift } from "@/lib/tokyo-date";
 import { findRowsContradictingRecentWrites, type RecentWrite } from "@/lib/beds24/recent-write-guard";
 
 /**
@@ -135,13 +136,11 @@ async function fetchCalendarPages(
 const RECENT_WRITE_GUARD_MS = 60 * 60 * 1000;
 
 export function buildRoomRatesWindow(now = new Date()): { from: string; to: string } {
-  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const year = jst.getUTCFullYear();
-  const month = jst.getUTCMonth();
-  const day = jst.getUTCDate();
-  const from = new Date(Date.UTC(year, month, day - 1));
-  const to = new Date(Date.UTC(year, month + 12, day));
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+  const today = tokyoDateOf(now.toISOString()) as string;
+  const [year, month, day] = today.split("-").map(Number);
+  // 입력이 이미 도쿄 달력 날짜라 여기서의 UTC 는 시간대가 아니라 달력 계산용이다(`ymdShift` 와 같다).
+  const to = new Date(Date.UTC(year, month - 1 + 12, day)).toISOString().slice(0, 10);
+  return { from: ymdShift(today, -1), to };
 }
 
 function eachDate(from: string, to: string): string[] {
@@ -157,10 +156,8 @@ function eachDate(from: string, to: string): string[] {
   return dates;
 }
 
-type RateRow = {
-  organization_id: string;
-  room_id: string;
-  stay_date: string;
+/** 화면에 보이는 요금 칸의 값 — 바뀌었는지 비교하는 단위다. */
+export type RateValues = {
   price1: number | null;
   price2: number | null;
   price3: number | null;
@@ -168,8 +165,43 @@ type RateRow = {
   max_stay: number | null;
   num_avail: number | null;
   override_kind: string | null;
+};
+
+const RATE_VALUE_FIELDS = [
+  "price1",
+  "price2",
+  "price3",
+  "min_stay",
+  "max_stay",
+  "num_avail",
+  "override_kind",
+] as const satisfies ReadonlyArray<keyof RateValues>;
+
+type RateRow = RateValues & {
+  organization_id: string;
+  room_id: string;
+  stay_date: string;
   synced_at: string;
 };
+
+/**
+ * 값이 **실제로 바뀐** 칸(`roomId|YYYY-MM-DD`) — **순수 함수**.
+ *
+ * 동기화는 같은 값을 다시 쓰는 일이 대부분이다. 쓴 행 수로 「바뀌었다」 신호를 보내면 판매 캘린더가
+ * 신호 → 새로고침 → (낡았으니) 동기화 → 신호 로 끝없이 돈다. 전에 없던 칸은 바뀐 것으로 본다.
+ */
+export function findChangedRateCells(
+  after: ReadonlyArray<RateValues & { room_id: string; stay_date: string }>,
+  before: ReadonlyMap<string, RateValues>,
+): Set<string> {
+  const changed = new Set<string>();
+  for (const row of after) {
+    const key = `${row.room_id}|${row.stay_date}`;
+    const previous = before.get(key);
+    if (!previous || RATE_VALUE_FIELDS.some((field) => previous[field] !== row[field])) changed.add(key);
+  }
+  return changed;
+}
 
 export type RoomRatesSyncOptions = {
   /**
@@ -216,7 +248,7 @@ export async function syncBeds24RoomRates(
   // 않고** `unmatchedRoomIds` 에 남긴다 — 그게 곧 방 마스터가 뒤처졌다는 신호다.
   const roomsResult = await supabase
     .from("rooms")
-    .select("id, external_room_id, external_price_source_room_id, room_label")
+    .select("id, external_room_id, external_price_source_room_id, room_label, properties(name)")
     .eq("organization_id", organizationId)
     .eq("external_provider", "beds24")
     .not("external_room_id", "is", null);
@@ -226,18 +258,31 @@ export async function syncBeds24RoomRates(
   const roomIdByExternal = new Map<string, string>();
   /** 가격 소스(링크 없는) 유닛 — 외부 가격 변경은 여기서만 센다. */
   const sourceRoomIds = new Set<string>();
-  const unitById = new Map<string, { externalRoomId: string; roomLabel: string }>();
+  const unitById = new Map<
+    string,
+    { externalRoomId: string; roomLabel: string; propertyName: string | null }
+  >();
   for (const row of (roomsResult.data ?? []) as Array<{
     id: string;
     external_room_id: string | null;
     external_price_source_room_id: string | null;
     room_label: string;
+    properties: { name: string } | { name: string }[] | null;
   }>) {
     if (!row.external_room_id) continue;
     roomIdByExternal.set(String(row.external_room_id), row.id);
-    unitById.set(row.id, { externalRoomId: String(row.external_room_id), roomLabel: row.room_label });
+    const property = Array.isArray(row.properties) ? row.properties[0] : row.properties;
+    unitById.set(row.id, {
+      externalRoomId: String(row.external_room_id),
+      propertyName: property?.name ?? null,
+      roomLabel: row.room_label,
+    });
     if (!row.external_price_source_room_id) sourceRoomIds.add(row.id);
   }
+
+  // **Beds24 를 읽기 전에** 잡는다. 그 뒤에 가격 작업이 쓴 칸은 이보다 늦은 `synced_at` 을 갖고,
+  // `upsert_room_daily_rates_if_newer` 가 그 칸을 이번 (더 옛) 값으로 덮지 않는다.
+  const syncedAt = new Date().toISOString();
 
   // 네트워크 예외를 **던지지 않는다.** 이 함수는 크론이 돌리는 안전망이라, 한 번의 순간적인
   // 실패로 500 을 내면 그 주기의 갱신이 통째로 사라진다(2026-09-17 실제로 한 번 겪었다).
@@ -261,7 +306,6 @@ export async function syncBeds24RoomRates(
   const unmatched = new Set<string>();
   const matched = new Set<string>();
   const rows: RateRow[] = [];
-  const syncedAt = new Date().toISOString();
   let properties = 0;
   let segments = 0;
 
@@ -354,30 +398,50 @@ export async function syncBeds24RoomRates(
   if (rows.length > 0) {
     const guardSince = new Date(Date.now() - RECENT_WRITE_GUARD_MS).toISOString();
     const roomIdsInRows = [...new Set(rows.map((row) => row.room_id))];
-    const writesResult = await supabase
-      .from("price_change_logs")
-      .select("room_id, stay_date, field, new_value, created_at")
-      .eq("organization_id", organizationId)
-      .not("job_id", "is", null)
-      .in("field", ["price1", "min_stay"])
-      .gte("created_at", guardSince)
-      .in("room_id", roomIdsInRows);
     const writes: RecentWrite[] = [];
-    for (const row of (writesResult.data ?? []) as Array<{
-      room_id: string | null;
-      stay_date: string;
-      field: string;
-      new_value: number | null;
-      created_at: string;
-    }>) {
-      if (!row.room_id || row.new_value === null) continue;
-      writes.push({
-        at: row.created_at,
-        field: row.field === "min_stay" ? "min_stay" : "price1",
-        roomId: row.room_id,
-        stayDate: row.stay_date,
-        value: row.new_value,
-      });
+    for (let offset = 0; ; offset += 1000) {
+      const writesResult = await supabase
+        .from("price_change_logs")
+        .select("id, room_id, stay_date, field, new_value, created_at")
+        .eq("organization_id", organizationId)
+        .not("job_id", "is", null)
+        .in("field", ["price1", "min_stay"])
+        .gte("created_at", guardSince)
+        .in("room_id", roomIdsInRows)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(offset, offset + 999);
+      if (writesResult.error) {
+        // 최근 쓰기를 확인하지 못했다 — 어느 칸이 우리 값과 어긋나는지 모르므로 **이번에는 쓰지 않는다.**
+        // 조용히 가드를 끄고 덮으면 방금 쓴 값을 옛 값으로 되돌리는 원래 사고로 돌아간다.
+        console.error("[beds24/rates] recent-write guard read failed; sync aborted", writesResult.error);
+        return {
+          ...empty,
+          matchedRooms: matched.size,
+          properties,
+          segments,
+          skipped: [...skipped, `room-rates:guard-read-${writesResult.error.code ?? "error"}`],
+          unmatchedRoomIds: [...unmatched],
+        };
+      }
+      const page = (writesResult.data ?? []) as Array<{
+        room_id: string | null;
+        stay_date: string;
+        field: string;
+        new_value: number | null;
+        created_at: string;
+      }>;
+      for (const row of page) {
+        if (!row.room_id || row.new_value === null) continue;
+        writes.push({
+          at: row.created_at,
+          field: row.field === "min_stay" ? "min_stay" : "price1",
+          roomId: row.room_id,
+          stayDate: row.stay_date,
+          value: row.new_value,
+        });
+      }
+      if (page.length < 1000) break;
     }
     const conflicts = findRowsContradictingRecentWrites(rows, writes);
     if (conflicts.size > 0) {
@@ -456,12 +520,13 @@ export async function syncBeds24RoomRates(
    */
   // 가격은 소스 유닛만 보지만 최소숙박·차단은 **모든 유닛**을 본다(2026-09-29) — 그래서 쓴 유닛 전부를 읽는다.
   const before = new Map<string, RateSnapshot>();
+  const beforeValues = new Map<string, RateValues>();
   const writtenRoomIds = [...new Set(rows.map((row) => row.room_id))];
   let beforeReadOk = writtenRoomIds.length > 0;
   for (let offset = 0; beforeReadOk; offset += 1000) {
     const page = await supabase
       .from("room_daily_rates")
-      .select("room_id, stay_date, price1, min_stay, override_kind")
+      .select("room_id, stay_date, price1, price2, price3, min_stay, max_stay, num_avail, override_kind")
       .eq("organization_id", organizationId)
       .in("room_id", writtenRoomIds)
       .gte("stay_date", window.from)
@@ -474,47 +539,63 @@ export async function syncBeds24RoomRates(
       beforeReadOk = false;
       break;
     }
-    const data = (page.data ?? []) as Array<{
-      room_id: string;
-      stay_date: string;
-      price1: number | null;
-      min_stay: number | null;
-      override_kind: string | null;
-    }>;
+    const data = (page.data ?? []) as Array<RateValues & { room_id: string; stay_date: string }>;
     for (const row of data) {
-      before.set(`${row.room_id}|${row.stay_date}`, {
+      const key = `${row.room_id}|${row.stay_date}`;
+      before.set(key, {
         minStay: row.min_stay,
         override: row.override_kind,
         price1: row.price1,
+      });
+      beforeValues.set(key, {
+        max_stay: row.max_stay,
+        min_stay: row.min_stay,
+        num_avail: row.num_avail,
+        override_kind: row.override_kind,
+        price1: row.price1,
+        price2: row.price2,
+        price3: row.price3,
       });
     }
     if (data.length < 1000) break;
   }
 
   // 한 번에 다 넣으면 요청이 너무 커진다(90객실 × 366일 ≈ 33,000행).
+  //
+  // **이번 읽기보다 늦게 쓰인 칸은 건너뛴다**(`upsert_room_daily_rates_if_newer`). Beds24 를 읽은 뒤
+  // 여기까지 여러 번 왕복하는 사이 가격 작업이 검증까지 끝낸 값을 쓸 수 있다 — 그 칸을 읽기 전 값으로
+  // 되돌리면 안 된다. 실제로 쓴 칸만 돌아온다.
   const CHUNK = 1000;
-  let written = 0;
+  const writtenKeys = new Set<string>();
   let upsertFailed = false;
   for (let index = 0; index < rows.length; index += CHUNK) {
     const chunk = rows.slice(index, index + CHUNK);
-    const result = await supabase
-      .from("room_daily_rates")
-      .upsert(chunk, { onConflict: "room_id,stay_date" });
+    const result = await supabase.rpc("upsert_room_daily_rates_if_newer", {
+      p_rows: chunk as unknown as Json,
+    });
     if (result.error) {
       skipped.push(`room-rates:upsert-${result.error.code ?? "error"}`);
       console.error("[beds24/rates] upsert failed", { at: index, error: result.error });
       upsertFailed = true;
       break;
     }
-    written += chunk.length;
+    for (const row of result.data ?? []) {
+      writtenKeys.add(`${row.written_room_id}|${row.written_stay_date}`);
+    }
+  }
+  const written = writtenKeys.size;
+  const writtenRows = rows.filter((row) => writtenKeys.has(`${row.room_id}|${row.stay_date}`));
+  if (written < rows.length && !upsertFailed) {
+    console.log("[beds24/rates] newer local writes kept", { kept: rows.length - written });
   }
 
   // 우리 표를 끝까지 갱신했을 때만 남긴다 — 반만 쓴 채 이력을 남기면 다음 동기화가 같은 변경을
   // 또 잡는다.
   let externalPriceChanges = 0;
   if (beforeReadOk && !upsertFailed) {
-    const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const changes = detectExternalRateChanges({ after: rows, before, sourceRoomIds, today });
+    const today = tokyoDateOf(new Date().toISOString()) as string;
+    // 건너뛴 칸(더 새 값이 이미 있음)은 대조하지 않는다 — 옛 값을 「Beds24 가 바꿨다」로 남기게 된다.
+    const changes = detectExternalRateChanges({ after: writtenRows, before, sourceRoomIds, today });
     for (let index = 0; index < changes.length; index += CHUNK) {
       const logRows = changes.slice(index, index + CHUNK).map((change) => ({
         // 한 번의 동기화에서 잡힌 변경은 **같은 시각**으로 남긴다 — 가격 개입 판정이 이걸 한 번의
@@ -547,7 +628,27 @@ export async function syncBeds24RoomRates(
     console.warn("[beds24/rates] rooms missing from master", [...unmatched]);
   }
 
-  if (written > 0) await signalBeds24Change(organizationId, "rates");
+  // **값이 실제로 바뀐 칸이 있을 때만** 알린다. 이전 값을 못 읽었으면 쓴 칸 전부를 바뀐 것으로 본다.
+  const changedKeys = beforeReadOk
+    ? findChangedRateCells(writtenRows, beforeValues)
+    : new Set(writtenRows.map((row) => `${row.room_id}|${row.stay_date}`));
+  if (changedKeys.size > 0) {
+    const propertyNames = new Set<string>();
+    let changedFrom: string | null = null;
+    let changedTo: string | null = null;
+    for (const key of changedKeys) {
+      const [roomId, stayDate] = key.split("|");
+      const propertyName = unitById.get(roomId)?.propertyName;
+      if (propertyName) propertyNames.add(propertyName);
+      if (!changedFrom || stayDate < changedFrom) changedFrom = stayDate;
+      if (!changedTo || stayDate > changedTo) changedTo = stayDate;
+    }
+    await signalBeds24Change(organizationId, "rates", {
+      from: changedFrom,
+      propertyNames: [...propertyNames],
+      to: changedTo,
+    });
+  }
 
   return {
     rows: written,

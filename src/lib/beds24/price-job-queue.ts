@@ -103,6 +103,12 @@ export async function enqueueBeds24PriceJob(args: {
     .eq("organization_id", args.organizationId)
     .in("room_id", allRoomIds)
     .in("stay_date", stayDates);
+  if (ratesResult.error) {
+    // 못 읽은 채 진행하면 모든 유닛의 minStay 가 null 이 되어 「운영 중인 유닛」을 잘못 고른다 —
+    // 최소숙박이 엉뚱한 유닛에 써진다.
+    console.error("[beds24/price-job] 요금 읽기 실패", ratesResult.error);
+    return { error: "enqueue_failed", ok: false };
+  }
   const minStayByKey = new Map<string, number | null>();
   for (const row of (ratesResult.data ?? []) as Array<{
     room_id: string;

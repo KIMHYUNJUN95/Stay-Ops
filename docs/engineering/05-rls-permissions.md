@@ -1201,6 +1201,21 @@ of the RLS/permission-relevant pieces:
 `revoke execute … from public, anon, authenticated` + `grant execute … to service_role` 을 함께
 넣을 것. 기본값이 PUBLIC 이라 아무것도 안 하면 열린 채로 배포된다.
 
+## 2026-09-30 Beds24 락·요금 upsert RPC 2종 — 처음부터 service_role 전용
+
+마이그레이션 `202609300001_beds24_lock_rpc.sql` · `202609300002_room_daily_rates_upsert_if_newer.sql`
+(운영 적용 완료). 위 2026-08-03 규칙을 지켜 **생성 시점부터** `revoke all … from public, anon,
+authenticated` + `grant execute … to service_role` 을 함께 넣었다 — 나중에 회수한 것이 아니다.
+
+| 함수 | 앱 호출 지점 |
+| --- | --- |
+| `beds24_try_lock` / `beds24_release_lock` | `src/lib/beds24/sync-locks.ts` (`acquireBeds24Lock`/`releaseBeds24Lock`) |
+| `upsert_room_daily_rates_if_newer` | `src/lib/beds24/room-rates-sync.ts` |
+
+둘 다 `language sql` · `SECURITY INVOKER` — `SECURITY DEFINER` 가 아니므로 「§2. `SECURITY DEFINER` 판정
+헬퍼는 «`auth.uid()` 로 잠근다» 를 지켜야 한다」 규칙과는 무관하다. 데이터 모델 상세:
+`docs/engineering/04-data-model.md` → 해당 함수명 섹션.
+
 
 ## 2026-09-04 RLS 작성 규칙 두 가지 (실측으로 확인된 함정)
 

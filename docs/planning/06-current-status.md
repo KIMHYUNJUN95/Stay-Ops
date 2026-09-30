@@ -9,6 +9,43 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-09-30 (2) — 판매 캘린더 디버깅: 락 원자화 · 요금 upsert 이중 방벽 · 무한 새로고침 · 그 밖의 정확성 수정
+
+- **Beds24 락 원자화.** `acquireBeds24Lock`/`releaseBeds24Lock`(`src/lib/beds24/sync-locks.ts`)이 「읽고 →
+  upsert」 대신 새 RPC `beds24_try_lock`/`beds24_release_lock`(마이그레이션
+  `202609300001_beds24_lock_rpc.sql`, DB `now()` 기준, `service_role` 전용)으로 한 문장에서 판정한다.
+  가격 작업 워커는 살아 있는 동안 `touchWorkerLock` 으로 심장 박동을 치고, 고아 잠금 회수도 같은 RPC로
+  해제한다. 가격 웹훅의 건물별 「지금 읽기」 잠금(`claimRunLock`)에 있던 150ms 정착 재확인 코드는 락이
+  원자적이라 걷어냈다.
+- **요금 동기화가 더 새 값을 못 덮게 두 번째 방벽.** RPC `upsert_room_daily_rates_if_newer`(마이그레이션
+  `202609300002_room_daily_rates_upsert_if_newer.sql`)가 `synced_at` 비교로 더 새 값을 건너뛴다.
+  `room-rates-sync.ts` 는 Beds24 를 읽기 **전에** `syncedAt` 을 잡고, 워커의 로컬 반영(`patchLocalRates`/
+  `refreshLinkedLocalRates`)도 자기 쓰기 시각을 `synced_at` 으로 찍는다. 건너뛴 칸은 「Beds24 가 바꿨다」
+  이력에서 빠지고, 최근 쓰기 가드(`recent-write-guard`) 읽기는 끝까지 페이지를 넘기며 실패 시 동기화
+  전체를 접는다.
+- **판매 캘린더 무한 새로고침 수정.** 원인은 신선도를 조직 전체 `room_daily_rates` 의 가장 오래된 값으로
+  쟀던 것 — 화면의 `after()` 당김은 보이는 건물만 고치므로 다른 건물의 옛 값이 영원히 「낡음」으로 남아
+  당김·신호·새로고침이 무한 반복됐다. `getOpsCalendarData` 가 신선도를 **이 화면이 그리는, 실제로
+  동기화되는 유닛**으로 좁혔다. `signalBeds24Change`/`Beds24LiveRefresh` 에 `scope`
+  (`{ propertyNames, from, to }`)가 생겼고, 판매 캘린더가 고른 건물+보이는 날짜로 이를 건다
+  (`beds24LiveScopesOverlap`). 다른 화면(예약 캘린더·청소·모바일 홈)은 범위 없이 그대로 전부 받는다.
+- **차단 동기화**가 `nextPageExists` 페이지를 끝까지 따라가고, 끝까지 못 읽은 건물은 지우지 않는다(반만
+  지우면 뒤쪽 블락이 사라진다).
+- **가격 웹훅의 건물 재읽기**도 쿨다운·대기 중인 가격 작업이 있으면 물러난다(요금 동기화·크론과 같은 규칙).
+- **전송 실패 사유가 코드로 바뀌었다.** `beds24_price_jobs.results[].error` 가 한국어 문장 대신 코드
+  (`verify_mismatch` 등)만 담고, 이력 패널이 `hsFailures`/`hsFailSample`(ko/ja/en)로 번역한다. 2026-09-30
+  전 행(한국어 문장)은 그대로 원문 표시.
+- **판매 캘린더 격자 자잘한 수정**: 「오늘 빈방만」 0실이어도 도구줄 유지(`vacantEmpty` 카피 신설) ·
+  저장 후 실제로 보낸 칸만 선택에서 제거 · Shift 선택 기준점을 `{roomKey, date}` 로 저장 · 1박 갭 배지가
+  고를 수 있는 갭만 세고 0이면 버튼 자체를 숨김 · 낙관적 값(pending) 소거 시점을 서버 값 일치/새 새로고침
+  기준으로 정확화 · 행별 pending 계산(`sliceRowPending`) · 이력 호버 판정을 `:has()` 대신 `[data-hc]` 로.
+- **판매 캘린더 속도(P2·P3).** 격자 데이터를 행 단위 + 내용 해시로 보내 새로고침 때 바뀐 행만 다시 그린다
+  (`src/lib/ops-calendar-rows.ts`). 칸 이력은 호버 때 `loadOpsCellHistory`, 가격 개입 전환은 격자 뒤에
+  `loadOpsPriceConversions` 로 받는다. rooms 1회 조회 · 요금 묶음 동시 조회. 실측: 서버 500~630ms →
+  116~340ms(전체), 격자 데이터 509KB → 151KB. 브라우저 수동 확인은 아직.
+- 문서: `33-calendar-write-features.md`(신설 다수 절) · `04-data-model.md`(RPC 2종) ·
+  `05-rls-permissions.md`(RPC EXECUTE 권한) · `15-reservation-calendar.md`(신호 범위 참고).
+
 ## 2026-09-30 — 모바일 미리보기 프레임 질감
 
 - 어드민 「모바일 보기」 아이폰 프레임을 티타늄 림 + 검은 유리 베젤 두 겹으로, 측면 버튼을 금속으로,
