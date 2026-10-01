@@ -41,7 +41,7 @@ import {
   type OpsWriteKind,
   type RunOpsWrite,
 } from "@/components/admin/ops/ops-write-tracker";
-import { assignBarLanes } from "@/lib/ops-bar-lanes";
+import { assignBarLanes, assignBlockLanes } from "@/lib/ops-bar-lanes";
 import {
   OpsReservationPanel,
   type ReservationCardCopy,
@@ -269,6 +269,9 @@ function autoScrollSpeed(y: number): number {
 }
 
 /** BLOCK 은 **밤의 범위이며 양끝을 포함한다.** 9/23~9/26 이면 네 밤이다. */
+/** 층 하나의 높이. 막대(19px)보다 커야 층끼리 맞닿지 않는다. */
+const OPS_LANE_STEP_PX = 22;
+
 function blockGeometry(days: OpsCalendarDay[], startDate: string, endDate: string) {
   const total = days.length;
   if (total === 0) return null;
@@ -372,7 +375,19 @@ const OpsGridRow = memo(function OpsGridRow({
           .map((bar) => ({ checkIn: bar.checkIn, checkOut: bar.checkOut, id: bar.id, roomKey: bar.roomKey })),
       )
     : null;
-  const laneCount = barLanes?.laneCountByRoom.get(room.key) ?? 1;
+  /*
+   * 차단은 예약이 있는 밤에도 건다(남은 판매만 멈추려고). 같은 줄이면 예약 이름을 덮어 못 읽는다 —
+   * 예약이 먼저 자리를 잡고 차단은 겹치지 않는 첫 층에 놓는다(`assignBlockLanes`). 겹치지 않으면 0층.
+   */
+  const blockLanes = assignBlockLanes(
+    roomBars.map((bar) => ({
+      checkIn: bar.checkIn,
+      checkOut: bar.checkOut,
+      lane: barLanes?.laneById.get(bar.id) ?? 0,
+    })),
+    roomBlocks.map((block) => ({ endDate: block.endDate, id: block.id, startDate: block.startDate })),
+  );
+  const laneCount = Math.max(barLanes?.laneCountByRoom.get(room.key) ?? 1, blockLanes.laneCount);
   const occupied = new Set<string>();
   /** 팔린 밤(살아 있는 예약). 가격 수정에서 막히는 유일한 조건이다(블록은 막지 않는다). */
   const sold = new Set<string>();
@@ -506,7 +521,7 @@ const OpsGridRow = memo(function OpsGridRow({
         {/* 예약 · BLOCK. 「취소만 보기」에서는 층 수만큼 키운다. */}
         <div
           className="opsg__track"
-          style={laneCount > 1 ? { height: `calc(var(--ops-track) + ${(laneCount - 1) * 18}px)` } : undefined}
+          style={laneCount > 1 ? { height: `calc(var(--ops-track) + ${(laneCount - 1) * OPS_LANE_STEP_PX}px)` } : undefined}
         >
           {days.map((day, index) => (
             <div className={cellClass(day, index, false)} key={`r-${day.date}`}>
@@ -552,8 +567,13 @@ const OpsGridRow = memo(function OpsGridRow({
           {roomBlocks.map((block) => {
             const geometry = blockGeometry(days, block.startDate, block.endDate);
             if (!geometry) return null;
+            const lane = blockLanes.laneById.get(block.id) ?? 0;
             return (
-              <div className="opsg__block" key={block.id} style={geometry}>
+              <div
+                className="opsg__block"
+                key={block.id}
+                style={lane > 0 ? { ...geometry, top: `calc(3px + ${lane * OPS_LANE_STEP_PX}px)` } : geometry}
+              >
                 {copy.blockLabel}
               </div>
             );
@@ -583,7 +603,7 @@ const OpsGridRow = memo(function OpsGridRow({
                 key={bar.id}
                 // 편집 모드에서는 칸 선택이 먼저다 — 막대를 누르다 상세가 뜨면 드래그 선택이 끊긴다.
                 onClick={editMode ? undefined : () => actions.current.openBar(bar, room)}
-                style={lane > 0 ? { ...geometry, top: `calc(3px + ${lane * 18}px)` } : geometry}
+                style={lane > 0 ? { ...geometry, top: `calc(3px + ${lane * OPS_LANE_STEP_PX}px)` } : geometry}
                 title={`${bar.guestName} · ${bar.checkIn} → ${bar.checkOut}`}
               >
                 {bar.guestName}

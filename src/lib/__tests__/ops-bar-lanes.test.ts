@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignBarLanes, type LaneBar } from "@/lib/ops-bar-lanes";
+import { assignBarLanes, assignBlockLanes, type LaneBar } from "@/lib/ops-bar-lanes";
 
 /**
  * 예약 막대 층 배치.
@@ -111,5 +111,53 @@ describe("assignBarLanes", () => {
     const result = assignBarLanes([]);
     expect(result.laneById.size).toBe(0);
     expect(result.laneCountByRoom.size).toBe(0);
+  });
+});
+
+describe("assignBlockLanes — 차단이 예약과 겹치면 아래층", () => {
+  const bar = (checkIn: string, checkOut: string, lane = 0) => ({ checkIn, checkOut, lane });
+  const block = (id: string, startDate: string, endDate: string) => ({ id, startDate, endDate });
+
+  it("예약 없는 밤의 차단은 0층 — 평소 모습 그대로", () => {
+    const result = assignBlockLanes([bar("2026-10-01", "2026-10-03")], [block("b", "2026-10-05", "2026-10-06")]);
+    expect(result.laneById.get("b")).toBe(0);
+    expect(result.laneCount).toBe(1);
+  });
+
+  it("예약이 있는 밤에 건 차단은 1층으로 내려간다(바바 9: Kira Turner 위 BLOCK)", () => {
+    const result = assignBlockLanes(
+      [bar("2026-09-30", "2026-10-01"), bar("2026-10-01", "2026-10-05")],
+      [block("b", "2026-10-01", "2026-10-01")],
+    );
+    expect(result.laneById.get("b")).toBe(1);
+    expect(result.laneCount).toBe(2);
+  });
+
+  it("체크아웃 날만 닿는 차단은 겹치지 않는다", () => {
+    const result = assignBlockLanes([bar("2026-09-30", "2026-10-01")], [block("b", "2026-10-01", "2026-10-02")]);
+    expect(result.laneById.get("b")).toBe(0);
+  });
+
+  it("체크인 전날에 끝나는 차단도 겹치지 않는다", () => {
+    const result = assignBlockLanes([bar("2026-10-03", "2026-10-05")], [block("b", "2026-10-01", "2026-10-02")]);
+    expect(result.laneById.get("b")).toBe(0);
+  });
+
+  it("취소 보기의 층이 이미 있으면 그 아래 빈 층을 찾는다", () => {
+    const result = assignBlockLanes(
+      [bar("2026-10-01", "2026-10-04", 0), bar("2026-10-02", "2026-10-03", 1)],
+      [block("b", "2026-10-02", "2026-10-02")],
+    );
+    expect(result.laneById.get("b")).toBe(2);
+    expect(result.laneCount).toBe(3);
+  });
+
+  it("겹치는 차단끼리도 층을 나눈다", () => {
+    const result = assignBlockLanes(
+      [bar("2026-10-01", "2026-10-05")],
+      [block("a", "2026-10-02", "2026-10-03"), block("b", "2026-10-03", "2026-10-04")],
+    );
+    expect(result.laneById.get("a")).toBe(1);
+    expect(result.laneById.get("b")).toBe(2);
   });
 });

@@ -2604,3 +2604,15 @@ Supabase 브로드캐스트는 **저장되지 않는다** — 절전·와이파�
 - 파일: `src/components/admin/ops/ops-sales-summary-modal.tsx`, `src/lib/ops-sales-summary.ts`(순수),
   `src/lib/ops-sales-summary-server.ts`, `src/lib/ops-calendar.ts` `readOpsSalesInputs`, 문구 `ss*`(ko/ja/en).
 
+
+## 차단이 예약과 겹치면 층을 나눈다 (2026-10-01, 사용자 요청)
+
+수기·플랫폼 예약이 이미 있는 밤에도 차단을 건다(남은 판매만 멈추려고). 같은 줄에 그리면 BLOCK 막대가 예약
+이름을 덮었다(바바 9: Kira Turner 위 BLOCK). 이제 **예약이 먼저 자리를 잡고, 차단은 겹치지 않는 첫 층에**
+놓는다 — 「취소 보기」의 층과 같은 방식으로 그 방의 줄 높이가 층 수만큼 늘어난다.
+
+- 겹침은 **밤** 기준: 예약 `[checkIn, checkOut)`, 차단 `[startDate, endDate]`. 체크아웃 날만 닿는 차단은
+  겹치지 않아 0층(예전 모습) 그대로다.
+- 「취소 보기」를 켜면 취소 막대의 층 아래 빈 층을 찾는다. 차단끼리 겹쳐도 층을 나눈다.
+- 층 간격은 22px(막대 19px)로 통일했다 — 취소 층도 같은 간격이라 막대끼리 맞닿지 않는다.
+- 순수 함수 `assignBlockLanes`(`src/lib/ops-bar-lanes.ts`), 테스트 `ops-bar-lanes.test.ts`.

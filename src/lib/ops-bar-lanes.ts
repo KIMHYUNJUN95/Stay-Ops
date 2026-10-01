@@ -81,3 +81,66 @@ export function assignBarLanes(bars: readonly LaneBar[]): BarLaneResult {
 
   return { laneById, laneCountByRoom };
 }
+
+/**
+ * 차단 막대를 **예약 막대와 겹치지 않는 층**에 놓는다 (2026-10-01).
+ *
+ * 도메인 계약: `docs/product/33-calendar-write-features.md` → 「차단이 예약과 겹치면 층을 나눈다」
+ *
+ * 수기·플랫폼 예약이 이미 있는 밤에도 차단을 건다(남은 판매만 멈추려고). 같은 줄에 그리면 차단이
+ * 예약 이름을 덮어 못 읽는다. 「취소 보기」의 층과 같은 방식으로 **예약이 먼저 자리를 잡고**, 차단은
+ * 겹치지 않는 첫 층에 놓는다. 겹치지 않으면 0층 — 평소 모습 그대로다.
+ *
+ * 겹침은 **밤**으로 잰다 — 예약은 `[checkIn, checkOut)`, 차단은 `[startDate, endDate]` 의 밤이다.
+ * 같은 밤이 하나라도 있으면 겹친다(`block.startDate < bar.checkOut && bar.checkIn <= block.endDate`).
+ * 체크아웃 날만 닿는 차단은 겹치지 않는다 — 예약 막대 끝이 그 칸 가운데에서 끝나는 것과 같은 규칙이고,
+ * 이걸 겹침으로 치면 예약 바로 뒤에 건 차단이 전부 아래층으로 내려간다. 차단끼리는 밤이 겹칠 때만 겹친다.
+ *
+ * **순수하다** — `ops-bar-lanes.test.ts`.
+ */
+export type LaneBlock = {
+  id: string;
+  /** `YYYY-MM-DD`, 막히는 첫 밤. */
+  startDate: string;
+  /** `YYYY-MM-DD`, 막히는 마지막 밤(포함). */
+  endDate: string;
+};
+
+export type PlacedLaneBar = { checkIn: string; checkOut: string; lane: number };
+
+export function assignBlockLanes(
+  bars: readonly PlacedLaneBar[],
+  blocks: readonly LaneBlock[],
+): { laneById: Map<string, number>; laneCount: number } {
+  const laneById = new Map<string, number>();
+  /** 층별로 이미 놓인 것의 밤 구간 `[from, toExclusive)`. */
+  const lanes: Array<Array<[string, string]>> = [];
+  const occupy = (lane: number, from: string, toExclusive: string) => {
+    while (lanes.length <= lane) lanes.push([]);
+    lanes[lane].push([from, toExclusive]);
+  };
+  for (const bar of bars) occupy(bar.lane, bar.checkIn, bar.checkOut);
+  /** 차단의 끝 밤 다음 날 — 밤 구간을 반열림으로 맞춘다. */
+  const dayAfter = (date: string) => {
+    const next = new Date(`${date}T12:00:00Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    return next.toISOString().slice(0, 10);
+  };
+
+  const sorted = [...blocks].sort(
+    (a, b) => a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate),
+  );
+  for (const block of sorted) {
+    const endExclusive = dayAfter(block.endDate);
+    let lane = 0;
+    while (
+      lane < lanes.length &&
+      lanes[lane].some(([from, toExclusive]) => block.startDate < toExclusive && from < endExclusive)
+    ) {
+      lane += 1;
+    }
+    occupy(lane, block.startDate, endExclusive);
+    laneById.set(block.id, lane);
+  }
+  return { laneById, laneCount: Math.max(lanes.length, 1) };
+}

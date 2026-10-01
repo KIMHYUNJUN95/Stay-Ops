@@ -9,6 +9,12 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-01 (2) — 판매 캘린더: 예약과 겹치는 차단은 아래층으로
+
+- 예약이 있는 밤에 건 차단(BLOCK)이 예약 막대를 덮던 것 → 차단을 겹치지 않는 층에 놓고 줄 높이를 늘린다
+  (`assignBlockLanes`). 체크아웃 날만 닿는 차단은 예전 자리 그대로. 층 간격 22px 로 통일.
+  (`33-calendar-write-features.md` → 「차단이 예약과 겹치면 층을 나눈다」)
+
 ## 2026-09-30 (4) — 실시간 신호 놓침 따라잡기 · 연결 상태 점
 
 - `has_capability` 가 로그인 사용자에게 자기 권한만 답한다(남의 권한 조회 차단, 마이그레이션 `202609300008`, 적용·검증 완료). DB 타입에 `has_capability` 추가.
