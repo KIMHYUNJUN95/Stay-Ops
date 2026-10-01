@@ -1314,14 +1314,18 @@ async function revertLogsOfField(
   if (plan.cells.length === 0) return { cells: 0, ok: true, skippedChanged: plan.skippedChanged };
 
   if (field === "blackout") {
-    // 차단은 큐가 아니라 걸기/풀기 경로 — **바뀐 그 유닛만** 다시 막거나 연다. 행 키는 서버가 계산한다.
+    // 차단은 큐가 아니라 걸기/풀기 경로. 행 키는 서버가 계산한다.
+    //
+    // **그 방의 유닛 전부**로 보낸다(2026-10-01) — 차단은 활성 · 비활성(최소숙박 잠금) 유닛을 가리지 않고 모두에
+    // 거는 것이 규칙인데(`runBlockChange`), 이력은 방당 유닛 하나만 적는다. 예전에는 그 한 유닛만 되돌려서
+    // 두 유닛짜리 방(302 + 302_2 등)은 하나만 풀리고 하나는 막힌 채 남았다.
     const unitsResult = await supabase
       .from("rooms")
       .select("id, room_label, properties(name)")
-      .eq("organization_id", session.organization.id)
-      .in("id", [...new Set(plan.cells.map((cell) => cell.roomId))]);
+      .eq("organization_id", session.organization.id);
     if (unitsResult.error) return { error: "not_found", ok: false };
     const keyById = new Map<string, { roomKey: string; label: string }>();
+    const unitIdsByKey = new Map<string, string[]>();
     for (const unit of (unitsResult.data ?? []) as Array<{
       id: string;
       room_label: string;
@@ -1329,7 +1333,11 @@ async function revertLogsOfField(
     }>) {
       const property = Array.isArray(unit.properties) ? unit.properties[0] : unit.properties;
       const roomKey = opsUnitRoomKey({ propertyName: property?.name, roomLabel: unit.room_label });
-      if (roomKey) keyById.set(unit.id, { label: unit.room_label, roomKey });
+      if (!roomKey) continue;
+      keyById.set(unit.id, { label: unit.room_label, roomKey });
+      const list = unitIdsByKey.get(roomKey);
+      if (list) list.push(unit.id);
+      else unitIdsByKey.set(roomKey, [unit.id]);
     }
     for (const target of [0, 1] as const) {
       const cells: BlockChangeCell[] = plan.cells
@@ -1341,14 +1349,8 @@ async function revertLogsOfField(
           roomLabel: keyById.get(cell.roomId)!.label,
         }));
       if (cells.length === 0) continue;
-      // 같은 행에 바뀐 유닛이 둘이면 둘 다 — 차단 경로는 행마다 유닛 목록 하나를 쓴다.
-      const unitsByKey = new Map<string, Set<string>>();
-      for (const cell of cells) {
-        const set = unitsByKey.get(cell.roomKey) ?? new Set<string>();
-        cell.roomIds.forEach((id) => set.add(id));
-        unitsByKey.set(cell.roomKey, set);
-      }
-      for (const cell of cells) cell.roomIds = [...(unitsByKey.get(cell.roomKey) ?? [])];
+      // 그 행의 유닛 전부 — 걸기/풀기와 같은 범위(활성 · 비활성 모두).
+      for (const cell of cells) cell.roomIds = unitIdsByKey.get(cell.roomKey) ?? cell.roomIds;
       // 이전이 열림(0)이면 푼다, 막힘(1)이면 다시 건다.
       const result = await runBlockChange({ cells }, target === 0 ? "unblock" : "block");
       if (!result.ok) return { error: "block_failed", ok: false };
