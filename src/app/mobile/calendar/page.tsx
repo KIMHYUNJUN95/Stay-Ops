@@ -24,6 +24,7 @@ import {
 } from "@/lib/rooms";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { readAllPages } from "@/lib/supabase/read-all-pages";
 import type { Database } from "@/types/database";
 
 type ReservationRow = Pick<
@@ -290,17 +291,22 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
     roomCatalog = catalog;
   } else {
     const [{ data, error }, rooms, catalog] = await Promise.all([
-      supabase
-        .from("reservations")
-        .select(
-          "id, check_in_date, check_out_date, guest_name, property_name, room_label, source, source_reservation_id, status, raw_payload",
-        )
-        .eq("organization_id", session.organization.id)
-        .lt("check_in_date", operationalWindowEnd)
-        .gte("check_out_date", operationalMonthStart)
-        .neq("status", "cancelled")
-        .neq("status", "no_show")
-        .order("check_in_date", { ascending: true }),
+      // 1,000행 상한을 넘으면 조용히 잘린다 — 페이지로 끝까지 읽는다(`read-all-pages.ts`).
+      readAllPages<ReservationRow>((from, to) =>
+        supabase
+          .from("reservations")
+          .select(
+            "id, check_in_date, check_out_date, guest_name, property_name, room_label, source, source_reservation_id, status, raw_payload",
+          )
+          .eq("organization_id", session.organization.id)
+          .lt("check_in_date", operationalWindowEnd)
+          .gte("check_out_date", operationalMonthStart)
+          .neq("status", "cancelled")
+          .neq("status", "no_show")
+          .order("check_in_date", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      ),
       getActiveRoomLabels(session.organization.id, supabase),
       getActiveRoomCatalog(session.organization.id, supabase),
     ]);
@@ -485,17 +491,22 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
         );
   // Beds24 캘린더 블락. 예약이 아니라 인벤토리 오버라이드라 별도 테이블에서 온다.
   // 방 축은 예약과 같은 표시 라벨을 쓴다 — 어긋나면 그릴 행이 없다.
-  const roomBlocksResult = await supabase
-    .from("room_blocks")
-    .select("id, property_name, room_label, start_date, end_date")
-    .eq("organization_id", session.organization.id)
-    .lt("start_date", operationalWindowEnd)
-    .gte("end_date", operationalMonthStart)
-    .order("start_date", { ascending: true });
+  const roomBlocksResult = await readAllPages((from, to) =>
+    supabase
+      .from("room_blocks")
+      .select("id, property_name, room_label, start_date, end_date")
+      .eq("organization_id", session.organization.id)
+      .lt("start_date", operationalWindowEnd)
+      .gte("end_date", operationalMonthStart)
+      .order("start_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
   if (roomBlocksResult.error) {
     console.error("[mobile/calendar] room block read failed", roomBlocksResult.error);
   }
-  const roomBlocks = (roomBlocksResult.data ?? [])
+  // 읽다 실패하면 앞 페이지만 남는다 — 반쪽 블록은 그리지 않는다(관리자 캘린더와 같다).
+  const roomBlocks = (roomBlocksResult.error ? [] : roomBlocksResult.data)
     .filter(
       (row) =>
         !isExcludedOperationalProperty(row.property_name) &&

@@ -38,6 +38,7 @@ import {
 } from "@/lib/ops-price-attribution";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { readAllPages, SUPABASE_PAGE_SIZE } from "@/lib/supabase/read-all-pages";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { resolveSelectedProperties } from "@/lib/ops-calendar-properties";
@@ -78,32 +79,7 @@ import { opsUnitRoomKey, ROOM_AXIS_SEPARATOR, toRoomAxisKey } from "@/lib/ops-ro
  * 비활성 유닛은 애초에 가격이 없고, 그건 「0원」이 아니라 「안 판다」는 뜻이다.
  */
 
-/**
- * PostgREST 는 **한 번에 1,000행까지만** 준다(Supabase `db-max-rows` 기본값). 초과분은
- * 오류가 아니라 **조용히 잘린다** — 화면은 그대로 그려지고 데이터만 사라진다.
- *
- * 2026-09-17 에 판매 캘린더에서 실제로 터졌다: 30일 창에 요금이 2,730행 필요한데 1,000행만
- * 와서 **9/28 부터 가격이 통째로 비어 보였다.** 값이 없는 칸은 「안 판다」로 그리므로,
- * 잘린 것이 「팔지 않는 날」처럼 보인다 — 화면만 보고는 구별할 수 없다.
- *
- * 예약도 같은 벽에 있다(30일 창 716건). 지금은 밑이지만 넘는 순간 **예약 막대가 조용히
- * 사라지고**, 그건 이미 팔린 방을 비었다고 보여준다는 뜻이다.
- */
-const SUPABASE_PAGE_SIZE = 1000;
-
-/** 한 페이지가 꽉 차면 다음 장을 더 읽는다. 덜 차면 그게 마지막이다. */
-async function readAllPages<Row>(
-  build: (from: number, to: number) => PromiseLike<{ data: Row[] | null; error: { message: string } | null }>,
-): Promise<{ data: Row[]; error: { message: string } | null }> {
-  const rows: Row[] = [];
-  for (let offset = 0; ; offset += SUPABASE_PAGE_SIZE) {
-    const page = await build(offset, offset + SUPABASE_PAGE_SIZE - 1);
-    if (page.error) return { data: rows, error: page.error };
-    const batch = page.data ?? [];
-    rows.push(...batch);
-    if (batch.length < SUPABASE_PAGE_SIZE) return { data: rows, error: null };
-  }
-}
+// 1,000행 상한 — `readAllPages` / `SUPABASE_PAGE_SIZE` 는 `src/lib/supabase/read-all-pages.ts` 에 있다.
 
 type ReservationRow = Pick<
   Database["public"]["Tables"]["reservations"]["Row"],
@@ -686,6 +662,12 @@ export async function getOpsCalendarData(
    * 돌려주지 않아 그 행은 영원히 옛 값이다 — 그것도 뺀다.
    */
   const freshnessRoomIds = rateRoomIds.filter((roomUuid) => syncableRoomIds.has(roomUuid));
+  /*
+   * 신선도는 **오늘 이후** 칸으로 잰다(2026-10-01). 30일 보기는 어제부터 시작하는데, 지난 날짜는 Beds24 동기화가
+   * 다시 쓰지 않아 그 칸이 늘 「가장 오래된 값」이 됐다 — 가격 대부분이 몇 분 전 값인데 「가격 7시간 전 기준」이라고
+   * 적혔다(사용자 지적). 팔 수 없는 날의 가격이 낡은 것은 위험이 아니다. 창 전체가 지난 날짜면 예전처럼 창 시작부터.
+   */
+  const freshnessFrom = today > window.start && today < window.endExclusive ? today : window.start;
   // Supabase 빌더는 `then` 이 불려야 요청을 보낸다 — `Promise.resolve` 로 감싸야 **지금** 시작한다.
   const freshnessPromise =
     freshnessRoomIds.length === 0
@@ -696,7 +678,7 @@ export async function getOpsCalendarData(
             .select("synced_at")
             .eq("organization_id", session.organization.id)
             .in("room_id", freshnessRoomIds)
-            .gte("stay_date", window.start)
+            .gte("stay_date", freshnessFrom)
             .lt("stay_date", window.endExclusive)
             .order("synced_at", { ascending: true })
             .limit(1)

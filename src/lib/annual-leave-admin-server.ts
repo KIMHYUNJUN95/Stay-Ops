@@ -17,9 +17,7 @@ import {
   setAnnualLeaveBaselineForUser,
   sumApprovedLeaveUsage,
 } from "@/lib/annual-leave-server";
-import { computeAnnualLeaveSummary, getScheduledGrants, tokyoToday } from "@/lib/annual-leave";
-
-const BEREAVEMENT_DAYS = 3;
+import { computeAnnualLeaveSummary, getScheduledGrants, normalizeLeaveDays, tokyoToday } from "@/lib/annual-leave";
 
 // Hourly / part-time staff are excluded from annual leave (confirmed policy). Every other org role is a
 // salary-based regular employee for leave purposes.
@@ -733,57 +731,7 @@ export async function listLeaveLedger(session: AppSession): Promise<LeaveLedgerE
   });
 }
 
-function addDaysISO(iso: string, delta: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + delta)).toISOString().slice(0, 10);
-}
-
-function diffDaysISO(start: string, end: string): number {
-  const [sy, sm, sd] = start.split("-").map(Number);
-  const [ey, em, ed] = end.split("-").map(Number);
-  const startMs = Date.UTC(sy, sm - 1, sd);
-  const endMs = Date.UTC(ey, em - 1, ed);
-  return Math.round((endMs - startMs) / 86400000) + 1;
-}
-
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-function normalizeDays(input: AdminLeaveRequestInput): {
-  startDate: string;
-  endDate: string;
-  durationUnit: LeaveDurationUnit;
-  daysCount: number;
-} | null {
-  const { leaveType, startDate } = input;
-  if (!ISO_DATE.test(startDate)) return null;
-
-  // 경조휴가: 회사 부여 고정 3일. durationUnit 강제 "full", endDate = startDate + 2일.
-  if (leaveType === "annual") {
-    return {
-      startDate,
-      endDate: addDaysISO(startDate, BEREAVEMENT_DAYS - 1),
-      durationUnit: "full",
-      daysCount: BEREAVEMENT_DAYS,
-    };
-  }
-
-  // 반차(오전/오후): 단일일.
-  if (input.durationUnit === "am" || input.durationUnit === "pm") {
-    return {
-      startDate,
-      endDate: startDate,
-      durationUnit: input.durationUnit,
-      daysCount: 0.5,
-    };
-  }
-
-  // 종일: 양끝 포함 일수.
-  const { endDate } = input;
-  if (!ISO_DATE.test(endDate)) return null;
-  const rangeDays = diffDaysISO(startDate, endDate);
-  if (rangeDays < 1) return null;
-  return { startDate, endDate, durationUnit: "full", daysCount: rangeDays };
-}
 
 /**
  * Files a leave request (self or proxy) from the admin console. Lands as `requested` in the approval
@@ -818,7 +766,7 @@ export async function createAdminLeaveRequest(
   const applicantName = (profile.data as { name: string } | null)?.name;
   if (!applicantName) return { ok: false, error: "target_not_found" };
 
-  const normalized = normalizeDays(input);
+  const normalized = normalizeLeaveDays(input);
   if (!normalized) return { ok: false, error: "invalid_dates" };
 
   const result = await createLeaveRequest(service, organizationId, input.targetUserId, {

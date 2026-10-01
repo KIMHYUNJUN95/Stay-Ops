@@ -30,6 +30,8 @@ import {
 } from "@/app/mobile/attendance/actions";
 import type { AttendanceCorrectionReason } from "@/lib/attendance";
 import { getDictionary, type Dictionary } from "@/lib/i18n";
+import { tokyoToday } from "@/lib/annual-leave";
+import { HireDatePicker } from "./hire-date-picker";
 
 type AttendanceCopy = Dictionary["attendance"];
 
@@ -52,6 +54,17 @@ const REASON_VALUES: AttendanceCorrectionReason[] = [
   "auth_failed",
   "other",
 ];
+
+/** 'YYYY-MM-DD' → 「10월 1일 (수)」 — 고정 날짜라 UTC 로 그려 서버 · 클라이언트가 같다. */
+function formatWorkDate(iso: string, locale: string): string {
+  const tag = locale === "ja" ? "ja-JP" : locale === "en" ? "en-US" : "ko-KR";
+  return new Intl.DateTimeFormat(tag, {
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+    timeZone: "UTC",
+  }).format(new Date(`${iso}T00:00:00Z`));
+}
 
 export function AttendanceCorrectionForm({
   organizationId,
@@ -79,6 +92,14 @@ export function AttendanceCorrectionForm({
   const [inTime, setInTime] = useState<string>(sessionContext?.clockInTime ?? "");
   const [outTime, setOutTime] = useState<string>(sessionContext?.clockOutTime ?? "");
   const [siteId, setSiteId] = useState<string | null>(null);
+  // 세션 없는 예외 요청의 근무 날짜(2026-10-01). 예전에는 늘 「오늘」로 접수돼 지난 날짜 누락을 낼 수 없었다.
+  // 서버가 같은 범위(당월·전월, 오늘 이전)를 다시 검사한다.
+  const [workDate, setWorkDate] = useState<string>(() => tokyoToday());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const minWorkDate = useMemo(() => {
+    const [y, m] = tokyoToday().split("-").map(Number);
+    return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 10);
+  }, []);
   const [memo, setMemo] = useState<string>("");
   const [photos, setPhotos] = useState<PreviewItem[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -166,6 +187,7 @@ export function AttendanceCorrectionForm({
         desiredInTime: inTime || null,
         desiredOutTime: outTime || null,
         desiredSiteId: siteId,
+        targetDate: sessionId ? null : workDate,
         imageUrls,
       };
       const res = await createAttendanceCorrectionRequest(input);
@@ -217,6 +239,20 @@ export function AttendanceCorrectionForm({
             </div>
           </div>
         </div>
+
+        {sessionContext ? null : (
+          <div className="field">
+            <div className="field__l">
+              {copy.corrFieldWorkDate} <span className="req">*</span>
+            </div>
+            <button type="button" className="ibox" onClick={() => setDatePickerOpen(true)}>
+              <div className="ibox__v mono">
+                <AIc>{AttIcon.calendar}</AIc>
+                <span>{formatWorkDate(workDate, locale)}</span>
+              </div>
+            </button>
+          </div>
+        )}
 
         <div className="field">
           <div className="field__l">
@@ -367,6 +403,18 @@ export function AttendanceCorrectionForm({
           locale={locale}
           onConfirm={(v) => setOutTime(v)}
           onClose={() => setOutPickerOpen(false)}
+        />
+      )}
+
+      {/* work-date picker (session-less exception request only) */}
+      {datePickerOpen && (
+        <HireDatePicker
+          locale={locale}
+          value={workDate}
+          title={copy.corrFieldWorkDate}
+          minDate={minWorkDate}
+          onApply={(v) => setWorkDate(v)}
+          onClose={() => setDatePickerOpen(false)}
         />
       )}
 

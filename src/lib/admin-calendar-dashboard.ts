@@ -21,6 +21,7 @@ import {
 } from "@/lib/rooms";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { readAllPages } from "@/lib/supabase/read-all-pages";
 import type { Database } from "@/types/database";
 
 type ReservationStatus = Database["public"]["Enums"]["reservation_status"];
@@ -250,25 +251,34 @@ export async function getAdminCalendarDashboardData(
   const [roomCatalog, buildingInfos, reservationsResult, roomBlocksResult] = await Promise.all([
     getActiveRoomCatalog(session.organization.id, supabase),
     listPropertyMapMeta(session),
-    supabase
-      .from("reservations")
-      .select(
-        "id, check_in_date, check_out_date, guest_name, property_name, raw_payload, room_label, source, source_reservation_id, status",
-      )
-      .eq("organization_id", session.organization.id)
-      .lt("check_in_date", operationalWindowEnd)
-      .gte("check_out_date", operationalWindowStart)
-      .neq("status", "cancelled")
-      .neq("status", "no_show")
-      .order("check_in_date", { ascending: true }),
-    supabase
-      .from("room_blocks")
-      .select("id, property_name, room_label, start_date, end_date")
-      .eq("organization_id", session.organization.id)
-      // 「이 창에 걸치는」 구간. 창 밖에서 시작해 안으로 들어오는 블락도 잡아야 한다.
-      .lt("start_date", operationalWindowEnd)
-      .gte("end_date", operationalWindowStart)
-      .order("start_date", { ascending: true }),
+    // 1,000행 상한을 넘으면 조용히 잘린다 — 페이지로 끝까지 읽는다(`read-all-pages.ts`).
+    readAllPages<ReservationRow>((from, to) =>
+      supabase
+        .from("reservations")
+        .select(
+          "id, check_in_date, check_out_date, guest_name, property_name, raw_payload, room_label, source, source_reservation_id, status",
+        )
+        .eq("organization_id", session.organization.id)
+        .lt("check_in_date", operationalWindowEnd)
+        .gte("check_out_date", operationalWindowStart)
+        .neq("status", "cancelled")
+        .neq("status", "no_show")
+        .order("check_in_date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+    readAllPages((from, to) =>
+      supabase
+        .from("room_blocks")
+        .select("id, property_name, room_label, start_date, end_date")
+        .eq("organization_id", session.organization.id)
+        // 「이 창에 걸치는」 구간. 창 밖에서 시작해 안으로 들어오는 블락도 잡아야 한다.
+        .lt("start_date", operationalWindowEnd)
+        .gte("end_date", operationalWindowStart)
+        .order("start_date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
   ]);
 
   if (reservationsResult.error) {
@@ -289,7 +299,7 @@ export async function getAdminCalendarDashboardData(
     });
   }
 
-  for (const row of (reservationsResult.data ?? []) as ReservationRow[]) {
+  for (const row of reservationsResult.data) {
     if (isExcludedOperationalProperty(row.property_name)) continue;
     if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
 
@@ -342,7 +352,7 @@ export async function getAdminCalendarDashboardData(
   if (roomBlocksResult.error) {
     console.error("[admin-calendar] room block read failed", roomBlocksResult.error);
   } else {
-    for (const row of roomBlocksResult.data ?? []) {
+    for (const row of roomBlocksResult.data) {
       if (isExcludedOperationalProperty(row.property_name)) continue;
       if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
       const propertyName = getCanonicalPropertyName(row.property_name);

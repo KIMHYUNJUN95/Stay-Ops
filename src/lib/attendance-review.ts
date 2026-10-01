@@ -10,6 +10,8 @@
 
 import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import { SUPABASE_PAGE_SIZE } from "@/lib/supabase/read-all-pages";
+import { chunk } from "@/lib/utils";
 import type {
   AttendanceSessionRow,
   AttendanceSessionStatus,
@@ -23,6 +25,9 @@ import {
 } from "@/lib/attendance-site-display";
 
 const TZ = "Asia/Tokyo";
+
+/** 세션 id 를 `.in()` 으로 싣는 조회를 이만큼씩 나눈다(URL 길이). `reservation-internal-notes.ts` 와 같은 값. */
+const SESSION_ID_QUERY_CHUNK = 200;
 
 type Service = ReturnType<typeof getSupabaseServiceClient>;
 
@@ -212,42 +217,55 @@ export async function getAttendanceReviewQueue(
     if (nameUserIds.length === 0) return [];
   }
 
-  let query = service
-    .from("attendance_sessions")
-    .select("*")
-    .eq("organization_id", organizationId);
+  // 필터가 붙은 쿼리를 **쪽마다 새로** 만든다 — 쪽 나눠 읽을 때 같은 빌더를 다시 쓰지 않는다.
+  const buildQuery = () => {
+    let query = service
+      .from("attendance_sessions")
+      .select("*")
+      .eq("organization_id", organizationId);
 
-  if (params.from) query = query.gte("operating_date", params.from);
-  if (params.to) query = query.lte("operating_date", params.to);
-  if (params.siteId) query = query.eq("clock_in_site_id", params.siteId);
-  if (nameUserIds) query = query.in("user_id", nameUserIds);
-  if (correctionSessionIds) query = query.in("id", correctionSessionIds);
+    if (params.from) query = query.gte("operating_date", params.from);
+    if (params.to) query = query.lte("operating_date", params.to);
+    if (params.siteId) query = query.eq("clock_in_site_id", params.siteId);
+    if (nameUserIds) query = query.in("user_id", nameUserIds);
+    if (correctionSessionIds) query = query.in("id", correctionSessionIds);
 
-  switch (params.filter) {
-    case "review_required":
-      query = query.eq("review_state", "review_required");
-      break;
-    case "incomplete":
-      query = query.is("clock_out_at", null).neq("status", "invalid");
-      break;
-    case "manual":
-      query = query.eq("manual_created", true);
-      break;
-    case "not_finalized":
-      // No finalized snapshots exist until Step 8; current-Tokyo-month sessions are the not-finalized
-      // set for now (the finalized-snapshot exclusion plugs in when finalization lands).
-      query = query.gte("operating_date", `${tokyoDateKey(new Date()).slice(0, 7)}-01`);
-      break;
-    default:
-      break;
+    switch (params.filter) {
+      case "review_required":
+        query = query.eq("review_state", "review_required");
+        break;
+      case "incomplete":
+        query = query.is("clock_out_at", null).neq("status", "invalid");
+        break;
+      case "manual":
+        query = query.eq("manual_created", true);
+        break;
+      case "not_finalized":
+        // No finalized snapshots exist until Step 8; current-Tokyo-month sessions are the not-finalized
+        // set for now (the finalized-snapshot exclusion plugs in when finalization lands).
+        query = query.gte("operating_date", `${tokyoDateKey(new Date()).slice(0, 7)}-01`);
+        break;
+      default:
+        break;
+    }
+    return query;
+  };
+
+  // PostgREST 는 한 번에 1,000행까지만 준다 — `limit` 이 그보다 커도(관리자 큐는 5,000) 조용히 잘렸다
+  // (2026-10-01). `limit` 에 닿거나 마지막 쪽이 올 때까지 쪽 나눠 읽는다. 쪽 경계가 흔들리지 않게 `id` 로 끝맺는다.
+  const sessions: AttendanceSessionRow[] = [];
+  for (let offset = 0; offset < limit; offset += SUPABASE_PAGE_SIZE) {
+    const size = Math.min(SUPABASE_PAGE_SIZE, limit - offset);
+    const res = await buildQuery()
+      .order("operating_date", { ascending: false })
+      .order("clock_in_at", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: true })
+      .range(offset, offset + size - 1);
+    if (res.error) return [];
+    const batch = (res.data ?? []) as AttendanceSessionRow[];
+    sessions.push(...batch);
+    if (batch.length < size) break;
   }
-
-  const res = await query
-    .order("operating_date", { ascending: false })
-    .order("clock_in_at", { ascending: false, nullsFirst: false })
-    .limit(limit);
-  if (res.error) return [];
-  const sessions = (res.data ?? []) as AttendanceSessionRow[];
   if (sessions.length === 0) return [];
 
   const sessionIds = sessions.map((s) => s.id);
@@ -336,11 +354,13 @@ async function loadSiteNames(
 async function loadBreakTotals(service: Service, sessionIds: string[]): Promise<Map<string, number>> {
   const map = new Map<string, number>();
   if (sessionIds.length === 0) return map;
-  const res = await service
-    .from("attendance_breaks")
-    .select("session_id, started_at, ended_at")
-    .in("session_id", sessionIds);
-  for (const r of (res.data ?? []) as {
+  // 세션 id 를 URL 에 싣는다 — 한 달치 수백 개면 URL 이 넘친다. 나눠서 읽는다.
+  const pages = await Promise.all(
+    chunk(sessionIds, SESSION_ID_QUERY_CHUNK).map((ids) =>
+      service.from("attendance_breaks").select("session_id, started_at, ended_at").in("session_id", ids),
+    ),
+  );
+  for (const r of pages.flatMap((res) => res.data ?? []) as {
     session_id: string;
     started_at: string;
     ended_at: string | null;
@@ -359,13 +379,20 @@ async function loadCorrectionStatuses(
 ): Promise<Map<string, AttendanceCorrectionStatus>> {
   const map = new Map<string, AttendanceCorrectionStatus>();
   if (sessionIds.length === 0) return map;
-  const res = await service
-    .from("attendance_correction_requests")
-    .select("session_id, status, created_at")
-    .eq("organization_id", organizationId)
-    .in("session_id", sessionIds)
-    .order("created_at", { ascending: false });
-  for (const r of (res.data ?? []) as {
+  const pages = await Promise.all(
+    chunk(sessionIds, SESSION_ID_QUERY_CHUNK).map((ids) =>
+      service
+        .from("attendance_correction_requests")
+        .select("session_id, status, created_at")
+        .eq("organization_id", organizationId)
+        .in("session_id", ids),
+    ),
+  );
+  // 쪽을 합친 뒤 최신순으로 — 세션마다 가장 최근 요청의 상태를 쓴다.
+  const rows = pages
+    .flatMap((res) => res.data ?? [])
+    .sort((a, b) => (b as { created_at: string }).created_at.localeCompare((a as { created_at: string }).created_at));
+  for (const r of rows as {
     session_id: string | null;
     status: string;
     created_at: string;

@@ -4,44 +4,90 @@ import { memo, useEffect, useMemo, useRef, useState, useTransition } from "react
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Timer, X } from "lucide-react";
+import {
+  Ban,
+  CalendarPlus,
+  ChartColumn,
+  ChevronLeft,
+  ChevronRight,
+  History,
+  JapaneseYen,
+  MoonStar,
+  Search,
+  SlidersHorizontal,
+  Timer,
+  X,
+} from "lucide-react";
+import { loadOpsCellHistory, loadOpsPriceConversions } from "@/app/admin/ops/calendar/actions";
+import { searchOpsReservations } from "@/app/admin/ops/calendar/search-actions";
 import { OpsBlockPanel } from "@/components/admin/ops/ops-block-panel";
+import { OpsBookingPanel, type BookingPanelRoom } from "@/components/admin/ops/ops-booking-panel";
+import { OpsCellHistoryCard } from "@/components/admin/ops/ops-cell-history-card";
+import { OpsHistoryPanel } from "@/components/admin/ops/ops-history-panel";
 import { OpsMinStayPanel } from "@/components/admin/ops/ops-minstay-panel";
 import { OpsPricePanel, type PanelCell } from "@/components/admin/ops/ops-price-panel";
+import { OpsPriceWinsPanel } from "@/components/admin/ops/ops-price-wins-panel";
+import { OpsReservationPanel } from "@/components/admin/ops/ops-reservation-panel";
+import { OpsSalesSummaryModal } from "@/components/admin/ops/ops-sales-summary-modal";
 import { watchOpsWriteJob, type OpsWriteKind, type RunOpsWrite } from "@/components/admin/ops/ops-write-tracker";
 import { Beds24LiveDot } from "@/components/shared/beds24-live-dot";
+import type { AdminGuestSearchCopy } from "@/components/shell/admin-guest-search";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import type { Dictionary } from "@/lib/i18n";
 import { assignBarLanes, assignBlockLanes } from "@/lib/ops-bar-lanes";
-import type { OpsCalendarDay, OpsCalendarRoom } from "@/lib/ops-calendar";
+import type {
+  OpsCalendarBlock,
+  OpsCalendarDay,
+  OpsCalendarRoom,
+  OpsPriceConversion,
+  OpsReservationPlacement,
+} from "@/lib/ops-calendar";
+import { buildOpsCalendarHref } from "@/lib/ops-calendar-properties";
 import { buildRowRateLookup, dayFlagAt, decodeRowRate, rowGapCellKeys, type OpsGridRowData } from "@/lib/ops-calendar-rows";
 import {
   applyDragRect,
+  applyScopeToSelection,
+  buildScopeCells,
+  buildSelectableWeeks,
+  EMPTY_SCOPE,
+  isScopeActive,
   removeCells,
   selectionCellKey,
   toggleCellGroup,
+  toggleInList,
+  toggleWeekdayPreset,
+  WEEKDAY_WEEKDAYS,
+  WEEKEND_WEEKDAYS,
   type OpsSelectionCell,
+  type OpsSelectionScope,
 } from "@/lib/ops-calendar-selection";
 import { buildGapContext } from "@/lib/ops-gap-context";
 import { hasOpsLargeRooms, orderOpsLargeRoomsFirst } from "@/lib/ops-large-rooms";
+import type { CellHistory } from "@/lib/ops-price-history";
 import { buildOpsScopeSummary } from "@/lib/ops-scope-summary";
 import { opsUrgentVacantCells } from "@/lib/ops-urgent-vacant";
 import { opsVacantRoomKeys } from "@/lib/ops-vacant-today";
 import "./mobile-ops-calendar.css";
 
 /**
- * 모바일 판매 캘린더 격자(2026-10-01, 시안 1a v2 「A 보기 · 편집」).
+ * 모바일 판매 캘린더 격자(2026-10-01, 시안 1a v2).
  *
  * 도메인 계약: `docs/product/33-calendar-write-features.md` → 「모바일 판매 캘린더」
  *
- * 데스크톱 격자(`ops-calendar-grid.tsx`)와 **같은 데이터 · 같은 판정 · 같은 패널**을 쓴다. 다른 것은
- * 입력 방식뿐이다:
+ * **데스크톱 대시보드의 기능을 전부 가진다**(2026-10-01 사용자 지시) — 같은 데이터 · 같은 판정 · 같은 패널 ·
+ * 같은 서버 액션. 다른 것은 입력 방식뿐이다:
  *
- * - **탭 = 한 칸 토글**, **길게 누른 뒤 끌기 = 사각형 선택**(`applyDragRect` — 데스크톱 드래그와 같은 함수).
- *   그냥 끌면 격자가 스크롤된다 — 폰에서는 스크롤이 기본 동작이어야 한다.
- * - 고른 칸이 있으면 아래에 **선택 바**가 뜨고, 가격 · 최소숙박 · 차단을 누르면 데스크톱 패널이 그대로
- *   **하단 시트**(공용 `BottomSheet`) 안에 열린다. 패널의 CSS 변수가 `.adm` · `.ops` 에 걸려 있어 시트
- *   내용을 그 두 클래스로 감싼다.
+ * | 데스크톱 | 모바일 |
+ * | --- | --- |
+ * | 드래그 · Shift+클릭 | 길게 누른 뒤 끌기(칸 · 날짜 머리 · 객실 이름 모두) |
+ * | 편집 모드의 축(객실 · 기간 · 요일) | 「범위 선택」 시트 — 같은 `buildScopeCells` · `applyScopeToSelection` |
+ * | 오른쪽 패널 · 옆 패널 | 공용 `BottomSheet` 안에 같은 패널 |
+ * | 칸 이력 호버 카드 | 한 칸만 골랐을 때 도구줄의 「이력」 |
+ * | 빈 칸 `+` → 체크아웃 | 한 객실의 이어진 빈 밤을 고르면 도구줄의 「예약」 |
+ * | 날짜 이동 달력 · 상단 예약 검색 | 범위 라벨(기기 날짜 선택) · 검색 시트 |
+ *
+ * 패널 CSS 변수가 `.adm` · `.ops` 에 걸려 있어 시트 내용을 그 두 클래스로 감싸고, 데스크톱 모양(302px 카드 ·
+ * 오른쪽 고정 패널 · X 버튼)은 `.mops-panel` 아래에서 걷는다 — 시트 계약(X 없음, 끌기 · 스크림 · Esc)을 따른다.
  */
 
 type Copy = Dictionary["opsAdmin"]["calendar"];
@@ -61,10 +107,24 @@ type Nav = {
   todayHref: string;
 };
 
-type Pending = { token: number; value: number };
-type SheetKind = "price" | "minstay" | "block";
+/** 날짜 이동 — 고른 날짜로 `start`(30일) 또는 `ym`(월간)만 바꾸고 나머지 쿼리는 그대로. */
+type Jump = {
+  base: { cancelled?: string; mode: string; property: string[] };
+  month: string;
+  start: string;
+};
 
-/** 칸 폭 · 객실 열 폭 · 트랙. CSS(`mobile-ops-calendar.css`)의 같은 이름 변수와 짝이다. */
+type Pending = { token: number; value: number };
+type PanelKind = "price" | "minstay" | "block";
+type Overlay =
+  | { kind: PanelKind | "scope" | "history" | "wins" | "search" }
+  | { kind: "reservation"; placement: OpsReservationPlacement }
+  | { kind: "booking"; room: BookingPanelRoom; checkIn: string; checkOut: string }
+  | { kind: "cellHistory"; roomKey: string; date: string }
+  | { kind: "blockInfo"; block: OpsCalendarBlock; roomTitle: string };
+
+const BASE_PATH = "/mobile/ops/calendar";
+/** 칸 폭 · 트랙. CSS(`mobile-ops-calendar.css`)의 같은 이름 변수와 짝이다. */
 const CELL_W = 46;
 const TOP_H = 34;
 const LANE_H = 22;
@@ -74,6 +134,8 @@ const LONG_PRESS_MS = 380;
 const MOVE_SLOP = 8;
 /** 끌다가 격자 가장자리에 이만큼 다가가면 그쪽으로 저절로 넘긴다. */
 const EDGE = 36;
+const HEAD_H = 60;
+const ROOM_W = 56;
 
 /** 46px 칸에 맞는 금액 표기. 10만 엔부터는 `123k` — 그대로 쓰면 칸을 넘는다. */
 function compactYen(value: number): string {
@@ -91,12 +153,36 @@ function dropTokens(map: Map<string, Pending>, tokens: ReadonlySet<number>): Map
   return changed ? next : map;
 }
 
+function addDays(date: string, days: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+function shortDate(date: string): string {
+  return `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
+}
+
+/** BLOCK 막대 시트의 「누가 · 언제」 — 도쿄 시각. */
+function tokyoStamp(iso: string): string {
+  return new Intl.DateTimeFormat("sv-SE", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+  }).format(new Date(iso));
+}
+
 export function MobileOpsCalendar({
   copy,
   days,
+  historyAlerts,
+  jump,
   nav,
   properties,
   rows,
+  searchCopy,
   selectedProperties,
   staleRates,
   syncedLabel,
@@ -104,9 +190,12 @@ export function MobileOpsCalendar({
 }: {
   copy: Copy;
   days: OpsCalendarDay[];
+  historyAlerts: number;
+  jump: Jump;
   nav: Nav;
   properties: PropertyPill[];
   rows: OpsGridRowData[];
+  searchCopy: AdminGuestSearchCopy;
   selectedProperties: string[];
   staleRates: boolean;
   syncedLabel: string;
@@ -135,6 +224,7 @@ export function MobileOpsCalendar({
   }, [hasLargeRooms, largeFirst, serverRooms, vacantActive, vacantKeys]);
   const rowByKey = useMemo(() => new Map(rows.map((row) => [row.room.key, row])), [rows]);
   const roomKeys = useMemo(() => rooms.map((room) => room.key), [rooms]);
+  const roomByKey = useMemo(() => new Map(rooms.map((room) => [room.key, room])), [rooms]);
 
   const rateAt = useMemo(() => buildRowRateLookup(rows, dates), [rows, dates]);
   const gapCells = useMemo(() => rowGapCellKeys(rows, dates), [rows, dates]);
@@ -158,20 +248,52 @@ export function MobileOpsCalendar({
 
   /** 고를 수 있는 칸 — 오늘 이후이고 팔리지 않은 밤(데스크톱 `canSelect` 와 같다). */
   const canSelect = (roomKey: string, date: string) => date >= today && !soldCells.has(selectionCellKey(roomKey, date));
+  const occupancyAt = (roomKey: string, date: string) => ({
+    hasBlockingReservation: soldCells.has(selectionCellKey(roomKey, date)),
+  });
 
-  // ── 선택 ─────────────────────────────────────────────────────────────────
-  const [selection, setSelection] = useState<OpsSelectionCell[]>([]);
-  const [sheet, setSheet] = useState<SheetKind | null>(null);
+  // ── 선택 · 범위 축(데스크톱과 같은 모양: 고른 칸 + 축이 넣어 준 칸의 키) ─────────────
+  const [selState, setSelState] = useState<{ cells: OpsSelectionCell[]; scopeKeys: Set<string> }>({
+    cells: [],
+    scopeKeys: new Set(),
+  });
+  const [scope, setScope] = useState<OpsSelectionScope>(EMPTY_SCOPE);
+  const selection = selState.cells;
+  const setSelection = (next: OpsSelectionCell[] | ((previous: OpsSelectionCell[]) => OpsSelectionCell[])) =>
+    setSelState((previous) => ({
+      cells: typeof next === "function" ? next(previous.cells) : next,
+      scopeKeys: previous.scopeKeys,
+    }));
+  const [overlay, setOverlay] = useState<Overlay | null>(null);
+  const [salesOpen, setSalesOpen] = useState(false);
   // 필터가 방을 화면에서 지우면 그 방의 칸도 선택에서 뺀다 — 요약과 실제로 보내는 칸이 어긋나지 않게.
-  if (selection.some((cell) => !roomKeys.includes(cell.roomKey))) {
-    const visible = new Set(roomKeys);
-    setSelection(selection.filter((cell) => visible.has(cell.roomKey)));
+  // 칸 수 × 객실 수로 훑지 않는다(끄는 동안 렌더마다 돈다) — 객실 Map 으로 한 번에.
+  if (selection.some((cell) => !roomByKey.has(cell.roomKey))) {
+    setSelState({ cells: selection.filter((cell) => roomByKey.has(cell.roomKey)), scopeKeys: selState.scopeKeys });
   }
   const selectedKeys = useMemo(
     () => new Set(selection.map((cell) => selectionCellKey(cell.roomKey, cell.date))),
     [selection],
   );
-  const clearSelection = () => setSelection([]);
+  const clearSelection = () => {
+    setScope(EMPTY_SCOPE);
+    setSelState({ cells: [], scopeKeys: new Set() });
+  };
+  /** 축을 바꾼다 — 곧바로 선택에 반영하되 직접 찍은 칸은 보존한다(데스크톱 `applyScope` 와 같다). */
+  const applyScope = (next: OpsSelectionScope) => {
+    setScope(next);
+    const built = buildScopeCells({ dates, occupancyAt, roomKeys, scope: next, today });
+    setSelState((previous) => {
+      const applied = applyScopeToSelection({
+        nextScopeCells: built.cells,
+        previous: previous.cells,
+        previousScopeKeys: previous.scopeKeys,
+      });
+      return { cells: applied.selection, scopeKeys: applied.scopeKeys };
+    });
+  };
+  const weeks = useMemo(() => buildSelectableWeeks(dates, today), [dates, today]);
+  const allRoomsInScope = roomKeys.length > 0 && roomKeys.every((key) => scope.roomKeys.includes(key));
 
   const urgentCells = useMemo(
     () =>
@@ -205,16 +327,52 @@ export function MobileOpsCalendar({
     return cells;
   }, [gapCells, roomKeys, soldCells, today]);
 
-  const openWith = (cells: OpsSelectionCell[], kind: SheetKind) => {
+  const openWith = (cells: OpsSelectionCell[], kind: PanelKind) => {
     if (cells.length === 0) return;
-    setSelection(cells);
-    setSheet(kind);
+    setScope(EMPTY_SCOPE);
+    setSelState({ cells, scopeKeys: new Set() });
+    setOverlay({ kind });
   };
+
+  // ── 가격 개입 성공(데스크톱과 같은 판정 · 같은 지연 로드) ─────────────────────────
+  const [priceWinsOnly, setPriceWinsOnly] = useState(false);
+  const [conversionsState, setConversionsState] = useState<{ propertyKey: string; list: OpsPriceConversion[] } | null>(
+    null,
+  );
+  const propertyKey = selectedProperties.join("\n");
+  const conversionsRequestRef = useRef(0);
+  useEffect(() => {
+    conversionsRequestRef.current += 1;
+    const requestId = conversionsRequestRef.current;
+    void loadOpsPriceConversions({ properties: propertyKey ? propertyKey.split("\n") : [] }).then((result) => {
+      if (!result.ok || requestId !== conversionsRequestRef.current) return;
+      setConversionsState({ list: result.conversions, propertyKey });
+    });
+    // 서버 데이터가 새로 올 때마다(= 새 예약이 들어왔을 수 있다) 다시 판정한다 — 데스크톱과 같다.
+  }, [propertyKey, rows]);
+  const priceConversions = useMemo(() => {
+    if (!conversionsState || conversionsState.propertyKey !== propertyKey) return null;
+    const visible = new Set(serverRooms.map((room) => room.key));
+    return conversionsState.list.filter((conversion) => visible.has(conversion.roomKey));
+  }, [conversionsState, propertyKey, serverRooms]);
+  const winIdsByRoom = useMemo(() => {
+    const ids = new Set((priceConversions ?? []).map((conversion) => conversion.reservationId));
+    const byRoom = new Map<string, string[]>();
+    for (const bar of allBars) {
+      if (!ids.has(bar.id)) continue;
+      const list = byRoom.get(bar.roomKey);
+      if (list) list.push(bar.id);
+      else byRoom.set(bar.roomKey, [bar.id]);
+    }
+    return new Map([...byRoom].map(([roomKey, list]) => [roomKey, list.join("|")]));
+  }, [allBars, priceConversions]);
 
   // ── 쓰기(흐린 값 → 접수 → 반영 대기 → 다시 읽기) ──────────────────────────
   const [pendingPrices, setPendingPrices] = useState<Map<string, Pending>>(new Map());
   const [pendingMinStay, setPendingMinStay] = useState<Map<string, Pending>>(new Map());
   const [settledTokens, setSettledTokens] = useState<Set<number>>(new Set());
+  /** 아직 Beds24 에 반영 중인 쓰기 수 — 시트를 닫아도 「가는 중」임을 위에 띄운다(데스크톱 `msQueued`). */
+  const [writesInFlight, setWritesInFlight] = useState(0);
   const writeTokenRef = useRef(0);
   /*
    * 서버 데이터가 새로 오면 **반영이 끝났고 값도 맞아진** 쓰기의 흐린 값을 거둔다. 값이 끝내 안 맞는
@@ -260,7 +418,9 @@ export function MobileOpsCalendar({
       drop();
       return { result, settled: null };
     }
+    setWritesInFlight((count) => count + 1);
     const settled = watchOpsWriteJob(result.jobId).then((outcome) => {
+      setWritesInFlight((count) => Math.max(0, count - 1));
       if (outcome === "failed") drop();
       else {
         setSettledTokens((previous) => new Set(previous).add(token));
@@ -278,7 +438,6 @@ export function MobileOpsCalendar({
   };
 
   // ── 패널에 넘길 모양 ───────────────────────────────────────────────────────
-  const roomByKey = useMemo(() => new Map(rooms.map((room) => [room.key, room])), [rooms]);
   const panelCells: PanelCell[] = selection
     .map((cell) => {
       const room = roomByKey.get(cell.roomKey);
@@ -308,53 +467,142 @@ export function MobileOpsCalendar({
     [allBars, allBlocks, gapCells, rooms],
   );
 
+  /*
+   * 도구줄의 상황별 버튼.
+   * - **예약**: 한 객실의 **이어진 빈 밤**만 골랐을 때 — 체크인 = 첫 밤, 체크아웃 = 마지막 밤 다음 날(데스크톱의 빈 칸
+   *   `+` → 체크아웃과 같은 결과). 패널에서 날짜는 다시 고칠 수 있다.
+   * - **이력**: 한 칸만 골랐고 그 칸에 변경 이력이 있을 때 — 데스크톱 호버 카드 대신.
+   */
+  const bookingDraft = (() => {
+    if (selection.length === 0) return null;
+    const roomKey = selection[0].roomKey;
+    if (selection.some((cell) => cell.roomKey !== roomKey)) return null;
+    const room = roomByKey.get(roomKey);
+    if (!room || room.roomIds.length === 0) return null;
+    const sorted = [...new Set(selection.map((cell) => cell.date))].sort();
+    for (let index = 1; index < sorted.length; index += 1) {
+      if (sorted[index] !== addDays(sorted[index - 1], 1)) return null;
+    }
+    return {
+      checkIn: sorted[0],
+      checkOut: addDays(sorted[sorted.length - 1], 1),
+      room: { key: room.key, label: room.displayRoomLabel, propertyName: room.propertyName, roomIds: room.roomIds },
+    };
+  })();
+  const historyCell = (() => {
+    if (selection.length !== 1) return null;
+    const cell = selection[0];
+    const row = rowByKey.get(cell.roomKey);
+    const index = dates.indexOf(cell.date);
+    return row && dayFlagAt(row.history, index) ? cell : null;
+  })();
+
+  // ── 칸 이력(도구줄 「이력」) ─────────────────────────────────────────────────
+  const [cellHistory, setCellHistory] = useState<{ key: string; history: CellHistory | null } | null>(null);
+  const [historyHost, setHistoryHost] = useState<HTMLDivElement | null>(null);
+  const cellHistoryTarget = overlay?.kind === "cellHistory" ? overlay : null;
+  const cellHistoryKey = cellHistoryTarget ? selectionCellKey(cellHistoryTarget.roomKey, cellHistoryTarget.date) : null;
+  useEffect(() => {
+    if (!cellHistoryTarget || !cellHistoryKey) return;
+    const room = rowByKey.get(cellHistoryTarget.roomKey)?.room;
+    if (!room || room.roomIds.length === 0) return;
+    let live = true;
+    void loadOpsCellHistory({ date: cellHistoryTarget.date, roomIds: room.roomIds }).then((result) => {
+      if (live && result.ok) setCellHistory({ history: result.history, key: cellHistoryKey });
+    });
+    return () => {
+      live = false;
+    };
+    // 칸이 바뀔 때만 다시 받는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cellHistoryKey]);
+
   // ── 길게 누르기 · 끌기 ──────────────────────────────────────────────────────
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   /** 네이티브 리스너가 읽는 최신 값. 렌더 중이 아니라 효과에서만 갱신한다(React Compiler 규칙). */
-  const liveRef = useRef({ canSelect, dates, roomKeys, selectedKeys, selection });
+  const liveRef = useRef({ applyScope, canSelect, dates, roomKeys, scope, selectedKeys, selection });
   useEffect(() => {
-    liveRef.current = { canSelect, dates, roomKeys, selectedKeys, selection };
+    liveRef.current = { applyScope, canSelect, dates, roomKeys, scope, selectedKeys, selection };
   });
 
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
-    type Drag = {
-      anchor: { row: number; col: number };
-      base: OpsSelectionCell[];
-      adding: boolean;
-      x: number;
-      y: number;
-    };
+    type Hit = { kind: "cell"; row: number; col: number } | { kind: "day"; col: number } | { kind: "room"; row: number };
+    /**
+     * 끌기 셋 — 칸(사각형), 날짜 머리(열 범위 = 데스크톱 Shift+날짜), 객실 이름(객실 축 범위 = 데스크톱 객실명 클릭).
+     */
+    type Drag =
+      | { kind: "cells"; anchor: { row: number; col: number }; base: OpsSelectionCell[]; adding: boolean; x: number; y: number }
+      | { kind: "cols"; anchor: number; base: OpsSelectionCell[]; adding: boolean; x: number; y: number }
+      | { kind: "rows"; anchor: number; baseRooms: string[]; adding: boolean; x: number; y: number };
     let pressTimer: ReturnType<typeof setTimeout> | null = null;
-    let press: { x: number; y: number; target: HTMLElement } | null = null;
+    let press: { x: number; y: number } | null = null;
     let drag: Drag | null = null;
     let suppressClick = false;
     let autoFrame: number | null = null;
 
-    const cellAt = (x: number, y: number) => {
-      const element = document.elementFromPoint(x, y) as HTMLElement | null;
-      const cell = element?.closest<HTMLElement>("[data-i]");
-      const row = cell?.closest<HTMLElement>("[data-r]");
-      if (!cell || !row || !scroller.contains(cell)) return null;
-      return { col: Number(cell.dataset.i), row: Number(row.dataset.r) };
+    /** 손가락 아래 — 막대 · 차단은 건너뛰고 그 밑의 칸 · 머리를 찾는다. */
+    const hitAt = (x: number, y: number): Hit | null => {
+      for (const element of document.elementsFromPoint(x, y) as HTMLElement[]) {
+        if (!scroller.contains(element)) continue;
+        const cell = element.closest<HTMLElement>("[data-i]");
+        if (cell) {
+          const row = cell.closest<HTMLElement>("[data-r]");
+          if (row) return { col: Number(cell.dataset.i), kind: "cell", row: Number(row.dataset.r) };
+        }
+        const day = element.closest<HTMLElement>("[data-di]");
+        if (day) return { col: Number(day.dataset.di), kind: "day" };
+        const room = element.closest<HTMLElement>("[data-room]");
+        if (room) {
+          const row = room.closest<HTMLElement>("[data-r]");
+          if (row) return { kind: "room", row: Number(row.dataset.r) };
+        }
+      }
+      return null;
     };
     const applyAt = (x: number, y: number) => {
       if (!drag) return;
-      const current = cellAt(x, y);
-      if (!current) return;
+      const hit = hitAt(x, y);
+      if (!hit) return;
       const live = liveRef.current;
-      setSelection(
-        applyDragRect({
-          adding: drag.adding,
-          anchor: drag.anchor,
-          base: drag.base,
-          canSelect: live.canSelect,
-          current,
-          dates: live.dates,
-          roomKeys: live.roomKeys,
-        }),
-      );
+      const lastRow = live.roomKeys.length - 1;
+      if (drag.kind === "cells") {
+        if (hit.kind !== "cell") return;
+        setSelection(
+          applyDragRect({
+            adding: drag.adding,
+            anchor: drag.anchor,
+            base: drag.base,
+            canSelect: live.canSelect,
+            current: hit,
+            dates: live.dates,
+            roomKeys: live.roomKeys,
+          }),
+        );
+      } else if (drag.kind === "cols") {
+        if (hit.kind === "room") return;
+        setSelection(
+          applyDragRect({
+            adding: drag.adding,
+            anchor: { col: drag.anchor, row: 0 },
+            base: drag.base,
+            canSelect: live.canSelect,
+            current: { col: hit.col, row: lastRow },
+            dates: live.dates,
+            roomKeys: live.roomKeys,
+          }),
+        );
+      } else {
+        if (hit.kind === "day") return;
+        const from = Math.min(drag.anchor, hit.row);
+        const to = Math.max(drag.anchor, hit.row);
+        const range = live.roomKeys.slice(from, to + 1);
+        const next = drag.adding
+          ? [...new Set([...drag.baseRooms, ...range])]
+          : drag.baseRooms.filter((key) => !range.includes(key));
+        live.applyScope({ ...live.scope, roomKeys: next });
+      }
     };
     const stopAuto = () => {
       if (autoFrame !== null) cancelAnimationFrame(autoFrame);
@@ -366,29 +614,59 @@ export function MobileOpsCalendar({
       const box = scroller.getBoundingClientRect();
       let dx = 0;
       let dy = 0;
-      if (drag.x < box.left + 56 + EDGE) dx = -8;
-      else if (drag.x > box.right - EDGE) dx = 8;
-      if (drag.y < box.top + 60 + EDGE) dy = -8;
-      else if (drag.y > box.bottom - EDGE) dy = 8;
+      if (drag.kind !== "rows") {
+        if (drag.x < box.left + ROOM_W + EDGE) dx = -8;
+        else if (drag.x > box.right - EDGE) dx = 8;
+      }
+      if (drag.kind !== "cols") {
+        if (drag.y < box.top + HEAD_H + EDGE) dy = -8;
+        else if (drag.y > box.bottom - EDGE) dy = 8;
+      }
       if (dx === 0 && dy === 0) return;
       scroller.scrollBy(dx, dy);
       applyAt(drag.x, drag.y);
       autoFrame = requestAnimationFrame(autoScroll);
     };
     const startDrag = (x: number, y: number) => {
-      const anchor = cellAt(x, y);
-      if (!anchor) return false;
+      const hit = hitAt(x, y);
+      if (!hit) return false;
       const live = liveRef.current;
-      const roomKey = live.roomKeys[anchor.row];
-      const date = live.dates[anchor.col];
-      if (!roomKey || !date) return false;
-      drag = {
-        adding: !live.selectedKeys.has(selectionCellKey(roomKey, date)),
-        anchor,
-        base: live.selection,
-        x,
-        y,
-      };
+      if (hit.kind === "cell") {
+        const roomKey = live.roomKeys[hit.row];
+        const date = live.dates[hit.col];
+        if (!roomKey || !date) return false;
+        drag = {
+          adding: !live.selectedKeys.has(selectionCellKey(roomKey, date)),
+          anchor: hit,
+          base: live.selection,
+          kind: "cells",
+          x,
+          y,
+        };
+      } else if (hit.kind === "day") {
+        const date = live.dates[hit.col];
+        if (!date) return false;
+        const selectable = live.roomKeys.filter((roomKey) => live.canSelect(roomKey, date));
+        drag = {
+          adding: !selectable.every((roomKey) => live.selectedKeys.has(selectionCellKey(roomKey, date))),
+          anchor: hit.col,
+          base: live.selection,
+          kind: "cols",
+          x,
+          y,
+        };
+      } else {
+        const roomKey = live.roomKeys[hit.row];
+        if (!roomKey) return false;
+        drag = {
+          adding: !live.scope.roomKeys.includes(roomKey),
+          anchor: hit.row,
+          baseRooms: live.scope.roomKeys,
+          kind: "rows",
+          x,
+          y,
+        };
+      }
       scroller.classList.add("is-dragging");
       applyAt(x, y);
       return true;
@@ -404,6 +682,7 @@ export function MobileOpsCalendar({
       }
       stopAuto();
     };
+    const PRESSABLE = "[data-i], [data-bar], [data-block], [data-di], [data-room]";
 
     const onTouchStart = (event: TouchEvent) => {
       // 격자가 맨 위가 아니면 셸의 당겨서 새로고침을 무장시키지 않는다 — 격자를 위로 올리다가 화면 전체가
@@ -414,9 +693,8 @@ export function MobileOpsCalendar({
         return;
       }
       const touch = event.touches[0];
-      const target = event.target as HTMLElement;
-      if (!target.closest("[data-i]")) return;
-      press = { target, x: touch.clientX, y: touch.clientY };
+      if (!(event.target as HTMLElement).closest(PRESSABLE)) return;
+      press = { x: touch.clientX, y: touch.clientY };
       suppressClick = false;
       pressTimer = setTimeout(() => {
         pressTimer = null;
@@ -444,10 +722,13 @@ export function MobileOpsCalendar({
       if (scroller.scrollTop > 0) event.stopPropagation();
     };
     const onTouchEnd = () => endDrag();
-    // 마우스(데스크톱에서 열었을 때)는 누르는 즉시 사각형 선택이다 — 길게 누를 필요가 없다.
+    // 마우스(데스크톱에서 열었을 때)는 누르는 즉시 끌기다 — 막대만 예외(눌러서 예약을 연다).
     const onPointerDown = (event: PointerEvent) => {
+      // 직전 끌기가 격자 밖에서 끝나 click 이 안 왔으면 표시가 남는다 — 새 손짓마다 지운다(안 지우면 다음 탭 하나가 먹힌다).
+      suppressClick = false;
       if (event.pointerType !== "mouse" || event.button !== 0) return;
-      if (!(event.target as HTMLElement).closest("[data-i]")) return;
+      const target = event.target as HTMLElement;
+      if (target.closest("[data-bar], [data-block]") || !target.closest(PRESSABLE)) return;
       event.preventDefault();
       if (startDrag(event.clientX, event.clientY)) {
         const onMove = (move: PointerEvent) => {
@@ -474,7 +755,7 @@ export function MobileOpsCalendar({
       event.preventDefault();
     };
     const onContextMenu = (event: Event) => {
-      if ((event.target as HTMLElement).closest("[data-i]")) event.preventDefault();
+      if ((event.target as HTMLElement).closest(PRESSABLE)) event.preventDefault();
     };
 
     scroller.addEventListener("touchstart", onTouchStart, { passive: true });
@@ -494,28 +775,71 @@ export function MobileOpsCalendar({
       scroller.removeEventListener("click", onClickCapture, true);
       scroller.removeEventListener("contextmenu", onContextMenu);
     };
+    // `setSelection` 은 `setSelState` 만 쓰는 함수라 첫 렌더 것을 붙잡아도 같다.
   }, []);
 
-  /** 탭 한 번 = 그 칸 토글(이벤트는 격자 한 곳에서 받는다 — 칸마다 핸들러를 달지 않는다). */
+  /*
+   * 빈 곳을 누르면 선택을 푼다(도구줄에 X 가 없다 — 2026-10-01 사용자 지시). 격자 · 도구줄 · 시트 · 버튼 · 링크는
+   * 「빈 곳」이 아니다 — 칸을 더 고르거나, 칩으로 다른 선택을 시작하거나, 건물을 바꾸는 손짓이다.
+   */
+  const hasSelection = selection.length > 0;
+  const overlayOpen = overlay !== null || salesOpen;
+  useEffect(() => {
+    if (!hasSelection || overlayOpen) return;
+    const onDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target || target.closest(".mops-grid, .mops-dock, [data-sheet], a, button, input, textarea, select")) return;
+      setScope(EMPTY_SCOPE);
+      setSelState({ cells: [], scopeKeys: new Set() });
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [hasSelection, overlayOpen]);
+
+  const placementOf = (roomKey: string, barId: string): OpsReservationPlacement | null => {
+    const row = rowByKey.get(roomKey);
+    const bar = row?.bars.find((candidate) => candidate.id === barId);
+    if (!row || !bar) return null;
+    return { bar, propertyName: row.room.propertyName, roomIds: row.room.roomIds, roomLabel: row.room.displayRoomLabel };
+  };
+
+  /** 탭 한 번(이벤트는 격자 한 곳에서 받는다 — 칸마다 핸들러를 달지 않는다). */
   const onGridClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
-    const cell = target.closest<HTMLElement>("[data-i]");
     const rowElement = target.closest<HTMLElement>("[data-r]");
-    if (cell && rowElement) {
-      const roomKey = roomKeys[Number(rowElement.dataset.r)];
-      const date = dates[Number(cell.dataset.i)];
-      if (!roomKey || !date || !canSelect(roomKey, date)) return;
-      setSelection((previous) => toggleCellGroup(previous, [{ date, roomKey }]));
+    const rowKey = rowElement ? roomKeys[Number(rowElement.dataset.r)] : undefined;
+    // 예약 막대 = 그 예약 상세(데스크톱 막대 클릭과 같다).
+    const barElement = target.closest<HTMLElement>("[data-bar]");
+    if (barElement && rowKey) {
+      const placement = placementOf(rowKey, barElement.dataset.bar ?? "");
+      if (placement) setOverlay({ kind: "reservation", placement });
       return;
     }
-    // 객실명 = 그 줄, 날짜 머리 = 그 열(고를 수 있는 칸만). 전부 골라져 있으면 해제.
+    // BLOCK 막대 = 사유 · 메모 · 건 사람(데스크톱은 막대에 마우스를 올리면 보인다).
+    const blockElement = target.closest<HTMLElement>("[data-block]");
+    if (blockElement && rowKey) {
+      const row = rowByKey.get(rowKey);
+      const block = row?.blocks.find((candidate) => candidate.id === blockElement.dataset.block);
+      if (row && block) {
+        setOverlay({ block, kind: "blockInfo", roomTitle: `${row.room.propertyName} ${row.room.displayRoomLabel}` });
+      }
+      return;
+    }
+    const cell = target.closest<HTMLElement>("[data-i]");
+    if (cell && rowKey) {
+      const date = dates[Number(cell.dataset.i)];
+      if (!date || !canSelect(rowKey, date)) return;
+      setSelection((previous) => toggleCellGroup(previous, [{ date, roomKey: rowKey }]));
+      return;
+    }
+    // 객실 이름 = **객실 축 토글**(데스크톱 객실명 클릭과 같다) — 기간 · 요일 축과 곱해진다.
     const roomButton = target.closest<HTMLElement>("[data-room]");
     if (roomButton) {
       const roomKey = roomButton.dataset.room ?? "";
-      const cells = dates.filter((date) => canSelect(roomKey, date)).map((date) => ({ date, roomKey }));
-      if (cells.length > 0) setSelection((previous) => toggleCellGroup(previous, cells));
+      applyScope({ ...scope, roomKeys: toggleInList(scope.roomKeys, roomKey) });
       return;
     }
+    // 날짜 머리 = 그 열(고를 수 있는 칸만). 전부 골라져 있으면 해제.
     const dayButton = target.closest<HTMLElement>("[data-day]");
     if (dayButton) {
       const date = dayButton.dataset.day ?? "";
@@ -524,10 +848,99 @@ export function MobileOpsCalendar({
     }
   };
 
-  // 격자를 내리면 셸 머리도 같이 숨는다(셸의 공용 신호 — 달력 보기와 같다).
+  /*
+   * **셸 크롬(머리 · 탭 바)은 다른 화면처럼 스크롤에 따라 숨었다 나타난다** — 대신 그 빈자리를 격자가 채운다.
+   *
+   * 이 격자는 자기 상자 안에서 넘어가는 고정 높이라, 셸이 크롬만 치우면 위아래로 빈 띠가 남았다(2026-10-01 지적).
+   * 그래서 셸의 표시 상태를 따라간다: 숨으면 화면 전체를 머리 높이(64px)만큼 올리고 격자를 화면 바닥까지 늘린다.
+   * 움직임 곡선 · 시간은 셸과 같다(숨기 200ms ease-in, 나타나기 400ms 스프링).
+   *
+   * 셸은 크롬 상태를 밖으로 알려 주지 않는다 — 탭 바가 숨을 때 붙는 `pointer-events-none` 클래스를 지켜본다.
+   * 격자 스크롤은 `mobile-shell-scroll` 로 셸에 알린다(달력 보기와 같은 공용 신호).
+   */
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const grid = scrollerRef.current;
+    const root = rootRef.current;
+    if (!grid || !root) return;
+    const HEADER = 64;
+    const tabbar = document.querySelector<HTMLElement>("nav.tabbar");
+    let hidden = false;
+    /** 크롬이 보일 때의 격자 위 끝(변형을 뺀 자리) · 탭 바 위 끝 · 화면 바닥. **실제 위치를 잰다** — `innerHeight -
+     *  탭 바 높이` 로 셈하면 셸이 창과 크기가 다를 때(관리자 미리보기 등) 맨 아래 줄이 탭 바 밑으로 들어갔다. */
+    let naturalTop = 0;
+    let tabTop = window.innerHeight;
+    let screenBottom = window.innerHeight;
+    const measure = () => {
+      naturalTop = grid.getBoundingClientRect().top + (hidden ? HEADER : 0);
+      if (tabbar && !hidden) {
+        const box = tabbar.getBoundingClientRect();
+        tabTop = box.top;
+        screenBottom = box.bottom;
+      } else if (!tabbar) {
+        tabTop = window.innerHeight;
+        screenBottom = window.innerHeight;
+      }
+    };
+    measure();
+    const apply = (animate: boolean) => {
+      const height = hidden ? screenBottom - (naturalTop - HEADER) : tabTop - naturalTop;
+      const transition = !animate
+        ? "none"
+        : hidden
+          ? "200ms cubic-bezier(0.4, 0, 1, 1)"
+          : "400ms cubic-bezier(0.22, 1, 0.36, 1)";
+      root.style.transition = transition === "none" ? "none" : `transform ${transition}`;
+      grid.style.transition = transition === "none" ? "none" : `height ${transition}`;
+      root.style.transform = hidden ? `translateY(-${HEADER}px)` : "";
+      grid.style.height = `${Math.max(320, Math.floor(height))}px`;
+    };
+    const onResize = () => {
+      measure();
+      apply(false);
+    };
+    const observer = new MutationObserver(() => {
+      const next = tabbar?.classList.contains("pointer-events-none") ?? false;
+      if (next === hidden) return;
+      hidden = next;
+      apply(true);
+    });
+    if (tabbar) observer.observe(tabbar, { attributeFilter: ["class"], attributes: true });
+    apply(false);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+    };
+  }, []);
   const onGridScroll = (event: React.UIEvent<HTMLDivElement>) => {
     window.dispatchEvent(new CustomEvent("mobile-shell-scroll", { detail: { scrollTop: event.currentTarget.scrollTop } }));
   };
+
+  /** 날짜 이동 — 기기의 날짜 선택(데스크톱의 범위 라벨 달력과 같은 자리). */
+  const jumpInputRef = useRef<HTMLInputElement | null>(null);
+  const jumpTargetRef = useRef({ base: jump.base, isRolling: nav.isRolling });
+  useEffect(() => {
+    jumpTargetRef.current = { base: jump.base, isRolling: nav.isRolling };
+  });
+  useEffect(() => {
+    const input = jumpInputRef.current;
+    if (!input) return;
+    const onCommit = () => {
+      const value = input.value;
+      if (!value) return;
+      const { base, isRolling } = jumpTargetRef.current;
+      router.push(
+        buildOpsCalendarHref(isRolling ? { ...base, start: value } : { ...base, ym: value.slice(0, 7) }, BASE_PATH),
+        { scroll: false },
+      );
+    };
+    input.addEventListener("change", onCommit);
+    return () => input.removeEventListener("change", onCommit);
+    // 입력칸이 새로 그려질 때(키가 바뀔 때)마다 다시 붙인다.
+  }, [router, nav.isRolling, jump.start, jump.month]);
 
   // ── 행별로 쪼갠 표시 상태(바뀐 행만 다시 그린다) ────────────────────────────
   const flagsFor = (roomKey: string, keys: ReadonlySet<string>) => {
@@ -566,13 +979,18 @@ export function MobileOpsCalendar({
   }
   const rowIndexByKey = new Map(roomKeys.map((key, index) => [key, index]));
   const allSelected = selectedProperties.length === 0;
-  const rowCopy = useMemo(() => ({ blockLabel: copy.blockLabel }), [copy.blockLabel]);
+  const rowCopy = useMemo(
+    () => ({ blockLabel: copy.blockLabel, bkPurposes: copy.bkPurposes as Record<string, string> }),
+    [copy.blockLabel, copy.bkPurposes],
+  );
 
   const selCount = selection.length;
   const selRoomCount = new Set(selection.map((cell) => cell.roomKey)).size;
+  const scopeActive = isScopeActive(scope);
+  const panelKind = overlay && (overlay.kind === "price" || overlay.kind === "minstay" || overlay.kind === "block") ? overlay.kind : null;
 
   return (
-    <div className="mops">
+    <div className="mops" ref={rootRef}>
       {/* 건물 — 누르면 그 건물만, 동그라미는 함께 보기(데스크톱의 체크 동그라미 · Ctrl+클릭과 같다). */}
       <div className="mops-pills" role="group" aria-label={copy.propertyGroupLabel}>
         <Link className={`mops-pill${allSelected ? " on" : ""}`} href={nav.allHref} scroll={false}>
@@ -593,7 +1011,7 @@ export function MobileOpsCalendar({
         ))}
       </div>
 
-      {/* 기간 */}
+      {/* 기간 — 범위 라벨을 누르면 날짜로 바로 이동(데스크톱 범위 라벨 달력 · 월 선택기와 같은 자리). */}
       <div className="mops-bar">
         <div className="mops-seg">
           <Link className={nav.isRolling ? "on" : ""} href={nav.rollingHref} scroll={false}>
@@ -612,14 +1030,26 @@ export function MobileOpsCalendar({
         <Link aria-label={copy.next} className="mops-nav" href={nav.nextHref} scroll={false}>
           <ChevronRight aria-hidden="true" />
         </Link>
-        <span className="mops-range">{nav.rangeLabel}</span>
-        <span className={`mops-sync${staleRates ? " stale" : ""}`} title={copy.syncedHint}>
-          {syncedLabel}
-          <Beds24LiveDot offLabel={copy.liveOff} onLabel={copy.liveOn} />
-        </span>
+        <label className="mops-range">
+          <span>{nav.rangeLabel}</span>
+          {/* 고르는 **도중**이 아니라 **확정했을 때** 옮긴다 — iOS 날짜 휠은 돌리는 동안에도 input 이벤트를 보낸다.
+              그래서 React onChange(=input) 가 아니라 기기 「완료」에 오는 change 이벤트만 받는다(비제어 입력). */}
+          <input
+            aria-label={copy.mJump}
+            className="mops-range__input"
+            defaultValue={nav.isRolling ? jump.start : jump.month}
+            key={`${nav.isRolling ? "d" : "m"}-${jump.start}-${jump.month}`}
+            ref={jumpInputRef}
+            type={nav.isRolling ? "date" : "month"}
+          />
+        </label>
+        <button aria-label={copy.mSearch} className="mops-nav mops-searchbtn" onClick={() => setOverlay({ kind: "search" })} type="button">
+          <Search aria-hidden="true" />
+        </button>
       </div>
 
-      {/* 빠른 칩 — 데스크톱과 같은 순서: 위 줄의 취소 보기 · 1박 갭 → 격자 도구줄의 임박 빈방 · 오늘 빈방만 · 큰방 위로. */}
+      {/* 빠른 칩 — 데스크톱과 같은 순서: 위 줄의 취소 보기 · 1박 갭 → 격자 도구줄의 가격 개입 성공 · 목록 · 이력 ·
+          매출 요약 · 임박 빈방 · 오늘 빈방만 · 큰방 위로 → 편집 모드의 범위 축(모바일은 「범위 선택」 시트). */}
       <div className="mops-chips">
         <Link className={`mops-chip${nav.showCancelled ? " on" : ""}`} href={nav.cancelledHref} scroll={false}>
           {nav.showCancelled ? copy.showCancelledOn : copy.showCancelled}
@@ -628,6 +1058,34 @@ export function MobileOpsCalendar({
           <button className="mops-chip gap" onClick={() => openWith(selectableGaps, "minstay")} title={copy.gapOpenHint} type="button">
             {copy.gapLabel}
             <b>{selectableGaps.length}</b>
+          </button>
+        )}
+        <button
+          aria-pressed={priceWinsOnly}
+          className={`mops-chip${priceWinsOnly ? " on" : ""}`}
+          onClick={() => setPriceWinsOnly((value) => !value)}
+          type="button"
+        >
+          {copy.pwToggle}
+          <b>{priceConversions ? priceConversions.length : "…"}</b>
+        </button>
+        <button className="mops-chip" onClick={() => setOverlay({ kind: "wins" })} type="button">
+          {copy.pwList}
+        </button>
+        <button
+          className={`mops-chip${historyAlerts > 0 ? " alert" : ""}`}
+          onClick={() => setOverlay({ kind: "history" })}
+          title={historyAlerts > 0 ? copy.hsAlertTitle.replace("{n}", String(historyAlerts)) : undefined}
+          type="button"
+        >
+          <History aria-hidden="true" />
+          {copy.hsButton}
+          {historyAlerts > 0 && <b>{historyAlerts}</b>}
+        </button>
+        {days.length > 0 && (
+          <button aria-haspopup="dialog" className="mops-chip" onClick={() => setSalesOpen(true)} type="button">
+            <ChartColumn aria-hidden="true" />
+            {copy.ssButton}
           </button>
         )}
         {todayInView && (
@@ -651,6 +1109,7 @@ export function MobileOpsCalendar({
             type="button"
           >
             {copy.vacantToday}
+            <b>{vacantKeys.size}</b>
           </button>
         )}
         {hasLargeRooms && (
@@ -663,8 +1122,55 @@ export function MobileOpsCalendar({
             {copy.largeFirst}
           </button>
         )}
+        <button className={`mops-chip${scopeActive ? " on" : ""}`} onClick={() => setOverlay({ kind: "scope" })} type="button">
+          <SlidersHorizontal aria-hidden="true" />
+          {copy.mScope}
+        </button>
       </div>
 
+      {/* 상태 · 범례 한 줄 — 가격 신선도 · 실시간 점 · 반영 중 · 범례(데스크톱 위 줄 오른쪽 + 범례 줄). */}
+      <div aria-label={copy.mLegend} className="mops-meta">
+        <span className={`mops-sync${staleRates ? " stale" : ""}`} title={copy.syncedHint}>
+          <Beds24LiveDot offLabel={copy.liveOff} onLabel={copy.liveOn} />
+          {syncedLabel}
+        </span>
+        {writesInFlight > 0 && (
+          <span className="mops-inflight" role="status">
+            <i aria-hidden="true" />
+            {copy.msQueued}
+          </span>
+        )}
+        <span className="mops-lg abnb">
+          <i />
+          Airbnb
+        </span>
+        <span className="mops-lg bkng">
+          <i />
+          Booking.com
+        </span>
+        <span className="mops-lg dir">
+          <i />
+          {copy.legendDirect}
+        </span>
+        <span className="mops-lg blk">
+          <i />
+          {copy.legendBlock}
+        </span>
+        <span className="mops-lg">
+          <em className="ms1">1</em>
+          {copy.legendOneNight}
+        </span>
+        <span className="mops-lg">
+          <em className="ms3">3</em>
+          {copy.legendLongStay}
+        </span>
+        <span className="mops-lg">
+          <em>
+            1<sup>•</sup>
+          </em>
+          {copy.legendMixed}
+        </span>
+      </div>
       <p className="mops-hint">{copy.mHint}</p>
 
       {/* 격자 — 가로 · 세로 모두 이 상자 안에서 넘긴다(날짜 머리 · 객실 열이 붙어 있게). */}
@@ -679,10 +1185,11 @@ export function MobileOpsCalendar({
       >
         <div className="mops-head">
           <div className="mops-corner">{copy.roomsHeader}</div>
-          {days.map((day) => (
+          {days.map((day, index) => (
             <button
               className={`mops-d${day.isWeekend ? " we" : ""}${day.isToday ? " today" : ""}${day.startsMonth ? " m1" : ""}${day.date < today ? " past" : ""}`}
               data-day={day.date}
+              data-di={index}
               key={day.date}
               type="button"
             >
@@ -695,10 +1202,14 @@ export function MobileOpsCalendar({
         {rooms.length === 0 && <div className="mops-empty">{vacantActive ? copy.vacantEmpty : copy.emptyBody}</div>}
         {groups.map((group) => (
           <div key={group.property}>
-            <div className="mops-group">
-              <span className="mops-group__name">{group.property}</span>
-              <span>{copy.roomCount.replace("{count}", String(group.rooms.length))}</span>
-            </div>
+            {/* 객실이 하나뿐인 건물(독채)은 묶음 머리를 달지 않는다 — 「오쿠보A · 객실 1」 아래 「오쿠보A」 한 줄이
+                중복으로 보였고 이름도 56px 열에서 잘렸다(2026-10-01 사용자 지적). 이름은 객실 열에 줄바꿈해 적는다. */}
+            {group.rooms.length > 1 && (
+              <div className="mops-group">
+                <span className="mops-group__name">{group.property}</span>
+                <span>{copy.roomCount.replace("{count}", String(group.rooms.length))}</span>
+              </div>
+            )}
             {group.rooms.map((room) => {
               const row = rowByKey.get(room.key);
               if (!row) return null;
@@ -708,57 +1219,79 @@ export function MobileOpsCalendar({
                   days={days}
                   key={room.key}
                   pending={pendingByRoom.get(room.key)}
+                  priceWinsOnly={priceWinsOnly}
                   row={row}
                   rowIndex={rowIndexByKey.get(room.key) ?? 0}
+                  scopeOn={scope.roomKeys.includes(room.key)}
                   selFlags={flagsFor(room.key, selectedKeys)}
                   showCancelled={nav.showCancelled}
+                  solo={group.rooms.length === 1}
                   today={today}
                   urgFlags={flagsFor(room.key, urgentKeys)}
+                  winIds={priceWinsOnly ? (winIdsByRoom.get(room.key) ?? "") : ""}
                 />
               );
             })}
           </div>
         ))}
+        {/* 맨 아래 여유 — 탭 바 위로 솟은 편집 버튼 · 홈 표시줄(안전 영역)에 마지막 줄이 가리지 않게. 선택 도구줄은
+            탭 바보다 높아 그만큼 더 둔다. */}
+        <div aria-hidden="true" className={`mops-endpad${selCount > 0 ? " dock" : ""}`} />
       </div>
 
-      {/* 선택 바 — 셸의 스크롤 · 당겨서 새로고침과 섞이지 않게 body 로 띄운다. */}
+      {/*
+        선택 도구줄 — **고르는 동안 하단 탭 바 자리를 대신한다**(사진 앱의 선택 모드와 같다). 격자 위에 떠 있는
+        카드는 칸을 가리고 탭 바 · 편집 버튼과 겹쳐 어색했다(2026-10-01 사용자 지적). 닫기는 X 없이 **아래로 밀기**
+        또는 **빈 곳 탭**(시트와 같은 손짓). 선택을 풀면 탭 바가 돌아온다.
+        셸의 스크롤 · 당겨서 새로고침과 섞이지 않게 body 로 띄운다.
+      */}
       {selCount > 0 &&
-        sheet === null &&
+        !overlayOpen &&
         typeof document !== "undefined" &&
         createPortal(
-          <div className="mops-selbar" role="toolbar">
-            <div className="mops-selbar__cnt">
-              <b>{copy.mSelCount.replace("{n}", String(selCount))}</b>
-              <span>
-                {copy.mSelSummary
-                  .replace("{rooms}", String(selRoomCount))
-                  .replace("{dates}", scopeSummary?.dates ?? "")}
-              </span>
-            </div>
-            <button className="mops-selbar__act go" onClick={() => setSheet("price")} type="button">
-              {copy.mActPrice}
-            </button>
-            <button className="mops-selbar__act" onClick={() => setSheet("minstay")} type="button">
-              {copy.mActMinStay}
-            </button>
-            <button className="mops-selbar__act" onClick={() => setSheet("block")} type="button">
-              {copy.mActBlock}
-            </button>
-            <button aria-label={copy.mClearSel} className="mops-selbar__x" onClick={clearSelection} type="button">
-              <X aria-hidden="true" />
-            </button>
-          </div>,
+          <MobileOpsDock
+            count={copy.mSelCount.replace("{n}", String(selCount))}
+            extras={[
+              ...(bookingDraft
+                ? [
+                    {
+                      icon: <CalendarPlus aria-hidden="true" />,
+                      key: "book",
+                      label: copy.mBook,
+                      onClick: () => setOverlay({ kind: "booking", ...bookingDraft }),
+                    },
+                  ]
+                : []),
+              ...(historyCell
+                ? [
+                    {
+                      icon: <History aria-hidden="true" />,
+                      key: "history",
+                      label: copy.mCellHistory,
+                      onClick: () => setOverlay({ date: historyCell.date, kind: "cellHistory", roomKey: historyCell.roomKey }),
+                    },
+                  ]
+                : []),
+            ]}
+            labels={{ block: copy.mActBlock, clear: copy.mClearSel, minStay: copy.mActMinStay, price: copy.mActPrice }}
+            onClear={clearSelection}
+            onOpen={(kind) => setOverlay({ kind })}
+            summary={copy.mSelSummary
+              .replace("{rooms}", String(selRoomCount))
+              .replace("{dates}", scopeSummary?.dates ?? "")}
+          />,
           document.body,
         )}
 
-      {sheet !== null && (
+      {/* ── 시트들 — 전부 공용 `BottomSheet`, 내용은 데스크톱 패널 그대로 ─────────────────────── */}
+      {panelKind && (
         <BottomSheet
-          ariaLabel={sheet === "price" ? copy.panelTitle : sheet === "minstay" ? copy.minStayTitle : copy.bkTitle}
+          ariaLabel={panelKind === "price" ? copy.panelTitle : panelKind === "minstay" ? copy.minStayTitle : copy.bkTitle}
           className="flex max-h-[88dvh] flex-col"
-          onClose={() => setSheet(null)}
+          onClose={() => setOverlay(null)}
         >
           <div className="adm ops mops-panel">
-            {sheet === "price" && (
+            {panelKind === "price" && (
               <OpsPricePanel
                 cells={panelCells}
                 clearLabel={copy.scopeClear}
@@ -769,7 +1302,7 @@ export function MobileOpsCalendar({
                 scopeSummary={scopeSummary}
               />
             )}
-            {sheet === "minstay" && (
+            {panelKind === "minstay" && (
               <OpsMinStayPanel
                 cells={panelCells}
                 copy={copy}
@@ -780,7 +1313,7 @@ export function MobileOpsCalendar({
                 scopeSummary={scopeSummary}
               />
             )}
-            {sheet === "block" && (
+            {panelKind === "block" && (
               <OpsBlockPanel
                 blockedKeys={blockedCells}
                 cells={panelCells.map((cell) => ({
@@ -797,6 +1330,506 @@ export function MobileOpsCalendar({
           </div>
         </BottomSheet>
       )}
+
+      {overlay?.kind === "scope" && (
+        <BottomSheet ariaLabel={copy.mScopeTitle} className="flex max-h-[88dvh] flex-col" onClose={() => setOverlay(null)}>
+          {({ close }) => (
+            <div className="mops-scope mops-vars">
+              <div className="mops-scope__head">
+                <b>{copy.mScopeTitle}</b>
+                <span>{copy.mScopeHint}</span>
+              </div>
+              <div className="mops-scope__body">
+                <div className="mops-scope__axis">
+                  <span className="mops-scope__label">{copy.scopeRooms}</span>
+                  <div className="mops-scope__chips">
+                    <button
+                      className={`mops-chip${allRoomsInScope ? " on" : ""}`}
+                      onClick={() => applyScope({ ...scope, roomKeys: allRoomsInScope ? [] : roomKeys })}
+                      type="button"
+                    >
+                      {copy.mScopeRoomsAll}
+                    </button>
+                    {scope.roomKeys.length > 0 && !allRoomsInScope && (
+                      <span className="mops-scope__note">
+                        {copy.mScopeRoomsPicked.replace("{n}", String(scope.roomKeys.length))}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="mops-scope__axis">
+                  <span className="mops-scope__label">{copy.scopeWeeks}</span>
+                  <div className="mops-scope__chips">
+                    <button
+                      className={`mops-chip${scope.weekStarts.length === 0 ? " on" : ""}`}
+                      onClick={() => applyScope({ ...scope, weekStarts: [] })}
+                      type="button"
+                    >
+                      {copy.scopeAll}
+                    </button>
+                    {weeks.map((week) => (
+                      <button
+                        className={`mops-chip${scope.weekStarts.includes(week.start) ? " on" : ""}`}
+                        key={week.start}
+                        onClick={() => applyScope({ ...scope, weekStarts: toggleInList(scope.weekStarts, week.start) })}
+                        type="button"
+                      >
+                        {shortDate(week.start)}–{shortDate(week.end)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="mops-scope__axis">
+                  <span className="mops-scope__label">{copy.scopeDays}</span>
+                  <div className="mops-scope__chips">
+                    <button
+                      className={`mops-chip${scope.weekdays.length === 0 ? " on" : ""}`}
+                      onClick={() => applyScope({ ...scope, weekdays: [] })}
+                      type="button"
+                    >
+                      {copy.scopeAll}
+                    </button>
+                    <button
+                      className={`mops-chip${
+                        scope.weekdays.length === 3 && WEEKEND_WEEKDAYS.every((d) => scope.weekdays.includes(d)) ? " on" : ""
+                      }`}
+                      onClick={() => applyScope({ ...scope, weekdays: toggleWeekdayPreset(scope.weekdays, WEEKEND_WEEKDAYS) })}
+                      type="button"
+                    >
+                      {copy.scopeWeekend}
+                    </button>
+                    <button
+                      className={`mops-chip${
+                        scope.weekdays.length === 4 && WEEKDAY_WEEKDAYS.every((d) => scope.weekdays.includes(d)) ? " on" : ""
+                      }`}
+                      onClick={() => applyScope({ ...scope, weekdays: toggleWeekdayPreset(scope.weekdays, WEEKDAY_WEEKDAYS) })}
+                      type="button"
+                    >
+                      {copy.scopeWeekday}
+                    </button>
+                  </div>
+                  <div className="mops-scope__days">
+                    {[1, 2, 3, 4, 5, 6, 0].map((weekday) => (
+                      <button
+                        className={`mops-chip${scope.weekdays.includes(weekday) ? " on" : ""}${weekday === 0 || weekday >= 5 ? " we" : ""}`}
+                        key={weekday}
+                        onClick={() => applyScope({ ...scope, weekdays: toggleInList(scope.weekdays, weekday) })}
+                        type="button"
+                      >
+                        {copy.weekDaysFromSunday[weekday]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="mops-scope__foot">
+                <button className="mops-scope__btn" onClick={clearSelection} type="button">
+                  {copy.scopeClear}
+                </button>
+                <button className="mops-scope__btn go" onClick={close} type="button">
+                  {copy.mSelCount.replace("{n}", String(selCount))} · {copy.editModeExit}
+                </button>
+              </div>
+            </div>
+          )}
+        </BottomSheet>
+      )}
+
+      {overlay?.kind === "history" && (
+        <BottomSheet ariaLabel={copy.hsTitle} className="flex h-[88dvh] flex-col" onClose={() => setOverlay(null)}>
+          <div className="adm ops mops-panel mops-side">
+            <OpsHistoryPanel copy={copy} onClose={() => setOverlay(null)} />
+          </div>
+        </BottomSheet>
+      )}
+
+      {overlay?.kind === "wins" && (
+        <BottomSheet ariaLabel={copy.pwList} className="flex max-h-[88dvh] flex-col" onClose={() => setOverlay(null)}>
+          <div className="adm ops mops-panel mops-side">
+            <OpsPriceWinsPanel
+              conversions={priceConversions}
+              copy={copy}
+              localeTag={copy.localeTag}
+              onClose={() => setOverlay(null)}
+              onOpenReservation={(conversion) =>
+                setOverlay({
+                  kind: "reservation",
+                  placement: {
+                    bar: {
+                      channel: conversion.channel,
+                      checkIn: conversion.checkIn,
+                      checkOut: conversion.checkOut,
+                      guestName: conversion.guestName,
+                      id: conversion.reservationId,
+                      isCancelled: false,
+                      roomKey: conversion.roomKey,
+                    },
+                    propertyName: conversion.propertyName,
+                    roomIds: rowByKey.get(conversion.roomKey)?.room.roomIds ?? [],
+                    roomLabel: conversion.roomLabel,
+                  },
+                })
+              }
+              propertyName={
+                selectedProperties.length > 1
+                  ? selectedProperties.join(" · ")
+                  : new Set(rooms.map((room) => room.propertyName)).size === 1
+                    ? (rooms[0]?.propertyName ?? null)
+                    : null
+              }
+            />
+          </div>
+        </BottomSheet>
+      )}
+
+      {overlay?.kind === "reservation" && (
+        <BottomSheet ariaLabel={copy.rpTitle} className="flex max-h-[92dvh] flex-col" onClose={() => setOverlay(null)}>
+          <div className="adm ops mops-panel mops-side">
+            <OpsReservationPanel
+              bar={overlay.placement.bar}
+              copy={copy}
+              key={overlay.placement.bar.id}
+              localeTag={copy.localeTag}
+              nights={Math.max(
+                0,
+                Math.round((Date.parse(overlay.placement.bar.checkOut) - Date.parse(overlay.placement.bar.checkIn)) / 86_400_000),
+              )}
+              onClose={() => setOverlay(null)}
+              propertyName={overlay.placement.propertyName}
+              roomIds={overlay.placement.roomIds}
+              roomKey={overlay.placement.bar.roomKey}
+              roomLabel={overlay.placement.roomLabel}
+              today={today}
+            />
+          </div>
+        </BottomSheet>
+      )}
+
+      {overlay?.kind === "booking" && (
+        <BottomSheet ariaLabel={copy.mBook} className="flex max-h-[92dvh] flex-col" onClose={() => setOverlay(null)}>
+          <div className="adm ops mops-panel mops-side">
+            <OpsBookingPanel
+              checkIn={overlay.checkIn}
+              checkOut={overlay.checkOut}
+              copy={copy}
+              localeTag={copy.localeTag}
+              onClose={() => {
+                setOverlay(null);
+                clearSelection();
+              }}
+              rateAt={(date) => {
+                const rate = rateAt(overlay.room.key, date);
+                return { airbnb: rate?.price ?? null, booking: rate?.bookingPrice ?? null };
+              }}
+              room={overlay.room}
+              today={today}
+            />
+          </div>
+        </BottomSheet>
+      )}
+
+      {overlay?.kind === "cellHistory" &&
+        (() => {
+          const row = rowByKey.get(overlay.roomKey);
+          const key = selectionCellKey(overlay.roomKey, overlay.date);
+          const rate = rateAt(overlay.roomKey, overlay.date);
+          const loaded = cellHistory?.key === key ? cellHistory : null;
+          return (
+            <BottomSheet ariaLabel={copy.mCellHistory} className="flex max-h-[80dvh] flex-col" onClose={() => setOverlay(null)}>
+              <div className="adm ops mops-panel mops-hc" ref={setHistoryHost}>
+                {row && historyHost && (
+                  <OpsCellHistoryCard
+                    anchor={historyHost.getBoundingClientRect()}
+                    container={historyHost}
+                    copy={copy}
+                    currentMinStay={pendingMinStay.get(key)?.value ?? rate?.minStay ?? null}
+                    currentPrice={pendingPrices.get(key)?.value ?? rate?.price ?? null}
+                    date={overlay.date}
+                    history={loaded ? loaded.history : null}
+                    localeTag={copy.localeTag}
+                    roomTitle={`${row.room.propertyName} ${row.room.displayRoomLabel}`}
+                  />
+                )}
+              </div>
+            </BottomSheet>
+          );
+        })()}
+
+      {overlay?.kind === "blockInfo" && (
+        <BottomSheet ariaLabel={copy.mBlockInfoTitle} onClose={() => setOverlay(null)}>
+          <div className="mops-binfo mops-vars">
+            <div className="mops-binfo__head">
+              <span className="mops-binfo__tag">{copy.blockLabel}</span>
+              <b>{overlay.roomTitle}</b>
+              <span>
+                {shortDate(overlay.block.startDate)} → {shortDate(addDays(overlay.block.endDate, 1))}
+              </span>
+            </div>
+            {overlay.block.purpose || overlay.block.memo || overlay.block.by || overlay.block.at ? (
+              <dl className="mops-binfo__list">
+                {overlay.block.purpose && (
+                  <div>
+                    <dt>{copy.mBlockReason}</dt>
+                    <dd>{(copy.bkPurposes as Record<string, string>)[overlay.block.purpose] ?? overlay.block.purpose}</dd>
+                  </div>
+                )}
+                {overlay.block.memo && (
+                  <div>
+                    <dt>{copy.mBlockMemo}</dt>
+                    <dd>{overlay.block.memo}</dd>
+                  </div>
+                )}
+                {(overlay.block.by || overlay.block.at) && (
+                  <div>
+                    <dt>{copy.mBlockBy}</dt>
+                    <dd>
+                      {copy.blockNoteBy
+                        .replace("{name}", overlay.block.by ?? "")
+                        .replace("{date}", overlay.block.at ? tokyoStamp(overlay.block.at) : "")
+                        .replace(/^ · | · $/g, "")}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            ) : (
+              <p className="mops-binfo__none">{copy.mBlockNoInfo}</p>
+            )}
+          </div>
+        </BottomSheet>
+      )}
+
+      {overlay?.kind === "search" && (
+        <MobileOpsSearchSheet
+          copy={searchCopy}
+          onClose={() => setOverlay(null)}
+          onPick={(placement) => setOverlay({ kind: "reservation", placement })}
+          title={copy.mSearch}
+        />
+      )}
+
+      {salesOpen && days.length > 0 && (
+        <OpsSalesSummaryModal
+          copy={copy}
+          days={days.length}
+          onClose={() => setSalesOpen(false)}
+          properties={selectedProperties}
+          scope={rows}
+          start={days[0].date}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * 예약 검색 시트 — 데스크톱 상단 검색(`AdminGuestSearch`)과 같은 서버 액션 · 같은 문구. 고르면 그 예약 상세 시트로.
+ */
+function MobileOpsSearchSheet({
+  copy,
+  onClose,
+  onPick,
+  title,
+}: {
+  copy: AdminGuestSearchCopy;
+  onClose: () => void;
+  onPick: (placement: OpsReservationPlacement) => void;
+  title: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<OpsReservationPlacement[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const requestRef = useRef(0);
+  const searchable = query.trim().replace(/\s+/g, "").length >= 2;
+
+  useEffect(() => {
+    if (!searchable) {
+      requestRef.current += 1;
+      return;
+    }
+    const timer = setTimeout(() => {
+      const requestId = ++requestRef.current;
+      startTransition(async () => {
+        const response = await searchOpsReservations(query).catch(() => null);
+        if (requestId !== requestRef.current) return;
+        setFailed(!response || !response.ok);
+        setResults(response && response.ok ? response.results : []);
+      });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query, searchable]);
+
+  const list = searchable ? (results ?? []) : [];
+  const nights = (checkIn: string, checkOut: string) =>
+    Math.max(0, Math.round((Date.parse(checkOut) - Date.parse(checkIn)) / 86_400_000));
+
+  return (
+    <BottomSheet ariaLabel={title} className="flex h-[80dvh] flex-col" onClose={onClose}>
+      <div className="mops-search mops-vars">
+        <div className="mops-search__box">
+          <Search aria-hidden="true" />
+          {/* 시트가 열리자마자 키보드를 올린다 — 검색하려고 연 시트다. */}
+          <input
+            autoFocus
+            enterKeyHint="search"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={copy.placeholder}
+            type="search"
+            value={query}
+          />
+          {query && (
+            <button aria-label={copy.clear} onClick={() => setQuery("")} type="button">
+              <X aria-hidden="true" />
+            </button>
+          )}
+        </div>
+        {searchable && (
+          <div className="mops-search__list" role="listbox">
+            {pending && results === null ? (
+              <p className="mops-search__note">{copy.searching}</p>
+            ) : failed ? (
+              <p className="mops-search__note">{copy.error}</p>
+            ) : list.length === 0 ? (
+              <p className="mops-search__note">{pending ? copy.searching : copy.empty}</p>
+            ) : (
+              <>
+                <p className="mops-search__count">{copy.resultCount.replace("{count}", String(list.length))}</p>
+                {list.map((item) => (
+                  <button
+                    className={`mops-search__opt${item.bar.isCancelled ? " cxl" : ""}`}
+                    key={item.bar.id}
+                    onClick={() => onPick(item)}
+                    role="option"
+                    aria-selected={false}
+                    type="button"
+                  >
+                    <i className={`mops-search__dot ${item.bar.channel}`} aria-hidden="true" />
+                    <span className="mops-search__main">
+                      <b>{item.bar.guestName || "—"}</b>
+                      <small>
+                        {item.propertyName} · {item.roomLabel}
+                      </small>
+                    </span>
+                    <span className="mops-search__when">
+                      <b>
+                        {shortDate(item.bar.checkIn)} → {shortDate(item.bar.checkOut)}
+                      </b>
+                      <small>
+                        {item.bar.isCancelled
+                          ? copy.cancelled
+                          : copy.nights.replace("{count}", String(nights(item.bar.checkIn, item.bar.checkOut)))}
+                      </small>
+                    </span>
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </BottomSheet>
+  );
+}
+
+type DockExtra = { key: string; label: string; icon: React.ReactNode; onClick: () => void };
+
+/**
+ * 선택 도구줄. **아래로 밀면 선택을 푼다**(시트의 끌어서 닫기와 같은 손짓 · 같은 문턱) — 그래서 위에 손잡이를 단다.
+ * 버튼 위에서 시작해도 밀 수 있다. 조금이라도 끌었으면 그 손짓 끝의 click 은 버튼에 보내지 않는다.
+ * 가격 · 최소숙박 · 차단은 늘 있고, 상황에 맞으면 「예약」(한 객실의 이어진 빈 밤) · 「이력」(한 칸)이 붙는다.
+ */
+function MobileOpsDock({
+  count,
+  extras,
+  labels,
+  onClear,
+  onOpen,
+  summary,
+}: {
+  count: string;
+  extras: DockExtra[];
+  labels: { price: string; minStay: string; block: string; clear: string };
+  onClear: () => void;
+  onOpen: (kind: PanelKind) => void;
+  summary: string;
+}) {
+  const [dragY, setDragY] = useState(0);
+  const [leaving, setLeaving] = useState(false);
+  const startRef = useRef<{ y: number; id: number } | null>(null);
+  const movedRef = useRef(false);
+  const DISMISS = 56;
+
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    startRef.current = { id: event.pointerId, y: event.clientY };
+    movedRef.current = false;
+  };
+  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = startRef.current;
+    if (!start || start.id !== event.pointerId) return;
+    const dy = event.clientY - start.y;
+    if (!movedRef.current && Math.abs(dy) > 6) {
+      movedRef.current = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    if (movedRef.current) setDragY(Math.max(0, dy));
+  };
+  const onPointerEnd = () => {
+    if (!startRef.current) return;
+    startRef.current = null;
+    if (dragY > DISMISS) {
+      setLeaving(true);
+      setTimeout(onClear, 200);
+    } else {
+      setDragY(0);
+    }
+  };
+  const onClickCapture = (event: React.MouseEvent) => {
+    if (!movedRef.current) return;
+    movedRef.current = false;
+    event.stopPropagation();
+    event.preventDefault();
+  };
+
+  return (
+    <div
+      aria-label={count}
+      className={`mops-dock${dragY > 0 && !leaving ? " is-dragging" : ""}`}
+      onClickCapture={onClickCapture}
+      onPointerCancel={onPointerEnd}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerEnd}
+      role="toolbar"
+      style={{ transform: leaving ? "translateY(110%)" : dragY > 0 ? `translateY(${dragY}px)` : undefined }}
+    >
+      <div aria-hidden="true" className="mops-dock__grab" title={labels.clear} />
+      <div className="mops-dock__info">
+        <b>{count}</b>
+        <span>{summary}</span>
+      </div>
+      <div
+        className={`mops-dock__acts${extras.length > 0 ? " many" : ""}`}
+        style={{ gridTemplateColumns: `repeat(${3 + extras.length}, minmax(0, 1fr))` }}
+      >
+        <button className="mops-dock__act go" onClick={() => onOpen("price")} type="button">
+          <JapaneseYen aria-hidden="true" />
+          {labels.price}
+        </button>
+        <button className="mops-dock__act" onClick={() => onOpen("minstay")} type="button">
+          <MoonStar aria-hidden="true" />
+          {labels.minStay}
+        </button>
+        <button className="mops-dock__act" onClick={() => onOpen("block")} type="button">
+          <Ban aria-hidden="true" />
+          {labels.block}
+        </button>
+        {extras.map((extra) => (
+          <button className="mops-dock__act" key={extra.key} onClick={extra.onClick} type="button">
+            {extra.icon}
+            {extra.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -809,26 +1842,38 @@ const MobileOpsRow = memo(function MobileOpsRow({
   copy,
   days,
   pending,
+  priceWinsOnly,
   row,
   rowIndex,
+  scopeOn,
   selFlags,
   showCancelled,
+  solo,
   today,
   urgFlags,
+  winIds,
 }: {
-  copy: { blockLabel: string };
+  copy: { blockLabel: string; bkPurposes: Record<string, string> };
   days: OpsCalendarDay[];
   pending: { price: Map<string, number>; minStay: Map<string, number> } | undefined;
+  priceWinsOnly: boolean;
   row: OpsGridRowData;
   rowIndex: number;
+  /** 객실 축에 들어 있다(데스크톱 객실명 강조와 같다). */
+  scopeOn: boolean;
   selFlags: string;
   showCancelled: boolean;
+  /** 객실 하나뿐인 건물(독채) — 묶음 머리 대신 객실 열에 건물 이름을 적는다. */
+  solo: boolean;
   today: string;
   urgFlags: string;
+  /** 가격 개입 성공 막대 id(`|` 로 이음). 토글이 꺼져 있으면 빈 문자열. */
+  winIds: string;
 }) {
   const first = days[0]?.date ?? "";
   const last = days.at(-1)?.date ?? "";
   const indexOf = (date: string) => days.findIndex((day) => day.date === date);
+  const wins = new Set(winIds ? winIds.split("|") : []);
   // 보기 모드로 거른다 — 「취소 보기」면 취소만, 아니면 살아 있는 예약만(데스크톱과 같다).
   const bars = row.bars.filter((bar) => bar.isCancelled === showCancelled && bar.checkOut > first && bar.checkIn <= last);
   const barLanes = assignBarLanes(bars);
@@ -841,9 +1886,18 @@ const MobileOpsRow = memo(function MobileOpsRow({
   const height = TOP_H + laneCount * LANE_H + 4;
 
   return (
-    <div className="mops-row" data-r={rowIndex} style={{ height }}>
-      <button className="mops-room" data-room={row.room.key} type="button">
-        {row.room.displayRoomLabel}
+    <div className={`mops-row${solo ? " solo" : ""}`} data-r={rowIndex} style={{ height }}>
+      <button className={`mops-room${solo ? " solo" : ""}${scopeOn ? " on" : ""}`} data-room={row.room.key} type="button">
+        {solo ? (
+          <>
+            <span className="mops-room__p">{row.room.propertyName}</span>
+            {row.room.displayRoomLabel !== row.room.propertyName && (
+              <span className="mops-room__l">{row.room.displayRoomLabel}</span>
+            )}
+          </>
+        ) : (
+          row.room.displayRoomLabel
+        )}
       </button>
       <div className="mops-track">
         {days.map((day, index) => {
@@ -881,9 +1935,11 @@ const MobileOpsRow = memo(function MobileOpsRow({
           const right = endIndex >= days.length ? days.length * CELL_W : (endIndex + 0.5) * CELL_W - 1;
           const lane = barLanes.laneById.get(bar.id) ?? 0;
           const channel = bar.channel === "airbnb" ? "abnb" : bar.channel === "booking" ? "bkng" : "dir";
+          const winClass = priceWinsOnly && !showCancelled ? (wins.has(bar.id) ? " pw-win" : " pw-dim") : "";
           return (
             <span
-              className={`mops-bar-r ${channel}${startIndex < 0 ? " open-l" : ""}${bar.isCancelled ? " cxl" : ""}`}
+              className={`mops-bar-r ${channel}${startIndex < 0 ? " open-l" : ""}${bar.isCancelled ? " cxl" : ""}${winClass}`}
+              data-bar={bar.id}
               key={bar.id}
               style={{ left, top: TOP_H + lane * LANE_H, width: Math.max(12, right - left) }}
             >
@@ -898,6 +1954,7 @@ const MobileOpsRow = memo(function MobileOpsRow({
           return (
             <span
               className="mops-blk"
+              data-block={block.id}
               key={block.id}
               style={{
                 left: startIndex * CELL_W + 2,
@@ -905,7 +1962,10 @@ const MobileOpsRow = memo(function MobileOpsRow({
                 width: (endIndex - startIndex + 1) * CELL_W - 4,
               }}
             >
-              {copy.blockLabel}
+              {/* 사유가 있으면 막대에도 짧게 붙인다(데스크톱과 같다). */}
+              {block.purpose && block.purpose in copy.bkPurposes
+                ? `${copy.blockLabel} · ${copy.bkPurposes[block.purpose]}`
+                : copy.blockLabel}
             </span>
           );
         })}

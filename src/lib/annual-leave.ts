@@ -192,3 +192,59 @@ export function computeAnnualLeaveSummary(params: {
  * 호출부를 건드리지 않으려고 여기서 재수출한다(투두 `@/lib/tasks` 와 같은 처리, 2026-09-08).
  */
 export { tokyoToday } from "@/lib/tokyo-date";
+
+// ── 신청 일수 정규화 (2026-10-01) ─────────────────────────────────────────────
+// 일수는 **서버가 날짜·유형에서 다시 계산한다.** 예전에는 직원 신청이 화면이 보낸 `daysCount` 를 그대로
+// 저장해서, 10일짜리 기간을 0.5일로 내도 그대로 들어갔다(관리자 대리 신청만 서버에서 계산했다).
+// 두 경로가 이 함수 하나를 쓴다.
+
+/** 경조휴가(`annual` 유형) — 회사 부여 고정 일수. */
+export const LEAVE_BEREAVEMENT_DAYS = 3;
+
+const LEAVE_ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function leaveAddDaysISO(iso: string, delta: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + delta)).toISOString().slice(0, 10);
+}
+
+function leaveRangeDaysInclusive(start: string, end: string): number {
+  const [sy, sm, sd] = start.split("-").map(Number);
+  const [ey, em, ed] = end.split("-").map(Number);
+  return Math.round((Date.UTC(ey, em - 1, ed) - Date.UTC(sy, sm - 1, sd)) / 86400000) + 1;
+}
+
+/**
+ * 신청 기간·단위·일수를 규칙대로 맞춘다. 틀린 날짜면 null.
+ *  - 경조(`annual`): 시작일부터 고정 3일, 종일
+ *  - 반차(`am`/`pm`): 시작일 하루, 0.5일
+ *  - 종일: 양끝 포함 일수
+ */
+export function normalizeLeaveDays(input: {
+  leaveType: "annual" | "paid" | "special" | "other";
+  startDate: string;
+  endDate: string;
+  durationUnit: "full" | "am" | "pm";
+}): { startDate: string; endDate: string; durationUnit: "full" | "am" | "pm"; daysCount: number } | null {
+  const { leaveType, startDate } = input;
+  if (!LEAVE_ISO_DATE.test(startDate)) return null;
+
+  if (leaveType === "annual") {
+    return {
+      startDate,
+      endDate: leaveAddDaysISO(startDate, LEAVE_BEREAVEMENT_DAYS - 1),
+      durationUnit: "full",
+      daysCount: LEAVE_BEREAVEMENT_DAYS,
+    };
+  }
+
+  if (input.durationUnit === "am" || input.durationUnit === "pm") {
+    return { startDate, endDate: startDate, durationUnit: input.durationUnit, daysCount: 0.5 };
+  }
+
+  const { endDate } = input;
+  if (!LEAVE_ISO_DATE.test(endDate)) return null;
+  const rangeDays = leaveRangeDaysInclusive(startDate, endDate);
+  if (rangeDays < 1) return null;
+  return { startDate, endDate, durationUnit: "full", daysCount: rangeDays };
+}

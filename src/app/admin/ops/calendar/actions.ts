@@ -318,7 +318,11 @@ export async function getPriceJobStatus(jobId: string): Promise<PriceJobStatus |
 export type BlockChangeError = BlockWriteFailure | "forbidden" | "no_cells" | "unknown_room";
 
 export type BlockChangeResult =
-  | { ok: false; error: BlockChangeError; detail?: string }
+  /**
+   * `appliedRanges` — 실패 **앞에서** 이미 Beds24 에 반영된 구간 수. 0 이 아니면 일부는 막혔다(풀렸다)는 뜻이라
+   * 화면이 그렇게 알려야 한다 — 「실패」만 보면 사람은 전부 안 된 줄 알고 다시 누른다(2026-10-01).
+   */
+  | { ok: false; error: BlockChangeError; detail?: string; appliedRanges?: number }
   | { ok: true; ranges: number; nights: number };
 
 export type BlockChangeCell = { roomKey: string; roomLabel: string; roomIds: string[]; date: string };
@@ -389,6 +393,7 @@ async function runBlockChange(
   for (const row of (roomsResult.data ?? []) as BlockRoomRow[]) unitById.set(row.id, row);
 
   let nights = 0;
+  let appliedRanges = 0;
   // 한 번 누른 것은 **같은 시각**으로 남긴다 — 변경 이력이 이 시각으로 한 줄로 묶는다(`groupChangeRows`).
   const actedAt = new Date().toISOString();
   for (const range of ranges) {
@@ -455,9 +460,14 @@ async function runBlockChange(
     });
 
     // **첫 실패에서 멈춘다.** 이어서 더 쓰면 「어디까지 됐는지」를 사람이 알 수 없다.
-    // 이미 성공한 구간은 되읽기로 검증된 상태라 그대로 두어도 안전하다.
-    if (!result.ok) return { detail: result.detail, error: result.reason, ok: false };
+    // 이미 성공한 구간은 되읽기로 검증된 상태라 그대로 두어도 안전하다 — 다만 **화면은 새로 그려야 한다.**
+    // 예전에는 여기서 바로 돌아가 앞 구간이 막힌 것이 격자에 안 보였다(2026-10-01).
+    if (!result.ok) {
+      if (appliedRanges > 0) revalidatePath(CONSOLE_PATH);
+      return { appliedRanges, detail: result.detail, error: result.reason, ok: false };
+    }
     nights += result.nights;
+    appliedRanges += 1;
   }
 
   revalidatePath(CONSOLE_PATH);

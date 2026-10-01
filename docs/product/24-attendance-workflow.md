@@ -710,3 +710,40 @@ FK 를 채우는 것이 정답이지만 그건 운영 데이터 정리다. 그 �
 
 근태와 이어지면 **「출근하지 않은 날의 교통비」가 자연히 걸러진다.** 후보 목록 자체가 실제 근무
 기록이라, 목록에 없는 날은 애초에 자동 연결로 넣을 수 없다.
+
+## 정정 요청 — 자정을 넘는 퇴근은 다음 날로 (2026-10-01)
+
+직원 정정 요청(`createAttendanceCorrectionRequest`)이 희망 퇴근 시각을 **항상 운영일과 같은 날**로 붙였다.
+22:00 출근 · 06:00 퇴근 같은 야간 근무를 요청하면 퇴근이 출근보다 앞선 값으로 저장됐고, 관리자가 승인하는
+순간 순서 검사(`validClockOrder`)에 걸려 `invalid` 로 떨어졌다. 관리자 수동 수정·수동 생성은 이미 다음 날로
+넘기고 있어서 **같은 일을 두 경로가 다르게** 하고 있었다.
+
+- 규칙: 같은 날로 붙인 퇴근이 출근 **이후가 아니면** 다음 날로 넘긴다. 비교 기준은 희망 출근, 없으면 그
+  세션의 실제 출근. 비교할 출근이 없으면(세션 없는 예외 요청에 퇴근만 적은 경우) 같은 날 그대로.
+- 두 경로가 한 함수를 쓴다: `resolveClockOutAfterClockIn` (`src/lib/attendance-clock.ts`). 회귀 테스트
+  `src/lib/__tests__/attendance-clock.test.ts`.
+- 자정을 넘는 값은 승인 시 기존 규칙대로 `review_required` 로 걸린다(바뀐 것 없음).
+
+## 예외 정정 요청 — 근무 날짜를 고른다 (2026-10-01, 마이그레이션 `202610010002`)
+
+세션 없는 예외 요청(QR·GPS 실패 등으로 기록 자체가 없는 날)은 날짜를 고를 수 없어 **늘 오늘로** 접수됐고, 날짜를
+어디에도 저장하지 않았다. 어제 기록이 없다는 걸 오늘 알면 어제 근무가 오늘 날짜로 들어갔다.
+
+- 폼(`attendance-correction-form.tsx`): 세션이 없을 때만 **「근무 날짜」** 칸(필수, 기본 오늘)을 보인다. 날짜 시트는
+  입사일 시트(`hire-date-picker.tsx`)를 `title` · `minDate` 로 넓혀 재사용 — 오늘 이후와 전월 1일 이전은 막힌다.
+  i18n `attendance.corrFieldWorkDate`(근무 날짜 / 勤務日 / Work date), `corrSessExceptionNote` 문구 교체(ko/ja/en).
+- 서버(`createAttendanceCorrectionRequest`): `targetDate` 를 받아 형식 · 오늘 이후(`out_of_range`) · 당월/전월 창을
+  다시 검사한다. 희망 시각은 그 날짜에 붙는다(자정 넘김 규칙은 위 절 그대로).
+- 저장: `attendance_correction_requests.target_date date`(세션 없는 요청만, 세션 요청은 null — 세션 운영일이 날짜).
+  기존 예외 요청은 희망 출근(없으면 퇴근)의 도쿄 날짜로 채웠다(당시 0건). 월 마감 판정은 계속 `target_month` 를 쓴다.
+- **대기 중 요청 덮어쓰기(supersede) 짝**도 `target_month` → `target_date` 로 바꿨다. 날짜를 고를 수 있게 된 뒤로
+  같은 달 다른 날 요청끼리 덮으면 앞 요청이 사라지기 때문이다.
+- 표시: 직원 요청 상태 화면(`toRequestView`)과 관리자 정정 목록(`getAdminAttendanceCorrections`)이 세션이 없으면
+  `target_date` 로 날짜를 보여 준다(예전에는 빈칸).
+
+## 관리자 근태 — 큐 1,000행 · 방치 표시 (2026-10-01)
+
+- **검토 큐 1,000행 잘림**: `getAttendanceReviewQueue` 가 `limit`(관리자 큐 5,000)을 걸어도 PostgREST 상한 1,000행에서
+  조용히 잘렸다. `limit` 에 닿거나 마지막 쪽이 올 때까지 1,000행씩 읽는다(정렬 끝에 `id`). 휴게 합계 · 정정 상태 조회는
+  세션 id 를 200개씩 나눠 `.in()` 한다(URL 길이). 당시 한 달 47건이라 화면 변화는 없다.
+- **방치 세션을 관리자 수정으로 닫을 때** `abandoned_at` 을 지운다 — 정정 승인 경로는 이미 지우고 있었다.

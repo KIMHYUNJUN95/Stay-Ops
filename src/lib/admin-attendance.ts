@@ -534,7 +534,8 @@ export async function getAdminAttendanceCorrections(
 
   const items: AdminCorrectionRow[] = requests.map((r) => {
       const linkedSession = r.session_id ? sessionById.get(r.session_id) ?? null : null;
-      const operatingDate = linkedSession?.operating_date ?? null;
+      // 세션 없는 예외 요청은 직원이 고른 근무 날짜(`target_date`, 2026-10-01).
+      const operatingDate = linkedSession?.operating_date ?? r.target_date ?? null;
       const dateLabel = operatingDate
         ? tokyoDateLabel(`${operatingDate}T00:00:00+09:00`, localeTag)
         : null;

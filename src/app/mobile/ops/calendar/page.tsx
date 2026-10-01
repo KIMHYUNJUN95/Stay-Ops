@@ -6,12 +6,15 @@ import { shiftMonthKey } from "@/components/admin/shared/admin-month-key";
 import "@/components/admin/admin-console.css";
 import "@/components/admin/ops/ops-console.css";
 import { canAccessAdminWeb } from "@/config/roles";
+import { countOpsHistoryAlerts } from "@/lib/beds24/ops-history-alerts";
 import { getDictionary } from "@/lib/i18n";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { canAccessOpsAdmin } from "@/lib/ops-admin";
 import { getOpsCalendarData, OPS_CALENDAR_ROLLING_DAYS } from "@/lib/ops-calendar";
 import { scheduleOpsCalendarOpenRefresh } from "@/lib/ops-calendar-open-refresh";
+import { isOpsRatesStale, opsRatesSyncedLabel } from "@/lib/ops-rates-freshness";
 import {
   buildOpsCalendarHref,
   parsePropertyParam,
@@ -56,9 +59,10 @@ export default async function MobileOpsCalendarPage({ searchParams }: { searchPa
 
   const dictionary = getDictionary(session.user.preferredLanguage);
   const copy = dictionary.opsAdmin.calendar;
+  const console_ = dictionary.admin.console;
   const showCancelled = params.cancelled === "1";
 
-  const [data, badges] = await Promise.all([
+  const [data, badges, historyAlerts] = await Promise.all([
     getOpsCalendarData(session, {
       mode: params.mode,
       month: params.ym,
@@ -67,6 +71,8 @@ export default async function MobileOpsCalendarPage({ searchParams }: { searchPa
       start: params.start,
     }),
     getMobileNavBadges(),
+    // 「이력」 칩의 빨간 숫자(최근 7일 전송 실패 + 멈춘 작업) — 데스크톱과 같은 셈.
+    countOpsHistoryAlerts(getSupabaseServiceClient(), session.organization.id),
   ]);
   scheduleOpsCalendarOpenRefresh(session.organization.id, data);
 
@@ -85,13 +91,8 @@ export default async function MobileOpsCalendarPage({ searchParams }: { searchPa
     );
 
   const selectedSet = new Set(data.selectedProperties);
-  const syncedLabel = (() => {
-    const minutes = data.ratesAgeMinutes;
-    if (minutes === null) return copy.syncedNever;
-    if (minutes < 1) return copy.syncedJustNow;
-    if (minutes < 60) return copy.syncedMinutes.replace("{n}", String(minutes));
-    return copy.syncedHours.replace("{n}", String(Math.floor(minutes / 60)));
-  })();
+  // 데스크톱과 같은 문구 규칙(`ops-rates-freshness.ts`).
+  const syncedLabel = opsRatesSyncedLabel(data.ratesAgeMinutes, copy);
   const first = data.days.at(0)?.date;
   const last = data.days.at(-1)?.date;
 
@@ -108,6 +109,27 @@ export default async function MobileOpsCalendarPage({ searchParams }: { searchPa
       <MobileOpsCalendar
         copy={copy}
         days={data.days}
+        historyAlerts={historyAlerts}
+        jump={{
+          base: {
+            cancelled: showCancelled ? "1" : undefined,
+            mode: data.mode,
+            property: data.selectedProperties,
+          },
+          month: data.month,
+          start: data.start,
+        }}
+        searchCopy={{
+          cancelled: console_.searchCancelled,
+          clear: console_.searchClear,
+          empty: console_.searchEmpty,
+          error: console_.searchError,
+          nights: console_.searchNights,
+          placeholder: console_.searchGuestPlaceholder,
+          resultCount: console_.searchResultCount,
+          searching: console_.searchSearching,
+          submit: console_.searchSubmit,
+        }}
         nav={{
           allHref: hrefWith({ property: undefined }),
           cancelledHref: hrefWith({ cancelled: showCancelled ? undefined : "1" }),
@@ -138,7 +160,7 @@ export default async function MobileOpsCalendarPage({ searchParams }: { searchPa
         }))}
         rows={data.rows}
         selectedProperties={data.selectedProperties}
-        staleRates={data.ratesAgeMinutes === null || data.ratesAgeMinutes > 15}
+        staleRates={isOpsRatesStale(data.ratesAgeMinutes)}
         syncedLabel={syncedLabel}
         today={data.today}
       />

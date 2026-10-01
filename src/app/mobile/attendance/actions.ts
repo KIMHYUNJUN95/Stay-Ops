@@ -21,6 +21,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getAttendancePayrollAdminUserIds } from "@/lib/attendance-review";
 import { notifyAttendanceAdmins } from "@/lib/notifications/create";
 import { bestEffortWrite } from "@/lib/db-write-guard";
+import { resolveClockOutAfterClockIn, tokyoWallClockInstant } from "@/lib/attendance-clock";
 import {
   ATTENDANCE_CORRECTION_PENDING_STATUSES,
   ATTENDANCE_CORRECTION_REASONS,
@@ -495,6 +496,11 @@ export type CreateCorrectionInput = {
   desiredOutTime: string | null;
   /** A single desired site applied to both in/out (the design's "출/퇴근 동일"); null = unset. */
   desiredSiteId: string | null;
+  /**
+   * 세션 없는 예외 요청의 근무 날짜 'YYYY-MM-DD'(도쿄). 세션이 있으면 무시하고 그 세션의 운영일을 쓴다.
+   * null 이면 오늘. 오늘 이후 · 당월/전월 밖은 거절한다(2026-10-01).
+   */
+  targetDate?: string | null;
   imageUrls: string[];
 };
 
@@ -512,13 +518,6 @@ function previousYearMonth(ym: string): string {
   const [y, m] = ym.split("-").map((n) => Number(n));
   if (m <= 1) return `${y - 1}-12`;
   return `${y}-${String(m - 1).padStart(2, "0")}`;
-}
-
-/** Combine a Tokyo base date (YYYY-MM-DD) + wall time "HH:mm" into an ISO instant, or null. */
-function tokyoInstant(baseDate: string, hhmm: string | null): string | null {
-  if (!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return null;
-  const d = new Date(`${baseDate}T${hhmm}:00+09:00`);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 export type CancelCorrectionResult = { ok: true } | { ok: false; reason: "error" | "not_pending" };
@@ -576,19 +575,31 @@ export async function createAttendanceCorrectionRequest(
   // Resolve the base date the correction concerns + verify self-ownership of any linked session.
   let baseDate: string;
   let sessionId: string | null = null;
+  let sessionClockInAt: string | null = null;
   if (input.sessionId) {
     const res = await service
       .from("attendance_sessions")
-      .select("id, user_id, operating_date")
+      .select("id, user_id, operating_date, clock_in_at")
       .eq("organization_id", organizationId)
       .eq("id", input.sessionId)
       .maybeSingle();
-    const row = res.data as { id: string; user_id: string; operating_date: string } | null;
+    const row = res.data as {
+      id: string;
+      user_id: string;
+      operating_date: string;
+      clock_in_at: string | null;
+    } | null;
     if (res.error || !row || row.user_id !== userId) return { ok: false, reason: "forbidden" };
     baseDate = row.operating_date;
     sessionId = row.id;
+    sessionClockInAt = row.clock_in_at;
   } else {
-    baseDate = tokyoDate(new Date().toISOString());
+    const today = tokyoDate(new Date().toISOString());
+    const picked = input.targetDate?.trim() || null;
+    if (picked && !/^\d{4}-\d{2}-\d{2}$/.test(picked)) return { ok: false, reason: "invalid" };
+    // 아직 오지 않은 날의 근무는 정정할 것이 없다.
+    if (picked && picked > today) return { ok: false, reason: "out_of_range" };
+    baseDate = picked ?? today;
   }
 
   // Allowed window: current Tokyo month + previous month only.
@@ -610,15 +621,23 @@ export async function createAttendanceCorrectionRequest(
     if (siteRes.data) desiredSiteId = input.desiredSiteId;
   }
 
+  const desiredClockInAt = tokyoWallClockInstant(baseDate, input.desiredInTime);
   const payload = {
     reason_type: input.reasonType,
     memo: input.memo?.trim() ? input.memo.trim() : null,
-    desired_clock_in_at: tokyoInstant(baseDate, input.desiredInTime),
-    desired_clock_out_at: tokyoInstant(baseDate, input.desiredOutTime),
+    desired_clock_in_at: desiredClockInAt,
+    // 퇴근이 출근보다 앞서면 다음 날(야간 근무) — 관리자 수동 수정과 같은 규칙(`attendance-clock.ts`).
+    desired_clock_out_at: resolveClockOutAfterClockIn(
+      baseDate,
+      input.desiredOutTime,
+      desiredClockInAt ?? sessionClockInAt,
+    ),
     desired_clock_in_site_id: desiredSiteId,
     desired_clock_out_site_id: desiredSiteId,
     image_urls: imageUrls,
     target_month: `${ym}-01`,
+    // 세션 없는 요청만 날짜를 따로 가진다 — 세션이 있으면 그 세션의 운영일이 곧 날짜다.
+    target_date: sessionId ? null : baseDate,
   };
 
   // Re-submitting for the SAME target must replace the user's still-pending request, never stack a
@@ -632,9 +651,11 @@ export async function createAttendanceCorrectionRequest(
     .eq("organization_id", organizationId)
     .eq("requested_by_user_id", userId)
     .in("status", ["requested", "in_review"]);
+  // 세션 없는 요청은 **같은 근무 날짜**끼리만 덮어쓴다 — 날짜를 고를 수 있게 된 뒤로(2026-10-01) 같은 달의
+  // 다른 날 요청을 덮으면 앞 요청이 사라진다.
   pendingQuery = sessionId
     ? pendingQuery.eq("session_id", sessionId)
-    : pendingQuery.is("session_id", null).eq("target_month", `${ym}-01`);
+    : pendingQuery.is("session_id", null).eq("target_date", baseDate);
   const existingRes = await pendingQuery
     .order("created_at", { ascending: false })
     .limit(1)

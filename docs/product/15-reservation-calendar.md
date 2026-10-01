@@ -1197,3 +1197,15 @@ Blocked`. 어드민 월간 캘린더(`/admin/calendar`)와 모바일 캘린더(`
 **짧은 이름을 붙이는 방법도 있다.** 다른 건물은 전부 한국어 약칭이 있고(`CANONICAL_TO_BUILDING_KEY`)
 STAY ARI 만 원문을 그대로 쓴다. 다만 그 이름은 예약·청소 라벨의 매칭 키이기도 해서
 (`getCanonicalPropertyName`), 바꾸려면 저장된 값들과 함께 봐야 한다. 이번에는 레이아웃만 고쳤다.
+
+## 예약 · 블록은 1,000행씩 끝까지 읽는다 (2026-10-01)
+
+PostgREST 는 한 번에 1,000행까지만 주고 초과분은 **오류 없이 잘린다**. 관리자(`getAdminCalendarDashboardData`)·
+모바일(`/mobile/calendar`) 예약 캘린더는 두 달 창 예약을 한 번에 읽고 있어서, 1,000건을 넘는 순간 예약 막대가
+조용히 사라질 상태였다(2026-10-01 당시 771건). 비어 보이는 칸은 「판매 가능」으로 읽히므로 이중 판매로 이어진다.
+
+- 판매 캘린더가 쓰던 `readAllPages` 를 `src/lib/supabase/read-all-pages.ts` 로 공용화해 예약·`room_blocks` 를
+  쪽 나눠 끝까지 읽는다. 정렬 뒤에 `id` 를 붙여 쪽 경계에서 행이 빠지거나 겹치지 않게 했다.
+- 블록 읽기가 중간에 실패하면 반쪽을 그리지 않고 비운다(관리자 · 모바일 같음). 예약 읽기 실패는 기존처럼 오류.
+- 테스트 `src/lib/__tests__/read-all-pages.test.ts`.
+

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeAnnualLeaveSummary, getScheduledGrants } from "../annual-leave";
+import { computeAnnualLeaveSummary, getScheduledGrants, normalizeLeaveDays } from "../annual-leave";
 
 describe("annual-leave accrual schedule", () => {
   it("grants 10/11/12 days at 6/18/30 months, then +2/year up to the 20-day cap", () => {
@@ -128,5 +128,34 @@ describe("computeAnnualLeaveSummary", () => {
     });
     expect(summary.baseRemaining).toBe(10);
     expect(summary.bonusRemaining).toBe(2);
+  });
+});
+
+describe("normalizeLeaveDays — 신청 일수는 서버가 정한다 (2026-10-01)", () => {
+  it("종일: 양끝 포함 일수", () => {
+    expect(
+      normalizeLeaveDays({ leaveType: "paid", startDate: "2026-10-05", endDate: "2026-10-14", durationUnit: "full" }),
+    ).toEqual({ startDate: "2026-10-05", endDate: "2026-10-14", durationUnit: "full", daysCount: 10 });
+  });
+
+  it("반차: 기간이 길어도 시작일 하루 0.5일", () => {
+    expect(
+      normalizeLeaveDays({ leaveType: "paid", startDate: "2026-10-05", endDate: "2026-10-14", durationUnit: "am" }),
+    ).toEqual({ startDate: "2026-10-05", endDate: "2026-10-05", durationUnit: "am", daysCount: 0.5 });
+  });
+
+  it("경조: 시작일부터 고정 3일, 종일", () => {
+    expect(
+      normalizeLeaveDays({ leaveType: "annual", startDate: "2026-10-30", endDate: "2026-10-30", durationUnit: "pm" }),
+    ).toEqual({ startDate: "2026-10-30", endDate: "2026-11-01", durationUnit: "full", daysCount: 3 });
+  });
+
+  it("거꾸로 된 기간 · 틀린 날짜는 null", () => {
+    expect(
+      normalizeLeaveDays({ leaveType: "paid", startDate: "2026-10-14", endDate: "2026-10-05", durationUnit: "full" }),
+    ).toBeNull();
+    expect(
+      normalizeLeaveDays({ leaveType: "paid", startDate: "2026/10/05", endDate: "2026-10-05", durationUnit: "full" }),
+    ).toBeNull();
   });
 });

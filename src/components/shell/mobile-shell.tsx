@@ -20,6 +20,7 @@ import {
   mobileSidebarNavigation,
   resolveBottomNavItems,
 } from "@/config/navigation";
+import { canAccessAdminWeb } from "@/config/roles";
 import { haptic } from "@/lib/haptics";
 import { getDictionary } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -549,7 +550,11 @@ export function MobileShell({
       </Link>
     );
   };
-  const opsNavItems = mobileOpsAdminNavigation.filter((item) => canSeeNavItem(item, session.capabilities));
+  // 판매 캘린더 페이지는 권한 키에 더해 **관리자 웹 역할**도 요구한다(쓰기 액션이 `requireAdminSession` 을 거친다).
+  // 메뉴도 같은 두 조건으로 거른다 — 키만 받은 현장 역할에게 메뉴를 보여 주면 눌러도 홈으로 튕긴다(2026-10-01).
+  const opsNavItems = canAccessAdminWeb(session.user.role)
+    ? mobileOpsAdminNavigation.filter((item) => canSeeNavItem(item, session.capabilities))
+    : [];
   const bottomItems = resolveBottomNavItems(navTabIds).filter((item) => canSeeNavItem(item, session.capabilities));
   const splitAt = Math.ceil(bottomItems.length / 2);
   const leftTabs = bottomItems.slice(0, splitAt);

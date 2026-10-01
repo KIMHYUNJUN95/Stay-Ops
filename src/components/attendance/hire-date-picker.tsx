@@ -11,6 +11,9 @@ import { getDictionary } from "@/lib/i18n";
 // leave-date-picker.tsx(연차 신청 기간 선택)와 동일한 dpick__* 시각 톤을 쓰지만,
 // 목업 월 고정이 아니라 실제 연/월 이동 + 날짜 연산으로 동작한다. 미래 날짜는 선택 불가
 // (입사일은 오늘 이전이어야 함).
+//
+// 2026-10-01 — 근태 예외 정정 요청의 「근무 날짜」도 이 시트를 쓴다. `title` 로 머리말을, `minDate` 로
+// 고를 수 있는 가장 이른 날(당월·전월만 허용)을 바꾼다. 둘 다 생략하면 예전 입사일 동작 그대로다.
 
 function localeTag(locale: string): string {
   return locale === "ko" ? "ko-KR" : locale === "ja" ? "ja-JP" : "en-US";
@@ -35,13 +38,20 @@ export function HireDatePicker({
   value,
   onApply,
   onClose,
+  title,
+  minDate,
 }: {
   locale: string;
   value: string;
   onApply: (date: string) => void;
   onClose: () => void;
+  /** 머리말 · 요약 라벨. 생략하면 「입사일」. */
+  title?: string;
+  /** 'YYYY-MM-DD' — 이보다 이른 날은 고를 수 없다. 생략하면 제한 없음. */
+  minDate?: string;
 }) {
   const c = getDictionary(locale).leave;
+  const heading = title ?? c.exSetupHire;
   const today = tokyoToday();
   const [ym, setYm] = useState(() => (value || today).slice(0, 7));
   const [selected, setSelected] = useState<string | null>(value || null);
@@ -63,7 +73,7 @@ export function HireDatePicker({
   for (let i = 0; i < lead; i++) cells.push(<div className="dpick__cell pad" key={`pad${i}`} />);
   for (let d = 1; d <= total; d++) {
     const key = `${ym}-${String(d).padStart(2, "0")}`;
-    const future = key > today;
+    const future = key > today || (minDate != null && key < minDate);
     let cls = "";
     if (future) cls = "dim";
     if (key === selected) cls = "rsingle";
@@ -89,12 +99,12 @@ export function HireDatePicker({
             <span className="lsheet__ic bg-pick">
               <AIc>{AttIcon.calendar}</AIc>
             </span>
-            <span className="lsheet__t">{c.exSetupHire}</span>
+            <span className="lsheet__t">{heading}</span>
           </div>
 
           <div className="dpick__sum">
             <div className="dpick__sumcol">
-              <span className="dpick__sumk">{c.exSetupHire}</span>
+              <span className="dpick__sumk">{heading}</span>
               <span className={`dpick__sumv mono${selected ? "" : " ph"}`}>{selected ?? c.pickDate}</span>
             </div>
           </div>
@@ -116,6 +126,7 @@ export function HireDatePicker({
               type="button"
               className="lcal__navbtn"
               aria-label={c.calPrevMonth}
+              disabled={minDate != null && ym <= minDate.slice(0, 7)}
               onClick={() => setYm((m) => shiftMonth(m, -1))}
             >
               {AttIcon.back}
@@ -138,6 +149,7 @@ export function HireDatePicker({
                   type="button"
                   className="lcal__navbtn"
                   aria-label={c.calPrevYear}
+                  disabled={minDate != null && viewYear <= Number(minDate.slice(0, 4))}
                   onClick={() => setViewYear((y) => y - 1)}
                 >
                   {AttIcon.back}
@@ -157,7 +169,8 @@ export function HireDatePicker({
                 {monthNames.map((name, i) => {
                   const m = i + 1;
                   const targetYm = `${viewYear}-${String(m).padStart(2, "0")}`;
-                  const future = targetYm > today.slice(0, 7);
+                  const future =
+                    targetYm > today.slice(0, 7) || (minDate != null && targetYm < minDate.slice(0, 7));
                   return (
                     <button
                       type="button"

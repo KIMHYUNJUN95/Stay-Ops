@@ -205,7 +205,9 @@ async function toRequestView(
     sessionRes && "data" in sessionRes
       ? ((sessionRes.data as { operating_date: string } | null)?.operating_date ?? null)
       : null;
-  const targetDateLabel = od ? dateLabelOf(od, locale) : null;
+  // 세션 없는 예외 요청은 직원이 고른 근무 날짜(`target_date`, 2026-10-01)를 쓴다.
+  const targetDate = od ?? row.target_date ?? null;
+  const targetDateLabel = targetDate ? dateLabelOf(targetDate, locale) : null;
 
   const desiredSiteName =
     siteRes && "data" in siteRes

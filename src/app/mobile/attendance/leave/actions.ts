@@ -8,6 +8,8 @@ import { revalidatePath } from "next/cache";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { setAnnualLeaveBaselineForUser } from "@/lib/annual-leave-server";
+import { normalizeLeaveDays } from "@/lib/annual-leave";
+import { getDictionary } from "@/lib/i18n";
 import {
   cancelLeaveRequest,
   createLeaveRequest,
@@ -57,15 +59,18 @@ export async function setAnnualLeaveBaselineAction(input: {
 
 export type SubmitLeaveRequestResult = { ok: true; id: string } | { ok: false; error: string };
 
+/**
+ * 신청자 이름과 일수는 **화면이 보내지 않는다**(2026-10-01). 예전에는 둘 다 화면 값을 그대로 저장해서
+ * 남의 이름으로 신청하거나(관리자 큐 · 팀 캘린더에 그 이름으로 뜬다) 10일 기간을 0.5일로 낼 수 있었다.
+ * 이름은 세션 프로필, 일수는 `normalizeLeaveDays` 로 서버가 정한다 — 관리자 대리 신청과 같은 규칙이다.
+ */
 export async function submitLeaveRequestAction(input: {
   /** Set when continuing an existing draft — updates that row instead of creating a new one. */
   requestId?: string;
-  applicantName: string;
   leaveType: string;
   startDate: string;
   endDate: string;
   durationUnit: string;
-  daysCount: number;
   reason: string;
   emergencyContact: string;
   asDraft?: boolean;
@@ -81,18 +86,24 @@ export async function submitLeaveRequestAction(input: {
     return { ok: false, error: "invalid_dates" };
   }
   if (input.endDate < input.startDate) return { ok: false, error: "invalid_date_range" };
-  if (!Number.isFinite(input.daysCount) || input.daysCount <= 0) return { ok: false, error: "invalid_days_count" };
+  const normalized = normalizeLeaveDays({
+    leaveType: input.leaveType as LeaveRequestType,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    durationUnit: input.durationUnit as LeaveDurationUnit,
+  });
+  if (!normalized) return { ok: false, error: "invalid_dates" };
   if (!input.asDraft && !input.reason.trim()) return { ok: false, error: "missing_reason" };
   if (!input.asDraft && !input.emergencyContact.trim()) return { ok: false, error: "missing_emergency_contact" };
 
   const service = getSupabaseServiceClient();
   const requestInput = {
-    applicantName: input.applicantName,
+    applicantName: session.user.name?.trim() || getDictionary(session.user.preferredLanguage).attendance.userFallback,
     leaveType: input.leaveType as LeaveRequestType,
-    startDate: input.startDate,
-    endDate: input.endDate,
-    durationUnit: input.durationUnit as LeaveDurationUnit,
-    daysCount: input.daysCount,
+    startDate: normalized.startDate,
+    endDate: normalized.endDate,
+    durationUnit: normalized.durationUnit,
+    daysCount: normalized.daysCount,
     reason: input.reason,
     emergencyContact: input.emergencyContact,
     asDraft: input.asDraft,

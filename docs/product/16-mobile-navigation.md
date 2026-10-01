@@ -542,10 +542,15 @@ Current rules:
   아래쪽에 구분선 + 제목(`admin.console.navGroupOpsAdmin` — 운영 관리자 / 運営管理者 / Revenue Ops)을 단 구역으로 그린다.
   데스크톱 사이드바가 「운영 관리자」 묶음을 맨 아래 따로 두는 것(`adminNavGroupOf` → `ops`)과 같은 규칙이다.
   **하단 탭 편집 후보에도 넣지 않는다**(후보 = 일반 메뉴). 권한이 없으면 구역째 안 보인다.
+  **관리자 웹 역할(`canAccessAdminWeb`)도 함께 본다**(2026-10-01) — 페이지가 `ops_admin.access` + 관리자 웹 역할을
+  둘 다 요구하므로(쓰기 액션이 `requireAdminSession` 을 거친다), 키만 개별 부여받은 현장 역할에게 메뉴를 보여 주면
+  눌러도 홈으로 튕겼다. 메뉴와 페이지가 같은 두 조건을 쓴다(`mobile-shell.tsx`).
 - 현재 항목: **판매 캘린더** `ops-calendar` → `/mobile/ops/calendar`(`ops_admin.access`). 데스크톱
   `/admin/ops/calendar` 의 모바일판이다 — 화면 · 입력 계약은 `33-calendar-write-features.md` → 「모바일 판매 캘린더」.
-- 이 화면의 격자는 **자체 스크롤 상자**다(날짜 머리 · 객실 열 sticky). 셸 머리 숨김은 `mobile-shell-scroll` 신호로
-  따라가고, 격자가 맨 위가 아닐 때는 셸의 당겨서 새로고침을 무장시키지 않는다. 선택 바는 `body` 포털(z-70, 탭 바 위),
+- 이 화면의 격자는 **자체 스크롤 상자**다(날짜 머리 · 객실 열 sticky). 셸 크롬은 `mobile-shell-scroll` 로 **다른 화면처럼 숨었다 나타나고**, 그 빈자리는 화면이
+  채운다(탭 바의 `pointer-events-none` 을 지켜봐서 숨으면 64px 올리고 격자를 바닥까지 늘림 — 셸과 같은 곡선), 격자가 맨 위가 아닐 때는 셸의 당겨서 새로고침을 무장시키지 않는다. 칸을 고르는 동안에는 **선택 도구줄이 하단 탭 바 자리를 대신한다**(`body` 포털 z-70, 탭 바와 같은 표면 ·
+  모서리 · 위치 — 사진 앱 선택 모드. X 없이 아래로 밀기 · 빈 곳 탭으로 닫는다. 셸의 탭 바 계약은 그대로이고, 선택을
+  풀면 탭 바가 다시 보인다),
   편집 패널은 공용 `BottomSheet` 안에 연다(시트 계약 그대로 — X 없음 · 드래그/스크림/Esc 닫기).
 
 ### Side-menu operational badge counts

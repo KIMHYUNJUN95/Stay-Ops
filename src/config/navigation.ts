@@ -237,7 +237,6 @@ export const defaultBottomNavTabIds = [
 /** Features a user may pin to the bottom bar (same pool as the side menu). */
 export const customizableBottomNavItems = mobileSidebarNavigation;
 
-/** Resolve stored bottom-nav ids into ordered navigation items (max enforced). */
 /**
  * 이 사람에게 보이는 내비 항목인가 — `capability` 가 없으면 전원, 있으면 그 권한 키를 가진 사람만.
  * UX 필터일 뿐이다(실제 차단은 페이지 · 서버 액션 · RLS).
@@ -247,6 +246,7 @@ export function canSeeNavItem(item: object, capabilities: readonly string[] | nu
   return !capability || Boolean(capabilities?.includes(capability));
 }
 
+/** Resolve stored bottom-nav ids into ordered navigation items (max enforced). */
 export function resolveBottomNavItems(
   ids: readonly string[] | null | undefined,
 ): NavigationItem[] {

@@ -133,9 +133,10 @@ describe("assignBlockLanes — 차단이 예약과 겹치면 아래층", () => {
     expect(result.laneCount).toBe(2);
   });
 
-  it("체크아웃 날만 닿는 차단은 겹치지 않는다", () => {
-    const result = assignBlockLanes([bar("2026-09-30", "2026-10-01")], [block("b", "2026-10-01", "2026-10-02")]);
-    expect(result.laneById.get("b")).toBe(0);
+  it("체크아웃 날부터 건 차단은 아래층 — 막대가 체크아웃 칸 앞 절반에서 겹친다(아라키초A 302 Théo Mourian)", () => {
+    const result = assignBlockLanes([bar("2026-09-28", "2026-10-05")], [block("b", "2026-10-05", "2026-10-06")]);
+    expect(result.laneById.get("b")).toBe(1);
+    expect(result.laneCount).toBe(2);
   });
 
   it("체크인 전날에 끝나는 차단도 겹치지 않는다", () => {

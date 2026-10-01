@@ -437,3 +437,16 @@ backend-wired (2026-07-08). Approved usage feeds both the admin balance view and
 notification on approve/reject (**deferred** to the end-of-development notification redesign);
 hourly-staff exclusion by real
 `employment_type` rather than membership role; and a dedicated PDF export template beyond browser print.
+
+## 신청자 이름 · 일수는 서버가 정한다 (2026-10-01)
+
+직원 신청(`submitLeaveRequestAction`)이 화면이 보낸 `applicantName` 과 `daysCount` 를 그대로 저장했다.
+화면만 바꾸면 **남의 이름으로 신청**(관리자 큐·팀 캘린더에 그 이름으로 뜬다)하거나 **10일 기간을 0.5일로**
+낼 수 있었다. 관리자 대리 신청은 처음부터 서버에서 정했다.
+
+- 이름: 세션 프로필 이름(없으면 `attendance.userFallback`). 액션 입력에서 `applicantName` 제거.
+- 기간·단위·일수: `normalizeLeaveDays` (`src/lib/annual-leave.ts`, 순수) — 경조=시작일부터 고정 3일 종일,
+  반차=시작일 하루 0.5일, 그 외=양끝 포함 일수. 액션 입력에서 `daysCount` 제거. 관리자 대리 신청
+  (`createAdminLeaveRequest`)도 같은 함수를 쓴다. 테스트 `src/lib/__tests__/annual-leave.test.ts`.
+- 화면 동작은 그대로다 — 폼이 이미 같은 규칙으로 보여 주고 있었다.
+

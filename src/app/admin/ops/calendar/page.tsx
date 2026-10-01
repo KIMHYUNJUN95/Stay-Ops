@@ -14,6 +14,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getOpsCalendarData, OPS_CALENDAR_ROLLING_DAYS } from "@/lib/ops-calendar";
 import { scheduleOpsCalendarOpenRefresh } from "@/lib/ops-calendar-open-refresh";
 import { opsNavId } from "@/lib/ops-admin";
+import { isOpsRatesStale, opsRatesSyncedLabel } from "@/lib/ops-rates-freshness";
 import {
   buildOpsCalendarHref,
   parsePropertyParam,
@@ -100,21 +101,9 @@ export default async function OpsCalendarPage({
    * 보이는 창 + 고른 건물만 당긴다. 9건물 × 12개월은 30초에 크레딧도 그만큼 쓴다 —
    * 화면을 열 때마다 할 일이 아니다.
    */
-  /**
-   * 「방금 / N분 전 / N시간 전 동기화」.
-   *
-   * 분 단위로만 적는다 — 초까지 적으면 새로고침마다 숫자가 달라져 **값이 바뀐 것처럼**
-   * 보인다.
-   */
-  const syncedLabel = (() => {
-    const minutes = data.ratesAgeMinutes;
-    if (minutes === null) return copy.syncedNever;
-    if (minutes < 1) return copy.syncedJustNow;
-    if (minutes < 60) return copy.syncedMinutes.replace("{n}", String(minutes));
-    return copy.syncedHours.replace("{n}", String(Math.floor(minutes / 60)));
-  })();
-  // 저쪽 주기(15분)와 같은 기준. 넘으면 빨갛게 적는다.
-  const staleRates = data.ratesAgeMinutes === null || data.ratesAgeMinutes > 15;
+  // 「가격 실시간 반영 중」/ 15분 넘으면 「가격 N분·시간 전 기준」(빨강) — 모바일과 같은 규칙(`ops-rates-freshness.ts`).
+  const syncedLabel = opsRatesSyncedLabel(data.ratesAgeMinutes, copy);
+  const staleRates = isOpsRatesStale(data.ratesAgeMinutes);
 
   const firstVisibleDate = data.days.at(0)?.date;
   const lastVisibleDate = data.days.at(-1)?.date;

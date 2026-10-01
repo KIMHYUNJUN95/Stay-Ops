@@ -65,6 +65,8 @@ export type BlockPanelCopy = {
   bkDoneBlock: string;
   bkDoneRelease: string;
   bkFailed: string;
+  /** 앞 구간 일부가 이미 반영된 실패. `{done}` = 반영된 구간 수, `{error}` = 사유. */
+  bkPartialFailed: string;
   bkNote: string;
   panelCancel: string;
   errForbidden: string;
@@ -157,7 +159,14 @@ export function OpsBlockPanel({
         onClear();
         return;
       }
-      setMessage(copy.bkFailed.replace("{error}", errorText(copy, result.error)));
+      // 앞 구간이 이미 반영됐으면 그렇다고 말한다 — 「실패」만 보면 전부 안 된 줄 알고 다시 누른다.
+      setMessage(
+        result.appliedRanges
+          ? copy.bkPartialFailed
+              .replace("{done}", String(result.appliedRanges))
+              .replace("{error}", errorText(copy, result.error))
+          : copy.bkFailed.replace("{error}", errorText(copy, result.error)),
+      );
     });
   };
 

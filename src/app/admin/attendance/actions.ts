@@ -89,6 +89,7 @@ import {
 } from "@/lib/attendance-transport-report";
 import type { Database } from "@/types/database";
 import { bestEffortWrite } from "@/lib/db-write-guard";
+import { resolveClockOutAfterClockIn } from "@/lib/attendance-clock";
 
 export type ReviewActionResult =
   | { ok: true }
@@ -519,12 +520,6 @@ function tokyoInstant(baseDate: string, hhmm: string): string | null {
   const d = new Date(`${baseDate}T${hhmm}:00+09:00`);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
-function addTokyoDayInstant(baseDate: string, hhmm: string): string | null {
-  const d = new Date(`${baseDate}T${hhmm}:00+09:00`);
-  if (Number.isNaN(d.getTime())) return null;
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString();
-}
 function tokyoDateKey(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Tokyo",
@@ -535,12 +530,6 @@ function tokyoDateKey(iso: string): string {
 }
 function ymdToYm(ymd: string): string {
   return ymd.slice(0, 7);
-}
-function resolveClockOutAfterClockIn(baseDate: string, clockOutTime: string, clockInAt: string): string | null {
-  const sameDay = tokyoInstant(baseDate, clockOutTime);
-  if (!sameDay) return null;
-  if (new Date(sameDay).getTime() > new Date(clockInAt).getTime()) return sameDay;
-  return addTokyoDayInstant(baseDate, clockOutTime);
 }
 function validClockOrder(clockInAt: string | null, clockOutAt: string | null): boolean {
   if (!clockInAt || !clockOutAt) return true;
@@ -761,8 +750,11 @@ export async function updateAttendanceSessionAdmin(
     const resultingIn = clockInChanged ? (update.clock_in_at as string | null) : s.clock_in_at;
     const resultingOut = clockOutChanged ? (update.clock_out_at as string | null) : s.clock_out_at;
     if (!validClockOrder(resultingIn, resultingOut)) return { ok: false, reason: "invalid" };
-    if (resultingIn && resultingOut) update.status = "completed";
-    else if (s.status === "completed" && !resultingOut) update.status = "open";
+    if (resultingIn && resultingOut) {
+      update.status = "completed";
+      // 방치(abandoned)였던 세션을 닫으면 방치 표시도 지운다 — 정정 승인 경로와 같다(2026-10-01).
+      if (s.status === "abandoned") update.abandoned_at = null;
+    } else if (s.status === "completed" && !resultingOut) update.status = "open";
     if (crossesTokyoMidnight(resultingIn, resultingOut)) update.review_state = "review_required";
   }
 

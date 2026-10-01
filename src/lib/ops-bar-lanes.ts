@@ -91,10 +91,12 @@ export function assignBarLanes(bars: readonly LaneBar[]): BarLaneResult {
  * 예약 이름을 덮어 못 읽는다. 「취소 보기」의 층과 같은 방식으로 **예약이 먼저 자리를 잡고**, 차단은
  * 겹치지 않는 첫 층에 놓는다. 겹치지 않으면 0층 — 평소 모습 그대로다.
  *
- * 겹침은 **밤**으로 잰다 — 예약은 `[checkIn, checkOut)`, 차단은 `[startDate, endDate]` 의 밤이다.
- * 같은 밤이 하나라도 있으면 겹친다(`block.startDate < bar.checkOut && bar.checkIn <= block.endDate`).
- * 체크아웃 날만 닿는 차단은 겹치지 않는다 — 예약 막대 끝이 그 칸 가운데에서 끝나는 것과 같은 규칙이고,
- * 이걸 겹침으로 치면 예약 바로 뒤에 건 차단이 전부 아래층으로 내려간다. 차단끼리는 밤이 겹칠 때만 겹친다.
+ * 겹침은 **그려지는 자리**로 잰다(2026-10-01 수정, 사용자 보고 — 아라키초A 302 Théo Mourian 위 BLOCK).
+ * 예약 막대는 체크인 칸 **가운데**에서 체크아웃 칸 **가운데**까지, 차단 막대는 첫 밤 칸부터 끝 밤 칸까지
+ * **칸 전체**를 덮는다. 그래서 체크아웃 날부터 건 차단은 밤은 안 겹쳐도 **체크아웃 칸의 앞 절반에서 예약 막대
+ * 끝을 덮는다.** 처음에는 밤 기준(`block.startDate < bar.checkOut`)으로 재서 그 경우를 0층에 두었고, 막대가
+ * 실제로 겹쳤다. 이제 체크아웃 날도 예약이 차지한 것으로 본다(`block.startDate <= bar.checkOut`).
+ * 체크인 전날에 끝나는 차단은 체크인 칸 앞 절반이 비어 있으니 그대로 겹치지 않는다. 차단끼리는 밤이 겹칠 때만.
  *
  * **순수하다** — `ops-bar-lanes.test.ts`.
  */
@@ -119,13 +121,14 @@ export function assignBlockLanes(
     while (lanes.length <= lane) lanes.push([]);
     lanes[lane].push([from, toExclusive]);
   };
-  for (const bar of bars) occupy(bar.lane, bar.checkIn, bar.checkOut);
-  /** 차단의 끝 밤 다음 날 — 밤 구간을 반열림으로 맞춘다. */
+  /** 그 날 다음 날 — 구간을 반열림으로 맞춘다. */
   const dayAfter = (date: string) => {
     const next = new Date(`${date}T12:00:00Z`);
     next.setUTCDate(next.getUTCDate() + 1);
     return next.toISOString().slice(0, 10);
   };
+  // 예약은 **체크아웃 칸까지**(막대가 그 칸 가운데까지 그려진다) 차지한 것으로 본다.
+  for (const bar of bars) occupy(bar.lane, bar.checkIn, dayAfter(bar.checkOut));
 
   const sorted = [...blocks].sort(
     (a, b) => a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate),
