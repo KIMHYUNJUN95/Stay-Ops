@@ -9,6 +9,13 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-01 (3) — STAY ARI Manager 이식 현황 문서 갱신
+
+- `docs/product/31-stay-ari-migration-overview.md` 를 이식 작업의 **시작점**으로 갱신: 진행 상황(판매 캘린더 PC 완료 ·
+  운영 사용 중 / 모바일 시안 선택 대기 / 가동률 · 매출 · 전표 · 자동화 착수 전), 캘린더에서 된 것, 다음 순서, 남은
+  결정, 「다시 시작할 때」 재개 가이드(저쪽 원본 경로 · 자주 보는 파일 · 우리 쪽 핵심 위치 · 대조 도구). 판매 캘린더
+  쓰기가 이미 운영 중이라는 현실을 「병행 운영 원칙」에 반영. `CLAUDE.md` 「Read These First」 8번에 안내 추가.
+
 ## 2026-10-01 (2) — 판매 캘린더: 예약과 겹치는 차단은 아래층으로
 
 - 예약이 있는 밤에 건 차단(BLOCK)이 예약 막대를 덮던 것 → 차단을 겹치지 않는 층에 놓고 줄 높이를 늘린다
@@ -125,6 +132,7 @@ and the major mobile/admin operations modules are implemented and being hardened
 
 - 툴바 모드(가격 수정 · 최소 숙박일 · 차단) · 가격 개입 성공 · 목록 · 이력 · 매출 요약 · 오늘 빈방만을 Esc 한 번에 끈다.
   고른 칸이 있으면 첫 Esc 는 선택 해제. (`33-calendar-write-features.md`)
+- 예약 막대의 브라우저 툴팁(이름 · 기간) 제거 — 눌러서 예약 상세로 본다.
 
 ## 2026-09-30 — 권한 예외 사유 선택화
 

@@ -604,7 +604,8 @@ const OpsGridRow = memo(function OpsGridRow({
                 // 편집 모드에서는 칸 선택이 먼저다 — 막대를 누르다 상세가 뜨면 드래그 선택이 끊긴다.
                 onClick={editMode ? undefined : () => actions.current.openBar(bar, room)}
                 style={lane > 0 ? { ...geometry, top: `calc(3px + ${lane * OPS_LANE_STEP_PX}px)` } : geometry}
-                title={`${bar.guestName} · ${bar.checkIn} → ${bar.checkOut}`}
+                // 브라우저 툴팁(이름 · 기간)은 두지 않는다(2026-10-01 사용자) — 막대를 지나갈 때마다 떠서 격자를
+                // 가린다. 자세한 것은 눌러서 예약 상세로.
               >
                 {bar.guestName}
               </div>

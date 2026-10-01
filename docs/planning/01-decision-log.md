@@ -2,6 +2,13 @@
 
 This file records important project decisions.
 
+## 2026-10-01 STAY ARI Manager 이식은 「저쪽 구조·설계를 읽고 → 업그레이드해서 → 짓는다」
+
+이식하는 모든 기능은 저쪽 원본(`/mnt/c/-stay-ari-manager-main`)의 구조 · 데이터 흐름 · 규칙을 먼저 끝까지 읽고,
+StayOps 계약(모바일 · 다국어 · 조직 격리 · 서버 권한 · 실시간)에 맞춰 개선해서 다시 짓는다. 그대로 복사하거나
+추측으로 만들지 않는다. 숫자는 기본 「저쪽 그대로」, 바꾸면 이유를 적고 확인받는다. 원본과 같은 기간으로 대조해
+검증한다. 상세: `docs/product/31-stay-ari-migration-overview.md` 「이식 원칙」.
+
 ## 2026-10-01 증분 정합성은 취소분을 `status=cancelled` 로 따로 묻는다
 
 `GET /bookings?modifiedFrom=X` 는 status 없이 부르면 취소 예약을 돌려주지 않는다(실측 974건 중 0건 vs 319건).
