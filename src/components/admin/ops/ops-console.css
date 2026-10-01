@@ -1061,6 +1061,68 @@
 /* 패널이 화면 높이에 닿았을 때만 쓰인다(내용이 짧으면 0). */
 .opsp__grow { flex: 1 1 auto; }
 
+/*
+ * 선택한 칸 목록(2026-10-01) — 남는 세로 공간을 쓴다. 칸을 고르면 패널이 화면 높이까지 서고(`has-list`),
+ * 목록만 안에서 넘긴다 — 바닥 버튼은 제자리. 숫자는 tabular-nums, 인상 = 위험색 · 인하 = 남색(칸 이력 카드와 같은 짝).
+ */
+.opsp.has-list { height: calc(100dvh - 62px - 24px); }
+.opspl {
+  flex: 1 1 auto;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-soft);
+  border-radius: 11px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+.opspl__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px 7px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--card);
+}
+.opspl__title { font-size: 11.5px; font-weight: 800; color: var(--ink); }
+.opspl__count { font-size: 10.5px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.opspl__scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 0 8px; }
+.opspl__bname {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 6px 11px 4px;
+  background: var(--surface2);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.opspl__room { padding: 4px 11px 2px; }
+.opspl__room + .opspl__room { border-top: 1px dashed var(--line-soft); }
+.opspl__rname { font-size: 11.5px; font-weight: 800; color: var(--ink); margin-bottom: 2px; }
+.opspl__rows { list-style: none; margin: 0; padding: 0; }
+.opspl__row {
+  white-space: nowrap;
+  display: grid;
+  /* 날짜 | 현재가 | → | 바뀔 가격 — 바뀌지 않는 줄도 현재가가 같은 세로줄에 선다. */
+  grid-template-columns: 38px minmax(0, 1fr) 12px minmax(64px, auto);
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 0;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.opspl__date { color: var(--muted); font-weight: 600; }
+.opspl__cur { justify-self: end; color: var(--ink); font-weight: 700; }
+.opspl__cur.is-old { color: var(--faint); font-weight: 600; text-decoration: line-through; }
+.opspl__arrow { grid-column: 3; color: var(--faint); text-align: center; }
+.opspl__next { grid-column: 4; justify-self: end; font-weight: 800; }
+.opspl__next.is-up { color: var(--danger); }
+.opspl__next.is-dn { color: #305fb5; }
+.opspl__none { grid-column: 2 / -1; color: var(--faint); font-size: 10.5px; font-weight: 600; }
+
 /* 현재 → 변경. 패널에서 가장 큰 요소다. */
 .opsp__box {
   display: flex;
@@ -1070,8 +1132,14 @@
   overflow: hidden;
   background: var(--card);
 }
-.opsp__cur { flex: 1; padding: 9px 12px; background: var(--surface2); }
-.opsp__nx { flex: 1.35; padding: 9px 12px; border-left: 1px solid var(--line); }
+/* 현재 | 변경 — 같은 폭. 「변경」은 남색을 옅게 깔아 「이 값이 나간다」를 먼저 읽게 한다(2026-10-01 다듬음). */
+.opsp__cur { flex: 1 1 0; padding: 11px 13px 12px; background: var(--surface2); }
+.opsp__nx {
+  flex: 1 1 0;
+  padding: 11px 13px 12px;
+  border-left: 1px solid color-mix(in oklab, var(--adm-primary) 30%, var(--line));
+  background: color-mix(in oklab, var(--adm-primary) 5%, var(--card));
+}
 .opsp__lbl {
   display: flex;
   align-items: center;
@@ -1081,6 +1149,9 @@
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--faint);
+  /* 높이 고정 — 「변경」 쪽에만 %배지가 붙어 줄이 높아지면 두 칸의 가격 줄이 어긋났다(2026-10-01). */
+  height: 14px;
+  line-height: 14px;
 }
 .opsp__nx .opsp__lbl { color: var(--adm-primary); }
 .opsp__curv {
@@ -1091,6 +1162,21 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
 }
+/* 범위(최저 ~ 최고)는 두 줄 · 작은 글씨 — 큰 객실 가격이 칸을 넘지 않게(2026-10-01). */
+.opsp__curv.is-range,
+.opsp__nxv.is-range {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 19px;
+  white-space: nowrap;
+}
+/* 둘째 줄은 「~ 최고」 — 첫 줄 숫자와 시작점이 맞고, 물결이 줄 끝에 매달리지 않는다. */
+.opsp__to { font-size: 13px; font-weight: 700; opacity: 0.85; }
+.opsp__avg { margin-top: 3px; font-size: 10px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.opsp__cur, .opsp__nx { min-width: 0; }
 .opsp__nxv {
   margin-top: 4px;
   font-size: 19px;
@@ -1100,29 +1186,58 @@
   letter-spacing: -0.03em;
   white-space: nowrap;
 }
-.opsp__delta { font-size: 10.5px; font-weight: 800; color: hsl(146 50% 30%); }
-.opsp__delta.dn { color: var(--danger); }
+/* % 배지 — 글자만 있으면 라벨과 붙어 읽혔다. 색 바탕 알약으로. */
+.opsp__delta {
+  display: inline-flex;
+  align-items: center;
+  height: 15px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, hsl(146 50% 30%) 13%, transparent);
+  color: hsl(146 50% 28%);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.opsp__delta.dn { background: color-mix(in oklab, var(--danger) 12%, transparent); color: var(--danger); }
 .opsp__hint { margin-top: 6px; font-size: 10px; font-weight: 600; color: var(--faint); }
 
 /* 금액·퍼센트는 같은 값을 정하는 두 방법이라 한 덩어리다. */
+/* 금액 | 퍼센트 — 두 칸을 따로 세운다(붙은 알약 하나는 가늘고 어디가 입력칸인지 흐렸다, 2026-10-01). */
 .opsp__inputs {
   display: flex;
-  align-items: center;
-  height: 32px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: var(--card);
-  overflow: hidden;
+  gap: 6px;
 }
-.opsp__inputs:focus-within { border-color: var(--adm-primary); }
-.opsp__in { display: flex; align-items: center; height: 100%; padding: 0 10px; gap: 4px; flex: 1; }
-.opsp__in.pct { border-left: 1px solid var(--line); flex: 0 0 96px; }
+.opsp__in {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 38px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  flex: 1 1 auto;
+  min-width: 0;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.opsp__in:focus-within {
+  border-color: var(--adm-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--adm-primary) 14%, transparent);
+}
+.opsp__in.pct { flex: 0 0 92px; }
 .opsp__in input {
   width: 100%;
   min-width: 0;
+  height: 100%;
+  padding: 0;
   border: 0;
+  border-radius: 0;
+  box-shadow: none;
   background: transparent;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
@@ -1131,7 +1246,7 @@
 .opsp__in input:focus { outline: none; }
 .opsp__in input::placeholder { font-weight: 600; color: var(--faint); }
 .opsp__in input:disabled { cursor: not-allowed; }
-.opsp__unit { font-size: 11px; font-weight: 800; color: var(--faint); }
+.opsp__unit { flex: none; font-size: 12px; font-weight: 800; color: var(--muted); }
 
 /* 프리셋 4열 격자 — 세로 카드라 가로로 늘어놓을 필요가 없다. */
 .opsp__presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
@@ -1150,6 +1265,13 @@
 .opsp__preset.dn { color: var(--danger); }
 .opsp__preset:hover:not(:disabled) { background: var(--adm-surface); }
 .opsp__preset.on { background: var(--adm-primary); border-color: var(--adm-primary); color: #fff; }
+/* 켜진 프리셋은 올려도 남색을 유지한다 — 위 hover 가 배경만 밝게 바꿔 흰 글자가 사라졌다(2026-10-01).
+   다시 누르면 해제된다는 신호로 조금만 어둡게. */
+.opsp__preset.on:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--adm-primary) 88%, #000);
+  border-color: color-mix(in oklab, var(--adm-primary) 88%, #000);
+  color: #fff;
+}
 .opsp__preset:disabled { opacity: 0.4; cursor: default; }
 
 /* 알림 한 줄. **개수가 아니라 이유**를 적는다. */

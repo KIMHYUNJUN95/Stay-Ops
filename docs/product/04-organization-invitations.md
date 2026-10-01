@@ -141,6 +141,9 @@ Implementation note (2026-06-03):
 - After Google callback, `getOnboardingState()` determines if profile is complete.
 - If profile is missing → routed to `/onboarding` profile step.
 - If profile complete but no membership → routed to `/onboarding` invite-code step.
+- `/onboarding` renders by device surface (2026-10-01): **desktop** → one-screen form
+  (`desktop-onboarding.tsx`), **mobile / unknown** → the step wizard (`onboarding-wizard.tsx`). Same server
+  actions and validation; the two UIs share no components. See `05-admin-web-ia.md` → 「대시보드 전용 가입 화면」.
 - If membership is suspended → routed to the blocked state on `/auth/login` with a logout action.
 - If membership is removed → routed to the blocked state on `/auth/login` by default; the user may explicitly enter a re-join flow with another valid invite code.
 - If the authenticated account is disabled at the Auth level → routed to the blocked state on `/auth/login`.

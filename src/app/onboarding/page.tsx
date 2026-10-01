@@ -1,6 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { InviteCodeFieldCopy } from "@/app/onboarding/invite-code-field";
+import { DesktopOnboarding } from "@/app/onboarding/desktop-onboarding";
 import { OnboardingWizard } from "@/app/onboarding/onboarding-wizard";
 import { getDictionary, inferLocaleFromAcceptLanguage, isLocale, type Locale } from "@/lib/i18n";
 import { getDeviceSurfaceFromHeaders } from "@/lib/mobile-device";
@@ -101,6 +102,92 @@ export default async function OnboardingPage({
     errors: o.errors,
     roleCategories: o.roleCategories,
   };
+
+  /*
+   * ── 대시보드(PC) 전용 가입 화면(2026-10-01) ─────────────────────────────────────
+   *
+   * PC 에서는 모바일 마법사(한 화면 한 질문 · 휠 피커 · 하단 시트)가 아니라 한 화면 폼을 그린다.
+   * **기기 표면이 `desktop` 일 때만**이다 — 모바일 · 판별 불가는 아래 마법사 그대로라 두 화면이 섞이지 않는다.
+   */
+  if (surface === "desktop" && (state.status === "needs_profile" || (joinProfile && (state.status === "needs_membership" || allowRejoin)))) {
+    const d = o.desktop;
+    const c = dictionary.auth.console;
+    const membership = state.status !== "needs_profile";
+    return (
+      <DesktopOnboarding
+        allowInviteSkip={!membership}
+        copy={{
+          brandRole: c.role,
+          brandHead: d.brandHead,
+          brandLede: d.brandLede,
+          brandFoot: [c.foot1, c.foot2, c.foot3],
+          railAccount: d.railAccount,
+          railProfile: d.railProfile,
+          railProfileSub: d.railProfileSub,
+          railJoin: d.railJoin,
+          railJoinSub: d.railJoinSub,
+          railStart: d.railStart,
+          railStartSub: d.railStartSub,
+          eyebrow: membership ? o.joinFlow.inviteEyebrow : d.eyebrow,
+          title: d.title,
+          lede: d.lede,
+          joinTitle: d.joinTitle,
+          joinLede: errorMessage ?? (joinProfile ? o.joinBody(joinProfile.name) : o.joinFlow.inviteSubtitle),
+          basicsTitle: o.steps.basicsEyebrow,
+          basicsHint: d.basicsHint,
+          inviteTitle: o.joinFlow.inviteEyebrow,
+          inviteHint: d.inviteHint,
+          nameLabel: o.steps.nameLabel,
+          nameHint: o.steps.nameHint,
+          dobLabel: o.review.rowDob,
+          dobYear: o.steps.dobYearLabel,
+          dobMonth: o.steps.dobMonthLabel,
+          dobDay: o.steps.dobDayLabel,
+          dobHint: o.steps.dobHint,
+          dobInvalid: d.dobInvalid,
+          genderLabel: o.steps.genderLabel,
+          genderOptions: o.genderOptions,
+          phoneLabel: o.steps.phoneNumLabel,
+          phonePlaceholder: o.steps.phoneInputPlaceholder,
+          phoneHint: o.steps.phoneHint,
+          phoneDuplicateHelp: o.phoneDuplicateHelp,
+          countrySearch: d.countrySearch,
+          countryEmpty: d.countryEmpty,
+          countries: o.countries,
+          codePlaceholder: o.inviteCodePlaceholder,
+          caseHint: o.joinFlow.caseHint,
+          verifyCta: o.joinFlow.verifyCta,
+          checking: o.joinFlow.checking,
+          verified: o.joinFlow.verified,
+          orgLabel: o.previewOrgLabel,
+          roleLabel: o.joinFlow.roleLabel,
+          roleCategories: o.roleCategories,
+          skip: o.joinFlow.skip,
+          submit: o.review.submit,
+          exit: dictionary.auth.email.resetSentBackToLogin,
+          nameRequired: d.nameRequired,
+          genderRequired: d.genderRequired,
+          phoneRequired: d.phoneRequired,
+          inviteVerifyFirst: d.inviteVerifyFirst,
+          errors: o.errors,
+          successEyebrow: o.success.eyebrow,
+          welcomePrefix: o.success.welcomePrefix,
+          welcomeSuffix: o.success.welcomeSuffix,
+          bodyJoined: o.success.bodyJoined,
+          bodyNoTeam: o.success.bodyNoTeam,
+          startCta: o.success.startCta,
+        }}
+        initialError={membership ? null : errorMessage}
+        initialBirthDate={joinProfile?.birthDate ?? ""}
+        initialGender={joinProfile?.gender ?? ""}
+        initialName={joinProfile?.name ?? ""}
+        initialPhone={joinProfile?.phoneNumber}
+        locale={locale}
+        mode={membership ? "membership" : "profile"}
+        safeNext={safeNext}
+      />
+    );
+  }
 
   // ── needs_profile → multi-step wizard (Profile Setup redesign) ──────────────
   if (state.status === "needs_profile") {

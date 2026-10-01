@@ -61,6 +61,12 @@ export type PanelCopy = OpsWriteOutcomeCopy & {
   panelNoChange: string;
   panelIdle: string;
   panelHint: string;
+  /** 선택한 칸 목록(2026-10-01) — 건물 · 객실 · 날짜 · 현재가 → 바뀔 가격. */
+  panelListTitle: string;
+  /** 「평균 {price}」 — 현재가가 범위일 때 그 아래 작게. */
+  panelAverage: string;
+  panelListNoPrice: string;
+  panelListRooms: string;
   /** 「다음 · {count}칸 확인」 — 확인 단계로 넘어가는 버튼. */
   panelGo: string;
   panelTarget: string;
@@ -97,6 +103,116 @@ export type PanelCell = {
 };
 
 const yen = (value: number) => `¥${value.toLocaleString("ja-JP")}`;
+
+/** 입력칸 표시용 — 숫자만 남겨 쉼표를 넣는다. 음수 기호는 지킨다. */
+const formatAmountText = (text: string) => {
+  const negative = text.trim().startsWith("-");
+  const digits = text.replace(/[^\d]/g, "");
+  if (!digits) return negative ? "-" : "";
+  return `${negative ? "-" : ""}${Number(digits).toLocaleString("ja-JP")}`;
+};
+
+/** `2026-10-03` → `10/03`. 목록 줄에서만 쓴다(요일은 격자 머리에 있다). */
+const shortDate = (date: string) => `${date.slice(5, 7)}/${date.slice(8, 10)}`;
+
+type ListRow = { date: string; current: number | null; next: number | null };
+type ListRoom = { key: string; label: string; rows: ListRow[] };
+type ListBuilding = { name: string; rooms: ListRoom[] };
+
+/**
+ * 고른 칸을 **건물 → 객실 → 날짜**로 묶는다. 순서는 고른 칸 순서(= 격자 행 순서) 그대로. 바뀔 가격은
+ * 미리보기(`buildAdjustmentPreview`)에서 — 확인 단계와 **같은 계산**이라 목록과 실제로 나가는 값이 갈리지 않는다.
+ */
+function groupSelection(
+  cells: readonly PanelCell[],
+  nextByCell: ReadonlyMap<string, number>,
+): ListBuilding[] {
+  const buildings: ListBuilding[] = [];
+  const buildingByName = new Map<string, ListBuilding>();
+  const roomByKey = new Map<string, ListRoom>();
+  for (const cell of cells) {
+    const separator = cell.roomKey.indexOf("::");
+    const name = separator >= 0 ? cell.roomKey.slice(0, separator) : "";
+    let building = buildingByName.get(name);
+    if (!building) {
+      building = { name, rooms: [] };
+      buildingByName.set(name, building);
+      buildings.push(building);
+    }
+    let room = roomByKey.get(cell.roomKey);
+    if (!room) {
+      room = { key: cell.roomKey, label: cell.roomLabel, rows: [] };
+      roomByKey.set(cell.roomKey, room);
+      building.rooms.push(room);
+    }
+    room.rows.push({
+      current: cell.price,
+      date: cell.date,
+      next: nextByCell.get(`${cell.roomKey}|${cell.date}`) ?? null,
+    });
+  }
+  for (const room of roomByKey.values()) room.rows.sort((a, b) => a.date.localeCompare(b.date));
+  return buildings;
+}
+
+function SelectionList({
+  buildings,
+  cellCount,
+  copy,
+  showNext,
+}: {
+  buildings: ListBuilding[];
+  cellCount: number;
+  copy: PanelCopy;
+  showNext: boolean;
+}) {
+  const roomCount = buildings.reduce((sum, building) => sum + building.rooms.length, 0);
+  return (
+    <section className="opspl" aria-label={copy.panelListTitle}>
+      <div className="opspl__head">
+        <span className="opspl__title">{copy.panelListTitle}</span>
+        <span className="opspl__count">
+          {copy.panelListRooms.replace("{rooms}", String(roomCount)).replace("{cells}", String(cellCount))}
+        </span>
+      </div>
+      <div className="opspl__scroll">
+        {buildings.map((building) => (
+          <div className="opspl__bld" key={building.name}>
+            {buildings.length > 1 && <div className="opspl__bname">{building.name}</div>}
+            {building.rooms.map((room) => (
+              <div className="opspl__room" key={room.key}>
+                <div className="opspl__rname">{room.label}</div>
+                <ul className="opspl__rows">
+                  {room.rows.map((row) => {
+                    const delta = showNext && row.current !== null && row.next !== null ? row.next - row.current : null;
+                    return (
+                      <li className="opspl__row" key={row.date}>
+                        <span className="opspl__date">{shortDate(row.date)}</span>
+                        {row.current === null ? (
+                          <span className="opspl__none">{copy.panelListNoPrice}</span>
+                        ) : (
+                          <>
+                            <span className={`opspl__cur${delta ? " is-old" : ""}`}>{yen(row.current)}</span>
+                            {delta !== null && delta !== 0 && row.next !== null && (
+                              <>
+                                <span aria-hidden="true" className="opspl__arrow">→</span>
+                                <span className={`opspl__next ${delta > 0 ? "is-up" : "is-dn"}`}>{yen(row.next)}</span>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 /** 서버가 준 **코드**를 사용자의 언어로 바꾼다. 서버는 문구를 모른다. */
 function errorText(copy: PanelCopy, code: PriceChangeError): string {
@@ -159,11 +275,32 @@ export function OpsPricePanel({
     [cells, input],
   );
 
+  /** 목록용 — 칸별 바뀔 가격. 입력이 없으면 비어 있다(현재가만 보인다). */
+  const listBuildings = useMemo(() => {
+    const nextByCell = new Map<string, number>();
+    if (input) for (const row of preview.rows) nextByCell.set(`${row.roomKey}|${row.date}`, row.newPrice);
+    return groupSelection(cells, nextByCell);
+  }, [cells, input, preview]);
+
   const warnings = useMemo(
     () => (input ? findAdjustmentWarnings(preview) : []),
     [input, preview],
   );
   const gapCells = useMemo(() => cells.filter((cell) => cell.isGap), [cells]);
+  /**
+   * 현재가의 **범위**. 건물마다 가격대가 달라 평균 하나로는 「지금 얼마인가」가 안 읽힌다(2026-10-01 사용자) —
+   * 값이 갈리면 최저 ~ 최고를 크게, 평균은 작게 적는다.
+   */
+  const currentRange = useMemo(() => {
+    if (preview.rows.length === 0) return null;
+    let min = Infinity;
+    let max = -Infinity;
+    for (const row of preview.rows) {
+      if (row.currentPrice < min) min = row.currentPrice;
+      if (row.currentPrice > max) max = row.currentPrice;
+    }
+    return { max, min };
+  }, [preview]);
   /** 현재 평균 대비 몇 %인가. 금액을 직접 썼을 때 배지로 보여준다. */
   const deltaPercent =
     input && preview.rows.length > 0
@@ -190,6 +327,13 @@ export function OpsPricePanel({
     setInput({ kind: "percent", percent: value });
     const amount = amountFromPercent(preview.currentAverage, value);
     setAmountText(amount === null ? "" : String(amount));
+  };
+
+  /** 입력만 비운다(선택은 그대로). */
+  const clearInput = () => {
+    setInput(null);
+    setAmountText("");
+    setPercentText("");
   };
 
   const reset = () => {
@@ -278,7 +422,7 @@ export function OpsPricePanel({
   const hasSelection = preview.rows.length > 0;
 
   return (
-    <aside className="opsp">
+    <aside className={`opsp${cells.length > 0 ? " has-list" : ""}`}>
       <div className="opsp__head">
         <div className="opsp__title">{copy.panelTitle}</div>
         {/* **무엇을 고치는가**를 먼저 적는다. 「9칸」만으로는 어느 방 어느 날인지 모른 채
@@ -303,7 +447,17 @@ export function OpsPricePanel({
           <div className="opsp__box">
             <div className="opsp__cur">
               <div className="opsp__lbl">{copy.panelCurrent}</div>
-              <div className="opsp__curv">{hasSelection ? yen(preview.currentAverage) : "—"}</div>
+              {hasSelection && currentRange && currentRange.min !== currentRange.max ? (
+                <>
+                  <div className="opsp__curv is-range">
+                    <span>{yen(currentRange.min)}</span>
+                    <span className="opsp__to">~ {yen(currentRange.max)}</span>
+                  </div>
+                  <div className="opsp__avg">{copy.panelAverage.replace("{price}", yen(preview.currentAverage))}</div>
+                </>
+              ) : (
+                <div className="opsp__curv">{hasSelection ? yen(preview.currentAverage) : "—"}</div>
+              )}
             </div>
             <div className="opsp__nx">
               <div className="opsp__lbl">
@@ -315,13 +469,15 @@ export function OpsPricePanel({
                 )}
               </div>
               {/* 퍼센트는 칸마다 결과가 달라 **범위**로 쓴다. */}
-              <div className="opsp__nxv">
-                {input && hasSelection
-                  ? preview.newMin === preview.newMax
-                    ? yen(preview.newMin)
-                    : `${yen(preview.newMin)} ~ ${yen(preview.newMax)}`
-                  : "—"}
-              </div>
+              {input && hasSelection && preview.newMin !== preview.newMax ? (
+                // 범위는 두 줄로 — 한 줄이면 큰 객실 가격(¥112,860)에서 칸을 넘었다(2026-10-01).
+                <div className="opsp__nxv is-range">
+                  <span>{yen(preview.newMin)}</span>
+                  <span className="opsp__to">~ {yen(preview.newMax)}</span>
+                </div>
+              ) : (
+                <div className="opsp__nxv">{input && hasSelection ? yen(preview.newMin) : "—"}</div>
+              )}
             </div>
           </div>
           <div className="opsp__hint">{copy.panelHint}</div>
@@ -337,7 +493,8 @@ export function OpsPricePanel({
               inputMode="numeric"
               onChange={(event) => onAmount(event.target.value)}
               placeholder={copy.panelAmount}
-              value={amountText}
+              // 천 단위 쉼표 — 「46600」보다 「46,600」이 한눈에 읽힌다. 파싱은 숫자만 본다(`onAmount`).
+              value={formatAmountText(amountText)}
             />
           </label>
           <label className="opsp__in pct">
@@ -368,7 +525,10 @@ export function OpsPricePanel({
               }`}
               disabled={!hasSelection}
               key={preset}
-              onClick={() => onPercent(preset)}
+              // 같은 프리셋을 다시 누르면 푼다(2026-10-01 사용자 요청) — 입력도 같이 비운다.
+              onClick={() =>
+                input?.kind === "percent" && input.percent === preset ? clearInput() : onPercent(preset)
+              }
               type="button"
             >
               {preset > 0 ? `+${preset}%` : `${preset}%`}
@@ -411,7 +571,12 @@ export function OpsPricePanel({
           </button>
         )}
 
-        <div className="opsp__grow" />
+        {/* 남는 세로 공간을 「무엇이 얼마로 바뀌는지」 목록이 쓴다(2026-10-01 사용자 요청). 목록만 안에서 넘긴다. */}
+        {cells.length > 0 ? (
+          <SelectionList buildings={listBuildings} cellCount={cells.length} copy={copy} showNext={input !== null} />
+        ) : (
+          <div className="opsp__grow" />
+        )}
 
         {message && <div className="opsp__msg">{message}</div>}
         {/* 채널 규칙을 화면에 적어 둔다 — 「왜 부킹닷컴은 안 바뀌지?」가 나오지 않게. */}

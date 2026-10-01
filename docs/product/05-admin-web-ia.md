@@ -516,6 +516,27 @@ Permissions · Invite Codes · Attendance Sites/QR 등)은 위 3개 그룹의 �
 - 같은 계정 체계로 모바일 앱과 대시보드를 함께 사용한다
 - 대시보드와 모바일 중 하나를 고르는 랜딩 화면은 두지 않는다
 
+### 대시보드 전용 가입 화면 (2026-10-01)
+
+PC 에서 가입하면 `/onboarding` 이 **모바일 마법사가 아니라 한 화면 폼**을 그린다
+(`src/app/onboarding/desktop-onboarding.tsx` · `desktop-onboarding.css`). Claude Design
+「PC 회원가입 전후 비교」의 2a 안이다.
+
+- **분리 규칙:** 기기 표면(`getDeviceSurfaceFromHeaders`)이 `desktop` 일 때만 PC 화면이다. 모바일 · 판별 불가는
+  기존 `onboarding-wizard.tsx` 그대로 — 두 화면은 컴포넌트 · CSS 를 공유하지 않는다. 서버 액션
+  (`submitOnboardingProfile` · `joinWithInviteCode` · `previewInviteCode`)과 검증 규칙만 같이 쓴다.
+- **레이아웃:** 로그인과 같은 split(왼쪽 에스프레소 브랜드 패널 + 오른쪽 폼, `.authx` 토큰). 브랜드 패널에
+  단계(계정 만들기 ✓ → 프로필 · 팀 참여 → 시작하기). 좁은 폭(≤1080px)은 브랜드 패널을 숨기고 폼을 1단으로.
+- **기본 정보(한 화면, 2단 그리드):** 이름 · 생년월일(YYYY / MM / DD 키보드 입력, 다 차면 다음 칸, 빈 칸에서
+  Backspace 는 앞 칸, 만 14세 이상 · 실제 날짜 검사) · 성별(세그먼트) · 휴대폰 번호(국가번호는 **입력칸 아래 검색
+  드롭다운** — ↑↓ · Enter · Esc, 하단 시트 없음).
+- **팀 참여:** 초대코드 + 「팀 확인」 → 조직 · 역할 카드. 확인 안 하고 제출하면 Enter 한 번에 확인까지 한다.
+  「코드 없이 나중에 입력」은 프로필 단계에서만(저장 후 `/onboarding` 의 초대코드 화면으로).
+  프로필이 이미 있는 경우(`needs_membership` · 재가입)는 초대코드 칸만 보인다.
+- **제출:** 폼 바로 아래 버튼 · Enter. 빈 필수 칸은 제출을 누른 뒤에만 빨갛게. 전화번호 중복은 그 칸 아래에.
+  성공하면 같은 화면에서 완료 안내 → 「업무 시작하기」.
+- 문구: `onboarding.desktop` (ko/ja/en) + 기존 `onboarding.steps` · `joinFlow` · `review` · `success` 재사용.
+
 ### Required Login States
 
 디자인은 아래 상태를 수용할 수 있어야 한다.

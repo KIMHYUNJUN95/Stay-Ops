@@ -9,6 +9,19 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-01 — 대시보드 전용 가입 화면(한 화면 폼)
+
+- PC 에서 `/onboarding` 이 모바일 마법사 대신 한 화면 폼을 그린다(기기 표면 `desktop` 만). 생년월일 키보드 입력 ·
+  국가번호 검색 드롭다운 · 성별 세그먼트 · 초대코드 확인 카드 · Enter 제출 · 완료 안내. 모바일 마법사는 그대로.
+  (`05-admin-web-ia.md` → 「대시보드 전용 가입 화면」, `04-organization-invitations.md`)
+
+## 2026-10-01 (6) — 가격 패널에 「선택한 칸」 목록
+
+- 고른 칸을 건물 → 객실 → 날짜로 나열하고 현재가와 (입력하면) 바뀔 가격을 칸마다 보여 준다. 확인 단계와 같은 미리보기 계산.
+  (`33-calendar-write-features.md` → 「가격 패널 「선택한 칸」 목록」)
+- 보완: 큰 가격 범위 두 줄 · 같은 퍼센트 다시 누르면 해제 · 여러 건물이면 현재가를 최저~최고로 · 현재/변경 상자와 금액/퍼센트
+  입력 디자인 정리 · 임박 빈방에서 사노는 기본 선택 제외.
+
 ## 2026-10-01 (5) — 판매 캘린더 새 기능: 임박 빈방 · 수정 되돌리기 · 차단 사유
 
 - **임박 빈방**: 오늘부터 3일 안의 안 팔린 밤을 한 번에 골라 가격 패널을 연다(인상·인하는 사람이 정한다).

@@ -28,6 +28,7 @@ import {
   type SalesSummaryCopy,
 } from "@/components/admin/ops/ops-sales-summary-modal";
 import { ChartColumn, Timer } from "lucide-react";
+import { getCanonicalPropertyName } from "@/lib/room-label-normalization";
 import { OpsBlockPanel, type BlockPanelCopy } from "@/components/admin/ops/ops-block-panel";
 import {
   OpsMinStayPanel,
@@ -310,6 +311,14 @@ const OPS_LANE_STEP_PX = 22;
 
 /** 임박 빈방 — 오늘 포함 며칠. */
 const URGENT_VACANT_DAYS = 3;
+
+/**
+ * 임박 빈방 **자동 선택에서 빼는 건물**(2026-10-01 사용자 요청 — 사노). 행 키의 건물 부분과 비교하므로
+ * 정규화 이름으로 맞춘다. 필요하면 사람이 격자에서 직접 고르면 된다(막는 것이 아니라 기본 선택만 뺀다).
+ */
+const URGENT_VACANT_EXCLUDED_PROPERTIES: ReadonlySet<string> = new Set(
+  ["Sano"].map((name) => getCanonicalPropertyName(name)),
+);
 
 function blockGeometry(days: OpsCalendarDay[], startDate: string, endDate: string) {
   const total = days.length;
@@ -1646,6 +1655,7 @@ export function OpsCalendarGrid({
   if (todayInView) {
     const urgentDates = dates.filter((date) => date >= today).slice(0, URGENT_VACANT_DAYS);
     for (const roomKey of roomKeys) {
+      if (URGENT_VACANT_EXCLUDED_PROPERTIES.has(roomKey.slice(0, roomKey.indexOf("::")))) continue;
       for (const date of urgentDates) {
         const key = selectionCellKey(roomKey, date);
         if (soldCells.has(key) || blockedCellKeys.has(key)) continue;
