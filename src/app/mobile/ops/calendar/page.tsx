@@ -92,7 +92,7 @@ export default async function MobileOpsCalendarPage({ searchParams }: { searchPa
 
   const selectedSet = new Set(data.selectedProperties);
   // 데스크톱과 같은 문구 규칙(`ops-rates-freshness.ts`).
-  const syncedLabel = opsRatesSyncedLabel(data.ratesAgeMinutes, copy);
+  const syncedLabel = opsRatesSyncedLabel({ ageMinutes: data.ratesAgeMinutes, pending: data.ratesPendingRefresh }, copy);
   const first = data.days.at(0)?.date;
   const last = data.days.at(-1)?.date;
 
@@ -160,7 +160,7 @@ export default async function MobileOpsCalendarPage({ searchParams }: { searchPa
         }))}
         rows={data.rows}
         selectedProperties={data.selectedProperties}
-        staleRates={isOpsRatesStale(data.ratesAgeMinutes)}
+        staleRates={isOpsRatesStale({ ageMinutes: data.ratesAgeMinutes, pending: data.ratesPendingRefresh })}
         syncedLabel={syncedLabel}
         today={data.today}
       />

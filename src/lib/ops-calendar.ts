@@ -38,6 +38,7 @@ import {
 } from "@/lib/ops-price-attribution";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { readAllPages, SUPABASE_PAGE_SIZE } from "@/lib/supabase/read-all-pages";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
@@ -983,6 +984,31 @@ export async function getOpsCalendarData(
     selectedProperties.length > 0 ? allRooms.filter((room) => selectedSet.has(room.propertyName)) : allRooms;
 
   /*
+   * ── 웹훅이 아직 못 반영한 건물이 있나 (2026-10-01) ──────────────────────────
+   *
+   * 가격은 **재고 웹훅**으로 들어온다 — Beds24 에서 무엇이든 바뀌면 그 건물 12개월을 통째로 다시 읽는다. 그래서
+   * `synced_at` 이 9시간 전이어도 그사이 바뀐 게 없으면 **맞는 값**이다. 화면이 「가장 오래 전에 받은 시각」을
+   * 낡음으로 적던 탓에, 바뀐 것 없는 먼 달로 넘기면 「가격 9시간 전 기준」이 떴다(사용자 지적).
+   *
+   * 실제로 틀릴 수 있는 것은 **웹훅을 받았는데 아직 못 읽은 건물**이다(쿨다운 · 가격 작업에 물러남 · 읽기 실패) —
+   * `beds24_deferred_refreshes` 에 남는다. 보이는 건물 중 하나라도 있으면 「반영 대기」로 적는다. 서비스 롤 전용 표다.
+   */
+  const visibleExternalIds = (selectedProperties.length > 0 ? selectedProperties : propertyOptions)
+    .map((name) => propertyExternalIds[name])
+    .filter((id): id is string => Boolean(id));
+  const pendingResult =
+    visibleExternalIds.length === 0
+      ? null
+      : await getSupabaseServiceClient()
+          .from("beds24_deferred_refreshes")
+          .select("external_property_id")
+          .eq("organization_id", session.organization.id)
+          .in("external_property_id", visibleExternalIds)
+          .limit(1);
+  // 확인을 못 했으면 「반영 대기」로 본다 — 모르는데 「실시간」이라고 적지 않는다.
+  const ratesPendingRefresh = pendingResult ? Boolean(pendingResult.error) || (pendingResult.data ?? []).length > 0 : false;
+
+  /*
    * ── 화면으로 보내는 것은 **보이는 객실의 행**뿐이다(2026-09-30 속도) ──────────
    *
    * 행마다 요금(날짜 순 배열)·이력 표시·갭·막대·블록을 묶고 내용 해시(`sig`)를 붙인다
@@ -1026,6 +1052,8 @@ export async function getOpsCalendarData(
     ).length,
     /** 이 창에서 **가장 오래된** 요금 동기화가 몇 분 전인가. `null` 이면 요금이 아예 없다. */
     ratesAgeMinutes,
+    /** 보이는 건물 중 웹훅을 받았는데 아직 못 읽은 곳이 있는가(`beds24_deferred_refreshes`). */
+    ratesPendingRefresh,
     /** 이 창에서 **가장 오래된** 요금 동기화 시각. `null` 이면 요금이 아예 없다. */
     ratesSyncedAt,
     /** 이 화면의 객실 중 Beds24 동기화가 다시 쓰는 유닛이 있는가. 없으면 당겨 와도 신선도가 안 바뀐다. */

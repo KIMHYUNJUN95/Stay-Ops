@@ -101,9 +101,9 @@ export default async function OpsCalendarPage({
    * 보이는 창 + 고른 건물만 당긴다. 9건물 × 12개월은 30초에 크레딧도 그만큼 쓴다 —
    * 화면을 열 때마다 할 일이 아니다.
    */
-  // 「가격 실시간 반영 중」/ 15분 넘으면 「가격 N분·시간 전 기준」(빨강) — 모바일과 같은 규칙(`ops-rates-freshness.ts`).
-  const syncedLabel = opsRatesSyncedLabel(data.ratesAgeMinutes, copy);
-  const staleRates = isOpsRatesStale(data.ratesAgeMinutes);
+  // 「가격 실시간 반영 중」 / 웹훅 반영이 밀렸거나 24시간 넘게 아무것도 못 받았으면 빨강 — 모바일과 같은 규칙(`ops-rates-freshness.ts`).
+  const syncedLabel = opsRatesSyncedLabel({ ageMinutes: data.ratesAgeMinutes, pending: data.ratesPendingRefresh }, copy);
+  const staleRates = isOpsRatesStale({ ageMinutes: data.ratesAgeMinutes, pending: data.ratesPendingRefresh });
 
   const firstVisibleDate = data.days.at(0)?.date;
   const lastVisibleDate = data.days.at(-1)?.date;
