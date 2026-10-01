@@ -6,8 +6,12 @@ import {
   submitRoomUnblock,
   type BlockChangeCell,
   type BlockChangeError,
+  type BlockPurpose,
 } from "@/app/admin/ops/calendar/actions";
 import { groupSelectionIntoRanges } from "@/lib/ops-calendar-selection";
+
+/** 사유 칩 순서. 코드는 DB 체크 제약과 같다(`202610010001_block_log_purpose.sql`). */
+const BLOCK_PURPOSE_ORDER: readonly BlockPurpose[] = ["repair", "cleaning", "owner", "other"];
 
 /**
  * 차단(블록) 패널 — 격자 오른쪽 세로 카드.
@@ -45,6 +49,9 @@ import { groupSelectionIntoRanges } from "@/lib/ops-calendar-selection";
 
 export type BlockPanelCopy = {
   bkTitle: string;
+  bkPurposeLabel: string;
+  bkPurposes: Record<BlockPurpose, string>;
+  bkMemoPlaceholder: string;
   bkBody: string;
   bkApply: string;
   bkRelease: string;
@@ -114,6 +121,9 @@ export function OpsBlockPanel({
   scopeSummary: { rooms: string; dates: string } | null;
 }) {
   const [confirming, setConfirming] = useState(false);
+  // 차단 사유(선택) — 걸 때만 보낸다. 같은 칩을 다시 누르면 뺀다.
+  const [purpose, setPurpose] = useState<BlockPurpose | null>(null);
+  const [memo, setMemo] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -136,10 +146,14 @@ export function OpsBlockPanel({
     startTransition(async () => {
       const result =
         mode === "block"
-          ? await submitRoomBlock({ cells: targets })
+          ? await submitRoomBlock({ cells: targets, memo: memo.trim() || null, purpose })
           : await submitRoomUnblock({ cells: targets });
       if (result.ok) {
         setMessage(mode === "block" ? copy.bkDoneBlock : copy.bkDoneRelease);
+        if (mode === "block") {
+          setPurpose(null);
+          setMemo("");
+        }
         onClear();
         return;
       }
@@ -203,6 +217,36 @@ export function OpsBlockPanel({
             >
               {copy.bkRelease}
             </button>
+          </div>
+        )}
+
+        {/* 사유(선택) — BLOCK 막대에 같이 보인다. 「이 방 왜 막혀 있지?」를 묻지 않게(2026-10-01). */}
+        {hasSelection && (
+          <div className="opsbk__why">
+            <div className="opsbk__whyLabel">{copy.bkPurposeLabel}</div>
+            <div className="opsbk__chips" role="group" aria-label={copy.bkPurposeLabel}>
+              {BLOCK_PURPOSE_ORDER.map((key) => (
+                <button
+                  aria-pressed={purpose === key}
+                  className={`opsbk__chip${purpose === key ? " is-on" : ""}`}
+                  disabled={pending}
+                  key={key}
+                  onClick={() => setPurpose((current) => (current === key ? null : key))}
+                  type="button"
+                >
+                  {copy.bkPurposes[key]}
+                </button>
+              ))}
+            </div>
+            <input
+              className="opsbk__memo"
+              disabled={pending}
+              maxLength={200}
+              onChange={(event) => setMemo(event.target.value)}
+              placeholder={copy.bkMemoPlaceholder}
+              type="text"
+              value={memo}
+            />
           </div>
         )}
 

@@ -1374,6 +1374,8 @@ export type Database = {
           organization_id: string
           property_name: string | null
           reason: string | null
+          purpose: string | null
+          memo: string | null
           requested_by: string | null
           requested_by_name: string | null
           room_label: string | null
@@ -1391,6 +1393,8 @@ export type Database = {
           organization_id: string
           property_name?: string | null
           reason?: string | null
+          purpose?: string | null
+          memo?: string | null
           requested_by?: string | null
           requested_by_name?: string | null
           room_label?: string | null
@@ -1408,6 +1412,8 @@ export type Database = {
           organization_id?: string
           property_name?: string | null
           reason?: string | null
+          purpose?: string | null
+          memo?: string | null
           requested_by?: string | null
           requested_by_name?: string | null
           room_label?: string | null

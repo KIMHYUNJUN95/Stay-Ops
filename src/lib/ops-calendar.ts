@@ -292,6 +292,14 @@ export type OpsCalendarBlock = {
   id: string;
   roomKey: string;
   startDate: string;
+  /**
+   * 우리가 걸 때 남긴 사유(`beds24_block_logs.purpose` · `memo`, 2026-10-01). Beds24 에서 건 차단이나
+   * 사유 없이 건 차단은 없다. 구간과 겹치는 **가장 최근** 차단 기록을 쓴다.
+   */
+  purpose?: string | null;
+  memo?: string | null;
+  by?: string | null;
+  at?: string | null;
 };
 
 /** 한 칸의 요금·재고. 값이 없으면 `null` 이고, 그건 0 이 아니다. */
@@ -618,6 +626,20 @@ export async function getOpsCalendarData(
       .order("id", { ascending: true })
       .range(from, to) as unknown as SlimReservationPage,
   ).then(toReservationRows);
+  // 차단 사유 — 우리가 걸며 남긴 기록. 사유나 메모가 있는 것만(2026-10-01).
+  const blockNotesPromise = Promise.resolve(
+    supabase
+      .from("beds24_block_logs")
+      .select("external_room_ids, start_date, end_date, purpose, memo, requested_by_name, created_at")
+      .eq("organization_id", session.organization.id)
+      .eq("action", "block")
+      .eq("status", "succeeded")
+      .or("purpose.not.is.null,memo.not.is.null")
+      .lt("start_date", window.endExclusive)
+      .gte("end_date", window.start)
+      .order("created_at", { ascending: false })
+      .limit(2000),
+  );
   const blocksPromise = readAllPages<BlockRow>((from, to) =>
     supabase
       .from("room_blocks")
@@ -884,6 +906,37 @@ export async function getOpsCalendarData(
       },
       roomKeys: [...roomsByKey.keys()],
     });
+  }
+
+  // 차단 사유를 구간에 붙인다 — 같은 행 · 겹치는 구간의 **가장 최근** 기록(이미 최신순).
+  {
+    const notes = await blockNotesPromise;
+    if (notes.error) {
+      console.error("[ops-calendar] block note read failed", notes.error);
+    } else if ((notes.data ?? []).length > 0) {
+      const roomKeyByExternal = new Map<string, string>();
+      for (const row of roomRowsResult.error ? [] : roomRowsResult.data) {
+        const roomKey = roomKeyByUuid.get(row.id);
+        if (roomKey && row.external_room_id) roomKeyByExternal.set(String(row.external_room_id), roomKey);
+      }
+      const noteRows = (notes.data ?? []).map((note) => ({
+        ...note,
+        roomKeys: new Set(
+          (note.external_room_ids ?? [])
+            .map((id) => roomKeyByExternal.get(String(id)))
+            .filter((key): key is string => !!key),
+        ),
+      }));
+      blocks = blocks.map((block) => {
+        const note = noteRows.find(
+          (row) =>
+            row.roomKeys.has(block.roomKey) && row.start_date <= block.endDate && row.end_date >= block.startDate,
+        );
+        return note
+          ? { ...block, at: note.created_at, by: note.requested_by_name, memo: note.memo, purpose: note.purpose }
+          : block;
+      });
+    }
   }
 
   const occupiedCells = new Set<string>();

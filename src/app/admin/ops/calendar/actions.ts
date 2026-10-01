@@ -61,6 +61,7 @@ import {
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { signalBeds24Change } from "@/lib/beds24/live-signal";
 import { recordBlockLog } from "@/lib/beds24/block-log";
+import { planRevertCells, type RevertField } from "@/lib/ops-revert";
 import { kickPriceJobWorker } from "@/lib/beds24/price-job-kick";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import {
@@ -345,13 +346,22 @@ function eachNightInclusive(startDate: string, endDate: string): string[] {
   return nights;
 }
 
+/** 차단 사유 코드 — 화면이 번역한다(`bkPurposes`). DB 체크 제약과 같다(`202610010001`). */
+export type BlockPurpose = "repair" | "cleaning" | "owner" | "other";
+const BLOCK_PURPOSES: readonly BlockPurpose[] = ["repair", "cleaning", "owner", "other"];
+const BLOCK_MEMO_MAX = 200;
+
 async function runBlockChange(
-  args: { cells: BlockChangeCell[] },
+  args: { cells: BlockChangeCell[]; purpose?: string | null; memo?: string | null },
   mode: "block" | "unblock",
 ): Promise<BlockChangeResult> {
   const session = await requireOpsWriter();
   if (!session) return { error: "forbidden", ok: false };
   if (args.cells.length === 0) return { error: "no_cells", ok: false };
+  // 사유는 **걸 때만** 남긴다. 모르는 코드는 버리고(없는 것과 같다), 메모는 잘라서 받는다.
+  const purpose =
+    mode === "block" && BLOCK_PURPOSES.includes(args.purpose as BlockPurpose) ? (args.purpose as BlockPurpose) : null;
+  const memo = mode === "block" ? args.memo?.trim().slice(0, BLOCK_MEMO_MAX) || null : null;
 
   const ranges = groupSelectionIntoRanges(
     args.cells.map((cell) => ({ date: cell.date, roomKey: cell.roomKey })),
@@ -431,9 +441,11 @@ async function runBlockChange(
       detail: result.ok ? null : Array.isArray(result.detail) ? result.detail.join(", ") : (result.detail ?? null),
       end_date: range.endDate,
       external_room_ids: shared.externalRoomIds,
+      memo,
       nights: result.ok ? result.nights : null,
       organization_id: session.organization.id,
       property_name: shared.propertyName || null,
+      purpose,
       reason: result.ok ? null : result.reason,
       requested_by: session.user.id,
       requested_by_name: session.user.name ?? null,
@@ -452,7 +464,11 @@ async function runBlockChange(
   return { nights, ok: true, ranges: ranges.length };
 }
 
-export async function submitRoomBlock(args: { cells: BlockChangeCell[] }): Promise<BlockChangeResult> {
+export async function submitRoomBlock(args: {
+  cells: BlockChangeCell[];
+  purpose?: BlockPurpose | null;
+  memo?: string | null;
+}): Promise<BlockChangeResult> {
   return runBlockChange(args, "block");
 }
 
@@ -1218,6 +1234,106 @@ export async function loadOpsSendLog(args: { before?: string | null }): Promise<
  * **실패한 작업을 다시 넣지는 않는다.** 실패는 대개 값·유닛 문제라 같은 것을 또 보내면 또 실패하고,
  * 그 사이 누가 다른 값을 넣었을 수도 있다. 다시 하려면 캘린더에서 새로 고친다.
  */
+
+export type RevertPriceJobResult =
+  | { ok: true; jobId: string; cells: number; skippedChanged: number }
+  | {
+      ok: false;
+      error: "forbidden" | "not_found" | "not_revertible" | "nothing_to_revert" | "no_cells" | "invalid_values" | "no_writable_room" | "enqueue_failed";
+    };
+
+/**
+ * 가격·최소숙박 수정 **되돌리기** (2026-10-01, 새 기능 — 저쪽에는 없다).
+ *
+ * 도메인 계약: `docs/product/33-calendar-write-features.md` → 「수정 되돌리기」
+ *
+ * 그 작업이 남긴 칸 이력(`price_change_logs`, `job_id`)의 **이전 값**을 새 작업으로 다시 보낸다 — 같은 큐 ·
+ * 같은 되읽기 검증을 탄다(`adjust_mode = 'revert'`). 안전장치:
+ *
+ * - **그 뒤에 다시 바뀐 칸은 건너뛴다.** 지금 값이 그 작업이 쓴 값과 다르면(다른 사람 · Beds24 에서 고침)
+ *   되돌리면 더 새 값을 지운다. 몇 칸 건너뛰었는지 돌려준다.
+ * - 이전 값이 없던 칸(처음 생긴 값)은 보내지 않는다 — 「없음」으로 되돌릴 수 없다.
+ * - 우리 앱 작업만(Beds24 에서 바뀐 것 · 차단은 아니다). 차단은 「차단 해제」가 같은 일을 한다.
+ */
+export async function revertPriceJob(args: { jobId: string }): Promise<RevertPriceJobResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+  if (!/^[0-9a-f-]{36}$/i.test(args.jobId)) return { error: "not_found", ok: false };
+  const supabase = getSupabaseServiceClient();
+
+  const jobResult = await supabase
+    .from("beds24_price_jobs")
+    .select("id, job_type, status")
+    .eq("organization_id", session.organization.id)
+    .eq("id", args.jobId)
+    .maybeSingle();
+  if (jobResult.error || !jobResult.data) return { error: "not_found", ok: false };
+  const job = jobResult.data as { id: string; job_type: "price" | "min_stay"; status: string };
+  // 끝난 작업만 — 아직 도는 작업을 되돌리면 순서가 꼬인다.
+  if (!["completed", "partial_failed"].includes(job.status)) return { error: "not_revertible", ok: false };
+
+  const field: RevertField = job.job_type === "price" ? "price1" : "min_stay";
+  const logsResult = await supabase
+    .from("price_change_logs")
+    .select("room_id, room_label, stay_date, old_value, new_value")
+    .eq("organization_id", session.organization.id)
+    .eq("job_id", job.id)
+    .eq("field", field)
+    .limit(5000);
+  if (logsResult.error) return { error: "not_found", ok: false };
+  const logs = (logsResult.data ?? []) as Array<{
+    room_id: string | null;
+    room_label: string | null;
+    stay_date: string;
+    old_value: number | null;
+    new_value: number | null;
+  }>;
+  // 지금 값과 대조할 칸만 읽는다.
+  const roomIds = [...new Set(logs.map((log) => log.room_id).filter((id): id is string => !!id))];
+  const dates = [...new Set(logs.map((log) => log.stay_date))];
+  if (roomIds.length === 0) return { error: "nothing_to_revert", ok: false };
+  const ratesResult = await supabase
+    .from("room_daily_rates")
+    .select("room_id, stay_date, price1, min_stay")
+    .eq("organization_id", session.organization.id)
+    .in("room_id", roomIds)
+    .in("stay_date", dates);
+  if (ratesResult.error) return { error: "not_found", ok: false };
+  const current = new Map<string, number | null>();
+  for (const row of (ratesResult.data ?? []) as Array<{
+    room_id: string;
+    stay_date: string;
+    price1: number | null;
+    min_stay: number | null;
+  }>) {
+    current.set(`${row.room_id}|${row.stay_date}`, field === "price1" ? row.price1 : row.min_stay);
+  }
+
+  // 「그 뒤에 다시 바뀐 칸은 건너뛴다」 등 판정은 순수 함수에(`ops-revert.ts`, 테스트).
+  const plan = planRevertCells({ current, field, logs });
+  const skippedChanged = plan.skippedChanged;
+  const cells: PriceJobCellRequest[] = plan.cells.map((cell) => ({
+    roomIds: [cell.roomId],
+    roomLabel: cell.roomLabel,
+    stayDate: cell.stayDate,
+    values: field === "price1" ? { p1: cell.value } : { m: cell.value },
+  }));
+  if (cells.length === 0) return { error: "nothing_to_revert", ok: false };
+
+  const queued = await enqueueBeds24PriceJob({
+    adjustMode: "revert",
+    cells,
+    jobType: job.job_type,
+    organizationId: session.organization.id,
+    requestedBy: session.user.id,
+    requestedByName: session.user.name,
+    supabase,
+  });
+  if (!queued.ok) return { error: queued.error, ok: false };
+  after(kickWorker);
+  return { cells: cells.length, jobId: queued.jobId, ok: true, skippedChanged };
+}
+
 export type SendPendingResult = {
   ok: boolean;
   /**

@@ -27,7 +27,7 @@ import {
   prefetchSalesSummary,
   type SalesSummaryCopy,
 } from "@/components/admin/ops/ops-sales-summary-modal";
-import { ChartColumn } from "lucide-react";
+import { ChartColumn, Timer } from "lucide-react";
 import { OpsBlockPanel, type BlockPanelCopy } from "@/components/admin/ops/ops-block-panel";
 import {
   OpsMinStayPanel,
@@ -98,6 +98,8 @@ import { loadOpsReservationPlacement } from "@/app/admin/ops/calendar/search-act
 
 type Copy = {
   blockLabel: string;
+  /** BLOCK 막대 툴팁의 「누가 · 언제」(`{name}` · `{date}`). */
+  blockNoteBy: string;
   emptyBody: string;
   emptyTitle: string;
   roomCount: string;
@@ -134,6 +136,8 @@ type Copy = {
     pwList: string;
     largeFirst: string;
     vacantToday: string;
+    urgentVacant: string;
+    urgentVacantHint: string;
     vacantEmpty: string;
     msMixed: string;
   };
@@ -269,8 +273,43 @@ function autoScrollSpeed(y: number): number {
 }
 
 /** BLOCK 은 **밤의 범위이며 양끝을 포함한다.** 9/23~9/26 이면 네 밤이다. */
+/** BLOCK 막대 툴팁 — 사유 · 메모 · 건 사람 · 날짜. 아무것도 없으면 `undefined`(툴팁 없음). */
+function blockNoteTitle(
+  block: { purpose?: string | null; memo?: string | null; by?: string | null; at?: string | null },
+  copy: { bkPurposes: Record<string, string>; blockNoteBy: string },
+): string | undefined {
+  const lines: string[] = [];
+  const purpose = block.purpose ? copy.bkPurposes[block.purpose] : null;
+  if (purpose) lines.push(purpose);
+  if (block.memo) lines.push(block.memo);
+  if (block.by || block.at) {
+    lines.push(
+      copy.blockNoteBy
+        .replace("{name}", block.by ?? "")
+        .replace("{date}", block.at ? toTokyoDateLabel(block.at) : "")
+        .replace(/^ · | · $/g, ""),
+    );
+  }
+  return lines.length > 0 ? lines.join("\n") : undefined;
+}
+
+/** `YYYY-MM-DD HH:mm`(도쿄). 툴팁에만 쓴다. */
+function toTokyoDateLabel(iso: string) {
+  return new Intl.DateTimeFormat("sv-SE", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+  }).format(new Date(iso));
+}
+
 /** 층 하나의 높이. 막대(19px)보다 커야 층끼리 맞닿지 않는다. */
 const OPS_LANE_STEP_PX = 22;
+
+/** 임박 빈방 — 오늘 포함 며칠. */
+const URGENT_VACANT_DAYS = 3;
 
 function blockGeometry(days: OpsCalendarDay[], startDate: string, endDate: string) {
   const total = days.length;
@@ -573,8 +612,12 @@ const OpsGridRow = memo(function OpsGridRow({
                 className="opsg__block"
                 key={block.id}
                 style={lane > 0 ? { ...geometry, top: `calc(3px + ${lane * OPS_LANE_STEP_PX}px)` } : geometry}
+                // 사유·메모·건 사람은 막대 위에 올리면 보인다. 사유는 막대에도 짧게 붙인다(2026-10-01).
+                title={blockNoteTitle(block, copy)}
               >
-                {copy.blockLabel}
+                {block.purpose && block.purpose in copy.bkPurposes
+                  ? `${copy.blockLabel} · ${copy.bkPurposes[block.purpose as keyof typeof copy.bkPurposes]}`
+                  : copy.blockLabel}
               </div>
             );
           })}
@@ -1594,6 +1637,31 @@ export function OpsCalendarGrid({
     }
   }
 
+  /*
+   * 임박 빈방(2026-10-01 새 기능 — 저쪽에는 없다): **오늘부터 3일 안**의 안 팔린 · 안 막힌 · 요금 칸이 있는 밤.
+   * 누르면 가격 모드로 들어가 전부 고르고, 기존 가격 패널에서 사람이 올리든 내리든 정한다(자동 할인 없음).
+   * 보는 기간에 오늘이 없으면 셀 수 없다 — 버튼을 숨긴다.
+   */
+  const urgentCells: OpsSelectionCell[] = [];
+  if (todayInView) {
+    const urgentDates = dates.filter((date) => date >= today).slice(0, URGENT_VACANT_DAYS);
+    for (const roomKey of roomKeys) {
+      for (const date of urgentDates) {
+        const key = selectionCellKey(roomKey, date);
+        if (soldCells.has(key) || blockedCellKeys.has(key)) continue;
+        if (rateAt(roomKey, date)?.price == null) continue;
+        urgentCells.push({ date, roomKey });
+      }
+    }
+  }
+  const selectUrgent = () => {
+    if (urgentCells.length === 0) return;
+    setMode("price");
+    setScope(EMPTY_SCOPE);
+    setDateAnchor(null);
+    setSelectionState({ cells: urgentCells, scopeKeys: new Set() });
+  };
+
   // 건물이 바뀌는 자리에 묶음 머리글을 넣는다. 건물 하나만 골랐어도 「객실 N」이 보여야
   // 격자가 전부인지 잘린 것인지 알 수 있다.
   const roomsByProperty: { property: string; rows: OpsGridRowData[] }[] = [];
@@ -1857,6 +1925,18 @@ export function OpsCalendarGrid({
               >
                 <ChartColumn aria-hidden="true" className="opsg__btnic" />
                 {copy.ssButton}
+              </button>
+            )}
+            {todayInView && urgentCells.length > 0 && (
+              <button
+                className="opsg__editbtn opsg__urgent"
+                onClick={selectUrgent}
+                title={copy.urgentVacantHint}
+                type="button"
+              >
+                <Timer aria-hidden="true" className="opsg__btnic" />
+                {copy.urgentVacant}
+                <span className="opsg__pwn">{urgentCells.length}</span>
               </button>
             )}
             {todayInView && (

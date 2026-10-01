@@ -1975,3 +1975,12 @@ pg_cron 잡 `beds24-tick` (`* * * * *`) → `select public.beds24_tick_if_needed
 마이그레이션에서 활성화), `pg_cron`·`supabase_vault`·`pgcrypto`(기존). Vault 시크릿 `beds24_tick_token`
 (SQL 안에서 난수 생성) · `beds24_tick_url`. 판단 조건은 `src/lib/beds24/tick-plan.ts` `decideBeds24Tick`
 과 같게 유지한다(`src/lib/__tests__/beds24-tick-plan.test.ts` 가 이름·한도 일치를 검사).
+
+## 2026-10-01 `beds24_block_logs` 차단 사유 컬럼
+
+- `purpose text` — `repair` · `cleaning` · `owner` · `other` 중 하나 또는 null(체크 제약). 차단을 **걸 때만**.
+- `memo text` — 200자 이하(체크 제약).
+- 기존 `reason` 은 전송 실패 코드 그대로. 마이그레이션 `202610010001_block_log_purpose.sql`. 화면 계약은
+  `docs/product/33-calendar-write-features.md` → 「차단 사유」.
+- `beds24_price_jobs.adjust_mode` 에 `revert`(수정 되돌리기)가 생겼다 — 제약 없는 text 라 스키마 변경 없음.
+

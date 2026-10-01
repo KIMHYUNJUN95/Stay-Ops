@@ -9,6 +9,13 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-01 (5) — 판매 캘린더 새 기능: 임박 빈방 · 수정 되돌리기 · 차단 사유
+
+- **임박 빈방**: 오늘부터 3일 안의 안 팔린 밤을 한 번에 골라 가격 패널을 연다(인상·인하는 사람이 정한다).
+- **수정 되돌리기**: 변경 이력의 앱 가격·최소숙박 작업을 이전 값으로 다시 보낸다. 그 뒤 다시 바뀐 칸은 건너뜀.
+- **차단 사유**: 수리·청소·오너 사용·기타 + 메모. BLOCK 막대에 표시. 마이그레이션 `202610010001` 적용 완료.
+- 셋 다 저쪽에 없는 새 기능(이식 원칙대로 먼저 확인). (`33-calendar-write-features.md` → 「새 기능 세 가지」)
+
 ## 2026-10-01 (4) — 수기 예약이 Beds24 에만 생기고 캘린더에 안 보이던 것
 
 - 생성 직후 우리 표 반영이 생성 응답(필드 부족)으로 조용히 건너뛰어졌다. 이제 예약번호로 전체 예약을 다시 읽어

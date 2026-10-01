@@ -67,7 +67,7 @@ export async function enqueueBeds24PriceJob(args: {
   requestedBy: string | null;
   requestedByName: string | null;
   /** 이력에 「퍼센트로 바꿨다」가 남아야 한다. 화면에서만 합치고 데이터는 구분한다. */
-  adjustMode?: "amount" | "percent" | "min_stay";
+  adjustMode?: "amount" | "percent" | "min_stay" | "revert";
   percentValue?: number | null;
 }): Promise<EnqueueResult> {
   if (args.cells.length === 0) return { error: "no_cells", ok: false };

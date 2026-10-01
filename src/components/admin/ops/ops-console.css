@@ -1619,6 +1619,49 @@
   background: color-mix(in oklab, var(--danger) 8%, var(--card));
 }
 
+/* 차단 사유 — 칩 + 한 줄 메모(2026-10-01). 칩은 콘솔의 알약과 같은 높이·반지름. */
+.opsbk__why {
+  display: grid;
+  gap: 7px;
+  padding: 10px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 11px;
+  background: var(--card);
+}
+.opsbk__whyLabel {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.opsbk__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.opsbk__chip {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface2);
+  color: var(--soft);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.opsbk__chip:hover:not(:disabled) { border-color: color-mix(in oklab, var(--ink) 30%, var(--line)); }
+.opsbk__chip.is-on {
+  border-color: #111;
+  background: #111;
+  color: #fff;
+}
+.opsbk__memo {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 12px;
+}
+.opsbk__memo:focus { outline: 2px solid color-mix(in oklab, var(--adm-primary) 40%, transparent); outline-offset: 0; }
+
 .opsbk__note {
   padding: 9px 11px;
   border: 1px solid var(--line-soft);
@@ -2222,6 +2265,12 @@
   color: #fff;
 }
 .opsg__vacant.on .opsg__pwn { background: rgb(255 255 255 / 0.24); }
+/* 임박 빈방(2026-10-01) — 누르면 바로 가격 모드로 들어가는 동작 버튼이라 토글이 아니다. 숫자 배지만 주황으로
+   「지금 손볼 밤이 N개」임을 알린다. */
+.opsg__urgent .opsg__pwn {
+  background: color-mix(in oklab, var(--warn) 16%, var(--card));
+  color: color-mix(in oklab, var(--warn) 85%, var(--ink));
+}
 .opsg__bar.pw-dim { opacity: 0.12; }
 .opsg__bar.pw-win {
   box-shadow: inset 0 0 0 1.5px var(--adm-primary), 0 0 0 2px color-mix(in oklab, var(--adm-primary) 25%, transparent);
@@ -2722,6 +2771,38 @@
 }
 .opshs__toggle svg { width: 13px; height: 13px; transition: transform 0.15s ease; }
 .opshs__toggle svg.is-open { transform: rotate(180deg); }
+
+/* 되돌리기(2026-10-01) — 줄 오른쪽 아래 작은 버튼. 누르면 같은 자리에서 한 번 더 묻는다. */
+.opshs__revert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 7px;
+}
+.opshs__revertAsk { flex: 1 1 200px; font-size: 11px; font-weight: 600; color: var(--soft); line-height: 1.5; }
+.opshs__revertBtns { display: inline-flex; gap: 6px; }
+.opshs__revertBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--soft);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.opshs__revertBtn svg { width: 12px; height: 12px; }
+.opshs__revertBtn:hover { border-color: color-mix(in oklab, var(--adm-primary) 40%, var(--line)); color: var(--adm-primary); }
+.opshs__revertBtn.is-go { border-color: var(--adm-primary); background: var(--adm-primary); color: #fff; }
+.opshs__revertMsg { font-size: 11px; font-weight: 700; line-height: 1.5; }
+.opshs__revertMsg.is-ok { color: var(--ok, #1f7a4d); }
+.opshs__revertMsg.is-warn { color: var(--warn); }
 .opshs__cells {
   width: 100%;
   margin-top: 7px;
@@ -2893,7 +2974,8 @@ button.ops__gapbtn:focus-visible { outline: 2px solid var(--danger); outline-off
  * 표는 `table-layout: fixed` 로 모달 폭에 **들어맞게** 짠다 — 가로 스크롤이 생기면 폭 배분이 틀린 것이다.
  * 900px 아래에서는 건물 표가 카드로 쌓인다(가로 스크롤 대신).
  */
-.opsg__editbtn.opsg__sales {
+.opsg__editbtn.opsg__sales,
+.opsg__editbtn.opsg__urgent {
   display: inline-flex;
   align-items: center;
   gap: 5px;

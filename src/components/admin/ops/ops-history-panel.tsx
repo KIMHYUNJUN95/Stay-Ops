@@ -1,10 +1,11 @@
 "use client";
 
-import { ChevronDown, RefreshCw, X } from "lucide-react";
+import { ChevronDown, RefreshCw, Undo2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   loadOpsChangeHistory,
   loadOpsSendLog,
+  revertPriceJob,
   sendPendingPriceJobs,
 } from "@/app/admin/ops/calendar/actions";
 import { useAdminPanelA11y } from "@/components/admin/shared/use-admin-panel-a11y";
@@ -54,6 +55,15 @@ export type HistoryPanelCopy = {
   hsLoadFailed: string;
   hsRetry: string;
   hsShowCells: string;
+  hsRevert: string;
+  hsRevertAsk: string;
+  hsRevertConfirm: string;
+  hsRevertDone: string;
+  hsRevertSkipped: string;
+  hsRevertNothing: string;
+  hsRevertFailed: string;
+  panelCancel: string;
+  bkPending: string;
   hsHideCells: string;
   hsCellsMore: string;
   hsDays: string;
@@ -138,6 +148,15 @@ const kindOf = (field: ChangeField, copy: HistoryPanelCopy) =>
  * 펼친 칸 표 — 방(번호순)마다, 이어진 날짜가 같은 값이면 한 줄(`collapseCellRuns`).
  * 건물이 하나뿐인 수정이면 건물 이름을 줄마다 되풀이하지 않는다(머리 줄에 이미 있다).
  */
+/** 되돌릴 수 있는 줄 — 우리 앱의 **큐 작업**(id 가 작업 uuid)이고 가격·최소숙박만. 차단·Beds24 변경은 아니다. */
+function isRevertibleGroup(group: ChangeGroup) {
+  return (
+    group.source === "app" &&
+    /^[0-9a-f-]{36}$/i.test(group.id) &&
+    group.fields.some((summary) => summary.field === "price" || summary.field === "minStay")
+  );
+}
+
 function CellRunsTable({ copy, group }: { copy: HistoryPanelCopy; group: ChangeGroup }) {
   const runs = collapseCellRuns(group.cells);
   const singleProperty = new Set(runs.map((run) => run.property)).size <= 1;
@@ -213,6 +232,10 @@ export function OpsHistoryPanel({ copy, onClose }: { copy: HistoryPanelCopy; onC
   // ── 변경 이력
   const [changes, setChanges] = useState<ChangesState>({ data: { groups: [], nextBefore: null, truncated: false, windowFrom: null }, status: "loading" });
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  /** 되돌리기 — 묻는 중 · 보내는 중 · 결과. 작업(그룹)마다 따로. */
+  const [reverts, setReverts] = useState<
+    Record<string, "ask" | "pending" | { text: string; tone: "ok" | "warn" }>
+  >({});
 
   // 「불러오는 중」 표시는 **부르는 쪽**이 켠다(버튼 · 첫 상태) — 이펙트 안에서 바로 상태를 바꾸지 않는다.
   const loadChanges = useCallback(async (before: string | null) => {
@@ -294,6 +317,24 @@ export function OpsHistoryPanel({ copy, onClose }: { copy: HistoryPanelCopy; onC
     setSendResult({ text, tone: result.outcome === "sent" || result.outcome === "empty" ? "ok" : "warn" });
     await loadSends(null);
     setKicking(false);
+  };
+
+  // 되돌리기 — 서버가 「그 뒤에 다시 바뀐 칸」을 걸러 낸다. 결과는 그 줄에 남기고 전송 로그를 다시 읽는다.
+  const runRevert = async (jobId: string) => {
+    setReverts((previous) => ({ ...previous, [jobId]: "pending" }));
+    const result = await revertPriceJob({ jobId });
+    let next: { text: string; tone: "ok" | "warn" };
+    if (result.ok) {
+      const done = copy.hsRevertDone.replace("{n}", String(result.cells));
+      next = {
+        text: result.skippedChanged > 0 ? `${done} ${copy.hsRevertSkipped.replace("{n}", String(result.skippedChanged))}` : done,
+        tone: "ok",
+      };
+    } else {
+      next = { text: result.error === "nothing_to_revert" ? copy.hsRevertNothing : copy.hsRevertFailed, tone: "warn" };
+    }
+    setReverts((previous) => ({ ...previous, [jobId]: next }));
+    await loadSends(null);
   };
 
   const kindLabel = (entry: SendEntry) =>
@@ -384,6 +425,52 @@ export function OpsHistoryPanel({ copy, onClose }: { copy: HistoryPanelCopy; onC
                         {roomsText(group.rooms, copy)} · {dateSpan(group.dateFrom, group.dateTo)} ·{" "}
                         {copy.hsCells.replace("{n}", String(group.cellCount))}
                       </div>
+                      {isRevertibleGroup(group) && (
+                        <div className="opshs__revert">
+                          {reverts[group.id] === "ask" ? (
+                            <>
+                              <span className="opshs__revertAsk">{copy.hsRevertAsk}</span>
+                              <span className="opshs__revertBtns">
+                                <button
+                                  className="opshs__revertBtn"
+                                  onClick={() =>
+                                    setReverts((previous) => {
+                                      const next = { ...previous };
+                                      delete next[group.id];
+                                      return next;
+                                    })
+                                  }
+                                  type="button"
+                                >
+                                  {copy.panelCancel}
+                                </button>
+                                <button
+                                  className="opshs__revertBtn is-go"
+                                  onClick={() => void runRevert(group.id)}
+                                  type="button"
+                                >
+                                  {copy.hsRevertConfirm}
+                                </button>
+                              </span>
+                            </>
+                          ) : reverts[group.id] === "pending" ? (
+                            <span className="opshs__revertAsk">{copy.bkPending}</span>
+                          ) : typeof reverts[group.id] === "object" ? (
+                            <span className={`opshs__revertMsg is-${(reverts[group.id] as { tone: string }).tone}`}>
+                              {(reverts[group.id] as { text: string }).text}
+                            </span>
+                          ) : (
+                            <button
+                              className="opshs__revertBtn"
+                              onClick={() => setReverts((previous) => ({ ...previous, [group.id]: "ask" }))}
+                              type="button"
+                            >
+                              <Undo2 aria-hidden="true" />
+                              {copy.hsRevert}
+                            </button>
+                          )}
+                        </div>
+                      )}
                       <button
                         aria-expanded={open}
                         className="opshs__toggle"
