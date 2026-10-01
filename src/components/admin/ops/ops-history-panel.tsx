@@ -207,7 +207,7 @@ function applyChanges(
 }
 
 export function OpsHistoryPanel({ copy, onClose }: { copy: HistoryPanelCopy; onClose: () => void }) {
-  const panelRef = useAdminPanelA11y<HTMLElement>(onClose);
+  const panelRef = useAdminPanelA11y<HTMLElement>(onClose, { quietRestore: true });
   const [tab, setTab] = useState<"changes" | "send">("changes");
 
   // ── 변경 이력

@@ -1303,20 +1303,26 @@ export function OpsCalendarGrid({
    * 큰방 위쪽 정렬은 기본 켜짐인 보기 설정이라 끄지 않는다.
    */
   const anyToggleOn =
-    editMode || priceWinsOnly || priceWinsOpen || historyOpen || salesOpen || vacantOnly;
+    editMode || priceWinsOnly || priceWinsOpen || historyOpen || vacantOnly;
   const escYields = (editMode && hasSelection) || Boolean(openBar) || Boolean(booking) || Boolean(activeDraft);
   useEffect(() => {
     if (!anyToggleOn || escYields) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      // `defaultPrevented` 는 보지 않는다 — 목록 · 이력 · 매출 요약 패널이 Esc 를 먼저 받아 막는데,
+      // 그때도 나머지 켜진 것까지 함께 꺼야 한다. 막아야 할 패널(예약 상세 · 예약 만들기)은 `escYields`.
+      if (event.key !== "Escape") return;
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
       setMode("off");
       setPriceWinsOnly(false);
       setPriceWinsOpen(false);
       setHistoryOpen(false);
-      setSalesOpen(false);
+      // 매출 요약은 자기 Esc 로 닫는다 — 여기서 바로 끄면 닫힘 애니메이션이 끊긴다.
       setVacantOnly(false);
+      // 마지막에 누른 툴바 버튼에 포커스가 남아 있으면, 키를 누른 순간 브라우저가 「키보드 조작」으로
+      // 보고 포커스 링을 그린다 — 꺼진 버튼에 테두리만 남아 켜진 것처럼 보인다(2026-10-01).
+      const focused = document.activeElement;
+      if (focused instanceof HTMLButtonElement || focused instanceof HTMLAnchorElement) focused.blur();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);

@@ -160,7 +160,7 @@ export function OpsSalesSummaryModal({
     setClosing(true);
     window.setTimeout(onClose, CLOSE_MS);
   };
-  const panelRef = useAdminPanelA11y<HTMLDivElement>(requestClose, { trapFocus: true });
+  const panelRef = useAdminPanelA11y<HTMLDivElement>(requestClose, { quietRestore: true, trapFocus: true });
   const titleId = useId();
   const basisId = useId();
   const [state, setState] = useState<State>({ status: "loading" });

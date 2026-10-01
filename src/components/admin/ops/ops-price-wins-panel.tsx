@@ -76,7 +76,7 @@ export function OpsPriceWinsPanel({
   /** 건물 필터. 없으면 전체. */
   propertyName: string | null;
 }) {
-  const panelRef = useAdminPanelA11y<HTMLElement>(onClose);
+  const panelRef = useAdminPanelA11y<HTMLElement>(onClose, { quietRestore: true });
   const list = conversions ?? [];
   const averageHours =
     list.length > 0

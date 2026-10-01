@@ -3,6 +3,9 @@
 // Shared admin-console side-panel / centered-modal behavior hook.
 // Esc to close, body scroll lock, focus the panel on open, restore focus on close.
 // `trapFocus` (opt-in, 2026-09-30 — sales summary modal) keeps Tab / Shift+Tab inside the panel.
+// `quietRestore` (opt-in, 2026-10-01 — ops calendar toolbar panels) still returns focus to the trigger
+// but without the focus ring: closing with Esc made the browser treat it as keyboard use and ring
+// the toolbar toggle that opened it, so a closed panel's button looked switched on.
 import { useEffect, useRef } from "react";
 
 const FOCUSABLE =
@@ -10,12 +13,13 @@ const FOCUSABLE =
 
 export function useAdminPanelA11y<T extends HTMLElement>(
   onClose: () => void,
-  options: { disabled?: boolean; trapFocus?: boolean } = {},
+  options: { disabled?: boolean; trapFocus?: boolean; quietRestore?: boolean } = {},
 ) {
   const panelRef = useRef<T | null>(null);
   const onCloseRef = useRef(onClose);
   const disabledRef = useRef(options.disabled ?? false);
   const trapFocus = options.trapFocus ?? false;
+  const quietRestore = options.quietRestore ?? false;
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -72,9 +76,10 @@ export function useAdminPanelA11y<T extends HTMLElement>(
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
       document.body.style.paddingRight = previousPaddingRight;
-      previousActive?.focus({ preventScroll: true });
+      // `focusVisible` is newer than the TS DOM lib here; browsers without it ignore the key.
+      previousActive?.focus({ preventScroll: true, ...(quietRestore ? { focusVisible: false } : {}) } as FocusOptions);
     };
-  }, [trapFocus]);
+  }, [trapFocus, quietRestore]);
 
   return panelRef;
 }
