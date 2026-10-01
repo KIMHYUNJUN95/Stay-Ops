@@ -19,7 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { loadOpsCellHistory, loadOpsPriceConversions } from "@/app/admin/ops/calendar/actions";
-import { searchOpsReservations } from "@/app/admin/ops/calendar/search-actions";
+import { loadOpsReservationPlacement, searchOpsReservations } from "@/app/admin/ops/calendar/search-actions";
 import { OpsBlockPanel } from "@/components/admin/ops/ops-block-panel";
 import { OpsBookingPanel, type BookingPanelRoom } from "@/components/admin/ops/ops-booking-panel";
 import { OpsCellHistoryCard } from "@/components/admin/ops/ops-cell-history-card";
@@ -43,7 +43,15 @@ import type {
   OpsReservationPlacement,
 } from "@/lib/ops-calendar";
 import { buildOpsCalendarHref } from "@/lib/ops-calendar-properties";
-import { buildRowRateLookup, dayFlagAt, decodeRowRate, rowGapCellKeys, type OpsGridRowData } from "@/lib/ops-calendar-rows";
+import {
+  buildRowRateLookup,
+  dayFlagAt,
+  decodeRowRate,
+  reuseStableRows,
+  rowGapCellKeys,
+  sameOpsDays,
+  type OpsGridRowData,
+} from "@/lib/ops-calendar-rows";
 import {
   applyDragRect,
   applyScopeToSelection,
@@ -175,13 +183,13 @@ function tokyoStamp(iso: string): string {
 }
 
 export function MobileOpsCalendar({
-  copy,
-  days,
+  copy: copyProp,
+  days: daysProp,
   historyAlerts,
   jump,
   nav,
   properties,
-  rows,
+  rows: rowsProp,
   searchCopy,
   selectedProperties,
   staleRates,
@@ -203,6 +211,27 @@ export function MobileOpsCalendar({
 }) {
   const router = useRouter();
   const [, startRefresh] = useTransition();
+  /*
+   * ── 새로고침이 와도 **안 바뀐 것은 참조를 유지한다**(데스크톱 격자와 같은 방식) ──────────
+   * 실시간 신호 · 쓰기 반영으로 서버 데이터를 다시 받으면 모든 prop 이 새 객체로 온다. 그대로 넘기면 메모된
+   * 행(`MobileOpsRow`)이 전부 다시 그려져 폰에서 버벅였다(2026-10-02 사용자 지적). 행은 내용 해시(`sig`)로,
+   * 가로축 · 문구는 내용으로 비교해 같으면 직전 것을 쓴다. 렌더 중 비교 → 다를 때만 setState.
+   */
+  const [rowsState, setRowsState] = useState({ seen: rowsProp, stable: rowsProp });
+  let rows = rowsState.stable;
+  if (rowsState.seen !== rowsProp) {
+    rows = reuseStableRows(rowsState.stable, rowsProp);
+    setRowsState({ seen: rowsProp, stable: rows });
+  }
+  const [stableDays, setStableDays] = useState(daysProp);
+  const days = sameOpsDays(stableDays, daysProp) ? stableDays : daysProp;
+  if (days !== stableDays) setStableDays(days);
+  const [copyState, setCopyState] = useState({ seen: copyProp, stable: copyProp });
+  const copyArrived = copyState.seen !== copyProp;
+  // 문구는 언어를 바꿀 때만 달라진다 — 받은 객체가 바뀔 때 한 번만 비교한다.
+  const copy =
+    !copyArrived || JSON.stringify(copyProp) === JSON.stringify(copyState.stable) ? copyState.stable : copyProp;
+  if (copyArrived) setCopyState({ seen: copyProp, stable: copy });
   const dates = useMemo(() => days.map((day) => day.date), [days]);
   const todayInView = dates.includes(today);
 
@@ -266,6 +295,21 @@ export function MobileOpsCalendar({
     }));
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [salesOpen, setSalesOpen] = useState(false);
+
+  // 예약 바로 열기 — 다른 화면에서 `?resv=<id>` 로 넘어오면 그 예약 상세 시트를 연다(데스크톱과 같다).
+  // 창 밖 숙박이라도 상세는 열린다. 새로고침으로 다시 열리지 않게 주소에서는 바로 뗀다.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const reservationId = url.searchParams.get("resv");
+    if (!reservationId) return;
+    url.searchParams.delete("resv");
+    window.history.replaceState(window.history.state, "", url.toString());
+    void loadOpsReservationPlacement(reservationId).then((result) => {
+      // 취소 플래그를 두지 않는다 — 개발 모드 이중 실행에서 첫 실행이 주소를 떼고 정리되면
+      // 두 번째 실행은 `resv` 를 못 봐서 시트가 영영 안 열린다(데스크톱 격자와 같은 이유).
+      if (result.ok) setOverlay({ kind: "reservation", placement: result.placement });
+    });
+  }, []);
   // 필터가 방을 화면에서 지우면 그 방의 칸도 선택에서 뺀다 — 요약과 실제로 보내는 칸이 어긋나지 않게.
   // 칸 수 × 객실 수로 훑지 않는다(끄는 동안 렌더마다 돈다) — 객실 Map 으로 한 번에.
   if (selection.some((cell) => !roomByKey.has(cell.roomKey))) {
@@ -883,17 +927,28 @@ export function MobileOpsCalendar({
       }
     };
     measure();
+    /*
+     * **높이는 애니메이션하지 않는다**(2026-10-02 — 스크롤 방향이 바뀔 때마다 격자 전체가 매 프레임 다시
+     * 배치돼 버벅였다). 움직이는 건 transform(합성기 전용)뿐이고, 높이는 한 번만 바꾼다: 숨을 때는 먼저
+     * 늘려 두고(아래쪽은 내려가는 탭 바 뒤라 안 보인다), 나타날 때는 다 올라온 뒤 줄인다.
+     */
+    let shrinkTimer: ReturnType<typeof setTimeout> | null = null;
+    const setHeight = (value: number) => {
+      grid.style.height = `${Math.max(320, Math.floor(value))}px`;
+    };
     const apply = (animate: boolean) => {
-      const height = hidden ? screenBottom - (naturalTop - HEADER) : tabTop - naturalTop;
-      const transition = !animate
+      if (shrinkTimer) clearTimeout(shrinkTimer);
+      shrinkTimer = null;
+      const tall = screenBottom - (naturalTop - HEADER);
+      const short = tabTop - naturalTop;
+      root.style.transition = !animate
         ? "none"
         : hidden
-          ? "200ms cubic-bezier(0.4, 0, 1, 1)"
-          : "400ms cubic-bezier(0.22, 1, 0.36, 1)";
-      root.style.transition = transition === "none" ? "none" : `transform ${transition}`;
-      grid.style.transition = transition === "none" ? "none" : `height ${transition}`;
+          ? "transform 200ms cubic-bezier(0.4, 0, 1, 1)"
+          : "transform 400ms cubic-bezier(0.22, 1, 0.36, 1)";
       root.style.transform = hidden ? `translateY(-${HEADER}px)` : "";
-      grid.style.height = `${Math.max(320, Math.floor(height))}px`;
+      if (hidden || !animate) setHeight(hidden ? tall : short);
+      else shrinkTimer = setTimeout(() => setHeight(short), 400);
     };
     const onResize = () => {
       measure();
@@ -910,6 +965,7 @@ export function MobileOpsCalendar({
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onResize);
     return () => {
+      if (shrinkTimer) clearTimeout(shrinkTimer);
       observer.disconnect();
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onResize);

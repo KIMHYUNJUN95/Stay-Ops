@@ -9,6 +9,16 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 (3) — 모바일 판매 캘린더 버벅임 수정
+
+- 크롬 숨김/표시 때 격자 높이 애니메이션 제거(transform 만) · 새로고침 시 안 바뀐 행 재사용(`reuseStableRows`,
+  데스크톱과 같게) · 격자 `contain: strict` · 줄 `content-visibility: auto`. 실기기 확인 대기. (`33`)
+
+## 2026-10-02 (2) — 모바일 판매 캘린더 예약 바로 열기 링크
+
+- `/mobile/ops/calendar?resv=<예약 id>` 로 들어오면 그 예약 상세 시트가 열린다(`loadOpsReservationPlacement`,
+  데스크톱과 같은 방식 · 주소에서 `resv` 는 바로 뗀다). (`33`, `31`)
+
 ## 2026-10-02 — 게스트 피드백 첫 화면 = 외부 리뷰
 
 - `/admin/complaints` · `/mobile/complaints` 에 `?view=` 없이 들어오면 **외부 리뷰**가 먼저 보인다(예전 기본: 대시보드
