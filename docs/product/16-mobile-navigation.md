@@ -532,6 +532,22 @@ Current rules:
 - **PWA manifest chrome (2026-06-22)**: `public/manifest.webmanifest` `theme_color` / `background_color` were stale pre-rebrand values (`theme_color: #00796f` teal, `background_color: #fbfcfc` near-white). Both corrected to ivory `#f7f4ee` to match the `viewport.themeColor` and the ivory canvas. In **installed / standalone** PWA mode (Add to Home Screen) the manifest — not the in-page meta — drives the OS status-bar tint and the launch splash background, so the stale teal would have surfaced there. The teal value also violated the "teal/green retired" brand rule. **Note:** in regular in-browser Safari (URL bar visible) the system chrome is governed by the in-page `themeColor` + `colorScheme` meta above, not the manifest; the manifest only takes effect once the app is installed to the home screen.
 - **Root (`html`) background — standalone safe-area black bands (2026-06-22)**: `src/app/globals.css` now paints the ivory `--background` on **both `html` and `body`** (previously only `body`). In an installed/standalone iOS PWA the region behind the status bar / notch — and any safe-area or overscroll band — exposes the **root `<html>` element's** background; with no background on `<html>` iOS painted those bands **black**, most visibly when the sidebar opened and the layout repainted (and on the attendance/standalone screens). Painting `<html>` ivory removes the black bands. `apple-mobile-web-app-status-bar-style` stays `"default"` (dark text on light) — correct for a light app; `black-translucent` is intentionally **not** used (it would force invisible white status-bar text on ivory). Not a design change; the visible canvas was already this ivory.
 
+### Capability-gated menu items — 판매 캘린더 (2026-10-01)
+
+- 사이드 메뉴 항목은 `capability` 를 가질 수 있다. `canSeeNavItem(item, session.capabilities)`
+  (`src/config/navigation.ts`)가 **사이드 메뉴 · 하단 탭 · 하단 탭 편집 후보** 세 곳을 모두 거른다 — 권한이 없으면
+  메뉴가 아예 안 보이고, 예전에 탭으로 골라 둔 항목도 탭 바에서 빠진다(접근 자체는 페이지가 서버에서 다시 막는다).
+- **운영 관리자는 별도 구역이다**(2026-10-01 사용자 지시 — 「일반 사이드바에 넣으면 안 된다, 대시보드처럼 구분」).
+  `mobileOpsAdminNavigation`(`src/config/navigation.ts`)은 `mobileSidebarNavigation` 과 **다른 목록**이고, 사이드 메뉴
+  아래쪽에 구분선 + 제목(`admin.console.navGroupOpsAdmin` — 운영 관리자 / 運営管理者 / Revenue Ops)을 단 구역으로 그린다.
+  데스크톱 사이드바가 「운영 관리자」 묶음을 맨 아래 따로 두는 것(`adminNavGroupOf` → `ops`)과 같은 규칙이다.
+  **하단 탭 편집 후보에도 넣지 않는다**(후보 = 일반 메뉴). 권한이 없으면 구역째 안 보인다.
+- 현재 항목: **판매 캘린더** `ops-calendar` → `/mobile/ops/calendar`(`ops_admin.access`). 데스크톱
+  `/admin/ops/calendar` 의 모바일판이다 — 화면 · 입력 계약은 `33-calendar-write-features.md` → 「모바일 판매 캘린더」.
+- 이 화면의 격자는 **자체 스크롤 상자**다(날짜 머리 · 객실 열 sticky). 셸 머리 숨김은 `mobile-shell-scroll` 신호로
+  따라가고, 격자가 맨 위가 아닐 때는 셸의 당겨서 새로고침을 무장시키지 않는다. 선택 바는 `body` 포털(z-70, 탭 바 위),
+  편집 패널은 공용 `BottomSheet` 안에 연다(시트 계약 그대로 — X 없음 · 드래그/스크림/Esc 닫기).
+
 ### Side-menu operational badge counts
 
 The side-menu nav rows can show an unprocessed-work count badge. Counts are computed server-side by `getMobileNavBadges()` (`src/lib/nav-badges.ts`) and passed into `MobileShell` via the `badges` prop (keyed by nav id). Each mobile page fetches them with `const navBadges = await getMobileNavBadges()` and renders `<MobileShell badges={navBadges} ...>`.

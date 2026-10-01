@@ -1852,7 +1852,7 @@ PostgREST 는 한 번에 **1,000행까지만** 준다(Supabase `db-max-rows` 기
 「안 판다」로 그리므로 잘린 것과 팔지 않는 날을 화면에서 구별할 수 없다. 갭 판정도 그 구간을
 전부 `unknown` 으로 봤다.
 
-`readAllPages()` (`src/lib/ops-calendar.ts`) 로 네 표를 전부 쪽 나눠 읽는다. 예약은 지금
+`readAllPages()` (`src/lib/supabase/read-all-pages.ts` — 2026-10-01 예약 캘린더와 공용화) 로 네 표를 전부 쪽 나눠 읽는다. 예약은 지금
 1,000행 밑이지만 같이 고쳤다 — 넘는 순간 **예약 막대가 조용히 사라지고**, 그건 이미 팔린 방을
 비었다고 보여준다는 뜻이다.
 
@@ -2692,3 +2692,41 @@ Supabase 브로드캐스트는 **저장되지 않는다** — 절전·와이파�
 - **한계**: 이전 값은 **우리가 마지막으로 읽었던 값**이다. 그 사이 Beds24 에서 여러 번 고쳤다면 중간 값은 모른다 —
   확인 문구(`hsRevertAskBeds24`)가 이걸 말한다.
 - 앱 가격·최소숙박 되돌리기(`revertPriceJob`)와 공통 처리는 `revertLogsOfField` 하나로 합쳤다.
+
+## 모바일 판매 캘린더 (2026-10-01, 1단계 — 시안 1a v2 「A 보기 · 편집」)
+
+- **경로**: `/mobile/ops/calendar` · 사이드 메뉴 아래쪽 **「운영 관리자」 구역**의 「판매 캘린더」(`ops-calendar`, 아이콘
+  `CalendarCog`). 일반 메뉴 · 하단 탭 후보와 섞지 않는다(데스크톱 사이드바와 같은 구분, `16` 참고). 구역은
+  `ops_admin.access` 가 있을 때만 보인다. 페이지는
+  `canAccessOpsAdmin` **과** `canAccessAdminWeb` 둘 다 요구한다 — 쓰기 액션이 `requireAdminSession` 을 거치므로
+  개별 부여로 키만 받은 현장 역할이 들어와 저장에서 튕기지 않게 같은 조건으로 막는다(없으면 `/mobile`).
+- **데이터 · 쓰기는 데스크톱과 같다**: 같은 `getOpsCalendarData` · 같은 서버 액션 · 같은 가격/최소숙박/차단 패널
+  (`OpsPricePanel` · `OpsMinStayPanel` · `OpsBlockPanel`). 열 때의 대기 작업 깨우기 + 낡은 창 당기기는
+  `scheduleOpsCalendarOpenRefresh`(`src/lib/ops-calendar-open-refresh.ts`)로 뽑아 두 화면이 같이 쓴다. 실시간
+  갱신(`Beds24LiveRefresh` 범위 지정)과 연결 점도 같다. 쿼리스트링(`mode` · `ym` · `start` · `property` 반복 ·
+  `cancelled`)도 같고 `buildOpsCalendarHref(…, "/mobile/ops/calendar")` 로 만든다.
+- **화면**(`src/components/mobile/ops/mobile-ops-calendar.tsx` + `.css`):
+  - 건물 알약 — 누르면 그 건물만, 왼쪽 동그라미는 함께 보기/빼기(데스크톱 체크 동그라미와 같은 링크).
+  - 기간 줄 — 30일/월간 · ‹ 오늘 › · 범위 · 가격 신선도(15분 넘으면 빨강) · 실시간 점.
+  - 빠른 칩 — **데스크톱과 같은 순서**: 취소 보기 · **1박 갭 N**(오늘 이후 고를 수 있는 갭만, 최소숙박 시트) ·
+    **임박 빈방 N**(골라서 가격 시트를 바로 연다) · 오늘 빈방만 · 큰방 위로. (데스크톱 위 줄 → 격자 도구줄 순서.
+    2단계의 가격 개입 성공 · 이력 · 매출 요약은 1박 갭과 임박 빈방 사이에 들어간다.) 판정은 데스크톱과 같은 lib(`opsUrgentVacantCells` · 사노 제외,
+    `opsVacantRoomKeys`, `orderOpsLargeRoomsFirst`).
+  - 격자 — 객실 열 56px · 칸 46px, 날짜 머리와 객실 열이 붙어 있는 **자체 스크롤 상자**(셸 본문 스크롤에 맡기면
+    가로 스크롤 안의 sticky 머리가 안 붙는다). 칸: 가격(10만 엔부터 `123k`) · 최소숙박(**숫자만** — 「2박」이 아니라 `2`,
+    데스크톱과 같다. 1 초록 · 3+ 주황 · 유닛마다 다르면 `•`) · 1박 갭(빨간 테두리) · 임박 빈방(주황 테두리) · 이력 점 · 주말/오늘 바탕 · 지난 날 흐림.
+    예약 막대 · BLOCK 은 데스크톱과 같은 층 나누기(`assignBarLanes` · `assignBlockLanes`, 층 22px).
+  - 격자를 내리면 셸 머리가 같이 숨는다(`mobile-shell-scroll` 신호). 격자가 맨 위가 아닐 때는 셸의 당겨서
+    새로고침을 무장시키지 않는다.
+- **입력**: **탭 = 한 칸 토글**, **길게 누르기(380ms) 뒤 끌기 = 사각형 선택**(데스크톱 드래그와 같은 `applyDragRect`
+  — 지나간 경로와 무관, 지난 날 · 팔린 밤은 건너뜀, 누른 칸이 골라져 있었으면 빼는 드래그). 그냥 끌면 스크롤이다.
+  끄는 중 가장자리에 다가가면 저절로 넘긴다. 객실명 = 그 줄, 날짜 머리 = 그 열 토글. 마우스는 누르는 즉시 사각형.
+- **선택 바 → 하단 시트**: 고른 칸이 있으면 탭 바 위에 「N칸 · 객실 n · 날짜」 바(가격 · 최소숙박 · 차단 · 해제).
+  누르면 공용 `BottomSheet` 안에 데스크톱 패널이 그대로 열린다 — 패널 CSS 변수가 `.adm` · `.ops` 에 걸려 있어
+  `<div className="adm ops mops-panel">` 로 감싸고, 302px · sticky 카드 모양만 시트에 맞게 걷는다(확인 버튼 줄은
+  시트 바닥에 고정). 쓰기는 데스크톱과 같은 흐린 값 → 접수 → 반영 대기(`watchOpsWriteJob`) → `router.refresh`.
+  반영이 끝나 서버 값이 보낸 값과 같아지면 흐린 값을 거두고, 끝내 안 맞으면 8초 뒤 거둔다.
+- **2단계(아직)**: 이력 시트(변경 이력 · 전송 로그 · 한도 대기 · 되돌리기) · 매출 요약 · 예약 상세 · 수기 예약 ·
+  가격 개입 성공 · 예약 검색. 시안 1a v2 「B 이력 · 매출 · 예약」.
+- 패널 머리말 문장(「건물 객실 · 날짜」)은 `buildOpsScopeSummary`(`src/lib/ops-scope-summary.ts`)로 뽑아 데스크톱과
+  같이 쓴다.

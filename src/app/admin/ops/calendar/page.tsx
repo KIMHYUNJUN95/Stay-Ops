@@ -1,5 +1,4 @@
 import { Beds24LiveDot } from "@/components/shared/beds24-live-dot";
-import { after } from "next/server";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { OpsCalendarGrid } from "@/components/admin/ops/ops-calendar-grid";
 import { OpsCalendarJump } from "@/components/admin/ops/ops-calendar-jump";
@@ -9,13 +8,11 @@ import { OpsPropertyTabs } from "@/components/admin/ops/ops-property-tabs";
 import { AdminMonthPicker } from "@/components/admin/shared/admin-month-picker";
 import { shiftMonthKey } from "@/components/admin/shared/admin-month-key";
 import "@/components/admin/ops/ops-console.css";
-import { refreshOpsCalendarRates } from "@/lib/beds24/rates-refresh";
-import { kickPriceJobWorker } from "@/lib/beds24/price-job-kick";
-import { hasPendingPriceJobs } from "@/lib/beds24/price-job-queue";
 import { countOpsHistoryAlerts } from "@/lib/beds24/ops-history-alerts";
 import { getDictionary } from "@/lib/i18n";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getOpsCalendarData, OPS_CALENDAR_ROLLING_DAYS } from "@/lib/ops-calendar";
+import { scheduleOpsCalendarOpenRefresh } from "@/lib/ops-calendar-open-refresh";
 import { opsNavId } from "@/lib/ops-admin";
 import {
   buildOpsCalendarHref,
@@ -121,30 +118,8 @@ export default async function OpsCalendarPage({
 
   const firstVisibleDate = data.days.at(0)?.date;
   const lastVisibleDate = data.days.at(-1)?.date;
-  if (firstVisibleDate && lastVisibleDate) {
-    const selectedExternalIds = data.selectedProperties
-      .map((name) => data.propertyExternalIds[name])
-      .filter((id): id is string => Boolean(id));
-    // 신선도(`ratesSyncedAt`)는 **보이는 객실**로 잰다 — 당기는 범위도 똑같아야 한다. 고른 건물 중 **하나라도**
-    // Beds24 id 가 없으면 당기지 않는다 — 그 건물 객실은 당겨도 안 바뀌어 신선도가 그대로이고, 전 건물로
-    // 넓히면 「낡음 → 당김 → 신호 → 새로고침 → 낡음」 무한 루프가 다시 돈다(33번 문서).
-    const canRefresh =
-      data.ratesRefreshable && selectedExternalIds.length === data.selectedProperties.length;
-    after(async () => {
-      const supabase = getSupabaseServiceClient();
-      // 대기 중인 가격·최소숙박 작업이 있으면 먼저 보낸다 — 접수 직후 깨우기가 실패한 작업이
-      // 백업 크론(몇 시간 간격)까지 앉아 있지 않게(`price-job-kick.ts`).
-      if (await hasPendingPriceJobs(supabase)) await kickPriceJobWorker(supabase);
-      if (!canRefresh) return;
-      await refreshOpsCalendarRates({
-        externalPropertyIds: selectedExternalIds.length > 0 ? selectedExternalIds : undefined,
-        organizationId: session.organization.id,
-        supabase,
-        syncedAt: data.ratesSyncedAt,
-        window: { from: firstVisibleDate, to: lastVisibleDate },
-      });
-    });
-  }
+  // 대기 작업 깨우기 + 낡은 창 당기기 — 모바일과 같은 규칙(`ops-calendar-open-refresh.ts`).
+  scheduleOpsCalendarOpenRefresh(session.organization.id, data);
 
   // 건물이 여럿이면 `property` 를 **반복**해 싣는다(탭 순서). 빈 목록은 키 자체를 뺀다 = 전체.
   const hrefWith = (next: Partial<SearchParams>) =>

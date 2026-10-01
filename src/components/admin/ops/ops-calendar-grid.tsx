@@ -28,7 +28,8 @@ import {
   type SalesSummaryCopy,
 } from "@/components/admin/ops/ops-sales-summary-modal";
 import { ChartColumn, Timer } from "lucide-react";
-import { getCanonicalPropertyName } from "@/lib/room-label-normalization";
+import { opsUrgentVacantCells } from "@/lib/ops-urgent-vacant";
+import { buildOpsScopeSummary } from "@/lib/ops-scope-summary";
 import { OpsBlockPanel, type BlockPanelCopy } from "@/components/admin/ops/ops-block-panel";
 import {
   OpsMinStayPanel,
@@ -308,17 +309,6 @@ function toTokyoDateLabel(iso: string) {
 
 /** 층 하나의 높이. 막대(19px)보다 커야 층끼리 맞닿지 않는다. */
 const OPS_LANE_STEP_PX = 22;
-
-/** 임박 빈방 — 오늘 포함 며칠. */
-const URGENT_VACANT_DAYS = 3;
-
-/**
- * 임박 빈방 **자동 선택에서 빼는 건물**(2026-10-01 사용자 요청 — 사노). 행 키의 건물 부분과 비교하므로
- * 정규화 이름으로 맞춘다. 필요하면 사람이 격자에서 직접 고르면 된다(막는 것이 아니라 기본 선택만 뺀다).
- */
-const URGENT_VACANT_EXCLUDED_PROPERTIES: ReadonlySet<string> = new Set(
-  ["Sano"].map((name) => getCanonicalPropertyName(name)),
-);
 
 function blockGeometry(days: OpsCalendarDay[], startDate: string, endDate: string) {
   const total = days.length;
@@ -1651,19 +1641,16 @@ export function OpsCalendarGrid({
    * 누르면 가격 모드로 들어가 전부 고르고, 기존 가격 패널에서 사람이 올리든 내리든 정한다(자동 할인 없음).
    * 보는 기간에 오늘이 없으면 셀 수 없다 — 버튼을 숨긴다.
    */
-  const urgentCells: OpsSelectionCell[] = [];
-  if (todayInView) {
-    const urgentDates = dates.filter((date) => date >= today).slice(0, URGENT_VACANT_DAYS);
-    for (const roomKey of roomKeys) {
-      if (URGENT_VACANT_EXCLUDED_PROPERTIES.has(roomKey.slice(0, roomKey.indexOf("::")))) continue;
-      for (const date of urgentDates) {
-        const key = selectionCellKey(roomKey, date);
-        if (soldCells.has(key) || blockedCellKeys.has(key)) continue;
-        if (rateAt(roomKey, date)?.price == null) continue;
-        urgentCells.push({ date, roomKey });
-      }
-    }
-  }
+  const urgentCells = todayInView
+    ? opsUrgentVacantCells({
+        dates,
+        hasPrice: (roomKey, date) => rateAt(roomKey, date)?.price != null,
+        isBlocked: (roomKey, date) => blockedCellKeys.has(selectionCellKey(roomKey, date)),
+        isSold: (roomKey, date) => soldCells.has(selectionCellKey(roomKey, date)),
+        roomKeys,
+        today,
+      })
+    : [];
   const selectUrgent = () => {
     if (urgentCells.length === 0) return;
     setMode("price");
@@ -1824,41 +1811,7 @@ export function OpsCalendarGrid({
    *
    * 객실이 많으면 앞의 넷만 적고 나머지는 개수로 줄인다. 날짜는 처음과 끝만 쓴다.
    */
-  const scopeSummary = (() => {
-    if (selection.length === 0) return null;
-    // **건물별로 묶어 적는다** — 「502 · 107」만으로는 어느 건물인지 모른다(2026-09-28 지적).
-    // 격자 순서(건물 순서 포함)를 따른다: 「아라키초A 502 · 오쿠보B 107」.
-    const selectedKeys = new Set(selection.map((cell) => cell.roomKey));
-    const byProperty = new Map<string, string[]>();
-    for (const room of rooms) {
-      if (!selectedKeys.has(room.key)) continue;
-      const list = byProperty.get(room.propertyName);
-      if (list) list.push(room.displayRoomLabel);
-      else byProperty.set(room.propertyName, [room.displayRoomLabel]);
-    }
-    const ROOM_LIMIT = 4;
-    let shownCount = 0;
-    const parts: string[] = [];
-    for (const [property, labels] of byProperty) {
-      if (shownCount >= ROOM_LIMIT) break;
-      const take = labels.slice(0, ROOM_LIMIT - shownCount);
-      shownCount += take.length;
-      parts.push(`${property} ${take.join(" · ")}`);
-    }
-    const totalRooms = selectedKeys.size;
-    const roomText =
-      totalRooms > shownCount
-        ? `${parts.join(" / ")} ${copy.andMore.replace("{count}", String(totalRooms - shownCount))}`
-        : parts.join(" / ");
-    const selectedDates = [...new Set(selection.map((cell) => cell.date))].sort();
-    const short = (date: string) => date.slice(5).replace("-", "/");
-    const first = selectedDates[0];
-    const last = selectedDates[selectedDates.length - 1];
-    return {
-      dates: first === last ? short(first) : `${short(first)} → ${short(last)}`,
-      rooms: roomText,
-    };
-  })();
+  const scopeSummary = buildOpsScopeSummary({ andMore: copy.andMore, rooms, selection });
 
   return (
     /*

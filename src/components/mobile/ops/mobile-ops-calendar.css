@@ -1,0 +1,512 @@
+/*
+ * 모바일 판매 캘린더(2026-10-01, 시안 1a v2 — Claude Design `mobile-ops-v2.css` 를 셸 토큰에 맞춰 옮김).
+ *
+ * 셸 계약: 바탕 아이보리(`--background`) · 카드 흰색(`--surface`) · 강조 남색(`--primary`).
+ * 판매 채널 색은 데스크톱 `.ops` 의 것과 같은 값이다 — 한쪽만 바꾸지 말 것.
+ */
+.mops {
+  --mops-cell: 46px;
+  --mops-room: 56px;
+  --mops-ink: hsl(222 28% 14%);
+  --mops-soft: hsl(222 20% 28%);
+  --mops-muted: hsl(222 10% 44%);
+  --mops-faint: hsl(222 10% 62%);
+  --mops-line: hsl(40 20% 84%);
+  --mops-line-soft: hsl(40 24% 89%);
+  --mops-bg2: hsl(42 30% 93%);
+  --mops-we: hsl(6 70% 97.5%);
+  --mops-danger: hsl(4 62% 46%);
+  --mops-danger-bg: hsl(6 70% 95.5%);
+  --mops-warn: hsl(35 80% 38%);
+  --mops-warn-bg: hsl(38 82% 92%);
+  --mops-done: hsl(146 50% 32%);
+  --mops-done-bg: hsl(146 44% 92%);
+  --mops-abnb: hsl(348 60% 34%);
+  --mops-abnb-bg: hsl(348 68% 88%);
+  --mops-abnb-line: hsl(348 52% 76%);
+  --mops-bkng: hsl(219 62% 30%);
+  --mops-bkng-bg: hsl(219 64% 88%);
+  --mops-bkng-line: hsl(219 50% 76%);
+  --mops-dir: hsl(146 52% 21%);
+  --mops-dir-bg: hsl(146 42% 85%);
+  --mops-dir-line: hsl(146 34% 70%);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  /* 셸 본문의 좌우 여백(px-5)을 격자만큼은 넘어 화면 끝까지 쓴다. */
+  margin-inline: -20px;
+  color: var(--mops-ink);
+}
+
+/* ── 건물 ─────────────────────────────────────────────────────────────── */
+.mops-pills {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 16px 2px;
+  scrollbar-width: none;
+}
+.mops-pills::-webkit-scrollbar { display: none; }
+.mops-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 13px 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--mops-line);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--mops-soft);
+  white-space: nowrap;
+}
+a.mops-pill { padding-inline: 14px; }
+.mops-pill.on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.mops-ck,
+.mops-ck0 {
+  position: relative;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 99px;
+}
+/* 손가락 크기 — 보이는 동그라미보다 넓게 누른다. */
+.mops-ck::before,
+.mops-ck0::before {
+  content: "";
+  position: absolute;
+  inset: -9px -6px;
+}
+.mops-ck0 { border: 1.5px solid var(--mops-line); }
+.mops-ck { background: #fff; }
+.mops-ck::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--primary);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5 10.5 17 18 8'/%3E%3C/svg%3E") center/12px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5 10.5 17 18 8'/%3E%3C/svg%3E") center/12px no-repeat;
+}
+
+/* ── 기간 ─────────────────────────────────────────────────────────────── */
+.mops-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  min-height: 32px;
+}
+.mops-seg {
+  flex: none;
+  display: flex;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--mops-bg2);
+}
+.mops-seg a {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--mops-muted);
+}
+.mops-seg a.on {
+  background: var(--surface);
+  color: var(--mops-ink);
+  box-shadow: 0 1px 3px rgb(20 32 43 / 0.12);
+}
+.mops-nav,
+.mops-today {
+  flex: none;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: var(--mops-soft);
+  background: var(--surface);
+  border: 1px solid var(--mops-line);
+}
+.mops-nav { width: 30px; }
+.mops-nav svg { width: 16px; height: 16px; }
+.mops-today { padding: 0 10px; font-size: 12px; font-weight: 800; }
+.mops-range {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mops-soft);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.mops-sync {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--mops-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mops-sync.stale { color: var(--mops-danger); }
+
+/* ── 빠른 칩 ──────────────────────────────────────────────────────────── */
+.mops-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 16px;
+  scrollbar-width: none;
+}
+.mops-chips::-webkit-scrollbar { display: none; }
+.mops-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--mops-line);
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--mops-soft);
+  white-space: nowrap;
+}
+.mops-chip:disabled { opacity: 0.5; }
+.mops-chip svg { width: 14px; height: 14px; }
+.mops-chip b {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: var(--mops-bg2);
+  color: var(--mops-soft);
+  font-size: 10.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  display: grid;
+  place-items: center;
+}
+.mops-chip.urg { color: var(--mops-warn); }
+.mops-chip.urg b { background: var(--mops-warn-bg); color: var(--mops-warn); }
+.mops-chip.gap {
+  border-color: hsl(4 62% 46% / 0.4);
+  background: var(--mops-danger-bg);
+  color: var(--mops-danger);
+}
+.mops-chip.gap b { background: var(--mops-danger); color: #fff; }
+.mops-chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+.mops-hint {
+  margin: 0;
+  padding: 0 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mops-faint);
+}
+
+/* ── 격자 ─────────────────────────────────────────────────────────────── */
+/*
+ * 가로 · 세로 모두 이 상자 안에서 넘긴다. 셸 본문 스크롤에 맡기면 가로 스크롤 상자 안의 sticky 날짜
+ * 머리가 붙지 않는다. 높이는 셸 머리 · 위 컨트롤 · 탭 바를 뺀 나머지.
+ */
+.mops-grid {
+  position: relative;
+  height: calc(100dvh - 17.5rem - env(safe-area-inset-bottom, 0px));
+  min-height: 340px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  border-top: 1px solid var(--mops-line);
+  border-bottom: 1px solid var(--mops-line);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  scrollbar-width: none;
+}
+.mops-grid::-webkit-scrollbar { display: none; }
+.mops-grid > * { width: calc(var(--mops-room) + var(--mops-cols) * var(--mops-cell)); }
+
+.mops-head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--mops-line);
+}
+.mops-corner {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  flex: none;
+  width: var(--mops-room);
+  display: flex;
+  align-items: flex-end;
+  padding: 0 0 7px 12px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--mops-faint);
+  background: var(--surface);
+  border-right: 1px solid var(--mops-line-soft);
+}
+.mops-d {
+  position: relative;
+  flex: none;
+  width: var(--mops-cell);
+  height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1px;
+  padding-bottom: 5px;
+  color: var(--mops-ink);
+}
+.mops-d b { font-size: 14px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+.mops-d span { font-size: 10px; font-weight: 700; color: var(--mops-muted); }
+.mops-d em {
+  /* 달이 바뀌는 칸의 「10/」 — 가운데 위에 둔다. 왼쪽 위에 두면 오늘 배지(1일)와 겹친다. */
+  position: absolute;
+  top: 3px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  line-height: 10px;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--primary);
+}
+.mops-d.we b,
+.mops-d.we span { color: var(--mops-danger); }
+.mops-d.today b {
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+  background: var(--primary);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+}
+.mops-d.past { opacity: 0.55; }
+.mops-d.m1 { box-shadow: inset 1.5px 0 0 hsl(223 46% 32% / 0.35); }
+
+.mops-group {
+  position: sticky;
+  left: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 7px 12px 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--mops-faint);
+  background: var(--mops-bg2);
+  border-bottom: 1px solid var(--mops-line-soft);
+}
+.mops-group__name { font-size: 11.5px; font-weight: 800; color: var(--mops-soft); }
+
+.mops-row { display: flex; border-bottom: 1px solid var(--mops-line-soft); }
+.mops-room {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  flex: none;
+  width: var(--mops-room);
+  display: flex;
+  align-items: flex-start;
+  padding: 9px 4px 0 12px;
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-align: left;
+  color: var(--mops-ink);
+  background: var(--surface);
+  border-right: 1px solid var(--mops-line-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mops-track { position: relative; display: flex; flex: none; }
+.mops-c {
+  position: relative;
+  flex: none;
+  width: var(--mops-cell);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding-top: 6px;
+}
+.mops-c.we { background: var(--mops-we); }
+.mops-c.today { background: hsl(223 42% 94% / 0.55); }
+.mops-c.past { opacity: 0.5; }
+.mops-p { font-size: 11px; font-weight: 600; color: var(--mops-ink); font-variant-numeric: tabular-nums; line-height: 13px; }
+.mops-m { font-size: 9.5px; font-weight: 700; color: var(--mops-faint); line-height: 12px; }
+.mops-m sup { font-size: 8px; margin-left: 1px; color: var(--mops-warn); }
+.mops-m.ms1 { color: var(--mops-done); background: var(--mops-done-bg); padding: 0 5px; border-radius: 5px; }
+.mops-m.ms3 { color: var(--mops-warn); background: var(--mops-warn-bg); padding: 0 5px; border-radius: 5px; }
+.mops-p.pend,
+.mops-m.pend { opacity: 0.45; }
+.mops-c.gap { box-shadow: inset 0 0 0 1.5px hsl(4 62% 46% / 0.55); background: var(--mops-danger-bg); }
+.mops-c.gap .mops-m { color: #fff; background: var(--mops-danger); padding: 0 5px; border-radius: 5px; }
+.mops-c.urg { box-shadow: inset 0 0 0 1.5px hsl(35 80% 38% / 0.55); }
+.mops-c.sel { background: var(--primary); box-shadow: none; opacity: 1; }
+.mops-c.sel .mops-p { color: #fff; font-weight: 700; }
+.mops-c.sel .mops-m { color: hsl(223 40% 86%); background: none; }
+.mops-hdot {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--primary);
+  opacity: 0.7;
+}
+.mops-c.sel .mops-hdot { background: #fff; }
+
+/* 막대 · 차단은 칸 위에 얹기만 한다 — 누르는 것은 아래 칸이다(손가락 아래 칸을 찾는 `elementFromPoint`). */
+.mops-bar-r,
+.mops-blk {
+  position: absolute;
+  height: 19px;
+  pointer-events: none;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 17px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mops-bar-r { border-radius: 999px; border: 1px solid; padding: 0 8px; }
+.mops-bar-r.open-l { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+.mops-bar-r.abnb { background: var(--mops-abnb-bg); border-color: var(--mops-abnb-line); color: var(--mops-abnb); }
+.mops-bar-r.bkng { background: var(--mops-bkng-bg); border-color: var(--mops-bkng-line); color: var(--mops-bkng); }
+.mops-bar-r.dir { background: var(--mops-dir-bg); border-color: var(--mops-dir-line); color: var(--mops-dir); }
+.mops-bar-r.cxl { opacity: 0.6; text-decoration: line-through; }
+.mops-blk {
+  border-radius: 6px;
+  border: 1px solid #000;
+  background: #000;
+  color: #fff;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.mops-grid.is-dragging { touch-action: none; }
+.mops-empty { padding: 28px 16px; font-size: 13px; font-weight: 600; color: var(--mops-muted); }
+
+/* ── 선택 바(body 로 띄운다) ───────────────────────────────────────────── */
+.mops-selbar {
+  position: fixed;
+  z-index: 70;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--tabbar-h) + 10px);
+  max-width: 460px;
+  margin-inline: auto;
+  height: 58px;
+  border-radius: 19px;
+  background: hsl(223 54% 22%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px 0 14px;
+  box-shadow: 0 18px 34px -16px rgb(2 6 23 / 0.6);
+  animation: mops-rise 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes mops-rise {
+  from { transform: translateY(14px); opacity: 0; }
+}
+.mops-selbar__cnt {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  margin-right: auto;
+  min-width: 0;
+}
+.mops-selbar__cnt b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.mops-selbar__cnt span {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: hsl(223 40% 86%);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mops-selbar__act {
+  flex: none;
+  height: 40px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.14);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.mops-selbar__act.go { background: #fff; color: hsl(223 54% 22%); }
+.mops-selbar__x {
+  flex: none;
+  width: 30px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: hsl(223 40% 86%);
+}
+.mops-selbar__x svg { width: 17px; height: 17px; }
+
+/* ── 시트 안의 데스크톱 패널 ────────────────────────────────────────────── */
+/*
+ * 패널(`.opsp`)은 데스크톱에서 격자 오른쪽에 붙는 302px 카드다(sticky · 화면 높이). 시트 안에서는 폭을
+ * 다 쓰고, 카드 테두리 · 그림자 · sticky 를 걷는다 — 시트가 이미 카드다. 스크롤은 시트 본문이 맡는다.
+ */
+.mops-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-inline: -20px;
+  color: var(--ink);
+}
+.mops-panel .opsp,
+.mops-panel .opsp.has-list {
+  width: auto;
+  flex: none;
+  position: static;
+  height: auto;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  overflow: visible;
+}
+.mops-panel .opsp__head { padding: 2px 20px 12px; }
+.mops-panel .opsp__body { overflow: visible; padding: 13px 20px; }
+.mops-panel .opsp__foot {
+  /* 확인 · 저장 버튼은 시트 바닥에 붙어 있어야 한다 — 목록이 길면 스크롤 끝으로 밀려 안 보였다. */
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding-inline: 20px;
+  background: var(--surface);
+}
+.mops-panel .opspl { min-height: 0; max-height: 26dvh; }
+/* 입력칸은 16px 이상이어야 iOS 가 확대하지 않는다. */
+.mops-panel input { font-size: 16px; }

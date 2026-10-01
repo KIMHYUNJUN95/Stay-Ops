@@ -72,7 +72,7 @@ StayOps 는 Next.js 16 + Supabase 다. **스택이 겹치지 않는다 — 코�
 | # | 영역 | 상태 | 문서 |
 | --- | --- | --- | --- |
 | 1 | 판매 캘린더 (PC) | ✅ **완료 · 운영 사용 중** — 아래 「캘린더 — 된 것」 | [33](33-calendar-write-features.md) 「이식 상태」 |
-| 1-m | 판매 캘린더 (모바일) | ⏳ **디자인 시안 3개 제출 · 방향 선택 대기** — Claude Design 프로젝트 「StayOps 모바일 · 판매 캘린더 시안」(`1a 그리드` · `1b 오늘 밤 보드` · `1c 객실 달력`) | [16](16-mobile-navigation.md) · 이 문서 「모바일이 설계의 출발점이다」 |
+| 1-m | 판매 캘린더 (모바일) | 🟡 **1단계 구현**(2026-10-01, 시안 `1a 그리드` v2) — `/mobile/ops/calendar`: 건물 다중 선택 · 30일/월간 · 빠른 칩(임박 빈방 · 1박 갭 · 오늘 빈방 · 큰방 위로 · 취소 보기) · 격자 · 길게 눌러 끌기 선택 · 가격/최소숙박/차단 시트. **2단계 남음**: 이력 · 매출 요약 · 예약 상세 · 수기 예약 · 검색 | [33](33-calendar-write-features.md) 「모바일 판매 캘린더」 · [16](16-mobile-navigation.md) |
 | 2 | 가동률 | ❌ 착수 전 — 메뉴·빈 페이지만(`/admin/ops/occupancy`). 저쪽 코드 전수 조사 완료 | [34](34-metrics-and-automation.md) 「지표 정의」 |
 | 3 | 매출 · 전표 | ❌ 착수 전 — 빈 페이지(`/admin/ops/revenue` · `/ledger`). **전표는 향후 8개월 스냅샷**이라 과거분은 원본 이관 필수 | [34](34-metrics-and-automation.md) 「전표」 |
 | 4 | 자동화 | ❌ 착수 전 — 빈 페이지(`/admin/ops/automation`). Slack · 구글 시트 · Notion · Hotelsmart 청소 명단 | [34](34-metrics-and-automation.md) 「자동화 — 실제 목록」 |
@@ -97,7 +97,16 @@ StayOps 는 Next.js 16 + Supabase 다. **스택이 겹치지 않는다 — 코�
 
 ### 다음 순서
 
-1. **모바일 판매 캘린더** — 시안 방향 선택 → 구현(이 이전에서 가장 중요한 요구).
+1. **모바일 판매 캘린더 2단계** — 시안: Claude Design 프로젝트 `377e18c5-0b2b-4330-ad51-3ae239e5ffce`
+   「2b 그리드 v2 · B 이력·매출·예약」(1단계는 「2a … A 보기·편집」, 공용 CSS `mobile-ops-v2.css`).
+   1단계(보기 · 편집)는 2026-10-01 구현 — 33번 「모바일 판매 캘린더」. 2단계에 넣을 것(데스크톱 컴포넌트를 시트에 재사용):
+   - [ ] 이력 시트 — `OpsHistoryPanel`(변경 이력 · 전송 로그 · 한도 대기 · 되돌리기) + 칸 이력(데스크톱 호버 카드 → 길게 누르기/탭 대안 필요)
+   - [ ] 매출 요약 — `OpsSalesSummaryModal` 을 전체 높이 시트로
+   - [ ] 예약 상세 · 수정 · 취소 — 막대 탭 → `OpsReservationPanel`(지금 막대는 `pointer-events: none`)
+   - [ ] 수기 예약 — 빈 칸에서 체크인 → 체크아웃 고르기 → `OpsBookingPanel`
+   - [ ] 가격 개입 성공 토글 · 목록, 예약 검색
+   - [ ] 칩 순서: 가격 개입 성공 · 이력 · 매출 요약은 **1박 갭과 임박 빈방 사이**(데스크톱 순서)
+   - [ ] 실기기 확인: 길게 눌러 끌기 · 당겨서 새로고침과 충돌 없음 · 시트 키보드
 2. **공통 지표 계층** — `ops-sales-summary.ts` 를 기간·건물·채널 축의 공통 모듈로.
 3. **가동률** → **매출 · 전표** → **자동화**(Slack → 시트 → Notion → 청소 명단).
 4. 착수 전에 필요한 결정(34번 「착수 전에 정할 것」): ② 제외 건물·채널 기준 통일 ③ Hotelsmart 청소 명단을
@@ -212,6 +221,8 @@ StayOps 는 Next.js 16 + Supabase 다. **스택이 겹치지 않는다 — 코�
 | 무엇 | 위치 |
 | --- | --- |
 | 판매 캘린더 화면 | `src/app/admin/ops/calendar/{page,actions}.ts(x)` · `src/components/admin/ops/*` |
+| 모바일 판매 캘린더 | `src/app/mobile/ops/calendar/page.tsx` · `src/components/mobile/ops/mobile-ops-calendar.{tsx,css}` — 데이터 · 서버 액션 · 패널은 데스크톱 것을 그대로 쓴다 |
+| 두 화면 공용 lib | `ops-calendar-open-refresh.ts` · `ops-urgent-vacant.ts` · `ops-scope-summary.ts` · `ops-calendar-selection.ts` |
 | 데이터 · 계산 | `src/lib/ops-calendar.ts` · `ops-calendar-rows.ts` · `ops-sales-summary.ts` · `ops-rate-merge.ts` · `ops-bar-lanes.ts` |
 | Beds24 쓰기 · 동기화 | `src/lib/beds24/*` (`price-job-worker` · `room-rates-sync` · `room-blocks-sync` · `reservations-backfill` · `process-webhook-booking`) |
 | 실시간 · 틱 | `src/lib/beds24/live-signal.ts` · `src/components/shared/beds24-live-refresh.tsx` · `src/app/api/beds24/tick` |

@@ -9,15 +9,34 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
-## 2026-10-01 — 가입 초대코드 안내 「매니저」→「개발자」
+## 2026-10-01 (9) — 근태 · 캘린더 점검에서 확인된 버그 3건
 
-- 초대코드 화면 안내(`onboarding.joinFlow.inviteSubtitle` · `onboarding.inviteCodeHint`, ko/ja/en)의 코드 문의처를 로그인 화면과
-  같게 「개발자」로. 모바일 마법사 · PC 가입 화면 모두 적용.
+- **정정 요청 자정 넘김**: 희망 퇴근이 출근보다 앞서면 다음 날로(야간 근무). 관리자 수동 수정과 같은 함수
+  `resolveClockOutAfterClockIn`(`src/lib/attendance-clock.ts`)로 통일 — 전에는 승인 시 `invalid`. (`24`)
+- **예약 캘린더 1,000행 잘림**: 관리자 · 모바일 예약 캘린더가 예약 · 블록을 쪽 나눠 끝까지 읽는다
+  (`src/lib/supabase/read-all-pages.ts`, 판매 캘린더와 공용). 당시 두 달 창 771건. (`15`, `33`)
+- **연차 신청 이름 · 일수**: 직원 신청도 서버가 정한다(세션 프로필 이름 + `normalizeLeaveDays`) — 전에는 화면 값 그대로. (`26`)
+- 점검 중 **버그가 아닌 것으로 확인**: 근태 알림 크론 미가동(알림 일괄 구현 방침), 연차 자가 설정(문서 26 결정),
+  채널 예약 취소(문서 33 결정), 시급 소급 불가 · 할증 없음(결정 로그).
+
+## 2026-10-01 (8) — 모바일 판매 캘린더 1단계
+
+- `/mobile/ops/calendar` + 사이드 메뉴 아래쪽 **「운영 관리자」 별도 구역**의 「판매 캘린더」(`ops_admin.access` 보유자만 —
+  일반 메뉴 · 하단 탭 후보와 섞지 않음, 데스크톱 사이드바와 같은 구분. 메뉴 권한 필터 `canSeeNavItem` 신설).
+  시안 1a v2 「A 보기 · 편집」: 건물 다중 선택 · 30일/월간 · 빠른 칩(임박 빈방 · 1박 갭 · 오늘 빈방 · 큰방 위로 · 취소 보기) ·
+  격자(가격 · 최소숙박 · 갭 · 이력 점 · 예약/BLOCK 층) · 탭/길게 눌러 끌기 선택 · 가격/최소숙박/차단을 하단 시트에서(데스크톱 패널 재사용).
+- 데스크톱과 공유하도록 뽑음: `scheduleOpsCalendarOpenRefresh` · `opsUrgentVacantCells`(+테스트) · `buildOpsScopeSummary`.
+- 남은 것(2단계): 이력 · 매출 요약 · 예약 상세 · 수기 예약 · 검색. (`33` → 「모바일 판매 캘린더」, `16`, `31`)
 
 ## 2026-10-01 (7) — Beds24 에서 바뀐 이력도 되돌리기
 
 - 변경 이력의 「Beds24」 줄(같은 시각에 감지된 묶음)에도 「되돌리기」 — 가격 · 최소숙박은 큐, 차단은 걸기/풀기 경로.
   그 뒤 다시 바뀐 칸은 건너뜀. 이전 값은 우리가 마지막으로 알던 값(중간 값 모름). (`33` → 「Beds24 에서 바뀐 것도 되돌린다」)
+
+## 2026-10-01 — 가입 초대코드 안내 「매니저」→「개발자」
+
+- 초대코드 화면 안내(`onboarding.joinFlow.inviteSubtitle` · `onboarding.inviteCodeHint`, ko/ja/en)의 코드 문의처를 로그인 화면과
+  같게 「개발자」로. 모바일 마법사 · PC 가입 화면 모두 적용.
 
 ## 2026-10-01 — 대시보드 전용 가입 화면(한 화면 폼)
 

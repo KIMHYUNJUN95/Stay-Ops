@@ -85,6 +85,16 @@ const mobileNavCalendar = {
   icon: CalendarCheck2,
 } as const satisfies NavigationItem;
 
+// 판매 캘린더(운영 관리자) — `ops_admin.access` 보유자에게만 보인다. 데스크톱 `/admin/ops/calendar` 의 모바일판.
+// See docs/product/33-calendar-write-features.md → 「모바일 판매 캘린더」.
+const mobileNavOpsCalendar = {
+  id: "ops-calendar",
+  label: localizedNavigationLabels.mobile.opsCalendar,
+  href: "/mobile/ops/calendar",
+  icon: CalendarCog,
+  capability: "ops_admin.access",
+} as const satisfies NavigationItem;
+
 const mobileNavCleaning = {
   id: "cleaning",
   label: localizedNavigationLabels.mobile.cleaning,
@@ -201,6 +211,13 @@ export const mobileSidebarNavigation = [
   },
 ] as const satisfies readonly NavigationItem[];
 
+/**
+ * 운영 관리자 메뉴(모바일) — **일반 메뉴와 섞지 않는다**(2026-10-01 사용자 지시). 데스크톱 사이드바가 「운영 관리자」
+ * 묶음을 맨 아래 따로 두는 것과 같다(`adminNavGroupOf` → `ops`). 사이드 메뉴 아래쪽에 제목을 단 별도 구역으로 그리고,
+ * 하단 탭 편집 후보(`customizableBottomNavItems`)에도 넣지 않는다. 권한이 없으면 구역째 사라진다.
+ */
+export const mobileOpsAdminNavigation = [mobileNavOpsCalendar] as const satisfies readonly NavigationItem[];
+
 // ── Per-user bottom-bar customization ────────────────────────────────────────
 // The center FAB opens an editor where each user picks which features sit in
 // their mobile bottom tab bar. The selectable pool is the mobile side menu, and
@@ -221,6 +238,15 @@ export const defaultBottomNavTabIds = [
 export const customizableBottomNavItems = mobileSidebarNavigation;
 
 /** Resolve stored bottom-nav ids into ordered navigation items (max enforced). */
+/**
+ * 이 사람에게 보이는 내비 항목인가 — `capability` 가 없으면 전원, 있으면 그 권한 키를 가진 사람만.
+ * UX 필터일 뿐이다(실제 차단은 페이지 · 서버 액션 · RLS).
+ */
+export function canSeeNavItem(item: object, capabilities: readonly string[] | null | undefined): boolean {
+  const capability = (item as { capability?: Capability }).capability;
+  return !capability || Boolean(capabilities?.includes(capability));
+}
+
 export function resolveBottomNavItems(
   ids: readonly string[] | null | undefined,
 ): NavigationItem[] {

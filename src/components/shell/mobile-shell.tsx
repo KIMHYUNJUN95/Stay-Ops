@@ -11,10 +11,12 @@ import { signOut } from "@/app/auth/actions";
 import { updateBottomNavTabs } from "@/app/account/actions";
 import {
   MAX_BOTTOM_NAV_TABS,
+  canSeeNavItem,
   customizableBottomNavItems,
   getNavigationLabel,
   getNavigationTabLabel,
   mobileNavBugs,
+  mobileOpsAdminNavigation,
   mobileSidebarNavigation,
   resolveBottomNavItems,
 } from "@/config/navigation";
@@ -28,7 +30,10 @@ const BugIcon = mobileNavBugs.icon;
 type MobileShellProps = {
   // Bug Report is not in the sidebar nav list (it lives in the footer next to Logout), but its
   // pages still mark themselves active — so allow its id alongside the sidebar ids.
-  activeItem?: (typeof mobileSidebarNavigation)[number]["id"] | typeof mobileNavBugs.id;
+  activeItem?:
+    | (typeof mobileSidebarNavigation)[number]["id"]
+    | (typeof mobileOpsAdminNavigation)[number]["id"]
+    | typeof mobileNavBugs.id;
   appearance?: "default" | "announcement" | "cleaning";
   children: React.ReactNode;
   title: string;
@@ -493,7 +498,59 @@ export function MobileShell({
   const dictionary = getDictionary(locale);
 
   // User-customized bottom tabs, split into left / right around the center FAB.
-  const bottomItems = resolveBottomNavItems(navTabIds);
+  // 권한이 붙은 항목은 권한이 없으면 하단 바에 고정돼 있어도 그리지 않는다(운영 관리자 메뉴는 애초에 후보가 아니다).
+  // 사이드 메뉴 한 줄 — 일반 메뉴와 운영 관리자 구역이 같은 모양을 쓴다.
+  const renderNavItem = (item: (typeof mobileSidebarNavigation)[number] | (typeof mobileOpsAdminNavigation)[number]) => {
+    const Icon = item.icon;
+    const isActive = item.id === activeItem;
+    const count = badges[item.id] ?? 0;
+
+    return (
+      <Link
+        key={item.id}
+        href={item.href}
+        onClick={closeSidebar}
+        aria-current={isActive ? "page" : undefined}
+        className="group relative flex h-[50px] items-center gap-[14px] px-2"
+      >
+        {isActive && (
+          <span
+            aria-hidden="true"
+            className="absolute -left-[22px] bottom-[13px] top-[13px] w-[3px] rounded-r-[3px] bg-primary"
+          />
+        )}
+        <Icon
+          aria-hidden="true"
+          className={cn(
+            "size-[22px] shrink-0 transition-colors",
+            isActive
+              ? "text-primary"
+              : "text-muted-foreground group-hover:text-foreground",
+          )}
+        />
+        <span
+          className={cn(
+            "flex-1 text-[15px] transition-colors",
+            isActive ? "font-bold text-primary" : "font-medium text-foreground",
+          )}
+        >
+          {getNavigationLabel(item, locale)}
+        </span>
+        {count > 0 && (
+          <span
+            className={cn(
+              "font-mono text-[12.5px] font-semibold tabular-nums",
+              isActive ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            {count > 99 ? "99+" : count}
+          </span>
+        )}
+      </Link>
+    );
+  };
+  const opsNavItems = mobileOpsAdminNavigation.filter((item) => canSeeNavItem(item, session.capabilities));
+  const bottomItems = resolveBottomNavItems(navTabIds).filter((item) => canSeeNavItem(item, session.capabilities));
   const splitAt = Math.ceil(bottomItems.length / 2);
   const leftTabs = bottomItems.slice(0, splitAt);
   const rightTabs = bottomItems.slice(splitAt);
@@ -635,56 +692,20 @@ export function MobileShell({
               {dictionary.common.menu}
             </p>
             <nav className="flex flex-col">
-              {mobileSidebarNavigation.map((item) => {
-                const Icon = item.icon;
-                const isActive = item.id === activeItem;
-                const count = badges[item.id] ?? 0;
-
-                return (
-                  <Link
-                    key={item.id}
-                    href={item.href}
-                    onClick={closeSidebar}
-                    aria-current={isActive ? "page" : undefined}
-                    className="group relative flex h-[50px] items-center gap-[14px] px-2"
-                  >
-                    {isActive && (
-                      <span
-                        aria-hidden="true"
-                        className="absolute -left-[22px] bottom-[13px] top-[13px] w-[3px] rounded-r-[3px] bg-primary"
-                      />
-                    )}
-                    <Icon
-                      aria-hidden="true"
-                      className={cn(
-                        "size-[22px] shrink-0 transition-colors",
-                        isActive
-                          ? "text-primary"
-                          : "text-muted-foreground group-hover:text-foreground",
-                      )}
-                    />
-                    <span
-                      className={cn(
-                        "flex-1 text-[15px] transition-colors",
-                        isActive ? "font-bold text-primary" : "font-medium text-foreground",
-                      )}
-                    >
-                      {getNavigationLabel(item, locale)}
-                    </span>
-                    {count > 0 && (
-                      <span
-                        className={cn(
-                          "font-mono text-[12.5px] font-semibold tabular-nums",
-                          isActive ? "text-primary" : "text-muted-foreground",
-                        )}
-                      >
-                        {count > 99 ? "99+" : count}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
+              {mobileSidebarNavigation.filter((item) => canSeeNavItem(item, session.capabilities)).map(renderNavItem)}
             </nav>
+            {/* 운영 관리자 — 일반 메뉴와 섞지 않고 아래에 따로 둔다(데스크톱 사이드바의 「운영 관리자」 묶음과 같다).
+                권한(`ops_admin.access`)이 없으면 구역째 안 보인다. */}
+            {opsNavItems.length > 0 && (
+              <>
+                <p className="mb-1.5 ml-1 mt-[18px] border-t border-border pt-[18px] text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                  {dictionary.admin.console.navGroupOpsAdmin}
+                </p>
+                <nav aria-label={dictionary.admin.console.navGroupOpsAdmin} className="flex flex-col">
+                  {opsNavItems.map(renderNavItem)}
+                </nav>
+              </>
+            )}
           </div>
 
           {/* Footer — hairline top, transparent buttons. Account (flex) + Bug Report + Logout. */}
@@ -901,7 +922,7 @@ export function MobileShell({
             >
               <div className="add-sheet__scroll">
                 <div className="add-grid">
-                  {customizableBottomNavItems.map((item) => {
+                  {customizableBottomNavItems.filter((item) => canSeeNavItem(item, session.capabilities)).map((item) => {
                     const meta = LAUNCHER_META[item.id];
                     const selected = navTabIds.includes(item.id);
                     const disabled = !selected && isBarFull;
