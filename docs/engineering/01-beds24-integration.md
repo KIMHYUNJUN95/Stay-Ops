@@ -158,8 +158,13 @@ StayOps UI는 Beds24를 실시간 조회하지 않고, 수집한 `external_revie
   (2) 2026-07-22에 Vercel cron이 며칠간 아예 발화하지 않아 예약 5일치가 조용히 누락된 전례가 있다
   (`.github/workflows/beds24-reconcile.yml`, `docs/planning/01-decision-log.md`). 그래서 새 정기 작업은
   처음부터 외부 트리거로 건다. 수동 실행은 GitHub Actions의 `workflow_dispatch`(전량 수집은 `full` 입력)
-  또는 아래 curl. 초기 도입이나 누락 복구는 `?full=1`로 Booking.com을 730일까지 다시 훑는다.
-  UPSERT라 반복 실행은 무해하다.
+  또는 아래 curl. 초기 도입이나 누락 복구는 `?full=1`로 Booking.com을 **180일**까지 다시 훑는다
+  (`FULL_SINCE_DAYS` — 이전 문서의 730일은 옛 값). UPSERT라 반복 실행은 무해하다.
+- **실제 실행은 8:05 보다 늦다** — GitHub 예약 실행은 부하에 따라 밀린다(2026-10-01 실측 10:58).
+- **화면의 「지금 가져오기」 (2026-10-02)**: 게스트 피드백 → 외부 리뷰(대시보드 · 모바일)에서 누른 시점 기준으로
+  같은 함수 · 같은 창(Booking.com 30일)을 돌린다. 계약은 `docs/product/25-complaint-workflow.md` →
+  「지금 가져오기 (수동 수집)」. 정기 수집도 조직이 끝나면 `reviews_sync_done:<조직>` 을 남긴다(「마지막 수집」 ·
+  10분 잠금에 포함).
 - 두 시크릿이 모두 미설정이면 프로덕션 엔드포인트는 404(닫힘), 시크릿이 틀리면 403이다.
 - `BEDS24_SYNC_PAUSED`가 켜져 있으면 인증 이전에 아무 호출도 하지 않고 `202 {ok:true, paused:true}`.
 - 조직 단위로 격리해 실행한다. 한 조직이 실패해도 나머지는 계속 처리하고 실패는 응답 `failures[]`에 모인다

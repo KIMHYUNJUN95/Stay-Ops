@@ -12,6 +12,8 @@ import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getDictionary } from "@/lib/i18n";
+import { getReviewSyncStatus } from "@/lib/beds24/reviews-sync-manual";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { listComplaints, canWriteComplaint, canModerateComplaints } from "@/lib/complaints";
 import {
   listExternalReviewPage,
@@ -145,7 +147,8 @@ export default async function MobileComplaintsPage({ searchParams }: PageProps) 
 
     // 카운트 줄의 «문제 N» 은 현재 필터 안의 위험 건수다. `문제만` 이 켜져 있으면 전체가 곧
     // 문제 건수라 추가 질의를 하지 않는다.
-    const [{ rows, total }, riskPage] = await Promise.all([
+    const canSync = canWriteComplaint(session.user.role);
+    const [{ rows, total }, riskPage, reviewSync] = await Promise.all([
       listExternalReviewPage({ session, filter, page, pageSize: REVIEW_PAGE_SIZE }),
       riskOnly
         ? Promise.resolve(null)
@@ -155,6 +158,8 @@ export default async function MobileComplaintsPage({ searchParams }: PageProps) 
             page: 1,
             pageSize: 1,
           }),
+      // 「지금 가져오기」 — 작성 권한자에게만(서버 액션이 같은 권한을 다시 본다).
+      canSync ? getReviewSyncStatus(getSupabaseServiceClient(), session.organization.id) : Promise.resolve(null),
     ]);
 
     return (
@@ -171,6 +176,7 @@ export default async function MobileComplaintsPage({ searchParams }: PageProps) 
           from={from}
           to={to}
           rangeDays={rangeDays}
+          reviewSync={reviewSync}
         />
       </MobileShell>
     );

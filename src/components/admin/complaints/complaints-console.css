@@ -825,3 +825,21 @@
 :lang(ja) .adm .cxtbl th.cxgrp {
   letter-spacing: 0;
 }
+
+/* ── 외부 리뷰 「지금 가져오기」 (2026-10-02) — 공용 chipbtn + 상태 한 줄. 뷰 바 오른쪽 끝에 붙는다. ── */
+.adm .cxsync {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.adm .cxsync__s {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--adm-muted);
+  white-space: nowrap;
+}
+.adm .cxsync__s.is-bad { color: var(--danger); }
+.adm .cxsync__spin { animation: cxsync-spin 0.9s linear infinite; }
+@keyframes cxsync-spin { to { transform: rotate(360deg); } }

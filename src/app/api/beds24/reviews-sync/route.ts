@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { syncOrganizationReviews } from "@/lib/beds24/reviews-sync";
 import { isBeds24SyncPaused } from "@/lib/beds24/sync-control";
+import { recordReviewSyncDone } from "@/lib/beds24/reviews-sync-manual";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
 // Production collection trigger for Beds24 external reviews (Airbnb / Booking.com).
@@ -11,8 +12,10 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 // (Booking-linked properties) requests plus pagination. That is why the routine schedule is
 // once a day with a 30-day window, and the deep sweep is opt-in via `?full=1`.
 //
-// Driven by Vercel Cron (see vercel.json). Can also be triggered manually with the Beds24
-// webhook secret. Collection is a pure upsert on (organization_id, provider,
+// Driven once a day by GitHub Actions (.github/workflows/beds24-reviews-sync.yml — not Vercel Cron).
+// Can also be triggered manually with the Beds24 webhook secret. Staff can collect on demand from
+// the 외부 리뷰 screen («지금 가져오기», src/app/mobile/complaints/review-sync-actions.ts), which runs
+// the same function and window. Collection is a pure upsert on (organization_id, provider,
 // external_review_id), so re-running is harmless.
 
 export const dynamic = "force-dynamic";
@@ -32,7 +35,7 @@ export const maxDuration = 60;
 const DEFAULT_TARGET_LIMIT = 12;
 const MAX_TARGET_LIMIT = 40;
 
-/** 정기 실행 창. 하루 2회 주기라 짧게 잡아 페이지네이션을 줄인다. */
+/** 정기 실행 창. 하루 1회 주기(08:05 도쿄, GitHub Actions)라 짧게 잡아 페이지네이션을 줄인다. */
 // Booking.com 전용 창(Airbnb는 `from`이 없어 항상 전량이 온다). 30일인 이유: 리뷰는 체크아웃
 // 며칠 뒤에 달리고 `last_change_timestamp`가 있는 걸 보면 수정도 되므로, 7일 창은 늦게 달린
 // 리뷰를 놓칠 수 있다. UPSERT라 겹쳐 받아도 무해하다.
@@ -177,6 +180,16 @@ async function handle(request: NextRequest) {
       },
       { status: 207 },
     );
+  }
+
+  // 이 조직을 끝까지 돌았다 — 「지금 가져오기」 버튼의 「마지막 수집」 · 10분 잠금에 정기 수집도 넣는다
+  // (`reviews-sync-manual.ts`). 크레딧이 바닥나 멈춘 경우는 끝난 것이 아니다.
+  if (result.nextOffset === null && !result.stoppedEarly) {
+    await recordReviewSyncDone(getSupabaseServiceClient(), {
+      by: "schedule",
+      organizationId: currentOrganizationId,
+      upserted: result.upserted,
+    });
   }
 
   // 이 조직에 남은 조각이 있으면 같은 조직을 이어서, 없으면 다음 조직의 0번부터.

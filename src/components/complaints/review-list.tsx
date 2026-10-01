@@ -1,6 +1,9 @@
 import Link from "next/link";
 import "./complaints.css";
 import { CIc, CxIcon } from "./cx-icons";
+import { ReviewSyncButton } from "./review-sync-button";
+import type { ReviewSyncStatus } from "@/lib/beds24/reviews-sync-manual";
+import { reviewSyncLabels } from "@/lib/review-sync-labels";
 import { PLATFORMS } from "./cx-platform";
 import { ReviewRangeChip } from "./review-range-chip";
 import { getDictionary, type Locale } from "@/lib/i18n";
@@ -39,6 +42,8 @@ type Props = {
   from: string | null;
   to: string | null;
   rangeDays: number | null;
+  /** 「지금 가져오기」 상태. 작성 권한이 없으면 `null`(그리지 않는다). */
+  reviewSync?: ReviewSyncStatus | null;
 };
 
 /**
@@ -66,6 +71,7 @@ export function ReviewList({
   from,
   to,
   rangeDays,
+  reviewSync = null,
 }: Props) {
   const dict = getDictionary(locale);
   const t = dict.complaints;
@@ -143,6 +149,18 @@ export function ReviewList({
           }}
         />
       </div>
+
+      {/* ── 「지금 가져오기」 — 정기 수집(하루 1회)을 기다리지 않고 누른 시점 기준으로 받는다(2026-10-02) ── */}
+      {reviewSync ? (
+        <ReviewSyncButton
+          availableAt={reviewSync.availableAt}
+          labels={reviewSyncLabels(t)}
+          lastSyncedAt={reviewSync.lastSyncedAt}
+          localeTag={locale === "ja" ? "ja-JP" : locale === "en" ? "en-US" : "ko-KR"}
+          running={reviewSync.running}
+          variant="mobile"
+        />
+      ) : null}
 
       {/* ── 카운트 줄 + 문제만 토글 (세 번째 컨트롤 바를 만들지 않기 위해 여기에 얹었다) ── */}
       <div className="cx-countrow">

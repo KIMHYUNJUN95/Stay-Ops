@@ -19,6 +19,14 @@ and the major mobile/admin operations modules are implemented and being hardened
 - `/mobile/ops/calendar?resv=<예약 id>` 로 들어오면 그 예약 상세 시트가 열린다(`loadOpsReservationPlacement`,
   데스크톱과 같은 방식 · 주소에서 `resv` 는 바로 뗀다). (`33`, `31`)
 
+## 2026-10-02 — 외부 리뷰 「지금 가져오기」
+
+- 게스트 피드백 → 외부 리뷰(대시보드 · 모바일)에 **「지금 가져오기」** — 누른 시점 기준으로 정기 수집과 같은 범위
+  (Booking.com 30일 · Airbnb 객실당 50건)를 가져온다. 조각을 화면이 이어 부르며 진행률 표시, 끝나면 목록 갱신.
+  컴플레인 작성 권한자만. 동시 실행 1회 · 끝난 뒤 10분 잠금(아침 정기 수집 포함) · Beds24 쿨다운/일시정지 존중.
+  상태는 `beds24_sync_locks`(`reviews_sync_run:` · `reviews_sync_done:`) — 마이그레이션 없음. (`25`, `01`)
+- 리뷰 수집 문서 · 워크플로 주석의 옛 값 정리(전량 수집 730일/2년 → 180일, 「하루 2회」 → 1회).
+
 ## 2026-10-02 — 게스트 피드백 첫 화면 = 외부 리뷰
 
 - `/admin/complaints` · `/mobile/complaints` 에 `?view=` 없이 들어오면 **외부 리뷰**가 먼저 보인다(예전 기본: 대시보드

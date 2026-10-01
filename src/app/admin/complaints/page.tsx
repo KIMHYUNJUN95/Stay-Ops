@@ -19,6 +19,9 @@ import {
   type ReviewListFilter,
 } from "@/lib/external-reviews";
 import { getStoredTranslations, type TranslationPart } from "@/lib/review-translate";
+import { getReviewSyncStatus } from "@/lib/beds24/reviews-sync-manual";
+import { reviewSyncLabels } from "@/lib/review-sync-labels";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { requireAdminPageSession } from "@/lib/admin-page-auth";
 import { getDictionary } from "@/lib/i18n";
 
@@ -84,7 +87,7 @@ export default async function AdminComplaintsPage({
   // 등록 패널의 선택지는 작성 권한자에게만 필요하다 — 권한이 없으면 두 쿼리를 아예 돌리지 않는다.
   const canWrite = canWriteComplaint(session.user.role);
 
-  const [complaints, reviews, summaries, createReservations, createPlaces] = await Promise.all([
+  const [complaints, reviews, summaries, createReservations, createPlaces, reviewSync] = await Promise.all([
     listComplaints({ session }),
     listExternalReviews({ session, filter }),
     summarizeReviewsByPlace({ session, from, to, locale: session.user.preferredLanguage }),
@@ -94,6 +97,8 @@ export default async function AdminComplaintsPage({
     canWrite
       ? listComplaintPickerPlaces(session.organization.id, session.user.preferredLanguage)
       : Promise.resolve([]),
+    // 「지금 가져오기」 — 작성 권한자에게만 보인다(서버 액션이 같은 권한을 다시 본다).
+    canWrite ? getReviewSyncStatus(getSupabaseServiceClient(), session.organization.id) : Promise.resolve(null),
   ]);
 
   // 상세 패널은 ?review=<id> 쿼리로만 연다 — 콘솔의 나머지 상태와 같은 서버 렌더 한 번으로 끝난다.
@@ -142,6 +147,7 @@ export default async function AdminComplaintsPage({
         showTranslation={showTranslation}
         translations={translations}
         canConvert={canWrite}
+        reviewSync={reviewSync ? { ...reviewSync, labels: reviewSyncLabels(dictionary.complaints) } : null}
         panelLabels={{
           building: dictionary.complaints.metaBuilding,
           room: dictionary.complaints.metaRoom,

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AlertTriangle, Inbox, MessageSquareWarning, Star, ThumbsDown, ThumbsUp, Unlink } from "lucide-react";
 import { DateRangeFormField } from "@/components/admin/shared/date-range-form-field";
+import { ReviewSyncButton, type ReviewSyncButtonLabels } from "@/components/complaints/review-sync-button";
+import type { ReviewSyncStatus } from "@/lib/beds24/reviews-sync-manual";
 import { ReviewDetailPanel, type ReviewPanelLabels } from "@/components/admin/complaints/review-detail-panel";
 import { ReviewDetailOverlay } from "@/components/admin/complaints/review-detail-overlay";
 import { ManualComplaintList } from "@/components/admin/complaints/manual-complaint-list";
@@ -57,6 +59,8 @@ type Props = {
   translations: Partial<Record<TranslationPart, string>>;
   canConvert: boolean;
   panelLabels: ReviewPanelLabels;
+  /** 「지금 가져오기」 상태 + 문구. 작성 권한이 없으면 `null`(버튼을 그리지 않는다). */
+  reviewSync: (ReviewSyncStatus & { labels: ReviewSyncButtonLabels }) | null;
 };
 
 const LOCALE_TAG: Record<Locale, string> = { ko: "ko-KR", ja: "ja-JP", en: "en-US" };
@@ -179,6 +183,7 @@ export function ComplaintsConsole({
   translations,
   canConvert,
   panelLabels,
+  reviewSync,
 }: Props) {
   const openComplaints = complaints.filter((complaint) => complaint.status === "open").length;
   const riskReviews = reviews.filter((review) => review.riskLevel === "risk");
@@ -360,6 +365,16 @@ export function ComplaintsConsole({
                 {copy.riskOnly}
               </Link>
             </div>
+            {reviewSync ? (
+              <ReviewSyncButton
+                availableAt={reviewSync.availableAt}
+                labels={reviewSync.labels}
+                lastSyncedAt={reviewSync.lastSyncedAt}
+                localeTag={LOCALE_TAG[locale]}
+                running={reviewSync.running}
+                variant="admin"
+              />
+            ) : null}
           </>
         ) : null}
       </div>

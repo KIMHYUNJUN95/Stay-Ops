@@ -6,9 +6,8 @@ name: Beds24 external review sync
 #
 # 1. Plan limits. This project runs on Vercel's free Hobby plan, which allows at
 #    most 2 cron jobs and only once-per-day schedules. vercel.json already spends
-#    both slots (reconcile + task reminders), and review collection is specified
-#    as *twice* daily (docs/product/25-complaint-workflow.md → "수집 주기"), which
-#    a Hobby cron cannot express at all.
+#    both slots (reconcile + task reminders). Collection runs once a day (below);
+#    staff can also collect on demand from the 외부 리뷰 screen («지금 가져오기»).
 #
 # 2. Vercel cron proved unreliable here. On 2026-07-22 both Vercel crons had not
 #    fired for days — a platform/plan-side scheduling failure, not a code problem —
@@ -38,7 +37,7 @@ on:
   workflow_dispatch:
     inputs:
       full:
-        description: "Deep sweep (Booking.com back to ~2 years) instead of the rolling 30-day window"
+        description: "Deep sweep (Booking.com back 180 days) instead of the rolling 30-day window"
         type: boolean
         default: false
 
