@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 — 게스트 피드백 첫 화면 = 외부 리뷰
+
+- `/admin/complaints` · `/mobile/complaints` 에 `?view=` 없이 들어오면 **외부 리뷰**가 먼저 보인다(예전 기본: 대시보드
+  문제 객실 · 모바일 수동 컴플레인). 탭은 원래부터 `view` 를 명시한다. (`25`)
+
 ## 2026-10-01 (9) — 근태 · 캘린더 점검에서 확인된 버그 3건
 
 - **정정 요청 자정 넘김**: 희망 퇴근이 출근보다 앞서면 다음 날로(야간 근무). 관리자 수동 수정과 같은 함수

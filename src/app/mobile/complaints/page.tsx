@@ -88,8 +88,9 @@ export default async function MobileComplaintsPage({ searchParams }: PageProps) 
     redirect("/mobile/unavailable");
   }
 
+  // 들어오면 **외부 리뷰**가 먼저 보인다(2026-10-01 사용자 요청 — 대시보드와 같다). 다른 뷰는 탭(`?view=`)으로.
   const view =
-    params.view === "reviews" || params.view === "rooms" ? params.view : "manual";
+    params.view === "manual" || params.view === "rooms" ? params.view : "reviews";
   const locale = session.user.preferredLanguage;
   const dict = getDictionary(locale);
   const navBadges = await getMobileNavBadges();

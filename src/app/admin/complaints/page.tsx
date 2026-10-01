@@ -64,10 +64,11 @@ export default async function AdminComplaintsPage({
   const from = params.from?.trim() || fallback.from;
   const to = params.to?.trim() || fallback.to;
 
+  // 들어오면 **외부 리뷰**가 먼저 보인다(2026-10-01 사용자 요청 — 모바일과 같다). 다른 뷰는 탭(`?view=`)으로.
   const view =
     params.view === "manual" || params.view === "reviews" || params.view === "rooms"
       ? params.view
-      : "rooms";
+      : "reviews";
 
   const filter: ReviewListFilter = {
     from,
