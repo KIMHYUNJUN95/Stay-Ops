@@ -23,7 +23,7 @@ import {
   type ManualBookingError,
   type ManualBookingInput,
 } from "@/lib/ops-manual-booking";
-import { resolveOpsRowRoomKey } from "@/lib/ops-room-key";
+import { opsUnitRoomKey, resolveOpsRowRoomKey } from "@/lib/ops-room-key";
 import { toJstDateString } from "@/lib/admin-calendar-dashboard";
 import {
   clearRoomBlock,
@@ -1235,12 +1235,151 @@ export async function loadOpsSendLog(args: { before?: string | null }): Promise<
  * 그 사이 누가 다른 값을 넣었을 수도 있다. 다시 하려면 캘린더에서 새로 고친다.
  */
 
+export type RevertError =
+  | "forbidden"
+  | "not_found"
+  | "not_revertible"
+  | "nothing_to_revert"
+  | "no_cells"
+  | "invalid_values"
+  | "no_writable_room"
+  | "enqueue_failed"
+  | "block_failed";
+
 export type RevertPriceJobResult =
-  | { ok: true; jobId: string; cells: number; skippedChanged: number }
-  | {
-      ok: false;
-      error: "forbidden" | "not_found" | "not_revertible" | "nothing_to_revert" | "no_cells" | "invalid_values" | "no_writable_room" | "enqueue_failed";
-    };
+  | { ok: true; cells: number; skippedChanged: number }
+  | { ok: false; error: RevertError };
+
+type RevertLogRow = {
+  room_id: string | null;
+  room_label: string | null;
+  stay_date: string;
+  old_value: number | null;
+  new_value: number | null;
+};
+
+type RevertSession = NonNullable<Awaited<ReturnType<typeof requireOpsWriter>>>;
+
+/**
+ * 한 필드의 칸 이력을 **이전 값으로** 되돌린다 — 가격 · 최소숙박은 큐(`adjust_mode = 'revert'`), 차단은 차단
+ * 걸기/풀기 경로. 「그 뒤에 다시 바뀐 칸은 건너뛴다」는 지금 값(`room_daily_rates`)과 대조한다(`planRevertCells`).
+ */
+async function revertLogsOfField(
+  session: RevertSession,
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  field: RevertField,
+  logs: readonly RevertLogRow[],
+): Promise<{ ok: true; cells: number; skippedChanged: number } | { ok: false; error: RevertError }> {
+  const roomIds = [...new Set(logs.map((log) => log.room_id).filter((id): id is string => !!id))];
+  const dates = [...new Set(logs.map((log) => log.stay_date))];
+  if (roomIds.length === 0) return { cells: 0, ok: true, skippedChanged: 0 };
+
+  const ratesResult = await supabase
+    .from("room_daily_rates")
+    .select("room_id, stay_date, price1, min_stay, override_kind")
+    .eq("organization_id", session.organization.id)
+    .in("room_id", roomIds)
+    .in("stay_date", dates);
+  if (ratesResult.error) return { error: "not_found", ok: false };
+  const current = new Map<string, number | null>();
+  for (const row of (ratesResult.data ?? []) as Array<{
+    room_id: string;
+    stay_date: string;
+    price1: number | null;
+    min_stay: number | null;
+    override_kind: string | null;
+  }>) {
+    const value =
+      field === "price1"
+        ? row.price1
+        : field === "min_stay"
+          ? row.min_stay
+          : (row.override_kind ?? "").toLowerCase() === "blackout"
+            ? 1
+            : 0;
+    current.set(`${row.room_id}|${row.stay_date}`, value);
+  }
+
+  const plan = planRevertCells({ current, field, logs });
+  if (plan.cells.length === 0) return { cells: 0, ok: true, skippedChanged: plan.skippedChanged };
+
+  if (field === "blackout") {
+    // 차단은 큐가 아니라 걸기/풀기 경로 — **바뀐 그 유닛만** 다시 막거나 연다. 행 키는 서버가 계산한다.
+    const unitsResult = await supabase
+      .from("rooms")
+      .select("id, room_label, properties(name)")
+      .eq("organization_id", session.organization.id)
+      .in("id", [...new Set(plan.cells.map((cell) => cell.roomId))]);
+    if (unitsResult.error) return { error: "not_found", ok: false };
+    const keyById = new Map<string, { roomKey: string; label: string }>();
+    for (const unit of (unitsResult.data ?? []) as Array<{
+      id: string;
+      room_label: string;
+      properties: { name: string } | { name: string }[] | null;
+    }>) {
+      const property = Array.isArray(unit.properties) ? unit.properties[0] : unit.properties;
+      const roomKey = opsUnitRoomKey({ propertyName: property?.name, roomLabel: unit.room_label });
+      if (roomKey) keyById.set(unit.id, { label: unit.room_label, roomKey });
+    }
+    for (const target of [0, 1] as const) {
+      const cells: BlockChangeCell[] = plan.cells
+        .filter((cell) => cell.value === target && keyById.has(cell.roomId))
+        .map((cell) => ({
+          date: cell.stayDate,
+          roomIds: [cell.roomId],
+          roomKey: keyById.get(cell.roomId)!.roomKey,
+          roomLabel: keyById.get(cell.roomId)!.label,
+        }));
+      if (cells.length === 0) continue;
+      // 같은 행에 바뀐 유닛이 둘이면 둘 다 — 차단 경로는 행마다 유닛 목록 하나를 쓴다.
+      const unitsByKey = new Map<string, Set<string>>();
+      for (const cell of cells) {
+        const set = unitsByKey.get(cell.roomKey) ?? new Set<string>();
+        cell.roomIds.forEach((id) => set.add(id));
+        unitsByKey.set(cell.roomKey, set);
+      }
+      for (const cell of cells) cell.roomIds = [...(unitsByKey.get(cell.roomKey) ?? [])];
+      // 이전이 열림(0)이면 푼다, 막힘(1)이면 다시 건다.
+      const result = await runBlockChange({ cells }, target === 0 ? "unblock" : "block");
+      if (!result.ok) return { error: "block_failed", ok: false };
+    }
+    return { cells: plan.cells.length, ok: true, skippedChanged: plan.skippedChanged };
+  }
+
+  const queued = await enqueueBeds24PriceJob({
+    adjustMode: "revert",
+    cells: plan.cells.map(
+      (cell): PriceJobCellRequest => ({
+        roomIds: [cell.roomId],
+        roomLabel: cell.roomLabel,
+        stayDate: cell.stayDate,
+        values: field === "price1" ? { p1: cell.value } : { m: cell.value },
+      }),
+    ),
+    jobType: field === "price1" ? "price" : "min_stay",
+    organizationId: session.organization.id,
+    requestedBy: session.user.id,
+    requestedByName: session.user.name,
+    supabase,
+  });
+  if (!queued.ok) return { error: queued.error, ok: false };
+  after(kickWorker);
+  return { cells: plan.cells.length, ok: true, skippedChanged: plan.skippedChanged };
+}
+
+/** 필드별 결과를 하나로 — 하나라도 실패하면 실패, 아무 칸도 없으면 「되돌릴 것 없음」. */
+function mergeRevertResults(
+  results: Array<{ ok: true; cells: number; skippedChanged: number } | { ok: false; error: RevertError }>,
+): RevertPriceJobResult {
+  let cells = 0;
+  let skippedChanged = 0;
+  for (const result of results) {
+    if (!result.ok) return result;
+    cells += result.cells;
+    skippedChanged += result.skippedChanged;
+  }
+  return cells === 0 ? { error: "nothing_to_revert", ok: false } : { cells, ok: true, skippedChanged };
+}
 
 /**
  * 가격·최소숙박 수정 **되돌리기** (2026-10-01, 새 기능 — 저쪽에는 없다).
@@ -1248,12 +1387,7 @@ export type RevertPriceJobResult =
  * 도메인 계약: `docs/product/33-calendar-write-features.md` → 「수정 되돌리기」
  *
  * 그 작업이 남긴 칸 이력(`price_change_logs`, `job_id`)의 **이전 값**을 새 작업으로 다시 보낸다 — 같은 큐 ·
- * 같은 되읽기 검증을 탄다(`adjust_mode = 'revert'`). 안전장치:
- *
- * - **그 뒤에 다시 바뀐 칸은 건너뛴다.** 지금 값이 그 작업이 쓴 값과 다르면(다른 사람 · Beds24 에서 고침)
- *   되돌리면 더 새 값을 지운다. 몇 칸 건너뛰었는지 돌려준다.
- * - 이전 값이 없던 칸(처음 생긴 값)은 보내지 않는다 — 「없음」으로 되돌릴 수 없다.
- * - 우리 앱 작업만(Beds24 에서 바뀐 것 · 차단은 아니다). 차단은 「차단 해제」가 같은 일을 한다.
+ * 같은 되읽기 검증을 탄다(`adjust_mode = 'revert'`). **그 뒤에 다시 바뀐 칸은 건너뛴다.** 끝난 작업만.
  */
 export async function revertPriceJob(args: { jobId: string }): Promise<RevertPriceJobResult> {
   const session = await requireOpsWriter();
@@ -1281,57 +1415,42 @@ export async function revertPriceJob(args: { jobId: string }): Promise<RevertPri
     .eq("field", field)
     .limit(5000);
   if (logsResult.error) return { error: "not_found", ok: false };
-  const logs = (logsResult.data ?? []) as Array<{
-    room_id: string | null;
-    room_label: string | null;
-    stay_date: string;
-    old_value: number | null;
-    new_value: number | null;
-  }>;
-  // 지금 값과 대조할 칸만 읽는다.
-  const roomIds = [...new Set(logs.map((log) => log.room_id).filter((id): id is string => !!id))];
-  const dates = [...new Set(logs.map((log) => log.stay_date))];
-  if (roomIds.length === 0) return { error: "nothing_to_revert", ok: false };
-  const ratesResult = await supabase
-    .from("room_daily_rates")
-    .select("room_id, stay_date, price1, min_stay")
+  return mergeRevertResults([
+    await revertLogsOfField(session, supabase, field, (logsResult.data ?? []) as RevertLogRow[]),
+  ]);
+}
+
+/**
+ * **Beds24 에서 바뀐 것** 되돌리기 (2026-10-01, 사용자 요청).
+ *
+ * Beds24 변경 이력은 동기화가 「우리가 알던 값 → 새 값」으로 감지한 것이라 작업 번호가 없다 — **같은 시각에 감지된
+ * 묶음**(`adjust_mode = 'beds24'`, `created_at`)이 한 줄이다. 가격 · 최소숙박 · 차단을 각각 이전 값으로 돌린다.
+ * 이전 값은 **우리가 마지막으로 읽었던 값**이다 — 그 사이 Beds24 에서 여러 번 고쳤다면 중간 값은 모른다.
+ */
+export async function revertBeds24Change(args: { at: string }): Promise<RevertPriceJobResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+  if (Number.isNaN(Date.parse(args.at))) return { error: "not_found", ok: false };
+  const supabase = getSupabaseServiceClient();
+
+  const logsResult = await supabase
+    .from("price_change_logs")
+    .select("room_id, room_label, stay_date, field, old_value, new_value")
     .eq("organization_id", session.organization.id)
-    .in("room_id", roomIds)
-    .in("stay_date", dates);
-  if (ratesResult.error) return { error: "not_found", ok: false };
-  const current = new Map<string, number | null>();
-  for (const row of (ratesResult.data ?? []) as Array<{
-    room_id: string;
-    stay_date: string;
-    price1: number | null;
-    min_stay: number | null;
-  }>) {
-    current.set(`${row.room_id}|${row.stay_date}`, field === "price1" ? row.price1 : row.min_stay);
+    .eq("adjust_mode", "beds24")
+    .eq("created_at", args.at)
+    .in("field", ["price1", "min_stay", "blackout"])
+    .limit(5000);
+  if (logsResult.error) return { error: "not_found", ok: false };
+  const rows = (logsResult.data ?? []) as Array<RevertLogRow & { field: string }>;
+  if (rows.length === 0) return { error: "not_found", ok: false };
+
+  const results = [];
+  for (const field of ["price1", "min_stay", "blackout"] as const) {
+    const logs = rows.filter((row) => row.field === field);
+    if (logs.length > 0) results.push(await revertLogsOfField(session, supabase, field, logs));
   }
-
-  // 「그 뒤에 다시 바뀐 칸은 건너뛴다」 등 판정은 순수 함수에(`ops-revert.ts`, 테스트).
-  const plan = planRevertCells({ current, field, logs });
-  const skippedChanged = plan.skippedChanged;
-  const cells: PriceJobCellRequest[] = plan.cells.map((cell) => ({
-    roomIds: [cell.roomId],
-    roomLabel: cell.roomLabel,
-    stayDate: cell.stayDate,
-    values: field === "price1" ? { p1: cell.value } : { m: cell.value },
-  }));
-  if (cells.length === 0) return { error: "nothing_to_revert", ok: false };
-
-  const queued = await enqueueBeds24PriceJob({
-    adjustMode: "revert",
-    cells,
-    jobType: job.job_type,
-    organizationId: session.organization.id,
-    requestedBy: session.user.id,
-    requestedByName: session.user.name,
-    supabase,
-  });
-  if (!queued.ok) return { error: queued.error, ok: false };
-  after(kickWorker);
-  return { cells: cells.length, jobId: queued.jobId, ok: true, skippedChanged };
+  return mergeRevertResults(results);
 }
 
 export type SendPendingResult = {

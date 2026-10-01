@@ -56,4 +56,14 @@ describe("planRevertCells — 되돌리기 계획", () => {
     });
     expect(result.cells).toHaveLength(1);
   });
+
+  it("차단은 0/1 로 되돌린다 — 지금도 막혀 있어야(1) 연다", () => {
+    const result = planRevertCells({
+      current: new Map([["a|2026-10-05", 1], ["a|2026-10-06", 0]]),
+      field: "blackout",
+      logs: [log("a", "2026-10-05", 0, 1), log("a", "2026-10-06", 0, 1)],
+    });
+    expect(result.cells.map((cell) => [cell.stayDate, cell.value])).toEqual([["2026-10-05", 0]]);
+    expect(result.skippedChanged).toBe(1);
+  });
 });

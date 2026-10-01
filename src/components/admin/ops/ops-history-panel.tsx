@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   loadOpsChangeHistory,
   loadOpsSendLog,
+  revertBeds24Change,
   revertPriceJob,
   sendPendingPriceJobs,
 } from "@/app/admin/ops/calendar/actions";
@@ -57,6 +58,7 @@ export type HistoryPanelCopy = {
   hsShowCells: string;
   hsRevert: string;
   hsRevertAsk: string;
+  hsRevertAskBeds24: string;
   hsRevertConfirm: string;
   hsRevertDone: string;
   hsRevertSkipped: string;
@@ -148,10 +150,11 @@ const kindOf = (field: ChangeField, copy: HistoryPanelCopy) =>
  * 펼친 칸 표 — 방(번호순)마다, 이어진 날짜가 같은 값이면 한 줄(`collapseCellRuns`).
  * 건물이 하나뿐인 수정이면 건물 이름을 줄마다 되풀이하지 않는다(머리 줄에 이미 있다).
  */
-/** 되돌릴 수 있는 줄 — 우리 앱의 **큐 작업**(id 가 작업 uuid)이고 가격·최소숙박만. 차단·Beds24 변경은 아니다. */
+/** 되돌릴 수 있는 줄 — 우리 앱의 **큐 작업**(가격·최소숙박) 또는 **Beds24 에서 바뀐 묶음**. 앱 차단은 「차단 해제」가 한다. */
 function isRevertibleGroup(group: ChangeGroup) {
+  // Beds24 에서 바뀐 묶음(`beds24:<시각>`)도 된다 — 가격 · 최소숙박 · 차단 전부(2026-10-01 사용자 요청).
+  if (group.source === "beds24") return group.id.startsWith("beds24:");
   return (
-    group.source === "app" &&
     /^[0-9a-f-]{36}$/i.test(group.id) &&
     group.fields.some((summary) => summary.field === "price" || summary.field === "minStay")
   );
@@ -322,7 +325,9 @@ export function OpsHistoryPanel({ copy, onClose }: { copy: HistoryPanelCopy; onC
   // 되돌리기 — 서버가 「그 뒤에 다시 바뀐 칸」을 걸러 낸다. 결과는 그 줄에 남기고 전송 로그를 다시 읽는다.
   const runRevert = async (jobId: string) => {
     setReverts((previous) => ({ ...previous, [jobId]: "pending" }));
-    const result = await revertPriceJob({ jobId });
+    const result = jobId.startsWith("beds24:")
+      ? await revertBeds24Change({ at: jobId.slice("beds24:".length) })
+      : await revertPriceJob({ jobId });
     let next: { text: string; tone: "ok" | "warn" };
     if (result.ok) {
       const done = copy.hsRevertDone.replace("{n}", String(result.cells));
@@ -429,7 +434,9 @@ export function OpsHistoryPanel({ copy, onClose }: { copy: HistoryPanelCopy; onC
                         <div className="opshs__revert">
                           {reverts[group.id] === "ask" ? (
                             <>
-                              <span className="opshs__revertAsk">{copy.hsRevertAsk}</span>
+                              <span className="opshs__revertAsk">
+                                {group.source === "beds24" ? copy.hsRevertAskBeds24 : copy.hsRevertAsk}
+                              </span>
                               <span className="opshs__revertBtns">
                                 <button
                                   className="opshs__revertBtn"

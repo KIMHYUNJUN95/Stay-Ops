@@ -8,9 +8,10 @@
  *   지운다.
  * - 이전 값이 없거나 이전 = 이후인 칸은 보내지 않는다.
  * - 최소숙박은 판매 중 값(1~49)으로만 되돌린다 — 50+ 는 유닛을 닫는 값이다. 가격은 0 보다 커야 한다.
+ * - 차단(`blackout`)은 1 = 막힘 · 0 = 열림. 지금 값도 같은 0/1 로 넘긴다.
  * - 같은 (유닛, 날짜)가 여러 번 나오면 첫 줄만 쓴다.
  */
-export type RevertField = "price1" | "min_stay";
+export type RevertField = "price1" | "min_stay" | "blackout";
 
 export type RevertLog = {
   room_id: string | null;
@@ -34,7 +35,11 @@ export function planRevertCells(args: {
   for (const log of args.logs) {
     if (!log.room_id || log.old_value === null || log.old_value === log.new_value) continue;
     const valid =
-      args.field === "price1" ? log.old_value > 0 : log.old_value >= 1 && log.old_value < 50;
+      args.field === "price1"
+        ? log.old_value > 0
+        : args.field === "blackout"
+          ? log.old_value === 0 || log.old_value === 1
+          : log.old_value >= 1 && log.old_value < 50;
     if (!valid) continue;
     const key = `${log.room_id}|${log.stay_date}`;
     if (seen.has(key)) continue;

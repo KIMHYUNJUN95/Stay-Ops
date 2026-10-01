@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-01 (7) — Beds24 에서 바뀐 이력도 되돌리기
+
+- 변경 이력의 「Beds24」 줄(같은 시각에 감지된 묶음)에도 「되돌리기」 — 가격 · 최소숙박은 큐, 차단은 걸기/풀기 경로.
+  그 뒤 다시 바뀐 칸은 건너뜀. 이전 값은 우리가 마지막으로 알던 값(중간 값 모름). (`33` → 「Beds24 에서 바뀐 것도 되돌린다」)
+
 ## 2026-10-01 — 대시보드 전용 가입 화면(한 화면 폼)
 
 - PC 에서 `/onboarding` 이 모바일 마법사 대신 한 화면 폼을 그린다(기기 표면 `desktop` 만). 생년월일 키보드 입력 ·
