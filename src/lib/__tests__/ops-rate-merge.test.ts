@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeOpsRateUnits, type OpsRateUnit } from "@/lib/ops-rate-merge";
+import { isAnyUnitBlackout, mergeOpsRateUnits, type OpsRateUnit } from "@/lib/ops-rate-merge";
 
 /**
  * 한 칸에 Beds24 유닛이 여럿일 때의 병합 규칙 고정.
@@ -99,13 +99,18 @@ describe("mergeOpsRateUnits", () => {
     expect(merged?.overrideKind).toBe("blackout");
   });
 
-  it("비활성 유닛의 blackout 은 칸을 막지 않는다", () => {
-    // 안 파는 유닛에 걸린 blackout 은 그 유닛 사정이다.
+  it("비활성 유닛의 blackout 도 칸을 막는다 (2026-10-01 사용자 결정)", () => {
+    // 「활성이건 비활성이건 어느 한쪽이 블락하면 룸 매핑대로 블락이 보여야 한다」.
     const merged = mergeOpsRateUnits([
       unit({ min_stay: 2, override_kind: "none" }),
       unit({ min_stay: 99, override_kind: "blackout" }),
     ]);
-    expect(merged?.overrideKind).toBe("none");
+    expect(merged?.overrideKind).toBe("blackout");
+  });
+
+  it("isAnyUnitBlackout — 유닛 상태와 상관없이 하나라도 막히면 참", () => {
+    expect(isAnyUnitBlackout([{ override_kind: "none" }, { override_kind: "BLACKOUT" }])).toBe(true);
+    expect(isAnyUnitBlackout([{ override_kind: "none" }, { override_kind: null }])).toBe(false);
   });
 
   it("가격이 어느 유닛에도 없으면 null — 0원으로 만들지 않는다", () => {

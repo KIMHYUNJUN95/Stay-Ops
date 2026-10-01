@@ -87,6 +87,18 @@ function firstNonNull(
   return null;
 }
 
+/**
+ * 그 칸의 유닛 중 **하나라도** blackout 이면 막힌 칸이다 — 활성 · 비활성(최소숙박 잠금)을 가리지 않는다.
+ *
+ * 2026-10-01 사용자 결정: 「활성이건 비활성이건 어느 한쪽이 블락하면 우리 쪽에도 룸 매핑대로 블락이 보여야 한다」.
+ * 예전에는 운영 중 유닛의 blackout 만 셌다(「안 파는 유닛의 blackout 은 그 유닛 사정」). 그러면 Beds24 에서
+ * 잠긴 유닛만 막아 둔 방은 우리 격자에 BLOCK 이 안 보였다. 판매 캘린더 격자 · 수기 예약 겹침 · 매출 요약이
+ * 모두 이 규칙을 쓴다. 예약 캘린더(`room_blocks`)는 원래부터 유닛 상태를 보지 않았다.
+ */
+export function isAnyUnitBlackout(units: ReadonlyArray<{ override_kind: string | null }>): boolean {
+  return units.some((unit) => (unit.override_kind ?? "").toLowerCase() === "blackout");
+}
+
 /** 운영 중인 유닛이 하나도 없으면 `null` — 칸을 비우라는 뜻이다. */
 export function mergeOpsRateUnits(units: OpsRateUnit[]): OpsMergedRate | null {
   const active = units.filter((unit) => isActiveUnitMinStay(unit.min_stay));
@@ -97,7 +109,8 @@ export function mergeOpsRateUnits(units: OpsRateUnit[]): OpsMergedRate | null {
   let minStay: number | null = null;
   let minStayMax: number | null = null;
   let numAvail: number | null = null;
-  let blackout = false;
+  // blackout 은 **유닛 전부**에서 본다(활성 · 비활성 — `isAnyUnitBlackout`).
+  const blackout = isAnyUnitBlackout(units);
   for (const unit of active) {
     if (unit.min_stay !== null && (minStay === null || unit.min_stay < minStay)) {
       minStay = unit.min_stay;
@@ -109,8 +122,6 @@ export function mergeOpsRateUnits(units: OpsRateUnit[]): OpsMergedRate | null {
     if (unit.num_avail !== null && (numAvail === null || unit.num_avail > numAvail)) {
       numAvail = unit.num_avail;
     }
-    // blackout 은 반대로 **하나라도 걸려 있으면** 막힌 것으로 본다(저쪽과 같다).
-    if ((unit.override_kind ?? "").toLowerCase() === "blackout") blackout = true;
   }
 
   const minStayByUnit =

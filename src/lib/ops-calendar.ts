@@ -27,7 +27,7 @@ import {
   type PriceHistoryRow,
 } from "@/lib/ops-price-history";
 import { buildGridRowData, type OpsGridRowData } from "@/lib/ops-calendar-rows";
-import { mergeOpsRateUnits, type OpsMergedRate } from "@/lib/ops-rate-merge";
+import { isAnyUnitBlackout, mergeOpsRateUnits, type OpsMergedRate } from "@/lib/ops-rate-merge";
 import { buildBlockRanges } from "@/lib/ops-block-ranges";
 import {
   attributePriceConversions,
@@ -502,13 +502,13 @@ export async function readOpsRoomUnavailableNights(args: {
 
   const activeNights = new Set<string>();
   for (const row of ratesResult.data) {
-    if (!isActiveUnitMinStay(row.min_stay)) continue;
-    activeNights.add(row.stay_date);
-    // **Beds24 에서 막아 둔 밤도 찬 밤이다** — 격자의 BLOCK 막대와 같은 기준(운영 중 유닛의
-    // blackout). `room_blocks` 는 3개월 창뿐이라 그 너머 차단을 여기서 잡는다(2026-09-29).
+    // **Beds24 에서 막아 둔 밤도 찬 밤이다** — 격자의 BLOCK 막대와 같은 기준(**어느 유닛이든** blackout —
+    // 2026-10-01, `isAnyUnitBlackout`). `room_blocks` 는 3개월 창뿐이라 그 너머 차단을 여기서 잡는다.
     if ((row.override_kind ?? "").toLowerCase() === "blackout" && nights.includes(row.stay_date)) {
       booked.add(row.stay_date);
     }
+    if (!isActiveUnitMinStay(row.min_stay)) continue;
+    activeNights.add(row.stay_date);
   }
   const unsellable = nights.filter((night) => !booked.has(night) && !activeNights.has(night));
 
@@ -797,6 +797,9 @@ export async function getOpsCalendarData(
   }
 
   const rates = new Map<string, OpsCalendarRate>();
+  /** 유닛 요금 칸이 **하나라도** 있는 칸 / 그중 어느 유닛이든 blackout 인 칸 — BLOCK 판정(`isAnyUnitBlackout`). */
+  const unitRateCells = new Set<string>();
+  const unitBlackoutCells = new Set<string>();
   const ratesResult = await ratesPromise;
   if (ratesResult.error) {
     console.error("[ops-calendar] rate read failed", ratesResult.error);
@@ -816,6 +819,8 @@ export async function getOpsCalendarData(
     for (const [cellKey, units] of unitsByCell) {
       const merged = mergeOpsRateUnits(units);
       if (merged) rates.set(cellKey, merged);
+      unitRateCells.add(cellKey);
+      if (isAnyUnitBlackout(units)) unitBlackoutCells.add(cellKey);
     }
   }
 
@@ -865,7 +870,7 @@ export async function getOpsCalendarData(
    * ── BLOCK 막대는 **12개월 전부** (2026-09-29) ─────────────────────────
    *
    * `room_blocks` 는 현장 예약 캘린더용 동기화라 **이번 달 + 2개월**만 채운다. 그 너머의 Beds24
-   * 차단은 빈 칸처럼 보였다. 이미 읽은 요금 칸의 `overrideKind`(운영 중 유닛 기준 — `ops-rate-merge`)와
+   * 차단은 빈 칸처럼 보였다. 이미 읽은 요금 칸의 blackout(**어느 유닛이든** — `isAnyUnitBlackout`, 2026-10-01)과
    * `room_blocks`(앱이 방금 건 차단은 요금 표보다 먼저 들어간다)를 **합쳐** 구간으로 다시 묶는다.
    * 끝이 열린 「판매 전」 차단도 숨기지 않는다(사용자 결정 — 전부 보이게).
    */
@@ -883,9 +888,11 @@ export async function getOpsCalendarData(
       // **요금 칸이 있으면 그게 정답이다** — 걸고 풀 때 바로 고쳐 두므로(`block-write.ts`
       // `patchLocalOverride`) 가장 최신이다. `room_blocks` 는 요금 칸이 없는 날에만 쓴다: 구간의
       // 일부만 풀면 `room_blocks` 의 원래 행이 남아, 합집합이면 푼 날도 막힌 채 보인다.
+      // 유닛이 **잠겨 있어도**(활성 유닛 0 → `rates` 에 칸이 없어도) 그 유닛의 요금 칸은 있다 — 그걸로 본다.
+      // 어느 유닛이든 blackout 이면 막힘(2026-10-01, `isAnyUnitBlackout`).
       isBlocked: (roomKey, date) => {
-        const rate = rates.get(`${roomKey}|${date}`);
-        return rate ? rate.overrideKind === "blackout" : fromRoomBlocks.has(`${roomKey}|${date}`);
+        const cell = `${roomKey}|${date}`;
+        return unitRateCells.has(cell) ? unitBlackoutCells.has(cell) : fromRoomBlocks.has(cell);
       },
       roomKeys: [...roomsByKey.keys()],
     });
@@ -1103,8 +1110,8 @@ const SALES_RESERVATION_SELECT = [
  *
  * 격자 읽기(`getOpsCalendarData`)를 통째로 부르면 가격·이력·신선도·건물 id 까지 읽는다(요약에는 필요 없다).
  * 여기서는 **서로 기다리지 않는 조회 넷을 한꺼번에** 시작한다 — 객실 목록 · 예약(매칭 키 + 금액 키만) ·
- * `room_blocks` · 요금 표의 blackout 칸. 차단 판정은 격자와 같다(`isBlocked`): 운영 중 유닛의 요금 칸이
- * 있으면 그 칸의 blackout, 없으면 `room_blocks`. 뒤의 경우를 가리려고 `room_blocks` 가 덮는 칸만 요금
+ * `room_blocks` · 요금 표의 blackout 칸. 차단 판정은 격자와 같다(`isBlocked`): 유닛 요금 칸이 있으면
+ * 어느 유닛이든 blackout 인가, 없으면 `room_blocks`. 뒤의 경우를 가리려고 `room_blocks` 가 덮는 칸만 요금
  * 표를 한 번 더 본다(대개 몇 줄).
  *
  * 순수 계산은 `ops-sales-summary.ts`. 반환 모양이 그 입력 그대로다.
@@ -1221,7 +1228,7 @@ export async function readOpsSalesInputs(args: {
   // ── 차단 칸(격자 `isBlocked` 와 같은 규칙) ──
   const blocked = new Set<string>();
   for (const row of blackoutResult.data) {
-    if (!isActiveUnitMinStay(row.min_stay)) continue;
+    // 어느 유닛이든 blackout 이면 막힌 칸 — 격자와 같다(2026-10-01, `isAnyUnitBlackout`).
     const roomKey = roomKeyByUuid.get(row.room_id);
     if (roomKey && catalogKeys.has(roomKey) && inView(propertyOfRoom.get(roomKey) ?? "")) {
       blocked.add(`${roomKey}|${row.stay_date}`);
@@ -1238,8 +1245,8 @@ export async function readOpsSalesInputs(args: {
     }
   }
   if (roomBlockCells.size > 0) {
-    // `room_blocks` 가 덮는 칸 중 **운영 중 유닛의 요금 칸이 없는 것**만 차단이다(있으면 그 칸이 정답 —
-    // 위에서 blackout 이 아니었으니 풀린 칸이다).
+    // `room_blocks` 가 덮는 칸 중 **유닛 요금 칸이 하나도 없는 것**만 차단이다(있으면 그 칸이 정답 —
+    // 위에서 어느 유닛도 blackout 이 아니었으니 풀린 칸이다). 격자의 `isBlocked` 와 같다.
     const cellRoomKeys = new Set([...roomBlockCells.values()].map((cell) => cell.roomKey));
     const unitIds = [...roomKeyByUuid].filter(([, key]) => cellRoomKeys.has(key)).map(([uuid]) => uuid);
     const dates = [...roomBlockCells.values()].map((cell) => cell.date).sort();
@@ -1261,7 +1268,6 @@ export async function readOpsSalesInputs(args: {
     if (activeResult.error) throw new Error(activeResult.error.message);
     const hasActiveRate = new Set<string>();
     for (const row of activeResult.data) {
-      if (!isActiveUnitMinStay(row.min_stay)) continue;
       const roomKey = roomKeyByUuid.get(row.room_id);
       if (roomKey) hasActiveRate.add(`${roomKey}|${row.stay_date}`);
     }
