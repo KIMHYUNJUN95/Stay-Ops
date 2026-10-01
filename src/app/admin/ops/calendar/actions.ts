@@ -694,17 +694,33 @@ export async function submitManualBooking(args: {
   if ("skipped" in created) return { detail: created.skipped, error: "beds24_failed", ok: false };
   if (!created.ok) return { detail: created.error, error: "beds24_failed", ok: false };
 
-  // **웹훅을 기다리지 않는다.** 방금 만든 예약이 화면에 안 보이면 사람은 또 만든다.
-  // 예약 웹훅과 **같은 처리기**를 태워 형식이 갈리지 않게 한다.
+  // **웹훅을 기다리지 않는다.** 방금 만든 예약이 화면에 안 보이면 사람은 또 만든다 — 게다가 API 로 만든
+  // 예약은 Beds24 가 웹훅을 보내지 않는다(2026-10-01 실측). 예약 웹훅과 **같은 처리기**를 태운다.
+  //
+  // **만든 예약을 예약번호로 다시 읽어서** 넣는다(예약 수정과 같다). 생성 응답(`created.raw`)은 보낸
+  // 필드 + id 뿐이라 처리기가 필수값 부족으로 조용히 건너뛰었다 — 가부키초 502 11/19 예약이 Beds24 에만
+  // 있고 우리 표에 없던 원인(2026-10-01). 다시 읽기에 실패하면 생성 응답으로라도 시도한다.
   try {
-    await processBeds24WebhookBooking({
+    let payload = created.raw;
+    try {
+      const fetched = await fetchBeds24BookingById(created.bookingId);
+      if (!("skipped" in fetched) && fetched.ok) payload = fetched.booking;
+      else console.warn("[ops/manual-booking] re-read failed; using create response", { bookingId: created.bookingId });
+    } catch (error) {
+      console.warn("[ops/manual-booking] re-read threw; using create response", { bookingId: created.bookingId, error });
+    }
+    const saved = await processBeds24WebhookBooking({
       organizationIdDefault: session.organization.id,
-      payload: created.raw,
+      payload,
       supabase,
     });
+    // 건너뛰어도 던지지 않는다 — 결과를 보고 **소리 내서** 남긴다. 다음 정합성(매일)이 맞출 때까지 화면에 없다.
+    if (!saved.ok) {
+      console.error("[ops/manual-booking] local upsert skipped", { bookingId: created.bookingId, result: saved });
+    }
   } catch (error) {
     // 만들어진 것은 사실이다. 우리 표에 늦게 들어올 뿐이라 실패로 돌리지 않는다.
-    console.error("[ops/manual-booking] local upsert failed", error);
+    console.error("[ops/manual-booking] local upsert failed", { bookingId: created.bookingId, error });
   }
 
   revalidatePath(CONSOLE_PATH);

@@ -9,6 +9,12 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-01 (4) — 수기 예약이 Beds24 에만 생기고 캘린더에 안 보이던 것
+
+- 생성 직후 우리 표 반영이 생성 응답(필드 부족)으로 조용히 건너뛰어졌다. 이제 예약번호로 전체 예약을 다시 읽어
+  넣고, 건너뛰면 오류 로그. API 예약은 웹훅이 없어 이 경로가 유일한 즉시 반영이다. 가부키초 502 11/19~22(93993247)
+  복구 완료. (`33-calendar-write-features.md` → 「수기 예약은 만든 뒤 예약번호로 다시 읽어 넣는다」)
+
 ## 2026-10-01 (3) — STAY ARI Manager 이식 현황 문서 갱신
 
 - `docs/product/31-stay-ari-migration-overview.md` 를 이식 작업의 **시작점**으로 갱신: 진행 상황(판매 캘린더 PC 완료 ·
