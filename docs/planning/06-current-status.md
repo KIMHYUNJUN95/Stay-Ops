@@ -88,6 +88,8 @@ and the major mobile/admin operations modules are implemented and being hardened
   status 없이 부르면 취소를 빼고 준다(974건 중 0건 vs `&status=cancelled` 319건).
 - **수정.** 증분 경로가 `modifiedFrom=<커서>&status=cancelled` 도 페이지 끝까지 가져와 활성분과 Beds24 자기 id 로
   합친다(취소 우선). 한쪽이라도 실패하면 partial → 커서 유지. 테스트 `beds24-incremental-cancelled.test.ts`.
+- **prod 반영(배포 `ded671a` 후).** 아래 그룹 예약 `--apply`(창 백필이 `status=cancelled` 도 받음)로 두 행이
+  `cancelled` 로 바뀌었고, 배포된 증분 경로 수동 트리거도 `ok · partial=false` 로 커서를 옮겼다.
 - 문서: `01-beds24-integration.md`(modifiedFrom 절 정정) · `01-decision-log.md`.
 
 ## 2026-10-01 — Beds24 그룹(다객실) 예약이 한 행으로 합쳐지던 버그
@@ -107,7 +109,9 @@ and the major mobile/admin operations modules are implemented and being hardened
   그룹 예약 45건(21그룹) 중 **11건이 우리 행 없음(활성 8건)**: O305 `93328948`, O207/O210 `92685448`/`92685449`
   (12/25~1/1, 각 485,594), Ab302 `89328543`(1/1~1/6, 449,550), Ab202 `93620015`, 과거분 O206 `91907926` ·
   302 `92836081` · 302# `91144937`, 취소 3건. 쓰기를 가로챈 시뮬레이션으로 고친 백필이 11건 모두 자기 키로
-  넣고 다른 예약 행을 덮지 않음을 확인. **`--apply` 는 아직 실행하지 않았다**(복구는 배포 후 사용자 확인).
+  넣고 다른 예약 행을 덮지 않음을 확인.
+- **복구(prod, 배포 `ded671a` 후 `--apply`).** 3,374건 upsert · skip 0. 누락 11건 → **0건**(활성 8 · 취소 3 각자
+  자기 키로 추가). 전후 스냅샷 16,004 → 16,015행: 삭제 0 · 기존 행의 Beds24 id/키 변경 0 · 상태 변경은 위 취소 2건뿐.
 - 문서: `01-beds24-integration.md`(「2026-10-01 Group (multi-room) bookings」) · `04-data-model.md` ·
   `01-decision-log.md`.
 

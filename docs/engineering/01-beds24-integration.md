@@ -1070,7 +1070,7 @@ GET /bookings?modifiedFrom=<커서−30분>&status=cancelled             (취소
 ```
 
 두 결과는 창 훑기와 같은 `mergeBookingRows` 로 **Beds24 자기 id** 기준으로 합치고, 같은 예약이
-양쪽에 있으면 취소가 이긴다. 합친 뒤 반영은 기존 경로 그대로(취소 행 upsert + 활성 행 정리).
+양쪽에 있으면 취소가 이긴다. 합친 뒤 반영은 기존 upsert 그대로 — 같은 키의 행이 `cancelled` 로 덮인다.
 **어느 한쪽이라도 실패(페이지 끊김·요청 오류)하면 전체를 partial 로 보고 커서를 옮기지 않는다** —
 활성분만 반영하고 커서를 옮기면 그 사이 취소가 다시 영원히 빠진다. 추가 비용은 조용한 날 요청 1회.
 코드: `buildModifiedSinceUrls` / `combineModifiedSinceResults` (`reservations-backfill.ts`),
