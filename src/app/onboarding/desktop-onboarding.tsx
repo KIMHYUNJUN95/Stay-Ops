@@ -61,7 +61,6 @@ export type DesktopOnboardingCopy = {
   joinTitle: string;
   joinLede: string;
   basicsTitle: string;
-  basicsHint: string;
   inviteTitle: string;
   inviteHint: string;
   nameLabel: string;
@@ -316,7 +315,6 @@ export function DesktopOnboarding({
           <section className="obd__sec">
             <div className="obd__sech">
               <b>{copy.basicsTitle}</b>
-              <span>{copy.basicsHint}</span>
             </div>
             <div className="obd__grid">
               <Field error={tried && nameMissing ? copy.nameRequired : null} hint={copy.nameHint} label={copy.nameLabel}>
@@ -491,12 +489,11 @@ export function DesktopOnboarding({
 
         <div className="obd__foot">
           {allowInviteSkip ? (
-            <button className="obd__link" disabled={submitting} onClick={() => void submit(true)} type="button">
+            <button className="obd__link obd__link--skip" disabled={submitting} onClick={() => void submit(true)} type="button">
               {copy.skip}
             </button>
           ) : null}
           <span className="obd__sp" />
-          <kbd className="obd__kbd">Enter</kbd>
           <button className="obd__btn obd__btn--pri obd__btn--lg" disabled={submitting} type="submit">
             {submitting ? copy.checking : copy.submit}
             {submitting ? null : <ArrowIcon />}

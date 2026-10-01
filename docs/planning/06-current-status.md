@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-01 — 가입 초대코드 안내 「매니저」→「개발자」
+
+- 초대코드 화면 안내(`onboarding.joinFlow.inviteSubtitle` · `onboarding.inviteCodeHint`, ko/ja/en)의 코드 문의처를 로그인 화면과
+  같게 「개발자」로. 모바일 마법사 · PC 가입 화면 모두 적용.
+
 ## 2026-10-01 (7) — Beds24 에서 바뀐 이력도 되돌리기
 
 - 변경 이력의 「Beds24」 줄(같은 시각에 감지된 묶음)에도 「되돌리기」 — 가격 · 최소숙박은 큐, 차단은 걸기/풀기 경로.

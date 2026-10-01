@@ -134,7 +134,6 @@ export default async function OnboardingPage({
           joinTitle: d.joinTitle,
           joinLede: errorMessage ?? (joinProfile ? o.joinBody(joinProfile.name) : o.joinFlow.inviteSubtitle),
           basicsTitle: o.steps.basicsEyebrow,
-          basicsHint: d.basicsHint,
           inviteTitle: o.joinFlow.inviteEyebrow,
           inviteHint: d.inviteHint,
           nameLabel: o.steps.nameLabel,
