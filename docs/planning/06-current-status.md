@@ -9,6 +9,10 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 (8) — 모바일 판매 캘린더: 객실 적은 건물 스크롤
+
+- 줄이 다 들어가면 격자를 내용 높이로 줄이고, 바깥(셸 본문) 스크롤은 잠근다 — 빈 공간 · 화면 전체가 위로 끌려 올라가던 것. (`33`)
+
 ## 2026-10-02 (7) — 가로 모드 반응형 2차 · 「1박으로」 확인
 
 - 키 560px 아래: 판매 캘린더 위 컨트롤 두 줄 · 선택 도구줄 한 줄 · 공용 시트 600px/94%. 넓은 모드 셸은 가로에서 노치 옆

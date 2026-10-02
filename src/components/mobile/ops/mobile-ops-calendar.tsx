@@ -946,6 +946,8 @@ export function MobileOpsCalendar({
    * ② 고무줄 튕김(맨 위 · 맨 아래 너머)은 끝값으로 자른다.
    */
   const shellScrollRef = useRef({ bias: 0, quietUntil: 0, raw: 0 });
+  /** 격자 높이를 다시 맞추는 함수(아래 효과가 채운다) — 객실 수 · 줄 높이 · 선택 도구줄이 바뀐 뒤 부른다. */
+  const refitGridRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     const grid = scrollerRef.current;
     const root = rootRef.current;
@@ -981,7 +983,15 @@ export function MobileOpsCalendar({
       // 가로 모드처럼 키가 낮은 화면에서는 최소 높이를 낮춘다 — 320px 를 고집하면 격자가 화면 밖으로 넘쳐 탭 바 밑에
       // 깔렸다(2026-10-02 가로 · 폴드 점검).
       const floor = window.innerHeight < 560 ? 160 : 320;
-      grid.style.height = `${Math.max(floor, Math.floor(value))}px`;
+      /*
+       * **객실이 적으면 격자를 내용 높이로 줄인다**(2026-10-02 사용자 지적 「객실 적은 건물은 밑에 빈 공간이 남고 위로
+       * 많이 올라간다」). 예전엔 늘 탭 바까지 채워 아래가 빈 흰 칸이었고, 거기를 밀면 바깥 페이지가 끌려 올라갔다.
+       * 줄이 다 들어가면 맨 아래 여유 칸(`.mops-endpad` — 탭 바 · 편집 버튼에 가리지 말라고 둔 것)도 필요 없다.
+       */
+      const pad = grid.querySelector<HTMLElement>(".mops-endpad");
+      const rowsBottom = pad ? pad.offsetTop + 2 : Number.POSITIVE_INFINITY; // + 위아래 테두리
+      const target = Math.max(floor, Math.floor(value));
+      grid.style.height = `${rowsBottom <= target ? rowsBottom : target}px`;
     };
     const apply = (animate: boolean) => {
       if (shrinkTimer) clearTimeout(shrinkTimer);
@@ -1008,6 +1018,16 @@ export function MobileOpsCalendar({
       if (settleTimer) clearTimeout(settleTimer);
       settleTimer = setTimeout(onResize, 350);
     };
+    refitGridRef.current = () => {
+      measure();
+      apply(false);
+      // 다 들어가서 넘길 게 없는데 크롬이 숨어 있으면(큰 건물에서 내려가다 작은 건물로 옮김) 다시 띄울 손짓이 없다 —
+      // 맨 위로 알려 크롬을 돌려놓는다.
+      if (grid.scrollHeight <= grid.clientHeight + 1) {
+        shellScrollRef.current = { bias: 0, quietUntil: 0, raw: 0 };
+        window.dispatchEvent(new CustomEvent("mobile-shell-scroll", { detail: { scrollTop: 0 } }));
+      }
+    };
     const observer = new MutationObserver(() => {
       const next = tabbar?.classList.contains("pointer-events-none") ?? false;
       if (next === hidden) return;
@@ -1026,6 +1046,24 @@ export function MobileOpsCalendar({
       window.removeEventListener("orientationchange", onOrientation);
       window.visualViewport?.removeEventListener("resize", onOrientation);
       if (settleTimer) clearTimeout(settleTimer);
+      refitGridRef.current = null;
+    };
+  }, []);
+
+  /*
+   * 이 화면은 **격자 안에서만 넘긴다** — 셸 본문(바깥 스크롤)은 잠근다. 셸 본문의 위아래 여백(머리 84px · 탭 바 124px)
+   * 때문에 바깥이 수십 px 더 넘어가, 격자 밖을 밀면 화면 전체가 위로 끌려 올라갔다(2026-10-02). 당겨서 새로고침은 셸이
+   * 터치로 따로 받으므로 그대로 된다.
+   */
+  useEffect(() => {
+    let outer = rootRef.current?.parentElement ?? null;
+    while (outer && getComputedStyle(outer).overflowY !== "auto") outer = outer.parentElement;
+    if (!outer) return;
+    const previous = outer.style.overflowY;
+    outer.scrollTop = 0;
+    outer.style.overflowY = "hidden";
+    return () => {
+      outer.style.overflowY = previous;
     };
   }, []);
   const onGridScroll = (event: React.UIEvent<HTMLDivElement>) => {
@@ -1111,6 +1149,12 @@ export function MobileOpsCalendar({
   );
 
   const selCount = selection.length;
+  const hasDock = selCount > 0;
+  // 줄 수 · 줄 높이(취소 보기 · 차단 층) · 맨 아래 여유(선택 도구줄)가 바뀌면 격자 높이를 다시 맞춘다 — 객실이 적은
+  // 건물로 옮기면 줄어들고, 많은 건물로 옮기면 다시 탭 바까지 찬다.
+  useEffect(() => {
+    refitGridRef.current?.();
+  }, [days, hasDock, nav.showCancelled, rooms, rows]);
   const selRoomCount = new Set(selection.map((cell) => cell.roomKey)).size;
   const scopeActive = isScopeActive(scope);
   const panelKind = overlay && (overlay.kind === "price" || overlay.kind === "minstay" || overlay.kind === "block") ? overlay.kind : null;
