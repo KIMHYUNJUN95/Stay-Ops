@@ -24,16 +24,17 @@ import {
   revertPriceJob,
 } from "@/app/admin/ops/calendar/actions";
 import { MobileOpsBlockSheet } from "@/components/mobile/ops/mobile-ops-block-sheet";
+import { MobileOpsBookingSheet } from "@/components/mobile/ops/mobile-ops-booking-sheet";
+import { MobileOpsReservationSheet } from "@/components/mobile/ops/mobile-ops-reservation-sheet";
 import { MobileOpsMinStaySheet } from "@/components/mobile/ops/mobile-ops-minstay-sheet";
 import { MobileOpsPriceSheet, type MobilePriceSubmitted } from "@/components/mobile/ops/mobile-ops-price-sheet";
 import { MobileOpsToast, type MobileToast } from "@/components/mobile/ops/mobile-ops-toast";
 import { loadOpsReservationPlacement } from "@/app/admin/ops/calendar/search-actions";
-import { OpsBookingPanel, type BookingPanelRoom } from "@/components/admin/ops/ops-booking-panel";
+import { type BookingPanelRoom } from "@/components/admin/ops/ops-booking-panel";
 import { OpsCellHistoryCard } from "@/components/admin/ops/ops-cell-history-card";
 import { OpsHistoryPanel } from "@/components/admin/ops/ops-history-panel";
 import { type PanelCell } from "@/components/admin/ops/ops-price-panel";
 import { OpsPriceWinsPanel } from "@/components/admin/ops/ops-price-wins-panel";
-import { OpsReservationPanel } from "@/components/admin/ops/ops-reservation-panel";
 import { OpsSalesSummarySheet } from "@/components/admin/ops/ops-sales-summary-modal";
 import { watchOpsWriteJob, type OpsWriteKind, type RunOpsWrite } from "@/components/admin/ops/ops-write-tracker";
 import { Beds24LiveDot } from "@/components/shared/beds24-live-dot";
@@ -517,6 +518,11 @@ export function MobileOpsCalendar({
    */
   const [toast, setToast] = useState<MobileToast | null>(null);
   const toastSeqRef = useRef(0);
+  /** 결과 한 줄(되돌리기 없는 것 — 예약 저장 · 취소 · 만듦). */
+  const showToast = (next: Omit<MobileToast, "id" | "count"> & { count?: number }) => {
+    toastSeqRef.current += 1;
+    setToast({ count: 0, ...next, id: toastSeqRef.current });
+  };
   /** 작업 큐 쓰기(가격 · 최소숙박) — 진행 알림 → 끝나면 결과. `doneText` 가 있으면 완료 문구를 그것으로. */
   const trackJobWrite = ({ count, jobId, settled }: MobilePriceSubmitted, doneText?: string) => {
     toastSeqRef.current += 1;
@@ -1647,7 +1653,15 @@ export function MobileOpsCalendar({
         <MobileOpsToast
           key={toast.id}
           onAction={
-            toast.kind === "done" && (toast.jobId || toast.blockAt)
+            toast.kind === "done" && toast.openReservationId
+              ? () => {
+                  const id = toast.openReservationId!;
+                  setToast(null);
+                  void loadOpsReservationPlacement(id).then((result) => {
+                    if (result.ok) setOverlay({ kind: "reservation", placement: result.placement });
+                  });
+                }
+              : toast.kind === "done" && (toast.jobId || toast.blockAt)
               ? () => void undoWrite({ blockAt: toast.blockAt, jobId: toast.jobId }, toast.count)
               : toast.kind === "partial" || toast.kind === "failed"
                 ? () => {
@@ -1662,6 +1676,7 @@ export function MobileOpsCalendar({
             done: copy.mtDone,
             failed: copy.mtFailed,
             history: copy.mtHistory,
+            open: copy.mtOpen,
             partial: copy.mtPartial,
             queued: copy.mtQueued,
             slow: copy.mtSlow,
@@ -1827,10 +1842,10 @@ export function MobileOpsCalendar({
       )}
 
       {overlay?.kind === "reservation" && (
-        <BottomSheet ariaLabel={copy.rpTitle} className="flex max-h-[92dvh] flex-col" onClose={() => setOverlay(null)}>
+        // 예약 상세 · 수정 · 취소 — 모바일 전용 시트(시안 v3 5a~5d). 높이 고정(불러오는 동안 튀지 않게).
+        <BottomSheet ariaLabel={copy.rpTitle} className="flex h-[88dvh] flex-col" onClose={() => setOverlay(null)}>
           {({ close }) => (
-          <div className="adm ops mops-panel mops-side">
-            <OpsReservationPanel
+            <MobileOpsReservationSheet
               bar={overlay.placement.bar}
               copy={copy}
               key={overlay.placement.bar.id}
@@ -1839,30 +1854,45 @@ export function MobileOpsCalendar({
                 0,
                 Math.round((Date.parse(overlay.placement.bar.checkOut) - Date.parse(overlay.placement.bar.checkIn)) / 86_400_000),
               )}
-              onClose={close}
+              onCancelled={() => {
+                close();
+                showToast({ kind: "done", text: copy.mtCancelled.replace("{name}", overlay.placement.bar.guestName) });
+                startRefresh(() => router.refresh());
+              }}
+              onSaved={() => {
+                close();
+                showToast({ kind: "done", text: copy.mtSaved.replace("{name}", overlay.placement.bar.guestName) });
+                startRefresh(() => router.refresh());
+              }}
               propertyName={overlay.placement.propertyName}
               roomIds={overlay.placement.roomIds}
               roomKey={overlay.placement.bar.roomKey}
               roomLabel={overlay.placement.roomLabel}
               today={today}
             />
-          </div>
           )}
         </BottomSheet>
       )}
 
       {overlay?.kind === "booking" && (
-        <BottomSheet ariaLabel={copy.mBook} className="flex max-h-[92dvh] flex-col" onClose={() => setOverlay(null)}>
+        // 수기 예약 — 모바일 전용 시트(시안 v3 5e). 만들어지면 알림 「열기」로 방금 만든 예약 상세.
+        <BottomSheet ariaLabel={copy.mBook} className="flex h-[88dvh] flex-col" onClose={() => setOverlay(null)}>
           {({ close }) => (
-          <div className="adm ops mops-panel mops-side">
-            <OpsBookingPanel
+            <MobileOpsBookingSheet
               checkIn={overlay.checkIn}
               checkOut={overlay.checkOut}
               copy={copy}
               localeTag={copy.localeTag}
-              onClose={() => {
+              onCancel={close}
+              onCreated={({ guestName, nights, reservationId }) => {
                 clearSelection();
                 close();
+                showToast({
+                  kind: "done",
+                  openReservationId: reservationId ?? undefined,
+                  text: copy.mtCreated.replace("{name}", guestName).replace("{n}", String(nights)),
+                });
+                startRefresh(() => router.refresh());
               }}
               rateAt={(date) => {
                 const rate = rateAt(overlay.room.key, date);
@@ -1871,7 +1901,6 @@ export function MobileOpsCalendar({
               room={overlay.room}
               today={today}
             />
-          </div>
           )}
         </BottomSheet>
       )}

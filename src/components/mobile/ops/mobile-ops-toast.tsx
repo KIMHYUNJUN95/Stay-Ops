@@ -23,6 +23,8 @@ export type MobileToast = {
   text?: string;
   /** 완료가 됐을 때만 쓸 문장(최소숙박 「최소숙박 N박 · M칸 완료」). */
   doneText?: string;
+  /** 방금 만든 예약 — 완료 알림의 「열기」가 그 상세를 연다. */
+  openReservationId?: string;
 };
 
 export type MobileToastCopy = {
@@ -33,6 +35,7 @@ export type MobileToastCopy = {
   slow: string;
   undo: string;
   history: string;
+  open: string;
 };
 
 const AUTO_DISMISS_MS: Partial<Record<MobileToast["kind"], number>> = {
@@ -83,7 +86,13 @@ export function MobileOpsToast({
             ? copy.failed
             : copy.slow);
   const action =
-    toast.kind === "done" && onAction ? copy.undo : bad && onAction ? copy.history : null;
+    toast.kind === "done" && onAction
+      ? toast.openReservationId
+        ? copy.open
+        : copy.undo
+      : bad && onAction
+        ? copy.history
+        : null;
 
   return createPortal(
     <div

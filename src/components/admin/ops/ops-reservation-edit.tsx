@@ -77,13 +77,13 @@ export type ReservationEditCopy = {
   dateApply: string;
 };
 
-const CHANNEL_NAME: Record<BookingEditChannel, string> = {
+export const CHANNEL_NAME: Record<BookingEditChannel, string> = {
   airbnb: "Airbnb",
   booking: "Booking.com",
   manual: "Direct",
 };
 
-function errorText(
+export function reservationEditErrorText(
   copy: ReservationEditCopy,
   error: BookingEditError | Extract<ReservationEditResult, { ok: false }>["error"],
   dates: string[] = [],
@@ -185,7 +185,7 @@ export function OpsReservationEditForm({
 
   const save = () => {
     if (localError) {
-      setMessage(errorText(copy, localError, [], channel));
+      setMessage(reservationEditErrorText(copy, localError, [], channel));
       return;
     }
     setMessage(copy.rcPending);
@@ -195,7 +195,7 @@ export function OpsReservationEditForm({
         onSaved();
         return;
       }
-      setMessage(errorText(copy, result.error, result.conflictDates, channel));
+      setMessage(reservationEditErrorText(copy, result.error, result.conflictDates, channel));
     });
   };
 

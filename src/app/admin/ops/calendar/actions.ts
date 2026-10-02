@@ -511,7 +511,8 @@ export async function submitRoomUnblock(args: { cells: BlockChangeCell[] }): Pro
  * 돌려준다** — 저쪽도 거부하지만 「안 된다」만 말해서, 사람이 무엇을 고쳐야 할지 몰랐다.
  */
 export type ManualBookingResult =
-  | { ok: true; bookingId: string }
+  /** `reservationId` — 우리 표에 넣은 행(다시 읽어 넣기에 성공했을 때만). 모바일 알림의 「열기」가 쓴다(2026-10-02). */
+  | { ok: true; bookingId: string; reservationId: string | null }
   | {
       ok: false;
       error:
@@ -733,6 +734,7 @@ export async function submitManualBooking(args: {
   // **만든 예약을 예약번호로 다시 읽어서** 넣는다(예약 수정과 같다). 생성 응답(`created.raw`)은 보낸
   // 필드 + id 뿐이라 처리기가 필수값 부족으로 조용히 건너뛰었다 — 가부키초 502 11/19 예약이 Beds24 에만
   // 있고 우리 표에 없던 원인(2026-10-01). 다시 읽기에 실패하면 생성 응답으로라도 시도한다.
+  let reservationId: string | null = null;
   try {
     let payload = created.raw;
     try {
@@ -750,6 +752,8 @@ export async function submitManualBooking(args: {
     // 건너뛰어도 던지지 않는다 — 결과를 보고 **소리 내서** 남긴다. 다음 정합성(매일)이 맞출 때까지 화면에 없다.
     if (!saved.ok) {
       console.error("[ops/manual-booking] local upsert skipped", { bookingId: created.bookingId, result: saved });
+    } else {
+      reservationId = saved.reservationId ?? null;
     }
   } catch (error) {
     // 만들어진 것은 사실이다. 우리 표에 늦게 들어올 뿐이라 실패로 돌리지 않는다.
@@ -757,7 +761,7 @@ export async function submitManualBooking(args: {
   }
 
   revalidateOpsCalendars();
-  return { bookingId: created.bookingId, ok: true };
+  return { bookingId: created.bookingId, ok: true, reservationId };
 }
 
 /**

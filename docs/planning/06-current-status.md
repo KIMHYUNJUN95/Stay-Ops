@@ -31,6 +31,12 @@ and the major mobile/admin operations modules are implemented and being hardened
 - 새 권한 키 `room_links.access`(판매 캘린더와 따로, 사용자 상세에서 개인 부여). 새 표 `room_listing_links` + RLS. 저쪽 Firestore
   데이터 이관(Airbnb 90 · 게스트 89). STAY ARI · 사노 주소는 아직 없음(사용자 제공 대기). (`35`, `31`, `04`, `05`, `14`, `05-admin-web-ia`)
 
+## 2026-10-02 (14) — 모바일 예약 상세 · 수정 · 취소 · 수기 예약 시트 v3 구현(시안 확정)
+
+- 모바일 예약 상세가 전용 시트로 — 숙박 · 금액 · 빠른 연락(전화 · 메일 · 번호 복사) · 요청을 위로, 손님/예약 정보는 접기,
+  불러오는 동안 자리표시. 수정(인원 −/+ · 채널 예약 날짜 잠김) · 취소(빨간 카드) · 수기 예약(빈방 확인 · 요금으로 채우기 칩).
+  결과 알림 · 만든 예약 「열기」(수기 예약 결과에 `reservationId` 추가). 서버 경로는 데스크톱과 같음. (`33`, `31`)
+
 ## 2026-10-02 (13) — 모바일 최소숙박 · 차단 시트 v3 구현(시안 확정)
 
 - 모바일 최소숙박 · 차단이 전용 시트(`MobileOpsMinStaySheet` · `MobileOpsBlockSheet`)로 — 서버 경로는 데스크톱과 같음. 최소숙박은

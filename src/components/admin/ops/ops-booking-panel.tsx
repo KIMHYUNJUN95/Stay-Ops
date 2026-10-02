@@ -120,7 +120,7 @@ type Channel = "airbnb" | "booking";
 
 const PERCENT_PRESETS = [-10, -5, 0, 5, 10];
 
-function errorText(copy: BookingPanelCopy, result: Extract<ManualBookingResult, { ok: false }>) {
+export function bookingErrorText(copy: BookingPanelCopy, result: Extract<ManualBookingResult, { ok: false }>) {
   const dates = (result.conflictDates ?? []).map((date) => date.slice(5)).join(", ");
   switch (result.error) {
     case "unit_changes":
@@ -265,7 +265,7 @@ export function OpsBookingPanel({
         onClose();
         return;
       }
-      setMessage(errorText(copy, result));
+      setMessage(bookingErrorText(copy, result));
     });
   };
 

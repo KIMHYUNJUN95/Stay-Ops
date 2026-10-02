@@ -116,7 +116,7 @@ const CHANNEL_LABEL: Record<string, string> = {
   manual: "Direct",
 };
 
-function errorText(copy: ReservationCardCopy, result: Extract<CancelReservationResult, { ok: false }>) {
+export function reservationCancelErrorText(copy: ReservationCardCopy, result: Extract<CancelReservationResult, { ok: false }>) {
   switch (result.error) {
     case "forbidden":
       return copy.rcErrForbidden;
@@ -252,7 +252,7 @@ export function OpsReservationPanel({
         onClose();
         return;
       }
-      setMessage(errorText(copy, result));
+      setMessage(reservationCancelErrorText(copy, result));
       setConfirming(false);
     });
   };

@@ -1190,3 +1190,201 @@ a.mops-pill { padding-inline: 14px; }
 .mbk-r .n { justify-self: end; height: 20px; padding: 0 7px; border-radius: 99px; background: #111; color: #fff; font-size: 10.5px; font-weight: 800; display: inline-flex; align-items: center; }
 /* 확인 카드의 사유 줄 */
 .mbk-why { margin-top: 2px; padding-top: 8px; border-top: 1px solid rgb(255 255 255 / 0.18); font-size: 12px; font-weight: 700; }
+
+/* ── 예약 상세 · 수정 · 취소 · 수기 예약 시트 v3(Claude Design `5a 예약 상세 · 수기 예약 시트 v3`, 2026-10-02 사용자 확정) ──
+ * 뼈대(본문 · 바닥 버튼 · 알림 줄)는 가격 시트의 `.mps-*`. 여기는 이 시트들만의 부품. */
+.mrs-head { display: grid; gap: 6px; }
+.mrs-head h3 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; overflow-wrap: anywhere; }
+.mrs-head p { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--mops-muted); }
+.mrs-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.mrs-tags span {
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 99px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  background: var(--mops-bg2);
+  border: 1px solid var(--mops-line-soft);
+  color: var(--mops-soft);
+}
+.mrs-tags .abnb { background: var(--mops-abnb-bg); border-color: var(--mops-abnb-line); color: var(--mops-abnb); }
+.mrs-tags .bkng { background: var(--mops-bkng-bg); border-color: var(--mops-bkng-line); color: var(--mops-bkng); }
+.mrs-tags .dir { background: var(--mops-dir-bg); border-color: var(--mops-dir-line); color: var(--mops-dir); }
+.mrs-tags .cxl { background: var(--mops-danger-bg); border-color: hsl(4 62% 46% / 0.3); color: var(--mops-danger); }
+
+/* 숙박 — 체크인 ─ N박 ─ 체크아웃 */
+.mrs-stay {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--mops-bg2);
+  border: 1px solid var(--mops-line-soft);
+}
+.mrs-stay .node { display: grid; gap: 2px; min-width: 0; }
+.mrs-stay .node.end { text-align: right; }
+.mrs-stay .l { font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em; color: var(--mops-faint); }
+.mrs-stay .v { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.mrs-stay .w { font-size: 11px; font-weight: 700; color: var(--mops-muted); }
+.mrs-stay .mid { display: grid; justify-items: center; gap: 3px; font-size: 11px; font-weight: 800; color: var(--primary); }
+.mrs-stay .mid i { display: block; width: 46px; height: 2px; border-radius: 2px; background: color-mix(in oklab, var(--primary) 35%, transparent); }
+
+/* 금액 */
+.mrs-money { display: grid; gap: 8px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--mops-line-soft); background: #fff; }
+.mrs-money .tot { display: flex; justify-content: space-between; align-items: baseline; }
+.mrs-money .tot span { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; color: var(--mops-muted); }
+.mrs-money .tot b { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.mrs-money .row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.mrs-money .row > div { display: grid; gap: 2px; padding: 8px 9px; border-radius: 11px; background: var(--mops-bg2); min-width: 0; }
+.mrs-money .row span { font-size: 10.5px; font-weight: 700; color: var(--mops-muted); }
+.mrs-money .row b { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
+.mrs-money .row .neg b { color: var(--mops-danger); }
+
+/* 빠른 연락 — 전화 걸기 · 메일 쓰기 · 예약번호 복사 */
+.mrs-act { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.mrs-act > a,
+.mrs-act > span,
+.mrs-act > button {
+  height: 54px;
+  border-radius: 14px;
+  border: 1px solid var(--mops-line);
+  background: #fff;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 3px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--mops-soft);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.mrs-act svg { width: 18px; height: 18px; color: var(--primary); }
+.mrs-act > .off,
+.mrs-act > button:disabled { opacity: 0.4; }
+.mrs-act > a:active,
+.mrs-act > button:active:not(:disabled) { transform: scale(0.96); }
+
+/* 손님 요청 · 메모 */
+.mrs-msg { display: grid; gap: 4px; padding: 11px 12px; border-radius: 14px; background: color-mix(in oklab, var(--mops-warn-bg) 60%, white); border: 1px solid hsl(35 80% 38% / 0.2); }
+.mrs-msg .l { font-size: 10.5px; font-weight: 800; letter-spacing: 0.03em; color: var(--mops-warn); }
+.mrs-msg p { margin: 0; font-size: 12.5px; line-height: 1.5; font-weight: 600; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mrs-msg.note { background: var(--mops-bg2); border-color: var(--mops-line-soft); }
+.mrs-msg.note .l { color: var(--mops-muted); }
+
+/* 접힌 묶음 */
+.mrs-fold { border: 1px solid var(--mops-line-soft); border-radius: 14px; background: #fff; overflow: hidden; }
+.mrs-fold > button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 11px 12px;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.mrs-fold > button small { margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--mops-muted); }
+.mrs-fold > button i { font-style: normal; color: var(--mops-muted); }
+.mrs-fold .b { display: grid; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid var(--mops-line-soft); }
+.mrs-kv { display: flex; align-items: baseline; gap: 10px; font-size: 12.5px; }
+.mrs-kv .k { flex: none; color: var(--mops-muted); font-weight: 600; }
+.mrs-kv .v { flex: 1; min-width: 0; text-align: right; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mrs-kv .cp { flex: none; font-size: 11px; font-weight: 800; color: var(--primary); }
+
+/* 불러오는 중 — 최종 배치와 같은 자리표시 */
+.mrs-sk { display: grid; gap: 8px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--mops-line-soft); background: #fff; }
+.mrs-sk.three { grid-template-columns: repeat(3, 1fr); }
+.mrs-bone { display: block; border-radius: 8px; background: linear-gradient(90deg, var(--mops-bg2), #fff, var(--mops-bg2)); background-size: 200% 100%; animation: mrs-shine 1.2s linear infinite; }
+@keyframes mrs-shine { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .mrs-bone { animation: none; } }
+
+/* 취소 확인 카드 · 날짜 잠김 줄 */
+.mrs-warn { display: grid; gap: 6px; padding: 13px 14px; border-radius: 16px; background: hsl(4 58% 38%); color: #fff; }
+.mrs-warn .k { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; opacity: 0.85; }
+.mrs-warn .big { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+.mrs-warn p { margin: 0; font-size: 12px; line-height: 1.5; font-weight: 700; opacity: 0.92; }
+.mrs-lock { display: flex; gap: 8px; padding: 9px 11px; border-radius: 12px; background: var(--mops-bg2); border: 1px solid var(--mops-line-soft); font-size: 11.5px; font-weight: 700; line-height: 1.45; color: var(--mops-soft); }
+.mrs-lock b { flex: none; color: var(--mops-muted); }
+
+/* 바닥 — 상세: 수정 | 예약 취소(빨간 테두리) 반반 */
+.mrs-foot2 { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mps-btn.dg { background: #fff; border: 1.5px solid hsl(4 62% 46% / 0.45); color: var(--mops-danger); }
+
+/* 폼 조각 — 라벨 · 입력 · 두 칸 · −/+ · 날짜 버튼 · 금액 */
+.mfm-field { display: grid; gap: 6px; min-width: 0; }
+.mfm-l { padding-left: 2px; font-size: 11px; font-weight: 800; color: var(--mops-muted); }
+.mfm-hint { padding-left: 2px; font-size: 11px; font-weight: 600; line-height: 1.45; color: var(--mops-muted); }
+.mfm-hint.bad { color: var(--mops-danger); font-weight: 700; }
+.mfm-in {
+  width: 100%;
+  min-width: 0;
+  height: 46px;
+  padding: 0 13px;
+  border: 1px solid var(--mops-line);
+  border-radius: 13px;
+  background: #fff;
+  font-size: 16px; /* iOS 확대 방지 */
+  font-weight: 700;
+  color: var(--mops-ink);
+  outline: none;
+}
+.mfm-in.area { height: auto; min-height: 72px; padding: 11px 13px; resize: none; font-weight: 600; line-height: 1.45; }
+.mfm-in::placeholder { font-size: 14px; font-weight: 600; color: var(--mops-faint); }
+.mfm-in:focus,
+.mfm-money:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 14%, transparent); }
+.mfm-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.mfm-step { height: 46px; border: 1px solid var(--mops-line); border-radius: 13px; background: #fff; display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; }
+.mfm-step button { height: 100%; font-size: 20px; font-weight: 700; color: var(--primary); -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.mfm-step button:disabled { color: var(--mops-faint); }
+.mfm-step output { text-align: center; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.mfm-date {
+  height: 52px;
+  padding: 0 13px;
+  border: 1px solid var(--mops-line);
+  border-radius: 13px;
+  background: #fff;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 1px;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.mfm-date span { font-size: 10.5px; font-weight: 800; color: var(--mops-faint); }
+.mfm-date b { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.mfm-money { height: 46px; padding: 0 13px; border: 1px solid var(--mops-line); border-radius: 13px; background: #fff; display: flex; align-items: center; gap: 8px; }
+.mfm-money > span { font-size: 13px; font-weight: 800; color: var(--mops-muted); }
+.mfm-money input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; text-align: right; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+.mfm-money input::-webkit-outer-spin-button,
+.mfm-money input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* 수기 예약 — 빈방 확인 · 요금으로 채우기 칩 */
+.mbs-ok { display: flex; align-items: center; gap: 8px; padding: 9px 11px; border-radius: 12px; background: var(--mops-done-bg); color: var(--mops-done); font-size: 12px; font-weight: 800; }
+.mbs-ok i { width: 7px; height: 7px; border-radius: 99px; background: currentColor; }
+.mbs-fills { display: flex; flex-wrap: wrap; gap: 6px; }
+.mbs-fill {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 99px;
+  border: 1px solid var(--mops-line);
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--mops-soft);
+  font-variant-numeric: tabular-nums;
+  -webkit-tap-highlight-color: transparent;
+}
+.mbs-fill i { width: 7px; height: 7px; border-radius: 99px; }
+.mbs-fill i.a { background: var(--mops-abnb); }
+.mbs-fill i.k { background: var(--mops-bkng); }
+.mbs-fill.on { border-color: var(--primary); background: color-mix(in oklab, var(--primary) 9%, white); color: var(--primary); }
