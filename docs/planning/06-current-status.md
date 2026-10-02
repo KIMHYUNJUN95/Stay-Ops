@@ -9,6 +9,10 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 (12) — 모바일 판매 캘린더: 마우스로 끌어 넘기기
+
+- 관리자 「모바일 보기」(iframe) · 데스크톱에서 연 모바일 화면도 마우스로 끌면 격자가 넘어간다. 길게 누르면 고르기 끌기 · 짧게 누르면 탭 — 손가락과 같다. 위쪽 칩 줄 · 범례 줄도 마우스로 끌어 넘긴다(`attachMouseDragScroll`). (`33`)
+
 ## 2026-10-02 (11) — 모바일 판매 캘린더: 앱 달력 · 가격 K 표기
 
 - 범위 라벨(날짜 이동)이 기기 날짜 선택 대신 **앱 공용 `DatePickerSheet`**. 공용 시트는 고르면 미끄러져 닫힌다. (`33`)

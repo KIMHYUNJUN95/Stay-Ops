@@ -37,6 +37,7 @@ import { DatePickerSheet } from "@/components/shell/date-picker-sheet";
 import type { Dictionary } from "@/lib/i18n";
 import { assignBarLanes, assignBlockLanes } from "@/lib/ops-bar-lanes";
 import { formatGridPrice } from "@/lib/ops-price-format";
+import { attachMouseDragScroll } from "@/lib/mouse-drag-scroll";
 import type {
   OpsCalendarBlock,
   OpsCalendarDay,
@@ -835,30 +836,69 @@ export function MobileOpsCalendar({
       if (scroller.scrollTop > 0) event.stopPropagation();
     };
     const onTouchEnd = () => endDrag();
-    // 마우스(데스크톱에서 열었을 때)는 누르는 즉시 끌기다 — 막대만 예외(눌러서 예약을 연다).
+    /*
+     * 마우스 — **손가락과 같게** 다룬다(2026-10-02 사용자 지적: 관리자 화면 「모바일 보기」(iframe)에서 끌어도 화면이 안
+     * 넘어가고 휠만 됐다). 예전엔 누르는 즉시 칸 고르기 끌기였다. 이제:
+     *   - 누른 채 움직이면 **격자를 넘긴다**(상하좌우, 손가락 스크롤처럼).
+     *   - 움직이지 않고 길게 누르면(`LONG_PRESS_MS`) 칸 · 날짜 머리 · 객실 이름 **고르기 끌기**.
+     *   - 짧게 누르고 떼면 그대로 click(칸 토글 · 막대 열기).
+     */
     const onPointerDown = (event: PointerEvent) => {
       // 직전 끌기가 격자 밖에서 끝나 click 이 안 왔으면 표시가 남는다 — 새 손짓마다 지운다(안 지우면 다음 탭 하나가 먹힌다).
       suppressClick = false;
       if (event.pointerType !== "mouse" || event.button !== 0) return;
       const target = event.target as HTMLElement;
-      if (target.closest("[data-bar], [data-block]") || !target.closest(PRESSABLE)) return;
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const originLeft = scroller.scrollLeft;
+      const originTop = scroller.scrollTop;
+      let panning = false;
+      // 글자 선택 · 이미지 끌기 같은 기본 동작을 막는다(격자는 이미 user-select: none).
       event.preventDefault();
-      if (startDrag(event.clientX, event.clientY)) {
-        const onMove = (move: PointerEvent) => {
-          if (!drag) return;
+      const canSelect = !target.closest("[data-bar], [data-block]") && Boolean(target.closest(PRESSABLE));
+      let holdTimer: ReturnType<typeof setTimeout> | null = canSelect
+        ? setTimeout(() => {
+            holdTimer = null;
+            if (!panning) startDrag(startX, startY);
+          }, LONG_PRESS_MS)
+        : null;
+      const onMove = (move: PointerEvent) => {
+        if (drag) {
           drag.x = move.clientX;
           drag.y = move.clientY;
           applyAt(move.clientX, move.clientY);
           if (autoFrame === null) autoFrame = requestAnimationFrame(autoScroll);
-        };
-        const onUp = () => {
-          endDrag();
-          window.removeEventListener("pointermove", onMove);
-          window.removeEventListener("pointerup", onUp);
-        };
-        window.addEventListener("pointermove", onMove);
-        window.addEventListener("pointerup", onUp);
-      }
+          return;
+        }
+        const dx = move.clientX - startX;
+        const dy = move.clientY - startY;
+        if (!panning && Math.hypot(dx, dy) > MOVE_SLOP) {
+          panning = true;
+          if (holdTimer) clearTimeout(holdTimer);
+          holdTimer = null;
+          scroller.classList.add("is-panning");
+        }
+        if (panning) {
+          scroller.scrollLeft = originLeft - dx;
+          scroller.scrollTop = originTop - dy;
+        }
+      };
+      const onUp = () => {
+        if (holdTimer) clearTimeout(holdTimer);
+        holdTimer = null;
+        if (panning) {
+          // 넘기고 뗀 자리의 click 이 칸을 토글하지 않게.
+          suppressClick = true;
+          scroller.classList.remove("is-panning");
+        }
+        endDrag();
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
     };
     // 길게 눌러 끈 뒤 손을 떼면 click 이 한 번 더 온다 — 그걸로 칸이 토글되면 안 된다.
     const onClickCapture = (event: MouseEvent) => {
@@ -1099,6 +1139,14 @@ export function MobileOpsCalendar({
       if (settleTimer) clearTimeout(settleTimer);
       refitGridRef.current = null;
     };
+  }, []);
+
+  // 위쪽 가로 줄(건물 칩 · 빠른 칩 · 범례)도 마우스로 끌어 넘긴다 — 격자만 되던 것(2026-10-02 사용자 지적).
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const detach = [...root.querySelectorAll<HTMLElement>(".mops-pills, .mops-chips, .mops-meta")].map(attachMouseDragScroll);
+    return () => detach.forEach((off) => off());
   }, []);
 
   /*
