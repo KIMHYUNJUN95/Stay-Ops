@@ -9,6 +9,12 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 (13) — 모바일 최소숙박 · 차단 시트 v3 구현(시안 확정)
+
+- 모바일 최소숙박 · 차단이 전용 시트(`MobileOpsMinStaySheet` · `MobileOpsBlockSheet`)로 — 서버 경로는 데스크톱과 같음. 최소숙박은
+  갭 없을 때 지금 값 · 칸별 현재 → 바뀔 값, 감지 기준 · 저장 안내 문구는 뺌. 차단은 확인 카드 · 사유. 성공하면 시트 닫고 알림 + 되돌리기
+  (차단 결과에 시각 `at` 추가 → `revertBlockChange`). (`33`, `31`)
+
 ## 2026-10-02 (12) — 모바일 판매 캘린더: 마우스로 끌어 넘기기
 
 - 관리자 「모바일 보기」(iframe) · 데스크톱에서 연 모바일 화면도 마우스로 끌면 격자가 넘어간다. 길게 누르면 고르기 끌기 · 짧게 누르면 탭 — 손가락과 같다. 위쪽 칩 줄 · 범례 줄도 마우스로 끌어 넘긴다(`attachMouseDragScroll`). (`33`)

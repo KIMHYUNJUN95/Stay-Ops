@@ -15,9 +15,14 @@ export type MobileToast = {
   id: number;
   kind: "pending" | "done" | "partial" | "failed" | "slow" | "undoing" | "info";
   count: number;
+  /** 작업 큐 쓰기(가격 · 최소숙박)의 작업 번호 — 완료 알림의 「되돌리기」가 쓴다(`revertPriceJob`). */
   jobId?: string;
-  /** 정해진 문구 대신 쓸 문장(되돌리기 결과 등). */
+  /** 차단 · 해제 묶음의 시각 — 완료 알림의 「되돌리기」가 쓴다(`revertBlockChange`). */
+  blockAt?: string;
+  /** 정해진 문구 대신 쓸 문장(되돌리기 결과 · 차단 완료 등). */
   text?: string;
+  /** 완료가 됐을 때만 쓸 문장(최소숙박 「최소숙박 N박 · M칸 완료」). */
+  doneText?: string;
 };
 
 export type MobileToastCopy = {
@@ -67,6 +72,7 @@ export function MobileOpsToast({
   const bad = toast.kind === "partial" || toast.kind === "failed";
   const title =
     toast.text ??
+    (toast.kind === "done" ? toast.doneText : undefined) ??
     (toast.kind === "pending"
       ? copy.queued.replace("{n}", n)
       : toast.kind === "done"

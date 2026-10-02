@@ -72,7 +72,7 @@ export type MinStayPanelCell = {
 /** 최소 숙박일의 상한. 저쪽 모달과 같은 범위(1~30)다. */
 const MIN_STAY_MAX = 30;
 
-function errorText(copy: MinStayPanelCopy, error: PriceChangeError): string {
+export function minStayErrorText(copy: MinStayPanelCopy, error: PriceChangeError): string {
   switch (error) {
     case "forbidden":
       return copy.errForbidden;
@@ -165,7 +165,7 @@ export function OpsMinStayPanel({
           }),
       );
       if (!result.ok) {
-        setMessage(copy.msFailed.replace("{error}", errorText(copy, result.error)));
+        setMessage(copy.msFailed.replace("{error}", minStayErrorText(copy, result.error)));
         return;
       }
       // **보낸 칸만** 선택에서 뺀다(2026-09-30 버그) — 왕복하는 동안 새로 고른 칸까지

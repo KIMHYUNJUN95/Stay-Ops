@@ -11,7 +11,7 @@ import {
 import { groupSelectionIntoRanges } from "@/lib/ops-calendar-selection";
 
 /** 사유 칩 순서. 코드는 DB 체크 제약과 같다(`202610010001_block_log_purpose.sql`). */
-const BLOCK_PURPOSE_ORDER: readonly BlockPurpose[] = ["repair", "cleaning", "owner", "other"];
+export const BLOCK_PURPOSE_ORDER: readonly BlockPurpose[] = ["repair", "cleaning", "owner", "other"];
 
 /**
  * 차단(블록) 패널 — 격자 오른쪽 세로 카드.
@@ -81,7 +81,7 @@ export type BlockPanelCopy = {
   errBkUnknownRoom: string;
 };
 
-function errorText(copy: BlockPanelCopy, error: BlockChangeError): string {
+export function blockErrorText(copy: BlockPanelCopy, error: BlockChangeError): string {
   switch (error) {
     case "forbidden":
       return copy.errForbidden;
@@ -164,8 +164,8 @@ export function OpsBlockPanel({
         result.appliedRanges
           ? copy.bkPartialFailed
               .replace("{done}", String(result.appliedRanges))
-              .replace("{error}", errorText(copy, result.error))
-          : copy.bkFailed.replace("{error}", errorText(copy, result.error)),
+              .replace("{error}", blockErrorText(copy, result.error))
+          : copy.bkFailed.replace("{error}", blockErrorText(copy, result.error)),
       );
     });
   };

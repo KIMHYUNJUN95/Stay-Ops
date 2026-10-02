@@ -17,15 +17,20 @@ import {
   SlidersHorizontal,
   Timer,
 } from "lucide-react";
-import { loadOpsCellHistory, loadOpsPriceConversions, revertPriceJob } from "@/app/admin/ops/calendar/actions";
+import {
+  loadOpsCellHistory,
+  loadOpsPriceConversions,
+  revertBlockChange,
+  revertPriceJob,
+} from "@/app/admin/ops/calendar/actions";
+import { MobileOpsBlockSheet } from "@/components/mobile/ops/mobile-ops-block-sheet";
+import { MobileOpsMinStaySheet } from "@/components/mobile/ops/mobile-ops-minstay-sheet";
 import { MobileOpsPriceSheet, type MobilePriceSubmitted } from "@/components/mobile/ops/mobile-ops-price-sheet";
 import { MobileOpsToast, type MobileToast } from "@/components/mobile/ops/mobile-ops-toast";
 import { loadOpsReservationPlacement } from "@/app/admin/ops/calendar/search-actions";
-import { OpsBlockPanel } from "@/components/admin/ops/ops-block-panel";
 import { OpsBookingPanel, type BookingPanelRoom } from "@/components/admin/ops/ops-booking-panel";
 import { OpsCellHistoryCard } from "@/components/admin/ops/ops-cell-history-card";
 import { OpsHistoryPanel } from "@/components/admin/ops/ops-history-panel";
-import { OpsMinStayPanel } from "@/components/admin/ops/ops-minstay-panel";
 import { type PanelCell } from "@/components/admin/ops/ops-price-panel";
 import { OpsPriceWinsPanel } from "@/components/admin/ops/ops-price-wins-panel";
 import { OpsReservationPanel } from "@/components/admin/ops/ops-reservation-panel";
@@ -512,10 +517,11 @@ export function MobileOpsCalendar({
    */
   const [toast, setToast] = useState<MobileToast | null>(null);
   const toastSeqRef = useRef(0);
-  const trackPriceWrite = ({ count, jobId, settled }: MobilePriceSubmitted) => {
+  /** 작업 큐 쓰기(가격 · 최소숙박) — 진행 알림 → 끝나면 결과. `doneText` 가 있으면 완료 문구를 그것으로. */
+  const trackJobWrite = ({ count, jobId, settled }: MobilePriceSubmitted, doneText?: string) => {
     toastSeqRef.current += 1;
     const id = toastSeqRef.current;
-    setToast({ count, id, jobId, kind: "pending" });
+    setToast({ count, doneText, id, jobId, kind: "pending" });
     void settled?.then((outcome) => {
       setToast((current) =>
         current?.id === id
@@ -528,11 +534,14 @@ export function MobileOpsCalendar({
       );
     });
   };
-  const undoPriceWrite = async (jobId: string, count: number) => {
+  /** 되돌리기 — 작업 큐 쓰기는 작업 번호로(`revertPriceJob`), 차단 · 해제는 그 묶음 시각으로(`revertBlockChange`). */
+  const undoWrite = async (target: { jobId?: string; blockAt?: string }, count: number) => {
     toastSeqRef.current += 1;
     const id = toastSeqRef.current;
     setToast({ count, id, kind: "undoing", text: copy.mtUndoing.replace("{n}", String(count)) });
-    const result = await revertPriceJob({ jobId });
+    const result = target.blockAt
+      ? await revertBlockChange({ at: target.blockAt })
+      : await revertPriceJob({ jobId: target.jobId ?? "" });
     setToast((current) =>
       current?.id === id
         ? {
@@ -1548,15 +1557,15 @@ export function MobileOpsCalendar({
       {panelKind && (
         <BottomSheet
           ariaLabel={panelKind === "price" ? copy.panelTitle : panelKind === "minstay" ? copy.minStayTitle : copy.bkTitle}
-          // 가격 시트는 **높이 고정** — 값을 넣을 때마다 줄 수가 바뀌어 시트 위 끝이 오르내렸다(2026-10-02 사용자 지적).
-          className={panelKind === "price" ? "flex h-[88dvh] flex-col" : "flex max-h-[88dvh] flex-col"}
+          // 시트는 **높이 고정** — 값을 넣을 때마다 줄 수가 바뀌어 시트 위 끝이 오르내렸다(2026-10-02 사용자 지적).
+          className="flex h-[88dvh] flex-col"
           onClose={() => setOverlay(null)}
         >
-          {/* 저장이 접수되면 · 「선택 해제」를 누르면 시트가 **스스로 미끄러져 닫힌다**(2026-10-02 사용자 지시 — 예전엔
-              열린 채 남아 손으로 내려야 했다). 실패하면 열린 채로 이유를 보여 준다. */}
+          {/* 가격 · 최소숙박 · 차단 — 모두 모바일 전용 시트(시안 v3 · 2026-10-02). 계산 · 서버 경로는 데스크톱 패널과 같다.
+              성공하면 시트가 스스로 미끄러져 닫히고 탭 바 위 알림으로 진행 · 결과(되돌리기)를 보여 준다. 실패하면 열린 채
+              이유를 보여 준다. 「선택 해제」도 시트를 닫는다. */}
           {({ close }) =>
             panelKind === "price" ? (
-              // 가격은 모바일 전용 시트(시안 v3) — 계산 · 서버 경로는 데스크톱 패널과 같다. 접수되면 시트를 닫고 알림으로.
               <MobileOpsPriceSheet
                 cells={panelCells}
                 copy={copy}
@@ -1567,16 +1576,23 @@ export function MobileOpsCalendar({
                 }}
                 onSubmitted={(submitted) => {
                   close();
-                  trackPriceWrite(submitted);
+                  trackJobWrite(submitted);
                 }}
                 runWrite={runWrite}
                 scopeSummary={scopeSummary}
               />
-            ) : (
-          <div className="adm ops mops-panel">
-            {panelKind === "minstay" && (
-              <OpsMinStayPanel
-                cells={panelCells}
+            ) : panelKind === "minstay" ? (
+              <MobileOpsMinStaySheet
+                cells={panelCells.map((cell) => {
+                  const key = selectionCellKey(cell.roomKey, cell.date);
+                  return {
+                    date: cell.date,
+                    minStay: pendingMinStay.get(key)?.value ?? rateAt(cell.roomKey, cell.date)?.minStay ?? null,
+                    roomIds: cell.roomIds,
+                    roomKey: cell.roomKey,
+                    roomLabel: cell.roomLabel,
+                  };
+                })}
                 copy={copy}
                 gapContext={gapContext}
                 onApplied={removeSentCells}
@@ -1584,13 +1600,18 @@ export function MobileOpsCalendar({
                   clearSelection();
                   close();
                 }}
-                onFinished={close}
+                onSubmitted={(submitted) => {
+                  close();
+                  trackJobWrite(
+                    submitted,
+                    copy.mtMinStayDone.replace("{nights}", String(submitted.nights)).replace("{n}", String(submitted.count)),
+                  );
+                }}
                 runWrite={runWrite}
                 scopeSummary={scopeSummary}
               />
-            )}
-            {panelKind === "block" && (
-              <OpsBlockPanel
+            ) : (
+              <MobileOpsBlockSheet
                 blockedKeys={blockedCells}
                 cells={panelCells.map((cell) => ({
                   date: cell.date,
@@ -1603,10 +1624,20 @@ export function MobileOpsCalendar({
                   clearSelection();
                   close();
                 }}
+                onDone={({ at, mode, nights }) => {
+                  clearSelection();
+                  close();
+                  toastSeqRef.current += 1;
+                  setToast({
+                    blockAt: at,
+                    count: nights,
+                    id: toastSeqRef.current,
+                    kind: "done",
+                    text: (mode === "block" ? copy.mtBlockDone : copy.mtUnblockDone).replace("{n}", String(nights)),
+                  });
+                }}
                 scopeSummary={scopeSummary}
               />
-            )}
-          </div>
             )
           }
         </BottomSheet>
@@ -1616,8 +1647,8 @@ export function MobileOpsCalendar({
         <MobileOpsToast
           key={toast.id}
           onAction={
-            toast.kind === "done" && toast.jobId
-              ? () => void undoPriceWrite(toast.jobId!, toast.count)
+            toast.kind === "done" && (toast.jobId || toast.blockAt)
+              ? () => void undoWrite({ blockAt: toast.blockAt, jobId: toast.jobId }, toast.count)
               : toast.kind === "partial" || toast.kind === "failed"
                 ? () => {
                     setToast(null);

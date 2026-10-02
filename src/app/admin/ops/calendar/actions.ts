@@ -329,7 +329,8 @@ export type BlockChangeResult =
    * 화면이 그렇게 알려야 한다 — 「실패」만 보면 사람은 전부 안 된 줄 알고 다시 누른다(2026-10-01).
    */
   | { ok: false; error: BlockChangeError; detail?: string; appliedRanges?: number }
-  | { ok: true; ranges: number; nights: number };
+  /** `at` — 이 한 번의 누름이 이력에 남긴 시각(`price_change_logs.created_at`). 알림의 「되돌리기」가 그대로 넘긴다(`revertBlockChange`). */
+  | { ok: true; ranges: number; nights: number; at: string };
 
 export type BlockChangeCell = { roomKey: string; roomLabel: string; roomIds: string[]; date: string };
 
@@ -477,7 +478,7 @@ async function runBlockChange(
   }
 
   revalidateOpsCalendars();
-  return { nights, ok: true, ranges: ranges.length };
+  return { at: actedAt, nights, ok: true, ranges: ranges.length };
 }
 
 export async function submitRoomBlock(args: {
