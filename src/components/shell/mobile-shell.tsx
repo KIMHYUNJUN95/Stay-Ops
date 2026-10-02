@@ -13,6 +13,7 @@ import {
   MAX_BOTTOM_NAV_TABS,
   canSeeNavItem,
   customizableBottomNavItems,
+  isMobileOpsAdminNavItem,
   getNavigationLabel,
   getNavigationTabLabel,
   mobileNavBugs,
@@ -114,6 +115,16 @@ const LAUNCHER_META: Record<string, { hue: number; icon: ReactNode }> = {
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M4 10v4h3l6 4V6l-6 4H4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
         <path d="M17.5 9.2a3.6 3.6 0 010 5.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  "ops-calendar": {
+    hue: 225,
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="4" y="5.5" width="16" height="14" rx="3" stroke="currentColor" strokeWidth="1.9" />
+        <path d="M4 9.5h16M8 4v3M16 4v3" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+        <path d="M13.6 12.4h-2.1a1.2 1.2 0 000 2.4h1a1.2 1.2 0 010 2.4H10.4M12 11.6v.8M12 17.2v.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     ),
   },
@@ -552,10 +563,11 @@ export function MobileShell({
   };
   // 판매 캘린더 페이지는 권한 키에 더해 **관리자 웹 역할**도 요구한다(쓰기 액션이 `requireAdminSession` 을 거친다).
   // 메뉴도 같은 두 조건으로 거른다 — 키만 받은 현장 역할에게 메뉴를 보여 주면 눌러도 홈으로 튕긴다(2026-10-01).
-  const opsNavItems = canAccessAdminWeb(session.user.role)
-    ? mobileOpsAdminNavigation.filter((item) => canSeeNavItem(item, session.capabilities))
-    : [];
-  const bottomItems = resolveBottomNavItems(navTabIds).filter((item) => canSeeNavItem(item, session.capabilities));
+  const canSeeMobileNavItem = (item: { id: string }) =>
+    canSeeNavItem(item, session.capabilities) &&
+    (!isMobileOpsAdminNavItem(item.id) || canAccessAdminWeb(session.user.role));
+  const opsNavItems = mobileOpsAdminNavigation.filter(canSeeMobileNavItem);
+  const bottomItems = resolveBottomNavItems(navTabIds).filter(canSeeMobileNavItem);
   const splitAt = Math.ceil(bottomItems.length / 2);
   const leftTabs = bottomItems.slice(0, splitAt);
   const rightTabs = bottomItems.slice(splitAt);
@@ -927,7 +939,7 @@ export function MobileShell({
             >
               <div className="add-sheet__scroll">
                 <div className="add-grid">
-                  {customizableBottomNavItems.filter((item) => canSeeNavItem(item, session.capabilities)).map((item) => {
+                  {customizableBottomNavItems.filter(canSeeMobileNavItem).map((item) => {
                     const meta = LAUNCHER_META[item.id];
                     const selected = navTabIds.includes(item.id);
                     const disabled = !selected && isBarFull;

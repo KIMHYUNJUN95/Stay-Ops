@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { BedDouble, ChevronRight, Info, ReceiptText, Tag, TrendingUp, Wallet, X } from "lucide-react";
 import { loadOpsSalesSummary, type OpsSalesSummaryResult } from "@/app/admin/ops/calendar/actions";
 import { useAdminPanelA11y } from "@/components/admin/shared/use-admin-panel-a11y";
+import { BottomSheet } from "@/components/shell/bottom-sheet";
 import type { SalesChannel, SalesMetrics, SalesRoomRow } from "@/lib/ops-sales-summary";
 
 /**
@@ -135,14 +136,7 @@ function occLevel(value: number): "hi" | "mid" | "lo" {
 
 const CLOSE_MS = 150;
 
-export function OpsSalesSummaryModal({
-  copy,
-  days,
-  onClose,
-  properties,
-  scope,
-  start,
-}: {
+type SalesSummaryProps = {
   copy: SalesSummaryCopy;
   /** 보고 있는 창의 일수(30일 뷰 = 30, 월간 = 그 달 일수). */
   days: number;
@@ -153,19 +147,12 @@ export function OpsSalesSummaryModal({
   scope: object;
   /** 보고 있는 창의 첫날. */
   start: string;
-}) {
-  const [closing, setClosing] = useState(false);
-  const requestClose = () => {
-    if (closing) return;
-    setClosing(true);
-    window.setTimeout(onClose, CLOSE_MS);
-  };
-  const panelRef = useAdminPanelA11y<HTMLDivElement>(requestClose, { quietRestore: true, trapFocus: true });
-  const titleId = useId();
-  const basisId = useId();
+};
+
+/** 모달 · 모바일 시트가 함께 쓰는 상태 — 불러오기 · 다시 시도 · 숫자 표기 · 기간 라벨. */
+function useSalesSummary({ copy, days, properties, scope, start }: Omit<SalesSummaryProps, "onClose">) {
   const [state, setState] = useState<State>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
-  const [basisOpen, setBasisOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -207,80 +194,145 @@ export function OpsSalesSummaryModal({
 
   const end = addDays(start, days - 1);
   const period = `${start} → ${end.slice(0, 4) === start.slice(0, 4) ? end.slice(5) : end}`;
+  return { fmt, period, retry, state };
+}
+
+/** 머리 + 본문 — 모달과 시트가 같은 마크업을 쓴다(닫기 X 는 모달에만, 시트는 손잡이 · 스크림으로 닫는다). */
+function SalesSummaryContent({
+  closeButton,
+  copy,
+  days,
+  properties,
+  summary: { fmt, period, retry, state },
+  titleId,
+}: {
+  closeButton?: React.ReactNode;
+  copy: SalesSummaryCopy;
+  days: number;
+  properties: string[];
+  summary: ReturnType<typeof useSalesSummary>;
+  titleId: string;
+}) {
+  const basisId = useId();
+  const [basisOpen, setBasisOpen] = useState(false);
+  return (
+    <>
+      <header className="opsss__head">
+        <div className="opsss__headmain">
+          <div className="opsss__titlerow">
+            <h2 className="opsss__title" id={titleId}>
+              {copy.ssTitle}
+            </h2>
+            <span className="opsss__range">{period}</span>
+            <span className="opsss__days">{copy.ssDays.replace("{n}", String(days))}</span>
+          </div>
+          <div className="opsss__chips">
+            {properties.length === 0 ? (
+              <span className="opsss__chip all">{copy.ssAllProperties}</span>
+            ) : (
+              properties.map((name) => (
+                <span className="opsss__chip" key={name}>
+                  {name}
+                </span>
+              ))
+            )}
+          </div>
+        </div>
+        <div className="opsss__headtools">
+          <button
+            aria-controls={basisId}
+            aria-expanded={basisOpen}
+            className={`opsss__basisbtn${basisOpen ? " on" : ""}`}
+            onClick={() => setBasisOpen((value) => !value)}
+            type="button"
+          >
+            <Info aria-hidden="true" />
+            {copy.ssBasisTitle}
+          </button>
+          {closeButton}
+        </div>
+        {basisOpen && (
+          <div className="opsss__basis" id={basisId} role="note">
+            <ul>
+              <li>{copy.ssBasisRevenue}</li>
+              <li>{copy.ssBasisStatus}</li>
+              <li>{copy.ssBasisOccupancy}</li>
+              <li>{copy.ssBasisCommission}</li>
+              {state.status === "ready" && state.summary.zeroPriceCount > 0 && (
+                <li>{copy.ssZeroNote.replace("{n}", fmt.count(state.summary.zeroPriceCount))}</li>
+              )}
+            </ul>
+            <p>{copy.ssBasisLegacy}</p>
+          </div>
+        )}
+      </header>
+
+      <div className="opsss__body">
+        {state.status === "loading" && <SummarySkeleton label={copy.ssLoading} />}
+        {state.status === "error" && (
+          <div className="opsss__state" role="alert">
+            <p>{state.forbidden ? copy.ssErrForbidden : copy.ssError}</p>
+            {!state.forbidden && (
+              <button className="opsss__retry" onClick={retry} type="button">
+                {copy.ssRetry}
+              </button>
+            )}
+          </div>
+        )}
+        {state.status === "ready" && <SummaryContent copy={copy} fmt={fmt} summary={state.summary} />}
+      </div>
+    </>
+  );
+}
+
+export function OpsSalesSummaryModal({ copy, days, onClose, properties, scope, start }: SalesSummaryProps) {
+  const [closing, setClosing] = useState(false);
+  const requestClose = () => {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(onClose, CLOSE_MS);
+  };
+  const panelRef = useAdminPanelA11y<HTMLDivElement>(requestClose, { quietRestore: true, trapFocus: true });
+  const titleId = useId();
+  const summary = useSalesSummary({ copy, days, properties, scope, start });
 
   return createPortal(
     <div className={`adm opsss-root${closing ? " is-closing" : ""}`}>
       <div aria-hidden="true" className="opsss__scrim" onClick={requestClose} />
       <div aria-labelledby={titleId} aria-modal="true" className="opsss" ref={panelRef} role="dialog" tabIndex={-1}>
-        <header className="opsss__head">
-          <div className="opsss__headmain">
-            <div className="opsss__titlerow">
-              <h2 className="opsss__title" id={titleId}>
-                {copy.ssTitle}
-              </h2>
-              <span className="opsss__range">{period}</span>
-              <span className="opsss__days">{copy.ssDays.replace("{n}", String(days))}</span>
-            </div>
-            <div className="opsss__chips">
-              {properties.length === 0 ? (
-                <span className="opsss__chip all">{copy.ssAllProperties}</span>
-              ) : (
-                properties.map((name) => (
-                  <span className="opsss__chip" key={name}>
-                    {name}
-                  </span>
-                ))
-              )}
-            </div>
-          </div>
-          <div className="opsss__headtools">
-            <button
-              aria-controls={basisId}
-              aria-expanded={basisOpen}
-              className={`opsss__basisbtn${basisOpen ? " on" : ""}`}
-              onClick={() => setBasisOpen((value) => !value)}
-              type="button"
-            >
-              <Info aria-hidden="true" />
-              {copy.ssBasisTitle}
-            </button>
+        <SalesSummaryContent
+          closeButton={
             <button aria-label={copy.rcClose} className="opsss__x" onClick={requestClose} type="button">
               <X aria-hidden="true" />
             </button>
-          </div>
-          {basisOpen && (
-            <div className="opsss__basis" id={basisId} role="note">
-              <ul>
-                <li>{copy.ssBasisRevenue}</li>
-                <li>{copy.ssBasisStatus}</li>
-                <li>{copy.ssBasisOccupancy}</li>
-                <li>{copy.ssBasisCommission}</li>
-                {state.status === "ready" && state.summary.zeroPriceCount > 0 && (
-                  <li>{copy.ssZeroNote.replace("{n}", fmt.count(state.summary.zeroPriceCount))}</li>
-                )}
-              </ul>
-              <p>{copy.ssBasisLegacy}</p>
-            </div>
-          )}
-        </header>
-
-        <div className="opsss__body">
-          {state.status === "loading" && <SummarySkeleton label={copy.ssLoading} />}
-          {state.status === "error" && (
-            <div className="opsss__state" role="alert">
-              <p>{state.forbidden ? copy.ssErrForbidden : copy.ssError}</p>
-              {!state.forbidden && (
-                <button className="opsss__retry" onClick={retry} type="button">
-                  {copy.ssRetry}
-                </button>
-              )}
-            </div>
-          )}
-          {state.status === "ready" && <SummaryContent copy={copy} fmt={fmt} summary={state.summary} />}
-        </div>
+          }
+          copy={copy}
+          days={days}
+          properties={properties}
+          summary={summary}
+          titleId={titleId}
+        />
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * 모바일 판매 캘린더용 — 같은 내용을 **공용 하단 시트**(`BottomSheet`)에 담는다(2026-10-02 사용자 지시 「모든 하단
+ * 팝업은 공용으로」). 가운데 모달 · 닫기 X 대신 손잡이 끌기 · 스크림 탭 · Esc 로 닫는다.
+ */
+export function OpsSalesSummarySheet({ copy, days, onClose, properties, scope, start }: SalesSummaryProps) {
+  const titleId = useId();
+  const summary = useSalesSummary({ copy, days, properties, scope, start });
+  return (
+    <BottomSheet ariaLabelledBy={titleId} className="flex max-h-[92dvh] flex-col" onClose={onClose}>
+      <div className="adm opsss-root opsss-root--sheet">
+        <div className="opsss">
+          <SalesSummaryContent copy={copy} days={days} properties={properties} summary={summary} titleId={titleId} />
+        </div>
+      </div>
+    </BottomSheet>
   );
 }
 

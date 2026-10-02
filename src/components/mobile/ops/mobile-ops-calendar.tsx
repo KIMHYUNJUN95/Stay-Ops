@@ -28,7 +28,7 @@ import { OpsMinStayPanel } from "@/components/admin/ops/ops-minstay-panel";
 import { OpsPricePanel, type PanelCell } from "@/components/admin/ops/ops-price-panel";
 import { OpsPriceWinsPanel } from "@/components/admin/ops/ops-price-wins-panel";
 import { OpsReservationPanel } from "@/components/admin/ops/ops-reservation-panel";
-import { OpsSalesSummaryModal } from "@/components/admin/ops/ops-sales-summary-modal";
+import { OpsSalesSummarySheet } from "@/components/admin/ops/ops-sales-summary-modal";
 import { watchOpsWriteJob, type OpsWriteKind, type RunOpsWrite } from "@/components/admin/ops/ops-write-tracker";
 import { Beds24LiveDot } from "@/components/shared/beds24-live-dot";
 import type { AdminGuestSearchCopy } from "@/components/shell/admin-guest-search";
@@ -58,6 +58,7 @@ import {
   buildScopeCells,
   buildSelectableWeeks,
   EMPTY_SCOPE,
+  isExactCellSelection,
   isScopeActive,
   removeCells,
   selectionCellKey,
@@ -233,6 +234,23 @@ export function MobileOpsCalendar({
     !copyArrived || JSON.stringify(copyProp) === JSON.stringify(copyState.stable) ? copyState.stable : copyProp;
   if (copyArrived) setCopyState({ seen: copyProp, stable: copy });
   const dates = useMemo(() => days.map((day) => day.date), [days]);
+
+  /*
+   * 건물 · 기간을 바꾸는 링크는 서버에서 새 격자를 받아야 해서 누른 뒤 한동안 아무 반응이 없었다(「이동할 때 렉」,
+   * 2026-10-02). 누르는 즉시 격자를 흐리게 해 「받는 중」을 보이고, 새 데이터가 오면(행 배열이 바뀌면) 걷는다.
+   */
+  const [navPending, setNavPending] = useState<{ from: OpsGridRowData[] } | null>(null);
+  if (navPending && navPending.from !== rowsProp) setNavPending(null);
+  const markNav = (href: string) => () => {
+    if (href === `${window.location.pathname}${window.location.search}`) return;
+    setNavPending({ from: rowsProp });
+  };
+  useEffect(() => {
+    if (!navPending) return;
+    // 같은 데이터가 와서 배열이 안 바뀌는 경우의 안전장치.
+    const timer = setTimeout(() => setNavPending(null), 8000);
+    return () => clearTimeout(timer);
+  }, [navPending]);
   const todayInView = dates.includes(today);
 
   // ── 보기 필터(데스크톱과 같은 판정) ────────────────────────────────────────
@@ -371,6 +389,9 @@ export function MobileOpsCalendar({
     return cells;
   }, [gapCells, roomKeys, soldCells, today]);
 
+  // 한 번에 고르는 버튼은 **다시 누르면 끈다** — 지금 선택이 그 칸들 그대로면 켜진 모양 · 누르면 해제(2026-10-02).
+  const urgentPicked = isExactCellSelection(selectedKeys, selection.length, urgentCells);
+  const gapsPicked = isExactCellSelection(selectedKeys, selection.length, selectableGaps);
   const openWith = (cells: OpsSelectionCell[], kind: PanelKind) => {
     if (cells.length === 0) return;
     setScope(EMPTY_SCOPE);
@@ -903,6 +924,13 @@ export function MobileOpsCalendar({
    * 격자 스크롤은 `mobile-shell-scroll` 로 셸에 알린다(달력 보기와 같은 공용 신호).
    */
   const rootRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * 셸에 보내는 스크롤 값. 격자 높이를 우리가 바꾸면(크롬 숨김/표시) 바닥 근처에서는 브라우저가 scrollTop 을 끌어내린다
+   * — 그걸 셸이 「위로 넘김」으로 읽고 크롬을 다시 띄우면 높이가 또 바뀌어 **바닥에서 덜덜 떨었다**(2026-10-02 사용자
+   * 지적 「끝까지 올리면 끊긴다」). 그래서 ① 높이를 바꾸는 동안 생긴 움직임은 보정치(`bias`)로 흡수해 셸에 안 보내고
+   * ② 고무줄 튕김(맨 위 · 맨 아래 너머)은 끝값으로 자른다.
+   */
+  const shellScrollRef = useRef({ bias: 0, quietUntil: 0, raw: 0 });
   useEffect(() => {
     const grid = scrollerRef.current;
     const root = rootRef.current;
@@ -934,6 +962,7 @@ export function MobileOpsCalendar({
      */
     let shrinkTimer: ReturnType<typeof setTimeout> | null = null;
     const setHeight = (value: number) => {
+      shellScrollRef.current.quietUntil = performance.now() + 120;
       grid.style.height = `${Math.max(320, Math.floor(value))}px`;
     };
     const apply = (animate: boolean) => {
@@ -972,7 +1001,20 @@ export function MobileOpsCalendar({
     };
   }, []);
   const onGridScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    window.dispatchEvent(new CustomEvent("mobile-shell-scroll", { detail: { scrollTop: event.currentTarget.scrollTop } }));
+    const grid = event.currentTarget;
+    const state = shellScrollRef.current;
+    const raw = Math.min(Math.max(grid.scrollTop, 0), Math.max(0, grid.scrollHeight - grid.clientHeight));
+    if (performance.now() < state.quietUntil) {
+      state.bias += state.raw - raw;
+      state.raw = raw;
+      return;
+    }
+    if (raw === state.raw) return;
+    state.raw = raw;
+    if (raw <= 0) state.bias = 0;
+    // 맨 위가 아닌데 보정 때문에 「맨 위」로 읽히면 셸이 크롬을 띄운다 — 맨 위 판정(8px) 밖으로 둔다.
+    const sent = raw <= 0 ? 0 : Math.max(9, raw + state.bias);
+    window.dispatchEvent(new CustomEvent("mobile-shell-scroll", { detail: { scrollTop: sent } }));
   };
 
   /** 날짜 이동 — 기기의 날짜 선택(데스크톱의 범위 라벨 달력과 같은 자리). */
@@ -1046,10 +1088,10 @@ export function MobileOpsCalendar({
   const panelKind = overlay && (overlay.kind === "price" || overlay.kind === "minstay" || overlay.kind === "block") ? overlay.kind : null;
 
   return (
-    <div className="mops" ref={rootRef}>
+    <div aria-busy={navPending ? true : undefined} className={`mops${navPending ? " is-nav" : ""}`} ref={rootRef}>
       {/* 건물 — 누르면 그 건물만, 동그라미는 함께 보기(데스크톱의 체크 동그라미 · Ctrl+클릭과 같다). */}
       <div className="mops-pills" role="group" aria-label={copy.propertyGroupLabel}>
-        <Link className={`mops-pill${allSelected ? " on" : ""}`} href={nav.allHref} scroll={false}>
+        <Link className={`mops-pill${allSelected ? " on" : ""}`} href={nav.allHref} onNavigate={markNav(nav.allHref)} scroll={false}>
           {copy.allProperties}
         </Link>
         {properties.map((property) => (
@@ -1058,9 +1100,10 @@ export function MobileOpsCalendar({
               aria-label={(property.selected ? copy.propertyRemove : copy.propertyAdd).replace("{name}", property.name)}
               className={property.selected ? "mops-ck" : "mops-ck0"}
               href={property.toggleHref}
+              onNavigate={markNav(property.toggleHref)}
               scroll={false}
             />
-            <Link href={property.href} scroll={false}>
+            <Link href={property.href} onNavigate={markNav(property.href)} scroll={false}>
               {property.name}
             </Link>
           </span>
@@ -1070,20 +1113,20 @@ export function MobileOpsCalendar({
       {/* 기간 — 범위 라벨을 누르면 날짜로 바로 이동(데스크톱 범위 라벨 달력 · 월 선택기와 같은 자리). */}
       <div className="mops-bar">
         <div className="mops-seg">
-          <Link className={nav.isRolling ? "on" : ""} href={nav.rollingHref} scroll={false}>
+          <Link className={nav.isRolling ? "on" : ""} href={nav.rollingHref} onNavigate={markNav(nav.rollingHref)} scroll={false}>
             {copy.viewRolling}
           </Link>
-          <Link className={nav.isRolling ? "" : "on"} href={nav.monthlyHref} scroll={false}>
+          <Link className={nav.isRolling ? "" : "on"} href={nav.monthlyHref} onNavigate={markNav(nav.monthlyHref)} scroll={false}>
             {copy.viewMonthly}
           </Link>
         </div>
-        <Link aria-label={copy.prev} className="mops-nav" href={nav.prevHref} scroll={false}>
+        <Link aria-label={copy.prev} className="mops-nav" href={nav.prevHref} onNavigate={markNav(nav.prevHref)} scroll={false}>
           <ChevronLeft aria-hidden="true" />
         </Link>
-        <Link className="mops-today" href={nav.todayHref} scroll={false}>
+        <Link className="mops-today" href={nav.todayHref} onNavigate={markNav(nav.todayHref)} scroll={false}>
           {copy.today}
         </Link>
-        <Link aria-label={copy.next} className="mops-nav" href={nav.nextHref} scroll={false}>
+        <Link aria-label={copy.next} className="mops-nav" href={nav.nextHref} onNavigate={markNav(nav.nextHref)} scroll={false}>
           <ChevronRight aria-hidden="true" />
         </Link>
         <label className="mops-range">
@@ -1107,11 +1150,17 @@ export function MobileOpsCalendar({
       {/* 빠른 칩 — 데스크톱과 같은 순서: 위 줄의 취소 보기 · 1박 갭 → 격자 도구줄의 가격 개입 성공 · 목록 · 이력 ·
           매출 요약 · 임박 빈방 · 오늘 빈방만 · 큰방 위로 → 편집 모드의 범위 축(모바일은 「범위 선택」 시트). */}
       <div className="mops-chips">
-        <Link className={`mops-chip${nav.showCancelled ? " on" : ""}`} href={nav.cancelledHref} scroll={false}>
+        <Link className={`mops-chip${nav.showCancelled ? " on" : ""}`} href={nav.cancelledHref} onNavigate={markNav(nav.cancelledHref)} scroll={false}>
           {nav.showCancelled ? copy.showCancelledOn : copy.showCancelled}
         </Link>
         {selectableGaps.length > 0 && (
-          <button className="mops-chip gap" onClick={() => openWith(selectableGaps, "minstay")} title={copy.gapOpenHint} type="button">
+          <button
+            aria-pressed={gapsPicked}
+            className={`mops-chip gap${gapsPicked ? " on" : ""}`}
+            onClick={() => (gapsPicked ? clearSelection() : openWith(selectableGaps, "minstay"))}
+            title={copy.gapOpenHint}
+            type="button"
+          >
             {copy.gapLabel}
             <b>{selectableGaps.length}</b>
           </button>
@@ -1146,9 +1195,10 @@ export function MobileOpsCalendar({
         )}
         {todayInView && (
           <button
-            className="mops-chip urg"
+            aria-pressed={urgentPicked}
+            className={`mops-chip urg${urgentPicked ? " on" : ""}`}
             disabled={urgentCells.length === 0}
-            onClick={() => openWith(urgentCells, "price")}
+            onClick={() => (urgentPicked ? clearSelection() : openWith(urgentCells, "price"))}
             title={copy.urgentVacantHint}
             type="button"
           >
@@ -1301,8 +1351,9 @@ export function MobileOpsCalendar({
         또는 **빈 곳 탭**(시트와 같은 손짓). 선택을 풀면 탭 바가 돌아온다.
         셸의 스크롤 · 당겨서 새로고침과 섞이지 않게 body 로 띄운다.
       */}
+      {/* 시트가 열려 있어도 내리지 않는다 — 시트 스크림 밑에 그대로 둬야 여닫을 때 탭 바가 번쩍 끼어들지 않는다
+          (도구줄 z 70 < 시트 z 80). */}
       {selCount > 0 &&
-        !overlayOpen &&
         typeof document !== "undefined" &&
         createPortal(
           <MobileOpsDock
@@ -1664,7 +1715,7 @@ export function MobileOpsCalendar({
       )}
 
       {salesOpen && days.length > 0 && (
-        <OpsSalesSummaryModal
+        <OpsSalesSummarySheet
           copy={copy}
           days={days.length}
           onClose={() => setSalesOpen(false)}

@@ -38,6 +38,16 @@ import { useSheetDragDismiss } from "@/components/shell/use-sheet-drag-dismiss";
 
 type HandleProps = ReturnType<typeof useSheetDragDismiss>["handleProps"];
 
+/*
+ * ── 움직임 — 모든 하단 시트가 같은 곡선 · 같은 길이(2026-10-02 사용자 지시 「물 흐르듯이, 너무 빠르지 않게, 닫을 때도」) ──
+ * iOS 시트 곡선(빠르게 출발 → 길게 감속). 여는 쪽이 조금 더 길다 — 닫힘은 손을 뗀 뒤라 기다리게 하지 않는다.
+ * 내용이 늦게 와서 시트가 **커지면** 위 끝이 툭 튀지 않고 같은 곡선으로 미끄러져 올라간다(아래 FLIP).
+ */
+const SHEET_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+const SHEET_OPEN_MS = 480;
+const SHEET_CLOSE_MS = 380;
+const SHEET_GROW_MS = 420;
+
 const BottomSheetDragContext = createContext<HandleProps>({} as HandleProps);
 const BottomSheetCloseContext = createContext<() => void>(() => {});
 
@@ -79,7 +89,7 @@ export function BottomSheet({
 
   const close = useCallback(() => {
     setShown(false);
-    setTimeout(onClose, 320); // matches the slide-out transition duration
+    setTimeout(onClose, SHEET_CLOSE_MS); // matches the slide-out transition duration
   }, [onClose]);
 
   const drag = useSheetDragDismiss({ shown, onDismiss: close });
@@ -92,6 +102,41 @@ export function BottomSheet({
   // 시트를 닫아버려서 "잠깐 떴다 사라지는" 것처럼 보인다(2026-07-31, 근태 결과 시트).
   // 시트가 열리기 전에 눌린 탭에는 스크림 pointerdown 이 없으므로 이 가드로 걸러진다.
   const scrimArmedRef = useRef(false);
+
+  /*
+   * 내용이 커지면(불러오는 중 → 다 받음) 시트 위 끝이 한 번에 튀어 오른다. 커진 만큼 아래로 내린 자리에서 0 으로
+   * 미끄러뜨린다(FLIP — `translate` 속성만 움직여 합성기에서 돈다. 끌기 · 열고 닫기의 `transform` 과 따로 논다).
+   * 작아질 때는 그대로 둔다 — 같은 방법이면 시트가 바닥에서 떠서 아래로 스크림이 비친다.
+   */
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    if (!sheet || typeof ResizeObserver === "undefined" || typeof sheet.animate !== "function") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let last = sheet.offsetHeight;
+    let grow: Animation | null = null;
+    const observer = new ResizeObserver(() => {
+      const next = sheet.offsetHeight;
+      const delta = next - last;
+      last = next;
+      if (delta <= 2) return;
+      // 미끄러지는 도중에 또 커지면 남은 거리에 더한다(멈칫하지 않게).
+      let carry = 0;
+      if (grow && grow.playState === "running") {
+        carry = Number.parseFloat(getComputedStyle(sheet).translate.split(" ")[1] ?? "0") || 0;
+        grow.cancel();
+      }
+      grow = sheet.animate([{ translate: `0 ${delta + carry}px` }, { translate: "0 0" }], {
+        duration: SHEET_GROW_MS,
+        easing: SHEET_EASE,
+      });
+    });
+    observer.observe(sheet);
+    return () => {
+      observer.disconnect();
+      grow?.cancel();
+    };
+  }, []);
 
   // Slide in on mount (double rAF so the initial translate-y-full paints first).
   useEffect(() => {
@@ -142,7 +187,7 @@ export function BottomSheet({
       <BottomSheetDragContext.Provider value={drag.handleProps}>
         <div
           className={cn(
-            "fixed inset-0 flex items-end justify-center bg-slate-950/45 transition-opacity duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+            "fixed inset-0 flex items-end justify-center bg-slate-950/45 motion-reduce:transition-none!",
             zIndexClassName,
             shown ? "opacity-100" : "opacity-0",
           )}
@@ -155,7 +200,12 @@ export function BottomSheet({
           onPointerDown={(e) => {
             scrimArmedRef.current = e.target === e.currentTarget;
           }}
-          style={drag.scrimStyle}
+          style={{
+            ...drag.scrimStyle,
+            transition: drag.dragging
+              ? "none"
+              : `opacity ${shown ? SHEET_OPEN_MS : SHEET_CLOSE_MS}ms ${SHEET_EASE}`,
+          }}
         >
           <div
             aria-label={ariaLabel}
@@ -163,7 +213,7 @@ export function BottomSheet({
             aria-modal="true"
             className={cn(
               "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[calc(max(20px,env(safe-area-inset-bottom))+var(--keyboard-inset,0px))] pt-0",
-              "transition-transform duration-[320ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+              "motion-reduce:transition-none!",
               shown ? "translate-y-0" : "translate-y-full",
               className,
             )}
@@ -176,8 +226,15 @@ export function BottomSheet({
             // Isolating touchmove here keeps the background frozen while a sheet is open; the
             // sheet's own scroll regions still scroll natively (stopPropagation ≠ preventDefault).
             onTouchMove={(e) => e.stopPropagation()}
+            ref={sheetRef}
             role="dialog"
-            style={drag.sheetStyle}
+            style={{
+              ...drag.sheetStyle,
+              transition: drag.dragging
+                ? "none"
+                : `transform ${shown ? SHEET_OPEN_MS : SHEET_CLOSE_MS}ms ${SHEET_EASE}`,
+              willChange: "transform",
+            }}
           >
             <div
               className="-mx-5 flex min-h-[44px] cursor-grab items-start justify-center px-5 pt-[10px] active:cursor-grabbing"

@@ -541,7 +541,9 @@ Current rules:
   `mobileOpsAdminNavigation`(`src/config/navigation.ts`)은 `mobileSidebarNavigation` 과 **다른 목록**이고, 사이드 메뉴
   아래쪽에 구분선 + 제목(`admin.console.navGroupOpsAdmin` — 운영 관리자 / 運営管理者 / Revenue Ops)을 단 구역으로 그린다.
   데스크톱 사이드바가 「운영 관리자」 묶음을 맨 아래 따로 두는 것(`adminNavGroupOf` → `ops`)과 같은 규칙이다.
-  **하단 탭 편집 후보에도 넣지 않는다**(후보 = 일반 메뉴). 권한이 없으면 구역째 안 보인다.
+  **하단 탭 편집 후보에는 넣는다**(2026-10-02 사용자 지시로 변경 — 예전엔 뺐다): `customizableBottomNavItems` = 일반 메뉴
+  + 운영 관리자 구역(후보 맨 뒤). 탭 라벨은 축약형 `opsCalendarShort`(판매 / 販売 / Sales). 셸의 `canSeeMobileNavItem` 이
+  사이드 구역 · 하단 탭 · 편집 후보 세 곳을 같은 조건으로 거른다. 권한이 없으면 구역째 안 보인다.
   **관리자 웹 역할(`canAccessAdminWeb`)도 함께 본다**(2026-10-01) — 페이지가 `ops_admin.access` + 관리자 웹 역할을
   둘 다 요구하므로(쓰기 액션이 `requireAdminSession` 을 거친다), 키만 개별 부여받은 현장 역할에게 메뉴를 보여 주면
   눌러도 홈으로 튕겼다. 메뉴와 페이지가 같은 두 조건을 쓴다(`mobile-shell.tsx`).
@@ -650,7 +652,13 @@ bottom sheet looks identical. The reference design is the home check-in/out shee
 - **Surface**: `bg-surface` (cream), `rounded-t-[24px]`, `max-w-[460px]`, centered, bottom-anchored.
 - **Padding**: `px-5 pt-3 pb-[max(20px,env(safe-area-inset-bottom))]`.
 - **Grab handle**: `mx-auto mb-3 h-1 w-[38px] rounded-full bg-slate-200` (slate-200, 38×4).
-- **Animation**: slide-in/out `translate-y-full → translate-y-0`, 320ms `cubic-bezier(0.32,0.72,0,1)`.
+- **Animation**: slide-in/out `translate-y-full → translate-y-0`, curve `cubic-bezier(0.32,0.72,0,1)`.
+  **2026-10-02 (사용자 지시 「물 흐르듯이, 너무 빠르지 않게, 닫을 때도」)**: open **480ms**, close **380ms**, scrim fades on
+  the same timing (`SHEET_OPEN_MS` / `SHEET_CLOSE_MS` in `bottom-sheet.tsx`, inline transition so drag stays `none`).
+  **Content growth glides** — when content arrives late (loading → loaded) and the sheet gets taller, a `ResizeObserver`
+  FLIPs the `translate` property (compositor-only, independent of the drag/slide `transform`) so the top edge slides up
+  over 420ms instead of jumping. Shrinking is not animated (a lifted sheet would show the scrim below it).
+  `prefers-reduced-motion` turns all of it off.
 - **Dismiss**: drag past threshold, scrim tap, or Esc. **No top-right X button.**
 - **Lifecycle**: portals to `<body>`, locks body scroll, closes on Esc.
 - **Drag performance (2026-06-23)**: live drag distance updates are coalesced with `requestAnimationFrame`; refs still track every pointer sample for threshold/velocity accuracy, but React renders at most once per frame.

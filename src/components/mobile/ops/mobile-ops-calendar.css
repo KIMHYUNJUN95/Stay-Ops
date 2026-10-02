@@ -274,6 +274,8 @@ a.mops-pill { padding-inline: 14px; }
 .mops-chip.gap b { background: var(--mops-danger); color: #fff; }
 .mops-chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
 .mops-chip.on b { background: rgb(255 255 255 / 0.22); color: #fff; }
+.mops-chip.gap.on,
+.mops-chip.urg.on { color: #fff; }
 /* 이력 — 최근 전송 실패 · 멈춘 작업이 있으면 숫자가 빨갛다(데스크톱 `opsg__hist.alert`). */
 .mops-chip.alert b { background: var(--mops-danger); color: #fff; }
 
@@ -295,7 +297,9 @@ a.mops-pill { padding-inline: 14px; }
   height: calc(100dvh - 17.5rem - env(safe-area-inset-bottom, 0px));
   min-height: 340px;
   overflow: auto;
-  overscroll-behavior: contain;
+  /* 고무줄 튕김 없이 끝에서 멈춘다(2026-10-02 「객실이 다 보이면 더 올라가지 않게」). 맨 위의 당겨서 새로고침은
+     셸이 터치로 따로 받는다. */
+  overscroll-behavior: none;
   background: var(--surface);
   border-top: 1px solid var(--mops-line);
   border-bottom: 1px solid var(--mops-line);
@@ -529,8 +533,9 @@ a.mops-pill { padding-inline: 14px; }
   box-shadow: 0 -10px 28px -12px rgba(46, 40, 28, 0.22);
   padding-top: 8px;
   touch-action: none;
-  transition: transform 0.24s cubic-bezier(0.32, 0.72, 0, 1);
-  animation: mops-dock-in 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  /* 공용 시트와 같은 곡선 · 비슷한 길이(2026-10-02 「모든 하단 팝업은 물 흐르듯이」). */
+  transition: transform 0.38s cubic-bezier(0.32, 0.72, 0, 1);
+  animation: mops-dock-in 0.46s cubic-bezier(0.32, 0.72, 0, 1);
 }
 /* 끄는 동안은 손가락을 바로 따라온다(놓으면 위 transition 으로 제자리 · 퇴장). */
 .mops-dock.is-dragging { transition: none; }
@@ -771,3 +776,39 @@ a.mops-pill { padding-inline: 14px; }
 .mops-search__when { text-align: right; font-variant-numeric: tabular-nums; }
 .mops-search__main small,
 .mops-search__when small { font-size: 11.5px; font-weight: 600; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── 손끝 반응(2026-10-02 「네이티브 앱처럼」) ───────────────────────────────── */
+/* 누르는 순간 회색 하이라이트 대신 살짝 눌리는 모양. 더블탭 확대 지연도 없앤다. */
+.mops a,
+.mops button,
+.mops-dock button,
+.mops-vars button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.mops-pill,
+.mops-chip,
+.mops-nav,
+.mops-today,
+.mops-seg a {
+  transition: transform var(--dur-press, 0.14s) ease, background-color 0.18s ease, color 0.18s ease,
+    border-color 0.18s ease;
+}
+.mops-pill:active,
+.mops-chip:active:not(:disabled),
+.mops-nav:active,
+.mops-today:active,
+.mops-seg a:active {
+  transform: scale(0.95);
+}
+/* 건물 · 기간을 바꾸는 중 — 새 격자가 올 때까지 흐리게(바로 반응이 보이게). 격자는 계속 넘길 수 있다. */
+.mops-grid { transition: opacity 0.2s ease; }
+.mops.is-nav .mops-grid { opacity: 0.45; }
+@media (prefers-reduced-motion: reduce) {
+  .mops-pill:active,
+  .mops-chip:active:not(:disabled),
+  .mops-nav:active,
+  .mops-today:active,
+  .mops-seg a:active { transform: none; }
+  .mops-dock { transition: none; animation: none; }
+}

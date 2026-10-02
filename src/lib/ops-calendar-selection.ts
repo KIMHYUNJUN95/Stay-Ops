@@ -17,6 +17,19 @@ export function selectionCellKey(roomKey: string, date: string): string {
 }
 
 /**
+ * 지금 선택이 정확히 `cells` 인가 — 「임박 빈방」 · 「1박 갭」처럼 한 번에 고르는 버튼을 **다시 누르면 끄기** 위해
+ * 쓴다(2026-10-02 사용자 지시). 같은 칸들을 골라 둔 상태면 버튼을 켜진 모양으로 그리고, 누르면 선택을 푼다.
+ */
+export function isExactCellSelection(
+  selectedKeys: ReadonlySet<string>,
+  selectionLength: number,
+  cells: readonly OpsSelectionCell[],
+): boolean {
+  if (cells.length === 0 || selectionLength !== cells.length) return false;
+  return cells.every((cell) => selectedKeys.has(selectionCellKey(cell.roomKey, cell.date)));
+}
+
+/**
  * 축(스코프) — 객실 · 주 · 요일.
  *
  * **빈 축은 「전체」다.** 요일을 하나도 안 고르면 전 요일이지, 아무 날도 아닌 게 아니다.

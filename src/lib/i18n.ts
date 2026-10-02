@@ -56,6 +56,7 @@ export const localizedNavigationLabels = {
      * 넓은 자리의 이름까지 깎고 있었다.
      */
     complaintsShort: { ko: "피드백", ja: "ゲストの声", en: "Feedback" },
+    opsCalendarShort: { ko: "판매", ja: "販売", en: "Sales" },
   },
   utility: {
     notifications: { ko: "알림", ja: "通知", en: "Notifications" },

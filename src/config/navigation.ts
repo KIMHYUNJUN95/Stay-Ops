@@ -90,6 +90,7 @@ const mobileNavCalendar = {
 const mobileNavOpsCalendar = {
   id: "ops-calendar",
   label: localizedNavigationLabels.mobile.opsCalendar,
+  shortLabel: localizedNavigationLabels.mobile.opsCalendarShort,
   href: "/mobile/ops/calendar",
   icon: CalendarCog,
   capability: "ops_admin.access",
@@ -213,8 +214,9 @@ export const mobileSidebarNavigation = [
 
 /**
  * 운영 관리자 메뉴(모바일) — **일반 메뉴와 섞지 않는다**(2026-10-01 사용자 지시). 데스크톱 사이드바가 「운영 관리자」
- * 묶음을 맨 아래 따로 두는 것과 같다(`adminNavGroupOf` → `ops`). 사이드 메뉴 아래쪽에 제목을 단 별도 구역으로 그리고,
- * 하단 탭 편집 후보(`customizableBottomNavItems`)에도 넣지 않는다. 권한이 없으면 구역째 사라진다.
+ * 묶음을 맨 아래 따로 두는 것과 같다(`adminNavGroupOf` → `ops`). 사이드 메뉴 아래쪽에 제목을 단 별도 구역으로 그린다.
+ * 하단 탭 편집 후보에는 **넣는다**(2026-10-02 사용자 지시 — 판매 캘린더를 탭에 고정) — 후보 목록 맨 뒤. 권한이 없으면
+ * 사이드 구역째 · 후보에서도 사라진다(셸의 `canSeeMobileNavItem`).
  */
 export const mobileOpsAdminNavigation = [mobileNavOpsCalendar] as const satisfies readonly NavigationItem[];
 
@@ -234,8 +236,16 @@ export const defaultBottomNavTabIds = [
   "announcements",
 ] as const satisfies readonly string[];
 
-/** Features a user may pin to the bottom bar (same pool as the side menu). */
-export const customizableBottomNavItems = mobileSidebarNavigation;
+/** Features a user may pin to the bottom bar (the side menu + the ops-admin section, filtered per user). */
+export const customizableBottomNavItems = [
+  ...mobileSidebarNavigation,
+  ...mobileOpsAdminNavigation,
+] as const satisfies readonly NavigationItem[];
+
+/** 운영 관리자 구역 항목인가 — 권한 키에 더해 관리자 웹 역할도 요구한다(셸이 함께 거른다). */
+export function isMobileOpsAdminNavItem(id: string): boolean {
+  return mobileOpsAdminNavigation.some((item) => item.id === id);
+}
 
 /**
  * 이 사람에게 보이는 내비 항목인가 — `capability` 가 없으면 전원, 있으면 그 권한 키를 가진 사람만.

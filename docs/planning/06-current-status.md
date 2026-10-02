@@ -9,6 +9,14 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 (4) — 모바일 판매 캘린더 사용자 지적 7건
+
+- **공용 BottomSheet 움직임**: 열기 480ms · 닫기 380ms(같은 곡선), 내용이 늦게 와 커지면 위 끝이 미끄러져 올라감
+  (`ResizeObserver` + `translate` FLIP). 앱의 모든 하단 시트에 적용. (`16`)
+- 하단 탭 편집 후보에 **판매 캘린더** 추가(권한 + 관리자 웹 역할일 때만, 탭 라벨 「판매」). (`16`)
+- **임박 빈방 · 1박 갭 다시 누르면 끄기**(데스크톱 임박 빈방 포함). 모바일 매출 요약을 공용 시트로. 바닥 끝 떨림
+  (크롬 숨김 ↔ scrollTop 되먹임) 수정 · 튕김 없음. 건물/기간 이동 즉시 흐림 표시. 누름 반응 · 탭 하이라이트 제거. (`33`, `31`)
+
 ## 2026-10-02 (3) — 모바일 판매 캘린더 버벅임 수정
 
 - 크롬 숨김/표시 때 격자 높이 애니메이션 제거(transform 만) · 새로고침 시 안 바뀐 행 재사용(`reuseStableRows`,

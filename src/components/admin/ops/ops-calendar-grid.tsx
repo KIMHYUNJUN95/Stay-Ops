@@ -61,6 +61,7 @@ import {
   buildScopeCells,
   buildSelectableWeeks,
   EMPTY_SCOPE,
+  isExactCellSelection,
   isPriceEditBlocked,
   removeCells,
   selectionCellKey,
@@ -1651,7 +1652,13 @@ export function OpsCalendarGrid({
         today,
       })
     : [];
+  // 다시 누르면 끈다(2026-10-02 사용자 지시) — 지금 선택이 임박 빈방 그대로면 켜진 모양 · 누르면 해제.
+  const urgentPicked = isExactCellSelection(selectedKeys, selection.length, urgentCells);
   const selectUrgent = () => {
+    if (urgentPicked) {
+      clearSelection();
+      return;
+    }
     if (urgentCells.length === 0) return;
     setMode("price");
     setScope(EMPTY_SCOPE);
@@ -1892,7 +1899,8 @@ export function OpsCalendarGrid({
             )}
             {todayInView && urgentCells.length > 0 && (
               <button
-                className="opsg__editbtn opsg__urgent"
+                aria-pressed={urgentPicked}
+                className={`opsg__editbtn opsg__urgent${urgentPicked ? " on" : ""}`}
                 onClick={selectUrgent}
                 title={copy.urgentVacantHint}
                 type="button"
