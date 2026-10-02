@@ -170,6 +170,19 @@ export const PROPERTY_MAP_META: PropertyMapMeta[] = [
       { labelKey: "keyBoxPassword", code: "6174" },
     ],
   },
+  {
+    // 2026-10-02 추가 — 룸 링크 화면의 건물 주소(사용자 제공). 출입 정보는 아직 없다 — 건물 정보 화면에서 넣는다.
+    canonicalName: "STAY ARI Apartment Hotel",
+    kind: "hotel",
+    address: {
+      ko: "1-chōme-9-26 Ōkubo, Shinjuku City, Tokyo 169-0072",
+      ja: "1-chōme-9-26 Ōkubo, Shinjuku City, Tokyo 169-0072",
+      en: "1-chōme-9-26 Ōkubo, Shinjuku City, Tokyo 169-0072",
+    },
+    googleMapsUrl:
+      "https://www.google.com/maps/search/?api=1&query=1-9-26%20Okubo%2C%20Shinjuku%20City%2C%20Tokyo%20169-0072",
+    sharedAccess: [],
+  },
 ];
 
 export function getPropertyMapMeta(canonicalName: string): PropertyMapMeta | null {

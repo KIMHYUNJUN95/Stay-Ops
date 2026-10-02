@@ -169,7 +169,6 @@
 .adm .rl__addr { display: flex; align-items: flex-start; gap: 6px; font-size: 11.5px; line-height: 1.5; color: var(--adm-muted); }
 .adm .rl__addr .ic { width: 13px; height: 13px; flex: 0 0 13px; margin-top: 2px; }
 .adm .rl__addr a { font-weight: 700; white-space: nowrap; }
-.adm .rl__addr.is-warn { color: var(--warn); }
 .adm .rl__pb { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px 22px; }
 
 .adm .rl__unit { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 13px; overflow: hidden; }

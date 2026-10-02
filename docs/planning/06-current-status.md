@@ -9,6 +9,12 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 (17) — STAY ARI 건물 주소 · 룸 링크 주소 경고 제거
+
+- STAY ARI Apartment Hotel 주소(사용자 제공)를 건물 정보 기본 목록(`property-map-links.ts`)에 추가 — 룸 링크 · 예약 캘린더 건물 정보에
+  표시되고 화면에서 고칠 수 있다(조직 공용 `property_operation_infos`). 출입 정보는 비어 있음.
+- 사노는 주소를 두지 않기로(사용자 결정) — 룸 링크의 「건물 주소 미입력」 경고 줄 제거. (`35`, `31`)
+
 ## 2026-10-02 (16) — 룸 링크: 판매 중 표시를 모든 방에
 
 - 듀얼 계정이 아닌 방(STAY ARI 등 유닛 하나)도 활성이면 「지금 판매 중」 칩 · 카드 · 알약을 표시. 비활성이면 「쉬는 계정」. (`35`)

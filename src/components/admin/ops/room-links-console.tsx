@@ -211,12 +211,7 @@ export function RoomLinksConsole({ data, copy }: { data: RoomLinksPageData; copy
                   </a>
                 )}
               </div>
-            ) : (
-              <div className="rl__addr is-warn">
-                <MapPin aria-hidden="true" className="ic" />
-                <span>{copy.addressMissing}</span>
-              </div>
-            )}
+            ) : null /* 주소를 두지 않는 건물(사노 — 사용자 결정 2026-10-02)은 줄 자체를 감춘다. */}
           </div>
           <div className="rl__pb">
             {row.units.map((unit) => (
