@@ -105,6 +105,8 @@ export function DatePickerSheet({
       }
       onClose={onClose}
     >
+      {/* 고르면 바로 알리고(부모가 이동 등을 곧장 시작) 시트는 같은 움직임으로 미끄러져 닫힌다(2026-10-02). */}
+      {({ close }) => (
       <div className="pb-2">
         <div className="mb-1 grid grid-cols-7">
           {dowLabels.map((d, i) => (
@@ -137,7 +139,10 @@ export function DatePickerSheet({
                       : "text-foreground active:bg-muted",
                 )}
                 key={key}
-                onClick={() => onSelect(key)}
+                onClick={() => {
+                  onSelect(key);
+                  close();
+                }}
                 type="button"
               >
                 {day}
@@ -148,12 +153,16 @@ export function DatePickerSheet({
 
         <button
           className="mt-4 flex h-12 w-full items-center justify-center rounded-2xl border border-border bg-surface text-[14px] font-extrabold text-foreground transition-colors active:bg-muted"
-          onClick={() => onSelect(today)}
+          onClick={() => {
+            onSelect(today);
+            close();
+          }}
           type="button"
         >
           {labels.today}
         </button>
       </div>
+      )}
     </BottomSheet>
   );
 }

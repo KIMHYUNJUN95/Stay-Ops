@@ -35,8 +35,10 @@ import { watchOpsWriteJob, type OpsWriteKind, type RunOpsWrite } from "@/compone
 import { Beds24LiveDot } from "@/components/shared/beds24-live-dot";
 import type { AdminGuestSearchCopy } from "@/components/shell/admin-guest-search";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
+import { DatePickerSheet } from "@/components/shell/date-picker-sheet";
 import type { Dictionary } from "@/lib/i18n";
 import { assignBarLanes, assignBlockLanes } from "@/lib/ops-bar-lanes";
+import { formatGridPrice } from "@/lib/ops-price-format";
 import type {
   OpsCalendarBlock,
   OpsCalendarDay,
@@ -128,7 +130,7 @@ type Jump = {
 type Pending = { token: number; value: number };
 type PanelKind = "price" | "minstay" | "block";
 type Overlay =
-  | { kind: PanelKind | "scope" | "history" | "wins" | "search" }
+  | { kind: PanelKind | "scope" | "history" | "wins" | "search" | "jump" }
   | { kind: "reservation"; placement: OpsReservationPlacement }
   | { kind: "booking"; room: BookingPanelRoom; checkIn: string; checkOut: string }
   | { kind: "cellHistory"; roomKey: string; date: string }
@@ -147,12 +149,6 @@ const MOVE_SLOP = 8;
 const EDGE = 36;
 const HEAD_H = 60;
 const ROOM_W = 56;
-
-/** 46px 칸에 맞는 금액 표기. 10만 엔부터는 `123k` — 그대로 쓰면 칸을 넘는다. */
-function compactYen(value: number): string {
-  if (value >= 100_000) return `${Math.round(value / 1000)}k`;
-  return value.toLocaleString("ja-JP");
-}
 
 function dropTokens(map: Map<string, Pending>, tokens: ReadonlySet<number>): Map<string, Pending> {
   let changed = false;
@@ -1144,28 +1140,17 @@ export function MobileOpsCalendar({
     window.dispatchEvent(new CustomEvent("mobile-shell-scroll", { detail: { scrollTop: sent } }));
   };
 
-  /** 날짜 이동 — 기기의 날짜 선택(데스크톱의 범위 라벨 달력과 같은 자리). */
-  const jumpInputRef = useRef<HTMLInputElement | null>(null);
-  const jumpTargetRef = useRef({ base: jump.base, isRolling: nav.isRolling });
-  useEffect(() => {
-    jumpTargetRef.current = { base: jump.base, isRolling: nav.isRolling };
-  });
-  useEffect(() => {
-    const input = jumpInputRef.current;
-    if (!input) return;
-    const onCommit = () => {
-      const value = input.value;
-      if (!value) return;
-      const { base, isRolling } = jumpTargetRef.current;
-      router.push(
-        buildOpsCalendarHref(isRolling ? { ...base, start: value } : { ...base, ym: value.slice(0, 7) }, BASE_PATH),
-        { scroll: false },
-      );
-    };
-    input.addEventListener("change", onCommit);
-    return () => input.removeEventListener("change", onCommit);
-    // 입력칸이 새로 그려질 때(키가 바뀔 때)마다 다시 붙인다.
-  }, [router, nav.isRolling, jump.start, jump.month]);
+  /**
+   * 날짜 이동 — **앱 공용 날짜 시트**(`DatePickerSheet`, 청소 화면과 같은 것)로 고른다(2026-10-02 사용자 결정). 예전엔
+   * 기기 날짜 선택(`<input type="date">`)이라 아이폰 휠 · 안드로이드 달력이 제각각이고 앱 모양과 어긋났다. 날짜를 누르면
+   * 그 날짜로 바로 간다 — 30일 보기는 그날부터, 월간 보기는 그 달.
+   */
+  const jumpTo = (date: string) => {
+    const href = buildOpsCalendarHref(nav.isRolling ? { ...jump.base, start: date } : { ...jump.base, ym: date.slice(0, 7) }, BASE_PATH);
+    if (href === `${window.location.pathname}${window.location.search}`) return;
+    setNavPending({ from: rowsProp });
+    router.push(href, { scroll: false });
+  };
 
   // ── 행별로 쪼갠 표시 상태(바뀐 행만 다시 그린다) ────────────────────────────
   const flagsFor = (roomKey: string, keys: ReadonlySet<string>) => {
@@ -1262,19 +1247,9 @@ export function MobileOpsCalendar({
         <Link aria-label={copy.next} className="mops-nav" href={nav.nextHref} onNavigate={markNav(nav.nextHref)} scroll={false}>
           <ChevronRight aria-hidden="true" />
         </Link>
-        <label className="mops-range">
+        <button aria-label={copy.mJump} className="mops-range" onClick={() => setOverlay({ kind: "jump" })} type="button">
           <span>{nav.rangeLabel}</span>
-          {/* 고르는 **도중**이 아니라 **확정했을 때** 옮긴다 — iOS 날짜 휠은 돌리는 동안에도 input 이벤트를 보낸다.
-              그래서 React onChange(=input) 가 아니라 기기 「완료」에 오는 change 이벤트만 받는다(비제어 입력). */}
-          <input
-            aria-label={copy.mJump}
-            className="mops-range__input"
-            defaultValue={nav.isRolling ? jump.start : jump.month}
-            key={`${nav.isRolling ? "d" : "m"}-${jump.start}-${jump.month}`}
-            ref={jumpInputRef}
-            type={nav.isRolling ? "date" : "month"}
-          />
-        </label>
+        </button>
         <button aria-label={copy.mSearch} className="mops-nav mops-searchbtn" onClick={() => setOverlay({ kind: "search" })} type="button">
           <Search aria-hidden="true" />
         </button>
@@ -1894,6 +1869,17 @@ export function MobileOpsCalendar({
         </BottomSheet>
       )}
 
+      {overlay?.kind === "jump" && (
+        <DatePickerSheet
+          labels={{ nextMonth: copy.dateNext, prevMonth: copy.datePrev, title: copy.mJump, today: copy.today }}
+          locale={copy.localeTag}
+          onClose={() => setOverlay(null)}
+          onSelect={jumpTo}
+          today={today}
+          value={nav.isRolling ? jump.start : `${jump.month}-01`}
+        />
+      )}
+
       {overlay?.kind === "search" && (
         <MobileOpsSearchSheet
           copy={searchCopy}
@@ -2213,7 +2199,7 @@ const MobileOpsRow = memo(function MobileOpsRow({
               key={day.date}
             >
               {dayFlagAt(row.history, index) && <i className="mops-hdot" />}
-              {price !== null && <span className={`mops-p${isPendingPrice ? " pend" : ""}`}>{compactYen(price)}</span>}
+              {price !== null && <span className={`mops-p${isPendingPrice ? " pend" : ""}`}>{formatGridPrice(price)}</span>}
               {minStay !== null && (
                 <span className={`mops-m${msClass}${isPendingMin ? " pend" : ""}`}>
                   {/* 숫자만 적는다(데스크톱 격자와 같다) — 「2박」은 46px 칸에서 가격과 겹쳐 읽힌다. */}

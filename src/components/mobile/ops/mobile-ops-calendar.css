@@ -143,6 +143,7 @@ a.mops-pill { padding-inline: 14px; }
 .mops-nav svg { width: 16px; height: 16px; }
 .mops-today { padding: 0 10px; font-size: 12px; font-weight: 800; }
 /* 범위 라벨 = 날짜 이동. 기기 날짜 선택을 투명하게 덮어 둔다 — 라벨을 누르면 그대로 열린다. */
+/* 범위 라벨 — 누르면 앱 공용 날짜 시트(`DatePickerSheet`, 2026-10-02 — 기기 날짜 선택 대신). */
 .mops-range {
   position: relative;
   min-width: 0;
@@ -150,21 +151,16 @@ a.mops-pill { padding-inline: 14px; }
   padding: 0 4px;
   display: inline-flex;
   align-items: center;
+  border: 0;
   border-bottom: 1.5px dashed var(--mops-line);
+  background: none;
+  -webkit-tap-highlight-color: transparent;
   font-size: 12px;
   font-weight: 700;
   color: var(--mops-soft);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   overflow: hidden;
-}
-.mops-range__input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  font-size: 16px;
 }
 .mops-searchbtn { margin-left: auto; }
 

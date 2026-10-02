@@ -43,6 +43,7 @@ import {
   type OpsWriteKind,
   type RunOpsWrite,
 } from "@/components/admin/ops/ops-write-tracker";
+import { formatGridPrice } from "@/lib/ops-price-format";
 import { assignBarLanes, assignBlockLanes } from "@/lib/ops-bar-lanes";
 import {
   OpsReservationPanel,
@@ -145,15 +146,6 @@ type Copy = {
     msMixed: string;
   };
 
-/**
- * 격자 칸의 가격 표기 — `42659` → `42.7K`.
- *
- * 칸 폭이 30px 대라 `¥42,659` 는 들어가지 않는다. 천 단위로 줄이되 **소수 한 자리는 남긴다** —
- * `42K` 와 `43K` 로 뭉개면 2,000엔 차이가 사라져 가격표를 읽는 의미가 없어진다.
- */
-function formatPrice(value: number): string {
-  return `${(value / 1000).toFixed(1).replace(/\.0$/, "")}K`;
-}
 
 /** 낙관적으로 먼저 그린 값. `token` 이 어느 쓰기에서 왔는지 가른다. */
 type PendingValue = { value: number; token: number };
@@ -513,7 +505,7 @@ const OpsGridRow = memo(function OpsGridRow({
                 key={`p-${day.date}`}
               >
                 <span className={`opsg__price${price === null ? " none" : ""}${pricePending ? " pend" : ""}`}>
-                  {price === null ? "–" : formatPrice(price)}
+                  {price === null ? "–" : formatGridPrice(price)}
                 </span>
                 {/* 사람이 손댄 칸이라는 표시. 점 하나면 격자를 어지럽히지 않는다. */}
                 {hasHistory && <span className="opsg__hdot" />}

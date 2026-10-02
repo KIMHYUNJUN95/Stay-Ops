@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 (11) — 모바일 판매 캘린더: 앱 달력 · 가격 K 표기
+
+- 범위 라벨(날짜 이동)이 기기 날짜 선택 대신 **앱 공용 `DatePickerSheet`**. 공용 시트는 고르면 미끄러져 닫힌다. (`33`)
+- 격자 가격을 데스크톱과 같은 `42.7K` 표기로(`formatGridPrice` 공용). (`33`)
+
 ## 2026-10-02 (10) — 모바일 가격 시트 v3 구현(시안 확정)
 
 - 모바일 가격 수정이 전용 시트 `MobileOpsPriceSheet`(시안 `3a 가격 시트 v3`)로 — 계산 · 서버 경로는 데스크톱과 같음.
