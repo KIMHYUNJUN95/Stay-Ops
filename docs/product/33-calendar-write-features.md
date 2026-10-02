@@ -120,7 +120,7 @@ Beds24 화면에서 직접 건 blackout 을 구분**하기 위해서다. 후자�
 | **재고(numAvail) 관리** | — **안 만든다** | 저쪽에 화면이 없다. numAvail 은 차단 스냅샷에만 쓰이고, 우리 블록도 이미 스냅샷을 한다 |
 | **가격 인사이트** | — **안 만든다** | 모달과 계산은 있는데 **여는 곳이 없다**(`setShowPriceInsightModal(true)` 호출 0건) — 죽은 기능 |
 | `checkAvailability` | — **안 만든다** | 프론트에서 부르는 곳 0건 |
-| `RoomLinksDashboard` | — 범위 밖 | 채널 링크 목록 CRUD(`/room-links`). 캘린더와 무관 |
+| `RoomLinksDashboard` | ✅ 이식(2026-10-02) | 별도 화면 `/admin/ops/room-links` · 권한 `room_links.access` — `35-room-links.md` |
 
 #### 가격 개입 전환 규칙 (저쪽 `src/utils/priceAttribution.js`, 9/24)
 

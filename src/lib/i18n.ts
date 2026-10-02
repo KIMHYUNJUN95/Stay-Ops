@@ -29,6 +29,7 @@ export const localizedNavigationLabels = {
     opsRevenue: { ko: "매출", ja: "売上", en: "Revenue" },
     opsLedger: { ko: "전표", ja: "日次伝票", en: "Daily Ledger" },
     opsAutomation: { ko: "자동화", ja: "自動化", en: "Automation" },
+    opsRoomLinks: { ko: "룸 링크", ja: "ルームリンク", en: "Room links" },
   },
   mobile: {
     announcements: { ko: "공지", ja: "お知らせ", en: "Announcements" },

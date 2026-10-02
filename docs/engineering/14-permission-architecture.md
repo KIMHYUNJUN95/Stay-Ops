@@ -173,7 +173,12 @@ maintenance_status_change   수리 상태 변경          ← 기존 키
 property_room_manage        건물·객실 관리          ← 기존 키
 can_generate_report         일일 업무일지 생성      ← 기존 키
 ops_admin.access            운영 관리자 영역 전체    ← 2026-09-17 추가
+room_links.access           룸 링크                 ← 2026-10-02 추가
 ```
+
+**`room_links.access` 는 운영 관리자 묶음에 있지만 `ops_admin.access` 와 따로 준다**(2026-10-02 사용자 결정). 리스팅
+확인은 가격을 만지지 않는 사람도 한다. 정책은 같다(대표 · 전무 역할, 개인 부여, 기한 · 차단 없음, 개발자 통과).
+코드는 `canAccessRoomLinks`(`src/lib/ops-admin.ts`) 만 본다. docs/product/35-room-links.md.
 
 **`ops_admin.access` 는 「영역 하나 = 키 하나」의 첫 사례다.** 그 안의 다섯 화면(판매 캘린더 ·
 가동률 · 매출 · 전표 · 자동화)을 기능별로 쪼개지 않는다 — 들어오는 사람이 사무실 직원 몇 명뿐이고,

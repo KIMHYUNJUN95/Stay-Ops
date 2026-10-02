@@ -265,6 +265,24 @@ export const CAPABILITIES = {
     systemOnly: false,
     developerOnly: false,
   },
+  /**
+   * 룸 링크 — 객실별 Airbnb · Booking.com 리스팅 링크(호스트 편집 화면 · 손님용 링크) 보기 · 편집 (2026-10-02).
+   *
+   * 사이드바 맨 아래 「운영 관리자」 묶음에 있지만 **판매 캘린더와 따로 준다**(사용자 결정 — 「이것도 사용자에서
+   * 권한별로 똑같이 줄지 말지 정할 수 있어야 한다」). 리스팅을 확인하는 일은 가격을 만지지 않는 사람도 하기 때문이다.
+   * 정책은 `ops_admin.access` 와 같다 — 대표 · 전무는 역할로, 나머지는 개인 지정, 기한 없음, 차단 없음.
+   *
+   * 도메인 계약: docs/product/35-room-links.md
+   */
+  "room_links.access": {
+    roles: ["owner", "senior_managing_director"],
+    individualGrant: true,
+    individualDeny: false,
+    requiresExpiry: false,
+    platformBypass: true,
+    systemOnly: false,
+    developerOnly: false,
+  },
 } as const satisfies Record<string, CapabilityPolicy>;
 
 export type Capability = keyof typeof CAPABILITIES;

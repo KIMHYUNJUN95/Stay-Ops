@@ -1984,3 +1984,13 @@ pg_cron 잡 `beds24-tick` (`* * * * *`) → `select public.beds24_tick_if_needed
   `docs/product/33-calendar-write-features.md` → 「차단 사유」.
 - `beds24_price_jobs.adjust_mode` 에 `revert`(수정 되돌리기)가 생겼다 — 제약 없는 text 라 스키마 변경 없음.
 
+## 2026-10-02 `room_listing_links` 룸 링크
+
+유닛(`rooms`) 하나 × 채널(`airbnb` / `booking`) 하나의 리스팅 링크. 마이그레이션 `202610020001_room_listing_links.sql`,
+이관 데이터 `202610020002_room_listing_links_seed.sql`(저쪽 Firestore `roomLinks` → Airbnb 90줄).
+
+- `id uuid pk` · `organization_id → organizations` · `room_id → rooms (on delete cascade)` · `channel text`(`airbnb`/`booking` 체크).
+- `listing_id text` — Airbnb 리스팅 ID(링크에서 읽음). `host_url` · `guest_url text`. `memo text`(200자 체크).
+- `updated_by → auth.users` · `created_at` · `updated_at`.
+- 유일: `(room_id, channel)`. 인덱스: 조직 · 리스팅 ID.
+- 쓰기는 서버 액션 `saveRoomListingLink`(service-role, 조직 · 권한 재검증)만. 화면 계약은 `docs/product/35-room-links.md`.

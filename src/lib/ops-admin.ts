@@ -18,6 +18,14 @@ export function canAccessOpsAdmin(session: AppSession): boolean {
 }
 
 /**
+ * 룸 링크(`/admin/ops/room-links`)를 쓸 수 있는가 — 운영 관리자 묶음에 있지만 **판매 캘린더와 따로 준다**
+ * (2026-10-02 사용자 결정). 리스팅 확인은 가격을 만지지 않는 사람도 한다. docs/product/35-room-links.md
+ */
+export function canAccessRoomLinks(session: AppSession): boolean {
+  return session.capabilities.includes("room_links.access");
+}
+
+/**
  * 영역 안의 화면.
  *
  * **다섯 개가 나란히 놓인 독립 화면**이고 캘린더 안의 탭이 아니다. 캘린더는 *파는 곳*이고

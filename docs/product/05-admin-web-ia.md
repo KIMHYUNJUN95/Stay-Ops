@@ -1322,3 +1322,14 @@ Management Console" → Current Implementation Note.
   스코프돼 있는데 포털은 `document.body` 로 나간다 — 감싸지 않으면 CSS 가 하나도 적용되지 않아
   프레임도 배율도 없이 날것으로 그려진다(2026-09-11 에 실제로 그랬다). 같은 이유로
   `cleaning-live-card` 의 패널 포털도 그렇게 한다. **admin 콘솔에서 포털을 쓸 때의 공통 규칙이다.**
+
+## 룸 링크 (2026-10-02)
+
+사이드바 맨 아래 「운영 관리자」 묶음(`ops`)의 **「룸 링크」**(`/admin/ops/room-links`, nav id `ops-room-links`, 아이콘 `Link2`).
+판매 캘린더와 **따로 주는 권한**(`room_links.access`) — 사용자 상세 → 권한에서 개인 부여, 대표 · 전무는 역할로 받는다.
+권한이 없으면 메뉴가 안 보이고, 주소로 들어와도 `/admin` 으로 보낸다.
+
+- 배치(시안 1b): 위 집계 · 검색 → 왼쪽 건물 목록 → 가운데 객실 카드 → 오른쪽 상세 패널(건물 주소 · 지도 · 유닛별 Airbnb /
+  Booking.com 링크 열기 · 복사 · 편집). 1180px 아래에서는 패널이 아래로 내려간다.
+- 스타일은 `src/components/admin/ops/room-links.css`(`.adm .rl__*`, 콘솔 토큰만). 문구는 `dictionary.roomLinks`(ko/ja/en).
+- 도메인 계약: `docs/product/35-room-links.md`.

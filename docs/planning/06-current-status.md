@@ -9,6 +9,13 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 (14) — 룸 링크 대시보드(STAY ARI 이식)
+
+- `/admin/ops/room-links` — 건물 → 객실 카드 → 오른쪽 패널(시안 1b). 유닛별 Airbnb / Booking.com 호스트 · 게스트 링크 열기 · 복사 ·
+  편집, 리스팅 ID 중복 표시, 번갈아 파는 방은 「지금 판매 중」(오늘 최소숙박). 사이드바 「운영 관리자」 맨 아래.
+- 새 권한 키 `room_links.access`(판매 캘린더와 따로, 사용자 상세에서 개인 부여). 새 표 `room_listing_links` + RLS. 저쪽 Firestore
+  데이터 이관(Airbnb 90 · 게스트 89). STAY ARI · 사노 주소는 아직 없음(사용자 제공 대기). (`35`, `31`, `04`, `05`, `14`, `05-admin-web-ia`)
+
 ## 2026-10-02 (13) — 모바일 최소숙박 · 차단 시트 v3 구현(시안 확정)
 
 - 모바일 최소숙박 · 차단이 전용 시트(`MobileOpsMinStaySheet` · `MobileOpsBlockSheet`)로 — 서버 경로는 데스크톱과 같음. 최소숙박은

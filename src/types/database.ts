@@ -4154,6 +4154,63 @@ export type Database = {
           },
         ]
       }
+      room_listing_links: {
+        Row: {
+          channel: string
+          created_at: string
+          guest_url: string | null
+          host_url: string | null
+          id: string
+          listing_id: string | null
+          memo: string | null
+          organization_id: string
+          room_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          guest_url?: string | null
+          host_url?: string | null
+          id?: string
+          listing_id?: string | null
+          memo?: string | null
+          organization_id: string
+          room_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          guest_url?: string | null
+          host_url?: string | null
+          id?: string
+          listing_id?: string | null
+          memo?: string | null
+          organization_id?: string
+          room_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_listing_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "room_listing_links_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rooms: {
         Row: {
           created_at: string

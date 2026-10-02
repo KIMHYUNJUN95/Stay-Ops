@@ -14,6 +14,7 @@ import {
   Gauge,
   House,
   Inbox,
+  Link2,
   Bug,
   Megaphone,
   MessageSquareWarning,
@@ -436,6 +437,15 @@ export const adminNavigation = [
     href: "/admin/ops/automation",
     icon: Zap,
   },
+  // 룸 링크 — 객실별 Airbnb · Booking.com 리스팅 링크(2026-10-02). 운영 관리자 묶음에 있지만 **따로 준다**
+  // (`room_links.access` — 사용자 상세에서 개인별로 부여). docs/product/35-room-links.md
+  {
+    id: "ops-room-links",
+    capability: "room_links.access",
+    label: localizedNavigationLabels.admin.opsRoomLinks,
+    href: "/admin/ops/room-links",
+    icon: Link2,
+  },
 ] as const satisfies readonly NavigationItem[];
 
 // Desktop console sidebar grouping — matches the design handoff: 운영 / 인력 / 정보.
@@ -450,6 +460,7 @@ export const adminNavGroupOf: Record<string, AdminNavGroupKey> = {
   "ops-revenue": "ops",
   "ops-ledger": "ops",
   "ops-automation": "ops",
+  "ops-room-links": "ops",
   // 운영
   dashboard: "operations",
   cleaning: "operations",

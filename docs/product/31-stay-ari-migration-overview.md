@@ -219,8 +219,10 @@ host = 리스팅 편집 페이지(`/hosting/listings/editor/<리스팅ID>`), gue
   - 운영 기간: 아라키초A `X`(4~9월) / `X_2`(10~3월), 가부키초 `#` / `K`, 오쿠보C `2-1` / `1-13-1-2` — 시안이 지금 판매 중인
     쪽을 초록으로 표시(실제 구현은 최소숙박 활성 여부로 판정 가능).
   - 건물 주소: 우리 `property-map-links.ts` 에 STAY ARI · 사노 주소 없음 — **STAY ARI 주소는 사용자가 준다**.
-- [ ] 데이터 모델(안: 우리 `rooms` 유닛에 붙는 `room_listing_links(room_id, channel, host_url, guest_url, memo)`) · 권한 ·
-      i18n 확정 → 구현 → 위 대조 결과로 이관.
+- [x] **대시보드 구현 · 데이터 이관(2026-10-02)** — `/admin/ops/room-links`, 사이드바 「운영 관리자」 맨 아래, 권한
+      `room_links.access`(판매 캘린더와 따로 — 사용자 상세에서 개인 부여). 표 `room_listing_links`(유닛 × 채널 한 줄),
+      Airbnb 90줄 이관 · 게스트 89. 다이쿄초 옛 링크는 옮기지 않음. 자세히 `35-room-links.md`.
+- [ ] STAY ARI 주소(사용자 제공 대기) → `property-map-links.ts`.
 - [ ] 모바일 시안(대시보드 다음).
 
 **B. 이식 다음 단계**

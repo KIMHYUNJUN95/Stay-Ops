@@ -1361,3 +1361,14 @@ service-role 로 읽으므로 **조직을 쿼리에 직접 건다**(`organizatio
 - 운영 검증(2026-09-30): 이수현 계정으로 본인 `ops_admin.access` = true, 대표 계정 대상 조회 = false,
   `price_change_logs` 읽기 유지.
 - `src/types/database.ts` Functions 에 `has_capability` 타입이 빠져 있던 것을 추가했다.
+
+## 2026-10-02 `room_listing_links` — 읽기는 `room_links.access`
+
+마이그레이션 `202610020001_room_listing_links.sql`(운영 적용).
+
+- SELECT: `to authenticated using (organization_id = any ((select public.capability_organization_ids('room_links.access'))::uuid[]))`
+  — 정책 `room links readers can read`. 판매 캘린더 로그 3표와 같은 판정식(`has_capability`).
+- 플랫폼 관리자 FOR ALL. 일반 사용자 INSERT/UPDATE/DELETE 정책 없음 — 쓰기는 서버 액션(service-role)이 권한 · 조직을 다시 보고 한다.
+- 권한: `select` → `authenticated`, `all` → `service_role`, `anon` 회수.
+- 새 권한 키 `room_links.access` 의 `capability_roles` · `capability_policies` 행도 같은 마이그레이션에서 넣는다
+  (레지스트리 시드 `202609100001` 의 생성 구역도 갱신 — 새 DB 용).
