@@ -82,10 +82,8 @@ export function RoomLinksConsole({ data, copy }: { data: RoomLinksPageData; copy
 
   const building = data.buildings[Math.min(selection.building, data.buildings.length - 1)];
   const row = building.rows[Math.min(selection.row, building.rows.length - 1)];
-  const multi = row.units.length > 1;
-
-  const chip = (unit: RoomLinkUnitView, rowMulti: boolean) =>
-    !unit.airbnb?.guestUrl ? "miss" : rowMulti && unit.selling ? "now" : "";
+  // 판매 중 표시는 유닛 하나인 방에도 붙인다(2026-10-02 사용자 지시) — 듀얼 계정만의 표시가 아니다.
+  const chip = (unit: RoomLinkUnitView) => (!unit.airbnb?.guestUrl ? "miss" : unit.selling ? "now" : "");
 
   return (
     <div className="rl">
@@ -152,7 +150,7 @@ export function RoomLinksConsole({ data, copy }: { data: RoomLinksPageData; copy
                       <span className="rl__rn">{entry.row.label}</span>
                       <span className="rl__units">
                         {entry.row.units.map((unit) => (
-                          <span className={`rl__u ${chip(unit, entry.row.units.length > 1)}`} key={unit.roomId}>
+                          <span className={`rl__u ${chip(unit)}`} key={unit.roomId}>
                             {unit.unitLabel}
                           </span>
                         ))}
@@ -182,7 +180,7 @@ export function RoomLinksConsole({ data, copy }: { data: RoomLinksPageData; copy
                     <span className="rl__rn">{item.label}</span>
                     <span className="rl__units">
                       {item.units.map((unit) => (
-                        <span className={`rl__u ${chip(unit, item.units.length > 1)}`} key={unit.roomId}>
+                        <span className={`rl__u ${chip(unit)}`} key={unit.roomId}>
                           {unit.unitLabel}
                         </span>
                       ))}
@@ -222,14 +220,12 @@ export function RoomLinksConsole({ data, copy }: { data: RoomLinksPageData; copy
           </div>
           <div className="rl__pb">
             {row.units.map((unit) => (
-              <div className={`rl__unit${multi && unit.selling ? " now" : ""}`} key={unit.roomId}>
+              <div className={`rl__unit${unit.selling ? " now" : ""}`} key={unit.roomId}>
                 <div className="rl__unith">
                   <span className="rl__mono rl__unitl">{unit.unitLabel}</span>
-                  {multi && (
-                    <span className={`rl__pill ${unit.selling ? "ok" : ""}`}>
-                      {unit.selling ? copy.sellingNow : copy.resting}
-                    </span>
-                  )}
+                  <span className={`rl__pill ${unit.selling ? "ok" : ""}`}>
+                    {unit.selling ? copy.sellingNow : copy.resting}
+                  </span>
                 </div>
                 <ChannelBlock
                   channel="airbnb"

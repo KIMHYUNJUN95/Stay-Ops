@@ -49,7 +49,7 @@ export type RoomLinkUnit = {
   roomId: string;
   unitLabel: string;
   /**
-   * 지금 이 계정으로 팔고 있나. 한 행에 유닛이 둘 이상일 때만 화면이 쓴다(번갈아 파는 계정 중 어느 쪽이 지금인지).
+   * 지금 이 계정으로 팔고 있나. 유닛이 하나인 방에도 표시한다(2026-10-02) — 번갈아 파는 방에선 어느 계정이 지금인지.
    * 판정은 `pickSellingUnits` — 오늘 하루가 아니라 **앞으로 30일 중 활성 밤이 가장 많은 계정**이다.
    */
   selling: boolean;

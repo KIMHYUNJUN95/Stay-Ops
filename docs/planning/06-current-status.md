@@ -9,6 +9,10 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 (16) — 룸 링크: 판매 중 표시를 모든 방에
+
+- 듀얼 계정이 아닌 방(STAY ARI 등 유닛 하나)도 활성이면 「지금 판매 중」 칩 · 카드 · 알약을 표시. 비활성이면 「쉬는 계정」. (`35`)
+
 ## 2026-10-02 (15) — 룸 링크: 「지금 판매 중」 판정을 앞으로 30일 기준으로
 
 - 번갈아 파는 계정의 판매 중 표시를 판매 캘린더 활성(날짜별 최소숙박 1~49) 기준, **오늘부터 30일 중 활성 밤이 가장 많은 계정**으로
