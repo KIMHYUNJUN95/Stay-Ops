@@ -9,6 +9,10 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 (9) — 가격 패널에서 「1박으로」 버튼 제거
+
+- 가격 수정 패널(데스크톱 · 모바일)에 1박 갭이 섞이면 뜨던 「1박으로 N」을 지웠다 — 최소숙박 패널에만 있어야 한다(사용자 지시). (`33`)
+
 ## 2026-10-02 (8) — 모바일 판매 캘린더: 객실 적은 건물 스크롤
 
 - 줄이 다 들어가면 격자를 내용 높이로 줄이고, 바깥(셸 본문) 스크롤은 잠근다 — 빈 공간 · 화면 전체가 위로 끌려 올라가던 것. (`33`)

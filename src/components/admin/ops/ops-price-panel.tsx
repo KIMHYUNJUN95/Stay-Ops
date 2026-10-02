@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useTransition } from "react";
 import {
-  submitMinStayChange,
   submitPriceChange,
   type PriceChangeCell,
 } from "@/app/admin/ops/calendar/actions";
@@ -85,8 +84,6 @@ export type PanelCopy = OpsWriteOutcomeCopy & {
   warnZero: string;
   warnDrop: string;
   warnRise: string;
-  gapAction: string;
-  gapActionBody: string;
   minStayTitle: string;
 };
 
@@ -99,6 +96,7 @@ export type PanelCell = {
   roomIds: string[];
   date: string;
   price: number | null;
+  /** 그 칸이 1박 갭인가. **가격 패널은 쓰지 않는다** — 1박 갭 고치기는 최소숙박 패널에서만(2026-10-02 사용자 지시). */
   isGap: boolean;
 };
 
@@ -294,7 +292,6 @@ export function OpsPricePanel({
     () => (input ? findAdjustmentWarnings(preview) : []),
     [input, preview],
   );
-  const gapCells = useMemo(() => cells.filter((cell) => cell.isGap), [cells]);
   /**
    * 현재가의 **범위**. 건물마다 가격대가 달라 평균 하나로는 「지금 얼마인가」가 안 읽힌다(2026-10-01 사용자) —
    * 값이 갈리면 최저 ~ 최고를 크게, 평균은 작게 적는다.
@@ -392,36 +389,6 @@ export function OpsPricePanel({
       onApplied(cellsToSend.map((cell) => ({ date: cell.date, roomKey: cell.roomKey })));
       reportSettled(settled);
       onFinished?.();
-    });
-  };
-
-  /** 「1박으로」 — 이 기능의 본래 목적이다. 갭 칸의 최소 숙박일을 1로 만든다. */
-  const applyOneNight = () => {
-    if (gapCells.length === 0) return;
-    setMessage(copy.panelQueued);
-    const targets = gapCells;
-    startTransition(async () => {
-      const { result, settled } = await runWrite(
-        "minStay",
-        targets.map((cell) => ({ key: `${cell.roomKey}|${cell.date}`, value: 1 })),
-        () =>
-          submitMinStayChange({
-            cells: targets.map((cell) => ({
-              date: cell.date,
-              roomIds: cell.roomIds,
-              roomKey: cell.roomKey,
-              roomLabel: cell.roomLabel,
-            })),
-            minStay: 1,
-          }),
-      );
-      if (!result.ok) {
-        setMessage(copy.panelFailed.replace("{error}", errorText(copy, result.error)));
-        return;
-      }
-      // **갭 칸만** 뺀다 — 이 버튼은 선택 전체가 아니라 그중 갭인 것만 보낸다.
-      onApplied(targets.map((cell) => ({ date: cell.date, roomKey: cell.roomKey })));
-      reportSettled(settled);
     });
   };
 
@@ -571,20 +538,6 @@ export function OpsPricePanel({
             <span>{warningText(warning)}</span>
           </div>
         ))}
-
-        {/* 1박 갭이 선택에 들어 있으면 그 자리에서 고칠 수 있어야 한다 —
-            찾아만 주고 못 고치면 오히려 일이 한 단계 는다. */}
-        {gapCells.length > 0 && (
-          <button
-            className="opsp__gapgo"
-            disabled={pending}
-            onClick={applyOneNight}
-            type="button"
-          >
-            {copy.gapAction}
-            <span className="opsp__gapn">{gapCells.length}</span>
-          </button>
-        )}
 
         {/* 남는 세로 공간을 「무엇이 얼마로 바뀌는지」 목록이 쓴다(2026-10-01 사용자 요청). 목록만 안에서 넘긴다. */}
         {cells.length > 0 ? (

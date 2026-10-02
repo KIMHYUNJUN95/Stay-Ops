@@ -1298,35 +1298,7 @@
 /* 채널 규칙을 적어 둔다 — 「왜 부킹닷컴은 안 바뀌지?」가 나오지 않게. */
 .opsp__channel { font-size: 10.5px; font-weight: 600; line-height: 1.55; color: var(--faint); }
 
-/* 1박 갭 — 이 버튼이 이 기능의 목적이다. */
-.opsp__gapgo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 32px;
-  border: 1px solid var(--danger);
-  border-radius: 9px;
-  background: var(--danger);
-  color: #fff;
-  font-size: 11.5px;
-  font-weight: 800;
-  cursor: pointer;
-}
-.opsp__gapn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 17px;
-  height: 17px;
-  margin-left: 7px;
-  padding: 0 4px;
-  border-radius: 5px;
-  background: rgb(255 255 255 / 0.25);
-  font-size: 10px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-.opsp__gapgo:disabled { opacity: 0.45; cursor: default; }
+/* 가격 패널의 「1박으로」 버튼은 없앴다(2026-10-02 사용자 지시 — 가격 수정에는 있으면 안 되고 최소숙박 패널에만). */
 
 /* 두 버튼은 **크기가 다르다** — 나아가는 쪽이 커야 어느 쪽이 기본인지 읽힌다. */
 .opsp__foot { display: flex; gap: 8px; padding: 12px 15px; border-top: 1px solid var(--line-soft); }
