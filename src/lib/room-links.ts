@@ -6,12 +6,15 @@ import {
   findDuplicateListingIds,
   groupRoomLinks,
   type RoomLinkChannel,
+  ROOM_LINK_SELLING_WINDOW_DAYS,
   type RoomLinkRecord,
 } from "@/lib/room-links-model";
+import { isActiveUnitMinStay } from "@/lib/ops-gap-detection";
 import { fetchRoomCatalogRows } from "@/lib/rooms";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
-import { tokyoToday } from "@/lib/tokyo-date";
+import { readAllPages } from "@/lib/supabase/read-all-pages";
+import { tokyoToday, ymdShift } from "@/lib/tokyo-date";
 
 /**
  * 룸 링크 화면 읽기 — `/admin/ops/room-links`.
@@ -68,26 +71,36 @@ function toView(link: RoomLinkRecord | undefined): RoomLinkView | null {
 export async function getRoomLinksPageData(session: AppSession, locale: Locale): Promise<RoomLinksPageData> {
   const organizationId = session.organization.id;
   const supabase = getSupabaseServiceClient();
-  const [roomsResult, linksResult, metas, todayRates] = await Promise.all([
+  const today = tokyoToday();
+  const [roomsResult, linksResult, metas, rates] = await Promise.all([
     fetchRoomCatalogRows(organizationId, supabase),
     supabase
       .from("room_listing_links")
       .select("room_id, channel, listing_id, host_url, guest_url, memo, updated_at")
       .eq("organization_id", organizationId),
     listPropertyMapMeta(session).catch(() => []),
-    // 「지금 판매 중」은 **오늘 요금 칸의 최소숙박**으로 본다 — `rooms.external_minimum_stay` 는 한 시점의 값이라
-    // 계정이 바뀌는 날(4월 · 10월)을 따라가지 못한다. 칸이 없으면 객실 표 값으로 대신한다.
-    supabase
-      .from("room_daily_rates")
-      .select("room_id, min_stay")
-      .eq("organization_id", organizationId)
-      .eq("stay_date", tokyoToday()),
+    // 「지금 판매 중」은 판매 캘린더와 같은 **날짜별 최소숙박**(활성 1~49)으로, 오늘부터 30일을 본다
+    // (`pickSellingUnits`). `rooms.external_minimum_stay` 는 한 시점의 값이라 계정이 바뀌는 날을 못 따라간다.
+    // 객실 ~100 × 30일 = 1,000행을 넘으므로 페이지로 읽는다.
+    readAllPages<{ room_id: string; stay_date: string; min_stay: number | null }>((from, to) =>
+      supabase
+        .from("room_daily_rates")
+        .select("room_id, stay_date, min_stay")
+        .eq("organization_id", organizationId)
+        .gte("stay_date", today)
+        .lt("stay_date", ymdShift(today, ROOM_LINK_SELLING_WINDOW_DAYS))
+        .order("room_id", { ascending: true })
+        .order("stay_date", { ascending: true })
+        .range(from, to),
+    ),
   ]);
   if (roomsResult.error) throw new Error(roomsResult.error.message);
   if (linksResult.error) throw new Error(linksResult.error.message);
-  const todayMinStay = new Map<string, number | null>(
-    (todayRates.error ? [] : (todayRates.data ?? [])).map((row) => [row.room_id, row.min_stay]),
-  );
+  // 읽기에 실패하면 객실 표 값으로 대신한다(링크 화면이 판매 표시 때문에 죽지 않게).
+  const activeNights = new Map<string, number>();
+  for (const row of rates.error ? [] : (rates.data ?? [])) {
+    activeNights.set(row.room_id, (activeNights.get(row.room_id) ?? 0) + (isActiveUnitMinStay(row.min_stay) ? 1 : 0));
+  }
 
   const links: RoomLinkRecord[] = (linksResult.data ?? []).map((row) => ({
     channel: row.channel as RoomLinkChannel,
@@ -105,7 +118,8 @@ export async function getRoomLinksPageData(session: AppSession, locale: Locale):
     units: roomsResult.data.map((row) => {
       const property = Array.isArray(row.properties) ? row.properties[0] : row.properties;
       return {
-        externalMinimumStay: todayMinStay.has(row.id) ? (todayMinStay.get(row.id) ?? null) : row.external_minimum_stay,
+        activeNights: activeNights.get(row.id) ?? null,
+        externalMinimumStay: row.external_minimum_stay,
         id: row.id,
         propertyName: property?.name,
         roomLabel: row.room_label,

@@ -3,6 +3,7 @@ import {
   findDuplicateListingIds,
   groupRoomLinks,
   isChannelUrl,
+  pickSellingUnits,
   parseAirbnbListingId,
   parseRoomLinkInput,
   type RoomLinkRecord,
@@ -67,6 +68,35 @@ describe("groupRoomLinks", () => {
     });
     expect(buildings.map((b) => b.name)).toEqual(["가부키초", "아라키초A"]);
     expect(buildings[1].rows.map((r) => r.label)).toEqual(["201", "1001"]);
+  });
+});
+
+describe("pickSellingUnits", () => {
+  const unit = (id: string, activeNights: number | null, externalMinimumStay = 2, status = "active") => ({
+    activeNights,
+    externalMinimumStay,
+    id,
+    propertyName: "Arakicho A",
+    roomLabel: id,
+    status,
+  });
+
+  it("계정이 겹쳐 열린 기간엔 앞으로 더 오래 파는 계정만 판매 중(10/2: 201 은 10/4 까지 · 201_2 는 계속)", () => {
+    expect([...pickSellingUnits([unit("201", 3), unit("201_2", 30)])]).toEqual(["201_2"]);
+  });
+
+  it("오늘 닫혀 있어도 곧 열려 더 오래 팔면 그쪽이 판매 중", () => {
+    expect([...pickSellingUnits([unit("201", 2), unit("201_2", 28)])]).toEqual(["201_2"]);
+  });
+
+  it("같이 계속 팔면 둘 다, 둘 다 잠겨 있으면 없음", () => {
+    expect([...pickSellingUnits([unit("a", 30), unit("b", 30)])].sort()).toEqual(["a", "b"]);
+    expect(pickSellingUnits([unit("a", 0), unit("b", 0)]).size).toBe(0);
+  });
+
+  it("요금 칸이 없으면 객실 표 최소숙박으로, 운영 종료 유닛은 판매 중이 아니다", () => {
+    expect([...pickSellingUnits([unit("a", null, 99), unit("b", null, 2)])]).toEqual(["b"]);
+    expect([...pickSellingUnits([unit("a", 30, 2, "inactive"), unit("b", 10)])]).toEqual(["b"]);
   });
 });
 

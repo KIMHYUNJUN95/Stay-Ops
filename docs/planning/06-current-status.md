@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 (15) — 룸 링크: 「지금 판매 중」 판정을 앞으로 30일 기준으로
+
+- 번갈아 파는 계정의 판매 중 표시를 판매 캘린더 활성(날짜별 최소숙박 1~49) 기준, **오늘부터 30일 중 활성 밤이 가장 많은 계정**으로
+  (`pickSellingUnits`). 전환 무렵 두 계정이 겹쳐 열려(10/1~10/4) 둘 다 판매 중으로 보이던 것. 날짜는 표시하지 않음. (`35`, `31`)
+
 ## 2026-10-02 (14) — 룸 링크 대시보드(STAY ARI 이식)
 
 - `/admin/ops/room-links` — 건물 → 객실 카드 → 오른쪽 패널(시안 1b). 유닛별 Airbnb / Booking.com 호스트 · 게스트 링크 열기 · 복사 ·

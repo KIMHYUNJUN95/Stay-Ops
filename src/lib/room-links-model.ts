@@ -19,6 +19,9 @@ export const ROOM_LINK_MEMO_MAX = 200;
 /** 최소숙박이 이 값 이상이면 「쉬는 계정」(Beds24 잠금) — `BEDS24_INACTIVE_MIN_STAY_THRESHOLD` 와 같은 규칙. */
 const INACTIVE_MIN_STAY = 50;
 
+/** 「지금 판매 중」을 가릴 때 앞으로 볼 날 수(오늘 포함). */
+export const ROOM_LINK_SELLING_WINDOW_DAYS = 30;
+
 export type RoomLinkRecord = {
   roomId: string;
   channel: RoomLinkChannel;
@@ -35,14 +38,19 @@ export type RoomLinkUnitInput = {
   roomLabel: string;
   status: string;
   externalMinimumStay: number | null;
+  /**
+   * 오늘부터 `ROOM_LINK_SELLING_WINDOW_DAYS` 일 중 **판매 캘린더가 활성으로 보는 밤** 수(날짜별 최소숙박 1~49).
+   * 요금 칸이 하나도 없으면 `null` — 그때만 `externalMinimumStay` 로 대신한다.
+   */
+  activeNights?: number | null;
 };
 
 export type RoomLinkUnit = {
   roomId: string;
   unitLabel: string;
   /**
-   * 지금 이 계정으로 팔고 있나 — 최소숙박이 잠금(50+)이 아니면 판다. 한 행에 유닛이 둘 이상일 때만 화면이 쓴다
-   * (번갈아 파는 계정 중 어느 쪽이 지금인지).
+   * 지금 이 계정으로 팔고 있나. 한 행에 유닛이 둘 이상일 때만 화면이 쓴다(번갈아 파는 계정 중 어느 쪽이 지금인지).
+   * 판정은 `pickSellingUnits` — 오늘 하루가 아니라 **앞으로 30일 중 활성 밤이 가장 많은 계정**이다.
    */
   selling: boolean;
   links: Partial<Record<RoomLinkChannel, RoomLinkRecord>>;
@@ -77,6 +85,7 @@ export function groupRoomLinks(args: {
   }
 
   const rowsByBuilding = new Map<string, Map<string, RoomLinkRow>>();
+  const inputByRoom = new Map<string, RoomLinkUnitInput>();
   for (const unit of args.units) {
     const links = linksByRoom.get(unit.id) ?? {};
     const hasLink = Object.keys(links).length > 0;
@@ -88,16 +97,16 @@ export function groupRoomLinks(args: {
     const label = key.slice(separator + ROOM_AXIS_SEPARATOR.length);
     const rows = rowsByBuilding.get(building) ?? new Map<string, RoomLinkRow>();
     const row = rows.get(key) ?? { key, label, units: [] };
-    row.units.push({
-      roomId: unit.id,
-      selling:
-        unit.status === "active" &&
-        (unit.externalMinimumStay === null || unit.externalMinimumStay < INACTIVE_MIN_STAY),
-      unitLabel: unit.roomLabel,
-      links,
-    });
+    row.units.push({ roomId: unit.id, selling: false, unitLabel: unit.roomLabel, links });
+    inputByRoom.set(unit.id, unit);
     rows.set(key, row);
     rowsByBuilding.set(building, rows);
+  }
+  for (const rows of rowsByBuilding.values()) {
+    for (const row of rows.values()) {
+      const selling = pickSellingUnits(row.units.map((unit) => inputByRoom.get(unit.roomId)!));
+      row.units = row.units.map((unit) => ({ ...unit, selling: selling.has(unit.roomId) }));
+    }
   }
 
   const orderIndex = new Map(args.buildingOrder.map((name, index) => [name, index]));
@@ -113,6 +122,33 @@ export function groupRoomLinks(args: {
         .sort((a, b) => compareLabels(a.label, b.label))
         .map((row) => ({ ...row, units: [...row.units].sort((a, b) => compareLabels(a.unitLabel, b.unitLabel)) })),
     }));
+}
+
+/**
+ * 한 행(같은 물리 객실)의 유닛 중 **지금 판매 중인 계정**.
+ *
+ * 판매 캘린더의 활성 · 비활성(Beds24 날짜별 최소숙박 1~49 = 활성)을 그대로 쓰되, **오늘 하루로 정하지 않는다** —
+ * 계정이 바뀌는 무렵엔 두 계정이 며칠 겹쳐 열려 있다(2026-10-01~04 아라키초A `201` · `201_2` 둘 다 활성). 그래서
+ * 앞으로 30일 중 활성 밤이 **가장 많은** 계정을 판매 중으로 본다(같으면 둘 다). 사용자 결정(2026-10-02): 날짜는
+ * 보여 주지 않고 판매 중인지 아닌지만.
+ *
+ * 요금 칸이 하나도 없는 유닛은 객실 표의 최소숙박(`externalMinimumStay`)이 잠금이 아니면 활성 30일로 친다.
+ * 운영 종료(`status !== 'active'`) 유닛은 판매 중이 아니다.
+ */
+export function pickSellingUnits(units: readonly RoomLinkUnitInput[]): Set<string> {
+  const nights = units.map((unit) => {
+    if (unit.status !== "active") return 0;
+    if (unit.activeNights !== undefined && unit.activeNights !== null) return unit.activeNights;
+    const min = unit.externalMinimumStay;
+    return min === null || min < INACTIVE_MIN_STAY ? ROOM_LINK_SELLING_WINDOW_DAYS : 0;
+  });
+  const best = Math.max(0, ...nights);
+  const selling = new Set<string>();
+  if (best === 0) return selling;
+  units.forEach((unit, index) => {
+    if (nights[index] === best) selling.add(unit.id);
+  });
+  return selling;
 }
 
 /**
