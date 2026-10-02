@@ -9,6 +9,14 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 (10) — 모바일 가격 시트 v3 구현(시안 확정)
+
+- 모바일 가격 수정이 전용 시트 `MobileOpsPriceSheet`(시안 `3a 가격 시트 v3`)로 — 계산 · 서버 경로는 데스크톱과 같음.
+  입력 전 같은 확인 버튼 흐리게 · 「지우기」 프리셋 · 확인 요약 카드 · 키보드 동안 접기. 접수되면 시트를 닫고 탭 바 위 알림
+  (진행 → 완료 「되돌리기」 / 실패 「이력 보기」). (`33`, `31`)
+- 사용자 지적 3건: 채널 문구 가운데 · 시트 높이 고정(퍼센트 누를 때 위 끝 오르내림) · 금액 칸 눌러도 프리셋 유지. (`33`)
+- 알림을 한 줄짜리 작은 알약으로 · 문구 짧게. (`33`)
+
 ## 2026-10-02 (9) — 가격 패널에서 「1박으로」 버튼 제거
 
 - 가격 수정 패널(데스크톱 · 모바일)에 1박 갭이 섞이면 뜨던 「1박으로 N」을 지웠다 — 최소숙박 패널에만 있어야 한다(사용자 지시). (`33`)

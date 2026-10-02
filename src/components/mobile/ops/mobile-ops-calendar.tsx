@@ -18,14 +18,16 @@ import {
   Timer,
   X,
 } from "lucide-react";
-import { loadOpsCellHistory, loadOpsPriceConversions } from "@/app/admin/ops/calendar/actions";
+import { loadOpsCellHistory, loadOpsPriceConversions, revertPriceJob } from "@/app/admin/ops/calendar/actions";
+import { MobileOpsPriceSheet, type MobilePriceSubmitted } from "@/components/mobile/ops/mobile-ops-price-sheet";
+import { MobileOpsToast, type MobileToast } from "@/components/mobile/ops/mobile-ops-toast";
 import { loadOpsReservationPlacement, searchOpsReservations } from "@/app/admin/ops/calendar/search-actions";
 import { OpsBlockPanel } from "@/components/admin/ops/ops-block-panel";
 import { OpsBookingPanel, type BookingPanelRoom } from "@/components/admin/ops/ops-booking-panel";
 import { OpsCellHistoryCard } from "@/components/admin/ops/ops-cell-history-card";
 import { OpsHistoryPanel } from "@/components/admin/ops/ops-history-panel";
 import { OpsMinStayPanel } from "@/components/admin/ops/ops-minstay-panel";
-import { OpsPricePanel, type PanelCell } from "@/components/admin/ops/ops-price-panel";
+import { type PanelCell } from "@/components/admin/ops/ops-price-panel";
 import { OpsPriceWinsPanel } from "@/components/admin/ops/ops-price-wins-panel";
 import { OpsReservationPanel } from "@/components/admin/ops/ops-reservation-panel";
 import { OpsSalesSummarySheet } from "@/components/admin/ops/ops-sales-summary-modal";
@@ -508,6 +510,49 @@ export function MobileOpsCalendar({
 
   const removeSentCells = (sent: OpsSelectionCell[]) => {
     setSelection((previous) => removeCells(previous, sent));
+  };
+
+  /*
+   * ── 알림(시안 v3 · 2026-10-02) ── 가격 시트는 접수되면 닫히고, 진행 · 결과를 탭 바 위 알림으로 보여 준다.
+   * 진행(접수 — 반영 중) → 완료(「되돌리기」 = 이력의 되돌리기와 같은 `revertPriceJob`) / 일부 실패 · 실패(「이력 보기」).
+   * 한 번에 하나 — 새 쓰기가 오면 그걸로 바뀐다.
+   */
+  const [toast, setToast] = useState<MobileToast | null>(null);
+  const toastSeqRef = useRef(0);
+  const trackPriceWrite = ({ count, jobId, settled }: MobilePriceSubmitted) => {
+    toastSeqRef.current += 1;
+    const id = toastSeqRef.current;
+    setToast({ count, id, jobId, kind: "pending" });
+    void settled?.then((outcome) => {
+      setToast((current) =>
+        current?.id === id
+          ? {
+              ...current,
+              kind:
+                outcome === "completed" ? "done" : outcome === "partial_failed" ? "partial" : outcome === "failed" ? "failed" : "slow",
+            }
+          : current,
+      );
+    });
+  };
+  const undoPriceWrite = async (jobId: string, count: number) => {
+    toastSeqRef.current += 1;
+    const id = toastSeqRef.current;
+    setToast({ count, id, kind: "undoing", text: copy.mtUndoing.replace("{n}", String(count)) });
+    const result = await revertPriceJob({ jobId });
+    setToast((current) =>
+      current?.id === id
+        ? {
+            ...current,
+            kind: result.ok ? "info" : "failed",
+            text: result.ok
+              ? copy.mtUndoing.replace("{n}", String(result.cells))
+              : result.error === "nothing_to_revert"
+                ? copy.mtUndoNothing
+                : copy.mtUndoFailed,
+          }
+        : current,
+    );
   };
 
   // ── 패널에 넘길 모양 ───────────────────────────────────────────────────────
@@ -1482,28 +1527,32 @@ export function MobileOpsCalendar({
       {panelKind && (
         <BottomSheet
           ariaLabel={panelKind === "price" ? copy.panelTitle : panelKind === "minstay" ? copy.minStayTitle : copy.bkTitle}
-          className="flex max-h-[88dvh] flex-col"
+          // 가격 시트는 **높이 고정** — 값을 넣을 때마다 줄 수가 바뀌어 시트 위 끝이 오르내렸다(2026-10-02 사용자 지적).
+          className={panelKind === "price" ? "flex h-[88dvh] flex-col" : "flex max-h-[88dvh] flex-col"}
           onClose={() => setOverlay(null)}
         >
           {/* 저장이 접수되면 · 「선택 해제」를 누르면 시트가 **스스로 미끄러져 닫힌다**(2026-10-02 사용자 지시 — 예전엔
               열린 채 남아 손으로 내려야 했다). 실패하면 열린 채로 이유를 보여 준다. */}
-          {({ close }) => (
-          <div className="adm ops mops-panel">
-            {panelKind === "price" && (
-              <OpsPricePanel
+          {({ close }) =>
+            panelKind === "price" ? (
+              // 가격은 모바일 전용 시트(시안 v3) — 계산 · 서버 경로는 데스크톱 패널과 같다. 접수되면 시트를 닫고 알림으로.
+              <MobileOpsPriceSheet
                 cells={panelCells}
-                clearLabel={copy.scopeClear}
                 copy={copy}
                 onApplied={removeSentCells}
                 onClear={() => {
                   clearSelection();
                   close();
                 }}
-                onFinished={close}
+                onSubmitted={(submitted) => {
+                  close();
+                  trackPriceWrite(submitted);
+                }}
                 runWrite={runWrite}
                 scopeSummary={scopeSummary}
               />
-            )}
+            ) : (
+          <div className="adm ops mops-panel">
             {panelKind === "minstay" && (
               <OpsMinStayPanel
                 cells={panelCells}
@@ -1537,8 +1586,36 @@ export function MobileOpsCalendar({
               />
             )}
           </div>
-          )}
+            )
+          }
         </BottomSheet>
+      )}
+
+      {toast && (
+        <MobileOpsToast
+          key={toast.id}
+          onAction={
+            toast.kind === "done" && toast.jobId
+              ? () => void undoPriceWrite(toast.jobId!, toast.count)
+              : toast.kind === "partial" || toast.kind === "failed"
+                ? () => {
+                    setToast(null);
+                    setOverlay({ kind: "history" });
+                  }
+                : undefined
+          }
+          onDismiss={() => setToast((current) => (current?.id === toast.id ? null : current))}
+          toast={toast}
+          copy={{
+            done: copy.mtDone,
+            failed: copy.mtFailed,
+            history: copy.mtHistory,
+            partial: copy.mtPartial,
+            queued: copy.mtQueued,
+            slow: copy.mtSlow,
+            undo: copy.mtUndo,
+          }}
+        />
       )}
 
       {overlay?.kind === "scope" && (
