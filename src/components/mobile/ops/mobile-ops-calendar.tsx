@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Ban,
+  CalendarDays,
   CalendarPlus,
   ChartColumn,
   ChevronLeft,
@@ -13,15 +14,13 @@ import {
   History,
   JapaneseYen,
   MoonStar,
-  Search,
   SlidersHorizontal,
   Timer,
-  X,
 } from "lucide-react";
 import { loadOpsCellHistory, loadOpsPriceConversions, revertPriceJob } from "@/app/admin/ops/calendar/actions";
 import { MobileOpsPriceSheet, type MobilePriceSubmitted } from "@/components/mobile/ops/mobile-ops-price-sheet";
 import { MobileOpsToast, type MobileToast } from "@/components/mobile/ops/mobile-ops-toast";
-import { loadOpsReservationPlacement, searchOpsReservations } from "@/app/admin/ops/calendar/search-actions";
+import { loadOpsReservationPlacement } from "@/app/admin/ops/calendar/search-actions";
 import { OpsBlockPanel } from "@/components/admin/ops/ops-block-panel";
 import { OpsBookingPanel, type BookingPanelRoom } from "@/components/admin/ops/ops-booking-panel";
 import { OpsCellHistoryCard } from "@/components/admin/ops/ops-cell-history-card";
@@ -33,7 +32,6 @@ import { OpsReservationPanel } from "@/components/admin/ops/ops-reservation-pane
 import { OpsSalesSummarySheet } from "@/components/admin/ops/ops-sales-summary-modal";
 import { watchOpsWriteJob, type OpsWriteKind, type RunOpsWrite } from "@/components/admin/ops/ops-write-tracker";
 import { Beds24LiveDot } from "@/components/shared/beds24-live-dot";
-import type { AdminGuestSearchCopy } from "@/components/shell/admin-guest-search";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { DatePickerSheet } from "@/components/shell/date-picker-sheet";
 import type { Dictionary } from "@/lib/i18n";
@@ -97,7 +95,7 @@ import "./mobile-ops-calendar.css";
  * | 오른쪽 패널 · 옆 패널 | 공용 `BottomSheet` 안에 같은 패널 |
  * | 칸 이력 호버 카드 | 한 칸만 골랐을 때 도구줄의 「이력」 |
  * | 빈 칸 `+` → 체크아웃 | 한 객실의 이어진 빈 밤을 고르면 도구줄의 「예약」 |
- * | 날짜 이동 달력 · 상단 예약 검색 | 범위 라벨(기기 날짜 선택) · 검색 시트 |
+ * | 날짜 이동 달력 | 범위 라벨 칩 → 앱 공용 날짜 시트(`DatePickerSheet`). 예약 검색은 모바일에 두지 않는다(2026-10-02) |
  *
  * 패널 CSS 변수가 `.adm` · `.ops` 에 걸려 있어 시트 내용을 그 두 클래스로 감싸고, 데스크톱 모양(302px 카드 ·
  * 오른쪽 고정 패널 · X 버튼)은 `.mops-panel` 아래에서 걷는다 — 시트 계약(X 없음, 끌기 · 스크림 · Esc)을 따른다.
@@ -130,7 +128,7 @@ type Jump = {
 type Pending = { token: number; value: number };
 type PanelKind = "price" | "minstay" | "block";
 type Overlay =
-  | { kind: PanelKind | "scope" | "history" | "wins" | "search" | "jump" }
+  | { kind: PanelKind | "scope" | "history" | "wins" | "jump" }
   | { kind: "reservation"; placement: OpsReservationPlacement }
   | { kind: "booking"; room: BookingPanelRoom; checkIn: string; checkOut: string }
   | { kind: "cellHistory"; roomKey: string; date: string }
@@ -189,7 +187,6 @@ export function MobileOpsCalendar({
   nav,
   properties,
   rows: rowsProp,
-  searchCopy,
   selectedProperties,
   staleRates,
   syncedLabel,
@@ -202,7 +199,6 @@ export function MobileOpsCalendar({
   nav: Nav;
   properties: PropertyPill[];
   rows: OpsGridRowData[];
-  searchCopy: AdminGuestSearchCopy;
   selectedProperties: string[];
   staleRates: boolean;
   syncedLabel: string;
@@ -1146,7 +1142,11 @@ export function MobileOpsCalendar({
    * 그 날짜로 바로 간다 — 30일 보기는 그날부터, 월간 보기는 그 달.
    */
   const jumpTo = (date: string) => {
-    const href = buildOpsCalendarHref(nav.isRolling ? { ...jump.base, start: date } : { ...jump.base, ym: date.slice(0, 7) }, BASE_PATH);
+    // 「오늘」은 줄의 예전 「오늘」 버튼과 같은 곳으로(30일 보기 = 어제부터 — 어제 체크아웃이 보이게).
+    const href =
+      date === today
+        ? nav.todayHref
+        : buildOpsCalendarHref(nav.isRolling ? { ...jump.base, start: date } : { ...jump.base, ym: date.slice(0, 7) }, BASE_PATH);
     if (href === `${window.location.pathname}${window.location.search}`) return;
     setNavPending({ from: rowsProp });
     router.push(href, { scroll: false });
@@ -1238,21 +1238,20 @@ export function MobileOpsCalendar({
             {copy.viewMonthly}
           </Link>
         </div>
-        <Link aria-label={copy.prev} className="mops-nav" href={nav.prevHref} onNavigate={markNav(nav.prevHref)} scroll={false}>
-          <ChevronLeft aria-hidden="true" />
-        </Link>
-        <Link className="mops-today" href={nav.todayHref} onNavigate={markNav(nav.todayHref)} scroll={false}>
-          {copy.today}
-        </Link>
-        <Link aria-label={copy.next} className="mops-nav" href={nav.nextHref} onNavigate={markNav(nav.nextHref)} scroll={false}>
-          <ChevronRight aria-hidden="true" />
-        </Link>
-        <button aria-label={copy.mJump} className="mops-range" onClick={() => setOverlay({ kind: "jump" })} type="button">
-          <span>{nav.rangeLabel}</span>
-        </button>
-        <button aria-label={copy.mSearch} className="mops-nav mops-searchbtn" onClick={() => setOverlay({ kind: "search" })} type="button">
-          <Search aria-hidden="true" />
-        </button>
+        {/* ‹ 기간 › — 기간 칩을 이동 화살표 사이에(2026-10-02). 「오늘」 버튼은 줄에서 뺐다: 폭 360px 폰 · 영어에서 기간이
+            잘렸다(실측). 오늘로 가기는 날짜 시트 안의 「오늘」이 같은 곳(30일 = 어제부터)으로 간다. 칩 = 앱 공용 날짜 시트. */}
+        <div className="mops-move">
+          <Link aria-label={copy.prev} className="mops-nav" href={nav.prevHref} onNavigate={markNav(nav.prevHref)} scroll={false}>
+            <ChevronLeft aria-hidden="true" />
+          </Link>
+          <button aria-label={copy.mJump} className="mops-range" onClick={() => setOverlay({ kind: "jump" })} type="button">
+            <CalendarDays aria-hidden="true" />
+            <span>{nav.rangeLabel}</span>
+          </button>
+          <Link aria-label={copy.next} className="mops-nav" href={nav.nextHref} onNavigate={markNav(nav.nextHref)} scroll={false}>
+            <ChevronRight aria-hidden="true" />
+          </Link>
+        </div>
       </div>
 
       {/* 빠른 칩 — 데스크톱과 같은 순서: 위 줄의 취소 보기 · 1박 갭 → 격자 도구줄의 가격 개입 성공 · 목록 · 이력 ·
@@ -1385,7 +1384,6 @@ export function MobileOpsCalendar({
           {copy.legendMixed}
         </span>
       </div>
-      <p className="mops-hint">{copy.mHint}</p>
 
       {/* 격자 — 가로 · 세로 모두 이 상자 안에서 넘긴다(날짜 머리 · 객실 열이 붙어 있게). */}
       <div
@@ -1880,14 +1878,6 @@ export function MobileOpsCalendar({
         />
       )}
 
-      {overlay?.kind === "search" && (
-        <MobileOpsSearchSheet
-          copy={searchCopy}
-          onClose={() => setOverlay(null)}
-          onPick={(placement) => setOverlay({ kind: "reservation", placement })}
-          title={copy.mSearch}
-        />
-      )}
 
       {salesOpen && days.length > 0 && (
         <OpsSalesSummarySheet
@@ -1900,116 +1890,6 @@ export function MobileOpsCalendar({
         />
       )}
     </div>
-  );
-}
-
-/**
- * 예약 검색 시트 — 데스크톱 상단 검색(`AdminGuestSearch`)과 같은 서버 액션 · 같은 문구. 고르면 그 예약 상세 시트로.
- */
-function MobileOpsSearchSheet({
-  copy,
-  onClose,
-  onPick,
-  title,
-}: {
-  copy: AdminGuestSearchCopy;
-  onClose: () => void;
-  onPick: (placement: OpsReservationPlacement) => void;
-  title: string;
-}) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<OpsReservationPlacement[] | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [pending, startTransition] = useTransition();
-  const requestRef = useRef(0);
-  const searchable = query.trim().replace(/\s+/g, "").length >= 2;
-
-  useEffect(() => {
-    if (!searchable) {
-      requestRef.current += 1;
-      return;
-    }
-    const timer = setTimeout(() => {
-      const requestId = ++requestRef.current;
-      startTransition(async () => {
-        const response = await searchOpsReservations(query).catch(() => null);
-        if (requestId !== requestRef.current) return;
-        setFailed(!response || !response.ok);
-        setResults(response && response.ok ? response.results : []);
-      });
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [query, searchable]);
-
-  const list = searchable ? (results ?? []) : [];
-  const nights = (checkIn: string, checkOut: string) =>
-    Math.max(0, Math.round((Date.parse(checkOut) - Date.parse(checkIn)) / 86_400_000));
-
-  return (
-    <BottomSheet ariaLabel={title} className="flex h-[80dvh] flex-col" onClose={onClose}>
-      <div className="mops-search mops-vars">
-        <div className="mops-search__box">
-          <Search aria-hidden="true" />
-          {/* 시트가 열리자마자 키보드를 올린다 — 검색하려고 연 시트다. */}
-          <input
-            autoFocus
-            enterKeyHint="search"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={copy.placeholder}
-            type="search"
-            value={query}
-          />
-          {query && (
-            <button aria-label={copy.clear} onClick={() => setQuery("")} type="button">
-              <X aria-hidden="true" />
-            </button>
-          )}
-        </div>
-        {searchable && (
-          <div className="mops-search__list" role="listbox">
-            {pending && results === null ? (
-              <p className="mops-search__note">{copy.searching}</p>
-            ) : failed ? (
-              <p className="mops-search__note">{copy.error}</p>
-            ) : list.length === 0 ? (
-              <p className="mops-search__note">{pending ? copy.searching : copy.empty}</p>
-            ) : (
-              <>
-                <p className="mops-search__count">{copy.resultCount.replace("{count}", String(list.length))}</p>
-                {list.map((item) => (
-                  <button
-                    className={`mops-search__opt${item.bar.isCancelled ? " cxl" : ""}`}
-                    key={item.bar.id}
-                    onClick={() => onPick(item)}
-                    role="option"
-                    aria-selected={false}
-                    type="button"
-                  >
-                    <i className={`mops-search__dot ${item.bar.channel}`} aria-hidden="true" />
-                    <span className="mops-search__main">
-                      <b>{item.bar.guestName || "—"}</b>
-                      <small>
-                        {item.propertyName} · {item.roomLabel}
-                      </small>
-                    </span>
-                    <span className="mops-search__when">
-                      <b>
-                        {shortDate(item.bar.checkIn)} → {shortDate(item.bar.checkOut)}
-                      </b>
-                      <small>
-                        {item.bar.isCancelled
-                          ? copy.cancelled
-                          : copy.nights.replace("{count}", String(nights(item.bar.checkIn, item.bar.checkOut)))}
-                      </small>
-                    </span>
-                  </button>
-                ))}
-              </>
-            )}
-          </div>
-        )}
-      </div>
-    </BottomSheet>
   );
 }
 

@@ -143,26 +143,40 @@ a.mops-pill { padding-inline: 14px; }
 .mops-nav svg { width: 16px; height: 16px; }
 .mops-today { padding: 0 10px; font-size: 12px; font-weight: 800; }
 /* 범위 라벨 = 날짜 이동. 기기 날짜 선택을 투명하게 덮어 둔다 — 라벨을 누르면 그대로 열린다. */
-/* 범위 라벨 — 누르면 앱 공용 날짜 시트(`DatePickerSheet`, 2026-10-02 — 기기 날짜 선택 대신). */
+/* 범위 라벨 — 칩(달력 아이콘 · 기간). 누르면 앱 공용 날짜 시트(`DatePickerSheet`).
+   2026-10-02 사용자 지시 「더 깔끔하게」 — 예전엔 점선 밑줄 글자 + 돋보기 버튼이었다(검색은 뺐다). 오른쪽 끝으로 붙인다. */
+/* ‹ 기간 › 묶음 — 토글 옆 남는 폭을 **전부** 쓴다. 칩이 늘어나 가운데에 기간을 둔다(2026-10-02 — 오른쪽에 몰아 두니
+   토글과 사이가 휑하게 비었다). */
+.mops-move { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px; margin-left: 2px; }
 .mops-range {
-  position: relative;
+  flex: 1 1 auto;
+  justify-content: center;
   min-width: 0;
   height: 30px;
-  padding: 0 4px;
+  padding: 0 9px 0 10px;
   display: inline-flex;
   align-items: center;
-  border: 0;
-  border-bottom: 1.5px dashed var(--mops-line);
-  background: none;
-  -webkit-tap-highlight-color: transparent;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--mops-soft);
+  gap: 6px;
+  border: 1px solid var(--mops-line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--mops-ink);
+  font-size: 12.5px;
+  font-weight: 800;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--dur-press, 0.14s) ease, border-color 0.18s ease;
 }
-.mops-searchbtn { margin-left: auto; }
+.mops-range:active { transform: scale(0.96); border-color: var(--primary); }
+.mops-range > svg { flex: none; width: 14px; height: 14px; color: var(--primary); }
+.mops-range > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* 폭 375px 아래(작은 안드로이드 · 영어 「30 days / Monthly」)에서는 기간이 잘렸다(실측) — 아이콘을 빼고 토글을 조인다. */
+@media (max-width: 374px) {
+  .mops-range { padding-inline: 10px; }
+  .mops-range > svg { display: none; }
+  .mops-seg a { padding: 0 8px; }
+}
 
 /* 상태 · 범례 한 줄 — 가로로 넘긴다. */
 .mops-meta {
@@ -275,13 +289,6 @@ a.mops-pill { padding-inline: 14px; }
 /* 이력 — 최근 전송 실패 · 멈춘 작업이 있으면 숫자가 빨갛다(데스크톱 `opsg__hist.alert`). */
 .mops-chip.alert b { background: var(--mops-danger); color: #fff; }
 
-.mops-hint {
-  margin: 0;
-  padding: 0 16px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--mops-faint);
-}
 
 /* ── 격자 ─────────────────────────────────────────────────────────────── */
 /*
@@ -325,14 +332,20 @@ a.mops-pill { padding-inline: 14px; }
   flex: none;
   width: var(--mops-room);
   display: flex;
-  align-items: flex-end;
-  padding: 0 0 7px 12px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
   font-size: 10px;
   font-weight: 800;
   color: var(--mops-faint);
   background: var(--surface);
   border-right: 1px solid var(--mops-line-soft);
 }
+/*
+ * 날짜 머리(2026-10-02 사용자 지시 「이쁘게」) — 위에서부터 요일 → 날짜(동그라미). 오늘은 남색으로 채운 동그라미 + 그 열을
+ * 칸과 같은 옅은 남색으로, 주말(금 · 토 · 일 — 가격 규칙과 같다)은 차분한 빨강, 지난 날은 흐리게. 달이 바뀌는 칸은 위에
+ * 「10월」 대신 짧은 「10/」 와 왼쪽 경계선.
+ */
 .mops-d {
   position: relative;
   flex: none;
@@ -342,14 +355,32 @@ a.mops-pill { padding-inline: 14px; }
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  gap: 1px;
+  gap: 2px;
   padding-bottom: 5px;
   color: var(--mops-ink);
 }
-.mops-d b { font-size: 14px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
-.mops-d span { font-size: 10px; font-weight: 700; color: var(--mops-muted); }
+.mops-d span {
+  order: 0;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 12px;
+  letter-spacing: 0.02em;
+  color: var(--mops-muted);
+}
+.mops-d b {
+  order: 1;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 14.5px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
 .mops-d em {
-  /* 달이 바뀌는 칸의 「10/」 — 가운데 위에 둔다. 왼쪽 위에 두면 오늘 배지(1일)와 겹친다. */
   position: absolute;
   top: 3px;
   left: 0;
@@ -361,19 +392,17 @@ a.mops-pill { padding-inline: 14px; }
   font-weight: 800;
   color: var(--primary);
 }
-.mops-d.we b,
-.mops-d.we span { color: var(--mops-danger); }
+.mops-d.we b { color: var(--mops-danger); }
+.mops-d.we span { color: color-mix(in oklab, var(--mops-danger) 75%, white); }
+.mops-d.today { background: hsl(223 42% 94% / 0.55); }
+.mops-d.today span { color: var(--primary); font-weight: 800; }
 .mops-d.today b {
-  width: 26px;
-  height: 26px;
-  border-radius: 9px;
   background: var(--primary);
   color: #fff;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
+  box-shadow: 0 4px 10px -5px color-mix(in oklab, var(--primary) 70%, transparent);
 }
-.mops-d.past { opacity: 0.55; }
+.mops-d.past b,
+.mops-d.past span { opacity: 0.45; }
 .mops-d.m1 { box-shadow: inset 1.5px 0 0 hsl(223 46% 32% / 0.35); }
 
 .mops-group {
@@ -404,13 +433,15 @@ a.mops-pill { padding-inline: 14px; }
   z-index: 3;
   flex: none;
   width: var(--mops-room);
+  /* 가로 · 세로 가운데(2026-10-02 사용자 지적 — 왼쪽 위에 붙어 있어 줄마다 위치가 달라 보였다). */
   display: flex;
-  align-items: flex-start;
-  padding: 9px 4px 0 12px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
   font-size: 13.5px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  text-align: left;
+  text-align: center;
   color: var(--mops-ink);
   background: var(--surface);
   border-right: 1px solid var(--mops-line-soft);
@@ -425,7 +456,7 @@ a.mops-pill { padding-inline: 14px; }
 .mops-room.solo {
   flex-direction: column;
   gap: 2px;
-  padding: 8px 4px 0 8px;
+  padding: 0 4px;
   white-space: normal;
   word-break: keep-all;
   overflow-wrap: anywhere;
@@ -737,47 +768,6 @@ a.mops-pill { padding-inline: 14px; }
 .mops-binfo__list dd { margin: 0; font-weight: 700; color: var(--foreground); word-break: break-word; }
 .mops-binfo__none { margin: 0; font-size: 13px; font-weight: 600; color: var(--muted-foreground); }
 
-/* ── 예약 검색 시트 ─────────────────────────────────────────────────────── */
-.mops-search { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1 1 auto; }
-.mops-search__box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 46px;
-  padding: 0 12px;
-  border-radius: 14px;
-  border: 1px solid var(--border);
-  background: var(--background);
-}
-.mops-search__box > svg { width: 17px; height: 17px; color: var(--muted-foreground); flex: none; }
-.mops-search__box input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; font-size: 16px; }
-.mops-search__box button { width: 30px; height: 30px; display: grid; place-items: center; color: var(--muted-foreground); }
-.mops-search__box button svg { width: 16px; height: 16px; }
-.mops-search__list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-.mops-search__note,
-.mops-search__count { margin: 6px 2px; font-size: 12.5px; font-weight: 600; color: var(--muted-foreground); }
-.mops-search__opt {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 11px 4px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-}
-.mops-search__opt.cxl { opacity: 0.6; }
-.mops-search__dot { flex: none; width: 9px; height: 9px; border-radius: 99px; background: var(--mops-dir); }
-.mops-search__dot.airbnb { background: var(--mops-abnb); }
-.mops-search__dot.booking { background: var(--mops-bkng); }
-.mops-search__main,
-.mops-search__when { display: grid; gap: 2px; min-width: 0; }
-.mops-search__main { flex: 1; }
-.mops-search__main b,
-.mops-search__when b { font-size: 14px; font-weight: 800; color: var(--foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mops-search__when { text-align: right; font-variant-numeric: tabular-nums; }
-.mops-search__main small,
-.mops-search__when small { font-size: 11.5px; font-weight: 600; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
 /* ── 손끝 반응(2026-10-02 「네이티브 앱처럼」) ───────────────────────────────── */
 /* 누르는 순간 회색 하이라이트 대신 살짝 눌리는 모양. 더블탭 확대 지연도 없앤다. */
 .mops a,
@@ -840,7 +830,9 @@ a.mops-pill { padding-inline: 14px; }
   .mops-chip { height: 28px; }
   .mops-nav,
   .mops-today { height: 28px; }
-  .mops-d { height: 48px; }
+  .mops-d { height: 46px; padding-bottom: 3px; }
+  /* 키가 낮으면 「10/」 를 접는다(요일과 겹친다) — 달 경계는 왼쪽 선으로 보인다. */
+  .mops-d em { display: none; }
 }
 
 /* ── 가격 시트 v3(Claude Design `3a 가격 시트 v3`, 2026-10-02 사용자 확정) ─────────────────────────────

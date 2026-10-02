@@ -59,7 +59,6 @@ export default async function MobileOpsCalendarPage({ searchParams }: { searchPa
 
   const dictionary = getDictionary(session.user.preferredLanguage);
   const copy = dictionary.opsAdmin.calendar;
-  const console_ = dictionary.admin.console;
   const showCancelled = params.cancelled === "1";
 
   const [data, badges, historyAlerts] = await Promise.all([
@@ -118,17 +117,6 @@ export default async function MobileOpsCalendarPage({ searchParams }: { searchPa
           },
           month: data.month,
           start: data.start,
-        }}
-        searchCopy={{
-          cancelled: console_.searchCancelled,
-          clear: console_.searchClear,
-          empty: console_.searchEmpty,
-          error: console_.searchError,
-          nights: console_.searchNights,
-          placeholder: console_.searchGuestPlaceholder,
-          resultCount: console_.searchResultCount,
-          searching: console_.searchSearching,
-          submit: console_.searchSubmit,
         }}
         nav={{
           allHref: hrefWith({ property: undefined }),
