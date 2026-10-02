@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/admin-session";
 import { canAccessRoomLinks } from "@/lib/ops-admin";
+import { CALENDAR_BUILDING_ORDER } from "@/lib/room-label-normalization";
 import {
+  BUILDING_LINK_CHANNELS,
   parseRoomLinkInput,
   ROOM_LINK_CHANNELS,
   type RoomLinkChannel,
@@ -83,6 +85,72 @@ export async function saveRoomListingLink(input: {
   );
   if (saved.error) {
     console.error("[room-links] save failed", saved.error);
+    return { error: "save_failed", ok: false };
+  }
+
+  revalidatePath("/admin/ops/room-links");
+  return { ok: true, removed: false };
+}
+
+/**
+ * 건물 단위 링크 저장 — Booking.com 엑스트라넷 · 손님용 페이지 · 메모 (2026-10-02).
+ *
+ * Booking.com 은 숙소(건물) 하나에 객실 타입이 붙어 링크가 건물마다 하나다(`building_listing_links`). 건물 키는
+ * 캘린더와 같은 이름이고, **정해진 건물 목록에 있는 이름만** 받는다(`CALENDAR_BUILDING_ORDER`). 권한 · 입력 검증은
+ * 객실 링크와 같다. 셋 다 비우면 그 줄을 지운다.
+ */
+export async function saveBuildingListingLink(input: {
+  building: string;
+  channel: RoomLinkChannel;
+  host: string;
+  guest: string;
+  memo: string;
+}): Promise<SaveRoomLinkResult> {
+  const session = await requireAdminSession();
+  if (!canAccessRoomLinks(session)) return { error: "forbidden", ok: false };
+  if (!BUILDING_LINK_CHANNELS.includes(input.channel)) return { error: "not_found", ok: false };
+  const building = String(input.building ?? "");
+  if (!CALENDAR_BUILDING_ORDER.includes(building)) return { error: "not_found", ok: false };
+
+  const parsed = parseRoomLinkInput({
+    channel: input.channel,
+    guest: String(input.guest ?? ""),
+    host: String(input.host ?? ""),
+    memo: String(input.memo ?? ""),
+  });
+  if (!parsed.ok) return { error: parsed.error, ok: false };
+
+  const supabase = getSupabaseServiceClient();
+  const organizationId = session.organization.id;
+
+  if (parsed.empty) {
+    const removed = await supabase
+      .from("building_listing_links")
+      .delete()
+      .eq("organization_id", organizationId)
+      .eq("canonical_name", building)
+      .eq("channel", input.channel);
+    if (removed.error) return { error: "save_failed", ok: false };
+    revalidatePath("/admin/ops/room-links");
+    return { ok: true, removed: true };
+  }
+
+  const saved = await supabase.from("building_listing_links").upsert(
+    {
+      canonical_name: building,
+      channel: input.channel,
+      guest_url: parsed.guestUrl,
+      host_url: parsed.hostUrl,
+      listing_id: parsed.listingId,
+      memo: parsed.memo,
+      organization_id: organizationId,
+      updated_at: new Date().toISOString(),
+      updated_by: session.user.id,
+    },
+    { onConflict: "organization_id,canonical_name,channel" },
+  );
+  if (saved.error) {
+    console.error("[room-links] building save failed", saved.error);
     return { error: "save_failed", ok: false };
   }
 

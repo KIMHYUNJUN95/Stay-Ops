@@ -11,7 +11,12 @@
 import { opsUnitRoomKey, ROOM_AXIS_SEPARATOR } from "@/lib/ops-room-key";
 
 export type RoomLinkChannel = "airbnb" | "booking";
-export const ROOM_LINK_CHANNELS: readonly RoomLinkChannel[] = ["airbnb", "booking"];
+/**
+ * 채널마다 붙는 단위가 다르다(2026-10-02 사용자 지적). Airbnb 는 **객실(계정)마다** 리스팅이 있고, Booking.com 은
+ * **숙소(건물) 하나**에 객실 타입이 붙는다 — 엑스트라넷 · 손님용 페이지가 건물마다 하나다.
+ */
+export const ROOM_LINK_CHANNELS: readonly RoomLinkChannel[] = ["airbnb"];
+export const BUILDING_LINK_CHANNELS: readonly RoomLinkChannel[] = ["booking"];
 
 /** 메모 최대 길이 — DB 체크 제약(`room_listing_links_memo_len`)과 같다. */
 export const ROOM_LINK_MEMO_MAX = 200;
@@ -215,10 +220,47 @@ export function airbnbHostUrlFor(listingId: string): string {
   return `https://www.airbnb.co.kr/hosting/listings/editor/${listingId}/details/photo-tour`;
 }
 
+/** Booking.com 숙소 ID — 엑스트라넷 주소의 `hotel_id` 값. */
+export function parseBookingHotelId(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const id = new URL(url).searchParams.get("hotel_id");
+    return id && /^\d{4,}$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 숙소 ID → 엑스트라넷 홈. 붙여 넣은 주소의 **세션 값(`ses=`)은 버린다** — 로그인 세션 토큰이라 남겨 두면
+ * 안 되고, 어차피 곧 만료된다. 엑스트라넷은 로그인 뒤 이 주소로 돌아온다.
+ */
+export function bookingExtranetUrlFor(hotelId: string): string {
+  return `https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/home.html?hotel_id=${hotelId}`;
+}
+
+/**
+ * Booking.com 손님용 페이지를 깨끗하게 — 추적 · 세션 값(`label` · `sid` 등 쿼리 전부)과 언어 꼬리(`.ko.html`)를 뗀다.
+ * 언어를 떼면 손님 쪽 언어로 열린다. 숙소 페이지(`/hotel/<나라>/<이름>`)가 아니면 그대로 둔다.
+ */
+export function cleanBookingGuestUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (!/\/hotel\/[a-z]{2}\//.test(parsed.pathname)) return url;
+    parsed.search = "";
+    parsed.hash = "";
+    parsed.pathname = parsed.pathname.replace(/\.[a-z]{2}(?:-[a-z]{2})?\.html$/i, ".html");
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 export type RoomLinkInputError = "host_invalid" | "guest_invalid" | "host_channel" | "guest_channel" | "memo_long";
 
 /**
- * 편집 패널 입력을 저장할 값으로 바꾼다. 호스트 칸에 **리스팅 ID 숫자만** 넣어도 된다(Airbnb) — 편집 화면 주소를 만든다.
+ * 편집 패널 입력을 저장할 값으로 바꾼다. 호스트 칸에 **ID 숫자만** 넣어도 된다 — Airbnb 는 리스팅 편집 화면,
+ * Booking.com 은 엑스트라넷 주소를 만든다.
  * 셋 다 비면 `{ empty: true }` — 그 줄을 지운다는 뜻이다.
  */
 export function parseRoomLinkInput(input: {
@@ -237,14 +279,19 @@ export function parseRoomLinkInput(input: {
   let hostUrl: string | null = null;
   let listingId: string | null = null;
   if (hostRaw) {
-    if (input.channel === "airbnb" && /^\d{5,}$/.test(hostRaw)) {
+    if (/^\d{4,}$/.test(hostRaw)) {
       listingId = hostRaw;
-      hostUrl = airbnbHostUrlFor(hostRaw);
+      hostUrl = input.channel === "airbnb" ? airbnbHostUrlFor(hostRaw) : bookingExtranetUrlFor(hostRaw);
     } else {
       hostUrl = normalizeLinkUrl(hostRaw);
       if (!hostUrl) return { error: "host_invalid", ok: false };
       if (!isChannelUrl(hostUrl, input.channel)) return { error: "host_channel", ok: false };
-      listingId = input.channel === "airbnb" ? parseAirbnbListingId(hostUrl) : null;
+      if (input.channel === "airbnb") {
+        listingId = parseAirbnbListingId(hostUrl);
+      } else {
+        listingId = parseBookingHotelId(hostUrl);
+        if (listingId) hostUrl = bookingExtranetUrlFor(listingId);
+      }
     }
   }
 
@@ -253,6 +300,7 @@ export function parseRoomLinkInput(input: {
     guestUrl = normalizeLinkUrl(input.guest);
     if (!guestUrl) return { error: "guest_invalid", ok: false };
     if (!isChannelUrl(guestUrl, input.channel)) return { error: "guest_channel", ok: false };
+    if (input.channel === "booking") guestUrl = cleanBookingGuestUrl(guestUrl);
     if (!listingId && input.channel === "airbnb") listingId = parseAirbnbListingId(guestUrl);
   }
 

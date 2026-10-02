@@ -1994,3 +1994,12 @@ pg_cron 잡 `beds24-tick` (`* * * * *`) → `select public.beds24_tick_if_needed
 - `updated_by → auth.users` · `created_at` · `updated_at`.
 - 유일: `(room_id, channel)`. 인덱스: 조직 · 리스팅 ID.
 - 쓰기는 서버 액션 `saveRoomListingLink`(service-role, 조직 · 권한 재검증)만. 화면 계약은 `docs/product/35-room-links.md`.
+- `202610020003` 부터 `channel` 은 `airbnb` 만 — Booking.com 은 건물 단위라 아래 표로 옮겼다.
+
+### `building_listing_links` (2026-10-02, `202610020003`)
+
+건물 하나 × 채널(`booking`) 하나의 링크. Booking.com 은 숙소(건물) 단위로 엑스트라넷 · 손님용 페이지가 하나다.
+
+- `id` · `organization_id → organizations` · `canonical_name text`(캘린더 · 건물 정보와 같은 건물 이름) · `channel`(`booking` 체크).
+- `listing_id`(숙소 ID `hotel_id`) · `host_url`(엑스트라넷) · `guest_url`(손님용 페이지) · `memo`(200자) · `updated_by` · 시각들.
+- 유일: `(organization_id, canonical_name, channel)`. 쓰기는 서버 액션 `saveBuildingListingLink` 만.

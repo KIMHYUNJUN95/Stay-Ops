@@ -9,6 +9,13 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 (18) — 룸 링크: Booking.com 은 건물 단위로
+
+- Booking.com 링크를 객실이 아니라 **건물**에 붙인다(새 표 `building_listing_links`, 마이그레이션 `202610020003` 운영 적용). 패널 맨 위
+  「건물 공통」 카드에 Booking 줄 하나. `room_listing_links` 는 Airbnb 만.
+- 엑스트라넷은 숙소 ID 로 다시 만들어 저장(로그인 세션 값 `ses=` 버림), 게스트 페이지는 추적 · 세션 값과 `.ko` 언어 꼬리를 떼고 저장.
+- 사용자 제공 링크 8개 건물 입력 — 아라키초A 엑스트라넷(숙소 ID 5653523), 나머지 7개는 게스트 페이지. (`35`, `04`, `05`, `31`)
+
 ## 2026-10-02 (17) — STAY ARI 건물 주소 · 룸 링크 주소 경고 제거
 
 - STAY ARI Apartment Hotel 주소(사용자 제공)를 건물 정보 기본 목록(`property-map-links.ts`)에 추가 — 룸 링크 · 예약 캘린더 건물 정보에

@@ -4154,6 +4154,56 @@ export type Database = {
           },
         ]
       }
+      building_listing_links: {
+        Row: {
+          canonical_name: string
+          channel: string
+          created_at: string
+          guest_url: string | null
+          host_url: string | null
+          id: string
+          listing_id: string | null
+          memo: string | null
+          organization_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          canonical_name: string
+          channel: string
+          created_at?: string
+          guest_url?: string | null
+          host_url?: string | null
+          id?: string
+          listing_id?: string | null
+          memo?: string | null
+          organization_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          canonical_name?: string
+          channel?: string
+          created_at?: string
+          guest_url?: string | null
+          host_url?: string | null
+          id?: string
+          listing_id?: string | null
+          memo?: string | null
+          organization_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_listing_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       room_listing_links: {
         Row: {
           channel: string

@@ -100,6 +100,41 @@ describe("pickSellingUnits", () => {
   });
 });
 
+describe("Booking.com — 건물 단위 링크 입력", () => {
+  it("엑스트라넷 주소에서 숙소 ID 를 읽고 세션 값(ses)을 버린다", () => {
+    expect(
+      parseRoomLinkInput({
+        channel: "booking",
+        guest: "",
+        host: "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/home.html?ses=abc123&lang=ko&hotel_id=5653523&f_gc_header=0",
+        memo: "",
+      }),
+    ).toEqual({
+      empty: false,
+      guestUrl: null,
+      hostUrl: "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/home.html?hotel_id=5653523",
+      listingId: "5653523",
+      memo: null,
+      ok: true,
+    });
+  });
+
+  it("숙소 ID 숫자만 넣어도 엑스트라넷 주소를 만든다", () => {
+    const parsed = parseRoomLinkInput({ channel: "booking", guest: "", host: "6100941", memo: "" });
+    expect(parsed).toMatchObject({ hostUrl: expect.stringContaining("hotel_id=6100941"), listingId: "6100941" });
+  });
+
+  it("손님용 페이지에서 추적 · 세션 값과 언어 꼬리를 뗀다", () => {
+    const parsed = parseRoomLinkInput({
+      channel: "booking",
+      guest: "https://www.booking.com/hotel/jp/okubo4.ko.html?label=mkt123sc-x&sid=deadbeef&dist=0",
+      host: "",
+      memo: "",
+    });
+    expect(parsed).toMatchObject({ guestUrl: "https://www.booking.com/hotel/jp/okubo4.html" });
+  });
+});
+
 describe("findDuplicateListingIds", () => {
   it("같은 리스팅 ID 가 두 유닛에 붙으면 잡는다(가부키초 K202 · KK202 복사 실수)", () => {
     expect([...findDuplicateListingIds([link("a", "1004589512654505656"), link("b", "1004589512654505656"), link("c", "1")])]).toEqual([

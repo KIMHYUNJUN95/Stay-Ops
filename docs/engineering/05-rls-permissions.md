@@ -1370,5 +1370,7 @@ service-role 로 읽으므로 **조직을 쿼리에 직접 건다**(`organizatio
   — 정책 `room links readers can read`. 판매 캘린더 로그 3표와 같은 판정식(`has_capability`).
 - 플랫폼 관리자 FOR ALL. 일반 사용자 INSERT/UPDATE/DELETE 정책 없음 — 쓰기는 서버 액션(service-role)이 권한 · 조직을 다시 보고 한다.
 - 권한: `select` → `authenticated`, `all` → `service_role`, `anon` 회수.
+- `building_listing_links`(`202610020003`, Booking.com 건물 단위 링크)도 같은 모양 — 정책 `room links readers can read building links`
+  (SELECT, 같은 판정식) · `platform admins can manage building links`(FOR ALL) · 같은 grant/revoke.
 - 새 권한 키 `room_links.access` 의 `capability_roles` · `capability_policies` 행도 같은 마이그레이션에서 넣는다
   (레지스트리 시드 `202609100001` 의 생성 구역도 갱신 — 새 DB 용).

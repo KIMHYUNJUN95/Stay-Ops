@@ -3,7 +3,11 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, ExternalLink, MapPin, Pencil, Search } from "lucide-react";
-import { saveRoomListingLink, type SaveRoomLinkResult } from "@/app/admin/ops/room-links/actions";
+import {
+  saveBuildingListingLink,
+  saveRoomListingLink,
+  type SaveRoomLinkResult,
+} from "@/app/admin/ops/room-links/actions";
 import type { Dictionary } from "@/lib/i18n";
 import type { RoomLinksPageData, RoomLinkUnitView, RoomLinkView } from "@/lib/room-links";
 import type { RoomLinkChannel } from "@/lib/room-links-model";
@@ -50,23 +54,25 @@ export function RoomLinksConsole({ data, copy }: { data: RoomLinksPageData; copy
   const totals = useMemo(() => {
     const units = all.flatMap((entry) => entry.row.units);
     return {
-      listings: units.filter((unit) => unit.airbnb || unit.booking).length,
+      // Airbnb 는 객실마다, Booking.com 은 건물마다 하나.
+      listings: units.filter((unit) => unit.airbnb).length + data.buildings.filter((b) => b.booking).length,
       noGuest: units.filter((unit) => !unit.airbnb?.guestUrl).length,
       rooms: all.length,
     };
-  }, [all]);
+  }, [all, data.buildings]);
 
   const needle = query.trim().toLowerCase();
   const results = needle
     ? all.filter(({ building, row }) =>
         [
           building.name,
+          building.booking?.listingId,
+          building.booking?.guestUrl,
           row.label,
           ...row.units.flatMap((unit) => [
             unit.unitLabel,
             unit.airbnb?.listingId,
             unit.airbnb?.guestUrl,
-            unit.booking?.guestUrl,
           ]),
         ].some((value) => value && value.toLowerCase().includes(needle)),
       )
@@ -214,6 +220,23 @@ export function RoomLinksConsole({ data, copy }: { data: RoomLinksPageData; copy
             ) : null /* 주소를 두지 않는 건물(사노 — 사용자 결정 2026-10-02)은 줄 자체를 감춘다. */}
           </div>
           <div className="rl__pb">
+            {/* Booking.com 은 숙소(건물) 단위 — 객실을 바꿔도 같은 건물이면 같은 줄이다. */}
+            <div className="rl__unit">
+              <div className="rl__unith">
+                <span className="rl__unitl">{building.name}</span>
+                <span className="rl__pill">{copy.buildingWide}</span>
+              </div>
+              <ChannelBlock
+                channel="booking"
+                copy={copy}
+                duplicate={false}
+                key={`booking:${building.name}`}
+                link={building.booking}
+                onCopied={() => flash(copy.copied)}
+                onSaved={flash}
+                save={(form) => saveBuildingListingLink({ ...form, building: building.name, channel: "booking" })}
+              />
+            </div>
             {row.units.map((unit) => (
               <div className={`rl__unit${unit.selling ? " now" : ""}`} key={unit.roomId}>
                 <div className="rl__unith">
@@ -229,16 +252,7 @@ export function RoomLinksConsole({ data, copy }: { data: RoomLinksPageData; copy
                   link={unit.airbnb}
                   onCopied={() => flash(copy.copied)}
                   onSaved={flash}
-                  roomId={unit.roomId}
-                />
-                <ChannelBlock
-                  channel="booking"
-                  copy={copy}
-                  duplicate={false}
-                  link={unit.booking}
-                  onCopied={() => flash(copy.copied)}
-                  onSaved={flash}
-                  roomId={unit.roomId}
+                  save={(form) => saveRoomListingLink({ ...form, channel: "airbnb", roomId: unit.roomId })}
                 />
               </div>
             ))}
@@ -277,10 +291,12 @@ function errorText(copy: Copy, error: Extract<SaveRoomLinkResult, { ok: false }>
   }
 }
 
+type LinkForm = { host: string; guest: string; memo: string };
+
 function ChannelBlock({
   channel,
   link,
-  roomId,
+  save: submit,
   duplicate,
   copy,
   onCopied,
@@ -288,7 +304,8 @@ function ChannelBlock({
 }: {
   channel: RoomLinkChannel;
   link: RoomLinkView | null;
-  roomId: string;
+  /** 저장 대상(객실 유닛 · 건물)은 부르는 쪽이 정한다. */
+  save: (form: LinkForm) => Promise<SaveRoomLinkResult>;
   duplicate: boolean;
   copy: Copy;
   onCopied: () => void;
@@ -296,7 +313,7 @@ function ChannelBlock({
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ guest: "", host: "", memo: "" });
+  const [form, setForm] = useState<LinkForm>({ guest: "", host: "", memo: "" });
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const name = channel === "airbnb" ? "Airbnb" : "Booking.com";
@@ -311,7 +328,7 @@ function ChannelBlock({
   const save = () => {
     setError(null);
     startTransition(async () => {
-      const result = await saveRoomListingLink({ channel, guest: form.guest, host: form.host, memo: form.memo, roomId });
+      const result = await submit(form);
       if (!result.ok) {
         setError(errorText(copy, result.error));
         return;
@@ -410,7 +427,11 @@ function ChannelBlock({
     <div className={`rl__ch ${channel}`}>
       <div className="rl__chh">
         <span className={`rl__chname ${channel}`}>{name}</span>
-        {link.listingId && <span className="rl__mono rl__muted">{fill(copy.listingId, { id: link.listingId })}</span>}
+        {link.listingId && (
+          <span className="rl__mono rl__muted">
+            {fill(channel === "booking" ? copy.hotelId : copy.listingId, { id: link.listingId })}
+          </span>
+        )}
         {duplicate && <span className="rl__pill bad">{copy.duplicateWarn}</span>}
         <span className="rl__grow" />
         <button aria-label={copy.edit} className="rl__icon" onClick={startEdit} title={copy.edit} type="button">
@@ -428,7 +449,12 @@ function ChannelBlock({
             </a>
           </>
         ) : (
-          <span className="rl__muted rl__grow">—</span>
+          <>
+            <span className="rl__muted rl__grow">—</span>
+            <button className="rl__add" onClick={startEdit} type="button">
+              + {copy.add}
+            </button>
+          </>
         )}
       </div>
       <div className="rl__line">

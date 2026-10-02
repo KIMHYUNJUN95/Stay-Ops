@@ -39,9 +39,10 @@
 - **오른쪽 패널**: 건물 이름 · 객실 · 유닛 목록 · **건물 주소**(건물 정보 `property-map-links` / 저장된 운영 정보, 사용자 언어)
   + 지도. 주소가 없는 건물은 주소 줄을 감춘다 — 사노는 주소를 두지 않는다(사용자 결정, 2026-10-02). STAY ARI 주소는
   사용자 제공(2026-10-02)으로 `property-map-links.ts` 기본 목록에 넣었다 — 예약 캘린더 「건물 정보」에서도 보이고 고칠 수 있다.
-  유닛마다 카드 하나: 「지금 판매 중 / 쉬는 계정」, 그 아래 채널 두 줄.
-  - **Airbnb**: 리스팅 ID · 「리스팅 ID 중복」 · 호스트(리스팅 편집 화면) 열기 · 게스트 링크 복사 · 열기 · 메모 · 편집(연필).
-  - **Booking.com**: 엑스트라넷 · 게스트 링크. 비어 있으면 한 줄(「아직 링크가 없어요 + 엑스트라넷 · 게스트 링크 추가」).
+  맨 위에 **건물 카드**(「건물 공통」) 하나 — Booking.com 줄. 그 아래 유닛마다 카드 하나: 「지금 판매 중 / 쉬는 계정」 + Airbnb 줄.
+  - **Airbnb(객실 단위)**: 리스팅 ID · 「리스팅 ID 중복」 · 호스트(리스팅 편집 화면) 열기 · 게스트 링크 복사 · 열기 · 메모 · 편집(연필).
+  - **Booking.com(건물 단위)**: 숙소 ID · 엑스트라넷 열기 · 게스트 페이지 복사 · 열기 · 메모 · 편집. 비어 있으면 한 줄(「아직 링크가
+    없어요 + 엑스트라넷 · 게스트 링크 추가」). 같은 건물이면 어느 객실을 골라도 같은 줄이다.
 - **지금 판매 중 / 쉬는 계정**(모든 방 — 유닛 하나인 방도, 2026-10-02 사용자 지시): 판매 캘린더의 활성 · 비활성과 같은 값 — Beds24 **날짜별 최소숙박**
   (`room_daily_rates.min_stay` 1~49 = 활성, `isActiveUnitMinStay`). 단 **오늘 하루로 정하지 않고 오늘부터 30일 중 활성 밤이
   가장 많은 계정**을 판매 중으로 본다(`pickSellingUnits`, 같으면 둘 다 · 운영 종료 유닛은 제외).
@@ -50,8 +51,10 @@
   - 유닛이 하나인 방은 30일 중 하루라도 활성이면 판매 중.
   - 날짜(「~10/4까지」 등)는 보여 주지 않는다 — 판매 중인지 아닌지만(사용자 결정, 2026-10-02).
   - 요금 칸이 하나도 없는 유닛만 `rooms.external_minimum_stay` 로 대신한다(한 시점 스냅샷이라 전환일을 못 따라감).
-- **편집**: 채널 줄의 연필 → 호스트 · 게스트 · 메모(선택, 200자). Airbnb 호스트 칸에 **리스팅 ID 숫자만** 넣어도 편집 화면
-  주소를 만든다. 셋 다 비우고 저장하면 그 줄을 지운다(「비우기」). 저장 뒤 알림 · 목록 갱신.
+- **편집**: 채널 줄의 연필 → 호스트 · 게스트 · 메모(선택, 200자). 호스트 칸에 **ID 숫자만** 넣어도 된다 — Airbnb 는 리스팅
+  편집 화면, Booking.com 은 엑스트라넷 주소(`…/extranet_ng/manage/home.html?hotel_id=<ID>`)를 만든다. Booking.com 은
+  붙여 넣은 엑스트라넷 주소에서 **로그인 세션 값(`ses=`)을 버리고** 숙소 ID 로 다시 만들고, 게스트 페이지는 **추적 · 세션 값
+  (`label` · `sid` 등 쿼리 전부)과 언어 꼬리(`.ko.html`)를 떼고** 저장한다 — 손님 쪽 언어로 열린다. 셋 다 비우고 저장하면 그 줄을 지운다(「비우기」). 저장 뒤 알림 · 목록 갱신.
 - 빈 상태: 객실 없음 · 검색 결과 없음.
 
 ## 데이터
@@ -63,12 +66,23 @@
 | `room_id` · `channel` | 유닛 하나 × `airbnb` / `booking` — 둘이 유일(`room_listing_links_room_channel_key`) |
 | `listing_id` | Airbnb 리스팅 ID. 링크에서 읽는다(`/hosting/listings/editor/<id>` · `/rooms/<id>` · `/manage-your-space/<id>`) |
 | `host_url` · `guest_url` | 호스트 화면 · 손님용 링크 |
+| `channel` | `airbnb` 만(2026-10-02 `202610020003` 부터 — Booking.com 은 건물 표) |
 | `memo` | 200자 |
 | `updated_by` · `updated_at` | 마지막으로 고친 사람 · 시각 |
 
 규칙(순수, 테스트 `room-links-model.test.ts`): `src/lib/room-links-model.ts` — 묶기(`groupRoomLinks`: 운영 종료 유닛은 링크가
 있을 때만), 중복 ID(`findDuplicateListingIds`), 입력 검증(`parseRoomLinkInput`: http(s) 만, 채널 도메인 — Airbnb `airbnb.*` ·
 `abnb.me`, Booking `booking.com`).
+
+### Booking.com 은 건물 단위 — `building_listing_links` (마이그레이션 `202610020003`)
+
+Airbnb 는 객실(계정)마다 리스팅이 있지만 Booking.com 은 **숙소(건물) 하나에 객실 타입이 붙는다**(사용자 지적, 2026-10-02).
+그래서 Booking 링크는 건물에 한 줄: `(organization_id, canonical_name, channel='booking')` 유일, 열은 `room_listing_links` 와 같고
+`listing_id` = 숙소 ID(`hotel_id`). 건물 키는 캘린더 · 건물 정보와 같은 이름(`CALENDAR_BUILDING_ORDER` 에 있는 것만 저장 —
+서버 액션 `saveBuildingListingLink`). `room_listing_links.channel` 은 이제 `airbnb` 만(체크 제약).
+
+사용자 제공 링크로 8개 건물을 넣었다 — 아라키초A 는 엑스트라넷(숙소 ID 5653523, 게스트 페이지 없음), 나머지 7개(아라키초B ·
+가부키초 · 다카다노바바 · STAY ARI · 오쿠보A · B · C)는 게스트 페이지만. 숙소 ID 는 화면에서 숫자만 넣으면 된다. 사노는 없음.
 
 ## 데이터 이관 (2026-10-02, 마이그레이션 `202610020002`)
 
@@ -79,7 +93,7 @@
 - 저쪽 「SKY」 26 = **STAY ARI Apartment Hotel** O101~O310. 「다이쿄초」(7)는 그중 5개의 옛 이름(같은 ID · 다른 게스트 링크
   `…gyoen`)과 우리에 없는 B01 · B02 라 **옮기지 않았다**.
 - 가부키초 K(4~9월) = 우리 `202#` 계열, KK(10~3월) = 우리 `K202` 계열. 상수 파일의 K202 ID 오류는 Firestore 쪽에선 고쳐져 있었다.
-- Booking.com: 저쪽에도 0건.
+- Booking.com: 저쪽에도 0건 — 사용자 제공 링크를 건물 단위로 따로 넣었다(위 「Booking.com 은 건물 단위」).
 - 이미 있는 줄은 건드리지 않는다(`on conflict do nothing`).
 
 ## 남은 것
