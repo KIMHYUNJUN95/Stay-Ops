@@ -48,6 +48,65 @@ const SHEET_OPEN_MS = 480;
 const SHEET_CLOSE_MS = 380;
 const SHEET_GROW_MS = 420;
 
+/*
+ * ── 바탕 스크롤 잠금 — **참조 수로 센다**(2026-10-02) ──
+ * 시트마다 「잠그기 전 값」을 따로 기억했더니, 시트가 겹치거나(하나가 닫히는 동안 다른 하나가 열림) 순서가 엇갈리면
+ * 나중에 풀린 시트가 「잠긴 값」을 복원해 **바탕이 영영 안 넘어가는** 일이 생길 수 있었다(사용자 지적 「가격 수정 뒤
+ * 캘린더 스크롤 안 됨」). 첫 시트가 잠글 때 한 번 기억하고, 마지막 시트가 풀 때 한 번 되돌린다.
+ */
+let scrollLockCount = 0;
+let scrollLockSaved: {
+  scrollY: number;
+  bodyOverflow: string;
+  bodyPosition: string;
+  bodyTop: string;
+  bodyWidth: string;
+  bodyTouchAction: string;
+  htmlOverflow: string;
+  htmlOverscroll: string;
+} | null = null;
+
+function lockBodyScroll() {
+  scrollLockCount += 1;
+  if (scrollLockCount > 1) return;
+  const body = document.body.style;
+  const html = document.documentElement.style;
+  scrollLockSaved = {
+    bodyOverflow: body.overflow,
+    bodyPosition: body.position,
+    bodyTop: body.top,
+    bodyTouchAction: body.touchAction,
+    bodyWidth: body.width,
+    htmlOverflow: html.overflow,
+    htmlOverscroll: html.overscrollBehavior,
+    scrollY: window.scrollY,
+  };
+  body.overflow = "hidden";
+  body.position = "fixed";
+  body.top = `-${scrollLockSaved.scrollY}px`;
+  body.width = "100%";
+  body.touchAction = "none";
+  html.overflow = "hidden";
+  html.overscrollBehavior = "none";
+}
+
+function unlockBodyScroll() {
+  scrollLockCount = Math.max(0, scrollLockCount - 1);
+  if (scrollLockCount > 0 || !scrollLockSaved) return;
+  const saved = scrollLockSaved;
+  scrollLockSaved = null;
+  const body = document.body.style;
+  const html = document.documentElement.style;
+  body.overflow = saved.bodyOverflow;
+  body.position = saved.bodyPosition;
+  body.top = saved.bodyTop;
+  body.width = saved.bodyWidth;
+  body.touchAction = saved.bodyTouchAction;
+  html.overflow = saved.htmlOverflow;
+  html.overscrollBehavior = saved.htmlOverscroll;
+  window.scrollTo(0, saved.scrollY);
+}
+
 const BottomSheetDragContext = createContext<HandleProps>({} as HandleProps);
 const BottomSheetCloseContext = createContext<() => void>(() => {});
 
@@ -87,10 +146,24 @@ export function BottomSheet({
 }: BottomSheetProps) {
   const [shown, setShown] = useState(false);
 
-  const close = useCallback(() => {
-    setShown(false);
-    setTimeout(onClose, SHEET_CLOSE_MS); // matches the slide-out transition duration
+  // `onClose` 는 보통 인라인 화살표라 렌더마다 새 함수다. 그걸 의존으로 두면 `close` 가 렌더마다 바뀌고, 아래
+  // 잠금 효과가 **렌더마다 풀었다 다시 잠갔다**(body 고정 해제 → 재고정 · scrollTo — 버벅임, 2026-10-02). `close` 는
+  // 상태만 바꾸는 고정 함수로 두고, 미끄러져 나간 뒤 부르는 onClose 는 효과에서 최신 값을 읽는다. 두 번 눌러도 한 번만
+  // 닫히고, 닫히는 도중 부모가 이 시트를 내리면(다른 시트로 바꿈) 타이머가 함께 취소돼 새 시트를 닫지 않는다.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
   }, [onClose]);
+  const [closing, setClosing] = useState(false);
+  const close = useCallback(() => {
+    setClosing(true);
+    setShown(false);
+  }, []);
+  useEffect(() => {
+    if (!closing) return;
+    const timer = setTimeout(() => onCloseRef.current(), SHEET_CLOSE_MS); // matches the slide-out transition
+    return () => clearTimeout(timer);
+  }, [closing]);
 
   const drag = useSheetDragDismiss({ shown, onDismiss: close });
 
@@ -144,38 +217,38 @@ export function BottomSheet({
     return () => cancelAnimationFrame(id);
   }, []);
 
+  /*
+   * ── 키보드(2026-10-02 사용자 지시 「기기 키보드 그대로, 네이티브처럼」) ──
+   * 키보드가 가린 만큼은 바닥 여백(`--keyboard-inset`, `KeyboardInsetSync`)이 이미 시트 **안쪽**에서 받는다 — 최대 높이는
+   * 그대로라 내용 칸이 그만큼 줄어든다. 여기서는 입력칸에 들어가면 키보드가 다 올라온 뒤 그 칸이 시트 안에서 보이게
+   * 한 번 끌어온다(맨 아래 메모 칸이 키보드 밑에 숨던 것).
+   */
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    if (!sheet) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onFocusIn = (event: FocusEvent) => {
+      const field = event.target as HTMLElement | null;
+      if (!field?.matches("input, textarea, select, [contenteditable='true']")) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => field.scrollIntoView({ block: "nearest", behavior: "smooth" }), 320);
+    };
+    sheet.addEventListener("focusin", onFocusIn);
+    return () => {
+      if (timer) clearTimeout(timer);
+      sheet.removeEventListener("focusin", onFocusIn);
+    };
+  }, []);
+
   // Body scroll lock + Esc-to-close while mounted.
   useEffect(() => {
-    const scrollY = window.scrollY;
-    const prevBodyOverflow = document.body.style.overflow;
-    const prevBodyPosition = document.body.style.position;
-    const prevBodyTop = document.body.style.top;
-    const prevBodyWidth = document.body.style.width;
-    const prevBodyTouchAction = document.body.style.touchAction;
-    const prevHtmlOverflow = document.documentElement.style.overflow;
-    const prevHtmlOverscroll = document.documentElement.style.overscrollBehavior;
-
-    document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = "100%";
-    document.body.style.touchAction = "none";
-    document.documentElement.style.overflow = "hidden";
-    document.documentElement.style.overscrollBehavior = "none";
-
+    lockBodyScroll();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
     };
     window.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = prevBodyOverflow;
-      document.body.style.position = prevBodyPosition;
-      document.body.style.top = prevBodyTop;
-      document.body.style.width = prevBodyWidth;
-      document.body.style.touchAction = prevBodyTouchAction;
-      document.documentElement.style.overflow = prevHtmlOverflow;
-      document.documentElement.style.overscrollBehavior = prevHtmlOverscroll;
-      window.scrollTo(0, scrollY);
+      unlockBodyScroll();
       window.removeEventListener("keydown", onKey);
     };
   }, [close]);
@@ -214,6 +287,8 @@ export function BottomSheet({
             className={cn(
               "w-full max-w-[460px] rounded-t-[24px] bg-surface px-5 pb-[calc(max(20px,env(safe-area-inset-bottom))+var(--keyboard-inset,0px))] pt-0",
               "motion-reduce:transition-none!",
+              // 키 낮은 화면(가로 모드) — 더 넓고 더 높게. 폭 460px · 높이 88% 로는 가로에서 내용이 몇 줄밖에 안 보였다(2026-10-02).
+              "[@media(max-height:560px)]:max-w-[600px] [@media(max-height:560px)]:max-h-[94dvh]",
               shown ? "translate-y-0" : "translate-y-full",
               className,
             )}

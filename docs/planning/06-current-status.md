@@ -9,6 +9,24 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-02 (7) — 가로 모드 반응형 2차 · 「1박으로」 확인
+
+- 키 560px 아래: 판매 캘린더 위 컨트롤 두 줄 · 선택 도구줄 한 줄 · 공용 시트 600px/94%. 넓은 모드 셸은 가로에서 노치 옆
+  안전 영역만큼 안쪽으로. 가격 시트 「1박으로」는 모바일에도 있음(고른 칸에 1박 갭이 있을 때만). (`33`, `16`)
+
+## 2026-10-02 (6) — 가격 개입 성공 = 보는 창 × 건물만
+
+- 판매 캘린더(데스크톱 · 모바일) 「가격 개입 성공」 숫자 · 목록이 **보고 있는 창 안 숙박 · 고른 건물**만 센다. 예전엔
+  최근 90일 전체라 달을 넘겨도 · 전체로 봐도 같은 목록이 남았다. 서버가 창 안 숙박 날짜의 가격 변경만 읽는다. (`33`)
+
+## 2026-10-02 (5) — 모바일 판매 캘린더 사용자 지적 6건(2차)
+
+- **가로 · 폴드**: `MobileShell wide`(판매 캘린더만 화면 폭 전부, 탭 바 560px 가운데) · 키 560px 아래 압축 · 회전 뒤 재측정. (`16`, `33`)
+- **공용 BottomSheet**: 바탕 잠금 참조 수 · `close` 고정 함수(렌더마다 잠금이 풀렸다 잠기던 것) · 닫히는 도중 바뀐 시트를
+  늦은 onClose 가 닫지 않음 · 입력칸 포커스 시 시트 안으로 끌어옴 — 「가격 수정 뒤 캘린더 스크롤 안 됨」 대응. (`16`)
+- 저장 성공하면 시트가 스스로 닫힘(`onFinished`) · 패널 닫기 버튼도 같은 움직임 · 숫자 칸 `enterKeyHint="done"`. (`33`)
+- **앱 차단 · 차단 해제 되돌리기**(이력, `revertBlockChange`) · 쓰기 뒤 모바일 경로도 새로 받기. (`33`)
+
 ## 2026-10-02 (4) — 모바일 판매 캘린더 사용자 지적 7건
 
 - **공용 BottomSheet 움직임**: 열기 480ms · 닫기 380ms(같은 곡선), 내용이 늦게 와 커지면 위 끝이 미끄러져 올라감

@@ -92,6 +92,12 @@ import { runNextPriceJob } from "@/lib/beds24/price-job-worker";
  */
 
 const CONSOLE_PATH = "/admin/ops/calendar";
+/** 모바일 판매 캘린더도 같은 데이터를 그린다 — 쓰기 뒤에는 두 화면을 함께 새로 받는다(2026-10-02). */
+const MOBILE_CALENDAR_PATH = "/mobile/ops/calendar";
+function revalidateOpsCalendars() {
+  revalidatePath(CONSOLE_PATH);
+  revalidatePath(MOBILE_CALENDAR_PATH);
+}
 
 /**
  * 실패 사유는 **코드로** 돌려준다. 문구는 화면이 사전에서 고른다 — 서버 액션이 한국어를
@@ -463,14 +469,14 @@ async function runBlockChange(
     // 이미 성공한 구간은 되읽기로 검증된 상태라 그대로 두어도 안전하다 — 다만 **화면은 새로 그려야 한다.**
     // 예전에는 여기서 바로 돌아가 앞 구간이 막힌 것이 격자에 안 보였다(2026-10-01).
     if (!result.ok) {
-      if (appliedRanges > 0) revalidatePath(CONSOLE_PATH);
+      if (appliedRanges > 0) revalidateOpsCalendars();
       return { appliedRanges, detail: result.detail, error: result.reason, ok: false };
     }
     nights += result.nights;
     appliedRanges += 1;
   }
 
-  revalidatePath(CONSOLE_PATH);
+  revalidateOpsCalendars();
   return { nights, ok: true, ranges: ranges.length };
 }
 
@@ -749,7 +755,7 @@ export async function submitManualBooking(args: {
     console.error("[ops/manual-booking] local upsert failed", { bookingId: created.bookingId, error });
   }
 
-  revalidatePath(CONSOLE_PATH);
+  revalidateOpsCalendars();
   return { bookingId: created.bookingId, ok: true };
 }
 
@@ -1003,7 +1009,7 @@ export async function submitReservationEdit(args: {
     console.error("[ops/reservation-edit] local refresh failed", error);
   }
 
-  revalidatePath(CONSOLE_PATH);
+  revalidateOpsCalendars();
   return { ok: true };
 }
 
@@ -1069,7 +1075,7 @@ export async function submitReservationCancel(args: {
     .eq("id", row.id);
   await signalBeds24Change(session.organization.id, "reservations");
 
-  revalidatePath(CONSOLE_PATH);
+  revalidateOpsCalendars();
   return { ok: true };
 }
 
@@ -1465,6 +1471,34 @@ export async function revertBeds24Change(args: { at: string }): Promise<RevertPr
   return mergeRevertResults(results);
 }
 
+/**
+ * **우리 앱에서 건 차단 · 푼 차단** 되돌리기(2026-10-02 사용자 요청 「블락 해제 되돌리기」).
+ *
+ * 앱 차단 이력은 작업 번호가 없고 한 번 누른 것이 **같은 시각**으로 남는다(`adjust_mode = 'block'`, `runBlockChange` 의
+ * `actedAt`) — 그 묶음의 칸마다 이전 값(0 열림 / 1 막힘)으로 돌린다. 차단을 걸었던 묶음이면 풀고, 풀었던 묶음이면 다시
+ * 건다. 경로는 Beds24 변경 되돌리기와 같다(`revertLogsOfField` → `runBlockChange`, 그 방의 유닛 전부). 그 뒤에 다시
+ * 바뀐 칸은 건너뛴다.
+ */
+export async function revertBlockChange(args: { at: string }): Promise<RevertPriceJobResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+  if (Number.isNaN(Date.parse(args.at))) return { error: "not_found", ok: false };
+  const supabase = getSupabaseServiceClient();
+
+  const logsResult = await supabase
+    .from("price_change_logs")
+    .select("room_id, room_label, stay_date, old_value, new_value")
+    .eq("organization_id", session.organization.id)
+    .eq("adjust_mode", "block")
+    .eq("field", "blackout")
+    .eq("created_at", args.at)
+    .limit(5000);
+  if (logsResult.error) return { error: "not_found", ok: false };
+  const logs = (logsResult.data ?? []) as RevertLogRow[];
+  if (logs.length === 0) return { error: "not_found", ok: false };
+  return mergeRevertResults([await revertLogsOfField(session, supabase, "blackout", logs)]);
+}
+
 export type SendPendingResult = {
   ok: boolean;
   /**
@@ -1553,15 +1587,23 @@ export type OpsPriceConversionsResult =
 export async function loadOpsPriceConversions(args: {
   /** 고른 건물(들). 빈 목록 = 전체(2026-09-30 다중 선택). */
   properties?: readonly string[] | null;
+  /** 보고 있는 창의 첫날 · 일수(2026-10-02 — 창 안 숙박만 판정). */
+  start: string;
+  days: number;
 }): Promise<OpsPriceConversionsResult> {
   const session = await requireOpsWriter();
   if (!session) return { error: "forbidden", ok: false };
+  const start = typeof args.start === "string" ? args.start : "";
+  const days = typeof args.days === "number" && Number.isInteger(args.days) ? args.days : 0;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || days < 1 || days > 31) return { error: "failed", ok: false };
+  const [y, m, d] = start.split("-").map(Number);
+  const end = new Date(Date.UTC(y, m - 1, d + days - 1)).toISOString().slice(0, 10);
   try {
     // 클라이언트가 보낸 값이라 모양부터 다시 거른다 — 문자열만, 공백 제거, 중복 제거.
     const properties = parsePropertyParam(
       Array.isArray(args.properties) ? args.properties.filter((name): name is string => typeof name === "string") : [],
     );
-    const conversions = await getOpsPriceConversions(session, { properties });
+    const conversions = await getOpsPriceConversions(session, { end, properties, start });
     return { conversions, ok: true };
   } catch (error) {
     console.error("[ops-calendar] price conversions read failed", error);

@@ -1162,11 +1162,11 @@ export function OpsCalendarGrid({
 
   const [priceWinsOpen, setPriceWinsOpen] = useState(false);
   /*
-   * ── 가격 개입 전환(최근 90일)은 **격자가 그린 뒤** 따로 받는다(2026-09-30 속도) ─────
+   * ── 가격 개입 전환은 **격자가 그린 뒤** 따로 받는다(2026-09-30 속도) ─────
    *
-   * 90일 조직 전체 로그 + 예약 재조회라 페이지 렌더에서 가장 느린 단계였는데, 보는 창과 무관하다.
-   * 건물이 바뀌거나 서버 데이터가 새로 오면 다시 받는다(예전에도 렌더마다 다시 판정했다). 다시 받는
-   * 동안에는 직전 목록을 그대로 쓴다 — 건물이 바뀐 경우만 「불러오는 중」이다(`null`).
+   * **보고 있는 창 × 고른 건물**만 판정한다(2026-10-02 사용자 지시 — 예전엔 최근 90일 전체라 달을 넘겨도 같은 목록이
+   * 남았다). 건물 · 창이 바뀌면 「불러오는 중」(`null`)부터, 같은 창에서 서버 데이터만 새로 오면 직전 목록을 둔 채
+   * 다시 받는다.
    */
   const [conversionsState, setConversionsState] = useState<{
     propertyKey: string;
@@ -1177,22 +1177,29 @@ export function OpsCalendarGrid({
    * 목록이 「불러오는 중」으로 깜빡이지 않는다. 건물 이름에 줄바꿈은 없다.
    */
   const propertyKey = properties.join("\n");
+  const windowStart = days[0]?.date ?? "";
+  const conversionsKey = `${propertyKey}#${windowStart}#${days.length}`;
   /** 가장 최근 요청 번호 — 늦게 도착한 옛 응답이 새 목록을 덮지 않게. 효과 안에서만 쓴다. */
   const conversionsRequestRef = useRef(0);
   useEffect(() => {
     conversionsRequestRef.current += 1;
     const requestId = conversionsRequestRef.current;
-    void loadOpsPriceConversions({ properties: propertyKey ? propertyKey.split("\n") : [] }).then((result) => {
+    if (!windowStart) return;
+    void loadOpsPriceConversions({
+      days: days.length,
+      properties: propertyKey ? propertyKey.split("\n") : [],
+      start: windowStart,
+    }).then((result) => {
       if (!result.ok || requestId !== conversionsRequestRef.current) return;
-      setConversionsState({ list: result.conversions, propertyKey });
+      setConversionsState({ list: result.conversions, propertyKey: conversionsKey });
     });
-  }, [propertyKey, refreshGeneration]);
+  }, [conversionsKey, days.length, propertyKey, refreshGeneration, windowStart]);
   /** 보이는 객실 것만(건물 필터를 따른다). `null` = 아직 받는 중. */
   const priceConversions = useMemo(() => {
-    if (!conversionsState || conversionsState.propertyKey !== propertyKey) return null;
+    if (!conversionsState || conversionsState.propertyKey !== conversionsKey) return null;
     const visible = new Set(serverRooms.map((room) => room.key));
     return conversionsState.list.filter((conversion) => visible.has(conversion.roomKey));
-  }, [conversionsState, propertyKey, serverRooms]);
+  }, [conversionsState, conversionsKey, serverRooms]);
   const conversionIds = useMemo(
     () => new Set((priceConversions ?? []).map((conversion) => conversion.reservationId)),
     [priceConversions],
@@ -2251,6 +2258,7 @@ export function OpsCalendarGrid({
                 ? rooms[0]?.propertyName ?? null
                 : null
           }
+          windowLabel={opsWindowLabel(days)}
         />
       )}
 
@@ -2329,4 +2337,13 @@ export function OpsCalendarGrid({
       </div>
     </div>
   );
+}
+
+/** 보고 있는 창 「9/28–10/27」 — 가격 개입 목록 머리에 쓴다. */
+function opsWindowLabel(days: readonly { date: string }[]): string {
+  const first = days[0]?.date;
+  const last = days.at(-1)?.date;
+  if (!first || !last) return "";
+  const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
+  return `${md(first)}–${md(last)}`;
 }

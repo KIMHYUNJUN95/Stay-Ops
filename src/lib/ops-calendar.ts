@@ -31,7 +31,6 @@ import { isAnyUnitBlackout, mergeOpsRateUnits, type OpsMergedRate } from "@/lib/
 import { buildBlockRanges } from "@/lib/ops-block-ranges";
 import {
   attributePriceConversions,
-  OPS_PRICE_ATTRIBUTION_LOOKBACK_DAYS,
   PRICE_ATTRIBUTION_WINDOW_HOURS,
   type AttributionCell,
   type AttributionReservation,
@@ -1352,8 +1351,9 @@ export async function readOpsCellHistory(args: {
  * 「가격을 바꾼 뒤 48시간 안에 그 방·그 날짜로 들어온 예약」. 판정은 순수 모듈
  * (`ops-price-attribution.ts`, 저쪽 `priceAttribution.js` 와 같은 규칙).
  *
- * 저쪽은 **캘린더에 보이는 기간의 숙박만** 봐서 목록이 두 화면(캘린더 · Price History)으로
- * 나뉘었다. 우리는 **가격을 바꾼 시각 기준 최근 90일 전체**를 판정한다 — 창과 무관하다.
+ * **보고 있는 창 × 고른 건물만** 판정한다(2026-10-02 사용자 지시 — 예전엔 「가격을 바꾼 시각 기준 최근 90일 전체」라
+ * 달을 넘겨도 · 「전체」로 봐도 같은 목록이 남아 지금 보는 캘린더와 맞지 않았다). 창 안의 **숙박 날짜**에 걸린 가격
+ * 변경만 읽으므로 과거 달로 가도 그 달 것이 나온다. 그 예약의 「바꾼 밤」도 창 안의 밤만 센다.
  *
  * **캘린더 본 데이터와 따로 받는다**(2026-09-30 속도). 90일 조직 전체 로그 + 예약 재조회라 가장 느린
  * 단계였는데 창과 무관하다 — 격자가 먼저 그려지고 이 목록은 서버 액션으로 뒤따라 온다.
@@ -1361,10 +1361,9 @@ export async function readOpsCellHistory(args: {
  */
 export async function getOpsPriceConversions(
   session: AppSession,
-  filters: { properties?: readonly string[] },
+  filters: { properties?: readonly string[]; start: string; end: string },
 ): Promise<OpsPriceConversion[]> {
   const supabase = await getSupabaseServerClient();
-  const since = new Date(Date.now() - OPS_PRICE_ATTRIBUTION_LOOKBACK_DAYS * 86_400_000).toISOString();
   const [roomRowsResult, logsResult] = await Promise.all([
     fetchRoomCatalogRows(session.organization.id, supabase),
     readAllPages<{
@@ -1382,7 +1381,8 @@ export async function getOpsPriceConversions(
         .select("id, job_id, room_id, stay_date, old_value, new_value, created_at, changed_by_name")
         .eq("organization_id", session.organization.id)
         .eq("field", "price1")
-        .gte("created_at", since)
+        .gte("stay_date", filters.start)
+        .lte("stay_date", filters.end)
         .order("created_at", { ascending: true })
         .order("id", { ascending: true })
         .range(from, to),

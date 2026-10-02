@@ -47,6 +47,12 @@ type MobileShellProps = {
    * reaches every feature. When true the content's bottom padding shrinks (no tab bar to clear).
    */
   hideBottomNav?: boolean;
+  /**
+   * 넓은 화면(펼친 폴드 · 가로 모드 · 태블릿)에서 본문을 **화면 폭 전부** 쓴다(2026-10-02 — 판매 캘린더). 기본은 셸 폭
+   * 430px 고정(모든 화면 공통). 켜도 사이드 메뉴는 지금처럼 화면 전체를 덮고(뒤가 비치지 않게), 하단 탭 바는 560px 로
+   * 가운데 — 탭 간격이 지나치게 벌어지지 않는다.
+   */
+  wide?: boolean;
 };
 
 const PULL_THRESHOLD = 72;
@@ -194,6 +200,7 @@ export function MobileShell({
   title,
   badges = {},
   hideBottomNav = false,
+  wide = false,
 }: MobileShellProps) {
   const lastScrollYRef = useRef(0);
   const hideAccumRef = useRef(0);
@@ -651,7 +658,7 @@ export function MobileShell({
         </p>
       </div>
 
-      <div className="relative mx-auto flex h-full w-full max-w-[430px] flex-col overflow-hidden">
+      <div className={cn("relative mx-auto flex h-full w-full flex-col overflow-hidden", wide ? "max-w-none" : "max-w-[430px]")}>
         <aside
           aria-label={dictionary.common.menu}
           className={cn(
@@ -795,7 +802,11 @@ export function MobileShell({
                 : "transform 200ms cubic-bezier(0.4, 0, 1, 1)",
             }}
           >
-            <div className="relative h-16 bg-background px-4 pt-2">
+            <div
+              className="relative h-16 bg-background px-4 pt-2"
+              // 넓은 모드는 가로 화면에서 노치 · 카메라 옆까지 간다 — 그 밑에 메뉴 버튼이 숨지 않게 안전 영역만큼 민다.
+              style={wide ? { paddingLeft: "calc(1rem + env(safe-area-inset-left))", paddingRight: "calc(1rem + env(safe-area-inset-right))" } : undefined}
+            >
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,var(--background)_0%,color-mix(in_oklab,var(--background)_82%,transparent)_55%,transparent_100%)]"
@@ -877,6 +888,8 @@ export function MobileShell({
                 hideBottomNav ? "pb-8" : "pb-[124px]",
               )}
               onScroll={handleContentScroll}
+              // 넓은 모드(가로 · 폴드) — 본문도 노치 · 카메라 옆 안전 영역만큼 안쪽으로(세로에서는 0 이라 그대로).
+              style={wide ? { paddingLeft: "calc(1.25rem + env(safe-area-inset-left))", paddingRight: "calc(1.25rem + env(safe-area-inset-right))" } : undefined}
               onTouchEnd={handleTouchEnd}
               onTouchMove={handleTouchMove}
               onTouchStart={handleTouchStart}
@@ -891,6 +904,7 @@ export function MobileShell({
               aria-label={title}
               className={cn(
                 "tabbar absolute inset-x-0 bottom-0 z-20 motion-reduce:transition-none",
+                wide && "mx-auto max-w-[560px]",
                 !topChromeVisible && "pointer-events-none",
               )}
               style={{

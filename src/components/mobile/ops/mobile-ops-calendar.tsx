@@ -405,21 +405,29 @@ export function MobileOpsCalendar({
     null,
   );
   const propertyKey = selectedProperties.join("\n");
+  // 보고 있는 창 × 건물만(2026-10-02 사용자 지시 — 달을 넘겨도 지난 목록이 남던 것). 바뀌면 「불러오는 중」부터.
+  const windowStart = days[0]?.date ?? "";
+  const conversionsKey = `${propertyKey}#${windowStart}#${days.length}`;
   const conversionsRequestRef = useRef(0);
   useEffect(() => {
     conversionsRequestRef.current += 1;
     const requestId = conversionsRequestRef.current;
-    void loadOpsPriceConversions({ properties: propertyKey ? propertyKey.split("\n") : [] }).then((result) => {
+    if (!windowStart) return;
+    void loadOpsPriceConversions({
+      days: days.length,
+      properties: propertyKey ? propertyKey.split("\n") : [],
+      start: windowStart,
+    }).then((result) => {
       if (!result.ok || requestId !== conversionsRequestRef.current) return;
-      setConversionsState({ list: result.conversions, propertyKey });
+      setConversionsState({ list: result.conversions, propertyKey: conversionsKey });
     });
     // 서버 데이터가 새로 올 때마다(= 새 예약이 들어왔을 수 있다) 다시 판정한다 — 데스크톱과 같다.
-  }, [propertyKey, rows]);
+  }, [conversionsKey, days.length, propertyKey, rows, windowStart]);
   const priceConversions = useMemo(() => {
-    if (!conversionsState || conversionsState.propertyKey !== propertyKey) return null;
+    if (!conversionsState || conversionsState.propertyKey !== conversionsKey) return null;
     const visible = new Set(serverRooms.map((room) => room.key));
     return conversionsState.list.filter((conversion) => visible.has(conversion.roomKey));
-  }, [conversionsState, propertyKey, serverRooms]);
+  }, [conversionsState, conversionsKey, serverRooms]);
   const winIdsByRoom = useMemo(() => {
     const ids = new Set((priceConversions ?? []).map((conversion) => conversion.reservationId));
     const byRoom = new Map<string, string[]>();
@@ -590,6 +598,9 @@ export function MobileOpsCalendar({
     liveRef.current = { applyScope, canSelect, dates, roomKeys, scope, selectedKeys, selection };
   });
 
+  /** 끌기 상태를 비우는 함수(아래 네이티브 효과가 채운다) — 시트가 손짓 도중에 열리면 끝 신호(touchend)가 격자로 안
+   *  돌아와 끌기 상태가 남고, 그 뒤 격자 스크롤이 막힐 수 있다(2026-10-02 「가격 수정 뒤 스크롤 안 됨」). */
+  const endDragRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
@@ -823,6 +834,7 @@ export function MobileOpsCalendar({
       if ((event.target as HTMLElement).closest(PRESSABLE)) event.preventDefault();
     };
 
+    endDragRef.current = endDrag;
     scroller.addEventListener("touchstart", onTouchStart, { passive: true });
     scroller.addEventListener("touchmove", onTouchMove, { passive: false });
     scroller.addEventListener("touchend", onTouchEnd);
@@ -849,6 +861,9 @@ export function MobileOpsCalendar({
    */
   const hasSelection = selection.length > 0;
   const overlayOpen = overlay !== null || salesOpen;
+  useEffect(() => {
+    if (overlayOpen) endDragRef.current?.();
+  }, [overlayOpen]);
   useEffect(() => {
     if (!hasSelection || overlayOpen) return;
     const onDown = (event: PointerEvent) => {
@@ -963,7 +978,10 @@ export function MobileOpsCalendar({
     let shrinkTimer: ReturnType<typeof setTimeout> | null = null;
     const setHeight = (value: number) => {
       shellScrollRef.current.quietUntil = performance.now() + 120;
-      grid.style.height = `${Math.max(320, Math.floor(value))}px`;
+      // 가로 모드처럼 키가 낮은 화면에서는 최소 높이를 낮춘다 — 320px 를 고집하면 격자가 화면 밖으로 넘쳐 탭 바 밑에
+      // 깔렸다(2026-10-02 가로 · 폴드 점검).
+      const floor = window.innerHeight < 560 ? 160 : 320;
+      grid.style.height = `${Math.max(floor, Math.floor(value))}px`;
     };
     const apply = (animate: boolean) => {
       if (shrinkTimer) clearTimeout(shrinkTimer);
@@ -983,6 +1001,13 @@ export function MobileOpsCalendar({
       measure();
       apply(false);
     };
+    // 회전 · 폴드를 펴고 접을 때는 크기 이벤트가 레이아웃이 다 바뀌기 **전에** 올 때가 있다 — 한 번 더 잰다.
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    const onOrientation = () => {
+      onResize();
+      if (settleTimer) clearTimeout(settleTimer);
+      settleTimer = setTimeout(onResize, 350);
+    };
     const observer = new MutationObserver(() => {
       const next = tabbar?.classList.contains("pointer-events-none") ?? false;
       if (next === hidden) return;
@@ -992,12 +1017,15 @@ export function MobileOpsCalendar({
     if (tabbar) observer.observe(tabbar, { attributeFilter: ["class"], attributes: true });
     apply(false);
     window.addEventListener("resize", onResize);
-    window.addEventListener("orientationchange", onResize);
+    window.addEventListener("orientationchange", onOrientation);
+    window.visualViewport?.addEventListener("resize", onOrientation);
     return () => {
       if (shrinkTimer) clearTimeout(shrinkTimer);
       observer.disconnect();
       window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onResize);
+      window.removeEventListener("orientationchange", onOrientation);
+      window.visualViewport?.removeEventListener("resize", onOrientation);
+      if (settleTimer) clearTimeout(settleTimer);
     };
   }, []);
   const onGridScroll = (event: React.UIEvent<HTMLDivElement>) => {
@@ -1397,6 +1425,9 @@ export function MobileOpsCalendar({
           className="flex max-h-[88dvh] flex-col"
           onClose={() => setOverlay(null)}
         >
+          {/* 저장이 접수되면 · 「선택 해제」를 누르면 시트가 **스스로 미끄러져 닫힌다**(2026-10-02 사용자 지시 — 예전엔
+              열린 채 남아 손으로 내려야 했다). 실패하면 열린 채로 이유를 보여 준다. */}
+          {({ close }) => (
           <div className="adm ops mops-panel">
             {panelKind === "price" && (
               <OpsPricePanel
@@ -1404,7 +1435,11 @@ export function MobileOpsCalendar({
                 clearLabel={copy.scopeClear}
                 copy={copy}
                 onApplied={removeSentCells}
-                onClear={clearSelection}
+                onClear={() => {
+                  clearSelection();
+                  close();
+                }}
+                onFinished={close}
                 runWrite={runWrite}
                 scopeSummary={scopeSummary}
               />
@@ -1415,7 +1450,11 @@ export function MobileOpsCalendar({
                 copy={copy}
                 gapContext={gapContext}
                 onApplied={removeSentCells}
-                onClear={clearSelection}
+                onClear={() => {
+                  clearSelection();
+                  close();
+                }}
+                onFinished={close}
                 runWrite={runWrite}
                 scopeSummary={scopeSummary}
               />
@@ -1430,11 +1469,15 @@ export function MobileOpsCalendar({
                   roomLabel: cell.roomLabel,
                 }))}
                 copy={copy}
-                onClear={clearSelection}
+                onClear={() => {
+                  clearSelection();
+                  close();
+                }}
                 scopeSummary={scopeSummary}
               />
             )}
           </div>
+          )}
         </BottomSheet>
       )}
 
@@ -1544,20 +1587,23 @@ export function MobileOpsCalendar({
 
       {overlay?.kind === "history" && (
         <BottomSheet ariaLabel={copy.hsTitle} className="flex h-[88dvh] flex-col" onClose={() => setOverlay(null)}>
+          {({ close }) => (
           <div className="adm ops mops-panel mops-side">
-            <OpsHistoryPanel copy={copy} onClose={() => setOverlay(null)} />
+            <OpsHistoryPanel copy={copy} onClose={close} />
           </div>
+          )}
         </BottomSheet>
       )}
 
       {overlay?.kind === "wins" && (
         <BottomSheet ariaLabel={copy.pwList} className="flex max-h-[88dvh] flex-col" onClose={() => setOverlay(null)}>
+          {({ close }) => (
           <div className="adm ops mops-panel mops-side">
             <OpsPriceWinsPanel
               conversions={priceConversions}
               copy={copy}
               localeTag={copy.localeTag}
-              onClose={() => setOverlay(null)}
+              onClose={close}
               onOpenReservation={(conversion) =>
                 setOverlay({
                   kind: "reservation",
@@ -1584,13 +1630,16 @@ export function MobileOpsCalendar({
                     ? (rooms[0]?.propertyName ?? null)
                     : null
               }
+              windowLabel={opsWindowLabel(days)}
             />
           </div>
+          )}
         </BottomSheet>
       )}
 
       {overlay?.kind === "reservation" && (
         <BottomSheet ariaLabel={copy.rpTitle} className="flex max-h-[92dvh] flex-col" onClose={() => setOverlay(null)}>
+          {({ close }) => (
           <div className="adm ops mops-panel mops-side">
             <OpsReservationPanel
               bar={overlay.placement.bar}
@@ -1601,7 +1650,7 @@ export function MobileOpsCalendar({
                 0,
                 Math.round((Date.parse(overlay.placement.bar.checkOut) - Date.parse(overlay.placement.bar.checkIn)) / 86_400_000),
               )}
-              onClose={() => setOverlay(null)}
+              onClose={close}
               propertyName={overlay.placement.propertyName}
               roomIds={overlay.placement.roomIds}
               roomKey={overlay.placement.bar.roomKey}
@@ -1609,11 +1658,13 @@ export function MobileOpsCalendar({
               today={today}
             />
           </div>
+          )}
         </BottomSheet>
       )}
 
       {overlay?.kind === "booking" && (
         <BottomSheet ariaLabel={copy.mBook} className="flex max-h-[92dvh] flex-col" onClose={() => setOverlay(null)}>
+          {({ close }) => (
           <div className="adm ops mops-panel mops-side">
             <OpsBookingPanel
               checkIn={overlay.checkIn}
@@ -1621,8 +1672,8 @@ export function MobileOpsCalendar({
               copy={copy}
               localeTag={copy.localeTag}
               onClose={() => {
-                setOverlay(null);
                 clearSelection();
+                close();
               }}
               rateAt={(date) => {
                 const rate = rateAt(overlay.room.key, date);
@@ -1632,6 +1683,7 @@ export function MobileOpsCalendar({
               today={today}
             />
           </div>
+          )}
         </BottomSheet>
       )}
 
@@ -2080,3 +2132,12 @@ const MobileOpsRow = memo(function MobileOpsRow({
     </div>
   );
 });
+
+/** 보고 있는 창 「9/28–10/27」 — 가격 개입 목록 머리에 쓴다. */
+function opsWindowLabel(days: readonly { date: string }[]): string {
+  const first = days[0]?.date;
+  const last = days.at(-1)?.date;
+  if (!first || !last) return "";
+  const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
+  return `${md(first)}–${md(last)}`;
+}

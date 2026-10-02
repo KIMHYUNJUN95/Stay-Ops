@@ -100,12 +100,18 @@ function shortDate(date: string): string {
   return `${Number(month)}/${Number(day)}`;
 }
 
+
+/** 기기 키보드의 「완료」(Enter)로 키보드를 내린다 — 모바일 시트에서 다음 버튼이 키보드에 가리지 않게(2026-10-02). */
+const blurOnEnter = (event: React.KeyboardEvent<HTMLInputElement>) => {
+  if (event.key === "Enter") event.currentTarget.blur();
+};
 export function OpsMinStayPanel({
   cells,
   copy,
   gapContext,
   onApplied,
   onClear,
+  onFinished,
   runWrite,
   scopeSummary,
 }: {
@@ -116,6 +122,8 @@ export function OpsMinStayPanel({
    * 와 달리, 왕복하는 동안 사람이 새로 고른 칸은 건드리지 않는다. */
   onApplied: (sentCells: { roomKey: string; date: string }[]) => void;
   onClear: () => void;
+  /** 저장이 접수된 뒤(성공) — 모바일 시트가 스스로 닫히는 데 쓴다(2026-10-02). 데스크톱은 넘기지 않는다. */
+  onFinished?: () => void;
   /** 격자가 흐린 값 → 접수 → 반영 대기 → 데이터 다시 받기를 맡는다(`ops-write-tracker.ts`). */
   runWrite: RunOpsWrite;
   scopeSummary: { rooms: string; dates: string } | null;
@@ -166,6 +174,7 @@ export function OpsMinStayPanel({
       // 「반영했습니다」는 **Beds24 에 실제로 들어간 뒤에**. 예전에는 접수만 되면 바로 그렇게
       // 말했는데 그때는 아직 큐에 있을 뿐이었다(2026-09-28).
       void settled?.then((outcome) => setMessage(outcomeText(copy.msDone, copy, outcome)));
+      onFinished?.();
     });
   };
 
@@ -227,7 +236,10 @@ export function OpsMinStayPanel({
           <input
             aria-label={copy.msCustom}
             className={`opsms__custom${nights > 2 ? " on" : ""}`}
+            autoComplete="off"
+            enterKeyHint="done"
             inputMode="numeric"
+            onKeyDown={blurOnEnter}
             max={MIN_STAY_MAX}
             min={1}
             onChange={(event) => pickCustom(event.target.value)}

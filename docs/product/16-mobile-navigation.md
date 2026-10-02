@@ -537,6 +537,12 @@ Current rules:
 - 사이드 메뉴 항목은 `capability` 를 가질 수 있다. `canSeeNavItem(item, session.capabilities)`
   (`src/config/navigation.ts`)가 **사이드 메뉴 · 하단 탭 · 하단 탭 편집 후보** 세 곳을 모두 거른다 — 권한이 없으면
   메뉴가 아예 안 보이고, 예전에 탭으로 골라 둔 항목도 탭 바에서 빠진다(접근 자체는 페이지가 서버에서 다시 막는다).
+- **넓은 화면 모드 `wide`(2026-10-02)**: `MobileShell` 은 기본 430px 폭이다. `wide` 를 켠 화면은 펼친 폴드 · 가로 모드 ·
+  태블릿에서 본문이 화면 폭 전부를 쓴다(지금은 판매 캘린더만). 사이드 메뉴는 그대로 화면 전체를 덮고, 하단 탭 바는
+  560px 로 가운데. 다른 화면은 영향 없다. 넓은 모드에서는 셸 머리 · 본문이 `safe-area-inset-left/right` 만큼 안쪽으로
+  들어간다(가로로 눕혔을 때 노치 · 카메라 밑에 메뉴 버튼 · 내용이 숨지 않게, 세로에서는 0).
+- **BottomSheet — 키 낮은 화면(2026-10-02)**: 높이 560px 아래(가로 모드)면 폭 600px · 최대 높이 94dvh 로 넓힌다
+  (`[@media(max-height:560px)]` — 시트마다 준 max-h 보다 우선).
 - **운영 관리자는 별도 구역이다**(2026-10-01 사용자 지시 — 「일반 사이드바에 넣으면 안 된다, 대시보드처럼 구분」).
   `mobileOpsAdminNavigation`(`src/config/navigation.ts`)은 `mobileSidebarNavigation` 과 **다른 목록**이고, 사이드 메뉴
   아래쪽에 구분선 + 제목(`admin.console.navGroupOpsAdmin` — 운영 관리자 / 運営管理者 / Revenue Ops)을 단 구역으로 그린다.
@@ -659,6 +665,15 @@ bottom sheet looks identical. The reference design is the home check-in/out shee
   FLIPs the `translate` property (compositor-only, independent of the drag/slide `transform`) so the top edge slides up
   over 420ms instead of jumping. Shrinking is not animated (a lifted sheet would show the scrim below it).
   `prefers-reduced-motion` turns all of it off.
+- **Scroll lock & close are robust (2026-10-02)**: the body scroll lock is **reference-counted** across all open
+  sheets (first sheet saves + locks, last sheet restores) — per-sheet save/restore could restore a *locked* state
+  when sheets overlapped and leave the page unscrollable. `close` is a stable function (state-driven; the latest
+  `onClose` is read from a ref in an effect), so an inline `onClose` no longer re-runs the lock effect on every
+  parent render. If the parent unmounts a sheet while it is sliding out (e.g. swaps to another sheet), the pending
+  `onClose` timer is cancelled and cannot close the new sheet.
+- **Keyboard (2026-10-02)**: device keyboard only (no custom keypads). The sheet's bottom padding already absorbs
+  `--keyboard-inset` inside its max height; on `focusin` of a field the sheet scrolls it into view after the keyboard
+  settles (320ms). Fields inside sheets must be ≥16px (iOS zoom).
 - **Dismiss**: drag past threshold, scrim tap, or Esc. **No top-right X button.**
 - **Lifecycle**: portals to `<body>`, locks body scroll, closes on Esc.
 - **Drag performance (2026-06-23)**: live drag distance updates are coalesced with `requestAnimationFrame`; refs still track every pointer sample for threshold/velocity accuracy, but React renders at most once per frame.

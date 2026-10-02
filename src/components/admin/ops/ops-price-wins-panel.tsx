@@ -4,7 +4,6 @@ import { X } from "lucide-react";
 import { useAdminPanelA11y } from "@/components/admin/shared/use-admin-panel-a11y";
 import type { OpsPriceConversion } from "@/lib/ops-calendar";
 import {
-  OPS_PRICE_ATTRIBUTION_LOOKBACK_DAYS,
   PRICE_ATTRIBUTION_WINDOW_HOURS,
 } from "@/lib/ops-price-attribution";
 
@@ -63,6 +62,7 @@ export function OpsPriceWinsPanel({
   onClose,
   onOpenReservation,
   propertyName,
+  windowLabel,
 }: {
   /**
    * **`null` 이면 아직 받는 중이다** — 가격 개입 판정은 격자가 그린 뒤 서버 액션으로 따로 온다
@@ -75,6 +75,8 @@ export function OpsPriceWinsPanel({
   onOpenReservation: (conversion: OpsPriceConversion) => void;
   /** 건물 필터. 없으면 전체. */
   propertyName: string | null;
+  /** 보고 있는 창(「9/28–10/27」) — 목록은 이 창 안 숙박만이다(2026-10-02). */
+  windowLabel: string;
 }) {
   const panelRef = useAdminPanelA11y<HTMLElement>(onClose, { quietRestore: true });
   const list = conversions ?? [];
@@ -111,7 +113,7 @@ export function OpsPriceWinsPanel({
             {propertyName ?? copy.pwAllProperties} ·{" "}
             {copy.pwSubtitle
               .replace("{h}", String(PRICE_ATTRIBUTION_WINDOW_HOURS))
-              .replace("{d}", String(OPS_PRICE_ATTRIBUTION_LOOKBACK_DAYS))}
+              .replace("{range}", windowLabel)}
           </div>
         </div>
 

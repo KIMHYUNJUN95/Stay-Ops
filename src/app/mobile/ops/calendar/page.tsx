@@ -97,7 +97,7 @@ export default async function MobileOpsCalendarPage({ searchParams }: { searchPa
   const last = data.days.at(-1)?.date;
 
   return (
-    <MobileShell activeItem="ops-calendar" badges={badges} title={copy.title}>
+    <MobileShell activeItem="ops-calendar" badges={badges} title={copy.title} wide>
       <Beds24LiveRefresh
         organizationId={session.organization.id}
         scope={{

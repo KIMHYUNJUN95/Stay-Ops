@@ -234,12 +234,18 @@ function errorText(copy: PanelCopy, code: PriceChangeError): string {
   }
 }
 
+
+/** 기기 키보드의 「완료」(Enter)로 키보드를 내린다 — 모바일 시트에서 다음 버튼이 키보드에 가리지 않게(2026-10-02). */
+const blurOnEnter = (event: React.KeyboardEvent<HTMLInputElement>) => {
+  if (event.key === "Enter") event.currentTarget.blur();
+};
 export function OpsPricePanel({
   cells,
   clearLabel,
   copy,
   onApplied,
   onClear,
+  onFinished,
   runWrite,
   scopeSummary,
 }: {
@@ -250,6 +256,8 @@ export function OpsPricePanel({
    * 와 달리, 왕복하는 동안 사람이 새로 고른 칸은 건드리지 않는다. */
   onApplied: (sentCells: { roomKey: string; date: string }[]) => void;
   onClear: () => void;
+  /** 저장이 접수된 뒤(성공) — 모바일 시트가 스스로 닫히는 데 쓴다(2026-10-02). 데스크톱은 넘기지 않는다. */
+  onFinished?: () => void;
   /** 격자가 흐린 값 → 접수 → 반영 대기 → 데이터 다시 받기를 맡는다(`ops-write-tracker.ts`). */
   runWrite: RunOpsWrite;
   scopeSummary: PanelScopeSummary | null;
@@ -383,6 +391,7 @@ export function OpsPricePanel({
       // 통째로 비우면 안 된다. 결과 문구(반영됨·실패)는 패널에 그대로 남는다.
       onApplied(cellsToSend.map((cell) => ({ date: cell.date, roomKey: cell.roomKey })));
       reportSettled(settled);
+      onFinished?.();
     });
   };
 
@@ -490,7 +499,10 @@ export function OpsPricePanel({
             <input
               aria-label={copy.panelAmount}
               disabled={!hasSelection}
+              autoComplete="off"
+              enterKeyHint="done"
               inputMode="numeric"
+              onKeyDown={blurOnEnter}
               onChange={(event) => onAmount(event.target.value)}
               placeholder={copy.panelAmount}
               // 천 단위 쉼표 — 「46600」보다 「46,600」이 한눈에 읽힌다. 파싱은 숫자만 본다(`onAmount`).
@@ -501,7 +513,10 @@ export function OpsPricePanel({
             <input
               aria-label={copy.panelPercent}
               disabled={!hasSelection}
+              autoComplete="off"
+              enterKeyHint="done"
               inputMode="numeric"
+              onKeyDown={blurOnEnter}
               onChange={(event) => {
                 const value = Number.parseInt(event.target.value.replace(/[^\d-]/g, ""), 10);
                 if (Number.isFinite(value)) onPercent(value);

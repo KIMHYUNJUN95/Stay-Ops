@@ -6,6 +6,7 @@ import {
   loadOpsChangeHistory,
   loadOpsSendLog,
   revertBeds24Change,
+  revertBlockChange,
   revertPriceJob,
   sendPendingPriceJobs,
 } from "@/app/admin/ops/calendar/actions";
@@ -150,10 +151,15 @@ const kindOf = (field: ChangeField, copy: HistoryPanelCopy) =>
  * 펼친 칸 표 — 방(번호순)마다, 이어진 날짜가 같은 값이면 한 줄(`collapseCellRuns`).
  * 건물이 하나뿐인 수정이면 건물 이름을 줄마다 되풀이하지 않는다(머리 줄에 이미 있다).
  */
-/** 되돌릴 수 있는 줄 — 우리 앱의 **큐 작업**(가격·최소숙박) 또는 **Beds24 에서 바뀐 묶음**. 앱 차단은 「차단 해제」가 한다. */
+/**
+ * 되돌릴 수 있는 줄 — 우리 앱의 **큐 작업**(가격·최소숙박), **앱에서 건 · 푼 차단**(`block:<시각>`, 2026-10-02), **Beds24 에서
+ * 바뀐 묶음**.
+ */
 function isRevertibleGroup(group: ChangeGroup) {
   // Beds24 에서 바뀐 묶음(`beds24:<시각>`)도 된다 — 가격 · 최소숙박 · 차단 전부(2026-10-01 사용자 요청).
   if (group.source === "beds24") return group.id.startsWith("beds24:");
+  // 앱 차단 · 차단 해제 — 한 번 누른 것이 같은 시각 한 줄(2026-10-02 사용자 요청 「블락 해제 되돌리기」).
+  if (group.id.startsWith("block:")) return true;
   return (
     /^[0-9a-f-]{36}$/i.test(group.id) &&
     group.fields.some((summary) => summary.field === "price" || summary.field === "minStay")
@@ -327,7 +333,9 @@ export function OpsHistoryPanel({ copy, onClose }: { copy: HistoryPanelCopy; onC
     setReverts((previous) => ({ ...previous, [jobId]: "pending" }));
     const result = jobId.startsWith("beds24:")
       ? await revertBeds24Change({ at: jobId.slice("beds24:".length) })
-      : await revertPriceJob({ jobId });
+      : jobId.startsWith("block:")
+        ? await revertBlockChange({ at: jobId.slice("block:".length) })
+        : await revertPriceJob({ jobId });
     let next: { text: string; tone: "ok" | "warn" };
     if (result.ok) {
       const done = copy.hsRevertDone.replace("{n}", String(result.cells));
