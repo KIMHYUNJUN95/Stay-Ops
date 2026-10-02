@@ -945,7 +945,7 @@ export function MobileOpsCalendar({
    * 지적 「끝까지 올리면 끊긴다」). 그래서 ① 높이를 바꾸는 동안 생긴 움직임은 보정치(`bias`)로 흡수해 셸에 안 보내고
    * ② 고무줄 튕김(맨 위 · 맨 아래 너머)은 끝값으로 자른다.
    */
-  const shellScrollRef = useRef({ bias: 0, quietUntil: 0, raw: 0 });
+  const shellScrollRef = useRef({ bias: 0, canHide: true, quietUntil: 0, raw: 0 });
   /** 격자 높이를 다시 맞추는 함수(아래 효과가 채운다) — 객실 수 · 줄 높이 · 선택 도구줄이 바뀐 뒤 부른다. */
   const refitGridRef = useRef<(() => void) | null>(null);
   useEffect(() => {
@@ -998,6 +998,20 @@ export function MobileOpsCalendar({
       shrinkTimer = null;
       const tall = screenBottom - (naturalTop - HEADER);
       const short = tabTop - naturalTop;
+      /*
+       * **크롬을 숨겨도 되는 건물인가**(2026-10-02 사용자 지적 「아라키초B 같은 애매한 건물은 빠르게 올리면 더 올라간다」).
+       * 줄이 화면보다 조금만 길면, 넘기다 크롬이 숨어 격자가 늘어나는 순간 줄이 다 들어가 버린다 — 더 넘길 게 없어
+       * 크롬을 되돌릴 손짓도 없고, 화면은 위로 밀린 채 아래가 비었다. 그래서 **숨긴 뒤에도 넘칠 만큼 길 때만** 숨긴다.
+       * 그보다 짧으면 크롬은 그대로 두고 남는 몇 줄만 격자 안에서 넘긴다.
+       */
+      const pad = grid.querySelector<HTMLElement>(".mops-endpad");
+      const rowsBottom = pad ? pad.offsetTop + 2 : Number.POSITIVE_INFINITY;
+      const canHide = rowsBottom > tall;
+      shellScrollRef.current.canHide = canHide;
+      if (!canHide && hidden) {
+        // 지금 숨어 있으면 되돌린다 — 셸이 크롬을 띄우면 위 MutationObserver 가 다시 apply 한다.
+        window.dispatchEvent(new CustomEvent("mobile-shell-scroll", { detail: { scrollTop: 0 } }));
+      }
       root.style.transition = !animate
         ? "none"
         : hidden
@@ -1024,7 +1038,7 @@ export function MobileOpsCalendar({
       // 다 들어가서 넘길 게 없는데 크롬이 숨어 있으면(큰 건물에서 내려가다 작은 건물로 옮김) 다시 띄울 손짓이 없다 —
       // 맨 위로 알려 크롬을 돌려놓는다.
       if (grid.scrollHeight <= grid.clientHeight + 1) {
-        shellScrollRef.current = { bias: 0, quietUntil: 0, raw: 0 };
+        shellScrollRef.current = { ...shellScrollRef.current, bias: 0, quietUntil: 0, raw: 0 };
         window.dispatchEvent(new CustomEvent("mobile-shell-scroll", { detail: { scrollTop: 0 } }));
       }
     };
@@ -1077,6 +1091,8 @@ export function MobileOpsCalendar({
     }
     if (raw === state.raw) return;
     state.raw = raw;
+    // 크롬을 숨겨 봐야 줄이 다 들어가 버리는 건물이면 셸에 알리지 않는다 — 크롬은 그대로, 격자 안에서만 넘긴다.
+    if (!state.canHide) return;
     if (raw <= 0) state.bias = 0;
     // 맨 위가 아닌데 보정 때문에 「맨 위」로 읽히면 셸이 크롬을 띄운다 — 맨 위 판정(8px) 밖으로 둔다.
     const sent = raw <= 0 ? 0 : Math.max(9, raw + state.bias);
