@@ -190,6 +190,23 @@ StayOps 는 Next.js 16 + Supabase 다. **스택이 겹치지 않는다 — 코�
 - [x] **사용자 지적 7건 1차 반영**(2026-10-02): 시트 여닫기 · 늦게 온 내용의 움직임(공용) · 임박 빈방 다시 누르면 끄기 ·
       바닥 떨림 · 이동 즉시 반응 · 누름 반응 · 매출 요약도 공용 시트로(33번 「모바일 판매 캘린더」 · 16번).
 
+**A-2. 룸 링크(저쪽 `RoomLinksDashboard`) — 이식하기로(2026-10-02 사용자 결정)**
+
+예전엔 「캘린더와 무관 — 범위 밖」(33번 「이식 상태」)이었다. 사용자 설명: **리스팅이 많고 숙소마다 달라 숙소를 확인할 때
+쓰는 화면**. 저쪽 구조(2026-10-02 조사): 경로 `/room-links`, 파일 `src/components/RoomLinksDashboard.jsx`(1,061줄) +
+기본 데이터 `src/constants/roomLinks.js`(Airbnb 만). 모양 `{airbnb|booking: {건물: {객실: {host, guest}}}, buildingOrder}`,
+저장은 Firestore `roomLinks/{companyId}` 문서 **하나를 통째로 덮어쓰기**(동시 편집 시 나중 저장이 이김) + localStorage.
+host = 리스팅 편집 페이지(`/hosting/listings/editor/<리스팅ID>`), guest = 짧은 링크(`/h/...`). 객실은 Airbnb 계정 단위
+(`A201` / `AA201`, 가부키초 `K` / `KK`) — 우리 유닛 `201` / `201_2` 와 거의 1:1. 기본 데이터에 `K202호`·`Kk202호` 가 **같은
+리스팅 ID**(복사 실수 추정). 문구 영어 하드코딩 · 권한 검사 없음. **Firestore 의 실제 값(Booking 링크 등)은 아직 안 읽었다.**
+
+- [x] 대시보드 시안 1차(Claude Design 프로젝트 `a3c6ed81-b1de-4f3a-aab4-da60487a139c` 「룸 링크 대시보드 시안」):
+      1a 한눈 표(건물 × 객실 × 계정 1/2 · Booking, 점검 열) · 1b 건물 → 객실 카드 + 오른쪽 상세 패널 · 1c 찾기 우선(검색 +
+      키보드) · 1d 판매 캘린더 객실 이름 옆 링크 팝오버 · 1e 편집 패널(리스팅 ID 읽기 · 중복 경고).
+- [ ] 사용자 시안 선택 → 데이터 모델(안: 우리 `rooms` 유닛에 붙는 `room_listing_links(room_id, channel, host_url,
+      guest_url, memo)`) · 권한 · i18n 확정 → 구현 → 저쪽 Firestore 실제 값 이관.
+- [ ] 모바일 시안(대시보드 다음).
+
 **B. 이식 다음 단계**
 
 1. **공통 지표 계층** — `ops-sales-summary.ts` 를 기간 · 건물 · 채널 축의 공통 모듈로.
