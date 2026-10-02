@@ -124,6 +124,7 @@ StayOps 는 Next.js 16 + Supabase 다. **스택이 겹치지 않는다 — 코�
 
 | 커밋 | 무엇 | 문서 |
 | --- | --- | --- |
+| `2e8e62b` | 룸 링크 — 유닛 하나인 방(듀얼 계정 아님)에도 「지금 판매 중 / 쉬는 계정」 표시 | 35 · 06 |
 | `fb867a5` | 룸 링크 「지금 판매 중」 = 판매 캘린더 활성 기준 · 앞으로 30일 중 활성 밤이 가장 많은 계정(전환 겹침 10/1~4 대응, 날짜 표시 없음) | 35 · 31 · 06 |
 | `ef42159` | **룸 링크 대시보드**(`/admin/ops/room-links`, 시안 1b) · 권한 키 `room_links.access`(판매 캘린더와 따로) · 표 `room_listing_links` + RLS · 저쪽 Firestore Airbnb 90줄 이관 | 35 · 31 · 32 · 33 · 04 · 05 · 14 · 05-admin-web-ia · 06 |
 | `fe4eba2` | **예약 바로 열기 링크**(`?resv=<id>` → 예약 상세 시트) · **버벅임 1차**: 크롬 숨김/표시 때 격자 높이 애니메이션 제거(transform 만) · 새로고침 시 안 바뀐 행 재사용(`reuseStableRows`) · 격자 `contain: strict` · 줄 `content-visibility: auto` | 33 · 06 |
