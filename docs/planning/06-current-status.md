@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-05 — 예약 캘린더 인원: 성인 · 어린이 표기
+
+- 현장 모바일 예약 캘린더 · 관리자 예약 캘린더의 인원을 판매 캘린더처럼 「성인 N · 어린이 N」으로. 공용 `getReservationGuests`.
+- 합계가 어린이를 빼고 성인 수만 나오던 것(합계 키 맨 앞이 `numAdult`)을 고침. (`15`)
+
 ## 2026-10-02 (18) — 룸 링크: Booking.com 은 건물 단위로
 
 - Booking.com 링크를 객실이 아니라 **건물**에 붙인다(새 표 `building_listing_links`, 마이그레이션 `202610020003` 운영 적용). 패널 맨 위

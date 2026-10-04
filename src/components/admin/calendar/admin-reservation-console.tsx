@@ -86,6 +86,9 @@ export type AdminReservationConsoleProps = {
     checkInDate: string;
     checkOutDate: string;
     guestCount: number | null;
+    /** 성인 · 어린이 — 성인 수를 모르면 `null`(합계만 보인다). */
+    adults: number | null;
+    children: number | null;
     guestName: string;
     id: string;
     phone: string | null;
@@ -1608,10 +1611,15 @@ function ReservationPanel({
   statusStyle: { badge: string };
   uiLocale: Locale;
 }) {
+  // 성인 · 어린이를 나눠 보인다 — 판매 캘린더와 같은 표기(2026-10-05). 성인 수를 모르는 예약만 합계.
   const guestCountLabel =
-    reservation.guestCount === null
-      ? copy.guestCountUnknown
-      : copy.guestCount(reservation.guestCount);
+    reservation.adults !== null
+      ? copy.guestBreakdown
+          .replace("{adults}", String(reservation.adults))
+          .replace("{children}", String(reservation.children ?? 0))
+      : reservation.guestCount === null
+        ? copy.guestCountUnknown
+        : copy.guestCount(reservation.guestCount);
   const activityRows = [
     {
       icon: RefreshCw,

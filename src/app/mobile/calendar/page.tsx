@@ -26,6 +26,12 @@ import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { readAllPages } from "@/lib/supabase/read-all-pages";
 import type { Database } from "@/types/database";
+import { getReservationGuests, type ReservationGuests } from "@/lib/reservation-guests";
+
+/** 예약 캘린더 인원 — 합계 + 성인 · 어린이(2026-10-05, `reservation-guests.ts`). */
+function guestFields(guests: ReservationGuests) {
+  return { adults: guests.adults, children: guests.children, guestCount: guests.total };
+}
 
 type ReservationRow = Pick<
   Database["public"]["Tables"]["reservations"]["Row"],
@@ -95,56 +101,6 @@ function getDisplayReservationId(item: ReservationRow) {
     return fromPayload;
   }
   return toOriginalReservationId(item.source_reservation_id);
-}
-
-function getRawPayloadNumber(
-  rawPayload: Database["public"]["Tables"]["reservations"]["Row"]["raw_payload"],
-  keys: string[],
-) {
-  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
-    return null;
-  }
-  const record = rawPayload as Record<string, unknown>;
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return value;
-    }
-    if (typeof value === "string") {
-      const parsed = Number(value.trim());
-      if (Number.isFinite(parsed)) {
-        return parsed;
-      }
-    }
-  }
-  return null;
-}
-
-function getGuestCount(rawPayload: Database["public"]["Tables"]["reservations"]["Row"]["raw_payload"]) {
-  const total = getRawPayloadNumber(rawPayload, [
-    "numAdult",
-    "num_adult",
-    "num_adults",
-    "adults",
-    "guestCount",
-    "guest_count",
-    "pax",
-    "persons",
-    "guests",
-  ]);
-  if (total !== null) {
-    return Math.max(0, Math.round(total));
-  }
-
-  const adult = getRawPayloadNumber(rawPayload, ["adults", "adult", "numAdult", "num_adult"]);
-  const child = getRawPayloadNumber(rawPayload, ["children", "child", "numChild", "num_child"]);
-  const infant = getRawPayloadNumber(rawPayload, ["infants", "infant", "numInfant", "num_infant"]);
-  const candidates = [adult, child, infant].filter((value): value is number => value !== null);
-  if (candidates.length === 0) {
-    return null;
-  }
-  const sum = candidates.reduce((acc, value) => acc + value, 0);
-  return Math.max(0, Math.round(sum));
 }
 
 function getRawPayloadString(
@@ -422,7 +378,7 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
       return {
         checkInDate: item.check_in_date,
         checkOutDate: item.check_out_date,
-        guestCount: getGuestCount(item.raw_payload),
+        ...guestFields(getReservationGuests(item.raw_payload)),
         guestName: item.guest_name,
         id: item.id,
         internalNote: null,
@@ -641,6 +597,7 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
           guestCountLabel: dictionary.mobile.calendarGuestCountLabel,
           guestCountUnit: dictionary.mobile.calendarGuestCountUnit,
           guestCountUnknown: dictionary.mobile.calendarGuestCountUnknown,
+          guestBreakdown: dictionary.mobile.calendarGuestBreakdown,
           phone: dictionary.admin.users.phone,
           phoneMissing: dictionary.mobile.calendarPhoneMissing,
           propertyLabel: dictionary.mobile.calendarPropertyLabel,

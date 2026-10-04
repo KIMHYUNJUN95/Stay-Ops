@@ -71,6 +71,7 @@ type MobileCalendarLiveViewProps = {
     guestCountLabel: string;
     guestCountUnit: string;
     guestCountUnknown: string;
+    guestBreakdown: string;
     propertyLabel: string;
     reservationId: string;
     roomLabel: string;

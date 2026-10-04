@@ -41,6 +41,9 @@ export type CalendarReservationItem = {
   checkInDate: string;
   checkOutDate: string;
   guestCount: number | null;
+  /** 성인 · 어린이 — 성인 수를 모르면 `null`(합계만 보인다). */
+  adults: number | null;
+  children: number | null;
   guestName: string;
   id: string;
   internalNote: string | null;
@@ -125,6 +128,8 @@ type MobileCalendarViewProps = {
     guestCountLabel: string;
     guestCountUnit: string;
     guestCountUnknown: string;
+    /** 「성인 {adults} · 어린이 {children}」 — 판매 캘린더와 같은 표기(2026-10-05). */
+    guestBreakdown: string;
     propertyLabel: string;
     reservationId: string;
     roomLabel: string;
@@ -1530,9 +1535,13 @@ export function MobileCalendarView({
                 <Card className={`${GLASS_CARD} col-span-2 p-3`}>
                   <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{copy.guestCountLabel}</p>
                   <p className="mt-0.5 text-base font-semibold">
-                    {selectedReservation.guestCount
-                      ? `${selectedReservation.guestCount}${copy.guestCountUnit}`
-                      : copy.guestCountUnknown}
+                    {selectedReservation.adults !== null
+                      ? copy.guestBreakdown
+                          .replace("{adults}", String(selectedReservation.adults))
+                          .replace("{children}", String(selectedReservation.children ?? 0))
+                      : selectedReservation.guestCount
+                        ? `${selectedReservation.guestCount}${copy.guestCountUnit}`
+                        : copy.guestCountUnknown}
                   </p>
                 </Card>
               </div>

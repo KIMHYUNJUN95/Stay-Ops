@@ -1,5 +1,17 @@
 # Reservation Calendar
 
+## 인원 표기 — 성인 · 어린이 (2026-10-05)
+
+현장용 예약 캘린더(`/mobile/calendar` 예약 상세)와 관리자 예약 캘린더(`/admin/calendar` 예약 패널)는 인원을 **「성인 N · 어린이 N」**
+으로 보인다 — 판매 캘린더 예약 패널(`rpGuestsValue`)과 같은 표기(사용자 지시).
+
+- 값: Beds24 원본 `numAdult` · `numChild`(유아 키가 있으면 어린이에 합침). 공용 헬퍼 `getReservationGuests`
+  (`src/lib/reservation-guests.ts`, 테스트 `reservation-guests.test.ts`). 어린이가 없으면 「어린이 0」.
+- 성인 수가 없는 예약(다른 채널 · 옛 데이터)만 예전처럼 합계(`N명`), 그것도 없으면 「미확인」.
+- **고친 것**: 전에는 두 화면이 각자 합계를 구했는데 합계 키 목록 맨 앞이 `numAdult` 라 **어린이가 빠진 성인 수**가 「인원」으로
+  나왔다. 합계는 이제 성인 + 어린이.
+- 문구: `admin.calendar.guestBreakdown` · `mobile.calendarGuestBreakdown`(ko/ja/en, `{adults}` · `{children}` 자리표시 문자열).
+
 ## 2026-08-06 multilingual surface contract
 
 The mobile Tokyo-now badge, map building count, and admin print heading are localized through the shared `ko`/`ja`/`en` calendar copy. Calendar navigation accessibility labels also follow the viewer locale.

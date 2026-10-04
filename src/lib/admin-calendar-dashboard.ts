@@ -23,6 +23,12 @@ import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { readAllPages } from "@/lib/supabase/read-all-pages";
 import type { Database } from "@/types/database";
+import { getReservationGuests, type ReservationGuests } from "@/lib/reservation-guests";
+
+/** 예약 캘린더 인원 — 합계 + 성인 · 어린이(2026-10-05, `reservation-guests.ts`). */
+function guestFields(guests: ReservationGuests) {
+  return { adults: guests.adults, children: guests.children, guestCount: guests.total };
+}
 
 type ReservationStatus = Database["public"]["Enums"]["reservation_status"];
 
@@ -48,6 +54,9 @@ export type AdminCalendarReservation = {
   checkInDate: string;
   checkOutDate: string;
   guestCount: number | null;
+  /** 성인 · 어린이 — 성인 수를 모르면 `null`(합계만 보인다). */
+  adults: number | null;
+  children: number | null;
   guestName: string;
   id: string;
   phone: string | null;
@@ -152,56 +161,6 @@ function normalizePropertyParam(value: string | undefined) {
   if (!value) return null;
   const canonicalName = getCanonicalPropertyName(value.trim());
   return canonicalName.length > 0 ? canonicalName : null;
-}
-
-function getRawPayloadNumber(
-  rawPayload: Database["public"]["Tables"]["reservations"]["Row"]["raw_payload"],
-  keys: string[],
-) {
-  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
-    return null;
-  }
-
-  const record = rawPayload as Record<string, unknown>;
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value === "string") {
-      const parsed = Number(value.trim());
-      if (Number.isFinite(parsed)) return parsed;
-    }
-  }
-
-  return null;
-}
-
-function getGuestCount(
-  rawPayload: Database["public"]["Tables"]["reservations"]["Row"]["raw_payload"],
-) {
-  const total = getRawPayloadNumber(rawPayload, [
-    "numAdult",
-    "num_adult",
-    "num_adults",
-    "adults",
-    "guestCount",
-    "guest_count",
-    "pax",
-    "persons",
-    "guests",
-  ]);
-  if (total !== null) {
-    return Math.max(0, Math.round(total));
-  }
-
-  const adult = getRawPayloadNumber(rawPayload, ["adults", "adult", "numAdult", "num_adult"]);
-  const child = getRawPayloadNumber(rawPayload, ["children", "child", "numChild", "num_child"]);
-  const infant = getRawPayloadNumber(rawPayload, ["infants", "infant", "numInfant", "num_infant"]);
-  const people = [adult, child, infant].filter((value): value is number => value !== null);
-  if (people.length === 0) {
-    return null;
-  }
-
-  return Math.max(0, Math.round(people.reduce((sum, value) => sum + value, 0)));
 }
 
 function getPhone(
@@ -335,7 +294,7 @@ export async function getAdminCalendarDashboardData(
       channel: toReservationChannel(row.source),
       checkInDate: row.check_in_date,
       checkOutDate: row.check_out_date,
-      guestCount: getGuestCount(row.raw_payload),
+      ...guestFields(getReservationGuests(row.raw_payload)),
       guestName: row.guest_name,
       id: row.id,
       phone: getPhone(row.raw_payload),
