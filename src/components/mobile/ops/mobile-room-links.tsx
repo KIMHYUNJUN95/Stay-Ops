@@ -312,6 +312,17 @@ function BuildingCard({
             <Copy aria-hidden="true" />
           </button>
         )}
+        {booking?.guestUrl && (
+          <a
+            aria-label={`${copy.guest} ${copy.open}`}
+            className="mrl-sm"
+            href={booking.guestUrl}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <ExternalLink aria-hidden="true" />
+          </a>
+        )}
       </div>
     </div>
   );
@@ -361,7 +372,16 @@ function UnitCard({
           {copied ? copy.mCopied : guest ? copy.copy : copy.mNoLink}
         </button>
       </div>
-      <div className="mrl-url mrl-mono">{guest ? shortUrl(guest) : copy.guestMissing}</div>
+      {/* 게스트 링크 줄 — 주소 + 「열기」(손님에게 보내기 전에 실제 페이지를 확인한다, 2026-10-06 사용자 지적). */}
+      <div className="mrl-url">
+        <span className="mrl-mono">{guest ? shortUrl(guest) : copy.guestMissing}</span>
+        {guest && (
+          <a className="mrl-sm" href={guest} rel="noopener noreferrer" target="_blank">
+            {copy.open}
+            <ExternalLink aria-hidden="true" />
+          </a>
+        )}
+      </div>
       {link?.memo && <div className="mrl-memo">{link.memo}</div>}
     </div>
   );
