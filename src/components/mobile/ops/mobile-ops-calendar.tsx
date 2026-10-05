@@ -1078,11 +1078,13 @@ export function MobileOpsCalendar({
     let screenBottom = window.innerHeight;
     const measure = () => {
       naturalTop = grid.getBoundingClientRect().top + (hidden ? HEADER : 0);
-      if (tabbar && !hidden) {
+      // 넓은 화면(태블릿 · 펼친 폴드)에서는 탭 바가 숨는다(`display: none` — 메뉴는 왼쪽 레일). 그때는 창 바닥까지.
+      const barShown = Boolean(tabbar && tabbar.getClientRects().length > 0);
+      if (barShown && tabbar && !hidden) {
         const box = tabbar.getBoundingClientRect();
         barTop = box.top;
         barBottom = box.bottom;
-      } else if (!tabbar) {
+      } else if (!barShown) {
         barTop = window.innerHeight;
         barBottom = window.innerHeight;
       }

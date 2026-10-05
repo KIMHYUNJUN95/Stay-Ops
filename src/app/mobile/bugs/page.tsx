@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { SplitList } from "@/components/shell/split-list";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
@@ -36,8 +37,10 @@ export default async function MobileBugsPage() {
   ]);
 
   return (
-    <MobileShell activeItem="bugs" badges={navBadges} title={copy.title}>
-      <BugsListClient copy={copy} reports={reports} isReviewer={isReviewer} />
+    <MobileShell activeItem="bugs" badges={navBadges} title={copy.title} split>
+      <SplitList detail="bugs">
+        <BugsListClient copy={copy} reports={reports} isReviewer={isReviewer} />
+      </SplitList>
     </MobileShell>
   );
 }

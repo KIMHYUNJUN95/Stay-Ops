@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { SplitList } from "@/components/shell/split-list";
 import { ComplaintList } from "@/components/complaints/complaint-list";
 import { ComplaintViewTabs } from "@/components/complaints/complaint-view-tabs";
 import {
@@ -117,15 +118,17 @@ export default async function MobileComplaintsPage({ searchParams }: PageProps) 
       locale,
     });
     return (
-      <MobileShell activeItem="complaints" badges={navBadges} title={dict.complaints.pageTitle}>
-        <ComplaintViewTabs view={view} dict={dict} />
-        <ReviewRoomsBoard
-          locale={locale}
-          summaries={summaries}
-          from={rangeFrom}
-          to={rangeTo}
-          rangeDays={rangeDays ?? (from ? null : 90)}
-        />
+      <MobileShell activeItem="complaints" badges={navBadges} title={dict.complaints.pageTitle} split>
+        <SplitList detail="complaints">
+          <ComplaintViewTabs view={view} dict={dict} />
+          <ReviewRoomsBoard
+            locale={locale}
+            summaries={summaries}
+            from={rangeFrom}
+            to={rangeTo}
+            rangeDays={rangeDays ?? (from ? null : 90)}
+          />
+        </SplitList>
       </MobileShell>
     );
   }
@@ -163,36 +166,40 @@ export default async function MobileComplaintsPage({ searchParams }: PageProps) 
     ]);
 
     return (
-      <MobileShell activeItem="complaints" badges={navBadges} title={dict.complaints.pageTitle}>
-        <ComplaintViewTabs view={view} dict={dict} />
-        <ReviewList
-          locale={locale}
-          reviews={rows}
-          total={total}
-          riskTotal={riskOnly ? total : (riskPage?.total ?? 0)}
-          page={page}
-          provider={provider ?? "all"}
-          riskOnly={riskOnly}
-          from={from}
-          to={to}
-          rangeDays={rangeDays}
-          reviewSync={reviewSync}
-        />
+      <MobileShell activeItem="complaints" badges={navBadges} title={dict.complaints.pageTitle} split>
+        <SplitList detail="complaints">
+          <ComplaintViewTabs view={view} dict={dict} />
+          <ReviewList
+            locale={locale}
+            reviews={rows}
+            total={total}
+            riskTotal={riskOnly ? total : (riskPage?.total ?? 0)}
+            page={page}
+            provider={provider ?? "all"}
+            riskOnly={riskOnly}
+            from={from}
+            to={to}
+            rangeDays={rangeDays}
+            reviewSync={reviewSync}
+          />
+        </SplitList>
       </MobileShell>
     );
   }
 
   const complaints = await listComplaints({ session });
   return (
-    <MobileShell activeItem="complaints" badges={navBadges} title={dict.complaints.pageTitle}>
-      <ComplaintViewTabs view={view} dict={dict} />
-      <ComplaintList
-        locale={locale}
-        complaints={complaints}
-        canCreate={canWriteComplaint(session.user.role)}
-        currentUserId={session.user.id}
-        canModerate={canModerateComplaints(session.user.role)}
-      />
+    <MobileShell activeItem="complaints" badges={navBadges} title={dict.complaints.pageTitle} split>
+      <SplitList detail="complaints">
+        <ComplaintViewTabs view={view} dict={dict} />
+        <ComplaintList
+          locale={locale}
+          complaints={complaints}
+          canCreate={canWriteComplaint(session.user.role)}
+          currentUserId={session.user.id}
+          canModerate={canModerateComplaints(session.user.role)}
+        />
+      </SplitList>
     </MobileShell>
   );
 }

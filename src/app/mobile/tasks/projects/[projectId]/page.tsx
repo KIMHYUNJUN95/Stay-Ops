@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { SplitList } from "@/components/shell/split-list";
 import { ProjectDetailView } from "@/components/tasks/project-detail-view";
 import { getDictionary } from "@/lib/i18n";
 import { getMobileNavBadges } from "@/lib/nav-badges";
@@ -45,13 +46,15 @@ export default async function ProjectDetailPage({ params }: PageProps) {
   }
 
   return (
-    <MobileShell activeItem="tasks" badges={navBadges} title={dict.tasks.title}>
-      <ProjectDetailView
-        copy={dict.tasks}
-        locale={locale}
-        project={project}
-        shareableUsers={shareableUsers}
-      />
+    <MobileShell activeItem="tasks" badges={navBadges} title={dict.tasks.title} split>
+      <SplitList detail="tasks">
+        <ProjectDetailView
+          copy={dict.tasks}
+          locale={locale}
+          project={project}
+          shareableUsers={shareableUsers}
+        />
+      </SplitList>
     </MobileShell>
   );
 }

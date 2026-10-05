@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useSplitPush } from "@/components/shell/split-list";
 import {
   CalendarDays,
   Check,
@@ -163,7 +163,8 @@ export function TaskCard({
   /** List tab to restore after a detail action such as skipping one recurring occurrence. */
   detailReturnView?: string;
 }) {
-  const router = useRouter();
+  // 태블릿 가로 2분할 안이면 오른쪽 칸에 연다(`SplitList`). 아니면 그대로 이동.
+  const splitPush = useSplitPush();
   const done = occurrence ? occurrence.done : task.status === "completed";
   const selected = selectMode && !!selectedIds?.has(task.id);
   const dueDate = tokyoDateOf(task.dueAt);
@@ -328,10 +329,10 @@ export function TaskCard({
     if (occurrence && !occurrence.done) {
       const params = new URLSearchParams({ occurrence: occurrence.date });
       if (detailReturnView) params.set("view", detailReturnView);
-      router.push(`/mobile/tasks/${task.id}?${params.toString()}`);
+      splitPush(`/mobile/tasks/${task.id}?${params.toString()}`);
       return;
     }
-    router.push(`/mobile/tasks/${task.id}`);
+    splitPush(`/mobile/tasks/${task.id}`);
   }
 
   const fromLabel =

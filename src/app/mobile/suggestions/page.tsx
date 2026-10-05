@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { SplitList } from "@/components/shell/split-list";
 import { SuggestionsList } from "@/components/suggestions/suggestions-list";
 import { getDictionary } from "@/lib/i18n";
 import { getMobileNavBadges } from "@/lib/nav-badges";
@@ -34,8 +35,10 @@ export default async function MobileSuggestionsPage() {
   ]);
 
   return (
-    <MobileShell activeItem="suggestions" badges={navBadges} title={copy.listTitle}>
-      <SuggestionsList copy={copy} data={data} locale={locale} />
+    <MobileShell activeItem="suggestions" badges={navBadges} title={copy.listTitle} split>
+      <SplitList detail="suggestions">
+        <SuggestionsList copy={copy} data={data} locale={locale} />
+      </SplitList>
     </MobileShell>
   );
 }

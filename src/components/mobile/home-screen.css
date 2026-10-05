@@ -759,3 +759,47 @@
 :lang(ja) .hm__greet-n {
   letter-spacing: -0.005em;
 }
+
+/* ── 넓은 화면(2026-10-05 — 태블릿 · 펼친 폴드 적응형, Claude Design 시안 6b · 6c) ─────────────────────────────
+   폰은 위에서 아래로 한 줄(DOM 순서 그대로). 폴드(≥ 600)는 출근 카드를 위에 펼치고 2열, 태블릿 가로(≥ 840 · 높이 ≥ 600)는
+   3열 — 왼쪽 출근 + 바로가기, 가운데 공지 · 체크인/아웃 · 청소, 오른쪽 오늘 활동. 카드 모양 · 순서(읽기 순서)는 그대로다. */
+.hm__blk { min-width: 0; }
+.hm__blk > .hm__sectt:first-child,
+.hm__blk > .hm__sectt-row:first-child { margin-top: 22px; }
+
+@media (min-width: 600px) {
+  .hm { max-width: 1200px; margin-inline: auto; }
+  .hm__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "hero hero"
+      "notice notice"
+      "stats task"
+      "qa log";
+    column-gap: 18px;
+    align-items: start;
+  }
+  .hm__blk--hero { grid-area: hero; }
+  .hm__blk--notice { grid-area: notice; }
+  .hm__blk--stats { grid-area: stats; }
+  .hm__blk--task { grid-area: task; }
+  .hm__blk--qa { grid-area: qa; }
+  .hm__blk--log { grid-area: log; }
+  .hm__blk--notice:empty { display: none; }
+}
+
+@media (min-width: 840px) and (min-height: 600px) {
+  .hm__grid {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "hero notice log"
+      "hero stats log"
+      "qa task log";
+    grid-template-rows: auto auto 1fr;
+    column-gap: 20px;
+  }
+  /* 첫 줄 카드는 제목 없이 바로 시작 — 위 여백을 맞춘다. */
+  .hm__blk--notice .hm__notice { margin-top: 0; }
+  .hm__blk--log > .hm__sectt-row:first-child { margin-top: 0; }
+}

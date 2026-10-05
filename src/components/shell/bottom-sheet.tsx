@@ -261,6 +261,8 @@ export function BottomSheet({
         <div
           className={cn(
             "fixed inset-0 flex items-end justify-center bg-slate-950/45 motion-reduce:transition-none!",
+            // 태블릿 가로(`tablet:`) — 바닥에 붙지 않고 **가운데 카드**(아이패드 양식 시트, 2026-10-05 시안 7c).
+            "tablet:items-center tablet:p-6",
             zIndexClassName,
             shown ? "opacity-100" : "opacity-0",
           )}
@@ -289,7 +291,11 @@ export function BottomSheet({
               "motion-reduce:transition-none!",
               // 키 낮은 화면(가로 모드) — 더 넓고 더 높게. 폭 460px · 높이 88% 로는 가로에서 내용이 몇 줄밖에 안 보였다(2026-10-02).
               "[@media(max-height:560px)]:max-w-[600px] [@media(max-height:560px)]:max-h-[94dvh]",
-              shown ? "translate-y-0" : "translate-y-full",
+              // 넓은 화면 — 폭 560 가운데(펼친 폴드 · 태블릿 세로는 바닥에서, 태블릿 가로는 가운데 카드로).
+              "fold:max-w-[560px]",
+              "tablet:max-h-[86dvh] tablet:rounded-[24px] tablet:pb-5 tablet:shadow-[0_30px_80px_-30px_rgba(2,6,23,0.6)]",
+              // 가운데 카드는 아래에서 조금만 올라오며 나타난다(바닥 시트처럼 화면 밖에서 오면 거리가 너무 길다).
+              shown ? "translate-y-0" : "translate-y-full tablet:translate-y-10",
               className,
             )}
             data-sheet

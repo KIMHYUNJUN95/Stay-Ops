@@ -30,6 +30,8 @@ export function SplashScreen() {
   return (
     <div
       aria-hidden="true"
+      // 2분할 오른쪽 칸(`html[data-pane]`) 안에서는 뜨지 않는다 — 상세를 열 때마다 앱 아이콘이 깜빡이면 안 된다.
+      data-splash=""
       style={{
         position: "fixed",
         inset: 0,

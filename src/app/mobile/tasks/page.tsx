@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { TasksWorkspace } from "@/components/tasks/tasks-workspace";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { SplitList } from "@/components/shell/split-list";
 import { getFieldActivities } from "@/lib/field-activity";
 import { getDictionary } from "@/lib/i18n";
 import { getMobileNavBadges } from "@/lib/nav-badges";
@@ -93,24 +94,26 @@ export default async function MobileTasksPage({ searchParams }: PageProps) {
   );
 
   return (
-    <MobileShell activeItem="tasks" badges={navBadges} title={dict.tasks.title}>
-      <TasksWorkspace
-        buildingLabels={dict.cleaning.buildingLabels}
-        completions={completions}
-        fieldActivities={fieldActivities}
-        copy={dict.tasks}
-        currentUserId={session.user.id}
-        initialView={initialView}
-        locale={locale}
-        moveError={params.moveError}
-        occurrenceOrders={occurrenceOrders}
-        occurrenceStates={occurrenceStates}
-        projectCompletedTasks={projectCompletedTasks}
-        projects={projects}
-        shareableUsers={shareableUsers}
-        tasks={tasks}
-        today={tokyoToday()}
-      />
+    <MobileShell activeItem="tasks" badges={navBadges} title={dict.tasks.title} split>
+      <SplitList detail="tasks">
+        <TasksWorkspace
+          buildingLabels={dict.cleaning.buildingLabels}
+          completions={completions}
+          fieldActivities={fieldActivities}
+          copy={dict.tasks}
+          currentUserId={session.user.id}
+          initialView={initialView}
+          locale={locale}
+          moveError={params.moveError}
+          occurrenceOrders={occurrenceOrders}
+          occurrenceStates={occurrenceStates}
+          projectCompletedTasks={projectCompletedTasks}
+          projects={projects}
+          shareableUsers={shareableUsers}
+          tasks={tasks}
+          today={tokyoToday()}
+        />
+      </SplitList>
     </MobileShell>
   );
 }

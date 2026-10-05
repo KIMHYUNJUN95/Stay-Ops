@@ -5,6 +5,7 @@ import type React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSplitPush } from "@/components/shell/split-list";
 import {
   AlertTriangle,
   CalendarDays,
@@ -537,6 +538,7 @@ export function RequestsFilterView({
 }: RequestsFilterViewProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const splitPush = useSplitPush();
   const searchParams = useSearchParams();
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [deliveryCalOpen, setDeliveryCalOpen] = useState(false);
@@ -1487,7 +1489,7 @@ export function RequestsFilterView({
           onClose={() => setDeliveryCalOpen(false)}
           onOpenOrder={(id) => {
             setDeliveryCalOpen(false);
-            router.push(`/mobile/requests/orders/${id}`);
+            splitPush(`/mobile/requests/orders/${id}`);
           }}
           orders={deliveryCalendarOrders}
           statusLabels={orderCopy.statusLabels}

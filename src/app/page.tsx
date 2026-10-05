@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { isDesktopUserAgent, isMobileUserAgent } from "@/lib/mobile-device";
+import { getDeviceSurfaceFromHeaders } from "@/lib/mobile-device";
 
 type HomePageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -38,11 +38,12 @@ export default async function Home({ searchParams }: HomePageProps) {
     redirect(buildAuthCallbackPath(params));
   }
 
-  const userAgent = (await headers()).get("user-agent");
-  if (isMobileUserAgent(userAgent)) {
+  // 아이패드(「터치 되는 Mac」 쿠키)도 모바일로 — `getDeviceSurfaceFromHeaders` 가 함께 본다.
+  const surface = getDeviceSurfaceFromHeaders(await headers());
+  if (surface === "mobile") {
     redirect("/mobile");
   }
-  if (isDesktopUserAgent(userAgent)) {
+  if (surface === "desktop") {
     redirect("/auth/login");
   }
 

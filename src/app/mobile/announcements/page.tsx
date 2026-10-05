@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AnnouncementPopup } from "@/components/announcements/announcement-popup";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { SplitList } from "@/components/shell/split-list";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getAnnouncementDictionary } from "@/lib/announcement-i18n";
 import { getPopupDismissals, getVisibleAnnouncements } from "@/lib/announcements";
@@ -119,77 +120,80 @@ export default async function MobileAnnouncementsPage() {
       activeItem="announcements"
       badges={navBadges}
       title={copy.title}
+      split
     >
-      <AnnouncementPopup
-        announcements={popupAnnouncements}
-        detailHrefBase="/mobile/announcements"
-        locale={session.user.preferredLanguage}
-      />
+      <SplitList detail="announcements">
+        <AnnouncementPopup
+          announcements={popupAnnouncements}
+          detailHrefBase="/mobile/announcements"
+          locale={session.user.preferredLanguage}
+        />
 
-      <h1 className="px-2 pt-2 pb-1 text-[22px] font-black tracking-tight">
-        {copy.title}
-      </h1>
+        <h1 className="px-2 pt-2 pb-1 text-[22px] font-black tracking-tight">
+          {copy.title}
+        </h1>
 
-      {announcements.length === 0 ? (
-        <div className="px-4 py-12 text-center">
-          <p className="text-sm font-bold text-slate-500">{copy.mobileEmpty}</p>
-        </div>
-      ) : (
-        <div>
-          {dateGroups.map(([dateKey, items]) => (
-            <div key={dateKey}>
-              <p className="ml-7 px-4 py-2 pb-3 text-[11.5px] font-extrabold text-slate-700">
-                {formatDateLabel(items[0]?.published_at ?? null, session.user.preferredLanguage)}
-              </p>
-              {items.map((ann, idx) => {
-                const isLast = idx === items.length - 1;
-                return (
-                  <Link
-                    key={ann.id}
-                    href={`/mobile/announcements/${ann.id}`}
-                    className="flex gap-[13px] items-start px-[18px] pb-[18px]"
-                  >
-                    {/* 도트 + 라인 */}
-                    <div className="w-[14px] shrink-0 flex flex-col items-center">
-                      <div
-                        className={`w-[9px] h-[9px] rounded-full mt-1 shrink-0 ${ann.is_important ? "bg-red-600" : "bg-primary"}`}
-                      />
-                      {!isLast && (
-                        <div className="flex-1 w-0.5 bg-border mt-1.5 min-h-[16px]" />
-                      )}
-                    </div>
+        {announcements.length === 0 ? (
+          <div className="px-4 py-12 text-center">
+            <p className="text-sm font-bold text-slate-500">{copy.mobileEmpty}</p>
+          </div>
+        ) : (
+          <div>
+            {dateGroups.map(([dateKey, items]) => (
+              <div key={dateKey}>
+                <p className="ml-7 px-4 py-2 pb-3 text-[11.5px] font-extrabold text-slate-700">
+                  {formatDateLabel(items[0]?.published_at ?? null, session.user.preferredLanguage)}
+                </p>
+                {items.map((ann, idx) => {
+                  const isLast = idx === items.length - 1;
+                  return (
+                    <Link
+                      key={ann.id}
+                      href={`/mobile/announcements/${ann.id}`}
+                      className="flex gap-[13px] items-start px-[18px] pb-[18px]"
+                    >
+                      {/* 도트 + 라인 */}
+                      <div className="w-[14px] shrink-0 flex flex-col items-center">
+                        <div
+                          className={`w-[9px] h-[9px] rounded-full mt-1 shrink-0 ${ann.is_important ? "bg-red-600" : "bg-primary"}`}
+                        />
+                        {!isLast && (
+                          <div className="flex-1 w-0.5 bg-border mt-1.5 min-h-[16px]" />
+                        )}
+                      </div>
 
-                    {/* 콘텐츠 */}
-                    <div className="flex-1 min-w-0 pb-1">
-                      {ann.is_important ? (
-                        <span className="inline-flex items-center gap-[3px] text-[10.5px] font-extrabold text-red-600 bg-red-50 px-2 py-[3px] rounded-full border border-red-200">
-                          <AlertIcon />
-                          {copy.important}
-                        </span>
-                      ) : (
-                        <span className="text-[10.5px] font-extrabold uppercase text-slate-500 tracking-wide">
+                      {/* 콘텐츠 */}
+                      <div className="flex-1 min-w-0 pb-1">
+                        {ann.is_important ? (
+                          <span className="inline-flex items-center gap-[3px] text-[10.5px] font-extrabold text-red-600 bg-red-50 px-2 py-[3px] rounded-full border border-red-200">
+                            <AlertIcon />
+                            {copy.important}
+                          </span>
+                        ) : (
+                          <span className="text-[10.5px] font-extrabold uppercase text-slate-500 tracking-wide">
+                            {targetLabel(ann.target_scope, ann.target_roles as string[], copy)}
+                          </span>
+                        )}
+                        <h3 className="mt-0.5 text-[14.5px] font-extrabold leading-snug line-clamp-2 text-foreground">
+                          {ann.title}
+                        </h3>
+                        <p className="mt-1.5 text-[11.5px] font-semibold text-slate-500">
                           {targetLabel(ann.target_scope, ann.target_roles as string[], copy)}
-                        </span>
-                      )}
-                      <h3 className="mt-0.5 text-[14.5px] font-extrabold leading-snug line-clamp-2 text-foreground">
-                        {ann.title}
-                      </h3>
-                      <p className="mt-1.5 text-[11.5px] font-semibold text-slate-500">
-                        {targetLabel(ann.target_scope, ann.target_roles as string[], copy)}
-                        {" · "}
-                        {ann.author_name}
-                      </p>
-                    </div>
+                          {" · "}
+                          {ann.author_name}
+                        </p>
+                      </div>
 
-                    {/* 이미지 아이콘 */}
-                    {ann.image_urls.length > 0 && <ImageIcon />}
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      )}
+                      {/* 이미지 아이콘 */}
+                      {ann.image_urls.length > 0 && <ImageIcon />}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        )}
+      </SplitList>
     </MobileShell>
   );
 }

@@ -3,7 +3,7 @@
 import { useCallback, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useSplitPush } from "@/components/shell/split-list";
 import {
   CalendarDays,
   Check,
@@ -58,7 +58,7 @@ function TaskRow({
   copy: Copy;
   onToggle: (task: TaskRecord) => void;
 }) {
-  const router = useRouter();
+  const splitPush = useSplitPush();
   const done = task.status === "completed";
   const due = anchorChip(task, locale);
   const important = task.priority === "important" || task.priority === "urgent";
@@ -81,7 +81,7 @@ function TaskRow({
       </button>
       <button
         className="min-w-0 flex-1 text-left"
-        onClick={() => router.push(`/mobile/tasks/${task.id}`)}
+        onClick={() => splitPush(`/mobile/tasks/${task.id}`)}
         type="button"
       >
         <div

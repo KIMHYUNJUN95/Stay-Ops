@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { SplitList } from "@/components/shell/split-list";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getBoardFeed, getBoardTags } from "@/lib/board-queries";
@@ -41,16 +42,18 @@ export default async function MobileBoardPage({ searchParams }: PageProps) {
   ]);
 
   return (
-    <MobileShell activeItem="board" title="" badges={navBadges}>
-      <BoardFeedClient
-        key={category ?? "__all__"}
-        locale={session.user.preferredLanguage}
-        copy={getDictionary(session.user.preferredLanguage).board}
-        initialPosts={feed.posts}
-        initialCursor={feed.nextCursor}
-        tags={tags}
-        selectedCategory={category}
-      />
+    <MobileShell activeItem="board" title="" badges={navBadges} split>
+      <SplitList detail="board">
+        <BoardFeedClient
+          key={category ?? "__all__"}
+          locale={session.user.preferredLanguage}
+          copy={getDictionary(session.user.preferredLanguage).board}
+          initialPosts={feed.posts}
+          initialCursor={feed.nextCursor}
+          tags={tags}
+          selectedCategory={category}
+        />
+      </SplitList>
     </MobileShell>
   );
 }

@@ -7,6 +7,8 @@ import type { ReactNode, UIEvent } from "react";
 import { Bell, ChevronRight, LogOut, UserCircle, X } from "lucide-react";
 import { useSession } from "@/components/providers/session-provider";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
+import { MobileSideNav } from "@/components/shell/mobile-side-nav";
+import { SPLIT_PANE_MESSAGE } from "@/lib/split-pane";
 import { signOut } from "@/app/auth/actions";
 import { updateBottomNavTabs } from "@/app/account/actions";
 import {
@@ -53,6 +55,10 @@ type MobileShellProps = {
    * 가운데 — 탭 간격이 지나치게 벌어지지 않는다.
    */
   wide?: boolean;
+  /**
+   * 목록 화면 — 태블릿 가로에서 목록 · 상세 2분할(`SplitList`)을 쓰므로 그 폭에서는 본문 폭 제한을 푼다(폴드는 760px 그대로).
+   */
+  split?: boolean;
 };
 
 const PULL_THRESHOLD = 72;
@@ -60,6 +66,11 @@ const MAX_PULL = 120;
 const MAX_DISPLAY_H = 60;
 const REFRESH_DISPLAY_H = 52;
 const SIDEBAR_TRANSITION_MS = 360;
+/**
+ * 넓은 화면(펼친 폴드 · 태블릿 · 가로 폰 — globals.css `fold:` 와 같은 600px). 여기서는 하단 탭 바 · 위 머리 대신 왼쪽
+ * 레일 · 사이드바(`MobileSideNav`)가 메뉴라 **스크롤해도 숨기지 않는다**(숨길 크롬이 없다).
+ */
+const FOLD_QUERY = "(min-width: 600px)";
 
 // Center FAB icon — app-grid squircle ("Bottom Bar (Squircle Edit)" design); opens the editor sheet.
 const EDIT_ICON = (
@@ -201,6 +212,7 @@ export function MobileShell({
   badges = {},
   hideBottomNav = false,
   wide = false,
+  split = false,
 }: MobileShellProps) {
   const lastScrollYRef = useRef(0);
   const hideAccumRef = useRef(0);
@@ -316,6 +328,11 @@ export function MobileShell({
 
   const requestVisibilityUpdate = useCallback(
     (currentY: number) => {
+      if (window.matchMedia(FOLD_QUERY).matches) {
+        lastScrollYRef.current = currentY;
+        setHeaderVisible(true);
+        return;
+      }
       if (tickingRef.current) return;
       tickingRef.current = true;
       window.requestAnimationFrame(() => updateVisibility(currentY));
@@ -486,6 +503,15 @@ export function MobileShell({
   }, [closeSidebar, sidebarOpen]);
 
   useEffect(() => () => clearSidebarChromeTimer(), [clearSidebarChromeTimer]);
+
+  // 2분할 오른쪽 칸(`html[data-pane]`) 안이면 주소가 바뀔 때마다 부모 목록에 알린다 — 상세 밖으로 가면 부모가 칸을 닫는다.
+  useEffect(() => {
+    if (!document.documentElement.hasAttribute("data-pane")) return;
+    window.parent.postMessage(
+      { kind: "nav", path: window.location.pathname + window.location.search, type: SPLIT_PANE_MESSAGE },
+      window.location.origin,
+    );
+  }, [pathname]);
 
   // Persist bottom-bar edits when the sheet closes (any close path), if changed.
   useEffect(() => {
@@ -658,11 +684,30 @@ export function MobileShell({
         </p>
       </div>
 
-      <div className={cn("relative mx-auto flex h-full w-full flex-col overflow-hidden", wide ? "max-w-none" : "max-w-[430px]")}>
+      {/* 폰 = 430px 한 줄. 넓은 화면(`fold:`)은 폭 전부 — 왼쪽 레일/사이드바 + 본문(2026-10-05 태블릿 · 폴드 적응형). */}
+      <div
+        data-shell-frame=""
+        className={cn(
+          "relative mx-auto flex h-full w-full flex-col overflow-hidden fold:max-w-none fold:flex-row",
+          wide ? "max-w-none" : "max-w-[430px]",
+        )}
+      >
+        {/* 넓은 화면에서 서랍(전체 메뉴)이 열리면 뒤를 어둡게 — 서랍이 화면 일부만 덮으므로. */}
+        <div
+          aria-hidden="true"
+          className={cn(
+            "absolute inset-0 z-[59] hidden bg-slate-950/30 transition-opacity duration-300 fold:block",
+            sidebarOpen ? "opacity-100" : "pointer-events-none opacity-0",
+          )}
+          onClick={closeSidebar}
+        />
         <aside
           aria-label={dictionary.common.menu}
           className={cn(
             "absolute inset-y-0 left-0 z-[60] flex w-full flex-col overflow-hidden px-[22px] pb-[18px] pt-[max(24px,env(safe-area-inset-top))] text-foreground",
+            // 넓은 화면에서는 왼쪽 360px 서랍(화면 전체를 덮지 않는다).
+            "fold:w-[360px] fold:border-r fold:border-border",
+            sidebarOpen && "fold:shadow-[24px_0_60px_-30px_rgba(2,6,23,0.45)]",
           )}
           style={{
             background: "var(--background)",
@@ -766,8 +811,33 @@ export function MobileShell({
           </div>
         </aside>
 
+        <MobileSideNav
+          activeItem={activeItem}
+          badges={badges}
+          editIcon={EDIT_ICON}
+          labels={{
+            account: dictionary.common.account,
+            collapse: dictionary.common.collapseMenu,
+            edit: dictionary.common.edit,
+            editBottomBar: dictionary.common.editBottomBar,
+            expand: dictionary.common.expandMenu,
+            logout: dictionary.common.logout,
+            menu: dictionary.common.menu,
+            notifications: dictionary.navigation.utility.notifications,
+          }}
+          locale={locale}
+          menuItems={mobileSidebarNavigation.filter((item) => canSeeNavItem(item, session.capabilities))}
+          onEdit={() => setCreateOpen(true)}
+          onMenu={openSidebar}
+          opsItems={opsNavItems}
+          opsTitle={dictionary.admin.console.navGroupOpsAdmin}
+          tabItems={bottomItems}
+          userName={session.user.name}
+          userRole={dictionary.roles[session.user.role]}
+        />
+
         <div
-          className="relative flex h-full w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)]"
+          className="relative flex h-full w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)] fold:min-w-0 fold:flex-1"
           style={{
             // z-index: 2 makes this stacking context sit ABOVE the fixed PTR indicator (z-1),
             // so the header is not covered when contentOffset = 0. When pulling, the shell slides
@@ -787,8 +857,11 @@ export function MobileShell({
               scroll container carries a CONSTANT top padding to clear it, so there is no reflow
               jump (the height never changes; only the overlay translates). */}
           <div
+            data-shell-top=""
             className={cn(
               "absolute inset-x-0 top-[env(safe-area-inset-top)] z-30 h-16 overflow-hidden border-0 motion-reduce:transition-none",
+              // 넓은 화면은 레일 · 사이드바가 메뉴 · 알림 · 내 정보를 맡는다.
+              "fold:hidden",
               !topChromeVisible && "pointer-events-none",
             )}
             style={{
@@ -878,14 +951,15 @@ export function MobileShell({
               the shell moves down. No translateY here; no gradient curtain needed. */}
           <div className="relative flex-1 overflow-hidden">
             <div
+              data-shell-scroll=""
               className={cn(
-                "h-full overflow-y-auto overscroll-y-contain bg-background px-5 pt-[84px] text-foreground",
+                "h-full overflow-y-auto overscroll-y-contain bg-background px-5 pt-[84px] text-foreground fold:px-7 fold:pt-6",
                 // 스크롤바를 숨긴다. 실제 기기에서는 쉴 때 보이지 않는 오버레이 스크롤바인데,
                 // 데스크톱(그리고 어드민의 아이폰 모양 미리보기)에서는 항상 자리를 차지하는 막대가
                 // 생겨 폭 390px 중 15px 을 먹고 기기처럼 보이지도 않는다.
                 // 같은 파일의 측면 메뉴 스크롤러가 이미 이렇게 하고 있다 — 그쪽에 맞춘다.
                 "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-                hideBottomNav ? "pb-8" : "pb-[124px]",
+                hideBottomNav ? "pb-8" : "pb-[124px] fold:pb-10",
               )}
               onScroll={handleContentScroll}
               // 넓은 모드(가로 · 폴드) — 본문도 노치 · 카메라 옆 안전 영역만큼 안쪽으로(세로에서는 0 이라 그대로).
@@ -895,7 +969,14 @@ export function MobileShell({
               onTouchStart={handleTouchStart}
               ref={scrollElRef}
             >
-              <div key={contentKey}>{children}</div>
+              {/* 아직 넓은 화면용으로 다듬지 않은 화면은 가운데 760px 한 줄로(폰 화면이 끝없이 늘어나지 않게). `wide` 화면은 폭 전부. */}
+              <div
+                className={wide ? undefined : cn("fold:mx-auto fold:max-w-[760px]", split && "tablet:max-w-none")}
+                data-shell-column=""
+                key={contentKey}
+              >
+                {children}
+              </div>
             </div>
           </div>
 
@@ -903,7 +984,7 @@ export function MobileShell({
             <nav
               aria-label={title}
               className={cn(
-                "tabbar absolute inset-x-0 bottom-0 z-20 motion-reduce:transition-none",
+                "tabbar absolute inset-x-0 bottom-0 z-20 motion-reduce:transition-none fold:hidden",
                 wide && "mx-auto max-w-[560px]",
                 !topChromeVisible && "pointer-events-none",
               )}

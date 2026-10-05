@@ -4,6 +4,7 @@ import {
   type ReturnedItemVM,
 } from "@/components/requests/returned-lost-found-list";
 import { MobileShell } from "@/components/shell/mobile-shell";
+import { SplitList } from "@/components/shell/split-list";
 import { getMobileNavBadges } from "@/lib/nav-badges";
 import { getDictionary } from "@/lib/i18n";
 import { getReturnedLostItems } from "@/lib/lost-found";
@@ -96,15 +97,17 @@ export default async function ReturnedLostFoundPage() {
     .sort((a, b) => a.localeCompare(b, locale));
 
   return (
-    <MobileShell activeItem="requests" badges={navBadges} title={copy.title}>
-      <ReturnedLostFoundList
-        buildingOptions={buildingOptions}
-        copy={copy}
-        items={vms}
-        locale={locale}
-        stats={{ total: vms.length, month: monthCount, week: weekCount }}
-        todayKey={todayKey}
-      />
+    <MobileShell activeItem="requests" badges={navBadges} title={copy.title} split>
+      <SplitList detail="requests">
+        <ReturnedLostFoundList
+          buildingOptions={buildingOptions}
+          copy={copy}
+          items={vms}
+          locale={locale}
+          stats={{ total: vms.length, month: monthCount, week: weekCount }}
+          todayKey={todayKey}
+        />
+      </SplitList>
     </MobileShell>
   );
 }
