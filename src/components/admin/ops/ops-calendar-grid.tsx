@@ -427,7 +427,6 @@ const OpsGridRow = memo(function OpsGridRow({
     roomBlocks.map((block) => ({ endDate: block.endDate, id: block.id, startDate: block.startDate })),
   );
   const laneCount = Math.max(barLanes?.laneCountByRoom.get(room.key) ?? 1, blockLanes.laneCount);
-  const occupied = new Set<string>();
   /** 팔린 밤(살아 있는 예약). 가격 수정에서 막히는 유일한 조건이다(블록은 막지 않는다). */
   const sold = new Set<string>();
   // 점유는 **항상** 일반 예약으로만 센다 — 「취소만 보기」를 켜도 팔린 밤은 팔린 밤이다.
@@ -435,17 +434,11 @@ const OpsGridRow = memo(function OpsGridRow({
     if (bar.isCancelled) continue;
     for (const day of days) {
       if (day.date >= bar.checkIn && day.date < bar.checkOut) {
-        occupied.add(day.date);
         sold.add(day.date);
       }
     }
   }
   const rateAtIndex = (index: number) => decodeRowRate(row.rates, index);
-  for (const block of roomBlocks) {
-    for (const day of days) {
-      if (day.date >= block.startDate && day.date <= block.endDate) occupied.add(day.date);
-    }
-  }
 
   const bookingRoom: BookingPanelRoom = {
     key: room.key,
@@ -453,11 +446,11 @@ const OpsGridRow = memo(function OpsGridRow({
     propertyName: room.propertyName,
     roomIds: room.roomIds,
   };
-  // **팔 수 없는 밤**은 예약도 못 만든다 — 찬 밤(예약·블록)과, 파는 유닛이 없는 밤
+  // **팔 수 없는 밤**은 예약도 못 만든다 — 팔린 밤(살아 있는 예약)과, 파는 유닛이 없는 밤
   // (요금 칸이 비어 있다 = 활성 유닛 0, `mergeOpsRateUnits`). 서버와 패널 피커가
   // 같은 두 가지를 막는다 — 여기만 느슨하면 격자에서 끈 기간이 패널에서 막힌다.
-  const nightTaken = (date: string) =>
-    occupied.has(date) || !dayFlagAt(row.rates.has, dayIndex.get(date) ?? -1);
+  // **차단(BLOCK)은 막지 않는다**(2026-10-06 사용자 결정 — Beds24 처럼 차단한 날에도 수기 예약을 넣는다).
+  const nightTaken = (date: string) => sold.has(date) || !dayFlagAt(row.rates.has, dayIndex.get(date) ?? -1);
   // 빈 칸의 `+`. **「취소만 보기」에서는 숨긴다** — 그 모드에서는 일반 막대가 안 보여
   // 팔린 밤도 빈칸처럼 보이는데, 거기에 `+` 가 뜨면 이미 찬 방에 예약을 넣으려 하게 된다.
   const canStart = (date: string) => !editMode && !showCancelled && !nightTaken(date) && date >= today;

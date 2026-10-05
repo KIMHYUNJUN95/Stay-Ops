@@ -448,7 +448,9 @@ async function readBlockRoomKeyResolver(
  * 수동 예약 패널의 날짜 피커가 회색으로 칠할 날, 그리고 서버가 만들기 직전에 겹침을 막는
  * 근거다. 두 가지를 합친다 —
  *
- * - **이미 찬 밤**: 살아 있는 예약(취소·노쇼 제외) 또는 블록(`room_blocks` + 요금 표의 blackout — 12개월).
+ * - **이미 찬 밤**: 살아 있는 예약(취소·노쇼 제외). **차단(블록 · blackout)은 찬 밤이 아니다**(2026-10-06 사용자 결정 —
+ *   「차단한 날도 수기 예약을 만들 수 있어야 한다, Beds24 에선 된다」). 차단은 채널 판매를 막는 것이지 우리가 직접 넣는
+ *   예약까지 막는 것이 아니다 — 차단한 방에 손님을 옮겨 넣는 일(702 → 302)이 실제로 있다.
  * - **파는 유닛이 없는 밤**: 그 행의 유닛이 하나도 활성(`1 ≤ minStay < 50`)이 아니다. 만들어도
  *   Beds24 가 받지 않거나 잠긴 유닛에 붙는다 — 서버가 어차피 거절하는 밤이다. 요금 행이
  *   없는 밤도 여기에 든다(모르는 밤은 팔 수 있다고 하지 않는다).
@@ -468,7 +470,7 @@ export async function readOpsRoomUnavailableNights(args: {
   excludeReservationId?: string;
 }): Promise<{ booked: string[]; unsellable: string[] }> {
   const { organizationId, supabase } = args;
-  const [roomCatalog, reservationsResult, blocksResult, ratesResult, blockRoomKey] = await Promise.all([
+  const [roomCatalog, reservationsResult, ratesResult] = await Promise.all([
     getActiveRoomCatalog(organizationId, supabase, { includeNonOperationalProperties: true }),
     readAllPages<Record<string, unknown>>((from, to) =>
       supabase
@@ -482,17 +484,6 @@ export async function readOpsRoomUnavailableNights(args: {
         .order("id", { ascending: true })
         .range(from, to) as unknown as SlimReservationPage,
     ).then(toReservationRows),
-    readAllPages<BlockRow>((from, to) =>
-      supabase
-        .from("room_blocks")
-        .select("id, property_name, room_label, start_date, end_date, external_room_id")
-        .eq("organization_id", organizationId)
-        .lt("start_date", args.toExclusive)
-        .gte("end_date", args.from)
-        .order("start_date", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to),
-    ),
     args.roomIds.length === 0
       ? Promise.resolve({
           data: [] as Array<Pick<RateRow, "room_id" | "stay_date" | "min_stay" | "override_kind">>,
@@ -510,11 +501,9 @@ export async function readOpsRoomUnavailableNights(args: {
             .order("stay_date", { ascending: true })
             .range(from, to),
         ),
-    readBlockRoomKeyResolver(supabase, organizationId),
   ]);
   // 모르면 막는다 — 읽기에 실패했는데 「비어 있다」고 하면 그대로 초과예약이 된다.
   if (reservationsResult.error) throw new Error(reservationsResult.error.message);
-  if (blocksResult.error) throw new Error(blocksResult.error.message);
   if (ratesResult.error) throw new Error(ratesResult.error.message);
 
   const nights: string[] = [];
@@ -533,26 +522,8 @@ export async function readOpsRoomUnavailableNights(args: {
       if (night >= row.check_in_date && night < row.check_out_date) booked.add(night);
     }
   }
-  // `room_blocks` 는 **요금 칸이 없는 밤에만** 본다 — 격자와 같은 규칙(요금 칸의 `override_kind` 가 정답, 2026-10-06).
-  // 구간 일부를 풀면 `room_blocks` 의 원래 줄이 남을 수 있어, 합집합이면 격자엔 열린 밤을 「이미 찬 밤」으로 막았다
-  // (아라키초A 302 10/6 — 격자는 비었는데 수기 예약이 「겹침」으로 거절됨).
-  const nightsWithRates = new Set(ratesResult.data.map((row) => row.stay_date));
-  for (const row of blocksResult.data) {
-    if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
-    if (blockRoomKey(row) !== args.roomKey) continue;
-    // 블록은 양끝을 포함한다.
-    for (const night of nights) {
-      if (night >= row.start_date && night <= row.end_date && !nightsWithRates.has(night)) booked.add(night);
-    }
-  }
-
   const activeNights = new Set<string>();
   for (const row of ratesResult.data) {
-    // **Beds24 에서 막아 둔 밤도 찬 밤이다** — 격자의 BLOCK 막대와 같은 기준(**어느 유닛이든** blackout —
-    // 2026-10-01, `isAnyUnitBlackout`). `room_blocks` 는 3개월 창뿐이라 그 너머 차단을 여기서 잡는다.
-    if ((row.override_kind ?? "").toLowerCase() === "blackout" && nights.includes(row.stay_date)) {
-      booked.add(row.stay_date);
-    }
     if (!isActiveUnitMinStay(row.min_stay)) continue;
     activeNights.add(row.stay_date);
   }

@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-06 — 차단한 날도 수기 예약 가능
+
+- Beds24 처럼 차단(BLOCK)된 날에도 수기 예약 · 예약 수정을 넣는다(사용자 결정). 「찬 밤」 = 살아 있는 예약뿐, 데스크톱 격자 `+` 도 BLOCK 칸에.
+  파는 유닛이 없는 밤은 그대로 막는다. 차단은 예약 후에도 남는다. (`33`)
+
 ## 2026-10-06 — 차단 일부 해제 후 수기 예약이 「겹침」으로 막히던 것
 
 - 해제가 `room_blocks` 에서 시작일이 같은 첫 유닛 줄만 지워 일부 해제 · 두 번째 유닛 줄이 남았고, 수기 예약 겹침 검사가 그 줄을 「찬 밤」으로
