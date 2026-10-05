@@ -74,7 +74,7 @@ export function BuildingPicker({
             <span className="h-px flex-1 bg-border" />
           </div>
 
-          <div className="grid grid-cols-2 gap-[11px]">
+          <div className="grid grid-cols-2 gap-[11px] fold:grid-cols-3 tablet:grid-cols-4">
             {localized.map((b) => {
               const stat = stats[b.name];
               const count = stat?.count ?? 0;

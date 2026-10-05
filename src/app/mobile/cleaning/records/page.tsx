@@ -130,7 +130,8 @@ export default async function CleaningRecordsPage({ searchParams }: PageProps) {
   });
 
   return (
-    <MobileShell activeItem="cleaning" badges={await getMobileNavBadges()} title={dict.cleaning.records.title}>
+    // 넓은 화면(2026-10-05): 폴드는 날짜 묶음 두 줄, 태블릿 가로는 왼쪽 기록 · 오른쪽 상세 칸(`CleaningRecordsView`).
+    <MobileShell activeItem="cleaning" badges={await getMobileNavBadges()} split title={dict.cleaning.records.title}>
       <CleaningRecordsView
         buildings={buildingOptions}
         canViewOthers={canViewOthers}

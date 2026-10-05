@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { LinenLedgerPeriod } from "@/components/linen-return/linen-ledger-period";
 import { LinenLedgerView } from "@/components/linen-return/linen-ledger-view";
+import { SplitList } from "@/components/shell/split-list";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getDictionary, type Locale } from "@/lib/i18n";
 import {
@@ -110,7 +111,9 @@ export default async function LinenReturnLedgerPage({ searchParams }: PageProps)
     (baseMonth.year === current.year && baseMonth.month < current.month);
 
   return (
-    <MobileShell activeItem="linen-return" badges={navBadges} title={copy.ledgerTitle}>
+    // 넓은 화면(2026-10-05): 태블릿 가로는 왼쪽 장부 · 오른쪽 그 기록의 상세 칸(`SplitList` — 린넨 기록 목록과 같다).
+    <MobileShell activeItem="linen-return" badges={navBadges} split title={copy.ledgerTitle}>
+      <SplitList detail="linen">
       <div className="pb-6">
         <div className="mb-3.5 flex items-end justify-between px-0.5 pt-1">
           <div className="flex items-center gap-2.5">
@@ -144,6 +147,7 @@ export default async function LinenReturnLedgerPage({ searchParams }: PageProps)
           records={records}
         />
       </div>
+      </SplitList>
     </MobileShell>
   );
 }

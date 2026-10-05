@@ -1186,3 +1186,18 @@
 :lang(ja) .lv .pagehead__crumb {
   letter-spacing: 0;
 }
+
+/* ── 넓은 화면(2026-10-05 — 모든 모바일 화면 폴드 · 태블릿 대응) ───────────────────────────────────────────
+ * 휴가 달력: 폴드 · 태블릿 세로는 셸 가운데 760px 한 줄(달력 칸이 넓어진다). 태블릿 가로는 왼쪽 달력 | 오른쪽 휴가 목록. */
+@media (min-width: 840px) and (min-height: 600px) {
+  .lv.lv--cal {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr);
+    column-gap: 28px;
+    align-items: start;
+  }
+  .lv.lv--cal > .pagehead { grid-column: 1 / -1; }
+  .lv.lv--cal > .lv-cal__main { grid-column: 1; position: sticky; top: 12px; }
+  .lv.lv--cal > .lv-cal__list { grid-column: 2; }
+  .lv.lv--cal > .lv-cal__list > .slabel:first-child { margin-top: 0; }
+}

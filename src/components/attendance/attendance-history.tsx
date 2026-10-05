@@ -12,6 +12,7 @@ import "./attendance.css";
 import { AIc, AttIcon } from "./att-icons";
 import { MonthSwitcher } from "./month-switcher";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
+import { useIsTablet } from "@/components/shell/split-list";
 import type {
   AttendanceSessionView,
   AttendanceTodaySummary,
@@ -362,10 +363,13 @@ function SessionRow({
   s,
   copy,
   onClick,
+  active = false,
 }: {
   s: AttendanceSessionView;
   copy: AttendanceCopy;
   onClick: () => void;
+  /** 태블릿 가로 — 오른쪽 칸에 보이는 기록. */
+  active?: boolean;
 }) {
   const isFlagged = s.reviewState === "review_required" || s.isAbnormal;
   const isInfo = !!s.correctionStatus;
@@ -382,7 +386,7 @@ function SessionRow({
   const inMethod = methodLabel(s.clockInMethod, copy);
 
   return (
-    <button type="button" className={`srow ${flagCls}`} onClick={onClick}>
+    <button aria-pressed={active || undefined} type="button" className={`srow ${flagCls}${active ? " srow--on" : ""}`} onClick={onClick}>
       <div className="srow__top">
         <div className="srow__chips">
           <StatusChips s={s} copy={copy} />
@@ -457,6 +461,7 @@ export function AttendanceHistory({
 }) {
   const copy = getDictionary(locale).attendance;
   const isCurrentMonth = ym === currentYm;
+  const isTablet = useIsTablet();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
@@ -479,9 +484,108 @@ export function AttendanceHistory({
   );
 
   const groups = groupByDate(sessions);
+  // 넓은 화면(2026-10-05): 태블릿 가로는 시트 대신 오른쪽 칸 — 고른 기록, 없으면 맨 위 기록.
+  const paneSession = selected ?? groups[0]?.sessions[0] ?? null;
+
+  // 기록 상세 — 폰 · 폴드는 바텀시트, 태블릿 가로는 오른쪽 칸. 내용은 하나.
+  const detail = (target: AttendanceSessionView) => (
+    <div className="att">
+      <h3 className="rsheet__t">{target.dateLabel}</h3>
+      <div className="histsheet__chips">
+        <StatusChips s={target} copy={copy} />
+      </div>
+      <div className="recap">
+        <div className="recap__r">
+          <span className="recap__k">
+            <AIc>{AttIcon.pin}</AIc>{copy.histClockIn}
+          </span>
+          <span className="recap__v">
+            <span className="mono">{target.clockInLabel ?? "--:--"}</span> ·{" "}
+            {target.clockInSiteName ?? "—"} ·{" "}
+            {methodLabel(target.clockInMethod, copy)}
+          </span>
+        </div>
+        <div className="recap__r">
+          <span className="recap__k">
+            <AIc>{AttIcon.logout}</AIc>{copy.histClockOut}
+          </span>
+          <span className="recap__v">
+            {target.clockOutLabel ? (
+              <>
+                <span className="mono">{target.clockOutLabel}</span> ·{" "}
+                {target.clockOutSiteName ?? "—"} ·{" "}
+                {methodLabel(target.clockOutMethod, copy)}
+              </>
+            ) : target.status === "open" ? (
+              copy.sessOpen
+            ) : (
+              copy.histNoRecord
+            )}
+          </span>
+        </div>
+        <div className="recap__r">
+          <span className="recap__k">{copy.histWorkTime}</span>
+          <span className="recap__v">
+            {target.workedSec != null ? dur(target.workedSec) : "—"}
+          </span>
+        </div>
+        <div className="recap__r">
+          <span className="recap__k">{copy.histBreakTotal}</span>
+          <span className="recap__v">
+            {dur(target.breakTotalSec)}
+            {target.breakCount ? copy.histBreakCountSuffix(target.breakCount) : ""}
+          </span>
+        </div>
+      </div>
+
+      {target.breaks.length > 0 ? (
+        <div className="histbreaks">
+          {target.breaks.map((b, i) => (
+            <div className="histbreaks__r" key={`${b.startedAt}-${i}`}>
+              <span className="histbreaks__k">{copy.histBreakRowLabel(i + 1)}</span>
+              <span className="mono">
+                {b.startedLabel} – {b.endedLabel ?? copy.sessOpen}
+              </span>
+              <span className="histbreaks__d">
+                {b.durationSec != null ? dur(b.durationSec) : copy.sessOpen}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {target.isAbnormal ? (
+        <div className="failnote warn">
+          <AIc>{AttIcon.warn}</AIc>
+          <div>
+            <b>{copy.histAbnormalTitle}</b>
+            <p>{copy.histAbnormalBody}</p>
+          </div>
+        </div>
+      ) : null}
+
+      {target.correctionStatus ? (
+        <Link
+          href={target.correctionRequestId ? `/mobile/attendance/correction/status?id=${target.correctionRequestId}` : "/mobile/attendance/correction/status"}
+          className="ghostbtn"
+          style={{ marginTop: "12px" }}
+        >
+          <AIc>{AttIcon.info}</AIc>{copy.histViewCorrStatus}
+        </Link>
+      ) : (
+        <Link
+          href={`/mobile/attendance/correction?sessionId=${target.id}`}
+          className="ghostbtn"
+          style={{ marginTop: "12px" }}
+        >
+          <AIc>{AttIcon.edit}</AIc>{copy.histRequestCorr}
+        </Link>
+      )}
+    </div>
+  );
 
   return (
-    <div className="att">
+    <div className="att att--hist">
       <div className="ptitle-row">
         <div>
           <h1 className="ptitle">{copy.historyTitle}</h1>
@@ -538,6 +642,7 @@ export function AttendanceHistory({
         </div>
       ) : null}
 
+      <div className="att-hist__groups">
       {groups.map((g) => {
         const { d, wd } = dateGroupLabel(g.date, todayDate, locale, copy.histToday);
         const groupWorked = g.sessions.reduce((acc, s) => acc + (s.workedSec ?? 0), 0);
@@ -570,11 +675,15 @@ export function AttendanceHistory({
                 s={s}
                 copy={copy}
                 onClick={() => setSelectedId(s.id)}
+                active={isTablet && paneSession?.id === s.id}
               />
             ))}
           </div>
         );
       })}
+      </div>
+
+      {isTablet && paneSession ? <aside className="att-hist__pane">{detail(paneSession)}</aside> : null}
 
       {pickerOpen && (
         <FlaggedSessionPicker
@@ -590,102 +699,8 @@ export function AttendanceHistory({
         />
       )}
 
-      {selected && (
-        <BottomSheet onClose={close}>
-          <div className="att">
-            <h3 className="rsheet__t">{selected.dateLabel}</h3>
-            <div className="histsheet__chips">
-              <StatusChips s={selected} copy={copy} />
-            </div>
-            <div className="recap">
-              <div className="recap__r">
-                <span className="recap__k">
-                  <AIc>{AttIcon.pin}</AIc>{copy.histClockIn}
-                </span>
-                <span className="recap__v">
-                  <span className="mono">{selected.clockInLabel ?? "--:--"}</span> ·{" "}
-                  {selected.clockInSiteName ?? "—"} ·{" "}
-                  {methodLabel(selected.clockInMethod, copy)}
-                </span>
-              </div>
-              <div className="recap__r">
-                <span className="recap__k">
-                  <AIc>{AttIcon.logout}</AIc>{copy.histClockOut}
-                </span>
-                <span className="recap__v">
-                  {selected.clockOutLabel ? (
-                    <>
-                      <span className="mono">{selected.clockOutLabel}</span> ·{" "}
-                      {selected.clockOutSiteName ?? "—"} ·{" "}
-                      {methodLabel(selected.clockOutMethod, copy)}
-                    </>
-                  ) : selected.status === "open" ? (
-                    copy.sessOpen
-                  ) : (
-                    copy.histNoRecord
-                  )}
-                </span>
-              </div>
-              <div className="recap__r">
-                <span className="recap__k">{copy.histWorkTime}</span>
-                <span className="recap__v">
-                  {selected.workedSec != null ? dur(selected.workedSec) : "—"}
-                </span>
-              </div>
-              <div className="recap__r">
-                <span className="recap__k">{copy.histBreakTotal}</span>
-                <span className="recap__v">
-                  {dur(selected.breakTotalSec)}
-                  {selected.breakCount ? copy.histBreakCountSuffix(selected.breakCount) : ""}
-                </span>
-              </div>
-            </div>
-
-            {selected.breaks.length > 0 ? (
-              <div className="histbreaks">
-                {selected.breaks.map((b, i) => (
-                  <div className="histbreaks__r" key={`${b.startedAt}-${i}`}>
-                    <span className="histbreaks__k">{copy.histBreakRowLabel(i + 1)}</span>
-                    <span className="mono">
-                      {b.startedLabel} – {b.endedLabel ?? copy.sessOpen}
-                    </span>
-                    <span className="histbreaks__d">
-                      {b.durationSec != null ? dur(b.durationSec) : copy.sessOpen}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-
-            {selected.isAbnormal ? (
-              <div className="failnote warn">
-                <AIc>{AttIcon.warn}</AIc>
-                <div>
-                  <b>{copy.histAbnormalTitle}</b>
-                  <p>{copy.histAbnormalBody}</p>
-                </div>
-              </div>
-            ) : null}
-
-            {selected.correctionStatus ? (
-              <Link
-                href={selected.correctionRequestId ? `/mobile/attendance/correction/status?id=${selected.correctionRequestId}` : "/mobile/attendance/correction/status"}
-                className="ghostbtn"
-                style={{ marginTop: "12px" }}
-              >
-                <AIc>{AttIcon.info}</AIc>{copy.histViewCorrStatus}
-              </Link>
-            ) : (
-              <Link
-                href={`/mobile/attendance/correction?sessionId=${selected.id}`}
-                className="ghostbtn"
-                style={{ marginTop: "12px" }}
-              >
-                <AIc>{AttIcon.edit}</AIc>{copy.histRequestCorr}
-              </Link>
-            )}
-          </div>
-        </BottomSheet>
+      {!isTablet && selected && (
+        <BottomSheet onClose={close}>{detail(selected)}</BottomSheet>
       )}
     </div>
   );

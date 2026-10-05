@@ -37,7 +37,8 @@ export default async function LinenReturnPickerPage() {
   ]);
 
   return (
-    <MobileShell activeItem="linen-return" badges={navBadges} title={copy.eyebrow}>
+    // 넓은 화면(2026-10-05): 건물 카드 폰 2열 · 폴드 3열 · 태블릿 가로 4열(폭 전부).
+    <MobileShell activeItem="linen-return" badges={navBadges} split title={copy.eyebrow}>
       <BuildingPicker
         buildingLabels={dict.cleaning.buildingLabels}
         buildings={buildings}

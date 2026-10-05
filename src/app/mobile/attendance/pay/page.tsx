@@ -52,7 +52,8 @@ export default async function MobileAttendancePayPage({ searchParams }: PageProp
   ]);
 
   return (
-    <MobileShell activeItem="attendance" badges={navBadges} title={dict.attendance.payPageTitle}>
+    // 넓은 화면(2026-10-05): 태블릿 가로 = 급여 카드 | 일별 표(`attendance.css` `.att--pay`).
+    <MobileShell activeItem="attendance" badges={navBadges} split title={dict.attendance.payPageTitle}>
       <AttendancePay view={view} currentYm={currentYm} locale={session.user.preferredLanguage} />
     </MobileShell>
   );

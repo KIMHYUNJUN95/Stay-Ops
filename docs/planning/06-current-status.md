@@ -9,6 +9,12 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-05 — 모바일 전 화면 폴드 · 태블릿 대응 (기존 14개 적용)
+
+- 사용자 지시 「모든 화면 폴드 · 태블릿 대응, 지금까지 만든 것도」 — 규칙(CLAUDE.md · 01) + 남은 14개 적용: 예약 캘린더(폭 전부, 목록 · 건물 정보
+  여러 열) · 청소(대상 · 기록 카드 2/3열) · 청소 기록 · 근태 기록(기록 | 상세 칸) · 근태 홈 · 급여 · 휴가 달력(두 칸) · 출근자 명단(섹션 나란히)
+  · 직원 목록(2/3열) · 알림(알림 → 상세 칸) · 린넨 건물 고르기(2/3/4열) · 린넨 장부(기록 → 칸). 교통비는 문서형 한 칼럼. (`16`)
+
 ## 2026-10-05 — 모바일 룸 링크 폴드 · 태블릿 적응형
 
 - 폴드 · 태블릿 세로: 가운데 760px · 객실 두 줄 카드 · 상세는 시트. 태블릿 가로: 대시보드 1b 처럼 건물 목록 · 객실 · 오른쪽 상세 칸

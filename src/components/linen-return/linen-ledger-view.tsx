@@ -211,7 +211,8 @@ export function LinenLedgerView({
             title={copy.noLedgerResultTitle}
           />
         ) : (
-          <div className="flex flex-col gap-2.5">
+          // 폴드 · 태블릿 세로는 두 줄 카드. 태블릿 가로는 2분할의 왼쪽 목록(400px)이라 한 줄로 돌아간다.
+          <div className="grid gap-2.5 fold:grid-cols-2 tablet:grid-cols-1">
             {filtered.map((r) => (
               <Link
                 className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-3.5 transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_14px_26px_-22px_rgba(15,23,42,0.4)]"

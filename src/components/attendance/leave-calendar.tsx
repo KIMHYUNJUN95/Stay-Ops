@@ -110,12 +110,14 @@ export function LeaveCalendar({
   }
 
   return (
-    <div className="lv" style={{ paddingBottom: 26 }}>
+    <div className="lv lv--cal" style={{ paddingBottom: 26 }}>
       <div className="pagehead">
         <span className="pagehead__crumb">{c.crumb}</span>
         <span className="pagehead__t">{c.calTitle}</span>
       </div>
 
+      {/* 넓은 화면(2026-10-05): 태블릿 가로는 왼쪽 달력 | 오른쪽 휴가 목록(`leave.css` `.lv--cal`). */}
+      <div className="lv-cal__main">
       <div className="lcal__nav">
         <span className="lcal__month">{monthLabel}</span>
         <span className="lcal__navsp" />
@@ -148,7 +150,9 @@ export function LeaveCalendar({
         {AttIcon.info}
         {c.calAuto}
       </div>
+      </div>
 
+      <div className="lv-cal__list">
       <div className="slabel">
         {c.calList}
         <span style={{ marginLeft: "auto", fontWeight: 800, color: "var(--att-muted)" }}>{c.calCount(entries.length)}</span>
@@ -192,6 +196,7 @@ export function LeaveCalendar({
             );
           })
       )}
+      </div>
     </div>
   );
 }

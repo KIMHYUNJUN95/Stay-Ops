@@ -14,6 +14,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
+import { useIsTablet } from "@/components/shell/split-list";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -86,6 +87,7 @@ export function CleaningRecordsView({
   const router = useRouter();
 
   // Tap a record → detail bottom sheet (shared BottomSheet handles slide + drag-to-dismiss).
+  const isTablet = useIsTablet();
   const [selected, setSelected] = useState<CleaningRecordItem | null>(null);
   const openDetail = useCallback((rec: CleaningRecordItem) => setSelected(rec), []);
 
@@ -168,7 +170,51 @@ export function CleaningRecordsView({
     </div>
   );
 
+  // 기록 상세 — 폰 · 폴드는 바텀시트, 태블릿 가로는 오른쪽 칸(2026-10-05 넓은 화면 대응). 내용은 하나.
+  const detailHeader = (selected: CleaningRecordItem) => (
+      <>
+        <p className="text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">
+          {r.detailTitle}
+        </p>
+        <p className="mt-1 text-[19px] font-black leading-snug tracking-[-0.02em] text-foreground">
+          {selected.title}
+        </p>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
+            {selected.taskLabel}
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-0.5 text-[11px] font-bold text-foreground">
+            <span className={cn("size-1.5 rounded-full", statusTone(selected.status))} />
+            {statusLabel(selected.status)}
+          </span>
+        </div>
+      </>
+  );
+  const detailBody = (selected: CleaningRecordItem) => (
+    <dl className="mt-4 flex flex-col gap-2.5 border-t border-border pt-4">
+      {field(r.staffLabel, selected.staffName || "-")}
+      {field(r.dateLabel, dayLabel(selected.dateKey))}
+      {field(r.startLabel, fmtTime(selected.startedAt) || "-")}
+      {field(
+        r.endLabel,
+        selected.completedAt ? fmtTime(selected.completedAt) : r.ongoing,
+      )}
+      {field(
+        r.durationLabel,
+        <span className="font-mono">
+          {selected.durationSeconds != null
+            ? formatDuration(selected.durationSeconds)
+            : r.ongoing}
+        </span>,
+      )}
+      {selected.notes ? field(r.notesLabel, selected.notes, true) : null}
+    </dl>
+  );
+  // 태블릿 가로는 오른쪽 칸이 늘 무언가를 보인다 — 고른 기록, 없으면 맨 위 기록(룸 링크와 같은 규칙).
+  const paneRecord = selected ?? (dateKeys.length > 0 ? (byDate.get(dateKeys[0])?.[0] ?? null) : null);
+
   return (
+    <div className="tablet:grid tablet:grid-cols-[minmax(0,1fr)_400px] tablet:items-start tablet:gap-5">
     <div className="pb-10">
       {/* Month + summary — a clean dashboard header */}
       <div className="mb-3 overflow-hidden rounded-[22px] border border-border bg-surface shadow-[0_18px_44px_-30px_rgba(15,23,42,0.5)]">
@@ -287,7 +333,7 @@ export function CleaningRecordsView({
           <p className="mt-1.5 text-[13px] text-muted-foreground">{r.emptySub}</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-5">
+        <div className="grid items-start gap-5 fold:grid-cols-2">
           {dateKeys.map((key) => {
             const items = byDate.get(key)!;
             return (
@@ -308,6 +354,7 @@ export function CleaningRecordsView({
                       className={cn(
                         "flex w-full flex-col gap-0.5 px-3 py-2.5 text-left transition-colors active:bg-slate-50",
                         i > 0 && "border-t border-border/70",
+                        isTablet && paneRecord?.id === rec.id && "bg-primary/[0.06] shadow-[inset_3px_0_0_var(--primary)]",
                       )}
                       key={rec.id}
                       onClick={() => openDetail(rec)}
@@ -343,48 +390,9 @@ export function CleaningRecordsView({
       )}
 
       {/* Record detail — bottom sheet; shows the full info for the tapped record. */}
-      {selected ? (
-        <BottomSheet
-          ariaLabel={r.detailTitle}
-          header={
-            <>
-              <p className="text-[11px] font-black uppercase tracking-[0.08em] text-muted-foreground">
-                {r.detailTitle}
-              </p>
-              <p className="mt-1 text-[19px] font-black leading-snug tracking-[-0.02em] text-foreground">
-                {selected.title}
-              </p>
-              <div className="mt-2 flex items-center gap-2">
-                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">
-                  {selected.taskLabel}
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-0.5 text-[11px] font-bold text-foreground">
-                  <span className={cn("size-1.5 rounded-full", statusTone(selected.status))} />
-                  {statusLabel(selected.status)}
-                </span>
-              </div>
-            </>
-          }
-          onClose={() => setSelected(null)}
-        >
-          <dl className="mt-4 flex flex-col gap-2.5 border-t border-border pt-4">
-            {field(r.staffLabel, selected.staffName || "-")}
-            {field(r.dateLabel, dayLabel(selected.dateKey))}
-            {field(r.startLabel, fmtTime(selected.startedAt) || "-")}
-            {field(
-              r.endLabel,
-              selected.completedAt ? fmtTime(selected.completedAt) : r.ongoing,
-            )}
-            {field(
-              r.durationLabel,
-              <span className="font-mono">
-                {selected.durationSeconds != null
-                  ? formatDuration(selected.durationSeconds)
-                  : r.ongoing}
-              </span>,
-            )}
-            {selected.notes ? field(r.notesLabel, selected.notes, true) : null}
-          </dl>
+      {!isTablet && selected ? (
+        <BottomSheet ariaLabel={r.detailTitle} header={detailHeader(selected)} onClose={() => setSelected(null)}>
+          {detailBody(selected)}
         </BottomSheet>
       ) : null}
 
@@ -429,6 +437,13 @@ export function CleaningRecordsView({
           </div>
         </BottomSheet>
       ) : null}
+    </div>
+    {isTablet && paneRecord ? (
+      <aside className="sticky top-3 hidden max-h-[calc(100dvh-24px)] overflow-y-auto rounded-[22px] border border-border bg-surface px-5 pb-5 pt-5 tablet:block">
+        {detailHeader(paneRecord)}
+        {detailBody(paneRecord)}
+      </aside>
+    ) : null}
     </div>
   );
 }

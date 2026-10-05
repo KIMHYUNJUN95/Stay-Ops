@@ -1246,9 +1246,10 @@ export function MobileCalendarView({
             <p className="mt-2 text-xs leading-5 text-muted-foreground max-w-xs">{copy.calendarOutOfWindowBody}</p>
           </Card>
         ) : (
-          <div className="space-y-4">
+          // 넓은 화면(2026-10-05): 폴드 2열 · 태블릿 가로 3열 — 체크인 · 체크아웃 · 숙박 중을 나란히.
+          <div className="space-y-4 fold:grid fold:grid-cols-2 fold:items-start fold:gap-4 fold:space-y-0 tablet:grid-cols-3">
             <button
-              className="w-full text-left"
+              className="w-full text-left fold:col-span-full"
               onClick={() => {
                 setIsEmptyRoomsModalOpen(true);
               }}
@@ -1379,8 +1380,9 @@ export function MobileCalendarView({
       ) : null}
 
       {mode === "map" ? (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 px-1 pb-0.5">
+        // 넓은 화면(2026-10-05): 건물 카드 폴드 2열 · 태블릿 가로 3열(머리 줄은 한 줄 전부).
+        <div className="space-y-3 fold:grid fold:grid-cols-2 fold:items-start fold:gap-3 fold:space-y-0 tablet:grid-cols-3">
+          <div className="flex items-center gap-2 px-1 pb-0.5 fold:col-span-full">
             <span className="inline-flex size-6 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
               <MapPin className="size-3.5" />
             </span>

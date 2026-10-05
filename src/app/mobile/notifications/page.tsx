@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { NotificationList } from "@/components/notifications/notification-list";
+import { SplitList } from "@/components/shell/split-list";
 import { MobileShell } from "@/components/shell/mobile-shell";
 import { getDictionary } from "@/lib/i18n";
 import { listNotificationsForUser } from "@/lib/notifications/queries";
@@ -38,7 +39,8 @@ export default async function MobileNotificationsPage() {
   ]);
 
   return (
-    <MobileShell badges={navBadges} title={copy.title}>
+    // 넓은 화면(2026-10-05): 폴드는 가운데 760px 한 줄, 태블릿 가로는 왼쪽 알림 목록 · 오른쪽 그 알림의 상세 칸(`SplitList`).
+    <MobileShell badges={navBadges} split title={copy.title}>
       <div className="px-1 pb-6">
         {schemaUnavailable ? (
           <>
@@ -56,6 +58,7 @@ export default async function MobileNotificationsPage() {
             </section>
           </>
         ) : (
+          <SplitList detail="notifications">
           <NotificationList
             items={items}
             locale={locale}
@@ -74,6 +77,7 @@ export default async function MobileNotificationsPage() {
               swipeDeleteBtn: copy.swipeDeleteBtn,
             }}
           />
+          </SplitList>
         )}
       </div>
     </MobileShell>

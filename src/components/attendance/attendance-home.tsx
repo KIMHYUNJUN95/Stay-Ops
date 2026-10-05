@@ -457,7 +457,7 @@ export function AttendanceHome({
 
   if (showLoading) {
     return (
-      <div className="att">
+      <div className="att att--home">
         <div className="greet">
           <div className="skel" style={{ width: "160px", height: "13px" }} />
           <div className="skel" style={{ width: "140px", height: "22px", marginTop: "8px" }} />
@@ -475,7 +475,7 @@ export function AttendanceHome({
     const siteName = openSession ? openSession.siteName : copy.previewSite;
     const clockInLabel = openSession ? openSession.clockInTimeLabel : "09:02";
     return (
-      <div className="att">
+      <div className="att att--home">
         <AttRingDefs />
         {greet}
         <div style={{ height: "5vh" }} />
@@ -520,7 +520,7 @@ export function AttendanceHome({
 
   if (state === "break") {
     return (
-      <div className="att">
+      <div className="att att--home">
         <AttRingDefs />
         {greet}
         <div style={{ height: "5vh" }} />
@@ -576,7 +576,7 @@ export function AttendanceHome({
 
   // idle — 출근 전
   return (
-    <div className="att">
+    <div className="att att--home">
       <AttRingDefs />
       {greet}
       <div style={{ height: "4vh" }} />

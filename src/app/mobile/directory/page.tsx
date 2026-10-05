@@ -93,10 +93,11 @@ export default async function MobileDirectoryPage() {
   const navBadges = await getMobileNavBadges();
 
   return (
-    <MobileShell activeItem="directory" badges={navBadges} title={copy.title}>
-      <div className="space-y-3 pb-6">
+    // 넓은 화면(2026-10-05 — 모든 화면 폴드 · 태블릿 대응): 폴드 가운데 760px 에서 2열, 태블릿 가로는 폭 전부 3열 카드.
+    <MobileShell activeItem="directory" badges={navBadges} split title={copy.title}>
+      <div className="grid gap-3 pb-6 fold:grid-cols-2 tablet:grid-cols-3">
         {sorted.length === 0 ? (
-          <Card className={`${GLASS_CARD} flex flex-col items-center justify-center gap-3 p-10 text-center`}>
+          <Card className={`${GLASS_CARD} col-span-full flex flex-col items-center justify-center gap-3 p-10 text-center`}>
             <Users className="size-8 text-muted-foreground" aria-hidden="true" />
             <p className="text-sm font-semibold text-muted-foreground">{copy.empty}</p>
           </Card>

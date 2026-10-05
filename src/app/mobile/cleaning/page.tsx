@@ -620,7 +620,8 @@ export default async function MobileCleaningPage({
   const navBadges = await getMobileNavBadges();
 
   return (
-    <MobileShell activeItem="cleaning" appearance="cleaning" badges={navBadges} title={copy.mobileTitle}>
+    // 넓은 화면(2026-10-05): 청소 · 세팅 대상과 최근 기록 카드가 폴드 2열 · 태블릿 가로 3열(폭 전부).
+    <MobileShell activeItem="cleaning" appearance="cleaning" badges={navBadges} split title={copy.mobileTitle}>
       <Beds24LiveRefresh organizationId={session.organization.id} />
       <div className="space-y-5">
         <Card className={`${CLEANING_PANEL} relative overflow-hidden p-4`}>
@@ -880,6 +881,7 @@ export default async function MobileCleaningPage({
                       <p className="pl-1 text-[11px] font-black uppercase tracking-[0.10em] text-slate-400">
                         {copy.buildingLabels[buildingKey] ?? buildingKey}
                       </p>
+                      <div className="grid gap-2.5 fold:grid-cols-2 tablet:grid-cols-3">
                       {items.map((target) => (
                         <CleaningTargetCard
                           copy={copy}
@@ -893,6 +895,7 @@ export default async function MobileCleaningPage({
                           target={target}
                         />
                       ))}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -930,6 +933,7 @@ export default async function MobileCleaningPage({
                       <p className="pl-1 text-[11px] font-black uppercase tracking-[0.10em] text-slate-400">
                         {copy.buildingLabels[buildingKey] ?? buildingKey}
                       </p>
+                      <div className="grid gap-2.5 fold:grid-cols-2 tablet:grid-cols-3">
                       {items.map((target) => (
                         <SettingTargetCard
                           copy={copy}
@@ -942,6 +946,7 @@ export default async function MobileCleaningPage({
                           target={target}
                         />
                       ))}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -996,7 +1001,8 @@ export default async function MobileCleaningPage({
             </p>
           </div>
           {recentSessions.length > 0 ? (
-            recentSessions.map((item) => (
+            <div className="grid gap-3 fold:grid-cols-2 tablet:grid-cols-3">
+            {recentSessions.map((item) => (
               <CleaningSummaryCard
                 copy={copy}
                 key={item.id}
@@ -1004,7 +1010,8 @@ export default async function MobileCleaningPage({
                 roomLabelText={sessionLabelToLocalizedRoomTitleMap.get(item.room_label) ?? item.room_label}
                 session={item}
               />
-            ))
+            ))}
+            </div>
           ) : (
             <Card className={`${CLEANING_CARD} border-dashed p-4 text-sm font-semibold text-muted-foreground`}>
               {copy.noCompleted}

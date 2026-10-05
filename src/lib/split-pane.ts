@@ -35,7 +35,7 @@ export const SPLIT_PANE_BOOT_SCRIPT = `(function(){try{if(window.top===window.se
 /**
  * 목록마다 오른쪽 칸에 열 상세 주소. 새로 만들기 · 하위 목록(처리 끝난 분실물 등)은 빼고, 상세의 수정 화면은 칸 안에 둔다.
  */
-export const SPLIT_DETAIL_PATTERNS = {
+const FEATURE_DETAIL_PATTERNS = {
   announcements: /^\/mobile\/announcements\/[^/]+$/,
   board: /^\/mobile\/board\/(?!compose$)[^/]+(\/edit)?$/,
   bugs: /^\/mobile\/bugs\/(?!new$)[^/]+$/,
@@ -45,5 +45,18 @@ export const SPLIT_DETAIL_PATTERNS = {
   suggestions: /^\/mobile\/suggestions\/(?!new$|referenced$)[^/]+(\/edit)?$/,
   tasks: /^\/mobile\/tasks\/(?!new$|projects$)[^/]+(\/edit)?$/,
 } as const satisfies Record<string, RegExp>;
+
+export const SPLIT_DETAIL_PATTERNS = {
+  ...FEATURE_DETAIL_PATTERNS,
+  /**
+   * 알림 목록(2026-10-05) — 알림은 여러 기능의 상세로 간다. 위 상세 주소 **어느 것이든** 칸에 연다(메일 앱처럼). 그 밖의
+   * 주소(근태 · 캘린더 등 상세가 아닌 화면)는 그대로 넘어간다.
+   */
+  notifications: new RegExp(
+    Object.values(FEATURE_DETAIL_PATTERNS)
+      .map((pattern) => `(?:${pattern.source})`)
+      .join("|"),
+  ),
+} as const;
 
 export type SplitDetailKey = keyof typeof SPLIT_DETAIL_PATTERNS;

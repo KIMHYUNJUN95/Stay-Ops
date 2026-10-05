@@ -530,11 +530,14 @@ export default async function MobileCalendarPage({ searchParams }: MobileCalenda
   ]);
 
   return (
+    // 넓은 화면(2026-10-05): 폭 전부(`wide`) — 격자는 날짜 칸이 고정 폭이라 넓을수록 더 많은 날을 한 번에 본다. 목록 · 건물
+    // 정보는 폴드 2열 · 태블릿 가로 3열(`MobileCalendarView`).
     <MobileShell
       activeItem="calendar"
       appearance="cleaning"
       badges={navBadges}
       title={dictionary.navigation.mobile.calendar}
+      wide
     >
       <MobileCalendarLiveView
         copy={{

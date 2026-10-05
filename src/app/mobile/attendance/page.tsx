@@ -110,7 +110,8 @@ export default async function MobileAttendancePage({ searchParams }: PageProps) 
   }).format(new Date());
 
   return (
-    <MobileShell activeItem="attendance" badges={navBadges} title={dict.attendance.pageTitle}>
+    // 넓은 화면(2026-10-05): 태블릿 가로는 폭을 풀고 화면이 두 칸(링 · 버튼 | 바로가기)을 그린다(`attendance.css` `.att--home`).
+    <MobileShell activeItem="attendance" badges={navBadges} split title={dict.attendance.pageTitle}>
       <AttendanceHome
         state={homeState}
         todayLabel={todayLabel}

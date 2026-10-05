@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useSplitPush } from "@/components/shell/split-list";
 import { useCallback, useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import { Trash2 } from "lucide-react";
@@ -285,6 +286,7 @@ function SwipeItem({
 // ── Main component ───────────────────────────────────────────────────────────
 export function NotificationList({ items, locale, copy }: NotificationListProps) {
   const router = useRouter();
+  const splitPush = useSplitPush();
   const [isPending, startTransition] = useTransition();
   const [isDeleting, startDeleteTransition] = useTransition();
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -330,7 +332,8 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
   function handleOpen(notification: NotificationRow) {
     startTransition(async () => {
       if (!notification.read_at) await markNotificationAsRead(notification.id);
-      router.push(notification.href);
+      // 태블릿 가로 2분할 안이면 오른쪽 칸에 연다(`useSplitPush` — 그 밖에서는 그대로 이동).
+      splitPush(notification.href);
     });
   }
 

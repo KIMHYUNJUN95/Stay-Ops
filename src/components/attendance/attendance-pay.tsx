@@ -230,9 +230,11 @@ export function AttendancePay({
   const segmentsWithRanges = computeSegmentsWithRanges(view.rateSegments, view.days);
 
   return (
-    <div className="att">
+    <div className="att att--pay">
       {titleRow}
 
+      {/* 넓은 화면(2026-10-05): 태블릿 가로는 왼쪽 급여 카드 · 구간(따라 내려옴) | 오른쪽 일별 표. 폰 · 폴드는 그대로 한 줄. */}
+      <div className="att-pay__side">
       {/* Pay card */}
       <div className={`paycard ${isFinal ? "paycard--final" : "paycard--expected"}${payHidden ? " hide" : ""}`}>
         <div className="pc__deco" />
@@ -370,6 +372,9 @@ export function AttendancePay({
         </>
       ) : null}
 
+      </div>
+
+      <div className="att-pay__main">
       {/* Daily breakdown table */}
       <div className="sectt" style={{ marginTop: "20px" }}>
         {copy.payDailyBreakdown}
@@ -433,6 +438,7 @@ export function AttendancePay({
         {copy.payDisclaimerBase}{" "}
         {isFinal ? copy.payDisclaimerFinal : copy.payDisclaimerPending}
       </p>
+      </div>
 
       {/* Excluded sessions list sheet */}
       {excludedOpen && (

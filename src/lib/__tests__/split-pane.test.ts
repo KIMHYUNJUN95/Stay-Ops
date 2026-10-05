@@ -23,6 +23,15 @@ describe("split pane detail patterns", () => {
     expect(matchesDetail(P.bugs, "/mobile/bugs")).toBe(false);
   });
 
+  it("notifications open any feature detail in the pane, nothing else (2026-10-05)", () => {
+    expect(matchesDetail(P.notifications, "/mobile/requests/maintenance/abc?from=notif")).toBe(true);
+    expect(matchesDetail(P.notifications, "/mobile/tasks/123")).toBe(true);
+    expect(matchesDetail(P.notifications, "/mobile/announcements/9")).toBe(true);
+    expect(matchesDetail(P.notifications, "/mobile/attendance/correction/status")).toBe(false);
+    expect(matchesDetail(P.notifications, "/mobile/calendar")).toBe(false);
+    expect(matchesDetail(P.notifications, "/mobile/tasks/new")).toBe(false);
+  });
+
   it("only trusts its own message shape", () => {
     expect(isSplitPaneMessage({ kind: "mutated", type: "stayops-pane" })).toBe(true);
     expect(isSplitPaneMessage({ type: "other" })).toBe(false);

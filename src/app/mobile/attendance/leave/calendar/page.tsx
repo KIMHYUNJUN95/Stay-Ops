@@ -39,7 +39,8 @@ export default async function MobileLeaveCalendarPage({
   const entries = await listApprovedLeaveForMonth(getSupabaseServiceClient(), session.organization.id, ym);
 
   return (
-    <MobileShell activeItem="attendance" badges={navBadges} title={copy.calTitle}>
+    // 넓은 화면(2026-10-05): 태블릿 가로 = 달력 | 휴가 목록(`leave.css` `.lv--cal`).
+    <MobileShell activeItem="attendance" badges={navBadges} split title={copy.calTitle}>
       <LeaveCalendar locale={session.user.preferredLanguage} ym={ym} entries={entries} todayDate={today} />
     </MobileShell>
   );

@@ -399,7 +399,8 @@ export function AttendanceRoster({ rosterDay, operatingDate, todayDate, locale }
             </div>
           );
           return (
-            <>
+            // 넓은 화면(2026-10-05): 폴드부터 출근 중 · 퇴근 완료 섹션을 나란히(`.roster-sections`).
+            <div className="roster-sections">
               {/* 출근 중 섹션 */}
               {activeEntries.length > 0 && (
                 <div className="roster-section">
@@ -435,7 +436,7 @@ export function AttendanceRoster({ rosterDay, operatingDate, todayDate, locale }
                   ))}
                 </div>
               )}
-            </>
+            </div>
           );
         })()}
       </div>

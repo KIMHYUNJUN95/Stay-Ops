@@ -70,7 +70,8 @@ export default async function AttendanceRosterPage({ searchParams }: PageProps) 
   const dict = getDictionary(locale);
 
   return (
-    <MobileShell activeItem="attendance" badges={navBadges} title={dict.attendance.rosterPageTitle}>
+    // 넓은 화면(2026-10-05): 출근 중 · 퇴근 완료 섹션 나란히 — 태블릿 가로는 폭 전부(`.roster-sections`).
+    <MobileShell activeItem="attendance" badges={navBadges} split title={dict.attendance.rosterPageTitle}>
       <AttendanceRoster
         rosterDay={rosterDay}
         operatingDate={operatingDate}

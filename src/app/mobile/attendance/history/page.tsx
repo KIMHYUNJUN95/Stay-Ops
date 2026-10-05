@@ -58,7 +58,8 @@ export default async function MobileAttendanceHistoryPage({ searchParams }: Page
   ]);
 
   return (
-    <MobileShell activeItem="attendance" badges={navBadges} title={dict.attendance.historyTitle}>
+    // 넓은 화면(2026-10-05): 폴드 날짜 묶음 두 줄 · 태블릿 가로 기록 | 상세 칸(`AttendanceHistory`).
+    <MobileShell activeItem="attendance" badges={navBadges} split title={dict.attendance.historyTitle}>
       <AttendanceHistory
         summary={summary}
         sessions={sessions}
