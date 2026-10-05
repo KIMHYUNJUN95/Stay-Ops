@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildOpsSalesSummary,
+  combineSalesSummary,
+  defaultSalesExcluded,
   isLegacyConfirmedStatus,
   isSalesCountedReservation,
   legacyChannelKey,
@@ -498,10 +500,41 @@ describe("per-room / per-building consistency", () => {
     expect(summary.byProperty[0].rooms[1].occupiedNights).toBe(4);
   });
 
+  it("combining every building reproduces the totals; one building = that building", () => {
+    const all = combineSalesSummary(summary, () => true);
+    expect(all.reservationCount).toBe(summary.reservationCount);
+    expect(all.zeroPriceCount).toBe(summary.zeroPriceCount);
+    expect(all.futureVacancy).toEqual(summary.futureVacancy);
+    for (const key of ["revenue", "commission", "occupiedNights", "availableNights", "occupancyPct", "adr", "revpar"] as const) {
+      expect(all.totals[key]).toBeCloseTo(summary.totals[key], 6);
+    }
+    for (const [index, row] of all.byChannel.entries()) {
+      const legacy = summary.byChannel[index];
+      expect(row.channel).toBe(legacy.channel);
+      for (const key of ["revenue", "commission", "net", "nights", "arrivals"] as const) {
+        expect(row[key]).toBeCloseTo(legacy[key], 6);
+      }
+    }
+    const onlyA = combineSalesSummary(summary, (name) => name === "A");
+    const a = summary.byProperty[0];
+    expect(onlyA.totals.revenue).toBeCloseTo(a.revenue, 6);
+    expect(onlyA.totals.occupancyPct).toBeCloseTo(a.occupancyPct, 9);
+    expect(onlyA.reservationCount).toBe(3);
+    expect(onlyA.byChannel.reduce((sum, row) => sum + row.revenue, 0)).toBeCloseTo(a.revenue, 6);
+  });
+
   it("totals match the legacy numbers for the same fixture", () => {
     // 101: 50,000 × 3/5 = 30,000 · 102: 36,000 + 20,000 · 201: 130,000 × 11/13 · 999: 9,000
     expect(summary.totals.revenue).toBeCloseTo(30000 + 56000 + (130000 * 11) / 13 + 9000, 6);
     expect(summary.totals.commission).toBeCloseTo(7000 * (3 / 5) + 5400 + (26000 * 11) / 13, 6);
     expect(summary.totals.roomCount).toBe(4);
+  });
+});
+
+describe("defaultSalesExcluded", () => {
+  it("drops 오쿠보A · 사노 from totals only when other buildings are in view", () => {
+    expect(defaultSalesExcluded(["아라키초A", "오쿠보A", "Sano", "오쿠보B"])).toEqual(["오쿠보A", "Sano"]);
+    expect(defaultSalesExcluded(["오쿠보A"])).toEqual([]);
+    expect(defaultSalesExcluded(["아라키초A"])).toEqual([]);
   });
 });

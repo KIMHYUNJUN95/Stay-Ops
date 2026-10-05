@@ -415,6 +415,10 @@ const FALLBACK_DICTIONARY = {
       ssBasisCommission:
         "Fees: the Beds24 commission of Airbnb and Booking.com bookings, split per night the same way.",
       ssBasisLegacy: "Same formulas as the STAY ARI Manager building calendar.",
+      ssIncludeTitle: "In totals",
+      ssIncludeHint: "Tap a property to add it to or remove it from the totals.",
+      ssExcludedTitle: "Shown separately",
+      ssExcludedNote: "Not counted in revenue, occupancy or channel totals.",
       hsButton: "History",
       hsAlertTitle: "{n} Beds24 sends failed or stuck in the last 7 days",
       hsTitle: "History & Beds24 log",
@@ -6074,6 +6078,10 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       ssBasisCommission:
         "수수료는 Airbnb · Booking.com 예약의 Beds24 수수료를 같은 방식으로 밤마다 나눕니다.",
       ssBasisLegacy: "STAY ARI Manager 건물 캘린더와 같은 식입니다.",
+      ssIncludeTitle: "합계에 넣을 건물",
+      ssIncludeHint: "건물을 누르면 합계에 넣거나 뺍니다.",
+      ssExcludedTitle: "따로 보는 건물",
+      ssExcludedNote: "총매출 · 가동률 · 채널 합계에 들어가지 않습니다.",
       hsButton: "이력",
       hsAlertTitle: "최근 7일 Beds24 전송 실패·멈춤 {n}건",
       hsTitle: "이력 · Beds24 전송 로그",
@@ -11576,6 +11584,10 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       ssBasisCommission:
         "手数料は Airbnb · Booking.com 予約の Beds24 手数料を同じ方法で1泊ずつ配分します。",
       ssBasisLegacy: "STAY ARI Manager の物件カレンダーと同じ計算式です。",
+      ssIncludeTitle: "合計に含める物件",
+      ssIncludeHint: "物件をタップすると合計に含める・外すを切り替えます。",
+      ssExcludedTitle: "別枠で表示する物件",
+      ssExcludedNote: "総売上・稼働率・チャネル合計には含まれません。",
       hsButton: "履歴",
       hsAlertTitle: "直近7日のBeds24送信失敗・停止 {n}件",
       hsTitle: "履歴・Beds24 送信ログ",

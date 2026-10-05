@@ -3167,6 +3167,40 @@ button.ops__gapbtn:focus-visible { outline: 2px solid var(--danger); outline-off
   white-space: nowrap;
 }
 .opsss__chip.all { border-style: dashed; color: var(--adm-muted); }
+/* 합계에 넣을 건물(2026-10-05) — 켜진 칩 = 합계에 들어감. 꺼진 칩은 점선 · 흐리게. */
+.opsss__pick {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.opsss__picklabel { font-size: 11.5px; font-weight: 800; color: var(--adm-muted); white-space: nowrap; }
+.opsss__pickchips { display: flex; flex-wrap: wrap; gap: 5px; }
+.opsss__pickchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--adm-muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.opsss__pickchip svg { width: 13px; height: 13px; }
+.opsss__pickchip.on {
+  border-style: solid;
+  border-color: var(--adm-primary);
+  background: var(--primary-soft);
+  color: var(--adm-primary);
+}
+.opsss__pickhint { font-size: 11px; color: var(--adm-muted); }
+.opsss__props.is-excluded { background: var(--card2); }
+.opsss__exnote { font-size: 11px; color: var(--adm-muted); }
 .opsss__headtools { display: flex; align-items: center; gap: 6px; flex: none; }
 .opsss__basisbtn {
   display: inline-flex;

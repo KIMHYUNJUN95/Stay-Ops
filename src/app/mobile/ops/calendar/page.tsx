@@ -14,11 +14,11 @@ import { getOnboardingState } from "@/lib/onboarding";
 import { canAccessOpsAdmin } from "@/lib/ops-admin";
 import { getOpsCalendarData, OPS_CALENDAR_ROLLING_DAYS } from "@/lib/ops-calendar";
 import { scheduleOpsCalendarOpenRefresh } from "@/lib/ops-calendar-open-refresh";
+import { resolveOpsCalendarMode } from "@/lib/ops-calendar-mode-preference";
 import { isOpsRatesStale, opsRatesSyncedLabel } from "@/lib/ops-rates-freshness";
 import {
   buildOpsCalendarHref,
   parsePropertyParam,
-  togglePropertySelection,
 } from "@/lib/ops-calendar-properties";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 
@@ -61,11 +61,15 @@ export default async function MobileOpsCalendarPage({ searchParams }: { searchPa
   const copy = dictionary.opsAdmin.calendar;
   const showCancelled = params.cancelled === "1";
 
+  // 주소에 30일/월간이 없으면 이 사용자가 마지막으로 본 보기로 연다(있으면 그게 새 기억) — 대시보드 · 모바일 공용.
+  const mode = await resolveOpsCalendarMode(session.user.id, params.mode);
   const [data, badges, historyAlerts] = await Promise.all([
     getOpsCalendarData(session, {
-      mode: params.mode,
+      mode,
       month: params.ym,
-      properties: parsePropertyParam(params.property),
+      // 모바일은 **한 건물씩만** 본다(2026-10-05 사용자 결정 — 다중 선택은 데스크톱 전용). 옛 링크 · 관리자 화면에서
+      // 여러 건물이 붙어 와도 첫 건물만.
+      properties: parsePropertyParam(params.property).slice(0, 1),
       showCancelled,
       start: params.start,
     }),
@@ -142,9 +146,6 @@ export default async function MobileOpsCalendarPage({ searchParams }: { searchPa
           href: hrefWith({ property: name }),
           name,
           selected: selectedSet.has(name),
-          toggleHref: hrefWith({
-            property: togglePropertySelection(data.selectedProperties, name, data.propertyOptions),
-          }),
         }))}
         rows={data.rows}
         selectedProperties={data.selectedProperties}

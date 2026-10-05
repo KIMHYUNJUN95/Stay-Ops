@@ -121,6 +121,7 @@ preferred_language text not null
 theme_preference text not null default 'system'  -- schema only; NOT used by the app (light-mode-only since 2026-06-08)
 bottom_nav_tabs text[] not null default '{home,calendar,requests,announcements}'
 can_generate_report boolean not null default false
+ops_calendar_mode text  -- 2026-10-05 (202610050001): 판매 캘린더 마지막 보기 rolling·monthly, null = 30일
 created_at timestamptz
 updated_at timestamptz
 ```
@@ -141,6 +142,8 @@ permission is `role != 'part_time_staff' OR can_generate_report = true`, so regu
 by the role check and never need the flag; it is toggled per-user by owner/office_admin in admin user
 management for the few part-timers who work in a management capacity. See
 `docs/engineering/05-rls-permissions.md` and `docs/product/18-todo-task-workflow.md` (2026-06-13).
+
+`ops_calendar_mode` (2026-10-05, `202610050001_profile_ops_calendar_mode.sql`) remembers the user's last 판매 캘린더 view (`rolling` = 30일 / `monthly` = 월간), shared by `/admin/ops/calendar` and `/mobile/ops/calendar`. Written server-side (service-role, own row) when a calendar URL carries `mode`; read when it doesn't. See `docs/product/33-calendar-write-features.md` 「30일 · 월간 보기 기억」.
 
 `bottom_nav_tabs` stores the user's customized mobile bottom-bar tabs (ordered ids, max 4 enforced in app logic). Added in `supabase/migrations/202606080001_profile_bottom_nav.sql`. The selectable pool is the current `mobileSidebarNavigation`: `home`, `calendar`, `cleaning`, `tasks`, `requests`, `attendance`, `announcements`, `board`, `suggestions`, `complaints`, `linen-return`, and `directory`. Unknown/stale ids are ignored by the resolver.
 

@@ -13,6 +13,7 @@ import { getDictionary } from "@/lib/i18n";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getOpsCalendarData, OPS_CALENDAR_ROLLING_DAYS } from "@/lib/ops-calendar";
 import { scheduleOpsCalendarOpenRefresh } from "@/lib/ops-calendar-open-refresh";
+import { resolveOpsCalendarMode } from "@/lib/ops-calendar-mode-preference";
 import { opsNavId } from "@/lib/ops-admin";
 import { isOpsRatesStale, opsRatesSyncedLabel } from "@/lib/ops-rates-freshness";
 import {
@@ -74,9 +75,11 @@ export default async function OpsCalendarPage({
 
   // 「이력」 버튼의 빨간 숫자(최근 7일 전송 실패 + 멈춘 작업)도 **같이** 센다 — 달력 데이터를 다 받은
   // 뒤에 따로 세면 그만큼 화면이 늦게 온다(2026-09-30 속도).
+  // 주소에 30일/월간이 없으면 이 사용자가 마지막으로 본 보기로 연다(있으면 그게 새 기억) — 대시보드 · 모바일 공용.
+  const mode = await resolveOpsCalendarMode(session.user.id, params.mode);
   const [data, historyAlerts] = await Promise.all([
     getOpsCalendarData(session, {
-      mode: params.mode,
+      mode,
       month: params.ym,
       properties: parsePropertyParam(params.property),
       start: params.start,

@@ -22,6 +22,8 @@
  * | 금액 | `functions/index.js` `normalize` (:1392-1404) → 화면 `totalPrice \|\| price \|\| netRevenue` |
  */
 
+import { getCanonicalPropertyName } from "@/lib/room-label-normalization";
+
 export type SalesChannel = "airbnb" | "booking" | "direct" | "other";
 
 export const SALES_CHANNELS: readonly SalesChannel[] = ["airbnb", "booking", "direct", "other"];
@@ -105,7 +107,19 @@ export type SalesChannelRow = {
 export type SalesRoomRow = SalesMetrics & { key: string; label: string; inCatalog: boolean };
 
 /** 건물 한 줄 = **그 건물 객실 행의 합**(구성상 항상 맞는다). 객실은 캘린더 행 순서. */
-export type SalesPropertyRow = SalesMetrics & { propertyName: string; rooms: SalesRoomRow[] };
+export type SalesPropertyRow = SalesMetrics & {
+  propertyName: string;
+  rooms: SalesRoomRow[];
+  /**
+   * 이 건물 몫의 채널 행 · 오늘 이후 빈방 · 예약 수 · 0원 수 — **합계에 넣을 건물을 고르면**(`combineSalesSummary`)
+   * 전체 숫자를 고른 건물만으로 다시 더하는 재료다(2026-10-05). 모든 건물을 더하면 `totals` · `byChannel` 과 같다.
+   */
+  channels: SalesChannelRow[];
+  futureVacantNights: number;
+  futureTotalNights: number;
+  reservationCount: number;
+  zeroPriceCount: number;
+};
 
 export type OpsSalesSummary = {
   start: string;
@@ -302,6 +316,23 @@ export function buildOpsSalesSummary(input: {
 
   let reservationCount = 0;
   let zeroPriceCount = 0;
+  /** 건물별 몫(채널 행 · 예약 수 · 0원 수) — 합계에 넣을 건물을 고를 때 다시 더한다. */
+  type PropertyShare = { channels: Map<SalesChannel, SalesChannelRow>; reservations: number; zero: number };
+  const shares = new Map<string, PropertyShare>();
+  const shareOf = (propertyName: string) => {
+    let share = shares.get(propertyName);
+    if (!share) {
+      share = {
+        channels: new Map(
+          SALES_CHANNELS.map((channel) => [channel, { arrivals: 0, channel, commission: 0, net: 0, nights: 0, revenue: 0 }]),
+        ),
+        reservations: 0,
+        zero: 0,
+      };
+      shares.set(propertyName, share);
+    }
+    return share;
+  };
   /** 오늘 이후 빈방 — 방별 「못 파는 밤」. 예약(확정)과 차단을 합친다. */
   const unavailable = new Map<string, Set<number>>();
   const markUnavailable = (roomKey: string, from: number, toExclusive: number) => {
@@ -326,9 +357,15 @@ export function buildOpsSalesSummary(input: {
     const departure = dayNumber(reservation.checkOut);
     const channel = legacyChannelKey(reservation.raw);
     const channelRow = channels.get(channel)!;
+    const acc = roomAcc(reservation);
+    const share = shareOf(acc.room.propertyName);
+    const shareRow = share.channels.get(channel)!;
 
     // 체크인 예약 수 — 체크인이 창 안이면(:3011).
-    if (arrival >= startDay && arrival < endDay) channelRow.arrivals += 1;
+    if (arrival >= startDay && arrival < endDay) {
+      channelRow.arrivals += 1;
+      shareRow.arrivals += 1;
+    }
 
     const effectiveStart = Math.max(arrival, startDay);
     const effectiveEnd = Math.min(departure, endDay);
@@ -336,8 +373,8 @@ export function buildOpsSalesSummary(input: {
 
     const visibleNights = effectiveEnd - effectiveStart;
     const totalNights = Math.max(1, departure - arrival);
-    const acc = roomAcc(reservation);
     reservationCount += 1;
+    share.reservations += 1;
 
     // 점유 — 목록의 방만, 방별 날짜 Set(겹친 예약 = 1박).
     if (acc.room.inCatalog) {
@@ -345,24 +382,28 @@ export function buildOpsSalesSummary(input: {
       markUnavailable(reservation.roomKey, effectiveStart, effectiveEnd);
     }
     channelRow.nights += visibleNights;
+    shareRow.nights += visibleNights;
 
     // 매출 — 1박 균등 분배. 목록 밖 방도 넣는다. 0원은 건너뛴다(점유에는 이미 들어갔다).
     const amount = legacyReservationAmount(reservation.raw);
     if (amount > 0) {
-      const share = (amount / totalNights) * visibleNights;
-      acc.revenue += share;
-      channelRow.revenue += share;
+      const part = (amount / totalNights) * visibleNights;
+      acc.revenue += part;
+      channelRow.revenue += part;
+      shareRow.revenue += part;
     } else {
       zeroPriceCount += 1;
+      share.zero += 1;
     }
 
     // 수수료 — Airbnb · Booking.com 만(:2974), 같은 1박 분배.
     if (channel === "airbnb" || channel === "booking") {
       const commission = legacyMoney(reservation.raw.commission);
       if (commission > 0) {
-        const share = (commission / totalNights) * visibleNights;
-        acc.commission += share;
-        channelRow.commission += share;
+        const part = (commission / totalNights) * visibleNights;
+        acc.commission += part;
+        channelRow.commission += part;
+        shareRow.commission += part;
       }
     }
   }
@@ -373,11 +414,11 @@ export function buildOpsSalesSummary(input: {
   }
 
   // ── 객실 → 건물 → 전체 ──
-  const buildings = new Map<string, { sums: Sums; rooms: SalesRoomRow[] }>();
+  const buildings = new Map<string, { sums: Sums; rooms: SalesRoomRow[]; futureVacant: number; futureTotal: number }>();
   const building = (name: string) => {
     let entry = buildings.get(name);
     if (!entry) {
-      entry = { rooms: [], sums: { commission: 0, occupiedNights: 0, revenue: 0, roomCount: 0 } };
+      entry = { futureTotal: 0, futureVacant: 0, rooms: [], sums: { commission: 0, occupiedNights: 0, revenue: 0, roomCount: 0 } };
       buildings.set(name, entry);
     }
     return entry;
@@ -407,15 +448,34 @@ export function buildOpsSalesSummary(input: {
     if (room.inCatalog) {
       catalogRooms += 1;
       const set = unavailable.get(room.key);
-      for (let day = futureFrom; day < endDay; day += 1) if (!set?.has(day)) futureVacant += 1;
+      let vacant = 0;
+      for (let day = futureFrom; day < endDay; day += 1) if (!set?.has(day)) vacant += 1;
+      futureVacant += vacant;
+      entry.futureVacant += vacant;
+      entry.futureTotal += futureDays;
     }
   }
+  // 객실 행이 안 남은 건물(목록 밖 방의 0원 예약뿐)도 채널 몫이 있으면 줄을 만든다 — 다시 더할 때 빠지지 않게.
+  for (const [name, share] of shares) {
+    if (share.reservations > 0 || [...share.channels.values()].some((row) => row.arrivals > 0)) building(name);
+  }
 
-  const propertyRows: SalesPropertyRow[] = [...buildings].map(([propertyName, entry]) => ({
-    propertyName,
-    rooms: entry.rooms,
-    ...metricsOf(entry.sums, days),
-  }));
+  const propertyRows: SalesPropertyRow[] = [...buildings].map(([propertyName, entry]) => {
+    const share = shares.get(propertyName);
+    return {
+      channels: SALES_CHANNELS.map((channel) => {
+        const row = share?.channels.get(channel) ?? { arrivals: 0, channel, commission: 0, net: 0, nights: 0, revenue: 0 };
+        return { ...row, net: row.revenue - row.commission };
+      }),
+      futureTotalNights: entry.futureTotal,
+      futureVacantNights: entry.futureVacant,
+      propertyName,
+      reservationCount: share?.reservations ?? 0,
+      rooms: entry.rooms,
+      zeroPriceCount: share?.zero ?? 0,
+      ...metricsOf(entry.sums, days),
+    };
+  });
   const withAdr = propertyRows.filter((row) => row.adr > 0);
 
   return {
@@ -435,3 +495,64 @@ export function buildOpsSalesSummary(input: {
   };
 }
 
+
+// ── 합계에 넣을 건물 고르기 (2026-10-05) ────────────────────────────────
+
+/**
+ * 매출 요약의 **합계에서 기본으로 빼는 건물** — 오쿠보A · 사노(2026-10-05 사용자 결정). 두 건물은 따로 보이고
+ * 총매출 · 가동률 · 채널 합계에 섞지 않는다. 사용자가 요약 안에서 다시 넣을 수 있다. 이 건물들**만** 보고 있으면
+ * 빼지 않는다(볼 게 그것뿐이다).
+ */
+export const SALES_SUMMARY_DEFAULT_EXCLUDED: ReadonlySet<string> = new Set(
+  ["오쿠보A", "Sano"].map((name) => getCanonicalPropertyName(name)),
+);
+
+export function defaultSalesExcluded(propertyNames: readonly string[]): string[] {
+  const excluded = propertyNames.filter((name) => SALES_SUMMARY_DEFAULT_EXCLUDED.has(getCanonicalPropertyName(name)));
+  return excluded.length === propertyNames.length ? [] : excluded;
+}
+
+export type CombinedSalesSummary = Pick<
+  OpsSalesSummary,
+  "totals" | "byChannel" | "futureVacancy" | "reservationCount" | "zeroPriceCount"
+>;
+
+/**
+ * 고른 건물만으로 합계를 다시 낸다 — 비율(가동률 · ADR · RevPAR)은 합을 다시 나눠 구한다(평균내지 않는다).
+ * 모든 건물을 넣으면 `buildOpsSalesSummary` 의 합계와 같다(테스트로 고정).
+ */
+export function combineSalesSummary(summary: OpsSalesSummary, included: (propertyName: string) => boolean): CombinedSalesSummary {
+  const sums: Sums = { commission: 0, occupiedNights: 0, revenue: 0, roomCount: 0 };
+  const channels = new Map<SalesChannel, SalesChannelRow>(
+    SALES_CHANNELS.map((channel) => [channel, { arrivals: 0, channel, commission: 0, net: 0, nights: 0, revenue: 0 }]),
+  );
+  let reservationCount = 0;
+  let zeroPriceCount = 0;
+  let futureVacant = 0;
+  let futureTotal = 0;
+  for (const row of summary.byProperty) {
+    if (!included(row.propertyName)) continue;
+    addSums(sums, { commission: row.commission, occupiedNights: row.occupiedNights, revenue: row.revenue, roomCount: row.roomCount });
+    reservationCount += row.reservationCount;
+    zeroPriceCount += row.zeroPriceCount;
+    futureVacant += row.futureVacantNights;
+    futureTotal += row.futureTotalNights;
+    for (const part of row.channels) {
+      const target = channels.get(part.channel)!;
+      target.arrivals += part.arrivals;
+      target.commission += part.commission;
+      target.nights += part.nights;
+      target.revenue += part.revenue;
+    }
+  }
+  return {
+    byChannel: SALES_CHANNELS.map((channel) => {
+      const row = channels.get(channel)!;
+      return { ...row, net: row.revenue - row.commission };
+    }),
+    futureVacancy: { days: summary.futureVacancy.days, totalNights: futureTotal, vacantNights: futureVacant },
+    reservationCount,
+    totals: metricsOf(sums, summary.days),
+    zeroPriceCount,
+  };
+}

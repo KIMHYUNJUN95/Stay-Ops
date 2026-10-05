@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { BedDouble, ChevronRight, Info, ReceiptText, Tag, TrendingUp, Wallet, X } from "lucide-react";
+import { BedDouble, Check, ChevronRight, Info, ReceiptText, Tag, TrendingUp, Wallet, X } from "lucide-react";
 import { loadOpsSalesSummary, type OpsSalesSummaryResult } from "@/app/admin/ops/calendar/actions";
 import { useAdminPanelA11y } from "@/components/admin/shared/use-admin-panel-a11y";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
-import type { SalesChannel, SalesMetrics, SalesRoomRow } from "@/lib/ops-sales-summary";
+import {
+  combineSalesSummary,
+  defaultSalesExcluded,
+  type SalesChannel,
+  type SalesMetrics,
+  type SalesPropertyRow,
+  type SalesRoomRow,
+} from "@/lib/ops-sales-summary";
 
 /**
  * 판매 캘린더 「매출 요약」 모달 — **보고 있는 창 × 고른 건물**(2026-09-30).
@@ -75,6 +82,10 @@ export type SalesSummaryCopy = {
   ssBasisOccupancy: string;
   ssBasisCommission: string;
   ssBasisLegacy: string;
+  ssIncludeTitle: string;
+  ssIncludeHint: string;
+  ssExcludedTitle: string;
+  ssExcludedNote: string;
 };
 
 type Loaded = Extract<OpsSalesSummaryResult, { ok: true }>["summary"];
@@ -135,6 +146,39 @@ function occLevel(value: number): "hi" | "mid" | "lo" {
 }
 
 const CLOSE_MS = 150;
+
+/**
+ * 합계에서 뺀 건물 — 기기(브라우저)에 기억한다(편의). 지금 요약에 없는 건물의 기억은 건드리지 않는다. 처음이면
+ * 기본값(오쿠보A · 사노 — `defaultSalesExcluded`). 저장소가 막혀 있으면 기본값으로 그냥 연다.
+ */
+const EXCLUDED_KEY = "stayops.ops-sales-excluded";
+
+function readExcluded(present: readonly string[]): Set<string> {
+  let stored: string[] | null = null;
+  try {
+    const raw = window.localStorage.getItem(EXCLUDED_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed)) stored = parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    stored = null;
+  }
+  if (!stored) return new Set(defaultSalesExcluded(present));
+  const excluded = present.filter((name) => stored.includes(name));
+  // 보고 있는 건물을 전부 뺀 상태는 만들지 않는다 — 볼 게 없다.
+  return new Set(excluded.length === present.length ? [] : excluded);
+}
+
+function writeExcluded(present: readonly string[], excluded: ReadonlySet<string>) {
+  try {
+    const raw = window.localStorage.getItem(EXCLUDED_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    const previous = Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+    const kept = previous.filter((name) => !present.includes(name));
+    window.localStorage.setItem(EXCLUDED_KEY, JSON.stringify([...kept, ...excluded]));
+  } catch {
+    // 기억 못 해도 이번 화면은 그대로 된다.
+  }
+}
 
 type SalesSummaryProps = {
   copy: SalesSummaryCopy;
@@ -419,11 +463,32 @@ export function SummaryContent({
   initialOpen?: readonly string[];
   summary: Loaded;
 }) {
-  const totals: SalesMetrics = summary.totals;
+  /*
+   * **합계에 넣을 건물**(2026-10-05 사용자 지시) — 오쿠보A · 사노는 기본으로 합계(총매출 · 가동률 · 채널)에서 빼고 아래에
+   * 따로 보인다. 위 칩으로 넣고 뺄 수 있다. 숫자는 건물별 몫을 다시 더해 낸다(`combineSalesSummary` — 서버 재요청 없음).
+   */
+  const propertyNames = useMemo(() => summary.byProperty.map((row) => row.propertyName), [summary]);
+  const [excluded, setExcluded] = useState<Set<string>>(() => readExcluded(propertyNames));
+  const toggleIncluded = (name: string) => {
+    const next = new Set(excluded);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    if (next.size === propertyNames.length) return; // 마지막 하나는 뺄 수 없다.
+    setExcluded(next);
+    writeExcluded(propertyNames, next);
+  };
+  const combined = useMemo(
+    () => (excluded.size === 0 ? summary : combineSalesSummary(summary, (name) => !excluded.has(name))),
+    [excluded, summary],
+  );
+  const includedRows = summary.byProperty.filter((row) => !excluded.has(row.propertyName));
+  const excludedRows = summary.byProperty.filter((row) => excluded.has(row.propertyName));
+
+  const totals: SalesMetrics = combined.totals;
   const channelLabel = (channel: SalesChannel) =>
     channel === "airbnb" ? "Airbnb" : channel === "booking" ? "Booking.com" : channel === "direct" ? copy.ssDirect : copy.ssOther;
   // 「기타」는 값이 있을 때만 줄을 만든다(대개 0 — 2026-09 실측 0건).
-  const channels = summary.byChannel.filter(
+  const channels = combined.byChannel.filter(
     (row) => row.channel !== "other" || row.revenue > 0 || row.arrivals > 0 || row.nights > 0,
   );
   const channelRevenue = channels.reduce((sum, row) => sum + row.revenue, 0);
@@ -487,8 +552,100 @@ export function SummaryContent({
     </tr>
   );
 
+  const propertyTable = (rows: SalesPropertyRow[], total: SalesMetrics | null) => (
+    <table className="opsss__table opsss__ptable">
+      <colgroup>
+        <col className="w-pname" />
+        <col className="w-rooms" />
+        <col className="w-occ" />
+        <col className="w-n" />
+        <col className="w-n" />
+        <col className="w-yen" />
+        <col className="w-yen" />
+        <col className="w-yen-l" />
+        <col className="w-yen" />
+        <col className="w-yen-l" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th scope="col">{copy.ssPropertyCol}</th>
+          <th scope="col">{copy.ssRoomsCol}</th>
+          <th scope="col">{copy.ssOccupancyCol}</th>
+          <th scope="col">{copy.ssNightsCol}</th>
+          <th scope="col">{copy.ssVacantCol}</th>
+          <th scope="col">ADR</th>
+          <th scope="col">RevPAR</th>
+          <th scope="col">{copy.ssRevenueCol}</th>
+          <th scope="col">{copy.ssCommissionCol}</th>
+          <th scope="col">{copy.ssNetCol}</th>
+        </tr>
+      </thead>
+      {rows.map((row) => {
+        const expanded = open.has(row.propertyName);
+        return (
+          // 건물마다 `<tbody>` 하나 — 건물 줄과 펼친 객실 줄이 한 묶음이다.
+          <tbody className={`opsss__group${expanded ? " is-open" : ""}`} key={row.propertyName}>
+            <tr className="is-prop">
+              <th className="c-name" scope="row">
+                <button
+                  aria-expanded={expanded}
+                  className="opsss__expand"
+                  onClick={() => toggle(row.propertyName)}
+                  title={row.propertyName}
+                  type="button"
+                >
+                  <ChevronRight aria-hidden="true" className="opsss__chev" />
+                  <span className="opsss__ellip">{row.propertyName}</span>
+                </button>
+              </th>
+              <td className="c-rooms c-num" data-label={copy.ssRoomsCol}>
+                {fmt.count(row.roomCount)}
+              </td>
+              {cells(row)}
+            </tr>
+            {expanded && row.rooms.map(roomRow)}
+          </tbody>
+        );
+      })}
+      {total && (
+        <tfoot>
+          <tr>
+            <th scope="row">{copy.ssTotal}</th>
+            <td className="c-rooms c-num" data-label={copy.ssRoomsCol}>
+              {fmt.count(total.roomCount)}
+            </td>
+            {cells(total)}
+          </tr>
+        </tfoot>
+      )}
+    </table>
+  );
+
   return (
     <>
+      {propertyNames.length > 1 && (
+        <section aria-label={copy.ssIncludeTitle} className="opsss__pick">
+          <span className="opsss__picklabel">{copy.ssIncludeTitle}</span>
+          <div className="opsss__pickchips">
+            {propertyNames.map((name) => {
+              const on = !excluded.has(name);
+              return (
+                <button
+                  aria-pressed={on}
+                  className={`opsss__pickchip${on ? " on" : ""}`}
+                  key={name}
+                  onClick={() => toggleIncluded(name)}
+                  type="button"
+                >
+                  {on && <Check aria-hidden="true" />}
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+          <span className="opsss__pickhint">{copy.ssIncludeHint}</span>
+        </section>
+      )}
       <div className="opsss__top">
         <div className="opsss__left">
           {/* 총매출 → − 수수료 → = 순매출: 한 흐름으로 읽힌다. */}
@@ -499,7 +656,7 @@ export function SummaryContent({
                 {copy.ssGross}
               </span>
               <span className="opsss__heroval">{fmt.yen(totals.revenue)}</span>
-              <span className="opsss__knote">{copy.ssGrossNote.replace("{n}", fmt.count(summary.reservationCount))}</span>
+              <span className="opsss__knote">{copy.ssGrossNote.replace("{n}", fmt.count(combined.reservationCount))}</span>
             </div>
             <div className="opsss__flowsteps">
               <div className="opsss__flowstep">
@@ -559,8 +716,8 @@ export function SummaryContent({
               <span className="opsss__kval">{fmt.nights(totals.vacantNights)}</span>
               <span className="opsss__knote">{copy.ssVacantNote}</span>
               <span className="opsss__kfuture">
-                {summary.futureVacancy.days > 0
-                  ? copy.ssFutureVacant.replace("{n}", fmt.count(summary.futureVacancy.vacantNights))
+                {combined.futureVacancy.days > 0
+                  ? copy.ssFutureVacant.replace("{n}", fmt.count(combined.futureVacancy.vacantNights))
                   : copy.ssFutureNone}
               </span>
             </div>
@@ -656,71 +813,19 @@ export function SummaryContent({
       {/* ── 건물별 — 줄을 누르면 그 건물의 객실이 아래로 펼쳐진다(여럿 동시에). ── */}
       <section className="opsss__card opsss__props">
         <h3 className="opsss__h3">{copy.ssProperties}</h3>
-        <table className="opsss__table opsss__ptable">
-          <colgroup>
-            <col className="w-pname" />
-            <col className="w-rooms" />
-            <col className="w-occ" />
-            <col className="w-n" />
-            <col className="w-n" />
-            <col className="w-yen" />
-            <col className="w-yen" />
-            <col className="w-yen-l" />
-            <col className="w-yen" />
-            <col className="w-yen-l" />
-          </colgroup>
-          <thead>
-            <tr>
-              <th scope="col">{copy.ssPropertyCol}</th>
-              <th scope="col">{copy.ssRoomsCol}</th>
-              <th scope="col">{copy.ssOccupancyCol}</th>
-              <th scope="col">{copy.ssNightsCol}</th>
-              <th scope="col">{copy.ssVacantCol}</th>
-              <th scope="col">ADR</th>
-              <th scope="col">RevPAR</th>
-              <th scope="col">{copy.ssRevenueCol}</th>
-              <th scope="col">{copy.ssCommissionCol}</th>
-              <th scope="col">{copy.ssNetCol}</th>
-            </tr>
-          </thead>
-          {summary.byProperty.map((row) => {
-            const expanded = open.has(row.propertyName);
-            return (
-              // 건물마다 `<tbody>` 하나 — 건물 줄과 펼친 객실 줄이 한 묶음이다.
-              <tbody className={`opsss__group${expanded ? " is-open" : ""}`} key={row.propertyName}>
-                  <tr className="is-prop">
-                    <th className="c-name" scope="row">
-                      <button
-                        aria-expanded={expanded}
-                        className="opsss__expand"
-                        onClick={() => toggle(row.propertyName)}
-                        title={row.propertyName}
-                        type="button"
-                      >
-                        <ChevronRight aria-hidden="true" className="opsss__chev" />
-                        <span className="opsss__ellip">{row.propertyName}</span>
-                      </button>
-                    </th>
-                    <td className="c-rooms c-num" data-label={copy.ssRoomsCol}>
-                      {fmt.count(row.roomCount)}
-                    </td>
-                    {cells(row)}
-                  </tr>
-                  {expanded && row.rooms.map(roomRow)}
-              </tbody>
-            );
-          })}
-          <tfoot>
-            <tr>
-              <th scope="row">{copy.ssTotal}</th>
-              <td className="c-rooms c-num" data-label={copy.ssRoomsCol}>
-                {fmt.count(totals.roomCount)}
-              </td>
-              {cells(totals)}
-            </tr>
-          </tfoot>
-        </table>
+        {propertyTable(includedRows, totals)}
       </section>
+
+      {/* ── 합계에서 뺀 건물 — 따로 본다(합계 · 가동률 · 채널에 안 들어간다). ── */}
+      {excludedRows.length > 0 && (
+        <section className="opsss__card opsss__props is-excluded">
+          <div className="opsss__cardhead">
+            <h3 className="opsss__h3">{copy.ssExcludedTitle}</h3>
+            <span className="opsss__exnote">{copy.ssExcludedNote}</span>
+          </div>
+          {propertyTable(excludedRows, null)}
+        </section>
+      )}
     </>
   );
 }

@@ -3506,6 +3506,7 @@ export type Database = {
           id: string
           last_used_organization_id: string | null
           name: string
+          ops_calendar_mode: string | null
           phone_number: string
           preferred_language: Database["public"]["Enums"]["app_language"]
           profile_photo_url: string | null
@@ -3524,6 +3525,7 @@ export type Database = {
           id: string
           last_used_organization_id?: string | null
           name: string
+          ops_calendar_mode?: string | null
           phone_number: string
           preferred_language?: Database["public"]["Enums"]["app_language"]
           profile_photo_url?: string | null
@@ -3542,6 +3544,7 @@ export type Database = {
           id?: string
           last_used_organization_id?: string | null
           name?: string
+          ops_calendar_mode?: string | null
           phone_number?: string
           preferred_language?: Database["public"]["Enums"]["app_language"]
           profile_photo_url?: string | null

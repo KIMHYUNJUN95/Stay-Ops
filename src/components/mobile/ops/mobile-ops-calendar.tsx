@@ -110,7 +110,7 @@ import "./mobile-ops-calendar.css";
 
 type Copy = Dictionary["opsAdmin"]["calendar"];
 
-type PropertyPill = { name: string; href: string; toggleHref: string; selected: boolean };
+type PropertyPill = { name: string; href: string; selected: boolean };
 
 type Nav = {
   allHref: string;
@@ -1050,18 +1050,30 @@ export function MobileOpsCalendar({
     /** 크롬이 보일 때의 격자 위 끝(변형을 뺀 자리) · 탭 바 위 끝 · 화면 바닥. **실제 위치를 잰다** — `innerHeight -
      *  탭 바 높이` 로 셈하면 셸이 창과 크기가 다를 때(관리자 미리보기 등) 맨 아래 줄이 탭 바 밑으로 들어갔다. */
     let naturalTop = 0;
+    let barTop = window.innerHeight;
+    let barBottom = window.innerHeight;
     let tabTop = window.innerHeight;
     let screenBottom = window.innerHeight;
     const measure = () => {
       naturalTop = grid.getBoundingClientRect().top + (hidden ? HEADER : 0);
       if (tabbar && !hidden) {
         const box = tabbar.getBoundingClientRect();
-        tabTop = box.top;
-        screenBottom = box.bottom;
+        barTop = box.top;
+        barBottom = box.bottom;
       } else if (!tabbar) {
-        tabTop = window.innerHeight;
-        screenBottom = window.innerHeight;
+        barTop = window.innerHeight;
+        barBottom = window.innerHeight;
       }
+      /*
+       * **선택 도구줄이 떠 있으면 격자는 그 위에서 끝난다**(2026-10-05 사용자 지적 「도구줄이 뜨면 맨 아래 객실이
+       * 가려진다」). 도구줄(가격 · 최소숙박 · 차단 버튼)은 탭 바보다 훨씬 높은데 격자는 탭 바 위 끝까지 차 있어서, 맨 아래
+       * 두세 줄이 도구줄 밑에 깔려 넘겨도 안 보였다. 높이는 `offsetHeight` 로 잰다 — 올라오는 애니메이션(transform)에
+       * 흔들리지 않는다. 도구줄은 화면 바닥에 붙은 고정 요소라 위 끝 = 창 높이 − 도구줄 높이.
+       */
+      const dock = document.querySelector<HTMLElement>(".mops-dock");
+      const dockTop = dock ? window.innerHeight - dock.offsetHeight : Number.POSITIVE_INFINITY;
+      tabTop = Math.min(barTop, dockTop);
+      screenBottom = Math.min(barBottom, dockTop);
     };
     measure();
     /*
@@ -1261,8 +1273,20 @@ export function MobileOpsCalendar({
   const hasDock = selCount > 0;
   // 줄 수 · 줄 높이(취소 보기 · 차단 층) · 맨 아래 여유(선택 도구줄)가 바뀌면 격자 높이를 다시 맞춘다 — 객실이 적은
   // 건물로 옮기면 줄어들고, 많은 건물로 옮기면 다시 탭 바까지 찬다.
+  const hadDockRef = useRef(false);
   useEffect(() => {
+    const grid = scrollerRef.current;
+    const before = grid?.clientHeight ?? 0;
     refitGridRef.current?.();
+    // 도구줄이 막 떴으면 — 방금 누른 칸이 줄어든 격자 아래로 밀려 가려지지 않게 그만큼만 넘겨 보여 준다.
+    if (grid && hasDock && !hadDockRef.current && grid.clientHeight < before) {
+      const view = grid.getBoundingClientRect();
+      let lowest = 0;
+      for (const cell of grid.querySelectorAll<HTMLElement>(".mops-c.sel")) lowest = Math.max(lowest, cell.getBoundingClientRect().bottom);
+      const hiddenBy = lowest - view.bottom;
+      if (hiddenBy > 0) grid.scrollTop += hiddenBy + 8;
+    }
+    hadDockRef.current = hasDock;
   }, [days, hasDock, nav.showCancelled, rooms, rows]);
   const selRoomCount = new Set(selection.map((cell) => cell.roomKey)).size;
   const scopeActive = isScopeActive(scope);
@@ -1275,19 +1299,18 @@ export function MobileOpsCalendar({
         <Link className={`mops-pill${allSelected ? " on" : ""}`} href={nav.allHref} onNavigate={markNav(nav.allHref)} scroll={false}>
           {copy.allProperties}
         </Link>
+        {/* 모바일은 한 건물씩 — 칩을 누르면 그 건물**만** 본다(2026-10-05: 예전 「함께 보기」 동그라미가 칩 이름 옆에
+            붙어 있어 잘못 누르면 이전 건물이 남았다). */}
         {properties.map((property) => (
-          <span className={`mops-pill${property.selected ? " on" : ""}`} key={property.name}>
-            <Link
-              aria-label={(property.selected ? copy.propertyRemove : copy.propertyAdd).replace("{name}", property.name)}
-              className={property.selected ? "mops-ck" : "mops-ck0"}
-              href={property.toggleHref}
-              onNavigate={markNav(property.toggleHref)}
-              scroll={false}
-            />
-            <Link href={property.href} onNavigate={markNav(property.href)} scroll={false}>
-              {property.name}
-            </Link>
-          </span>
+          <Link
+            className={`mops-pill${property.selected ? " on" : ""}`}
+            href={property.href}
+            key={property.name}
+            onNavigate={markNav(property.href)}
+            scroll={false}
+          >
+            {property.name}
+          </Link>
         ))}
       </div>
 
@@ -1502,16 +1525,17 @@ export function MobileOpsCalendar({
                   showCancelled={nav.showCancelled}
                   solo={group.rooms.length === 1}
                   today={today}
-                  urgFlags={flagsFor(room.key, urgentKeys)}
+                  // 임박 빈방 테두리는 칩을 **켰을 때만**(2026-10-02 사용자 지시 — 늘 그리면 격자가 복잡해 보였다).
+                  urgFlags={urgentPicked ? flagsFor(room.key, urgentKeys) : ""}
                   winIds={priceWinsOnly ? (winIdsByRoom.get(room.key) ?? "") : ""}
                 />
               );
             })}
           </div>
         ))}
-        {/* 맨 아래 여유 — 탭 바 위로 솟은 편집 버튼 · 홈 표시줄(안전 영역)에 마지막 줄이 가리지 않게. 선택 도구줄은
-            탭 바보다 높아 그만큼 더 둔다. */}
-        <div aria-hidden="true" className={`mops-endpad${selCount > 0 ? " dock" : ""}`} />
+        {/* 맨 아래 여유 — 탭 바 위로 솟은 편집 버튼 · 홈 표시줄(안전 영역)에 마지막 줄이 가리지 않게. 선택 도구줄이
+            뜨면 격자 자체가 도구줄 위에서 끝난다(위 높이 맞춤). */}
+        <div aria-hidden="true" className="mops-endpad" />
       </div>
 
       {/*
