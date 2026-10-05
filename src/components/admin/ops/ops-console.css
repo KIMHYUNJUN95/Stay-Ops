@@ -2341,6 +2341,27 @@
   font-variant-numeric: tabular-nums;
 }
 .opsg__pw.on .opsg__pwn { background: rgb(255 255 255 / 0.24); }
+/* 최근 예약(2026-10-05) — 가격 개입 성공과 같은 토글 모양. 켜면 옆에 시간대 칩(누르면 목록 · 기간 바꾸기). */
+.opsg__editbtn.opsg__rbrange {
+  border-style: dashed;
+  color: var(--adm-primary);
+  font-variant-numeric: tabular-nums;
+}
+.opsrb__rangebar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.opsrb__btn {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.opsrb__btn:hover { background: var(--adm-surface); }
+.opsrb__err { margin: 6px 0 0; font-size: 11.5px; font-weight: 700; color: var(--danger); }
 
 /* ── 큰방 위쪽 정렬 (STAY ARI Apartment Hotel) ─────────────────────────
  * 켜면 큰방이 건물 묶음 맨 위에 모이고, 객실명 칸 왼쪽에 강조선이 붙어 묶음임을 드러낸다.
@@ -3321,6 +3342,60 @@ button.ops__gapbtn:focus-visible { outline: 2px solid var(--danger); outline-off
 }
 .opsss__flowmain .opsss__klabel { color: rgb(255 255 255 / 0.76); }
 .opsss__flowmain .opsss__knote { color: rgb(255 255 255 / 0.66); }
+/* 전년 동기(2026-10-05) — 총매출 밑에 작게. 증감 색은 저쪽 매출 대시보드와 같다(오름 빨강 · 내림 파랑). */
+.opsss__yoy { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 4px; }
+.opsss__yoyline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 7px; font-size: 12px; }
+.opsss__yoyk { color: rgb(255 255 255 / 0.66); font-weight: 700; }
+.opsss__yoyv { color: #fff; font-weight: 800; font-variant-numeric: tabular-nums; }
+.opsss__yoyv.dim { color: rgb(255 255 255 / 0.66); font-weight: 600; }
+.opsss__chg { font-size: 11.5px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.opsss__chg.up { color: #dc2626; }
+.opsss__chg.down { color: #2563eb; }
+.opsss__flowmain .opsss__chg.up { color: #ffb4b4; }
+.opsss__flowmain .opsss__chg.down { color: #b9d3ff; }
+.opsss__yoynew {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 8px 3px 10px;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  border-radius: var(--r-pill);
+  background: rgb(255 255 255 / 0.1);
+  color: #fff;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.opsss__yoynew:hover { background: rgb(255 255 255 / 0.18); }
+.opsss__yoynew:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.opsss__yoynew svg { width: 13px; height: 13px; flex: none; transition: transform 0.18s ease; }
+.opsss__yoynew.on svg { transform: rotate(180deg); }
+.opsss__yoypanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--ss-radius);
+  box-shadow: var(--ss-shadow);
+}
+.opsss__yoydiff { margin: 0; font-size: 12px; font-weight: 800; color: var(--ink); }
+.opsss__yoycmp { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin: 0; font-size: 11.5px; color: var(--ink-soft); }
+.opsss__yoycmp b { font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.opsss__yoygroups { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.opsss__yoygroups > li { padding: 8px 10px; border-radius: 10px; background: var(--card2); border: 1px solid var(--line-soft); }
+.opsss__yoyg { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; }
+.opsss__yoyg b { font-weight: 800; color: var(--ink); min-width: 0; }
+.opsss__yoytag { flex: none; padding: 2px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 800; white-space: nowrap; }
+.opsss__yoytag.not_open { background: var(--primary-soft); color: var(--adm-primary); }
+.opsss__yoytag.no_sales { background: var(--adm-surface); color: var(--ink-soft); }
+.opsss__yoyamt { margin-left: auto; flex: none; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.opsss__yoyrooms { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 5px; font-size: 11.5px; color: var(--ink-soft); font-weight: 700; }
+.opsss__yoyrooms em { font-style: normal; color: var(--faint); font-weight: 600; font-variant-numeric: tabular-nums; }
 .opsss__heroval {
   font-size: 34px;
   font-weight: 850;

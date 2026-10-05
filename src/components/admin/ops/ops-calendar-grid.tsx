@@ -20,6 +20,12 @@ import {
 } from "@/lib/ops-calendar-rows";
 import { loadOpsCellHistory, loadOpsPriceConversions } from "@/app/admin/ops/calendar/actions";
 import { OpsPriceWinsPanel, type PriceWinsCopy } from "@/components/admin/ops/ops-price-wins-panel";
+import {
+  OpsRecentBookingsPanel,
+  recentRangeLabel,
+  type RecentBookingsCopy,
+} from "@/components/admin/ops/ops-recent-bookings-panel";
+import { useRecentBookings } from "@/components/admin/ops/use-recent-bookings";
 import { OpsCellHistoryCard, type CellHistoryCardCopy } from "@/components/admin/ops/ops-cell-history-card";
 import { OpsHistoryPanel, type HistoryPanelCopy } from "@/components/admin/ops/ops-history-panel";
 import {
@@ -135,7 +141,9 @@ type Copy = {
   CellHistoryCardCopy &
   HistoryPanelCopy & { hsButton: string; hsAlertTitle: string } &
   SalesSummaryCopy & { ssButton: string } &
-  PriceWinsCopy & {
+  PriceWinsCopy &
+  RecentBookingsCopy & {
+    rbToggle: string;
     pwToggle: string;
     pwList: string;
     largeFirst: string;
@@ -1012,6 +1020,12 @@ export function OpsCalendarGrid({
    * (어디에 섞여 있는지가 보여야 한다, 저쪽과 같다).
    */
   const [priceWinsOnly, setPriceWinsOnly] = useState(false);
+  /**
+   * **최근 예약**(2026-10-05) — 정한 시간대에 들어온, 가격 개입 성공이 아닌 예약만 진하게. 가격 개입 성공과 같은 강조
+   * 방식이라 둘 중 하나만 켠다(켜면 다른 쪽이 꺼진다). 켜면 도구줄에 시간대 칩이 붙고 그걸 누르면 목록 · 기간 바꾸기.
+   */
+  const [recentOnly, setRecentOnly] = useState(false);
+  const [recentOpen, setRecentOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   /** 「매출 요약」 모달 — 보고 있는 창 × 고른 건물(2026-09-30). */
   const [salesOpen, setSalesOpen] = useState(false);
@@ -1196,6 +1210,14 @@ export function OpsCalendarGrid({
     () => new Set((priceConversions ?? []).map((conversion) => conversion.reservationId)),
     [priceConversions],
   );
+  const recent = useRecentBookings({ days: days.length, propertyKey, refreshToken: refreshGeneration, windowStart });
+  /** 보이는 객실 것만. `null` = 받는 중. */
+  const recentBookings = useMemo(() => {
+    if (!recent.bookings) return null;
+    const visible = new Set(serverRooms.map((room) => room.key));
+    return recent.bookings.filter((booking) => visible.has(booking.roomKey));
+  }, [recent.bookings, serverRooms]);
+  const recentIds = useMemo(() => new Set((recentBookings ?? []).map((booking) => booking.reservationId)), [recentBookings]);
   const [openBar, setOpenBar] = useState<{
     bar: OpsCalendarBar;
     roomLabel: string;
@@ -1366,7 +1388,7 @@ export function OpsCalendarGrid({
    * 큰방 위쪽 정렬은 기본 켜짐인 보기 설정이라 끄지 않는다.
    */
   const anyToggleOn =
-    editMode || priceWinsOnly || priceWinsOpen || historyOpen || vacantOnly;
+    editMode || priceWinsOnly || priceWinsOpen || recentOnly || recentOpen || historyOpen || vacantOnly;
   const escYields = (editMode && hasSelection) || Boolean(openBar) || Boolean(booking) || Boolean(activeDraft);
   useEffect(() => {
     if (!anyToggleOn || escYields) return;
@@ -1379,6 +1401,8 @@ export function OpsCalendarGrid({
       setMode("off");
       setPriceWinsOnly(false);
       setPriceWinsOpen(false);
+      setRecentOnly(false);
+      setRecentOpen(false);
       setHistoryOpen(false);
       // 매출 요약은 자기 Esc 로 닫는다 — 여기서 바로 끄면 닫힘 애니메이션이 끊긴다.
       setVacantOnly(false);
@@ -1574,6 +1598,17 @@ export function OpsCalendarGrid({
     }
     return new Map([...byRoom].map(([roomKey, list]) => [roomKey, list.join("|")]));
   }, [bars, conversionIds]);
+  /** 행마다 최근 예약 막대 id — 위와 같은 모양. */
+  const recentIdsByRoom = useMemo(() => {
+    const byRoom = new Map<string, string[]>();
+    for (const bar of bars) {
+      if (!recentIds.has(bar.id)) continue;
+      const list = byRoom.get(bar.roomKey);
+      if (list) list.push(bar.id);
+      else byRoom.set(bar.roomKey, [bar.id]);
+    }
+    return new Map([...byRoom].map(([roomKey, list]) => [roomKey, list.join("|")]));
+  }, [bars, recentIds]);
   /** 행마다 고른 날짜(`|` 로 이음) — 문자열이라 다른 행이 바뀌어도 그 행의 값은 같다. */
   const selectedDatesByRoom = useMemo(() => {
     const byRoom = new Map<string, string[]>();
@@ -1861,7 +1896,10 @@ export function OpsCalendarGrid({
             <button
               aria-pressed={priceWinsOnly}
               className={`opsg__editbtn opsg__pw${priceWinsOnly ? " on" : ""}`}
-              onClick={() => setPriceWinsOnly((value) => !value)}
+              onClick={() => {
+                setPriceWinsOnly((value) => !value);
+                setRecentOnly(false);
+              }}
               type="button"
             >
               {copy.pwToggle}
@@ -1871,6 +1909,24 @@ export function OpsCalendarGrid({
             <button className="opsg__editbtn" onClick={() => setPriceWinsOpen(true)} type="button">
               {copy.pwList}
             </button>
+            {/* 최근 예약 — 가격을 건드리지 않았는데 정한 시간대에 들어온 예약(가격 개입 성공의 반대). */}
+            <button
+              aria-pressed={recentOnly}
+              className={`opsg__editbtn opsg__pw opsg__recent${recentOnly ? " on" : ""}`}
+              onClick={() => {
+                setRecentOnly((value) => !value);
+                setPriceWinsOnly(false);
+              }}
+              type="button"
+            >
+              {copy.rbToggle}
+              <span className="opsg__pwn">{recentBookings ? recentBookings.length : "…"}</span>
+            </button>
+            {recentOnly && (
+              <button className="opsg__editbtn opsg__rbrange" onClick={() => setRecentOpen(true)} type="button">
+                {recent.range ? recentRangeLabel(recent.range, copy.rbNow) : "…"}
+              </button>
+            )}
             {/* 이력 · 전송 로그 — 변경 이력과 「Beds24 에 제대로 나갔나」. 실패·멈춘 작업이 있으면 숫자. */}
             <button
               className={`opsg__editbtn opsg__hist${historyAlerts > 0 ? " alert" : ""}`}
@@ -2163,13 +2219,19 @@ export function OpsCalendarGrid({
                 large={largeActive && isOpsLargeRoom(room.propertyName, room.displayRoomLabel)}
                 pendingMinStay={pendingMinStayByRoom.get(room.key) ?? EMPTY_ROW_PENDING}
                 pendingPrices={pendingPricesByRoom.get(room.key) ?? EMPTY_ROW_PENDING}
-                priceWinsOnly={priceWinsOnly}
+                priceWinsOnly={priceWinsOnly || recentOnly}
                 row={row}
                 scopeOn={scope.roomKeys.includes(room.key)}
                 selectedDates={selectedDatesByRoom.get(room.key) ?? ""}
                 showCancelled={showCancelled}
                 today={today}
-                winIds={priceWinsOnly ? (winIdsByRoom.get(room.key) ?? "") : ""}
+                winIds={
+                  priceWinsOnly
+                    ? (winIdsByRoom.get(room.key) ?? "")
+                    : recentOnly
+                      ? (recentIdsByRoom.get(room.key) ?? "")
+                      : ""
+                }
               />
               );
             })}
@@ -2215,6 +2277,42 @@ export function OpsCalendarGrid({
           properties={properties}
           scope={rows}
           start={days[0].date}
+        />
+      )}
+
+      {recentOpen && (
+        <OpsRecentBookingsPanel
+          bookings={recentBookings}
+          copy={copy}
+          localeTag={copy.localeTag}
+          onApplyRange={recent.setRange}
+          onClose={() => setRecentOpen(false)}
+          onOpenReservation={(booking) => {
+            setRecentOpen(false);
+            setOpenBar({
+              bar: {
+                channel: booking.channel,
+                checkIn: booking.checkIn,
+                checkOut: booking.checkOut,
+                guestName: booking.guestName,
+                id: booking.reservationId,
+                isCancelled: false,
+                roomKey: booking.roomKey,
+              },
+              propertyName: booking.propertyName,
+              roomIds: rooms.find((room) => room.key === booking.roomKey)?.roomIds ?? [],
+              roomLabel: booking.roomLabel,
+            });
+          }}
+          onResetRange={recent.resetRange}
+          propertyName={
+            properties.length > 1
+              ? properties.join(" · ")
+              : new Set(rooms.map((room) => room.propertyName)).size === 1
+                ? rooms[0]?.propertyName ?? null
+                : null
+          }
+          range={recent.range}
         />
       )}
 

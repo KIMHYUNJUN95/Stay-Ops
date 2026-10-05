@@ -42,6 +42,7 @@ import { readAllPages, SUPABASE_PAGE_SIZE } from "@/lib/supabase/read-all-pages"
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { resolveSelectedProperties } from "@/lib/ops-calendar-properties";
+import { isSalesCountedReservation, legacyReservationAmount, type SalesRawPayload } from "@/lib/ops-sales-summary";
 import { opsUnitRoomKey, ROOM_AXIS_SEPARATOR, toRoomAxisKey } from "@/lib/ops-room-key";
 
 /**
@@ -1515,6 +1516,93 @@ export async function getOpsPriceConversions(
     });
   }
   return priceConversions;
+}
+
+/** 최근 들어온 예약 한 건(2026-10-05 「최근 예약」 — 가격 개입 성공의 반대). */
+export type OpsRecentBooking = {
+  reservationId: string;
+  roomKey: string;
+  roomLabel: string;
+  propertyName: string;
+  guestName: string;
+  channel: OpsCalendarChannel;
+  checkIn: string;
+  checkOut: string;
+  /** Beds24 `bookingTime`(UTC ISO). 화면이 도쿄로 바꾼다. */
+  bookedAt: string;
+  /** 예약 금액(매출 요약과 같은 읽기 — `invoiceItems` 합 → `price` → `amount`). 모르면 0. */
+  amount: number;
+};
+
+/**
+ * **최근 예약** — 정한 시간대(`fromMs` ≤ 예약 시각 < `toMs`)에 들어온 확정 예약 중 **가격 개입 성공에 잡힌 것을 뺀**
+ * 순수 예약(2026-10-05 사용자 결정). 가격 개입 성공이 「가격을 바꿔서 팔렸다」라면 이건 「손대지 않았는데 팔리고
+ * 있다」 — 수요가 붙는 날을 찾아 값을 올릴지 보는 용도다.
+ *
+ * 범위는 가격 개입 성공과 같다 — **보고 있는 창에 숙박이 걸친 예약 × 고른 건물**. 예약 시각은 Beds24 `bookingTime`
+ * (격자 · 가격 개입 판정과 같은 값), 없으면 넣지 않는다. 판정 대조를 위해 같은 창의 가격 개입 판정을 함께 돌린다.
+ */
+export async function getOpsRecentBookings(
+  session: AppSession,
+  filters: { properties?: readonly string[]; start: string; end: string; fromMs: number; toMs: number },
+): Promise<OpsRecentBooking[]> {
+  const supabase = await getSupabaseServerClient();
+  const endExclusive = addDays(filters.end, 1);
+  const [roomRowsResult, bookingsResult, conversions] = await Promise.all([
+    fetchRoomCatalogRows(session.organization.id, supabase),
+    readAllPages<Record<string, unknown>>((from, to) =>
+      supabase
+        .from("reservations")
+        .select(SALES_RESERVATION_SELECT)
+        .eq("organization_id", session.organization.id)
+        .lt("check_in_date", endExclusive)
+        .gt("check_out_date", filters.start)
+        .order("check_in_date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to) as unknown as SlimReservationPage,
+    ),
+    getOpsPriceConversions(session, { end: filters.end, properties: filters.properties, start: filters.start }),
+  ]);
+  if (roomRowsResult.error) throw new Error(roomRowsResult.error.message);
+  if (bookingsResult.error) throw new Error(bookingsResult.error.message);
+  const roomCatalog = buildActiveRoomCatalog(roomRowsResult.data, { includeNonOperationalProperties: true });
+  const reservationRoomAxis = makeReservationRoomAxis(roomCatalog);
+  const priceWon = new Set(conversions.map((conversion) => conversion.reservationId));
+  const wanted = new Set(filters.properties ?? []);
+
+  const result: OpsRecentBooking[] = [];
+  for (const raw of bookingsResult.data) {
+    const row = toReservationRow(raw);
+    if (row.status === "cancelled" || row.status === "no_show") continue;
+    if (priceWon.has(row.id)) continue;
+    if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
+    const bookingTime = (row.raw_payload as Record<string, unknown> | null)?.bookingTime;
+    const bookedAtMs = typeof bookingTime === "string" ? Date.parse(bookingTime) : NaN;
+    if (!Number.isFinite(bookedAtMs) || bookedAtMs < filters.fromMs || bookedAtMs >= filters.toMs) continue;
+    // 문의 · 차단 예약(원본 `request` · `black` …)은 우리 표에서 `confirmed` 로 적혀도 예약이 아니다.
+    const sales: SalesRawPayload = {};
+    for (const key of SALES_PAYLOAD_KEYS) {
+      const value = raw[`sp_${key}`];
+      if (value !== null && value !== undefined) (sales as Record<string, unknown>)[key] = value;
+    }
+    if (!isSalesCountedReservation({ raw: sales, status: row.status })) continue;
+    const axis = reservationRoomAxis(row);
+    if (wanted.size > 0 && !wanted.has(axis.propertyName)) continue;
+    result.push({
+      amount: legacyReservationAmount(sales),
+      bookedAt: new Date(bookedAtMs).toISOString(),
+      channel: opsChannelOf(row.source),
+      checkIn: row.check_in_date,
+      checkOut: row.check_out_date,
+      guestName: row.guest_name,
+      propertyName: axis.propertyName,
+      reservationId: row.id,
+      roomKey: axis.roomKey,
+      roomLabel: axis.displayRoomLabel,
+    });
+  }
+  // 최근 것부터.
+  return result.sort((a, b) => b.bookedAt.localeCompare(a.bookedAt));
 }
 
 /** 캘린더 밖에서 예약 한 건을 열 때 — 상세 패널이 격자에서 연 것과 같은 값을 받게 한다. */

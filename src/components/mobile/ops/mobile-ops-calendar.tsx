@@ -35,6 +35,8 @@ import { OpsCellHistoryCard } from "@/components/admin/ops/ops-cell-history-card
 import { OpsHistoryPanel } from "@/components/admin/ops/ops-history-panel";
 import { type PanelCell } from "@/components/admin/ops/ops-price-panel";
 import { OpsPriceWinsPanel } from "@/components/admin/ops/ops-price-wins-panel";
+import { OpsRecentBookingsPanel, recentRangeLabel } from "@/components/admin/ops/ops-recent-bookings-panel";
+import { useRecentBookings } from "@/components/admin/ops/use-recent-bookings";
 import { OpsSalesSummarySheet } from "@/components/admin/ops/ops-sales-summary-modal";
 import { watchOpsWriteJob, type OpsWriteKind, type RunOpsWrite } from "@/components/admin/ops/ops-write-tracker";
 import { Beds24LiveDot } from "@/components/shared/beds24-live-dot";
@@ -135,7 +137,7 @@ type Jump = {
 type Pending = { token: number; value: number };
 type PanelKind = "price" | "minstay" | "block";
 type Overlay =
-  | { kind: PanelKind | "scope" | "history" | "wins" | "jump" }
+  | { kind: PanelKind | "scope" | "history" | "wins" | "recent" | "jump" }
   | { kind: "reservation"; placement: OpsReservationPlacement }
   | { kind: "booking"; room: BookingPanelRoom; checkIn: string; checkOut: string }
   | { kind: "cellHistory"; roomKey: string; date: string }
@@ -440,6 +442,26 @@ export function MobileOpsCalendar({
     }
     return new Map([...byRoom].map(([roomKey, list]) => [roomKey, list.join("|")]));
   }, [allBars, priceConversions]);
+
+  // ── 최근 예약(2026-10-05 — 데스크톱과 같은 훅 · 같은 판정). 가격 개입 성공과 둘 중 하나만 켠다. ──
+  const [recentOnly, setRecentOnly] = useState(false);
+  const recent = useRecentBookings({ days: days.length, propertyKey, refreshToken: rows, windowStart });
+  const recentBookings = useMemo(() => {
+    if (!recent.bookings) return null;
+    const visible = new Set(serverRooms.map((room) => room.key));
+    return recent.bookings.filter((booking) => visible.has(booking.roomKey));
+  }, [recent.bookings, serverRooms]);
+  const recentIdsByRoom = useMemo(() => {
+    const ids = new Set((recentBookings ?? []).map((booking) => booking.reservationId));
+    const byRoom = new Map<string, string[]>();
+    for (const bar of allBars) {
+      if (!ids.has(bar.id)) continue;
+      const list = byRoom.get(bar.roomKey);
+      if (list) list.push(bar.id);
+      else byRoom.set(bar.roomKey, [bar.id]);
+    }
+    return new Map([...byRoom].map(([roomKey, list]) => [roomKey, list.join("|")]));
+  }, [allBars, recentBookings]);
 
   // ── 쓰기(흐린 값 → 접수 → 반영 대기 → 다시 읽기) ──────────────────────────
   const [pendingPrices, setPendingPrices] = useState<Map<string, Pending>>(new Map());
@@ -1361,7 +1383,10 @@ export function MobileOpsCalendar({
         <button
           aria-pressed={priceWinsOnly}
           className={`mops-chip${priceWinsOnly ? " on" : ""}`}
-          onClick={() => setPriceWinsOnly((value) => !value)}
+          onClick={() => {
+            setPriceWinsOnly((value) => !value);
+            setRecentOnly(false);
+          }}
           type="button"
         >
           {copy.pwToggle}
@@ -1370,6 +1395,24 @@ export function MobileOpsCalendar({
         <button className="mops-chip" onClick={() => setOverlay({ kind: "wins" })} type="button">
           {copy.pwList}
         </button>
+        {/* 최근 예약 — 가격을 건드리지 않았는데 정한 시간대에 들어온 예약. 켜면 시간대 칩(누르면 목록 · 기간 바꾸기). */}
+        <button
+          aria-pressed={recentOnly}
+          className={`mops-chip${recentOnly ? " on" : ""}`}
+          onClick={() => {
+            setRecentOnly((value) => !value);
+            setPriceWinsOnly(false);
+          }}
+          type="button"
+        >
+          {copy.rbToggle}
+          <b>{recentBookings ? recentBookings.length : "…"}</b>
+        </button>
+        {recentOnly && (
+          <button className="mops-chip dashed" onClick={() => setOverlay({ kind: "recent" })} type="button">
+            {recent.range ? recentRangeLabel(recent.range, copy.rbNow) : "…"}
+          </button>
+        )}
         <button
           className={`mops-chip${historyAlerts > 0 ? " alert" : ""}`}
           onClick={() => setOverlay({ kind: "history" })}
@@ -1517,7 +1560,7 @@ export function MobileOpsCalendar({
                   days={days}
                   key={room.key}
                   pending={pendingByRoom.get(room.key)}
-                  priceWinsOnly={priceWinsOnly}
+                  priceWinsOnly={priceWinsOnly || recentOnly}
                   row={row}
                   rowIndex={rowIndexByKey.get(room.key) ?? 0}
                   scopeOn={scope.roomKeys.includes(room.key)}
@@ -1527,7 +1570,13 @@ export function MobileOpsCalendar({
                   today={today}
                   // 임박 빈방 테두리는 칩을 **켰을 때만**(2026-10-02 사용자 지시 — 늘 그리면 격자가 복잡해 보였다).
                   urgFlags={urgentPicked ? flagsFor(room.key, urgentKeys) : ""}
-                  winIds={priceWinsOnly ? (winIdsByRoom.get(room.key) ?? "") : ""}
+                  winIds={
+                    priceWinsOnly
+                      ? (winIdsByRoom.get(room.key) ?? "")
+                      : recentOnly
+                        ? (recentIdsByRoom.get(room.key) ?? "")
+                        : ""
+                  }
                 />
               );
             })}
@@ -1859,6 +1908,50 @@ export function MobileOpsCalendar({
                     : null
               }
               windowLabel={opsWindowLabel(days)}
+            />
+          </div>
+          )}
+        </BottomSheet>
+      )}
+
+      {overlay?.kind === "recent" && (
+        <BottomSheet ariaLabel={copy.rbTitle} className="flex max-h-[88dvh] flex-col" onClose={() => setOverlay(null)}>
+          {({ close }) => (
+          <div className="adm ops mops-panel mops-side">
+            <OpsRecentBookingsPanel
+              bookings={recentBookings}
+              copy={copy}
+              localeTag={copy.localeTag}
+              onApplyRange={recent.setRange}
+              onClose={close}
+              onOpenReservation={(booking) =>
+                setOverlay({
+                  kind: "reservation",
+                  placement: {
+                    bar: {
+                      channel: booking.channel,
+                      checkIn: booking.checkIn,
+                      checkOut: booking.checkOut,
+                      guestName: booking.guestName,
+                      id: booking.reservationId,
+                      isCancelled: false,
+                      roomKey: booking.roomKey,
+                    },
+                    propertyName: booking.propertyName,
+                    roomIds: rowByKey.get(booking.roomKey)?.room.roomIds ?? [],
+                    roomLabel: booking.roomLabel,
+                  },
+                })
+              }
+              onResetRange={recent.resetRange}
+              propertyName={
+                selectedProperties.length > 1
+                  ? selectedProperties.join(" · ")
+                  : new Set(rooms.map((room) => room.propertyName)).size === 1
+                    ? (rooms[0]?.propertyName ?? null)
+                    : null
+              }
+              range={recent.range}
             />
           </div>
           )}

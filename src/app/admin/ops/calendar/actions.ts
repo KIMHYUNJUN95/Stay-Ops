@@ -35,14 +35,18 @@ import { parsePropertyParam } from "@/lib/ops-calendar-properties";
 import { canAccessOpsAdmin } from "@/lib/ops-admin";
 import { getOpsSalesSummary } from "@/lib/ops-sales-summary-server";
 import type { OpsSalesSummary } from "@/lib/ops-sales-summary";
+import type { SalesYoyPrevious } from "@/lib/ops-sales-yoy";
 import {
   getOpsPriceConversions,
+  getOpsRecentBookings,
   OPS_CALENDAR_ROLLING_DAYS,
   opsChannelOf,
   readOpsCellHistory,
   readOpsRoomUnavailableNights,
   type OpsPriceConversion,
+  type OpsRecentBooking,
 } from "@/lib/ops-calendar";
+import { resolveRecentRange } from "@/lib/ops-recent-bookings-range";
 import type { CellHistory } from "@/lib/ops-price-history";
 import {
   addedNights,
@@ -1616,9 +1620,54 @@ export async function loadOpsPriceConversions(args: {
   }
 }
 
+export type OpsRecentBookingsResult =
+  | { ok: false; error: "forbidden" | "failed" }
+  | { ok: true; bookings: OpsRecentBooking[]; from: string; to: string; isDefault: boolean; endsNow: boolean };
+
+/**
+ * 「최근 예약」(2026-10-05) — 정한 시간대에 들어온 확정 예약 중 가격 개입 성공을 뺀 것, **보고 있는 창 × 고른 건물**.
+ * 시간대를 안 보내면 기본(도쿄 이틀 전 0시 ~ 지금). 서버가 시간대를 다시 거른다(31일 넘게 · 거꾸로면 기본).
+ */
+export async function loadOpsRecentBookings(args: {
+  properties?: readonly string[] | null;
+  start: string;
+  days: number;
+  from?: string | null;
+  to?: string | null;
+}): Promise<OpsRecentBookingsResult> {
+  const session = await requireOpsWriter();
+  if (!session) return { error: "forbidden", ok: false };
+  const start = typeof args.start === "string" ? args.start : "";
+  const days = typeof args.days === "number" && Number.isInteger(args.days) ? args.days : 0;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || days < 1 || days > 31) return { error: "failed", ok: false };
+  const [y, m, d] = start.split("-").map(Number);
+  const end = new Date(Date.UTC(y, m - 1, d + days - 1)).toISOString().slice(0, 10);
+  const range = resolveRecentRange(Date.now(), {
+    from: typeof args.from === "string" ? args.from : null,
+    to: typeof args.to === "string" ? args.to : null,
+  });
+  try {
+    const properties = parsePropertyParam(
+      Array.isArray(args.properties) ? args.properties.filter((name): name is string => typeof name === "string") : [],
+    );
+    const bookings = await getOpsRecentBookings(session, { end, fromMs: range.fromMs, properties, start, toMs: range.toMs });
+    return {
+      bookings,
+      endsNow: range.endsNow,
+      from: new Date(range.fromMs).toISOString(),
+      isDefault: range.isDefault,
+      ok: true,
+      to: new Date(range.toMs).toISOString(),
+    };
+  } catch (error) {
+    console.error("[ops-calendar] recent bookings read failed", error);
+    return { error: "failed", ok: false };
+  }
+}
+
 export type OpsSalesSummaryResult =
   | { ok: false; error: "forbidden" | "bad_window" | "failed" }
-  | { ok: true; summary: OpsSalesSummary & { properties: string[] } };
+  | { ok: true; summary: OpsSalesSummary & { properties: string[]; previous: SalesYoyPrevious } };
 
 /**
  * 「매출 요약」 모달 — **보고 있는 창 × 고른 건물**의 매출·수수료·가동률·ADR·빈방(2026-09-30).

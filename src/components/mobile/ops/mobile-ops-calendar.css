@@ -250,6 +250,8 @@ a.mops-pill { padding-inline: 14px; }
   place-items: center;
 }
 .mops-chip.urg { color: var(--mops-warn); }
+/* 최근 예약 시간대 칩(2026-10-05) — 켠 토글 옆에 붙는다. 누르면 목록 · 기간 바꾸기. */
+.mops-chip.dashed { border-style: dashed; color: var(--primary); font-variant-numeric: tabular-nums; }
 .mops-chip.urg b { background: var(--mops-warn-bg); color: var(--mops-warn); }
 .mops-chip.gap {
   border-color: hsl(4 62% 46% / 0.4);

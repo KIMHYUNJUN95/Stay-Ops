@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowDown, ArrowUp, BedDouble, Check, ChevronRight, Info, ReceiptText, Tag, TrendingUp, Wallet, X } from "lucide-react";
+import { ArrowDown, ArrowUp, BedDouble, Check, ChevronDown, ChevronRight, Info, ReceiptText, Tag, TrendingUp, Wallet, X } from "lucide-react";
 import { loadOpsSalesSummary, type OpsSalesSummaryResult } from "@/app/admin/ops/calendar/actions";
 import { useAdminPanelA11y } from "@/components/admin/shared/use-admin-panel-a11y";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
@@ -14,6 +14,7 @@ import {
   type SalesPropertyRow,
   type SalesRoomRow,
 } from "@/lib/ops-sales-summary";
+import { buildSalesYoy, type SalesYoy } from "@/lib/ops-sales-yoy";
 
 /**
  * 판매 캘린더 「매출 요약」 모달 — **보고 있는 창 × 고른 건물**(2026-09-30).
@@ -83,6 +84,14 @@ export type SalesSummaryCopy = {
   ssBasisCommission: string;
   ssBasisLegacy: string;
   ssMixCol: string;
+  ssYoyLabel: string;
+  ssYoyNone: string;
+  ssYoyNewRooms: string;
+  ssYoyDiff: string;
+  ssYoyComparable: string;
+  ssYoyNotOpen: string;
+  ssYoyNoSales: string;
+  ssYoyWholeBuilding: string;
   ssSortDesc: string;
   ssSortAsc: string;
   ssSortReset: string;
@@ -455,6 +464,121 @@ function OccCell({ fmt, value }: { fmt: Fmt; value: number }) {
   );
 }
 
+const shortRange = (start: string, endExclusive: string) => {
+  const end = addDays(endExclusive, -1);
+  return `${start} → ${end.slice(0, 4) === start.slice(0, 4) ? end.slice(5) : end}`;
+};
+
+/** 증감 — 올라가면 빨강 ▲, 내려가면 파랑 ▼(저쪽 매출 대시보드와 같은 색 규칙). 비교 불가면 그리지 않는다. */
+function Change({ value }: { value: number | null }) {
+  if (value === null) return null;
+  const up = value >= 0;
+  return (
+    <span className={`opsss__chg ${up ? "up" : "down"}`}>
+      {up ? "▲" : "▼"} {Math.abs(value).toFixed(1)}%
+    </span>
+  );
+}
+
+/**
+ * 전년 동기(2026-10-05 사용자 요청) — 총매출 밑에 작게: 「전년 동기 ¥X ▲ n%」. 전년에 매출이 없던 객실이 있으면 그 줄을
+ * 눌러 펼친다 — 차이 분해(기존 객실 증감 + 전년 매출 없던 객실), 건물별로 「운영 전 · 첫 손님」/「운영 중 · 그 기간 매출
+ * 없음」, 객실과 지금 매출(= 차이).
+ */
+function YoyLine({
+  copy,
+  fmt,
+  onToggle,
+  open,
+  panelId,
+  yoy,
+}: {
+  copy: SalesSummaryCopy;
+  fmt: Fmt;
+  onToggle: () => void;
+  open: boolean;
+  panelId: string;
+  yoy: SalesYoy;
+}) {
+  return (
+    <div className="opsss__yoy">
+      <div className="opsss__yoyline">
+        <span className="opsss__yoyk" title={shortRange(yoy.previousStart, yoy.previousEndExclusive)}>
+          {copy.ssYoyLabel}
+        </span>
+        {yoy.previousRevenue > 0 ? (
+          <>
+            <span className="opsss__yoyv">{fmt.yen(yoy.previousRevenue)}</span>
+            <Change value={yoy.changePct} />
+          </>
+        ) : (
+          <span className="opsss__yoyv dim">{copy.ssYoyNone}</span>
+        )}
+      </div>
+      {yoy.newRooms.count > 0 && (
+        <button
+          aria-controls={panelId}
+          aria-expanded={open}
+          className={`opsss__yoynew${open ? " on" : ""}`}
+          onClick={onToggle}
+          type="button"
+        >
+          {copy.ssYoyNewRooms.replace("{n}", fmt.count(yoy.newRooms.count)).replace("{amount}", fmt.yen(yoy.newRooms.revenue))}
+          <ChevronDown aria-hidden="true" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** 펼친 내용 — 총매출 카드 바로 밑 흰 카드. */
+function YoyPanel({ copy, fmt, panelId, yoy }: { copy: SalesSummaryCopy; fmt: Fmt; panelId: string; yoy: SalesYoy }) {
+  const signed = (value: number) => `${value >= 0 ? "+" : ""}${fmt.yen(value)}`;
+  return (
+    <section aria-label={copy.ssYoyLabel} className="opsss__yoypanel" id={panelId}>
+      <p className="opsss__yoydiff">
+        {copy.ssYoyDiff
+          .replace("{diff}", signed(yoy.currentRevenue - yoy.previousRevenue))
+          .replace("{a}", signed(yoy.comparable.current - yoy.comparable.previous))
+          .replace("{b}", signed(yoy.newRooms.revenue))}
+      </p>
+      {yoy.comparable.roomCount > 0 && (
+        <p className="opsss__yoycmp">
+          <span>{copy.ssYoyComparable.replace("{n}", fmt.count(yoy.comparable.roomCount))}</span>
+          <b>
+            {fmt.yen(yoy.comparable.previous)} → {fmt.yen(yoy.comparable.current)}
+          </b>
+          <Change value={yoy.comparable.changePct} />
+        </p>
+      )}
+      <ul className="opsss__yoygroups">
+        {yoy.newRooms.groups.map((group) => (
+          <li key={group.propertyName}>
+            <div className="opsss__yoyg">
+              <b className="opsss__ellip">{group.propertyName}</b>
+              <span className={`opsss__yoytag ${group.reason}`}>
+                {group.reason === "not_open" ? copy.ssYoyNotOpen.replace("{date}", group.firstStay ?? "—") : copy.ssYoyNoSales}
+              </span>
+              <span className="opsss__yoyamt">{signed(group.revenue)}</span>
+            </div>
+            <div className="opsss__yoyrooms">
+              {group.wholeBuilding ? (
+                <span>{copy.ssYoyWholeBuilding.replace("{n}", fmt.count(group.rooms.length))}</span>
+              ) : (
+                group.rooms.map((room) => (
+                  <span key={room.key}>
+                    {room.label} <em>{signed(room.revenue)}</em>
+                  </span>
+                ))
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 const MIX_ORDER: readonly SalesChannel[] = ["airbnb", "booking", "direct", "other"];
 
 /**
@@ -538,6 +662,12 @@ export function SummaryContent({
     () => (excluded.size === 0 ? summary : combineSalesSummary(summary, (name) => !excluded.has(name))),
     [excluded, summary],
   );
+  const yoy = useMemo(
+    () => buildSalesYoy({ current: summary, included: (name) => !excluded.has(name), previous: summary.previous }),
+    [excluded, summary],
+  );
+  const [yoyOpen, setYoyOpen] = useState(false);
+  const yoyPanelId = useId();
   const includedRows = summary.byProperty.filter((row) => !excluded.has(row.propertyName));
   const excludedRows = summary.byProperty.filter((row) => excluded.has(row.propertyName));
 
@@ -748,6 +878,14 @@ export function SummaryContent({
               </span>
               <span className="opsss__heroval">{fmt.yen(totals.revenue)}</span>
               <span className="opsss__knote">{copy.ssGrossNote.replace("{n}", fmt.count(combined.reservationCount))}</span>
+              <YoyLine
+                copy={copy}
+                fmt={fmt}
+                onToggle={() => setYoyOpen((value) => !value)}
+                open={yoyOpen}
+                panelId={yoyPanelId}
+                yoy={yoy}
+              />
             </div>
             <div className="opsss__flowsteps">
               <div className="opsss__flowstep">
@@ -770,6 +908,7 @@ export function SummaryContent({
               </div>
             </div>
           </section>
+          {yoyOpen && yoy.newRooms.count > 0 && <YoyPanel copy={copy} fmt={fmt} panelId={yoyPanelId} yoy={yoy} />}
 
           <div className="opsss__tiles">
             <div className="opsss__tile occ">
