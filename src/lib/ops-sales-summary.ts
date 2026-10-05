@@ -104,7 +104,15 @@ export type SalesChannelRow = {
 };
 
 /** 객실 한 행. `inCatalog` 가 아니면 방 수 0 — 매출만 있고 가동률은 비운다. */
-export type SalesRoomRow = SalesMetrics & { key: string; label: string; inCatalog: boolean };
+export type SalesRoomRow = SalesMetrics & {
+  key: string;
+  label: string;
+  inCatalog: boolean;
+  /** 채널별 매출(1박 분배 후) — 객실 줄의 「채널 비중」 막대(2026-10-05). 합 = `revenue`. */
+  channelRevenue: Record<SalesChannel, number>;
+};
+
+const emptyChannelRevenue = (): Record<SalesChannel, number> => ({ airbnb: 0, booking: 0, direct: 0, other: 0 });
 
 /** 건물 한 줄 = **그 건물 객실 행의 합**(구성상 항상 맞는다). 객실은 캘린더 행 순서. */
 export type SalesPropertyRow = SalesMetrics & {
@@ -290,16 +298,25 @@ export function buildOpsSalesSummary(input: {
   const days = Math.max(0, endDay - startDay);
 
   // ── 객실 행이 기본 단위다. 건물 = 그 객실들의 합, 전체 = 건물들의 합 ──
-  type RoomAcc = { room: SalesSummaryRoom; revenue: number; commission: number; occupied: Set<number> };
+  type RoomAcc = {
+    room: SalesSummaryRoom;
+    revenue: number;
+    commission: number;
+    occupied: Set<number>;
+    channelRevenue: Record<SalesChannel, number>;
+  };
   const roomAccs = new Map<string, RoomAcc>();
   for (const room of input.rooms) {
-    if (!roomAccs.has(room.key)) roomAccs.set(room.key, { commission: 0, occupied: new Set(), revenue: 0, room });
+    if (!roomAccs.has(room.key)) {
+      roomAccs.set(room.key, { channelRevenue: emptyChannelRevenue(), commission: 0, occupied: new Set(), revenue: 0, room });
+    }
   }
   /** 행 목록에 없는 방의 예약(드묾 — 예: 목록 밖 방의 노쇼)은 목록 밖 행으로 붙인다. 매출이 사라지면 안 된다. */
   const roomAcc = (reservation: SalesSummaryReservation) => {
     let acc = roomAccs.get(reservation.roomKey);
     if (!acc) {
       acc = {
+        channelRevenue: emptyChannelRevenue(),
         commission: 0,
         occupied: new Set(),
         revenue: 0,
@@ -389,6 +406,7 @@ export function buildOpsSalesSummary(input: {
     if (amount > 0) {
       const part = (amount / totalNights) * visibleNights;
       acc.revenue += part;
+      acc.channelRevenue[channel] += part;
       channelRow.revenue += part;
       shareRow.revenue += part;
     } else {
@@ -442,7 +460,13 @@ export function buildOpsSalesSummary(input: {
       roomCount: room.inCatalog ? 1 : 0,
     };
     const entry = building(room.propertyName);
-    entry.rooms.push({ ...metricsOf(sums, days), inCatalog: room.inCatalog, key: room.key, label: room.label ?? labelOf(room.key) });
+    entry.rooms.push({
+      ...metricsOf(sums, days),
+      channelRevenue: acc.channelRevenue,
+      inCatalog: room.inCatalog,
+      key: room.key,
+      label: room.label ?? labelOf(room.key),
+    });
     addSums(entry.sums, sums);
     addSums(totalSums, sums);
     if (room.inCatalog) {

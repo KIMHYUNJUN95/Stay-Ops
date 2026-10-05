@@ -3108,7 +3108,8 @@ button.ops__gapbtn:focus-visible { outline: 2px solid var(--danger); outline-off
   position: relative;
   display: flex;
   flex-direction: column;
-  width: min(1280px, 96vw);
+  /* 1440 — 건물 표에 채널 비중 칸이 늘어 넓혔다(2026-10-05). */
+  width: min(1440px, 96vw);
   min-width: 0;
   max-height: 92vh;
   max-height: 92dvh;
@@ -3486,6 +3487,26 @@ button.ops__gapbtn:focus-visible { outline: 2px solid var(--danger); outline-off
   letter-spacing: 0.01em;
   border-bottom-color: var(--line);
 }
+/* 정렬 머리글(2026-10-05) — 글자 자체가 버튼. 켜진 칸은 남색 + 화살표. 「객실」은 원래 순서. */
+.opsss__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.opsss__sort:hover { color: var(--ink-soft); background: var(--adm-surface); }
+.opsss__sort:focus-visible { outline: 2px solid var(--adm-primary); outline-offset: 1px; }
+.opsss__sort.on { color: var(--adm-primary); }
+.opsss__sort svg { width: 12px; height: 12px; flex: none; }
 .opsss__table tbody th { font-weight: 800; color: var(--ink); }
 .opsss__table td { font-weight: 600; color: var(--ink-soft); }
 .opsss__table .dim { color: var(--faint); font-weight: 600; }
@@ -3513,11 +3534,28 @@ button.ops__gapbtn:focus-visible { outline: 2px solid var(--danger); outline-off
 
 /* 건물 표 — 폭 배분(합 100%). 이름 칸이 남는 폭을 먹고 나머지는 숫자 폭에 맞춘다. */
 .opsss__ptable col.w-pname { width: auto; }
-.opsss__ptable col.w-rooms { width: 5.5%; }
-.opsss__ptable col.w-occ { width: 12.5%; }
-.opsss__ptable col.w-n { width: 6.5%; }
+.opsss__ptable col.w-rooms { width: 5%; }
+.opsss__ptable col.w-occ { width: 10%; }
+.opsss__ptable col.w-n { width: 6%; }
 .opsss__ptable col.w-yen { width: 8.5%; }
+.opsss__ptable col.w-mix { width: 11%; }
 .opsss__ptable col.w-yen-l { width: 10.5%; }
+/* 채널 비중(2026-10-05) — 매출 기준 누적 막대, 위 채널 카드와 같은 색. 넓은 조각에만 숫자. */
+.opsss__ptable .c-mix { padding-left: 14px; padding-right: 14px; text-align: center; }
+.opsss__mix {
+  display: flex;
+  width: 100%;
+  max-width: 132px;
+  min-width: 64px;
+  height: 14px;
+  margin-inline: auto;
+  gap: 1px;
+  border-radius: 4px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+.opsss__mix .opsss__seg { display: flex; align-items: center; justify-content: center; min-width: 3px; }
+.opsss__mixpct { font-size: 9.5px; font-weight: 800; line-height: 1; color: #fff; font-variant-numeric: tabular-nums; }
 .opsss__occcell { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .opsss__minibar {
   width: 48px;
@@ -3662,6 +3700,8 @@ button.ops__gapbtn:focus-visible { outline: 2px solid var(--danger); outline-off
   .opsss__ptable tr > * { border: none !important; padding: 2px 0 !important; text-align: right; }
   .opsss__ptable tr > .c-name { grid-column: 1 / -1; text-align: left; padding-bottom: 4px !important; }
   .opsss__ptable td[data-label] { display: flex; justify-content: space-between; gap: 8px; }
+  .opsss__ptable td.c-mix { align-items: center; }
+  .opsss__ptable td.c-mix .opsss__mix { width: 96px; flex: none; margin-inline: 0; }
   .opsss__ptable td[data-label]::before {
     content: attr(data-label);
     color: var(--faint);

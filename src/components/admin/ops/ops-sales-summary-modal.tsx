@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { BedDouble, Check, ChevronRight, Info, ReceiptText, Tag, TrendingUp, Wallet, X } from "lucide-react";
+import { ArrowDown, ArrowUp, BedDouble, Check, ChevronRight, Info, ReceiptText, Tag, TrendingUp, Wallet, X } from "lucide-react";
 import { loadOpsSalesSummary, type OpsSalesSummaryResult } from "@/app/admin/ops/calendar/actions";
 import { useAdminPanelA11y } from "@/components/admin/shared/use-admin-panel-a11y";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
@@ -82,6 +82,10 @@ export type SalesSummaryCopy = {
   ssBasisOccupancy: string;
   ssBasisCommission: string;
   ssBasisLegacy: string;
+  ssMixCol: string;
+  ssSortDesc: string;
+  ssSortAsc: string;
+  ssSortReset: string;
   ssIncludeTitle: string;
   ssIncludeHint: string;
   ssExcludedTitle: string;
@@ -451,6 +455,59 @@ function OccCell({ fmt, value }: { fmt: Fmt; value: number }) {
   );
 }
 
+const MIX_ORDER: readonly SalesChannel[] = ["airbnb", "booking", "direct", "other"];
+
+/**
+ * 채널 비중 막대(2026-10-05 사용자 요청 「객실별로도 부킹 · 에어비앤비 비중」) — 매출 기준, 위 채널 카드와 같은 색.
+ * 넓은 조각(25% 이상)에만 숫자를 넣고, 전체는 마우스오버 · 스크린리더 라벨로.
+ */
+function ChannelMix({ label, mix }: { label: (channel: SalesChannel) => string; mix: Record<SalesChannel, number> }) {
+  const total = MIX_ORDER.reduce((sum, channel) => sum + mix[channel], 0);
+  if (total <= 0) return <span className="dim">–</span>;
+  const parts = MIX_ORDER.filter((channel) => mix[channel] > 0).map((channel) => ({
+    channel,
+    pct: (mix[channel] / total) * 100,
+  }));
+  const text = parts.map((part) => `${label(part.channel)} ${Math.round(part.pct)}%`).join(" · ");
+  return (
+    <span aria-label={text} className="opsss__mix" role="img" title={text}>
+      {parts.map((part) => (
+        <span className={`opsss__seg ${part.channel}`} key={part.channel} style={{ flexGrow: part.pct }}>
+          {part.pct >= 25 && <span className="opsss__mixpct">{Math.round(part.pct)}</span>}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** 건물 표에서 머리글로 정렬할 수 있는 칸(2026-10-05 사용자 요청). 「객실」 머리글 = 원래 순서. */
+type SortKey = "occupancyPct" | "occupiedNights" | "vacantNights" | "adr" | "revenue";
+type SortState = { key: SortKey; dir: "desc" | "asc" } | null;
+
+/** 정렬 — 가동률 · 판매 박 · 빈방은 목록 밖 방(값 없음)을 늘 맨 뒤로. 같으면 원래 순서. */
+function sortRows<T extends SalesMetrics & { inCatalog?: boolean }>(rows: readonly T[], sort: SortState): T[] {
+  if (!sort) return [...rows];
+  const sign = sort.dir === "desc" ? -1 : 1;
+  const catalogOnly = sort.key === "occupancyPct" || sort.key === "occupiedNights" || sort.key === "vacantNights";
+  return rows
+    .map((row, index) => ({ index, row }))
+    .sort((a, b) => {
+      if (catalogOnly) {
+        const offA = a.row.inCatalog === false ? 1 : 0;
+        const offB = b.row.inCatalog === false ? 1 : 0;
+        if (offA !== offB) return offA - offB;
+      }
+      return (a.row[sort.key] - b.row[sort.key]) * sign || a.index - b.index;
+    })
+    .map((entry) => entry.row);
+}
+
+const mixOfRows = (rows: readonly { channel: SalesChannel; revenue: number }[]): Record<SalesChannel, number> => {
+  const mix: Record<SalesChannel, number> = { airbnb: 0, booking: 0, direct: 0, other: 0 };
+  for (const row of rows) mix[row.channel] += row.revenue;
+  return mix;
+};
+
 export function SummaryContent({
   copy,
   fmt,
@@ -510,7 +567,7 @@ export function SummaryContent({
       return next;
     });
 
-  const cells = (row: SalesMetrics, offCatalog = false) => (
+  const cells = (row: SalesMetrics, mix: Record<SalesChannel, number>, offCatalog = false) => (
     <>
       <td className="c-occ" data-label={copy.ssOccupancyCol}>
         {offCatalog ? <span className="dim">–</span> : <OccCell fmt={fmt} value={row.occupancyPct} />}
@@ -526,6 +583,9 @@ export function SummaryContent({
       </td>
       <td className="c-num dim" data-label="RevPAR">
         {offCatalog ? "–" : fmt.yen(row.revpar)}
+      </td>
+      <td className="c-mix" data-label={copy.ssMixCol}>
+        <ChannelMix label={channelLabel} mix={mix} />
       </td>
       <td className="c-num strong" data-label={copy.ssRevenueCol}>
         {fmt.yen(row.revenue)}
@@ -548,10 +608,35 @@ export function SummaryContent({
         </span>
       </th>
       <td className="c-rooms" data-label={copy.ssRoomsCol} />
-      {cells(room, !room.inCatalog)}
+      {cells(room, room.channelRevenue, !room.inCatalog)}
     </tr>
   );
 
+  const totalMix = mixOfRows(combined.byChannel);
+  /*
+   * **머리글로 정렬**(2026-10-05 사용자 요청) — 가동률 · 판매 박 · 빈방 · ADR · 매출을 누르면 높은순, 다시 누르면 낮은순.
+   * 「객실」 머리글은 원래 순서(탭 · 캘린더 행 순서)로 되돌린다. 건물 줄과 펼친 객실 줄이 함께 정렬된다.
+   */
+  const [sort, setSort] = useState<SortState>(null);
+  const sortBy = (key: SortKey) =>
+    setSort((current) => (current?.key === key ? { dir: current.dir === "desc" ? "asc" : "desc", key } : { dir: "desc", key }));
+  const sortHead = (key: SortKey, label: string) => {
+    const active = sort?.key === key;
+    const nextDir = active && sort.dir === "desc" ? "asc" : "desc";
+    return (
+      <th aria-sort={active ? (sort.dir === "desc" ? "descending" : "ascending") : "none"} scope="col">
+        <button
+          className={`opsss__sort${active ? " on" : ""}`}
+          onClick={() => sortBy(key)}
+          title={nextDir === "desc" ? copy.ssSortDesc : copy.ssSortAsc}
+          type="button"
+        >
+          {label}
+          {active && (sort.dir === "desc" ? <ArrowDown aria-hidden="true" /> : <ArrowUp aria-hidden="true" />)}
+        </button>
+      </th>
+    );
+  };
   const propertyTable = (rows: SalesPropertyRow[], total: SalesMetrics | null) => (
     <table className="opsss__table opsss__ptable">
       <colgroup>
@@ -562,6 +647,7 @@ export function SummaryContent({
         <col className="w-n" />
         <col className="w-yen" />
         <col className="w-yen" />
+        <col className="w-mix" />
         <col className="w-yen-l" />
         <col className="w-yen" />
         <col className="w-yen-l" />
@@ -569,18 +655,23 @@ export function SummaryContent({
       <thead>
         <tr>
           <th scope="col">{copy.ssPropertyCol}</th>
-          <th scope="col">{copy.ssRoomsCol}</th>
-          <th scope="col">{copy.ssOccupancyCol}</th>
-          <th scope="col">{copy.ssNightsCol}</th>
-          <th scope="col">{copy.ssVacantCol}</th>
-          <th scope="col">ADR</th>
+          <th aria-sort={sort ? "none" : undefined} scope="col">
+            <button className={`opsss__sort${sort ? "" : " on"}`} onClick={() => setSort(null)} title={copy.ssSortReset} type="button">
+              {copy.ssRoomsCol}
+            </button>
+          </th>
+          {sortHead("occupancyPct", copy.ssOccupancyCol)}
+          {sortHead("occupiedNights", copy.ssNightsCol)}
+          {sortHead("vacantNights", copy.ssVacantCol)}
+          {sortHead("adr", "ADR")}
           <th scope="col">RevPAR</th>
-          <th scope="col">{copy.ssRevenueCol}</th>
+          <th className="c-mix" scope="col">{copy.ssMixCol}</th>
+          {sortHead("revenue", copy.ssRevenueCol)}
           <th scope="col">{copy.ssCommissionCol}</th>
           <th scope="col">{copy.ssNetCol}</th>
         </tr>
       </thead>
-      {rows.map((row) => {
+      {sortRows(rows, sort).map((row) => {
         const expanded = open.has(row.propertyName);
         return (
           // 건물마다 `<tbody>` 하나 — 건물 줄과 펼친 객실 줄이 한 묶음이다.
@@ -601,9 +692,9 @@ export function SummaryContent({
               <td className="c-rooms c-num" data-label={copy.ssRoomsCol}>
                 {fmt.count(row.roomCount)}
               </td>
-              {cells(row)}
+              {cells(row, mixOfRows(row.channels))}
             </tr>
-            {expanded && row.rooms.map(roomRow)}
+            {expanded && sortRows(row.rooms, sort).map(roomRow)}
           </tbody>
         );
       })}
@@ -614,7 +705,7 @@ export function SummaryContent({
             <td className="c-rooms c-num" data-label={copy.ssRoomsCol}>
               {fmt.count(total.roomCount)}
             </td>
-            {cells(total)}
+            {cells(total, totalMix)}
           </tr>
         </tfoot>
       )}

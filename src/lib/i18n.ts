@@ -415,6 +415,10 @@ const FALLBACK_DICTIONARY = {
       ssBasisCommission:
         "Fees: the Beds24 commission of Airbnb and Booking.com bookings, split per night the same way.",
       ssBasisLegacy: "Same formulas as the STAY ARI Manager building calendar.",
+      ssMixCol: "Channel mix",
+      ssSortDesc: "Sort high to low",
+      ssSortAsc: "Sort low to high",
+      ssSortReset: "Original order",
       ssIncludeTitle: "In totals",
       ssIncludeHint: "Tap a property to add it to or remove it from the totals.",
       ssExcludedTitle: "Shown separately",
@@ -6078,6 +6082,10 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       ssBasisCommission:
         "수수료는 Airbnb · Booking.com 예약의 Beds24 수수료를 같은 방식으로 밤마다 나눕니다.",
       ssBasisLegacy: "STAY ARI Manager 건물 캘린더와 같은 식입니다.",
+      ssMixCol: "채널 비중",
+      ssSortDesc: "높은순으로 보기",
+      ssSortAsc: "낮은순으로 보기",
+      ssSortReset: "원래 순서로",
       ssIncludeTitle: "합계에 넣을 건물",
       ssIncludeHint: "건물을 누르면 합계에 넣거나 뺍니다.",
       ssExcludedTitle: "따로 보는 건물",
@@ -11584,6 +11592,10 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       ssBasisCommission:
         "手数料は Airbnb · Booking.com 予約の Beds24 手数料を同じ方法で1泊ずつ配分します。",
       ssBasisLegacy: "STAY ARI Manager の物件カレンダーと同じ計算式です。",
+      ssMixCol: "チャネル比率",
+      ssSortDesc: "高い順に並べる",
+      ssSortAsc: "低い順に並べる",
+      ssSortReset: "元の順番に戻す",
       ssIncludeTitle: "合計に含める物件",
       ssIncludeHint: "物件をタップすると合計に含める・外すを切り替えます。",
       ssExcludedTitle: "別枠で表示する物件",

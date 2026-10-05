@@ -523,6 +523,20 @@ describe("per-room / per-building consistency", () => {
     expect(onlyA.byChannel.reduce((sum, row) => sum + row.revenue, 0)).toBeCloseTo(a.revenue, 6);
   });
 
+  it("room channel revenue adds up to the room revenue and the building channel rows", () => {
+    for (const row of summary.byProperty) {
+      for (const room of row.rooms) {
+        const sum = Object.values(room.channelRevenue).reduce((acc, value) => acc + value, 0);
+        expect(sum).toBeCloseTo(room.revenue, 6);
+      }
+      for (const channel of row.channels) {
+        expect(row.rooms.reduce((acc, room) => acc + room.channelRevenue[channel.channel], 0)).toBeCloseTo(channel.revenue, 6);
+      }
+    }
+    // 102: Booking 36,000 + 직접 20,000.
+    expect(summary.byProperty[0].rooms[1].channelRevenue).toMatchObject({ booking: 36000, direct: 20000 });
+  });
+
   it("totals match the legacy numbers for the same fixture", () => {
     // 101: 50,000 × 3/5 = 30,000 · 102: 36,000 + 20,000 · 201: 130,000 × 11/13 · 999: 9,000
     expect(summary.totals.revenue).toBeCloseTo(30000 + 56000 + (130000 * 11) / 13 + 9000, 6);
