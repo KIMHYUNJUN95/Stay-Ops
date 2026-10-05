@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-05 — 모바일 룸 링크 폴드 · 태블릿 적응형
+
+- 폴드 · 태블릿 세로: 가운데 760px · 객실 두 줄 카드 · 상세는 시트. 태블릿 가로: 대시보드 1b 처럼 건물 목록 · 객실 · 오른쪽 상세 칸
+  3열(시트 대신, `useIsTablet`). `MobileShell split`. (`35`, `16`)
+
 ## 2026-10-05 — 공용 바텀시트가 미끄러지지 않던 것
 
 - `BottomSheet` 의 전환에 `translate` 를 추가 — Tailwind v4 의 `translate-y-*` 는 `translate` 속성이라 `transform` 만 전환하던

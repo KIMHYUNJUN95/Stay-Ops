@@ -33,7 +33,8 @@ export default async function MobileRoomLinksPage() {
   const [data, badges] = await Promise.all([getRoomLinksPageData(session, locale), getMobileNavBadges()]);
 
   return (
-    <MobileShell activeItem="ops-room-links" badges={badges} title={dictionary.roomLinks.title}>
+    // `split` — 폴드는 가운데 760px, 태블릿 가로는 폭 전부(왼쪽 건물 · 가운데 객실 · 오른쪽 상세 칸을 화면이 직접 그린다).
+    <MobileShell activeItem="ops-room-links" badges={badges} split title={dictionary.roomLinks.title}>
       <MobileRoomLinks copy={dictionary.roomLinks} data={data} />
     </MobileShell>
   );

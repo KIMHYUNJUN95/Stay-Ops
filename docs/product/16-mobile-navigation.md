@@ -564,6 +564,8 @@ Current rules:
   - 대상과 상세 주소(`SPLIT_DETAIL_PATTERNS`, `src/lib/split-pane.ts`, 테스트 `split-pane.test.ts`): 할 일(+ 프로젝트 화면) · 요청
     (수리 · 분실물 · 발주, 처리 끝난 분실물 목록 포함) · 컴플레인(+ 리뷰) · 공지 · 게시판 · 제안함 · 버그 신고 · 린넨 반품 기록.
     새로 만들기 · 하위 목록은 칸에 열지 않는다. 폰 · 폴드에서는 아무것도 바뀌지 않는다.
+  - **상세가 따로 주소가 없는 화면은 칸을 직접 그린다** — 룸 링크(`/mobile/ops/room-links`, 2026-10-05): `split` 을 켜고
+    `useIsTablet()` 으로 시트 대신 오른쪽 상세 칸(대시보드 1b 와 같은 3열 — 건물 목록 · 객실 · 상세). `35-room-links.md` → 「모바일」.
   - 문구 `common.splitEmpty`(빈 칸 안내) · `common.close`(ko/ja/en).
 - **아이패드 = 모바일 앱(2026-10-05)**: 아이패드 사파리는 Mac 으로 알려 서버가 PC 로 본다. `TouchTabletDetect`(루트 레이아웃)가
   「터치 되는 Mac」(`maxTouchPoints > 1`)을 알아보고 쿠키 `stayops_touch_tablet=1`(1년)을 심고, PC 쪽 화면(`/` · 로그인 · `/admin`)에

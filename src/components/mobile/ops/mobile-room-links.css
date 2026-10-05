@@ -70,8 +70,9 @@
 .mrl-chip.on { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
 .mrl-chip.on .mrl-chip__n { color: color-mix(in oklab, var(--primary-foreground) 72%, var(--primary)); }
 
+.mrl-body, .mrl-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .mrl-card { border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
-.mrl-list { overflow: hidden; }
+.mrl-list { overflow: hidden; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
 
 .mrl-bcard { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; }
 .mrl-addr { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.5; color: var(--muted-foreground); }
@@ -122,6 +123,7 @@
 }
 .mrl-row + .mrl-row { border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
 .mrl-row:active { background: color-mix(in oklab, var(--border) 30%, transparent); }
+.mrl-row.on { background: color-mix(in oklab, var(--primary) 7%, white); box-shadow: inset 3px 0 0 var(--primary); }
 .mrl-row__n { min-width: 54px; font-size: 19px; font-weight: 800; letter-spacing: -0.03em; }
 .mrl-row__mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .mrl-chev { width: 18px; height: 18px; flex: 0 0 18px; color: var(--muted-foreground); }
@@ -182,6 +184,77 @@
 .mrl-url { padding: 0 14px 12px; font-size: 11.5px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mrl-memo { margin: 0 14px 12px; padding: 8px 10px; border-radius: 10px; background: color-mix(in oklab, var(--background) 60%, white); font-size: 12.5px; color: var(--foreground); }
 .mrl-note { font-size: 12px; line-height: 1.55; color: var(--muted-foreground); padding: 0 2px; }
+
+/* ── 넓은 화면(셸의 폭 구간과 같은 값 — `globals.css` `fold:` · `tablet:`) ─────────────────────────────── */
+/* 펼친 폴드 · 태블릿 세로(≥ 600) — 셸이 가운데 760px. 객실은 두 줄 카드로. 상세는 그대로 바텀시트(셸이 560px). */
+@media (min-width: 600px) {
+  .mrl-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+  .mrl-row,
+  .mrl-row + .mrl-row {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+  }
+  .mrl-row.on { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 14%, transparent); }
+  .mrl-list > .mrl-empty { grid-column: 1 / -1; }
+}
+
+/* 태블릿 가로(≥ 840 · 높이 ≥ 600) — 대시보드 1b: 왼쪽 건물 목록 · 가운데 객실 · 오른쪽 상세 칸(시트 대신). */
+@media (min-width: 840px) and (min-height: 600px) {
+  .mrl-body {
+    display: grid;
+    grid-template-columns: 210px minmax(0, 1fr) minmax(360px, 420px);
+    gap: 16px;
+    align-items: start;
+  }
+  .mrl-chips {
+    position: sticky;
+    top: 12px;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 6px;
+    overflow: visible;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+  }
+  .mrl-chip {
+    justify-content: space-between;
+    width: 100%;
+    height: auto;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    text-align: left;
+    white-space: normal; /* 긴 건물 이름(STAY ARI Apartment Hotel)은 줄을 바꾼다 — 숫자가 칸 밖으로 나가지 않게 */
+  }
+  .mrl-chip > span:first-child { flex: 1; min-width: 0; line-height: 1.3; }
+  .mrl-chip.on { background: color-mix(in oklab, var(--primary) 9%, white); color: var(--primary); }
+  .mrl-chip.on .mrl-chip__n { color: var(--primary); }
+  .mrl-pane {
+    position: sticky;
+    top: 12px;
+    max-height: calc(100dvh - 24px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--surface);
+  }
+  .mrl-pane .mrl-sheet__head { padding: 18px 18px 14px; }
+  .mrl-pane .mrl-sheet__body { padding: 14px 16px 18px; }
+}
 
 /* 알림 — 탭 바 위 한 줄 알약(판매 캘린더 `mops-toast` 와 같은 자리). 시트 위에서도 보이게 시트보다 위. */
 .mrl-toast {
