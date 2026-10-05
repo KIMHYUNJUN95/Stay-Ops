@@ -97,6 +97,17 @@ const mobileNavOpsCalendar = {
   capability: "ops_admin.access",
 } as const satisfies NavigationItem;
 
+// 룸 링크(운영 관리자 구역) — `room_links.access` 보유자에게만. 데스크톱 `/admin/ops/room-links` 의 모바일판(보기 · 열기 ·
+// 복사, 고치기는 대시보드). See docs/product/35-room-links.md → 「모바일」.
+const mobileNavRoomLinks = {
+  id: "ops-room-links",
+  label: localizedNavigationLabels.mobile.roomLinks,
+  shortLabel: localizedNavigationLabels.mobile.roomLinksShort,
+  href: "/mobile/ops/room-links",
+  icon: Link2,
+  capability: "room_links.access",
+} as const satisfies NavigationItem;
+
 const mobileNavCleaning = {
   id: "cleaning",
   label: localizedNavigationLabels.mobile.cleaning,
@@ -219,7 +230,10 @@ export const mobileSidebarNavigation = [
  * 하단 탭 편집 후보에는 **넣는다**(2026-10-02 사용자 지시 — 판매 캘린더를 탭에 고정) — 후보 목록 맨 뒤. 권한이 없으면
  * 사이드 구역째 · 후보에서도 사라진다(셸의 `canSeeMobileNavItem`).
  */
-export const mobileOpsAdminNavigation = [mobileNavOpsCalendar] as const satisfies readonly NavigationItem[];
+export const mobileOpsAdminNavigation = [
+  mobileNavOpsCalendar,
+  mobileNavRoomLinks,
+] as const satisfies readonly NavigationItem[];
 
 // ── Per-user bottom-bar customization ────────────────────────────────────────
 // The center FAB opens an editor where each user picks which features sit in
@@ -243,9 +257,15 @@ export const customizableBottomNavItems = [
   ...mobileOpsAdminNavigation,
 ] as const satisfies readonly NavigationItem[];
 
-/** 운영 관리자 구역 항목인가 — 권한 키에 더해 관리자 웹 역할도 요구한다(셸이 함께 거른다). */
+/**
+ * 권한 키에 더해 **관리자 웹 역할**도 요구하는 운영 관리자 항목인가(셸이 함께 거른다).
+ *
+ * 판매 캘린더는 쓰기 액션이 관리자 세션을 거쳐 역할도 본다. **룸 링크는 아니다** — 보기 · 열기 · 복사뿐이라 권한 키만
+ * 받으면 현장 역할도 쓴다(2026-10-05, 사용자 상세에서 개인 부여).
+ */
+const MOBILE_ADMIN_WEB_ONLY_IDS: ReadonlySet<string> = new Set(["ops-calendar"]);
 export function isMobileOpsAdminNavItem(id: string): boolean {
-  return mobileOpsAdminNavigation.some((item) => item.id === id);
+  return MOBILE_ADMIN_WEB_ONLY_IDS.has(id);
 }
 
 /**

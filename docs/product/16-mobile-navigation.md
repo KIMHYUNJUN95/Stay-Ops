@@ -582,9 +582,12 @@ Current rules:
   사이드 구역 · 하단 탭 · 편집 후보 세 곳을 같은 조건으로 거른다. 권한이 없으면 구역째 안 보인다.
   **관리자 웹 역할(`canAccessAdminWeb`)도 함께 본다**(2026-10-01) — 페이지가 `ops_admin.access` + 관리자 웹 역할을
   둘 다 요구하므로(쓰기 액션이 `requireAdminSession` 을 거친다), 키만 개별 부여받은 현장 역할에게 메뉴를 보여 주면
-  눌러도 홈으로 튕겼다. 메뉴와 페이지가 같은 두 조건을 쓴다(`mobile-shell.tsx`).
+  눌러도 홈으로 튕겼다. 메뉴와 페이지가 같은 두 조건을 쓴다(`mobile-shell.tsx`). 이 추가 조건은 **판매 캘린더에만** 건다
+  (`isMobileOpsAdminNavItem` = `MOBILE_ADMIN_WEB_ONLY_IDS`) — 룸 링크는 보기 · 복사뿐이라 권한 키만 있으면 현장 역할도 연다.
 - 현재 항목: **판매 캘린더** `ops-calendar` → `/mobile/ops/calendar`(`ops_admin.access`). 데스크톱
   `/admin/ops/calendar` 의 모바일판이다 — 화면 · 입력 계약은 `33-calendar-write-features.md` → 「모바일 판매 캘린더」.
+- **룸 링크** `ops-room-links` → `/mobile/ops/room-links`(`room_links.access`, 2026-10-05). 탭 라벨 축약형 `roomLinksShort`
+  (룸 링크 / リンク / Links). 화면 계약은 `35-room-links.md` → 「모바일」.
 - 이 화면의 격자는 **자체 스크롤 상자**다(날짜 머리 · 객실 열 sticky). 셸 크롬은 `mobile-shell-scroll` 로 **다른 화면처럼 숨었다 나타나고**, 그 빈자리는 화면이
   채운다(탭 바의 `pointer-events-none` 을 지켜봐서 숨으면 64px 올리고 격자를 바닥까지 늘림 — 셸과 같은 곡선), 격자가 맨 위가 아닐 때는 셸의 당겨서 새로고침을 무장시키지 않는다. 칸을 고르는 동안에는 **선택 도구줄이 하단 탭 바 자리를 대신한다**(`body` 포털 z-70, 탭 바와 같은 표면 ·
   모서리 · 위치 — 사진 앱 선택 모드. X 없이 아래로 밀기 · 빈 곳 탭으로 닫는다. 셸의 탭 바 계약은 그대로이고, 선택을

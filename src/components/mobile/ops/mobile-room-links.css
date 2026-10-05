@@ -1,0 +1,205 @@
+/*
+ * 모바일 룸 링크(2026-10-05, 시안 1a — Claude Design 「룸 링크 모바일 시안」).
+ *
+ * 셸 계약: 바탕 아이보리(`--background`) · 카드 흰색(`--surface`) · 강조 남색(`--primary`). 채널 색은 대시보드
+ * `room-links.css` · 판매 캘린더와 같은 값이다. 바텀시트는 body 로 포털되므로 시트 안 규칙도 `.mrl` 밖에 둔다.
+ */
+.mrl {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 24px;
+}
+.mrl-mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+}
+.mrl-grow { flex: 1; min-width: 0; }
+.mrl-dim { font-size: 12px; font-weight: 600; color: var(--muted-foreground); }
+.mrl-sec { padding: 4px 2px 0; font-size: 12px; font-weight: 800; color: var(--muted-foreground); }
+.mrl-empty { padding: 36px 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--muted-foreground); }
+
+.mrl-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.mrl-search svg { width: 17px; height: 17px; flex: 0 0 17px; color: var(--muted-foreground); }
+.mrl-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 16px; /* 16px 아래면 iOS 가 입력할 때 화면을 확대한다 */
+  color: var(--foreground);
+}
+.mrl-search:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 14%, transparent); }
+
+.mrl-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0 -20px;
+  padding: 0 20px 2px;
+  scrollbar-width: none;
+}
+.mrl-chips::-webkit-scrollbar { display: none; }
+.mrl-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+.mrl-chip__n { font-size: 11.5px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.mrl-chip.on { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.mrl-chip.on .mrl-chip__n { color: color-mix(in oklab, var(--primary-foreground) 72%, var(--primary)); }
+
+.mrl-card { border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
+.mrl-list { overflow: hidden; }
+
+.mrl-bcard { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; }
+.mrl-addr { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.5; color: var(--muted-foreground); }
+.mrl-addr svg { width: 15px; height: 15px; flex: 0 0 15px; margin-top: 2px; }
+.mrl-addr span { flex: 1; min-width: 0; }
+.mrl-addr a { flex: none; font-weight: 800; color: var(--primary); padding: 0 2px; }
+.mrl-bk { display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
+.mrl-bk.first { padding-top: 0; border-top: 0; }
+
+.mrl-ch { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800; white-space: nowrap; }
+.mrl-ch i { width: 8px; height: 8px; border-radius: 999px; }
+.mrl-ch.a { color: hsl(348 60% 34%); }
+.mrl-ch.a i { background: hsl(348 58% 48%); }
+.mrl-ch.b { color: hsl(219 62% 30%); }
+.mrl-ch.b i { background: hsl(219 58% 45%); }
+
+.mrl-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 36px;
+  min-width: 40px;
+  padding: 0 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+.mrl-sm svg { width: 14px; height: 14px; }
+.mrl-sm.pri { border-color: color-mix(in oklab, var(--primary) 22%, white); background: color-mix(in oklab, var(--primary) 7%, white); color: var(--primary); }
+.mrl-sm.done { border-color: hsl(146 34% 76%); background: hsl(146 44% 92%); color: hsl(146 50% 30%); }
+
+.mrl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 62px;
+  padding: 10px 12px 10px 16px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  color: var(--foreground);
+}
+.mrl-row + .mrl-row { border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
+.mrl-row:active { background: color-mix(in oklab, var(--border) 30%, transparent); }
+.mrl-row__n { min-width: 54px; font-size: 19px; font-weight: 800; letter-spacing: -0.03em; }
+.mrl-row__mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.mrl-chev { width: 18px; height: 18px; flex: 0 0 18px; color: var(--muted-foreground); }
+.mrl-units { display: flex; flex-wrap: wrap; gap: 5px; }
+.mrl-u {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: color-mix(in oklab, var(--border) 40%, white);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted-foreground);
+}
+.mrl-u i { width: 6px; height: 6px; border-radius: 999px; background: currentColor; opacity: 0.6; }
+.mrl-u.now { background: hsl(146 44% 92%); color: hsl(146 50% 30%); }
+.mrl-u.miss { background: hsl(38 82% 92%); color: hsl(35 80% 36%); }
+
+/* ── 바텀시트(표준 `BottomSheet` 안 — 시트가 좌우 20px · 아래 안전 영역을 이미 준다. 여기서 또 주지 않는다) ── */
+.mrl-sheet { display: flex; flex-direction: column; min-height: 0; flex: 1; color: var(--foreground); }
+.mrl-sheet__head { display: flex; flex-direction: column; gap: 4px; padding: 4px 2px 14px; border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
+.mrl-kick { font-size: 12.5px; font-weight: 700; color: var(--muted-foreground); }
+.mrl-sheet__title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.mrl-sheet__title b { font-size: 28px; font-weight: 800; letter-spacing: -0.04em; line-height: 1.1; }
+.mrl-sheet__title span { font-size: 12px; color: var(--muted-foreground); }
+.mrl-sheet__body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 12px; padding: 14px 0 8px; }
+.mrl-ucard { border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: var(--surface); }
+.mrl-ucard.now { border-color: hsl(146 32% 74%); }
+.mrl-ucard__head { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent); background: color-mix(in oklab, var(--background) 45%, white); }
+.mrl-ucard__head b { font-size: 14px; font-weight: 800; }
+.mrl-id { font-size: 11px; color: var(--muted-foreground); }
+.mrl-pill { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; background: color-mix(in oklab, var(--border) 40%, white); font-size: 11.5px; font-weight: 800; color: var(--muted-foreground); white-space: nowrap; }
+.mrl-pill.ok { background: hsl(146 44% 92%); color: hsl(146 50% 30%); }
+.mrl-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 14px 8px; }
+.mrl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 46px;
+  border-radius: 13px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--foreground);
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+}
+.mrl-btn svg { width: 15px; height: 15px; }
+.mrl-btn.pri { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.mrl-btn.ghost { border-color: color-mix(in oklab, var(--primary) 22%, white); background: color-mix(in oklab, var(--primary) 7%, white); color: var(--primary); }
+.mrl-btn.done { border-color: hsl(146 34% 76%); background: hsl(146 44% 92%); color: hsl(146 50% 30%); }
+.mrl-btn.off { opacity: 0.45; }
+.mrl-url { padding: 0 14px 12px; font-size: 11.5px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mrl-memo { margin: 0 14px 12px; padding: 8px 10px; border-radius: 10px; background: color-mix(in oklab, var(--background) 60%, white); font-size: 12.5px; color: var(--foreground); }
+.mrl-note { font-size: 12px; line-height: 1.55; color: var(--muted-foreground); padding: 0 2px; }
+
+/* 알림 — 탭 바 위 한 줄 알약(판매 캘린더 `mops-toast` 와 같은 자리). 시트 위에서도 보이게 시트보다 위. */
+.mrl-toast {
+  position: fixed;
+  z-index: 90;
+  left: 50%;
+  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary) 82%, black);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 10px 24px -12px rgba(2, 6, 23, 0.55);
+}

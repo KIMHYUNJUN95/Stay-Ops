@@ -96,8 +96,23 @@ Airbnb 는 객실(계정)마다 리스팅이 있지만 Booking.com 은 **숙소(
 - Booking.com: 저쪽에도 0건 — 사용자 제공 링크를 건물 단위로 따로 넣었다(위 「Booking.com 은 건물 단위」).
 - 이미 있는 줄은 건드리지 않는다(`on conflict do nothing`).
 
+## 모바일 (2026-10-05, 시안 1a)
+
+`/mobile/ops/room-links` — 사이드 메뉴 「운영 관리자」 구역 · 하단 탭 편집 후보(`ops-room-links`). Claude Design 「룸 링크 모바일
+시안」에서 사용자가 1a 를 골랐다. `src/components/mobile/ops/mobile-room-links.tsx` · `mobile-room-links.css`.
+
+- **권한**: `room_links.access` 만 — 판매 캘린더와 달리 관리자 웹 역할을 요구하지 않는다(보기 · 열기 · 복사뿐). 없으면 `/mobile`.
+- **데이터**: 데스크톱과 같은 `getRoomLinksPageData`(판매 중 판정 · Booking.com 건물 단위 그대로).
+- **화면**: 검색 → 건물 칩(가로 스크롤) → 건물 카드(주소 · 지도 · Booking.com 한 줄 — 엑스트라넷 열기 · 게스트 페이지 복사) →
+  객실 목록(유닛 칩: 초록 판매 중 · 주황 게스트 링크 없음). 검색하면 건물을 가로질러 결과 목록.
+- **객실을 누르면 표준 `BottomSheet`** — 건물 · 객실 · 유닛, 유닛마다 카드(Airbnb · 판매 중/쉬는 계정 · 리스팅 ID 끝 6자리)와
+  「호스트 열기」 · 「게스트 링크 복사」. **판매 중 계정이 맨 위**, 그 계정의 복사 버튼만 채운다(쉬는 계정은 테두리만). 시트는
+  좌우 여백 · 아래 안전 영역을 이미 주므로 안쪽에서 또 주지 않는다.
+- **고치기는 없다** — 대시보드에서 한다(시안 1a 그대로). 복사하면 탭 바 위 알림(「게스트 링크를 복사했어요」).
+- 문구: `roomLinks.m*`(mOpenHost · mCopied · mNoLink · mGuestPage · mBookingNote) · 내비 `mobile.roomLinks` · `roomLinksShort` (ko/ja/en).
+
 ## 남은 것
 
 - [x] STAY ARI 주소(사용자 제공, 2026-10-02) → `property-map-links.ts` 에 추가. 사노는 주소 없음(결정).
-- [ ] 모바일 화면(시안부터).
+- [x] 모바일 화면(2026-10-05, 시안 1a — 위 「모바일」).
 - [ ] (선택) 판매 캘린더 객실 이름 옆에서 바로 열기(시안 1d).

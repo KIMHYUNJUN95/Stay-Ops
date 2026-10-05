@@ -9,6 +9,12 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-05 — 모바일 룸 링크(시안 1a)
+
+- `/mobile/ops/room-links` — 건물 칩 + 객실 목록 → 표준 바텀시트(계정별 호스트 열기 · 게스트 링크 복사, 판매 중 계정 먼저). 건물
+  카드에 주소 · 지도 · Booking.com(건물 단위). 사이드 메뉴 「운영 관리자」 구역 · 하단 탭 후보. 권한 `room_links.access` 만(관리자
+  웹 역할 불필요 — 판매 캘린더와 다름). 고치기는 대시보드. (`35`, `16`, `31`)
+
 ## 2026-10-05 — 근태 · 캘린더 점검 후속 수정 (알림 제외)
 
 - 근태: 휴게는 근무 시간 안의 것만 차감 · 닫힌 세션의 열린 휴게는 퇴근까지(`breakSecondsBySession`) · 정정 승인은 요청 확정 →
