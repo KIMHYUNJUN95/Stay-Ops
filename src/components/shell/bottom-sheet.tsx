@@ -311,10 +311,13 @@ export function BottomSheet({
             role="dialog"
             style={{
               ...drag.sheetStyle,
+              // **`translate` 도 함께 전환한다**(2026-10-05). 열고 닫는 `translate-y-full` / `translate-y-0` 은 Tailwind v4 에서
+              // `transform` 이 아니라 **`translate` 속성**으로 나온다 — 전에는 `transform` 만 전환해서 시트가 미끄러지지 않고
+              // 툭 나타났다 툭 사라졌다(스크림만 서서히). `transform` 은 끌기(`drag.sheetStyle`)가 쓴다.
               transition: drag.dragging
                 ? "none"
-                : `transform ${shown ? SHEET_OPEN_MS : SHEET_CLOSE_MS}ms ${SHEET_EASE}`,
-              willChange: "transform",
+                : `transform ${shown ? SHEET_OPEN_MS : SHEET_CLOSE_MS}ms ${SHEET_EASE}, translate ${shown ? SHEET_OPEN_MS : SHEET_CLOSE_MS}ms ${SHEET_EASE}`,
+              willChange: "transform, translate",
             }}
           >
             <div

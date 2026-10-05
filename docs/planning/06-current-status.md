@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-05 — 공용 바텀시트가 미끄러지지 않던 것
+
+- `BottomSheet` 의 전환에 `translate` 를 추가 — Tailwind v4 의 `translate-y-*` 는 `translate` 속성이라 `transform` 만 전환하던
+  시트가 툭 나타나고 툭 사라졌다. 이제 아래에서 올라오고(480ms) 아래로 내려가며 닫힌다(380ms). 앱의 모든 공용 시트에 적용. (`16`)
+
 ## 2026-10-05 — 모바일 룸 링크(시안 1a)
 
 - `/mobile/ops/room-links` — 건물 칩 + 객실 목록 → 표준 바텀시트(계정별 호스트 열기 · 게스트 링크 복사, 판매 중 계정 먼저). 건물

@@ -698,6 +698,11 @@ bottom sheet looks identical. The reference design is the home check-in/out shee
   FLIPs the `translate` property (compositor-only, independent of the drag/slide `transform`) so the top edge slides up
   over 420ms instead of jumping. Shrinking is not animated (a lifted sheet would show the scrim below it).
   `prefers-reduced-motion` turns all of it off.
+  **2026-10-05 fix (사용자 지적 「아래에서 위로 자연스럽게 열리고 위에서 아래로 닫히게」)**: the inline transition must list
+  **both `transform` and `translate`**. Tailwind v4 compiles `translate-y-full` / `translate-y-0` to the CSS **`translate`
+  property**, not `transform` — with only `transform` in the transition the sheet snapped open/closed (only the scrim faded).
+  `transform` stays reserved for the drag (`drag.sheetStyle`). Any hand-written sheet that toggles `translate-*` classes with an
+  inline `transition: transform …` has the same bug — use Tailwind's `transition-transform` (covers `translate` in v4) or list both.
 - **Scroll lock & close are robust (2026-10-02)**: the body scroll lock is **reference-counted** across all open
   sheets (first sheet saves + locks, last sheet restores) — per-sheet save/restore could restore a *locked* state
   when sheets overlapped and leave the page unscrollable. `close` is a stable function (state-driven; the latest
