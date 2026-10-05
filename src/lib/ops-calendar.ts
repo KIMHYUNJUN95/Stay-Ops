@@ -533,12 +533,16 @@ export async function readOpsRoomUnavailableNights(args: {
       if (night >= row.check_in_date && night < row.check_out_date) booked.add(night);
     }
   }
+  // `room_blocks` 는 **요금 칸이 없는 밤에만** 본다 — 격자와 같은 규칙(요금 칸의 `override_kind` 가 정답, 2026-10-06).
+  // 구간 일부를 풀면 `room_blocks` 의 원래 줄이 남을 수 있어, 합집합이면 격자엔 열린 밤을 「이미 찬 밤」으로 막았다
+  // (아라키초A 302 10/6 — 격자는 비었는데 수기 예약이 「겹침」으로 거절됨).
+  const nightsWithRates = new Set(ratesResult.data.map((row) => row.stay_date));
   for (const row of blocksResult.data) {
     if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
     if (blockRoomKey(row) !== args.roomKey) continue;
     // 블록은 양끝을 포함한다.
     for (const night of nights) {
-      if (night >= row.start_date && night <= row.end_date) booked.add(night);
+      if (night >= row.start_date && night <= row.end_date && !nightsWithRates.has(night)) booked.add(night);
     }
   }
 

@@ -32,6 +32,7 @@
  * 있는가」를 보려고 읽어야 하므로 왕복이 늘지도 않는다.
  */
 
+import { trimBlockRows } from "@/lib/beds24/block-trim";
 import {
   type BlockRange,
   buildBlockSegments,
@@ -397,14 +398,42 @@ export async function clearRoomBlock(args: {
     .eq("start_date", args.range.startDate)
     .eq("end_date", args.range.endDate);
 
-  await args.supabase
+  // `room_blocks` 에서 **푼 밤만 잘라 낸다 — 그 방의 유닛 전부**(`trimBlockRows`, 2026-10-06). 전에는 시작일이 같고 첫 유닛
+  // 이름인 줄만 지워, 구간 일부 해제 · 두 번째 유닛 줄이 남아 수기 예약 겹침 검사가 푼 밤을 막았다.
+  const overlapping = await args.supabase
     .from("room_blocks")
-    .delete()
+    .select("id, organization_id, source, property_name, room_label, external_room_id, start_date, end_date, override_kind")
     .eq("organization_id", args.organizationId)
     .eq("source", "beds24")
-    .eq("property_name", args.propertyName)
-    .eq("room_label", args.roomLabel)
-    .eq("start_date", args.range.startDate);
+    .in("external_room_id", roomIds)
+    .lte("start_date", args.range.endDate)
+    .gte("end_date", args.range.startDate);
+  if (overlapping.error) {
+    console.error("[beds24/block] room_blocks trim read failed", overlapping.error.message);
+  } else {
+    const trimmed = trimBlockRows(overlapping.data ?? [], args.range);
+    if (trimmed.deleteIds.length > 0) {
+      const removed = await args.supabase.from("room_blocks").delete().in("id", trimmed.deleteIds);
+      if (removed.error) console.error("[beds24/block] room_blocks trim delete failed", removed.error.message);
+    }
+    if (trimmed.keep.length > 0) {
+      const kept = await args.supabase.from("room_blocks").upsert(
+        trimmed.keep.map((row) => ({
+          end_date: row.end_date,
+          external_room_id: row.external_room_id,
+          organization_id: row.organization_id,
+          override_kind: row.override_kind,
+          property_name: row.property_name,
+          room_label: row.room_label,
+          source: row.source,
+          start_date: row.start_date,
+          synced_at: new Date().toISOString(),
+        })),
+        { onConflict: "organization_id,source,property_name,room_label,start_date" },
+      );
+      if (kept.error) console.error("[beds24/block] room_blocks trim keep failed", kept.error.message);
+    }
+  }
 
   // 요금 표가 아직 `blackout` 이면 판매 캘린더가 **푼 차단을 계속 그린다**(요금 동기화까지 몇 시간).
   await patchLocalOverride({

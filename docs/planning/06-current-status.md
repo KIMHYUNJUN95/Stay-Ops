@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-06 — 차단 일부 해제 후 수기 예약이 「겹침」으로 막히던 것
+
+- 해제가 `room_blocks` 에서 시작일이 같은 첫 유닛 줄만 지워 일부 해제 · 두 번째 유닛 줄이 남았고, 수기 예약 겹침 검사가 그 줄을 「찬 밤」으로
+  셌다(아라키초A 302 10/6). 해제는 유닛 전부에서 푼 밤만 잘라 내고(`trimBlockRows`), 검사는 격자처럼 요금 칸 우선. (`33`)
+
 ## 2026-10-05 — 모바일 전 화면 폴드 · 태블릿 대응 (기존 14개 적용)
 
 - 사용자 지시 「모든 화면 폴드 · 태블릿 대응, 지금까지 만든 것도」 — 규칙(CLAUDE.md · 01) + 남은 14개 적용: 예약 캘린더(폭 전부, 목록 · 건물 정보
