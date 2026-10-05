@@ -297,9 +297,13 @@ export function AttendancePayrollClient({
                       </div>
                     </td>
                     <td>
-                      <span className={`tag ${isSalaried ? "tag--ghost" : "tag--method"}`}>
-                        {employmentLabel(r.employment, c)}
-                      </span>
+                      {r.employmentMissing ? (
+                        <span className="pill pill--warn">{c.payEmploymentMissing}</span>
+                      ) : (
+                        <span className={`tag ${isSalaried ? "tag--ghost" : "tag--method"}`}>
+                          {employmentLabel(r.employment, c)}
+                        </span>
+                      )}
                     </td>
                     <td className="mono">{r.recognizedLabel}</td>
                     <td className="mono">
@@ -540,7 +544,11 @@ function PayrollPanel({
               <span className="d" />
               {pill.label}
             </span>
-            <span className="pill pill--muted">{employmentLabel(row.employment, c)}</span>
+            {row.employmentMissing ? (
+              <span className="pill pill--warn">{c.payEmploymentMissing}</span>
+            ) : (
+              <span className="pill pill--muted">{employmentLabel(row.employment, c)}</span>
+            )}
           </div>
         </div>
 

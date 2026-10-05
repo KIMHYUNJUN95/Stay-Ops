@@ -94,6 +94,7 @@ export type BookingPanelCopy = {
   mbErrForbidden: string;
   mbErrBeds24: string;
   mbErrCooldown: string;
+  mbErrDuplicate: string;
   mbErrOccupied: string;
   /** 패널 안에서 쓴다 — 예약·블록뿐 아니라 판매 중지 밤도 포함하므로 문구가 더 넓다. */
   mbErrNightsTaken: string;
@@ -147,6 +148,8 @@ export function bookingErrorText(copy: BookingPanelCopy, result: Extract<ManualB
       return copy.mbErrForbidden;
     case "cooldown":
       return copy.mbErrCooldown;
+    case "duplicate_request":
+      return copy.mbErrDuplicate;
     default:
       return copy.mbErrBeds24;
   }
@@ -172,6 +175,8 @@ export function OpsBookingPanel({
   room: BookingPanelRoom;
   today: string;
 }) {
+  // 요청 키 — 패널을 연 동안 하나. 같은 키로는 서버가 예약을 한 번만 만든다(실패 뒤 다시 눌러도 중복 없음).
+  const [requestKey] = useState(() => crypto.randomUUID());
   const [arrival, setArrival] = useState(checkIn);
   const [departure, setDeparture] = useState(checkOut);
   const [guestName, setGuestName] = useState("");
@@ -258,6 +263,7 @@ export function OpsBookingPanel({
         guestEmail,
         guestPhone,
         input,
+        requestKey,
         roomIds: room.roomIds,
       });
       if (result.ok) {

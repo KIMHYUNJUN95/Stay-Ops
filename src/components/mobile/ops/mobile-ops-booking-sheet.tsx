@@ -53,6 +53,8 @@ export function MobileOpsBookingSheet({
   room: BookingPanelRoom;
   today: string;
 }) {
+  // 요청 키 — 패널을 연 동안 하나. 같은 키로는 서버가 예약을 한 번만 만든다(실패 뒤 다시 눌러도 중복 없음).
+  const [requestKey] = useState(() => crypto.randomUUID());
   const [arrival, setArrival] = useState(checkIn);
   const [departure, setDeparture] = useState(checkOut);
   const [guestName, setGuestName] = useState("");
@@ -91,7 +93,14 @@ export function MobileOpsBookingSheet({
   const submit = () => {
     setError(null);
     startTransition(async () => {
-      const result = await submitManualBooking({ comments, guestEmail, guestPhone, input, roomIds: room.roomIds });
+      const result = await submitManualBooking({
+        comments,
+        guestEmail,
+        guestPhone,
+        input,
+        requestKey,
+        roomIds: room.roomIds,
+      });
       if (result.ok) {
         onCreated({ guestName: guestName.trim(), nights: nights.length, reservationId: result.reservationId });
         return;

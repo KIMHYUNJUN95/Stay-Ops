@@ -30,6 +30,7 @@ import type {
   AttendanceSessionRow,
 } from "@/lib/attendance";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
+import { breakSecondsBySession, type BreakInterval } from "@/lib/attendance-pay-calculation";
 
 const TZ = "Asia/Tokyo";
 
@@ -618,6 +619,11 @@ export type AdminPayrollRow = {
   userName: string;
   role: string | null;
   employment: AdminPayrollEmployment;
+  /**
+   * 이 달 근무 기록이 있는데 고용형태 이력이 없다 — 급여가 0 으로 계산된다. 전에는 「—」로만 보여 조용히 빠졌다
+   * (2026-10-05). 화면이 「고용형태 미설정」 경고를 띄운다.
+   */
+  employmentMissing: boolean;
   totalPaidMinutes: number;
   recognizedLabel: string; // HHH:MM
   workDays: number; // count of Tokyo operating days with paid minutes
@@ -755,8 +761,10 @@ export async function getAdminAttendancePayroll(
   for (const m of membershipRows) {
     if (m.status === "active") candidateUserIds.add(m.user_id);
   }
+  const sessionUserIds = new Set<string>();
   for (const row of (sessionUsersRes.data ?? []) as { user_id: string }[]) {
     candidateUserIds.add(row.user_id);
+    sessionUserIds.add(row.user_id);
   }
   for (const row of (snapshotUsersRes.data ?? []) as { user_id: string }[]) {
     candidateUserIds.add(row.user_id);
@@ -834,6 +842,7 @@ export async function getAdminAttendancePayroll(
         userName: nameById.get(m.user_id) ?? "—",
         role: m.role,
         employment,
+        employmentMissing: employment === "none" && sessionUserIds.has(m.user_id),
         totalPaidMinutes: effectivePaidMinutes,
         recognizedLabel: fmtPaidMinutes(effectivePaidMinutes),
         workDays,
@@ -1499,24 +1508,14 @@ export async function getAdminStaffDetail(
   // Correction status per session
   const sessionIds = sessRows.map((r) => r.id);
 
-  // Break totals per session (sum of closed break rows), keyed by session id.
-  const breakBySession = new Map<string, number>();
+  // 세션별 급여 차감 휴게 초 — 근무 시간 안으로 자르고, 닫힌 세션의 열린 휴게는 퇴근까지(`breakSecondsBySession`).
+  let breakBySession = new Map<string, number>();
   if (sessionIds.length > 0) {
     const bRes = await service
       .from("attendance_breaks")
       .select("session_id, started_at, ended_at")
       .in("session_id", sessionIds);
-    for (const b of (bRes.data ?? []) as {
-      session_id: string;
-      started_at: string;
-      ended_at: string | null;
-    }[]) {
-      if (!b.ended_at) continue;
-      const secs = (new Date(b.ended_at).getTime() - new Date(b.started_at).getTime()) / 1000;
-      if (secs > 0) {
-        breakBySession.set(b.session_id, (breakBySession.get(b.session_id) ?? 0) + Math.floor(secs));
-      }
-    }
+    breakBySession = breakSecondsBySession((bRes.data ?? []) as BreakInterval[], sessRows);
   }
   const corrBySession = new Map<string, string>();
   if (sessionIds.length > 0) {

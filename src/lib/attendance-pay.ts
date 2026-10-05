@@ -19,10 +19,13 @@ import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { resolveLocale, type Locale } from "@/lib/i18n";
 import {
   allowanceCalculatedExact,
+  breakSecondsBySession,
   dailyGrossExact,
   paidSecondsForSession,
   resolveEffective,
   roundToNearest10,
+  type BreakInterval,
+  type SessionWindow,
 } from "@/lib/attendance-pay-calculation";
 import type {
   AttendanceSessionRow,
@@ -195,26 +198,20 @@ function excludeReasonFor(
 
 type Service = ReturnType<typeof getSupabaseServiceClient>;
 
+/** 세션별 급여 차감 휴게 초 — 근무 시간 안으로 자르고, 닫힌 세션의 열린 휴게는 퇴근까지(`breakSecondsBySession`). */
 async function loadClosedBreakSeconds(
   service: Service,
-  sessionIds: string[],
+  sessions: readonly SessionWindow[],
 ): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
-  if (sessionIds.length === 0) return map;
+  if (sessions.length === 0) return new Map();
   const res = await service
     .from("attendance_breaks")
     .select("session_id, started_at, ended_at")
-    .in("session_id", sessionIds);
-  for (const r of (res.data ?? []) as {
-    session_id: string;
-    started_at: string;
-    ended_at: string | null;
-  }[]) {
-    if (!r.ended_at) continue;
-    const secs = (new Date(r.ended_at).getTime() - new Date(r.started_at).getTime()) / 1000;
-    if (secs > 0) map.set(r.session_id, (map.get(r.session_id) ?? 0) + Math.floor(secs));
-  }
-  return map;
+    .in(
+      "session_id",
+      sessions.map((s) => s.id),
+    );
+  return breakSecondsBySession((res.data ?? []) as BreakInterval[], sessions);
 }
 
 async function loadCorrectionStatuses(
@@ -331,7 +328,7 @@ export async function getMonthlyPayView(
 
   const sessionIds = sessions.map((s) => s.id);
   const [breakSecs, correctionStatuses] = await Promise.all([
-    loadClosedBreakSeconds(service, sessionIds),
+    loadClosedBreakSeconds(service, sessions),
     loadCorrectionStatuses(service, organizationId, userId, sessionIds),
   ]);
 

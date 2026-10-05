@@ -3355,6 +3355,41 @@ export type Database = {
           },
         ]
       }
+      ops_manual_booking_requests: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          created_by: string | null
+          organization_id: string
+          request_key: string
+          reservation_id: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          organization_id: string
+          request_key: string
+          reservation_id?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          organization_id?: string
+          request_key?: string
+          reservation_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ops_manual_booking_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string

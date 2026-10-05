@@ -1374,3 +1374,8 @@ service-role 로 읽으므로 **조직을 쿼리에 직접 건다**(`organizatio
   (SELECT, 같은 판정식) · `platform admins can manage building links`(FOR ALL) · 같은 grant/revoke.
 - 새 권한 키 `room_links.access` 의 `capability_roles` · `capability_policies` 행도 같은 마이그레이션에서 넣는다
   (레지스트리 시드 `202609100001` 의 생성 구역도 갱신 — 새 DB 용).
+
+## 2026-10-05 `ops_manual_booking_requests` — service-role 전용
+
+마이그레이션 `202610050002`. RLS 를 켜고 정책을 두지 않는다 — `anon` · `authenticated` 는 권한도 회수. 수기 예약 서버 액션
+(`submitManualBooking`, `ops_admin.access` 확인 뒤)만 service-role 로 읽고 쓴다.

@@ -12,6 +12,7 @@ import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { SUPABASE_PAGE_SIZE } from "@/lib/supabase/read-all-pages";
 import { chunk } from "@/lib/utils";
+import { breakSecondsBySession, type BreakInterval, type SessionWindow } from "@/lib/attendance-pay-calculation";
 import type {
   AttendanceSessionRow,
   AttendanceSessionStatus,
@@ -279,7 +280,7 @@ export async function getAttendanceReviewQueue(
   const [names, siteNames, breakTotals, correctionStatuses] = await Promise.all([
     loadUserNames(service, userIds),
     loadSiteNames(service, organizationId, siteIds, localeTag),
-    loadBreakTotals(service, sessionIds),
+    loadBreakTotals(service, sessions),
     loadCorrectionStatuses(service, organizationId, sessionIds),
   ]);
 
@@ -351,25 +352,19 @@ async function loadSiteNames(
   return map;
 }
 
-async function loadBreakTotals(service: Service, sessionIds: string[]): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
-  if (sessionIds.length === 0) return map;
+/** 세션별 급여 차감 휴게 초 — 근무 시간 안으로 자르고, 닫힌 세션의 열린 휴게는 퇴근까지(`breakSecondsBySession`). */
+async function loadBreakTotals(service: Service, sessions: readonly SessionWindow[]): Promise<Map<string, number>> {
+  if (sessions.length === 0) return new Map();
   // 세션 id 를 URL 에 싣는다 — 한 달치 수백 개면 URL 이 넘친다. 나눠서 읽는다.
   const pages = await Promise.all(
-    chunk(sessionIds, SESSION_ID_QUERY_CHUNK).map((ids) =>
+    chunk(
+      sessions.map((s) => s.id),
+      SESSION_ID_QUERY_CHUNK,
+    ).map((ids) =>
       service.from("attendance_breaks").select("session_id, started_at, ended_at").in("session_id", ids),
     ),
   );
-  for (const r of pages.flatMap((res) => res.data ?? []) as {
-    session_id: string;
-    started_at: string;
-    ended_at: string | null;
-  }[]) {
-    if (!r.ended_at) continue;
-    const secs = (new Date(r.ended_at).getTime() - new Date(r.started_at).getTime()) / 1000;
-    if (secs > 0) map.set(r.session_id, (map.get(r.session_id) ?? 0) + Math.floor(secs));
-  }
-  return map;
+  return breakSecondsBySession(pages.flatMap((res) => res.data ?? []) as BreakInterval[], sessions);
 }
 
 async function loadCorrectionStatuses(

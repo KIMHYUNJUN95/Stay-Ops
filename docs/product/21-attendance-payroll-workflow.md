@@ -964,3 +964,14 @@ should be defined separately when the reimbursement module is implemented.
 
 가드: `src/lib/__tests__/attendance-abandoned.test.ts` — 위 조건들이 여러 파일에 흩어져 있어
 한 곳만 되돌려도 조용히 옛 동작으로 돌아가므로 소스를 직접 검사한다.
+
+## 월 마감 동시 실행 · 고용형태 미설정 (2026-10-05)
+
+- **사람 · 달마다 `finalized` 스냅샷은 하나** — DB 부분 유일 인덱스 `attendance_month_snapshots_one_finalized`
+  (마이그레이션 `202610050001`). 두 관리자가 동시에 마감하면 두 번째는 `blocked`(`alreadyFinalized`)로 돌아간다.
+  전에는 둘 다 들어간 뒤 서로를 `superseded` 로 바꿔 마감본이 하나도 안 남을 수 있었다.
+- 이전 스냅샷 `superseded` 처리는 **마감 전에 읽어 둔 행만** 바꾸고, 실패하면 로그를 남긴다(전에는 「내 것 빼고 전부」 ·
+  실패 무시).
+- **고용형태 미설정**: 이 달 근무 기록이 있는데 고용형태 이력이 없는 사람은 급여 목록 · 패널에 「고용형태 미설정」 경고
+  (`employmentMissing`, `payEmploymentMissing` ko/ja/en). 전에는 「—」로만 보여 급여 0 으로 조용히 빠졌다
+  (2026-10-05 운영 데이터에 사무 관리자 1명 — 근무 3건). 고용형태를 넣으면 그 날짜부터 계산된다(소급 없음 — 기존 결정).

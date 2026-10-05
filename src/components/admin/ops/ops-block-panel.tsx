@@ -79,6 +79,7 @@ export type BlockPanelCopy = {
   errBkRolledBack: string;
   errBkNotRolledBack: string;
   errBkUnknownRoom: string;
+  errBkPastDate: string;
 };
 
 export function blockErrorText(copy: BlockPanelCopy, error: BlockChangeError): string {
@@ -103,6 +104,8 @@ export function blockErrorText(copy: BlockPanelCopy, error: BlockChangeError): s
     // 묶으면 그냥 재시도하고 넘어가는데, 그러면 고아 블록이 남는다.
     case "save_failed_not_rolled_back":
       return copy.errBkNotRolledBack;
+    case "past_date":
+      return copy.errBkPastDate;
     default:
       return copy.errBkUnknownRoom;
   }

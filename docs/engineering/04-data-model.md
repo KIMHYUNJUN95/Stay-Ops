@@ -2006,3 +2006,11 @@ pg_cron 잡 `beds24-tick` (`* * * * *`) → `select public.beds24_tick_if_needed
 - `id` · `organization_id → organizations` · `canonical_name text`(캘린더 · 건물 정보와 같은 건물 이름) · `channel`(`booking` 체크).
 - `listing_id`(숙소 ID `hotel_id`) · `host_url`(엑스트라넷) · `guest_url`(손님용 페이지) · `memo`(200자) · `updated_by` · 시각들.
 - 유일: `(organization_id, canonical_name, channel)`. 쓰기는 서버 액션 `saveBuildingListingLink` 만.
+
+## 2026-10-05 근태 마감 유일 인덱스 · 수기 예약 멱등 키
+
+- `attendance_month_snapshots_one_finalized` — `(organization_id, user_id, target_month) where status = 'finalized'` 부분 유일
+  인덱스(`202610050001`). 사람 · 달마다 마감본 하나. `docs/product/21-attendance-payroll-workflow.md`.
+- `ops_manual_booking_requests` (`202610050002`) — 수기 예약 요청 키. `(organization_id, request_key)` PK, `booking_id` ·
+  `reservation_id`(만든 뒤 채움) · `created_by` · `created_at`. service-role 전용(RLS 켜고 정책 없음).
+  `docs/product/33-calendar-write-features.md` → 「서버 검증 보강」.

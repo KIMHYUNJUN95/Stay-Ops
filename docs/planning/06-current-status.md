@@ -9,6 +9,15 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-05 — 근태 · 캘린더 점검 후속 수정 (알림 제외)
+
+- 근태: 휴게는 근무 시간 안의 것만 차감 · 닫힌 세션의 열린 휴게는 퇴근까지(`breakSecondsBySession`) · 정정 승인은 요청 확정 →
+  세션 반영(0행이면 되돌림) · 월 마감 동시 실행은 DB 유일 인덱스(`202610050001`) · 고용형태 미설정 경고. (`24`, `21`)
+- 캘린더: 차단 행 키 서버 재계산 · 지난 밤 차단 금지 · 블록은 Beds24 방 번호로 행 매칭 · 예약 수정 유닛 찾기를 행 안에서 ·
+  가격 기준가 서버 읽기 · 수기 예약 멱등 키(`202610050002`). (`33`, `04`, `05`)
+- 그대로 둔 것(의도된 설계 · 구조 한계): 471시간 세션은 「검토 필요」로 거름(사용자 결정), 연차 자가 설정, 시급 소급 없음,
+  할증 없음, 자정 넘는 세션 검토, 채널 예약 취소, GPS · QR 위조 한계, 사노 제외. 알림 관련(크론 · `?secret=`)은 제외.
+
 ## 2026-10-05 — 예약 캘린더 인원: 성인 · 어린이 표기
 
 - 현장 모바일 예약 캘린더 · 관리자 예약 캘린더의 인원을 판매 캘린더처럼 「성인 N · 어린이 N」으로. 공용 `getReservationGuests`.

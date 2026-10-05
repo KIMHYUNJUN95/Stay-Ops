@@ -211,6 +211,8 @@ export async function approveCorrectionRequest(
   const finalClockOutSiteId =
     input.finalClockOutSiteId ?? input.finalSiteId ?? request.desired_clock_out_site_id;
   const nowIso = new Date().toISOString();
+  let applySession: () => Promise<boolean> = async () => false;
+  let auditApplied: () => Promise<void> = async () => {};
 
   if (request.session_id) {
     const siteIdsToValidate = Array.from(
@@ -257,13 +259,18 @@ export async function approveCorrectionRequest(
     }
     if (crossesTokyoMidnight(resultingIn, resultingOut)) update.review_state = "review_required";
 
-    const updRes = await service
-      .from("attendance_sessions")
-      .update(update)
-      .eq("id", s.id)
-      .eq("organization_id", organizationId)
-      .in("review_state", ["normal", "review_required", "pending_correction", "approved_correction"]);
-    if (updRes.error) return { ok: false, reason: "error" };
+    // 반영은 요청을 「승인」으로 확정한 뒤에 한다(아래). 0행이면 실패다 — 전에는 review_state 조건에 걸려
+    // 세션이 그대로인데도 성공으로 보고, 요청만 「승인」이 됐다.
+    applySession = async () => {
+      const updRes = await service
+        .from("attendance_sessions")
+        .update(update)
+        .eq("id", s.id)
+        .eq("organization_id", organizationId)
+        .in("review_state", ["normal", "review_required", "pending_correction", "approved_correction"])
+        .select("id");
+      return !updRes.error && (updRes.data ?? []).length > 0;
+    };
 
     // Audit the authoritative change.
     const before = {
@@ -274,9 +281,10 @@ export async function approveCorrectionRequest(
       status: s.status,
       review_state: s.review_state,
     };
-    await bestEffortWrite(
-      "attendance_session_audits: insert",
-      service.from("attendance_session_audits").insert({
+    auditApplied = async () => {
+      await bestEffortWrite(
+        "attendance_session_audits: insert",
+        service.from("attendance_session_audits").insert({
           organization_id: organizationId,
           session_id: s.id,
           actor_user_id: actorId,
@@ -284,8 +292,9 @@ export async function approveCorrectionRequest(
           reason: input.comment?.trim() ? input.comment.trim() : "Correction request approved",
           before_json: before,
           after_json: update,
-        })
-    );
+        }),
+      );
+    };
   } else {
     if (!finalInAt || !finalOutAt || !finalClockInSiteId) {
       return { ok: false, reason: "invalid" };
@@ -327,29 +336,38 @@ export async function approveCorrectionRequest(
         ? input.comment.trim()
         : "Correction request approved",
     };
-    const ins = (await service
-      .from("attendance_sessions")
-      .insert(insertFields)
-      .select("id")
-      .single()) as { data: { id: string } | null; error: { message: string } | null };
-    if (ins.error || !ins.data) return { ok: false, reason: "error" };
-
-    await bestEffortWrite(
-      "attendance_session_audits: insert",
-      service.from("attendance_session_audits").insert({
+    let createdId: string | null = null;
+    applySession = async () => {
+      const ins = (await service
+        .from("attendance_sessions")
+        .insert(insertFields)
+        .select("id")
+        .single()) as { data: { id: string } | null; error: { message: string } | null };
+      createdId = ins.data?.id ?? null;
+      return !ins.error && Boolean(createdId);
+    };
+    auditApplied = async () => {
+      if (!createdId) return;
+      await bestEffortWrite(
+        "attendance_session_audits: insert",
+        service.from("attendance_session_audits").insert({
           organization_id: organizationId,
-          session_id: ins.data.id,
+          session_id: createdId,
           actor_user_id: actorId,
           action_type: "manual_create",
           reason: input.comment?.trim()
-          ? input.comment.trim()
-          : "Session created from approved correction request",
+            ? input.comment.trim()
+            : "Session created from approved correction request",
           before_json: {},
           after_json: insertFields,
-        })
-    );
+        }),
+      );
+    };
   }
 
+  // 요청을 먼저 「승인」으로 확정한다(내가 잡은 in_review 일 때만 — 동시에 누른 두 번째 승인은 여기서 떨어진다).
+  // 그다음 세션에 반영하고, 반영이 실패하면 요청을 in_review 로 되돌린다. 두 쓰기가 한 트랜잭션은 아니지만
+  // 「세션은 그대로인데 요청만 승인」으로 끝나는 길은 없다.
   const upd = await service
     .from("attendance_correction_requests")
     .update({
@@ -366,6 +384,21 @@ export async function approveCorrectionRequest(
     .maybeSingle();
   if (upd.error) return { ok: false, reason: "error" };
   if (!upd.data) return { ok: false, reason: "invalid" };
+
+  if (!(await applySession())) {
+    await bestEffortWrite(
+      "attendance_correction_requests: rollback approval",
+      service
+        .from("attendance_correction_requests")
+        .update({ status: "in_review", reviewed_at: null, review_comment: null })
+        .eq("id", request.id)
+        .eq("organization_id", organizationId)
+        .eq("status", "approved")
+        .eq("reviewed_by_user_id", actorId),
+    );
+    return { ok: false, reason: "invalid" };
+  }
+  await auditApplied();
 
   await createNotification(service, {
     organizationId,
@@ -1018,19 +1051,34 @@ export async function finalizeAttendanceMonth(input: {
       supersedes_snapshot_id: supersedesId,
     })
     .select("id")
-    .single()) as { data: { id: string } | null; error: { message: string } | null };
+    .single()) as { data: { id: string } | null; error: { code?: string; message: string } | null };
+  // 두 사람이 동시에 마감하면 두 번째 insert 는 DB 유일 인덱스(사람 · 달마다 finalized 하나 —
+  // `202610050001`)에 걸린다 → 「이미 마감됨」으로 돌려준다. 전에는 둘 다 들어간 뒤 서로를 superseded 로 바꿔
+  // 마감본이 하나도 안 남을 수 있었다.
+  if (ins.error?.code === "23505") {
+    return {
+      ok: false,
+      reason: "blocked",
+      blockers: { alreadyFinalized: true, openSessions: 0, pendingCorrections: 0, reviewRequired: 0 },
+    };
+  }
   if (ins.error || !ins.data) return { ok: false, reason: "error" };
 
-  // Supersede old rows only after a confirmed successful insert.
+  // Supersede old rows only after a confirmed successful insert — **읽어 둔 이전 행만**. 「내 것 빼고 전부」로
+  // 바꾸면 동시에 들어온 다른 마감본까지 지운다.
   if (priorRows.length > 0) {
-    await service
+    const sup = await service
       .from("attendance_month_snapshots")
       .update({ status: "superseded" })
       .eq("organization_id", organizationId)
       .eq("user_id", input.userId)
       .eq("target_month", firstDay)
-      .neq("status", "superseded")
-      .neq("id", ins.data.id);
+      .in(
+        "id",
+        priorRows.map((row) => row.id),
+      )
+      .neq("status", "superseded");
+    if (sup.error) console.error("[attendance] supersede prior snapshots failed", sup.error.message);
   }
 
   await bestEffortWrite(

@@ -156,7 +156,7 @@ function toReservationRows(result: {
 
 type BlockRow = Pick<
   Database["public"]["Tables"]["room_blocks"]["Row"],
-  "id" | "property_name" | "room_label" | "start_date" | "end_date"
+  "id" | "property_name" | "room_label" | "start_date" | "end_date" | "external_room_id"
 >;
 
 type HistoryLogRow = {
@@ -392,13 +392,54 @@ function makeReservationRoomAxis(roomCatalog: Awaited<ReturnType<typeof getActiv
   };
 }
 
-/** 블록 한 건 → 객실 행 키. 블록은 우리 표에 사람이 읽는 이름으로 들어 있다. */
+/** 블록 한 건 → 객실 행 키(이름으로). `readBlockRoomKeyResolver` 가 Beds24 방 번호로 못 찾을 때만 쓴다. */
 function blockRoomAxisKey(row: Pick<BlockRow, "property_name" | "room_label">): string {
   const propertyName = getCanonicalPropertyName(row.property_name);
   const canonicalRoomKey =
     getCanonicalRoomLabel(propertyName, row.room_label) || row.room_label.trim();
   const displayRoomLabel = getDisplayRoomLabel(propertyName, canonicalRoomKey) || canonicalRoomKey;
   return toRoomAxisKey(propertyName, displayRoomLabel);
+}
+
+type BlockRoomKeyResolver = (row: Pick<BlockRow, "property_name" | "room_label" | "external_room_id">) => string;
+
+/**
+ * 블록 → 객실 행 키를 **예약처럼 Beds24 방 번호로** 찾는다(2026-10-05).
+ *
+ * 예약은 원본의 방 번호로 행을 찾는데 블록은 이름(`property_name` · `room_label`)으로만 찾아서, 이름이 객실 마스터와
+ * 어긋나면(객실 이름을 바꾼 뒤 등) 그 블록이 캘린더에서 **조용히 빠졌다** — 막힌 방이 빈방으로 보이면 초과예약이다.
+ * `room_blocks.external_room_id` → 우리 유닛 → `opsUnitRoomKey`(격자 행 키와 같은 계산). 방 번호가 없거나 모르는
+ * 번호 · 두 행에 걸친 번호면 이름으로 돌아간다. 객실 표를 못 읽어도 이름으로 돌아간다.
+ */
+async function readBlockRoomKeyResolver(
+  supabase: SupabaseClient<Database>,
+  organizationId: string,
+): Promise<BlockRoomKeyResolver> {
+  const byExternal = new Map<string, string | null>();
+  const result = await supabase
+    .from("rooms")
+    .select("external_room_id, room_label, properties(name)")
+    .eq("organization_id", organizationId)
+    .not("external_room_id", "is", null);
+  if (result.error) {
+    console.error("[ops-calendar] block room lookup failed; matching by name", result.error);
+  } else {
+    for (const unit of (result.data ?? []) as Array<{
+      external_room_id: string | null;
+      room_label: string;
+      properties: { name: string } | { name: string }[] | null;
+    }>) {
+      const property = Array.isArray(unit.properties) ? unit.properties[0] : unit.properties;
+      const key = opsUnitRoomKey({ propertyName: property?.name, roomLabel: unit.room_label });
+      const id = String(unit.external_room_id);
+      if (!key) continue;
+      byExternal.set(id, byExternal.has(id) && byExternal.get(id) !== key ? null : key);
+    }
+  }
+  return (row) => {
+    const key = row.external_room_id ? byExternal.get(String(row.external_room_id)) : undefined;
+    return key ?? blockRoomAxisKey(row);
+  };
 }
 
 /**
@@ -427,7 +468,7 @@ export async function readOpsRoomUnavailableNights(args: {
   excludeReservationId?: string;
 }): Promise<{ booked: string[]; unsellable: string[] }> {
   const { organizationId, supabase } = args;
-  const [roomCatalog, reservationsResult, blocksResult, ratesResult] = await Promise.all([
+  const [roomCatalog, reservationsResult, blocksResult, ratesResult, blockRoomKey] = await Promise.all([
     getActiveRoomCatalog(organizationId, supabase, { includeNonOperationalProperties: true }),
     readAllPages<Record<string, unknown>>((from, to) =>
       supabase
@@ -444,7 +485,7 @@ export async function readOpsRoomUnavailableNights(args: {
     readAllPages<BlockRow>((from, to) =>
       supabase
         .from("room_blocks")
-        .select("id, property_name, room_label, start_date, end_date")
+        .select("id, property_name, room_label, start_date, end_date, external_room_id")
         .eq("organization_id", organizationId)
         .lt("start_date", args.toExclusive)
         .gte("end_date", args.from)
@@ -469,6 +510,7 @@ export async function readOpsRoomUnavailableNights(args: {
             .order("stay_date", { ascending: true })
             .range(from, to),
         ),
+    readBlockRoomKeyResolver(supabase, organizationId),
   ]);
   // 모르면 막는다 — 읽기에 실패했는데 「비어 있다」고 하면 그대로 초과예약이 된다.
   if (reservationsResult.error) throw new Error(reservationsResult.error.message);
@@ -493,7 +535,7 @@ export async function readOpsRoomUnavailableNights(args: {
   }
   for (const row of blocksResult.data) {
     if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
-    if (blockRoomAxisKey(row) !== args.roomKey) continue;
+    if (blockRoomKey(row) !== args.roomKey) continue;
     // 블록은 양끝을 포함한다.
     for (const night of nights) {
       if (night >= row.start_date && night <= row.end_date) booked.add(night);
@@ -620,7 +662,7 @@ export async function getOpsCalendarData(
   const blocksPromise = readAllPages<BlockRow>((from, to) =>
     supabase
       .from("room_blocks")
-      .select("id, property_name, room_label, start_date, end_date")
+      .select("id, property_name, room_label, start_date, end_date, external_room_id")
       .eq("organization_id", session.organization.id)
       // 창 밖에서 시작해 안으로 들어오는 블락도 잡아야 한다.
       .lt("start_date", window.endExclusive)
@@ -737,7 +779,11 @@ export async function getOpsCalendarData(
     error: results.find((result) => result.error)?.error ?? null,
   }));
 
-  const [reservationsResult, blocksResult] = await Promise.all([reservationsPromise, blocksPromise]);
+  const [reservationsResult, blocksResult, blockRoomKey] = await Promise.all([
+    reservationsPromise,
+    blocksPromise,
+    readBlockRoomKeyResolver(supabase, session.organization.id),
+  ]);
   if (reservationsResult.error) throw new Error(reservationsResult.error.message);
 
   const reservationRoomAxis = makeReservationRoomAxis(roomCatalog);
@@ -783,7 +829,7 @@ export async function getOpsCalendarData(
   } else {
     for (const row of blocksResult.data) {
       if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
-      const roomKey = blockRoomAxisKey(row);
+      const roomKey = blockRoomKey(row);
       // 그릴 행이 없으면 조용히 버린다 — 캘린더를 깨뜨리는 것보다 낫다.
       if (!roomsByKey.has(roomKey)) continue;
       blocks.push({ endDate: row.end_date, id: row.id, roomKey, startDate: row.start_date });
@@ -1139,7 +1185,7 @@ export async function readOpsSalesInputs(args: {
   const blocksPromise = readAllPages<BlockRow>((from, to) =>
     supabase
       .from("room_blocks")
-      .select("id, property_name, room_label, start_date, end_date")
+      .select("id, property_name, room_label, start_date, end_date, external_room_id")
       .eq("organization_id", organizationId)
       .lt("start_date", window.endExclusive)
       .gte("end_date", window.start)
@@ -1177,10 +1223,11 @@ export async function readOpsSalesInputs(args: {
     labelOfRoom.set(key, entry.displayRoomLabel);
   }
 
-  const [reservationsResult, blocksResult, blackoutResult] = await Promise.all([
+  const [reservationsResult, blocksResult, blackoutResult, blockRoomKey] = await Promise.all([
     reservationsPromise,
     blocksPromise,
     blackoutPromise,
+    readBlockRoomKeyResolver(supabase, organizationId),
   ]);
   if (reservationsResult.error) throw new Error(reservationsResult.error.message);
   if (blocksResult.error) throw new Error(blocksResult.error.message);
@@ -1237,7 +1284,7 @@ export async function readOpsSalesInputs(args: {
   const roomBlockCells = new Map<string, { roomKey: string; date: string }>();
   for (const row of blocksResult.data) {
     if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
-    const roomKey = blockRoomAxisKey(row);
+    const roomKey = blockRoomKey(row);
     if (!catalogKeys.has(roomKey) || !inView(propertyOfRoom.get(roomKey) ?? "")) continue;
     for (let date = row.start_date < window.start ? window.start : row.start_date; date <= row.end_date && date < window.endExclusive; date = addDays(date, 1)) {
       const cell = `${roomKey}|${date}`;
