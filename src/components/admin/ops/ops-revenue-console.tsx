@@ -11,6 +11,7 @@ import { AdminMonthPicker } from "@/components/admin/shared/admin-month-picker";
 import { shiftMonthKey } from "@/components/admin/shared/admin-month-key";
 import type { Dictionary } from "@/lib/i18n";
 import {
+  REVENUE_COMPARES,
   REVENUE_MODES,
   changePct,
   fiscalPeriodNumber,
@@ -22,6 +23,7 @@ import {
   sumMetrics,
   yoyLevel,
   type RevenueCell,
+  type RevenueCompare,
   type RevenueMetrics,
   type RevenueMode,
   type RevenueRange,
@@ -52,12 +54,22 @@ const YOY_BG = ["hsl(4 74% 89%)", "hsl(4 70% 95%)", "hsl(40 18% 94%)", "hsl(146 
 const YOY_FG = ["hsl(4 66% 34%)", "hsl(4 56% 40%)", "var(--adm-muted)", "hsl(146 50% 26%)", "hsl(146 56% 22%)"];
 const CHANNEL_COLOR = { airbnb: "var(--orv-abnb)", booking: "var(--orv-bkng)", direct: "var(--orv-dir)", other: "var(--orv-oth)" };
 
-/** 기간 → 주소. 월은 공용 월 선택기(`?ym=`)와 같은 키를 쓴다. */
-export function revenueHref(mode: RevenueMode, range: RevenueRange, tab: Tab): string {
+/** 비교 기간 주소 조각 — 1년 전(기본)은 싣지 않는다. */
+type CompareQuery = { compare: RevenueCompare; from?: string; to?: string };
+
+/** 기간 → 주소. 월은 공용 월 선택기(`?ym=`)와 같은 키를 쓴다. 비교 기간(`cmp`)은 기간을 옮겨도 따라간다. */
+export function revenueHref(mode: RevenueMode, range: RevenueRange, tab: Tab, compare?: CompareQuery): string {
   const query = new URLSearchParams({ mode });
   if (mode === "month") query.set("ym", range.from.slice(0, 7));
   else query.set("from", range.from);
   if (mode === "custom") query.set("to", range.to);
+  if (compare && compare.compare !== "1y") {
+    query.set("cmp", compare.compare);
+    if (compare.compare === "custom" && compare.from && compare.to) {
+      query.set("cfrom", compare.from);
+      query.set("cto", compare.to);
+    }
+  }
   if (tab === "matrix") query.set("tab", tab);
   return `/admin/ops/revenue?${query.toString()}`;
 }
@@ -176,6 +188,7 @@ export function OpsRevenueConsole({
           return cell && cell.revenue > 0 ? cell.revenue : null;
         }),
       })),
+      compare: data.compare,
       rangeLabel: rangeLabel(data.mode, data.range),
       rows: data.properties
         .filter((p) => (data.rangeCells[p.name]?.revenue ?? 0) > 0 || (data.previousRangeCells[p.name]?.revenue ?? 0) > 0)
@@ -196,6 +209,8 @@ export function OpsRevenueConsole({
     apply: shared.dateApply,
     nextMonth: shared.dateNextMonth,
     prevMonth: shared.datePrevMonth,
+    nextYear: shared.dateNextYear,
+    prevYear: shared.datePrevYear,
     reset: shared.dateReset,
     thisMonth: shared.dateThisMonth,
   };
@@ -207,10 +222,18 @@ export function OpsRevenueConsole({
     year: copy.modeYear,
   };
 
+  const cmpQ: CompareQuery = { compare: data.compare, from: data.previousRange.from, to: data.previousRange.to };
+  const lastYearLabel = data.compare === "1y" ? copy.lastYearValue : copy.compareValue;
+  const compareLabel: Record<RevenueCompare, string> = {
+    "1y": copy.cmp1y,
+    "2y": copy.cmp2y,
+    "3y": copy.cmp3y,
+    custom: copy.cmpCustom,
+  };
   // ── 숫자 6개 ──
   const dRev = changePct(current.revenue, previous.revenue);
   const kpis = [
-    { d: deltaText(dRev), hero: true, label: copy.kpiRevenue, sub: fill(copy.lastYearValue, { v: man(previous.revenue) }), tone: tone(dRev), value: man(current.revenue) },
+    { d: deltaText(dRev), hero: true, label: copy.kpiRevenue, sub: fill(lastYearLabel, { v: man(previous.revenue) }), tone: tone(dRev), value: man(current.revenue) },
     {
       d: deltaText(changePct(current.commission, previous.commission)),
       label: copy.kpiCommission,
@@ -218,7 +241,7 @@ export function OpsRevenueConsole({
       tone: "z",
       value: man(current.commission),
     },
-    { d: deltaText(changePct(current.net, previous.net)), label: copy.kpiNet, sub: fill(copy.lastYearValue, { v: man(previous.net) }), tone: tone(changePct(current.net, previous.net)), value: man(current.net) },
+    { d: deltaText(changePct(current.net, previous.net)), label: copy.kpiNet, sub: fill(lastYearLabel, { v: man(previous.net) }), tone: tone(changePct(current.net, previous.net)), value: man(current.net) },
     {
       d: previous.availableNights > 0 ? pointText(current.occupancyPct, previous.occupancyPct) : copy.newLabel,
       label: copy.kpiOccupancy,
@@ -226,8 +249,8 @@ export function OpsRevenueConsole({
       tone: previous.availableNights > 0 ? tone(current.occupancyPct - previous.occupancyPct) : "z",
       value: pct(current.occupancyPct),
     },
-    { d: deltaText(changePct(current.adr, previous.adr)), label: copy.kpiAdr, sub: fill(copy.lastYearValue, { v: yen(previous.adr) }), tone: tone(changePct(current.adr, previous.adr)), value: yen(current.adr) },
-    { d: deltaText(changePct(current.revpar, previous.revpar)), label: copy.kpiRevpar, sub: fill(copy.lastYearValue, { v: yen(previous.revpar) }), tone: tone(changePct(current.revpar, previous.revpar)), value: yen(current.revpar) },
+    { d: deltaText(changePct(current.adr, previous.adr)), label: copy.kpiAdr, sub: fill(lastYearLabel, { v: yen(previous.adr) }), tone: tone(changePct(current.adr, previous.adr)), value: yen(current.adr) },
+    { d: deltaText(changePct(current.revpar, previous.revpar)), label: copy.kpiRevpar, sub: fill(lastYearLabel, { v: yen(previous.revpar) }), tone: tone(changePct(current.revpar, previous.revpar)), value: yen(current.revpar) },
   ];
 
   const prevRange = shiftRange(data.mode, data.range, -1);
@@ -254,7 +277,7 @@ export function OpsRevenueConsole({
             <Link
               aria-selected={mode === data.mode}
               className={mode === data.mode ? "on" : ""}
-              href={revenueHref(mode, mode === "custom" ? data.range : shiftToMode(mode, data.range, data.today), tab)}
+              href={revenueHref(mode, mode === "custom" ? data.range : shiftToMode(mode, data.range, data.today), tab, cmpQ)}
               key={mode}
               role="tab"
             >
@@ -274,7 +297,7 @@ export function OpsRevenueConsole({
               thisMonth: shared.dateThisMonth,
             }}
             localeTag={localeTag}
-            preserveQueryKeys={["mode", "tab"]}
+            preserveQueryKeys={["mode", "tab", "cmp", "cfrom", "cto"]}
             ym={data.range.from.slice(0, 7)}
           />
         ) : data.mode === "custom" ? (
@@ -284,25 +307,53 @@ export function OpsRevenueConsole({
             labels={rangePickerLabels}
             localeTag={localeTag}
             onChange={(from, to) => {
-              if (from && to) go(revenueHref("custom", { from, to }, tab));
+              if (from && to) go(revenueHref("custom", { from, to }, tab, cmpQ));
             }}
             to={data.range.to}
           />
         ) : (
           <div className="orv__pnav">
-            <Link aria-label={copy.prev} className="orv__arrow" href={revenueHref(data.mode, prevRange, tab)}>
+            <Link aria-label={copy.prev} className="orv__arrow" href={revenueHref(data.mode, prevRange, tab, cmpQ)}>
               <ChevronLeft aria-hidden="true" />
             </Link>
             <span className="orv__plabel">{rangeLabel(data.mode, data.range)}</span>
-            <Link aria-label={copy.next} className="orv__arrow" href={revenueHref(data.mode, nextRange, tab)}>
+            <Link aria-label={copy.next} className="orv__arrow" href={revenueHref(data.mode, nextRange, tab, cmpQ)}>
               <ChevronRight aria-hidden="true" />
             </Link>
           </div>
         )}
-        <span className="orv__cmp">
+        <div className="orv__cmp">
           <span className="k">{copy.compare}</span>
-          {fill(copy.compareSame, { range: rangeLabel(data.mode, data.previousRange) })}
-        </span>
+          <div className="orv__seg">
+            {REVENUE_COMPARES.map((key) => (
+              <Link
+                aria-pressed={data.compare === key}
+                className={data.compare === key ? "on" : ""}
+                // 「직접」을 처음 누르면 지금 비교 기간을 그대로 들고 간다 — 거기서 달력으로 고친다.
+                href={revenueHref(data.mode, data.range, tab, { compare: key, from: data.previousRange.from, to: data.previousRange.to })}
+                key={key}
+              >
+                {compareLabel[key]}
+              </Link>
+            ))}
+          </div>
+          {data.compare === "custom" ? (
+            <AdminDateRangePicker
+              ariaLabel={copy.colCompare}
+              from={data.previousRange.from}
+              labels={rangePickerLabels}
+              localeTag={localeTag}
+              onChange={(from, to) => {
+                if (from && to) go(revenueHref(data.mode, data.range, tab, { compare: "custom", from, to }));
+              }}
+              to={data.previousRange.to}
+            />
+          ) : (
+            <span className="orv__cmprange">
+              {fill(data.compare === "1y" ? copy.compareSame : copy.compareRange, { range: rangeLabel(data.mode, data.previousRange) })}
+            </span>
+          )}
+        </div>
         {phase !== "past" && <span className="orv__pill is-warn">{phase === "current" ? copy.inProgress : copy.futureOnly}</span>}
       </div>
 
@@ -372,6 +423,7 @@ export function OpsRevenueConsole({
 
       {tab === "report" ? (
         <ReportTab
+          cmpQ={cmpQ}
           copy={copy}
           current={current}
           data={data}
@@ -435,6 +487,7 @@ type Fmt = {
 };
 
 function ReportTab({
+  cmpQ,
   data,
   copy,
   current,
@@ -451,6 +504,7 @@ function ReportTab({
   deltaText,
   tone,
 }: Fmt & {
+  cmpQ: CompareQuery;
   data: OpsRevenueData;
   copy: Copy;
   current: RevenueMetrics;
@@ -507,7 +561,7 @@ function ReportTab({
           </div>
           {bars.map(({ cur, month, prev }) => {
             const p = monthPhase(month, data.today);
-            const href = `/admin/ops/revenue?mode=month&ym=${month}${tab === "matrix" ? "&tab=matrix" : ""}`;
+            const href = revenueHref("month", { from: `${month}-01`, to: `${month}-28` }, tab, cmpQ);
             return (
               <button
                 className={`orv__col is-${p}${selectedMonths.has(month) ? " on" : ""}`}
@@ -546,7 +600,7 @@ function ReportTab({
                 <tr>
                   <th>{copy.colProperty}</th>
                   <th>{copy.colRevenue}</th>
-                  <th>{copy.colLastYear}</th>
+                  <th>{data.compare === "1y" ? copy.colLastYear : copy.colCompare}</th>
                   <th>{copy.colChange}</th>
                   <th>{copy.colOccupancy}</th>
                   <th>{copy.colAdr}</th>

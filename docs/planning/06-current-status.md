@@ -14,6 +14,11 @@ and the major mobile/admin operations modules are implemented and being hardened
 - `NativeShellBridge`: 앱에서 외부 링크 · 다운로드는 앱 안 브라우저, 같은 출처 새 창은 WebView, Android 뒤로가기 버튼은 오버레이 닫기 → 이전 화면 → 최소화.
   SystemBars edge-to-edge 설정. 사용자 환경: Mac 없음(iOS 는 클라우드 빌드 예정), Android Studio 있음. (`03` 「앱 안 WebView 보정」 · 「Android 첫 실행」, `16`, `17`)
 
+## 2026-10-06 — 기간 달력 연 · 월 바로 가기 · 매출 비교 기간 고르기
+
+- 공용 `AdminDateRangePicker`: 달 이름을 누르면 연 · 월 칸으로 바로 이동, 올해가 아닌 기간은 버튼에 연도. 모든 관리 콘솔 기간 달력.
+- 매출 화면 비교: 1 · 2 · 3년 전 · 직접. (`05` 「연 · 월 바로 가기」, `34` 「매출 화면」, `01`)
+
 ## 2026-10-06 — 매출 화면 (STAY ARI 이식 — 시안 A v2)
 
 - `/admin/ops/revenue` 구현: 기간(기수 · 연 · 월 · 주 · 직접) · 숫자 6개 · 「추이 · 건물별」 · 「건물 × 월」 매트릭스 · Excel · PDF.

@@ -16,6 +16,12 @@ export type AdminDateRangePickerLabels = {
   thisMonth: string;
   reset: string;
   apply: string;
+  /**
+   * 달 이름을 눌러 여는 「연 · 월 바로 가기」(2026-10-06 — 몇 년 전 날짜를 달마다 넘겨 찾느라 힘들다는 지적).
+   * 비우면 이전/다음 달 문구를 쓴다.
+   */
+  prevYear?: string;
+  nextYear?: string;
 };
 
 type AdminDateRangePickerProps = {
@@ -63,9 +69,10 @@ function monthLabel(monthKey: string, localeTag: string): string {
     month: "long",
   }).format(new Date(`${monthKey}-01T00:00:00+09:00`));
 }
-function dateLabel(dateKey: string, localeTag: string): string {
+function dateLabel(dateKey: string, localeTag: string, withYear = false): string {
   return new Intl.DateTimeFormat(localeTag, {
     timeZone: "Asia/Tokyo",
+    ...(withYear ? { year: "numeric" } : {}),
     month: "long",
     day: "numeric",
   }).format(parseDateKey(dateKey));
@@ -120,6 +127,8 @@ export function AdminDateRangePicker({
   const [calendarMonth, setCalendarMonth] = useState(calendarMonthOf(from));
   const [draftFrom, setDraftFrom] = useState<string | null>(from || null);
   const [draftTo, setDraftTo] = useState<string | null>(to || null);
+  /** 달 이름을 누르면 날짜 칸 대신 연 · 월 칸을 보여 준다. 그 해를 들고 있다. */
+  const [jumpYear, setJumpYear] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -153,6 +162,7 @@ export function AdminDateRangePicker({
     onMonthChange?.(calendarMonthOf(from));
     setDraftFrom(null);
     setDraftTo(null);
+    setJumpYear(null);
     setOpen(true);
   }
 
@@ -188,6 +198,13 @@ export function AdminDateRangePicker({
   }
 
   const days = daysInMonthKey(calendarMonth);
+  // 올해가 아닌 날짜는 버튼에 연도까지 — 「2월 1일」만으로는 몇 년인지 모른다.
+  const currentYear = formatDateKey(new Date()).slice(0, 4);
+  const showYear = Boolean((from && from.slice(0, 4) !== currentYear) || (to && to.slice(0, 4) !== currentYear));
+  const monthNames = Array.from({ length: 12 }, (_, i) =>
+    new Intl.DateTimeFormat(localeTag, { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2021, i, 15))),
+  );
+  const draftMonths = new Set([draftFrom?.slice(0, 7), draftTo?.slice(0, 7)].filter(Boolean));
   const firstDow = tokyoDayOfWeek(`${calendarMonth}-01`);
   const todayKey = formatDateKey(new Date());
   const dowLabels = Array.from({ length: 7 }, (_, i) =>
@@ -222,9 +239,9 @@ export function AdminDateRangePicker({
         </span>
         {from || to || !emptyLabel ? (
           <>
-            <span className="v">{from ? dateLabel(from, localeTag) : ""}</span>
+            <span className="v">{from ? dateLabel(from, localeTag, showYear) : ""}</span>
             <span className="dash">–</span>
-            <span className="v">{to ? dateLabel(to, localeTag) : ""}</span>
+            <span className="v">{to ? dateLabel(to, localeTag, showYear && to.slice(0, 4) !== from.slice(0, 4)) : ""}</span>
           </>
         ) : (
           <span className="v">{emptyLabel}</span>
@@ -241,6 +258,53 @@ export function AdminDateRangePicker({
           aria-label={ariaLabel}
           style={{ position: "fixed", top: pos.top, left: pos.left }}
         >
+          {jumpYear !== null ? (
+            <>
+              <div className="amp__hd">
+                <button
+                  type="button"
+                  className="calpop__nav"
+                  aria-label={labels.prevYear ?? labels.prevMonth}
+                  onClick={() => setJumpYear((y) => (y ?? Number(calendarMonth.slice(0, 4))) - 1)}
+                >
+                  <ChevronLeft aria-hidden="true" />
+                </button>
+                <button type="button" className="calpop__title calpop__title--btn" onClick={() => setJumpYear(null)}>
+                  {jumpYear}
+                </button>
+                <button
+                  type="button"
+                  className="calpop__nav"
+                  aria-label={labels.nextYear ?? labels.nextMonth}
+                  onClick={() => setJumpYear((y) => (y ?? Number(calendarMonth.slice(0, 4))) + 1)}
+                >
+                  <ChevronRight aria-hidden="true" />
+                </button>
+              </div>
+              <div className="amp__grid calpop__months">
+                {monthNames.map((name, i) => {
+                  const key = `${jumpYear}-${String(i + 1).padStart(2, "0")}`;
+                  const cls = ["amp__m", key === calendarMonth ? "sel" : "", draftMonths.has(key) ? "is-draft" : ""]
+                    .filter(Boolean)
+                    .join(" ");
+                  return (
+                    <button
+                      type="button"
+                      key={key}
+                      className={cls}
+                      onClick={() => {
+                        showMonth(key);
+                        setJumpYear(null);
+                      }}
+                    >
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+          <>
           <div className="calpop__head">
             <button
               type="button"
@@ -250,7 +314,15 @@ export function AdminDateRangePicker({
             >
               <ChevronLeft aria-hidden="true" />
             </button>
-            <span className="calpop__title">{monthLabel(calendarMonth, localeTag)}</span>
+            <button
+              type="button"
+              className="calpop__title calpop__title--btn"
+              aria-expanded={false}
+              onClick={() => setJumpYear(Number(calendarMonth.slice(0, 4)))}
+            >
+              {monthLabel(calendarMonth, localeTag)}
+              <ChevronDown aria-hidden="true" className="calpop__titlechev" />
+            </button>
             <button
               type="button"
               className="calpop__nav"
@@ -308,6 +380,8 @@ export function AdminDateRangePicker({
               );
             })}
           </div>
+          </>
+          )}
           <div className="calpop__foot">
             {constrained ? null : (
               <button

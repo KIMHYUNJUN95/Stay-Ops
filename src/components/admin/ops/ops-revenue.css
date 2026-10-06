@@ -272,3 +272,9 @@
   .adm .orv__split,
   .adm .orv__mxsplit { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* 비교 기간 고르기 (2026-10-06) — 1 · 2 · 3년 전 · 직접 */
+.adm .orv__cmp { height: auto; padding: 3px 4px 3px 11px; gap: 8px; flex-wrap: wrap; }
+.adm .orv__cmp .orv__seg { padding: 2px; }
+.adm .orv__cmp .orv__seg > a { height: 24px; padding: 0 9px; }
+.adm .orv__cmprange { padding-right: 7px; white-space: nowrap; }

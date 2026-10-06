@@ -7,7 +7,7 @@ import { buildAdminTableReportHtml } from "@/lib/admin-table-report";
 import { buildAdminTableWorkbookBase64, type AdminTableSheet } from "@/lib/admin-table-workbook";
 import { getDictionary } from "@/lib/i18n";
 import { canAccessOpsAdmin } from "@/lib/ops-admin";
-import { changePct } from "@/lib/ops-revenue";
+import { changePct, type RevenueCompare } from "@/lib/ops-revenue";
 
 // 공용 계약(CLAUDE.md §4b): 버튼은 <AdminExportButtons>, 워크북은 buildAdminTableWorkbookBase64,
 // 인쇄본은 buildAdminTableReportHtml — 같은 입력 형태. 로케일은 서버가 세션에서 정한다.
@@ -26,6 +26,8 @@ export type OpsRevenueExportRow = {
 
 export type OpsRevenueExportPayload = {
   rangeLabel: string;
+  /** 비교 기간 종류 — 「전년」 열 머리를 「비교 기간」으로 바꿀지. */
+  compare: RevenueCompare;
   rows: OpsRevenueExportRow[];
   total: OpsRevenueExportRow;
   /** 「건물 × 월」 시트 — 머리 글자와 건물마다 달별 매출. */
@@ -76,7 +78,7 @@ function sheetsOf(payload: OpsRevenueExportPayload, meta: AdminExportMeta): Admi
       columns: [
         { key: "name", label: t.colProperty, printWidth: 16, width: 22, bold: true },
         { key: "revenue", label: t.colRevenue, printWidth: 12, width: 15, bold: true },
-        { key: "previous", label: t.colLastYear, printWidth: 12, width: 15 },
+        { key: "previous", label: payload.compare === "1y" ? t.colLastYear : t.colCompare, printWidth: 12, width: 15 },
         { key: "change", label: t.colChange, printWidth: 8, width: 10 },
         { key: "occupancy", label: t.colOccupancy, printWidth: 8, width: 10 },
         { key: "adr", label: t.colAdr, printWidth: 10, width: 12 },

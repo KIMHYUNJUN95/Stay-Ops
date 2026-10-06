@@ -8,9 +8,9 @@ import {
   chartMonths,
   emptyCell,
   lastDayOfMonth,
-  previousYearRange,
   splitByMonth,
   type RevenueCell,
+  type RevenueCompare,
   type RevenueMode,
   type RevenueRange,
 } from "@/lib/ops-revenue";
@@ -45,6 +45,8 @@ export type OpsRevenueData = {
   today: string;
   mode: RevenueMode;
   range: RevenueRange;
+  /** 비교 기간 — 기본 1년 전 같은 날짜(`comparisonRange`). 표 · 숫자 6개의 증감이 이것과 비교한다. */
+  compare: RevenueCompare;
   previousRange: RevenueRange;
   /** 그래프 · 매트릭스 15칸(기준 달 앞 11 ~ 뒤 3). */
   months: string[];
@@ -64,11 +66,10 @@ type PieceResult = { properties: Map<string, RevenueCell>; rooms: Map<string, Re
 
 export async function getOpsRevenueData(
   session: AppSession,
-  args: { mode: RevenueMode; range: RevenueRange },
+  args: { mode: RevenueMode; range: RevenueRange; compare: RevenueCompare; previousRange: RevenueRange },
 ): Promise<OpsRevenueData> {
   const today = toJstDateString(new Date());
-  const { mode, range } = args;
-  const previousRange = previousYearRange(range);
+  const { compare, mode, previousRange, range } = args;
   const months = chartMonths(anchorMonth(range, today));
   const allMonths = [...months.map((month) => shiftMonthKey(month, -12)), ...months];
 
@@ -165,6 +166,7 @@ export async function getOpsRevenueData(
   });
 
   return {
+    compare,
     mode,
     monthCells,
     monthRoomCells,

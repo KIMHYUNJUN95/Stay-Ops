@@ -2995,3 +2995,11 @@
 .adm .mprev__act:hover { background: rgba(255, 255, 255, 0.18); }
 .adm .mprev__act .ic { display: inline-flex; }
 .adm .mprev__act .ic svg { width: 14px; height: 14px; }
+
+/* 기간 달력의 「연 · 월 바로 가기」(2026-10-06) — 달 이름을 누르면 월 선택기와 같은 3열 칸(.amp__*)을 보여 준다.
+   .calpop · .adp · .amp 를 함께 맞춘다는 규칙(CLAUDE.md §4a)대로 월 칸은 월 선택기 것을 그대로 쓴다. */
+.adm .calpop__title--btn { display:inline-flex; align-items:center; gap:4px; height:30px; padding:0 8px; border:0; border-radius:8px; background:transparent; font:inherit; font-size:14px; font-weight:900; letter-spacing:-.01em; color:var(--ink); cursor:pointer; }
+.adm .calpop__title--btn:hover { background:var(--surface2); }
+.adm .calpop__titlechev { width:13px; height:13px; color:var(--faint); }
+.adm .calpop__months { margin-bottom:4px; }
+.adm .calpop__months .amp__m.is-draft { box-shadow:inset 0 0 0 1.5px var(--adm-primary); }

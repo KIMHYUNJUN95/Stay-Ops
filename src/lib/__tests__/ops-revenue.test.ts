@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   anchorMonth,
+  comparisonRange,
   chartMonths,
   defaultRange,
   emptyCell,
@@ -103,5 +104,18 @@ describe("matrix levels", () => {
     expect(yoyLevel(0)).toBe(2);
     expect(yoyLevel(10)).toBe(3);
     expect(yoyLevel(40)).toBe(4);
+  });
+});
+
+describe("comparisonRange", () => {
+  const range = { from: "2026-02-01", to: "2026-02-28" };
+  it("goes 1 · 2 · 3 years back on the same dates", () => {
+    expect(comparisonRange("1y", range)).toEqual({ from: "2025-02-01", to: "2025-02-28" });
+    expect(comparisonRange("2y", range)).toEqual({ from: "2024-02-01", to: "2024-02-28" });
+    expect(comparisonRange("3y", range)).toEqual({ from: "2023-02-01", to: "2023-02-28" });
+  });
+  it("takes a custom range, swapped and capped, else falls back to last year", () => {
+    expect(comparisonRange("custom", range, { from: "2023-03-31", to: "2023-03-01" })).toEqual({ from: "2023-03-01", to: "2023-03-31" });
+    expect(comparisonRange("custom", range, { from: "bad" })).toEqual({ from: "2025-02-01", to: "2025-02-28" });
   });
 });
