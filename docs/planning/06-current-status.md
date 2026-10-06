@@ -9,6 +9,12 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-06 — Capacitor 채택 · iOS/Android 골격 (앱 출시 준비 B0 · B1)
+
+- 사용자 승인으로 앱 껍데기 = Capacitor 8(웹 · PWA 는 그대로). `capacitor.config.ts`(앱 ID `com.harutokyo.stayops`, 배포된 웹을 띄움) ·
+  `android/` · `ios/`(SPM) · 카메라 · 위치 권한. 빌드는 사용자 PC(Android Studio / Mac Xcode). 계정 삭제 후 성별 · 입사일은 고용 기록으로 남김(결정).
+  (`03` 「앱 빌드」, `17`, `01`)
+
 ## 2026-10-06 — 게시판 신고 · 차단 (앱 출시 준비 B4)
 
 - 남의 글 · 댓글 「⋯」 → 신고(사유 5종 + 메모) · 이 사용자 차단. 신고자에게는 즉시 숨김, owner · office_admin 이 피드 「신고 N건」 →

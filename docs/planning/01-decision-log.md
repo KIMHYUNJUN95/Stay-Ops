@@ -2,6 +2,19 @@
 
 This file records important project decisions.
 
+## 2026-10-06 iOS · Android 앱 껍데기는 Capacitor — PWA 는 그대로 운영
+
+사용자 승인. iOS · Android 앱은 **Capacitor**(v8) 한 코드베이스로 만든다. 앱은 배포된 웹(`server.url`)을 띄우고, 웹 배포가 곧 앱 내용
+갱신이다. 네이티브 기능(시스템 브라우저 로그인 · 푸시 · 카메라 · 위치 · 공유 시트 · Apple 로그인)은 플러그인으로 하나씩 붙인다.
+**웹 · 설치형 PWA 는 지금처럼 그대로 운영한다** — PWA-first 를 버리는 게 아니라 같은 웹 위에 스토어 배포 경로를 더하는 것.
+React Native/Expo 로 다시 짓는 안(옛 결정의 「later」)은 채택하지 않는다 — 같은 화면을 두 번 만들게 된다.
+앱 ID 안 `com.harutokyo.stayops` 는 스토어 등록(C4) 전까지 바꿀 수 있다. 계획 · 진행: `docs/planning/17-app-release-plan.md`.
+
+## 2026-10-06 계정 삭제 후 성별 · 입사일은 고용 기록으로 남긴다
+
+사용자 결정. 계정 삭제(`deleteAccount`)는 이름 · 전화 · 사진 주소 · 생년월일을 비우고 로그인 계정을 지우지만, 프로필의 성별 · 입사일은
+이름 없이 남긴다(급여 · 고용 기록 성격). 삭제 안내(`/legal/account-deletion`) · 개인정보처리방침에 「남을 수 있음」으로 기재돼 있다.
+
 ## 2026-10-06 App Store 는 비공개 배포 먼저, 공개 출시는 그 뒤
 
 iOS 앱은 Apple Business Manager Custom App 또는 Unlisted App 으로 **비공개 배포부터** 한다(사용자 결정). 공개 출시는 준비를

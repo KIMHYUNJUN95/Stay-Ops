@@ -794,3 +794,9 @@ curl -o /dev/null -w '%{http_code}\n' \
 
 2026-09-11 실측: 영수증 서명 URL `200 image/jpeg`, 목록에 없는 `recruit-resumes` 와 외부 도메인은
 각각 `400` — 허용 범위는 필요한 만큼만 열려 있다.
+
+## Capacitor 앱 빌드 환경 변수 (2026-10-06)
+
+- `CAP_SERVER_URL` (선택) — `npm run cap:sync` 할 때 앱이 띄울 웹 주소. 비우면 `https://stay-ops-two.vercel.app`. 웹 런타임 변수가 아니라
+  네이티브 설정을 만들 때만 읽는다(Vercel 에 넣을 필요 없음). 빌드 환경 · 명령: `docs/engineering/03-deployment-strategy.md` 「앱 빌드」.
+

@@ -106,6 +106,43 @@ Current recommendation:
 - Start with PWA before creating developer accounts.
 - Create Apple Developer and Google Play Console accounts later before native app release.
 
+## 앱 빌드 (Capacitor, 2026-10-06)
+
+결정: `docs/planning/01-decision-log.md` 2026-10-06 「앱 껍데기는 Capacitor」. 진행 체크리스트: `docs/planning/17-app-release-plan.md`.
+
+### 구조
+
+| 파일 · 폴더 | 무엇 |
+| --- | --- |
+| `capacitor.config.ts` | 앱 ID `com.harutokyo.stayops`(C4 전까지 변경 가능) · 앱 이름 · `server.url`(앱이 띄우는 배포 주소, 기본 `https://stay-ops-two.vercel.app`, `CAP_SERVER_URL` 로 덮어씀) |
+| `capacitor-www/index.html` | 배포 주소에 닿지 못할 때만 보이는 대체 화면(ko/ja/en) |
+| `android/` | Android Studio 프로젝트. 권한: 인터넷 · 카메라 · 위치(정밀 · 대략) |
+| `ios/` | Xcode 프로젝트(Swift Package Manager — CocoaPods 불필요). `Info.plist` 권한 문구: 카메라 · 위치(사용 중) · 사진(영문 기본 — ko/ja 현지화는 C6) |
+| `.vercelignore` | 웹 배포에서 위 네이티브 폴더 제외 |
+
+- **앱 내용 = 배포된 웹.** 웹을 배포하면 앱도 바로 바뀐다. 네이티브 설정 · 플러그인을 바꿀 때만 앱을 다시 빌드한다.
+- 네이티브 폴더는 git 으로 관리한다. 빌드 산출물(`build/`, `public/` 복사본 등)은 각 폴더의 `.gitignore` 가 제외한다.
+
+### 명령
+
+```bash
+npm run cap:sync      # capacitor.config.ts · 플러그인 변경을 android/ · ios/ 에 반영
+npm run cap:android   # Android Studio 로 열기
+npm run cap:ios       # Xcode 로 열기 (macOS 만)
+```
+
+### 빌드 환경 (사용자 PC)
+
+- **Android**: Android Studio(Windows · macOS 가능) → `android/` 열기 → 에뮬레이터 · 실기기 실행. 개발자 계정 없이도 실기기 설치(APK) 가능.
+- **iOS**: **macOS + Xcode 필수**(Windows · Linux 불가). 실기기 설치 · TestFlight 는 Apple Developer Program 가입 후.
+  Mac 이 없으면 클라우드 빌드(GitHub Actions macOS 러너, Codemagic 등)를 검토한다.
+- WSL(이 저장소 개발 환경)에는 Java · Android SDK 가 없다 — 네이티브 빌드는 위 환경에서 한다.
+
+### 아직 안 된 것 (계획 B2 · B3 이후)
+
+- **Google 로그인**: 앱 안 WebView 에서 Google 이 로그인을 막는다 → B2(시스템 브라우저 + 딥링크 복귀) 전까지 앱에서는 이메일 로그인만 확인 가능.
+- 다운로드 · 외부 링크 · Android 뒤로가기 버튼 등 WebView 호환(B3), 앱 아이콘 · 스플래시(현재 Capacitor 기본값).
+
 ## Initial Web Hosting
 
 Decision:

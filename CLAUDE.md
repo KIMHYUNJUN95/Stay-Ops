@@ -51,6 +51,7 @@ Before making changes, read in this order:
 - Tailwind CSS v4
 - Supabase Auth / Postgres / Storage / RLS
 - Beds24 integration
+- Capacitor 8 — iOS · Android app shell that loads the deployed web (approved 2026-10-06; web/PWA keeps running). Plan: `docs/planning/17-app-release-plan.md`
 
 Primary commands:
 

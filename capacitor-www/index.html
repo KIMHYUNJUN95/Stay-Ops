@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>StayOps</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; min-height: 100dvh; display: flex; align-items: center; justify-content: center;
+         background: #f7f4ee; color: #1b2433; font-family: -apple-system, system-ui, sans-serif; text-align: center; }
+  main { padding: 24px; max-width: 320px; }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  p { font-size: 14px; line-height: 1.6; margin: 6px 0; color: #5b6472; }
+  button { margin-top: 18px; height: 44px; padding: 0 22px; border: 0; border-radius: 12px;
+           background: #2b3a67; color: #fff; font-size: 14px; font-weight: 700; }
+</style>
+</head>
+<body>
+<!-- Capacitor 앱의 대체 화면. 앱은 capacitor.config.ts 의 server.url(배포된 웹)을 띄우고, 이 파일은 그 주소에
+     닿지 못할 때만 보인다. 정적 파일이라 사전(i18n.ts)을 못 쓰므로 세 언어를 함께 적는다. -->
+<main>
+  <h1>StayOps</h1>
+  <p>인터넷에 연결되어 있지 않아요.</p>
+  <p>インターネットに接続されていません。</p>
+  <p>You're offline.</p>
+  <button type="button" onclick="location.reload()">다시 시도 · 再試行 · Retry</button>
+</main>
+</body>
+</html>

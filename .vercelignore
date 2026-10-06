@@ -1,0 +1,4 @@
+# Capacitor 네이티브 프로젝트 — 웹 배포(Vercel)에는 필요 없다 (2026-10-06).
+android/
+ios/
+capacitor-www/

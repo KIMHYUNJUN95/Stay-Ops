@@ -10,9 +10,15 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:i18n": "vitest run src/lib/__tests__/no-hardcoded-i18n.test.ts",
-    "cleaning:normalize-room-labels": "node scripts/dev/normalize-cleaning-room-labels.js"
+    "cleaning:normalize-room-labels": "node scripts/dev/normalize-cleaning-room-labels.js",
+    "cap:sync": "cap sync",
+    "cap:android": "cap open android",
+    "cap:ios": "cap open ios"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
     "@lottiefiles/dotlottie-react": "^0.19.4",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
@@ -30,6 +36,7 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
