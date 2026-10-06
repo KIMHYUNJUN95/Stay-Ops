@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState, useTransition, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { exportOpsRevenueReport, exportOpsRevenueWorkbook, type OpsRevenueExportPayload } from "@/app/admin/ops/revenue/actions";
 import { AdminDateRangePicker } from "@/components/admin/shared/admin-date-range-picker";
 import { AdminExportButtons } from "@/components/admin/shared/admin-export-buttons";
@@ -466,6 +466,53 @@ function ReportTab({
   go: (href: string) => void;
   tab: Tab;
 }) {
+  /*
+   * 머리글 정렬(2026-10-06 사용자 요청) — 누를 때마다 높은순 → 낮은순 → 원래 순서(캘린더 탭 순서). 「건물」 머리글은 바로 원래
+   * 순서로. 값이 없는 줄(—)은 방향과 상관없이 맨 아래. 펼친 객실 줄도 같은 기준으로 정렬한다.
+   */
+  const [sort, setSort] = useState<{ key: SortKey; dir: "desc" | "asc" } | null>(null);
+  const cycleSort = (key: SortKey) =>
+    setSort((current) => (current?.key !== key ? { dir: "desc", key } : current.dir === "desc" ? { dir: "asc", key } : null));
+  const sortValue = (key: SortKey, cur: RevenueMetrics, prev: RevenueMetrics): number | null => {
+    switch (key) {
+      case "revenue":
+        return cur.revenue > 0 ? cur.revenue : null;
+      case "previous":
+        return prev.revenue > 0 ? prev.revenue : null;
+      case "change":
+        return changePct(cur.revenue, prev.revenue);
+      case "occupancy":
+        return cur.availableNights > 0 ? cur.occupancyPct : null;
+      case "adr":
+        return cur.occupiedNights > 0 ? cur.adr : null;
+      case "revpar":
+        return cur.availableNights > 0 ? cur.revpar : null;
+      case "net":
+        return cur.revenue > 0 ? cur.net : null;
+    }
+  };
+  const sorted = <T,>(items: T[], pick: (item: T) => { cur: RevenueMetrics; prev: RevenueMetrics }) => {
+    if (!sort) return items;
+    return items
+      .map((item, index) => ({ index, item, value: sortValue(sort.key, pick(item).cur, pick(item).prev) }))
+      .sort((a, b) => {
+        if (a.value === null || b.value === null) return a.value === null ? (b.value === null ? a.index - b.index : 1) : -1;
+        return sort.dir === "desc" ? b.value - a.value || a.index - b.index : a.value - b.value || a.index - b.index;
+      })
+      .map((entry) => entry.item);
+  };
+  const sortHead = (key: SortKey, label: string) => {
+    const active = sort?.key === key;
+    const next = !active ? copy.sortDesc : sort.dir === "desc" ? copy.sortAsc : copy.sortReset;
+    return (
+      <th aria-sort={active ? (sort.dir === "desc" ? "descending" : "ascending") : "none"} scope="col">
+        <button className={`orv__sort${active ? " on" : ""}`} onClick={() => cycleSort(key)} title={next} type="button">
+          {label}
+          {active && (sort.dir === "desc" ? <ArrowDown aria-hidden="true" /> : <ArrowUp aria-hidden="true" />)}
+        </button>
+      </th>
+    );
+  };
   const inNames = data.properties.filter((p) => isIn(p.name)).map((p) => p.name);
   const bars = data.months.map((month) => {
     const cur = sumMetrics(inNames.map((name) => data.monthCells[month]?.[name]));
@@ -548,29 +595,39 @@ function ReportTab({
             <table className="orv__table">
               <thead>
                 <tr>
-                  <th>{copy.colProperty}</th>
-                  <th>{copy.colRevenue}</th>
-                  <th>{copy.colLastYear}</th>
-                  <th>{copy.colChange}</th>
-                  <th>{copy.colOccupancy}</th>
-                  <th>{copy.colAdr}</th>
-                  <th>{copy.colRevpar}</th>
-                  <th>{copy.colNet}</th>
-                  <th>{copy.colChannels}</th>
+                  <th scope="col">
+                    <button className={`orv__sort${sort ? "" : " on"}`} onClick={() => setSort(null)} title={copy.sortReset} type="button">
+                      {copy.colProperty}
+                    </button>
+                  </th>
+                  {sortHead("revenue", copy.colRevenue)}
+                  {sortHead("previous", copy.colLastYear)}
+                  {sortHead("change", copy.colChange)}
+                  {sortHead("occupancy", copy.colOccupancy)}
+                  {sortHead("adr", copy.colAdr)}
+                  {sortHead("revpar", copy.colRevpar)}
+                  {sortHead("net", copy.colNet)}
+                  <th scope="col">{copy.colChannels}</th>
                 </tr>
               </thead>
               <tbody>
-                {data.properties.map((property) => {
+                {sorted(data.properties, (property) => ({
+                  cur: metricsOf(data.rangeCells[property.name] ?? sumMetrics([])),
+                  prev: metricsOf(data.previousRangeCells[property.name] ?? sumMetrics([])),
+                })).map((property) => {
                   const cur = metricsOf(data.rangeCells[property.name] ?? sumMetrics([]));
                   const prev = metricsOf(data.previousRangeCells[property.name] ?? sumMetrics([]));
                   const open = openRow === property.name;
                   const delta = changePct(cur.revenue, prev.revenue);
                   const rooms = open
-                    ? property.rooms.map((room) => ({
-                        cur: metricsOf(data.rangeRoomCells[room.key] ?? sumMetrics([])),
-                        label: room.label,
-                        prev: metricsOf(data.previousRangeRoomCells[room.key] ?? sumMetrics([])),
-                      }))
+                    ? sorted(
+                        property.rooms.map((room) => ({
+                          cur: metricsOf(data.rangeRoomCells[room.key] ?? sumMetrics([])),
+                          label: room.label,
+                          prev: metricsOf(data.previousRangeRoomCells[room.key] ?? sumMetrics([])),
+                        })),
+                        (room) => room,
+                      )
                     : [];
                   return (
                     <RowGroup key={property.name}>
@@ -659,6 +716,8 @@ function ReportTab({
     </>
   );
 }
+
+type SortKey = "revenue" | "previous" | "change" | "occupancy" | "adr" | "revpar" | "net";
 
 function RowGroup({ children }: { children: ReactNode }) {
   return <Fragment>{children}</Fragment>;
