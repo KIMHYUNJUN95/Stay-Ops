@@ -1672,6 +1672,200 @@ export type Database = {
           },
         ]
       }
+      automation_destinations: {
+        Row: {
+          channel_key: string
+          created_at: string
+          id: string
+          job_key: string
+          locales: string[]
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          channel_key: string
+          created_at?: string
+          id?: string
+          job_key: string
+          locales: string[]
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          channel_key?: string
+          created_at?: string
+          id?: string
+          job_key?: string
+          locales?: string[]
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_destinations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_jobs: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          event_cursor: string | null
+          id: string
+          job_key: string
+          last_done_on: string | null
+          next_wake_at: string | null
+          organization_id: string
+          retry_until: string
+          send_time: string
+          settings: Json
+          updated_at: string
+          updated_by: string | null
+          weekdays: number[]
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          event_cursor?: string | null
+          id?: string
+          job_key: string
+          last_done_on?: string | null
+          next_wake_at?: string | null
+          organization_id: string
+          retry_until?: string
+          send_time?: string
+          settings?: Json
+          updated_at?: string
+          updated_by?: string | null
+          weekdays?: number[]
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          event_cursor?: string | null
+          id?: string
+          job_key?: string
+          last_done_on?: string | null
+          next_wake_at?: string | null
+          organization_id?: string
+          retry_until?: string
+          send_time?: string
+          settings?: Json
+          updated_at?: string
+          updated_by?: string | null
+          weekdays?: number[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_runs: {
+        Row: {
+          actor_id: string | null
+          channel_key: string | null
+          created_at: string
+          dedupe_key: string | null
+          id: string
+          job_key: string
+          locale: string | null
+          message: string | null
+          message_hash: string | null
+          meta: Json
+          organization_id: string
+          reason: string | null
+          status: string
+          target_date: string | null
+          trigger: string
+        }
+        Insert: {
+          actor_id?: string | null
+          channel_key?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          job_key: string
+          locale?: string | null
+          message?: string | null
+          message_hash?: string | null
+          meta?: Json
+          organization_id: string
+          reason?: string | null
+          status: string
+          target_date?: string | null
+          trigger: string
+        }
+        Update: {
+          actor_id?: string | null
+          channel_key?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          job_key?: string
+          locale?: string | null
+          message?: string | null
+          message_hash?: string | null
+          meta?: Json
+          organization_id?: string
+          reason?: string | null
+          status?: string
+          target_date?: string | null
+          trigger?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_setting_logs: {
+        Row: {
+          actor_id: string | null
+          changes: Json
+          created_at: string
+          id: string
+          job_key: string
+          organization_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          changes?: Json
+          created_at?: string
+          id?: string
+          job_key: string
+          organization_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          changes?: Json
+          created_at?: string
+          id?: string
+          job_key?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_setting_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       board_comments: {
         Row: {
           content: string
@@ -2014,6 +2208,41 @@ export type Database = {
           role?: Database["public"]["Enums"]["organization_role"]
         }
         Relationships: []
+      }
+      cleaning_list_assignees: {
+        Row: {
+          assign_date: string
+          names: string
+          organization_id: string
+          room_key: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          assign_date: string
+          names: string
+          organization_id: string
+          room_key: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          assign_date?: string
+          names?: string
+          organization_id?: string
+          room_key?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cleaning_list_assignees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cleaning_sessions: {
         Row: {
@@ -5323,6 +5552,8 @@ export type Database = {
         Args: { p_lock_id: string; p_name: string }
         Returns: boolean
       }
+      automation_tick_if_needed: { Args: never; Returns: string }
+      automation_tick_token_ok: { Args: { p_token: string }; Returns: boolean }
       beds24_tick_if_needed: { Args: never; Returns: string }
       beds24_tick_token_ok: { Args: { p_token: string }; Returns: boolean }
       beds24_try_lock: {

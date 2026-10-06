@@ -2015,6 +2015,21 @@ pg_cron 잡 `beds24-tick` (`* * * * *`) → `select public.beds24_tick_if_needed
   `reservation_id`(만든 뒤 채움) · `created_by` · `created_at`. service-role 전용(RLS 켜고 정책 없음).
   `docs/product/33-calendar-write-features.md` → 「서버 검증 보강」.
 
+## 2026-10-06 자동화 관제실 — `automation_*` · `cleaning_list_assignees`
+
+마이그레이션 `202610060003_automation_control.sql`(운영 적용). 계약: `docs/product/36-automation-control.md`.
+
+| 표 | 한 줄 | 주요 컬럼 |
+| --- | --- | --- |
+| `automation_jobs` | 조직 × 자동화(`daily_report` · `cleaning_list` · `cancel_alert` · `same_day_alert` · `failure_alert`) | `enabled`(발송 토글) · `send_time` · `retry_until`(time, 도쿄) · `weekdays smallint[]`(ISO) · `settings jsonb`(제외 건물 · 채널 · 변동 재전송) · `next_wake_at` · `last_done_on` · `event_cursor` · 유일 (organization_id, job_key). 줄이 없으면 꺼짐 |
+| `automation_destinations` | 자동화 × Slack 채널 키 | `channel_key`(`^[A-Z0-9_]{1,40}$`) · `locales text[]`(ko/ja/en, 1개 이상) — 언어마다 한 통 |
+| `automation_runs` | 받는 곳 × 언어 × 실행 한 번 | `trigger`(scheduled/retry/manual/event/correction/resend) · `status`(sent/skipped/failed) · `reason` · `message` · `meta jsonb`(숫자 4개 · 이름 · 정정 지문) · `dedupe_key`(유일, 부분 인덱스) |
+| `automation_setting_logs` | 설정 변경 한 번 | `changes jsonb` {필드: {before, after}} · `actor_id` |
+| `cleaning_list_assignees` | 날짜 × 운영 객실 키 | `names`(1~120자) — 청소 명단 담당자 수기 입력(Hotelsmart 수집 안 함) |
+
+- `reservations (organization_id, updated_at)` 인덱스 추가 — 이벤트형 자동화가 매 분 커서 뒤 변경을 본다.
+- 함수 `automation_tick_if_needed()` · `automation_tick_token_ok()`, pg_cron `automation-tick`.
+
 ## 2026-10-06 `board_reports` · `user_blocks` — 게시판 신고 · 차단
 
 마이그레이션 `202610060001_board_reports_user_blocks.sql` (원격 적용 2026-10-06, MCP). 둘 다 **RLS 켜고 정책 없음 — service-role 전용**

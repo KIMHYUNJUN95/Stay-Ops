@@ -284,6 +284,24 @@ export const CAPABILITIES = {
     developerOnly: false,
   },
   /**
+   * 자동화 관제실 — 설정 변경 · 발송 토글 · 지금 보내기 · 정정본 · 청소 명단 담당자 이름 입력 (2026-10-06).
+   *
+   * 보기는 `ops_admin.access` 로 충분하다. 실제로 Slack 에 나가는 것을 바꾸는 일은 **사용자가 지정한 사람만** 한다
+   * (사용자 결정 — 「중요한 사람만 건드려야 해, 내가 권한을 준 사람만」). 그래서 역할 기본 부여가 없다(`roles: []`) —
+   * 대표 · 전무도 개인 부여를 받아야 한다. 개발자는 `platformBypass` 로 통과해 잠기지 않는다. 상시 업무라 기한 없음.
+   *
+   * 도메인 계약: docs/product/36-automation-control.md
+   */
+  "automation.manage": {
+    roles: [],
+    individualGrant: true,
+    individualDeny: false,
+    requiresExpiry: false,
+    platformBypass: true,
+    systemOnly: false,
+    developerOnly: false,
+  },
+  /**
    * 게시판 신고 처리 — 대기 신고 보기 · 「삭제」 / 「문제없음」 (2026-10-06, 앱 출시 준비 B4).
    *
    * 역할은 지금 남의 게시글을 지울 수 있는 owner · office_admin 과 같다(사용자 결정). 다른 사람에게 맡길 수 있게

@@ -16,7 +16,8 @@
 | 가격 · 최소숙박 저장소 | `room_daily_rates` (마이그레이션 `202609170002`) | ✅ |
 | 요금 동기화 | `src/lib/beds24/room-rates-sync.ts` + dev 백필 | ✅ |
 | 매출 | `/admin/ops/revenue` — 기간별 매출 · 수수료 · 가동률 · ADR · RevPAR, 건물별 표 · 「건물 × 월」 (2026-10-06, 34번 「매출 화면」) | ✅ |
-| 가동률 · 전표 · 자동화 | 라우트 + 게이트만 (내용 없음) | ⬜ |
+| 가동률 · 전표 | 라우트 + 게이트만 (내용 없음) | ⬜ |
+| 자동화 | `/admin/ops/automation` — 관제실 · Slack 5종 · 1분 틱 · 설정/발송은 `automation.manage` (2026-10-06, 36번) | ✅ |
 | Beds24 **쓰기** | 없음 (병행 기간에는 켜지 않는다) | ⬜ |
 
 **라우트와 게이트를 먼저 붙였다.** 화면을 만든 뒤에 게이트를 붙이면 그 사이에 열려 있게 된다.
@@ -102,6 +103,9 @@ ops_admin.access   ← 이 키 하나가 영역 전체를 연다
 | **매출** | 매출·ADR·RevPAR·채널별 | `RevenueDashboard` · `SalesLogDashboard` | 읽기 |
 | **전표** | 일별 매출 전표 + 날짜별 메모 | `SalesLog` (`/daily-log`) | 읽기 · 메모 쓰기 |
 | **자동화** | 리포트 발송 상태·수동 실행·설정 | 리포트 함수군 | 외부 발송 |
+
+**자동화**(2026-10-06 1차 구현): 화면은 `ops_admin.access` 로 보고, 설정 · 발송 · 담당자 이름은 **`automation.manage`(개인 부여만)** 가 있어야 한다.
+Slack 자동화 5종(일일 운영 리포트 · 청소/셋팅 명단 · 취소 · 당일예약 · 실패 알림) — `docs/product/36-automation-control.md`.
 
 같은 묶음에 **룸 링크**(`/admin/ops/room-links`, 2026-10-02)도 있다 — 단 권한은 따로(`room_links.access`). 리스팅 확인은 가격을 만지지 않는 사람도 하기 때문이다. `docs/product/35-room-links.md`.
 

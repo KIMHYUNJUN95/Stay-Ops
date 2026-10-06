@@ -339,6 +339,28 @@ select vault.update_secret(
 `beds24_tick_url` 을 `vault.update_secret(id, 'https://<새 도메인>/api/beds24/tick')` 로 고친다.
 잠시 끄려면 `select cron.unschedule('beds24-tick');`, 다시 켜려면 마이그레이션 ④의 `cron.schedule` 문을 다시 실행한다.
 
+### 자동화 틱 · Slack 채널 (2026-10-06)
+
+자동화 관제실(`/admin/ops/automation`)의 정시 발송 · 재시도 · 변동 재전송 · 정정본 · 취소/당일예약 알림을 **1분 안에** 처리한다.
+계약: `docs/product/36-automation-control.md`.
+
+- 마이그레이션 `202610060003_automation_control.sql` 이 표 · Vault 시크릿 2개(`automation_tick_token` 난수 · `automation_tick_url`
+  = `https://stay-ops-two.vercel.app/api/automation/tick`) · 함수 2개 · pg_cron 잡 `automation-tick`(매 분)을 만든다. 운영 적용 2026-10-06.
+- 켜진 자동화가 없으면 함수는 `idle` 만 돌려주고 라우트를 부르지 않는다.
+- 토큰 교체 · 주소 변경 · 끄기는 위 Beds24 틱과 같은 방식(이름만 `automation_tick_*` · `automation-tick`).
+
+**Slack 채널 = Vercel 환경변수** — 채널 하나에 변수 하나:
+
+```
+SLACK_AUTOMATION_<KEY>_WEBHOOK_URL=https://hooks.slack.com/services/…   # KEY = 대문자 · 숫자 · _ (예: OPS_DAILY, CLEANING_STAFF)
+```
+
+- 서버가 이 접두어의 변수를 찾아 관제실 「설정 → 받는 곳 · 언어」에 행으로 보여 준다. 채널을 늘리려면 변수를 넣고 **재배포**.
+- 주소는 화면 · 로그에 나오지 않는다(끝 4자리만). `hooks.slack.com` 이 아니면 「주소 오류」로 표시하고 보내지 않는다.
+- **`SLACK_DAILY_REPORT_WEBHOOK_URL`(업무일지) 과 다른 변수다.** 저쪽 STAY ARI Manager 가 같은 이름을 일일 리포트에 썼지만 우리 쪽은 업무일지 채널이다.
+- 실패 알림 자동화가 꺼져 있거나 받는 곳이 없으면 자동화 실패는 기존 `SLACK_OPS_ALERT_WEBHOOK_URL` 로 간다.
+- 알림의 「StayOps 에서 열기」 링크는 `NEXT_PUBLIC_APP_URL`(없으면 `APP_BASE_URL` → `VERCEL_PROJECT_PRODUCTION_URL`)로 만든다.
+
 ## Recruit (채용 지원서 수신)
 
 외부 채용 사이트(haru-recruit / Firebase)가 지원서를 밀어넣는 경로. 계약은

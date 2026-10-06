@@ -175,11 +175,17 @@ can_generate_report         일일 업무일지 생성      ← 기존 키
 ops_admin.access            운영 관리자 영역 전체    ← 2026-09-17 추가
 room_links.access           룸 링크                 ← 2026-10-02 추가
 board.moderate              게시판 신고 처리         ← 2026-10-06 추가
+automation.manage           자동화 설정 · 발송       ← 2026-10-06 추가 (역할 기본 없음 — 개인 부여만)
 ```
 
 **`board.moderate`**(2026-10-06) — 게시판 신고 처리(모바일 `/mobile/board/reports` · 관리 `/admin/board-reports`). 역할 owner · office_admin
 (그전까지 남의 글을 지울 수 있던 역할과 같다), 개인 부여 · 차단 가능, 기한 없음, 개발자 통과. 코드는 `canModerateBoard`
 (`src/lib/board-moderation.ts`) 만 본다. 기존 DB 반영: `202610060002_board_moderate_capability.sql`. docs/product/23-board-workflow.md §12-C.
+
+**`automation.manage`**(2026-10-06) — 자동화 관제실에서 실제로 Slack 에 나가는 것을 바꾸는 일(발송 토글 · 시각 · 받는 곳/언어 · 지금 보내기 ·
+정정본 · 청소 명단 담당자 이름). 보기는 `ops_admin.access` 로 충분하다. **역할 기본 부여가 없다** — 사용자 결정 「중요한 사람만, 내가 권한을 준
+사람만」이라 대표 · 전무도 개인 부여를 받아야 한다. 개인 부여 · 기한 없음 · 차단 없음 · 개발자 통과. 서버 액션이 매번 확인한다.
+docs/product/36-automation-control.md.
 
 **`room_links.access` 는 운영 관리자 묶음에 있지만 `ops_admin.access` 와 따로 준다**(2026-10-02 사용자 결정). 리스팅
 확인은 가격을 만지지 않는 사람도 한다. 정책은 같다(대표 · 전무 역할, 개인 부여, 기한 · 차단 없음, 개발자 통과).

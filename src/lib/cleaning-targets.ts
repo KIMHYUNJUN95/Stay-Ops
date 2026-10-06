@@ -8,7 +8,10 @@ import {
   isExcludedOperationalRoom,
 } from "@/lib/room-label-normalization";
 import { getCleaningOperatingDateKey } from "@/lib/cleaning";
+import { getReservationGuests } from "@/lib/reservation-guests";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database";
 
 function getPax(rawPayload: unknown): number | null {
   if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) return null;
@@ -53,10 +56,13 @@ export type CleaningTarget = {
   // populated when hasTurnover === true
   arrivingGuestName: string | null;
   arrivingPax: number | null;
+  /** 성인 + 어린이 합계(Slack 청소 명단 — 저쪽은 `numAdult + numChild`). `arrivingPax` 는 화면 호환용으로 성인만. */
+  arrivingGuestsTotal: number | null;
   // populated when hasTurnover === false and next check-in exists within 30 days
   nextCheckInDate: string | null;
   nextCheckInGuestName: string | null;
   nextCheckInPax: number | null;
+  nextCheckInGuestsTotal: number | null;
 };
 
 export type SettingTarget = {
@@ -67,6 +73,7 @@ export type SettingTarget = {
   checkInDate: string;
   arrivingGuestName: string;
   arrivingPax: number | null;
+  arrivingGuestsTotal: number | null;
 };
 
 export type CleaningTargetsResult = {
@@ -89,11 +96,13 @@ export type CleaningTargetsResult = {
 export async function getCleaningTargets(
   organizationId: string,
   date?: string,
+  /** 세션이 없는 곳(자동화 틱)은 service-role 클라이언트를 넘긴다. 없으면 로그인 사용자 클라이언트. */
+  client?: SupabaseClient<Database>,
 ): Promise<CleaningTargetsResult> {
   const targetDate = date ?? getCleaningOperatingDateKey();
   const windowEnd = addCalendarDays(targetDate, 30);
 
-  const supabase = await getSupabaseServerClient();
+  const supabase = client ?? (await getSupabaseServerClient());
 
   const [depResult, arrResult] = await Promise.all([
     supabase
@@ -174,9 +183,11 @@ export async function getCleaningTargets(
       hasTurnover,
       arrivingGuestName: todayArrival ? (todayArrival.guest_name || null) : null,
       arrivingPax: todayArrival ? getPax(todayArrival.raw_payload) : null,
+      arrivingGuestsTotal: todayArrival ? getReservationGuests(todayArrival.raw_payload).total : null,
       nextCheckInDate: nextArrival ? nextArrival.check_in_date : null,
       nextCheckInGuestName: nextArrival ? (nextArrival.guest_name || null) : null,
       nextCheckInPax: nextArrival ? getPax(nextArrival.raw_payload) : null,
+      nextCheckInGuestsTotal: nextArrival ? getReservationGuests(nextArrival.raw_payload).total : null,
     });
   }
 
@@ -199,6 +210,7 @@ export async function getCleaningTargets(
       checkInDate: row.check_in_date,
       arrivingGuestName: row.guest_name || "Guest",
       arrivingPax: getPax(row.raw_payload),
+      arrivingGuestsTotal: getReservationGuests(row.raw_payload).total,
     });
   }
 

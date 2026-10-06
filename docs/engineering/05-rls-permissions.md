@@ -1378,6 +1378,18 @@ service-role 로 읽으므로 **조직을 쿼리에 직접 건다**(`organizatio
 - 새 권한 키 `room_links.access` 의 `capability_roles` · `capability_policies` 행도 같은 마이그레이션에서 넣는다
   (레지스트리 시드 `202609100001` 의 생성 구역도 갱신 — 새 DB 용).
 
+## 2026-10-06 자동화 — 보기 `ops_admin.access` / 쓰기 `automation.manage`
+
+마이그레이션 `202610060003_automation_control.sql`(운영 적용).
+
+- `automation_jobs` · `automation_destinations` · `automation_runs` · `automation_setting_logs` · `cleaning_list_assignees`:
+  SELECT 정책 `ops admins can read` — `organization_id = any ((select public.capability_organization_ids('ops_admin.access'))::uuid[])`.
+  INSERT/UPDATE/DELETE 정책 없음 — 쓰기는 서버 액션(service-role)이 **`automation.manage` 와 조직을 다시 확인한 뒤**만 한다
+  (`src/app/admin/ops/automation/actions.ts`). 틱 라우트도 service-role.
+- 새 권한 키 **`automation.manage`** — 역할 기본 부여 **없음**(`roles: []`), 개인 부여만, 차단 없음, 기한 없음, 개발자 통과.
+  설정 저장 · 발송 토글 · 지금 보내기 · 정정본 · 담당자 이름 입력. 정책 행만 넣는다(역할 행 없음).
+- 틱 함수 · 토큰 대조 함수는 `service_role` 만 실행.
+
 ## 2026-10-05 `ops_manual_booking_requests` — service-role 전용
 
 마이그레이션 `202610050002`. RLS 를 켜고 정책을 두지 않는다 — `anon` · `authenticated` 는 권한도 회수. 수기 예약 서버 액션

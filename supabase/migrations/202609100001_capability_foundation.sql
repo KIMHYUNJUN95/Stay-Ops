@@ -105,6 +105,7 @@ insert into public.capability_policies (capability, individual_grant, individual
   ('can_generate_report', true, true, true),
   ('ops_admin.access', true, false, true),
   ('room_links.access', true, false, true),
+  ('automation.manage', true, false, true),
   ('board.moderate', true, true, true);
 -- <<< generated
 
