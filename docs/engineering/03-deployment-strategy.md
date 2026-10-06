@@ -157,19 +157,6 @@ Reason:
   (Supabase · Vercel · Google · Beds24 · DeepL · Slack) · 삭제 동작이 바뀌면 `legal-content.ts` 와 이 절을 같이 고친다.
   App Store 개인정보 라벨도 같은 목록으로 작성한다.
 
-### 개발자 계정이 생기면 할 것
+### 남은 일
 
-- **Apple 로그인** — Google 로그인이 있으므로 4.8 상 필요. Supabase Apple provider + Services ID · 키가 있어야 한다.
-- 심사용 **데모 조직 · 계정 · 샘플 데이터**(초대 코드 없이 바로 들어가는 계정) 준비 — 2.1.
-- 앱 껍데기 · 번들 ID · 아이콘 1024px · 스크린샷(아이폰 · 아이패드) · 3개 언어 설명문 · 연령 등급.
-- 권한 설명 문구(Info.plist): 카메라(출퇴근 QR · 사진 첨부), 위치(출퇴근 인증 순간), 사진 보관함 — ko/ja/en.
-- 개인정보 매니페스트 `PrivacyInfo.xcprivacy` 와 App Store 개인정보 라벨.
-
-### 공개 출시 전
-
-- 운영 법인명 · 주소를 방침 · 약관에 채우고 법무 검토.
-- 게시판(`/mobile/board`) **신고 · 차단** — 사용자 콘텐츠 1.2.
-- 푸시 알림 = APNs(앱 안 WebView 에서는 웹 푸시가 동작하지 않는다). 알림 일괄 구현 방침과 일정 맞춤.
-- 앱 안 Google 로그인: Google 이 임베디드 WebView 로그인을 막으므로(`disallowed_useragent`) 네이티브 로그인 처리.
-- 자체 도메인(App-Bound Domains · Universal Links), WebView 안 파일 내보내기(공유 시트).
-
+남은 항목 · 순서 · 담당 · 진행 상태는 **`docs/planning/17-app-release-plan.md`** 한 곳에서 관리한다(Android 포함).
