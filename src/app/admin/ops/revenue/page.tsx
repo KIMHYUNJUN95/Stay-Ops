@@ -4,14 +4,7 @@ import { toJstDateString } from "@/lib/admin-calendar-dashboard";
 import { adminLocaleTag } from "@/lib/admin-export-meta";
 import { getDictionary } from "@/lib/i18n";
 import { opsNavId } from "@/lib/ops-admin";
-import {
-  comparisonRange,
-  normalizeRange,
-  REVENUE_COMPARES,
-  REVENUE_MODES,
-  type RevenueCompare,
-  type RevenueMode,
-} from "@/lib/ops-revenue";
+import { normalizeRange, REVENUE_MODES, type RevenueMode } from "@/lib/ops-revenue";
 import { getOpsRevenueData } from "@/lib/ops-revenue-server";
 import { requireOpsAdminPage } from "../ops-page-session";
 
@@ -21,8 +14,7 @@ import { requireOpsAdminPage } from "../ops-page-session";
  * 도메인 계약: docs/product/34-metrics-and-automation.md 「매출 화면」
  *
  * 식은 판매 캘린더 「매출 요약」과 같다(같은 읽기 · 같은 계산 모듈). 기간은 주소에 있다 — 월은 공용 월 선택기의
- * `?ym=`, 그 밖은 `?mode=…&from=…(&to=…)`. 비교 기간은 `?cmp=1y|2y|3y|custom(&cfrom=…&cto=…)`. 주소 값은 믿지 않고
- * 모드마다 모양을 바로잡는다.
+ * `?ym=`, 그 밖은 `?mode=…&from=…(&to=…)`. 주소 값은 믿지 않고 모드마다 모양을 바로잡는다.
  */
 export const dynamic = "force-dynamic";
 
@@ -39,12 +31,7 @@ export default async function OpsRevenuePage({ searchParams }: { searchParams: S
   const requested = one("mode");
   const mode: RevenueMode = REVENUE_MODES.includes(requested as RevenueMode) ? (requested as RevenueMode) : "month";
   const range = normalizeRange(mode, { from: one("from"), to: one("to"), ym: one("ym") }, today);
-  const requestedCompare = one("cmp");
-  const compare: RevenueCompare = REVENUE_COMPARES.includes(requestedCompare as RevenueCompare)
-    ? (requestedCompare as RevenueCompare)
-    : "1y";
-  const previousRange = comparisonRange(compare, range, { from: one("cfrom"), to: one("cto") });
-  const data = await getOpsRevenueData(session, { compare, mode, previousRange, range });
+  const data = await getOpsRevenueData(session, { mode, range });
 
   return (
     <AdminShell activeItem={opsNavId("revenue")} title={dictionary.opsAdmin.areaName}>

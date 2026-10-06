@@ -87,4 +87,5 @@
 | 2026-10-06 | `5e2a027` · `8a42c09` | B4-2 신고 취소 · 관리 콘솔 「게시판 신고」 · `board.moderate` 권한 키 · 콘솔 디자인 정리 |
 | 2026-10-06 | `f200832` | B2 앱 안 Google 로그인(시스템 브라우저 + 앱 스킴 복귀) |
 | 2026-10-06 | `e4d8179` | B2-1 Supabase Redirect URLs 에 앱 스킴 추가(사용자) |
-| 2026-10-06 | (이 커밋) | B3 WebView 보정(외부 링크 · 다운로드 · 새 창 · 뒤로가기 · SystemBars), Android 첫 실행 가이드 |
+| 2026-10-06 | `af4ce17` | B3 WebView 보정(외부 링크 · 다운로드 · 새 창 · 뒤로가기 · SystemBars), Android 첫 실행 가이드 |
+| 2026-10-06 | (이 커밋) | Windows Android Studio 용 빌드 사본 스크립트(`npm run cap:android:win`) — WSL JDK 오류 회피 |

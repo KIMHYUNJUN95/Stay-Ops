@@ -176,13 +176,17 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
 
 ### Android 첫 실행 (Windows + Android Studio, Mac 없음)
 
-1. Android Studio → **Open** → `\\wsl.localhost\Ubuntu\home\kghkw\projects\Stay-Ops\android` 선택(WSL 안 저장소를 그대로 연다).
-   처음엔 Gradle 동기화에 몇 분 걸린다. `node_modules/@capacitor/*` 를 참조하므로 WSL 쪽에서 `npm install` 이 끝나 있어야 한다.
-2. 상단 기기 목록에서 에뮬레이터(Device Manager → Create Device → Pixel 계열 · 최신 API)를 만들거나, USB 디버깅을 켠 실기기를 연결.
-3. ▶ Run → 앱이 뜨고 배포된 웹(`stay-ops-two.vercel.app`)이 열린다.
+저장소는 WSL 안에 있지만, Android Studio 는 WSL 경로 프로젝트를 열면 「WSL 안에 JDK 를 설치하라」(`Gradle JVM option is incorrect`)며
+동기화에 실패한다(2026-10-06 실제로 겪음). 그래서 **앱 빌드에 필요한 것만 Windows 폴더로 복사해서 연다.**
+
+1. WSL 에서 `npm run cap:android:win` (= `scripts/dev/sync-android-to-windows.sh`) — `cap sync` 후 `android/` 와 그것이 참조하는
+   `node_modules/@capacitor/*` 를 같은 구조로 **`C:\dev\stayops-android`** 에 복사한다(빌드 산출물 · `.idea` · `local.properties` 는 건드리지 않음).
+2. Android Studio → File → Open → **`C:\dev\stayops-android\android`** → Trust Project → Gradle 동기화(처음 몇 분).
+3. Device Manager 에서 에뮬레이터(Pixel 계열 · 최신 API)를 만들거나 USB 디버깅 실기기 연결 → ▶ Run.
 4. 확인: 이메일 로그인 → Google 로그인(시스템 브라우저 → 앱 복귀) → 홈 → 출퇴근 QR(카메라 · 위치 권한 팝업) → 게시판 첨부 다운로드 →
    룸 링크 외부 링크 → 시트 열고 뒤로가기 버튼.
-- UNC 경로에서 Gradle 이 느리거나 파일 잠금 오류가 나면: Windows 쪽에 저장소를 따로 clone 하고 `npm install` → `npx cap sync android` 후 그 `android/` 를 연다.
+- 네이티브 설정 · 플러그인을 바꾸면 1번을 다시 돌린다. 웹 화면만 바뀐 것은 다시 빌드할 필요 없다(앱이 배포된 웹을 띄운다).
+- Windows Defender 가 Gradle 을 느리게 하면 Android Studio 알림의 「Exclude folders」로 `C:\dev\stayops-android` 를 제외한다.
 - **iOS**: Mac 이 없으므로 Apple Developer 가입 후 클라우드 빌드(Codemagic · GitHub Actions macOS 러너 등)로 TestFlight 에 올린다(계획 B1-3).
 
 ### 아직 안 된 것 (계획 B3 이후)

@@ -219,38 +219,15 @@ export function shiftRange(mode: RevenueMode, range: RevenueRange, direction: -1
   }
 }
 
-/** 같은 날짜 N년 전. 2/29 → 2/28. */
-export function shiftDateYearBack(date: string, years = 1): string {
+/** 같은 날짜 1년 전. 2/29 → 2/28. */
+export function shiftDateYearBack(date: string): string {
   const [y, m, d] = date.split("-").map(Number);
-  const last = new Date(Date.UTC(y - years, m, 0)).getUTCDate();
-  return `${y - years}-${String(m).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
+  const last = new Date(Date.UTC(y - 1, m, 0)).getUTCDate();
+  return `${y - 1}-${String(m).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
 }
 
-export function previousYearRange(range: RevenueRange, years = 1): RevenueRange {
-  return { from: shiftDateYearBack(range.from, years), to: shiftDateYearBack(range.to, years) };
-}
-
-/**
- * 비교 기간(2026-10-06 — 「23년이랑 26년 비교」처럼 멀리 비교하고 싶다는 지적): 1 · 2 · 3년 전 같은 날짜, 또는 직접 고른 기간.
- * 직접 기간은 3년까지, 못 읽으면 1년 전.
- */
-export type RevenueCompare = "1y" | "2y" | "3y" | "custom";
-
-export const REVENUE_COMPARES: readonly RevenueCompare[] = ["1y", "2y", "3y", "custom"];
-
-export function comparisonRange(
-  compare: RevenueCompare,
-  range: RevenueRange,
-  custom: { from?: string; to?: string } = {},
-): RevenueRange {
-  if (compare === "2y") return previousYearRange(range, 2);
-  if (compare === "3y") return previousYearRange(range, 3);
-  if (compare === "custom" && isDate(custom.from) && isDate(custom.to)) {
-    const [from, to] = custom.from <= custom.to ? [custom.from, custom.to] : [custom.to, custom.from];
-    const maxTo = addDays(from, 365 * 3);
-    return { from, to: to > maxTo ? maxTo : to };
-  }
-  return previousYearRange(range, 1);
+export function previousYearRange(range: RevenueRange): RevenueRange {
+  return { from: shiftDateYearBack(range.from), to: shiftDateYearBack(range.to) };
 }
 
 /**

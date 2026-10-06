@@ -13,7 +13,8 @@
     "cleaning:normalize-room-labels": "node scripts/dev/normalize-cleaning-room-labels.js",
     "cap:sync": "cap sync",
     "cap:android": "cap open android",
-    "cap:ios": "cap open ios"
+    "cap:ios": "cap open ios",
+    "cap:android:win": "bash scripts/dev/sync-android-to-windows.sh"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
