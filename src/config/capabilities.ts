@@ -283,6 +283,23 @@ export const CAPABILITIES = {
     systemOnly: false,
     developerOnly: false,
   },
+  /**
+   * 게시판 신고 처리 — 대기 신고 보기 · 「삭제」 / 「문제없음」 (2026-10-06, 앱 출시 준비 B4).
+   *
+   * 역할은 지금 남의 게시글을 지울 수 있는 owner · office_admin 과 같다(사용자 결정). 다른 사람에게 맡길 수 있게
+   * 개인 부여를 열고, office_admin 중 빼고 싶은 사람이 있을 수 있어 차단도 연다. 상시 업무라 기한은 없다.
+   *
+   * 도메인 계약: docs/product/23-board-workflow.md §12-C
+   */
+  "board.moderate": {
+    roles: ["owner", "office_admin"],
+    individualGrant: true,
+    individualDeny: true,
+    requiresExpiry: false,
+    platformBypass: true,
+    systemOnly: false,
+    developerOnly: false,
+  },
 } as const satisfies Record<string, CapabilityPolicy>;
 
 export type Capability = keyof typeof CAPABILITIES;

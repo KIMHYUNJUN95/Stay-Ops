@@ -88,7 +88,9 @@ insert into public.capability_roles (capability, role) values
   ('ops_admin.access', 'owner'::organization_role),
   ('ops_admin.access', 'senior_managing_director'::organization_role),
   ('room_links.access', 'owner'::organization_role),
-  ('room_links.access', 'senior_managing_director'::organization_role);
+  ('room_links.access', 'senior_managing_director'::organization_role),
+  ('board.moderate', 'owner'::organization_role),
+  ('board.moderate', 'office_admin'::organization_role);
 
 delete from public.capability_policies;
 insert into public.capability_policies (capability, individual_grant, individual_deny, platform_bypass) values
@@ -102,7 +104,8 @@ insert into public.capability_policies (capability, individual_grant, individual
   ('property_room_manage', true, false, true),
   ('can_generate_report', true, true, true),
   ('ops_admin.access', true, false, true),
-  ('room_links.access', true, false, true);
+  ('room_links.access', true, false, true),
+  ('board.moderate', true, true, true);
 -- <<< generated
 
 -- ---------------------------------------------------------------------------

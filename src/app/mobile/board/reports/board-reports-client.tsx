@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { boardReasonLabel } from "@/components/board/board-report-sheet";
+import { boardReasonLabel } from "@/lib/board-report-reasons";
 import { resolveBoardReport } from "../moderation-actions";
 import type { PendingBoardReport } from "@/lib/board-moderation";
 import type { Dictionary, Locale } from "@/lib/i18n";

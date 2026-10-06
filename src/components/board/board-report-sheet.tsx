@@ -4,8 +4,9 @@ import { useState } from "react";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { cn } from "@/lib/utils";
 import type { Dictionary } from "@/lib/i18n";
+import { boardReasonLabel, type BoardReportReasonCode } from "@/lib/board-report-reasons";
 
-export type BoardReportReasonCode = "spam" | "harassment" | "inappropriate" | "privacy" | "other";
+export type { BoardReportReasonCode };
 
 export type BoardReportSheetCopy = Pick<
   Dictionary["board"],
@@ -20,19 +21,6 @@ export type BoardReportSheetCopy = Pick<
   | "reportNotePlaceholder"
   | "reportSubmit"
 >;
-
-export function boardReasonLabel(
-  copy: Pick<BoardReportSheetCopy, "reasonSpam" | "reasonHarassment" | "reasonInappropriate" | "reasonPrivacy" | "reasonOther">,
-  code: BoardReportReasonCode,
-) {
-  return {
-    spam: copy.reasonSpam,
-    harassment: copy.reasonHarassment,
-    inappropriate: copy.reasonInappropriate,
-    privacy: copy.reasonPrivacy,
-    other: copy.reasonOther,
-  }[code];
-}
 
 const REASONS: BoardReportReasonCode[] = ["spam", "harassment", "inappropriate", "privacy", "other"];
 

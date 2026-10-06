@@ -235,6 +235,9 @@
 
 - Reservations / Calendar (예약)
 - Announcements / Board (공지·게시판)
+- **Board reports (게시판 신고)** — `/admin/board-reports`, 권한 키 `board.moderate`(2026-10-06). 대기 신고 표(종류 · 내용 · 작성자 · 사유 ·
+  신고 수 · 최근 신고) + 우측 상세 패널(`.panel`)에서 「문제없음」 / 「삭제」(확인 모달). 공용 `.qtbl` · `.panel` · `.modal` · `.adm-toast` 만 쓴다.
+  게시판 본문 콘솔은 아직 없다(사용자 결정 — 신고 처리만 먼저). docs/product/23-board-workflow.md §12-C
 - Todoist (투두이스트) — 대시보드 콘솔은 다른 어드민 모듈의 "관리형" 패턴이 **아니라** Todoist 본연의
   워크스페이스(모바일 코어 패리티) + 사무실 **업무 지시**만. 기획 스펙: `docs/product/28-admin-todoist-console.md`.
   현재 라우트는 `/admin/tasks`이며 legacy `/admin/recurring-work`는 해당 화면으로 리다이렉트한다.

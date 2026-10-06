@@ -42,7 +42,9 @@ export async function getBoardHiddenFor(session: AppSession): Promise<BoardHidde
         .from("board_reports")
         .select("target_type, post_id, comment_id")
         .eq("organization_id", orgId)
-        .eq("reporter_user_id", uid),
+        .eq("reporter_user_id", uid)
+        // 스스로 거둔 신고(신고 취소)는 다시 보인다.
+        .neq("status", "withdrawn"),
     ]);
     if (blocks.error || reports.error) return EMPTY_HIDDEN;
 
@@ -61,8 +63,9 @@ export async function getBoardHiddenFor(session: AppSession): Promise<BoardHidde
   }
 }
 
+/** 신고 처리 권한 — 권한 키 `board.moderate`(기본 owner · office_admin, 개인 부여 · 차단 가능). */
 export function canModerateBoard(session: AppSession): boolean {
-  return session.user.role === "owner" || session.user.role === "office_admin";
+  return session.capabilities.includes("board.moderate");
 }
 
 /** 처리 대기 중인 신고 대상 수(같은 대상의 여러 신고는 1건). 처리 권한이 없으면 0. */
@@ -159,7 +162,7 @@ export async function listPendingBoardReports(session: AppSession): Promise<Pend
         postId: r.post_id,
         commentId: r.comment_id,
         authorName: (r.target_author_user_id && nameMap.get(r.target_author_user_id)) || "",
-        preview: preview.slice(0, 160),
+        preview: preview.slice(0, 600),
         reasons: [],
         notes: [],
         count: 0,
@@ -200,6 +203,75 @@ export async function listMyBlockedUsers(session: AppSession): Promise<BlockedUs
     const { data: profiles } = await service.from("profiles").select("id, name").in("id", ids);
     const names = new Map((profiles ?? []).map((p) => [p.id, p.name]));
     return ids.map((id) => ({ id, name: names.get(id) ?? "" }));
+  } catch {
+    return [];
+  }
+}
+
+export type MyBoardReport = {
+  id: string;
+  targetType: "post" | "comment";
+  postId: string;
+  authorName: string;
+  preview: string;
+  reason: BoardReportReason;
+  status: "pending" | "dismissed";
+  createdAt: string;
+};
+
+/**
+ * 내가 신고한 글 · 댓글 중 아직 남아 있는 것(계정 → 보안 「신고한 글 · 댓글」). 신고 취소로 다시 볼 수 있다.
+ * 관리자가 삭제한 것(`removed`) · 이미 취소한 것(`withdrawn`) · 작성자가 지운 것은 보여 줄 대상이 없어 뺀다.
+ */
+export async function listMyBoardReports(session: AppSession): Promise<MyBoardReport[]> {
+  try {
+    const service = getSupabaseServiceClient();
+    const { data, error } = await service
+      .from("board_reports")
+      .select("id, target_type, post_id, comment_id, reason, status, created_at, target_author_user_id")
+      .eq("organization_id", session.organization.id)
+      .eq("reporter_user_id", session.user.id)
+      .in("status", ["pending", "dismissed"])
+      .order("created_at", { ascending: false });
+    if (error || !data || data.length === 0) return [];
+
+    const postIds = Array.from(new Set(data.map((r) => r.post_id)));
+    const commentIds = data.map((r) => r.comment_id).filter((id): id is string => Boolean(id));
+    const authorIds = Array.from(
+      new Set(data.map((r) => r.target_author_user_id).filter((id): id is string => Boolean(id))),
+    );
+    const [posts, comments, profiles] = await Promise.all([
+      service.from("board_posts").select("id, title, content, deleted_at").in("id", postIds),
+      commentIds.length
+        ? service.from("board_comments").select("id, content, deleted_at").in("id", commentIds)
+        : Promise.resolve({ data: [] as { id: string; content: string; deleted_at: string | null }[] }),
+      authorIds.length
+        ? service.from("profiles").select("id, name").in("id", authorIds)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    ]);
+    const postMap = new Map((posts.data ?? []).map((p) => [p.id, p]));
+    const commentMap = new Map((comments.data ?? []).map((c) => [c.id, c]));
+    const nameMap = new Map((profiles.data ?? []).map((p) => [p.id, p.name]));
+
+    const out: MyBoardReport[] = [];
+    for (const r of data) {
+      const post = postMap.get(r.post_id);
+      if (!post || post.deleted_at) continue;
+      const comment = r.comment_id ? commentMap.get(r.comment_id) : undefined;
+      if (r.target_type === "comment" && (!comment || comment.deleted_at)) continue;
+      if (!isBoardReportReason(r.reason)) continue;
+      out.push({
+        id: r.id,
+        targetType: r.target_type === "comment" ? "comment" : "post",
+        postId: r.post_id,
+        authorName: (r.target_author_user_id && nameMap.get(r.target_author_user_id)) || "",
+        preview: (r.target_type === "comment" ? comment?.content : post.title || post.content)?.slice(0, 80) ?? "",
+        reason: r.reason,
+        status: r.status === "dismissed" ? "dismissed" : "pending",
+        createdAt: r.created_at,
+      });
+    }
+    return out;
   } catch {
     return [];
   }

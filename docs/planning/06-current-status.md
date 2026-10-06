@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-06 — 게시판 신고 취소 · 관리 콘솔 「게시판 신고」 (앱 출시 준비 B4-2)
+
+- 계정 → 보안 「신고한 글 · 댓글」에서 신고 취소(`withdrawn`, 다시 보임). 관리 콘솔 `/admin/board-reports`(표 + 상세 패널)에서 삭제 / 문제없음.
+  처리 권한을 권한 키 `board.moderate`(owner · office_admin, 개인 부여 · 차단)로 정식화. (`23` §12-C, `05`, `14`)
+
 ## 2026-10-06 — Capacitor 채택 · iOS/Android 골격 (앱 출시 준비 B0 · B1)
 
 - 사용자 승인으로 앱 껍데기 = Capacitor 8(웹 · PWA 는 그대로). `capacitor.config.ts`(앱 ID `com.harutokyo.stayops`, 배포된 웹을 띄움) ·

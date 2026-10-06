@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { AccountSettings } from "@/components/account/account-settings";
 import { DeleteAccountSheet } from "@/components/account/delete-account-sheet";
 import { BlockedUsersList } from "@/components/account/blocked-users-list";
-import { listMyBlockedUsers } from "@/lib/board-moderation";
+import { MyReportsList } from "@/components/account/my-reports-list";
+import { listMyBlockedUsers, listMyBoardReports } from "@/lib/board-moderation";
+import { boardReasonLabel } from "@/lib/board-report-reasons";
 import { GenderSegmented } from "@/components/account/gender-segmented";
 import { legalHref } from "@/components/legal/legal-page-shell";
 import { LanguageSegmented } from "@/components/account/language-segmented";
@@ -45,7 +47,10 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
   }
 
   const dictionary = getDictionary(session.user.preferredLanguage);
-  const blockedUsers = await listMyBlockedUsers(session);
+  const [blockedUsers, myReports] = await Promise.all([
+    listMyBlockedUsers(session),
+    listMyBoardReports(session),
+  ]);
   const requestedMode = firstParam(params?.mode);
   const shellMode =
     requestedMode === "mobile" ||
@@ -291,6 +296,25 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
           body: dictionary.accountProfile.blockedUsersBody,
           empty: dictionary.accountProfile.blockedUsersEmpty,
           unblock: dictionary.accountProfile.unblock,
+          unknown: dictionary.board.reportsAuthorUnknown,
+        }}
+      />
+      <MyReportsList
+        reports={myReports.map((r) => ({
+          id: r.id,
+          authorName: r.authorName,
+          preview: r.preview,
+          reasonLabel: boardReasonLabel(dictionary.board, r.reason),
+          statusLabel:
+            r.status === "dismissed"
+              ? dictionary.accountProfile.myReportDismissed
+              : dictionary.accountProfile.myReportPending,
+        }))}
+        copy={{
+          title: dictionary.accountProfile.myReportsTitle,
+          body: dictionary.accountProfile.myReportsBody,
+          empty: dictionary.accountProfile.myReportsEmpty,
+          withdraw: dictionary.accountProfile.withdrawReport,
           unknown: dictionary.board.reportsAuthorUnknown,
         }}
       />

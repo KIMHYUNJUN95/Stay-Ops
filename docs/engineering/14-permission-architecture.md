@@ -174,7 +174,12 @@ property_room_manage        건물·객실 관리          ← 기존 키
 can_generate_report         일일 업무일지 생성      ← 기존 키
 ops_admin.access            운영 관리자 영역 전체    ← 2026-09-17 추가
 room_links.access           룸 링크                 ← 2026-10-02 추가
+board.moderate              게시판 신고 처리         ← 2026-10-06 추가
 ```
+
+**`board.moderate`**(2026-10-06) — 게시판 신고 처리(모바일 `/mobile/board/reports` · 관리 `/admin/board-reports`). 역할 owner · office_admin
+(그전까지 남의 글을 지울 수 있던 역할과 같다), 개인 부여 · 차단 가능, 기한 없음, 개발자 통과. 코드는 `canModerateBoard`
+(`src/lib/board-moderation.ts`) 만 본다. 기존 DB 반영: `202610060002_board_moderate_capability.sql`. docs/product/23-board-workflow.md §12-C.
 
 **`room_links.access` 는 운영 관리자 묶음에 있지만 `ops_admin.access` 와 따로 준다**(2026-10-02 사용자 결정). 리스팅
 확인은 가격을 만지지 않는 사람도 한다. 정책은 같다(대표 · 전무 역할, 개인 부여, 기한 · 차단 없음, 개발자 통과).

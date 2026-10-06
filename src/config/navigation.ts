@@ -2,6 +2,7 @@ import {
   BedDouble,
   Bell,
   BellRing,
+  Flag,
   BookText,
   Building2,
   ListChecks,
@@ -388,6 +389,14 @@ export const adminNavigation = [
     icon: Megaphone,
   },
   {
+    // 게시판 신고 처리(2026-10-06, 앱 출시 준비) — 처리 권한자만. docs/product/23-board-workflow.md §12-C
+    id: "board-reports",
+    capability: "board.moderate",
+    label: localizedNavigationLabels.admin.boardReports,
+    href: "/admin/board-reports",
+    icon: Flag,
+  },
+  {
     id: "recurring-work",
     label: localizedNavigationLabels.admin.recurringWork,
     href: "/admin/tasks",
@@ -497,6 +506,7 @@ export const adminNavGroupOf: Record<string, AdminNavGroupKey> = {
   // 정보
   calendar: "info",
   announcements: "info",
+  "board-reports": "info",
   "recurring-work": "info",
   settings: "info",
 };

@@ -684,7 +684,7 @@ UI 디자인 핸드오프 후 아래 순서로 진행:
 ## 12-C. 신고 · 차단 (2026-10-06, 앱 출시 준비 B4)
 
 App Store(1.2) · Google Play(UGC 정책)는 사용자 작성 콘텐츠가 있는 앱에 **부적절한 콘텐츠 신고**와 **사용자 차단**을 요구한다
-(`docs/planning/17-app-release-plan.md` B4). 사용자 결정(2026-10-06): 처리자 = owner · office_admin, 신고자에게만 즉시 숨김,
+(`docs/planning/17-app-release-plan.md` B4). 사용자 결정(2026-10-06): 처리자 = owner · office_admin(권한 키 `board.moderate` — 개인 부여 · 차단 가능), 신고자에게만 즉시 숨김,
 차단은 게시판에만 적용.
 
 ### 신고
@@ -695,13 +695,19 @@ App Store(1.2) · Google Play(UGC 정책)는 사용자 작성 콘텐츠가 있�
   다른 사람에게는 관리자가 처리하기 전까지 그대로 보인다(자동 숨김 없음).
 - 같은 사람이 같은 대상을 다시 신고하면 「이미 신고한 내용이에요」(유니크 인덱스).
 
-### 처리 (owner · office_admin)
+### 신고 취소 (2026-10-06 추가)
+- 계정 → 보안 「신고한 글 · 댓글」 — 대기 중이거나 「문제없음」으로 닫힌 내 신고 목록(대상이 남아 있는 것만) → 「신고 취소」.
+- 취소하면 행을 지우지 않고 `status = withdrawn` 으로 남긴다(기록 보존). 나에게 다시 보이고, 대기 중이었다면 처리 목록에서도 빠진다.
+- 취소한 대상을 다시 신고하면 같은 행을 `pending` 으로 다시 연다(유니크 인덱스 때문에 새 행을 만들지 않는다).
+
+### 처리 (권한 키 `board.moderate`)
 - 피드 머리에 「🚩 신고 N건」 칩(대기 중인 **대상** 수 — 같은 글의 여러 신고는 1건) → `/mobile/board/reports`.
 - 카드: 글/댓글 · 작성자 · 신고 수 · 미리보기 · 사유 칩 · 메모(최대 2) · 최근 신고 시각(도쿄). 「글 보기」 / 「문제없음」 / 「삭제」(확인 모달).
   - **삭제** = 대상 소프트 삭제(작성자 · 관리자 삭제와 같은 `deleted_at`) + 그 대상의 대기 신고 전부 `removed`.
   - **문제없음** = 대상은 두고 대기 신고 전부 `dismissed`. 신고한 사람에게는 계속 숨겨진다.
   - 대상이 이미 지워졌으면 목록을 열 때 그 신고를 `removed` 로 정리한다.
 - 화면: `wide` — 폰 1열 · 폴드 2열 · 태블릿 3열 카드.
+- **관리 콘솔** `/admin/board-reports`(2026-10-06): 같은 데이터 · 같은 서버 액션을 표 + 우측 상세 패널로. 사이드바 「정보」 묶음, `board.moderate` 보유자만 보인다.
 - 알림(관리자에게 「새 신고」)은 붙이지 않았다 — 「알림은 막바지에 일괄 구현」 방침. 그때 함께 붙인다.
 
 ### 차단
@@ -714,7 +720,7 @@ App Store(1.2) · Google Play(UGC 정책)는 사용자 작성 콘텐츠가 있�
 - 표: `board_reports` · `user_blocks`(마이그레이션 `202610060001_board_reports_user_blocks.sql`, service-role 전용) — `docs/engineering/04-data-model.md`.
 - 조회: `src/lib/board-moderation.ts` — `getBoardHiddenFor()`(피드 · 상세 · 안읽음이 이걸로 거름), `countPendingBoardReports()`,
   `listPendingBoardReports()`, `listMyBlockedUsers()`.
-- 서버 액션: `src/app/mobile/board/moderation-actions.ts` — `reportBoardContent` · `blockBoardUser` · `unblockBoardUser` · `resolveBoardReport`.
+- 서버 액션: `src/app/mobile/board/moderation-actions.ts` — `reportBoardContent` · `blockBoardUser` · `unblockBoardUser` · `resolveBoardReport` · `withdrawBoardReport`.
   조직 · 대상 존재 · 작성자 · 처리 권한을 모두 서버에서 검사한다.
 - 문구: `dictionary.board.*`(report* · reason* · block* · reports*), `dictionary.accountProfile.blockedUsers*` · `unblock` — ko/ja/en.
 

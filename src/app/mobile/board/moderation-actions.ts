@@ -46,6 +46,7 @@ function revalidateBoard(postId: string) {
   revalidatePath("/mobile/board");
   revalidatePath(`/mobile/board/${postId}`);
   revalidatePath("/mobile/board/reports");
+  revalidatePath("/admin/board-reports");
 }
 
 /** 글 · 댓글 신고. 내 글 · 댓글은 신고할 수 없다. 같은 대상을 다시 신고하면 `already_reported`. */
@@ -73,9 +74,65 @@ export async function reportBoardContent(
     reason: input.reason,
     note,
   });
-  if (error) return { error: error.code === "23505" ? "already_reported" : "save_failed" };
+  if (error) {
+    if (error.code !== "23505") return { error: "save_failed" };
+    // 같은 대상에 대한 내 신고가 이미 있다. 예전에 스스로 취소한 신고면 새 신고로 다시 연다.
+    let existing = service
+      .from("board_reports")
+      .select("id, status")
+      .eq("reporter_user_id", session.user.id)
+      .eq("target_type", input.targetType)
+      .eq("post_id", input.postId);
+    if (input.targetType === "comment") existing = existing.eq("comment_id", input.commentId ?? "");
+    const { data: prior } = await existing.maybeSingle();
+    if (!prior || prior.status !== "withdrawn") return { error: "already_reported" };
+    const { error: reopenError } = await service
+      .from("board_reports")
+      .update({
+        status: "pending",
+        reason: input.reason,
+        note,
+        target_author_user_id: target.authorId,
+        resolved_by_user_id: null,
+        resolved_at: null,
+        created_at: new Date().toISOString(),
+      })
+      .eq("id", prior.id);
+    if (reopenError) return { error: "save_failed" };
+  }
 
   revalidateBoard(input.postId);
+  return { ok: true };
+}
+
+/**
+ * 신고 취소 — 신고한 본인만. 대기 중이거나 「문제없음」으로 닫힌 신고만 거둘 수 있다(삭제된 대상은 되돌릴 게 없다).
+ * 행은 지우지 않고 `withdrawn` 으로 남겨 기록을 보존한다. 대기 중이었다면 관리자 목록에서도 빠진다.
+ */
+export async function withdrawBoardReport(reportId: string): Promise<ActionResult> {
+  const session = await requireSession();
+  if (!session) return { error: "no_org" };
+
+  const service = getSupabaseServiceClient();
+  const { data: report } = await service
+    .from("board_reports")
+    .select("id, post_id, status, reporter_user_id, organization_id")
+    .eq("id", reportId)
+    .maybeSingle();
+  if (!report || report.organization_id !== session.organization.id || report.reporter_user_id !== session.user.id) {
+    return { error: "not_found" };
+  }
+  if (report.status !== "pending" && report.status !== "dismissed") return { error: "invalid" };
+
+  const { error } = await service
+    .from("board_reports")
+    .update({ status: "withdrawn", resolved_at: new Date().toISOString(), resolved_by_user_id: session.user.id })
+    .eq("id", reportId);
+  if (error) return { error: "save_failed" };
+
+  revalidateBoard(report.post_id);
+  revalidatePath("/account");
+  revalidatePath("/admin/board-reports");
   return { ok: true };
 }
 

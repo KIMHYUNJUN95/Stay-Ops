@@ -2022,7 +2022,7 @@ pg_cron 잡 `beds24-tick` (`* * * * *`) → `select public.beds24_tick_if_needed
 
 `board_reports`: `id` · `organization_id` · `reporter_user_id` · `target_type`(`post` | `comment`) · `post_id`(댓글 신고면 댓글이 속한 글) ·
 `comment_id`(댓글 신고만) · `target_author_user_id`(신고 당시 작성자) · `reason`(`spam` | `harassment` | `inappropriate` | `privacy` | `other`) ·
-`note`(≤ 500) · `status`(`pending` | `removed` | `dismissed`) · `resolved_by_user_id` · `resolved_at` · `created_at`.
+`note`(≤ 500) · `status`(`pending` | `removed` | `dismissed` | `withdrawn` — 신고자가 취소, `202610060002` 에서 추가) · `resolved_by_user_id` · `resolved_at` · `created_at`.
 같은 신고자의 같은 대상 중복 금지(부분 유니크 인덱스 2개), 대기 목록 인덱스. 글 · 댓글이 하드 삭제되면 cascade.
 
 `user_blocks`: PK (`organization_id`, `blocker_user_id`, `blocked_user_id`), `created_at`, 자기 자신 차단 금지 CHECK.
