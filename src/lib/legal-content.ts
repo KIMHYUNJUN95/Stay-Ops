@@ -526,6 +526,140 @@ export const termsOfService: Record<Locale, LegalDocument> = {
   },
 };
 
+/**
+ * 계정 삭제 안내 (`/legal/account-deletion`) — Google Play 「계정 삭제 URL」(앱 밖 웹 경로) 용.
+ * 실제 삭제 동작(`src/app/account/actions.ts` `deleteAccount`)과 맞아야 한다: 로그인 계정 하드 삭제 +
+ * 프로필 이름 · 전화 · 사진 주소 · 생년월일 비움 + 조직 소속 해제. 성별 · 입사일 칸과 업무 기록은 남는다.
+ */
+export const accountDeletion: Record<Locale, LegalDocument> = {
+  ko: {
+    title: "계정 삭제 안내",
+    summary:
+      "StayOps 계정과 관련 개인정보를 삭제하는 방법입니다. 앱을 이미 지웠어도 웹에서 같은 방법으로 삭제할 수 있습니다.",
+    sections: [
+      {
+        heading: "1. 직접 삭제하기 (즉시 처리)",
+        items: [
+          "StayOps 앱 또는 웹 브라우저에서 로그인합니다.",
+          "계정 화면 → 보안 탭으로 이동합니다.",
+          "「계정 삭제」를 누르고 확인하면 바로 삭제됩니다.",
+        ],
+      },
+      {
+        heading: "2. 로그인할 수 없을 때",
+        paragraphs: [
+          "가입한 이메일 주소로 아래 문의 메일에 「계정 삭제 요청」을 보내 주세요. 본인 확인 후 30일 이내에 삭제하고 결과를 알려 드립니다.",
+        ],
+      },
+      {
+        heading: "3. 삭제되는 정보",
+        items: [
+          "로그인 계정(이메일 주소, 비밀번호, Google 계정 연결)",
+          "프로필의 이름, 전화번호, 프로필 사진, 생년월일",
+          "조직 소속(조직 명단에서 사라집니다)",
+        ],
+      },
+      {
+        heading: "4. 남는 정보와 보관 기간",
+        paragraphs: [
+          "이미 처리된 업무 기록(청소 · 근태 · 급여 계산 기록, 작성한 글과 사진 등)은 소속 조직의 운영 기록으로 남으며, 작성자는 「탈퇴한 사용자」로 표시됩니다. 성별 · 입사일 같은 고용 기록 항목도 이름 없이 남을 수 있습니다.",
+          "이 기록들은 소속 조직이 따르는 법령상 보존 기간 동안 보관된 뒤 조직의 방침에 따라 정리됩니다.",
+        ],
+      },
+      {
+        heading: "5. 되돌릴 수 없습니다",
+        paragraphs: [
+          "삭제한 계정은 복구할 수 없습니다. 같은 이메일로 다시 가입하려면 소속 조직의 초대 코드가 새로 필요합니다.",
+        ],
+      },
+    ],
+  },
+  ja: {
+    title: "アカウント削除のご案内",
+    summary:
+      "StayOpsのアカウントと関連する個人情報を削除する方法です。アプリを削除済みの場合でも、ウェブから同じ方法で削除できます。",
+    sections: [
+      {
+        heading: "1. ご自身で削除する（即時）",
+        items: [
+          "StayOpsアプリまたはウェブブラウザでログインします。",
+          "アカウント画面 → セキュリティタブを開きます。",
+          "「アカウント削除」を押して確認すると、すぐに削除されます。",
+        ],
+      },
+      {
+        heading: "2. ログインできない場合",
+        paragraphs: [
+          "ご登録のメールアドレスから、下記のお問い合わせ先へ「アカウント削除依頼」をお送りください。ご本人確認のうえ、30日以内に削除し、結果をお知らせします。",
+        ],
+      },
+      {
+        heading: "3. 削除される情報",
+        items: [
+          "ログインアカウント（メールアドレス、パスワード、Googleアカウント連携）",
+          "プロフィールの氏名、電話番号、プロフィール写真、生年月日",
+          "組織への所属（組織の名簿から表示されなくなります）",
+        ],
+      },
+      {
+        heading: "4. 残る情報と保存期間",
+        paragraphs: [
+          "すでに処理された業務記録（清掃・勤怠・給与計算の記録、作成した投稿や写真など）は所属組織の運営記録として残り、作成者は「退会済みユーザー」と表示されます。性別・入社日などの雇用記録項目も、氏名を除いた状態で残る場合があります。",
+          "これらの記録は、所属組織が従う法令上の保存期間のあいだ保管され、その後は組織の方針に従って整理されます。",
+        ],
+      },
+      {
+        heading: "5. 元に戻せません",
+        paragraphs: [
+          "削除したアカウントは復元できません。同じメールアドレスで再登録するには、所属組織の招待コードが改めて必要です。",
+        ],
+      },
+    ],
+  },
+  en: {
+    title: "Deleting your account",
+    summary:
+      "How to delete your StayOps account and the personal data tied to it. Even if you have already removed the app, you can do the same on the web.",
+    sections: [
+      {
+        heading: "1. Delete it yourself (immediate)",
+        items: [
+          "Sign in to the StayOps app or in a web browser.",
+          "Go to Account → Security.",
+          "Tap \"Delete account\" and confirm. The account is deleted right away.",
+        ],
+      },
+      {
+        heading: "2. If you can't sign in",
+        paragraphs: [
+          "Email an \"Account deletion request\" to the support address below from the email you registered with. We verify it's you and delete the account within 30 days, then let you know.",
+        ],
+      },
+      {
+        heading: "3. What is deleted",
+        items: [
+          "Your sign-in account (email address, password, Google account link)",
+          "Your profile name, phone number, profile photo and date of birth",
+          "Your organization membership (you disappear from the roster)",
+        ],
+      },
+      {
+        heading: "4. What remains, and for how long",
+        paragraphs: [
+          "Work records that were already processed (cleaning, attendance and payroll records, posts and photos you created, etc.) remain as your organization's operational records, shown as \"Deleted user\". Employment fields such as gender and hire date may also remain, without your name.",
+          "These records are kept for the retention period required by the laws your organization follows, then handled under the organization's own policy.",
+        ],
+      },
+      {
+        heading: "5. This can't be undone",
+        paragraphs: [
+          "A deleted account can't be restored. To sign up again with the same email you'll need a new invite code from your organization.",
+        ],
+      },
+    ],
+  },
+};
+
 export const supportContent: Record<Locale, SupportContent> = {
   ko: {
     title: "고객지원",

@@ -5753,6 +5753,9 @@ const FALLBACK_DICTIONARY = {
     contactEmailCta: "Email support",
     contactFallback: "Ask your organization's administrator for the support contact.",
     accountSectionTitle: "Policies & support",
+    navDeletion: "Delete account",
+    deletionRequestCta: "Email a deletion request",
+    deletionRequestSubject: "[StayOps] Account deletion request",
   },
 };
 
@@ -11341,6 +11344,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       contactEmailCta: "메일로 문의하기",
       contactFallback: "문의처는 소속 조직 관리자에게 확인해 주세요.",
       accountSectionTitle: "약관 및 지원",
+      navDeletion: "계정 삭제",
+      deletionRequestCta: "메일로 삭제 요청하기",
+      deletionRequestSubject: "[StayOps] 계정 삭제 요청",
     },
   },
   ja: {
@@ -16897,6 +16903,9 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       contactEmailCta: "メールで問い合わせる",
       contactFallback: "お問い合わせ先は所属組織の管理者にご確認ください。",
       accountSectionTitle: "規約とサポート",
+      navDeletion: "アカウント削除",
+      deletionRequestCta: "メールで削除を依頼する",
+      deletionRequestSubject: "[StayOps] アカウント削除依頼",
     },
   },
   en: {},

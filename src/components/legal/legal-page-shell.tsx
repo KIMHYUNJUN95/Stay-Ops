@@ -11,7 +11,7 @@ import {
 import { LEGAL_EFFECTIVE_DATE, type LegalDocument } from "@/lib/legal-content";
 import { cn } from "@/lib/utils";
 
-export type LegalPageKey = "terms" | "privacy" | "support";
+export type LegalPageKey = "terms" | "privacy" | "support" | "deletion";
 
 const LOCALE_COOKIE = "stayops_locale";
 
@@ -19,6 +19,7 @@ const PAGE_PATHS: Record<LegalPageKey, string> = {
   terms: "/legal/terms",
   privacy: "/legal/privacy",
   support: "/support",
+  deletion: "/legal/account-deletion",
 };
 
 /** 로그인 없이 여는 공개 페이지라 세션 대신 로그인 화면과 같은 순서로 언어를 고른다:
@@ -57,6 +58,7 @@ export function LegalPageShell({
     { key: "terms", label: t.navTerms },
     { key: "privacy", label: t.navPrivacy },
     { key: "support", label: t.navSupport },
+    { key: "deletion", label: t.navDeletion },
   ];
 
   return (

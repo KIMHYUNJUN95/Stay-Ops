@@ -146,6 +146,7 @@ Reason:
 | 개인정보처리방침 | `/legal/privacy` | App Store Connect 「개인정보처리방침 URL」. `#security` 앵커 = 로그인 화면 「보안」 링크 |
 | 이용약관 | `/legal/terms` | |
 | 고객지원 | `/support` | App Store Connect 「지원 URL」. 문의 메일 = `NEXT_PUBLIC_SUPPORT_EMAIL`(비면 「관리자에게 확인」 문구) |
+| 계정 삭제 안내(웹) | `/legal/account-deletion` | Google Play 「계정 삭제 URL」. 앱 안 · 웹 직접 삭제 + 로그인 불가 시 메일 요청(본인 확인 후 30일 이내). 삭제 · 잔존 항목은 `deleteAccount` 실제 동작 기준 |
 | 앱 안 계정 삭제 | 계정 → 보안 → 계정 삭제 (`src/app/account/actions.ts` `deleteAccount`) | 5.1.1(v) 충족 |
 | 앱 안에서 약관 · 지원 접근 | 계정 → 보안 「약관 및 지원」, 로그인 화면 하단 · 가입 폼 동의 문구 · 도움말 | |
 
