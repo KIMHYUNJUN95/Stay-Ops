@@ -5741,6 +5741,19 @@ const FALLBACK_DICTIONARY = {
     screenshotRemoveAria: "Remove screenshot",
     screenshotAlt: "Screenshot",
   },
+  // 공개 법적 고지 · 고객지원 페이지 크롬(`/legal/*`, `/support`). 본문은 `src/lib/legal-content.ts`.
+  legal: {
+    navTerms: "Terms",
+    navPrivacy: "Privacy",
+    navSupport: "Support",
+    navAria: "Policies and support",
+    languageAria: "Language",
+    effectiveDate: "Effective {date}",
+    backToApp: "Back to StayOps",
+    contactEmailCta: "Email support",
+    contactFallback: "Ask your organization's administrator for the support contact.",
+    accountSectionTitle: "Policies & support",
+  },
 };
 
 type DeepPartial<T> = {
@@ -11317,6 +11330,18 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       screenshotRemoveAria: "스크린샷 삭제",
       screenshotAlt: "스크린샷",
     },
+    legal: {
+      navTerms: "이용약관",
+      navPrivacy: "개인정보처리방침",
+      navSupport: "고객지원",
+      navAria: "약관 및 지원",
+      languageAria: "언어",
+      effectiveDate: "시행일 {date}",
+      backToApp: "StayOps로 돌아가기",
+      contactEmailCta: "메일로 문의하기",
+      contactFallback: "문의처는 소속 조직 관리자에게 확인해 주세요.",
+      accountSectionTitle: "약관 및 지원",
+    },
   },
   ja: {
   roomLinks: {
@@ -16860,6 +16885,18 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       screenshotAddAria: "スクリーンショットを追加",
       screenshotRemoveAria: "スクリーンショットを削除",
       screenshotAlt: "スクリーンショット",
+    },
+    legal: {
+      navTerms: "利用規約",
+      navPrivacy: "プライバシーポリシー",
+      navSupport: "サポート",
+      navAria: "規約とサポート",
+      languageAria: "言語",
+      effectiveDate: "施行日 {date}",
+      backToApp: "StayOpsに戻る",
+      contactEmailCta: "メールで問い合わせる",
+      contactFallback: "お問い合わせ先は所属組織の管理者にご確認ください。",
+      accountSectionTitle: "規約とサポート",
     },
   },
   en: {},

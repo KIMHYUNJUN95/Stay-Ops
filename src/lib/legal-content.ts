@@ -1,0 +1,620 @@
+import type { Locale } from "@/lib/i18n";
+
+/**
+ * 공개 법적 고지 · 고객지원 본문 (2026-10-06, App Store 비공개 배포 준비).
+ *
+ * `/legal/privacy` · `/legal/terms` · `/support` 가 이 파일만 읽는다. 화면 크롬(탭 이름 · 돌아가기 ·
+ * 시행일 라벨)은 `dictionary.legal` 에 있고, **긴 본문만** 여기 둔다 — 조항 단위로 세 언어를 나란히
+ * 고쳐야 하는 문서라 UI 문구 사전에 흩어 두면 언어 간 조항이 어긋나기 쉽다.
+ *
+ * 내용은 실제 구현과 맞아야 한다(Apple 심사 · 개인정보 라벨이 이 문서를 기준으로 대조된다).
+ * 수집 항목 · 외부 처리자 · 삭제 동작이 바뀌면 이 파일과 `docs/engineering/03-deployment-strategy.md`
+ * 「App Store 준비」를 같이 고친다. 공개 출시 전에는 운영 법인명 · 주소를 채우고 법무 검토를 받는다.
+ */
+
+export const LEGAL_EFFECTIVE_DATE = "2026-10-06";
+
+export type LegalSection = {
+  /** 페이지 안 앵커 (예: 로그인 화면 「보안」 링크 → `#security`). */
+  id?: string;
+  heading: string;
+  paragraphs?: string[];
+  items?: string[];
+};
+
+export type LegalDocument = {
+  title: string;
+  summary: string;
+  sections: LegalSection[];
+};
+
+export type SupportContent = {
+  title: string;
+  summary: string;
+  contactHeading: string;
+  contactBody: string;
+  faqHeading: string;
+  faqs: { q: string; a: string }[];
+};
+
+export const privacyPolicy: Record<Locale, LegalDocument> = {
+  ko: {
+    title: "개인정보처리방침",
+    summary:
+      "StayOps는 숙박 운영팀을 위한 업무용 서비스입니다. 업무에 필요한 최소한의 정보만 다루며, 광고나 판매 목적으로 개인정보를 쓰거나 제3자에게 팔지 않습니다.",
+    sections: [
+      {
+        heading: "1. 적용 범위",
+        paragraphs: [
+          "이 방침은 StayOps 모바일 앱 · 웹(이하 「서비스」)에 적용됩니다. 서비스는 소속 조직(숙박 운영 사업자)의 초대를 받은 구성원이 업무 목적으로 이용합니다. 업무 기록에 대해서는 소속 조직이 관리 주체이며, StayOps 운영자는 조직을 대신해 정보를 처리합니다.",
+        ],
+      },
+      {
+        heading: "2. 수집하는 정보",
+        items: [
+          "계정 정보: 이메일 주소, 이름, 생년월일, 성별, 전화번호, 선호 언어. Google 로그인을 선택하면 Google 계정의 이메일 · 이름을 받습니다. 비밀번호는 암호화되어 인증 서비스에만 저장됩니다.",
+          "소속 정보: 소속 조직, 역할, 팀, 권한.",
+          "근태 정보: 출퇴근 시각, 연차 · 근무 기록, 급여 계산에 필요한 정보. 출퇴근 인증을 할 때에만 그 시점의 위치(GPS)와 기기 정보(브라우저 종류)를 함께 기록합니다.",
+          "업무 기록: 청소 · 수리 · 분실물 · 주문 · 할 일 · 게시판 등에서 직접 작성한 글, 댓글, 첨부한 사진.",
+          "투숙객 정보: 소속 조직이 예약 관리 시스템(Beds24)과 연동한 경우, 업무 처리에 필요한 예약 정보(투숙객 이름, 숙박 일정, 객실 등)와 투숙객 리뷰.",
+          "기술 정보: 로그인 상태 유지와 언어 설정을 위한 쿠키 · 로컬 저장소. 광고 식별자나 추적용 쿠키는 쓰지 않습니다.",
+        ],
+      },
+      {
+        heading: "3. 이용 목적",
+        items: [
+          "로그인, 본인 확인, 소속 조직 · 권한에 따른 접근 제어",
+          "청소 · 근태 · 연차 · 급여 등 숙박 운영 업무의 기록과 처리",
+          "조직 내 공지 · 게시판 · 알림 등 업무 소통",
+          "서비스 오류 대응과 보안 유지",
+        ],
+      },
+      {
+        heading: "4. 위치 정보와 카메라",
+        paragraphs: [
+          "위치 정보는 출퇴근 인증 버튼을 누르거나 출퇴근 QR을 스캔한 그 순간에만 한 번 확인하며, 백그라운드에서 위치를 추적하지 않습니다. 위치 권한을 거부해도 인증은 진행되며 「위치 없음」으로 기록됩니다.",
+          "카메라는 출퇴근 QR 코드를 읽을 때 사용하며 영상은 저장하지 않습니다. 사진은 이용자가 직접 촬영하거나 선택해 첨부한 경우에만 업로드됩니다.",
+        ],
+      },
+      {
+        heading: "5. 외부 처리자와 국외 이전",
+        paragraphs: [
+          "서비스 운영을 위해 아래 업체에 정보 처리를 맡깁니다. 이 업체들의 서버는 이용자가 있는 국가 밖에 있을 수 있습니다.",
+        ],
+        items: [
+          "Supabase — 데이터베이스, 인증, 파일 저장",
+          "Vercel — 서비스 호스팅",
+          "Google — Google 로그인(선택한 경우에만)",
+          "Beds24 — 예약 정보 연동(소속 조직이 연동한 경우)",
+          "DeepL — 투숙객 리뷰 번역",
+          "Slack — 소속 조직의 내부 운영 알림",
+        ],
+      },
+      {
+        heading: "6. 보관과 파기",
+        paragraphs: [
+          "계정 화면 → 보안 → 「계정 삭제」에서 언제든 계정을 삭제할 수 있습니다. 삭제하면 로그인 계정이 즉시 지워지고, 프로필의 이름 · 연락처 등 개인 식별 정보가 삭제되며, 조직 소속도 해제됩니다.",
+          "이미 처리된 업무 기록(청소 · 근태 기록 등)은 소속 조직의 운영 · 법정 보존 기록으로 남을 수 있습니다. 이 경우에도 개인 식별 정보는 지워진 상태로 남습니다.",
+        ],
+      },
+      {
+        heading: "7. 이용자의 권리",
+        paragraphs: [
+          "이용자는 계정 화면에서 자신의 정보를 열람 · 수정할 수 있고, 계정을 삭제할 수 있습니다. 그 밖의 열람 · 정정 · 삭제 요청은 소속 조직 관리자 또는 아래 문의처로 연락해 주세요.",
+        ],
+      },
+      {
+        id: "security",
+        heading: "8. 보안",
+        items: [
+          "모든 통신은 암호화(HTTPS)됩니다.",
+          "데이터는 조직 단위로 분리되며, 다른 조직의 정보에는 접근할 수 없습니다.",
+          "역할 · 권한에 따라 볼 수 있는 정보가 서버에서 제한됩니다.",
+          "비밀번호는 원문으로 저장하지 않습니다.",
+        ],
+      },
+      {
+        heading: "9. 아동",
+        paragraphs: ["서비스는 업무용이며 아동을 대상으로 하지 않습니다."],
+      },
+      {
+        heading: "10. 방침 변경",
+        paragraphs: [
+          "이 방침을 바꾸면 이 페이지의 시행일을 갱신하고, 중요한 변경은 서비스 안에서 알립니다.",
+        ],
+      },
+      {
+        heading: "11. 문의",
+        paragraphs: ["개인정보 관련 문의는 고객지원 페이지의 연락처로 보내 주세요."],
+      },
+    ],
+  },
+  ja: {
+    title: "プライバシーポリシー",
+    summary:
+      "StayOpsは宿泊施設の運営チーム向けの業務用サービスです。業務に必要な最小限の情報のみを扱い、広告や販売の目的で個人情報を利用したり、第三者に販売したりすることはありません。",
+    sections: [
+      {
+        heading: "1. 適用範囲",
+        paragraphs: [
+          "本ポリシーは、StayOpsのモバイルアプリおよびウェブ（以下「本サービス」）に適用されます。本サービスは、所属組織（宿泊施設の運営事業者）から招待を受けたメンバーが業務目的で利用します。業務記録については所属組織が管理主体となり、StayOps運営者は組織に代わって情報を取り扱います。",
+        ],
+      },
+      {
+        heading: "2. 取得する情報",
+        items: [
+          "アカウント情報：メールアドレス、氏名、生年月日、性別、電話番号、使用言語。Googleログインを選択した場合は、Googleアカウントのメールアドレスと氏名を受け取ります。パスワードは暗号化され、認証サービスにのみ保存されます。",
+          "所属情報：所属組織、役割、チーム、権限。",
+          "勤怠情報：出退勤時刻、休暇・勤務記録、給与計算に必要な情報。出退勤の認証時にのみ、その時点の位置情報（GPS）と端末情報（ブラウザの種類）を記録します。",
+          "業務記録：清掃・修理・遺失物・注文・タスク・掲示板などでご本人が作成した投稿、コメント、添付した写真。",
+          "宿泊者情報：所属組織が予約管理システム（Beds24）と連携している場合、業務に必要な予約情報（宿泊者氏名、宿泊日程、客室など）と宿泊者のレビュー。",
+          "技術情報：ログイン状態の維持と言語設定のためのCookie・ローカルストレージ。広告識別子やトラッキング用Cookieは使用しません。",
+        ],
+      },
+      {
+        heading: "3. 利用目的",
+        items: [
+          "ログイン、本人確認、所属組織・権限に応じたアクセス制御",
+          "清掃・勤怠・休暇・給与など宿泊施設運営業務の記録と処理",
+          "組織内のお知らせ・掲示板・通知などの業務連絡",
+          "障害対応とセキュリティの維持",
+        ],
+      },
+      {
+        heading: "4. 位置情報とカメラ",
+        paragraphs: [
+          "位置情報は、出退勤の認証ボタンを押したとき、または出退勤QRを読み取ったその瞬間に一度だけ確認します。バックグラウンドで位置を追跡することはありません。位置情報の許可を拒否しても認証は行われ、「位置情報なし」として記録されます。",
+          "カメラは出退勤用QRコードの読み取りに使用し、映像は保存しません。写真は、ご本人が撮影または選択して添付した場合にのみアップロードされます。",
+        ],
+      },
+      {
+        heading: "5. 外部委託先と国外移転",
+        paragraphs: [
+          "本サービスの運営のため、以下の事業者に情報の取り扱いを委託しています。これらの事業者のサーバーは、利用者の居住国外にある場合があります。",
+        ],
+        items: [
+          "Supabase — データベース、認証、ファイル保存",
+          "Vercel — サービスのホスティング",
+          "Google — Googleログイン（選択した場合のみ）",
+          "Beds24 — 予約情報の連携（所属組織が連携している場合）",
+          "DeepL — 宿泊者レビューの翻訳",
+          "Slack — 所属組織の社内運営通知",
+        ],
+      },
+      {
+        heading: "6. 保存と削除",
+        paragraphs: [
+          "アカウント画面 → セキュリティ → 「アカウント削除」から、いつでもアカウントを削除できます。削除すると、ログインアカウントは直ちに削除され、プロフィールの氏名・連絡先などの個人を特定できる情報が消去され、組織への所属も解除されます。",
+          "すでに処理された業務記録（清掃・勤怠記録など）は、所属組織の運営記録・法定保存記録として残る場合があります。その場合も、個人を特定できる情報は消去された状態で残ります。",
+        ],
+      },
+      {
+        heading: "7. 利用者の権利",
+        paragraphs: [
+          "利用者はアカウント画面でご自身の情報を閲覧・修正し、アカウントを削除できます。その他の開示・訂正・削除のご要望は、所属組織の管理者または下記のお問い合わせ先までご連絡ください。",
+        ],
+      },
+      {
+        id: "security",
+        heading: "8. セキュリティ",
+        items: [
+          "すべての通信は暗号化（HTTPS）されます。",
+          "データは組織単位で分離され、他の組織の情報にはアクセスできません。",
+          "役割・権限に応じて、閲覧できる情報がサーバー側で制限されます。",
+          "パスワードを平文で保存することはありません。",
+        ],
+      },
+      {
+        heading: "9. 子ども",
+        paragraphs: ["本サービスは業務用であり、子どもを対象としていません。"],
+      },
+      {
+        heading: "10. ポリシーの変更",
+        paragraphs: [
+          "本ポリシーを変更する場合は、このページの施行日を更新し、重要な変更は本サービス内でお知らせします。",
+        ],
+      },
+      {
+        heading: "11. お問い合わせ",
+        paragraphs: ["個人情報に関するお問い合わせは、サポートページの連絡先までお送りください。"],
+      },
+    ],
+  },
+  en: {
+    title: "Privacy Policy",
+    summary:
+      "StayOps is a work tool for accommodation operations teams. We handle only the information the work requires, and we never use personal data for advertising or sell it to third parties.",
+    sections: [
+      {
+        heading: "1. Scope",
+        paragraphs: [
+          "This policy applies to the StayOps mobile app and web (the \"Service\"). The Service is used for work by members invited by their organization (an accommodation operator). The organization controls its work records; the StayOps operator processes information on the organization's behalf.",
+        ],
+      },
+      {
+        heading: "2. Information we collect",
+        items: [
+          "Account: email address, name, date of birth, gender, phone number, preferred language. If you choose Google sign-in, we receive your Google account email and name. Passwords are stored only in hashed form by the authentication service.",
+          "Membership: organization, role, team, permissions.",
+          "Attendance: clock-in/out times, leave and shift records, and information needed for payroll. Only when you verify a clock-in or clock-out do we record your location (GPS) at that moment and device information (browser type).",
+          "Work records: posts, comments and photos you create in cleaning, maintenance, lost & found, orders, tasks, the board and similar features.",
+          "Guest data: if your organization connects its booking system (Beds24), the reservation details needed for operations (guest name, stay dates, room, etc.) and guest reviews.",
+          "Technical: cookies and local storage to keep you signed in and remember your language. We do not use advertising identifiers or tracking cookies.",
+        ],
+      },
+      {
+        heading: "3. How we use it",
+        items: [
+          "Sign-in, identity verification and access control by organization and permission",
+          "Recording and processing operations work such as cleaning, attendance, leave and payroll",
+          "Work communication inside the organization: announcements, board, notifications",
+          "Troubleshooting and keeping the Service secure",
+        ],
+      },
+      {
+        heading: "4. Location and camera",
+        paragraphs: [
+          "Location is checked once, only at the moment you tap clock-in/out or scan the attendance QR code. We never track location in the background. If you deny location permission, verification still proceeds and is recorded as \"no location\".",
+          "The camera is used to read the attendance QR code; video is never stored. Photos are uploaded only when you take or choose them yourself.",
+        ],
+      },
+      {
+        heading: "5. Service providers and international transfer",
+        paragraphs: [
+          "We rely on the following providers to run the Service. Their servers may be located outside your country.",
+        ],
+        items: [
+          "Supabase — database, authentication, file storage",
+          "Vercel — hosting",
+          "Google — Google sign-in (only if you choose it)",
+          "Beds24 — reservation sync (if your organization connects it)",
+          "DeepL — translation of guest reviews",
+          "Slack — internal operations alerts for your organization",
+        ],
+      },
+      {
+        heading: "6. Retention and deletion",
+        paragraphs: [
+          "You can delete your account at any time from Account → Security → \"Delete account\". Deleting removes your sign-in account immediately, erases identifying profile information such as your name and contact details, and removes you from your organization.",
+          "Work records that were already processed (such as cleaning or attendance records) may remain as your organization's operational or legally required records. Even then, they remain with your identifying information erased.",
+        ],
+      },
+      {
+        heading: "7. Your rights",
+        paragraphs: [
+          "You can view and edit your information and delete your account from the Account screen. For any other access, correction or deletion request, contact your organization's administrator or the contact below.",
+        ],
+      },
+      {
+        id: "security",
+        heading: "8. Security",
+        items: [
+          "All traffic is encrypted (HTTPS).",
+          "Data is separated per organization; no organization can access another's data.",
+          "What you can see is restricted on the server according to your role and permissions.",
+          "Passwords are never stored in plain text.",
+        ],
+      },
+      {
+        heading: "9. Children",
+        paragraphs: ["The Service is a work tool and is not directed at children."],
+      },
+      {
+        heading: "10. Changes",
+        paragraphs: [
+          "When this policy changes we update the effective date on this page, and we announce significant changes inside the Service.",
+        ],
+      },
+      {
+        heading: "11. Contact",
+        paragraphs: ["For privacy questions, use the contact on the Support page."],
+      },
+    ],
+  },
+};
+
+export const termsOfService: Record<Locale, LegalDocument> = {
+  ko: {
+    title: "이용약관",
+    summary:
+      "StayOps는 숙박 운영 사업자와 그 구성원이 업무에 쓰는 서비스입니다. 이 약관은 서비스를 이용할 때 지켜야 할 기본 규칙을 정합니다.",
+    sections: [
+      {
+        heading: "1. 서비스",
+        paragraphs: [
+          "StayOps(이하 「서비스」)는 청소 · 근태 · 예약 · 수리 · 분실물 · 주문 등 숙박 운영 업무를 기록하고 처리하는 업무용 도구입니다. 소속 조직의 초대를 받은 구성원만 이용할 수 있습니다.",
+        ],
+      },
+      {
+        heading: "2. 계정",
+        items: [
+          "가입할 때 정확한 정보를 입력해야 합니다.",
+          "계정과 비밀번호는 본인만 사용해야 하며, 다른 사람과 공유하지 않습니다.",
+          "계정이 도용된 것으로 보이면 즉시 소속 조직 관리자에게 알려 주세요.",
+        ],
+      },
+      {
+        heading: "3. 조직과 권한",
+        paragraphs: [
+          "소속 조직의 관리자는 구성원의 역할 · 권한을 정하고, 계정을 정지하거나 조직에서 제외할 수 있습니다. 이용자가 볼 수 있는 정보와 할 수 있는 작업은 부여된 권한에 따라 달라집니다.",
+        ],
+      },
+      {
+        heading: "4. 금지 행위",
+        items: [
+          "다른 사람의 계정을 사용하거나 권한 없는 정보에 접근하려는 행위",
+          "투숙객 · 동료의 개인정보를 업무 외 목적으로 이용하거나 외부에 유출하는 행위",
+          "불법적이거나 타인을 괴롭히는 등 부적절한 콘텐츠를 올리는 행위",
+          "서비스의 정상적인 운영을 방해하는 행위",
+        ],
+      },
+      {
+        heading: "5. 콘텐츠",
+        paragraphs: [
+          "이용자가 작성한 글 · 사진은 소속 조직의 업무 기록으로 이용됩니다. 작성한 콘텐츠에 대한 책임은 작성자에게 있습니다. 이 약관을 어긴 콘텐츠는 소속 조직 관리자나 운영자가 삭제할 수 있습니다.",
+        ],
+      },
+      {
+        heading: "6. 서비스 변경과 중단",
+        paragraphs: [
+          "기능은 개선을 위해 바뀔 수 있습니다. 점검이나 장애, 외부 연동 서비스(예약 관리 시스템 등)의 사정으로 서비스가 일시적으로 중단되거나 정보가 늦게 반영될 수 있습니다.",
+        ],
+      },
+      {
+        heading: "7. 책임의 한계",
+        paragraphs: [
+          "운영자는 서비스를 안정적으로 제공하기 위해 노력하지만, 법령이 허용하는 범위에서 외부 연동 데이터의 지연 · 오류나 이용자의 잘못된 사용으로 생긴 손해에 대해서는 책임을 지지 않습니다.",
+        ],
+      },
+      {
+        heading: "8. 이용 종료",
+        paragraphs: [
+          "이용자는 계정 화면 → 보안 → 「계정 삭제」로 언제든 이용을 끝낼 수 있습니다. 이 약관을 중대하게 어기면 이용이 제한될 수 있습니다.",
+        ],
+      },
+      {
+        heading: "9. 약관 변경",
+        paragraphs: [
+          "약관을 바꾸면 이 페이지의 시행일을 갱신하고, 중요한 변경은 서비스 안에서 알립니다. 변경 후에도 계속 이용하면 바뀐 약관에 동의한 것으로 봅니다.",
+        ],
+      },
+      {
+        heading: "10. 문의",
+        paragraphs: ["약관 관련 문의는 고객지원 페이지의 연락처로 보내 주세요."],
+      },
+    ],
+  },
+  ja: {
+    title: "利用規約",
+    summary:
+      "StayOpsは、宿泊施設の運営事業者とそのメンバーが業務に使うサービスです。本規約は、本サービスを利用する際に守るべき基本的なルールを定めます。",
+    sections: [
+      {
+        heading: "1. 本サービス",
+        paragraphs: [
+          "StayOps（以下「本サービス」）は、清掃・勤怠・予約・修理・遺失物・注文など宿泊施設運営の業務を記録・処理するための業務用ツールです。所属組織から招待を受けたメンバーのみが利用できます。",
+        ],
+      },
+      {
+        heading: "2. アカウント",
+        items: [
+          "登録時には正確な情報を入力してください。",
+          "アカウントとパスワードはご本人のみが使用し、他人と共有しないでください。",
+          "アカウントが不正に使用されたおそれがある場合は、直ちに所属組織の管理者にお知らせください。",
+        ],
+      },
+      {
+        heading: "3. 組織と権限",
+        paragraphs: [
+          "所属組織の管理者は、メンバーの役割・権限を設定し、アカウントの停止や組織からの除外を行うことができます。閲覧できる情報と行える操作は、付与された権限によって異なります。",
+        ],
+      },
+      {
+        heading: "4. 禁止事項",
+        items: [
+          "他人のアカウントを使用する行為、または権限のない情報にアクセスしようとする行為",
+          "宿泊者・同僚の個人情報を業務外の目的で利用し、または外部に漏えいする行為",
+          "違法な内容や他者への嫌がらせなど、不適切なコンテンツを投稿する行為",
+          "本サービスの正常な運営を妨げる行為",
+        ],
+      },
+      {
+        heading: "5. コンテンツ",
+        paragraphs: [
+          "利用者が作成した投稿・写真は、所属組織の業務記録として利用されます。作成したコンテンツの責任は作成者にあります。本規約に違反するコンテンツは、所属組織の管理者または運営者が削除することがあります。",
+        ],
+      },
+      {
+        heading: "6. サービスの変更・中断",
+        paragraphs: [
+          "機能は改善のために変更されることがあります。メンテナンスや障害、外部連携サービス（予約管理システムなど）の事情により、本サービスが一時的に停止したり、情報の反映が遅れたりすることがあります。",
+        ],
+      },
+      {
+        heading: "7. 責任の制限",
+        paragraphs: [
+          "運営者は本サービスを安定して提供するよう努めますが、法令で認められる範囲において、外部連携データの遅延・誤りや利用者の誤った使用によって生じた損害については責任を負いません。",
+        ],
+      },
+      {
+        heading: "8. 利用の終了",
+        paragraphs: [
+          "利用者は、アカウント画面 → セキュリティ → 「アカウント削除」からいつでも利用を終了できます。本規約への重大な違反があった場合、利用が制限されることがあります。",
+        ],
+      },
+      {
+        heading: "9. 規約の変更",
+        paragraphs: [
+          "本規約を変更する場合は、このページの施行日を更新し、重要な変更は本サービス内でお知らせします。変更後も利用を続けた場合、変更後の規約に同意したものとみなします。",
+        ],
+      },
+      {
+        heading: "10. お問い合わせ",
+        paragraphs: ["規約に関するお問い合わせは、サポートページの連絡先までお送りください。"],
+      },
+    ],
+  },
+  en: {
+    title: "Terms of Service",
+    summary:
+      "StayOps is a work service for accommodation operators and their members. These terms set the basic rules for using it.",
+    sections: [
+      {
+        heading: "1. The Service",
+        paragraphs: [
+          "StayOps (the \"Service\") is a work tool for recording and processing accommodation operations such as cleaning, attendance, reservations, maintenance, lost & found and orders. Only members invited by their organization may use it.",
+        ],
+      },
+      {
+        heading: "2. Accounts",
+        items: [
+          "Provide accurate information when you sign up.",
+          "Your account and password are for you alone; do not share them.",
+          "If you think your account has been misused, tell your organization's administrator right away.",
+        ],
+      },
+      {
+        heading: "3. Organizations and permissions",
+        paragraphs: [
+          "Your organization's administrators set members' roles and permissions and may suspend an account or remove it from the organization. What you can see and do depends on the permissions you are given.",
+        ],
+      },
+      {
+        heading: "4. Prohibited conduct",
+        items: [
+          "Using someone else's account or trying to access information you are not permitted to see",
+          "Using guests' or colleagues' personal data for non-work purposes or disclosing it outside",
+          "Posting unlawful, harassing or otherwise inappropriate content",
+          "Interfering with the normal operation of the Service",
+        ],
+      },
+      {
+        heading: "5. Content",
+        paragraphs: [
+          "Posts and photos you create are used as your organization's work records. You are responsible for the content you create. Content that breaks these terms may be removed by your organization's administrators or the operator.",
+        ],
+      },
+      {
+        heading: "6. Changes and interruptions",
+        paragraphs: [
+          "Features may change as we improve the Service. Maintenance, outages or connected services (such as a booking system) may temporarily interrupt the Service or delay data.",
+        ],
+      },
+      {
+        heading: "7. Limitation of liability",
+        paragraphs: [
+          "We work to keep the Service reliable, but to the extent permitted by law we are not liable for losses caused by delays or errors in connected-service data or by misuse of the Service.",
+        ],
+      },
+      {
+        heading: "8. Ending use",
+        paragraphs: [
+          "You can stop using the Service at any time via Account → Security → \"Delete account\". Serious violations of these terms may lead to restricted access.",
+        ],
+      },
+      {
+        heading: "9. Changes to these terms",
+        paragraphs: [
+          "When these terms change we update the effective date on this page and announce significant changes inside the Service. Continuing to use the Service after a change means you accept the updated terms.",
+        ],
+      },
+      {
+        heading: "10. Contact",
+        paragraphs: ["For questions about these terms, use the contact on the Support page."],
+      },
+    ],
+  },
+};
+
+export const supportContent: Record<Locale, SupportContent> = {
+  ko: {
+    title: "고객지원",
+    summary: "StayOps 이용 중 문제가 있거나 궁금한 점이 있으면 아래를 확인해 주세요.",
+    contactHeading: "문의하기",
+    contactBody:
+      "업무 · 권한 관련 문의는 먼저 소속 조직 관리자에게 연락해 주세요. 앱 오류나 계정 문제는 아래 메일로 보내 주시면 확인 후 답변드립니다. 로그인한 상태라면 앱 메뉴의 「버그 신고」도 이용할 수 있습니다.",
+    faqHeading: "자주 묻는 질문",
+    faqs: [
+      {
+        q: "가입하려면 무엇이 필요한가요?",
+        a: "소속 조직에서 받은 초대 코드가 필요합니다. 이메일 또는 Google로 로그인한 뒤 초대 코드를 입력하면 조직에 합류합니다.",
+      },
+      {
+        q: "비밀번호를 잊어버렸어요.",
+        a: "로그인 화면에서 「이메일로 계속하기」를 누른 뒤 비밀번호 칸의 「잊으셨나요?」를 누르면 재설정 메일을 받을 수 있습니다.",
+      },
+      {
+        q: "표시 언어를 바꾸고 싶어요.",
+        a: "계정 화면 → 프로필에서 한국어 · 日本語 · English 중에서 고를 수 있습니다.",
+      },
+      {
+        q: "계정을 삭제하려면 어떻게 하나요?",
+        a: "계정 화면 → 보안 → 「계정 삭제」에서 바로 삭제할 수 있습니다. 삭제하면 되돌릴 수 없습니다.",
+      },
+      {
+        q: "로그인했는데 「계정이 정지되었습니다」 같은 화면이 떠요.",
+        a: "소속 조직에서 계정이 정지되었거나 조직에서 제외된 상태입니다. 소속 조직 관리자에게 문의해 주세요. 계정이 비활성화된 경우에는 아래 메일로 연락해 주세요.",
+      },
+    ],
+  },
+  ja: {
+    title: "サポート",
+    summary: "StayOpsのご利用中に問題やご不明な点がありましたら、以下をご確認ください。",
+    contactHeading: "お問い合わせ",
+    contactBody:
+      "業務・権限に関するお問い合わせは、まず所属組織の管理者にご連絡ください。アプリの不具合やアカウントの問題は、下記のメールアドレスまでお送りいただければ確認のうえご返信します。ログイン中であれば、アプリのメニューにある「バグ報告」もご利用いただけます。",
+    faqHeading: "よくある質問",
+    faqs: [
+      {
+        q: "登録には何が必要ですか？",
+        a: "所属組織から受け取った招待コードが必要です。メールまたはGoogleでログインしたあと、招待コードを入力すると組織に参加できます。",
+      },
+      {
+        q: "パスワードを忘れました。",
+        a: "ログイン画面で「メールで続ける」を押し、パスワード欄の「お忘れですか？」を押すと、再設定メールを受け取れます。",
+      },
+      {
+        q: "表示言語を変更したいです。",
+        a: "アカウント画面 → プロフィールで、한국어・日本語・Englishから選べます。",
+      },
+      {
+        q: "アカウントを削除するには？",
+        a: "アカウント画面 → セキュリティ → 「アカウント削除」からすぐに削除できます。削除は取り消せません。",
+      },
+      {
+        q: "ログインしたら「アカウントが停止されました」などの画面が表示されます。",
+        a: "所属組織でアカウントが停止されたか、組織から除外された状態です。所属組織の管理者にお問い合わせください。無効化された場合は、下記のメールアドレスまでご連絡ください。",
+      },
+    ],
+  },
+  en: {
+    title: "Support",
+    summary: "If something isn't working or you have a question about StayOps, start here.",
+    contactHeading: "Contact us",
+    contactBody:
+      "For questions about your work or permissions, contact your organization's administrator first. For app problems or account issues, email us at the address below and we'll get back to you. If you're signed in, you can also use \"Bug Report\" in the app menu.",
+    faqHeading: "Frequently asked questions",
+    faqs: [
+      {
+        q: "What do I need to sign up?",
+        a: "An invite code from your organization. Sign in with email or Google, then enter the invite code to join your organization.",
+      },
+      {
+        q: "I forgot my password.",
+        a: "On the sign-in screen, choose \"Continue with email\", then tap \"Forgot?\" next to the password field to get a reset email.",
+      },
+      {
+        q: "How do I change the display language?",
+        a: "Go to Account → Profile and choose 한국어, 日本語 or English.",
+      },
+      {
+        q: "How do I delete my account?",
+        a: "Go to Account → Security → \"Delete account\". Deletion can't be undone.",
+      },
+      {
+        q: "I signed in but see \"Your account is suspended\" or a similar screen.",
+        a: "Your organization suspended your account or removed you. Please contact your organization's administrator. If your account was disabled, email us at the address below.",
+      },
+    ],
+  },
+};

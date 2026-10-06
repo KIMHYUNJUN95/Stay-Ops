@@ -9,6 +9,12 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-06 — App Store 비공개 배포 준비 1단계: 약관 · 개인정보 · 지원 페이지
+
+- 공개 페이지 `/legal/privacy` · `/legal/terms` · `/support` 신설(로그인 불필요, ko/ja/en, `?lang=` 전환). 로그인 화면 하단 링크 ·
+  도움말 · 가입 동의 문구 · 계정 → 보안 「약관 및 지원」을 연결(예전엔 `#`). 남은 항목(Apple 로그인 · 데모 계정 · 앱 껍데기 ·
+  게시판 신고 등)은 `03-deployment-strategy.md` 「App Store 준비」. 공개 출시 전 법인명 · 법무 검토 필요.
+
 ## 2026-10-06 — 아이패드 실측 점검 후 수정
 
 - 24개 화면을 아이패드 가로 · 세로로 찍어(아티팩트 「StayOps 아이패드 화면 점검」) 깨짐 1 · 어색함 4 를 고침: 룸 링크 가로 객실 카드 깨짐,

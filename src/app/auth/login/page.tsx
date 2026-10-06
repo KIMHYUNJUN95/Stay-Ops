@@ -8,6 +8,7 @@ import { EmailNewPasswordForm } from "@/app/auth/login/email-new-password-form";
 import { EmailResetForm } from "@/app/auth/login/email-reset-form";
 import { EmailSignupForm } from "@/app/auth/login/email-signup-form";
 import { GoogleSubmitButton } from "@/app/auth/login/google-button";
+import { legalHref } from "@/components/legal/legal-page-shell";
 import { resolveAuthErrorMessage } from "@/lib/auth-errors";
 import { ATTENDANCE_QR_PATH } from "@/lib/attendance-qr";
 import { isMobileSurfacePath } from "@/lib/surface-routing";
@@ -326,6 +327,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             }}
             next={effectiveNext}
             lang={locale}
+            termsHref={legalHref("terms", locale)}
+            privacyHref={legalHref("privacy", locale)}
           />
         </div>
       </AuthFrame>
@@ -335,7 +338,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   // ===== Email login =====
   if (params.view === "email") {
     return (
-      <AuthFrame locale={locale} next={effectiveNext} view="email" help={<>{c.help} <a href="#">{t.entry.helpLink}</a></>}>
+      <AuthFrame locale={locale} next={effectiveNext} view="email" help={<>{c.help} <Link href={legalHref("support", locale)}>{t.entry.helpLink}</Link></>}>
         <div className="auth-card">
           <Link href={splitHref} className="backlink"><Ic>{Back}</Ic>{t.email.back}</Link>
           <p className="auth-eyebrow">{c.emailEyebrow}</p>
@@ -413,10 +416,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <div className="auth-invite__t">{t.entry.inviteNote}</div>
         </div>
         <div className="auth-legal">
-          <a>{t.entry.termsLink}</a><span className="dot" />
-          <a>{t.entry.privacyLink}</a><span className="dot" />
-          <a>{c.legalSecurity}</a><span className="dot" />
-          <a>{t.entry.helpLink}</a>
+          <Link href={legalHref("terms", locale)}>{t.entry.termsLink}</Link><span className="dot" />
+          <Link href={legalHref("privacy", locale)}>{t.entry.privacyLink}</Link><span className="dot" />
+          <Link href={legalHref("privacy", locale, "security")}>{c.legalSecurity}</Link><span className="dot" />
+          <Link href={legalHref("support", locale)}>{t.entry.helpLink}</Link>
         </div>
       </div>
     </AuthFrame>

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -5,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { AccountSettings } from "@/components/account/account-settings";
 import { DeleteAccountSheet } from "@/components/account/delete-account-sheet";
 import { GenderSegmented } from "@/components/account/gender-segmented";
+import { legalHref } from "@/components/legal/legal-page-shell";
 import { LanguageSegmented } from "@/components/account/language-segmented";
 import { DateFormField } from "@/components/admin/shared/date-form-field";
 import { AdminShell } from "@/components/shell/admin-shell";
@@ -278,6 +280,28 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
             deleteAccountConfirm: dictionary.common.deleteAccountConfirm,
           }}
         />
+      </div>
+      {/* 약관 · 개인정보처리방침 · 고객지원 — App Store 심사는 앱 안에서도 이 문서들에 닿을 수
+          있기를 요구한다. 공개 페이지(`/legal/*`, `/support`)라 같은 탭에서 연다. */}
+      <div className="rounded-xl border border-border px-4 py-3">
+        <p className="text-sm font-bold">{dictionary.legal.accountSectionTitle}</p>
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] font-semibold">
+          {(
+            [
+              ["terms", dictionary.legal.navTerms],
+              ["privacy", dictionary.legal.navPrivacy],
+              ["support", dictionary.legal.navSupport],
+            ] as const
+          ).map(([key, label]) => (
+            <Link
+              className="text-primary underline-offset-2 hover:underline"
+              href={legalHref(key, session.user.preferredLanguage)}
+              key={key}
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   );

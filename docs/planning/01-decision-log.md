@@ -2,6 +2,13 @@
 
 This file records important project decisions.
 
+## 2026-10-06 App Store 는 비공개 배포 먼저, 공개 출시는 그 뒤
+
+iOS 앱은 Apple Business Manager Custom App 또는 Unlisted App 으로 **비공개 배포부터** 한다(사용자 결정). 공개 출시는 준비를
+더 갖춘 뒤. 앱 껍데기 방식(Capacitor 등)은 아직 미정 — 정할 때 PWA-first 방향 변경으로 따로 기록한다. 개발자 계정 없이 지금
+할 수 있는 것부터: 공개 페이지 `/legal/privacy` · `/legal/terms` · `/support`(로그인 불필요, ko/ja/en)를 만들고 로그인 화면 ·
+가입 폼 · 계정 → 보안의 끊긴 링크(`#`)를 연결했다. 남은 항목과 순서: `docs/engineering/03-deployment-strategy.md` → 「App Store 준비」.
+
 ## 2026-10-01 STAY ARI Manager 이식은 「저쪽 구조·설계를 읽고 → 업그레이드해서 → 짓는다」
 
 이식하는 모든 기능은 저쪽 원본(`/mnt/c/-stay-ari-manager-main`)의 구조 · 데이터 흐름 · 규칙을 먼저 끝까지 읽고,

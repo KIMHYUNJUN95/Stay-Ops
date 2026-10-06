@@ -128,3 +128,48 @@ Reason:
 - Fast setup
 - Free/low-cost start
 - HTTPS support for PWA and Web Push requirements
+
+## App Store 준비 (2026-10-06)
+
+### 방향
+
+1. **비공개 배포 먼저** — Apple Business Manager **Custom App**(조직 단위 배포) 또는 **Unlisted App**(링크로만 설치).
+   거래처 · 사내 직원만 쓰는 업무 앱이라 공개 심사 부담(최소 기능 4.2 · 사용자 콘텐츠 1.2)이 작다. 다만 심사 자체는 받는다.
+2. **공개 출시는 그 뒤** — 아래 「공개 출시 전」 항목을 채운 다음.
+3. 앱 껍데기(네이티브 래퍼)를 무엇으로 할지는 아직 정하지 않았다. 현재 코드를 살리는 Capacitor 래핑 + 네이티브 기능(푸시 · 카메라 ·
+   위치 · Apple 로그인 · 공유 시트)이 1안. **PWA-first 방향 변경이므로 결정 시 결정 로그에 남긴다.**
+
+### 지금 갖춘 것
+
+| 항목 | 위치 | 비고 |
+| --- | --- | --- |
+| 개인정보처리방침 | `/legal/privacy` | App Store Connect 「개인정보처리방침 URL」. `#security` 앵커 = 로그인 화면 「보안」 링크 |
+| 이용약관 | `/legal/terms` | |
+| 고객지원 | `/support` | App Store Connect 「지원 URL」. 문의 메일 = `NEXT_PUBLIC_SUPPORT_EMAIL`(비면 「관리자에게 확인」 문구) |
+| 앱 안 계정 삭제 | 계정 → 보안 → 계정 삭제 (`src/app/account/actions.ts` `deleteAccount`) | 5.1.1(v) 충족 |
+| 앱 안에서 약관 · 지원 접근 | 계정 → 보안 「약관 및 지원」, 로그인 화면 하단 · 가입 폼 동의 문구 · 도움말 | |
+
+- 세 페이지는 **로그인 없이** 열린다(미들웨어 보호 경로 밖). 언어 = `?lang=` → `stayops_locale` 쿠키 → Accept-Language.
+  상단에서 한국어 · 日本語 · English 전환.
+- 본문은 `src/lib/legal-content.ts`(조항 단위 ko/ja/en), 화면 크롬은 `dictionary.legal`. 공용 틀 = `src/components/legal/legal-page-shell.tsx`.
+- 폰 · 폴드 · 태블릿 모두 760px 읽기 폭 한 칸(문서라 줄 길이를 넓히지 않는다).
+- **본문은 실제 구현과 맞아야 한다.** 수집 항목(계정 · 근태 GPS/기기 정보 · 업무 기록 · Beds24 투숙객 정보) · 외부 처리자
+  (Supabase · Vercel · Google · Beds24 · DeepL · Slack) · 삭제 동작이 바뀌면 `legal-content.ts` 와 이 절을 같이 고친다.
+  App Store 개인정보 라벨도 같은 목록으로 작성한다.
+
+### 개발자 계정이 생기면 할 것
+
+- **Apple 로그인** — Google 로그인이 있으므로 4.8 상 필요. Supabase Apple provider + Services ID · 키가 있어야 한다.
+- 심사용 **데모 조직 · 계정 · 샘플 데이터**(초대 코드 없이 바로 들어가는 계정) 준비 — 2.1.
+- 앱 껍데기 · 번들 ID · 아이콘 1024px · 스크린샷(아이폰 · 아이패드) · 3개 언어 설명문 · 연령 등급.
+- 권한 설명 문구(Info.plist): 카메라(출퇴근 QR · 사진 첨부), 위치(출퇴근 인증 순간), 사진 보관함 — ko/ja/en.
+- 개인정보 매니페스트 `PrivacyInfo.xcprivacy` 와 App Store 개인정보 라벨.
+
+### 공개 출시 전
+
+- 운영 법인명 · 주소를 방침 · 약관에 채우고 법무 검토.
+- 게시판(`/mobile/board`) **신고 · 차단** — 사용자 콘텐츠 1.2.
+- 푸시 알림 = APNs(앱 안 WebView 에서는 웹 푸시가 동작하지 않는다). 알림 일괄 구현 방침과 일정 맞춤.
+- 앱 안 Google 로그인: Google 이 임베디드 WebView 로그인을 막으므로(`disallowed_useragent`) 네이티브 로그인 처리.
+- 자체 도메인(App-Bound Domains · Universal Links), WebView 안 파일 내보내기(공유 시트).
+
