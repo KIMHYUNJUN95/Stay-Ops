@@ -3,14 +3,14 @@
  *
  * 도메인 계약: docs/product/16-mobile-navigation.md 「목록 → 상세 2분할」
  *
- * 태블릿 가로(`tablet:` — ≥ 840px · 높이 ≥ 600px)에서 목록을 누르면 오른쪽 칸에 **그 상세 화면을 그대로** 띄운다(같은
+ * 태블릿 가로(`tablet:` — ≥ 1000px · 높이 ≥ 600px)에서 목록을 누르면 오른쪽 칸에 **그 상세 화면을 그대로** 띄운다(같은
  * 출처 프레임 — `name="stayops-pane"`). 프레임 안의 화면은 「칸 모드」(`html[data-pane]`)로 메뉴 · 머리 없이 본문만 그린다.
  * 상세 화면 코드는 하나도 바꾸지 않는다 — 폰 · 폴드에서는 지금처럼 상세 화면으로 넘어간다.
  */
 
 export const SPLIT_PANE_NAME = "stayops-pane";
 export const SPLIT_PANE_MESSAGE = "stayops-pane";
-export const TABLET_QUERY = "(min-width: 840px) and (min-height: 600px)";
+export const TABLET_QUERY = "(min-width: 1000px) and (min-height: 600px)";
 
 export type SplitPaneMessage =
   | { type: typeof SPLIT_PANE_MESSAGE; kind: "nav"; path: string }

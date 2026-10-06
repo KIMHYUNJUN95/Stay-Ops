@@ -1189,7 +1189,7 @@
 
 /* ── 넓은 화면(2026-10-05 — 모든 모바일 화면 폴드 · 태블릿 대응) ───────────────────────────────────────────
  * 휴가 달력: 폴드 · 태블릿 세로는 셸 가운데 760px 한 줄(달력 칸이 넓어진다). 태블릿 가로는 왼쪽 달력 | 오른쪽 휴가 목록. */
-@media (min-width: 840px) and (min-height: 600px) {
+@media (min-width: 1000px) and (min-height: 600px) {
   .lv.lv--cal {
     display: grid;
     grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr);

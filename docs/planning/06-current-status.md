@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-06 — 갤럭시 폴드 점검: 태블릿 구간 1000 으로
+
+- 접은 커버 344 · 펼친 세로 673 · 펼친 가로 841 로 24개 화면을 찍음. 펼친 가로가 태블릿 배치로 짓눌려 `tablet:` 을 840 → 1000 으로 올림(폴드 가로 =
+  레일 + 2열). 커버 화면 알림 머리 버튼 줄바꿈 수정. (`16`, `01`, CLAUDE.md)
+
 ## 2026-10-06 — App Store 비공개 배포 준비 1단계: 약관 · 개인정보 · 지원 페이지
 
 - 공개 페이지 `/legal/privacy` · `/legal/terms` · `/support` 신설(로그인 불필요, ko/ja/en, `?lang=` 전환). 로그인 화면 하단 링크 ·
