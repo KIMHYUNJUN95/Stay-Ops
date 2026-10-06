@@ -214,7 +214,8 @@ export function CleaningRecordsView({
   const paneRecord = selected ?? (dateKeys.length > 0 ? (byDate.get(dateKeys[0])?.[0] ?? null) : null);
 
   return (
-    <div className="tablet:grid tablet:grid-cols-[minmax(0,1fr)_400px] tablet:items-start tablet:gap-5">
+    // 두 칸은 **상세 칸이 있을 때만**(2026-10-06 아이패드 점검) — 기록이 없는 달에도 오른쪽 자리를 비워 두면 왼쪽이 반쪽 폭으로 보였다.
+    <div className={paneRecord ? "tablet:grid tablet:grid-cols-[minmax(0,1fr)_400px] tablet:items-start tablet:gap-5" : undefined}>
     <div className="pb-10">
       {/* Month + summary — a clean dashboard header */}
       <div className="mb-3 overflow-hidden rounded-[22px] border border-border bg-surface shadow-[0_18px_44px_-30px_rgba(15,23,42,0.5)]">

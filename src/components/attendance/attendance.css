@@ -3409,14 +3409,14 @@
   }
 }
 @media (min-width: 840px) and (min-height: 600px) {
-  .att.att--hist {
+  .att.att--hist.att--hist-pane {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
     column-gap: 24px;
     align-items: start;
     align-content: start;
   }
-  .att.att--hist > * { grid-column: 1; }
+  .att.att--hist.att--hist-pane > * { grid-column: 1; }
   .att.att--hist > .att-hist__pane {
     grid-column: 2;
     grid-row: 1 / span 40;

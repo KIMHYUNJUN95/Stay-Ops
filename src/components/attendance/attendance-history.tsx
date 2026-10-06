@@ -585,7 +585,8 @@ export function AttendanceHistory({
   );
 
   return (
-    <div className="att att--hist">
+    // 두 칸(`.att--hist-pane`)은 **상세 칸이 있을 때만**(2026-10-06 아이패드 점검) — 기록이 없는 달엔 한 칸 전부.
+    <div className={`att att--hist${isTablet && paneSession ? " att--hist-pane" : ""}`}>
       <div className="ptitle-row">
         <div>
           <h1 className="ptitle">{copy.historyTitle}</h1>

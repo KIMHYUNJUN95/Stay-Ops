@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-06 — 아이패드 실측 점검 후 수정
+
+- 24개 화면을 아이패드 가로 · 세로로 찍어(아티팩트 「StayOps 아이패드 화면 점검」) 깨짐 1 · 어색함 4 를 고침: 룸 링크 가로 객실 카드 깨짐,
+  홈 한국어 줄바꿈, 예약 캘린더 건물 고르기 열 수, 청소 기록 · 근태 기록 빈 달 반쪽 폭. (`16`, `35`)
+
 ## 2026-10-06 — 홈 넓은 화면 수평 정렬(아이패드)
 
 - 칸 제목 같은 높이 · 같은 줄 카드 윗선/아랫선 일치. 태블릿 가로 = 공지 한 줄 → 출근 · 체크인/아웃 · 오늘 기록 → 빠른 실행 · 진행 중 작업,

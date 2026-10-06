@@ -791,7 +791,8 @@ export function MobileCalendarView({
           </div>
         </section>
 
-        <div className="grid grid-cols-2 gap-2.5">
+        {/* 넓은 화면(2026-10-06 아이패드 점검): 폰 2열 · 폴드 3열 · 태블릿 가로 4열 — 두 열 그대로면 카드가 크고 비어 보였다. */}
+        <div className="grid grid-cols-2 gap-2.5 fold:grid-cols-3 tablet:grid-cols-4">
           {propertyOptions.map((property) => {
             const meta = propertyMetaByName.get(property);
             const isHouse = meta?.kind === "house" || property.toLowerCase().includes("okubo");

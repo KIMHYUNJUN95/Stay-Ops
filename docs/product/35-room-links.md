@@ -114,6 +114,8 @@ Airbnb 는 객실(계정)마다 리스팅이 있지만 Booking.com 은 **숙소(
   - 태블릿 가로(≥ 840px · 높이 ≥ 600px): 대시보드 1b 와 같은 **3열** — 왼쪽 건물 목록(세로, 따라 내려옴) · 가운데 건물 카드 + 객실
     두 줄 · 오른쪽 상세 칸(따라 내려옴). 시트를 쓰지 않는다(`useIsTablet()`). 아무것도 안 골랐으면 그 건물의 첫 객실을 보인다.
   - 긴 건물 이름(STAY ARI Apartment Hotel)은 왼쪽 목록에서 줄을 바꾼다.
+  - 아이패드 가로는 사이드바(248px)를 빼면 본문이 900px 남짓이라 세 칸을 176px · 1fr · 320–380px 로 맞추고, 객실은 칸 폭에 맞춰
+    열 수를 정한다(`auto-fill, minmax(250px, 1fr)` — 좁으면 한 줄). 건물 카드의 Booking 줄은 모자라면 버튼이 다음 줄로(2026-10-06 실측).
 - **고치기는 없다** — 대시보드에서 한다(시안 1a 그대로). 복사하면 탭 바 위 알림(「게스트 링크를 복사했어요」).
 - 문구: `roomLinks.m*`(mOpenHost · mCopied · mNoLink · mGuestPage · mBookingNote) · 내비 `mobile.roomLinks` · `roomLinksShort` (ko/ja/en).
 
