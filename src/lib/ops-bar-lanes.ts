@@ -113,6 +113,14 @@ export type PlacedLaneBar = { checkIn: string; checkOut: string; lane: number };
 export function assignBlockLanes(
   bars: readonly PlacedLaneBar[],
   blocks: readonly LaneBlock[],
+  options: {
+    /**
+     * 차단을 놓기 시작할 층(2026-10-06). 판매 캘린더는 **예약 층 아래**에서 시작한다 — 0층은 예약 막대와 빈 칸의 `+`
+     * (수기 예약 시작)가 쓰는 줄이라, 차단이 0층에 오면 차단한 날 `+` 가 가려졌다(차단한 날도 수기 예약을 넣게 된 뒤
+     * 사용자 지적 「날짜 생성하는 게 전부 가려져 버린다, 블락 칸이랑 나눠야겠다」). 기본 0 — 예전 동작.
+     */
+    fromLane?: number;
+  } = {},
 ): { laneById: Map<string, number>; laneCount: number } {
   const laneById = new Map<string, number>();
   /** 층별로 이미 놓인 것의 밤 구간 `[from, toExclusive)`. */
@@ -135,7 +143,7 @@ export function assignBlockLanes(
   );
   for (const block of sorted) {
     const endExclusive = dayAfter(block.endDate);
-    let lane = 0;
+    let lane = Math.max(0, options.fromLane ?? 0);
     while (
       lane < lanes.length &&
       lanes[lane].some(([from, toExclusive]) => block.startDate < toExclusive && from < endExclusive)

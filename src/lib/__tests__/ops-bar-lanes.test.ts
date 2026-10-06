@@ -161,4 +161,19 @@ describe("assignBlockLanes — 차단이 예약과 겹치면 아래층", () => {
     expect(result.laneById.get("a")).toBe(1);
     expect(result.laneById.get("b")).toBe(2);
   });
+
+  it("fromLane — 차단은 예약 층 아래에서 시작한다(빈 칸 + 를 가리지 않게, 2026-10-06)", () => {
+    const out = assignBlockLanes([], [{ endDate: "2026-10-17", id: "b", startDate: "2026-10-16" }], { fromLane: 1 });
+    expect(out.laneById.get("b")).toBe(1);
+    expect(out.laneCount).toBe(2);
+    const overlap = assignBlockLanes(
+      [],
+      [
+        { endDate: "2026-10-17", id: "a", startDate: "2026-10-16" },
+        { endDate: "2026-10-18", id: "b", startDate: "2026-10-17" },
+      ],
+      { fromLane: 1 },
+    );
+    expect([overlap.laneById.get("a"), overlap.laneById.get("b")]).toEqual([1, 2]);
+  });
 });

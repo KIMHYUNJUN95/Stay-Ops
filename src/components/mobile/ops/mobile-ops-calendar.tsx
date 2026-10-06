@@ -2267,9 +2267,11 @@ const MobileOpsRow = memo(function MobileOpsRow({
   const bars = row.bars.filter((bar) => bar.isCancelled === showCancelled && bar.checkOut > first && bar.checkIn <= last);
   const barLanes = assignBarLanes(bars);
   const blocks = row.blocks.filter((block) => block.endDate >= first && block.startDate <= last);
+  // 차단은 예약 층 아래 따로 둔 줄에(데스크톱과 같다, 2026-10-06) — 0층은 예약 막대 · 빈 칸 자리.
   const blockLanes = assignBlockLanes(
     bars.map((bar) => ({ checkIn: bar.checkIn, checkOut: bar.checkOut, lane: barLanes.laneById.get(bar.id) ?? 0 })),
     blocks,
+    { fromLane: Math.max(1, barLanes.laneCountByRoom.get(row.room.key) ?? 0) },
   );
   const laneCount = Math.max(1, blockLanes.laneCount, barLanes.laneCountByRoom.get(row.room.key) ?? 0);
   const height = TOP_H + laneCount * LANE_H + 4;

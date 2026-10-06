@@ -415,8 +415,9 @@ const OpsGridRow = memo(function OpsGridRow({
       )
     : null;
   /*
-   * 차단은 예약이 있는 밤에도 건다(남은 판매만 멈추려고). 같은 줄이면 예약 이름을 덮어 못 읽는다 —
-   * 예약이 먼저 자리를 잡고 차단은 겹치지 않는 첫 층에 놓는다(`assignBlockLanes`). 겹치지 않으면 0층.
+   * 차단은 **예약 층 아래 따로 둔 줄**에 놓는다(2026-10-06). 0층은 예약 막대와 빈 칸의 `+`(수기 예약 시작)가 쓰는 줄 —
+   * 차단한 날에도 수기 예약을 넣게 되면서 차단이 0층에 있으면 `+` 를 가렸다(사용자 지적). 차단이 있는 방만 줄이 하나
+   * 늘어난다. 차단끼리 겹치면 그 아래로(`assignBlockLanes`).
    */
   const blockLanes = assignBlockLanes(
     roomBars.map((bar) => ({
@@ -425,6 +426,7 @@ const OpsGridRow = memo(function OpsGridRow({
       lane: barLanes?.laneById.get(bar.id) ?? 0,
     })),
     roomBlocks.map((block) => ({ endDate: block.endDate, id: block.id, startDate: block.startDate })),
+    { fromLane: barLanes?.laneCountByRoom.get(room.key) ?? 1 },
   );
   const laneCount = Math.max(barLanes?.laneCountByRoom.get(room.key) ?? 1, blockLanes.laneCount);
   /** 팔린 밤(살아 있는 예약). 가격 수정에서 막히는 유일한 조건이다(블록은 막지 않는다). */
