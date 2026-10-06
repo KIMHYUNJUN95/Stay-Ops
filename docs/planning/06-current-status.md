@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-06 — 홈 넓은 화면 수평 정렬(아이패드)
+
+- 칸 제목 같은 높이 · 같은 줄 카드 윗선/아랫선 일치. 태블릿 가로 = 공지 한 줄 → 출근 · 체크인/아웃 · 오늘 기록 → 빠른 실행 · 진행 중 작업,
+  출근 카드에 넓은 화면 전용 제목. 폴드 2열도 같은 규칙. (`16`)
+
 ## 2026-10-06 — 차단한 날도 수기 예약 가능
 
 - Beds24 처럼 차단(BLOCK)된 날에도 수기 예약 · 예약 수정을 넣는다(사용자 결정). 「찬 밤」 = 살아 있는 예약뿐, 데스크톱 격자 `+` 도 BLOCK 칸에.

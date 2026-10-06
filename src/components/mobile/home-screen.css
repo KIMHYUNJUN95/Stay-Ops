@@ -764,6 +764,11 @@
    폰은 위에서 아래로 한 줄(DOM 순서 그대로). 폴드(≥ 600)는 출근 카드를 위에 펼치고 2열, 태블릿 가로(≥ 840 · 높이 ≥ 600)는
    3열 — 왼쪽 출근 + 바로가기, 가운데 공지 · 체크인/아웃 · 청소, 오른쪽 오늘 활동. 카드 모양 · 순서(읽기 순서)는 그대로다. */
 .hm__blk { min-width: 0; }
+/* 넓은 화면에서만 보이는 칸 제목(출근 칸) — 폰은 지금처럼 제목 없이 출근 카드부터. */
+.hm__wide-only { display: none; }
+@media (min-width: 600px) {
+  .hm__wide-only { display: block; }
+}
 .hm__blk > .hm__sectt:first-child,
 .hm__blk > .hm__sectt-row:first-child { margin-top: 22px; }
 
@@ -787,19 +792,43 @@
   .hm__blk--qa { grid-area: qa; }
   .hm__blk--log { grid-area: log; }
   .hm__blk--notice:empty { display: none; }
+  /* 같은 줄 카드는 높이를 맞춘다(폴드 · 태블릿 공통, 2026-10-06) — 칸을 세로로 쌓고 카드가 남은 높이를 채운다. */
+  .hm__grid { align-items: stretch; }
+  .hm__blk--hero,
+  .hm__blk--stats,
+  .hm__blk--task { display: flex; flex-direction: column; }
+  .hm__blk--hero > .hm__clockhero { flex: 1; margin-bottom: 0; }
+  .hm__blk--stats > section { flex: 1; display: flex; }
+  .hm__blk--stats .hm__stats { flex: 1; }
+  /* 늘어난 체크인/아웃 카드 — 아이콘은 위, 숫자 · 이름은 아래로(가운데 빈 칸이 생기지 않게). */
+  .hm__blk--stats .hm__stat { display: flex; flex-direction: column; align-items: flex-start; }
+  .hm__blk--stats .hm__stat-v { margin-top: auto; }
+  .hm__blk--task > section { flex: 1; display: flex; flex-direction: column; }
+  .hm__blk--task > section > * { flex: 1; }
+  .hm__blk--qa { display: flex; flex-direction: column; }
+  .hm__blk--qa > .hm__qa { flex: 1; }
+  /* 오늘 기록은 두 줄을 걸치되 내용 높이만큼만. */
+  .hm__blk--log { align-self: start; }
 }
 
 @media (min-width: 840px) and (min-height: 600px) {
+  /*
+   * 태블릿 가로 — **칸마다 제목이 같은 높이, 같은 줄의 카드는 윗선 · 아랫선이 같게**(2026-10-06 아이패드 실기기 지적 「체크인
+   * 체크아웃 위치라던가 수평이 안 맞는다」). 공지는 세 칸 위에 한 줄(없으면 줄째 사라진다), 둘째 줄 = 출근 · 체크인/아웃 · 오늘 기록,
+   * 셋째 줄 = 바로가기 · 진행 중 작업. 전에는 공지 자리가 비면 체크인/아웃 제목이 혼자 내려가고, 출근 카드는 제목이 없어 윗선이 달랐다.
+   */
   .hm__grid {
     grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
-      "hero notice log"
+      "notice notice notice"
       "hero stats log"
       "qa task log";
     grid-template-rows: auto auto 1fr;
     column-gap: 20px;
   }
-  /* 첫 줄 카드는 제목 없이 바로 시작 — 위 여백을 맞춘다. */
-  .hm__blk--notice .hm__notice { margin-top: 0; }
-  .hm__blk--log > .hm__sectt-row:first-child { margin-top: 0; }
+  .hm__blk--notice .hm__notice { margin-top: 0; margin-bottom: 4px; }
+  /* 둘째 줄 칸 제목은 모두 같은 높이에서 시작한다. */
+  .hm__blk--hero > .hm__sectt:first-child,
+  .hm__blk--stats > .hm__sectt:first-child,
+  .hm__blk--log > .hm__sectt-row:first-child { margin-top: 6px; }
 }

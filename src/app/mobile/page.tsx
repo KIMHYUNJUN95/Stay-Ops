@@ -220,6 +220,8 @@ async function HomeBody({
   return (
     <div className="hm__grid">
       <div className="hm__blk hm__blk--hero">
+        {/* 넓은 화면에서만 보이는 칸 제목(2026-10-06) — 다른 칸(체크인/아웃 · 오늘 기록)과 제목 · 카드 윗선을 맞춘다. 폰은 숨김. */}
+        <div className="hm__sectt hm__wide-only">{a.pageTitle}</div>
         {/* Quick attendance hero — reflects the real open attendance session state. */}
         <Link
           aria-label={openAttendanceSession ? m.homeClockOpenTitle : m.homeClockIdleTitle}
