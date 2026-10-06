@@ -267,6 +267,8 @@ export function ImageLightbox({
   return createPortal(
     <div
       className="fixed inset-0 z-[95] flex flex-col bg-slate-950/95 backdrop-blur-sm"
+      // 앱(Android) 뒤로가기 버튼이 먼저 이 뷰어를 닫게 하는 표식 — NativeShellBridge.
+      data-native-back-overlay=""
       style={{ animation: "modal-overlay-in 200ms ease-out both" }}
     >
       {/* Top glass bar — counter + close. */}

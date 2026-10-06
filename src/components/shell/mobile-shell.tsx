@@ -703,6 +703,8 @@ export function MobileShell({
         />
         <aside
           aria-label={dictionary.common.menu}
+          // 열려 있을 때만 — 앱(Android) 뒤로가기 버튼이 먼저 메뉴를 닫게 한다(NativeShellBridge, 2026-10-06).
+          data-native-back-overlay={sidebarOpen ? "" : undefined}
           className={cn(
             "absolute inset-y-0 left-0 z-[60] flex w-full flex-col overflow-hidden px-[22px] pb-[18px] pt-[max(24px,env(safe-area-inset-top))] text-foreground",
             // 넓은 화면에서는 왼쪽 360px 서랍(화면 전체를 덮지 않는다).

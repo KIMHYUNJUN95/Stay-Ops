@@ -33,12 +33,13 @@
 | --- | --- | --- | --- | --- |
 | B0 | **Capacitor 채택 결정** | 👤 승인 | [x] 2026-10-06 | 결정 로그 기록 |
 | B1 | **Capacitor 골격** (iOS · Android 프로젝트, 앱 ID, 권한 설정) | 🤖 | [x] 2026-10-06 | `capacitor.config.ts` · `android/` · `ios/`. 앱은 배포된 웹을 띄운다. 빌드 방법: `03-deployment-strategy.md` 「앱 빌드」 |
-| B1-1 | **실기기 · 에뮬레이터 첫 실행 확인** — Android Studio(Windows 가능) / Xcode(Mac 필요) | 👤 | [ ] | 이메일 로그인 → 홈 → 출퇴근 QR(카메라 · 위치 권한 팝업)까지. Google 로그인은 B2 전까지 앱에서 안 됨 |
+| B1-1 | **실기기 · 에뮬레이터 첫 실행 확인** — Android Studio(Windows 가능) / Xcode(Mac 필요) | 👤 | [ ] Android 부터 — 절차: `03` 「Android 첫 실행」 | 이메일 · Google 로그인 → 홈 → 출퇴근 QR(카메라 · 위치 권한) → 첨부 다운로드 → 외부 링크 → 뒤로가기 버튼 |
+| B1-3 | **iOS 빌드 경로** — Mac 없음 → 클라우드 빌드(Codemagic · GitHub Actions macOS 러너) | 🤝 | [ ] | Apple Developer 가입(A2) 후. 사용자 확인: Mac 없음, Android Studio 있음(2026-10-06) |
 | B1-2 | **앱 아이콘 · 스플래시** — 1024px 원본에서 생성 | 🤖 | [ ] | 지금은 Capacitor 기본 아이콘. 1024px 원본 이미지 필요 |
 | B2 | **앱 안 Google 로그인** — 시스템 브라우저로 로그인 → 딥링크로 앱 복귀 | 🤖 | [x] 2026-10-06 | `getNativeGoogleSignInUrl` + `@capacitor/browser` + `NativeAuthBridge`, 스킴 `com.harutokyo.stayops://auth/callback`. `03` 「앱 안 Google 로그인」 |
 | B2-1 | **Supabase Redirect URLs 에 `com.harutokyo.stayops://auth/callback` 추가** | 👤 | [x] 2026-10-06 | 사용자 설정 완료(Redirect URLs 5개). 이게 있어야 앱으로 돌아온다 |
 | B2-2 | **실기기에서 앱 Google 로그인 확인** | 👤 | [ ] | B1-1(앱 첫 실행) 때 함께 |
-| B3 | **WebView 호환 점검** — 엑셀 · PDF 다운로드, 외부 링크(Beds24 · OTA · 지도 · 전화), 카메라 · 위치 권한, Android 뒤로가기 버튼, safe-area | 🤖 | [ ] | 웹에선 되던 것이 앱 안에서 조용히 안 되는 영역 |
+| B3 | **WebView 호환 점검** — 다운로드, 외부 링크(Beds24 · OTA · 지도 · 전화), 카메라 · 위치 권한, Android 뒤로가기 버튼, safe-area | 🤖 | [x] 2026-10-06 | `NativeShellBridge` — 외부 링크 · 다운로드 → 앱 안 브라우저, 같은 출처 새 창 → WebView, 뒤로가기 버튼, SystemBars 설정. 실기기 확인은 B1-1. `03` 「앱 안 WebView 보정」 |
 | B4 | **게시판 신고 · 차단** (`/mobile/board`) | 🤖 | [x] 2026-10-06 | 신고(사유 5종 + 메모) → 신고자에게 즉시 숨김, owner · office_admin 이 `/mobile/board/reports` 에서 삭제 / 문제없음. 차단 = 내 게시판에서 숨김, 계정 → 보안에서 해제. `23-board-workflow.md` §12-C |
 | B4-2 | **신고 취소 · 관리 콘솔 신고 처리** | 🤖 | [x] 2026-10-06 | 계정 → 보안 「신고한 글 · 댓글」 → 신고 취소(`withdrawn`). `/admin/board-reports` 표 + 상세 패널. 처리 권한을 권한 키 `board.moderate` 로 정식화 |
 | B4-1 | 다른 사용자 작성 콘텐츠(공지 댓글 · 제안함 댓글 등)에도 신고 · 차단이 필요한지 검토 | 🤖 | [ ] | 심사 기준은 「사용자 간 공유되는 콘텐츠」. 업무 기록 성격이 강한 화면은 제외 가능 |
@@ -85,4 +86,5 @@
 | 2026-10-06 | `29ff68c` | B0 Capacitor 채택 기록 · B1 골격(android/ · ios/ · 권한) · B5-1 결정 |
 | 2026-10-06 | `5e2a027` · `8a42c09` | B4-2 신고 취소 · 관리 콘솔 「게시판 신고」 · `board.moderate` 권한 키 · 콘솔 디자인 정리 |
 | 2026-10-06 | `f200832` | B2 앱 안 Google 로그인(시스템 브라우저 + 앱 스킴 복귀) |
-| 2026-10-06 | — | B2-1 Supabase Redirect URLs 에 앱 스킴 추가(사용자) |
+| 2026-10-06 | `e4d8179` | B2-1 Supabase Redirect URLs 에 앱 스킴 추가(사용자) |
+| 2026-10-06 | (이 커밋) | B3 WebView 보정(외부 링크 · 다운로드 · 새 창 · 뒤로가기 · SystemBars), Android 첫 실행 가이드 |

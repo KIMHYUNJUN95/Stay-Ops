@@ -27,6 +27,14 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: false,
   },
+  plugins: {
+    // Android 15+ 는 앱을 상태바 · 내비게이션 바 아래까지 그린다(edge-to-edge). 웹은 이미 `viewport-fit=cover` +
+    // `env(safe-area-inset-*)` 로 여백을 잡으므로 Capacitor 권장값 `native` 를 쓰고, 첫 화면이 튀지 않게 cover 힌트를 준다.
+    SystemBars: {
+      insetsHandling: "native",
+      initialViewportFitValueHint: "cover",
+    },
+  },
 };
 
 export default config;

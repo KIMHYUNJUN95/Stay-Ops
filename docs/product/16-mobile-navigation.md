@@ -123,6 +123,12 @@ Implementation note:
   (캘린더 월 이동, 사진 캐러셀, 날짜 선택기). 어드민 웹은 뒤로가기 버튼을 유지한다(데스크톱에는
   터치 스와이프가 없다).
 
+  **앱(Capacitor) Android 하드웨어 뒤로가기 (2026-10-06):** `NativeShellBridge` 가 받는다. 열린 오버레이(`[aria-modal="true"]` ·
+  `[role="dialog"]` · `[data-native-back-overlay]`)가 있으면 window 에 Esc 를 보내 닫고(BottomSheet · 사진 뷰어 · 사이드 메뉴가 이미 Esc 로
+  닫힌다), 없으면 `history.back()`, 갈 곳이 없으면 앱 최소화. Esc 를 안 받는 대화상자에서 막히지 않게 1.2초 안에 다시 누르면 화면 이동.
+  셸 쪽 변경은 표식뿐이다 — 사이드 메뉴 `<aside>` 가 열려 있을 때 `data-native-back-overlay`, `ImageLightbox` 루트에 같은 표식.
+  새 전체 화면 오버레이를 만들면 Esc 로 닫히게 하고 `role="dialog"` 나 이 표식을 붙인다.
+
   **직접 구현하지 않는다.** 네이티브 제스처 위에 자체 구현을 얹으면 **두 번 뒤로 가거나** 가로
   스크롤과 싸운다 — 실제로 겪었다(`mobile-calendar-view.tsx` 주석: 「왼쪽 가장자리에서 시작한
   가로 스크롤이 `router.back()` 을 발동시키곤 했다」). 제거된 것도 그 때문으로 보인다.

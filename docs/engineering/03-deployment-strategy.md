@@ -155,6 +155,36 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
   마지막이 빠지면 Supabase 가 Site URL(웹)로 돌려보내 로그인이 시스템 브라우저에서 끝나고 앱은 로그아웃 상태로 남는다.
 - 회원가입 확인 · 비밀번호 재설정 **메일 링크**는 아직 브라우저에서 열린다(앱으로 열려면 Universal Links / App Links — 계획 C2).
 
+### 앱 안 WebView 보정 (B3, 2026-10-06)
+
+`NativeShellBridge`(루트 레이아웃, 앱에서만 동작):
+
+| 상황 | 웹에서 | 앱에서 |
+| --- | --- | --- |
+| 다른 출처 링크(Beds24 · Airbnb · Booking · 지도 등), `target="_blank"` 다른 출처 | 새 탭 | 앱 안 브라우저(`@capacitor/browser`) |
+| `download` 링크 · 첨부 다운로드(서명 URL을 `a.click()`) | 다운로드 | 앱 안 브라우저(미리보기 · 공유 · 저장) |
+| 같은 출처 `target="_blank"` · `window.open` | 새 탭 | 같은 WebView 에서 이동(시스템 브라우저는 로그인 쿠키가 다르다) |
+| 다른 출처 `window.open`(예: 캘린더 지도) | 새 탭 | 앱 안 브라우저 |
+| `tel:` · `mailto:` | OS | Capacitor 가 OS 로 넘김(손대지 않음) |
+| Android 뒤로가기 버튼 | — | 오버레이 닫기 → 이전 화면 → 앱 최소화(`16-mobile-navigation.md`) |
+
+- 상태바 · 내비게이션 바: `capacitor.config.ts` `plugins.SystemBars` = `insetsHandling: "native"` + `initialViewportFitValueHint: "cover"`.
+  웹의 `viewport-fit=cover` · `env(safe-area-inset-*)` 가 그대로 쓰인다(Android 15+ edge-to-edge 대응).
+- 카메라 · 위치: Android 는 Capacitor WebChromeClient 가 웹 요청을 런타임 권한으로 바꿔 묻는다(매니페스트 권한 선언 완료). iOS 는 `Info.plist`
+  문구로 OS 팝업.
+- 남은 확인: 서비스 워커(iOS WKWebView 는 App-Bound Domains 없이는 등록 안 됨 — 오프라인 대체 화면은 `capacitor-www`), 실기기 확인(B1-1).
+
+### Android 첫 실행 (Windows + Android Studio, Mac 없음)
+
+1. Android Studio → **Open** → `\\wsl.localhost\Ubuntu\home\kghkw\projects\Stay-Ops\android` 선택(WSL 안 저장소를 그대로 연다).
+   처음엔 Gradle 동기화에 몇 분 걸린다. `node_modules/@capacitor/*` 를 참조하므로 WSL 쪽에서 `npm install` 이 끝나 있어야 한다.
+2. 상단 기기 목록에서 에뮬레이터(Device Manager → Create Device → Pixel 계열 · 최신 API)를 만들거나, USB 디버깅을 켠 실기기를 연결.
+3. ▶ Run → 앱이 뜨고 배포된 웹(`stay-ops-two.vercel.app`)이 열린다.
+4. 확인: 이메일 로그인 → Google 로그인(시스템 브라우저 → 앱 복귀) → 홈 → 출퇴근 QR(카메라 · 위치 권한 팝업) → 게시판 첨부 다운로드 →
+   룸 링크 외부 링크 → 시트 열고 뒤로가기 버튼.
+- UNC 경로에서 Gradle 이 느리거나 파일 잠금 오류가 나면: Windows 쪽에 저장소를 따로 clone 하고 `npm install` → `npx cap sync android` 후 그 `android/` 를 연다.
+- **iOS**: Mac 이 없으므로 Apple Developer 가입 후 클라우드 빌드(Codemagic · GitHub Actions macOS 러너 등)로 TestFlight 에 올린다(계획 B1-3).
+
 ### 아직 안 된 것 (계획 B3 이후)
 
 - 다운로드 · 외부 링크 · Android 뒤로가기 버튼 등 WebView 호환(B3), 앱 아이콘 · 스플래시(현재 Capacitor 기본값).
