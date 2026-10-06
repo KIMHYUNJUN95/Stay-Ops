@@ -415,7 +415,7 @@ export function NotificationList({ items, locale, copy }: NotificationListProps)
         <div className="mb-3 flex items-start justify-between gap-3 px-1">
           <div className="min-w-0 space-y-1">
             <h1 className="text-[24px] font-extrabold tracking-[-0.02em] text-foreground">{copy.title}</h1>
-            <p className="text-sm text-muted-foreground">{copy.subtitle}</p>
+            <p className="break-keep text-sm text-muted-foreground">{copy.subtitle}</p>
           </div>
           {/* 버튼은 줄을 바꾸지 않는다 — 접은 폴드 같은 좁은 폰(344px)에서 「모두 읽음」 · 「삭제」가 한 글자씩 세로로 섰다(2026-10-06). */}
           <div className="flex shrink-0 items-center gap-3 whitespace-nowrap pt-1">
