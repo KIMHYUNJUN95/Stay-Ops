@@ -296,8 +296,12 @@ export function MobileOpsCalendar({
     return blocked;
   }, [allBlocks, dates]);
 
-  /** 고를 수 있는 칸 — 오늘 이후이고 팔리지 않은 밤(데스크톱 `canSelect` 와 같다). */
-  const canSelect = (roomKey: string, date: string) => date >= today && !soldCells.has(selectionCellKey(roomKey, date));
+  /**
+   * 고를 수 있는 칸 — 오늘 이후 밤. **팔린 밤도 고른다**(2026-10-06) — 모바일은 칸을 먼저 고르고 할 일(가격 · 최소숙박 · 차단)을
+   * 나중에 정하므로, 예약과 겹친 차단을 풀려면 팔린 밤도 골라져야 한다. 가격 · 최소숙박 시트에는 팔린 밤을 빼고 넘긴다
+   * (`editableCells` — 데스크톱이 그 두 모드에서 팔린 밤을 못 고르게 하는 것과 같은 결과).
+   */
+  const canSelect = (roomKey: string, date: string) => date >= today;
   const occupancyAt = (roomKey: string, date: string) => ({
     hasBlockingReservation: soldCells.has(selectionCellKey(roomKey, date)),
   });
@@ -601,6 +605,8 @@ export function MobileOpsCalendar({
       };
     })
     .filter((cell): cell is PanelCell => cell !== null);
+  /** 가격 · 최소숙박 시트에 넘기는 칸 — 팔린 밤은 뺀다(차단 시트는 `panelCells` 전부). */
+  const editableCells = panelCells.filter((cell) => !soldCells.has(selectionCellKey(cell.roomKey, cell.date)));
   const scopeSummary = buildOpsScopeSummary({ andMore: copy.andMore, rooms, selection });
   const gapContext = useMemo(
     () =>
@@ -1648,7 +1654,7 @@ export function MobileOpsCalendar({
           {({ close }) =>
             panelKind === "price" ? (
               <MobileOpsPriceSheet
-                cells={panelCells}
+                cells={editableCells}
                 copy={copy}
                 onApplied={removeSentCells}
                 onClear={() => {
@@ -1664,7 +1670,7 @@ export function MobileOpsCalendar({
               />
             ) : panelKind === "minstay" ? (
               <MobileOpsMinStaySheet
-                cells={panelCells.map((cell) => {
+                cells={editableCells.map((cell) => {
                   const key = selectionCellKey(cell.roomKey, cell.date);
                   return {
                     date: cell.date,

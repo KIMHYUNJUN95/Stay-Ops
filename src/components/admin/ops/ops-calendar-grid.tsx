@@ -348,6 +348,8 @@ type GridRowProps = {
   today: string;
   copy: Copy;
   editMode: boolean;
+  /** 차단 모드 — 팔린 밤도 고른다(`canSelect` 와 같다). */
+  blockMode: boolean;
   showCancelled: boolean;
   priceWinsOnly: boolean;
   /** 큰방 강조선(`ops-large-rooms.ts`). */
@@ -383,6 +385,7 @@ const OpsGridRow = memo(function OpsGridRow({
   days,
   drafting,
   editMode,
+  blockMode,
   large,
   pendingMinStay,
   pendingPrices,
@@ -467,10 +470,10 @@ const OpsGridRow = memo(function OpsGridRow({
       day.startsMonth ? "m1" : "",
       withRoom && dayFlagAt(row.gap, index) ? "gap" : "",
       withRoom && selected.has(day.date) ? "sel" : "",
-      // 가격 수정에서 고를 수 있는 칸(오늘 이후 · 안 팔린 밤) — `canSelect` 와 같은 기준.
-      editMode && withRoom && day.date >= today && !sold.has(day.date) ? "pick" : "",
-      // 선택 모드에서 **팔린 밤**은 고를 수 없다는 것이 보여야 한다.
-      editMode && withRoom && sold.has(day.date) ? "sold" : "",
+      // 고를 수 있는 칸(오늘 이후 · 안 팔린 밤, 차단 모드는 팔린 밤도) — `canSelect` 와 같은 기준.
+      editMode && withRoom && day.date >= today && (blockMode || !sold.has(day.date)) ? "pick" : "",
+      // 선택 모드에서 **팔린 밤**은 고를 수 없다는 것이 보여야 한다(차단 모드 제외).
+      editMode && !blockMode && withRoom && sold.has(day.date) ? "sold" : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -1294,11 +1297,14 @@ export function OpsCalendarGrid({
     return sold;
   }, [bars, dates]);
 
+  // **차단 모드에서는 예약이 있는 밤도 고른다**(2026-10-06). 차단은 예약이 있는 밤에도 걸고 풀어야 한다 — 차단한 날에
+  // 수기 예약을 넣게 된 뒤로 「예약 + 차단」이 같은 밤에 겹치는데, 예전처럼 팔린 밤을 막으면 그 차단을 풀 수가 없었다
+  // (사용자 신고 — 201 1/16 「테스트.」 위 BLOCK 해제 불가). 가격 · 최소숙박은 그대로 팔린 밤을 뺀다.
   const occupancyAt = useMemo(
     () => (roomKey: string, date: string) => ({
-      hasBlockingReservation: soldCells.has(selectionCellKey(roomKey, date)),
+      hasBlockingReservation: mode !== "block" && soldCells.has(selectionCellKey(roomKey, date)),
     }),
-    [soldCells],
+    [mode, soldCells],
   );
 
   const weeks = useMemo(() => buildSelectableWeeks(dates, today), [dates, today]);
@@ -1424,6 +1430,14 @@ export function OpsCalendarGrid({
 
   const canSelect = (roomKey: string, date: string) =>
     date >= today && !isPriceEditBlocked(occupancyAt(roomKey, date));
+  /** 차단 모드에서 고른 **팔린 밤**은 가격 · 최소숙박으로 넘어갈 때 뺀다 — 그 둘은 팔린 밤을 바꾸지 않는다. */
+  const switchEditMode = (next: "price" | "minstay") => {
+    setMode(next);
+    setSelectionState((previous) => ({
+      ...previous,
+      cells: previous.cells.filter((cell) => !soldCells.has(selectionCellKey(cell.roomKey, cell.date))),
+    }));
+  };
 
   /**
    * 선택 모드에서 칸에 붙는 마우스 핸들러.
@@ -1880,14 +1894,14 @@ export function OpsCalendarGrid({
           <>
             <button
               className="opsg__editbtn"
-              onClick={() => setMode("price")}
+              onClick={() => switchEditMode("price")}
               type="button"
             >
               {copy.editMode}
             </button>
             <button
               className="opsg__editbtn"
-              onClick={() => setMode("minstay")}
+              onClick={() => switchEditMode("minstay")}
               type="button"
             >
               {copy.minStayMode}
@@ -2222,6 +2236,7 @@ export function OpsCalendarGrid({
                 days={days}
                 drafting={activeDraft?.room.key === room.key ? activeDraft : null}
                 editMode={editMode}
+                blockMode={mode === "block"}
                 key={room.key}
                 large={largeActive && isOpsLargeRoom(room.propertyName, room.displayRoomLabel)}
                 pendingMinStay={pendingMinStayByRoom.get(room.key) ?? EMPTY_ROW_PENDING}
