@@ -681,6 +681,43 @@ UI 디자인 핸드오프 후 아래 순서로 진행:
 
 ---
 
+## 12-C. 신고 · 차단 (2026-10-06, 앱 출시 준비 B4)
+
+App Store(1.2) · Google Play(UGC 정책)는 사용자 작성 콘텐츠가 있는 앱에 **부적절한 콘텐츠 신고**와 **사용자 차단**을 요구한다
+(`docs/planning/17-app-release-plan.md` B4). 사용자 결정(2026-10-06): 처리자 = owner · office_admin, 신고자에게만 즉시 숨김,
+차단은 게시판에만 적용.
+
+### 신고
+- **진입**: 남의 글 → 상세 「⋯」 → 「신고하기」. 남의 댓글 → 댓글 줄 「⋯」 → 「신고하기」. 내 글 · 댓글에는 나오지 않는다(서버도 `forbidden`).
+- **시트**(`BoardReportSheet`, 공용 `BottomSheet`): 사유 하나 필수 — 스팸 · 광고 / 괴롭힘 · 혐오 표현 / 부적절한 내용 / 개인정보 노출 / 기타,
+  메모 선택(500자).
+- **즉시 효과**: 신고한 사람에게는 그 글 · 댓글이 피드 · 상세 · 안읽음 수 · 댓글 수에서 사라진다(글 신고면 목록으로 돌아간다).
+  다른 사람에게는 관리자가 처리하기 전까지 그대로 보인다(자동 숨김 없음).
+- 같은 사람이 같은 대상을 다시 신고하면 「이미 신고한 내용이에요」(유니크 인덱스).
+
+### 처리 (owner · office_admin)
+- 피드 머리에 「🚩 신고 N건」 칩(대기 중인 **대상** 수 — 같은 글의 여러 신고는 1건) → `/mobile/board/reports`.
+- 카드: 글/댓글 · 작성자 · 신고 수 · 미리보기 · 사유 칩 · 메모(최대 2) · 최근 신고 시각(도쿄). 「글 보기」 / 「문제없음」 / 「삭제」(확인 모달).
+  - **삭제** = 대상 소프트 삭제(작성자 · 관리자 삭제와 같은 `deleted_at`) + 그 대상의 대기 신고 전부 `removed`.
+  - **문제없음** = 대상은 두고 대기 신고 전부 `dismissed`. 신고한 사람에게는 계속 숨겨진다.
+  - 대상이 이미 지워졌으면 목록을 열 때 그 신고를 `removed` 로 정리한다.
+- 화면: `wide` — 폰 1열 · 폴드 2열 · 태블릿 3열 카드.
+- 알림(관리자에게 「새 신고」)은 붙이지 않았다 — 「알림은 막바지에 일괄 구현」 방침. 그때 함께 붙인다.
+
+### 차단
+- **진입**: 남의 글 「⋯」 · 남의 댓글 「⋯」 → 「이 사용자 차단」 → 확인 모달(가운데 정렬 — 삭제 확인과 같은 의도된 예외).
+- **효과**: 차단한 사람의 게시판(피드 · 상세 · 댓글 · 안읽음 수)에서 상대의 글 · 댓글이 보이지 않는다. 상대에게 알리지 않는다.
+  게시판 밖(공지 · 할 일 등 업무 화면)에는 적용하지 않는다 — 업무 기록을 가리면 운영이 깨진다.
+- **해제**: 계정 → 보안 「차단한 사용자」 → 「차단 해제」.
+
+### 구현
+- 표: `board_reports` · `user_blocks`(마이그레이션 `202610060001_board_reports_user_blocks.sql`, service-role 전용) — `docs/engineering/04-data-model.md`.
+- 조회: `src/lib/board-moderation.ts` — `getBoardHiddenFor()`(피드 · 상세 · 안읽음이 이걸로 거름), `countPendingBoardReports()`,
+  `listPendingBoardReports()`, `listMyBlockedUsers()`.
+- 서버 액션: `src/app/mobile/board/moderation-actions.ts` — `reportBoardContent` · `blockBoardUser` · `unblockBoardUser` · `resolveBoardReport`.
+  조직 · 대상 존재 · 작성자 · 처리 권한을 모두 서버에서 검사한다.
+- 문구: `dictionary.board.*`(report* · reason* · block* · reports*), `dictionary.accountProfile.blockedUsers*` · `unblock` — ko/ja/en.
+
 ## 13. 미결 사항
 
 | 항목 | 상태 |
@@ -691,7 +728,7 @@ UI 디자인 핸드오프 후 아래 순서로 진행:
 | 댓글 이미지 전용(빈 본문) 허용 | **현재 불가** — `board_comments.content` CHECK로 본문 필수; 필요 시 Page 4에서 CHECK 완화 |
 | 글 수정 폼 UI | **완료 (2026-08-07)** — 아래 §12 참조 |
 | `board_comment_replied` 알림 구현 여부 | 선택 구현 (Phase 3에서 결정) — Page 3은 `board_activity`(댓글) 1종만 구현 |
-| 글 신고 기능 | 미기획 (추후 검토) |
+| 글 신고 기능 | **구현 (2026-10-06)** — §12-C 신고 · 차단 |
 | `board-attachments` 버킷 URL 정책 (public vs signed URL) | **확정: signed URL** (2026-06-25) — `getBoardAttachmentDownloadUrl` 서버 액션이 120초 서명 URL을 `download` 옵션과 함께 발급(첨부가 글에 속하는지 검증 후). 버킷은 private 유지 |
 | 파일 첨부 최대 개수 | 미정 — 현재 문서상 5개; 이미지 5장과 합산 vs 별도 제한인지 구현 시 결정 |
 | @멘션 검색 결과 정렬 | **디폴트: 가나다순**. 추후 최근 활동 기반(마지막 댓글 시각 순)으로 전환 검토 — 현재는 단순 정렬이 충분 |

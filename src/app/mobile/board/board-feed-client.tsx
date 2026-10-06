@@ -2,7 +2,7 @@
 import { useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Pencil } from "lucide-react";
+import { Flag, Pencil } from "lucide-react";
 import { BoardTagFilter } from "@/components/board/board-tag-filter";
 import { BoardListRow } from "@/components/board/board-list-row";
 import { BoardEmptyState } from "@/components/board/board-empty-state";
@@ -39,6 +39,7 @@ export function BoardFeedClient({
   initialCursor,
   tags,
   selectedCategory,
+  pendingReportCount = 0,
 }: {
   locale: Locale;
   copy: Dictionary["board"];
@@ -46,6 +47,8 @@ export function BoardFeedClient({
   initialCursor: string | null;
   tags: string[];
   selectedCategory: string | null;
+  /** owner · office_admin 에게만 0보다 크다 — 신고 처리 화면 진입(2026-10-06). */
+  pendingReportCount?: number;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -134,9 +137,18 @@ export function BoardFeedClient({
           <span className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full border border-border bg-surface px-[7px] text-[11px] font-black text-muted-foreground shadow-[0_4px_10px_-6px_hsl(223_46%_32%/0.25)]">
             {allPosts.length}
           </span>
+          {pendingReportCount > 0 && (
+            <Link
+              href="/mobile/board/reports"
+              className="ml-auto flex h-9 items-center gap-[5px] rounded-full border border-[hsl(4_62%_46%/0.35)] bg-[hsl(6_70%_95.5%)] px-[12px] text-[12.5px] font-extrabold text-[hsl(4_62%_46%)]"
+            >
+              <Flag className="size-[14px]" aria-hidden="true" />
+              {copy.reportsChip.replace("{count}", String(pendingReportCount))}
+            </Link>
+          )}
           <Link
             href="/mobile/board/compose"
-            className="ml-auto flex h-9 items-center gap-[6px] rounded-full bg-primary px-[15px] text-[13.5px] font-extrabold text-white shadow-[0_10px_18px_-10px_hsl(223_46%_32%/0.55)]"
+            className={`${pendingReportCount > 0 ? "" : "ml-auto "}flex h-9 items-center gap-[6px] rounded-full bg-primary px-[15px] text-[13.5px] font-extrabold text-white shadow-[0_10px_18px_-10px_hsl(223_46%_32%/0.55)]`}
           >
             <Pencil className="size-4" aria-hidden="true" />
             {copy.compose}

@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useState } from "react";
+import { MoreHorizontal } from "lucide-react";
 import { BoardAvatar } from "@/components/board/board-avatar";
 import { ImageLightbox } from "@/components/shell/image-lightbox";
 import { renderMentionContent } from "@/lib/board-mention-utils";
@@ -31,13 +32,16 @@ export function BoardComment({
   comment,
   isLast = false,
   onDelete,
+  onMore,
   copy,
   allLabel,
 }: {
   comment: CommentData;
   isLast?: boolean;
   onDelete?: (id: string) => void;
-  copy: Pick<Dictionary["board"], "commentDelete" | "viewPhoto" | "close">;
+  /** 남의 댓글 「⋯」 — 신고 · 차단 메뉴를 연다(2026-10-06). */
+  onMore?: (id: string) => void;
+  copy: Pick<Dictionary["board"], "commentDelete" | "viewPhoto" | "close" | "commentMore">;
   allLabel: string;
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -81,6 +85,16 @@ export function BoardComment({
               className="ml-auto text-[11px] font-extrabold text-[hsl(4_62%_46%)] px-1 py-0.5"
             >
               {copy.commentDelete}
+            </button>
+          )}
+          {!comment.isOwn && onMore && (
+            <button
+              type="button"
+              onClick={() => onMore(comment.id)}
+              aria-label={copy.commentMore}
+              className={`${comment.canDelete && onDelete ? "" : "ml-auto "}inline-flex size-[24px] items-center justify-center rounded-[7px] text-[hsl(222_10%_62%)]`}
+            >
+              <MoreHorizontal className="size-[15px]" aria-hidden="true" />
             </button>
           )}
         </div>

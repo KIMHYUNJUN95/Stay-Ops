@@ -5,6 +5,7 @@ import { SplitList } from "@/components/shell/split-list";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 import { getOnboardingState } from "@/lib/onboarding";
 import { getBoardFeed, getBoardTags } from "@/lib/board-queries";
+import { countPendingBoardReports } from "@/lib/board-moderation";
 import { getDictionary } from "@/lib/i18n";
 import { BoardFeedClient } from "./board-feed-client";
 
@@ -35,10 +36,11 @@ export default async function MobileBoardPage({ searchParams }: PageProps) {
 
   const category = params.category?.trim() || null;
 
-  const [feed, tags, navBadges] = await Promise.all([
+  const [feed, tags, navBadges, pendingReportCount] = await Promise.all([
     getBoardFeed({ session, category, limit: PAGE_SIZE }),
     getBoardTags(session),
     getMobileNavBadges(),
+    countPendingBoardReports(session),
   ]);
 
   return (
@@ -52,6 +54,7 @@ export default async function MobileBoardPage({ searchParams }: PageProps) {
           initialCursor={feed.nextCursor}
           tags={tags}
           selectedCategory={category}
+          pendingReportCount={pendingReportCount}
         />
       </SplitList>
     </MobileShell>

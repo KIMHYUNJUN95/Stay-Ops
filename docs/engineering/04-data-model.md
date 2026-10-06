@@ -2014,3 +2014,16 @@ pg_cron 잡 `beds24-tick` (`* * * * *`) → `select public.beds24_tick_if_needed
 - `ops_manual_booking_requests` (`202610050002`) — 수기 예약 요청 키. `(organization_id, request_key)` PK, `booking_id` ·
   `reservation_id`(만든 뒤 채움) · `created_by` · `created_at`. service-role 전용(RLS 켜고 정책 없음).
   `docs/product/33-calendar-write-features.md` → 「서버 검증 보강」.
+
+## 2026-10-06 `board_reports` · `user_blocks` — 게시판 신고 · 차단
+
+마이그레이션 `202610060001_board_reports_user_blocks.sql` (원격 적용 2026-10-06, MCP). 둘 다 **RLS 켜고 정책 없음 — service-role 전용**
+(서버 액션 · `src/lib/board-moderation.ts` 만 읽고 쓴다). 기능: `docs/product/23-board-workflow.md` §12-C.
+
+`board_reports`: `id` · `organization_id` · `reporter_user_id` · `target_type`(`post` | `comment`) · `post_id`(댓글 신고면 댓글이 속한 글) ·
+`comment_id`(댓글 신고만) · `target_author_user_id`(신고 당시 작성자) · `reason`(`spam` | `harassment` | `inappropriate` | `privacy` | `other`) ·
+`note`(≤ 500) · `status`(`pending` | `removed` | `dismissed`) · `resolved_by_user_id` · `resolved_at` · `created_at`.
+같은 신고자의 같은 대상 중복 금지(부분 유니크 인덱스 2개), 대기 목록 인덱스. 글 · 댓글이 하드 삭제되면 cascade.
+
+`user_blocks`: PK (`organization_id`, `blocker_user_id`, `blocked_user_id`), `created_at`, 자기 자신 차단 금지 CHECK.
+

@@ -10,6 +10,9 @@ import { BoardActionSheet } from "@/components/board/board-action-sheet";
 import { BoardFileCard } from "@/components/board/board-file-card";
 import { BoardImageGrid } from "@/components/board/board-image-grid";
 import { BoardMentionSheet } from "@/components/board/board-mention-sheet";
+import { BoardReportSheet, type BoardReportReasonCode } from "@/components/board/board-report-sheet";
+import { BoardBlockConfirm } from "@/components/board/board-block-confirm";
+import { blockBoardUser, reportBoardContent } from "../moderation-actions";
 import type { ComposerSubmitPayload } from "@/components/board/board-composer";
 import type { MentionableMember } from "@/app/mobile/board/[id]/actions";
 import { ALL_TOKEN } from "@/lib/board-mention-utils";
@@ -69,6 +72,13 @@ export function BoardDetailClient({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [downloadingPath, setDownloadingPath] = useState<string | null>(null);
+
+  // 신고 · 차단(2026-10-06). 대상은 글 자체 또는 남의 댓글 하나.
+  type ModTarget = { type: "post" | "comment"; commentId: string | null; authorId: string; authorName: string };
+  const [commentMenu, setCommentMenu] = useState<ModTarget | null>(null);
+  const [reportTarget, setReportTarget] = useState<ModTarget | null>(null);
+  const [blockTarget, setBlockTarget] = useState<ModTarget | null>(null);
+  const [modPending, setModPending] = useState(false);
   const toastTimer = useRef<number | null>(null);
 
   // 멘션 상태 (composer → 시트 → 여기서 통합 관리)
@@ -187,6 +197,62 @@ export function BoardDetailClient({
     });
   }
 
+  const postTarget: ModTarget = {
+    type: "post",
+    commentId: null,
+    authorId: post.authorId,
+    authorName: post.authorName,
+  };
+
+  function onOpenCommentMenu(commentId: string) {
+    const c = post.comments.find((x) => x.id === commentId);
+    if (!c) return;
+    setCommentMenu({ type: "comment", commentId: c.id, authorId: c.authorId, authorName: c.authorName });
+  }
+
+  async function onSubmitReport(reason: BoardReportReasonCode, note: string) {
+    if (!reportTarget || modPending) return;
+    setModPending(true);
+    try {
+      const result = await reportBoardContent({
+        targetType: reportTarget.type,
+        postId: post.id,
+        commentId: reportTarget.commentId,
+        reason,
+        note,
+      });
+      setReportTarget(null);
+      if ("error" in result) {
+        flashToast(result.error === "already_reported" ? copy.reportAlready : copy.errSaveFailed);
+        return;
+      }
+      flashToast(copy.reportDone);
+      // 신고한 글은 나에게 더 이상 보이지 않는다 — 목록으로. 댓글은 재검증된 props 에서 빠진다.
+      if (reportTarget.type === "post") router.replace("/mobile/board");
+    } finally {
+      setModPending(false);
+    }
+  }
+
+  async function onConfirmBlock() {
+    if (!blockTarget || modPending) return;
+    setModPending(true);
+    try {
+      const result = await blockBoardUser(blockTarget.authorId);
+      const blockedPostAuthor = blockTarget.authorId === post.authorId;
+      setBlockTarget(null);
+      if ("error" in result) {
+        flashToast(copy.errSaveFailed);
+        return;
+      }
+      flashToast(copy.blockDone);
+      if (blockedPostAuthor) router.replace("/mobile/board");
+      else router.refresh();
+    } finally {
+      setModPending(false);
+    }
+  }
+
   function onPinToggle() {
     setShowActionSheet(false);
     startTransition(async () => {
@@ -240,7 +306,13 @@ export function BoardDetailClient({
   // This page is its own scroll container (not the body), so a sheet's body-lock can't freeze it.
   // Freeze the inner scroller directly while any overlay is open so the background can't scroll behind
   // a sheet (most visible with the mention sheet's scrollable list + keyboard).
-  const overlayOpen = showMentionSheet || showActionSheet || showDeleteConfirm;
+  const overlayOpen =
+    showMentionSheet ||
+    showActionSheet ||
+    showDeleteConfirm ||
+    commentMenu !== null ||
+    reportTarget !== null ||
+    blockTarget !== null;
 
   // outer wrapper: MobileShell body has its own padding (`px-5 pt-[84px] pb-8`) and is the
   // scroll container, so we cancel that padding with negative margins and stretch to its full
@@ -404,6 +476,7 @@ export function BoardDetailClient({
                   }}
                   isLast={i === post.comments.length - 1}
                   onDelete={onDeleteComment}
+                  onMore={onOpenCommentMenu}
                   copy={copy}
                   allLabel={copy.mentionAll}
                 />
@@ -469,6 +542,54 @@ export function BoardDetailClient({
             setShowActionSheet(false);
             setShowDeleteConfirm(true);
           }}
+          onReport={() => {
+            setShowActionSheet(false);
+            setReportTarget(postTarget);
+          }}
+          onBlock={() => {
+            setShowActionSheet(false);
+            setBlockTarget(postTarget);
+          }}
+        />
+      )}
+
+      {/* 남의 댓글 「⋯」 — 신고 · 차단만 */}
+      {commentMenu && (
+        <BoardActionSheet
+          onClose={() => setCommentMenu(null)}
+          isOwn={false}
+          canManage={false}
+          isPinned={false}
+          showPostActions={false}
+          copy={copy}
+          onReport={() => {
+            setReportTarget(commentMenu);
+            setCommentMenu(null);
+          }}
+          onBlock={() => {
+            setBlockTarget(commentMenu);
+            setCommentMenu(null);
+          }}
+        />
+      )}
+
+      {reportTarget && (
+        <BoardReportSheet
+          targetType={reportTarget.type}
+          copy={copy}
+          pending={modPending}
+          onClose={() => setReportTarget(null)}
+          onSubmit={onSubmitReport}
+        />
+      )}
+
+      {blockTarget && (
+        <BoardBlockConfirm
+          name={blockTarget.authorName}
+          copy={copy}
+          pending={modPending}
+          onCancel={() => setBlockTarget(null)}
+          onConfirm={onConfirmBlock}
         />
       )}
 

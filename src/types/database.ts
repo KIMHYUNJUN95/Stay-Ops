@@ -1878,6 +1878,54 @@ export type Database = {
           },
         ]
       }
+      board_reports: {
+        Row: {
+          comment_id: string | null
+          created_at: string
+          id: string
+          note: string | null
+          organization_id: string
+          post_id: string
+          reason: string
+          reporter_user_id: string
+          resolved_at: string | null
+          resolved_by_user_id: string | null
+          status: string
+          target_author_user_id: string | null
+          target_type: string
+        }
+        Insert: {
+          comment_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          organization_id: string
+          post_id: string
+          reason: string
+          reporter_user_id: string
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          status?: string
+          target_author_user_id?: string | null
+          target_type: string
+        }
+        Update: {
+          comment_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          organization_id?: string
+          post_id?: string
+          reason?: string
+          reporter_user_id?: string
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          status?: string
+          target_author_user_id?: string | null
+          target_type?: string
+        }
+        Relationships: []
+      }
       bug_reports: {
         Row: {
           closed_at: string | null
@@ -5230,6 +5278,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_blocks: {
+        Row: {
+          blocked_user_id: string
+          blocker_user_id: string
+          created_at: string
+          organization_id: string
+        }
+        Insert: {
+          blocked_user_id: string
+          blocker_user_id: string
+          created_at?: string
+          organization_id: string
+        }
+        Update: {
+          blocked_user_id?: string
+          blocker_user_id?: string
+          created_at?: string
+          organization_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {

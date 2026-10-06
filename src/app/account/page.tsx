@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AccountSettings } from "@/components/account/account-settings";
 import { DeleteAccountSheet } from "@/components/account/delete-account-sheet";
+import { BlockedUsersList } from "@/components/account/blocked-users-list";
+import { listMyBlockedUsers } from "@/lib/board-moderation";
 import { GenderSegmented } from "@/components/account/gender-segmented";
 import { legalHref } from "@/components/legal/legal-page-shell";
 import { LanguageSegmented } from "@/components/account/language-segmented";
@@ -43,6 +45,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
   }
 
   const dictionary = getDictionary(session.user.preferredLanguage);
+  const blockedUsers = await listMyBlockedUsers(session);
   const requestedMode = firstParam(params?.mode);
   const shellMode =
     requestedMode === "mobile" ||
@@ -281,6 +284,16 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
           }}
         />
       </div>
+      <BlockedUsersList
+        users={blockedUsers}
+        copy={{
+          title: dictionary.accountProfile.blockedUsersTitle,
+          body: dictionary.accountProfile.blockedUsersBody,
+          empty: dictionary.accountProfile.blockedUsersEmpty,
+          unblock: dictionary.accountProfile.unblock,
+          unknown: dictionary.board.reportsAuthorUnknown,
+        }}
+      />
       {/* 약관 · 개인정보처리방침 · 고객지원 — App Store 심사는 앱 안에서도 이 문서들에 닿을 수
           있기를 요구한다. 공개 페이지(`/legal/*`, `/support`)라 같은 탭에서 연다. */}
       <div className="rounded-xl border border-border px-4 py-3">

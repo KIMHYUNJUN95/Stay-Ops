@@ -696,6 +696,9 @@ Per-occurrence state for recurring tasks (migration `202607300001_task_occurrenc
 - Read: all active org members.
 - Create: **all active roles including part_time_staff** (confirmed 2026-06-09).
 - Update / delete: author own posts; admin-capable roles moderate all (pin, archive, delete).
+- **Reports · blocks (2026-10-06):** `board_reports` · `user_blocks` are service-role only (RLS on, no policies). Any active member may
+  report others' posts/comments and block other same-org members; only **owner · office_admin** see the queue and resolve
+  (`canModerateBoard`). All checks live in `src/app/mobile/board/moderation-actions.ts`. See `docs/product/23-board-workflow.md` §12-C.
 
 ## staff_suggestions
 

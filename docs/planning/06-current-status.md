@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-06 — 게시판 신고 · 차단 (앱 출시 준비 B4)
+
+- 남의 글 · 댓글 「⋯」 → 신고(사유 5종 + 메모) · 이 사용자 차단. 신고자에게는 즉시 숨김, owner · office_admin 이 피드 「신고 N건」 →
+  `/mobile/board/reports` 에서 삭제 / 문제없음. 차단은 게시판에서만 숨기고 계정 → 보안에서 해제. 새 표 `board_reports` · `user_blocks`. (`23` §12-C, `17`)
+
 ## 2026-10-06 — 갤럭시 폴드 점검: 태블릿 구간 1000 으로
 
 - 접은 커버 344 · 펼친 세로 673 · 펼친 가로 841 로 24개 화면을 찍음. 펼친 가로가 태블릿 배치로 짓눌려 `tablet:` 을 840 → 1000 으로 올림(폴드 가로 =

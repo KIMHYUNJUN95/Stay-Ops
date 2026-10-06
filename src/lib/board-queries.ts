@@ -21,6 +21,7 @@ import { getDictionary } from "@/lib/i18n";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { bestEffortWrite } from "@/lib/db-write-guard";
+import { getBoardHiddenFor, type BoardHiddenSet } from "@/lib/board-moderation";
 
 export type MentionableMember = {
   id: string;
@@ -97,6 +98,7 @@ async function hydratePosts(
   supabase: SupabaseClient<Database>,
   session: AppSession,
   rows: PostRow[],
+  hidden: BoardHiddenSet,
 ): Promise<BoardPost[]> {
   if (rows.length === 0) return [];
   const uid = session.user.id;
@@ -106,7 +108,11 @@ async function hydratePosts(
   const [authorInfo, readsRes, commentsRes, reactionsRes] = await Promise.all([
     fetchAuthorInfo(supabase, orgId, rows.map((r) => r.created_by_user_id), session.user.preferredLanguage),
     supabase.from("board_post_reads").select("post_id").eq("user_id", uid).in("post_id", postIds),
-    supabase.from("board_comments").select("post_id").in("post_id", postIds).is("deleted_at", null),
+    supabase
+      .from("board_comments")
+      .select("id, post_id, created_by_user_id")
+      .in("post_id", postIds)
+      .is("deleted_at", null),
     supabase.from("board_reactions").select("post_id, emoji, user_id").in("post_id", postIds),
   ]);
 
@@ -116,8 +122,10 @@ async function hydratePosts(
 
   const commentCounts = new Map<string, number>();
   for (const r of commentsRes.error ? [] : (commentsRes.data ?? [])) {
-    const id = (r as { post_id: string }).post_id;
-    commentCounts.set(id, (commentCounts.get(id) ?? 0) + 1);
+    const row = r as { id: string; post_id: string; created_by_user_id: string };
+    // 상세 화면과 같은 수를 보이도록 내가 숨긴 댓글(신고 · 차단)은 세지 않는다.
+    if (hidden.hiddenCommentIds.has(row.id) || hidden.blockedUserIds.has(row.created_by_user_id)) continue;
+    commentCounts.set(row.post_id, (commentCounts.get(row.post_id) ?? 0) + 1);
   }
 
   // post_id → emoji → { count, isMine }
@@ -227,10 +235,20 @@ export async function getBoardFeed(params: {
   const { data: nData, error: nErr } = await nq;
   const normalRows = (nErr ? [] : (nData ?? [])) as PostRow[];
 
+  // 커서는 거르기 전 원본 행 기준 — 숨긴 글 때문에 한 페이지가 짧아질 수는 있어도 다음 페이지를 건너뛰지 않는다.
   const last = normalRows[normalRows.length - 1];
   const nextCursor = normalRows.length === limit && last ? `${last.created_at}|${last.id}` : null;
 
-  const posts = await hydratePosts(supabase, session, [...pinnedRows, ...normalRows]);
+  // 신고 · 차단(2026-10-06): 내가 신고한 글과 내가 차단한 사람의 글은 피드에서 뺀다.
+  const hidden = await getBoardHiddenFor(session);
+  const visible = (row: PostRow) =>
+    !hidden.hiddenPostIds.has(row.id) && !hidden.blockedUserIds.has(row.created_by_user_id);
+  const posts = await hydratePosts(
+    supabase,
+    session,
+    [...pinnedRows, ...normalRows].filter(visible),
+    hidden,
+  );
   return { posts, nextCursor };
 }
 
@@ -272,8 +290,14 @@ export async function getBoardUnreadCount(session: AppSession): Promise<number> 
       .returns<{ id: string; created_by_user_id: string }[]>();
     if (postsError) return 0;
 
+    const hidden = await getBoardHiddenFor(session);
     const candidateIds = (posts ?? [])
-      .filter((p) => p.created_by_user_id !== uid)
+      .filter(
+        (p) =>
+          p.created_by_user_id !== uid &&
+          !hidden.hiddenPostIds.has(p.id) &&
+          !hidden.blockedUserIds.has(p.created_by_user_id),
+      )
       .map((p) => p.id);
     if (candidateIds.length === 0) return 0;
 
@@ -322,6 +346,10 @@ export async function getBoardPost(params: {
   const post = data as unknown as DetailRow;
   if (post.deleted_at || post.organization_id !== orgId) return null;
 
+  // 내가 신고한 글 · 차단한 사람의 글은 링크로 들어와도 보이지 않는다(피드와 같은 규칙).
+  const hidden = await getBoardHiddenFor(session);
+  if (hidden.hiddenPostIds.has(post.id) || hidden.blockedUserIds.has(post.created_by_user_id)) return null;
+
   const [comments, reactionRows] = await Promise.all([
     supabase
       .from("board_comments")
@@ -332,13 +360,15 @@ export async function getBoardPost(params: {
     supabase.from("board_reactions").select("emoji, user_id").eq("post_id", id),
   ]);
 
-  const commentRows = (comments.error ? [] : (comments.data ?? [])) as Array<{
-    id: string;
-    content: string;
-    image_urls: string[];
-    created_at: string;
-    created_by_user_id: string;
-  }>;
+  const commentRows = (
+    (comments.error ? [] : (comments.data ?? [])) as Array<{
+      id: string;
+      content: string;
+      image_urls: string[];
+      created_at: string;
+      created_by_user_id: string;
+    }>
+  ).filter((c) => !hidden.hiddenCommentIds.has(c.id) && !hidden.blockedUserIds.has(c.created_by_user_id));
   const reactions = (reactionRows.error ? [] : (reactionRows.data ?? [])) as Array<{
     emoji: string;
     user_id: string;
