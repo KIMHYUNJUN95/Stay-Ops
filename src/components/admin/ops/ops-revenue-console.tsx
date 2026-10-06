@@ -196,9 +196,11 @@ export function OpsRevenueConsole({
     apply: shared.dateApply,
     nextMonth: shared.dateNextMonth,
     prevMonth: shared.datePrevMonth,
-    pickMonth: shared.datePickMonth,
-    pickYear: shared.datePickYear,
     reset: shared.dateReset,
+    typeStart: shared.dateTypeStart,
+    typeEnd: shared.dateTypeEnd,
+    pickYear: shared.datePickYear,
+    pickMonth: shared.datePickMonth,
     thisMonth: shared.dateThisMonth,
   };
   const modeLabel: Record<RevenueMode, string> = {

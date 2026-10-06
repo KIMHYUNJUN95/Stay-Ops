@@ -6,7 +6,7 @@
 // trigger's getBoundingClientRect (same escape-ancestor-overflow approach as the day-menu popover
 // in leave-team-calendar.tsx) so it can never be clipped by a scrollable ancestor (e.g. `.content`)
 // or rendered behind the sidebar.
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { shiftMonthKey } from "./admin-month-key";
 
@@ -19,7 +19,33 @@ export type AdminDateRangePickerLabels = {
   /** 연 ▾ · 월 ▾ 드롭다운의 접근성 이름. */
   pickYear?: string;
   pickMonth?: string;
+  /** 시작일 · 종료일 직접 입력 칸의 이름(2026-10-06). 비우면 자리 표시만 보인다. */
+  typeStart?: string;
+  typeEnd?: string;
 };
+
+/**
+ * 손으로 친 날짜 → `YYYY-MM-DD`. 「2023-02-01」 · 「2023.2.1」 · 「2023/02/01」 · 「20230201」 · 「2023년 2월 1일」 · 「23.2.1」을
+ * 받는다. 없는 날(2/30)은 `null`.
+ */
+export function parseTypedDate(text: string): string | null {
+  const parts = text.trim().split(/[^0-9]+/).filter(Boolean);
+  let y: number, m: number, d: number;
+  if (parts.length === 1 && parts[0].length === 8) {
+    y = Number(parts[0].slice(0, 4));
+    m = Number(parts[0].slice(4, 6));
+    d = Number(parts[0].slice(6, 8));
+  } else if (parts.length === 3) {
+    y = Number(parts[0].length === 2 ? `20${parts[0]}` : parts[0]);
+    m = Number(parts[1]);
+    d = Number(parts[2]);
+  } else {
+    return null;
+  }
+  if (y < 1990 || y > 2100 || m < 1 || m > 12 || d < 1) return null;
+  if (d > new Date(Date.UTC(y, m, 0)).getUTCDate()) return null;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
 
 type AdminDateRangePickerProps = {
   from: string;
@@ -97,7 +123,7 @@ function thisMonthRange(): { from: string; to: string } {
 }
 
 const POPOVER_WIDTH = 292;
-const POPOVER_HEIGHT_ESTIMATE = 372;
+const POPOVER_HEIGHT_ESTIMATE = 420;
 
 export function AdminDateRangePicker({
   from,
@@ -121,6 +147,9 @@ export function AdminDateRangePicker({
    * 머리의 연 ▾ · 월 ▾ 드롭다운(2026-10-06 — 몇 년 전 날짜를 달마다 넘겨 찾기 힘들다는 지적). 연은 스크롤 목록, 월은 12칸.
    */
   const [menu, setMenu] = useState<"year" | "month" | null>(null);
+  /** 직접 입력 칸의 글자 — 달력에서 고르면 그 날짜로 채운다. */
+  const [textFrom, setTextFrom] = useState("");
+  const [textTo, setTextTo] = useState("");
   const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
   const calendarMonthRef = useRef(calendarMonth);
   useEffect(() => {
@@ -160,6 +189,8 @@ export function AdminDateRangePicker({
     setDraftFrom(null);
     setDraftTo(null);
     setMenu(null);
+    setTextFrom("");
+    setTextTo("");
     setOpen(true);
   }
 
@@ -199,24 +230,40 @@ export function AdminDateRangePicker({
   /** 끝을 기다리는 중이면 그 시작일. */
   const pendingFrom = draftFrom && !draftTo ? draftFrom : null;
 
+  function setDraft(nextFrom: string | null, nextTo: string | null) {
+    setDraftFrom(nextFrom);
+    setDraftTo(nextTo);
+    setTextFrom(nextFrom ?? "");
+    setTextTo(nextTo ?? "");
+  }
+
   function pick(dateKey: string) {
     if (!draftFrom || (draftFrom && draftTo)) {
-      setDraftFrom(dateKey);
-      setDraftTo(null);
+      setDraft(dateKey, null);
     } else if (dateKey <= draftFrom && constrained) {
-      setDraftFrom(dateKey);
-      setDraftTo(null);
+      setDraft(dateKey, null);
     } else if (dateKey < draftFrom) {
-      setDraftTo(draftFrom);
-      setDraftFrom(dateKey);
+      setDraft(dateKey, draftFrom);
     } else {
-      setDraftTo(dateKey);
+      setDraft(draftFrom, dateKey);
     }
+  }
+
+  /** 직접 입력 — 읽히는 날짜가 되면 그때 고른 것으로 보고 달력을 그 달로 옮긴다. 막힌 날은 받지 않는다. */
+  function typeDate(which: "from" | "to", text: string) {
+    (which === "from" ? setTextFrom : setTextTo)(text);
+    const key = parseTypedDate(text);
+    const usable = key && !(isDateDisabled && isDateDisabled(key, which === "to" ? draftFrom : null)) ? key : null;
+    if (which === "from") setDraftFrom(usable);
+    else setDraftTo(usable);
+    if (usable) showMonth(usable.slice(0, 7));
   }
 
   function apply() {
     if (draftFrom && draftTo) {
-      onChange(draftFrom, draftTo);
+      // 직접 입력은 앞뒤가 바뀔 수 있다 — 바로잡아 넘긴다.
+      const [a, b] = draftFrom <= draftTo ? [draftFrom, draftTo] : [draftTo, draftFrom];
+      onChange(a, b);
       setOpen(false);
     }
   }
@@ -290,6 +337,31 @@ export function AdminDateRangePicker({
           aria-label={ariaLabel}
           style={{ position: "fixed", top: pos.top, left: pos.left }}
         >
+          <div className="calpop__type">
+            {(["from", "to"] as const).map((which, index) => {
+              const text = which === "from" ? textFrom : textTo;
+              const bad = text.trim() !== "" && !(which === "from" ? draftFrom : draftTo);
+              return (
+                <Fragment key={which}>
+                  {index === 1 ? <span className="calpop__typedash">–</span> : null}
+                  <input
+                    aria-invalid={bad}
+                    aria-label={(which === "from" ? labels.typeStart : labels.typeEnd) ?? "YYYY-MM-DD"}
+                    className={`calpop__typein${bad ? " is-bad" : ""}`}
+                    inputMode="numeric"
+                    onChange={(event) => typeDate(which, event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") apply();
+                    }}
+                    placeholder={(which === "from" ? from : to) || "YYYY-MM-DD"}
+                    title={which === "from" ? labels.typeStart : labels.typeEnd}
+                    type="text"
+                    value={text}
+                  />
+                </Fragment>
+              );
+            })}
+          </div>
           <div className="calpop__head">
             <button
               type="button"
@@ -435,8 +507,7 @@ export function AdminDateRangePicker({
                 className="calpop__quick"
                 onClick={() => {
                   const range = thisMonthRange();
-                  setDraftFrom(range.from);
-                  setDraftTo(range.to);
+                  setDraft(range.from, range.to);
                   setCalendarMonth(range.from.slice(0, 7));
                 }}
               >
@@ -447,10 +518,7 @@ export function AdminDateRangePicker({
             <button
               type="button"
               className="btn btn--ghost btn--sm"
-              onClick={() => {
-                setDraftFrom(null);
-                setDraftTo(null);
-              }}
+              onClick={() => setDraft(null, null)}
             >
               {labels.reset}
             </button>

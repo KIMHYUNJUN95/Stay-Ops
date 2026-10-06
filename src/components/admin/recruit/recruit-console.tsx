@@ -318,6 +318,10 @@ export function RecruitConsole({
             nextMonth: sharedCopy.dateNextMonth,
             thisMonth: sharedCopy.dateThisMonth,
             reset: sharedCopy.dateReset,
+            typeStart: sharedCopy.dateTypeStart,
+            typeEnd: sharedCopy.dateTypeEnd,
+            pickYear: sharedCopy.datePickYear,
+            pickMonth: sharedCopy.datePickMonth,
             apply: sharedCopy.dateApply,
           }}
         />

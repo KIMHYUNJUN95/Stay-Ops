@@ -143,6 +143,10 @@ export function LeaveLedgerView({
             nextMonth: shared.dateNextMonth,
             thisMonth: shared.dateThisMonth,
             reset: shared.dateReset,
+            typeStart: shared.dateTypeStart,
+            typeEnd: shared.dateTypeEnd,
+            pickYear: shared.datePickYear,
+            pickMonth: shared.datePickMonth,
             apply: shared.dateApply,
           }}
         />

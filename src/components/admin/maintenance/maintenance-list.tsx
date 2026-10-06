@@ -100,6 +100,10 @@ export function MaintenanceList({
           nextMonth: sharedLabels.dateNextMonth,
           thisMonth: sharedLabels.dateThisMonth,
           reset: sharedLabels.dateReset,
+          typeStart: sharedLabels.dateTypeStart,
+          typeEnd: sharedLabels.dateTypeEnd,
+          pickYear: sharedLabels.datePickYear,
+          pickMonth: sharedLabels.datePickMonth,
           apply: sharedLabels.dateApply,
         }}
       />

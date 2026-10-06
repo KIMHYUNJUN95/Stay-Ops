@@ -310,6 +310,11 @@ Permissions · Invite Codes · Attendance Sites/QR 등)은 위 3개 그룹의 �
   월을 누르면 **12칸**(월 선택기와 같은 `.amp__grid` · `.amp__m` — §4a 세 피커 같은 모양). 고르면 날짜 칸으로 돌아온다.
   고르던 시작 · 끝의 해 · 달은 테두리(`.is-draft`).
 - **날짜 칸 위에서 휠** = 이전/다음 달(페이지는 같이 굴러가지 않는다).
+- **시작일 – 종료일 직접 입력**(달력 맨 위 두 칸, 2026-10-06 「몇 년도 몇 월 며칠부터 몇 년도 몇 월 며칠까지」). 「2023-02-01」 ·
+  「2023.2.1」 · 「2023/02/01」 · 「20230201」 · 「2023년 2월 1일」 · 「23.2.1」을 받는다(`parseTypedDate`, 테스트
+  `admin-typed-date.test.ts`). 읽히는 날짜가 되는 순간 달력이 그 달로 가고 띠가 그려진다. 없는 날(2/30) · 막힌 날은 빨간 칸,
+  Enter = 적용, 앞뒤가 바뀌면 바로잡아 넘긴다. 자리 표시는 지금 기간. 라벨 `typeStart` · `typeEnd`
+  (`dictionary.admin.shared.dateTypeStart` · `dateTypeEnd`) — 공용 사전을 쓰는 화면 12곳에 연결했다.
 - **올해가 아닌 기간은 버튼에 연도까지**(「2023년 2월 1일 – 2월 28일」). 올해 기간은 예전처럼 월 · 일만.
 - 라벨에 `pickYear` · `pickMonth`(접근성 이름)를 선택으로 더했다(공용 `dictionary.admin.shared.datePickYear` · `datePickMonth`).
   주지 않은 화면도 그대로 동작한다.
