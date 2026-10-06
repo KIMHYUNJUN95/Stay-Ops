@@ -9,6 +9,12 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-06 — 매출 화면 (STAY ARI 이식 — 시안 A v2)
+
+- `/admin/ops/revenue` 구현: 기간(기수 · 연 · 월 · 주 · 직접) · 숫자 6개 · 「추이 · 건물별」 · 「건물 × 월」 매트릭스 · Excel · PDF.
+  식은 판매 캘린더 「매출 요약」과 같고(2026-09 ¥55.8M · 88.5% 일치), 그 달 판매가 없는 건물은 가동률 분모에서 뺀다.
+  모바일 · 가동률 · 전표는 아직. (`34` 「매출 화면」, `31`, `32`, `01`)
+
 ## 2026-10-06 — 앱 안 Google 로그인 (앱 출시 준비 B2)
 
 - 앱(Capacitor)에서는 Google 로그인을 시스템 브라우저로 열고 `com.harutokyo.stayops://auth/callback` 으로 앱에 돌아와 기존 `/auth/callback` 에서
