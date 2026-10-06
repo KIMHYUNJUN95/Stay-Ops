@@ -165,6 +165,10 @@ export function OpsRevenueConsole({
     });
     return {
       monthLabels: data.months.map((month) => monthLong(month)),
+      monthRangeLabel: `${monthLong(data.months[0])} – ${monthLong(data.months[data.months.length - 1])}`,
+      monthlyTotal: data.months.map((month) =>
+        data.properties.filter((p) => isIn(p.name)).reduce((sum, p) => sum + (data.monthCells[month]?.[p.name]?.revenue ?? 0), 0),
+      ),
       monthly: data.properties.map((p) => ({
         name: p.name,
         values: data.months.map((month) => {

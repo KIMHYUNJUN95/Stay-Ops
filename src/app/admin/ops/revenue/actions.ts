@@ -30,7 +30,11 @@ export type OpsRevenueExportPayload = {
   total: OpsRevenueExportRow;
   /** 「건물 × 월」 시트 — 머리 글자와 건물마다 달별 매출. */
   monthLabels: string[];
+  /** 15달의 처음 – 끝(「건물 × 월」 시트 제목). */
+  monthRangeLabel: string;
   monthly: Array<{ name: string; values: Array<number | null> }>;
+  /** 합계에 넣은 건물의 달별 합. */
+  monthlyTotal: number[];
 };
 
 const yen = (value: number, localeTag: string) => `¥${Math.round(value).toLocaleString(localeTag)}`;
@@ -57,12 +61,13 @@ function sheetsOf(payload: OpsRevenueExportPayload, meta: AdminExportMeta): Admi
   });
   const totalLine = line(payload.total);
 
+  // 「건물 × 월」은 15칸이라 엔 단위 금액(¥13,172,958)이 칸을 넘친다 — 천 엔 단위로 줄이고 제목에 단위를 적는다(2026-10-06).
+  const thousand = (value: number | null) => (value === null ? "—" : Math.round(value / 1000).toLocaleString(tag));
   const monthColumns = payload.monthLabels.map((label, index) => ({
-    bold: true,
     key: `m${index}`,
     label,
-    printWidth: Math.floor(80 / Math.max(1, payload.monthLabels.length)),
-    width: 12,
+    printWidth: Math.floor(86 / Math.max(1, payload.monthLabels.length)),
+    width: 10,
   }));
 
   return [
@@ -88,15 +93,16 @@ function sheetsOf(payload: OpsRevenueExportPayload, meta: AdminExportMeta): Admi
     },
     {
       colNoLabel: meta.shared.colNo,
-      columns: [{ key: "name", label: t.colProperty, printWidth: 20, width: 20, bold: true }, ...monthColumns],
-      rangeLabel: payload.rangeLabel,
+      columns: [{ key: "name", label: t.colProperty, printWidth: 14, width: 22, bold: true }, ...monthColumns],
+      rangeLabel: payload.monthRangeLabel,
       rows: payload.monthly.map((row) => ({
         name: row.name,
-        ...Object.fromEntries(row.values.map((value, index) => [`m${index}`, value === null ? "—" : yen(value, tag)])),
+        ...Object.fromEntries(row.values.map((value, index) => [`m${index}`, thousand(value)])),
       })),
       sheetName: t.sheetMonthly,
-      title: `${t.title} · ${t.sheetMonthly}`,
+      title: `${t.title} · ${t.sheetMonthly} (${t.unitThousandYen})`,
       totalLabel: meta.shared.exportTotalLabel,
+      totals: Object.fromEntries(payload.monthlyTotal.map((value, index) => [`m${index}`, thousand(value)])),
     },
   ];
 }

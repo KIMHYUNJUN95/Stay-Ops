@@ -177,6 +177,7 @@ const FALLBACK_DICTIONARY = {
     empty: "No revenue in this period yet.",
     sheetProperties: "By property",
     sheetMonthly: "Property × month revenue",
+    unitThousandYen: "Unit: ¥ thousand",
     loading: "Loading…",
   },
   roomLinks: {
@@ -6056,6 +6057,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     empty: "이 기간에는 아직 매출이 없어요.",
     sheetProperties: "건물별",
     sheetMonthly: "건물 × 월 매출",
+    unitThousandYen: "단위: 천 엔",
     loading: "불러오는 중…",
   },
   roomLinks: {
@@ -11773,6 +11775,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     empty: "この期間の売上はまだありません。",
     sheetProperties: "建物別",
     sheetMonthly: "建物 × 月 売上",
+    unitThousandYen: "単位: 千円",
     loading: "読み込み中…",
   },
   roomLinks: {
