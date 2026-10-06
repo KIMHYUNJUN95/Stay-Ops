@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies, headers } from "next/headers";
+import { NATIVE_AUTH_CALLBACK } from "@/lib/native-app";
 import { redirect } from "next/navigation";
 import { isLocale, type Locale } from "@/lib/i18n";
 import { getDeviceSurfaceFromHeaders, type DeviceSurface } from "@/lib/mobile-device";
@@ -334,32 +335,53 @@ export async function updatePassword(formData: FormData) {
  * enforces uniqueness today, so it would be premature. See
  * docs/engineering/05-rls-permissions.md (auth/identity policy).
  */
-export async function signInWithGoogle(formData: FormData) {
+/** Google OAuth 시작 — 웹은 `/auth/callback`, 앱(`native`)은 앱 전용 스킴으로 돌아온다. */
+async function startGoogleOAuth(formData: FormData, native: boolean) {
   const surface = await getCurrentSurface();
   const next = sanitizeNextForSurface(formData.get("next"), surface);
   const lang = String(formData.get("lang") ?? "").trim();
   const langParam = lang ? `&lang=${encodeURIComponent(lang)}` : "";
   const callbackNext = preserveOnboardingLang(next, lang);
 
-  const appUrl = await getAppUrl();
-  const oauthRedirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(callbackNext)}`;
+  const callbackBase = native ? NATIVE_AUTH_CALLBACK : `${await getAppUrl()}/auth/callback`;
+  const oauthRedirectTo = `${callbackBase}?next=${encodeURIComponent(callbackNext)}`;
 
+  // PKCE code_verifier 쿠키가 **이 요청을 보낸 쪽**(앱이면 앱 WebView)에 심긴다. 그래서 앱은 로그인을 시스템
+  // 브라우저에서 하더라도, 앱으로 돌아와 WebView 에서 `/auth/callback` 을 열면 같은 쿠키로 교환이 된다.
   const supabase = await getSupabaseServerClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
       redirectTo: oauthRedirectTo,
       queryParams: { prompt: "select_account" },
+      // 앱은 서버 리디렉트 대신 URL 을 받아 시스템 브라우저로 연다.
+      skipBrowserRedirect: native,
     },
   });
 
-  if (error || !data.url) {
-    redirect(
-      `/auth/login?error=google_signin_failed&next=${encodeURIComponent(next)}${langParam}`,
-    );
-  }
+  const failUrl = `/auth/login?error=google_signin_failed&next=${encodeURIComponent(next)}${langParam}`;
+  return { url: error ? null : (data.url ?? null), failUrl };
+}
 
-  redirect(data.url);
+export async function signInWithGoogle(formData: FormData) {
+  const { url, failUrl } = await startGoogleOAuth(formData, false);
+  if (!url) redirect(failUrl);
+  redirect(url);
+}
+
+/**
+ * 앱(Capacitor) 전용 — Google 로그인 URL 만 돌려준다(2026-10-06, 앱 출시 준비 B2).
+ *
+ * Google 은 앱 내 WebView 의 OAuth 를 막는다(`disallowed_useragent`). 그래서 앱은 이 URL 을 시스템 브라우저
+ * (`@capacitor/browser`)로 열고, 로그인이 끝나면 `com.harutokyo.stayops://auth/callback?code=…` 로 앱이 다시 열린다
+ * → `NativeAuthBridge` 가 WebView 를 `/auth/callback?code=…` 로 보내 세션을 만든다.
+ */
+export async function getNativeGoogleSignInUrl(
+  formData: FormData,
+): Promise<{ url: string } | { error: string; failUrl: string }> {
+  const { url, failUrl } = await startGoogleOAuth(formData, true);
+  if (!url) return { error: "google_signin_failed", failUrl };
+  return { url };
 }
 
 export async function signOut(formData?: FormData) {

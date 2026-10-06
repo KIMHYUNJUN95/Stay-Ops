@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-06 — 앱 안 Google 로그인 (앱 출시 준비 B2)
+
+- 앱(Capacitor)에서는 Google 로그인을 시스템 브라우저로 열고 `com.harutokyo.stayops://auth/callback` 으로 앱에 돌아와 기존 `/auth/callback` 에서
+  세션을 만든다. 웹 · PWA 는 그대로. Supabase Redirect URLs 에 앱 스킴 추가 필요(사용자). (`03` 「앱 안 Google 로그인」, `07`, `17`)
+
 ## 2026-10-06 — 게시판 신고 취소 · 관리 콘솔 「게시판 신고」 (앱 출시 준비 B4-2)
 
 - 계정 → 보안 「신고한 글 · 댓글」에서 신고 취소(`withdrawn`, 다시 보임). 관리 콘솔 `/admin/board-reports`(표 + 상세 패널)에서 삭제 / 문제없음.

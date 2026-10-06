@@ -10,6 +10,7 @@ import { cookies, headers } from "next/headers";
 import Script from "next/script";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { KeyboardInsetSync } from "@/components/pwa/keyboard-inset-sync";
+import { NativeAuthBridge } from "@/components/native/native-auth-bridge";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { SplashScreen } from "@/components/pwa/splash-screen";
 import { TouchTabletDetect } from "@/components/pwa/touch-tablet-detect";
@@ -167,6 +168,7 @@ export default async function RootLayout({
         <ServiceWorkerRegister />
         <KeyboardInsetSync />
         <TouchTabletDetect />
+        <NativeAuthBridge />
         <SessionProvider initialSession={session}>{children}</SessionProvider>
       </body>
     </html>

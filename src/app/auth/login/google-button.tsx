@@ -1,6 +1,9 @@
 "use client";
 
+import { useState, type MouseEvent } from "react";
 import { useFormStatus } from "react-dom";
+import { getNativeGoogleSignInUrl } from "@/app/auth/actions";
+import { isNativeApp } from "@/lib/native-app";
 
 function GoogleGlyph() {
   return (
@@ -19,13 +22,40 @@ function GoogleGlyph() {
  * On submit the page does NOT navigate — `useFormStatus` flips `pending`, the label
  * goes transparent, pointer-events lock, and a navy spinner spins in place (the
  * "Google 진행 중" frame). Must be rendered inside the `signInWithGoogle` <form>.
+ *
+ * **앱(Capacitor) 안에서는** 폼을 서버로 보내지 않는다(2026-10-06, 앱 출시 준비 B2). Google 이 WebView 로그인을
+ * 막으므로, 같은 폼 값으로 로그인 URL 만 받아 시스템 브라우저(`@capacitor/browser`)로 연다. 앱 복귀는
+ * `NativeAuthBridge` 가 받는다.
  */
 export function GoogleSubmitButton({ label }: { label: string; compact?: boolean }) {
-  const { pending } = useFormStatus();
+  const { pending: formPending } = useFormStatus();
+  const [nativePending, setNativePending] = useState(false);
+  const pending = formPending || nativePending;
+
+  async function onClick(event: MouseEvent<HTMLButtonElement>) {
+    if (!isNativeApp()) return; // 브라우저 · PWA — 기존처럼 서버 액션으로 제출
+    event.preventDefault();
+    const form = event.currentTarget.form;
+    if (!form || nativePending) return;
+    setNativePending(true);
+    try {
+      const result = await getNativeGoogleSignInUrl(new FormData(form));
+      if ("error" in result) {
+        window.location.assign(result.failUrl);
+        return;
+      }
+      const { Browser } = await import("@capacitor/browser");
+      await Browser.open({ url: result.url, presentationStyle: "popover" });
+    } finally {
+      // 시스템 브라우저에서 사용자가 취소하고 돌아와도 버튼이 다시 눌리도록 풀어 준다.
+      setNativePending(false);
+    }
+  }
 
   return (
     <button
       type="submit"
+      onClick={onClick}
       disabled={pending}
       aria-busy={pending}
       className="abtn abtn--google"

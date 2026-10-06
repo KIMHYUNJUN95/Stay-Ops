@@ -6,6 +6,17 @@
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.harutokyo.stayops</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.harutokyo.stayops</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>StayOps uses the camera to scan the attendance QR code and to take photos you attach to work records.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

@@ -138,9 +138,25 @@ npm run cap:ios       # Xcode 로 열기 (macOS 만)
   Mac 이 없으면 클라우드 빌드(GitHub Actions macOS 러너, Codemagic 등)를 검토한다.
 - WSL(이 저장소 개발 환경)에는 Java · Android SDK 가 없다 — 네이티브 빌드는 위 환경에서 한다.
 
-### 아직 안 된 것 (계획 B2 · B3 이후)
+### 앱 안 Google 로그인 (B2, 2026-10-06)
 
-- **Google 로그인**: 앱 안 WebView 에서 Google 이 로그인을 막는다 → B2(시스템 브라우저 + 딥링크 복귀) 전까지 앱에서는 이메일 로그인만 확인 가능.
+Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 앱에서는 이렇게 돈다 — 웹 · PWA 는 그대로다.
+
+1. 로그인 화면 Google 버튼(`GoogleSubmitButton`)이 앱 안이면(`isNativeApp()`) 폼을 보내지 않고 서버 액션
+   `getNativeGoogleSignInUrl` 로 로그인 URL 만 받는다. 이때 `redirectTo` = **`com.harutokyo.stayops://auth/callback?next=…`**,
+   PKCE 확인 쿠키는 앱 WebView 에 심긴다.
+2. 그 URL 을 `@capacitor/browser` 로 연다(iOS SFSafariViewController · Android Custom Tab).
+3. 로그인이 끝나면 Supabase 가 `com.harutokyo.stayops://auth/callback?code=…` 로 보내고, OS 가 앱을 연다.
+4. 루트 레이아웃의 `NativeAuthBridge` 가 `appUrlOpen`(실행 중) · `getLaunchUrl()`(콜드 스타트)을 받아 브라우저를 닫고 WebView 를
+   `/auth/callback?code=…` 로 보낸다 → 기존 콜백이 1번의 쿠키로 세션을 만든다.
+
+- 스킴 정의는 네 곳이 **같아야** 한다: `src/lib/native-app.ts` `NATIVE_APP_SCHEME` · `AndroidManifest.xml` intent-filter ·
+  iOS `Info.plist` `CFBundleURLTypes` · **Supabase Auth → URL Configuration → Redirect URLs 에 `com.harutokyo.stayops://auth/callback`**.
+  마지막이 빠지면 Supabase 가 Site URL(웹)로 돌려보내 로그인이 시스템 브라우저에서 끝나고 앱은 로그아웃 상태로 남는다.
+- 회원가입 확인 · 비밀번호 재설정 **메일 링크**는 아직 브라우저에서 열린다(앱으로 열려면 Universal Links / App Links — 계획 C2).
+
+### 아직 안 된 것 (계획 B3 이후)
+
 - 다운로드 · 외부 링크 · Android 뒤로가기 버튼 등 WebView 호환(B3), 앱 아이콘 · 스플래시(현재 Capacitor 기본값).
 
 ## Initial Web Hosting
