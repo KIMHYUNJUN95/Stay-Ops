@@ -90,13 +90,6 @@ const FALLBACK_DICTIONARY = {
     next: "Next",
     compare: "vs",
     compareSame: "Same period last year · {range}",
-    cmp1y: "1 year ago",
-    cmp2y: "2 years ago",
-    cmp3y: "3 years ago",
-    cmpCustom: "Custom",
-    compareRange: "Compared with {range}",
-    compareValue: "Compared {v}",
-    colCompare: "Compared",
     inProgress: "In progress — after today = booked",
     futureOnly: "Ahead — booked only",
     includeLabel: "Include in totals",
@@ -963,6 +956,8 @@ const FALLBACK_DICTIONARY = {
       // 연 이동 — 공용 `AdminMonthPicker` 가 쓴다. 문구는 기능 네임스페이스가 아니라
       // 여기 있어야 한다(CLAUDE.md §4b).
       datePrevYear: "Previous year",
+      datePickYear: "Pick year",
+      datePickMonth: "Pick month",
       dateNextYear: "Next year",
       dateToday: "Today",
       // 날짜 단위 이동 — `AdminDatePicker` 의 nav 변형이 쓴다(청소 현황·근무표 공용).
@@ -5977,13 +5972,6 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     next: "다음",
     compare: "비교",
     compareSame: "전년 같은 기간 · {range}",
-    cmp1y: "1년 전",
-    cmp2y: "2년 전",
-    cmp3y: "3년 전",
-    cmpCustom: "직접",
-    compareRange: "비교 기간 · {range}",
-    compareValue: "비교 {v}",
-    colCompare: "비교 기간",
     inProgress: "진행 중 — 오늘 이후는 잡힌 예약",
     futureOnly: "앞으로 — 잡힌 예약만",
     includeLabel: "합계에 넣을 건물",
@@ -6840,6 +6828,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         // 연 이동 — 공용 `AdminMonthPicker` 가 쓴다. 문구는 기능 네임스페이스가 아니라
         // 여기 있어야 한다(CLAUDE.md §4b).
         datePrevYear: "이전 해",
+        datePickYear: "연도 고르기",
+        datePickMonth: "월 고르기",
         dateNextYear: "다음 해",
         dateToday: "오늘",
         datePrevDay: "이전 날",
@@ -11702,13 +11692,6 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     next: "次へ",
     compare: "比較",
     compareSame: "前年同期 · {range}",
-    cmp1y: "1年前",
-    cmp2y: "2年前",
-    cmp3y: "3年前",
-    cmpCustom: "期間指定",
-    compareRange: "比較期間 · {range}",
-    compareValue: "比較 {v}",
-    colCompare: "比較期間",
     inProgress: "進行中 — 今日以降は予約済み分",
     futureOnly: "先の期間 — 予約済み分のみ",
     includeLabel: "合計に含める建物",
@@ -12565,6 +12548,8 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         // 연 이동 — 공용 `AdminMonthPicker` 가 쓴다. 문구는 기능 네임스페이스가 아니라
         // 여기 있어야 한다(CLAUDE.md §4b).
         datePrevYear: "前年",
+        datePickYear: "年を選ぶ",
+        datePickMonth: "月を選ぶ",
         dateNextYear: "翌年",
         dateToday: "今日",
         datePrevDay: "前の日",

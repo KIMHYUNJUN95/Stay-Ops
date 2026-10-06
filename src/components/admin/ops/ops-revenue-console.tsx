@@ -196,6 +196,8 @@ export function OpsRevenueConsole({
     apply: shared.dateApply,
     nextMonth: shared.dateNextMonth,
     prevMonth: shared.datePrevMonth,
+    pickMonth: shared.datePickMonth,
+    pickYear: shared.datePickYear,
     reset: shared.dateReset,
     thisMonth: shared.dateThisMonth,
   };
