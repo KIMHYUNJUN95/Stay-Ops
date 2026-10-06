@@ -616,7 +616,11 @@
  */
 .opsg__plus {
   position: absolute;
-  inset: 0;
+  /* **예약 줄(0층)만** — 차단 줄이 붙어 행이 높아져도 `+` 는 그 아래로 내려가지 않는다(2026-10-06, 예약 줄 · 차단 줄 분리). */
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--ops-track);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -685,6 +689,16 @@
 }
 
 /* 「차단」이 아니라 영어 BLOCK 으로 쓴다(사용자 지정, 2026-09-16). */
+/* 차단 줄 — 예약 줄 아래 따로 둔 띠(2026-10-06 사용자 지시 「블락 줄이랑 수기 예약 줄이랑 아예 구분」). 위에 가는 선 · 옅은 바탕으로
+   한 행 안에서도 다른 줄임이 보이게. 누를 수 없다(막대만 위에 얹힌다). */
+.opsg__blocklane {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed color-mix(in oklab, var(--line) 85%, black);
+  background: color-mix(in oklab, var(--adm-surface, #f4f1ea) 70%, transparent);
+  pointer-events: none;
+}
 .opsg__block {
   position: absolute;
   height: 19px;

@@ -419,6 +419,7 @@ const OpsGridRow = memo(function OpsGridRow({
    * 차단한 날에도 수기 예약을 넣게 되면서 차단이 0층에 있으면 `+` 를 가렸다(사용자 지적). 차단이 있는 방만 줄이 하나
    * 늘어난다. 차단끼리 겹치면 그 아래로(`assignBlockLanes`).
    */
+  const blockFromLane = barLanes?.laneCountByRoom.get(room.key) ?? 1;
   const blockLanes = assignBlockLanes(
     roomBars.map((bar) => ({
       checkIn: bar.checkIn,
@@ -426,7 +427,7 @@ const OpsGridRow = memo(function OpsGridRow({
       lane: barLanes?.laneById.get(bar.id) ?? 0,
     })),
     roomBlocks.map((block) => ({ endDate: block.endDate, id: block.id, startDate: block.startDate })),
-    { fromLane: barLanes?.laneCountByRoom.get(room.key) ?? 1 },
+    { fromLane: blockFromLane },
   );
   const laneCount = Math.max(barLanes?.laneCountByRoom.get(room.key) ?? 1, blockLanes.laneCount);
   /** 팔린 밤(살아 있는 예약). 가격 수정에서 막히는 유일한 조건이다(블록은 막지 않는다). */
@@ -595,6 +596,17 @@ const OpsGridRow = memo(function OpsGridRow({
               onCommit={(checkOut) => actions.current.commitDraft(bookingRoom, drafting.checkIn, checkOut)}
               onRestart={(date) => {
                 if (canStart(date)) startDraft(date);
+              }}
+            />
+          )}
+          {roomBlocks.length > 0 && laneCount > blockFromLane && (
+            <div
+              aria-hidden="true"
+              className="opsg__blocklane"
+              // 예약 줄(--ops-track) 바로 아래부터 행 끝까지 — 막대(top 3px + 층 × 22px)가 이 띠 안에 앉는다.
+              style={{
+                height: `${(laneCount - blockFromLane) * OPS_LANE_STEP_PX}px`,
+                top: `calc(var(--ops-track) + ${(blockFromLane - 1) * OPS_LANE_STEP_PX}px)`,
               }}
             />
           )}
