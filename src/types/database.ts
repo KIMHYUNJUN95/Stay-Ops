@@ -4241,6 +4241,7 @@ export type Database = {
           created_at: string
           guest_name: string
           id: string
+          last_known_amount: number | null
           organization_id: string
           property_name: string
           raw_payload: Json
@@ -4256,6 +4257,7 @@ export type Database = {
           created_at?: string
           guest_name: string
           id?: string
+          last_known_amount?: number | null
           organization_id: string
           property_name: string
           raw_payload?: Json
@@ -4271,6 +4273,7 @@ export type Database = {
           created_at?: string
           guest_name?: string
           id?: string
+          last_known_amount?: number | null
           organization_id?: string
           property_name?: string
           raw_payload?: Json

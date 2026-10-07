@@ -86,10 +86,11 @@ function reservation(partial: Partial<AutomationReservation> & { raw: Record<str
     id: Math.random().toString(36).slice(2),
     propertyName: "아라키초A",
     roomLabel: "201",
+    lastKnownAmount: null,
     status: "confirmed",
     updatedAt: "2026-10-05T10:00:00Z",
     ...partial,
-  };
+  } as AutomationReservation;
 }
 
 describe("예약 원본 필드 (저쪽 normalize)", () => {
@@ -346,6 +347,9 @@ describe("취소된 예약의 원래 금액", () => {
     expect(originalAmountOf({ rateDescription: airbnb }, 0)).toBe(380000);
     expect(originalAmountOf({ rateDescription: airbnb }, 12000)).toBe(12000);
     expect(originalAmountOf({}, 0)).toBeNull();
+    // DB 가 기억한 금액이 요금 내역보다 먼저(Airbnb 가 내역까지 0 으로 바꿔 와도 남는다).
+    expect(originalAmountOf({ rateDescription: "Base Price 0 JPY\nHost Fee -0.00 JPY\n" }, 0, 158270)).toBe(158270);
+    expect(originalAmountOf({ rateDescription: "Base Price 0 JPY\nHost Fee -0.00 JPY\n" }, 0)).toBeNull();
   });
 
   it("취소 알림 · 일일 리포트에 원래 금액이 나온다", () => {

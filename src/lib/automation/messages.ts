@@ -259,7 +259,7 @@ export function computeDailyStats(input: {
       stats.totalCancel += 1;
       stats.cancelByChannel[channel] += 1;
       bump(stats.cancelMonths, reservation.checkIn);
-      const original = originalAmountOf(reservation.raw, amount);
+      const original = originalAmountOf(reservation.raw, amount, reservation.lastKnownAmount);
       if (original === null) stats.cancelUnknown += 1;
       else stats.cancelRevenue += original;
       stats.cancelDetails.push({ amount: original ?? 0, guestName: reservation.guestName, propertyName, roomLabel: reservation.roomLabel });
@@ -533,7 +533,7 @@ export function buildReservationAlertMessage(input: {
     input.kind === "cancel"
       ? (() => {
           // 취소는 Beds24 가 금액을 0 으로 비운다 — 요금 내역에서 원래 금액을 되살려 「얼마가 빠졌나」를 보인다(2026-10-07).
-          const original = originalAmountOf(reservation.raw, amount);
+          const original = originalAmountOf(reservation.raw, amount, reservation.lastKnownAmount);
           const id = bookingIdOf(reservation.raw, reservation.id);
           return original === null
             ? fill(a.cancelAmountUnknown, { id })

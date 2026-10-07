@@ -115,7 +115,7 @@ export const AUTOMATION_PAYLOAD_KEYS = [
 ] as const;
 
 export const AUTOMATION_RESERVATION_SELECT = [
-  "id, property_name, room_label, guest_name, status, check_in_date, check_out_date, updated_at",
+  "id, property_name, room_label, guest_name, status, check_in_date, check_out_date, updated_at, last_known_amount",
   ...AUTOMATION_PAYLOAD_KEYS.map((key) => `rp_${key}:raw_payload->${key}`),
 ].join(", ");
 
@@ -128,6 +128,8 @@ export type AutomationReservation = {
   checkIn: string;
   checkOut: string;
   updatedAt: string;
+  /** DB 가 기억한 마지막 금액(`reservations.last_known_amount` — 취소로 price 가 0 이 돼도 남는다). */
+  lastKnownAmount: number | null;
   raw: RawPayload;
 };
 
@@ -147,6 +149,7 @@ export function toAutomationReservation(row: Record<string, unknown>): Automatio
     roomLabel: String(row.room_label ?? ""),
     status: String(row.status ?? ""),
     updatedAt: String(row.updated_at ?? ""),
+    lastKnownAmount: Number(row.last_known_amount) > 0 ? Number(row.last_known_amount) : null,
   };
 }
 
@@ -156,10 +159,13 @@ export function toAutomationReservation(row: Record<string, unknown>): Automatio
  * - Airbnb: `Base Price N JPY` + `Cleaning fee N JPY` — 2026-06 이후 확정 예약 1,296건 전부 `price` 와 같다.
  * - Booking.com: 날짜 줄(`2026-11-05 (…) JPY 114996`)의 합 — 1,174건 중 1,166건 ±10엔(반올림). 예약 뒤 연장된 경우는 처음
  *   날짜만 남아 적게 나온다(0.7%).
- * - 그 밖에는 0 이 아닌 `price` 를 그대로(수기 예약은 취소돼도 금액이 남는다). 아무것도 없으면 `null`(확인 불가).
+ * - 순서: 0 이 아닌 지금 금액 → DB 가 기억한 마지막 금액(`last_known_amount`, 트리거) → 요금 내역 → 없으면 `null`(확인 불가).
+ *   Airbnb 는 취소되면 요금 내역까지 0 으로 바꿔 오는 경우가 있어(최근 30일 28%) 트리거가 필요하다.
  */
-export function originalAmountOf(raw: RawPayload, currentAmount: number): number | null {
+export function originalAmountOf(raw: RawPayload, currentAmount: number, lastKnownAmount: number | null = null): number | null {
   if (currentAmount > 0) return currentAmount;
+  // DB 가 취소 직전에 기억한 금액이 가장 정확하다(2026-10-07 트리거 — 그 전에 취소된 예약에는 없다).
+  if (lastKnownAmount !== null && lastKnownAmount > 0) return Math.round(lastKnownAmount);
   const description = typeof raw.rateDescription === "string" ? raw.rateDescription : "";
   if (!description) return null;
   if (/Base Price\s+[\d.]+\s*JPY/i.test(description)) {

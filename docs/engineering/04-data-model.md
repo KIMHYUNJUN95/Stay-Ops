@@ -2026,6 +2026,7 @@ pg_cron 잡 `beds24-tick` (`* * * * *`) → `select public.beds24_tick_if_needed
 | `automation_runs` | 받는 곳 × 언어 × 실행 한 번 | `trigger`(scheduled/retry/manual/event/correction/resend) · `status`(sent/skipped/failed) · `reason` · `message` · `meta jsonb`(숫자 4개 · 이름 · 정정 지문) · `dedupe_key`(유일, 부분 인덱스) |
 | `automation_setting_logs` | 설정 변경 한 번 | `changes jsonb` {필드: {before, after}} · `actor_id` |
 | `cleaning_list_assignees` | 날짜 × 운영 객실 키 | `names`(1~120자) — 청소 명단 담당자 수기 입력(Hotelsmart 수집 안 함) |
+| `reservations.last_known_amount` (2026-10-07, `202610070003`) | 예약 × 1 | 마지막으로 0 보다 컸던 `raw_payload.price`. 트리거 `reservations_keep_last_known_amount`(before insert/update)가 채운다 — 취소로 price 가 0 이 돼도 남아 취소 금액 표시에 쓴다. Beds24 동기화 코드는 이 컬럼을 쓰지 않는다 |
 | `automation_jobs.enabled_at` (2026-10-07, `202610070002`) | 자동화 × 1 | 마지막으로 켠 시각(꺼짐 → 켜짐 때 서버 액션이 적음). 취소 · 당일예약 알림은 이 뒤의 취소 · 예약만 보낸다 |
 | `cleaning_list_extra_rooms` (2026-10-07, `202610070001`) | 날짜(`target_date`) × 물리 객실 키 | `property_name` · `room_label` · `note`(1~60자, 선택) · `created_by` — 청소 명단에 사람이 직접 더한 청소 방(퇴실 없는 연박 청소 등, Hotelsmart 대신) |
 
