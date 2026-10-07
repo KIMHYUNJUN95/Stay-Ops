@@ -527,10 +527,10 @@ function ReportTab({
   const todayDay = Number(data.today.slice(8));
   const daysIn = (month: string) => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0)).getUTCDate();
   const selectedMonths = new Set(data.months.filter((month) => month >= data.range.from.slice(0, 7) && month <= data.range.to.slice(0, 7)));
+  // 전년 같은 달 눈금은 뺐다(2026-10-07 사용자 — 막대 위 가로선이 헷갈린다). 전년 비교는 숫자 카드 · 표의 「전년」 · 「증감」으로.
   const bars = data.months.map((month) => ({
     cur: sumMetrics(inNames.map((name) => data.monthCells[month]?.[name])),
     month,
-    prev: sumMetrics(inNames.map((name) => data.monthCells[shiftMonthKey(month, -12)]?.[name])),
   }));
 
   const line = (name: string, cur: RevenueMetrics, prev: RevenueMetrics, room: boolean) => {
@@ -563,7 +563,6 @@ function ReportTab({
           <span className="orv__muted">{copy.chartHint}</span>
           <span className="orv__grow" />
           <span className="orv__lg"><i className="b1" />{rcopy.legendThisYear}</span>
-          <span className="orv__lg"><i className="occ__lgprev" />{rcopy.legendLastYear}</span>
           <span className="orv__lg"><i className="bf" />{rcopy.legendBooked}</span>
           <span className="orv__lg"><i className="occ__lgline" />{copy.legendLine}</span>
         </div>
@@ -578,7 +577,7 @@ function ReportTab({
             <div className="occ__line">
               <span>{OCCUPANCY_LINE}%</span>
             </div>
-            {bars.map(({ cur, month, prev }) => {
+            {bars.map(({ cur, month }) => {
               const p = monthPhase(month, data.today);
               const has = cur.availableNights > 0;
               return (
@@ -593,7 +592,6 @@ function ReportTab({
                   <span className="v">{has ? `${cur.occupancyPct.toFixed(0)}%` : "—"}</span>
                   <span className="bar">
                     <i className={`b1${has && cur.occupancyPct < OCCUPANCY_LINE && p === "past" ? " low" : ""}`} style={{ height: `${has ? cur.occupancyPct : 0}%` }} />
-                    {prev.availableNights > 0 && <i className="b0" style={{ bottom: `${prev.occupancyPct}%` }} />}
                   </span>
                   <span className={`ml${month.endsWith("-01") ? " y" : ""}`}>{monthShort(month)}</span>
                 </button>
