@@ -2,17 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check } from "lucide-react";
+import { Check, Plus, X } from "lucide-react";
 import {
+  addCleaningExtraRoom,
   loadAssigneeBoard,
   loadAutomationRunMessage,
   previewAutomationMessage,
+  removeCleaningExtraRoom,
   saveAutomationJob,
   saveCleaningAssignee,
   sendAutomationNow,
   setAutomationEnabled,
   type AssigneeRoomView,
+  type CleaningRoomOptionGroup,
 } from "@/app/admin/ops/automation/actions";
+import { AdmDropdown } from "@/components/admin/shared/adm-dropdown";
 import { AdminDatePicker } from "@/components/admin/shared/admin-date-picker";
 import { AdminTimePicker } from "@/components/admin/shared/admin-time-picker";
 import type { AutomationJobView, AutomationPageData } from "@/lib/automation/console-data";
@@ -491,7 +495,9 @@ function AssignPane({
   userLocale: AutomationLocale;
 }) {
   const [date, setDate] = useState(data.today);
-  const [board, setBoard] = useState<{ date: string; rooms: AssigneeRoomView[]; sent: boolean } | null>(null);
+  const [board, setBoard] = useState<{ date: string; rooms: AssigneeRoomView[]; sent: boolean; roomOptions: CleaningRoomOptionGroup[] } | null>(null);
+  const [addKey, setAddKey] = useState("");
+  const [addNote, setAddNote] = useState("");
   const [names, setNames] = useState<Record<string, string>>({});
   const [busy, startBusy] = useTransition();
   // 고른 날짜의 명단이 아직 안 왔으면 null(「만드는 중」).
@@ -504,10 +510,10 @@ function AssignPane({
     loadAssigneeBoard(date, userLocale).then((result) => {
       if (!result.ok) {
         flash(errorText(result.error));
-        setBoard({ date, rooms: [], sent: false });
+        setBoard({ date, roomOptions: [], rooms: [], sent: false });
         return;
       }
-      setBoard({ date, rooms: result.rooms, sent: result.sent });
+      setBoard({ date, roomOptions: result.roomOptions, rooms: result.rooms, sent: result.sent });
       setNames(Object.fromEntries(result.rooms.map((room) => [room.roomKey, room.names])));
     });
   }, [date, errorText, flash, userLocale]);
@@ -524,6 +530,31 @@ function AssignPane({
       if (!result.ok) return flash(errorText(result.error));
       setRooms((current) => current.map((item) => (item.roomKey === room.roomKey ? { ...item, names: value.trim() } : item)));
       flash(copy.assign.saved);
+    });
+  };
+
+  // 청소 방 직접 추가(연박 청소 등 — Hotelsmart 대신). 이미 명단에 있는 방은 고를 목록에서 뺀다.
+  const listedKeys = new Set((rooms ?? []).filter((room) => room.section === "cleaning").map((room) => room.roomKey));
+  const addOptions = (board?.date === date ? board.roomOptions : []).flatMap((group) =>
+    group.rooms.filter((room) => !listedKeys.has(room.roomKey)).map((room) => ({ label: `${group.label} · ${room.code}`, value: room.roomKey })),
+  );
+  const addRoom = () => {
+    if (!addKey) return;
+    startBusy(async () => {
+      const result = await addCleaningExtraRoom({ date, note: addNote, roomKey: addKey });
+      if (!result.ok) return flash(errorText(result.error));
+      setAddKey("");
+      setAddNote("");
+      flash(copy.assign.extraAdded);
+      reload();
+    });
+  };
+  const removeRoom = (room: AssigneeRoomView) => {
+    startBusy(async () => {
+      const result = await removeCleaningExtraRoom({ date, roomKey: room.roomKey });
+      if (!result.ok) return flash(errorText(result.error));
+      flash(copy.assign.extraRemoved);
+      reload();
     });
   };
 
@@ -550,7 +581,9 @@ function AssignPane({
   };
 
   const roomLabel = (room: AssigneeRoomView) =>
-    room.kind === "no_checkin"
+    room.kind === "extra"
+      ? room.note || copy.assign.extraDefault
+      : room.kind === "no_checkin"
       ? room.pax !== null
         ? `${copy.assign.noCheckIn} (${room.pax})`
         : copy.assign.noCheckIn
@@ -584,6 +617,18 @@ function AssignPane({
                     placeholder={copy.assign.namePlaceholder}
                     value={names[room.roomKey] ?? ""}
                   />
+                  {room.kind === "extra" && !view ? (
+                    <button
+                      aria-label={`${room.code} ${copy.assign.removeRoom}`}
+                      className="atm__xbtn"
+                      disabled={busy}
+                      onClick={() => removeRoom(room)}
+                      title={copy.assign.removeRoom}
+                      type="button"
+                    >
+                      <X aria-hidden="true" />
+                    </button>
+                  ) : null}
                 </div>
               );
             })}
@@ -631,6 +676,36 @@ function AssignPane({
               <span className="atm__asecn">{counts.c}</span>
             </div>
             {renderSection("cleaning")}
+            {!view ? (
+              <div className="atm__addroom">
+                <span className="atm__addt">
+                  <Plus aria-hidden="true" />
+                  {copy.assign.addRoom}
+                </span>
+                <AdmDropdown
+                  ariaLabel={copy.assign.addRoomPick}
+                  onChange={setAddKey}
+                  options={addOptions}
+                  placeholder={copy.assign.addRoomPick}
+                  searchable
+                  searchPlaceholder={copy.assign.addRoomSearch}
+                  size="sm"
+                  value={addKey}
+                />
+                <input
+                  aria-label={copy.assign.addRoomNote}
+                  className="atm__nin"
+                  maxLength={60}
+                  onChange={(event) => setAddNote(event.target.value)}
+                  placeholder={copy.assign.addRoomNote}
+                  value={addNote}
+                />
+                <button className="atm__btn sm" disabled={busy || !addKey} onClick={addRoom} type="button">
+                  {copy.assign.addRoomButton}
+                </button>
+                <span className="atm__note">{copy.assign.addRoomHint}</span>
+              </div>
+            ) : null}
           </section>
           <section className="atm__asec is-setting">
             <div className="atm__asech">

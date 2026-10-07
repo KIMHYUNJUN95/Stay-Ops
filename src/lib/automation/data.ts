@@ -14,7 +14,7 @@ import {
   type AutomationJobKey,
   type AutomationLocale,
 } from "@/lib/automation/jobs";
-import type { CleaningListModel, CleaningListRoom } from "@/lib/automation/messages";
+import type { CleaningDataIssue, CleaningListModel, CleaningListRoom } from "@/lib/automation/messages";
 import {
   AUTOMATION_RESERVATION_SELECT,
   toAutomationReservation,
@@ -23,10 +23,15 @@ import {
 import { getCleaningTargets } from "@/lib/cleaning-targets";
 import { getDictionary } from "@/lib/i18n";
 import {
+  buildRoomKey,
   getCanonicalPropertyName,
+  getCanonicalRoomLabel,
   getDisplayRoomLabel,
+  isExcludedOperationalProperty,
+  isExcludedOperationalRoom,
   localizePropertyName,
 } from "@/lib/room-label-normalization";
+import { getActiveRoomCatalog } from "@/lib/rooms";
 import { readAllPages } from "@/lib/supabase/read-all-pages";
 import { tokyoDayStart, ymdShift } from "@/lib/tokyo-date";
 import type { Database } from "@/types/database";
@@ -233,7 +238,96 @@ export async function loadCleaningListModel(
       propertyName: item.canonicalPropertyName,
       roomKey: item.roomKey,
     }));
-  return { cleaning, setting, targetDate };
+  // 사람이 직접 더한 청소 방(연박 청소 등 — Hotelsmart 대신). 그날 이미 퇴실 청소가 있는 물리 객실이면 한 번만.
+  const [extras, dataIssues] = await Promise.all([
+    loadExtraRooms(supabase, organizationId, targetDate),
+    findCleaningDataIssues(supabase, organizationId, targetDate),
+  ]);
+  const physicalOf = (room: { propertyName: string; roomKey: string }) => {
+    const roomPart = room.roomKey.slice(room.propertyName.length + 1);
+    return buildRoomKey(room.propertyName, getDisplayRoomLabel(room.propertyName, roomPart));
+  };
+  const listed = new Set(cleaning.map(physicalOf));
+  for (const extra of extras) {
+    if (excluded.has(extra.propertyName) || listed.has(extra.roomKey)) continue;
+    cleaning.push({
+      code: cleaningRoomCode(extra.propertyName, extra.roomLabel) ?? "",
+      guestName: null,
+      kind: "extra",
+      note: extra.note,
+      pax: null,
+      propertyName: extra.propertyName,
+      roomKey: extra.roomKey,
+    });
+  }
+  return { cleaning, dataIssues, setting, targetDate };
+}
+
+export type CleaningExtraRoom = { roomKey: string; propertyName: string; roomLabel: string; note: string | null };
+
+export async function loadExtraRooms(supabase: Client, organizationId: string, date: string): Promise<CleaningExtraRoom[]> {
+  const result = await supabase
+    .from("cleaning_list_extra_rooms")
+    .select("room_key, property_name, room_label, note")
+    .eq("organization_id", organizationId)
+    .eq("target_date", date);
+  if (result.error) throw new Error(result.error.message);
+  return (result.data ?? []).map((row) => ({ note: row.note, propertyName: row.property_name, roomKey: row.room_key, roomLabel: row.room_label }));
+}
+
+/** 「청소 방 추가」에서 고를 수 있는 방 — 활성 객실 카탈로그를 물리 객실(아라키초 `_2` 접음) 단위로. */
+export async function loadCleaningRoomOptions(
+  supabase: Client,
+  organizationId: string,
+): Promise<Array<{ roomKey: string; propertyName: string; roomLabel: string; code: string }>> {
+  const catalog = (await getActiveRoomCatalog(organizationId, supabase)) ?? [];
+  const seen = new Map<string, { roomKey: string; propertyName: string; roomLabel: string; code: string }>();
+  for (const item of catalog) {
+    const roomKey = buildRoomKey(item.propertyName, item.displayRoomLabel);
+    if (seen.has(roomKey)) continue;
+    seen.set(roomKey, {
+      code: cleaningRoomCode(item.propertyName, item.displayRoomLabel) ?? item.propertyName,
+      propertyName: item.propertyName,
+      roomKey,
+      roomLabel: item.displayRoomLabel,
+    });
+  }
+  return [...seen.values()];
+}
+
+/**
+ * 오늘 청소 · 셋팅에 걸리는 예약(오늘 입실 · 퇴실, 확정) 중 **필수 정보가 빠진 것**. 저쪽 `RESERVATION_REQUIRED_FIELDS`
+ * (예약 번호 · 상태 · 건물 · 객실 · 입실 · 퇴실)에 맞춘다 — 우리 쪽에서는 건물을 모르거나(운영 건물로 못 맞춤) 객실이 비었거나
+ * 날짜가 뒤집혔거나 예약 번호가 없는 것. 이런 예약은 청소 계산에서 조용히 빠지므로 명단 끝에 경고로 드러낸다.
+ *
+ * 저쪽은 이런 예약이 **하나라도 있으면 명단을 안 보냈다.** 우리는 보내고 경고를 붙인다(2026-10-07 사용자 결정 — 상관없는
+ * 예약 하나로 아침 명단이 통째로 안 나가는 쪽이 현장에 더 위험).
+ */
+export async function findCleaningDataIssues(supabase: Client, organizationId: string, date: string): Promise<CleaningDataIssue[]> {
+  const result = await supabase
+    .from("reservations")
+    .select("id, source_reservation_id, property_name, room_label, check_in_date, check_out_date, rp_id:raw_payload->id, rp_bookId:raw_payload->bookId")
+    .eq("organization_id", organizationId)
+    .eq("status", "confirmed")
+    .or(`check_in_date.eq.${date},check_out_date.eq.${date}`);
+  if (result.error) throw new Error(result.error.message);
+  const known = new Set(AUTOMATION_BUILDING_ORDER);
+  const issues: CleaningDataIssue[] = [];
+  for (const row of (result.data ?? []) as unknown as Array<Record<string, unknown>>) {
+    const propertyName = String(row.property_name ?? "").trim();
+    const roomLabel = String(row.room_label ?? "").trim();
+    const canonical = propertyName ? getCanonicalPropertyName(propertyName) : "";
+    if (canonical && isExcludedOperationalProperty(canonical)) continue;
+    if (canonical && roomLabel && isExcludedOperationalRoom(propertyName, roomLabel)) continue;
+    const bookingId = String(row.rp_id ?? row.rp_bookId ?? row.source_reservation_id ?? "").trim();
+    const checkIn = String(row.check_in_date ?? "");
+    const checkOut = String(row.check_out_date ?? "");
+    const broken = !canonical || !known.has(canonical) || !roomLabel || !checkIn || !checkOut || checkIn >= checkOut || !bookingId;
+    if (!broken) continue;
+    const code = canonical && roomLabel ? (cleaningRoomCode(canonical, getCanonicalRoomLabel(canonical, roomLabel)) ?? canonical) : roomLabel || propertyName;
+    issues.push({ bookingId, code });
+  }
+  return issues;
 }
 
 /** 방 코드가 없는(오쿠보) 줄은 건물 이름을 코드 자리에 넣는다 — 언어마다 다르므로 메시지를 만들 때 채운다. */

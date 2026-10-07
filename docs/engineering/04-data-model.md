@@ -2026,6 +2026,7 @@ pg_cron 잡 `beds24-tick` (`* * * * *`) → `select public.beds24_tick_if_needed
 | `automation_runs` | 받는 곳 × 언어 × 실행 한 번 | `trigger`(scheduled/retry/manual/event/correction/resend) · `status`(sent/skipped/failed) · `reason` · `message` · `meta jsonb`(숫자 4개 · 이름 · 정정 지문) · `dedupe_key`(유일, 부분 인덱스) |
 | `automation_setting_logs` | 설정 변경 한 번 | `changes jsonb` {필드: {before, after}} · `actor_id` |
 | `cleaning_list_assignees` | 날짜 × 운영 객실 키 | `names`(1~120자) — 청소 명단 담당자 수기 입력(Hotelsmart 수집 안 함) |
+| `cleaning_list_extra_rooms` (2026-10-07, `202610070001`) | 날짜(`target_date`) × 물리 객실 키 | `property_name` · `room_label` · `note`(1~60자, 선택) · `created_by` — 청소 명단에 사람이 직접 더한 청소 방(퇴실 없는 연박 청소 등, Hotelsmart 대신) |
 
 - `reservations (organization_id, updated_at)` 인덱스 추가 — 이벤트형 자동화가 매 분 커서 뒤 변경을 본다.
 - 함수 `automation_tick_if_needed()` · `automation_tick_token_ok()`, pg_cron `automation-tick`.

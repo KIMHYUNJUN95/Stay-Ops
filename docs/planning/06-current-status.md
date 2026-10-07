@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-07 — 청소 명단 저쪽 설계 맞춤
+
+- 담당자 탭 「청소 방 추가」(퇴실 없어도 청소할 방 — Hotelsmart 대신, 새 표 `cleaning_list_extra_rooms` 운영 적용). 정정본은 이름만 바뀐 건 제외 ·
+  바뀐 명단을 한 확인 간격 모아 한 통 · 하루 8번. 필수 정보가 빠진 오늘 예약은 명단을 막지 않고 끝에 경고 + 실패 알림. (`36`)
+
 ## 2026-10-07 — 자동화 디버깅
 
 - 정시 발송 재시도가 실패 줄의 중복 방지 키에 막혀 「완료」로 끝나던 것, 이벤트 알림 실패분이 다시 안 가던 것, 몰아 저장 시 같은 수정 시각 줄이 300개를 넘으면

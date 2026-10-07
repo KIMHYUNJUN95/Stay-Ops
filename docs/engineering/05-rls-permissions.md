@@ -1382,7 +1382,7 @@ service-role 로 읽으므로 **조직을 쿼리에 직접 건다**(`organizatio
 
 마이그레이션 `202610060003_automation_control.sql`(운영 적용).
 
-- `automation_jobs` · `automation_destinations` · `automation_runs` · `automation_setting_logs` · `cleaning_list_assignees`:
+- `automation_jobs` · `automation_destinations` · `automation_runs` · `automation_setting_logs` · `cleaning_list_assignees` · `cleaning_list_extra_rooms`(2026-10-07):
   SELECT 정책 `ops admins can read` — `organization_id = any ((select public.capability_organization_ids('ops_admin.access'))::uuid[])`.
   INSERT/UPDATE/DELETE 정책 없음 — 쓰기는 서버 액션(service-role)이 **`automation.manage` 와 조직을 다시 확인한 뒤**만 한다
   (`src/app/admin/ops/automation/actions.ts`). 틱 라우트도 service-role.

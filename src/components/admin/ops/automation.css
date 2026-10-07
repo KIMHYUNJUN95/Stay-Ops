@@ -197,6 +197,14 @@
 .adm .atm__nin { width: 150px; max-width: 45%; height: 28px; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 0 9px; font: inherit; font-size: 12px; color: var(--ink); outline: 0; }
 .adm .atm__nin:focus { border-color: var(--adm-primary); box-shadow: 0 0 0 3px var(--primary-soft); }
 .adm .atm__nin:disabled { background: var(--surface2); }
+/* 청소 방 직접 추가 — 직접 넣은 방 줄의 ✕, 청소 칸 아래 추가 줄. */
+.adm .atm__xbtn { width: 26px; height: 26px; flex: 0 0 26px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--adm-muted); cursor: pointer; }
+.adm .atm__xbtn:hover:not(:disabled) { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 35%, var(--line)); }
+.adm .atm__xbtn svg { width: 14px; height: 14px; }
+.adm .atm__addroom { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 12px; background: var(--card); }
+.adm .atm__addt { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800; color: var(--ink-soft); }
+.adm .atm__addt svg { width: 14px; height: 14px; }
+.adm .atm__addroom .atm__nin { max-width: 200px; }
 
 .adm .atm__scrim { position: fixed; inset: 0; background: hsl(222 30% 8% / 0.42); display: flex; align-items: center; justify-content: center; z-index: 60; padding: 16px; }
 .adm .atm__modal { width: min(440px, 100%); border-radius: 18px; background: var(--card); padding: 22px 22px 18px; box-shadow: var(--sh-pop); display: flex; flex-direction: column; gap: 12px; }

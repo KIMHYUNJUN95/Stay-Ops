@@ -2244,6 +2244,47 @@ export type Database = {
           },
         ]
       }
+      cleaning_list_extra_rooms: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          note: string | null
+          organization_id: string
+          property_name: string
+          room_key: string
+          room_label: string
+          target_date: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          note?: string | null
+          organization_id: string
+          property_name: string
+          room_key: string
+          room_label: string
+          target_date: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          note?: string | null
+          organization_id?: string
+          property_name?: string
+          room_key?: string
+          room_label?: string
+          target_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cleaning_list_extra_rooms_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cleaning_sessions: {
         Row: {
           cleaning_date: string

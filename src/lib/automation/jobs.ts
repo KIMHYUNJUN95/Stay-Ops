@@ -66,6 +66,7 @@ export type AutomationSettings = {
 };
 
 export const DEFAULT_RESEND: ResendSettings = { debounceMinutes: 10, enabled: true, maxPerDay: 3, until: "18:00" };
+export const CLEANING_CORRECTION_MAX_PER_DAY = 8;
 
 export function defaultSettings(): AutomationSettings {
   return { channels: ["airbnb", "booking"], excludedProperties: [], resend: { ...DEFAULT_RESEND } };
@@ -88,7 +89,12 @@ export function defaultJobConfig(jobKey: AutomationJobKey): AutomationJobConfig 
     jobKey,
     retryUntil: "09:00",
     sendTime: "06:30",
-    settings: defaultSettings(),
+    // 청소 명단 정정본은 바뀐 것을 묶어 보내므로(확인 간격 동안 그대로면 한 통) 하루 상한은 폭주 방지용으로 넉넉히 —
+    // 3번이면 4번째 진짜 변경이 안 나간다(2026-10-07 결정).
+    settings:
+      jobKey === "cleaning_list"
+        ? { ...defaultSettings(), resend: { ...DEFAULT_RESEND, maxPerDay: CLEANING_CORRECTION_MAX_PER_DAY } }
+        : defaultSettings(),
     weekdays: [1, 2, 3, 4, 5, 6, 7],
   };
 }

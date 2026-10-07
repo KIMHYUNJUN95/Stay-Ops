@@ -7,6 +7,7 @@ import { listAutomationChannels } from "@/lib/automation/channels";
 import {
   AUTOMATION_BUILDING_ORDER,
   loadAssignees,
+  loadCleaningRoomOptions,
   loadCleaningListModel,
   loadDestinations,
   loadJobs,
@@ -103,18 +104,23 @@ export type AssigneeRoomView = {
   code: string;
   label: string;
   section: "cleaning" | "setting";
-  kind: "turnover" | "no_checkin" | "setting";
+  kind: "turnover" | "no_checkin" | "setting" | "extra";
   guestName: string | null;
   pax: number | null;
+  /** 직접 더한 방(`extra`)의 메모. */
+  note: string | null;
   names: string;
   /** 그날 마지막으로 보낸 명단에 들어간 이름(발송 뒤 바뀜 표시). 보낸 적 없으면 null. */
   sentNames: string | null;
 };
 
+/** 「청소 방 추가」에서 고를 방 — 건물 묶음(Slack 명단 순서 · 제목). */
+export type CleaningRoomOptionGroup = { propertyName: string; label: string; rooms: Array<{ roomKey: string; code: string }> };
+
 export async function loadAssigneeBoard(
   date: string,
   locale: string,
-): Promise<{ ok: true; rooms: AssigneeRoomView[]; sent: boolean } | Fail> {
+): Promise<{ ok: true; rooms: AssigneeRoomView[]; sent: boolean; roomOptions: CleaningRoomOptionGroup[] } | Fail> {
   const session = await viewer();
   if (!session) return { error: "forbidden", ok: false };
   if (!isYmd(date) || !isAutomationLocale(locale)) return { error: "invalid", ok: false };
@@ -122,7 +128,7 @@ export async function loadAssigneeBoard(
   const organizationId = session.organization.id;
   try {
     const jobs = await loadJobs(supabase, organizationId);
-    const [model, names, labeler, lastSent] = await Promise.all([
+    const [model, names, labeler, lastSent, options] = await Promise.all([
       loadCleaningListModel(supabase, organizationId, date, jobs.cleaning_list.settings.excludedProperties),
       loadAssignees(supabase, organizationId, date),
       loadPropertyLabeler(supabase, organizationId),
@@ -136,6 +142,7 @@ export async function loadAssigneeBoard(
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
+      loadCleaningRoomOptions(supabase, organizationId),
     ]);
     const label = (name: string) => labeler(name, locale);
     // 건물 제목 · 순서는 Slack 청소 명단과 같게(「오쿠보A (B동)」, 다카다노바바 → 오쿠보 → 스테이아리).
@@ -164,13 +171,25 @@ export async function loadAssigneeBoard(
         kind: room.kind,
         label: headerLabel(room.propertyName),
         names: names.get(room.roomKey) ?? "",
+        note: room.note ?? null,
         pax: room.pax,
         propertyName: room.propertyName,
         roomKey: room.roomKey,
         section: room.section,
         sentNames: sentNames ? (sentNames[room.roomKey] ?? "") : null,
       }));
-    return { ok: true, rooms, sent: !!sentNames };
+    const excludedBuildings = new Set(jobs.cleaning_list.settings.excludedProperties);
+    const groups = new Map<string, CleaningRoomOptionGroup>();
+    for (const option of options) {
+      if (!AUTOMATION_BUILDING_ORDER.includes(option.propertyName) || excludedBuildings.has(option.propertyName)) continue;
+      const group = groups.get(option.propertyName) ?? { label: headerLabel(option.propertyName), propertyName: option.propertyName, rooms: [] };
+      group.rooms.push({ code: option.code || label(option.propertyName), roomKey: option.roomKey });
+      groups.set(option.propertyName, group);
+    }
+    const roomOptions = [...groups.values()]
+      .sort((a, b) => orderOf(a.propertyName) - orderOf(b.propertyName))
+      .map((group) => ({ ...group, rooms: group.rooms.sort((a, b) => a.code.localeCompare(b.code, "ko", { numeric: true })) }));
+    return { ok: true, roomOptions, rooms, sent: !!sentNames };
   } catch (error) {
     console.error("[automation] assignee board failed", error instanceof Error ? error.message : error);
     return { error: "save_failed", ok: false };
@@ -361,6 +380,59 @@ export async function sendAutomationNow(input: {
     console.error("[automation] send now failed", error instanceof Error ? error.message : error);
     return { error: "save_failed", ok: false };
   }
+}
+
+/**
+ * 청소 명단에 방을 직접 더한다(연박 청소 등 — Hotelsmart 대신). 고를 수 있는 방은 활성 객실 카탈로그에 있는 것만 —
+ * 화면이 보낸 키를 그대로 믿지 않고 서버가 다시 찾는다.
+ */
+export async function addCleaningExtraRoom(input: { date: string; roomKey: string; note?: string }): Promise<{ ok: true } | Fail> {
+  const session = await manager();
+  if (!session) return { error: "forbidden", ok: false };
+  const note = String(input.note ?? "").trim().slice(0, 60);
+  if (!isYmd(input.date)) return { error: "invalid", ok: false };
+  const supabase = getSupabaseServiceClient();
+  const organizationId = session.organization.id;
+  const option = (await loadCleaningRoomOptions(supabase, organizationId)).find((item) => item.roomKey === input.roomKey);
+  if (!option) return { error: "invalid", ok: false };
+  const result = await supabase.from("cleaning_list_extra_rooms").upsert(
+    {
+      created_by: session.user.id,
+      note: note || null,
+      organization_id: organizationId,
+      property_name: option.propertyName,
+      room_key: option.roomKey,
+      room_label: option.roomLabel,
+      target_date: input.date,
+    },
+    { onConflict: "organization_id,target_date,room_key" },
+  );
+  if (result.error) {
+    console.error("[automation] extra room add failed", { code: result.error.code });
+    return { error: "save_failed", ok: false };
+  }
+  await writeLog(organizationId, "cleaning_list", session.user.id, { [`extra:${input.date}:${option.roomKey}`]: { after: note || "+", before: null } });
+  return { ok: true };
+}
+
+export async function removeCleaningExtraRoom(input: { date: string; roomKey: string }): Promise<{ ok: true } | Fail> {
+  const session = await manager();
+  if (!session) return { error: "forbidden", ok: false };
+  const roomKey = String(input.roomKey ?? "").trim();
+  if (!isYmd(input.date) || roomKey.length === 0 || roomKey.length > 80) return { error: "invalid", ok: false };
+  const organizationId = session.organization.id;
+  const result = await getSupabaseServiceClient()
+    .from("cleaning_list_extra_rooms")
+    .delete()
+    .eq("organization_id", organizationId)
+    .eq("target_date", input.date)
+    .eq("room_key", roomKey);
+  if (result.error) {
+    console.error("[automation] extra room remove failed", { code: result.error.code });
+    return { error: "save_failed", ok: false };
+  }
+  await writeLog(organizationId, "cleaning_list", session.user.id, { [`extra:${input.date}:${roomKey}`]: { after: null, before: "+" } });
+  return { ok: true };
 }
 
 export async function saveCleaningAssignee(input: {

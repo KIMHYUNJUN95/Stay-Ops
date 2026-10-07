@@ -194,6 +194,46 @@ describe("청소 · 셋팅 명단", () => {
     expect(text).toContain("*셋팅해야 하는 객실*");
   });
 
+  // 2026-10-07 — 「청소 방 직접 추가」 · 데이터 경고 · 정정본은 현장 일이 바뀔 때만.
+  it("직접 더한 방은 청소 칸에 메모(없으면 「추가 청소」)로, 정보가 빠진 예약은 끝에 경고로", () => {
+    const text = buildCleaningListMessage({
+      buildingOrder: AUTOMATION_BUILDING_ORDER,
+      copy: dictionaries.ko.automationMessages,
+      model: {
+        ...model,
+        cleaning: [
+          ...model.cleaning,
+          { code: "203", guestName: null, kind: "extra", note: "연박 청소", pax: null, propertyName: "STAY ARI Apartment Hotel", roomKey: "STAY ARI Apartment Hotel_203" },
+          { code: "205", guestName: null, kind: "extra", note: null, pax: null, propertyName: "STAY ARI Apartment Hotel", roomKey: "STAY ARI Apartment Hotel_205" },
+        ],
+        dataIssues: [{ bookingId: "94292271", code: "AA302" }],
+      },
+      names: new Map([["STAY ARI Apartment Hotel_203", "김민지"]]),
+      propertyLabel: (n) => n,
+    });
+    expect(text).toContain("*203* | 연박 청소 | 김민지");
+    expect(text).toContain("*205* | 추가 청소");
+    expect(text.trim().split("\n").pop()).toBe("⚠️ 확인 필요: 정보가 빠진 예약 1건 — AA302(94292271)");
+    expect(text.indexOf("*203*")).toBeLessThan(text.indexOf("셋팅해야 하는 객실"));
+  });
+
+  it("정정본 지문 — 게스트 이름만 바뀌면 같고, 인원 · 추가 방이 바뀌면 다르다", () => {
+    const renamed = { ...model, cleaning: model.cleaning.map((room) => ({ ...room, guestName: room.guestName ? `${room.guestName}!` : null })) };
+    expect(cleaningStructureKey(renamed)).toBe(cleaningStructureKey(model));
+    const paxChanged = { ...model, setting: model.setting.map((room) => ({ ...room, pax: 5 })) };
+    expect(cleaningStructureKey(paxChanged)).not.toBe(cleaningStructureKey(model));
+    const withExtra = {
+      ...model,
+      cleaning: [...model.cleaning, { code: "203", guestName: null, kind: "extra" as const, note: null, pax: null, propertyName: "STAY ARI Apartment Hotel", roomKey: "x_203" }],
+    };
+    expect(cleaningStructureKey(withExtra)).not.toBe(cleaningStructureKey(model));
+  });
+
+  it("청소 명단 정정본 하루 상한 기본값은 8(묶어 보내므로 폭주 방지용)", () => {
+    expect(defaultJobConfig("cleaning_list").settings.resend.maxPerDay).toBe(8);
+    expect(defaultJobConfig("daily_report").settings.resend.maxPerDay).toBe(3);
+  });
+
   it("정정본 판단 지문은 이름을 보지 않는다", () => {
     expect(cleaningStructureKey(model)).toBe(cleaningStructureKey({ ...model }));
     const changed = { ...model, setting: [] };

@@ -368,7 +368,7 @@ async function buildCleaning(
   return {
     built: {
       byLocale,
-      meta: { names: Object.fromEntries(names), structureKey: hashOf(cleaningStructureKey(model)) },
+      meta: { dataIssues: model.dataIssues ?? [], names: Object.fromEntries(names), structureKey: hashOf(cleaningStructureKey(model)) },
       targetDate,
     },
     model,
@@ -576,6 +576,14 @@ async function runScheduledJob(supabase: Client, organizationId: string, job: St
       ? (await buildDaily(supabase, organizationId, job, targetDate, locales, null)).built
       : (await buildCleaning(supabase, organizationId, job, targetDate, locales, false)).built;
   const result = await sendBuilt(supabase, organizationId, jobKey, destinations, built, { dedupeSuffix: "scheduled", trigger });
+  // 청소 명단 — 필수 정보가 빠진 예약이 있으면 명단 끝 경고와 별도로 관리자에게도 알린다(정시 발송 한 번만).
+  const issues = (built.meta.dataIssues as Array<{ code: string; bookingId: string }> | undefined) ?? [];
+  if (jobKey === "cleaning_list" && issues.length > 0 && result.sent > 0) {
+    await notifyAutomationFailure(supabase, organizationId, {
+      lines: [`date=${targetDate}`, ...issues.slice(0, 10).map((item) => `${item.code || "?"} · ${item.bookingId || "?"}`)],
+      title: `cleaning_list data_issue (${issues.length})`,
+    });
+  }
 
   const done = result.failed === 0 || isPastRetryDeadline(job, now);
   if (result.failed > 0) {
@@ -631,12 +639,39 @@ async function recheckJob(supabase: Client, organizationId: string, job: StoredJ
   }
 
   const { built } = await buildCleaning(supabase, organizationId, job, targetDate, locales, true);
-  if (built.meta.structureKey === last.meta.structureKey) {
+  const structureKey = String(built.meta.structureKey);
+  if (structureKey === last.meta.structureKey) {
     await next();
     return "unchanged";
   }
+  // 묶어 보내기 — 바뀐 명단이 **한 번 더 확인할 때까지(확인 간격) 그대로면** 보낸다. 예약이 연달아 바뀌는 동안
+  // 정정본을 여러 통 보내지 않고 한 통으로 모은다(2026-10-07 결정 — 하루 횟수 상한 대신).
+  const pending = await supabase
+    .from("automation_runs")
+    .select("meta")
+    .eq("organization_id", organizationId)
+    .eq("job_key", jobKey)
+    .eq("target_date", targetDate)
+    .eq("status", "skipped")
+    .eq("reason", "correction_pending")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const pendingKey = (pending.data?.meta as { structureKey?: string } | null)?.structureKey ?? null;
+  if (pendingKey !== structureKey) {
+    await recordSkip(supabase, organizationId, jobKey, {
+      // 중복 방지 키 없음 — A → B → A 로 되돌아가도 A 를 다시 「대기」로 적어야 한다.
+      dedupeKey: null,
+      meta: { structureKey },
+      reason: "correction_pending",
+      targetDate,
+      trigger: "correction",
+    });
+    await next();
+    return "correction_pending";
+  }
   await sendBuilt(supabase, organizationId, jobKey, destinations, built, {
-    dedupeSuffix: `correction:${String(built.meta.structureKey).slice(0, 12)}`,
+    dedupeSuffix: `correction:${structureKey.slice(0, 12)}`,
     trigger: "correction",
   });
   await next();

@@ -330,16 +330,29 @@ export type CleaningListRoom = {
   propertyName: string;
   /** 방 표시 코드(AA201 · K302 · T4 …). */
   code: string;
-  kind: "turnover" | "no_checkin" | "setting";
+  /** `extra` = 사람이 담당자 탭에서 직접 더한 청소 방(Hotelsmart 대신 — 연박 청소 등). */
+  kind: "turnover" | "no_checkin" | "setting" | "extra";
   guestName: string | null;
   pax: number | null;
+  /** `extra` 의 메모(「연박 청소」). 없으면 「추가 청소」. */
+  note?: string | null;
 };
 
-export type CleaningListModel = { targetDate: string; cleaning: CleaningListRoom[]; setting: CleaningListRoom[] };
+/** 오늘 청소 · 셋팅에 걸리는 예약 중 필수 정보(건물 · 객실 · 날짜 · 예약 번호)가 빠진 것 — 명단 끝에 경고로 붙는다. */
+export type CleaningDataIssue = { code: string; bookingId: string };
+
+export type CleaningListModel = {
+  targetDate: string;
+  cleaning: CleaningListRoom[];
+  setting: CleaningListRoom[];
+  dataIssues?: CleaningDataIssue[];
+};
 
 function roomLine(copy: MessageCopy, room: CleaningListRoom, names: ReadonlyMap<string, string>): string {
   const label =
-    room.kind === "no_checkin"
+    room.kind === "extra"
+      ? room.note?.trim() || copy.cleaning.extraDefault
+      : room.kind === "no_checkin"
       ? room.pax !== null
         ? `${copy.cleaning.noCheckIn} (${room.pax})`
         : copy.cleaning.noCheckIn
@@ -396,12 +409,24 @@ export function buildCleaningListMessage(input: {
   lines.push(...(cleaning.length > 0 ? cleaning : [copy.cleaning.none]));
   lines.push("", "*------------------------------------------------*", "", copy.cleaning.settingTitle, "");
   lines.push(...(setting.length > 0 ? setting : [copy.cleaning.none]));
+  // 필수 정보가 빠진 예약 — 명단은 막지 않고 끝에 경고(2026-10-07 결정: 아침 명단이 통째로 안 나가는 쪽이 더 위험).
+  const issues = model.dataIssues ?? [];
+  if (issues.length > 0) {
+    const MAX = 8;
+    const list = issues.slice(0, MAX).map((item) => `${item.code || "?"}(${item.bookingId || "?"})`);
+    if (issues.length > MAX) list.push(fill(copy.cleaning.dataIssueMore, { n: issues.length - MAX }));
+    lines.push("", fill(copy.cleaning.dataIssue, { list: list.join(" · "), n: issues.length }));
+  }
   return lines.join("\n");
 }
 
-/** 정정본 판단용 — **이름을 뺀** 명단의 지문. 이름 수정은 정정본을 자동으로 만들지 않는다(「정정본 보내기」 버튼). */
+/**
+ * 정정본 판단용 명단 지문 — **현장 일이 바뀌는 것만** 본다: 방 · 청소/셋팅/체크인 X 구분 · 인원(셋팅 비품 수) · 추가 방 메모.
+ * 게스트 이름(철자 수정 등)과 담당자 이름은 넣지 않는다 — 이름 수정은 정정본을 자동으로 만들지 않는다(2026-10-07 결정,
+ * 담당자 이름은 「정정본 보내기」 버튼).
+ */
 export function cleaningStructureKey(model: CleaningListModel): string {
-  const line = (room: CleaningListRoom) => `${room.roomKey}|${room.kind}|${room.guestName ?? ""}|${room.pax ?? ""}`;
+  const line = (room: CleaningListRoom) => `${room.roomKey}|${room.kind}|${room.pax ?? ""}|${room.note ?? ""}`;
   return [model.targetDate, ...model.cleaning.map(line).sort(), "#", ...model.setting.map(line).sort()].join("\n");
 }
 
