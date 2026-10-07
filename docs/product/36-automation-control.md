@@ -485,6 +485,8 @@ Slack 에 남은 저쪽 **마지막 자동 발송**(일일 9/27 · 9/28, 청소 
 | 알림 링크 | 둔다 — 아래 예약 바로가기 |
 | 실패 알림 | `[자동화 알림]`(지금대로) |
 
+- 관제실 미리보기의 보내는 사람 = 실제 Slack 과 같게 **우리 앱 아이콘 + 「StayOps Automation」**(Slack 앱 이름). 예전 「S」 글자 아바타는 뺐다.
+  실제 Slack 아이콘은 Slack 앱 Basic Information → Display Information 에서 `public/icons/icon-512.png` 를 올린다(사용자).
 - 건물 이름 덮어쓰기는 사전 `automationMessages.buildings.{cleaning,daily}`(오쿠보 · 사노만), 나머지는 건물 정보 · 공용 이름.
   코드: `automationBuildingLabel` · `alertPlatformLabel`(`messages.ts`), `AUTOMATION_BUILDING_ORDER` · `cleaningRoomCode`(`data.ts`).
   회귀 테스트: `src/lib/__tests__/automation.test.ts` 「메시지 표시 형식」.

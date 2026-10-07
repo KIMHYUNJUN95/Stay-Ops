@@ -103,7 +103,8 @@
 .adm .atm__cols { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 16px; align-items: start; }
 .adm .atm__slack { border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 16px 18px; box-shadow: var(--sh-card); min-width: 0; }
 .adm .atm__sh { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
-.adm .atm__av { width: 34px; height: 34px; border-radius: 8px; background: var(--adm-primary); color: #fff; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+/* 보내는 사람 = Slack 앱 「StayOps Automation」 — 우리 앱 아이콘(사이드바 `side__mark` 와 같은 그림). */
+.adm .atm__av { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 8px; background: url("/icons/icon-192.png") center / cover no-repeat; }
 .adm .atm__sn { font-size: 13px; font-weight: 800; }
 .adm .atm__stag { font-size: 9.5px; font-weight: 800; color: var(--adm-muted); background: var(--surface2); border-radius: 4px; padding: 1px 5px; }
 .adm .atm__msg { display: flex; flex-direction: column; font-size: 12.8px; line-height: 1.62; color: hsl(222 24% 20%); padding-left: 43px; min-width: 0; }
