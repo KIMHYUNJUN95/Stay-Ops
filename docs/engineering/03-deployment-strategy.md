@@ -188,6 +188,9 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
 - 네이티브 설정 · 플러그인을 바꾸면 1번을 다시 돌린다. 웹 화면만 바뀐 것은 다시 빌드할 필요 없다(앱이 배포된 웹을 띄운다).
 - Windows Defender 가 Gradle 을 느리게 하면 Android Studio 알림의 「Exclude folders」로 `C:\dev\stayops-android` 를 제외한다.
 - **iOS**: Mac 이 없으므로 Apple Developer 가입 후 클라우드 빌드(Codemagic · GitHub Actions macOS 러너 등)로 TestFlight 에 올린다(계획 B1-3).
+  그 전까지는 `.github/workflows/ios-build-check.yml` 이 `ios/**` · `capacitor.config.ts` · `package*.json` 변경 때(또는 Actions 에서 수동 실행)
+  서명 없이 시뮬레이터용으로 빌드해 Xcode 프로젝트가 깨지지 않았는지, 앱 묶음에 `*.lproj/InfoPlist.strings` · `PrivacyInfo.xcprivacy` 가
+  들어갔는지 확인한다.
 
 ### 아이콘 · 스플래시
 
