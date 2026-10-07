@@ -338,6 +338,8 @@ export async function setAutomationEnabled(jobKey: string, enabled: boolean): Pr
       enabled,
       // 이벤트형은 켠 순간부터 본다 — 켜기 전에 바뀐 예약으로 알림이 몰려 가지 않게.
       ...(AUTOMATION_JOB_KIND[jobKey] === "event" && enabled ? { event_cursor: now.toISOString() } : {}),
+      // 꺼짐 → 켜짐일 때만 켠 시각을 새로 적는다 — 취소 · 당일예약 알림은 이 뒤에 생긴 일만 보낸다.
+      ...(enabled && !current.enabled ? { enabled_at: now.toISOString() } : {}),
       job_key: jobKey,
       next_wake_at: nextWake?.toISOString() ?? null,
       organization_id: organizationId,

@@ -33,7 +33,7 @@ import {
   dailySnapshotOf,
   fill,
   isFreshCancellation,
-  isSameDayBooking,
+  isSameDayBookingSince,
   sameSnapshot,
   type CleaningListModel,
   type DailySnapshot,
@@ -68,7 +68,6 @@ type Client = SupabaseClient<Database>;
 
 const TICK_LOCK = "automation_tick";
 const TICK_LOCK_TTL_MS = 60_000;
-const EVENT_SCAN_LIMIT = 300;
 const CANCEL_FRESH_MS = 24 * 60 * 60 * 1000;
 
 export type RunTrigger = "scheduled" | "retry" | "manual" | "event" | "correction" | "resend";
@@ -721,58 +720,51 @@ export async function sendJobNow(
 // ── 이벤트형: 취소 · 당일예약 ──────────────────────────────────────────────
 
 /**
- * 커서 뒤에 바뀐 예약을 훑어 보낸다. 웹훅 처리 코드를 건드리지 않는다 — 웹훅이든 정합성이든 예약 표가 바뀌면
- * 1분 안에 여기서 잡히고, `dedupe_key`(예약 × 받는 곳 × 언어)가 두 번 가는 것을 막는다.
+ * 커서 뒤에 바뀐 예약 중 **알림이 될 수 있는 것만** 골라 보낸다(2026-10-07 — 실시간이 제일 중요).
+ *
+ * - 웹훅 처리 코드는 건드리지 않는다 — 웹훅이든 정합성이든 예약 표가 바뀌면 1분 안에 여기서 잡힌다.
+ * - **DB 에서 미리 거른다**(취소 = `cancelled`, 당일예약 = 오늘 입실 · 취소 아님). 예전에는 바뀐 예약을 전부 300건씩 훑어서,
+ *   2026-10-07 11:30 경 예약 약 12,800건이 한꺼번에 다시 저장되자 그것을 다 훑는 15분 동안 그 사이 진짜 취소도 늦게 나갔다.
+ * - **켠 시각 이후에 생긴 일만**(`enabledAt`): 취소 시각 · 예약 시각이 켠 뒤인 것. 켜기 전 일은 사람이 이미 손으로 알렸고,
+ *   같은 일괄 저장으로 켜기 전 24시간 안의 취소 8건 · 당일예약 1건이 늦게 나간 적이 있다.
+ * - 커서는 「지금 − 5분」까지만 민다 — 오래 걸리는 일괄 저장은 수정 시각이 저장 시작 시각이라 커밋이 늦게 보인다. 겹쳐 다시 본
+ *   예약은 `dedupe_key`(예약 × 받는 곳 × 언어)가 두 번 보내지 않게 막는다.
  */
+const EVENT_CURSOR_OVERLAP_MS = 5 * 60 * 1000;
+
 async function scanEventJob(supabase: Client, organizationId: string, job: StoredJob, now: Date): Promise<string> {
   const jobKey = job.jobKey;
   const retried = await retryFailedEventDeliveries(supabase, organizationId, jobKey, now);
   const cursor = job.eventCursor ?? now.toISOString();
-  const changed = await supabase
-    .from("reservations")
-    .select(AUTOMATION_RESERVATION_SELECT)
-    .eq("organization_id", organizationId)
-    .gt("updated_at", cursor)
-    .order("updated_at", { ascending: true })
-    .order("id", { ascending: true })
-    .limit(EVENT_SCAN_LIMIT);
-  if (changed.error) {
-    console.error("[automation] event scan failed", { code: changed.error.code, job: jobKey });
+  const today = tokyoClock(now).date;
+  const scanned = await readAllPages<Record<string, unknown>>((from, to) => {
+    let query = supabase
+      .from("reservations")
+      .select(AUTOMATION_RESERVATION_SELECT)
+      .eq("organization_id", organizationId)
+      .gt("updated_at", cursor)
+      .lte("updated_at", now.toISOString());
+    query = jobKey === "cancel_alert" ? query.eq("status", "cancelled") : query.neq("status", "cancelled").eq("check_in_date", today);
+    return query
+      .order("updated_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to) as unknown as PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>;
+  });
+  if (scanned.error) {
+    console.error("[automation] event scan failed", { job: jobKey, message: scanned.error.message });
     return "scan_failed";
   }
-  const rows = ((changed.data ?? []) as unknown as Record<string, unknown>[]).map(toAutomationReservation);
-  // 한 번에 몰아 저장하면 수정 시각이 **똑같은 줄이 수백 개** 생긴다(2026-10-01 실측 486개). 꽉 찬 페이지의 마지막 시각에
-  // 걸친 줄을 300개에서 자르고 커서를 그 시각으로 옮기면 나머지를 영영 건너뛴다(`gt`) — 그 시각의 줄은 **전부** 마저 읽는다.
-  // 이미 본 줄을 다시 봐도 `dedupe_key` 가 두 번 보내는 것을 막는다.
-  if (rows.length === EVENT_SCAN_LIMIT) {
-    const lastAt = rows[rows.length - 1].updatedAt;
-    const seen = new Set(rows.map((row) => row.id));
-    const tail = await readAllPages<Record<string, unknown>>((from, to) =>
-      supabase
-        .from("reservations")
-        .select(AUTOMATION_RESERVATION_SELECT)
-        .eq("organization_id", organizationId)
-        .eq("updated_at", lastAt)
-        .order("id", { ascending: true })
-        .range(from, to) as unknown as PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>,
-    );
-    if (tail.error) {
-      console.error("[automation] event scan tail failed", { job: jobKey, message: tail.error.message });
-      return "scan_failed";
-    }
-    for (const row of tail.data.map(toAutomationReservation)) if (!seen.has(row.id)) rows.push(row);
-  }
-  if (rows.length === 0) {
-    if (!job.eventCursor) await updateJobState(supabase, organizationId, jobKey, { event_cursor: cursor });
-    return retried > 0 ? `idle:retried:${retried}` : "idle";
-  }
+  const rows = scanned.data.map(toAutomationReservation);
+  const overlapCursor = new Date(now.getTime() - EVENT_CURSOR_OVERLAP_MS).toISOString();
+  const nextCursor = Date.parse(overlapCursor) > Date.parse(cursor) ? overlapCursor : cursor;
 
-  const today = tokyoClock(now).date;
   const excluded = new Set(job.settings.excludedProperties);
-  const freshSince = new Date(now.getTime() - CANCEL_FRESH_MS).toISOString();
+  const freshFloor = now.getTime() - CANCEL_FRESH_MS;
+  const enabledMs = job.enabledAt ? Date.parse(job.enabledAt) : Number.NaN;
+  const cancelSince = new Date(Number.isFinite(enabledMs) ? Math.max(enabledMs, freshFloor) : freshFloor).toISOString();
   const matches = rows.filter((row) => {
     if (excluded.has(getCanonicalPropertyName(row.propertyName))) return false;
-    return jobKey === "cancel_alert" ? isFreshCancellation(row, freshSince) : isSameDayBooking(row, today);
+    return jobKey === "cancel_alert" ? isFreshCancellation(row, cancelSince) : isSameDayBookingSince(row, today, job.enabledAt);
   });
 
   if (matches.length > 0) {
@@ -805,7 +797,8 @@ async function scanEventJob(supabase: Client, organizationId: string, job: Store
     }
   }
 
-  await updateJobState(supabase, organizationId, jobKey, { event_cursor: rows[rows.length - 1].updatedAt });
+  if (nextCursor !== job.eventCursor) await updateJobState(supabase, organizationId, jobKey, { event_cursor: nextCursor });
+  if (rows.length === 0) return retried > 0 ? `idle:retried:${retried}` : "idle";
   return `scanned:${rows.length}:${matches.length}${retried > 0 ? `:retried:${retried}` : ""}`;
 }
 

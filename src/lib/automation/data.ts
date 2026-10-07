@@ -50,6 +50,8 @@ export type StoredJob = AutomationJobConfig & {
   nextWakeAt: string | null;
   lastDoneOn: string | null;
   eventCursor: string | null;
+  /** 마지막으로 켠 시각 — 취소 · 당일예약 알림은 이 뒤에 생긴 일만 보낸다. */
+  enabledAt: string | null;
   updatedAt: string | null;
 };
 
@@ -60,6 +62,7 @@ export function toStoredJob(row: JobRow): StoredJob {
   const base = defaultJobConfig(jobKey);
   return {
     enabled: row.enabled,
+    enabledAt: row.enabled_at,
     eventCursor: row.event_cursor,
     jobKey,
     lastDoneOn: row.last_done_on,
@@ -79,7 +82,7 @@ export async function loadJobs(supabase: Client, organizationId: string): Promis
   const out = Object.fromEntries(
     AUTOMATION_JOB_KEYS.map((key) => [
       key,
-      { ...defaultJobConfig(key), eventCursor: null, lastDoneOn: null, nextWakeAt: null, stored: false, updatedAt: null },
+      { ...defaultJobConfig(key), enabledAt: null, eventCursor: null, lastDoneOn: null, nextWakeAt: null, stored: false, updatedAt: null },
     ]),
   ) as Record<AutomationJobKey, StoredJob>;
   for (const row of result.data ?? []) {

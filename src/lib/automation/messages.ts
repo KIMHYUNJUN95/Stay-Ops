@@ -22,6 +22,7 @@ import type { AutomationLocale, DailyReportChannel } from "@/lib/automation/jobs
 import {
   bookDateOf,
   bookingIdOf,
+  bookingInstantOf,
   cancelInstantOf,
   exactReferer,
   guestCountsOf,
@@ -489,6 +490,14 @@ export function isSameDayBooking(reservation: AutomationReservation, today: stri
   if (reservation.checkIn !== today) return false;
   if (bookDateOf(reservation.raw) !== today) return false;
   return legacyReservationAmount(reservation.raw) > 0;
+}
+
+/** 당일예약 알림 대상인가 + **켠 뒤에 들어온 예약**인가. 예약 시각을 모르면 켠 뒤 것으로 볼 수 없으니 보내지 않는다. */
+export function isSameDayBookingSince(reservation: AutomationReservation, today: string, sinceIso: string | null): boolean {
+  if (!isSameDayBooking(reservation, today)) return false;
+  if (!sinceIso) return true;
+  const booked = bookingInstantOf(reservation.raw);
+  return booked !== null && Date.parse(booked) >= Date.parse(sinceIso);
 }
 
 /** 취소 알림 대상인가 — 취소 상태이고 취소 시각이 `since` 이후(켜기 전 취소는 보내지 않는다). */

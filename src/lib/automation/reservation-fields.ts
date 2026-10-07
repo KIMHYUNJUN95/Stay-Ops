@@ -51,6 +51,15 @@ export function bookDateOf(raw: RawPayload): string | null {
 }
 
 /** 취소 시각(원문 ISO). 원본에 cancelTime 이 없으면 마지막 수정 시각을 쓴다 — 취소된 예약일 때만. */
+/** 예약이 들어온 순간(ISO) — Beds24 `bookingTime`(없으면 `bookTime` · `entryTime`). 날짜만 있으면 null. */
+export function bookingInstantOf(raw: RawPayload): string | null {
+  for (const key of ["bookingTime", "bookTime", "entryTime"]) {
+    const value = text(raw, key);
+    if (value && value.length > 10 && Number.isFinite(Date.parse(value))) return value;
+  }
+  return null;
+}
+
 export function cancelInstantOf(raw: RawPayload, cancelled: boolean): string | null {
   const cancelTime = text(raw, "cancelTime");
   if (cancelTime) return cancelTime;

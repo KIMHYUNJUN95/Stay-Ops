@@ -14,8 +14,9 @@ import {
   computeDailyStats,
   dailySnapshotOf,
   isFreshCancellation,
-  sameSnapshot,
   isSameDayBooking,
+  isSameDayBookingSince,
+  sameSnapshot,
   type CleaningListModel,
 } from "@/lib/automation/messages";
 import { bookDateOf, cancelInstantOf, type AutomationReservation } from "@/lib/automation/reservation-fields";
@@ -247,6 +248,18 @@ describe("취소 · 당일예약 알림", () => {
     expect(isSameDayBooking(reservation({ checkIn: today, raw: { bookingTime: "2026-10-06T01:00:00Z", price: 1000, status: "new" } }), today)).toBe(true);
     expect(isSameDayBooking(reservation({ checkIn: today, raw: { bookingTime: "2026-10-05T01:00:00Z", price: 1000, status: "new" } }), today)).toBe(false);
     expect(isSameDayBooking(reservation({ checkIn: today, raw: { bookingTime: "2026-10-06T01:00:00Z", price: 0, status: "new" } }), today)).toBe(false);
+  });
+
+  // 2026-10-07 — 일괄 저장으로 켜기(10:17) 전 당일예약이 늦게 나갔다. 켠 뒤에 들어온 예약만.
+  it("당일예약은 켠 시각 이후에 들어온 예약만(예약 시각을 모르면 보내지 않음)", () => {
+    const today = "2026-10-07";
+    const enabledAt = "2026-10-07T01:17:51Z"; // 10:17 도쿄
+    const before = reservation({ checkIn: today, raw: { bookingTime: "2026-10-06T23:31:49Z", price: 46931, status: "new" } }); // 08:31
+    const after = reservation({ checkIn: today, raw: { bookingTime: "2026-10-07T02:00:00Z", price: 46931, status: "new" } }); // 11:00
+    expect(isSameDayBooking(before, today)).toBe(true);
+    expect(isSameDayBookingSince(before, today, enabledAt)).toBe(false);
+    expect(isSameDayBookingSince(after, today, enabledAt)).toBe(true);
+    expect(isSameDayBookingSince(after, today, null)).toBe(true);
   });
 
   it("켜기 전(또는 하루 넘게 지난) 취소는 보내지 않는다", () => {

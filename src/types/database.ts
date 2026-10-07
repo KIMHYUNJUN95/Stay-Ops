@@ -1714,6 +1714,7 @@ export type Database = {
         Row: {
           created_at: string
           enabled: boolean
+          enabled_at: string | null
           event_cursor: string | null
           id: string
           job_key: string
@@ -1730,6 +1731,7 @@ export type Database = {
         Insert: {
           created_at?: string
           enabled?: boolean
+          enabled_at?: string | null
           event_cursor?: string | null
           id?: string
           job_key: string
@@ -1746,6 +1748,7 @@ export type Database = {
         Update: {
           created_at?: string
           enabled?: boolean
+          enabled_at?: string | null
           event_cursor?: string | null
           id?: string
           job_key?: string
