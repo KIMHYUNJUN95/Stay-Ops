@@ -18,11 +18,17 @@
 		</dict>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>StayOps uses the camera to scan the attendance QR code and to take photos you attach to work records.</string>
+	<string>StayOps uses the camera to scan the attendance QR code and to take photos you attach to work records such as cleaning and maintenance reports.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>StayOps checks your location only at the moment you clock in or out, to verify attendance.</string>
+	<string>StayOps checks your location only at the moment you clock in or out, to confirm you are at the work site. Location is never tracked in the background.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>StayOps lets you choose photos to attach to work records.</string>
+	<string>StayOps lets you choose photos from your library to attach to work records.</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>ko</string>
+		<string>ja</string>
+	</array>
 	<key>CFBundleDisplayName</key>
         <string>StayOps</string>
 	<key>CFBundleExecutable</key>

@@ -76,7 +76,7 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 | C3 | **Apple 로그인** | 🤝 | [ ] | Google 로그인이 있으므로 iOS 필수(Apple 4.8). Supabase Apple provider + Services ID · 키 |
 | C4 | **서명 · 번들 ID(iOS) · 패키지명(Android)** | 🤝 | [ ] | 한 번 정하면 못 바꿈. 안: `com.harutokyo.stayops` |
 | C5 | **네이티브 푸시** — iOS APNs · Android FCM | 🤖 | [ ] | 「알림은 막바지에 일괄 구현」 방침과 같은 배치로 |
-| C6 | **권한 설명 문구 · 개인정보 신고** — Info.plist(카메라 · 위치 · 사진, ko/ja/en), `PrivacyInfo.xcprivacy`, App Store 개인정보 라벨, Google Play 데이터 보안 양식 | 🤖 (+👤 제출) | [ ] | `src/lib/legal-content.ts` 수집 항목과 일치해야 함 |
+| C6 | **권한 설명 문구 · 개인정보 신고** — Info.plist(카메라 · 위치 · 사진, ko/ja/en), `PrivacyInfo.xcprivacy`, App Store 개인정보 라벨, Google Play 데이터 보안 양식 | 🤖 (+👤 제출) | [~] 2026-10-07 준비 완료 · 콘솔 제출 남음 | 답안: `18-store-review-kit.md`. `src/lib/legal-content.ts` 수집 항목과 일치해야 함. iOS 빌드 확인은 B1-3 |
 | C7 | **스토어 등록 자료** — 아이콘 1024px, 스크린샷(아이폰 · 아이패드 · 안드로이드 폰 · 태블릿), 3개 언어 설명문, 연령 등급, 카테고리 | 🤖 (+👤 제출) | [ ] | |
 | C8 | **내부 테스트** — TestFlight · Google Play 내부 테스트 트랙 | 🤝 | [ ] | 실기기에서 로그인 · 출퇴근 QR · 사진 업로드 · 푸시 |
 | C9 | **비공개 배포** — Custom/Unlisted App · Play 비공개 트랙 | 🤝 | [ ] | 심사 제출 · 대응 |
@@ -109,4 +109,5 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 | 2026-10-07 | `28e6712` | B4-1 신고 · 차단 범위 검토 — 게시판 외 추가 불필요 |
 | 2026-10-07 | (이 커밋) | A1 도쿄상공리서치 회신 — 회사 등록 확인, D-U-N-S 는 TSR 조회 페이지 · Apple 조회 도구로 확인 |
 | 2026-10-07 | `dd7d824` | A1 D-U-N-S 번호 수령(718114295) |
-| 2026-10-07 | (이 커밋) | B1-2 앱 아이콘 · 스플래시 생성 스크립트 + iOS · Android 반영 |
+| 2026-10-07 | `c851ee2` | B1-2 앱 아이콘 · 스플래시 생성 스크립트 + iOS · Android 반영 |
+| 2026-10-07 | (이 커밋) | C6 iOS 권한 문구 ko/ja/en · `PrivacyInfo.xcprivacy` · 스토어 개인정보 답안(`18-store-review-kit.md`) |
