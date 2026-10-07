@@ -28,7 +28,7 @@ import {
   type AutomationSettings,
 } from "@/lib/automation/jobs";
 import { buildPreview, sendJobNow } from "@/lib/automation/runner";
-import { automationBuildingLabel } from "@/lib/automation/messages";
+import { automationBuildingLabel, type AlertCard } from "@/lib/automation/messages";
 import { computeNextWake } from "@/lib/automation/schedule";
 import { canAccessOpsAdmin } from "@/lib/ops-admin";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -67,7 +67,7 @@ export async function previewAutomationMessage(input: {
   jobKey: string;
   date: string;
   locale: string;
-}): Promise<{ ok: true; text: string; sampleId: string | null } | Fail> {
+}): Promise<{ ok: true; text: string; sampleId: string | null; card: AlertCard | null } | Fail> {
   const session = await viewer();
   if (!session) return { error: "forbidden", ok: false };
   if (!isAutomationJobKey(input.jobKey) || !isAutomationLocale(input.locale) || !isYmd(input.date)) {
@@ -78,7 +78,7 @@ export async function previewAutomationMessage(input: {
       date: input.date,
       locale: input.locale,
     });
-    return { ok: true, sampleId: preview.sampleId, text: preview.text };
+    return { card: preview.card ?? null, ok: true, sampleId: preview.sampleId, text: preview.text };
   } catch (error) {
     console.error("[automation] preview failed", error instanceof Error ? error.message : error);
     return { error: "save_failed", ok: false };

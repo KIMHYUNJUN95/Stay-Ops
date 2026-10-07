@@ -86,12 +86,6 @@ function bump(map: MonthCounts, checkIn: string) {
   map.set(month, (map.get(month) ?? 0) + 1);
 }
 
-function monthList(copy: MessageCopy, locale: AutomationLocale, map: MonthCounts, bold: boolean): string {
-  return [...map.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([month, n]) => `${monthLabel(copy, month, locale)} ${bold ? `*${count(copy, n)}*` : count(copy, n)}`)
-    .join(bold ? ", " : "  ·  ");
-}
 
 /**
  * 날짜 + 요일(도쿄 달력 날짜 그대로) — 「10/7(수)」 · 「10/7(水)」 · 「Wed 10/7」. 올해가 아니면 연도를 붙인다(2027/3/5(금)).
@@ -495,17 +489,63 @@ export function cleaningStructureKey(model: CleaningListModel): string {
 
 // ── 취소 · 당일예약 알림 ─────────────────────────────────────────────────
 
-export function buildReservationAlertMessage(input: {
+/**
+ * 취소 · 당일예약 알림 = **Slack 카드**(Block Kit — 2026-10-07 사용자 결정, 이 두 채널만).
+ *
+ * 폰 Slack 앱에서 제목 · 2열 칸(숙박 · 금액 · 인원 · 채널) · 작은 회색 줄 · 링크로 나뉘어 보인다. 잠금화면 알림은 카드를 못 그리므로
+ * `notify`(한 줄 — 무슨 일 · 방 · 날짜 · 금액)가 뜬다. 「StayOps 에서 열기」는 버튼이 아니라 **굵은 링크 줄** — URL 버튼도 Slack 이
+ * 앱에 클릭 신호를 보내 응답을 기다리는데, 우리 Slack 앱은 그 주소(Interactivity)가 없어 경고가 뜰 수 있다.
+ */
+export type AlertCard = {
+  /** Slack `text` — 잠금화면 · 배너 알림 한 줄(카드를 못 그리는 곳). */
+  notify: string;
+  header: string;
+  fields: Array<{ label: string; value: string }>;
+  /** 작은 회색 줄 — 게스트 · 예약 번호 · 취소 시각. */
+  context: string;
+  link: { url: string; label: string } | null;
+};
+
+type AlertInput = {
   kind: "cancel" | "same_day";
   reservation: AutomationReservation;
   copy: MessageCopy;
   propertyLabel: string;
   roomLabel: string;
-  /** 예약 바로가기(`/go/reservation/<id>` — 권한을 보고 판매 캘린더로 보내거나 「권한 없음」). 없으면 줄을 뺀다. */
+  /** 예약 바로가기(`/go/reservation/<id>` — 권한을 보고 판매 캘린더로 보내거나 「권한 없음」). 없으면 링크를 뺀다. */
   openUrl: string | null;
   /** 오늘(도쿄) — 「오늘」 표시 · 연도 생략 판단. 없으면 연도를 늘 생략. */
   today?: string | null;
-}): string {
+};
+
+function weekdayOf(copy: MessageCopy, date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return copy.weekdays.split(",")[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] ?? "";
+}
+
+/** 숙박 칸 — 같은 달이면 끝날의 월을 뺀다(「11/20(금) → 24(화)」 — 폰 2열 칸에서 덜 꺾이게). */
+function stayRange(copy: MessageCopy, checkIn: string, checkOut: string, today: string | null): string {
+  if (!checkIn || !checkOut) return `${checkIn ? dayLabel(copy, checkIn, today) : "-"} → ${checkOut ? dayLabel(copy, checkOut, today) : "-"}`;
+  const sameMonth = checkIn.slice(0, 7) === checkOut.slice(0, 7);
+  const end = sameMonth
+    ? fill(copy.dayFormat, { md: Number(checkOut.slice(8, 10)), wd: weekdayOf(copy, checkOut) })
+    : dayLabel(copy, checkOut, today);
+  return `${dayLabel(copy, checkIn, today)} → ${end}`;
+}
+
+/** 알림 한 줄의 날짜 — 「11/20~24」 · 「11/30~12/2」. */
+function stayBrief(checkIn: string, checkOut: string): string {
+  if (!checkIn || !checkOut) return "";
+  const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
+  return checkIn.slice(0, 7) === checkOut.slice(0, 7) ? `${md(checkIn)}~${Number(checkOut.slice(8, 10))}` : `${md(checkIn)}~${md(checkOut)}`;
+}
+
+/** Slack mrkdwn 에서 게스트 이름 등 바깥 글자가 문법으로 읽히지 않게. */
+function escapeMrkdwn(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+export function buildReservationAlertCard(input: AlertInput): AlertCard {
   const { copy, reservation } = input;
   const a = copy.alert;
   const today = input.today ?? null;
@@ -520,37 +560,62 @@ export function buildReservationAlertMessage(input: {
         ? fill(a.guestsWithChildren, { c: guests.children, n: guests.total })
         : fill(a.guestsTotal, { n: guests.total })
       : null;
-  const checkIn = reservation.checkIn ? dayLabel(copy, reservation.checkIn, today) : "-";
-  const dates = `${reservation.checkIn && reservation.checkIn === today ? `${a.today} ` : ""}${checkIn} → ${
-    reservation.checkOut ? dayLabel(copy, reservation.checkOut, today) : "-"
-  }`;
-  const amount = legacyReservationAmount(reservation.raw);
-  // 폰 Slack 에서 첫 줄만 봐도 「무슨 일 · 어느 방」. 나머지는 짧은 줄로 나눈다 — 일본어도 한 줄이 넘치지 않게(2026-10-07).
-  const lines = [
-    fill(a.head, { property: input.propertyLabel, room: input.roomLabel || "", title: input.kind === "cancel" ? a.cancelTitle : a.sameDayTitle }).trimEnd(),
-    [`*${dates}*`, fill(a.nights, { n: nights }), guestText].filter(Boolean).join(" · "),
-    [reservation.guestName || "-", alertPlatformLabel(platformLabel(reservation.raw))].join(" · "),
-    input.kind === "cancel"
-      ? (() => {
-          // 취소는 Beds24 가 금액을 0 으로 비운다 — 요금 내역에서 원래 금액을 되살려 「얼마가 빠졌나」를 보인다(2026-10-07).
-          const original = originalAmountOf(reservation.raw, amount, reservation.lastKnownAmount);
-          const id = bookingIdOf(reservation.raw, reservation.id);
-          return original === null
-            ? fill(a.cancelAmountUnknown, { id })
-            : fill(a.cancelAmount, { amount: `*${formatYen(original)}*`, id });
-        })()
-      : fill(a.amount, { amount: `*${formatYen(amount)}*`, id: bookingIdOf(reservation.raw, reservation.id) }),
-  ];
-  if (input.kind === "cancel") {
+  const cancel = input.kind === "cancel";
+  const current = legacyReservationAmount(reservation.raw);
+  // 취소는 Beds24 가 금액을 0 으로 비운다 — DB 가 기억한 금액 · 요금 내역으로 되살린다(「얼마가 빠졌나」).
+  const amount = cancel ? originalAmountOf(reservation.raw, current, reservation.lastKnownAmount) : current;
+  const amountText = amount === null ? a.amountUnknown : formatYen(amount);
+  const stay = `${reservation.checkIn && reservation.checkIn === today ? `${a.today} ` : ""}${stayRange(copy, reservation.checkIn, reservation.checkOut, today)}`;
+  const header = fill(cancel ? a.cancelHeader : a.sameDayHeader, { property: input.propertyLabel, room: input.roomLabel || "" }).trim();
+  const contextParts = [reservation.guestName || "-", fill(a.bookingId, { id: bookingIdOf(reservation.raw, reservation.id) })];
+  if (cancel) {
     const instant = cancelInstantOf(reservation.raw, true);
     if (instant) {
       const { date, time } = tokyoDateTimeParts(instant);
-      lines.push(fill(a.cancelledAt, { time: `${dayLabel(copy, date, today)} ${time}` }));
+      contextParts.push(fill(a.cancelledAt, { time: `${dayLabel(copy, date, today)} ${time}` }));
     }
   }
-  // Slack 링크 문법 — 긴 주소 대신 글자만 보인다.
-  if (input.openUrl) lines.push(`<${input.openUrl}|${a.open}>`);
-  return lines.join("\n");
+  return {
+    context: contextParts.join(" · "),
+    fields: [
+      { label: a.fieldStay, value: stay },
+      { label: cancel ? a.fieldCancelAmount : a.fieldAmount, value: amountText },
+      { label: a.fieldGuests, value: [guestText, fill(a.nights, { n: nights })].filter(Boolean).join(" · ") },
+      { label: a.fieldChannel, value: alertPlatformLabel(platformLabel(reservation.raw)) },
+    ],
+    header,
+    link: input.openUrl ? { label: a.open, url: input.openUrl } : null,
+    notify: [header, stayBrief(reservation.checkIn, reservation.checkOut), amountText].filter(Boolean).join(" · "),
+  };
+}
+
+/** 카드 → Slack Block Kit. 제목(header) · 2열 칸(section fields) · 회색 줄(context) · 링크 줄. */
+export function alertCardBlocks(card: AlertCard): Array<Record<string, unknown>> {
+  const blocks: Array<Record<string, unknown>> = [
+    { text: { emoji: true, text: card.header.slice(0, 150), type: "plain_text" }, type: "header" },
+    {
+      fields: card.fields.map((field) => ({ text: `*${escapeMrkdwn(field.label)}*\n${escapeMrkdwn(field.value)}`, type: "mrkdwn" })),
+      type: "section",
+    },
+    { elements: [{ text: escapeMrkdwn(card.context), type: "mrkdwn" }], type: "context" },
+  ];
+  if (card.link) blocks.push({ text: { text: `*<${card.link.url}|${escapeMrkdwn(card.link.label)} ›>*`, type: "mrkdwn" }, type: "section" });
+  return blocks;
+}
+
+/** 카드의 글 모양 — 실행 기록 「원문」 · 복사 · 카드를 못 그리는 곳에서 쓴다. */
+export function alertCardText(card: AlertCard): string {
+  return [
+    card.header,
+    ...card.fields.map((field) => `${field.label}: ${field.value}`),
+    card.context,
+    ...(card.link ? [`${card.link.label}: ${card.link.url}`] : []),
+  ].join("\n");
+}
+
+/** 글 모양 알림(예전 이름 유지 — 카드와 같은 내용). */
+export function buildReservationAlertMessage(input: AlertInput): string {
+  return alertCardText(buildReservationAlertCard(input));
 }
 
 function tokyoDateTimeParts(iso: string): { date: string; time: string } {

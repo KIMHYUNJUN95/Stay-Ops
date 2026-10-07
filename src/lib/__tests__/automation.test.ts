@@ -9,7 +9,8 @@ import {
   automationBuildingLabel,
   buildCleaningListMessage,
   buildDailyReportMessage,
-  buildReservationAlertMessage,
+  alertCardBlocks,
+  buildReservationAlertCard,
   cleaningStructureKey,
   computeDailyStats,
   dailySnapshotOf,
@@ -281,9 +282,9 @@ describe("취소 · 당일예약 알림", () => {
     expect(isFreshCancellation(row, "2026-10-06T01:00:00Z")).toBe(false);
   });
 
-  // 2026-10-07 — 폰 Slack 가독성: 첫 줄에 무슨 일 · 어느 방, 날짜는 요일까지, 긴 주소 대신 링크 글자.
-  it("취소 알림 — 「🔔 *취소* · 건물 방」 · 요일 날짜 · 인원 · 링크 글자", () => {
-    const text = buildReservationAlertMessage({
+  // 2026-10-07 — 취소 · 당일예약 = Slack 카드(제목 · 2열 칸 · 회색 줄 · 링크 줄). 잠금화면 알림은 한 줄(notify).
+  it("취소 카드 — 제목 · 칸 4개 · 회색 줄 · 링크, 알림 한 줄에 방 · 날짜 · 금액", () => {
+    const card = buildReservationAlertCard({
       copy: dictionaries.ko.automationMessages,
       kind: "cancel",
       openUrl: "https://example.test/go/reservation/1",
@@ -292,18 +293,42 @@ describe("취소 · 당일예약 알림", () => {
       roomLabel: "302",
       today: "2026-10-06",
     });
-    expect(text.split("\n")).toEqual([
-      "🔔 *취소* · 아라키초A 302",
-      "*10/20(화) → 10/22(목)* · 2박 · 3명(아동 1)",
-      "Kim · Airbnb",
-      "취소 금액 *¥86,400* · 예약 777",
-      "취소 10/6(화) 09:41",
-      "<https://example.test/go/reservation/1|StayOps 에서 열기>",
+    expect(card.header).toBe("❌ 취소 · 아라키초A 302");
+    expect(card.fields).toEqual([
+      { label: "숙박", value: "10/20(화) → 22(목)" },
+      { label: "취소 금액", value: "¥86,400" },
+      { label: "인원 · 박", value: "3명(아동 1) · 2박" },
+      { label: "채널", value: "Airbnb" },
     ]);
+    expect(card.context).toBe("Kim · 예약 777 · 취소 10/6(화) 09:41");
+    expect(card.notify).toBe("❌ 취소 · 아라키초A 302 · 10/20~22 · ¥86,400");
+    const blocks = alertCardBlocks(card);
+    expect(blocks.map((block) => block.type)).toEqual(["header", "section", "context", "section"]);
+    expect(JSON.stringify(blocks[1])).toContain("*취소 금액*\\n¥86,400");
+    // 버튼이 아니라 링크 줄(우리 Slack 앱은 Interactivity 주소가 없다).
+    expect(JSON.stringify(blocks[3])).toContain("<https://example.test/go/reservation/1|StayOps 에서 열기 ›>");
+    expect(JSON.stringify(blocks)).not.toContain('"button"');
   });
 
-  it("Booking.com 은 Booking, 올해가 아니면 연도, 당일예약은 「오늘」(ja)", () => {
-    const cancelled = buildReservationAlertMessage({
+  it("당일예약 카드(ja) · 달이 바뀌면 끝날에 월 · 올해 아니면 연도 · 이름의 < > & 는 이스케이프 · 금액 모르면 확인 불가", () => {
+    const sameDay = buildReservationAlertCard({
+      copy: dictionaries.ja.automationMessages,
+      kind: "same_day",
+      openUrl: null,
+      propertyLabel: "STAY ARI Apartment Hotel",
+      reservation: reservation({ checkIn: "2026-09-30", checkOut: "2026-10-02", guestName: "A&B <VIP>", raw: { id: "93804456", numAdult: 4, price: 23413, referer: "Booking.com" } }),
+      roomLabel: "305",
+      today: "2026-09-30",
+    });
+    expect(sameDay.header).toBe("🟢 当日予約 · STAY ARI Apartment Hotel 305");
+    expect(sameDay.fields[0]).toEqual({ label: "宿泊", value: "本日 9/30(水) → 10/2(金)" });
+    expect(sameDay.fields[1]).toEqual({ label: "金額", value: "¥23,413" });
+    expect(sameDay.notify).toBe("🟢 当日予約 · STAY ARI Apartment Hotel 305 · 9/30~10/2 · ¥23,413");
+    expect(sameDay.link).toBeNull();
+    const blocks = alertCardBlocks(sameDay);
+    expect(blocks).toHaveLength(3);
+    expect(JSON.stringify(blocks[2])).toContain("A&amp;B &lt;VIP&gt;");
+    const cancelled = buildReservationAlertCard({
       copy: dictionaries.ko.automationMessages,
       kind: "cancel",
       openUrl: null,
@@ -312,26 +337,9 @@ describe("취소 · 당일예약 알림", () => {
       roomLabel: "206",
       today: "2026-09-29",
     });
-    expect(cancelled).toContain("*2027/2/4(목) → 2027/2/8(월)* · 4박");
-    // 요금 내역도 없는 취소 → 금액 확인 불가(0원으로 찍지 않는다).
-    expect(cancelled).toContain(" · Booking\n취소 금액 확인 불가 · 예약 93557561");
-    expect(cancelled).not.toContain("StayOps");
-    const sameDay = buildReservationAlertMessage({
-      copy: dictionaries.ja.automationMessages,
-      kind: "same_day",
-      openUrl: "https://example.test/go/reservation/2",
-      propertyLabel: "STAY ARI Apartment Hotel",
-      reservation: reservation({ checkIn: "2026-09-28", checkOut: "2026-09-29", raw: { id: "93804456", numAdult: 4, price: 23413, referer: "Booking.com" } }),
-      roomLabel: "305",
-      today: "2026-09-28",
-    });
-    expect(sameDay.split("\n")).toEqual([
-      "🔔 *当日予約* · STAY ARI Apartment Hotel 305",
-      "*本日 9/28(月) → 9/29(火)* · 1泊 · 4名",
-      "Kim · Booking",
-      "*¥23,413* · 予約 93804456",
-      "<https://example.test/go/reservation/2|StayOps で開く>",
-    ]);
+    expect(cancelled.fields[0].value).toBe("2027/2/4(목) → 8(월)");
+    expect(cancelled.fields[1]).toEqual({ label: "취소 금액", value: "확인 불가" });
+    expect(cancelled.fields[3].value).toBe("Booking");
     expect(alertPlatformLabel("Airbnb")).toBe("Airbnb");
     expect(alertPlatformLabel("booking.com")).toBe("Booking");
   });
@@ -358,7 +366,7 @@ describe("취소된 예약의 원래 금액", () => {
       status: "cancelled",
       raw: { cancelTime: "2026-10-05T04:09:52Z", id: "94244398", price: 0, rateDescription: booking, referer: "Booking.com", status: "cancelled" },
     });
-    const text = buildReservationAlertMessage({
+    const card = buildReservationAlertCard({
       copy: dictionaries.ko.automationMessages,
       kind: "cancel",
       openUrl: null,
@@ -367,7 +375,8 @@ describe("취소된 예약의 원래 금액", () => {
       roomLabel: "201",
       today: "2026-10-05",
     });
-    expect(text).toContain("취소 금액 *¥245,532* · 예약 94244398");
+    expect(card.fields[1]).toEqual({ label: "취소 금액", value: "¥245,532" });
+    expect(card.notify).toContain("¥245,532");
     const stats = computeDailyStats({
       buildingOrder: AUTOMATION_BUILDING_ORDER,
       canonicalProperty: getCanonicalPropertyName,

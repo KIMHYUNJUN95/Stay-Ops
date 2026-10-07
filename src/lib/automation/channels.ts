@@ -42,7 +42,12 @@ export function listAutomationChannels(env: NodeJS.ProcessEnv = process.env): Au
 
 export type SlackSendResult = { ok: true } | { ok: false; reason: "channel_missing" | "bad_host" | `http_${number}` | "fetch_failed" };
 
-export async function postToAutomationChannel(channelKey: string, text: string): Promise<SlackSendResult> {
+/** `blocks` 가 있으면 카드(Block Kit)로, `text` 는 잠금화면 알림 · 카드를 못 그리는 곳의 한 줄. */
+export async function postToAutomationChannel(
+  channelKey: string,
+  text: string,
+  blocks?: Array<Record<string, unknown>>,
+): Promise<SlackSendResult> {
   if (!CHANNEL_KEY_PATTERN.test(channelKey)) return { ok: false, reason: "channel_missing" };
   const url = process.env[`SLACK_AUTOMATION_${channelKey}_WEBHOOK_URL`]?.trim();
   if (!url) return { ok: false, reason: "channel_missing" };
@@ -52,7 +57,7 @@ export async function postToAutomationChannel(channelKey: string, text: string):
   }
   try {
     const response = await fetch(url, {
-      body: JSON.stringify({ text }),
+      body: JSON.stringify(blocks && blocks.length > 0 ? { blocks, text } : { text }),
       cache: "no-store",
       headers: { "Content-Type": "application/json; charset=utf-8" },
       method: "POST",

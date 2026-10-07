@@ -28,6 +28,7 @@ import {
   type AutomationLocale,
   type AutomationSettings,
 } from "@/lib/automation/jobs";
+import type { AlertCard } from "@/lib/automation/messages";
 import { isScheduledSendDue } from "@/lib/automation/schedule";
 import type { Dictionary } from "@/lib/i18n";
 import "./automation.css";
@@ -346,19 +347,21 @@ function PreviewPane({
   const defaultDate = job.jobKey === "daily_report" ? data.yesterday : data.today;
   const [date, setDate] = useState(defaultDate);
   const [lang, setLang] = useState<AutomationLocale>(job.destinations[0]?.locales[0] ?? userLocale);
-  const [preview, setPreview] = useState<{ key: string; text: string | null } | null>(null);
+  const [preview, setPreview] = useState<{ key: string; text: string | null; card: AlertCard | null } | null>(null);
   const [sending, startSend] = useTransition();
   const timed = job.kind === "scheduled";
   const requestKey = `${job.jobKey}|${date}|${lang}`;
   // 결과가 지금 고른 조건의 것이 아니면 「만드는 중」 — effect 안에서 상태를 미리 비우지 않는다.
   const loading = preview?.key !== requestKey;
   const text = loading ? null : (preview?.text ?? null);
+  // 취소 · 당일예약은 Slack 카드 — 미리보기도 카드로(제목 · 2열 칸 · 회색 줄 · 링크).
+  const card = loading ? null : (preview?.card ?? null);
 
   useEffect(() => {
     let alive = true;
     previewAutomationMessage({ date, jobKey: job.jobKey, locale: lang }).then((result) => {
       if (!alive) return;
-      setPreview({ key: requestKey, text: result.ok ? result.text : null });
+      setPreview({ card: result.ok ? result.card : null, key: requestKey, text: result.ok ? result.text : null });
       if (!result.ok) flash(errorText(result.error));
     });
     return () => {
@@ -423,6 +426,20 @@ function PreviewPane({
           <div className="atm__msg">
             {loading ? (
               <span className="atm__note">{copy.preview.loading}</span>
+            ) : card ? (
+              <div className="atm__card">
+                <div className="atm__cardh">{card.header}</div>
+                <div className="atm__cardf">
+                  {card.fields.map((field) => (
+                    <div key={field.label}>
+                      <b>{field.label}</b>
+                      <span>{field.value}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="atm__cardc">{card.context}</div>
+                {card.link ? <div className="atm__cardl">{card.link.label} ›</div> : null}
+              </div>
             ) : text ? (
               text.split("\n").map((line, index) => (
                 <div className="atm__ml" key={index}>

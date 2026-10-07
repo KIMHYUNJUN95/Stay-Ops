@@ -24,10 +24,12 @@ import {
   type AutomationLocale,
 } from "@/lib/automation/jobs";
 import {
+  alertCardBlocks,
+  alertCardText,
   automationBuildingLabel,
   buildCleaningListMessage,
   buildDailyReportMessage,
-  buildReservationAlertMessage,
+  buildReservationAlertCard,
   cleaningStructureKey,
   computeDailyStats,
   dailySnapshotOf,
@@ -35,6 +37,7 @@ import {
   isFreshCancellation,
   isSameDayBookingSince,
   sameSnapshot,
+  type AlertCard,
   type CleaningListModel,
   type DailySnapshot,
   type DailyStats,
@@ -96,7 +99,12 @@ type Delivery = {
   meta?: Record<string, unknown>;
   dedupeKey?: string | null;
   actorId?: string | null;
+  /** Slack 카드(취소 · 당일예약) — 있으면 `text` 대신 이것을 보낸다. `text` 는 실행 기록 원문으로 남는다. */
+  slack?: SlackPayload;
 };
+
+/** Slack 로 보내는 모양 — `text` = 알림 한 줄, `blocks` = 카드. */
+export type SlackPayload = { text: string; blocks: Array<Record<string, unknown>> };
 
 type DeliveryResult = "sent" | "failed" | "duplicate";
 
@@ -108,7 +116,8 @@ async function deliver(supabase: Client, item: Delivery): Promise<DeliveryResult
     locale: item.locale,
     message: item.text,
     message_hash: hashOf(item.text),
-    meta: (item.meta ?? {}) as Json,
+    // 카드는 meta 에 남겨 실패 재시도가 같은 카드를 다시 보낸다.
+    meta: (item.slack ? { ...(item.meta ?? {}), slack: item.slack } : (item.meta ?? {})) as Json,
     organization_id: item.organizationId,
     target_date: item.targetDate,
     trigger: item.trigger,
@@ -126,7 +135,15 @@ async function deliver(supabase: Client, item: Delivery): Promise<DeliveryResult
     return "failed";
   }
 
-  const sent = await postToAutomationChannel(item.destination.channelKey, item.text);
+  let sent = item.slack
+    ? await postToAutomationChannel(item.destination.channelKey, item.slack.text, item.slack.blocks)
+    : await postToAutomationChannel(item.destination.channelKey, item.text);
+  // 안전망 — Slack 이 카드 모양을 거절하면(400 · invalid_blocks 등) 같은 알림을 **글 모양으로 바로 다시** 보낸다.
+  // 카드 모양 문제로 알림 자체가 안 나가는 일이 없게(2026-10-07 사용자 요구 「문제없이 발송」).
+  if (item.slack && !sent.ok && sent.reason === "http_400") {
+    console.warn("[automation] card rejected — sending as text", { job: item.jobKey });
+    sent = await postToAutomationChannel(item.destination.channelKey, item.text);
+  }
   await supabase
     .from("automation_runs")
     .update(
@@ -136,7 +153,7 @@ async function deliver(supabase: Client, item: Delivery): Promise<DeliveryResult
             // 실패하면 중복 방지 키를 **놓아 준다** — 안 그러면 재시도가 이 줄에 막혀 「이미 처리됨」이 되고 한 통도 안 나간 채
             // 오늘 일이 끝난다(2026-10-07 디버깅에서 발견). 원래 키는 meta 에 남겨 이벤트 재시도가 그 키로 다시 잡는다.
             dedupe_key: item.dedupeKey ? failedDedupeKey(item.dedupeKey, claimed.data.id) : null,
-            meta: { ...(item.meta ?? {}), retryKey: item.dedupeKey ?? null } as Json,
+            meta: { ...(item.meta ?? {}), ...(item.slack ? { slack: item.slack } : {}), retryKey: item.dedupeKey ?? null } as Json,
             reason: sent.reason,
             status: "failed",
           },
@@ -214,12 +231,14 @@ async function retryFailedEventDeliveries(supabase: Client, organizationId: stri
     if (attempt >= EVENT_RETRY_MAX_ATTEMPTS) continue;
     const destination = destinations.find((item) => item.channelKey === row.channel_key);
     if (!destination || !destination.locales.includes(row.locale as AutomationLocale)) continue;
+    const slack = meta.slack && typeof meta.slack === "object" ? (meta.slack as SlackPayload) : undefined;
     const result = await deliver(supabase, {
       dedupeKey: retryKey,
       destination,
       jobKey,
       locale: row.locale as AutomationLocale,
       meta: { ...meta, attempt: attempt + 1, retried: false },
+      slack,
       organizationId,
       targetDate: row.target_date,
       text: row.message,
@@ -300,6 +319,8 @@ export async function notifyAutomationFailure(
 export type BuiltMessages = {
   targetDate: string | null;
   byLocale: Partial<Record<AutomationLocale, string>>;
+  /** 취소 · 당일예약 카드(언어마다). 없으면 글로 보낸다. */
+  slackByLocale?: Partial<Record<AutomationLocale, SlackPayload>>;
   meta: Record<string, unknown>;
 };
 
@@ -388,7 +409,7 @@ export async function buildPreview(
   organizationId: string,
   jobKey: AutomationJobKey,
   input: { date: string; locale: AutomationLocale },
-): Promise<{ text: string; targetDate: string | null; sampleId: string | null }> {
+): Promise<{ text: string; targetDate: string | null; sampleId: string | null; card?: AlertCard }> {
   const jobs = await loadJobs(supabase, organizationId);
   const job = jobs[jobKey];
   if (jobKey === "daily_report") {
@@ -405,8 +426,8 @@ export async function buildPreview(
   }
   const sample = await latestEventSample(supabase, organizationId, jobKey);
   if (!sample) return { sampleId: null, targetDate: null, text: "" };
-  const text = await buildAlertText(supabase, organizationId, jobKey, sample, input.locale);
-  return { sampleId: sample.id, targetDate: null, text };
+  const alert = await buildAlert(supabase, organizationId, jobKey, sample, input.locale);
+  return { card: alert.card, sampleId: sample.id, targetDate: null, text: alert.text };
 }
 
 async function latestEventSample(
@@ -421,19 +442,19 @@ async function latestEventSample(
   return row ? toAutomationReservation(row) : null;
 }
 
-async function buildAlertText(
+async function buildAlert(
   supabase: Client,
   organizationId: string,
   jobKey: AutomationJobKey,
   reservation: AutomationReservation,
   locale: AutomationLocale,
   labeler?: (name: string, locale: AutomationLocale) => string,
-): Promise<string> {
+): Promise<{ card: AlertCard; text: string; slack: SlackPayload }> {
   const label = labeler ?? (await loadPropertyLabeler(supabase, organizationId));
   const canonical = getCanonicalPropertyName(reservation.propertyName);
   const room = getDisplayRoomLabel(canonical, getCanonicalRoomLabel(canonical, reservation.roomLabel));
   const base = appBaseUrl();
-  return buildReservationAlertMessage({
+  const card = buildReservationAlertCard({
     copy: getDictionary(locale).automationMessages,
     kind: jobKey === "cancel_alert" ? "cancel" : "same_day",
     // 바로가기 — 받는 사람의 권한 · 기기를 보고 판매 캘린더(PC/폰)로 보내거나 「권한 없음」을 보여 준다(`/go/reservation`).
@@ -443,6 +464,7 @@ async function buildAlertText(
     roomLabel: room,
     today: tokyoClock(new Date()).date,
   });
+  return { card, slack: { blocks: alertCardBlocks(card), text: card.notify }, text: alertCardText(card) };
 }
 
 // ── 시각형: 정시 · 재시도 · 변동 재전송 · 정정본 · 지금 보내기 ───────────────────
@@ -473,6 +495,7 @@ async function sendBuilt(
         locale,
         meta: built.meta,
         organizationId,
+        slack: built.slackByLocale?.[locale],
         targetDate: built.targetDate,
         text,
         trigger: input.trigger,
@@ -708,8 +731,13 @@ export async function sendJobNow(
     if (!sample) return { failed: 0, reason: "no_sample", sent: 0 };
     const labeler = await loadPropertyLabeler(supabase, organizationId);
     const byLocale: BuiltMessages["byLocale"] = {};
-    for (const locale of locales) byLocale[locale] = await buildAlertText(supabase, organizationId, jobKey, sample, locale, labeler);
-    built = { byLocale, meta: { reservationId: sample.id }, targetDate: null };
+    const slackByLocale: NonNullable<BuiltMessages["slackByLocale"]> = {};
+    for (const locale of locales) {
+      const alert = await buildAlert(supabase, organizationId, jobKey, sample, locale, labeler);
+      byLocale[locale] = alert.text;
+      slackByLocale[locale] = alert.slack;
+    }
+    built = { byLocale, meta: { reservationId: sample.id }, slackByLocale, targetDate: null };
   }
   return sendBuilt(supabase, organizationId, jobKey, destinations, built, {
     actorId: input.actorId,
@@ -777,7 +805,7 @@ async function scanEventJob(supabase: Client, organizationId: string, job: Store
     for (const reservation of matches) {
       for (const destination of destinations) {
         for (const locale of destination.locales) {
-          const text = await buildAlertText(supabase, organizationId, jobKey, reservation, locale, labeler);
+          const alert = await buildAlert(supabase, organizationId, jobKey, reservation, locale, labeler);
           const result = await deliver(supabase, {
             dedupeKey: `${jobKey}:${reservation.id}:${destination.channelKey}:${locale}`,
             destination,
@@ -785,8 +813,9 @@ async function scanEventJob(supabase: Client, organizationId: string, job: Store
             locale,
             meta: { reservationId: reservation.id },
             organizationId,
+            slack: alert.slack,
             targetDate: null,
-            text,
+            text: alert.text,
             trigger: "event",
           });
           if (result === "failed") failed += 1;

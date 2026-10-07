@@ -527,6 +527,32 @@ StayOps 에서 열기  ← 링크 글자만                 StayOps で開く
 - 건물 = 「이름 + 매출」 아래 예약 줄(취소가 있으면 취소 줄). 예약 · 취소 · 매출이 모두 0 인 건물은 맨 아래 한 줄로 모은다(저쪽은 건물마다 「예약 0건 취소 0건 —」).
 - 코드: `dayLabel` · `buildDailyReportMessage` · `buildReservationAlertMessage`(`messages.ts`), 문구 `automationMessages.{weekdays,dayFormat,listSeparator,daily,alert}`.
 
+### 취소 · 당일예약 = Slack 카드 (2026-10-07 사용자 결정 — 이 두 채널만)
+
+폰 Slack 앱에서 칸으로 나뉘어 보이게 **Block Kit 카드**로 보낸다. 일일 리포트 · 청소 명단 · 실패 알림은 그대로 글(사용자 — 「나머지 채널은 건드리지 마」).
+
+```
+┌─────────────────────────────┐
+│ ❌ 취소 · 가부키초 603          │  header
+├──────────────┬──────────────┤
+│ 숙박          │ 취소 금액      │  section fields (폰에서도 2열)
+│ 2027/3/5(금) → 8(월) │ ¥169,476 │
+│ 인원 · 박     │ 채널           │
+│ 3명(아동 1) · 3박 │ Booking    │
+├──────────────┴──────────────┤
+│ Chun Ting Yu · 예약 93313472 · 취소 10/7(수) 09:18 │  context(작은 회색)
+│ StayOps 에서 열기 ›            │  링크 줄
+└─────────────────────────────┘
+잠금화면 알림(Slack text): ❌ 취소 · 가부키초 603 · 3/5~8 · ¥169,476
+```
+
+- 아이콘으로 구분: 취소 ❌ · 당일예약 🟢. 숙박은 같은 달이면 끝날의 월을 뺀다(폰 2열 칸에서 덜 꺾이게). 게스트 이름의 `& < >` 는 이스케이프.
+- 「StayOps 에서 열기」는 **버튼이 아니라 굵은 링크 줄** — URL 버튼도 Slack 이 앱에 클릭 신호를 보내 응답을 기다리는데(Slack 문서), 우리 Slack 앱은
+  Interactivity 주소가 없어 경고가 뜰 수 있다.
+- **안전망**: Slack 이 카드를 거절하면(HTTP 400) 같은 알림을 글 모양으로 바로 다시 보낸다 — 모양 문제로 알림이 안 나가는 일은 없다. 실패 재시도도 카드를
+  다시 보낸다(`automation_runs.meta.slack`). 실행 기록 「원문」 · 복사는 카드의 글 모양(`alertCardText`).
+- 관제실 미리보기도 같은 카드 모양. 코드: `buildReservationAlertCard` · `alertCardBlocks` · `alertCardText`(`messages.ts`), 보내기 `postToAutomationChannel(…, blocks)`.
+
 ### 취소 금액 — 얼마가 빠졌나 (2026-10-07 사용자 요구)
 
 Beds24 는 예약이 취소되면 `price` 를 **0** 으로 비운다 — 저쪽도 우리도 취소 알림이 늘 `¥0` 이었다. 「실제로 얼마가 빠져나갔는지」가 중요하다(사용자).
