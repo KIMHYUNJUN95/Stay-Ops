@@ -422,6 +422,11 @@ const FALLBACK_DICTIONARY = {
     countFormat: "{n}",
     monthFormat: "{mon}",
     emptyValue: "—",
+    // 저쪽 메시지 이름을 살리는 건물만(나머지는 건물 정보 · 공용 이름). 청소 명단 제목 / 일일 리포트가 서로 다르다.
+    buildings: {
+      cleaning: { okubo_a: "Okubo A (Bldg B)", okubo_b: "Okubo B (Bldg A)", okubo_c: "Okubo C" },
+      daily: { okubo_a: "Okubo A", okubo_b: "Okubo B", okubo_c: "Okubo C", sano: "Sano City" },
+    },
     daily: {
       title: "Daily operations report · {date}",
       sectionTotal: "■ Yesterday (all properties)",
@@ -453,12 +458,12 @@ const FALLBACK_DICTIONARY = {
       noCheckIn: "No check-in",
       settingTitle: "*Rooms to set up*",
       none: "None",
-      correction: "*Cleaning / setup list — corrected*",
+      correction: ":arrows_counterclockwise: *Cleaning / setup list — corrected*",
       correctionNote: "Bookings or cleaners changed. Use this list instead of the earlier one.",
     },
     alert: {
-      cancelTitle: "1 cancellation",
-      sameDayTitle: "1 same-day booking",
+      cancelTitle: "🔔 1 cancellation",
+      sameDayTitle: "🔔 1 same-day booking",
       location: "Property: {property} | Room: {room}",
       stay: "Check-in: {checkIn} | Check-out: {checkOut} | {nights}",
       nights: "{n} nights",
@@ -476,6 +481,15 @@ const FALLBACK_DICTIONARY = {
       sampleTitle: "Test message",
       sampleLine: "This is a test of the failure alert channel.",
     },
+  },
+  reservationShortcut: {
+    deniedEyebrow: "Booking link",
+    deniedTitle: "You don’t have access to this booking",
+    deniedBody: "This link opens the booking in the Sales Calendar. Only people with Sales Calendar access can open it.",
+    deniedHelp: "If you need it, ask an admin to give you Sales Calendar access.",
+    invalidTitle: "This link isn’t valid",
+    invalidBody: "The link may be incomplete. Copy the whole link from the message and try again.",
+    home: "Go to home",
   },
   opsAdmin: {
     areaName: "Revenue Ops",
@@ -6545,6 +6559,11 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     countFormat: "{n}건",
     monthFormat: "{m}월",
     emptyValue: "—",
+    // 저쪽 메시지 이름을 살리는 건물만(나머지는 건물 정보 · 공용 이름). 청소 명단 제목 / 일일 리포트가 서로 다르다.
+    buildings: {
+      cleaning: { okubo_a: "오쿠보A (B동)", okubo_b: "오쿠보B (A동)", okubo_c: "오쿠보C동" },
+      daily: { okubo_a: "오쿠보A동", okubo_b: "오쿠보B동", okubo_c: "오쿠보C동", sano: "사노시" },
+    },
     daily: {
       title: "일일 운영 리포트 · {date}",
       sectionTotal: "■ 전일 실적 (전 건물 합계)",
@@ -6576,12 +6595,12 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       noCheckIn: "체크인 X",
       settingTitle: "*셋팅해야 하는 객실*",
       none: "없음",
-      correction: "*청소/셋팅 명단 정정본*",
+      correction: ":arrows_counterclockwise: *청소/셋팅 명단 정정본*",
       correctionNote: "예약 또는 담당자 변경이 반영되었습니다. 기존 메시지 대신 이 명단을 확인해주세요.",
     },
     alert: {
-      cancelTitle: "취소 1건",
-      sameDayTitle: "당일 예약 1건",
+      cancelTitle: "🔔 취소 1건",
+      sameDayTitle: "🔔 당일 예약 1건",
       location: "건물: {property} | 객실: {room}",
       stay: "체크인: {checkIn} | 체크아웃: {checkOut} | {nights}",
       nights: "{n}박",
@@ -6599,6 +6618,15 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       sampleTitle: "테스트 메시지",
       sampleLine: "실패 알림 채널 연결 확인용 테스트입니다.",
     },
+  },
+  reservationShortcut: {
+    deniedEyebrow: "예약 바로가기",
+    deniedTitle: "이 예약을 볼 권한이 없어요",
+    deniedBody: "이 링크는 판매 캘린더에서 예약을 엽니다. 판매 캘린더 권한이 있는 사람만 열 수 있어요.",
+    deniedHelp: "필요하면 관리자에게 판매 캘린더 권한을 요청하세요.",
+    invalidTitle: "올바른 링크가 아니에요",
+    invalidBody: "링크가 잘렸을 수 있어요. 메시지의 링크 전체를 다시 눌러 주세요.",
+    home: "홈으로",
   },
   opsAdmin: {
     areaName: "운영 관리자",
@@ -12506,6 +12534,11 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
     countFormat: "{n}件",
     monthFormat: "{m}月",
     emptyValue: "—",
+    // 저쪽 메시지 이름을 살리는 건물만(나머지는 건물 정보 · 공용 이름). 청소 명단 제목 / 일일 리포트가 서로 다르다.
+    buildings: {
+      cleaning: { okubo_a: "大久保A（B棟）", okubo_b: "大久保B（A棟）", okubo_c: "大久保C棟" },
+      daily: { okubo_a: "大久保A棟", okubo_b: "大久保B棟", okubo_c: "大久保C棟", sano: "佐野市" },
+    },
     daily: {
       title: "日次運営レポート · {date}",
       sectionTotal: "■ 前日実績（全物件合計）",
@@ -12537,12 +12570,12 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       noCheckIn: "チェックインなし",
       settingTitle: "*セッティングが必要な客室*",
       none: "なし",
-      correction: "*清掃/セッティングリスト 訂正版*",
+      correction: ":arrows_counterclockwise: *清掃/セッティングリスト 訂正版*",
       correctionNote: "予約または担当者の変更を反映しました。以前のメッセージではなくこのリストを確認してください。",
     },
     alert: {
-      cancelTitle: "キャンセル 1件",
-      sameDayTitle: "当日予約 1件",
+      cancelTitle: "🔔 キャンセル 1件",
+      sameDayTitle: "🔔 当日予約 1件",
       location: "物件: {property} | 客室: {room}",
       stay: "チェックイン: {checkIn} | チェックアウト: {checkOut} | {nights}",
       nights: "{n}泊",
@@ -12560,6 +12593,15 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       sampleTitle: "テストメッセージ",
       sampleLine: "失敗通知チャンネルの接続確認用テストです。",
     },
+  },
+  reservationShortcut: {
+    deniedEyebrow: "予約リンク",
+    deniedTitle: "この予約を見る権限がありません",
+    deniedBody: "このリンクは販売カレンダーで予約を開きます。販売カレンダーの権限がある人だけが開けます。",
+    deniedHelp: "必要な場合は、管理者に販売カレンダーの権限を依頼してください。",
+    invalidTitle: "正しいリンクではありません",
+    invalidBody: "リンクが途中で切れている可能性があります。メッセージのリンク全体をもう一度開いてください。",
+    home: "ホームへ",
   },
   opsAdmin: {
     areaName: "運営管理者",

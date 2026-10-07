@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
+import { AUTOMATION_BUILDING_ORDER, cleaningRoomCode } from "@/lib/automation/data";
 import { defaultJobConfig, parseSettings } from "@/lib/automation/jobs";
 import {
+  alertPlatformLabel,
+  automationBuildingLabel,
   buildCleaningListMessage,
   buildDailyReportMessage,
   buildReservationAlertMessage,
@@ -192,19 +198,88 @@ describe("취소 · 당일예약 알림", () => {
     expect(isFreshCancellation(row, "2026-10-06T01:00:00Z")).toBe(false);
   });
 
-  it("취소 알림 — 제목은 「취소 1건」(「당일 취소」 아님) · 인원 · 바로가기", () => {
+  it("취소 알림 — 제목은 「🔔 취소 1건」(「당일 취소」 아님) · 인원 · 바로가기", () => {
     const text = buildReservationAlertMessage({
       copy: dictionaries.ko.automationMessages,
       kind: "cancel",
-      openUrl: "https://example.test/admin/ops/calendar?resv=1",
+      openUrl: "https://example.test/go/reservation/1",
       propertyLabel: "아라키초A",
       reservation: reservation({ status: "cancelled", raw: { bookId: "777", cancelTime: "2026-10-06T00:41:00Z", numAdult: 2, numChild: 1, price: 86400, referer: "Airbnb" } }),
       roomLabel: "302",
     });
-    expect(text.split("\n")[0]).toBe("취소 1건");
+    expect(text.split("\n")[0]).toBe("🔔 취소 1건");
     expect(text).toContain("인원: 성인 2명, 아동 1명 (총 3명)");
     expect(text).toContain("취소 시각: 2026-10-06 09:41 (JST)");
     expect(text).toContain("예약ID: 777");
+    expect(text).toContain("StayOps 에서 열기: https://example.test/go/reservation/1");
+  });
+
+  // 2026-10-07 저쪽 메시지와 대조 후 사용자 결정 — 36번 「표시 형식」.
+  it("금액은 0원도 *¥0*, 플랫폼 Booking.com 은 Booking", () => {
+    const cancelled = buildReservationAlertMessage({
+      copy: dictionaries.ko.automationMessages,
+      kind: "cancel",
+      openUrl: null,
+      propertyLabel: "STAY ARI Apartment Hotel",
+      reservation: reservation({ status: "cancelled", raw: { cancelTime: "2026-09-28T22:44:00Z", id: "93557561", price: 0, referer: "Booking.com" } }),
+      roomLabel: "206",
+    });
+    expect(cancelled).toContain("금액: *¥0* | 예약ID: 93557561");
+    expect(cancelled).toContain("플랫폼: Booking\n");
+    expect(cancelled).not.toContain("StayOps 에서 열기");
+    const sameDay = buildReservationAlertMessage({
+      copy: dictionaries.ja.automationMessages,
+      kind: "same_day",
+      openUrl: null,
+      propertyLabel: "STAY ARI Apartment Hotel",
+      reservation: reservation({ raw: { id: "93804456", price: 23413, referer: "Booking.com" } }),
+      roomLabel: "305",
+    });
+    expect(sameDay.split("\n")[0]).toBe("🔔 当日予約 1件");
+    expect(sameDay).toContain("金額: *¥23,413*");
+    expect(alertPlatformLabel("Airbnb")).toBe("Airbnb");
+    expect(alertPlatformLabel("booking.com")).toBe("Booking");
+  });
+});
+
+describe("메시지 표시 형식 — 저쪽 이름 · 순서 (2026-10-07)", () => {
+  const plain = (name: string) => `plain:${name}`;
+
+  it("청소 명단 제목은 「오쿠보A (B동)」, 일일 리포트는 「오쿠보A동」 · 「사노시」, 나머지는 건물 정보 이름", () => {
+    const ko = dictionaries.ko.automationMessages;
+    expect(automationBuildingLabel(ko, "cleaning", "오쿠보A", plain)).toBe("오쿠보A (B동)");
+    expect(automationBuildingLabel(ko, "cleaning", "오쿠보B", plain)).toBe("오쿠보B (A동)");
+    expect(automationBuildingLabel(ko, "cleaning", "오쿠보C", plain)).toBe("오쿠보C동");
+    expect(automationBuildingLabel(ko, "daily", "오쿠보A", plain)).toBe("오쿠보A동");
+    expect(automationBuildingLabel(ko, "daily", "사노", plain)).toBe("사노시");
+    expect(automationBuildingLabel(ko, "cleaning", "사노", plain)).toBe("plain:사노");
+    expect(automationBuildingLabel(ko, "daily", "아라키초A", plain)).toBe("plain:아라키초A");
+    expect(automationBuildingLabel(dictionaries.ja.automationMessages, "cleaning", "오쿠보A", plain)).toBe("大久保A（B棟）");
+  });
+
+  it("건물 순서 = 저쪽 청소 명단 순서(다카다노바바 → 오쿠보 → 스테이아리), 사노 맨 끝", () => {
+    expect([...AUTOMATION_BUILDING_ORDER]).toEqual([
+      "아라키초A", "아라키초B", "가부키초", "다카다노바바", "오쿠보A", "오쿠보B", "오쿠보C", "STAY ARI Apartment Hotel", "사노",
+    ]);
+  });
+
+  it("스테이아리 방은 숫자만(O · sky 접두어 없음), 다른 건물은 저쪽 코드", () => {
+    expect(cleaningRoomCode("STAY ARI Apartment Hotel", "O107")).toBe("107");
+    expect(cleaningRoomCode("아라키초A", "702")).toBe("AA702");
+    expect(cleaningRoomCode("다카다노바바", "6F")).toBe("T6");
+    expect(cleaningRoomCode("오쿠보A", "오쿠보A")).toBeNull();
+  });
+
+  it("정정본 머리말에 ↻ 아이콘", () => {
+    const text = buildCleaningListMessage({
+      buildingOrder: AUTOMATION_BUILDING_ORDER,
+      copy: dictionaries.ko.automationMessages,
+      correction: true,
+      model: { cleaning: [], setting: [], targetDate: "2026-10-07" },
+      names: new Map(),
+      propertyLabel: (n) => n,
+    });
+    expect(text.split("\n")[0]).toBe(":arrows_counterclockwise: *청소/셋팅 명단 정정본*");
   });
 });
 

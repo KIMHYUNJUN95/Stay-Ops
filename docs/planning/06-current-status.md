@@ -9,6 +9,13 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-07 — 자동화 Slack 연결 · 저쪽 메시지와 대조 · 예약 바로가기
+
+- Slack 앱 「StayOps Automation」 웹훅 4개(일일 · 청소 · 취소 · 당일예약 채널)를 Vercel 에 등록(`SLACK_AUTOMATION_*`). 발송은 아직 꺼짐.
+- 저쪽 마지막 자동 발송과 같은 날짜로 대조 — 계산 일치. 표시 형식은 사용자 결정대로 맞춤(건물 순서 · 오쿠보/사노 이름 · 스테이아리 방 숫자만 ·
+  🔔/↻ · 금액 ¥0 · Booking). 알림 링크는 `/go/reservation/<id>` — 권한 있으면 PC/폰 판매 캘린더에서 예약을 열고, 없으면 「권한이 없어요」.
+  (`36` 「Slack 연결」 · 「표시 형식」 · 「예약 바로가기 링크」, `32`, `31`)
+
 ## 2026-10-06 — 앱 WebView 보정 · Android 첫 실행 가이드 (앱 출시 준비 B3)
 
 - `NativeShellBridge`: 앱에서 외부 링크 · 다운로드는 앱 안 브라우저, 같은 출처 새 창은 WebView, Android 뒤로가기 버튼은 오버레이 닫기 → 이전 화면 → 최소화.

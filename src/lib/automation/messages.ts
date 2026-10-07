@@ -10,6 +10,9 @@
  *
  * 바꾼 것(36번 문서): 문구는 받는 곳마다 고른 언어(ko/ja/en)로, 건물 이름은 우리 건물 정보에서, 담당자는 대시보드
  * 수기 입력만(Hotelsmart 수집 안 함), 「당일 취소」 제목은 실제 동작대로 「취소」.
+ *
+ * 표시 형식(2026-10-07 저쪽 메시지와 대조 후 사용자 결정 — 36번 「표시 형식」): 건물 순서 · 오쿠보 · 사노 이름은
+ * 저쪽대로(`automationBuildingLabel`), 스테이아리 방은 숫자만, 알림 금액은 0원도 `¥0`, 플랫폼 `Booking`.
  */
 
 import type { Dictionary } from "@/lib/i18n";
@@ -30,6 +33,34 @@ export type MessageCopy = Dictionary["automationMessages"];
 
 export const fill = (template: string, values: Record<string, string | number>) =>
   Object.entries(values).reduce((out, [key, value]) => out.split(`{${key}}`).join(String(value)), template);
+
+/**
+ * 자동화 메시지의 건물 이름 — 저쪽 메시지 이름을 살리는 건물만 사전(`automationMessages.buildings`)에서 덮고,
+ * 나머지는 `fallback`(우리 건물 정보 · 공용 건물 이름). 청소 명단 제목은 「오쿠보A (B동)」, 일일 리포트는 「오쿠보A동」 ·
+ * 「사노시」 — 저쪽이 두 메시지에서 다르게 썼고 현장이 그 이름에 익숙하다(2026-10-07 사용자 결정).
+ */
+const AUTOMATION_BUILDING_KEY: Record<string, "okubo_a" | "okubo_b" | "okubo_c" | "sano"> = {
+  오쿠보A: "okubo_a",
+  오쿠보B: "okubo_b",
+  오쿠보C: "okubo_c",
+  사노: "sano",
+};
+
+export function automationBuildingLabel(
+  copy: MessageCopy,
+  kind: "cleaning" | "daily",
+  canonicalName: string,
+  fallback: (canonicalName: string) => string,
+): string {
+  const key = AUTOMATION_BUILDING_KEY[canonicalName];
+  const names: Partial<Record<string, string>> = copy.buildings[kind];
+  return (key && names[key]) || fallback(canonicalName);
+}
+
+/** 알림의 플랫폼 이름 — Beds24 원본 그대로, 단 `Booking.com` 은 `Booking`(2026-10-07 사용자 결정). */
+export function alertPlatformLabel(platform: string): string {
+  return /^booking\.com$/i.test(platform.trim()) ? "Booking" : platform;
+}
 
 export function formatYen(value: number): string {
   return `¥${Math.round(value).toLocaleString("en-US")}`;
@@ -377,7 +408,7 @@ export function buildReservationAlertMessage(input: {
   copy: MessageCopy;
   propertyLabel: string;
   roomLabel: string;
-  /** 판매 캘린더 예약 바로 열기 링크(`?resv=`). 없으면 줄을 뺀다. */
+  /** 예약 바로가기(`/go/reservation/<id>` — 권한을 보고 판매 캘린더로 보내거나 「권한 없음」). 없으면 줄을 뺀다. */
   openUrl: string | null;
 }): string {
   const a = input.copy.alert;
@@ -401,8 +432,9 @@ export function buildReservationAlertMessage(input: {
     input.kind === "cancel" ? a.cancelTitle : a.sameDayTitle,
     fill(a.location, { property: input.propertyLabel, room: input.roomLabel || "-" }),
     fill(a.stay, { checkIn: reservation.checkIn || "-", checkOut: reservation.checkOut || "-", nights: fill(a.nights, { n: nights }) }),
-    fill(a.guest, { guest: reservation.guestName || "-", guests: guestText, platform: platformLabel(reservation.raw) }),
-    fill(a.amount, { amount: amount > 0 ? formatYen(amount) : "-", id: bookingIdOf(reservation.raw, reservation.id) }),
+    fill(a.guest, { guest: reservation.guestName || "-", guests: guestText, platform: alertPlatformLabel(platformLabel(reservation.raw)) }),
+    // 0원도 `¥0`(저쪽처럼) — 취소된 예약은 Beds24 가 금액을 0 으로 비운다.
+    fill(a.amount, { amount: formatYen(amount), id: bookingIdOf(reservation.raw, reservation.id) }),
   ];
   if (input.kind === "cancel") {
     const instant = cancelInstantOf(reservation.raw, true);

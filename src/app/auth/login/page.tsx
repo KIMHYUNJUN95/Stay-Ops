@@ -11,7 +11,7 @@ import { GoogleSubmitButton } from "@/app/auth/login/google-button";
 import { legalHref } from "@/components/legal/legal-page-shell";
 import { resolveAuthErrorMessage } from "@/lib/auth-errors";
 import { ATTENDANCE_QR_PATH } from "@/lib/attendance-qr";
-import { isMobileSurfacePath } from "@/lib/surface-routing";
+import { isMobileSurfacePath, isSurfaceNeutralPath } from "@/lib/surface-routing";
 import { getDictionary, inferLocaleFromAcceptLanguage, isLocale, type Locale } from "@/lib/i18n";
 import { isMobileUserAgent } from "@/lib/mobile-device";
 import { getOnboardingState } from "@/lib/onboarding";
@@ -98,7 +98,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   // 모바일에서는 `/admin/...` 목적지를 앱으로 돌린다. 다만 **이미 모바일 경로인 next 는 지킨다** —
   // 예전에는 무조건 "/mobile" 로 덮어써서, 로그아웃 상태로 근태 QR 을 찍은 직원이 로그인 후
   // 인증 화면이 아니라 홈으로 떨어졌다(토큰이 통째로 버려졌다).
-  const effectiveNext = isMobileDevice && !isMobileSurfacePath(nextPathname) ? "/mobile" : next;
+  // 예약 바로가기(`/go/...`)도 지킨다 — 그 문이 기기를 보고 폰 화면으로 보낸다.
+  const effectiveNext =
+    isMobileDevice && !isMobileSurfacePath(nextPathname) && !isSurfaceNeutralPath(nextPathname) ? "/mobile" : next;
   // 현장에 붙은 출퇴근 QR 을 로그아웃 상태로 찍고 들어온 경우. 지나가던 사람도 찍을 수 있는
   // 인쇄물이라, 이 화면이 누구를 위한 것인지 분명히 알려준다.
   const isAttendanceQrEntry =

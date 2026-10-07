@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { postToAutomationChannel } from "@/lib/automation/channels";
+import { reservationShortcutPath } from "@/lib/reservation-shortcut";
 import {
   AUTOMATION_BUILDING_ORDER,
   checkReservationGate,
@@ -23,6 +24,7 @@ import {
   type AutomationLocale,
 } from "@/lib/automation/jobs";
 import {
+  automationBuildingLabel,
   buildCleaningListMessage,
   buildDailyReportMessage,
   buildReservationAlertMessage,
@@ -227,11 +229,12 @@ async function buildDaily(
   });
   const byLocale: Partial<Record<AutomationLocale, string>> = {};
   for (const locale of locales) {
+    const copy = getDictionary(locale).automationMessages;
     byLocale[locale] = buildDailyReportMessage({
-      copy: getDictionary(locale).automationMessages,
+      copy,
       locale,
       previous,
-      propertyLabel: (name) => label(name, locale),
+      propertyLabel: (name) => automationBuildingLabel(copy, "daily", name, (canonical) => label(canonical, locale)),
       stats,
     });
   }
@@ -253,14 +256,16 @@ async function buildCleaning(
   ]);
   const byLocale: Partial<Record<AutomationLocale, string>> = {};
   for (const locale of locales) {
-    const propertyLabel = (name: string) => label(name, locale);
+    const copy = getDictionary(locale).automationMessages;
+    const plainLabel = (name: string) => label(name, locale);
     byLocale[locale] = buildCleaningListMessage({
       buildingOrder: AUTOMATION_BUILDING_ORDER,
-      copy: getDictionary(locale).automationMessages,
+      copy,
       correction,
-      model: withLocalizedCodes(model, propertyLabel),
+      // 오쿠보 줄의 방 자리는 건물 이름 그대로(`*오쿠보A*`), 제목만 저쪽 이름(「오쿠보A (B동)」).
+      model: withLocalizedCodes(model, plainLabel),
       names,
-      propertyLabel,
+      propertyLabel: (name) => automationBuildingLabel(copy, "cleaning", name, plainLabel),
     });
   }
   return {
@@ -335,7 +340,8 @@ async function buildAlertText(
   return buildReservationAlertMessage({
     copy: getDictionary(locale).automationMessages,
     kind: jobKey === "cancel_alert" ? "cancel" : "same_day",
-    openUrl: base ? `${base}/admin/ops/calendar?resv=${encodeURIComponent(reservation.id)}` : null,
+    // 바로가기 — 받는 사람의 권한 · 기기를 보고 판매 캘린더(PC/폰)로 보내거나 「권한 없음」을 보여 준다(`/go/reservation`).
+    openUrl: base ? `${base}${reservationShortcutPath(reservation.id)}` : null,
     propertyLabel: label(canonical, locale),
     reservation,
     roomLabel: room,

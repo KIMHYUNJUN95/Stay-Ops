@@ -23,7 +23,6 @@ import {
 import { getCleaningTargets } from "@/lib/cleaning-targets";
 import { getDictionary } from "@/lib/i18n";
 import {
-  CALENDAR_BUILDING_ORDER,
   getCanonicalPropertyName,
   getDisplayRoomLabel,
   localizePropertyName,
@@ -126,7 +125,21 @@ export async function loadPropertyLabeler(
   };
 }
 
-export const AUTOMATION_BUILDING_ORDER = CALENDAR_BUILDING_ORDER;
+/**
+ * 자동화 메시지의 건물 순서 — **저쪽 청소 명단 순서**(`CLEANING_BUILDING_ORDER`: 스테이아리가 오쿠보 뒤). 판매 캘린더 순서와
+ * 다르다. 일일 리포트도 같은 순서를 쓰고 사노는 맨 끝(2026-10-07 사용자 결정).
+ */
+export const AUTOMATION_BUILDING_ORDER: readonly string[] = [
+  "아라키초A",
+  "아라키초B",
+  "가부키초",
+  "다카다노바바",
+  "오쿠보A",
+  "오쿠보B",
+  "오쿠보C",
+  "STAY ARI Apartment Hotel",
+  "사노",
+];
 
 /**
  * 일일 리포트 재료 — 이번 달 예약(예약 시각 기준)과 어제 근처에 취소된 예약.
@@ -168,7 +181,7 @@ export async function loadDailyReportReservations(
   return [...booked.data, ...cancelled.data].map(toAutomationReservation);
 }
 
-/** 방 코드 — 현장이 부르는 이름(저쪽 `formatCleaningRoomCode`). 오쿠보처럼 건물 = 방이면 null(건물 이름을 쓴다). */
+/** 방 코드 — 현장이 부르는 이름(저쪽 `formatCleaningRoomCode`, 스테이아리만 숫자만). 오쿠보처럼 건물 = 방이면 null(건물 이름을 쓴다). */
 export function cleaningRoomCode(canonicalProperty: string, canonicalRoom: string): string | null {
   if (canonicalRoom === canonicalProperty) return null;
   const display = getDisplayRoomLabel(canonicalProperty, canonicalRoom);
@@ -184,7 +197,8 @@ export function cleaningRoomCode(canonicalProperty: string, canonicalRoom: strin
     case "다카다노바바":
       return `T${digits[0]}`;
     case "STAY ARI Apartment Hotel":
-      return `O${digits}`;
+      // 숫자만(`107`) — 저쪽은 `sky107`, 우리 객실 이름은 `O107`. 2026-10-07 사용자 결정으로 접두어 없이.
+      return digits;
     default:
       return display;
   }
