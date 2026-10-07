@@ -562,7 +562,7 @@ function AssignPane({
     return (
       <div className="atm__agrid">
         {list.map(([label, items]) => (
-          <div className="atm__ab" key={`${section}-${label}`}>
+          <div className={`atm__ab${section === "setting" ? " is-setting" : ""}`} key={`${section}-${label}`}>
             <div className="atm__abh">{label}</div>
             {items.map((room) => {
               const isChanged = changed.some((item) => item.roomKey === room.roomKey);
@@ -624,10 +624,21 @@ function AssignPane({
         </div>
       ) : (
         <>
-          <div className="atm__subt">{copy.assign.cleaning}</div>
-          {renderSection("cleaning")}
-          <div className="atm__subt">{copy.assign.setting}</div>
-          {renderSection("setting")}
+          {/* 청소 · 셋팅은 Slack 명단처럼 두 덩어리 — 머리줄(제목 + 객실 수)로 확실히 가르고, 셋팅 카드는 머리 색을 다르게. */}
+          <section className="atm__asec">
+            <div className="atm__asech">
+              <span className="atm__asect">{copy.assign.cleaning}</span>
+              <span className="atm__asecn">{counts.c}</span>
+            </div>
+            {renderSection("cleaning")}
+          </section>
+          <section className="atm__asec is-setting">
+            <div className="atm__asech">
+              <span className="atm__asect">{copy.assign.setting}</span>
+              <span className="atm__asecn">{counts.s}</span>
+            </div>
+            {renderSection("setting")}
+          </section>
         </>
       )}
     </>

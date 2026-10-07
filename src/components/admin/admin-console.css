@@ -2282,8 +2282,9 @@
 .adm .adp__wd span.sun { color:color-mix(in oklab,var(--danger) 60%,var(--faint)); }
 .adm .adp__grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
 .adm .adp__cell { display:flex; align-items:center; justify-content:center; height:34px; border:none; background:none; border-radius:9px; font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--ink-soft); position:relative; cursor:pointer; }
-.adm .adp__cell.empty { cursor:default; }
-.adm .adp__cell:not(.empty):not(:disabled):hover { background:var(--card2); color:var(--ink); }
+/* 달 앞 빈칸 — 예전 클래스 `empty` 는 공용 빈 상태 `.adm .empty`(padding 26px)와 겹쳐 첫 주 줄이 52px 로 늘어났다(2026-10-07). */
+.adm .adp__cell.is-blank { cursor:default; }
+.adm .adp__cell:not(.is-blank):not(:disabled):hover { background:var(--card2); color:var(--ink); }
 .adm .adp__cell.today { color:var(--adm-primary); font-weight:900; }
 .adm .adp__cell.today::after { content:""; position:absolute; bottom:5px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:999px; background:var(--adm-primary); }
 .adm .adp__cell.sel { background:var(--adm-primary); color:#fff; font-weight:800; }

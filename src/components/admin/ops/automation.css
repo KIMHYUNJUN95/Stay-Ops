@@ -176,16 +176,25 @@
 .adm .atm__warn > span { flex: 1; min-width: 200px; }
 
 .adm .atm__subt { font-size: 10.5px; font-weight: 800; color: var(--faint); letter-spacing: 0.03em; margin: 16px 0 8px; }
-.adm .atm__agrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
-.adm .atm__ab { border: 1px solid var(--line); border-radius: 13px; background: var(--card); overflow: hidden; }
-.adm .atm__abh { padding: 8px 12px; font-size: 11px; font-weight: 800; color: var(--ink-soft); background: var(--card2); border-bottom: 1px solid var(--line-soft); }
-.adm .atm__ar { display: flex; align-items: center; gap: 10px; padding: 7px 12px; }
+/* 담당자 탭 — 청소 / 셋팅 두 덩어리. 머리줄 = 제목 + 객실 수, 덩어리 사이는 선으로 가른다. */
+.adm .atm__asec { margin-top: 14px; }
+.adm .atm__asec + .atm__asec { margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--line); }
+.adm .atm__asech { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.adm .atm__asect { font-size: 13px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; }
+.adm .atm__asecn { min-width: 22px; height: 20px; padding: 0 7px; border-radius: var(--r-pill); background: var(--surface2); color: var(--ink-soft); font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; }
+.adm .atm__asec.is-setting .atm__asecn { background: var(--primary-soft); color: var(--adm-primary); }
+/* 카드 높이가 제각각이라 격자(행 맞춤)로 두면 짧은 카드 옆에 큰 빈칸이 생겼다 — 단(column)으로 위에서부터 채운다. */
+.adm .atm__agrid { columns: 2 320px; column-gap: 12px; }
+.adm .atm__ab { break-inside: avoid; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
+.adm .atm__abh { padding: 6px 12px; font-size: 11px; font-weight: 800; color: var(--ink-soft); background: var(--card2); border-bottom: 1px solid var(--line-soft); }
+.adm .atm__ab.is-setting .atm__abh { background: var(--primary-soft); color: var(--adm-primary); }
+.adm .atm__ar { display: flex; align-items: center; gap: 10px; padding: 4px 8px 4px 12px; }
 .adm .atm__ar + .atm__ar { border-top: 1px solid hsl(40 26% 93%); }
 .adm .atm__chg { width: 7px; height: 7px; border-radius: 9px; background: var(--warn); flex: 0 0 7px; }
 .adm .atm__nochg { width: 7px; flex: 0 0 7px; }
 .adm .atm__rc { width: 64px; flex: 0 0 64px; font-size: 12px; font-weight: 700; font-family: var(--mono); overflow-wrap: anywhere; }
 .adm .atm__rl { flex: 1; min-width: 0; font-size: 11.5px; color: var(--adm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.adm .atm__nin { width: 160px; max-width: 45%; height: 30px; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 0 9px; font: inherit; font-size: 12px; color: var(--ink); outline: 0; }
+.adm .atm__nin { width: 150px; max-width: 45%; height: 28px; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 0 9px; font: inherit; font-size: 12px; color: var(--ink); outline: 0; }
 .adm .atm__nin:focus { border-color: var(--adm-primary); box-shadow: 0 0 0 3px var(--primary-soft); }
 .adm .atm__nin:disabled { background: var(--surface2); }
 
@@ -205,5 +214,4 @@
   .adm .atm__body { grid-template-columns: 1fr; }
   .adm .atm__list { border-right: 0; border-bottom: 1px solid var(--line); }
   .adm .atm__cols { grid-template-columns: 1fr; }
-  .adm .atm__agrid { grid-template-columns: 1fr; }
 }

@@ -10,6 +10,7 @@ This file records important project decisions.
 - **알림 링크 = 예약 바로가기 `/go/reservation/<id>`(사용자)**: 권한 없는 사람이 누르면 「권한이 없어요」를 보여 줘야 한다. 운영 관리자 화면의
   「권한 없으면 말없이 홈으로」(32번)는 그대로 두고, 바로가기만 예외. 권한 있으면 기기에 맞는 판매 캘린더(PC/폰)에서 그 예약을 연다.
 - 상세: `docs/product/36-automation-control.md` 「표시 형식」 · 「예약 바로가기 링크」.
+- (같은 날 추가) 공용 달력 빈칸 클래스는 `is-blank` — 일반 이름(`empty`)은 콘솔 공용 클래스와 겹친다(05번).
 
 ## 2026-10-06 자동화 관제실 — Slack 자동화를 StayOps 로, 저쪽 프로젝트 정지
 

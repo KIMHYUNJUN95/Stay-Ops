@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/admin-session";
+import { getDictionary } from "@/lib/i18n";
 import { listAutomationChannels } from "@/lib/automation/channels";
 import {
+  AUTOMATION_BUILDING_ORDER,
   loadAssignees,
   loadCleaningListModel,
   loadDestinations,
@@ -25,6 +27,7 @@ import {
   type AutomationSettings,
 } from "@/lib/automation/jobs";
 import { buildPreview, sendJobNow } from "@/lib/automation/runner";
+import { automationBuildingLabel } from "@/lib/automation/messages";
 import { computeNextWake } from "@/lib/automation/schedule";
 import { canAccessOpsAdmin } from "@/lib/ops-admin";
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
@@ -135,24 +138,38 @@ export async function loadAssigneeBoard(
         .maybeSingle(),
     ]);
     const label = (name: string) => labeler(name, locale);
+    // 건물 제목 · 순서는 Slack 청소 명단과 같게(「오쿠보A (B동)」, 다카다노바바 → 오쿠보 → 스테이아리).
+    const messageCopy = getDictionary(locale).automationMessages;
+    const headerLabel = (name: string) => automationBuildingLabel(messageCopy, "cleaning", name, label);
+    const orderOf = (name: string) => {
+      const index = AUTOMATION_BUILDING_ORDER.indexOf(name);
+      return index < 0 ? AUTOMATION_BUILDING_ORDER.length : index;
+    };
     const localized = withLocalizedCodes(model, label);
     const sentMeta = (lastSent.data?.meta ?? null) as { names?: Record<string, string> } | null;
     const sentNames = sentMeta?.names ?? null;
     const rooms: AssigneeRoomView[] = [
       ...localized.cleaning.map((room) => ({ ...room, section: "cleaning" as const })),
       ...localized.setting.map((room) => ({ ...room, section: "setting" as const })),
-    ].map((room) => ({
-      code: room.code,
-      guestName: room.guestName,
-      kind: room.kind,
-      label: label(room.propertyName),
-      names: names.get(room.roomKey) ?? "",
-      pax: room.pax,
-      propertyName: room.propertyName,
-      roomKey: room.roomKey,
-      section: room.section,
-      sentNames: sentNames ? (sentNames[room.roomKey] ?? "") : null,
-    }));
+    ]
+      .sort(
+        (a, b) =>
+          orderOf(a.propertyName) - orderOf(b.propertyName) ||
+          a.propertyName.localeCompare(b.propertyName) ||
+          a.code.localeCompare(b.code, "ko", { numeric: true }),
+      )
+      .map((room) => ({
+        code: room.code,
+        guestName: room.guestName,
+        kind: room.kind,
+        label: headerLabel(room.propertyName),
+        names: names.get(room.roomKey) ?? "",
+        pax: room.pax,
+        propertyName: room.propertyName,
+        roomKey: room.roomKey,
+        section: room.section,
+        sentNames: sentNames ? (sentNames[room.roomKey] ?? "") : null,
+      }));
     return { ok: true, rooms, sent: !!sentNames };
   } catch (error) {
     console.error("[automation] assignee board failed", error instanceof Error ? error.message : error);

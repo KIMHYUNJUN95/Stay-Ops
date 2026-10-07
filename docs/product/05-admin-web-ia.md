@@ -299,6 +299,8 @@ Permissions · Invite Codes · Attendance Sites/QR 등)은 위 3개 그룹의 �
 - 캐논 캘린더 크롬은 청소 기록 탭 범위 피커의 `.calpop` 팝오버다 — 폭 292px, radius 16px, padding 14px,
   30px nav 버튼, 34px 날짜 셀, 오늘 표시 점. `admin-console.css`의 `.adp__*`(단일일)과 `.amp__*`(월)은
   이와 **의도적으로 동일하게 유지**한다. 하나를 손보면 셋 다 손본다.
+- 달력 앞 빈칸 클래스는 `is-blank`(`.adp__cell.is-blank`) — **`empty` 같은 일반 이름을 쓰지 않는다.** 공용 빈 상태 `.adm .empty`
+  (padding 26px)와 겹쳐 `AdminDatePicker` 의 첫 주 줄만 52px 로 늘어나 있었다(2026-10-07 수정). 범위 피커는 `cald--pad`.
 - `AdminMonthPicker`는 **월 선택 개념 그대로 유지**한다(급여·교통비·수당). 월 선택을 범위 선택으로,
   또는 그 반대로 임의 변환하지 않는다 — 서로 다른 조작 개념이다.
 

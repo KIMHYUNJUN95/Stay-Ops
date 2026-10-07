@@ -230,7 +230,7 @@ function InlineDatePicker({
                   {cell.day}
                 </button>
               ) : (
-                <span key={`blank-${i}`} className="adp__cell empty" />
+                <span key={`blank-${i}`} aria-hidden="true" className="adp__cell is-blank" />
               ),
             )}
           </div>
@@ -391,7 +391,7 @@ function RosterNavDatePicker({
                   {cell.day}
                 </button>
               ) : (
-                <span key={`blank-${i}`} className="adp__cell empty" />
+                <span key={`blank-${i}`} aria-hidden="true" className="adp__cell is-blank" />
               ),
             )}
           </div>
