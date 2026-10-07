@@ -148,14 +148,26 @@ describe("일일 운영 리포트", () => {
     expect(sameSnapshot(base, { ...base, revenue: 4000 })).toBe(false);
   });
 
-  it("메시지 — 한국어는 저쪽 형식, 영어는 영어로", () => {
+  // 2026-10-07 — 폰 Slack 가독성: 요약은 건수 / 매출 두 줄, 건물은 「이름 + 매출」 아래 예약 · 취소 줄, 0건 건물은 한 줄로.
+  it("메시지 — 짧은 줄로 나눈다(ko · ja · en)", () => {
     const ko = buildDailyReportMessage({ copy: dictionaries.ko.automationMessages, locale: "ko", propertyLabel: (n) => n, stats: stats() });
-    expect(ko).toContain("일일 운영 리포트 · 2026-10-05");
-    expect(ko).toContain("신규 예약 2건　취소 1건　매출 *¥80,000*");
-    expect(ko).toContain("• 가부키초  ·  예약 1건 [11월 *1건*]  취소 0건  ·  *¥30,000*");
+    expect(ko.split("\n")[0]).toBe("📊 *일일 운영 리포트 · 10/5(월)*");
+    expect(ko).toContain("신규 *2건* · 취소 *1건*\n매출 *¥80,000*");
+    expect(ko).toContain("*가부키초*  *¥30,000*\n　예약 1건 · 11월 1건\n");
+    expect(ko).not.toContain("가부키초*  *¥30,000*\n　예약 1건 · 11월 1건\n　취소");
+    expect(ko).toContain("예약 · 취소 없음: 아라키초B, STAY ARI Apartment Hotel");
+    const ja = buildDailyReportMessage({ copy: dictionaries.ja.automationMessages, locale: "ja", propertyLabel: (n) => n, stats: stats() });
+    expect(ja).toContain("新規 *2件* · キャンセル *1件*\n売上 *¥80,000*");
+    expect(ja).toContain("新規・チェックイン月: 10月 1件、11月 1件"); // 일본어 목록은 「、」
     const en = buildDailyReportMessage({ copy: dictionaries.en.automationMessages, locale: "en", propertyLabel: (n) => n, stats: stats() });
-    expect(en).toContain("New 2　Cancelled 1　Revenue *¥80,000*");
-    expect(en).toContain("By check-in month: Oct 2");
+    expect(en.split("\n")[0]).toBe("📊 *Daily operations report · Mon 10/5*");
+    expect(en).toContain("By check-in month: Oct 2, Nov 1");
+    // 폰에서 한 줄이 너무 길지 않게 — 건물 줄은 이름 · 매출만(0건 건물 목록은 이름 나열이라 줄바꿈돼도 된다).
+    const quietLabels = [ko, ja, en].map((_, i) => [dictionaries.ko, dictionaries.ja, dictionaries.en][i].automationMessages.daily.buildingsQuiet.split(":")[0]);
+    [ko, ja, en].forEach((text, i) => {
+      const lines = text.split("\n").filter((line) => !line.startsWith(quietLabels[i]));
+      expect(Math.max(...lines.map((line) => line.length))).toBeLessThan(60);
+    });
   });
 
   it("변동 재전송 — 직전 숫자와 다르면 변동 줄과 상세가 붙는다", () => {
@@ -268,7 +280,8 @@ describe("취소 · 당일예약 알림", () => {
     expect(isFreshCancellation(row, "2026-10-06T01:00:00Z")).toBe(false);
   });
 
-  it("취소 알림 — 제목은 「🔔 취소 1건」(「당일 취소」 아님) · 인원 · 바로가기", () => {
+  // 2026-10-07 — 폰 Slack 가독성: 첫 줄에 무슨 일 · 어느 방, 날짜는 요일까지, 긴 주소 대신 링크 글자.
+  it("취소 알림 — 「🔔 *취소* · 건물 방」 · 요일 날짜 · 인원 · 링크 글자", () => {
     const text = buildReservationAlertMessage({
       copy: dictionaries.ko.automationMessages,
       kind: "cancel",
@@ -276,37 +289,47 @@ describe("취소 · 당일예약 알림", () => {
       propertyLabel: "아라키초A",
       reservation: reservation({ status: "cancelled", raw: { bookId: "777", cancelTime: "2026-10-06T00:41:00Z", numAdult: 2, numChild: 1, price: 86400, referer: "Airbnb" } }),
       roomLabel: "302",
+      today: "2026-10-06",
     });
-    expect(text.split("\n")[0]).toBe("🔔 취소 1건");
-    expect(text).toContain("인원: 성인 2명, 아동 1명 (총 3명)");
-    expect(text).toContain("취소 시각: 2026-10-06 09:41 (JST)");
-    expect(text).toContain("예약ID: 777");
-    expect(text).toContain("StayOps 에서 열기: https://example.test/go/reservation/1");
+    expect(text.split("\n")).toEqual([
+      "🔔 *취소* · 아라키초A 302",
+      "*10/20(화) → 10/22(목)* · 2박 · 3명(아동 1)",
+      "Kim · Airbnb",
+      "*¥86,400* · 예약 777",
+      "취소 10/6(화) 09:41",
+      "<https://example.test/go/reservation/1|StayOps 에서 열기>",
+    ]);
   });
 
-  // 2026-10-07 저쪽 메시지와 대조 후 사용자 결정 — 36번 「표시 형식」.
-  it("금액은 0원도 *¥0*, 플랫폼 Booking.com 은 Booking", () => {
+  it("금액은 0원도 *¥0*, Booking.com 은 Booking, 올해가 아니면 연도, 당일예약은 「오늘」(ja)", () => {
     const cancelled = buildReservationAlertMessage({
       copy: dictionaries.ko.automationMessages,
       kind: "cancel",
       openUrl: null,
       propertyLabel: "STAY ARI Apartment Hotel",
-      reservation: reservation({ status: "cancelled", raw: { cancelTime: "2026-09-28T22:44:00Z", id: "93557561", price: 0, referer: "Booking.com" } }),
+      reservation: reservation({ checkIn: "2027-02-04", checkOut: "2027-02-08", status: "cancelled", raw: { cancelTime: "2026-09-28T22:44:00Z", id: "93557561", price: 0, referer: "Booking.com" } }),
       roomLabel: "206",
+      today: "2026-09-29",
     });
-    expect(cancelled).toContain("금액: *¥0* | 예약ID: 93557561");
-    expect(cancelled).toContain("플랫폼: Booking\n");
-    expect(cancelled).not.toContain("StayOps 에서 열기");
+    expect(cancelled).toContain("*2027/2/4(목) → 2027/2/8(월)* · 4박");
+    expect(cancelled).toContain(" · Booking\n*¥0* · 예약 93557561");
+    expect(cancelled).not.toContain("StayOps");
     const sameDay = buildReservationAlertMessage({
       copy: dictionaries.ja.automationMessages,
       kind: "same_day",
-      openUrl: null,
+      openUrl: "https://example.test/go/reservation/2",
       propertyLabel: "STAY ARI Apartment Hotel",
-      reservation: reservation({ raw: { id: "93804456", price: 23413, referer: "Booking.com" } }),
+      reservation: reservation({ checkIn: "2026-09-28", checkOut: "2026-09-29", raw: { id: "93804456", numAdult: 4, price: 23413, referer: "Booking.com" } }),
       roomLabel: "305",
+      today: "2026-09-28",
     });
-    expect(sameDay.split("\n")[0]).toBe("🔔 当日予約 1件");
-    expect(sameDay).toContain("金額: *¥23,413*");
+    expect(sameDay.split("\n")).toEqual([
+      "🔔 *当日予約* · STAY ARI Apartment Hotel 305",
+      "*本日 9/28(月) → 9/29(火)* · 1泊 · 4名",
+      "Kim · Booking",
+      "*¥23,413* · 予約 93804456",
+      "<https://example.test/go/reservation/2|StayOps で開く>",
+    ]);
     expect(alertPlatformLabel("Airbnb")).toBe("Airbnb");
     expect(alertPlatformLabel("booking.com")).toBe("Booking");
   });

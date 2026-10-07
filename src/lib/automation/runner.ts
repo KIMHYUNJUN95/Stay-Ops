@@ -441,6 +441,7 @@ async function buildAlertText(
     propertyLabel: label(canonical, locale),
     reservation,
     roomLabel: room,
+    today: tokyoClock(new Date()).date,
   });
 }
 

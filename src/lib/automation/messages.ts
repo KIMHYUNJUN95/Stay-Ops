@@ -92,6 +92,27 @@ function monthList(copy: MessageCopy, locale: AutomationLocale, map: MonthCounts
     .join(bold ? ", " : "  ·  ");
 }
 
+/**
+ * 날짜 + 요일(도쿄 달력 날짜 그대로) — 「10/7(수)」 · 「10/7(水)」 · 「Wed 10/7」. 올해가 아니면 연도를 붙인다(2027/3/5(금)).
+ * 폰 Slack 에서 「2026-10-07」 보다 짧고, 요일이 있어 현장이 바로 안다(2026-10-07 가독성 개선).
+ */
+export function dayLabel(copy: MessageCopy, date: string, today?: string | null): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return date || "-";
+  const [y, m, d] = date.split("-").map(Number);
+  const weekday = copy.weekdays.split(",")[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] ?? "";
+  const sameYear = !today || today.slice(0, 4) === date.slice(0, 4);
+  const md = fill(sameYear ? copy.mdFormat : copy.ymdFormat, { d, m, y });
+  return fill(copy.dayFormat, { md, wd: weekday });
+}
+
+/** 입실월 목록(짧게) — 「4월 1건, 10월 3건」. */
+function monthBrief(copy: MessageCopy, locale: AutomationLocale, map: MonthCounts): string {
+  return [...map.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([month, n]) => `${monthLabel(copy, month, locale)} ${count(copy, n)}`)
+    .join(copy.listSeparator);
+}
+
 // ── 일일 운영 리포트 ─────────────────────────────────────────────────────
 
 export type DailyBuildingStats = {
@@ -258,34 +279,39 @@ export function buildDailyReportMessage(input: {
   const { stats, copy, locale } = input;
   const d = copy.daily;
   const c = (n: number) => count(copy, n);
+  // 폰 Slack 에서 한 줄이 넘치지 않게 — 요약은 건수 / 매출을 나누고, 건물은 「이름 + 매출」 아래에 예약 · 취소 줄(2026-10-07).
   const lines: string[] = [
-    fill(d.title, { date: stats.reportDate }),
+    fill(d.title, { date: dayLabel(copy, stats.reportDate) }),
+    "",
     d.sectionTotal,
-    fill(d.totals, { cancel: c(stats.totalCancel), new: c(stats.totalNew), revenue: formatYen(stats.revenue) }),
+    fill(d.totalsCounts, { cancel: c(stats.totalCancel), new: c(stats.totalNew) }),
+    fill(d.totalsRevenue, { revenue: formatYen(stats.revenue) }),
     fill(d.newChannels, { airbnb: c(stats.newByChannel.airbnb), booking: c(stats.newByChannel.booking) }),
     fill(d.cancelChannels, { airbnb: c(stats.cancelByChannel.airbnb), booking: c(stats.cancelByChannel.booking) }),
-    fill(d.newMonths, { list: monthList(copy, locale, stats.newMonths, false) || copy.emptyValue }),
-    fill(d.cancelMonths, { list: monthList(copy, locale, stats.cancelMonths, false) || copy.emptyValue }),
+    fill(d.newMonths, { list: monthBrief(copy, locale, stats.newMonths) || copy.emptyValue }),
+    fill(d.cancelMonths, { list: monthBrief(copy, locale, stats.cancelMonths) || copy.emptyValue }),
+    "",
     d.sectionBuildings,
   ];
+  const quiet: string[] = [];
   for (const building of stats.buildings) {
-    const newMonths = monthList(copy, locale, building.newMonths, true);
-    const cancelMonths = monthList(copy, locale, building.cancelMonths, true);
-    lines.push(
-      fill(d.building, {
-        cancel: c(building.cancelCount),
-        cancelMonths: cancelMonths ? ` [${cancelMonths}]` : "",
-        name: input.propertyLabel(building.propertyName),
-        new: c(building.newCount),
-        newMonths: newMonths ? ` [${newMonths}]` : "",
-        revenue: building.revenue > 0 ? `*${formatYen(building.revenue)}*` : copy.emptyValue,
-      }),
-    );
+    const name = input.propertyLabel(building.propertyName);
+    if (building.newCount === 0 && building.cancelCount === 0 && building.revenue <= 0) {
+      quiet.push(name);
+      continue;
+    }
+    const newMonths = monthBrief(copy, locale, building.newMonths);
+    const cancelMonths = monthBrief(copy, locale, building.cancelMonths);
+    lines.push(fill(d.buildingHead, { name, revenue: building.revenue > 0 ? `*${formatYen(building.revenue)}*` : "" }).trimEnd());
+    lines.push(fill(d.buildingNew, { months: newMonths ? ` · ${newMonths}` : "", n: c(building.newCount) }));
+    if (building.cancelCount > 0) lines.push(fill(d.buildingCancel, { months: cancelMonths ? ` · ${cancelMonths}` : "", n: c(building.cancelCount) }));
   }
+  if (quiet.length > 0) lines.push(fill(d.buildingsQuiet, { list: quiet.join(copy.listSeparator) }));
   lines.push(
+    "",
     d.sectionMtd,
     fill(d.mtdTotal, { count: c(stats.mtdNew) }),
-    fill(d.mtdMonths, { list: monthList(copy, locale, stats.mtdMonths, false) || copy.emptyValue }),
+    fill(d.mtdMonths, { list: monthBrief(copy, locale, stats.mtdMonths) || copy.emptyValue }),
   );
 
   if (input.previous) {
@@ -441,9 +467,12 @@ export function buildReservationAlertMessage(input: {
   roomLabel: string;
   /** 예약 바로가기(`/go/reservation/<id>` — 권한을 보고 판매 캘린더로 보내거나 「권한 없음」). 없으면 줄을 뺀다. */
   openUrl: string | null;
+  /** 오늘(도쿄) — 「오늘」 표시 · 연도 생략 판단. 없으면 연도를 늘 생략. */
+  today?: string | null;
 }): string {
-  const a = input.copy.alert;
-  const { reservation } = input;
+  const { copy, reservation } = input;
+  const a = copy.alert;
+  const today = input.today ?? null;
   const nights =
     reservation.checkIn && reservation.checkOut
       ? Math.max(0, Math.round((Date.parse(`${reservation.checkOut}T00:00:00Z`) - Date.parse(`${reservation.checkIn}T00:00:00Z`)) / 86_400_000))
@@ -451,29 +480,37 @@ export function buildReservationAlertMessage(input: {
   const guests = guestCountsOf(reservation.raw);
   const guestText =
     guests.total > 0
-      ? fill(a.guests, {
-          list: [guests.adults > 0 ? fill(a.adults, { n: guests.adults }) : null, guests.children > 0 ? fill(a.children, { n: guests.children }) : null]
-            .filter(Boolean)
-            .join(", "),
-          total: guests.total,
-        })
-      : a.guestsUnknown;
+      ? guests.children > 0
+        ? fill(a.guestsWithChildren, { c: guests.children, n: guests.total })
+        : fill(a.guestsTotal, { n: guests.total })
+      : null;
+  const checkIn = reservation.checkIn ? dayLabel(copy, reservation.checkIn, today) : "-";
+  const dates = `${reservation.checkIn && reservation.checkIn === today ? `${a.today} ` : ""}${checkIn} → ${
+    reservation.checkOut ? dayLabel(copy, reservation.checkOut, today) : "-"
+  }`;
   const amount = legacyReservationAmount(reservation.raw);
+  // 폰 Slack 에서 첫 줄만 봐도 「무슨 일 · 어느 방」. 나머지는 짧은 줄로 나눈다 — 일본어도 한 줄이 넘치지 않게(2026-10-07).
   const lines = [
-    input.kind === "cancel" ? a.cancelTitle : a.sameDayTitle,
-    fill(a.location, { property: input.propertyLabel, room: input.roomLabel || "-" }),
-    fill(a.stay, { checkIn: reservation.checkIn || "-", checkOut: reservation.checkOut || "-", nights: fill(a.nights, { n: nights }) }),
-    fill(a.guest, { guest: reservation.guestName || "-", guests: guestText, platform: alertPlatformLabel(platformLabel(reservation.raw)) }),
-    // 0원도 `¥0`(저쪽처럼) — 취소된 예약은 Beds24 가 금액을 0 으로 비운다.
-    fill(a.amount, { amount: formatYen(amount), id: bookingIdOf(reservation.raw, reservation.id) }),
+    fill(a.head, { property: input.propertyLabel, room: input.roomLabel || "", title: input.kind === "cancel" ? a.cancelTitle : a.sameDayTitle }).trimEnd(),
+    [`*${dates}*`, fill(a.nights, { n: nights }), guestText].filter(Boolean).join(" · "),
+    [reservation.guestName || "-", alertPlatformLabel(platformLabel(reservation.raw))].join(" · "),
+    fill(a.amount, { amount: `*${formatYen(amount)}*`, id: bookingIdOf(reservation.raw, reservation.id) }),
   ];
   if (input.kind === "cancel") {
     const instant = cancelInstantOf(reservation.raw, true);
-    const time = instant ? tokyoDateTimeLabel(instant) : "-";
-    lines.push(fill(a.cancelledAt, { time }));
+    if (instant) {
+      const { date, time } = tokyoDateTimeParts(instant);
+      lines.push(fill(a.cancelledAt, { time: `${dayLabel(copy, date, today)} ${time}` }));
+    }
   }
-  if (input.openUrl) lines.push(fill(a.open, { url: input.openUrl }));
+  // Slack 링크 문법 — 긴 주소 대신 글자만 보인다.
+  if (input.openUrl) lines.push(`<${input.openUrl}|${a.open}>`);
   return lines.join("\n");
+}
+
+function tokyoDateTimeParts(iso: string): { date: string; time: string } {
+  const label = tokyoDateTimeLabel(iso);
+  return { date: label.slice(0, 10), time: label.slice(11, 16) };
 }
 
 /** "YYYY-MM-DD HH:mm" (도쿄). */
