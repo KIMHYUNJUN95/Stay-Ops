@@ -19,11 +19,16 @@
 .adm .atm__role.is-view { border-color: var(--line); background: var(--surface2); color: var(--adm-muted); }
 .adm .atm__role i { width: 7px; height: 7px; border-radius: 9px; background: currentColor; }
 
+/* 틀은 자르지 않는다(overflow 기본) — 예전 `overflow: hidden` 이 담당자 탭 「청소 방 추가」 드롭다운 · 시각 피커처럼 아래로
+   펼쳐지는 메뉴를 틀 바닥에서 잘랐다(2026-10-07). 둥근 모서리는 왼쪽 목록이 스스로 깎는다. */
 .adm .atm__body {
   display: grid; grid-template-columns: 268px minmax(0, 1fr); min-height: 640px;
-  border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); overflow: hidden;
+  border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card);
 }
-.adm .atm__list { display: flex; flex-direction: column; border-right: 1px solid var(--line); background: var(--card2); min-width: 0; }
+.adm .atm__list {
+  display: flex; flex-direction: column; border-right: 1px solid var(--line); background: var(--card2); min-width: 0;
+  border-radius: calc(var(--r-card) - 1px) 0 0 calc(var(--r-card) - 1px); overflow: hidden;
+}
 .adm .atm__sec { font-size: 10.5px; font-weight: 800; color: var(--faint); letter-spacing: 0.04em; padding: 16px 16px 6px; text-transform: uppercase; }
 .adm .atm__item {
   display: flex; flex-direction: column; gap: 5px; padding: 11px 16px; border: 0; background: transparent; text-align: left; width: 100%;
@@ -201,7 +206,10 @@
 .adm .atm__xbtn { width: 26px; height: 26px; flex: 0 0 26px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--adm-muted); cursor: pointer; }
 .adm .atm__xbtn:hover:not(:disabled) { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 35%, var(--line)); }
 .adm .atm__xbtn svg { width: 14px; height: 14px; }
-.adm .atm__addroom { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 12px; background: var(--card); }
+.adm .atm__addroom { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; margin-bottom: 10px; border: 1px dashed var(--line); border-radius: 12px; background: var(--card); }
+/* 객실 고르기 — 버튼 폭을 넉넉히(「아라키초A · AA201」 한 줄), 메뉴는 공용 `wide`(280px). */
+.adm .atm__addpick { width: 230px; flex: 0 0 230px; }
+.adm .atm__addpick .dd__opt__k { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .adm .atm__addt { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800; color: var(--ink-soft); }
 .adm .atm__addt svg { width: 14px; height: 14px; }
 .adm .atm__addroom .atm__nin { max-width: 200px; }
@@ -220,6 +228,6 @@
 
 @media (max-width: 1100px) {
   .adm .atm__body { grid-template-columns: 1fr; }
-  .adm .atm__list { border-right: 0; border-bottom: 1px solid var(--line); }
+  .adm .atm__list { border-right: 0; border-bottom: 1px solid var(--line); border-radius: calc(var(--r-card) - 1px) calc(var(--r-card) - 1px) 0 0; }
   .adm .atm__cols { grid-template-columns: 1fr; }
 }

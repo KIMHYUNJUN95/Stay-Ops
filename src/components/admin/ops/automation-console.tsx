@@ -675,23 +675,25 @@ function AssignPane({
               <span className="atm__asect">{copy.assign.cleaning}</span>
               <span className="atm__asecn">{counts.c}</span>
             </div>
-            {renderSection("cleaning")}
             {!view ? (
               <div className="atm__addroom">
                 <span className="atm__addt">
                   <Plus aria-hidden="true" />
                   {copy.assign.addRoom}
                 </span>
-                <AdmDropdown
-                  ariaLabel={copy.assign.addRoomPick}
-                  onChange={setAddKey}
-                  options={addOptions}
-                  placeholder={copy.assign.addRoomPick}
-                  searchable
-                  searchPlaceholder={copy.assign.addRoomSearch}
-                  size="sm"
-                  value={addKey}
-                />
+                <div className="atm__addpick">
+                  <AdmDropdown
+                    ariaLabel={copy.assign.addRoomPick}
+                    onChange={setAddKey}
+                    options={addOptions}
+                    placeholder={copy.assign.addRoomPick}
+                    searchable
+                    searchPlaceholder={copy.assign.addRoomSearch}
+                    size="sm"
+                    value={addKey}
+                    wide
+                  />
+                </div>
                 <input
                   aria-label={copy.assign.addRoomNote}
                   className="atm__nin"
@@ -706,6 +708,7 @@ function AssignPane({
                 <span className="atm__note">{copy.assign.addRoomHint}</span>
               </div>
             ) : null}
+            {renderSection("cleaning")}
           </section>
           <section className="atm__asec is-setting">
             <div className="atm__asech">
