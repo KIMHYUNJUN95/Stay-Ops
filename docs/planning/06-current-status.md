@@ -9,6 +9,13 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-07 — 가동률 화면 (`/admin/ops/occupancy`)
+
+- 시안 3개(A 보고서형 · B 객실 × 월 히트맵 · C 앞으로 보기, 2026-09 실데이터) → 사용자 「이대로 구현」 → 탭 셋으로 구현. 숫자는 매출 화면과
+  같은 칸(`getOpsRevenueData`, 저쪽과 243칸 일치)이고 「앞으로」만 이번 달부터 6달을 더 읽는다(분모 = 객실 × 일수). 등급 · 60% 기준선 ·
+  많이 빈 객실은 저쪽 가동률 화면 규칙(`ops-occupancy.ts`). Excel · PDF(건물별 · 객실 × 월 · 앞으로 6달). ko/ja/en `opsOccupancy`.
+- 검증: lint · test(966) · build 통과. **화면은 아직 눈으로 보지 않았다**(로그인 필요) — 사용자 확인 대기. 34번 「가동률 화면」.
+
 ## 2026-10-07 — 매출 · 가동률 저쪽(STAY ARI)과 숫자 일치 · 예약 데이터 정리
 
 - 저쪽 Firestore(읽기 전용)에 저쪽 화면 식을 그대로 돌린 값과 우리 매출 화면 값을 건물 × 월로 대조 — 2024-07 ~ 2026-09 243칸 **전부 일치**

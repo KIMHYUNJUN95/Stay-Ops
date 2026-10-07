@@ -1,31 +1,51 @@
+import { OpsOccupancyConsole, type OccupancyTab } from "@/components/admin/ops/ops-occupancy-console";
 import { AdminShell } from "@/components/shell/admin-shell";
-import "@/components/admin/ops/ops-console.css";
+import { toJstDateString } from "@/lib/admin-calendar-dashboard";
+import { adminLocaleTag } from "@/lib/admin-export-meta";
 import { getDictionary } from "@/lib/i18n";
 import { opsNavId } from "@/lib/ops-admin";
+import { normalizeRange, REVENUE_MODES, type RevenueMode } from "@/lib/ops-revenue";
+import { getOpsRevenueData } from "@/lib/ops-revenue-server";
 import { requireOpsAdminPage } from "../ops-page-session";
 
 /**
- * 아직 만들지 않은 화면. 메뉴와 권한 게이트는 먼저 붙여 둔다 —
- * 라우트가 있어야 사이드바가 완성되고, 게이트가 뒤늦게 붙으면 그 사이에 열려 있게 된다.
+ * 가동률 — 추이 · 건물별(시안 A) · 객실 × 월(B) · 앞으로 6달(C) (2026-10-07).
  *
- * 설계: docs/product/34-metrics-and-automation.md
+ * 도메인 계약: docs/product/34-metrics-and-automation.md 「가동률 화면」
+ *
+ * 읽기는 매출 화면과 같다(`getOpsRevenueData` — 같은 칸, 같은 식). 「앞으로」 탭 때문에 이번 달부터 6달을 더 읽는다.
+ * 기간 · 탭은 주소에 있다(`?mode=…&ym=…&tab=rooms|forward`), 주소 값은 서버가 모드마다 바로잡는다.
  */
 export const dynamic = "force-dynamic";
 
-export default async function OpsPage() {
+const FORWARD_MONTHS = 6;
+
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+export default async function OpsOccupancyPage({ searchParams }: { searchParams: SearchParams }) {
   const session = await requireOpsAdminPage("occupancy");
-  const dictionary = getDictionary(session.user.preferredLanguage);
+  const locale = session.user.preferredLanguage;
+  const dictionary = getDictionary(locale);
+  const params = await searchParams;
+  const one = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : undefined);
+
+  const today = toJstDateString(new Date());
+  const requested = one("mode");
+  const mode: RevenueMode = REVENUE_MODES.includes(requested as RevenueMode) ? (requested as RevenueMode) : "month";
+  const range = normalizeRange(mode, { from: one("from"), to: one("to"), ym: one("ym") }, today);
+  const data = await getOpsRevenueData(session, { forward: FORWARD_MONTHS, mode, range });
+  const tab: OccupancyTab = one("tab") === "rooms" ? "rooms" : one("tab") === "forward" ? "forward" : "report";
 
   return (
     <AdminShell activeItem={opsNavId("occupancy")} title={dictionary.opsAdmin.areaName}>
-      <div className="ops">
-        <div className="opsg">
-          <div className="ops__empty">
-            <h2>{dictionary.opsAdmin.soonTitle}</h2>
-            <p>{dictionary.opsAdmin.soonBody}</p>
-          </div>
-        </div>
-      </div>
+      <OpsOccupancyConsole
+        copy={dictionary.opsOccupancy}
+        data={data}
+        initialTab={tab}
+        localeTag={adminLocaleTag(locale)}
+        rcopy={dictionary.opsRevenue}
+        shared={dictionary.admin.shared}
+      />
     </AdminShell>
   );
 }

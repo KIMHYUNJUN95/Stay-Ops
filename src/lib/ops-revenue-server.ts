@@ -57,6 +57,14 @@ export type OpsRevenueData = {
   previousRangeCells: OpsRevenueCells;
   rangeRoomCells: OpsRevenueCells;
   previousRangeRoomCells: OpsRevenueCells;
+  /**
+   * 가동률 「앞으로」 탭(2026-10-07) — 이번 달부터 `forward` 달. 부를 때 `forward` 를 줄 때만 채운다.
+   * **문 열기 전 규칙을 쓰지 않는다**(분모 = 객실 수 × 일수) — 앞날은 예약이 0 이어도 팔 방이다.
+   */
+  forwardMonths: string[];
+  forwardCells: Record<string, OpsRevenueCells>;
+  /** 앞으로 달의 전년 같은 달(끝난 값 · 문 열기 전 규칙 그대로). */
+  forwardPreviousCells: Record<string, OpsRevenueCells>;
 };
 
 type Piece = { start: string; endExclusive: string };
@@ -64,13 +72,19 @@ type PieceResult = { properties: Map<string, RevenueCell>; rooms: Map<string, Re
 
 export async function getOpsRevenueData(
   session: AppSession,
-  args: { mode: RevenueMode; range: RevenueRange },
+  args: { mode: RevenueMode; range: RevenueRange; forward?: number },
 ): Promise<OpsRevenueData> {
   const today = toJstDateString(new Date());
   const { mode, range } = args;
   const previousRange = previousYearRange(range);
   const months = chartMonths(anchorMonth(range, today));
-  const allMonths = [...months.map((month) => shiftMonthKey(month, -12)), ...months];
+  const forwardMonths = Array.from({ length: args.forward ?? 0 }, (_, index) => shiftMonthKey(today.slice(0, 7), index));
+  const allMonths = [
+    ...months.map((month) => shiftMonthKey(month, -12)),
+    ...months,
+    ...forwardMonths,
+    ...forwardMonths.map((month) => shiftMonthKey(month, -12)),
+  ];
 
   const monthPiece = (month: string): Piece => ({ endExclusive: nextDay(lastDayOfMonth(month)), start: `${month}-01` });
   const rangePieces = splitByMonth(range);
@@ -86,8 +100,9 @@ export async function getOpsRevenueData(
   const reservations = inputs.reservations.map((reservation) => ({ ...reservation, raw: reservation.raw as SalesRawPayload }));
 
   const cache = new Map<string, PieceResult>();
-  const summarize = (piece: Piece): PieceResult => {
-    const cacheKey = `${piece.start}|${piece.endExclusive}`;
+  /** `raw` = 문 열기 전 규칙 없이(분모 = 객실 수 × 일수) — 「앞으로」 탭. */
+  const summarize = (piece: Piece, raw = false): PieceResult => {
+    const cacheKey = `${piece.start}|${piece.endExclusive}|${raw ? "raw" : "open"}`;
     const hit = cache.get(cacheKey);
     if (hit) return hit;
     const summary = buildOpsSalesSummary({
@@ -104,7 +119,7 @@ export async function getOpsRevenueData(
     });
     const result: PieceResult = { properties: new Map(), rooms: new Map() };
     for (const row of summary.byProperty) {
-      const open = row.occupiedNights > 0;
+      const open = raw || row.occupiedNights > 0;
       const channel = Object.fromEntries(row.channels.map((part) => [part.channel, part.revenue])) as Record<string, number>;
       result.properties.set(row.propertyName, {
         airbnb: channel.airbnb ?? 0,
@@ -149,12 +164,21 @@ export async function getOpsRevenueData(
   for (const month of allMonths) monthCells[month] = toRecord(summarize(monthPiece(month)).properties);
   const monthRoomCells: Record<string, OpsRevenueCells> = {};
   for (const month of months) monthRoomCells[month] = toRecord(summarize(monthPiece(month)).rooms);
+  const forwardCells: Record<string, OpsRevenueCells> = {};
+  const forwardPreviousCells: Record<string, OpsRevenueCells> = {};
+  for (const month of forwardMonths) {
+    forwardCells[month] = toRecord(summarize(monthPiece(month), true).properties);
+    forwardPreviousCells[month] = toRecord(summarize(monthPiece(shiftMonthKey(month, -12))).properties);
+  }
   const current = sumPieces(rangePieces);
   const previous = sumPieces(previousPieces);
 
   // 건물 · 객실 목록 — 캘린더 행 순서. 목록 밖 방은 이 창 어딘가에 매출이 있을 때만(빈 줄은 소음이다).
   const withRevenue = new Set<string>();
-  for (const result of cache.values()) for (const [key, cell] of result.rooms) if (cell.revenue > 0) withRevenue.add(key);
+  for (const [cacheKey, result] of cache) {
+    if (cacheKey.endsWith("|raw")) continue;
+    for (const [key, cell] of result.rooms) if (cell.revenue > 0) withRevenue.add(key);
+  }
   const excluded = new Set(defaultSalesExcluded(inputs.properties));
   const properties: OpsRevenueProperty[] = inputs.properties.map((name) => {
     const rooms = inputs.rooms.filter((room) => room.propertyName === name && (room.inCatalog || withRevenue.has(room.key)));
@@ -167,6 +191,9 @@ export async function getOpsRevenueData(
   });
 
   return {
+    forwardCells,
+    forwardMonths,
+    forwardPreviousCells,
     mode,
     monthCells,
     monthRoomCells,
