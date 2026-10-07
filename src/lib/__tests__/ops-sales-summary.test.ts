@@ -249,6 +249,28 @@ describe("buildOpsSalesSummary", () => {
     expect(summary.byChannel.find((row) => row.channel === "booking")?.arrivals).toBe(1);
   });
 
+  it("negative amounts — skipped by default (calendar card), subtracted with include (revenue screen, 2026-10-07)", () => {
+    const input = {
+      ...W,
+      blocks: [],
+      reservations: [
+        booking("r1", "A::101", "2026-09-01", "2026-09-03", { ...AIRBNB, price: 40000 }),
+        // 직원이 넣은 조정 예약 −9,996 엔(2025-07 아라키초B 실례) — 2박
+        booking("r2", "A::102", "2026-09-05", "2026-09-07", { ...DIRECT, price: -9996 }),
+      ],
+      rooms: [room("A::101"), room("A::102")],
+    };
+    const skip = buildOpsSalesSummary(input);
+    expect(skip.totals.revenue).toBeCloseTo(40000, 6);
+    expect(skip.zeroPriceCount).toBe(1);
+    const include = buildOpsSalesSummary({ ...input, negativeAmounts: "include" });
+    expect(include.totals.revenue).toBeCloseTo(40000 - 9996, 6);
+    expect(include.zeroPriceCount).toBe(0);
+    // 점유는 두 쪽 다 같다 — 확정 예약이면 판 밤이다.
+    expect(include.totals.occupiedNights).toBe(4);
+    expect(skip.totals.occupiedNights).toBe(4);
+  });
+
   it("excludes cancelled / request, keeps no-show and 0-yen as occupied (legacy)", () => {
     const summary = buildOpsSalesSummary({
       ...W,

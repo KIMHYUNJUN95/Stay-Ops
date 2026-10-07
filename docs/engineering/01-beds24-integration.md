@@ -1220,3 +1220,39 @@ Two Beds24 list calls (active + cancelled, paginated). `--apply` never writes to
 logs a `server-only` import error and is skipped — harmless.
 
 Tests: `src/lib/__tests__/beds24-group-bookings.test.ts`.
+
+## 2026-10-07 되살린 예약이 「취소」로 남던 것 · 과거 기간 다시 읽기
+
+매출 · 가동률을 저쪽(STAY ARI)과 대조하다가(`docs/product/34-metrics-and-automation.md` 「저쪽과 숫자 대조」) 우리
+DB 쪽 오류 세 가지가 드러났다. Beds24 원본을 직접 읽어 확인했고 **28건 모두 저쪽 · Beds24 가 맞고 우리가 틀렸다.**
+
+### 1. 취소했다가 되살린 예약 — `cancelTime` 이 남는다
+
+Beds24 는 예약을 취소했다가 다시 살려도 **`cancelTime` 을 지우지 않는다**(`status: "confirmed"` + `cancelTime` 있음 —
+실측 7건: 86444948 가부키초 502 · 91904176 STAY ARI O308 · 아라키초B 4건 · 가부키초 603). 예전
+`resolveReservationStatusFromBeds24Record()` 는 `cancelTime` 이 있으면 무조건 `cancelled` 로 적어서 그 예약이 판매
+캘린더 · 청소 · 매출에서 빠졌다.
+
+**규칙(2026-10-07)**: 명시적 상태(`status` · `statusText` …)가 **살아 있는 값**(`confirmed` · `new` · `request` ·
+`inquiry` · `black` · 1~5)이면 그대로 따른다. `cancelTime` · 취소 `subStatus` 는 **상태 값이 없을 때만**(드문 취소
+웹훅) 취소 신호다. 상태가 `cancelled`/`0` 이면 취소, `subStatus` 노쇼는 상태가 살아 있어도 노쇼. 테스트
+`src/lib/__tests__/beds24-reservation-status.test.ts`. 웹훅 · 백필 · 증분이 모두 이 함수를 쓴다.
+
+### 2. 묶음 예약 · 금액 빈칸 — 2026-10-01 이전 코드가 남긴 것
+
+10/01 에 묶음(다객실) 예약 분리를 고쳤지만(`ded671a`) 과거 기간은 그때 앞뒤 1년만 다시 읽었다. 그 밖(2024-10 ~
+2026-07)에 **행이 없는 확정 예약**(같은 채널 번호를 쓰는 묶음 · 이어진 번호)과 **금액이 빈 행**(묶음 분리 때
+최소 원본만 들어간 것)이 남아 있었다.
+
+**복구**: 고친 백필(`backfillBeds24Reservations`, 기간 명시 — 증분 커서는 안 건드린다)을 **2024-07 ~ 2027-11 을 두 달씩**
+돌렸다(Beds24 읽기만, 한 번에 50쪽 상한 안 — 감사 스크립트를 2년 넘게 한 번에 돌리면 활성 50쪽에서 잘린다).
+행 13,070 → 13,797.
+
+### 3. 유령 행 7개 — 지웠다
+
+같은 Beds24 예약이 두 행이던 것. 2026-05-26 출처 이름 정규화(`isuhyun123` → `Isuhyun123`)로 키가 바뀌어 **옛 소문자
+출처 행 6개**가 갱신되지 않고 남았고(금액 빈칸), Airbnb 예약 하나(HMFEXK29BF)가 아라키초A 202 → 아라키초B 302 로
+옮겼는데 **옛 방 행**이 남았다. 각 행마다 같은 Beds24 id 의 최신 행이 있는지 · 할 일/불만/수리/분실물/메모/리뷰
+연결이 0 인지 확인하고 지웠다(원본 행은 작업 폴더에 백업).
+
+결과: 2024-07 ~ 2026-09 확정 예약 약 11,000건이 저쪽 · Beds24 와 **상태 · 날짜 · 금액 · 방까지 같다.**

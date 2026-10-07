@@ -264,12 +264,23 @@ export function isExcludedOperationalProperty(propertyName: string) {
 }
 
 export function isExcludedOperationalRoom(propertyName: string, roomLabel: string) {
+  return operationalRoomAliasOf(propertyName, roomLabel) !== null;
+}
+
+/**
+ * 운영에서 뺀 유닛이 **실제로 같은 방**이면 그 방의 라벨 (2026-10-07).
+ *
+ * 다카다노바바 `401_2`(Beds24 556719, 2025 년에 잠깐 쓴 두 번째 계정)는 401호(라벨 `4`)와 같은 방이다.
+ * 격자 · 청소 · 홈에서는 계속 숨기지만(`isExcludedOperationalRoom`), **지난 예약의 매출 · 가동률**은 401호로
+ * 센다 — 저쪽(STAY ARI)도 두 계정을 `401호` 하나로 셌고, 빼면 2025-04 · 05 · 06 · 10, 2026-06 매출이 그만큼 빈다.
+ */
+export function operationalRoomAliasOf(propertyName: string, roomLabel: string): string | null {
   const canonicalPropertyName = getCanonicalPropertyName(propertyName);
   const raw = roomLabel.trim();
   if (canonicalPropertyName === "다카다노바바" && /^401[_-]2$/i.test(raw)) {
-    return true;
+    return "4";
   }
-  return false;
+  return null;
 }
 
 /* ============================================================

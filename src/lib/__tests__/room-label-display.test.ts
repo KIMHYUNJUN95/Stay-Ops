@@ -6,6 +6,8 @@ import {
   getCanonicalRoomLabel,
   getDisplayRoomLabel,
   getDisplaySessionRoomLabel,
+  isExcludedOperationalRoom,
+  operationalRoomAliasOf,
 } from "@/lib/room-label-normalization";
 
 /**
@@ -131,5 +133,18 @@ describe("CALENDAR_BUILDING_ORDER", () => {
 
   it("중복이 없다 — 중복이면 indexOf 가 앞엣것만 보고 뒤는 죽은 줄이 된다", () => {
     expect(new Set(CALENDAR_BUILDING_ORDER).size).toBe(CALENDAR_BUILDING_ORDER.length);
+  });
+});
+
+describe("operationalRoomAliasOf — 운영에서 뺀 같은 방 유닛 (2026-10-07)", () => {
+  it("다카다노바바 401_2 는 401호(라벨 4)로 센다 — 격자에서는 계속 숨긴다", () => {
+    expect(operationalRoomAliasOf("Takadanobaba", "401_2")).toBe("4");
+    expect(operationalRoomAliasOf("다카다노바바", "401-2")).toBe("4");
+    expect(isExcludedOperationalRoom("Takadanobaba", "401_2")).toBe(true);
+  });
+  it("다른 방은 그대로", () => {
+    expect(operationalRoomAliasOf("Takadanobaba", "4")).toBeNull();
+    expect(operationalRoomAliasOf("Arakicho A", "401_2")).toBeNull();
+    expect(isExcludedOperationalRoom("Arakicho A", "401_2")).toBe(false);
   });
 });

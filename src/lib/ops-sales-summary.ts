@@ -291,7 +291,14 @@ export function buildOpsSalesSummary(input: {
   blocks: readonly SalesSummaryBlock[];
   /** 건물 표의 순서(탭 순서). 여기 없는 건물의 방·예약은 빼지 않고 뒤에 붙인다. */
   properties?: readonly string[];
+  /**
+   * 금액이 마이너스인 예약(직원이 넣은 −9,995 엔 같은 조정 예약 — 2025-06~08 아라키초B 등 23건)을 어떻게 셀까.
+   * 저쪽 화면끼리 다르다(2026-10-07 대조): 캘린더 분석 카드는 `val > 0` 만(`BuildingCalendar.jsx` :2896-2897) — 기본
+   * `"skip"`, 매출 화면(`RevenueDashboard.jsx` `processRevenue`)은 그대로 더한다 — `"include"`(매출 화면이 쓴다).
+   */
+  negativeAmounts?: "skip" | "include";
 }): OpsSalesSummary {
+  const includeNegative = input.negativeAmounts === "include";
   if (!isDate(input.start) || !isDate(input.endExclusive)) throw new Error("bad_window");
   const startDay = dayNumber(input.start);
   const endDay = dayNumber(input.endExclusive);
@@ -403,7 +410,7 @@ export function buildOpsSalesSummary(input: {
 
     // 매출 — 1박 균등 분배. 목록 밖 방도 넣는다. 0원은 건너뛴다(점유에는 이미 들어갔다).
     const amount = legacyReservationAmount(reservation.raw);
-    if (amount > 0) {
+    if (amount > 0 || (includeNegative && amount < 0)) {
       const part = (amount / totalNights) * visibleNights;
       acc.revenue += part;
       acc.channelRevenue[channel] += part;

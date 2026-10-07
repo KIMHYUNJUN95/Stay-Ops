@@ -4,6 +4,7 @@ import {
   getCanonicalRoomLabel,
   getDisplayRoomLabel,
   isExcludedOperationalRoom,
+  operationalRoomAliasOf,
 } from "@/lib/room-label-normalization";
 import {
   buildActiveRoomCatalog,
@@ -1218,8 +1219,13 @@ export async function readOpsSalesInputs(args: {
     raw: Record<string, unknown>;
   }> = [];
   for (const raw of reservationsResult.data) {
-    const row = toReservationRow(raw);
-    if (isExcludedOperationalRoom(row.property_name, row.room_label)) continue;
+    const stored = toReservationRow(raw);
+    // 운영에서 뺀 유닛이 같은 방이면(다카다노바바 401_2 → 401호) 그 방으로 센다 — 지난 매출이 빠지지 않게(2026-10-07).
+    // Beds24 방 번호는 뗀다: 뺀 유닛의 번호는 객실 목록에 없어서 이름 매칭을 막는다.
+    const alias = operationalRoomAliasOf(stored.property_name, stored.room_label);
+    const row = alias
+      ? { ...stored, raw_payload: { ...(stored.raw_payload as Record<string, unknown>), roomId: undefined } as ReservationRow["raw_payload"], room_label: alias }
+      : stored;
     const { displayRoomLabel, propertyName, roomKey } = reservationRoomAxis(row);
     const sales: Record<string, unknown> = {};
     for (const key of SALES_PAYLOAD_KEYS) {

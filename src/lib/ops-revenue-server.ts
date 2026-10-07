@@ -94,6 +94,8 @@ export async function getOpsRevenueData(
       // 차단은 「오늘 이후 빈방」에만 쓰인다 — 매출 화면에는 없다.
       blocks: [],
       endExclusive: piece.endExclusive,
+      // 저쪽 매출 화면(`RevenueDashboard`)은 마이너스 금액 예약도 그대로 더한다 — 그 화면과 숫자를 맞춘다(2026-10-07).
+      negativeAmounts: "include",
       properties: inputs.properties,
       reservations,
       rooms: inputs.rooms,

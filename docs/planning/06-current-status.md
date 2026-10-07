@@ -9,6 +9,17 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-07 — 매출 · 가동률 저쪽(STAY ARI)과 숫자 일치 · 예약 데이터 정리
+
+- 저쪽 Firestore(읽기 전용)에 저쪽 화면 식을 그대로 돌린 값과 우리 매출 화면 값을 건물 × 월로 대조 — 2024-07 ~ 2026-09 243칸 **전부 일치**
+  (처음엔 28칸 차이 — 식이 아니라 우리 데이터 문제였다). 도구 `scripts/dev/ops-metrics-legacy-compare.ts`. 34번 「저쪽과 숫자 대조」.
+- **버그**: Beds24 가 되살린 예약에 남겨 둔 `cancelTime` 때문에 확정 예약 7건이 「취소」로 저장돼 있었다 — 상태 판정을 명시 상태 우선으로
+  (`reservation-status.ts`, 테스트 `beds24-reservation-status.test.ts`). 모두 지난 예약이라 지금 운영 화면 영향은 없었다.
+- **데이터**: 2024-07 ~ 2027-11 을 고친 백필로 다시 읽음(묶음 예약 누락 · 금액 빈칸 메움, 13,070 → 13,797행) · 유령 행 7개 삭제(옛 출처 이름 6 ·
+  방 옮긴 Airbnb 옛 방 1, 연결 기록 0 확인). `01-beds24-integration.md` 2026-10-07.
+- 매출 화면: 마이너스 금액 예약 포함(저쪽 매출 화면과 같음) · 다카다노바바 `401_2` 지난 예약을 401호로(매출 요약도).
+- 정정: 「예약 정합성 창 3개월이 구멍」(34 · 31)은 2026-09-16 증분 정합성(`modifiedFrom`)으로 이미 닫혀 있었다 — 문서 갱신.
+
 ## 2026-10-07 — 최근 예약 기본 = 지금부터 48시간
 
 - 판매 캘린더 「최근 예약」 기본 범위를 「도쿄 이틀 전 0시 ~ 지금」(시각에 따라 48 ~ 72시간)에서 **지금부터 정확히 48시간**으로. 칩에 시각까지,
