@@ -189,9 +189,12 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
 - Windows Defender 가 Gradle 을 느리게 하면 Android Studio 알림의 「Exclude folders」로 `C:\dev\stayops-android` 를 제외한다.
 - **iOS**: Mac 이 없으므로 Apple Developer 가입 후 클라우드 빌드(Codemagic · GitHub Actions macOS 러너 등)로 TestFlight 에 올린다(계획 B1-3).
 
-### 아직 안 된 것 (계획 B3 이후)
+### 아이콘 · 스플래시
 
-- 다운로드 · 외부 링크 · Android 뒤로가기 버튼 등 WebView 호환(B3), 앱 아이콘 · 스플래시(현재 Capacitor 기본값).
+- 앱 아이콘 · 스플래시(B1-2, 2026-10-07): `node scripts/dev/generate-app-icons.mjs` 가 iOS `AppIcon` · `Splash`, Android
+  `mipmap-*`(적응형 배경 · 전경) · `drawable*/splash.png`, 스토어 원본 `store-assets/icon-1024.png` · `play-icon-512.png` 를 만든다.
+  Android 12+ 시작 화면은 `res/values/styles.xml` 의 `windowSplashScreen*`(아이보리 바탕 + 남색 원). 정식 로고가 생기면 스크립트의
+  `mark()` 만 바꾸고 다시 돌린 뒤 `npm run cap:android:win`.
 
 ## Initial Web Hosting
 

@@ -35,7 +35,7 @@
 | B1 | **Capacitor 골격** (iOS · Android 프로젝트, 앱 ID, 권한 설정) | 🤖 | [x] 2026-10-06 | `capacitor.config.ts` · `android/` · `ios/`. 앱은 배포된 웹을 띄운다. 빌드 방법: `03-deployment-strategy.md` 「앱 빌드」 |
 | B1-1 | **실기기 · 에뮬레이터 첫 실행 확인** — Android Studio(Windows 가능) / Xcode(Mac 필요) | 👤 | [ ] Android 부터 — 절차: `03` 「Android 첫 실행」 | 이메일 · Google 로그인 → 홈 → 출퇴근 QR(카메라 · 위치 권한) → 첨부 다운로드 → 외부 링크 → 뒤로가기 버튼 |
 | B1-3 | **iOS 빌드 경로** — Mac 없음 → 클라우드 빌드(Codemagic · GitHub Actions macOS 러너) | 🤝 | [ ] | Apple Developer 가입(A2) 후. 사용자 확인: Mac 없음, Android Studio 있음(2026-10-06) |
-| B1-2 | **앱 아이콘 · 스플래시** — 1024px 원본에서 생성 | 🤖 | [ ] | 지금은 Capacitor 기본 아이콘. 1024px 원본 이미지 필요 |
+| B1-2 | **앱 아이콘 · 스플래시** — 1024px 원본에서 생성 | 🤖 | [x] 2026-10-07 | PWA 와 같은 마크(남색 + 이탤릭 "S")를 SVG 로 그려 생성 — `node scripts/dev/generate-app-icons.mjs`. iOS 1024(알파 없음) · Android 적응형 · 시작 화면(11 이하 이미지, 12+ `windowSplashScreen*`) · 스토어용 `store-assets/`. **정식 로고가 생기면 `mark()` 만 바꾸고 다시 돌린다** |
 | B2 | **앱 안 Google 로그인** — 시스템 브라우저로 로그인 → 딥링크로 앱 복귀 | 🤖 | [x] 2026-10-06 | `getNativeGoogleSignInUrl` + `@capacitor/browser` + `NativeAuthBridge`, 스킴 `com.harutokyo.stayops://auth/callback`. `03` 「앱 안 Google 로그인」 |
 | B2-1 | **Supabase Redirect URLs 에 `com.harutokyo.stayops://auth/callback` 추가** | 👤 | [x] 2026-10-06 | 사용자 설정 완료(Redirect URLs 5개). 이게 있어야 앱으로 돌아온다 |
 | B2-2 | **실기기에서 앱 Google 로그인 확인** | 👤 | [ ] | B1-1(앱 첫 실행) 때 함께 |
@@ -108,4 +108,5 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 | 2026-10-06 | (이 커밋) | Windows Android Studio 용 빌드 사본 스크립트(`npm run cap:android:win`) — WSL JDK 오류 회피 |
 | 2026-10-07 | `28e6712` | B4-1 신고 · 차단 범위 검토 — 게시판 외 추가 불필요 |
 | 2026-10-07 | (이 커밋) | A1 도쿄상공리서치 회신 — 회사 등록 확인, D-U-N-S 는 TSR 조회 페이지 · Apple 조회 도구로 확인 |
-| 2026-10-07 | (이 커밋) | A1 D-U-N-S 번호 수령(718114295) |
+| 2026-10-07 | `dd7d824` | A1 D-U-N-S 번호 수령(718114295) |
+| 2026-10-07 | (이 커밋) | B1-2 앱 아이콘 · 스플래시 생성 스크립트 + iOS · Android 반영 |

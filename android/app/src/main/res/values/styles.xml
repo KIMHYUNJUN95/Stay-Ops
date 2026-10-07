@@ -18,5 +18,9 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- Android 12+ 시작 화면: 아이보리 바탕 + 남색 원 위의 "S" (scripts/dev/generate-app-icons.mjs) -->
+        <item name="windowSplashScreenBackground">#F7F4EE</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="windowSplashScreenIconBackgroundColor">#24395F</item>
     </style>
 </resources>
