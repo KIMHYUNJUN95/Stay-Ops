@@ -184,13 +184,23 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
 2. Android Studio → File → Open → **`C:\dev\stayops-android\android`** → Trust Project → Gradle 동기화(처음 몇 분).
 3. Device Manager 에서 에뮬레이터(Pixel 계열 · 최신 API)를 만들거나 USB 디버깅 실기기 연결 → ▶ Run.
 4. 확인: 이메일 로그인 → Google 로그인(시스템 브라우저 → 앱 복귀) → 홈 → 출퇴근 QR(카메라 · 위치 권한 팝업) → 게시판 첨부 다운로드 →
-   룸 링크 외부 링크 → 시트 열고 뒤로가기 버튼.
+   룸 링크 외부 링크 → 시트 열고 뒤로가기 버튼 → 비행기 모드로 연결 실패 화면 · 자동 복귀 → 새 아이콘 · 시작 화면.
 - 네이티브 설정 · 플러그인을 바꾸면 1번을 다시 돌린다. 웹 화면만 바뀐 것은 다시 빌드할 필요 없다(앱이 배포된 웹을 띄운다).
 - Windows Defender 가 Gradle 을 느리게 하면 Android Studio 알림의 「Exclude folders」로 `C:\dev\stayops-android` 를 제외한다.
 - **iOS**: Mac 이 없으므로 Apple Developer 가입 후 클라우드 빌드(Codemagic · GitHub Actions macOS 러너 등)로 TestFlight 에 올린다(계획 B1-3).
   그 전까지는 `.github/workflows/ios-build-check.yml` 이 `ios/**` · `capacitor.config.ts` · `package*.json` 변경 때(또는 Actions 에서 수동 실행)
   서명 없이 시뮬레이터용으로 빌드해 Xcode 프로젝트가 깨지지 않았는지, 앱 묶음에 `*.lproj/InfoPlist.strings` · `PrivacyInfo.xcprivacy` 가
   들어갔는지 확인한다.
+
+### 연결 실패 화면 (계획 D2, 2026-10-07)
+
+- 앱은 배포된 웹(`server.url`)을 띄우므로, 그 주소를 못 불러오면 원래는 **WebView 기본 오류 화면**(「웹페이지를 사용할 수 없음」)이 떴다.
+  `capacitor.config.ts` 에 `server.errorPath: "index.html"` 을 넣어 `capacitor-www/index.html` 이 대신 열린다.
+- 화면: 아이콘 + 「인터넷에 연결되어 있지 않아요」(기기 오프라인) 또는 「StayOps 에 연결할 수 없어요」(온라인인데 서버 실패) + 다시 시도.
+  연결이 돌아오면(`online` 이벤트) 자동으로 한 번 다시 시도한다. 다시 시도 = 앱 첫 화면(`APP_URL`)으로 이동.
+- 정적 파일이라 `i18n.ts` 를 못 쓴다 → 파일 안 `COPY` 에 ko/ja/en 을 두고 기기 언어로 하나만 보여 준다(없으면 영어).
+- **`APP_URL` 은 `capacitor.config.ts` 의 기본 `serverUrl` 과 같아야 한다** — 자체 도메인 교체(C1) 때 두 곳을 같이 고친다.
+- 확인(B1-1): 앱을 켠 상태에서 비행기 모드 → 다른 화면으로 이동 / 앱 재시작 → 이 화면이 뜨는지, 비행기 모드 해제 → 자동 복귀.
 
 ### 아이콘 · 스플래시
 

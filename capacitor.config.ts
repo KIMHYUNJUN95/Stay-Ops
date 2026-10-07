@@ -19,6 +19,9 @@ const config: CapacitorConfig = {
   server: {
     url: serverUrl,
     cleartext: false,
+    // 배포된 웹을 못 불러오면(오프라인 · 서버 장애) 브라우저 기본 오류 화면 대신 `capacitor-www/index.html`(3개 언어 + 다시 시도)을 연다.
+    // 그 파일의 APP_URL 은 위 기본 serverUrl 과 같아야 한다(계획 D2).
+    errorPath: "index.html",
   },
   // 웹이 safe-area(env(safe-area-inset-*))를 직접 처리하므로 네이티브 쪽 여백은 넣지 않는다.
   ios: {
