@@ -5,14 +5,17 @@ import { loadOpsRecentBookings } from "@/app/admin/ops/calendar/actions";
 import type { OpsRecentBooking } from "@/lib/ops-calendar";
 import { msUntilNextTokyoMidnight, tokyoDateOf } from "@/lib/ops-recent-bookings-range";
 
+const RECENT_DEFAULT_ROLL_MS = 10 * 60 * 1000;
+
 /**
  * 「최근 예약」 상태 — 데스크톱 격자 · 모바일 판매 캘린더 공용(2026-10-05).
  *
  * 도메인 계약: docs/product/33-calendar-write-features.md 「최근 예약」
  *
  * - 격자가 그린 뒤 따로 받는다(가격 개입 성공과 같은 방식) — **보고 있는 창 × 고른 건물**, 바뀌면 「불러오는 중」부터.
- * - 시간대: 기본(도쿄 이틀 전 0시 ~ 지금, 서버가 계산) 또는 직접 지정(시작 · 끝 ISO). 직접 지정은 **지정한 도쿄
- *   날짜에만** 유효하다 — 화면을 켜 둔 채 도쿄 자정이 지나면 타이머가 기본으로 돌리고 다시 받는다.
+ * - 시간대: 기본(지금부터 48시간 전 ~ 지금, 서버가 계산) 또는 직접 지정(시작 · 끝 ISO). 기본은 시간이 흐르면 창도
+ *   밀리므로 켜 둔 화면은 **10분마다** 다시 받는다. 직접 지정은 **지정한 도쿄 날짜에만** 유효하다 — 화면을 켜 둔 채
+ *   도쿄 자정이 지나면 타이머가 기본으로 돌리고 다시 받는다.
  * - 기억은 이 화면(컴포넌트)에만 둔다 — 새로 열면 기본.
  */
 export function useRecentBookings(args: {
@@ -27,11 +30,19 @@ export function useRecentBookings(args: {
   const [custom, setCustom] = useState<{ from: string; to: string; day: string } | null>(null);
   const activeCustom = custom && custom.day === dayKey ? custom : null;
 
-  // 도쿄 자정 — 기본 범위가 하루 밀리고 직접 지정은 풀린다.
+  // 도쿄 자정 — 직접 지정이 풀린다.
   useEffect(() => {
     const timer = window.setTimeout(() => setDayKey(tokyoDateOf(Date.now())), msUntilNextTokyoMidnight(Date.now()) + 1_000);
     return () => window.clearTimeout(timer);
   }, [dayKey]);
+
+  // 기본(48시간)은 시간이 흐르면 창이 밀린다 — 켜 둔 화면은 10분마다 다시 받는다(직접 지정 중에는 그대로).
+  const [rollTick, setRollTick] = useState(0);
+  useEffect(() => {
+    if (activeCustom) return;
+    const timer = window.setInterval(() => setRollTick((tick) => tick + 1), RECENT_DEFAULT_ROLL_MS);
+    return () => window.clearInterval(timer);
+  }, [activeCustom]);
 
   const [state, setState] = useState<{
     key: string;
@@ -41,7 +52,7 @@ export function useRecentBookings(args: {
     isDefault: boolean;
     endsNow: boolean;
   } | null>(null);
-  const requestKey = `${propertyKey}#${windowStart}#${days}#${activeCustom?.from ?? ""}#${activeCustom?.to ?? ""}#${dayKey}`;
+  const requestKey = `${propertyKey}#${windowStart}#${days}#${activeCustom?.from ?? ""}#${activeCustom?.to ?? ""}#${dayKey}#${activeCustom ? 0 : rollTick}`;
   const requestRef = useRef(0);
   useEffect(() => {
     requestRef.current += 1;

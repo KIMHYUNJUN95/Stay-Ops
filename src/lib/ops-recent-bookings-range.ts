@@ -3,12 +3,14 @@
  *
  * 도메인 계약: docs/product/33-calendar-write-features.md 「최근 예약」
  *
- * - 기본: **도쿄 기준 이틀 전 0시 ~ 지금**. 오늘이 10/05 면 10/03 00:00 부터. 도쿄 자정이 지나면 하루씩 밀린다.
- * - 직접 지정: 시작 · 끝(도쿄 날짜 + 시각). 지정한 그날만 유지되고 다음 도쿄 자정이 지나면 기본으로 돌아간다
+ * - 기본: **지금부터 정확히 48시간 전 ~ 지금**(2026-10-07 사용자 결정). 예전 「도쿄 이틀 전 0시 ~ 지금」은 하루 중 시각에 따라
+ *   창이 48 ~ 72시간으로 늘어나 아침에 본 N건과 밤에 본 N건이 다른 뜻이었다 — 수요 신호를 보는 화면이라 창 길이를 고정한다.
+ *   같은 화면의 「가격 개입 성공」도 48시간 기준이다.
+ * - 직접 지정: 날짜 단위(시작일 0시 ~ 끝날 24시). 지정한 그날만 유지되고 다음 도쿄 자정이 지나면 기본으로 돌아간다
  *   (화면이 지정한 날짜를 함께 기억해 비교한다).
  */
 
-export const RECENT_BOOKINGS_DEFAULT_DAYS_BACK = 2;
+export const RECENT_BOOKINGS_DEFAULT_HOURS = 48;
 /** 직접 지정할 수 있는 가장 긴 폭 — 이보다 길면 「최근」이 아니다. */
 export const RECENT_BOOKINGS_MAX_SPAN_DAYS = 31;
 
@@ -33,8 +35,7 @@ export function tokyoParts(ms: number): { date: string; time: string } {
 }
 
 export function defaultRecentRange(nowMs: number): { fromMs: number; toMs: number } {
-  const today = tokyoDateOf(nowMs);
-  return { fromMs: tokyoMs(today) - RECENT_BOOKINGS_DEFAULT_DAYS_BACK * DAY_MS, toMs: nowMs };
+  return { fromMs: nowMs - RECENT_BOOKINGS_DEFAULT_HOURS * HOUR_MS, toMs: nowMs };
 }
 
 /** 다음 도쿄 자정까지 남은 ms — 화면이 그때 기본 범위로 다시 받는다. */

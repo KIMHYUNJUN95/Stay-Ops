@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { AdminDateRangePicker } from "@/components/admin/shared/admin-date-range-picker";
 import { useAdminPanelA11y } from "@/components/admin/shared/use-admin-panel-a11y";
 import type { OpsRecentBooking } from "@/lib/ops-calendar";
-import { RECENT_BOOKINGS_MAX_SPAN_DAYS, tokyoDateOf, tokyoMs } from "@/lib/ops-recent-bookings-range";
+import { RECENT_BOOKINGS_MAX_SPAN_DAYS, tokyoDateOf, tokyoMs, tokyoParts } from "@/lib/ops-recent-bookings-range";
 
 /**
  * 최근 예약 목록 — 오른쪽 사이드 패널(모바일은 같은 것을 하단 시트에 담는다). 2026-10-05.
@@ -55,12 +55,14 @@ function stamp(iso: string, localeTag: string): string {
   }).format(new Date(iso));
 }
 
-/** 시간대 라벨 — 「10/03 – 지금」 · 「10/03 – 10/04」(끝날 포함). */
+/** 시간대 라벨 — 기본 「10/05 11:20 – 지금」(48시간이라 시각까지), 직접 지정 「10/03 – 지금」 · 「10/03 – 10/04」(끝날 포함). */
 export type RecentRange = { from: string; to: string; isDefault: boolean; endsNow: boolean };
 
 export function recentRangeLabel(range: RecentRange, nowLabel: string): string {
+  const fromMs = Date.parse(range.from);
+  const start = range.isDefault ? `${shortDate(tokyoDateOf(fromMs))} ${tokyoParts(fromMs).time}` : shortDate(tokyoDateOf(fromMs));
   // 끝이 「지금」인지는 서버가 알려 준다(기본이거나, 끝날이 오늘이라 지금으로 잘렸을 때).
-  return `${shortDate(tokyoDateOf(Date.parse(range.from)))} – ${range.endsNow ? nowLabel : shortDate(lastDayOf(range))}`;
+  return `${start} – ${range.endsNow ? nowLabel : shortDate(lastDayOf(range))}`;
 }
 
 /** 끝(배타 — 다음 날 0시)의 하루 전 = 끝날. */

@@ -1753,7 +1753,7 @@ export type OpsRecentBookingsResult =
 
 /**
  * 「최근 예약」(2026-10-05) — 정한 시간대에 들어온 확정 예약 중 가격 개입 성공을 뺀 것, **보고 있는 창 × 고른 건물**.
- * 시간대를 안 보내면 기본(도쿄 이틀 전 0시 ~ 지금). 서버가 시간대를 다시 거른다(31일 넘게 · 거꾸로면 기본).
+ * 시간대를 안 보내면 기본(지금부터 48시간 전 ~ 지금, 2026-10-07). 서버가 시간대를 다시 거른다(31일 넘게 · 거꾸로면 기본).
  */
 export async function loadOpsRecentBookings(args: {
   properties?: readonly string[] | null;

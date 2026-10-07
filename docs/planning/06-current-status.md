@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-07 — 최근 예약 기본 = 지금부터 48시간
+
+- 판매 캘린더 「최근 예약」 기본 범위를 「도쿄 이틀 전 0시 ~ 지금」(시각에 따라 48 ~ 72시간)에서 **지금부터 정확히 48시간**으로. 칩에 시각까지,
+  켜 둔 화면은 10분마다 다시 받음. 직접 지정(날짜 단위)은 그대로. (`33` 「최근 예약」)
+
 ## 2026-10-07 — 청소 명단 저쪽 설계 맞춤
 
 - 담당자 탭 「청소 방 추가」(퇴실 없어도 청소할 방 — Hotelsmart 대신, 새 표 `cleaning_list_extra_rooms` 운영 적용). 정정본은 이름만 바뀐 건 제외 ·
