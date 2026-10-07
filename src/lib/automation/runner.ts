@@ -49,6 +49,7 @@ import { acquireBeds24Lock, releaseBeds24Lock } from "@/lib/beds24/sync-locks";
 import { getDictionary } from "@/lib/i18n";
 import { getCanonicalPropertyName, getDisplayRoomLabel, getCanonicalRoomLabel } from "@/lib/room-label-normalization";
 import { postSlackText } from "@/lib/slack-notify";
+import { readAllPages } from "@/lib/supabase/read-all-pages";
 import { ymdShift } from "@/lib/tokyo-date";
 import type { Database, Json } from "@/types/database";
 
@@ -129,9 +130,105 @@ async function deliver(supabase: Client, item: Delivery): Promise<DeliveryResult
   const sent = await postToAutomationChannel(item.destination.channelKey, item.text);
   await supabase
     .from("automation_runs")
-    .update(sent.ok ? { reason: null, status: "sent" } : { reason: sent.reason, status: "failed" })
+    .update(
+      sent.ok
+        ? { reason: null, status: "sent" }
+        : {
+            // 실패하면 중복 방지 키를 **놓아 준다** — 안 그러면 재시도가 이 줄에 막혀 「이미 처리됨」이 되고 한 통도 안 나간 채
+            // 오늘 일이 끝난다(2026-10-07 디버깅에서 발견). 원래 키는 meta 에 남겨 이벤트 재시도가 그 키로 다시 잡는다.
+            dedupe_key: item.dedupeKey ? failedDedupeKey(item.dedupeKey, claimed.data.id) : null,
+            meta: { ...(item.meta ?? {}), retryKey: item.dedupeKey ?? null } as Json,
+            reason: sent.reason,
+            status: "failed",
+          },
+    )
     .eq("id", claimed.data.id);
   return sent.ok ? "sent" : "failed";
+}
+
+function failedDedupeKey(dedupeKey: string, runId: string): string {
+  return `${dedupeKey}#failed#${runId}`;
+}
+
+/**
+ * 보내는 도중에 함수가 죽으면(시간 초과 · 배포 교체) 줄이 「보내는 중」(`reason = sending`)으로 남아 키를 쥔 채 재시도를 막는다.
+ * 틱마다 오래된 것을 「중단됨」 실패로 바꾸고 키를 놓는다 — 정시 발송은 다음 재시도가, 이벤트는 실패분 재시도가 다시 보낸다.
+ */
+const STUCK_CLAIM_MS = 5 * 60 * 1000;
+
+async function releaseStuckClaims(supabase: Client, now: Date): Promise<void> {
+  const stuck = await supabase
+    .from("automation_runs")
+    .select("id, dedupe_key, meta")
+    .eq("status", "failed")
+    .eq("reason", "sending")
+    .lt("created_at", new Date(now.getTime() - STUCK_CLAIM_MS).toISOString())
+    .limit(100);
+  for (const row of stuck.data ?? []) {
+    const meta = (row.meta ?? {}) as Record<string, unknown>;
+    await supabase
+      .from("automation_runs")
+      .update({
+        dedupe_key: row.dedupe_key ? failedDedupeKey(row.dedupe_key, row.id) : null,
+        meta: { ...meta, retryKey: row.dedupe_key ?? null } as Json,
+        reason: "interrupted",
+      })
+      .eq("id", row.id)
+      .eq("reason", "sending");
+  }
+}
+
+/** 이벤트 알림(취소 · 당일예약) 실패분 재시도 — 최근 이만큼 안의 실패만, 한 알림당 이 횟수까지. */
+const EVENT_RETRY_WINDOW_MS = 2 * 60 * 60 * 1000;
+const EVENT_RETRY_MAX_ATTEMPTS = 3;
+
+/**
+ * 이벤트 알림 실패분을 다시 보낸다. 커서는 이미 지나갔으므로 훑기로는 다시 안 잡힌다 — 실패한 줄의 원문 · 받는 곳 · 언어로
+ * 그대로 다시 보낸다. 원래 키(`meta.retryKey`)로 잡으므로 다른 틱과 겹쳐도 한 번만, 성공하면 그 키가 「보냄」이 된다.
+ * 같은 알림은 `EVENT_RETRY_MAX_ATTEMPTS` 번까지(웹훅이 아예 죽었을 때 매 분 두드리지 않게).
+ */
+async function retryFailedEventDeliveries(supabase: Client, organizationId: string, jobKey: AutomationJobKey, now: Date): Promise<number> {
+  const failed = await supabase
+    .from("automation_runs")
+    .select("id, channel_key, locale, message, meta, target_date")
+    .eq("organization_id", organizationId)
+    .eq("job_key", jobKey)
+    .eq("trigger", "event")
+    .eq("status", "failed")
+    .or("meta->>retried.is.null,meta->>retried.eq.false")
+    .gte("created_at", new Date(now.getTime() - EVENT_RETRY_WINDOW_MS).toISOString())
+    .order("created_at", { ascending: true })
+    .limit(50);
+  if (failed.error) {
+    console.error("[automation] event retry read failed", { code: failed.error.code, job: jobKey });
+    return 0;
+  }
+  const destinations = (await loadDestinations(supabase, organizationId))[jobKey];
+  let resent = 0;
+  for (const row of failed.data ?? []) {
+    const meta = (row.meta ?? {}) as Record<string, unknown>;
+    const retryKey = typeof meta.retryKey === "string" ? meta.retryKey : null;
+    const attempt = typeof meta.attempt === "number" ? meta.attempt : 1;
+    if (!retryKey || meta.retried === true || !row.message || !row.locale || !row.channel_key) continue;
+    // 이 줄은 재시도 대상에서 뺀다(성공이든 실패든 새 줄이 생긴다).
+    await supabase.from("automation_runs").update({ meta: { ...meta, retried: true } as Json }).eq("id", row.id);
+    if (attempt >= EVENT_RETRY_MAX_ATTEMPTS) continue;
+    const destination = destinations.find((item) => item.channelKey === row.channel_key);
+    if (!destination || !destination.locales.includes(row.locale as AutomationLocale)) continue;
+    const result = await deliver(supabase, {
+      dedupeKey: retryKey,
+      destination,
+      jobKey,
+      locale: row.locale as AutomationLocale,
+      meta: { ...meta, attempt: attempt + 1, retried: false },
+      organizationId,
+      targetDate: row.target_date,
+      text: row.message,
+      trigger: "event",
+    });
+    if (result === "sent") resent += 1;
+  }
+  return resent;
 }
 
 async function recordSkip(
@@ -490,7 +587,7 @@ async function runScheduledJob(supabase: Client, organizationId: string, job: St
   await updateJobState(supabase, organizationId, jobKey, {
     ...(done ? { last_done_on: today } : {}),
     next_wake_at:
-      computeNextWake({ ...job, lastDoneOn: done ? today : job.lastDoneOn, recheckUntil }, now, { retryAfterFailure: !done })?.toISOString() ?? null,
+      computeNextWake({ ...job, lastDoneOn: done ? today : job.lastDoneOn, recheckEveryMinutes: job.settings.resend.debounceMinutes, recheckUntil }, now, { retryAfterFailure: !done })?.toISOString() ?? null,
   });
   return done ? "sent" : "retry";
 }
@@ -502,7 +599,7 @@ async function recheckJob(supabase: Client, organizationId: string, job: StoredJ
   const resend = job.settings.resend;
   const next = () =>
     updateJobState(supabase, organizationId, jobKey, {
-      next_wake_at: computeNextWake({ ...job, recheckUntil: resend.enabled ? resend.until : null }, now)?.toISOString() ?? null,
+      next_wake_at: computeNextWake({ ...job, recheckEveryMinutes: resend.debounceMinutes, recheckUntil: resend.enabled ? resend.until : null }, now)?.toISOString() ?? null,
     });
   if (!resend.enabled) {
     await next();
@@ -594,6 +691,7 @@ export async function sendJobNow(
  */
 async function scanEventJob(supabase: Client, organizationId: string, job: StoredJob, now: Date): Promise<string> {
   const jobKey = job.jobKey;
+  const retried = await retryFailedEventDeliveries(supabase, organizationId, jobKey, now);
   const cursor = job.eventCursor ?? now.toISOString();
   const changed = await supabase
     .from("reservations")
@@ -601,15 +699,37 @@ async function scanEventJob(supabase: Client, organizationId: string, job: Store
     .eq("organization_id", organizationId)
     .gt("updated_at", cursor)
     .order("updated_at", { ascending: true })
+    .order("id", { ascending: true })
     .limit(EVENT_SCAN_LIMIT);
   if (changed.error) {
     console.error("[automation] event scan failed", { code: changed.error.code, job: jobKey });
     return "scan_failed";
   }
   const rows = ((changed.data ?? []) as unknown as Record<string, unknown>[]).map(toAutomationReservation);
+  // 한 번에 몰아 저장하면 수정 시각이 **똑같은 줄이 수백 개** 생긴다(2026-10-01 실측 486개). 꽉 찬 페이지의 마지막 시각에
+  // 걸친 줄을 300개에서 자르고 커서를 그 시각으로 옮기면 나머지를 영영 건너뛴다(`gt`) — 그 시각의 줄은 **전부** 마저 읽는다.
+  // 이미 본 줄을 다시 봐도 `dedupe_key` 가 두 번 보내는 것을 막는다.
+  if (rows.length === EVENT_SCAN_LIMIT) {
+    const lastAt = rows[rows.length - 1].updatedAt;
+    const seen = new Set(rows.map((row) => row.id));
+    const tail = await readAllPages<Record<string, unknown>>((from, to) =>
+      supabase
+        .from("reservations")
+        .select(AUTOMATION_RESERVATION_SELECT)
+        .eq("organization_id", organizationId)
+        .eq("updated_at", lastAt)
+        .order("id", { ascending: true })
+        .range(from, to) as unknown as PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>,
+    );
+    if (tail.error) {
+      console.error("[automation] event scan tail failed", { job: jobKey, message: tail.error.message });
+      return "scan_failed";
+    }
+    for (const row of tail.data.map(toAutomationReservation)) if (!seen.has(row.id)) rows.push(row);
+  }
   if (rows.length === 0) {
     if (!job.eventCursor) await updateJobState(supabase, organizationId, jobKey, { event_cursor: cursor });
-    return "idle";
+    return retried > 0 ? `idle:retried:${retried}` : "idle";
   }
 
   const today = tokyoClock(now).date;
@@ -651,7 +771,7 @@ async function scanEventJob(supabase: Client, organizationId: string, job: Store
   }
 
   await updateJobState(supabase, organizationId, jobKey, { event_cursor: rows[rows.length - 1].updatedAt });
-  return `scanned:${rows.length}:${matches.length}`;
+  return `scanned:${rows.length}:${matches.length}${retried > 0 ? `:retried:${retried}` : ""}`;
 }
 
 // ── 1분 틱 ────────────────────────────────────────────────────────────────
@@ -663,6 +783,7 @@ export async function runAutomationTick(supabase: Client, now = new Date()): Pro
   if (!lock.acquired) return { results: [], status: "busy" };
   const results: TickSummary["results"] = [];
   try {
+    await releaseStuckClaims(supabase, now);
     const rows = await supabase.from("automation_jobs").select("*").eq("enabled", true);
     if (rows.error) throw new Error(rows.error.message);
     for (const row of rows.data ?? []) {
@@ -682,7 +803,7 @@ export async function runAutomationTick(supabase: Client, now = new Date()): Pro
           if (result === "rescheduled") {
             await updateJobState(supabase, organizationId, job.jobKey, {
               next_wake_at:
-                computeNextWake({ ...job, recheckUntil: job.settings.resend.enabled ? job.settings.resend.until : null }, now)?.toISOString() ?? null,
+                computeNextWake({ ...job, recheckEveryMinutes: job.settings.resend.debounceMinutes, recheckUntil: job.settings.resend.enabled ? job.settings.resend.until : null }, now)?.toISOString() ?? null,
             });
           }
         }

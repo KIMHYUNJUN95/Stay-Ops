@@ -210,7 +210,15 @@ export async function saveAutomationJob(input: SaveJobInput): Promise<{ ok: true
   const current = jobs[jobKey];
   const now = new Date();
   const nextWake = computeNextWake(
-    { enabled: current.enabled, lastDoneOn: current.lastDoneOn, recheckUntil: settings.resend.enabled ? settings.resend.until : null, retryUntil: input.retryUntil, sendTime: input.sendTime, weekdays },
+    {
+      enabled: current.enabled,
+      lastDoneOn: current.lastDoneOn,
+      recheckEveryMinutes: settings.resend.debounceMinutes,
+      recheckUntil: settings.resend.enabled ? settings.resend.until : null,
+      retryUntil: input.retryUntil,
+      sendTime: input.sendTime,
+      weekdays,
+    },
     now,
   );
 
@@ -233,13 +241,26 @@ export async function saveAutomationJob(input: SaveJobInput): Promise<{ ok: true
     return { error: "save_failed", ok: false };
   }
 
-  const removed = await supabase.from("automation_destinations").delete().eq("organization_id", organizationId).eq("job_key", jobKey);
-  if (removed.error) return { error: "save_failed", ok: false };
+  // 받는 곳: **새 것을 먼저 넣고(upsert) 빠진 것만 지운다.** 예전처럼 다 지우고 넣으면 넣기가 실패했을 때 받는 곳이 통째로
+  // 사라져 다음 발송이 「받는 곳 없음」으로 건너뛴다.
   if (destinations.length > 0) {
-    const inserted = await supabase.from("automation_destinations").insert(
+    const upserted = await supabase.from("automation_destinations").upsert(
       destinations.map((item) => ({ channel_key: item.channelKey, job_key: jobKey, locales: item.locales, organization_id: organizationId })),
+      { onConflict: "organization_id,job_key,channel_key" },
     );
-    if (inserted.error) return { error: "save_failed", ok: false };
+    if (upserted.error) return { error: "save_failed", ok: false };
+  }
+  const dropped = currentDestinations[jobKey]
+    .map((item) => item.channelKey)
+    .filter((channelKey) => !destinations.some((item) => item.channelKey === channelKey));
+  if (dropped.length > 0) {
+    const removed = await supabase
+      .from("automation_destinations")
+      .delete()
+      .eq("organization_id", organizationId)
+      .eq("job_key", jobKey)
+      .in("channel_key", dropped);
+    if (removed.error) return { error: "save_failed", ok: false };
   }
 
   await writeLog(
@@ -267,7 +288,12 @@ export async function setAutomationEnabled(jobKey: string, enabled: boolean): Pr
   const nextWake =
     AUTOMATION_JOB_KIND[jobKey] === "scheduled"
       ? computeNextWake(
-          { ...current, enabled, recheckUntil: current.settings.resend.enabled ? current.settings.resend.until : null },
+          {
+            ...current,
+            enabled,
+            recheckEveryMinutes: current.settings.resend.debounceMinutes,
+            recheckUntil: current.settings.resend.enabled ? current.settings.resend.until : null,
+          },
           now,
         )
       : null;

@@ -83,17 +83,18 @@ export function nextScheduledSend(job: ScheduleInput, now: Date): Date | null {
 }
 
 export const RETRY_AFTER_MS = 5 * 60 * 1000;
+/** 변동 재전송 · 정정본 확인 간격 기본값 — 설정 「확인 간격(분)」(`settings.resend.debounceMinutes`)이 있으면 그것. */
 export const RECHECK_EVERY_MS = 10 * 60 * 1000;
 
 /**
  * 틱이 이 자동화를 다시 볼 시각.
  *
  * - 정시 발송이 남았으면 그 시각(실패 직후면 5분 뒤 — 매 분 두드리지 않는다).
- * - 오늘 보냈고 「변동 재전송 / 정정본」 확인 창(`recheckUntil`) 안이면 10분마다.
+ * - 오늘 보냈고 「변동 재전송 / 정정본」 확인 창(`recheckUntil`) 안이면 「확인 간격」마다(기본 10분).
  * - 둘 중 이른 것.
  */
 export function computeNextWake(
-  job: ScheduleInput & { recheckUntil: string | null },
+  job: ScheduleInput & { recheckUntil: string | null; recheckEveryMinutes?: number },
   now: Date,
   options: { retryAfterFailure?: boolean } = {},
 ): Date | null {
@@ -111,7 +112,8 @@ export function computeNextWake(
   }
 
   if (job.recheckUntil && job.lastDoneOn === clock.date && clock.minutes < hhmmToMinutes(job.recheckUntil)) {
-    candidates.push(new Date(now.getTime() + RECHECK_EVERY_MS));
+    const every = job.recheckEveryMinutes && job.recheckEveryMinutes > 0 ? job.recheckEveryMinutes * 60_000 : RECHECK_EVERY_MS;
+    candidates.push(new Date(now.getTime() + every));
   }
 
   if (candidates.length === 0) return null;

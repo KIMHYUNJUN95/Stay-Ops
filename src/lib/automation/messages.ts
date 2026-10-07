@@ -237,8 +237,13 @@ export function dailySnapshotOf(stats: DailyStats): DailySnapshot {
   return { mtdNew: stats.mtdNew, revenue: Math.round(stats.revenue), totalCancel: stats.totalCancel, totalNew: stats.totalNew };
 }
 
+/**
+ * 변동 재전송을 할 만큼 바뀌었나 — **어제 숫자(신규 · 취소 · 매출)만** 본다. 당월 누적은 이번 달 예약이 오늘 취소될 때마다
+ * 바뀌어(하루 0 ~ 11건, 2026-09-29 ~ 10-06 실측) 거의 매일 재전송이 나가므로 기준에서 뺐다(2026-10-07 사용자 결정).
+ * 다른 이유로 재전송할 때 당월 누적 변동은 「변동」 줄에 같이 나온다.
+ */
 export function sameSnapshot(a: DailySnapshot, b: DailySnapshot): boolean {
-  return a.totalNew === b.totalNew && a.totalCancel === b.totalCancel && a.revenue === b.revenue && a.mtdNew === b.mtdNew;
+  return a.totalNew === b.totalNew && a.totalCancel === b.totalCancel && a.revenue === b.revenue;
 }
 
 export function buildDailyReportMessage(input: {

@@ -50,6 +50,8 @@ export type AutomationJobView = {
   weekdays: number[];
   settings: AutomationSettings;
   nextWakeAt: string | null;
+  /** 오늘 정시 발송을 끝낸 도쿄 날짜 — 켜기 · 저장 전 「지금 바로 나감」 경고에 쓴다. */
+  lastDoneOn: string | null;
   destinations: AutomationDestination[];
   runs: AutomationRunView[];
   logs: AutomationLogView[];
@@ -137,6 +139,7 @@ export async function getAutomationPageData(session: AppSession, locale: Locale)
         enabled: job.enabled,
         jobKey,
         kind: AUTOMATION_JOB_KIND[jobKey],
+        lastDoneOn: job.lastDoneOn,
         logs: logsByJob.get(jobKey) ?? [],
         nextWakeAt: job.nextWakeAt,
         retryUntil: job.retryUntil,

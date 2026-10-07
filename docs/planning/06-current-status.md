@@ -9,6 +9,12 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-07 — 자동화 디버깅
+
+- 정시 발송 재시도가 실패 줄의 중복 방지 키에 막혀 「완료」로 끝나던 것, 이벤트 알림 실패분이 다시 안 가던 것, 몰아 저장 시 같은 수정 시각 줄이 300개를 넘으면
+  알림이 빠지던 것, 「확인 간격」이 무시되던 것을 고침. 변동 재전송 기준에서 당월 누적을 뺌. 발송 시간대 안에서 켜기 · 저장 시 「바로 나감」 경고.
+  받는 곳 저장을 upsert + 빠진 것만 삭제로. 남은 것: 실패 알림 받는 곳(사용자). (`36` 「디버깅」)
+
 ## 2026-10-07 — 자동화 Slack 연결 · 저쪽 메시지와 대조 · 예약 바로가기
 
 - Slack 앱 「StayOps Automation」 웹훅 4개(일일 · 청소 · 취소 · 당일예약 채널)를 Vercel 에 등록(`SLACK_AUTOMATION_*`). 발송은 아직 꺼짐.

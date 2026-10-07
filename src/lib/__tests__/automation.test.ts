@@ -14,6 +14,7 @@ import {
   computeDailyStats,
   dailySnapshotOf,
   isFreshCancellation,
+  sameSnapshot,
   isSameDayBooking,
   type CleaningListModel,
 } from "@/lib/automation/messages";
@@ -65,6 +66,14 @@ describe("자동화 시각 (도쿄)", () => {
       "2026-10-05T22:10:00.000Z",
     );
     expect(computeNextWake({ ...job, enabled: false, recheckUntil: null }, now)).toBeNull();
+  });
+
+  // 2026-10-07 디버깅 — 화면의 「확인 간격(분)」이 저장만 되고 10분 고정으로 돌던 것.
+  it("확인 간격(분) 설정을 따른다", () => {
+    const now = at("2026-10-05T22:00:00Z"); // 07:00
+    expect(
+      computeNextWake({ ...job, lastDoneOn: "2026-10-06", recheckEveryMinutes: 30, recheckUntil: "18:00" }, now)?.toISOString(),
+    ).toBe("2026-10-05T22:30:00.000Z");
   });
 });
 
@@ -128,6 +137,14 @@ describe("일일 운영 리포트", () => {
     expect(result.cancelByChannel).toEqual({ airbnb: 1, booking: 0 });
     // 건물 줄은 0건이어도 전부 나온다(저쪽처럼).
     expect(result.buildings.map((item) => item.propertyName)).toEqual([...CALENDAR_BUILDING_ORDER]);
+  });
+
+  // 2026-10-07 — 당월 누적만 바뀐 것으로는 재전송하지 않는다(이번 달 예약이 오늘 취소될 때마다 바뀌어 매일 나갔다).
+  it("변동 재전송 기준 = 어제 신규 · 취소 · 매출, 당월 누적은 보지 않는다", () => {
+    const base = { mtdNew: 100, revenue: 5000, totalCancel: 3, totalNew: 10 };
+    expect(sameSnapshot(base, { ...base, mtdNew: 99 })).toBe(true);
+    expect(sameSnapshot(base, { ...base, totalNew: 9 })).toBe(false);
+    expect(sameSnapshot(base, { ...base, revenue: 4000 })).toBe(false);
   });
 
   it("메시지 — 한국어는 저쪽 형식, 영어는 영어로", () => {

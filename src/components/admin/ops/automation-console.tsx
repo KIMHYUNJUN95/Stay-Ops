@@ -24,6 +24,7 @@ import {
   type AutomationLocale,
   type AutomationSettings,
 } from "@/lib/automation/jobs";
+import { isScheduledSendDue } from "@/lib/automation/schedule";
 import type { Dictionary } from "@/lib/i18n";
 import "./automation.css";
 
@@ -293,6 +294,10 @@ export function AutomationConsole({
               })}
             </div>
             {job.destinations.length === 0 ? <div className="atm__warn">{copy.errors.no_destination}</div> : null}
+            {/* 발송 시간대 안에서 켜면 다음 틱(1분 안)에 바로 나간다 — 미리 알린다. */}
+            {job.kind === "scheduled" && job.destinations.length > 0 && isScheduledSendDue({ ...job, enabled: true }, new Date()) ? (
+              <div className="atm__warn">{fill(copy.sendsNowWarning, { until: job.retryUntil })}</div>
+            ) : null}
             <div className="atm__mf">
               <button className="atm__btn" onClick={() => setConfirmOn(false)} type="button">
                 {copy.cancel}
@@ -784,6 +789,13 @@ function SettingsPane({
     setDraft((current) => ({ ...current, settings: { ...current.settings, resend: { ...current.settings.resend, ...patch } } }));
 
   const save = () => {
+    // 켜져 있고 바꾼 시각 · 받는 곳으로 지금이 발송 시간대면, 저장 직후 틱이 바로 보낸다 — 한 번 묻는다.
+    const sendsNow =
+      timed &&
+      job.enabled &&
+      draft.destinations.length > 0 &&
+      isScheduledSendDue({ ...draft, enabled: true, lastDoneOn: job.lastDoneOn }, new Date());
+    if (sendsNow && !window.confirm(fill(copy.sendsNowWarning, { until: draft.retryUntil }))) return;
     startSave(async () => {
       const result = await saveAutomationJob({ jobKey: job.jobKey, ...draft });
       if (!result.ok) return flash(errorText(result.error));
