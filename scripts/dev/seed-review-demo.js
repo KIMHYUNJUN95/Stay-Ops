@@ -234,7 +234,7 @@ async function seedContent(db, must, orgId, ids) {
         organization_id: orgId,
         created_by_user_id: ids.ken,
         title: "Updated check-out cleaning checklist",
-        content: "From this week, please photograph the bathroom and the kitchen after each check-out cleaning and attach the photos to the cleaning record.",
+        content: "From this week, if you find any damage during check-out cleaning, please report it from the cleaning screen with a photo so the maintenance team can follow up.",
         status: "published",
         published_at: now,
         is_important: true,
